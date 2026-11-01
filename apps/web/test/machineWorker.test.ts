@@ -259,6 +259,21 @@ describe('MachineWorkerHost', () => {
     await host.handle(OPEN);
     links[0]?.disconnect();
     expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ status: { state: 'open' } });
+    expect(links[1]?.closed).toBe(0);
+  });
+
+  it('closes the transport on a disconnect even while its readable has not ended, so the port is released for the next open', async () => {
+    const t = new FakeTransport();
+    const host = new MachineWorkerHost(source('fake', () => t));
+    expect(await host.handle(OPEN)).toMatchObject({ ok: true });
+    t.disconnect();
+    await tick();
+    expect(t.closed).toBe(1);
+    expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ status: { state: 'idle' } });
+    // The readable ending afterwards closes nothing more: the guard ignores a second close.
+    t.feed(null);
+    await tick();
+    expect(t.closed).toBe(1);
   });
 
   it('treats a readable that errors as the link dropping: idle, the guard closed, a new open allowed', async () => {

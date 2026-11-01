@@ -14,10 +14,10 @@
  * - While a link is open, every byte read is counted (the link is drained,
  *   so the port's buffer never fills). Nothing is ever written: Phase 0 has
  *   no write path at all.
- * - The link is gone, and the worker returns to idle, on a disconnect
- *   (including one that happened while the port was still opening: the
- *   guard records it from construction) and whenever `readable` ends or
- *   fails without a `close` in progress.
+ * - The link is gone, and the worker returns to idle and closes the
+ *   transport, on a disconnect (including one that happened while the port
+ *   was still opening: the guard records it from construction) and whenever
+ *   `readable` ends or fails without a `close` in progress.
  *
  * It holds no session, account or network state (DECISIONS D1).
  */
@@ -98,7 +98,7 @@ export class MachineWorkerHost {
     const link: Link = { transport, bytesReceived: 0 };
     this.#link = link;
     this.#state = 'open';
-    transport.onDisconnect(() => this.#drop(link));
+    transport.onDisconnect(() => void this.#lost(link));
     void this.#drain(link);
     return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'open', info: Object.freeze({ ...transport.info() }) });
   }
@@ -130,7 +130,18 @@ export class MachineWorkerHost {
     } catch {
       // The link failed (a disconnect errors the stream).
     }
-    if (this.#link !== link || this.#state === 'closing') return;
+    if (this.#link === link && this.#state === 'closing') return;
+    await this.#lost(link);
+  }
+
+  /**
+   * The link is gone (a disconnect, or `readable` ended without a close):
+   * back to idle, and the transport is closed so the port is released and
+   * can be opened again (a Web Serial port left open after a disconnect
+   * keeps its state, and a later `open()` of it is refused). Closing twice
+   * is harmless: the guard and the transport ignore a second close.
+   */
+  async #lost(link: Link): Promise<void> {
     this.#drop(link);
     await link.transport.close().catch(() => undefined);
   }
