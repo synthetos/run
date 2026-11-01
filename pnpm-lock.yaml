@@ -97,7 +97,11 @@ importers:
         specifier: workspace:*
         version: link:../protocol
 
-  packages/testkit: {}
+  packages/testkit:
+    devDependencies:
+      '@synthetos/protocol':
+        specifier: workspace:*
+        version: link:../protocol
 
   packages/wiring: {}
 

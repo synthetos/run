@@ -1,7 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": [
-    "src",
-    "test"
-  ]
+  "compilerOptions": {
+    // MockSerialPort mirrors a DOM API (Web Streams, EventTarget, DOMException).
+    // Tests read STATUS.md and the firmware with node:fs / node:child_process;
+    // runtime source never imports Node built-ins (it also runs in the browser, P0-14).
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["src", "test", "scripts"]
 }
