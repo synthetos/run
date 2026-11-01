@@ -186,8 +186,22 @@ describe('the localhost bench build never appears in a workflow (P1-00)', () => 
     ['a bench vite build in the build job', '        run: pnpm --dir a --filter @synthetos/web build\n', '        run: pnpm --dir a --filter @synthetos/web exec vite build --mode bench\n'],
     ['packaging dist-bench', '            -cf artifact/run-web.tar -C a/apps/web/dist .\n', '            -cf artifact/run-web.tar -C a/apps/web/dist-bench .\n'],
     ['serving it', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: node tools/gates/src/bench/cli.ts\n'],
+    ['the bench Playwright suite (root script)', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: pnpm e2e:bench\n'],
+    ['the bench Playwright suite (e2e package)', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: pnpm --filter @synthetos/e2e e2e:bench\n'],
+    ['the bench Playwright config', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: pnpm --filter @synthetos/e2e exec playwright test -c playwright.bench.config.ts\n'],
+    ['vite -m bench', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: pnpm --filter @synthetos/web exec vite build -m bench\n'],
+    ['--mode with two spaces', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: pnpm --filter @synthetos/web exec vite build --mode  bench\n'],
+    ['a quoted --target', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: node tools/gates/src/bundle/cli.ts --target "bench" x\n'],
+    ['the root check script, which builds the bench artifact', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: pnpm check\n'],
+    ['the root check script through run', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: pnpm run check\n'],
   ])('%s fails', (_name, from, to) => {
     expect(rules(mutate(CI, from, to))).toContain('bench-never-in-ci');
+  });
+
+  it('does not trip on the committed workflow or on near names (ci-policy, another check: script)', () => {
+    expect(rules(CI)).not.toContain('bench-never-in-ci');
+    expect(rules(mutate(CI, '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: pnpm ci-policy\n'))).not.toContain('bench-never-in-ci');
+    expect(rules(mutate(CI, '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: pnpm check:licences\n'))).not.toContain('bench-never-in-ci');
   });
 
   it('applies to every workflow file, not only ci.yml', () => {

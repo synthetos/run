@@ -195,6 +195,20 @@ Nothing in the machine path imports the build channel
   every push is unwanted, the alternative is to keep `RUN_DEPLOY_ENABLED`
   for staging only, which needs a workflow change of its own.
 
+- **P1-01 will need one more gate change (not decided here).** RUN_PLAN
+  §5.4 has the window call `requestPort()` (it exists only on Window and
+  needs a user gesture) and read the chosen port's `getInfo()` and its
+  index in the window's own `getPorts()` to build the `PortSelector`
+  (docs/testing/fake-serial.md, "Recommended for P1-01"). The P1-00 gates
+  admit Web Serial in `packages/machine/src/webSerialTransport.ts` only,
+  which only the machine worker's seam may import, and the bundle scan
+  admits it only in `assets/serial/` (a worker chunk); so no main-thread
+  file can make that call today. P1-01 must either name exactly one
+  main-thread chooser module in every gate (lint, source check,
+  dependency-cruiser, its own page chunk in the scan), in its own reviewed
+  change, or the owner amends the ROADMAP wording "only in
+  machine/src/webSerialTransport.ts".
+
 **If the owner rejects it.** Remove the bench build (`apps/web/build/bench.ts`,
 `apps/web/src/channel/bench*.ts`, `tools/gates/src/bench/`, the bench scan
 target and the policy rule) in one reviewed change; staging and production

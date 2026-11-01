@@ -133,6 +133,20 @@ export const BENCH_REFERENCES: readonly string[] = [
   '--target=bench',
   'bench/cli.ts',
   'artifact/bench-cli.ts',
+  'e2e:bench',
+  'playwright.bench',
+];
+
+/**
+ * Spellings of the same thing that a substring list misses
+ * (`bench-never-in-ci`): any whitespace or `=` between the flag and `bench`,
+ * vite's short `-m`, and the root `pnpm check`, which builds and checks the
+ * bench artifact as one of its steps.
+ */
+export const BENCH_REFERENCE_PATTERNS: readonly RegExp[] = [
+  /(?:--mode|(?<![\w-])-m)(?:\s+|=)["']?bench(?![\w-])/,
+  /--target(?:\s+|=)["']?bench(?![\w-])/,
+  /\bpnpm\s+(?:run\s+)?check(?![\w:-])/,
 ];
 
 /** The build job's outputs: one sha256 per artifact file, each set by its `digests` step. */
@@ -392,6 +406,10 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
 
     for (const reference of BENCH_REFERENCES) {
       if (content.includes(reference)) add(line.no, 'bench-never-in-ci', `'${reference}': the localhost bench build is never built, scanned, served or deployed by CI`);
+    }
+    for (const pattern of BENCH_REFERENCE_PATTERNS) {
+      const found = pattern.exec(content);
+      if (found !== null) add(line.no, 'bench-never-in-ci', `'${found[0]}': the localhost bench build is never built, scanned, served or deployed by CI`);
     }
 
     if (/\b(pull_request_target|workflow_run)\b/.test(line.inBlock ? '' : content)) {
