@@ -6,11 +6,15 @@
  * This package has ZERO runtime npm dependencies and must never import
  * `contracts`, the cloud client, or any network API (RUN_PLAN §5.3).
  *
- * Firmware citations (`@cite`) use the PROTOCOL_NOTES §1 tags, pinned here
- * until P0-08 records them in `vendor/firmware-pins.json` (PIN-1):
+ * Firmware citations (`@cite`) use the PROTOCOL_NOTES §1 tags. The commits
+ * are pinned in `vendor/firmware-pins.json` (PIN-1), and a test keeps this
+ * list and that file in agreement:
  * - `EN`: TinyG `edge-next` @ ead63997 (`firmware/tinyg/`; `tests/hil/` for EN-HIL).
- * - `TG`: TinyG master @ d041839, build 440.21 (`firmware/tinyg/`).
- * - `G2`, `OLD-PN`: as PROTOCOL_NOTES §1.
+ * - `TG`: TinyG master @ d0418390, build 440.21 (`firmware/tinyg/`).
+ * - `S449`: TinyG origin/edge-0.97 @ c5024186, build 449.01 (`firmware/tinyg/`).
+ * - `G2`: g2 edge-preview @ 1fb59404 (`g2core/`); `MOT`: its `Motate/MotateProject/motate/`.
+ * - `G2W`: the g2 wiki @ 339ec97.
+ * - `OLD-PN`: docs/tools/PROTOCOL_NOTES.md of the design.
  */
 
 /** Package version. Kept equal to package.json `version` by the smoke test. */
@@ -41,3 +45,37 @@ export type { FrameEvent, FramedLine, Framer } from './frame.ts';
 export { MAX_TID, READY_MESSAGE, checksum440, classifyLine, parseFooter } from './classify.ts';
 export { createInboundDecoder, decodeInbound } from './inbound.ts';
 export type { InboundDecoder } from './inbound.ts';
+export { CAPABILITY_TOKENS, IDENTITY_TOKENS, PROBE_STATUS, PROBE_STEPS, SPINDLE_PAUSE_TOKEN, buildProbeResult } from './probe.ts';
+export type {
+  CapabilityToken,
+  IdentityToken,
+  ProbeKey,
+  ProbeObservations,
+  ProbeOutcome,
+  ProbeResult,
+  ProbeStep,
+  SpphAnswer,
+  TokenAnswer,
+} from './probe.ts';
+export {
+  APPROVED_BUILDS_FORMAT,
+  CHANNEL_PAYLOAD_FORMAT,
+  NO_APPROVED_BUILDS,
+  SIGNING_PREFIX,
+  environmentForOrigin,
+  findApproval,
+  verifyApprovedBuilds,
+} from './approvedBuilds.ts';
+export type {
+  ApprovedBuild,
+  ApprovedBuilds,
+  Channel,
+  ChannelRejection,
+  ChannelVerdict,
+  Environment,
+  VerifiedApprovedBuilds,
+  VerifyOptions,
+} from './approvedBuilds.ts';
+export { RELEASE_KEYS } from './releaseKeys.ts';
+export type { ReleaseKey } from './releaseKeys.ts';
+export * from './dialects/index.ts';

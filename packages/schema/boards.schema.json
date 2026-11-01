@@ -1,0 +1,186 @@
+{
+  "$comment": "Board definition schema (ROADMAP P0-08; RUN_PLAN §5.1 rule 6). A board definition describes one controller board and revision as data, so the UI is driven by the detected board, not by code. Definitions are generated from firmware sources at pinned commits (TB-05a); hand-authored overlays add what firmware does not know. Every fact records its source (src) and how it was verified. Validated by packages/schema/src/jsonSchema.ts, which refuses any keyword it does not implement.",
+  "$id": "urn:synthetos:run:board-definition:1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "id", "family", "name", "match", "source", "motors", "inputs", "outputs", "adc", "usb", "flasher", "defaults", "buildFlags"],
+  "properties": {
+    "format": { "const": "synthetos-board@1" },
+    "id": {
+      "description": "<board>@<revision>, as in boards/<family>/<board>@<revision>.json.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*@[a-z0-9][a-z0-9.-]*$",
+      "maxLength": 64
+    },
+    "family": { "description": "unknown only on a common subset for an unclassified board.", "enum": ["tinyg", "g2core", "unknown"] },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "match": {
+      "description": "Selection at connect: the reported hardware platform (hp) and the hardware versions (hv) this definition covers.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hp", "hv"],
+      "properties": {
+        "hp": { "type": ["integer", "string"] },
+        "hv": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": ["integer", "string"] } }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "firmware", "note"],
+      "properties": {
+        "kind": { "enum": ["fixture", "generated", "commonSubset"] },
+        "firmware": { "description": "Pinned firmware tag and commit, e.g. EN@ead63997.", "type": "string", "pattern": "^[A-Z0-9]+@[0-9a-f]{7,40}$|^none$" },
+        "note": { "type": "string" }
+      }
+    },
+    "motors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "microsteps", "currentSetting"],
+      "properties": {
+        "count": { "$ref": "#/$defs/factCount" },
+        "driver": { "$ref": "#/$defs/factText" },
+        "microsteps": { "$ref": "#/$defs/factMicrosteps" },
+        "currentSetting": { "$ref": "#/$defs/factCurrentSetting" }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "functions"],
+      "properties": {
+        "count": { "$ref": "#/$defs/factCount" },
+        "functions": { "$ref": "#/$defs/factInputFunctions" },
+        "typeSetting": { "$ref": "#/$defs/factText" }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/output" }
+    },
+    "adc": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/adcChannel" }
+    },
+    "usb": {
+      "type": "array",
+      "maxItems": 4,
+      "items": { "$ref": "#/$defs/usbIdentity" }
+    },
+    "flasher": { "$ref": "#/$defs/factFlasher" },
+    "defaults": { "$ref": "#/$defs/factText" },
+    "buildFlags": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*(=[A-Za-z0-9_.-]+)?$" }
+    }
+  },
+  "$defs": {
+    "src": { "type": "string", "minLength": 3, "maxLength": 300 },
+    "verified": {
+      "description": "source: read in firmware source at the pinned commit; bench: measured on hardware; hardware-repo: checked against the private hardware sources (recorded, never published, RUN_PLAN §5.1 rule 6); unverified: neither.",
+      "enum": ["source", "bench", "hardware-repo", "unverified"]
+    },
+    "factCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "src", "verified"],
+      "properties": {
+        "value": { "type": "integer", "minimum": 0, "maximum": 64 },
+        "src": { "$ref": "#/$defs/src" },
+        "verified": { "$ref": "#/$defs/verified" }
+      }
+    },
+    "factText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "src", "verified"],
+      "properties": {
+        "value": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "src": { "$ref": "#/$defs/src" },
+        "verified": { "$ref": "#/$defs/verified" }
+      }
+    },
+    "factMicrosteps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "src", "verified"],
+      "properties": {
+        "value": { "type": "array", "uniqueItems": true, "maxItems": 10, "items": { "enum": [1, 2, 4, 8, 16, 32, 64, 128, 256] } },
+        "src": { "$ref": "#/$defs/src" },
+        "verified": { "$ref": "#/$defs/verified" }
+      }
+    },
+    "factCurrentSetting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "src", "verified"],
+      "properties": {
+        "value": { "description": "board: set on the board (trimpot); firmware: set by a setting; unknown.", "enum": ["board", "firmware", "unknown"] },
+        "src": { "$ref": "#/$defs/src" },
+        "verified": { "$ref": "#/$defs/verified" }
+      }
+    },
+    "factInputFunctions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "src", "verified"],
+      "properties": {
+        "value": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "type": "string", "pattern": "^(limit-(min|max)-[xyzabc]|general-[0-9]+|probe|estop-sense)$" }
+        },
+        "src": { "$ref": "#/$defs/src" },
+        "verified": { "$ref": "#/$defs/verified" }
+      }
+    },
+    "factFlasher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "src", "verified"],
+      "properties": {
+        "value": { "description": "none means the app never flashes this board.", "enum": ["xboot-avr109", "sam-ba-bossa", "none"] },
+        "src": { "$ref": "#/$defs/src" },
+        "verified": { "$ref": "#/$defs/verified" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "src", "verified"],
+      "properties": {
+        "id": { "enum": ["spindleEnable", "spindleDirection", "spindlePwm", "coolant", "coolantMist", "coolantFlood"] },
+        "polarityToken": { "description": "The firmware setting that sets this output's active level.", "type": "string", "pattern": "^[a-z]{2,6}$" },
+        "note": { "type": "string", "maxLength": 200 },
+        "src": { "$ref": "#/$defs/src" },
+        "verified": { "$ref": "#/$defs/verified" }
+      }
+    },
+    "adcChannel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "src", "verified"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^adc[0-9]{1,2}$" },
+        "src": { "$ref": "#/$defs/src" },
+        "verified": { "$ref": "#/$defs/verified" }
+      }
+    },
+    "usbIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vendorId", "productId", "role", "src", "verified"],
+      "properties": {
+        "vendorId": { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "productId": { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "role": { "enum": ["control", "bootloader", "refuse"] },
+        "src": { "$ref": "#/$defs/src" },
+        "verified": { "$ref": "#/$defs/verified" }
+      }
+    }
+  }
+}

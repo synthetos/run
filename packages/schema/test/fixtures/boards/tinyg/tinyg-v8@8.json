@@ -1,0 +1,39 @@
+{
+  "format": "synthetos-board@1",
+  "id": "tinyg-v8@8",
+  "family": "tinyg",
+  "name": "TinyG v8",
+  "match": { "hp": 1, "hv": [8] },
+  "source": {
+    "kind": "fixture",
+    "firmware": "EN@ead63997",
+    "note": "Hand-written test fixture from TinyG edge-next ead63997 sources and the EN-HIL board file (tests/hil/boards/tinyg-v8.json). The generator (TB-05a) replaces it with generated boards/tinyg/*.json."
+  },
+  "motors": {
+    "count": { "value": 4, "src": "EN tinyg.h:90 (MOTORS 4)", "verified": "source" },
+    "microsteps": { "value": [1, 2, 4, 8], "src": "EN stepper.c:1302 (other values warn as non-standard)", "verified": "source" },
+    "currentSetting": { "value": "board", "src": "No motor-current setting in EN config_app.c; current is set on the board", "verified": "unverified" }
+  },
+  "inputs": {
+    "count": { "value": 8, "src": "EN switch.h:66-75 (SW_MIN_X..SW_MAX_A)", "verified": "source" },
+    "functions": {
+      "value": ["limit-min-x", "limit-max-x", "limit-min-y", "limit-max-y", "limit-min-z", "limit-max-z", "limit-min-a", "limit-max-a"],
+      "src": "EN switch.h:66-75; EN-HIL tests/hil/boards/tinyg-v8.json switches",
+      "verified": "source"
+    },
+    "typeSetting": { "value": "st", "src": "EN global switch type st, NO/NC (PROTOCOL_NOTES §12.2, E106)", "verified": "source" }
+  },
+  "outputs": [
+    { "id": "spindleEnable", "polarityToken": "spep", "src": "EN hardware.h:181; config_app.c:649", "verified": "source" },
+    { "id": "spindleDirection", "polarityToken": "spdp", "src": "EN hardware.h:182; config_app.c:650", "verified": "source" },
+    { "id": "spindlePwm", "src": "EN hardware.h:183", "verified": "source" },
+    { "id": "coolant", "note": "Mist and flood share one output.", "src": "EN hardware.h:184-185", "verified": "source" }
+  ],
+  "adc": [],
+  "usb": [
+    { "vendorId": 1027, "productId": 24597, "role": "control", "src": "FT230X default 0403:6015; EN-HIL tinyg-v8.json serial.usb_vid_pid (B-ID-1 open)", "verified": "unverified" }
+  ],
+  "flasher": { "value": "xboot-avr109", "src": "PROTOCOL_NOTES §13.1 (xboot 1.7, AVR109)", "verified": "source" },
+  "defaults": { "value": "firmware/tinyg/settings/settings_default.h", "src": "EN settings/settings_default.h", "verified": "source" },
+  "buildFlags": []
+}

@@ -9,3 +9,8 @@
 
 /** Package version. Kept equal to package.json `version` by the smoke test. */
 export const VERSION = '0.0.0';
+
+export { validateSchema } from './jsonSchema.ts';
+export type { Schema, SchemaError } from './jsonSchema.ts';
+export { BOARD_SCHEMA, commonSubset, parseBoardDefinition, selectBoard } from './boards.ts';
+export type { BoardDefinition, BoardIdentity, BoardOutput, BoardSelection, Fact, OutputId, ParsedBoard, Verified } from './boards.ts';

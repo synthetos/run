@@ -1,0 +1,59 @@
+{
+  "format": "synthetos-run/firmware-pins@1",
+  "note": "PIN-1 (PROTOCOL_NOTES §15): every firmware fact in code cites file:line at one of these commits. Re-pin, re-check every citation and review the diff at each firmware bump (CODEOWNERS: owner).",
+  "pins": {
+    "EN": {
+      "repo": "https://github.com/synthetos/TinyG",
+      "ref": "edge-next",
+      "commit": "ead639978c77601b150be7ef12774f47eed4c824",
+      "committed": "2026-10-31T22:50:58-04:00",
+      "fb": 450.01,
+      "fv": 0.97,
+      "paths": "firmware/tinyg/ (EN), tests/hil/ (EN-HIL)",
+      "status": "candidate",
+      "note": "Edge-next is not pushed publicly and its release build number is not final (D4): the bench manifest approves this commit only. Classification never relies on fb alone (PN §2.3)."
+    },
+    "TG": {
+      "repo": "https://github.com/synthetos/TinyG",
+      "ref": "master",
+      "commit": "d04183905470714254c24d299f6aad75f6bcbb7a",
+      "committed": "2026-10-29T13:08:22-04:00",
+      "fb": 440.21,
+      "fv": 0.97,
+      "paths": "firmware/tinyg/",
+      "status": "released",
+      "note": "GitHub release 440.21; EN-HIL d440.json was generated from this commit."
+    },
+    "S449": {
+      "repo": "https://github.com/synthetos/TinyG",
+      "ref": "edge-0.97",
+      "commit": "c50241864d7a42f36b8adff4e44a46c907720ecc",
+      "committed": "2016-10-23T08:13:06-04:00",
+      "fb": 449.01,
+      "fv": 0.97,
+      "paths": "firmware/tinyg/",
+      "status": "released",
+      "note": "Stock edge-0.97; EN-HIL d449.json was generated from this commit (PN §11). Read-only dialect."
+    },
+    "G2": {
+      "repo": "https://github.com/synthetos/g2",
+      "ref": "edge-preview",
+      "commit": "1fb59404dcbf6e827f54b2c3146d8d1cab561c90",
+      "committed": "2023-07-20T13:21:20-05:00",
+      "fb": 101.06,
+      "fv": 0.99,
+      "paths": "g2core/ (G2), Motate/MotateProject/motate/ (MOT), Resources/",
+      "status": "private-build",
+      "note": "fb 101.06 is labelled PRIVATE BUILD in g2core_info.h. Read-only dialect until Phase 7."
+    },
+    "G2W": {
+      "repo": "https://github.com/synthetos/g2.wiki",
+      "ref": "master",
+      "commit": "339ec971984660f341f7b5e0e8df3bcf84af9608",
+      "committed": "2023-03-13T02:02:58+11:00",
+      "paths": "*.md",
+      "status": "documentation",
+      "note": "Used only where the source is silent (line-mode protocol)."
+    }
+  }
+}

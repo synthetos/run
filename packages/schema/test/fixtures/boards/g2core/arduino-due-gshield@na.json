@@ -1,0 +1,39 @@
+{
+  "format": "synthetos-board@1",
+  "id": "arduino-due-gshield@na",
+  "family": "g2core",
+  "name": "Arduino Due with gShield",
+  "match": { "hp": "ArduinoDue", "hv": ["na"] },
+  "source": {
+    "kind": "fixture",
+    "firmware": "G2@1fb5940",
+    "note": "Hand-written test fixture from g2 edge-preview 1fb5940 (board/ArduinoDue with gShield-pinout.h; build flags from board/ArduinoDue.mk:26-33). The generator (TB-05a) replaces it with generated boards/g2core/*.json."
+  },
+  "motors": {
+    "count": { "value": 3, "src": "The gShield carries three drivers (overlay fact; board/ArduinoDue/hardware.h:61 sizes MOTORS 4 for the Due)", "verified": "unverified" },
+    "microsteps": { "value": [1, 2, 4, 8], "src": "G2 board/ArduinoDue/gShield-pinout.h:136-138 (two MS pins); device/step_dir_driver/step_dir_driver.h:120-142", "verified": "source" },
+    "currentSetting": { "value": "board", "src": "G2 board/ArduinoDue/gShield-pinout.h:139 (no Vref pin)", "verified": "source" }
+  },
+  "inputs": {
+    "count": { "value": 10, "src": "G2 board/ArduinoDue/board_gpio.h:40 (D_IN_CHANNELS 10)", "verified": "source" },
+    "functions": {
+      "value": ["general-1", "general-2", "general-3", "general-4", "general-5", "general-6", "general-7", "general-8", "general-9", "general-10"],
+      "src": "G2 digital inputs are assigned by di<n>fn settings (OLD-PN §10, gpio.h:69-86)",
+      "verified": "source"
+    }
+  },
+  "outputs": [
+    { "id": "spindleEnable", "polarityToken": "spep", "src": "G2 board/ArduinoDue/gShield-pinout.h:206; spindle.cpp:483", "verified": "source" },
+    { "id": "spindlePwm", "src": "G2 board/ArduinoDue/gShield-pinout.h:208", "verified": "source" },
+    { "id": "coolant", "src": "G2 board/ArduinoDue/gShield-pinout.h:210", "verified": "source" }
+  ],
+  "adc": [],
+  "usb": [
+    { "vendorId": 7504, "productId": 24685, "role": "control", "src": "G2 board/ArduinoDue/board_xio.cpp:38-39", "verified": "source" },
+    { "vendorId": 1003, "productId": 24868, "role": "bootloader", "src": "G2 Resources/TinyGv2.inf:31 (SAM-BA)", "verified": "source" },
+    { "vendorId": 9025, "productId": 61, "role": "refuse", "src": "G2 Resources/TinyGv2.inf:32 (Due programming port)", "verified": "source" }
+  ],
+  "flasher": { "value": "sam-ba-bossa", "src": "OLD-PN §13.2 (SAM-BA via BOSSA; Phase 7)", "verified": "source" },
+  "defaults": { "value": "g2core/settings/settings_default.h", "src": "G2 settings/settings_default.h", "verified": "source" },
+  "buildFlags": ["BOARD=gShield", "BASE_BOARD=g2core-due", "MOTATE_BOARD=gShield"]
+}

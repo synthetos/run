@@ -36,6 +36,17 @@
 /apps/web/public/_headers           @ril3y
 /apps/web/src/security/             @ril3y
 
+# --- ROADMAP P0-08 additions --------------------------------------------
+# Who may stream: the capability probe, the classifier, the signed
+# approved-builds manifest and the keys that verify it (SAFETY H44, H27,
+# §8 item 28), and the firmware pins every protocol citation rests on (PIN-1).
+/packages/protocol/src/probe.ts          @ril3y
+/packages/protocol/src/approvedBuilds.ts @ril3y
+/packages/protocol/src/releaseKeys.ts    @ril3y
+/firmware/                               @ril3y
+/vendor/firmware-pins.json               @ril3y
+/packages/schema/boards.schema.json      @ril3y
+
 # --- The gates that enforce the rules above (P0-03 addition) -------------
 # A change here can switch off a safety gate, leak the deploy token or
 # remove a required reviewer, so it is owned like the safety path itself.

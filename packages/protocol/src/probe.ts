@@ -1,0 +1,199 @@
+/**
+ * The read-only capability probe (ROADMAP P0-08; PN §2.3; SAFETY H44, H49).
+ *
+ * `PROBE_STEPS` is the probe as data: one allowlisted GET per line, one key
+ * per line, in order. It never sends G-code (an unsupported word raises ALARM
+ * on stock 449, E042), never reads `adc3` (it starts an ADC conversion on the
+ * SPI2/J13 pin, @cite EN config_app.c:660), and never reads a token with side
+ * effects (E138, PN §12.3). The first line written at connect is `{"sr":null}`:
+ * it completes and spoils any partial line a previous sender left in the RX
+ * ring, so that line never runs (PN §2.3 step 0, H49).
+ *
+ * Timing, the one-line-in-flight rule, the single `{"sr":null}` retry and the
+ * ORPHANED_MOTION path on silence belong to the machine (P1). This module only
+ * says what to send and turns the answers into a `ProbeResult`.
+ *
+ * `hv` is read in addition to PN §2.3 step 2: board selection needs it
+ * (RUN_PLAN §5.1 rule 6, `hp`/`hv` pick the board definition), and the banner
+ * that also carries it is absent when connecting to a board already powered.
+ */
+import type { Banner, JsonValue, Response } from './types.ts';
+
+/** Status codes the probe interprets. Probing happens before classification, so these hold on every family. */
+export const PROBE_STATUS = Object.freeze({
+  OK: 0,
+  /** STAT_FUNCTION_IS_STUBBED (@cite EN error.h:92; TG tinyg.h:280; G2 error.h:84). */
+  STUBBED: 17,
+  /** STAT_UNRECOGNIZED_NAME (@cite EN error.h:192; TG tinyg.h:378; G2 error.h:186). */
+  UNRECOGNIZED: 100,
+});
+
+/** Identity tokens (PN §2.3 step 2, plus `hv`). */
+export const IDENTITY_TOKENS = Object.freeze(['fb', 'fv', 'hp', 'id', 'hv'] as const);
+/** Edge-next capability tokens (PN §2.3 step 3; @cite EN config_app.c:649-667). */
+export const CAPABILITY_TOKENS = Object.freeze(['spep', 'prbp', 'fstk', 'os'] as const);
+/** EN answers 17 (stubbed) while E060 is not merged (PN §2.3 step 4; @cite EN config_app.c:64-68, :652). */
+export const SPINDLE_PAUSE_TOKEN = 'spph';
+
+export type IdentityToken = (typeof IDENTITY_TOKENS)[number];
+export type CapabilityToken = (typeof CAPABILITY_TOKENS)[number];
+export type ProbeKey = 'sr' | IdentityToken | CapabilityToken | typeof SPINDLE_PAUSE_TOKEN;
+
+export interface ProbeStep {
+  readonly key: ProbeKey;
+  /** The line to write, without its terminator (the transport adds LF). */
+  readonly line: string;
+  readonly stage: 'spliceGuard' | 'identity' | 'capability' | 'spindlePause';
+}
+
+function get(key: ProbeKey, stage: ProbeStep['stage']): ProbeStep {
+  return Object.freeze({ key, line: `{"${key}":null}`, stage });
+}
+
+/** The probe, in order. Every line is a single-key GET. */
+export const PROBE_STEPS: readonly ProbeStep[] = Object.freeze([
+  get('sr', 'spliceGuard'),
+  ...IDENTITY_TOKENS.map((k) => get(k, 'identity')),
+  ...CAPABILITY_TOKENS.map((k) => get(k, 'capability')),
+  get(SPINDLE_PAUSE_TOKEN, 'spindlePause'),
+]);
+
+/** How a capability token answered. `other` is any other status, or a malformed answer. */
+export type TokenAnswer = 'value' | 'unrecognized' | 'other';
+export type SpphAnswer = 'stubbed' | 'value' | 'unrecognized' | 'other';
+
+/**
+ * What the probe learned (RUN_PLAN §5.5 `ProbeResult`). Two additions:
+ * `hv` (board selection) and `conflicts`, every inconsistency seen while
+ * reading the answers. Any conflict makes the classifier return READ_ONLY.
+ */
+export interface ProbeResult {
+  readonly banner: 'r-footer' | 'bare-sr' | 'none';
+  readonly footerRev: 1 | 2 | 3;
+  readonly fb?: number;
+  readonly fv?: number;
+  readonly hp?: number | string;
+  readonly hv?: number | string;
+  readonly id?: string;
+  readonly tokens: Readonly<Record<CapabilityToken, TokenAnswer>>;
+  readonly spph: SpphAnswer;
+  /** Build hash: on g2core banners today; proposed for edge-next (D4). */
+  readonly fbs?: string;
+  /** Capability bitmask: proposed for edge-next (D4); no build reports it yet. */
+  readonly cap?: number;
+  readonly conflicts: readonly string[];
+}
+
+export interface ProbeObservations {
+  /** The boot banner seen during the probe, if any (none is normal on a board already powered). */
+  readonly banner?: Banner;
+  /** The board's answer to each GET of `PROBE_STEPS` after `sr`, keyed by token. */
+  readonly answers: ReadonlyMap<ProbeKey, Response>;
+}
+
+export type ProbeOutcome =
+  | { readonly ok: true; readonly result: ProbeResult }
+  /** The probe cannot be classified at all: the board stays unclassified (SAFETY §3). */
+  | { readonly ok: false; readonly reason: 'missing-answer' | 'footer-revision-changed'; readonly key: ProbeKey };
+
+type IdentityValues = { fb?: number; fv?: number; hp?: number | string; hv?: number | string; id?: string };
+
+/** Turn the probe answers into a `ProbeResult`. Pure; never throws. */
+export function buildProbeResult(obs: ProbeObservations): ProbeOutcome {
+  const steps = PROBE_STEPS.filter((s) => s.stage !== 'spliceGuard');
+  let footerRev: 1 | 2 | 3 | undefined;
+  for (const step of steps) {
+    const answer = obs.answers.get(step.key);
+    if (answer === undefined) return { ok: false, reason: 'missing-answer', key: step.key };
+    // The footer revision is fixed per board configuration; a change means a reset or a reconfiguration.
+    if (footerRev !== undefined && answer.footer.rev !== footerRev) {
+      return { ok: false, reason: 'footer-revision-changed', key: step.key };
+    }
+    footerRev = answer.footer.rev;
+  }
+
+  const conflicts: string[] = [];
+  const answer = (key: ProbeKey): Response => obs.answers.get(key) as Response;
+  for (const step of steps) {
+    // The probe sends no tid, so an echoed one answers some other request (SAFETY §3).
+    if (answer(step.key).tid !== undefined) conflicts.push(`${step.key}: unexpected tid`);
+  }
+
+  const identity: IdentityValues = {};
+  for (const key of IDENTITY_TOKENS) {
+    const r = answer(key);
+    const value = singleValue(r, key);
+    if (r.footer.status !== PROBE_STATUS.OK || value === undefined) {
+      conflicts.push(`${key}: no value (status ${r.footer.status})`);
+      continue;
+    }
+    if (!assignIdentity(identity, key, value)) conflicts.push(`${key}: unexpected type`);
+  }
+
+  if (obs.banner !== undefined) {
+    for (const key of ['fb', 'fv', 'hp', 'hv', 'id'] as const) {
+      const fromBanner = obs.banner[key];
+      const fromGet = identity[key];
+      if (fromBanner !== undefined && fromGet !== undefined && fromBanner !== fromGet) {
+        conflicts.push(`${key}: banner says ${String(fromBanner)}, GET says ${String(fromGet)}`);
+      }
+    }
+  }
+
+  const tokens = Object.fromEntries(CAPABILITY_TOKENS.map((k) => [k, tokenAnswer(answer(k), k)])) as Record<
+    CapabilityToken,
+    TokenAnswer
+  >;
+  const spph = spphAnswer(answer(SPINDLE_PAUSE_TOKEN));
+
+  const fbs = obs.banner?.fbs;
+  const result: ProbeResult = Object.freeze({
+    banner: obs.banner?.shape ?? 'none',
+    footerRev: footerRev as 1 | 2 | 3,
+    ...identity,
+    tokens: Object.freeze(tokens),
+    spph,
+    ...(fbs === undefined ? {} : { fbs }),
+    conflicts: Object.freeze(conflicts),
+  });
+  return { ok: true, result };
+}
+
+/** The value of `key` when `r` holds exactly that one key (one key per line, PN §4). */
+function singleValue(r: Response, key: string): JsonValue | undefined {
+  const keys = Object.keys(r.r);
+  return keys.length === 1 && keys[0] === key ? r.r[key] : undefined;
+}
+
+function assignIdentity(out: IdentityValues, key: IdentityToken, value: JsonValue): boolean {
+  switch (key) {
+    case 'fb':
+    case 'fv':
+      if (typeof value !== 'number') return false;
+      out[key] = value;
+      return true;
+    case 'hp':
+    case 'hv':
+      // A number on TinyG, a string on g2core (OLD-PN §2.2).
+      if (typeof value !== 'number' && typeof value !== 'string') return false;
+      out[key] = value;
+      return true;
+    case 'id':
+      if (typeof value !== 'string') return false;
+      out.id = value;
+      return true;
+  }
+}
+
+function tokenAnswer(r: Response, key: CapabilityToken): TokenAnswer {
+  if (r.footer.status === PROBE_STATUS.UNRECOGNIZED) return 'unrecognized';
+  if (r.footer.status === PROBE_STATUS.OK && singleValue(r, key) !== undefined) return 'value';
+  return 'other';
+}
+
+function spphAnswer(r: Response): SpphAnswer {
+  if (r.footer.status === PROBE_STATUS.STUBBED) return 'stubbed';
+  if (r.footer.status === PROBE_STATUS.UNRECOGNIZED) return 'unrecognized';
+  if (r.footer.status === PROBE_STATUS.OK && singleValue(r, SPINDLE_PAUSE_TOKEN) !== undefined) return 'value';
+  return 'other';
+}

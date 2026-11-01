@@ -7,7 +7,10 @@ account.
 
 > **Status: Phase 0 (foundations).** Nothing in this repository can open a
 > serial port or move a machine. Packages are filled in task by task; so far
-> `protocol` has inbound framing and classification (P0-07).
+> `protocol` has inbound framing and classification (P0-07) and the dialect
+> data, read-only capability probe, capability classifier and signed
+> approved-builds manifest (P0-08), and `schema` has the board definition
+> schema and board selection (P0-08).
 
 > **This software is not an emergency stop.** Any machine it drives must have
 > a hardwired, latching E-stop that removes motor and spindle power in
@@ -31,6 +34,8 @@ account.
 | `apps/web` | The workspace UI (Preact, Vite multi-page app) |
 | `apps/cli` | Bench tooling (Node) |
 | `workers/run` | The Cloudflare Worker serving the app, `/api/*` and `/auth/*`, and the single source of the security headers (`src/headers.ts`) |
+| `firmware` | `approved-builds.json`: the signed per-environment manifest of firmware builds allowed full support (its reviewed source is `approved-builds.unsigned.json`; signing: `docs/ops/release-key.md`) |
+| `vendor` | `firmware-pins.json`: the firmware commits every protocol citation is pinned to (PIN-1) |
 | `test-fixtures` | Captured controller output used by tests: `forum-json/` (lines quoted in the archived forum, with source URLs) and `en-hil/` (TinyG edge-next HIL harness transcripts) |
 | `tools/gates` | **Dev only.** The repository's lint rules, the licence gate, the gate acceptance tests, and the deploy tools (preflight, asset retention, smoke test) |
 | `tools/e2e` | **Dev only.** Playwright against `wrangler dev`, serving the local build (`pnpm e2e`) or the attested artifact (`pnpm e2e:artifact`, the CI `e2e` job): exact headers, CSP enforcement, Trusted Types, and the origin guard on every test, plus the third-party canary |

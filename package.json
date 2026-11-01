@@ -27,7 +27,8 @@
     "e2e:artifact": "pnpm build && node tools/e2e/src/artifact-local.ts",
     "gen:contrast": "node tools/gates/src/tokens/contrast-cli.ts",
     "gen:icons": "node tools/gates/src/icons/gen.ts",
-    "tokens:drift": "node tools/gates/src/tokens/drift-cli.ts"
+    "tokens:drift": "node tools/gates/src/tokens/drift-cli.ts",
+    "sign:builds": "node tools/gates/src/release/sign-cli.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
