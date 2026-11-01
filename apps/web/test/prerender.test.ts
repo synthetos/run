@@ -9,7 +9,7 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { Fragment, h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
-import { CANNOT_GUARANTEE, w1, w10, w16, w2Label } from '@synthetos/safety';
+import { CANNOT_GUARANTEE, w1, w10, w16, w22, w2Label } from '@synthetos/safety';
 import { BODY_MARKER, prerenderPage } from '../build/prerender.ts';
 import { PAGES } from '../src/pages/registry.ts';
 import { OUTBOUND, OUTBOUND_URLS } from '../src/pages/outbound.ts';
@@ -68,6 +68,27 @@ describe('the /safety/ page', () => {
     expect(list).not.toBeNull();
     const items = [...(list?.[1] ?? '').matchAll(/<li>(.*?)<\/li>/gs)].map((m) => decoded(m[1] as string));
     expect(items).toEqual([...CANNOT_GUARANTEE]);
+  });
+
+  it('the sign-out rule matches the amended W22 in SAFETY.md, word for word (batch 6, finding P0-05 W22)', () => {
+    const safetyMd = readFileSync(resolve(web, '../../SAFETY.md'), 'utf8');
+    const entry = /^- \*\*W22 [^*]*:\*\* "([^"]+)"$/m.exec(safetyMd);
+    expect(entry, 'SAFETY.md has a W22 entry').not.toBeNull();
+    const quoted = entry?.[1] as string;
+    expect(w22()).toBe(quoted);
+    const block = /<p data-safety="W22"[^>]*>(.*?)<\/p>/s.exec(html);
+    expect(block, 'the page quotes W22 in a data-safety="W22" element').not.toBeNull();
+    expect(decoded((block?.[1] ?? '').replace(/<[^>]+>/g, ''))).toBe(quoted);
+    // The plain-language rule names every action W22 says needs a new sign-in.
+    const gated = /Sign in again to (.+?)\./.exec(quoted)?.[1] ?? '';
+    const actions = gated.replace(/,? or /, ', ').split(', ');
+    expect(actions).toEqual(['start a job', 'jog', 'home', 'change settings']);
+    const rule = /<li data-safety-rule="sign-out">(.*?)<\/li>/s.exec(html);
+    expect(rule).not.toBeNull();
+    const ruleText = decoded((rule?.[1] ?? '').replace(/<[^>]+>/g, ''));
+    for (const words of ['starting a job', 'jogging', 'homing', 'changing settings']) expect(ruleText).toContain(words);
+    // The old text said sign-out only blocks new jobs, which W22 no longer allows.
+    expect(visible).not.toMatch(/only prevents starting new ones/);
   });
 
   it('explains the stop categories, using the W2, W10 and W16 strings', () => {

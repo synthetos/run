@@ -1,5 +1,5 @@
 import { h, type ComponentChildren, type ComponentChild } from 'preact';
-import { CANNOT_GUARANTEE, w10, w16, w2Label } from '@synthetos/safety';
+import { CANNOT_GUARANTEE, w10, w16, w22, w2Label } from '@synthetos/safety';
 import { type BuildInfo, versionLabel } from '../../build-info/buildInfo.ts';
 import { OUTBOUND } from '../outbound.ts';
 import { StaticPage } from '../StaticPage.ts';
@@ -83,7 +83,12 @@ export function SafetyPage({ build }: { readonly build: BuildInfo }): ComponentC
         'ul',
         null,
         h('li', null, 'Only the browser tab connected to the machine controls it. Nothing on Synthetos servers can start, stop or change your machine.'),
-        h('li', null, 'Pause, Stop job, spindle off and the recovery controls never need you to be signed in. Signing out, an expired session or a lost internet connection never stops or changes a job that is already running; it only prevents starting new ones.'),
+        h(
+          'li',
+          { 'data-safety-rule': 'sign-out' },
+          'Pause, Stop job, spindle off and the recovery controls never need you to be signed in. Signing out, an expired session or a lost internet connection never stops or changes a job that is already running. Until you sign in again, starting a job, jogging, homing and changing settings are refused, and cloud save is paused. If this happens while a machine is connected, the workspace shows:',
+          h('p', { 'data-safety': 'W22' }, w22()),
+        ),
         h('li', null, 'Files and settings saved in your account are not checked for safety. Review every change before you use it on a machine.'),
       ),
       h('h3', null, 'Who it is for'),
