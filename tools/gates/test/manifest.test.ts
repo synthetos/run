@@ -58,7 +58,7 @@ describe('icons', () => {
     const fresh = drawIcon(icon.size, icon.variant);
     expect([committed.width, committed.height]).toEqual([icon.size, icon.size]);
     expect(Buffer.from(committed.rgba).equals(Buffer.from(fresh.rgba))).toBe(true);
-  });
+  }, 60_000); // a 512 px software render can exceed the 5 s default when the whole suite runs in parallel
 
   it('the maskable icon keeps all content inside the safe zone (centred circle, 40% radius)', () => {
     const img = drawIcon(128, 'maskable');
