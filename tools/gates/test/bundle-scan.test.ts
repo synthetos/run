@@ -3,7 +3,7 @@
  * literal or network identifier outside apps/web/src/cloud").
  */
 import { describe, expect, it } from 'vitest';
-import { CLOUD_ASSET_DIR, type BundleFile, NAMESPACE_URIS, scanBundle, scanText, SELF_ORIGINS } from '../src/bundle/scan.ts';
+import { CLOUD_ASSET_DIR, type BundleFile, NAMESPACE_URIS, OUTBOUND_URLS, scanBundle, scanText, SELF_ORIGINS } from '../src/bundle/scan.ts';
 import { NETWORK_IDENTIFIERS } from '../src/shared/networkIdentifiers.ts';
 import { renderHeadersFile } from '../../../workers/run/src/headers.ts';
 
@@ -142,5 +142,39 @@ describe('licence texts', () => {
   it('allows that URL by exact match only', () => {
     expect(rules('licenses/x.txt', 'see https://evil.example/OFL')).toEqual(['origin-literal']);
     expect(rules('licenses/x.txt', 'see http://scripts.sil.org/OFL.evil')).toEqual(['origin-literal']);
+  });
+});
+
+describe('outbound links (P0-05)', () => {
+  const url = 'https://support.google.com/chrome/answer/12929150';
+
+  it('the reviewed list is the one the pages use, and every entry is https', () => {
+    expect(OUTBOUND_URLS).toContain(url);
+    for (const u of OUTBOUND_URLS) expect(u).toMatch(/^https:\/\//);
+  });
+
+  it('allows a reviewed URL as the href of an <a> in an HTML page', () => {
+    expect(rules('safety/index.html', `<p>See <a href="${url}" rel="noopener noreferrer">Chrome Help</a>.</p>`)).toEqual([]);
+    expect(rules('safety/index.html', `<a class="x" href='${url}'>x</a>`)).toEqual([]);
+  });
+
+  it('refuses the same URL as a resource or outside an anchor', () => {
+    expect(rules('index.html', `<link rel="stylesheet" href="${url}">`)).toEqual(['origin-literal']);
+    expect(rules('index.html', `<img src="${url}">`)).toEqual(['origin-literal']);
+    expect(rules('index.html', `<area href="${url}">`)).toEqual(['origin-literal']);
+    expect(rules('index.html', `<p>${url}</p>`)).toEqual(['origin-literal']);
+    expect(rules('index.html', `<a title="${url}" href="/">x</a>`)).toEqual(['origin-literal']);
+    expect(rules('index.html', `<a href="${url}?x=1">x</a>`)).toEqual(['origin-literal']);
+  });
+
+  it('refuses it in scripts, styles and other text files', () => {
+    expect(rules('assets/workspace-abc.js', `location.href="${url}"`)).toEqual(['origin-literal']);
+    expect(rules('assets/base.css', `a{background:url("${url}")}`)).toEqual(['origin-literal']);
+    expect(rules('manifest.webmanifest', `{"start_url":"${url}"}`)).toEqual(['origin-literal']);
+  });
+
+  it('refuses an unreviewed URL even in an anchor', () => {
+    expect(rules('index.html', '<a href="https://evil.example/">x</a>')).toEqual(['origin-literal']);
+    expect(rules('index.html', '<a href="https://support.google.com/chrome/answer/1">x</a>')).toEqual(['origin-literal']);
   });
 });

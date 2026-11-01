@@ -132,7 +132,7 @@ describe('the remaining P0-02 rules', () => {
   it('testkit reached transitively from an entry fails dependency-cruiser', { timeout: TIMEOUT }, () => {
     const repo = fresh();
     repo.append(
-      'apps/web/src/shell/Shell.tsx',
+      'apps/web/src/shell/Shell.ts',
       "import { TESTKIT_MARKER } from '../../../../packages/testkit/src/index.ts';\nexport const _m = TESTKIT_MARKER;\n",
     );
     const result = repo.deps();
@@ -248,7 +248,7 @@ describe('the remaining P0-02 rules', () => {
     const text = `WARNING ${'—'} This software is not an emergency stop.`;
     repo.write('packages/safety/src/strings.ts', `export const W1 = (): string => '${text}';\n`);
     { const r = repo.lint(); expect(r.status, r.output).toBe(0); }
-    repo.append('apps/web/src/shell/Shell.tsx', `export const BAR = '${text}';\n`);
+    repo.append('apps/web/src/shell/Shell.ts', `export const BAR = '${text}';\n`);
     expectFailure(repo.lint(), 'run/no-signal-word-literal');
   });
 
@@ -279,7 +279,7 @@ describe('the remaining P0-02 rules', () => {
   it('navigator.serial reached through an alias fails lint', { timeout: TIMEOUT }, () => {
     const repo = fresh();
     repo.append(
-      'apps/web/src/shell/Shell.tsx',
+      'apps/web/src/shell/Shell.ts',
       'declare const navigator: { serial: { requestPort(): Promise<unknown> } };\n' +
         'const nav = navigator;\nexport const open = () => nav.serial.requestPort();\n',
     );

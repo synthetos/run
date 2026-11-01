@@ -1,24 +1,66 @@
 /*
- * Base styles for every page (ROADMAP P0-04). The blueprint theme, tokens
- * and component styles arrive in P0-05; this file only sets the self-hosted
- * type so the CSP (`style-src 'self'; font-src 'self'`) is exercised by the
- * production shell from the start.
+ * Base styles for every page (ROADMAP P0-05): the synthetos.com "blueprint"
+ * (Datasheet) look, extended to an application. Tokens are in tokens.css;
+ * component styles in components.css. Only this file is imported by the
+ * entries, so every page gets the same, complete stylesheet.
  */
 @import './fonts.css';
+@import './tokens.css';
+@import './components.css';
 
-:root {
-  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
-  --font-condensed: 'IBM Plex Sans Condensed', 'IBM Plex Sans', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 6rem; }
+html, body { margin: 0; padding: 0; }
+
+/* Drafting paper: the site's fine grid on --paper. */
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font: 400 1rem/1.55 var(--sans);
+  overflow-x: clip;
 }
 
-html {
-  font-family: var(--font-sans);
+a { color: var(--blue); text-underline-offset: 3px; }
+a:hover { color: var(--blue-dk); }
+:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+
+h1, h2, h3 {
+  font-family: var(--cond);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.5em;
+}
+h1 { font-size: clamp(1.9rem, 4vw, 3rem); font-weight: 700; }
+h2 { font-size: clamp(1.3rem, 2.2vw, 1.6rem); }
+h3 { font-size: 1.15rem; margin-top: 1.4em; }
+p { margin: 0 0 1em; }
+ul, ol { padding-left: 1.3em; margin: 0 0 1.2em; }
+li { margin: 0.3em 0; }
+li::marker { color: var(--muted); }
+
+code, kbd, pre, samp { font-family: var(--mono); }
+code {
+  font-size: 0.9em;
+  background: var(--grid);
+  padding: 1px 6px;
 }
 
-code,
-kbd,
-pre,
-samp {
-  font-family: var(--font-mono);
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.muted { color: var(--muted); }
+.mono { font-family: var(--mono); }
+
+@media (max-width: 640px) {
+  html { scroll-padding-top: 12rem; }
 }

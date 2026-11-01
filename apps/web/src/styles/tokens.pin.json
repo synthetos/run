@@ -1,0 +1,12 @@
+{
+  "comment": "The synthetos.com ref the theme tokens in tokens.css were copied from (ROADMAP P0-05). Check with: pnpm tokens:drift --site <path to a synthetos.com clone>. Move the ref only together with a fresh copy of the tokens.",
+  "repository": "synthetos/synthetos.com",
+  "ref": "53a8af1ffe6c8bfa1e1b9315fd10fcc220e029a3",
+  "light": { "file": "src/styles.css", "selector": [":root"] },
+  "dark": { "file": "src/themes/dark.css", "selector": ["[data-theme=\"dark\"]"] },
+  "copied": [
+    "--paper", "--sheet", "--ink", "--muted", "--rule", "--grid", "--field",
+    "--blue", "--blue-dk", "--blue-wash", "--on-blue", "--ok",
+    "--sans", "--cond", "--mono"
+  ]
+}

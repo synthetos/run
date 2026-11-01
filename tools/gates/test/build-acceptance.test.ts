@@ -53,8 +53,8 @@ describe('reproducible build', () => {
       // timestamp leaks into a bundle.
       const config = repo.read('apps/web/vite.config.ts');
       const patched = config.replace(
-        "    base: '/',",
-        "    base: '/',\n    define: { __BUILD_TIME__: JSON.stringify(new Date().toISOString() + process.hrtime.bigint().toString()) },",
+        'define: { __RUN_BUILD__: JSON.stringify(build) },',
+        'define: { __RUN_BUILD__: JSON.stringify(build), __BUILD_TIME__: JSON.stringify(new Date().toISOString() + process.hrtime.bigint().toString()) },',
       );
       expect(patched).not.toBe(config);
       repo.write('apps/web/vite.config.ts', patched);
@@ -110,8 +110,8 @@ describe('bundle scan on the real build', () => {
 
   it('a network identifier outside apps/web/src/cloud fails the scan', { timeout: TIMEOUT }, () => {
     const repo = fresh();
-    repo.append('apps/web/src/shell/Shell.tsx', "\nexport const ping = (): Promise<Response> => fetch('/api/health');\n");
-    repo.append('apps/web/src/entries/workspace.ts', "\nimport { ping } from '../shell/Shell.tsx';\nvoid ping();\n");
+    repo.append('apps/web/src/shell/Shell.ts', "\nexport const ping = (): Promise<Response> => fetch('/api/health');\n");
+    repo.append('apps/web/src/entries/workspace.ts', "\nimport { ping } from '../shell/Shell.ts';\nvoid ping();\n");
     built(repo);
     const result = repo.scan();
     expect(result.status, result.output).toBe(1);

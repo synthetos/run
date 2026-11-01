@@ -75,7 +75,7 @@ describe('which paths need the safety review', () => {
   });
 
   it('excludes ordinary UI and docs', () => {
-    expect(touchedSafetyPaths(['apps/web/src/shell/Shell.tsx', 'README.md', 'packages/wiring/src/index.ts', 'workers/run/src/index.ts'])).toEqual([]);
+    expect(touchedSafetyPaths(['apps/web/src/shell/Shell.ts', 'README.md', 'packages/wiring/src/index.ts', 'workers/run/src/index.ts'])).toEqual([]);
   });
 });
 

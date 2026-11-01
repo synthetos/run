@@ -9,7 +9,7 @@ import { join } from 'node:path';
 
 export default function globalSetup(): void {
   const dist = join(import.meta.dirname, '../../apps/web/dist');
-  for (const file of ['index.html', '404.html', '_headers']) {
+  for (const file of ['index.html', 'safety/index.html', 'privacy/index.html', '404.html', '_headers', 'manifest.webmanifest']) {
     if (!existsSync(join(dist, file))) {
       throw new Error(`e2e: ${join(dist, file)} is missing. Build first: pnpm build (or run pnpm e2e from the repository root).`);
     }

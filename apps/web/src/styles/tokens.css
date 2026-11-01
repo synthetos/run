@@ -1,0 +1,124 @@
+/*
+ * Design tokens for run.synthetos.com (ROADMAP P0-05, RUN_PLAN §7.1 "Visual
+ * design").
+ *
+ * 1. THEME TOKENS: copied from the synthetos.com "Datasheet" theme
+ *    (src/styles.css :root for light, src/themes/dark.css for dark) at the
+ *    ref pinned in tokens.pin.json. Never edit these by hand: change the site,
+ *    move the pin, copy, and run `pnpm tokens:drift` (tools/gates/src/tokens).
+ *    The site is never imported (RUN_PLAN §5.3).
+ *
+ * 2. SAFETY TOKENS: run's own, layered on top of the theme. They win over
+ *    the theme, are never pencil-blue, are always paired with text, an icon
+ *    and a pattern, and are validated for contrast in both themes
+ *    (docs/design/contrast.md, generated and tested by
+ *    tools/gates/src/tokens/contrast.ts): at least 4.5:1 as text and 3:1 as
+ *    non-text against --sheet and --paper.
+ *
+ * 3. SAFETY BAR TOKENS: the bar and its stop control look the same in both
+ *    themes (signal orange, black, white), so nothing themed can resemble
+ *    them and an operator recognises them in either theme.
+ *
+ * Dark mode follows the OS (`prefers-color-scheme`) unless the theme toggle
+ * has set `data-theme` on <html>. The two dark blocks below must stay
+ * identical; a test compares them.
+ *
+ * A change to the safety or safety-bar tokens needs safety-path review.
+ */
+
+:root {
+  /* 1. Theme tokens, light (site src/styles.css :root). */
+  --paper: #f6f8f9;
+  --sheet: #ffffff;
+  --ink: #15222c;
+  --muted: #4f5f6a;
+  --rule: #c7d2d9;
+  --grid: #e3e9ed;
+  --field: #8d9ca6;
+  --blue: #1d5aa6;
+  --blue-dk: #154680;
+  --blue-wash: #e8f0f9;
+  --on-blue: #ffffff;
+  --ok: #1e7a45;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cond: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* 2. Safety tokens, light. */
+  --danger: #b3261e;
+  --warn: #8a5300;
+  --live: #8e1f8e;
+  --state-run: #146c43;
+  --state-hold: #935000;
+  --state-alarm: #a4161a;
+
+  /* 3. Safety bar tokens (the same in both themes). */
+  --bar-bg: #ff9e1b;
+  --bar-fg: #111111;
+  --hazard-dark: #111111;
+  --hazard-light: #ff9e1b;
+  --band-bg: #ffffff;
+  --band-fg: #111111;
+  --band-hatch: #d9d9d9;
+  --stop-bg: #111111;
+  --on-stop: #ffffff;
+  --stop-mark: #ff4d40;
+
+  color-scheme: light;
+}
+
+/* Dark theme, chosen by the OS. Keep identical to the block below. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* 1. Theme tokens, dark (site src/themes/dark.css). */
+    --paper: #0d161d;
+    --sheet: #131f28;
+    --ink: #e4ebf0;
+    --muted: #a1b0bb;
+    --rule: #2c3d4a;
+    --grid: #1b2a35;
+    --field: #4f6474;
+    --blue: #7db0f5;
+    --blue-dk: #a6c9f8;
+    --blue-wash: #1a2d42;
+    --on-blue: #0d161d;
+    --ok: #5fcf8e;
+
+    /* 2. Safety tokens, dark. */
+    --danger: #ff8a80;
+    --warn: #ffc857;
+    --live: #f08cf0;
+    --state-run: #6fdc9b;
+    --state-hold: #ffb454;
+    --state-alarm: #ff6b6b;
+
+    color-scheme: dark;
+  }
+}
+
+/* Dark theme, chosen with the theme toggle. Keep identical to the block above. */
+:root[data-theme="dark"] {
+  /* 1. Theme tokens, dark (site src/themes/dark.css). */
+  --paper: #0d161d;
+  --sheet: #131f28;
+  --ink: #e4ebf0;
+  --muted: #a1b0bb;
+  --rule: #2c3d4a;
+  --grid: #1b2a35;
+  --field: #4f6474;
+  --blue: #7db0f5;
+  --blue-dk: #a6c9f8;
+  --blue-wash: #1a2d42;
+  --on-blue: #0d161d;
+  --ok: #5fcf8e;
+
+  /* 2. Safety tokens, dark. */
+  --danger: #ff8a80;
+  --warn: #ffc857;
+  --live: #f08cf0;
+  --state-run: #6fdc9b;
+  --state-hold: #ffb454;
+  --state-alarm: #ff6b6b;
+
+  color-scheme: dark;
+}

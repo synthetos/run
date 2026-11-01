@@ -8,11 +8,14 @@
  * stands in for code outside the repository.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 
 export const REPO_ROOT = resolve(import.meta.dirname, '../../..');
+
+/** The commit SHA scratch builds report (they are copies, not git checkouts). */
+export const SCRATCH_BUILD_SHA = '5c7a7c405c7a7c405c7a7c405c7a7c405c7a7c40';
 
 const WORKSPACE_GROUPS = ['packages', 'apps', 'workers', 'tools'];
 
@@ -53,10 +56,33 @@ export class ScratchRepo {
     return scratch;
   }
 
+  /**
+   * Links a node_modules directory into the copy. The root's is linked whole.
+   * A workspace package's is rebuilt entry by entry, so that links to other
+   * workspace packages (`@synthetos/*`) point into the copy, not back into
+   * the real tree, while installed npm packages are shared.
+   */
   private linkNodeModules(relativeDir: string): void {
     const source = join(REPO_ROOT, relativeDir, 'node_modules');
     const target = join(this.root, relativeDir, 'node_modules');
-    if (existsSync(source) && existsSync(dirname(target))) symlinkSync(source, target, 'dir');
+    if (!existsSync(source) || !existsSync(dirname(target))) return;
+    if (relativeDir === '.') {
+      symlinkSync(source, target, 'dir');
+      return;
+    }
+    const link = (from: string, to: string): void => {
+      mkdirSync(dirname(to), { recursive: true });
+      const real = realpathSync(from);
+      const inRepo = real.startsWith(`${REPO_ROOT}/`) && !real.includes('/node_modules/');
+      symlinkSync(inRepo ? join(this.root, relative(REPO_ROOT, real)) : from, to, 'dir');
+    };
+    for (const entry of readdirSync(source)) {
+      if (entry.startsWith('@')) {
+        for (const scoped of readdirSync(join(source, entry))) link(join(source, entry, scoped), join(target, entry, scoped));
+      } else {
+        link(join(source, entry), join(target, entry));
+      }
+    }
   }
 
   /** Writes (creating directories as needed) a file relative to the copy's root. */
@@ -108,10 +134,11 @@ export class ScratchRepo {
    * `pnpm --filter web build`: Vite with the repository's web config, in the
    * copy. Vitest sets NODE_ENV=test, which the web config refuses to build
    * under, so the build gets the environment CI gives it (NODE_ENV unset)
-   * unless `nodeEnv` says otherwise.
+   * unless `nodeEnv` says otherwise. The copy is not a git checkout, so the
+   * build gets a fixed commit SHA for the version chip (apps/web/build/buildInfo.ts).
    */
   buildWeb(nodeEnv?: string): GateResult {
-    const env: NodeJS.ProcessEnv = { ...process.env };
+    const env: NodeJS.ProcessEnv = { ...process.env, RUN_BUILD_SHA: SCRATCH_BUILD_SHA };
     delete env['NODE_ENV'];
     if (nodeEnv !== undefined) env['NODE_ENV'] = nodeEnv;
     return this.run([join(this.root, 'apps/web/node_modules/vite/bin/vite.js'), 'build', '--logLevel', 'warn'], join(this.root, 'apps/web'), env);

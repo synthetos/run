@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite';
+import { buildInfo } from './build/buildInfo.ts';
 import { CLOUD_CHUNK_NAME, chunkPolicy } from './build/chunks.ts';
+import { prerender } from './build/prerender.ts';
 
 const chunks = chunkPolicy(import.meta.dirname);
 
@@ -19,8 +21,13 @@ function assertProductionBuild(command: string): void {
 
 export default defineConfig(({ command }) => {
   assertProductionBuild(command);
+  const build = buildInfo(import.meta.dirname);
   return {
     base: '/',
+    // Every page is prerendered from the Preact components (build/prerender.ts).
+    plugins: [prerender(build)],
+    // The version chip's values for the client bundle (src/env.d.ts).
+    define: { __RUN_BUILD__: JSON.stringify(build) },
     // Preact automatic JSX runtime, configured directly (no extra plugin).
     // `development: false` keeps file paths and source positions out of the
     // bundle whatever the mode.
@@ -41,10 +48,12 @@ export default defineConfig(({ command }) => {
       rolldownOptions: {
         // Multi-page app: one HTML input per page, relative to the project root.
         // 404.html is the asset layer's not-found page (wrangler.jsonc
-        // `not_found_handling: 404-page`). /safety/ and the other static
-        // pages join in P0-05.
+        // `not_found_handling: 404-page`). Each page is registered in
+        // src/pages/registry.ts, which the prerender plugin enforces.
         input: {
           workspace: 'index.html',
+          safety: 'safety/index.html',
+          privacy: 'privacy/index.html',
           notFound: '404.html',
         },
         output: {

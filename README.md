@@ -12,7 +12,7 @@ account.
 > **This software is not an emergency stop.** Any machine it drives must have
 > a hardwired, latching E-stop that removes motor and spindle power in
 > hardware. Read the safety contract before connecting a machine: it is
-> `SAFETY.md` in this repository, and will be published at `/safety/`.
+> `SAFETY.md` in this repository, and is the `/safety/` page of the app.
 
 ## Layout
 
@@ -107,7 +107,20 @@ pnpm --filter web build
 ```
 
 `pnpm check` runs typecheck, the gates, tests, the build and the bundle scan
-in that order.
+in that order. `pnpm e2e` builds and runs the Playwright suite against
+`wrangler dev` (`RUN_SCREENSHOTS=1` also writes the review screenshots to
+`docs/design/screenshots/p0-05/`).
+
+Pages and theme (P0-05): every page (`index.html`, `safety/`, `privacy/`,
+`404.html`) is prerendered at build time from the Preact components in
+`apps/web/src/shell/` and `apps/web/src/pages/`, so the safety bar and its W1
+warning are in the HTML before any script runs. Every W and C string comes
+from `packages/safety/src/strings.ts`, tested byte for byte against
+`SAFETY.md` §5–§6 (T-S32). The bundle's version chip uses the commit SHA
+(`git rev-parse HEAD`, or `RUN_BUILD_SHA`). Theme tokens, the token drift
+check (`pnpm tokens:drift --site <synthetos.com clone>`), the contrast table
+(`pnpm gen:contrast`) and the icons (`pnpm gen:icons`) are described in
+`docs/design/tokens.md`.
 Its nested `pnpm` calls need pnpm on `PATH` (`corepack enable`).
 
 Dependency hygiene: versions are pinned exactly (`save-exact`), install

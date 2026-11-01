@@ -18,6 +18,11 @@
  *   `globalThis['fetch']` is caught too.
  * - `unknown-file-type`: a file the scan cannot classify. The scan fails
  *   closed rather than skip it.
+ * - Outbound links (P0-05): the exact URLs in apps/web/src/pages/outbound.ts
+ *   are allowed, and only as the `href` of an `<a>` element in an HTML page.
+ *   A link is navigation the user chooses; it loads nothing into the page.
+ *   The same URL anywhere else (a `<link>`, `<img>`, CSS, a script, or a
+ *   JavaScript chunk) is still an `origin-literal` finding.
  * - `headers-file` (P0-04): the static-assets `_headers` file at the dist
  *   root is missing or differs from `renderHeadersFile()` in
  *   workers/run/src/headers.ts. Cloudflare applies that file to every asset
@@ -33,6 +38,7 @@
 import { CLOUD_ASSET_DIR } from '../../../../apps/web/build/chunks.ts';
 import { NETWORK_IDENTIFIERS } from '../shared/networkIdentifiers.ts';
 import { renderHeadersFile } from '../../../../workers/run/src/headers.ts';
+import { OUTBOUND_URLS } from '../../../../apps/web/src/pages/outbound.ts';
 
 export { CLOUD_ASSET_DIR };
 
@@ -58,6 +64,23 @@ export const NAMESPACE_URIS: readonly string[] = [
  * which nothing loads as code.
  */
 export const LICENCE_TEXT_URIS: readonly string[] = ['http://scripts.sil.org/OFL'];
+
+/** The reviewed outbound links (P0-05), allowed only as `<a href>` in HTML. */
+export { OUTBOUND_URLS };
+
+/**
+ * True when the URL starting at `index` in an HTML file is the whole value of
+ * an `href` attribute of an `<a>` start tag: the tag is `<a ` and the
+ * attribute value is quoted and ends right after the URL.
+ */
+function isAnchorHref(text: string, index: number, url: string): boolean {
+  const quote = text[index - 1];
+  if ((quote !== '"' && quote !== "'") || text[index + url.length] !== quote) return false;
+  if (!/\shref=$/i.test(text.slice(Math.max(0, index - 7), index - 1))) return false;
+  const tagStart = text.lastIndexOf('<', index);
+  if (tagStart === -1 || text.lastIndexOf('>', index) > tagStart) return false;
+  return /^<a\s/i.test(text.slice(tagStart, tagStart + 3));
+}
 
 /** Where licence texts live in dist (apps/web/public/licenses/). */
 const LICENCE_TEXT_RE = /^licenses\/[^/]+\.txt$/;
@@ -135,6 +158,7 @@ export function scanText(path: string, text: string): ScanFinding[] {
     if (NAMESPACE_URIS.includes(url)) continue;
     if (LICENCE_TEXT_RE.test(path) && LICENCE_TEXT_URIS.includes(url)) continue;
     if (cloud && isSelfOrigin(url)) continue;
+    if (ext === '.html' && OUTBOUND_URLS.includes(url) && isAnchorHref(text, match.index ?? 0, url)) continue;
     findings.push({ file: path, rule: 'origin-literal', match: clip(url) });
   }
   for (const match of text.matchAll(SCRIPT_URL_RE)) {

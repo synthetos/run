@@ -1,5 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The T-S32 tests read SAFETY.md with node:fs. Runtime source never uses
+    // Node built-ins: dependency-cruiser's safety-path-no-node-core refuses it.
+    "types": ["node"]
+  },
   "include": [
     "src",
     "test"

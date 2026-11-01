@@ -23,11 +23,16 @@
     "scan": "node tools/gates/src/bundle/cli.ts apps/web/dist",
     "repro": "node tools/gates/src/repro/local.ts",
     "gen:headers": "node tools/gates/src/headers/gen.ts",
-    "e2e": "pnpm build && pnpm --filter @synthetos/e2e e2e"
+    "e2e": "pnpm build && pnpm --filter @synthetos/e2e e2e",
+    "gen:contrast": "node tools/gates/src/tokens/contrast-cli.ts",
+    "gen:icons": "node tools/gates/src/icons/gen.ts",
+    "tokens:drift": "node tools/gates/src/tokens/drift-cli.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.64.0",
     "@types/node": "22.20.5",
+    "axe-core": "4.14.0",
     "dependency-cruiser": "18.5.0",
     "eslint": "10.12.0",
     "fast-check": "4.10.2",

@@ -9,3 +9,6 @@
 
 /** Package version. Kept equal to package.json `version` by the smoke test. */
 export const VERSION = '0.0.0';
+
+export * from './strings.ts';
+export { CANNOT_GUARANTEE } from './contract.ts';
