@@ -1,0 +1,67 @@
+# The `safety-review` check (ROADMAP P0-03, SAFETY §8).
+#
+# A pull request that touches a safety-review path
+# (tools/gates/src/shared/safetyPaths.ts) passes only with the SAFETY §8
+# checklist from .github/pull_request_template.md fully ticked and two
+# approvals of its head commit from reviewers other than the author.
+# Branch protection makes this a required check (docs/ops/branch-protection.md).
+#
+# The check runs the gate code from the PR's BASE commit, never from the PR
+# itself, so a PR cannot weaken the check that judges it. It holds no secret
+# and only read permissions; the PR body reaches the script through env:.
+
+name: safety-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+    branches: [main]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: safety-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  safety-review:
+    name: safety-review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out the base commit (the reviewed gate code)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Fetch the changed files, the reviews and the description
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --paginate --slurp > "$RUNNER_TEMP/files.json"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" --paginate --slurp > "$RUNNER_TEMP/reviews.json"
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/body.md"
+      - name: Check the checklist and the approvals
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node tools/gates/src/review/cli.ts \
+            --files "$RUNNER_TEMP/files.json" \
+            --reviews "$RUNNER_TEMP/reviews.json" \
+            --body-file "$RUNNER_TEMP/body.md" \
+            --author "$PR_AUTHOR" \
+            --head-sha "$HEAD_SHA"

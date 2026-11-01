@@ -1,0 +1,43 @@
+# CODEOWNERS for synthetos/run (ROADMAP P0-03, SAFETY §8).
+#
+# The owner is a required reviewer for every path below. Branch protection
+# must enable "Require review from Code Owners" for this file to bind
+# (docs/ops/branch-protection.md). `pnpm ci-policy` (run in the verify job)
+# fails if any path that SAFETY §8 lists is missing here, or if a later line
+# takes it away from the owner. In CODEOWNERS the LAST matching line wins, so
+# never add a broader pattern below these.
+#
+# There is deliberately no `*` default: other paths need one approval from
+# any maintainer.
+
+# --- SAFETY §8: the owner is a required reviewer ------------------------
+/SAFETY.md                          @ril3y
+/packages/safety/src/strings.ts     @ril3y
+/packages/safety/src/allowMatrix.ts @ril3y
+/packages/protocol/src/dialects/**  @ril3y
+/packages/schema/allowlists/**      @ril3y
+/packages/machine/src/stop*.ts      @ril3y
+/packages/flasher/**                @ril3y
+/safety-advisory.json               @ril3y
+/firmware/manifest.json             @ril3y
+/workers/run/src/headers.ts         @ril3y
+
+# --- ROADMAP P0-03 additions --------------------------------------------
+# Vendored firmware tables (RUN_PLAN §8.2: on a firmware bump the diff is
+# reviewed by the owner) and the lockfile (RUN_PLAN §6.2).
+/vendor/tinyg-hil-tables/**         @ril3y
+/pnpm-lock.yaml                     @ril3y
+
+# --- The gates that enforce the rules above (P0-03 addition) -------------
+# A change here can switch off a safety gate, leak the deploy token or
+# remove a required reviewer, so it is owned like the safety path itself.
+/.github/                           @ril3y
+/.dependency-cruiser.cjs            @ril3y
+/eslint.config.js                   @ril3y
+/tools/gates/                       @ril3y
+/apps/web/build/                    @ril3y
+/apps/web/vite.config.ts            @ril3y
+/ci/                                @ril3y
+/pnpm-workspace.yaml                @ril3y
+/.npmrc                             @ril3y
+/package.json                       @ril3y

@@ -11,8 +11,8 @@ account.
 
 > **This software is not an emergency stop.** Any machine it drives must have
 > a hardwired, latching E-stop that removes motor and spindle power in
-> hardware. Read the safety contract before connecting a machine (it will be
-> published at `/safety/` and copied into this repository as `SAFETY.md`).
+> hardware. Read the safety contract before connecting a machine: it is
+> `SAFETY.md` in this repository, and will be published at `/safety/`.
 
 ## Layout
 
@@ -47,21 +47,43 @@ account.
   outside `MachineSession` writes to the port, and nothing is loaded at
   runtime.
 
-These rules are enforced by three gates (P0-02). The bundle scan of the
-built output follows in P0-13.
+These rules are enforced by the gates below (P0-02, P0-03). Test-kit
+markers are added to the bundle scan in P0-13.
 
 | Gate | Command | What it enforces |
 |---|---|---|
 | Boundaries | `pnpm deps` | `.dependency-cruiser.cjs`: no npm (direct or transitive) and no Node built-ins in the safety path; no `contracts` or cloud client in the safety path; the cloud client imports only `contracts` and `provenance`; `workers/run` imports only `contracts`; no entry reaches `testkit`; nothing imports from outside the repository; every import resolves |
 | Lint | `pnpm lint` | `eslint.config.js` with the repository's own rules in `tools/gates/src/eslint/`: no `eval`/`new Function`; no HTML sinks (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `dangerouslySetInnerHTML`) outside `apps/web/src/security/tt.ts`; no `abort` in `machine`; no `Math.random` in `safety` and `protocol`; no network identifiers in `protocol`, `safety`, `machine`, `flasher` and `provenance`; no `navigator.serial`, `requestPort` or `getPorts` anywhere (until P1-01); no `WARNING —`, `DANGER —` or `NOTICE —` strings outside `packages/safety/src/strings.ts`. Inline `eslint-disable` comments are ignored (`noInlineConfig`), so a rule can be relaxed only in `eslint.config.js` |
 | Licences | `pnpm licence` | Production dependencies: MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0 or OFL-1.1. Dev dependencies may also be MPL-2.0, or carry a reviewed exception in `tools/gates/src/licence/exceptions.ts`. GPL and AGPL are never allowed |
+| CI policy | `pnpm ci-policy` | Workflows: only the deploy jobs touch secrets or the Cloudflare token; deploy jobs run only on a push to `main` behind protected environments; actions pinned by SHA; no `pull_request_target`; no `${{ }}` in scripts. CODEOWNERS covers every SAFETY §8 path. The PR template carries the SAFETY §8 checklist verbatim |
+| Bundle scan | `pnpm scan` (after a build) | No origin literal, `//host`, `javascript:` URL or network identifier in `apps/web/dist` outside the cloud-client chunks (`assets/cloud/`, decided by content in `apps/web/build/chunks.ts`) |
+| Reproducible build | `pnpm repro` | Clones `HEAD` twice, installs only the build toolchain, builds both and fails unless they are byte-identical, then scans |
 
-`pnpm gates` runs all three. `tools/gates/test/acceptance.test.ts` proves
+`pnpm gates` runs lint, boundaries, licences and the CI policy. `tools/gates/test/acceptance.test.ts` proves
 each gate fails on a violation: it copies the working tree, introduces one
 violation, runs the real gate command and checks which rule caught it.
 
-A change to `.dependency-cruiser.cjs`, `eslint.config.js` or `tools/gates/`
-changes the safety boundary and needs safety-path review.
+A change to `.dependency-cruiser.cjs`, `eslint.config.js`, `tools/gates/`,
+`.github/` or `apps/web/build/` changes the safety boundary and needs
+safety-path review (`.github/CODEOWNERS`).
+
+## CI and deploys
+
+`.github/workflows/ci.yml` runs these jobs:
+- `verify`, secret-free;
+- `build`, secret-free: the minimal build toolchain, two clean builds that
+  must match byte for byte, and the bundle scan;
+- `e2e`;
+- `attest`, which signs build provenance;
+- `deploy-staging` and `deploy-production`, which run on `main` only, behind
+  protected environments, and deploy only the attested artifact.
+
+Pull requests that touch safety paths must carry the SAFETY §8 checklist and
+two approvals (`safety-review`).
+
+See `docs/ops/ci.md` for how it works, and `docs/ops/branch-protection.md`
+for the GitHub settings the owner must enable. `SAFETY.md` is the in-repo
+copy of the safety case.
 
 ## Development
 
@@ -78,7 +100,8 @@ pnpm -r test
 pnpm --filter web build
 ```
 
-`pnpm check` runs typecheck, the gates, tests and the build in that order.
+`pnpm check` runs typecheck, the gates, tests, the build and the bundle scan
+in that order.
 Its nested `pnpm` calls need pnpm on `PATH` (`corepack enable`).
 
 Dependency hygiene: versions are pinned exactly (`save-exact`), install

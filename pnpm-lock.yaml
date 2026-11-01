@@ -29,9 +29,6 @@ importers:
       typescript-eslint:
         specifier: 8.71.1
         version: 8.71.1(eslint@10.12.0)(typescript@6.0.3)
-      vite:
-        specifier: 8.3.4
-        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)
       vitest:
         specifier: 5.0.3
         version: 5.0.3(@types/node@22.20.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2))
@@ -46,6 +43,10 @@ importers:
       preact:
         specifier: 11.0.1
         version: 11.0.1
+    devDependencies:
+      vite:
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)
 
   packages/contracts:
     dependencies:

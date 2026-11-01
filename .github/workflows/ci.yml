@@ -1,0 +1,320 @@
+# CI for synthetos/run (ROADMAP P0-03, RUN_PLAN §6.2, SAFETY H12, H46).
+#
+# Jobs and what they may hold:
+#   verify             secret-free. Installs every devDependency and runs the
+#                      typecheck, lint, boundary, licence, CI-policy and unit
+#                      test gates. Runs on every pull request and push.
+#   build              secret-free, no write permission. Installs ONLY the
+#                      production build toolchain from a lockfile subset,
+#                      builds twice from two clean checkouts, fails unless the
+#                      outputs are byte-identical, runs the bundle scan and
+#                      uploads the artifact.
+#   e2e                secret-free. Placeholder until P0-06: checks that the
+#                      uploaded artifact is intact.
+#   attest             main pushes only. Signs build provenance for the
+#                      artifact. Runs no repository code, so it is the only
+#                      job holding id-token: write.
+#   deploy-staging     main pushes only, protected environment `staging`.
+#   deploy-production  main pushes only, protected environment `production`
+#                      (the owner is a required reviewer).
+#
+# Only the two deploy jobs may reference CLOUDFLARE_API_TOKEN (a Workers
+# Scripts:Edit token for the dedicated run account, D34). `pnpm ci-policy`
+# enforces this and the rest of the policy on every run; see
+# tools/gates/src/workflow/policy.ts and docs/ops/ci.md.
+#
+# Rules for editing this file: pin every action to a full commit SHA; pass
+# values into scripts through env: (never ${{ }} inside run:); no anchors or
+# aliases; no continue-on-error. This file is CODEOWNED.
+
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Enable pnpm through Corepack (version and hash from packageManager)
+        run: corepack enable
+      - name: Install (frozen lockfile, no install scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Typecheck
+        run: pnpm -r typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Dependency boundaries
+        run: pnpm deps
+      - name: Licences
+        run: pnpm licence
+      - name: CI policy (workflows, CODEOWNERS, PR template)
+        run: pnpm ci-policy
+      - name: Unit tests
+        run: pnpm -r test
+
+  build:
+    name: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out (first clean checkout)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: a
+          persist-credentials: false
+      - name: Check out (second clean checkout)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: b
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: a/.nvmrc
+          package-manager-cache: false
+      - name: Enable pnpm through Corepack (version and hash from packageManager)
+        run: corepack enable
+      - name: Install the build toolchain only (first checkout)
+        run: node a/tools/gates/src/build/cli.ts install a
+      - name: Install the build toolchain only (second checkout)
+        run: node b/tools/gates/src/build/cli.ts install b
+      - name: Build (first checkout)
+        run: pnpm --dir a --filter @synthetos/web build
+      - name: Build (second checkout)
+        run: pnpm --dir b --filter @synthetos/web build
+      - name: Reproducible build (outputs must be byte-identical)
+        run: node a/tools/gates/src/repro/cli.ts compare a/apps/web/dist b/apps/web/dist
+      - name: Bundle scan
+        run: node a/tools/gates/src/bundle/cli.ts a/apps/web/dist
+      - name: Package the artifact
+        run: |
+          mkdir -p artifact
+          node a/tools/gates/src/repro/cli.ts manifest a/apps/web/dist artifact/run-web.sha256
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=posix \
+            --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
+            -cf artifact/run-web.tar -C a/apps/web/dist .
+          sha256sum artifact/run-web.tar artifact/run-web.sha256
+      - name: Upload the artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: run-web
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 30
+
+  e2e:
+    name: e2e
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # Placeholder until P0-06 (Playwright against wrangler dev serving this
+      # artifact). Until then it proves the artifact downloads intact.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Download the artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: run-web
+          path: artifact
+      - name: Extract and verify against the manifest
+        run: |
+          mkdir site
+          tar -xf artifact/run-web.tar -C site
+          node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256
+
+  attest:
+    name: attest
+    needs: [verify, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      # No checkout: this job runs no repository code, so nothing the build
+      # executed can reach the signing identity.
+      - name: Download the artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: run-web
+          path: artifact
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            artifact/run-web.tar
+            artifact/run-web.sha256
+
+  deploy-staging:
+    name: deploy-staging
+    needs: [verify, build, e2e, attest]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RUN_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: staging
+      url: https://staging.run.synthetos.com
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - name: Refuse anything but a push to main
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "push" ] || [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::deploys run only on a push to main (got $GITHUB_EVENT_NAME on $GITHUB_REF)"
+            exit 1
+          fi
+      - name: Check out (deploy toolchain lockfile and Worker configuration)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Enable pnpm through Corepack
+        run: corepack enable
+      - name: Install wrangler (pinned version and integrity, no install scripts)
+        run: pnpm --dir ci/deploy-toolchain install --frozen-lockfile --ignore-scripts
+      - name: Download the artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: run-web
+          path: artifact
+      - name: Verify the build provenance attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for subject in artifact/run-web.tar artifact/run-web.sha256; do
+            gh attestation verify "$subject" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+              --source-ref refs/heads/main \
+              --source-digest "$GITHUB_SHA" \
+              --deny-self-hosted-runners
+          done
+      - name: Extract and verify against the manifest
+        run: |
+          mkdir site
+          tar -xf artifact/run-web.tar -C site
+          node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256
+      - name: Deploy the attested artifact to staging
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ ! -f workers/run/wrangler.jsonc ]; then
+            echo "::error::workers/run/wrangler.jsonc is missing: the run Worker is configured in P0-04. Nothing was deployed."
+            exit 1
+          fi
+          ci/deploy-toolchain/node_modules/.bin/wrangler deploy --config workers/run/wrangler.jsonc --env staging --assets site
+
+  deploy-production:
+    name: deploy-production
+    needs: [verify, build, e2e, attest, deploy-staging]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RUN_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://run.synthetos.com
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - name: Refuse anything but a push to main
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "push" ] || [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::deploys run only on a push to main (got $GITHUB_EVENT_NAME on $GITHUB_REF)"
+            exit 1
+          fi
+      - name: Check out (deploy toolchain lockfile and Worker configuration)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Enable pnpm through Corepack
+        run: corepack enable
+      - name: Install wrangler (pinned version and integrity, no install scripts)
+        run: pnpm --dir ci/deploy-toolchain install --frozen-lockfile --ignore-scripts
+      - name: Download the artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: run-web
+          path: artifact
+      - name: Verify the build provenance attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for subject in artifact/run-web.tar artifact/run-web.sha256; do
+            gh attestation verify "$subject" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+              --source-ref refs/heads/main \
+              --source-digest "$GITHUB_SHA" \
+              --deny-self-hosted-runners
+          done
+      - name: Extract and verify against the manifest
+        run: |
+          mkdir site
+          tar -xf artifact/run-web.tar -C site
+          node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256
+      - name: Deploy the attested artifact to production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ ! -f workers/run/wrangler.jsonc ]; then
+            echo "::error::workers/run/wrangler.jsonc is missing: the run Worker is configured in P0-04. Nothing was deployed."
+            exit 1
+          fi
+          ci/deploy-toolchain/node_modules/.bin/wrangler deploy --config workers/run/wrangler.jsonc --assets site

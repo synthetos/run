@@ -66,6 +66,11 @@ export class ScratchRepo {
     writeFileSync(target, content);
   }
 
+  /** Reads a file relative to the copy's root. */
+  read(relativePath: string): string {
+    return readFileSync(join(this.root, relativePath), 'utf8');
+  }
+
   /** Appends to an existing file relative to the copy's root. */
   append(relativePath: string, content: string): void {
     const target = join(this.root, relativePath);
@@ -99,8 +104,31 @@ export class ScratchRepo {
     return this.run([join(this.root, 'tools/gates/src/licence/cli.ts'), '--prod-json', prodPath, '--all-json', allPath]);
   }
 
-  private run(args: readonly string[]): GateResult {
-    const result = spawnSync(process.execPath, args, { cwd: this.root, encoding: 'utf8', timeout: 120_000 });
+  /**
+   * `pnpm --filter web build`: Vite with the repository's web config, in the
+   * copy. Vitest sets NODE_ENV=test, which the web config refuses to build
+   * under, so the build gets the environment CI gives it (NODE_ENV unset)
+   * unless `nodeEnv` says otherwise.
+   */
+  buildWeb(nodeEnv?: string): GateResult {
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    delete env['NODE_ENV'];
+    if (nodeEnv !== undefined) env['NODE_ENV'] = nodeEnv;
+    return this.run([join(this.root, 'apps/web/node_modules/vite/bin/vite.js'), 'build', '--logLevel', 'warn'], join(this.root, 'apps/web'), env);
+  }
+
+  /** `pnpm scan`: the bundle scan over the copy's built web app. */
+  scan(): GateResult {
+    return this.run([join(this.root, 'tools/gates/src/bundle/cli.ts'), join(this.root, 'apps/web/dist')]);
+  }
+
+  /** Runs one of the repository's dependency-free gate CLIs (path relative to the copy's root). */
+  gate(script: string, args: readonly string[] = []): GateResult {
+    return this.run([join(this.root, script), ...args]);
+  }
+
+  private run(args: readonly string[], cwd: string = this.root, env: NodeJS.ProcessEnv = process.env): GateResult {
+    const result = spawnSync(process.execPath, args, { cwd, env, encoding: 'utf8', timeout: 120_000 });
     return { status: result.status, output: `${result.stdout}${result.stderr}` };
   }
 

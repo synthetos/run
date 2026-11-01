@@ -1,0 +1,158 @@
+# CI, the attested artifact and the deploy gate
+
+ROADMAP P0-03, RUN_PLAN §6.2, SAFETY H12 and H46. The workflow is
+`.github/workflows/ci.yml`. The pull-request review check is
+`.github/workflows/safety-review.yml`.
+
+## Jobs
+
+| Job | Runs on | Holds | What it does |
+|---|---|---|---|
+| `verify` | every PR and every push to `main` | no secret, `contents: read` | Full install (`--frozen-lockfile --ignore-scripts`), then typecheck, lint, dependency-cruiser, licence gate, CI policy (`pnpm ci-policy`), unit tests |
+| `build` | every PR and push | no secret, `contents: read` | Two clean checkouts (`a/`, `b/`). In each one it installs **only the production build toolchain** from a lockfile subset, then builds. It fails unless the two `dist/` trees are byte-identical. Then it runs the bundle scan and uploads the artifact `run-web` (`run-web.tar` plus the `run-web.sha256` manifest) |
+| `e2e` | every PR and push | no secret | Placeholder until P0-06. It downloads the artifact and checks it against its manifest |
+| `attest` | push to `main` only | `id-token: write`, `attestations: write` | Signs SLSA build provenance for `run-web.tar` and `run-web.sha256` with `actions/attest-build-provenance`. It checks out no code and runs none |
+| `deploy-staging` | push to `main` only, and only when `vars.RUN_DEPLOY_ENABLED == 'true'` | environment `staging`, `CLOUDFLARE_API_TOKEN` | Installs wrangler from `ci/deploy-toolchain` (pinned by version and integrity, `--ignore-scripts`). Verifies the attestation (`gh attestation verify`: this repository, this workflow, `refs/heads/main`, this commit, GitHub-hosted runner). Checks the extracted tree against the manifest. Deploys |
+| `deploy-production` | as staging, after staging succeeds | environment `production` (the owner is a required reviewer), `CLOUDFLARE_API_TOKEN` | The same steps, deploying the **same** attested artifact to production. It promotes the artifact and never rebuilds it |
+
+Every action is pinned to a full commit SHA. The tag is kept in a comment
+next to it. No job uses `pull_request_target` or `workflow_run`, so pull
+requests from forks run only the secret-free jobs.
+
+### Why the deploy jobs cannot run on a pull request
+
+- Each deploy job's `if:` is a plain conjunction of equalities:
+  `github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RUN_DEPLOY_ENABLED == 'true'`.
+  It is false for every `pull_request` event, whatever the branch.
+  `tools/gates/test/workflow-policy.test.ts` evaluates it against pull
+  request contexts.
+- The first step of each deploy job checks `GITHUB_EVENT_NAME` and
+  `GITHUB_REF` again at run time and fails if either is wrong.
+- The `staging` and `production` environments allow deployments from `main`
+  only (an owner setting, see branch-protection.md). The token is an
+  **environment** secret, so no job without the environment can read it.
+- `pnpm ci-policy` fails the `verify` job if any of this changes:
+  - a deploy condition loses a term or gains `||`, `!` or a function;
+  - a deploy job stops needing `verify`, `build`, `e2e` and `attest`;
+  - another job names an environment;
+  - anything other than the deploy jobs mentions `secrets` or `CLOUDFLARE_API_TOKEN`.
+
+**Proof in the logs** (ROADMAP acceptance, needs the GitHub repository).
+Open any PR. The run summary lists `attest`, `deploy-staging` and
+`deploy-production` as **skipped**. Save the run URL in the P0-03 PR.
+
+## The CI policy (`pnpm ci-policy`)
+
+`tools/gates/src/workflow/policy.ts` reads every workflow file. It allows a
+restricted, block-style subset of YAML and fails closed on anything it
+cannot follow: anchors, aliases, merge keys and tabs. It enforces:
+
+| Rule | Meaning |
+|---|---|
+| `secret-outside-deploy` | Only the deploy jobs mention `secrets` or the token, and they may use only `secrets.CLOUDFLARE_API_TOKEN`. `secrets: inherit`, `secrets[...]` and `toJSON(secrets)` are refused everywhere |
+| `deploy-gate` | The deploy condition, the `needs` list and the protected environment are as described above |
+| `environment-outside-deploy` | No other job uses an environment |
+| `unpinned-action` | Every `uses:` names a full 40-character commit SHA |
+| `banned-trigger` | No `pull_request_target`, no `workflow_run` |
+| `expression-in-run` | No `${{ }}` inside a `run:` script. Values arrive through `env:`, so a PR title or branch name can never become shell code |
+| `write-permission` | Top-level permissions are read-only. Only `attest` may hold `id-token: write` and `attestations: write`. `write-all` is refused |
+| `continue-on-error` | Refused, so a failing gate always fails the run |
+| `verify-job` | `ci.yml` runs on `pull_request`, and `verify` is unconditional and runs `pnpm -r test` |
+
+`pnpm ci-policy` also runs two more checks:
+- **CODEOWNERS** (`tools/gates/src/codeowners`):
+  - every path in the in-repo `SAFETY.md` §8 list, plus
+    `vendor/tinyg-hil-tables/**` and `pnpm-lock.yaml`, is listed and owned by
+    the owner;
+  - no later line takes any of them away (in CODEOWNERS the last matching
+    line wins);
+  - no line is one that GitHub would silently ignore.
+- **PR template** (`tools/gates/src/review/template.ts`): the template has
+  items 1–40 unticked, and items 22–40 match `SAFETY.md` §8 verbatim.
+
+## The minimal build toolchain
+
+All test, lint and boundary tools are devDependencies of the workspace
+root, and pnpm always installs the root, even under `--filter`. So
+`tools/gates/src/build/cli.ts install <checkout>` does four things:
+1. It empties the root importer, in `package.json` (no devDependencies) and
+   in `pnpm-lock.yaml` (`.: {}`). Every other lockfile line stays the same,
+   including every integrity hash.
+2. It runs `pnpm install --frozen-lockfile --ignore-scripts --filter @synthetos/web...`.
+3. It restores both files byte for byte.
+4. It fails if the store contains any root devDependency, or any
+   devDependency of a workspace package outside the build (wrangler, for
+   example). Type-only `@types/*` packages are allowed.
+
+The result is vite and its closure, preact, `@preact/signals` and nothing
+else (23 packages today). The build toolchain is therefore the web app's
+devDependencies (`vite`). Do not add a build-time tool anywhere else.
+
+## Reproducibility
+
+The two builds run in different directories, so an absolute path, a
+timestamp or any other non-determinism makes the comparison fail. Two
+settings in the web config matter here:
+- `apps/web/vite.config.ts` refuses to build under any `NODE_ENV` other than
+  unset or `production`. Vite keeps a preset `NODE_ENV`, and a development
+  bundle embeds absolute source paths. The reproducibility test caught this
+  under vitest's `NODE_ENV=test`.
+- The JSX runtime is pinned to `development: false`.
+
+`pnpm repro` runs the same check locally: it clones `HEAD` twice, installs
+the subset, builds both, compares them and runs the scan.
+
+## The bundle scan
+
+`tools/gates/src/bundle/scan.ts` (`pnpm scan`, and the `build` job). It fails
+on any of these:
+- any `scheme://` origin literal, except:
+  - the XML namespace URIs, by exact match;
+  - run's own origins, and only inside `assets/cloud/`;
+- `//host` references;
+- `javascript:` and `vbscript:` URLs;
+- any network identifier (`fetch`, `XMLHttpRequest`, `WebSocket`,
+  `EventSource`, `importScripts`, `sendBeacon`) outside `assets/cloud/`;
+- any file type it does not know;
+- an empty bundle.
+
+What goes into `assets/cloud/` is decided by **contents**, not by name
+(`apps/web/build/chunks.ts`):
+- a code-splitting group gives `apps/web/src/cloud/**` its own chunk;
+- that chunk is filed under `assets/cloud/` only if every module in it is
+  cloud code or a permitted cloud dependency (contracts, provenance,
+  valibot, or Rolldown's runtime helper).
+
+A module elsewhere that happens to be called `cloud.ts` lands in `assets/`
+and fails the scan. Vite's modulepreload polyfill is disabled because it
+contains a `fetch` call.
+
+P0-13 extends the scan with T-S40 (the test-kit marker, `MockSerialPort`,
+`transport=` handling).
+
+## Artifact verification
+
+Both `e2e` and the deploy jobs run
+`node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256` on the
+extracted tar. It fails on any changed, missing or added file. The deploy
+jobs first verify the attestation of both files with `gh attestation verify`.
+
+## Not finished in P0-03 (by design)
+
+- **The Worker is not deployable yet.** `workers/run/wrangler.jsonc` arrives
+  in P0-04. Until then the deploy step stops with an error, and deploys stay
+  off: `RUN_DEPLOY_ENABLED` is unset.
+- **The Worker script is not in the artifact yet.** P0-04 must add the
+  bundled Worker script to the attested artifact. It is built in the `build`
+  job (twice, compared) and deployed with `wrangler deploy --no-bundle`, so
+  the deploy job deploys only attested bytes. Today the deploy step would let
+  wrangler bundle the Worker source from the checkout. That source is the
+  same commit, but its bundled form is not attested.
+- **e2e is a placeholder.** P0-06 replaces it with Playwright against
+  `wrangler dev` serving the artifact.
+- **The rest of the RUN_PLAN §6.2 pipeline** joins `verify` with the tasks
+  that create it:
+  - token drift (P0-05);
+  - model-based and conformance tests (P0-11 onwards);
+  - Stryker;
+  - API integration tests.

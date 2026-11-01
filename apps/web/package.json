@@ -17,5 +17,8 @@
   "dependencies": {
     "@preact/signals": "2.11.3",
     "preact": "11.0.1"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
   }
 }

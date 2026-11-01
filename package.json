@@ -15,10 +15,13 @@
     "lint": "eslint .",
     "deps": "depcruise packages apps workers tools --config .dependency-cruiser.cjs",
     "licence": "node tools/gates/src/licence/cli.ts",
-    "gates": "pnpm lint && pnpm deps && pnpm licence",
+    "gates": "pnpm lint && pnpm deps && pnpm licence && pnpm ci-policy",
     "test": "pnpm -r test",
     "build": "pnpm --filter web build",
-    "check": "pnpm typecheck && pnpm gates && pnpm test && pnpm build"
+    "check": "pnpm typecheck && pnpm gates && pnpm test && pnpm build && pnpm scan",
+    "ci-policy": "node tools/gates/src/workflow/cli.ts && node tools/gates/src/codeowners/cli.ts && node tools/gates/src/review/template-cli.ts",
+    "scan": "node tools/gates/src/bundle/cli.ts apps/web/dist",
+    "repro": "node tools/gates/src/repro/local.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
@@ -28,7 +31,6 @@
     "fast-check": "4.10.2",
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.1",
-    "vite": "8.3.4",
     "vitest": "5.0.3"
   }
 }

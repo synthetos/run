@@ -1,18 +1,11 @@
+import { NETWORK_IDENTIFIERS } from '../../shared/networkIdentifiers.ts';
 import { bannedNamesRule } from './bannedNames.ts';
 
 /**
- * The network API identifiers banned on the machine path (ROADMAP P0-02,
- * SAFETY §8 item 22, T-S57): the network is never in the motion or stop path
- * (SAFETY §4.10), and `machine.worker` has no network code (RUN_PLAN §5.4).
+ * The list lives in a dependency-free module shared with the bundle scan
+ * (ROADMAP P0-03). It is re-exported here for the rule's tests.
  */
-export const NETWORK_IDENTIFIERS: readonly string[] = [
-  'fetch',
-  'XMLHttpRequest',
-  'WebSocket',
-  'EventSource',
-  'importScripts',
-  'sendBeacon',
-];
+export { NETWORK_IDENTIFIERS };
 
 export const noNetworkApi = bannedNamesRule({
   description: 'Ban network API identifiers in the machine-path packages (SAFETY §8 item 22, T-S57).',
