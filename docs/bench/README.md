@@ -50,7 +50,9 @@ Each needs the physical bench and cannot be signed by the implementer.
 |---|---|---|
 | BENCH-P100-1 | With `pnpm bench:serve` running, open http://localhost:8793/ in the bench Chrome profile: the version chip ends in "bench build, localhost only", the title starts with `[bench]`, and DevTools shows `Permissions-Policy: serial=(self), ...` on the document. | now |
 | BENCH-P100-2 | Open http://<this computer's LAN address>:8793/ from another device: no answer (the server listens on 127.0.0.1 only). | now |
-| BENCH-P100-3 | With a TinyG plugged in, after P1-01: the port picker opens from the bench origin, and from staging (behind Access); a production tab (https://run.synthetos.com) cannot open it (`serial=()`). | after P1-01 |
+| BENCH-P100-3 | With a TinyG plugged in: the port picker opens from the bench origin, and from staging (behind Access); a production tab (https://run.synthetos.com) cannot open it (`serial=()`). | after the window's port chooser lands (P1-02/P1-03; P1-01 added the transport only) |
+| BENCH-P101-1 | With a TinyG granted to the bench origin and opened through the app: the worker's `open` reply reports `{kind:'serial', usbVendorId:0x0403, usbProductId:0x6015}` (the recorded `getInfo()`); Chrome's `chrome://device-log` shows one open of that device; a Saleae on the board's RX line shows no byte written by the open itself. | after the window's port chooser lands |
+| BENCH-P101-2 | Unplug the board's USB while the port is open: the worker reports the link gone and returns to idle; plug it back in and the same granted port is found again by its grant index and identity. | after the window's port chooser lands |
 | BENCH-P100-5 | Read-only session with an axis in inhibited mode (`am=2`) away from 0, or of unknown mode: the axis-mode facts are shown, not hidden (`axisModeFacts`, row 35). | after P1-07 renders them |
 | BENCH-P100-4 | After the first staging deploy: the staging document carries `serial=(self)`, and `run.synthetos.com` still `serial=()` (docs/LEAD_ACTIONS.md, "Phase 1, from P1-00"). | after the staging deploy |
 

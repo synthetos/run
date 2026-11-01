@@ -1,13 +1,10 @@
 /**
- * P1-00 on the real builds: the Web Serial transport lands in a chunk of its
- * own under assets/serial/, the bundle scan admits it there for the staging
- * target only, and nowhere else for any target.
- *
- * P1-01 has not written the transport yet, so each case puts a stand-in at
- * packages/machine/src/webSerialTransport.ts (a static navigator.serial read
- * and a type-only import, as the rules allow) and wires it into the machine
- * worker's transport seam, in a scratch copy of the working tree. The
- * repository's own Vite config builds it.
+ * P1-00 and P1-01 on the real builds: the Web Serial transport
+ * (packages/machine/src/webSerialTransport.ts), wired into the machine
+ * worker's transport seam by P1-01, lands in a chunk of its own under
+ * assets/serial/; the bundle scan admits it there for the staging target
+ * only, and nowhere else for any target. Each case builds a scratch copy of
+ * the working tree with the repository's own Vite config.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -18,16 +15,27 @@ const TIMEOUT = 240_000;
 const SEAM = 'apps/web/src/machine-worker/transport.ts';
 const TRANSPORT = 'packages/machine/src/webSerialTransport.ts';
 
-/** The stand-in transport: a static navigator.serial read, Web Serial method names, a type-only import. */
-const STANDIN = [
-  "import type { TransportOpenOptions } from './transport.ts';",
-  'interface SerialLike { getPorts(): Promise<unknown[]>; requestPort(o: object): Promise<unknown> }',
-  'export function webSerialPorts(options?: TransportOpenOptions): Promise<unknown[]> {',
-  '  const serial = navigator.serial as unknown as SerialLike;',
-  '  return options === undefined ? serial.getPorts() : serial.requestPort({});',
+/** The Phase 0 seam body: no transport at all. */
+const PHASE0_SEAM = [
+  "import type { PortSelector, TransportSource } from '@synthetos/machine';",
+  'export function createTransportSource(): TransportSource {',
+  "  return Object.freeze({ kind: 'none', request: (_port: PortSelector) => Promise.resolve(null) });",
   '}',
   '',
 ].join('\n');
+
+/** The buffer-size check, which a runtime import of the open policy is made to replace below. */
+const BUFFER_CHECK = 'if (bufferSize !== WEB_SERIAL_BUFFER_SIZE) {';
+
+/** Gives the transport a runtime import of the open policy (which its rules forbid) that the code really uses. */
+function withRuntimeImport(repo: ScratchRepo): void {
+  const source = repo.read(TRANSPORT);
+  expect(source).toContain(BUFFER_CHECK);
+  repo.write(
+    TRANSPORT,
+    `import { TRANSPORT_BUFFER_SIZE } from './openPolicy.ts';\n${source.replace(BUFFER_CHECK, 'if (bufferSize !== TRANSPORT_BUFFER_SIZE) {')}`,
+  );
+}
 
 let scratch: ScratchRepo | undefined;
 
@@ -41,31 +49,16 @@ afterEach(() => {
   scratch = undefined;
 });
 
-/** Writes the stand-in and makes the seam use it at run time. */
-function wireTransport(repo: ScratchRepo): void {
-  repo.write(TRANSPORT, STANDIN);
-  const seam = repo.read(SEAM);
-  const from = "  return Object.freeze({ kind: 'none', request: (_port: PortSelector) => Promise.resolve(null) });";
-  expect(seam).toContain(from);
-  repo.write(
-    SEAM,
-    seam
-      .replace("import type { PortSelector, TransportSource } from '@synthetos/machine';", "import type { PortSelector, TransportSource } from '@synthetos/machine';\nimport { webSerialPorts } from '../../../../packages/machine/src/webSerialTransport.ts';")
-      .replace(from, "  return Object.freeze({ kind: 'none', request: (_port: PortSelector) => webSerialPorts().then(() => null) });"),
-  );
-}
-
 function filesUnder(root: string, dir: string): string[] {
   const full = join(root, dir);
   return existsSync(full) ? readdirSync(full).map((f) => `${dir}${f}`) : [];
 }
 
-describe('P1-00: the Web Serial chunk on the real build', () => {
+describe('P1-00, P1-01: the Web Serial chunk on the real build', () => {
   it(
     'the transport gets its own chunk under assets/serial/, which passes the staging scan and fails the production scan',
     () => {
       const repo = fresh();
-      wireTransport(repo);
       const lint = repo.lint();
       expect(lint.status, lint.output).toBe(0);
       const deps = repo.deps();
@@ -95,7 +88,6 @@ describe('P1-00: the Web Serial chunk on the real build', () => {
     'the fake-serial test build still differs from production only in the seam: the serial chunk is production-only',
     () => {
       const repo = fresh();
-      wireTransport(repo);
       const prod = repo.buildWeb();
       expect(prod.status, prod.output).toBe(0);
       const test = repo.buildFakeSerial();
@@ -110,9 +102,10 @@ describe('P1-00: the Web Serial chunk on the real build', () => {
   );
 
   it(
-    'the clean tree (no transport yet) has no serial chunk and passes both targets',
+    'with the Phase 0 seam (no transport) there is no serial chunk and both targets pass, so the transport alone is what production refuses',
     () => {
       const repo = fresh();
+      repo.write(SEAM, PHASE0_SEAM);
       const build = repo.buildWeb();
       expect(build.status, build.output).toBe(0);
       expect(filesUnder(join(repo.root, 'apps/web/dist'), 'assets/serial/')).toEqual([]);
@@ -128,8 +121,7 @@ describe('P1-00: the Web Serial chunk on the real build', () => {
     'a runtime import in the transport fails dependency-cruiser',
     () => {
       const repo = fresh();
-      wireTransport(repo);
-      repo.write(TRANSPORT, `import { TRANSPORT_BUFFER_SIZE } from './openPolicy.ts';\nexport const SIZE = TRANSPORT_BUFFER_SIZE;\n${STANDIN}`);
+      withRuntimeImport(repo);
       const deps = repo.deps();
       expect(deps.status, deps.output).not.toBe(0);
       expect(deps.output).toContain('web-serial-transport-type-imports-only');
@@ -141,10 +133,9 @@ describe('P1-00: the Web Serial chunk on the real build', () => {
     'a transport that pulls other code into its chunk is filed under assets/, where the staging scan refuses it',
     () => {
       const repo = fresh();
-      wireTransport(repo);
       // A runtime import (which dependency-cruiser refuses, see above) drags the imported module into the
       // transport's chunk. The build and the scan must not rely on dependency-cruiser for this.
-      repo.write(TRANSPORT, `import { TRANSPORT_BUFFER_SIZE } from './openPolicy.ts';\n${STANDIN.replace('options === undefined', 'options === undefined && TRANSPORT_BUFFER_SIZE === 256')}`);
+      withRuntimeImport(repo);
       const build = repo.buildWeb();
       expect(build.status, build.output).toBe(0);
       expect(filesUnder(join(repo.root, 'apps/web/dist'), 'assets/serial/')).toEqual([]);

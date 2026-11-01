@@ -2,8 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     // Runtime source gets no DOM types, so nothing in machine/src can name a
-    // browser API by accident (Phase 0 has no Web Serial; P1-01 adds DOM
-    // types with WebSerialTransport). Node types are present only because
+    // browser API by accident. The Web Serial transport (P1-01) declares the
+    // few SerialPort members it uses itself (webSerialTransport.ts), so no
+    // DOM types are added for it either. Node types are present only because
     // the protocol sources it compiles use TextEncoder/TextDecoder through
     // them, as protocol's own tsconfig does; dependency-cruiser's
     // safety-path-no-node-core refuses any Node built-in import.

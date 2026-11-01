@@ -446,7 +446,8 @@ and kept production at `serial=()`. What only you can do:
   pluggable sign-in gate (run session, staging Access identity, localhost
   bench identity), the never-deployed bench build, and where serial is
   granted. Record it in `DECISIONS.md` (synthetos.com) if you accept it.
-- **Production deploys from P1-01 on.** The production deploy job now scans
+- **Production deploys from P1-01 on (now in effect: the P1-01 commit
+  wires the transport into the release build).** The production deploy job now scans
   as `--target production`, which refuses any artifact that carries the Web
   Serial transport. From the first P1-01 commit on, `deploy-production`
   fails at that scan on every main push (before anything is deployed), so

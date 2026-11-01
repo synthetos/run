@@ -34,7 +34,7 @@ describe('Transport interface', () => {
 });
 
 describe('package entry', () => {
-  it('exports the guard, the policy and the shape check, and no Web Serial transport (Phase 0)', () => {
+  it('exports the guard, the policy and the shape check, and never the Web Serial transport', () => {
     expect(Object.keys(machine).sort()).toEqual(
       [
         'BOOTLOADER_PORTS',
@@ -62,6 +62,10 @@ describe('package entry', () => {
         'writeLineCapFor',
       ].sort(),
     );
+  });
+
+  it('exposes the Web Serial transport only on its own subpath, which only the machine worker seam may import (dependency-cruiser)', () => {
+    expect((pkg as { exports: object }).exports).toEqual({ '.': './src/index.ts', './web-serial-transport': './src/webSerialTransport.ts' });
   });
 
   it('declares its runtime workspace edges as dependencies and keeps the test kit a dev dependency', () => {

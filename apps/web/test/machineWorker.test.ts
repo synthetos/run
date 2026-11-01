@@ -120,18 +120,18 @@ describe('parseRequest', () => {
   });
 });
 
-describe('the production Phase 0 transport seam', () => {
-  it('has no transport: kind none, and request() always resolves null', async () => {
+describe('the release transport seam (P1-01: Web Serial)', () => {
+  it('is the Web Serial source: kind serial, and no granted port here (Node has no navigator.serial), so request() resolves null', async () => {
     const s = createTransportSource();
-    expect(s.kind).toBe('none');
+    expect(s.kind).toBe('serial');
     expect(await s.request(PORT)).toBeNull();
     expect(Object.isFrozen(s)).toBe(true);
   });
 
   it('so the worker answers open with unavailable and stays idle', async () => {
     const host = new MachineWorkerHost(createTransportSource());
-    expect(await host.handle(OPEN)).toEqual({ v: 2, ok: false, kind: 'open', code: 'unavailable', message: 'this build cannot connect to a controller' });
-    expect(await host.handle({ v: 2, kind: 'status' })).toEqual({ v: 2, ok: true, kind: 'status', status: { source: 'none', state: 'idle', bytesReceived: 0 } });
+    expect(await host.handle(OPEN)).toEqual({ v: 2, ok: false, kind: 'open', code: 'unavailable', message: 'no port was chosen' });
+    expect(await host.handle({ v: 2, kind: 'status' })).toEqual({ v: 2, ok: true, kind: 'status', status: { source: 'serial', state: 'idle', bytesReceived: 0 } });
   });
 });
 

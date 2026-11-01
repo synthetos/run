@@ -150,7 +150,9 @@ the B-* bench items, are separate and all still ahead):
   in `packages/machine/src/webSerialTransport.ts` only (lint, source check,
   dependency-cruiser) and in its chunk `assets/serial/` only (bundle scan,
   staging and bench targets; production refuses it). The P1-01 transport
-  itself still needs its own review. Needs independent review (D40).
+  is now in that module (commit "machine: WebSerialTransport ... (P1-01)")
+  and wired into the worker's release seam; it needs its own independent
+  review (D40) before it merges, with row 4's branch protection on.
 
 Not blocking Phase 1: row 35's remainder (no `am` write, no motion), row 32
 (housekeeping). Its Phase 1 consequence is implemented (P1-00): read-only

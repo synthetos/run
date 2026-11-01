@@ -73,8 +73,14 @@ decision should be revisited.
   `null`. The worker answers every `open` with `unavailable`. Nothing in
   Phase 0 can reach a serial port, and the bundle scan still finds no Web
   Serial name in the build.
-- **Production, P1-01:** this module returns a source backed by
-  `WebSerialTransport`, in P1-01's own owner-approved PR.
+- **Release build, P1-01 (done):** this module returns
+  `webSerialTransportSource()` (`packages/machine/src/webSerialTransport.ts`):
+  `request(selector)` takes the granted port at the selector's grant index
+  from `navigator.serial.getPorts()`, only if its USB identity matches, and
+  hands the worker a new `WebSerialTransport` over it; otherwise null.
+  Under the production headers (`serial=()`) the browser refuses
+  `getPorts()`, so `open` is `unavailable` there; the staging and bench
+  suites show the worker asking for the granted ports and finding none.
 - **Fake-serial test build:** the whole module is replaced by
   `tools/e2e/fake-serial/transport.ts`.
 
@@ -201,7 +207,16 @@ diff, suite).
   adapter with no checks of its own; the guard it is wrapped in is the
   production `GuardedTransport`.
 
-## Recommendation for P1-01 (a deviation to decide)
+## Recommendation for P1-01 (a deviation to decide; still open)
+
+P1-01 kept the seam where it is, above `WebSerialTransport`: the P1-00
+gates (the fake-serial diff's `test-web-serial` rule, the serial chunk
+filed by content) were built for exactly that, and moving the seam is the
+owner's call. `WebSerialTransport` is instead exercised in the machine
+package's unit tests against the test kit's `MockSerialPort` with both
+firmware models, and against EN-HIL replays
+(`packages/machine/test/web-serial-*.test.ts`). The recommendation below
+stands for the owner to decide.
 
 The ROADMAP wording is "swap `WebSerialTransport` for `MockTransport`".
 `WebSerialTransport` does not exist in Phase 0, so the seam here is the

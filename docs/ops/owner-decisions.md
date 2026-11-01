@@ -195,7 +195,17 @@ Nothing in the machine path imports the build channel
   every push is unwanted, the alternative is to keep `RUN_DEPLOY_ENABLED`
   for staging only, which needs a workflow change of its own.
 
-- **P1-01 will need one more gate change (not decided here).** RUN_PLAN
+- **The window's port chooser still needs one more gate change (not
+  decided here; P1-01 did not make it).** P1-01 added the transport and
+  the worker's side of the port choice (`findGrantedPort`); no window code
+  calls `requestPort()` yet, so nothing can produce a selector for a real
+  port. The task that adds the Connect gesture (P1-02's PORT_REQUEST, or
+  P1-03) must make this change in its own reviewed commit. The narrowest
+  form keeps the ROADMAP wording ("only in
+  `machine/src/webSerialTransport.ts`"): export the chooser from that same
+  module and admit exactly one main-thread importer in
+  dependency-cruiser, with the page build filing that chunk under
+  `assets/serial/` too. Original note: RUN_PLAN
   §5.4 has the window call `requestPort()` (it exists only on Window and
   needs a user gesture) and read the chosen port's `getInfo()` and its
   index in the window's own `getPorts()` to build the `PortSelector`

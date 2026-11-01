@@ -7,7 +7,7 @@ import type { Response } from '@playwright/test';
 import { request as httpRequest } from 'node:http';
 import { expect, test } from './fixtures.ts';
 import { SERIAL_GRANTED_SECURITY_HEADERS } from '../../../workers/run/src/headers.ts';
-import { machineWorker } from './machineWorker.ts';
+import { machineWorker, request } from './machineWorker.ts';
 import { SERIAL_PROBE } from './serialProbe.ts';
 
 function expectExact(all: readonly { name: string; value: string }[], url: string): void {
@@ -77,4 +77,17 @@ test('the browser allows Web Serial on the bench origin, in the page and in mach
   const worker = await machineWorker(page);
   expect(await page.evaluate(SERIAL_PROBE)).toBe('ok:0');
   expect(await worker.evaluate(SERIAL_PROBE)).toBe('ok:0');
+});
+
+test('machine.worker asks Web Serial for the granted ports; with none granted, open is refused and the worker stays idle (P1-01)', async ({ page }) => {
+  const worker = await machineWorker(page);
+  expect(await request(worker, { v: 2, kind: 'status' })).toMatchObject({ status: { source: 'serial', state: 'idle' } });
+  expect(await request(worker, { v: 2, kind: 'open', port: { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } })).toEqual({
+    v: 2,
+    ok: false,
+    kind: 'open',
+    code: 'unavailable',
+    message: 'no port was chosen',
+  });
+  expect(await request(worker, { v: 2, kind: 'status' })).toMatchObject({ status: { source: 'serial', state: 'idle', bytesReceived: 0 } });
 });
