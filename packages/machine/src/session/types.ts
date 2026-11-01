@@ -48,6 +48,14 @@ export interface SessionTimings {
   readonly bannerWaitMs: number;
   /** Interval between the two polled reads that verify an `ackFault` (SAFETY §4.2 "two consecutive polled reads"). */
   readonly verifyIntervalMs: number;
+  /**
+   * Watchdog (SAFETY §4.2): received silence on an idle, classified link
+   * after which the session asks for proof of life (ENQ on EN, else a
+   * `stat` GET). An idle board says nothing on its own (filtered reports).
+   */
+  readonly livenessIdleMs: number;
+  /** Watchdog: no byte within this after asking for proof of life is unexpected silence → STALE (SAFETY §4.2, T-S11). */
+  readonly staleAfterMs: number;
 }
 
 export const DEFAULT_TIMINGS: SessionTimings = Object.freeze({
@@ -57,6 +65,8 @@ export const DEFAULT_TIMINGS: SessionTimings = Object.freeze({
   bannerSettleMs: 300,
   bannerWaitMs: 3000,
   verifyIntervalMs: 250,
+  livenessIdleMs: 1000,
+  staleAfterMs: 2000,
 });
 
 /** Probe restarts after the board resets during the probe, before the session gives up with a FAULT. */
@@ -74,7 +84,8 @@ export interface SessionConfig {
 }
 
 /** Why a read is in flight. */
-export type ReadPurpose = 'splice' | 'probe' | 'reading' | 'request' | 'verify';
+/** `liveness`: the watchdog's proof-of-life GET where ENQ is not available (SAFETY §4.2). */
+export type ReadPurpose = 'splice' | 'probe' | 'reading' | 'request' | 'verify' | 'liveness';
 
 export interface PendingRead {
   readonly token: string;
@@ -224,6 +235,14 @@ export interface SessionState {
   /** ENQ written, `{"ack":true}` not yet seen (at most one outstanding, SAFETY §4.2). */
   readonly enqOutstanding: boolean;
   readonly lastAckAt?: number;
+  /**
+   * The watchdog asked for proof of life at `since` (ENQ or a `stat` GET)
+   * and nothing has been received since. Silence from now on is unexpected
+   * (SAFETY §4.2). Cleared by any received line.
+   */
+  readonly liveness: { readonly since: number; readonly via: 'enq' | 'get' } | null;
+  /** When STALE was entered and how long the link had been silent then (W4 "for N s"). */
+  readonly stale: { readonly at: number; readonly silentForMs: number } | null;
   readonly live: LiveState;
   readonly values: Readonly<Record<string, ReadValue>>;
   readonly fault: FaultInfo | null;
@@ -237,7 +256,8 @@ export interface SessionState {
   readonly sent: { readonly lines: number; readonly realtime: number };
 }
 
-export type TimerId = 'answer' | 'settle' | 'verify';
+/** `watchdog`: the receive-silence watchdog (SAFETY §4.2). */
+export type TimerId = 'answer' | 'settle' | 'verify' | 'watchdog';
 
 /** Intents the session handles. Everything else is denied (not in Phase 1). */
 export type SessionIntent =

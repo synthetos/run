@@ -29,8 +29,13 @@
  *   not `plannerBlocks`). A boot banner while unclassified ends it (the
  *   reset ended the motion) and the probe restarts.
  * - UNKNOWN: after LOST, after a reset banner.
- * - STALE: a read after classification went unanswered; cleared by the
- *   next byte received. (The full watchdog is P1-04.)
+ * - STALE: the receive watchdog (SAFETY §4.2, P1-04). On a classified,
+ *   connected link, after `livenessIdleMs` of received silence the session
+ *   asks for proof of life: ENQ on edge-next after a rev-2/3 footer (at
+ *   most one outstanding), otherwise a `stat` GET. No byte within
+ *   `staleAfterMs` of asking is unexpected silence: STALE. A read after
+ *   classification that goes unanswered is STALE as well. Cleared by the
+ *   next line received.
  * - READ_ONLY: the classifier returned READ_ONLY, or READING found `ex`
  *   other than 0 or 1 (2 is RTS/CTS, READ_ONLY on both dialects, PN §5.3;
  *   an unread `ex` counts the same, fail closed).
@@ -136,6 +141,8 @@ export function initialState(): SessionState {
     expected: Object.freeze([]),
     writing: null,
     enqOutstanding: false,
+    liveness: null,
+    stale: null,
     live: EMPTY_LIVE,
     values: Object.freeze({}),
     fault: null,
@@ -303,6 +310,7 @@ export function reduce(config: SessionConfig, state: SessionState, event: Sessio
       break;
   }
   pump(t);
+  syncWatchdog(t);
   return t.done();
 }
 
@@ -384,9 +392,13 @@ function onEnq(t: Tx, matrix: Decision): void {
     t.decide('enq', deny('ENQ is sent only to classified edge-next after a revision 2 or 3 footer.', 'Nothing to do.', 'SAFETY §4.1 Liveness probe row; T-S24b; PN §2.3'));
     return;
   }
+  writeEnq(t, byte);
+  t.decide('enq', matrix);
+}
+
+function writeEnq(t: Tx, byte: number): void {
   t.set({ enqOutstanding: true, sent: { ...t.s.sent, realtime: t.s.sent.realtime + 1 } });
   t.emit({ kind: 'writeRealtime', epoch: t.s.epoch, name: 'enq', byte });
-  t.decide('enq', matrix);
 }
 
 function onRead(t: Tx, tokens: readonly string[], matrix: Decision): void {
@@ -495,7 +507,7 @@ function answerTimeout(t: Tx, purpose: ReadPurpose): number {
 function onLinkLost(t: Tx): void {
   t.cancelAll();
   t.addOverlay('LOST');
-  t.set({ queue: [], expected: [], writing: null, ackVerify: null, xoff: false, enqOutstanding: false, unknownOnNextConnect: true });
+  t.set({ queue: [], expected: [], writing: null, ackVerify: null, xoff: false, enqOutstanding: false, liveness: null, unknownOnNextConnect: true });
   t.emit({ kind: 'close', epoch: t.s.epoch });
 }
 
@@ -509,6 +521,10 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
       return;
     }
     startProbe(t, probe.restarts + 1, probe.banner);
+    return;
+  }
+  if (id === 'watchdog') {
+    onWatchdog(t, at);
     return;
   }
   if (id === 'verify') {
@@ -526,7 +542,7 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
     t.set({ queue: [] });
     return;
   }
-  t.addOverlay('STALE');
+  enterStale(t, at);
   const pendingReading = t.s.queue.some((q) => q.purpose === 'reading') || missed.purpose === 'reading';
   t.set({ queue: [] });
   if (missed.purpose === 'verify' || t.s.ackVerify !== null) {
@@ -542,8 +558,10 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
     t.set({ xoff: raw.signal === 'xoff' });
     return;
   }
-  t.set({ live: { ...t.s.live, lastRxAt: at } });
+  // Receive-timestamp liveness (SAFETY §4.2): any line is proof of life.
+  t.set({ live: { ...t.s.live, lastRxAt: at }, liveness: null, stale: null });
   t.removeOverlay('STALE');
+  if (t.s.timers.watchdog !== undefined) t.arm('watchdog', t.config.timings.livenessIdleMs);
   const dialect = dialectOf(t.s);
   const event: ClassifiedLine = dialect === null ? raw : checkFooterForDialect(dialect, raw);
   switch (event.kind) {
@@ -578,7 +596,9 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
 
 function onBanner(t: Tx, banner: Banner, at: number): void {
   // The board restarted: it boots in XON and never says so (@cite EN xio/xio_usart.c:128-130).
-  t.set({ xoff: false });
+  // An ENQ written before the reset was either answered before the banner (lines arrive in order) or
+  // lost with the RX ring, so no `ack` is still owed.
+  t.set({ xoff: false, enqOutstanding: false });
   if (t.s.ready) {
     // SAFETY H19, T-S10: any banner after Ready means the board reset. FAULT, then UNKNOWN.
     enterFault(t, 'bannerAfterReady', 'integrity', `the board printed a boot banner (${banner.shape}) after it was ready: it reset`, at);
@@ -681,6 +701,10 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
       return;
     case 'verify':
       onVerifyAnswer(t, e.token, r.footer.status === 0 && typeof value === 'number' ? value : undefined);
+      return;
+    case 'liveness':
+      // The answer itself is the proof of life (already recorded on receipt); keep the value it carries.
+      if (r.footer.status === 0 && typeof value === 'number') t.set({ live: withNumber(t, t.s.live, e.token, value) });
       return;
   }
 }
@@ -854,6 +878,8 @@ function onGarbled(t: Tx, at: number): void {
     case 'verify':
       refuseAck(t, `the ${entry.token} read arrived damaged`);
       return;
+    case 'liveness':
+      return;
   }
 }
 
@@ -890,6 +916,62 @@ function withNumber(t: Tx, live: LiveState, key: string, v: number): LiveState {
     if (key === `mpo${axis}`) return { ...live, mpo: { ...live.mpo, [axis]: v } };
   }
   return live;
+}
+
+// --- Watchdog (SAFETY §4.2) -------------------------------------------------
+
+/** The token of the proof-of-life GET where ENQ is not available. */
+export const LIVENESS_TOKEN = 'stat';
+
+/** The watchdog runs on a classified, connected link (it needs the dialect's ENQ or its read allowlist). */
+function watchdogActive(s: SessionState): boolean {
+  return linkUp(s) && s.base === 'CONNECTED_UNKNOWN' && dialectOf(s) !== null;
+}
+
+/** Arms the watchdog when it should run and is not armed; stops it when it should not run. */
+function syncWatchdog(t: Tx): void {
+  if (watchdogActive(t.s)) {
+    if (t.s.timers.watchdog === undefined) t.arm('watchdog', t.config.timings.livenessIdleMs);
+    return;
+  }
+  t.cancel('watchdog');
+  t.set({ liveness: null });
+}
+
+function enterStale(t: Tx, at: number): void {
+  if (t.s.overlays.includes('STALE')) return;
+  t.addOverlay('STALE');
+  // The watchdog and the read timeouts run only after the board has answered, so a receive time exists.
+  t.set({ stale: { at, silentForMs: Math.max(0, at - (t.s.live.lastRxAt as number)) } });
+}
+
+function onWatchdog(t: Tx, at: number): void {
+  // Armed only while the watchdog is active: syncWatchdog cancels it in the transition that ends that.
+  if (t.s.liveness !== null) {
+    // Asked for proof of life `staleAfterMs` ago and nothing came back: unexpected silence.
+    enterStale(t, at);
+  }
+  t.set({ liveness: { since: at, via: askForLife(t) } });
+  t.arm('watchdog', t.config.timings.staleAfterMs);
+}
+
+/**
+ * Asks the board for proof of life. ENQ on edge-next after a rev-2/3 footer
+ * when none is outstanding (an unanswered one stays outstanding: at most one,
+ * SAFETY §4.2), else a `stat` GET, queued like any read (the matrix and the
+ * allowlist are checked when it is written). A line already owed or waiting
+ * is proof enough to wait for.
+ */
+function askForLife(t: Tx): 'enq' | 'get' {
+  const byte = enqByte(t.s);
+  if (byte !== undefined && !t.s.enqOutstanding && allowed(matrixSnapshot(t.s), 'enq', t.config.release).allowed) {
+    writeEnq(t, byte);
+    return 'enq';
+  }
+  if (t.s.queue.length === 0 && t.s.writing === null && !t.s.expected.some((e) => !e.late)) {
+    t.set({ queue: [{ token: LIVENESS_TOKEN, purpose: 'liveness' }] });
+  }
+  return 'get';
 }
 
 // --- FAULT ------------------------------------------------------------------

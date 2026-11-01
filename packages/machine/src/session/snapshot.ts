@@ -40,6 +40,8 @@ export interface SessionSnapshot {
   /** The board has said XOFF: reads wait, `!` does not. */
   readonly xoff: boolean;
   readonly lastAckAt: number | null;
+  /** STALE: how long the link had been silent when STALE was entered (W4 counts on from it). */
+  readonly stale: { readonly silentForMs: number } | null;
   readonly sent: { readonly lines: number; readonly realtime: number };
 }
 
@@ -82,6 +84,7 @@ export function snapshotOf(state: SessionState): SessionSnapshot {
     notices: state.notices,
     xoff: state.xoff,
     lastAckAt: state.lastAckAt ?? null,
+    stale: state.stale === null || !overlays.includes('STALE') ? null : { silentForMs: state.stale.silentForMs },
     sent: state.sent,
   });
 }

@@ -42,6 +42,7 @@ describe('package entry', () => {
         'CAPABILITY_BAUD_RATES',
         'DUE_PROGRAMMING_PORT',
         'FULL_SESSION_FLOW_CONTROL',
+        'LIVENESS_TOKEN',
         'GuardedTransport',
         'MAX_REALTIME_GROUP_BYTES',
         'MAX_WRITE_LINE_BYTES',

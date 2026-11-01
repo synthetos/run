@@ -58,7 +58,8 @@ describe('the connection path', () => {
     expect(d.state.identity).toEqual({ fb: 450.01, fv: 0.97, hp: 1, hv: 8, id: 'EN-1' });
     expect(d.state.live).toMatchObject({ stat: 1, machineClass: 'idle', hold: 0, vel: 0, qr: 32, line: 0, unit: 1, pos: { x: 1.5, y: 0, z: 0 } });
     expect(d.state.footerRev).toBe(3);
-    expect(d.state.timers).toEqual({});
+    // Only the receive watchdog runs once connected (SAFETY §4.2).
+    expect(Object.keys(d.state.timers)).toEqual(['watchdog']);
   });
 
   it('classifies 440.21 the same way, with its rev-1 footers and the r-footer dialect', () => {
