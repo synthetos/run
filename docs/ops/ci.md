@@ -84,7 +84,8 @@ in a built page fails the job."
    on every run rather than once.
 
 The policy rule `e2e-job` keeps this shape: no `if:`, `needs: [build]`, the
-two env values, the manifest checks, then the suite, then the canary.
+two env values (named nowhere else in the job, so no step can point the
+suite elsewhere), the manifest checks, then the suite, then the canary.
 
 Locally, `pnpm e2e:artifact` does the same: it builds, assembles an
 artifact in a temporary directory (copies instead of tar files), verifies
@@ -107,7 +108,7 @@ cannot follow: anchors, aliases, merge keys and tabs. It enforces:
 | `write-permission` | Top-level permissions are read-only. Only `attest` may hold `id-token: write` and `attestations: write`. `write-all` is refused |
 | `continue-on-error` | Refused, so a failing gate always fails the run |
 | `verify-job` | `ci.yml` runs on `pull_request`, and `verify` is unconditional and runs `pnpm -r test` |
-| `e2e-job` | `e2e` is unconditional, needs `build`, serves the extracted artifact (job-level `RUN_E2E_SITE`, `RUN_E2E_WORKER`), verifies it, then runs the suite, then the canary |
+| `e2e-job` | `e2e` is unconditional, needs `build`, serves the extracted artifact (job-level `RUN_E2E_SITE`, `RUN_E2E_WORKER`, named nowhere else in the job), verifies it, then runs the suite, then the canary |
 
 `pnpm ci-policy` also runs two more checks:
 - **CODEOWNERS** (`tools/gates/src/codeowners`):

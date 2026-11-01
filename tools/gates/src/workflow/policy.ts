@@ -28,7 +28,8 @@
  *   every pull request.
  * - `e2e-job` (ci.yml, P0-06): the `e2e` job is unconditional, needs
  *   `build`, points RUN_E2E_SITE and RUN_E2E_WORKER at the extracted
- *   artifact for every step, verifies both trees against their manifests,
+ *   artifact for every step (and nothing else in the job names them),
+ *   verifies both trees against their manifests,
  *   then runs the suite, then the third-party canary, in that order.
  * - `yaml-subset`: tabs, anchors, aliases and merge keys are refused. They
  *   are valid YAML that this line-based reader could not follow, so they are
@@ -364,6 +365,14 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
       for (const [key, value] of Object.entries(E2E_ENV)) {
         if (!env.some((l) => l.indent === 6 && l.text === `${key}: ${value}`)) {
           add(e2e.line, 'e2e-job', `the e2e job must set ${key}: ${value} in its job-level env`);
+        }
+      }
+      // Nothing else in the job may name them: a step-level env, an inline
+      // assignment or a $GITHUB_ENV write would point a step elsewhere.
+      const jobLevel = new Set(env.filter((l) => l.indent === 6).map((l) => l.no));
+      for (const l of e2e.lines) {
+        if (!jobLevel.has(l.no) && Object.keys(E2E_ENV).some((key) => l.text.includes(key))) {
+          add(l.no, 'e2e-job', 'RUN_E2E_SITE and RUN_E2E_WORKER may be set only in the e2e job-level env');
         }
       }
       let previous = 0;

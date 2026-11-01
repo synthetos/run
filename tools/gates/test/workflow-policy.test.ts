@@ -178,6 +178,13 @@ describe('the e2e job (P0-06)', () => {
     expect(rules(mutate(CI, '      RUN_E2E_WORKER: ${{ github.workspace }}/worker\n', '      RUN_E2E_WORKER: ${{ github.workspace }}/elsewhere\n'))).toEqual(['e2e-job']);
   });
 
+  it('fails when a step redirects the suite away from the job-level artifact paths', () => {
+    const suite = '        run: pnpm --filter @synthetos/e2e e2e\n';
+    expect(rules(mutate(CI, suite, `${suite}        env:\n          RUN_E2E_SITE: apps/web/dist\n`))).toEqual(['e2e-job']);
+    const step = '      - name: Playwright against wrangler dev serving the artifact (T-S25, origin guard)\n';
+    expect(rules(mutate(CI, step, `      - name: Redirect\n        run: echo "RUN_E2E_WORKER=elsewhere" >> "$GITHUB_ENV"\n${step}`))).toEqual(['e2e-job']);
+  });
+
   it('fails when the artifact is not verified, the suite or the canary is dropped, or they run out of order', () => {
     expect(rules(mutate(CI, '          node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256\n          tar -xf artifact/run-worker.tar', '          tar -xf artifact/run-worker.tar'))).toEqual(['e2e-job']);
     expect(rules(mutate(CI, '        run: pnpm --filter @synthetos/e2e canary\n', '        run: echo skipped\n'))).toEqual(['e2e-job']);
