@@ -28,8 +28,8 @@ describe('options are checked', () => {
       { ...MOTION, ceilingSeconds: Number.NaN },
       { ...MOTION, k: 0 },
       { ...MOTION, k: 1.01 },
-      { ...MOTION, maxVelocity: { X: 0 } },
-      { ...MOTION, maxVelocity: { X: Number.POSITIVE_INFINITY } },
+      { ...MOTION, maxVelocity: { X: 0 }, feedrateMax: { X: 0 } },
+      { ...MOTION, maxVelocity: { X: Number.POSITIVE_INFINITY }, feedrateMax: { X: Number.POSITIVE_INFINITY } },
     ];
     for (const motion of bad) expect(() => sanitizeJob('G0 X1', EN, { motion })).toThrow(RangeError);
     expect(() => sanitizeJob('G0 X1', EN, { motion: { ...MOTION, ceilingSeconds: 2, k: 1 } })).not.toThrow();
@@ -266,7 +266,7 @@ describe('step 7: barriers and M1', () => {
   });
 
   it('TG drops M1 from the last sub-segment of a split move', () => {
-    const slow = { ...MOTION, ceilingSeconds: 2, maxVelocity: { X: 600 } };
+    const slow = { ...MOTION, ceilingSeconds: 2, maxVelocity: { X: 600 }, feedrateMax: { X: 600 } };
     const r = run('G1 X100 F600 M1\n', TG, { motion: slow });
     expect(r.lines.length).toBeGreaterThan(1);
     expect(r.lines.some((l) => /M1\b/.test(l.body))).toBe(false);

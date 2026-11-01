@@ -340,6 +340,14 @@ export interface DialectJobGcode {
    * override before the intermediate traverse, @cite TG canonical_machine.c:907-914).
    */
   readonly storedMoveIntermediate: 'work' | 'machine';
+  /**
+   * True when G10 and G92 convert rotary (A/B/C) offset words with the
+   * program units, so a rotary offset under G20 is scaled by 25.4. 440.21
+   * applies `_to_millimeters` to every axis (@cite TG canonical_machine.c:669,
+   * :788-789); EN stores rotary offsets as written, in degrees (@cite EN
+   * canonical_machine.c:989, :1127).
+   */
+  readonly rotaryOffsetsUseUnits: boolean;
 }
 
 /**

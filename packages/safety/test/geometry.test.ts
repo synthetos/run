@@ -3,10 +3,11 @@
  * duration model, number formatting, and the arc model against EN's arc code.
  */
 import { describe, expect, it } from 'vitest';
-import { formatNumber, modelArc, moveSeconds, roundTo, splitArc, splitLinear, type ArcInput } from '../src/sanitize/geometry.ts';
+import { formatNumber, modelArc, moveSeconds, noVelocityMessage, roundTo, splitArc, splitLinear, type ArcInput } from '../src/sanitize/geometry.ts';
 import type { MotionModel } from '../src/index.ts';
+import { STANDARD_ROTARY } from './sanitizeHelpers.ts';
 
-const MODEL: MotionModel = { ceilingSeconds: 5, k: 0.5, maxVelocity: { X: 1000, Y: 2000, Z: 500 } };
+const MODEL: MotionModel = { ceilingSeconds: 5, k: 0.5, maxVelocity: { X: 1000, Y: 2000, Z: 500 }, feedrateMax: { X: 1000, Y: 2000, Z: 500 }, rotary: STANDARD_ROTARY };
 
 const arc = (over: Partial<ArcInput>): ArcInput => ({
   clockwise: true,
@@ -20,7 +21,7 @@ const arc = (over: Partial<ArcInput>): ArcInput => ({
   ...over,
 });
 
-describe('moveSeconds: length over v_eff = min(F, vm) × k', () => {
+describe('moveSeconds: length over v_eff = min(F, fr) × k, or vm × k for a rapid', () => {
   it('uses the slowest moving axis for vm, and F when it is lower', () => {
     expect(moveSeconds(['X', 'Y'], 100, null, MODEL)).toEqual({ kind: 'ok', seconds: 12 });
     expect(moveSeconds(['Y'], 100, null, MODEL)).toEqual({ kind: 'ok', seconds: 6 });
@@ -30,9 +31,22 @@ describe('moveSeconds: length over v_eff = min(F, vm) × k', () => {
   });
 
   it('refuses an axis with no usable velocity', () => {
-    expect(moveSeconds(['A'], 1, null, MODEL)).toEqual({ kind: 'noVelocity', axis: 'A' });
-    expect(moveSeconds(['X'], 1, null, { ...MODEL, maxVelocity: { X: 0 } })).toEqual({ kind: 'noVelocity', axis: 'X' });
-    expect(moveSeconds(['X'], 1, null, { ...MODEL, maxVelocity: { X: Number.POSITIVE_INFINITY } })).toEqual({ kind: 'noVelocity', axis: 'X' });
+    expect(moveSeconds(['A'], 1, null, MODEL)).toEqual({ kind: 'noVelocity', axis: 'A', limit: 'vm' });
+    expect(moveSeconds(['X'], 1, null, { ...MODEL, maxVelocity: { X: 0 } })).toEqual({ kind: 'noVelocity', axis: 'X', limit: 'vm' });
+    expect(moveSeconds(['X'], 1, null, { ...MODEL, maxVelocity: { X: Number.POSITIVE_INFINITY } })).toEqual({ kind: 'noVelocity', axis: 'X', limit: 'vm' });
+    expect(moveSeconds(['X'], 1, 100, { ...MODEL, feedrateMax: { Y: 100 } })).toEqual({ kind: 'noVelocity', axis: 'X', limit: 'fr' });
+    expect(noVelocityMessage({ kind: 'noVelocity', axis: 'X', limit: 'vm' })).toContain('maximum velocity (vm)');
+    expect(noVelocityMessage({ kind: 'noVelocity', axis: 'X', limit: 'fr' })).toContain('feed rate maximum (fr)');
+  });
+
+  it('limits a feed move by fr, not vm, and a rapid by vm, not fr (EN plan_line.c:349-353)', () => {
+    // xvm 16000, xfr 1000, G1 X300 F10000: the firmware runs at 1000 mm/min, so 300 / (1000 × 0.5) min = 36 s.
+    const model: MotionModel = { ...MODEL, maxVelocity: { X: 16000 }, feedrateMax: { X: 1000 } };
+    expect(moveSeconds(['X'], 300, 10000, model)).toEqual({ kind: 'ok', seconds: 36 });
+    // A rapid ignores fr: 300 / (16000 × 0.5) min = 2.25 s.
+    expect(moveSeconds(['X'], 300, null, model)).toEqual({ kind: 'ok', seconds: 2.25 });
+    // A feed below fr is the limit.
+    expect(moveSeconds(['X'], 300, 600, model)).toEqual({ kind: 'ok', seconds: 60 });
   });
 });
 
@@ -135,7 +149,7 @@ describe('splitting refuses what it cannot do within tolerance', () => {
   it('a clockwise sub-arc across the atan2 seam gets the same travel the firmware will compute', () => {
     // Semicircle from east to west about (-50, 0), clockwise through south, in three sub-arcs: the middle one
     // crosses the seam where EN's start angle wraps from +pi to -pi.
-    const fast: MotionModel = { ceilingSeconds: 2, k: 0.5, maxVelocity: { X: 1e6, Y: 1e6 } };
+    const fast: MotionModel = { ceilingSeconds: 2, k: 0.5, maxVelocity: { X: 1e6, Y: 1e6 }, feedrateMax: { X: 1e6, Y: 1e6 }, rotary: STANDARD_ROTARY };
     const input = arc({ d0: -100, centre: { c0: -50, c1: 0 } });
     const m = modelArc(input);
     if (m.kind !== 'ok') throw new Error(m.detail);

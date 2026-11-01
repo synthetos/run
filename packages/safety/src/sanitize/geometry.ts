@@ -2,11 +2,16 @@
  * Move modelling and long-move splitting (SAFETY §4.3 "Ceiling", §4.7 step
  * 6a, T-S64).
  *
- * A move's modelled duration is its path length over `v_eff = min(F, vm) × k`
- * (a rapid uses `vm`). `vm` is the smallest board maximum velocity among the
- * axes that move, so the model never assumes a move faster than its slowest
- * axis allows; a smaller `v_eff` gives a longer modelled time and shorter
- * sub-segments, so every simplification here errs towards more splitting.
+ * A feed move's modelled duration is its path length over
+ * `v_eff = min(F, fr) × k`; a rapid's is over `vm × k`. TinyG limits feed
+ * moves by the axis feed rate maximum `fr` and only rapids by the velocity
+ * maximum `vm` (@cite EN plan_line.c:349-353 `_calc_move_times`; TG the
+ * same). `fr` and `vm` are the smallest board value among the axes that
+ * move, so the model never assumes a move faster than its slowest axis
+ * allows (the firmware takes the longest per-axis time, which is never
+ * above length / min(fr)); a smaller `v_eff` gives a longer modelled time and
+ * shorter sub-segments, so every simplification here errs towards more
+ * splitting.
  *
  * Arcs follow the EN arc code exactly where it decides geometry: the centre
  * from I/J/K or R (@cite EN plan_arc.c:454-493), the angular travel with
@@ -38,11 +43,19 @@ export const ROTARY: ReadonlySet<Axis> = new Set<Axis>(['A', 'B', 'C']);
 
 export type DurationResult =
   | { readonly kind: 'ok'; readonly seconds: number }
-  | { readonly kind: 'noVelocity'; readonly axis: Axis };
+  /** No usable limit for `axis`: `vm` for a rapid, `fr` for a feed move. */
+  | { readonly kind: 'noVelocity'; readonly axis: Axis; readonly limit: 'vm' | 'fr' };
+
+/** The report text for a missing limit. */
+export function noVelocityMessage(d: Extract<DurationResult, { kind: 'noVelocity' }>): string {
+  return d.limit === 'vm'
+    ? `no maximum velocity (vm) is known for axis ${d.axis}`
+    : `no feed rate maximum (fr) is known for axis ${d.axis}`;
+}
 
 /**
- * Modelled duration of a move of `lengthMm` along `moving` axes, at feed
- * `feedMmPerMin`, or as a rapid when `feedMmPerMin` is null.
+ * Modelled duration of a move of `lengthMm` along `moving` axes: a feed move
+ * at `min(feedMmPerMin, fr)`, or a rapid at `vm` when `feedMmPerMin` is null.
  */
 export function moveSeconds(
   moving: readonly Axis[],
@@ -51,13 +64,15 @@ export function moveSeconds(
   motion: MotionModel,
 ): DurationResult {
   if (lengthMm === 0) return { kind: 'ok', seconds: 0 };
-  let vm = Infinity;
+  const rapid = feedMmPerMin === null;
+  const table = rapid ? motion.maxVelocity : motion.feedrateMax;
+  let limit = Infinity;
   for (const axis of moving) {
-    const v = motion.maxVelocity[axis];
-    if (v === undefined || !(v > 0) || !Number.isFinite(v)) return { kind: 'noVelocity', axis };
-    vm = Math.min(vm, v);
+    const v = table[axis];
+    if (v === undefined || !(v > 0) || !Number.isFinite(v)) return { kind: 'noVelocity', axis, limit: rapid ? 'vm' : 'fr' };
+    limit = Math.min(limit, v);
   }
-  const v = feedMmPerMin === null ? vm : Math.min(feedMmPerMin, vm);
+  const v = rapid ? limit : Math.min(feedMmPerMin, limit);
   return { kind: 'ok', seconds: (lengthMm / (v * motion.k)) * 60 };
 }
 

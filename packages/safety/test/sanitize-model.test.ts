@@ -30,7 +30,7 @@ describe('unknown state blocks moves that depend on it', () => {
   });
 
   it('a long incremental move from an unknown position is still split', () => {
-    const r = run('G21 G91 G1 X100 F600\n', EN, { start: {}, motion: { ...MOTION, ceilingSeconds: 2, maxVelocity: { X: 600 } } });
+    const r = run('G21\nG91 G1 X100 F600\n', EN, { start: {}, motion: { ...MOTION, ceilingSeconds: 2, maxVelocity: { X: 600 }, feedrateMax: { X: 600 } } });
     expect(r.report.blocked).toBe(false);
     expect(r.lines.length).toBeGreaterThan(1);
   });
@@ -47,9 +47,9 @@ describe('unknown state blocks moves that depend on it', () => {
   });
 
   it('a move on an axis with no maximum velocity is blocked', () => {
-    const r = run('G0 X1\n', EN, { motion: { ...MOTION, maxVelocity: { Y: 1000 } } });
+    const r = run('G0 X1\n', EN, { motion: { ...MOTION, maxVelocity: { Y: 1000 }, feedrateMax: { Y: 1000 } } });
     expect(blocks(r)).toEqual(['no-velocity-limit']);
-    const arc = run('G2 X10 Y0 I5 F100\n', EN, { motion: { ...MOTION, maxVelocity: { X: 1000 } } });
+    const arc = run('G2 X10 Y0 I5 F100\n', EN, { motion: { ...MOTION, maxVelocity: { X: 1000 }, feedrateMax: { X: 1000 } } });
     expect(blocks(arc)).toEqual(['no-velocity-limit']);
   });
 
@@ -166,7 +166,7 @@ describe('offsets and coordinate systems', () => {
     expect(lengthOf('G30.1\nG0 X0 Y0\nG30\n', 'G30', at)).toBe(5);
     expect(blocks(run('G28\n', EN, { start: at }))).toEqual(['unknown-state']);
     expect(blocks(run('G30 X1\n', EN, { start: { ...at, distance: undefined as never } }))).toEqual(['unknown-state']);
-    expect(blocks(run('G28\n', EN, { start: { ...START, g28: { X: 1, Y: 0, Z: 0, A: 0, B: 0, C: 0 } }, motion: { ...MOTION, maxVelocity: { Y: 1 } } }))).toEqual(['no-velocity-limit']);
+    expect(blocks(run('G28\n', EN, { start: { ...START, g28: { X: 1, Y: 0, Z: 0, A: 0, B: 0, C: 0 } }, motion: { ...MOTION, maxVelocity: { Y: 1 }, feedrateMax: { Y: 1 } } }))).toEqual(['no-velocity-limit']);
   });
 
   it('program end restores the default system and cancels G92', () => {
@@ -184,7 +184,7 @@ describe('offsets and coordinate systems', () => {
 
 describe('arcs', () => {
   it('names what is unknown', () => {
-    const r = run('G2 X10 Y0 I5 F100\n', EN, { start: { ...START, plane: undefined as never, units: undefined as never } });
+    const r = run('G2 X10 Y0 I5\n', EN, { start: { ...START, feedMmPerMin: 100, plane: undefined as never, units: undefined as never } });
     expect(r.report.entries[0]?.message).toContain('not known: the plane, the units');
     expect(run('G2 X10 Y0 I5 F100\n', EN, { start: { ...START, distance: undefined as never } }).report.entries[0]?.message).toContain('not known: the distance mode');
     expect(blocks(run('G2 X10 Y0 I5 F100\n', EN, { start: { ...START, arcDistance: undefined as never } }))).toEqual(['unknown-state']);
@@ -229,11 +229,35 @@ describe('arcs', () => {
     expect(r.lines[1]?.motion?.lengthMm).toBeCloseTo(5 * Math.PI, 9);
   });
 
-  it('feed under G20 is inches per minute', () => {
-    // 1 inch at 10 in/min × k 0.5 = 12 s modelled: split under a 5 s ceiling.
-    const r = run('G20 G91 G1 X1 F10\n', EN, { motion: { ...MOTION, maxVelocity: { X: 20000 } } });
+  it('feed under G20 is inches per minute once G20 is in force', () => {
+    // G20 on an earlier line: 1 inch at 10 in/min × k 0.5 = 12 s modelled, split under a 5 s ceiling.
+    const r = run('G20\nG91 G1 X1 F10\n', EN);
     expect(r.report.splits[0]?.seconds).toBeCloseTo(12, 9);
     expect(r.report.splits[0]?.segments).toBe(3);
+  });
+
+  it('F on the line that sets G20 is converted with the units in force before it (EN gcode_parser.c:605-637)', () => {
+    // The board is in G21: the firmware sets F2 as 2 mm/min, then applies G20. X4 is 101.6 mm at
+    // 2 × 0.5 mm/min = 6096 s, far above the ceiling. Read as 2 in/min it would have been 240 s.
+    const r = run('G20 G91 G1 X4 F2\n', EN);
+    expect(r.report.blocked).toBe(false);
+    expect(r.report.splits[0]?.seconds).toBeCloseTo((101.6 / 1) * 60, 6);
+    expect(r.report.longestMoveSeconds).toBeLessThanOrEqual(MOTION.ceilingSeconds);
+    for (const l of r.lines) expect(l.motion?.seconds ?? 0).toBeLessThanOrEqual(MOTION.ceilingSeconds);
+    // The same on its own line: `G20 F2` sets 2 mm/min, which later G1 lines run at.
+    const own = run('G20 F2\nG91 G1 X0.1\n', EN);
+    expect(own.report.splits[0]?.seconds).toBeCloseTo((2.54 / 1) * 60, 6);
+    // And back: on a G20 board, `G21 F100` is 100 in/min = 2540 mm/min.
+    const back = run('G21 G91 G1 X100 F100\n', EN, { start: { ...START, units: 'G20' } });
+    expect(back.lines[0]?.motion?.seconds).toBeCloseTo((100 / 1270) * 60, 9);
+  });
+
+  it('F with a G20/G21 on the line and unknown prior units is unknown, not invented', () => {
+    const r = run('G20 G91 G1 X1 F10\n', EN, { start: { ...START, units: undefined as never } });
+    expect(blocks(r)).toEqual(['unknown-state']);
+    expect(r.report.entries[0]?.message).toContain('converts F');
+    // On a line that does not move, the feed just becomes unknown and the next feed move is refused.
+    expect(blocks(run('G20 F10\nG91 G1 X1\n', EN, { start: { ...START, units: undefined as never } }))).toEqual(['feed-not-set']);
   });
 });
 
@@ -316,7 +340,7 @@ describe('offset arithmetic with non-zero values (signs matter)', () => {
 
   it('a rapid exactly at the ceiling is kept; one just above it is split', () => {
     // 50 mm at vm 1200 mm/min × 0.5 = 5 s.
-    const motion = { ...MOTION, maxVelocity: { X: 1200 } };
+    const motion = { ...MOTION, maxVelocity: { X: 1200 }, feedrateMax: { X: 1200 } };
     const at = run('G0 X50\n', EN, { motion });
     expect(at.lines).toHaveLength(1);
     expect(at.lines[0]?.motion?.seconds).toBe(5);
@@ -340,14 +364,150 @@ describe('offset arithmetic with non-zero values (signs matter)', () => {
   });
 
   it('an R arc in inches is scaled', () => {
-    expect(lengthOf('G20 G91 G2 X1 Y0 R0.5 F100\n', 'G20 G91 G2 X1 Y0 R0.5 F100')).toBeCloseTo(0.5 * 25.4 * Math.PI, 9);
+    expect(lengthOf('G20\nG91 G2 X1 Y0 R0.5 F100\n', 'G91 G2 X1 Y0 R0.5 F100')).toBeCloseTo(0.5 * 25.4 * Math.PI, 9);
   });
 
   it('a helix models its linear axis too', () => {
-    const slowZ = { ...MOTION, maxVelocity: { X: 20000, Y: 20000, Z: 1 } };
+    const slowZ = { ...MOTION, maxVelocity: { X: 20000, Y: 20000, Z: 1 }, feedrateMax: { X: 20000, Y: 20000, Z: 1 } };
     // The Z velocity of 1 mm/min makes this short helix slow, so it is split.
     expect(run('G2 X10 Y0 Z1 I5 F1000\n', EN, { motion: slowZ, start: START }).lines.length).toBeGreaterThan(1);
     expect(run('G2 X10 Y0 I5 F1000\n', EN, { motion: slowZ, start: START }).lines).toHaveLength(1);
   });
 });
 
+
+describe('feed moves are limited by fr, rapids by vm (EN plan_line.c:349-353)', () => {
+  const frSlow = { ...MOTION, maxVelocity: { ...MOTION.maxVelocity, X: 16000 }, feedrateMax: { ...MOTION.feedrateMax, X: 1000 } };
+
+  it('a G1 faster than fr is modelled at fr and split', () => {
+    // min(F 10000, fr 1000) × 0.5 = 500 mm/min: 300 mm is 36 s. At vm it would have been 3.6 s, unsplit.
+    const r = run('G91 G1 X300 F10000\n', EN, { motion: frSlow });
+    expect(r.report.splits[0]?.seconds).toBeCloseTo(36, 9);
+    for (const l of r.lines) expect(l.motion?.seconds ?? 0).toBeLessThanOrEqual(MOTION.ceilingSeconds);
+  });
+
+  it('a G0 is still modelled at vm', () => {
+    const r = run('G91 G0 X300\n', EN, { motion: frSlow });
+    expect(r.lines).toHaveLength(1);
+    expect(r.lines[0]?.motion?.seconds).toBeCloseTo(300 / 8000 * 60, 9);
+  });
+
+  it('an arc is modelled at fr', () => {
+    const slowArc = { ...MOTION, feedrateMax: { ...MOTION.feedrateMax, X: 10, Y: 10 } };
+    const r = run('G2 X10 Y0 I5 F1000\n', EN, { motion: slowArc });
+    expect(r.report.splits[0]?.seconds).toBeCloseTo((5 * Math.PI) / 5 * 60, 6);
+  });
+
+  it('a feed move on an axis with no fr is blocked', () => {
+    const r = run('G1 X1 F100\n', EN, { motion: { ...MOTION, feedrateMax: { Y: 100 } } });
+    expect(blocks(r)).toEqual(['no-velocity-limit']);
+  });
+});
+
+describe('rotary axis modes (EN canonical_machine.c:484-487 _calc_ABC)', () => {
+  const radius = (radiusMm?: number) => ({ ...MOTION, rotary: { ...MOTION.rotary, A: radiusMm === undefined ? { mode: 3 as const } : { mode: 3 as const, radiusMm } } });
+  const DEG_PER_MM = 360 / (2 * Math.PI);
+
+  it('a radius-mode axis reads the word in linear units and turns 360 / (2π ra) degrees per mm', () => {
+    const r = run('G91 G0 A10\n', EN, { motion: radius(1) });
+    expect(r.lines[0]?.motion?.lengthMm).toBeCloseTo(10 * DEG_PER_MM, 9);
+    // Absolute from A0 is the same move.
+    expect(run('G0 A10\n', EN, { motion: radius(1) }).lines[0]?.motion?.lengthMm).toBeCloseTo(10 * DEG_PER_MM, 9);
+  });
+
+  it('under G20 the radius-mode word is inches, and the long move is split within the ceiling', () => {
+    const r = run('G20\nG91 G0 A10\n', EN, { motion: radius(1) });
+    expect(r.report.blocked).toBe(false);
+    expect(r.report.splits[0]?.seconds).toBeCloseTo((254 * DEG_PER_MM) / 10000 * 60, 6);
+    for (const l of r.lines) expect(l.motion?.seconds ?? 0).toBeLessThanOrEqual(MOTION.ceilingSeconds);
+    // The sub-segments add up to the 10 inches written.
+    const total = r.lines.filter((l) => l.origin === 'split').reduce((sum, l) => sum + Number(/A(-?[\d.]+)/.exec(l.body)?.[1]), 0);
+    expect(total).toBeCloseTo(10, 6);
+  });
+
+  it('an unknown axis mode, a radius-mode axis with no radius, or radius mode with unknown units blocks', () => {
+    expect(blocks(run('G0 A10\n', EN, { motion: { ...MOTION, rotary: {} } }))).toEqual(['unknown-state']);
+    expect(blocks(run('G0 A10\n', EN, { motion: radius() }))).toEqual(['unknown-state']);
+    const units = run('G91 G0 A10\n', EN, { motion: radius(1), start: { ...START, units: undefined as never } });
+    expect(blocks(units)).toEqual(['unknown-state']);
+    expect(units.report.entries[0]?.message).toContain('the units');
+  });
+
+  it('disabled and inhibited axes are modelled as degrees (they only ever move less)', () => {
+    for (const mode of [0, 2] as const) {
+      const r = run('G0 A10\n', EN, { motion: { ...MOTION, rotary: { A: { mode } } } });
+      expect(r.lines[0]?.motion?.lengthMm, String(mode)).toBe(10);
+    }
+  });
+
+  it('G28/G30 are blocked while any rotary axis is in radius mode or of unknown mode', () => {
+    expect(blocks(run('G28\n', EN, { motion: radius(1) }))).toEqual(['rotary-radius']);
+    expect(blocks(run('G30\n', TG, { motion: { ...MOTION, rotary: { A: { mode: 1 }, B: { mode: 1 } } } }))).toEqual(['rotary-radius']);
+    expect(run('G28\n', EN).report.blocked).toBe(false);
+  });
+
+  it('offsets are never radius-converted: G92 A on a radius-mode axis is degrees', () => {
+    // G92 A0 at machine A0, then G91 G0 A1: a 1 mm word is 57.3 degrees.
+    expect(lengthOf('G92 A0\nG91 G0 A1\n', 'G91 G0 A1', START)).toBe(1);
+    const r = run('G92 A5\nG90 G0 A0\n', EN, { motion: radius(1) });
+    // Work A5 in degrees; A0 is a 5 degree move back.
+    expect(r.lines[1]?.motion?.lengthMm).toBeCloseTo(5, 9);
+  });
+
+  it('rejects malformed rotary configuration', () => {
+    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, rotary: { A: { mode: 4 as never } } } })).toThrow(RangeError);
+    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, rotary: { A: { mode: 3, radiusMm: 0 } } } })).toThrow(RangeError);
+    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, rotary: { X: { mode: 1 } } as never } })).toThrow(RangeError);
+    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, rotary: null as never } })).toThrow(RangeError);
+    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, rotary: { A: null as never } } })).toThrow(RangeError);
+    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, feedrateMax: undefined as never } })).toThrow(RangeError);
+    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, feedrateMax: { X: Number.NaN } } })).toThrow(RangeError);
+  });
+});
+
+describe('rotary offsets under G20 follow the dialect (TG canonical_machine.c:669, :788-789)', () => {
+  it('440.21 scales a rotary G10 L2 offset by 25.4 under G20; EN does not', () => {
+    const file = 'G20\nG10 L2 P1 A10\nG90 G0 A0\n';
+    expect(lengthOf(file, 'G90 G0 A0', START, TG)).toBeCloseTo(254, 9);
+    expect(lengthOf(file, 'G90 G0 A0', START, EN)).toBeCloseTo(10, 9);
+  });
+
+  it('440.21 scales a rotary G92 value by 25.4 under G20; EN does not', () => {
+    const file = 'G20\nG92 A10\nG0 A0\n';
+    expect(lengthOf(file, 'G0 A0', START, TG)).toBeCloseTo(254, 9);
+    expect(lengthOf(file, 'G0 A0', START, EN)).toBeCloseTo(10, 9);
+  });
+
+  it('under G21 both agree', () => {
+    expect(lengthOf('G92 A10\nG0 A0\n', 'G0 A0', START, TG)).toBe(10);
+  });
+});
+
+describe('the tool length offset is applied to X, Y and Z only (EN canonical_machine.c:502-505 vs :517-523)', () => {
+  const zero = { X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 };
+
+  it('G43.1 A does not move the A target', () => {
+    // EN stores A90 but does not add it to A targets: G0 A0 at A0 does not move.
+    expect(lengthOf('G43.1 A90\nG0 A0\n', 'G0 A0')).toBe(0);
+    // Z is still offset: G43.1 Z5 then G0 Z0 moves 5 mm.
+    expect(lengthOf('G43.1 Z5\nG0 Z0\n', 'G0 Z0')).toBe(5);
+    // Cancelling a rotary tool offset does not move the A target either.
+    expect(lengthOf('G43.1 A90\nG49\nG0 A0\n', 'G0 A0')).toBe(0);
+  });
+
+  it('a start tool offset on A does not shift the A work position', () => {
+    const start: StartState = { ...START, toolOffset: { ...zero, A: 90 } };
+    expect(lengthOf('G0 A10\n', 'G0 A10', start)).toBe(10);
+    // Unknown rotary tool offset does not make A moves unknown.
+    expect(lengthOf('G0 A10\n', 'G0 A10', { ...START, toolOffset: { X: 0, Y: 0, Z: 0 } })).toBe(10);
+  });
+
+  it('G92 and G10 L20 still subtract the stored rotary tool offset, so A then reads value + offset', () => {
+    // G92 A0 with A tool offset 90: origin = 0 - 0 - 90 - 0 = -90, target of A0 = -90, a 90 degree move.
+    const start: StartState = { ...START, toolOffset: { ...zero, A: 90 } };
+    expect(lengthOf('G92 A0\nG0 A0\n', 'G0 A0', start)).toBe(90);
+    expect(lengthOf('G10 L20 P1 A0\nG0 A0\n', 'G0 A0', start)).toBe(90);
+    // With the rotary tool offset unknown, A is unknown after G92 A.
+    expect(blocks(run('G92 A0\nG0 A0\n', EN, { start: { ...START, toolOffset: { X: 0, Y: 0, Z: 0 } } }))).toEqual(['unknown-state']);
+  });
+});

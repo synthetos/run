@@ -202,6 +202,7 @@ export const TINYG_440: Dialect = deepFreeze<Dialect>({
       // cm_goto_g28_position sets the absolute override before the intermediate traverse, so the G28/G30 axis
       // words are machine coordinates on 440.21 (@cite TG canonical_machine.c:907-914), unlike EN.
       storedMoveIntermediate: 'machine',
+      rotaryOffsetsUseUnits: true, // G10/G92 apply `_to_millimeters` to rotary words too (@cite TG canonical_machine.c:669, :788-789)
     },
   },
 

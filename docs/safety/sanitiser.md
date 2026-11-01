@@ -14,9 +14,11 @@ preview, analyser and preflight interpret exactly those lines.
 
 `options` carries what the design leaves to the live session:
 
-- `motion`: the queued-motion ceiling (2–20 s, default 5), `k` (default 0.5)
-  and the board's `vm` per axis. These are needed for step 6a. A move on an
-  axis with no `vm` is blocked.
+- `motion`: the queued-motion ceiling (2–20 s, default 5), `k` (default 0.5),
+  the board's `vm` per axis (rapids), its `fr` per axis (feed moves) and the
+  `am`/`ra` of each rotary axis. These are needed for step 6a. A rapid on an
+  axis with no `vm`, a feed move on an axis with no `fr`, and a move word on a
+  rotary axis with no `am` (or in radius mode with no `ra`) are blocked.
 - `start`: the live start state (units, distance and arc-distance mode,
   plane, motion mode, feed, coordinate system and offsets, machine position,
   stored G28/G30 positions, and the board's G-code defaults `gun`, `gdi`,
@@ -99,11 +101,34 @@ preview, analyser and preflight interpret exactly those lines.
     on the alarm report is the mitigation. The owner should confirm this in
     SAFETY H35 / PN §9.3.
 
+18. **F is converted with the units in force before the line's G20/G21**
+    (P0 review). Both firmwares run `cm_set_feed_rate` before
+    `cm_set_units_mode` (EN gcode_parser.c:605-611 vs :637,
+    canonical_machine.c:1358; TG gcode_parser.c:455 vs :474), so on a G21
+    board `G20 G1 X4 F2` runs at 2 mm/min, not 50.8. With the prior units
+    unknown, F on the line is unknown (`unknown-state` on a feed move).
+19. **Rotary axis modes** (P0 review). In radius mode (`am`=3) the word is
+    linear units turned into degrees, `v × units × 360 / (2π ra)` (EN
+    canonical_machine.c:484-487); the sanitiser models that from the live
+    `am`/`ra`. Unknown `am`, or radius mode with unknown `ra` or units, blocks
+    the move. G28/G30 are blocked while any rotary axis is in radius mode or
+    of unknown mode: 440.21 passes the stored position through `_calc_ABC`
+    again. Offsets are never radius-converted.
+20. **Rotary offsets under G20 are dialect data** (`rotaryOffsetsUseUnits`,
+    P0 review): 440.21 applies `_to_millimeters` to rotary G10/G92 words (TG
+    canonical_machine.c:669, :788-789); EN does not (EN :989, :1127).
+21. **The EN tool length offset applies to X, Y and Z targets only** (P0
+    review). `cm_set_model_target` adds it in the XYZ loop only (EN
+    canonical_machine.c:502-505 vs :517-523), while G43.1 still stores A/B/C
+    values that G92 and G10 L20 subtract. A rotary axis therefore reads
+    value + stored tool offset after G92/G10 L20.
+
 ### Long moves (step 6a)
 
-- The modelled duration is length / (`min(F, vm) × k`), with `vm` the
-  smallest board maximum velocity among the moving axes; a rapid uses `vm`.
-  A smaller `v_eff` only means more, shorter segments.
+- The modelled duration of a feed move is length / (`min(F, fr) × k`), with
+  `fr` the smallest feed rate maximum among the moving axes; a rapid uses
+  `vm × k`. TinyG limits feed moves by `fr`, never `vm` (EN
+  plan_line.c:349-353). A smaller `v_eff` only means more, shorter segments.
 - Sub-segments are sized against 99.9% of the ceiling, so re-sanitising the
   output never splits again (T-S1 idempotence), and each sub-segment's
   duration is recomputed from the rounded numbers actually written.

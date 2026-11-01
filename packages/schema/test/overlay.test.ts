@@ -110,9 +110,12 @@ describe('risk, confirmations and invalidations (SAFETY §4.6)', () => {
     expect(get('prbp').invalidates).toContain('probe.*');
   });
 
-  it('typed C5 always for motor map and polarity, switch type and modes, and travel', () => {
-    const always = [...MOTORS.flatMap((m) => [`${m}ma`, `${m}po`]), 'st', ...['x', 'y', 'z', 'a'].flatMap((a) => [`${a}sn`, `${a}sx`]), ...['x', 'y', 'z', 'a', 'b', 'c'].flatMap((a) => [`${a}tn`, `${a}tm`]), 'spep', 'spdp', 'prbp'];
+  it('typed C5 always for motor map and polarity, switch type and modes, travel, and rotary axis mode', () => {
+    // Rotary `am` can select radius mode, which multiplies every move on that axis by 360 / (2π ra).
+    const always = [...MOTORS.flatMap((m) => [`${m}ma`, `${m}po`]), 'st', 'aam', 'bam', 'cam', ...['x', 'y', 'z', 'a'].flatMap((a) => [`${a}sn`, `${a}sx`]), ...['x', 'y', 'z', 'a', 'b', 'c'].flatMap((a) => [`${a}tn`, `${a}tm`]), 'spep', 'spdp', 'prbp'];
     expect(TINYG_EN_OVERLAY.filter((o) => o.typedConfirm.kind === 'always').map((o) => o.key).sort()).toEqual(always.sort());
+    expect(get('xam').typedConfirm).toEqual({ kind: 'never' });
+    expect(get('aam').whatGoesWrong).toContain('radius mode');
   });
 
   it('typed C5 for sl=0 and for jerk or velocity ×2 or more', () => {

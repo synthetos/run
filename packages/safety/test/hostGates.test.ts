@@ -30,7 +30,7 @@ describe('T-S69: host gates', () => {
 
   it('spindle kind away from laser needs the typed C19; towards laser applies at once', () => {
     const toSpindle = { ...BASE, spindleKind: 'spindle' as const };
-    expect(diffHostGates(BASE, toSpindle)).toEqual([{ field: 'spindleKind', loosens: true, typed: true }]);
+    expect(diffHostGates(BASE, toSpindle)).toEqual([{ field: 'spindleKind', loosens: true, typed: true, malformed: false }]);
     expect(effectiveHostGates(BASE, toSpindle, NONE).spindleKind).toBe('laser');
     expect(effectiveHostGates(BASE, toSpindle, C19).spindleKind).toBe('laser');
     expect(effectiveHostGates(BASE, toSpindle, TYPED).spindleKind).toBe('spindle');
@@ -116,5 +116,46 @@ describe('the envelope comes only from the board', () => {
     expect(workEnvelope.length).toBe(1);
     const fromProfile = { tn: {}, tm: {}, envelope: { X: { min: 0, max: 1 } } };
     expect(workEnvelope(fromProfile)).toEqual({});
+  });
+});
+
+describe('malformed proposed values fail closed (SAFETY §4.10 rule 4)', () => {
+  const bad: [string, Partial<Record<keyof HostGates, unknown>>][] = [
+    ['jog step null', { jogCaps: { maxStepMm: null, maxFeedMmPerMin: 1000 } }],
+    ['jog step NaN', { jogCaps: { maxStepMm: Number.NaN, maxFeedMmPerMin: 1000 } }],
+    ['jog step string', { jogCaps: { maxStepMm: '5', maxFeedMmPerMin: 1000 } }],
+    ['jog feed missing', { jogCaps: { maxStepMm: 5 } }],
+    ['jog caps null', { jogCaps: null }],
+    ['jog step negative', { jogCaps: { maxStepMm: -1, maxFeedMmPerMin: 1000 } }],
+    ['ceiling NaN', { queuedMotionCeilingS: Number.NaN }],
+    ['ceiling null', { queuedMotionCeilingS: null }],
+    ['ceiling string', { queuedMotionCeilingS: '3' }],
+    ['ceiling below range', { queuedMotionCeilingS: 1 }],
+    ['hold timeout NaN', { holdTimeoutS: Number.NaN }],
+    ['hold timeout string', { holdTimeoutS: '30' }],
+    ['spindle kind unknown', { spindleKind: 'router' }],
+    ['dual motor not a list', { dualMotorAxes: 'Y' }],
+    ['dual motor bad motor', { dualMotorAxes: [{ axis: 'Y', motors: [2, 'x'] }, { axis: 'X', motors: [1, 4] }] }],
+    ['dual motor entry null', { dualMotorAxes: [null] }],
+    ['homing order not strings', { homingOrder: ['Z', 1] }],
+    ['homing order null', { homingOrder: null }],
+    ['host loss policy unknown', { hostLossPolicy: 'ignore' }],
+  ];
+
+  for (const [name, patch] of bad) {
+    it(`${name}: reported as a malformed loosening and never applied, even with typed C19`, () => {
+      const proposed = { ...BASE, ...patch } as unknown as HostGates;
+      const changes = diffHostGates(BASE, proposed);
+      expect(changes).toHaveLength(1);
+      expect(changes[0]).toMatchObject({ loosens: true, malformed: true });
+      expect(effectiveHostGates(BASE, proposed, TYPED)).toEqual(BASE);
+      expect(effectiveHostGates(BASE, proposed, NONE)).toEqual(BASE);
+    });
+  }
+
+  it('well-formed tightenings still apply at once', () => {
+    const tighter: HostGates = { ...BASE, jogCaps: { maxStepMm: 1, maxFeedMmPerMin: 500 }, queuedMotionCeilingS: 2, holdTimeoutS: 30 };
+    expect(effectiveHostGates(BASE, tighter, NONE)).toEqual(tighter);
+    expect(diffHostGates(BASE, tighter).every((c) => !c.malformed)).toBe(true);
   });
 });

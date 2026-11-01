@@ -229,10 +229,16 @@ function axisCore(a: string, kind: AxisKind): OverlayEntry[] {
       convert: false,
       scope: 'persisted',
       risk: 'high',
-      typedConfirm: NEVER,
+      // Radius mode (rotary only) reads the ${A} word in linear units and turns it into degrees
+      // (@cite EN canonical_machine.c:484-487 `_calc_ABC`): one setting multiplies every ${A} move by
+      // 360 / (2π × ra). The sanitiser models it from the live `am`/`ra`, and the change is typed (C5).
+      typedConfirm: kind === 'rotary' ? ALWAYS : NEVER,
       afterWrite: null,
       invalidates: [`homing.${a}`, 'job.*.preflight'],
-      whatGoesWrong: `Disabled or inhibited, the ${A} axis does not move while jobs and the preview assume it does.`,
+      whatGoesWrong:
+        kind === 'rotary'
+          ? `Disabled or inhibited, the ${A} axis does not move while jobs and the preview assume it does. In radius mode every ${A} word is read as a length and turned into degrees, so ${A} turns 360 / (2π × radius) degrees per mm (about 57× at radius 1).`
+          : `Disabled or inhibited, the ${A} axis does not move while jobs and the preview assume it does.`,
     }),
     entry(`${a}vm`, {
       label: `${A} maximum velocity`,

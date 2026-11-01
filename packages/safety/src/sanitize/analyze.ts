@@ -24,6 +24,7 @@ import {
   formatNumber,
   modelArc,
   moveSeconds,
+  noVelocityMessage,
   splitArc,
   splitLinear,
   type ArcInput,
@@ -32,8 +33,8 @@ import {
   type Segment,
 } from './geometry.ts';
 import { canonicalCode, type Word } from './lex.ts';
-import type { Axis, MotionModel, ReportEntry, SanitizeOptions, SanitizeRule, StartState, Wcs } from './types.ts';
-import { AXES, WCS_CODES } from './types.ts';
+import type { Axis, MotionModel, ReportEntry, RotaryAxis, SanitizeOptions, SanitizeRule, StartState, Wcs } from './types.ts';
+import { AXES, AXIS_MODE_RADIUS, WCS_CODES } from './types.ts';
 
 type Pos = Record<Axis, number | null>;
 
@@ -71,6 +72,8 @@ const AXIS_LETTERS: ReadonlySet<string> = new Set(AXES);
 const ARC_LETTERS: ReadonlySet<string> = new Set(['I', 'J', 'K', 'R']);
 
 const INCH_MM = 25.4;
+
+const ROTARY_AXES: readonly RotaryAxis[] = ['A', 'B', 'C'];
 
 /** A finding for the report, before its line number is attached. */
 export interface Finding {
@@ -189,13 +192,40 @@ export class JobModel {
     }
   }
 
-  /** Work offset in force on an axis: coordinate system + G92 (if applied) + tool offset, or null. */
+  /**
+   * Work offset in force on an axis: coordinate system + G92 (if applied) +
+   * the applied tool offset, or null. This is the offset the firmware adds to
+   * a target, not its display convention.
+   */
   totalOffset(axis: Axis): number | null {
     if (this.wcs === null) return null;
     const w = this.wcsOffsets[this.wcs][axis];
     const g = this.#g92Part(axis);
-    const t = this.toolOffset[axis];
+    const t = this.#appliedTool(axis);
     return w === null || g === null || t === null ? null : w + g + t;
+  }
+
+  /**
+   * The tool offset added to a target on this axis. EN adds it to X, Y and Z
+   * only: the A/B/C loop of `cm_set_model_target` uses the coordinate offset
+   * alone (@cite EN canonical_machine.c:502-505 vs :517-523), although G43.1
+   * stores A/B/C values (@cite EN canonical_machine.c:1511, E155), which G92
+   * and G10 L20 still subtract (@cite EN canonical_machine.c:990-996, :1126-1127).
+   */
+  #appliedTool(axis: Axis): number | null {
+    return ROTARY.has(axis) ? 0 : this.toolOffset[axis];
+  }
+
+  /**
+   * The work position on `axis` right after G92 or G10 L20 (on the active
+   * system) set it to `value`: the firmware subtracts the stored tool offset on
+   * every axis but applies it only to X, Y and Z, so a rotary axis reads
+   * `value` + its stored tool offset (null when either is unknown).
+   */
+  #workAfterSet(axis: Axis, value: number | null): number | null {
+    if (value === null || !ROTARY.has(axis)) return value;
+    const t = this.toolOffset[axis];
+    return t === null ? null : value + t;
   }
 
   /** The G92 part of the work offset on an axis, or null when it is not known whether G92 applies. */
@@ -243,10 +273,62 @@ export class JobModel {
     });
   }
 
-  /** mm (or degrees) per program unit for an axis, or null when the units are unknown. */
-  #scale(axis: Axis, units: 'G20' | 'G21' | null): number | null {
-    if (ROTARY.has(axis)) return 1;
+  /** mm per program unit of a linear word, or null when the units are unknown. */
+  static #unitScale(units: 'G20' | 'G21' | null): number | null {
     return units === null ? null : units === 'G20' ? INCH_MM : 1;
+  }
+
+  /**
+   * mm (or degrees) per program unit of a move target on an axis, or null
+   * when it depends on something unknown. A rotary axis in radius mode reads
+   * the word in linear units and turns it into degrees (@cite EN
+   * canonical_machine.c:484-487 `_calc_ABC`; TG the same); every other
+   * rotary mode reads degrees.
+   */
+  #scale(axis: Axis, units: 'G20' | 'G21' | null): number | null {
+    if (!ROTARY.has(axis)) return JobModel.#unitScale(units);
+    const cfg = this.#motion.rotary[axis as RotaryAxis];
+    /* c8 ignore next -- a move word on an axis of unknown mode is blocked before any target is computed (#rotaryUnknown) */
+    if (cfg === undefined) return null;
+    if (cfg.mode !== AXIS_MODE_RADIUS) return 1;
+    const u = JobModel.#unitScale(units);
+    const r = cfg.radiusMm;
+    return u === null || r === undefined ? null : (u * 360) / (2 * Math.PI * r);
+  }
+
+  /**
+   * mm (or degrees) per program unit of an offset word (G10, G92, G43.1).
+   * Offsets never use the radius conversion. EN stores rotary offsets as
+   * written, in degrees (@cite EN canonical_machine.c:989, :1127, :1511);
+   * 440.21 applies `_to_millimeters` to every axis, so a rotary offset under
+   * G20 is scaled by 25.4 (@cite TG canonical_machine.c:669, :788-789), which
+   * the dialect states as `rotaryOffsetsUseUnits`.
+   */
+  #offsetScale(axis: Axis, units: 'G20' | 'G21' | null): number | null {
+    if (ROTARY.has(axis) && !this.#job.rotaryOffsetsUseUnits) return 1;
+    return JobModel.#unitScale(units);
+  }
+
+  /** Whether a word on this axis needs the program units to be modelled as a move target. */
+  #needsUnits(axis: Axis): boolean {
+    return !ROTARY.has(axis) || this.#motion.rotary[axis as RotaryAxis]?.mode === AXIS_MODE_RADIUS;
+  }
+
+  /**
+   * A block for a move word on a rotary axis whose mode or radius is not
+   * known: the word could be degrees or linear units, and a radius-mode axis
+   * turns 360 / (2π × ra) degrees per mm (about 57× at ra = 1).
+   */
+  #rotaryUnknown(axis: Axis): Finding | null {
+    if (!ROTARY.has(axis)) return null;
+    const cfg = this.#motion.rotary[axis as RotaryAxis];
+    if (cfg === undefined) {
+      return block('unknown-state', `the axis mode (${axis.toLowerCase()}am) of ${axis} is not known, so a move on ${axis} cannot be modelled`);
+    }
+    if (cfg.mode === AXIS_MODE_RADIUS && cfg.radiusMm === undefined) {
+      return block('unknown-state', `${axis} is in radius mode but its radius (${axis.toLowerCase()}ra) is not known, so a move on ${axis} cannot be modelled`);
+    }
+    return null;
   }
 
   /** Moves by known deltas: both positions follow, unknowns stay unknown. */
@@ -403,8 +485,37 @@ export class JobModel {
     if (isArcMove && P !== undefined && (!Number.isInteger(P.value) || P.value < 0)) {
       findings.push(block('bad-parameter', 'arc turns (P) must be a whole number of 0 or more'));
     }
-    if ((isArcMove || (isLinearMove && motionMode === 'G1')) && !(F !== undefined ? F.value > 0 : this.feed !== null)) {
+    // F is converted with the units in force BEFORE this line's G20/G21: both firmwares set the feed
+    // rate before they apply the line's units mode (@cite EN gcode_parser.c:605-611 vs :637,
+    // canonical_machine.c:1358; TG gcode_parser.c:455 vs :474). `G20 G1 X4 F2` on a G21 board runs
+    // at 2 mm/min, not 50.8.
+    const feedScale = JobModel.#unitScale(this.units);
+    const feed = F === undefined ? this.feed : F.value > 0 && feedScale !== null ? F.value * feedScale : null;
+    const feedMove = isArcMove || (isLinearMove && motionMode === 'G1');
+    if (feedMove && F !== undefined && F.value > 0 && feedScale === null) {
+      findings.push(block('unknown-state', 'the units in force before this line are not known, and the firmware converts F with them; set G20 or G21 on an earlier line'));
+    } else if (feedMove && feed === null) {
       findings.push(block('feed-not-set', 'a feed move needs a feed rate: set F before the first G1, G2 or G3'));
+    }
+    // A move word on a rotary axis needs its axis mode (and radius in radius mode) to be modelled.
+    // (Arcs refuse rotary words outright; G28/G30 are covered below.)
+    if (isLinearMove) {
+      for (const w of axisWords) {
+        const f = this.#rotaryUnknown(w.letter as Axis);
+        if (f !== null) findings.push(f);
+      }
+    }
+    // G28/G30 also move every axis to the stored position. 440.21 passes that stored position through
+    // `_calc_ABC` again (@cite TG canonical_machine.c:907-914 via cm_set_model_target), so a radius-mode
+    // rotary axis would turn by a different amount than modelled; an unknown mode could be radius.
+    if (action === 'G28' || action === 'G30') {
+      const risky = ROTARY_AXES.filter((a) => {
+        const mode = this.#motion.rotary[a]?.mode;
+        return mode === undefined || mode === AXIS_MODE_RADIUS;
+      });
+      if (risky.length > 0) {
+        findings.push(block('rotary-radius', `${action} cannot be modelled while ${risky.join(', ')} ${risky.length === 1 ? 'is' : 'are'} in radius mode or of unknown axis mode`));
+      }
     }
 
     const programStop = has('M0') || has('M60');
@@ -423,21 +534,21 @@ export class JobModel {
     this.arcDistance = arcDistance;
     this.plane = plane;
     this.motionMode = motionMode;
-    if (F !== undefined) this.feed = units === null ? null : F.value * (units === 'G20' ? INCH_MM : 1);
-    if (F !== undefined && F.value <= 0) this.feed = null;
+    this.feed = feed;
     if (toolSet) {
       for (const w of axisWords) {
         const a = w.letter as Axis;
-        const sc = this.#scale(a, units);
-        const before = this.toolOffset[a];
+        const sc = this.#offsetScale(a, units);
+        const before = this.#appliedTool(a);
         const after = sc === null ? null : w.value * sc;
         this.toolOffset[a] = after;
-        this.#shift(a, before === null || after === null ? null : before - after);
+        const applied = this.#appliedTool(a);
+        this.#shift(a, before === null || applied === null ? null : before - applied);
       }
     }
     if (toolCancel) {
       for (const a of AXES) {
-        const before = this.toolOffset[a];
+        const before = this.#appliedTool(a);
         this.toolOffset[a] = 0;
         this.#shift(a, before);
       }
@@ -543,7 +654,7 @@ export class JobModel {
         const l20 = (params.get('L') as Word).value === 20;
         for (const w of axisWords) {
           const a = w.letter as Axis;
-          const sc = this.#scale(a, units);
+          const sc = this.#offsetScale(a, units);
           const value = sc === null ? null : w.value * sc;
           if (!l20) {
             const before = this.wcsOffsets[target][a];
@@ -555,7 +666,7 @@ export class JobModel {
             const g = this.#g92Part(a);
             const t = this.toolOffset[a];
             this.wcsOffsets[target][a] = m === null || value === null || g === null || t === null ? null : m - value - g - t;
-            if (this.wcs === target) this.work[a] = value;
+            if (this.wcs === target) this.work[a] = this.#workAfterSet(a, value);
           }
           // With the active system unknown, it may be the one that changed.
           if (this.wcs === null) this.work[a] = null;
@@ -567,7 +678,7 @@ export class JobModel {
         const offsets = { ...this.g92 };
         for (const w of axisWords) {
           const a = w.letter as Axis;
-          const sc = this.#scale(a, units);
+          const sc = this.#offsetScale(a, units);
           const value = sc === null ? null : w.value * sc;
           const m = this.machine[a];
           const wo = this.wcs === null ? null : this.wcsOffsets[this.wcs][a];
@@ -576,8 +687,9 @@ export class JobModel {
         }
         this.#setG92(true, offsets);
         for (const w of axisWords) {
-          const sc = this.#scale(w.letter as Axis, units);
-          this.work[w.letter as Axis] = sc === null ? null : w.value * sc;
+          const a = w.letter as Axis;
+          const sc = this.#offsetScale(a, units);
+          this.work[a] = this.#workAfterSet(a, sc === null ? null : w.value * sc);
         }
         return null;
       }
@@ -662,7 +774,7 @@ export class JobModel {
     let seconds = 0;
     for (const leg of legs) {
       if (leg.d.kind !== 'ok') {
-        findings.push(block('no-velocity-limit', `no maximum velocity is known for axis ${leg.d.axis}`));
+        findings.push(block('no-velocity-limit', noVelocityMessage(leg.d)));
         return null;
       }
       seconds += leg.d.seconds;
@@ -713,7 +825,7 @@ export class JobModel {
     }
     if (unknown.length > 0) {
       this.#forget(axisWords);
-      findings.push(block('unknown-state', unknownMessage(unknown, units, distance, g53)));
+      findings.push(block('unknown-state', unknownMessage(unknown.filter((a) => this.#needsUnits(a as Axis)), unknown, units, distance, g53)));
       return null;
     }
     const moving = AXES.filter((a) => (delta[a] ?? 0) !== 0);
@@ -724,7 +836,7 @@ export class JobModel {
     const startMachine = { ...this.machine };
     this.#moveBy(delta);
     if (d.kind !== 'ok') {
-      findings.push(block('no-velocity-limit', `no maximum velocity is known for axis ${d.axis}`));
+      findings.push(block('no-velocity-limit', noVelocityMessage(d)));
       return null;
     }
     if (d.seconds <= this.#motion.ceilingSeconds) return { kind: 'single', lengthMm, seconds: d.seconds };
@@ -740,7 +852,7 @@ export class JobModel {
         delta: absolute ? w.value - from / sc : w.value,
         written: w.text,
         scale: sc,
-        decimals: ROTARY.has(a) ? DECIMALS.rotary : units === 'G20' ? DECIMALS.in : DECIMALS.mm,
+        decimals: !this.#needsUnits(a) ? DECIMALS.rotary : units === 'G20' ? DECIMALS.in : DECIMALS.mm,
       };
     });
     const split = splitLinear(axes, absolute, feed, d.seconds, this.#motion);
@@ -828,7 +940,7 @@ export class JobModel {
     const start = { ...this.work };
     this.#moveBy({ [p.a0]: input.d0, [p.a1]: input.d1, [p.lin]: input.dLin });
     if (d.kind !== 'ok') {
-      findings.push(block('no-velocity-limit', `no maximum velocity is known for axis ${d.axis}`));
+      findings.push(block('no-velocity-limit', noVelocityMessage(d)));
       return null;
     }
     if (d.seconds <= this.#motion.ceilingSeconds) return { kind: 'single', lengthMm: model.arc.lengthMm, seconds: d.seconds };
@@ -873,9 +985,15 @@ function unique(items: readonly string[]): string[] {
   return [...new Set(items)];
 }
 
-function unknownMessage(axes: readonly string[], units: string | null, distance: string | null, g53: boolean): string {
+function unknownMessage(
+  unitAxes: readonly string[],
+  axes: readonly string[],
+  units: string | null,
+  distance: string | null,
+  g53: boolean,
+): string {
   const what: string[] = [];
-  if (units === null && axes.some((a) => !ROTARY.has(a as Axis))) what.push('the units');
+  if (units === null && unitAxes.length > 0) what.push('the units');
   if (!g53 && distance === null) what.push('the distance mode');
   if (what.length === 0) what.push(`the ${g53 ? 'machine' : 'work'} position of ${axes.join(', ')}`);
   return `this move cannot be checked against the queued-motion ceiling; not known: ${what.join(' and ')}`;

@@ -56,13 +56,23 @@ interface Candidate {
 }
 
 function checkOptions(options: SanitizeOptions): void {
-  const { ceilingSeconds, k, maxVelocity } = options.motion;
+  const { ceilingSeconds, k, maxVelocity, feedrateMax, rotary } = options.motion;
   if (!(ceilingSeconds >= CEILING_SECONDS.min && ceilingSeconds <= CEILING_SECONDS.max)) {
     throw new RangeError(`ceilingSeconds must be from ${CEILING_SECONDS.min} to ${CEILING_SECONDS.max} (SAFETY §4.3)`);
   }
   if (!(k > 0 && k <= 1)) throw new RangeError('k must be in (0, 1] (SAFETY §4.3)');
-  for (const [axis, v] of Object.entries(maxVelocity)) {
-    if (!(typeof v === 'number' && v > 0 && Number.isFinite(v))) throw new RangeError(`maxVelocity.${axis} must be a positive number`);
+  for (const [name, table] of [['maxVelocity', maxVelocity], ['feedrateMax', feedrateMax]] as const) {
+    if (typeof table !== 'object' || table === null) throw new RangeError(`${name} must be given (SAFETY §4.3)`);
+    for (const [axis, v] of Object.entries(table)) {
+      if (!(typeof v === 'number' && v > 0 && Number.isFinite(v))) throw new RangeError(`${name}.${axis} must be a positive number`);
+    }
+  }
+  if (typeof rotary !== 'object' || rotary === null) throw new RangeError('rotary axis modes must be given (an empty object when none are known)');
+  for (const [axis, cfg] of Object.entries(rotary)) {
+    if (!['A', 'B', 'C'].includes(axis)) throw new RangeError(`rotary.${axis} is not a rotary axis`);
+    if (!(typeof cfg === 'object' && cfg !== null && [0, 1, 2, 3].includes(cfg.mode))) throw new RangeError(`rotary.${axis}.mode must be 0, 1, 2 or 3`);
+    const r = cfg.radiusMm;
+    if (r !== undefined && !(typeof r === 'number' && r > 0 && Number.isFinite(r))) throw new RangeError(`rotary.${axis}.radiusMm must be a positive number`);
   }
 }
 

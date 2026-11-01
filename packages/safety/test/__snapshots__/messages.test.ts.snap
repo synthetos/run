@@ -875,6 +875,22 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
       "severity": "block",
     },
   ],
+  "tinyg-en feed rate max": [
+    {
+      "line": 1,
+      "message": "no feed rate maximum (fr) is known for axis X",
+      "rule": "no-velocity-limit",
+      "severity": "block",
+    },
+  ],
+  "tinyg-en feed units": [
+    {
+      "line": 1,
+      "message": "the units in force before this line are not known, and the firmware converts F with them; set G20 or G21 on an earlier line",
+      "rule": "unknown-state",
+      "severity": "block",
+    },
+  ],
   "tinyg-en first char": [
     {
       "line": 1,
@@ -942,6 +958,26 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
       "line": 1,
       "message": ""!" is a realtime command byte and is never sent inside job data",
       "rule": "realtime-character",
+      "severity": "block",
+    },
+  ],
+  "tinyg-en rotary mode": [
+    {
+      "line": 1,
+      "message": "the axis mode (aam) of A is not known, so a move on A cannot be modelled",
+      "rule": "unknown-state",
+      "severity": "block",
+    },
+    {
+      "line": 2,
+      "message": "B is in radius mode but its radius (bra) is not known, so a move on B cannot be modelled",
+      "rule": "unknown-state",
+      "severity": "block",
+    },
+    {
+      "line": 3,
+      "message": "G28 cannot be modelled while A, B, C are in radius mode or of unknown axis mode",
+      "rule": "rotary-radius",
       "severity": "block",
     },
   ],
@@ -1038,7 +1074,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
     },
     {
       "line": 3,
-      "message": "this arc cannot be modelled; not known: the plane, the units, the distance mode, the arc distance mode",
+      "message": "the units in force before this line are not known, and the firmware converts F with them; set G20 or G21 on an earlier line",
       "rule": "unknown-state",
       "severity": "block",
     },

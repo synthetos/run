@@ -23,12 +23,22 @@ export const START: StartState = Object.freeze<StartState>({
   defaults: { units: 'G21', distance: 'G90', plane: 'G17', wcs: 'G54' },
 });
 
+/** Every rotary axis in standard mode (degrees). */
+export const STANDARD_ROTARY: MotionModel['rotary'] = Object.freeze({ A: { mode: 1 }, B: { mode: 1 }, C: { mode: 1 } });
+
 /** Fast enough that ordinary corpus moves are never split (the split tests use their own model). */
-export const MOTION: MotionModel = Object.freeze({
+export const MOTION: MotionModel = Object.freeze<MotionModel>({
   ceilingSeconds: 5,
   k: 0.5,
   maxVelocity: { X: 20000, Y: 20000, Z: 5000, A: 20000, B: 20000, C: 20000 },
+  feedrateMax: { X: 20000, Y: 20000, Z: 5000, A: 20000, B: 20000, C: 20000 },
+  rotary: STANDARD_ROTARY,
 });
+
+/** A motion model whose rapid (vm) and feed (fr) limits are both `limits`. */
+export function sameLimits(base: MotionModel, limits: MotionModel['maxVelocity']): MotionModel {
+  return { ...base, maxVelocity: limits, feedrateMax: limits };
+}
 
 export function run(input: string | Iterable<string>, dialect: Dialect, options: Partial<SanitizeOptions> = {}): SanitizeResult {
   return sanitizeJob(input, dialect, { motion: MOTION, start: START, ...options });

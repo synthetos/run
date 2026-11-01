@@ -13,6 +13,7 @@
  * The work envelope is never a host gate or any other profile field: it
  * comes only from the live board's `tn`/`tm` (`workEnvelope`).
  */
+import { CEILING_SECONDS } from './sanitize/sanitize.ts';
 import type { AxisValues } from './sanitize/types.ts';
 import { AXES } from './sanitize/types.ts';
 
@@ -52,10 +53,47 @@ export const HOST_GATE_FIELDS: readonly HostGateField[] = Object.freeze([
 
 export interface HostGateChange {
   readonly field: HostGateField;
-  /** True when the proposed value relaxes what the host checks. */
+  /** True when the proposed value relaxes what the host checks. A malformed value always counts as loosening. */
   readonly loosens: boolean;
   /** True when C19 must be typed (`WRITE`) for this change. */
   readonly typed: boolean;
+  /**
+   * True when the proposed value is not a well-formed value for the field
+   * (NaN, null, a string, out of range, ...). It is never applied, not even
+   * with C19: a comparison such as `step > cap` against null or NaN is
+   * always false, which would silently disable the gate (SAFETY §4.10 rule 4,
+   * fail closed).
+   */
+  readonly malformed: boolean;
+}
+
+const SPINDLE_KINDS: readonly unknown[] = ['spindle', 'laser', 'plasma', 'none'];
+const HOST_LOSS_POLICIES: readonly unknown[] = ['drain', 'hold-and-spindle-pause'];
+
+const positiveFinite = (v: unknown): boolean => typeof v === 'number' && Number.isFinite(v) && v > 0;
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Whether `value` is a well-formed value for a host-gate field, checked at run time (profiles arrive as untyped JSON). */
+function wellFormed(field: HostGateField, value: unknown): boolean {
+  switch (field) {
+    case 'spindleKind':
+      return SPINDLE_KINDS.includes(value);
+    case 'dualMotorAxes':
+      return (
+        Array.isArray(value) &&
+        value.every((d: unknown) => isObject(d) && typeof d['axis'] === 'string' && Array.isArray(d['motors']) && d['motors'].every((m: unknown) => Number.isInteger(m)))
+      );
+    case 'queuedMotionCeilingS':
+      return typeof value === 'number' && value >= CEILING_SECONDS.min && value <= CEILING_SECONDS.max;
+    case 'jogCaps':
+      return isObject(value) && positiveFinite(value['maxStepMm']) && positiveFinite(value['maxFeedMmPerMin']);
+    case 'homingOrder':
+      return Array.isArray(value) && value.every((a: unknown) => typeof a === 'string');
+    case 'holdTimeoutS':
+      return value === null || positiveFinite(value);
+    case 'hostLossPolicy':
+      return HOST_LOSS_POLICIES.includes(value);
+  }
 }
 
 const sameDual = (a: DualMotorAxis, b: DualMotorAxis): boolean =>
@@ -91,11 +129,16 @@ function differs(field: HostGateField, a: HostGates, b: HostGates): boolean {
 /** Fields whose loosening needs the typed C19 (`WRITE`). */
 const TYPED_FIELDS: ReadonlySet<HostGateField> = new Set(['spindleKind', 'queuedMotionCeilingS', 'jogCaps']);
 
-/** Every host-gate field that differs, and whether the change loosens the gate. */
+/**
+ * Every host-gate field that differs, and whether the change loosens the
+ * gate. A proposed value that is not well-formed is reported as a malformed
+ * loosening, whatever the comparison would say.
+ */
 export function diffHostGates(confirmed: HostGates, proposed: HostGates): HostGateChange[] {
   return HOST_GATE_FIELDS.filter((f) => differs(f, confirmed, proposed)).map((field) => {
-    const l = loosens(field, confirmed, proposed);
-    return { field, loosens: l, typed: l && TYPED_FIELDS.has(field) };
+    const malformed = !wellFormed(field, proposed[field]);
+    const l = malformed || loosens(field, confirmed, proposed);
+    return { field, loosens: l, typed: l && TYPED_FIELDS.has(field), malformed };
   });
 }
 
@@ -108,13 +151,13 @@ export interface C19Acceptance {
 
 /**
  * The gates this browser uses: a tightening applies at once; a loosening
- * applies only with C19 accepted, and typed where the field needs it.
- * Otherwise the confirmed value stays in force.
+ * applies only with C19 accepted, and typed where the field needs it; a
+ * malformed value never applies. Otherwise the confirmed value stays in force.
  */
 export function effectiveHostGates(confirmed: HostGates, proposed: HostGates, c19: C19Acceptance): HostGates {
   const out: Record<string, unknown> = { ...confirmed };
   for (const change of diffHostGates(confirmed, proposed)) {
-    const ok = !change.loosens || (c19.accepted && (!change.typed || c19.typedWrite));
+    const ok = !change.malformed && (!change.loosens || (c19.accepted && (!change.typed || c19.typedWrite)));
     if (ok) out[change.field] = proposed[change.field];
   }
   return out as unknown as HostGates;
