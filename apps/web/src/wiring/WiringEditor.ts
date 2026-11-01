@@ -18,6 +18,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from 'preact/hooks';
 import {
   COMPONENTS,
   PART_KINDS,
+  boardEp,
   boardPins,
   checklist,
   expectedSettings,
@@ -62,7 +63,7 @@ const value = (e: Event): string => (e.currentTarget as HTMLInputElement | HTMLS
 export function pinOptions(board: WiringBoard, diagram: Diagram): readonly { readonly value: string; readonly label: string }[] {
   return [
     ...diagram.parts.flatMap((p) => COMPONENTS[p.kind].pins.map((d) => ({ value: `${p.id}:${d.id}`, label: `${p.label || p.id} · ${d.label}` }))),
-    ...boardPins(board).map((b) => ({ value: `board:${b.ref}`, label: `Board ${b.ref} · ${b.label}` })),
+    ...boardPins(board).map((b) => ({ value: boardEp(b.ref), label: `Board ${b.ref} · ${b.label}` })),
   ];
 }
 

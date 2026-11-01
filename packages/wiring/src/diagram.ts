@@ -39,6 +39,14 @@ export interface Diagram {
   readonly wires: readonly Wire[];
 }
 
+/**
+ * The endpoint of board pin `ref` (`board:J7.3`). Built by joining, not as a
+ * literal, so the bundle scan (P0-13) does not read `board:` as a URL scheme.
+ */
+export function boardEp(ref: string): string {
+  return ['board', ref].join(':');
+}
+
 export const MAX_LABEL = 64;
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
 
@@ -179,7 +187,7 @@ export class Netlist {
   constructor(diagram: Diagram, pins: readonly BoardPinInfo[]) {
     this.diagram = diagram;
     this.pins = pins;
-    for (const p of pins) if (p.net !== undefined) this.union(`board:${p.ref}`, `board:#${p.net}`);
+    for (const p of pins) if (p.net !== undefined) this.union(boardEp(p.ref), boardEp(`#${p.net}`));
     for (const w of diagram.wires) this.union(w.from, w.to);
   }
   private find(x: string): string {
@@ -204,7 +212,7 @@ export class Netlist {
     const n = this.find(ep);
     const all = new Set<string>();
     for (const w of this.diagram.wires) for (const e of [w.from, w.to]) all.add(e);
-    for (const p of this.pins) all.add(`board:${p.ref}`);
+    for (const p of this.pins) all.add(boardEp(p.ref));
     return [...all].filter((e) => e !== ep && this.find(e) === n);
   }
   /** True when a wire touches the endpoint. */

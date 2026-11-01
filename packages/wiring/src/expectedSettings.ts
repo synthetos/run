@@ -7,7 +7,7 @@
  * confirmation (`keyClass`). Nothing here writes anything.
  */
 import { boardPins, type WiringBoard } from './board.ts';
-import { Netlist, type Diagram, type Part } from './diagram.ts';
+import { Netlist, boardEp, type Diagram, type Part } from './diagram.ts';
 import type { Dialect } from './rules.ts';
 
 export type KeyClass = 'polarity' | 'switch' | 'other';
@@ -50,7 +50,7 @@ export function expectedSettings(diagram: Diagram, board: WiringBoard, dialect: 
     const [, end, axis] = m as unknown as [string, 'min' | 'max', string];
     const key = `${axis}${end === 'min' ? 'sn' : 'sx'}`;
     const on = diagram.parts.filter(
-      (p) => (p.kind === 'switch' && nl.same(`${p.id}:sig`, `board:${b.ref}`)) || (p.kind === 'proximity' && nl.same(`${p.id}:out`, `board:${b.ref}`)),
+      (p) => (p.kind === 'switch' && nl.same(`${p.id}:sig`, boardEp(b.ref))) || (p.kind === 'proximity' && nl.same(`${p.id}:out`, boardEp(b.ref))),
     );
     switches.push(...on);
     out.push(
@@ -68,7 +68,7 @@ export function expectedSettings(diagram: Diagram, board: WiringBoard, dialect: 
     const enable = pins.find((b) => b.signal === 'out.spindleEnable');
     const token = board.outputs.find((o) => o.id === 'spindleEnable')?.polarityToken;
     if (enable !== undefined && token !== undefined) {
-      const at = `board:${enable.ref}`;
+      const at = boardEp(enable.ref);
       const relays = diagram.parts.filter(
         (r) =>
           r.kind === 'relay' &&

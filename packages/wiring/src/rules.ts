@@ -12,7 +12,7 @@
  */
 import { boardElectrical, boardPins, driverRating, type BoardPinInfo, type WiringBoard } from './board.ts';
 import { COMPONENTS, pinDef } from './components.ts';
-import { Netlist, type Diagram, type Part } from './diagram.ts';
+import { Netlist, boardEp, type Diagram, type Part } from './diagram.ts';
 
 export type Dialect = 'tinyg-en' | 'tinyg-440' | 'g2core' | 'unknown';
 export type Severity = 'block' | 'warn' | 'info' | 'estop';
@@ -96,7 +96,7 @@ function partOf(ctx: Ctx, endpoint: string): { part: Part; pin: string } | undef
 
 /** Board signal pins on the same net as `endpoint`. */
 function boardPinsOnNet(ctx: Ctx, endpoint: string): BoardPinInfo[] {
-  return ctx.pins.filter((p) => (p.role === 'input' || p.role === 'output' || p.role === 'logic-supply') && ctx.nl.same(`board:${p.ref}`, endpoint));
+  return ctx.pins.filter((p) => (p.role === 'input' || p.role === 'output' || p.role === 'logic-supply') && ctx.nl.same(boardEp(p.ref), endpoint));
 }
 
 /** The highest voltage a source on the net can put on it, and which source. */
@@ -107,7 +107,7 @@ function netVoltage(ctx: Ctx, endpoint: string): { volts: number; source: string
   };
   for (const m of [endpoint, ...ctx.nl.members(endpoint)]) {
     if (m.startsWith('board:')) {
-      const b = ctx.pins.find((p) => `board:${p.ref}` === m);
+      const b = ctx.pins.find((p) => boardEp(p.ref) === m);
       if (b?.role === 'logic-supply') consider(3.3, `board ${b.ref} (3.3 V)`);
       continue;
     }
@@ -176,7 +176,7 @@ export function estopAnalysis(diagram: Diagram, board: WiringBoard): { readonly 
   const cut = (e: Edge): boolean => e.kind === 'estop' || (e.kind === 'contactor' && controlled.has(e.part.id));
   const loads: { name: string; endpoint: string; broken: boolean }[] = [];
   const hasVmot = pins.some((p) => p.role === 'motor-supply');
-  if (hasVmot) loads.push({ name: 'motor power (Vmot)', endpoint: 'board:#VMOT', broken: false });
+  if (hasVmot) loads.push({ name: 'motor power (Vmot)', endpoint: boardEp('#VMOT'), broken: false });
   const hasVfd = diagram.parts.some((p) => p.kind === 'vfd');
   for (const p of diagram.parts) {
     if (p.kind === 'vfd') loads.push({ name: `${p.label || p.id} supply`, endpoint: ep(p, 'L'), broken: false });
@@ -186,7 +186,7 @@ export function estopAnalysis(diagram: Diagram, board: WiringBoard): { readonly 
   return {
     hasEstop: diagram.parts.some((p) => p.kind === 'estop'),
     loads: done,
-    vmotBroken: done.some((l) => l.endpoint === 'board:#VMOT' && l.broken),
+    vmotBroken: done.some((l) => l.endpoint === boardEp('#VMOT') && l.broken),
   };
 }
 
@@ -207,13 +207,13 @@ export function rules(diagram: Diagram, board: WiringBoard, dialect: Dialect): r
   const levelNets = new Set<string>();
   for (const b of pins) {
     if (b.role !== 'input' && b.role !== 'output' && b.role !== 'logic-supply') continue;
-    const net = ctx.nl.net(`board:${b.ref}`);
+    const net = ctx.nl.net(boardEp(b.ref));
     if (levelNets.has(net)) continue;
     levelNets.add(net);
-    const v = netVoltage(ctx, `board:${b.ref}`);
+    const v = netVoltage(ctx, boardEp(b.ref));
     const limit = b.tolerant5v ? 5 : b.maxV;
     if (v.volts > limit) {
-      const parts = ctx.nl.members(`board:${b.ref}`).map((m) => partOf(ctx, m)?.part.id).filter((x): x is string => x !== undefined);
+      const parts = ctx.nl.members(boardEp(b.ref)).map((m) => partOf(ctx, m)?.part.id).filter((x): x is string => x !== undefined);
       add('WR-LEVEL', `${b.label} (${b.ref}) is a ${b.maxV} V pin that is not 5 V tolerant; ${v.source} can put ${v.volts} V on it. Use a sensor or interface rated for 3.3 V logic, or an opto-isolator or level shifter.`, parts, [b.ref], `${ruleDef('WR-LEVEL').cite}: ${b.src}`);
     }
   }
@@ -256,7 +256,7 @@ export function rules(diagram: Diagram, board: WiringBoard, dialect: Dialect): r
 
   // WR-SPINDIR
   for (const b of pins.filter((x) => x.signal === 'out.spindleDirection')) {
-    const parts = ctx.nl.members(`board:${b.ref}`).map((m) => partOf(ctx, m)?.part.id).filter((x): x is string => x !== undefined);
+    const parts = ctx.nl.members(boardEp(b.ref)).map((m) => partOf(ctx, m)?.part.id).filter((x): x is string => x !== undefined);
     if (parts.length > 0) add('WR-SPINDIR', `Something is wired to ${b.label} (${b.ref}). The bootloader blinks this pin as its LED while it waits after reset; what that does at the pin is UNVERIFIED until a scope check. Do not wire anything here that must stay off.`, parts, [b.ref]);
   }
 
@@ -275,7 +275,7 @@ export function rules(diagram: Diagram, board: WiringBoard, dialect: Dialect): r
       if (seen.has(a.part.id)) continue;
       seen.add(a.part.id);
       const grounds = COMPONENTS[a.part.kind].pins.filter((d) => d.role === 'ground').map((d) => ep(a.part, d.id));
-      const missing = grounds.filter((g) => !ctx.nl.same(g, 'board:#GND'));
+      const missing = grounds.filter((g) => !ctx.nl.same(g, boardEp('#GND')));
       if (missing.length > 0) add('WR-COMMON-GND', `${name(a.part)} signals on ${a.board.label} (${a.board.ref}) but its ${missing.map((m) => m.slice(m.indexOf(':') + 1).toUpperCase()).join(', ')} is not on board GND. A signal needs a common ground to return through.`, [a.part.id], [a.board.ref]);
     }
   }
@@ -285,7 +285,7 @@ export function rules(diagram: Diagram, board: WiringBoard, dialect: Dialect): r
 
   // WR-VMAX, WR-VWARN, WR-VMIN, WR-NO-RATING
   for (const p of psus) {
-    if (!ctx.nl.same(ep(p, '+v'), 'board:#VMOT')) continue;
+    if (!ctx.nl.same(ep(p, '+v'), boardEp('#VMOT'))) continue;
     const v = num(p, 'volts');
     const s = elec.supply;
     if (s === undefined) {

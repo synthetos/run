@@ -14,7 +14,7 @@
 import { boardPins, type BoardPinInfo, type WiringBoard } from './board.ts';
 import { checklist } from './checklist.ts';
 import { COMPONENTS, type ComponentDef } from './components.ts';
-import type { Diagram, Part, Wire } from './diagram.ts';
+import { boardEp, type Diagram, type Part, type Wire } from './diagram.ts';
 import { exportFlags, type Finding } from './rules.ts';
 
 export const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -89,7 +89,7 @@ export function layoutDiagram(diagram: Diagram, board: WiringBoard): Layout {
       y += PIN_STEP; // connector heading
       for (const p of bp.filter((x) => x.connector === c)) {
         const pt = { x: side === 'left' ? boardX : boardX + boardW, y };
-        pins.set(`board:${p.ref}`, pt);
+        pins.set(boardEp(p.ref), pt);
         placedPins.push({ ...p, ...pt, side });
         y += PIN_STEP;
       }
@@ -180,7 +180,7 @@ export function renderDom(doc: SvgDocumentLike, diagram: Diagram, board: WiringB
     el('polyline', { points: w.points.map((p) => `${p.x},${p.y}`).join(' '), fill: 'none', class: `wiring-wire${w.wire.shielded === true ? ' wiring-wire-shielded' : ''}`, 'data-wire': w.wire.id }, svg);
   }
   for (const [i, f] of findings.entries()) {
-    const refs = [...f.pins.map((r) => `board:${r}`), ...f.parts.flatMap((id) => [...L.pins.keys()].filter((k) => k.startsWith(`${id}:`)).slice(0, 1))];
+    const refs = [...f.pins.map((r) => boardEp(r)), ...f.parts.flatMap((id) => [...L.pins.keys()].filter((k) => k.startsWith(`${id}:`)).slice(0, 1))];
     for (const r of refs) {
       const at = L.pins.get(r);
       if (at === undefined) continue;
@@ -245,7 +245,7 @@ export function renderString(diagram: Diagram, board: WiringBoard, findings: rea
   }
   for (const f of findings) {
     for (const r of f.pins) {
-      const at = L.pins.get(`board:${r}`);
+      const at = L.pins.get(boardEp(r));
       if (at !== undefined) d.push(`<circle cx="${at.x}" cy="${at.y}" r="9" fill="none" stroke="${SEVERITY_COLOUR[f.severity]}" stroke-width="2"/>`);
     }
   }

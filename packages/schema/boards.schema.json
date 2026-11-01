@@ -1,6 +1,5 @@
 {
   "$comment": "Board definition schema (ROADMAP P0-08; RUN_PLAN §5.1 rule 6). A board definition describes one controller board and revision as data, so the UI is driven by the detected board, not by code. Definitions are generated from firmware sources at pinned commits (TB-05a); hand-authored overlays add what firmware does not know. Every fact records its source (src) and how it was verified. Validated by packages/schema/src/jsonSchema.ts, which refuses any keyword it does not implement.",
-  "$id": "urn:synthetos:run:board-definition:1",
   "type": "object",
   "additionalProperties": false,
   "required": ["format", "id", "family", "name", "match", "source", "motors", "inputs", "outputs", "adc", "usb", "flasher", "defaults", "buildFlags"],

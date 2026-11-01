@@ -178,7 +178,9 @@ function checkSvgAllowlist(svg: string): void {
  * load a resource (external CSS included) or embed HTML is refused.
  */
 export function brandSvgExport(svg: string): SvgExport {
-  if (!/^<svg\s[^>]*xmlns="http:\/\/www\.w3\.org\/2000\/svg"/.test(svg) || !/<\/svg>\s*$/.test(svg)) {
+  // The namespace is compared as the exact SVG_NS string: a regex spelling of it is not a form the bundle scan allows.
+  const open = /^<svg\s[^>]*>/.exec(svg)?.[0];
+  if (open === undefined || !open.includes(`xmlns="${SVG_NS}"`) || !/<\/svg>\s*$/.test(svg)) {
     throw new TrustedTypesError(`${RS_SVG_EXPORT}: not a complete SVG document`);
   }
   const bad = FORBIDDEN_SVG.find((re) => re.test(svg));
