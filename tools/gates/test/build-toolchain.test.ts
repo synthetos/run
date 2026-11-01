@@ -152,6 +152,7 @@ describe('CI scripts run before anything is installed', () => {
     'tools/gates/src/review/template-cli.ts',
     'tools/gates/src/codeowners/cli.ts',
     'tools/gates/src/workflow/cli.ts',
+    'tools/gates/src/bindings/cli.ts',
   ];
 
   it('import only node: built-ins and relative modules, transitively', () => {

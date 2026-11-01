@@ -1,6 +1,6 @@
 /**
  * workers/run/wrangler.jsonc and the deploy preflight (ROADMAP P0-04,
- * RUN_PLAN §5.2, §6.3, SAFETY H45, D34).
+ * RUN_PLAN §5.2, §6.3, SAFETY H45, D39 (which supersedes D34)).
  */
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -12,8 +12,8 @@ import { REPO_ROOT } from './scratch.ts';
 
 const CONFIG_PATH = join(REPO_ROOT, 'workers/run/wrangler.jsonc');
 const COMMITTED = readFileSync(CONFIG_PATH, 'utf8');
-// The committed file carries the D34 placeholder until the owner fills in the
-// dedicated account id (docs/LEAD_ACTIONS.md). The tests below run on the
+// The committed file carries the placeholder until the owner fills in the
+// current account's id (D39, docs/LEAD_ACTIONS.md Step 2). The tests below run on the
 // committed text with the account id put back to the placeholder, so they keep
 // testing the same rules after that one-line change.
 const ACCOUNT_LINE = /"account_id": "[^"]*"/;
@@ -39,7 +39,7 @@ describe('stripJsonc', () => {
 });
 
 describe('the committed wrangler.jsonc', () => {
-  it('passes every check (the account id may still be the D34 placeholder in the repository)', () => {
+  it('passes every check (the account id may still be the placeholder in the repository)', () => {
     expect(checkWorkerConfig(load(), { requireRealAccount: false })).toEqual([]);
   });
 
@@ -66,7 +66,7 @@ describe('the committed wrangler.jsonc', () => {
     expect(checkWorkerConfig(load(), { requireRealAccount: true }).map((f) => f.where)).toEqual(['account_id']);
   });
 
-  it('commits exactly one top-level account_id: the D34 placeholder or a Cloudflare account id', () => {
+  it('commits exactly one top-level account_id: the placeholder or a Cloudflare account id', () => {
     expect(COMMITTED.match(new RegExp(ACCOUNT_LINE.source, 'g'))).toHaveLength(1);
     const committed = (parseJsonc(COMMITTED) as Config)['account_id'];
     expect(committed === ACCOUNT_ID_PLACEHOLDER || /^[0-9a-f]{32}$/.test(String(committed))).toBe(true);
@@ -75,7 +75,7 @@ describe('the committed wrangler.jsonc', () => {
   });
 });
 
-describe('checkWorkerConfig refuses each H45/D34 weakening', () => {
+describe('checkWorkerConfig refuses each H45/D39 weakening', () => {
   const cases: [string, (c: Config) => void, string][] = [
     ['workers_dev true', (c) => (c['workers_dev'] = true), '.'],
     ['workers_dev omitted', (c) => delete c['workers_dev'], '.'],
@@ -121,10 +121,17 @@ describe('preflight CLI', () => {
   }
   const withAccount = TEXT.replace(ACCOUNT_ID_PLACEHOLDER, REAL_ACCOUNT);
 
-  it('refuses the config while it carries the D34 placeholder', () => {
+  it('refuses the config while it carries the placeholder', () => {
     const r = preflight(TEXT, 'production', REAL_ACCOUNT);
     expect(r.status).toBe(1);
     expect(r.output).toContain('placeholder');
+    expect(r.output).toContain('D39');
+  });
+
+  it('refuses the superseded D34 placeholder too (it is not an account id)', () => {
+    const r = preflight(TEXT.replace(ACCOUNT_ID_PLACEHOLDER, 'D34_RUN_ACCOUNT_ID_PLACEHOLDER'), 'production', REAL_ACCOUNT);
+    expect(r.status).toBe(1);
+    expect(r.output).toContain('account_id');
   });
 
   it('accepts a real account id that matches CLOUDFLARE_ACCOUNT_ID, for both environments', () => {

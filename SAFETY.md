@@ -1,5 +1,7 @@
 # run.synthetos.com: safety case
 
+> **D34 is superseded by D39 (owner, 2026-11-01).** run and accounts stay in the **current** Cloudflare account, locked down: a CI-only deploy token scoped to the run and accounts Workers (and their Access apps), minimal account members, a hardware-key owner login, audit-log alerts on any change not made by CI, and no local wrangler login used to deploy run or accounts. Wherever this document says "the dedicated (or separate) run account", read "the current account with the D39 lockdown". **One consequence:** service bindings now work within the account, so another Worker in the account (the site or forumbot) *could* declare a binding to `accounts`' `RunEntrypoint`. That is prevented by review and the D39 token scope, not by the platform: the CI policy must refuse any Worker config other than run's that binds `accounts`, and forumbot keeps using OIDC over HTTPS (product-neutral), not RPC.
+
 Status: design, 2026-10-31. **This document outranks RUN_PLAN.md: where the two disagree, this one wins.**
 
 It revises `docs/tools/SAFETY.md` (cited as `OLD-S`) for three changes in direction:

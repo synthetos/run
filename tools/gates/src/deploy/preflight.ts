@@ -1,5 +1,5 @@
 /**
- * Deploy preflight (ROADMAP P0-04, D34, SAFETY H45, H46). The deploy jobs run
+ * Deploy preflight (ROADMAP P0-04, D39, SAFETY H45, H46). The deploy jobs run
  * it immediately before `wrangler deploy`:
  *
  *   node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc <production|staging> \
@@ -16,10 +16,10 @@
  *   which wrangler would load into its environment (P0-04 review);
  * - the configuration fails checkWorkerConfig (workers_dev or preview_urls
  *   not false, wrong routes, wrong assets settings, ...);
- * - account_id is still the D34 placeholder or not a Cloudflare account id;
+ * - account_id is still the placeholder or not a Cloudflare account id;
  * - account_id differs from the CLOUDFLARE_ACCOUNT_ID the job was given (the
  *   repository variable the owner sets): the reviewed file and the
- *   environment must name the same dedicated account.
+ *   environment must name the same account (the current one, D39).
  *
  * Exit status: 0 go, 1 refused, 2 could not run.
  */

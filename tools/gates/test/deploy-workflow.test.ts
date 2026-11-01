@@ -93,7 +93,7 @@ describe('deploy-config', () => {
 
   it('fails when the deploy runs before the preflight', () => {
     const preflightStep =
-      '      - name: Preflight (dedicated account D34, workers.dev and preview URLs off H45)\n        env:\n          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}\n        run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc production --write workers/run/wrangler.deploy.json\n';
+      '      - name: Preflight (account D39, workers.dev and preview URLs off H45)\n        env:\n          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}\n        run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc production --write workers/run/wrangler.deploy.json\n';
     const without = mutate(CI, preflightStep, '');
     const moved = mutate(without, '      - name: Post-deploy smoke test (headers, preview URLs, health, DNSSEC, CAA, certificate)\n        env:\n          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}\n          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}\n          RUN_WORKERS_DEV_SUBDOMAIN: ${{ vars.RUN_WORKERS_DEV_SUBDOMAIN }}\n        run: node tools/gates/src/smoke/cli.ts --env production\n', `${preflightStep}      - name: Post-deploy smoke test (headers, preview URLs, health, DNSSEC, CAA, certificate)\n        env:\n          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}\n          CLOUDFLARE_ACCOUNT_ID: \${{ vars.CLOUDFLARE_ACCOUNT_ID }}\n          RUN_WORKERS_DEV_SUBDOMAIN: \${{ vars.RUN_WORKERS_DEV_SUBDOMAIN }}\n        run: node tools/gates/src/smoke/cli.ts --env production\n`);
     expect(rules(moved)).toContain('deploy-config');

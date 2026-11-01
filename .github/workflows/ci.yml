@@ -30,7 +30,7 @@
 #   deploy-production  main pushes only, protected environment `production`
 #                      (the owner is a required reviewer).
 #                      Both deploy ONLY the attested artifact (the Worker with
-#                      --no-bundle), after the preflight (D34 account, H45
+#                      --no-bundle), after the preflight (D39 account, H45
 #                      settings, no custom build; it writes the allowlisted
 #                      deployment configuration, the only one wrangler is
 #                      given: `deploy-config` in ci-policy), with assets of the previous 14 days merged
@@ -40,7 +40,7 @@
 #                      staging is deleted, production rolled back.
 #
 # Only the two deploy jobs may reference CLOUDFLARE_API_TOKEN (a Workers
-# Scripts:Edit token for the dedicated run account, D34). `pnpm ci-policy`
+# Scripts:Edit token for the run and accounts Workers, D39). `pnpm ci-policy`
 # enforces this and the rest of the policy on every run; see
 # tools/gates/src/workflow/policy.ts and docs/ops/ci.md.
 #
@@ -451,7 +451,7 @@ jobs:
       # The preflight checks the reviewed wrangler.jsonc (a positive key allowlist: no `build` in any
       # scope, since wrangler runs build.command even under --no-bundle) and writes the deployment
       # configuration from its allowlisted keys. Every wrangler call below uses only that file.
-      - name: Preflight (dedicated account D34, workers.dev and preview URLs off H45)
+      - name: Preflight (account D39, workers.dev and preview URLs off H45)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc staging --write workers/run/wrangler.deploy.json
@@ -619,7 +619,7 @@ jobs:
       # The preflight checks the reviewed wrangler.jsonc (a positive key allowlist: no `build` in any
       # scope, since wrangler runs build.command even under --no-bundle) and writes the deployment
       # configuration from its allowlisted keys. Every wrangler call below uses only that file.
-      - name: Preflight (dedicated account D34, workers.dev and preview URLs off H45)
+      - name: Preflight (account D39, workers.dev and preview URLs off H45)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc production --write workers/run/wrangler.deploy.json

@@ -20,7 +20,7 @@
     "build": "pnpm --filter web build",
     "build:fake-serial": "pnpm --filter @synthetos/web exec vite build --mode fake-serial",
     "check": "pnpm typecheck && pnpm gates && pnpm test && pnpm build && pnpm scan && pnpm build:fake-serial && pnpm fake-serial:diff",
-    "ci-policy": "node tools/gates/src/workflow/cli.ts && node tools/gates/src/codeowners/cli.ts && node tools/gates/src/review/template-cli.ts",
+    "ci-policy": "node tools/gates/src/workflow/cli.ts && node tools/gates/src/codeowners/cli.ts && node tools/gates/src/review/template-cli.ts && node tools/gates/src/bindings/cli.ts",
     "scan": "node tools/gates/src/bundle/cli.ts apps/web/dist",
     "fake-serial:diff": "node tools/gates/src/artifact/diff-cli.ts apps/web/dist apps/web/dist-fake-serial",
     "repro": "node tools/gates/src/repro/local.ts",
