@@ -55,9 +55,15 @@ importers:
       '@preact/signals':
         specifier: 2.11.3
         version: 2.11.3(preact@11.0.1)
+      '@synthetos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@synthetos/machine':
         specifier: workspace:*
         version: link:../../packages/machine
+      '@synthetos/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@synthetos/safety':
         specifier: workspace:*
         version: link:../../packages/safety
@@ -148,6 +154,10 @@ importers:
   tools/gates: {}
 
   workers/run:
+    dependencies:
+      '@synthetos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
     devDependencies:
       wrangler:
         specifier: 4.149.0

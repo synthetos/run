@@ -14,6 +14,9 @@
     "test": "vitest run",
     "dev": "wrangler dev"
   },
+  "dependencies": {
+    "@synthetos/contracts": "workspace:*"
+  },
   "devDependencies": {
     "wrangler": "4.149.0"
   }

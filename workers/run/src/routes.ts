@@ -3,10 +3,14 @@
  * because the Workers runtime treats every named export of the main module
  * as an entrypoint.
  *
- * In Phase 0 the API is a single route, `GET /api/health`. Every other
- * `/api/*` and `/auth/*` path is a 404 until A1 adds sign-in.
+ * The API is `GET /api/health` and, from P1-05, `GET /api/identity` (the
+ * D1 sign-in gate's identity: the verified Cloudflare Access identity on
+ * staging, none in production until A1-07). Every other `/api/*` and
+ * `/auth/*` path is a 404 until A1 adds sign-in.
  */
-import { API_CACHE_CONTROL, HASHED_ASSET_CACHE_CONTROL } from './headers.ts';
+import type { IdentityBody } from '@synthetos/contracts';
+import { accessConfig, type CertsFetcher, fetchAccessCerts, verifyAccessJwt } from './accessIdentity.ts';
+import { API_CACHE_CONTROL, grantsSerial, HASHED_ASSET_CACHE_CONTROL } from './headers.ts';
 
 export const VERSION = '0.0.0';
 
@@ -23,6 +27,10 @@ export interface AssetsBinding {
 export interface Env {
   readonly ASSETS: AssetsBinding;
   readonly RUN_ENV?: string;
+  /** Staging only: the Access team domain (`<team>.cloudflareaccess.com`). */
+  readonly ACCESS_TEAM_DOMAIN?: string;
+  /** Staging only: the Access application's AUD tag. */
+  readonly ACCESS_AUD?: string;
 }
 
 /** Body of `GET /api/health`. The post-deploy smoke test checks `service` and `env`. */
@@ -69,6 +77,21 @@ function health(env: Env): Response {
   return json(runEnv === null ? 500 : 200, body);
 }
 
+/**
+ * `GET /api/identity`. Only the staging Worker on the staging host verifies
+ * an Access identity; everywhere else (production until A1-07) the answer
+ * is no identity, so Connect stays refused there.
+ */
+async function identity(request: Request, env: Env, fetchCerts: CertsFetcher): Promise<Response> {
+  const none = (reason: NonNullable<IdentityBody['reason']>): Response => json(401, { identity: null, reason } satisfies IdentityBody);
+  if (!grantsSerial(env.RUN_ENV, new URL(request.url))) return none('not-available-here');
+  const config = accessConfig(env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
+  if (config === null) return none('not-configured');
+  const verified = await verifyAccessJwt(request.headers.get('cf-access-jwt-assertion'), config, Date.now(), fetchCerts);
+  if (verified === null) return none('not-signed-in');
+  return json(200, { identity: { provider: 'access', subject: verified.subject } } satisfies IdentityBody);
+}
+
 function notFound(): Response {
   return json(404, { error: 'not_found' });
 }
@@ -79,9 +102,13 @@ function under(pathname: string, prefix: string): boolean {
 }
 
 /** Routes one request. Exported for the tests; production goes through `fetch` below. */
-export async function route(request: Request, env: Env): Promise<Response> {
+export async function route(request: Request, env: Env, fetchCerts: CertsFetcher = fetchAccessCerts): Promise<Response> {
   const { pathname } = new URL(request.url);
   if (under(pathname, '/api')) {
+    if (pathname === '/api/identity') {
+      if (request.method === 'GET') return identity(request, env, fetchCerts);
+      return json(405, { error: 'method_not_allowed' }, { allow: 'GET' });
+    }
     if (pathname !== '/api/health') return notFound();
     if (request.method === 'GET') return health(env);
     if (request.method === 'HEAD') return withoutBody(health(env));
