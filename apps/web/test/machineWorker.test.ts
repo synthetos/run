@@ -246,8 +246,13 @@ describe('T-S77: open is refused on a mobile OS before the transport source is a
 
   it('Pause is still answered on a refused platform (stops are never gated)', async () => {
     const host = new MachineWorkerHost(source('serial', () => new BoardTransport()), realClock(), ANDROID);
-    await host.handle(OPEN);
-    expect(await host.handle({ v: 3, kind: 'intent', intent: 'feedhold' })).toMatchObject({ kind: 'intent' });
+    expect(await host.handle(OPEN)).toMatchObject({ code: 'platform' });
+    const reply = await host.handle({ v: 3, kind: 'intent', intent: 'feedhold' });
+    // The same answer the session gives on a desktop host that was never opened: the platform rule adds nothing to it.
+    const desktop = new MachineWorkerHost(source('serial', () => new BoardTransport()), realClock(), DESKTOP_NAVIGATOR);
+    expect(reply).toEqual(await desktop.handle({ v: 3, kind: 'intent', intent: 'feedhold' }));
+    expect(reply).toMatchObject({ kind: 'intent' });
+    expect(reply).not.toMatchObject({ code: 'platform' });
   });
 });
 
