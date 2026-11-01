@@ -30,6 +30,16 @@ describe('2D SVG fallback', () => {
     expect(drawn).toBeGreaterThan(900);
   });
 
+  it('decimation never drops an out-of-bounds segment', () => {
+    const big = bigList(10_000);
+    const marks = new Uint8Array(10_000);
+    const oob = [1, 2, 3, 5, 7, 11, 13, 4001, 9998];
+    for (const l of oob) marks[l] = LINE_MARK.OUT_OF_BOUNDS;
+    const p = svgPaths({ ...big, lineMarks: marks }, { maxSegments: 1000 });
+    expect(p.decimated).toBe(true);
+    expect(p.outOfBounds.split('M').length - 1).toBe(oob.length);
+  });
+
   it('draws the envelope rectangle and includes it in the view box', () => {
     const env = { min: [-100, -50, -20] as const, max: [100, 50, 0] as const };
     expect(svgEnvelope(env)).toBe('M-100 50L100 50L100 -50L-100 -50Z');

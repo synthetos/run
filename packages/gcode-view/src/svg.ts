@@ -27,7 +27,7 @@ export interface SvgOptions {
   readonly showRapids?: boolean;
   /** Highlight lines 0..this (inclusive); -1 or omitted for none. */
   readonly highlightLine?: number;
-  /** Upper bound on drawn segments (default 200,000); beyond it every n-th segment is kept and `decimated` is set. */
+  /** Upper bound on drawn segments (default 200,000); beyond it every n-th segment is kept and `decimated` is set; out-of-bounds segments are always kept. */
   readonly maxSegments?: number;
   /** The envelope is included in the view box when given. */
   readonly envelope?: Box3 | null;
@@ -52,7 +52,8 @@ export function svgPaths(list: SegmentList, options: SvgOptions = {}): SvgPaths 
     while (line + 1 < ltv.length - 1 && (ltv[line + 1] as number) <= i) line++;
     const style = styleOf(list, i, line);
     if (style < 0) continue;
-    if (seen++ % stride !== 0) continue;
+    // Out-of-bounds moves are a safety finding: decimation never drops one.
+    if (seen++ % stride !== 0 && style !== STYLE.OUT_OF_BOUNDS) continue;
     if (style === STYLE.RAPID && !showRapids) continue;
     const seg = `M${fmt(v[(i - 1) * 3] as number)} ${fmt(-(v[(i - 1) * 3 + 1] as number))}L${fmt(v[i * 3] as number)} ${fmt(-(v[i * 3 + 1] as number))}`;
     const key = style === STYLE.RAPID ? 'rapid' : style === STYLE.OUT_OF_BOUNDS ? 'outOfBounds' : style === STYLE.UNCERTAIN ? 'uncertain' : 'feed';
