@@ -18,6 +18,9 @@
  *   final response. A redirected document therefore keeps the URL it was
  *   requested at; the suite's pages use absolute paths, so nothing resolves
  *   differently.
+ * - **API requests**: the `request` fixture bypasses the context's routes, so
+ *   it is wrapped by `guardRequestContext`, which applies the same request
+ *   and redirect rules and throws instead of recording.
  * - **websocket**: any WebSocket outside the origin (also closed by a route).
  * - **dom**: any resource-loading attribute in a document that points
  *   outside the origin (img/script/iframe `src`, `srcset`, every `<link
@@ -29,8 +32,9 @@
  *   the directive as expected (csp.e2e.ts and trusted-types.e2e.ts provoke
  *   violations on purpose and assert them themselves).
  */
-import type { APIResponse, BrowserContext, Page, Request, WebSocket } from '@playwright/test';
+import type { APIRequestContext, APIResponse, BrowserContext, Page, Request, WebSocket } from '@playwright/test';
 import {
+  GUARD_PREFIX,
   MAX_REDIRECT_HOPS,
   classifyUrl,
   domReferenceUrls,
@@ -120,6 +124,63 @@ function requester(r: Request): string {
     return 'a service worker';
   }
 }
+
+/**
+ * Guards an APIRequestContext (the `request` fixture). Its requests are sent
+ * from Node, never through a browser context, so the context's routes do not
+ * see them, and by default it follows up to 20 redirects to any origin. A
+ * spec calling `request.get('/auth/login')` would therefore reach a third
+ * party (a sign-in redirect) before any assertion ran.
+ *
+ * The wrapper refuses a URL outside the origin before it is sent, sends every
+ * request with redirects disabled, follows same-origin hops itself (each
+ * target checked before it is requested, at most the caller's `maxRedirects`
+ * and never more than MAX_REDIRECT_HOPS), and throws the guard message at the
+ * first external hop. A caller's `maxRedirects: 0` returns the redirect as is.
+ */
+export function guardRequestContext(context: APIRequestContext, origin: string): APIRequestContext {
+  const refuse = (finding: GuardFinding): never => {
+    throw new Error(guardMessage([finding]) ?? GUARD_PREFIX);
+  };
+  const send = async (target: string | Request, options: RequestOptions = {}, method?: string): Promise<APIResponse> => {
+    const requested = typeof target === 'string' ? target : target.url();
+    let url: string;
+    try {
+      url = new URL(requested, `${origin}/`).href;
+    } catch {
+      url = requested;
+    }
+    if (classifyUrl(url, origin) !== 'same-origin') refuse({ kind: 'request', url, detail: 'API request' });
+    let currentMethod = (method ?? options.method ?? (typeof target === 'string' ? 'GET' : target.method())).toUpperCase();
+    const limit = Math.min(options.maxRedirects ?? MAX_REDIRECT_HOPS, MAX_REDIRECT_HOPS);
+    let current: RequestOptions = { ...options };
+    for (let hop = 0; ; hop++) {
+      const response = await context.fetch(hop === 0 && typeof target !== 'string' ? target : url, { ...current, method: currentMethod, maxRedirects: 0 });
+      const next = redirectTarget(response.status(), response.headers()['location'], url);
+      if (next === undefined || options.maxRedirects === 0) return response;
+      if (classifyUrl(next, origin) !== 'same-origin') refuse({ kind: 'redirect', url: next, detail: `${response.status()} from ${url} (API request)` });
+      if (hop >= limit) refuse({ kind: 'redirect', url: next, detail: `more than ${limit} hops from ${requested} (API request)` });
+      const nextMethod = redirectMethod(response.status(), currentMethod);
+      currentMethod = nextMethod.method;
+      if (nextMethod.dropBody) {
+        const { data: _data, form: _form, multipart: _multipart, ...rest } = current;
+        current = rest;
+      }
+      url = next;
+    }
+  };
+  const verbs: Readonly<Record<string, string>> = { get: 'GET', head: 'HEAD', post: 'POST', put: 'PUT', patch: 'PATCH', delete: 'DELETE' };
+  return new Proxy(context, {
+    get(target, prop, receiver): unknown {
+      if (prop === 'fetch') return (url: string | Request, options?: RequestOptions) => send(url, options);
+      if (typeof prop === 'string' && Object.hasOwn(verbs, prop)) return (url: string, options?: RequestOptions) => send(url, options, verbs[prop]);
+      const value: unknown = Reflect.get(target, prop, receiver);
+      return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+    },
+  });
+}
+
+type RequestOptions = NonNullable<Parameters<APIRequestContext['fetch']>[1]>;
 
 /** Installs the guard on a context. Call before the context's first navigation. */
 export async function installOriginGuard(context: BrowserContext, origin: string): Promise<OriginGuard> {

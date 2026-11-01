@@ -2,14 +2,16 @@
  * The `test` every spec uses (ROADMAP P0-06). It installs the origin guard
  * (src/guard.ts) on each test's browser context before the first navigation
  * and fails the test, after its body, on any external request, external
- * resource reference or CSP violation.
+ * resource reference or CSP violation. The `request` fixture is wrapped too
+ * (guardRequestContext): it throws before any request or redirect hop to
+ * another origin is sent.
  *
  * Specs import `test` and `expect` from here, never from @playwright/test
  * (eslint.config.js enforces it), so no test can run without the guard. A
  * test that creates its own context calls `guardContext` on it.
  */
 import { test as base, expect, type BrowserContext } from '@playwright/test';
-import { installOriginGuard, type OriginGuard } from '../src/guard.ts';
+import { guardRequestContext, installOriginGuard, type OriginGuard } from '../src/guard.ts';
 import { originOf } from '../src/origin.ts';
 import { servedMode, type ServedMode } from '../src/served.ts';
 
@@ -35,6 +37,12 @@ export const test = base.extend<Fixtures>({
     },
     { auto: true },
   ],
+  // The API request fixture is sent from Node, outside every browser route:
+  // it is wrapped so it can neither address nor be redirected to another
+  // origin (src/guard.ts, guardRequestContext).
+  request: async ({ request, baseURL }, use) => {
+    await use(guardRequestContext(request, originOf(baseURL)));
+  },
   // Playwright requires an object pattern here; an empty one trips no-empty-pattern.
   served: async ({ baseURL: _baseURL }, use) => {
     await use(servedMode(process.env, process.cwd()));

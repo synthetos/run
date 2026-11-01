@@ -13,7 +13,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { BrowserContext, Page } from '@playwright/test';
 import { GUARD_PREFIX } from '../src/origin.ts';
-import type { OriginGuard } from '../src/guard.ts';
+import { guardRequestContext, type OriginGuard } from '../src/guard.ts';
 import { expect, guardContext, test } from './fixtures.ts';
 
 const THIRD = 'https://third-party.invalid';
@@ -236,4 +236,65 @@ test('a same-origin redirect loop is refused', async ({ browser }) => {
     await context.close();
     await rig.close();
   }
+});
+
+/**
+ * The API request fixture is sent from Node, outside every browser route, and
+ * would otherwise follow a redirect to any origin (headers.e2e.ts requests
+ * /auth/login, which a sign-in route will redirect to a third party).
+ */
+test('the request fixture refuses a redirect to another origin before the third party is reached', async ({ playwright }) => {
+  const rig = await redirectRig();
+  const api = guardRequestContext(await playwright.request.newContext({ baseURL: rig.origin }), rig.origin);
+  try {
+    for (const path of ['/away', '/away-307', '/away-protocol-relative', '/hop', '/hop2']) {
+      const error = await api.get(path).then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+      expect(error, path).toBeInstanceOf(Error);
+      expect((error as Error).message.startsWith(GUARD_PREFIX), path).toBe(true);
+      expect((error as Error).message, path).toContain(`redirect ${rig.third}/target`);
+    }
+    await expect(api.post('/away-307', { data: 'x' })).rejects.toThrow(GUARD_PREFIX);
+    await expect(api.fetch('/away', { method: 'HEAD' })).rejects.toThrow(GUARD_PREFIX);
+    await expect(api.get('/loop')).rejects.toThrow('hops');
+    expect(rig.thirdHits()).toBe(0);
+  } finally {
+    await api.dispose();
+    await rig.close();
+  }
+});
+
+test('the request fixture refuses an absolute URL on another origin before it is sent', async ({ playwright }) => {
+  const rig = await redirectRig();
+  const api = guardRequestContext(await playwright.request.newContext({ baseURL: rig.origin }), rig.origin);
+  try {
+    await expect(api.get(`${rig.third}/icon.png`)).rejects.toThrow(`request ${rig.third}/icon.png`);
+    await expect(api.fetch(`${rig.third}/x`, { method: 'POST', data: 'x' })).rejects.toThrow(GUARD_PREFIX);
+    expect(rig.thirdHits()).toBe(0);
+  } finally {
+    await api.dispose();
+    await rig.close();
+  }
+});
+
+test('control: the request fixture follows a same-origin redirect and returns a redirect as is with maxRedirects 0', async ({ playwright }) => {
+  const rig = await redirectRig();
+  const api = guardRequestContext(await playwright.request.newContext({ baseURL: rig.origin }), rig.origin);
+  try {
+    const followed = await api.get('/home');
+    expect(followed.status()).toBe(200);
+    expect(await followed.text()).toContain('<p>ok</p>');
+    const raw = await api.get('/away', { maxRedirects: 0 });
+    expect(raw.status()).toBe(302);
+    expect(rig.thirdHits()).toBe(0);
+  } finally {
+    await api.dispose();
+    await rig.close();
+  }
+});
+
+test('the suite request fixture is the guarded one', async ({ request }) => {
+  await expect(request.get('https://third-party.invalid/x')).rejects.toThrow(`${GUARD_PREFIX} 1 finding(s)`);
 });
