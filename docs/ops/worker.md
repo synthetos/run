@@ -79,7 +79,7 @@ to a bundler inside the build toolchain. The artifact is `run-web.tar` and
 2. **Preflight** (`deploy/preflight.ts`): the configuration passes every
    check, including a positive allowlist of keys (no `build` in any scope:
    wrangler runs `build.command` even under `--no-bundle`, with the deploy
-   token); `account_id` is a real account id, not the D34 placeholder; it
+   token); `account_id` is a real account id (the current account, D39), not the placeholder; it
    equals the `CLOUDFLARE_ACCOUNT_ID` variable. It then writes
    `workers/run/wrangler.deploy.json`, rebuilt from the allowlisted keys
    only (it refuses to overwrite an existing file). Every wrangler call of

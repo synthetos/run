@@ -120,13 +120,14 @@ write, jog, flasher, preview, cloud API, console): N/A until their phase.
 | P0-03 | Deploy jobs cannot run on a PR | `workflow-policy.test.ts` ("deploy jobs evaluate to false for every pull_request context…") | PASS (static proof; the "in the logs" proof needs the GitHub repo, O2) |
 | P0-03 | Only deploy jobs reference the Cloudflare secret | `workflow-policy.test.ts` ("grep: only the deploy jobs mention the Cloudflare secret") | PASS |
 | P0-03 | A missing §8 CODEOWNERS path fails CI | `codeowners.test.ts` | PASS |
+| P0-03, D40 | Safety-path PRs need the checklist and a recorded independent review bound to the head; zero approvals with one maintainer, two restored by a one-line change; a PR cannot replace its own enforcement step | `tools/gates/src/review/reviewPolicy.ts`, `reviewRecord.ts`, `safetyReview.ts`, `.github/workflows/safety-review.yml`, ci-policy `safety-review-job` | `review-policy.test.ts`, `safety-review.test.ts`, `review-permission.test.ts`, `deploy-workflow.test.ts` ("safety-review-job") | PASS (static and local; the native ruleset is O2) |
 | P0-03 | Two clean builds are identical; an injected timestamp fails | `build-acceptance.test.ts` (reproducible build) | PASS |
 | P0-03 | Bundle scan fails on an origin literal or network identifier outside `cloud` | `build-acceptance.test.ts`, `bundle-scan.test.ts` | PASS |
 | P0-04 | `wrangler dev` serves the shell with the exact headers (Playwright) | `tools/e2e/specs/headers.e2e.ts` | PASS |
 | P0-04 | An inline `<script>` in a built page is a CSP violation | `tools/e2e/specs/csp.e2e.ts` (with a no-CSP control) | PASS |
 | P0-04 | `workers_dev: false`, `preview_urls: false`, custom domains, `run_worker_first` | `tools/gates/test/worker-config.test.ts` | PASS |
 | P0-04 | Smoke script fails on a header regression | `tools/gates/test/smoke.test.ts` ("fails on a broken header", local server) | PASS (local); deploy-job run is O1 |
-| P0-04 | Production serves the shell; staging reachable only through Access (manual) | needs D34 account and D31 Access application | **FAIL: blocked on owner (O1)** |
+| P0-04 | Production serves the shell; staging reachable only through Access (manual) | needs the D39 account lockdown and D31 Access application | **FAIL: blocked on owner (O1)** |
 | P0-05 | T-S32 | see section A | FIXED (F1) |
 | P0-05 | Contrast ≥ 4.5:1 text, ≥ 3:1 non-text, both themes | `tools/gates/test/tokens.test.ts` ("contrast table"), `docs/design/contrast.md` | PASS |
 | P0-05 | Installable (manifest fields, icons, no installability errors); installed window shows the same safety bar | `tools/e2e/specs/install.e2e.ts` | PASS (automated part); the manual Install-prompt check on desktop Chrome and Edge is O3 |
@@ -156,7 +157,7 @@ write, jog, flasher, preview, cloud API, console): N/A until their phase.
 | P0-13 | T-S40; importing the test kit into an entry fails both dependency-cruiser and the scan | `bundle-acceptance.test.ts` | PASS |
 | P0-14 | Written result; a passing example that opens the mock port from `machine.worker` in the built app | `docs/testing/fake-serial.md`; `tools/e2e/specs/open-mock-port.fake-serial.ts`; `fake-serial-acceptance.test.ts`, `artifact-diff.test.ts` | PASS |
 | Phase 0 rule | Nothing opens a serial port; no `navigator.serial` outside test fakes | lint `noWebSerial.ts`; bundle scan Web Serial rule; `machine-worker.e2e.ts` ("has no transport in Phase 0") | PASS |
-| P0-15 | Tag `run-v0.1.0`, `RELEASES.md`, production deploy with smoke output, live site, staging behind Access | `RELEASES.md` entry written (pending); deploy and tag need a GitHub remote, the D34 account and D31 Access, in the order of `docs/LEAD_ACTIONS.md` | **FAIL: not done, blocked on owner (O1, O2, O4)** |
+| P0-15 | Tag `run-v0.1.0`, `RELEASES.md`, production deploy with smoke output, live site, staging behind Access | `RELEASES.md` entry written (pending); deploy and tag need a GitHub remote, the D39 account lockdown and D31 Access, in the order of `docs/LEAD_ACTIONS.md` | **FAIL: not done, blocked on owner (O1, O2, O4)** |
 
 ## D. Owner decisions with a Phase 0 safety condition
 
@@ -165,7 +166,7 @@ write, jog, flasher, preview, cloud API, console): N/A until their phase.
 | D1 | Sign-in required to connect and start; nothing in the machine path consults the session; stop and recovery never need sign-in | `MatrixSnapshot` has no account field (`allowMatrix.ts`); machine-path packages cannot import `contracts` or `cloud` (`.dependency-cruiser.cjs`); W22 and §4.9 wording (`strings.ts`, `SAFETY.md`) | `allowMatrix-oracle.test.ts` (D1 block: type-level key check, decisions unchanged by any attached account state), `acceptance.test.ts` (contracts and cloud rules), T-S62, T-S32 | **FIXED** (F1, F5). The sign-in gate itself is UI work in Phase 1 and lives outside the machine path |
 | D3 | Public Apache-2.0 repo | `LICENSE`, `NOTICE`, licence gate | `licence-policy.test.ts`, `spdx.test.ts` | PASS |
 | D4 | Detect by capability probe, never by build number alone | `classify.ts` | T-S55; `capability.test.ts` property tests | PASS |
-| D31, D34 | Staging behind Access; dedicated account; placeholders until it exists | `workers/run/wrangler.jsonc` (placeholder account id), `tools/gates/src/deploy/preflight.ts`, `docs/ops/account.md`, `docs/ops/access.md` | `worker-config.test.ts` ("is refused for deploy while the account id is the placeholder"), `smoke.test.ts` (Access checks) | PASS for code; activation is O1 |
+| D31, D39 (supersedes D34) | Staging behind Access; the current account, locked down; placeholder until the owner sets its id; only run may bind accounts | `workers/run/wrangler.jsonc` (placeholder account id), `tools/gates/src/deploy/preflight.ts`, `tools/gates/src/bindings/check.ts`, `docs/ops/account.md`, `docs/ops/access.md` | `worker-config.test.ts` ("is refused for deploy while the account id is the placeholder"), `accounts-binding.test.ts`, `owner-decisions-drift.test.ts`, `smoke.test.ts` (Access checks) | PASS for code; activation is O1 |
 | D32 | `den.json` generated from the edge-next candidate | `vendor/tinyg-hil-tables/` | `hilTables.test.ts` | PASS |
 
 ## Findings and fixes made in this audit
@@ -228,7 +229,7 @@ and the source restored.
 ## Open items
 
 - **O1. Deployment acceptance (P0-04, P0-15): FAIL, blocked on the owner.**
-  The D34 Cloudflare account, its scoped CI token, the D31 Access application
+  The D39 lockdown of the current Cloudflare account, its scoped CI token, the D31 Access application
   on `staging.run.synthetos.com` and DNS do not exist yet. Until they do,
   "production serves the shell", "staging only through Access", "the smoke
   script passes in the deploy job and fails it on a header regression" and
@@ -247,8 +248,8 @@ and the source restored.
   The owner's steps, in order and with commands, are in `docs/LEAD_ACTIONS.md`,
   which also covers the two decisions found in the final gate. The owner has
   since decided both (D39: run stays in the current Cloudflare account,
-  superseding D34; D40: single-maintainer review), but they are not yet
-  carried into the gates and ops pages (`docs/LEAD_ACTIONS.md` Step 0).
+  superseding D34; D40: single-maintainer review), and both are now carried
+  into the gates and ops pages (`docs/LEAD_ACTIONS.md` Step 0).
 - **O5. Mutation margin and coverage of the other safety-path packages.**
   The `safety` package now passes at 90.84 %, but `sanitize/` alone is at
   88.4 % (`analyze.ts` 88.6 %, `geometry.ts` 80.7 %, 333 survivors), so the

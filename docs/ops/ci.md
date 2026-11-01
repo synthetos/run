@@ -13,7 +13,7 @@ ROADMAP P0-03, RUN_PLAN §6.2, SAFETY H12 and H46. The workflow is
 | `e2e` | every PR and push | no secret, `contents: read` | Downloads the artifact and checks it against its manifests, then runs the Playwright suite against `wrangler dev` serving **that artifact** under the origin guard (T-S25), then the third-party canary. See "The e2e job" below |
 | `e2e-fake-serial` | every PR and push | no secret, `contents: read` | Builds the fake-serial TEST artifact from the same commit (before anything else lands in the checkout), downloads and verifies the production site, proves the two differ only in the transport seam chunk (`tools/gates/src/artifact/diff-cli.ts`), then runs the fake-serial Playwright suite against the test artifact. Uploads nothing; the test build is never attested or deployed. See docs/testing/fake-serial.md (P0-14) |
 | `attest` | push to `main` only | `id-token: write`, `attestations: write` | Signs SLSA build provenance for `run-web.tar`, `run-worker.tar` and their manifests with `actions/attest-build-provenance`. It checks out no code and runs none |
-| `deploy-staging` | push to `main` only, and only when `vars.RUN_DEPLOY_ENABLED == 'true'` | environment `staging`, `CLOUDFLARE_API_TOKEN` | Installs wrangler from `ci/deploy-toolchain` (pinned by version and integrity, `--ignore-scripts`). Verifies the attestation (`gh attestation verify`: this repository, this workflow, `refs/heads/main`, this commit, GitHub-hosted runner). Checks the extracted trees against the manifests. Runs the preflight (D34 account, H45 settings, a positive key allowlist with no custom `build`; it writes the deployment configuration `workers/run/wrangler.deploy.json` from the allowlisted keys) and the Access pre-check (given the token and account in its own step env), merges the hashed assets of the last 14 days, deploys the attested Worker with `--no-bundle`, runs the smoke test and keeps the deployed state for the next deploy (docs/ops/worker.md). Holds `actions: read` to find the previous deployment's state |
+| `deploy-staging` | push to `main` only, and only when `vars.RUN_DEPLOY_ENABLED == 'true'` | environment `staging`, `CLOUDFLARE_API_TOKEN` | Installs wrangler from `ci/deploy-toolchain` (pinned by version and integrity, `--ignore-scripts`). Verifies the attestation (`gh attestation verify`: this repository, this workflow, `refs/heads/main`, this commit, GitHub-hosted runner). Checks the extracted trees against the manifests. Runs the preflight (D39 account, H45 settings, a positive key allowlist with no custom `build`; it writes the deployment configuration `workers/run/wrangler.deploy.json` from the allowlisted keys) and the Access pre-check (given the token and account in its own step env), merges the hashed assets of the last 14 days, deploys the attested Worker with `--no-bundle`, runs the smoke test and keeps the deployed state for the next deploy (docs/ops/worker.md). Holds `actions: read` to find the previous deployment's state |
 | `deploy-production` | as staging, after staging succeeds | environment `production` (the owner is a required reviewer), `CLOUDFLARE_API_TOKEN` | The same steps, deploying the **same** attested artifact to production. It promotes the artifact and never rebuilds it |
 
 Every action is pinned to a full commit SHA. The tag is kept in a comment
@@ -115,9 +115,9 @@ cannot follow: anchors, aliases, merge keys and tabs. It enforces:
 | `deploy-rollback` | Each deploy step has `id: deploy`; after the smoke test a step runs `deploy/rollback-cli.ts <env>` under exactly `if: failure() && steps.deploy.outcome == 'success'` (staging deleted, production rolled back) |
 | `deploy-config` | Each deploy job's preflight is exactly `preflight.ts workers/run/wrangler.jsonc <env> --write workers/run/wrangler.deploy.json`. Every wrangler invocation in the job comes after it and passes exactly `--config workers/run/wrangler.deploy.json` (one configuration option, the exact path, no `--cwd` or `--env-file`); no other line writes that file or reads `wrangler.jsonc`. wrangler runs a configured `build.command` even under `--no-bundle`, in the job that holds the deploy token, so wrangler never sees the checkout's file (P0-04 review) |
 | `smoke-credentials` | Every smoke-test step of a deploy job, the staging `--pre-deploy` Access check included, sets `CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}` and `CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}` in its own `env:` (a step's env is not inherited by the next step). `deploy-staging` must run the pre-deploy check |
-| `safety-review-job` | `safety-review.yml` checks out the base commit only, fetches each reviewer's repository permission and passes it to the gate (`--permissions`). This checks the file as committed. A PR can edit this policy too, so it is a secondary control behind native branch protection (docs/ops/branch-protection.md) |
+| `safety-review-job` | `safety-review.yml` checks out the base commit only, fetches each reviewer's repository permission and passes it to the gate (`--permissions`), and fetches the PR's recorded independent review `docs/safety/reviews/pr-$PR_NUMBER.md` at the head plus GitHub's compare of its reviewed commit with the head, and passes both (`--pr`, `--record`, `--record-compare`; D40). This is the rule against a PR weakening its own enforcement workflow: replacing the gate step with `run: true` fails it. It checks the file as committed. A PR can edit this policy too, so it is a secondary control behind native branch protection (docs/ops/branch-protection.md) |
 
-`pnpm ci-policy` also runs two more checks:
+`pnpm ci-policy` also runs three more checks:
 - **CODEOWNERS** (`tools/gates/src/codeowners`):
   - every path in the in-repo `SAFETY.md` §8 list, plus
     `vendor/tinyg-hil-tables/**` and `pnpm-lock.yaml`, is listed and owned by
@@ -127,6 +127,15 @@ cannot follow: anchors, aliases, merge keys and tabs. It enforces:
   - no line is one that GitHub would silently ignore.
 - **PR template** (`tools/gates/src/review/template.ts`): the template has
   items 1–40 unticked, and items 22–40 match `SAFETY.md` §8 verbatim.
+- **Accounts binding** (`tools/gates/src/bindings`, D39): run, accounts, the
+  site and forumbot share one Cloudflare account, where service bindings
+  work. Every wrangler configuration in the tree (outside dependencies and
+  build output) is read, and any other than `workers/run/wrangler.jsonc`
+  that binds `accounts` (a service named `accounts` or `accounts-*`, the
+  `RunEntrypoint` entrypoint, a Durable Object, Workflow or tail consumer
+  hosted by accounts, at the top level or in any environment) fails, as does
+  any `wrangler.toml` (the check cannot read it) or configuration that does
+  not parse.
 
 ## The minimal build toolchain
 
@@ -249,8 +258,8 @@ deploy jobs first verify the attestation of all four files with
 
 - `workers/run/wrangler.jsonc` exists, and the deploy steps are complete
   (docs/ops/worker.md). Deploys stay off until the owner sets
-  `RUN_DEPLOY_ENABLED`, and the preflight refuses them while the D34 account
-  id is a placeholder.
+  `RUN_DEPLOY_ENABLED`, and the preflight refuses them while the account id
+  (the current account, D39) is a placeholder.
 - The Worker script is part of the attested artifact. The build job builds it
   twice and compares; the deploy jobs deploy it with `--no-bundle`, so they
   deploy only attested bytes.

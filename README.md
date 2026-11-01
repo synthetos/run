@@ -115,12 +115,14 @@ safety-path review (`.github/CODEOWNERS`).
   protected environments, and deploy only the attested artifact, then run
   the post-deploy smoke test.
 
-The Worker, its headers, staging behind Cloudflare Access and the dedicated
-Cloudflare account: docs/ops/worker.md, docs/ops/access.md,
+The Worker, its headers, staging behind Cloudflare Access and the locked-down
+Cloudflare account (D39): docs/ops/worker.md, docs/ops/access.md,
 docs/ops/account.md.
 
 Pull requests that touch safety paths must carry the SAFETY §8 checklist and
-two approvals (`safety-review`).
+a recorded independent review bound to the head commit (`safety-review`,
+D40: no approvals while there is a single maintainer, two once a second one
+joins; docs/safety/reviews/README.md).
 
 See `docs/ops/ci.md` for how it works, and `docs/ops/branch-protection.md`
 for the GitHub settings the owner must enable. `SAFETY.md` is the in-repo

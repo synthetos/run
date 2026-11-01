@@ -7,8 +7,10 @@
 # takes it away from the owner. In CODEOWNERS the LAST matching line wins, so
 # never add a broader pattern below these.
 #
-# There is deliberately no `*` default: other paths need one approval from
-# any maintainer.
+# There is deliberately no `*` default. While the owner is the only
+# maintainer (D40), "Require review from Code Owners" is off, because GitHub
+# never lets authors approve their own PRs; it comes back on with a second
+# maintainer (docs/ops/branch-protection.md §1).
 
 # --- SAFETY §8: the owner is a required reviewer ------------------------
 /SAFETY.md                          @ril3y
@@ -30,7 +32,7 @@
 
 # --- ROADMAP P0-04 additions --------------------------------------------
 # The Worker configuration (workers_dev/preview_urls off, SAFETY H45; the
-# dedicated account, D34), the generated asset headers and the Trusted Types
+# account and the accounts binding, D39), the generated asset headers and the Trusted Types
 # policies are part of the header contract (RUN_PLAN §6.4, T-S25).
 /workers/run/wrangler.jsonc         @ril3y
 /apps/web/public/_headers           @ril3y

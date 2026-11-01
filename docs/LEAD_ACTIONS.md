@@ -1,9 +1,9 @@
 # Lead actions: finishing Phase 0 (P0-15)
 
 Everything in Phase 0 that can be done inside this repository is done and
-passes from a clean install (see "State at hand-over" at the end), with one
-exception: your decisions D39 and D40 are not yet carried into the gates and
-ops pages (Step 0). What is left otherwise needs the owner's accounts:
+passes from a clean install (see "State at hand-over" at the end). Your
+decisions D39 and D40 are carried into the gates and ops pages (Step 0).
+What is left needs the owner's accounts:
 GitHub, Cloudflare, the registrar. Nobody else can do these steps, and no
 code can do them for you.
 
@@ -13,82 +13,89 @@ window where something is exposed (which is not). The detailed reasoning for
 each control lives in the linked `docs/ops/` page; this page is the
 checklist.
 
-Placeholders used below: `<ACCOUNT_ID>` is the dedicated run Cloudflare
-account id (32 hex characters), `<SUBDOMAIN>` its workers.dev subdomain,
+Placeholders used below: `<ACCOUNT_ID>` is the id of the **current**
+Cloudflare account, the one that holds the `synthetos.com` zone (D39;
+32 hex characters), `<SUBDOMAIN>` its workers.dev subdomain,
 `<SHA>` the `main` commit that production ends up serving.
 
 ---
 
-## Step 0. Two decisions: made, not yet carried into this repository
+## Step 0. Your decisions D39 and D40, as carried into this repository
 
-These came out of the final Phase 0 review, as open owner decisions OD-1 and
-OD-2 (`docs/ops/owner-decisions.md`). You have since decided both in
-`DECISIONS.md` (synthetos.com, 2026-11-01):
+These came out of the final Phase 0 review as open owner decisions OD-1 and
+OD-2 (`docs/ops/owner-decisions.md`), and you decided both in `DECISIONS.md`
+(synthetos.com, 2026-11-01). The repository now implements them:
 
-- **D39 (OD-2), supersedes D34:** `run.synthetos.com` (and
-  `accounts.synthetos.com`) stay in the **current** Cloudflare account,
-  locked down: CI-only deploys with a token scoped to the run and accounts
-  Workers only, minimal account members, a hardware-key owner login,
-  audit-log alerts on any change CI did not make, and no local
-  `wrangler login` used to deploy run or accounts. The reason: Workers custom
-  domains need the hostname's zone in the same account as the Worker.
-- **D40 (OD-1):** you are the only maintainer for now. Required reviews are
-  set to zero, because GitHub never lets authors approve their own PRs.
-  Protection comes from the required CI checks, signed and attested
-  artifacts, the protected deploy environment and CODEOWNERS, with an
-  independent AI review recorded for safety-path changes. The two-approval
-  rule for safety paths comes back when a second maintainer joins.
+- **D40 (OD-1), single maintainer.** The `safety-review` check requires
+  **zero** approvals (`REQUIRED_SAFETY_APPROVALS` in
+  `tools/gates/src/review/reviewPolicy.ts`) and, on every safety-path PR, a
+  **recorded independent review** committed as
+  `docs/safety/reviews/pr-<N>.md` and bound to the head commit
+  (`docs/safety/reviews/README.md`). The checklist is still required. The
+  ruleset in Step 6 takes `required_approving_review_count: 0`, with Code
+  Owner review and last-push approval off, because GitHub never lets authors
+  approve their own PRs, so either would block you exactly like a required
+  approval (`docs/ops/branch-protection.md` §1, "Code Owners with one
+  maintainer"). Native branch protection, not the check, is the real
+  control: the required status checks, the protected `production`
+  environment and the attested artifact. **When a second maintainer
+  joins**: change that one line to `2`, and turn the three ruleset settings
+  back on (`docs/ops/branch-protection.md` §1, "When a second maintainer
+  joins").
+- **D39 (OD-2), supersedes D34.** No dedicated account: `run` (and later
+  `accounts`) live in the **current** Cloudflare account, locked down
+  (`docs/ops/account.md`): CI-only deploys with a token scoped to the run and
+  accounts Workers, minimal members, a hardware-key login, audit-log alerts
+  on any change CI did not make, and no local deploys of run or accounts.
+  The placeholder in `workers/run/wrangler.jsonc` is now
+  `RUN_ACCOUNT_ID_PLACEHOLDER`; Step 2 replaces it with the current
+  account's id. Because the site, forumbot and accounts share that account,
+  service bindings between them work: `pnpm ci-policy` refuses any wrangler
+  configuration in this repository other than run's that binds `accounts`
+  (`tools/gates/src/bindings/check.ts`).
 
-**The repository still implements the old rules.** No fix pass changes a
-gate to follow an owner decision without a reviewed change of its own
-(`docs/ops/owner-decisions.md`), so, as committed today:
+**Matching requirement for the other repositories (D39).** The rule above
+covers only this repository. Before `accounts` is deployed into the shared
+account:
 
-- the `safety-review` check (`tools/gates/src/review/safetyReview.ts`,
-  `.github/workflows/safety-review.yml`) still requires **two** approvals
-  from reviewers with write access on every safety-path PR. Under D40 that
-  check can never pass for you alone. If it stays a required status check
-  (Step 6), no safety-path PR merges until it is changed to the D40 rule
-  (for example: the recorded independent review, with the two-approval rule
-  kept for when a second maintainer joins);
-- the Step 6 ruleset below still says `required_approving_review_count: 1`;
-  D40 sets it to 0;
-- `workers/run/wrangler.jsonc`, `tools/gates/src/deploy/wranglerConfig.ts`,
-  `docs/ops/account.md` and `docs/ops/branch-protection.md` still describe a
-  dedicated D34 account (the placeholder is named
-  `D34_RUN_ACCOUNT_ID_PLACEHOLDER`). Under D39 the id that replaces it in
-  Step 2 is the **current** account's id; the checks themselves do not care
-  which account it is.
+- **accounts repository**: its CI must refuse any change that lets a Worker
+  other than `run` (and `run-staging`) call `RunEntrypoint`: no binding to
+  itself from its own configurations, and its documentation must name run
+  as the only allowed caller. Its deploy token is the same D39 token or one
+  scoped the same way, used only by CI.
+- **site repository (synthetos.com) and forumbot**: their CI must refuse any
+  wrangler configuration that binds `accounts` or `accounts-staging` in any
+  way (service, entrypoint `RunEntrypoint`, Durable Object, Workflow, tail
+  consumer), and any configuration their check cannot read. forumbot talks
+  to accounts over OIDC over HTTPS only. Their deploy tokens must not be
+  able to deploy `run` or `accounts` (or, if Cloudflare cannot scope them
+  that narrowly, that is recorded in `docs/ops/account.md` and the audit
+  alerts cover it), and they lose DNS:Edit (Step 9).
 
-Carry D39 and D40 into those files in one reviewed change, and update
-`docs/ops/owner-decisions.md`, before Step 6. Steps 1 to 5 below do not
-depend on it, apart from the account named in Step 1.
+Record in those repositories' own lead-actions lists that this is done.
 
 ---
 
 ## Step 1. The Cloudflare account (D39, which supersedes D34; D11)
 
-> **D39 replaces this step's first item.** D34 is superseded: do not create a
-> new account. Use the current account, locked down as D39 says, and read
-> "the account" below as that one: items 2 to 6 (Workers Paid, the account
-> id, the workers.dev subdomain, the hardware-key login, no
-> `wrangler login` for run) still apply, and item 5's "add no other member"
-> becomes "keep members to the minimum". The custom-domain question (OD-2)
-> is moot, since the zone is in the same account; Step 11 still confirms that
-> attaching the domain works with the token as scoped.
+Dashboard only. Details: `docs/ops/account.md` §2. **Do not create a new
+account** (D39).
 
-Dashboard only. Details: `docs/ops/account.md` §2 steps 1, 2 and 4.
-
-1. Create a new account under your existing Cloudflare login (not a new
-   login). Name it, for example, `synthetos-run`.
-2. Subscribe it to **Workers Paid** (D11, $5/month).
-3. Copy the **account id** (Workers & Pages → Overview, right-hand side).
+1. Use the current account, the one that holds the `synthetos.com` zone.
+   Make sure it is on **Workers Paid** (D11, $5/month).
+2. Copy the **account id** (Workers & Pages → Overview, right-hand side).
    This is `<ACCOUNT_ID>`.
-4. Note the account's **workers.dev subdomain** (Workers & Pages →
+3. Note the account's **workers.dev subdomain** (Workers & Pages →
    Overview). This is `<SUBDOMAIN>`. Do not enable workers.dev for any
-   Worker.
-5. Make sure your Cloudflare login uses a **hardware security key**, and
-   remove TOTP and SMS fallbacks. Add no other member.
-6. Never run `wrangler login` against this account.
+   run or accounts Worker.
+4. Make sure your Cloudflare login uses a **hardware security key**, and
+   remove TOTP and SMS fallbacks.
+5. Keep **members to the minimum**: remove anyone who does not need access,
+   give anyone who stays the narrowest role, and record them in
+   `docs/ops/account.md`.
+6. Never deploy run or accounts from a laptop: no `wrangler login` or local
+   token used for them. Record any existing local wrangler login and what it
+   is used for (`docs/ops/account.md` §2 step 5).
 
 ## Step 2. Put the account id into the repository
 
@@ -98,15 +105,12 @@ Do this locally, before the first push, so it needs no PR.
 cd /Volumes/External/projects/run
 ACCOUNT_ID=<ACCOUNT_ID>
 printf '%s' "$ACCOUNT_ID" | grep -Eq '^[0-9a-f]{32}$' && echo ok   # must print ok
-sed -i '' "s/\"account_id\": \"D34_RUN_ACCOUNT_ID_PLACEHOLDER\"/\"account_id\": \"$ACCOUNT_ID\"/" workers/run/wrangler.jsonc
+sed -i '' "s/\"account_id\": \"RUN_ACCOUNT_ID_PLACEHOLDER\"/\"account_id\": \"$ACCOUNT_ID\"/" workers/run/wrangler.jsonc
 git diff --stat                                   # exactly one line in workers/run/wrangler.jsonc
 corepack pnpm install --frozen-lockfile
 corepack pnpm check                               # must pass; the config tests accept a real id
 git commit -am "D39: run Cloudflare account id"
 ```
-
-If carrying D39 in (Step 0) changed how the domain is attached, make that
-change in the same way now, and run `corepack pnpm check` again.
 
 ## Step 3. Create the GitHub repository (D3), without pushing yet
 
@@ -172,10 +176,11 @@ green.
 
 ## Step 6. Branch ruleset and environments
 
-Details: `docs/ops/branch-protection.md` §1 and §2. Step 0 must be carried
-into the repository first: under D40 the ruleset below takes
-`required_approving_review_count: 0`, and `safety-review` stays in its
-required checks only once it implements the D40 rule.
+Details: `docs/ops/branch-protection.md` §1 and §2. The ruleset below is the
+D40 one: zero required approvals, Code Owner review and last-push approval
+off (GitHub never lets authors approve their own PRs), and `safety-review`
+a required check, which now requires the recorded independent review on
+safety-path PRs instead of approvals.
 
 **Environments** (deployments only from `main`; production needs your
 approval):
@@ -210,10 +215,10 @@ create it):
     { "type": "non_fast_forward" },
     { "type": "required_linear_history" },
     { "type": "pull_request", "parameters": {
-        "required_approving_review_count": 1,
+        "required_approving_review_count": 0,
         "dismiss_stale_reviews_on_push": true,
-        "require_code_owner_review": true,
-        "require_last_push_approval": true,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
         "required_review_thread_resolution": true } },
     { "type": "required_status_checks", "parameters": {
         "strict_required_status_checks_policy": true,
@@ -230,8 +235,11 @@ gh api -X POST repos/synthetos/run/rulesets --input ruleset.json
 
 Leave `bypass_actors` empty: D40 removes the need for a bypass by setting
 required reviews to zero, not by exempting you. Check the result under
-Settings → Rules → Rulesets against `docs/ops/branch-protection.md` §1 (as
-updated for D40).
+Settings → Rules → Rulesets against `docs/ops/branch-protection.md` §1.
+When a second maintainer joins, set `required_approving_review_count` to 1
+and `require_code_owner_review` and `require_last_push_approval` to true, in
+the same week as the one-line change in
+`tools/gates/src/review/reviewPolicy.ts`.
 
 **Prove the deploy jobs cannot run on a PR** (P0-03 acceptance): open any
 small PR (for example a typo fix), and confirm the run summary lists
@@ -240,12 +248,12 @@ URL too. Close or merge the PR.
 
 ## Step 7. The single CI token (D39)
 
-Details: `docs/ops/account.md` §2 step 3. In the account (under D39, the
-current one): My Profile → API Tokens → Create Token → Custom token:
+Details: `docs/ops/account.md` §2 step 4. In the current account (D39):
+My Profile → API Tokens → Create Token → Custom token:
 
 - **Account → Workers Scripts → Edit**, on that account only (D39 asks for
   it to reach the run and accounts Workers only: narrow it as far as
-  Cloudflare allows, and record what it allows);
+  Cloudflare allows, and record in `docs/ops/account.md` what it can reach);
 - **Account → Access: Apps and Policies → Read** (the staging pre-deploy
   Access check);
 - no zone permissions, no DNS, no account settings; TTL one year.
@@ -260,8 +268,8 @@ gh secret set CLOUDFLARE_API_TOKEN --repo synthetos/run --env production   # sam
 
 ## Step 8. Cloudflare Access in front of staging (D31)
 
-Details and exact field values: `docs/ops/access.md` §1. In the new
-account: Zero Trust → Access → Applications → Add → Self-hosted, domain
+Details and exact field values: `docs/ops/access.md` §1. In the current
+account (D39): Zero Trust → Access → Applications → Add → Self-hosted, domain
 `staging.run.synthetos.com` with an empty path, policies "Allow: owner"
 (your address) and "Allow: bench machines" only. **No Bypass and no
 Everyone rule.** This must exist before the first staging deploy: the
@@ -269,7 +277,7 @@ deploy job refuses to deploy staging unless the Access API shows it.
 
 ## Step 9. DNS and zone hardening for run.synthetos.com
 
-Details: `docs/ops/account.md` §2 steps 5 to 7. The post-deploy smoke test
+Details: `docs/ops/account.md` §2 steps 6 to 8. The post-deploy smoke test
 checks DNSSEC, CAA and the certificate issuer on **every** deploy, and a
 failed smoke test undoes the deploy, so these must be in place first.
 
@@ -297,9 +305,10 @@ failed smoke test undoes the deploy, so these must be in place first.
    login on a hardware key.
 6. **Certificate Transparency monitoring** for `run.`, `staging.run.`,
    `accounts.` and `staging.accounts.synthetos.com`, alerting you.
-7. **Audit-log alerts** in the new account for Worker uploads, versions,
-   deployments, routes, custom domains and secrets made by anyone other than
-   the CI token.
+7. **Audit-log alerts** in the account for uploads, versions, deployments,
+   routes, custom domains and secrets of the run and accounts Workers made
+   by anyone other than the run CI token, and for any change to members,
+   API tokens or the zone's DNS records.
 
 ## Step 10. Repository variables, then switch deploys on
 

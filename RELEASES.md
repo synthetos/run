@@ -9,7 +9,7 @@ deploy; it records one.
 
 **Status: not tagged yet.** The tag waits for the first production deploy,
 which needs the owner's actions in `docs/LEAD_ACTIONS.md` (GitHub repository,
-dedicated Cloudflare account, Access on staging, DNS). When the deploy has
+the Cloudflare account locked down per D39, Access on staging, DNS). When the deploy has
 succeeded, fill in the three lines below and tag that commit.
 
 - Commit: _(the `main` commit deployed to production)_

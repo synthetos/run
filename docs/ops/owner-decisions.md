@@ -3,7 +3,7 @@
 These questions came out of the Phase 0 reviews. Only the owner can decide
 them, because each one is a trade-off between safety controls and the
 owner's accounts, not a coding question. Nothing in this repository decides
-them, and no fix pass may change the decisions they lead to (D34, the review
+them, and no fix pass may change the decisions they lead to (D39, D40, the review
 rules in `docs/ops/branch-protection.md`) without the owner.
 
 Record each decision in `DECISIONS.md` (synthetos.com) when it is made, then
@@ -11,13 +11,12 @@ update this page and the pages it names in one reviewed PR.
 
 | ID | Question | Status | Blocks |
 |---|---|---|---|
-| OD-1 | How does a solo maintainer meet the review rules? | **DECIDED as D40 (owner, 2026-11-01); not yet carried into this repository** | Merging any PR once the `main` ruleset is active |
-| OD-2 | How does `run.synthetos.com` reach a Worker in the dedicated D34 account, when the `synthetos.com` zone is in another account? | **DECIDED as D39 (owner, 2026-11-01), superseding D34; not yet carried into this repository** | The first staging deploy |
+| OD-1 | How does a solo maintainer meet the review rules? | **DECIDED as D40 (owner, 2026-11-01); carried into this repository** | — |
+| OD-2 | How does `run.synthetos.com` reach a Worker in the dedicated D34 account, when the `synthetos.com` zone is in another account? | **DECIDED as D39 (owner, 2026-11-01), superseding D34; carried into this repository** | — |
 
-Both decisions are recorded in `DECISIONS.md`. The gates and ops pages this
-page names still implement the earlier rules; `docs/LEAD_ACTIONS.md` Step 0
-lists exactly what must change, in one reviewed change, before the ruleset
-is switched on.
+Both decisions are recorded in `DECISIONS.md`, and the gates and ops pages
+now implement them (`docs/LEAD_ACTIONS.md` Step 0 summarises what changed
+and what the accounts and site repositories must match).
 
 ---
 
@@ -29,9 +28,20 @@ approve their own PRs. Protection comes from the required CI status checks,
 signed and attested artifacts, the protected deploy environment and
 CODEOWNERS, with an independent AI review recorded for safety-path changes.
 The two-approval rule for safety paths is restored when a second maintainer
-joins. **Not yet implemented here:** `safety-review` still requires two
-write-access approvals, and the ruleset in `docs/LEAD_ACTIONS.md` Step 6 and
-`docs/ops/branch-protection.md` §1 still requires one approval.
+joins.
+
+**As implemented here.** `safety-review` requires zero approvals
+(`REQUIRED_SAFETY_APPROVALS` in `tools/gates/src/review/reviewPolicy.ts`)
+and, on every safety-path PR, the SAFETY §8 checklist and a recorded
+independent review committed as `docs/safety/reviews/pr-<N>.md`, bound to
+the head commit (`docs/safety/reviews/README.md`). The ruleset
+(`docs/LEAD_ACTIONS.md` Step 6, `docs/ops/branch-protection.md` §1) requires
+zero approvals and has Code Owner review and last-push approval off, since
+GitHub never lets authors approve their own PRs. The `safety-review-job`
+CI-policy rule against a PR weakening its own enforcement workflow stays,
+and native branch protection stays the primary control. Restoring the
+two-approval rule is a one-line change to that constant plus three ruleset
+settings.
 
 The analysis that led to it:
 
@@ -63,10 +73,7 @@ makes it stricter, not looser.
 3. Something else the owner chooses (for example a time-limited exception
    until a named second reviewer starts).
 
-**Until it is carried into this repository:** the ruleset is switched on
-only after the steps in `docs/LEAD_ACTIONS.md` that need no merge, so the
-first deploy does not need a bypass. The required check counts in code stay
-as they are until that reviewed change makes them follow D40.
+The options above are kept as the record of what was considered.
 
 ## OD-2. The D34 custom domain and the zone's account
 
@@ -76,9 +83,17 @@ account, locked down: CI-only deploys with a token scoped to the run and
 accounts Workers only, minimal account members, a hardware-key owner login,
 audit-log alerts on any change not made by CI, and no local `wrangler login`
 used to deploy run or accounts. Workers custom domains must be on a zone in
-the same account. **Not yet implemented here:** `workers/run/wrangler.jsonc`,
-`tools/gates/src/deploy/wranglerConfig.ts`, `docs/ops/account.md` and
-`docs/ops/branch-protection.md` still describe the dedicated D34 account.
+the same account.
+
+**As implemented here.** `workers/run/wrangler.jsonc`,
+`tools/gates/src/deploy/wranglerConfig.ts`, `docs/ops/account.md`,
+`docs/ops/branch-protection.md` and `docs/LEAD_ACTIONS.md` describe the
+current account with the D39 lockdown; the account id placeholder is
+`RUN_ACCOUNT_ID_PLACEHOLDER` (still refused by every deploy). `pnpm
+ci-policy` refuses any wrangler configuration other than run's that binds
+`accounts` (`tools/gates/src/bindings/check.ts`), and `docs/LEAD_ACTIONS.md`
+Step 0 records the matching requirement for the accounts and site
+repositories.
 
 The analysis that led to it:
 
@@ -117,5 +132,6 @@ the checks in `tools/gates/src/deploy/wranglerConfig.ts` (which pin those
 routes), the CI token's scope in `docs/ops/branch-protection.md` §2, and the
 smoke test's DNSSEC, CAA and certificate checks, all in one reviewed PR.
 
-**Until it is carried into this repository:** deploys stay off (`RUN_DEPLOY_ENABLED` unset), and
-the preflight still refuses while `account_id` is the D34 placeholder.
+The options above are moot under D39 and kept as the record. Deploys stay off
+(`RUN_DEPLOY_ENABLED` unset) until the Step 1 to 10 owner actions are done,
+and the preflight refuses while `account_id` is the placeholder.

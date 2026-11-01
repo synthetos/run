@@ -8,12 +8,12 @@ origin, so an unprotected staging host would be a second origin serving
 bench builds to anyone (SAFETY H45). Production stays the empty shell until
 Phase 6.
 
-**Status (2026-11-01): not configured.** It needs the dedicated account
-(docs/ops/account.md) first.
+**Status (2026-11-01): not configured.** It needs the account locked down
+first (D39: the current account, docs/ops/account.md).
 
 ## 1. The Access application (owner)
 
-In the dedicated run account: Zero Trust → Access → Applications → Add an
+In the current account (D39): Zero Trust → Access → Applications → Add an
 application → **Self-hosted**.
 
 | Field | Value |
