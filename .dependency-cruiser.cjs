@@ -112,6 +112,19 @@ module.exports = {
       to: { path: '^tools/' },
     },
 
+    // --- Bootloader capability (ROADMAP P0-12, SAFETY T-S16) -------------
+    {
+      name: 'bootloader-capability-mint-is-flasher-only',
+      comment:
+        'Only the flasher mints a BootloaderCapability, the token that lets the Transport open at 1200 baud ' +
+        '(the g2core SAM-BA touch that erases the board) or open a bootloader port (OLD-TP §4.2, SAFETY T-S16). ' +
+        'The module that holds the mint may be imported by flasher source and by tests, never by anything else; ' +
+        "everyone else gets the verifier through the package entry, which does not re-export the mint.",
+      severity: 'error',
+      from: { pathNot: '(^packages/flasher/src/|^packages/[^/]+/test/)' },
+      to: { path: '(^packages/flasher/src/bootloaderCapability\\.ts$)' },
+    },
+
     // --- Repository hygiene ----------------------------------------------
     {
       name: 'no-import-outside-repo',

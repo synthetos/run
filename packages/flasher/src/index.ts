@@ -9,3 +9,7 @@
 
 /** Package version. Kept equal to package.json `version` by the smoke test. */
 export const VERSION = '0.0.0';
+
+// The verifier and the type only. The mint stays flasher-internal (ROADMAP P0-12).
+export { consumeBootloaderCapability } from './bootloaderCapability.ts';
+export type { BootloaderCapability } from './bootloaderCapability.ts';

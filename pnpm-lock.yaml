@@ -79,7 +79,17 @@ importers:
 
   packages/gcode: {}
 
-  packages/machine: {}
+  packages/machine:
+    devDependencies:
+      '@synthetos/flasher':
+        specifier: workspace:*
+        version: link:../flasher
+      '@synthetos/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@synthetos/testkit':
+        specifier: workspace:*
+        version: link:../testkit
 
   packages/protocol: {}
 

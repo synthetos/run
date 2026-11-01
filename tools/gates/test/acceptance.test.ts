@@ -292,3 +292,29 @@ describe('the remaining P0-02 rules', () => {
     expectFailure(repo.lint(), 'no-eval');
   });
 });
+
+describe('ROADMAP P0-12 rules', () => {
+  it('machine source importing the bootloader capability mint fails dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/machine/src/index.ts', "export { mintBootloaderCapability } from '@synthetos/flasher/bootloader-capability';\n");
+    expectFailure(repo.deps(), 'bootloader-capability-mint-is-flasher-only');
+  });
+
+  it('web app source importing the mint by relative path fails dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append(
+      'apps/web/src/shell/Shell.ts',
+      "export { mintBootloaderCapability } from '../../../../packages/flasher/src/bootloaderCapability.ts';\n",
+    );
+    expectFailure(repo.deps(), 'bootloader-capability-mint-is-flasher-only');
+  });
+
+  it('the P0-02 Web Serial rule is still in force, even in the file P1-01 will exempt', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write(
+      'packages/machine/src/webSerialTransport.ts',
+      'declare const navigator: { serial: { getPorts(): Promise<unknown[]> } };\nexport const ports = () => navigator.serial.getPorts();\n',
+    );
+    expectFailure(repo.lint(), 'run/no-web-serial');
+  });
+});

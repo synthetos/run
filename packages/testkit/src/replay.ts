@@ -10,9 +10,14 @@
  * end is a divergence: the transport fails loudly and never guesses.
  *
  * The transport shape follows OLD-TP §4.2 (`writeLine`, an async-iterable
- * `readable`, no `abort()`). The canonical `Transport` interface arrives with
- * P0-12 in `machine`; `TransportLike` is the structural shape it is checked
- * against there.
+ * `readable`, no `abort()`). The canonical `Transport` interface is in
+ * `machine` (P0-12); `TransportLike` is the same shape, and
+ * packages/machine/test/replay-conformance.test.ts checks that a
+ * `ReplayTransport` is a `Transport` and runs behind `GuardedTransport`.
+ * (The test kit does not import `machine`: RUN_PLAN §5.3.)
+ *
+ * Bench recordings are stored as JSONL, one `{t, dir, hex}` object per line
+ * (OLD ROADMAP P0-12): `recordingFromJsonl` turns one into a `Recording`.
  */
 import { escapeBytes } from './bytes.ts';
 import type { Clock } from './clock.ts';
@@ -75,6 +80,63 @@ export function recordingFromTranscript(name: string, transcript: Transcript): R
       steps.push({ disconnect: true, afterMs: Math.max(0, e.t - last) });
       last = e.t;
     }
+  }
+  return Object.freeze({ name, steps: Object.freeze(steps) });
+}
+
+/** One line of a JSONL bench recording: time in ms, direction from the host's view, bytes as hex. */
+export interface JsonlRecordingLine {
+  readonly t: number;
+  readonly dir: 'tx' | 'rx';
+  readonly hex: string;
+}
+
+export class RecordingFormatError extends Error {
+  readonly line: number;
+  constructor(line: number, message: string) {
+    super(`recording line ${line}: ${message}`);
+    this.name = 'RecordingFormatError';
+    this.line = line;
+  }
+}
+
+const HEX = /^(?:[0-9a-fA-F]{2})+$/;
+
+/**
+ * Parse a JSONL bench recording (`{"t":12.5,"dir":"tx","hex":"7b..0a"}` per
+ * line). `tx` lines become `expect` steps, `rx` lines `emit` steps timed by
+ * the gap to the previous line. Parsing is strict, because a recording is
+ * the oracle a replay test trusts: unknown keys, a missing or non-hex
+ * payload, a negative or decreasing time, or an unknown direction all throw
+ * with the line number. Blank lines are skipped.
+ */
+export function recordingFromJsonl(name: string, jsonl: string): Recording {
+  const steps: RecordingStep[] = [];
+  let last = 0;
+  const lines = jsonl.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const raw = (lines[i] as string).trim();
+    if (raw === '') continue;
+    const n = i + 1;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new RecordingFormatError(n, 'not JSON');
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new RecordingFormatError(n, 'not an object');
+    const keys = Object.keys(parsed).sort().join(',');
+    if (keys !== 'dir,hex,t') throw new RecordingFormatError(n, `keys must be exactly t, dir, hex (got ${keys})`);
+    const { t, dir, hex } = parsed as Record<string, unknown>;
+    if (typeof t !== 'number' || !Number.isFinite(t) || t < 0) throw new RecordingFormatError(n, 't must be a finite number >= 0');
+    if (t < last) throw new RecordingFormatError(n, `t ${t} is earlier than the previous line (${last})`);
+    if (typeof hex !== 'string' || !HEX.test(hex)) throw new RecordingFormatError(n, 'hex must be a non-empty even-length hex string');
+    const data = new Uint8Array(hex.length / 2);
+    for (let b = 0; b < data.length; b++) data[b] = Number.parseInt(hex.slice(b * 2, b * 2 + 2), 16);
+    if (dir === 'tx') steps.push({ expect: data });
+    else if (dir === 'rx') steps.push({ emit: data, afterMs: t - last });
+    else throw new RecordingFormatError(n, `dir must be "tx" or "rx" (got ${JSON.stringify(dir)})`);
+    last = t;
   }
   return Object.freeze({ name, steps: Object.freeze(steps) });
 }
