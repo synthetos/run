@@ -93,10 +93,10 @@ export class GuardedTransport implements Transport {
   }
 
   async open(options: TransportOpenOptions, capability?: BootloaderCapability): Promise<void> {
-    if (this.#state !== 'new') throw new TransportRefusedError('already-opened', `open() called in state ${this.#state}`);
-    // Consume first: a presented token is used up whatever happens next.
+    // Consume first: a presented token is used up whatever happens next, even on a repeated open.
     const presented = capability !== undefined;
     const valid = presented && consumeBootloaderCapability(capability);
+    if (this.#state !== 'new') throw new TransportRefusedError('already-opened', `open() called in state ${this.#state}`);
     if (presented && !valid) throw new TransportRefusedError('invalid-capability', 'the bootloader capability is forged or already used');
     // Read each option once, so a getter cannot answer differently to the check and to the port.
     const snapshot: TransportOpenOptions = Object.freeze({

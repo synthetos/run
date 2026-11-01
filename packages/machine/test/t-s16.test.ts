@@ -80,6 +80,16 @@ describe('T-S16: 1200 baud needs the bootloader capability', () => {
     expect((await refusal(new GuardedTransport(new FakeTransport(G2_NATIVE)).open(AT_1200, token))).code).toBe('invalid-capability');
   });
 
+  it('a token presented to an already-opened transport is still used up', async () => {
+    const opened = new GuardedTransport(new FakeTransport(G2_NATIVE));
+    await opened.open(SESSION_OPTIONS);
+    const token = mintBootloaderCapability();
+    expect((await refusal(opened.open(AT_1200, token))).code).toBe('already-opened');
+    const inner = new FakeTransport(G2_NATIVE);
+    expect((await refusal(new GuardedTransport(inner).open(AT_1200, token))).code).toBe('invalid-capability');
+    expect(inner.opens()).toBe(0);
+  });
+
   it('refuses a token on an ordinary 115200 open (it would hide a flasher bug)', async () => {
     const inner = new FakeTransport(TINYG_FTDI);
     expect((await refusal(new GuardedTransport(inner).open(SESSION_OPTIONS, mintBootloaderCapability()))).code).toBe('unexpected-capability');
