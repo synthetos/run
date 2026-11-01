@@ -18,6 +18,7 @@
     "@preact/signals": "2.11.3",
     "@synthetos/machine": "workspace:*",
     "@synthetos/safety": "workspace:*",
+    "@synthetos/schema": "workspace:*",
     "preact": "11.0.1"
   },
   "devDependencies": {
