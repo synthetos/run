@@ -61,6 +61,22 @@ describe('deploy-config', () => {
     expect(rules(bad)).toContain('deploy-config');
   });
 
+  // wrangler resolves --config after --cwd and loads its environment from --env-file or the
+  // working directory's dotenv files, so the configuration must be the exact token and those
+  // options are refused (P0-04 review, adversarial pass).
+  for (const [label, to] of [
+    ['a configuration path that merely starts with the written one', '--config workers/run/wrangler.deploy.json.x --env staging'],
+    ['--cwd (another working directory: other dotenv files, the configuration resolved elsewhere)', '--config workers/run/wrangler.deploy.json --cwd /tmp/x --env staging'],
+    ['--env-file (an environment file of the checkout)', '--config workers/run/wrangler.deploy.json --env-file .env.x --env staging'],
+    ['a second configuration option', '--config=workers/run/wrangler.jsonc --config workers/run/wrangler.deploy.json --env staging'],
+    ['the short configuration option', '-c workers/run/wrangler.deploy.json --env staging'],
+  ] as const) {
+    it(`fails when a wrangler invocation uses ${label}`, () => {
+      const bad = mutate(CI, '--config workers/run/wrangler.deploy.json --env staging', to);
+      expect(rules(bad)).toContain('deploy-config');
+    });
+  }
+
   it('fails when the preflight no longer writes the deployment configuration', () => {
     const bad = mutate(CI, 'wrangler.jsonc production --write workers/run/wrangler.deploy.json', 'wrangler.jsonc production');
     expect(rules(bad)).toContain('deploy-config');

@@ -83,7 +83,13 @@ to a bundler inside the build toolchain. The artifact is `run-web.tar` and
    equals the `CLOUDFLARE_ACCOUNT_ID` variable. It then writes
    `workers/run/wrangler.deploy.json`, rebuilt from the allowlisted keys
    only (it refuses to overwrite an existing file). Every wrangler call of
-   the job, the undo included, uses that file.
+   the job, the undo included, uses that file. It also refuses while any
+   dotenv file (`.env`, `.env.*`) exists in the working directory: wrangler
+   loads `.env`, `.env.local`, `.env.<env>` and `.env.<env>.local` into its
+   own environment whatever `--config` says, so a committed
+   `CLOUDFLARE_API_BASE_URL` there would send the deploy token elsewhere.
+   ci-policy `deploy-config` refuses `--cwd` and `--env-file` on wrangler
+   calls and requires the exact `--config` path.
 3. Staging only: **Access must already be in front** (`smoke/cli.ts --env
    staging --pre-deploy`): a positive check through the Cloudflare Access
    API (docs/ops/access.md §2); "not reachable" alone never passes. The step

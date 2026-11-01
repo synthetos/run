@@ -596,7 +596,15 @@ function checkDeployConfig(jobs: readonly Job[], add: (line: number, rule: Polic
     let deploys = 0;
     for (const l of invocations) {
       if (/\bwrangler\s+deploy\b/.test(l.text)) deploys += 1;
-      if (!l.text.includes(`--config ${DEPLOY_CONFIG}`)) flag(l.no, `job '${name}': every wrangler invocation must pass --config ${DEPLOY_CONFIG}`);
+      // Exactly one configuration option, `--config` followed by the exact path; no --cwd (another
+      // working directory) or --env-file (wrangler loads that environment, with the deploy token).
+      const tokens = l.text.split(/\s+/);
+      const configOptions = tokens.filter((t) => /^(?:--config|-c)(?:=|$)/.test(t));
+      const at = tokens.indexOf('--config');
+      if (configOptions.length !== 1 || at === -1 || tokens[at + 1] !== DEPLOY_CONFIG) {
+        flag(l.no, `job '${name}': every wrangler invocation must pass exactly --config ${DEPLOY_CONFIG}, and no other configuration option`);
+      }
+      if (tokens.some((t) => /^--(?:cwd|env-file)(?:=|$)/.test(t))) flag(l.no, `job '${name}': a wrangler invocation may not pass --cwd or --env-file`);
       if (preflight === undefined || l.no < preflight.no) flag(l.no, `job '${name}': wrangler may run only after the preflight wrote ${DEPLOY_CONFIG}`);
     }
     if (deploys === 0) flag(job.line, `job '${name}' must deploy with wrangler deploy --config ${DEPLOY_CONFIG}`);

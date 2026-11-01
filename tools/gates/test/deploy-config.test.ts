@@ -144,12 +144,16 @@ describe('deployConfig: the configuration wrangler is given', () => {
   });
 });
 
-function preflight(configText: string, env: string, extra: (dir: string) => string[]): { status: number | null; output: string; dir: string } {
+function preflight(configText: string, env: string, extra: (dir: string) => string[], cwd?: (dir: string) => string): { status: number | null; output: string; dir: string } {
   const dir = freshDir();
   const file = join(dir, 'wrangler.jsonc');
   writeFileSync(file, configText);
   const childEnv: NodeJS.ProcessEnv = { ...process.env, CLOUDFLARE_ACCOUNT_ID: REAL_ACCOUNT };
-  const r = spawnSync(process.execPath, [join(REPO_ROOT, 'tools/gates/src/deploy/preflight.ts'), file, env, ...extra(dir)], { encoding: 'utf8', env: childEnv });
+  const r = spawnSync(process.execPath, [join(REPO_ROOT, 'tools/gates/src/deploy/preflight.ts'), file, env, ...extra(dir)], {
+    encoding: 'utf8',
+    env: childEnv,
+    ...(cwd === undefined ? {} : { cwd: cwd(dir) }),
+  });
   return { status: r.status, output: `${r.stdout}${r.stderr}`, dir };
 }
 
@@ -179,6 +183,32 @@ describe('preflight --write', () => {
     });
     expect(r.status).toBe(2);
     expect(readFileSync(join(r.dir, 'wrangler.deploy.json'), 'utf8')).toContain('marker');
+  });
+
+  // wrangler loads .env, .env.local, .env.<env> and .env.<env>.local from its working directory into
+  // its own process environment, whatever --config says. A committed .env.staging holding
+  // CLOUDFLARE_API_BASE_URL sends the deploy token to that host (reproduced with the pinned 4.149.0
+  // against a local listener). The preflight runs in the same directory as the wrangler steps.
+  for (const name of ['.env', '.env.local', '.env.staging', '.env.staging.local', '.env.production']) {
+    it(`refuses to write a deployment configuration while ${name} exists in the working directory`, () => {
+      const r = preflight(
+        withAccount,
+        'staging',
+        (dir) => ['--write', join(dir, 'wrangler.deploy.json')],
+        (dir) => {
+          writeFileSync(join(dir, name), 'CLOUDFLARE_API_BASE_URL=https://example.invalid/client/v4\n');
+          return dir;
+        },
+      );
+      expect(r.status, r.output).toBe(1);
+      expect(r.output).toContain(name);
+      expect(existsSync(join(r.dir, 'wrangler.deploy.json'))).toBe(false);
+    });
+  }
+
+  it('accepts the same configuration in a working directory without dotenv files', () => {
+    const r = preflight(withAccount, 'staging', (dir) => ['--write', join(dir, 'wrangler.deploy.json')], (dir) => dir);
+    expect(r.status, r.output).toBe(0);
   });
 
   it('requires --write: a preflight that produces no deployment configuration is a usage error', () => {
@@ -214,6 +244,18 @@ describe('the pinned wrangler (dry run, no account)', () => {
     const r = dryRun(dir, 'wrangler.json');
     expect(r.status, r.output).toBe(0);
     expect(existsSync(marker(dir)), r.output).toBe(true);
+  });
+
+  it('the defect: wrangler loads .env.<env> from its working directory even with an explicit --config', { timeout: 60_000 }, () => {
+    const dir = freshDir();
+    const out = join(dir, 'dotenv-loaded.json');
+    // WRANGLER_OUTPUT_FILE_PATH is harmless and observable without a network: wrangler writes its
+    // session record there. CLOUDFLARE_API_BASE_URL would be read the same way.
+    writeFileSync(join(dir, '.env.staging'), `WRANGLER_OUTPUT_FILE_PATH=${out}\n`);
+    writeFileSync(join(dir, 'wrangler.json'), JSON.stringify({ ...load(), account_id: REAL_ACCOUNT }));
+    const r = dryRun(dir, 'wrangler.json');
+    expect(r.status, r.output).toBe(0);
+    expect(existsSync(out), r.output).toBe(true);
   });
 
   it('the fix: the preflight writes no deployment configuration from it, and the written one runs no build', { timeout: 60_000 }, () => {
