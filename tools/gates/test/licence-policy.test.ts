@@ -71,6 +71,11 @@ describe('the committed exception list', () => {
   it('is rejected by validation when it contains a GPL entry or a missing reason', () => {
     expect(validateExceptions([{ name: 'a', licence: 'GPL-2.0-only', reason: 'this should never be accepted' }])).toHaveLength(1);
     expect(validateExceptions([{ name: 'b', licence: 'CC0-1.0', reason: '' }])).toHaveLength(1);
+    // Bare, non-SPDX family names are caught too; LGPL is not GPL-family here.
+    for (const licence of ['GPL', 'AGPL', 'GPL WITH Classpath-exception-2.0']) {
+      expect(validateExceptions([{ name: 'c', licence, reason: 'this should never be accepted' }]), licence).toHaveLength(1);
+    }
+    expect(validateExceptions([{ name: 'd', licence: 'LGPL-3.0-or-later', reason: 'reviewed dev-only native binary' }])).toEqual([]);
   });
 });
 

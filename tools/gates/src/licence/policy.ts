@@ -28,7 +28,7 @@ export const DEV_ONLY_LICENCES: ReadonlySet<string> = new Set(['MPL-2.0']);
 const DEV_LICENCES: ReadonlySet<string> = new Set([...PRODUCTION_LICENCES, ...DEV_ONLY_LICENCES]);
 
 /** Licence identifiers that no exception can ever allow. LGPL is not matched. */
-const NEVER_ALLOWED = /^(GPL|AGPL|SSPL|BUSL)-/i;
+const NEVER_ALLOWED = /^(GPL|AGPL|SSPL|BUSL)(-|$| )/i;
 
 /** True if the identifier is in the GPL/AGPL (or SSPL/BUSL) family. */
 export function isNeverAllowed(id: string): boolean {

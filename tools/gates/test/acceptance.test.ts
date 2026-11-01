@@ -258,6 +258,34 @@ describe('the remaining P0-02 rules', () => {
     { const r = repo.lint(); expect(r.status, r.output).toBe(0); }
   });
 
+  it('an inline eslint-disable cannot switch off a safety rule', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append(
+      'packages/machine/src/index.ts',
+      [
+        '/* eslint-disable run/no-web-serial, run/no-network-api */',
+        'declare const navigator: { serial: unknown };',
+        '// eslint-disable-next-line',
+        'export const s = navigator.serial;',
+        "export const load = (): Promise<Response> => fetch('/api/x'); // eslint-disable-line",
+        '',
+      ].join('\n'),
+    );
+    const result = repo.lint();
+    expectFailure(result, 'run/no-web-serial');
+    expect(result.output).toContain('run/no-network-api');
+  });
+
+  it('navigator.serial reached through an alias fails lint', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append(
+      'apps/web/src/shell/Shell.tsx',
+      'declare const navigator: { serial: { requestPort(): Promise<unknown> } };\n' +
+        'const nav = navigator;\nexport const open = () => nav.serial.requestPort();\n',
+    );
+    expectFailure(repo.lint(), 'run/no-web-serial');
+  });
+
   it('eval anywhere fails lint', { timeout: TIMEOUT }, () => {
     const repo = fresh();
     repo.append('apps/cli/src/index.ts', "export const x = eval('1');\n");

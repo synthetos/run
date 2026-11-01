@@ -10,10 +10,21 @@ function isNavigator(node: unknown): boolean {
 }
 
 /**
+ * Methods that exist only on the Web Serial `Serial` object. A port can be
+ * opened only through one of them, so banning the names catches code that
+ * reaches `navigator.serial` through an alias (`const n = navigator;
+ * n.serial.requestPort()`) or a value passed in from elsewhere.
+ */
+export const WEB_SERIAL_METHODS: readonly string[] = ['requestPort', 'getPorts'];
+
+/**
  * Bans every reference to `navigator.serial`: `navigator.serial`,
  * `globalThis.navigator['serial']`, `navigator?.serial`,
- * `const { serial } = navigator`, `({ serial } = navigator)` and
- * `'serial' in navigator`. Phase 0 must not be able to open a port.
+ * `const { serial } = navigator`, `({ serial } = navigator)`,
+ * `'serial' in navigator` and `Reflect.get(navigator, 'serial')`, plus any
+ * use of the Web Serial-only method names `requestPort` and `getPorts`
+ * (identifier, member, key or whole-string literal). Phase 0 must not be
+ * able to open a port.
  */
 export const noWebSerial: Rule.RuleModule = {
   meta: {
@@ -36,7 +47,42 @@ export const noWebSerial: Rule.RuleModule = {
       }
     };
 
+    const methods = new Set(WEB_SERIAL_METHODS);
+    // A shorthand property has distinct key and value nodes over one range.
+    const reportedRanges = new Set<string>();
+    const reportMethod = (node: AnyNode): void => {
+      const range = (node as { range?: readonly [number, number] }).range;
+      const key = range === undefined ? undefined : `${range[0]}:${range[1]}`;
+      if (key !== undefined) {
+        if (reportedRanges.has(key)) return;
+        reportedRanges.add(key);
+      }
+      report(node);
+    };
+
     return {
+      Identifier(node: Rule.Node) {
+        const n = node as unknown as AnyNode;
+        if (methods.has(n['name'] as string)) reportMethod(n);
+      },
+      Literal(node: Rule.Node) {
+        const n = node as unknown as AnyNode;
+        const text = stringValue(n);
+        if (text !== undefined && methods.has(text)) reportMethod(n);
+      },
+      TemplateLiteral(node: Rule.Node) {
+        const n = node as unknown as AnyNode;
+        const name = staticName(n, true);
+        if (name !== undefined && methods.has(name)) reportMethod(n);
+      },
+      CallExpression(node: Rule.Node) {
+        // Reflect.get(navigator, 'serial') and similar (obj, key) lookups.
+        const n = node as unknown as AnyNode;
+        const args = n['arguments'] as unknown[];
+        const target = args[0];
+        const key = unwrap(args[1]);
+        if (isNavigator(target) && isNode(key) && staticName(key, true) === 'serial') report(n);
+      },
       MemberExpression(node: Rule.Node) {
         const n = node as unknown as AnyNode;
         if (staticName(n['property'], n['computed']) === 'serial' && isNavigator(n['object'])) report(n);

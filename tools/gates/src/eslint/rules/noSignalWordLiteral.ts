@@ -6,7 +6,7 @@ import { type AnyNode, stringValue } from '../ast.ts';
  * W and C string in SAFETY §5–§6 starts with. Written with an escape so this
  * file does not itself contain the banned text.
  */
-export const SIGNAL_WORD_PATTERN = /\b(WARNING|DANGER|NOTICE) —/u;
+export const SIGNAL_WORD_PATTERN = /\b(WARNING|DANGER|NOTICE) \u2014/u;
 
 /**
  * Bans signal-word strings outside `packages/safety/src/strings.ts`, the

@@ -84,10 +84,13 @@ tester.run('run/no-web-serial', rule('no-web-serial'), {
     "const t = 'serial';",
     "const has = 'usb' in navigator;",
     'const { userAgent } = navigator;',
+    "Reflect.get(navigator, 'userAgent');",
+    'const portName = requestPortLabel;',
   ],
   invalid: [
-    { code: 'navigator.serial.requestPort();', errors: [{ messageId: 'banned' }] },
-    { code: 'await navigator.serial.getPorts();', errors: [{ messageId: 'banned' }] },
+    // The member access and the Web Serial-only method name are each reported.
+    { code: 'navigator.serial.requestPort();', errors: [{ messageId: 'banned' }, { messageId: 'banned' }] },
+    { code: 'await navigator.serial.getPorts();', errors: [{ messageId: 'banned' }, { messageId: 'banned' }] },
     { code: 'globalThis.navigator.serial;', errors: [{ messageId: 'banned' }] },
     { code: "self.navigator['serial'];", errors: [{ messageId: 'banned' }] },
     { code: 'window.navigator?.serial;', errors: [{ messageId: 'banned' }] },
@@ -97,6 +100,13 @@ tester.run('run/no-web-serial', rule('no-web-serial'), {
     { code: 'let s; ({ serial: s } = navigator);', errors: [{ messageId: 'banned' }] },
     { code: 'function f({ serial } = navigator) { return serial; }', errors: [{ messageId: 'banned' }] },
     { code: "if ('serial' in navigator) {}", errors: [{ messageId: 'banned' }] },
+    { code: "Reflect.get(navigator, 'serial');", errors: [{ messageId: 'banned' }] },
+    { code: 'Reflect.get(globalThis.navigator, `serial`);', errors: [{ messageId: 'banned' }] },
+    // Through an alias the navigator is not visible, but the method names are.
+    { code: 'const n = navigator; n.serial.requestPort();', errors: [{ messageId: 'banned' }] },
+    { code: 'export const ports = (s: { getPorts(): Promise<unknown[]> }) => s.getPorts();', errors: [{ messageId: 'banned' }, { messageId: 'banned' }] },
+    { code: "serialApi['requestPort']();", errors: [{ messageId: 'banned' }] },
+    { code: 'const { requestPort } = api;', errors: [{ messageId: 'banned' }] },
   ],
 });
 
