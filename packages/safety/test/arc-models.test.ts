@@ -30,6 +30,7 @@ const MOTION: MotionModel = {
   maxVelocity: { X: 20000, Y: 20000, Z: 5000, A: 20000, B: 20000, C: 20000 },
   feedrateMax: { X: 20000, Y: 20000, Z: 5000, A: 20000, B: 20000, C: 20000 },
   rotary: { A: { mode: 1 }, B: { mode: 1 }, C: { mode: 1 } },
+  linear: { X: 1, Y: 1, Z: 1 },
 };
 
 interface Setup {

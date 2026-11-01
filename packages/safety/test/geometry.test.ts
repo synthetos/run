@@ -5,9 +5,9 @@
 import { describe, expect, it } from 'vitest';
 import { formatNumber, modelArc, moveSeconds, noVelocityMessage, roundTo, splitArc, splitLinear, type ArcInput } from '../src/sanitize/geometry.ts';
 import type { MotionModel } from '../src/index.ts';
-import { STANDARD_ROTARY } from './sanitizeHelpers.ts';
+import { STANDARD_LINEAR, STANDARD_ROTARY } from './sanitizeHelpers.ts';
 
-const MODEL: MotionModel = { ceilingSeconds: 5, k: 0.5, maxVelocity: { X: 1000, Y: 2000, Z: 500 }, feedrateMax: { X: 1000, Y: 2000, Z: 500 }, rotary: STANDARD_ROTARY };
+const MODEL: MotionModel = { ceilingSeconds: 5, k: 0.5, maxVelocity: { X: 1000, Y: 2000, Z: 500 }, feedrateMax: { X: 1000, Y: 2000, Z: 500 }, rotary: STANDARD_ROTARY, linear: STANDARD_LINEAR };
 
 const arc = (over: Partial<ArcInput>): ArcInput => ({
   clockwise: true,
@@ -152,7 +152,7 @@ describe('splitting refuses what it cannot do within tolerance', () => {
   it('a clockwise sub-arc across the atan2 seam gets the same travel the firmware will compute', () => {
     // Semicircle from east to west about (-50, 0), clockwise through south, in three sub-arcs: the middle one
     // crosses the seam where EN's start angle wraps from +pi to -pi.
-    const fast: MotionModel = { ceilingSeconds: 2, k: 0.5, maxVelocity: { X: 1e6, Y: 1e6 }, feedrateMax: { X: 1e6, Y: 1e6 }, rotary: STANDARD_ROTARY };
+    const fast: MotionModel = { ceilingSeconds: 2, k: 0.5, maxVelocity: { X: 1e6, Y: 1e6 }, feedrateMax: { X: 1e6, Y: 1e6 }, rotary: STANDARD_ROTARY, linear: STANDARD_LINEAR };
     const input = arc({ d0: -100, centre: { c0: -50, c1: 0 } });
     const m = modelArc(input);
     if (m.kind !== 'ok') throw new Error(m.detail);

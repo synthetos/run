@@ -181,6 +181,8 @@ describe('sanitiser report messages', () => {
     ['velocity', TINYG_EN, 'G0 B1'],
     ['feed rate max', TINYG_EN, 'G1 X1 F100', { motion: { ...MOTION, feedrateMax: { Y: 1 } } }],
     ['rotary mode', TINYG_EN, 'G0 A1\nG0 B1\nG28', { motion: { ...MOTION, rotary: { B: { mode: 3 } } } }],
+    ['linear axis mode', TINYG_EN, 'G0 Y1\nG0 Z1\nG0 X1\nG28', { motion: { ...MOTION, linear: { Y: 0, Z: 3 } } }],
+    ['inhibited axis', TINYG_EN, 'G0 X1', { motion: { ...MOTION, rotary: { A: { mode: 2 }, C: { mode: 1 } } }, start: { ...START, machine: { X: 0, Y: 0, Z: 0, A: 30, B: 45.25 } } }],
     ['feed units', TINYG_EN, 'G20 G1 X1 F1', { start: { ...START, units: undefined as never } }],
     ['split', TINYG_EN, 'G1 X100 F60', { motion: { ...MOTION, maxVelocity: { X: 600 }, feedrateMax: { X: 600 } } }],
     ['split impossible', TINYG_EN, 'G1 X1 F0.1\nG28', { start: { ...START, g28: { X: 9000, Y: 0, Z: 0, A: 0, B: 0, C: 0 } } }],

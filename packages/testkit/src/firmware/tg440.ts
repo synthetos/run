@@ -21,7 +21,7 @@ import { DEFAULT_BOOT_MS, DEFAULT_HOLD_DECEL_MS, ModelGapError, TICK_MS, type Mo
 import { normalizeBlock, readWords, type GcodeSyntax, type Word } from './gcode.ts';
 import { parseHostJson, type HostValue } from './hostJson.ts';
 import { tgComputeArc } from './arcs.ts';
-import { axisModeTooLarge, modelTarget, softLimitExceeded } from './canonical.ts';
+import { AXIS_INHIBITED, axisModeTooLarge, modelTarget, softLimitExceeded } from './canonical.ts';
 import { fpZERO } from './float32.ts';
 import { AXES, Motion, distance, zeroVec, type Block, type Path, type Vec } from './motion.ts';
 import { fixed, serialize, type OutObject, type OutValue } from './output.ts';
@@ -283,6 +283,7 @@ export class TinyG440Model implements SimDevice {
       rxCount: this.#ring.count,
       homed: [...this.#homed],
       position: this.#motion.position(now),
+      motors: this.#motion.motorPosition(now),
       velocity: this.#motion.velocity(now),
       booted: this.#booted,
     };
@@ -652,6 +653,8 @@ export class TinyG440Model implements SimDevice {
         this.#hold = HOLD.HOLD;
         this.#progress++;
       },
+      // @behaviour TG-INHIBITED-JOINT: an inhibited axis's joint is 0 on every segment (@cite TG kinematics.c:63)
+      inhibited: (axis) => this.settings.num(`${AXES[axis] as string}am`) === AXIS_INHIBITED,
     });
   }
 

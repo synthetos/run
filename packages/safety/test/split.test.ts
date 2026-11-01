@@ -12,10 +12,10 @@ import { TINYG_440, TINYG_EN } from '@synthetos/protocol';
 import { describe, expect, it } from 'vitest';
 import { lexLine } from '../src/sanitize/lex.ts';
 import { sanitizeJob, type MotionModel, type SentLine, type StartState } from '../src/index.ts';
-import { STANDARD_ROTARY, START, runs } from './sanitizeHelpers.ts';
+import { STANDARD_LINEAR, STANDARD_ROTARY, START, runs } from './sanitizeHelpers.ts';
 
 /** Slow axes so that ordinary moves need splitting. */
-const SLOW: MotionModel = { ceilingSeconds: 2, k: 0.5, maxVelocity: { X: 900, Y: 1200, Z: 600, A: 3600, B: 3600, C: 3600 }, feedrateMax: { X: 900, Y: 1200, Z: 600, A: 3600, B: 3600, C: 3600 }, rotary: STANDARD_ROTARY };
+const SLOW: MotionModel = { ceilingSeconds: 2, k: 0.5, maxVelocity: { X: 900, Y: 1200, Z: 600, A: 3600, B: 3600, C: 3600 }, feedrateMax: { X: 900, Y: 1200, Z: 600, A: 3600, B: 3600, C: 3600 }, rotary: STANDARD_ROTARY, linear: STANDARD_LINEAR };
 
 const TOL_MM = 0.002;
 
@@ -178,7 +178,7 @@ describe('T-S64: long moves are split within the ceiling, on the original path',
 });
 
 describe('split details', () => {
-  const motion: MotionModel = { ceilingSeconds: 2, k: 0.5, maxVelocity: { X: 600, Y: 600, Z: 600 }, feedrateMax: { X: 600, Y: 600, Z: 600 }, rotary: STANDARD_ROTARY };
+  const motion: MotionModel = { ceilingSeconds: 2, k: 0.5, maxVelocity: { X: 600, Y: 600, Z: 600 }, feedrateMax: { X: 600, Y: 600, Z: 600 }, rotary: STANDARD_ROTARY, linear: STANDARD_LINEAR };
 
   it('a G1 at 600 mm/min that models 20 s becomes ten 2 s segments with the F on the first', () => {
     // 100 mm at min(F, vm) × k = 300 mm/min = 20 s; ten segments of 10 mm at the 2 s ceiling would sit exactly
@@ -286,7 +286,7 @@ describe('split details', () => {
   });
 
   it('a move that would need sub-segments below the split tolerance is a block', () => {
-    const crawl: MotionModel = { ceilingSeconds: 2, k: 0.5, maxVelocity: { X: 600 }, feedrateMax: { X: 600 }, rotary: STANDARD_ROTARY };
+    const crawl: MotionModel = { ceilingSeconds: 2, k: 0.5, maxVelocity: { X: 600 }, feedrateMax: { X: 600 }, rotary: STANDARD_ROTARY, linear: STANDARD_LINEAR };
     const r = sanitizeJob('G1 X1 F0.0001\n', TINYG_EN, { motion: crawl, start: START });
     expect(r.report.entries.map((e) => e.rule)).toContain('split-impossible');
     expect(r.lines.filter((l) => l.motion !== null)).toHaveLength(0);
@@ -299,7 +299,7 @@ describe('split details', () => {
   });
 
   it('G28 within the ceiling is one line; beyond it, a block (two moves in one block cannot be split)', () => {
-    const fast: MotionModel = { ceilingSeconds: 5, k: 0.5, maxVelocity: { X: 20000, Y: 20000, Z: 20000, A: 20000, B: 20000, C: 20000 }, feedrateMax: { X: 20000, Y: 20000, Z: 20000, A: 20000, B: 20000, C: 20000 }, rotary: STANDARD_ROTARY };
+    const fast: MotionModel = { ceilingSeconds: 5, k: 0.5, maxVelocity: { X: 20000, Y: 20000, Z: 20000, A: 20000, B: 20000, C: 20000 }, feedrateMax: { X: 20000, Y: 20000, Z: 20000, A: 20000, B: 20000, C: 20000 }, rotary: STANDARD_ROTARY, linear: STANDARD_LINEAR };
     const near = { ...START, g28: { X: 10, Y: 0, Z: 0, A: 0, B: 0, C: 0 } };
     const ok = sanitizeJob('G28 Z5\n', TINYG_EN, { motion: fast, start: near });
     expect(ok.report.blocked).toBe(false);

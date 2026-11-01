@@ -41,8 +41,10 @@ export interface TargetContext {
  * - A/B/C STANDARD or INHIBITED: the word in degrees, no unit conversion;
  * - A/B/C RADIUS: the word is a length in the current units, converted to
  *   degrees on the axis radius: `_to_millimeters(v) * 360 / (2 * M_PI * radius)`.
- * INHIBITED axes are computed like STANDARD; whether their motor turns is
- * below this model (positions are what the board reports).
+ * INHIBITED axes are computed like STANDARD: the position moves. Their
+ * motors do not follow it; the kinematics drive an inhibited axis's motor to
+ * step 0 on every segment of any move (motion.ts motor space, finding:
+ * inhibited axis).
  *
  * The arithmetic is float32, as on the board (float32.ts): the word, its unit
  * conversion and its sum with the offset or the start are each a float, and

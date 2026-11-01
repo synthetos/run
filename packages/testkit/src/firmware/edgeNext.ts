@@ -30,7 +30,7 @@ import {
 import { normalizeBlock, readWords, type GcodeSyntax, type Word } from './gcode.ts';
 import { parseHostJson, type HostValue } from './hostJson.ts';
 import { enComputeArc } from './arcs.ts';
-import { axisModeTooLarge, modelTarget, softLimitEnds, softLimitExceeded } from './canonical.ts';
+import { AXIS_INHIBITED, axisModeTooLarge, modelTarget, softLimitEnds, softLimitExceeded } from './canonical.ts';
 import { fpZERO } from './float32.ts';
 import { AXES, Motion, distance, zeroVec, type ArcPath, type Block, type Path, type Vec } from './motion.ts';
 import { fixed, serialize, type OutObject, type OutValue } from './output.ts';
@@ -380,6 +380,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       rxCount: this.#ring.count,
       homed: [...this.#homed],
       position: this.#motion.position(now),
+      motors: this.#motion.motorPosition(now),
       velocity: this.#motion.velocity(now),
       booted: this.#booted,
     };
@@ -1189,6 +1190,8 @@ export class TinyGEdgeNextModel implements SimDevice {
         this.#hold = HOLD.HOLD;
         this.#progress++;
       },
+      // @behaviour EN-INHIBITED-JOINT: an inhibited axis's joint is 0 on every segment (@cite EN kinematics.c:59)
+      inhibited: (axis) => this.settings.num(`${AXES[axis] as string}am`) === AXIS_INHIBITED,
     });
   }
 

@@ -16,7 +16,8 @@
  *   canonical_machine.c:513-514; TG :457), so it does not move.
  * - An inhibited axis (am=2) has its absolute joint forced to 0 in the
  *   kinematics (@cite EN kinematics.c:59; TG kinematics.c:63), so a motor
- *   left away from 0 can move; its travel is not bounded here.
+ *   left away from 0 can move on a move of ANY axis; its travel is not
+ *   bounded here (inhibited-axis.test.ts blocks that case).
  *
  * Every case goes through the production path: sanitizeJob, then
  * overrunBound on the lines the streamer would send.
@@ -108,8 +109,12 @@ describe.each(DIALECTS)('rotary travel with no known radius is reported unknown,
 
   it('a rotary axis with no conversion that does not move leaves the bound finite', () => {
     expect(bound('G21 G90\nG0 X5 A0\n', d, MOTION)).toBe(5);
-    // A in radius mode with no known radius, and B and C with no known mode: an X move does not touch them.
-    expect(bound('G21 G90\nG0 X5\n', d, { ...MOTION, rotary: { A: { mode: 3 } } })).toBe(5);
+    // A in radius mode with no known radius: an X move does not touch it.
+    expect(bound('G21 G90\nG0 X5\n', d, { ...MOTION, rotary: { ...MOTION.rotary, A: { mode: 3 } } })).toBe(5);
+    // B and C with no known mode may be inhibited, and an X move drives an inhibited motor to step 0
+    // (finding: inhibited axis). Reading 0 they are within 0.0005 degrees of it, which has no mm value
+    // without a radius, so the bound is unknown, not 5.
+    expect(bound('G21 G90\nG0 X5\n', d, { ...MOTION, rotary: { A: { mode: 3 } } })).toBe(Number.POSITIVE_INFINITY);
   });
 
   it('a standard-mode split move is unknown too', () => {

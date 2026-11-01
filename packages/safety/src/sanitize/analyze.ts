@@ -37,7 +37,7 @@ import {
 } from './geometry.ts';
 import { canonicalCode, type Word } from './lex.ts';
 import type { Axis, MotionModel, ReportEntry, RotaryAxis, SanitizeOptions, SanitizeRule, StartState, Wcs } from './types.ts';
-import { AXES, AXIS_MODE_DISABLED, AXIS_MODE_RADIUS, WCS_CODES } from './types.ts';
+import { AXES, AXIS_MODE_DISABLED, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, WCS_CODES, type AxisMode } from './types.ts';
 
 type Pos = Record<Axis, number | null>;
 
@@ -159,6 +159,21 @@ export class JobModel {
   readonly #hasArcDistance: boolean;
   /** The board's G-code defaults (`gun`, `gdi`, `gpl`, `gco`), restored at program end. */
   readonly #defaults: NonNullable<StartState['defaults']>;
+  /**
+   * Axes that are inhibited, or of unknown mode, and do not read exactly 0 at
+   * the start (finding: inhibited axis). Their motor may be away from step 0,
+   * and the first segment of the next move of ANY axis drives it there
+   * (@cite EN kinematics.c:59, plan_exec.c:703-712; TG kinematics.c:63,
+   * plan_exec.c:718-727): every motion line is blocked.
+   */
+  readonly #jointRisk: readonly Axis[];
+  /**
+   * What the same axes may still move when they read 0: the reported
+   * position is rounded (3 decimals), so a motor left at the true position
+   * may be up to `uMachine` from step 0. mm added to every motion line's
+   * bound, or null when that includes rotary degrees with no known radius.
+   */
+  readonly #jointResidualMm: number | null;
 
   units: 'G20' | 'G21' | null;
   distance: 'G90' | 'G91' | null;
@@ -245,6 +260,75 @@ export class JobModel {
       this.work[a] = m !== null && t !== null ? m - t : null;
       this.uWork[a] = this.uMachine[a] + this.#offsetUnc(a);
     }
+    // Finding: inhibited axis. For an inhibited axis the step target is 0 once any segment has run since it
+    // was inhibited (or since a step resync); before that it is still the joint the axis had when it was
+    // inhibited, and with no segment since, the position has not moved either. So the motor is at step 0 or
+    // at the position the board reports. An axis of unknown mode may be inhibited. (An axis un-inhibited
+    // while away from 0 has the mirror problem and is not visible in any read: STATUS of this finding.)
+    const risk: Axis[] = [];
+    let residual: number | null = 0;
+    for (const a of AXES) {
+      const mode = this.#modeOf(a);
+      if (mode !== undefined && mode !== AXIS_MODE_INHIBITED) continue;
+      const m = this.machine[a];
+      if (m !== 0) {
+        risk.push(a);
+        continue;
+      }
+      if (residual === null) continue;
+      residual = ROTARY.has(a) ? null : residual + this.uMachine[a];
+    }
+    this.#jointRisk = risk;
+    this.#jointResidualMm = residual;
+  }
+
+  /** The live axis mode, or undefined when it is not known. */
+  #modeOf(axis: Axis): AxisMode | undefined {
+    return ROTARY.has(axis) ? this.#motion.rotary[axis as RotaryAxis]?.mode : this.#motion.linear[axis as 'X' | 'Y' | 'Z'];
+  }
+
+  /**
+   * A block for a move word on a linear axis the firmware does not move as a
+   * length: unknown mode, disabled (the word is ignored), or radius mode
+   * (refused by `cm_set_am` on X/Y/Z, and ignored by `cm_set_model_target`
+   * if present) (@cite EN canonical_machine.c:497-510; TG canonical_machine.c:444-454).
+   */
+  #linearModeFinding(axis: Axis): Finding | null {
+    if (ROTARY.has(axis)) return null;
+    const mode = this.#modeOf(axis);
+    const name = `${axis.toLowerCase()}am`;
+    if (mode === undefined) return block('unknown-state', `the axis mode (${name}) of ${axis} is not known, so a move on ${axis} cannot be modelled`);
+    if (mode === AXIS_MODE_DISABLED) return block('axis-mode', `${axis} is disabled (${name}=0): TinyG ignores ${axis} words, so this move would not run as written`);
+    if (mode === AXIS_MODE_RADIUS) return block('axis-mode', `${axis} reads radius mode (${name}=3), which TinyG refuses on a linear axis; it ignores ${axis} words in that mode`);
+    return null;
+  }
+
+  /** The block for motion while an inhibited (or possibly inhibited) axis may hold its motor away from step 0. */
+  #jointRiskFinding(): Finding | null {
+    if (this.#jointRisk.length === 0) return null;
+    const parts = this.#jointRisk.map((a) => {
+      const mode = this.#modeOf(a);
+      const m = this.machine[a];
+      const where = m === null ? 'its position is not known' : `it reads ${formatNumber(m, 3)}`;
+      return mode === undefined ? `${a} (axis mode not known, so it may be inhibited; ${where})` : `${a} (inhibited; ${where})`;
+    });
+    return block(
+      'inhibited-axis',
+      `TinyG drives an inhibited axis's motor to step 0 on the next move of any axis, by an amount no overrun bound covers: ${parts.join(', ')}. Motion stays blocked until every such axis reads 0`,
+    );
+  }
+
+  /** A motion line's bound with the residual of inhibited axes that read 0 added (`#jointResidualMm`). */
+  #withJointResidual(bound: number | null): number | null {
+    const r = this.#jointResidualMm;
+    return bound === null || r === null ? null : bound + r;
+  }
+
+  /** Every bound of an accepted motion line, with the inhibited-axis residual. */
+  #chargeJointResidual(motion: LineAnalysis['motion']): LineAnalysis['motion'] {
+    if (motion === null || this.#jointResidualMm === 0) return motion;
+    if (motion.kind === 'single') return { ...motion, boundMm: this.#withJointResidual(motion.boundMm) };
+    return { ...motion, segments: motion.segments.map((seg) => ({ ...seg, boundMm: this.#withJointResidual(seg.boundMm) })) };
   }
 
   /**
@@ -679,6 +763,13 @@ export class JobModel {
         if (f !== null) findings.push(f);
       }
     }
+    // A move word on a linear axis needs it to be a length the firmware moves (finding: inhibited axis, am on X/Y/Z).
+    if (isLinearMove || isArcMove) {
+      for (const w of axisWords) {
+        const f = this.#linearModeFinding(w.letter as Axis);
+        if (f !== null) findings.push(f);
+      }
+    }
     // G28/G30 also move every axis to the stored position. 440.21 passes that stored position through
     // `_calc_ABC` again (@cite TG canonical_machine.c:907-914 via cm_set_model_target), so a radius-mode
     // rotary axis would turn by a different amount than modelled; an unknown mode could be radius.
@@ -690,6 +781,20 @@ export class JobModel {
       if (risky.length > 0) {
         findings.push(block('rotary-radius', `${action} cannot be modelled while ${risky.join(', ')} ${risky.length === 1 ? 'is' : 'are'} in radius mode or of unknown axis mode`));
       }
+      // The stored-position leg skips a disabled axis on both firmwares, but EN moves a linear axis that
+      // reads radius mode while 440.21 does not (@cite EN canonical_machine.c:1214-1221; TG via cm_set_model_target).
+      const linearOdd = AXES.filter((a) => !ROTARY.has(a)).filter((a) => {
+        const mode = this.#modeOf(a);
+        return mode !== AXIS_MODE_STANDARD && mode !== AXIS_MODE_INHIBITED;
+      });
+      if (linearOdd.length > 0) {
+        findings.push(block('axis-mode', `${action} cannot be modelled while ${linearOdd.join(', ')} ${linearOdd.length === 1 ? 'is' : 'are'} disabled, in radius mode or of unknown axis mode`));
+      }
+    }
+    // Finding: inhibited axis. Any executed segment can drive an inhibited axis's motor to step 0.
+    if (isLinearMove || isArcMove || action === 'G28' || action === 'G30') {
+      const f = this.#jointRiskFinding();
+      if (f !== null) findings.push(f);
     }
 
     const programStop = has('M0') || has('M60');
@@ -755,7 +860,7 @@ export class JobModel {
     if (programEnd) this.#programEnd();
 
     const ok = !findings.some((f) => f.severity === 'block');
-    return { findings, ok, motion: ok ? motion : null, toolChange, programStop, optionalStop, programEnd, outputsOn };
+    return { findings, ok, motion: ok ? this.#chargeJointResidual(motion) : null, toolChange, programStop, optionalStop, programEnd, outputsOn };
   }
 
   /** null when the code may be sent; otherwise the finding that blocks (or warns about) it. */

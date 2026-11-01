@@ -69,6 +69,12 @@ export interface MotionHooks {
   onFree(block: Block, empty: boolean, t: number): void;
   /** A feedhold reached zero velocity at time t. */
   onHoldReached(t: number): void;
+  /**
+   * The axis is INHIBITED (am=2) now. The kinematics read the live axis mode
+   * on every segment and force an inhibited axis's joint to 0 (@cite EN
+   * kinematics.c:59; TG kinematics.c:63).
+   */
+  inhibited(axis: number): boolean;
 }
 
 type Phase =
@@ -90,6 +96,24 @@ export class Motion {
   #t = 0;
   /** Machine position at the start of the current block, or of the idle runtime. */
   #position: Vec = zeroVec();
+  /**
+   * Motor space (finding: inhibited axis). `#steps` is the runtime's step
+   * target per axis in axis units (`mr.target_steps / steps_per_unit`, one
+   * motor per axis); `#motor` is where each motor physically is, in the same
+   * units, relative to power-up. Each executed segment sets the step target
+   * to the joint of the segment's ABSOLUTE target, the joint being 0 on an
+   * inhibited axis, and moves the motor by the difference from the previous
+   * step target (@cite EN plan_exec.c:703-712; TG plan_exec.c:718-727). So an
+   * axis inhibited while its step target is away from 0 is driven back to
+   * step 0 by the next move of any axis, and an axis un-inhibited while its
+   * position is away from 0 is driven out to it, while the reported position
+   * (`mpo`) shows neither. A step resync (`mp_set_steps_to_runtime_position`,
+   * from `cm_set_position` and G28.3) rewrites the step target from the
+   * position without moving any motor (@cite EN planner.c:187-201; TG
+   * planner.c:160-170).
+   */
+  #steps: Vec = zeroVec();
+  #motor: Vec = zeroVec();
 
   constructor(pool: number, hooks: MotionHooks) {
     this.pool = pool;
@@ -153,10 +177,42 @@ export class Motion {
     return v * (1 - tau / r.phase.duration);
   }
 
-  /** Set the idle machine position (G92-free set-position, homing stand-ins, flush resync). */
+  /** Set the idle machine position (G92-free set-position, homing stand-ins, flush resync); the step target follows (`cm_set_position`). */
   setPosition(p: Vec): void {
     if (this.#current?.block.kind === 'move') throw new Error('cannot set position while a move runs');
     this.#position = [...p];
+    this.#resyncSteps();
+  }
+
+  /**
+   * Physical motor positions now, axis units (mm on X/Y/Z, degrees on A/B/C),
+   * relative to power-up. Unlike `position()`, this is where the motors are:
+   * an inhibited axis's motor stays at step 0 while its position moves.
+   */
+  motorPosition(now: number): Vec {
+    const r = this.#current;
+    if (r === null || r.block.kind !== 'move' || r.phase.kind === 'held') return [...this.#motor];
+    const pos = pointAt(r.block.path, this.#distance(r, now));
+    return this.#motor.map((m, i) => m + this.#joint(pos, i) - (this.#steps[i] as number)) as Vec;
+  }
+
+  /** The joint of axis i at position `pos`: 0 on an inhibited axis (@cite EN kinematics.c:59; TG kinematics.c:63). */
+  #joint(pos: Vec, i: number): number {
+    return this.#hooks.inhibited(i) ? 0 : (pos[i] as number);
+  }
+
+  /** One executed segment ending at `pos`: every motor moves to its new step target. */
+  #segment(pos: Vec): void {
+    for (let i = 0; i < AXES.length; i++) {
+      const j = this.#joint(pos, i);
+      this.#motor[i] = (this.#motor[i] as number) + j - (this.#steps[i] as number);
+      this.#steps[i] = j;
+    }
+  }
+
+  /** `mp_set_steps_to_runtime_position()`: step targets from the position, no motor moves. */
+  #resyncSteps(): void {
+    for (let i = 0; i < AXES.length; i++) this.#steps[i] = this.#joint(this.#position, i);
   }
 
   /** Run the queue up to `now`, firing hooks at the virtual times things happen. */
@@ -218,18 +274,25 @@ export class Motion {
     this.#t = Math.max(this.#t, t);
   }
 
-  /** Drop every queued block. The runtime must be idle (stopped); the held block goes too. */
+  /**
+   * Drop every queued block. The runtime must be idle (stopped); the held
+   * block goes too. `cm_queue_flush()` then sets every axis's position from
+   * the runtime, which resyncs the step targets (@cite EN
+   * canonical_machine.c:1973-1976; TG canonical_machine.c:1307-1309).
+   */
   flush(t: number): void {
     if (!this.runtimeIdle()) throw new Error('flush while the runtime moves');
     if (this.#current !== null) this.#position = this.position(t);
     this.#current = null;
     this.queue.length = 0;
+    this.#resyncSteps();
   }
 
   /** Stop at once, wherever the runtime is (a stepper reset): no deceleration, the block is abandoned. */
   halt(t: number): void {
     if (this.#current !== null) {
       this.#position = this.position(t);
+      if (this.#current.block.kind === 'move' && this.#current.phase.kind !== 'held') this.#segment(this.#position);
       const block = this.#current.block;
       this.#current = null;
       const i = this.queue.indexOf(block);
@@ -247,7 +310,11 @@ export class Motion {
       this.#hooks.onFree(block, this.queue.length === 0, t);
       return;
     }
-    if (block.kind === 'move') this.#position = [...block.path.from];
+    if (block.kind === 'move') {
+      this.#position = [...block.path.from];
+      // The first segment's kinematics run at once: an inhibited axis's step target goes to 0.
+      this.#segment(this.#position);
+    }
     this.#current = { block, start: t, phase: { kind: 'cruise', t0: t, d0: 0 } };
     this.#lastLine = block.line;
     this.#hooks.onStart(block, t);
@@ -273,6 +340,7 @@ export class Motion {
       if (d >= b.path.length - 1e-9) {
         this.#free(r, t, b.path.to);
       } else {
+        this.#segment(pointAt(b.path, d));
         r.phase = { kind: 'held', d };
       }
       this.#hooks.onHoldReached(t);
@@ -282,6 +350,7 @@ export class Motion {
   }
 
   #free(r: Running, t: number, end: Vec): void {
+    if (r.block.kind === 'move') this.#segment(end);
     this.#position = [...end];
     this.#current = null;
     const i = this.queue.indexOf(r.block);

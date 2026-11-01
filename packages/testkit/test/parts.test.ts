@@ -64,7 +64,7 @@ describe('G-code words', () => {
 });
 
 describe('motion runtime', () => {
-  const hooks = { earliestStart: (_b: Block, t: number) => t, onStart: () => undefined, onFree: () => undefined, onHoldReached: () => undefined };
+  const hooks = { earliestStart: (_b: Block, t: number) => t, onStart: () => undefined, onFree: () => undefined, onHoldReached: () => undefined, inhibited: () => false };
   const line = (to: number): Block => ({ kind: 'move', path: { kind: 'line', from: zeroVec(), to: [to, 0, 0, 0, 0, 0] as Vec, length: to }, feed: 600, line: 0 });
 
   it('refuses to overfill the pool, to flush while moving and to set position mid-move', () => {
@@ -79,6 +79,35 @@ describe('motion runtime', () => {
     m.halt(500);
     expect(m.position(500)[0]).toBeCloseTo(5, 9); // started at t=0 at 10 mm/s
     expect(m.available()).toBe(1);
+  });
+
+  it('[EN-INHIBITED-JOINT] motor space: the step target follows the joint per segment; halt and setPosition', () => {
+    let yInhibited = false;
+    const m = new Motion(4, { ...hooks, inhibited: (axis: number) => axis === 1 && yInhibited });
+    const to = (x: number, y: number, from: Vec): Block => ({
+      kind: 'move',
+      path: { kind: 'line', from, to: [x, y, 0, 0, 0, 0] as Vec, length: Math.hypot(x - from[0], y - from[1]) },
+      feed: 600,
+      line: 0,
+    });
+    m.push(to(0, 20, zeroVec()));
+    m.advance(5000);
+    expect(m.motorPosition(5000)[1]).toBe(20);
+    yInhibited = true;
+    m.push(to(10, 20, [0, 20, 0, 0, 0, 0]));
+    m.advance(5100); // mid-move: the Y motor went to step 0 with the first segment
+    expect(m.motorPosition(5100)[1]).toBe(0);
+    expect(m.motorPosition(5100)[0]).toBeGreaterThan(0);
+    m.halt(5200);
+    const halted = m.motorPosition(5200);
+    expect(halted[0]).toBeCloseTo(m.position(5200)[0], 9);
+    expect(halted[1]).toBe(0);
+    // A resync rewrites the step targets and moves nothing; un-inhibited, the next move drives Y out to 20 again.
+    m.setPosition(m.position(5200));
+    yInhibited = false;
+    m.push(to(0, 20, m.position(5200)));
+    m.advance(20_000);
+    expect(m.motorPosition(20_000)[1]).toBe(20);
   });
 
   it('a hold near the end of a move stops exactly at its end', () => {

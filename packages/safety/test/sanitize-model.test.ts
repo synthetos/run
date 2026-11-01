@@ -435,7 +435,7 @@ describe('rotary axis modes (EN canonical_machine.c:484-487 _calc_ABC)', () => {
     expect(units.report.entries[0]?.message).toContain('the units');
   });
 
-  it('disabled and inhibited axes are modelled as degrees (they only ever move less)', () => {
+  it('disabled and inhibited axes are modelled as degrees in the planner length (an inhibited motor can still move: inhibited-axis.test.ts)', () => {
     for (const mode of [0, 2] as const) {
       const r = run('G0 A10\n', EN, { motion: { ...MOTION, rotary: { A: { mode } } } });
       expect(r.lines[0]?.motion?.plannerLength, String(mode)).toBe(10);

@@ -899,11 +899,45 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
       "severity": "block",
     },
   ],
+  "tinyg-en inhibited axis": [
+    {
+      "line": 1,
+      "message": "TinyG drives an inhibited axis's motor to step 0 on the next move of any axis, by an amount no overrun bound covers: A (inhibited; it reads 30), B (axis mode not known, so it may be inhibited; it reads 45.25). Motion stays blocked until every such axis reads 0",
+      "rule": "inhibited-axis",
+      "severity": "block",
+    },
+  ],
   "tinyg-en invalid": [
     {
       "line": 1,
       "message": ""#" is not valid in G-code here",
       "rule": "invalid-character",
+      "severity": "block",
+    },
+  ],
+  "tinyg-en linear axis mode": [
+    {
+      "line": 1,
+      "message": "Y is disabled (yam=0): TinyG ignores Y words, so this move would not run as written",
+      "rule": "axis-mode",
+      "severity": "block",
+    },
+    {
+      "line": 2,
+      "message": "Z reads radius mode (zam=3), which TinyG refuses on a linear axis; it ignores Z words in that mode",
+      "rule": "axis-mode",
+      "severity": "block",
+    },
+    {
+      "line": 3,
+      "message": "the axis mode (xam) of X is not known, so a move on X cannot be modelled",
+      "rule": "unknown-state",
+      "severity": "block",
+    },
+    {
+      "line": 4,
+      "message": "G28 cannot be modelled while X, Y, Z are disabled, in radius mode or of unknown axis mode",
+      "rule": "axis-mode",
       "severity": "block",
     },
   ],

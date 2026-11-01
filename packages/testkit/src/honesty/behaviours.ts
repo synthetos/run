@@ -389,6 +389,21 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     ],
   },
   {
+    id: 'EN-INHIBITED-JOINT',
+    model: EN,
+    summary:
+      'Motor space: each executed segment sets the step target to the joint of its ABSOLUTE target and moves the motor by the difference from the previous step target; the joint of an INHIBITED axis is 0 (the live axis mode, read on every segment). So an axis inhibited while its motor is away from step 0 is driven to step 0 by the first segment of the next move of any axis, and an axis un-inhibited while its position is away from 0 is driven out to it, while the reported position shows neither. A step resync (cm_set_position, from a queue flush, and G28.3) rewrites the step targets from the position and moves nothing. The model tracks one motor per axis and resets motor space at power-up.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'kinematics.c', lines: [59, 59], quote: 'if (cm.a[axis].axis_mode == AXIS_INHIBITED) { joint[axis] = 0;}' },
+      { src: 'EN', file: 'plan_exec.c', lines: [703, 712], quote: 'kn_inverse_kinematics(mr.gm.target, mr.target_steps);' },
+      { src: 'EN', file: 'plan_exec.c', lines: [703, 712], quote: 'travel_steps[i] = mr.target_steps[i] - mr.position_steps[i];' },
+      { src: 'EN', file: 'planner.c', lines: [187, 201], quote: 'kn_inverse_kinematics(mr.position, step_position);' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1060, 1068], quote: 'mp_set_steps_to_runtime_position();' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1973, 1976], quote: 'cm_set_position(axis, mp_get_runtime_absolute_position(axis));' },
+    ],
+  },
+  {
     id: 'EN-FEED-UNITS-ORDER',
     model: EN,
     summary: 'F is set before G20/G21 in the same block and is converted with the units in force before the block: G20 then G21 G1 X1 F100 is 2540 mm/min.',
@@ -714,6 +729,21 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
       { src: 'TG', file: 'canonical_machine.h', lines: [510, 517], quote: 'AXIS_RADIUS' },
       { src: 'TG', file: 'settings/settings_default.h', lines: [148, 156], quote: 'A_AXIS_MODE 			AXIS_RADIUS' },
       { src: 'TG', file: 'settings/settings_default.h', lines: [164, 180], quote: 'C_AXIS_MODE 			AXIS_DISABLED' },
+    ],
+  },
+  {
+    id: 'TG-INHIBITED-JOINT',
+    model: TG,
+    summary:
+      'Motor space, as on edge-next: each executed segment sets the step target to the joint of its ABSOLUTE target and moves the motor by the difference from the previous step target; the joint of an INHIBITED axis is 0. An axis inhibited while its motor is away from step 0 is driven to step 0 by the next move of any axis; an axis un-inhibited while its position is away from 0 is driven out to it. A step resync (cm_set_position, from a queue flush) moves nothing. The model tracks one motor per axis and resets motor space at power-up.',
+    status: 'verified-source',
+    cites: [
+      { src: 'TG', file: 'kinematics.c', lines: [63, 63], quote: 'if (cm.a[axis].axis_mode == AXIS_INHIBITED) { joint[axis] = 0;}' },
+      { src: 'TG', file: 'plan_exec.c', lines: [718, 727], quote: 'ik_kinematics(mr.gm.target, mr.target_steps);' },
+      { src: 'TG', file: 'plan_exec.c', lines: [718, 727], quote: 'travel_steps[i] = mr.target_steps[i] - mr.position_steps[i];' },
+      { src: 'TG', file: 'planner.c', lines: [160, 170], quote: 'ik_kinematics(mr.position, step_position);' },
+      { src: 'TG', file: 'canonical_machine.c', lines: [722, 730], quote: 'mp_set_steps_to_runtime_position();' },
+      { src: 'TG', file: 'canonical_machine.c', lines: [1307, 1309], quote: 'cm_set_position(axis, mp_get_runtime_absolute_position(axis));' },
     ],
   },
   {

@@ -26,6 +26,9 @@ export const START: StartState = Object.freeze<StartState>({
 /** Every rotary axis in standard mode (degrees). */
 export const STANDARD_ROTARY: MotionModel['rotary'] = Object.freeze({ A: { mode: 1 }, B: { mode: 1 }, C: { mode: 1 } });
 
+/** Every linear axis in standard mode. */
+export const STANDARD_LINEAR: MotionModel['linear'] = Object.freeze({ X: 1, Y: 1, Z: 1 });
+
 /** Fast enough that ordinary corpus moves are never split (the split tests use their own model). */
 export const MOTION: MotionModel = Object.freeze<MotionModel>({
   ceilingSeconds: 5,
@@ -33,6 +36,7 @@ export const MOTION: MotionModel = Object.freeze<MotionModel>({
   maxVelocity: { X: 20000, Y: 20000, Z: 5000, A: 20000, B: 20000, C: 20000 },
   feedrateMax: { X: 20000, Y: 20000, Z: 5000, A: 20000, B: 20000, C: 20000 },
   rotary: STANDARD_ROTARY,
+  linear: STANDARD_LINEAR,
 });
 
 /** A motion model whose rapid (vm) and feed (fr) limits are both `limits`. */

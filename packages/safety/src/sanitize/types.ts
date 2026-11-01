@@ -68,21 +68,38 @@ export interface StartState {
 /** The rotary axes. */
 export type RotaryAxis = 'A' | 'B' | 'C';
 
+/** The linear axes. */
+export type LinearAxis = 'X' | 'Y' | 'Z';
+
 /**
- * `am`, the axis mode of a rotary axis (@cite EN canonical_machine.h `cmAxisMode`):
- * 0 disabled, 1 standard, 2 inhibited, 3 radius.
+ * `am`, the axis mode (@cite EN canonical_machine.h:286-293 `cmAxisMode`; TG
+ * canonical_machine.h:510-517): 0 disabled, 1 standard, 2 inhibited,
+ * 3 radius. `cm_set_am` refuses radius on X, Y and Z (@cite EN
+ * canonical_machine.c:2510-2523; TG canonical_machine.c:1723-1732).
  */
 export type AxisMode = 0 | 1 | 2 | 3;
 
 export const AXIS_MODE_DISABLED: AxisMode = 0;
+export const AXIS_MODE_STANDARD: AxisMode = 1;
+export const AXIS_MODE_INHIBITED: AxisMode = 2;
 export const AXIS_MODE_RADIUS: AxisMode = 3;
 
 /**
  * A rotary axis's mode and radius, read live from the board (`aam`, `ara`, ...).
  * In radius mode both firmwares read the axis word in LINEAR units and turn
  * it into degrees: `_to_millimeters(v) × 360 / (2π × ra)` (@cite EN
- * canonical_machine.c:484-487 `_calc_ABC`; TG the same). Disabled and
- * inhibited axes only ever move less than modelled, which is safe.
+ * canonical_machine.c:484-487 `_calc_ABC`; TG the same). A disabled axis
+ * ignores its word and never moves.
+ *
+ * An INHIBITED axis does NOT only move less than modelled (finding:
+ * inhibited axis). Its position follows the program, but the kinematics
+ * force its joint to 0 on every segment of every move (@cite EN
+ * kinematics.c:59; TG kinematics.c:63) and each segment moves the motor by
+ * the difference of absolute step targets (@cite EN plan_exec.c:703-712; TG
+ * plan_exec.c:718-727). So a motor left away from step 0 when the axis was
+ * inhibited is driven back to step 0 by the next move of ANY axis. The
+ * sanitiser blocks motion while any axis that is (or may be) inhibited reads
+ * away from 0 (`inhibited-axis`).
  */
 export interface RotaryAxisConfig {
   readonly mode: AxisMode;
@@ -116,6 +133,14 @@ export interface MotionModel {
   readonly feedrateMax: AxisValues;
   /** `am` and `ra` per rotary axis. A move word on a rotary axis with no entry is blocked. */
   readonly rotary: Readonly<Partial<Record<RotaryAxis, RotaryAxisConfig>>>;
+  /**
+   * `am` per linear axis (`xam`, `yam`, `zam`), read live. A move word on a
+   * linear axis with no entry is blocked, and so is one on a disabled axis
+   * (the firmware ignores the word) or on one reading radius mode (refused
+   * by `cm_set_am`; the firmware ignores the word too) (@cite EN
+   * canonical_machine.c:497-510; TG canonical_machine.c:444-454).
+   */
+  readonly linear: Readonly<Partial<Record<LinearAxis, AxisMode>>>;
 }
 
 export interface SanitizeOptions {
@@ -223,6 +248,10 @@ export type SanitizeRule =
   | 'unknown-state'
   | 'no-velocity-limit'
   | 'rotary-radius'
+  /** A linear axis that is disabled, reads radius mode, or whose mode is unknown (finding: inhibited axis). */
+  | 'axis-mode'
+  /** An axis that is (or may be) inhibited reads away from 0: the next move of any axis can drive its motor (finding: inhibited axis). */
+  | 'inhibited-axis'
   /** An arc whose float32 coincidence or direction decision lies within the rounding band (Codex P0-10 #1). */
   | 'arc-ambiguous'
   | 'split'

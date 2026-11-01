@@ -13,6 +13,10 @@
  * - F before G20/G21 in one block: EN gcode_parser.c:612-614 before :634,
  *   TG gcode_parser.c:455 before :473; `_to_millimeters` reads the model's
  *   units (canonical_machine.h:42 EN, :47 TG).
+ * - inhibited axes: EN kinematics.c:59 and TG kinematics.c:63 force the joint
+ *   to 0; plan_exec.c (EN :703-712, TG :718-727) moves each motor by the
+ *   difference between step targets; a step resync (planner.c, EN :187-201,
+ *   TG :160-170) rewrites the targets and moves nothing.
  * - soft limits: EN canonical_machine.c:536-554, TG :480-498: fp_EQ(min,max)
  *   skips the axis, each end below DISABLE_SOFT_LIMIT (-1000000) is skipped,
  *   and every homed axis (X..C) is checked.
@@ -282,6 +286,142 @@ describe('rotary axis modes and radius (cm_set_model_target)', () => {
       expect(send(sim, '{"aam":4}')).toEqual([109]);
     });
   }
+});
+
+// ---------------------------------------------------------------- inhibited axes in motor space
+
+/**
+ * Finding: inhibited axis. Each executed segment sets the step target to the
+ * joint of the segment's ABSOLUTE target and moves the motor by the
+ * difference from the previous step target (EN plan_exec.c:703-712, TG
+ * plan_exec.c:718-727); the joint of an inhibited axis is 0 (EN
+ * kinematics.c:59, TG kinematics.c:63). So the reported position and the
+ * motor part ways, and the next move of ANY axis moves the motor.
+ */
+describe('inhibited axes: the motor is driven to step 0 by any move (kinematics.c)', () => {
+  for (const [name, make] of MODELS) {
+    const tag = name === 'edge-next' ? 'EN-INHIBITED-JOINT' : 'TG-INHIBITED-JOINT';
+
+    it(`[${tag}] ${name}: A standard at 10 degrees, then {aam:2}: G0 X5 turns the A motor 10 degrees back to 0 while A still reads 10`, () => {
+      const sim = make();
+      expect(send(sim, '{"aam":1}')).toEqual([0]);
+      expect(send(sim, 'G90 G21 G0 A10', 60_000)).toEqual([0]);
+      expect(sim.device.snapshot().motors[3]).toBeCloseTo(10, 6);
+      expect(send(sim, '{"aam":2}')).toEqual([0]);
+      // Changing the mode moves nothing by itself.
+      expect(sim.device.snapshot().motors[3]).toBeCloseTo(10, 6);
+      expect(send(sim, 'G0 X5', 60_000)).toEqual([0]);
+      const s = sim.device.snapshot();
+      expect(s.position[3]).toBeCloseTo(10, 6);
+      expect(s.position[0]).toBeCloseTo(5, 6);
+      expect(s.motors[0]).toBeCloseTo(5, 6);
+      expect(s.motors[3]).toBe(0);
+    });
+
+    it(`[${tag}] ${name}: a linear axis (yam=2) at Y20: an X-only move drives the Y motor 20 mm to step 0 at the first segment`, () => {
+      const sim = make();
+      expect(send(sim, 'G90 G21 G0 Y20', 60_000)).toEqual([0]);
+      expect(send(sim, '{"yam":2}')).toEqual([0]);
+      expect(get(sim, 'yam')).toBe(2);
+      sim.host.take();
+      sim.host.sendLine('G1 X5 F60');
+      sim.clock.advance(200);
+      const early = sim.device.snapshot();
+      expect(early.motionState).toBe('run');
+      expect(early.position[0]).toBeLessThan(1);
+      expect(early.position[1]).toBeCloseTo(20, 6);
+      expect(early.motors[1]).toBe(0); // the whole 20 mm at once, before X has moved 1 mm
+      sim.clock.advance(10_000);
+      expect(sim.device.snapshot().motors[1]).toBe(0);
+    });
+
+    it(`[${tag}] ${name}: moves of an inhibited axis change its position but not its motor`, () => {
+      const sim = make();
+      expect(send(sim, '{"yam":2}')).toEqual([0]);
+      expect(send(sim, 'G90 G21 G0 Y10 X1', 60_000)).toEqual([0]);
+      const s = sim.device.snapshot();
+      expect(s.position[1]).toBeCloseTo(10, 6);
+      expect(s.motors[1]).toBe(0);
+      expect(s.motors[0]).toBeCloseTo(1, 6);
+    });
+
+    it(`[${tag}] ${name}: un-inhibiting an axis whose position is away from 0 drives its motor out on the next move of any axis`, () => {
+      const sim = make();
+      expect(send(sim, '{"yam":2}')).toEqual([0]);
+      expect(send(sim, 'G90 G21 G0 Y10', 60_000)).toEqual([0]);
+      expect(send(sim, '{"yam":1}')).toEqual([0]);
+      expect(sim.device.snapshot().motors[1]).toBe(0);
+      expect(send(sim, 'G0 X1', 60_000)).toEqual([0]);
+      expect(sim.device.snapshot().motors[1]).toBeCloseTo(10, 6);
+    });
+
+    it(`[${tag}] ${name}: a disabled axis keeps its motor where its position is (no zeroing)`, () => {
+      const sim = make();
+      expect(send(sim, 'G90 G21 G0 Y10', 60_000)).toEqual([0]);
+      expect(send(sim, '{"yam":0}')).toEqual([0]);
+      expect(send(sim, 'G0 X1 Y30', 60_000)).toEqual([0]);
+      const s = sim.device.snapshot();
+      expect(s.position[1]).toBeCloseTo(10, 6);
+      expect(s.motors[1]).toBeCloseTo(10, 6);
+    });
+
+    it(`[${tag}] ${name}: a queue flush resyncs the step targets without moving a motor (cm_set_position)`, () => {
+      const sim = make();
+      expect(send(sim, 'G90 G21 G0 Y20', 60_000)).toEqual([0]);
+      sim.host.take();
+      sim.host.sendLine('G1 X50 F600');
+      sim.clock.advance(400);
+      sim.host.send('!');
+      sim.clock.advance(300);
+      expect(sim.device.snapshot().hold).not.toBe(0);
+      sim.device.settings.setRam('yam', 2);
+      sim.host.send('%');
+      sim.clock.advance(50);
+      expect(sim.device.snapshot().plannerAvailable).toBeGreaterThan(0);
+      expect(sim.device.snapshot().motors[1]).toBeCloseTo(20, 6); // the flush moved nothing
+      sim.device.settings.setRam('yam', 1);
+      sim.host.take();
+      sim.host.sendLine('G0 X0');
+      sim.clock.advance(60_000);
+      // The step target was 0 after the resync; standard again, the next segment drives Y out by 20 more.
+      expect(sim.device.snapshot().position[1]).toBeCloseTo(20, 6);
+      expect(sim.device.snapshot().motors[1]).toBeCloseTo(40, 6);
+    });
+
+    it(`[${tag}] ${name}: a feedhold mid-move leaves the motors at the held point`, () => {
+      const sim = make();
+      sim.host.take();
+      sim.host.sendLine('G90 G21 G1 X50 F600');
+      sim.clock.advance(400);
+      sim.host.send('!');
+      sim.clock.advance(2000);
+      const s = sim.device.snapshot();
+      expect(s.velocity).toBe(0);
+      expect(s.motors[0]).toBeCloseTo(s.position[0], 9);
+      expect(s.motors[0]).toBeGreaterThan(0);
+    });
+  }
+});
+
+describe('inhibited axes: the rotary verifier reproduction as written', () => {
+  const run = (sim: AnySim): { readsA: number; motorA: number } => {
+    send(sim, '{"aam":1}');
+    send(sim, 'G90 G21 G0 A30', 60_000);
+    send(sim, '{"aam":2}');
+    send(sim, 'G1 X1 F600', 60_000);
+    const s = sim.device.snapshot();
+    return { readsA: s.position[3], motorA: s.motors[3] };
+  };
+  it('[EN-INHIBITED-JOINT] edge-next: A at 30 degrees switched to am=2: G1 X1 turns the A motor 30 degrees to step 0; A still reads 30', () => {
+    const r = run(enSim());
+    expect(r.readsA).toBeCloseTo(30, 6);
+    expect(r.motorA).toBe(0);
+  });
+  it('[TG-INHIBITED-JOINT] 440.21: A at 30 degrees switched to am=2: G1 X1 turns the A motor 30 degrees to step 0; A still reads 30', () => {
+    const r = run(tgSim());
+    expect(r.readsA).toBeCloseTo(30, 6);
+    expect(r.motorA).toBe(0);
+  });
 });
 
 describe('edge-next G53 under G91 (cm_set_model_target)', () => {

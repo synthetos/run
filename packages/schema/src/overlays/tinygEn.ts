@@ -235,10 +235,12 @@ function axisCore(a: string, kind: AxisKind): OverlayEntry[] {
       typedConfirm: kind === 'rotary' ? ALWAYS : NEVER,
       afterWrite: null,
       invalidates: [`homing.${a}`, 'job.*.preflight'],
+      // Inhibited: the kinematics force the joint to 0 on every segment (@cite EN kinematics.c:59), so the
+      // motor is driven to step 0 by any move; the sanitiser blocks motion while such an axis reads away from 0.
       whatGoesWrong:
         kind === 'rotary'
-          ? `Disabled or inhibited, the ${A} axis does not move while jobs and the preview assume it does. In radius mode every ${A} word is read as a length and turned into degrees, so ${A} turns 360 / (2π × radius) degrees per mm (about 57× at radius 1).`
-          : `Disabled or inhibited, the ${A} axis does not move while jobs and the preview assume it does.`,
+          ? `Disabled, the ${A} axis ignores its words while jobs and the preview assume it moves. Inhibited, its position follows the program but its motor is held at step 0: the next move of ANY axis drives the motor there, so inhibiting ${A} away from 0 moves it back to 0, and leaving inhibited mode away from 0 moves it out to its position. In radius mode every ${A} word is read as a length and turned into degrees, so ${A} turns 360 / (2π × radius) degrees per mm (about 57× at radius 1).`
+          : `Disabled, the ${A} axis ignores its words while jobs and the preview assume it moves. Inhibited, its position follows the program but its motor is held at step 0: the next move of ANY axis drives the motor there, so inhibiting ${A} away from 0 moves it back to 0, and leaving inhibited mode away from 0 moves it out to its position.`,
     }),
     entry(`${a}vm`, {
       label: `${A} maximum velocity`,

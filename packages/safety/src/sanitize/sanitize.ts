@@ -56,7 +56,7 @@ interface Candidate {
 }
 
 function checkOptions(options: SanitizeOptions): void {
-  const { ceilingSeconds, k, maxVelocity, feedrateMax, rotary } = options.motion;
+  const { ceilingSeconds, k, maxVelocity, feedrateMax, rotary, linear } = options.motion;
   if (!(ceilingSeconds >= CEILING_SECONDS.min && ceilingSeconds <= CEILING_SECONDS.max)) {
     throw new RangeError(`ceilingSeconds must be from ${CEILING_SECONDS.min} to ${CEILING_SECONDS.max} (SAFETY §4.3)`);
   }
@@ -73,6 +73,11 @@ function checkOptions(options: SanitizeOptions): void {
     if (!(typeof cfg === 'object' && cfg !== null && [0, 1, 2, 3].includes(cfg.mode))) throw new RangeError(`rotary.${axis}.mode must be 0, 1, 2 or 3`);
     const r = cfg.radiusMm;
     if (r !== undefined && !(typeof r === 'number' && r > 0 && Number.isFinite(r))) throw new RangeError(`rotary.${axis}.radiusMm must be a positive number`);
+  }
+  if (typeof linear !== 'object' || linear === null) throw new RangeError('linear axis modes must be given (an empty object when none are known)');
+  for (const [axis, mode] of Object.entries(linear)) {
+    if (!['X', 'Y', 'Z'].includes(axis)) throw new RangeError(`linear.${axis} is not a linear axis`);
+    if (![0, 1, 2, 3].includes(mode as number)) throw new RangeError(`linear.${axis} must be 0, 1, 2 or 3`);
   }
 }
 

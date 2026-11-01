@@ -7,7 +7,7 @@ Every behaviour a safety claim depends on carries a citation at a pinned commit 
 (RUN_PLAN §8.1 honesty rule). Pins: EN = TinyG edge-next `ead63997`, TG = master `d0418390` (440.21),
 EN-HIL = edge-next `tests/hil/` (`vendor/firmware-pins.json`). EN and TG paths are under `firmware/tinyg/`.
 
-Totals: 78 behaviours (3 UNVERIFIED, 75 verified-source, 0 verified-bench).
+Totals: 80 behaviours (3 UNVERIFIED, 77 verified-source, 0 verified-bench).
 
 ## UNVERIFIED (release checklist)
 
@@ -35,6 +35,7 @@ Each must be bench-verified, or covered by a mitigation that does not depend on 
 | EN-FEED-UNITS-ORDER | verified-source | F is set before G20/G21 in the same block and is converted with the units in force before the block: G20 then G21 G1 X1 F100 is 2540 mm/min. | EN gcode_parser.c:610-615; EN gcode_parser.c:634; EN canonical_machine.c:1350-1359; EN canonical_machine.h:42 |  |
 | EN-FOOTER | verified-source | Footer [3,status,free line headers] in line mode; [2,status,bytes read since the previous reply] in character mode (E164). (E164) | EN json_parser.c:848-853; EN controller.c:277-284 | B-PROBE-1 |
 | EN-GC-ECHO | verified-source | The gc echo is dropped below jv=5 on success and on error alike: the verbosity filter runs for every error response. | EN json_parser.c:803-817 | B-PROBE-1 |
+| EN-INHIBITED-JOINT | verified-source | Motor space: each executed segment sets the step target to the joint of its ABSOLUTE target and moves the motor by the difference from the previous step target; the joint of an INHIBITED axis is 0 (the live axis mode, read on every segment). So an axis inhibited while its motor is away from step 0 is driven to step 0 by the first segment of the next move of any axis, and an axis un-inhibited while its position is away from 0 is driven out to it, while the reported position shows neither. A step resync (cm_set_position, from a queue flush, and G28.3) rewrites the step targets from the position and moves nothing. The model tracks one motor per axis and resets motor space at power-up. | EN kinematics.c:59; EN plan_exec.c:703-712; EN plan_exec.c:703-712; EN planner.c:187-201; EN canonical_machine.c:1060-1068; EN canonical_machine.c:1973-1976 |  |
 | EN-JSON-PAIRS | verified-source | Every pair of a multi-pair JSON line executes, in order, until the first error. | EN json_parser.c:220-258 |  |
 | EN-LIMIT | verified-source | A limit switch raises ALARM 203, keeps position and un-homes every axis; limits are ignored while already alarmed. (E031) | EN controller.c:479-500 |  |
 | EN-M0 | verified-source | M0/M60 run in queue order and pause: stat 3 with hold 6, the spindle stays on, ~ resumes. (E020) | EN canonical_machine.c:2102-2114; EN plan_exec.c:58-59 | B-M0-1 |
@@ -90,6 +91,7 @@ Each must be bench-verified, or covered by a mitigation that does not depend on 
 | TG-GCODE-DROP-INVALID | verified-source | The normalizer deletes every character other than letters, digits, - and . so X0.001*9 runs as X0.0019. (E161) | TG gcode_parser.c:131-138 |  |
 | TG-HARD-ALARM | verified-source | A limit switch is a hard alarm: stepper hard stop, SHUTDOWN (stat 11), every later command unanswered until ^X. | TG controller.c:427-434; TG canonical_machine.c:600-616; TG controller.c:303-312 |  |
 | TG-HOST-XON-DEADLOCK | verified-source | An XON from the host turns the transmit interrupt off: the board stops sending (and, once its TX buffer fills, stops running its main loop). (E142) | TG xio/xio_usb.c:162-172 |  |
+| TG-INHIBITED-JOINT | verified-source | Motor space, as on edge-next: each executed segment sets the step target to the joint of its ABSOLUTE target and moves the motor by the difference from the previous step target; the joint of an INHIBITED axis is 0. An axis inhibited while its motor is away from step 0 is driven to step 0 by the next move of any axis; an axis un-inhibited while its position is away from 0 is driven out to it. A step resync (cm_set_position, from a queue flush) moves nothing. The model tracks one motor per axis and resets motor space at power-up. | TG kinematics.c:63; TG plan_exec.c:718-727; TG plan_exec.c:718-727; TG planner.c:160-170; TG canonical_machine.c:722-730; TG canonical_machine.c:1307-1309 |  |
 | TG-JSON-FIRST-PAIR | verified-source | Only the first pair of a multi-pair JSON line executes; the others echo null. No tid. | TG json_parser.c:134-144; EN-HIL tests/hil/tests/test_identity.py:44-47 |  |
 | TG-M0-NO-PAUSE | verified-source | M0/M1/M60 only queue a program finalize; the next queued move runs without ~. (E020) | TG canonical_machine.c:1396-1406; EN-HIL tests/hil/tests/bugs/test_e020_m0_does_not_pause.py:1-40 | B-M0-1 |
 | TG-NO-KILL-ENQ | verified-source | ^D (0x04) and ENQ (0x05) are not trapped: they enter the ring as data and corrupt the next line. | TG xio/xio_usb.c:145-161 |  |

@@ -48,6 +48,12 @@ export interface ModelSnapshot {
   readonly homed: readonly boolean[];
   /** Machine position, mm. */
   readonly position: Vec;
+  /**
+   * Physical motor positions, axis units, relative to power-up (motion.ts
+   * `motorPosition`). They differ from `position` on an inhibited axis, and
+   * on an axis that was inhibited while it moved (finding: inhibited axis).
+   */
+  readonly motors: Vec;
   /** Velocity, mm/min. */
   readonly velocity: number;
   readonly booted: boolean;
