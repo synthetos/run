@@ -13,6 +13,7 @@ update this page and the pages it names in one reviewed PR.
 |---|---|---|---|
 | OD-1 | How does a solo maintainer meet the review rules? | **DECIDED as D40 (owner, 2026-11-01); carried into this repository** | — |
 | OD-2 | How does `run.synthetos.com` reach a Worker in the dedicated D34 account, when the `synthetos.com` zone is in another account? | **DECIDED as D39 (owner, 2026-11-01), superseding D34; carried into this repository** | — |
+| OD-3 | D41 (proposed): how is the D1 sign-in gate satisfied before accounts.synthetos.com and staging Access exist, and how is Web Serial granted for Phase 1? | **PROPOSED (2026-11-01), awaiting the owner's confirmation** | P1-05 (gate providers); the P1-00 implementation below is already in place and safe either way |
 
 Both decisions are recorded in `DECISIONS.md`, and the gates and ops pages
 now implement them (`docs/LEAD_ACTIONS.md` Step 0 summarises what changed
@@ -135,3 +136,66 @@ smoke test's DNSSEC, CAA and certificate checks, all in one reviewed PR.
 The options above are moot under D39 and kept as the record. Deploys stay off
 (`RUN_DEPLOY_ENABLED` unset) until the Step 1 to 10 owner actions are done,
 and the preflight refuses while `account_id` is the placeholder.
+
+## OD-3. D41 (proposed): pluggable sign-in gate, the localhost bench build, and where serial is granted
+
+**Status: PROPOSED, for the owner to confirm and record in `DECISIONS.md`
+(synthetos.com). This repository does not edit that file.**
+
+**Context.** D1: signing in is required to Connect and Start, nothing in the
+machine path ever consults the session, and Pause, stop and recovery are
+never gated. For Phase 1 the owner wants to plug a real TinyG into this
+computer and see it read-only. accounts.synthetos.com is not deployed yet
+(Track A1) and staging Access (D31) is not configured, so neither identity
+the plan names exists today. RUN_PLAN §6.4 grants `serial=(self)` "from the
+Phase 1 bench app onward", but RUN_PLAN §5.2 runs one attested artifact on
+both staging and production, so a static header file cannot differ between
+them.
+
+**Proposed decision.**
+1. The D1 gate (P1-05) is **pluggable** in the UI/auth layer, with exactly
+   three identity providers: the run session (A1-07, later; production
+   only ever accepts this one); the verified Cloudflare Access identity
+   (staging, RUN_PLAN §2.2 until A1-07); and a **localhost-only bench
+   identity** that exists only in an explicit bench build.
+2. The **bench build** is `vite build --mode bench` (`pnpm build:bench`,
+   `apps/web/dist-bench/`). It is the release build with one module
+   swapped, the build-channel seam (`apps/web/src/channel/`), and
+   `pnpm bench:check` proves that nothing else differs. It refuses to run on
+   any host but `localhost`/`127.0.0.1` over plain HTTP, and only the
+   loopback bench server (`pnpm bench:serve`, 127.0.0.1, Host-checked)
+   serves it. It is **never deployed**: its marker fails every staging and
+   production bundle scan (the build job, both deploy jobs), and ci-policy
+   `bench-never-in-ci` refuses any workflow line that builds, scans or
+   serves it. The bench identity of P1-05 lives in the bench channel
+   module, so it cannot exist in a staging or production artifact.
+3. **Web Serial is granted** (`serial=(self)`) on staging (by the Worker,
+   only when `RUN_ENV` is `staging` and the host is
+   staging.run.synthetos.com) and by the bench server. **Production stays
+   at `serial=()`**, and the production deploy job's bundle scan
+   (`--target production`) refuses any artifact that carries the Web Serial
+   transport, so production keeps the Phase 0 shell until Phase 6.
+
+**As implemented here (P1-00).** Items 2 and 3 are in place: the bench
+build, server, scans and CI rule; the per-environment headers
+(`workers/run/src/headers.ts`, `docs/ops/worker.md`). Item 1 is P1-05.
+Nothing in the machine path imports the build channel
+(dependency-cruiser `machine-path-never-reaches-build-channel`).
+
+**What the owner should weigh.**
+- The bench build is a second artifact. The diff check keeps it equal to
+  the release code except one small module, but HIL records for a phase
+  release must still name the staging artifact (SAFETY HIL-6.4), not the
+  bench build. Proposed: the bench build is for looking and for bench
+  tasks (B-*); a signed HIL record is always taken on staging.
+- The bench identity means "whoever sits at this computer". That is the
+  same trust as the bench itself, and it never reaches a deployed origin.
+- From P1-01 on, every main push's production deploy stops at its scan
+  (by design, before anything is deployed). If a red production job on
+  every push is unwanted, the alternative is to keep `RUN_DEPLOY_ENABLED`
+  for staging only, which needs a workflow change of its own.
+
+**If the owner rejects it.** Remove the bench build (`apps/web/build/bench.ts`,
+`apps/web/src/channel/bench*.ts`, `tools/gates/src/bench/`, the bench scan
+target and the policy rule) in one reviewed change; staging and production
+headers are independent of it.

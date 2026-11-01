@@ -137,16 +137,27 @@ the B-* bench items, are separate and all still ahead):
 - **Row 18 owner action**: the signed bench manifest note should be
   re-signed before Phase 1 probe classification relies on the approved
   builds manifest on the bench.
-- **Permissions-Policy change**: Phase 1 moves from `serial=()` to
-  `serial=(self)` (RUN_PLAN 6.4). Row 28's gates close the demonstrated
-  reflective-access bypasses only; the serial code path that Phase 1 adds
-  needs its own review when that header changes, and the tests that pin
-  `serial=()` (`tools/e2e/specs/headers.e2e.ts`,
-  `workers/run/test/headers.test.ts`) must be changed deliberately in the
-  same reviewed change.
+- **Permissions-Policy change**: DONE in P1-00, as its own change (commits
+  "gates: Web Serial is allowed only in ...", "build, gates: the Web Serial
+  transport gets its own chunk ...", "worker, headers: serial=(self) on
+  staging only ...", "bench: a localhost bench build ..."). Production stays
+  `serial=()` (the tests that pin it, `tools/e2e/specs/headers.e2e.ts` and
+  `workers/run/test/headers.test.ts`, still pin the production set, and the
+  e2e suite now also observes `SecurityError` in the page and in
+  `machine.worker`); staging and the localhost bench build get
+  `serial=(self)` (`SERIAL_GRANTED_SECURITY_HEADERS`, `grantsSerial`, the
+  staging and bench Playwright suites). Row 28's gates now admit Web Serial
+  in `packages/machine/src/webSerialTransport.ts` only (lint, source check,
+  dependency-cruiser) and in its chunk `assets/serial/` only (bundle scan,
+  staging and bench targets; production refuses it). The P1-01 transport
+  itself still needs its own review. Needs independent review (D40).
 
 Not blocking Phase 1: row 35's remainder (no `am` write, no motion), row 32
-(housekeeping).
+(housekeeping). Its Phase 1 consequence is implemented (P1-00): read-only
+sessions surface the axis-mode facts that are unsafe for later motion,
+including an axis seen leaving inhibited mode during the session
+(`packages/safety/src/axisModeFacts.ts`, `axisModeFacts.test.ts`, with a
+property cross-check against the sanitiser). P1-07 must render them.
 
 ## Final gate at 0a4eb06
 

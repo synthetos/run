@@ -430,8 +430,40 @@ From `docs/safety/PHASE0_TRACEABILITY.md` "Open items":
 - **O6**: copy the in-repo SAFETY.md amendments back into the authoritative
   copy in synthetos.com so the two are identical again.
 - **D1 (sign-in required)**: Phase 1 adds the sign-in gate at Connect and
-  Start, with a test that revoking the session mid-job changes nothing in
-  the machine path. Nothing in Phase 0 consults a session.
+  Start (P1-05, pluggable per D41 proposed), with a test that revoking the
+  session mid-job changes nothing in the machine path. Nothing in Phase 0
+  consults a session.
+
+---
+
+## Phase 1, from P1-00 (gate change)
+
+P1-00 lifted the Phase 0 Web Serial ban for `packages/machine/src/webSerialTransport.ts`
+only, granted `serial=(self)` on staging and in the localhost bench build,
+and kept production at `serial=()`. What only you can do:
+
+- **Confirm or change D41** (`docs/ops/owner-decisions.md` OD-3): the
+  pluggable sign-in gate (run session, staging Access identity, localhost
+  bench identity), the never-deployed bench build, and where serial is
+  granted. Record it in `DECISIONS.md` (synthetos.com) if you accept it.
+- **Production deploys from P1-01 on.** The production deploy job now scans
+  as `--target production`, which refuses any artifact that carries the Web
+  Serial transport. From the first P1-01 commit on, `deploy-production`
+  fails at that scan on every main push (before anything is deployed), so
+  production keeps the Phase 0 shell (P1-09). Either accept the red job
+  until Phase 6, or decide on a workflow change that deploys production
+  only on demand (a reviewed change of its own; D41 "What the owner should
+  weigh").
+- **After the first staging deploy behind Access**, open
+  https://staging.run.synthetos.com/ signed in through Access and check in
+  DevTools (Network, the document response) that `Permissions-Policy`
+  starts with `serial=(self)` and every other header matches
+  `docs/ops/worker.md`. The post-deploy smoke test cannot see staging
+  headers behind Access. Record it in RELEASES.md.
+- **Branch protection (row 4)** must be on before the P1-01 transport
+  merges (`docs/safety/CODEX_FINDINGS_STATUS.md`).
+- The localhost bench build and its bench checks are in
+  `docs/bench/README.md`.
 
 ---
 
