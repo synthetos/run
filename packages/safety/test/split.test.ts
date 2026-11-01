@@ -164,8 +164,11 @@ describe('T-S64: long moves are split within the ceiling, on the original path',
           if (c.cw && d > 0) d -= 2 * Math.PI;
           if (!c.cw && d < 0) d += 2 * Math.PI;
           swept += Math.abs(d);
-          // Helix: Z moves linearly with the swept angle.
-          expect(Math.abs(seg.to.z - (c.dz * swept) / c.sweep)).toBeLessThan(TOL_MM + 0.0001 * s);
+          // Helix: Z moves linearly with the swept angle. `swept` is measured from the rounded end point,
+          // which can sit half a rounding step off per axis, so the angle read back is off by up to
+          // that distance over the radius; Z inherits it scaled by the helix pitch |dz| / sweep.
+          const angleReadErr = (0.5 * Math.SQRT2 * s * 10 ** -dec) / c.radius;
+          expect(Math.abs(seg.to.z - (c.dz * swept) / c.sweep)).toBeLessThan(TOL_MM + 0.0001 * s + (Math.abs(c.dz) / c.sweep) * angleReadErr);
         }
         expect(swept).toBeCloseTo(c.sweep, 3);
       }),
