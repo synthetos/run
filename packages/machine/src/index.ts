@@ -10,7 +10,7 @@
 /** Package version. Kept equal to package.json `version` by the smoke test. */
 export const VERSION = '0.0.0';
 
-export type { Transport, TransportInfo, TransportOpenOptions } from './transport.ts';
+export type { Transport, TransportInfo, TransportOpenOptions, TransportSource } from './transport.ts';
 export { GuardedTransport, TransportRefusedError, TransportWriteError } from './guardedTransport.ts';
 export type { GuardedTransportState, TransportRefusalCode } from './guardedTransport.ts';
 export { MAX_REALTIME_GROUP_BYTES, MAX_WRITE_LINE_BYTES, REALTIME_BYTES, classifyWrite } from './writeShape.ts';

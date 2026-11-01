@@ -1,9 +1,11 @@
 import { defineConfig } from 'vite';
 import { buildInfo } from './build/buildInfo.ts';
 import { CLOUD_CHUNK_NAME, chunkPolicy } from './build/chunks.ts';
+import { FAKE_SERIAL_MODE, FAKE_SERIAL_OUT_DIR, TRANSPORT_CHUNK_NAME, assertBuildMode, fakeSerialPlugins, transportSeam } from './build/fakeSerial.ts';
 import { prerender } from './build/prerender.ts';
 
 const chunks = chunkPolicy(import.meta.dirname);
+const seam = transportSeam(import.meta.dirname);
 
 /**
  * Vite keeps a NODE_ENV that is already set, so `NODE_ENV=test vite build`
@@ -19,13 +21,17 @@ function assertProductionBuild(command: string): void {
   }
 }
 
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, mode }) => {
   assertProductionBuild(command);
+  // `production`, or `fake-serial`: the test-only build for the e2e suite
+  // (build/fakeSerial.ts, ROADMAP P0-14). Any other mode is refused.
+  assertBuildMode(command, mode);
+  const fakeSerial = command === 'build' && mode === FAKE_SERIAL_MODE ? fakeSerialPlugins(seam) : undefined;
   const build = buildInfo(import.meta.dirname);
   return {
     base: '/',
     // Every page is prerendered from the Preact components (build/prerender.ts).
-    plugins: [prerender(build)],
+    plugins: fakeSerial === undefined ? [prerender(build)] : [prerender(build), fakeSerial.main],
     // The version chip's values for the client bundle (src/env.d.ts).
     define: { __RUN_BUILD__: JSON.stringify(build) },
     // Preact automatic JSX runtime, configured directly (no extra plugin).
@@ -34,8 +40,20 @@ export default defineConfig(({ command }) => {
     oxc: {
       jsx: { runtime: 'automatic', importSource: 'preact', development: false },
     },
+    // Workers (machine.worker, RUN_PLAN §5.4) are ES modules. The transport
+    // seam gets a chunk of its own in every build, so the fake-serial test
+    // build differs from production in that chunk only (build/fakeSerial.ts).
+    worker: {
+      format: 'es',
+      plugins: () => (fakeSerial === undefined ? [] : [fakeSerial.worker()]),
+      rolldownOptions: {
+        output: {
+          codeSplitting: { groups: [{ name: TRANSPORT_CHUNK_NAME, test: (id: string) => seam.isSeamModule(id) }] },
+        },
+      },
+    },
     build: {
-      outDir: 'dist',
+      outDir: fakeSerial === undefined ? 'dist' : FAKE_SERIAL_OUT_DIR,
       emptyOutDir: true,
       sourcemap: false,
       // Never inline assets as data: URIs. The CSP allows fonts from 'self'

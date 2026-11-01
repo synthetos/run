@@ -11,3 +11,4 @@ dist-worker/
 **/.stryker-tmp/
 **/reports/mutation/
 stryker-setup-*.js
+dist-fake-serial/

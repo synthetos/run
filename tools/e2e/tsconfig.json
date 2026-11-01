@@ -4,5 +4,5 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node"]
   },
-  "include": ["specs", "src", "test", "playwright.config.ts", "global-setup.ts"]
+  "include": ["specs", "src", "test", "fake-serial", "playwright.fake-serial.config.ts", "playwright.config.ts", "global-setup.ts"]
 }

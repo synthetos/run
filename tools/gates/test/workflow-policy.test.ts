@@ -40,7 +40,7 @@ describe('the real workflows', () => {
 
   it('grep: only the deploy jobs mention the Cloudflare secret, and both do', () => {
     const jobs = readJobs(readLines(CI));
-    expect(jobs.map((j) => j.name)).toEqual(['verify', 'build', 'e2e', 'attest', 'deploy-staging', 'deploy-production']);
+    expect(jobs.map((j) => j.name)).toEqual(['verify', 'build', 'e2e', 'e2e-fake-serial', 'attest', 'deploy-staging', 'deploy-production']);
     const mentioning = jobs.filter((j) => j.lines.some((l) => l.text.includes(DEPLOY_SECRET) || /\bsecrets\b/.test(l.text))).map((j) => j.name);
     expect(mentioning).toEqual([...DEPLOY_JOBS]);
     // Nothing outside the jobs block mentions it either (comments aside).
@@ -132,7 +132,14 @@ describe('the deploy gate', () => {
   });
 
   it('fails when a deploy job does not need e2e', () => {
-    expect(rules(mutate(CI, 'needs: [verify, build, e2e, attest]\n', 'needs: [verify, build, attest]\n'))).toEqual(['deploy-gate']);
+    expect(rules(mutate(CI, 'needs: [verify, build, e2e, e2e-fake-serial, attest]\n', 'needs: [verify, build, e2e-fake-serial, attest]\n'))).toEqual(['deploy-gate']);
+  });
+
+  it('fails when a deploy job does not need e2e-fake-serial (P0-14)', () => {
+    expect(rules(mutate(CI, 'needs: [verify, build, e2e, e2e-fake-serial, attest]\n', 'needs: [verify, build, e2e, attest]\n'))).toEqual(['deploy-gate']);
+    expect(rules(mutate(CI, 'needs: [verify, build, e2e, e2e-fake-serial, attest, deploy-staging]\n', 'needs: [verify, build, e2e, attest, deploy-staging]\n'))).toEqual([
+      'deploy-gate',
+    ]);
   });
 
   it('fails when a deploy job uses the wrong environment, or none', () => {
@@ -164,6 +171,44 @@ describe('verify', () => {
 
   it('fails on continue-on-error anywhere', () => {
     expect(rules(mutate(CI, '        run: pnpm -r test\n', '        run: pnpm -r test\n        continue-on-error: true\n'))).toEqual(['continue-on-error']);
+  });
+});
+
+describe('the e2e-fake-serial job (P0-14)', () => {
+  const HEAD = '  e2e-fake-serial:\n    name: e2e-fake-serial\n    needs: [build]\n';
+  const BUILD = '      - name: Build the fake-serial test artifact\n        run: pnpm build:fake-serial\n';
+  const DIFF = '        run: node tools/gates/src/artifact/diff-cli.ts site apps/web/dist-fake-serial\n';
+  const SUITE = '        run: pnpm --filter @synthetos/e2e e2e:fake-serial\n';
+
+  it('must exist (deploy needs it) and be unconditional and need build', () => {
+    const start = CI.indexOf('  e2e-fake-serial:\n');
+    const end = CI.indexOf('  attest:\n');
+    expect(rules(CI.slice(0, start) + CI.slice(end))).toEqual(['deploy-gate']);
+    expect(rules(mutate(CI, HEAD, "  e2e-fake-serial:\n    name: e2e-fake-serial\n    if: github.event_name == 'push'\n    needs: [build]\n"))).toEqual(['fake-serial-job']);
+    expect(rules(mutate(CI, HEAD, '  e2e-fake-serial:\n    name: e2e-fake-serial\n'))).toEqual(['fake-serial-job']);
+  });
+
+  it('must build, verify, diff and run the suite, in that order', () => {
+    expect(rules(mutate(CI, BUILD, ''))).toEqual(['fake-serial-job']);
+    expect(rules(mutate(CI, DIFF, '        run: echo skipped\n'))).toEqual(['fake-serial-job']);
+    expect(rules(mutate(CI, SUITE, '        run: echo skipped\n'))).toEqual(['fake-serial-job']);
+    const swapped = mutate(mutate(CI, DIFF, '        run: PLACEHOLDER\n'), SUITE, DIFF).replace('        run: PLACEHOLDER\n', SUITE);
+    expect(rules(swapped)).toEqual(['fake-serial-job']);
+  });
+
+  it('must build before it downloads the artifact into the checkout', () => {
+    const download = '      - name: Download the artifact\n        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2\n        with:\n          name: run-web\n          path: artifact\n';
+    const fakeJob = CI.slice(CI.indexOf(HEAD));
+    expect(fakeJob.includes(BUILD + download)).toBe(true);
+    const moved = CI.replace(HEAD, '@@HEAD@@').replace(BUILD + download, download + BUILD).replace('@@HEAD@@', HEAD);
+    // The first occurrence of BUILD+download is in this job (the e2e job has no BUILD step).
+    expect(rules(moved)).toEqual(['fake-serial-job']);
+  });
+
+  it('may not upload anything, nor name the artifact variables', () => {
+    const upload = '      - name: Upload\n        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2\n        with:\n          name: fake\n          path: apps/web/dist-fake-serial\n';
+    expect(rules(mutate(CI, SUITE, SUITE + upload))).toEqual(['fake-serial-job']);
+    expect(rules(mutate(CI, SUITE, `${SUITE}        env:\n          RUN_E2E_SITE: apps/web/dist\n`))).toEqual(['fake-serial-job']);
   });
 });
 

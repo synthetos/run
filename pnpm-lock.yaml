@@ -55,6 +55,9 @@ importers:
       '@preact/signals':
         specifier: 2.11.3
         version: 2.11.3(preact@11.0.1)
+      '@synthetos/machine':
+        specifier: workspace:*
+        version: link:../../packages/machine
       '@synthetos/safety':
         specifier: workspace:*
         version: link:../../packages/safety
@@ -115,7 +118,14 @@ importers:
 
   packages/wiring: {}
 
-  tools/e2e: {}
+  tools/e2e:
+    devDependencies:
+      '@synthetos/machine':
+        specifier: workspace:*
+        version: link:../../packages/machine
+      '@synthetos/testkit':
+        specifier: workspace:*
+        version: link:../../packages/testkit
 
   tools/gates: {}
 

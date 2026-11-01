@@ -62,6 +62,13 @@
 /packages/schema/src/validate.ts         @ril3y
 /packages/schema/src/writePlan.ts        @ril3y
 
+# --- ROADMAP P0-14 additions --------------------------------------------
+# machine.worker owns the serial link (RUN_PLAN §5.1 rule 1, §5.4), and its
+# transport seam decides how any build reaches a controller. The fake-serial
+# replacement decides what the e2e suite tests in its place.
+/apps/web/src/machine-worker/            @ril3y
+/tools/e2e/fake-serial/                  @ril3y
+
 # --- The gates that enforce the rules above (P0-03 addition) -------------
 # A change here can switch off a safety gate, leak the deploy token or
 # remove a required reviewer, so it is owned like the safety path itself.

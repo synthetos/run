@@ -10,8 +10,8 @@
  *   `secrets.CLOUDFLARE_API_TOKEN`. `secrets: inherit`, `secrets[...]` and
  *   `toJSON(secrets)` are refused everywhere.
  * - `deploy-gate`: each deploy job runs only on a push to `main` (its `if:`
- *   is a plain conjunction of equalities that requires both), needs `verify`, `build`, `e2e` and
- *   `attest`, and declares its protected environment.
+ *   is a plain conjunction of equalities that requires both), needs `verify`, `build`, `e2e`,
+ *   `e2e-fake-serial` and `attest`, and declares its protected environment.
  * - `environment-outside-deploy`: no other job names an environment (an
  *   environment can carry secrets).
  * - `unpinned-action`: every `uses:` is pinned to a full commit SHA (or is a
@@ -31,6 +31,12 @@
  *   artifact for every step (and nothing else in the job names them),
  *   verifies both trees against their manifests,
  *   then runs the suite, then the third-party canary, in that order.
+ * - `fake-serial-job` (ci.yml, P0-14): the `e2e-fake-serial` job is
+ *   unconditional, needs `build`, builds the fake-serial test artifact before
+ *   it downloads anything, verifies the production site, runs the artifact
+ *   diff against it and then the fake-serial suite, in that order. It never
+ *   uploads anything (the test build must never become an artifact) and
+ *   never names RUN_E2E_SITE or RUN_E2E_WORKER.
  * - `yaml-subset`: tabs, anchors, aliases and merge keys are refused. They
  *   are valid YAML that this line-based reader could not follow, so they are
  *   not allowed to hide anything from it.
@@ -44,7 +50,7 @@ export const DEPLOY_ENVIRONMENTS: Readonly<Record<string, string>> = {
   'deploy-staging': 'staging',
   'deploy-production': 'production',
 };
-export const DEPLOY_NEEDS: readonly string[] = ['verify', 'build', 'e2e', 'attest'];
+export const DEPLOY_NEEDS: readonly string[] = ['verify', 'build', 'e2e', 'e2e-fake-serial', 'attest'];
 export const DEPLOY_SECRET = 'CLOUDFLARE_API_TOKEN';
 
 /** The e2e job's job-level env: the extracted artifact (tools/e2e/src/served.ts). */
@@ -59,6 +65,14 @@ export const E2E_STEPS: readonly string[] = [
   'node tools/gates/src/repro/cli.ts verify worker artifact/run-worker.sha256',
   'run: pnpm --filter @synthetos/e2e e2e',
   'run: pnpm --filter @synthetos/e2e canary',
+];
+
+/** The e2e-fake-serial job's steps that must appear, in this order (each a whole line of the job). */
+export const FAKE_SERIAL_STEPS: readonly string[] = [
+  'run: pnpm build:fake-serial',
+  'node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256',
+  'run: node tools/gates/src/artifact/diff-cli.ts site apps/web/dist-fake-serial',
+  'run: pnpm --filter @synthetos/e2e e2e:fake-serial',
 ];
 
 /** The only `write` permission scopes any job may hold, by workflow file and job. */
@@ -77,6 +91,7 @@ export type PolicyRule =
   | 'continue-on-error'
   | 'verify-job'
   | 'e2e-job'
+  | 'fake-serial-job'
   | 'yaml-subset';
 
 export interface PolicyFinding {
@@ -383,6 +398,30 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
         } else {
           previous = found.no;
         }
+      }
+    }
+    const fake = jobs.find((j) => j.name === 'e2e-fake-serial');
+    if (fake !== undefined) {
+      const flag = (line: number, message: string): void => add(line, 'fake-serial-job', message);
+      if (jobScalar(fake, 'if') !== undefined) flag(fake.line, 'the e2e-fake-serial job must not be conditional');
+      if (!listValue(fake, 'needs').includes('build')) flag(fake.line, 'the e2e-fake-serial job must need build (it compares against the uploaded artifact)');
+      for (const l of fake.lines) {
+        if (Object.keys(E2E_ENV).some((key) => l.text.includes(key))) flag(l.no, 'the e2e-fake-serial job may not name RUN_E2E_SITE or RUN_E2E_WORKER');
+        if (/uses:\s*actions\/upload-artifact@/.test(l.text)) flag(l.no, 'the e2e-fake-serial job may not upload anything: the test build is never an artifact');
+      }
+      let previous = 0;
+      for (const step of FAKE_SERIAL_STEPS) {
+        const found = fake.lines.find((l) => l.no > previous && l.text.replace(/^-\s+/, '') === step);
+        if (found === undefined) {
+          flag(fake.line, `the e2e-fake-serial job must run '${step}' after the steps before it`);
+        } else {
+          previous = found.no;
+        }
+      }
+      const build = fake.lines.find((l) => l.text.replace(/^-\s+/, '') === FAKE_SERIAL_STEPS[0]);
+      const download = fake.lines.find((l) => /uses:\s*actions\/download-artifact@/.test(l.text));
+      if (build !== undefined && download !== undefined && download.no < build.no) {
+        flag(download.no, 'the e2e-fake-serial job must build the test artifact before it downloads anything into the checkout');
       }
     }
     for (const name of [...DEPLOY_JOBS, ...DEPLOY_NEEDS]) {

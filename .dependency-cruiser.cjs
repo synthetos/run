@@ -160,7 +160,7 @@ module.exports = {
     exclude: {
       path: [
         '^(dist|coverage|test-results|playwright-report)/',
-        '^(packages|apps|workers|tools)/[^/]+/(dist|coverage|\\.wrangler|test-results|playwright-report)/',
+        '^(packages|apps|workers|tools)/[^/]+/(dist|dist-fake-serial|coverage|\\.wrangler|test-results|playwright-report)/',
       ],
     },
     // Detect type-only imports too: a type import of an npm package from the

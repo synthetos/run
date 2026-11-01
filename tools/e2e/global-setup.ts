@@ -17,7 +17,12 @@ export default function globalSetup(): void {
     for (const file of REQUIRED_WORKER_FILES) if (!existsSync(join(mode.workerDir, file))) missing.push(join(mode.workerDir, file));
   }
   if (missing.length > 0) {
-    const hint = mode.kind === 'source' ? 'Build first: pnpm build (or run pnpm e2e from the repository root).' : 'Extract and verify the artifact first (docs/ops/ci.md).';
+    const hint =
+      mode.kind === 'source'
+        ? 'Build first: pnpm build (or run pnpm e2e from the repository root).'
+        : mode.kind === 'fake-serial'
+          ? 'Build the test artifact first: pnpm build:fake-serial (or run pnpm e2e:fake-serial from the repository root).'
+          : 'Extract and verify the artifact first (docs/ops/ci.md).';
     throw new Error(`e2e (${mode.kind} mode): missing ${missing.join(', ')}. ${hint}`);
   }
   process.stdout.write(`e2e: ${mode.kind} mode, serving ${mode.siteDir}${mode.kind === 'artifact' ? ` with the Worker in ${mode.workerDir}` : ''}\n`);

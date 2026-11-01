@@ -58,3 +58,18 @@ export interface Transport {
   /** Identity of the link. Available before `open`, so a port can be refused before it is opened. */
   info(): TransportInfo;
 }
+
+/**
+ * Where `machine.worker` gets its Transport (ROADMAP P0-14). The web app's
+ * transport seam (apps/web/src/machine-worker/transport.ts) is the only
+ * production implementation; the fake-serial test build swaps it.
+ */
+export interface TransportSource {
+  /**
+   * `none`: this build cannot reach a controller (production, Phase 0).
+   * `serial`: Web Serial (P1-01). `fake`: the test build's mock port only.
+   */
+  readonly kind: 'none' | 'serial' | 'fake';
+  /** A new, unopened Transport, or null when there is none (no port chosen, or this build has none). */
+  request(): Promise<Transport | null>;
+}

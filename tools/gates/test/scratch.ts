@@ -144,6 +144,13 @@ export class ScratchRepo {
     return this.run([join(this.root, 'apps/web/node_modules/vite/bin/vite.js'), 'build', '--logLevel', 'warn'], join(this.root, 'apps/web'), env);
   }
 
+  /** `pnpm build:fake-serial`: the copy's fake-serial test build into apps/web/dist-fake-serial (ROADMAP P0-14). */
+  buildFakeSerial(): GateResult {
+    const env: NodeJS.ProcessEnv = { ...process.env, RUN_BUILD_SHA: SCRATCH_BUILD_SHA };
+    delete env['NODE_ENV'];
+    return this.run([join(this.root, 'apps/web/node_modules/vite/bin/vite.js'), 'build', '--mode', 'fake-serial', '--logLevel', 'warn'], join(this.root, 'apps/web'), env);
+  }
+
   /** `pnpm scan`: the bundle scan over the copy's built web app. */
   scan(): GateResult {
     return this.run([join(this.root, 'tools/gates/src/bundle/cli.ts'), join(this.root, 'apps/web/dist')]);

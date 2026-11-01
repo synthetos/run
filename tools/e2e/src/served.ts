@@ -11,21 +11,35 @@
  *   modules exactly as built, and the site tree exactly as built, through the
  *   same wrangler.jsonc that the deploy jobs use.
  *
- * Setting only one of the two variables is refused: a half-artifact run
- * would test something that is never deployed.
+ * - **fake-serial** (RUN_E2E_FAKE_SERIAL=1 and neither artifact variable;
+ *   `pnpm e2e:fake-serial` and the CI `e2e-fake-serial` job): `wrangler dev`
+ *   bundles workers/run/src and serves apps/web/dist-fake-serial, the
+ *   TEST-ONLY build whose machine worker gets a mock port (ROADMAP P0-14,
+ *   docs/testing/fake-serial.md). Only the fake-serial suite runs in this
+ *   mode, and that suite runs in no other.
+ *
+ * Setting only one of the two artifact variables is refused: a
+ * half-artifact run would test something that is never deployed. So is
+ * combining the fake-serial switch with them: the attested artifact never
+ * contains the mock port.
  */
 import { lstatSync, readdirSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 
 export const SITE_ENV = 'RUN_E2E_SITE';
 export const WORKER_ENV = 'RUN_E2E_WORKER';
+export const FAKE_SERIAL_ENV = 'RUN_E2E_FAKE_SERIAL';
+
+/** The fake-serial test build, relative to the repository root (apps/web/build/fakeSerial.ts). */
+export const FAKE_SERIAL_SITE = 'apps/web/dist-fake-serial';
 
 /** The repository root, from this file's location (tools/e2e/src). */
 export const REPO_ROOT = resolve(import.meta.dirname, '../../..');
 
 export type ServedMode =
   | { readonly kind: 'source'; readonly siteDir: string }
-  | { readonly kind: 'artifact'; readonly siteDir: string; readonly workerDir: string };
+  | { readonly kind: 'artifact'; readonly siteDir: string; readonly workerDir: string }
+  | { readonly kind: 'fake-serial'; readonly siteDir: string };
 
 function absolute(path: string, cwd: string): string {
   return isAbsolute(path) ? path : resolve(cwd, path);
@@ -35,8 +49,14 @@ function absolute(path: string, cwd: string): string {
 export function servedMode(env: Readonly<Record<string, string | undefined>>, cwd: string): ServedMode {
   const site = env[SITE_ENV];
   const worker = env[WORKER_ENV];
+  const fake = env[FAKE_SERIAL_ENV];
   const siteSet = site !== undefined && site !== '';
   const workerSet = worker !== undefined && worker !== '';
+  if (fake !== undefined && fake !== '') {
+    if (fake !== '1') throw new Error(`e2e: ${FAKE_SERIAL_ENV} must be 1 or unset; got ${JSON.stringify(fake)}`);
+    if (siteSet || workerSet) throw new Error(`e2e: ${FAKE_SERIAL_ENV} cannot be combined with ${SITE_ENV}/${WORKER_ENV}: the attested artifact has no mock port`);
+    return { kind: 'fake-serial', siteDir: join(REPO_ROOT, FAKE_SERIAL_SITE) };
+  }
   if (siteSet !== workerSet) {
     throw new Error(`e2e: set both ${SITE_ENV} and ${WORKER_ENV} (artifact mode) or neither (source mode); got only ${siteSet ? SITE_ENV : WORKER_ENV}`);
   }
@@ -67,6 +87,7 @@ export function wranglerArgs(mode: ServedMode, port: number): string[] {
   const config = join(REPO_ROOT, 'workers/run/wrangler.jsonc');
   const common = ['--config', config, '--port', String(port), '--ip', '127.0.0.1', '--show-interactive-dev-session=false'];
   if (mode.kind === 'source') return [wrangler, 'dev', ...common];
+  if (mode.kind === 'fake-serial') return [wrangler, 'dev', '--assets', mode.siteDir, ...common];
   return [wrangler, 'dev', join(mode.workerDir, 'index.mjs'), '--no-bundle', '--assets', mode.siteDir, ...common];
 }
 

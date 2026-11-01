@@ -25,6 +25,7 @@ Enforcement: **Active**.
   - `verify`
   - `build`
   - `e2e`
+  - `e2e-fake-serial` (P0-14)
   - `safety-review`
 - **Bypass list**: empty. If an emergency bypass is ever needed, the owner
   alone may bypass, and every use is recorded in the PR with its reason.

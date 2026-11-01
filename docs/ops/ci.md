@@ -11,6 +11,7 @@ ROADMAP P0-03, RUN_PLAN §6.2, SAFETY H12 and H46. The workflow is
 | `verify` | every PR and every push to `main` | no secret, `contents: read` | Full install (`--frozen-lockfile --ignore-scripts`), then typecheck, lint, dependency-cruiser, licence gate, CI policy (`pnpm ci-policy`), unit tests |
 | `build` | every PR and push | no secret, `contents: read` | Two clean checkouts (`a/`, `b/`). In each one it installs **only the production build toolchain** from a lockfile subset, then builds the web bundle and the Worker script (`tools/gates/src/build/worker-cli.ts`, P0-04). It fails unless the two `dist/` trees, and the two Worker builds, are byte-identical. Then it runs the bundle scan and uploads the artifact `run-web` (`run-web.tar`, `run-worker.tar` and their `.sha256` manifests) |
 | `e2e` | every PR and push | no secret, `contents: read` | Downloads the artifact and checks it against its manifests, then runs the Playwright suite against `wrangler dev` serving **that artifact** under the origin guard (T-S25), then the third-party canary. See "The e2e job" below |
+| `e2e-fake-serial` | every PR and push | no secret, `contents: read` | Builds the fake-serial TEST artifact from the same commit (before anything else lands in the checkout), downloads and verifies the production site, proves the two differ only in the transport seam chunk (`tools/gates/src/artifact/diff-cli.ts`), then runs the fake-serial Playwright suite against the test artifact. Uploads nothing; the test build is never attested or deployed. See docs/testing/fake-serial.md (P0-14) |
 | `attest` | push to `main` only | `id-token: write`, `attestations: write` | Signs SLSA build provenance for `run-web.tar`, `run-worker.tar` and their manifests with `actions/attest-build-provenance`. It checks out no code and runs none |
 | `deploy-staging` | push to `main` only, and only when `vars.RUN_DEPLOY_ENABLED == 'true'` | environment `staging`, `CLOUDFLARE_API_TOKEN` | Installs wrangler from `ci/deploy-toolchain` (pinned by version and integrity, `--ignore-scripts`). Verifies the attestation (`gh attestation verify`: this repository, this workflow, `refs/heads/main`, this commit, GitHub-hosted runner). Checks the extracted trees against the manifests. Runs the preflight (D34 account, H45 settings) and the Access pre-check, merges the hashed assets of the last 14 days, deploys the attested Worker with `--no-bundle`, runs the smoke test and keeps the deployed state for the next deploy (docs/ops/worker.md). Holds `actions: read` to find the previous deployment's state |
 | `deploy-production` | as staging, after staging succeeds | environment `production` (the owner is a required reviewer), `CLOUDFLARE_API_TOKEN` | The same steps, deploying the **same** attested artifact to production. It promotes the artifact and never rebuilds it |
@@ -33,7 +34,7 @@ requests from forks run only the secret-free jobs.
   **environment** secret, so no job without the environment can read it.
 - `pnpm ci-policy` fails the `verify` job if any of this changes:
   - a deploy condition loses a term or gains `||`, `!` or a function;
-  - a deploy job stops needing `verify`, `build`, `e2e` and `attest`;
+  - a deploy job stops needing `verify`, `build`, `e2e`, `e2e-fake-serial` and `attest`;
   - another job names an environment;
   - anything other than the deploy jobs mentions `secrets` or `CLOUDFLARE_API_TOKEN`.
 
@@ -108,6 +109,7 @@ cannot follow: anchors, aliases, merge keys and tabs. It enforces:
 | `write-permission` | Top-level permissions are read-only. Only `attest` may hold `id-token: write` and `attestations: write`. `write-all` is refused |
 | `continue-on-error` | Refused, so a failing gate always fails the run |
 | `verify-job` | `ci.yml` runs on `pull_request`, and `verify` is unconditional and runs `pnpm -r test` |
+| `fake-serial-job` | `e2e-fake-serial` is unconditional, needs `build`, builds the test artifact before downloading anything, verifies the production site, runs the artifact diff, then the fake-serial suite; uploads nothing; never names `RUN_E2E_SITE`/`RUN_E2E_WORKER` |
 | `e2e-job` | `e2e` is unconditional, needs `build`, serves the extracted artifact (job-level `RUN_E2E_SITE`, `RUN_E2E_WORKER`, named nowhere else in the job), verifies it, then runs the suite, then the canary |
 
 `pnpm ci-policy` also runs two more checks:

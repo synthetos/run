@@ -2,7 +2,7 @@
   "name": "@synthetos/e2e",
   "version": "0.0.0",
   "private": true,
-  "description": "DEV ONLY. Playwright tests against `wrangler dev` serving the built shell or the attested artifact with the production headers, under the origin guard (ROADMAP P0-04, P0-06).",
+  "description": "DEV ONLY. Playwright tests against `wrangler dev` serving the built shell or the attested artifact with the production headers, under the origin guard (ROADMAP P0-04, P0-06), and the fake-serial suite against the test-only build (P0-14).",
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
@@ -10,6 +10,11 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "e2e": "playwright test",
-    "canary": "node src/canary-cli.ts"
+    "canary": "node src/canary-cli.ts",
+    "e2e:fake-serial": "RUN_E2E_FAKE_SERIAL=1 playwright test -c playwright.fake-serial.config.ts"
+  },
+  "devDependencies": {
+    "@synthetos/machine": "workspace:*",
+    "@synthetos/testkit": "workspace:*"
   }
 }

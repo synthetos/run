@@ -41,6 +41,7 @@ export default tseslint.config(
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
+      '**/dist-fake-serial/**',
       '**/.wrangler/**',
       '**/coverage/**',
       '**/test-results/**',

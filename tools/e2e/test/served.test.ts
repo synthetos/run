@@ -17,6 +17,18 @@ describe('servedMode', () => {
     expect(servedMode({ RUN_E2E_SITE: 'site', RUN_E2E_WORKER: '/abs/worker' }, '/w')).toEqual({ kind: 'artifact', siteDir: '/w/site', workerDir: '/abs/worker' });
   });
 
+  it('is fake-serial mode with RUN_E2E_FAKE_SERIAL=1, serving the test build (P0-14)', () => {
+    expect(servedMode({ RUN_E2E_FAKE_SERIAL: '1' }, '/x')).toEqual({ kind: 'fake-serial', siteDir: join(REPO_ROOT, 'apps/web/dist-fake-serial') });
+    expect(servedMode({ RUN_E2E_FAKE_SERIAL: '' }, '/x').kind).toBe('source');
+  });
+
+  it('refuses the fake-serial switch with any artifact variable, or with a value other than 1', () => {
+    expect(() => servedMode({ RUN_E2E_FAKE_SERIAL: '1', RUN_E2E_SITE: 's', RUN_E2E_WORKER: 'w' }, '/w')).toThrow(/cannot be combined/);
+    expect(() => servedMode({ RUN_E2E_FAKE_SERIAL: '1', RUN_E2E_SITE: 's' }, '/w')).toThrow(/cannot be combined/);
+    expect(() => servedMode({ RUN_E2E_FAKE_SERIAL: '1', RUN_E2E_WORKER: 'w' }, '/w')).toThrow(/cannot be combined/);
+    expect(() => servedMode({ RUN_E2E_FAKE_SERIAL: 'true' }, '/w')).toThrow(/must be 1 or unset/);
+  });
+
   it('refuses only one of the two', () => {
     expect(() => servedMode({ RUN_E2E_SITE: 'site' }, '/w')).toThrow(/got only RUN_E2E_SITE/);
     expect(() => servedMode({ RUN_E2E_WORKER: 'worker' }, '/w')).toThrow(/got only RUN_E2E_WORKER/);
@@ -36,6 +48,15 @@ describe('wranglerArgs', () => {
     expect(args[1]).toBe('dev');
     expect(args).not.toContain('--no-bundle');
     expect(args).not.toContain('--assets');
+  });
+});
+
+describe('wranglerArgs (fake-serial)', () => {
+  it('bundles the source Worker and serves the test build as the asset directory', () => {
+    const args = wranglerArgs({ kind: 'fake-serial', siteDir: '/r/apps/web/dist-fake-serial' }, 8791);
+    expect(args.slice(1, 4)).toEqual(['dev', '--assets', '/r/apps/web/dist-fake-serial']);
+    expect(args).not.toContain('--no-bundle');
+    expect(args.join(' ')).toContain('--port 8791');
   });
 });
 
