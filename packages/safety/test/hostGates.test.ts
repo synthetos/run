@@ -174,3 +174,49 @@ describe('malformed proposed values fail closed (SAFETY §4.10 rule 4)', () => {
     expect(diffHostGates(BASE, tighter).every((c) => !c.malformed)).toBe(true);
   });
 });
+
+// Added in the Phase 0 safety conformance audit (docs/safety/PHASE0_TRACEABILITY.md):
+// each case below was a surviving mutant, a loosening rule that could be
+// weakened without any test failing.
+describe('T-S69: loosening edges', () => {
+  it('spindle kind away from plasma needs the typed C19, as away from laser does', () => {
+    const plasma: HostGates = { ...BASE, spindleKind: 'plasma' };
+    for (const spindleKind of ['spindle', 'none', 'laser'] as const) {
+      expect(diffHostGates(plasma, { ...plasma, spindleKind }), spindleKind).toEqual([{ field: 'spindleKind', loosens: true, typed: true, malformed: false }]);
+      expect(effectiveHostGates(plasma, { ...plasma, spindleKind }, C19).spindleKind).toBe('plasma');
+      expect(effectiveHostGates(plasma, { ...plasma, spindleKind }, TYPED).spindleKind).toBe(spindleKind);
+    }
+  });
+
+  it('dropping one of two dual-motor axes needs C19, even though the other is kept', () => {
+    const two: HostGates = { ...BASE, dualMotorAxes: [{ axis: 'Y', motors: [2, 3] }, { axis: 'X', motors: [1, 4] }] };
+    const one: HostGates = { ...two, dualMotorAxes: [{ axis: 'Y', motors: [2, 3] }] };
+    expect(diffHostGates(two, one)).toEqual([{ field: 'dualMotorAxes', loosens: true, typed: false, malformed: false }]);
+    expect(effectiveHostGates(two, one, NONE).dualMotorAxes).toEqual(two.dualMotorAxes);
+  });
+
+  it('remapping a dual-motor axis to another axis letter or motor count needs C19', () => {
+    for (const d of [{ axis: 'X', motors: [2, 3] }, { axis: 'Y', motors: [2, 3, 4] }, { axis: 'Y', motors: [2] }]) {
+      expect(diffHostGates(BASE, { ...BASE, dualMotorAxes: [d] })[0]?.loosens, JSON.stringify(d)).toBe(true);
+    }
+  });
+
+  it('jog caps: one cap kept equal and the other lowered is a tightening; either one raised is a loosening', () => {
+    const lowerFeed = { ...BASE, jogCaps: { maxStepMm: 10, maxFeedMmPerMin: 500 } };
+    const lowerStep = { ...BASE, jogCaps: { maxStepMm: 5, maxFeedMmPerMin: 1000 } };
+    expect(diffHostGates(BASE, lowerFeed)[0]?.loosens).toBe(false);
+    expect(diffHostGates(BASE, lowerStep)[0]?.loosens).toBe(false);
+    expect(effectiveHostGates(BASE, lowerFeed, NONE).jogCaps).toEqual(lowerFeed.jogCaps);
+    expect(effectiveHostGates(BASE, lowerStep, NONE).jogCaps).toEqual(lowerStep.jogCaps);
+    expect(diffHostGates(BASE, { ...BASE, jogCaps: { maxStepMm: 5, maxFeedMmPerMin: 1001 } })[0]?.loosens).toBe(true);
+    expect(diffHostGates(BASE, { ...BASE, jogCaps: { maxStepMm: 11, maxFeedMmPerMin: 500 } })[0]?.loosens).toBe(true);
+  });
+
+  it('an infinite hold timeout or jog cap is malformed, never applied', () => {
+    for (const patch of [{ holdTimeoutS: Number.POSITIVE_INFINITY }, { jogCaps: { maxStepMm: 5, maxFeedMmPerMin: Number.POSITIVE_INFINITY } }]) {
+      const proposed = { ...BASE, ...patch } as HostGates;
+      expect(diffHostGates(BASE, proposed)[0], JSON.stringify(patch)).toMatchObject({ loosens: true, malformed: true });
+      expect(effectiveHostGates(BASE, proposed, TYPED)).toEqual(BASE);
+    }
+  });
+});

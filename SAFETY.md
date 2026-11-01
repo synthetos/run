@@ -323,7 +323,7 @@ As OLD-S H26 and §4.5a. The `pendingRestore` record is **device-local** (Indexe
 ### H27. A revoked app version keeps driving machines
 Revised in red-team round 2:
 - `safety-advisory.json` is **signed** with the offline release key (as `approved-builds.json` is, RUN_PLAN §6.3) and fetched with `no-store` from run.synthetos.com at every LIVE entry.
-- A verified copy is cached in `device-safety`. If the fetch fails, the cached copy is used while it is younger than **7 days**. After that, LIVE is refused (fail closed). This lets local-file control work through short outages and in the offline shell (D1, P6-04) without trusting a verdict of unbounded age.
+- A verified copy is cached in `device-safety`. If the fetch fails, the cached copy is used while it is younger than **7 days**. After that, LIVE is refused (fail closed). This bounds how stale a safety verdict can be for a session that is already connected when the network drops. Under D1 (sign-in required) a new Connect or Start needs a reachable identity service anyway, so the offline shell (P6-04) offers preview, cached library and wiring only, never new machine sessions.
 - A revoked version, or an expired or unverifiable advisory, refuses LIVE.
 - **While connected, the main thread re-fetches the advisory every 15 minutes.** On revocation it denies new Arm, Start and jog and shows a banner. It **never interrupts a running job, a hold or any stop-class intent**.
 
@@ -458,7 +458,7 @@ Facts are device-local and never synced (H34). They are **bound to (machine id, 
 |---|---|
 | **Cause** | A stolen session cookie (malware, a shared computer, XSS), session fixation, an open redirect, or interception of an OAuth code. |
 | **Rating** | S3, L2 (S4 if combined with H29 and a careless confirmation) |
-| **Mitigations** | 256-bit opaque session tokens, stored hashed in D1. `__Host-` HttpOnly Secure cookies (run SameSite=Strict, accounts Lax). PKCE and `state` on both legs, with `state` **bound to the browser** by a `__Host-` pre-auth cookie nonce on each leg (this stops login CSRF). Single-use auth codes valid for 60 s, bound to client, redirect and challenge. Exact `redirect_uri` match. `return_to` limited to same-origin relative paths (`^/(?![/\\])[a-z0-9/_-]*$` plus a `new URL()` origin check, stored server-side with the state). Step-up passes only when the re-authenticated provider subject matches an identity already linked to the user. `Referrer-Policy: no-referrer`. Idle and absolute session expiry. Instant revocation (D1, not KV). Session list, "sign out everywhere", and a new-device notice. No GitHub tokens are stored anywhere in the identity layer. And §4.10: a hijacked session cannot move a machine. |
+| **Mitigations** | 256-bit opaque session tokens, stored hashed in D1. `__Host-` HttpOnly Secure cookies (run SameSite=Strict, accounts Lax). PKCE and `state` on both legs, with `state` **bound to the browser** by a `__Host-` pre-auth cookie nonce on each leg (this stops login CSRF). Single-use auth codes valid for 60 s, bound to client, redirect and challenge. Exact `redirect_uri` match. `return_to` limited to same-origin relative paths (`^/(?![/\\])[a-z0-9/_-]*$` plus a `new URL()` origin check, stored server-side with the state). Step-up passes only when the re-authenticated provider subject matches an identity already linked to the user. `Referrer-Policy: no-referrer` (accounts pages that carry a form use `same-origin` so the browser sends a real Origin to the exact-Origin CSRF guard; `Origin: null` is never accepted; RUN_PLAN §6.4). Idle and absolute session expiry. Instant revocation (D1, not KV). Session list, "sign out everywhere", and a new-device notice. No GitHub tokens are stored anywhere in the identity layer. And §4.10: a hijacked session cannot move a machine. |
 | **Residual** | Low. |
 | **Verification** | S: auth test suite (code reuse, wrong verifier, wrong redirect, revoked session). E. |
 
@@ -879,9 +879,9 @@ OLD-S §4.9 rows still apply, with SIM read as NOT CONNECTED. Rows added or chan
 
 | Failure | Detected by | Behaviour |
 |---|---|---|
-| Session expires or user signs out elsewhere while LIVE | 401 from the API, BroadcastChannel from the other tab | W22; job, stop and machine unaffected; cloud save paused; sign-in offered when idle |
+| Session expires or user signs out elsewhere while LIVE | 401 from the API, BroadcastChannel from the other tab | W22; a running job and every never-gated action (Pause, Stop job, Spindle off, Reset, Disconnect, recovery) unaffected; new requests from the identity-gated set G denied until sign-in (RUN_PLAN §2.2); cloud save paused |
 | Network loss while LIVE | fetch errors | Same as above. Nothing in the machine path uses the network |
-| Identity service outage | sign-in fails | Signed-out local mode (D1); library unavailable; machine control of local files still works if D1 allows it |
+| Identity service outage | sign-in fails | D1 (sign-in required): new requests from the identity-gated set G (Connect, Start, jog, home, settings write, flash…) are refused until sign-in works again; an already-connected session keeps its running job and every never-gated action (Pause, Stop job, Spindle off, Reset, Disconnect, recovery); library unavailable (RUN_PLAN §2.2) |
 | Download hash mismatch | client re-hash | Hard stop "file damaged or altered"; not confirmable; file not loadable |
 | Cloud profile head ≠ last applied from this browser | revision compare on connect | NEEDS_REVIEW with W23 and diff; nothing written until C19 |
 | Profile edit conflict | 409 from the API | Diff and choose; never last-write-wins |
@@ -970,7 +970,7 @@ Signal words follow ANSI Z535 and ISO 3864-2 (OLD-S §5). **Single source:** eve
 - **W19 (session normalisation consent):** as OLD-S W19, verbatim: "NOTICE — These reporting settings are stored on the board. Other programs (CNCjs, ChiliPeppr, serial-port-json-server, your own scripts) read them too, and may stop working correctly if they change. This tool restores the original values when you disconnect normally. If this tab crashes, reconnect here and choose \"Restore original reporting settings\" before using another program."
 - **W20 (after a polarity, motor-map, scale or travel write, before commissioning):** "WARNING — Direction and distance are not verified. Before running anything, check with small moves (1 mm or less), hand on the E-stop, that each axis moves the right way and the right distance."
 - **W21 (wiring and power):** shown on the wiring checklist: "Switch motor power OFF before connecting or disconnecting motors."
-- **W22 (signed out or offline while LIVE; inline, not modal):** "Signed out. Your job and machine control are not affected. Cloud save is paused until you sign in again."
+- **W22 (signed out or offline while LIVE; inline, not modal):** "Signed out. A running job and Pause, Stop and Spindle off are not affected. Sign in again to start a job, jog, home, or change settings. Cloud save is paused until you sign in again."
 - **W23 (stored profile changed):** "WARNING — The saved profile for <machine name> changed since this browser last applied it (revision <a> → <b>, changed from <device> on <date>). Nothing has been written to the controller. Review the differences before applying."
 - **W24 (changes from a new sign-in):** "WARNING — This <profile | file> was changed from a sign-in this browser has not seen before (<device>, <date>). If you did not make this change, do not use it, and sign out everywhere from your account page."
 - **W25 (READ_ONLY firmware):** "This controller's firmware (<fb>, <reason>) is supported read-only. You can view settings and send a feedhold, but not move the machine. <Upgrade to the approved TinyG firmware | Use your usual sender>."

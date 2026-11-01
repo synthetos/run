@@ -1,7 +1,13 @@
 # Safety documents in this repository
 
 - `/SAFETY.md` is the safety case: a copy of `docs/run/SAFETY.md` from
-  `synthetos/synthetos.com` at `53a8af1ffe6c8bfa1e1b9315fd10fcc220e029a3`.
+  `synthetos/synthetos.com` at `f2760cd2d70f5887efd607ef8e59e52a1cd4285f`
+  (the D1 "sign-in required" wording, including W22), plus the amendments
+  made in the Phase 0 review, each marked "Amended in P0 review" in the text
+  (§4.3 time estimate, F units and rotary axes; §4.4 EN Stop job steps 1 and
+  3; §4.7 step 6a). Those amendments are not yet in the synthetos.com copy:
+  carry them upstream, then re-copy, so the two stay identical
+  (docs/safety/PHASE0_TRACEABILITY.md).
 - `OLD-S.md` is a verbatim copy of `docs/tools/SAFETY.md` from the same
   commit. SAFETY.md cites it as OLD-S, and several of its §6 confirmations are
   defined as "As OLD-S Cn" (C3, C4 from Phase 4, C6's boxes, C9, C12, C15,

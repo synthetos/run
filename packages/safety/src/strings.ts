@@ -248,9 +248,13 @@ export function w21(): string {
   return 'Switch motor power OFF before connecting or disconnecting motors.';
 }
 
-/** W22: signed out or offline while LIVE (inline, not modal). */
+/**
+ * W22: signed out or offline while LIVE (inline, not modal). Under D1 (sign-in
+ * required) a new Start, jog, home or settings write needs sign-in again; a
+ * running job and the never-gated actions do not (SAFETY §4.9).
+ */
 export function w22(): string {
-  return 'Signed out. Your job and machine control are not affected. Cloud save is paused until you sign in again.';
+  return 'Signed out. A running job and Pause, Stop and Spindle off are not affected. Sign in again to start a job, jog, home, or change settings. Cloud save is paused until you sign in again.';
 }
 
 /** W23: stored profile changed. */

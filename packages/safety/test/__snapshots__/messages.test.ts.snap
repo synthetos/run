@@ -61,7 +61,7 @@ exports[`W and C strings > render exactly as pinned 1`] = `
   "w19": "NOTICE — These reporting settings are stored on the board. Other programs (CNCjs, ChiliPeppr, serial-port-json-server, your own scripts) read them too, and may stop working correctly if they change. This tool restores the original values when you disconnect normally. If this tab crashes, reconnect here and choose "Restore original reporting settings" before using another program.",
   "w20": "WARNING — Direction and distance are not verified. Before running anything, check with small moves (1 mm or less), hand on the E-stop, that each axis moves the right way and the right distance.",
   "w21": "Switch motor power OFF before connecting or disconnecting motors.",
-  "w22": "Signed out. Your job and machine control are not affected. Cloud save is paused until you sign in again.",
+  "w22": "Signed out. A running job and Pause, Stop and Spindle off are not affected. Sign in again to start a job, jog, home, or change settings. Cloud save is paused until you sign in again.",
   "w23": "WARNING — The saved profile for Shapeoko changed since this browser last applied it (revision 3 → 4, changed from laptop on 2026-11-01). Nothing has been written to the controller. Review the differences before applying.",
   "w24file": "WARNING — This file was changed from a sign-in this browser has not seen before (laptop, 2026-11-01). If you did not make this change, do not use it, and sign out everywhere from your account page.",
   "w24profile": "WARNING — This profile was changed from a sign-in this browser has not seen before (laptop, 2026-11-01). If you did not make this change, do not use it, and sign out everywhere from your account page.",
