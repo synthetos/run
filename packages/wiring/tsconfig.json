@@ -1,7 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": [
-    "src",
-    "test"
-  ]
+  // Runtime source gets no DOM and no Node types: renderDom takes a
+  // structural document, so nothing in wiring/src can name a browser API.
+  "include": ["src"]
 }

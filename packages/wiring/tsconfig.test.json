@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The rule-coverage test reads its own source with node:fs.
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}
