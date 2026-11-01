@@ -3,7 +3,7 @@
 // This file is CODEOWNED. Rules that must never change without the owner:
 //   - workers_dev and preview_urls stay false in EVERY environment. Each
 //     workers.dev, preview or version URL is a separate origin with its own
-//     Web Serial grant (SAFETY H45). workers/run/test/config.test.ts fails
+//     Web Serial grant (SAFETY H45). tools/gates/test/worker-config.test.ts fails
 //     otherwise.
 //   - Only /api/* and /auth/* run the Worker first. Assets are served by the
 //     asset layer, which applies apps/web/public/_headers (generated from

@@ -8,8 +8,12 @@
  * rs-svg-export` without `'allow-duplicates'`, so:
  * - no other policy name (including `default`) can ever be created;
  * - each of these two names can be created exactly once per page.
- * `installTrustedTypes()` therefore runs first in every entry, which claims
- * both names before any other code runs; nothing later can create a policy.
+ * `installTrustedTypes()` therefore is the first statement of every entry and
+ * claims both names before the entry does anything else; nothing later can
+ * create a policy. (ES module imports are hoisted, so the top-level code of
+ * the modules an entry imports, such as preact, evaluates earlier. None of
+ * them creates a policy; if one ever did, `createPolicy` here would throw
+ * under the CSP, the shell would not mount, and the Playwright suite fails.)
  *
  * - `rs-worker` turns a path into a TrustedScriptURL only for a same-origin
  *   `/assets/**.js` chunk (the machine, gcode and sync workers, RUN_PLAN §5.4).
