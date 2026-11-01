@@ -9,9 +9,13 @@
  * This file must write to an HTML sink to prove the browser refuses it, so
  * eslint.config.js exempts it (and only it) from run/no-html-sink.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 
-test('no further Trusted Types policy can be created, including the two names already claimed', async ({ page }) => {
+// Each refusal below is reported as a violation of one of these two
+// directives; the tests assert exactly which. Any other directive still fails.
+test.use({ allowedCspDirectives: ['trusted-types', 'require-trusted-types-for'] });
+
+test('no further Trusted Types policy can be created, including the two names already claimed', async ({ page, originGuard }) => {
   await page.goto('/');
   await expect(page.locator('[data-shell="workspace"]')).toBeAttached();
   const outcomes = await page.evaluate(() => {
@@ -26,9 +30,10 @@ test('no further Trusted Types policy can be created, including the two names al
     });
   });
   expect(outcomes).toEqual(['rs-worker: refused', 'rs-svg-export: refused', 'default: refused', 'evil: refused']);
+  await expect.poll(() => originGuard.violations.map((v) => v.directive)).toEqual(['trusted-types', 'trusted-types', 'trusted-types', 'trusted-types']);
 });
 
-test('HTML and script-URL sinks refuse plain strings', async ({ page }) => {
+test('HTML and script-URL sinks refuse plain strings', async ({ page, originGuard }) => {
   await page.goto('/');
   const outcomes = await page.evaluate(() => {
     const attempt = (label: string, fn: () => void): string => {
@@ -53,4 +58,5 @@ test('HTML and script-URL sinks refuse plain strings', async ({ page }) => {
     ];
   });
   expect(outcomes).toEqual(['innerHTML: TypeError', 'script.src: TypeError', 'new Worker: TypeError']);
+  await expect.poll(() => originGuard.violations.map((v) => v.directive)).toEqual(['require-trusted-types-for', 'require-trusted-types-for', 'require-trusted-types-for']);
 });

@@ -167,6 +167,30 @@ describe('verify', () => {
   });
 });
 
+describe('the e2e job (P0-06)', () => {
+  it('fails when it becomes conditional or stops needing build', () => {
+    expect(rules(mutate(CI, '  e2e:\n    name: e2e\n    needs: [build]\n', "  e2e:\n    name: e2e\n    if: github.event_name == 'push'\n    needs: [build]\n"))).toEqual(['e2e-job']);
+    expect(rules(mutate(CI, '  e2e:\n    name: e2e\n    needs: [build]\n', '  e2e:\n    name: e2e\n'))).toEqual(['e2e-job']);
+  });
+
+  it('fails when the suite would not serve the extracted artifact', () => {
+    expect(rules(mutate(CI, '      RUN_E2E_SITE: ${{ github.workspace }}/site\n', ''))).toEqual(['e2e-job']);
+    expect(rules(mutate(CI, '      RUN_E2E_WORKER: ${{ github.workspace }}/worker\n', '      RUN_E2E_WORKER: ${{ github.workspace }}/elsewhere\n'))).toEqual(['e2e-job']);
+  });
+
+  it('fails when the artifact is not verified, the suite or the canary is dropped, or they run out of order', () => {
+    expect(rules(mutate(CI, '          node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256\n          tar -xf artifact/run-worker.tar', '          tar -xf artifact/run-worker.tar'))).toEqual(['e2e-job']);
+    expect(rules(mutate(CI, '        run: pnpm --filter @synthetos/e2e canary\n', '        run: echo skipped\n'))).toEqual(['e2e-job']);
+    expect(rules(mutate(CI, '        run: pnpm --filter @synthetos/e2e e2e\n', '        run: echo skipped\n'))).toEqual(['e2e-job']);
+    const swapped = mutate(
+      mutate(CI, '        run: pnpm --filter @synthetos/e2e e2e\n', '        run: PLACEHOLDER\n'),
+      '        run: pnpm --filter @synthetos/e2e canary\n',
+      '        run: pnpm --filter @synthetos/e2e e2e\n',
+    ).replace('        run: PLACEHOLDER\n', '        run: pnpm --filter @synthetos/e2e canary\n');
+    expect(rules(swapped)).toEqual(['e2e-job']);
+  });
+});
+
 describe('supply chain and injection', () => {
   it('fails on an action pinned by tag', () => {
     expect(rules(mutate(CI, 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1', 'actions/checkout@v7'))).toEqual(['unpinned-action']);

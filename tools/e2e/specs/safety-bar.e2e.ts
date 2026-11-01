@@ -10,9 +10,11 @@
  * written to docs/design/screenshots/p0-05/ when RUN_SCREENSHOTS=1.
  */
 import { AxeBuilder } from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import { w1, w2Label, w7 } from '../../../packages/safety/src/strings.ts';
-import { PAGES, expectSameOrigin, ready, recordRequests } from './helpers.ts';
+import { guardContext } from './fixtures.ts';
+import { PAGES, ready } from './helpers.ts';
 
 const WIDTHS = [320, 1280] as const;
 const THEMES = ['light', 'dark'] as const;
@@ -36,8 +38,7 @@ for (const width of WIDTHS) {
       test.use({ viewport: { width, height: width === 320 ? 640 : 900 }, colorScheme: theme });
 
       for (const path of PAGES) {
-        test(`${path}: safety bar visible and sticky, no horizontal scroll, axe clean, no external request`, async ({ page, baseURL }) => {
-          const requests = recordRequests(page);
+        test(`${path}: safety bar visible and sticky, no horizontal scroll, axe clean, no external request`, async ({ page }) => {
           await page.goto(path);
           await ready(page);
           await expectBarInView(page);
@@ -61,8 +62,7 @@ for (const width of WIDTHS) {
 
           const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice']).analyze();
           expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
-
-          expectSameOrigin(requests, baseURL);
+          // No external request: the origin guard checks it after the test.
         });
       }
 
@@ -112,8 +112,9 @@ test('the safety bar and stop button keep their colours in both themes, and noth
   }
 });
 
-test('without JavaScript the safety bar, W1, W7 and the disabled stop button are still there', async ({ browser }) => {
+test('without JavaScript the safety bar, W1, W7 and the disabled stop button are still there', async ({ browser, baseURL }) => {
   const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 320, height: 640 } });
+  const guard = await guardContext(context, baseURL);
   const page = await context.newPage();
   for (const path of ['/', '/safety/']) {
     await page.goto(path);
@@ -122,6 +123,7 @@ test('without JavaScript the safety bar, W1, W7 and the disabled stop button are
   await page.goto('/');
   await expect(page.locator('[data-safety="W7"]')).toHaveText(w7());
   await expect(page.getByRole('button', { name: w2Label() })).toBeDisabled();
+  await guard.assertClean();
   await context.close();
 });
 

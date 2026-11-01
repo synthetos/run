@@ -84,6 +84,27 @@ export default tseslint.config(
     rules: { 'run/no-signal-word-literal': 'error' },
   },
   {
+    // Every E2E test runs under the origin guard (ROADMAP P0-06): specs take
+    // `test` from tools/e2e/specs/fixtures.ts, which installs it, never
+    // straight from Playwright. Types may still come from @playwright/test.
+    files: ['tools/e2e/specs/**'],
+    ignores: ['tools/e2e/specs/fixtures.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@playwright/test',
+              importNames: ['test', 'expect', 'chromium', 'firefox', 'webkit', 'devices', '_baseTest'],
+              message: "Import test and expect from './fixtures.ts' so the origin guard runs (ROADMAP P0-06).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: NO_NETWORK,
     rules: { 'run/no-network-api': 'error' },
   },

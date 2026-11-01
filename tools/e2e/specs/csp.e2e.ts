@@ -9,9 +9,14 @@
  * that the injected script does run when nothing blocks it, so the test can
  * tell enforcement from a broken injection.
  */
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 
 const INLINE = '<script>globalThis.__inlineRan = true;</script>';
+
+// The injected script provokes this violation on purpose and the test
+// asserts it; the origin guard still fails on any other directive.
+test.use({ allowedCspDirectives: ['script-src-elem'] });
 
 async function loadWithInlineScript(page: Page, keepCsp: boolean): Promise<{ ran: boolean; violations: { directive: string; blocked: string }[] }> {
   await page.addInitScript(() => {

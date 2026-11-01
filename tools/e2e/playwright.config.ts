@@ -1,17 +1,24 @@
 /**
- * Playwright against `wrangler dev` (ROADMAP P0-04 acceptance: "wrangler dev
- * serves the shell with the exact headers. A Playwright header test passes.
- * Adding an inline <script> to a built page produces a CSP violation in the
- * test.").
+ * Playwright against `wrangler dev` (ROADMAP P0-04, P0-06).
  *
- * wrangler dev runs the Worker from workers/run/src and serves the built
- * apps/web/dist through the same asset layer (and the same `_headers` file)
- * as production. P0-06 adds the CI job, against the attested artifact.
+ * - `pnpm e2e` (source mode): wrangler dev bundles workers/run/src and serves
+ *   the freshly built apps/web/dist.
+ * - `pnpm e2e:artifact` and the CI `e2e` job (artifact mode, RUN_E2E_SITE and
+ *   RUN_E2E_WORKER set): wrangler dev serves the attested artifact, the
+ *   Worker modules with --no-bundle and the site tree as built, through the
+ *   same wrangler.jsonc as the deploy jobs. See src/served.ts.
+ *
+ * Both serve through the same asset layer (and the same `_headers` file) as
+ * production. Every test runs under the origin guard (specs/fixtures.ts).
+ * RUN_E2E_REPORT=<file> adds a JSON report (the canary reads it).
  */
-import { defineConfig } from '@playwright/test';
+import { defineConfig, type ReporterDescription } from '@playwright/test';
+import { servedMode, shellQuote, wranglerArgs } from './src/served.ts';
 
 const PORT = 8790;
-const WRANGLER = '../../workers/run/node_modules/wrangler/bin/wrangler.js';
+const mode = servedMode(process.env, process.cwd());
+const jsonReport = process.env['RUN_E2E_REPORT'];
+const reporter: ReporterDescription[] = jsonReport === undefined ? [['list']] : [['list'], ['json', { outputFile: jsonReport }]];
 
 export default defineConfig({
   testDir: './specs',
@@ -20,7 +27,7 @@ export default defineConfig({
   forbidOnly: true,
   retries: 0,
   workers: 1,
-  reporter: 'list',
+  reporter,
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
     browserName: 'chromium',
@@ -28,7 +35,7 @@ export default defineConfig({
     bypassCSP: false,
   },
   webServer: {
-    command: `node ${WRANGLER} dev --config ../../workers/run/wrangler.jsonc --port ${PORT} --ip 127.0.0.1 --show-interactive-dev-session=false`,
+    command: ['node', ...wranglerArgs(mode, PORT)].map(shellQuote).join(' '),
     url: `http://127.0.0.1:${PORT}/api/health`,
     reuseExistingServer: false,
     timeout: 60_000,

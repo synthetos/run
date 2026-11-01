@@ -32,7 +32,7 @@ account.
 | `apps/cli` | Bench tooling (Node) |
 | `workers/run` | The Cloudflare Worker serving the app, `/api/*` and `/auth/*`, and the single source of the security headers (`src/headers.ts`) |
 | `tools/gates` | **Dev only.** The repository's lint rules, the licence gate, the gate acceptance tests, and the deploy tools (preflight, asset retention, smoke test) |
-| `tools/e2e` | **Dev only.** Playwright against `wrangler dev`: exact headers, CSP enforcement, Trusted Types (`pnpm e2e`) |
+| `tools/e2e` | **Dev only.** Playwright against `wrangler dev`, serving the local build (`pnpm e2e`) or the attested artifact (`pnpm e2e:artifact`, the CI `e2e` job): exact headers, CSP enforcement, Trusted Types, and the origin guard on every test, plus the third-party canary |
 
 ## Dependency rules
 
@@ -109,7 +109,9 @@ pnpm --filter web build
 `pnpm check` runs typecheck, the gates, tests, the build and the bundle scan
 in that order. `pnpm e2e` builds and runs the Playwright suite against
 `wrangler dev` (`RUN_SCREENSHOTS=1` also writes the review screenshots to
-`docs/design/screenshots/p0-05/`).
+`docs/design/screenshots/p0-05/`). `pnpm e2e:artifact` does what the CI
+`e2e` job does: it assembles and verifies an artifact, runs the suite against
+`wrangler dev` serving it, and runs the third-party canary (docs/ops/ci.md).
 
 Pages and theme (P0-05): every page (`index.html`, `safety/`, `privacy/`,
 `404.html`) is prerendered at build time from the Preact components in

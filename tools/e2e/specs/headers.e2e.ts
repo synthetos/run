@@ -3,7 +3,8 @@
  * T-S25), loads nothing from another origin, and renders under the
  * production CSP without a single violation.
  */
-import { expect, test, type Page, type Response } from '@playwright/test';
+import type { Page, Response } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import { SECURITY_HEADERS } from '../../../workers/run/src/headers.ts';
 
 /** Each security header appears exactly once with exactly the expected value. */
@@ -30,12 +31,10 @@ async function recordViolations(page: Page): Promise<void> {
 const violations = (page: Page): Promise<{ directive: string; blocked: string; sample: string }[]> =>
   page.evaluate(() => (globalThis as unknown as { __violations: { directive: string; blocked: string; sample: string }[] }).__violations);
 
-test('the shell is served with the exact headers, renders, and violates nothing', async ({ page, baseURL }) => {
+test('the shell is served with the exact headers, renders, and violates nothing', async ({ page, originGuard }) => {
   await recordViolations(page);
-  const requests: string[] = [];
   const responses: Response[] = [];
   const consoleErrors: string[] = [];
-  page.on('request', (r) => requests.push(r.url()));
   page.on('response', (r) => responses.push(r));
   page.on('console', (m) => {
     if (m.type() === 'error') consoleErrors.push(m.text());
@@ -60,9 +59,11 @@ test('the shell is served with the exact headers, renders, and violates nothing'
   expect(sub.map((r) => new URL(r.url()).pathname).some((p) => p.endsWith('.woff2'))).toBe(true);
   for (const r of sub) await expectExactHeaders(r);
 
-  // No request leaves the origin (T-S25, SAFETY H5).
-  for (const url of requests) expect(url.startsWith(`${baseURL}/`), url).toBe(true);
+  // No violation in the page, and none seen by the origin guard (which also
+  // fails the test on any external request, T-S25, SAFETY H12).
   expect(await violations(page)).toEqual([]);
+  expect(originGuard.violations).toEqual([]);
+  expect(originGuard.findings).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
 

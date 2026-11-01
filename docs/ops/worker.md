@@ -37,6 +37,7 @@ pnpm build                                  # apps/web/dist
 pnpm --filter @synthetos/run-worker dev     # wrangler dev, http://localhost:8787
 node tools/gates/src/smoke/cli.ts --base-url http://localhost:8787
 pnpm e2e                                    # build, then Playwright against wrangler dev
+pnpm e2e:artifact                           # the CI e2e job: artifact, suite, canary
 ```
 
 `pnpm e2e` (tools/e2e) needs a Chromium for Playwright
@@ -44,7 +45,8 @@ pnpm e2e                                    # build, then Playwright against wra
 - the exact header set, once each, on the shell, every subresource, the 404
   page, `/api/health` and the other `/api` and `/auth` paths;
 - the shell renders with zero CSP violations and zero console errors, the
-  self-hosted Plex faces load, and no request leaves the origin;
+  self-hosted Plex faces load, and no request leaves the origin (the
+  origin guard checks this for every test, see docs/ops/ci.md);
 - an inline `<script>` added to the built page is blocked with a
   `script-src-elem` violation (and, as a control, runs when the CSP header
   is removed);
@@ -54,7 +56,8 @@ pnpm e2e                                    # build, then Playwright against wra
 - Permissions-Policy allows `serial` for the page and denies the other
   device APIs.
 
-The CI job for this suite is P0-06 (against the attested artifact).
+The CI `e2e` job (P0-06) runs this suite against the attested artifact;
+see docs/ops/ci.md, "The e2e job".
 
 ## The artifact
 

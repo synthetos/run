@@ -5,7 +5,7 @@
  * recorded), and the installed window shows the same safety bar and version
  * chip." The manual record is docs/ops/install-check.md.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import { w1, w2Label, w7 } from '../../../packages/safety/src/strings.ts';
 import { PAGES, ready } from './helpers.ts';
 

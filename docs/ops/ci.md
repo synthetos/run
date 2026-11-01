@@ -10,7 +10,7 @@ ROADMAP P0-03, RUN_PLAN §6.2, SAFETY H12 and H46. The workflow is
 |---|---|---|---|
 | `verify` | every PR and every push to `main` | no secret, `contents: read` | Full install (`--frozen-lockfile --ignore-scripts`), then typecheck, lint, dependency-cruiser, licence gate, CI policy (`pnpm ci-policy`), unit tests |
 | `build` | every PR and push | no secret, `contents: read` | Two clean checkouts (`a/`, `b/`). In each one it installs **only the production build toolchain** from a lockfile subset, then builds the web bundle and the Worker script (`tools/gates/src/build/worker-cli.ts`, P0-04). It fails unless the two `dist/` trees, and the two Worker builds, are byte-identical. Then it runs the bundle scan and uploads the artifact `run-web` (`run-web.tar`, `run-worker.tar` and their `.sha256` manifests) |
-| `e2e` | every PR and push | no secret | Placeholder until P0-06. It downloads the artifact and checks it against its manifest |
+| `e2e` | every PR and push | no secret, `contents: read` | Downloads the artifact and checks it against its manifests, then runs the Playwright suite against `wrangler dev` serving **that artifact** under the origin guard (T-S25), then the third-party canary. See "The e2e job" below |
 | `attest` | push to `main` only | `id-token: write`, `attestations: write` | Signs SLSA build provenance for `run-web.tar`, `run-worker.tar` and their manifests with `actions/attest-build-provenance`. It checks out no code and runs none |
 | `deploy-staging` | push to `main` only, and only when `vars.RUN_DEPLOY_ENABLED == 'true'` | environment `staging`, `CLOUDFLARE_API_TOKEN` | Installs wrangler from `ci/deploy-toolchain` (pinned by version and integrity, `--ignore-scripts`). Verifies the attestation (`gh attestation verify`: this repository, this workflow, `refs/heads/main`, this commit, GitHub-hosted runner). Checks the extracted trees against the manifests. Runs the preflight (D34 account, H45 settings) and the Access pre-check, merges the hashed assets of the last 14 days, deploys the attested Worker with `--no-bundle`, runs the smoke test and keeps the deployed state for the next deploy (docs/ops/worker.md). Holds `actions: read` to find the previous deployment's state |
 | `deploy-production` | as staging, after staging succeeds | environment `production` (the owner is a required reviewer), `CLOUDFLARE_API_TOKEN` | The same steps, deploying the **same** attested artifact to production. It promotes the artifact and never rebuilds it |
@@ -41,6 +41,55 @@ requests from forks run only the secret-free jobs.
 Open any PR. The run summary lists `attest`, `deploy-staging` and
 `deploy-production` as **skipped**. Save the run URL in the P0-03 PR.
 
+## The e2e job (P0-06)
+
+ROADMAP P0-06: "the `e2e` job runs Playwright against `wrangler dev` serving
+the attested artifact, intercepts requests to assert no external origins,
+and runs the header tests. Acceptance: T-S25 passes in CI. A third-party URL
+in a built page fails the job."
+
+1. **Install.** A full frozen, script-free install (the job holds no secret
+   and uploads nothing, so test tools here cannot reach the artifact the
+   deploy jobs use), then Chromium through `playwright install --with-deps`.
+2. **The artifact.** It downloads `run-web`, extracts `run-web.tar` to
+   `site/` and `run-worker.tar` to `worker/`, and verifies both against
+   their manifests. These are the bytes `attest` signs and the deploy jobs
+   deploy.
+3. **The suite** (`pnpm --filter @synthetos/e2e e2e`). The job-level env
+   sets `RUN_E2E_SITE` and `RUN_E2E_WORKER`, which put the suite in
+   **artifact mode** (`tools/e2e/src/served.ts`): `wrangler dev
+   worker/index.mjs --no-bundle --assets site --config
+   workers/run/wrangler.jsonc`, the deploy command with `dev` for `deploy`.
+   Setting only one of the two is refused. `served-bytes.e2e.ts` checks that
+   every file of `site/` is served unchanged, so the header, CSP and Trusted
+   Types results hold for exactly these bytes.
+4. **The origin guard** (`tools/e2e/src/guard.ts`) is installed on every
+   test's browser context by `specs/fixtures.ts`. ESLint refuses a spec that
+   imports `test` straight from Playwright, so no test runs without it. It
+   fails the test on any request or WebSocket to another origin (and aborts
+   it, so nothing reaches a third party even from CI), on any
+   resource-loading attribute in a document that points to another origin
+   (including `dns-prefetch` and `preconnect` hints, which never become
+   requests), and on any CSP violation the test did not declare.
+   `origin-guard.e2e.ts` proves each layer in every run.
+5. **The canary** (`pnpm --filter @synthetos/e2e canary`,
+   `tools/e2e/src/canary.ts`). It copies `site/` to a temporary directory,
+   plants a third-party URL in each built page (an image in `/`, a
+   stylesheet in `/safety/`, a script in `/privacy/`, a dns-prefetch hint in
+   the 404 page; all under `.invalid`), runs the whole suite against the copy
+   with the artifact's Worker, and **passes only if the suite fails and the
+   origin guard names every planted URL**. A canary run that passes, or that
+   fails for another reason (wrangler did not start), fails the job. This is
+   the acceptance "a third-party URL in a built page fails the job", checked
+   on every run rather than once.
+
+The policy rule `e2e-job` keeps this shape: no `if:`, `needs: [build]`, the
+two env values, the manifest checks, then the suite, then the canary.
+
+Locally, `pnpm e2e:artifact` does the same: it builds, assembles an
+artifact in a temporary directory (copies instead of tar files), verifies
+it, runs the suite in artifact mode and runs the canary.
+
 ## The CI policy (`pnpm ci-policy`)
 
 `tools/gates/src/workflow/policy.ts` reads every workflow file. It allows a
@@ -58,6 +107,7 @@ cannot follow: anchors, aliases, merge keys and tabs. It enforces:
 | `write-permission` | Top-level permissions are read-only. Only `attest` may hold `id-token: write` and `attestations: write`. `write-all` is refused |
 | `continue-on-error` | Refused, so a failing gate always fails the run |
 | `verify-job` | `ci.yml` runs on `pull_request`, and `verify` is unconditional and runs `pnpm -r test` |
+| `e2e-job` | `e2e` is unconditional, needs `build`, serves the extracted artifact (job-level `RUN_E2E_SITE`, `RUN_E2E_WORKER`), verifies it, then runs the suite, then the canary |
 
 `pnpm ci-policy` also runs two more checks:
 - **CODEOWNERS** (`tools/gates/src/codeowners`):
@@ -148,10 +198,17 @@ deploy jobs first verify the attestation of all four files with
   twice and compares; the deploy jobs deploy it with `--no-bundle`, so they
   deploy only attested bytes.
 
+## Done in P0-06
+
+- The `e2e` job runs the Playwright suite against `wrangler dev` serving the
+  artifact, under the origin guard, and the third-party canary (above).
+- **Proof in CI** needs the GitHub repository: the first PR run shows the
+  `e2e` job's suite passing (T-S25) and the canary line
+  `canary: ok. The suite failed as it must, ...`. Save the run URL in the
+  P0-06 PR.
+
 ## Not finished (by design)
 
-- **e2e is a placeholder.** P0-06 replaces it with the Playwright suite in
-  `tools/e2e` (P0-04) running against `wrangler dev` serving the artifact.
 - **The rest of the RUN_PLAN §6.2 pipeline** joins `verify` with the tasks
   that create it:
   - token drift (P0-05);

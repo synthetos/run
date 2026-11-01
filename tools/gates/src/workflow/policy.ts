@@ -26,6 +26,10 @@
  * - `continue-on-error`: refused, so a failing gate always fails the run.
  * - `verify-job` (ci.yml): a `verify` job with no `if:` runs the tests on
  *   every pull request.
+ * - `e2e-job` (ci.yml, P0-06): the `e2e` job is unconditional, needs
+ *   `build`, points RUN_E2E_SITE and RUN_E2E_WORKER at the extracted
+ *   artifact for every step, verifies both trees against their manifests,
+ *   then runs the suite, then the third-party canary, in that order.
  * - `yaml-subset`: tabs, anchors, aliases and merge keys are refused. They
  *   are valid YAML that this line-based reader could not follow, so they are
  *   not allowed to hide anything from it.
@@ -42,6 +46,20 @@ export const DEPLOY_ENVIRONMENTS: Readonly<Record<string, string>> = {
 export const DEPLOY_NEEDS: readonly string[] = ['verify', 'build', 'e2e', 'attest'];
 export const DEPLOY_SECRET = 'CLOUDFLARE_API_TOKEN';
 
+/** The e2e job's job-level env: the extracted artifact (tools/e2e/src/served.ts). */
+export const E2E_ENV: Readonly<Record<string, string>> = {
+  RUN_E2E_SITE: '${{ github.workspace }}/site',
+  RUN_E2E_WORKER: '${{ github.workspace }}/worker',
+};
+
+/** The e2e job's steps that must appear, in this order (each a whole line of the job). */
+export const E2E_STEPS: readonly string[] = [
+  'node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256',
+  'node tools/gates/src/repro/cli.ts verify worker artifact/run-worker.sha256',
+  'run: pnpm --filter @synthetos/e2e e2e',
+  'run: pnpm --filter @synthetos/e2e canary',
+];
+
 /** The only `write` permission scopes any job may hold, by workflow file and job. */
 export const WRITE_PERMISSIONS: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = {
   'ci.yml': { attest: ['id-token', 'attestations'] },
@@ -57,6 +75,7 @@ export type PolicyRule =
   | 'write-permission'
   | 'continue-on-error'
   | 'verify-job'
+  | 'e2e-job'
   | 'yaml-subset';
 
 export interface PolicyFinding {
@@ -335,6 +354,26 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
       if (jobScalar(verify, 'if') !== undefined) add(verify.line, 'verify-job', 'the verify job must not be conditional');
       if (!verify.lines.some((l) => /^(?:-\s+)?run:\s*pnpm (?:-r )?test\b/.test(l.text))) {
         add(verify.line, 'verify-job', 'the verify job must run the unit tests (pnpm -r test)');
+      }
+    }
+    const e2e = jobs.find((j) => j.name === 'e2e');
+    if (e2e !== undefined) {
+      if (jobScalar(e2e, 'if') !== undefined) add(e2e.line, 'e2e-job', 'the e2e job must not be conditional');
+      if (!listValue(e2e, 'needs').includes('build')) add(e2e.line, 'e2e-job', 'the e2e job must need build (it tests the uploaded artifact)');
+      const env = jobBlock(e2e, 'env').filter((l) => !l.inBlock);
+      for (const [key, value] of Object.entries(E2E_ENV)) {
+        if (!env.some((l) => l.indent === 6 && l.text === `${key}: ${value}`)) {
+          add(e2e.line, 'e2e-job', `the e2e job must set ${key}: ${value} in its job-level env`);
+        }
+      }
+      let previous = 0;
+      for (const step of E2E_STEPS) {
+        const found = e2e.lines.find((l) => l.no > previous && l.text.replace(/^-\s+/, '') === step);
+        if (found === undefined) {
+          add(e2e.line, 'e2e-job', `the e2e job must run '${step}' after the steps before it`);
+        } else {
+          previous = found.no;
+        }
       }
     }
     for (const name of [...DEPLOY_JOBS, ...DEPLOY_NEEDS]) {
