@@ -9,6 +9,10 @@
  * - `open` connects the session to the port the window chose, through the
  *   build's transport source (transport.ts); the session opens it only
  *   through `GuardedTransport` and starts the probe with `{"sr":null}`.
+ *   On a mobile operating system (or ChromeOS, or an OS it cannot tell)
+ *   `open` is refused before the transport source is asked, whatever
+ *   `navigator.serial` offers (T-S77, RUN_PLAN §2.3). The window hides
+ *   Connect there too; this is the check that does not depend on it.
  * - `close` is the session's Disconnect (decided by the allow-matrix).
  * - `intent` (Pause, Stop job, Spindle off, ackFault, acknowledge LOST) and
  *   `read` go straight to the session and are answered at once. No request
@@ -23,7 +27,7 @@
  *
  * It holds no account or network state (DECISIONS D1).
  */
-import { MachineSession, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
+import { MachineSession, liveControlPlatform, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
 import type { Decision } from '@synthetos/safety';
 import { RPC_VERSION, parseRequest, refusal, type Denial, type MachineReply, type SnapshotMessage, type WindowIntent, type WorkerState } from './rpc.ts';
 
@@ -48,13 +52,16 @@ export class MachineWorkerHost {
   readonly #source: TransportSource;
   readonly #clock: SessionClock;
   readonly #session: MachineSession;
+  readonly #platform: PlatformInfo | undefined;
   #subscriber: SnapshotPort | null = null;
   #lastPost = Number.NEGATIVE_INFINITY;
   #pending: number | null = null;
 
-  constructor(source: TransportSource, clock: SessionClock = realClock()) {
+  /** `platform` is the worker's `navigator` (its user agent and client hints) unless a test passes one. */
+  constructor(source: TransportSource, clock: SessionClock = realClock(), platform: PlatformInfo | undefined = (globalThis as { navigator?: PlatformInfo }).navigator) {
     this.#source = source;
     this.#clock = clock;
+    this.#platform = platform;
     this.#session = new MachineSession({ source, clock });
     this.#session.subscribe(() => this.#schedule());
   }
@@ -73,6 +80,8 @@ export class MachineWorkerHost {
     if (request === null) return refusal('invalid', 'invalid-request', 'not a machine worker request');
     switch (request.kind) {
       case 'open': {
+        const platform = liveControlPlatform(this.#platform);
+        if (!platform.allowed) return refusal('open', 'platform', platform.reason);
         const outcome = await this.#session.connect(request.port, { expectedDeviceId: request.boardId });
         if (outcome.ok) return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'open', info: outcome.info });
         if (outcome.code === 'denied') return denied('open', outcome.decision);

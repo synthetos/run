@@ -66,7 +66,9 @@ export type RefusalCode =
   /** The session (through the allow-matrix) refused the request. */
   | 'denied'
   /** The guard or the port refused the open. */
-  | 'open-failed';
+  | 'open-failed'
+  /** Live control is not offered on this operating system (mobile, ChromeOS, unknown; T-S77). */
+  | 'platform';
 
 export type Denial = Extract<Decision, { allowed: false }>;
 

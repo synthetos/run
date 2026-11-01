@@ -6,12 +6,16 @@
  * session against the mock board in the fake-serial build) is asserted by
  * the Playwright suites in tools/e2e.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { PortSelector, SessionClock, Transport, TransportInfo, TransportOpenOptions, TransportSource } from '@synthetos/machine';
 import { SESSION_BAUD_RATES, SESSION_OPEN_OPTIONS } from '@synthetos/machine';
 import { MachineWorkerHost, SNAPSHOT_INTERVAL_MS, realClock, workerState } from '../src/machine-worker/host.ts';
 import { MAX_BOARD_ID_LENGTH, MAX_READ_TOKENS, parseRequest, type SnapshotMessage } from '../src/machine-worker/rpc.ts';
 import { createTransportSource } from '../src/machine-worker/transport.ts';
+
+/** The worker's navigator on a desktop OS: Node's own (`Node.js/<v>`) is not one, and T-S77 refuses an OS it cannot tell. */
+const DESKTOP_NAVIGATOR = Object.freeze({ userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', maxTouchPoints: 0 });
+vi.stubGlobal('navigator', DESKTOP_NAVIGATOR);
 
 /** Edge-next answers (footer rev 3) for the probe and READING, keyed by token. */
 const EN: Readonly<Record<string, string>> = {
@@ -31,6 +35,7 @@ const EN: Readonly<Record<string, string>> = {
   hold: '{"r":{"hold":0},"f":[3,0,10]}',
   vel: '{"r":{"vel":0},"f":[3,0,10]}',
   qr: '{"r":{"qr":32},"f":[3,0,10]}',
+  ex: '{"r":{"ex":1},"f":[3,0,10]}',
   posx: '{"r":{"posx":12.5},"f":[3,0,10]}',
 };
 
@@ -210,6 +215,39 @@ describe('the release transport seam (P1-01: Web Serial)', () => {
     const host = new MachineWorkerHost(createTransportSource());
     expect(await host.handle(OPEN)).toEqual({ v: 3, ok: false, kind: 'open', code: 'unavailable', message: 'no port was chosen' });
     expect(await host.handle(STATUS)).toMatchObject({ v: 3, ok: true, kind: 'status', status: { source: 'serial', state: 'idle', session: { base: 'NOT_CONNECTED' } } });
+  });
+});
+
+describe('T-S77: open is refused on a mobile OS before the transport source is asked', () => {
+  const ANDROID = { userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36', userAgentData: { mobile: true, platform: 'Android' } };
+
+  it('Android with Web Serial: refused with the platform reason; the port is never requested', async () => {
+    const s = source('serial', () => new BoardTransport());
+    const host = new MachineWorkerHost(s, realClock(), ANDROID);
+    const reply = await host.handle(OPEN);
+    expect(reply).toMatchObject({ ok: false, kind: 'open', code: 'platform' });
+    expect((reply as { message: string }).message).toContain('not available on phone or tablet operating systems');
+    expect(s.requests).toBe(0);
+    expect(host.session.snapshot.base).toBe('NOT_CONNECTED');
+  });
+
+  it('ChromeOS and an unknown OS are refused too; the default reads the worker navigator', async () => {
+    const cros = new MachineWorkerHost(source('serial', () => new BoardTransport()), realClock(), { userAgent: 'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) Chrome/140.0.0.0' });
+    expect(await cros.handle(OPEN)).toMatchObject({ code: 'platform' });
+    const none = new MachineWorkerHost(source('serial', () => new BoardTransport()), realClock(), {});
+    expect(await none.handle(OPEN)).toMatchObject({ code: 'platform' });
+    vi.stubGlobal('navigator', ANDROID);
+    try {
+      expect(await new MachineWorkerHost(source('serial', () => new BoardTransport())).handle(OPEN)).toMatchObject({ code: 'platform' });
+    } finally {
+      vi.stubGlobal('navigator', DESKTOP_NAVIGATOR);
+    }
+  });
+
+  it('Pause is still answered on a refused platform (stops are never gated)', async () => {
+    const host = new MachineWorkerHost(source('serial', () => new BoardTransport()), realClock(), ANDROID);
+    await host.handle(OPEN);
+    expect(await host.handle({ v: 3, kind: 'intent', intent: 'feedhold' })).toMatchObject({ kind: 'intent' });
   });
 });
 
