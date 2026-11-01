@@ -7,7 +7,13 @@
  * protection; docs/ops/branch-protection.md.)
  *
  *   node tools/gates/src/review/cli.ts --files files.json --reviews reviews.json \
- *     --permissions permissions.json --author <login> --head-sha <sha> --body-file body.md
+ *     --permissions permissions.json --author <login> --head-sha <sha> --body-file body.md \
+ *     --pr <number> --record review-record.md --record-compare review-compare.json
+ *
+ * review-record.md is the PR's `docs/safety/reviews/pr-<N>.md` at the head
+ * (empty when the PR has none); review-compare.json is GitHub's compare of
+ * the record's reviewed commit with the head (`null` when there was nothing
+ * to compare). Both are required arguments (D40, reviewRecord.ts).
  *
  * permissions.json is a JSON array of the answers of GET
  * /repos/{owner}/{repo}/collaborators/{username}/permission, one per
@@ -16,7 +22,7 @@
  * Exit status: 0 pass, 1 requirements not met, 2 could not run.
  */
 import { readFileSync } from 'node:fs';
-import { evaluateSafetyReview, parsePermissions, type Review } from './safetyReview.ts';
+import { evaluateSafetyReview, parsePermissions, REQUIRED_SAFETY_APPROVALS, type Review } from './safetyReview.ts';
 
 function arg(argv: readonly string[], flag: string): string {
   const index = argv.indexOf(flag);
@@ -55,6 +61,10 @@ function main(argv: readonly string[]): number {
     const permissionData = JSON.parse(readFileSync(arg(argv, '--permissions'), 'utf8')) as unknown;
     if (!Array.isArray(permissionData)) throw new Error('--permissions: expected a JSON array of permission answers');
     const permissions = parsePermissions(permissionData);
+    const prArg = arg(argv, '--pr');
+    if (!/^[1-9][0-9]*$/.test(prArg)) throw new Error('--pr: expected a pull request number');
+    const recordText = readFileSync(arg(argv, '--record'), 'utf8');
+    const recordCompare = JSON.parse(readFileSync(arg(argv, '--record-compare'), 'utf8')) as unknown;
     const result = evaluateSafetyReview({
       permissions,
       author: arg(argv, '--author'),
@@ -62,6 +72,9 @@ function main(argv: readonly string[]): number {
       body: readFileSync(arg(argv, '--body-file'), 'utf8'),
       changedFiles,
       reviews,
+      prNumber: Number(prArg),
+      reviewRecord: recordText.trim() === '' ? undefined : recordText,
+      recordCompare,
     });
     if (result.safetyPaths.length === 0) {
       process.stdout.write('safety review: no safety-review path touched; the normal review rules apply\n');
@@ -74,7 +87,7 @@ function main(argv: readonly string[]): number {
       for (const p of result.problems) process.stderr.write(`safety review: ${p}\n`);
       return 1;
     }
-    process.stdout.write('safety review: checklist complete and approvals present\n');
+    process.stdout.write(`safety review: checklist complete, independent review record bound to the head, ${REQUIRED_SAFETY_APPROVALS} approval(s) required and present\n`);
     return 0;
   } catch (error) {
     process.stderr.write(`safety review: could not run: ${error instanceof Error ? error.message : String(error)}\n`);

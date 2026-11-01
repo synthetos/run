@@ -8,7 +8,9 @@
  * second reviewer signs the "Safety review" approval.
  *
  * A PR touching any of these paths must carry the completed checklist from
- * `.github/pull_request_template.md` and two approvals (tools/gates/src/review).
+ * `.github/pull_request_template.md` and a recorded independent review, plus
+ * the approvals tools/gates/src/review/reviewPolicy.ts requires (D40: none
+ * while there is a single maintainer, two once a second one joins).
  * The list is deliberately broad: a false positive costs a checklist, a
  * false negative skips a safety review. When a later task adds a directory
  * that belongs here (a jog panel, the job loader, the profile-diff module),
@@ -33,7 +35,7 @@ export const SAFETY_REVIEW_PATHS: readonly string[] = [
   '/apps/web/src/cloud/',
   '/apps/web/src/loaders/',
   // The run Worker headers and everything that carries them (RUN_PLAN §6.4,
-  // T-S25, SAFETY H45, D34; ROADMAP P0-04).
+  // T-S25, SAFETY H45, D39; ROADMAP P0-04).
   '/workers/run/src/headers.ts',
   '/workers/run/wrangler.jsonc',
   '/apps/web/public/_headers',

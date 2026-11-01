@@ -7,9 +7,13 @@ safety, flasher, schema, testkit, jog/control/firmware UI, the machine
 workers, the cloud client and loaders, the run Worker headers, SAFETY.md,
 firmware and safety data, the vendored HIL tables, the CI gates and the
 supply-chain files). The `safety-review` check then fails until every item
-is ticked and two reviewers other than the author have approved the head
-commit. Tick an item that does not apply only after checking that it does
-not, and say why under "Notes for the safety reviewer".
+is ticked and the PR commits its recorded independent review as
+docs/safety/reviews/pr-<N>.md, bound to the head (D40; the format is in
+docs/safety/reviews/README.md), plus the approvals
+tools/gates/src/review/reviewPolicy.ts requires (none while there is a
+single maintainer, two once a second one joins). Tick an item that does not
+apply only after checking that it does not, and say why under "Notes for
+the safety reviewer".
 
 Do not reword, renumber or delete items: the check reads them by number.
 -->

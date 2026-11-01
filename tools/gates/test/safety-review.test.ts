@@ -13,10 +13,12 @@ import {
   evaluateSafetyReview,
   parsePermissions,
   type PullRequestFacts,
+  REQUIRED_SAFETY_APPROVALS,
   type Review,
   touchedSafetyPaths,
 } from '../src/review/safetyReview.ts';
 import { checkTemplate, safetyChecklistItems, templateItems } from '../src/review/template.ts';
+import { compare, PR_NUMBER, record } from './reviewRecordFixture.ts';
 import { REPO_ROOT, ScratchRepo } from './scratch.ts';
 
 const SAFETY = readFileSync(join(REPO_ROOT, 'SAFETY.md'), 'utf8');
@@ -39,8 +41,23 @@ const writers = (...logins: string[]): ReturnType<typeof parsePermissions> =>
 const WRITERS = writers('alice', 'bob', 'carol', 'dave');
 
 function pr(overrides: Partial<PullRequestFacts>): PullRequestFacts {
-  return { author: 'alice', headSha: HEAD, body: TICKED, changedFiles: ['packages/safety/src/index.ts'], reviews: [approve('bob'), approve('carol')], permissions: WRITERS, ...overrides };
+  const changedFiles = overrides.changedFiles ?? ['packages/safety/src/index.ts'];
+  return {
+    author: 'alice',
+    headSha: HEAD,
+    body: TICKED,
+    changedFiles,
+    reviews: [approve('bob'), approve('carol')],
+    permissions: WRITERS,
+    prNumber: PR_NUMBER,
+    reviewRecord: record(touchedSafetyPaths(changedFiles)),
+    recordCompare: compare(HEAD),
+    ...overrides,
+  };
 }
+
+/** The two-approval rule SAFETY §8 asks for, which returns when a second maintainer joins (reviewPolicy.ts, D40). */
+const TWO_MAINTAINERS = { requiredApprovals: 2 };
 
 describe('the PR template', () => {
   it('carries items 1 to 40, unticked, with 22 to 40 verbatim from SAFETY.md §8', () => {
@@ -91,8 +108,8 @@ describe('the decision', () => {
     expect(result.problems).toEqual([]);
   });
 
-  it('passes a safety PR with the full checklist and two approvals of the head commit', () => {
-    const result = evaluateSafetyReview(pr({}));
+  it('passes a safety PR with the full checklist and two approvals of the head commit (two-maintainer rule)', () => {
+    const result = evaluateSafetyReview(pr({}), TWO_MAINTAINERS);
     expect(result.problems).toEqual([]);
     expect(result.approvers).toEqual(['bob', 'carol']);
   });
@@ -108,8 +125,8 @@ describe('the decision', () => {
     expect(evaluateSafetyReview(pr({ body: TICKED.replace(/^- \[x\] 12\. .*\n/m, '') })).problems).toEqual(['checklist items missing from the description: 12']);
   });
 
-  it('fails a safety PR with one approval', () => {
-    const problems = evaluateSafetyReview(pr({ reviews: [approve('bob')] })).problems;
+  it('fails a safety PR with one approval (two-maintainer rule)', () => {
+    const problems = evaluateSafetyReview(pr({ reviews: [approve('bob')] }), TWO_MAINTAINERS).problems;
     expect(problems).toEqual(['1 approval(s) of the head commit from reviewers other than the author with write access to this repository; 2 are required for safety-review paths']);
   });
 
@@ -156,7 +173,7 @@ describe('counting approvals', () => {
       { permission: 'read', user: { login: 'member' } },
     ]);
     expect(approversOfHead(reviews, 'alice', HEAD, permissions)).toEqual(['owner', 'trudy']);
-    expect(evaluateSafetyReview(pr({ reviews: [reviews[0] as Review, reviews[3] as Review], permissions })).problems).toEqual([
+    expect(evaluateSafetyReview(pr({ reviews: [reviews[0] as Review, reviews[3] as Review], permissions }), TWO_MAINTAINERS).problems).toEqual([
       '0 approval(s) of the head commit from reviewers other than the author with write access to this repository; 2 are required for safety-review paths',
     ]);
   });
@@ -198,22 +215,46 @@ describe('the CLI, fed the GitHub API shapes', () => {
         permissions,
         JSON.stringify(['bob', 'carol'].map((login) => ({ permission: 'write', role_name: 'write', user: { login, type: 'User', permissions: { push: true } } }))),
       );
+      const recordFile = join(repo.base, 'review-record.md');
+      const compareFile = join(repo.base, 'review-compare.json');
+      writeFileSync(recordFile, record(['packages/machine/src/stopJob.ts']));
+      writeFileSync(compareFile, JSON.stringify(compare(HEAD)));
       const args = ['--files', files, '--reviews', reviews, '--permissions', permissions, '--body-file', body, '--author', 'alice', '--head-sha', HEAD];
-      const ok = repo.gate('tools/gates/src/review/cli.ts', args);
+      const recordArgs = ['--pr', String(PR_NUMBER), '--record', recordFile, '--record-compare', compareFile];
+      const all = [...args, ...recordArgs];
+      // The committed policy decides how many approvals are needed (D40: zero with one maintainer).
+      const expectedFor = (approvals: number): number => (approvals >= REQUIRED_SAFETY_APPROVALS ? 0 : 1);
+      const ok = repo.gate('tools/gates/src/review/cli.ts', all);
       expect(ok.status, ok.output).toBe(0);
       expect(ok.output).toContain('approvals of the head commit: bob, carol');
       expect(ok.output).toContain('packages/machine/src/stopJob.ts');
 
       writeFileSync(reviews, JSON.stringify([[review('bob')], [review('mallory', 'NONE')]]));
-      const outsider = repo.gate('tools/gates/src/review/cli.ts', args);
-      expect(outsider.status, outsider.output).toBe(1);
+      const outsider = repo.gate('tools/gates/src/review/cli.ts', all);
+      expect(outsider.output).toContain('approvals of the head commit: bob\n');
+      expect(outsider.status, outsider.output).toBe(expectedFor(1));
 
       writeFileSync(reviews, JSON.stringify([[review('bob')]]));
-      const one = repo.gate('tools/gates/src/review/cli.ts', args);
-      expect(one.status, one.output).toBe(1);
+      const one = repo.gate('tools/gates/src/review/cli.ts', all);
+      expect(one.status, one.output).toBe(expectedFor(1));
+
+      // D40: the recorded independent review is required whatever the approvals.
+      writeFileSync(reviews, JSON.stringify([[review('bob')], [review('carol')]]));
+      writeFileSync(recordFile, '');
+      const noRecord = repo.gate('tools/gates/src/review/cli.ts', all);
+      expect(noRecord.status, noRecord.output).toBe(1);
+      expect(noRecord.output).toContain(`no independent review record: commit docs/safety/reviews/pr-${PR_NUMBER}.md`);
+      writeFileSync(recordFile, record(['packages/machine/src/stopJob.ts']));
+      writeFileSync(compareFile, 'null');
+      expect(repo.gate('tools/gates/src/review/cli.ts', all).status).toBe(1);
+      writeFileSync(compareFile, JSON.stringify(compare(HEAD)));
+
+      // The record arguments are required: without them the check cannot run.
+      expect(repo.gate('tools/gates/src/review/cli.ts', args).status).toBe(2);
+      expect(repo.gate('tools/gates/src/review/cli.ts', [...args, '--pr', '0', '--record', recordFile, '--record-compare', compareFile]).status).toBe(2);
 
       writeFileSync(files, JSON.stringify([[]]));
-      expect(repo.gate('tools/gates/src/review/cli.ts', args).status).toBe(2);
+      expect(repo.gate('tools/gates/src/review/cli.ts', all).status).toBe(2);
     } finally {
       repo.dispose();
     }

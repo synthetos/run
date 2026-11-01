@@ -164,6 +164,19 @@ describe('safety-review-job', () => {
     expect(rules(noPass, 'safety-review.yml')).toContain('safety-review-job');
   });
 
+  it('fails when the D40 review record is not fetched, not bound to the head, or not passed to the gate', () => {
+    const otherPath = mutate(REVIEW, 'record="docs/safety/reviews/pr-$PR_NUMBER.md"', 'record="docs/safety/reviews/any.md"');
+    expect(rules(otherPath, 'safety-review.yml')).toContain('safety-review-job');
+    const noFetch = mutate(REVIEW, '/contents/$record?ref=$HEAD_SHA"', '/contents/$record?ref=main"');
+    expect(rules(noFetch, 'safety-review.yml')).toContain('safety-review-job');
+    const noCompare = mutate(REVIEW, '/compare/$reviewed...$HEAD_SHA"', '/compare/$reviewed...$reviewed"');
+    expect(rules(noCompare, 'safety-review.yml')).toContain('safety-review-job');
+    const noRecord = mutate(REVIEW, '            --record "$RUNNER_TEMP/review-record.md" \\\n', '');
+    expect(rules(noRecord, 'safety-review.yml')).toContain('safety-review-job');
+    const noBinding = mutate(REVIEW, '            --record-compare "$RUNNER_TEMP/review-compare.json"\n', '');
+    expect(rules(noBinding, 'safety-review.yml')).toContain('safety-review-job');
+  });
+
   it('applies to the workflow file however it is named on the command line', () => {
     const index = REVIEW.lastIndexOf('        run: |');
     const bad = `${REVIEW.slice(0, index)}        run: true\n`;

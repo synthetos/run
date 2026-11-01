@@ -4,8 +4,13 @@
  * When a PR touches a safety-review path (shared/safetyPaths.ts), it passes
  * only if:
  * - the PR description carries the SAFETY §8 checklist from the PR template
- *   with every item, 1 to 40, ticked; and
- * - at least `REQUIRED_SAFETY_APPROVALS` distinct reviewers other than the
+ *   with every item, 1 to 40, ticked;
+ * - the PR carries its recorded independent review
+ *   (`docs/safety/reviews/pr-<N>.md`, reviewRecord.ts), complete, approving,
+ *   covering every safety path touched and bound to the head tree (D40); and
+ * - at least `REQUIRED_SAFETY_APPROVALS` (reviewPolicy.ts: zero while there
+ *   is a single maintainer, D40; two again when a second maintainer joins)
+ *   distinct reviewers other than the
  *   author have approved the PR's head commit, counting each reviewer's
  *   latest decisive review (a later "changes requested" or a dismissal
  *   cancels an approval; plain comments do not count either way), and only
@@ -22,16 +27,24 @@
  * PR can rewrite the workflow that runs it. The primary control is GitHub's
  * native branch protection (docs/ops/branch-protection.md).
  *
- * A PR that touches no such path passes; branch protection's single
- * required review applies to it. Owner review of the CODEOWNERS paths is
+ * A PR that touches no such path passes; branch protection's own review
+ * rules apply to it (none while D40's single maintainer is the only one). Owner review of the CODEOWNERS paths is
  * enforced by GitHub itself ("Require review from Code Owners").
  *
  * Dependency-free and pure: the CLI feeds it the GitHub API's answers.
  */
 import { matches } from '../shared/glob.ts';
 import { SAFETY_REVIEW_PATHS } from '../shared/safetyPaths.ts';
+import { REQUIRED_SAFETY_APPROVALS, reviewRecordPath } from './reviewPolicy.ts';
+import { checkReviewRecord } from './reviewRecord.ts';
 
-export const REQUIRED_SAFETY_APPROVALS = 2;
+export { REQUIRED_SAFETY_APPROVALS } from './reviewPolicy.ts';
+
+/** What the check requires; the default is the committed policy (reviewPolicy.ts). */
+export interface SafetyReviewPolicy {
+  readonly requiredApprovals: number;
+}
+export const COMMITTED_POLICY: SafetyReviewPolicy = { requiredApprovals: REQUIRED_SAFETY_APPROVALS };
 
 /**
  * The `permission` values of the permission endpoint that include push access
@@ -111,6 +124,12 @@ export interface PullRequestFacts {
   readonly reviews: readonly Review[];
   /** Each reviewer's current permission on this repository (parsePermissions). */
   readonly permissions: ReviewerPermissions;
+  /** The pull request number (names the review record). */
+  readonly prNumber: number;
+  /** The review record's text at the head (reviewRecord.ts), or undefined when the PR has none. */
+  readonly reviewRecord: string | undefined;
+  /** GitHub's compare of the record's reviewed commit with the head, or undefined when not fetched. */
+  readonly recordCompare: unknown;
 }
 
 export interface SafetyReviewResult {
@@ -150,7 +169,9 @@ export function approversOfHead(reviews: readonly Review[], author: string, head
     .sort();
 }
 
-export function evaluateSafetyReview(pr: PullRequestFacts): SafetyReviewResult {
+export function evaluateSafetyReview(pr: PullRequestFacts, policy: SafetyReviewPolicy = COMMITTED_POLICY): SafetyReviewResult {
+  const required = policy.requiredApprovals;
+  if (!Number.isSafeInteger(required) || required < 0) throw new Error(`invalid required approval count: ${String(required)}`);
   const safetyPaths = touchedSafetyPaths(pr.changedFiles);
   const approvers = approversOfHead(pr.reviews, pr.author, pr.headSha, pr.permissions);
   if (safetyPaths.length === 0) return { safetyPaths, approvers, problems: [] };
@@ -165,10 +186,21 @@ export function evaluateSafetyReview(pr: PullRequestFacts): SafetyReviewResult {
     if (missing.length > 0) problems.push(`checklist items missing from the description: ${missing.join(', ')}`);
     if (open.length > 0) problems.push(`checklist items not ticked: ${open.join(', ')}`);
   }
-  if (approvers.length < REQUIRED_SAFETY_APPROVALS) {
+  problems.push(
+    ...checkReviewRecord({
+      prNumber: pr.prNumber,
+      recordPath: reviewRecordPath(pr.prNumber),
+      author: pr.author,
+      headSha: pr.headSha,
+      safetyPaths,
+      record: pr.reviewRecord,
+      compare: pr.recordCompare,
+    }),
+  );
+  if (approvers.length < required) {
     problems.push(
       `${approvers.length} approval(s) of the head commit from reviewers other than the author with write access to this repository; ` +
-        `${REQUIRED_SAFETY_APPROVALS} are required for safety-review paths`,
+        `${required} are required for safety-review paths`,
     );
   }
   return { safetyPaths, approvers, problems };

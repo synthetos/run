@@ -58,8 +58,11 @@
  *   deploy job, the staging pre-deploy Access check included, sets the
  *   Cloudflare token and account in its own env.
  * - `safety-review-job` (safety-review.yml): the gate runs from the base
- *   commit with the reviewers' repository permissions. A consistency check
- *   only: the primary control is native branch protection.
+ *   commit with the reviewers' repository permissions and the PR's recorded
+ *   independent review bound to the head (D40). This is the rule against a
+ *   PR weakening its own enforcement workflow (replacing the gate step with
+ *   `run: true` fails it). A consistency check only: the primary control is
+ *   native branch protection.
  * - `yaml-subset`: tabs, anchors, aliases and merge keys are refused. They
  *   are valid YAML that this line-based reader could not follow, so they are
  *   not allowed to hide anything from it.
@@ -674,17 +677,26 @@ export const SAFETY_REVIEW_LINES: readonly string[] = [
   'ref: ${{ github.event.pull_request.base.sha }}',
   'gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" --paginate --slurp > "$RUNNER_TEMP/reviews.json"',
   'gh api "repos/$GITHUB_REPOSITORY/collaborators/$login/permission"',
+  // D40: the recorded independent review, read at the head, and the
+  // comparison that binds it to the head tree.
+  'record="docs/safety/reviews/pr-$PR_NUMBER.md"',
+  'gh api -H "Accept: application/vnd.github.raw+json" "repos/$GITHUB_REPOSITORY/contents/$record?ref=$HEAD_SHA" > "$RUNNER_TEMP/review-record.md"',
+  'gh api "repos/$GITHUB_REPOSITORY/compare/$reviewed...$HEAD_SHA" > "$RUNNER_TEMP/review-compare.json"',
   'node tools/gates/src/review/cli.ts \\',
   '--permissions "$RUNNER_TEMP/permissions.json" \\',
+  '--pr "$PR_NUMBER" \\',
+  '--record "$RUNNER_TEMP/review-record.md" \\',
+  '--record-compare "$RUNNER_TEMP/review-compare.json"',
 ];
 
 /**
  * safety-review.yml: the gate runs from the base commit and is given the
- * reviewers' actual repository permissions (`safety-review-job`). This only
- * checks the file as committed: a pull request can edit this policy as well,
- * so the primary control is GitHub's native branch protection (required
- * approvals from reviewers with write access, Code Owner review of .github/
- * and tools/gates/; docs/ops/branch-protection.md).
+ * reviewers' actual repository permissions and the recorded independent
+ * review (D40) (`safety-review-job`). This only checks the file as
+ * committed: a pull request can edit this policy as well, so the primary
+ * control is GitHub's native branch protection (required status checks, the
+ * protected environment, and with a second maintainer required approvals and
+ * Code Owner review; docs/ops/branch-protection.md).
  */
 function checkSafetyReviewJob(jobs: readonly Job[], add: (line: number, rule: PolicyRule, message: string) => void): void {
   const job = jobs.find((j) => j.name === 'safety-review');

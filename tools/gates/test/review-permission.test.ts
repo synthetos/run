@@ -18,9 +18,11 @@ import {
   evaluateSafetyReview,
   parsePermissions,
   type PullRequestFacts,
+  REQUIRED_SAFETY_APPROVALS,
   type Review,
   type ReviewerPermissions,
 } from '../src/review/safetyReview.ts';
+import { compare, PR_NUMBER, record } from './reviewRecordFixture.ts';
 import { REPO_ROOT, ScratchRepo } from './scratch.ts';
 
 const TEMPLATE = readFileSync(join(REPO_ROOT, '.github/pull_request_template.md'), 'utf8');
@@ -39,19 +41,23 @@ const answer = (login: string, permission: string, roleName = permission, type =
 const perms = (...entries: Record<string, unknown>[]): ReviewerPermissions => parsePermissions(entries);
 
 function pr(reviews: Review[], permissions: ReviewerPermissions): PullRequestFacts {
-  return { author: 'owner', headSha: HEAD, body: TICKED, changedFiles: ['packages/safety/src/index.ts'], reviews, permissions };
+  const changedFiles = ['packages/safety/src/index.ts'];
+  return { author: 'owner', headSha: HEAD, body: TICKED, changedFiles, reviews, permissions, prNumber: PR_NUMBER, reviewRecord: record(changedFiles), recordCompare: compare(HEAD) };
 }
+
+/** The approval counting below is the two-maintainer rule (reviewPolicy.ts, D40), which must keep working for when it returns. */
+const TWO_MAINTAINERS = { requiredApprovals: 2 };
 
 describe("the reviewer's reproduction", () => {
   it('two read-only organisation MEMBERs no longer satisfy the check', () => {
     const reviews = ['readonly-org-member-1', 'readonly-org-member-2'].map((u) => approve(u));
     // With no permission evidence at all: nothing counts.
-    expect(evaluateSafetyReview(pr(reviews, perms())).problems).toEqual([
+    expect(evaluateSafetyReview(pr(reviews, perms()), TWO_MAINTAINERS).problems).toEqual([
       '0 approval(s) of the head commit from reviewers other than the author with write access to this repository; 2 are required for safety-review paths',
     ]);
     // With the actual answer (read): nothing counts either.
     const readOnly = perms(answer('readonly-org-member-1', 'read'), answer('readonly-org-member-2', 'read'));
-    expect(evaluateSafetyReview(pr(reviews, readOnly)).approvers).toEqual([]);
+    expect(evaluateSafetyReview(pr(reviews, readOnly), TWO_MAINTAINERS).approvers).toEqual([]);
   });
 });
 
@@ -76,9 +82,9 @@ describe('which approvals count', () => {
   it('a revoked permission (the current answer is read or none) cancels an earlier approval', () => {
     const before = perms(answer('bob', 'write'), answer('carol', 'write'));
     const reviews = [approve('bob'), approve('carol')];
-    expect(evaluateSafetyReview(pr(reviews, before)).problems).toEqual([]);
+    expect(evaluateSafetyReview(pr(reviews, before), TWO_MAINTAINERS).problems).toEqual([]);
     const after = perms(answer('bob', 'write'), answer('carol', 'none'));
-    expect(evaluateSafetyReview(pr(reviews, after)).approvers).toEqual(['bob']);
+    expect(evaluateSafetyReview(pr(reviews, after), TWO_MAINTAINERS).approvers).toEqual(['bob']);
   });
 
   it('bots never count, even with write access', () => {
@@ -117,18 +123,24 @@ describe('the CLI, fed the API shapes', () => {
       const review = (login: string): object => ({ user: { login }, state: 'APPROVED', commit_id: HEAD, author_association: 'MEMBER', submitted_at: '2026-11-01T10:00:00Z' });
       writeFileSync(reviews, JSON.stringify([[review('bob'), review('carol')]]));
       writeFileSync(body, TICKED);
-      const base = ['--files', files, '--reviews', reviews, '--body-file', body, '--author', 'alice', '--head-sha', HEAD];
+      const recordFile = join(repo.base, 'review-record.md');
+      const compareFile = join(repo.base, 'review-compare.json');
+      writeFileSync(recordFile, record(['packages/safety/src/index.ts']));
+      writeFileSync(compareFile, JSON.stringify(compare(HEAD)));
+      const base = ['--files', files, '--reviews', reviews, '--body-file', body, '--author', 'alice', '--head-sha', HEAD, '--pr', String(PR_NUMBER), '--record', recordFile, '--record-compare', compareFile];
+      // The committed policy decides how many approvals are needed (D40: zero with one maintainer).
+      const expectedFor = (approvals: number): number => (approvals >= REQUIRED_SAFETY_APPROVALS ? 0 : 1);
 
       expect(repo.gate('tools/gates/src/review/cli.ts', base).status).toBe(2);
 
       writeFileSync(permissions, JSON.stringify([answer('bob', 'write'), answer('carol', 'read')]));
       const one = repo.gate('tools/gates/src/review/cli.ts', [...base, '--permissions', permissions]);
-      expect(one.status, one.output).toBe(1);
-      expect(one.output).toContain('approvals of the head commit: bob');
+      expect(one.output).toContain('approvals of the head commit: bob\n');
+      expect(one.status, one.output).toBe(expectedFor(1));
 
       writeFileSync(permissions, JSON.stringify([answer('bob', 'write'), answer('carol', 'admin')]));
       const two = repo.gate('tools/gates/src/review/cli.ts', [...base, '--permissions', permissions]);
-      expect(two.status, two.output).toBe(0);
+      expect(two.status, two.output).toBe(expectedFor(2));
       expect(two.output).toContain('approvals of the head commit: bob, carol');
     } finally {
       repo.dispose();
