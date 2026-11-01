@@ -526,8 +526,11 @@ export class JobModel {
    * - Radius mode: the firmware turns linear units into degrees at `ra`
    *   (@cite EN canonical_machine.c:482-487; TG canonical_machine.c:430-440),
    *   so one degree is π ra / 180 mm of surface travel at that radius.
-   * - Disabled: the axis is skipped when the target is set and never moves
-   *   (@cite EN canonical_machine.c:513-514; TG canonical_machine.c:457).
+   * - Disabled: the axis is skipped when the target is set, so its position
+   *   does not change (@cite EN canonical_machine.c:513-514; TG
+   *   canonical_machine.c:457). Its motor still follows its position: after
+   *   inhibited mode it can be driven out to it (the remainder of the
+   *   inhibited-axis finding, not visible in any read).
    * - Standard: degrees with no physical radius known, so unknown.
    * - Inhibited: the kinematics force the absolute joint to 0 (@cite EN
    *   kinematics.c:59; TG kinematics.c:63), so a motor away from 0 can move

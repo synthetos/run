@@ -89,7 +89,12 @@ export const AXIS_MODE_RADIUS: AxisMode = 3;
  * In radius mode both firmwares read the axis word in LINEAR units and turn
  * it into degrees: `_to_millimeters(v) × 360 / (2π × ra)` (@cite EN
  * canonical_machine.c:484-487 `_calc_ABC`; TG the same). A disabled axis
- * ignores its word and never moves.
+ * ignores its word, so its position does not change, but its joint is its
+ * position (only INHIBITED zeroes it): an axis switched from inhibited to
+ * disabled (or any other mode) while its position is away from its step
+ * target is driven out to its position by the next move of ANY axis, like
+ * one switched back to standard (the remainder of the inhibited-axis
+ * finding: not visible in any read).
  *
  * An INHIBITED axis does NOT only move less than modelled (finding:
  * inhibited axis). Its position follows the program, but the kinematics

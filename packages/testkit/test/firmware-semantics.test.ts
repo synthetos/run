@@ -355,6 +355,18 @@ describe('inhibited axes: the motor is driven to step 0 by any move (kinematics.
       expect(sim.device.snapshot().motors[1]).toBeCloseTo(10, 6);
     });
 
+    it(`[${tag}] ${name}: leaving inhibited mode for DISABLED also drives the motor out to the position on the next move of any axis`, () => {
+      const sim = make();
+      expect(send(sim, '{"aam":2}')).toEqual([0]);
+      expect(send(sim, 'G90 G21 G0 A30', 60_000)).toEqual([0]);
+      expect(sim.device.snapshot().motors[3]).toBe(0);
+      expect(send(sim, '{"aam":0}')).toEqual([0]);
+      expect(send(sim, 'G0 X1', 60_000)).toEqual([0]);
+      const s = sim.device.snapshot();
+      expect(s.position[3]).toBeCloseTo(30, 6);
+      expect(s.motors[3]).toBeCloseTo(30, 6); // disabled ignores A words, but its joint is its position
+    });
+
     it(`[${tag}] ${name}: a disabled axis keeps its motor where its position is (no zeroing)`, () => {
       const sim = make();
       expect(send(sim, 'G90 G21 G0 Y10', 60_000)).toEqual([0]);
