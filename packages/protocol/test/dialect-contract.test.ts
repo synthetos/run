@@ -69,6 +69,13 @@ describe('contract: identity and tables', () => {
 });
 
 describe('contract: realtime bytes', () => {
+  it('among the dialects run may stream (mode manifest), only tinyg-en has ^D or ENQ (SAFETY §8 item 29)', () =>
+    each((d) => {
+      if (d.mode !== 'manifest' || d.id === 'tinyg-en') return;
+      expect(d.realtime.kill, d.id).toBeUndefined();
+      expect(d.realtime.enq, d.id).toBeUndefined();
+    }));
+
   it('kill and enq exist exactly when the caps say so', () =>
     each((d) => {
       expect(d.realtime.kill !== undefined, d.id).toBe(d.caps.jobKill);

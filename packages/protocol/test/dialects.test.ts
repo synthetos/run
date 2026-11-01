@@ -129,11 +129,14 @@ describe('capabilities, limits and flow (PN §6.2, §7, §9)', () => {
     });
   });
 
-  it('TG: all of them false; the M0 and arc corrections are encoded (PN §9.2, §10.2)', () => {
-    const { footerRevs, spindlePauseOnHold, ...flags } = TINYG_440.caps;
+  it('TG: all of them false except m2ClearsAlarm; the M0 and arc corrections are encoded (PN §9.2, §10.2)', () => {
+    const { footerRevs, spindlePauseOnHold, m2ClearsAlarm, ...flags } = TINYG_440.caps;
     expect(Object.values(flags).every((v) => v === false)).toBe(true);
     expect(footerRevs).toEqual([1]);
     expect(spindlePauseOnHold).toBe('never');
+    // A queued program end overwrites the soft alarm's machine_state (TG canonical_machine.c:1351-1353):
+    // a buffered M2/M30 clears the alarm on 440.21 too, so it must be held back (H35).
+    expect(m2ClearsAlarm).toBe(true);
   });
 
   it('limits: EN ring 250, headroom 12, 12 line headers; TG ring 254, headroom 4', () => {
@@ -155,12 +158,12 @@ describe('capabilities, limits and flow (PN §6.2, §7, §9)', () => {
     expect(G2CORE_EDGE.flow.engine).toMatchObject({ kind: 'lineWindow', linesInFlightMax: 4 });
   });
 
-  it('G-code rules (PN §9.3): TG L2 only, EN L2/L20; barriers M0/M60/M1; EN holds back M2/M30', () => {
+  it('G-code rules (PN §9.3): TG L2 only, EN L2/L20; barriers M0/M60/M1; every TinyG dialect holds back M2/M30', () => {
     expect(TINYG_440.gcode.lWords).toEqual([2]);
     expect(TINYG_EN.gcode.lWords).toEqual([2, 20]);
     for (const d of [TINYG_EN, TINYG_440]) expect(d.gcode.barrierCodes).toEqual(['M0', 'M60', 'M1']);
-    expect(TINYG_EN.gcode.holdbackEndCodes).toEqual(['M2', 'M30']);
-    expect(TINYG_440.gcode.holdbackEndCodes).toEqual([]);
+    // EN: E135 (a standalone M2/M30 clears ALARM). TG: a queued program end overwrites the soft alarm.
+    for (const d of [TINYG_EN, TINYG_440, TINYG_449_STOCK]) expect(d.gcode.holdbackEndCodes, d.id).toEqual(['M2', 'M30']);
   });
 
   it('TG blocks G18 arcs, G28/G30 under G20/G91, G28.4, E words and caps queued commands at 3', () => {

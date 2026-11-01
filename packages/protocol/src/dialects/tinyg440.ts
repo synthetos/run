@@ -84,7 +84,13 @@ export const TINYG_440: Dialect = deepFreeze<Dialect>({
     tid: false, // EN-HIL test_identity.py comment (PN §5.3)
     m400: false, // EN-HIL test_e002 marks d440 as still failing
     programStopPauses: false, // only queues _exec_program_finalize (@cite TG canonical_machine.c:1396-1406; E020 on d440)
-    m2ClearsAlarm: false,
+    // A queued M2/M30 (and M0/M1/M60) runs _exec_program_finalize, which overwrites the soft
+    // alarm's machine_state with PROGRAM_END/STOP (@cite TG canonical_machine.c:1351-1353, :1396-1411).
+    // A line already in the planner when the alarm is raised therefore clears it silently (the H35
+    // class); new lines are refused with 203 (@cite TG gcode_parser.c:62). The cycle end at planner
+    // drain does the same (@cite TG canonical_machine.c:1388-1393; plan_exec.c:173), so the host
+    // must latch FAULT on the alarm exception and never rely on stat 2 persisting.
+    m2ClearsAlarm: true,
     arcSoftLimits: false, // the check is commented out (@cite TG plan_arc.c:39, :171; E041 on d440)
     alarmStopsSpindle: false, // a soft alarm keeps queued moves and the spindle running (OLD-PN §10)
     spindlePauseOnHold: 'never',
@@ -164,7 +170,8 @@ export const TINYG_440: Dialect = deepFreeze<Dialect>({
     ],
     // M0/M1/M60 do not pause 440.21: the host barrier is the ONLY stop (PN §9.2).
     barrierCodes: ['M0', 'M60', 'M1'],
-    holdbackEndCodes: [],
+    // Held back as on EN, because a buffered program end clears the soft alarm (caps.m2ClearsAlarm).
+    holdbackEndCodes: ['M2', 'M30'],
   },
 
   // SAFETY §4.4, "Stop job, tinyg-440": the flush path, then M5 and M9.
