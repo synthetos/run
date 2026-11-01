@@ -27,9 +27,9 @@ export const WEB_SERIAL_PROPERTY = 'serial';
  *   computed key, no `Reflect`, exactly as everywhere else);
  * - the source capability check (tools/gates/src/source) admits the same
  *   static read in this file only;
- * - dependency-cruiser (`web-serial-transport-importers`) lets only the
- *   machine worker's transport seam and the machine package's tests import
- *   it;
+ * - dependency-cruiser lets only the machine worker's transport seam and
+ *   the machine package's tests import it (`web-serial-transport-importers`),
+ *   and lets it import types only (`web-serial-transport-type-imports-only`);
  * - the build files the chunk that holds it under `assets/serial/`
  *   (apps/web/build/chunks.ts), and the bundle scan admits Web Serial only
  *   in that chunk, only for the staging and bench targets, never for

@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { buildInfo } from './build/buildInfo.ts';
-import { CLOUD_CHUNK_NAME, chunkPolicy } from './build/chunks.ts';
+import { CLOUD_CHUNK_NAME, SERIAL_CHUNK_NAME, chunkPolicy } from './build/chunks.ts';
 import { FAKE_SERIAL_MODE, FAKE_SERIAL_OUT_DIR, TRANSPORT_CHUNK_NAME, assertBuildMode, fakeSerialPlugins, transportSeam } from './build/fakeSerial.ts';
 import { prerender } from './build/prerender.ts';
 
@@ -43,12 +43,21 @@ export default defineConfig(({ command, mode }) => {
     // Workers (machine.worker, RUN_PLAN §5.4) are ES modules. The transport
     // seam gets a chunk of its own in every build, so the fake-serial test
     // build differs from production in that chunk only (build/fakeSerial.ts).
+    // The Web Serial transport gets its own chunk too, filed under
+    // assets/serial/ only when its contents qualify (build/chunks.ts); the
+    // bundle scan admits Web Serial nowhere else (P1-00).
     worker: {
       format: 'es',
       plugins: () => (fakeSerial === undefined ? [] : [fakeSerial.worker()]),
       rolldownOptions: {
         output: {
-          codeSplitting: { groups: [{ name: TRANSPORT_CHUNK_NAME, test: (id: string) => seam.isSeamModule(id) }] },
+          codeSplitting: {
+            groups: [
+              { name: SERIAL_CHUNK_NAME, test: (id: string) => chunks.isWebSerialModule(id), priority: 2 },
+              { name: TRANSPORT_CHUNK_NAME, test: (id: string) => seam.isSeamModule(id), priority: 1 },
+            ],
+          },
+          chunkFileNames: (chunk) => chunks.workerChunkFileName(chunk),
         },
       },
     },

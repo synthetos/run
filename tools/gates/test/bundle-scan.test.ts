@@ -12,11 +12,15 @@ import {
   type BundleFile,
   NAMESPACE_URIS,
   OUTBOUND_URLS,
-  scanBundle,
-  scanText,
+  scanBundle as scanBundleFor,
+  scanText as scanTextFor,
+  SCAN_TARGETS,
   SELF_ORIGINS,
+  SERIAL_ASSET_DIR,
   TESTKIT_MARKER,
 } from '../src/bundle/scan.ts';
+import { WEB_SERIAL_TRANSPORT_MODULE } from '../src/shared/webSerialNames.ts';
+import { WEB_SERIAL_TRANSPORT_PATH } from '../../../apps/web/build/chunks.ts';
 import { NETWORK_IDENTIFIERS } from '../src/shared/networkIdentifiers.ts';
 import { renderHeadersFile } from '../../../workers/run/src/headers.ts';
 
@@ -25,6 +29,12 @@ const file = (path: string, text: string): BundleFile => ({ path, bytes: enc.enc
 const page = file('index.html', '<!doctype html><script type="module" src="/assets/workspace-abc.js"></script>');
 /** Every real bundle carries the generated `_headers` file (P0-04). */
 const headersFile = file('_headers', renderHeadersFile());
+/**
+ * The Phase 0 rules below hold for every target; they run as `production`,
+ * the strictest. The P1-00 target rules have their own section at the end.
+ */
+const scanText = (path: string, text: string) => scanTextFor(path, text, 'production');
+const scanBundle = (files: readonly BundleFile[]) => scanBundleFor(files, 'production');
 const rules = (path: string, text: string): string[] => scanText(path, text).map((f) => f.rule);
 
 describe('origin literals', () => {
@@ -448,5 +458,59 @@ describe('non-static dynamic import in the bundle (P0 review, P0-14)', () => {
 
   it('passes a literal specifier, with or without import attributes, and import.meta', () => {
     expect(rules('assets/a.js', 'import("./chunk-abc.js");import(`./b.js`);import("./c.json",{with:{type:"json"}});const u=import.meta.url;')).toEqual([]);
+  });
+});
+
+describe('P1-00: scan targets and the Web Serial chunk', () => {
+  const serialChunk = `${SERIAL_ASSET_DIR}web-serial-abc12345.js`;
+  const transportCode = 'const s=navigator.serial;export const open=()=>s.requestPort();export const list=()=>navigator.serial.getPorts();';
+  const targetRules = (target: 'production' | 'staging', path: string, text: string): string[] => scanTextFor(path, text, target).map((f) => f.rule);
+
+  it('has exactly the production and staging targets', () => {
+    expect(SCAN_TARGETS).toEqual(['production', 'staging']);
+  });
+
+  it("names the same transport module as the gates' canonical constant", () => {
+    expect(WEB_SERIAL_TRANSPORT_PATH).toBe(WEB_SERIAL_TRANSPORT_MODULE);
+  });
+
+  it('staging admits a static navigator.serial read and the Web Serial method names in the serial chunk', () => {
+    expect(targetRules('staging', serialChunk, transportCode)).toEqual([]);
+  });
+
+  it('production refuses the same chunk', () => {
+    expect(new Set(targetRules('production', serialChunk, transportCode))).toEqual(new Set(['web-serial', 'capability-lookup']));
+  });
+
+  it.each([
+    ['an ordinary chunk', 'assets/machine.worker-abc12345.js'],
+    ['a cloud chunk', `${CLOUD_ASSET_DIR}cloud-abc12345.js`],
+    ['a file named like the serial chunk outside assets/serial/', 'assets/web-serial-abc12345.js'],
+    ['a non-JavaScript file under assets/serial/', `${SERIAL_ASSET_DIR}notes.txt`],
+    ['an HTML page', 'index.html'],
+  ])('staging refuses Web Serial in %s', (_name, path) => {
+    const text = path.endsWith('.html') ? `<script>${transportCode}</script>` : transportCode;
+    expect(targetRules('staging', path, text)).toContain('web-serial');
+  });
+
+  it('the serial chunk still gets every other rule on staging: computed lookups, Reflect, other navigator properties, network code', () => {
+    expect(targetRules('staging', serialChunk, 'const s=navigator[k];')).toEqual(['capability-lookup']);
+    expect(targetRules('staging', serialChunk, 'const n=navigator;n.serial;')).toEqual(['capability-lookup']);
+    expect(targetRules('staging', serialChunk, 'Reflect.get(navigator,"serial")')).toEqual(['capability-lookup', 'capability-lookup']);
+    expect(targetRules('staging', serialChunk, 'navigator.usb.requestDevice()')).toEqual(['capability-lookup']);
+    expect(targetRules('staging', serialChunk, 'fetch("/api/x")')).toEqual(['network-identifier']);
+    expect(targetRules('staging', serialChunk, `"${TESTKIT_MARKER}"`)).toEqual(['testkit-marker']);
+  });
+
+  it('production refuses any file under assets/serial/, and staging accepts a clean tree that has one', () => {
+    const tree = [page, headersFile, file(serialChunk, transportCode)];
+    expect(scanBundleFor(tree, 'staging')).toEqual([]);
+    const production = scanBundleFor(tree, 'production').map((f) => f.rule);
+    expect(production).toContain('serial-chunk');
+    expect(production).toContain('web-serial');
+  });
+
+  it('production passes a tree without the serial chunk (the Phase 0 shell)', () => {
+    expect(scanBundleFor([page, headersFile, file('assets/workspace-abc.js', 'export const a=1;')], 'production')).toEqual([]);
   });
 });

@@ -213,6 +213,19 @@ module.exports = {
       to: { path: '^packages/machine/src/webSerialTransport\\.ts$' },
     },
 
+    {
+      name: 'web-serial-transport-type-imports-only',
+      comment:
+        'The Web Serial transport imports types only. Its chunk then holds that one module ' +
+        '(apps/web/build/chunks.ts files it under assets/serial/, the only place the bundle scan admits ' +
+        'Web Serial), and the fake-serial test build, which does not contain it, still differs from ' +
+        'production only in the seam (tools/gates/src/artifact/diff.ts). Runtime helpers (the open policy, ' +
+        'the write guards) wrap it from outside: GuardedTransport, or values the seam passes in.',
+      severity: 'error',
+      from: { path: '^packages/machine/src/webSerialTransport\\.ts$' },
+      to: { dependencyTypesNot: ['type-only'] },
+    },
+
     // --- Repository hygiene ----------------------------------------------
     {
       name: 'no-import-outside-repo',

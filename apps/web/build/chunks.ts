@@ -16,6 +16,19 @@
  *   helper. Any other chunk, whatever
  *   it is called, goes to `assets/`, where the scan refuses network code.
  *
+ * The same idea files the Web Serial transport (P1-00, ROADMAP P1-01). In
+ * the machine worker's build, a code-splitting group gives
+ * `packages/machine/src/webSerialTransport.ts` a chunk of its own, and
+ * `workerChunkFileName` puts a chunk under `assets/serial/` only when it
+ * holds that module and nothing else but the bundler runtime. The transport
+ * may have type-only imports (dependency-cruiser
+ * `web-serial-transport-type-imports-only`), so nothing else can join it;
+ * should anything ever do so, the chunk is filed under `assets/` instead and
+ * the bundle scan refuses its Web Serial code. The bundle scan admits Web
+ * Serial only in `assets/serial/`, and only for the staging and bench
+ * targets. The main (page) build never files anything there:
+ * `chunkFileName` has no serial case.
+ *
  * A change to this file changes what the bundle scan trusts and needs
  * safety-path review (CODEOWNERS).
  */
@@ -26,6 +39,20 @@ export const CLOUD_ASSET_DIR = 'assets/cloud/';
 
 /** The chunk group name for cloud-client code. */
 export const CLOUD_CHUNK_NAME = 'cloud';
+
+/** Directory (inside dist) that holds the Web Serial transport's chunk. The bundle scan reads this. */
+export const SERIAL_ASSET_DIR = 'assets/serial/';
+
+/** The worker build's chunk group name for the Web Serial transport. */
+export const SERIAL_CHUNK_NAME = 'web-serial';
+
+/**
+ * The one module that may use Web Serial, repository-relative. The gates'
+ * copy (tools/gates/src/shared/webSerialNames.ts, WEB_SERIAL_TRANSPORT_MODULE)
+ * is the canonical one; apps/ may not import tools/, so this is a copy, and
+ * tools/gates/test/bundle-scan.test.ts fails if the two ever differ.
+ */
+export const WEB_SERIAL_TRANSPORT_PATH = 'packages/machine/src/webSerialTransport.ts';
 
 /** Normalises a module id to forward slashes so the tests below hold on every OS. */
 function slashes(id: string): string {
@@ -38,8 +65,14 @@ export interface ChunkPolicy {
   isCloudModule(id: string): boolean;
   /** True when the module is cloud source or a permitted dependency of it. */
   isCloudChunkMember(id: string): boolean;
-  /** The output file name pattern for a non-entry chunk. */
+  /** The output file name pattern for a non-entry chunk of the page build. */
   chunkFileName(chunk: { readonly moduleIds: readonly string[] }): string;
+  /** True for the Web Serial transport module. */
+  isWebSerialModule(id: string): boolean;
+  /** True for a module that may be in the serial chunk: the transport itself and the bundler runtime. */
+  isSerialChunkMember(id: string): boolean;
+  /** The output file name pattern for a non-entry chunk of a worker build. */
+  workerChunkFileName(chunk: { readonly moduleIds: readonly string[] }): string;
 }
 
 /**
@@ -70,13 +103,26 @@ export function chunkPolicy(webRoot: string): ChunkPolicy {
     );
   };
 
+  const webSerial = `${repo}/${WEB_SERIAL_TRANSPORT_PATH}`;
+  const isWebSerialModule = (id: string): boolean => slashes(id) === webSerial;
+  const isSerialChunkMember = (id: string): boolean => id === bundlerRuntime || isWebSerialModule(id);
+
+  const chunkFileName = (chunk: { readonly moduleIds: readonly string[] }): string => {
+    const ids = chunk.moduleIds;
+    const cloud = ids.length > 0 && ids.some(isCloudModule) && ids.every(isCloudChunkMember);
+    return cloud ? `${CLOUD_ASSET_DIR}[name]-[hash].js` : 'assets/[name]-[hash].js';
+  };
+
   return {
     isCloudModule,
     isCloudChunkMember,
-    chunkFileName(chunk) {
+    chunkFileName,
+    isWebSerialModule,
+    isSerialChunkMember,
+    workerChunkFileName(chunk) {
       const ids = chunk.moduleIds;
-      const cloud = ids.length > 0 && ids.some(isCloudModule) && ids.every(isCloudChunkMember);
-      return cloud ? `${CLOUD_ASSET_DIR}[name]-[hash].js` : 'assets/[name]-[hash].js';
+      const serial = ids.some(isWebSerialModule) && ids.every(isSerialChunkMember);
+      return serial ? `${SERIAL_ASSET_DIR}[name]-[hash].js` : chunkFileName(chunk);
     },
   };
 }

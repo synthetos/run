@@ -5,7 +5,7 @@
  */
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CLOUD_ASSET_DIR, chunkPolicy } from '../build/chunks.ts';
+import { CLOUD_ASSET_DIR, SERIAL_ASSET_DIR, chunkPolicy } from '../build/chunks.ts';
 
 const web = resolve(import.meta.dirname, '..');
 const repo = resolve(web, '../..');
@@ -40,5 +40,37 @@ describe('chunkPolicy', () => {
   it('never files a chunk without cloud code, or an empty facade, as cloud', () => {
     expect(policy.chunkFileName({ moduleIds: [join(repo, 'packages/contracts/src/index.ts')] })).toBe('assets/[name]-[hash].js');
     expect(policy.chunkFileName({ moduleIds: [] })).toBe('assets/[name]-[hash].js');
+  });
+});
+
+describe('workerChunkFileName: the Web Serial transport (P1-00)', () => {
+  const transport = join(repo, 'packages/machine/src/webSerialTransport.ts');
+
+  it('recognises exactly packages/machine/src/webSerialTransport.ts', () => {
+    expect(policy.isWebSerialModule(transport)).toBe(true);
+    expect(policy.isWebSerialModule(join(repo, 'packages/machine/src/webSerialTransport.tsx'))).toBe(false);
+    expect(policy.isWebSerialModule(join(web, 'src/webSerialTransport.ts'))).toBe(false);
+    expect(policy.isWebSerialModule(join(repo, 'packages/protocol/src/webSerialTransport.ts'))).toBe(false);
+  });
+
+  it('files a chunk of the transport alone (with the bundler runtime) under assets/serial/', () => {
+    expect(policy.workerChunkFileName({ moduleIds: [transport] })).toBe(`${SERIAL_ASSET_DIR}[name]-[hash].js`);
+    expect(policy.workerChunkFileName({ moduleIds: ['\0rolldown/runtime.js', transport] })).toBe(`${SERIAL_ASSET_DIR}[name]-[hash].js`);
+  });
+
+  it('files the transport with any other module under assets/, where the scan refuses Web Serial', () => {
+    for (const other of [join(repo, 'packages/machine/src/openPolicy.ts'), join(web, 'src/machine-worker/transport.ts'), join(repo, 'node_modules/x/index.js')]) {
+      expect(policy.workerChunkFileName({ moduleIds: [transport, other] })).toBe('assets/[name]-[hash].js');
+    }
+  });
+
+  it('never files a chunk without the transport under assets/serial/, and keeps the cloud rule', () => {
+    expect(policy.workerChunkFileName({ moduleIds: ['\0rolldown/runtime.js'] })).toBe('assets/[name]-[hash].js');
+    expect(policy.workerChunkFileName({ moduleIds: [] })).toBe('assets/[name]-[hash].js');
+    expect(policy.workerChunkFileName({ moduleIds: [cloud] })).toBe(`${CLOUD_ASSET_DIR}[name]-[hash].js`);
+  });
+
+  it('the page build never files anything under assets/serial/', () => {
+    expect(policy.chunkFileName({ moduleIds: [transport] })).toBe('assets/[name]-[hash].js');
   });
 });

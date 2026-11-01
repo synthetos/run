@@ -65,6 +65,15 @@ describe('compareArtifacts', () => {
     expect(rules([...PROD, file('robots.txt', 'x')], TEST)).toEqual(['file-set robots.txt']);
   });
 
+  it('accepts the Web Serial chunk in production only, and refuses it in the test artifact (P1-00)', () => {
+    const serial = file('assets/serial/web-serial-SeRi0001.js', 'const s=navigator.serial;export{s};');
+    expect(rules([...PROD, serial], TEST)).toEqual([]);
+    expect(rules([...PROD, serial], [...TEST, serial])).toEqual(['test-web-serial assets/serial/web-serial.js']);
+    expect(rules(PROD, [...TEST, serial])).toEqual(['test-web-serial assets/serial/web-serial.js']);
+    // Only assets/serial/ is exempt from the file-set rule: a serial-named file elsewhere is not.
+    expect(rules([...PROD, file('assets/web-serial-SeRi0001.js', 'x')], TEST)).toEqual(['file-set assets/web-serial.js']);
+  });
+
   it('refuses two files with one logical name (name-collision)', () => {
     const prod = [...PROD, file('assets/workspace-ZZZZZZZZ.js', 'other')];
     expect(rules(prod, TEST)).toContain('name-collision assets/workspace-ZZZZZZZZ.js');

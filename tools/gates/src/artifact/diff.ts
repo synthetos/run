@@ -22,6 +22,11 @@
  * - `production-testkit`: the production tree contains the test kit's
  *   marker anywhere. `test-seam-not-testkit`: the test seam chunk lacks it,
  *   so the bundle scan would not refuse the test build.
+ * - The Web Serial transport's chunk (`assets/serial/`, P1-00): the
+ *   production seam imports the transport, the test seam replaces it, so the
+ *   chunk exists in production only. It is the one file the production tree
+ *   may have that the test tree lacks. `test-web-serial`: the test tree has
+ *   a file there; the test build must never reach a real port.
  *
  * Dependency-free (node: only), like the other build gates.
  */
@@ -29,6 +34,7 @@ import { createHash } from 'node:crypto';
 import type { TreeFile } from '../shared/files.ts';
 import { TESTKIT_MARKER } from '../../../../packages/testkit/src/marker.ts';
 import { TRANSPORT_CHUNK_NAME } from '../../../../apps/web/build/fakeSerial.ts';
+import { SERIAL_ASSET_DIR } from '../../../../apps/web/build/chunks.ts';
 
 /** The one file allowed to differ. */
 export const SEAM_CHUNK = `assets/${TRANSPORT_CHUNK_NAME}.js`;
@@ -46,7 +52,8 @@ export type DiffRule =
   | 'seam-missing'
   | 'seam-unchanged'
   | 'production-testkit'
-  | 'test-seam-not-testkit';
+  | 'test-seam-not-testkit'
+  | 'test-web-serial';
 
 export interface DiffFinding {
   readonly rule: DiffRule;
@@ -121,10 +128,15 @@ export function compareArtifacts(production: readonly TreeFile[], test: readonly
   const fakeBy = new Map(fake.entries.map((e) => [e.logical, e]));
 
   for (const logical of prodBy.keys()) {
-    if (!fakeBy.has(logical)) findings.push({ rule: 'file-set', file: logical, message: `${logical} is in the production artifact but not in the test artifact` });
+    if (fakeBy.has(logical) || logical.startsWith(SERIAL_ASSET_DIR)) continue;
+    findings.push({ rule: 'file-set', file: logical, message: `${logical} is in the production artifact but not in the test artifact` });
   }
   for (const logical of fakeBy.keys()) {
-    if (!prodBy.has(logical)) findings.push({ rule: 'file-set', file: logical, message: `${logical} is in the test artifact but not in the production artifact` });
+    if (logical.startsWith(SERIAL_ASSET_DIR)) {
+      findings.push({ rule: 'test-web-serial', file: logical, message: `${logical}: the test artifact holds the Web Serial transport's chunk; it must never reach a real port` });
+    } else if (!prodBy.has(logical)) {
+      findings.push({ rule: 'file-set', file: logical, message: `${logical} is in the test artifact but not in the production artifact` });
+    }
   }
   for (const [logical, p] of prodBy) {
     const t = fakeBy.get(logical);
@@ -161,7 +173,8 @@ export function renderHashList(production: HashList, test: HashList): string {
   const testBy = new Map(test.entries.map((e) => [e.logical, e]));
   const lines = production.entries.map((p) => {
     const t = testBy.get(p.logical);
-    const state = t === undefined ? 'MISSING' : t.sha256 === p.sha256 ? 'same' : p.logical === SEAM_CHUNK ? 'seam' : 'DIFFERS';
+    const state =
+      t === undefined ? (p.logical.startsWith(SERIAL_ASSET_DIR) ? 'serial' : 'MISSING') : t.sha256 === p.sha256 ? 'same' : p.logical === SEAM_CHUNK ? 'seam' : 'DIFFERS';
     return `${state.padEnd(8)} ${p.sha256.slice(0, 16)} ${(t?.sha256 ?? '-').slice(0, 16).padEnd(16)} ${p.logical}`;
   });
   return `${'state'.padEnd(8)} ${'production'.padEnd(16)} ${'test'.padEnd(16)} file\n${lines.join('\n')}\n`;

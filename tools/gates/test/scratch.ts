@@ -158,9 +158,9 @@ export class ScratchRepo {
     return this.run([join(this.root, 'apps/web/node_modules/vite/bin/vite.js'), 'build', '--mode', 'fake-serial', '--logLevel', 'warn'], join(this.root, 'apps/web'), env);
   }
 
-  /** `pnpm scan`: the bundle scan over the copy's built web app. */
-  scan(): GateResult {
-    return this.run([join(this.root, 'tools/gates/src/bundle/cli.ts'), join(this.root, 'apps/web/dist')]);
+  /** `pnpm scan`: the bundle scan over the copy's built web app (target `staging`, as CI's build job; P1-00). */
+  scan(target: 'production' | 'staging' = 'staging', dir = 'apps/web/dist'): GateResult {
+    return this.run([join(this.root, 'tools/gates/src/bundle/cli.ts'), '--target', target, join(this.root, dir)]);
   }
 
   /** Runs one of the repository's dependency-free gate CLIs (path relative to the copy's root). */

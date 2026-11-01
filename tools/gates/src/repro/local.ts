@@ -35,7 +35,7 @@ try {
   }
   node([join(base, 'a/tools/gates/src/repro/cli.ts'), 'compare', join(base, 'a/apps/web/dist'), join(base, 'b/apps/web/dist')]);
   node([join(base, 'a/tools/gates/src/repro/cli.ts'), 'compare', join(base, 'a/dist-worker'), join(base, 'b/dist-worker')]);
-  node([join(base, 'a/tools/gates/src/bundle/cli.ts'), join(base, 'a/apps/web/dist')]);
+  node([join(base, 'a/tools/gates/src/bundle/cli.ts'), '--target', 'staging', join(base, 'a/apps/web/dist')]);
 } catch (error) {
   process.stderr.write(`repro: failed: ${error instanceof Error ? error.message : String(error)}\n`);
   status = 1;

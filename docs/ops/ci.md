@@ -173,8 +173,29 @@ the subset, builds both, compares them and runs the scan.
 
 ## The bundle scan
 
-`tools/gates/src/bundle/scan.ts` (`pnpm scan`, and the `build` job). It fails
-on any of these:
+`tools/gates/src/bundle/scan.ts` (`pnpm scan`, the `build` job and both
+deploy jobs). Every call names a **target** (P1-00, ci-policy
+`bundle-scan-target`):
+
+| Target | Who scans with it | Web Serial |
+|---|---|---|
+| `staging` | `pnpm scan`, the `build` job (the attested artifact), `deploy-staging` | admitted only in `assets/serial/*.js`, the Web Serial transport's chunk |
+| `production` | `deploy-production` | refused everywhere, and any file under `assets/serial/` is a `serial-chunk` finding |
+
+Staging and production run the same attested bytes, so from P1-01 on (the
+first artifact that carries the transport) the production deploy stops at
+its scan, before anything is deployed: production keeps the Phase 0 shell
+until Phase 6 (ROADMAP hard rules, P1-09). The production header
+`serial=()` is the browser's backstop behind it.
+
+What goes into `assets/serial/` is decided by contents, like `assets/cloud/`:
+the machine worker's build gives `packages/machine/src/webSerialTransport.ts`
+its own chunk, filed there only when it holds that module alone (and
+Rolldown's runtime helper). dependency-cruiser lets the transport import
+types only, so nothing else can join it; if anything did, the chunk would be
+filed under `assets/` and fail the scan.
+
+It fails on any of these:
 - any `scheme://` origin literal, except:
   - the XML namespace URIs, by exact match;
   - run's own origins, and only inside `assets/cloud/`;
@@ -209,9 +230,8 @@ These apply to every text file, cloud chunks included:
   JavaScript and JSON string literals, HTML/SVG URL attributes and meta
   refresh, and CSS `url()` and `@import`;
 - `web-serial`: `navigator.serial` and the names `requestPort` and
-  `getPorts`. Phase 0 cannot reach a port; P1-01 narrows this rule to the
-  machine worker's chunk, in the same owner-approved PR that narrows the
-  `run/no-web-serial` lint rule;
+  `getPorts`, anywhere except the serial chunk of a `staging` scan (P1-00,
+  owner-approved, together with the `run/no-web-serial` lint rule);
 - `capability-lookup` (P0 review): in code (`.js`/`.mjs` chunks and inline
   scripts), `navigator` other than as a static read of a reviewed data
   property or under `typeof`, a window alias (`globalThis`, `window`,

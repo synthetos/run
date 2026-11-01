@@ -54,10 +54,11 @@
  *   prose and are not checked by this rule.
  * - `web-serial`: `navigator.serial` (also as `navigator["serial"]` or
  *   `"serial" in navigator`) and the Web Serial-only method names
- *   `requestPort` and `getPorts`, which catch an alias. Nothing in Phase 0
- *   may reach a serial port; this backs up the `run/no-web-serial` lint rule
- *   on the built output. P1-01 narrows it, like the lint rule, to the machine
- *   worker's chunk in its own owner-approved PR.
+ *   `requestPort` and `getPorts`, which catch an alias. This backs up the
+ *   `run/no-web-serial` lint rule on the built output. Since P1-00 it depends
+ *   on the scan TARGET (below): Web Serial is admitted only in the Web Serial
+ *   transport's chunk under `assets/serial/`, and only when the target is
+ *   `staging`; for `production` it is refused everywhere.
  *
  * P0 review adds rules for URLs a literal-text scan could not see:
  *
@@ -94,21 +95,50 @@
  * on the source are the primary gates, and the marker is what makes a
  * test-kit import visible here whatever the code does with it.
  *
- * Which chunks live under `assets/cloud/` is decided by their contents at
- * build time (apps/web/build/chunks.ts), never by a chunk's name.
+ * Which chunks live under `assets/cloud/` (and `assets/serial/`) is decided
+ * by their contents at build time (apps/web/build/chunks.ts), never by a
+ * chunk's name.
+ *
+ * P1-00 adds the scan TARGET, which every caller must name:
+ *
+ * - `staging`: the artifact CI builds, attests and deploys to staging (and
+ *   the only artifact there is: staging and production run the same bytes,
+ *   RUN_PLAN §5.2). Web Serial (`web-serial`, and `navigator.serial` for
+ *   `capability-lookup`) is admitted in `assets/serial/*.js` only.
+ * - `production`: what the production deploy job deploys. Production gets
+ *   only the Phase 0 shell until Phase 6 (ROADMAP hard rules, P1-09), so Web
+ *   Serial is refused everywhere, and so is any file under `assets/serial/`
+ *   (`serial-chunk`). An artifact that carries the transport therefore stops
+ *   the production deploy before anything is deployed. The production
+ *   header `serial=()` (workers/run/src/headers.ts) is the browser's own
+ *   backstop behind this.
  *
  * This module imports only dependency-free modules, so the secret-free
  * `build` CI job runs it without installing dev tooling.
  */
-import { CLOUD_ASSET_DIR } from '../../../../apps/web/build/chunks.ts';
+import { CLOUD_ASSET_DIR, SERIAL_ASSET_DIR } from '../../../../apps/web/build/chunks.ts';
 import { NETWORK_IDENTIFIERS } from '../shared/networkIdentifiers.ts';
 import { renderHeadersFile } from '../../../../workers/run/src/headers.ts';
 import { OUTBOUND_URLS } from '../../../../apps/web/src/pages/outbound.ts';
 import { TESTKIT_MARKER } from '../../../../packages/testkit/src/marker.ts';
-import { WEB_SERIAL_METHODS } from '../shared/webSerialNames.ts';
+import { WEB_SERIAL_METHODS, WEB_SERIAL_PROPERTY } from '../shared/webSerialNames.ts';
 import { NAVIGATOR_ALLOWED_PROPERTIES, NAVIGATOR_NAMES, REFLECTIVE_GLOBALS } from '../shared/capabilities.ts';
 
-export { CLOUD_ASSET_DIR, TESTKIT_MARKER };
+export { CLOUD_ASSET_DIR, SERIAL_ASSET_DIR, TESTKIT_MARKER };
+
+/** What the scanned tree is for (P1-00). See the module comment. */
+export type ScanTarget = 'production' | 'staging';
+
+export const SCAN_TARGETS: readonly ScanTarget[] = ['production', 'staging'];
+
+export function isScanTarget(value: string): value is ScanTarget {
+  return (SCAN_TARGETS as readonly string[]).includes(value);
+}
+
+/** True when the target admits Web Serial in the serial chunk. */
+function admitsWebSerial(target: ScanTarget): boolean {
+  return target !== 'production';
+}
 
 /** URL schemes the bundle may use besides relative URLs (ROADMAP P0-13). */
 export const ALLOWED_URL_SCHEMES: readonly string[] = ['data', 'blob'];
@@ -183,7 +213,8 @@ export type ScanRule =
   | 'character-reference-in-url'
   | 'web-serial'
   | 'capability-lookup'
-  | 'dynamic-import';
+  | 'dynamic-import'
+  | 'serial-chunk';
 
 export interface BundleFile {
   /** Path relative to the dist root, with forward slashes. */
@@ -254,6 +285,10 @@ const GLOBAL_TOKEN_RE = new RegExp(`${NAME_BOUNDARY_BEFORE}(?:${BUNDLE_GLOBAL_NA
 const REFLECT_TOKEN_RE = new RegExp(`${NAME_BOUNDARY_BEFORE}(?:${REFLECTIVE_GLOBALS.join('|')})${NAME_BOUNDARY_AFTER}`, 'g');
 /** A static read of a reviewed navigator property, right after the name. */
 const NAVIGATOR_ALLOWED_AFTER_RE = new RegExp(`^\\s*(?:\\?\\.|\\.)\\s*(?:${NAVIGATOR_ALLOWED_PROPERTIES.join('|')})${NAME_BOUNDARY_AFTER}`);
+/** The same, with the Web Serial property: in the serial chunk of a target that admits it. */
+const NAVIGATOR_SERIAL_ALLOWED_AFTER_RE = new RegExp(
+  `^\\s*(?:\\?\\.|\\.)\\s*(?:${[...NAVIGATOR_ALLOWED_PROPERTIES, WEB_SERIAL_PROPERTY].join('|')})${NAME_BOUNDARY_AFTER}`,
+);
 /** `typeof` right before the name. */
 const TYPEOF_BEFORE_RE = /(?<![A-Za-z0-9_$])typeof\s*\(?\s*$/;
 /** A static member right after a window alias: `.name`, `?.name`, `["name"]`, `?.[`name`]`. */
@@ -267,14 +302,19 @@ const IMPORT_CALL_RE = /(?<![A-Za-z0-9_$.])import\s*\(/g;
 /** A single literal specifier, optionally followed by import attributes. */
 const LITERAL_IMPORT_ARGUMENT_RE = /^\s*(?:"[^"\\\n]*"|'[^'\\\n]*'|`[^`\\$]*`)\s*[,)]/;
 
-/** The `capability-lookup` and `dynamic-import` rules on one piece of JavaScript. */
-function codeFindings(path: string, code: string): ScanFinding[] {
+/**
+ * The `capability-lookup` and `dynamic-import` rules on one piece of
+ * JavaScript. `serialAdmitted`: a static `navigator.serial` read is allowed
+ * (the serial chunk of a target that admits Web Serial).
+ */
+function codeFindings(path: string, code: string, serialAdmitted: boolean): ScanFinding[] {
   const findings: ScanFinding[] = [];
   const near = (index: number, length: number): string => clip(code.slice(index, index + length + 40));
+  const navigatorAllowed = serialAdmitted ? NAVIGATOR_SERIAL_ALLOWED_AFTER_RE : NAVIGATOR_ALLOWED_AFTER_RE;
   for (const match of code.matchAll(NAVIGATOR_TOKEN_RE)) {
     const at = match.index ?? 0;
     const after = code.slice(at + match[0].length, at + match[0].length + 40);
-    if (NAVIGATOR_ALLOWED_AFTER_RE.test(after) || TYPEOF_BEFORE_RE.test(code.slice(Math.max(0, at - 12), at))) continue;
+    if (navigatorAllowed.test(after) || TYPEOF_BEFORE_RE.test(code.slice(Math.max(0, at - 12), at))) continue;
     findings.push({ file: path, rule: 'capability-lookup', match: near(at, match[0].length) });
   }
   for (const match of code.matchAll(GLOBAL_TOKEN_RE)) {
@@ -369,6 +409,11 @@ export function isCloudAsset(path: string): boolean {
   return path.startsWith(CLOUD_ASSET_DIR) && extension(path) === '.js';
 }
 
+/** True when the file is the Web Serial transport's chunk, by its location in dist (apps/web/build/chunks.ts). */
+export function isSerialAsset(path: string): boolean {
+  return path.startsWith(SERIAL_ASSET_DIR) && extension(path) === '.js';
+}
+
 /**
  * Reports a scheme the earlier rules have not: not `data:` or `blob:`, not
  * `scheme://` (origin-literal), not `javascript:`/`vbscript:` (script-url).
@@ -394,11 +439,13 @@ function styleText(html: string): string {
 }
 
 /**
- * The P0-13 rules (T-S40 and the Phase 0 Web Serial ban), which apply to
- * every text file whatever its location, cloud chunks included.
+ * The P0-13 rules (T-S40 and the Web Serial rule), which apply to every text
+ * file whatever its location, cloud chunks included. Web Serial is admitted
+ * only in the serial chunk of a target that admits it (P1-00).
  */
-function testkitAndSerialFindings(path: string, text: string): ScanFinding[] {
+function testkitAndSerialFindings(path: string, text: string, target: ScanTarget): ScanFinding[] {
   const findings: ScanFinding[] = [];
+  const serialAdmitted = admitsWebSerial(target) && isSerialAsset(path);
   const ext = extension(path);
   if (text.includes(TESTKIT_MARKER)) {
     findings.push({ file: path, rule: 'testkit-marker', match: `${TESTKIT_MARKER}: test-kit code is in the bundle` });
@@ -419,14 +466,16 @@ function testkitAndSerialFindings(path: string, text: string): ScanFinding[] {
   } else if (ext === '.css') {
     findings.push(...schemeFindings(path, text, CSS_SCHEME_RE), ...cssStringFindings(path, text));
   }
-  for (const match of text.matchAll(WEB_SERIAL_RE)) findings.push({ file: path, rule: 'web-serial', match: clip(match[0]) });
-  if (ext === '.js' || ext === '.mjs') findings.push(...codeFindings(path, text));
-  else if (ext === '.html' || ext === '.svg' || ext === '.xml') for (const script of inlineScripts(text)) findings.push(...codeFindings(path, script));
+  if (!serialAdmitted) {
+    for (const match of text.matchAll(WEB_SERIAL_RE)) findings.push({ file: path, rule: 'web-serial', match: clip(match[0]) });
+  }
+  if (ext === '.js' || ext === '.mjs') findings.push(...codeFindings(path, text, serialAdmitted));
+  else if (ext === '.html' || ext === '.svg' || ext === '.xml') for (const script of inlineScripts(text)) findings.push(...codeFindings(path, script, false));
   return findings;
 }
 
-/** Scans one text file. Exported for the tests. */
-export function scanText(path: string, text: string): ScanFinding[] {
+/** Scans one text file for a target. Exported for the tests. */
+export function scanText(path: string, text: string, target: ScanTarget): ScanFinding[] {
   const findings: ScanFinding[] = [];
   const cloud = isCloudAsset(path);
   const ext = extension(path);
@@ -453,13 +502,20 @@ export function scanText(path: string, text: string): ScanFinding[] {
       findings.push({ file: path, rule: 'network-identifier', match: `${match[0]} in …${clip(context)}…` });
     }
   }
-  findings.push(...testkitAndSerialFindings(path, text));
+  findings.push(...testkitAndSerialFindings(path, text, target));
   return findings;
 }
 
-/** Scans a whole bundle. An empty bundle, or one without an HTML page, fails. */
-export function scanBundle(files: readonly BundleFile[]): ScanFinding[] {
+/** Scans a whole bundle for a target. An empty bundle, or one without an HTML page, fails. */
+export function scanBundle(files: readonly BundleFile[], target: ScanTarget): ScanFinding[] {
   const findings: ScanFinding[] = [];
+  if (!admitsWebSerial(target)) {
+    for (const file of files) {
+      if (file.path.startsWith(SERIAL_ASSET_DIR)) {
+        findings.push({ file: file.path, rule: 'serial-chunk', match: `the ${target} target carries no Web Serial code: production gets the Phase 0 shell only until Phase 6` });
+      }
+    }
+  }
   if (!files.some((f) => extension(f.path) === '.html')) {
     findings.push({ file: '.', rule: 'empty-bundle', match: 'no HTML page found: the scan refuses to pass an empty or partial build' });
   }
@@ -473,9 +529,9 @@ export function scanBundle(files: readonly BundleFile[]): ScanFinding[] {
   for (const file of files) {
     const ext = extension(file.path);
     if (file.path === HEADERS_FILE) {
-      findings.push(...scanText(file.path, decoder.decode(file.bytes)));
+      findings.push(...scanText(file.path, decoder.decode(file.bytes), target));
     } else if (TEXT_EXTENSIONS.includes(ext)) {
-      findings.push(...scanText(file.path, decoder.decode(file.bytes)));
+      findings.push(...scanText(file.path, decoder.decode(file.bytes), target));
     } else if (!BINARY_EXTENSIONS.includes(ext)) {
       findings.push({ file: file.path, rule: 'unknown-file-type', match: `extension '${ext}' is not a known text or binary asset type` });
     }

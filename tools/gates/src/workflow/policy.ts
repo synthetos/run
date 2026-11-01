@@ -63,6 +63,12 @@
  *   PR weakening its own enforcement workflow (replacing the gate step with
  *   `run: true` fails it). A consistency check only: the primary control is
  *   native branch protection.
+ * - `bundle-scan-target` (ci.yml, P1-00): every bundle scan names its
+ *   target, and the target is fixed per job (BUNDLE_SCAN_TARGETS): the
+ *   build job and the staging deploy scan as `staging`, the production
+ *   deploy as `production` (which refuses any Web Serial code: production
+ *   gets the Phase 0 shell only until Phase 6). Each of those jobs must scan,
+ *   and no other job may.
  * - `yaml-subset`: tabs, anchors, aliases and merge keys are refused. They
  *   are valid YAML that this line-based reader could not follow, so they are
  *   not allowed to hide anything from it.
@@ -100,6 +106,13 @@ export const FAKE_SERIAL_STEPS: readonly string[] = [
   'run: node tools/gates/src/artifact/diff-cli.ts site apps/web/dist-fake-serial',
   'run: pnpm --filter @synthetos/e2e e2e:fake-serial',
 ];
+
+/** The bundle scan target each ci.yml job must use (`bundle-scan-target`, P1-00). No other job runs the scan. */
+export const BUNDLE_SCAN_TARGETS: Readonly<Record<string, string>> = {
+  build: 'staging',
+  'deploy-staging': 'staging',
+  'deploy-production': 'production',
+};
 
 /** The build job's outputs: one sha256 per artifact file, each set by its `digests` step. */
 export const ARTIFACT_DIGESTS: Readonly<Record<string, string>> = {
@@ -151,6 +164,7 @@ export type PolicyRule =
   | 'deploy-config'
   | 'smoke-credentials'
   | 'safety-review-job'
+  | 'bundle-scan-target'
   | 'yaml-subset';
 
 export interface PolicyFinding {
@@ -489,12 +503,38 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
     checkRollback(jobs, add);
     checkDeployConfig(jobs, add);
     checkSmokeCredentials(jobs, add);
+    checkBundleScanTargets(jobs, add);
     for (const required of [...DEPLOY_JOBS, ...DEPLOY_NEEDS]) {
       if (!jobs.some((j) => j.name === required)) add(1, 'deploy-gate', `ci.yml must define the '${required}' job`);
     }
   }
   if (name === 'safety-review.yml') checkSafetyReviewJob(jobs, add);
   return findings;
+}
+
+/**
+ * ci.yml: every bundle scan names the target fixed for its job, the jobs in
+ * BUNDLE_SCAN_TARGETS each scan, and no other job does (`bundle-scan-target`,
+ * P1-00).
+ */
+function checkBundleScanTargets(jobs: readonly Job[], add: (line: number, rule: PolicyRule, message: string) => void): void {
+  const flag = (line: number, message: string): void => add(line, 'bundle-scan-target', message);
+  for (const job of jobs) {
+    const expected = BUNDLE_SCAN_TARGETS[job.name];
+    const scans = job.lines.filter((l) => l.text.includes('tools/gates/src/bundle/cli.ts'));
+    if (expected === undefined) {
+      for (const l of scans) flag(l.no, `job '${job.name}' may not run the bundle scan (only ${Object.keys(BUNDLE_SCAN_TARGETS).join(', ')})`);
+      continue;
+    }
+    if (scans.length === 0) flag(job.line, `job '${job.name}' must run the bundle scan with --target ${expected}`);
+    for (const l of scans) {
+      const tokens = l.text.replace(/^(?:-\s+)?run:\s*/, '').split(/\s+/);
+      const at = tokens.findIndex((t) => t.endsWith('tools/gates/src/bundle/cli.ts'));
+      if (tokens[at + 1] !== '--target' || tokens[at + 2] !== expected || tokens.filter((t) => t.startsWith('--target')).length !== 1) {
+        flag(l.no, `job '${job.name}' must run the bundle scan as 'bundle/cli.ts --target ${expected} <dir>'`);
+      }
+    }
+  }
 }
 
 /** ci.yml: the build job publishes the artifact digests and every consumer checks them (`artifact-digest`). */

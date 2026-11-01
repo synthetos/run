@@ -52,7 +52,7 @@ describe('fake-serial test build (P0-14)', () => {
       expect(result.output).toMatch(/^seam +\w+ +\w+ +assets\/machine-transport\.js$/m);
       expect(result.output).toMatch(/^same +\w+ +\w+ +assets\/machine\.worker\.js$/m);
       expect(repo.scan().status).toBe(0);
-      const testScan = repo.gate('tools/gates/src/bundle/cli.ts', [join(repo.root, 'apps/web/dist-fake-serial')]);
+      const testScan = repo.scan('staging', 'apps/web/dist-fake-serial');
       expect(testScan.status, testScan.output).toBe(1);
       expect(testScan.output).toMatch(/testkit-marker +assets\/machine-transport-/);
     },

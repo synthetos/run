@@ -156,6 +156,30 @@ describe('the deploy gate', () => {
   });
 });
 
+describe('bundle scan targets (P1-00)', () => {
+  it('the production deploy must scan as production', () => {
+    expect(rules(mutate(CI, 'node tools/gates/src/bundle/cli.ts --target production deploy-site', 'node tools/gates/src/bundle/cli.ts --target staging deploy-site'))).toEqual(['bundle-scan-target']);
+  });
+
+  it('the build job and the staging deploy must scan as staging', () => {
+    expect(rules(mutate(CI, 'run: node a/tools/gates/src/bundle/cli.ts --target staging a/apps/web/dist', 'run: node a/tools/gates/src/bundle/cli.ts --target production a/apps/web/dist'))).toEqual(['bundle-scan-target']);
+    expect(rules(mutate(CI, 'node tools/gates/src/bundle/cli.ts --target staging deploy-site', 'node tools/gates/src/bundle/cli.ts --target production deploy-site'))).toEqual(['bundle-scan-target']);
+  });
+
+  it('a scan without a target, or with two, fails', () => {
+    expect(rules(mutate(CI, 'node tools/gates/src/bundle/cli.ts --target production deploy-site', 'node tools/gates/src/bundle/cli.ts deploy-site'))).toEqual(['bundle-scan-target']);
+    expect(rules(mutate(CI, 'node tools/gates/src/bundle/cli.ts --target production deploy-site', 'node tools/gates/src/bundle/cli.ts --target production deploy-site --target staging'))).toEqual(['bundle-scan-target']);
+  });
+
+  it('dropping the production scan fails', () => {
+    expect(rules(mutate(CI, '          node tools/gates/src/bundle/cli.ts --target production deploy-site\n', ''))).toEqual(['bundle-scan-target']);
+  });
+
+  it('a scan in any other job fails', () => {
+    expect(rules(mutate(CI, '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: node tools/gates/src/bundle/cli.ts --target staging apps/web/dist\n'))).toEqual(['bundle-scan-target']);
+  });
+});
+
 describe('verify', () => {
   it('fails when verify becomes conditional', () => {
     expect(rules(mutate(CI, '  verify:\n    name: verify\n', "  verify:\n    name: verify\n    if: github.event_name == 'push'\n"))).toEqual(['verify-job']);

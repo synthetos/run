@@ -149,7 +149,7 @@ jobs:
           node a/tools/gates/src/repro/cli.ts compare a/apps/web/dist b/apps/web/dist
           node a/tools/gates/src/repro/cli.ts compare a/dist-worker b/dist-worker
       - name: Bundle scan
-        run: node a/tools/gates/src/bundle/cli.ts a/apps/web/dist
+        run: node a/tools/gates/src/bundle/cli.ts --target staging a/apps/web/dist
       - name: Package the artifact
         run: |
           mkdir -p artifact
@@ -507,7 +507,7 @@ jobs:
           # shellcheck disable=SC2046
           node tools/gates/src/deploy/retention-cli.ts merge --env "$DEPLOY_ENV" --commit "$GITHUB_SHA" \
             --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --site site $(cat retention-args) --out deploy-site --state-out deployed-state
-          node tools/gates/src/bundle/cli.ts deploy-site
+          node tools/gates/src/bundle/cli.ts --target staging deploy-site
       - name: Deploy the attested artifact to staging
         id: deploy
         env:
@@ -670,7 +670,7 @@ jobs:
           # shellcheck disable=SC2046
           node tools/gates/src/deploy/retention-cli.ts merge --env "$DEPLOY_ENV" --commit "$GITHUB_SHA" \
             --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --site site $(cat retention-args) --out deploy-site --state-out deployed-state
-          node tools/gates/src/bundle/cli.ts deploy-site
+          node tools/gates/src/bundle/cli.ts --target production deploy-site
       - name: Deploy the attested artifact to production
         id: deploy
         env:
