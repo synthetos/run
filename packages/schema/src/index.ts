@@ -6,7 +6,9 @@
  * So far: board definitions and selection (P0-08); the vendored HIL tables as
  * generated per-dialect status tables and settings schemas, the per-dialect
  * read allowlists, the forbidden writes, the edge-next overlay, `validate`
- * and the write-plan gate (P0-09).
+ * and the write-plan gate (P0-09); MachineProfile v2 with its v1 migration,
+ * import/export rules and field classes, the device-local fact store with
+ * its invalidation rules, and the gate DSL (TB-01).
  *
  * This package has ZERO runtime npm dependencies and must never import
  * `contracts`, the cloud client, or any network API (RUN_PLAN §5.3).
@@ -17,6 +19,7 @@ export const VERSION = '0.0.0';
 
 export { validateSchema } from './jsonSchema.ts';
 export type { Schema, SchemaError } from './jsonSchema.ts';
+export { deepFreeze } from './frozen.ts';
 export { BOARD_SCHEMA, commonSubset, parseBoardDefinition, selectBoard } from './boards.ts';
 export type { BoardDefinition, BoardIdentity, BoardOutput, BoardSelection, Fact, OutputId, ParsedBoard, Verified } from './boards.ts';
 
@@ -56,3 +59,64 @@ export { TRAVEL_AXES, TRAVEL_SEMANTICS, confirmSoftLimits, firmwareTravelEqual, 
 export type { AxisSoftLimit, SoftLimitConfirmation, SoftLimitReadBack, TravelAxis, TravelSemantics, TravelWriteProblem } from './travel.ts';
 export { screenWritePlan } from './writePlan.ts';
 export type { PlannedWrite, ProposedWrite, ScreenResult } from './writePlan.ts';
+
+// --- TB-01: MachineProfile v2, fact engine, invalidation rules, gate DSL ---
+export { PROFILE_AXES, PROFILE_SCHEMA_VERSION } from './profile/types.ts';
+export type {
+  BoundDevice,
+  ControllerFamily,
+  Drive,
+  DriveKind,
+  HostLossPolicy,
+  MachineProfileV2,
+  ProfileAxis,
+  ProfileAxisDef,
+  ProfileBoard,
+  ProfileFirmware,
+  ProfileMachine,
+  ProfileSettings,
+  SpindleDrive,
+  WiringRef,
+} from './profile/types.ts';
+export { HOLD_TIMEOUT_S, MAX_MOTOR, PROFILE_DIALECT_IDS, PROFILE_V1_SCHEMA, PROFILE_V2_SCHEMA } from './profile/schema.ts';
+export { MOTORS_PER_FAMILY, familyOfDialect, profileSemanticIssues } from './profile/semantics.ts';
+export { DEFAULT_HOST_GATE_VALUES, HOST_GATE_PATHS, PROFILE_FIELD_CLASSES, hostGatesOf, profileFieldClass } from './profile/fieldClasses.ts';
+export type { ProfileFieldClass } from './profile/fieldClasses.ts';
+export { readProfileValue } from './profile/migrate.ts';
+export type { ProfileError, ProfileErrorCode, ProfileRead, ProfileResult } from './profile/migrate.ts';
+export {
+  PROFILE_FILE_EXTENSION,
+  PROFILE_MAX_BYTES,
+  PROFILE_MAX_DEPTH,
+  ProfileInvalidError,
+  exportProfile,
+  importProfileBytes,
+  importProfileText,
+  profileSizeError,
+  readStoredProfile,
+  toStoredProfile,
+  utf8Length,
+} from './profile/io.ts';
+export { canonicalProfile } from './profile/canonical.ts';
+export { newMachineProfile } from './profile/create.ts';
+export type { NewProfileInput } from './profile/create.ts';
+export { factRoot, isFactKey, isFactPattern, patternMatches } from './facts/keys.ts';
+export { ALL_FACTS, INVALIDATION_RULES, settingInvalidates } from './facts/rules.ts';
+export type { FactTrigger, FactTriggerKind, InvalidationRule, RuleScope } from './facts/rules.ts';
+export {
+  AGED_ROOTS,
+  DAY_MS,
+  DEFAULT_FACT_MAX_AGE_MS,
+  EMPTY_FACT_STATE,
+  FUTURE_SKEW_MS,
+  FactError,
+  SESSION_ROOTS,
+  addFact,
+  factProblem,
+  invalidate,
+  readFactState,
+  view,
+} from './facts/store.ts';
+export type { Clock, FactBinding, FactRecord, FactState, FactStatus, FactView, NewFact, ViewOptions } from './facts/store.ts';
+export { GATE_MAX_DEPTH, GATE_MAX_LENGTH, GateSyntaxError, checkGate, evaluateGate, parseGate } from './facts/gate.ts';
+export type { Gate, GateContext, GateResult, Unmet } from './facts/gate.ts';

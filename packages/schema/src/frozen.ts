@@ -91,3 +91,16 @@ export function frozenMap<K, V>(entries: Iterable<readonly [K, V]>): ReadonlyMap
 export function frozenSet<T>(values: Iterable<T>): ReadonlySet<T> {
   return new FrozenSet(values);
 }
+
+/**
+ * Freezes a plain JSON-shaped value (objects and arrays) all the way down and
+ * returns it. Used for schema data and for profiles handed out by the
+ * profile reader, so no caller can change them after validation.
+ */
+export function deepFreeze<T>(value: T): T {
+  if (typeof value === 'object' && value !== null && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) deepFreeze(child);
+  }
+  return value;
+}

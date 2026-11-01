@@ -13,8 +13,11 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "test": "vitest run --coverage"
   },
-  "devDependencies": {
+  "dependencies": {
     "@synthetos/protocol": "workspace:*",
+    "@synthetos/safety": "workspace:*"
+  },
+  "devDependencies": {
     "@synthetos/testkit": "workspace:*"
   }
 }

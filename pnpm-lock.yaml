@@ -110,10 +110,14 @@ importers:
         version: link:../testkit
 
   packages/schema:
-    devDependencies:
+    dependencies:
       '@synthetos/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@synthetos/safety':
+        specifier: workspace:*
+        version: link:../safety
+    devDependencies:
       '@synthetos/testkit':
         specifier: workspace:*
         version: link:../testkit
