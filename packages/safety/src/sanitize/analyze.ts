@@ -320,6 +320,12 @@ export class JobModel {
     return t === null ? null : value + t;
   }
 
+  /** Adds `mm` to the bound on both positions of an axis (rounding the model did not follow). */
+  #widen(axis: Axis, mm: number): void {
+    this.uMachine[axis] += mm;
+    this.uWork[axis] += mm;
+  }
+
   /**
    * Sets the work position after G92 or G10 L20 made it read `value`: the
    * firmware derived the offset from its own position, so the work position
@@ -1054,6 +1060,15 @@ export class JobModel {
       findings.push(block('split-impossible', `this move cannot be split within the ceiling: ${split.detail}`));
       return null;
     }
+    // An incremental split is one firmware sum per sub-segment, each adding float32 rounding to the position
+    // (finding: arc uncertainty, verification of c2799da). `#settle` above counted one; add the rest.
+    if (!absolute) {
+      for (const w of axisWords) {
+        const a = w.letter as Axis;
+        const reach = Math.max(Math.abs(startMachine[a] ?? 0), Math.abs(this.machine[a] ?? 0));
+        this.#widen(a, (split.segments.length - 1) * stepErrorMm(reach, delta[a] as number, this.totalOffset(a) ?? 0));
+      }
+    }
     const motionWords = g53 ? ['G53', mode] : [mode];
     return { kind: 'split', bodies: bodies(codes, params, split.segments, motionWords, new Set(['G53']), []), segments: split.segments, seconds: d.seconds };
   }
@@ -1212,6 +1227,27 @@ export class JobModel {
     if (split.kind !== 'ok') {
       findings.push(block('split-impossible', `this arc cannot be split within the ceiling: ${split.detail}`));
       return null;
+    }
+    // The sub-arcs are what the firmware sums (finding: arc uncertainty, verification of c2799da):
+    // - absolute: the last sub-arc writes an omitted plane axis as its start rounded to `dec` decimals, so the
+    //   board ends at the written value, not exactly where it was;
+    // - incremental: every sub-arc writes both plane axes (and a moving linear axis) as a distance the firmware
+    //   adds to its own position, one float32 rounding each.
+    if (absolute) {
+      for (const a of [p.a0, p.a1]) {
+        if (params.has(a)) continue;
+        this.#settle(a, 'work', 0);
+        this.#widen(a, Math.abs(Number(writtenOf(a, 0)) * s - (start[a] as number)));
+      }
+    } else {
+      const n = split.segments.length;
+      for (const a of [p.a0, p.a1]) this.#widen(a, n * stepErrorMm(model.arc.pathMagnitudeMm));
+      if (input.dLin !== 0) {
+        // An unknown position or offset (Number(null) is 0 here) already has an infinite bound.
+        const lin = p.lin;
+        const reach = Math.abs(Number(this.machine[lin])) + Math.abs(input.dLin);
+        this.#widen(lin, n * stepErrorMm(reach, input.dLin, Number(this.totalOffset(lin))));
+      }
     }
     const mode = clockwise ? 'G2' : 'G3';
     return { kind: 'split', bodies: bodies(codes, params, split.segments, [mode], new Set(), ['P']), segments: split.segments, seconds: d.seconds };

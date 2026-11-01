@@ -335,4 +335,49 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
     // A single incremental move is far inside the band.
     expect(run('G0 X0 Y0\nG91 G0 Y0.03\nG90 G3 X0 Y0.0302 I-1 J0 F600\n', EN).report.blocked).toBe(false);
   });
+
+  // Verification of c2799da: a split line is what the firmware sums, not the line the job wrote.
+  it('a split G91 move is many firmware sums: its float32 drift widens the band of a following G90 arc', () => {
+    const prefix = ['G0 X0 Y600', 'G91', 'G1 Y30 F1', 'G90'];
+    const split = run(`${prefix.join('\n')}\n`, EN);
+    expect(split.report.blocked).toBe(false);
+    const segments = split.lines.filter((l) => l.sourceLine === 3);
+    expect(segments.length).toBeGreaterThan(700);
+    // The firmware's target is its float32 position plus the float32 word, stored as the next position
+    // (@cite EN canonical_machine.c:490-511 `cm_set_model_target`, :413-414 `cm_finalize_move`).
+    let y = Math.fround(600);
+    for (const l of segments) y = Math.fround(y + Math.fround(words(l.body).get('Y') as number));
+    expect(Math.abs(y - 630)).toBeGreaterThan(0.005);
+    for (const d of [EN, TG]) {
+      // The end point is the board's start: a full circle on EN (62.8 mm), not a short arc of the drift.
+      const code = y > 630 ? 'G2' : 'G3';
+      expect(blocks(run(`${[...prefix, `${code} X0 Y${y} I10 J0 F600`].join('\n')}\n`, d)), d.id).toEqual(['arc-ambiguous']);
+      // Commanding the start again makes the arc decidable.
+      expect(run(`${[...prefix, 'G0 Y630', `${code} X0 Y630.02 I10 J0 F600`].join('\n')}\n`, d).report.blocked, d.id).toBe(false);
+    }
+  });
+
+  it('a split G91 arc is many firmware sums too: its drift widens the band of a following G90 arc', () => {
+    // 1453 sub-arcs of a nearly straight incremental arc; the test-kit EN model (float32 targets) ends at
+    // X1530.06787109375, 0.068 mm from the double-precision sum. Before the fix G3 to it was a 0.068 mm arc.
+    const prefix = ['G0 X1500 Y0', 'G91 G2 X30 Y0 I15 J-200 F0.5', 'G90'];
+    for (const d of [EN, TG]) {
+      expect(blocks(run(`${[...prefix, 'G3 X1530.06787109375 Y0 I0 J10 F600'].join('\n')}\n`, d)), d.id).toEqual(['arc-ambiguous']);
+      expect(run(`${[...prefix, 'G0 X1530 Y0', 'G3 X1530.1 Y0 I0 J10 F600'].join('\n')}\n`, d).report.blocked, d.id).toBe(false);
+    }
+  });
+
+  it('an absolute split full circle writes its start rounded: the next arc is measured from the written value', () => {
+    // Y0.00004 is written as Y0 on the last sub-arc, so the board ends at Y0; G3 X0 Y0 is then a full circle on EN
+    // (6.28 mm) and a zero-travel refusal on TG. Before the fix it was accepted as a 0.00004 mm arc.
+    for (const d of [EN, TG]) {
+      const r = run('G0 X0 Y0.00004\nG2 I1 F0.5\nG3 X0 Y0 I1 J0 F600\n', d);
+      expect(r.lines.filter((l) => l.sourceLine === 2).at(-1)?.body, d.id).toMatch(/ Y0 /);
+      expect(blocks(r), d.id).toEqual(['arc-ambiguous']);
+      // Unsplit, the board stays at Y0.00004 and the short arc is decided (control).
+      expect(run('G0 X0 Y0.00004\nG3 X0 Y0 I1 J0 F600\n', d).report.blocked, d.id).toBe(false);
+      // A start that the split writes exactly keeps the arc decidable (control).
+      expect(run('G0 X0 Y0.0001\nG2 I1 F0.5\nG3 X0 Y0 I1 J0 F600\n', d).report.blocked, d.id).toBe(false);
+    }
+  });
 });

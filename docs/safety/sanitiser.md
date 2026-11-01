@@ -179,7 +179,14 @@ preview, analyser and preflight interpret exactly those lines.
   test; inside the widened band the arc is refused (`arc-ambiguous`), never
   given the short path. An incremental end point or I/J/K offset is added to
   the firmware's own position and inherits nothing, and an omitted plane axis
-  ends exactly where it was. The firmware-model cross-check
+  ends exactly where it was. A split line is counted as the lines the
+  firmware receives: an incremental split adds one rounding per sub-segment
+  or sub-arc (every sub-arc writes both plane axes), and an absolute split
+  arc whose plane axis was omitted writes that axis's start rounded to the
+  split decimals, so the bound grows by the rounding (found by the
+  verification of c2799da: a 722-segment `G91 G1 Y30 F1` from Y600 drifts
+  0.011 mm in float32, and a following G90 arc to the board's position was
+  accepted as a 0.011 mm arc while EN runs a full circle). The firmware-model cross-check
   (`packages/safety/test/arc-models.test.ts`) runs these cases on the test-kit
   models, whose targets are float32 like the board's.
 - No coordinate is ever assumed (Codex P0-10 #2): an absolute (G90) full
