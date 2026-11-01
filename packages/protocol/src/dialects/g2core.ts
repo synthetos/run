@@ -195,6 +195,7 @@ export const G2CORE_EDGE: Dialect = deepFreeze<Dialect>({
     ],
     barrierCodes: ['M0', 'M60', 'M1'],
     holdbackEndCodes: ['M2', 'M30'],
+    job: null, // Read-only until Phase 7: no job is streamed to g2core.
   },
 
   // Read-only until Phase 7: `!` only (SAFETY §4.4). The awaited in-flight write keeps `!` at a line start.

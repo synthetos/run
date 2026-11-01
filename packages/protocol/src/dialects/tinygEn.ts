@@ -166,6 +166,25 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     ],
     barrierCodes: ['M0', 'M60', 'M1'],
     holdbackEndCodes: ['M2', 'M30'],
+    // The job subset of the EN parser (@cite EN gcode_parser.c:364-547). Left out on purpose, as host-only:
+    // G28.2/G28.3/G28.4 (homing and set-position: they redefine the machine position that preflight checked),
+    // G38.2 (probing, rejected in v1 by S §4.7), M105/M114/M115 (reports whose replies are not line
+    // responses) and M400 (the host's own barrier). M48-M51 answer 132 (@cite EN gcode_parser.c:493-495),
+    // so they are not listed either and a job containing them is blocked.
+    job: {
+      codes: [
+        'G0', 'G1', 'G2', 'G3', 'G4', 'G10', 'G17', 'G18', 'G19', 'G20', 'G21', 'G28', 'G28.1', 'G30', 'G30.1',
+        'G40', 'G43.1', 'G49', 'G53', 'G54', 'G55', 'G56', 'G57', 'G58', 'G59', 'G61', 'G61.1', 'G64', 'G80',
+        'G90', 'G90.1', 'G91', 'G91.1', 'G92', 'G92.1', 'G92.2', 'G92.3', 'G93', 'G94',
+        'M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M30', 'M60', 'M201.3',
+      ],
+      ignoredCodes: [],
+      words: ['T', 'F', 'P', 'S', 'X', 'Y', 'Z', 'A', 'B', 'C', 'I', 'J', 'K', 'L', 'R'],
+      maxTool: 31, // TOOL_SELECT_MAX with __BITFIELDS (@cite EN canonical_machine.h:326-330; tinyg.h:62; E154)
+      midFileProgramEnd: 'block', // a buffered M2/M30 clears an alarm (E135, H35)
+      optionalStopOff: 'send', // M1 is skipped unless `os`=1 (@cite EN canonical_machine.c:2112-2115)
+      programEndStopsOutputs: true, // spindle and coolant off at program end (@cite EN canonical_machine.c:2003-2043)
+    },
   },
 
   // SAFETY §4.4, "Stop job, tinyg-en": ends with spindle and coolant off immediately.

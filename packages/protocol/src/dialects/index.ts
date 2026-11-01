@@ -13,6 +13,7 @@ export type {
   Family,
   FlowRules,
   FooterRev,
+  DialectJobGcode,
   GcodeRule,
   LineWindowFlow,
   MachineClass,

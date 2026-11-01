@@ -163,6 +163,7 @@ export const TINYG_449_STOCK: Dialect = deepFreeze<Dialect>({
     ],
     barrierCodes: ['M0', 'M60', 'M1'],
     holdbackEndCodes: ['M2', 'M30'],
+    job: null, // Read-only: stock 449 never streams a job (PN §2.1).
   },
 
   // SAFETY §4.4, "Stop job, READ_ONLY sessions": `!` only, and "Use your E-stop".

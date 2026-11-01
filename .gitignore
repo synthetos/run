@@ -8,3 +8,6 @@ playwright-report/
 .DS_Store
 .dev.vars
 dist-worker/
+**/.stryker-tmp/
+**/reports/mutation/
+stryker-setup-*.js

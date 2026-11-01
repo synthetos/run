@@ -56,7 +56,7 @@ jobs:
   verify:
     name: verify
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 50
     permissions:
       contents: read
     steps:
@@ -85,6 +85,8 @@ jobs:
         run: pnpm ci-policy
       - name: Unit tests
         run: pnpm -r test
+      - name: Mutation testing (safety, 90% gate)
+        run: pnpm --filter @synthetos/safety mutation
 
   build:
     name: build

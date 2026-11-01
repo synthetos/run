@@ -293,6 +293,45 @@ export interface DialectGcode {
   readonly barrierCodes: readonly string[];
   /** Program-end codes held back until every earlier line is acknowledged and no alarm (EN E135, H35). */
   readonly holdbackEndCodes: readonly string[];
+  /**
+   * What a job may contain (ROADMAP P0-10, SAFETY §4.7 step 6). `null` on a
+   * dialect that never streams a job (`mode: 'readOnly'`): the sanitiser
+   * refuses every job for it.
+   */
+  readonly job: DialectJobGcode | null;
+}
+
+/**
+ * The job subset of a dialect's G-code (SAFETY §4.7). The sanitiser reads
+ * only this data: it has no `if (dialect)` branches (RUN_PLAN §5.1 rule 4).
+ */
+export interface DialectJobGcode {
+  /**
+   * G and M codes a job may contain, in canonical form: the letter, the
+   * integer without leading zeros and, for a sub-code, the decimal without
+   * trailing zeros (`G0`, `G28.1`, `M3`). Every other code is blocked as
+   * unsupported, so a dotted code the firmware would run as its integer code
+   * (`G59.1` as G59 on TG) never reaches it. Firmware codes that only the
+   * host may use (reports, homing, set-position, probing) are left out on
+   * purpose; each data file says which and why.
+   */
+  readonly codes: readonly string[];
+  /** Codes the firmware accepts and ignores: kept, with a warning in the report (PN §9.3). */
+  readonly ignoredCodes: readonly string[];
+  /** Word letters other than G, M and N that a job may contain. */
+  readonly words: readonly string[];
+  /** The largest T the firmware stores as written; larger values wrap to another tool (E154). */
+  readonly maxTool: number;
+  /** A program end (M2/M30) that is not the last line: `block` (EN) or `warn` (TG) (SAFETY §4.7 step 8). */
+  readonly midFileProgramEnd: 'block' | 'warn';
+  /** M1 with optional stop off: `drop` it host-side (TG), or `send` it for the firmware to skip (EN, `os`=0) (S §4.7 step 7). */
+  readonly optionalStopOff: 'drop' | 'send';
+  /**
+   * True when program end (M2/M30) turns the spindle and coolant off, so a
+   * final M2/M30 counts as "off" for the end-state rule (SAFETY H48, §4.7
+   * step 8a). False where that is not confirmed (TG, B-M2-1).
+   */
+  readonly programEndStopsOutputs: boolean;
 }
 
 /**

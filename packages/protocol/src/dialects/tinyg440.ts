@@ -172,6 +172,27 @@ export const TINYG_440: Dialect = deepFreeze<Dialect>({
     barrierCodes: ['M0', 'M60', 'M1'],
     // Held back as on EN, because a buffered program end clears the soft alarm (caps.m2ClearsAlarm).
     holdbackEndCodes: ['M2', 'M30'],
+    // The job subset of the 440.21 parser (@cite TG gcode_parser.c:258-400). G codes are switched on
+    // `(uint8_t)value`, so any dotted code outside this list would run as its integer code: only the listed
+    // sub-codes pass. Left out on purpose: G28.2/G28.3/G28.4 and G38.2 (as EN), G90.1/G91.1 (parsed but
+    // never applied to arcs: 440.21 has no arc distance mode in canonical_machine.c, so the preview would
+    // disagree), M114/M115/M400 (host-only) and M201.3 (parsed here too, @cite TG gcode_parser.c:370-375, and
+    // it changes jerk at parse time as on EN, PN §9.3; PN lists it as n/a for TG, which this source corrects).
+    job: {
+      codes: [
+        'G0', 'G1', 'G2', 'G3', 'G4', 'G10', 'G17', 'G18', 'G19', 'G20', 'G21', 'G28', 'G28.1', 'G30', 'G30.1',
+        'G40', 'G49', 'G53', 'G54', 'G55', 'G56', 'G57', 'G58', 'G59', 'G61', 'G61.1', 'G64', 'G80',
+        'G90', 'G91', 'G92', 'G92.1', 'G92.2', 'G92.3', 'G93', 'G94',
+        'M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M30', 'M60',
+      ],
+      // Override enables, accepted and ignored (@cite TG gcode_parser.c:364-367; PN §9.3).
+      ignoredCodes: ['M48', 'M49', 'M50', 'M51'],
+      words: ['T', 'F', 'P', 'S', 'X', 'Y', 'Z', 'A', 'B', 'C', 'I', 'J', 'K', 'L', 'R'],
+      maxTool: 255, // `(uint8_t)trunc(value)`: larger values wrap (@cite TG gcode_parser.c:382; canonical_machine.h:105)
+      midFileProgramEnd: 'warn', // S §4.7 step 8
+      optionalStopOff: 'drop', // M1 is M0 on 440.21 and does not pause (@cite TG gcode_parser.c:353-354; PN §9.2)
+      programEndStopsOutputs: false, // UNVERIFIED on 440.21 (B-M2-1): C22 also inserts M5 M9 before a final M2/M30
+    },
   },
 
   // SAFETY §4.4, "Stop job, tinyg-440": the flush path, then M5 and M9.

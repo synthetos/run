@@ -13,7 +13,9 @@ account.
 > schema and board selection (P0-08) and, from the vendored TinyG HIL tables,
 > the per-dialect status tables and settings schemas, the read allowlists, the
 > forbidden writes, the edge-next settings overlay, `validate` and the
-> write-plan gate (P0-09).
+> write-plan gate (P0-09); `safety` has the job sanitiser with long-move
+> splitting, the allow-matrix, the overrun bound and the host-gate rule
+> (P0-10).
 
 > **This software is not an emergency stop.** Any machine it drives must have
 > a hardwired, latching E-stop that removes motor and spindle power in
@@ -142,6 +144,21 @@ removed into `FlowSignal` events, 4 KB line cap) and classifies each one as
 and never throws. Anything ambiguous is `Garbled`, never guessed. Its tests
 run with coverage, and `frame.ts`, `classify.ts`, `json.ts` and `inbound.ts`
 must stay at 100% branch coverage (`packages/protocol/vitest.config.ts`).
+
+Safety (P0-10): `packages/safety` decides what may be sent and when.
+`sanitizeJob(lines, dialect, options)` applies SAFETY §4.7 step by step and
+returns the exact `SentLine[]` the streamer will write (LF-terminated, host
+`N` numbers, barrier and holdback marks, long moves split under the
+queued-motion ceiling) plus a report; a blocked report must never be armed.
+`allowed(snapshot, intent)` is the declarative allow-matrix (SAFETY §4.1):
+the stop class is allowed in every state with the port open, and in Phase 0
+every motion, write and connect intent is denied with "Not available in this
+release". `overrunBound(queue)` gives the distance bound and the time
+estimate of SAFETY §4.3, and `effectiveHostGates` applies only tightening
+host-gate changes until C19 (T-S69). The package is held to 100% coverage
+(`pnpm --filter @synthetos/safety test`) and a 90% Stryker mutation score
+(`pnpm --filter @synthetos/safety mutation`). Design notes and the places
+where the code had to interpret the design: `docs/safety/sanitiser.md`.
 
 Dependency hygiene: versions are pinned exactly (`save-exact`), install
 scripts never run (`ignore-scripts`), and pnpm refuses versions published

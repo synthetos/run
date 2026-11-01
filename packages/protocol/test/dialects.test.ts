@@ -300,3 +300,35 @@ describe('modes and lookups', () => {
     expect(seen.length).toBe(t.size);
   });
 });
+
+describe('job G-code data (ROADMAP P0-10)', () => {
+  it('EN: L20 accounts, G43.1 and G90.1 exist, M48-M51 are refused, a mid-file program end blocks', () => {
+    const job = TINYG_EN.gcode.job;
+    if (job === null) throw new Error('EN streams jobs');
+    for (const code of ['G43.1', 'G90.1', 'G91.1', 'M201.3', 'G93']) expect(job.codes).toContain(code);
+    for (const code of ['M48', 'M49', 'M50', 'M51', 'G43']) expect(job.codes).not.toContain(code);
+    expect(job.ignoredCodes).toEqual([]);
+    expect(job.maxTool).toBe(31);
+    expect(job.midFileProgramEnd).toBe('block');
+    expect(job.optionalStopOff).toBe('send');
+    expect(job.programEndStopsOutputs).toBe(true);
+  });
+
+  it('TG: no arc distance mode, no tool offset, no M201.3; M48-M51 ignored; a mid-file program end warns', () => {
+    const job = TINYG_440.gcode.job;
+    if (job === null) throw new Error('440.21 streams jobs');
+    for (const code of ['G90.1', 'G91.1', 'G43.1', 'M201.3']) expect(job.codes).not.toContain(code);
+    expect(job.ignoredCodes).toEqual(['M48', 'M49', 'M50', 'M51']);
+    expect(job.maxTool).toBe(255);
+    expect(job.midFileProgramEnd).toBe('warn');
+    expect(job.optionalStopOff).toBe('drop');
+    // UNVERIFIED (B-M2-1): until the bench closes it, C22 inserts M5 M9 before a final M2/M30.
+    expect(job.programEndStopsOutputs).toBe(false);
+  });
+
+  it('read-only dialects have no job data', () => {
+    expect(TINYG_449_STOCK.gcode.job).toBeNull();
+    expect(G2CORE_EDGE.gcode.job).toBeNull();
+  });
+});
+

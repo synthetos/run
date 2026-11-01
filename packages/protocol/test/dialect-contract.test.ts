@@ -198,6 +198,22 @@ describe('contract: G-code data', () => {
       expect(d.gcode.lWords).toContain(2);
     }));
 
+  it('only a dialect that can stream has job data, and its codes are canonical (P0-10)', () =>
+    each((d) => {
+      const job = d.gcode.job;
+      expect(job === null, d.id).toBe(d.mode === 'readOnly');
+      if (job === null) return;
+      for (const code of [...job.codes, ...job.ignoredCodes]) expect(code, `${d.id} ${code}`).toMatch(/^[GM](0|[1-9]\d*)(\.\d*[1-9])?$/);
+      expect(new Set([...job.codes, ...job.ignoredCodes]).size).toBe(job.codes.length + job.ignoredCodes.length);
+      // Word letters exclude G, M and N (handled by the sanitiser itself) and every word must be one letter.
+      for (const w of job.words) expect(w, d.id).toMatch(/^[A-LO-Z]$/);
+      // Host-only codes and the universal rejections are never job codes (S §4.7 step 6).
+      for (const code of ['M100', 'G38.2', 'G28.2', 'G28.3', 'M114', 'M115', 'M400']) expect(job.codes, `${d.id} ${code}`).not.toContain(code);
+      expect(Number.isInteger(job.maxTool) && job.maxTool > 0).toBe(true);
+      // Every barrier and holdback code is a job code.
+      for (const code of [...d.gcode.barrierCodes, ...d.gcode.holdbackEndCodes]) expect(job.codes, `${d.id} ${code}`).toContain(code);
+    }));
+
   it('a dialect whose program end clears an alarm holds back M2/M30 (H35)', () =>
     each((d) => {
       if (d.caps.m2ClearsAlarm) expect(d.gcode.holdbackEndCodes, d.id).toEqual(['M2', 'M30']);

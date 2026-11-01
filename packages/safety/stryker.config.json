@@ -1,0 +1,31 @@
+{
+  "$schema": "../../node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "ROADMAP P0-10 acceptance: Stryker at 90% gating on the safety package. `pnpm --filter @synthetos/safety mutation` fails below 90%. In place, because the tests read test-fixtures/ and SAFETY.md by repository path.",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.config.ts"
+  },
+  "plugins": [
+    "@stryker-mutator/vitest-runner"
+  ],
+  "mutate": [
+    "src/**/*.ts"
+  ],
+  "coverageAnalysis": "perTest",
+  "thresholds": {
+    "high": 95,
+    "low": 90,
+    "break": 90
+  },
+  "reporters": [
+    "clear-text",
+    "progress",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/mutation/mutation.json"
+  },
+  "timeoutMS": 20000,
+  "inPlace": true
+}

@@ -58,4 +58,18 @@ export const DEV_LICENCE_EXCEPTIONS: readonly LicenceException[] = [
       'Public-domain dedication. Syntax highlighter in the error pages of wrangler/miniflare (via youch); ' +
       'dev tooling only.',
   },
+  {
+    name: 'caniuse-lite',
+    licence: 'CC-BY-4.0',
+    reason:
+      'Permissive data licence (browser support tables). Reaches the tree only through Stryker (ROADMAP P0-10) → ' +
+      'Babel → browserslist; dev tooling only, never bundled, deployed or distributed.',
+  },
+  {
+    name: 'tslib',
+    licence: '0BSD',
+    reason:
+      'Permissive, OSI-approved licence (zero-clause BSD). TypeScript runtime helpers used by Stryker (ROADMAP P0-10); ' +
+      'dev tooling only, never bundled, deployed or distributed.',
+  },
 ];

@@ -12,3 +12,20 @@ export const VERSION = '0.0.0';
 
 export * from './strings.ts';
 export { CANNOT_GUARANTEE } from './contract.ts';
+export * from './sanitize/index.ts';
+export {
+  BASE_STATES,
+  CURRENT_RELEASE,
+  INTENTS,
+  OVERLAYS,
+  PORT_OPEN_STATES,
+  STOP_CLASS,
+  allowed,
+  intentKind,
+  isLive,
+} from './allowMatrix.ts';
+export type { BaseState, Decision, Intent, IntentKind, MatrixSnapshot, Overlay, Release } from './allowMatrix.ts';
+export { overrunBound } from './overrun.ts';
+export type { OverrunBound, QueuedLine } from './overrun.ts';
+export { HOST_GATE_FIELDS, diffHostGates, effectiveHostGates, workEnvelope } from './hostGates.ts';
+export type { C19Acceptance, DualMotorAxis, Envelope, HostGateChange, HostGateField, HostGates, SpindleKind } from './hostGates.ts';
