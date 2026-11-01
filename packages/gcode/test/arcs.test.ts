@@ -60,17 +60,21 @@ describe('arcs', () => {
       fc.property(arcArb, (arc) => {
         const box = arcBox(arc);
         const pts = tessellateArc(arc, arcSegments(arc, 0.01));
+        // One assertion per property run (per-point expect() calls made this test slow enough to time out cold).
+        const outside = pts.filter(
+          ([p0, p1]) => p0 < box.min[0] - 1e-9 || p0 > box.max[0] + 1e-9 || p1 < box.min[1] - 1e-9 || p1 > box.max[1] + 1e-9,
+        );
+        expect(outside).toEqual([]);
+        // Tight on all four sides: the box is no larger than the tessellation (start point included) by more than the chord tolerance.
+        let [x0, x1, y0, y1] = [0, 0, 0, 0];
         for (const [p0, p1] of pts) {
-          expect(p0).toBeGreaterThanOrEqual(box.min[0] - 1e-9);
-          expect(p0).toBeLessThanOrEqual(box.max[0] + 1e-9);
-          expect(p1).toBeGreaterThanOrEqual(box.min[1] - 1e-9);
-          expect(p1).toBeLessThanOrEqual(box.max[1] + 1e-9);
+          x0 = Math.min(x0, p0);
+          x1 = Math.max(x1, p0);
+          y0 = Math.min(y0, p1);
+          y1 = Math.max(y1, p1);
         }
-        // Tight: the box is no larger than the tessellation by more than the chord tolerance.
-        const xs = [0, ...pts.map((p) => p[0])];
-        const ys = [0, ...pts.map((p) => p[1])];
-        expect(Math.min(...xs) - box.min[0]).toBeLessThanOrEqual(0.01 + 1e-9);
-        expect(box.max[1] - Math.max(...ys)).toBeLessThanOrEqual(0.01 + 1e-9);
+        const slack = [x0 - box.min[0], box.max[0] - x1, y0 - box.min[1], box.max[1] - y1];
+        expect(slack.every((d) => d <= 0.01 + 1e-9)).toBe(true);
       }),
       { numRuns: 500 },
     );
