@@ -24,7 +24,7 @@ export async function machineWorker(page: Page): Promise<Worker> {
   return worker;
 }
 
-/** Sends one request (`{ v: 2, kind }`, or any raw value) and returns the worker's reply. */
+/** Sends one request (`{ v: 3, kind }`, or any raw value) and returns the worker's reply. */
 export function request(worker: Worker, message: unknown): Promise<unknown> {
   return worker.evaluate(
     (data) =>

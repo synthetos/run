@@ -58,9 +58,9 @@ describe('production closure (P0 review: runtime workspace edges are dependencie
   const dirs = ['apps/web', 'packages/machine', 'packages/safety', 'packages/protocol', 'packages/flasher', 'packages/testkit', 'packages/schema', 'tools/e2e'];
   const workspace = new Map(dirs.map((d) => [d, json(`${d}/package.json`)]));
 
-  it('follows dependencies only: web, machine, safety, protocol and flasher, never the test kit', () => {
+  it('follows dependencies only: web, machine, safety, schema (the read allowlists, P1-02), protocol and flasher, never the test kit', () => {
     expect([...productionClosure(BUILD_ENTRY, workspace)].sort()).toEqual(
-      ['apps/web', 'packages/flasher', 'packages/machine', 'packages/protocol', 'packages/safety'].sort(),
+      ['apps/web', 'packages/flasher', 'packages/machine', 'packages/protocol', 'packages/safety', 'packages/schema'].sort(),
     );
   });
 

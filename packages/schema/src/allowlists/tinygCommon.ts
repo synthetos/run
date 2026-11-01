@@ -143,7 +143,7 @@ export const REQUIRED_DENY: Readonly<Record<string, string>> = Object.freeze({
   er: 'GET fakes an exception report (EN report.c:159-162)',
   boot: 'not a value: any SET enters the bootloader (AUD E138); sent only by the flasher',
   defa: 'not a value: a SET restores factory defaults',
-  test: 'not a value: a SET runs a self-test',
+  test: 'not a value: a SET runs the board\'s built-in test',
   qf: 'not a value: a SET flushes the planner queue',
   clear: 'GET clears an alarm (EN config_app.c:491); sent only by the C13 "clear alarm" intent, never as a read',
   clr: 'GET clears an alarm (EN config_app.c:492, synonym of clear); never sent',

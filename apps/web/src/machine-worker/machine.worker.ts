@@ -1,11 +1,14 @@
 /**
- * `machine.worker`: the dedicated worker that owns the serial link
- * (ROADMAP P0-14; RUN_PLAN §5.1 rule 1, §5.4). It has no network code
- * (RUN_PLAN §5.4) and no session or account state (DECISIONS D1).
+ * `machine.worker`: the dedicated worker that owns the serial link and the
+ * read-only `MachineSession`, the single writer (ROADMAP P0-14, P1-02;
+ * RUN_PLAN §5.1 rule 1, §5.4). It has no network code (RUN_PLAN §5.4) and
+ * no account state (DECISIONS D1).
  *
  * Each message is one request (rpc.ts) with a reply port in `ports[0]`; the
- * answer goes back on that port. A message without a reply port gets no
- * answer and does nothing.
+ * answer goes back on that port, which is then closed, except after a
+ * successful `subscribe`: that port stays open and receives the session
+ * snapshots. A message without a reply port gets no answer and does
+ * nothing.
  *
  * Synthetic `message` events are not filtered out (`isTrusted` is not
  * checked): only code already running inside this worker could dispatch
@@ -24,8 +27,8 @@ const host = new MachineWorkerHost(createTransportSource());
 (globalThis as unknown as WorkerScope).addEventListener('message', (event) => {
   const reply = event.ports[0];
   if (reply === undefined) return;
-  void host.handle(event.data).then((answer) => {
+  void host.handle(event.data, reply).then((answer) => {
     reply.postMessage(answer);
-    reply.close();
+    if (!(answer.ok && answer.kind === 'subscribe')) reply.close();
   });
 });
