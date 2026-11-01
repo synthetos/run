@@ -13,6 +13,11 @@
  *   `.github/workflows/ci.yml` on `main` in this repository. A pull request
  *   run is never a push, so it can never qualify.
  *
+ * The state is still only a claim: any job of such a run can upload an
+ * artifact of that name. Retention binds every retained file to the
+ * attested build manifest of its commit (retention.ts); `selectBuildRun`
+ * finds the run whose attested `run-web` holds that manifest.
+ *
  * Dependency-free.
  */
 
@@ -32,6 +37,8 @@ export interface ArtifactSummary {
 export interface RunSummary {
   readonly id: number;
   readonly event: string;
+  readonly head_sha?: string;
+  readonly created_at?: string;
   readonly head_branch: string;
   readonly path: string;
   readonly repository: { readonly id: number };
@@ -78,4 +85,21 @@ export function checkPreviousRun(response: unknown, runId: number, repositoryId:
   if (run.repository?.id !== repositoryId) problems.push('run is not in this repository');
   if (run.head_repository?.id !== repositoryId) problems.push('run head is not this repository');
   return problems;
+}
+
+/**
+ * The run that built and attested `commit`: from a GitHub `GET
+ * /repos/{repo}/actions/workflows/ci.yml/runs?head_sha=...` response, the
+ * newest run that `checkPreviousRun` trusts and whose head is exactly that
+ * commit. Null when there is none (its assets are then not retained).
+ */
+export function selectBuildRun(response: unknown, commit: string, repositoryId: number): number | null {
+  if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error('commit must be a full 40-character sha');
+  const list = (response as { workflow_runs?: unknown }).workflow_runs;
+  if (!Array.isArray(list)) throw new Error('runs response has no workflow_runs array');
+  const ok = (list as Partial<RunSummary>[]).filter(
+    (r) => typeof r.id === 'number' && r.head_sha === commit && checkPreviousRun(r, r.id, repositoryId).length === 0 && !Number.isNaN(Date.parse(r.created_at ?? '')),
+  );
+  ok.sort((a, b) => Date.parse(b.created_at as string) - Date.parse(a.created_at as string) || (b.id as number) - (a.id as number));
+  return ok[0]?.id ?? null;
 }

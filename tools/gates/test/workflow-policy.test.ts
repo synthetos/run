@@ -185,7 +185,8 @@ describe('the e2e-fake-serial job (P0-14)', () => {
     const end = CI.indexOf('  attest:\n');
     expect(rules(CI.slice(0, start) + CI.slice(end))).toEqual(['deploy-gate']);
     expect(rules(mutate(CI, HEAD, "  e2e-fake-serial:\n    name: e2e-fake-serial\n    if: github.event_name == 'push'\n    needs: [build]\n"))).toEqual(['fake-serial-job']);
-    expect(rules(mutate(CI, HEAD, '  e2e-fake-serial:\n    name: e2e-fake-serial\n'))).toEqual(['fake-serial-job']);
+    // Without needs: build it also cannot read the build digests.
+    expect(rules(mutate(CI, HEAD, '  e2e-fake-serial:\n    name: e2e-fake-serial\n'))).toEqual(['fake-serial-job', 'artifact-digest']);
   });
 
   it('must build, verify, diff and run the suite, in that order', () => {
@@ -215,7 +216,7 @@ describe('the e2e-fake-serial job (P0-14)', () => {
 describe('the e2e job (P0-06)', () => {
   it('fails when it becomes conditional or stops needing build', () => {
     expect(rules(mutate(CI, '  e2e:\n    name: e2e\n    needs: [build]\n', "  e2e:\n    name: e2e\n    if: github.event_name == 'push'\n    needs: [build]\n"))).toEqual(['e2e-job']);
-    expect(rules(mutate(CI, '  e2e:\n    name: e2e\n    needs: [build]\n', '  e2e:\n    name: e2e\n'))).toEqual(['e2e-job']);
+    expect(rules(mutate(CI, '  e2e:\n    name: e2e\n    needs: [build]\n', '  e2e:\n    name: e2e\n'))).toEqual(['e2e-job', 'artifact-digest']);
   });
 
   it('fails when the suite would not serve the extracted artifact', () => {
@@ -240,6 +241,67 @@ describe('the e2e job (P0-06)', () => {
       '        run: pnpm --filter @synthetos/e2e e2e\n',
     ).replace('        run: PLACEHOLDER\n', '        run: pnpm --filter @synthetos/e2e canary\n');
     expect(rules(swapped)).toEqual(['e2e-job']);
+  });
+});
+
+describe('artifact digests (P0 review: artifact poisoning)', () => {
+  /** Only the job's own section of ci.yml, so a mutation touches exactly one job. */
+  function inJob(job: string, from: string, to: string): string {
+    const start = CI.indexOf(`\n  ${job}:\n`);
+    expect(start, job).toBeGreaterThan(-1);
+    const next = CI.slice(start + 1).search(/\n  [a-z-]+:\n/);
+    const end = next === -1 ? CI.length : start + 1 + next;
+    const section = CI.slice(start, end);
+    expect(section.includes(from), `${job}: '${from}' not found`).toBe(true);
+    return CI.slice(0, start) + section.replace(from, to) + CI.slice(end);
+  }
+
+  it.each(['e2e', 'e2e-fake-serial', 'attest', 'deploy-staging', 'deploy-production'])('fails when %s drops the digest check', (job) => {
+    expect(rules(inJob(job, '          sha256sum --check --strict artifact-digests.txt\n', ''))).toEqual(['artifact-digest']);
+  });
+
+  it.each(['e2e', 'attest', 'deploy-production'])('fails when %s takes a digest from anywhere but the build outputs', (job) => {
+    expect(rules(inJob(job, '${{ needs.build.outputs.run-web-tar }}', '${{ needs.e2e.outputs.run-web-tar }}'))).toContain('artifact-digest');
+  });
+
+  it('fails when attest signs before it checks', () => {
+    const moved = inJob(
+      'attest',
+      '      - name: Check the downloaded artifact is the bytes the build job produced\n',
+      '      - name: Attest early\n        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2\n      - name: Check the downloaded artifact is the bytes the build job produced\n',
+    );
+    expect(rules(moved)).toEqual(['artifact-digest']);
+  });
+
+  it('fails when a deploy extracts the artifact before it checks', () => {
+    const moved = inJob(
+      'deploy-staging',
+      '      - name: Check the downloaded artifact is the bytes the build job produced\n',
+      '      - name: Early extract\n        run: tar -xf artifact/run-web.tar -C early\n      - name: Check the downloaded artifact is the bytes the build job produced\n',
+    );
+    expect(rules(moved)).toEqual(['artifact-digest']);
+  });
+
+  it('fails when the build job stops publishing a digest, or records it after the upload', () => {
+    expect(rules(inJob('build', '      run-worker-tar: ${{ steps.digests.outputs.run-worker-tar }}\n', ''))).toEqual(['artifact-digest']);
+    expect(rules(inJob('build', `            echo "run-web-tar=$(sha256sum artifact/run-web.tar | cut -d' ' -f1)"\n`, ''))).toEqual(['artifact-digest']);
+    expect(rules(inJob('build', '        id: digests\n', ''))).toEqual(['artifact-digest']);
+  });
+});
+
+describe('undo a failed deployment (P0 review)', () => {
+  it.each(['staging', 'production'])('fails when deploy-%s loses its undo step, its condition or the deploy id', (env) => {
+    const undo = `        run: node tools/gates/src/deploy/rollback-cli.ts ${env} ci/deploy-toolchain/node_modules/.bin/wrangler\n`;
+    expect(rules(mutate(CI, undo, ''))).toEqual(['deploy-rollback']);
+    const step = `      - name: Undo the deployment when a step after it failed (staging is deleted, production rolled back)\n        if: failure() && steps.deploy.outcome == 'success'\n`;
+    const start = CI.indexOf(`  deploy-${env}:\n`);
+    const at = CI.indexOf(step, start);
+    expect(at).toBeGreaterThan(-1);
+    const always = CI.slice(0, at) + step.replace("failure() && steps.deploy.outcome == 'success'", 'always()') + CI.slice(at + step.length);
+    expect(rules(always)).toEqual(['deploy-rollback']);
+    const idAt = CI.indexOf('        id: deploy\n', start);
+    const noId = CI.slice(0, idAt) + CI.slice(idAt + '        id: deploy\n'.length);
+    expect(rules(noId)).toEqual(['deploy-rollback']);
   });
 });
 

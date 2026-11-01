@@ -73,21 +73,33 @@ to a bundler inside the build toolchain. The artifact is `run-web.tar` and
 ## A deploy, step by step
 
 `deploy-staging`, then `deploy-production` (owner approval):
-1. Verify the attestation of all four files and the extracted trees.
+1. Check the four downloaded files against the sha256 the `build` job
+   published as its outputs (artifact poisoning, P0 review), then verify the
+   attestation of all four and the extracted trees.
 2. **Preflight** (`deploy/preflight.ts`): the configuration passes every
    check; `account_id` is a real account id, not the D34 placeholder; it
    equals the `CLOUDFLARE_ACCOUNT_ID` variable.
 3. Staging only: **Access must already be in front** (`smoke/cli.ts --env
-   staging --pre-deploy`).
+   staging --pre-deploy`): a positive check through the Cloudflare Access
+   API (docs/ops/access.md §2); "not reachable" alone never passes.
 4. **Previous state**: the newest `run-deployed-<env>` artifact from a `push`
    run of `ci.yml` on `main` in this repository (`deploy/previous.ts`; a pull
    request run can never qualify). None means a first deploy, with a warning.
+   The state is only a claim (any job of such a run could upload that
+   name), so for every commit it names the job finds that commit's `ci.yml`
+   push run, downloads its `run-web` artifact and `gh attestation verify`s
+   the `run-web.sha256` manifest (signer workflow, `main`, source digest =
+   that commit).
 5. **Asset retention** (`deploy/retention.ts`): hashed `assets/**` files that
    stopped being current less than 14 days ago are merged into the site.
    Refused: state from the other environment, a file whose bytes do not
    match the recorded hash, a hashed name with different bytes in the new
-   build, timestamps in the future. HTML and `_headers` are never retained.
-   The merged tree is scanned again.
+   build, timestamps in the future, and a retained file that the attested
+   manifest of its commit does not list with the same sha256. A file whose
+   commit has no verified manifest is dropped. Only `assets/**` names with a
+   content hash and a `js`, `css`, `woff2` or `png` extension are ever
+   retained: never HTML, SVG, XML, text or `_headers`. The merged tree is
+   scanned again.
 6. `wrangler deploy worker/index.mjs --no-bundle --assets deploy-site`
    (100%, never gradual).
 7. **Smoke test** (`smoke/cli.ts --env <env>`):
@@ -99,7 +111,9 @@ to a bundler inside the build toolchain. The artifact is `run-web.tar` and
      workers.dev hostname dead (probe); DNSSEC validated by two resolvers;
      a CAA record naming only the allowed CAs; the certificate issuer.
    Any finding fails the job, so a header regression on staging stops the
-   production deploy, and one on production fails visibly.
+   production deploy, and one on production fails visibly. **A failure after
+   the deploy step undoes the deploy** (`deploy/rollback-cli.ts`): staging is
+   deleted, production rolled back (docs/ops/access.md §2).
 8. Upload `run-deployed-<env>` (`retention.json` plus every asset it lists)
    for the next deploy.
 

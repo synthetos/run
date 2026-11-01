@@ -37,6 +37,18 @@
  *   diff against it and then the fake-serial suite, in that order. It never
  *   uploads anything (the test build must never become an artifact) and
  *   never names RUN_E2E_SITE or RUN_E2E_WORKER.
+ * - `artifact-digest` (ci.yml, P0 review): the `build` job publishes the
+ *   sha256 of the four artifact files as job outputs (only it can set
+ *   them), and every job that downloads the artifact (`ARTIFACT_CONSUMERS`)
+ *   checks the downloaded files against those outputs right after the
+ *   download and before it attests, extracts or deploys anything. This
+ *   closes artifact poisoning: another job of the same run replacing
+ *   `run-web` under the same name.
+ * - `deploy-rollback` (ci.yml, P0 review): each deploy job's deploy step has
+ *   `id: deploy`, and after the smoke test a step runs
+ *   `rollback-cli.ts <env>` under exactly
+ *   `if: failure() && steps.deploy.outcome == 'success'`, so a deployment
+ *   whose smoke test failed never stays live.
  * - `yaml-subset`: tabs, anchors, aliases and merge keys are refused. They
  *   are valid YAML that this line-based reader could not follow, so they are
  *   not allowed to hide anything from it.
@@ -75,6 +87,34 @@ export const FAKE_SERIAL_STEPS: readonly string[] = [
   'run: pnpm --filter @synthetos/e2e e2e:fake-serial',
 ];
 
+/** The build job's outputs: one sha256 per artifact file, each set by its `digests` step. */
+export const ARTIFACT_DIGESTS: Readonly<Record<string, string>> = {
+  'run-web-tar': 'artifact/run-web.tar',
+  'run-web-manifest': 'artifact/run-web.sha256',
+  'run-worker-tar': 'artifact/run-worker.tar',
+  'run-worker-manifest': 'artifact/run-worker.sha256',
+};
+
+/** The env a consumer's check step takes the digests from (key: env name, value: build output). */
+export const DIGEST_ENV: Readonly<Record<string, string>> = {
+  RUN_WEB_TAR_SHA256: 'run-web-tar',
+  RUN_WEB_MANIFEST_SHA256: 'run-web-manifest',
+  RUN_WORKER_TAR_SHA256: 'run-worker-tar',
+  RUN_WORKER_MANIFEST_SHA256: 'run-worker-manifest',
+};
+
+/** The line that checks the downloaded files. */
+export const DIGEST_CHECK = 'sha256sum --check --strict artifact-digests.txt';
+
+/** Jobs that download the artifact, and the first line after which the check would be too late. */
+export const ARTIFACT_CONSUMERS: Readonly<Record<string, RegExp>> = {
+  e2e: /tar -xf artifact\//,
+  'e2e-fake-serial': /tar -xf artifact\//,
+  attest: /uses:\s*actions\/attest-build-provenance@/,
+  'deploy-staging': /gh attestation verify|tar -xf artifact\//,
+  'deploy-production': /gh attestation verify|tar -xf artifact\//,
+};
+
 /** The only `write` permission scopes any job may hold, by workflow file and job. */
 export const WRITE_PERMISSIONS: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = {
   'ci.yml': { attest: ['id-token', 'attestations'] },
@@ -92,6 +132,8 @@ export type PolicyRule =
   | 'verify-job'
   | 'e2e-job'
   | 'fake-serial-job'
+  | 'artifact-digest'
+  | 'deploy-rollback'
   | 'yaml-subset';
 
 export interface PolicyFinding {
@@ -424,9 +466,84 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
         flag(download.no, 'the e2e-fake-serial job must build the test artifact before it downloads anything into the checkout');
       }
     }
+    checkArtifactDigests(jobs, add);
+    checkRollback(jobs, add);
     for (const name of [...DEPLOY_JOBS, ...DEPLOY_NEEDS]) {
       if (!jobs.some((j) => j.name === name)) add(1, 'deploy-gate', `ci.yml must define the '${name}' job`);
     }
   }
   return findings;
+}
+
+/** ci.yml: the build job publishes the artifact digests and every consumer checks them (`artifact-digest`). */
+function checkArtifactDigests(jobs: readonly Job[], add: (line: number, rule: PolicyRule, message: string) => void): void {
+  const flag = (line: number, message: string): void => add(line, 'artifact-digest', message);
+  const build = jobs.find((j) => j.name === 'build');
+  if (build !== undefined) {
+    const outputs = jobBlock(build, 'outputs').filter((l) => !l.inBlock);
+    const upload = build.lines.find((l) => /uses:\s*actions\/upload-artifact@/.test(l.text));
+    const digestsStep = build.lines.find((l) => l.text.replace(/^-\s+/, '') === 'id: digests');
+    if (digestsStep === undefined) flag(build.line, "the build job must have a step with 'id: digests' that writes the artifact digests to $GITHUB_OUTPUT");
+    for (const [name, file] of Object.entries(ARTIFACT_DIGESTS)) {
+      if (!outputs.some((l) => l.indent === 6 && l.text === `${name}: \${{ steps.digests.outputs.${name} }}`)) {
+        flag(build.line, `the build job must output ${name}: \${{ steps.digests.outputs.${name} }}`);
+      }
+      const writes = build.lines.find((l) => l.inBlock && l.text === `echo "${name}=$(sha256sum ${file} | cut -d' ' -f1)"`);
+      if (writes === undefined || digestsStep === undefined || writes.no < digestsStep.no) {
+        flag(build.line, `the digests step must write ${name} from sha256sum ${file}`);
+      } else if (upload !== undefined && writes.no > upload.no) {
+        flag(writes.no, 'the digests must be recorded before the artifact is uploaded');
+      }
+    }
+  }
+  for (const [name, tooLate] of Object.entries(ARTIFACT_CONSUMERS)) {
+    const job = jobs.find((j) => j.name === name);
+    if (job === undefined) continue;
+    if (!listValue(job, 'needs').includes('build')) flag(job.line, `job '${name}' must need build (it checks the artifact against the build job's digests)`);
+    const download = job.lines.find((l) => /uses:\s*actions\/download-artifact@/.test(l.text));
+    const check = job.lines.find((l) => l.inBlock && l.text === DIGEST_CHECK && (download === undefined || l.no > download.no));
+    if (check === undefined) {
+      flag(job.line, `job '${name}' must run '${DIGEST_CHECK}' after it downloads the artifact`);
+      continue;
+    }
+    const late = job.lines.find((l) => l.no > (download?.no ?? 0) && tooLate.test(l.text));
+    if (late !== undefined && late.no < check.no) flag(late.no, `job '${name}' must check the artifact digests before it uses the artifact`);
+    for (const [env, output] of Object.entries(DIGEST_ENV)) {
+      const want = `${env}: \${{ needs.build.outputs.${output} }}`;
+      const line = job.lines.find((l) => !l.inBlock && l.text === want);
+      if (line === undefined || line.no > check.no || (download !== undefined && line.no < download.no)) {
+        flag(job.line, `job '${name}' must pass ${want} to its digest check step`);
+      }
+    }
+  }
+}
+
+/** The exact condition of the undo step. */
+export const ROLLBACK_IF = "if: failure() && steps.deploy.outcome == 'success'";
+
+/** ci.yml: a deploy whose later steps fail is undone (`deploy-rollback`). */
+function checkRollback(jobs: readonly Job[], add: (line: number, rule: PolicyRule, message: string) => void): void {
+  for (const name of DEPLOY_JOBS) {
+    const job = jobs.find((j) => j.name === name);
+    if (job === undefined) continue;
+    const env = DEPLOY_ENVIRONMENTS[name] ?? '';
+    const flag = (line: number, message: string): void => add(line, 'deploy-rollback', message);
+    const text = (l: Line): string => l.text.replace(/^-\s+/, '');
+    const deployId = job.lines.find((l) => !l.inBlock && text(l) === 'id: deploy');
+    const wrangler = job.lines.find((l) => /wrangler deploy /.test(l.text));
+    const smoke = job.lines.find((l) => text(l) === `run: node tools/gates/src/smoke/cli.ts --env ${env}`);
+    const undo = job.lines.find((l) => text(l) === `run: node tools/gates/src/deploy/rollback-cli.ts ${env} ci/deploy-toolchain/node_modules/.bin/wrangler`);
+    if (deployId === undefined || wrangler === undefined || wrangler.no < deployId.no) {
+      flag(job.line, `job '${name}': the step that runs wrangler deploy must have 'id: deploy'`);
+    }
+    if (undo === undefined) {
+      flag(job.line, `job '${name}' must run rollback-cli.ts ${env} when a step after the deploy fails`);
+      continue;
+    }
+    if (smoke === undefined || undo.no < smoke.no) flag(undo.no, `job '${name}': the undo step must come after the smoke test`);
+    // The step's `if:` is the nearest step-level `if:` above its run line within the same step.
+    const stepStart = [...job.lines].reverse().find((l) => !l.inBlock && l.no < undo.no && /^-\s+name:/.test(l.text));
+    const cond = job.lines.find((l) => !l.inBlock && l.no > (stepStart?.no ?? 0) && l.no < undo.no && /^if:/.test(text(l)));
+    if (cond === undefined || text(cond) !== ROLLBACK_IF) flag(undo.no, `job '${name}': the undo step must run under exactly ${ROLLBACK_IF}`);
+  }
 }

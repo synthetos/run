@@ -111,6 +111,8 @@ cannot follow: anchors, aliases, merge keys and tabs. It enforces:
 | `verify-job` | `ci.yml` runs on `pull_request`, and `verify` is unconditional and runs `pnpm -r test` |
 | `fake-serial-job` | `e2e-fake-serial` is unconditional, needs `build`, builds the test artifact before downloading anything, verifies the production site, runs the artifact diff, then the fake-serial suite; uploads nothing; never names `RUN_E2E_SITE`/`RUN_E2E_WORKER` |
 | `e2e-job` | `e2e` is unconditional, needs `build`, serves the extracted artifact (job-level `RUN_E2E_SITE`, `RUN_E2E_WORKER`, named nowhere else in the job), verifies it, then runs the suite, then the canary |
+| `artifact-digest` | `build` publishes the sha256 of the four artifact files as job outputs (only it can set them); `e2e`, `e2e-fake-serial`, `attest` and both deploys check the downloaded files against `needs.build.outputs.*` right after the download and before they attest, extract or deploy anything. An artifact replaced under the same name by another job of the run (artifact poisoning) is therefore never attested, tested or deployed |
+| `deploy-rollback` | Each deploy step has `id: deploy`; after the smoke test a step runs `deploy/rollback-cli.ts <env>` under exactly `if: failure() && steps.deploy.outcome == 'success'` (staging deleted, production rolled back) |
 
 `pnpm ci-policy` also runs two more checks:
 - **CODEOWNERS** (`tools/gates/src/codeowners`):

@@ -39,7 +39,10 @@ in the existing account, which keeps its own Workers Paid plan (D11).
    Administrator) and record it in this file.
 3. **The single CI token.** Create exactly one API token:
    - permission **Account → Workers Scripts → Edit**, on this account only;
-   - no zone permissions, no DNS, no Access, no account settings;
+   - plus **Account → Access: Apps and Policies → Read** (read only): the
+     staging deploy confirms through the API that Access protects staging
+     before it deploys (docs/ops/access.md §2, P0 review). No Access edit;
+   - no zone permissions, no DNS, no account settings;
    - client IP filtering is not possible for GitHub-hosted runners; keep the
      TTL at one year and rotate it at each yearly audit;
    - store it **only** as the `CLOUDFLARE_API_TOKEN` environment secret of
@@ -102,7 +105,7 @@ in the existing account, which keeps its own Workers Paid plan (D11).
 
 Record the answers in the release PR.
 
-- [ ] The account has exactly one API token, Workers Scripts:Edit only.
+- [ ] The account has exactly one API token: Workers Scripts:Edit and Access: Apps and Policies:Read, nothing else.
 - [ ] The token is only in the `staging` and `production` environment secrets.
 - [ ] Members: the owner only (or the recorded exceptions), hardware key on.
 - [ ] Audit log since the last release: every Workers change was made by the

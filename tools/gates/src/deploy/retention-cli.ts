@@ -3,8 +3,13 @@
  *
  *   node tools/gates/src/deploy/retention-cli.ts merge \
  *     --env <production|staging> --commit <sha> --now <iso-time> \
- *     --site <verified site dir> (--previous <state dir> | --no-previous) \
+ *     --site <verified site dir> \
+ *     (--previous <state dir> --attested <manifests dir> | --no-previous) \
  *     --out <new dir to deploy> --state-out <new dir to upload>
+ *
+ * `--attested` holds `<commit>/run-web.sha256` for every build of the
+ * previous state whose manifest the deploy job fetched and verified with
+ * `gh attestation verify`; a commit missing there drops its assets.
  *
  * `--out` receives a copy of the site plus the retained assets; it is what
  * wrangler deploys. `--state-out` receives `retention.json` and every asset
@@ -15,11 +20,12 @@
  *
  * Exit status: 0 merged, 1 refused, 2 could not run.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { readTree } from '../shared/files.ts';
-import { formatState, mergeRetained, parseState, RetentionError, STATE_FILE } from './retention.ts';
+import { parseManifest } from '../repro/tree.ts';
+import { formatState, mergeRetained, parseState, RetentionError, STATE_FILE, type AttestedManifests } from './retention.ts';
 import { isDeployEnvironment } from './wranglerConfig.ts';
 
 function writeTree(root: string, files: readonly { path: string; bytes: Uint8Array }[]): void {
@@ -28,6 +34,17 @@ function writeTree(root: string, files: readonly { path: string; bytes: Uint8Arr
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, f.bytes);
   }
+}
+
+/** `<dir>/<40-hex commit>/run-web.sha256` for each verified build. Any other entry is refused. */
+function readAttested(dir: string): AttestedManifests {
+  if (!existsSync(dir)) throw new Error(`${dir} does not exist`);
+  const out = new Map<string, ReadonlyMap<string, string>>();
+  for (const commit of readdirSync(dir)) {
+    if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error(`${dir}/${commit}: not a full commit sha`);
+    out.set(commit, parseManifest(readFileSync(join(dir, commit, 'run-web.sha256'), 'utf8')));
+  }
+  return out;
 }
 
 function main(argv: readonly string[]): number {
@@ -42,6 +59,7 @@ function main(argv: readonly string[]): number {
         site: { type: 'string' },
         previous: { type: 'string' },
         'no-previous': { type: 'boolean' },
+        attested: { type: 'string' },
         out: { type: 'string' },
         'state-out': { type: 'string' },
       },
@@ -54,6 +72,7 @@ function main(argv: readonly string[]): number {
     }
     if (!isDeployEnvironment(env)) throw new Error(`unknown environment '${env}'`);
     if ((previous === undefined) === !noPrevious) throw new Error('give exactly one of --previous <dir> and --no-previous');
+    if ((previous === undefined) !== (values.attested === undefined)) throw new Error('--attested <dir> goes with --previous, and only with it');
     const nowDate = new Date(now);
     if (Number.isNaN(nowDate.getTime())) throw new Error(`--now '${now}' is not a time`);
     for (const dir of [out, stateOut]) if (existsSync(dir)) throw new Error(`${dir} already exists`);
@@ -62,7 +81,7 @@ function main(argv: readonly string[]): number {
     let prev = null;
     if (previous !== undefined) {
       const files = readTree(previous).filter((f) => f.path !== STATE_FILE);
-      prev = { state: parseState(readFileSync(join(previous, STATE_FILE), 'utf8')), files };
+      prev = { state: parseState(readFileSync(join(previous, STATE_FILE), 'utf8')), files, attested: readAttested(values.attested as string) };
     }
     const result = mergeRetained({ env, commit, now: nowDate, site: siteFiles, previous: prev });
 
@@ -76,6 +95,7 @@ function main(argv: readonly string[]): number {
     );
     for (const p of result.retained) process.stdout.write(`  retained ${p.path} (current until ${result.state.assets[p.path]?.lastCurrent ?? '?'})\n`);
     for (const p of result.expired) process.stdout.write(`  expired  ${p}\n`);
+    for (const p of result.unattested) process.stdout.write(`  dropped  ${p} (no attested build manifest for its commit)\n`);
     return 0;
   } catch (error) {
     const refused = error instanceof RetentionError;

@@ -59,6 +59,20 @@
  *   on the built output. P1-01 narrows it, like the lint rule, to the machine
  *   worker's chunk in its own owner-approved PR.
  *
+ * P0 review adds rules for URLs a literal-text scan could not see:
+ *
+ * - `character-reference-in-url`: a character reference (`&#58;`, `&#x2f;`,
+ *   `&colon;`, `&sol;`, ...) inside a URL attribute value in HTML, SVG or
+ *   XML. The browser decodes it before it resolves the URL, so
+ *   `href="https&#58;//evil.example/"` is an outbound link the other rules
+ *   would miss. Only `&amp;` (a query-string `&`) is allowed: it can never
+ *   form a scheme or `//`.
+ * - `srcset` values are split on commas and every candidate is checked, not
+ *   just the first.
+ * - In CSS (and HTML), EVERY quoted string is checked for a leading `//` or
+ *   a scheme, so `image-set("//evil.example/b.png" 1x)` is caught as well as
+ *   `url()` and `@import`.
+ *
  * The scan is a backstop on the built text. It cannot see a name assembled at
  * run time (`'Mock' + 'SerialPort'`); the dependency-cruiser and ESLint rules
  * on the source are the primary gates, and the marker is what makes a
@@ -149,6 +163,7 @@ export type ScanRule =
   | 'mock-serial-port'
   | 'transport-query'
   | 'url-scheme'
+  | 'character-reference-in-url'
   | 'web-serial';
 
 export interface BundleFile {
@@ -207,6 +222,55 @@ const WEB_SERIAL_RE = new RegExp(
   'g',
 );
 
+/** A URL attribute and its value (double-quoted, single-quoted or bare) in markup. */
+const URL_ATTRIBUTE_VALUE_RE = new RegExp(`(?<![A-Za-z0-9_:-])(${URL_ATTRIBUTES})\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`, 'gi');
+/** A character reference other than `&amp;`: numeric, hex, or any other named one. */
+const CHARACTER_REFERENCE_RE = /&(?!amp;)(?:#[0-9]+;?|#[xX][0-9a-fA-F]+;?|[A-Za-z][A-Za-z0-9]*;)/;
+/** A CSS quoted string that starts with `//` or `scheme:` and a non-space. */
+const CSS_STRING_URL_RE = new RegExp(`["'](\\/\\/|${SCHEME}:(?=[^\\s"']))`, 'g');
+
+/** The URL-attribute rules for markup: character references in a URL, and every `srcset` candidate. */
+function markupAttributeFindings(path: string, text: string): ScanFinding[] {
+  const findings: ScanFinding[] = [];
+  for (const match of text.matchAll(URL_ATTRIBUTE_VALUE_RE)) {
+    const name = (match[1] as string).toLowerCase();
+    const value = match[2] ?? match[3] ?? match[4] ?? '';
+    if (CHARACTER_REFERENCE_RE.test(value)) {
+      findings.push({ file: path, rule: 'character-reference-in-url', match: clip(match[0]) });
+    }
+    if (name !== 'srcset') continue;
+    // Each candidate is "URL [descriptor]"; the first is already checked by the attribute-start rules.
+    for (const candidate of value.split(',').slice(1)) {
+      const url = candidate.trim().split(/\s+/)[0] ?? '';
+      if (url.startsWith('//')) findings.push({ file: path, rule: 'protocol-relative-url', match: clip(`srcset … ${url}`) });
+      const scheme = new RegExp(`^(${SCHEME}):`).exec(url)?.[1]?.toLowerCase();
+      if (scheme !== undefined && !ALLOWED_URL_SCHEMES.includes(scheme) && !url.slice(scheme.length + 1).startsWith('//')) {
+        findings.push({ file: path, rule: 'url-scheme', match: clip(`srcset … ${url}`) });
+      }
+    }
+  }
+  return findings;
+}
+
+/** Every quoted string in CSS that starts with `//` or a scheme (image-set, custom properties, ...). */
+function cssStringFindings(path: string, text: string): ScanFinding[] {
+  const findings: ScanFinding[] = [];
+  for (const match of text.matchAll(CSS_STRING_URL_RE)) {
+    const lead = match[1] as string;
+    const at = (match.index ?? 0) + 1;
+    // url("...") and @import "..." are the url-scheme and protocol-relative rules' own; do not report twice.
+    if (/(?:url\(\s*|@import\s+)$/i.test(text.slice(Math.max(0, at - 16), at - 1))) continue;
+    if (lead === '//') {
+      findings.push({ file: path, rule: 'protocol-relative-url', match: clip(text.slice(at, at + 60)) });
+      continue;
+    }
+    const scheme = lead.slice(0, -1).toLowerCase();
+    if (ALLOWED_URL_SCHEMES.includes(scheme) || scheme === 'javascript' || scheme === 'vbscript' || text.startsWith('//', at + lead.length)) continue;
+    findings.push({ file: path, rule: 'url-scheme', match: clip(text.slice(at, at + 60)) });
+  }
+  return findings;
+}
+
 function extension(path: string): string {
   const name = path.slice(path.lastIndexOf('/') + 1);
   const dot = name.lastIndexOf('.');
@@ -243,6 +307,14 @@ function schemeFindings(path: string, text: string, re: RegExp): ScanFinding[] {
   return findings;
 }
 
+/** The contents of every `<style>` element and `style="..."` attribute of an HTML page, joined. */
+function styleText(html: string): string {
+  const parts: string[] = [];
+  for (const m of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)) parts.push(m[1] ?? '');
+  for (const m of html.matchAll(/(?<![A-Za-z0-9_:-])style\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)) parts.push(m[1] ?? m[2] ?? '');
+  return parts.join('\n');
+}
+
 /**
  * The P0-13 rules (T-S40 and the Phase 0 Web Serial ban), which apply to
  * every text file whatever its location, cloud chunks included.
@@ -264,8 +336,10 @@ function testkitAndSerialFindings(path: string, text: string): ScanFinding[] {
     findings.push(...schemeFindings(path, text, LITERAL_SCHEME_RE));
   } else if (ext === '.html' || ext === '.svg' || ext === '.xml') {
     findings.push(...schemeFindings(path, text, MARKUP_SCHEME_RE), ...schemeFindings(path, text, CSS_SCHEME_RE));
+    findings.push(...markupAttributeFindings(path, text));
+    if (ext === '.html') findings.push(...cssStringFindings(path, styleText(text)));
   } else if (ext === '.css') {
-    findings.push(...schemeFindings(path, text, CSS_SCHEME_RE));
+    findings.push(...schemeFindings(path, text, CSS_SCHEME_RE), ...cssStringFindings(path, text));
   }
   for (const match of text.matchAll(WEB_SERIAL_RE)) findings.push({ file: path, rule: 'web-serial', match: clip(match[0]) });
   return findings;

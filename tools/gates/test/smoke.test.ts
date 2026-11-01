@@ -12,6 +12,7 @@ import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  checkAccessApplications,
   checkAccessGate,
   checkCaa,
   checkDnssec,
@@ -95,6 +96,41 @@ describe('preview URLs and workers.dev (H45)', () => {
     expect(checkWorkersDevProbe('u', { status: 404 })).toEqual([]);
     expect(checkWorkersDevProbe('u', { status: 200 })).toHaveLength(1);
     expect(checkWorkersDevProbe('u', { status: 302 })).toHaveLength(1);
+  });
+});
+
+describe('checkAccessApplications: the positive Access check (D31, P0 review)', () => {
+  const host = 'staging.run.synthetos.com';
+  const owner = { name: 'owner', decision: 'allow', include: [{ email: { email: 'owner@example.com' } }] };
+  const app = (over: Record<string, unknown> = {}) => ({ id: 'a1', type: 'self_hosted', domain: host, policies: [owner], ...over });
+  const embedded = (a: { policies?: unknown }) => a.policies;
+
+  it('passes an application covering the whole host with only identity policies', () => {
+    expect(checkAccessApplications(host, [app()], embedded)).toEqual([]);
+    expect(checkAccessApplications(host, [app({ domain: `${host}/*` })], embedded)).toEqual([]);
+    expect(checkAccessApplications(host, [app({ domain: '*.run.synthetos.com' })], embedded)).toEqual([]);
+    expect(checkAccessApplications(host, [app({ domain: 'other.example', self_hosted_domains: [host] })], embedded)).toEqual([]);
+    expect(checkAccessApplications(host, [app({ domain: undefined, destinations: [{ type: 'public', uri: host }] })], embedded)).toEqual([]);
+    // A bench service token (non_identity) is allowed (docs/ops/access.md).
+    expect(checkAccessApplications(host, [app({ policies: [owner, { name: 'bench', decision: 'non_identity', include: [{ service_token: { token_id: 't' } }] }] })], embedded)).toEqual([]);
+  });
+
+  it('fails when nothing covers the host: none at all, a path-only app, another type, or a different host', () => {
+    for (const apps of [[], [app({ domain: `${host}/admin` })], [app({ type: 'saas' })], [app({ domain: 'run.synthetos.com' })], [app({ domain: '*.synthetos.com.evil' })]]) {
+      expect(checkAccessApplications(host, apps, embedded), JSON.stringify(apps)).toEqual([expect.objectContaining({ check: 'access', message: expect.stringContaining('no Cloudflare Access application') })]);
+    }
+  });
+
+  it('fails on a Bypass or an Everyone policy, and on unreadable data', () => {
+    expect(checkAccessApplications(host, [app({ policies: [{ name: 'open', decision: 'bypass', include: [] }] })], embedded)).toHaveLength(1);
+    expect(checkAccessApplications(host, [app({ policies: [{ name: 'all', decision: 'allow', include: [{ everyone: {} }] }] })], embedded)).toHaveLength(1);
+    expect(checkAccessApplications(host, [app({ policies: undefined })], () => undefined)).toHaveLength(1);
+    expect(checkAccessApplications(host, null, embedded)).toHaveLength(1);
+  });
+
+  it('reads separately listed policies when the app does not embed them', () => {
+    const listed = new Map([['a1', [{ name: 'all', decision: 'allow', include: [{ everyone: {} }] }]]]);
+    expect(checkAccessApplications(host, [app({ policies: undefined })], (a) => listed.get(a.id as string))).toHaveLength(1);
   });
 });
 

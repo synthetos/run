@@ -339,3 +339,35 @@ describe('the whole bundle (P0-13 rules)', () => {
     ]);
   });
 });
+
+describe('URLs hidden from a literal scan (P0 review)', () => {
+  it('(1) a character reference in an href is refused: https&#58;//evil.example/ is an outbound link', () => {
+    expect(rules('index.html', '<a href="https&#58;//evil.example/">x</a>')).toContain('character-reference-in-url');
+    expect(rules('index.html', '<a href="https&colon;//evil.example/">x</a>')).toContain('character-reference-in-url');
+    expect(rules('index.html', "<a href='https&#x3a;&#x2f;&#x2f;evil.example/'>x</a>")).toContain('character-reference-in-url');
+    expect(rules('icon.svg', '<svg><a xlink:href="javascript&#58;x">y</a></svg>')).toContain('character-reference-in-url');
+  });
+
+  it('(2) a character-reference protocol-relative src is refused', () => {
+    expect(rules('index.html', '<img src="&#47;&#47;evil.example/p.png">')).toContain('character-reference-in-url');
+    expect(rules('index.html', '<img src=&sol;&sol;evil.example/p.png>')).toContain('character-reference-in-url');
+  });
+
+  it('(3) every srcset candidate is checked, not only the first', () => {
+    expect(rules('index.html', '<img srcset="a.png 1x, //evil.example/b.png 2x">')).toContain('protocol-relative-url');
+    expect(rules('index.html', '<img srcset="a.png 1x, b.png 2x, mailto:x 3x">')).toContain('url-scheme');
+    expect(rules('index.html', '<img srcset="a.png 1x, /assets/b-AbCdEfGh.png 2x">')).toEqual([]);
+  });
+
+  it('(4) CSS image-set and any other quoted string with a protocol-relative URL or a scheme is refused', () => {
+    expect(rules('assets/base-AbCdEfGh.css', '.x{background-image:image-set("//evil.example/b.png" 1x)}')).toContain('protocol-relative-url');
+    expect(rules('assets/base-AbCdEfGh.css', '.x{--u:"ftp:evil"}')).toContain('url-scheme');
+    expect(rules('index.html', '<style>.x{background:image-set("//evil.example/b.png" 1x)}</style>')).toContain('protocol-relative-url');
+    expect(rules('index.html', '<p style=\'background:image-set("//evil.example/b.png" 1x)\'>x</p>')).toContain('protocol-relative-url');
+  });
+
+  it('leaves ordinary markup and CSS alone', () => {
+    expect(rules('index.html', '<a href="/safety/?a=1&amp;b=2">s</a><p>Tom &amp; Jerry &#169;</p>')).toEqual([]);
+    expect(rules('assets/base-AbCdEfGh.css', '.x{font-family:"IBM Plex Sans";content:"note: x";background:url("data:image/png;base64,AA")}')).toEqual([]);
+  });
+});

@@ -20,13 +20,22 @@
 #   attest             main pushes only. Signs build provenance for the
 #                      artifact. Runs no repository code, so it is the only
 #                      job holding id-token: write.
+#
+# Every job that downloads the artifact (e2e, e2e-fake-serial, attest and
+# both deploys) first checks each file against the sha256 the build job
+# published as its outputs (only the build job can set them), so an artifact
+# replaced under the same name by another job of the run is never attested,
+# tested or deployed (artifact poisoning; `artifact-digest` in ci-policy).
 #   deploy-staging     main pushes only, protected environment `staging`.
 #   deploy-production  main pushes only, protected environment `production`
 #                      (the owner is a required reviewer).
 #                      Both deploy ONLY the attested artifact (the Worker with
 #                      --no-bundle), after the preflight (D34 account, H45
 #                      settings), with assets of the previous 14 days merged
-#                      in (asset retention), then run the smoke test (P0-04).
+#                      in (asset retention, each retained file bound to an
+#                      attested build manifest), then run the smoke test
+#                      (P0-04). A failure after the deploy step undoes it:
+#                      staging is deleted, production rolled back.
 #
 # Only the two deploy jobs may reference CLOUDFLARE_API_TOKEN (a Workers
 # Scripts:Edit token for the dedicated run account, D34). `pnpm ci-policy`
@@ -94,6 +103,15 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    # The sha256 of each artifact file. Only this job can set its outputs, so
+    # every consumer checks the downloaded bytes against them: an artifact
+    # replaced under the same name by another job of this run (artifact
+    # poisoning) fails the check before it is attested, tested or deployed.
+    outputs:
+      run-web-tar: ${{ steps.digests.outputs.run-web-tar }}
+      run-web-manifest: ${{ steps.digests.outputs.run-web-manifest }}
+      run-worker-tar: ${{ steps.digests.outputs.run-worker-tar }}
+      run-worker-manifest: ${{ steps.digests.outputs.run-worker-manifest }}
     steps:
       - name: Check out (first clean checkout)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -142,6 +160,16 @@ jobs:
             --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
             -cf artifact/run-worker.tar -C a/dist-worker .
           sha256sum artifact/run-web.tar artifact/run-web.sha256 artifact/run-worker.tar artifact/run-worker.sha256
+      - name: Record the artifact digests as job outputs
+        id: digests
+        run: |
+          set -euo pipefail
+          {
+            echo "run-web-tar=$(sha256sum artifact/run-web.tar | cut -d' ' -f1)"
+            echo "run-web-manifest=$(sha256sum artifact/run-web.sha256 | cut -d' ' -f1)"
+            echo "run-worker-tar=$(sha256sum artifact/run-worker.tar | cut -d' ' -f1)"
+            echo "run-worker-manifest=$(sha256sum artifact/run-worker.sha256 | cut -d' ' -f1)"
+          } >> "$GITHUB_OUTPUT"
       - name: Upload the artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -186,6 +214,27 @@ jobs:
         with:
           name: run-web
           path: artifact
+      - name: Check the downloaded artifact is the bytes the build job produced
+        env:
+          RUN_WEB_TAR_SHA256: ${{ needs.build.outputs.run-web-tar }}
+          RUN_WEB_MANIFEST_SHA256: ${{ needs.build.outputs.run-web-manifest }}
+          RUN_WORKER_TAR_SHA256: ${{ needs.build.outputs.run-worker-tar }}
+          RUN_WORKER_MANIFEST_SHA256: ${{ needs.build.outputs.run-worker-manifest }}
+        run: |
+          set -euo pipefail
+          for d in "$RUN_WEB_TAR_SHA256" "$RUN_WEB_MANIFEST_SHA256" "$RUN_WORKER_TAR_SHA256" "$RUN_WORKER_MANIFEST_SHA256"; do
+            if ! printf '%s' "$d" | grep -Eq '^[0-9a-f]{64}$'; then
+              echo "::error::a build digest is missing or malformed"
+              exit 1
+            fi
+          done
+          {
+            printf '%s  artifact/run-web.tar\n' "$RUN_WEB_TAR_SHA256"
+            printf '%s  artifact/run-web.sha256\n' "$RUN_WEB_MANIFEST_SHA256"
+            printf '%s  artifact/run-worker.tar\n' "$RUN_WORKER_TAR_SHA256"
+            printf '%s  artifact/run-worker.sha256\n' "$RUN_WORKER_MANIFEST_SHA256"
+          } > artifact-digests.txt
+          sha256sum --check --strict artifact-digests.txt
       - name: Extract and verify against the manifests
         run: |
           mkdir site worker
@@ -237,6 +286,27 @@ jobs:
         with:
           name: run-web
           path: artifact
+      - name: Check the downloaded artifact is the bytes the build job produced
+        env:
+          RUN_WEB_TAR_SHA256: ${{ needs.build.outputs.run-web-tar }}
+          RUN_WEB_MANIFEST_SHA256: ${{ needs.build.outputs.run-web-manifest }}
+          RUN_WORKER_TAR_SHA256: ${{ needs.build.outputs.run-worker-tar }}
+          RUN_WORKER_MANIFEST_SHA256: ${{ needs.build.outputs.run-worker-manifest }}
+        run: |
+          set -euo pipefail
+          for d in "$RUN_WEB_TAR_SHA256" "$RUN_WEB_MANIFEST_SHA256" "$RUN_WORKER_TAR_SHA256" "$RUN_WORKER_MANIFEST_SHA256"; do
+            if ! printf '%s' "$d" | grep -Eq '^[0-9a-f]{64}$'; then
+              echo "::error::a build digest is missing or malformed"
+              exit 1
+            fi
+          done
+          {
+            printf '%s  artifact/run-web.tar\n' "$RUN_WEB_TAR_SHA256"
+            printf '%s  artifact/run-web.sha256\n' "$RUN_WEB_MANIFEST_SHA256"
+            printf '%s  artifact/run-worker.tar\n' "$RUN_WORKER_TAR_SHA256"
+            printf '%s  artifact/run-worker.sha256\n' "$RUN_WORKER_MANIFEST_SHA256"
+          } > artifact-digests.txt
+          sha256sum --check --strict artifact-digests.txt
       - name: Extract and verify the production site against its manifest
         run: |
           mkdir site
@@ -265,6 +335,27 @@ jobs:
         with:
           name: run-web
           path: artifact
+      - name: Check the downloaded artifact is the bytes the build job produced
+        env:
+          RUN_WEB_TAR_SHA256: ${{ needs.build.outputs.run-web-tar }}
+          RUN_WEB_MANIFEST_SHA256: ${{ needs.build.outputs.run-web-manifest }}
+          RUN_WORKER_TAR_SHA256: ${{ needs.build.outputs.run-worker-tar }}
+          RUN_WORKER_MANIFEST_SHA256: ${{ needs.build.outputs.run-worker-manifest }}
+        run: |
+          set -euo pipefail
+          for d in "$RUN_WEB_TAR_SHA256" "$RUN_WEB_MANIFEST_SHA256" "$RUN_WORKER_TAR_SHA256" "$RUN_WORKER_MANIFEST_SHA256"; do
+            if ! printf '%s' "$d" | grep -Eq '^[0-9a-f]{64}$'; then
+              echo "::error::a build digest is missing or malformed"
+              exit 1
+            fi
+          done
+          {
+            printf '%s  artifact/run-web.tar\n' "$RUN_WEB_TAR_SHA256"
+            printf '%s  artifact/run-web.sha256\n' "$RUN_WEB_MANIFEST_SHA256"
+            printf '%s  artifact/run-worker.tar\n' "$RUN_WORKER_TAR_SHA256"
+            printf '%s  artifact/run-worker.sha256\n' "$RUN_WORKER_MANIFEST_SHA256"
+          } > artifact-digests.txt
+          sha256sum --check --strict artifact-digests.txt
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -315,6 +406,27 @@ jobs:
         with:
           name: run-web
           path: artifact
+      - name: Check the downloaded artifact is the bytes the build job produced
+        env:
+          RUN_WEB_TAR_SHA256: ${{ needs.build.outputs.run-web-tar }}
+          RUN_WEB_MANIFEST_SHA256: ${{ needs.build.outputs.run-web-manifest }}
+          RUN_WORKER_TAR_SHA256: ${{ needs.build.outputs.run-worker-tar }}
+          RUN_WORKER_MANIFEST_SHA256: ${{ needs.build.outputs.run-worker-manifest }}
+        run: |
+          set -euo pipefail
+          for d in "$RUN_WEB_TAR_SHA256" "$RUN_WEB_MANIFEST_SHA256" "$RUN_WORKER_TAR_SHA256" "$RUN_WORKER_MANIFEST_SHA256"; do
+            if ! printf '%s' "$d" | grep -Eq '^[0-9a-f]{64}$'; then
+              echo "::error::a build digest is missing or malformed"
+              exit 1
+            fi
+          done
+          {
+            printf '%s  artifact/run-web.tar\n' "$RUN_WEB_TAR_SHA256"
+            printf '%s  artifact/run-web.sha256\n' "$RUN_WEB_MANIFEST_SHA256"
+            printf '%s  artifact/run-worker.tar\n' "$RUN_WORKER_TAR_SHA256"
+            printf '%s  artifact/run-worker.sha256\n' "$RUN_WORKER_MANIFEST_SHA256"
+          } > artifact-digests.txt
+          sha256sum --check --strict artifact-digests.txt
       - name: Verify the build provenance attestation
         env:
           GH_TOKEN: ${{ github.token }}
@@ -355,7 +467,29 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > previous-run.json
             node tools/gates/src/deploy/previous-cli.ts check-run previous-run.json "$run_id" "$GITHUB_REPOSITORY_ID"
             gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name "run-deployed-$DEPLOY_ENV" --dir previous
-            echo "--previous previous" > retention-args
+            # The state is only a claim (any job of a main run can upload that name): every retained
+            # file must be in the ATTESTED run-web manifest of the build of its commit.
+            mkdir attested
+            for commit in $(node tools/gates/src/deploy/previous-cli.ts commits previous/retention.json); do
+              gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$commit&event=push&branch=main&per_page=100" > "runs-$commit.json"
+              build_run="$(node tools/gates/src/deploy/previous-cli.ts select-build "runs-$commit.json" "$commit" "$GITHUB_REPOSITORY_ID")"
+              if [ -z "$build_run" ] || ! gh run download "$build_run" --repo "$GITHUB_REPOSITORY" --name run-web --dir "attested-raw/$commit"; then
+                echo "::warning::no attested build found for $commit: its assets are not retained"
+                continue
+              fi
+              if gh attestation verify "attested-raw/$commit/run-web.sha256" \
+                --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+                --source-ref refs/heads/main \
+                --source-digest "$commit" \
+                --deny-self-hosted-runners; then
+                mkdir "attested/$commit"
+                cp "attested-raw/$commit/run-web.sha256" "attested/$commit/run-web.sha256"
+              else
+                echo "::warning::the run-web manifest of $commit does not verify: its assets are not retained"
+              fi
+            done
+            echo "--previous previous --attested attested" > retention-args
           fi
       - name: Merge hashed assets of the last 14 days (RUN_PLAN §6.3)
         env:
@@ -367,6 +501,7 @@ jobs:
             --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --site site $(cat retention-args) --out deploy-site --state-out deployed-state
           node tools/gates/src/bundle/cli.ts deploy-site
       - name: Deploy the attested artifact to staging
+        id: deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -378,6 +513,12 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           RUN_WORKERS_DEV_SUBDOMAIN: ${{ vars.RUN_WORKERS_DEV_SUBDOMAIN }}
         run: node tools/gates/src/smoke/cli.ts --env staging
+      - name: Undo the deployment when a step after it failed (staging is deleted, production rolled back)
+        if: failure() && steps.deploy.outcome == 'success'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: node tools/gates/src/deploy/rollback-cli.ts staging ci/deploy-toolchain/node_modules/.bin/wrangler
       - name: Keep this deployment's assets for the next deploy
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -427,6 +568,27 @@ jobs:
         with:
           name: run-web
           path: artifact
+      - name: Check the downloaded artifact is the bytes the build job produced
+        env:
+          RUN_WEB_TAR_SHA256: ${{ needs.build.outputs.run-web-tar }}
+          RUN_WEB_MANIFEST_SHA256: ${{ needs.build.outputs.run-web-manifest }}
+          RUN_WORKER_TAR_SHA256: ${{ needs.build.outputs.run-worker-tar }}
+          RUN_WORKER_MANIFEST_SHA256: ${{ needs.build.outputs.run-worker-manifest }}
+        run: |
+          set -euo pipefail
+          for d in "$RUN_WEB_TAR_SHA256" "$RUN_WEB_MANIFEST_SHA256" "$RUN_WORKER_TAR_SHA256" "$RUN_WORKER_MANIFEST_SHA256"; do
+            if ! printf '%s' "$d" | grep -Eq '^[0-9a-f]{64}$'; then
+              echo "::error::a build digest is missing or malformed"
+              exit 1
+            fi
+          done
+          {
+            printf '%s  artifact/run-web.tar\n' "$RUN_WEB_TAR_SHA256"
+            printf '%s  artifact/run-web.sha256\n' "$RUN_WEB_MANIFEST_SHA256"
+            printf '%s  artifact/run-worker.tar\n' "$RUN_WORKER_TAR_SHA256"
+            printf '%s  artifact/run-worker.sha256\n' "$RUN_WORKER_MANIFEST_SHA256"
+          } > artifact-digests.txt
+          sha256sum --check --strict artifact-digests.txt
       - name: Verify the build provenance attestation
         env:
           GH_TOKEN: ${{ github.token }}
@@ -465,7 +627,29 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > previous-run.json
             node tools/gates/src/deploy/previous-cli.ts check-run previous-run.json "$run_id" "$GITHUB_REPOSITORY_ID"
             gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name "run-deployed-$DEPLOY_ENV" --dir previous
-            echo "--previous previous" > retention-args
+            # The state is only a claim (any job of a main run can upload that name): every retained
+            # file must be in the ATTESTED run-web manifest of the build of its commit.
+            mkdir attested
+            for commit in $(node tools/gates/src/deploy/previous-cli.ts commits previous/retention.json); do
+              gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$commit&event=push&branch=main&per_page=100" > "runs-$commit.json"
+              build_run="$(node tools/gates/src/deploy/previous-cli.ts select-build "runs-$commit.json" "$commit" "$GITHUB_REPOSITORY_ID")"
+              if [ -z "$build_run" ] || ! gh run download "$build_run" --repo "$GITHUB_REPOSITORY" --name run-web --dir "attested-raw/$commit"; then
+                echo "::warning::no attested build found for $commit: its assets are not retained"
+                continue
+              fi
+              if gh attestation verify "attested-raw/$commit/run-web.sha256" \
+                --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+                --source-ref refs/heads/main \
+                --source-digest "$commit" \
+                --deny-self-hosted-runners; then
+                mkdir "attested/$commit"
+                cp "attested-raw/$commit/run-web.sha256" "attested/$commit/run-web.sha256"
+              else
+                echo "::warning::the run-web manifest of $commit does not verify: its assets are not retained"
+              fi
+            done
+            echo "--previous previous --attested attested" > retention-args
           fi
       - name: Merge hashed assets of the last 14 days (RUN_PLAN §6.3)
         env:
@@ -477,6 +661,7 @@ jobs:
             --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --site site $(cat retention-args) --out deploy-site --state-out deployed-state
           node tools/gates/src/bundle/cli.ts deploy-site
       - name: Deploy the attested artifact to production
+        id: deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -488,6 +673,12 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           RUN_WORKERS_DEV_SUBDOMAIN: ${{ vars.RUN_WORKERS_DEV_SUBDOMAIN }}
         run: node tools/gates/src/smoke/cli.ts --env production
+      - name: Undo the deployment when a step after it failed (staging is deleted, production rolled back)
+        if: failure() && steps.deploy.outcome == 'success'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: node tools/gates/src/deploy/rollback-cli.ts production ci/deploy-toolchain/node_modules/.bin/wrangler
       - name: Keep this deployment's assets for the next deploy
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

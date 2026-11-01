@@ -8,18 +8,24 @@
  *     headers; workers.dev and preview URLs off (Cloudflare API and a probe);
  *     DNSSEC (two validating resolvers); the CAA record; the certificate issuer.
  *   node tools/gates/src/smoke/cli.ts --env staging
- *     the same infrastructure checks, and that an anonymous request is sent
- *     to Cloudflare Access (D31). Staging content is checked through the same
- *     artifact in production; the deploy job holds no Access credential.
+ *     the same infrastructure checks, that the Cloudflare API shows an
+ *     Access application covering the host with no Bypass or Everyone
+ *     policy, and that an anonymous request is sent to Cloudflare Access
+ *     (D31). Staging content is checked through the same artifact in
+ *     production; the deploy job holds no Access credential.
  *   node tools/gates/src/smoke/cli.ts --env staging --pre-deploy
- *     before the first staging deploy: refuses unless staging is already
- *     behind Access or not yet reachable at all.
+ *     before every staging deploy: refuses unless the Cloudflare API shows
+ *     that Access application (a POSITIVE check: "unreachable" alone never
+ *     passes), and, when the host already answers, it redirects an anonymous
+ *     request to the Access login.
  *   node tools/gates/src/smoke/cli.ts --base-url http://127.0.0.1:8787 [--expect-env production]
  *     local mode against `wrangler dev`: the HTTP checks only.
  *
  * Environment: CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (the deploy
- * job's) for the subdomain-setting check; RUN_WORKERS_DEV_SUBDOMAIN (the
- * account's workers.dev subdomain, a repository variable) for the probe.
+ * job's) for the subdomain-setting check and the Access API check (the token
+ * needs "Access: Apps and Policies Read", docs/ops/access.md);
+ * RUN_WORKERS_DEV_SUBDOMAIN (the account's workers.dev subdomain, a
+ * repository variable) for the probe.
  *
  * Exit status: 0 pass, 1 findings, 2 could not run.
  */
@@ -28,7 +34,9 @@ import { connect } from 'node:tls';
 import { parseArgs } from 'node:util';
 import { ENVIRONMENTS, isDeployEnvironment } from '../deploy/wranglerConfig.ts';
 import {
+  type AccessApp,
   type CaaRecord,
+  checkAccessApplications,
   checkAccessGate,
   checkCaa,
   checkDnssec,
@@ -83,6 +91,36 @@ async function subdomainSetting(script: string): Promise<SmokeFinding[]> {
   const body = (await res.json().catch(() => null)) as { success?: unknown; result?: unknown } | null;
   if (!res.ok || body?.success !== true) return [{ check: 'preview', message: `Cloudflare API ${res.status}: could not read the subdomain setting of '${script}'` }];
   return checkSubdomainSetting(body.result);
+}
+
+async function cloudflare(path: string): Promise<{ ok: boolean; status: number; body: { success?: unknown; result?: unknown; result_info?: { total_pages?: unknown } } | null }> {
+  const token = process.env['CLOUDFLARE_API_TOKEN'] ?? '';
+  const res = await fetch(`https://api.cloudflare.com/client/v4${path}`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const body = (await res.json().catch(() => null)) as { success?: unknown; result?: unknown; result_info?: { total_pages?: unknown } } | null;
+  return { ok: res.ok && body?.success === true, status: res.status, body };
+}
+
+/** The positive Access check: the Cloudflare API must show an application covering `host`, with no Bypass or Everyone policy. */
+async function accessApi(host: string): Promise<SmokeFinding[]> {
+  const token = process.env['CLOUDFLARE_API_TOKEN'] ?? '';
+  const account = process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '';
+  if (token === '' || account === '') return [{ check: 'access', message: 'CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are needed to confirm the Access application' }];
+  const base = `/accounts/${encodeURIComponent(account)}/access/apps`;
+  const apps: unknown[] = [];
+  for (let page = 1; page <= 20; page += 1) {
+    const r = await cloudflare(`${base}?per_page=100&page=${page}`);
+    if (!r.ok || !Array.isArray(r.body?.result)) return [{ check: 'access', message: `Cloudflare API ${r.status}: could not list Access applications` }];
+    apps.push(...(r.body.result as unknown[]));
+    const pages = r.body.result_info?.total_pages;
+    if (typeof pages !== 'number' || page >= pages) break;
+  }
+  const policies = new Map<unknown, unknown>();
+  for (const app of apps as AccessApp[]) {
+    if (Array.isArray(app?.policies) || typeof app?.id !== 'string') continue;
+    const r = await cloudflare(`${base}/${encodeURIComponent(app.id)}/policies?per_page=100`);
+    policies.set(app.id, r.ok ? r.body?.result : undefined);
+  }
+  return checkAccessApplications(host, apps, (app) => (Array.isArray(app.policies) ? app.policies : policies.get(app.id)));
 }
 
 async function workersDevProbe(script: string): Promise<SmokeFinding[]> {
@@ -170,11 +208,15 @@ async function run(argv: readonly string[]): Promise<SmokeFinding[]> {
   const { host, script } = ENVIRONMENTS[env];
   if (values['pre-deploy'] === true) {
     if (env !== 'staging') throw new Error('--pre-deploy applies to staging only');
-    return checkAccessGate(`https://${host}/`, await probe(`https://${host}/`), true);
+    // Positive first: the API must show the Access application. Only then may a host that does not
+    // resolve yet (before the first deploy creates the custom domain) pass the probe.
+    const api = await guard('access', () => accessApi(host));
+    return [...api, ...checkAccessGate(`https://${host}/`, await probe(`https://${host}/`), api.length === 0)];
   }
   const findings: SmokeFinding[] = [];
   if (env === 'production') findings.push(...(await guard('http', () => httpChecks(`https://${host}`, env))));
   else {
+    findings.push(...(await guard('access', () => accessApi(host))));
     for (const path of ['/', '/api/health']) findings.push(...checkAccessGate(`https://${host}${path}`, await probe(`https://${host}${path}`), false));
   }
   findings.push(...(await guard('preview', () => subdomainSetting(script))));

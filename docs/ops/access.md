@@ -38,14 +38,28 @@ Do the same for `staging.accounts.synthetos.com` when A1-07 deploys it.
 
 ## 2. Order of operations
 
-1. Create the Access application **before** the first staging deploy. The
-   `deploy-staging` job runs `smoke/cli.ts --env staging --pre-deploy` before
-   it deploys, and refuses to deploy unless staging is either not reachable
-   at all yet or already redirects an anonymous request to the Access login.
-2. After every staging deploy, the smoke test checks that anonymous requests
-   to `/` and `/api/health` are redirected to `*.cloudflareaccess.com`. If
-   Access is ever removed or bypassed, the deploy job fails and production is
-   not deployed.
+1. Create the Access application **before** the first staging deploy, and
+   give the deploy token (`CLOUDFLARE_API_TOKEN`, docs/ops/account.md) the
+   extra scope **Access: Apps and Policies Read** on the run account. The
+   `deploy-staging` job runs `smoke/cli.ts --env staging --pre-deploy`
+   before it deploys. That check is **positive** (P0 review): it lists the
+   Access applications through the Cloudflare API and refuses to deploy
+   unless a `self_hosted` application covers the whole host
+   (`staging.run.synthetos.com`, `…/*` or a `*.run.synthetos.com` wildcard)
+   with no Bypass policy and no policy that includes Everyone. Only then may
+   a host that does not resolve yet pass; when it already answers, an
+   anonymous request must also redirect to the Access login. "Unreachable"
+   alone never passes.
+2. After every staging deploy, the smoke test repeats the API check and
+   checks that anonymous requests to `/` and `/api/health` are redirected to
+   `*.cloudflareaccess.com`.
+3. **If any step after the deploy fails, the deploy job undoes it**
+   (`deploy/rollback-cli.ts`): staging is **deleted** (`wrangler delete`,
+   which removes the custom domain with it), because older code would not
+   restore a removed Access application; production is rolled back
+   (`wrangler rollback`). If the undo itself fails, the job log says the
+   deployment is STILL LIVE: act at once (take the custom domain off in the
+   dashboard). Production is never deployed after a failed staging job.
 
 ## 3. Manual check (ROADMAP P0-04 acceptance, recorded in the PR)
 

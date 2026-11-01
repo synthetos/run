@@ -7,8 +7,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { checkPreviousRun, selectPreviousRun } from '../src/deploy/previous.ts';
+import { checkPreviousRun, selectBuildRun, selectPreviousRun } from '../src/deploy/previous.ts';
 import {
+  type AttestedManifests,
   type FileBytes,
   formatState,
   isHashedAsset,
@@ -18,6 +19,7 @@ import {
   RetentionError,
   type RetentionState,
   sha256,
+  stateCommits,
 } from '../src/deploy/retention.ts';
 import { REPO_ROOT } from './scratch.ts';
 
@@ -33,9 +35,21 @@ const OLD_JS = f('assets/workspace-AAAAAAAA.js', 'old');
 const NEW_JS = f('assets/workspace-BBBBBBBB.js', 'new');
 const FONT = f('assets/IBMPlexSans-Regular-Latin1-CCCCCCCC.woff2', 'font');
 
+/** The attested build manifests of commits A and B: every hashed asset each build produced. */
+const ATTESTED_ALL: AttestedManifests = new Map([
+  [COMMIT_A, new Map([[OLD_JS.path, sha256(OLD_JS.bytes)], [FONT.path, sha256(FONT.bytes)]])],
+  [COMMIT_B, new Map([[NEW_JS.path, sha256(NEW_JS.bytes)], [FONT.path, sha256(FONT.bytes)]])],
+]);
+
 /** Deploys `site` on top of `previous` and returns the result. */
-function deploy(site: FileBytes[], now: Date, commit: string, previous: { state: RetentionState; files: FileBytes[] } | null, env = 'production') {
-  return mergeRetained({ env, commit, now, site, previous });
+function deploy(
+  site: FileBytes[],
+  now: Date,
+  commit: string,
+  previous: { state: RetentionState; files: FileBytes[]; attested?: AttestedManifests } | null,
+  env = 'production',
+) {
+  return mergeRetained({ env, commit, now, site, previous: previous === null ? null : { attested: ATTESTED_ALL, ...previous } });
 }
 
 /** The files the next deploy would download: every asset the state lists. */
@@ -50,7 +64,21 @@ describe('isHashedAsset', () => {
       expect(isHashedAsset(p)).toBe(true);
     },
   );
-  it.each(['index.html', '_headers', 'assets/workspace.js', 'licenses/IBM-Plex-OFL.txt', 'assets/../index-AAAAAAAA.js', 'assets/x-AAAA.js'])('refuses %s', (p) => {
+  it.each([
+    'index.html',
+    '_headers',
+    'assets/workspace.js',
+    'licenses/IBM-Plex-OFL.txt',
+    'assets/../index-AAAAAAAA.js',
+    'assets/x-AAAA.js',
+    // P0 review: a hashed-looking name with a navigable or unexpected type is never retained.
+    'assets/evil-AbCdEfGh.html',
+    'assets/evil-AbCdEfGh.htm',
+    'assets/evil-AbCdEfGh.svg',
+    'assets/evil-AbCdEfGh.xml',
+    'assets/evil-AbCdEfGh.txt',
+    'assets/evil-AbCdEfGh.xhtml',
+  ])('refuses %s', (p) => {
     expect(isHashedAsset(p)).toBe(false);
   });
 });
@@ -126,6 +154,39 @@ describe('mergeRetained', () => {
     expect(() => deploy(site2, later(DAY), 'abc', prev1)).toThrow(/40-character/);
   });
 
+  it('retains a file only when the attested build of its commit lists it with the same bytes', () => {
+    // No attested manifest for commit A (artifact gone, or never attested): dropped, not retained.
+    const none = deploy(site2, later(DAY), COMMIT_B, { ...prev1, attested: new Map() });
+    expect(none.retained).toEqual([]);
+    expect(none.unattested).toEqual([OLD_JS.path]);
+    expect(OLD_JS.path in none.state.assets).toBe(false);
+    // The attested build of A does not contain the file the state claims for it: tampering.
+    const without = new Map([[COMMIT_A, new Map([[FONT.path, sha256(FONT.bytes)]])]]);
+    expect(() => deploy(site2, later(DAY), COMMIT_B, { ...prev1, attested: without })).toThrow(/not in the attested build/);
+    // The attested build of A records other bytes for it: tampering.
+    const other = new Map([[COMMIT_A, new Map([[OLD_JS.path, sha256(enc.encode('other'))]])]]);
+    expect(() => deploy(site2, later(DAY), COMMIT_B, { ...prev1, attested: other })).toThrow(/differs from the attested build/);
+  });
+
+  it('a poisoned state cannot add a file: its hash and bytes agree with each other but no attested build has it', () => {
+    const evil = f('assets/y-AbCdEfGh.js', 'attacker');
+    const poisoned: RetentionState = {
+      ...first.state,
+      assets: { ...first.state.assets, [evil.path]: { sha256: sha256(evil.bytes), lastCurrent: T0.toISOString(), commit: COMMIT_A } },
+    };
+    expect(() => deploy(site2, later(DAY), COMMIT_B, { state: poisoned, files: [OLD_JS, FONT, evil] })).toThrow(/not in the attested build/);
+    // Naming a commit that was never attested only drops the file.
+    const fake = { ...poisoned, assets: { ...poisoned.assets, [evil.path]: { ...(poisoned.assets[evil.path] as RetentionState['assets'][string]), commit: 'c'.repeat(40) } } };
+    const r = deploy(site2, later(DAY), COMMIT_B, { state: fake, files: [OLD_JS, FONT, evil] });
+    expect(r.retained.map((x) => x.path)).toEqual([OLD_JS.path]);
+    expect(r.unattested).toEqual([evil.path]);
+  });
+
+  it('lists the commits whose attested manifests the deploy must fetch', () => {
+    const r2 = deploy(site2, later(DAY), COMMIT_B, prev1);
+    expect(stateCommits(r2.state)).toEqual([COMMIT_A, COMMIT_B]);
+  });
+
   it('is deterministic: state keys are sorted', () => {
     const r = deploy(site2, later(DAY), COMMIT_B, prev1);
     const keys = Object.keys(r.state.assets);
@@ -174,7 +235,24 @@ describe('retention CLI', () => {
     const common = ['--env', 'production', '--site'];
     expect(cli([...common, join(base, 'site1'), '--commit', COMMIT_A, '--now', T0.toISOString(), '--no-previous', '--out', join(base, 'out1'), '--state-out', join(base, 'state1')]).status).toBe(0);
     tree(join(base, 'site2'), [f('index.html', 'v2'), NEW_JS]);
-    const r = cli([...common, join(base, 'site2'), '--commit', COMMIT_B, '--now', later(DAY).toISOString(), '--previous', join(base, 'state1'), '--out', join(base, 'out2'), '--state-out', join(base, 'state2')]);
+    mkdirSync(join(base, 'attested', COMMIT_A), { recursive: true });
+    writeFileSync(join(base, 'attested', COMMIT_A, 'run-web.sha256'), `${sha256(OLD_JS.bytes)}  ${OLD_JS.path}\n${sha256(enc.encode('v1'))}  index.html\n`);
+    const r = cli([
+      ...common,
+      join(base, 'site2'),
+      '--commit',
+      COMMIT_B,
+      '--now',
+      later(DAY).toISOString(),
+      '--previous',
+      join(base, 'state1'),
+      '--attested',
+      join(base, 'attested'),
+      '--out',
+      join(base, 'out2'),
+      '--state-out',
+      join(base, 'state2'),
+    ]);
     expect(r.status, r.output).toBe(0);
     expect(r.output).toContain('1 current, 1 retained, 0 expired');
     expect(readFileSync(join(base, 'out2/index.html'), 'utf8')).toBe('v2');
@@ -191,7 +269,8 @@ describe('retention CLI', () => {
     cli(['--env', 'production', '--site', join(base, 'site1'), '--commit', COMMIT_A, '--now', T0.toISOString(), '--no-previous', '--out', join(base, 'out1'), '--state-out', join(base, 'state1')]);
     writeFileSync(join(base, 'state1', OLD_JS.path), 'evil');
     tree(join(base, 'site2'), [f('index.html', 'v2'), NEW_JS]);
-    const r = cli(['--env', 'production', '--site', join(base, 'site2'), '--commit', COMMIT_B, '--now', later(DAY).toISOString(), '--previous', join(base, 'state1'), '--out', join(base, 'out2'), '--state-out', join(base, 'state2')]);
+    mkdirSync(join(base, 'attested'));
+    const r = cli(['--env', 'production', '--site', join(base, 'site2'), '--commit', COMMIT_B, '--now', later(DAY).toISOString(), '--previous', join(base, 'state1'), '--attested', join(base, 'attested'), '--out', join(base, 'out2'), '--state-out', join(base, 'state2')]);
     expect(r.status).toBe(1);
     expect(existsSync(join(base, 'out2'))).toBe(false);
   });
@@ -203,6 +282,21 @@ describe('retention CLI', () => {
     const args = ['--env', 'production', '--site', join(base, 'site'), '--commit', COMMIT_A, '--now', T0.toISOString(), '--out', join(base, 'o'), '--state-out', join(base, 's')];
     expect(cli(args).status).toBe(2);
     expect(cli([...args, '--no-previous', '--previous', base]).status).toBe(2);
+    // --previous needs --attested, and --attested needs --previous.
+    expect(cli([...args, '--previous', base]).output).toMatch(/--attested/);
+    expect(cli([...args, '--no-previous', '--attested', base]).status).toBe(2);
+  });
+
+  it('refuses an attested directory entry that is not a full commit', () => {
+    const base = mkdtempSync(join(tmpdir(), 'run-retention-'));
+    dirs.push(base);
+    tree(join(base, 'site1'), [f('index.html', 'v1'), OLD_JS]);
+    cli(['--env', 'production', '--site', join(base, 'site1'), '--commit', COMMIT_A, '--now', T0.toISOString(), '--no-previous', '--out', join(base, 'out1'), '--state-out', join(base, 'state1')]);
+    mkdirSync(join(base, 'attested', 'main'), { recursive: true });
+    tree(join(base, 'site2'), [f('index.html', 'v2'), NEW_JS]);
+    const r = cli(['--env', 'production', '--site', join(base, 'site2'), '--commit', COMMIT_B, '--now', later(DAY).toISOString(), '--previous', join(base, 'state1'), '--attested', join(base, 'attested'), '--out', join(base, 'out2'), '--state-out', join(base, 'state2')]);
+    expect(r.status).toBe(2);
+    expect(r.output).toMatch(/not a full commit sha/);
   });
 });
 
@@ -247,5 +341,40 @@ describe('selecting the previous deployment', () => {
     ['another run id', { id: 101 }],
   ])('refuses %s', (_label, over) => {
     expect(checkPreviousRun({ ...run, ...over }, 100, REPO)).not.toEqual([]);
+  });
+});
+
+describe('finding the attested build of a commit', () => {
+  const REPO = 42;
+  const C = 'd'.repeat(40);
+  const run = (over: Record<string, unknown> = {}) => ({
+    id: 100,
+    event: 'push',
+    head_branch: 'main',
+    head_sha: C,
+    created_at: '2026-11-01T00:00:00Z',
+    path: '.github/workflows/ci.yml',
+    repository: { id: REPO },
+    head_repository: { id: REPO },
+    ...over,
+  });
+
+  it('picks the newest trusted push run of ci.yml on main for exactly that commit', () => {
+    expect(selectBuildRun({ workflow_runs: [run(), run({ id: 101, created_at: '2026-11-02T00:00:00Z' })] }, C, REPO)).toBe(101);
+  });
+
+  it.each([
+    ['another commit', run({ head_sha: 'e'.repeat(40) })],
+    ['a pull request run', run({ event: 'pull_request' })],
+    ['another workflow', run({ path: '.github/workflows/evil.yml' })],
+    ['a fork', run({ head_repository: { id: 7 } })],
+    ['no time', run({ created_at: 'later' })],
+  ])('ignores %s', (_label, r) => {
+    expect(selectBuildRun({ workflow_runs: [r] }, C, REPO)).toBeNull();
+  });
+
+  it('refuses a short commit or a response without runs', () => {
+    expect(() => selectBuildRun({ workflow_runs: [] }, 'abc', REPO)).toThrow(/40-character/);
+    expect(() => selectBuildRun({}, C, REPO)).toThrow(/workflow_runs/);
   });
 });
