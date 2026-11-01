@@ -1,0 +1,16 @@
+{
+  "name": "@synthetos/flasher",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Firmware flasher: manifest, Intel HEX validation, page planner, xboot client and guard filter.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "@synthetos/protocol",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Wire protocol for Synthetos controllers: framing, inbound classification, dialect data, capability probe and classifier, read allowlists.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  }
+}

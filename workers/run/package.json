@@ -1,0 +1,19 @@
+{
+  "name": "@synthetos/run-worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The run Cloudflare Worker (assets, /api/*, /auth/*). Empty in P0-01; configured in P0-04.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "wrangler": "4.149.0"
+  }
+}

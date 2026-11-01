@@ -1,0 +1,16 @@
+{
+  "name": "@synthetos/testkit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DEV ONLY. Firmware models, MockSerial, fault plans, virtual clock and replay transport for tests. Never part of a production bundle.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  }
+}

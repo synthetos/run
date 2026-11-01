@@ -1,0 +1,16 @@
+{
+  "name": "@synthetos/provenance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pure provenance logic: device-local trust-anchor records, SAME/NEW/CHANGED decision and display-name sanitiser.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  }
+}

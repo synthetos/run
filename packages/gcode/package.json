@@ -1,0 +1,16 @@
+{
+  "name": "@synthetos/gcode",
+  "version": "0.0.0",
+  "private": true,
+  "description": "G-code lexer/parser (cncjs fork, MIT), dialect-aware modal interpreter, arcs and analyser.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  }
+}

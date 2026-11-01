@@ -1,0 +1,21 @@
+{
+  "name": "@synthetos/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The run.synthetos.com workspace UI (Preact, Vite MPA).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": [
+    "./src/entries/*.ts"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@preact/signals": "2.11.3",
+    "preact": "11.0.1"
+  }
+}
