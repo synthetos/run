@@ -3,6 +3,7 @@
  * inspects, the side-effect log, and the error a model throws when a host
  * reaches a firmware feature the model does not implement.
  */
+import '../marker.ts';
 import type { EepromImage } from './settings.ts';
 import type { Vec } from './motion.ts';
 

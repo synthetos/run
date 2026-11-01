@@ -12,6 +12,7 @@
  * `{"sr":{"line":true}}`).
  */
 
+import '../marker.ts';
 export type HostValue = null | boolean | number | string | HostPairs;
 export interface HostPairs {
   readonly pairs: readonly (readonly [string, HostValue])[];

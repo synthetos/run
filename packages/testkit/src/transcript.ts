@@ -7,6 +7,7 @@
  * same string, byte for byte. Times are virtual milliseconds with three
  * decimals, so the rendering never depends on float formatting quirks.
  */
+import './marker.ts';
 import { escapeBytes } from './bytes.ts';
 
 export type TranscriptKind =

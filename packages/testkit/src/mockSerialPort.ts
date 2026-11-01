@@ -23,6 +23,7 @@
  * `open()` is logged with its options so tests can prove, for example, that
  * nothing opened the port at 1200 baud.
  */
+import './marker.ts';
 import type { SimEndpoint } from './endpoint.ts';
 
 export interface SerialPortInfo {
@@ -75,6 +76,16 @@ export class MockSerialPort extends EventTarget {
   #writable: WritableStream<Uint8Array> | null = null;
   #unsubscribe: (() => void) | null = null;
   #signals: Required<SerialOutputSignals> = { dataTerminalReady: false, requestToSend: false, break: false };
+
+  /**
+   * `[object MockSerialPort]`. Besides honest debugging output, this keeps
+   * the class's name in a production bundle as a string a minifier cannot
+   * rename, so the bundle scan's `MockSerialPort` rule (P0-13, T-S40) finds
+   * it even if the marker were somehow lost.
+   */
+  get [Symbol.toStringTag](): string {
+    return 'MockSerialPort';
+  }
 
   constructor(endpoint: SimEndpoint, options: MockSerialPortOptions = {}) {
     super();

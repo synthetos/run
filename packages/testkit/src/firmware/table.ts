@@ -10,6 +10,7 @@
  * does not have, and a GET with a side effect (E138) is recognised by the
  * same getter name the firmware's cfgArray uses.
  */
+import '../marker.ts';
 import den from '../../../../vendor/tinyg-hil-tables/den.json' with { type: 'json' };
 import d440 from '../../../../vendor/tinyg-hil-tables/d440.json' with { type: 'json' };
 

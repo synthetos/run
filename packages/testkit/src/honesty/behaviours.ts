@@ -11,6 +11,7 @@
  * Each carries a `quote` that must appear in the cited lines; the local
  * citation check re-reads the pinned firmware to prove it.
  */
+import '../marker.ts';
 import type { Behaviour, ModelLimit } from './types.ts';
 
 const EN = 'tinyg-en';

@@ -33,6 +33,8 @@ const TRUSTED_TYPES_E2E = 'tools/e2e/specs/trusted-types.e2e.ts';
 
 /** Likewise, the Web Serial rule's definition names the methods it bans. */
 const WEB_SERIAL_RULE_DEFINITION = 'tools/gates/src/eslint/rules/noWebSerial.ts';
+// The list of Web Serial-only names that rule and the bundle scan share.
+const WEB_SERIAL_NAMES = 'tools/gates/src/shared/webSerialNames.ts';
 
 export default tseslint.config(
   {
@@ -70,7 +72,7 @@ export default tseslint.config(
     // Phase 0 cannot reach a serial port. P1-01 narrows this to
     // packages/machine/src/webSerialTransport.ts in its own owner-approved PR.
     files: ALL_SOURCE,
-    ignores: [WEB_SERIAL_RULE_DEFINITION],
+    ignores: [WEB_SERIAL_RULE_DEFINITION, WEB_SERIAL_NAMES],
     rules: { 'run/no-web-serial': 'error' },
   },
   {

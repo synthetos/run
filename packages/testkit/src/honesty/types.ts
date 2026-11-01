@@ -10,6 +10,7 @@
  *   covered by a mitigation that does not depend on it.
  */
 
+import '../marker.ts';
 export type BehaviourStatus = 'verified-source' | 'verified-bench' | 'UNVERIFIED';
 
 /** Pinned sources (vendor/firmware-pins.json): EN = edge-next ead63997, TG = master d0418390 (440.21). */

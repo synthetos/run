@@ -13,6 +13,7 @@
  */
 
 /** Anything that can tell the time and schedule work. Models depend on this, not on `VirtualClock`. */
+import './marker.ts';
 export interface Clock {
   /** Current virtual time in milliseconds (may be fractional). */
   now(): number;

@@ -4,6 +4,7 @@
  * and transmits bytes back; it never sees the host's objects. Device-level
  * faults from a fault plan reach it through `FaultTarget`.
  */
+import './marker.ts';
 import type { Clock } from './clock.ts';
 
 export interface DeviceIo {

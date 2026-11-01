@@ -9,14 +9,15 @@
  * the UNVERIFIED ones for the release checklist.
  */
 
-/** Package version. Kept equal to package.json `version` by the smoke test. */
-export const VERSION = '0.0.0';
-
 /**
  * Marker export that identifies the test kit. The bundle scan (P0-13, T-S40)
- * fails a production build that contains this literal.
+ * fails a production build that contains this literal; marker.ts explains
+ * why it survives minification.
  */
-export const TESTKIT_MARKER = '__SYNTHETOS_TESTKIT_DEV_ONLY__';
+export { TESTKIT_MARKER } from './marker.ts';
+
+/** Package version. Kept equal to package.json `version` by the smoke test. */
+export const VERSION = '0.0.0';
 
 export { VirtualClock, settle } from './clock.ts';
 export type { Clock } from './clock.ts';

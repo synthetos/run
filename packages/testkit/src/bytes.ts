@@ -1,6 +1,7 @@
 /** Byte helpers shared by the kit. ASCII only: the TinyG wire protocol is 7-bit text. */
 
 /** Encode a string of code points 0..255 as bytes (latin-1). Throws on anything wider. */
+import './marker.ts';
 export function bytes(text: string): Uint8Array {
   const out = new Uint8Array(text.length);
   for (let i = 0; i < text.length; i++) {

@@ -29,6 +29,41 @@
  *   response, so an artifact without it, or with a weakened copy, would serve
  *   the shell without its CSP (RUN_PLAN §6.4, T-S25).
  *
+ *
+ * P0-13 (T-S40, SAFETY §8 item 31) adds the test kit and the Phase 0 ban on
+ * Web Serial. Each rule applies to every text file, chunk or page:
+ *
+ * - `testkit-marker`: the literal value of `TESTKIT_MARKER`
+ *   (packages/testkit/src/marker.ts). Every test-kit module loads that file,
+ *   which names the marker in a side effect, so any bundled test-kit code
+ *   carries it even after minification.
+ * - `mock-serial-port`: the name `MockSerialPort` (the class also reports it
+ *   through `Symbol.toStringTag`, a string a minifier cannot rename).
+ * - `transport-query`: `transport=` as query text (after `?`, `&`, `#`, `;`,
+ *   `/` or an opening quote) and a `.get`/`.has`/`.getAll` lookup of the
+ *   string `transport`, the URLSearchParams way to read it. There is no
+ *   `?transport=` switch to a simulator (RUN_PLAN §2). A plain property
+ *   assignment such as `this.transport=t` is not query handling and passes.
+ * - `url-scheme`: a URL with a scheme other than `data:` and `blob:` that the
+ *   rules above do not already report (they cover `scheme://`, `//host`,
+ *   `javascript:` and `vbscript:`), such as `mailto:`, `tel:`, `file:x` or
+ *   `about:blank`. It looks where a URL can be: a string literal in
+ *   JavaScript and JSON, a URL attribute (`href`, `src`, ...) or a meta
+ *   refresh `url=` in HTML, SVG and XML, and `url(...)` or `@import` in CSS
+ *   and HTML. Licence texts are
+ *   prose and are not checked by this rule.
+ * - `web-serial`: `navigator.serial` (also as `navigator["serial"]` or
+ *   `"serial" in navigator`) and the Web Serial-only method names
+ *   `requestPort` and `getPorts`, which catch an alias. Nothing in Phase 0
+ *   may reach a serial port; this backs up the `run/no-web-serial` lint rule
+ *   on the built output. P1-01 narrows it, like the lint rule, to the machine
+ *   worker's chunk in its own owner-approved PR.
+ *
+ * The scan is a backstop on the built text. It cannot see a name assembled at
+ * run time (`'Mock' + 'SerialPort'`); the dependency-cruiser and ESLint rules
+ * on the source are the primary gates, and the marker is what makes a
+ * test-kit import visible here whatever the code does with it.
+ *
  * Which chunks live under `assets/cloud/` is decided by their contents at
  * build time (apps/web/build/chunks.ts), never by a chunk's name.
  *
@@ -39,8 +74,13 @@ import { CLOUD_ASSET_DIR } from '../../../../apps/web/build/chunks.ts';
 import { NETWORK_IDENTIFIERS } from '../shared/networkIdentifiers.ts';
 import { renderHeadersFile } from '../../../../workers/run/src/headers.ts';
 import { OUTBOUND_URLS } from '../../../../apps/web/src/pages/outbound.ts';
+import { TESTKIT_MARKER } from '../../../../packages/testkit/src/marker.ts';
+import { WEB_SERIAL_METHODS } from '../shared/webSerialNames.ts';
 
-export { CLOUD_ASSET_DIR };
+export { CLOUD_ASSET_DIR, TESTKIT_MARKER };
+
+/** URL schemes the bundle may use besides relative URLs (ROADMAP P0-13). */
+export const ALLOWED_URL_SCHEMES: readonly string[] = ['data', 'blob'];
 
 /** run's own origins: the only origin literals allowed, and only in cloud chunks. */
 export const SELF_ORIGINS: readonly string[] = ['https://run.synthetos.com', 'https://staging.run.synthetos.com'];
@@ -104,7 +144,12 @@ export type ScanRule =
   | 'network-identifier'
   | 'unknown-file-type'
   | 'headers-file'
-  | 'empty-bundle';
+  | 'empty-bundle'
+  | 'testkit-marker'
+  | 'mock-serial-port'
+  | 'transport-query'
+  | 'url-scheme'
+  | 'web-serial';
 
 export interface BundleFile {
   /** Path relative to the dist root, with forward slashes. */
@@ -127,6 +172,41 @@ const MARKUP_PROTOCOL_RELATIVE_RE = /(?:\b(?:src|href|action|formaction|poster|s
 const STRING_PROTOCOL_RELATIVE_RE = /["'`]\/\/[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*(?::\d+)?(?=[/"'`])[^"'`]*/g;
 const IDENTIFIER_RE = new RegExp(`(?<![A-Za-z0-9_$])(?:${NETWORK_IDENTIFIERS.join('|')})(?![A-Za-z0-9_$])`, 'g');
 
+/**
+ * `transport=` as query text: after a URL delimiter, an opening quote, or
+ * regex punctuation (`[?&]transport=`, `(^|&)transport=`). None of these can
+ * precede a JavaScript assignment to a `transport` variable or property.
+ */
+const TRANSPORT_QUERY_TEXT_RE = /[?&#;/"'`\\|()\]]transport\s*=/gi;
+/** `params.get("transport")` and friends: reading it from URLSearchParams. */
+const TRANSPORT_QUERY_LOOKUP_RE = /\.(?:get|getAll|has)\(\s*["'`]transport["'`]/gi;
+/** A URL scheme (RFC 3986 §3.1) followed by `:`. */
+const SCHEME = '[A-Za-z][A-Za-z0-9+.-]*';
+/** A JavaScript or JSON string literal that starts with `scheme:` and a non-space. */
+const LITERAL_SCHEME_RE = new RegExp(`["'\`](${SCHEME}):(?=[^\\s"'\`])`, 'g');
+/**
+ * HTML attributes whose value is a URL. Other attributes (`style`, `title`,
+ * `content`) hold prose or CSS, where `word:` is not a scheme; a URL in
+ * `style` is caught by the CSS rule, and one in a meta refresh by `url=`.
+ */
+const URL_ATTRIBUTES = 'href|src|srcset|action|formaction|poster|data|cite|background|manifest|ping|longdesc|codebase|archive|usemap|icon|xlink:href';
+/** A URL attribute value, or a meta-refresh `url=`, that starts with `scheme:`. */
+const MARKUP_SCHEME_RE = new RegExp(
+  `(?:(?<![A-Za-z0-9_:-])(?:${URL_ATTRIBUTES})\\s*=\\s*["']?|\\burl\\s*=\\s*["']?)\\s*(${SCHEME}):`,
+  'gi',
+);
+/** `url(scheme:...)` and `@import "scheme:..."` in CSS (also inside HTML). */
+const CSS_SCHEME_RE = new RegExp(`(?:\\burl\\(\\s*["']?|@import\\s+["'])\\s*(${SCHEME}):`, 'gi');
+const WEB_SERIAL_RE = new RegExp(
+  [
+    '\\bnavigator\\s*\\??\\.\\s*serial(?![A-Za-z0-9_$])',
+    '\\bnavigator\\s*(?:\\?\\.)?\\[\\s*["\'`]serial["\'`]\\s*\\]',
+    '["\'`]serial["\'`]\\s*in\\s*navigator\\b',
+    `(?<![A-Za-z0-9_$])(?:${WEB_SERIAL_METHODS.join('|')})(?![A-Za-z0-9_$])`,
+  ].join('|'),
+  'g',
+);
+
 function extension(path: string): string {
   const name = path.slice(path.lastIndexOf('/') + 1);
   const dot = name.lastIndexOf('.');
@@ -145,6 +225,50 @@ function isSelfOrigin(url: string): boolean {
 /** True when the file is a cloud-client chunk, by its location in dist. */
 export function isCloudAsset(path: string): boolean {
   return path.startsWith(CLOUD_ASSET_DIR) && extension(path) === '.js';
+}
+
+/**
+ * Reports a scheme the earlier rules have not: not `data:` or `blob:`, not
+ * `scheme://` (origin-literal), not `javascript:`/`vbscript:` (script-url).
+ */
+function schemeFindings(path: string, text: string, re: RegExp): ScanFinding[] {
+  const findings: ScanFinding[] = [];
+  for (const match of text.matchAll(re)) {
+    const scheme = (match[1] as string).toLowerCase();
+    const end = (match.index ?? 0) + match[0].length;
+    if (ALLOWED_URL_SCHEMES.includes(scheme) || scheme === 'javascript' || scheme === 'vbscript') continue;
+    if (text.startsWith('//', end)) continue;
+    findings.push({ file: path, rule: 'url-scheme', match: clip(text.slice(match.index ?? 0, end + 30)) });
+  }
+  return findings;
+}
+
+/**
+ * The P0-13 rules (T-S40 and the Phase 0 Web Serial ban), which apply to
+ * every text file whatever its location, cloud chunks included.
+ */
+function testkitAndSerialFindings(path: string, text: string): ScanFinding[] {
+  const findings: ScanFinding[] = [];
+  const ext = extension(path);
+  if (text.includes(TESTKIT_MARKER)) {
+    findings.push({ file: path, rule: 'testkit-marker', match: `${TESTKIT_MARKER}: test-kit code is in the bundle` });
+  }
+  for (const match of text.matchAll(/MockSerialPort/g)) {
+    const start = Math.max(0, (match.index ?? 0) - 20);
+    findings.push({ file: path, rule: 'mock-serial-port', match: `…${clip(text.slice(start, (match.index ?? 0) + 40))}…` });
+  }
+  for (const re of [TRANSPORT_QUERY_TEXT_RE, TRANSPORT_QUERY_LOOKUP_RE]) {
+    for (const match of text.matchAll(re)) findings.push({ file: path, rule: 'transport-query', match: clip(match[0]) });
+  }
+  if (ext === '.js' || ext === '.mjs' || ext === '.json' || ext === '.webmanifest') {
+    findings.push(...schemeFindings(path, text, LITERAL_SCHEME_RE));
+  } else if (ext === '.html' || ext === '.svg' || ext === '.xml') {
+    findings.push(...schemeFindings(path, text, MARKUP_SCHEME_RE), ...schemeFindings(path, text, CSS_SCHEME_RE));
+  } else if (ext === '.css') {
+    findings.push(...schemeFindings(path, text, CSS_SCHEME_RE));
+  }
+  for (const match of text.matchAll(WEB_SERIAL_RE)) findings.push({ file: path, rule: 'web-serial', match: clip(match[0]) });
+  return findings;
 }
 
 /** Scans one text file. Exported for the tests. */
@@ -175,6 +299,7 @@ export function scanText(path: string, text: string): ScanFinding[] {
       findings.push({ file: path, rule: 'network-identifier', match: `${match[0]} in …${clip(context)}…` });
     }
   }
+  findings.push(...testkitAndSerialFindings(path, text));
   return findings;
 }
 

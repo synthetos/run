@@ -15,6 +15,7 @@
  *
  * DEV ONLY. Nothing in a production bundle may import this (T-S40).
  */
+import '../marker.ts';
 import type { DeviceIo, SimDevice } from '../device.ts';
 import { DEFAULT_BOOT_MS, DEFAULT_HOLD_DECEL_MS, ModelGapError, TICK_MS, type ModelSnapshot, type SideEffect, type TinyGModelOptions } from './common.ts';
 import { normalizeBlock, readWords, type GcodeSyntax, type Word } from './gcode.ts';

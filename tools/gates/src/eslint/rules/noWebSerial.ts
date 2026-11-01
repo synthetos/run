@@ -1,5 +1,6 @@
 import type { Rule } from 'eslint';
 import { type AnyNode, isGlobalReference, isNode, staticName, stringValue, unwrap } from '../ast.ts';
+import { WEB_SERIAL_METHODS } from '../../shared/webSerialNames.ts';
 
 const MESSAGE =
   'The Web Serial API (navigator.serial) is banned until P1-01, which lifts this rule in its own ' +
@@ -8,14 +9,6 @@ const MESSAGE =
 function isNavigator(node: unknown): boolean {
   return isGlobalReference(node, 'navigator');
 }
-
-/**
- * Methods that exist only on the Web Serial `Serial` object. A port can be
- * opened only through one of them, so banning the names catches code that
- * reaches `navigator.serial` through an alias (`const n = navigator;
- * n.serial.requestPort()`) or a value passed in from elsewhere.
- */
-export const WEB_SERIAL_METHODS: readonly string[] = ['requestPort', 'getPorts'];
 
 /**
  * Bans every reference to `navigator.serial`: `navigator.serial`,

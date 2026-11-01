@@ -59,8 +59,7 @@ account.
   outside `MachineSession` writes to the port, and nothing is loaded at
   runtime.
 
-These rules are enforced by the gates below (P0-02, P0-03). Test-kit
-markers are added to the bundle scan in P0-13.
+These rules are enforced by the gates below (P0-02, P0-03, P0-13).
 
 | Gate | Command | What it enforces |
 |---|---|---|
@@ -68,7 +67,7 @@ markers are added to the bundle scan in P0-13.
 | Lint | `pnpm lint` | `eslint.config.js` with the repository's own rules in `tools/gates/src/eslint/`: no `eval`/`new Function`; no HTML sinks (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `dangerouslySetInnerHTML`) outside `apps/web/src/security/tt.ts`; no `abort` in `machine`; no `Math.random` in `safety` and `protocol`; no network identifiers in `protocol`, `safety`, `machine`, `flasher` and `provenance`; no `navigator.serial`, `requestPort` or `getPorts` anywhere (until P1-01); no `WARNING —`, `DANGER —` or `NOTICE —` strings outside `packages/safety/src/strings.ts`. Inline `eslint-disable` comments are ignored (`noInlineConfig`), so a rule can be relaxed only in `eslint.config.js` |
 | Licences | `pnpm licence` | Production dependencies: MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0 or OFL-1.1. Dev dependencies may also be MPL-2.0, or carry a reviewed exception in `tools/gates/src/licence/exceptions.ts`. GPL and AGPL are never allowed |
 | CI policy | `pnpm ci-policy` | Workflows: only the deploy jobs touch secrets or the Cloudflare token; deploy jobs run only on a push to `main` behind protected environments; actions pinned by SHA; no `pull_request_target`; no `${{ }}` in scripts. CODEOWNERS covers every SAFETY §8 path. The PR template carries the SAFETY §8 checklist verbatim |
-| Bundle scan | `pnpm scan` (after a build) | No origin literal, `//host`, `javascript:` URL or network identifier in `apps/web/dist` outside the cloud-client chunks (`assets/cloud/`, decided by content in `apps/web/build/chunks.ts`); the static-assets `_headers` file present and identical to what `workers/run/src/headers.ts` renders |
+| Bundle scan | `pnpm scan` (after a build) | No origin literal, `//host`, `javascript:` URL or network identifier in `apps/web/dist` outside the cloud-client chunks (`assets/cloud/`, decided by content in `apps/web/build/chunks.ts`); the static-assets `_headers` file present and identical to what `workers/run/src/headers.ts` renders. Anywhere in the bundle (P0-13, T-S40): no test-kit marker, `MockSerialPort`, `transport=` query handling, URL scheme other than relative, `data:` and `blob:`, or Web Serial (`navigator.serial`, `requestPort`, `getPorts`); see docs/ops/ci.md |
 | Reproducible build | `pnpm repro` | Clones `HEAD` twice, installs only the build toolchain, builds both and fails unless they are byte-identical, then scans |
 
 `pnpm gates` runs lint, boundaries, licences and the CI policy. `tools/gates/test/acceptance.test.ts` proves

@@ -1,9 +1,22 @@
 /**
  * Bundle scan (ROADMAP P0-03 acceptance: "The bundle scan fails on an origin
- * literal or network identifier outside apps/web/src/cloud").
+ * literal or network identifier outside apps/web/src/cloud"; P0-13: the test
+ * kit, `transport=` handling, URL schemes other than relative, `data:` and
+ * `blob:`, and Web Serial, T-S40). bundle-acceptance.test.ts runs the same
+ * rules against real builds.
  */
 import { describe, expect, it } from 'vitest';
-import { CLOUD_ASSET_DIR, type BundleFile, NAMESPACE_URIS, OUTBOUND_URLS, scanBundle, scanText, SELF_ORIGINS } from '../src/bundle/scan.ts';
+import {
+  ALLOWED_URL_SCHEMES,
+  CLOUD_ASSET_DIR,
+  type BundleFile,
+  NAMESPACE_URIS,
+  OUTBOUND_URLS,
+  scanBundle,
+  scanText,
+  SELF_ORIGINS,
+  TESTKIT_MARKER,
+} from '../src/bundle/scan.ts';
 import { NETWORK_IDENTIFIERS } from '../src/shared/networkIdentifiers.ts';
 import { renderHeadersFile } from '../../../workers/run/src/headers.ts';
 
@@ -176,5 +189,153 @@ describe('outbound links (P0-05)', () => {
   it('refuses an unreviewed URL even in an anchor', () => {
     expect(rules('index.html', '<a href="https://evil.example/">x</a>')).toEqual(['origin-literal']);
     expect(rules('index.html', '<a href="https://support.google.com/chrome/answer/1">x</a>')).toEqual(['origin-literal']);
+  });
+});
+
+describe('T-S40: the test kit (P0-13)', () => {
+  it('scans for the marker value the test kit exports (packages/testkit/test/smoke.test.ts pins the export)', () => {
+    expect(TESTKIT_MARKER).toBe('__SYNTHETOS_TESTKIT_DEV_ONLY__');
+  });
+
+  it('fails on the marker literal in any chunk, page or text file', () => {
+    const sideEffect = `Object.defineProperty(globalThis,\`${TESTKIT_MARKER}\`,{value:!0})`;
+    expect(rules('assets/workspace-abc.js', sideEffect)).toEqual(['testkit-marker']);
+    expect(rules('index.html', `<p>${TESTKIT_MARKER}</p>`)).toEqual(['testkit-marker']);
+    expect(rules('manifest.webmanifest', `{"x":"${TESTKIT_MARKER}"}`)).toEqual(['testkit-marker']);
+  });
+
+  it('fails on the marker inside a cloud chunk too: no location is trusted for the test kit', () => {
+    expect(rules(`${CLOUD_ASSET_DIR}cloud-x.js`, `const m="${TESTKIT_MARKER}";`)).toEqual(['testkit-marker']);
+  });
+
+  it('fails on MockSerialPort, including its toStringTag string and longer names', () => {
+    expect(rules('assets/a.js', 'get[Symbol.toStringTag](){return`MockSerialPort`}')).toEqual(['mock-serial-port']);
+    expect(rules('assets/a.js', 'class MockSerialPort extends EventTarget{}')).toEqual(['mock-serial-port']);
+    expect(rules('assets/a.js', 'const o={MockSerialPortOptions:1}')).toEqual(['mock-serial-port']);
+  });
+
+  it('passes a bundle that merely names a serial port', () => {
+    expect(rules('assets/a.js', 'const label="No serial port is open";class SerialPortInfoView{}')).toEqual([]);
+  });
+});
+
+describe('T-S40: transport= query handling (P0-13)', () => {
+  it('fails on transport= as query text', () => {
+    expect(rules('assets/a.js', 'if(location.search.includes("?transport=sim"))x()')).toEqual(['transport-query']);
+    expect(rules('assets/a.js', 'const q=`transport=${t}`')).toEqual(['transport-query']);
+    expect(rules('assets/a.js', 'const m=/[?&]transport=(\\w+)/.exec(location.search)')).toEqual(['transport-query']);
+    expect(rules('assets/a.js', 'location.hash==="#transport=sim"')).toEqual(['transport-query']);
+    expect(rules('index.html', '<a href="/?mode=x&transport=sim">x</a>')).toEqual(['transport-query']);
+    expect(rules('assets/a.js', 'u.split(";transport = sim")')).toEqual(['transport-query']);
+  });
+
+  it('fails on reading transport from URLSearchParams, in any quoting or case', () => {
+    expect(rules('assets/a.js', 'new URLSearchParams(location.search).get("transport")')).toEqual(['transport-query']);
+    expect(rules('assets/a.js', "p.has('transport')")).toEqual(['transport-query']);
+    expect(rules('assets/a.js', 'p.getAll( `Transport` )')).toEqual(['transport-query']);
+  });
+
+  it('passes a property assignment or a word that only contains "transport"', () => {
+    expect(rules('assets/a.js', 'this.transport=t;const transportState=1;o.transport==null')).toEqual([]);
+    expect(rules('assets/a.js', 'm.get(transport);x.get("transportKind")')).toEqual([]);
+  });
+});
+
+describe('URL schemes other than relative, data: and blob: (P0-13)', () => {
+  it('allows only data: and blob:', () => {
+    expect(ALLOWED_URL_SCHEMES).toEqual(['data', 'blob']);
+  });
+
+  it('passes data: and blob: URLs and relative URLs', () => {
+    expect(rules('assets/a.js', 'img.src="data:image/png;base64,AAAA";const u=`blob:${x}`;a.href="/safety/"')).toEqual([]);
+    expect(rules('assets/a.css', 'a{background:url("data:image/svg+xml,%3Csvg%3E")}b{background:url(/assets/i.png)}')).toEqual([]);
+    expect(rules('index.html', '<img src="data:image/png;base64,AAAA"><a href="/privacy/">p</a><link href="BLOB:x">')).toEqual([]);
+  });
+
+  it('fails on other schemes in JavaScript string literals', () => {
+    for (const url of ['mailto:help@synthetos.com', 'tel:+15555550100', 'about:blank', 'file:C:/x', 'intent:x#Intent;end', 'chrome:settings', 'Filesystem:x']) {
+      expect(rules('assets/a.js', `a.href="${url}"`), url).toEqual(['url-scheme']);
+    }
+    expect(rules('assets/a.js', "open('sms:1234')")).toEqual(['url-scheme']);
+    expect(rules('assets/a.js', 'a.href=`mailto:${who}`')).toEqual(['url-scheme']);
+  });
+
+  it('fails on other schemes in JSON and the web manifest', () => {
+    expect(rules('manifest.webmanifest', '{"protocol_handlers":[{"protocol":"web+run","url":"mailto:%s"}]}')).toEqual(['url-scheme']);
+    expect(rules('assets/x.json', '{"u":"tel:1"}')).toEqual(['url-scheme']);
+  });
+
+  it('fails on other schemes in HTML and SVG attributes and meta refresh', () => {
+    expect(rules('index.html', '<a href="mailto:help@synthetos.com">mail</a>')).toEqual(['url-scheme']);
+    expect(rules('index.html', '<a href=mailto:x>mail</a><form action="tel:1">')).toEqual(['url-scheme', 'url-scheme']);
+    expect(rules('index.html', "<iframe src='about:blank'></iframe>")).toEqual(['url-scheme']);
+    expect(rules('index.html', '<meta http-equiv="refresh" content="0; url=tel:1">')).toEqual(['url-scheme']);
+    expect(rules('index.html', '<div style="background:url(file:x.png)"></div>')).toEqual(['url-scheme']);
+    expect(rules('icons/i.svg', '<svg xmlns="http://www.w3.org/2000/svg"><image href="about:blank"/></svg>')).toEqual(['url-scheme']);
+  });
+
+  it('fails on other schemes in CSS url() and @import', () => {
+    expect(rules('assets/a.css', 'a{background:url(about:blank)}')).toEqual(['url-scheme']);
+    expect(rules('assets/a.css', "@import 'file:x.css';")).toEqual(['url-scheme']);
+  });
+
+  it('reports scheme:// once, as origin-literal, and script URLs once, as script-url', () => {
+    expect(rules('assets/a.js', 'x("wss://evil.example/s")')).toEqual(['origin-literal']);
+    expect(rules('index.html', '<a href="javascript:alert(1)">x</a>')).toEqual(['script-url']);
+    expect(rules('assets/a.css', 'a{background:url(https://cdn.example/i.png)}')).toEqual(['origin-literal']);
+  });
+
+  it('does not mistake prose or code for a URL', () => {
+    expect(rules('assets/a.js', 'throw new Error("run: #app root element is missing");const t=a?"x":"y";const o={"a":1}')).toEqual([]);
+    expect(rules('index.html', '<meta name="description" content="Synthetos Run: the workspace"><meta content="width=device-width, initial-scale=1">')).toEqual([]);
+    expect(rules('index.html', '<p style="color:red" title="Note:read" aria-label="W1:x" class="a:b">x</p>')).toEqual([]);
+    expect(rules('licenses/IBM-Plex-OFL.txt', 'Contact: mailto:someone@example.org')).toEqual([]);
+  });
+});
+
+describe('Web Serial in the bundle (Phase 0, P0-13)', () => {
+  it('fails on navigator.serial in every spelling a bundle can carry', () => {
+    for (const code of [
+      'navigator.serial.requestPort',
+      'const s=navigator.serial;',
+      'navigator?.serial',
+      'navigator["serial"]',
+      "navigator?.['serial']",
+      '"serial" in navigator',
+    ]) {
+      expect(rules('assets/a.js', code).length, code).toBeGreaterThan(0);
+      expect(new Set(rules('assets/a.js', code)), code).toEqual(new Set(['web-serial']));
+    }
+  });
+
+  it('fails on the Web Serial-only method names, which catch an alias', () => {
+    expect(rules('assets/a.js', 'const n=navigator,s=n.serial;s.getPorts()')).toEqual(['web-serial']);
+    expect(rules('assets/a.js', 'x["requestPort"]()')).toEqual(['web-serial']);
+  });
+
+  it('fails in a cloud chunk too', () => {
+    expect(rules(`${CLOUD_ASSET_DIR}cloud-x.js`, 'navigator.serial')).toEqual(['web-serial']);
+  });
+
+  it('passes words that only contain the names, and a serial number property', () => {
+    expect(rules('assets/a.js', 'const serialNumber=info.serial;navigator.serialize;requestPorts;getPortsList')).toEqual([]);
+    expect(rules('index.html', '<p>Web Serial is not available in this browser.</p>')).toEqual([]);
+  });
+});
+
+describe('the whole bundle (P0-13 rules)', () => {
+  it('reports each P0-13 finding with its file and keeps scanning', () => {
+    const findings = scanBundle([
+      page,
+      headersFile,
+      file('assets/kit.js', `globalThis["${TESTKIT_MARKER}"]=!0;`),
+      file('assets/sim.js', 'new URLSearchParams(location.search).get("transport")'),
+      file('safety/index.html', '<a href="mailto:x@example.org">x</a>'),
+    ]);
+    expect(findings.map((f) => [f.file, f.rule])).toEqual([
+      ['assets/kit.js', 'testkit-marker'],
+      ['assets/sim.js', 'transport-query'],
+      ['safety/index.html', 'url-scheme'],
+    ]);
   });
 });

@@ -6,6 +6,7 @@
  * packages/testkit/STATUS.md and `test/honesty.test.ts` fails when the
  * committed file differs.
  */
+import '../marker.ts';
 import type { Behaviour, ModelLimit } from './types.ts';
 
 /** Problems with the register; empty when it is well formed. */

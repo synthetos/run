@@ -7,6 +7,7 @@
  * firmware behaviour, and tests of the real host code (machine, P0-12 on)
  * use `MockSerialPort` or `ReplayTransport` instead.
  */
+import './marker.ts';
 import { bytes } from './bytes.ts';
 import { VirtualClock } from './clock.ts';
 import type { SimDevice } from './device.ts';

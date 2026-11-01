@@ -7,6 +7,7 @@
  * every JavaScript engine. `Math.random` is never used anywhere in the kit.
  */
 
+import './marker.ts';
 export class SeededRng {
   #s0: number;
   #s1: number;

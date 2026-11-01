@@ -13,6 +13,7 @@
  * loss (@cite EN xio/xio_usb.c:221-226).
  */
 
+import '../marker.ts';
 export class RxRing {
   readonly capacity: number;
   readonly #bytes: number[] = [];

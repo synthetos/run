@@ -19,6 +19,7 @@
  * Bench recordings are stored as JSONL, one `{t, dir, hex}` object per line
  * (OLD ROADMAP P0-12): `recordingFromJsonl` turns one into a `Recording`.
  */
+import './marker.ts';
 import { escapeBytes } from './bytes.ts';
 import type { Clock } from './clock.ts';
 import type { Transcript } from './transcript.ts';

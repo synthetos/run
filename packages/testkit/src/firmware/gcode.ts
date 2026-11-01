@@ -15,6 +15,7 @@
  * comment is dropped, PN §9.3).
  */
 
+import '../marker.ts';
 export interface GcodeSyntax {
   /** EN E161: keep unknown characters (the line then fails); TG: delete them. */
   readonly keepInvalidChars: boolean;

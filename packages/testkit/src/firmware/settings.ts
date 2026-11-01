@@ -8,6 +8,7 @@
  * keep it across a "power cycle" or hand a model the image another build
  * left behind.
  */
+import '../marker.ts';
 import { token, type FirmwareTable } from './table.ts';
 
 export type SettingValue = number | string;

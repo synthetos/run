@@ -16,6 +16,7 @@
  *
  * DEV ONLY. Nothing in a production bundle may import this (T-S40).
  */
+import '../marker.ts';
 import type { DeviceIo, SimDevice } from '../device.ts';
 import {
   DEFAULT_BOOT_MS,

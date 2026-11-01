@@ -178,8 +178,41 @@ A module elsewhere that happens to be called `cloud.ts` lands in `assets/`
 and fails the scan. Vite's modulepreload polyfill is disabled because it
 contains a `fetch` call.
 
-P0-13 extends the scan with T-S40 (the test-kit marker, `MockSerialPort`,
-`transport=` handling).
+### P0-13 rules (T-S40, SAFETY §8 item 31)
+
+These apply to every text file, cloud chunks included:
+- `testkit-marker`: the value of `TESTKIT_MARKER`
+  (`packages/testkit/src/marker.ts`, read from there, never copied);
+- `mock-serial-port`: the name `MockSerialPort`;
+- `transport-query`: `transport=` as query text, or
+  `.get('transport')`/`.has`/`.getAll` (there is no `?transport=` switch);
+- `url-scheme`: any URL scheme other than `data:` and `blob:` that the rules
+  above do not already report (`mailto:`, `tel:`, `about:`, `file:` ...), in
+  JavaScript and JSON string literals, HTML/SVG URL attributes and meta
+  refresh, and CSS `url()` and `@import`;
+- `web-serial`: `navigator.serial` and the names `requestPort` and
+  `getPorts`. Phase 0 cannot reach a port; P1-01 narrows this rule to the
+  machine worker's chunk, in the same owner-approved PR that narrows the
+  `run/no-web-serial` lint rule.
+
+**Why the marker survives minification.** A minifier drops unused exports
+and renames classes, so a marker export alone would vanish from a bundle
+that still ships test-kit code. `marker.ts` therefore also names the marker
+in a side effect (a read-only flag on `globalThis`); every module in
+`packages/testkit/src/` loads it (enforced by `packages/testkit/test/marker.test.ts`);
+and the package declares `"sideEffects": true`, so a bundler keeps that
+statement whenever any test-kit module is bundled, even through a bare
+import. `MockSerialPort` also reports its name through `Symbol.toStringTag`.
+
+`tools/gates/test/bundle-acceptance.test.ts` proves it on real builds:
+importing the test kit into an entry (bare, a used class, one deep module,
+the marker itself) fails both dependency-cruiser (`entries-never-reach-testkit`)
+and the scan; `transport=` handling, a `mailto:` URL and Web Serial each fail
+the scan, and a `data:` URL passes.
+
+The scan is a backstop on the built text: it cannot see a name assembled
+at run time. The dependency-cruiser and ESLint rules on the source are the
+primary gates.
 
 ## Artifact verification
 

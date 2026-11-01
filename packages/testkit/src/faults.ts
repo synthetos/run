@@ -17,6 +17,7 @@
  */
 
 /** `toDevice`: host → controller. `toHost`: controller → host. */
+import './marker.ts';
 export type Direction = 'toDevice' | 'toHost';
 
 export type ByteSelector =

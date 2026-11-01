@@ -14,6 +14,7 @@
  * The endpoint never opens a real port; it is the in-memory stand-in that
  * `MockSerialPort` and test hosts talk to.
  */
+import './marker.ts';
 import type { Clock } from './clock.ts';
 import type { SimDevice } from './device.ts';
 import { ByteFaults, NO_FAULTS, validateFaultPlan, type FaultPlan } from './faults.ts';

@@ -18,6 +18,7 @@
  * model limits; no safety claim may rest on them.
  */
 
+import '../marker.ts';
 export const AXES = ['x', 'y', 'z', 'a', 'b', 'c'] as const;
 export type Axis = (typeof AXES)[number];
 export type Vec = [number, number, number, number, number, number];

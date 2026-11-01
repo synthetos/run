@@ -8,6 +8,7 @@
  * which is the order the firmware builds its nv list.
  */
 
+import '../marker.ts';
 export type OutValue = null | boolean | number | string | OutObject | Fixed;
 export interface OutObject {
   readonly [key: string]: OutValue;

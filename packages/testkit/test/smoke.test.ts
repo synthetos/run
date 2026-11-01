@@ -16,9 +16,11 @@ describe('@synthetos/testkit', () => {
     expect(mod.VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it('is private (dev only), side-effect free and exposes its entry through the exports map', () => {
+  it('is private (dev only), declares side effects (marker.ts) and exposes its entry through the exports map', () => {
     expect(pkg.private).toBe(true);
-    expect(pkg.sideEffects).toBe(false);
+    // true, not false: a bundler must keep marker.ts's side effect whenever
+    // any test-kit module is bundled, so the bundle scan can see it (P0-13).
+    expect(pkg.sideEffects).toBe(true);
     expect(pkg.exports['.']).toBe('./src/index.ts');
     expect(Object.keys((pkg as { dependencies?: object }).dependencies ?? {})).toEqual([]); // nothing ships with it
   });
