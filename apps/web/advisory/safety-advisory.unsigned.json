@@ -1,0 +1,12 @@
+{
+  "format": "synthetos-run/safety-advisory-unsigned@1",
+  "advisories": [
+    {
+      "format": "synthetos-run/safety-advisory-env@1",
+      "env": "staging",
+      "issued": "2026-11-01T00:00:00Z",
+      "expires": "2027-02-01T00:00:00Z",
+      "revoked": []
+    }
+  ]
+}

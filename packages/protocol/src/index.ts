@@ -99,3 +99,11 @@ export type {
 export { RELEASE_KEYS } from './releaseKeys.ts';
 export type { ReleaseKey } from './releaseKeys.ts';
 export * from './dialects/index.ts';
+export {
+  ADVISORY_PAYLOAD_FORMAT,
+  ADVISORY_SIGNING_PREFIX,
+  SAFETY_ADVISORY_FORMAT,
+  findRevocation,
+  verifySafetyAdvisory,
+} from './safetyAdvisory.ts';
+export type { AdvisoryEnvironment, AdvisoryRejection, AdvisoryVerdict, AdvisoryVerifyOptions, Revocation, SafetyAdvisory } from './safetyAdvisory.ts';

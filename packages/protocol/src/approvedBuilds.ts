@@ -28,6 +28,7 @@
 import type { DialectId } from './dialects/types.ts';
 import { RELEASE_KEYS } from './releaseKeys.ts';
 import type { ReleaseKey } from './releaseKeys.ts';
+import { clockMs, hasOnlyKeys, isRecord, parseJson, parseTime, verifyEd25519 } from './signed.ts';
 
 export type Environment = 'staging' | 'production';
 export type Channel = 'bench' | 'release';
@@ -237,73 +238,10 @@ function readBuild(b: unknown, channel: Channel): ApprovedBuild | undefined {
   return Object.freeze({ channel, dialect: dialect as DialectId, fb, fbs, commit, note });
 }
 
-async function verifyEd25519(publicKey: string, signature: string, message: string): Promise<boolean> {
-  try {
-    const subtle = globalThis.crypto.subtle;
-    const key = await subtle.importKey('raw', fromBase64(publicKey), { name: 'Ed25519' }, false, ['verify']);
-    return await subtle.verify({ name: 'Ed25519' }, key, fromBase64(signature), new TextEncoder().encode(message));
-  } catch {
-    // Bad key or signature encoding, or no Ed25519 support: not verified.
-    return false;
-  }
-}
-
-function fromBase64(text: string): Uint8Array<ArrayBuffer> {
-  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(text) || text.length % 4 !== 0) throw new Error('not base64');
-  const binary = atob(text);
-  const out = new Uint8Array(new ArrayBuffer(binary.length));
-  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
-  return out;
-}
-
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * An RFC 3339 UTC timestamp `YYYY-MM-DDTHH:MM:SSZ`, as milliseconds. It must
- * name a real instant exactly: `Date.parse` normalises 2026-02-31 to March 3
- * and 24:00:00 to the next day, so the parsed instant must print back as the
- * same text (P0-08 review).
- */
-function parseTime(value: unknown): number | undefined {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value)) return undefined;
-  const ms = Date.parse(value);
-  if (!Number.isFinite(ms)) return undefined;
-  return new Date(ms).toISOString() === `${value.slice(0, -1)}.000Z` ? ms : undefined;
-}
-
-/**
- * The clock as milliseconds, or undefined unless `now` is a genuine Date
- * holding a finite time. `Date.prototype.getTime` throws for anything that is
- * not a Date (whatever its own `getTime` says), and an Invalid Date gives NaN,
- * which would make both window comparisons false and fail open.
- */
-function clockMs(now: unknown): number | undefined {
-  try {
-    const ms = Date.prototype.getTime.call(now);
-    return Number.isFinite(ms) ? ms : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 /** The fields of a signed channel payload and of a build entry: nothing else is accepted. */
 const PAYLOAD_KEYS: readonly string[] = ['format', 'channel', 'env', 'issued', 'expires', 'builds'];
 const BUILD_KEYS: readonly string[] = ['dialect', 'fb', 'fbs', 'commit', 'note'];
 
-function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
-  return Object.keys(value).every((k) => allowed.includes(k));
-}
-
 function isChannel(value: unknown): value is Channel {
   return value === 'bench' || value === 'release';
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
