@@ -89,6 +89,8 @@ importers:
         specifier: workspace:*
         version: link:../safety
 
+  packages/gcode-view: {}
+
   packages/machine:
     dependencies:
       '@synthetos/flasher':

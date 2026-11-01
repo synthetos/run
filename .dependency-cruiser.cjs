@@ -59,6 +59,14 @@ module.exports = {
     layer('provenance', ['protocol', 'safety'], 'provenance imports safety and protocol only'),
     layer('contracts', [], 'contracts depends only on valibot: it imports no workspace package'),
     layer('testkit', ['protocol', 'flasher'], 'the test kit may import protocol and flasher only'),
+    layer('gcode-view', [], 'gcode-view is a publishable viewer whose input is a plain segment list: it imports no workspace package (never machine, safety, protocol or gcode)'),
+    {
+      name: 'gcode-view-no-npm-or-node',
+      comment: 'gcode-view is published on its own with zero runtime dependencies: no npm package and no Node built-in in its source (ROADMAP TB-03).',
+      severity: 'error',
+      from: { path: '^packages/gcode-view/src/' },
+      to: { dependencyTypes: ['npm', 'npm-dev', 'npm-optional', 'npm-peer', 'npm-no-pkg', 'npm-unknown', 'core'] },
+    },
     {
       name: 'no-circular',
       comment: 'No import cycle among or within the workspace packages: layering is a direction, and a cycle has none.',

@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The renderer draws into a WebGL2 canvas.
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src"]
+}
