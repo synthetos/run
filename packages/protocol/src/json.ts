@@ -104,8 +104,10 @@ const ESCAPES: Readonly<Record<string, string>> = Object.freeze({
 
 /** Parse `text` as one strict-or-relaxed JSON value. Never throws. */
 export function parseJson(text: string, limits: JsonLimits = DEFAULT_JSON_LIMITS): JsonParseResult {
-  const maxChars = capLimit(limits.maxChars, JSON_HARD_LIMITS.maxChars);
-  const maxDepth = capLimit(limits.maxDepth, JSON_HARD_LIMITS.maxDepth);
+  // A non-object `limits` (null from untyped JS) refuses every input rather than throwing.
+  const given: Partial<JsonLimits> = typeof limits === 'object' && limits !== null ? limits : {};
+  const maxChars = capLimit(given.maxChars as number, JSON_HARD_LIMITS.maxChars);
+  const maxDepth = capLimit(given.maxDepth as number, JSON_HARD_LIMITS.maxDepth);
   if (maxChars < 0 || text.length > maxChars) return { ok: false, reason: 'too-large', offset: Math.max(0, maxChars) };
   if (maxDepth < 0) return { ok: false, reason: 'too-deep', offset: 0 };
   const s: State = { text, maxDepth, pos: 0, depth: 0, reason: 'syntax', errorAt: 0 };

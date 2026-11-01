@@ -190,6 +190,14 @@ describe('parseJson: caller limits are capped (batch 9, finding P0-07 #2)', () =
     }
   });
 
+  it('a null or non-object limits argument refuses the input instead of throwing', () => {
+    for (const bad of [null, 5, 'x', true]) {
+      expect(() => parseJson('[1]', bad as never)).not.toThrow();
+      expect(parseJson('[1]', bad as never).ok).toBe(false);
+      expect(() => parseJsonObject('{"a":1}', bad as never)).not.toThrow();
+    }
+  });
+
   it('caps maxDepth at JSON_HARD_LIMITS and maxChars too', () => {
     const atCap = '['.repeat(JSON_HARD_LIMITS.maxDepth) + ']'.repeat(JSON_HARD_LIMITS.maxDepth);
     expect(parseJson(atCap, { maxChars: 1e9, maxDepth: 1e9 }).ok).toBe(true);
