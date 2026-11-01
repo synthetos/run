@@ -54,3 +54,34 @@ Design points recorded with this task (also in the task report):
   answer are dropped when READING starts, so a failed `stat`/`hold`/`vel`/
   `qr` read leaves the board "not resting" (ORPHANED_MOTION), never idle by
   default.
+
+## P1-03: probe, classification, profile suggestion, READ_ONLY handling
+
+Code: `packages/machine/src/session/reducer.ts` (probe, READING, `ex`,
+probe log), `session/notices.ts` (W25), `src/suggest.ts` (T-S50),
+`src/platform.ts` and `apps/web/src/machine-worker/host.ts` (T-S77).
+The probe and classifier themselves are P0-08 (`packages/protocol`).
+
+| Requirement | Implementation | Test | Status |
+|---|---|---|---|
+| T-S55 against live-shaped transcripts | session against the EN and 440.21 test-kit models (booting and already powered), with and without an approval | `p1-03-live.test.ts` "T-S55"; classifier fixtures `protocol/test/capability.test.ts` (incl. stock 449, conflicts) | PASS |
+| T-S86: first line `{"sr":null}` in every connect path; a spliced fragment never runs | `startProbe` (fresh, after LOST, after ackFault) | `p1-03-live.test.ts` "T-S86 (live)" (partial `G0 X1` left in the RX ring on both models: no motion, error answer); `session-reducer.test.ts` splice guard; model tests | PASS |
+| T-S87: ENQ never before a rev-2/3 footer, never on rev 1, after classification only on `tinyg-en` | `enqByte` | model tests (10k random sessions, both models); `session-reducer.test.ts` ENQ tests | PASS |
+| T-S60: a held, moving or queued board is ORPHANED_MOTION, not READ_ONLY; only `!`; `~` never | READING (`stat hold vel qr`), unsolicited reports, 3 s first-answer timeout | `p1-03-live.test.ts` "T-S60 (live)" (previous sender leaves each model held with a queue, or moving); `session-reducer.test.ts` "ORPHANED_MOTION" | PASS |
+| `ex` = 2 (RTS/CTS) → READ_ONLY on both dialects (PN §5.3); unreadable `ex` the same | READING reads `ex`; `finishReading` → reason `flowControl` | `session-reducer.test.ts` "flow control"; `p1-03-live.test.ts` "ex = 2" (set by a previous sender on the EN model) | PASS |
+| W25 for READ_ONLY builds | `readOnlyNotice` (fixed reason phrase per classifier reason, probed `fb`, upgrade advice where offered) | `p1-03-host.test.ts` "W25" | PASS (rendering lands with the Connect UI) |
+| Suggest machines by `(family, board_id)`, local and (signed in) cloud; several → the user picks; never auto-selected (T-S50); a different bound device is a hard block | `suggestMachines`, `checkSelection`; on the wire T-S21 (BLOCKED) | `p1-03-host.test.ts` "T-S50" | PASS (M); E with the Connect UI |
+| No Connect and no LIVE on a mobile OS whatever `navigator.serial` reports (T-S77) | `liveControlPlatform`; the worker refuses `open` (code `platform`) before asking the transport source | `p1-03-host.test.ts` "T-S77"; `machineWorker.test.ts` "T-S77" | PASS (worker); E (no Connect control) with the Connect UI |
+| Probe result recorded in the session log | `log` effect from `finishProbe` and the probe-failure paths (`probeRecord`) | `session-reducer.test.ts` "recorded in the session log"; `p1-03-live.test.ts` | PASS |
+| HIL-1.1, HIL-1.2, HIL-1.4, HIL-1.10, HIL-1.12, B-PROBE-1 | all of the above | `docs/bench/README.md` BENCH-P103-* | HIL |
+
+Open with this task:
+
+- **Manifest in the worker.** The worker still classifies against
+  `NO_APPROVED_BUILDS`, so every board is READ_ONLY there (fail closed).
+  HIL-1.1 expects `tinyg-en` **full**, which needs the signed manifest
+  fetched and verified in the worker (`protocol/approvedBuilds.ts` has the
+  verifier). Not in the P1-03 work list; owner to place it (P1-05 fetches
+  the signed advisory the same way).
+- **B-PROBE-1** fixtures (`test-fixtures/probe/`) are recorded on the bench
+  (BENCH-P103-1); none are committed until then.
