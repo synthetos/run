@@ -1,1 +1,2 @@
 test-fixtures/cam/*.nc -text
+packages/gcode/test/differential/corpus/* -text
