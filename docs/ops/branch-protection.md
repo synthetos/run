@@ -63,8 +63,11 @@ Settings → Environments.
   repository or organisation secret. Then no job without the environment can
   read it, even if the workflow policy were bypassed.
 - The token is the single CI token of the dedicated run Cloudflare account
-  (D34). Its only permission is **Workers Scripts:Edit**, limited to the run
-  and run-staging scripts. Create it after the account exists. See
+  (D34). Its permissions are **Workers Scripts:Edit** and **Access: Apps and
+  Policies:Read** (the staging pre-deploy Access check), on the dedicated
+  account only. Cloudflare API tokens cannot be limited to single scripts, so
+  the account holding only `run` and `run-staging` (and later `accounts`) is
+  what bounds it. Create it after the account exists. See
   `docs/ops/account.md`.
 
 ## 3. Repository variables

@@ -63,6 +63,10 @@ in the existing account, which keeps its own Workers Paid plan (D11).
 5. **The zone.** `synthetos.com` stays in the existing account. Custom
    domains of the new account's Workers attach to it through the zone's
    normal custom-domain flow (the owner approves it in the dashboard).
+   **Unverified (final Phase 0 gate):** Workers custom domains and routes
+   may require the zone on the same account as the Worker, and attaching a
+   custom domain may need a zone permission the CI token does not have.
+   Verify this first; `docs/LEAD_ACTIONS.md` Step 0a lists the options.
    Then, on the zone:
    - **Remove DNS:Edit from every day-to-day token** (the site's deploy
      token, forumbot's, the owner's local wrangler token). DNS changes are

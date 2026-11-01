@@ -11,7 +11,13 @@ import { ACCOUNT_ID_PLACEHOLDER, checkWorkerConfig, parseJsonc, stripJsonc } fro
 import { REPO_ROOT } from './scratch.ts';
 
 const CONFIG_PATH = join(REPO_ROOT, 'workers/run/wrangler.jsonc');
-const TEXT = readFileSync(CONFIG_PATH, 'utf8');
+const COMMITTED = readFileSync(CONFIG_PATH, 'utf8');
+// The committed file carries the D34 placeholder until the owner fills in the
+// dedicated account id (docs/LEAD_ACTIONS.md). The tests below run on the
+// committed text with the account id put back to the placeholder, so they keep
+// testing the same rules after that one-line change.
+const ACCOUNT_LINE = /"account_id": "[^"]*"/;
+const TEXT = COMMITTED.replace(ACCOUNT_LINE, `"account_id": "${ACCOUNT_ID_PLACEHOLDER}"`);
 type Config = Record<string, unknown> & { env: { staging: Record<string, unknown> } };
 const load = (): Config => parseJsonc(TEXT) as Config;
 const REAL_ACCOUNT = '0123456789abcdef0123456789abcdef';
@@ -58,6 +64,14 @@ describe('the committed wrangler.jsonc', () => {
   it('is refused for deploy while the account id is the placeholder', () => {
     expect(load()['account_id']).toBe(ACCOUNT_ID_PLACEHOLDER);
     expect(checkWorkerConfig(load(), { requireRealAccount: true }).map((f) => f.where)).toEqual(['account_id']);
+  });
+
+  it('commits exactly one top-level account_id: the D34 placeholder or a Cloudflare account id', () => {
+    expect(COMMITTED.match(new RegExp(ACCOUNT_LINE.source, 'g'))).toHaveLength(1);
+    const committed = (parseJsonc(COMMITTED) as Config)['account_id'];
+    expect(committed === ACCOUNT_ID_PLACEHOLDER || /^[0-9a-f]{32}$/.test(String(committed))).toBe(true);
+    // Apart from that one value, the committed file is the text tested above.
+    expect(COMMITTED.replace(ACCOUNT_LINE, '')).toBe(TEXT.replace(ACCOUNT_LINE, ''));
   });
 });
 
@@ -106,7 +120,7 @@ describe('preflight CLI', () => {
   }
   const withAccount = TEXT.replace(ACCOUNT_ID_PLACEHOLDER, REAL_ACCOUNT);
 
-  it('refuses the committed config: the D34 account does not exist yet', () => {
+  it('refuses the config while it carries the D34 placeholder', () => {
     const r = preflight(TEXT, 'production', REAL_ACCOUNT);
     expect(r.status).toBe(1);
     expect(r.output).toContain('placeholder');
