@@ -12,9 +12,10 @@
  *
  * | Top-level keys | Event |
  * |---|---|
- * | `r` (+ `f`, `tid`) | `Banner` (shape `r-footer`) when `r` has a string `msg` and any of `fv fb hp hv id`; otherwise `Response` |
+ * | `r` (+ `f`, `tid`) | `Banner` (shape `r-footer`) when `r` has a string `msg` and any of `fv fb hp hv id`, or (no `tid`) exactly `fv fb hp hv id` (440.21 at `jv`=1); otherwise `Response` |
  * | exactly `sr` | `Banner` (shape `bare-sr`) when `sr` has a `msg`; otherwise `StatusReport` |
  * | `qr` (+ `qi`, `qo`) | `QueueReport` |
+ * | exactly `rx`, an unsigned integer up to 255 | `RxReport` (440.21, after every `%`) |
  * | exactly `er` | `Exception` |
  * | exactly `ack` with value `true` | `Ack` |
  * | anything else | `Garbled{unrecognized-shape}` |
@@ -32,6 +33,9 @@ export const MAX_TID = 0xffff_ffff;
 
 /** Keys a banner carries besides `msg` (@cite EN report.c:65-78; TG report.c:88-101). */
 const BANNER_IDENTITY_KEYS = ['fv', 'fb', 'hp', 'hv', 'id'] as const;
+
+/** Largest value an `{"rx":n}` report can carry: the free bytes of a receive buffer smaller than 256 (@cite TG xio/xio_usart.h:54). */
+export const MAX_RX_REPORT = 255;
 
 /** The message of the last boot banner (@cite EN report.c:91-93). */
 export const READY_MESSAGE = 'SYSTEM READY';
@@ -55,6 +59,10 @@ export function classifyLine(line: string): ClassifiedLine {
   if ('r' in value) return classifyResponse(line, value, keys);
   if (sameKeys(keys, ['sr'])) return classifyStatus(line, value);
   if ('qr' in value) return classifyQueue(line, value, keys);
+  if (sameKeys(keys, ['rx'])) {
+    const rx = value['rx'];
+    return isUint(rx) && rx <= MAX_RX_REPORT ? Object.freeze({ kind: 'RxReport', line, rx }) : garbled('bad-value', line, value);
+  }
   if (sameKeys(keys, ['er'])) return classifyException(line, value);
   if (sameKeys(keys, ['ack'])) {
     return value['ack'] === true ? Object.freeze({ kind: 'Ack', line }) : garbled('bad-value', line, value);
@@ -180,7 +188,13 @@ export function checksum440(line: string): number {
 }
 
 function isBanner(body: JsonObject): boolean {
-  return typeof body['msg'] === 'string' && BANNER_IDENTITY_KEYS.some((k) => k in body);
+  if (typeof body['msg'] === 'string') return BANNER_IDENTITY_KEYS.some((k) => k in body);
+  // 440.21 at jv=1: SYSTEM READY is printed after the machine is READY, so the verbosity filter drops
+  // `msg` (NV_TYPE_MESSAGE) and keeps the config values (@cite TG main.c:131-136, json_parser.c:490-511).
+  // The body is then exactly fv, fb, hp, hv and id. The probe never GETs that set in one line, and no
+  // host code may (one key per GET, PN §4), so no answer can take this shape.
+  const keys = Object.keys(body);
+  return !('msg' in body) && keys.length === BANNER_IDENTITY_KEYS.length && BANNER_IDENTITY_KEYS.every((k) => k in body);
 }
 
 function banner(line: string, shape: 'r-footer' | 'bare-sr', fields: JsonObject, footer: Footer | undefined): ClassifiedLine {
@@ -191,7 +205,7 @@ function banner(line: string, shape: 'r-footer' | 'bare-sr', fields: JsonObject,
     line,
     shape,
     msg: text,
-    ready: text === READY_MESSAGE,
+    ready: msg === undefined ? null : text === READY_MESSAGE,
     fields,
     ...(typeof fv === 'number' ? { fv } : {}),
     ...(typeof fb === 'number' ? { fb } : {}),

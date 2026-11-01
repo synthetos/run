@@ -135,6 +135,17 @@ describe('classify: Banner (PN §2.2, SAFETY H19)', () => {
     expect(classifyLine(init)).toMatchObject({ kind: 'Banner', shape: 'r-footer', ready: false, footer: { status: 15 } });
   });
 
+  it('a TG 440.21 banner at jv=1 (msg filtered out) is still a Banner, with ready unknown (TG json_parser.c:490-511)', () => {
+    const line = withChecksum('{"r":{"fv":0.970,"fb":440.21,"hp":1,"hv":8,"id":"0BENCH-ONE"},"f":[1,0,0,', ']}');
+    expect(classifyLine(line)).toMatchObject({ kind: 'Banner', shape: 'r-footer', msg: '', ready: null, fb: 440.21, id: '0BENCH-ONE' });
+    // Not when any key is missing or extra: a single-key GET answer stays a Response.
+    expect(classifyLine(withChecksum('{"r":{"fb":440.21},"f":[1,0,12,', ']}')).kind).toBe('Response');
+    expect(classifyLine(withChecksum('{"r":{"fv":0.97,"fb":440.21,"hp":1,"hv":8},"f":[1,0,12,', ']}')).kind).toBe('Response');
+    expect(classifyLine(withChecksum('{"r":{"fv":0.97,"fb":440.21,"hp":1,"hv":8,"id":"x","ja":2},"f":[1,0,12,', ']}')).kind).toBe('Response');
+    // Never with a tid (a banner answers no request).
+    expect(garbledReason('{"r":{"fv":0.97,"fb":440.21,"hp":1,"hv":8,"id":"x"},"tid":4,"f":[3,0,12]}')).toBe('unrecognized-shape');
+  });
+
   it('keeps a G-code message response (msg without identity keys) a Response', () => {
     expect(classifyLine('{"r":{"msg":"tool change"},"f":[3,0,11]}').kind).toBe('Response');
   });
@@ -188,9 +199,20 @@ describe('classify: StatusReport, QueueReport, Exception, Ack', () => {
     expect(garbledReason('{"ack":true,"x":1}')).toBe('unrecognized-shape');
   });
 
+  it('RxReport for exactly {"rx":n}, n an unsigned integer up to 255 (TG report.c:541-548, after every %)', () => {
+    expect(classifyLine('{"rx":254}')).toEqual({ kind: 'RxReport', line: '{"rx":254}', rx: 254 });
+    expect(classifyLine('{rx:0}')).toMatchObject({ kind: 'RxReport', rx: 0 });
+    expect(classifyLine('{"rx":255}')).toMatchObject({ kind: 'RxReport', rx: 255 });
+    for (const bad of ['{"rx":256}', '{"rx":-1}', '{"rx":1.5}', '{"rx":"254"}', '{"rx":null}', '{"rx":true}']) {
+      expect(garbledReason(bad), bad).toBe('bad-value');
+    }
+    expect(garbledReason('{"rx":254,"qr":32}')).toBe('unrecognized-shape');
+    expect(garbledReason('{"rx":254,"x":1}')).toBe('unrecognized-shape');
+  });
+
   it('refuses objects of no known shape, keeping the parsed value', () => {
-    const c = classifyLine('{"rx":254}');
-    expect(c).toEqual({ kind: 'Garbled', reason: 'unrecognized-shape', line: '{"rx":254}', value: { rx: 254 } });
+    const c = classifyLine('{"prb":{"e":1}}');
+    expect(c).toEqual({ kind: 'Garbled', reason: 'unrecognized-shape', line: '{"prb":{"e":1}}', value: { prb: { e: 1 } } });
     expect(garbledReason('{}')).toBe('unrecognized-shape');
     expect(garbledReason('{"f":[3,0,11]}')).toBe('unrecognized-shape');
   });

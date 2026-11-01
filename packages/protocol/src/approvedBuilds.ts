@@ -64,9 +64,18 @@ export interface ApprovedBuild {
   readonly dialect: DialectId;
   /** The `fb` the board reports. */
   readonly fb: number;
-  /** The `fbs` build hash the board reports, or null for a build that reports none (edge-next today). */
+  /**
+   * The `fbs` build hash the board reports, or null for a build that reports
+   * none (edge-next today). A null entry is accepted on the bench channel
+   * only: the probe can then prove "some build reporting this `fb`", not this
+   * commit, so it never approves a production (release) session (D4).
+   */
   readonly fbs: string | null;
-  /** The firmware commit the build was made from (40 hex digits). */
+  /**
+   * The firmware commit the build was made from (40 hex digits). The probe
+   * cannot read it from the board: it is shown only as the manifest's claim,
+   * and only `fbs` ties a board to it.
+   */
   readonly commit: string;
   readonly note: string;
 }
@@ -121,7 +130,12 @@ export function environmentForOrigin(origin: string): Environment | null {
   return match === null ? null : (ENVIRONMENT_BY_HOST.get(match[1] as string) ?? null);
 }
 
-/** The approval for a probed build, if the manifest has one for exactly this dialect, `fb` and `fbs`. */
+/**
+ * The approval for a probed build, if the manifest has one for exactly this
+ * dialect, `fb` and `fbs`. `fbs` comes from the probe's own `fbs` GET, so a
+ * build that reports a hash can never match an entry approved with
+ * `fbs: null`, banner or no banner.
+ */
 export function findApproval(
   manifest: ApprovedBuilds,
   dialect: DialectId,
@@ -210,6 +224,8 @@ function readBuild(b: unknown, channel: Channel): ApprovedBuild | undefined {
   if (typeof dialect !== 'string' || !APPROVABLE_DIALECTS.includes(dialect as DialectId)) return undefined;
   if (typeof fb !== 'number' || !Number.isFinite(fb) || fb <= 0) return undefined;
   if (fbs !== null && (typeof fbs !== 'string' || fbs.length === 0)) return undefined;
+  // A release (production) approval must name the build hash: `fb` alone identifies no build (D4).
+  if (fbs === null && channel === 'release') return undefined;
   if (typeof commit !== 'string' || !/^[0-9a-f]{40}$/.test(commit)) return undefined;
   if (typeof note !== 'string') return undefined;
   return Object.freeze({ channel, dialect: dialect as DialectId, fb, fbs, commit, note });

@@ -42,6 +42,8 @@ const XOFF_LO = RX_BUFFER_SIZE * 0.1;
 const INPUT_BUFFER_LEN = 255;
 /** @cite TG planner.h:103-104 */
 const PLANNER_POOL = 32;
+/** JV_MESSAGES: the lowest jv that echoes messages (@cite TG json_parser.h:48, json_parser.c:576). */
+const JV_MESSAGES = 2;
 const PLANNER_HEADROOM = 4;
 /** hw_hard_reset(): the watchdog at WDTO_15MS (@cite TG hardware.c:161-167). */
 const WATCHDOG_RESET_MS = 15;
@@ -307,12 +309,16 @@ export class TinyG440Model implements SimDevice {
     const delay = (this.#options.bootMs ?? DEFAULT_BOOT_MS) + this.#bannerDelayMs;
     this.#bootTimer = clock.setTimeout(() => {
       this.#bootTimer = undefined;
-      // @behaviour TG-BANNER: an `r` with footer revision 1 (@cite TG report.c:88-118; config.c:134, :164; main.c:143)
-      if (freshEeprom) this.#banner(ST('INITIALIZING'), 'Initializing configs to default settings');
-      else this.#banner(ST('INITIALIZING'), 'Loading configs from EEPROM');
+      // @behaviour TG-BANNER: an `r` with footer revision 1, through json_print_response (@cite TG report.c:88-118).
+      // A fresh EEPROM prints "Initializing" after the defaults (jv 2) are set, while INITIALIZING, so in full
+      // (@cite TG config.c:164). An EEPROM boot prints no "Loading configs" line: it is printed while jv is
+      // still 0 (JV_SILENT) in RAM, before the stored jv is read (@cite TG config.c:134; json_parser.c:485).
+      if (freshEeprom) this.#banner(ST('INITIALIZING'), 'Initializing configs to default settings', false);
       this.#machine = 'ready';
       this.#combined = 1;
-      this.#banner(0, 'SYSTEM READY');
+      // SYSTEM READY comes after the machine is READY (@cite TG main.c:131-143), so the jv filter applies: at jv=1
+      // `msg` is dropped and only fv, fb, hp, hv and id remain; at jv=0 nothing is printed (@behaviour TG-BANNER-JV).
+      this.#banner(0, 'SYSTEM READY', true);
       this.#booted = true;
       this.#snapshotSr();
     }, delay);
@@ -554,9 +560,20 @@ export class TinyG440Model implements SimDevice {
     this.#partial = '';
     this.#partialOverflow = false;
     this.#motion.flush(now);
+    // @behaviour TG-FLUSH-REPORTS: the flush requests a queue report and an rx report (@cite TG
+    // canonical_machine.c:1302-1303). The main loop prints the qr report (only when qv is not 0, in the js
+    // syntax) and then `{"rx":n}`, always strict, whatever jv, js or qv (@cite TG controller.c:173-174;
+    // report.c:489-528, :541-548). n is the free USB RX space, captured right after the reset.
+    const rxFree = RX_BUFFER_SIZE - this.#ring.count; // xio_get_usb_rx_free() (@cite TG xio/xio_usb.c:199-202)
     this.#gm.position = this.#motion.position(now);
     this.#programFinalize('programStop');
     this.sideEffects.push({ t: now, what: 'queue-flush', via: '%' });
+    const qv = this.settings.num('qv');
+    if (qv !== 0) {
+      const qr = this.#motion.available();
+      this.#println(serialize(qv === 1 ? { qr } : { qr, qi: 0, qo: 0 }, this.settings.num('js') === 0));
+    }
+    this.#println(`{"rx":${rxFree}}`);
     this.#progress++;
   }
 
@@ -1046,10 +1063,18 @@ export class TinyG440Model implements SimDevice {
     this.#println(`${head}${checksum440(head.slice(0, -1))}]}`);
   }
 
-  #banner(status: number, msg: string): void {
-    const body: OutObject = { fv: fixed(FW_VERSION, 3), fb: fixed(FW_BUILD, 2), hp: HW_PLATFORM, hv: HW_VERSION, id: this.#options.id ?? 'SIM-TG-0001', msg };
-    const head = `{"r":${serialize(body)},"f":[1,${status},0,`;
-    this.#println(`${head}${checksum440(head.slice(0, -1))}]}`);
+  /**
+   * `_startup_helper()` (@cite TG report.c:88-103): fv, fb, hp, hv, id and msg
+   * through `json_print_response`, so `jv` and `js` apply. `filtered` is true
+   * once the machine is past INITIALIZING: then `msg` (NV_TYPE_MESSAGE) is
+   * dropped below jv=2 (JV_MESSAGES), while the config values stay (the config
+   * filter is commented out, @cite TG json_parser.c:490-511).
+   */
+  #banner(status: number, msg: string, filtered: boolean): void {
+    const identity: OutObject = { fv: fixed(FW_VERSION, 3), fb: fixed(FW_BUILD, 2), hp: HW_PLATFORM, hv: HW_VERSION, id: this.#options.id ?? 'SIM-TG-0001' };
+    const body: OutObject = filtered && this.settings.num('jv') < JV_MESSAGES ? identity : { ...identity, msg };
+    this.#linelen = 0;
+    this.#respond(status, body);
   }
 
   /** `rpt_exception()` (@cite TG report.c:57-69). */

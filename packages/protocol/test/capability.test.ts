@@ -45,7 +45,22 @@ describe('T-S55: classifier fixtures', () => {
     expect(c).toMatchObject({ dialect: TINYG_EN, mode: 'full', reason: 'en-approved', upgradeOffer: false });
     expect(c.approval).toEqual(BENCH.builds[0]);
     expect(c.detail).toContain('450.01');
+    // The probe cannot verify the commit, and with no fbs every 450.01 build matches: never claim it.
+    expect(c.detail).not.toContain('ead63997');
+    expect(c.detail).toContain('commit not verifiable');
+    expect(c.buildIdentity).toBe('fbOnly');
+  });
+
+  it('a board reporting an fbs never matches an fbs-null entry; an entry naming that fbs approves it and is shown as identified', () => {
+    const reporting = observations({ ...tinygIdentity('450.01'), fbs: { body: '"fbs":"450.01-3-g222a45c"', status: 0 }, ...EN_CAPABILITIES }, 3);
+    expect(classify(probe(reporting), BENCH)).toMatchObject({ dialect: TINYG_EN, mode: 'readOnly', reason: 'en-not-approved' });
+    const named: ApprovedBuilds = { environment: 'staging', builds: [{ ...approval('tinyg-en', 450.01), fbs: '450.01-3-g222a45c' }] };
+    const c = classify(probe(reporting), named);
+    expect(c).toMatchObject({ mode: 'full', buildIdentity: 'fbs' });
+    expect(c.detail).toContain('identified by fbs');
     expect(c.detail).toContain('ead63997');
+    // And the fbs-less board does not match the named entry.
+    expect(classify(probe(EN_450()), named).mode).toBe('readOnly');
   });
 
   it('the same EN answers with the fb NOT approved → tinyg-en, READ_ONLY, with the reason', () => {

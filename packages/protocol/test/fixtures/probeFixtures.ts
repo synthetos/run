@@ -57,6 +57,8 @@ export function tinygIdentity(fb: string): ProbeAnswers {
     hp: value('hp', '1'),
     id: value('id', '"0BENCH-TWO"'),
     hv: value('hv', '8'),
+    // No TinyG build reports fbs yet (D4): the GET answers 100.
+    fbs: unrecognized('fbs'),
   };
 }
 
@@ -94,6 +96,7 @@ export const G2_EDGE = (fb = '101.06'): ProbeObservations =>
       hp: value('hp', '"ArduinoDue"'),
       id: value('id', '"3X3584-QAM"'),
       hv: value('hv', '"na"'),
+      fbs: value('fbs', '"101.06-2-gabc1234"'),
       ...NO_CAPABILITIES,
       // g2 has its own spep and spph (G2 spindle.cpp:479, :483); prbp, fstk and os do not exist there.
       spep: value('spep', '1'),

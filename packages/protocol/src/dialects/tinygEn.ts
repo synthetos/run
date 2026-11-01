@@ -31,7 +31,10 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
 
   // @cite EN error.h:88, :92, :192, :198-200, :231, :275-276, :313-317, :333-347, :356-363, :367-371.
   status: statusTable([
-    [13, 'BUFFER_FULL', 'damagedLine'], // E162: a damaged line never runs (@cite EN controller.c:253-266)
+    // Two sources: E162, a damaged line that never ran (with er 13 and ALARM 13, @cite EN controller.c:253-266),
+    // and E102, a line that ran but whose reply overflowed the output buffer (`{"r":{},...}`, no er, no alarm,
+    // @cite EN json_parser.c:861-866). `resolveBufferFull` tells them apart; nothing acts on 13 alone.
+    [13, 'BUFFER_FULL', 'bufferFull'],
     [17, 'FUNCTION_IS_STUBBED', 'stubbed'], // `spph`, `spde`, `coph` (@cite EN config_app.c:64-68)
     [100, 'UNRECOGNIZED_NAME', 'unrecognizedToken'],
     [106, 'COMMAND_NOT_ACCEPTED', 'notAccepted'], // settings write in a cycle, refused jog, misused M400
@@ -105,6 +108,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     spindlePauseOnHold: 'probe',
     lineInSr: true, // default sr list starts with `line` (@cite EN settings/settings_default.h:84)
     footerRevs: [2, 3], // rev 2 at rxm=0, rev 3 at rxm=1, the default (@cite EN json_parser.c:848-852; settings/settings_default.h:74)
+    footerChecksum: 'absent',
   },
 
   limits: {
@@ -194,8 +198,13 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     steps: [
       { kind: 'awaitInFlightWrite' },
       { kind: 'stopFeeding' },
+      // SHUTDOWN (12) or PANIC (13): {clear} cannot leave them, and ^D would raise nothing (cm_alarm returns
+      // early, @cite EN canonical_machine.c:797-803). Advise the E-stop and offer the reset path instead.
+      { kind: 'haltIfStat', stat: [12, 13], spindle: 'unknown' },
       { kind: 'writeRealtime', byte: BYTE.KILL },
-      { kind: 'awaitAlarm', status: 207, timeoutMs: 2000 },
+      // Already in ALARM (stat 2: a limit 203, lost input 13, ...): ^D raises no 207, the existing alarm is the
+      // stop (it already held, flushed and turned the outputs off). Then C13 and {clear} as usual.
+      { kind: 'awaitAlarm', status: 207, alreadyAlarmedStat: [2], timeoutMs: 2000 },
       { kind: 'confirm', confirmation: 'C13' },
       { kind: 'clearAlarm' },
       // The E114 check. SAFETY §4.4 gives EN step 6 no timeout of its own; 3 s as TG step 4.

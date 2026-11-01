@@ -166,6 +166,26 @@ describe('contract: stop sequences', () => {
       }
     }));
 
+  it('every awaitAlarm accepts an alarm already latched, and only stat values the dialect calls alarm', () =>
+    each((d) => {
+      for (const s of d.stopJob.steps) {
+        if (s.kind !== 'awaitAlarm') continue;
+        expect(s.alreadyAlarmedStat.length, d.id).toBeGreaterThan(0);
+        for (const st of s.alreadyAlarmedStat) expect(mapStat(d, st), `${d.id} ${st}`).toBe('alarm');
+      }
+    }));
+
+  it('a kill-byte sequence halts first on every stat its dialect calls shutdown or panic', () =>
+    each((d) => {
+      if (!d.stopJob.steps.some((s) => s.kind === 'writeRealtime' && s.byte === BYTE.KILL)) return;
+      const halt = d.stopJob.steps.find((s) => s.kind === 'haltIfStat');
+      const fatal = d.stat.flatMap((e, i) => (e.machineClass === 'shutdown' || e.machineClass === 'panic' ? [i] : []));
+      expect(halt !== undefined && fatal.every((st) => halt.stat.includes(st)), d.id).toBe(true);
+      const haltAt = d.stopJob.steps.findIndex((s) => s.kind === 'haltIfStat');
+      const killAt = d.stopJob.steps.findIndex((s) => s.kind === 'writeRealtime' && s.byte === BYTE.KILL);
+      expect(haltAt, d.id).toBeLessThan(killAt);
+    }));
+
   it('a read-only dialect stops with `!` and E-stop advice only: no lines, no clear, no flush', () =>
     each((d) => {
       if (d.mode !== 'readOnly') return;

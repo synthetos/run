@@ -21,7 +21,7 @@ export interface FixtureFile {
   readonly rows: readonly Row[];
 }
 
-const KINDS = new Set(['Response', 'StatusReport', 'QueueReport', 'Exception', 'Banner', 'Ack', 'Text', 'Garbled']);
+const KINDS = new Set(['Response', 'StatusReport', 'QueueReport', 'RxReport', 'Exception', 'Banner', 'Ack', 'Text', 'Garbled']);
 
 export function readFixture(path: string): FixtureFile {
   const comments: string[] = [];

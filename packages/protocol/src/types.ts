@@ -69,6 +69,19 @@ export interface QueueReport {
   readonly qo?: number;
 }
 
+/**
+ * `{"rx":n}`: free bytes in the USB receive buffer. 440.21 prints it
+ * unsolicited after every queue flush (`%`), whatever the verbosity, `js`
+ * or `qv` (@cite TG canonical_machine.c:1302-1303 `rx_request_rx_report()`
+ * in `cm_queue_flush`; report.c:541-548 `rx_report_callback`). EN never
+ * requests one. It is informational: it does not answer a line.
+ */
+export interface RxReport {
+  readonly kind: 'RxReport';
+  readonly line: string;
+  readonly rx: number;
+}
+
 /** `{"er":{"fb":..,"st":n,"msg":"..."}}`, strict or relaxed (PN §5.5). */
 export interface Exception {
   readonly kind: 'Exception';
@@ -87,13 +100,19 @@ export interface Exception {
  * Boot prints up to three of these ("Initializing configs ...", "Loading
  * configs from EEPROM", "SYSTEM READY"); `ready` is true only for the last.
  * Every one of them means the board reset.
+ *
+ * 440.21 at `jv`=1 drops `msg` from its banner (the verbosity filter applies
+ * once the machine is READY, @cite TG json_parser.c:490-511), so its reset
+ * arrives as an `r` with exactly `fv fb hp hv id`: a banner with `msg` ''
+ * and `ready` null (unknown). At `jv`=0 it prints no banner at all.
  */
 export interface Banner {
   readonly kind: 'Banner';
   readonly line: string;
   readonly shape: 'r-footer' | 'bare-sr';
   readonly msg: string;
-  readonly ready: boolean;
+  /** True for SYSTEM READY, false for an earlier boot message, null when the banner carried no `msg`. */
+  readonly ready: boolean | null;
   readonly fv?: number;
   readonly fb?: number;
   /** A number on TinyG, a string on g2core (OLD-PN §2.2). */
@@ -133,9 +152,13 @@ export type GarbledReason =
   | 'too-large'
   /** Does not start with `{` but contains `{` or `}`: a damaged or spliced JSON line. */
   | 'json-fragment'
-  /** A JSON object of no known shape (including the `rx`, `prb`, `jog` and `job` reports, not classified yet). */
+  /** A JSON object of no known shape (including the `prb`, `jog` and `job` reports, not classified yet). */
   | 'unrecognized-shape'
-  /** A response with no footer, or a footer that is not a valid revision 1, 2 or 3 array. */
+  /**
+   * A response with no footer, or a footer that is not a valid revision 1, 2
+   * or 3 array, or (after `checkFooterForDialect`) a footer whose checksum
+   * presence does not match the dialect.
+   */
   | 'bad-footer'
   /** A revision-1 footer whose checksum does not match the line. */
   | 'checksum-mismatch'
@@ -164,7 +187,7 @@ export interface FlowSignal {
 }
 
 /** A classified line (everything except flow signals). */
-export type ClassifiedLine = Response | StatusReport | QueueReport | Exception | Banner | Ack | Text | Garbled;
+export type ClassifiedLine = Response | StatusReport | QueueReport | RxReport | Exception | Banner | Ack | Text | Garbled;
 
 /** Everything the inbound decoder emits, in stream order. */
 export type Inbound = ClassifiedLine | FlowSignal;

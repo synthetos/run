@@ -6,6 +6,9 @@ import { describe, expect, it } from 'vitest';
 import {
   BYTE,
   DIALECTS,
+  checkFooterForDialect,
+  classifyLine,
+  checksum440,
   G2CORE_EDGE,
   READ_ONLY_STOP_JOB,
   TINYG_440,
@@ -14,6 +17,7 @@ import {
   dialectById,
   holdName,
   mapStat,
+  resolveBufferFull,
   selectFlowEngine,
   statusClass,
   stopJobFor,
@@ -56,9 +60,21 @@ describe('T-S4: three TinyG tables', () => {
 
   it('stock 449 has its own table: 203 limit, and 13 is not a trusted "damaged line"', () => {
     expect(statusClass(TINYG_449_STOCK, 203)).toBe('limitHit');
-    expect(statusClass(TINYG_EN, 13)).toBe('damagedLine');
+    // EN 13 is ambiguous (E162 damaged line vs E102 overflowed reply): never acted on alone.
+    expect(statusClass(TINYG_EN, 13)).toBe('bufferFull');
     expect(statusClass(TINYG_449_STOCK, 13)).toBe('error');
     expect(statusClass(TINYG_440, 13)).toBe('error');
+  });
+
+  it('EN 13 is a damaged line only with an er 13 or ALARM 13; otherwise the line ran and its reply was lost', () => {
+    // E162: the first damaged line raises ALARM 13 and prints er 13 (EN controller.c:253-266).
+    expect(resolveBufferFull({ exception13: true, alarmStatus: null })).toBe('damagedLine');
+    // A later damaged line while ALARM 13 stands: no new er (cm_alarm returns early), still damaged.
+    expect(resolveBufferFull({ exception13: false, alarmStatus: 13 })).toBe('damagedLine');
+    // E102: `{"r":{},"f":[3,13,n]}` after the command ran, no er, no alarm: never resend.
+    expect(resolveBufferFull({ exception13: false, alarmStatus: null })).toBe('responseLost');
+    // An alarm of another cause is no evidence that this line was damaged.
+    expect(resolveBufferFull({ exception13: false, alarmStatus: 203 })).toBe('responseLost');
   });
 
   it('the duplicated BMAX code (220) leaves 230 undefined on TinyG, but not on g2core', () => {
@@ -130,9 +146,10 @@ describe('capabilities, limits and flow (PN §6.2, §7, §9)', () => {
   });
 
   it('TG: all of them false except m2ClearsAlarm; the M0 and arc corrections are encoded (PN §9.2, §10.2)', () => {
-    const { footerRevs, spindlePauseOnHold, m2ClearsAlarm, ...flags } = TINYG_440.caps;
+    const { footerRevs, footerChecksum, spindlePauseOnHold, m2ClearsAlarm, ...flags } = TINYG_440.caps;
     expect(Object.values(flags).every((v) => v === false)).toBe(true);
     expect(footerRevs).toEqual([1]);
+    expect(footerChecksum).toBe('required');
     expect(spindlePauseOnHold).toBe('never');
     // A queued program end overwrites the soft alarm's machine_state (TG canonical_machine.c:1351-1353):
     // a buffered M2/M30 clears the alarm on 440.21 too, so it must be held back (H35).
@@ -186,11 +203,12 @@ describe('capabilities, limits and flow (PN §6.2, §7, §9)', () => {
 });
 
 describe('stop sequences as data (SAFETY §4.4)', () => {
-  it('EN: stop feeding, ^D, wait for alarm 207, C13, clear, then the E114 drain check', () => {
+  it('EN: stop feeding, halt on SHUTDOWN/PANIC, ^D, wait for alarm 207 (or an alarm already latched), C13, clear, then the E114 drain check', () => {
     const kinds = TINYG_EN.stopJob.steps.map((s) => s.kind);
     expect(kinds).toEqual([
       'awaitInFlightWrite',
       'stopFeeding',
+      'haltIfStat',
       'writeRealtime',
       'awaitAlarm',
       'confirm',
@@ -201,7 +219,11 @@ describe('stop sequences as data (SAFETY §4.4)', () => {
       'done',
     ]);
     expect(writtenBytes(TINYG_EN.stopJob)).toEqual([BYTE.KILL]);
-    expect(TINYG_EN.stopJob.steps).toContainEqual({ kind: 'awaitAlarm', status: 207, timeoutMs: 2000 });
+    // EN cm_alarm prints nothing when already ALARM/SHUTDOWN/PANIC (canonical_machine.c:797-803).
+    expect(TINYG_EN.stopJob.steps).toContainEqual({ kind: 'awaitAlarm', status: 207, alreadyAlarmedStat: [2], timeoutMs: 2000 });
+    expect(TINYG_EN.stopJob.steps).toContainEqual({ kind: 'haltIfStat', stat: [12, 13], spindle: 'unknown' });
+    expect(mapStat(TINYG_EN, 2)).toBe('alarm');
+    expect(mapStat(TINYG_EN, 12)).toBe('shutdown');
     expect(TINYG_EN.stopJob.steps).toContainEqual(
       expect.objectContaining({ kind: 'verifyDrained', stat: [1, 3, 4], holdZero: true, plannerEmpty: true, velZero: true, consecutive: 2, intervalMs: 250 }),
     );
@@ -336,3 +358,44 @@ describe('job G-code data (ROADMAP P0-10)', () => {
   });
 });
 
+
+describe('dialect footer checksum rule (TG json_parser.c:529, :543-550)', () => {
+  const withSum = (prefix: string, tail = ']}'): string => `${prefix}${checksum440(`${prefix}0`)}${tail}`;
+
+  it('440.21 always prints a checksum: a rev-1 footer without one is garbled for that dialect', () => {
+    const damaged = classifyLine('{"r":{},"f":[1,0,6]}');
+    expect(damaged.kind).toBe('Response');
+    expect(checkFooterForDialect(TINYG_440, damaged)).toEqual({ kind: 'Garbled', reason: 'bad-footer', line: '{"r":{},"f":[1,0,6]}' });
+    const good = classifyLine(withSum('{"r":{},"f":[1,0,6,'));
+    expect(good.kind).toBe('Response');
+    expect(checkFooterForDialect(TINYG_440, good)).toBe(good);
+  });
+
+  it('a g2core rev-1 footer never has one: four fields are garbled for g2core', () => {
+    const four = classifyLine(withSum('{"r":{},"f":[1,0,6,'));
+    expect(checkFooterForDialect(G2CORE_EDGE, four)).toMatchObject({ kind: 'Garbled', reason: 'bad-footer' });
+    const three = classifyLine('{"r":{},"f":[1,0,6]}');
+    expect(checkFooterForDialect(G2CORE_EDGE, three)).toBe(three);
+  });
+
+  it('applies to banners too, and leaves rev 2/3 footers and footer-less events alone', () => {
+    const banner = classifyLine('{"r":{"fv":0.97,"fb":440.21,"hp":1,"hv":8,"id":"x","msg":"SYSTEM READY"},"f":[1,0,0]}');
+    expect(banner.kind).toBe('Banner');
+    expect(checkFooterForDialect(TINYG_440, banner)).toMatchObject({ kind: 'Garbled', reason: 'bad-footer' });
+    const en = classifyLine('{"r":{},"f":[3,0,12]}');
+    expect(checkFooterForDialect(TINYG_EN, en)).toBe(en);
+    expect(checkFooterForDialect(TINYG_440, en)).toBe(en);
+    const sr = classifyLine('{"sr":{"stat":3}}');
+    expect(checkFooterForDialect(TINYG_440, sr)).toBe(sr);
+    const bareBanner = classifyLine('{"sr":{"fb":450.01,"msg":"SYSTEM READY"}}');
+    expect(checkFooterForDialect(TINYG_440, bareBanner)).toBe(bareBanner);
+  });
+
+  it('every dialect states the rule, and only rev-1 dialects may require a checksum', () => {
+    for (const d of DIALECTS) {
+      if (d.caps.footerChecksum === 'required') expect(d.caps.footerRevs, d.id).toEqual([1]);
+    }
+    expect(TINYG_440.caps.footerChecksum).toBe('required');
+    expect(G2CORE_EDGE.caps.footerChecksum).toBe('absent');
+  });
+});

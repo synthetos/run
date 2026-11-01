@@ -35,6 +35,7 @@ export type {
   JsonValue,
   QueueReport,
   Response,
+  RxReport,
   StatusReport,
   Text,
 } from './types.ts';
@@ -42,10 +43,18 @@ export { DEFAULT_JSON_LIMITS, parseJson, parseJsonObject } from './json.ts';
 export type { JsonErrorReason, JsonLimits, JsonObjectParseResult, JsonParseResult } from './json.ts';
 export { MAX_LINE_BYTES, XOFF, XON, createFramer } from './frame.ts';
 export type { FrameEvent, FramedLine, Framer } from './frame.ts';
-export { MAX_TID, READY_MESSAGE, checksum440, classifyLine, parseFooter } from './classify.ts';
+export { MAX_RX_REPORT, MAX_TID, READY_MESSAGE, checksum440, classifyLine, parseFooter } from './classify.ts';
 export { createInboundDecoder, decodeInbound } from './inbound.ts';
 export type { InboundDecoder } from './inbound.ts';
-export { CAPABILITY_TOKENS, IDENTITY_TOKENS, PROBE_STATUS, PROBE_STEPS, SPINDLE_PAUSE_TOKEN, buildProbeResult } from './probe.ts';
+export {
+  BUILD_HASH_TOKEN,
+  CAPABILITY_TOKENS,
+  IDENTITY_TOKENS,
+  PROBE_STATUS,
+  PROBE_STEPS,
+  SPINDLE_PAUSE_TOKEN,
+  buildProbeResult,
+} from './probe.ts';
 export type {
   CapabilityToken,
   IdentityToken,

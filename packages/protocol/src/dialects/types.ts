@@ -69,8 +69,24 @@ export type StatusClass =
   | 'rejectedAlarm'
   | 'rejectedShutdown'
   | 'rejectedPanic'
-  /** EN E162: a damaged line that never ran (status 13). */
+  /**
+   * EN status 13 (STAT_BUFFER_FULL), which has two sources and is never acted
+   * on as is: `resolveBufferFull` decides between `damagedLine` and
+   * `responseLost` from the evidence around it.
+   */
+  | 'bufferFull'
+  /**
+   * A damaged line that never ran (EN E162, @cite EN controller.c:253-266):
+   * it comes with an `er` 13 and ALARM 13 (the first one raises it; later
+   * ones arrive while that alarm stands).
+   */
   | 'damagedLine'
+  /**
+   * The line RAN, but its reply did not fit the output buffer, so the body
+   * was replaced by `{}` and an OK became 13 (EN E102, json_parser.c
+   * `json_print_response`, `size < 0`). Never resend; re-read state.
+   */
+  | 'responseLost'
   /** The token exists but is stubbed (EN `spph`, status 17). */
   | 'stubbed'
   /** Unrecognised token (status 100): how TG and stock 449 answer the capability tokens. */
@@ -157,6 +173,15 @@ export interface DialectCaps {
   readonly spindlePauseOnHold: 'never' | 'probe';
   readonly lineInSr: boolean;
   readonly footerRevs: readonly FooterRev[];
+  /**
+   * Whether a revision-1 footer carries the fourth, checksum field. 440.21
+   * always prints it (`"%d,%d,%d,0"` with the checksum spliced in, @cite TG
+   * json_parser.c:529, :543-550); a g2core rev-1 footer has three fields;
+   * revisions 2 and 3 never have one. `checkFooterForDialect` turns a
+   * mismatch into `Garbled{bad-footer}`, so a damaged TG line that lost its
+   * checksum is never trusted.
+   */
+  readonly footerChecksum: 'required' | 'absent';
 }
 
 export interface DialectLimits {
@@ -362,8 +387,22 @@ export type StopStep =
   | { readonly kind: 'writeRealtime'; readonly byte: number }
   /** Wait for a report of the held class; skipped when nothing was moving. */
   | { readonly kind: 'awaitHeld'; readonly timeoutMs: number; readonly skipIfNotMoving: true }
-  /** Wait for ALARM with this status (stat 2 and an `er` with it). */
-  | { readonly kind: 'awaitAlarm'; readonly status: number; readonly timeoutMs: number }
+  /**
+   * Decided from the last known `stat` before anything is written: when it is
+   * one of `stat` (SHUTDOWN or PANIC, which `{clear}` cannot leave), the
+   * sequence ends here with "Use your E-stop" (`adviseEstop`), the reset path
+   * (C15) offered, and `done` with `spindle`. Otherwise the next step runs.
+   */
+  | { readonly kind: 'haltIfStat'; readonly stat: readonly number[]; readonly spindle: 'unknown' }
+  /**
+   * Wait for ALARM with this status (stat 2 and an `er` with it). When the
+   * machine is ALREADY in an alarm state (`alreadyAlarmedStat`, from the last
+   * known `stat` before the kill byte or any report while waiting), the
+   * firmware prints nothing new (EN `cm_alarm` returns early, @cite EN
+   * canonical_machine.c:797-803): the existing alarm stands in for this one
+   * and the step succeeds.
+   */
+  | { readonly kind: 'awaitAlarm'; readonly status: number; readonly alreadyAlarmedStat: readonly number[]; readonly timeoutMs: number }
   /** The user confirms (C13 before `{clear}`). */
   | { readonly kind: 'confirm'; readonly confirmation: 'C13' }
   /** `{"clear":null}`, with `tid` where the dialect has it. The only JSON a stop writes. */

@@ -41,8 +41,8 @@ describe('PROBE_STEPS', () => {
     expect(keys.some((k) => k.startsWith('jog'))).toBe(false);
   });
 
-  it('reads identity, then the four capability tokens, then spph, in PN §2.3 order (plus hv)', () => {
-    expect(PROBE_STEPS.map((s) => s.key)).toEqual(['sr', 'fb', 'fv', 'hp', 'id', 'hv', 'spep', 'prbp', 'fstk', 'os', 'spph']);
+  it('reads identity, the build hash, then the four capability tokens, then spph, in PN §2.3 order (plus hv and fbs)', () => {
+    expect(PROBE_STEPS.map((s) => s.key)).toEqual(['sr', 'fb', 'fv', 'hp', 'id', 'hv', 'fbs', 'spep', 'prbp', 'fstk', 'os', 'spph']);
   });
 
   it('is immutable', () => {
@@ -94,9 +94,39 @@ describe('buildProbeResult', () => {
     expect(out.ok && out.result.conflicts).toEqual([]);
 
     const g2 = G2_EDGE();
-    const withBanner = { ...g2, banner: toBanner('{"r":{"fv":0.99,"fb":101.06,"fbs":"1fb5940","hp":"ArduinoDue","hv":"na","id":"3X3584-QAM","msg":"SYSTEM READY"},"f":[1,0,12]}') };
+    const withBanner = { ...g2, banner: toBanner('{"r":{"fv":0.99,"fb":101.06,"fbs":"101.06-2-gabc1234","hp":"ArduinoDue","hv":"na","id":"3X3584-QAM","msg":"SYSTEM READY"},"f":[1,0,12]}') };
     const g2out = buildProbeResult(withBanner);
-    expect(g2out.ok && g2out.result).toMatchObject({ banner: 'r-footer', fbs: '1fb5940', conflicts: [] });
+    expect(g2out.ok && g2out.result).toMatchObject({ banner: 'r-footer', fbs: '101.06-2-gabc1234', conflicts: [] });
+  });
+
+  it('fbs comes from the GET, so a board already powered (no banner) that reports one is never "fbs-less"', () => {
+    const reporting = observations({ ...tinygIdentity('450.01'), fbs: { body: '"fbs":"450.01-3-g222a45c"', status: 0 }, ...EN_CAPABILITIES }, 3);
+    const out = buildProbeResult(reporting);
+    expect(out.ok && out.result.fbs).toBe('450.01-3-g222a45c');
+    expect(out.ok && out.result.conflicts).toEqual([]);
+    // A board without the token answers 100: no fbs, no conflict.
+    const none = buildProbeResult(EN_450());
+    expect(none.ok && 'fbs' in none.result).toBe(false);
+    expect(none.ok && none.result.conflicts).toEqual([]);
+  });
+
+  it('the banner fbs and the GET fbs must agree; any answer that is neither a hash nor 100 is a conflict', () => {
+    const banner = '{"sr":{"fv":0.97,"fb":450.01,"hp":1,"hv":8,"id":"0BENCH-TWO","fbs":"450.01-3-g222a45c","msg":"SYSTEM READY"}}';
+    // Banner says a hash, GET says none.
+    const a = buildProbeResult(observations({ ...tinygIdentity('450.01'), ...EN_CAPABILITIES }, 3, banner));
+    expect(a.ok && a.result.conflicts.some((c) => c.startsWith('fbs:'))).toBe(true);
+    // Banner and GET name different hashes.
+    const b = buildProbeResult(observations({ ...tinygIdentity('450.01'), fbs: { body: '"fbs":"other"', status: 0 }, ...EN_CAPABILITIES }, 3, banner));
+    expect(b.ok && b.result.conflicts.some((c) => c.startsWith('fbs:'))).toBe(true);
+    // A banner with no fbs while the GET reports one.
+    const c = buildProbeResult(
+      observations({ ...tinygIdentity('450.01'), fbs: { body: '"fbs":"x"', status: 0 }, ...EN_CAPABILITIES }, 3, '{"sr":{"fv":0.97,"fb":450.01,"msg":"SYSTEM READY"}}'),
+    );
+    expect(c.ok && c.result.conflicts.some((x) => x.startsWith('fbs:'))).toBe(true);
+    for (const odd of [{ body: '"fbs":""', status: 0 }, { body: '"fbs":5', status: 0 }, { body: '"fbs":null', status: 17 }]) {
+      const d = buildProbeResult(observations({ ...tinygIdentity('450.01'), fbs: odd, ...EN_CAPABILITIES }, 3));
+      expect(d.ok && d.result.conflicts.some((x) => x.startsWith('fbs:')), odd.body).toBe(true);
+    }
   });
 
   it('a banner that disagrees with the GET answers is a conflict', () => {

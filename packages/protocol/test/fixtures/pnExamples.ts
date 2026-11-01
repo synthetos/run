@@ -37,7 +37,8 @@ export const PN_VERBATIM: readonly PnExample[] = [
   { where: 'PN §6.1 polled read (command)', line: '{"hold":null}', kind: 'Garbled', reason: 'unrecognized-shape' },
   { where: 'PN §6.1 polled read (command)', line: '{"qr":null}', kind: 'Garbled', reason: 'bad-value' },
   { where: 'PN §6.1 polled read (command)', line: '{"mpo":null}', kind: 'Garbled', reason: 'unrecognized-shape' },
-  { where: 'PN §7.3 rx resync (command)', line: '{rx:null}', kind: 'Garbled', reason: 'unrecognized-shape' },
+  // A command, not a report: `null` is not an rx count, so it is refused as a bad value.
+  { where: 'PN §7.3 rx resync (command)', line: '{rx:null}', kind: 'Garbled', reason: 'bad-value' },
   { where: 'PN §7.4 gc wrapper (command)', line: '{"gc":"…"}', kind: 'Garbled', reason: 'unrecognized-shape' },
   { where: 'PN §12.2 me (command template)', line: '{me:N}', kind: 'Garbled', reason: 'malformed-json' },
   { where: 'PN §12.3 group read (command)', line: '{"x":null}', kind: 'Garbled', reason: 'unrecognized-shape' },

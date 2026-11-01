@@ -55,6 +55,25 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     ],
   },
   {
+    id: 'EN-GC-ECHO',
+    model: EN,
+    summary: 'The gc echo is dropped below jv=5 on success and on error alike: the verbosity filter runs for every error response.',
+    status: 'verified-source',
+    cites: [{ src: 'EN', file: 'json_parser.c', lines: [803, 817], quote: 'if (!js.echo_json_gcode_block)' }],
+    bench: 'B-PROBE-1',
+  },
+  {
+    id: 'EN-REPLY-OVERFLOW',
+    model: EN,
+    summary: 'A reply too big for the 512-byte output buffer loses its body: {"r":{},..} with its tid and footer, OK replaced by 13. The command has already run.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'json_parser.c', lines: [860, 866], quote: '(status == STAT_OK) ? STAT_BUFFER_FULL : status' },
+      { src: 'EN', file: 'controller.h', lines: [32, 32], quote: 'OUTPUT_BUFFER_LEN 512' },
+    ],
+    bench: 'B-PROBE-1',
+  },
+  {
     id: 'EN-FOOTER',
     model: EN,
     summary: 'Footer [3,status,free line headers] in line mode; [2,status,bytes read since the previous reply] in character mode (E164).',
@@ -542,10 +561,40 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
   {
     id: 'TG-BANNER',
     model: TG,
-    summary: 'Boot prints {"r":{fv,fb,hp,hv,id,msg},"f":[1,...]} responses; the configs message carries status 15, SYSTEM READY status 0.',
+    summary:
+      'Boot prints {"r":{fv,fb,hp,hv,id,msg},"f":[1,...]} responses through json_print_response; "Initializing" (status 15) only after a fresh EEPROM, never "Loading configs" (printed while jv is still 0 in RAM), then SYSTEM READY status 0.',
     status: 'verified-source',
-    cites: [{ src: 'TG', file: 'report.c', lines: [88, 118], quote: 'json_print_response(status)' }],
+    cites: [
+      { src: 'TG', file: 'report.c', lines: [88, 118], quote: 'json_print_response(status)' },
+      { src: 'TG', file: 'config.c', lines: [134, 134], quote: 'rpt_print_loading_configs_message()' },
+      { src: 'TG', file: 'json_parser.c', lines: [485, 485], quote: 'JV_SILENT) return' },
+    ],
     bench: 'B-PROBE-1',
+  },
+  {
+    id: 'TG-BANNER-JV',
+    model: TG,
+    summary:
+      'SYSTEM READY is printed after the machine is READY, so the jv filter applies: at jv=1 the banner has no msg (only fv, fb, hp, hv, id); at jv=0 there is no banner at all.',
+    status: 'verified-source',
+    cites: [
+      { src: 'TG', file: 'main.c', lines: [131, 143], quote: 'rpt_print_system_ready_message()' },
+      { src: 'TG', file: 'json_parser.c', lines: [490, 511], quote: 'js.echo_json_messages == false' },
+      { src: 'TG', file: 'json_parser.c', lines: [576, 576], quote: 'JV_MESSAGES)	{ js.echo_json_messages = true;}' },
+    ],
+    bench: 'B-PROBE-1',
+  },
+  {
+    id: 'TG-FLUSH-REPORTS',
+    model: TG,
+    summary: 'A queue flush (%) requests a queue report (printed only when qv is not 0) and an rx report, printed as {"rx":n} whatever jv, js or qv.',
+    status: 'verified-source',
+    cites: [
+      { src: 'TG', file: 'canonical_machine.c', lines: [1302, 1303], quote: 'rx_request_rx_report();' },
+      { src: 'TG', file: 'report.c', lines: [541, 548], quote: 'fprintf(stderr, "{\\"rx\\":%d}\\n", rx.space_available);' },
+      { src: 'TG', file: 'controller.c', lines: [173, 174], quote: 'DISPATCH(rx_report_callback());' },
+    ],
+    bench: 'B-FH-1',
   },
   {
     id: 'TG-PLANNER',

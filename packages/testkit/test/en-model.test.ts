@@ -126,7 +126,7 @@ describe('TinyGEdgeNextModel: P0-11 acceptance', () => {
     const r = replies(sim.host.lines());
     expect(r).toHaveLength(1);
     expect(r[0]?.f[1]).toBe(101);
-    expect(r[0]?.r['gc']).toBe('G1 X5 % F100'); // errors echo the line
+    expect(r[0]?.r).toEqual({}); // jv=3: the gc echo is filtered on errors too (EN json_parser.c:803-817)
     sim.clock.advance(1000);
     expect(sim.device.snapshot().position[0]).toBe(0);
   });
@@ -738,5 +738,43 @@ describe('TinyGEdgeNextModel: settings and reads', () => {
     foreign.clock.advance(1100);
     expect(foreign.host.lines()[0]).toContain('Initializing configs');
     expect(get(foreign, 'xvm')).toBe(800);
+  });
+});
+
+describe('TinyGEdgeNextModel: P0 review fidelity', () => {
+  it('[EN-GC-ECHO] a failing G-code line at the default jv=3 gets an empty r; only jv=5 echoes gc', () => {
+    const sim = enSim();
+    sim.host.sendLine('G1 X1 F-5');
+    sim.host.sendLine('{"gc":"G1 X1 F-5"}');
+    sim.clock.advance(50);
+    const r = replies(sim.host.take());
+    expect(r.map((x) => x.f[1] !== 0)).toEqual([true, true]);
+    expect(r.map((x) => x.r)).toEqual([{}, {}]);
+    sim.host.sendLine('{"jv":5}');
+    sim.clock.advance(30);
+    sim.host.take();
+    sim.host.sendLine('G1 X1 F-5');
+    sim.host.sendLine('G0 X0');
+    sim.clock.advance(50);
+    expect(replies(sim.host.take()).map((x) => x.r['gc'])).toEqual(['G1 X1 F-5', 'G0 X0']);
+  });
+
+  it('[EN-REPLY-OVERFLOW] a reply too big for the output buffer becomes {"r":{}} with 13; the command ran', () => {
+    const sim = enSim();
+    sim.host.sendLine('{"sys":null,"x":null,"y":null}');
+    sim.clock.advance(50);
+    const lines = sim.host.take();
+    expect(lines).toEqual(['{"r":{},"f":[3,13,10]}']);
+    expect(exceptions(lines)).toEqual([]);
+    expect(sim.device.snapshot().stat).not.toBe(2);
+    // A SET that overflows has still been applied: resending it would apply it twice.
+    sim.host.sendLine('{"xvm":1234,"sys":null,"x":null,"y":null}');
+    sim.clock.advance(50);
+    expect(replies(sim.host.take()).map((x) => [x.r, x.f[1]])).toEqual([[{}, 13]]);
+    expect(get(sim, 'xvm')).toBe(1234);
+    // A reply that fits is untouched.
+    sim.host.sendLine('{"x":null}');
+    sim.clock.advance(50);
+    expect(replies(sim.host.take())[0]?.f[1]).toBe(0);
   });
 });

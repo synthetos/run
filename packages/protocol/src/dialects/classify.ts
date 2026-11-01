@@ -14,7 +14,7 @@
  * | Condition | Result |
  * |---|---|
  * | any conflict in the probe, or TinyG and g2core signals together | unclassified, READ_ONLY |
- * | footer rev 2/3, `fv` 0.97, `hp` 1, all four capability tokens answer, `spph` stubbed | `tinyg-en`: full if the manifest approves (`fb`, `fbs`), else READ_ONLY "not approved" |
+ * | footer rev 2/3, `fv` 0.97, `hp` 1, all four capability tokens answer, `spph` stubbed | `tinyg-en`: full if the manifest approves (`fb`, `fbs` from the probe's GET), else READ_ONLY "not approved" |
  * | footer rev 1, `fv` 0.97, `hp` 1, `fb` 440.21, no capability token, `spph` unrecognised | `tinyg-440`: full if the manifest approves (D22, HIL-6.1), else READ_ONLY |
  * | footer rev 2/3, `fb` 449.xx, no capability token, `spph` unrecognised | `tinyg-449-stock`, always READ_ONLY, upgrade offer (D23) |
  * | `hp` a string or `fv` 0.99, footer rev 1, `fb` 101.06 | `g2core-edge`, READ_ONLY until Phase 7 |
@@ -60,6 +60,12 @@ export interface Classification {
   readonly upgradeOffer: boolean;
   /** The manifest entry that approved a full session. */
   readonly approval?: ApprovedBuild;
+  /**
+   * How a full session's build was identified: `fbs` (the probe read a build
+   * hash the manifest names) or `fbOnly` (an fbs-null bench entry: any build
+   * reporting this `fb` matches; the UI must show that).
+   */
+  readonly buildIdentity?: 'fbs' | 'fbOnly';
 }
 
 /** TinyG builds report fv 0.97 (@cite EN tinyg.h:54; TG tinyg.h:52). */
@@ -144,13 +150,20 @@ function approvable(
       upgradeOffer,
     };
   }
+  // The probe cannot read the commit. Without fbs it cannot even tell builds that share this fb apart,
+  // so the manifest's commit is not shown as if it identified the board (D4, P0 review).
+  const identity =
+    approval.fbs === null
+      ? 'commit not verifiable: the build reports no fbs, so every build reporting this fb matches (bench only)'
+      : `identified by fbs; manifest commit ${approval.commit.slice(0, 8)}`;
   return {
     dialect,
     mode: 'full',
     reason: approved,
-    detail: `${dialect.label} ${build}, approved on the ${approval.channel} channel (commit ${approval.commit.slice(0, 8)})`,
+    detail: `${dialect.label} ${build}, approved on the ${approval.channel} channel (${identity})`,
     upgradeOffer,
     approval,
+    buildIdentity: approval.fbs === null ? 'fbOnly' : 'fbs',
   };
 }
 

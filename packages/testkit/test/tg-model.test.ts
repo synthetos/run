@@ -366,7 +366,9 @@ describe('TinyG440Model: replies and settings', () => {
     first.clock.advance(30);
     const again = tgSim({ eeprom, start: 'boot' });
     again.clock.advance(1100);
-    expect(again.host.lines()[0]).toContain('Loading configs from EEPROM');
+    // No "Loading configs" line: it is printed while jv is still 0 in RAM (TG config.c:134).
+    expect(again.host.lines()).toHaveLength(1);
+    expect(again.host.lines()[0]).toContain('SYSTEM READY');
     expect(get(again, 'xvm')).toBe(700);
     const other = tgSim({ eeprom: { __build: 449.01, xvm: 5 }, start: 'boot' });
     other.clock.advance(1100);
@@ -406,5 +408,45 @@ describe('TinyG440Model: replies and settings', () => {
     en.host.sendLine('G1 X0.001*9 F600');
     en.clock.advance(500);
     expect(statuses(en.host.lines())).toEqual([101]); // EN keeps the * and fails the line (E161)
+  });
+});
+
+describe('TinyG440Model: P0 review fidelity', () => {
+  it('[TG-BANNER-JV] at jv=1 the SYSTEM READY banner has no msg; at jv=0 there is none; the classifier still sees the reset', () => {
+    const one = tgSim({ eeprom: { __build: 440.21, jv: 1 }, start: 'boot' });
+    one.clock.advance(1100);
+    const r = replies(one.host.lines());
+    expect(r).toHaveLength(1);
+    expect(Object.keys(r[0]?.r ?? {}).sort()).toEqual(['fb', 'fv', 'hp', 'hv', 'id']);
+    const events = decodeInbound([bytes(one.host.lines().map((l) => `${l}\n`).join(''))]);
+    expect(events).toMatchObject([{ kind: 'Banner', shape: 'r-footer', ready: null, fb: 440.21 }]);
+    const zero = tgSim({ eeprom: { __build: 440.21, jv: 0 }, start: 'boot' });
+    zero.clock.advance(1100);
+    expect(zero.host.lines()).toEqual([]);
+    // Relaxed syntax applies to the banner too (it goes through json_print_response).
+    const relaxed = tgSim({ eeprom: { __build: 440.21, js: 0 }, start: 'boot' });
+    relaxed.clock.advance(1100);
+    expect(relaxed.host.lines()[0]).toMatch(/^\{r:\{fv:/);
+  });
+
+  it('[TG-FLUSH-REPORTS] every % prints {"rx":n} (strict, whatever js), after a {"qr":n} when qv is not 0', () => {
+    const sim = tgSim();
+    sim.host.sendLine('G1 X50 F600');
+    sim.clock.advance(300);
+    sim.host.send('!');
+    sim.clock.advance(1500);
+    sim.host.take();
+    sim.host.send('%');
+    sim.clock.advance(100);
+    const notSr = (lines: string[]): string[] => lines.filter((l) => !l.startsWith('{"sr"') && !l.startsWith('{sr'));
+    expect(notSr(sim.host.take())).toEqual(['{"rx":254}']);
+    const q = tgSim({ eeprom: { __build: 440.21, qv: 1, js: 0 } });
+    q.host.send('%');
+    q.clock.advance(100);
+    expect(notSr(q.host.take())).toEqual(['{qr:32}', '{"rx":254}']);
+    const q2 = tgSim({ eeprom: { __build: 440.21, qv: 2 } });
+    q2.host.send('%');
+    q2.clock.advance(100);
+    expect(notSr(q2.host.take())).toEqual(['{"qr":32,"qi":0,"qo":0}', '{"rx":254}']);
   });
 });

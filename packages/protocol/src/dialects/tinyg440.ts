@@ -96,6 +96,7 @@ export const TINYG_440: Dialect = deepFreeze<Dialect>({
     spindlePauseOnHold: 'never',
     lineInSr: false, // @cite TG settings.h:68
     footerRevs: [1], // [1,status,len+1,checksum] (@cite TG json_parser.c:529)
+    footerChecksum: 'required', // 440.21 always prints [1,status,n,checksum] (@cite TG json_parser.c:529, :543-550)
   },
 
   limits: {

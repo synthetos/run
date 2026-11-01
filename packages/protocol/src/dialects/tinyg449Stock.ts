@@ -112,6 +112,7 @@ export const TINYG_449_STOCK: Dialect = deepFreeze<Dialect>({
     spindlePauseOnHold: 'never',
     lineInSr: true, // @cite S449 settings/settings_default.h:84
     footerRevs: [2, 3], // @cite S449 json_parser.c:683, :686
+    footerChecksum: 'absent',
   },
 
   limits: {

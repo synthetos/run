@@ -7,7 +7,7 @@ Every behaviour a safety claim depends on carries a citation at a pinned commit 
 (RUN_PLAN §8.1 honesty rule). Pins: EN = TinyG edge-next `ead63997`, TG = master `d0418390` (440.21),
 EN-HIL = edge-next `tests/hil/` (`vendor/firmware-pins.json`). EN and TG paths are under `firmware/tinyg/`.
 
-Totals: 67 behaviours (3 UNVERIFIED, 64 verified-source, 0 verified-bench).
+Totals: 71 behaviours (3 UNVERIFIED, 68 verified-source, 0 verified-bench).
 
 ## UNVERIFIED (release checklist)
 
@@ -31,6 +31,7 @@ Each must be bench-verified, or covered by a mitigation that does not depend on 
 | EN-E162 | verified-source | Input lost to a ring overrun is marked; every line that lost bytes or follows lost bytes is answered 13 and never runs; the first raises ALARM 13. (E162) | EN xio/xio_usb.c:221-231; EN xio/xio_usart.c:313-348; EN controller.c:258-268; EN-HIL tests/hil/tests/bugs/test_e162_rx_overrun_splices_lines.py:1-9 | B-N-1 |
 | EN-EEPROM | verified-source | Persisted settings survive a reset (EEPROM); an image with another layout marker is replaced by the defaults; non-persisted tokens return to defaults. (E022) | EN config.c:208-223; EN persistence.c:93-101 |  |
 | EN-FOOTER | verified-source | Footer [3,status,free line headers] in line mode; [2,status,bytes read since the previous reply] in character mode (E164). (E164) | EN json_parser.c:848-853; EN controller.c:277-284 | B-PROBE-1 |
+| EN-GC-ECHO | verified-source | The gc echo is dropped below jv=5 on success and on error alike: the verbosity filter runs for every error response. | EN json_parser.c:803-817 | B-PROBE-1 |
 | EN-JSON-PAIRS | verified-source | Every pair of a multi-pair JSON line executes, in order, until the first error. | EN json_parser.c:220-258 |  |
 | EN-LIMIT | verified-source | A limit switch raises ALARM 203, keeps position and un-homes every axis; limits are ignored while already alarmed. (E031) | EN controller.c:479-500 |  |
 | EN-M0 | verified-source | M0/M60 run in queue order and pause: stat 3 with hold 6, the spindle stays on, ~ resumes. (E020) | EN canonical_machine.c:2102-2114; EN plan_exec.c:58-59 | B-M0-1 |
@@ -42,6 +43,7 @@ Each must be bench-verified, or covered by a mitigation that does not depend on 
 | EN-PANIC | verified-source | PANIC (stat 13) halts and turns outputs off; {clear} does not leave it, only ^X. | EN canonical_machine.c:899-910 |  |
 | EN-PLANNER | verified-source | Planner pool of 32; a new line is read only with 12 free buffers (headroom, E088). Every block frees its buffer and ends the cycle when the planner empties. (E088) | EN planner.h:83-84; EN controller.c:606-612; EN planner.c:251-258 | B-QR-1 |
 | EN-PROGRAM-END | verified-source | M2/M30 turn the spindle and coolant off at runtime, in queue order, and end the program (stat 4). | EN canonical_machine.c:2151-2162 |  |
+| EN-REPLY-OVERFLOW | verified-source | A reply too big for the 512-byte output buffer loses its body: {"r":{},..} with its tid and footer, OK replaced by 13. The command has already run. | EN json_parser.c:860-866; EN controller.h:32 | B-PROBE-1 |
 | EN-RT-ENQ | verified-source | ENQ (0x05) is trapped and answered {"ack":true} from the main loop, ahead of the planner gates. (E052) | EN xio/xio_usb.c:185-188; EN controller.c:528-534 | B-ENQ-1 |
 | EN-RT-FEEDHOLD | verified-source | ! is honoured only while moving (motion_state != STOP); with no motion, or during a dwell that no move started, it changes nothing. | EN canonical_machine.c:1761-1767; EN plan_exec.c:68-72 | B-FH-1 |
 | EN-RT-FLUSH | verified-source | % is honoured only at a line boundary and only while a hold or an alarm flush exists (otherwise ignored, not latched); it then drops the host input received before it and keeps what follows. (E146) | EN xio/xio_usb.c:172-180; EN canonical_machine.c:1776-1790; EN xio/xio_usb.c:266-298 | B-QR-1 |
@@ -72,10 +74,12 @@ Each must be bench-verified, or covered by a mitigation that does not depend on 
 | TG-OVERRUN-SPLICE | UNVERIFIED | After an overrun the reader joins the head of one line to the tail of another, and the spliced line runs if it parses. (E162) | TG xio/xio_usb.c:186-191 | B-FC-1 |
 | TG-PROGRAM-END-SPINDLE | UNVERIFIED | At program end the finalize queues spindle off and coolant off as further commands; the model runs them in queue order. | TG canonical_machine.c:1363-1371 | B-M2-1 |
 | TG-ARC-NO-SOFT-LIMIT | verified-source | Arcs are never soft-limit checked: the test is commented out. (E041) | TG plan_arc.c:170-177 |  |
-| TG-BANNER | verified-source | Boot prints {"r":{fv,fb,hp,hv,id,msg},"f":[1,...]} responses; the configs message carries status 15, SYSTEM READY status 0. | TG report.c:88-118 | B-PROBE-1 |
+| TG-BANNER | verified-source | Boot prints {"r":{fv,fb,hp,hv,id,msg},"f":[1,...]} responses through json_print_response; "Initializing" (status 15) only after a fresh EEPROM, never "Loading configs" (printed while jv is still 0 in RAM), then SYSTEM READY status 0. | TG report.c:88-118; TG config.c:134; TG json_parser.c:485 | B-PROBE-1 |
+| TG-BANNER-JV | verified-source | SYSTEM READY is printed after the machine is READY, so the jv filter applies: at jv=1 the banner has no msg (only fv, fb, hp, hv, id); at jv=0 there is no banner at all. | TG main.c:131-143; TG json_parser.c:490-511; TG json_parser.c:576 | B-PROBE-1 |
 | TG-DOTTED-CODES | verified-source | G and M words are switched on their integer part: G59.1 runs as G59 and M3.1 as M3; T wraps at 256. (E150, E154) | TG gcode_parser.c:258-259; TG gcode_parser.c:351-352; TG gcode_parser.c:382 |  |
 | TG-E138 | verified-source | GET md de-energizes the motors; GET me energizes them; GET clear clears a soft alarm; GET er fakes an exception. (E138) | TG config_app.c:468-469; TG config_app.c:191-196 | B-MD-1 |
 | TG-EEPROM | verified-source | Persisted settings survive a reset; an EEPROM written by another build is reset to the defaults (record 0 holds the build). | TG config.c:129-134 |  |
+| TG-FLUSH-REPORTS | verified-source | A queue flush (%) requests a queue report (printed only when qv is not 0) and an rx report, printed as {"rx":n} whatever jv, js or qv. | TG canonical_machine.c:1302-1303; TG report.c:541-548; TG controller.c:173-174 | B-FH-1 |
 | TG-FOOTER | verified-source | Footer [1,status,line length + 1,checksum]; the checksum is a 31x rolling hash mod 9999 of the output up to the last comma. | TG json_parser.c:528-551; TG util.c:255-266; TG controller.c:251 |  |
 | TG-GCODE-DROP-INVALID | verified-source | The normalizer deletes every character other than letters, digits, - and . so X0.001*9 runs as X0.0019. (E161) | TG gcode_parser.c:131-138 |  |
 | TG-HARD-ALARM | verified-source | A limit switch is a hard alarm: stepper hard stop, SHUTDOWN (stat 11), every later command unanswered until ^X. | TG controller.c:427-434; TG canonical_machine.c:600-616; TG controller.c:303-312 |  |

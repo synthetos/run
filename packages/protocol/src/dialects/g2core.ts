@@ -135,6 +135,7 @@ export const G2CORE_EDGE: Dialect = deepFreeze<Dialect>({
     lineInSr: true, // @cite G2 settings/settings_default.h:208
     // [1,status,linelen+1], no checksum (@cite G2 json_parser.cpp:612-616). Field 3 meaning per build: B-G2-2.
     footerRevs: [1],
+    footerChecksum: 'absent',
   },
 
   limits: {

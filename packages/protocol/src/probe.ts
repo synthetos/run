@@ -16,6 +16,13 @@
  * `hv` is read in addition to PN §2.3 step 2: board selection needs it
  * (RUN_PLAN §5.1 rule 6, `hp`/`hv` pick the board definition), and the banner
  * that also carries it is absent when connecting to a board already powered.
+ *
+ * `fbs` (the build hash, D4) is read for the same reason: a board that is
+ * already powered sends no banner, so the banner alone cannot say whether
+ * the build reports one. Without the GET, a build that does report `fbs`
+ * would look like one that does not and match a manifest entry approved
+ * with `fbs: null` (P0 review). Firmware that has no `fbs` answers 100
+ * (unrecognised): that is the only answer that means "reports none".
  */
 import type { Banner, JsonValue, Response } from './types.ts';
 
@@ -34,16 +41,18 @@ export const IDENTITY_TOKENS = Object.freeze(['fb', 'fv', 'hp', 'id', 'hv'] as c
 export const CAPABILITY_TOKENS = Object.freeze(['spep', 'prbp', 'fstk', 'os'] as const);
 /** EN answers 17 (stubbed) while E060 is not merged (PN §2.3 step 4; @cite EN config_app.c:64-68, :652). */
 export const SPINDLE_PAUSE_TOKEN = 'spph';
+/** The build hash (D4; g2core reports it today, @cite OLD-PN §2.2). TinyG builds without it answer 100. */
+export const BUILD_HASH_TOKEN = 'fbs';
 
 export type IdentityToken = (typeof IDENTITY_TOKENS)[number];
 export type CapabilityToken = (typeof CAPABILITY_TOKENS)[number];
-export type ProbeKey = 'sr' | IdentityToken | CapabilityToken | typeof SPINDLE_PAUSE_TOKEN;
+export type ProbeKey = 'sr' | IdentityToken | typeof BUILD_HASH_TOKEN | CapabilityToken | typeof SPINDLE_PAUSE_TOKEN;
 
 export interface ProbeStep {
   readonly key: ProbeKey;
   /** The line to write, without its terminator (the transport adds LF). */
   readonly line: string;
-  readonly stage: 'spliceGuard' | 'identity' | 'capability' | 'spindlePause';
+  readonly stage: 'spliceGuard' | 'identity' | 'buildHash' | 'capability' | 'spindlePause';
 }
 
 function get(key: ProbeKey, stage: ProbeStep['stage']): ProbeStep {
@@ -54,6 +63,7 @@ function get(key: ProbeKey, stage: ProbeStep['stage']): ProbeStep {
 export const PROBE_STEPS: readonly ProbeStep[] = Object.freeze([
   get('sr', 'spliceGuard'),
   ...IDENTITY_TOKENS.map((k) => get(k, 'identity')),
+  get(BUILD_HASH_TOKEN, 'buildHash'),
   ...CAPABILITY_TOKENS.map((k) => get(k, 'capability')),
   get(SPINDLE_PAUSE_TOKEN, 'spindlePause'),
 ]);
@@ -77,7 +87,11 @@ export interface ProbeResult {
   readonly id?: string;
   readonly tokens: Readonly<Record<CapabilityToken, TokenAnswer>>;
   readonly spph: SpphAnswer;
-  /** Build hash: on g2core banners today; proposed for edge-next (D4). */
+  /**
+   * Build hash from the `fbs` GET (g2core today; proposed for edge-next,
+   * D4). Absent only when the GET answered 100 (the build reports none).
+   * A banner `fbs` that disagrees with the GET is a conflict.
+   */
   readonly fbs?: string;
   /** Capability bitmask: proposed for edge-next (D4); no build reports it yet. */
   readonly cap?: number;
@@ -146,7 +160,11 @@ export function buildProbeResult(obs: ProbeObservations): ProbeOutcome {
   >;
   const spph = spphAnswer(answer(SPINDLE_PAUSE_TOKEN));
 
-  const fbs = obs.banner?.fbs;
+  const fbs = buildHash(answer(BUILD_HASH_TOKEN), conflicts);
+  const bannerFbs = obs.banner?.fbs;
+  if (obs.banner !== undefined && bannerFbs !== fbs) {
+    conflicts.push(`fbs: banner says ${String(bannerFbs ?? 'none')}, GET says ${String(fbs ?? 'none')}`);
+  }
   const result: ProbeResult = Object.freeze({
     banner: obs.banner?.shape ?? 'none',
     footerRev: footerRev as 1 | 2 | 3,
@@ -183,6 +201,19 @@ function assignIdentity(out: IdentityValues, key: IdentityToken, value: JsonValu
       out.id = value;
       return true;
   }
+}
+
+/**
+ * The build hash, or undefined when the board answered 100 (it reports
+ * none). Any other answer (another status, a non-string or empty value) is a
+ * conflict: it is neither a hash nor a clean "no such token".
+ */
+function buildHash(r: Response, conflicts: string[]): string | undefined {
+  if (r.footer.status === PROBE_STATUS.UNRECOGNIZED) return undefined;
+  const value = singleValue(r, BUILD_HASH_TOKEN);
+  if (r.footer.status === PROBE_STATUS.OK && typeof value === 'string' && value.length > 0) return value;
+  conflicts.push(`fbs: neither a build hash nor unrecognised (status ${r.footer.status})`);
+  return undefined;
 }
 
 function tokenAnswer(r: Response, key: CapabilityToken): TokenAnswer {

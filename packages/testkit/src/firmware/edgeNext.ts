@@ -56,6 +56,8 @@ const PLANNER_HEADROOM = 12;
 const PLANNER_STARTUP_MS = 50;
 /** TOOL_SELECT_MAX (@cite EN canonical_machine.h:326-330). */
 const TOOL_MAX = 31;
+/** OUTPUT_BUFFER_LEN: the serialized response must fit (@cite EN controller.h:32). */
+const OUTPUT_BUFFER_LEN = 512;
 
 /** hw_hard_reset() arms the watchdog at WDTO_15MS (@cite EN hardware.c:159). */
 const WATCHDOG_RESET_MS = 15;
@@ -1691,7 +1693,8 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (info.set === 'gc_run_gc') {
       if (typeof value !== 'string') return ST('VALUE_TYPE_ERROR');
       const status = this.#gcodeParser(value);
-      if (status !== 0) body[key] = value;
+      // The gc echo is NV_TYPE_GCODE: dropped below jv=5 on success AND on error (@cite EN json_parser.c:803-817).
+      if (this.settings.num('jv') >= 5) body[key] = value;
       return status;
     }
     if (typeof value === 'object' && value !== null) throw new ModelGapError(`edge-next group SET ${key}`);
@@ -1923,19 +1926,30 @@ export class TinyGEdgeNextModel implements SimDevice {
     let shown: OutObject = body;
     if (!forceBody && status === 0 && jv < 3) shown = {};
     const charMode = this.settings.num('rxm') === 0;
-    const footer = charMode ? `[2,${status},${this.#linelen}]` : `[3,${status},${this.#freeHeaders()}]`;
+    const rev = charMode ? 2 : 3;
+    const field3 = charMode ? this.#linelen : this.#freeHeaders();
     if (charMode) this.#linelen = 0;
     const relaxed = this.#relaxed();
-    const r = serialize(shown, relaxed);
     const q = (k: string): string => (relaxed ? k : `"${k}"`);
-    this.#println(`{${q('r')}:${r}${tid !== undefined ? `,${q('tid')}:${tid}` : ''},${q('f')}:${footer}}`);
+    const tidPart = tid !== undefined ? `,${q('tid')}:${tid}` : '';
+    const line = `{${q('r')}:${serialize(shown, relaxed)}${tidPart},${q('f')}:[${rev},${status},${field3}]}`;
+    // @behaviour EN-REPLY-OVERFLOW: a reply that does not fit the 512-byte output buffer loses its body; the
+    // line still gets `{"r":{},..}` with its tid and footer, and an OK becomes 13 (@cite EN json_parser.c:860-866,
+    // controller.h:32). The command has already run. Model approximation: the line plus LF and NUL must fit.
+    if (line.length + 2 > OUTPUT_BUFFER_LEN) {
+      const lost = status === 0 ? ST('BUFFER_FULL') : status;
+      this.#println(`{${q('r')}:{}${tidPart},${q('f')}:[${rev},${lost},${field3}]}`);
+      return;
+    }
+    this.#println(line);
   }
 
   #respondGcode(status: number, line: string): void {
-    // G-code is echoed only at jv=5, or on an error (@cite EN json_parser.c:803-833)
+    // @behaviour EN-GC-ECHO: the gc echo is NV_TYPE_GCODE, dropped unless jv=5 whatever the status: the filter
+    // runs for every response once the machine is not INITIALIZING, and for every error (@cite EN json_parser.c:803-817).
     const jv = this.settings.num('jv');
     const body: Record<string, OutValue> = {};
-    if (status !== 0 || jv >= 5) body['gc'] = line;
+    if (jv >= 5) body['gc'] = line;
     if (jv >= 4 && this.#gm.linenum > 0 && status === 0) body['n'] = this.#gm.linenum;
     this.#respond(status, body, undefined, true);
   }

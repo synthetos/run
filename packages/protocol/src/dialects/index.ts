@@ -33,7 +33,17 @@ export { TINYG_440 } from './tinyg440.ts';
 export { TINYG_449_STOCK } from './tinyg449Stock.ts';
 export { G2CORE_EDGE } from './g2core.ts';
 export { BYTE, READ_ONLY_STOP_JOB } from './shared.ts';
-export { DIALECTS, dialectById, holdName, mapStat, selectFlowEngine, statusClass, stopJobFor } from './lookup.ts';
-export type { SessionMode } from './lookup.ts';
+export {
+  DIALECTS,
+  checkFooterForDialect,
+  dialectById,
+  holdName,
+  mapStat,
+  resolveBufferFull,
+  selectFlowEngine,
+  statusClass,
+  stopJobFor,
+} from './lookup.ts';
+export type { BufferFullEvidence, SessionMode } from './lookup.ts';
 export { classify } from './classify.ts';
 export type { Classification, ClassifyReason } from './classify.ts';

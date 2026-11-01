@@ -8,6 +8,7 @@ import { READ_ONLY_STOP_JOB } from './shared.ts';
 import { TINYG_440 } from './tinyg440.ts';
 import { TINYG_449_STOCK } from './tinyg449Stock.ts';
 import { TINYG_EN } from './tinygEn.ts';
+import type { ClassifiedLine } from '../types.ts';
 import type { Dialect, DialectFlow, DialectId, MachineClass, StatusClass, StopSequence } from './types.ts';
 
 /** Every dialect that has data, in classification-table order. */
@@ -65,4 +66,42 @@ export function selectFlowEngine(dialect: Dialect | null, mode: SessionMode): Di
 export function stopJobFor(dialect: Dialect | null, mode: SessionMode): StopSequence {
   if (dialect === null || mode !== 'full' || dialect.mode !== 'manifest') return READ_ONLY_STOP_JOB;
   return dialect.stopJob;
+}
+
+/**
+ * The dialect's footer rule, applied after `classifyLine` once the session
+ * knows its dialect: a revision-1 footer must carry a checksum on a dialect
+ * that always prints one (440.21) and must not carry one where the firmware
+ * never prints it (g2core). Anything else is `Garbled{bad-footer}`, an
+ * integrity fault during a job (SAFETY §3). Other events pass unchanged.
+ */
+export function checkFooterForDialect(dialect: Dialect, event: ClassifiedLine): ClassifiedLine {
+  if (event.kind !== 'Response' && event.kind !== 'Banner') return event;
+  const footer = event.footer;
+  if (footer === undefined) return event;
+  const hasChecksum = footer.checksum !== undefined;
+  if (hasChecksum === (dialect.caps.footerChecksum === 'required' && footer.rev === 1)) return event;
+  return Object.freeze({ kind: 'Garbled', reason: 'bad-footer', line: event.line });
+}
+
+/** What is known around an EN status-13 reply. */
+export interface BufferFullEvidence {
+  /** An `er` with `st` 13 arrived for this line (the first damaged line raises ALARM 13 and prints it). */
+  readonly exception13: boolean;
+  /** The status of the alarm the machine is latched in, or null when it is not in ALARM (or it is unknown). */
+  readonly alarmStatus: number | null;
+}
+
+/**
+ * EN status 13 means either "this damaged line never ran" (E162: it comes
+ * with an `er` 13, or arrives while ALARM 13 stands, @cite EN
+ * controller.c:253-266) or "this line ran, but its reply overflowed"
+ * (E102: `{"r":{},...}` with 13 in place of OK, no `er`, no alarm,
+ * @cite EN json_parser.c:861-866). Only the first is safe to resend. With
+ * no evidence of E162, the answer is `responseLost`: never resend (a group
+ * SET would be applied twice), re-read state instead. An alarm of another
+ * status is not evidence of E162.
+ */
+export function resolveBufferFull(evidence: BufferFullEvidence): 'damagedLine' | 'responseLost' {
+  return evidence.exception13 || evidence.alarmStatus === 13 ? 'damagedLine' : 'responseLost';
 }

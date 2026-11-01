@@ -118,9 +118,16 @@ describe('T-S75: production rejects bench entries by signature and env', async (
   });
 
   it('production does accept a genuine release channel (so rejection is not blanket)', async () => {
-    const f = file(await sign(both, 'release', payload('release', 'production', [enBuild])));
+    const f = file(await sign(both, 'release', payload('release', 'production', [{ ...enBuild, fbs: '450.02-0-gead6399' }])));
     const out = await verifyApprovedBuilds(f, { origin: PRODUCTION, now: NOW, keys });
     expect(out.approved.builds.map((b) => b.channel)).toEqual(['release']);
+  });
+
+  it('a release entry without fbs is malformed: fb alone identifies no build (D4)', async () => {
+    const f = file(await sign(both, 'release', payload('release', 'production', [enBuild])));
+    const out = await verifyApprovedBuilds(f, { origin: PRODUCTION, now: NOW, keys });
+    expect(out.approved.builds).toEqual([]);
+    expect(out.channels[0]?.rejection).toBe('malformed-payload');
   });
 
   it('one file, two origins: the only input that differs is location.origin (no build flag)', async () => {
