@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { PHASE_1_RELEASE, CURRENT_RELEASE } from '@synthetos/safety';
 import { BYTE } from '@synthetos/protocol';
 import { MachineSession, checkWrite, escape, initialState, type PortSelector, type SessionClock, type Transport, type TransportInfo, type TransportOpenOptions, type TransportSource } from '../src/index.ts';
-import { Driver, EN_ANSWERS, TG_ANSWERS } from './sessionDriver.ts';
+import { Driver, EN_ANSWERS, EN_READY_BANNER, TG_ANSWERS } from './sessionDriver.ts';
 import { PORT } from './simTransport.ts';
 
 /** A clock whose timers the test fires by hand. */
@@ -374,6 +374,29 @@ describe('T-S5 (XOFF part): realtime bytes bypass the XOFF gate', () => {
     expect(t.writes).toEqual(['{"sr":null}\n', '{"fb":null}\n']);
     expect(session.state.writing).toBeNull();
     expect(session.log().some((e) => e.dir === 'note' && e.text.startsWith('not written'))).toBe(true);
+  });
+  it('a board that resets while it has sent XOFF comes back without XOFF: the waiting line goes and the probe restarts', async () => {
+    // The firmware starts every boot in XON and never sends XON for it (@cite EN xio/xio_usart.c:128-130).
+    const t = new ScriptTransport();
+    t.responder = (line) => (line === '{"fb":null}' ? undefined : enResponder(line));
+    const { session, clock } = setup([t]);
+    void session.connect(PORT);
+    await settle();
+    t.push(Uint8Array.of(0x13));
+    t.push(`${EN_ANSWERS.fb}\n`);
+    await settle();
+    expect(session.state.writing?.token).toBe('fv');
+    expect(t.writes).toEqual(['{"sr":null}\n', '{"fb":null}\n']);
+    // The board resets: its READY banner, and no XON.
+    t.responder = enResponder;
+    t.push(`${EN_READY_BANNER}\n`);
+    await settle();
+    expect(session.snapshot.xoff).toBe(false);
+    clock.advance(1000);
+    await settle();
+    // The line that waited is written (the board expects nothing for it), then the probe starts again from {"sr":null}.
+    expect(t.writes.slice(0, 4)).toEqual(['{"sr":null}\n', '{"fb":null}\n', '{"fv":null}\n', '{"sr":null}\n']);
+    expect(session.state.probe?.next).toBeGreaterThan(0);
   });
 });
 

@@ -146,7 +146,9 @@ export const CURRENT_RELEASE: Release = Object.freeze({ name: 'Phase 0', motion:
  * and the stop class; `resetController` (^X) is a write and stays denied.
  * The machine session still maps Stop job and Spindle off to `!` alone in
  * this phase (SAFETY §4.4 READ_ONLY row): no ^D, `%` or M-code is ever sent.
- * Production keeps `CURRENT_RELEASE`: it has no transport (P1-09).
+ * The machine session uses this release in every build that has a
+ * transport. Production does not get one: its deploy refuses any artifact
+ * that carries the transport chunk and it serves `serial=()` (P1-09).
  */
 export const PHASE_1_RELEASE: Release = Object.freeze({ name: 'Phase 1', motion: false, write: false, port: true });
 

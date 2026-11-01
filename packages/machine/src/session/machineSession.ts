@@ -374,6 +374,12 @@ export class MachineSession {
       if (!this.#xoff) this.#releaseXon();
     } else {
       this.#append({ t: this.#clock.now(), dir: 'rx', text: event.line });
+      // A boot banner means the board restarted, and it always starts in XON without sending one
+      // (@cite EN xio/xio_usart.c:128-130; TG xio/xio_usart.c:128-130): an XOFF from before the reset no longer holds.
+      if (event.kind === 'Banner' && this.#xoff) {
+        this.#xoff = false;
+        this.#releaseXon();
+      }
     }
     this.#dispatch({ type: 'inbound', epoch, at: this.#clock.now(), event });
   }

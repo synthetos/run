@@ -564,6 +564,8 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
 }
 
 function onBanner(t: Tx, banner: Banner, at: number): void {
+  // The board restarted: it boots in XON and never says so (@cite EN xio/xio_usart.c:128-130).
+  t.set({ xoff: false });
   if (t.s.ready) {
     // SAFETY H19, T-S10: any banner after Ready means the board reset. FAULT, then UNKNOWN.
     enterFault(t, 'bannerAfterReady', 'integrity', `the board printed a boot banner (${banner.shape}) after it was ready: it reset`, at);
