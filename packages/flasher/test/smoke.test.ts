@@ -13,7 +13,11 @@ describe('@synthetos/flasher', () => {
     expect(pkg.exports['.']).toBe('./src/index.ts');
   });
 
-  it('declares no runtime npm dependencies', () => {
-    expect(Object.keys((pkg as { dependencies?: Record<string, string> }).dependencies ?? {})).toEqual([]);
+  it('declares no runtime npm dependencies (including optional, peer and bundled)', () => {
+    const fields = pkg as Record<string, unknown>;
+    for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies', 'bundleDependencies', 'bundledDependencies']) {
+      const value = fields[field] ?? {};
+      expect(Object.keys(value as object), field).toEqual([]);
+    }
   });
 });

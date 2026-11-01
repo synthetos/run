@@ -45,8 +45,10 @@ account.
   outside `MachineSession` writes to the port, and nothing is loaded at
   runtime.
 
-These rules are enforced in CI by dependency-cruiser, ESLint and a bundle
-scan.
+These rules will be enforced in CI by dependency-cruiser, ESLint and a
+bundle scan (P0-02, P0-03, P0-13). Until those gates land they are
+checked by review; the smoke tests already fail if a safety-path package
+declares a runtime dependency.
 
 ## Development
 
