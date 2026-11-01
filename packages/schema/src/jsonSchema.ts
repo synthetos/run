@@ -8,8 +8,9 @@
  *
  * Implemented: `type` (one or a list), `const`, `enum`, `properties`,
  * `required`, `additionalProperties` (`false` or a schema), `items`,
- * `minItems`, `maxItems`, `uniqueItems`, `minimum`, `maximum`, `minLength`,
- * `maxLength`, `pattern`, and `$ref` to `#/$defs/<name>`. Annotations
+ * `minItems`, `maxItems`, `uniqueItems`, `minimum`, `exclusiveMinimum`,
+ * `maximum`, `minLength`, `maxLength`, `pattern`, `propertyNames`,
+ * `maxProperties`, and `$ref` to `#/$defs/<name>`. Annotations
  * (`$comment`, `$id`, `description`, `title`) and the root `$defs` are read
  * but assert nothing.
  */
@@ -35,10 +36,13 @@ const ASSERTIONS = new Set([
   'maxItems',
   'uniqueItems',
   'minimum',
+  'exclusiveMinimum',
   'maximum',
   'minLength',
   'maxLength',
   'pattern',
+  'propertyNames',
+  'maxProperties',
   '$ref',
 ]);
 
@@ -75,6 +79,7 @@ function check(schema: Schema, value: unknown, path: string, root: Schema, error
   if (Array.isArray(value)) checkArray(schema, value, path, root, errors);
   if (typeof value === 'number') {
     if (typeof schema['minimum'] === 'number' && value < schema['minimum']) fail(`below minimum ${schema['minimum']}`);
+    if (typeof schema['exclusiveMinimum'] === 'number' && value <= schema['exclusiveMinimum']) fail(`not above ${schema['exclusiveMinimum']}`);
     if (typeof schema['maximum'] === 'number' && value > schema['maximum']) fail(`above maximum ${schema['maximum']}`);
   }
   if (typeof value === 'string') {
@@ -91,6 +96,17 @@ function checkObject(schema: Schema, value: Record<string, unknown>, path: strin
   const properties = (schema['properties'] ?? {}) as Record<string, Schema>;
   for (const key of (schema['required'] ?? []) as string[]) {
     if (!Object.hasOwn(value, key)) errors.push({ path, message: `missing required property "${key}"` });
+  }
+  const keys = Object.keys(value);
+  if (typeof schema['maxProperties'] === 'number' && keys.length > schema['maxProperties']) {
+    errors.push({ path, message: `more than ${schema['maxProperties']} properties` });
+  }
+  if (isObject(schema['propertyNames'])) {
+    for (const key of keys) {
+      const nameErrors: SchemaError[] = [];
+      check(schema['propertyNames'] as Schema, key, '', root, nameErrors);
+      if (nameErrors.length > 0) errors.push({ path: `${path}/${escapePointer(key)}`, message: 'property name not allowed' });
+    }
   }
   for (const [key, child] of Object.entries(value)) {
     const childPath = `${path}/${escapePointer(key)}`;

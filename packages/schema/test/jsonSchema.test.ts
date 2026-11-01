@@ -63,6 +63,19 @@ describe('validateSchema', () => {
     expect(v({ items: { type: 'string' } }, ['a', 2])).toEqual(['/1: expected string']);
   });
 
+  it('checks exclusiveMinimum, propertyNames and maxProperties (TB-01 profile schema)', () => {
+    expect(v({ exclusiveMinimum: 0 }, 0)).toEqual([': not above 0']);
+    expect(v({ exclusiveMinimum: 0 }, 0.001)).toEqual([]);
+    expect(v({ propertyNames: { pattern: '^[a-z]+$' } }, { ok: 1, 'Bad/Key': 2 })).toEqual(['/Bad~1Key: property name not allowed']);
+    expect(v({ propertyNames: { maxLength: 2 }, additionalProperties: { type: 'number' } }, { abc: 'x' })).toEqual([
+      '/abc: property name not allowed',
+      '/abc: expected number',
+    ]);
+    expect(v({ maxProperties: 1 }, { a: 1, b: 2 })).toEqual([': more than 1 properties']);
+    expect(v({ maxProperties: 2 }, { a: 1, b: 2 })).toEqual([]);
+    expect(() => validateSchema({ propertyNames: { format: 'x' } }, { a: 1 })).toThrow(/unsupported keyword "format"/);
+  });
+
   it('the board schema uses only implemented keywords, in every subschema', () => {
     const supported = new Set(['$comment', '$id', 'description', 'title', '$defs', 'type', 'const', 'enum', 'properties', 'required',
       'additionalProperties', 'items', 'minItems', 'maxItems', 'uniqueItems', 'minimum', 'maximum', 'minLength', 'maxLength', 'pattern', '$ref']);
