@@ -15,7 +15,7 @@
  * - `bench`: edge-next candidates the owner approved for bench use; signed
  *   with `env: "staging"`.
  * - `release`: builds that passed D5 (hash match plus a signed HIL run);
- *   signed with `env: "production"`. Empty until D4 and D5.
+ *   signed with `env: "production"`. Empty until an image passes D5.
  *
  * The signed message is a domain-separation prefix plus the payload's exact
  * UTF-8 bytes (the payload travels as a JSON string, so no canonicalisation

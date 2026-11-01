@@ -11,7 +11,7 @@
       "fv": 0.97,
       "paths": "firmware/tinyg/ (EN), tests/hil/ (EN-HIL)",
       "status": "candidate",
-      "note": "Edge-next is not pushed publicly and its release build number is not final (D4): the bench manifest approves this commit only. Classification never relies on fb alone (PN §2.3)."
+      "note": "D4 is done (owner, 2026-11-01): edge-next reports fb 450.01 at this commit (tinyg.h:52). Still open and separate: the fbs and cap identity tokens D4 recommends (not in this build), D5 image approval (no image has passed it) and the D6 published release (edge-next is not pushed publicly). The bench manifest approves this commit only, and classification never relies on fb alone (PN §2.3): make FW_BUILD overrides the number."
     },
     "TG": {
       "repo": "https://github.com/synthetos/TinyG",

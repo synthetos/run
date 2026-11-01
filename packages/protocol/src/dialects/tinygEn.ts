@@ -3,9 +3,11 @@
  *
  * Every `@cite EN` is `firmware/tinyg/<file>:<line>` at edge-next ead63997
  * (`vendor/firmware-pins.json`, PIN-1), the commit that reports `fb` 450.01.
- * The release build number is not final (D4), so a board is never classified
- * by `fb` alone: the capability probe plus the signed approved-builds
- * manifest decide (PN §2.3, `classify.ts`).
+ * D4 is done: 450.01 is edge-next's build number (EN tinyg.h:52). It reports
+ * no `fbs` or `cap` token yet, no image has passed D5, and `make FW_BUILD=x.y`
+ * overrides the number, so a board is never classified by `fb` alone: the
+ * capability probe plus the signed approved-builds manifest decide (PN §2.3,
+ * `classify.ts`).
  */
 import { BYTE, POLLS, TINYG_MAX_LINE_BYTES, deepFreeze, statCore, statusTable } from './shared.ts';
 import type { Dialect } from './types.ts';

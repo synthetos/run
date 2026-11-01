@@ -16,7 +16,8 @@ token.
     `env: "staging"`. Only `staging.run.synthetos.com` reads it.
   - `release`: builds that pass D5 (a hash match and a signed HIL run of that
     exact image). Signed with `env: "production"`. Only `run.synthetos.com`
-    reads it. It stays empty until D4 and D5 are done.
+    reads it. It stays empty until an image passes D5. (D4, the build
+    number, is done: edge-next reports 450.01 at `ead63997`.)
 - **One artifact for both sites.** The code works out its environment from
   `location.origin`. It accepts a channel only when all of these hold:
   - the signature verifies;
@@ -47,6 +48,27 @@ is ever authorised for production. Its private half is not in the repository.
 It was left in the P0-08 build session's scratch directory; treat it as
 disclosed and replace it.
 
+### The signed bench note predates D4
+
+The bench entry's `note` in `firmware/approved-builds.unsigned.json`, and so
+inside the signed payload of `firmware/approved-builds.json`, still says the
+build number is undecided, in the words it was signed with on 2026-11-01,
+before D4 was decided. Only the note is out of date: the entry's `fb`
+(450.01), `fbs` (`null`), commit (`ead63997`) and staging-only scope are
+correct, and no approval decision reads the note.
+
+It was deliberately **not** edited in the P0 review fix pass. A note is part
+of the signed bytes, so changing it means re-signing (step 3 below), and the
+only key that could sign is the placeholder whose private half is treated as
+disclosed and is not available to a fix pass. Editing the unsigned file alone
+would fail the gate test that compares the two files.
+
+**At your next re-sign** (which step 2 below needs anyway), replace the note
+with, for example: "TinyG edge-next 450.01 (D4 done) for bench use on staging
+only. It reports no fbs, so every 450.01 build matches; no image has passed
+D5." The gate test `tools/gates/test/doc-drift.test.ts` then requires this
+section (and its line in `docs/LEAD_ACTIONS.md`) to be removed.
+
 ## Lead actions (owner)
 
 1. **Create the release key** on an offline, hardware-isolated machine:
@@ -64,7 +86,8 @@ disclosed and replace it.
    `placeholder: false`, and the environments it may sign (`staging`, and
    `production` once D5 has an approved image). Remove the placeholder entry.
 3. **Approve and sign.** Edit `firmware/approved-builds.unsigned.json` (bench:
-   the edge-next candidate you approve, by `fb` and commit), then run this on
+   the edge-next candidate you approve, by `fb` and commit; replace the bench
+   note that predates D4, see above), then run this on
    the offline machine:
 
    ```sh
@@ -73,11 +96,14 @@ disclosed and replace it.
 
    Commit both files. CODEOWNERS makes you a required reviewer of
    `firmware/`, `releaseKeys.ts` and `approvedBuilds.ts`.
-4. **When edge-next is released (D4, D5):**
+4. **When an edge-next image passes D5 and is published (D6):** D4, the
+   build number, is already done (450.01 at `ead63997`, the commit pinned
+   now). Then:
    - add the release build to the `release` channel, signed for production;
-   - re-pin `vendor/firmware-pins.json` and the dialect citations to the
-     release commit (PIN-1);
-   - ask for the `fbs` token (D4) so that entries can name the build hash.
+   - if the published release commit is not `ead63997`, re-pin
+     `vendor/firmware-pins.json` and the dialect citations to it (PIN-1);
+   - ask for the `fbs` token D4 recommends, so that entries can name the
+     build hash (a `release` entry without `fbs` is refused).
 5. **Before each expiry,** re-sign with a later `expires` date. An expired
    channel approves nothing, so every board becomes READ_ONLY. That fails
    safe, but it stops the bench.

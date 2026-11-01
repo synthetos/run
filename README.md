@@ -22,6 +22,14 @@ account.
 > (P0-12); the bundle scan refuses test-kit code, `transport=` handling,
 > URL schemes and Web Serial in the build (P0-13); and `machine.worker`
 > runs under Playwright through a test-only fake-serial build (P0-14).
+> The repository, gates, CI workflow, Worker, pages and E2E job (P0-01 to
+> P0-06) are in place locally. The findings of the independent Phase 0
+> review have fix commits with regressions; the sanitiser, firmware-model and
+> probe fixes are independently re-verified, and the gate and deploy fixes
+> are awaiting re-verification. P0-15 (first deploy and the `run-v0.1.0`
+> tag) is not done: there is no GitHub remote or Cloudflare deployment yet,
+> and the owner decisions D39 and D40 are still to be carried into the gates.
+> The owner's steps, in order: `docs/LEAD_ACTIONS.md`.
 
 > **This software is not an emergency stop.** Any machine it drives must have
 > a hardwired, latching E-stop that removes motor and spindle power in

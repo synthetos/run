@@ -74,8 +74,12 @@ It re-runs when the PR is edited or reviewed. A permission revoked after the
 last run is only seen on the next run, which is one more reason the native
 rules above come first.
 
-**Solo maintainer:** this is an open OWNER DECISION, recorded in
-`docs/ops/owner-decisions.md` (OD-1). Nothing in this repository decides it.
+**Solo maintainer:** the owner decided this as D40 (OD-1 in
+`docs/ops/owner-decisions.md`): required reviews zero while there is one
+maintainer, with an independent review recorded for safety-path changes.
+This page and the `safety-review` check above still describe the earlier
+rules until a reviewed change carries D40 in (`docs/LEAD_ACTIONS.md`
+Step 0).
 
 ## 2. Environments
 

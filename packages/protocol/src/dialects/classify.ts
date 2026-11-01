@@ -5,7 +5,8 @@
  * `classify(probe, manifest)` decides which dialect a board speaks and
  * whether the session may be full or must be READ_ONLY. A board is never
  * classified by `fb` alone: stock edge-0.97 reported the same 449.01 that
- * edge-next used to, and the release build number is not final (D4). The
+ * edge-next used to, and although edge-next now reports 450.01 (D4 done),
+ * `make FW_BUILD=x.y` sets any number and no build reports `fbs` yet. The
  * capability tokens and `spph` answer prove edge-next; the signed manifest
  * approves the exact build.
  *

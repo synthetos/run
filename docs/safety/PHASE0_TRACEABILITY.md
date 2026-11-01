@@ -245,10 +245,10 @@ and the source restored.
 - **O4. P0-15 not done.** `RELEASES.md` has the `run-v0.1.0` entry, marked
   pending; the production deploy, smoke output and tag depend on O1 and O2.
   The owner's steps, in order and with commands, are in `docs/LEAD_ACTIONS.md`,
-  which also raises two decisions found in the final gate: whether a Worker
-  in the dedicated D34 account can serve a hostname of the `synthetos.com`
-  zone in the existing account (Step 0a), and how a solo maintainer merges
-  under the review rules (Step 0b).
+  which also covers the two decisions found in the final gate. The owner has
+  since decided both (D39: run stays in the current Cloudflare account,
+  superseding D34; D40: single-maintainer review), but they are not yet
+  carried into the gates and ops pages (`docs/LEAD_ACTIONS.md` Step 0).
 - **O5. Mutation margin and coverage of the other safety-path packages.**
   The `safety` package now passes at 90.84 %, but `sanitize/` alone is at
   88.4 % (`analyze.ts` 88.6 %, `geometry.ts` 80.7 %, 333 survivors), so the
@@ -262,8 +262,15 @@ and the source restored.
   in P0 review" text (§4.3, §4.4 steps 1 and 3, §4.7 step 6a), which the
   synthetos.com copy does not have. The authoritative copy should receive
   these amendments so the two are identical again (`docs/safety/README.md`).
-- **O7. Firmware pin note.** DECISIONS D4 now records edge-next as 450.01 at
-  `ead63997`, which is the commit pinned here, while `vendor/firmware-pins.json`
-  still calls the build number "not final". The local `edge-next` tip has
-  moved to `222a45c0`. Re-pinning (PIN-1) is a separate reviewed change; until
-  then classification relies on the capability probe, never on `fb` alone.
+- **O7. Firmware pin note: fixed in the P0 review fix pass, except the signed
+  bench note.** DECISIONS D4 records edge-next as 450.01 at `ead63997`, the
+  commit pinned here. `vendor/firmware-pins.json`, the `tinyg-en` dialect
+  header, the classifier header and `docs/ops/release-key.md` now say D4 is
+  done, and keep the `fbs`/`cap` tokens, D5 image approval and the D6 release
+  open and separate. The bench entry note inside the signed manifest still
+  predates D4; it changes only with a new signature, so it waits for the
+  owner's re-sign (`docs/ops/release-key.md`, "The signed bench note predates
+  D4"). `tools/gates/test/doc-drift.test.ts` keeps all of this from drifting
+  back. The local `edge-next` tip has moved to `222a45c0`; re-pinning (PIN-1)
+  is a separate reviewed change, and classification relies on the capability
+  probe, never on `fb` alone.

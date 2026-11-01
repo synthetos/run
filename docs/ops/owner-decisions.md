@@ -1,4 +1,4 @@
-# Open owner decisions
+# Owner decisions from the Phase 0 reviews
 
 These questions came out of the Phase 0 reviews. Only the owner can decide
 them, because each one is a trade-off between safety controls and the
@@ -11,12 +11,29 @@ update this page and the pages it names in one reviewed PR.
 
 | ID | Question | Status | Blocks |
 |---|---|---|---|
-| OD-1 | How does a solo maintainer meet the review rules? | **OPEN: owner decision** | Merging any PR once the `main` ruleset is active |
-| OD-2 | How does `run.synthetos.com` reach a Worker in the dedicated D34 account, when the `synthetos.com` zone is in another account? | **OPEN: owner decision** | The first staging deploy |
+| OD-1 | How does a solo maintainer meet the review rules? | **DECIDED as D40 (owner, 2026-11-01); not yet carried into this repository** | Merging any PR once the `main` ruleset is active |
+| OD-2 | How does `run.synthetos.com` reach a Worker in the dedicated D34 account, when the `synthetos.com` zone is in another account? | **DECIDED as D39 (owner, 2026-11-01), superseding D34; not yet carried into this repository** | The first staging deploy |
+
+Both decisions are recorded in `DECISIONS.md`. The gates and ops pages this
+page names still implement the earlier rules; `docs/LEAD_ACTIONS.md` Step 0
+lists exactly what must change, in one reviewed change, before the ruleset
+is switched on.
 
 ---
 
 ## OD-1. The solo-maintainer review rule
+
+**Decision (D40, owner, 2026-11-01).** The owner is the only maintainer for
+now. Required reviews are set to zero, because GitHub never lets authors
+approve their own PRs. Protection comes from the required CI status checks,
+signed and attested artifacts, the protected deploy environment and
+CODEOWNERS, with an independent AI review recorded for safety-path changes.
+The two-approval rule for safety paths is restored when a second maintainer
+joins. **Not yet implemented here:** `safety-review` still requires two
+write-access approvals, and the ruleset in `docs/LEAD_ACTIONS.md` Step 6 and
+`docs/ops/branch-protection.md` §1 still requires one approval.
+
+The analysis that led to it:
 
 **The problem.** The `main` ruleset requires one approving review and Code
 Owner review, and the `safety-review` check requires **two** approvals from
@@ -46,11 +63,24 @@ makes it stricter, not looser.
 3. Something else the owner chooses (for example a time-limited exception
    until a named second reviewer starts).
 
-**Until it is decided:** the ruleset is switched on only after the steps in
-`docs/LEAD_ACTIONS.md` that need no merge, so the first deploy does not need
-a bypass. The required check counts stay as they are.
+**Until it is carried into this repository:** the ruleset is switched on
+only after the steps in `docs/LEAD_ACTIONS.md` that need no merge, so the
+first deploy does not need a bypass. The required check counts in code stay
+as they are until that reviewed change makes them follow D40.
 
 ## OD-2. The D34 custom domain and the zone's account
+
+**Decision (D39, owner, 2026-11-01), superseding D34.** Keep
+`run.synthetos.com` (and `accounts.synthetos.com`) in the current Cloudflare
+account, locked down: CI-only deploys with a token scoped to the run and
+accounts Workers only, minimal account members, a hardware-key owner login,
+audit-log alerts on any change not made by CI, and no local `wrangler login`
+used to deploy run or accounts. Workers custom domains must be on a zone in
+the same account. **Not yet implemented here:** `workers/run/wrangler.jsonc`,
+`tools/gates/src/deploy/wranglerConfig.ts`, `docs/ops/account.md` and
+`docs/ops/branch-protection.md` still describe the dedicated D34 account.
+
+The analysis that led to it:
 
 **The problem.** D34 puts the `run` Worker in a new, dedicated Cloudflare
 account; the `synthetos.com` zone stays in the existing account.
@@ -87,5 +117,5 @@ the checks in `tools/gates/src/deploy/wranglerConfig.ts` (which pin those
 routes), the CI token's scope in `docs/ops/branch-protection.md` §2, and the
 smoke test's DNSSEC, CAA and certificate checks, all in one reviewed PR.
 
-**Until it is decided:** deploys stay off (`RUN_DEPLOY_ENABLED` unset), and
+**Until it is carried into this repository:** deploys stay off (`RUN_DEPLOY_ENABLED` unset), and
 the preflight still refuses while `account_id` is the D34 placeholder.
