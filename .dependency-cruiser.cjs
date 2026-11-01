@@ -102,17 +102,46 @@ module.exports = {
     },
 
     // --- Cloud client (RUN_PLAN §5.3) ------------------------------------
+    //
+    // Two rules, because a rule on direct edges alone let cloud -> a web-app
+    // helper -> machine pass (P0 review, P0-02 #1):
+    //
+    // 1. On every direct edge, the cloud client may import only its own
+    //    modules, contracts, provenance and npm packages. Its closure is
+    //    therefore cloud + contracts (which imports no workspace package) +
+    //    provenance and what provenance's layer rule allows it (protocol and
+    //    safety: the narrow provenance exception) + npm.
+    // 2. Independently of rule 1, nothing in the cloud client may REACH,
+    //    through any chain of imports, the machine-path packages outside that
+    //    exception, the test kit, any other web-app module, a Worker or the
+    //    dev tools.
     {
       name: 'cloud-imports-only-contracts-and-provenance',
       comment:
-        'apps/web/src/cloud may import contracts and provenance only. It never imports machine, protocol, ' +
-        'safety or any other machine-path package (RUN_PLAN §5.3). Cloud data reaches the machine only ' +
-        'through the UI-layer job loader and profile-diff modules.',
+        'apps/web/src/cloud may import its own modules, contracts and provenance only. It never imports machine, ' +
+        'protocol, safety, any other machine-path package, or any other web-app module (RUN_PLAN §5.3). Cloud data ' +
+        'reaches the machine only through the UI-layer job loader and profile-diff modules, which import cloud, ' +
+        'never the other way round.',
       severity: 'error',
       from: { path: CLOUD },
       to: {
-        path: '(^packages/|(^|/)node_modules/@synthetos/)',
-        pathNot: '(^packages/(contracts|provenance)/|(^|/)node_modules/@synthetos/(contracts|provenance)/)',
+        path: '(^packages/|(^|/)node_modules/@synthetos/|^apps/|^workers/|^tools/)',
+        pathNot: `(^packages/(contracts|provenance)/|(^|/)node_modules/@synthetos/(contracts|provenance)/|${CLOUD})`,
+      },
+    },
+    {
+      name: 'cloud-never-reaches-machine-path',
+      comment:
+        'No chain of imports from apps/web/src/cloud reaches machine, flasher, schema, gcode, wiring, the test kit, ' +
+        'another web-app module, a Worker or tools (RUN_PLAN §5.3, SAFETY §4.10, §8 item 22). protocol and safety ' +
+        'are reachable only through provenance (the provenance exception), which the direct-edge rule above enforces.',
+      severity: 'error',
+      from: { path: CLOUD },
+      to: {
+        path:
+          '(^packages/(machine|flasher|schema|gcode|wiring|testkit)/|(^|/)node_modules/@synthetos/(machine|flasher|schema|gcode|wiring|testkit)/' +
+          '|^apps/(?!web/src/cloud/)|^workers/|^tools/)',
+        reachable: true,
       },
     },
 

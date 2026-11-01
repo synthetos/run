@@ -199,7 +199,8 @@ describe('T-S40: the test kit (P0-13)', () => {
 
   it('fails on the marker literal in any chunk, page or text file', () => {
     const sideEffect = `Object.defineProperty(globalThis,\`${TESTKIT_MARKER}\`,{value:!0})`;
-    expect(rules('assets/workspace-abc.js', sideEffect)).toEqual(['testkit-marker']);
+    // globalThis passed to defineProperty is also a capability-lookup finding (P0 review, P0-13).
+    expect(rules('assets/workspace-abc.js', sideEffect)).toEqual(['testkit-marker', 'capability-lookup']);
     expect(rules('index.html', `<p>${TESTKIT_MARKER}</p>`)).toEqual(['testkit-marker']);
     expect(rules('manifest.webmanifest', `{"x":"${TESTKIT_MARKER}"}`)).toEqual(['testkit-marker']);
   });
@@ -304,21 +305,25 @@ describe('Web Serial in the bundle (Phase 0, P0-13)', () => {
       '"serial" in navigator',
     ]) {
       expect(rules('assets/a.js', code).length, code).toBeGreaterThan(0);
-      expect(new Set(rules('assets/a.js', code)), code).toEqual(new Set(['web-serial']));
+      // Each spelling is also a navigator use outside the reviewed reads (P0 review, P0-13).
+      expect(new Set(rules('assets/a.js', code)), code).toEqual(new Set(['web-serial', 'capability-lookup']));
     }
   });
 
   it('fails on the Web Serial-only method names, which catch an alias', () => {
-    expect(rules('assets/a.js', 'const n=navigator,s=n.serial;s.getPorts()')).toEqual(['web-serial']);
+    expect(rules('assets/a.js', 'const n=navigator,s=n.serial;s.getPorts()')).toEqual(['web-serial', 'capability-lookup']);
+    expect(rules('assets/a.js', 'const s=api.serial;s.getPorts()')).toEqual(['web-serial']);
     expect(rules('assets/a.js', 'x["requestPort"]()')).toEqual(['web-serial']);
   });
 
   it('fails in a cloud chunk too', () => {
-    expect(rules(`${CLOUD_ASSET_DIR}cloud-x.js`, 'navigator.serial')).toEqual(['web-serial']);
+    expect(rules(`${CLOUD_ASSET_DIR}cloud-x.js`, 'navigator.serial')).toEqual(['web-serial', 'capability-lookup']);
   });
 
   it('passes words that only contain the names, and a serial number property', () => {
-    expect(rules('assets/a.js', 'const serialNumber=info.serial;navigator.serialize;requestPorts;getPortsList')).toEqual([]);
+    expect(rules('assets/a.js', 'const serialNumber=info.serial;requestPorts;getPortsList')).toEqual([]);
+    // navigator.serialize is not Web Serial, but it is a navigator read outside the reviewed list (P0 review, P0-13).
+    expect(rules('assets/a.js', 'navigator.serialize')).toEqual(['capability-lookup']);
     expect(rules('index.html', '<p>Web Serial is not available in this browser.</p>')).toEqual([]);
   });
 });
@@ -369,5 +374,79 @@ describe('URLs hidden from a literal scan (P0 review)', () => {
   it('leaves ordinary markup and CSS alone', () => {
     expect(rules('index.html', '<a href="/safety/?a=1&amp;b=2">s</a><p>Tom &amp; Jerry &#169;</p>')).toEqual([]);
     expect(rules('assets/base-AbCdEfGh.css', '.x{font-family:"IBM Plex Sans";content:"note: x";background:url("data:image/png;base64,AA")}')).toEqual([]);
+  });
+});
+
+/** The reviewer probes as esbuild minifies them (Batch 15 #1 and #2, and the 89e2b5f verification). */
+const MINIFIED_SERIAL_PROBE = '(()=>{const e=Reflect.get(navigator,["ser","ial"].join(""));Reflect.apply(Reflect.get(e,["get","Ports"].join("")),e,[]);})();\n';
+const MINIFIED_DYNAMIC_IMPORT = 'async function o(n){return import(n)}export{o as loadModule};\n';
+
+describe('computed or reflective capability lookup in the bundle (P0 review, P0-13)', () => {
+  it('fails on the minified reviewer probe, which the Web Serial rule alone does not see', () => {
+    const found = rules('assets/a.js', MINIFIED_SERIAL_PROBE);
+    expect(found).not.toContain('web-serial');
+    expect(found).toContain('capability-lookup');
+    const matches = scanText('assets/a.js', MINIFIED_SERIAL_PROBE).filter((f) => f.rule === 'capability-lookup').map((f) => f.match);
+    expect(matches.some((m) => m.startsWith('navigator'))).toBe(true);
+    expect(matches.filter((m) => m.startsWith('Reflect'))).toHaveLength(3);
+  });
+
+  it('fails in every chunk, cloud chunks included, and in an inline script of a page', () => {
+    expect(rules(`${CLOUD_ASSET_DIR}cloud-x.js`, MINIFIED_SERIAL_PROBE)).toContain('capability-lookup');
+    expect(rules('index.html', `<!doctype html><script>${MINIFIED_SERIAL_PROBE}</script>`)).toContain('capability-lookup');
+    expect(rules('icons/x.svg', `<svg><script>${MINIFIED_SERIAL_PROBE}</script></svg>`)).toContain('capability-lookup');
+  });
+
+  it.each([
+    ['navigator passed as a value', 'f(navigator)'],
+    ['navigator aliased', 'const n=navigator;'],
+    ['a navigator member outside the reviewed list', 'navigator.serialize'],
+    ['a computed navigator member', 'navigator[k]'],
+    ['an optional computed navigator member', 'navigator?.[k]'],
+    ['navigator through a global with a computed key', 'globalThis["navi"+"gator"]'],
+    ['a window alias with a computed key', 'window[k]'],
+    ['self with an optional computed key', 'self?.[k]'],
+    ['globalThis aliased', 'let e=globalThis,t=e[$];'],
+    ['globalThis passed as a value', 'Object.keys(globalThis)'],
+    ['Reflect, however it is used', 'const R=Reflect;'],
+    ['Chrome clientInformation', 'clientInformation[k]'],
+    ['the navigator name as a string', 'Reflect.get(globalThis,"navigator")'],
+  ])('%s fails', (_name, code) => {
+    expect(rules('assets/a.js', code), code).toContain('capability-lookup');
+  });
+
+  it.each([
+    ['globalThis.trustedTypes', 'let e=globalThis.trustedTypes;'],
+    ['globalThis members', 'c(e,globalThis.location.origin);globalThis.matchMedia(`(prefers-color-scheme: dark)`);globalThis.addEventListener(`message`,e)'],
+    ['a static computed member', 'globalThis["trustedTypes"];window?.[`x`]'],
+    ['typeof checks', 'typeof window<"u"&&typeof navigator<"u"'],
+    ['a reviewed navigator property', 'navigator.language;globalThis.navigator.userAgent;self.navigator.onLine;navigator.languages'],
+    ['prose that ends a sentence with a global name', 'const m=`prevention relies on the host window.`;'],
+    ['names that only contain the words', 'const selfTest=1,windowSize=2,myself=3,navigatorish=4,e={}.Reflection'],
+  ])('%s passes', (_name, code) => {
+    expect(rules('assets/a.js', code), code).toEqual([]);
+  });
+
+  it('applies only to code: the CSP `self` keyword in the headers file and CSS are not lookups', () => {
+    expect(rules('_headers', "/*\n  Content-Security-Policy: script-src 'self'\n").filter((r) => r === 'capability-lookup')).toEqual([]);
+    expect(rules('assets/a.css', '.window{color:red}')).toEqual([]);
+  });
+});
+
+describe('non-static dynamic import in the bundle (P0 review, P0-14)', () => {
+  it('fails on the minified reviewer loader', () => {
+    expect(rules('assets/machine-review.js', MINIFIED_DYNAMIC_IMPORT)).toEqual(['dynamic-import']);
+  });
+
+  it.each([
+    ['a template with a substitution', 'import(`./${n}.js`)'],
+    ['a concatenation', 'import("./"+n)'],
+    ['a spaced call', 'import ( n )'],
+  ])('%s fails', (_name, code) => {
+    expect(rules('assets/a.js', code), code).toEqual(['dynamic-import']);
+  });
+
+  it('passes a literal specifier, with or without import attributes, and import.meta', () => {
+    expect(rules('assets/a.js', 'import("./chunk-abc.js");import(`./b.js`);import("./c.json",{with:{type:"json"}});const u=import.meta.url;')).toEqual([]);
   });
 });

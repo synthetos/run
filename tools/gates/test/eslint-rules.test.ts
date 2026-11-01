@@ -128,3 +128,74 @@ tester.run('run/no-signal-word-literal', rule('no-signal-word-literal'), {
     { ...tsx(`const C = () => <p>${W1}</p>;`), errors: [{ messageId: 'banned' }] },
   ],
 });
+
+// P0 review fix pass (P0-13): Web Serial must not be reachable through a
+// computed or reflective lookup. Navigator is admitted only as a read of a
+// reviewed data property; window aliases only with a static key.
+tester.run('run/no-capability-lookup', rule('no-capability-lookup'), {
+  valid: [
+    'const lang = navigator.language;',
+    'const ua = globalThis.navigator.userAgent;',
+    'const online = self.navigator.onLine;',
+    "const has = typeof navigator !== 'undefined';",
+    'const o = globalThis.location.origin;',
+    "const tt = (globalThis as { trustedTypes?: unknown })['trustedTypes'];",
+    'const tt2 = globalThis[`trustedTypes`];',
+    "const ok = 'trustedTypes' in globalThis;",
+    "globalThis.addEventListener('message', () => {});",
+    "const w = typeof window === 'undefined';",
+    // Local bindings that share a window alias name are not the global.
+    'function f(top: number, parent: number) { return [top, parent][0]; }',
+    'const self = { a: 1 }; const k = "a"; const v = self[k as "a"];',
+    'const { a } = obj; const b = rect.top;',
+  ],
+  invalid: [
+    // The reviewer probe, verbatim: navigator passed to Reflect.get, and Reflect itself (three uses).
+    {
+      code: "const s = Reflect.get(navigator, ['ser', 'ial'].join(''));\nvoid Reflect.apply(Reflect.get(s, ['get', 'Ports'].join('')), s, []);",
+      errors: [
+        { messageId: 'reflect' },
+        { messageId: 'navigator' },
+        { messageId: 'reflect' },
+        { messageId: 'reflect' },
+      ],
+    },
+    { code: "const s = navigator['ser' + 'ial'];", errors: [{ messageId: 'navigator' }] },
+    { code: 'const s = navigator[key];', errors: [{ messageId: 'navigator' }] },
+    { code: 'const s = navigator.serialize;', errors: [{ messageId: 'navigator' }] },
+    { code: 'const n = navigator;', errors: [{ messageId: 'navigator' }] },
+    { code: 'use(navigator);', errors: [{ messageId: 'navigator' }] },
+    { code: 'const k = Object.keys(navigator);', errors: [{ messageId: 'navigator' }] },
+    { code: "const has = 'serial' in navigator;", errors: [{ messageId: 'navigator' }] },
+    { code: 'const n = globalThis.navigator;', errors: [{ messageId: 'navigator' }] },
+    { code: "const n = globalThis['navigator'][k];", errors: [{ messageId: 'navigator' }] },
+    { code: "const n = (globalThis as any)['navi' + 'gator'];", errors: [{ messageId: 'global' }] },
+    { code: 'const v = window[name];', errors: [{ messageId: 'global' }] },
+    { code: 'const v = self?.[name];', errors: [{ messageId: 'global' }] },
+    { code: 'const g = globalThis;', errors: [{ messageId: 'global' }] },
+    { code: 'const { location } = window;', errors: [{ messageId: 'global' }] },
+    { code: 'const v = top[k];', errors: [{ messageId: 'global' }] },
+    { code: 'const v = parent.frames[k];', errors: [{ messageId: 'global' }] },
+    { code: 'const w = document.defaultView;', errors: [{ messageId: 'global' }] },
+    { code: 'const v = frame.contentWindow[k];', errors: [{ messageId: 'global' }] },
+    { code: "const n = Reflect.get(globalThis, 'navigator');", errors: [{ messageId: 'reflect' }, { messageId: 'global' }, { messageId: 'navigator' }] },
+    { code: "const n = 'navigator';", errors: [{ messageId: 'navigator' }] },
+    { code: 'const { navigator: n } = globalThis;', errors: [{ messageId: 'navigator' }, { messageId: 'global' }] },
+    { code: 'const c = clientInformation[k];', errors: [{ messageId: 'navigator' }] },
+    // An ambient declaration does not create a runtime binding: it is still the global.
+    { code: 'declare const navigator: any; const v = navigator[k];', errors: [{ messageId: 'navigator' }] },
+    { code: 'declare const window: any; const v = window[k];', errors: [{ messageId: 'global' }] },
+    { code: 'const R = Reflect;', errors: [{ messageId: 'reflect' }] },
+  ],
+});
+
+// P0 review fix pass (P0-14): an import whose specifier is computed at run
+// time is an edge no dependency rule can check.
+tester.run('run/no-dynamic-import', rule('no-dynamic-import'), {
+  valid: ["const m = import('./a.ts');", 'const m = import(`./a.ts`);', "const m = import('./a.json', { with: { type: 'json' } });"],
+  invalid: [
+    { code: 'const load = (path: string) => import(/* @vite-ignore */ path);', errors: [{ messageId: 'dynamic' }] },
+    { code: 'const load = (n: string) => import(`./${n}.ts`);', errors: [{ messageId: 'dynamic' }] },
+    { code: "const load = (n: string) => import('./' + n);", errors: [{ messageId: 'dynamic' }] },
+  ],
+});

@@ -3,8 +3,8 @@
  * SAFETY H45, D31). A failed smoke test must not leave the deployment live:
  *
  * - staging: the Worker is DELETED (its custom domain goes with it). A
- *   staging host that fails the smoke test may be serving bench builds with
- *   `serial=(self)` without Access in front; rolling back the code would not
+ *   staging host that fails the smoke test may be serving bench builds
+ *   (which, from Phase 1, carry a serial grant) without Access in front; rolling back the code would not
  *   restore a removed Access application, so the only fail-closed answer is
  *   to take the origin down. The next deploy recreates it once fixed.
  * - production: `wrangler rollback` to the previous version (the header or

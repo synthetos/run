@@ -73,6 +73,22 @@
  *   a scheme, so `image-set("//evil.example/b.png" 1x)` is caught as well as
  *   `url()` and `@import`.
  *
+ * P0 review fix pass (P0-13, P0-14) adds two rules for code (`.js`/`.mjs`
+ * chunks, and inline `<script>` bodies in HTML, SVG and XML), which apply in
+ * every chunk, cloud chunks included. Both read the admitted-forms policy in
+ * shared/capabilities.ts, which the ESLint rules and the source check share:
+ *
+ * - `capability-lookup`: `navigator` or `clientInformation` other than as a
+ *   static read of a reviewed data property or under `typeof`; a window alias
+ *   (`globalThis`, `window`, `self`) with a computed key or used as a value;
+ *   and `Reflect` anywhere. This is what catches the minified form of
+ *   `Reflect.get(navigator, ['ser', 'ial'].join(''))`, which no name rule
+ *   sees. A global name followed by `.` and a character that cannot start a
+ *   member name (prose such as "the host window.") is not a lookup.
+ * - `dynamic-import`: an `import(` whose argument is not a single literal
+ *   string. Vite emits only literal chunk specifiers; a computed one is an
+ *   edge no dependency rule checked.
+ *
  * The scan is a backstop on the built text. It cannot see a name assembled at
  * run time (`'Mock' + 'SerialPort'`); the dependency-cruiser and ESLint rules
  * on the source are the primary gates, and the marker is what makes a
@@ -90,6 +106,7 @@ import { renderHeadersFile } from '../../../../workers/run/src/headers.ts';
 import { OUTBOUND_URLS } from '../../../../apps/web/src/pages/outbound.ts';
 import { TESTKIT_MARKER } from '../../../../packages/testkit/src/marker.ts';
 import { WEB_SERIAL_METHODS } from '../shared/webSerialNames.ts';
+import { NAVIGATOR_ALLOWED_PROPERTIES, NAVIGATOR_NAMES, REFLECTIVE_GLOBALS } from '../shared/capabilities.ts';
 
 export { CLOUD_ASSET_DIR, TESTKIT_MARKER };
 
@@ -164,7 +181,9 @@ export type ScanRule =
   | 'transport-query'
   | 'url-scheme'
   | 'character-reference-in-url'
-  | 'web-serial';
+  | 'web-serial'
+  | 'capability-lookup'
+  | 'dynamic-import';
 
 export interface BundleFile {
   /** Path relative to the dist root, with forward slashes. */
@@ -221,6 +240,65 @@ const WEB_SERIAL_RE = new RegExp(
   ].join('|'),
   'g',
 );
+
+/**
+ * The window aliases the code rules check in built output. `top`, `parent`
+ * and the like are not: a minifier may use them as local names, and a
+ * lookup through them still needs `navigator` or `Reflect`, which are.
+ */
+const BUNDLE_GLOBAL_NAMES: readonly string[] = ['globalThis', 'window', 'self'];
+const NAME_BOUNDARY_BEFORE = '(?<![A-Za-z0-9_$])';
+const NAME_BOUNDARY_AFTER = '(?![A-Za-z0-9_$])';
+const NAVIGATOR_TOKEN_RE = new RegExp(`${NAME_BOUNDARY_BEFORE}(?:${NAVIGATOR_NAMES.join('|')})${NAME_BOUNDARY_AFTER}`, 'g');
+const GLOBAL_TOKEN_RE = new RegExp(`${NAME_BOUNDARY_BEFORE}(?:${BUNDLE_GLOBAL_NAMES.join('|')})${NAME_BOUNDARY_AFTER}`, 'g');
+const REFLECT_TOKEN_RE = new RegExp(`${NAME_BOUNDARY_BEFORE}(?:${REFLECTIVE_GLOBALS.join('|')})${NAME_BOUNDARY_AFTER}`, 'g');
+/** A static read of a reviewed navigator property, right after the name. */
+const NAVIGATOR_ALLOWED_AFTER_RE = new RegExp(`^\\s*(?:\\?\\.|\\.)\\s*(?:${NAVIGATOR_ALLOWED_PROPERTIES.join('|')})${NAME_BOUNDARY_AFTER}`);
+/** `typeof` right before the name. */
+const TYPEOF_BEFORE_RE = /(?<![A-Za-z0-9_$])typeof\s*\(?\s*$/;
+/** A static member right after a window alias: `.name`, `?.name`, `["name"]`, `?.[`name`]`. */
+const STATIC_MEMBER_AFTER_RE = /^\s*(?:(?:\?\.|\.)\s*[A-Za-z_$]|(?:\?\.)?\s*\[\s*(?:"[^"\\\n]*"|'[^'\\\n]*'|`[^`\\$]*`)\s*\])/;
+/** A `.` followed by something that cannot continue code (`window.` at the end of a sentence in a string). */
+const PROSE_DOT_AFTER_RE = /^\.(?![\s?.\[A-Za-z0-9_$\\])/;
+/** `'name' in` right before a window alias. */
+const STATIC_IN_BEFORE_RE = /(?:"[^"\\\n]*"|'[^'\\\n]*'|`[^`\\$]*`)\s*in\s+$/;
+/** `import(` as a call (not `.import(` and not a longer name). */
+const IMPORT_CALL_RE = /(?<![A-Za-z0-9_$.])import\s*\(/g;
+/** A single literal specifier, optionally followed by import attributes. */
+const LITERAL_IMPORT_ARGUMENT_RE = /^\s*(?:"[^"\\\n]*"|'[^'\\\n]*'|`[^`\\$]*`)\s*[,)]/;
+
+/** The `capability-lookup` and `dynamic-import` rules on one piece of JavaScript. */
+function codeFindings(path: string, code: string): ScanFinding[] {
+  const findings: ScanFinding[] = [];
+  const near = (index: number, length: number): string => clip(code.slice(index, index + length + 40));
+  for (const match of code.matchAll(NAVIGATOR_TOKEN_RE)) {
+    const at = match.index ?? 0;
+    const after = code.slice(at + match[0].length, at + match[0].length + 40);
+    if (NAVIGATOR_ALLOWED_AFTER_RE.test(after) || TYPEOF_BEFORE_RE.test(code.slice(Math.max(0, at - 12), at))) continue;
+    findings.push({ file: path, rule: 'capability-lookup', match: near(at, match[0].length) });
+  }
+  for (const match of code.matchAll(GLOBAL_TOKEN_RE)) {
+    const at = match.index ?? 0;
+    const after = code.slice(at + match[0].length, at + match[0].length + 200);
+    const before = code.slice(Math.max(0, at - 200), at);
+    if (STATIC_MEMBER_AFTER_RE.test(after) || PROSE_DOT_AFTER_RE.test(after) || TYPEOF_BEFORE_RE.test(before) || STATIC_IN_BEFORE_RE.test(before)) continue;
+    findings.push({ file: path, rule: 'capability-lookup', match: near(at, match[0].length) });
+  }
+  for (const match of code.matchAll(REFLECT_TOKEN_RE)) {
+    findings.push({ file: path, rule: 'capability-lookup', match: near(match.index ?? 0, match[0].length) });
+  }
+  for (const match of code.matchAll(IMPORT_CALL_RE)) {
+    const at = match.index ?? 0;
+    if (LITERAL_IMPORT_ARGUMENT_RE.test(code.slice(at + match[0].length, at + match[0].length + 300))) continue;
+    findings.push({ file: path, rule: 'dynamic-import', match: near(at, match[0].length) });
+  }
+  return findings;
+}
+
+/** The bodies of the inline `<script>` elements of a page (an external one has an empty body). */
+function inlineScripts(markup: string): string[] {
+  return [...markup.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map((m) => m[1] ?? '');
+}
 
 /** A URL attribute and its value (double-quoted, single-quoted or bare) in markup. */
 const URL_ATTRIBUTE_VALUE_RE = new RegExp(`(?<![A-Za-z0-9_:-])(${URL_ATTRIBUTES})\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`, 'gi');
@@ -342,6 +420,8 @@ function testkitAndSerialFindings(path: string, text: string): ScanFinding[] {
     findings.push(...schemeFindings(path, text, CSS_SCHEME_RE), ...cssStringFindings(path, text));
   }
   for (const match of text.matchAll(WEB_SERIAL_RE)) findings.push({ file: path, rule: 'web-serial', match: clip(match[0]) });
+  if (ext === '.js' || ext === '.mjs') findings.push(...codeFindings(path, text));
+  else if (ext === '.html' || ext === '.svg' || ext === '.xml') for (const script of inlineScripts(text)) findings.push(...codeFindings(path, script));
   return findings;
 }
 

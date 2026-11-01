@@ -108,9 +108,13 @@ export class ScratchRepo {
     return this.run([join(this.root, 'node_modules/eslint/bin/eslint.js'), '.']);
   }
 
-  /** `pnpm deps`: dependency-cruiser with the repository config. */
+  /**
+   * `pnpm deps`: dependency-cruiser with the repository config, then (only
+   * if it passed, as `&&` does in package.json) the source capability check
+   * (tools/gates/src/source/cli.ts).
+   */
   deps(): GateResult {
-    return this.run([
+    const cruise = this.run([
       join(this.root, 'node_modules/dependency-cruiser/bin/dependency-cruiser.mjs'),
       'packages',
       'apps',
@@ -119,6 +123,9 @@ export class ScratchRepo {
       '--config',
       '.dependency-cruiser.cjs',
     ]);
+    if (cruise.status !== 0) return cruise;
+    const source = this.run([join(this.root, 'tools/gates/src/source/cli.ts'), this.root]);
+    return { status: source.status, output: `${cruise.output}${source.output}` };
   }
 
   /** `pnpm licence`, fed with the given `pnpm licenses list --json` reports. */

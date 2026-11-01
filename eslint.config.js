@@ -9,8 +9,25 @@ import run from './tools/gates/src/eslint/plugin.ts';
 
 const ALL_SOURCE = ['**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'];
 
-/** Machine-path packages that must never touch the network (SAFETY §8 item 22, T-S57). */
-const NO_NETWORK = ['packages/{protocol,safety,machine,flasher,provenance}/**'];
+/**
+ * Machine-path packages that must never touch the network (SAFETY §8 item 22,
+ * T-S57): the same six packages as SAFETY_PATH in .dependency-cruiser.cjs.
+ * schema was missing until the P0 review (P0-02 #2): machine imports it, so a
+ * schema helper calling fetch put the network one import away from machine.
+ */
+const NO_NETWORK = ['packages/{protocol,safety,machine,flasher,provenance,schema}/**'];
+
+/** Runtime source: what ships, or runs on the machine path (not tests, not tools, not build config). */
+const RUNTIME_SOURCE = ['{packages,apps,workers}/*/src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'];
+
+/**
+ * The dev-only test kit installs its fake serial seam on the global object
+ * (packages/testkit/src/marker.ts and the P0-14 fake-serial build). It never
+ * reaches a production build: dependency-cruiser's entries-never-reach-testkit
+ * and the bundle scan's testkit-marker rule refuse it. It is exempt from the
+ * capability rule only; the dynamic-import rule still applies to it.
+ */
+const TESTKIT_SOURCE = 'packages/testkit/**';
 
 /** The only module allowed to use HTML-parsing sinks: it owns the Trusted Types policies (P0-04). */
 const TRUSTED_TYPES_MODULE = 'apps/web/src/security/tt.ts';
@@ -110,6 +127,18 @@ export default tseslint.config(
   {
     files: NO_NETWORK,
     rules: { 'run/no-network-api': 'error' },
+  },
+  {
+    // P0 review (P0-13): navigator and the window aliases only in static,
+    // reviewed forms; no Reflect. See tools/gates/src/shared/capabilities.ts.
+    files: RUNTIME_SOURCE,
+    ignores: [TESTKIT_SOURCE],
+    rules: { 'run/no-capability-lookup': 'error' },
+  },
+  {
+    // P0 review (P0-14): every import edge is one dependency-cruiser can see.
+    files: RUNTIME_SOURCE,
+    rules: { 'run/no-dynamic-import': 'error' },
   },
   {
     files: ['packages/machine/**'],

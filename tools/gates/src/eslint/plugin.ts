@@ -3,6 +3,8 @@
  * the files each rule applies to, in the root `eslint.config.js`.
  */
 import type { ESLint } from 'eslint';
+import { noCapabilityLookup } from './rules/noCapabilityLookup.ts';
+import { noDynamicImport } from './rules/noDynamicImport.ts';
 import { noHtmlSink } from './rules/noHtmlSink.ts';
 import { noNetworkApi } from './rules/noNetworkApi.ts';
 import { noSignalWordLiteral } from './rules/noSignalWordLiteral.ts';
@@ -17,6 +19,8 @@ const plugin: ESLint.Plugin = {
     'no-writer-abort': noWriterAbort,
     'no-web-serial': noWebSerial,
     'no-signal-word-literal': noSignalWordLiteral,
+    'no-capability-lookup': noCapabilityLookup,
+    'no-dynamic-import': noDynamicImport,
   },
 };
 

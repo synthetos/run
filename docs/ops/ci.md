@@ -199,7 +199,15 @@ These apply to every text file, cloud chunks included:
 - `web-serial`: `navigator.serial` and the names `requestPort` and
   `getPorts`. Phase 0 cannot reach a port; P1-01 narrows this rule to the
   machine worker's chunk, in the same owner-approved PR that narrows the
-  `run/no-web-serial` lint rule.
+  `run/no-web-serial` lint rule;
+- `capability-lookup` (P0 review): in code (`.js`/`.mjs` chunks and inline
+  scripts), `navigator` other than as a static read of a reviewed data
+  property or under `typeof`, a window alias (`globalThis`, `window`,
+  `self`) with a computed key or used as a value, and `Reflect` anywhere.
+  The policy is in `tools/gates/src/shared/capabilities.ts`, which the lint
+  rule `run/no-capability-lookup` and the source check in `pnpm deps` share;
+- `dynamic-import` (P0 review): an `import()` whose argument is not one
+  literal string.
 
 **Why the marker survives minification.** A minifier drops unused exports
 and renames classes, so a marker export alone would vanish from a bundle
@@ -217,8 +225,14 @@ and the scan; `transport=` handling, a `mailto:` URL and Web Serial each fail
 the scan, and a `data:` URL passes.
 
 The scan is a backstop on the built text: it cannot see a name assembled
-at run time. The dependency-cruiser and ESLint rules on the source are the
-primary gates.
+at run time, which is why it refuses the lookups that would use one
+(`capability-lookup`) rather than trying to recognise the name. The
+dependency-cruiser, source-check and ESLint rules on the source are the
+primary gates. None of these pattern gates can prove arbitrary JavaScript
+safe; in Phase 0 the browser enforces the ban as well, because
+`Permissions-Policy: serial=()` denies Web Serial to every document on the
+origin (workers/run/src/headers.ts). Phase 1 relaxes that deliberately, on
+the bench app only.
 
 ## Artifact verification
 

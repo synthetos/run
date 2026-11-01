@@ -12,8 +12,11 @@ const RUN_PLAN_6_4: Record<string, string> = {
     "font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; " +
     "base-uri 'none'; form-action 'none'; object-src 'none'; " +
     "require-trusted-types-for 'script'; trusted-types rs-worker rs-svg-export",
+  // Phase 0 deviation from RUN_PLAN §6.4 (P0 review, P0-13): no document on
+  // this origin may use Web Serial until Phase 1 grants it, deliberately and
+  // on the bench app only.
   'permissions-policy':
-    'serial=(self), screen-wake-lock=(self), usb=(), hid=(), bluetooth=(), camera=(), microphone=(), geolocation=(), payment=()',
+    'serial=(), screen-wake-lock=(self), usb=(), hid=(), bluetooth=(), camera=(), microphone=(), geolocation=(), payment=()',
   'cross-origin-opener-policy': 'same-origin',
   'cross-origin-resource-policy': 'same-origin',
   'x-frame-options': 'DENY',
@@ -33,9 +36,11 @@ describe('SECURITY_HEADERS', () => {
     expect(csp).not.toMatch(/'allow-duplicates'|trusted-types[^;]*\bdefault\b|'unsafe-|\*/);
   });
 
-  it('grants the serial port to this origin only and switches off every other device API', () => {
+  it('Phase 0: denies the serial port to every origin, this one included, and switches off every other device API', () => {
     const pp = SECURITY_HEADERS['permissions-policy'] ?? '';
-    expect(pp).toContain('serial=(self)');
+    const serial = pp.split(',').map((f) => f.trim()).filter((f) => f.startsWith('serial='));
+    expect(serial).toEqual(['serial=()']);
+    expect(pp).not.toMatch(/serial=\((?!\))/);
     for (const off of ['usb', 'hid', 'bluetooth', 'camera', 'microphone', 'geolocation', 'payment']) expect(pp).toContain(`${off}=()`);
   });
 

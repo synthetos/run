@@ -227,7 +227,8 @@ describe('the remaining P0-02 rules', () => {
 
   it('a network identifier in each machine-path package fails lint', { timeout: TIMEOUT }, () => {
     const repo = fresh();
-    const packages = ['protocol', 'safety', 'machine', 'flasher', 'provenance'];
+    // schema joined the list in the P0 review (P0-02 #2): all six SAFETY_PATH packages.
+    const packages = ['protocol', 'safety', 'machine', 'flasher', 'provenance', 'schema'];
     for (const name of packages) {
       repo.append(`packages/${name}/src/index.ts`, "export const ws = (): unknown => new WebSocket('wss://x');\n");
     }

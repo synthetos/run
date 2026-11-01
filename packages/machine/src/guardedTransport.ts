@@ -16,7 +16,13 @@
  *
  * Writing:
  * - The bytes are copied first, then validated (writeShape.ts), so a caller
- *   that changes its buffer afterwards cannot change what is sent.
+ *   that changes its buffer afterwards cannot change what is sent. The copy
+ *   is made by the intrinsic Uint8Array constructor from the view's own
+ *   bytes, never by a method of the caller's object: Node's Buffer.slice
+ *   aliases memory and a subclass can override slice, length or iteration.
+ *   Anything that is not a genuine Uint8Array view (a Buffer is one) is
+ *   refused, including a Proxy or an object that only has Uint8Array on its
+ *   prototype chain.
  * - Writes reach the inner Transport strictly one at a time, in call order:
  *   each waits until the previous one settled. A STOP's `!` issued during a
  *   line write is therefore sent right after that line, never inside it.
@@ -33,6 +39,30 @@ import { consumeBootloaderCapability, type BootloaderCapability } from '@synthet
 import { decideOpen, type OpenRefusalReason } from './openPolicy.ts';
 import type { Transport, TransportInfo, TransportOpenOptions } from './transport.ts';
 import { MAX_WRITE_LINE_BYTES, classifyWrite, type WriteRejectionReason, type WriteShape } from './writeShape.ts';
+
+// Intrinsics captured when the module loads, so later changes to the
+// globals or to the caller's object cannot reach the copy.
+const IntrinsicUint8Array = Uint8Array;
+// The %TypedArray%.prototype[Symbol.toStringTag] getter reads the internal
+// typed-array name, which neither a prototype nor a Proxy can fake. Were it
+// ever missing, calling tagOf throws and copyLine refuses every line.
+const typedArrayTag = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(Uint8Array.prototype) as object, Symbol.toStringTag)?.get;
+const tagOf = Function.prototype.call.bind(typedArrayTag as () => unknown) as (value: unknown) => unknown;
+
+/**
+ * A fresh, plain Uint8Array holding the bytes `line` views, or undefined
+ * when `line` is not a genuine Uint8Array (its internal typed-array name, not
+ * its prototype, decides) or its buffer is detached. No property or method
+ * of `line` is read: the brand getter and the constructor use internal slots.
+ */
+function copyLine(line: unknown): Uint8Array | undefined {
+  try {
+    if (tagOf(line) !== 'Uint8Array') return undefined;
+    return new IntrinsicUint8Array(line as Uint8Array);
+  } catch {
+    return undefined;
+  }
+}
 
 /** Shortest line cap that still allows a one-byte line plus its LF. */
 const MIN_LINE_CAP = 2;
@@ -156,10 +186,10 @@ export class GuardedTransport implements Transport {
   }
 
   writeLine(line: Uint8Array): Promise<void> {
-    if (!(line instanceof Uint8Array)) {
-      return Promise.reject(new TransportRefusedError('invalid-write', 'writeLine takes a Uint8Array'));
+    const bytes = copyLine(line);
+    if (bytes === undefined) {
+      return Promise.reject(new TransportRefusedError('invalid-write', 'writeLine takes a Uint8Array (a genuine, attached view)'));
     }
-    const bytes = line.slice();
     const shape = classifyWrite(bytes, this.#maxLineBytes);
     if (shape.kind === 'rejected') {
       const at = shape.at === undefined ? '' : ` at byte ${shape.at}`;

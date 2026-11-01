@@ -107,3 +107,36 @@ describe('the other P0-13 rules on the real build', () => {
     expectScanFinding(repo.scan(), 'web-serial');
   });
 });
+
+describe('P0 review: computed capability lookup and non-static imports on the real build', () => {
+  it('the reviewer computed Web Serial probe in an entry fails the scan (capability-lookup)', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append(ENTRY, "\nconst s = Reflect.get(navigator, ['ser', 'ial'].join(''));\nvoid Reflect.apply(Reflect.get(s, ['get', 'Ports'].join('')), s, []);\n");
+    built(repo);
+    // Vite's minifier folds the joins back to literal names, so web-serial may fire too; capability-lookup must.
+    expectScanFinding(repo.scan(), 'capability-lookup');
+  });
+
+  it('a lookup whose names exist only at run time (no minifier can fold them) fails the scan by capability-lookup alone', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append(
+      ENTRY,
+      "\nconst k = root.dataset['k'] ?? '';\nconst s = Reflect.get(navigator, k);\nvoid Reflect.apply(Reflect.get(s, root.dataset['m'] ?? ''), s, []);\n",
+    );
+    built(repo);
+    const result = repo.scan();
+    expectScanFinding(result, 'capability-lookup');
+    expect(result.output).not.toContain('web-serial');
+  });
+
+  it('the reviewer caller-selected dynamic import in an entry fails the scan (dynamic-import)', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append(
+      ENTRY,
+      '\nasync function loadModule(path: string): Promise<unknown> {\n  return import(/* @vite-ignore */ path);\n}\n' +
+        "root.dataset['load'] = String(loadModule);\n",
+    );
+    built(repo);
+    expectScanFinding(repo.scan(), 'dynamic-import');
+  });
+});

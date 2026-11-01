@@ -13,7 +13,7 @@
   "scripts": {
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
-    "deps": "depcruise packages apps workers tools --config .dependency-cruiser.cjs",
+    "deps": "depcruise packages apps workers tools --config .dependency-cruiser.cjs && node tools/gates/src/source/cli.ts",
     "licence": "node tools/gates/src/licence/cli.ts",
     "gates": "pnpm lint && pnpm deps && pnpm licence && pnpm ci-policy",
     "test": "pnpm -r test",

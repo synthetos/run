@@ -43,9 +43,20 @@ export const CSP_DIRECTIVES: readonly string[] = [
   `trusted-types ${TRUSTED_TYPES_POLICIES.join(' ')}`,
 ];
 
-/** Permissions-Policy features: the serial grant and the wake lock for this origin only; everything else off. */
+/**
+ * Permissions-Policy features: the wake lock for this origin only; everything
+ * else off.
+ *
+ * Phase 0 (P0 review, P0-13): `serial=()`. RUN_PLAN §6.4 grants
+ * `serial=(self)`, but nothing in Phase 0 may reach a serial port, and the
+ * source and bundle gates are pattern checks that cannot prove arbitrary
+ * JavaScript safe. With `serial=()` the browser itself refuses Web Serial to
+ * every document on this origin (and to the workers it creates), however a
+ * script reaches the API. Phase 1 relaxes this deliberately, in its own
+ * owner-approved change, and on the bench app only.
+ */
 export const PERMISSIONS_POLICY_FEATURES: readonly string[] = [
-  'serial=(self)',
+  'serial=()',
   'screen-wake-lock=(self)',
   'usb=()',
   'hid=()',

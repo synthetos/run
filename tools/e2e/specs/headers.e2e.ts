@@ -89,11 +89,11 @@ test('the 404 page, /api/health, other /api and /auth paths all carry the exact 
   }
 });
 
-test('the Permissions-Policy grants serial to this origin and denies the other device APIs', async ({ page }) => {
+test('the Phase 0 Permissions-Policy denies serial, even to this origin, and the other device APIs', async ({ page }) => {
   await page.goto('/');
   const allowed = await page.evaluate(() => {
     const fp = (document as unknown as { featurePolicy: { allowsFeature(f: string): boolean } }).featurePolicy;
     return Object.fromEntries(['serial', 'usb', 'hid', 'bluetooth', 'camera', 'microphone', 'geolocation', 'payment'].map((f) => [f, fp.allowsFeature(f)]));
   });
-  expect(allowed).toEqual({ serial: true, usb: false, hid: false, bluetooth: false, camera: false, microphone: false, geolocation: false, payment: false });
+  expect(allowed).toEqual({ serial: false, usb: false, hid: false, bluetooth: false, camera: false, microphone: false, geolocation: false, payment: false });
 });
