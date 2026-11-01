@@ -48,7 +48,7 @@ const asDoc = (d: FakeDoc): Document => d as unknown as Document;
 describe('the release channel', () => {
   it('changes nothing on any host', () => {
     const d = fakeDoc('https://staging.run.synthetos.com/');
-    expect(release.startBuildChannel(asDoc(d))).toEqual({ kind: 'release' });
+    expect(release.startBuildChannel(asDoc(d))).toEqual({ kind: 'release', benchIdentity: null });
     expect(d.documentElement.dataset).toEqual({});
     expect(d.title).toBe('run.synthetos.com');
     expect(d.chip?.textContent).toBe('v0.0.0 · 0123456789ab');
@@ -63,7 +63,7 @@ describe('the release channel', () => {
 describe('the bench channel', () => {
   it.each(['http://localhost:8793/', 'http://127.0.0.1:8793/', 'http://localhost/'])('runs on %s and marks the page and the version chip', (url) => {
     const d = fakeDoc(url);
-    expect(bench.startBuildChannel(asDoc(d))).toEqual({ kind: 'bench' });
+    expect(bench.startBuildChannel(asDoc(d))).toMatchObject({ kind: 'bench' });
     expect(d.documentElement.dataset).toEqual({ channel: 'bench', buildMarker: BENCH_MARKER });
     expect(d.chip?.attrs).toEqual({ 'data-channel': 'bench' });
     expect(d.chip?.textContent).toBe(`v0.0.0 · 0123456789ab · ${bench.BENCH_LABEL}`);
@@ -86,7 +86,19 @@ describe('the bench channel', () => {
   });
 
   it('works without a version chip on the page', () => {
-    expect(bench.startBuildChannel(asDoc(fakeDoc('http://localhost:8793/', false)))).toEqual({ kind: 'bench' });
+    expect(bench.startBuildChannel(asDoc(fakeDoc('http://localhost:8793/', false)))).toMatchObject({ kind: 'bench' });
+  });
+
+  it('P1-05 (D41 proposed): carries the localhost bench identity, which re-checks the host on every request', async () => {
+    const d = fakeDoc('http://localhost:8793/');
+    const identity = bench.startBuildChannel(asDoc(d)).benchIdentity;
+    if (identity === null) throw new Error('the bench channel must carry the bench identity');
+    expect(identity.kind).toBe('bench');
+    expect(await identity.current()).toEqual({ provider: 'bench', subject: bench.BENCH_SUBJECT });
+    d.location = { hostname: 'staging.run.synthetos.com', protocol: 'https:' };
+    expect(await identity.current()).toBeNull();
+    d.location = { hostname: 'localhost', protocol: 'https:' };
+    expect(await identity.current()).toBeNull();
   });
 });
 

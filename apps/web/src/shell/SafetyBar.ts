@@ -1,5 +1,6 @@
 import { h, type ComponentChild } from 'preact';
-import { w1, w2Label, w7 } from '@synthetos/safety';
+import type { ReadonlySignal } from '@preact/signals';
+import { w1, w2Label, w6, w7 } from '@synthetos/safety';
 import { type BuildInfo, versionLabel } from '../build-info/buildInfo.ts';
 import { DisconnectedIcon, PauseIcon, WarningIcon } from './icons.ts';
 import { signalText } from './signal.ts';
@@ -15,6 +16,12 @@ export interface SafetyBarProps {
    * the static pages, which have no machine context.
    */
   readonly variant: 'workspace' | 'page';
+  /**
+   * True when the previous session ended while LIVE (P1-05, SAFETY §5 W6,
+   * T-S17): W6 replaces the NOT CONNECTED band. Read after hydration from
+   * the `liveSession` marker; absent in the prerendered page.
+   */
+  readonly previousSession?: ReadonlySignal<boolean>;
 }
 
 /**
@@ -23,7 +30,8 @@ export interface SafetyBarProps {
  * bar tokens only, so nothing themed resembles it. Phase 0 has no machine
  * path: the state is always NOT CONNECTED and the stop button is disabled.
  */
-export function SafetyBar({ build, variant }: SafetyBarProps): ComponentChild {
+export function SafetyBar({ build, variant, previousSession }: SafetyBarProps): ComponentChild {
+  const w6Shown = previousSession?.value === true;
   const chip = h('span', { class: 'version-chip', 'data-version': '', title: `Version ${build.version}, commit ${build.sha}` }, versionLabel(build));
   return h(
     'div',
@@ -36,12 +44,19 @@ export function SafetyBar({ build, variant }: SafetyBarProps): ComponentChild {
         ? h(
             'div',
             { class: 'safety-status' },
-            h(
-              'p',
-              { class: 'state-band', 'data-state': 'not-connected', 'data-safety': 'W7', role: 'status' },
-              DisconnectedIcon(),
-              h('span', null, ...signalText(w7())),
-            ),
+            w6Shown
+              ? h(
+                  'p',
+                  { class: 'state-band', 'data-state': 'previous-session', 'data-safety': 'W6', role: 'alert' },
+                  WarningIcon(),
+                  h('span', null, ...signalText(w6())),
+                )
+              : h(
+                  'p',
+                  { class: 'state-band', 'data-state': 'not-connected', 'data-safety': 'W7', role: 'status' },
+                  DisconnectedIcon(),
+                  h('span', null, ...signalText(w7())),
+                ),
             chip,
             h(
               'span',

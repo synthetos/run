@@ -247,6 +247,16 @@ module.exports = {
       from: { path: '(^apps/web/src/machine-worker/|^packages/)' },
       to: { path: '^apps/web/src/channel/' },
     },
+    {
+      name: 'machine-path-never-reaches-live-gates',
+      comment:
+        'D1, RUN_PLAN §2.2 "Where the gate lives" (P1-05): the AuthGate, the advisory gate and the rest of LIVE ' +
+        'entry (apps/web/src/live/) and the cloud client are UI/auth layer. No chain of imports from machine.worker ' +
+        'or a package reaches them, so an identity loss or a revocation can never act on the machine path.',
+      severity: 'error',
+      from: { path: '(^apps/web/src/machine-worker/|^packages/)' },
+      to: { path: '^apps/web/src/(live|cloud)/', reachable: true },
+    },
 
     // --- Repository hygiene ----------------------------------------------
     {

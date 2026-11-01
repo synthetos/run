@@ -27,11 +27,19 @@
  * this signature (apps/web/test/channel.test.ts).
  */
 
-export interface BuildChannel {
-  readonly kind: 'release' | 'bench';
+/** The bench identity's shape (the same as live/authGate.ts IdentityProvider; kept here so this module imports nothing). */
+export interface BenchIdentityProvider {
+  readonly kind: 'bench';
+  current(): Promise<{ readonly provider: 'bench'; readonly subject: string } | null>;
 }
 
-const RELEASE: BuildChannel = Object.freeze({ kind: 'release' });
+export interface BuildChannel {
+  readonly kind: 'release' | 'bench';
+  /** The D1 gate's localhost bench identity (D41 proposed): only the bench channel has one. */
+  readonly benchIdentity: BenchIdentityProvider | null;
+}
+
+const RELEASE: BuildChannel = Object.freeze({ kind: 'release', benchIdentity: null });
 
 /**
  * Called by the workspace entry before it hydrates the shell or starts the

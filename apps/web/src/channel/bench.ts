@@ -26,7 +26,22 @@ export class BenchHostError extends Error {
   override readonly name = 'BenchHostError';
 }
 
-const BENCH: BuildChannel = Object.freeze({ kind: 'bench' });
+/** The bench identity's subject: whoever sits at this computer (D41 proposed). */
+export const BENCH_SUBJECT = 'bench operator (localhost)';
+
+/**
+ * The D1 gate's bench identity. It re-checks the host on every request, so
+ * it can only ever say "signed in" on loopback over plain HTTP.
+ */
+function benchIdentityFor(doc: Document): BuildChannel['benchIdentity'] {
+  return Object.freeze({
+    kind: 'bench' as const,
+    current() {
+      const onLoopback = BENCH_HOSTS.includes(doc.location.hostname) && doc.location.protocol === 'http:';
+      return Promise.resolve(onLoopback ? { provider: 'bench' as const, subject: BENCH_SUBJECT } : null);
+    },
+  });
+}
 
 /** Throws on any host but loopback; otherwise marks the page and the version chip. */
 export function startBuildChannel(doc: Document): BuildChannel {
@@ -34,13 +49,13 @@ export function startBuildChannel(doc: Document): BuildChannel {
   if (!BENCH_HOSTS.includes(host) || doc.location.protocol !== 'http:') {
     throw new BenchHostError(`the bench build runs only on localhost over plain HTTP (the loopback bench server), not on ${host}`);
   }
-  doc.documentElement.dataset['channel'] = BENCH.kind;
+  doc.documentElement.dataset['channel'] = 'bench';
   doc.documentElement.dataset['buildMarker'] = BENCH_MARKER;
   const chip = doc.querySelector('[data-version]');
   if (chip !== null) {
-    chip.setAttribute('data-channel', BENCH.kind);
+    chip.setAttribute('data-channel', 'bench');
     chip.textContent = `${chip.textContent ?? ''} · ${BENCH_LABEL}`;
   }
   doc.title = `[bench] ${doc.title}`;
-  return BENCH;
+  return Object.freeze({ kind: 'bench', benchIdentity: benchIdentityFor(doc) });
 }

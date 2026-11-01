@@ -98,6 +98,18 @@ describe('the localhost bench build (P1-00)', () => {
   );
 
   it(
+    'machine.worker reaching the D1 AuthGate fails dependency-cruiser (P1-05, RUN_PLAN §2.2: the gate is UI/auth layer only)',
+    () => {
+      const repo = fresh();
+      repo.append('apps/web/src/machine-worker/host.ts', "\nimport { AuthGate } from '../live/authGate.ts';\nexport const _g = AuthGate;\n");
+      const deps = repo.deps();
+      expect(deps.status, deps.output).not.toBe(0);
+      expect(deps.output).toContain('machine-path-never-reaches-live-gates');
+    },
+    TIMEOUT,
+  );
+
+  it(
     'a bench build in which nothing imports the seam fails instead of yielding the release build',
     () => {
       const repo = fresh();
