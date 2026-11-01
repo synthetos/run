@@ -117,6 +117,15 @@ describe('denied tokens', () => {
     expect(readDecision(list, 'MD')).toEqual({ allowed: false, reason: list.deny.get('md') });
   });
 
+  it('440.21 pwr readouts are refused (always "disabled": TG _get_motor reads group[0]), edge-next allows them (E108 fixed)', () => {
+    for (const token of ['pwr', 'pwr1', 'pwr2', 'pwr3', 'pwr4']) {
+      const decision = readDecisionFor('tinyg-440', token);
+      expect(decision.allowed, token).toBe(false);
+      if (!decision.allowed) expect(decision.reason).toContain('E108');
+      expect(isReadAllowed('tinyg-en', token), token).toBe(true);
+    }
+  });
+
   it('a token on no list is refused with a reason naming the dialect', () => {
     expect(readDecision(READ_ALLOWLISTS['tinyg-440'], 'spep')).toEqual({ allowed: false, reason: '"spep" is not on the tinyg-440 read allowlist' });
   });

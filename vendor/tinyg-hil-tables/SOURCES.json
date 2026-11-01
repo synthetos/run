@@ -1,6 +1,6 @@
 {
   "format": "synthetos-run/hil-tables@1",
-  "note": "Provenance of the vendored TinyG HIL tables (ROADMAP P0-09, RUN_PLAN §8.2, D32). Every table is byte-identical to what EN-HIL's generator writes. tools/gates/test/hil-tables.test.ts checks each sha256, and packages/schema/test checks each table against vendor/firmware-pins.json. On a firmware bump: regenerate, re-vendor, run `pnpm gen:schema`, and review the diff (CODEOWNERS: owner).",
+  "note": "Provenance of the vendored TinyG HIL tables (ROADMAP P0-09, RUN_PLAN §8.2, D32). Every table is byte-identical to what EN-HIL's generator writes. tools/gates/test/schema-tables.test.ts checks each sha256, and packages/schema/test checks each table against vendor/firmware-pins.json. On a firmware bump: regenerate, re-vendor, run `pnpm gen:schema`, and review the diff (CODEOWNERS: owner).",
   "generator": {
     "repo": "https://github.com/synthetos/TinyG",
     "commit": "ead639978c77601b150be7ef12774f47eed4c824",

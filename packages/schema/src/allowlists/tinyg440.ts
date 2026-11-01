@@ -24,9 +24,8 @@ export const TINYG_440_READ: ReadAllowlist = defineReadAllowlist({
   dialectId: 'tinyg-440',
   table: 'd440',
   allow: [
-    ...COMMON_GROUPS,
-    /** Motor enabled flags (TG `st_get_pwr`). */
-    ...cross(['pwr'], MOTORS),
+    /** Every common group except `pwr`, whose members answer a false constant on 440.21 (see the deny entries). */
+    ...COMMON_GROUPS.filter((g) => g !== 'pwr'),
     ...commonGroupedTokens(),
     ...COMMON_SYS_TOKENS,
     /** 440.21-only `sys` member (`get_ui8`). */
@@ -40,6 +39,12 @@ export const TINYG_440_READ: ReadAllowlist = defineReadAllowlist({
   deny: {
     ...REQUIRED_DENY,
     ...COMMON_DENY,
+    ...Object.fromEntries(
+      ['pwr', ...cross(['pwr'], MOTORS)].map((t) => [
+        t,
+        'answers "disabled" whatever the motor state on 440.21: TG `_get_motor()` takes the motor from group[0], which is "p" for the pwr rows (index 63, the default case), so the readout is false (TG stepper.c:1147-1150, :338-348, :1236-1241; fixed on edge-next as E108)',
+      ]),
+    ),
     _dam: 'debug dump of the active model as printf text (TG canonical_machine.c:1802-1812), not JSON',
   },
   denyPrefixes: { ...JOG_PREFIX_DENY },
