@@ -1,0 +1,8 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/another-firmware-flash-required/
+# reply 4270
+Banner	{"r":{"fb":375.01,"fv":0.950,"hv":0,"id":"9H3583-QTW","msg":"Loading configs from EEPROM","f":[1,15,0,693]}}
+Banner	{"r":{"fb":375.01,"fv":0.950,"hv":7,"id":"9H3583-QTW","msg":"SYSTEM READY","f":[1,0,0,6403]}}

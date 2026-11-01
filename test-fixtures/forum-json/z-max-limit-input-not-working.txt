@@ -1,0 +1,13 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/z-max-limit-input-not-working/
+# topic
+Response	{"r":{},"f":[1,0,9]}
+QueueReport	{"qr":47}
+QueueReport	{"qr":45}
+QueueReport	{"qr":46}
+StatusReport	{"sr":{"stat":9,"vel":200,"feed":200,"coor":0,"momo":1,"dist":1,"posz":-1.04339,"mpoz":-1.04339}}
+Exception	{"er":{"fb":101.03,"st":203,"msg":"Limit hit [$clear to reset, $lim=0 to override] - input 6"}}
+StatusReport	{"sr":{"vel":0,"posz":5.5,"mpoz":5.5}}

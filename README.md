@@ -6,8 +6,8 @@ jobs, from desktop Chrome or Edge over Web Serial, tied to a Synthetos
 account.
 
 > **Status: Phase 0 (foundations).** Nothing in this repository can open a
-> serial port or move a machine. Packages are empty scaffolds that later
-> tasks fill in.
+> serial port or move a machine. Packages are filled in task by task; so far
+> `protocol` has inbound framing and classification (P0-07).
 
 > **This software is not an emergency stop.** Any machine it drives must have
 > a hardwired, latching E-stop that removes motor and spindle power in
@@ -31,6 +31,7 @@ account.
 | `apps/web` | The workspace UI (Preact, Vite multi-page app) |
 | `apps/cli` | Bench tooling (Node) |
 | `workers/run` | The Cloudflare Worker serving the app, `/api/*` and `/auth/*`, and the single source of the security headers (`src/headers.ts`) |
+| `test-fixtures` | Captured controller output used by tests: `forum-json/` (lines quoted in the archived forum, with source URLs) and `en-hil/` (TinyG edge-next HIL harness transcripts) |
 | `tools/gates` | **Dev only.** The repository's lint rules, the licence gate, the gate acceptance tests, and the deploy tools (preflight, asset retention, smoke test) |
 | `tools/e2e` | **Dev only.** Playwright against `wrangler dev`, serving the local build (`pnpm e2e`) or the attested artifact (`pnpm e2e:artifact`, the CI `e2e` job): exact headers, CSP enforcement, Trusted Types, and the origin guard on every test, plus the third-party canary |
 
@@ -124,6 +125,15 @@ check (`pnpm tokens:drift --site <synthetos.com clone>`), the contrast table
 (`pnpm gen:contrast`) and the icons (`pnpm gen:icons`) are described in
 `docs/design/tokens.md`.
 Its nested `pnpm` calls need pnpm on `PATH` (`corepack enable`).
+
+Protocol (P0-07): `packages/protocol` turns serial bytes into typed events.
+`createInboundDecoder()` frames lines (CR/LF tolerant, UTF-8 safe, XON/XOFF
+removed into `FlowSignal` events, 4 KB line cap) and classifies each one as
+`Response`, `StatusReport`, `QueueReport`, `Exception`, `Banner`, `Ack`,
+`Text` or `Garbled`, with a relaxed-JSON parser that has depth and size caps
+and never throws. Anything ambiguous is `Garbled`, never guessed. Its tests
+run with coverage, and `frame.ts`, `classify.ts`, `json.ts` and `inbound.ts`
+must stay at 100% branch coverage (`packages/protocol/vitest.config.ts`).
 
 Dependency hygiene: versions are pinned exactly (`save-exact`), install
 scripts never run (`ignore-scripts`), and pnpm refuses versions published

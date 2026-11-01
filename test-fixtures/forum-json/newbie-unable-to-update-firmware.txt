@@ -1,0 +1,7 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/newbie-unable-to-update-firmware/
+# topic
+Garbled	{"r":

@@ -1,0 +1,8 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/0-97-triggered-limit-switch-json/
+# topic
+Exception	{"er":{"fb":380.08,"st":27,"msg":"System alarmed","val":0}}
+Exception	{"er":{"fb":435.10,"st":204,"msg":"Limit switch hit - Shutdown occurred"}}

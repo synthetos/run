@@ -1,0 +1,11 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/having-trouble-with-first-g2core-baby-steps/
+# reply 10926
+Response	{"r":{"hp":3},"f":[1,0,8]}
+# reply 10927
+Response	{"r":{"clear":null},"f":[1,0,11]}
+StatusReport	{"sr":{"line":0,"posx":0,"posy":0,"posz":0,"feed":0,"vel":0,"momo":4,"stat":1}}
+StatusReport	{"sr":{"line":0,"posx":0,"posy":0,"posz":0,"posa":0,"feed":0,"vel":0,"unit":1,"coor":1,"dist":0,"admo":1,"frmo":1,"momo":4,"stat":1}}

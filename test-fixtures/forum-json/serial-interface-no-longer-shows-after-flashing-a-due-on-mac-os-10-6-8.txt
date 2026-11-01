@@ -1,0 +1,7 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/serial-interface-no-longer-shows-after-flashing-a-due-on-mac-os-10-6-8/
+# reply 9616
+Banner	{"r":{"fv":0.98,"fb":89.03,"hp":3,"hv":0,"id":"0213-2335-e323","msg":"SYSTEM READY"},"f":[1,0,1]}

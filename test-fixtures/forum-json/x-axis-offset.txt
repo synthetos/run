@@ -1,0 +1,17 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/x-axis-offset/
+# reply 7942
+StatusReport	{"sr":{"mpoz":-30.208}}
+StatusReport	{"sr":{"mpoz":-30.125}}
+StatusReport	{"sr":{"mpoz":-30.042}}
+StatusReport	{"sr":{"vel":0.00,"mpoz":-30.000,"stat":3}}
+StatusReport	{"sr":{"vel":25.03,"mpox":5.065,"stat":5}}
+StatusReport	{"sr":{"vel":50.00,"mpox":5.143}}
+StatusReport	{"sr":{"mpox":5.222}}
+StatusReport	{"sr":{"mpox":5.305}}
+StatusReport	{"sr":{"mpox":5.389}}
+StatusReport	{"sr":{"mpox":5.468}}
+StatusReport	{"sr":{"mpox":5.551}}

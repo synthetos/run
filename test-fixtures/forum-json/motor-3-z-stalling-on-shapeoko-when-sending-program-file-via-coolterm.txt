@@ -1,0 +1,18 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/motor-3-z-stalling-on-shapeoko-when-sending-program-file-via-coolterm/
+# reply 5753
+Response	{"r":{"sys":{"fb":380.08,"fv":0.960,"hv":8,"id":"2X2660-GFY","ja":2000000,"ct":0.0010,"st":0,"mt":60,"ej":1,"jv":3,"tv":0,"qv":0,"sv":1,"si":100,"ic":0,"ec":0,"ee":0,"ex":1,"baud":5,"gpl":0,"gun":1,"gco":1,"gpa":2,"gdi":0},"f":[1,0,19,8636]}}
+Response	{"r":{"2":{"ma":2,"sa":0.90,"tr":1.250,"mi":2,"po":0,"pm":1},"f":[1,0,9,5027]}}
+Response	{"r":{"3":{"ma":1,"sa":0.90,"tr":36.540,"mi":8,"po":0,"pm":0},"f":[1,0,9,1368]}}
+Response	{"r":{"4":{"ma":1,"sa":0.90,"tr":36.540,"mi":8,"po":1,"pm":0},"f":[1,0,9,3602]}}
+Response	{"r":{"a":{"am":1,"vm":16000,"fr":16000,"tm":220,"jm":5000000000,"jh":5760000000,"jd":0.0500,"ra":0.199,"sn":1,"sx":0,"sv":600,"lv":100,"lb":20.000,"zb":5.000},"f":[1,0,9,7455]}}
+Response	{"r":{"b":{"am":0,"vm":3600,"fr":3600,"tm":-1,"jm":20000000,"jd":0,"ra":1.000},"f":[1,0,9,9431]}}
+Response	{"r":{"c":{"am":0,"vm":3600,"fr":3600,"tm":-1,"jm":20000000,"jd":0,"ra":1.000},"f":[1,0,9,6752]}}
+Response	{"r":{"x":{"am":1,"vm":16000,"fr":16000,"tm":170,"jm":5000000000,"jh":10000000000,"jd":0.0100,"sn":1,"sx":0,"sv":3000,"lv":100,"lb":20.000,"zb":5.000},"f":[1,0,9,6717]}}
+Response	{"r":{"y":{"am":1,"vm":16000,"fr":16000,"tm":220,"jm":5000000000,"jh":10000000000,"jd":0.0500,"sn":1,"sx":0,"sv":600,"lv":100,"lb":20.000,"zb":5.000},"f":[1,0,9,197]}}
+Response	{"r":{"z":{"am":1,"vm":400,"fr":400,"tm":75,"jm":100000000,"jh":20000000,"jd":0.0500,"sn":0,"sx":1,"sv":400,"lv":100,"lb":2.000,"zb":1.000},"f":[1,0,9,1386]}}
+# reply 5755
+Response	{"r":{"1":{"ma":0,"sa":1.80,"tr":36.540,"mi":8,"po":0,"pm":0},"f":[1,0,9,3726]}}

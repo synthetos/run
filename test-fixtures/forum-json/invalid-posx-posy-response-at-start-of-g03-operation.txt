@@ -1,0 +1,14 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/invalid-posx-posy-response-at-start-of-g03-operation/
+# topic
+Response	{"r":{},"f":[1,0,22,102]}
+StatusReport	{"sr":{"posx":180.000,"posy":20.000,"feed":200.00}}
+StatusReport	{"sr":{"posx":150.005,"posy":49.798,"vel":149.23,"stat":5}}
+StatusReport	{"sr":{"posx":150.026,"posy":49.012,"vel":199.93}}
+StatusReport	{"sr":{"posx":150.041,"posy":48.451,"vel":38.78}}
+Garbled	{"sr":{"posx":150.043,"posy":
+# reply 12187
+Garbled	{"sr":{...}}

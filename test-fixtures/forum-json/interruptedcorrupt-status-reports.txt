@@ -1,0 +1,13 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/interruptedcorrupt-status-reports/
+# topic
+Response	{"r":{"gc":"G28.2X0Y0","f":[1,0,21,2913]}}
+StatusReport	{"sr":{"posx":25.400,"posy":25.400,"unit":1,"coor":0}}
+QueueReport	{"qr":28}
+QueueReport	{"qr":27}
+StatusReport	{"sr":{"posx":25.259,"vel":444.50,"stat":9}}
+StatusReport	{"sr":{"posx":23.882,"vel":889.00}}
+Garbled	{"sr":{"p

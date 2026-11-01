@@ -1,0 +1,11 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/arduino-due-tinyg-g2-liteplacer/
+# reply 8828
+Response	{"r":{"?ej?":null},"f":[1,100,9]}
+Response	{"r":{},"f":[1,0,20]}
+StatusReport	{"sr":{"line":0,"posx":0.000,"posy":0.000,"posz":0.000,"posa":0.000,"feed":2000.00,"vel":0.00,"unit":1,"coor":1,"dist":0,"frmo":1,"momo":1,"stat":3}}
+Response	{"r":{"?ej?":null},"f":[1,100,8]}
+StatusReport	{"sr":{"feed":2000.00,"momo":1,"stat":3}}

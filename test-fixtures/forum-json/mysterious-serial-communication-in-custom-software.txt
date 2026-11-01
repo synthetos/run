@@ -1,0 +1,62 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/mysterious-serial-communication-in-custom-software/
+# reply 4569
+Response	{"r":{"gc":"N49G1F300.0Z-2.0","n":49,"f":[1,0,103,5670]}}
+StatusReport	{"sr":{"line":25,"posy":18.998,"posz":3.000,"vel":21.88}}
+StatusReport	{"sr":{"posy":18.996,"vel":22.12}}
+StatusReport	{"sr":{"posy":18.974,"vel":33.36}}
+StatusReport	{"sr":{"posy":18.935,"vel":60.67}}
+StatusReport	{"sr":{"posy":18.865,"vel":104.03}}
+StatusReport	{"sr":{"posy":18.752,"vel":163.46}}
+StatusReport	{"sr":{"posy":18.603,"vel":230.67}}
+StatusReport	{"sr":{"posy":18.370,"vel":320.46}}
+StatusReport	{"sr":{"posy":18.062,"vel":407.19}}
+StatusReport	{"sr":{"posy":17.690,"vel":477.86}}
+StatusReport	{"sr":{"posy":17.265,"vel":532.46}}
+StatusReport	{"sr":{"posy":16.803,"vel":571.01}}
+StatusReport	{"sr":{"posy":16.365,"vel":591.97}}
+StatusReport	{"sr":{"posy":15.867,"vel":600.00}}
+StatusReport	{"sr":{"posy":15.368,"vel":600.00}}
+StatusReport	{"sr":{"posy":14.868}}
+StatusReport	{"sr":{"posy":14.369}}
+StatusReport	{"sr":{"posy":13.870}}
+StatusReport	{"sr":{"posy":13.420}}
+StatusReport	{"sr":{"posy":12.921}}
+StatusReport	{"sr":{"posy":12.422}}
+StatusReport	{"sr":{"posy":11.923}}
+StatusReport	{"sr":{"posy":11.423}}
+StatusReport	{"sr":{"posy":10.924}}
+StatusReport	{"sr":{"posy":10.475}}
+StatusReport	{"sr":{"posy":9.975}}
+StatusReport	{"sr":{"posy":9.476}}
+StatusReport	{"sr":{"posy":8.977}}
+StatusReport	{"sr":{"posy":8.477}}
+StatusReport	{"sr":{"posy":7.978}}
+StatusReport	{"sr":{"posy":7.529}}
+StatusReport	{"sr":{"posy":7.029}}
+StatusReport	{"sr":{"posy":6.530}}
+StatusReport	{"sr":{"posy":6.031}}
+StatusReport	{"sr":{"posy":5.531}}
+StatusReport	{"sr":{"posy":5.032}}
+StatusReport	{"sr":{"posy":4.583}}
+StatusReport	{"sr":{"posy":4.083}}
+StatusReport	{"sr":{"posy":3.584}}
+StatusReport	{"sr":{"posy":3.085}}
+StatusReport	{"sr":{"posy":2.587,"vel":591.97}}
+StatusReport	{"sr":{"posy":2.104,"vel":567.88}}
+StatusReport	{"sr":{"posy":1.692,"vel":532.46}}
+StatusReport	{"sr":{"posy":1.272,"vel":477.86}}
+StatusReport	{"sr":{"posy":0.905,"vel":407.19}}
+StatusReport	{"sr":{"posy":0.605,"vel":320.46}}
+StatusReport	{"sr":{"posy":0.380,"vel":230.67}}
+StatusReport	{"sr":{"posy":0.223,"vel":156.79}}
+StatusReport	{"sr":{"posy":0.128,"vel":104.03}}
+StatusReport	{"sr":{"posy":0.062,"vel":60.67}}
+StatusReport	{"sr":{"posy":0.025,"vel":33.36}}
+StatusReport	{"sr":{"posy":0.004,"vel":22.12}}
+Response	{"r":{"gc":"N74G1Y0.0","n":74,"f":[1,0,19,2165]}}
+# reply 4599
+Garbled	{"r":{"gc":...}}

@@ -1,0 +1,8 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/tinyg-connection-issues/
+# reply 6519
+Banner	{"r":{"fv":0.970,"fb":435.10,"hp":1,"hv":8,"id":"2X2660-FNE","msg":"Initializing configs to Shapeoko 375mm profile"},"f":[1,15,8,7459]}
+Response	{"r":{"":9},"f":[1,0,0,5557]}

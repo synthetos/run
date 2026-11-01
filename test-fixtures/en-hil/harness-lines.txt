@@ -1,0 +1,55 @@
+# EN-HIL harness lines (TinyG edge-next @ ead63997, tests/hil/tests/test_harness_offline.py) and
+# lines constructed from edge-next source where no capture exists. Rows: <kind><TAB><line>.
+# Escapes: none; every line is printable ASCII. Each block names its source.
+#
+# Captured from a v8 board running 440.20 (test_harness_offline.py:7-11): footer revision 1 with
+# a real checksum (verified there by test_checksum_440), the TG r-footer banner.
+Response	{"r":{"fb":440.20},"f":[1,0,12,1645]}
+Response	{"r":{},"f":[1,132,5,6965]}
+Banner	{"r":{"fv":0.970,"fb":440.20,"hp":1,"hv":8,"id":"0BENCH-ONE","msg":"SYSTEM READY"},"f":[1,0,0,8416]}
+# The same lines with one digit changed: the revision-1 checksum no longer matches.
+Garbled	{"r":{"fb":440.30},"f":[1,0,12,1645]}
+Garbled	{"r":{},"f":[1,132,5,6966]}
+# Footer revision 3 (test_harness_offline.py:27).
+Response	{"r":{"fb":449.01},"f":[3,0,11]}
+# Stock edge-0.97 bare-sr banner in relaxed syntax (test_harness_offline.py:33; PN §2.2).
+Banner	{sr:{fv:0.970,fb:449.01,msg:"SYSTEM READY"}}
+# test_harness_offline.py:37-41 (classification table).
+StatusReport	{"sr":{"stat":3}}
+QueueReport	{"qr":32}
+Exception	{"er":{"st":29}}
+Ack	{"ack":true}
+Text	tinyg [mm] ok> 
+Text	[fb]  firmware build            440.20
+Garbled	{"r":{"fb":
+# Shapes the harness names but run does not classify yet (rx resync read, probe report):
+# refused as unrecognized, never guessed (test_harness_offline.py:38, :40).
+Garbled	{"rx":254}
+Garbled	{"prb":{"e":1,"x":0.000,"z":-1.000}}
+Garbled	{prb:{e:0,z:-1.000}}
+# Leading NUL: the harness salvages the JSON after it; run refuses it (test_harness_offline.py:84-85).
+# (The NUL is written as \0 here and expanded by the test.)
+Garbled	\0{"r":{"1ma":0},"f":[3,0,10]}
+Garbled	\0\0{"sr":{"stat":4}}
+Garbled	{"r":{"x":1\02},"f":[3,0,10]}
+Garbled	{"r":{"msg":"a\0b"},"f":[3,0,10]}
+#
+# Constructed from edge-next source (no capture in EN-HIL):
+# EN bare-sr banner, always strict (EN report.c:65-78, 91-97); boot also prints the two
+# "configs" messages through the same helper (EN report.c:80-89).
+Banner	{"sr":{"fv":0.97,"fb":449.01,"hp":1,"hv":8,"id":"0BENCH-TWO","msg":"SYSTEM READY"}}
+Banner	{"sr":{"fv":0.97,"fb":449.01,"hp":1,"hv":8,"id":"0BENCH-TWO","msg":"Loading configs from EEPROM"}}
+# Footer revision 2 with a top-level tid (EN json_parser.c:833-856; E049, test_e049_tid_handling.py:30-32).
+Response	{"r":{"fb":449.01},"tid":33,"f":[2,0,18]}
+Response	{"r":{},"tid":17,"f":[3,132,11]}
+Response	{"r":{"fb":449.01},"tid":4294967295,"f":[3,0,11]}
+# The overflow reply keeps tid and footer (EN json_parser.c:861-868), relaxed when js=0.
+Response	{r:{},tid:5,f:[3,13,11]}
+# M400 deferred reply (EN controller.c:595-600).
+Response	{"r":{"gc":"M400"},"tid":9,"f":[3,0,12]}
+# ENQ answer (EN controller.c:532), queue reports (EN report.c:747-752, relaxed when js=0).
+QueueReport	{"qr":20,"qi":3,"qo":1}
+QueueReport	{qr:32}
+# Exception reports, strict and relaxed (EN report.c:140-155; PN §5.5).
+Exception	{"er":{"fb":449.01,"st":203,"msg":"Limit hit [$clear to reset, $lim=0 to override] - input 1"}}
+Exception	{er:{fb:449.01,st:204,msg:"Command rejected by ALARM [$clear to reset] - \u0007"}}

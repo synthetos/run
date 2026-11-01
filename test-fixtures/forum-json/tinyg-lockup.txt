@@ -1,0 +1,12 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/tinyg-lockup/
+# topic
+Banner	{"r":{"fv":0.970,"fb":435.07,"hp":1,"hv":8,"id":"2U2971-YKY","msg":"SYSTEM READY"},"f":[1,0,0,5141]}
+QueueReport	{"qr":28,"qi":1,"qo":1}
+Response	{"r":{},"f":[1,0,9,4402]}
+StatusReport	{"sr":{"line":0,"posx":0.000,"posy":0.000,"posz":0.000,"posa":0.000,"feed":0.00,"vel":0.01,"unit":1,"coor":1,"dist":0,"frmo":1,"momo":0,"stat":5}}
+QueueReport	{"qr":27,"qi":1,"qo":0}
+StatusReport	{"sr":{"posx":0.004,"posy":0.004,"vel":12.61}}

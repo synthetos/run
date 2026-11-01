@@ -1,0 +1,7 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/tinyg2-homing-crashes/
+# reply 9685
+Garbled	{"r":{"fv":0.98,"fb":83.08,"hp":3,"hv":0,"id":"0213-0215-d433","msg":"SYSTEM REA

@@ -1,0 +1,38 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/controlling-tinyg-programmatically-best-practices/
+# reply 4717
+Garbled	{"sr": => handle it as a status report. If it also contains "stat":3 , fire ready event. Return.
+Garbled	{"r":{"sr" , it is the response for asking a status report => Remove the wrapper, handle line as a status report, fire ready event and return
+Garbled	{"r": , it is a response for asking or setting a setting or setting group => replace all "n" (where n = 1, 2, 3 or 4) with "motor_n" to get valid field names for Microsoft JavaScriptSerializer class (and other JSON interpretes, I suppose). Handle line as a settings report (updating UI where applicable etc), fire ready event and return.
+# reply 4722
+Response	{"r":{"xzb":0.000},"f":[1,0,10,2510]}
+Response	{"r":{},"f":[1,0,9,4402]}
+StatusReport	{"sr":{"coor":0,"dist":1,"home":0,"cycs":3}}
+QueueReport	{"qr":28}
+QueueReport	{"qr":27}
+StatusReport	{"sr":{"mpox":-2.895,"stat":9,"momo":1,"macs":5,"mots":1}}
+StatusReport	{"sr":{"mpox":-8.465,"hold":3,"mots":2}}
+StatusReport	{"sr":{"mpox":-9.385,"hold":4}}
+StatusReport	{"sr":{"mpox":-6.638,"hold":0,"mots":1}}
+StatusReport	{"sr":{"mpox":-0.929,"hold":3,"mots":2}}
+StatusReport	{"sr":{"mpox":-0.109,"hold":4}}
+StatusReport	{"sr":{"mpox":0.000,"stat":3,"coor":2,"momo":4,"dist":0,"home":1,"hold":0,"macs":3,"cycs":0,"mots":0}}
+Response	{"r":{"xzb":2.000},"f":[1,0,10,5205]}
+StatusReport	{"sr":{"mpox":-2.747,"stat":9,"momo":1,"macs":5,"mots":1}}
+StatusReport	{"sr":{"mpox":-8.415,"hold":3,"mots":2}}
+StatusReport	{"sr":{"mpox":-9.235,"hold":4}}
+StatusReport	{"sr":{"mpox":-6.340,"hold":0,"mots":1}}
+StatusReport	{"sr":{"mpox":-0.779,"hold":3,"mots":2}}
+StatusReport	{"sr":{"mpox":0.041,"hold":4}}
+StatusReport	{"sr":{"mpox":1.778,"hold":0,"mots":1}}
+StatusReport	{"sr":{"mpox":2.041,"stat":3,"macs":3,"mots":0}}
+StatusReport	{"sr":{"mpox":0.000,"coor":2,"momo":4,"dist":0,"home":1,"cycs":0}}
+Response	{"r":{},"f":[1,0,6,4399]}
+StatusReport	{"sr":{"mpox":0.001,"stat":5,"macs":5,"cycs":1,"mots":1}}
+StatusReport	{"sr":{"mpox":0.998}}
+StatusReport	{"sr":{"mpox":1.000,"stat":3,"macs":3,"cycs":0,"mots":0}}
+Response	{"r":{},"f":[1,0,5,4398]}
+Garbled	{"sr":{"mpox":1.000,"stat":3, ... even though the second g0 x1 is an empty command in real life.

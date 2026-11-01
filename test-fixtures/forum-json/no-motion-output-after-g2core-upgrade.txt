@@ -1,0 +1,29 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/no-motion-output-after-g2core-upgrade/
+# reply 11023
+Response	{"r":{},"f":[1,0,14]}
+StatusReport	{"sr":{"stat":3,"feed":1000,"momo":1}}
+Response	{"r":{},"f":[1,0,13]}
+QueueReport	{"qr":4}
+StatusReport	{"sr":{"posx":0.46233,"posy":2.07757,"vel":845.81,"stat":5,"momo":2,"mpox":0.47137,"mpoy":2.09634}}
+QueueReport	{"qr":7}
+StatusReport	{"sr":{"posx":3.20353,"posy":4.65577,"vel":841.57,"mpox":3.20353,"mpoy":4.65577}}
+QueueReport	{"qr":12}
+StatusReport	{"sr":{"posx":6.47414,"posy":4.76734,"vel":824.09,"mpox":6.47414,"mpoy":4.76734}}
+QueueReport	{"qr":17}
+StatusReport	{"sr":{"posx":9.37074,"posy":2.40753,"vel":885.66,"mpox":9.37074,"mpoy":2.40753}}
+QueueReport	{"qr":22}
+StatusReport	{"sr":{"posx":9.92472,"posy":-0.82455,"vel":786.12,"mpox":9.92472,"mpoy":-0.82455}}
+QueueReport	{"qr":27}
+StatusReport	{"sr":{"posx":8.02448,"posy":-3.97016,"vel":951.86,"mpox":8.02448,"mpoy":-3.97016}}
+QueueReport	{"qr":32}
+StatusReport	{"sr":{"posx":4.80239,"posy":-4.99383,"vel":760.89,"mpox":4.80239,"mpoy":-4.99383}}
+QueueReport	{"qr":37}
+StatusReport	{"sr":{"posx":1.5633,"posy":-3.61922,"vel":1000,"mpox":1.5633,"mpoy":-3.61922}}
+QueueReport	{"qr":42}
+QueueReport	{"qr":47}
+StatusReport	{"sr":{"posx":0.03265,"posy":-0.50854,"vel":653.04,"mpox":0.03265,"mpoy":-0.50854}}
+StatusReport	{"sr":{"posx":0,"posy":0,"vel":0,"stat":3,"mpox":0,"mpoy":0}}

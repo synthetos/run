@@ -1,0 +1,18 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/file-not-open-error/
+# topic
+Response	{"r":{},"f":[1,0,4,4397]}
+Response	{"r":{},"f":[1,0,28,108]}
+StatusReport	{"sr":{"vel":0.09,"stat":5}}
+QueueReport	{"qr":31,"qi":1,"qo":0}
+Response	{"r":{},"f":[1,0,23,103]}
+StatusReport	{"sr":{"posx":222.948,"posy":61.271,"vel":20.79}}
+QueueReport	{"qr":30,"qi":1,"qo":0}
+StatusReport	{"sr":{"posx":224.672,"posy":61.965,"vel":1596.38}}
+StatusReport	{"sr":{"posx":234.797,"posy":66.039,"vel":5101.14}}
+StatusReport	{"sr":{"posx":254.132,"posy":73.818,"vel":6910.25}}
+# reply 8737
+Exception	{"er":{"fb":438.02,"st":9,"msg":"File not open"}}

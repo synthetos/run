@@ -1,0 +1,9 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/homing-cycle-is-not-reliable/
+# reply 11986
+Garbled	{“sr”:{“posx”:-14.747,”mpox”:-14.747,”vel”:0.10}}
+Garbled	{“sr”:{“posx”:150.000,”mpox”:150.000,”vel”:0.00}}
+Garbled	{“sr”:{“posx”:0.000,”mpox”:0.000,”stat”:3,”dist”:0,”coor”:1}}

@@ -1,0 +1,18 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/error-st_prep_line-move-time-is-nan/
+# topic
+QueueReport	{"qr":28,"qi":1,"qo":1}
+QueueReport	{"qr":27,"qi":1,"qo":0}
+StatusReport	{"sr":{"posx":1.516,"feed":1000.00,"vel":1000.00,"momo":1}}
+StatusReport	{"sr":{"posx":3.182}}
+StatusReport	{"sr":{"posx":4.115,"vel":8.52}}
+StatusReport	{"sr":{"posx":3.959,"feed":100.00,"vel":100.00}}
+StatusReport	{"sr":{"posx":3.792}}
+StatusReport	{"sr":{"posx":3.634}}
+StatusReport	{"sr":{"posx":3.467}}
+StatusReport	{"sr":{"posx":3.301}}
+StatusReport	{"sr":{"posx":3.142}}
+StatusReport	{"sr":{"posx":3.012,"vel":9.96}}

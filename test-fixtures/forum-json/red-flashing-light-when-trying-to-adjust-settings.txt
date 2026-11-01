@@ -1,0 +1,27 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/red-flashing-light-when-trying-to-adjust-settings/
+# reply 11791
+Response	{"r":{"jv":4},"f":[1,0,7,7333]}
+StatusReport	{"sr":{"posx":0.000,"posy":0.000,"posz":0.000,"posa":0.000,"feed":0.00,"vel":0.00,"unit":1,"coor":1,"dist":0,"frmo":1,"stat":1}}
+Response	{"r":{"qv":1},"f":[1,0,7,6003]}
+Response	{"r":{"sv":1},"f":[1,0,7,9250]}
+Response	{"r":{"si":100},"f":[1,0,9,2707]}
+Response	{"r":{"spe":null},"f":[1,100,8,8836]}
+Response	{"r":{"spd":null},"f":[1,100,8,6786]}
+Response	{"r":{"spc":null},"f":[1,100,8,4736]}
+Response	{"r":{"sps":null},"f":[1,100,8,704]}
+Response	{"r":{"com":null},"f":[1,100,8,2342]}
+Response	{"r":{"cof":null},"f":[1,100,8,4826]}
+Response	{"r":{"sr":{"stat":true,"line":true,"vel":true,"feed":true,"unit":true,"coor":true,"momo":true,"plan":true,"path":true,"dist":true,"admo":true}},"f":[1,100,181,722]}
+Response	{"r":{"sys":{"fb":440.20,"fv":0.970,"hp":1,"hv":8,"id":"8U1122-MUJ","ja":100000,"ct":0.0100,"sl":0,"st":1,"mt":2.00,"ej":1,"jv":4,"js":1,"tv":1,"qv":1,"sv":1,"si":100,"ec":0,"ee":0,"ex":1,"baud":5,"net":0,"gpl":0,"gun":1,"gco":1,"gpa":2,"gdi":0}},"f":[1,0,8,1385]}
+Response	{"r":{"mt":2.00},"f":[1,0,7,1467]}
+Response	{"r":{"pwr":{"1":0,"2":0,"3":0,"4":0}},"f":[1,0,8,9987]}
+Response	{"r":{"qr":32},"f":[1,0,7,7766]}
+Response	{"r":{"sr":{"posx":0.000,"posy":0.000,"posz":0.000,"posa":0.000,"feed":0.00,"vel":0.00,"unit":1,"coor":1,"dist":0,"frmo":1,"stat":1}},"f":[1,0,7,3689]}
+Response	{"r":{},"f":[1,0,9,4402]}
+StatusReport	{"sr":{"posz":0.000}}
+QueueReport	{"qr":32}
+Response	{"r":{"qr":32},"f":[1,0,10,9617]}

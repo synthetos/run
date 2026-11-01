@@ -1,0 +1,7 @@
+# Firmware JSON lines quoted in an archived synthetos.com forum topic.
+# Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
+# synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
+# Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# source: https://synthetos.com/topics/homing-x-axis-fail-y-and-z-are-fine/
+# reply 11234
+Banner	{"r":{"fv":0.970,"fb":440.20,"hp":1,"hv":8,"id":"3Y2462-PPV","msg":"SYSTEM READY"},"f":[1,0,0,5179]}
