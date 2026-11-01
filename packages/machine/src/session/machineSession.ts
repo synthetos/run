@@ -63,7 +63,7 @@ export interface LogEntry {
 
 export type ConnectOutcome =
   | { readonly ok: true; readonly info: TransportInfo }
-  | { readonly ok: false; readonly code: 'denied'; readonly decision: Decision }
+  | { readonly ok: false; readonly code: 'denied'; readonly decision: Extract<Decision, { readonly allowed: false }> }
   | { readonly ok: false; readonly code: 'unavailable' | 'open-failed'; readonly reason: string };
 
 interface Link {
