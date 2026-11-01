@@ -7,11 +7,13 @@
  * `job.<sha256>.preflight`. A key never contains a wildcard.
  *
  * A pattern is what an invalidation rule clears: the same grammar, where a
- * segment may be `*` (any one segment). A pattern matches every key it is a
- * segment-wise PREFIX of, so `dir.*` clears `dir.x` and `dir.x.verified`,
- * and `softlimits` clears `softlimits.on`. Prefix matching can only clear
- * more facts than an exact match, never fewer: an invalidation rule errs on
- * the side of asking again.
+ * segment may be `*` (any one segment). A pattern clears a key when the two
+ * agree on every segment they both have: `dir.*` clears `dir.x` and
+ * `dir.x.verified`, `softlimits` clears `softlimits.on`, and a broader key
+ * is cleared by a narrower pattern too (`dir.*` clears `dir`, `softlimits.on`
+ * clears `softlimits`), because a fact about the whole root depends on every
+ * part of it. This can only clear more facts than an exact match, never
+ * fewer: an invalidation rule errs on the side of asking again.
  */
 import { FACT_ROOTS } from '../overlays/types.ts';
 
@@ -36,12 +38,16 @@ export function isFactPattern(pattern: unknown): pattern is string {
   return typeof pattern === 'string' && segmentsOf(pattern, true) !== null;
 }
 
-/** Whether `pattern` clears `key`. A malformed pattern or key never matches (and the rules test refuses malformed patterns). */
+/**
+ * Whether `pattern` clears `key`: every segment both have agrees (`*` agrees
+ * with any segment). A malformed pattern or key never matches (and the rules
+ * test refuses malformed patterns).
+ */
 export function patternMatches(pattern: string, key: string): boolean {
   const p = segmentsOf(pattern, true);
   const k = segmentsOf(key, false);
-  if (p === null || k === null || p.length > k.length) return false;
-  return p.every((seg, i) => seg === '*' || seg === k[i]);
+  if (p === null || k === null) return false;
+  return p.every((seg, i) => i >= k.length || seg === '*' || seg === k[i]);
 }
 
 /** The root of a fact key (`dir` for `dir.x`). */

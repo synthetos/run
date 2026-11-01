@@ -38,7 +38,9 @@ export type Gate =
 export type Unmet =
   | { readonly kind: 'fact'; readonly key: string; readonly status: Exclude<FactStatus, 'valid'> }
   | { readonly kind: 'override'; readonly name: string }
-  | { readonly kind: 'param'; readonly template: string; readonly param: string; readonly problem: 'missing' | 'empty' | 'malformed' };
+  | { readonly kind: 'param'; readonly template: string; readonly param: string; readonly problem: 'missing' | 'empty' | 'malformed' }
+  /** A gate value built in code (not by `parseGate`) that the grammar does not allow, such as `all()` with no arguments. */
+  | { readonly kind: 'malformedGate'; readonly op: string };
 
 export interface GateResult {
   readonly ok: boolean;
@@ -160,15 +162,24 @@ function expand(template: string, params: GateContext['params']): { keys: string
   return { keys };
 }
 
-/** Evaluate a parsed gate against the facts of the connected machine and board. Pure. */
+/**
+ * Evaluate a parsed gate against the facts of the connected machine and
+ * board. Pure. A gate value the grammar does not allow (built in code rather
+ * than parsed: an `all` or `any` without arguments, an unknown operator, a
+ * malformed template or name) is never met: an empty `all` would otherwise
+ * be vacuously true and open the gate.
+ */
 export function evaluateGate(gate: Gate, ctx: GateContext): GateResult {
   const unmet = collect(gate, ctx);
   return Object.freeze({ ok: unmet.length === 0, unmet: Object.freeze(unmet.map((u) => Object.freeze(u))) });
 }
 
 function collect(gate: Gate, ctx: GateContext): Unmet[] {
+  const malformed: Unmet[] = [{ kind: 'malformedGate', op: String((gate as { op?: unknown } | null)?.op) }];
+  if (typeof gate !== 'object' || gate === null) return malformed;
   switch (gate.op) {
     case 'fact': {
+      if (typeof gate.template !== 'string' || !isTemplate(gate.template)) return malformed;
       const e = expand(gate.template, ctx.params);
       if ('unmet' in e) return [e.unmet];
       return e.keys.flatMap((key): Unmet[] => {
@@ -177,13 +188,18 @@ function collect(gate: Gate, ctx: GateContext): Unmet[] {
       });
     }
     case 'override':
+      if (typeof gate.name !== 'string' || !NAME.test(gate.name)) return malformed;
       return ctx.overrides.has(gate.name) ? [] : [{ kind: 'override', name: gate.name }];
     case 'all':
+      if (!Array.isArray(gate.args) || gate.args.length === 0) return malformed;
       return gate.args.flatMap((g) => collect(g, ctx));
     case 'any': {
+      if (!Array.isArray(gate.args) || gate.args.length === 0) return malformed;
       const each = gate.args.map((g) => collect(g, ctx));
       return each.some((u) => u.length === 0) ? [] : each.flat();
     }
+    default:
+      return malformed;
   }
 }
 

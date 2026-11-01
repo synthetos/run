@@ -65,10 +65,15 @@ describe('fact keys and patterns', () => {
     expect(isFactPattern(3)).toBe(false);
   });
 
-  it('a pattern clears every key it is a segment-wise prefix of', () => {
+  it('a pattern clears every key it agrees with on their common segments', () => {
     expect(patternMatches('dir.*', 'dir.x')).toBe(true);
     expect(patternMatches('dir.*', 'dir.x.verified')).toBe(true);
-    expect(patternMatches('dir.*', 'dir')).toBe(false);
+    // A broader key depends on every part of its root: a narrower pattern clears it too.
+    expect(patternMatches('dir.*', 'dir')).toBe(true);
+    expect(patternMatches('homing.x', 'homing')).toBe(true);
+    expect(patternMatches('softlimits.on', 'softlimits')).toBe(true);
+    expect(patternMatches('job.*.preflight', 'job')).toBe(true);
+    expect(patternMatches('dir.*', 'scale')).toBe(false);
     expect(patternMatches('dir', 'dir.x')).toBe(true);
     expect(patternMatches('softlimits.on', 'softlimits.on')).toBe(true);
     expect(patternMatches('softlimits.on', 'softlimits.off')).toBe(false);
@@ -165,7 +170,7 @@ describe('addFact and view', () => {
 
   it('view refuses a malformed binding or age setting rather than guessing', () => {
     expect(() => view(EMPTY_FACT_STATE, { ...BIND, boardId: '' }, { clock: clockAt(T0), liveSessionId: null })).toThrow(FactError);
-    for (const maxAgeMs of [0, -1, Number.NaN]) {
+    for (const maxAgeMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() => view(EMPTY_FACT_STATE, BIND, { clock: clockAt(T0), liveSessionId: null, maxAgeMs })).toThrow(/maxAgeMs/);
     }
   });
@@ -234,6 +239,24 @@ describe('invalidate', () => {
     const scale = again.facts.find((f) => f.key === 'scale.x');
     expect(scale?.invalidated).toEqual({ trigger: 'settingWritten', at: T0 + 5 });
     expect(scale?.boundTo.deviceHash).toBe(HASH_A);
+  });
+
+  it('a write clears root-level facts and every softlimits fact, not only the narrow keys its overlay names', () => {
+    const keys = ['dir', 'homing', 'scale', 'softlimits', 'softlimits.x', 'softlimits.on'];
+    let s = withFacts(...keys.map((k) => fact(k)));
+    s = triggerAt(s, { kind: 'settingWritten', boardId: BOARD, dialectId: 'tinyg-en', key: '1po', previousDeviceHash: HASH_A, newDeviceHash: HASH_B });
+    const afterPo = { ...BIND, deviceHash: HASH_B };
+    expect(keys.map((k) => [k, statusIn(s, k, afterPo)])).toEqual([
+      ['dir', 'needsReverify'],
+      ['homing', 'needsReverify'],
+      ['scale', 'valid'],
+      ['softlimits', 'valid'],
+      ['softlimits.x', 'valid'],
+      ['softlimits.on', 'valid'],
+    ]);
+    const third = 'c'.repeat(64);
+    s = triggerAt(s, { kind: 'settingWritten', boardId: BOARD, dialectId: 'tinyg-en', key: '1tr', previousDeviceHash: HASH_B, newDeviceHash: third });
+    expect(keys.filter((k) => statusIn(s, k, { ...BIND, deviceHash: third }) === 'valid')).toEqual([]);
   });
 
   it('an unreviewed setting write clears every fact on the board', () => {
@@ -312,6 +335,7 @@ describe('property test (old P1-01)', () => {
   const AXES = ['x', 'y', 'z', 'a', 'b', 'c'];
   const keyArb = fc.oneof(
     fc.tuple(fc.constantFrom('dir', 'scale', 'homing', 'motor', 'softlimits'), fc.constantFrom(...AXES)).map(([r, a]) => `${r}.${a}`),
+    fc.constantFrom('dir', 'scale', 'homing', 'softlimits', 'switch', 'job'),
     fc.constantFrom('softlimits.on', 'outputs.spindle', 'probe.polarity', 'config.units', `job.${'a'.repeat(64)}.preflight`, 'switch.xmin', 'switch.zmax'),
   );
   const writeArb = fc.oneof(
@@ -336,6 +360,36 @@ describe('property test (old P1-01)', () => {
           if (cleared) expect({ k, status: v.status(k) }).not.toEqual({ k, status: 'valid' });
           // And a fact no write touches survives every write (selective, not a blanket wipe).
           else expect({ k, status: v.status(k) }).toEqual({ k, status: 'valid' });
+        }
+      }),
+      { numRuns: 500 },
+    );
+  });
+
+  it('independent oracle: each §5.2 setting row clears every fact under the roots the table names, whatever the key shape', () => {
+    // The OLD TOOLS_PLAN §5.2 table, written out here by hand rather than read from the overlay.
+    const ROWS: [RegExp, string[]][] = [
+      [/^[1-6](ma|po)$/u, ['dir', 'homing']],
+      [/^[1-6](tr|sa|mi)$/u, ['scale', 'homing', 'softlimits']],
+      [/^(st|[xyzabc]s[nx])$/u, ['switch', 'homing']],
+      [/^[xyzabc]t[nm]$/u, ['softlimits']],
+    ];
+    const rowKeys = ENKEYS.filter((k) => ROWS.some(([re]) => re.test(k)));
+    expect(rowKeys.length).toBeGreaterThan(30);
+    const factArb = fc.oneof(
+      fc.constantFrom('dir', 'homing', 'scale', 'softlimits', 'switch'),
+      fc.tuple(fc.constantFrom('dir', 'homing', 'scale', 'softlimits', 'switch'), fc.constantFrom(...AXES, 'on', 'xmin', 'verified')).map(([r, a]) => `${r}.${a}`),
+    );
+    fc.assert(
+      fc.property(fc.constantFrom(...rowKeys), fc.uniqueArray(factArb, { minLength: 1, maxLength: 10 }), (key, keys) => {
+        const s = invalidate(
+          withFacts(...keys.map((k) => fact(k))),
+          { kind: 'settingWritten', boardId: BOARD, dialectId: 'tinyg-en', key, previousDeviceHash: HASH_A, newDeviceHash: HASH_B },
+          clockAt(T0),
+        );
+        const roots = ROWS.find(([re]) => re.test(key))?.[1] ?? [];
+        for (const k of keys) {
+          if (roots.includes(k.split('.')[0] as string)) expect({ key, k, status: statusIn(s, k, { ...BIND, deviceHash: HASH_B }) }).not.toEqual({ key, k, status: 'valid' });
         }
       }),
       { numRuns: 500 },

@@ -108,7 +108,7 @@ function motor(m: string): OverlayEntry[] {
       risk: 'high',
       typedConfirm: NEVER,
       afterWrite: 'W20',
-      invalidates: ['scale.*', 'homing.*', 'softlimits.on'],
+      invalidates: ['scale.*', 'homing.*', 'softlimits'],
       whatGoesWrong: 'A wrong step angle scales every move on the axes this motor drives: the machine travels further or less than commanded and can leave its envelope.',
     }),
     entry(`${m}tr`, {
@@ -124,7 +124,7 @@ function motor(m: string): OverlayEntry[] {
       risk: 'high',
       typedConfirm: NEVER,
       afterWrite: 'W20',
-      invalidates: ['scale.*', 'homing.*', 'softlimits.on'],
+      invalidates: ['scale.*', 'homing.*', 'softlimits'],
       whatGoesWrong: 'A wrong travel per revolution scales every move: a 5 mm lead entered as 8 makes every move 60% too long.',
     }),
     entry(`${m}mi`, {
@@ -141,7 +141,7 @@ function motor(m: string): OverlayEntry[] {
       risk: 'high',
       typedConfirm: NEVER,
       afterWrite: 'W20',
-      invalidates: ['scale.*', 'homing.*', 'softlimits.on'],
+      invalidates: ['scale.*', 'homing.*', 'softlimits'],
       whatGoesWrong: 'The TinyG v8 drivers support only 1, 2, 4 and 8 microsteps. Any other value is stored anyway, so the scale no longer matches what the driver does.',
     }),
     entry(`${m}po`, {
@@ -284,7 +284,7 @@ function axisCore(a: string, kind: AxisKind): OverlayEntry[] {
       risk: 'high',
       typedConfirm: ALWAYS,
       afterWrite: 'W20',
-      invalidates: ['softlimits.on', 'job.*.preflight'],
+      invalidates: ['softlimits', 'job.*.preflight'],
       whatGoesWrong: 'A travel range larger than the machine lets soft limits and preflight pass moves that crash into the frame; homing searches that far before it gives up.',
     }),
     entry(`${a}tm`, {
@@ -299,7 +299,7 @@ function axisCore(a: string, kind: AxisKind): OverlayEntry[] {
       risk: 'high',
       typedConfirm: ALWAYS,
       afterWrite: 'W20',
-      invalidates: ['softlimits.on', 'job.*.preflight'],
+      invalidates: ['softlimits', 'job.*.preflight'],
       whatGoesWrong: 'A travel range larger than the machine lets soft limits and preflight pass moves that crash into the frame; homing searches that far before it gives up.',
     }),
     entry(`${a}jm`, {
@@ -497,7 +497,7 @@ const SYSTEM: readonly OverlayEntry[] = [
     risk: 'high',
     typedConfirm: { kind: 'whenValue', value: 0 },
     afterWrite: null,
-    invalidates: ['softlimits.on'],
+    invalidates: ['softlimits'],
     whatGoesWrong: 'With soft limits off, a G-code or jog error drives the machine past the end of travel.',
   }),
   entry('gun', {

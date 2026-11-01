@@ -232,7 +232,8 @@ export function view(state: FactState, binding: FactBinding, opts: ViewOptions):
   const b = bindingProblem(binding);
   if (b !== null) throw new FactError(b);
   const maxAgeMs = opts.maxAgeMs ?? DEFAULT_FACT_MAX_AGE_MS;
-  if (typeof maxAgeMs !== 'number' || !(maxAgeMs > 0)) throw new FactError('maxAgeMs must be a positive number of milliseconds');
+  // Infinity would switch the age rule off (H28): refused like any other bad age.
+  if (typeof maxAgeMs !== 'number' || !Number.isFinite(maxAgeMs) || !(maxAgeMs > 0)) throw new FactError('maxAgeMs must be a positive, finite number of milliseconds');
   const now = opts.clock();
   const defaultsActive = state.defaultsActive.includes(binding.boardId);
   const entries = Object.freeze(

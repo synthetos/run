@@ -133,9 +133,11 @@ describe('risk, confirmations and invalidations (SAFETY §4.6)', () => {
   it('invalidations follow the fact rules (TOOLS_PLAN §5.2)', () => {
     expect(get('1po').invalidates).toEqual(['dir.*', 'homing.*']);
     expect(get('2ma').invalidates).toEqual(['dir.*', 'homing.*']);
-    for (const k of ['3tr', '3sa', '3mi']) expect(get(k).invalidates).toEqual(['scale.*', 'homing.*', 'softlimits.on']);
+    // Scale and travel writes clear every softlimits fact, as the §5.2 table says ("softlimits"), not one key of it.
+    for (const k of ['3tr', '3sa', '3mi']) expect(get(k).invalidates).toEqual(['scale.*', 'homing.*', 'softlimits']);
     for (const k of ['st', 'xsn', 'asx']) expect(get(k).invalidates).toEqual(['switch.*', 'homing.*']);
-    for (const k of ['ytn', 'ztm']) expect(get(k).invalidates).toEqual(['softlimits.on', 'job.*.preflight']);
+    for (const k of ['ytn', 'ztm']) expect(get(k).invalidates).toEqual(['softlimits', 'job.*.preflight']);
+    expect(get('sl').invalidates).toEqual(['softlimits']);
     expect(get('xsv').invalidates).toEqual(['homing.x']);
   });
 });

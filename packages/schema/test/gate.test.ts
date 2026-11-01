@@ -125,6 +125,26 @@ describe('evaluateGate', () => {
     expect(checkGate('fact(dir.x)', ctx(other)).unmet).toEqual([{ kind: 'fact', key: 'dir.x', status: 'needsReverify' }]);
   });
 
+  it('a gate value built in code that the grammar does not allow is never met (an empty all() would be vacuously true)', () => {
+    const c = ctx(facts('dir.x'), {}, ['run-unhomed']);
+    const bad = [
+      { op: 'all', args: [] },
+      { op: 'any', args: [] },
+      { op: 'all', args: [{ op: 'fact', template: 'dir.x' }, { op: 'any', args: [] }] },
+      { op: 'any', args: [{ op: 'all', args: [] }] },
+      { op: 'fact', template: 'dir.*' },
+      { op: 'override', name: 'Run Unhomed' },
+      { op: 'not', args: [{ op: 'fact', template: 'dir.y' }] },
+      null,
+    ];
+    for (const g of bad) {
+      const r = evaluateGate(g as never, c);
+      expect({ g, ok: r.ok }).toEqual({ g, ok: false });
+      expect(r.unmet.some((u) => u.kind === 'malformedGate')).toBe(true);
+    }
+    expect(evaluateGate({ op: 'all', args: [{ op: 'fact', template: 'dir.x' }] }, c).ok).toBe(true);
+  });
+
   it('fails closed on a missing, empty or malformed parameter', () => {
     const g = parseGate('fact(homing.<axesInJob>)');
     const s = facts('homing.x');
