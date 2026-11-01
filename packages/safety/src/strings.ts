@@ -26,12 +26,14 @@ export class SafetyStringError extends Error {
 }
 
 /**
- * C0 and C1 control characters (including line breaks and tabs) and the
- * Unicode bidirectional embedding, override and isolate characters. Any of
- * them inside a machine name, port or file name could reorder or hide the
- * rest of a warning.
+ * C0 and C1 control characters (including line breaks and tabs), the Unicode
+ * line and paragraph separators (U+2028, U+2029), the bidirectional marks
+ * (U+061C, U+200E, U+200F) and the bidirectional embedding, override and
+ * isolate characters (U+202A-U+202E, U+2066-U+2069). Any of them inside a
+ * machine name, port or file name could break, reorder or hide the rest of a
+ * warning. Written as escapes so a reviewer can see every code point.
  */
-const UNSAFE_TEXT = /[\u0000-\u001f\u007f-\u009f‪-‮⁦-⁩]/u;
+const UNSAFE_TEXT = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/u;
 
 /** A text value: non-empty, not only whitespace, no unsafe characters. */
 function text(name: string, value: string): string {

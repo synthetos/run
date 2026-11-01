@@ -39,6 +39,11 @@ describe('strings.ts parameter checks', () => {
     ['RIGHT-TO-LEFT OVERRIDE', 'Router‮'],
     ['LEFT-TO-RIGHT EMBEDDING', '‪Router'],
     ['FIRST STRONG ISOLATE', 'Router⁨'],
+    ['LINE SEPARATOR', 'Router\u2028LIVE'],
+    ['PARAGRAPH SEPARATOR', 'Router\u2029LIVE'],
+    ['RIGHT-TO-LEFT MARK', 'Router\u200f'],
+    ['LEFT-TO-RIGHT MARK', '\u200eRouter'],
+    ['ARABIC LETTER MARK', 'Router\u061c'],
   ])('refuses a text value containing %s', (_label, bad) => {
     expect(() => S.w8({ ...live, port: bad })).toThrow(/control or bidirectional-override character/);
   });
