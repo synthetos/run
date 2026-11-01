@@ -4,8 +4,11 @@
  * Pure. Given the moves the host has sent that are not known to have
  * finished (queued in the planner, or still in the RX window), it returns:
  * - `mmUpperBound`: a true upper bound on how far the machine may still
- *   move if the host is lost now — the sum of every queued path length,
- *   arcs included ("machine may continue up to N mm");
+ *   move if the host is lost now — the sum of every queued line's
+ *   `boundMm`, arcs included ("machine may continue up to N mm"). It is
+ *   never the planner length: rotary degrees are not millimetres, and a
+ *   line whose physical travel cannot be bounded (rotary travel with no
+ *   known radius) makes it Infinity;
  * - `secondsEstimate`: the modelled time at `v_eff = min(F, vm) × k`, an
  *   estimate and never a bound ("about T s (estimate)").
  *
@@ -26,15 +29,15 @@ export interface OverrunBound {
   readonly secondsEstimate: number;
 }
 
-const valid = (v: number): boolean => Number.isFinite(v) && v >= 0;
+const valid = (v: number | null): v is number => v !== null && Number.isFinite(v) && v >= 0;
 
 export function overrunBound(queue: readonly QueuedLine[]): OverrunBound {
   let mm = 0;
   let seconds = 0;
   for (const line of queue) {
     if (line.motion === null) continue;
-    const { lengthMm, seconds: s } = line.motion;
-    mm = valid(lengthMm) ? mm + lengthMm : Infinity;
+    const { boundMm, seconds: s } = line.motion;
+    mm = valid(boundMm) ? mm + boundMm : Infinity;
     seconds = valid(s) ? seconds + s : Infinity;
   }
   return { mmUpperBound: mm, secondsEstimate: seconds };

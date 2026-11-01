@@ -27,6 +27,7 @@ import {
   noVelocityMessage,
   splitArc,
   splitLinear,
+  travelBoundMm,
   type ArcInput,
   type LinearAxis,
   type Plane,
@@ -34,7 +35,7 @@ import {
 } from './geometry.ts';
 import { canonicalCode, type Word } from './lex.ts';
 import type { Axis, MotionModel, ReportEntry, RotaryAxis, SanitizeOptions, SanitizeRule, StartState, Wcs } from './types.ts';
-import { AXES, AXIS_MODE_RADIUS, WCS_CODES } from './types.ts';
+import { AXES, AXIS_MODE_DISABLED, AXIS_MODE_RADIUS, WCS_CODES } from './types.ts';
 
 type Pos = Record<Axis, number | null>;
 
@@ -90,7 +91,7 @@ export interface LineAnalysis {
   /** The line as one move, or as sub-segment bodies replacing it. */
   readonly motion:
     | null
-    | { readonly kind: 'single'; readonly lengthMm: number; readonly seconds: number }
+    | { readonly kind: 'single'; readonly plannerLength: number; readonly boundMm: number | null; readonly seconds: number }
     | { readonly kind: 'split'; readonly bodies: readonly string[]; readonly segments: readonly Segment[]; readonly seconds: number };
   readonly toolChange: boolean;
   /** M0 or M60. */
@@ -307,6 +308,35 @@ export class JobModel {
   #offsetScale(axis: Axis, units: 'G20' | 'G21' | null): number | null {
     if (ROTARY.has(axis) && !this.#job.rotaryOffsetsUseUnits) return 1;
     return JobModel.#unitScale(units);
+  }
+
+  /**
+   * Physical mm of travel per model unit on an axis (mm on X/Y/Z, degrees on
+   * A/B/C), or null when there is no known conversion (SAFETY §4.3 H1: the
+   * overrun distance is a true bound, so degrees never count as mm).
+   * - Linear axes: 1.
+   * - Radius mode: the firmware turns linear units into degrees at `ra`
+   *   (@cite EN canonical_machine.c:482-487; TG canonical_machine.c:430-440),
+   *   so one degree is π ra / 180 mm of surface travel at that radius.
+   * - Disabled: the axis is skipped when the target is set and never moves
+   *   (@cite EN canonical_machine.c:513-514; TG canonical_machine.c:457).
+   * - Standard: degrees with no physical radius known, so unknown.
+   * - Inhibited: the kinematics force the absolute joint to 0 (@cite EN
+   *   kinematics.c:59; TG kinematics.c:63), so a motor away from 0 can move
+   *   by an amount the model does not know: unknown.
+   */
+  #mmPerUnit(axis: Axis): number | null {
+    if (!ROTARY.has(axis)) return 1;
+    const cfg = this.#motion.rotary[axis as RotaryAxis];
+    if (cfg === undefined) return null;
+    if (cfg.mode === AXIS_MODE_RADIUS) return cfg.radiusMm === undefined ? null : (Math.PI * cfg.radiusMm) / 180;
+    if (cfg.mode === AXIS_MODE_DISABLED) return 0;
+    return null;
+  }
+
+  /** The true travel bound of a move by these model-unit deltas, mm, or null (see `travelBoundMm`). */
+  #boundMm(delta: Readonly<Partial<Record<Axis, number>>>): number | null {
+    return travelBoundMm(AXES.map((a) => ({ axis: a, delta: delta[a] ?? 0, mmPerUnit: this.#mmPerUnit(a) })));
   }
 
   /** Whether a word on this axis needs the program units to be modelled as a move target. */
@@ -782,7 +812,7 @@ export class JobModel {
     const legs = [first, second].map((delta) => {
       const moving = AXES.filter((a) => (delta[a] ?? 0) !== 0);
       const length = Math.hypot(...moving.map((a) => delta[a] as number));
-      return { length, d: moveSeconds(moving, length, null, this.#motion) };
+      return { length, bound: this.#boundMm(delta), d: moveSeconds(moving, length, null, this.#motion) };
     });
     this.#moveBy(first);
     this.#moveBy(second);
@@ -794,12 +824,13 @@ export class JobModel {
       }
       seconds += leg.d.seconds;
     }
-    const lengthMm = legs.reduce((sum, leg) => sum + leg.length, 0);
+    const plannerLength = legs.reduce((sum, leg) => sum + leg.length, 0);
+    const boundMm = legs.reduce<number | null>((sum, leg) => (sum === null || leg.bound === null ? null : sum + leg.bound), 0);
     if (seconds > this.#motion.ceilingSeconds) {
       findings.push(block('split-impossible', `${action} moves for about ${formatNumber(seconds, 1)} s, above the queued-motion ceiling, and cannot be split`));
       return null;
     }
-    return { kind: 'single', lengthMm, seconds };
+    return { kind: 'single', plannerLength, boundMm, seconds };
   }
 
   /** The delta (mm or degrees) an axis word asks for, or null when it depends on something unknown. */
@@ -844,9 +875,10 @@ export class JobModel {
       return null;
     }
     const moving = AXES.filter((a) => (delta[a] ?? 0) !== 0);
-    const lengthMm = Math.hypot(...moving.map((a) => delta[a] as number));
+    const plannerLength = Math.hypot(...moving.map((a) => delta[a] as number));
+    const boundMm = this.#boundMm(delta);
     const feed = mode === 'G0' ? null : (this.feed as number);
-    const d = moveSeconds(moving, lengthMm, feed, this.#motion);
+    const d = moveSeconds(moving, plannerLength, feed, this.#motion);
     const start = { ...this.work };
     const startMachine = { ...this.machine };
     this.#moveBy(delta);
@@ -854,7 +886,7 @@ export class JobModel {
       findings.push(block('no-velocity-limit', noVelocityMessage(d)));
       return null;
     }
-    if (d.seconds <= this.#motion.ceilingSeconds) return { kind: 'single', lengthMm, seconds: d.seconds };
+    if (d.seconds <= this.#motion.ceilingSeconds) return { kind: 'single', plannerLength, boundMm, seconds: d.seconds };
 
     const absolute = g53 || distance === 'G90';
     const axes: LinearAxis[] = axisWords.map((w) => {
@@ -867,6 +899,7 @@ export class JobModel {
         delta: absolute ? w.value - from / sc : w.value,
         written: w.text,
         scale: sc,
+        mmPerUnit: this.#mmPerUnit(a),
         decimals: !this.#needsUnits(a) ? DECIMALS.rotary : units === 'G20' ? DECIMALS.in : DECIMALS.mm,
       };
     });
@@ -976,7 +1009,10 @@ export class JobModel {
       findings.push(block('no-velocity-limit', noVelocityMessage(d)));
       return null;
     }
-    if (d.seconds <= this.#motion.ceilingSeconds) return { kind: 'single', lengthMm: model.arc.lengthMm, seconds: d.seconds };
+    // Arcs carry no rotary words (blocked above), so the arc length is a physical length in mm.
+    if (d.seconds <= this.#motion.ceilingSeconds) {
+      return { kind: 'single', plannerLength: model.arc.lengthMm, boundMm: model.arc.lengthMm, seconds: d.seconds };
+    }
 
     const dec = units === 'G20' ? DECIMALS.in : DECIMALS.mm;
     const startOf = (axis: Axis): number | null => {

@@ -74,6 +74,7 @@ export type RotaryAxis = 'A' | 'B' | 'C';
  */
 export type AxisMode = 0 | 1 | 2 | 3;
 
+export const AXIS_MODE_DISABLED: AxisMode = 0;
 export const AXIS_MODE_RADIUS: AxisMode = 3;
 
 /**
@@ -142,8 +143,21 @@ export type LineOrigin =
 
 /** The modelled motion of one sent line. */
 export interface LineMotion {
-  /** Path length, mm (degrees count as mm for rotary-only moves, as TinyG does). */
-  readonly lengthMm: number;
+  /**
+   * The firmware planner's length of the move: the Euclidean norm of the
+   * target deltas, mm on X/Y/Z and degrees on A/B/C, mixed as TinyG's
+   * planner mixes them. It drives the time estimate only; it is not a
+   * distance and must never be shown or summed as millimetres.
+   */
+  readonly plannerLength: number;
+  /**
+   * A true upper bound on the physical travel of this line, mm, or null
+   * when it cannot be bounded (rotary travel with no known radius, SAFETY
+   * §4.3 H1). Linear travel is its Euclidean length; a radius-mode rotary
+   * axis adds its surface travel at the configured radius `ra`
+   * (degrees × π ra / 180); a disabled rotary axis adds nothing.
+   */
+  readonly boundMm: number | null;
   /** Modelled duration at `v_eff` (SAFETY §4.3). Never above the ceiling. */
   readonly seconds: number;
 }

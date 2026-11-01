@@ -66,16 +66,16 @@ export function noVelocityMessage(d: Extract<DurationResult, { kind: 'noVelocity
 }
 
 /**
- * Modelled duration of a move of `lengthMm` along `moving` axes: a feed move
+ * Modelled duration of a move of `plannerLength` along `moving` axes: a feed move
  * at `min(feedMmPerMin, fr)`, or a rapid at `vm` when `feedMmPerMin` is null.
  */
 export function moveSeconds(
   moving: readonly Axis[],
-  lengthMm: number,
+  plannerLength: number,
   feedMmPerMin: number | null,
   motion: MotionModel,
 ): DurationResult {
-  if (lengthMm === 0) return { kind: 'ok', seconds: 0 };
+  if (plannerLength === 0) return { kind: 'ok', seconds: 0 };
   const rapid = feedMmPerMin === null;
   const table = rapid ? motion.maxVelocity : motion.feedrateMax;
   let limit = Infinity;
@@ -85,7 +85,7 @@ export function moveSeconds(
     limit = Math.min(limit, v);
   }
   const v = rapid ? limit : Math.min(feedMmPerMin, limit);
-  return { kind: 'ok', seconds: (lengthMm / (v * motion.k)) * 60 };
+  return { kind: 'ok', seconds: (plannerLength / (v * motion.k)) * 60 };
 }
 
 /** Formats a number with at most `decimals` places, no trailing zeros, no exponent and no `-0`. */
@@ -113,16 +113,51 @@ export interface LinearAxis {
   readonly delta: number;
   /** The word's text as written, used unchanged for the final endpoint of an absolute move. */
   readonly written: string;
-  /** mm per program unit (25.4 under G20; 1 under G21 and for rotary axes). */
+  /** Model units (mm, or degrees on a rotary axis) per program unit. */
   readonly scale: number;
+  /** Physical mm of travel per model unit (see `travelBoundMm`); null when unknown. */
+  readonly mmPerUnit: number | null;
   readonly decimals: number;
 }
 
 export interface Segment {
   /** Axis (and, for arcs, offset) words of this sub-segment, e.g. `X10.5`. */
   readonly words: readonly string[];
-  readonly lengthMm: number;
+  /** Firmware planner length (mm and degrees mixed); for the time estimate only. */
+  readonly plannerLength: number;
+  /** True upper bound on physical travel, mm, or null when it cannot be bounded. */
+  readonly boundMm: number | null;
   readonly seconds: number;
+}
+
+/** One axis's share of a move, for `travelBoundMm`. */
+export interface TravelPart {
+  readonly axis: Axis;
+  /** Delta in model units: mm on X/Y/Z, degrees on A/B/C. */
+  readonly delta: number;
+  /** Physical mm per model unit, or null when no conversion is known. */
+  readonly mmPerUnit: number | null;
+}
+
+/**
+ * A true upper bound on the physical travel of a straight move, mm, or null
+ * when it cannot be bounded (SAFETY §4.3 H1: the overrun distance never
+ * under-reports). The linear axes move along a straight line, so they add
+ * their Euclidean length; each rotary axis adds its own surface travel
+ * `|Δ°| × mmPerUnit`. By the triangle inequality on the velocity, that sum
+ * is never below the length of the combined (helical) path. A moving rotary
+ * axis with no known conversion makes the bound unknown, never a guess.
+ */
+export function travelBoundMm(parts: readonly TravelPart[]): number | null {
+  const linear: number[] = [];
+  let rotary = 0;
+  for (const p of parts) {
+    if (p.delta === 0) continue;
+    if (p.mmPerUnit === null) return null;
+    if (ROTARY.has(p.axis)) rotary += Math.abs(p.delta) * p.mmPerUnit;
+    else linear.push(p.delta * p.mmPerUnit);
+  }
+  return Math.hypot(...linear) + rotary;
 }
 
 export type SplitResult =
@@ -175,15 +210,17 @@ export function splitLinear(
         const places = last ? Math.max(a.decimals, decimalsIn(a.written)) : a.decimals;
         return `${a.axis}${formatNumber(here - before, places)}`;
       });
-      const lengthMm = lengthOf(axes.map((a, i) => ((position[i] as number) - (previous[i] as number)) * a.scale));
-      const d = moveSeconds(moving, lengthMm, feedMmPerMin, motion);
+      const step = axes.map((a, i) => ((position[i] as number) - (previous[i] as number)) * a.scale);
+      const plannerLength = lengthOf(step);
+      const boundMm = travelBoundMm(axes.map((a, i) => ({ axis: a.axis, delta: step[i] as number, mmPerUnit: a.mmPerUnit })));
+      const d = moveSeconds(moving, plannerLength, feedMmPerMin, motion);
       /* c8 ignore next -- the caller has already modelled the whole move, so every moving axis has a velocity */
       if (d.kind !== 'ok') return { kind: 'impossible', detail: `no velocity for axis ${d.axis}` };
       if (d.seconds > budget) {
         ok = false;
         break;
       }
-      segments.push({ words, lengthMm, seconds: d.seconds });
+      segments.push({ words, plannerLength, boundMm, seconds: d.seconds });
       previous = position;
     }
     if (ok) return { kind: 'ok', segments };
@@ -553,6 +590,7 @@ export function splitArc(
       ) {
         return { kind: 'impossible', detail: 'a sub-arc fails the continuity check after rounding' };
       }
+      // Arcs carry no rotary words (blocked by the caller), so the planner length is mm.
       const lengthMm = Math.hypot(travel * rStart, (eLin - prevLin) * s);
       const d = moveSeconds(moving, lengthMm, feedMmPerMin, motion);
       /* c8 ignore next -- the caller has already modelled the whole arc, so every moving axis has a velocity */
@@ -573,7 +611,7 @@ export function splitArc(
         if (writing.linearMoves) words.push(`${p.lin}${formatNumber(eLin - prevLin, places)}`);
       }
       words.push(`${p.o0}${formatNumber(o0, dec)}`, `${p.o1}${formatNumber(o1, dec)}`);
-      segments.push({ words, lengthMm, seconds: d.seconds });
+      segments.push({ words, plannerLength: lengthMm, boundMm: lengthMm, seconds: d.seconds });
       prev0 = e0;
       prev1 = e1;
       prevLin = eLin;

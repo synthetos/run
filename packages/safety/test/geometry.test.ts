@@ -123,7 +123,7 @@ describe('modelArc follows EN plan_arc.c', () => {
 describe('splitting refuses what it cannot do within tolerance', () => {
   const TWO: MotionModel = { ...MODEL, ceilingSeconds: 2 };
   it('a straight move that would need sub-segments under 0.01 mm', () => {
-    const r = splitLinear([{ axis: 'X', start: 0, delta: 1, written: '1', scale: 1, decimals: 4 }], true, 0.3, 400, TWO);
+    const r = splitLinear([{ axis: 'X', start: 0, delta: 1, written: '1', scale: 1, mmPerUnit: 1, decimals: 4 }], true, 0.3, 400, TWO);
     expect(r.kind).toBe('impossible');
   });
 
@@ -137,7 +137,7 @@ describe('splitting refuses what it cannot do within tolerance', () => {
 
   it('adds segments until every one fits, starting from a low estimate', () => {
     // Told the move takes 1 s, the splitter starts with 2 segments and adds more until each fits 2 s.
-    const lin = splitLinear([{ axis: 'X', start: 0, delta: 100, written: '100', scale: 1, decimals: 4 }], true, 600, 1, TWO);
+    const lin = splitLinear([{ axis: 'X', start: 0, delta: 100, written: '100', scale: 1, mmPerUnit: 1, decimals: 4 }], true, 600, 1, TWO);
     expect(lin.kind === 'ok' && lin.segments.length).toBe(11);
     const input = arc({ d0: 100, centre: { c0: 50, c1: 0 } });
     const m = modelArc(input);

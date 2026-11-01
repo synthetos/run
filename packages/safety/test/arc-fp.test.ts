@@ -96,7 +96,7 @@ describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', (
     for (const code of ['G2', 'G3']) {
       const r = run(`${code} X0 Y-0.000001 I-10 J0 F100\n`, TG);
       expect(r.report.blocked, code).toBe(true);
-      expect(r.lines.filter((l) => l.motion !== null && l.motion.lengthMm > 0)).toHaveLength(0);
+      expect(r.lines.filter((l) => l.motion !== null && l.motion.plannerLength > 0)).toHaveLength(0);
     }
   });
 

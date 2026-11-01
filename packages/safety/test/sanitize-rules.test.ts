@@ -291,7 +291,7 @@ describe('step 8: holdback and mid-file program end', () => {
   it('after a TG mid-file M30 the board defaults are restored, so the next lines are still modelled', () => {
     const r = run('G91\nM30\nG0 X1\nM30\n', TG);
     expect(r.report.blocked).toBe(false);
-    expect(r.lines.find((l) => l.body === 'G0 X1')?.motion?.lengthMm).toBe(1);
+    expect(r.lines.find((l) => l.body === 'G0 X1')?.motion?.plannerLength).toBe(1);
   });
 
   it('with unknown board defaults, the move after a mid-file M30 cannot be modelled', () => {

@@ -303,7 +303,7 @@ describe('split details', () => {
     const near = { ...START, g28: { X: 10, Y: 0, Z: 0, A: 0, B: 0, C: 0 } };
     const ok = sanitizeJob('G28 Z5\n', TINYG_EN, { motion: fast, start: near });
     expect(ok.report.blocked).toBe(false);
-    expect(ok.lines[0]?.motion?.lengthMm).toBeCloseTo(5 + Math.hypot(10, 5), 9);
+    expect(ok.lines[0]?.motion?.plannerLength).toBeCloseTo(5 + Math.hypot(10, 5), 9);
     const far = sanitizeJob('G28\n', TINYG_EN, { motion, start: { ...START, g28: { X: 500, Y: 0, Z: 0, A: 0, B: 0, C: 0 } } });
     expect(far.report.entries.map((e) => e.rule)).toEqual(['split-impossible']);
   });

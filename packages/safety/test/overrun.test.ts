@@ -23,13 +23,17 @@ describe('overrunBound', () => {
   });
 
   it('is never below the length of any queued move, and grows with every move (fast-check)', () => {
-    const move = fc.record({ lengthMm: fc.double({ min: 0, max: 1e4, noNaN: true }), seconds: fc.double({ min: 0, max: 20, noNaN: true }) });
+    const move = fc.record({
+      plannerLength: fc.double({ min: 0, max: 1e4, noNaN: true }),
+      boundMm: fc.double({ min: 0, max: 1e4, noNaN: true }),
+      seconds: fc.double({ min: 0, max: 20, noNaN: true }),
+    });
     fc.assert(
       fc.property(fc.array(fc.option(move, { nil: null })), (moves) => {
         const q = moves.map((motion) => ({ motion }));
         const b = overrunBound(q);
-        for (const m of moves) if (m !== null) expect(b.mmUpperBound).toBeGreaterThanOrEqual(m.lengthMm);
-        const total = moves.reduce((s, m) => s + (m?.lengthMm ?? 0), 0);
+        for (const m of moves) if (m !== null) expect(b.mmUpperBound).toBeGreaterThanOrEqual(m.boundMm);
+        const total = moves.reduce((s, m) => s + (m?.boundMm ?? 0), 0);
         expect(b.mmUpperBound).toBeCloseTo(total, 6);
       }),
     );
@@ -37,15 +41,30 @@ describe('overrunBound', () => {
 
   it('fails safe: a length or time that is not a finite, non-negative number makes that half Infinity', () => {
     for (const bad of [Number.NaN, -1, Number.POSITIVE_INFINITY]) {
-      expect(overrunBound([{ motion: { lengthMm: 1, seconds: 1 } }, { motion: { lengthMm: bad, seconds: 1 } }])).toEqual({
+      const ok = { plannerLength: 1, boundMm: 1, seconds: 1 };
+      expect(overrunBound([{ motion: ok }, { motion: { ...ok, boundMm: bad } }])).toEqual({
         mmUpperBound: Number.POSITIVE_INFINITY,
         secondsEstimate: 2,
       });
-      expect(overrunBound([{ motion: { lengthMm: 1, seconds: bad } }]).secondsEstimate).toBe(Number.POSITIVE_INFINITY);
+      expect(overrunBound([{ motion: { ...ok, seconds: bad } }]).secondsEstimate).toBe(Number.POSITIVE_INFINITY);
     }
+    // A bound the sanitiser could not compute (null) is unknown too.
+    const ok = { plannerLength: 1, boundMm: 1, seconds: 1 };
+    expect(overrunBound([{ motion: ok }, { motion: { ...ok, boundMm: null } }])).toEqual({
+      mmUpperBound: Number.POSITIVE_INFINITY,
+      secondsEstimate: 2,
+    });
     // Once unknown, a later valid move does not bring it back.
-    expect(overrunBound([{ motion: { lengthMm: Number.NaN, seconds: 1 } }, { motion: { lengthMm: 1, seconds: 1 } }]).mmUpperBound).toBe(
+    expect(overrunBound([{ motion: { ...ok, boundMm: Number.NaN } }, { motion: ok }]).mmUpperBound).toBe(
       Number.POSITIVE_INFINITY,
     );
+  });
+
+  it('sums the physical bound, never the planner length (P0-10 #3: degrees are not mm)', () => {
+    // A radius-mode A10 at ra = 1000: the planner sees 0.573 degrees, the surface travels 10 mm.
+    const q = [{ motion: { plannerLength: 0.5729577951308232, boundMm: 10, seconds: 1 } }];
+    expect(overrunBound(q).mmUpperBound).toBe(10);
+    // Travel that cannot be bounded (no known radius) is unknown, whatever the planner length.
+    expect(overrunBound([{ motion: { plannerLength: 10, boundMm: null, seconds: 1 } }, ...q]).mmUpperBound).toBe(Number.POSITIVE_INFINITY);
   });
 });

@@ -190,7 +190,7 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
           barrier: last && barrier,
           programEnd: last && analysis.programEnd,
           outputsOn: i === 0 && analysis.outputsOn,
-          motion: { lengthMm: seg.lengthMm, seconds: seg.seconds },
+          motion: { plannerLength: seg.plannerLength, boundMm: seg.boundMm, seconds: seg.seconds },
           group,
         });
       });
@@ -201,7 +201,10 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
       add(lineNo, { severity: 'change', rule: 'dropped-empty', message: 'nothing left to send on this line' });
       return;
     }
-    const motion = analysis.motion === null ? null : { lengthMm: analysis.motion.lengthMm, seconds: analysis.motion.seconds };
+    const motion =
+      analysis.motion === null
+        ? null
+        : { plannerLength: analysis.motion.plannerLength, boundMm: analysis.motion.boundMm, seconds: analysis.motion.seconds };
     candidates.push({ sourceLine: lineNo, origin: 'file', body, barrier, programEnd: analysis.programEnd, outputsOn: analysis.outputsOn, motion, group });
   });
 

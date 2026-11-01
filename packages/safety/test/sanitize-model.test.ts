@@ -16,7 +16,7 @@ const TG = TINYG_440;
 function lengthOf(file: string, body: string, start: StartState = START, d = EN): number | undefined {
   const r = run(file, d, { start });
   expect(r.report.blocked, JSON.stringify(r.report.entries)).toBe(false);
-  return r.lines.find((l) => l.body === body)?.motion?.lengthMm;
+  return r.lines.find((l) => l.body === body)?.motion?.plannerLength;
 }
 
 describe('unknown state blocks moves that depend on it', () => {
@@ -26,7 +26,7 @@ describe('unknown state blocks moves that depend on it', () => {
     expect(r.report.entries.find((e) => e.rule === 'unknown-state')?.message).toContain('work position of X');
     const inc = run('G21 G91 G0 X1\n', EN, { start: {} });
     expect(inc.report.blocked).toBe(false);
-    expect(inc.lines[0]?.motion?.lengthMm).toBe(1);
+    expect(inc.lines[0]?.motion?.plannerLength).toBe(1);
   });
 
   it('a long incremental move from an unknown position is still split', () => {
@@ -228,7 +228,7 @@ describe('arcs', () => {
     const r = run('G2 F1000\nX10 Y0 I5\n', EN);
     expect(r.report.blocked).toBe(false);
     expect(r.lines[0]?.motion).toBeNull();
-    expect(r.lines[1]?.motion?.lengthMm).toBeCloseTo(5 * Math.PI, 9);
+    expect(r.lines[1]?.motion?.plannerLength).toBeCloseTo(5 * Math.PI, 9);
   });
 
   it('feed under G20 is inches per minute once G20 is in force', () => {
@@ -412,9 +412,9 @@ describe('rotary axis modes (EN canonical_machine.c:484-487 _calc_ABC)', () => {
 
   it('a radius-mode axis reads the word in linear units and turns 360 / (2π ra) degrees per mm', () => {
     const r = run('G91 G0 A10\n', EN, { motion: radius(1) });
-    expect(r.lines[0]?.motion?.lengthMm).toBeCloseTo(10 * DEG_PER_MM, 9);
+    expect(r.lines[0]?.motion?.plannerLength).toBeCloseTo(10 * DEG_PER_MM, 9);
     // Absolute from A0 is the same move.
-    expect(run('G0 A10\n', EN, { motion: radius(1) }).lines[0]?.motion?.lengthMm).toBeCloseTo(10 * DEG_PER_MM, 9);
+    expect(run('G0 A10\n', EN, { motion: radius(1) }).lines[0]?.motion?.plannerLength).toBeCloseTo(10 * DEG_PER_MM, 9);
   });
 
   it('under G20 the radius-mode word is inches, and the long move is split within the ceiling', () => {
@@ -438,7 +438,7 @@ describe('rotary axis modes (EN canonical_machine.c:484-487 _calc_ABC)', () => {
   it('disabled and inhibited axes are modelled as degrees (they only ever move less)', () => {
     for (const mode of [0, 2] as const) {
       const r = run('G0 A10\n', EN, { motion: { ...MOTION, rotary: { A: { mode } } } });
-      expect(r.lines[0]?.motion?.lengthMm, String(mode)).toBe(10);
+      expect(r.lines[0]?.motion?.plannerLength, String(mode)).toBe(10);
     }
   });
 
@@ -453,7 +453,7 @@ describe('rotary axis modes (EN canonical_machine.c:484-487 _calc_ABC)', () => {
     expect(lengthOf('G92 A0\nG91 G0 A1\n', 'G91 G0 A1', START)).toBe(1);
     const r = run('G92 A5\nG90 G0 A0\n', EN, { motion: radius(1) });
     // Work A5 in degrees; A0 is a 5 degree move back.
-    expect(r.lines[1]?.motion?.lengthMm).toBeCloseTo(5, 9);
+    expect(r.lines[1]?.motion?.plannerLength).toBeCloseTo(5, 9);
   });
 
   it('rejects malformed rotary configuration and feed rate tables, saying what is wrong', () => {
@@ -539,7 +539,7 @@ describe('P0 review model details (mutation-tested)', () => {
 
   it('radius mode divides by the radius: 10 mm at ra 2 is 286.48 degrees', () => {
     const r = run('G91 G0 A10\n', EN, { motion: { ...MOTION, rotary: { ...MOTION.rotary, A: { mode: 3, radiusMm: 2 } } } });
-    expect(r.lines[0]?.motion?.lengthMm).toBeCloseTo((10 * 360) / (2 * Math.PI * 2), 9);
+    expect(r.lines[0]?.motion?.plannerLength).toBeCloseTo((10 * 360) / (2 * Math.PI * 2), 9);
   });
 
   it('a standard rotary move with unknown units and an unknown position names the position, not the units', () => {

@@ -102,7 +102,7 @@ describe('T-S2: CAM corpus', () => {
     const en = run(corpus('13-g10-l20.nc'), TINYG_EN);
     expect(en.report.blocked).toBe(false);
     // X reads 0 after L20 at machine X0, so G0 X5 is a 5 mm move.
-    expect(en.lines.find((l) => l.body === 'G0 X5')?.motion?.lengthMm).toBe(5);
+    expect(en.lines.find((l) => l.body === 'G0 X5')?.motion?.plannerLength).toBe(5);
     expect(blocks(run(corpus('13-g10-l20.nc'), TINYG_440))).toEqual(['l-word']);
   });
 
