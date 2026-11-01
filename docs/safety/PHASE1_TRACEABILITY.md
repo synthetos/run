@@ -85,3 +85,31 @@ Open with this task:
   the signed advisory the same way).
 - **B-PROBE-1** fixtures (`test-fixtures/probe/`) are recorded on the bench
   (BENCH-P103-1); none are committed until then.
+
+## P1-04: watchdog (read-only), STALE, LOST, UNKNOWN, audible alarm
+
+Code: `packages/machine/src/session/reducer.ts` (watchdog: `syncWatchdog`,
+`onWatchdog`, `askForLife`, `enterStale`; LOST and UNKNOWN), `session/types.ts`
+(`livenessIdleMs` 1 s, `staleAfterMs` 2 s), `session/snapshot.ts` (`stale`),
+`apps/web/src/machine-ui/OverlayBanners.ts` (W3, W4) and
+`apps/web/src/machine-ui/alarm.ts` (tone, AudioContext unlock).
+
+| Requirement | Implementation | Test | Status |
+|---|---|---|---|
+| Receive-timestamp liveness (SAFETY §4.2) | every received line sets `lastRxAt`, clears a pending liveness request and STALE, and restarts the idle watchdog | `p1-04-watchdog.test.ts` "a board that talks on its own" | PASS |
+| ENQ probe on EN, at most one outstanding; a `stat` GET where ENQ is not available | `askForLife`: ENQ only via `enqByte` (classified `tinyg-en`, rev-2/3 footer) and the matrix; an unanswered ENQ stays outstanding and the watchdog falls back to `{"stat":null}`; a reset banner clears the owed ack | `p1-04-watchdog.test.ts` "T-S11 (idle subset)" (both halves), "a reset banner clears the owed ENQ"; model tests (10k sessions) | PASS |
+| T-S11 (idle subset): expected silence never STALE; 2 s of unexpected silence STALE | idle board answering: never STALE (100 rounds, 60 s on the 440.21 model); no byte within 2 s of asking: STALE with `silentForMs` | `p1-04-watchdog.test.ts` (reducer and both firmware models, silence injected with link latency) | PASS (G4 P10 and the 5 s RUNNING FAULT need jobs: Phase 3, T-S11 full) |
+| LOST on a transport error; T-S8 (read-only subset): nothing written after LOST; the next connect is UNKNOWN | `onLinkLost` cancels every timer including the watchdog; the next connect adds UNKNOWN | `p1-04-watchdog.test.ts` "T-S8" (reducer and both models, link cut at four byte offsets); `session-executor.test.ts` LOST tests | PASS |
+| UNKNOWN rules | after LOST and after a banner after Ready (P1-02); after ackFault | `session-reducer.test.ts`, `p1-04-watchdog.test.ts` | PASS for these; discard and reload-while-LIVE come with the W6 marker (P1-05) |
+| W3 (`role="alert"`, `aria-live="assertive"`, tone) and W4 ("for N s") | `OverlayBanners`; `AlarmTone.sync` sounds on LOST only in Phase 1 (W12 and FAULT during a job arrive with jobs) | `apps/web/test/overlayAlarm.test.ts` "T-S30", "W4" | PASS (unit); the E2E run lands with the Connect UI |
+| AudioContext unlocked in the Connect gesture | `AlarmTone.unlock()` creates and resumes the context; to be called synchronously from the Connect click | `overlayAlarm.test.ts` | PASS (unit); wired when the Connect button exists |
+| HIL-1.5 | all of the above | `docs/bench/README.md` BENCH-P104-1 | HIL |
+
+Open with this task:
+
+- **No Connect UI yet.** The banners, the alarm and the `unlock` call are
+  built and tested but not mounted: the workspace has no Connect button or
+  snapshot subscription until the LIVE entry work (P1-05). T-S30 as an E2E
+  test (axe, AudioContext `running` in a real browser) runs then.
+- **Thresholds** are bench-validated in B-WD-1 (Phase 3); the 1 s idle
+  interval is this task's choice (SAFETY §4.2 gives only the 2 s STALE).
