@@ -33,3 +33,7 @@ export {
 } from './openPolicy.ts';
 export type { OpenDecision, OpenRefusalReason } from './openPolicy.ts';
 export * from './session/index.ts';
+export { liveControlPlatform } from './platform.ts';
+export type { PlatformDecision, PlatformInfo } from './platform.ts';
+export { checkSelection, suggestMachines } from './suggest.ts';
+export type { MachineCandidate, MachineSuggestion, ProbedBoard, SelectionCheck } from './suggest.ts';

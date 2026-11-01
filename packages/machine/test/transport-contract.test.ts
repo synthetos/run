@@ -82,6 +82,11 @@ describe('package entry', () => {
         'readableNow',
         'reduce',
         'snapshotOf',
+        // Probe follow-up (P1-03): W25, machine suggestion, the platform rule.
+        'checkSelection',
+        'liveControlPlatform',
+        'readOnlyNotice',
+        'suggestMachines',
       ].sort(),
     );
   });

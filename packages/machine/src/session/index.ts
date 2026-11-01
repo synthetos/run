@@ -33,3 +33,4 @@ export type {
   TimerId,
   Transition,
 } from './types.ts';
+export { readOnlyNotice } from './notices.ts';
