@@ -454,14 +454,19 @@ describe('rotary axis modes (EN canonical_machine.c:484-487 _calc_ABC)', () => {
     expect(r.lines[1]?.motion?.lengthMm).toBeCloseTo(5, 9);
   });
 
-  it('rejects malformed rotary configuration', () => {
-    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, rotary: { A: { mode: 4 as never } } } })).toThrow(RangeError);
-    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, rotary: { A: { mode: 3, radiusMm: 0 } } } })).toThrow(RangeError);
-    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, rotary: { X: { mode: 1 } } as never } })).toThrow(RangeError);
-    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, rotary: null as never } })).toThrow(RangeError);
-    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, rotary: { A: null as never } } })).toThrow(RangeError);
-    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, feedrateMax: undefined as never } })).toThrow(RangeError);
-    expect(() => run('G0 X1\n', EN, { motion: { ...MOTION, feedrateMax: { X: Number.NaN } } })).toThrow(RangeError);
+  it('rejects malformed rotary configuration and feed rate tables, saying what is wrong', () => {
+    const bad = (motion: object): (() => unknown) => () => run('G0 X1\n', EN, { motion: { ...MOTION, ...motion } as never });
+    expect(bad({ rotary: { A: { mode: 4 } } })).toThrow(/^rotary\.A\.mode must be 0, 1, 2 or 3$/);
+    expect(bad({ rotary: { A: null } })).toThrow(/^rotary\.A\.mode must be 0, 1, 2 or 3$/);
+    expect(bad({ rotary: { A: { mode: 3, radiusMm: 0 } } })).toThrow(/^rotary\.A\.radiusMm must be a positive number$/);
+    expect(bad({ rotary: { A: { mode: 3, radiusMm: Number.POSITIVE_INFINITY } } })).toThrow(/radiusMm/);
+    expect(bad({ rotary: { X: { mode: 1 } } })).toThrow(/^rotary\.X is not a rotary axis$/);
+    for (const rotary of [null, undefined, 'A']) expect(bad({ rotary }), String(rotary)).toThrow(/^rotary axis modes must be given/);
+    for (const feedrateMax of [null, undefined, 'x']) expect(bad({ feedrateMax }), String(feedrateMax)).toThrow(/^feedrateMax must be given/);
+    expect(bad({ feedrateMax: { X: Number.NaN } })).toThrow(/^feedrateMax\.X must be a positive number$/);
+    expect(bad({ maxVelocity: { X: 0 } })).toThrow(/^maxVelocity\.X must be a positive number$/);
+    expect(bad({ k: 0 })).toThrow(/^k must be in \(0, 1\]/);
+    expect(bad({ ceilingSeconds: 1 })).toThrow(/^ceilingSeconds must be from 2 to 20/);
   });
 });
 
@@ -509,5 +514,74 @@ describe('the tool length offset is applied to X, Y and Z only (EN canonical_mac
     expect(lengthOf('G10 L20 P1 A0\nG0 A0\n', 'G0 A0', start)).toBe(90);
     // With the rotary tool offset unknown, A is unknown after G92 A.
     expect(blocks(run('G92 A0\nG0 A0\n', EN, { start: { ...START, toolOffset: { X: 0, Y: 0, Z: 0 } } }))).toEqual(['unknown-state']);
+  });
+});
+
+describe('P0 review model details (mutation-tested)', () => {
+  const zero = { X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 };
+
+  it('F0 with unknown prior units is a missing feed, not an unknown unit', () => {
+    expect(blocks(run('G20 G91 G1 X1 F0\n', EN, { start: { ...START, units: undefined as never } }))).toEqual(['feed-not-set']);
+  });
+
+  it('offset words on a rotary axis need no axis mode: G10 and G92 on A pass with no am known', () => {
+    const motion = { ...MOTION, rotary: {} };
+    expect(run('G10 L2 P1 A5\n', EN, { motion }).report.blocked).toBe(false);
+    expect(run('G92 A0\n', EN, { motion }).report.blocked).toBe(false);
+  });
+
+  it('names one risky axis with "is"', () => {
+    const r = run('G28\n', EN, { motion: { ...MOTION, rotary: { A: { mode: 1 }, B: { mode: 1 }, C: { mode: 3, radiusMm: 1 } } } });
+    expect(r.report.entries[0]?.message).toBe('G28 cannot be modelled while C is in radius mode or of unknown axis mode');
+  });
+
+  it('radius mode divides by the radius: 10 mm at ra 2 is 286.48 degrees', () => {
+    const r = run('G91 G0 A10\n', EN, { motion: { ...MOTION, rotary: { ...MOTION.rotary, A: { mode: 3, radiusMm: 2 } } } });
+    expect(r.lines[0]?.motion?.lengthMm).toBeCloseTo((10 * 360) / (2 * Math.PI * 2), 9);
+  });
+
+  it('a standard rotary move with unknown units and an unknown position names the position, not the units', () => {
+    const r = run('G90 G0 A10\n', EN, { start: { ...START, units: undefined as never, machine: { X: 0, Y: 0, Z: 0 } } });
+    expect(r.report.entries[0]?.message).toContain('work position of A');
+    expect(r.report.entries[0]?.message).not.toContain('the units');
+  });
+
+  it('a split standard rotary move under G20 keeps rotary (degree) decimals', () => {
+    const r = run('G20\nG91 G0 A20000.123456\n', EN, { motion: { ...MOTION, maxVelocity: { ...MOTION.maxVelocity, A: 600 } } });
+    expect(r.report.blocked).toBe(false);
+    for (const l of r.lines.filter((x) => x.origin === 'split').slice(0, -1)) {
+      const value = /A(-?[\d.]+)/.exec(l.body)?.[1] ?? '';
+      expect(value.split('.')[1]?.length ?? 0, l.body).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it('an unknown linear tool offset makes the absolute position of that axis unknown', () => {
+    expect(blocks(run('G0 X1\n', EN, { start: { ...START, toolOffset: { Y: 0, Z: 0, A: 0, B: 0, C: 0 } } }))).toEqual(['unknown-state']);
+  });
+
+  it('G92 on a linear axis is not shifted by the tool offset (work = value exactly)', () => {
+    const start: StartState = { ...START, toolOffset: { ...zero, X: 1 } };
+    expect(lengthOf('G92 X5\nG0 X0\n', 'G0 X0', start)).toBe(5);
+  });
+
+  it('G92 on a rotary axis reads value + stored tool offset (value 10, tool 90: G0 A0 is 100 degrees)', () => {
+    const start: StartState = { ...START, toolOffset: { ...zero, A: 90 } };
+    expect(lengthOf('G92 A10\nG0 A0\n', 'G0 A0', start)).toBe(100);
+    expect(lengthOf('G10 L20 P1 A10\nG0 A0\n', 'G0 A0', start)).toBe(100);
+  });
+
+  it('TG G92 A with unknown units leaves A unknown (the 25.4 may or may not apply)', () => {
+    expect(blocks(run('G92 A10\nG0 A0\n', TG, { start: { ...START, units: undefined as never } }))).toEqual(['unknown-state']);
+  });
+
+  it('G43.1 with unknown units makes that axis unknown', () => {
+    const start: StartState = { ...START, units: undefined as never };
+    expect(blocks(run('G43.1 Z5\nG21 G0 Z1\n', EN, { start }))).toEqual(['unknown-state']);
+  });
+
+  it('G43.1 shifts a work position known only through G92 by the offset (machine position unknown)', () => {
+    // Work Z0 after G92; G43.1 Z5 makes work Z -5; G0 Z1 is then a 6 mm move (not 4).
+    const start: StartState = { ...START, machine: { X: 0, Y: 0, A: 0, B: 0, C: 0 } };
+    expect(lengthOf('G92 Z0\nG43.1 Z5\nG0 Z1\n', 'G0 Z1', start)).toBe(6);
   });
 });

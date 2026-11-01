@@ -127,6 +127,9 @@ describe('malformed proposed values fail closed (SAFETY §4.10 rule 4)', () => {
     ['jog feed missing', { jogCaps: { maxStepMm: 5 } }],
     ['jog caps null', { jogCaps: null }],
     ['jog step negative', { jogCaps: { maxStepMm: -1, maxFeedMmPerMin: 1000 } }],
+    ['jog step zero', { jogCaps: { maxStepMm: 0, maxFeedMmPerMin: 1000 } }],
+    ['ceiling above range', { queuedMotionCeilingS: 21 }],
+    ['dual motor axis not a string', { dualMotorAxes: [{ axis: 5, motors: [2, 3] }] }],
     ['ceiling NaN', { queuedMotionCeilingS: Number.NaN }],
     ['ceiling null', { queuedMotionCeilingS: null }],
     ['ceiling string', { queuedMotionCeilingS: '3' }],
@@ -152,6 +155,18 @@ describe('malformed proposed values fail closed (SAFETY §4.10 rule 4)', () => {
       expect(effectiveHostGates(BASE, proposed, NONE)).toEqual(BASE);
     });
   }
+
+  it('every enumerated value and the range ends are well formed', () => {
+    for (const spindleKind of ['spindle', 'laser', 'plasma', 'none'] as const) {
+      expect(diffHostGates({ ...BASE, spindleKind: 'spindle' }, { ...BASE, spindleKind }).every((c) => !c.malformed), spindleKind).toBe(true);
+    }
+    for (const hostLossPolicy of ['drain', 'hold-and-spindle-pause'] as const) {
+      expect(diffHostGates({ ...BASE, hostLossPolicy: hostLossPolicy === 'drain' ? 'hold-and-spindle-pause' : 'drain' }, { ...BASE, hostLossPolicy })[0]?.malformed).toBe(false);
+    }
+    for (const queuedMotionCeilingS of [2, 20]) {
+      expect(diffHostGates({ ...BASE, queuedMotionCeilingS: 5 }, { ...BASE, queuedMotionCeilingS })[0]?.malformed, String(queuedMotionCeilingS)).toBe(false);
+    }
+  });
 
   it('well-formed tightenings still apply at once', () => {
     const tighter: HostGates = { ...BASE, jogCaps: { maxStepMm: 1, maxFeedMmPerMin: 500 }, queuedMotionCeilingS: 2, holdTimeoutS: 30 };
