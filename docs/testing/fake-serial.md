@@ -176,14 +176,20 @@ listener handles it exactly as it would a message from the page. The worker
 does not check `isTrusted`, because only code already running in the worker
 can dispatch such an event.
 
-The test asserts that:
+The test asserts (RPC version 3, P1-02) that:
 - the worker reports `source: 'fake'`;
 - `open` succeeds and reports the board's USB identity (0403:6015);
 - the mock port's `openLog` shows one open with
   `{ baudRate: 115200, flowControl: 'none', bufferSize: 256 }`;
-- the worker reads the board's banner bytes;
-- a second `open` is refused (`busy`) and opens nothing;
+- the read-only `MachineSession` waits out the simulated board's boot,
+  probes it from `{"sr":null}`, classifies it `tinyg-en` (READ_ONLY: the
+  worker has no approved builds yet) and reaches CONNECTED_UNKNOWN;
+- Pause writes `!`, an allowlisted read is answered, `md` is refused, and
+  every byte written to the board is a single-token GET or `!` (read from
+  the simulated link's transcript);
+- a second `open` is denied by the allow-matrix and opens nothing;
 - `close` releases the reader and closes the port;
+- a subscribed port receives the session snapshots, at most 20 per second;
 - the page itself still shows NOT CONNECTED.
 
 The production suite (`machine-worker.e2e.ts`) asserts, on the attested

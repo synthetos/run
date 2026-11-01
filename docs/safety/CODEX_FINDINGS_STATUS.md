@@ -154,6 +154,14 @@ the B-* bench items, are separate and all still ahead):
   and wired into the worker's release seam; it needs its own independent
   review (D40) before it merges, with row 4's branch protection on.
 
+- **P1-02 (the read-only `MachineSession` in `machine.worker`)**: done
+  locally (commits "safety: the Phase 1 release gate ...", "machine: the
+  read-only MachineSession ...", "machine worker: ..."); traced in
+  `docs/safety/PHASE1_TRACEABILITY.md`. Like P1-01 it needs its own
+  recorded independent review (D40) before it merges. Its bench items
+  (BENCH-P102-*) wait for the window's port chooser, which is still a
+  separate gate change.
+
 Not blocking Phase 1: row 35's remainder (no `am` write, no motion), row 32
 (housekeeping). Its Phase 1 consequence is implemented (P1-00): read-only
 sessions surface the axis-mode facts that are unsafe for later motion,

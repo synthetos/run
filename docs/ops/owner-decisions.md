@@ -14,6 +14,7 @@ update this page and the pages it names in one reviewed PR.
 | OD-1 | How does a solo maintainer meet the review rules? | **DECIDED as D40 (owner, 2026-11-01); carried into this repository** | — |
 | OD-2 | How does `run.synthetos.com` reach a Worker in the dedicated D34 account, when the `synthetos.com` zone is in another account? | **DECIDED as D39 (owner, 2026-11-01), superseding D34; carried into this repository** | — |
 | OD-3 | D41 (proposed): how is the D1 sign-in gate satisfied before accounts.synthetos.com and staging Access exist, and how is Web Serial granted for Phase 1? | **PROPOSED (2026-11-01), awaiting the owner's confirmation** | P1-05 (gate providers); the P1-00 implementation below is already in place and safe either way |
+| OD-4 | In Phase 1, a session under ORPHANED_MOTION cannot be disconnected from the app (the matrix allows only Stop job and Reset controller as exits, and Phase 1 has neither ^D nor ^X). Keep that, or allow Disconnect there in Phase 1? | **OPEN (raised in P1-02, 2026-11-01)** | Nothing in Phase 1 is unsafe either way; it decides what the bench guide tells the user (unplug or close the tab today) |
 
 Both decisions are recorded in `DECISIONS.md`, and the gates and ops pages
 now implement them (`docs/LEAD_ACTIONS.md` Step 0 summarises what changed
@@ -223,3 +224,31 @@ Nothing in the machine path imports the build channel
 `apps/web/src/channel/bench*.ts`, `tools/gates/src/bench/`, the bench scan
 target and the policy rule) in one reviewed change; staging and production
 headers are independent of it.
+
+---
+
+## OD-4. Disconnect under ORPHANED_MOTION in Phase 1 (raised in P1-02)
+
+**What the design says.** SAFETY §3: "From ORPHANED_MOTION: only Stop job
+(...) or Reset controller (C15, then a full re-handshake). Never `~`." The
+allow-matrix (P0-10) therefore denies Disconnect under ORPHANED_MOTION, so
+the user cannot walk away from a machine that is still running something a
+previous session queued.
+
+**What Phase 1 adds.** Phase 1 never writes ^D or ^X (ROADMAP Phase 1). So
+under ORPHANED_MOTION the only thing the app can send is `!` with "Use your
+E-stop", and there is no way to leave the overlay from the app: it ends when
+the board resets (its banner; the probe then starts again) or when the USB
+link goes (LOST, then Acknowledge). Closing the tab also releases the port.
+The P1-02 implementation follows the matrix as written; the bench guide
+(BENCH-P102-4) tells the user to unplug the board or close the tab.
+
+**Options.**
+1. Keep it (recommended for Phase 1): disconnecting does not stop the
+   machine, the user is at the bench with the E-stop, and unplugging is the
+   honest action. Nothing changes.
+2. Allow Disconnect under ORPHANED_MOTION in the Phase 1 release only (an
+   allow-matrix change, needs safety review): the app then releases the port
+   while the board may still be moving, with W32 shown.
+
+The decision does not change any byte the app writes.
