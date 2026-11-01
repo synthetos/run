@@ -215,7 +215,9 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
 
   for (const line of lines) {
     const job = jobOfLine.get(line.no);
-    const isDeploy = job !== undefined && DEPLOY_JOBS.includes(job.name);
+    // Only ci.yml holds the deploy jobs: a job of the same name in any other
+    // workflow is treated like every other job.
+    const isDeploy = file === 'ci.yml' && job !== undefined && DEPLOY_JOBS.includes(job.name);
     const content = line.inBlock ? line.text : line.text;
 
     if (/\t/.test(source.split('\n')[line.no - 1] ?? '')) add(line.no, 'yaml-subset', 'tab character; indent with spaces');
@@ -261,6 +263,21 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
     }
   }
 
+  // Job keys: readJobs recognises only a bare `name:` at indent 2. Any other
+  // line at indent 1-3 under `jobs:` (a quoted key, a flow-mapping job, odd
+  // indentation) would otherwise be read as part of the previous job, which
+  // could be a deploy job allowed to name the token. Fail closed instead.
+  const jobsStart = lines.findIndex((l) => !l.inBlock && l.indent === 0 && l.text === 'jobs:');
+  if (jobsStart !== -1) {
+    for (const line of lines.slice(jobsStart + 1)) {
+      if (line.inBlock || line.text === '') continue;
+      if (line.indent === 0) break;
+      if (line.indent < 4 && !(line.indent === 2 && /^[A-Za-z_][A-Za-z0-9_-]*:$/.test(line.text))) {
+        add(line.no, 'yaml-subset', 'a job must be declared as a bare `name:` at indent 2 with a block body');
+      }
+    }
+  }
+
   // Permissions: top level read-only; write scopes only where allowed.
   const top = lines.findIndex((l) => !l.inBlock && l.indent === 0 && /^permissions:/.test(l.text));
   if (top === -1) {
@@ -285,7 +302,7 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
   for (const job of jobs) {
     const env = jobScalar(job, 'environment');
     const envName = env === undefined ? undefined : env.value !== '' ? env.value : /^name:\s*(\S+)$/.exec(jobBlock(job, 'environment').find((l) => /^name:/.test(l.text))?.text ?? '')?.[1];
-    if (!DEPLOY_JOBS.includes(job.name)) {
+    if (file !== 'ci.yml' || !DEPLOY_JOBS.includes(job.name)) {
       if (env !== undefined) add(env.line, 'environment-outside-deploy', `job '${job.name}' may not use an environment`);
       continue;
     }

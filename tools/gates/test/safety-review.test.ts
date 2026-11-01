@@ -24,7 +24,13 @@ const TICKED = TEMPLATE.replace(/^- \[ \] /gm, '- [x] ');
 const HEAD = 'a'.repeat(40);
 const OLD = 'b'.repeat(40);
 
-const approve = (user: string, commitId = HEAD, at = '2026-11-01T10:00:00Z'): Review => ({ user, state: 'APPROVED', commitId, submittedAt: at });
+const approve = (user: string, commitId = HEAD, at = '2026-11-01T10:00:00Z', association = 'COLLABORATOR'): Review => ({
+  user,
+  state: 'APPROVED',
+  commitId,
+  association,
+  submittedAt: at,
+});
 
 function pr(overrides: Partial<PullRequestFacts>): PullRequestFacts {
   return { author: 'alice', headSha: HEAD, body: TICKED, changedFiles: ['packages/safety/src/index.ts'], reviews: [approve('bob'), approve('carol')], ...overrides };
@@ -101,8 +107,9 @@ describe('the decision', () => {
     expect(problems).toEqual(['1 approval(s) of the head commit from reviewers other than the author; 2 are required for safety-review paths']);
   });
 
-  it('counts a renamed file by its old path', () => {
-    expect(touchedSafetyPaths(['packages/other/x.ts', 'packages/machine/src/stopJob.ts'])).toEqual(['packages/machine/src/stopJob.ts']);
+  it('flags a PR that only moves a file out of a safety path', () => {
+    // The CLI passes both the new and the old path of a rename (see the CLI test).
+    expect(touchedSafetyPaths(['packages/other/stopJob.ts', 'packages/machine/src/stopJob.ts'])).toEqual(['packages/machine/src/stopJob.ts']);
   });
 });
 
@@ -119,13 +126,27 @@ describe('counting approvals', () => {
   it('a later change request or dismissal cancels an approval; a later comment does not', () => {
     const reviews: Review[] = [
       approve('bob', HEAD, '2026-11-01T10:00:00Z'),
-      { user: 'bob', state: 'CHANGES_REQUESTED', commitId: HEAD, submittedAt: '2026-11-01T11:00:00Z' },
+      { user: 'bob', state: 'CHANGES_REQUESTED', commitId: HEAD, association: 'COLLABORATOR', submittedAt: '2026-11-01T11:00:00Z' },
       approve('carol', HEAD, '2026-11-01T10:00:00Z'),
-      { user: 'carol', state: 'COMMENTED', commitId: HEAD, submittedAt: '2026-11-01T12:00:00Z' },
+      { user: 'carol', state: 'COMMENTED', commitId: HEAD, association: 'COLLABORATOR', submittedAt: '2026-11-01T12:00:00Z' },
       approve('dave', HEAD, '2026-11-01T10:00:00Z'),
-      { user: 'dave', state: 'DISMISSED', commitId: HEAD, submittedAt: '2026-11-01T12:00:00Z' },
+      { user: 'dave', state: 'DISMISSED', commitId: HEAD, association: 'COLLABORATOR', submittedAt: '2026-11-01T12:00:00Z' },
     ];
     expect(approversOfHead(reviews, 'alice', HEAD)).toEqual(['carol']);
+  });
+
+  it('counts only reviewers with write access (the repository is public)', () => {
+    const reviews = [
+      approve('mallory', HEAD, '2026-11-01T10:00:00Z', 'NONE'),
+      approve('trudy', HEAD, '2026-11-01T10:00:00Z', 'CONTRIBUTOR'),
+      approve('ghost', HEAD, '2026-11-01T10:00:00Z', 'FIRST_TIME_CONTRIBUTOR'),
+      approve('owner', HEAD, '2026-11-01T10:00:00Z', 'OWNER'),
+      approve('member', HEAD, '2026-11-01T10:00:00Z', 'MEMBER'),
+    ];
+    expect(approversOfHead(reviews, 'alice', HEAD)).toEqual(['member', 'owner']);
+    expect(evaluateSafetyReview(pr({ reviews: reviews.slice(0, 3) })).problems).toEqual([
+      '0 approval(s) of the head commit from reviewers other than the author; 2 are required for safety-review paths',
+    ]);
   });
 
   it('counts each reviewer once', () => {
@@ -149,14 +170,26 @@ describe('the CLI, fed the GitHub API shapes', () => {
       const reviews = join(repo.base, 'reviews.json');
       const body = join(repo.base, 'body.md');
       // --paginate --slurp: an array of pages.
-      writeFileSync(files, JSON.stringify([[{ filename: 'packages/machine/src/stopNew.ts', previous_filename: 'packages/machine/src/old.ts' }]]));
-      const review = (login: string): object => ({ user: { login }, state: 'APPROVED', commit_id: HEAD, submitted_at: '2026-11-01T10:00:00Z' });
+      // A rename OUT of the machine path: only previous_filename is a safety path.
+      writeFileSync(files, JSON.stringify([[{ filename: 'docs/old-stop.ts', previous_filename: 'packages/machine/src/stopJob.ts' }]]));
+      const review = (login: string, association = 'MEMBER'): object => ({
+        user: { login },
+        state: 'APPROVED',
+        commit_id: HEAD,
+        author_association: association,
+        submitted_at: '2026-11-01T10:00:00Z',
+      });
       writeFileSync(reviews, JSON.stringify([[review('bob')], [review('carol')]]));
       writeFileSync(body, TICKED);
       const args = ['--files', files, '--reviews', reviews, '--body-file', body, '--author', 'alice', '--head-sha', HEAD];
       const ok = repo.gate('tools/gates/src/review/cli.ts', args);
       expect(ok.status, ok.output).toBe(0);
       expect(ok.output).toContain('approvals of the head commit: bob, carol');
+      expect(ok.output).toContain('packages/machine/src/stopJob.ts');
+
+      writeFileSync(reviews, JSON.stringify([[review('bob')], [review('mallory', 'NONE')]]));
+      const outsider = repo.gate('tools/gates/src/review/cli.ts', args);
+      expect(outsider.status, outsider.output).toBe(1);
 
       writeFileSync(reviews, JSON.stringify([[review('bob')]]));
       const one = repo.gate('tools/gates/src/review/cli.ts', args);

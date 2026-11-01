@@ -43,6 +43,7 @@ function main(argv: readonly string[]): number {
       user: str((r['user'] as Record<string, unknown> | null)?.['login'] ?? '', 'review user'),
       state: str(r['state'], 'review state'),
       commitId: str(r['commit_id'], 'review commit_id'),
+      association: str(r['author_association'], 'review author_association'),
       submittedAt: typeof r['submitted_at'] === 'string' ? r['submitted_at'] : '',
     }));
     const result = evaluateSafetyReview({

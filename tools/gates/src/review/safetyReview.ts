@@ -8,7 +8,10 @@
  * - at least `REQUIRED_SAFETY_APPROVALS` distinct reviewers other than the
  *   author have approved the PR's head commit, counting each reviewer's
  *   latest decisive review (a later "changes requested" or a dismissal
- *   cancels an approval; plain comments do not count either way).
+ *   cancels an approval; plain comments do not count either way), and only
+ *   reviewers with write access to the repository (author_association
+ *   OWNER, MEMBER or COLLABORATOR). The repository is public: anyone with a
+ *   GitHub account can submit an "approving" review.
  *
  * A PR that touches no such path passes; branch protection's single
  * required review applies to it. Owner review of the CODEOWNERS paths is
@@ -21,6 +24,9 @@ import { SAFETY_REVIEW_PATHS } from '../shared/safetyPaths.ts';
 
 export const REQUIRED_SAFETY_APPROVALS = 2;
 
+/** GitHub `author_association` values of people who hold write access, whose approvals count. */
+export const TRUSTED_ASSOCIATIONS: readonly string[] = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+
 /** Item numbers of the SAFETY §8 checklist (OLD-S 1–21 plus SAFETY 22–40). */
 export const CHECKLIST_ITEMS: readonly number[] = Array.from({ length: 40 }, (_, i) => i + 1);
 
@@ -29,6 +35,8 @@ export interface Review {
   /** GitHub review state: APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, PENDING. */
   readonly state: string;
   readonly commitId: string;
+  /** GitHub author_association of the reviewer (OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR, NONE, ...). */
+  readonly association: string;
   /** ISO timestamp; reviews are ordered by it. */
   readonly submittedAt: string;
 }
@@ -64,7 +72,7 @@ export function checklistState(body: string): { ticked: Set<number>; unticked: S
   return { ticked, unticked };
 }
 
-/** Reviewers (not the author) whose latest decisive review approves `headSha`. */
+/** Reviewers (not the author, with write access) whose latest decisive review approves `headSha`. */
 export function approversOfHead(reviews: readonly Review[], author: string, headSha: string): string[] {
   const latest = new Map<string, Review>();
   const ordered = [...reviews].sort((a, b) => (a.submittedAt < b.submittedAt ? -1 : a.submittedAt > b.submittedAt ? 1 : 0));
@@ -74,7 +82,7 @@ export function approversOfHead(reviews: readonly Review[], author: string, head
     latest.set(review.user.toLowerCase(), review);
   }
   return [...latest.values()]
-    .filter((r) => r.state === 'APPROVED' && r.commitId === headSha)
+    .filter((r) => r.state === 'APPROVED' && r.commitId === headSha && TRUSTED_ASSOCIATIONS.includes(r.association))
     .map((r) => r.user)
     .sort();
 }

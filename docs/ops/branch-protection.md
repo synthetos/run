@@ -37,7 +37,7 @@ The required `safety-review` check enforces the second review
 `tools/gates/src/shared/safetyPaths.ts`, it fails until both of these hold:
 - the SAFETY §8 checklist from `.github/pull_request_template.md` is in the
   PR description, with all 40 items ticked;
-- **two** reviewers other than the author have approved the PR's head commit.
+- **two** reviewers other than the author, each with write access (GitHub `author_association` OWNER, MEMBER or COLLABORATOR), have approved the PR's head commit. Approvals from outside contributors do not count: the repository is public.
   A later "changes requested" or a dismissal cancels an approval.
 
 The check runs its code from the PR's base commit, so a PR cannot weaken
