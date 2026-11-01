@@ -1,5 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Tests read the vendored tables and the firmware pins with node:fs.
+    // Runtime source never uses Node built-ins: dependency-cruiser's
+    // safety-path-no-node-core refuses it.
+    "types": ["node"]
+  },
   "include": [
     "src",
     "test"

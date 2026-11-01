@@ -81,7 +81,11 @@ importers:
 
   packages/safety: {}
 
-  packages/schema: {}
+  packages/schema:
+    devDependencies:
+      '@synthetos/protocol':
+        specifier: workspace:*
+        version: link:../protocol
 
   packages/testkit: {}
 

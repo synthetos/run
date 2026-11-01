@@ -47,6 +47,21 @@
 /vendor/firmware-pins.json               @ril3y
 /packages/schema/boards.schema.json      @ril3y
 
+# --- ROADMAP P0-09 additions --------------------------------------------
+# What the app may read and write on a TinyG: the read allowlists (SAFETY §8
+# lists packages/schema/allowlists/**; the code lives under src/), the
+# get/set classification they are checked against, the forbidden writes, the
+# edge-next overlay (ranges, risk classes, typed confirmations), the
+# generated tables, validation and the write-plan gate.
+/packages/schema/src/allowlists/**       @ril3y
+/packages/schema/src/tables/**           @ril3y
+/packages/schema/src/generated/**        @ril3y
+/packages/schema/src/overlays/**         @ril3y
+/packages/schema/src/forbiddenWrites.ts  @ril3y
+/packages/schema/src/settingsSchema.ts   @ril3y
+/packages/schema/src/validate.ts         @ril3y
+/packages/schema/src/writePlan.ts        @ril3y
+
 # --- The gates that enforce the rules above (P0-03 addition) -------------
 # A change here can switch off a safety gate, leak the deploy token or
 # remove a required reviewer, so it is owned like the safety path itself.

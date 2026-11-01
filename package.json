@@ -28,7 +28,8 @@
     "gen:contrast": "node tools/gates/src/tokens/contrast-cli.ts",
     "gen:icons": "node tools/gates/src/icons/gen.ts",
     "tokens:drift": "node tools/gates/src/tokens/drift-cli.ts",
-    "sign:builds": "node tools/gates/src/release/sign-cli.ts"
+    "sign:builds": "node tools/gates/src/release/sign-cli.ts",
+    "gen:schema": "node tools/gates/src/schema/gen.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
