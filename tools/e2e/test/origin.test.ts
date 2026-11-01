@@ -3,7 +3,7 @@
  * exercised by specs/origin-guard.e2e.ts and, end to end, by the canary.
  */
 import { describe, expect, it } from 'vitest';
-import { classifyUrl, domReferenceUrls, guardMessage, GUARD_PREFIX, originOf, refreshUrl, srcsetUrls } from '../src/origin.ts';
+import { classifyUrl, domReferenceUrls, guardMessage, GUARD_PREFIX, originOf, redirectMethod, redirectTarget, refreshUrl, srcsetUrls } from '../src/origin.ts';
 
 const ORIGIN = 'http://127.0.0.1:8790';
 
@@ -80,5 +80,42 @@ describe('guardMessage', () => {
     expect(message?.startsWith(GUARD_PREFIX)).toBe(true);
     expect(message).toContain('request https://a.invalid/x (image from /)');
     expect(message).toContain('csp inline (script-src-elem in /)');
+  });
+});
+
+describe('redirectTarget (batch 7, finding P0-06 redirect)', () => {
+  const from = `${ORIGIN}/start`;
+  it('resolves the Location of every followed redirect status', () => {
+    for (const status of [301, 302, 303, 307, 308]) {
+      expect(redirectTarget(status, 'https://third-party.invalid/x', from)).toBe('https://third-party.invalid/x');
+    }
+    expect(redirectTarget(302, '//third-party.invalid/x', from)).toBe('http://third-party.invalid/x');
+    expect(redirectTarget(302, '/ok', from)).toBe(`${ORIGIN}/ok`);
+    expect(classifyUrl(redirectTarget(302, '//third-party.invalid/x', from) ?? '', ORIGIN)).toBe('external');
+  });
+
+  it('is undefined for responses the browser does not follow', () => {
+    expect(redirectTarget(200, 'https://third-party.invalid/x', from)).toBeUndefined();
+    expect(redirectTarget(304, 'https://third-party.invalid/x', from)).toBeUndefined();
+    expect(redirectTarget(302, undefined, from)).toBeUndefined();
+  });
+
+  it('fails closed on a Location that does not resolve', () => {
+    const t = redirectTarget(302, 'http://[bad', from);
+    expect(t).toBe('http://[bad');
+    expect(classifyUrl(t ?? '', ORIGIN)).toBe('external');
+  });
+});
+
+describe('redirectMethod', () => {
+  it('follows the Fetch standard for the next hop', () => {
+    expect(redirectMethod(303, 'POST')).toEqual({ method: 'GET', dropBody: true });
+    expect(redirectMethod(303, 'HEAD')).toEqual({ method: 'HEAD', dropBody: false });
+    expect(redirectMethod(302, 'POST')).toEqual({ method: 'GET', dropBody: true });
+    expect(redirectMethod(301, 'post')).toEqual({ method: 'GET', dropBody: true });
+    expect(redirectMethod(302, 'PUT')).toEqual({ method: 'PUT', dropBody: false });
+    expect(redirectMethod(307, 'POST')).toEqual({ method: 'POST', dropBody: false });
+    expect(redirectMethod(308, 'POST')).toEqual({ method: 'POST', dropBody: false });
+    expect(redirectMethod(302, 'GET')).toEqual({ method: 'GET', dropBody: false });
   });
 });

@@ -9,6 +9,15 @@
  * - **request**: any request to a URL outside the origin under test. The
  *   request is also aborted by a route, so even a guard failure never sends a
  *   byte to a third party from CI.
+ * - **redirect**: a same-origin response that redirects outside the origin.
+ *   Chromium follows redirect hops without consulting the routes, even after
+ *   a route fulfilled the redirect, so the browser never sees a redirect:
+ *   the guard fetches every same-origin request itself with redirects
+ *   disabled, follows same-origin hops itself (each target checked before
+ *   it is requested), aborts at the first external target, and fulfills the
+ *   final response. A redirected document therefore keeps the URL it was
+ *   requested at; the suite's pages use absolute paths, so nothing resolves
+ *   differently.
  * - **websocket**: any WebSocket outside the origin (also closed by a route).
  * - **dom**: any resource-loading attribute in a document that points
  *   outside the origin (img/script/iframe `src`, `srcset`, every `<link
@@ -20,8 +29,17 @@
  *   the directive as expected (csp.e2e.ts and trusted-types.e2e.ts provoke
  *   violations on purpose and assert them themselves).
  */
-import type { BrowserContext, Page, Request, WebSocket } from '@playwright/test';
-import { classifyUrl, domReferenceUrls, guardMessage, type DomReference, type GuardFinding } from './origin.ts';
+import type { APIResponse, BrowserContext, Page, Request, WebSocket } from '@playwright/test';
+import {
+  MAX_REDIRECT_HOPS,
+  classifyUrl,
+  domReferenceUrls,
+  guardMessage,
+  redirectMethod,
+  redirectTarget,
+  type DomReference,
+  type GuardFinding,
+} from './origin.ts';
 
 const BINDING = '__runOriginGuard';
 
@@ -121,10 +139,37 @@ export async function installOriginGuard(context: BrowserContext, origin: string
   context.on('request', (r: Request) => {
     if (external(r.url())) add({ kind: 'request', url: r.url(), detail: `${r.resourceType()} from ${requester(r)}` });
   });
-  // And never let one reach the network.
+  // And never let one reach the network, directly or through a redirect hop.
   await context.route(
-    (url) => external(url.href),
-    (route) => route.abort('blockedbyclient'),
+    () => true,
+    async (route) => {
+      const request = route.request();
+      let url = request.url();
+      if (external(url)) return route.abort('blockedbyclient');
+      let method = request.method();
+      let postData: Buffer | undefined = request.postDataBuffer() ?? undefined;
+      for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+        let response: APIResponse;
+        try {
+          response = await route.fetch({ url, method, ...(postData === undefined ? {} : { postData }), maxRedirects: 0 });
+        } catch {
+          return route.abort('failed');
+        }
+        const status = response.status();
+        const target = redirectTarget(status, response.headers()['location'], url);
+        if (target === undefined) return route.fulfill({ response });
+        if (external(target)) {
+          add({ kind: 'redirect', url: target, detail: `${status} from ${url}` });
+          return route.abort('blockedbyclient');
+        }
+        const next = redirectMethod(status, method);
+        method = next.method;
+        if (next.dropBody) postData = undefined;
+        url = target;
+      }
+      add({ kind: 'redirect', url, detail: `more than ${MAX_REDIRECT_HOPS} hops from ${request.url()}` });
+      return route.abort('blockedbyclient');
+    },
   );
   await context.routeWebSocket(
     (url) => external(url.href),

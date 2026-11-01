@@ -52,9 +52,50 @@ export function refreshUrl(content: string): string | undefined {
   return match?.[1]?.trim();
 }
 
+/**
+ * The absolute target of a redirect response, or undefined when the response
+ * is not a redirect the browser would follow. A redirect status with a
+ * Location that does not resolve is returned as the raw value, which
+ * `classifyUrl` then treats as external: the guard fails closed.
+ *
+ * Why the guard needs this: Chromium follows a redirect hop inside the
+ * network stack without asking the context's routes again (also after a
+ * route fulfilled the redirect itself), so a same-origin request that the
+ * server answers with `302 Location: <third party>` would reach the third
+ * party even though every direct request to it is aborted. The guard
+ * therefore never hands a redirect to the browser: it follows each hop
+ * itself, checking the hop's target before sending it.
+ */
+export function redirectTarget(status: number, location: string | undefined, from: string): string | undefined {
+  if (status < 300 || status > 399 || status === 304) return undefined;
+  if (location === undefined) return undefined;
+  try {
+    return new URL(location, from).href;
+  } catch {
+    return location;
+  }
+}
+
+/** Most redirect hops the guard follows for one request (Chromium's own limit is 20). */
+export const MAX_REDIRECT_HOPS = 20;
+
+/**
+ * The method of the next hop, as the Fetch standard has the browser do it:
+ * 303 turns anything but HEAD into GET, 301 and 302 turn POST into GET, and
+ * 307 and 308 keep the method and body. `dropBody` is true when the body
+ * must not be sent again.
+ */
+export function redirectMethod(status: number, method: string): { readonly method: string; readonly dropBody: boolean } {
+  const upper = method.toUpperCase();
+  if ((status === 303 && upper !== 'GET' && upper !== 'HEAD') || ((status === 301 || status === 302) && upper === 'POST')) {
+    return { method: 'GET', dropBody: true };
+  }
+  return { method: upper, dropBody: false };
+}
+
 /** One reason the origin guard fails a test. */
 export interface GuardFinding {
-  readonly kind: 'request' | 'websocket' | 'dom' | 'csp';
+  readonly kind: 'request' | 'redirect' | 'websocket' | 'dom' | 'csp';
   readonly url: string;
   readonly detail: string;
 }

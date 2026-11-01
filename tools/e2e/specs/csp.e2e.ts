@@ -10,6 +10,7 @@
  * tell enforcement from a broken injection.
  */
 import type { Page } from '@playwright/test';
+import { classifyUrl, originOf } from '../src/origin.ts';
 import { expect, test } from './fixtures.ts';
 
 const INLINE = '<script>globalThis.__inlineRan = true;</script>';
@@ -18,15 +19,18 @@ const INLINE = '<script>globalThis.__inlineRan = true;</script>';
 // asserts it; the origin guard still fails on any other directive.
 test.use({ allowedCspDirectives: ['script-src-elem'] });
 
-async function loadWithInlineScript(page: Page, keepCsp: boolean): Promise<{ ran: boolean; violations: { directive: string; blocked: string }[] }> {
+async function loadWithInlineScript(page: Page, baseURL: string | undefined, keepCsp: boolean): Promise<{ ran: boolean; violations: { directive: string; blocked: string }[] }> {
   await page.addInitScript(() => {
     const store: { directive: string; blocked: string }[] = [];
     (globalThis as unknown as { __violations: typeof store }).__violations = store;
     document.addEventListener('securitypolicyviolation', (e) => store.push({ directive: e.effectiveDirective, blocked: e.blockedURI }));
   });
   await page.route('**/', async (route) => {
-    if (route.request().resourceType() !== 'document') return route.continue();
-    const response = await route.fetch();
+    // Anything else goes on to the origin guard's route (continue() would skip it).
+    const request = route.request();
+    if (request.resourceType() !== 'document' || classifyUrl(request.url(), originOf(baseURL)) !== 'same-origin') return route.fallback();
+    const response = await route.fetch({ maxRedirects: 0 });
+    expect(response.status()).toBe(200);
     const body = (await response.text()).replace('</body>', `${INLINE}</body>`);
     expect(body).toContain(INLINE);
     const headers = { ...response.headers() };
@@ -41,14 +45,14 @@ async function loadWithInlineScript(page: Page, keepCsp: boolean): Promise<{ ran
   }));
 }
 
-test('an inline <script> added to the built page is blocked with a script-src violation', async ({ page }) => {
-  const result = await loadWithInlineScript(page, true);
+test('an inline <script> added to the built page is blocked with a script-src violation', async ({ page, baseURL }) => {
+  const result = await loadWithInlineScript(page, baseURL, true);
   expect(result.ran).toBe(false);
   expect(result.violations).toContainEqual({ directive: 'script-src-elem', blocked: 'inline' });
 });
 
-test('control: without the CSP header the same injected script runs', async ({ page }) => {
-  const result = await loadWithInlineScript(page, false);
+test('control: without the CSP header the same injected script runs', async ({ page, baseURL }) => {
+  const result = await loadWithInlineScript(page, baseURL, false);
   expect(result.ran).toBe(true);
   expect(result.violations).toEqual([]);
 });
