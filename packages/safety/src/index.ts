@@ -26,6 +26,8 @@ export {
 } from './allowMatrix.ts';
 export type { BaseState, Decision, Intent, IntentKind, MatrixSnapshot, Overlay, Release } from './allowMatrix.ts';
 export { overrunBound } from './overrun.ts';
+export { EMPTY_AXIS_MODE_SESSION, INHIBITED_JOINT_BEHAVIOUR, axisModeFacts } from './axisModeFacts.ts';
+export type { AxisModeFact, AxisModeFactCode, AxisModeReading, AxisModeSession } from './axisModeFacts.ts';
 export type { OverrunBound, QueuedLine } from './overrun.ts';
 export { HOST_GATE_FIELDS, diffHostGates, effectiveHostGates, workEnvelope } from './hostGates.ts';
 export type { C19Acceptance, DualMotorAxis, Envelope, HostGateChange, HostGateField, HostGates, SpindleKind } from './hostGates.ts';
