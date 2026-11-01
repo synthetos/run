@@ -55,9 +55,18 @@ importers:
       '@preact/signals':
         specifier: 2.11.3
         version: 2.11.3(preact@11.0.1)
+      '@synthetos/gcode':
+        specifier: workspace:*
+        version: link:../../packages/gcode
+      '@synthetos/gcode-view':
+        specifier: workspace:*
+        version: link:../../packages/gcode-view
       '@synthetos/machine':
         specifier: workspace:*
         version: link:../../packages/machine
+      '@synthetos/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@synthetos/safety':
         specifier: workspace:*
         version: link:../../packages/safety

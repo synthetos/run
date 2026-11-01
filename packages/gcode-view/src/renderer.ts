@@ -9,7 +9,7 @@
  */
 import { fitOrbit, pan, rotate, viewProjection, zoom, type Orbit } from './camera.ts';
 import { DEFAULT_SEGMENTS_PER_CHUNK, STYLE, chunks } from './geometry.ts';
-import { checkSegmentList, drawnBounds, lineCount, type Box3, type SegmentList, type Vec3 } from './segments.ts';
+import { checkSegmentList, lineCount, type Box3, type SegmentList, type Vec3 } from './segments.ts';
 import { runSliced, type SliceOptions } from './slicer.ts';
 
 export type Rgba = readonly [number, number, number, number];
@@ -34,8 +34,14 @@ const STYLE_COUNT = 9;
 
 export interface LoadOptions extends Pick<SliceOptions, 'signal' | 'budgetMs' | 'now' | 'yieldToHost'> {
   readonly segmentsPerChunk?: number;
-  /** Fraction of segments uploaded, 0..1. */
+  /** Fraction of the list uploaded, 0..1. */
   readonly onProgress?: (fraction: number) => void;
+  /**
+   * Box of the path when the caller already has it (e.g. the interpreter's
+   * exact bounds). Without it the box is gathered while the chunks upload,
+   * so loading never scans the whole list in one go.
+   */
+  readonly bounds?: Box3 | null;
 }
 
 export interface PreviewRenderer {
@@ -256,20 +262,33 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       const mine = ++generation;
       clearPath();
       list = next;
-      bounds = drawnBounds(next);
+      const given = loadOptions.bounds;
+      bounds = given === undefined ? null : given;
       view = fitOrbit(fitBox());
-      let drawable = 0;
-      for (let i = 1; i < next.kinds.length; i++) if (((next.kinds[i] as number) & 0x7f) !== 0) drawable++;
-      let uploaded = 0;
+      const total = Math.max(1, next.kinds.length);
+      const box = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
       const source = chunks(next, loadOptions.segmentsPerChunk ?? DEFAULT_SEGMENTS_PER_CHUNK);
       const steps: Iterator<unknown> = {
         next: () => {
           if (mine !== generation || disposed) throw abortError();
           const r = source.next();
           if (r.done === true) return { done: true, value: undefined };
-          path.push(upload(r.value.positions, r.value.styles, r.value.lines));
-          uploaded += r.value.segments;
-          loadOptions.onProgress?.(drawable === 0 ? 1 : uploaded / drawable);
+          const c = r.value;
+          path.push(upload(c.positions, c.styles, c.lines));
+          if (given === undefined) {
+            const p = c.positions;
+            for (let i = 0; i < c.segments * 6; i += 3) {
+              for (let a = 0; a < 3; a++) {
+                const value = p[i + a] as number;
+                if (value < (box.min[a] as number)) box.min[a] = value;
+                if (value > (box.max[a] as number)) box.max[a] = value;
+              }
+            }
+            const first = path.length === 1;
+            bounds = { min: [box.min[0] as number, box.min[1] as number, box.min[2] as number], max: [box.max[0] as number, box.max[1] as number, box.max[2] as number] };
+            if (first) view = fitOrbit(fitBox());
+          }
+          loadOptions.onProgress?.(c.vertexEnd / total);
           requestRender();
           return { done: false, value: undefined };
         },
@@ -286,6 +305,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
         requestRender();
         throw e;
       }
+      if (given === undefined) view = fitOrbit(fitBox());
       loadOptions.onProgress?.(1);
       requestRender();
     },

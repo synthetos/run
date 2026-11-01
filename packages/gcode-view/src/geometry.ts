@@ -26,6 +26,8 @@ export interface Chunk {
   readonly lines: Float32Array;
   /** Number of segments in the chunk. */
   readonly segments: number;
+  /** Vertices of the list consumed so far (for progress). */
+  readonly vertexEnd: number;
 }
 
 /** The style of the segment ending at vertex `v`, or -1 when it is not drawn. */
@@ -71,12 +73,12 @@ export function* chunks(list: SegmentList, segmentsPerChunk: number = DEFAULT_SE
     lines[n * 2 + 1] = line;
     n++;
     if (n === segmentsPerChunk) {
-      yield { positions, styles, lines, segments: n };
+      yield { positions, styles, lines, segments: n, vertexEnd: i + 1 };
       positions = new Float32Array(segmentsPerChunk * 6);
       styles = new Uint8Array(segmentsPerChunk * 2);
       lines = new Float32Array(segmentsPerChunk * 2);
       n = 0;
     }
   }
-  if (n > 0) yield { positions: positions.slice(0, n * 6), styles: styles.slice(0, n * 2), lines: lines.slice(0, n * 2), segments: n };
+  if (n > 0) yield { positions: positions.slice(0, n * 6), styles: styles.slice(0, n * 2), lines: lines.slice(0, n * 2), segments: n, vertexEnd: count };
 }
