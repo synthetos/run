@@ -52,5 +52,7 @@ export { SETTINGS_SCHEMAS, TINYG_REPO_URL, buildSettingsSchema, settingsSchemaFo
 export type { SettingDef, SettingsSchema } from './settingsSchema.ts';
 export { SWITCH_KEYS, validate } from './validate.ts';
 export type { Issue, IssueCode, ValidateContext } from './validate.ts';
+export { TRAVEL_AXES, TRAVEL_SEMANTICS, confirmSoftLimits, firmwareTravelEqual, travelSemanticsFor, travelWriteProblem } from './travel.ts';
+export type { AxisSoftLimit, SoftLimitConfirmation, SoftLimitReadBack, TravelAxis, TravelSemantics, TravelWriteProblem } from './travel.ts';
 export { screenWritePlan } from './writePlan.ts';
 export type { PlannedWrite, ProposedWrite, ScreenResult } from './writePlan.ts';

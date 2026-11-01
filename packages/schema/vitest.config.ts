@@ -22,6 +22,7 @@ export default defineConfig({
         'src/forbiddenWrites.ts': FULL,
         'src/settingsSchema.ts': FULL,
         'src/validate.ts': FULL,
+        'src/travel.ts': FULL,
         'src/writePlan.ts': FULL,
       },
     },

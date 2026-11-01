@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Tests read the vendored tables and the firmware pins with node:fs. The
+    // travel soft-limit cross-check imports the test kit, whose
+    // MockSerialPort mirrors a DOM API.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

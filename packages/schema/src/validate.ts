@@ -8,8 +8,10 @@
  * above the E158 minimum, is in range, is one of the enumerated values and is
  * one the hardware supports (`mi` ∈ {1, 2, 4, 8}).
  *
- * Across keys (TinyG): `tn < tm` on every axis whose travel the draft
- * changes; when the draft changes any switch mode, all 8 switch modes must be
+ * Across keys (TinyG): on every axis whose travel the draft changes, the
+ * range is one the firmware's soft-limit test treats as a range (finding
+ * P0-09: float32 ends, not `fp_EQ`, both ends above DISABLE_SOFT_LIMIT, see
+ * travel.ts), with `tn < tm`; when the draft changes any switch mode, all 8 switch modes must be
  * known, no axis may have a homing switch on both ends, at most one probe
  * input on X/Y/Z and none on A; and `st` must match the switch type the
  * machine declares, when it declares one.
@@ -22,6 +24,7 @@
 import { forbiddenWriteReason } from './forbiddenWrites.ts';
 import type { SettingsSchema } from './settingsSchema.ts';
 import { setterClass } from './tables/accessors.ts';
+import { TRAVEL_AXES, travelSemanticsFor, travelWriteProblem } from './travel.ts';
 
 export type IssueCode =
   | 'readOnlyDialect'
@@ -38,6 +41,10 @@ export type IssueCode =
   | 'enum'
   | 'hwAllowed'
   | 'travelOrder'
+  | 'travelFirmwareEqual'
+  | 'travelTooNarrow'
+  | 'travelEndDisabled'
+  | 'travelSemanticsUnknown'
   | 'switchesIncomplete'
   | 'multipleHomingSwitches'
   | 'multipleProbeInputs'
@@ -65,7 +72,6 @@ export const SWITCH_KEYS = Object.freeze(['xsn', 'xsx', 'ysn', 'ysx', 'zsn', 'zs
 const SW_HOMING_BIT = 0x01;
 /** Switch mode 4 is "probe" on edge-next (EN switch.h:46). */
 const SW_MODE_PROBE = 4;
-const TRAVEL_AXES = Object.freeze(['x', 'y', 'z', 'a', 'b', 'c'] as const);
 
 function issue(key: string, code: IssueCode, message: string): Issue {
   return Object.freeze({ key, code, message });
@@ -131,9 +137,27 @@ function checkCrossKey(schema: SettingsSchema, valid: ReadonlyMap<string, number
     if (lo === undefined || hi === undefined) {
       const missing = lo === undefined ? tn : tm;
       issues.push(issue(missing, 'crossFieldUnknown', `${a.toUpperCase()} travel cannot be checked: "${missing}" is neither in the draft nor read from the board`));
-    } else if (!(lo < hi)) {
-      for (const key of [tn, tm]) {
-        if (valid.has(key)) issues.push(issue(key, 'travelOrder', `${a.toUpperCase()} travel minimum (${lo}) must be less than travel maximum (${hi})`));
+    } else {
+      const A = a.toUpperCase();
+      const sem = travelSemanticsFor(schema.dialectId);
+      const changed = [tn, tm].filter((k) => valid.has(k));
+      if (sem === undefined) {
+        for (const key of changed) issues.push(issue(key, 'travelSemanticsUnknown', `${A} travel cannot be checked: the soft-limit rules of ${schema.dialectId} are not transcribed`));
+        continue;
+      }
+      const problem = travelWriteProblem(sem, lo, hi);
+      if (problem === null) continue;
+      if (problem.kind === 'endDisabled') {
+        issues.push(issue(tn, 'travelEndDisabled', `${A} travel minimum (${lo}) is at or below ${sem.disableAtOrBelow}: the firmware does not test that end, so soft limits would not hold it`));
+        continue;
+      }
+      for (const key of changed) {
+        if (problem.kind === 'order') issues.push(issue(key, 'travelOrder', `${A} travel minimum (${lo}) must be less than travel maximum (${hi})`));
+        else if (problem.kind === 'firmwareEqual') {
+          issues.push(issue(key, 'travelFirmwareEqual', `${A} travel ${lo}..${hi} is one value to the firmware (float32 ends within ${sem.epsilon}): it would skip soft limits on ${A} entirely`));
+        } else {
+          issues.push(issue(key, 'travelTooNarrow', `${A} travel ${lo}..${hi} must span at least ${sem.minSpan}, so the read-back can confirm the firmware sees a range`));
+        }
       }
     }
   }

@@ -37,7 +37,7 @@ const DOUBLED: TypedConfirm = { kind: 'increaseFactor', factor: 2 };
 const VELOCITY_RANGE: Range = { min: 0, max: 200_000, minExclusive: true };
 const VELOCITY_SOURCE = 'host: greater than 0; 200 000 per minute is far above any TinyG machine';
 const TRAVEL_RANGE: Range = { min: -100_000, max: 100_000 };
-const TRAVEL_SOURCE = 'host: a finite position within ±100 m (or ±100 000°); tn < tm is checked across keys';
+const TRAVEL_SOURCE = 'host: a finite position within ±100 m (or ±100 000°); across keys tn < tm, at least 0.01 apart, and a range the firmware soft-limit test sees as one (float32, not fp_EQ, both ends above DISABLE_SOFT_LIMIT; travel.ts)';
 const JERK_RANGE: Range = { min: 0, max: 100_000, minExclusive: true };
 const JERK_SOURCE =
   'EN canonical_machine.c:2575 (E158: 0 or less refused with 108); host: at most 100 000 (millions), so the firmware never applies its ' +
