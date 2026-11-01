@@ -9,7 +9,8 @@
  * The path: NOT_CONNECTED → PORT_REQUEST (the worker asks the build's
  * transport source for the chosen port) → OPENING → IDENTIFYING (the
  * capability probe, PN §2.3, `{"sr":null}` first) → READING (`stat`,
- * `hold`, `vel`, `qr`) → CONNECTED_UNKNOWN. BLOCKED when the board's id is
+ * `hold`, `vel`, `qr`, `ex`) → CONNECTED_UNKNOWN. The probe result and the
+ * classification are recorded in the session log (a `log` effect). BLOCKED when the board's id is
  * not the selected machine's (T-S21): nothing more is written.
  *
  * Overlays (SAFETY §3), in precedence order FAULT > LOST > ORPHANED_MOTION >
@@ -30,7 +31,9 @@
  * - UNKNOWN: after LOST, after a reset banner.
  * - STALE: a read after classification went unanswered; cleared by the
  *   next byte received. (The full watchdog is P1-04.)
- * - READ_ONLY: the classifier returned READ_ONLY.
+ * - READ_ONLY: the classifier returned READ_ONLY, or READING found `ex`
+ *   other than 0 or 1 (2 is RTS/CTS, READ_ONLY on both dialects, PN §5.3;
+ *   an unread `ex` counts the same, fail closed).
  * - NEEDS_REVIEW: a settings drift (the drift check that raises it arrives
  *   with the settings read; the overlay and its matrix rules exist now).
  *
@@ -56,7 +59,9 @@ import {
   type JsonObject,
   type JsonValue,
   type MachineClass,
+  type Classification,
   type ProbeKey,
+  type ProbeResult,
   type Response,
   type StatusReport,
 } from '@synthetos/protocol';
@@ -85,7 +90,15 @@ import {
 } from './types.ts';
 
 /** Tokens READING reads, where the dialect's allowlist has them (SAFETY H14 inputs, PN §2.3 step 0). */
-export const READING_TOKENS: readonly string[] = Object.freeze(['stat', 'hold', 'vel', 'qr']);
+export const READING_TOKENS: readonly string[] = Object.freeze(['stat', 'hold', 'vel', 'qr', 'ex']);
+
+/**
+ * `ex` values a full session accepts: FLOW_CONTROL_OFF and FLOW_CONTROL_XON
+ * (@cite EN config.h:204-206; TG config.h:206-208). FLOW_CONTROL_RTS (2)
+ * makes the session READ_ONLY on both dialects until B-FC-1 (PN §5.3,
+ * OLD-PN §7.1).
+ */
+export const FULL_SESSION_FLOW_CONTROL: ReadonlySet<number> = new Set([0, 1]);
 
 /** Tokens the `ackFault` verification reads (SAFETY §3 FAULT exits). */
 export const VERIFY_TOKENS: readonly string[] = Object.freeze(['hold', 'qr']);
@@ -688,6 +701,7 @@ function finishProbe(t: Tx): void {
   const outcome = buildProbeResult({ ...(probe.banner === undefined ? {} : { banner: probe.banner }), answers: new Map(probe.answers) });
   t.set({ ready: true });
   if (!outcome.ok) {
+    t.emit({ kind: 'log', text: `probe: could not be read (${outcome.reason} at ${outcome.key}) → unclassified, read-only` });
     t.set({ classification: { dialectId: null, mode: 'readOnly', reason: 'probeFailed', detail: `the probe could not be read (${outcome.reason} at ${outcome.key})`, upgradeOffer: false } });
     t.addOverlay('READ_ONLY');
     t.set({ base: 'CONNECTED_UNKNOWN' });
@@ -695,6 +709,7 @@ function finishProbe(t: Tx): void {
   }
   const result = outcome.result;
   const c = classify(result, t.config.manifest);
+  t.emit({ kind: 'log', text: probeRecord(result, c) });
   const identity = Object.fromEntries(
     Object.entries({ fb: result.fb, fv: result.fv, hp: result.hp, hv: result.hv, id: result.id, fbs: result.fbs }).filter(([, v]) => v !== undefined),
   ) as Identity;
@@ -729,6 +744,13 @@ function finishProbe(t: Tx): void {
   t.set({ base: 'READING', live: kept, queue: [...t.s.queue, ...reads.map((token) => ({ token, purpose: 'reading' as const }))] });
 }
 
+/** The probe result and its classification as one session-log line (ROADMAP P1-03 "Record the probe result"). */
+export function probeRecord(result: ProbeResult, c: Classification): string {
+  const { footers, ...rest } = result;
+  const verdict = `${c.dialect?.id ?? 'unclassified'} ${c.mode === 'full' ? 'full' : 'read-only'} (${c.reason})`;
+  return `probe: ${JSON.stringify({ ...rest, footers: footers.map((f) => f.raw) })} → ${verdict}: ${c.detail}`;
+}
+
 /** READING is complete: a board that is not resting is ORPHANED_MOTION (SAFETY H14, PN §2.3 step 0). */
 function finishReading(t: Tx): void {
   const dialect = dialectOf(t.s);
@@ -741,6 +763,13 @@ function finishReading(t: Tx): void {
     live.vel === 0 &&
     live.qr === dialect.limits.plannerBlocks;
   if (!resting) t.addOverlay('ORPHANED_MOTION');
+  const c = t.s.classification;
+  if (c !== null && c.mode === 'full' && (live.ex === undefined || !FULL_SESSION_FLOW_CONTROL.has(live.ex))) {
+    const shown = live.ex === undefined ? 'could not be read' : `is ${live.ex}${live.ex === 2 ? ' (RTS/CTS)' : ''}`;
+    t.set({ classification: { ...c, mode: 'readOnly', reason: 'flowControl', detail: `${c.detail}; flow control (ex) ${shown}: read-only until RTS/CTS is verified on the bench (B-FC-1)` } });
+    t.addOverlay('READ_ONLY');
+    t.emit({ kind: 'log', text: `classification: read-only, flow control (ex) ${shown}` });
+  }
   t.set({ base: 'CONNECTED_UNKNOWN', queue: t.s.queue.filter((q) => q.purpose !== 'reading') });
 }
 
@@ -814,6 +843,7 @@ function onGarbled(t: Tx, at: number): void {
         classification: { dialectId: null, mode: 'readOnly', reason: 'probeFailed', detail: `the answer to the ${entry.token} probe arrived damaged`, upgradeOffer: false },
       });
       t.addOverlay('READ_ONLY');
+      t.emit({ kind: 'log', text: `probe: the answer to ${entry.token} arrived damaged → unclassified, read-only` });
       return;
     case 'reading':
       if (!t.s.queue.some((q) => q.purpose === 'reading')) finishReading(t);
@@ -850,6 +880,7 @@ function withNumber(t: Tx, live: LiveState, key: string, v: number): LiveState {
     case 'hold':
     case 'vel':
     case 'qr':
+    case 'ex':
     case 'line':
     case 'unit':
       return { ...live, [key]: v };

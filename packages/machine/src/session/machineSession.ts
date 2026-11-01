@@ -249,6 +249,9 @@ export class MachineSession {
       case 'decision':
         this.#lastDecision = { intent: effect.intent, decision: effect.decision };
         return;
+      case 'log':
+        this.#note(effect.text);
+        return;
       case 'acquireTransport':
         void this.#acquire(effect.epoch, effect.port);
         return;

@@ -116,7 +116,8 @@ export interface FaultInfo {
 export interface ClassificationInfo {
   readonly dialectId: DialectId | null;
   readonly mode: 'full' | 'readOnly';
-  readonly reason: ClassifyReason | 'probeFailed';
+  /** `flowControl`: the classifier said full, but READING found `ex` not 0/1 (RTS/CTS, PN §5.3). */
+  readonly reason: ClassifyReason | 'probeFailed' | 'flowControl';
   readonly detail: string;
   readonly upgradeOffer: boolean;
   readonly buildIdentity?: 'fbs' | 'fbOnly';
@@ -151,6 +152,8 @@ export interface LiveState {
   readonly hold?: number;
   readonly vel?: number;
   readonly qr?: number;
+  /** Flow control mode, read once in READING (0 off, 1 XON/XOFF, 2 RTS/CTS). */
+  readonly ex?: number;
   readonly line?: number;
   /** Work position (`posx`..`posc`) and machine position (`mpox`..`mpoc`), as reported. */
   readonly pos: Readonly<Partial<Record<Axis, number>>>;
@@ -283,6 +286,8 @@ export type SessionEffect =
   | { readonly kind: 'close'; readonly epoch: number }
   | { readonly kind: 'armTimer'; readonly id: TimerId; readonly seq: number; readonly ms: number }
   | { readonly kind: 'cancelTimer'; readonly id: TimerId }
+  /** A line for the session log (the probe result, the classification). */
+  | { readonly kind: 'log'; readonly text: string }
   /** The answer to an intent. Exactly one per intent event. */
   | { readonly kind: 'decision'; readonly intent: Intent; readonly decision: Decision };
 

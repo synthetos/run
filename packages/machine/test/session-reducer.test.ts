@@ -392,6 +392,7 @@ describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
     d.answer(EN_ANSWERS, (t) => t === 'qr');
     d.written();
     d.line('{"r":{"qr":');
+    d.answer(EN_ANSWERS);
     expect(d.state.base).toBe('CONNECTED_UNKNOWN');
     expect(d.state.overlays).toContain('ORPHANED_MOTION');
   });
@@ -405,6 +406,76 @@ describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
     expect(d.state.base).toBe('READING');
     d.answer(EN_ANSWERS);
     expect(d.state.overlays).toContain('ORPHANED_MOTION');
+  });
+});
+
+describe('flow control: ex = 2 (RTS/CTS) is READ_ONLY on both dialects (ROADMAP P1-03; PN §5.3)', () => {
+  const logs = (d: Driver): string[] => d.effects.filter((e) => e.kind === 'log').map((e) => (e as Extract<SessionEffect, { kind: 'log' }>).text);
+
+  it('an approved edge-next with ex = 2 ends READ_ONLY with reason flowControl, keeping its dialect', () => {
+    const d = connected({ ...EN_ANSWERS, ex: '{"r":{"ex":2},"f":[3,0,10]}' }, { manifest: EN_APPROVED });
+    expect(d.state.base).toBe('CONNECTED_UNKNOWN');
+    expect(d.state.classification).toMatchObject({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl', buildIdentity: 'fbOnly' });
+    expect(d.state.classification?.detail).toContain('ex) is 2 (RTS/CTS)');
+    expect(d.state.overlays).toEqual(['READ_ONLY']);
+    expect(d.state.live.ex).toBe(2);
+    expect(logs(d).at(-1)).toBe('classification: read-only, flow control (ex) is 2 (RTS/CTS)');
+  });
+
+  it('an ex that cannot be read is treated the same (fail closed)', () => {
+    for (const ex of ['{"r":{},"f":[3,100,10]}', '{"r":{"ex":"2"},"f":[3,0,10]}', '{"r":{"ex":3},"f":[3,0,10]}']) {
+      const d = connected({ ...EN_ANSWERS, ex }, { manifest: EN_APPROVED });
+      expect(d.state.classification, ex).toMatchObject({ mode: 'readOnly', reason: 'flowControl' });
+      expect(d.state.overlays, ex).toEqual(['READ_ONLY']);
+    }
+  });
+
+  it('ex = 0 and ex = 1 keep the approved session full', () => {
+    for (const v of [0, 1]) {
+      const d = connected({ ...EN_ANSWERS, ex: `{"r":{"ex":${v}},"f":[3,0,10]}` }, { manifest: EN_APPROVED });
+      expect(d.state.classification).toMatchObject({ mode: 'full', reason: 'en-approved' });
+      expect(d.state.overlays).toEqual([]);
+    }
+  });
+
+  it('a board already READ_ONLY keeps its classifier reason (440.21 at ex = 2)', () => {
+    const d = connected({ ...TG_ANSWERS, ex: tg('{"ex":2}') });
+    expect(d.state.classification).toMatchObject({ dialectId: 'tinyg-440', mode: 'readOnly', reason: 'tg440-not-approved' });
+    expect(d.state.overlays).toEqual(['READ_ONLY']);
+  });
+});
+
+describe('the probe result is recorded in the session log (ROADMAP P1-03)', () => {
+  const logs = (d: Driver): string[] => d.effects.filter((e) => e.kind === 'log').map((e) => (e as Extract<SessionEffect, { kind: 'log' }>).text);
+
+  it('one line with the identity, the capability answers, the footers and the verdict', () => {
+    const d = connected(EN_ANSWERS);
+    const [line, ...rest] = logs(d);
+    expect(rest).toEqual([]);
+    expect(line).toMatch(/^probe: \{/);
+    const json = JSON.parse((line as string).slice('probe: '.length, line!.indexOf(' → '))) as Record<string, unknown>;
+    expect(json).toMatchObject({ banner: 'none', footerRev: 3, fb: 450.01, fv: 0.97, hp: 1, hv: 8, id: 'EN-1', spph: 'stubbed', conflicts: [] });
+    expect(json['tokens']).toEqual({ spep: 'value', prbp: 'value', fstk: 'value', os: 'value' });
+    expect(json['footers']).toHaveLength(PROBE_STEPS.length - 1);
+    expect(line).toContain('→ tinyg-en read-only (en-not-approved): ');
+  });
+
+  it('a damaged or missing probe answer is recorded too', () => {
+    const d = new Driver();
+    d.open();
+    d.answer(EN_ANSWERS, (t) => t === 'hp');
+    d.written();
+    d.line('{"r":{"hp":1},"f":[3,0');
+    expect(logs(d)).toEqual(['probe: the answer to hp arrived damaged → unclassified, read-only']);
+
+    const m = new Driver();
+    m.open();
+    m.answer(EN_ANSWERS, (t) => t === 'spph');
+    const probe = m.state.probe;
+    if (probe === null) throw new Error('no probe');
+    m.state = { ...m.state, probe: { ...probe, answers: probe.answers.filter(([k]) => k !== 'fb') } };
+    m.answer(EN_ANSWERS);
+    expect(logs(m)).toEqual(['probe: could not be read (missing-answer at fb) → unclassified, read-only']);
   });
 });
 
@@ -704,7 +775,7 @@ describe('intents through the allow-matrix (T-S3) and the Phase 1 session', () =
     d.intent({ intent: 'feedhold' });
     expect(d.realtime()).toEqual([BYTE.FEEDHOLD, BYTE.FEEDHOLD, BYTE.FEEDHOLD, BYTE.FEEDHOLD]);
     expect(d.state.notices.adviseEstop).toBe(true);
-    expect(d.state.sent).toEqual({ lines: 16, realtime: 4 });
+    expect(d.state.sent).toEqual({ lines: 17, realtime: 4 });
   });
 
   it('feedhold is the unclassified ! while identifying, and denied before the port opens', () => {

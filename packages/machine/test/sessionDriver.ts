@@ -25,6 +25,7 @@ export const EN_ANSWERS: Readonly<Record<string, string>> = Object.freeze({
   hold: '{"r":{"hold":0},"f":[3,0,10]}',
   vel: '{"r":{"vel":0.00},"f":[3,0,10]}',
   qr: '{"r":{"qr":32},"f":[3,0,10]}',
+  ex: '{"r":{"ex":1},"f":[3,0,10]}',
   posx: '{"r":{"posx":1.5},"f":[3,0,10]}',
   mpox: '{"r":{"mpox":2.5},"f":[3,0,10]}',
 });
@@ -52,6 +53,7 @@ export const TG_ANSWERS: Readonly<Record<string, string>> = Object.freeze({
   hold: tg('{"hold":0}'),
   vel: tg('{"vel":0}'),
   qr: tg('{"qr":32}'),
+  ex: tg('{"ex":1}'),
 });
 
 export const EN_READY_BANNER = '{"sr":{"fv":0.970,"fb":450.01,"hp":1,"hv":8,"id":"EN-1","msg":"SYSTEM READY"}}';

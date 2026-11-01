@@ -12,7 +12,7 @@ import { createInboundDecoder, type DialectId } from '@synthetos/protocol';
 import { INTENTS, type Intent } from '@synthetos/safety';
 import { isReadAllowed } from '@synthetos/schema';
 import { SeededRng, type Fault } from '@synthetos/testkit';
-import { PROBE_TOKENS } from '../src/index.ts';
+import { PROBE_TOKENS, READING_TOKENS } from '../src/index.ts';
 import { harness, type ModelName } from './sessionHarness.ts';
 import { PORT, shown } from './simTransport.ts';
 
@@ -130,7 +130,7 @@ export async function randomSession(seed: number, model: ModelName): Promise<Ses
   if (h.session.snapshot.base === 'CONNECTED_UNKNOWN') reachedConnected = true;
   const problems = h.transports.flatMap((t, i) => checkConnection(t.events, dialect, model).map((p) => `connection ${i}: ${p}`));
   const all = h.transports.flatMap((t) => t.writes);
-  const probeOrReading = new Set([...PROBE_TOKENS, 'stat', 'hold', 'vel', 'qr']);
+  const probeOrReading = new Set([...PROBE_TOKENS, ...READING_TOKENS]);
   return {
     seed,
     model,

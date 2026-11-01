@@ -158,7 +158,7 @@ describe('MachineSession: connecting', () => {
     expect(t.opened).toEqual([{ baudRate: 115200, flowControl: 'none', bufferSize: 256 }]);
     expect(t.writes[0]).toBe('{"sr":null}\n');
     expect(session.snapshot.base).toBe('CONNECTED_UNKNOWN');
-    expect(t.writes).toHaveLength(16);
+    expect(t.writes).toHaveLength(17);
     expect([...new Set(seen)]).toEqual(['PORT_REQUEST', 'OPENING', 'IDENTIFYING', 'READING', 'CONNECTED_UNKNOWN']);
     expect(session.state.classification?.dialectId).toBe('tinyg-en');
     const log = session.log();
@@ -345,7 +345,7 @@ describe('T-S5 (XOFF part): realtime bytes bypass the XOFF gate', () => {
     expect(session.snapshot.xoff).toBe(true);
     expect(session.read(['posx'])).toEqual({ allowed: true });
     await settle();
-    expect(t.writes.at(-1)).toBe('{"qr":null}\n');
+    expect(t.writes.at(-1)).toBe('{"ex":null}\n');
     expect(session.feedhold()).toEqual({ allowed: true });
     await settle();
     expect(t.writes.at(-1)).toBe('!');
@@ -517,7 +517,7 @@ describe('MachineSession: failures', () => {
     void session.connect(PORT);
     await settle();
     expect(session.log()).toHaveLength(5);
-    expect(session.log().at(-1)?.text).toContain('"qr":32');
+    expect(session.log().at(-1)?.text).toContain('"ex":1');
   });
 
   it('the session defaults to the Phase 1 release and NO_APPROVED_BUILDS', async () => {
