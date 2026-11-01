@@ -16,6 +16,7 @@ import {
   CURRENT_RELEASE,
   INTENTS,
   OVERLAYS,
+  PHASE_1_RELEASE,
   PORT_OPEN_STATES,
   STOP_CLASS,
   allowed,
@@ -63,7 +64,7 @@ describe('T-S3: the generated matrix', () => {
     // per cell made this test take 4-5 s and time out under a loaded `pnpm check`.
     let count = 0;
     const unclassified: string[] = [];
-    for (const release of [CURRENT_RELEASE, OPEN]) {
+    for (const release of [CURRENT_RELEASE, PHASE_1_RELEASE, OPEN]) {
       for (const { s, intent } of cells()) {
         const d = allowed(s, intent, release);
         if (!d.allowed && !(d.reason.length > 5 && d.remedy.length > 5 && d.citation.length > 5)) {
@@ -73,7 +74,7 @@ describe('T-S3: the generated matrix', () => {
       }
     }
     expect(unclassified.slice(0, 20)).toEqual([]);
-    expect(count).toBe(2 * BASE_STATES.length * OVERLAY_SETS.length * 4 * INTENTS.length);
+    expect(count).toBe(3 * BASE_STATES.length * OVERLAY_SETS.length * 4 * INTENTS.length);
   });
 
   it('Start is allowed only from ARMED, with no overlay, and never in this release', () => {
@@ -251,6 +252,52 @@ describe('Phase 0 release gate', () => {
       expect(allowed(offline, i).allowed, i).toBe(true);
     }
     expect(allowed(offline, 'connect').allowed).toBe(false);
+  });
+});
+
+describe('Phase 1 release gate (ROADMAP P1-02: read-only bench)', () => {
+  /** Intents that can put bytes on the wire. */
+  const MACHINE = INTENTS.filter((i) => ['stop', 'read', 'recovery', 'motion', 'write'].includes(intentKind(i)));
+
+  it('of the intents that reach the machine, allows only read, enq (classified EN), ackFault (under FAULT) and the stop class', () => {
+    const wrong: string[] = [];
+    const seen = new Set<Intent>();
+    for (const { s, intent } of cells()) {
+      if (!MACHINE.includes(intent)) continue;
+      if (!allowed(s, intent, PHASE_1_RELEASE).allowed) continue;
+      seen.add(intent);
+      const ok =
+        STOP_CLASS.includes(intent) ||
+        intent === 'read' ||
+        (intent === 'enq' && s.classified && s.enqCapable) ||
+        (intent === 'ackFault' && s.overlays.includes('FAULT'));
+      if (!ok) wrong.push(`${s.base} [${s.overlays.join('+')}] ${intent}`);
+    }
+    expect(wrong.slice(0, 20)).toEqual([]);
+    expect([...seen].sort()).toEqual(['ackFault', 'enq', 'feedhold', 'read', 'spindleOffNow', 'stopJob']);
+  });
+
+  it('denies Reset controller (^X) and every motion and write intent in every cell', () => {
+    const wrong: string[] = [];
+    for (const { s, intent } of cells()) {
+      const kind = intentKind(intent);
+      if (kind !== 'motion' && kind !== 'write') continue;
+      const d = allowed(s, intent, PHASE_1_RELEASE);
+      if (d.allowed || d.reason !== 'Not available in this release.' || !d.citation.includes('Phase 1')) wrong.push(`${s.base} ${intent}`);
+    }
+    expect(wrong.slice(0, 20)).toEqual([]);
+    expect(intentKind('resetController')).toBe('write');
+  });
+
+  it('allows connect only from NOT_CONNECTED with no overlay, and keeps the stop class open whenever the port is', () => {
+    for (const { s, intent } of cells()) {
+      if (intent === 'connect') {
+        expect(allowed(s, intent, PHASE_1_RELEASE).allowed).toBe(s.base === 'NOT_CONNECTED' && s.overlays.length === 0);
+      }
+      if (STOP_CLASS.includes(intent)) expect(allowed(s, intent, PHASE_1_RELEASE).allowed).toBe(portOpen(s));
+    }
+    expect(PHASE_1_RELEASE).toEqual({ name: 'Phase 1', motion: false, write: false, port: true });
+    expect(Object.isFrozen(PHASE_1_RELEASE)).toBe(true);
   });
 });
 

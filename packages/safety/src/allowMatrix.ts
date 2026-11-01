@@ -138,6 +138,18 @@ export interface Release {
 /** This release: Phase 0, no serial (ROADMAP P0-10, RUN_PLAN §11). */
 export const CURRENT_RELEASE: Release = Object.freeze({ name: 'Phase 0', motion: false, write: false, port: false });
 
+/**
+ * Phase 1, bench read-only (ROADMAP P1-02, RUN_PLAN §11): a port may be
+ * opened (`connect`), and nothing that moves the machine or writes to it is
+ * allowed. With this release the only machine-path intents the matrix allows
+ * are reads, the liveness probe (classified `tinyg-en` only), `ackFault`
+ * and the stop class; `resetController` (^X) is a write and stays denied.
+ * The machine session still maps Stop job and Spindle off to `!` alone in
+ * this phase (SAFETY §4.4 READ_ONLY row): no ^D, `%` or M-code is ever sent.
+ * Production keeps `CURRENT_RELEASE`: it has no transport (P1-09).
+ */
+export const PHASE_1_RELEASE: Release = Object.freeze({ name: 'Phase 1', motion: false, write: false, port: true });
+
 /** Base states in which the serial port is open (from the first read of IDENTIFYING onwards). */
 export const PORT_OPEN_STATES: ReadonlySet<BaseState> = new Set(
   BASE_STATES.filter((s) => s !== 'NOT_CONNECTED' && s !== 'PORT_REQUEST' && s !== 'OPENING'),
