@@ -31,7 +31,9 @@
 #                      (the owner is a required reviewer).
 #                      Both deploy ONLY the attested artifact (the Worker with
 #                      --no-bundle), after the preflight (D34 account, H45
-#                      settings), with assets of the previous 14 days merged
+#                      settings, no custom build; it writes the allowlisted
+#                      deployment configuration, the only one wrangler is
+#                      given: `deploy-config` in ci-policy), with assets of the previous 14 days merged
 #                      in (asset retention, each retained file bound to an
 #                      attested build manifest), then run the smoke test
 #                      (P0-04). A failure after the deploy step undoes it:
@@ -446,11 +448,17 @@ jobs:
           node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256
           tar -xf artifact/run-worker.tar -C worker
           node tools/gates/src/repro/cli.ts verify worker artifact/run-worker.sha256
+      # The preflight checks the reviewed wrangler.jsonc (a positive key allowlist: no `build` in any
+      # scope, since wrangler runs build.command even under --no-bundle) and writes the deployment
+      # configuration from its allowlisted keys. Every wrangler call below uses only that file.
       - name: Preflight (dedicated account D34, workers.dev and preview URLs off H45)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc staging
+        run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc staging --write workers/run/wrangler.deploy.json
       - name: Staging must already be behind Cloudflare Access (D31)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: node tools/gates/src/smoke/cli.ts --env staging --pre-deploy
       - name: Fetch the previous staging deployment state (asset retention)
         env:
@@ -506,7 +514,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          ci/deploy-toolchain/node_modules/.bin/wrangler deploy worker/index.mjs --no-bundle --config workers/run/wrangler.jsonc --env staging --assets deploy-site
+          ci/deploy-toolchain/node_modules/.bin/wrangler deploy worker/index.mjs --no-bundle --config workers/run/wrangler.deploy.json --env staging --assets deploy-site
       - name: Post-deploy smoke test (headers, preview URLs, health, DNSSEC, CAA, certificate)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -608,10 +616,13 @@ jobs:
           node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256
           tar -xf artifact/run-worker.tar -C worker
           node tools/gates/src/repro/cli.ts verify worker artifact/run-worker.sha256
+      # The preflight checks the reviewed wrangler.jsonc (a positive key allowlist: no `build` in any
+      # scope, since wrangler runs build.command even under --no-bundle) and writes the deployment
+      # configuration from its allowlisted keys. Every wrangler call below uses only that file.
       - name: Preflight (dedicated account D34, workers.dev and preview URLs off H45)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc production
+        run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc production --write workers/run/wrangler.deploy.json
       - name: Fetch the previous production deployment state (asset retention)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -666,7 +677,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          ci/deploy-toolchain/node_modules/.bin/wrangler deploy worker/index.mjs --no-bundle --config workers/run/wrangler.jsonc --assets deploy-site
+          ci/deploy-toolchain/node_modules/.bin/wrangler deploy worker/index.mjs --no-bundle --config workers/run/wrangler.deploy.json --assets deploy-site
       - name: Post-deploy smoke test (headers, preview URLs, health, DNSSEC, CAA, certificate)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

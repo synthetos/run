@@ -11,6 +11,7 @@ import {
   CHECKLIST_ITEMS,
   checklistState,
   evaluateSafetyReview,
+  parsePermissions,
   type PullRequestFacts,
   type Review,
   touchedSafetyPaths,
@@ -32,8 +33,13 @@ const approve = (user: string, commitId = HEAD, at = '2026-11-01T10:00:00Z', ass
   submittedAt: at,
 });
 
+/** Permission answers (GET .../collaborators/{user}/permission): these reviewers hold write access now. */
+const writers = (...logins: string[]): ReturnType<typeof parsePermissions> =>
+  parsePermissions(logins.map((login) => ({ permission: 'write', role_name: 'write', user: { login, type: 'User', permissions: { push: true } } })));
+const WRITERS = writers('alice', 'bob', 'carol', 'dave');
+
 function pr(overrides: Partial<PullRequestFacts>): PullRequestFacts {
-  return { author: 'alice', headSha: HEAD, body: TICKED, changedFiles: ['packages/safety/src/index.ts'], reviews: [approve('bob'), approve('carol')], ...overrides };
+  return { author: 'alice', headSha: HEAD, body: TICKED, changedFiles: ['packages/safety/src/index.ts'], reviews: [approve('bob'), approve('carol')], permissions: WRITERS, ...overrides };
 }
 
 describe('the PR template', () => {
@@ -104,7 +110,7 @@ describe('the decision', () => {
 
   it('fails a safety PR with one approval', () => {
     const problems = evaluateSafetyReview(pr({ reviews: [approve('bob')] })).problems;
-    expect(problems).toEqual(['1 approval(s) of the head commit from reviewers other than the author; 2 are required for safety-review paths']);
+    expect(problems).toEqual(['1 approval(s) of the head commit from reviewers other than the author with write access to this repository; 2 are required for safety-review paths']);
   });
 
   it('flags a PR that only moves a file out of a safety path', () => {
@@ -115,12 +121,12 @@ describe('the decision', () => {
 
 describe('counting approvals', () => {
   it("ignores the author's own approval", () => {
-    expect(approversOfHead([approve('alice'), approve('bob')], 'alice', HEAD)).toEqual(['bob']);
-    expect(approversOfHead([approve('Alice')], 'alice', HEAD)).toEqual([]);
+    expect(approversOfHead([approve('alice'), approve('bob')], 'alice', HEAD, WRITERS)).toEqual(['bob']);
+    expect(approversOfHead([approve('Alice')], 'alice', HEAD, WRITERS)).toEqual([]);
   });
 
   it('ignores approvals of an older commit', () => {
-    expect(approversOfHead([approve('bob', OLD), approve('carol')], 'alice', HEAD)).toEqual(['carol']);
+    expect(approversOfHead([approve('bob', OLD), approve('carol')], 'alice', HEAD, WRITERS)).toEqual(['carol']);
   });
 
   it('a later change request or dismissal cancels an approval; a later comment does not', () => {
@@ -132,25 +138,31 @@ describe('counting approvals', () => {
       approve('dave', HEAD, '2026-11-01T10:00:00Z'),
       { user: 'dave', state: 'DISMISSED', commitId: HEAD, association: 'COLLABORATOR', submittedAt: '2026-11-01T12:00:00Z' },
     ];
-    expect(approversOfHead(reviews, 'alice', HEAD)).toEqual(['carol']);
+    expect(approversOfHead(reviews, 'alice', HEAD, WRITERS)).toEqual(['carol']);
   });
 
-  it('counts only reviewers with write access (the repository is public)', () => {
+  it('counts only reviewers with write access now, whatever their author_association (the repository is public)', () => {
+    // review-permission.test.ts covers each permission level, revocation and bots.
     const reviews = [
       approve('mallory', HEAD, '2026-11-01T10:00:00Z', 'NONE'),
       approve('trudy', HEAD, '2026-11-01T10:00:00Z', 'CONTRIBUTOR'),
-      approve('ghost', HEAD, '2026-11-01T10:00:00Z', 'FIRST_TIME_CONTRIBUTOR'),
       approve('owner', HEAD, '2026-11-01T10:00:00Z', 'OWNER'),
       approve('member', HEAD, '2026-11-01T10:00:00Z', 'MEMBER'),
     ];
-    expect(approversOfHead(reviews, 'alice', HEAD)).toEqual(['member', 'owner']);
-    expect(evaluateSafetyReview(pr({ reviews: reviews.slice(0, 3) })).problems).toEqual([
-      '0 approval(s) of the head commit from reviewers other than the author; 2 are required for safety-review paths',
+    const permissions = parsePermissions([
+      { permission: 'read', user: { login: 'mallory' } },
+      { permission: 'write', user: { login: 'trudy' } },
+      { permission: 'admin', user: { login: 'owner' } },
+      { permission: 'read', user: { login: 'member' } },
+    ]);
+    expect(approversOfHead(reviews, 'alice', HEAD, permissions)).toEqual(['owner', 'trudy']);
+    expect(evaluateSafetyReview(pr({ reviews: [reviews[0] as Review, reviews[3] as Review], permissions })).problems).toEqual([
+      '0 approval(s) of the head commit from reviewers other than the author with write access to this repository; 2 are required for safety-review paths',
     ]);
   });
 
   it('counts each reviewer once', () => {
-    expect(approversOfHead([approve('bob'), approve('bob', HEAD, '2026-11-02T00:00:00Z')], 'alice', HEAD)).toEqual(['bob']);
+    expect(approversOfHead([approve('bob'), approve('bob', HEAD, '2026-11-02T00:00:00Z')], 'alice', HEAD, WRITERS)).toEqual(['bob']);
   });
 });
 
@@ -181,7 +193,12 @@ describe('the CLI, fed the GitHub API shapes', () => {
       });
       writeFileSync(reviews, JSON.stringify([[review('bob')], [review('carol')]]));
       writeFileSync(body, TICKED);
-      const args = ['--files', files, '--reviews', reviews, '--body-file', body, '--author', 'alice', '--head-sha', HEAD];
+      const permissions = join(repo.base, 'permissions.json');
+      writeFileSync(
+        permissions,
+        JSON.stringify(['bob', 'carol'].map((login) => ({ permission: 'write', role_name: 'write', user: { login, type: 'User', permissions: { push: true } } }))),
+      );
+      const args = ['--files', files, '--reviews', reviews, '--permissions', permissions, '--body-file', body, '--author', 'alice', '--head-sha', HEAD];
       const ok = repo.gate('tools/gates/src/review/cli.ts', args);
       expect(ok.status, ok.output).toBe(0);
       expect(ok.output).toContain('approvals of the head commit: bob, carol');

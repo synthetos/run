@@ -9,9 +9,18 @@
  *   author have approved the PR's head commit, counting each reviewer's
  *   latest decisive review (a later "changes requested" or a dismissal
  *   cancels an approval; plain comments do not count either way), and only
- *   reviewers with write access to the repository (author_association
- *   OWNER, MEMBER or COLLABORATOR). The repository is public: anyone with a
- *   GitHub account can submit an "approving" review.
+ *   reviewers whose CURRENT effective permission on this repository is
+ *   write, maintain or admin, as answered by GET
+ *   /repos/{owner}/{repo}/collaborators/{username}/permission. The
+ *   repository is public: anyone with a GitHub account can submit an
+ *   "approving" review. `author_association` is not evidence: it describes a
+ *   relationship (an organisation MEMBER may hold read, triage or no access
+ *   to this repository). No answer, read, triage, none or a bot account: the
+ *   approval does not count.
+ *
+ * This check is a SECONDARY control. Its workflow runs on pull_request, so a
+ * PR can rewrite the workflow that runs it. The primary control is GitHub's
+ * native branch protection (docs/ops/branch-protection.md).
  *
  * A PR that touches no such path passes; branch protection's single
  * required review applies to it. Owner review of the CODEOWNERS paths is
@@ -24,8 +33,60 @@ import { SAFETY_REVIEW_PATHS } from '../shared/safetyPaths.ts';
 
 export const REQUIRED_SAFETY_APPROVALS = 2;
 
-/** GitHub `author_association` values of people who hold write access, whose approvals count. */
-export const TRUSTED_ASSOCIATIONS: readonly string[] = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+/**
+ * The `permission` values of the permission endpoint that include push access
+ * (maintain is reported as write, triage as read; custom roles as their base).
+ */
+export const WRITE_PERMISSIONS: readonly string[] = ['admin', 'write'];
+
+/** One reviewer's current permission on this repository, from the API. */
+export interface ReviewerPermission {
+  readonly login: string;
+  readonly permission: string;
+  /** `user.permissions.push` when the answer carries it. */
+  readonly push: boolean | undefined;
+  readonly bot: boolean;
+}
+
+/** Reviewer permissions by lower-case login. */
+export type ReviewerPermissions = ReadonlyMap<string, ReviewerPermission>;
+
+/**
+ * Reads the permission endpoint's answers (one object per reviewer). Throws
+ * on anything malformed, or on two answers for one login, instead of
+ * guessing; a reviewer with no answer simply has no evidence.
+ */
+export function parsePermissions(answers: readonly unknown[]): ReviewerPermissions {
+  const out = new Map<string, ReviewerPermission>();
+  for (const answer of answers) {
+    const a = (typeof answer === 'object' && answer !== null ? answer : {}) as Record<string, unknown>;
+    const user = (typeof a['user'] === 'object' && a['user'] !== null ? a['user'] : {}) as Record<string, unknown>;
+    const login = user['login'];
+    if (typeof login !== 'string' || login === '') throw new Error('permission answer without user.login');
+    const permission = a['permission'];
+    if (typeof permission !== 'string') throw new Error(`permission answer for ${login} without a permission`);
+    const key = login.toLowerCase();
+    if (out.has(key)) throw new Error(`permission answer for ${login} given twice`);
+    const flags = user['permissions'];
+    const push = typeof flags === 'object' && flags !== null ? (flags as Record<string, unknown>)['push'] : undefined;
+    out.set(key, {
+      login,
+      permission,
+      push: typeof push === 'boolean' ? push : undefined,
+      bot: user['type'] === 'Bot' || /\[bot\]$/i.test(login),
+    });
+  }
+  return out;
+}
+
+/** True only with evidence of push access now: write or admin, not contradicted by the push flag, not a bot. */
+export function hasWriteAccess(login: string, permissions: ReviewerPermissions): boolean {
+  if (/\[bot\]$/i.test(login)) return false;
+  // No permission evidence at all (a caller that passed none) is the same as no answer: not counted.
+  const p = (permissions as ReviewerPermissions | undefined)?.get(login.toLowerCase());
+  if (p === undefined || p.bot) return false;
+  return WRITE_PERMISSIONS.includes(p.permission) && p.push !== false;
+}
 
 /** Item numbers of the SAFETY §8 checklist (OLD-S 1–21 plus SAFETY 22–40). */
 export const CHECKLIST_ITEMS: readonly number[] = Array.from({ length: 40 }, (_, i) => i + 1);
@@ -35,7 +96,7 @@ export interface Review {
   /** GitHub review state: APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, PENDING. */
   readonly state: string;
   readonly commitId: string;
-  /** GitHub author_association of the reviewer (OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR, NONE, ...). */
+  /** GitHub author_association of the reviewer. Recorded for the log only: it is NOT evidence of permission. */
   readonly association: string;
   /** ISO timestamp; reviews are ordered by it. */
   readonly submittedAt: string;
@@ -48,6 +109,8 @@ export interface PullRequestFacts {
   /** Every changed path, including the old path of a rename. */
   readonly changedFiles: readonly string[];
   readonly reviews: readonly Review[];
+  /** Each reviewer's current permission on this repository (parsePermissions). */
+  readonly permissions: ReviewerPermissions;
 }
 
 export interface SafetyReviewResult {
@@ -72,8 +135,8 @@ export function checklistState(body: string): { ticked: Set<number>; unticked: S
   return { ticked, unticked };
 }
 
-/** Reviewers (not the author, with write access) whose latest decisive review approves `headSha`. */
-export function approversOfHead(reviews: readonly Review[], author: string, headSha: string): string[] {
+/** Reviewers (not the author, with write access now) whose latest decisive review approves `headSha`. */
+export function approversOfHead(reviews: readonly Review[], author: string, headSha: string, permissions: ReviewerPermissions): string[] {
   const latest = new Map<string, Review>();
   const ordered = [...reviews].sort((a, b) => (a.submittedAt < b.submittedAt ? -1 : a.submittedAt > b.submittedAt ? 1 : 0));
   for (const review of ordered) {
@@ -82,14 +145,14 @@ export function approversOfHead(reviews: readonly Review[], author: string, head
     latest.set(review.user.toLowerCase(), review);
   }
   return [...latest.values()]
-    .filter((r) => r.state === 'APPROVED' && r.commitId === headSha && TRUSTED_ASSOCIATIONS.includes(r.association))
+    .filter((r) => r.state === 'APPROVED' && r.commitId === headSha && hasWriteAccess(r.user, permissions))
     .map((r) => r.user)
     .sort();
 }
 
 export function evaluateSafetyReview(pr: PullRequestFacts): SafetyReviewResult {
   const safetyPaths = touchedSafetyPaths(pr.changedFiles);
-  const approvers = approversOfHead(pr.reviews, pr.author, pr.headSha);
+  const approvers = approversOfHead(pr.reviews, pr.author, pr.headSha, pr.permissions);
   if (safetyPaths.length === 0) return { safetyPaths, approvers, problems: [] };
 
   const problems: string[] = [];
@@ -104,7 +167,7 @@ export function evaluateSafetyReview(pr: PullRequestFacts): SafetyReviewResult {
   }
   if (approvers.length < REQUIRED_SAFETY_APPROVALS) {
     problems.push(
-      `${approvers.length} approval(s) of the head commit from reviewers other than the author; ` +
+      `${approvers.length} approval(s) of the head commit from reviewers other than the author with write access to this repository; ` +
         `${REQUIRED_SAFETY_APPROVALS} are required for safety-review paths`,
     );
   }

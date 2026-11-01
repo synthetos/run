@@ -14,9 +14,10 @@
  * succeeded and a later step failed (`artifact-digest`'s sibling rule
  * `deploy-rollback` in ci-policy). Dependency-free.
  */
-import type { DeployEnvironment } from './wranglerConfig.ts';
+import { DEPLOY_CONFIG_PATH, type DeployEnvironment } from './wranglerConfig.ts';
 
-export const WRANGLER_CONFIG = 'workers/run/wrangler.jsonc';
+/** The deployment configuration the preflight wrote (never the checkout's wrangler.jsonc, P0-04 review). */
+export const WRANGLER_CONFIG = DEPLOY_CONFIG_PATH;
 
 /** The wrangler argument vectors to run, in order; the first that succeeds ends the plan. */
 export function rollbackPlan(env: DeployEnvironment): readonly (readonly string[])[] {

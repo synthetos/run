@@ -20,7 +20,8 @@ account id (32 hex characters), `<SUBDOMAIN>` its workers.dev subdomain,
 ## Step 0. Two decisions to make first
 
 These came out of the final Phase 0 review. Both can block the first deploy,
-so settle them before you spend time on the rest.
+so settle them before you spend time on the rest. They are tracked as open
+owner decisions OD-1 and OD-2 in `docs/ops/owner-decisions.md`.
 
 ### 0a. How `run.synthetos.com` reaches a Worker in another account (D34)
 

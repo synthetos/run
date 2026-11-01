@@ -49,6 +49,17 @@
  *   `rollback-cli.ts <env>` under exactly
  *   `if: failure() && steps.deploy.outcome == 'success'`, so a deployment
  *   whose smoke test failed never stays live.
+ * - `deploy-config` (ci.yml, P0-04 review): each deploy job's preflight
+ *   writes the allowlisted deployment configuration (DEPLOY_CONFIG), and
+ *   every wrangler invocation comes after it and uses only that file; no
+ *   other line writes it or reads wrangler.jsonc. wrangler runs a configured
+ *   build.command even under --no-bundle, with the deploy token.
+ * - `smoke-credentials` (ci.yml, P0 review): every smoke-test step of a
+ *   deploy job, the staging pre-deploy Access check included, sets the
+ *   Cloudflare token and account in its own env.
+ * - `safety-review-job` (safety-review.yml): the gate runs from the base
+ *   commit with the reviewers' repository permissions. A consistency check
+ *   only: the primary control is native branch protection.
  * - `yaml-subset`: tabs, anchors, aliases and merge keys are refused. They
  *   are valid YAML that this line-based reader could not follow, so they are
  *   not allowed to hide anything from it.
@@ -134,6 +145,9 @@ export type PolicyRule =
   | 'fake-serial-job'
   | 'artifact-digest'
   | 'deploy-rollback'
+  | 'deploy-config'
+  | 'smoke-credentials'
+  | 'safety-review-job'
   | 'yaml-subset';
 
 export interface PolicyFinding {
@@ -278,6 +292,8 @@ export function evaluateConjunction(terms: readonly EqualityTerm[], context: Rea
 const SHA_PIN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_./-]+)?@[0-9a-f]{40}$/;
 
 export function checkWorkflow(file: string, source: string): PolicyFinding[] {
+  // Rules are chosen by the file's name, however the caller spells its path.
+  const name = file.split(/[\\/]/).pop() ?? file;
   const findings: PolicyFinding[] = [];
   const add = (line: number, rule: PolicyRule, message: string): void => {
     findings.push({ file, line, rule, message });
@@ -294,7 +310,7 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
     const job = jobOfLine.get(line.no);
     // Only ci.yml holds the deploy jobs: a job of the same name in any other
     // workflow is treated like every other job.
-    const isDeploy = file === 'ci.yml' && job !== undefined && DEPLOY_JOBS.includes(job.name);
+    const isDeploy = name === 'ci.yml' && job !== undefined && DEPLOY_JOBS.includes(job.name);
     const content = line.inBlock ? line.text : line.text;
 
     if (/\t/.test(source.split('\n')[line.no - 1] ?? '')) add(line.no, 'yaml-subset', 'tab character; indent with spaces');
@@ -365,7 +381,7 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
     const body = inline !== '' ? [inline] : lines.slice(top + 1).filter((l, i, all) => all.slice(0, i + 1).every((x) => x.indent > 0 || x.text === '')).map((l) => l.text);
     if (body.some((t) => /:\s*write\b/.test(t))) add(topLine?.no ?? 1, 'write-permission', 'top-level permissions must be read-only');
   }
-  const allowedWrites = WRITE_PERMISSIONS[file] ?? {};
+  const allowedWrites = WRITE_PERMISSIONS[name] ?? {};
   for (const job of jobs) {
     for (const line of jobBlock(job, 'permissions')) {
       const m = /^([a-z-]+):\s*write\b/.exec(line.text);
@@ -379,7 +395,7 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
   for (const job of jobs) {
     const env = jobScalar(job, 'environment');
     const envName = env === undefined ? undefined : env.value !== '' ? env.value : /^name:\s*(\S+)$/.exec(jobBlock(job, 'environment').find((l) => /^name:/.test(l.text))?.text ?? '')?.[1];
-    if (file !== 'ci.yml' || !DEPLOY_JOBS.includes(job.name)) {
+    if (name !== 'ci.yml' || !DEPLOY_JOBS.includes(job.name)) {
       if (env !== undefined) add(env.line, 'environment-outside-deploy', `job '${job.name}' may not use an environment`);
       continue;
     }
@@ -401,7 +417,7 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
   }
 
   // ci.yml: verify runs on every pull request and runs the tests.
-  if (file === 'ci.yml') {
+  if (name === 'ci.yml') {
     const onIndex = lines.findIndex((l) => !l.inBlock && l.indent === 0 && /^(on|"on"|'on'):/.test(l.text));
     const triggers = onIndex === -1 ? [] : lines.slice(onIndex + 1).filter((l, i, all) => all.slice(0, i + 1).every((x) => x.indent > 0 || x.text === '')).map((l) => l.text);
     if (!triggers.some((t) => /^pull_request:/.test(t))) add(onIndex + 1, 'verify-job', 'ci.yml must run on pull_request');
@@ -468,10 +484,13 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
     }
     checkArtifactDigests(jobs, add);
     checkRollback(jobs, add);
-    for (const name of [...DEPLOY_JOBS, ...DEPLOY_NEEDS]) {
-      if (!jobs.some((j) => j.name === name)) add(1, 'deploy-gate', `ci.yml must define the '${name}' job`);
+    checkDeployConfig(jobs, add);
+    checkSmokeCredentials(jobs, add);
+    for (const required of [...DEPLOY_JOBS, ...DEPLOY_NEEDS]) {
+      if (!jobs.some((j) => j.name === required)) add(1, 'deploy-gate', `ci.yml must define the '${required}' job`);
     }
   }
+  if (name === 'safety-review.yml') checkSafetyReviewJob(jobs, add);
   return findings;
 }
 
@@ -545,5 +564,135 @@ function checkRollback(jobs: readonly Job[], add: (line: number, rule: PolicyRul
     const stepStart = [...job.lines].reverse().find((l) => !l.inBlock && l.no < undo.no && /^-\s+name:/.test(l.text));
     const cond = job.lines.find((l) => !l.inBlock && l.no > (stepStart?.no ?? 0) && l.no < undo.no && /^if:/.test(text(l)));
     if (cond === undefined || text(cond) !== ROLLBACK_IF) flag(undo.no, `job '${name}': the undo step must run under exactly ${ROLLBACK_IF}`);
+  }
+}
+
+/** The deployment configuration the preflight writes and wrangler is given (`deploy-config`). */
+export const DEPLOY_CONFIG = 'workers/run/wrangler.deploy.json';
+
+/** The exact preflight line of a deploy job. */
+export function preflightLine(env: string): string {
+  return `run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc ${env} --write ${DEPLOY_CONFIG}`;
+}
+
+/**
+ * ci.yml: each deploy job writes the allowlisted deployment configuration in
+ * its preflight and every wrangler invocation uses only that file
+ * (`deploy-config`, P0-04 review). wrangler runs a configured custom build
+ * even under --no-bundle, in this job, with the deploy token.
+ */
+function checkDeployConfig(jobs: readonly Job[], add: (line: number, rule: PolicyRule, message: string) => void): void {
+  for (const name of DEPLOY_JOBS) {
+    const job = jobs.find((j) => j.name === name);
+    if (job === undefined) continue;
+    const env = DEPLOY_ENVIRONMENTS[name] ?? '';
+    const flag = (line: number, message: string): void => add(line, 'deploy-config', message);
+    const text = (l: Line): string => l.text.replace(/^-\s+/, '');
+    const preflight = job.lines.find((l) => !l.inBlock && text(l) === preflightLine(env));
+    if (preflight === undefined) flag(job.line, `job '${name}' must run exactly '${preflightLine(env)}'`);
+    // A wrangler invocation: the word wrangler followed by a subcommand. The undo step's
+    // `rollback-cli.ts <env> .../wrangler` passes the binary path only (its plan uses DEPLOY_CONFIG).
+    const invocations = job.lines.filter((l) => /(^|[\s/])wrangler\s+[a-z]/.test(l.text) && !/^(?:-\s+)?name:/.test(l.text));
+    let deploys = 0;
+    for (const l of invocations) {
+      if (/\bwrangler\s+deploy\b/.test(l.text)) deploys += 1;
+      if (!l.text.includes(`--config ${DEPLOY_CONFIG}`)) flag(l.no, `job '${name}': every wrangler invocation must pass --config ${DEPLOY_CONFIG}`);
+      if (preflight === undefined || l.no < preflight.no) flag(l.no, `job '${name}': wrangler may run only after the preflight wrote ${DEPLOY_CONFIG}`);
+    }
+    if (deploys === 0) flag(job.line, `job '${name}' must deploy with wrangler deploy --config ${DEPLOY_CONFIG}`);
+    for (const l of job.lines) {
+      if (l === preflight || invocations.includes(l)) continue;
+      if (l.text.includes('wrangler.deploy.json')) flag(l.no, `job '${name}': only the preflight may write ${DEPLOY_CONFIG}`);
+      if (l.text.includes('wrangler.jsonc')) flag(l.no, `job '${name}': only the preflight may read workers/run/wrangler.jsonc; wrangler gets ${DEPLOY_CONFIG}`);
+    }
+  }
+}
+
+/** The step env every smoke-test step in a deploy job must declare (`smoke-credentials`). */
+export const SMOKE_CREDENTIALS: Readonly<Record<string, string>> = {
+  CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}',
+  CLOUDFLARE_ACCOUNT_ID: '${{ vars.CLOUDFLARE_ACCOUNT_ID }}',
+};
+
+/** The lines of the step that contains `line` (from its `- ` line to the next step at the same indent). */
+function stepOf(job: Job, line: Line): Line[] {
+  const index = job.lines.indexOf(line);
+  let start = index;
+  while (start >= 0) {
+    const l = job.lines[start] as Line;
+    if (!l.inBlock && l.text.startsWith('- ')) break;
+    start -= 1;
+  }
+  if (start < 0) return [];
+  const indent = (job.lines[start] as Line).indent;
+  const out: Line[] = [];
+  for (const l of job.lines.slice(start)) {
+    if (out.length > 0 && !l.inBlock && l.text !== '' && (l.indent < indent || (l.indent === indent && l.text.startsWith('- ')))) break;
+    out.push(l);
+  }
+  return out;
+}
+
+/**
+ * ci.yml: every step of a deploy job that runs the smoke test (the staging
+ * pre-deploy Access check included) passes the Cloudflare token and account
+ * in its own env (`smoke-credentials`). A step's env is not inherited by the
+ * next step; the positive Access check refuses without them, so a missing
+ * entry would stop every staging deploy (P0 review regression). The staging
+ * job must run the pre-deploy check.
+ */
+function checkSmokeCredentials(jobs: readonly Job[], add: (line: number, rule: PolicyRule, message: string) => void): void {
+  for (const name of DEPLOY_JOBS) {
+    const job = jobs.find((j) => j.name === name);
+    if (job === undefined) continue;
+    const flag = (line: number, message: string): void => add(line, 'smoke-credentials', message);
+    const smokeLines = job.lines.filter((l) => l.text.includes('tools/gates/src/smoke/cli.ts'));
+    if (name === 'deploy-staging' && !smokeLines.some((l) => l.text.replace(/^-\s+/, '') === 'run: node tools/gates/src/smoke/cli.ts --env staging --pre-deploy')) {
+      flag(job.line, "job 'deploy-staging' must run 'node tools/gates/src/smoke/cli.ts --env staging --pre-deploy' (the positive Access check, D31)");
+    }
+    for (const smoke of smokeLines) {
+      const step = stepOf(job, smoke);
+      for (const [key, value] of Object.entries(SMOKE_CREDENTIALS)) {
+        if (!step.some((l) => !l.inBlock && l.text === `${key}: ${value}`)) {
+          flag(smoke.no, `job '${name}': the smoke-test step must set ${key}: ${value} in its env (step env is not inherited)`);
+        }
+      }
+    }
+  }
+}
+
+/** Lines safety-review.yml must contain, in this order (each a whole line, `- ` prefix ignored). */
+export const SAFETY_REVIEW_LINES: readonly string[] = [
+  'ref: ${{ github.event.pull_request.base.sha }}',
+  'gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" --paginate --slurp > "$RUNNER_TEMP/reviews.json"',
+  'gh api "repos/$GITHUB_REPOSITORY/collaborators/$login/permission"',
+  'node tools/gates/src/review/cli.ts \\',
+  '--permissions "$RUNNER_TEMP/permissions.json" \\',
+];
+
+/**
+ * safety-review.yml: the gate runs from the base commit and is given the
+ * reviewers' actual repository permissions (`safety-review-job`). This only
+ * checks the file as committed: a pull request can edit this policy as well,
+ * so the primary control is GitHub's native branch protection (required
+ * approvals from reviewers with write access, Code Owner review of .github/
+ * and tools/gates/; docs/ops/branch-protection.md).
+ */
+function checkSafetyReviewJob(jobs: readonly Job[], add: (line: number, rule: PolicyRule, message: string) => void): void {
+  const job = jobs.find((j) => j.name === 'safety-review');
+  if (job === undefined) {
+    add(1, 'safety-review-job', "safety-review.yml must define the 'safety-review' job");
+    return;
+  }
+  let previous = 0;
+  for (const want of SAFETY_REVIEW_LINES) {
+    const found = job.lines.find((l) => l.no > previous && l.text.replace(/^-\s+/, '').includes(want) && (want.startsWith('ref:') ? l.text.replace(/^-\s+/, '') === want : true));
+    if (found === undefined) add(job.line, 'safety-review-job', `the safety-review job must contain '${want}' after the lines before it`);
+    else previous = found.no;
+  }
+  for (const l of job.lines) {
+    if (!l.inBlock && /^(?:-\s+)?ref:/.test(l.text) && l.text.replace(/^-\s+/, '') !== SAFETY_REVIEW_LINES[0]) {
+      add(l.no, 'safety-review-job', 'the safety-review job may check out only the base commit');
+    }
   }
 }

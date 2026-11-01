@@ -115,7 +115,8 @@ describe('preflight CLI', () => {
     const childEnv: NodeJS.ProcessEnv = { ...process.env };
     delete childEnv['CLOUDFLARE_ACCOUNT_ID'];
     if (accountEnv !== undefined) childEnv['CLOUDFLARE_ACCOUNT_ID'] = accountEnv;
-    const r = spawnSync(process.execPath, [join(REPO_ROOT, 'tools/gates/src/deploy/preflight.ts'), file, env], { encoding: 'utf8', env: childEnv });
+    // The deploy jobs always pass --write (deploy-config.test.ts covers what it writes).
+    const r = spawnSync(process.execPath, [join(REPO_ROOT, 'tools/gates/src/deploy/preflight.ts'), file, env, '--write', join(dir, 'wrangler.deploy.json')], { encoding: 'utf8', env: childEnv });
     return { status: r.status, output: `${r.stdout}${r.stderr}` };
   }
   const withAccount = TEXT.replace(ACCOUNT_ID_PLACEHOLDER, REAL_ACCOUNT);

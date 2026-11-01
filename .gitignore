@@ -12,3 +12,4 @@ dist-worker/
 **/reports/mutation/
 stryker-setup-*.js
 dist-fake-serial/
+workers/run/wrangler.deploy.json

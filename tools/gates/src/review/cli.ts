@@ -1,16 +1,22 @@
 /**
  * `safety-review` check CLI (ROADMAP P0-03). The workflow
  * `.github/workflows/safety-review.yml` fetches the PR's files and reviews
- * with `gh api ... --paginate --slurp` and runs this from the BASE branch's
- * checkout, so a PR cannot weaken the check that judges it:
+ * with `gh api ... --paginate --slurp`, and each reviewer's permission, and
+ * runs this from the BASE branch's checkout. (The workflow definition itself
+ * comes from the PR, so this is a secondary control behind native branch
+ * protection; docs/ops/branch-protection.md.)
  *
  *   node tools/gates/src/review/cli.ts --files files.json --reviews reviews.json \
- *     --author <login> --head-sha <sha> --body-file body.md
+ *     --permissions permissions.json --author <login> --head-sha <sha> --body-file body.md
+ *
+ * permissions.json is a JSON array of the answers of GET
+ * /repos/{owner}/{repo}/collaborators/{username}/permission, one per
+ * reviewer. It is required; a reviewer without an answer does not count.
  *
  * Exit status: 0 pass, 1 requirements not met, 2 could not run.
  */
 import { readFileSync } from 'node:fs';
-import { evaluateSafetyReview, type Review } from './safetyReview.ts';
+import { evaluateSafetyReview, parsePermissions, type Review } from './safetyReview.ts';
 
 function arg(argv: readonly string[], flag: string): string {
   const index = argv.indexOf(flag);
@@ -46,7 +52,11 @@ function main(argv: readonly string[]): number {
       association: str(r['author_association'], 'review author_association'),
       submittedAt: typeof r['submitted_at'] === 'string' ? r['submitted_at'] : '',
     }));
+    const permissionData = JSON.parse(readFileSync(arg(argv, '--permissions'), 'utf8')) as unknown;
+    if (!Array.isArray(permissionData)) throw new Error('--permissions: expected a JSON array of permission answers');
+    const permissions = parsePermissions(permissionData);
     const result = evaluateSafetyReview({
+      permissions,
       author: arg(argv, '--author'),
       headSha: arg(argv, '--head-sha'),
       body: readFileSync(arg(argv, '--body-file'), 'utf8'),

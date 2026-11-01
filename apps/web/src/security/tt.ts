@@ -95,13 +95,87 @@ const FORBIDDEN_SVG = [
   /<\s*(iframe|embed|object|use|image|a)\b/i,
   /href\s*=/i,
   /<!ENTITY|<!DOCTYPE/i,
+  // External CSS (P0-04 review): a style element or attribute, @import, url().
+  /<\s*([a-z]+:)?style\b/i,
+  /\sstyle\s*=/i,
 ];
+
+/**
+ * The POSITIVE allowlist of an export (P0-04 review): drawing elements and
+ * presentation attributes that cannot load anything. No `style` (element or
+ * attribute: CSS can @import and url()), no attribute that takes a URL
+ * (`filter`, `mask`, `clip-path`, `marker-*`, `cursor`, any `href`), no
+ * gradient, pattern, image, use or font element.
+ */
+const SVG_ELEMENTS = new Set(['svg', 'g', 'title', 'desc', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path', 'text', 'tspan']);
+const SVG_ATTRIBUTES = new Set([
+  'viewBox', 'width', 'height', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'dx', 'dy', 'd', 'points',
+  'transform', 'fill', 'fill-opacity', 'fill-rule', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-linecap',
+  'stroke-linejoin', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-miterlimit', 'opacity', 'font-family', 'font-size',
+  'font-weight', 'font-style', 'text-anchor', 'dominant-baseline', 'id', 'class', 'role', 'aria-label', 'preserveAspectRatio',
+]);
+const SVG_NS = 'http://www.w3.org/2000/svg';
+/** The only character references allowed: the five predefined XML entities (the renderer escapes with these). */
+const ENTITY = /&(?!(?:amp|lt|gt|quot|apos);)/;
+/** In an attribute value: no URL function, no at-rule, no CSS escape, no markup (whitespace and case ignored). */
+const BAD_VALUE = /url\s*\(|@|\\|[<>]/i;
+
+function refuseExport(why: string): never {
+  throw new TrustedTypesError(`${RS_SVG_EXPORT}: forbidden content (${why})`);
+}
+
+/** Walks the markup with the allowlist; throws on anything outside it. */
+function checkSvgAllowlist(svg: string): void {
+  const tag = /<(\/?)([A-Za-z][A-Za-z0-9-]*)((?:\s+[A-Za-z][A-Za-z0-9:-]*\s*=\s*"[^"]*")*)\s*(\/?)>/y;
+  const attr = /\s+([A-Za-z][A-Za-z0-9:-]*)\s*=\s*"([^"]*)"/gy;
+  let i = 0;
+  let depth = 0;
+  let closedRoot = false;
+  while (i < svg.length) {
+    const lt = svg.indexOf('<', i);
+    const text = svg.slice(i, lt === -1 ? svg.length : lt);
+    if (ENTITY.test(text)) refuseExport('character reference or stray &');
+    if (closedRoot && text.trim() !== '') refuseExport('content after the root');
+    if (lt === -1) break;
+    if (closedRoot) refuseExport('content after the root');
+    tag.lastIndex = lt;
+    const m = tag.exec(svg);
+    if (m === null) refuseExport('not an allowed tag (comment, CDATA, processing instruction or malformed markup)');
+    const [whole, close, name = '', attrs = '', selfClose] = m;
+    if (!SVG_ELEMENTS.has(name)) refuseExport(`element ${name}`);
+    if (close === '/') {
+      if (attrs !== '' || selfClose === '/') refuseExport('malformed closing tag');
+      depth -= 1;
+      if (depth < 0) refuseExport('unbalanced closing tag');
+      if (depth === 0) closedRoot = true;
+    } else {
+      if ((depth === 0) !== (name === 'svg')) refuseExport(depth === 0 ? 'root is not svg' : 'nested svg');
+      let namespaced = false;
+      for (const a of attrs.matchAll(attr)) {
+        const [, attrName = '', value = ''] = a;
+        if (attrName === 'xmlns') {
+          if (depth !== 0 || value !== SVG_NS) refuseExport('namespace declaration');
+          namespaced = true;
+          continue;
+        }
+        if (!SVG_ATTRIBUTES.has(attrName)) refuseExport(`attribute ${attrName}`);
+        if (BAD_VALUE.test(value) || ENTITY.test(value)) refuseExport(`value of ${attrName}`);
+      }
+      if (depth === 0 && !namespaced) refuseExport('the root has no SVG namespace');
+      if (selfClose === '/') {
+        if (depth === 0) refuseExport('empty root');
+      } else depth += 1;
+    }
+    i = lt + whole.length;
+  }
+  if (!closedRoot) refuseExport('the root is not closed');
+}
 
 /**
  * Brands a complete SVG document from the wiring export renderer. Only that
  * renderer calls this (it XML-escapes every label). The content is checked
- * again here: anything that could run script, load a resource or embed HTML
- * is refused.
+ * again here against a positive allowlist: anything that could run script,
+ * load a resource (external CSS included) or embed HTML is refused.
  */
 export function brandSvgExport(svg: string): SvgExport {
   if (!/^<svg\s[^>]*xmlns="http:\/\/www\.w3\.org\/2000\/svg"/.test(svg) || !/<\/svg>\s*$/.test(svg)) {
@@ -109,6 +183,7 @@ export function brandSvgExport(svg: string): SvgExport {
   }
   const bad = FORBIDDEN_SVG.find((re) => re.test(svg));
   if (bad !== undefined) throw new TrustedTypesError(`${RS_SVG_EXPORT}: forbidden content (${bad.source})`);
+  checkSvgAllowlist(svg);
   issuedSvgExports.add(svg);
   return svg as SvgExport;
 }

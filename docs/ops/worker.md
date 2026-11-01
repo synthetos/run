@@ -77,11 +77,19 @@ to a bundler inside the build toolchain. The artifact is `run-web.tar` and
    published as its outputs (artifact poisoning, P0 review), then verify the
    attestation of all four and the extracted trees.
 2. **Preflight** (`deploy/preflight.ts`): the configuration passes every
-   check; `account_id` is a real account id, not the D34 placeholder; it
-   equals the `CLOUDFLARE_ACCOUNT_ID` variable.
+   check, including a positive allowlist of keys (no `build` in any scope:
+   wrangler runs `build.command` even under `--no-bundle`, with the deploy
+   token); `account_id` is a real account id, not the D34 placeholder; it
+   equals the `CLOUDFLARE_ACCOUNT_ID` variable. It then writes
+   `workers/run/wrangler.deploy.json`, rebuilt from the allowlisted keys
+   only (it refuses to overwrite an existing file). Every wrangler call of
+   the job, the undo included, uses that file.
 3. Staging only: **Access must already be in front** (`smoke/cli.ts --env
    staging --pre-deploy`): a positive check through the Cloudflare Access
-   API (docs/ops/access.md §2); "not reachable" alone never passes.
+   API (docs/ops/access.md §2); "not reachable" alone never passes. The step
+   is given `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in its own
+   `env:` (ci-policy `smoke-credentials`); without them it refuses and names
+   the missing variable.
 4. **Previous state**: the newest `run-deployed-<env>` artifact from a `push`
    run of `ci.yml` on `main` in this repository (`deploy/previous.ts`; a pull
    request run can never qualify). None means a first deploy, with a warning.
@@ -100,7 +108,7 @@ to a bundler inside the build toolchain. The artifact is `run-web.tar` and
    content hash and a `js`, `css`, `woff2` or `png` extension are ever
    retained: never HTML, SVG, XML, text or `_headers`. The merged tree is
    scanned again.
-6. `wrangler deploy worker/index.mjs --no-bundle --assets deploy-site`
+6. `wrangler deploy worker/index.mjs --no-bundle --config workers/run/wrangler.deploy.json --assets deploy-site`
    (100%, never gradual).
 7. **Smoke test** (`smoke/cli.ts --env <env>`):
    - production: the shell, its entry script, a 404 and `/api/health` with

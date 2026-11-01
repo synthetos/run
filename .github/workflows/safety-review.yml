@@ -3,12 +3,20 @@
 # A pull request that touches a safety-review path
 # (tools/gates/src/shared/safetyPaths.ts) passes only with the SAFETY §8
 # checklist from .github/pull_request_template.md fully ticked and two
-# approvals of its head commit from reviewers other than the author.
+# approvals of its head commit from reviewers other than the author who hold
+# write, maintain or admin permission on this repository NOW (read from
+# GET /repos/{owner}/{repo}/collaborators/{username}/permission, not from
+# author_association, which describes a relationship, not a permission).
 # Branch protection makes this a required check (docs/ops/branch-protection.md).
 #
-# The check runs the gate code from the PR's BASE commit, never from the PR
-# itself, so a PR cannot weaken the check that judges it. It holds no secret
-# and only read permissions; the PR body reaches the script through env:.
+# The gate code is checked out from the PR's BASE commit. This file itself is
+# not: a pull_request workflow runs the definition from the PR, so a PR can
+# rewrite this file (and the policy that checks it). This check is therefore
+# a SECONDARY control. The primary control is GitHub's native branch
+# protection: required approvals, which GitHub counts only from reviewers with
+# write access, plus Code Owner review of .github/ and tools/gates/
+# (docs/ops/branch-protection.md). The check holds no secret and only read
+# permissions; the PR body reaches the script through env:.
 
 name: safety-review
 
@@ -54,7 +62,27 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --paginate --slurp > "$RUNNER_TEMP/files.json"
           gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" --paginate --slurp > "$RUNNER_TEMP/reviews.json"
           printf '%s' "$PR_BODY" > "$RUNNER_TEMP/body.md"
-      - name: Check the checklist and the approvals
+      - name: Fetch each reviewer's current permission on this repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # One answer per reviewer. A reviewer whose answer cannot be fetched has no
+          # evidence of write access, and the gate does not count their approval.
+          : > "$RUNNER_TEMP/permissions.jsonl"
+          for login in $(jq -r '.[][] | .user.login // empty' "$RUNNER_TEMP/reviews.json" | sort -u); do
+            if ! printf '%s' "$login" | grep -Eq '^[A-Za-z0-9-]+(\[bot\])?$'; then
+              echo "::warning::skipping an unexpected reviewer login"
+              continue
+            fi
+            if gh api "repos/$GITHUB_REPOSITORY/collaborators/$login/permission" > "$RUNNER_TEMP/permission.json"; then
+              cat "$RUNNER_TEMP/permission.json" >> "$RUNNER_TEMP/permissions.jsonl"
+            else
+              echo "::warning::no permission answer for $login: their approval does not count"
+            fi
+          done
+          jq -s . "$RUNNER_TEMP/permissions.jsonl" > "$RUNNER_TEMP/permissions.json"
+      - name: Check the checklist and the approvals of reviewers with write access
         env:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -62,6 +90,7 @@ jobs:
           node tools/gates/src/review/cli.ts \
             --files "$RUNNER_TEMP/files.json" \
             --reviews "$RUNNER_TEMP/reviews.json" \
+            --permissions "$RUNNER_TEMP/permissions.json" \
             --body-file "$RUNNER_TEMP/body.md" \
             --author "$PR_AUTHOR" \
             --head-sha "$HEAD_SHA"

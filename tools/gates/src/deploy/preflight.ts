@@ -2,7 +2,14 @@
  * Deploy preflight (ROADMAP P0-04, D34, SAFETY H45, H46). The deploy jobs run
  * it immediately before `wrangler deploy`:
  *
- *   node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc <production|staging>
+ *   node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc <production|staging> \
+ *     --write workers/run/wrangler.deploy.json
+ *
+ * On acceptance it writes the deployment configuration (deployConfig: the
+ * allowlisted keys of the checked file, nothing else) to the --write path,
+ * which must not exist yet. The deploy and undo steps give wrangler only
+ * that file (ci-policy `deploy-config`), because wrangler runs a configured
+ * custom build even under --no-bundle, with the deploy token (P0-04 review).
  *
  * It refuses to let a deploy proceed when:
  * - the configuration fails checkWorkerConfig (workers_dev or preview_urls
@@ -14,13 +21,13 @@
  *
  * Exit status: 0 go, 1 refused, 2 could not run.
  */
-import { readFileSync } from 'node:fs';
-import { checkWorkerConfig, isDeployEnvironment, parseJsonc } from './wranglerConfig.ts';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { checkWorkerConfig, deployConfig, isDeployEnvironment, parseJsonc } from './wranglerConfig.ts';
 
 function main(argv: readonly string[]): number {
-  const [file, env] = argv;
-  if (file === undefined || env === undefined || argv.length !== 2 || !isDeployEnvironment(env)) {
-    process.stderr.write('usage: deploy/preflight.ts <wrangler.jsonc> <production|staging>\n');
+  const [file, env, flag, out] = argv;
+  if (file === undefined || env === undefined || argv.length !== 4 || flag !== '--write' || out === undefined || out === '' || !isDeployEnvironment(env)) {
+    process.stderr.write('usage: deploy/preflight.ts <wrangler.jsonc> <production|staging> --write <deployment-config.json>\n');
     return 2;
   }
   try {
@@ -35,7 +42,9 @@ function main(argv: readonly string[]): number {
       for (const f of findings) process.stderr.write(`  ${f.where}: ${f.message}\n`);
       return 1;
     }
-    process.stdout.write(`deploy preflight (${env}): configuration accepted\n`);
+    // 'wx': never overwrite. A deployment configuration already in the checkout was not written by this check.
+    writeFileSync(out, `${JSON.stringify(deployConfig(config, { requireRealAccount: true }), null, 2)}\n`, { flag: 'wx' });
+    process.stdout.write(`deploy preflight (${env}): configuration accepted; deployment configuration written to ${out}\n`);
     return 0;
   } catch (error) {
     process.stderr.write(`deploy preflight: could not run: ${error instanceof Error ? error.message : String(error)}\n`);

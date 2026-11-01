@@ -82,10 +82,22 @@ async function httpChecks(base: string, env: string): Promise<SmokeFinding[]> {
   return findings;
 }
 
+/**
+ * Fails closed, naming each missing variable, when the Cloudflare credentials
+ * are absent. In CI a step's env: is not inherited by the next step, so each
+ * smoke-test step must pass both (ci-policy `smoke-credentials`).
+ */
+function missingCredentials(check: string, purpose: string): SmokeFinding[] {
+  return ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']
+    .filter((key) => (process.env[key] ?? '') === '')
+    .map((key) => ({ check, message: `${key} is not set: it is needed to ${purpose}; pass it in the env: of this workflow step (nothing was checked, so this fails)` }));
+}
+
 async function subdomainSetting(script: string): Promise<SmokeFinding[]> {
   const token = process.env['CLOUDFLARE_API_TOKEN'] ?? '';
   const account = process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '';
-  if (token === '' || account === '') return [{ check: 'preview', message: 'CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are needed to read the workers.dev and preview settings' }];
+  const missing = missingCredentials('preview', 'read the workers.dev and preview settings');
+  if (missing.length > 0) return missing;
   const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/workers/scripts/${encodeURIComponent(script)}/subdomain`;
   const res = await fetch(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(TIMEOUT_MS) });
   const body = (await res.json().catch(() => null)) as { success?: unknown; result?: unknown } | null;
@@ -104,7 +116,8 @@ async function cloudflare(path: string): Promise<{ ok: boolean; status: number; 
 async function accessApi(host: string): Promise<SmokeFinding[]> {
   const token = process.env['CLOUDFLARE_API_TOKEN'] ?? '';
   const account = process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '';
-  if (token === '' || account === '') return [{ check: 'access', message: 'CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are needed to confirm the Access application' }];
+  const missing = missingCredentials('access', 'confirm the Access application through the Cloudflare API');
+  if (missing.length > 0 || token === '' || account === '') return missing;
   const base = `/accounts/${encodeURIComponent(account)}/access/apps`;
   const apps: unknown[] = [];
   for (let page = 1; page <= 20; page += 1) {

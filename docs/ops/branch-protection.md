@@ -30,25 +30,52 @@ Enforcement: **Active**.
 - **Bypass list**: empty. If an emergency bypass is ever needed, the owner
   alone may bypass, and every use is recorded in the PR with its reason.
 
+### What actually enforces review: native branch protection first
+
+The **primary** review control is GitHub's own branch protection above:
+required approvals (GitHub counts only approvals from people with write
+access to the repository), "Require review from Code Owners" (the owner
+must approve every CODEOWNERS path, which includes `.github/`,
+`tools/gates/`, `workers/run/wrangler.jsonc` and the SAFETY §8 paths),
+stale-approval dismissal and approval of the most recent push. GitHub
+enforces these outside anything a pull request can change.
+
+The `safety-review` check is a **secondary** control. Its workflow runs on
+`pull_request`, and GitHub takes the definition of a `pull_request` workflow
+from the PR itself. The gate code is checked out from the base commit, but a
+PR could rewrite `safety-review.yml` (and `tools/gates/src/workflow/policy.ts`,
+which checks that file). Such a PR touches `.github/` and `tools/gates/`, so
+it cannot merge without the owner's Code Owner approval: that, not the
+check, is what stops it. Do not rely on the check alone.
+
 ### Two reviews for safety paths
 
 GitHub cannot require a different number of approvals for different paths.
-The required `safety-review` check enforces the second review
+The required `safety-review` check adds the second review
 (`.github/workflows/safety-review.yml`). When a PR touches a path in
 `tools/gates/src/shared/safetyPaths.ts`, it fails until both of these hold:
 - the SAFETY §8 checklist from `.github/pull_request_template.md` is in the
   PR description, with all 40 items ticked;
-- **two** reviewers other than the author, each with write access (GitHub `author_association` OWNER, MEMBER or COLLABORATOR), have approved the PR's head commit. Approvals from outside contributors do not count: the repository is public.
+- **two** reviewers other than the author have approved the PR's head
+  commit, each holding **write, maintain or admin permission on this
+  repository at the time the check runs**. The workflow asks GitHub for each
+  reviewer's current permission
+  (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`) and the
+  gate counts only `write` or `admin` answers (maintain is reported as
+  write) from non-bot accounts. `author_association` is not used: it
+  describes a relationship, and an organisation MEMBER can have read,
+  triage or no access to this repository. A reviewer whose permission is
+  read, triage or none, whose permission was revoked after approving, or
+  whose permission could not be fetched does not count. Approvals from
+  outside contributors do not count: the repository is public.
   A later "changes requested" or a dismissal cancels an approval.
 
-The check runs its code from the PR's base commit, so a PR cannot weaken
-it. It re-runs when the PR is edited or reviewed.
+It re-runs when the PR is edited or reviewed. A permission revoked after the
+last run is only seen on the next run, which is one more reason the native
+rules above come first.
 
-**Solo-maintainer note:** while the owner is the only maintainer, a safety PR
-written by the owner cannot get two approvals from other people. Merging one
-needs either a second maintainer or a recorded owner bypass. Adding a second
-reviewer with write access is the intended fix (SAFETY §8: "A second reviewer
-signs the 'Safety review' approval").
+**Solo maintainer:** this is an open OWNER DECISION, recorded in
+`docs/ops/owner-decisions.md` (OD-1). Nothing in this repository decides it.
 
 ## 2. Environments
 
