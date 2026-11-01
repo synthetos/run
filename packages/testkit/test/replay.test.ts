@@ -61,6 +61,17 @@ describe('ReplayTransport', () => {
     await expect(done.writeLine(bytes('!'))).rejects.toMatchObject({ divergence: { reason: 'write-past-end' } });
   });
 
+  it('refuses a write before open() and after close(), even one that matches the recording', async () => {
+    const before = new ReplayTransport(rec, { clock: new VirtualClock() });
+    await expect(before.writeLine(bytes('{"sr":null}\n'))).rejects.toMatchObject({ divergence: { reason: 'write-while-closed', step: 0 } });
+    expect(before.finished).toBe(false);
+
+    const after = new ReplayTransport(rec, { clock: new VirtualClock() });
+    await after.open();
+    await after.close();
+    await expect(after.writeLine(bytes('{"sr":null}\n'))).rejects.toMatchObject({ divergence: { reason: 'write-while-closed', step: 0 } });
+  });
+
   it('replays a recorded disconnect: listeners fire and the readable ends', async () => {
     const clock = new VirtualClock();
     const t = new ReplayTransport({ name: 'pull', steps: [{ emit: bytes('x'), afterMs: 1 }, { disconnect: true, afterMs: 5 }] }, { clock });

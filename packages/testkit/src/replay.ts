@@ -43,7 +43,7 @@ export interface Recording {
 
 export interface ReplayDivergence {
   readonly step: number;
-  readonly reason: 'unexpected-bytes' | 'write-before-expected' | 'write-past-end' | 'write-after-disconnect';
+  readonly reason: 'unexpected-bytes' | 'write-before-expected' | 'write-past-end' | 'write-after-disconnect' | 'write-while-closed';
   readonly expected?: string;
   readonly actual: string;
 }
@@ -115,6 +115,8 @@ export class ReplayTransport implements TransportLike {
   async writeLine(line: Uint8Array): Promise<void> {
     if (this.#divergence !== null) throw new ReplayDivergenceError(this.#divergence);
     const actual = escapeBytes(line);
+    // A write before open() or after close() never reaches a real port: it is a host bug, not a match.
+    if (!this.#open) this.#diverge({ step: this.#index, reason: 'write-while-closed', actual });
     if (this.#disconnected) this.#diverge({ step: this.#index, reason: 'write-after-disconnect', actual });
     const step = this.recording.steps[this.#index];
     if (step === undefined) this.#diverge({ step: this.#index, reason: 'write-past-end', actual });

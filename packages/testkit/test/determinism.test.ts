@@ -44,7 +44,10 @@ describe('determinism', () => {
   });
 
   it('the same seed and fault plan give byte-identical transcripts (440.21)', () => {
-    expect(run('tg', 99)).toBe(run('tg', 99));
+    const a = run('tg', 99);
+    expect(a).toBe(run('tg', 99));
+    expect(a.split('\n').length).toBeGreaterThan(20);
+    expect(a).toMatch(/!! corrupt toHost/); // the plan really acted
   });
 
   it('a different seed picks different victims, so the transcript differs', () => {
