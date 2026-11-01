@@ -156,7 +156,7 @@ write, jog, flasher, preview, cloud API, console): N/A until their phase.
 | P0-13 | T-S40; importing the test kit into an entry fails both dependency-cruiser and the scan | `bundle-acceptance.test.ts` | PASS |
 | P0-14 | Written result; a passing example that opens the mock port from `machine.worker` in the built app | `docs/testing/fake-serial.md`; `tools/e2e/specs/open-mock-port.fake-serial.ts`; `fake-serial-acceptance.test.ts`, `artifact-diff.test.ts` | PASS |
 | Phase 0 rule | Nothing opens a serial port; no `navigator.serial` outside test fakes | lint `noWebSerial.ts`; bundle scan Web Serial rule; `machine-worker.e2e.ts` ("has no transport in Phase 0") | PASS |
-| P0-15 | Tag `run-v0.1.0`, `RELEASES.md`, production deploy with smoke output, live site, staging behind Access | not started; needs a GitHub remote, the D34 account and D31 Access | **FAIL: not done, blocked on owner (O1, O2, O4)** |
+| P0-15 | Tag `run-v0.1.0`, `RELEASES.md`, production deploy with smoke output, live site, staging behind Access | `RELEASES.md` entry written (pending); deploy and tag need a GitHub remote, the D34 account and D31 Access, in the order of `docs/LEAD_ACTIONS.md` | **FAIL: not done, blocked on owner (O1, O2, O4)** |
 
 ## D. Owner decisions with a Phase 0 safety condition
 
@@ -242,8 +242,13 @@ and the source restored.
 - **O3. Manual install check (P0-05): FAIL until recorded.** The Install
   prompt on desktop Chrome and Edge must be checked by a person and recorded
   (`docs/ops/install-check.md`). The automated installability test passes.
-- **O4. P0-15 not done.** No `run-v0.1.0` tag or `RELEASES.md` yet; it depends
-  on O1 and O2.
+- **O4. P0-15 not done.** `RELEASES.md` has the `run-v0.1.0` entry, marked
+  pending; the production deploy, smoke output and tag depend on O1 and O2.
+  The owner's steps, in order and with commands, are in `docs/LEAD_ACTIONS.md`,
+  which also raises two decisions found in the final gate: whether a Worker
+  in the dedicated D34 account can serve a hostname of the `synthetos.com`
+  zone in the existing account (Step 0a), and how a solo maintainer merges
+  under the review rules (Step 0b).
 - **O5. Mutation margin and coverage of the other safety-path packages.**
   The `safety` package now passes at 90.84 %, but `sanitize/` alone is at
   88.4 % (`analyze.ts` 88.6 %, `geometry.ts` 80.7 %, 333 survivors), so the
