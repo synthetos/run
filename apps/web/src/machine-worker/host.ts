@@ -48,6 +48,16 @@ export function realClock(): SessionClock {
   };
 }
 
+/**
+ * What the platform rule reads in the worker: `navigator.userAgent` only,
+ * the one reviewed navigator property it needs (run/no-capability-lookup).
+ * `userAgentData` and `maxTouchPoints` would also catch Android's "desktop
+ * site" mode and a touch iPad; reading them is a gate change for review.
+ */
+export function workerPlatform(): PlatformInfo | undefined {
+  return typeof navigator === 'undefined' ? undefined : { userAgent: navigator.userAgent };
+}
+
 export class MachineWorkerHost {
   readonly #source: TransportSource;
   readonly #clock: SessionClock;
@@ -57,8 +67,8 @@ export class MachineWorkerHost {
   #lastPost = Number.NEGATIVE_INFINITY;
   #pending: number | null = null;
 
-  /** `platform` is the worker's `navigator` (its user agent and client hints) unless a test passes one. */
-  constructor(source: TransportSource, clock: SessionClock = realClock(), platform: PlatformInfo | undefined = (globalThis as { navigator?: PlatformInfo }).navigator) {
+  /** `platform` is the worker's user agent (`workerPlatform`) unless a test passes one. */
+  constructor(source: TransportSource, clock: SessionClock = realClock(), platform: PlatformInfo | undefined = workerPlatform()) {
     this.#source = source;
     this.#clock = clock;
     this.#platform = platform;
