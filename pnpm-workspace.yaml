@@ -2,6 +2,7 @@ packages:
   - packages/*
   - apps/*
   - workers/*
+  - tools/*
 
 # Supply-chain hardening (RUN_PLAN §6.2): refuse any package version published
 # less than 7 days ago (value in minutes).

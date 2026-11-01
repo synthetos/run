@@ -7,18 +7,22 @@
   "type": "module",
   "packageManager": "pnpm@10.34.6+sha512.7e1ae66a83a9143c118cc1944f37cc4f2b8acddeda4b001cfa78908f6e46e45e15292739ca6c9d026426cc757e9318cc98c5551d6a16c165097b0028ba87b4e6",
   "engines": {
-    "node": ">=22.12.0",
+    "node": ">=22.18.0",
     "pnpm": "10.34.6"
   },
   "scripts": {
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
+    "deps": "depcruise packages apps workers tools --config .dependency-cruiser.cjs",
+    "licence": "node tools/gates/src/licence/cli.ts",
+    "gates": "pnpm lint && pnpm deps && pnpm licence",
     "test": "pnpm -r test",
     "build": "pnpm --filter web build",
-    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
+    "check": "pnpm typecheck && pnpm gates && pnpm test && pnpm build"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
+    "@types/node": "22.20.5",
     "dependency-cruiser": "18.5.0",
     "eslint": "10.12.0",
     "fast-check": "4.10.2",

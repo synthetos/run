@@ -31,40 +31,55 @@ account.
 | `apps/web` | The workspace UI (Preact, Vite multi-page app) |
 | `apps/cli` | Bench tooling (Node) |
 | `workers/run` | The Cloudflare Worker serving the app, `/api/*` and `/auth/*` |
+| `tools/gates` | **Dev only.** The repository's lint rules, the licence gate and the gate acceptance tests |
 
 ## Dependency rules
 
 - `protocol`, `safety`, `machine`, `schema`, `flasher` and `provenance` have
   **no runtime npm dependencies** and never import network APIs, `contracts`
   or the cloud client.
-- The cloud client (`apps/web/src/cloud`) never imports `machine`,
-  `protocol` or `safety`, and they never import it.
+- The cloud client (`apps/web/src/cloud`) imports only `contracts` and
+  `provenance`, so never `machine`, `protocol` or `safety`, and the safety
+  path never imports it.
 - `workers/run` imports only `contracts`. The server holds no machine logic.
 - No production entry may import `testkit`.
 - Panels act only through typed intents checked by `safety.allowed`; no code
   outside `MachineSession` writes to the port, and nothing is loaded at
   runtime.
 
-These rules will be enforced in CI by dependency-cruiser, ESLint and a
-bundle scan (P0-02, P0-03, P0-13). Until those gates land they are
-checked by review; the smoke tests already fail if a safety-path package
-declares a runtime dependency.
+These rules are enforced by three gates (P0-02). The bundle scan of the
+built output follows in P0-13.
+
+| Gate | Command | What it enforces |
+|---|---|---|
+| Boundaries | `pnpm deps` | `.dependency-cruiser.cjs`: no npm (direct or transitive) and no Node built-ins in the safety path; no `contracts` or cloud client in the safety path; the cloud client imports only `contracts` and `provenance`; `workers/run` imports only `contracts`; no entry reaches `testkit`; nothing imports from outside the repository; every import resolves |
+| Lint | `pnpm lint` | `eslint.config.js` with the repository's own rules in `tools/gates/src/eslint/`: no `eval`/`new Function`; no HTML sinks (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `dangerouslySetInnerHTML`) outside `apps/web/src/security/tt.ts`; no `abort` in `machine`; no `Math.random` in `safety` and `protocol`; no network identifiers in `protocol`, `safety`, `machine`, `flasher` and `provenance`; no `navigator.serial` anywhere (until P1-01); no `WARNING —`, `DANGER —` or `NOTICE —` strings outside `packages/safety/src/strings.ts` |
+| Licences | `pnpm licence` | Production dependencies: MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0 or OFL-1.1. Dev dependencies may also be MPL-2.0, or carry a reviewed exception in `tools/gates/src/licence/exceptions.ts`. GPL and AGPL are never allowed |
+
+`pnpm gates` runs all three. `tools/gates/test/acceptance.test.ts` proves
+each gate fails on a violation: it copies the working tree, introduces one
+violation, runs the real gate command and checks which rule caught it.
+
+A change to `.dependency-cruiser.cjs`, `eslint.config.js` or `tools/gates/`
+changes the safety boundary and needs safety-path review.
 
 ## Development
 
-Requirements: Node.js 22.12 or later, and pnpm via Corepack (the exact
+Requirements: Node.js 22.18 or later (it runs the TypeScript gate and
+bench scripts directly, with type stripping), and pnpm via Corepack (the exact
 version is pinned in `package.json` `packageManager`).
 
 ```sh
 corepack enable            # or prefix commands with `corepack`
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm -r typecheck
-pnpm lint
+pnpm gates                 # lint, dependency-cruiser, licences
 pnpm -r test
 pnpm --filter web build
 ```
 
-`pnpm check` runs typecheck, lint, tests and the build in that order.
+`pnpm check` runs typecheck, the gates, tests and the build in that order.
+Its nested `pnpm` calls need pnpm on `PATH` (`corepack enable`).
 
 Dependency hygiene: versions are pinned exactly (`save-exact`), install
 scripts never run (`ignore-scripts`), and pnpm refuses versions published
