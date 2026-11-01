@@ -107,7 +107,7 @@ describe('capability-driven panels', () => {
     expect(ids(v8)).toEqual(['motors', 'inputs', 'output:spindleEnable', 'output:spindleDirection', 'output:spindlePwm', 'output:coolant', 'connectors', 'ratings']);
     const due = parseBoardDefinition(dueJson);
     if (!due.ok) throw new Error('fixture');
-    const g2 = boardPanels(selectBoard({ family: 'g2core', hp: (dueJson as { match: { hp: number } }).match.hp, hv: (dueJson as { match: { hv: number[] } }).match.hv[0] as number }, [due.board]));
+    const g2 = boardPanels(selectBoard({ family: 'g2core', hp: due.board.match.hp, hv: due.board.match.hv[0] as string | number }, [due.board]));
     expect(ids(g2)).not.toContain('output:spindleDirection');
     expect(ids(g2)).not.toContain('connectors');
   });
