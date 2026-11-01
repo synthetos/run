@@ -16,7 +16,9 @@
   },
   "dependencies": {
     "@synthetos/flasher": "workspace:*",
-    "@synthetos/protocol": "workspace:*"
+    "@synthetos/protocol": "workspace:*",
+    "@synthetos/safety": "workspace:*",
+    "@synthetos/schema": "workspace:*"
   },
   "devDependencies": {
     "@synthetos/testkit": "workspace:*"

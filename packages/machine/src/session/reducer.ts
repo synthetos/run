@@ -1,0 +1,911 @@
+/**
+ * The read-only session statechart as a pure reducer (ROADMAP P1-02; SAFETY
+ * §3, §4.1, §4.4; PN §2.3; OLD-TP §4.2).
+ *
+ * `reduce(config, state, event)` returns the next state and the effects the
+ * executor (machineSession.ts) must carry out. It reads no clock, timer,
+ * port or global: time arrives in events, and timers are effects.
+ *
+ * The path: NOT_CONNECTED → PORT_REQUEST (the worker asks the build's
+ * transport source for the chosen port) → OPENING → IDENTIFYING (the
+ * capability probe, PN §2.3, `{"sr":null}` first) → READING (`stat`,
+ * `hold`, `vel`, `qr`) → CONNECTED_UNKNOWN. BLOCKED when the board's id is
+ * not the selected machine's (T-S21): nothing more is written.
+ *
+ * Overlays (SAFETY §3), in precedence order FAULT > LOST > ORPHANED_MOTION >
+ * UNKNOWN > STALE > READ_ONLY > NEEDS_REVIEW:
+ * - FAULT: a banner after the board was ready (T-S10), a write failure or a
+ *   refused write, an unexpected response, a footer revision change, an
+ *   `er` report, a board that keeps resetting during the probe. Latched;
+ *   `ackFault` completes only when two polled reads 250 ms apart show
+ *   `hold` = 0 and `qr` = the dialect's `plannerBlocks`, then the board is
+ *   probed again from `{"sr":null}`.
+ * - LOST: the link dropped. The port is closed; acknowledging it returns to
+ *   NOT_CONNECTED and the next connect starts with UNKNOWN.
+ * - ORPHANED_MOTION: no answer to a probe GET (3 s for the first line), an
+ *   unsolicited report showing motion while connecting, or READING finds
+ *   the board not idle (`stat` not idle/end, `hold` ≠ 0, `vel` ≠ 0, `qr`
+ *   not `plannerBlocks`). A boot banner while unclassified ends it (the
+ *   reset ended the motion) and the probe restarts.
+ * - UNKNOWN: after LOST, after a reset banner.
+ * - STALE: a read after classification went unanswered; cleared by the
+ *   next byte received. (The full watchdog is P1-04.)
+ * - READ_ONLY: the classifier returned READ_ONLY.
+ * - NEEDS_REVIEW: a settings drift (the drift check that raises it arrives
+ *   with the settings read; the overlay and its matrix rules exist now).
+ *
+ * Phase 1 writes (the only ones this file can produce): single-token GETs
+ * from the probe list before classification and from the dialect's read
+ * allowlist after it, ENQ (classified `tinyg-en`, after a rev-2/3 footer,
+ * at most one outstanding), and the feedhold `!` for Pause, Stop job and
+ * Spindle off (the last two with "Use your E-stop", SAFETY §4.4 READ_ONLY
+ * row). Every intent goes through `safety.allowed` with the configured
+ * release first, and every line through the matrix again when it is sent.
+ */
+import {
+  BYTE,
+  PROBE_STEPS,
+  buildProbeResult,
+  checkFooterForDialect,
+  classify,
+  mapStat,
+  type Banner,
+  type ClassifiedLine,
+  type Dialect,
+  type Inbound,
+  type JsonObject,
+  type JsonValue,
+  type MachineClass,
+  type ProbeKey,
+  type Response,
+  type StatusReport,
+} from '@synthetos/protocol';
+import { OVERLAYS, allowed, type Decision, type Intent, type MatrixSnapshot, type Overlay } from '@synthetos/safety';
+import { getLineFor, isReadAllowed } from '@synthetos/schema';
+import { writeLineCapFor } from '../writeShape.ts';
+import {
+  MAX_PROBE_RESTARTS,
+  MAX_QUEUED_READS,
+  type Axis,
+  type Expected,
+  type FaultCause,
+  type FaultKind,
+  type Identity,
+  type LiveState,
+  type PendingRead,
+  type ProbeProgress,
+  type ReadPurpose,
+  type SessionConfig,
+  type SessionEffect,
+  type SessionEvent,
+  type SessionIntent,
+  type SessionState,
+  type TimerId,
+  type Transition,
+} from './types.ts';
+
+/** Tokens READING reads, where the dialect's allowlist has them (SAFETY H14 inputs, PN §2.3 step 0). */
+export const READING_TOKENS: readonly string[] = Object.freeze(['stat', 'hold', 'vel', 'qr']);
+
+/** Tokens the `ackFault` verification reads (SAFETY §3 FAULT exits). */
+export const VERIFY_TOKENS: readonly string[] = Object.freeze(['hold', 'qr']);
+
+/** The probe's tokens: the only GETs written before the board is classified (PN §2.3, probe.ts). */
+export const PROBE_TOKENS: ReadonlySet<string> = new Set(PROBE_STEPS.map((s) => s.key));
+
+const AXES: readonly Axis[] = ['x', 'y', 'z', 'a', 'b', 'c'];
+
+/** Machine classes that mean the board is moving or about to (unsolicited report while connecting). */
+const MOTION_CLASSES: ReadonlySet<MachineClass> = new Set(['running', 'homing', 'jogging', 'probing']);
+
+/** Classes READING accepts as "not running anything" (PN §2.3 step 0: stat ∈ {1, 4}). */
+const RESTING_CLASSES: ReadonlySet<MachineClass> = new Set(['idle', 'end']);
+
+const EMPTY_LIVE: LiveState = Object.freeze({ pos: Object.freeze({}), mpo: Object.freeze({}) });
+
+export function initialState(): SessionState {
+  return Object.freeze({
+    base: 'NOT_CONNECTED',
+    overlays: Object.freeze([]),
+    epoch: 0,
+    port: null,
+    expectedDeviceId: null,
+    unknownOnNextConnect: false,
+    xoff: false,
+    footerRev: undefined,
+    probe: null,
+    ready: false,
+    identity: null,
+    classification: null,
+    dialect: null,
+    portInfo: null,
+    queue: Object.freeze([]),
+    expected: Object.freeze([]),
+    writing: null,
+    enqOutstanding: false,
+    live: EMPTY_LIVE,
+    values: Object.freeze({}),
+    fault: null,
+    ackVerify: null,
+    blocked: null,
+    notices: Object.freeze({ adviseEstop: false }),
+    timers: Object.freeze({}),
+    timerSeq: 0,
+    sent: Object.freeze({ lines: 0, realtime: 0 }),
+  });
+}
+
+/** The classified dialect, or null (unclassified, or not yet probed). */
+export function dialectOf(state: SessionState): Dialect | null {
+  return state.dialect;
+}
+
+/** What the allow-matrix needs to know about this state. */
+export function matrixSnapshot(state: SessionState): MatrixSnapshot {
+  const dialect = dialectOf(state);
+  return { base: state.base, overlays: state.overlays, classified: dialect !== null, enqCapable: dialect?.caps.enq === true };
+}
+
+/** True when a GET of `token` may be written in this state (probe tokens before classification, the allowlist after). */
+export function readableNow(state: SessionState, token: string): boolean {
+  const dialect = dialectOf(state);
+  if (dialect !== null) return isReadAllowed(dialect.id, token);
+  return state.classification === null && PROBE_TOKENS.has(token);
+}
+
+/**
+ * True when the dialect side of ENQ holds: classified, the dialect has ENQ,
+ * and a rev-2/3 footer was seen on this link (T-S24b, T-S87). The
+ * allow-matrix (`enq`, with the session's release) is checked separately,
+ * at the intent and again right before the write.
+ */
+export function enqAllowedNow(state: SessionState): boolean {
+  return enqByte(state) !== undefined;
+}
+
+/** The ENQ byte when `enqAllowedNow` holds (dialect data: present exactly where `caps.enq`), else undefined. */
+function enqByte(state: SessionState): number | undefined {
+  if (state.footerRev !== 2 && state.footerRev !== 3) return undefined;
+  return dialectOf(state)?.realtime.enq?.byte;
+}
+
+/** One transition being built. */
+class Tx {
+  s: SessionState;
+  readonly fx: SessionEffect[] = [];
+  readonly config: SessionConfig;
+
+  constructor(config: SessionConfig, state: SessionState) {
+    this.config = config;
+    this.s = state;
+  }
+
+  set(patch: Partial<SessionState>): void {
+    this.s = { ...this.s, ...patch };
+  }
+
+  emit(effect: SessionEffect): void {
+    this.fx.push(Object.freeze(effect));
+  }
+
+  decide(intent: Intent, decision: Decision): void {
+    this.emit({ kind: 'decision', intent, decision: Object.freeze(decision) });
+  }
+
+  arm(id: TimerId, ms: number): void {
+    const seq = this.s.timerSeq + 1;
+    this.set({ timerSeq: seq, timers: { ...this.s.timers, [id]: seq } });
+    this.emit({ kind: 'armTimer', id, seq, ms });
+  }
+
+  cancel(id: TimerId): void {
+    if (this.s.timers[id] === undefined) return;
+    const timers = { ...this.s.timers };
+    delete timers[id];
+    this.set({ timers });
+    this.emit({ kind: 'cancelTimer', id });
+  }
+
+  cancelAll(): void {
+    for (const id of Object.keys(this.s.timers) as TimerId[]) this.cancel(id);
+  }
+
+  addOverlay(o: Overlay): void {
+    if (this.s.overlays.includes(o)) return;
+    this.set({ overlays: OVERLAYS.filter((x) => x === o || this.s.overlays.includes(x)) });
+  }
+
+  removeOverlay(o: Overlay): void {
+    if (!this.s.overlays.includes(o)) return;
+    this.set({ overlays: this.s.overlays.filter((x) => x !== o) });
+  }
+
+  done(): Transition {
+    return { state: deepFreezeState(this.s), effects: Object.freeze(this.fx) };
+  }
+}
+
+/** The next state and effects. Pure: never throws for any event in any state. */
+export function reduce(config: SessionConfig, state: SessionState, event: SessionEvent): Transition {
+  const t = new Tx(config, state);
+  switch (event.type) {
+    case 'intent':
+      onIntent(t, event.request, event.at);
+      break;
+    case 'transportAcquired':
+      if (event.epoch === t.s.epoch && t.s.base === 'PORT_REQUEST') {
+        t.set({ base: 'OPENING' });
+        t.emit({ kind: 'open', epoch: t.s.epoch });
+      }
+      break;
+    case 'transportUnavailable':
+    case 'openFailed':
+      if (event.epoch === t.s.epoch && (t.s.base === 'PORT_REQUEST' || t.s.base === 'OPENING')) {
+        resetToNotConnected(t, false);
+        const code = event.type === 'transportUnavailable' ? 'unavailable' : 'open-failed';
+        t.set({ notices: { ...t.s.notices, connectFailed: { code, reason: event.reason } } });
+      }
+      break;
+    case 'opened':
+      if (event.epoch === t.s.epoch && t.s.base === 'OPENING') {
+        t.set({ portInfo: Object.freeze({ ...event.info }) });
+        onOpened(t);
+      }
+      break;
+    case 'inbound':
+      if (event.epoch === t.s.epoch && linkUp(t.s)) onInbound(t, event.event, event.at);
+      break;
+    case 'lineWritten':
+      // Only for the line being written: its answer may already have arrived (and the next line been asked for).
+      if (event.epoch === t.s.epoch && linkUp(t.s) && t.s.writing?.seq === event.seq) onLineWritten(t);
+      break;
+    case 'lineDropped':
+      if (event.epoch === t.s.epoch && t.s.writing?.seq === event.seq) t.set({ writing: null });
+      break;
+    case 'writeFailed':
+      if (event.epoch === t.s.epoch && linkUp(t.s)) {
+        t.set({ writing: null });
+        enterFault(t, 'writeFailed', 'integrity', `a write failed: ${event.detail}`, event.at);
+      }
+      break;
+    case 'writeRefused':
+      if (event.epoch === t.s.epoch && linkUp(t.s)) {
+        t.set({ writing: null });
+        enterFault(t, 'writeRefused', 'integrity', `the session's write gate refused bytes: ${event.detail}`, event.at);
+      }
+      break;
+    case 'linkLost':
+      if (event.epoch === t.s.epoch && linkUp(t.s)) onLinkLost(t);
+      break;
+    case 'timer':
+      if (t.s.timers[event.id] === event.seq) {
+        const timers = { ...t.s.timers };
+        delete timers[event.id];
+        t.set({ timers });
+        onTimer(t, event.id, event.at);
+      }
+      break;
+    case 'driftDetected':
+      if (event.epoch === t.s.epoch && linkUp(t.s)) t.addOverlay('NEEDS_REVIEW');
+      break;
+  }
+  pump(t);
+  return t.done();
+}
+
+/** The port is open and the link has not been lost. */
+function linkUp(s: SessionState): boolean {
+  return (s.base === 'IDENTIFYING' || s.base === 'READING' || s.base === 'BLOCKED' || s.base === 'CONNECTED_UNKNOWN') && !s.overlays.includes('LOST');
+}
+
+// --- Intents -------------------------------------------------------------
+
+const PHASE_1_NOT_HANDLED = {
+  reason: 'The machine session does not handle this request in this release.',
+  remedy: 'This release only reads the machine; use your usual sender to control it.',
+};
+
+function deny(reason: string, remedy: string, citation: string): Decision {
+  return { allowed: false, reason, remedy, citation };
+}
+
+function onIntent(t: Tx, request: SessionIntent, at: number): void {
+  const intent = request.intent;
+  const matrix = allowed(matrixSnapshot(t.s), intent, t.config.release);
+  if (!matrix.allowed) {
+    t.decide(intent, matrix);
+    return;
+  }
+  switch (request.intent) {
+    case 'connect': {
+      const epoch = t.s.epoch + 1;
+      t.s = { ...initialState(), epoch, unknownOnNextConnect: t.s.unknownOnNextConnect, timerSeq: t.s.timerSeq };
+      t.set({ base: 'PORT_REQUEST', port: request.port, expectedDeviceId: request.expectedDeviceId });
+      t.emit({ kind: 'acquireTransport', epoch, port: request.port });
+      t.decide(intent, matrix);
+      return;
+    }
+    case 'disconnect': {
+      const epoch = t.s.epoch;
+      t.cancelAll();
+      t.emit({ kind: 'close', epoch });
+      resetToNotConnected(t, t.s.unknownOnNextConnect);
+      t.decide(intent, matrix);
+      return;
+    }
+    case 'feedhold':
+    case 'stopJob':
+    case 'spindleOffNow': {
+      // Phase 1 (and every READ_ONLY session): the only stop is `!`, with "Use your E-stop" for Stop
+      // job and Spindle off (SAFETY §4.4). Never ^D, `%` or an M-code.
+      writeFeedhold(t);
+      t.set({ notices: { ...t.s.notices, pauseRequestedAt: at, adviseEstop: t.s.notices.adviseEstop || request.intent !== 'feedhold' } });
+      t.decide(intent, matrix);
+      return;
+    }
+    case 'ackFault':
+      onAckFault(t, matrix);
+      return;
+    case 'acknowledgeLost':
+      resetToNotConnected(t, true);
+      t.decide(intent, matrix);
+      return;
+    case 'enq':
+      onEnq(t, matrix);
+      return;
+    case 'read':
+      onRead(t, request.tokens, matrix);
+      return;
+    default:
+      t.decide(intent, deny(PHASE_1_NOT_HANDLED.reason, PHASE_1_NOT_HANDLED.remedy, `ROADMAP P1-02 (${t.config.release.name})`));
+  }
+}
+
+function onEnq(t: Tx, matrix: Decision): void {
+  if (t.s.enqOutstanding) {
+    t.decide('enq', deny('A liveness probe is already outstanding.', 'Wait for its answer.', 'SAFETY §4.2 (at most one ENQ outstanding)'));
+    return;
+  }
+  const byte = enqByte(t.s);
+  if (byte === undefined) {
+    t.decide('enq', deny('ENQ is sent only to classified edge-next after a revision 2 or 3 footer.', 'Nothing to do.', 'SAFETY §4.1 Liveness probe row; T-S24b; PN §2.3'));
+    return;
+  }
+  t.set({ enqOutstanding: true, sent: { ...t.s.sent, realtime: t.s.sent.realtime + 1 } });
+  t.emit({ kind: 'writeRealtime', epoch: t.s.epoch, name: 'enq', byte });
+  t.decide('enq', matrix);
+}
+
+function onRead(t: Tx, tokens: readonly string[], matrix: Decision): void {
+  const dialect = dialectOf(t.s);
+  if (t.s.base === 'BLOCKED') {
+    t.decide('read', deny('This board is not the machine you selected, so nothing is sent to it.', 'Choose the right machine, or disconnect.', 'T-S21; SAFETY §3 BLOCKED'));
+    return;
+  }
+  if (dialect === null || t.s.base === 'IDENTIFYING') {
+    t.decide('read', deny('Reads are sent only once the board is classified and its read allowlist is known.', 'Wait for the board to be identified.', 'SAFETY H37; PN §12.3'));
+    return;
+  }
+  if (!Array.isArray(tokens) || tokens.length === 0) {
+    t.decide('read', deny('Nothing to read.', 'Name at least one setting.', 'SAFETY H37'));
+    return;
+  }
+  const refused = tokens.filter((tok) => typeof tok !== 'string' || !isReadAllowed(dialect.id, tok));
+  if (refused.length > 0) {
+    const shown = refused.slice(0, 5).map((r) => JSON.stringify(typeof r === 'string' ? r.slice(0, 16) : String(r)));
+    t.decide('read', deny(`Not on the ${dialect.id} read allowlist: ${shown.join(', ')}.`, 'Only allowlisted settings can be read.', 'SAFETY H37; PN §12.3; T-S38'));
+    return;
+  }
+  const fresh = [...new Set(tokens)].filter((tok) => !t.s.queue.some((q) => q.token === tok && q.purpose === 'request'));
+  if (t.s.queue.length + fresh.length > MAX_QUEUED_READS) {
+    t.decide('read', deny('Too many reads are waiting.', 'Wait for the current reads to finish.', 'ROADMAP P1-02'));
+    return;
+  }
+  t.set({ queue: [...t.s.queue, ...fresh.map((token) => ({ token, purpose: 'request' as const }))] });
+  t.decide('read', matrix);
+}
+
+function onAckFault(t: Tx, matrix: Decision): void {
+  const dialect = dialectOf(t.s);
+  if (t.s.ackVerify !== null) {
+    t.decide('ackFault', deny('The fault is already being verified.', 'Wait for the verification to finish.', 'SAFETY §3 FAULT exits'));
+    return;
+  }
+  if (dialect === null || !VERIFY_TOKENS.every((tok) => isReadAllowed(dialect.id, tok))) {
+    t.decide(
+      'ackFault',
+      deny(
+        'This board is not classified, so the session cannot verify that it has stopped and emptied its planner.',
+        'Check the machine is stopped, then disconnect and connect again.',
+        'SAFETY §3 FAULT exits (ackFault cannot complete while hold ≠ 0 or the planner is not empty)',
+      ),
+    );
+    return;
+  }
+  const { ackFaultRefused: _dropped, ...notices } = t.s.notices;
+  t.set({ ackVerify: { round: 0 }, notices, queue: [...VERIFY_TOKENS.map((token) => ({ token, purpose: 'verify' as const })), ...t.s.queue] });
+  t.decide('ackFault', matrix);
+}
+
+function writeFeedhold(t: Tx): void {
+  const byte = dialectOf(t.s)?.realtime.feedhold.byte ?? BYTE.FEEDHOLD;
+  t.set({ sent: { ...t.s.sent, realtime: t.s.sent.realtime + 1 } });
+  t.emit({ kind: 'writeRealtime', epoch: t.s.epoch, name: 'feedhold', byte });
+}
+
+/** Back to NOT_CONNECTED on a new epoch (late events of the old link are ignored). */
+function resetToNotConnected(t: Tx, unknownOnNextConnect: boolean): void {
+  t.cancelAll();
+  t.s = { ...initialState(), epoch: t.s.epoch + 1, unknownOnNextConnect, timerSeq: t.s.timerSeq, notices: { adviseEstop: false } };
+}
+
+// --- Link events ----------------------------------------------------------
+
+function onOpened(t: Tx): void {
+  t.set({ base: 'IDENTIFYING' });
+  if (t.s.unknownOnNextConnect) {
+    t.addOverlay('UNKNOWN');
+    t.set({ unknownOnNextConnect: false });
+  }
+  startProbe(t, 0, undefined);
+}
+
+/** (Re)starts the probe from `{"sr":null}`: the first line written on every connect path (T-S86, H49). */
+function startProbe(t: Tx, restarts: number, banner: Banner | undefined): void {
+  t.set({
+    probe: { next: 0, answers: [], banner, spliceRetried: false, settling: 'none', restarts },
+    classification: null,
+    dialect: null,
+    identity: null,
+    ready: false,
+    footerRev: undefined,
+    queue: [{ token: 'sr', purpose: 'splice' }],
+  });
+}
+
+function onLineWritten(t: Tx): void {
+  const { seq: _seq, ...line } = t.s.writing as PendingRead & { readonly seq: number };
+  t.set({ writing: null });
+  // A line written while the board was resetting is lost with its RX ring: expect nothing for it.
+  if (t.s.probe !== null && t.s.probe.settling !== 'none') return;
+  t.set({ expected: [...t.s.expected, { ...line, late: false }] });
+  t.arm('answer', answerTimeout(t, line.purpose));
+}
+
+function answerTimeout(t: Tx, purpose: ReadPurpose): number {
+  const timings = t.config.timings;
+  if (purpose === 'splice') return timings.firstAnswerMs;
+  if (purpose === 'probe') return timings.probeAnswerMs;
+  return timings.readAnswerMs;
+}
+
+function onLinkLost(t: Tx): void {
+  t.cancelAll();
+  t.addOverlay('LOST');
+  t.set({ queue: [], expected: [], writing: null, ackVerify: null, xoff: false, enqOutstanding: false, unknownOnNextConnect: true });
+  t.emit({ kind: 'close', epoch: t.s.epoch });
+}
+
+function onTimer(t: Tx, id: TimerId, at: number): void {
+  if (id === 'settle') {
+    const probe = t.s.probe;
+    if (probe === null || probe.settling === 'none') return;
+    if (probe.restarts >= MAX_PROBE_RESTARTS) {
+      t.set({ probe: { ...probe, settling: 'none' } });
+      enterFault(t, 'resetLoop', 'integrity', `the board reset ${probe.restarts + 1} times while it was being identified`, at);
+      return;
+    }
+    startProbe(t, probe.restarts + 1, probe.banner);
+    return;
+  }
+  if (id === 'verify') {
+    if (t.s.ackVerify?.round === 1) t.set({ queue: [...VERIFY_TOKENS.map((token) => ({ token, purpose: 'verify' as const })), ...t.s.queue] });
+    return;
+  }
+  // 'answer': the line in flight went unanswered.
+  const index = t.s.expected.findIndex((e) => !e.late);
+  if (index < 0) return;
+  const missed = t.s.expected[index] as Expected;
+  t.set({ expected: t.s.expected.map((e, i) => (i === index ? { ...e, late: true } : e)) });
+  if (missed.purpose === 'splice' || missed.purpose === 'probe') {
+    // A busy or silent board (PN §2.3 step 0): only stop-class bytes from now on.
+    t.addOverlay('ORPHANED_MOTION');
+    t.set({ queue: [] });
+    return;
+  }
+  t.addOverlay('STALE');
+  const pendingReading = t.s.queue.some((q) => q.purpose === 'reading') || missed.purpose === 'reading';
+  t.set({ queue: [] });
+  if (missed.purpose === 'verify' || t.s.ackVerify !== null) {
+    t.set({ ackVerify: null, notices: { ...t.s.notices, ackFaultRefused: `no answer to the ${missed.token} read` } });
+  }
+  if (t.s.base === 'READING' && pendingReading) finishReading(t);
+}
+
+// --- Inbound --------------------------------------------------------------
+
+function onInbound(t: Tx, raw: Inbound, at: number): void {
+  if (raw.kind === 'FlowSignal') {
+    t.set({ xoff: raw.signal === 'xoff' });
+    return;
+  }
+  t.set({ live: { ...t.s.live, lastRxAt: at } });
+  t.removeOverlay('STALE');
+  const dialect = dialectOf(t.s);
+  const event: ClassifiedLine = dialect === null ? raw : checkFooterForDialect(dialect, raw);
+  switch (event.kind) {
+    case 'Banner':
+      onBanner(t, event, at);
+      return;
+    case 'Response':
+      onResponse(t, event, at);
+      return;
+    case 'StatusReport':
+      onStatusReport(t, event);
+      return;
+    case 'QueueReport':
+      t.set({ live: { ...t.s.live, qr: event.qr } });
+      return;
+    case 'Exception':
+      // An `er` answering the first line is the spliced fragment being rejected (PN §2.3 step 0): recorded only.
+      if (t.s.probe !== null && t.s.probe.next === 0 && !t.s.ready) return;
+      enterFault(t, 'exceptionReport', 'integrity', `the board reported an exception (status ${event.st}): ${event.msg.slice(0, 80)}`, at);
+      return;
+    case 'Ack':
+      t.set({ enqOutstanding: false, lastAckAt: at });
+      return;
+    case 'Garbled':
+      onGarbled(t, at);
+      return;
+    case 'RxReport':
+    case 'Text':
+      return;
+  }
+}
+
+function onBanner(t: Tx, banner: Banner, at: number): void {
+  if (t.s.ready) {
+    // SAFETY H19, T-S10: any banner after Ready means the board reset. FAULT, then UNKNOWN.
+    enterFault(t, 'bannerAfterReady', 'integrity', `the board printed a boot banner (${banner.shape}) after it was ready: it reset`, at);
+    t.addOverlay('UNKNOWN');
+    return;
+  }
+  // Not ready means IDENTIFYING with a probe running (ready is cleared only when a probe starts).
+  const probe = t.s.probe as ProbeProgress;
+  // The board is booting while it is being identified: every line sent before the reset is lost with its RX ring.
+  if (t.s.overlays.includes('ORPHANED_MOTION') && t.s.classification === null) {
+    // The reset ended whatever motion was running (SAFETY §3 ORPHANED_MOTION exits); the position is gone.
+    t.removeOverlay('ORPHANED_MOTION');
+    t.addOverlay('UNKNOWN');
+  }
+  t.cancel('answer');
+  const isReady = banner.ready !== false;
+  t.set({ queue: [], expected: [], probe: { ...probe, banner, settling: isReady ? 'ready' : 'boot' } });
+  t.arm('settle', isReady ? t.config.timings.bannerSettleMs : t.config.timings.bannerWaitMs);
+}
+
+function onResponse(t: Tx, r: Response, at: number): void {
+  if (t.s.probe !== null && t.s.probe.settling !== 'none') return; // answers a line from before the reset
+  if (t.s.footerRev === undefined) {
+    t.set({ footerRev: r.footer.rev });
+  } else if (r.footer.rev !== t.s.footerRev) {
+    enterFault(t, 'footerRevisionChanged', 'integrity', `the footer revision changed from ${t.s.footerRev} to ${r.footer.rev}: the board was reset or reconfigured`, at);
+    return;
+  }
+  // The board answers lines in order. Late (timed-out) entries ahead of the match are lost. The line
+  // being written comes last: its answer can arrive before the transport reports the write complete.
+  const owed = owedAnswers(t.s);
+  let index = -1;
+  for (let i = 0; i < owed.length; i++) {
+    const e = owed[i] as Expected;
+    if (answers(e, r)) {
+      index = i;
+      break;
+    }
+    if (!e.late) break;
+  }
+  if (index < 0 || r.tid !== undefined) {
+    // No tid is ever sent in Phase 1, so an echoed one answers a request this session never made (SAFETY §3).
+    enterFault(t, 'unexpectedResponse', 'integrity', `a response nobody asked for: ${r.line.slice(0, 80)}`, at);
+    return;
+  }
+  const entry = owed[index] as Expected;
+  consumeOwed(t, index);
+  if (entry.late) return;
+  t.cancel('answer');
+  onAnswer(t, entry, r, at);
+}
+
+/** Answers the board owes, oldest first: the written lines, then the line being written. */
+function owedAnswers(s: SessionState): readonly Expected[] {
+  return s.writing === null ? s.expected : [...s.expected, { token: s.writing.token, purpose: s.writing.purpose, late: false }];
+}
+
+/** Removes the first `index + 1` owed answers (the last of them may be the line being written). */
+function consumeOwed(t: Tx, index: number): void {
+  if (index >= t.s.expected.length) t.set({ expected: [], writing: null });
+  else t.set({ expected: t.s.expected.slice(index + 1) });
+}
+
+/** Does `r` answer `e`? A GET's answer holds its own key or nothing; the first line accepts any answer (a splice). */
+function answers(e: Expected, r: Response): boolean {
+  if (e.purpose === 'splice') return true;
+  const keys = Object.keys(r.r);
+  return keys.length === 0 || (keys.length === 1 && keys[0] === e.token);
+}
+
+function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
+  const value: JsonValue | undefined = r.r[e.token];
+  switch (e.purpose) {
+    case 'splice': {
+      const probe = t.s.probe as ProbeProgress;
+      if (r.footer.status === 0) {
+        if (isObject(value)) mergeLive(t, value);
+        advanceProbe(t, { ...probe, next: 1 });
+      } else if (!probe.spliceRetried) {
+        // A spliced fragment was rejected: send `{"sr":null}` once more before continuing (PN §2.3 step 0).
+        t.set({ probe: { ...probe, spliceRetried: true }, queue: [{ token: 'sr', purpose: 'splice' }, ...t.s.queue] });
+      } else {
+        advanceProbe(t, { ...probe, next: 1 });
+      }
+      return;
+    }
+    case 'probe': {
+      const probe = t.s.probe as ProbeProgress;
+      advanceProbe(t, { ...probe, next: probe.next + 1, answers: [...probe.answers, [e.token as ProbeKey, r]] });
+      return;
+    }
+    case 'reading':
+      if (r.footer.status === 0 && typeof value === 'number' && Number.isFinite(value)) {
+        t.set({ live: withNumber(t, t.s.live, e.token, value) });
+      }
+      if (!t.s.queue.some((q) => q.purpose === 'reading')) finishReading(t);
+      return;
+    case 'request':
+      t.set({ values: { ...t.s.values, [e.token]: { value: value ?? null, status: r.footer.status, at } } });
+      return;
+    case 'verify':
+      onVerifyAnswer(t, e.token, r.footer.status === 0 && typeof value === 'number' ? value : undefined);
+      return;
+  }
+}
+
+function advanceProbe(t: Tx, probe: ProbeProgress): void {
+  t.set({ probe });
+  if (probe.next < PROBE_STEPS.length) {
+    if (t.s.overlays.includes('ORPHANED_MOTION')) return;
+    const step = PROBE_STEPS[probe.next] as (typeof PROBE_STEPS)[number];
+    t.set({ queue: [...t.s.queue, { token: step.key, purpose: 'probe' }] });
+    return;
+  }
+  finishProbe(t);
+}
+
+function finishProbe(t: Tx): void {
+  const probe = t.s.probe as ProbeProgress;
+  const outcome = buildProbeResult({ ...(probe.banner === undefined ? {} : { banner: probe.banner }), answers: new Map(probe.answers) });
+  t.set({ ready: true });
+  if (!outcome.ok) {
+    t.set({ classification: { dialectId: null, mode: 'readOnly', reason: 'probeFailed', detail: `the probe could not be read (${outcome.reason} at ${outcome.key})`, upgradeOffer: false } });
+    t.addOverlay('READ_ONLY');
+    t.set({ base: 'CONNECTED_UNKNOWN' });
+    return;
+  }
+  const result = outcome.result;
+  const c = classify(result, t.config.manifest);
+  const identity = Object.fromEntries(
+    Object.entries({ fb: result.fb, fv: result.fv, hp: result.hp, hv: result.hv, id: result.id, fbs: result.fbs }).filter(([, v]) => v !== undefined),
+  ) as Identity;
+  t.set({
+    identity,
+    dialect: c.dialect,
+    classification: {
+      dialectId: c.dialect?.id ?? null,
+      mode: c.mode,
+      reason: c.reason,
+      detail: c.detail,
+      upgradeOffer: c.upgradeOffer,
+      ...(c.buildIdentity === undefined ? {} : { buildIdentity: c.buildIdentity }),
+    },
+  });
+  if (c.mode === 'readOnly') t.addOverlay('READ_ONLY');
+  if (c.dialect !== null) t.emit({ kind: 'tightenLineCap', epoch: t.s.epoch, maxLineBytes: writeLineCapFor(c.dialect) });
+  if (t.s.expectedDeviceId !== null && result.id !== t.s.expectedDeviceId) {
+    // T-S21: the board is not the selected machine. Nothing more is written.
+    t.set({ base: 'BLOCKED', blocked: { expected: t.s.expectedDeviceId, reported: result.id ?? null }, queue: [] });
+    return;
+  }
+  const dialect = c.dialect;
+  const reads = dialect === null ? [] : READING_TOKENS.filter((tok) => isReadAllowed(dialect.id, tok));
+  if (reads.length === 0 || t.s.overlays.includes('ORPHANED_MOTION')) {
+    t.set({ base: 'CONNECTED_UNKNOWN' });
+    return;
+  }
+  // Only READING's own answers count: values from the earlier `{"sr":null}` answer are dropped, so a
+  // read that fails leaves its value unknown and the board is not trusted as resting.
+  const { stat: _stat, machineClass: _class, hold: _hold, vel: _vel, qr: _qr, ...kept } = t.s.live;
+  t.set({ base: 'READING', live: kept, queue: [...t.s.queue, ...reads.map((token) => ({ token, purpose: 'reading' as const }))] });
+}
+
+/** READING is complete: a board that is not resting is ORPHANED_MOTION (SAFETY H14, PN §2.3 step 0). */
+function finishReading(t: Tx): void {
+  const dialect = dialectOf(t.s);
+  const live = t.s.live;
+  const resting =
+    dialect !== null &&
+    live.stat !== undefined &&
+    RESTING_CLASSES.has(mapStat(dialect, live.stat)) &&
+    live.hold === 0 &&
+    live.vel === 0 &&
+    live.qr === dialect.limits.plannerBlocks;
+  if (!resting) t.addOverlay('ORPHANED_MOTION');
+  t.set({ base: 'CONNECTED_UNKNOWN', queue: t.s.queue.filter((q) => q.purpose !== 'reading') });
+}
+
+function onVerifyAnswer(t: Tx, token: string, value: number | undefined): void {
+  const verify = t.s.ackVerify;
+  if (verify === null) return;
+  const next = { ...verify, [token]: value };
+  if (value === undefined) {
+    refuseAck(t, `the ${token} read gave no value`);
+    return;
+  }
+  t.set({ ackVerify: next });
+  if (next.hold === undefined || next.qr === undefined) return;
+  const dialect = dialectOf(t.s) as Dialect;
+  if (next.hold !== 0 || next.qr !== dialect.limits.plannerBlocks) {
+    refuseAck(t, `hold is ${next.hold} and the planner has ${next.qr} of ${dialect.limits.plannerBlocks} buffers free: the board has not stopped`);
+    return;
+  }
+  if (next.round === 0) {
+    t.set({ ackVerify: { round: 1 } });
+    t.arm('verify', t.config.timings.verifyIntervalMs);
+    return;
+  }
+  // Verified twice: the fault is acknowledged. Identify the board again from `{"sr":null}`; the position is not trusted.
+  t.set({ fault: null, ackVerify: null, base: 'IDENTIFYING', queue: [] });
+  t.removeOverlay('FAULT');
+  t.removeOverlay('READ_ONLY');
+  t.removeOverlay('ORPHANED_MOTION');
+  t.addOverlay('UNKNOWN');
+  startProbe(t, 0, undefined);
+}
+
+function refuseAck(t: Tx, why: string): void {
+  t.cancel('verify');
+  t.set({ ackVerify: null, queue: t.s.queue.filter((q) => q.purpose !== 'verify'), notices: { ...t.s.notices, ackFaultRefused: why } });
+}
+
+function onStatusReport(t: Tx, report: StatusReport): void {
+  mergeLive(t, report.sr);
+  if (t.s.base !== 'IDENTIFYING' && t.s.base !== 'READING') return;
+  const live = t.s.live;
+  const moving = (typeof report.sr['vel'] === 'number' && report.sr['vel'] !== 0) || (live.machineClass !== undefined && MOTION_CLASSES.has(live.machineClass) && 'stat' in report.sr);
+  if (moving) {
+    // PN §2.3 step 0: unsolicited reports showing motion while connecting.
+    t.addOverlay('ORPHANED_MOTION');
+    if (t.s.classification === null) t.set({ queue: [] });
+  }
+}
+
+function onGarbled(t: Tx, at: number): void {
+  if (t.s.probe !== null && t.s.probe.settling !== 'none') return;
+  const owed = owedAnswers(t.s);
+  const index = owed.findIndex((e) => !e.late);
+  if (index < 0) return; // nothing was asked: nothing to trust or distrust
+  // The answer in flight arrived damaged.
+  const entry = owed[index] as Expected;
+  consumeOwed(t, index);
+  t.cancel('answer');
+  switch (entry.purpose) {
+    case 'splice': {
+      const probe = t.s.probe as ProbeProgress;
+      if (!probe.spliceRetried) t.set({ probe: { ...probe, spliceRetried: true }, queue: [{ token: 'sr', purpose: 'splice' }, ...t.s.queue] });
+      else advanceProbe(t, { ...probe, next: 1 });
+      return;
+    }
+    case 'probe':
+      t.set({
+        ready: true,
+        base: 'CONNECTED_UNKNOWN',
+        queue: [],
+        classification: { dialectId: null, mode: 'readOnly', reason: 'probeFailed', detail: `the answer to the ${entry.token} probe arrived damaged`, upgradeOffer: false },
+      });
+      t.addOverlay('READ_ONLY');
+      return;
+    case 'reading':
+      if (!t.s.queue.some((q) => q.purpose === 'reading')) finishReading(t);
+      return;
+    case 'request':
+      t.set({ values: { ...t.s.values, [entry.token]: { value: null, status: -1, at } } });
+      return;
+    case 'verify':
+      refuseAck(t, `the ${entry.token} read arrived damaged`);
+      return;
+  }
+}
+
+// --- Live values ------------------------------------------------------------
+
+function isObject(v: JsonValue | undefined): v is JsonObject {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function mergeLive(t: Tx, fields: JsonObject): void {
+  let live = t.s.live;
+  for (const [key, v] of Object.entries(fields)) {
+    if (typeof v === 'number' && Number.isFinite(v)) live = withNumber(t, live, key, v);
+  }
+  t.set({ live });
+}
+
+function withNumber(t: Tx, live: LiveState, key: string, v: number): LiveState {
+  switch (key) {
+    case 'stat': {
+      const dialect = dialectOf(t.s);
+      return { ...live, stat: v, ...(dialect === null ? {} : { machineClass: mapStat(dialect, v) }) };
+    }
+    case 'hold':
+    case 'vel':
+    case 'qr':
+    case 'line':
+    case 'unit':
+      return { ...live, [key]: v };
+  }
+  for (const axis of AXES) {
+    if (key === `pos${axis}`) return { ...live, pos: { ...live.pos, [axis]: v } };
+    if (key === `mpo${axis}`) return { ...live, mpo: { ...live.mpo, [axis]: v } };
+  }
+  return live;
+}
+
+// --- FAULT ------------------------------------------------------------------
+
+function enterFault(t: Tx, cause: FaultCause, kind: FaultKind, detail: string, at: number): void {
+  if (t.s.fault === null) t.set({ fault: { cause, kind, detail, at } });
+  t.addOverlay('FAULT');
+  t.cancel('verify');
+  // Stop feeding (SAFETY §3 FAULT entry effect 1). Lines already written may still be answered.
+  t.set({ queue: [], ackVerify: null });
+  const live = t.s.live;
+  const moving = (live.vel !== undefined && live.vel !== 0) || (live.machineClass !== undefined && MOTION_CLASSES.has(live.machineClass));
+  // Effect 2: the machine was moving, so hold it. Phase 1 never ran a job; nothing else is sent.
+  if (moving && allowed(matrixSnapshot(t.s), 'feedhold', t.config.release).allowed) writeFeedhold(t);
+}
+
+// --- Writing ----------------------------------------------------------------
+
+/** Writes the next queued read when nothing is in flight and the matrix allows a read now. */
+function pump(t: Tx): void {
+  const s = t.s;
+  if (s.writing !== null || s.queue.length === 0 || !linkUp(s)) return;
+  if (s.expected.some((e) => !e.late)) return;
+  if (!allowed(matrixSnapshot(s), 'read', t.config.release).allowed) return;
+  const next = s.queue[0] as PendingRead;
+  const line = lineFor(s, next);
+  if (line === undefined) {
+    t.set({ queue: s.queue.slice(1) });
+    enterFault(t, 'writeRefused', 'integrity', `no allowlisted GET for ${JSON.stringify(next.token)} in this state`, s.live.lastRxAt ?? 0);
+    return;
+  }
+  const seq = s.sent.lines + 1;
+  t.set({ queue: s.queue.slice(1), writing: { ...next, seq }, sent: { ...s.sent, lines: seq } });
+  t.emit({ kind: 'writeLine', epoch: s.epoch, seq, token: next.token, line });
+}
+
+function lineFor(s: SessionState, read: PendingRead): string | undefined {
+  if (!readableNow(s, read.token)) return undefined;
+  const dialect = dialectOf(s);
+  if (dialect === null) return PROBE_STEPS.find((step) => step.key === read.token)?.line;
+  return getLineFor(dialect.id, read.token);
+}
+
+function deepFreezeState(s: SessionState): SessionState {
+  return deepFreeze(s);
+}
+
+function deepFreeze<T>(value: T): T {
+  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value;
+  for (const key of Object.keys(value)) deepFreeze((value as Record<string, unknown>)[key]);
+  return Object.freeze(value);
+}

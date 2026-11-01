@@ -90,6 +90,12 @@ importers:
       '@synthetos/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@synthetos/safety':
+        specifier: workspace:*
+        version: link:../safety
+      '@synthetos/schema':
+        specifier: workspace:*
+        version: link:../schema
     devDependencies:
       '@synthetos/testkit':
         specifier: workspace:*

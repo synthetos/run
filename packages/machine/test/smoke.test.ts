@@ -22,7 +22,7 @@ describe('@synthetos/machine', () => {
     // Runtime workspace edges are declared as dependencies so the production build graph is right
     // (RUN_PLAN §5.3); every one must be a workspace link (the npm ban lives in .dependency-cruiser.cjs).
     const deps = (fields['dependencies'] ?? {}) as Record<string, string>;
-    expect(Object.keys(deps).sort()).toEqual(['@synthetos/flasher', '@synthetos/protocol']);
+    expect(Object.keys(deps).sort()).toEqual(['@synthetos/flasher', '@synthetos/protocol', '@synthetos/safety', '@synthetos/schema']);
     for (const spec of Object.values(deps)) expect(spec).toBe('workspace:*');
   });
 });

@@ -60,6 +60,26 @@ describe('package entry', () => {
         'sessionOpenOptionsFor',
         'sharedSessionOptions',
         'writeLineCapFor',
+        // The read-only machine session (P1-02).
+        'DEFAULT_TIMINGS',
+        'MAX_PROBE_RESTARTS',
+        'MAX_QUEUED_READS',
+        'MachineSession',
+        'PROBE_TOKENS',
+        'READING_TOKENS',
+        'SESSION_BASES',
+        'SNAPSHOT_STRING_MAX',
+        'VERIFY_TOKENS',
+        'checkWrite',
+        'dialectOf',
+        'enqAllowedNow',
+        'escape',
+        'initialState',
+        'matrixSnapshot',
+        'phase1WriteVerdict',
+        'readableNow',
+        'reduce',
+        'snapshotOf',
       ].sort(),
     );
   });
@@ -69,7 +89,7 @@ describe('package entry', () => {
   });
 
   it('declares its runtime workspace edges as dependencies and keeps the test kit a dev dependency', () => {
-    expect(Object.keys((pkg as { dependencies?: object }).dependencies ?? {}).sort()).toEqual(['@synthetos/flasher', '@synthetos/protocol']);
+    expect(Object.keys((pkg as { dependencies?: object }).dependencies ?? {}).sort()).toEqual(['@synthetos/flasher', '@synthetos/protocol', '@synthetos/safety', '@synthetos/schema']);
     expect(Object.keys((pkg as { devDependencies?: object }).devDependencies ?? {}).sort()).toEqual(['@synthetos/testkit']);
   });
 });

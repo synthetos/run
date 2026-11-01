@@ -32,3 +32,4 @@ export {
   sharedSessionOptions,
 } from './openPolicy.ts';
 export type { OpenDecision, OpenRefusalReason } from './openPolicy.ts';
+export * from './session/index.ts';
