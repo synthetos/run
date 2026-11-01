@@ -110,8 +110,10 @@ export function checkReviewRecord(facts: RecordFacts): string[] {
   }
   if (record.verdict.toLowerCase() !== 'approve') problems.push(`the review record's verdict is '${record.verdict}', not 'approve'`);
   if (record.openFindings.toLowerCase() !== 'none') problems.push(`the review record lists open findings ('${record.openFindings}'); resolve them and review again`);
-  const reviewer = record.reviewer.replace(/^@/, '').toLowerCase();
-  if (reviewer === facts.author.toLowerCase()) problems.push('the review record names the PR author as the reviewer; the review must be independent of the author');
+  // The author's login anywhere in the field as a whole word ("owner (self-review)",
+  // "`owner`", "agent, @owner") is the author reviewing; GitHub logins are [A-Za-z0-9-].
+  const reviewerWords = record.reviewer.toLowerCase().split(/[^a-z0-9-]+/);
+  if (reviewerWords.includes(facts.author.toLowerCase())) problems.push('the review record names the PR author as the reviewer; the review must be independent of the author');
   const missing = facts.safetyPaths.filter((p) => p !== facts.recordPath && !record.paths.includes(p));
   if (missing.length > 0) problems.push(`safety paths the review record does not list as reviewed: ${missing.join(', ')}`);
   if (!SHA_RE.test(record.reviewedCommit)) {

@@ -715,4 +715,69 @@ function checkSafetyReviewJob(jobs: readonly Job[], add: (line: number, rule: Po
       add(l.no, 'safety-review-job', 'the safety-review job may check out only the base commit');
     }
   }
+  checkSafetyReviewShape(job, add);
+}
+
+/** The whole run block of the safety-review gate step, line for line. */
+export const SAFETY_REVIEW_GATE_BLOCK: readonly string[] = [
+  'node tools/gates/src/review/cli.ts \\',
+  '--files "$RUNNER_TEMP/files.json" \\',
+  '--reviews "$RUNNER_TEMP/reviews.json" \\',
+  '--permissions "$RUNNER_TEMP/permissions.json" \\',
+  '--body-file "$RUNNER_TEMP/body.md" \\',
+  '--author "$PR_AUTHOR" \\',
+  '--head-sha "$HEAD_SHA" \\',
+  '--pr "$PR_NUMBER" \\',
+  '--record "$RUNNER_TEMP/review-record.md" \\',
+  '--record-compare "$RUNNER_TEMP/review-compare.json"',
+];
+
+/** The number of steps in the safety-review job (checkout, node, three fetches, the gate). */
+export const SAFETY_REVIEW_STEP_COUNT = 6;
+
+/**
+ * Keeping the required lines is not enough: `|| true` on the gate, an
+ * `exit 0` before it, an `if:` on the job or a step, a custom `shell:`, a
+ * step that fabricates the API answers, or NODE_OPTIONS / $GITHUB_ENV /
+ * $GITHUB_PATH steering `node` would all leave them in place and pass. So
+ * the gate step is the last step and its run block is exactly
+ * SAFETY_REVIEW_GATE_BLOCK, the job has exactly SAFETY_REVIEW_STEP_COUNT
+ * steps, and none of those escapes appears anywhere in the job (D40: with
+ * zero required approvals, this rule is what a PR weakening its own
+ * enforcement trips first). Still a consistency check: the fetch steps'
+ * other lines are not pinned, and a PR can edit this policy too.
+ */
+function checkSafetyReviewShape(job: Job, add: (line: number, rule: PolicyRule, message: string) => void): void {
+  const flag = (line: number, message: string): void => add(line, 'safety-review-job', message);
+  for (const l of job.lines) {
+    if (!l.inBlock && /^(?:-\s+)?if:/.test(l.text)) flag(l.no, 'the safety-review job and its steps may not have an if: (the gate must always run)');
+    if (!l.inBlock && /^(?:-\s+)?shell:/.test(l.text)) flag(l.no, 'the safety-review job may not set a shell: (it could neutralise the gate)');
+    if (/\bNODE_OPTIONS\b|\bGITHUB_ENV\b|\bGITHUB_PATH\b/.test(l.text)) {
+      flag(l.no, 'the safety-review job may not use NODE_OPTIONS, $GITHUB_ENV or $GITHUB_PATH (they can change what the gate runs)');
+    }
+  }
+  const stepsAt = job.lines.findIndex((l) => !l.inBlock && l.indent === 4 && l.text === 'steps:');
+  const steps = stepsAt === -1 ? [] : job.lines.slice(stepsAt + 1).filter((l) => !l.inBlock && l.indent === 6 && l.text.startsWith('-'));
+  if (steps.length !== SAFETY_REVIEW_STEP_COUNT) {
+    flag(job.line, `the safety-review job must have exactly ${SAFETY_REVIEW_STEP_COUNT} steps (found ${steps.length}); a new step changes this policy too`);
+  }
+  const gateLine = job.lines.findIndex((l) => l.inBlock && l.blockKey === 'run' && l.text === SAFETY_REVIEW_GATE_BLOCK[0]);
+  if (gateLine === -1) {
+    flag(job.line, `the safety-review gate must run as a 'run: |' block starting '${SAFETY_REVIEW_GATE_BLOCK[0]}'`);
+    return;
+  }
+  let start = gateLine;
+  while (start > 0 && job.lines[start - 1]?.inBlock === true) start--;
+  let end = gateLine;
+  while (end + 1 < job.lines.length && job.lines[end + 1]?.inBlock === true) end++;
+  const block = job.lines.slice(start, end + 1);
+  while (block.length > 0 && block.at(-1)?.text === '') block.pop();
+  const texts = block.map((l) => l.text);
+  if (texts.length !== SAFETY_REVIEW_GATE_BLOCK.length || texts.some((t, i) => t !== SAFETY_REVIEW_GATE_BLOCK[i])) {
+    flag(job.lines[gateLine]?.no ?? job.line, 'the safety-review gate step must run exactly the gate command and its arguments, nothing before, after or appended');
+  }
+  const opener = job.lines[start - 1];
+  if (opener === undefined || opener.text.replace(/^-\s+/, '') !== 'run: |') flag(opener?.no ?? job.line, "the safety-review gate must be a 'run: |' block");
+  const after = job.lines.slice(end + 1).find((l) => l.text !== '');
+  if (after !== undefined) flag(after.no, 'the safety-review gate must be the last step of the job');
 }

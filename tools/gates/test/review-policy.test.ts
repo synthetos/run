@@ -121,6 +121,9 @@ describe('the review record', () => {
     ['a verdict other than approve', { verdict: 'request changes' }, "the review record's verdict is 'request changes', not 'approve'"],
     ['open findings', { open: '2 (MEDIUM)' }, "the review record lists open findings ('2 (MEDIUM)'); resolve them and review again"],
     ['the author as reviewer', { reviewer: '@Owner' }, 'the review record names the PR author as the reviewer; the review must be independent of the author'],
+    ['the author with a note', { reviewer: 'owner (self-review)' }, 'the review record names the PR author as the reviewer; the review must be independent of the author'],
+    ['the author in backticks', { reviewer: '`owner`' }, 'the review record names the PR author as the reviewer; the review must be independent of the author'],
+    ['the author among others', { reviewer: 'second-agent, @owner' }, 'the review record names the PR author as the reviewer; the review must be independent of the author'],
     ['a short commit', { commit: 'abc123' }, "the review record's 'Reviewed commit' is not a 40-character commit sha"],
   ])('refuses %s', (_name, overrides, problem) => {
     expect(checkReviewRecord(facts({ record: record(SAFETY_FILES, overrides) }))).toContain(problem);

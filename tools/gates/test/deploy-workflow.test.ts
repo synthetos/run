@@ -177,6 +177,28 @@ describe('safety-review-job', () => {
     expect(rules(noBinding, 'safety-review.yml')).toContain('safety-review-job');
   });
 
+  it('fails when the gate step is neutralised while every required line stays (D40 verifier reproductions)', () => {
+    const gate = '          node tools/gates/src/review/cli.ts \\\n';
+    const last = '            --record-compare "$RUNNER_TEMP/review-compare.json"\n';
+    const step = '      - name: Check the checklist, the review record and the approvals of reviewers with write access\n';
+    const variants: Record<string, string> = {
+      orTrue: mutate(REVIEW, last, '            --record-compare "$RUNNER_TEMP/review-compare.json" || true\n'),
+      exitFirst: mutate(REVIEW, gate, `          exit 0\n${gate}`),
+      extraCommand: mutate(REVIEW, last, `${last}          true\n`),
+      stepIfFalse: mutate(REVIEW, step, `${step}        if: false\n`),
+      jobIf: mutate(REVIEW, '    runs-on: ubuntu-24.04\n', '    if: false\n    runs-on: ubuntu-24.04\n'),
+      customShell: mutate(REVIEW, step, `${step}        shell: bash -c "true" {0}\n`),
+      laterStep: `${REVIEW}      - name: after\n        run: echo done\n`,
+      insertedStep: mutate(REVIEW, step, `      - name: fabricate\n        run: echo '[]' > "$RUNNER_TEMP/files.json"\n${step}`),
+      githubEnv: mutate(REVIEW, '          : > "$RUNNER_TEMP/permissions.jsonl"\n', '          : > "$RUNNER_TEMP/permissions.jsonl"\n          echo "NODE_OPTIONS=--import=./x.mjs" >> "$GITHUB_ENV"\n'),
+      nodeOptions: mutate(REVIEW, '          PR_AUTHOR: ${{ github.event.pull_request.user.login }}\n', '          PR_AUTHOR: ${{ github.event.pull_request.user.login }}\n          NODE_OPTIONS: --import=./x.mjs\n'),
+    };
+    for (const [name, bad] of Object.entries(variants)) {
+      expect(bad, name).not.toBe(REVIEW);
+      expect(rules(bad, 'safety-review.yml'), name).toContain('safety-review-job');
+    }
+  });
+
   it('applies to the workflow file however it is named on the command line', () => {
     const index = REVIEW.lastIndexOf('        run: |');
     const bad = `${REVIEW.slice(0, index)}        run: true\n`;
