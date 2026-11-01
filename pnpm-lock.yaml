@@ -104,6 +104,10 @@ importers:
       '@synthetos/protocol':
         specifier: workspace:*
         version: link:../protocol
+    devDependencies:
+      '@synthetos/testkit':
+        specifier: workspace:*
+        version: link:../testkit
 
   packages/schema:
     devDependencies:

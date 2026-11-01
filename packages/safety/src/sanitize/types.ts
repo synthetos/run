@@ -209,6 +209,8 @@ export type SanitizeRule =
   | 'unknown-state'
   | 'no-velocity-limit'
   | 'rotary-radius'
+  /** An arc whose float32 coincidence or direction decision lies within the rounding band (Codex P0-10 #1). */
+  | 'arc-ambiguous'
   | 'split'
   | 'split-impossible'
   | 'too-long'

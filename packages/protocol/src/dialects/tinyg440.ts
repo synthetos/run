@@ -204,6 +204,7 @@ export const TINYG_440: Dialect = deepFreeze<Dialect>({
       // words are machine coordinates on 440.21 (@cite TG canonical_machine.c:907-914), unlike EN.
       storedMoveIntermediate: 'machine',
       rotaryOffsetsUseUnits: true, // G10/G92 apply `_to_millimeters` to rotary words too (@cite TG canonical_machine.c:669, :788-789)
+      arcCoincidence: 'angle', // fp_EQ start and end angles are zero travel (@cite TG plan_arc.c:285-286)
     },
   },
 

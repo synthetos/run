@@ -336,6 +336,7 @@ describe('job G-code data (ROADMAP P0-10)', () => {
     expect(job.programEndStopsOutputs).toBe(true);
     expect(job.storedMoveIntermediate).toBe('work');
     expect(job.rotaryOffsetsUseUnits).toBe(false);
+    expect(job.arcCoincidence).toBe('position');
   });
 
   it('TG: no arc distance mode, no tool offset, no M201.3; M48-M51 ignored; a mid-file program end warns', () => {
@@ -350,6 +351,7 @@ describe('job G-code data (ROADMAP P0-10)', () => {
     expect(job.programEndStopsOutputs).toBe(false);
     expect(job.storedMoveIntermediate).toBe('machine');
     expect(job.rotaryOffsetsUseUnits).toBe(true);
+    expect(job.arcCoincidence).toBe('angle');
   });
 
   it('read-only dialects have no job data', () => {

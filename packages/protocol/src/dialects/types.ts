@@ -373,6 +373,15 @@ export interface DialectJobGcode {
    * canonical_machine.c:989, :1127).
    */
   readonly rotaryOffsetsUseUnits: boolean;
+  /**
+   * What the firmware compares, with fp_EQ in float32, to decide a
+   * centre-format arc whose end point meets its start. `position`: the end
+   * point against the start on both plane axes; equal is a full circle
+   * (@cite EN plan_arc.c:320-329). `angle`: the end angle against the start
+   * angle; equal is zero angular travel plus P turns (@cite TG
+   * plan_arc.c:285-303).
+   */
+  readonly arcCoincidence: 'position' | 'angle';
 }
 
 /**

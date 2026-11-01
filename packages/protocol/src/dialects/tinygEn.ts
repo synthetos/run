@@ -190,6 +190,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
       programEndStopsOutputs: true, // spindle and coolant off at program end (@cite EN canonical_machine.c:2003-2043)
       storedMoveIntermediate: 'work', // the intermediate point uses work coordinates (@cite EN canonical_machine.c:1302-1317)
       rotaryOffsetsUseUnits: false, // rotary offsets are degrees as written (@cite EN canonical_machine.c:989, :1127)
+      arcCoincidence: 'position', // end points fp_EQ on both plane axes are a full circle (@cite EN plan_arc.c:320-329)
     },
   },
 

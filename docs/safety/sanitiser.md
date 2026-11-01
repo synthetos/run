@@ -143,6 +143,25 @@ preview, analyser and preflight interpret exactly those lines.
   will compute from the written numbers equals the intended travel, and the
   chord is at least 0.01 mm (so a sub-arc never rounds to coincident
   endpoints, which EN runs as a full circle).
+- Coincidence and direction are decided with each dialect's own float32 rule
+  (`arcCoincidence`, Codex P0-10 #1): EN runs a centre-format arc whose end
+  point is fp_EQ (`|a-b| < (float)0.00001`) to the start on both plane axes
+  as a full circle in its direction, plus P turns (EN plan_arc.c:320-341);
+  TG treats fp_EQ start and end ANGLES as zero travel plus P turns, and
+  refuses the arc when that leaves nothing (TG plan_arc.c:276-303,
+  :165-167). The rounding of the firmware's machine coordinates is bounded
+  by 2^-20 of their size (sixteen float32 roundings) and of the arc's angles
+  by that over the radius plus 2^-19 rad. An arc whose position or angle
+  test falls inside that band, or near TG's atan2 branch cut, is blocked
+  (`arc-ambiguous`), as is an R-format arc whose plane end points are not
+  clearly apart (the radius code divides by their distance). The model and
+  the overrun bound use the travel the firmware will run (a full circle, not
+  a 0.000001 mm arc). Every sub-arc is re-checked with the same rule. The
+  machine position of the plane axes must be known to size the band.
+- No coordinate is ever assumed (Codex P0-10 #2): an absolute (G90) full
+  circle needs the work start of both plane axes, and an absolute arc that
+  must be split needs the start of both plane axes, because every sub-arc
+  writes both. Incremental (G91) arcs write deltas only and need neither.
 - Arcs with rotary words, G28/G30 above the ceiling (two moves in one block)
   and moves that would need sub-segments under 0.01 mm or more than 10 000 of
   them are blocked (`split-impossible`, "a move that cannot be split within

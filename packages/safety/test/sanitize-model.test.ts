@@ -195,7 +195,9 @@ describe('arcs', () => {
   it('an absolute arc from an unknown start, or a G90.1 centre from one, cannot be modelled', () => {
     expect(blocks(run('G2 X10 Y0 I5 F100\n', EN, { start: { ...START, machine: {} } }))).toEqual(['unknown-state']);
     expect(blocks(run('G91 G90.1 G2 X10 Y0 I5 J0 F100\n', EN, { start: { ...START, machine: {} } }))).toEqual(['unknown-state']);
-    expect(run('G91 G2 X10 Y0 I5 F100\n', EN, { start: { ...START, machine: {} } }).report.blocked).toBe(false);
+    // Incremental arcs need no work position; the machine position is still needed to bound float32 rounding.
+    expect(run('G91 G2 X10 Y0 I5 F100\n', EN, { start: (({ wcs: _wcs, ...rest }) => rest)(START) }).report.blocked).toBe(false);
+    expect(blocks(run('G91 G2 X10 Y0 I5 F100\n', EN, { start: { ...START, machine: {} } }))).toEqual(['unknown-state']);
   });
 
   it('G91.1 selects offsets from the start again after G90.1 (EN)', () => {

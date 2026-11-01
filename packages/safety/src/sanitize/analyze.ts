@@ -360,6 +360,21 @@ export class JobModel {
     }
   }
 
+  /**
+   * The largest absolute machine coordinate, work coordinate or work offset
+   * on these axes (mm), or null when a machine coordinate is unknown. It sizes
+   * the float32 rounding band of an arc (geometry.ts `positionErrorMm`).
+   */
+  #planeMagnitude(axes: readonly Axis[]): number | null {
+    let max = 0;
+    for (const a of axes) {
+      const m = this.machine[a];
+      if (m === null) return null;
+      max = Math.max(max, Math.abs(m), Math.abs(this.work[a] ?? 0), Math.abs(this.totalOffset(a) ?? 0));
+    }
+    return max;
+  }
+
   /** Commanded outputs at this point (SAFETY H48). */
   outputsOn(): boolean {
     return this.spindle !== 'off' || this.mist || this.flood;
@@ -904,6 +919,8 @@ export class JobModel {
     const d1 = deltaOf(p.a1);
     const dLin = deltaOf(p.lin);
     const absoluteCentre = centreFormat && arcDistance === 'G90.1';
+    const absolute = distance === 'G90';
+    const noPlaneEndpoint = !params.has(p.a0) && !params.has(p.a1);
     const w0 = this.work[p.a0];
     const w1 = this.work[p.a1];
     const missing: string[] = [];
@@ -911,8 +928,18 @@ export class JobModel {
     if (d1 === null) missing.push(p.a1);
     if (dLin === null) missing.push(p.lin);
     if (absoluteCentre && (w0 === null || w1 === null)) missing.push(`${p.a0}${p.a1} (for the G90.1 centre)`);
+    // An absolute full circle ends where it starts: both plane starts must be known, never assumed (Codex P0-10 #2).
+    if (centreFormat && noPlaneEndpoint && absolute && (w0 === null || w1 === null)) missing.push(`${p.a0}${p.a1} (for an absolute full circle)`);
     if (missing.length > 0) {
       findings.push(block('unknown-state', `this arc cannot be modelled: the start position of ${missing.join(', ')} is not known`));
+      return forget();
+    }
+    // The firmware decides coincidence in float32 machine coordinates; their size bounds its rounding (Codex P0-10 #1).
+    const magnitude = this.#planeMagnitude([p.a0, p.a1]);
+    if (magnitude === null) {
+      findings.push(
+        block('unknown-state', `this arc cannot be modelled: the machine position of ${p.a0} and ${p.a1} is needed to bound the firmware's float32 arithmetic`),
+      );
       return forget();
     }
     const o = (letter: string): number => (params.get(letter)?.value ?? 0) * s;
@@ -925,10 +952,16 @@ export class JobModel {
         ? { c0: absoluteCentre ? o(p.o0) - (w0 as number) : o(p.o0), c1: absoluteCentre ? o(p.o1) - (w1 as number) : o(p.o1) }
         : null,
       radius: centreFormat ? null : (params.get('R') as Word).value * s,
-      noPlaneEndpoint: !params.has(p.a0) && !params.has(p.a1),
+      noPlaneEndpoint,
       rotations: params.get('P')?.value ?? null,
+      coincidence: this.#job.arcCoincidence,
+      magnitudeMm: magnitude,
     };
     const model = modelArc(input);
+    if (model.kind === 'ambiguous') {
+      findings.push(block('arc-ambiguous', `the firmware's float32 arithmetic could run this arc more than one way: ${model.detail}`));
+      return forget();
+    }
     if (model.kind !== 'ok') {
       findings.push(block('malformed', `the firmware would refuse this arc: ${model.detail}`));
       return forget();
@@ -945,13 +978,23 @@ export class JobModel {
     }
     if (d.seconds <= this.#motion.ceilingSeconds) return { kind: 'single', lengthMm: model.arc.lengthMm, seconds: d.seconds };
 
-    const absolute = distance === 'G90';
     const dec = units === 'G20' ? DECIMALS.in : DECIMALS.mm;
-    const startOf = (axis: Axis): number => (start[axis] ?? 0) / s;
+    const startOf = (axis: Axis): number | null => {
+      const v = start[axis];
+      return v === null ? null : v / s;
+    };
+    // An absolute split writes both plane axes on every sub-arc, so each start must be known (Codex P0-10 #2).
+    const unwritable = absolute ? [p.a0, p.a1].filter((a) => startOf(a) === null) : [];
+    if (unwritable.length > 0) {
+      findings.push(
+        block('unknown-state', `this arc must be split, but the start position of ${unwritable.join(', ')} is not known, so its sub-arc end points cannot be written`),
+      );
+      return null;
+    }
     const writtenOf = (axis: Axis, delta: number): string => {
       const w = params.get(axis);
       if (w !== undefined) return w.text;
-      return absolute ? formatNumber(startOf(axis), dec) : formatNumber(delta / s, dec);
+      return absolute ? formatNumber(startOf(axis) as number, dec) : formatNumber(delta / s, dec);
     };
     const split = splitArc(
       model.arc,

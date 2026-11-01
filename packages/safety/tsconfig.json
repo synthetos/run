@@ -1,12 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // The T-S32 tests read SAFETY.md with node:fs. Runtime source never uses
-    // Node built-ins: dependency-cruiser's safety-path-no-node-core refuses it.
+    // Runtime source gets no DOM types. Node types are present for the
+    // TextEncoder/TextDecoder the protocol sources use; dependency-cruiser's
+    // safety-path-no-node-core refuses any Node built-in import.
     "types": ["node"]
   },
-  "include": [
-    "src",
-    "test"
-  ]
+  "include": ["src"]
 }

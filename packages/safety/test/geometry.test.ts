@@ -18,6 +18,8 @@ const arc = (over: Partial<ArcInput>): ArcInput => ({
   radius: null,
   noPlaneEndpoint: false,
   rotations: null,
+  coincidence: 'position',
+  magnitudeMm: 0,
   ...over,
 });
 
