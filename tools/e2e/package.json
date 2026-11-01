@@ -12,7 +12,8 @@
     "e2e": "playwright test",
     "canary": "node src/canary-cli.ts",
     "e2e:fake-serial": "RUN_E2E_FAKE_SERIAL=1 playwright test -c playwright.fake-serial.config.ts",
-    "e2e:staging": "playwright test -c playwright.staging.config.ts"
+    "e2e:staging": "playwright test -c playwright.staging.config.ts",
+    "e2e:bench": "playwright test -c playwright.bench.config.ts"
   },
   "devDependencies": {
     "@synthetos/machine": "workspace:*",

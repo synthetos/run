@@ -180,6 +180,22 @@ describe('bundle scan targets (P1-00)', () => {
   });
 });
 
+describe('the localhost bench build never appears in a workflow (P1-00)', () => {
+  it.each([
+    ['a bench build in verify', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: pnpm build:bench\n'],
+    ['a bench vite build in the build job', '        run: pnpm --dir a --filter @synthetos/web build\n', '        run: pnpm --dir a --filter @synthetos/web exec vite build --mode bench\n'],
+    ['packaging dist-bench', '            -cf artifact/run-web.tar -C a/apps/web/dist .\n', '            -cf artifact/run-web.tar -C a/apps/web/dist-bench .\n'],
+    ['serving it', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: node tools/gates/src/bench/cli.ts\n'],
+  ])('%s fails', (_name, from, to) => {
+    expect(rules(mutate(CI, from, to))).toContain('bench-never-in-ci');
+  });
+
+  it('applies to every workflow file, not only ci.yml', () => {
+    expect(rules(`${REVIEW}\n# trailing\n`, 'safety-review.yml')).toEqual([]);
+    expect(rules(REVIEW.replace('jobs:\n', 'jobs:\n  bench:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: pnpm bench:serve\n'), 'safety-review.yml')).toContain('bench-never-in-ci');
+  });
+});
+
 describe('verify', () => {
   it('fails when verify becomes conditional', () => {
     expect(rules(mutate(CI, '  verify:\n    name: verify\n', "  verify:\n    name: verify\n    if: github.event_name == 'push'\n"))).toEqual(['verify-job']);

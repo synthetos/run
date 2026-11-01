@@ -3,9 +3,11 @@ import { buildInfo } from './build/buildInfo.ts';
 import { CLOUD_CHUNK_NAME, SERIAL_CHUNK_NAME, chunkPolicy } from './build/chunks.ts';
 import { FAKE_SERIAL_MODE, FAKE_SERIAL_OUT_DIR, TRANSPORT_CHUNK_NAME, assertBuildMode, fakeSerialPlugins, transportSeam } from './build/fakeSerial.ts';
 import { prerender } from './build/prerender.ts';
+import { BENCH_MODE, BENCH_OUT_DIR, CHANNEL_CHUNK_NAME, benchPlugin, channelSeam } from './build/bench.ts';
 
 const chunks = chunkPolicy(import.meta.dirname);
 const seam = transportSeam(import.meta.dirname);
+const channel = channelSeam(import.meta.dirname);
 
 /**
  * Vite keeps a NODE_ENV that is already set, so `NODE_ENV=test vite build`
@@ -23,15 +25,19 @@ function assertProductionBuild(command: string): void {
 
 export default defineConfig(({ command, mode }) => {
   assertProductionBuild(command);
-  // `production`, or `fake-serial`: the test-only build for the e2e suite
-  // (build/fakeSerial.ts, ROADMAP P0-14). Any other mode is refused.
+  // `production`; `fake-serial`, the test-only build for the e2e suite
+  // (build/fakeSerial.ts, ROADMAP P0-14); or `bench`, the localhost bench
+  // build that is never deployed (build/bench.ts, P1-00). Any other mode is
+  // refused.
   assertBuildMode(command, mode);
   const fakeSerial = command === 'build' && mode === FAKE_SERIAL_MODE ? fakeSerialPlugins(seam) : undefined;
+  const bench = command === 'build' && mode === BENCH_MODE ? benchPlugin(channel) : undefined;
+  const outDir = fakeSerial !== undefined ? FAKE_SERIAL_OUT_DIR : bench !== undefined ? BENCH_OUT_DIR : 'dist';
   const build = buildInfo(import.meta.dirname);
   return {
     base: '/',
     // Every page is prerendered from the Preact components (build/prerender.ts).
-    plugins: fakeSerial === undefined ? [prerender(build)] : [prerender(build), fakeSerial.main],
+    plugins: [prerender(build), ...(fakeSerial === undefined ? [] : [fakeSerial.main]), ...(bench === undefined ? [] : [bench])],
     // The version chip's values for the client bundle (src/env.d.ts).
     define: { __RUN_BUILD__: JSON.stringify(build) },
     // Preact automatic JSX runtime, configured directly (no extra plugin).
@@ -62,7 +68,7 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     build: {
-      outDir: fakeSerial === undefined ? 'dist' : FAKE_SERIAL_OUT_DIR,
+      outDir,
       emptyOutDir: true,
       sourcemap: false,
       // Never inline assets as data: URIs. The CSP allows fonts from 'self'
@@ -87,8 +93,14 @@ export default defineConfig(({ command, mode }) => {
           // Cloud-client code gets its own chunk, filed under assets/cloud/
           // only when its contents qualify (build/chunks.ts). The bundle scan
           // allows network identifiers nowhere else.
+          // The build-channel seam gets a chunk of its own in every build, so
+          // the bench build differs from release in that chunk only
+          // (build/bench.ts).
           codeSplitting: {
-            groups: [{ name: CLOUD_CHUNK_NAME, test: (id: string) => chunks.isCloudModule(id) }],
+            groups: [
+              { name: CLOUD_CHUNK_NAME, test: (id: string) => chunks.isCloudModule(id) },
+              { name: CHANNEL_CHUNK_NAME, test: (id: string) => channel.isSeamModule(id) },
+            ],
           },
           chunkFileNames: (chunk) => chunks.chunkFileName(chunk),
         },

@@ -31,12 +31,20 @@ export const SAFETY_REVIEW_PATHS: readonly string[] = [
   '/apps/web/src/panels/control/',
   '/apps/web/src/panels/firmware/',
   '/apps/web/src/workers/',
+  '/apps/web/src/machine-worker/',
+  // The build channel (P1-00): the bench seam, where the localhost bench
+  // identity of the D1 gate lives (D41 proposed).
+  '/apps/web/src/channel/',
   // Data that moves between the cloud client and the machine path.
   '/apps/web/src/cloud/',
   '/apps/web/src/loaders/',
   // The run Worker headers and everything that carries them (RUN_PLAN §6.4,
   // T-S25, SAFETY H45, D39; ROADMAP P0-04).
   '/workers/run/src/headers.ts',
+  // P1-00: the Worker picks the header set per request (serial=(self) on
+  // staging only) and serves staging's assets.
+  '/workers/run/src/index.ts',
+  '/workers/run/src/routes.ts',
   '/workers/run/wrangler.jsonc',
   '/apps/web/public/_headers',
   '/apps/web/src/security/',

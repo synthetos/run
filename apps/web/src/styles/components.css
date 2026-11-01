@@ -342,3 +342,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
     color: var(--muted);
   }
 }
+
+/* The localhost bench build marks its version chip (P1-00, src/channel/bench.ts). */
+.version-chip[data-channel='bench'] { border-style: dashed; }

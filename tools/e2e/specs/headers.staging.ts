@@ -8,6 +8,8 @@
 import type { Response } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { HASHED_ASSET_CACHE_CONTROL, SERIAL_GRANTED_SECURITY_HEADERS } from '../../../workers/run/src/headers.ts';
+import { machineWorker } from './machineWorker.ts';
+import { SERIAL_PROBE } from './serialProbe.ts';
 
 function expectExact(all: readonly { name: string; value: string }[], url: string): void {
   for (const [name, value] of Object.entries(SERIAL_GRANTED_SECURITY_HEADERS)) {
@@ -67,4 +69,10 @@ test('staging grants Web Serial to its own documents, and only that: every other
     payment: false,
     serialForOtherOrigin: false,
   });
+});
+
+test('the browser allows Web Serial on staging, in the page and in machine.worker, which inherits the document policy', async ({ page }) => {
+  const worker = await machineWorker(page);
+  expect(await page.evaluate(SERIAL_PROBE)).toBe('ok:0');
+  expect(await worker.evaluate(SERIAL_PROBE)).toBe('ok:0');
 });

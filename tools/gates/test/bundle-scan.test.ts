@@ -18,6 +18,7 @@ import {
   SELF_ORIGINS,
   SERIAL_ASSET_DIR,
   TESTKIT_MARKER,
+  BENCH_MARKER,
 } from '../src/bundle/scan.ts';
 import { WEB_SERIAL_TRANSPORT_MODULE } from '../src/shared/webSerialNames.ts';
 import { WEB_SERIAL_TRANSPORT_PATH } from '../../../apps/web/build/chunks.ts';
@@ -464,10 +465,10 @@ describe('non-static dynamic import in the bundle (P0 review, P0-14)', () => {
 describe('P1-00: scan targets and the Web Serial chunk', () => {
   const serialChunk = `${SERIAL_ASSET_DIR}web-serial-abc12345.js`;
   const transportCode = 'const s=navigator.serial;export const open=()=>s.requestPort();export const list=()=>navigator.serial.getPorts();';
-  const targetRules = (target: 'production' | 'staging', path: string, text: string): string[] => scanTextFor(path, text, target).map((f) => f.rule);
+  const targetRules = (target: 'production' | 'staging' | 'bench', path: string, text: string): string[] => scanTextFor(path, text, target).map((f) => f.rule);
 
-  it('has exactly the production and staging targets', () => {
-    expect(SCAN_TARGETS).toEqual(['production', 'staging']);
+  it('has exactly the production, staging and bench targets', () => {
+    expect(SCAN_TARGETS).toEqual(['production', 'staging', 'bench']);
   });
 
   it("names the same transport module as the gates' canonical constant", () => {
@@ -512,5 +513,30 @@ describe('P1-00: scan targets and the Web Serial chunk', () => {
 
   it('production passes a tree without the serial chunk (the Phase 0 shell)', () => {
     expect(scanBundleFor([page, headersFile, file('assets/workspace-abc.js', 'export const a=1;')], 'production')).toEqual([]);
+  });
+});
+
+describe('P1-00: the bench target and the bench marker', () => {
+  const channel = file('assets/build-channel-abc12345.js', `document.documentElement.dataset.buildMarker="${BENCH_MARKER}";`);
+  const serial = file(`${SERIAL_ASSET_DIR}web-serial-abc12345.js`, 'const s=navigator.serial;export const l=()=>s.getPorts();');
+
+  it('bench accepts a marked tree, with Web Serial in the serial chunk', () => {
+    expect(scanBundleFor([page, headersFile, channel, serial], 'bench')).toEqual([]);
+  });
+
+  it('bench requires the marker: the release build is refused', () => {
+    expect(scanBundleFor([page, headersFile, serial], 'bench').map((f) => f.rule)).toEqual(['bench-marker-missing']);
+  });
+
+  it('staging and production refuse the marker anywhere', () => {
+    expect(scanBundleFor([page, headersFile, channel], 'staging').map((f) => f.rule)).toEqual(['bench-marker']);
+    expect(scanBundleFor([page, headersFile, channel], 'production').map((f) => f.rule)).toEqual(['bench-marker']);
+    expect(scanTextFor('index.html', `<p data-x="${BENCH_MARKER}"></p>`, 'staging').map((f) => f.rule)).toEqual(['bench-marker']);
+  });
+
+  it('bench still refuses Web Serial outside the serial chunk, the test kit and every Phase 0 rule', () => {
+    expect(scanTextFor('assets/x.js', 'navigator.serial', 'bench').map((f) => f.rule)).toEqual(['web-serial', 'capability-lookup']);
+    expect(scanTextFor('assets/x.js', `"${TESTKIT_MARKER}"`, 'bench').map((f) => f.rule)).toEqual(['testkit-marker']);
+    expect(scanTextFor('assets/x.js', 'fetch("/x")', 'bench').map((f) => f.rule)).toEqual(['network-identifier']);
   });
 });

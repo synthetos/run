@@ -6,6 +6,8 @@
 import type { Page, Response } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { SECURITY_HEADERS } from '../../../workers/run/src/headers.ts';
+import { machineWorker } from './machineWorker.ts';
+import { SERIAL_PROBE } from './serialProbe.ts';
 
 /** Each security header appears exactly once with exactly the expected value. */
 async function expectExactHeaders(response: Response | null): Promise<void> {
@@ -96,4 +98,10 @@ test('the production Permissions-Policy denies serial, even to this origin, and 
     return Object.fromEntries(['serial', 'usb', 'hid', 'bluetooth', 'camera', 'microphone', 'geolocation', 'payment'].map((f) => [f, fp.allowsFeature(f)]));
   });
   expect(allowed).toEqual({ serial: false, usb: false, hid: false, bluetooth: false, camera: false, microphone: false, geolocation: false, payment: false });
+});
+
+test('the browser refuses Web Serial under the production headers, in the page and in machine.worker (P1-00)', async ({ page }) => {
+  const worker = await machineWorker(page);
+  expect(await page.evaluate(SERIAL_PROBE)).toBe('err:SecurityError');
+  expect(await worker.evaluate(SERIAL_PROBE)).toBe('err:SecurityError');
 });

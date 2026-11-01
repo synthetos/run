@@ -69,6 +69,9 @@
 # transport seam decides how any build reaches a controller. The fake-serial
 # replacement decides what the e2e suite tests in its place.
 /apps/web/src/machine-worker/            @ril3y
+/apps/web/src/channel/                   @ril3y
+/workers/run/src/index.ts                @ril3y
+/workers/run/src/routes.ts               @ril3y
 /tools/e2e/fake-serial/                  @ril3y
 
 # --- The gates that enforce the rules above (P0-03 addition) -------------

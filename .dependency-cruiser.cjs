@@ -226,6 +226,28 @@ module.exports = {
       to: { dependencyTypesNot: ['type-only'] },
     },
 
+    // --- The localhost bench build (P1-00, D41 proposed) -----------------
+    {
+      name: 'bench-channel-only-through-the-build',
+      comment:
+        'The bench channel (apps/web/src/channel/bench.ts) reaches a build only through the bench build\'s ' +
+        'seam swap (apps/web/build/bench.ts); no module imports it, and only it imports the bench marker. ' +
+        'A release module importing either would put bench code in the deployed artifact (the bundle scan ' +
+        'refuses the marker there as well). Tests may import them.',
+      severity: 'error',
+      from: { pathNot: '(^apps/web/src/channel/bench\\.ts$|^apps/web/test/|^tools/)' },
+      to: { path: '^apps/web/src/channel/(bench|benchMarker)\\.ts$' },
+    },
+    {
+      name: 'machine-path-never-reaches-build-channel',
+      comment:
+        'D1: nothing in the machine path consults the session or the build channel. machine.worker and the ' +
+        'safety-path packages never import the build-channel seam (where the bench identity of P1-05 lives).',
+      severity: 'error',
+      from: { path: '(^apps/web/src/machine-worker/|^packages/)' },
+      to: { path: '^apps/web/src/channel/' },
+    },
+
     // --- Repository hygiene ----------------------------------------------
     {
       name: 'no-import-outside-repo',

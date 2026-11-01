@@ -11,8 +11,9 @@ const WEB = resolve(import.meta.dirname, '..');
 const seam = transportSeam(WEB);
 
 describe('build modes', () => {
-  it('builds only in production and fake-serial mode, into separate directories', () => {
-    expect(BUILD_MODES).toEqual(['production', 'fake-serial']);
+  it('builds only in production, fake-serial and bench mode, into separate directories', () => {
+    expect(BUILD_MODES).toEqual(['production', 'fake-serial', 'bench']);
+    expect(() => assertBuildMode('build', 'bench')).not.toThrow();
     expect(FAKE_SERIAL_OUT_DIR).not.toBe('dist');
     expect(() => assertBuildMode('build', 'production')).not.toThrow();
     expect(() => assertBuildMode('build', FAKE_SERIAL_MODE)).not.toThrow();

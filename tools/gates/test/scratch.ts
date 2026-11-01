@@ -159,7 +159,7 @@ export class ScratchRepo {
   }
 
   /** `pnpm scan`: the bundle scan over the copy's built web app (target `staging`, as CI's build job; P1-00). */
-  scan(target: 'production' | 'staging' = 'staging', dir = 'apps/web/dist'): GateResult {
+  scan(target: 'production' | 'staging' | 'bench' = 'staging', dir = 'apps/web/dist'): GateResult {
     return this.run([join(this.root, 'tools/gates/src/bundle/cli.ts'), '--target', target, join(this.root, dir)]);
   }
 

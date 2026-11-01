@@ -70,6 +70,11 @@
  *   deploy as `production` (which refuses any Web Serial code: production
  *   gets the Phase 0 shell only until Phase 6). Each of those jobs must scan,
  *   and no other job may.
+ * - `bench-never-in-ci` (every workflow, P1-00, D41 proposed): no line
+ *   builds, checks, scans or serves the localhost bench build
+ *   (BENCH_REFERENCES). It exists for the owner's computer only; CI proves
+ *   it is never deployed through the scans (the bench marker fails every
+ *   staging and production scan) and this rule.
  * - `yaml-subset`: tabs, anchors, aliases and merge keys are refused. They
  *   are valid YAML that this line-based reader could not follow, so they are
  *   not allowed to hide anything from it.
@@ -115,6 +120,20 @@ export const BUNDLE_SCAN_TARGETS: Readonly<Record<string, string>> = {
   'deploy-staging': 'staging',
   'deploy-production': 'production',
 };
+
+/** Text that names the localhost bench build (`bench-never-in-ci`, P1-00). */
+export const BENCH_REFERENCES: readonly string[] = [
+  'dist-bench',
+  '--mode bench',
+  '--mode=bench',
+  'build:bench',
+  'bench:check',
+  'bench:serve',
+  '--target bench',
+  '--target=bench',
+  'bench/cli.ts',
+  'artifact/bench-cli.ts',
+];
 
 /** The build job's outputs: one sha256 per artifact file, each set by its `digests` step. */
 export const ARTIFACT_DIGESTS: Readonly<Record<string, string>> = {
@@ -167,6 +186,7 @@ export type PolicyRule =
   | 'smoke-credentials'
   | 'safety-review-job'
   | 'bundle-scan-target'
+  | 'bench-never-in-ci'
   | 'yaml-subset';
 
 export interface PolicyFinding {
@@ -368,6 +388,10 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
       if (/\bwrite-all\b/.test(content)) add(line.no, 'write-permission', 'write-all is not allowed');
     } else if (line.blockKey === 'run' && line.text.includes('${{')) {
       add(line.no, 'expression-in-run', 'pass values to run: scripts through env:, never ${{ }}');
+    }
+
+    for (const reference of BENCH_REFERENCES) {
+      if (content.includes(reference)) add(line.no, 'bench-never-in-ci', `'${reference}': the localhost bench build is never built, scanned, served or deployed by CI`);
     }
 
     if (/\b(pull_request_target|workflow_run)\b/.test(line.inBlock ? '' : content)) {

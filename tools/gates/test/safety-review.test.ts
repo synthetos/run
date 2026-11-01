@@ -98,7 +98,12 @@ describe('which paths need the safety review', () => {
   });
 
   it('excludes ordinary UI and docs', () => {
-    expect(touchedSafetyPaths(['apps/web/src/shell/Shell.ts', 'README.md', 'packages/wiring/src/index.ts', 'workers/run/src/index.ts'])).toEqual([]);
+    expect(touchedSafetyPaths(['apps/web/src/shell/Shell.ts', 'README.md', 'packages/wiring/src/index.ts', 'workers/run/test/routes.test.ts'])).toEqual([]);
+  });
+
+  it('P1-00: covers the Worker modules that pick the header set, the machine worker and the build channel', () => {
+    const files = ['workers/run/src/index.ts', 'workers/run/src/routes.ts', 'apps/web/src/machine-worker/transport.ts', 'apps/web/src/channel/bench.ts'];
+    expect([...touchedSafetyPaths(files)].sort()).toEqual([...files].sort());
   });
 });
 

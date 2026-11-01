@@ -112,6 +112,13 @@
  *   the production deploy before anything is deployed. The production
  *   header `serial=()` (workers/run/src/headers.ts) is the browser's own
  *   backstop behind this.
+ * - `bench`: the localhost bench build (apps/web/build/bench.ts,
+ *   `dist-bench/`), served only by the loopback bench server. Web Serial as
+ *   for staging, and the bench marker (apps/web/src/channel/benchMarker.ts)
+ *   MUST be present (`bench-marker-missing`): the bench server refuses to
+ *   serve anything else with `serial=(self)`. For staging and production the
+ *   marker is refused anywhere (`bench-marker`), so a bench artifact can
+ *   never pass the build job's scan or a deploy job's scan.
  *
  * This module imports only dependency-free modules, so the secret-free
  * `build` CI job runs it without installing dev tooling.
@@ -121,15 +128,16 @@ import { NETWORK_IDENTIFIERS } from '../shared/networkIdentifiers.ts';
 import { renderHeadersFile } from '../../../../workers/run/src/headers.ts';
 import { OUTBOUND_URLS } from '../../../../apps/web/src/pages/outbound.ts';
 import { TESTKIT_MARKER } from '../../../../packages/testkit/src/marker.ts';
+import { BENCH_MARKER } from '../../../../apps/web/src/channel/benchMarker.ts';
 import { WEB_SERIAL_METHODS, WEB_SERIAL_PROPERTY } from '../shared/webSerialNames.ts';
 import { NAVIGATOR_ALLOWED_PROPERTIES, NAVIGATOR_NAMES, REFLECTIVE_GLOBALS } from '../shared/capabilities.ts';
 
-export { CLOUD_ASSET_DIR, SERIAL_ASSET_DIR, TESTKIT_MARKER };
+export { BENCH_MARKER, CLOUD_ASSET_DIR, SERIAL_ASSET_DIR, TESTKIT_MARKER };
 
 /** What the scanned tree is for (P1-00). See the module comment. */
-export type ScanTarget = 'production' | 'staging';
+export type ScanTarget = 'production' | 'staging' | 'bench';
 
-export const SCAN_TARGETS: readonly ScanTarget[] = ['production', 'staging'];
+export const SCAN_TARGETS: readonly ScanTarget[] = ['production', 'staging', 'bench'];
 
 export function isScanTarget(value: string): value is ScanTarget {
   return (SCAN_TARGETS as readonly string[]).includes(value);
@@ -214,7 +222,9 @@ export type ScanRule =
   | 'web-serial'
   | 'capability-lookup'
   | 'dynamic-import'
-  | 'serial-chunk';
+  | 'serial-chunk'
+  | 'bench-marker'
+  | 'bench-marker-missing';
 
 export interface BundleFile {
   /** Path relative to the dist root, with forward slashes. */
@@ -450,6 +460,9 @@ function testkitAndSerialFindings(path: string, text: string, target: ScanTarget
   if (text.includes(TESTKIT_MARKER)) {
     findings.push({ file: path, rule: 'testkit-marker', match: `${TESTKIT_MARKER}: test-kit code is in the bundle` });
   }
+  if (target !== 'bench' && text.includes(BENCH_MARKER)) {
+    findings.push({ file: path, rule: 'bench-marker', match: `${BENCH_MARKER}: the localhost bench build is never a ${target} artifact` });
+  }
   for (const match of text.matchAll(/MockSerialPort/g)) {
     const start = Math.max(0, (match.index ?? 0) - 20);
     findings.push({ file: path, rule: 'mock-serial-port', match: `…${clip(text.slice(start, (match.index ?? 0) + 40))}…` });
@@ -520,6 +533,9 @@ export function scanBundle(files: readonly BundleFile[], target: ScanTarget): Sc
     findings.push({ file: '.', rule: 'empty-bundle', match: 'no HTML page found: the scan refuses to pass an empty or partial build' });
   }
   const decoder = new TextDecoder('utf-8', { fatal: false });
+  if (target === 'bench' && !files.some((f) => TEXT_EXTENSIONS.includes(extension(f.path)) && decoder.decode(f.bytes).includes(BENCH_MARKER))) {
+    findings.push({ file: '.', rule: 'bench-marker-missing', match: 'no file carries the bench marker: this is not the bench build (pnpm build:bench)' });
+  }
   const headers = files.find((f) => f.path === HEADERS_FILE);
   if (headers === undefined) {
     findings.push({ file: HEADERS_FILE, rule: 'headers-file', match: 'missing: asset responses would carry no security headers' });

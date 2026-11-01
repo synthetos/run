@@ -37,8 +37,8 @@ export const FAKE_SERIAL_OUT_DIR = 'dist-fake-serial';
 /** The chunk that holds the transport seam (production) or its replacement (test). */
 export const TRANSPORT_CHUNK_NAME = 'machine-transport';
 
-/** Build modes `vite build` accepts. */
-export const BUILD_MODES: readonly string[] = ['production', FAKE_SERIAL_MODE];
+/** Build modes `vite build` accepts: the release build, this test build, and the localhost bench build (build/bench.ts, P1-00). */
+export const BUILD_MODES: readonly string[] = ['production', FAKE_SERIAL_MODE, 'bench'];
 
 function slashes(id: string): string {
   return id.split(sep).join('/');
@@ -67,7 +67,7 @@ export function transportSeam(webRoot: string): TransportSeam {
   };
 }
 
-/** Refuses `vite build` in any mode but production and fake-serial. */
+/** Refuses `vite build` in any mode but production, fake-serial and bench. */
 export function assertBuildMode(command: string, mode: string): void {
   if (command === 'build' && !BUILD_MODES.includes(mode)) {
     throw new Error(`refusing to build in mode ${JSON.stringify(mode)}: only ${BUILD_MODES.map((m) => JSON.stringify(m)).join(' and ')}`);

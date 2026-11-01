@@ -1,11 +1,13 @@
 /**
  * Bundle scan CLI (ROADMAP P0-03, P1-00). Run with `pnpm scan` after a build, or:
  *
- *   node tools/gates/src/bundle/cli.ts --target <production|staging> <dist directory>
+ *   node tools/gates/src/bundle/cli.ts --target <production|staging|bench> <dist directory>
  *
  * The target is required (scan.ts explains each): CI scans the built and
  * attested artifact, and the staging deploy, as `staging`, and the production
- * deploy as `production` (ci-policy `bundle-scan-target`).
+ * deploy as `production` (ci-policy `bundle-scan-target`). `bench` is for
+ * the localhost bench build only (`pnpm bench:check`), and never appears in
+ * a workflow (ci-policy `bench-never-in-ci`).
  *
  * Exit status: 0 clean, 1 findings, 2 the scan could not run.
  */
