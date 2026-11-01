@@ -95,3 +95,16 @@ Citations use the PN §1 tags at the pins in `vendor/firmware-pins.json`
   and (b) treats an existing ALARM (stat 2) as the stop in `awaitAlarm`
   (`alreadyAlarmedStat`), then C13 and `{clear}` as usual. `SAFETY.md` §4.4
   in this repository is amended to match.
+
+## RUN_PLAN §5.5 deviation: read allowlists and forbidden writes are schema data
+
+RUN_PLAN §5.5 sketches `Dialect.readAllowlist` and `Dialect.forbiddenWrites`.
+They are not members of `Dialect`: they are generated from the vendored HIL
+tables (ROADMAP P0-09) and live in `packages/schema` (`READ_ALLOWLISTS`,
+`readAllowlistFor(dialectId)`, `getLineFor`, `FORBIDDEN_WRITES`), keyed by
+`DialectId`. `protocol` is the bottom layer (RUN_PLAN §5.3, enforced by
+`layer-protocol`) and cannot import `schema`, and the tables are generated
+data that `protocol`'s hand-written dialect files should not duplicate.
+Phase 1's `MachineSession` (in `machine`, which may import both) looks the
+allowlist up by `classification.dialect.id`; an unclassified board
+(`dialect: null`) gets no allowlist and stays on the probe's fixed GETs.

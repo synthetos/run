@@ -15,7 +15,13 @@ account.
 > forbidden writes, the edge-next settings overlay, `validate` and the
 > write-plan gate (P0-09); `safety` has the job sanitiser with long-move
 > splitting, the allow-matrix, the overrun bound and the host-gate rule
-> (P0-10).
+> (P0-10); `testkit` has the virtual clock, the edge-next and 440.21
+> firmware models, fault plans, `MockSerialPort` and `ReplayTransport`
+> (P0-11, dev only); `machine` has the `Transport` interface,
+> `GuardedTransport` and the open policy, with no Web Serial transport yet
+> (P0-12); the bundle scan refuses test-kit code, `transport=` handling,
+> URL schemes and Web Serial in the build (P0-13); and `machine.worker`
+> runs under Playwright through a test-only fake-serial build (P0-14).
 
 > **This software is not an emergency stop.** Any machine it drives must have
 > a hardwired, latching E-stop that removes motor and spindle power in
@@ -26,10 +32,10 @@ account.
 
 | Path | Role |
 |---|---|
-| `packages/protocol` | Framing, inbound classification, dialect data, capability probe and classifier, read allowlists |
+| `packages/protocol` | Framing, inbound classification, dialect data, capability probe and classifier, signed approved-builds manifest |
 | `packages/safety` | Allow-matrix, sanitiser, preflight, jog plan, flash gate, fault policy, overrun bound, warning strings |
 | `packages/machine` | Transport interface, `MachineSession` (the single writer), flow engines, streamer, watchdog, stop sequences |
-| `packages/schema` | Units, generated settings schemas, MachineProfile v2, fact engine |
+| `packages/schema` | Units, generated settings schemas and status tables, read allowlists and forbidden writes (keyed by `DialectId`), the edge-next overlay, board definitions; MachineProfile v2 and the fact engine later |
 | `packages/gcode` | G-code parser and dialect-aware interpreter and analyser |
 | `packages/flasher` | Firmware manifest, HEX validation, xboot client |
 | `packages/wiring` | Board data, components, rules engine, renderers |
@@ -55,6 +61,15 @@ account.
   path never imports it.
 - `workers/run` imports only `contracts`. The server holds no machine logic.
 - No production entry may import `testkit`.
+- Packages are layered (RUN_PLAN §5.3): `protocol` imports no other
+  workspace package; `safety` imports `protocol`; `schema` imports
+  `protocol` and `safety`; `machine` imports `protocol`, `safety`, `schema`
+  and the `flasher` entry; `flasher` imports `protocol`; `gcode`, `wiring`
+  and `provenance` import `safety` and `protocol`; `contracts` imports no
+  workspace package; `testkit` imports `protocol` and `flasher`. No import
+  cycle anywhere in `packages/`. Runtime workspace edges are `dependencies`
+  (`workspace:*`), so the production build graph (`--filter-prod`) never
+  includes the test kit.
 - Panels act only through typed intents checked by `safety.allowed`; no code
   outside `MachineSession` writes to the port, and nothing is loaded at
   runtime.
@@ -63,7 +78,7 @@ These rules are enforced by the gates below (P0-02, P0-03, P0-13).
 
 | Gate | Command | What it enforces |
 |---|---|---|
-| Boundaries | `pnpm deps` | `.dependency-cruiser.cjs`: no npm (direct or transitive) and no Node built-ins in the safety path; no `contracts` or cloud client in the safety path; the cloud client imports only `contracts` and `provenance`; `workers/run` imports only `contracts`; no entry reaches `testkit`; nothing imports from outside the repository; every import resolves |
+| Boundaries | `pnpm deps` | `.dependency-cruiser.cjs`: the package layering above (`layer-*` rules) and `no-circular`; no npm (direct or transitive) and no Node built-ins in the safety path; no `contracts` or cloud client in the safety path; the cloud client imports only `contracts` and `provenance`; `workers/run` imports only `contracts`; no entry reaches `testkit`; nothing imports from outside the repository; every import resolves |
 | Lint | `pnpm lint` | `eslint.config.js` with the repository's own rules in `tools/gates/src/eslint/`: no `eval`/`new Function`; no HTML sinks (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `dangerouslySetInnerHTML`) outside `apps/web/src/security/tt.ts`; no `abort` in `machine`; no `Math.random` in `safety` and `protocol`; no network identifiers in `protocol`, `safety`, `machine`, `flasher` and `provenance`; no `navigator.serial`, `requestPort` or `getPorts` anywhere (until P1-01); no `WARNING —`, `DANGER —` or `NOTICE —` strings outside `packages/safety/src/strings.ts`. Inline `eslint-disable` comments are ignored (`noInlineConfig`), so a rule can be relaxed only in `eslint.config.js` |
 | Licences | `pnpm licence` | Production dependencies: MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0 or OFL-1.1. Dev dependencies may also be MPL-2.0, or carry a reviewed exception in `tools/gates/src/licence/exceptions.ts`. GPL and AGPL are never allowed |
 | CI policy | `pnpm ci-policy` | Workflows: only the deploy jobs touch secrets or the Cloudflare token; deploy jobs run only on a push to `main` behind protected environments; actions pinned by SHA; no `pull_request_target`; no `${{ }}` in scripts. CODEOWNERS covers every SAFETY §8 path. The PR template carries the SAFETY §8 checklist verbatim |
@@ -144,8 +159,8 @@ Its nested `pnpm` calls need pnpm on `PATH` (`corepack enable`).
 Protocol (P0-07): `packages/protocol` turns serial bytes into typed events.
 `createInboundDecoder()` frames lines (CR/LF tolerant, UTF-8 safe, XON/XOFF
 removed into `FlowSignal` events, 4 KB line cap) and classifies each one as
-`Response`, `StatusReport`, `QueueReport`, `Exception`, `Banner`, `Ack`,
-`Text` or `Garbled`, with a relaxed-JSON parser that has depth and size caps
+`Response`, `StatusReport`, `QueueReport`, `RxReport`, `Exception`,
+`Banner`, `Ack`, `Text` or `Garbled`, with a relaxed-JSON parser that has depth and size caps
 and never throws. Anything ambiguous is `Garbled`, never guessed. Its tests
 run with coverage, and `frame.ts`, `classify.ts`, `json.ts` and `inbound.ts`
 must stay at 100% branch coverage (`packages/protocol/vitest.config.ts`).

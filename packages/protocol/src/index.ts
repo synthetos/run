@@ -1,7 +1,16 @@
 /**
  * @synthetos/protocol
  *
- * Wire protocol for Synthetos controllers: framing, inbound classification, dialect data, capability probe and classifier, read allowlists.
+ * Wire protocol for Synthetos controllers: framing, inbound classification, dialect data, capability probe and classifier, signed approved-builds manifest.
+ *
+ * The read allowlists and forbidden writes are NOT here: they are generated
+ * from the vendored HIL tables and live in `@synthetos/schema`
+ * (`readAllowlistFor(dialectId)`, `FORBIDDEN_WRITES`), keyed by `DialectId`.
+ * RUN_PLAN §5.5 sketches them as `Dialect.readAllowlist` and
+ * `Dialect.forbiddenWrites`; that deviation is recorded in
+ * docs/protocol/notes-amendments.md. `protocol` is the bottom layer and may
+ * not import `schema`, so `MachineSession` (machine) joins the two by the
+ * classified dialect's id.
  *
  * This package has ZERO runtime npm dependencies and must never import
  * `contracts`, the cloud client, or any network API (RUN_PLAN §5.3).
