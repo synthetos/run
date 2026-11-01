@@ -345,3 +345,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 
 /* The localhost bench build marks its version chip (P1-00, src/channel/bench.ts). */
 .version-chip[data-channel='bench'] { border-style: dashed; }
+
+/* W3 (LOST) and W4 (STALE) banners (P1-04): full width, safety tokens only. */
+.overlay-banner {
+  width: 100%;
+  margin: 0;
+  padding: 10px 16px;
+  color: var(--sheet);
+  font: 600 0.95rem/1.35 var(--sans);
+}
+.overlay-banner p { margin: 0; max-width: 72rem; }
+.overlay-banner-danger { background: var(--danger); }
+.overlay-banner-warn { background: var(--warn); }
