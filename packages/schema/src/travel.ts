@@ -39,6 +39,11 @@ export interface TravelSemantics {
    * passes `fp_EQ` but reads back as two equal 3-decimal numbers).
    */
   readonly minSpan: number;
+  /**
+   * The `unit` read-back meaning G21 (millimetres). Linear travel rows are F_CONVERT: the board reports
+   * them in inches while its units mode is G20, so a read-back is interpreted only when `unit` reads this.
+   */
+  readonly millimetresUnit: number;
   readonly cite: string;
 }
 
@@ -50,7 +55,8 @@ const TINYG: TravelSemantics = Object.freeze({
   disableAtOrBelow: -1_000_000,
   reportedDecimals: 3,
   minSpan: 0.01,
-  cite: 'EN canonical_machine.c:536-552, util.h:134-139, config_app.c:279-280; TG canonical_machine.c:480-496, util.h:113-119, config_app.c:277-278',
+  millimetresUnit: 1,
+  cite: 'EN canonical_machine.c:536-552, util.h:134-139, config_app.c:279-280, config_app.c:815-826 (F_CONVERT out), canonical_machine.h:217-218 (MILLIMETERS=1), canonical_machine.c:2396 (unit); TG canonical_machine.c:480-496, util.h:113-119, config_app.c:277-278, config_app.c:763-770, canonical_machine.h:447-448, canonical_machine.c:1634',
 });
 
 /** Per-dialect travel semantics. Stock 449 is read-only and its source is not pinned here: no entry. */
@@ -131,7 +137,7 @@ export type AxisSoftLimit =
   | 'notEnforced';
 
 export interface SoftLimitConfirmation {
-  /** True only when `sl` reads back 1 and every required axis is `enforced`. */
+  /** True only when `sl` reads back 1, `unit` reads back millimetres, and every required axis is `enforced`. */
   readonly active: boolean;
   readonly axes: Readonly<Partial<Record<TravelAxis, AxisSoftLimit>>>;
   /** Why `active` is false, one line each; empty when active. */
@@ -139,7 +145,7 @@ export interface SoftLimitConfirmation {
 }
 
 export interface SoftLimitReadBack {
-  /** Values read back from the board after the write (`sl`, `{axis}tn`, `{axis}tm`). */
+  /** Values read back from the board after the write, with the planner idle (`sl`, `unit`, `{axis}tn`, `{axis}tm`). */
   readonly values: Readonly<Record<string, unknown>>;
   /** The axes whose soft limits the caller relies on. */
   readonly required: readonly TravelAxis[];
@@ -174,6 +180,9 @@ export function confirmSoftLimits(dialectId: string, readBack: SoftLimitReadBack
   }
   const { values } = readBack;
   if (num(values, 'sl') !== 1) reasons.push('soft limits (sl) do not read back as on (1)');
+  // Linear travel ends are F_CONVERT rows: under G20 the board reports them in inches (stored mm x 1/25.4), so a
+  // stored -1000000 mm minimum reads -39370.079 and would look tested. Only a millimetre read-back is interpreted.
+  if (num(values, 'unit') !== sem.millimetresUnit) reasons.push(`units mode (unit) does not read back as millimetres (${sem.millimetresUnit}): travel cannot be read as millimetres`);
   const half = 0.5 * 10 ** -sem.reportedDecimals;
   const slack = (r: number): number => half + Math.abs(f32Step(f32(r), 1) - f32(r));
 

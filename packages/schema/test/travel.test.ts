@@ -192,7 +192,7 @@ describe('dialect scope: TinyG epsilon only where it is transcribed', () => {
       ['xtn', 'travelSemanticsUnknown'],
       ['xtm', 'travelSemanticsUnknown'],
     ]);
-    expect(confirmSoftLimits('g2core', { values: { sl: 1, xtn: 0, xtm: 300 }, required: ['x'] }).active).toBe(false);
+    expect(confirmSoftLimits('g2core', { values: { sl: 1, unit: 1, xtn: 0, xtm: 300 }, required: ['x'] }).active).toBe(false);
   });
 
   it('440 refuses the reproductions exactly as EN does (when its travel keys are reviewed)', () => {
@@ -209,7 +209,7 @@ describe('read-back confirms soft limits before they count as on', () => {
         [1000, 1000.000001],
       ] as const) {
         const { sim } = firmwareLimits(make, lo, hi, 1);
-        const values = { sl: readBack(sim, 'sl'), xtn: readBack(sim, 'xtn'), xtm: readBack(sim, 'xtm') };
+        const values = { sl: readBack(sim, 'sl'), unit: readBack(sim, 'unit'), xtn: readBack(sim, 'xtn'), xtm: readBack(sim, 'xtm') };
         const c = confirmSoftLimits(dialect, { values, required: ['x'], written: { xtn: lo, xtm: hi } });
         expect(c.active, `${lo}..${hi}`).toBe(false);
         expect(c.axes.x).toBe('notEnforced');
@@ -219,14 +219,14 @@ describe('read-back confirms soft limits before they count as on', () => {
     it(`${dialect}: a normal range reads back as enforced, and the model agrees`, () => {
       const { sim, status: st } = firmwareLimits(make, 0, 300, 400);
       expect(st).toEqual([220]);
-      const values = { sl: readBack(sim, 'sl'), xtn: readBack(sim, 'xtn'), xtm: readBack(sim, 'xtm') };
+      const values = { sl: readBack(sim, 'sl'), unit: readBack(sim, 'unit'), xtn: readBack(sim, 'xtn'), xtm: readBack(sim, 'xtm') };
       const c = confirmSoftLimits(dialect, { values, required: ['x'], written: { xtn: 0, xtm: 300 } });
       expect(c).toEqual({ active: true, axes: { x: 'enforced' }, reasons: [] });
     });
   }
 
   it('sl off, a missing axis, a disabled end, or a value that did not read back as written is not confirmed', () => {
-    const ok = { sl: 1, xtn: 0, xtm: 300, ytn: 0, ytm: 200 };
+    const ok = { sl: 1, unit: 1, xtn: 0, xtm: 300, ytn: 0, ytm: 200 };
     expect(confirmSoftLimits('tinyg-en', { values: ok, required: ['x', 'y'] }).active).toBe(true);
     expect(confirmSoftLimits('tinyg-en', { values: { ...ok, sl: 0 }, required: ['x'] }).active).toBe(false);
     expect(confirmSoftLimits('tinyg-en', { values: { ...ok, sl: '1' }, required: ['x'] }).active).toBe(false);
@@ -249,10 +249,25 @@ describe('read-back confirms soft limits before they count as on', () => {
     expect(confirmSoftLimits('tinyg-en', { values: { ...ok, xtm: 300.0004 }, required: ['x'], written: { xtm: 300 } }).active).toBe(true);
   });
 
+  it('a read-back under G20 is not interpreted: linear travel then reports in inches (F_CONVERT)', () => {
+    // EN config_app.c:815-826 / TG config_app.c:763-770 divide an F_CONVERT float by 25.4 on output while the
+    // units mode is inches. A stored minimum of -1000000 mm (DISABLE_SOFT_LIMIT: that end is not tested) then
+    // reads back as -39370.079, which taken as millimetres would look tested.
+    const inches = { sl: 1, unit: 0, xtn: Number((-1_000_000 / 25.4).toFixed(3)), xtm: Number((300 / 25.4).toFixed(3)) };
+    const g20 = confirmSoftLimits('tinyg-en', { values: inches, required: ['x'] });
+    expect(g20.active).toBe(false);
+    expect(g20.reasons).toEqual(['units mode (unit) does not read back as millimetres (1): travel cannot be read as millimetres']);
+    expect(confirmSoftLimits('tinyg-440', { values: inches, required: ['x'] }).active).toBe(false);
+    const { unit: _unit, ...noUnit } = { sl: 1, unit: 1, xtn: 0, xtm: 300 };
+    expect(confirmSoftLimits('tinyg-en', { values: noUnit, required: ['x'] }).active).toBe(false);
+    expect(confirmSoftLimits('tinyg-en', { values: { ...noUnit, unit: '1' }, required: ['x'] }).active).toBe(false);
+    expect(confirmSoftLimits('tinyg-en', { values: { ...noUnit, unit: 1 }, required: ['x'] }).active).toBe(true);
+  });
+
   it('reported ends too close to prove distinct are not confirmed; 3-decimal reports of the smallest accepted span are', () => {
-    expect(confirmSoftLimits('tinyg-en', { values: { sl: 1, xtn: 0, xtm: 0 }, required: ['x'] }).axes.x).toBe('notEnforced');
-    expect(confirmSoftLimits('tinyg-en', { values: { sl: 1, xtn: 0, xtm: 0.001 }, required: ['x'] }).axes.x).toBe('notEnforced');
-    expect(confirmSoftLimits('tinyg-en', { values: { sl: 1, xtn: 0, xtm: 0.01 }, required: ['x'] }).axes.x).toBe('enforced');
-    expect(confirmSoftLimits('tinyg-en', { values: { sl: 1, xtn: 1000, xtm: 1000 }, required: ['x'] }).axes.x).toBe('notEnforced');
+    expect(confirmSoftLimits('tinyg-en', { values: { sl: 1, unit: 1, xtn: 0, xtm: 0 }, required: ['x'] }).axes.x).toBe('notEnforced');
+    expect(confirmSoftLimits('tinyg-en', { values: { sl: 1, unit: 1, xtn: 0, xtm: 0.001 }, required: ['x'] }).axes.x).toBe('notEnforced');
+    expect(confirmSoftLimits('tinyg-en', { values: { sl: 1, unit: 1, xtn: 0, xtm: 0.01 }, required: ['x'] }).axes.x).toBe('enforced');
+    expect(confirmSoftLimits('tinyg-en', { values: { sl: 1, unit: 1, xtn: 1000, xtm: 1000 }, required: ['x'] }).axes.x).toBe('notEnforced');
   });
 });
