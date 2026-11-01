@@ -15,3 +15,5 @@ export { DEFAULT_CHORD_MM, arcBox, arcPoint, arcSegments, tessellateArc } from '
 export { DEFAULT_VERTEX_CAP, interpretJob } from './interpreter.ts';
 export { KIND, LINE_FLAG } from './types.ts';
 export type { Box, EndModal, Finding, FindingSeverity, InterpretOptions, JobAnalysis, JobStats, TimingModel } from './types.ts';
+export { PREVIEW_MARK, VERDICT, indexFindings, lineVerdicts, previewSegments, sentSourceLines } from './preview.ts';
+export type { FindingIndex, PreviewSegments, VerdictCode } from './preview.ts';
