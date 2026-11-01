@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
-import { w1, w2Label, w7 } from '@synthetos/safety';
+import { w1, w13, w2Label, w7 } from '@synthetos/safety';
 import { Shell } from '../src/shell/Shell.ts';
 import { SafetyBar, STOP_UNAVAILABLE } from '../src/shell/SafetyBar.ts';
 import { versionLabel } from '../src/build-info/buildInfo.ts';
@@ -30,11 +30,14 @@ describe('workspace Shell', () => {
     expect(workspace.children.map((c) => (typeof c === 'string' ? c : c.props['data-region']))).toEqual(['rail', 'centre']);
   });
 
-  it('the rail is empty and the centre holds only the placeholder', () => {
+  it('the rail is empty and the centre holds the placeholder, then the preview sheet with W13', () => {
     const rail = one(shell, byAttr('data-region', 'rail'));
     expect(rail.tag).toBe('nav');
     expect(rail.children).toEqual([]);
-    expect(text(one(shell, byAttr('data-region', 'centre')))).toContain('No machine connected');
+    const centre = one(shell, byAttr('data-region', 'centre'));
+    expect(text(centre)).toContain('No machine connected');
+    expect(centre.children.filter((c) => typeof c !== 'string').map((c) => (c as { props: Record<string, unknown> }).props['data-region'] ?? 'placeholder')).toEqual(['placeholder', 'preview']);
+    expect(text(one(centre, byAttr('data-safety', 'W13')))).toBe(w13());
   });
 
   it('the safety bar shows W1 exactly, as a labelled region', () => {
@@ -76,6 +79,8 @@ describe('workspace Shell', () => {
   it('no control in the shell can act: the only buttons are the disabled stop button and the theme toggle', () => {
     const buttons = all(shell, (e) => e.tag === 'button');
     expect(buttons.map((b) => b.props['class'])).toEqual(['stop-button', 'theme-toggle']);
+    // The prerendered preview's file, dialect, mode and rapids controls are disabled until the script runs.
+    for (const input of all(shell, (e) => e.tag === 'input' || e.tag === 'select')) expect(input.props['disabled']).toBe(true);
     for (const el of all(shell, () => true)) {
       expect(Object.keys(el.props).filter((k) => /^on[A-Z]/.test(k)), el.tag).toEqual([]);
     }

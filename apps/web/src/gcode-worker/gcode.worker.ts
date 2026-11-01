@@ -6,10 +6,11 @@
 import { createGcodeHandler } from './handler.ts';
 import type { FromGcodeWorker, ToGcodeWorker } from './protocol.ts';
 
-const scope = self as unknown as {
+/** The part of the dedicated worker scope this worker uses. */
+interface GcodeWorkerScope {
   postMessage(message: FromGcodeWorker, transfer: Transferable[]): void;
-  onmessage: ((event: MessageEvent<ToGcodeWorker>) => void) | null;
-};
+  addEventListener(type: 'message', listener: (event: MessageEvent<ToGcodeWorker>) => void): void;
+}
 
-const handle = createGcodeHandler((message, transfer) => { scope.postMessage(message, transfer ?? []); });
-scope.onmessage = (event) => { void handle(event.data); };
+const handle = createGcodeHandler((message, transfer) => { (globalThis as unknown as GcodeWorkerScope).postMessage(message, transfer ?? []); });
+(globalThis as unknown as GcodeWorkerScope).addEventListener('message', (event) => { void handle(event.data); });

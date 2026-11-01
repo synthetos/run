@@ -245,7 +245,7 @@ class Interpreter {
     const unsupported = codes.filter((c) => !this.job.codes.includes(c) && !this.job.ignoredCodes.includes(c));
     for (const c of unsupported) this.add(src, n, 'block', 'unsupported-code', `${c} is not supported in a job on ${this.dialect.label}`);
     for (const c of codes) {
-      if (this.job.ignoredCodes.includes(c)) this.addOnce(`ignored:${c}`, src, n, 'info', 'ignored-code', `${c} is accepted and ignored by ${this.dialect.label}`);
+      if (this.job.ignoredCodes.includes(c)) this.addOnce(`ignored ${c}`, src, n, 'info', 'ignored-code', `${c} is accepted and ignored by ${this.dialect.label}`);
     }
     if (unsupported.length > 0) {
       this.flags[i] = (this.flags[i] as number) | LINE_FLAG.NOT_DRAWN;
