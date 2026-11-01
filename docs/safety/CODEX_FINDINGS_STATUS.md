@@ -63,16 +63,15 @@ workflows, any deploy.
 | 6 | 4 (P0-03) | `author_association` MEMBER/COLLABORATOR taken as proof of write permission | High | CLOSED | 689a935 | `review-permission.test.ts` "two read-only organisation MEMBERs no longer satisfy the check", revoked permission, bots, CLI with API shapes | not yet |
 | 7 | 5 (P0-04) | `build`/`build.command` allowed at root and `env.staging`; wrangler runs it under `--no-bundle` with the deploy token | High | CLOSED | 689a935 (refuse `build` in every scope, positive key allowlist, deploy only the preflight-written `wrangler.deploy.json`), 3333622 (refuse `.env*` in the deploy directory, exact `--config`, no `--cwd`/`--env-file`) | `tools/gates/test/deploy-config.test.ts` "checkWorkerConfig refuses a custom build in every scope" and the pinned-wrangler dry run; `deploy-workflow.test.ts` "deploy-config" | not yet |
 | 8 | 5 (P0-04) | SVG export accepts `<style>@import url(...)` external CSS | Low | CLOSED | 689a935 (element/attribute allowlist; no style, `url()`, `@import`, escapes, references, comments, CDATA, PIs) | `apps/web/test/svg-export.test.ts` "the reviewer's reproductions", "external CSS and URL-bearing constructs" | not yet |
-| 9 | 6 (P0-05) | W22 and the safety page say machine control is unaffected after sign-out | Medium | PARTIAL | 1fce133 (`w22()` matches the amended SAFETY W22) | `packages/safety/test/strings.test.ts` (T-S32 byte match, `fixed('W22', ...)`) | not yet |
-|   |   | Remainder: `apps/web/src/pages/safety/SafetyPage.ts:86` still says sign-out "only prevents starting new ones" (jobs). The amended W22 also refuses new jog, home and settings changes. The page text has not been updated and no test pins it. |   |   |   |   |   |
-| 10 | 7 (P0-06) | e2e origin guard: Chromium redirect hops bypass `context.route`, so a request reaches a third party before the test fails | Medium | OPEN | none | none. Reproduction rerun at fb05e3c: `node /private/tmp/run-p006-redirect-repro.mjs` gives `externalLoopbackHits: 1` (the guard reports the finding, but the destination was hit) | n/a |
+| 9 | 6 (P0-05) | W22 and the safety page say machine control is unaffected after sign-out | Medium | CLOSED | 1fce133 (`w22()` matches the amended SAFETY W22), 291e96a (the safety page's sign-out rule names every action W22 gates, starting a job, jogging, homing and changing settings, and quotes `w22()` in a `data-safety="W22"` element; the old "only prevents starting new ones" sentence is gone) | `packages/safety/test/strings.test.ts` (T-S32 byte match, `fixed('W22', ...)`); `apps/web/test/prerender.test.ts` "the sign-out rule matches the amended W22 in SAFETY.md" (reads W22 from the in-repo SAFETY.md and requires it, `w22()` and the page element to be identical) | not yet |
+| 10 | 7 (P0-06) | e2e origin guard: Chromium redirect hops bypass `context.route`, so a request reaches a third party before the test fails | Medium | CLOSED | 8569986 (`tools/e2e/src/guard.ts`: every request is routed; same-origin requests are fetched by the guard with redirects disabled, same-origin hops are followed by the guard, the first external target is a `redirect` finding and the request is aborted before that hop is sent; the browser never sees a redirect, because Chromium also skips the routes for hops after a route fulfilled a redirect. `specs/csp.e2e.ts` falls back to the guard instead of `continue()`) | `tools/e2e/specs/origin-guard.e2e.ts` redirect cases (302, 307, 308, protocol-relative, two- and three-hop chains, subresource, `fetch()`, loop, same-origin control; a loopback third party must see 0 requests); `tools/e2e/test/origin.test.ts` (`redirectTarget`, `redirectMethod`). Reproduction rerun after the fix: `externalLoopbackHits: 0` | not yet |
 | 11 | 8 | Re-pin to edge-next ead63997 / 450.01, E164 unsigned footer, E050 fix | Info | CLOSED | b741bad, 92ead7d, 4c8a3ad | `packages/testkit/test/citations.test.ts` (with `RUN_FIRMWARE_REPO`); probe fixtures | yes (batch 11, batch 12) |
-| 12 | 9 (P0-07 #1) | `decodeInbound` spreads a chunk's events into `push(...)`; a 200000-byte chunk throws RangeError | Low | OPEN | none | none. Rerun at fb05e3c: `decodeInbound([new Uint8Array(200000).fill(0x11)])` throws RangeError (`packages/protocol/src/inbound.ts:32`). The live `createInboundDecoder().push` path is unaffected | n/a |
-| 13 | 9 (P0-07 #2) | `parseJson` accepts caller `maxDepth`/`maxChars` that defeat stack safety | Low | OPEN | none | none. Rerun at fb05e3c: `parseJson('['.repeat(4096), {maxChars: 4096, maxDepth: 10000})` throws RangeError despite the never-throws contract. The default limits (depth 16) are safe | n/a |
+| 12 | 9 (P0-07 #1) | `decodeInbound` spreads a chunk's events into `push(...)`; a 200000-byte chunk throws RangeError | Low | CLOSED | f4dfa74 (events appended one at a time) | `packages/protocol/test/inbound.test.ts` "decodeInbound: large chunks" (the 200000-byte reproduction; 300000 bytes equal to the live decoder) | not yet |
+| 13 | 9 (P0-07 #2) | `parseJson` accepts caller `maxDepth`/`maxChars` that defeat stack safety | Low | CLOSED | f4dfa74 (caller limits capped at `JSON_HARD_LIMITS`, 65536 chars and depth 64; a NaN or negative limit refuses every input) | `packages/protocol/test/json.test.ts` "caller limits are capped" (the reproduction returns `too-deep`; nesting to 100000 under unbounded limits never throws; caps; smaller limits still apply) | not yet |
 | 14 | 10 (P0-08 #1) | Status-0 capability answer counts as present for any JSON value | Medium | CLOSED | 50496a2 | `packages/protocol/test/probe-contract.test.ts` "P0-08 #1" | yes (50496a2) |
 | 15 | 10 (P0-08 #2) | Probe keeps only the footer revision; checksumless TG footer still classifies full | Medium | CLOSED | 23491b4 (helper only, PARTIAL), 50496a2 (end to end) | `probe-contract.test.ts` "P0-08 #2" (production path classifyLine -> buildProbeResult -> classify) | yes (50496a2) |
 | 16 | 10 (P0-08 #3) | Invalid Date fails open in `verifyApprovedBuilds` | Low | CLOSED | 50496a2 | `probe-contract.test.ts` "P0-08 #3" | yes (50496a2) |
-| 17 | 10 addendum (P0-08) | No controller-neutral coolant-pause (`coph`) capability; g2 `spph`/`coph` differ | Low | OPEN | none | none. Only `spindlePauseOnHold` exists in `packages/protocol/src/dialects/types.ts`; `coph` appears only in the EN dialect comment and the schema tables | n/a |
+| 17 | 10 addendum (P0-08) | No controller-neutral coolant-pause (`coph`) capability; g2 `spph`/`coph` differ | Low | CLOSED | f4dfa74 (`DialectCaps.coolantPauseOnHold`: EN `probe` (coph reserved, stubbed 17), 440.21 and stock 449 `never` (no coph; hold code does not touch coolant), g2 `probe` (real coph, default true while spph defaults false, read from G2 1fb5940 `settings/settings_default.h:96-97, :145-146`, `config_app.cpp:974`, `cycle_feedhold.cpp:872, :925`, `coolant.cpp:100-105`); `COOLANT_PAUSE_TOKEN`) | `packages/protocol/test/dialect-contract.test.ts` "coolant pause on hold is its own fact" (every dialect); `packages/protocol/test/dialects.test.ts` (TG) | not yet |
 | 18 | 11 | Doc drift: firmware-pins EN note, tinygEn header and signed bench note say D4 is not final; PROTOCOL_NOTES body stale | Low | PARTIAL / OWNER | fb05e3c | `tools/gates/test/doc-drift.test.ts` | not yet |
 |   |   | Remainder: the bench note inside the signed manifest is unchanged, because changing it needs a new signature from the owner's key (recorded in `docs/ops/release-key.md` and `docs/LEAD_ACTIONS.md`; the test requires that record while the note is stale). The PROTOCOL_NOTES body lives in synthetos.com; the amendments are listed in `docs/protocol/notes-amendments.md` for the owner. |   |   |   |   |   |
 | 19 | 12 (P0-09) | Schema travel bounds use JavaScript `lo < hi`; firmware skips soft limits when `fp_EQ(tn, tm)` in float32 | Medium | CLOSED | acaed21 (`packages/schema/src/travel.ts`: per-dialect travel semantics (TinyG EN and 440 only; any other dialect, g2 included, fails closed with `travelSemanticsUnknown`, no TinyG epsilon imposed); `validate` refuses a range whose float32 ends (nearest and two neighbours each side) are `fp_EQ` or not ordered (`travelFirmwareEqual`), one under 0.01 apart (`travelTooNarrow`, so read-back can prove it), and a minimum at or below DISABLE_SOFT_LIMIT (`travelEndDisabled`); `confirmSoftLimits` proves from the 3-decimal read-back that `sl` is 1 and each required axis has both ends tested before `softlimits.on` may be established; follow-up: the read-back is interpreted only when `unit` reads back 1 (G21), because linear travel rows are F_CONVERT and report in inches under G20, where a disabled -1000000 mm minimum reads -39370.079) | `packages/schema/test/travel.test.ts` (both reproductions on EN and 440, refused by `validate` and `screenWritePlan`, with the test-kit models showing the firmware really skips the limit; one-end drafts against board ends; float32 collapse near ±100000; every axis X..C; DISABLE_SOFT_LIMIT per end; normal ranges and a 0.01 span still pass, with the model enforcing them; read-back confirmation from model GETs; a G20 inch read-back is not confirmed) | not yet |
@@ -96,23 +95,23 @@ workflows, any deploy.
 
 ## Still open
 
-These need fixes before the code they affect controls a machine. Each one
-still reproduces at `fb05e3c`:
+Checked at `291e96a`. Every row above that was OPEN at `fb05e3c` is now
+CLOSED (awaiting re-verification) except one remainder:
 
-1. Row 19, Medium, safety: schema travel-bound validation does not follow the
-   firmware's float32 `fp_EQ` soft-limit skip. A settings write could disable
-   an axis's soft limits while validation reports nothing. This is the most
-   important open item. It is latent (no settings write path in Phase 0).
-2. Row 10, Medium, test containment: the e2e origin guard reports a redirect
-   to another origin but does not stop it.
-3. Row 9, Medium, wording: safety page line 86 contradicts the amended W22.
-4. Row 17, Low: no coolant-pause capability fact.
-5. Rows 12 and 13, Low: `decodeInbound` argument spreading, and caller JSON
-   limits that are not capped.
-6. Row 35, High, remainder: an axis switched out of inhibited mode while
+1. Row 35, High, remainder: an axis switched out of inhibited mode while
    its position is away from 0 is driven out to that position by the next
    move of any axis, and no read shows it. Latent (no settings write path
    in Phase 0).
+
+## Playwright e2e at 291e96a
+
+Run locally (Chromium from the pinned Playwright, `wrangler dev`):
+`pnpm e2e` 53 passed (headers.e2e.ts included: the Permissions-Policy
+denies serial, even to this origin); `pnpm e2e:fake-serial` 2 passed;
+`pnpm e2e:artifact` 53 passed and the canary reported all 4 planted URLs.
+The same suite at `4427c84` (before the redirect and W22 changes) passed
+43 of 43, so no e2e failure was hidden by the earlier gate, which did not
+run Playwright.
 
 Owner items: row 4 (native branch protection and carrying D40 into the
 gates), row 18 (re-sign the bench manifest note, apply the PROTOCOL_NOTES
