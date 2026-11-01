@@ -5,8 +5,8 @@
  *
  * Clones the committed `git-ref` (default HEAD) twice into fresh temporary
  * directories, installs only the build toolchain in each (build/cli.ts),
- * builds both, fails unless the outputs are byte-identical, and runs the
- * bundle scan, exactly as CI does. Uncommitted changes are not included:
+ * builds both (the web bundle and the Worker script), fails unless the
+ * outputs are byte-identical, and runs the bundle scan, exactly as CI does. Uncommitted changes are not included:
  * the check is about what a clean checkout produces. Needs pnpm on PATH
  * (`corepack enable`) and either network access or a warm pnpm store.
  */
@@ -31,8 +31,10 @@ try {
     execFileSync('git', ['-C', dir, 'checkout', '--quiet', '--detach', sha], { stdio: 'inherit' });
     node([join(dir, 'tools/gates/src/build/cli.ts'), 'install', dir]);
     execFileSync('pnpm', ['--dir', dir, '--filter', '@synthetos/web', 'build'], { stdio: 'inherit' });
+    node([join(dir, 'tools/gates/src/build/worker-cli.ts'), join(dir, 'workers/run/src'), join(dir, 'dist-worker')]);
   }
   node([join(base, 'a/tools/gates/src/repro/cli.ts'), 'compare', join(base, 'a/apps/web/dist'), join(base, 'b/apps/web/dist')]);
+  node([join(base, 'a/tools/gates/src/repro/cli.ts'), 'compare', join(base, 'a/dist-worker'), join(base, 'b/dist-worker')]);
   node([join(base, 'a/tools/gates/src/bundle/cli.ts'), join(base, 'a/apps/web/dist')]);
 } catch (error) {
   process.stderr.write(`repro: failed: ${error instanceof Error ? error.message : String(error)}\n`);

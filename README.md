@@ -30,8 +30,9 @@ account.
 | `packages/testkit` | **Dev only.** Firmware models and fakes for tests; never in a production bundle |
 | `apps/web` | The workspace UI (Preact, Vite multi-page app) |
 | `apps/cli` | Bench tooling (Node) |
-| `workers/run` | The Cloudflare Worker serving the app, `/api/*` and `/auth/*` |
-| `tools/gates` | **Dev only.** The repository's lint rules, the licence gate and the gate acceptance tests |
+| `workers/run` | The Cloudflare Worker serving the app, `/api/*` and `/auth/*`, and the single source of the security headers (`src/headers.ts`) |
+| `tools/gates` | **Dev only.** The repository's lint rules, the licence gate, the gate acceptance tests, and the deploy tools (preflight, asset retention, smoke test) |
+| `tools/e2e` | **Dev only.** Playwright against `wrangler dev`: exact headers, CSP enforcement, Trusted Types (`pnpm e2e`) |
 
 ## Dependency rules
 
@@ -56,7 +57,7 @@ markers are added to the bundle scan in P0-13.
 | Lint | `pnpm lint` | `eslint.config.js` with the repository's own rules in `tools/gates/src/eslint/`: no `eval`/`new Function`; no HTML sinks (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `dangerouslySetInnerHTML`) outside `apps/web/src/security/tt.ts`; no `abort` in `machine`; no `Math.random` in `safety` and `protocol`; no network identifiers in `protocol`, `safety`, `machine`, `flasher` and `provenance`; no `navigator.serial`, `requestPort` or `getPorts` anywhere (until P1-01); no `WARNING —`, `DANGER —` or `NOTICE —` strings outside `packages/safety/src/strings.ts`. Inline `eslint-disable` comments are ignored (`noInlineConfig`), so a rule can be relaxed only in `eslint.config.js` |
 | Licences | `pnpm licence` | Production dependencies: MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0 or OFL-1.1. Dev dependencies may also be MPL-2.0, or carry a reviewed exception in `tools/gates/src/licence/exceptions.ts`. GPL and AGPL are never allowed |
 | CI policy | `pnpm ci-policy` | Workflows: only the deploy jobs touch secrets or the Cloudflare token; deploy jobs run only on a push to `main` behind protected environments; actions pinned by SHA; no `pull_request_target`; no `${{ }}` in scripts. CODEOWNERS covers every SAFETY §8 path. The PR template carries the SAFETY §8 checklist verbatim |
-| Bundle scan | `pnpm scan` (after a build) | No origin literal, `//host`, `javascript:` URL or network identifier in `apps/web/dist` outside the cloud-client chunks (`assets/cloud/`, decided by content in `apps/web/build/chunks.ts`) |
+| Bundle scan | `pnpm scan` (after a build) | No origin literal, `//host`, `javascript:` URL or network identifier in `apps/web/dist` outside the cloud-client chunks (`assets/cloud/`, decided by content in `apps/web/build/chunks.ts`); the static-assets `_headers` file present and identical to what `workers/run/src/headers.ts` renders |
 | Reproducible build | `pnpm repro` | Clones `HEAD` twice, installs only the build toolchain, builds both and fails unless they are byte-identical, then scans |
 
 `pnpm gates` runs lint, boundaries, licences and the CI policy. `tools/gates/test/acceptance.test.ts` proves
@@ -76,7 +77,12 @@ safety-path review (`.github/CODEOWNERS`).
 - `e2e`;
 - `attest`, which signs build provenance;
 - `deploy-staging` and `deploy-production`, which run on `main` only, behind
-  protected environments, and deploy only the attested artifact.
+  protected environments, and deploy only the attested artifact, then run
+  the post-deploy smoke test.
+
+The Worker, its headers, staging behind Cloudflare Access and the dedicated
+Cloudflare account: docs/ops/worker.md, docs/ops/access.md,
+docs/ops/account.md.
 
 Pull requests that touch safety paths must carry the SAFETY §8 checklist and
 two approvals (`safety-review`).

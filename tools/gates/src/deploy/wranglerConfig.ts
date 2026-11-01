@@ -1,0 +1,141 @@
+/**
+ * Reads and checks workers/run/wrangler.jsonc (ROADMAP P0-04, RUN_PLAN §5.2,
+ * §6.3, SAFETY H45, H46). Used by the deploy preflight (preflight.ts) and by
+ * the config test, so the deploy refuses exactly what CI refuses.
+ *
+ * Dependency-free (node: only).
+ */
+
+/** Removes `//` and `/* *\/` comments outside strings, then trailing commas. Throws on an unterminated comment or string. */
+export function stripJsonc(text: string): string {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i] as string;
+    const next = text[i + 1];
+    if (c === '"') {
+      let j = i + 1;
+      while (j < text.length && text[j] !== '"') j += text[j] === '\\' ? 2 : 1;
+      if (j >= text.length) throw new Error('unterminated string');
+      out += text.slice(i, j + 1);
+      i = j + 1;
+    } else if (c === '/' && next === '/') {
+      while (i < text.length && text[i] !== '\n') i += 1;
+    } else if (c === '/' && next === '*') {
+      const end = text.indexOf('*/', i + 2);
+      if (end < 0) throw new Error('unterminated block comment');
+      i = end + 2;
+    } else {
+      out += c;
+      i += 1;
+    }
+  }
+  // Trailing commas: a comma followed only by whitespace and a closing bracket.
+  // Strings were copied verbatim above, so rebuild with the same scanner.
+  let result = '';
+  let k = 0;
+  while (k < out.length) {
+    const c = out[k] as string;
+    if (c === '"') {
+      let j = k + 1;
+      while (j < out.length && out[j] !== '"') j += out[j] === '\\' ? 2 : 1;
+      result += out.slice(k, j + 1);
+      k = j + 1;
+    } else if (c === ',' && /^\s*[}\]]/.test(out.slice(k + 1))) {
+      k += 1;
+    } else {
+      result += c;
+      k += 1;
+    }
+  }
+  return result;
+}
+
+export function parseJsonc(text: string): unknown {
+  return JSON.parse(stripJsonc(text)) as unknown;
+}
+
+/** The placeholder kept in the repository until the owner creates the D34 account. */
+export const ACCOUNT_ID_PLACEHOLDER = 'D34_RUN_ACCOUNT_ID_PLACEHOLDER';
+const ACCOUNT_ID_RE = /^[0-9a-f]{32}$/;
+
+/** Hostnames and Worker names per environment. The smoke test uses the same table. */
+export const ENVIRONMENTS = {
+  production: { host: 'run.synthetos.com', script: 'run' },
+  staging: { host: 'staging.run.synthetos.com', script: 'run-staging' },
+} as const;
+export type DeployEnvironment = keyof typeof ENVIRONMENTS;
+
+export function isDeployEnvironment(value: string): value is DeployEnvironment {
+  return value === 'production' || value === 'staging';
+}
+
+export const EXPECTED_ASSETS = {
+  directory: '../../apps/web/dist',
+  binding: 'ASSETS',
+  html_handling: 'auto-trailing-slash',
+  not_found_handling: '404-page',
+  run_worker_first: ['/api/*', '/auth/*'],
+} as const;
+
+/** Keys that would add a second origin, a gradual rollout or code from elsewhere. Never allowed. */
+const FORBIDDEN_KEYS = ['unsafe', 'routes_preview', 'route', 'tail_consumers', 'dispatch_namespaces', 'legacy_env', 'site'];
+
+type Json = Record<string, unknown>;
+const isObject = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v);
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+export interface ConfigFinding {
+  readonly where: string;
+  readonly message: string;
+}
+
+function checkScope(scope: Json, where: string, env: DeployEnvironment, findings: ConfigFinding[]): void {
+  const add = (message: string): void => {
+    findings.push({ where, message });
+  };
+  // H45: every environment states both explicitly. wrangler's defaults have
+  // changed before, so an omitted key is a finding, not "false".
+  if (scope['workers_dev'] !== false) add('workers_dev must be explicitly false (SAFETY H45)');
+  if (scope['preview_urls'] !== false) add('preview_urls must be explicitly false (SAFETY H45)');
+  for (const key of FORBIDDEN_KEYS) if (key in scope) add(`'${key}' is not allowed`);
+  const routes = scope['routes'];
+  const expected = [{ pattern: ENVIRONMENTS[env].host, custom_domain: true }];
+  if (!same(routes, expected)) add(`routes must be exactly ${JSON.stringify(expected)}`);
+  const vars = scope['vars'];
+  if (!isObject(vars) || vars['RUN_ENV'] !== env) add(`vars.RUN_ENV must be '${env}'`);
+}
+
+/** Checks the whole configuration. `requireRealAccount` is set by the deploy preflight. */
+export function checkWorkerConfig(config: unknown, options: { requireRealAccount: boolean }): ConfigFinding[] {
+  const findings: ConfigFinding[] = [];
+  if (!isObject(config)) return [{ where: '.', message: 'not a JSON object' }];
+  const add = (where: string, message: string): void => {
+    findings.push({ where, message });
+  };
+  if (config['name'] !== ENVIRONMENTS.production.script) add('name', `must be '${ENVIRONMENTS.production.script}'`);
+  const account = config['account_id'];
+  if (typeof account !== 'string') add('account_id', 'must be set (the dedicated run account, D34)');
+  else if (account === ACCOUNT_ID_PLACEHOLDER) {
+    if (options.requireRealAccount) add('account_id', 'is still the D34 placeholder: create the dedicated account and set its id (docs/ops/account.md)');
+  } else if (!ACCOUNT_ID_RE.test(account)) add('account_id', 'must be a 32-character lower-case hex Cloudflare account id');
+  if (!same(config['assets'], EXPECTED_ASSETS)) add('assets', `must be exactly ${JSON.stringify(EXPECTED_ASSETS)}`);
+  checkScope(config, '.', 'production', findings);
+  const envs = config['env'];
+  if (!isObject(envs)) {
+    add('env', 'must define the staging environment');
+  } else {
+    for (const name of Object.keys(envs)) {
+      if (name !== 'staging') add(`env.${name}`, 'unknown environment: only staging is allowed');
+    }
+    const staging = envs['staging'];
+    if (!isObject(staging)) add('env.staging', 'missing');
+    else {
+      checkScope(staging, 'env.staging', 'staging', findings);
+      for (const key of ['account_id', 'assets', 'name', 'main']) {
+        if (key in staging) add(`env.staging.${key}`, 'must be inherited from the top level, never overridden');
+      }
+    }
+  }
+  return findings;
+}

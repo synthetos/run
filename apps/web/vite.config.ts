@@ -31,15 +31,21 @@ export default defineConfig(({ command }) => {
       outDir: 'dist',
       emptyOutDir: true,
       sourcemap: false,
+      // Never inline assets as data: URIs. The CSP allows fonts from 'self'
+      // only (`font-src 'self'`), so an inlined font would be blocked.
+      assetsInlineLimit: 0,
       // Chrome and Edge support <link rel="modulepreload"> natively. Vite's
       // polyfill would put a fetch() call in every entry chunk, outside the
       // cloud client, which the bundle scan rightly refuses (RUN_PLAN §6.2).
       modulePreload: { polyfill: false },
       rolldownOptions: {
         // Multi-page app: one HTML input per page, relative to the project root.
-        // /safety/ and the other static pages join in P0-05.
+        // 404.html is the asset layer's not-found page (wrangler.jsonc
+        // `not_found_handling: 404-page`). /safety/ and the other static
+        // pages join in P0-05.
         input: {
           workspace: 'index.html',
+          notFound: '404.html',
         },
         output: {
           // Cloud-client code gets its own chunk, filed under assets/cloud/

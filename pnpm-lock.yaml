@@ -72,6 +72,8 @@ importers:
 
   packages/wiring: {}
 
+  tools/e2e: {}
+
   tools/gates: {}
 
   workers/run:

@@ -28,6 +28,14 @@
 /vendor/tinyg-hil-tables/**         @ril3y
 /pnpm-lock.yaml                     @ril3y
 
+# --- ROADMAP P0-04 additions --------------------------------------------
+# The Worker configuration (workers_dev/preview_urls off, SAFETY H45; the
+# dedicated account, D34), the generated asset headers and the Trusted Types
+# policies are part of the header contract (RUN_PLAN §6.4, T-S25).
+/workers/run/wrangler.jsonc         @ril3y
+/apps/web/public/_headers           @ril3y
+/apps/web/src/security/             @ril3y
+
 # --- The gates that enforce the rules above (P0-03 addition) -------------
 # A change here can switch off a safety gate, leak the deploy token or
 # remove a required reviewer, so it is owned like the safety path itself.

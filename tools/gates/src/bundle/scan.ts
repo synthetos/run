@@ -18,6 +18,11 @@
  *   `globalThis['fetch']` is caught too.
  * - `unknown-file-type`: a file the scan cannot classify. The scan fails
  *   closed rather than skip it.
+ * - `headers-file` (P0-04): the static-assets `_headers` file at the dist
+ *   root is missing or differs from `renderHeadersFile()` in
+ *   workers/run/src/headers.ts. Cloudflare applies that file to every asset
+ *   response, so an artifact without it, or with a weakened copy, would serve
+ *   the shell without its CSP (RUN_PLAN §6.4, T-S25).
  *
  * Which chunks live under `assets/cloud/` is decided by their contents at
  * build time (apps/web/build/chunks.ts), never by a chunk's name.
@@ -27,6 +32,7 @@
  */
 import { CLOUD_ASSET_DIR } from '../../../../apps/web/build/chunks.ts';
 import { NETWORK_IDENTIFIERS } from '../shared/networkIdentifiers.ts';
+import { renderHeadersFile } from '../../../../workers/run/src/headers.ts';
 
 export { CLOUD_ASSET_DIR };
 
@@ -46,6 +52,19 @@ export const NAMESPACE_URIS: readonly string[] = [
   'http://www.w3.org/2000/xmlns/',
 ];
 
+/**
+ * URLs that appear in licence texts the bundle must ship verbatim (the SIL
+ * OFL names its FAQ). Allowed by exact match, and only in `licenses/*.txt`,
+ * which nothing loads as code.
+ */
+export const LICENCE_TEXT_URIS: readonly string[] = ['http://scripts.sil.org/OFL'];
+
+/** Where licence texts live in dist (apps/web/public/licenses/). */
+const LICENCE_TEXT_RE = /^licenses\/[^/]+\.txt$/;
+
+/** The static-assets headers file, at the dist root only (Cloudflare reads no other). */
+export const HEADERS_FILE = '_headers';
+
 /** Files the scan reads as text. */
 export const TEXT_EXTENSIONS: readonly string[] = ['.html', '.js', '.mjs', '.css', '.svg', '.json', '.webmanifest', '.txt', '.xml'];
 
@@ -61,6 +80,7 @@ export type ScanRule =
   | 'script-url'
   | 'network-identifier'
   | 'unknown-file-type'
+  | 'headers-file'
   | 'empty-bundle';
 
 export interface BundleFile {
@@ -113,6 +133,7 @@ export function scanText(path: string, text: string): ScanFinding[] {
   for (const match of text.matchAll(ORIGIN_RE)) {
     const url = match[0];
     if (NAMESPACE_URIS.includes(url)) continue;
+    if (LICENCE_TEXT_RE.test(path) && LICENCE_TEXT_URIS.includes(url)) continue;
     if (cloud && isSelfOrigin(url)) continue;
     findings.push({ file: path, rule: 'origin-literal', match: clip(url) });
   }
@@ -140,9 +161,17 @@ export function scanBundle(files: readonly BundleFile[]): ScanFinding[] {
     findings.push({ file: '.', rule: 'empty-bundle', match: 'no HTML page found: the scan refuses to pass an empty or partial build' });
   }
   const decoder = new TextDecoder('utf-8', { fatal: false });
+  const headers = files.find((f) => f.path === HEADERS_FILE);
+  if (headers === undefined) {
+    findings.push({ file: HEADERS_FILE, rule: 'headers-file', match: 'missing: asset responses would carry no security headers' });
+  } else if (decoder.decode(headers.bytes) !== renderHeadersFile()) {
+    findings.push({ file: HEADERS_FILE, rule: 'headers-file', match: 'differs from renderHeadersFile() in workers/run/src/headers.ts' });
+  }
   for (const file of files) {
     const ext = extension(file.path);
-    if (TEXT_EXTENSIONS.includes(ext)) {
+    if (file.path === HEADERS_FILE) {
+      findings.push(...scanText(file.path, decoder.decode(file.bytes)));
+    } else if (TEXT_EXTENSIONS.includes(ext)) {
       findings.push(...scanText(file.path, decoder.decode(file.bytes)));
     } else if (!BINARY_EXTENSIONS.includes(ext)) {
       findings.push({ file: file.path, rule: 'unknown-file-type', match: `extension '${ext}' is not a known text or binary asset type` });

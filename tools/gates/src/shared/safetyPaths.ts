@@ -32,8 +32,12 @@ export const SAFETY_REVIEW_PATHS: readonly string[] = [
   // Data that moves between the cloud client and the machine path.
   '/apps/web/src/cloud/',
   '/apps/web/src/loaders/',
-  // The run Worker headers (RUN_PLAN §6.4, T-S25).
+  // The run Worker headers and everything that carries them (RUN_PLAN §6.4,
+  // T-S25, SAFETY H45, D34; ROADMAP P0-04).
   '/workers/run/src/headers.ts',
+  '/workers/run/wrangler.jsonc',
+  '/apps/web/public/_headers',
+  '/apps/web/src/security/',
   // Safety data and documents (SAFETY §8 CODEOWNERS list, ROADMAP P0-03).
   '/SAFETY.md',
   '/safety-advisory.json',

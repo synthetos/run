@@ -6,9 +6,11 @@
 #                      test gates. Runs on every pull request and push.
 #   build              secret-free, no write permission. Installs ONLY the
 #                      production build toolchain from a lockfile subset,
-#                      builds twice from two clean checkouts, fails unless the
-#                      outputs are byte-identical, runs the bundle scan and
-#                      uploads the artifact.
+#                      builds the web bundle and the Worker script twice from
+#                      two clean checkouts, fails unless the outputs are
+#                      byte-identical, runs the bundle scan and uploads the
+#                      artifact (run-web.tar and run-worker.tar, each with a
+#                      sha256 manifest).
 #   e2e                secret-free. Placeholder until P0-06: checks that the
 #                      uploaded artifact is intact.
 #   attest             main pushes only. Signs build provenance for the
@@ -17,6 +19,10 @@
 #   deploy-staging     main pushes only, protected environment `staging`.
 #   deploy-production  main pushes only, protected environment `production`
 #                      (the owner is a required reviewer).
+#                      Both deploy ONLY the attested artifact (the Worker with
+#                      --no-bundle), after the preflight (D34 account, H45
+#                      settings), with assets of the previous 14 days merged
+#                      in (asset retention), then run the smoke test (P0-04).
 #
 # Only the two deploy jobs may reference CLOUDFLARE_API_TOKEN (a Workers
 # Scripts:Edit token for the dedicated run account, D34). `pnpm ci-policy`
@@ -108,8 +114,14 @@ jobs:
         run: pnpm --dir a --filter @synthetos/web build
       - name: Build (second checkout)
         run: pnpm --dir b --filter @synthetos/web build
+      - name: Build the Worker script (first checkout)
+        run: node a/tools/gates/src/build/worker-cli.ts a/workers/run/src a/dist-worker
+      - name: Build the Worker script (second checkout)
+        run: node b/tools/gates/src/build/worker-cli.ts b/workers/run/src b/dist-worker
       - name: Reproducible build (outputs must be byte-identical)
-        run: node a/tools/gates/src/repro/cli.ts compare a/apps/web/dist b/apps/web/dist
+        run: |
+          node a/tools/gates/src/repro/cli.ts compare a/apps/web/dist b/apps/web/dist
+          node a/tools/gates/src/repro/cli.ts compare a/dist-worker b/dist-worker
       - name: Bundle scan
         run: node a/tools/gates/src/bundle/cli.ts a/apps/web/dist
       - name: Package the artifact
@@ -119,7 +131,11 @@ jobs:
           tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=posix \
             --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
             -cf artifact/run-web.tar -C a/apps/web/dist .
-          sha256sum artifact/run-web.tar artifact/run-web.sha256
+          node a/tools/gates/src/repro/cli.ts manifest a/dist-worker artifact/run-worker.sha256
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=posix \
+            --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
+            -cf artifact/run-worker.tar -C a/dist-worker .
+          sha256sum artifact/run-web.tar artifact/run-web.sha256 artifact/run-worker.tar artifact/run-worker.sha256
       - name: Upload the artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -152,11 +168,13 @@ jobs:
         with:
           name: run-web
           path: artifact
-      - name: Extract and verify against the manifest
+      - name: Extract and verify against the manifests
         run: |
-          mkdir site
+          mkdir site worker
           tar -xf artifact/run-web.tar -C site
           node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256
+          tar -xf artifact/run-worker.tar -C worker
+          node tools/gates/src/repro/cli.ts verify worker artifact/run-worker.sha256
 
   attest:
     name: attest
@@ -182,6 +200,8 @@ jobs:
           subject-path: |
             artifact/run-web.tar
             artifact/run-web.sha256
+            artifact/run-worker.tar
+            artifact/run-worker.sha256
 
   deploy-staging:
     name: deploy-staging
@@ -198,6 +218,7 @@ jobs:
     permissions:
       contents: read
       attestations: read
+      actions: read
     steps:
       - name: Refuse anything but a push to main
         run: |
@@ -227,7 +248,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for subject in artifact/run-web.tar artifact/run-web.sha256; do
+          for subject in artifact/run-web.tar artifact/run-web.sha256 artifact/run-worker.tar artifact/run-worker.sha256; do
             gh attestation verify "$subject" \
               --repo "$GITHUB_REPOSITORY" \
               --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
@@ -235,21 +256,64 @@ jobs:
               --source-digest "$GITHUB_SHA" \
               --deny-self-hosted-runners
           done
-      - name: Extract and verify against the manifest
+      - name: Extract and verify against the manifests
         run: |
-          mkdir site
+          mkdir site worker
           tar -xf artifact/run-web.tar -C site
           node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256
+          tar -xf artifact/run-worker.tar -C worker
+          node tools/gates/src/repro/cli.ts verify worker artifact/run-worker.sha256
+      - name: Preflight (dedicated account D34, workers.dev and preview URLs off H45)
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc staging
+      - name: Staging must already be behind Cloudflare Access (D31)
+        run: node tools/gates/src/smoke/cli.ts --env staging --pre-deploy
+      - name: Fetch the previous staging deployment state (asset retention)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_ENV: staging
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=run-deployed-$DEPLOY_ENV&per_page=100" > previous-artifacts.json
+          run_id="$(node tools/gates/src/deploy/previous-cli.ts select previous-artifacts.json "$DEPLOY_ENV" "$GITHUB_REPOSITORY_ID")"
+          if [ -z "$run_id" ]; then
+            echo "::warning::no trusted previous $DEPLOY_ENV deployment state: no earlier assets are retained"
+            echo "--no-previous" > retention-args
+          else
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > previous-run.json
+            node tools/gates/src/deploy/previous-cli.ts check-run previous-run.json "$run_id" "$GITHUB_REPOSITORY_ID"
+            gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name "run-deployed-$DEPLOY_ENV" --dir previous
+            echo "--previous previous" > retention-args
+          fi
+      - name: Merge hashed assets of the last 14 days (RUN_PLAN §6.3)
+        env:
+          DEPLOY_ENV: staging
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2046
+          node tools/gates/src/deploy/retention-cli.ts merge --env "$DEPLOY_ENV" --commit "$GITHUB_SHA" \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --site site $(cat retention-args) --out deploy-site --state-out deployed-state
+          node tools/gates/src/bundle/cli.ts deploy-site
       - name: Deploy the attested artifact to staging
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if [ ! -f workers/run/wrangler.jsonc ]; then
-            echo "::error::workers/run/wrangler.jsonc is missing: the run Worker is configured in P0-04. Nothing was deployed."
-            exit 1
-          fi
-          ci/deploy-toolchain/node_modules/.bin/wrangler deploy --config workers/run/wrangler.jsonc --env staging --assets site
+          ci/deploy-toolchain/node_modules/.bin/wrangler deploy worker/index.mjs --no-bundle --config workers/run/wrangler.jsonc --env staging --assets deploy-site
+      - name: Post-deploy smoke test (headers, preview URLs, health, DNSSEC, CAA, certificate)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          RUN_WORKERS_DEV_SUBDOMAIN: ${{ vars.RUN_WORKERS_DEV_SUBDOMAIN }}
+        run: node tools/gates/src/smoke/cli.ts --env staging
+      - name: Keep this deployment's assets for the next deploy
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: run-deployed-staging
+          path: deployed-state/
+          if-no-files-found: error
+          retention-days: 30
 
   deploy-production:
     name: deploy-production
@@ -266,6 +330,7 @@ jobs:
     permissions:
       contents: read
       attestations: read
+      actions: read
     steps:
       - name: Refuse anything but a push to main
         run: |
@@ -295,7 +360,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for subject in artifact/run-web.tar artifact/run-web.sha256; do
+          for subject in artifact/run-web.tar artifact/run-web.sha256 artifact/run-worker.tar artifact/run-worker.sha256; do
             gh attestation verify "$subject" \
               --repo "$GITHUB_REPOSITORY" \
               --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
@@ -303,18 +368,59 @@ jobs:
               --source-digest "$GITHUB_SHA" \
               --deny-self-hosted-runners
           done
-      - name: Extract and verify against the manifest
+      - name: Extract and verify against the manifests
         run: |
-          mkdir site
+          mkdir site worker
           tar -xf artifact/run-web.tar -C site
           node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256
+          tar -xf artifact/run-worker.tar -C worker
+          node tools/gates/src/repro/cli.ts verify worker artifact/run-worker.sha256
+      - name: Preflight (dedicated account D34, workers.dev and preview URLs off H45)
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc production
+      - name: Fetch the previous production deployment state (asset retention)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_ENV: production
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=run-deployed-$DEPLOY_ENV&per_page=100" > previous-artifacts.json
+          run_id="$(node tools/gates/src/deploy/previous-cli.ts select previous-artifacts.json "$DEPLOY_ENV" "$GITHUB_REPOSITORY_ID")"
+          if [ -z "$run_id" ]; then
+            echo "::warning::no trusted previous $DEPLOY_ENV deployment state: no earlier assets are retained"
+            echo "--no-previous" > retention-args
+          else
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > previous-run.json
+            node tools/gates/src/deploy/previous-cli.ts check-run previous-run.json "$run_id" "$GITHUB_REPOSITORY_ID"
+            gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name "run-deployed-$DEPLOY_ENV" --dir previous
+            echo "--previous previous" > retention-args
+          fi
+      - name: Merge hashed assets of the last 14 days (RUN_PLAN §6.3)
+        env:
+          DEPLOY_ENV: production
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2046
+          node tools/gates/src/deploy/retention-cli.ts merge --env "$DEPLOY_ENV" --commit "$GITHUB_SHA" \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --site site $(cat retention-args) --out deploy-site --state-out deployed-state
+          node tools/gates/src/bundle/cli.ts deploy-site
       - name: Deploy the attested artifact to production
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if [ ! -f workers/run/wrangler.jsonc ]; then
-            echo "::error::workers/run/wrangler.jsonc is missing: the run Worker is configured in P0-04. Nothing was deployed."
-            exit 1
-          fi
-          ci/deploy-toolchain/node_modules/.bin/wrangler deploy --config workers/run/wrangler.jsonc --assets site
+          ci/deploy-toolchain/node_modules/.bin/wrangler deploy worker/index.mjs --no-bundle --config workers/run/wrangler.jsonc --assets deploy-site
+      - name: Post-deploy smoke test (headers, preview URLs, health, DNSSEC, CAA, certificate)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          RUN_WORKERS_DEV_SUBDOMAIN: ${{ vars.RUN_WORKERS_DEV_SUBDOMAIN }}
+        run: node tools/gates/src/smoke/cli.ts --env production
+      - name: Keep this deployment's assets for the next deploy
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: run-deployed-production
+          path: deployed-state/
+          if-no-files-found: error
+          retention-days: 30

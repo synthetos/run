@@ -1,0 +1,53 @@
+// The run Worker (ROADMAP P0-04, RUN_PLAN §5.2, §6.3, SAFETY H45, H46).
+//
+// This file is CODEOWNED. Rules that must never change without the owner:
+//   - workers_dev and preview_urls stay false in EVERY environment. Each
+//     workers.dev, preview or version URL is a separate origin with its own
+//     Web Serial grant (SAFETY H45). workers/run/test/config.test.ts fails
+//     otherwise.
+//   - Only /api/* and /auth/* run the Worker first. Assets are served by the
+//     asset layer, which applies apps/web/public/_headers (generated from
+//     src/headers.ts) to every asset response.
+//   - account_id is the DEDICATED run Cloudflare account (D34). The value
+//     below is a placeholder until the owner creates that account; the deploy
+//     jobs refuse to run while it is a placeholder
+//     (tools/gates/src/deploy/preflight.ts).
+//   - Deploys are always 100% (`wrangler deploy`), never gradual
+//     (`wrangler versions deploy` with percentages is not used).
+//
+// CI deploys the attested artifact, not this directory's source:
+//   wrangler deploy <artifact>/worker/index.mjs --no-bundle --assets <artifact>/site
+// `wrangler dev` (local) bundles src/index.ts and serves ../../apps/web/dist.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "run",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  // The artifact's Worker is several .mjs modules (tools/gates/src/build/
+  // worker.ts). With --no-bundle, wrangler attaches them only with these two
+  // settings. They do not affect `wrangler dev`, which bundles src/*.ts.
+  "find_additional_modules": true,
+  "rules": [{ "type": "ESModule", "globs": ["**/*.mjs"] }],
+  "account_id": "D34_RUN_ACCOUNT_ID_PLACEHOLDER",
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "../../apps/web/dist",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*", "/auth/*"]
+  },
+  "routes": [{ "pattern": "run.synthetos.com", "custom_domain": true }],
+  "vars": { "RUN_ENV": "production" },
+  "env": {
+    // staging.run.synthetos.com, behind Cloudflare Access (D31,
+    // docs/ops/access.md). Deployed as the Worker `run-staging`.
+    "staging": {
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [{ "pattern": "staging.run.synthetos.com", "custom_domain": true }],
+      "vars": { "RUN_ENV": "staging" }
+    }
+  }
+}

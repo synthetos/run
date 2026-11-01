@@ -5,10 +5,13 @@
 import { describe, expect, it } from 'vitest';
 import { CLOUD_ASSET_DIR, type BundleFile, NAMESPACE_URIS, scanBundle, scanText, SELF_ORIGINS } from '../src/bundle/scan.ts';
 import { NETWORK_IDENTIFIERS } from '../src/shared/networkIdentifiers.ts';
+import { renderHeadersFile } from '../../../workers/run/src/headers.ts';
 
 const enc = new TextEncoder();
 const file = (path: string, text: string): BundleFile => ({ path, bytes: enc.encode(text) });
 const page = file('index.html', '<!doctype html><script type="module" src="/assets/workspace-abc.js"></script>');
+/** Every real bundle carries the generated `_headers` file (P0-04). */
+const headersFile = file('_headers', renderHeadersFile());
 const rules = (path: string, text: string): string[] => scanText(path, text).map((f) => f.rule);
 
 describe('origin literals', () => {
@@ -86,24 +89,58 @@ describe('network identifiers', () => {
 
 describe('the whole bundle', () => {
   it('passes a clean bundle of known file types', () => {
-    expect(scanBundle([page, file('assets/workspace-abc.js', 'export const a=1;'), { path: 'fonts/plex.woff2', bytes: new Uint8Array([0, 1]) }])).toEqual([]);
+    expect(scanBundle([page, headersFile, file('assets/workspace-abc.js', 'export const a=1;'), { path: 'fonts/plex.woff2', bytes: new Uint8Array([0, 1]) }])).toEqual([]);
   });
 
   it('fails closed on an unknown file type', () => {
-    expect(scanBundle([page, file('assets/x.wasm', '')]).map((f) => f.rule)).toEqual(['unknown-file-type']);
-    expect(scanBundle([page, file('README', 'x')]).map((f) => f.rule)).toEqual(['unknown-file-type']);
+    expect(scanBundle([page, headersFile, file('assets/x.wasm', '')]).map((f) => f.rule)).toEqual(['unknown-file-type']);
+    expect(scanBundle([page, headersFile, file('README', 'x')]).map((f) => f.rule)).toEqual(['unknown-file-type']);
   });
 
   it('fails an empty bundle, or one without a page', () => {
-    expect(scanBundle([]).map((f) => f.rule)).toEqual(['empty-bundle']);
-    expect(scanBundle([file('assets/a.js', 'x')]).map((f) => f.rule)).toEqual(['empty-bundle']);
+    expect(scanBundle([headersFile]).map((f) => f.rule)).toEqual(['empty-bundle']);
+    expect(scanBundle([headersFile, file('assets/a.js', 'x')]).map((f) => f.rule)).toEqual(['empty-bundle']);
   });
 
   it('reports every finding with its file', () => {
-    const findings = scanBundle([page, file('assets/a.js', 'fetch("https://evil.example")')]);
+    const findings = scanBundle([page, headersFile, file('assets/a.js', 'fetch("https://evil.example")')]);
     expect(findings.map((f) => [f.file, f.rule])).toEqual([
       ['assets/a.js', 'origin-literal'],
       ['assets/a.js', 'network-identifier'],
     ]);
+  });
+});
+
+describe('the _headers file (P0-04)', () => {
+  it('fails when the bundle has no _headers file: assets would be served without the CSP', () => {
+    const findings = scanBundle([page]);
+    expect(findings.map((f) => [f.file, f.rule])).toEqual([['_headers', 'headers-file']]);
+  });
+
+  it('fails when _headers differs from the generator by a single character', () => {
+    const weakened = renderHeadersFile().replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
+    expect(weakened).not.toBe(renderHeadersFile());
+    expect(scanBundle([page, file('_headers', weakened)]).map((f) => f.rule)).toEqual(['headers-file']);
+    const dropped = renderHeadersFile().replace(/^ {2}X-Frame-Options:.*\n/m, '');
+    expect(scanBundle([page, file('_headers', dropped)]).map((f) => f.rule)).toEqual(['headers-file']);
+  });
+
+  it('is recognised only at the dist root; a nested _headers is an unknown file', () => {
+    expect(scanBundle([page, headersFile, file('assets/_headers', renderHeadersFile())]).map((f) => f.rule)).toEqual(['unknown-file-type']);
+  });
+});
+
+describe('licence texts', () => {
+  const ofl = 'This license is copied below, and is also available with a FAQ at: http://scripts.sil.org/OFL\n';
+
+  it('allows the OFL FAQ URL in licenses/*.txt only', () => {
+    expect(rules('licenses/IBM-Plex-OFL.txt', ofl)).toEqual([]);
+    expect(rules('assets/a.js', 'x("http://scripts.sil.org/OFL")')).toEqual(['origin-literal']);
+    expect(rules('licenses/sub/IBM-Plex-OFL.txt', ofl)).toEqual(['origin-literal']);
+  });
+
+  it('allows that URL by exact match only', () => {
+    expect(rules('licenses/x.txt', 'see https://evil.example/OFL')).toEqual(['origin-literal']);
+    expect(rules('licenses/x.txt', 'see http://scripts.sil.org/OFL.evil')).toEqual(['origin-literal']);
   });
 });

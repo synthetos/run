@@ -1,0 +1,13 @@
+{
+  "name": "@synthetos/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DEV ONLY. Playwright tests against `wrangler dev` serving the built shell with the production headers (ROADMAP P0-04; CI job in P0-06).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "e2e": "playwright test"
+  }
+}

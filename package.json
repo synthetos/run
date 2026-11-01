@@ -21,7 +21,9 @@
     "check": "pnpm typecheck && pnpm gates && pnpm test && pnpm build && pnpm scan",
     "ci-policy": "node tools/gates/src/workflow/cli.ts && node tools/gates/src/codeowners/cli.ts && node tools/gates/src/review/template-cli.ts",
     "scan": "node tools/gates/src/bundle/cli.ts apps/web/dist",
-    "repro": "node tools/gates/src/repro/local.ts"
+    "repro": "node tools/gates/src/repro/local.ts",
+    "gen:headers": "node tools/gates/src/headers/gen.ts",
+    "e2e": "pnpm build && pnpm --filter @synthetos/e2e e2e"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",

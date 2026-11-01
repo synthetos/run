@@ -9,10 +9,10 @@ ROADMAP P0-03, RUN_PLAN §6.2, SAFETY H12 and H46. The workflow is
 | Job | Runs on | Holds | What it does |
 |---|---|---|---|
 | `verify` | every PR and every push to `main` | no secret, `contents: read` | Full install (`--frozen-lockfile --ignore-scripts`), then typecheck, lint, dependency-cruiser, licence gate, CI policy (`pnpm ci-policy`), unit tests |
-| `build` | every PR and push | no secret, `contents: read` | Two clean checkouts (`a/`, `b/`). In each one it installs **only the production build toolchain** from a lockfile subset, then builds. It fails unless the two `dist/` trees are byte-identical. Then it runs the bundle scan and uploads the artifact `run-web` (`run-web.tar` plus the `run-web.sha256` manifest) |
+| `build` | every PR and push | no secret, `contents: read` | Two clean checkouts (`a/`, `b/`). In each one it installs **only the production build toolchain** from a lockfile subset, then builds the web bundle and the Worker script (`tools/gates/src/build/worker-cli.ts`, P0-04). It fails unless the two `dist/` trees, and the two Worker builds, are byte-identical. Then it runs the bundle scan and uploads the artifact `run-web` (`run-web.tar`, `run-worker.tar` and their `.sha256` manifests) |
 | `e2e` | every PR and push | no secret | Placeholder until P0-06. It downloads the artifact and checks it against its manifest |
-| `attest` | push to `main` only | `id-token: write`, `attestations: write` | Signs SLSA build provenance for `run-web.tar` and `run-web.sha256` with `actions/attest-build-provenance`. It checks out no code and runs none |
-| `deploy-staging` | push to `main` only, and only when `vars.RUN_DEPLOY_ENABLED == 'true'` | environment `staging`, `CLOUDFLARE_API_TOKEN` | Installs wrangler from `ci/deploy-toolchain` (pinned by version and integrity, `--ignore-scripts`). Verifies the attestation (`gh attestation verify`: this repository, this workflow, `refs/heads/main`, this commit, GitHub-hosted runner). Checks the extracted tree against the manifest. Deploys |
+| `attest` | push to `main` only | `id-token: write`, `attestations: write` | Signs SLSA build provenance for `run-web.tar`, `run-worker.tar` and their manifests with `actions/attest-build-provenance`. It checks out no code and runs none |
+| `deploy-staging` | push to `main` only, and only when `vars.RUN_DEPLOY_ENABLED == 'true'` | environment `staging`, `CLOUDFLARE_API_TOKEN` | Installs wrangler from `ci/deploy-toolchain` (pinned by version and integrity, `--ignore-scripts`). Verifies the attestation (`gh attestation verify`: this repository, this workflow, `refs/heads/main`, this commit, GitHub-hosted runner). Checks the extracted trees against the manifests. Runs the preflight (D34 account, H45 settings) and the Access pre-check, merges the hashed assets of the last 14 days, deploys the attested Worker with `--no-bundle`, runs the smoke test and keeps the deployed state for the next deploy (docs/ops/worker.md). Holds `actions: read` to find the previous deployment's state |
 | `deploy-production` | as staging, after staging succeeds | environment `production` (the owner is a required reviewer), `CLOUDFLARE_API_TOKEN` | The same steps, deploying the **same** attested artifact to production. It promotes the artifact and never rebuilds it |
 
 Every action is pinned to a full commit SHA. The tag is kept in a comment
@@ -132,24 +132,26 @@ P0-13 extends the scan with T-S40 (the test-kit marker, `MockSerialPort`,
 
 ## Artifact verification
 
-Both `e2e` and the deploy jobs run
-`node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256` on the
-extracted tar. It fails on any changed, missing or added file. The deploy
-jobs first verify the attestation of both files with `gh attestation verify`.
+Both `e2e` and the deploy jobs run `node tools/gates/src/repro/cli.ts verify`
+on each extracted tar (`site` against `run-web.sha256`, `worker` against
+`run-worker.sha256`). It fails on any changed, missing or added file. The
+deploy jobs first verify the attestation of all four files with
+`gh attestation verify`.
 
-## Not finished in P0-03 (by design)
+## Done in P0-04
 
-- **The Worker is not deployable yet.** `workers/run/wrangler.jsonc` arrives
-  in P0-04. Until then the deploy step stops with an error, and deploys stay
-  off: `RUN_DEPLOY_ENABLED` is unset.
-- **The Worker script is not in the artifact yet.** P0-04 must add the
-  bundled Worker script to the attested artifact. It is built in the `build`
-  job (twice, compared) and deployed with `wrangler deploy --no-bundle`, so
-  the deploy job deploys only attested bytes. Today the deploy step would let
-  wrangler bundle the Worker source from the checkout. That source is the
-  same commit, but its bundled form is not attested.
-- **e2e is a placeholder.** P0-06 replaces it with Playwright against
-  `wrangler dev` serving the artifact.
+- `workers/run/wrangler.jsonc` exists, and the deploy steps are complete
+  (docs/ops/worker.md). Deploys stay off until the owner sets
+  `RUN_DEPLOY_ENABLED`, and the preflight refuses them while the D34 account
+  id is a placeholder.
+- The Worker script is part of the attested artifact. The build job builds it
+  twice and compares; the deploy jobs deploy it with `--no-bundle`, so they
+  deploy only attested bytes.
+
+## Not finished (by design)
+
+- **e2e is a placeholder.** P0-06 replaces it with the Playwright suite in
+  `tools/e2e` (P0-04) running against `wrangler dev` serving the artifact.
 - **The rest of the RUN_PLAN §6.2 pipeline** joins `verify` with the tasks
   that create it:
   - token drift (P0-05);

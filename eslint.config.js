@@ -24,6 +24,13 @@ const SAFETY_STRINGS_MODULE = 'packages/safety/src/strings.ts';
  */
 const HTML_SINK_RULE_DEFINITION = 'tools/gates/src/eslint/rules/noHtmlSink.ts';
 
+/**
+ * The Trusted Types E2E test must assign to an HTML sink to prove that the
+ * browser refuses it under the production CSP (ROADMAP P0-04, T-S25). It runs
+ * only in Playwright, never in the app.
+ */
+const TRUSTED_TYPES_E2E = 'tools/e2e/specs/trusted-types.e2e.ts';
+
 /** Likewise, the Web Serial rule's definition names the methods it bans. */
 const WEB_SERIAL_RULE_DEFINITION = 'tools/gates/src/eslint/rules/noWebSerial.ts';
 
@@ -68,7 +75,7 @@ export default tseslint.config(
   },
   {
     files: ALL_SOURCE,
-    ignores: [TRUSTED_TYPES_MODULE, HTML_SINK_RULE_DEFINITION],
+    ignores: [TRUSTED_TYPES_MODULE, HTML_SINK_RULE_DEFINITION, TRUSTED_TYPES_E2E],
     rules: { 'run/no-html-sink': 'error' },
   },
   {

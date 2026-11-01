@@ -63,7 +63,7 @@ Settings → Environments.
   read it, even if the workflow policy were bypassed.
 - The token is the single CI token of the dedicated run Cloudflare account
   (D34). Its only permission is **Workers Scripts:Edit**, limited to the run
-  and run-staging scripts. Create it after the account exists. See P0-04
+  and run-staging scripts. Create it after the account exists. See
   `docs/ops/account.md`.
 
 ## 3. Repository variables
@@ -73,6 +73,7 @@ Settings → Secrets and variables → Actions → Variables:
 | Variable | Value | When |
 |---|---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | the dedicated run account's id (placeholder until D34) | when the account exists |
+| `RUN_WORKERS_DEV_SUBDOMAIN` | the dedicated account's workers.dev subdomain | when the account exists. The smoke test probes `https://run.<it>.workers.dev/` and fails if anything answers (SAFETY H45) |
 | `RUN_DEPLOY_ENABLED` | `true` | only after D34 (account), D11 (Workers Paid), P0-04 (Worker configuration) and D31 (Access on staging) are all done. While it is unset, the deploy jobs are skipped |
 
 ## 4. Actions settings
