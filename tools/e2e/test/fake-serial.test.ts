@@ -9,9 +9,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GuardedTransport } from '@synthetos/machine';
 import { MockSerialPort, SimEndpoint, TinyGEdgeNextModel, VirtualClock, settle } from '@synthetos/testkit';
 import { MockTransport } from '../fake-serial/mockTransport.ts';
-import { FAKE_SERIAL_GLOBAL, createTransportSource, realTimeClock, type FakeSerialRegistry } from '../fake-serial/transport.ts';
+import { FAKE_GRANTED_PORT, FAKE_SERIAL_GLOBAL, createTransportSource, realTimeClock, type FakeSerialRegistry } from '../fake-serial/transport.ts';
+import * as fakeSeam from '../fake-serial/transport.ts';
+import * as productionSeam from '../../../apps/web/src/machine-worker/transport.ts';
+import { SESSION_OPEN_OPTIONS } from '@synthetos/machine';
 
-const OPEN = { baudRate: 115200, flowControl: 'none', bufferSize: 256 } as const;
+/** The session options, from dialect data (never typed in). */
+const OPEN = SESSION_OPEN_OPTIONS;
 
 function rig(): { clock: VirtualClock; endpoint: SimEndpoint; port: MockSerialPort; transport: MockTransport } {
   const clock = new VirtualClock();
@@ -102,14 +106,26 @@ describe('the fake-serial transport source', () => {
   it('is kind fake, and each request is a fresh, unopened MockTransport over a new listed port', async () => {
     const source = createTransportSource();
     expect(source.kind).toBe('fake');
-    const a = await source.request();
-    const b = await source.request();
+    const a = await source.request(FAKE_GRANTED_PORT);
+    const b = await source.request(FAKE_GRANTED_PORT);
     expect(a).toBeInstanceOf(MockTransport);
     expect(b).not.toBe(a);
     const registry = (globalThis as Record<string, unknown>)[FAKE_SERIAL_GLOBAL] as FakeSerialRegistry;
     expect(registry.ports).toHaveLength(2);
     expect(registry.ports.every((p) => p.openLog.length === 0)).toBe(true);
     expect(a?.info()).toEqual({ kind: 'sim', usbVendorId: 0x0403, usbProductId: 0x6015 });
+  });
+
+  it('refuses, never guesses: a selector for any other port resolves null and lists no port', async () => {
+    const source = createTransportSource();
+    for (const port of [
+      { ...FAKE_GRANTED_PORT, grantIndex: 1 },
+      { ...FAKE_GRANTED_PORT, usbProductId: 0x6001 },
+      { ...FAKE_GRANTED_PORT, usbVendorId: 0x2341 },
+    ]) {
+      expect(await source.request(port), JSON.stringify(port)).toBeNull();
+    }
+    expect((globalThis as Record<string, unknown>)[FAKE_SERIAL_GLOBAL]).toBeUndefined();
   });
 
   it('runs on a real-time clock', async () => {
@@ -122,5 +138,17 @@ describe('the fake-serial transport source', () => {
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(fired).toEqual([1]);
     expect(clock.now() - t0).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe('the transport seam contract (apps/web/src/machine-worker/transport.ts)', () => {
+  it('the production seam exports exactly createTransportSource, and the fake exports it with the same arity', () => {
+    expect(Object.keys(productionSeam)).toEqual(['createTransportSource']);
+    expect(typeof fakeSeam.createTransportSource).toBe('function');
+    expect(fakeSeam.createTransportSource.length).toBe(productionSeam.createTransportSource.length);
+    const prod = productionSeam.createTransportSource();
+    const fake = fakeSeam.createTransportSource();
+    expect(Object.keys(prod).sort()).toEqual(Object.keys(fake).sort());
+    expect(prod.request.length).toBe(fake.request.length);
   });
 });

@@ -8,29 +8,34 @@
  * and lets a caller await one answer.
  *
  * Requests are parsed strictly: a plain object with exactly the keys `v` and
- * `kind`, `v === 1`, and a known `kind`. Anything else is answered with an
- * `invalid-request` refusal and does nothing.
+ * `kind` (plus `port` for `open`), `v === RPC_VERSION`, and a known `kind`.
+ * Anything else is answered with an `invalid-request` refusal and does
+ * nothing.
  *
- * Phase 0 has three requests. `open` asks the worker to obtain a Transport
- * from this build's transport source (transport.ts) and open it through
+ * Phase 0 has three requests. `open` names the port the user chose in the
+ * window (`port`, a `PortSelector`: `requestPort()` exists only on Window,
+ * so the window shows the chooser and the worker finds that port among the
+ * granted ones, RUN_PLAN §5.4) and asks the worker to obtain a Transport for
+ * it from this build's transport source (transport.ts) and open it through
  * `GuardedTransport`; the production Phase 0 source has none, so production
  * always answers `unavailable`. Nothing here writes to a controller.
+ *
+ * Version 2 (P0 review) added `port` to `open`.
  *
  * D1 (sign-in required to connect and start): the sign-in gate lives in the
  * main-thread UI. Nothing in this protocol carries, and nothing in the
  * worker consults, a session or an account (DECISIONS D1 safety condition).
  */
-import type { TransportInfo, TransportSource } from '@synthetos/machine';
+import { isPortSelector, type PortSelector, type TransportInfo, type TransportSource } from '@synthetos/machine';
 
-export const RPC_VERSION = 1;
+export const RPC_VERSION = 2;
 
 export const REQUEST_KINDS = ['open', 'close', 'status'] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];
 
-export interface MachineRequest {
-  readonly v: typeof RPC_VERSION;
-  readonly kind: RequestKind;
-}
+export type MachineRequest =
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'open'; readonly port: PortSelector }
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'close' | 'status' };
 
 export type WorkerState = 'idle' | 'opening' | 'open' | 'closing';
 
@@ -76,10 +81,14 @@ function isRequestKind(value: unknown): value is RequestKind {
 export function parseRequest(data: unknown): MachineRequest | null {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return null;
   if (Object.getPrototypeOf(data) !== Object.prototype) return null;
-  const keys = Object.keys(data).sort();
-  if (keys.length !== 2 || keys[0] !== 'kind' || keys[1] !== 'v') return null;
-  const { v, kind } = data as { v: unknown; kind: unknown };
+  const keys = Object.keys(data).sort().join(',');
+  const { v, kind, port } = data as { v: unknown; kind: unknown; port: unknown };
   if (v !== RPC_VERSION || !isRequestKind(kind)) return null;
+  if (kind === 'open') {
+    if (keys !== 'kind,port,v' || !isPortSelector(port)) return null;
+    return Object.freeze({ v: RPC_VERSION, kind, port: Object.freeze({ usbVendorId: port.usbVendorId, usbProductId: port.usbProductId, grantIndex: port.grantIndex }) });
+  }
+  if (keys !== 'kind,v') return null;
   return Object.freeze({ v: RPC_VERSION, kind });
 }
 

@@ -4,9 +4,9 @@
  * fails if the rule is removed, plus properties over arbitrary bytes.
  */
 import fc from 'fast-check';
-import { BYTE, DIALECTS } from '@synthetos/protocol';
+import { BYTE, DIALECTS, G2CORE_EDGE, TINYG_EN } from '@synthetos/protocol';
 import { describe, expect, it } from 'vitest';
-import { MAX_REALTIME_GROUP_BYTES, MAX_WRITE_LINE_BYTES, REALTIME_BYTES, classifyWrite, type WriteRejectionReason } from '../src/writeShape.ts';
+import { MAX_REALTIME_GROUP_BYTES, MAX_WRITE_LINE_BYTES, REALTIME_BYTES, classifyWrite, writeLineCapFor, type WriteRejectionReason } from '../src/writeShape.ts';
 import { enc } from './fakeTransport.ts';
 
 const bytes = (...b: number[]): Uint8Array => Uint8Array.from(b);
@@ -31,9 +31,30 @@ describe('accepted lines', () => {
 
   it('accepts a line of exactly MAX_WRITE_LINE_BYTES and refuses one byte more', () => {
     const body = (n: number): Uint8Array => enc(`${'G'.repeat(n - 1)}\n`);
-    expect(MAX_WRITE_LINE_BYTES).toBe(255);
     expect(reason(body(MAX_WRITE_LINE_BYTES))).toBe('line');
     expect(reason(body(MAX_WRITE_LINE_BYTES + 1))).toBe('too-long');
+  });
+
+  it('the cap is dialect data: the largest line any dialect accepts, never below one (RUN_PLAN §5.1 rule 5)', () => {
+    const body = (n: number): Uint8Array => enc(`${'G'.repeat(n - 1)}\n`);
+    for (const d of DIALECTS) {
+      expect(d.limits.maxLineBytes + 1, d.id).toBeLessThanOrEqual(MAX_WRITE_LINE_BYTES);
+      expect(d.limits.maxJsonLineBytes + 1, d.id).toBeLessThanOrEqual(MAX_WRITE_LINE_BYTES);
+      expect(writeLineCapFor(d), d.id).toBe(Math.max(d.limits.maxLineBytes, d.limits.maxJsonLineBytes) + 1);
+    }
+    expect(MAX_WRITE_LINE_BYTES).toBe(Math.max(...DIALECTS.map(writeLineCapFor)));
+    // TinyG keeps its 255 (JSON_INPUT_STRING_MAX 254 + LF); a 400-byte g2core job line is not refused mid-job.
+    expect(writeLineCapFor(TINYG_EN)).toBe(255);
+    expect(writeLineCapFor(G2CORE_EDGE)).toBe(512);
+    expect(reason(body(401))).toBe('line');
+  });
+
+  it('a tighter cap passed in refuses longer lines; a looser one is clamped to the maximum', () => {
+    const line = enc(`${'G'.repeat(255)}\n`);
+    expect(classifyWrite(line, 255)).toEqual({ kind: 'rejected', reason: 'too-long' });
+    expect(classifyWrite(line, 256)).toEqual({ kind: 'line' });
+    const huge = enc(`${'G'.repeat(MAX_WRITE_LINE_BYTES)}\n`);
+    expect(classifyWrite(huge, 10_000)).toEqual({ kind: 'rejected', reason: 'too-long' });
   });
 });
 

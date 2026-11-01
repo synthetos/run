@@ -32,7 +32,19 @@
 import { consumeBootloaderCapability, type BootloaderCapability } from '@synthetos/flasher';
 import { decideOpen, type OpenRefusalReason } from './openPolicy.ts';
 import type { Transport, TransportInfo, TransportOpenOptions } from './transport.ts';
-import { classifyWrite, type WriteRejectionReason, type WriteShape } from './writeShape.ts';
+import { MAX_WRITE_LINE_BYTES, classifyWrite, type WriteRejectionReason, type WriteShape } from './writeShape.ts';
+
+/** Shortest line cap that still allows a one-byte line plus its LF. */
+const MIN_LINE_CAP = 2;
+
+export interface GuardedTransportOptions {
+  /**
+   * The line cap (LF included), at most `MAX_WRITE_LINE_BYTES`. Pass the
+   * classified dialect's `writeLineCapFor` when it is known; otherwise the
+   * cross-dialect maximum applies until `tightenLineCap`.
+   */
+  readonly maxLineBytes?: number;
+}
 
 export type TransportRefusalCode =
   | OpenRefusalReason
@@ -73,14 +85,37 @@ export class GuardedTransport implements Transport {
   #opening: Promise<void> | undefined;
   #disconnected = false;
   #writeFailed = false;
+  #maxLineBytes: number;
   /** Settles when the last queued write has settled; never rejects. */
   #tail: Promise<void> = Promise.resolve();
 
-  constructor(inner: Transport) {
+  constructor(inner: Transport, options: GuardedTransportOptions = {}) {
     this.#inner = inner;
+    this.#maxLineBytes = checkCap(options.maxLineBytes ?? MAX_WRITE_LINE_BYTES);
     inner.onDisconnect(() => {
       this.#disconnected = true;
     });
+  }
+
+  /** True once the inner link reported a disconnect (registered at construction, so none is missed). */
+  get disconnected(): boolean {
+    return this.#disconnected;
+  }
+
+  /** The line cap in force (LF included). */
+  get maxLineBytes(): number {
+    return this.#maxLineBytes;
+  }
+
+  /**
+   * Lowers the line cap, for example to the dialect's `writeLineCapFor`
+   * once the board is classified. It can only ever tighten: a larger value
+   * is refused.
+   */
+  tightenLineCap(maxLineBytes: number): void {
+    const cap = checkCap(maxLineBytes);
+    if (cap > this.#maxLineBytes) throw new RangeError(`line cap ${cap} is above the cap in force (${this.#maxLineBytes}); it can only tighten`);
+    this.#maxLineBytes = cap;
   }
 
   get state(): GuardedTransportState {
@@ -125,7 +160,7 @@ export class GuardedTransport implements Transport {
       return Promise.reject(new TransportRefusedError('invalid-write', 'writeLine takes a Uint8Array'));
     }
     const bytes = line.slice();
-    const shape = classifyWrite(bytes);
+    const shape = classifyWrite(bytes, this.#maxLineBytes);
     if (shape.kind === 'rejected') {
       const at = shape.at === undefined ? '' : ` at byte ${shape.at}`;
       return Promise.reject(new TransportRefusedError('invalid-write', `${shape.reason}${at}`, shape.reason));
@@ -189,4 +224,11 @@ export class GuardedTransport implements Transport {
       throw new TransportWriteError(error);
     }
   }
+}
+
+function checkCap(n: number): number {
+  if (!Number.isInteger(n) || n < MIN_LINE_CAP || n > MAX_WRITE_LINE_BYTES) {
+    throw new RangeError(`line cap must be an integer from ${MIN_LINE_CAP} to ${MAX_WRITE_LINE_BYTES}`);
+  }
+  return n;
 }

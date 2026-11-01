@@ -60,6 +60,38 @@ export interface Transport {
 }
 
 /**
+ * Which granted port the user chose (RUN_PLAN §5.4). `requestPort()` exists
+ * only on Window, so the window shows the chooser; the worker, where only
+ * `navigator.serial.getPorts()` is available, finds the same port among the
+ * ports this origin was ever granted. The window describes its choice with
+ * what it can read from the chosen `SerialPort`: its USB identity
+ * (`getInfo()`) and its index in the window's own `getPorts()` list, which
+ * the worker's `getPorts()` returns in the same order.
+ *
+ * A source must refuse (resolve null) rather than guess: no granted port
+ * matches, or the identity matches a port other than the one at
+ * `grantIndex`. It must never pick "the first matching" port, which could
+ * be another machine.
+ */
+export interface PortSelector {
+  readonly usbVendorId: number;
+  readonly usbProductId: number;
+  /** Index of the chosen port in the window's `navigator.serial.getPorts()`. */
+  readonly grantIndex: number;
+}
+
+/** True when `value` is a well-formed `PortSelector` (integers in range, no other keys). */
+export function isPortSelector(value: unknown): value is PortSelector {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  if (Object.getPrototypeOf(value) !== Object.prototype) return false;
+  const keys = Object.keys(value).sort();
+  if (keys.join(',') !== 'grantIndex,usbProductId,usbVendorId') return false;
+  const { usbVendorId, usbProductId, grantIndex } = value as Record<string, unknown>;
+  const u16 = (v: unknown): boolean => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 0xffff;
+  return u16(usbVendorId) && u16(usbProductId) && Number.isInteger(grantIndex) && (grantIndex as number) >= 0 && (grantIndex as number) < 256;
+}
+
+/**
  * Where `machine.worker` gets its Transport (ROADMAP P0-14). The web app's
  * transport seam (apps/web/src/machine-worker/transport.ts) is the only
  * production implementation; the fake-serial test build swaps it.
@@ -70,6 +102,10 @@ export interface TransportSource {
    * `serial`: Web Serial (P1-01). `fake`: the test build's mock port only.
    */
   readonly kind: 'none' | 'serial' | 'fake';
-  /** A new, unopened Transport, or null when there is none (no port chosen, or this build has none). */
-  request(): Promise<Transport | null>;
+  /**
+   * A new, unopened Transport for the port `selector` names, or null when
+   * there is none (no granted port matches unambiguously, or this build has
+   * none). Never a different port than the one named.
+   */
+  request(selector: PortSelector): Promise<Transport | null>;
 }

@@ -10,18 +10,32 @@
  *
  * 1. the root importer is emptied, in `package.json` (no devDependencies)
  *    and in `pnpm-lock.yaml` (`.: {}`), and nothing else changes;
- * 2. `pnpm install --frozen-lockfile --ignore-scripts --filter
- *    @synthetos/web...` then installs only the web app's importers, with
- *    every package version and integrity hash taken from the committed
- *    lockfile;
+ * 2. `pnpm install --frozen-lockfile --ignore-scripts --filter-prod
+ *    @synthetos/web...` then installs only the web app and the workspace
+ *    packages it reaches through `dependencies` (never `devDependencies`, so
+ *    the dev-only test kit is not installed), with every package version and
+ *    integrity hash taken from the committed lockfile;
  * 3. the installed store is checked: no root devDependency and no
- *    devDependency of a workspace package outside the build may be present.
+ *    devDependency of a workspace package outside the build may be present,
+ *    and no workspace package outside the production closure may have been
+ *    installed.
  *
  * Dependency-free (node: only), so it runs before anything is installed.
  */
 
-/** The pnpm filter that selects the production build (the web app and the workspace packages it uses). */
+/**
+ * The pnpm filter that selects the production build: the web app and the
+ * workspace packages it reaches through `dependencies`. Used with
+ * `--filter-prod`, so a workspace package that is only a devDependency
+ * somewhere in the graph (the test kit) is not selected.
+ */
 export const BUILD_FILTER = '@synthetos/web...';
+
+/** The pnpm flag `BUILD_FILTER` is passed with. */
+export const BUILD_FILTER_FLAG = '--filter-prod';
+
+/** The workspace package name of the production build's entry. */
+export const BUILD_ENTRY = '@synthetos/web';
 
 /** The workspace packages whose devDependencies are the production build toolchain. */
 export const BUILD_IMPORTERS: readonly string[] = ['apps/web'];
@@ -113,4 +127,25 @@ export function storePackageNames(entries: readonly string[]): ReadonlySet<strin
 /** The forbidden packages that are installed. Empty means the build toolchain is minimal. */
 export function forbiddenInstalled(installed: ReadonlySet<string>, forbidden: ReadonlySet<string>): string[] {
   return [...installed].filter((name) => forbidden.has(name)).sort();
+}
+
+/**
+ * The workspace directories in the production closure of `entry`: the entry
+ * and every workspace package reached through `dependencies` (a
+ * `workspace:` spec), transitively. devDependencies are never followed.
+ */
+export function productionClosure(entry: string, workspace: ReadonlyMap<string, Manifest & { readonly name?: unknown }>): ReadonlySet<string> {
+  const byName = new Map<string, string>();
+  for (const [dir, manifest] of workspace) if (typeof manifest.name === 'string') byName.set(manifest.name, dir);
+  const out = new Set<string>();
+  const queue = [entry];
+  while (queue.length > 0) {
+    const name = queue.shift() as string;
+    const dir = byName.get(name);
+    if (dir === undefined || out.has(dir)) continue;
+    out.add(dir);
+    const deps = (workspace.get(dir) as Manifest).dependencies ?? {};
+    for (const [dep, spec] of Object.entries(deps)) if (spec.startsWith('workspace:')) queue.push(dep);
+  }
+  return out;
 }

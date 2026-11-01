@@ -4,6 +4,7 @@
  * and can drop the link. It never touches a port.
  */
 import type { Transport, TransportInfo, TransportOpenOptions } from '../src/transport.ts';
+import { SESSION_OPEN_OPTIONS } from '../src/openPolicy.ts';
 
 export interface Deferred {
   resolve(): void;
@@ -115,4 +116,5 @@ export async function flush(): Promise<void> {
 export const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
 
 /** Options a session uses for every TinyG and g2core control port. */
-export const SESSION_OPTIONS = Object.freeze({ baudRate: 115200, flowControl: 'none', bufferSize: 256 } as const);
+/** The session options, from dialect data (never typed in, so a dialect edit cannot drift from the fakes). */
+export const SESSION_OPTIONS = SESSION_OPEN_OPTIONS;

@@ -9,7 +9,8 @@
  * bug upstream can never turn one write into a split line, two lines, a
  * stray realtime command or a flow-control byte:
  *
- * A **line** is 2..`MAX_WRITE_LINE_BYTES` bytes:
+ * A **line** is 2..`maxLineBytes` bytes (`MAX_WRITE_LINE_BYTES` unless the
+ * session has tightened it to its dialect's `writeLineCapFor`):
  * - it ends in exactly one LF (0x0A), and LF appears nowhere else;
  * - CR (0x0D) appears nowhere: TinyG ends a line on CR too, so a CR inside
  *   would make one write two lines;
@@ -27,15 +28,26 @@
  * (T-S24a/b) is decided above the Transport, by dialect data and the
  * allow-matrix.
  */
-import { BYTE, DIALECTS, type RealtimeBytes } from '@synthetos/protocol';
+import { BYTE, DIALECTS, type Dialect, type RealtimeBytes } from '@synthetos/protocol';
 
 /**
- * Longest line the Transport accepts, LF included: edge-next's JSON line
- * limit of 254 characters plus the LF (PN §4; EN json_parser.h:39). Dialect
- * limits are tighter (120 B job lines, PN §7.4) and are enforced by the
- * sanitiser; this is the floor no caller can get under.
+ * Longest line a session on `dialect` may write, LF included: the larger of
+ * the dialect's job line cap and its JSON line limit, plus the LF. Data, not
+ * a TinyG constant (RUN_PLAN §5.1 rule 5): 255 on the TinyG dialects
+ * (JSON_INPUT_STRING_MAX 254, PN §4; EN json_parser.h:39), 512 on g2core.
  */
-export const MAX_WRITE_LINE_BYTES = 255;
+export function writeLineCapFor(dialect: Dialect): number {
+  return Math.max(dialect.limits.maxLineBytes, dialect.limits.maxJsonLineBytes) + 1;
+}
+
+/**
+ * Longest line the Transport accepts before a dialect is known: the largest
+ * `writeLineCapFor` over every dialect, so no dialect's legitimate line is
+ * refused mid-job. Once the session has classified the board it tightens its
+ * `GuardedTransport` to that dialect's cap. Dialect job limits are tighter
+ * still (120 B on TinyG, PN §7.4) and are enforced by the sanitiser.
+ */
+export const MAX_WRITE_LINE_BYTES: number = Math.max(...DIALECTS.map(writeLineCapFor));
 
 /** Longest realtime group, for example `!` followed by `%` in a single write. */
 export const MAX_REALTIME_GROUP_BYTES = 4;
@@ -87,12 +99,12 @@ export interface WriteRejection {
   readonly at?: number;
 }
 
-/** Classify one write. Pure: never throws, never looks at anything but the bytes. */
-export function classifyWrite(bytes: Uint8Array): WriteShape | WriteRejection {
+/** Classify one write against a line cap (LF included). Pure: never throws, never looks at anything but the bytes. */
+export function classifyWrite(bytes: Uint8Array, maxLineBytes: number = MAX_WRITE_LINE_BYTES): WriteShape | WriteRejection {
   if (bytes.length === 0) return { kind: 'rejected', reason: 'empty' };
   const last = bytes[bytes.length - 1];
   if (last !== LF) return classifyRealtime(bytes);
-  return classifyLine(bytes);
+  return classifyLine(bytes, Math.min(maxLineBytes, MAX_WRITE_LINE_BYTES));
 }
 
 function classifyRealtime(bytes: Uint8Array): WriteShape | WriteRejection {
@@ -108,8 +120,8 @@ function classifyRealtime(bytes: Uint8Array): WriteShape | WriteRejection {
   return { kind: 'rejected', reason: 'no-line-end' };
 }
 
-function classifyLine(bytes: Uint8Array): WriteShape | WriteRejection {
-  if (bytes.length > MAX_WRITE_LINE_BYTES) return { kind: 'rejected', reason: 'too-long' };
+function classifyLine(bytes: Uint8Array, maxLineBytes: number): WriteShape | WriteRejection {
+  if (bytes.length > maxLineBytes) return { kind: 'rejected', reason: 'too-long' };
   let visible = false;
   for (let i = 0; i < bytes.length - 1; i++) {
     const rejection = rejectLineByte(bytes, i);

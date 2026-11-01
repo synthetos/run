@@ -13,10 +13,15 @@
  * can inspect what the worker did to it (`openLog`, for example) with
  * `worker.evaluate`.
  *
- * The export list must stay identical to the seam's (see there).
+ * `createTransportSource` keeps the seam's exact signature (see there); the
+ * other exports serve this file's own tests.
+ *
+ * The selector is honoured as a real source must: the fake has one granted
+ * port, the simulated edge-next board (FTDI 0403:6015) at grant index 0, and
+ * any other selector resolves null (refuse, never guess).
  */
 import { MockSerialPort, SimEndpoint, TinyGEdgeNextModel, type Clock } from '@synthetos/testkit';
-import type { TransportSource } from '@synthetos/machine';
+import type { PortSelector, TransportSource } from '@synthetos/machine';
 import { MockTransport } from './mockTransport.ts';
 
 /** Where the ports this source created are listed, in the worker's global scope. */
@@ -63,10 +68,17 @@ function registry(): FakeSerialRegistry {
   return created;
 }
 
+/** The one port the fake has granted: the simulated board's FTDI identity at index 0. */
+export const FAKE_GRANTED_PORT: PortSelector = Object.freeze({ usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 });
+
 export function createTransportSource(): TransportSource {
   return Object.freeze({
     kind: 'fake',
-    request: () => {
+    request: (selector: PortSelector) => {
+      const g = FAKE_GRANTED_PORT;
+      if (selector.usbVendorId !== g.usbVendorId || selector.usbProductId !== g.usbProductId || selector.grantIndex !== g.grantIndex) {
+        return Promise.resolve(null);
+      }
       const device = new TinyGEdgeNextModel({ start: 'boot', bootMs: BOOT_MS });
       const endpoint = new SimEndpoint({ clock: realTimeClock(), device });
       const port = new MockSerialPort(endpoint);

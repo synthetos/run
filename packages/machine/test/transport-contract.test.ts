@@ -18,13 +18,14 @@ describe('Transport interface', () => {
     expectTypeOf<keyof Transport>().toEqualTypeOf<(typeof TRANSPORT_MEMBERS)[number]>();
   });
 
-  it('GuardedTransport adds only read-only state to it', () => {
+  it('GuardedTransport adds only read-only state and a tighten-only line cap to it', () => {
     const own = Object.getOwnPropertyNames(GuardedTransport.prototype).sort();
-    expect(own).toEqual(['constructor', ...TRANSPORT_MEMBERS, 'state', 'writeFailed'].sort());
-    const state = Object.getOwnPropertyDescriptor(GuardedTransport.prototype, 'state');
-    const failed = Object.getOwnPropertyDescriptor(GuardedTransport.prototype, 'writeFailed');
-    expect(state?.set).toBeUndefined();
-    expect(failed?.set).toBeUndefined();
+    expect(own).toEqual(['constructor', ...TRANSPORT_MEMBERS, 'state', 'writeFailed', 'disconnected', 'maxLineBytes', 'tightenLineCap'].sort());
+    for (const getter of ['state', 'writeFailed', 'disconnected', 'maxLineBytes']) {
+      const d = Object.getOwnPropertyDescriptor(GuardedTransport.prototype, getter);
+      expect(d?.get, getter).toBeTypeOf('function');
+      expect(d?.set, getter).toBeUndefined();
+    }
   });
 
   it('GuardedTransport is a Transport', () => {
@@ -46,6 +47,7 @@ describe('package entry', () => {
         'REALTIME_BYTES',
         'REFUSED_PORTS',
         'SESSION_BAUD_RATES',
+        'SESSION_OPEN_OPTIONS',
         'TRANSPORT_BUFFER_SIZE',
         'TransportRefusedError',
         'TransportWriteError',
@@ -53,16 +55,17 @@ describe('package entry', () => {
         'capabilityBaudRatesOf',
         'classifyWrite',
         'decideOpen',
+        'isPortSelector',
         'refusedPortsOf',
+        'sessionOpenOptionsFor',
+        'sharedSessionOptions',
+        'writeLineCapFor',
       ].sort(),
     );
   });
 
-  it('keeps every workspace package a dev dependency: no runtime dependencies at all', () => {
-    expect(Object.keys((pkg as { devDependencies?: object }).devDependencies ?? {}).sort()).toEqual([
-      '@synthetos/flasher',
-      '@synthetos/protocol',
-      '@synthetos/testkit',
-    ]);
+  it('declares its runtime workspace edges as dependencies and keeps the test kit a dev dependency', () => {
+    expect(Object.keys((pkg as { dependencies?: object }).dependencies ?? {}).sort()).toEqual(['@synthetos/flasher', '@synthetos/protocol']);
+    expect(Object.keys((pkg as { devDependencies?: object }).devDependencies ?? {}).sort()).toEqual(['@synthetos/testkit']);
   });
 });

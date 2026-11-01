@@ -6,8 +6,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  BUILD_ENTRY,
+  BUILD_FILTER_FLAG,
   forbiddenBuildPackages,
   forbiddenInstalled,
+  productionClosure,
   storePackageNames,
   subsetLockfile,
   subsetRootManifest,
@@ -48,6 +51,30 @@ describe('lockfile subset', () => {
 
   it('refuses a root that declares runtime dependencies', () => {
     expect(() => subsetRootManifest(JSON.stringify({ dependencies: { leftpad: '1.0.0' } }))).toThrow(/devDependencies only/);
+  });
+});
+
+describe('production closure (P0 review: runtime workspace edges are dependencies)', () => {
+  const dirs = ['apps/web', 'packages/machine', 'packages/safety', 'packages/protocol', 'packages/flasher', 'packages/testkit', 'packages/schema', 'tools/e2e'];
+  const workspace = new Map(dirs.map((d) => [d, json(`${d}/package.json`)]));
+
+  it('follows dependencies only: web, machine, safety, protocol and flasher, never the test kit', () => {
+    expect([...productionClosure(BUILD_ENTRY, workspace)].sort()).toEqual(
+      ['apps/web', 'packages/flasher', 'packages/machine', 'packages/protocol', 'packages/safety'].sort(),
+    );
+  });
+
+  it('is installed with --filter-prod, so pnpm selects the same graph', () => {
+    expect(BUILD_FILTER_FLAG).toBe('--filter-prod');
+  });
+
+  it('ignores non-workspace specs and unknown names', () => {
+    const fake = new Map([
+      ['a', { name: 'a', dependencies: { b: 'workspace:*', npm: '1.0.0', ghost: 'workspace:*' }, devDependencies: { c: 'workspace:*' } }],
+      ['b', { name: 'b', dependencies: { a: 'workspace:*' } }],
+      ['c', { name: 'c' }],
+    ]) as unknown as Parameters<typeof productionClosure>[1];
+    expect([...productionClosure('a', fake)].sort()).toEqual(['a', 'b']);
   });
 });
 

@@ -19,9 +19,54 @@ const NPM = '(^|/)node_modules/';
 /** The dev-only test kit, by path or through its workspace link. */
 const TESTKIT = '(^packages/testkit/|(^|/)node_modules/@synthetos/testkit/)';
 
+/**
+ * One layering rule (RUN_PLAN §5.3): runtime source of `pkg` may import its
+ * own package and the listed workspace targets only. A target is a package
+ * name, or `name/src/file.ts` for a single module (the flasher entry).
+ */
+function layer(pkg, allowed, why) {
+  // Each target by path and through its workspace link (symlinks are followed, but a link path must not slip through).
+  const forms = (a) => {
+    const [name, ...rest] = a.split('/');
+    const tail = rest.length === 0 ? '/' : `/${rest.join('/').replace(/\./g, '\\.')}$`;
+    return [`^packages/${name}${tail}`, `(^|/)node_modules/@synthetos/${name}${tail}`];
+  };
+  const own = forms(pkg).join('|');
+  const ok = allowed.flatMap(forms);
+  return {
+    name: `layer-${pkg}`,
+    comment: `${why} (RUN_PLAN §5.3: apps/web -> {machine, gcode, flasher, wiring, schema, provenance, contracts} -> {safety, protocol} -> nothing).`,
+    severity: 'error',
+    from: { path: `^packages/${pkg}/src/` },
+    to: {
+      path: '(^packages/[^/]+/|(^|/)node_modules/@synthetos/)',
+      pathNot: `(${[own, ...ok].join('|')})`,
+    },
+  };
+}
+
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
   forbidden: [
+    // --- Package layering (RUN_PLAN §5.3) --------------------------------
+    layer('protocol', [], 'protocol is the bottom layer: it imports no other workspace package'),
+    layer('safety', ['protocol'], 'safety imports protocol only'),
+    layer('schema', ['protocol', 'safety'], 'schema imports protocol and safety only'),
+    layer('machine', ['protocol', 'safety', 'schema', 'flasher/src/index.ts'], 'machine imports protocol, safety, schema and the flasher entry only'),
+    layer('flasher', ['protocol'], 'flasher imports protocol only'),
+    layer('gcode', ['protocol', 'safety'], 'gcode imports safety and protocol only'),
+    layer('wiring', ['protocol', 'safety'], 'wiring imports safety and protocol only'),
+    layer('provenance', ['protocol', 'safety'], 'provenance imports safety and protocol only'),
+    layer('contracts', [], 'contracts depends only on valibot: it imports no workspace package'),
+    layer('testkit', ['protocol', 'flasher'], 'the test kit may import protocol and flasher only'),
+    {
+      name: 'no-circular',
+      comment: 'No import cycle among or within the workspace packages: layering is a direction, and a cycle has none.',
+      severity: 'error',
+      from: { path: '^packages/' },
+      to: { circular: true },
+    },
+
     // --- Safety path: zero runtime npm dependencies (RUN_PLAN §5.3) -------
     {
       name: 'safety-path-no-npm',

@@ -293,6 +293,65 @@ describe('the remaining P0-02 rules', () => {
   });
 });
 
+describe('package layering (RUN_PLAN §5.3, P0 review)', () => {
+  it('protocol importing machine fails dependency-cruiser (and is a cycle)', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/protocol/src/index.ts', "export { VERSION as M } from '../../machine/src/index.ts';\n");
+    const result = repo.deps();
+    expectFailure(result, 'layer-protocol');
+    expect(result.output).toContain('no-circular');
+  });
+
+  it('protocol importing safety fails dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/protocol/src/index.ts', "export { VERSION as S } from '../../safety/src/index.ts';\n");
+    expectFailure(repo.deps(), 'layer-protocol');
+  });
+
+  it('safety importing machine fails dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/safety/src/index.ts', "export { VERSION as M } from '../../machine/src/index.ts';\n");
+    expectFailure(repo.deps(), 'layer-safety');
+  });
+
+  it('the test kit importing machine or safety fails dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/testkit/src/index.ts', "export { VERSION as M } from '../../machine/src/index.ts';\n");
+    repo.append('packages/testkit/src/marker.ts', "export { VERSION as S } from '../../safety/src/index.ts';\n");
+    const result = repo.deps();
+    expectFailure(result, 'layer-testkit');
+    expect(result.output).toContain('packages/machine/src/index.ts');
+    expect(result.output).toContain('packages/safety/src/index.ts');
+  });
+
+  it('flasher importing machine, and schema importing machine, fail dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/flasher/src/index.ts', "export { VERSION as M } from '../../machine/src/index.ts';\n");
+    repo.append('packages/schema/src/index.ts', "export { VERSION as M2 } from '../../machine/src/index.ts';\n");
+    const result = repo.deps();
+    expectFailure(result, 'layer-flasher');
+    expect(result.output).toContain('layer-schema');
+  });
+
+  it('a cycle inside one package fails dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write('packages/gcode/src/a.ts', "import { B } from './b.ts';\nexport const A = B;\n");
+    repo.write('packages/gcode/src/b.ts', "import { A } from './a.ts';\nexport const B = 1;\nexport const C = A;\n");
+    repo.append('packages/gcode/src/index.ts', "export { A } from './a.ts';\n");
+    expectFailure(repo.deps(), 'no-circular');
+  });
+
+  it('the allowed edges pass: machine to protocol, safety, schema and the flasher entry', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append(
+      'packages/machine/src/index.ts',
+      "export { VERSION as S } from '../../safety/src/index.ts';\nexport { VERSION as SC } from '../../schema/src/index.ts';\n",
+    );
+    const result = repo.deps();
+    expect(result.status, result.output).toBe(0);
+  });
+});
+
 describe('ROADMAP P0-12 rules', () => {
   it('machine source importing the bootloader capability mint fails dependency-cruiser', { timeout: TIMEOUT }, () => {
     const repo = fresh();

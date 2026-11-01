@@ -14,9 +14,12 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  BUILD_ENTRY,
   BUILD_FILTER,
+  BUILD_FILTER_FLAG,
   forbiddenBuildPackages,
   forbiddenInstalled,
+  productionClosure,
   storePackageNames,
   subsetLockfile,
   subsetRootManifest,
@@ -48,7 +51,7 @@ function install(root: string): number {
   writeFileSync(manifestPath, subsetRootManifest(manifestText));
   writeFileSync(lockPath, subsetLockfile(lockText));
   try {
-    execFileSync('pnpm', ['install', '--frozen-lockfile', '--ignore-scripts', `--filter=${BUILD_FILTER}`], {
+    execFileSync('pnpm', ['install', '--frozen-lockfile', '--ignore-scripts', `${BUILD_FILTER_FLAG}=${BUILD_FILTER}`], {
       cwd: root,
       stdio: 'inherit',
     });
@@ -57,6 +60,14 @@ function install(root: string): number {
     writeFileSync(lockPath, lockText);
   }
 
+  // A workspace package outside the production closure (the test kit) must not have been installed at all.
+  const workspace = workspaceManifests(root);
+  const closure = productionClosure(BUILD_ENTRY, workspace);
+  const strays = [...workspace.keys()].filter((dir) => !closure.has(dir) && existsSync(join(root, dir, 'node_modules')));
+  if (strays.length > 0) {
+    process.stderr.write(`build toolchain: workspace packages outside the production build were installed: ${strays.join(', ')}\n`);
+    return 1;
+  }
   const installed = storePackageNames(readdirSync(join(root, 'node_modules', '.pnpm')));
   const bad = forbiddenInstalled(installed, forbidden);
   if (bad.length > 0) {

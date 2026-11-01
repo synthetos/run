@@ -10,10 +10,11 @@
 /** Package version. Kept equal to package.json `version` by the smoke test. */
 export const VERSION = '0.0.0';
 
-export type { Transport, TransportInfo, TransportOpenOptions, TransportSource } from './transport.ts';
+export type { PortSelector, Transport, TransportInfo, TransportOpenOptions, TransportSource } from './transport.ts';
+export { isPortSelector } from './transport.ts';
 export { GuardedTransport, TransportRefusedError, TransportWriteError } from './guardedTransport.ts';
-export type { GuardedTransportState, TransportRefusalCode } from './guardedTransport.ts';
-export { MAX_REALTIME_GROUP_BYTES, MAX_WRITE_LINE_BYTES, REALTIME_BYTES, classifyWrite } from './writeShape.ts';
+export type { GuardedTransportOptions, GuardedTransportState, TransportRefusalCode } from './guardedTransport.ts';
+export { MAX_REALTIME_GROUP_BYTES, MAX_WRITE_LINE_BYTES, REALTIME_BYTES, classifyWrite, writeLineCapFor } from './writeShape.ts';
 export type { WriteRejection, WriteRejectionReason, WriteShape } from './writeShape.ts';
 export {
   BOOTLOADER_PORTS,
@@ -22,9 +23,12 @@ export {
   DUE_PROGRAMMING_PORT,
   REFUSED_PORTS,
   SESSION_BAUD_RATES,
+  SESSION_OPEN_OPTIONS,
   TRANSPORT_BUFFER_SIZE,
   capabilityBaudRatesOf,
   decideOpen,
   refusedPortsOf,
+  sessionOpenOptionsFor,
+  sharedSessionOptions,
 } from './openPolicy.ts';
 export type { OpenDecision, OpenRefusalReason } from './openPolicy.ts';

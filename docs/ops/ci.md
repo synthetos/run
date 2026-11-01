@@ -131,7 +131,9 @@ root, and pnpm always installs the root, even under `--filter`. So
 1. It empties the root importer, in `package.json` (no devDependencies) and
    in `pnpm-lock.yaml` (`.: {}`). Every other lockfile line stays the same,
    including every integrity hash.
-2. It runs `pnpm install --frozen-lockfile --ignore-scripts --filter @synthetos/web...`.
+2. It runs `pnpm install --frozen-lockfile --ignore-scripts --filter-prod @synthetos/web...`,
+   which follows only `dependencies` between workspace packages, so the
+   dev-only test kit is never installed in the build job.
 3. It restores both files byte for byte.
 4. It fails if the store contains any root devDependency, or any
    devDependency of a workspace package outside the build (wrangler, for

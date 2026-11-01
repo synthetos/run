@@ -213,13 +213,30 @@ is the very code RUN_PLAN §8.5 wanted exercised.
 Recommended for P1-01:
 - Move the seam **below** `WebSerialTransport`, to where the `SerialPort`
   comes from.
+- **`requestPort()` stays on the main thread.** It exists only on Window
+  (it needs a user gesture and shows the browser's chooser), never in a
+  dedicated worker. RUN_PLAN §5.4: "the window calls requestPort() with
+  filters. The worker opens the port". So the window calls `requestPort()`,
+  reads the chosen port's `getInfo()` and its index in its own
+  `getPorts()`, and sends `open` with that `PortSelector`
+  (`{usbVendorId, usbProductId, grantIndex}`, rpc.ts v2, P0 review).
 - `packages/machine/src/webSerialTransport.ts` exports `WebSerialTransport`
-  (constructed with a `SerialPort`) and a `requestSerialPort()`. That keeps
-  the only `navigator.serial` use in the one file P1-01's lint rule allows.
-- The production seam calls both. The fake seam constructs the **real**
-  `WebSerialTransport` around a test-kit `MockSerialPort`, and
-  `MockTransport` is deleted.
+  (constructed with a `SerialPort`) and a `findGrantedPort(selector)` that
+  runs **inside machine.worker**: it calls `navigator.serial.getPorts()`,
+  takes the port at `grantIndex`, and returns it only if its `getInfo()`
+  matches the selector's USB identity; otherwise null (refuse, never guess:
+  with two granted boards, "the first matching" port could be the wrong
+  machine). That keeps the only `navigator.serial` use in the one file
+  P1-01's lint rule allows (plus the window's `requestPort()` call, which
+  P1-01 must allow in exactly one main-thread file).
+- The production seam's `request(selector)` calls both. The fake seam
+  constructs the **real** `WebSerialTransport` around a test-kit
+  `MockSerialPort` it picks by the same selector rule, and `MockTransport`
+  is deleted.
 
 The build plugin, the separate chunk, the diff check and the CI job stay as
-they are; only the two seam bodies change. This needs the owner's decision
-because it changes the ROADMAP's wording.
+they are. The seam bodies change, and so does the window: it gains the
+`requestPort()` call that produces the selector (the `TransportSource`
+interface and the `open` request already carry it, so neither changes
+again). This needs the owner's decision because it changes the ROADMAP's
+wording.

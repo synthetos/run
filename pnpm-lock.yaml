@@ -83,13 +83,14 @@ importers:
   packages/gcode: {}
 
   packages/machine:
-    devDependencies:
+    dependencies:
       '@synthetos/flasher':
         specifier: workspace:*
         version: link:../flasher
       '@synthetos/protocol':
         specifier: workspace:*
         version: link:../protocol
+    devDependencies:
       '@synthetos/testkit':
         specifier: workspace:*
         version: link:../testkit
@@ -99,7 +100,7 @@ importers:
   packages/provenance: {}
 
   packages/safety:
-    devDependencies:
+    dependencies:
       '@synthetos/protocol':
         specifier: workspace:*
         version: link:../protocol

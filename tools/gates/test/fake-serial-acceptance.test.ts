@@ -64,10 +64,12 @@ describe('fake-serial test build (P0-14)', () => {
     () => {
       const repo = fresh();
       const fake = repo.read(FAKE);
+      // Guard against a silent no-op: the replaced import must exist in the fake.
+      expect(fake).toContain("import type { PortSelector, TransportSource } from '@synthetos/machine';");
       repo.write(
         FAKE,
         fake
-          .replace("import type { TransportSource } from '@synthetos/machine';", "import { TRANSPORT_BUFFER_SIZE, type TransportSource } from '@synthetos/machine';")
+          .replace("import type { PortSelector, TransportSource } from '@synthetos/machine';", "import { TRANSPORT_BUFFER_SIZE, type PortSelector, type TransportSource } from '@synthetos/machine';")
           .replace("kind: 'fake',", "kind: TRANSPORT_BUFFER_SIZE === 256 ? 'fake' : 'none',"),
       );
       bothBuilt(repo);

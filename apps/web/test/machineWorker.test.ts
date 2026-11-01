@@ -7,8 +7,9 @@
  * suites in tools/e2e.
  */
 import { describe, expect, it } from 'vitest';
-import type { Transport, TransportInfo, TransportOpenOptions, TransportSource } from '@synthetos/machine';
-import { MachineWorkerHost, SESSION_OPEN_OPTIONS } from '../src/machine-worker/host.ts';
+import type { PortSelector, Transport, TransportInfo, TransportOpenOptions, TransportSource } from '@synthetos/machine';
+import { SESSION_BAUD_RATES, SESSION_OPEN_OPTIONS } from '@synthetos/machine';
+import { MachineWorkerHost } from '../src/machine-worker/host.ts';
 import { parseRequest } from '../src/machine-worker/rpc.ts';
 import { createTransportSource } from '../src/machine-worker/transport.ts';
 
@@ -68,12 +69,14 @@ class FakeTransport implements Transport {
   }
 }
 
-function source(kind: TransportSource['kind'], make: () => Transport | null | Promise<never>): TransportSource & { requests: number } {
+function source(kind: TransportSource['kind'], make: () => Transport | null | Promise<never>): TransportSource & { requests: number; selectors: PortSelector[] } {
   const s = {
     kind,
     requests: 0,
-    request: async () => {
+    selectors: [] as PortSelector[],
+    request: async (port: PortSelector) => {
       s.requests += 1;
+      s.selectors.push(port);
       return make();
     },
   };
@@ -82,23 +85,36 @@ function source(kind: TransportSource['kind'], make: () => Transport | null | Pr
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
+/** The port the window chose (an FTDI board, first in its granted list). */
+const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as const;
+const OPEN = { v: 2, kind: 'open', port: PORT } as const;
+
 describe('parseRequest', () => {
-  it.each(['open', 'close', 'status'])('accepts exactly { v: 1, kind: %s }', (kind) => {
-    expect(parseRequest({ v: 1, kind })).toEqual({ v: 1, kind });
-    expect(parseRequest({ kind, v: 1 })).toEqual({ v: 1, kind });
+  it.each(['close', 'status'])('accepts exactly { v: 2, kind: %s }', (kind) => {
+    expect(parseRequest({ v: 2, kind })).toEqual({ v: 2, kind });
+    expect(parseRequest({ kind, v: 2 })).toEqual({ v: 2, kind });
+  });
+
+  it('accepts open only with a port selector naming the chosen port (RUN_PLAN §5.4)', () => {
+    expect(parseRequest(OPEN)).toEqual(OPEN);
+    expect(parseRequest({ port: PORT, kind: 'open', v: 2 })).toEqual(OPEN);
   });
 
   it.each([
     ['null', null],
     ['a string', 'open'],
     ['an array', [1, 'open']],
-    ['a missing version', { kind: 'open' }],
-    ['another version', { v: 2, kind: 'open' }],
-    ['a string version', { v: '1', kind: 'open' }],
-    ['an unknown kind', { v: 1, kind: 'write' }],
-    ['an inherited kind', { v: 1, kind: 'toString' }],
-    ['an extra key', { v: 1, kind: 'open', port: 'COM3' }],
-    ['a class instance', Object.assign(Object.create({ x: 1 }) as object, { v: 1, kind: 'open' })],
+    ['a missing version', { kind: 'status' }],
+    ['the old version', { v: 1, kind: 'status' }],
+    ['a string version', { v: '2', kind: 'status' }],
+    ['an unknown kind', { v: 2, kind: 'write' }],
+    ['an inherited kind', { v: 2, kind: 'toString' }],
+    ['open without a port', { v: 2, kind: 'open' }],
+    ['open with a port name instead of a selector', { v: 2, kind: 'open', port: 'COM3' }],
+    ['open with a malformed selector', { v: 2, kind: 'open', port: { ...PORT, grantIndex: -1 } }],
+    ['open with an extra key', { ...OPEN, baudRate: 1200 }],
+    ['close with a port', { v: 2, kind: 'close', port: PORT }],
+    ['a class instance', Object.assign(Object.create({ x: 1 }) as object, { v: 2, kind: 'status' })],
   ])('refuses %s', (_label, data) => {
     expect(parseRequest(data)).toBeNull();
   });
@@ -108,14 +124,14 @@ describe('the production Phase 0 transport seam', () => {
   it('has no transport: kind none, and request() always resolves null', async () => {
     const s = createTransportSource();
     expect(s.kind).toBe('none');
-    expect(await s.request()).toBeNull();
+    expect(await s.request(PORT)).toBeNull();
     expect(Object.isFrozen(s)).toBe(true);
   });
 
   it('so the worker answers open with unavailable and stays idle', async () => {
     const host = new MachineWorkerHost(createTransportSource());
-    expect(await host.handle({ v: 1, kind: 'open' })).toEqual({ v: 1, ok: false, kind: 'open', code: 'unavailable', message: 'this build cannot connect to a controller' });
-    expect(await host.handle({ v: 1, kind: 'status' })).toEqual({ v: 1, ok: true, kind: 'status', status: { source: 'none', state: 'idle', bytesReceived: 0 } });
+    expect(await host.handle(OPEN)).toEqual({ v: 2, ok: false, kind: 'open', code: 'unavailable', message: 'this build cannot connect to a controller' });
+    expect(await host.handle({ v: 2, kind: 'status' })).toEqual({ v: 2, ok: true, kind: 'status', status: { source: 'none', state: 'idle', bytesReceived: 0 } });
   });
 });
 
@@ -123,60 +139,62 @@ describe('MachineWorkerHost', () => {
   it('refuses an invalid message without asking the source for anything', async () => {
     const s = source('fake', () => new FakeTransport());
     const host = new MachineWorkerHost(s);
-    expect(await host.handle({ v: 1, kind: 'open', baudRate: 1200 })).toMatchObject({ ok: false, kind: 'invalid', code: 'invalid-request' });
+    expect(await host.handle({ ...OPEN, baudRate: 1200 })).toMatchObject({ ok: false, kind: 'invalid', code: 'invalid-request' });
     expect(s.requests).toBe(0);
   });
 
   it('opens through the guard with the session options, reports the identity, and counts bytes read', async () => {
     const t = new FakeTransport();
     const host = new MachineWorkerHost(source('fake', () => t));
-    expect(await host.handle({ v: 1, kind: 'open' })).toEqual({ v: 1, ok: true, kind: 'open', info: { kind: 'sim', usbVendorId: 0x0403, usbProductId: 0x6015 } });
-    expect(t.opened).toEqual([{ baudRate: 115200, flowControl: 'none', bufferSize: 256 }]);
+    expect(await host.handle(OPEN)).toEqual({ v: 2, ok: true, kind: 'open', info: { kind: 'sim', usbVendorId: 0x0403, usbProductId: 0x6015 } });
+    expect(t.opened).toEqual([SESSION_OPEN_OPTIONS]);
+    // The session options are dialect data: the one baud rate every dialect uses.
+    expect([...SESSION_BAUD_RATES]).toEqual([SESSION_OPEN_OPTIONS.baudRate]);
     expect(SESSION_OPEN_OPTIONS).toEqual({ baudRate: 115200, flowControl: 'none', bufferSize: 256 });
     t.feed(new Uint8Array(5));
     t.feed(new Uint8Array(3));
     await tick();
-    expect(await host.handle({ v: 1, kind: 'status' })).toMatchObject({ status: { source: 'fake', state: 'open', bytesReceived: 8 } });
+    expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ status: { source: 'fake', state: 'open', bytesReceived: 8 } });
     expect(t.writes).toEqual([]);
   });
 
   it('never opens a port the guard refuses: the Arduino Due programming port', async () => {
     const t = new FakeTransport({ kind: 'sim', usbVendorId: 0x2341, usbProductId: 0x003d });
     const host = new MachineWorkerHost(source('fake', () => t));
-    const reply = await host.handle({ v: 1, kind: 'open' });
+    const reply = await host.handle(OPEN);
     expect(reply).toMatchObject({ ok: false, kind: 'open', code: 'open-failed' });
     expect(reply).toHaveProperty('message', expect.stringContaining('(refused-port)'));
     expect(t.opened).toEqual([]);
-    expect(await host.handle({ v: 1, kind: 'status' })).toMatchObject({ status: { state: 'idle' } });
+    expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ status: { state: 'idle' } });
   });
 
   it('reports a port that fails to open, and returns to idle', async () => {
     const t = new FakeTransport();
     t.failOpen = new Error('NetworkError: Failed to open serial port.');
     const host = new MachineWorkerHost(source('fake', () => t));
-    expect(await host.handle({ v: 1, kind: 'open' })).toEqual({
-      v: 1,
+    expect(await host.handle(OPEN)).toEqual({
+      v: 2,
       ok: false,
       kind: 'open',
       code: 'open-failed',
       message: 'the port was not opened: NetworkError: Failed to open serial port.',
     });
-    expect(await host.handle({ v: 1, kind: 'status' })).toMatchObject({ status: { state: 'idle' } });
+    expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ status: { state: 'idle' } });
   });
 
   it('answers unavailable when no port is chosen or the source fails', async () => {
-    expect(await new MachineWorkerHost(source('serial', () => null)).handle({ v: 1, kind: 'open' })).toMatchObject({ code: 'unavailable', message: 'no port was chosen' });
+    expect(await new MachineWorkerHost(source('serial', () => null)).handle(OPEN)).toMatchObject({ code: 'unavailable', message: 'no port was chosen' });
     const failing = new MachineWorkerHost(source('serial', () => Promise.reject(new Error('picker dismissed')) as Promise<never>));
-    expect(await failing.handle({ v: 1, kind: 'open' })).toMatchObject({ code: 'unavailable', message: 'the transport source failed: picker dismissed' });
+    expect(await failing.handle(OPEN)).toMatchObject({ code: 'unavailable', message: 'the transport source failed: picker dismissed' });
     const odd = new MachineWorkerHost(source('serial', () => Promise.reject('odd') as Promise<never>));
-    expect(await odd.handle({ v: 1, kind: 'open' })).toMatchObject({ message: 'the transport source failed: odd' });
-    expect(await odd.handle({ v: 1, kind: 'status' })).toMatchObject({ status: { state: 'idle' } });
+    expect(await odd.handle(OPEN)).toMatchObject({ message: 'the transport source failed: odd' });
+    expect(await odd.handle({ v: 2, kind: 'status' })).toMatchObject({ status: { state: 'idle' } });
   });
 
   it('refuses a second open while one is open, without asking the source again', async () => {
     const s = source('fake', () => new FakeTransport());
     const host = new MachineWorkerHost(s);
-    const [first, second] = await Promise.all([host.handle({ v: 1, kind: 'open' }), host.handle({ v: 1, kind: 'open' })]);
+    const [first, second] = await Promise.all([host.handle(OPEN), host.handle(OPEN)]);
     expect(first).toMatchObject({ ok: true });
     expect(second).toMatchObject({ ok: false, code: 'busy', message: 'a link is already open' });
     expect(s.requests).toBe(1);
@@ -185,9 +203,9 @@ describe('MachineWorkerHost', () => {
   it('runs requests one at a time: a close sent with an open waits for the open', async () => {
     const t = new FakeTransport();
     const host = new MachineWorkerHost(source('fake', () => t));
-    const [open, close] = await Promise.all([host.handle({ v: 1, kind: 'open' }), host.handle({ v: 1, kind: 'close' })]);
+    const [open, close] = await Promise.all([host.handle(OPEN), host.handle({ v: 2, kind: 'close' })]);
     expect(open).toMatchObject({ ok: true });
-    expect(close).toEqual({ v: 1, ok: true, kind: 'close' });
+    expect(close).toEqual({ v: 2, ok: true, kind: 'close' });
     expect(t.closed).toBe(1);
   });
 
@@ -200,13 +218,13 @@ describe('MachineWorkerHost', () => {
         return t;
       }),
     );
-    await host.handle({ v: 1, kind: 'open' });
+    await host.handle(OPEN);
     links[0]?.feed(new Uint8Array(4));
     await tick();
-    expect(await host.handle({ v: 1, kind: 'close' })).toEqual({ v: 1, ok: true, kind: 'close' });
-    expect(await host.handle({ v: 1, kind: 'status' })).toMatchObject({ status: { state: 'idle', bytesReceived: 0 } });
-    expect(await host.handle({ v: 1, kind: 'close' })).toMatchObject({ ok: false, code: 'not-open' });
-    expect(await host.handle({ v: 1, kind: 'open' })).toMatchObject({ ok: true });
+    expect(await host.handle({ v: 2, kind: 'close' })).toEqual({ v: 2, ok: true, kind: 'close' });
+    expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ status: { state: 'idle', bytesReceived: 0 } });
+    expect(await host.handle({ v: 2, kind: 'close' })).toMatchObject({ ok: false, code: 'not-open' });
+    expect(await host.handle(OPEN)).toMatchObject({ ok: true });
     expect(links).toHaveLength(2);
   });
 
@@ -214,16 +232,16 @@ describe('MachineWorkerHost', () => {
     const t = new FakeTransport();
     t.failClose = new Error('stream locked');
     const host = new MachineWorkerHost(source('fake', () => t));
-    await host.handle({ v: 1, kind: 'open' });
-    expect(await host.handle({ v: 1, kind: 'close' })).toEqual({
-      v: 1,
+    await host.handle(OPEN);
+    expect(await host.handle({ v: 2, kind: 'close' })).toEqual({
+      v: 2,
       ok: false,
       kind: 'close',
       code: 'close-failed',
       message: 'the port reported an error while closing: stream locked',
     });
-    expect(await host.handle({ v: 1, kind: 'status' })).toMatchObject({ status: { state: 'idle' } });
-    expect(await host.handle({ v: 1, kind: 'status' })).toMatchObject({ ok: true });
+    expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ status: { state: 'idle' } });
+    expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ ok: true });
   });
 
   it('returns to idle when the link drops, and ignores a late drop from an old link', async () => {
@@ -235,15 +253,15 @@ describe('MachineWorkerHost', () => {
         return t;
       }),
     );
-    await host.handle({ v: 1, kind: 'open' });
+    await host.handle(OPEN);
     links[0]?.disconnect();
-    expect(await host.handle({ v: 1, kind: 'status' })).toMatchObject({ status: { state: 'idle' } });
-    await host.handle({ v: 1, kind: 'open' });
+    expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ status: { state: 'idle' } });
+    await host.handle(OPEN);
     links[0]?.disconnect();
-    expect(await host.handle({ v: 1, kind: 'status' })).toMatchObject({ status: { state: 'open' } });
+    expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ status: { state: 'open' } });
   });
 
-  it('survives a readable that errors (the link failing)', async () => {
+  it('treats a readable that errors as the link dropping: idle, the guard closed, a new open allowed', async () => {
     const t = new FakeTransport();
     Object.defineProperty(t, 'readable', {
       get: () => ({
@@ -251,8 +269,52 @@ describe('MachineWorkerHost', () => {
       }),
     });
     const host = new MachineWorkerHost(source('fake', () => t));
-    expect(await host.handle({ v: 1, kind: 'open' })).toMatchObject({ ok: true });
+    expect(await host.handle(OPEN)).toMatchObject({ ok: true });
     await tick();
-    expect(await host.handle({ v: 1, kind: 'status' })).toMatchObject({ ok: true, status: { bytesReceived: 0 } });
+    expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ ok: true, status: { state: 'idle', bytesReceived: 0 } });
+    expect(t.closed).toBe(1);
+  });
+
+  it('passes the chosen port to the source, unchanged', async () => {
+    const s = source('serial', () => new FakeTransport());
+    const host = new MachineWorkerHost(s);
+    await host.handle({ ...OPEN, port: { usbVendorId: 0x2341, usbProductId: 0x003e, grantIndex: 3 } });
+    expect(s.selectors).toEqual([{ usbVendorId: 0x2341, usbProductId: 0x003e, grantIndex: 3 }]);
+  });
+
+  it('never reports open when the link dropped while the port was opening', async () => {
+    const t = new FakeTransport();
+    const realOpen = t.open.bind(t);
+    t.open = async (options) => {
+      await realOpen(options);
+      t.disconnect(); // fires during the await, before the host could register a callback
+    };
+    const host = new MachineWorkerHost(source('fake', () => t));
+    expect(await host.handle(OPEN)).toMatchObject({ ok: false, kind: 'open', code: 'open-failed', message: 'the link dropped while the port was opening' });
+    expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ status: { state: 'idle' } });
+    expect(t.closed).toBe(1);
+    // And the next open is not refused as busy.
+    expect(await host.handle(OPEN)).not.toMatchObject({ code: 'busy' });
+  });
+
+  it('returns to idle when readable ends without any disconnect event', async () => {
+    const t = new FakeTransport();
+    const host = new MachineWorkerHost(source('fake', () => t));
+    expect(await host.handle(OPEN)).toMatchObject({ ok: true });
+    t.feed(new Uint8Array(2));
+    t.feed(null); // the stream ends; no onDisconnect callback fires
+    await tick();
+    await tick();
+    expect(await host.handle({ v: 2, kind: 'status' })).toMatchObject({ status: { state: 'idle', bytesReceived: 0 } });
+    expect(await host.handle(OPEN)).toMatchObject({ ok: true });
+  });
+
+  it('a normal close is not mistaken for a drop', async () => {
+    const t = new FakeTransport();
+    const host = new MachineWorkerHost(source('fake', () => t));
+    await host.handle(OPEN);
+    expect(await host.handle({ v: 2, kind: 'close' })).toEqual({ v: 2, ok: true, kind: 'close' });
+    await tick();
+    expect(t.closed).toBe(1);
   });
 });

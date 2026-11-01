@@ -18,11 +18,12 @@
  *   (tools/gates/src/artifact/diff.ts) proves that the production artifact
  *   and the test artifact differ in that chunk and nowhere else.
  *
- * Keep the export list identical to the fake's: the worker chunk imports it
- * by name, and a different export list would change the worker chunk too.
+ * The fake must export `createTransportSource` with the same signature: the
+ * worker chunk imports exactly that name (apps/web/test/transportSeam.test.ts
+ * checks both modules). The fake may export more, for its own tests.
  */
-import type { TransportSource } from '@synthetos/machine';
+import type { PortSelector, TransportSource } from '@synthetos/machine';
 
 export function createTransportSource(): TransportSource {
-  return Object.freeze({ kind: 'none', request: () => Promise.resolve(null) });
+  return Object.freeze({ kind: 'none', request: (_port: PortSelector) => Promise.resolve(null) });
 }

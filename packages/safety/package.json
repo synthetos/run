@@ -14,7 +14,7 @@
     "test": "vitest run --coverage",
     "mutation": "stryker run"
   },
-  "devDependencies": {
+  "dependencies": {
     "@synthetos/protocol": "workspace:*"
   }
 }

@@ -23,16 +23,16 @@ test('the workspace starts one machine worker, which has no transport in Phase 0
   expect(page.workers()).toHaveLength(1);
   expect(await worker.evaluate(() => (globalThis as unknown as { name: string }).name)).toBe('machine');
 
-  expect(await request(worker, { v: 1, kind: 'status' })).toEqual({ v: 1, ok: true, kind: 'status', status: { source: 'none', state: 'idle', bytesReceived: 0 } });
-  expect(await request(worker, { v: 1, kind: 'open' })).toEqual({
-    v: 1,
+  expect(await request(worker, { v: 2, kind: 'status' })).toEqual({ v: 2, ok: true, kind: 'status', status: { source: 'none', state: 'idle', bytesReceived: 0 } });
+  expect(await request(worker, { v: 2, kind: 'open', port: { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } })).toEqual({
+    v: 2,
     ok: false,
     kind: 'open',
     code: 'unavailable',
     message: 'this build cannot connect to a controller',
   });
-  expect(await request(worker, { v: 1, kind: 'status' })).toMatchObject({ status: { source: 'none', state: 'idle' } });
-  expect(await request(worker, { v: 1, kind: 'close' })).toMatchObject({ ok: false, code: 'not-open' });
+  expect(await request(worker, { v: 2, kind: 'status' })).toMatchObject({ status: { source: 'none', state: 'idle' } });
+  expect(await request(worker, { v: 2, kind: 'close' })).toMatchObject({ ok: false, code: 'not-open' });
   expect(await request(worker, { kind: 'open' })).toMatchObject({ ok: false, kind: 'invalid', code: 'invalid-request' });
 });
 

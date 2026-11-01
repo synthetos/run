@@ -5,33 +5,24 @@
  *
  * - Requests run strictly one at a time, in arrival order, so an `open` and
  *   a `close` can never interleave.
- * - `open` takes a new Transport from the build's transport source
- *   (transport.ts) and opens it only through `GuardedTransport`, with the
- *   session options every controller uses (115200 baud, flowControl 'none',
+ * - `open` takes a new Transport for the chosen port from the build's
+ *   transport source (transport.ts) and opens it only through
+ *   `GuardedTransport`, with the session options derived from dialect data
+ *   (`SESSION_OPEN_OPTIONS`: the shared baud rate, flowControl 'none',
  *   bufferSize 256; SAFETY §3 OPENING). The guard, not this file, decides
  *   whether a port may be opened.
  * - While a link is open, every byte read is counted (the link is drained,
  *   so the port's buffer never fills). Nothing is ever written: Phase 0 has
  *   no write path at all.
- * - A disconnect returns the worker to idle.
+ * - The link is gone, and the worker returns to idle, on a disconnect
+ *   (including one that happened while the port was still opening: the
+ *   guard records it from construction) and whenever `readable` ends or
+ *   fails without a `close` in progress.
  *
  * It holds no session, account or network state (DECISIONS D1).
  */
-import {
-  GuardedTransport,
-  TRANSPORT_BUFFER_SIZE,
-  TransportRefusedError,
-  type TransportOpenOptions,
-  type TransportSource,
-} from '@synthetos/machine';
+import { GuardedTransport, SESSION_OPEN_OPTIONS, TransportRefusedError, type PortSelector, type TransportSource } from '@synthetos/machine';
 import { RPC_VERSION, parseRequest, refusal, type MachineReply, type WorkerState } from './rpc.ts';
-
-/** The options every session opens with (SAFETY §3 OPENING; machine openPolicy.ts). */
-export const SESSION_OPEN_OPTIONS: TransportOpenOptions = Object.freeze({
-  baudRate: 115200,
-  flowControl: 'none',
-  bufferSize: TRANSPORT_BUFFER_SIZE,
-});
 
 interface Link {
   readonly transport: GuardedTransport;
@@ -61,7 +52,7 @@ export class MachineWorkerHost {
     if (request === null) return refusal('invalid', 'invalid-request', 'not a machine worker request');
     switch (request.kind) {
       case 'open':
-        return this.#open();
+        return this.#open(request.port);
       case 'close':
         return this.#close();
       case 'status':
@@ -74,12 +65,12 @@ export class MachineWorkerHost {
     }
   }
 
-  async #open(): Promise<MachineReply> {
+  async #open(port: PortSelector): Promise<MachineReply> {
     if (this.#state !== 'idle') return refusal('open', 'busy', `a link is already ${this.#state}`);
     this.#state = 'opening';
     let inner;
     try {
-      inner = await this.#source.request();
+      inner = await this.#source.request(port);
     } catch (error) {
       this.#state = 'idle';
       return refusal('open', 'unavailable', `the transport source failed: ${describe(error)}`);
@@ -96,6 +87,13 @@ export class MachineWorkerHost {
       this.#state = 'idle';
       const code = error instanceof TransportRefusedError ? ` (${error.code})` : '';
       return refusal('open', 'open-failed', `the port was not opened${code}: ${describe(error)}`);
+    }
+    // A disconnect during the open fired before any callback of ours could be registered; the guard
+    // recorded it from construction, so check it before reporting the link open.
+    if (transport.disconnected) {
+      this.#state = 'idle';
+      await transport.close().catch(() => undefined);
+      return refusal('open', 'open-failed', 'the link dropped while the port was opening');
     }
     const link: Link = { transport, bytesReceived: 0 };
     this.#link = link;
@@ -120,13 +118,21 @@ export class MachineWorkerHost {
     return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'close' });
   }
 
-  /** Reads the link until it ends, counting bytes. */
+  /**
+   * Reads the link until it ends, counting bytes. When `readable` ends or
+   * fails and no close is in progress, the link is gone even if no
+   * disconnect event came: the worker returns to idle and the guard is
+   * closed, so it never reports `open` on a dead link.
+   */
   async #drain(link: Link): Promise<void> {
     try {
       for await (const chunk of link.transport.readable) link.bytesReceived += chunk.byteLength;
     } catch {
-      // The link failed (a disconnect errors the stream); onDisconnect returns the worker to idle.
+      // The link failed (a disconnect errors the stream).
     }
+    if (this.#link !== link || this.#state === 'closing') return;
+    this.#drop(link);
+    await link.transport.close().catch(() => undefined);
   }
 
   #drop(link: Link): void {

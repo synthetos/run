@@ -13,11 +13,16 @@ describe('@synthetos/machine', () => {
     expect(pkg.exports['.']).toBe('./src/index.ts');
   });
 
-  it('declares no runtime npm dependencies (including optional, peer and bundled)', () => {
+  it('declares no runtime npm dependencies: its only dependencies are workspace packages from the allowed set', () => {
     const fields = pkg as Record<string, unknown>;
-    for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies', 'bundleDependencies', 'bundledDependencies']) {
+    for (const field of ['optionalDependencies', 'peerDependencies', 'bundleDependencies', 'bundledDependencies']) {
       const value = fields[field] ?? {};
       expect(Object.keys(value as object), field).toEqual([]);
     }
+    // Runtime workspace edges are declared as dependencies so the production build graph is right
+    // (RUN_PLAN §5.3); every one must be a workspace link (the npm ban lives in .dependency-cruiser.cjs).
+    const deps = (fields['dependencies'] ?? {}) as Record<string, string>;
+    expect(Object.keys(deps).sort()).toEqual(['@synthetos/flasher', '@synthetos/protocol']);
+    for (const spec of Object.values(deps)) expect(spec).toBe('workspace:*');
   });
 });

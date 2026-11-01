@@ -61,6 +61,30 @@ export const BOOTLOADER_PORTS: readonly UsbIdentity[] = usbIdentities(DIALECTS, 
 /** Baud rates a session opens at without a capability: each dialect's own. */
 export const SESSION_BAUD_RATES: ReadonlySet<number> = Object.freeze(new Set(DIALECTS.map((d) => d.transport.baudRate)));
 
+/** The options a session on `dialect` opens with: its baud rate (dialect data), flowControl 'none', the one buffer size. */
+export function sessionOpenOptionsFor(dialect: Dialect): TransportOpenOptions {
+  return Object.freeze({ baudRate: dialect.transport.baudRate, flowControl: 'none', bufferSize: TRANSPORT_BUFFER_SIZE });
+}
+
+/**
+ * The options a session opens with before the board is classified (SAFETY
+ * §3 OPENING). The dialect is not known yet, so the baud rate must be the one
+ * every dialect uses; it is derived from dialect data, and module load fails
+ * if the dialects ever disagree (a family-aware open is then required, not a
+ * silent guess).
+ */
+export const SESSION_OPEN_OPTIONS: TransportOpenOptions = sharedSessionOptions(DIALECTS);
+
+/** The single-baud session options for `dialects`. Throws when they do not share one baud rate. */
+export function sharedSessionOptions(dialects: readonly Dialect[]): TransportOpenOptions {
+  const rates = new Set(dialects.map((d) => d.transport.baudRate));
+  const [only] = rates;
+  if (rates.size !== 1 || only === undefined) {
+    throw new Error(`dialects do not share one session baud rate (${[...rates].join(', ')}): the open needs the family first`);
+  }
+  return Object.freeze({ baudRate: only, flowControl: 'none', bufferSize: TRANSPORT_BUFFER_SIZE });
+}
+
 /** Baud rates that need the capability. Always includes 1200. */
 export const CAPABILITY_BAUD_RATES: ReadonlySet<number> = capabilityBaudRatesOf(DIALECTS);
 
