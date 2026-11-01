@@ -302,3 +302,13 @@ describe('bounds, envelope and estimates', () => {
     expect((a.lineFlags[1] as number) & LINE_FLAG.UNCERTAIN).toBeTruthy();
   });
 });
+
+describe('large files (TB-03)', () => {
+  it('a file with hundreds of thousands of rejected lines is interpreted, not a stack overflow', () => {
+    const base = unchecked(['G21 G90 G0 X1'], TINYG_EN);
+    const entries = Array.from({ length: 300_000 }, (_, i) => ({ line: i + 2, severity: 'block' as const, rule: 'r', message: 'm' }));
+    const a = interpretJob({ lines: base.lines, report: { ...base.report, blocked: true, entries } }, TINYG_EN, { start: start() });
+    expect(a.findings.length).toBeGreaterThanOrEqual(300_000);
+    expect(a.kinds.length).toBe(2);
+  });
+});

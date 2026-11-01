@@ -610,8 +610,11 @@ export function interpretJob(result: SanitizeResult, dialect: Dialect, options: 
 
   // Lines the sanitiser rejected were not sent: everything after the first one is uncertain.
   const sentSources = new Set(lines.map((l) => l.sourceLine));
-  const rejected = result.report.entries.filter((e) => e.severity === 'block' && e.line > 0 && !sentSources.has(e.line)).map((e) => e.line);
-  const firstRejected = rejected.length > 0 ? Math.min(...rejected) : Infinity;
+  // A loop, not Math.min(...spread): a large file can reject more lines than the engine accepts as arguments.
+  let firstRejected = Infinity;
+  for (const e of result.report.entries) {
+    if (e.severity === 'block' && e.line > 0 && e.line < firstRejected && !sentSources.has(e.line)) firstRejected = e.line;
+  }
   const lastIndex = lines.length - 1;
   lines.forEach((line, i) => {
     if (!it.uncertain && line.sourceLine > firstRejected) {
