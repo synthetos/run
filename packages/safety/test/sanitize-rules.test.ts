@@ -230,6 +230,16 @@ describe('step 6: per-dialect rejections', () => {
     expect(run('S1000 M3 M8 G4 P1\n', EN, { c22: true }).report.blocked).toBe(false);
   });
 
+  it('TG E088 also counts program stop/end, G92 offsets and the second leg of G28/G30 (440.21 queues each)', () => {
+    expect(blocks(run('S1000 M3 M8 G0 X1 M30\n', TG, { c22: true }))).toEqual(['e088-queued-per-line']);
+    expect(blocks(run('S1000 M3 M8 G0 X1 M0\n', TG, { c22: true }))).toEqual(['e088-queued-per-line']);
+    expect(blocks(run('S1000 M3 M8 G92 X0\n', TG, { c22: true }))).toEqual(['e088-queued-per-line']);
+    expect(blocks(run('S1000 M3 M8 G28\n', TG, { c22: true }))).toEqual(['e088-queued-per-line']);
+    expect(blocks(run('S1000 M3 M8 G30\n', TG, { c22: true, start: { ...START, g30: { X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 } } }))).toEqual(['e088-queued-per-line']);
+    expect(run('S1000 T1 G0 X1 M30\n', TG).report.blocked).toBe(false);
+    expect(run('S1000 M3 M8 G0 X1 M30\n', EN).report.blocked).toBe(false);
+  });
+
   it('EN: M201.3', () => {
     expect(blocks(run('M201.3 X100\n', EN))).toEqual(['m201.3']);
   });

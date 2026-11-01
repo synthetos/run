@@ -148,9 +148,14 @@ describe('offsets and coordinate systems', () => {
     expect(lengthOf('G0 Z3\n', 'G0 Z3', { ...START, toolOffset: {} }, TG)).toBe(3);
   });
 
-  it('G53 moves in machine coordinates, in either distance mode', () => {
+  it('G53 moves in machine coordinates under G90; under G91 (where TinyG treats the values as distances) or an unknown distance mode it is blocked', () => {
     expect(lengthOf('G53 G0 X10\n', 'G53 G0 X10', { ...START, wcsOffsets: { ...START.wcsOffsets, G54: { X: 50, Y: 0, Z: 0, A: 0, B: 0, C: 0 } } })).toBe(10);
-    expect(lengthOf('G91\nG53 G0 X10\n', 'G53 G0 X10')).toBe(10);
+    for (const d of [EN, TG]) {
+      expect(blocks(run('G91\nG53 G0 X10\n', d)), d.id).toEqual(['modal-conflict']);
+      expect(blocks(run('G91 G53 G0 X10\n', d)), d.id).toEqual(['modal-conflict']);
+      expect(blocks(run('G53 G0 X10\n', d, { start: { ...START, distance: undefined as never } })), d.id).toEqual(['unknown-state']);
+      expect(run('G91\nG90 G53 G0 X10\n', d).report.blocked, d.id).toBe(false);
+    }
     expect(blocks(run('G53 G0 X10\n', EN, { start: { ...START, machine: {} } }))).toEqual(['unknown-state']);
     expect(run('G53 G0 X10\n', EN, { start: { ...START, machine: {} } }).report.entries[0]?.message).toContain('machine position');
   });
@@ -287,6 +292,26 @@ describe('offset arithmetic with non-zero values (signs matter)', () => {
     expect(lengthOf('G28 X6\n', 'G28 X6', start)).toBe(6);
     // After it, the machine is at the stored position: G0 X10 from there does not move.
     expect(lengthOf('G28 X6\nG0 X10\n', 'G0 X10', start)).toBe(0);
+  });
+
+  it('G28/G30 intermediate point: work coordinates on EN, machine coordinates on TG (440.21 absolute override)', () => {
+    const offset = { X: 100, Y: 0, Z: 0, A: 0, B: 0, C: 0 };
+    const start: StartState = {
+      ...START,
+      machine: pos(4),
+      wcsOffsets: { ...START.wcsOffsets, G54: offset },
+      g28: { X: 10, Y: 0, Z: 0, A: 0, B: 0, C: 0 },
+      g30: { X: 10, Y: 0, Z: 0, A: 0, B: 0, C: 0 },
+    };
+    // EN: work X6 is machine X106 (102 mm), then to machine X10 (96 mm).
+    expect(lengthOf('G28 X6\n', 'G28 X6', start, EN)).toBe(198);
+    // TG: machine X6 (2 mm), then to machine X10 (4 mm).
+    expect(lengthOf('G28 X6\n', 'G28 X6', start, TG)).toBe(6);
+    expect(lengthOf('G30 X-196\n', 'G30 X-196', start, TG)).toBe(406);
+    // Either way the machine ends at the stored position.
+    expect(lengthOf('G28 X6\nG53 G0 X10\n', 'G53 G0 X10', start, TG)).toBe(0);
+    // The machine position must be known for the TG intermediate leg.
+    expect(blocks(run('G28 X6\n', TG, { start: { ...start, machine: { Y: 0, Z: 0, A: 0, B: 0, C: 0 } } }))).toEqual(['unknown-state']);
   });
 
   it('a rapid exactly at the ceiling is kept; one just above it is split', () => {

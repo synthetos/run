@@ -312,6 +312,7 @@ describe('job G-code data (ROADMAP P0-10)', () => {
     expect(job.midFileProgramEnd).toBe('block');
     expect(job.optionalStopOff).toBe('send');
     expect(job.programEndStopsOutputs).toBe(true);
+    expect(job.storedMoveIntermediate).toBe('work');
   });
 
   it('TG: no arc distance mode, no tool offset, no M201.3; M48-M51 ignored; a mid-file program end warns', () => {
@@ -324,6 +325,7 @@ describe('job G-code data (ROADMAP P0-10)', () => {
     expect(job.optionalStopOff).toBe('drop');
     // UNVERIFIED (B-M2-1): until the bench closes it, C22 inserts M5 M9 before a final M2/M30.
     expect(job.programEndStopsOutputs).toBe(false);
+    expect(job.storedMoveIntermediate).toBe('machine');
   });
 
   it('read-only dialects have no job data', () => {

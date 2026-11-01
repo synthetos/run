@@ -184,6 +184,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
       midFileProgramEnd: 'block', // a buffered M2/M30 clears an alarm (E135, H35)
       optionalStopOff: 'send', // M1 is skipped unless `os`=1 (@cite EN canonical_machine.c:2112-2115)
       programEndStopsOutputs: true, // spindle and coolant off at program end (@cite EN canonical_machine.c:2003-2043)
+      storedMoveIntermediate: 'work', // the intermediate point uses work coordinates (@cite EN canonical_machine.c:1302-1317)
     },
   },
 

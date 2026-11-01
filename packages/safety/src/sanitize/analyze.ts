@@ -373,6 +373,14 @@ export class JobModel {
     if (g53 && action === undefined && motionMode !== 'G0' && motionMode !== 'G1') {
       findings.push(block('modal-conflict', 'G53 needs G0 or G1 in effect (NIST 3.5.12)'));
     }
+    // TinyG applies G53 only by dropping the work offset: under G91 the values are still distances
+    // (@cite EN canonical_machine.c:501-507; TG canonical_machine.c:448-451), not machine coordinates.
+    if (g53 && action === undefined && distance === 'G91') {
+      findings.push(block('modal-conflict', 'G53 under G91: TinyG moves by these values as distances, not to machine coordinates; use G90'));
+    }
+    if (g53 && action === undefined && distance === null) {
+      findings.push(block('unknown-state', 'the distance mode in force is not known, so this G53 move cannot be modelled; set G90 first'));
+    }
     if (axisWords.length > 0 && action === undefined && !toolSet && motionMode === 'G80') {
       findings.push(block('modal-conflict', 'axis words with G80 in effect are an error (NIST 3.5.15)'));
     }
@@ -600,7 +608,9 @@ export class JobModel {
   /**
    * G28/G30: a rapid to the intermediate point, then a rapid on every axis to
    * the stored position (@cite EN canonical_machine.c:1302-1317). Two moves in
-   * one block cannot be split, so the pair must fit within the ceiling.
+   * one block cannot be split, so the pair must fit within the ceiling. The
+   * intermediate point is in work or machine coordinates as the dialect says
+   * (`storedMoveIntermediate`; 440.21 reads it as machine coordinates).
    */
   #storedMove(
     action: 'G28' | 'G30',
@@ -612,9 +622,17 @@ export class JobModel {
     const stored = action === 'G28' ? this.g28 : this.g30;
     const first: Partial<Record<Axis, number>> = {};
     const unknown: string[] = [];
+    const machineFrame = this.#job.storedMoveIntermediate === 'machine';
     for (const w of axisWords) {
       const a = w.letter as Axis;
-      const d = this.#delta(a, w.value, units, distance);
+      let d: number | null;
+      if (machineFrame && distance === 'G90') {
+        const sc = this.#scale(a, units);
+        const m = this.machine[a];
+        d = sc === null || m === null ? null : w.value * sc - m;
+      } else {
+        d = this.#delta(a, w.value, units, distance);
+      }
       if (d === null) unknown.push(a);
       else first[a] = d;
     }
@@ -683,7 +701,7 @@ export class JobModel {
       const a = w.letter as Axis;
       let d: number | null;
       if (g53) {
-        // G53 values are machine coordinates whatever the distance mode.
+        // G53 values are machine coordinates (G53 under G91 or an unknown distance mode is blocked above).
         const sc = this.#scale(a, units);
         const m = this.machine[a];
         d = sc === null || m === null ? null : w.value * sc - m;

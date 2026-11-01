@@ -73,6 +73,31 @@ preview, analyser and preflight interpret exactly those lines.
     at program end (`_exec_program_finalize`, TG canonical_machine.c:1370-1371).
     SAFETY H48 keeps this UNVERIFIED until the bench closes B-M2-1, so the TG
     data keeps `programEndStopsOutputs: false`.
+14. **G53 under G91 is blocked on every dialect** (P0-10 verify). TinyG
+    implements G53 only by dropping the work offset; under G91 the values
+    are still distances (EN canonical_machine.c:501-507, TG
+    canonical_machine.c:448-451), not machine coordinates. Modelling them as
+    machine coordinates would mis-size the move and, when split, write
+    absolute endpoints that the firmware would run as cumulative distances.
+    G53 with an unknown distance mode is blocked as `unknown-state`.
+15. **G28/G30 intermediate point frame is dialect data**
+    (`job.storedMoveIntermediate`, P0-10 verify). EN reads the axis words as
+    work coordinates (it clears the absolute override for that leg, EN
+    canonical_machine.c:1302-1317); 440.21 sets the absolute override first,
+    so they are machine coordinates (TG canonical_machine.c:907-914).
+16. **TG E088 counts more than PN §9.3 lists** (P0-10 verify). PN lists S,
+    T, M3-M9, G4 and G54-G59. The 440.21 source also queues one planner
+    buffer for each of M0/M1/M60, M2/M30, G92/G92.1/G92.2/G92.3 and the
+    second leg of G28/G30 (TG canonical_machine.c:782-821, :907-914,
+    :1396-1411; EN planner.h:84-89 gives the same tally), so the TG data
+    counts them too. PN §9.3 needs the owner's update.
+17. **TG mid-file M2/M30 still warns**, as SAFETY §4.7 step 8 says, although
+    P0-08 found that a buffered program end clears the soft alarm on 440.21
+    too (`caps.m2ClearsAlarm`). On 440.21 the cycle end at planner drain
+    overwrites the alarm state the same way (TG canonical_machine.c:1388-1393),
+    so blocking the mid-file M30 would not close the hole; the host's FAULT
+    on the alarm report is the mitigation. The owner should confirm this in
+    SAFETY H35 / PN §9.3.
 
 ### Long moves (step 6a)
 

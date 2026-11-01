@@ -1032,7 +1032,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
     },
     {
       "line": 2,
-      "message": "this move cannot be checked against the queued-motion ceiling; not known: the units",
+      "message": "the distance mode in force is not known, so this G53 move cannot be modelled; set G90 first",
       "rule": "unknown-state",
       "severity": "block",
     },

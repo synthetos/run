@@ -158,7 +158,14 @@ export const TINYG_440: Dialect = deepFreeze<Dialect>({
         id: 'e088-queued-per-line',
         kind: 'queuedCommandsPerLine',
         max: 3,
-        counted: ['S', 'T', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'G4', 'G54', 'G55', 'G56', 'G57', 'G58', 'G59'],
+        // PN §9.3 lists S, T, M3-M9, G4 and G54-G59. The 440.21 source also queues one buffer for each of
+        // M0/M1/M60 and M2/M30 (cm_program_stop/_end), G92/G92.1/G92.2/G92.3 (cm_*_origin_offsets) and the
+        // second leg of G28/G30 (@cite TG canonical_machine.c:782-821, :907-914, :1396-1411; EN planner.h:84-89
+        // gives the same per-block tally), so they are counted too.
+        counted: [
+          'S', 'T', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'G4', 'G54', 'G55', 'G56', 'G57', 'G58', 'G59',
+          'M0', 'M1', 'M60', 'M2', 'M30', 'G92', 'G92.1', 'G92.2', 'G92.3', 'G28', 'G30',
+        ],
         reason: 'A block queuing more than the 4-buffer headroom can PANIC (E088): at most 3 queued commands plus motion (PN §9.3).',
       },
       {
@@ -192,6 +199,9 @@ export const TINYG_440: Dialect = deepFreeze<Dialect>({
       midFileProgramEnd: 'warn', // S §4.7 step 8
       optionalStopOff: 'drop', // M1 is M0 on 440.21 and does not pause (@cite TG gcode_parser.c:353-354; PN §9.2)
       programEndStopsOutputs: false, // UNVERIFIED on 440.21 (B-M2-1): C22 also inserts M5 M9 before a final M2/M30
+      // cm_goto_g28_position sets the absolute override before the intermediate traverse, so the G28/G30 axis
+      // words are machine coordinates on 440.21 (@cite TG canonical_machine.c:907-914), unlike EN.
+      storedMoveIntermediate: 'machine',
     },
   },
 

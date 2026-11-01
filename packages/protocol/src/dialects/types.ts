@@ -332,6 +332,14 @@ export interface DialectJobGcode {
    * step 8a). False where that is not confirmed (TG, B-M2-1).
    */
   readonly programEndStopsOutputs: boolean;
+  /**
+   * The frame of the G28/G30 intermediate point (the axis words on the
+   * line). `work`: work coordinates, as for G0 (EN clears the absolute
+   * override for that leg, @cite EN canonical_machine.c:1302-1317).
+   * `machine`: machine coordinates, as under G53 (440.21 sets the absolute
+   * override before the intermediate traverse, @cite TG canonical_machine.c:907-914).
+   */
+  readonly storedMoveIntermediate: 'work' | 'machine';
 }
 
 /**

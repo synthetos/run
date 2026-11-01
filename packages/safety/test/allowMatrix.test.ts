@@ -59,18 +59,20 @@ const portOpen = (s: MatrixSnapshot): boolean => PORT_OPEN_STATES.has(s.base) &&
 
 describe('T-S3: the generated matrix', () => {
   it('classifies every cell: allowed, or denied with a reason, a remedy and a citation', () => {
+    // About a million cells: collect the unclassified ones and assert once. Three expect() calls
+    // per cell made this test take 4-5 s and time out under a loaded `pnpm check`.
     let count = 0;
+    const unclassified: string[] = [];
     for (const release of [CURRENT_RELEASE, OPEN]) {
       for (const { s, intent } of cells()) {
         const d = allowed(s, intent, release);
-        if (!d.allowed) {
-          expect(d.reason.length).toBeGreaterThan(5);
-          expect(d.remedy.length).toBeGreaterThan(5);
-          expect(d.citation.length).toBeGreaterThan(5);
+        if (!d.allowed && !(d.reason.length > 5 && d.remedy.length > 5 && d.citation.length > 5)) {
+          unclassified.push(`${release.name}: ${s.base} [${s.overlays.join('+')}] ${intent}`);
         }
         count++;
       }
     }
+    expect(unclassified.slice(0, 20)).toEqual([]);
     expect(count).toBe(2 * BASE_STATES.length * OVERLAY_SETS.length * 4 * INTENTS.length);
   });
 
@@ -219,16 +221,19 @@ describe('T-S58: account intents are denied in every LIVE state', () => {
 
 describe('Phase 0 release gate', () => {
   it('denies every motion, write and connect intent with "Not available in this release."', () => {
+    const wrong: string[] = [];
+    let gated = 0;
     for (const { s, intent } of cells()) {
       const kind = intentKind(intent);
       if (kind !== 'motion' && kind !== 'write' && kind !== 'port') continue;
+      gated++;
       const d = allowed(s, intent);
-      expect(d.allowed).toBe(false);
-      if (!d.allowed) {
-        expect(d.reason).toBe('Not available in this release.');
-        expect(d.citation).toContain('Phase 0');
+      if (d.allowed || d.reason !== 'Not available in this release.' || !d.citation.includes('Phase 0')) {
+        wrong.push(`${s.base} [${s.overlays.join('+')}] ${intent}`);
       }
     }
+    expect(gated).toBeGreaterThan(0);
+    expect(wrong.slice(0, 20)).toEqual([]);
     expect(CURRENT_RELEASE).toEqual({ name: 'Phase 0', motion: false, write: false, port: false });
   });
 
