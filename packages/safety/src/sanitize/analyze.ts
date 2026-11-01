@@ -25,7 +25,9 @@ import {
   modelArc,
   moveSeconds,
   noVelocityMessage,
+  reportedErrorMm,
   splitArc,
+  stepErrorMm,
   splitLinear,
   travelBoundMm,
   type ArcInput,
@@ -38,6 +40,26 @@ import type { Axis, MotionModel, ReportEntry, RotaryAxis, SanitizeOptions, Sanit
 import { AXES, AXIS_MODE_DISABLED, AXIS_MODE_RADIUS, WCS_CODES } from './types.ts';
 
 type Pos = Record<Axis, number | null>;
+
+/**
+ * Per-axis bound (mm, or degrees) on how far the firmware's float32 value
+ * may be from the model's value of the matching `Pos`. Only meaningful where
+ * that value is known; an unknown value has an infinite bound.
+ */
+type Unc = Record<Axis, number>;
+
+function uncOf(p: Pos, bound: (axis: Axis, value: number) => number): Unc {
+  const u = { X: Infinity, Y: Infinity, Z: Infinity, A: Infinity, B: Infinity, C: Infinity };
+  for (const a of AXES) {
+    const v = p[a];
+    if (v !== null) u[a] = bound(a, v);
+  }
+  return u;
+}
+
+function exactUnc(): Unc {
+  return { X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 };
+}
 
 /** Modal groups: two codes of one group on a line is a modal conflict (EN E152). */
 const GROUP: Readonly<Record<string, string>> = Object.freeze({
@@ -156,6 +178,22 @@ export class JobModel {
   spindle: 'off' | 'cw' | 'ccw';
   mist: boolean;
   flood: boolean;
+  /**
+   * How well the model knows the firmware's positions, offsets and stored
+   * positions (finding: arc uncertainty, after P0-10#1). The board reports
+   * them to three decimals, and every incremental move adds float32 rounding
+   * the double-precision model does not see. `uWork` bounds the error of the
+   * work position as the firmware's arithmetic sees it (its machine position
+   * minus its offset); it is what an absolute arc's end point and a G90.1
+   * centre inherit, and it widens the arc's float32 decision band.
+   */
+  uMachine: Unc;
+  uWork: Unc;
+  uWcs: Record<Wcs, Unc>;
+  uG92: Unc;
+  uTool: Unc;
+  uG28: Unc;
+  uG30: Unc;
 
   constructor(dialect: Dialect, job: DialectJobGcode, options: SanitizeOptions) {
     this.#job = job;
@@ -185,11 +223,64 @@ export class JobModel {
     this.spindle = s.spindle ?? 'off';
     this.mist = s.mist ?? false;
     this.flood = s.flood ?? false;
+    // Reported values: `mpo` is always mm (@cite EN canonical_machine.c:353-361); offsets and stored
+    // positions are printed in the units in force where the board converts them (F_CONVERT, @cite EN
+    // config_app.c:814-827 `prep_float`), so an inch board's three decimals are 0.0127 mm apart, and
+    // unknown units are taken as inches.
+    const offsetUnit = (axis: Axis): number =>
+      (ROTARY.has(axis) && !job.rotaryOffsetsUseUnits) || s.units === 'G21' ? 1 : INCH_MM;
+    const reported = (p: Pos): Unc => uncOf(p, (a, v) => reportedErrorMm(v, offsetUnit(a)));
+    this.uMachine = uncOf(this.machine, (_a, v) => reportedErrorMm(v, 1));
+    this.uWcs = { G54: exactUnc(), G55: exactUnc(), G56: exactUnc(), G57: exactUnc(), G58: exactUnc(), G59: exactUnc() };
+    for (const w of WCS_CODES) this.uWcs[w] = reported(this.wcsOffsets[w]);
+    this.uG92 = reported(this.g92);
+    this.uTool = this.#hasToolOffset ? reported(this.toolOffset) : exactUnc();
+    this.uG28 = reported(this.g28);
+    this.uG30 = reported(this.g30);
     this.work = emptyPos();
+    this.uWork = exactUnc(); // every axis is set just below
     for (const a of AXES) {
       const m = this.machine[a];
       const t = this.totalOffset(a);
       this.work[a] = m !== null && t !== null ? m - t : null;
+      this.uWork[a] = this.uMachine[a] + this.#offsetUnc(a);
+    }
+  }
+
+  /**
+   * Bound on the error of the work offset in force on an axis (`totalOffset`):
+   * the sum of its parts' bounds. Infinite when the offset is unknown.
+   */
+  #offsetUnc(axis: Axis): number {
+    if (this.wcs === null || this.g92Active === null) return Infinity;
+    return this.uWcs[this.wcs][axis] + (this.g92Active ? this.uG92[axis] : 0) + (ROTARY.has(axis) ? 0 : this.uTool[axis]);
+  }
+
+  /**
+   * The position bounds after the firmware moved `axis` (its model positions
+   * already updated):
+   * - `work`: to an absolute work target. The firmware's position is the
+   *   word plus its offset, so the work position is the word up to one sum's
+   *   rounding; the machine position inherits the offset's uncertainty.
+   * - `machine`: to a machine target known to `targetUnc` (G53, a stored
+   *   position): the work position inherits the offset's uncertainty.
+   * - `incremental`: by a distance added to the firmware's own position: one
+   *   more rounding on top of what was already uncertain (float32
+   *   accumulation over a run of G91 moves).
+   */
+  #settle(axis: Axis, kind: 'work' | 'machine' | 'incremental', delta: number, targetUnc = 0): void {
+    const m = this.machine[axis];
+    const off = this.totalOffset(axis);
+    const e = stepErrorMm(m ?? 0, delta, off ?? 0);
+    if (kind === 'work') {
+      this.uWork[axis] = e;
+      this.uMachine[axis] = this.#offsetUnc(axis) + e;
+    } else if (kind === 'machine') {
+      this.uMachine[axis] = targetUnc + e;
+      this.uWork[axis] = this.uMachine[axis] + this.#offsetUnc(axis);
+    } else {
+      this.uMachine[axis] += e;
+      this.uWork[axis] += e;
     }
   }
 
@@ -229,6 +320,18 @@ export class JobModel {
     return t === null ? null : value + t;
   }
 
+  /**
+   * Sets the work position after G92 or G10 L20 made it read `value`: the
+   * firmware derived the offset from its own position, so the work position
+   * is `value` up to one sum's rounding (plus the stored tool offset's bound on
+   * a rotary axis, see `#workAfterSet`).
+   */
+  #setWork(axis: Axis, value: number | null): void {
+    const w = this.#workAfterSet(axis, value);
+    this.work[axis] = w;
+    this.uWork[axis] = w === null ? Infinity : stepErrorMm(this.machine[axis] ?? 0, w) + (ROTARY.has(axis) ? this.uTool[axis] : 0);
+  }
+
   /** The G92 part of the work offset on an axis, or null when it is not known whether G92 applies. */
   #g92Part(axis: Axis): number | null {
     if (this.g92Active === null) return null;
@@ -240,14 +343,20 @@ export class JobModel {
    * part; null when unknown): the machine did not move, so the work position
    * moves by the change. Where the machine position and the new offset are
    * both known, the work position is recomputed from them instead.
+   * `changeUnc` bounds the error of the change (the old and new parts' bounds).
    */
-  #shift(axis: Axis, change: number | null): void {
+  #shift(axis: Axis, change: number | null, changeUnc: number): void {
     const m = this.machine[axis];
     const t = this.totalOffset(axis);
     const w = this.work[axis];
-    if (m !== null && t !== null) this.work[axis] = m - t;
-    else if (change === 0) return;
-    else this.work[axis] = w !== null && change !== null ? w + change : null;
+    if (m !== null && t !== null) {
+      this.work[axis] = m - t;
+      this.uWork[axis] = this.uMachine[axis] + this.#offsetUnc(axis);
+    } else if (change === 0 && changeUnc === 0) return;
+    else {
+      this.work[axis] = w !== null && change !== null ? w + change : null;
+      this.uWork[axis] += changeUnc;
+    }
   }
 
   /** Selects a coordinate system (G54..G59, or the default at program end). */
@@ -258,19 +367,28 @@ export class JobModel {
     for (const a of AXES) {
       const before = prev === null ? null : this.wcsOffsets[prev][a];
       const after = next === null ? null : this.wcsOffsets[next][a];
-      this.#shift(a, before === null || after === null ? null : before - after);
+      const unc = (prev === null ? Infinity : this.uWcs[prev][a]) + (next === null ? Infinity : this.uWcs[next][a]);
+      this.#shift(a, before === null || after === null ? null : before - after, unc);
     }
   }
 
-  /** Sets whether G92 offsets apply, and to what (null keeps them). */
-  #setG92(active: boolean, offsets: Pos | null): void {
+  /** The bound on the G92 part of the work offset on an axis. */
+  #g92PartUnc(axis: Axis): number {
+    if (this.g92Active === null) return Infinity;
+    return this.g92Active ? this.uG92[axis] : 0;
+  }
+
+  /** Sets whether G92 offsets apply, and to what with which bounds (null keeps them). */
+  #setG92(active: boolean, offsets: Pos | null, unc: Unc | null): void {
     const before = AXES.map((a) => this.#g92Part(a));
+    const beforeUnc = AXES.map((a) => this.#g92PartUnc(a));
     this.g92Active = active;
     if (offsets !== null) this.g92 = offsets;
+    if (unc !== null) this.uG92 = unc;
     AXES.forEach((a, i) => {
       const b = before[i] as number | null;
       const after = this.#g92Part(a);
-      this.#shift(a, b === null || after === null ? null : b - after);
+      this.#shift(a, b === null || after === null ? null : b - after, (beforeUnc[i] as number) + this.#g92PartUnc(a));
     });
   }
 
@@ -361,7 +479,7 @@ export class JobModel {
     return null;
   }
 
-  /** Moves by known deltas: both positions follow, unknowns stay unknown. */
+  /** Moves by known deltas: both positions follow, unknowns stay unknown. The caller settles the bounds (`#settle`). */
   #moveBy(delta: Readonly<Partial<Record<Axis, number>>>): void {
     for (const a of AXES) {
       const d = delta[a];
@@ -378,6 +496,8 @@ export class JobModel {
     for (const w of axisWords) {
       this.work[w.letter as Axis] = null;
       this.machine[w.letter as Axis] = null;
+      this.uWork[w.letter as Axis] = Infinity;
+      this.uMachine[w.letter as Axis] = Infinity;
     }
   }
 
@@ -387,20 +507,23 @@ export class JobModel {
       if (ROTARY.has(a)) continue;
       this.work[a] = null;
       this.machine[a] = null;
+      this.uWork[a] = Infinity;
+      this.uMachine[a] = Infinity;
     }
   }
 
   /**
    * The largest absolute machine coordinate, work coordinate or work offset
-   * on these axes (mm), or null when a machine coordinate is unknown. It sizes
-   * the float32 rounding band of an arc (geometry.ts `positionErrorMm`).
+   * on these axes (mm), widened by how uncertain the machine coordinate is,
+   * or null when a machine coordinate is unknown. It sizes the float32
+   * rounding band of an arc (geometry.ts `positionErrorMm`).
    */
   #planeMagnitude(axes: readonly Axis[]): number | null {
     let max = 0;
     for (const a of axes) {
       const m = this.machine[a];
       if (m === null) return null;
-      max = Math.max(max, Math.abs(m), Math.abs(this.work[a] ?? 0), Math.abs(this.totalOffset(a) ?? 0));
+      max = Math.max(max, Math.abs(m) + this.uMachine[a], Math.abs(this.work[a] ?? 0), Math.abs(this.totalOffset(a) ?? 0));
     }
     return max;
   }
@@ -422,7 +545,7 @@ export class JobModel {
     this.distance = d.distance === 'G90' ? 'G90' : null;
     this.plane = d.plane ?? null;
     this.motionMode = 'G80';
-    this.#setG92(false, zeroPos());
+    this.#setG92(false, zeroPos(), exactUnc());
     this.#selectWcs(d.wcs ?? null);
     if (this.#job.programEndStopsOutputs) {
       this.spindle = 'off';
@@ -585,17 +708,21 @@ export class JobModel {
         const a = w.letter as Axis;
         const sc = this.#offsetScale(a, units);
         const before = this.#appliedTool(a);
+        const beforeUnc = ROTARY.has(a) ? 0 : this.uTool[a];
         const after = sc === null ? null : w.value * sc;
         this.toolOffset[a] = after;
+        this.uTool[a] = after === null ? Infinity : stepErrorMm(after);
         const applied = this.#appliedTool(a);
-        this.#shift(a, before === null || applied === null ? null : before - applied);
+        this.#shift(a, before === null || applied === null ? null : before - applied, beforeUnc + (ROTARY.has(a) ? 0 : this.uTool[a]));
       }
     }
     if (toolCancel) {
       for (const a of AXES) {
         const before = this.#appliedTool(a);
+        const beforeUnc = ROTARY.has(a) ? 0 : this.uTool[a];
         this.toolOffset[a] = 0;
-        this.#shift(a, before);
+        this.uTool[a] = 0;
+        this.#shift(a, before, beforeUnc);
       }
     }
     this.#selectWcs(wcs);
@@ -703,24 +830,33 @@ export class JobModel {
           const value = sc === null ? null : w.value * sc;
           if (!l20) {
             const before = this.wcsOffsets[target][a];
+            const beforeUnc = this.uWcs[target][a];
             this.wcsOffsets[target][a] = value;
-            if (this.wcs === target) this.#shift(a, before === null || value === null ? null : before - value);
+            this.uWcs[target][a] = value === null ? Infinity : stepErrorMm(value);
+            if (this.wcs === target) this.#shift(a, before === null || value === null ? null : before - value, beforeUnc + this.uWcs[target][a]);
           } else {
             // L20: the offset that makes the current position read `value` in that system (@cite EN canonical_machine.c:990-997).
+            // It inherits the machine position's uncertainty; the work position then reads `value` itself.
             const m = this.machine[a];
             const g = this.#g92Part(a);
             const t = this.toolOffset[a];
-            this.wcsOffsets[target][a] = m === null || value === null || g === null || t === null ? null : m - value - g - t;
-            if (this.wcs === target) this.work[a] = this.#workAfterSet(a, value);
+            const known = m !== null && value !== null && g !== null && t !== null;
+            this.wcsOffsets[target][a] = known ? m - value - g - t : null;
+            this.uWcs[target][a] = known ? this.uMachine[a] + this.#g92PartUnc(a) + this.uTool[a] + stepErrorMm(m, value, g, t) : Infinity;
+            if (this.wcs === target) this.#setWork(a, value);
           }
           // With the active system unknown, it may be the one that changed.
-          if (this.wcs === null) this.work[a] = null;
+          if (this.wcs === null) {
+            this.work[a] = null;
+            this.uWork[a] = Infinity;
+          }
         }
         return null;
       }
       case 'G92': {
         // Work position := value on the named axes; offsets applied on every axis (@cite EN canonical_machine.c:1120-1134).
         const offsets = { ...this.g92 };
+        const unc = { ...this.uG92 };
         for (const w of axisWords) {
           const a = w.letter as Axis;
           const sc = this.#offsetScale(a, units);
@@ -728,30 +864,35 @@ export class JobModel {
           const m = this.machine[a];
           const wo = this.wcs === null ? null : this.wcsOffsets[this.wcs][a];
           const t = this.toolOffset[a];
-          offsets[a] = m === null || wo === null || t === null || value === null ? null : m - wo - t - value;
+          const known = m !== null && wo !== null && t !== null && value !== null;
+          offsets[a] = known ? m - wo - t - value : null;
+          // The offset inherits the machine position's uncertainty; the work position then reads `value` itself.
+          unc[a] = known ? this.uMachine[a] + this.uWcs[this.wcs as Wcs][a] + this.uTool[a] + stepErrorMm(m, wo, t, value) : Infinity;
         }
-        this.#setG92(true, offsets);
+        this.#setG92(true, offsets, unc);
         for (const w of axisWords) {
           const a = w.letter as Axis;
           const sc = this.#offsetScale(a, units);
-          this.work[a] = this.#workAfterSet(a, sc === null ? null : w.value * sc);
+          this.#setWork(a, sc === null ? null : w.value * sc);
         }
         return null;
       }
       case 'G92.1':
-        this.#setG92(false, zeroPos());
+        this.#setG92(false, zeroPos(), exactUnc());
         return null;
       case 'G92.2':
-        this.#setG92(false, null);
+        this.#setG92(false, null, null);
         return null;
       case 'G92.3':
-        this.#setG92(true, null);
+        this.#setG92(true, null, null);
         return null;
       case 'G28.1':
         this.g28 = { ...this.machine };
+        this.uG28 = { ...this.uMachine };
         return null;
       case 'G30.1':
         this.g30 = { ...this.machine };
+        this.uG30 = { ...this.uMachine };
         return null;
       case 'G28':
       case 'G30':
@@ -777,6 +918,7 @@ export class JobModel {
     findings: Finding[],
   ): LineAnalysis['motion'] {
     const stored = action === 'G28' ? this.g28 : this.g30;
+    const storedUnc = action === 'G28' ? this.uG28 : this.uG30;
     const first: Partial<Record<Axis, number>> = {};
     const unknown: string[] = [];
     const machineFrame = this.#job.storedMoveIntermediate === 'machine';
@@ -805,7 +947,8 @@ export class JobModel {
     }
     if (unknown.length > 0) {
       this.machine = { ...stored };
-      for (const a of AXES) this.#shift(a, null);
+      this.uMachine = { ...storedUnc };
+      for (const a of AXES) this.#shift(a, null, Infinity);
       findings.push(block('unknown-state', `${action} cannot be modelled: the position or stored position of ${unique(unknown).join(', ')} is not known`));
       return null;
     }
@@ -816,6 +959,8 @@ export class JobModel {
     });
     this.#moveBy(first);
     this.#moveBy(second);
+    // The second leg ends at the stored position on every axis, which is only known to its reported precision.
+    for (const a of AXES) this.#settle(a, 'machine', second[a] as number, storedUnc[a]);
     let seconds = 0;
     for (const leg of legs) {
       if (leg.d.kind !== 'ok') {
@@ -882,6 +1027,7 @@ export class JobModel {
     const start = { ...this.work };
     const startMachine = { ...this.machine };
     this.#moveBy(delta);
+    for (const w of axisWords) this.#settle(w.letter as Axis, g53 ? 'machine' : distance === 'G91' ? 'incremental' : 'work', delta[w.letter as Axis] as number);
     if (d.kind !== 'ok') {
       findings.push(block('no-velocity-limit', noVelocityMessage(d)));
       return null;
@@ -976,6 +1122,13 @@ export class JobModel {
       return forget();
     }
     const o = (letter: string): number => (params.get(letter)?.value ?? 0) * s;
+    // How far the firmware's start-relative end point and centre can be from the model's: an absolute end point
+    // word and a G90.1 centre are measured from the work start, which is only known to `uWork`; an incremental
+    // word or offset is added to the firmware's own position and inherits nothing.
+    let startUncertainty = 0;
+    for (const a of [p.a0, p.a1]) {
+      if ((absolute && params.has(a)) || absoluteCentre) startUncertainty = Math.max(startUncertainty, this.uWork[a]);
+    }
     const input: ArcInput = {
       clockwise,
       d0: d0 as number,
@@ -989,6 +1142,7 @@ export class JobModel {
       rotations: params.get('P')?.value ?? null,
       coincidence: this.#job.arcCoincidence,
       magnitudeMm: magnitude,
+      startUncertaintyMm: startUncertainty,
     };
     const model = modelArc(input);
     if (model.kind === 'ambiguous') {
@@ -1005,6 +1159,10 @@ export class JobModel {
     const d = moveSeconds(moving, model.arc.lengthMm, feed, this.#motion);
     const start = { ...this.work };
     this.#moveBy({ [p.a0]: input.d0, [p.a1]: input.d1, [p.lin]: input.dLin });
+    // An omitted axis ends exactly where it was (the firmware's target starts as its position).
+    for (const [a, delta] of [[p.a0, input.d0], [p.a1, input.d1], [p.lin, input.dLin]] as const) {
+      if (params.has(a)) this.#settle(a, absolute ? 'work' : 'incremental', delta);
+    }
     if (d.kind !== 'ok') {
       findings.push(block('no-velocity-limit', noVelocityMessage(d)));
       return null;

@@ -375,11 +375,13 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     id: 'EN-AXIS-MODES',
     model: EN,
     summary:
-      'Axis modes in cm_set_model_target(): a DISABLED axis ignores its word; X/Y/Z STANDARD or INHIBITED are lengths; A/B/C STANDARD or INHIBITED are degrees; A/B/C RADIUS take a length (G20 x 25.4) and convert it to degrees on the axis radius (v*360/(2*pi*ra)), in G90 plus the offset or in G91 added. cm_set_am refuses radius mode on X/Y/Z (109). Defaults: X/Y/Z standard, A radius with ra = 1.25/(2*pi), B and C disabled.',
+      'Axis modes in cm_set_model_target(): a DISABLED axis ignores its word; X/Y/Z STANDARD or INHIBITED are lengths; A/B/C STANDARD or INHIBITED are degrees; A/B/C RADIUS take a length (G20 x 25.4) and convert it to degrees on the axis radius (v*360/(2*pi*ra)), in G90 plus the offset or in G91 added. cm_set_am refuses radius mode on X/Y/Z (109). Defaults: X/Y/Z standard, A radius with ra = 1.25/(2*pi), B and C disabled. Targets are float32: the word, its unit conversion and its sum with the offset or the start each round to float, and cm_finalize_move() keeps the target as the next start, so a run of G91 moves accumulates float32 rounding (the model folds the coordinate, G92 and tool offsets into one float before the sum).',
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'canonical_machine.c', lines: [482, 488], quote: '360 / (2 * M_PI * cm.a[axis].radius)' },
       { src: 'EN', file: 'canonical_machine.c', lines: [490, 523], quote: 'cm.a[axis].axis_mode == AXIS_DISABLED' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [490, 523], quote: 'cm.gm.target[axis] += _to_millimeters(target[axis]);' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [413, 414], quote: 'copy_vector(cm.gmx.position, cm.gm.target);' },
       { src: 'EN', file: 'canonical_machine.c', lines: [2510, 2523], quote: 'AXIS_MODE_MAX_LINEAR' },
       { src: 'EN', file: 'canonical_machine.h', lines: [286, 293], quote: 'AXIS_RADIUS' },
       { src: 'EN', file: 'settings/settings_default.h', lines: [201, 209], quote: 'A_AXIS_MODE 			AXIS_RADIUS' },
@@ -701,11 +703,13 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     id: 'TG-AXIS-MODES',
     model: TG,
     summary:
-      'Axis modes in cm_set_model_target(): a DISABLED axis ignores its word; X/Y/Z STANDARD or INHIBITED are lengths; A/B/C STANDARD or INHIBITED are degrees; A/B/C RADIUS take a length (G20 x 25.4) and convert it to degrees on the axis radius, in G90 plus the offset or in G91 added. cm_set_am refuses radius mode on X/Y/Z (109). Defaults: X/Y/Z standard, A radius with ra = 1.25/(2*3.14159628), B and C disabled.',
+      'Axis modes in cm_set_model_target(): a DISABLED axis ignores its word; X/Y/Z STANDARD or INHIBITED are lengths; A/B/C STANDARD or INHIBITED are degrees; A/B/C RADIUS take a length (G20 x 25.4) and convert it to degrees on the axis radius, in G90 plus the offset or in G91 added. cm_set_am refuses radius mode on X/Y/Z (109). Defaults: X/Y/Z standard, A radius with ra = 1.25/(2*3.14159628), B and C disabled. Targets are float32: the word, its unit conversion and its sum with the offset or the start each round to float, and cm_finalize_move() keeps the target as the next start, so a run of G91 moves accumulates float32 rounding (the model folds the coordinate, G92 and tool offsets into one float before the sum).',
     status: 'verified-source',
     cites: [
       { src: 'TG', file: 'canonical_machine.c', lines: [430, 436], quote: '360 / (2 * M_PI * cm.a[axis].radius)' },
       { src: 'TG', file: 'canonical_machine.c', lines: [437, 465], quote: 'cm.a[axis].axis_mode == AXIS_DISABLED' },
+      { src: 'TG', file: 'canonical_machine.c', lines: [437, 465], quote: 'cm.gm.target[axis] += _to_millimeters(target[axis]);' },
+      { src: 'TG', file: 'canonical_machine.c', lines: [368, 369], quote: 'copy_vector(cm.gmx.position, cm.gm.target);' },
       { src: 'TG', file: 'canonical_machine.c', lines: [1723, 1732], quote: 'AXIS_MODE_MAX_LINEAR' },
       { src: 'TG', file: 'canonical_machine.h', lines: [510, 517], quote: 'AXIS_RADIUS' },
       { src: 'TG', file: 'settings/settings_default.h', lines: [148, 156], quote: 'A_AXIS_MODE 			AXIS_RADIUS' },

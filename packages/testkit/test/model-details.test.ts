@@ -81,7 +81,7 @@ describe('edge-next G-code word rules', () => {
     sim.host.sendLine('G91');
     sim.host.sendLine('G1 X1 F30');
     sim.clock.advance(3000);
-    expect(sim.device.snapshot().position[0]).toBeCloseTo(25.4, 9);
+    expect(sim.device.snapshot().position[0]).toBe(Math.fround(25.4)); // float32 target, as on the board
     expect(get(sim, 'posx')).toBe(1);
     expect(get(sim, 'unit')).toBe(0);
     expect(get(sim, 'dist')).toBe(1);
@@ -356,7 +356,7 @@ describe('440.21 details', () => {
     sim.host.sendLine('N7 G1 X1 F30 L20');
     sim.clock.advance(3000);
     expect(sim.device.snapshot().coolant).toEqual({ mist: false, flood: false });
-    expect(sim.device.snapshot().position[0]).toBeCloseTo(25.4, 9);
+    expect(sim.device.snapshot().position[0]).toBe(Math.fround(25.4)); // float32 target, as on the board
     expect(get(sim, 'line')).toBe(7);
     expect(get(sim, 'posx')).toBe(1);
   });

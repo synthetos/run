@@ -43,9 +43,18 @@ export interface TargetContext {
  *   degrees on the axis radius: `_to_millimeters(v) * 360 / (2 * M_PI * radius)`.
  * INHIBITED axes are computed like STANDARD; whether their motor turns is
  * below this model (positions are what the board reports).
+ *
+ * The arithmetic is float32, as on the board (float32.ts): the word, its unit
+ * conversion and its sum with the offset or the start are each a float, and
+ * the target becomes the next start (@cite EN canonical_machine.c:490-511,
+ * :413-414 `cm_finalize_move`; TG canonical_machine.c:430-498). A run of G91
+ * moves therefore accumulates float32 rounding that a double-precision sum
+ * does not show (the arc-uncertainty finding after P0-10#1). The model folds
+ * the coordinate, G92 and tool offsets into one float before the sum; the
+ * board adds the tool offset in a second rounding.
  */
 export function modelTarget(words: readonly (number | undefined)[], ctx: TargetContext): Vec {
-  const toMm = (v: number): number => (ctx.units === 'in' ? v * MM_PER_INCH : v);
+  const toMm = (v: number): number => (ctx.units === 'in' ? f32(f32(v) * MM_PER_INCH) : f32(v));
   return ctx.position.map((p, axis) => {
     const v = words[axis];
     const name = AXES[axis] as string;
@@ -56,14 +65,14 @@ export function modelTarget(words: readonly (number | undefined)[], ctx: TargetC
       if (mode !== AXIS_STANDARD && mode !== AXIS_INHIBITED) return p;
       value = toMm(v);
     } else if (mode === AXIS_STANDARD || mode === AXIS_INHIBITED) {
-      value = v;
+      value = f32(v);
     } else {
       const radius = ctx.num(`${name}ra`);
       // 360 / (2*pi*0) is inf on the board; what the planner then does is not modelled.
       if (!(radius > 0) || !Number.isFinite(radius)) throw new ModelGapError(`${ctx.model} ${name.toUpperCase()} radius mode with ${name}ra=${radius}`);
-      value = (toMm(v) * 360) / (2 * Math.PI * radius);
+      value = f32((toMm(v) * 360) / (2 * Math.PI * radius));
     }
-    return ctx.distance === 'abs' ? value + (ctx.offset[axis] as number) : p + value;
+    return ctx.distance === 'abs' ? f32(value + f32(ctx.offset[axis] as number)) : f32(p + value);
   }) as Vec;
 }
 

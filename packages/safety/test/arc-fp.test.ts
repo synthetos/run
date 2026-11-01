@@ -46,10 +46,19 @@ function words(body: string): Map<string, number> {
   return new Map(lexed.words.filter((w) => w.letter !== 'G' && w.letter !== 'M').map((w) => [w.letter, w.value]));
 }
 
+/**
+ * The board reports its position to three decimals, so the sanitiser knows
+ * the start only after the job has commanded it. These cases position the
+ * plane axes first (`G0 X0 Y0`, an absolute move whose end the firmware stores
+ * as written); without that line the same arcs are refused as ambiguous (see
+ * "arc uncertainty" below).
+ */
+const POSITIONED = 'G0 X0 Y0\n';
+
 describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
-  it('EN: G3/G2 X0.000001 Y0 I0 J10 is a full circle (Codex repro), split, with a true bound', () => {
+  it('EN: G3/G2 X0.000001 Y0 I0 J10 is a full circle (P0-10#1 reproduction), split, with a true bound', () => {
     for (const code of ['G3', 'G2']) {
-      const r = run(`${code} X0.000001 Y0 I0 J10 F100\n`, EN);
+      const r = run(`${POSITIONED}${code} X0.000001 Y0 I0 J10 F100\n`, EN);
       expect(r.report.blocked, code).toBe(false);
       expect(r.report.splits).toHaveLength(1);
       const bound = overrunBound(r.lines).mmUpperBound;
@@ -62,13 +71,13 @@ describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', (
   });
 
   it('EN: away from the branch cut a 0.000001 mm end point is still a full circle', () => {
-    const r = run('G2 X0 Y-0.000001 I-10 J0 F100\n', EN);
+    const r = run(`${POSITIONED}G2 X0 Y-0.000001 I-10 J0 F100\n`, EN);
     expect(r.report.blocked).toBe(false);
     expect(overrunBound(r.lines).mmUpperBound).toBeGreaterThan(CIRCLE_R10 - 0.01);
   });
 
   it('EN: P turns are added to the coincident full circle', () => {
-    const r = run('G2 X0 Y-0.000001 I-10 J0 P1 F100\n', EN);
+    const r = run(`${POSITIONED}G2 X0 Y-0.000001 I-10 J0 P1 F100\n`, EN);
     expect(r.report.blocked).toBe(false);
     expect(overrunBound(r.lines).mmUpperBound).toBeGreaterThan(2 * CIRCLE_R10 - 0.01);
   });
@@ -86,10 +95,10 @@ describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', (
   });
 
   it('EN: a 0.0002 mm end point with real angular travel stays a tiny arc (contrast)', () => {
-    const r = run('G3 X0.0002 Y0 I0 J10 F100\n', EN);
+    const r = run(`${POSITIONED}G3 X0.0002 Y0 I0 J10 F100\n`, EN);
     expect(r.report.blocked).toBe(false);
     expect(overrunBound(r.lines).mmUpperBound).toBeLessThan(0.001);
-    expect(bodies(r)).toEqual(['G3 X0.0002 Y0 I0 J10 F100']);
+    expect(bodies(r)).toEqual(['G0 X0 Y0', 'G3 X0.0002 Y0 I0 J10 F100']);
   });
 
   it('TG: equal angles are zero travel: a 0.000001 mm end point is refused, not run as an arc', () => {
@@ -97,11 +106,15 @@ describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', (
       const r = run(`${code} X0 Y-0.000001 I-10 J0 F100\n`, TG);
       expect(r.report.blocked, code).toBe(true);
       expect(r.lines.filter((l) => l.motion !== null && l.motion.plannerLength > 0)).toHaveLength(0);
+      // With the start commanded, the firmware's zero-travel refusal is predicted as such.
+      const positioned = run(`${POSITIONED}${code} X0 Y-0.000001 I-10 J0 F100\n`, TG);
+      expect(blocks(positioned), code).toEqual(['malformed']);
+      expect(positioned.report.entries[0]?.message, code).toContain('no angular travel');
     }
   });
 
   it('TG: equal angles with P1 travel exactly one turn (EN runs two: full circle plus P1)', () => {
-    const tg = run('G2 X0 Y-0.000001 I-10 J0 P1 F100\n', TG);
+    const tg = run(`${POSITIONED}G2 X0 Y-0.000001 I-10 J0 P1 F100\n`, TG);
     expect(tg.report.blocked).toBe(false);
     const b = overrunBound(tg.lines).mmUpperBound;
     expect(b).toBeGreaterThan(CIRCLE_R10 - 0.01);
@@ -209,5 +222,117 @@ describe('P0-10 #2: full circles and split arcs never invent absolute coordinate
     }
     expect(split.at(-1)?.body).toMatch(/^G2 X10 Y0 Z-2 I/);
     expect(overrunBound(r.lines).mmUpperBound).toBeCloseTo(Math.hypot(CIRCLE_R10, 2), 3);
+  });
+});
+
+/**
+ * Arc uncertainty (found by the verification of the P0-10#1 fix): the board
+ * reports its machine position, offsets and stored positions to three
+ * decimals (EN ead63997 config_app.c:165-177 `mpo` precision 3, :387-449
+ * `g54x`..`g30c` precision 3; TG d041839 config_app.c:131-143, :392-454), so
+ * a start that reads 0.000 may really be 0.0004 mm away, fifty times fp_EQ's
+ * EPSILON, and incremental moves add float32 rounding. Every coincidence and
+ * branch-cut decision is widened by that uncertainty; inside the widened band
+ * the arc is refused, never given the short path. The firmware-model
+ * cross-check of these cases is in arc-models.test.ts.
+ */
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+  const PARKED_ARCS = ['G3 X0.0004 Y0 I0 J10 F600', 'G2 X0 Y0.0004 I10 J0 F600'];
+
+  it('reproduction: parked at 0.0004 (reported 0), the arc whose end is the true start is refused on both dialects', () => {
+    for (const d of [EN, TG]) {
+      for (const body of PARKED_ARCS) {
+        const r = run(`${body}\n`, d);
+        expect(blocks(r), `${d.id} ${body}`).toEqual(['arc-ambiguous']);
+        expect(r.lines.filter((l) => l.motion !== null), `${d.id} ${body}`).toHaveLength(0);
+      }
+    }
+  });
+
+  it('once the job commands the plane start, the same arcs are decided again (tiny arcs on EN)', () => {
+    for (const body of PARKED_ARCS) {
+      const r = run(`G0 X0 Y0\n${body}\n`, EN);
+      expect(r.report.blocked, body).toBe(false);
+      expect(overrunBound(r.lines).mmUpperBound, body).toBeLessThan(0.001);
+    }
+  });
+
+  it('only the named axis is positioned, and an omitted arc axis ends exactly where it was', () => {
+    // G0 X0 leaves Y reported: an arc ending near the Y start is still refused.
+    expect(blocks(run('G0 X0\nG2 Y0.0004 I10 J0 F600\n', EN))).toEqual(['arc-ambiguous']);
+    // G0 Y0 positions Y; X is omitted from the arc, so the firmware keeps its own X: decided.
+    expect(run('G0 Y0\nG2 Y0.0004 I10 J0 F600\n', EN).report.blocked).toBe(false);
+    // Writing X0 on the arc measures it from the reported X again: refused.
+    expect(blocks(run('G0 Y0\nG2 X0 Y0.0004 I10 J0 F600\n', EN))).toEqual(['arc-ambiguous']);
+  });
+
+  it('incremental arcs are added to the firmware position and need no absolute start: G91 G3 X0.000001 is a full circle', () => {
+    const r = run('G91 G3 X0.000001 Y0 I0 J10 F100\n', EN);
+    expect(r.report.blocked).toBe(false);
+    expect(overrunBound(r.lines).mmUpperBound).toBeGreaterThan(CIRCLE_R10 - 0.01);
+  });
+
+  it('a G90.1 centre is measured from the uncertain start: refused even when the end point is incremental', () => {
+    expect(blocks(run('G90.1 G91 G3 X0.000001 Y0 I0 J10 F100\n', EN))).toEqual(['arc-ambiguous']);
+    expect(run('G0 X0 Y0\nG90.1 G91 G3 X0.000001 Y0 I0 J10 F100\n', EN).report.blocked).toBe(false);
+  });
+
+  it('R format: the chord must clear the start uncertainty too', () => {
+    for (const d of [EN, TG]) {
+      // 100 position errors of a reported start (~0.0005 mm) is ~0.05 mm.
+      expect(blocks(run('G2 X0.03 Y0 R10 F100\n', d)), d.id).toEqual(['arc-ambiguous']);
+      expect(run('G0 X0 Y0\nG2 X0.03 Y0 R10 F100\n', d).report.blocked, d.id).toBe(false);
+    }
+  });
+
+  it('work offsets are reported to three decimals too: a G54 or G55 offset of 0.000 may be 0.0004', () => {
+    for (const d of [EN, TG]) {
+      // The machine position and the offset are both reported; each widens the band.
+      expect(blocks(run('G3 X0.0004 Y0 I0 J10 F600\n', d)), d.id).toEqual(['arc-ambiguous']);
+      expect(blocks(run('G55\nG3 X0.0004 Y0 I0 J10 F600\n', d)), d.id).toEqual(['arc-ambiguous']);
+      // After switching systems the position is re-derived from the machine position and the new offset.
+      expect(blocks(run('G0 X0 Y0\nG55\nG3 X0.0004 Y0 I0 J10 F600\n', d)), d.id).toEqual(['arc-ambiguous']);
+      expect(run('G55\nG0 X0 Y0\nG3 X0.0004 Y0 I0 J10 F600\n', d).report.blocked, d.id).toBe(false);
+    }
+  });
+
+  it('an inch board prints offsets in inches: three decimals are 0.0127 mm apart', () => {
+    const inch: StartState = { ...START, units: 'G20' };
+    // 0.0004 in = 0.01016 mm: clear of a mm board's band, inside an inch board's.
+    expect(run('G21\nG3 X0.01016 Y0 I0 J10 F600\n', EN).report.blocked).toBe(false);
+    expect(blocks(run('G3 X0.0004 Y0 I0 J0.3937 F20\n', EN, { start: inch }))).toEqual(['arc-ambiguous']);
+    // Unknown units at the time of the report are taken as inches.
+    expect(blocks(run('G21\nG3 X0.01016 Y0 I0 J10 F600\n', EN, { start: without('units') }))).toEqual(['arc-ambiguous']);
+  });
+
+  it('G92 and G10 L20 make the work position read the written value: the next arc is decided again', () => {
+    for (const d of [EN, TG]) {
+      const g92 = run('G92 X0 Y0\nG3 X0.000001 Y0 I0 J10 F100\n', d);
+      expect(blocks(g92), d.id).toEqual(d === EN ? [] : ['arc-ambiguous']);
+    }
+    expect(run('G10 L20 P1 X0 Y0\nG3 X0.000001 Y0 I0 J10 F100\n', EN).report.blocked).toBe(false);
+    // G10 L2 writes the offset itself; the machine position is still only reported.
+    expect(blocks(run('G10 L2 P1 X0 Y0\nG3 X0.0004 Y0 I0 J10 F600\n', EN))).toEqual(['arc-ambiguous']);
+    // After G92.1 the work position is the reported machine position again.
+    expect(blocks(run('G92 X0 Y0\nG92.1\nG3 X0.0004 Y0 I0 J10 F600\n', EN))).toEqual(['arc-ambiguous']);
+  });
+
+  it('G28 and G30 end at a stored position that is only known to its printed precision', () => {
+    for (const code of ['G28', 'G30']) {
+      expect(blocks(run(`G0 X0 Y0\n${code}\nG3 X0.0004 Y0 I0 J10 F600\n`, EN)), code).toEqual(['arc-ambiguous']);
+      expect(run(`${code}\nG0 X0 Y0\nG3 X0.0004 Y0 I0 J10 F600\n`, EN).report.blocked, code).toBe(false);
+    }
+    // G28.1 stores the firmware's own position. The model does not track that this stored value and the G54
+    // offset it was reached through are correlated, so it stays conservative and still refuses.
+    expect(run('G0 X0 Y0\nG28.1\nG28\nG3 X0.0004 Y0 I0 J10 F600\n', EN).report.blocked).toBe(true);
+  });
+
+  it('float32 accumulation over G91 moves widens the band of a following G90 arc', () => {
+    const chain = ['G0 X0 Y0', 'G91', ...Array.from({ length: 200 }, () => 'G0 Y0.03'), 'G90'].join('\n');
+    // On the board this chain ends at Y6.0000104904 (float32), 0.0000105 from the double-precision sum.
+    expect(blocks(run(`${chain}\nG3 X0 Y6.000001 I-1 J0 F600\n`, EN))).toEqual(['arc-ambiguous']);
+    expect(run(`${chain}\nG0 X0 Y6\nG3 X0 Y6.000001 I-1 J0 F600\n`, EN).report.blocked).toBe(false);
+    // A single incremental move is far inside the band.
+    expect(run('G0 X0 Y0\nG91 G0 Y0.03\nG90 G3 X0 Y0.0302 I-1 J0 F600\n', EN).report.blocked).toBe(false);
   });
 });

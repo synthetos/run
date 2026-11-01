@@ -158,6 +158,30 @@ preview, analyser and preflight interpret exactly those lines.
   the overrun bound use the travel the firmware will run (a full circle, not
   a 0.000001 mm arc). Every sub-arc is re-checked with the same rule. The
   machine position of the plane axes must be known to size the band.
+- The band also carries how well the start is known (arc uncertainty, found
+  by the verification of the P0-10 #1 fix). The board reports `mpo` (always
+  mm), the work offsets, G92 offsets and G28/G30 stored positions to three
+  decimals (EN config_app.c:165-177, :387-449; TG config_app.c:131-143,
+  :392-454), so a reported 0.000 may be 0.0004 mm away, fifty times EPSILON.
+  Offsets and stored positions are taken as printed in the board's units
+  (0.0127 mm apart on an inch board, and when the units are unknown). The
+  analyser tracks, per axis, a bound on the error of the machine position and
+  of the work position: a reported start has the half-step of each reported
+  part; an absolute (G90) move leaves the work position known to one float32
+  sum (the firmware stores the written target plus its offset); G53 and
+  G28/G30 leave the machine position known to the target's precision; each
+  incremental (G91) move adds a float32 rounding of 2^-22 of the magnitudes
+  involved, so a run of them accumulates; G92 and G10 L20 make the work
+  position read the written value; offset changes re-derive the work
+  position from the machine position and the new offset. An absolute arc
+  end word and a G90.1 centre inherit the work position's bound, which widens
+  the coincidence, direction and branch-cut tests and the R-format chord
+  test; inside the widened band the arc is refused (`arc-ambiguous`), never
+  given the short path. An incremental end point or I/J/K offset is added to
+  the firmware's own position and inherits nothing, and an omitted plane axis
+  ends exactly where it was. The firmware-model cross-check
+  (`packages/safety/test/arc-models.test.ts`) runs these cases on the test-kit
+  models, whose targets are float32 like the board's.
 - No coordinate is ever assumed (Codex P0-10 #2): an absolute (G90) full
   circle needs the work start of both plane axes, and an absolute arc that
   must be split needs the start of both plane axes, because every sub-arc

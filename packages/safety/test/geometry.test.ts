@@ -20,6 +20,7 @@ const arc = (over: Partial<ArcInput>): ArcInput => ({
   rotations: null,
   coincidence: 'position',
   magnitudeMm: 0,
+  startUncertaintyMm: 0,
   ...over,
 });
 

@@ -28,7 +28,17 @@
  * either test near its boundary, so every such decision is made with an error
  * band that bounds the float32 rounding from the machine coordinates' size:
  * clearly inside or clearly outside is modelled, anything in the band is
- * refused as ambiguous (Codex P0-10 #1).
+ * refused as ambiguous (finding P0-10#1).
+ *
+ * The band also carries how well the sanitiser knows the start. The board
+ * reports its machine position, offsets and stored positions to three
+ * decimals (@cite EN config_app.c:165-177 `mpo` precision 3, :387-449 `g54x`..
+ * `g30c` precision 3; TG config_app.c:131-143, :392-454), so a reported 0.000
+ * may be 0.0004 mm, fifty times fp_EQ's EPSILON; and every incremental move
+ * adds float32 rounding the double-precision model does not see. That
+ * per-axis uncertainty (analyze.ts tracks it; `startUncertaintyMm` here) widens
+ * every coincidence and branch-cut decision, so an arc whose end could be the
+ * start on the real board is refused as ambiguous, never given the short path.
  */
 import type { Axis, MotionModel } from './types.ts';
 
@@ -269,6 +279,14 @@ export interface ArcInput {
    * band (`positionErrorMm`).
    */
   readonly magnitudeMm: number;
+  /**
+   * How far the firmware's start-relative end point and centre may be from
+   * `d0`/`d1` and the centre because the start itself is only known to this
+   * many mm (reported precision plus float32 accumulation; analyze.ts). 0 for an
+   * arc whose end point and centre are written relative to the start (G91 and
+   * G91.1), where the firmware adds them to its own position.
+   */
+  readonly startUncertaintyMm: number;
 }
 
 export interface ArcModel {
@@ -316,6 +334,37 @@ export const F32_ANGLE_ERROR = 2 ** -19;
 
 /** An R-format arc's chord must be at least this many position errors, so float32 cannot turn its centre. */
 export const R_CHORD_ERRORS = 100;
+
+/**
+ * Relative bound on the float32 rounding one move adds to the firmware's
+ * position (mm per mm of the magnitudes involved). A target is the word
+ * (one rounding), its unit conversion (one) and its sum with the position or
+ * the offset (one), each at most 2^-24 of the value; 2^-22 is four roundings.
+ * The firmware keeps the target as its new position (@cite EN
+ * canonical_machine.c:490-511 `cm_set_model_target`, :413-414 `cm_finalize_move`), so
+ * over a run of incremental moves these add up.
+ */
+export const F32_STEP_ERROR = 2 ** -22;
+
+/** Float32 rounding bound (mm) of one firmware sum or difference of these values (mm). */
+export function stepErrorMm(...values: readonly number[]): number {
+  let sum = 0;
+  for (const v of values) sum += Math.abs(v);
+  return F32_STEP_ERROR * sum + F32_ABSOLUTE_ERROR_MM;
+}
+
+/** Decimals the board reports positions, offsets and stored positions with (config_app.c precision 3). */
+export const REPORTED_DECIMALS = 3;
+
+/**
+ * How far the true value may be from a reported one (mm, or degrees): half
+ * the last printed digit in the unit it was printed in (`unitMm` mm per
+ * printed unit: 1, or 25.4 for a value the board converted to inches), plus
+ * the float32 printing error of the value's size.
+ */
+export function reportedErrorMm(valueMm: number, unitMm: number): number {
+  return 0.5 * 10 ** -REPORTED_DECIMALS * unitMm + F32_RELATIVE_ERROR * Math.abs(valueMm) + F32_ABSOLUTE_ERROR_MM;
+}
 
 /**
  * Bound on the float32 error of the start and end coordinates of an arc
@@ -450,7 +499,7 @@ export function modelArc(input: ArcInput): ArcModelResult {
   }
   const theta = Math.atan2(-c0, -c1);
   const fullCircle = input.centre !== null && input.noPlaneEndpoint;
-  const positionError = positionErrorMm(input.magnitudeMm, input.d0, input.d1);
+  const positionError = positionErrorMm(input.magnitudeMm, input.d0, input.d1) + input.startUncertaintyMm;
   let travel: number;
   if (fullCircle) {
     // No plane end point: P turns, one by default (@cite EN plan_arc.c:200-212, :340-344; TG plan_arc.c:276-280).
@@ -513,7 +562,7 @@ export interface ArcWriting {
  * The start is read only where it is written: on both plane axes of an
  * absolute move (and the linear axis when it moves), and for G90.1 centres.
  * The caller has refused the arc when such a start is unknown; it is never
- * assumed (Codex P0-10 #2).
+ * assumed (finding P0-10#2).
  */
 export function splitArc(
   arc: ArcModel,
@@ -531,7 +580,7 @@ export function splitArc(
   const budget = motion.ceilingSeconds * SPLIT_BUDGET;
   const lastPlaces = Math.max(dec, decimalsIn(writing.written.a0), decimalsIn(writing.written.a1), decimalsIn(writing.written.lin));
   const required = (v: number | null): number => {
-    /* c8 ignore next -- the caller blocks an arc whose written start is unknown (Codex P0-10 #2) */
+    /* c8 ignore next -- the caller blocks an arc whose written start is unknown (finding P0-10#2) */
     if (v === null) throw new Error('splitArc: a start that must be written is unknown');
     return v;
   };
@@ -579,7 +628,9 @@ export function splitArc(
         c1: (k1 - prev1) * s,
         radius: rStart,
         rotations: 0,
-        positionErrorMm: positionErrorMm(arc.pathMagnitudeMm, 0, 0),
+        // The start's uncertainty stays in every sub-arc's band: the first starts where the board really is,
+        // and incremental sub-arcs carry that start along.
+        positionErrorMm: positionErrorMm(arc.pathMagnitudeMm, 0, 0) + input.startUncertaintyMm,
       });
       const travel = firmware.kind === 'ok' ? firmware.travel : NaN;
       const chordWritten = Math.hypot(e0 - prev0, e1 - prev1) * s;
