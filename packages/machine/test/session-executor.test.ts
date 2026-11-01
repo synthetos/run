@@ -394,8 +394,9 @@ describe('T-S5 (XOFF part): realtime bytes bypass the XOFF gate', () => {
     expect(session.snapshot.xoff).toBe(false);
     clock.advance(1000);
     await settle();
-    // The line that waited is written (the board expects nothing for it), then the probe starts again from {"sr":null}.
-    expect(t.writes.slice(0, 4)).toEqual(['{"sr":null}\n', '{"fb":null}\n', '{"fv":null}\n', '{"sr":null}\n']);
+    // The line that waited is dropped, never written to the rebooted board: the probe starts again from {"sr":null}.
+    expect(t.writes.slice(0, 3)).toEqual(['{"sr":null}\n', '{"fb":null}\n', '{"sr":null}\n']);
+    expect(session.log().some((e) => e.dir === 'note' && e.text.startsWith('not written: the board reset'))).toBe(true);
     expect(session.state.probe?.next).toBeGreaterThan(0);
   });
 });

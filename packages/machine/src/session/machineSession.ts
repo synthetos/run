@@ -406,6 +406,13 @@ export class MachineSession {
         while (this.#xoff && this.#currentGuarded(item.epoch) !== null) await new Promise<void>((resolve) => this.#xonWaiters.push(resolve));
         const guarded = this.#currentGuarded(item.epoch);
         if (guarded === null) continue;
+        // The board reset while this line waited (its XOFF ended with the boot banner): the probe starts
+        // again from {"sr":null} (PN §2.3 step 0), so nothing from before the reset is written ahead of it.
+        if (this.#state.probe !== null && this.#state.probe.settling !== 'none') {
+          this.#note('not written: the board reset while this line waited; the probe starts again from {"sr":null}');
+          this.#dispatch({ type: 'lineDropped', epoch: item.epoch, seq: item.seq });
+          continue;
+        }
         const check = checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, 'read');
         if (check !== undefined) {
           this.#note(check.reason);
