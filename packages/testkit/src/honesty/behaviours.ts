@@ -327,23 +327,76 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
   {
     id: 'EN-SOFT-LIMITS',
     model: EN,
-    summary: 'With sl=1 a straight move beyond the travel of a homed axis raises an ALARM (220) instead of moving.',
+    summary:
+      'With sl=1 a straight move beyond the travel of a homed axis raises an ALARM (220) instead of moving. Every homed axis X..C is tested; an axis whose travel ends are fp_EQ (float32, |a-b| < 0.00001) is skipped; an end at or below DISABLE_SOFT_LIMIT (-1000000) is not tested.',
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'canonical_machine.c', lines: [536, 554], quote: 'cm_test_soft_limits' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [539, 539], quote: 'axis < AXES' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [542, 542], quote: 'fp_EQ(cm.a[axis].travel_min, cm.a[axis].travel_max)' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [544, 550], quote: 'travel_max > DISABLE_SOFT_LIMIT' },
+      { src: 'EN', file: 'canonical_machine.h', lines: [45, 45], quote: 'DISABLE_SOFT_LIMIT (-1000000)' },
+      { src: 'EN', file: 'util.h', lines: [135, 139], quote: 'fp_EQ(a,b) (fabs(a-b) < EPSILON)' },
       { src: 'EN', file: 'canonical_machine.c', lines: [1227, 1230], quote: 'cm_alarm(status, cs.saved_buf)' },
     ],
   },
   {
     id: 'EN-ARC-SOFT-LIMITS',
     model: EN,
-    summary: 'Arcs are soft-limit checked (endpoint and the plane extremes the arc sweeps); a violation is an ALARM.',
+    summary:
+      'Arcs are soft-limit checked (endpoint and the plane extremes the arc sweeps); a violation is an ALARM. The extent test has the same fp_EQ skip and DISABLE_SOFT_LIMIT ends as cm_test_soft_limits().',
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'plan_arc.c', lines: [259, 265], quote: 'arc soft_limits' },
+      { src: 'EN', file: 'plan_arc.c', lines: [590, 603], quote: 'same skips as cm_test_soft_limits()' },
       { src: 'EN', file: 'plan_arc.c', lines: [606, 618], quote: '_test_arc_soft_limits' },
     ],
     issues: ['E041'],
+  },
+  {
+    id: 'EN-ARC-COINCIDENT',
+    model: EN,
+    summary:
+      'Center-format G17 arcs as cm_arc_feed()/_compute_arc(): end points fp_EQ to the start on both plane axes (float32) are a full circle in the commanded direction; otherwise the atan2 angle difference is wrapped (G2 positive, G3 negative); fp_ZERO angular travel is ALARM 159; an end radius off by more than 1 mm (or 0.005 mm and 5 %) is ALARM 154. No X/Y word is a full circle; P adds turns (a fractional P is used as given). Every block in G2/G3 mode reaches the arc code: no G2/G3 word and no I/J/K is a no-op; a G2/G3 word with no XYZ, offset or P only sets the mode.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'plan_arc.c', lines: [133, 145], quote: 'only sets the motion' },
+      { src: 'EN', file: 'plan_arc.c', lines: [176, 183], quote: 'arc.full_circle = true' },
+      { src: 'EN', file: 'plan_arc.c', lines: [201, 214], quote: 'floor(P_word) - (P_word) > 0' },
+      { src: 'EN', file: 'plan_arc.c', lines: [308, 314], quote: 'ARC_RADIUS_ERROR_MAX' },
+      { src: 'EN', file: 'plan_arc.c', lines: [324, 330], quote: 'fp_EQ(arc.gm.target[arc.plane_axis_0], arc.position[arc.plane_axis_0])' },
+      { src: 'EN', file: 'plan_arc.c', lines: [347, 350], quote: 'fp_ZERO(arc.angular_travel)' },
+      { src: 'EN', file: 'plan_arc.h', lines: [35, 37], quote: 'ARC_RADIUS_TOLERANCE    ((float)0.05)' },
+      { src: 'EN', file: 'gcode_parser.c', lines: [679, 685], quote: 'cm_arc_feed' },
+      { src: 'EN', file: 'util.h', lines: [135, 145], quote: 'fp_ZERO(a) (fabs(a) < EPSILON)' },
+    ],
+  },
+  {
+    id: 'EN-AXIS-MODES',
+    model: EN,
+    summary:
+      'Axis modes in cm_set_model_target(): a DISABLED axis ignores its word; X/Y/Z STANDARD or INHIBITED are lengths; A/B/C STANDARD or INHIBITED are degrees; A/B/C RADIUS take a length (G20 x 25.4) and convert it to degrees on the axis radius (v*360/(2*pi*ra)), in G90 plus the offset or in G91 added. cm_set_am refuses radius mode on X/Y/Z (109). Defaults: X/Y/Z standard, A radius with ra = 1.25/(2*pi), B and C disabled.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'canonical_machine.c', lines: [482, 488], quote: '360 / (2 * M_PI * cm.a[axis].radius)' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [490, 523], quote: 'cm.a[axis].axis_mode == AXIS_DISABLED' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [2510, 2523], quote: 'AXIS_MODE_MAX_LINEAR' },
+      { src: 'EN', file: 'canonical_machine.h', lines: [286, 293], quote: 'AXIS_RADIUS' },
+      { src: 'EN', file: 'settings/settings_default.h', lines: [201, 209], quote: 'A_AXIS_MODE 			AXIS_RADIUS' },
+      { src: 'EN', file: 'settings/settings_default.h', lines: [217, 233], quote: 'C_AXIS_MODE 			AXIS_DISABLED' },
+    ],
+  },
+  {
+    id: 'EN-FEED-UNITS-ORDER',
+    model: EN,
+    summary: 'F is set before G20/G21 in the same block and is converted with the units in force before the block: G20 then G21 G1 X1 F100 is 2540 mm/min.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'gcode_parser.c', lines: [610, 615], quote: 'cm_set_feed_rate(cm.gn.feed_rate)' },
+      { src: 'EN', file: 'gcode_parser.c', lines: [634, 634], quote: 'cm_set_units_mode' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1350, 1359], quote: '_to_millimeters(feed_rate)' },
+      { src: 'EN', file: 'canonical_machine.h', lines: [42, 42], quote: 'cm.gm.units_mode == INCHES' },
+    ],
   },
   // ------------------------------------------------------------------ edge-next: program flow
   {
@@ -627,6 +680,66 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     issues: ['E020'],
   },
   {
+    id: 'TG-ARC-ANGULAR',
+    model: TG,
+    summary:
+      'G17 center-format arcs as cm_arc_feed()/_compute_arc(): start and end ANGLES fp_EQ (float32) are zero angular travel (not a full circle as on edge-next); otherwise the end angle is wrapped above the start and G3 subtracts a turn; floor(|P|) turns are added by direction; no X/Y word is a full circle (one turn when P is 0); a zero-length result is refused with 201 and nothing moves. Every block in G2/G3 mode with no next action reaches the arc code, so an M5 alone in G2 mode is answered 201.',
+    status: 'verified-source',
+    cites: [
+      { src: 'TG', file: 'plan_arc.c', lines: [158, 161], quote: 'arc.rotations = floor(fabs(cm.gn.parameter))' },
+      { src: 'TG', file: 'plan_arc.c', lines: [166, 168], quote: 'STAT_MINIMUM_LENGTH_MOVE' },
+      { src: 'TG', file: 'plan_arc.c', lines: [276, 280], quote: 'fp_ZERO(arc.rotations)' },
+      { src: 'TG', file: 'plan_arc.c', lines: [285, 286], quote: 'fp_EQ(arc.theta_end, arc.theta)' },
+      { src: 'TG', file: 'plan_arc.c', lines: [288, 294], quote: 'arc.theta_end < arc.theta' },
+      { src: 'TG', file: 'plan_arc.c', lines: [298, 303], quote: 'arc.rotations * g18_correction' },
+      { src: 'TG', file: 'gcode_parser.c', lines: [253, 253], quote: 'cm_get_motion_mode(MODEL)' },
+      { src: 'TG', file: 'gcode_parser.c', lines: [504, 514], quote: 'cm_arc_feed' },
+      { src: 'TG', file: 'util.h', lines: [114, 125], quote: 'fp_EQ(a,b) (fabs(a-b) < EPSILON)' },
+    ],
+  },
+  {
+    id: 'TG-AXIS-MODES',
+    model: TG,
+    summary:
+      'Axis modes in cm_set_model_target(): a DISABLED axis ignores its word; X/Y/Z STANDARD or INHIBITED are lengths; A/B/C STANDARD or INHIBITED are degrees; A/B/C RADIUS take a length (G20 x 25.4) and convert it to degrees on the axis radius, in G90 plus the offset or in G91 added. cm_set_am refuses radius mode on X/Y/Z (109). Defaults: X/Y/Z standard, A radius with ra = 1.25/(2*3.14159628), B and C disabled.',
+    status: 'verified-source',
+    cites: [
+      { src: 'TG', file: 'canonical_machine.c', lines: [430, 436], quote: '360 / (2 * M_PI * cm.a[axis].radius)' },
+      { src: 'TG', file: 'canonical_machine.c', lines: [437, 465], quote: 'cm.a[axis].axis_mode == AXIS_DISABLED' },
+      { src: 'TG', file: 'canonical_machine.c', lines: [1723, 1732], quote: 'AXIS_MODE_MAX_LINEAR' },
+      { src: 'TG', file: 'canonical_machine.h', lines: [510, 517], quote: 'AXIS_RADIUS' },
+      { src: 'TG', file: 'settings/settings_default.h', lines: [148, 156], quote: 'A_AXIS_MODE 			AXIS_RADIUS' },
+      { src: 'TG', file: 'settings/settings_default.h', lines: [164, 180], quote: 'C_AXIS_MODE 			AXIS_DISABLED' },
+    ],
+  },
+  {
+    id: 'TG-FEED-UNITS-ORDER',
+    model: TG,
+    summary: 'F is set before G20/G21 in the same block and is converted with the units in force before the block: G20 then G21 G1 X1 F100 is 2540 mm/min.',
+    status: 'verified-source',
+    cites: [
+      { src: 'TG', file: 'gcode_parser.c', lines: [455, 455], quote: 'EXEC_FUNC(cm_set_feed_rate, feed_rate)' },
+      { src: 'TG', file: 'gcode_parser.c', lines: [474, 474], quote: 'EXEC_FUNC(cm_set_units_mode, units_mode)' },
+      { src: 'TG', file: 'canonical_machine.c', lines: [940, 948], quote: '_to_millimeters(feed_rate)' },
+      { src: 'TG', file: 'canonical_machine.h', lines: [47, 47], quote: 'cm.gm.units_mode == INCHES' },
+    ],
+  },
+  {
+    id: 'TG-SOFT-LIMITS',
+    model: TG,
+    summary:
+      'With sl=1 every homed axis X..C is tested; an axis whose travel ends are fp_EQ (float32, |a-b| < 0.00001) is skipped; an end at or below DISABLE_SOFT_LIMIT (-1000000) is not tested.',
+    status: 'verified-source',
+    cites: [
+      { src: 'TG', file: 'canonical_machine.c', lines: [480, 498], quote: 'cm_test_soft_limits' },
+      { src: 'TG', file: 'canonical_machine.c', lines: [483, 483], quote: 'axis < AXES' },
+      { src: 'TG', file: 'canonical_machine.c', lines: [486, 486], quote: 'fp_EQ(cm.a[axis].travel_min, cm.a[axis].travel_max)' },
+      { src: 'TG', file: 'canonical_machine.c', lines: [488, 494], quote: 'travel_max > DISABLE_SOFT_LIMIT' },
+      { src: 'TG', file: 'canonical_machine.h', lines: [50, 50], quote: 'DISABLE_SOFT_LIMIT (-1000000)' },
+      { src: 'TG', file: 'util.h', lines: [114, 119], quote: 'fp_EQ(a,b) (fabs(a-b) < EPSILON)' },
+    ],
+  },
+  {
     id: 'TG-ARC-NO-SOFT-LIMIT',
     model: TG,
     summary: 'Arcs are never soft-limit checked: the test is commented out.',
@@ -757,7 +870,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
 /** Simplifications no safety claim may rest on (STATUS.md, "Model limits"). */
 export const MODEL_LIMITS: readonly ModelLimit[] = Object.freeze([
   { id: 'LIM-KINEMATICS', scope: 'both', summary: 'Moves run at cruise speed with no acceleration ramps; a feedhold decelerates linearly over a fixed time (holdDecelMs, default 100 ms). Positions and durations are coarse.' },
-  { id: 'LIM-ARCS', scope: 'both', summary: 'Arcs only in G17 with incremental I/J; one planner block per arc (EN queues arc segments from a callback). R-format, G18/G19 and G90.1 arcs throw ModelGapError.' },
+  { id: 'LIM-ARCS', scope: 'both', summary: 'Arcs only in G17 with incremental I/J; one planner block per arc (EN queues arc segments from a callback); the end position is the commanded target, not the last computed segment. R-format, G18/G19, G90.1 and (440.21) K-word arcs, and zero-radius helices, throw ModelGapError. atan2/sin/hypot are double rounded once to float32, so a case exactly on a libm ulp boundary may differ.' },
   { id: 'LIM-HOLD-DWELL', scope: 'both', summary: 'A feedhold requested while a dwell runs in a moving cycle takes effect when the dwell ends (B-FH-1).' },
   { id: 'LIM-UNMODELLED', scope: 'both', summary: 'Homing (G28.x), probing (G38.2), G10, G28/G30, G43.1, G92.2/G92.3, G93, M105/M114/M115, M201.3, group SETs, baud/boot/defaults/test SETs throw ModelGapError. Use setHomed() for a homed machine.' },
   { id: 'LIM-TEXT', scope: 'both', summary: 'Text mode replies only with a prompt line; text-mode commands are not executed.' },

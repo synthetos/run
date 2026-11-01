@@ -29,6 +29,9 @@ import {
 } from './common.ts';
 import { normalizeBlock, readWords, type GcodeSyntax, type Word } from './gcode.ts';
 import { parseHostJson, type HostValue } from './hostJson.ts';
+import { enComputeArc } from './arcs.ts';
+import { axisModeTooLarge, modelTarget, softLimitEnds, softLimitExceeded } from './canonical.ts';
+import { fpZERO } from './float32.ts';
 import { AXES, Motion, distance, zeroVec, type ArcPath, type Block, type Path, type Vec } from './motion.ts';
 import { fixed, serialize, type OutObject, type OutValue } from './output.ts';
 import { RxRing } from './rxRing.ts';
@@ -109,6 +112,22 @@ const EN_DEFAULTS: Readonly<Record<string, SettingValue>> = Object.freeze({
   zfr: 800, // :187
   ztn: 0, // :188
   ztm: 75, // :189
+  // Axis modes and rotary radii (@behaviour EN-AXIS-MODES): A is a radius axis, B and C are disabled
+  xam: 1, // :155 AXIS_STANDARD
+  yam: 1, // :170
+  zam: 1, // :185
+  aam: 3, // :201 AXIS_RADIUS
+  atn: -1, // :204
+  atm: -1, // :205 "same number means infinite"
+  ara: 1.25 / (2 * Math.PI), // :209 M1_TRAVEL_PER_REV/(2*M_PI), M1_TRAVEL_PER_REV 1.25 (:107)
+  bam: 0, // :217 AXIS_DISABLED
+  btn: -1, // :220
+  btm: -1, // :221
+  bra: 1, // :225
+  cam: 0, // :233 AXIS_DISABLED
+  ctn: -1, // :236
+  ctm: -1, // :237
+  cra: 1, // :241
   avm: 800, // placeholder
   afr: 800, // placeholder
   ej: 1, // placeholder (JSON mode)
@@ -1348,7 +1367,10 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (g.absoluteOverride === true && g.nextAction === undefined && motionMode !== 'g0' && motionMode !== 'g1') return ST('GCODE_G53_WITHOUT_G0_OR_G1');
     if (hasAxes && g.nextAction === undefined && motionMode === 'cancel') return ST('GCODE_AXIS_CANNOT_BE_PRESENT');
     if (g.linenum !== undefined) gm.linenum = g.linenum;
-    if (g.feed !== undefined) gm.feed = g.feed * this.#unitFactor(g.units);
+    // @behaviour EN-FEED-UNITS-ORDER: cm_set_feed_rate() runs before cm_set_units_mode(), and _to_millimeters()
+    // reads the model's units, so F in a block that also changes G20/G21 is in the PREVIOUS units
+    // (@cite EN gcode_parser.c:612-614, :634; canonical_machine.c:1350-1359; canonical_machine.h:42)
+    if (g.feed !== undefined) gm.feed = g.feed * this.#unitFactor(undefined);
     if (g.s !== undefined) gm.spindleSpeed = g.s;
     if (g.tool !== undefined) gm.tool = g.tool;
     if (g.toolChange === true) this.#queueCommand('M6 tool change', () => undefined); // stores the tool only (PN §9.3)
@@ -1404,10 +1426,8 @@ export class TinyGEdgeNextModel implements SimDevice {
         break;
       case undefined:
         if (g.motion !== undefined) gm.motionMode = g.motion;
-        if (hasAxes || g.motion === 'g2' || g.motion === 'g3') {
-          if (gm.motionMode === 'g0' || gm.motionMode === 'g1') status = this.#straight(g, gm.motionMode === 'g0');
-          else if (gm.motionMode === 'g2' || gm.motionMode === 'g3') status = this.#arc(g);
-        }
+        if (gm.motionMode === 'g2' || gm.motionMode === 'g3') status = this.#arc(g);
+        else if (hasAxes && (gm.motionMode === 'g0' || gm.motionMode === 'g1')) status = this.#straight(g, gm.motionMode === 'g0');
         break;
       default:
         break;
@@ -1422,7 +1442,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   #unitFactor(units: 'mm' | 'in' | undefined, axis = 0): number {
-    if (axis >= 3) return 1; // rotary axes are degrees
+    if (axis >= 3) return 1; // rotary values in offsets and reports are degrees (E155); targets use modelTarget()
     return (units ?? this.#gm.units) === 'in' ? 25.4 : 1;
   }
 
@@ -1435,29 +1455,30 @@ export class TinyGEdgeNextModel implements SimDevice {
     return c.map((v, i) => v + (this.#gm.g92Enabled ? (this.#gm.g92[i] as number) : 0)) as Vec;
   }
 
+  /**
+   * `cm_set_model_target()` (@cite EN canonical_machine.c:482-523) with axis modes and rotary radius mode
+   * (@behaviour EN-AXIS-MODES). G53 only zeroes the offset (cm_get_active_coord_offset, :307-317);
+   * the distance mode still applies, as on the board.
+   */
   #resolveTarget(g: GcodeInput): Vec {
     const gm = this.#gm;
-    const offset = g.absoluteOverride === true ? zeroVec() : this.#workOffset();
-    return gm.position.map((p, i) => {
-      const v = g.target[i];
-      if (v === undefined) return p;
-      const mm = v * this.#unitFactor(undefined, i);
-      return gm.distance === 'inc' && g.absoluteOverride !== true ? p + mm : mm + (offset[i] as number);
-    }) as Vec;
+    return modelTarget(g.target, {
+      units: gm.units,
+      distance: gm.distance,
+      position: gm.position,
+      offset: g.absoluteOverride === true ? zeroVec() : this.#workOffset(),
+      num: (k) => this.settings.num(k),
+      model: 'edge-next',
+    });
   }
 
-  /** Soft limits on homed axes when `sl`=1 (@cite EN canonical_machine.c:536-554). @behaviour EN-SOFT-LIMITS */
+  /**
+   * Soft limits when `sl`=1 (@cite EN canonical_machine.c:536-554). @behaviour EN-SOFT-LIMITS: every homed
+   * axis X..C; an axis whose ends are fp_EQ is skipped; an end at or below DISABLE_SOFT_LIMIT is not tested.
+   */
   #testSoftLimits(target: Vec): number {
     if (this.settings.num('sl') !== 1) return 0;
-    for (let i = 0; i < 3; i++) {
-      if (!this.#homed[i]) continue;
-      const a = AXES[i] as string;
-      const min = this.settings.num(`${a}tn`);
-      const max = this.settings.num(`${a}tm`);
-      if (min === max) continue;
-      if ((target[i] as number) < min || (target[i] as number) > max) return ST('SOFT_LIMIT_EXCEEDED');
-    }
-    return 0;
+    return softLimitExceeded(target, this.#homed, (k) => this.settings.num(k)) ? ST('SOFT_LIMIT_EXCEEDED') : 0;
   }
 
   #straight(g: GcodeInput, rapid: boolean): number {
@@ -1478,25 +1499,52 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
-   * G2/G3 in G17 with I/J centre offsets. @behaviour EN-ARC-SOFT-LIMITS: the
-   * endpoint and the plane extremes the arc actually sweeps are checked, and
-   * a violation is an ALARM (@cite EN plan_arc.c:256-265, :577-618).
+   * `cm_arc_feed()` for a G17 center-format arc (@cite EN plan_arc.c:112-271). Called for every block in
+   * G2/G3 motion mode with no other next action, as the executor does (@cite EN gcode_parser.c:670-685).
+   * @behaviour EN-ARC-COINCIDENT: end points fp_EQ to the start in both plane axes are a full circle; an
+   * fp_ZERO angular travel is an alarm (arcs.ts, @cite EN plan_arc.c:324-350).
+   * @behaviour EN-ARC-SOFT-LIMITS: the endpoint and the plane extremes the arc actually sweeps are checked,
+   * and a violation is an ALARM (@cite EN plan_arc.c:256-265, :577-618).
    */
   #arc(g: GcodeInput): number {
     const gm = this.#gm;
+    const g1Word = g.motion !== undefined;
+    const offsetWord = g.offsets.some((o) => o !== undefined);
+    const pWord = g.p !== undefined;
+    // F, P or another non-modal with no offsets in a block without G2/G3: STAT_OK, no motion (@cite EN plan_arc.c:133-137)
+    if (!g1Word && !offsetWord) return 0;
+    // 'G2 F100': a G2/G3 word with no XYZ axis, offset or P only sets the mode (@cite EN plan_arc.c:139-145)
+    if (!(g.target.slice(0, 3).some((t) => t !== undefined) || offsetWord || pWord)) return 0;
+    if (fpZERO(gm.feed)) return ST('GCODE_FEEDRATE_NOT_SPECIFIED'); // @cite EN plan_arc.c:153-155
     if (gm.plane !== 17) throw new ModelGapError('edge-next arcs outside G17');
-    if (!(gm.feed > 0)) return ST('GCODE_FEEDRATE_NOT_SPECIFIED');
+    if (gm.arcDistance === 'abs') throw new ModelGapError('edge-next G90.1 arc centres');
+    const fullCircle = g.target[0] === undefined && g.target[1] === undefined; // @cite EN plan_arc.c:176-183
+    let rotations = fullCircle ? 1 : 0;
+    if (pWord) {
+      const p = g.p as number;
+      if (p < 0) return ST('P_WORD_IS_NEGATIVE');
+      // `floor(P) - P > 0` is never true, so a fractional P is used as given (@cite EN plan_arc.c:201-209)
+      rotations = p;
+    }
     const from = gm.position;
     const target = this.#resolveTarget(g);
-    const i = (g.offsets[0] ?? 0) * this.#unitFactor(undefined);
-    const j = (g.offsets[1] ?? 0) * this.#unitFactor(undefined);
-    if (gm.arcDistance === 'abs') throw new ModelGapError('edge-next G90.1 arc centres');
-    if (i === 0 && j === 0) {
+    const f = this.#unitFactor(undefined);
+    const i = (g.offsets[0] ?? 0) * f;
+    const j = (g.offsets[1] ?? 0) * f;
+    const k = (g.offsets[2] ?? 0) * f;
+    if (fpZERO(i) && fpZERO(j) && fpZERO(k)) {
       const status = ST('ARC_OFFSETS_MISSING_FOR_SELECTED_PLANE'); // @cite EN plan_arc.c:249-253
       this.#alarm(status, 'arc offsets missing or zero');
       return status;
     }
-    const path = arcPath(from, target, i, j, gm.motionMode === 'g2');
+    if (fpZERO(Math.hypot(i, j))) throw new ModelGapError('edge-next G17 arc with zero I/J radius (K only)');
+    const result = enComputeArc({ from, to: target, i, j, clockwise: gm.motionMode === 'g2', fullCircle, rotations });
+    if (!result.ok) {
+      const status = ST(result.status);
+      this.#alarm(status, result.status); // ritorno(_compute_arc()) returns a cm_alarm_P status (@cite EN plan_arc.c:257)
+      return status;
+    }
+    const path = result.path;
     if (this.settings.num('sl') === 1) {
       const end = this.#testSoftLimits(target);
       const ext = end !== 0 ? end : this.#arcExtentViolation(path);
@@ -1510,14 +1558,13 @@ export class TinyGEdgeNextModel implements SimDevice {
     return 0;
   }
 
+  /** `_test_arc_soft_limit_plane_axis()` (@cite EN plan_arc.c:589-603): the same skips as cm_test_soft_limits(). */
   #arcExtentViolation(p: ArcPath): number {
     const check = (center: number, axis: number, maxAngle: number): number => {
-      const a = AXES[axis] as string;
-      const min = this.settings.num(`${a}tn`);
-      const max = this.settings.num(`${a}tm`);
-      if (!this.#homed[axis] || min === max) return 0;
-      if (arcSweeps(p, maxAngle) && center + p.radius > max) return ST('SOFT_LIMIT_EXCEEDED');
-      if (arcSweeps(p, maxAngle + Math.PI) && center - p.radius < min) return ST('SOFT_LIMIT_EXCEEDED');
+      const ends = softLimitEnds(axis, this.#homed, (key) => this.settings.num(key));
+      if (ends === null) return 0;
+      if (ends.max !== null && arcSweeps(p, maxAngle) && center + p.radius > ends.max) return ST('SOFT_LIMIT_EXCEEDED');
+      if (ends.min !== null && arcSweeps(p, maxAngle + Math.PI) && center - p.radius < ends.min) return ST('SOFT_LIMIT_EXCEEDED');
       return 0;
     };
     const s0 = check(p.center0, p.axis0, Math.PI / 2);
@@ -1740,6 +1787,14 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
     const n = typeof value === 'number' ? value : typeof value === 'boolean' ? (value ? 1 : 0) : NaN;
     if (Number.isNaN(n)) return ST('VALUE_TYPE_ERROR');
+    if (info.set === 'cm_set_am') {
+      // Linear axes accept up to AXIS_INHIBITED, rotary up to AXIS_RADIUS (@cite EN canonical_machine.c:2510-2523)
+      if (axisModeTooLarge(key, n)) {
+        body[key] = echo(value);
+        return ST('INPUT_EXCEEDS_MAX_VALUE');
+      }
+      if (!Number.isInteger(n) || n < 0) throw new ModelGapError(`edge-next SET ${key}=${n} (set_ui8 conversion)`);
+    }
     const limit = { set_01: 1, set_012: 2, set_0123: 3, json_set_jv: 5, spindle_set_polarity: 1 }[info.set];
     if (limit !== undefined && n > limit) {
       body[key] = echo(value);
@@ -2091,37 +2146,14 @@ function echo(v: HostValue): OutValue {
   return typeof v === 'object' && v !== null ? null : v;
 }
 
-/** Build a G17 arc path from the start, end and I/J centre offsets. */
+/**
+ * The edge-next G17 center-format arc from the start, end and I/J offsets (mm), with no P word and both
+ * plane end points given: `enComputeArc()` (arcs.ts). Throws when the firmware would alarm instead.
+ */
 export function arcPath(from: Vec, to: Vec, i: number, j: number, clockwise: boolean): ArcPath {
-  const c0 = (from[0] as number) + i;
-  const c1 = (from[1] as number) + j;
-  const radius = Math.hypot(i, j);
-  // axis0 = c0 + r·sin θ, axis1 = c1 + r·cos θ
-  const theta = Math.atan2((from[0] as number) - c0, (from[1] as number) - c1);
-  const thetaEnd = Math.atan2((to[0] as number) - c0, (to[1] as number) - c1);
-  let sweep = thetaEnd - theta;
-  // With this parameterisation a clockwise arc (G2) has increasing θ.
-  if (clockwise) {
-    while (sweep <= 1e-12) sweep += 2 * Math.PI;
-  } else {
-    while (sweep >= -1e-12) sweep -= 2 * Math.PI;
-  }
-  const planar = Math.abs(sweep) * radius;
-  const linear = Math.abs((to[2] as number) - (from[2] as number));
-  return {
-    kind: 'arc',
-    from,
-    to,
-    axis0: 0,
-    axis1: 1,
-    linearAxis: 2,
-    center0: c0,
-    center1: c1,
-    radius,
-    theta,
-    sweep,
-    length: Math.hypot(planar, linear),
-  };
+  const result = enComputeArc({ from, to, i, j, clockwise, fullCircle: false, rotations: 0 });
+  if (!result.ok) throw new Error(`edge-next would alarm: ${result.status}`);
+  return result.path;
 }
 
 /** `_arc_sweeps()` (@cite EN plan_arc.c:578-587). */

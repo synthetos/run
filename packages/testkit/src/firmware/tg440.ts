@@ -20,8 +20,10 @@ import type { DeviceIo, SimDevice } from '../device.ts';
 import { DEFAULT_BOOT_MS, DEFAULT_HOLD_DECEL_MS, ModelGapError, TICK_MS, type ModelSnapshot, type SideEffect, type TinyGModelOptions } from './common.ts';
 import { normalizeBlock, readWords, type GcodeSyntax, type Word } from './gcode.ts';
 import { parseHostJson, type HostValue } from './hostJson.ts';
+import { tgComputeArc } from './arcs.ts';
+import { axisModeTooLarge, modelTarget, softLimitExceeded } from './canonical.ts';
+import { fpZERO } from './float32.ts';
 import { AXES, Motion, distance, zeroVec, type Block, type Path, type Vec } from './motion.ts';
-import { arcPath } from './edgeNext.ts';
 import { fixed, serialize, type OutObject, type OutValue } from './output.ts';
 import { RxRing } from './rxRing.ts';
 import { Settings, type SettingValue } from './settings.ts';
@@ -86,6 +88,22 @@ const TG_DEFAULTS: Readonly<Record<string, SettingValue>> = Object.freeze({
   zfr: 800, // placeholder
   ztn: 0, // placeholder
   ztm: 75, // settings_default.h:136
+  // Axis modes and rotary radii (@behaviour TG-AXIS-MODES): A is a radius axis, B and C are disabled
+  xam: 1, // settings_default.h:102 AXIS_STANDARD
+  yam: 1, // settings_default.h:117
+  zam: 1, // settings_default.h:132
+  aam: 3, // settings_default.h:148 AXIS_RADIUS
+  atn: -1, // settings_default.h:151
+  atm: -1, // settings_default.h:152 "same number means infinite"
+  ara: 1.25 / (2 * 3.14159628), // settings_default.h:156 M1_TRAVEL_PER_REV/(2*3.14159628), M1_TRAVEL_PER_REV 1.25 (:54)
+  bam: 0, // settings_default.h:164 AXIS_DISABLED
+  btn: -1, // settings_default.h:167
+  btm: -1, // settings_default.h:168
+  bra: 1, // settings_default.h:172
+  cam: 0, // settings_default.h:180 AXIS_DISABLED
+  ctn: -1, // settings_default.h:183
+  ctm: -1, // settings_default.h:184
+  cra: 1, // settings_default.h:188
   avm: 800, // placeholder
   afr: 800, // placeholder
   ej: 1, // placeholder
@@ -658,6 +676,8 @@ export class TinyG440Model implements SimDevice {
     let dwell = false;
     let p = 0;
     let feed: number | undefined;
+    let units: 'mm' | 'in' | undefined;
+    let rotations = 0;
     let flow: 'stop' | 'end' | undefined;
     let spindle: 'cw' | 'ccw' | 'off' | undefined;
     for (const w of words) {
@@ -671,7 +691,7 @@ export class TinyG440Model implements SimDevice {
           if (int <= 3) motion = (['g0', 'g1', 'g2', 'g3'] as const)[int];
           else if (int === 4) dwell = true;
           else if (int === 17 || int === 18 || int === 19) gm.plane = int;
-          else if (int === 20 || int === 21) gm.units = int === 20 ? 'in' : 'mm';
+          else if (int === 20 || int === 21) units = int === 20 ? 'in' : 'mm'; // executed after F (below)
           else if ((int === 90 || int === 91) && point === 0) gm.distance = int === 90 ? 'abs' : 'inc';
           else if ([40, 49, 61, 64, 94].includes(int)) {
             // modal state the coarse model does not act on
@@ -707,6 +727,7 @@ export class TinyG440Model implements SimDevice {
           break;
         case 'P':
           p = v;
+          rotations = Math.floor(Math.abs(v)); // arc.rotations = floor(fabs(cm.gn.parameter)) (@cite TG plan_arc.c:158)
           break;
         case 'T':
           gm.tool = Math.trunc(v) & 0xff; // `(uint8_t)trunc(value)`: T256 is tool 0 (@cite TG gcode_parser.c:382; E154)
@@ -737,6 +758,9 @@ export class TinyG440Model implements SimDevice {
           return ST('GCODE_COMMAND_UNSUPPORTED');
       }
     }
+    // @behaviour TG-FEED-UNITS-ORDER: cm_set_feed_rate() runs before cm_set_units_mode(), and _to_millimeters()
+    // reads the model's units, so F in a block that also changes G20/G21 is in the PREVIOUS units
+    // (@cite TG gcode_parser.c:455, :474; canonical_machine.c:940-948; canonical_machine.h:47)
     if (feed !== undefined) gm.feed = feed * (gm.units === 'in' ? 25.4 : 1);
     if (spindle !== undefined) {
       const mode = spindle;
@@ -745,15 +769,17 @@ export class TinyG440Model implements SimDevice {
       });
     }
     if (dwell) this.#queueBlock({ kind: 'dwell', ms: p * 1000, line: gm.linenum });
+    if (units !== undefined) gm.units = units;
     if (motion !== undefined) gm.motionMode = motion;
     const hasAxes = target.some((t) => t !== undefined);
-    if (hasAxes || motion === 'g2' || motion === 'g3') {
-      const status =
-        gm.motionMode === 'g0' || gm.motionMode === 'g1'
-          ? this.#straight(target, gm.motionMode === 'g0')
-          : gm.motionMode === 'g2' || gm.motionMode === 'g3'
-            ? this.#arc(target, ij)
-            : ST('GCODE_AXIS_IS_MISSING');
+    if (gm.motionMode === 'g2' || gm.motionMode === 'g3') {
+      // Every block in G2/G3 mode with no next action runs cm_arc_feed() (@cite TG gcode_parser.c:253, :504-514)
+      if (!dwell) {
+        const status = this.#arc(target, ij, rotations);
+        if (status !== 0) return status;
+      }
+    } else if (hasAxes) {
+      const status = gm.motionMode === 'g0' || gm.motionMode === 'g1' ? this.#straight(target, gm.motionMode === 'g0') : ST('GCODE_AXIS_IS_MISSING');
       if (status !== 0) return status;
     }
     if (flow !== undefined) {
@@ -764,30 +790,26 @@ export class TinyG440Model implements SimDevice {
     return 0;
   }
 
+  /** `cm_set_model_target()` with axis modes and rotary radius mode (@cite TG canonical_machine.c:430-465). @behaviour TG-AXIS-MODES */
   #resolve(target: (number | undefined)[]): Vec {
     const gm = this.#gm;
-    const f = gm.units === 'in' ? 25.4 : 1;
-    const off = AXES.map((a) => this.settings.num(`g${gm.coord}${a}`));
-    return gm.position.map((pos, i) => {
-      const v = target[i];
-      if (v === undefined) return pos;
-      const mm = i < 3 ? v * f : v;
-      return gm.distance === 'inc' ? pos + mm : mm + (off[i] as number);
-    }) as Vec;
+    return modelTarget(target, {
+      units: gm.units,
+      distance: gm.distance,
+      position: gm.position,
+      offset: AXES.map((a) => this.settings.num(`g${gm.coord}${a}`)) as Vec,
+      num: (k) => this.settings.num(k),
+      model: '440.21',
+    });
   }
 
-  /** `cm_test_soft_limits()` (@cite TG canonical_machine.c:480-498). */
+  /**
+   * `cm_test_soft_limits()` (@cite TG canonical_machine.c:480-498). @behaviour TG-SOFT-LIMITS: every homed
+   * axis X..C; an axis whose ends are fp_EQ is skipped; an end at or below DISABLE_SOFT_LIMIT is not tested.
+   */
   #testSoftLimits(target: Vec): number {
     if (this.settings.num('sl') !== 1) return 0;
-    for (let i = 0; i < 3; i++) {
-      if (!this.#homed[i]) continue;
-      const a = AXES[i] as string;
-      const min = this.settings.num(`${a}tn`);
-      const max = this.settings.num(`${a}tm`);
-      if (min === max) continue;
-      if ((target[i] as number) < min || (target[i] as number) > max) return ST('SOFT_LIMIT_EXCEEDED');
-    }
-    return 0;
+    return softLimitExceeded(target, this.#homed, (k) => this.settings.num(k)) ? ST('SOFT_LIMIT_EXCEEDED') : 0;
   }
 
   #straight(t: (number | undefined)[], rapid: boolean): number {
@@ -806,19 +828,31 @@ export class TinyG440Model implements SimDevice {
     return 0;
   }
 
-  /** @behaviour TG-ARC-NO-SOFT-LIMIT: the arc soft-limit test is commented out (@cite TG plan_arc.c:170-177). */
-  #arc(t: (number | undefined)[], ij: (number | undefined)[]): number {
+  /**
+   * `cm_arc_feed()` for a G17 center-format arc (@cite TG plan_arc.c:65-182).
+   * @behaviour TG-ARC-ANGULAR: equal start and end ANGLES (fp_EQ) are zero angular travel; a block with no
+   * X/Y word is a full circle; P adds floor(|P|) turns; a zero-length result is refused with 201 and nothing
+   * moves (arcs.ts, @cite TG plan_arc.c:158-167, :276-303).
+   * @behaviour TG-ARC-NO-SOFT-LIMIT: the arc soft-limit test is commented out (@cite TG plan_arc.c:170-177).
+   */
+  #arc(t: (number | undefined)[], ij: (number | undefined)[], rotations: number): number {
     const gm = this.#gm;
+    if (fpZERO(gm.feed)) return ST('GCODE_FEEDRATE_NOT_SPECIFIED'); // @cite TG plan_arc.c:74-76
+    if (gm.feed < 0) throw new ModelGapError('440.21 arc with a negative feed rate');
     if (gm.plane !== 17) throw new ModelGapError('440.21 arcs outside G17');
-    if (!(gm.feed > 0)) return ST('GCODE_FEEDRATE_NOT_SPECIFIED');
+    const fullCircle = t[0] === undefined && t[1] === undefined; // @cite TG plan_arc.c:161
+    const target = this.#resolve(t);
     const f = gm.units === 'in' ? 25.4 : 1;
     const i = (ij[0] ?? 0) * f;
     const j = (ij[1] ?? 0) * f;
-    if (i === 0 && j === 0) throw new ModelGapError('440.21 arc without I/J');
-    const target = this.#resolve(t);
-    const path = arcPath(gm.position, target, i, j, gm.motionMode === 'g2');
+    const result = tgComputeArc({ from: gm.position, to: target, i, j, clockwise: gm.motionMode === 'g2', fullCircle, rotations });
+    if (!result.ok) return ST(result.status); // returned, not an alarm (@cite TG plan_arc.c:262-268)
+    // trap zero length arcs that _compute_arc can throw (@cite TG plan_arc.c:166-168)
+    if (fpZERO(result.path.length)) return ST('MINIMUM_LENGTH_MOVE');
+    // A zero radius with real (helical) length divides by zero in the segment count: not modelled.
+    if (fpZERO(result.path.radius)) throw new ModelGapError('440.21 arc with zero I/J radius');
     this.#cycleStart();
-    this.#queueBlock({ kind: 'move', path, feed: Math.min(gm.feed, this.settings.num('xfr'), this.settings.num('yfr')), line: gm.linenum });
+    this.#queueBlock({ kind: 'move', path: result.path, feed: Math.min(gm.feed, this.settings.num('xfr'), this.settings.num('yfr')), line: gm.linenum });
     gm.position = target;
     return 0;
   }
@@ -945,6 +979,11 @@ export class TinyG440Model implements SimDevice {
     }
     const n = typeof value === 'number' ? value : typeof value === 'boolean' ? (value ? 1 : 0) : NaN;
     if (Number.isNaN(n)) return ST('UNSUPPORTED_TYPE');
+    if (info.set === 'cm_set_am') {
+      // Linear axes accept up to AXIS_INHIBITED, rotary up to AXIS_RADIUS (@cite TG canonical_machine.c:1723-1732)
+      if (axisModeTooLarge(key, n)) return ST('INPUT_EXCEEDS_MAX_VALUE');
+      if (!Number.isInteger(n) || n < 0) throw new ModelGapError(`440.21 SET ${key}=${n} (set_ui8 conversion)`);
+    }
     this.settings.setRam(key, n);
     body[key] = fixed(n, info.precision);
     if (info.persist) {
@@ -1005,7 +1044,7 @@ export class TinyG440Model implements SimDevice {
     if (key === 'hp') return fixed(HW_PLATFORM, p);
     if (key === 'hv') return fixed(HW_VERSION, p);
     if (info.group === 'hom' && axis >= 0) return this.#homed[axis] ? 1 : 0;
-    if (['get_flt', 'get_ui8', 'get_int', 'get_u32', 'get_data'].includes(info.get)) {
+    if (['get_flt', 'get_ui8', 'get_int', 'get_u32', 'get_data', 'cm_get_am'].includes(info.get)) {
       const v = this.settings.get(key);
       return fixed(typeof v === 'number' ? v : 0, p);
     }

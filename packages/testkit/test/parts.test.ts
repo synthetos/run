@@ -95,12 +95,13 @@ describe('motion runtime', () => {
 
   it('pointAt follows an arc and lands exactly on its end point', () => {
     const p = arcPath([0, 0, 0, 0, 0, 0], [0, 10, 0, 0, 0, 0], 0, 5, true);
-    expect(p.sweep).toBeCloseTo(Math.PI, 9);
+    // The arc is computed in float32 as on the board (arcs.ts): pi is 3.1415927 there.
+    expect(p.sweep).toBeCloseTo(Math.PI, 6);
     const mid = pointAt(p, p.length / 2);
-    expect(mid[0]).toBeCloseTo(-5, 9); // G2 from the bottom of the circle turns left
+    expect(mid[0]).toBeCloseTo(-5, 6); // G2 from the bottom of the circle turns left
     expect(pointAt(p, p.length)).toEqual([0, 10, 0, 0, 0, 0]);
     const full = arcPath([0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], 0, 5, false);
-    expect(full.sweep).toBeCloseTo(-2 * Math.PI, 9);
+    expect(full.sweep).toBeCloseTo(-2 * Math.PI, 6);
     expect(arcSweeps(full, 1)).toBe(true);
   });
 });
