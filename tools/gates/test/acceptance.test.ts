@@ -369,12 +369,73 @@ describe('ROADMAP P0-12 rules', () => {
     expectFailure(repo.deps(), 'bootloader-capability-mint-is-flasher-only');
   });
 
-  it('the P0-02 Web Serial rule is still in force, even in the file P1-01 will exempt', { timeout: TIMEOUT }, () => {
+});
+
+/** A minimal stand-in for the P1-01 transport: one static read of navigator.serial. */
+const TRANSPORT_STANDIN =
+  'declare const navigator: { serial: { getPorts(): Promise<unknown[]>; requestPort(): Promise<unknown> } };\n' +
+  'export const ports = () => navigator.serial.getPorts();\nexport const request = () => navigator.serial.requestPort();\n';
+
+describe('P1-00: Web Serial is allowed in packages/machine/src/webSerialTransport.ts and nowhere else', () => {
+  it('the transport may read navigator.serial: lint and the source check pass', { timeout: TIMEOUT }, () => {
     const repo = fresh();
-    repo.write(
-      'packages/machine/src/webSerialTransport.ts',
-      'declare const navigator: { serial: { getPorts(): Promise<unknown[]> } };\nexport const ports = () => navigator.serial.getPorts();\n',
-    );
+    repo.write('packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
+    const lint = repo.lint();
+    expect(lint.status, lint.output).toBe(0);
+    const deps = repo.deps();
+    expect(deps.status, deps.output).toBe(0);
+  });
+
+  it.each([
+    ['another machine module', 'packages/machine/src/webSerial.ts'],
+    ['a file of the same name in the web app', 'apps/web/src/webSerialTransport.ts'],
+    ['a file of the same name in another package', 'packages/protocol/src/webSerialTransport.ts'],
+    ["the transport's own test", 'packages/machine/test/webSerialTransport.test.ts'],
+  ])('the same code in %s fails lint', { timeout: TIMEOUT }, (_name, path) => {
+    const repo = fresh();
+    repo.write(path, TRANSPORT_STANDIN);
     expectFailure(repo.lint(), 'run/no-web-serial');
+  });
+
+  it('a computed lookup in the transport itself still fails lint and the source check', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write('packages/machine/src/webSerialTransport.ts', "export const s = (navigator as unknown as Record<string, unknown>)['ser' + 'ial'];\n");
+    expectFailure(repo.lint(), 'run/no-capability-lookup');
+    expectFailure(repo.deps(), 'capability-lookup');
+  });
+
+  it('navigator aliased in the transport still fails lint and the source check', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write('packages/machine/src/webSerialTransport.ts', 'const nav = navigator;\nexport const s = nav.language;\n');
+    expectFailure(repo.lint(), 'run/no-capability-lookup');
+    expectFailure(repo.deps(), 'capability-lookup');
+  });
+
+  it('navigator.serial elsewhere fails the source check even if lint were bypassed', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write('packages/machine/src/webSerial.ts', 'export const s = navigator.serial;\n');
+    expectFailure(repo.deps(), 'capability-lookup');
+  });
+
+  it('only the transport seam and machine tests may import the transport (dependency-cruiser)', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write('packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
+    repo.append('packages/machine/src/index.ts', "export { ports } from './webSerialTransport.ts';\n");
+    expectFailure(repo.deps(), 'web-serial-transport-importers');
+  });
+
+  it('the main thread importing the transport fails dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write('packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
+    repo.append('apps/web/src/shell/Shell.ts', "export { ports } from '../../../../packages/machine/src/webSerialTransport.ts';\n");
+    expectFailure(repo.deps(), 'web-serial-transport-importers');
+  });
+
+  it('the transport seam may import it', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write('packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
+    repo.append('apps/web/src/machine-worker/transport.ts', "export { ports } from '../../../../packages/machine/src/webSerialTransport.ts';\n");
+    const deps = repo.deps();
+    expect(deps.status, deps.output).toBe(0);
   });
 });

@@ -1,10 +1,10 @@
 import type { Rule } from 'eslint';
 import { type AnyNode, isGlobalReference, isNode, staticName, stringValue, unwrap } from '../ast.ts';
-import { WEB_SERIAL_METHODS } from '../../shared/webSerialNames.ts';
+import { WEB_SERIAL_METHODS, WEB_SERIAL_TRANSPORT_MODULE } from '../../shared/webSerialNames.ts';
 
 const MESSAGE =
-  'The Web Serial API (navigator.serial) is banned until P1-01, which lifts this rule in its own ' +
-  'owner-approved PR, and then only for machine/src/webSerialTransport.ts (ROADMAP P0-02, P1-01).';
+  `The Web Serial API (navigator.serial) is allowed only in ${WEB_SERIAL_TRANSPORT_MODULE} ` +
+  '(ROADMAP P0-02, P1-00, P1-01). Everything else reaches a port through the Transport interface.';
 
 function isNavigator(node: unknown): boolean {
   return isGlobalReference(node, 'navigator');
@@ -16,13 +16,16 @@ function isNavigator(node: unknown): boolean {
  * `const { serial } = navigator`, `({ serial } = navigator)`,
  * `'serial' in navigator` and `Reflect.get(navigator, 'serial')`, plus any
  * use of the Web Serial-only method names `requestPort` and `getPorts`
- * (identifier, member, key or whole-string literal). Phase 0 must not be
+ * (identifier, member, key or whole-string literal).
+ *
+ * eslint.config.js applies it to every file except
+ * WEB_SERIAL_TRANSPORT_MODULE (P1-00, owner-approved): no other code may be
  * able to open a port.
  */
 export const noWebSerial: Rule.RuleModule = {
   meta: {
     type: 'problem',
-    docs: { description: 'Ban navigator.serial (Web Serial) until P1-01.' },
+    docs: { description: `Ban navigator.serial (Web Serial) outside ${WEB_SERIAL_TRANSPORT_MODULE}.` },
     schema: [],
     messages: { banned: MESSAGE },
   },

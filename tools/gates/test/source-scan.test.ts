@@ -82,6 +82,16 @@ describe('capability-lookup', () => {
     expect(rules(code), code).toEqual([]);
   });
 
+  it('admits navigator.serial only when the caller names it (the CLI does so for the Web Serial transport alone, P1-00)', () => {
+    const read = 'export const serial = navigator.serial;';
+    expect(scanSource('packages/machine/src/webSerialTransport.ts', read, { capabilities: true, navigatorProperties: ['serial'] })).toEqual([]);
+    expect(scanSource('packages/machine/src/x.ts', read).map((f) => f.rule)).toEqual(['capability-lookup']);
+    // The option admits the static read only.
+    for (const code of ["const s = navigator['ser' + 'ial'];", 'const n = navigator;', "const s = Reflect.get(navigator, 'serial');", 'const u = navigator.usb;']) {
+      expect(scanSource('packages/machine/src/webSerialTransport.ts', code, { capabilities: true, navigatorProperties: ['serial'] }).map((f) => f.rule), code).toContain('capability-lookup');
+    }
+  });
+
   it('is not applied to the dev-only test kit when the caller says so', () => {
     expect(scanSource('packages/testkit/src/x.ts', 'Object.defineProperty(globalThis, k, {});', { capabilities: false })).toEqual([]);
     expect(scanSource('packages/testkit/src/x.ts', 'Object.defineProperty(globalThis, k, {});').map((f) => f.rule)).toEqual(['capability-lookup']);

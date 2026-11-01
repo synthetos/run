@@ -6,6 +6,7 @@
 // exception without a reviewed reason in the comment next to it.
 import tseslint from 'typescript-eslint';
 import run from './tools/gates/src/eslint/plugin.ts';
+import { WEB_SERIAL_PROPERTY, WEB_SERIAL_TRANSPORT_MODULE } from './tools/gates/src/shared/webSerialNames.ts';
 
 const ALL_SOURCE = ['**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'];
 
@@ -53,12 +54,23 @@ const WEB_SERIAL_RULE_DEFINITION = 'tools/gates/src/eslint/rules/noWebSerial.ts'
 // The list of Web Serial-only names that rule and the bundle scan share.
 const WEB_SERIAL_NAMES = 'tools/gates/src/shared/webSerialNames.ts';
 
+/**
+ * The one module that may use Web Serial (ROADMAP P1-01). The owner approved
+ * lifting the Phase 0 ban for this file only, in its own reviewed change
+ * (P1-00). It is exempt from `run/no-web-serial`, and
+ * `run/no-capability-lookup` admits a static `navigator.serial` read here and
+ * nowhere else; every other capability form stays refused in it. Its tests
+ * are NOT exempt.
+ */
+const WEB_SERIAL_TRANSPORT = WEB_SERIAL_TRANSPORT_MODULE;
+
 export default tseslint.config(
   {
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
       '**/dist-fake-serial/**',
+      '**/dist-bench/**',
       '**/.wrangler/**',
       '**/coverage/**',
       '**/test-results/**',
@@ -87,10 +99,10 @@ export default tseslint.config(
     },
   },
   {
-    // Phase 0 cannot reach a serial port. P1-01 narrows this to
-    // packages/machine/src/webSerialTransport.ts in its own owner-approved PR.
+    // Nothing reaches a serial port except the Web Serial transport (P1-00,
+    // owner-approved; ROADMAP P1-01).
     files: ALL_SOURCE,
-    ignores: [WEB_SERIAL_RULE_DEFINITION, WEB_SERIAL_NAMES],
+    ignores: [WEB_SERIAL_RULE_DEFINITION, WEB_SERIAL_NAMES, WEB_SERIAL_TRANSPORT],
     rules: { 'run/no-web-serial': 'error' },
   },
   {
@@ -134,6 +146,13 @@ export default tseslint.config(
     files: RUNTIME_SOURCE,
     ignores: [TESTKIT_SOURCE],
     rules: { 'run/no-capability-lookup': 'error' },
+  },
+  {
+    // P1-00: the static read `navigator.serial` is admitted in the Web Serial
+    // transport only. This block must stay after the one above (flat config:
+    // the later setting wins for a file both match).
+    files: [WEB_SERIAL_TRANSPORT],
+    rules: { 'run/no-capability-lookup': ['error', { navigatorProperties: [WEB_SERIAL_PROPERTY] }] },
   },
   {
     // P0 review (P0-14): every import edge is one dependency-cruiser can see.

@@ -9,3 +9,32 @@
  * scan without installing any dev tooling.
  */
 export const WEB_SERIAL_METHODS: readonly string[] = ['requestPort', 'getPorts'];
+
+/**
+ * The navigator property that is the Web Serial API.
+ */
+export const WEB_SERIAL_PROPERTY = 'serial';
+
+/**
+ * THE ONE MODULE that may touch Web Serial (ROADMAP P1-01, owner approval to
+ * lift the Phase 0 ban: P1-00). Repository-relative, forward slashes.
+ *
+ * Every gate reads this constant, and each admits Web Serial here and
+ * nowhere else:
+ * - ESLint (eslint.config.js): `run/no-web-serial` does not apply to this
+ *   file, and `run/no-capability-lookup` admits a static read of
+ *   `navigator.serial` in this file only (no alias of `navigator`, no
+ *   computed key, no `Reflect`, exactly as everywhere else);
+ * - the source capability check (tools/gates/src/source) admits the same
+ *   static read in this file only;
+ * - dependency-cruiser (`web-serial-transport-importers`) lets only the
+ *   machine worker's transport seam and the machine package's tests import
+ *   it;
+ * - the build files the chunk that holds it under `assets/serial/`
+ *   (apps/web/build/chunks.ts), and the bundle scan admits Web Serial only
+ *   in that chunk, only for the staging and bench targets, never for
+ *   production (tools/gates/src/bundle/scan.ts).
+ *
+ * Changing it is a safety-path change (SAFETY §8).
+ */
+export const WEB_SERIAL_TRANSPORT_MODULE = 'packages/machine/src/webSerialTransport.ts';

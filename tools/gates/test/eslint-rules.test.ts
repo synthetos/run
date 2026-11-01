@@ -189,6 +189,30 @@ tester.run('run/no-capability-lookup', rule('no-capability-lookup'), {
   ],
 });
 
+// P1-00: the Web Serial transport (and only it, eslint.config.js) gets
+// `navigatorProperties: ['serial']`. The option admits the static read and
+// nothing else: every other capability form stays refused in that file.
+const SERIAL_OPTION = [{ navigatorProperties: ['serial'] }];
+tester.run('run/no-capability-lookup with navigatorProperties (P1-00)', rule('no-capability-lookup'), {
+  valid: [
+    { code: 'const serial = navigator.serial;', options: SERIAL_OPTION },
+    { code: "const serial = navigator['serial'];", options: SERIAL_OPTION },
+    { code: 'const ports = () => navigator.serial.getPorts();', options: SERIAL_OPTION },
+    { code: 'const lang = navigator.language;', options: SERIAL_OPTION },
+  ],
+  invalid: [
+    // Without the option, the same read is refused (the default for every other file).
+    { code: 'const serial = navigator.serial;', errors: [{ messageId: 'navigator' }] },
+    { code: "const s = navigator['ser' + 'ial'];", options: SERIAL_OPTION, errors: [{ messageId: 'navigator' }] },
+    { code: 'const s = navigator[key];', options: SERIAL_OPTION, errors: [{ messageId: 'navigator' }] },
+    { code: 'const n = navigator; const s = n.serial;', options: SERIAL_OPTION, errors: [{ messageId: 'navigator' }] },
+    { code: "const has = 'serial' in navigator;", options: SERIAL_OPTION, errors: [{ messageId: 'navigator' }] },
+    { code: 'const usb = navigator.usb;', options: SERIAL_OPTION, errors: [{ messageId: 'navigator' }] },
+    { code: "const s = Reflect.get(navigator, 'serial');", options: SERIAL_OPTION, errors: [{ messageId: 'reflect' }, { messageId: 'navigator' }] },
+    { code: 'const { serial } = navigator;', options: SERIAL_OPTION, errors: [{ messageId: 'navigator' }] },
+  ],
+});
+
 // P0 review fix pass (P0-14): an import whose specifier is computed at run
 // time is an edge no dependency rule can check.
 tester.run('run/no-dynamic-import', rule('no-dynamic-import'), {

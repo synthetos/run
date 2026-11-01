@@ -45,6 +45,12 @@ export interface SourceFinding {
 export interface SourceScanOptions {
   /** Apply the capability rule (false for the dev-only test kit, which only gets the dynamic-import rule). */
   readonly capabilities: boolean;
+  /**
+   * Extra navigator properties a static read may name in this file. The CLI
+   * passes `['serial']` for WEB_SERIAL_TRANSPORT_MODULE and nothing for any
+   * other file (P1-00).
+   */
+  readonly navigatorProperties?: readonly string[];
 }
 
 const NAVIGATOR = new Set(NAVIGATOR_NAMES);
@@ -163,12 +169,13 @@ export function scanSource(path: string, text: string, options: SourceScanOption
     findings.push({ file: path, line, rule, message: `${message}: ${node.getText(file).slice(0, 60)}` });
   };
   const locals = options.capabilities ? runtimeBindings(file) : new Set<string>();
+  const navigatorOk = new Set([...NAVIGATOR_OK, ...(options.navigatorProperties ?? [])]);
 
   const checkNavigator = (node: ts.Node): void => {
     if (isTypeofOperand(node)) return;
     const use = memberUse(node);
-    if (use !== undefined && use.key !== null && NAVIGATOR_OK.has(use.key)) return;
-    add(node, 'capability-lookup', `navigator used other than as a static read of ${NAVIGATOR_ALLOWED_PROPERTIES.join('/')}`);
+    if (use !== undefined && use.key !== null && navigatorOk.has(use.key)) return;
+    add(node, 'capability-lookup', `navigator used other than as a static read of ${[...navigatorOk].join('/')}`);
   };
   const checkWindow = (node: ts.Node, name: string): void => {
     if (isTypeofOperand(node) || isStaticInTarget(node)) return;

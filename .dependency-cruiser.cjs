@@ -199,6 +199,20 @@ module.exports = {
       to: { path: '(^packages/flasher/src/bootloaderCapability\\.ts$)' },
     },
 
+    // --- Web Serial (ROADMAP P1-00, P1-01) --------------------------------
+    {
+      name: 'web-serial-transport-importers',
+      comment:
+        'The Web Serial transport is the only module that may touch navigator.serial ' +
+        '(tools/gates/src/shared/webSerialNames.ts). Only the machine worker\'s transport seam ' +
+        '(apps/web/src/machine-worker/transport.ts, which runs in machine.worker) and the machine ' +
+        'package\'s own tests may import it. The machine package entry never re-exports it, so no ' +
+        'other code (the main thread, the cloud client, another package) can open a port.',
+      severity: 'error',
+      from: { pathNot: '(^apps/web/src/machine-worker/transport\\.ts$|^packages/machine/test/)' },
+      to: { path: '^packages/machine/src/webSerialTransport\\.ts$' },
+    },
+
     // --- Repository hygiene ----------------------------------------------
     {
       name: 'no-import-outside-repo',
@@ -234,7 +248,7 @@ module.exports = {
     exclude: {
       path: [
         '^(dist|coverage|test-results|playwright-report)/',
-        '^(packages|apps|workers|tools)/[^/]+/(dist|dist-fake-serial|coverage|\\.wrangler|test-results|playwright-report)/',
+        '^(packages|apps|workers|tools)/[^/]+/(dist|dist-fake-serial|dist-bench|coverage|\\.wrangler|test-results|playwright-report)/',
       ],
     },
     // Detect type-only imports too: a type import of an npm package from the

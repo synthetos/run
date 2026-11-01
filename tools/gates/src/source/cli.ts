@@ -7,16 +7,18 @@
  * Scans every runtime source file: `src/` of each package, app and Worker.
  * The dev-only test kit gets the dynamic-import rule only (it installs its
  * fake serial seam on the global object; no production build can contain
- * it). Exit status: 0 clean, 1 findings, 2 the check could not run.
+ * it). WEB_SERIAL_TRANSPORT_MODULE, and only it, may read `navigator.serial`
+ * (P1-00). Exit status: 0 clean, 1 findings, 2 the check could not run.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { scanSource, type SourceFinding } from './scan.ts';
+import { WEB_SERIAL_PROPERTY, WEB_SERIAL_TRANSPORT_MODULE } from '../shared/webSerialNames.ts';
 
 const WORKSPACE_GROUPS = ['packages', 'apps', 'workers'];
 const SOURCE_FILE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 /** Generated or installed directories never hold source. */
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'dist-fake-serial', 'coverage', '.wrangler']);
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'dist-fake-serial', 'dist-bench', 'coverage', '.wrangler']);
 const TESTKIT = 'packages/testkit';
 
 /** Every runtime source file, relative to `root`, sorted. */
@@ -54,7 +56,8 @@ function main(argv: readonly string[]): number {
     const findings: SourceFinding[] = [];
     for (const file of files) {
       const capabilities = !file.startsWith(`${TESTKIT}/`);
-      findings.push(...scanSource(file, readFileSync(join(root, file), 'utf8'), { capabilities }));
+      const navigatorProperties = file === WEB_SERIAL_TRANSPORT_MODULE ? [WEB_SERIAL_PROPERTY] : [];
+      findings.push(...scanSource(file, readFileSync(join(root, file), 'utf8'), { capabilities, navigatorProperties }));
     }
     if (findings.length > 0) {
       process.stderr.write(`source check: ${findings.length} finding(s)\n`);

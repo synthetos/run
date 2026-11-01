@@ -8,6 +8,7 @@ import {
   SHADOWABLE_GLOBAL_NAMES,
   WINDOW_PROPERTY_NAMES,
 } from '../../shared/capabilities.ts';
+import { WEB_SERIAL_PROPERTY } from '../../shared/webSerialNames.ts';
 
 const NAVIGATOR = new Set(NAVIGATOR_NAMES);
 const NAVIGATOR_OK = new Set(NAVIGATOR_ALLOWED_PROPERTIES);
@@ -88,12 +89,26 @@ function isAmbient(def: Scope.Definition): boolean {
  * Refuses computed or reflective access to the browser's capability objects
  * (P0 review fix pass, P0-13). See tools/gates/src/shared/capabilities.ts for
  * the admitted forms; everything else is refused.
+ *
+ * Option `navigatorProperties` (P1-00): extra navigator properties a static
+ * read may name. The only value the schema accepts is `serial`, and
+ * eslint.config.js passes it for WEB_SERIAL_TRANSPORT_MODULE alone. Every
+ * other form stays refused in that file too: aliasing or passing
+ * `navigator`, a computed key, `'serial' in navigator`, `Reflect`.
  */
 export const noCapabilityLookup: Rule.RuleModule = {
   meta: {
     type: 'problem',
     docs: { description: 'Admit only static, reviewed access to navigator and the window aliases; ban Reflect (P0-13).' },
-    schema: [],
+    schema: [
+      {
+        type: 'object',
+        properties: {
+          navigatorProperties: { type: 'array', items: { enum: [WEB_SERIAL_PROPERTY] }, uniqueItems: true },
+        },
+        additionalProperties: false,
+      },
+    ],
     messages: {
       navigator:
         'navigator may be used only as a static read of a reviewed data property ({{allowed}}) or under typeof. ' +
@@ -107,6 +122,8 @@ export const noCapabilityLookup: Rule.RuleModule = {
   },
   create(context) {
     const sourceCode = context.sourceCode;
+    const option = (context.options[0] ?? {}) as { navigatorProperties?: readonly string[] };
+    const navigatorOk = new Set([...NAVIGATOR_OK, ...(option.navigatorProperties ?? [])]);
     const reported = new Set<string>();
     const report = (node: AnyNode, messageId: 'navigator' | 'global' | 'reflect', name = ''): void => {
       const range = (node as { range?: readonly [number, number] }).range;
@@ -118,7 +135,7 @@ export const noCapabilityLookup: Rule.RuleModule = {
       context.report({
         node: node as unknown as Rule.Node,
         messageId,
-        data: { name, allowed: NAVIGATOR_ALLOWED_PROPERTIES.join(', ') },
+        data: { name, allowed: [...navigatorOk].join(', ') },
       });
     };
 
@@ -126,7 +143,7 @@ export const noCapabilityLookup: Rule.RuleModule = {
     const checkNavigator = (node: AnyNode): void => {
       if (isTypeofOperand(node)) return;
       const use = memberUse(node);
-      if (use !== undefined && use.key !== undefined && NAVIGATOR_OK.has(use.key)) return;
+      if (use !== undefined && use.key !== undefined && navigatorOk.has(use.key)) return;
       report(node, 'navigator');
     };
 
