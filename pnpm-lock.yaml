@@ -80,7 +80,14 @@ importers:
 
   packages/flasher: {}
 
-  packages/gcode: {}
+  packages/gcode:
+    dependencies:
+      '@synthetos/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@synthetos/safety':
+        specifier: workspace:*
+        version: link:../safety
 
   packages/machine:
     dependencies:

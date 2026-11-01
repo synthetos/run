@@ -13,11 +13,15 @@ describe('@synthetos/gcode', () => {
     expect(pkg.exports['.']).toBe('./src/index.ts');
   });
 
-  it('declares no runtime npm dependencies (including optional, peer and bundled)', () => {
+  it('declares no runtime npm dependencies: its only dependencies are the workspace packages it may import', () => {
     const fields = pkg as Record<string, unknown>;
-    for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies', 'bundleDependencies', 'bundledDependencies']) {
+    for (const field of ['optionalDependencies', 'peerDependencies', 'bundleDependencies', 'bundledDependencies']) {
       const value = fields[field] ?? {};
       expect(Object.keys(value as object), field).toEqual([]);
     }
+    // RUN_PLAN §5.3: gcode -> {safety, protocol}; every edge is a workspace link (the npm ban lives in .dependency-cruiser.cjs).
+    const deps = (fields['dependencies'] ?? {}) as Record<string, string>;
+    expect(Object.keys(deps).sort()).toEqual(['@synthetos/protocol', '@synthetos/safety']);
+    for (const spec of Object.values(deps)) expect(spec).toBe('workspace:*');
   });
 });
