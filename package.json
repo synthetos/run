@@ -27,6 +27,7 @@
     "gen:headers": "node tools/gates/src/headers/gen.ts",
     "e2e": "pnpm build && pnpm --filter @synthetos/e2e e2e",
     "e2e:artifact": "pnpm build && node tools/e2e/src/artifact-local.ts",
+    "e2e:staging": "pnpm build && pnpm --filter @synthetos/e2e e2e:staging",
     "e2e:fake-serial": "pnpm build && pnpm build:fake-serial && pnpm fake-serial:diff && pnpm --filter @synthetos/e2e e2e:fake-serial",
     "gen:contrast": "node tools/gates/src/tokens/contrast-cli.ts",
     "gen:icons": "node tools/gates/src/icons/gen.ts",

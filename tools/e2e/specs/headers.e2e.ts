@@ -89,7 +89,7 @@ test('the 404 page, /api/health, other /api and /auth paths all carry the exact 
   }
 });
 
-test('the Phase 0 Permissions-Policy denies serial, even to this origin, and the other device APIs', async ({ page }) => {
+test('the production Permissions-Policy denies serial, even to this origin, and the other device APIs (production stays at serial=() until Phase 6, P1-00)', async ({ page }) => {
   await page.goto('/');
   const allowed = await page.evaluate(() => {
     const fp = (document as unknown as { featurePolicy: { allowsFeature(f: string): boolean } }).featurePolicy;

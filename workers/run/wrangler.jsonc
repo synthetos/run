@@ -5,9 +5,15 @@
 //     workers.dev, preview or version URL is a separate origin with its own
 //     Web Serial grant (SAFETY H45). tools/gates/test/worker-config.test.ts fails
 //     otherwise.
-//   - Only /api/* and /auth/* run the Worker first. Assets are served by the
-//     asset layer, which applies apps/web/public/_headers (generated from
-//     src/headers.ts) to every asset response.
+//   - In production only /api/* and /auth/* run the Worker first. Assets are
+//     served by the asset layer, which applies apps/web/public/_headers
+//     (generated from src/headers.ts, production headers, serial=()) to every
+//     asset response.
+//   - On staging the Worker runs first for EVERY path (P1-00, owner-approved):
+//     it is what grants Web Serial to staging documents, `serial=(self)`,
+//     and only when RUN_ENV is staging and the host is
+//     staging.run.synthetos.com (src/headers.ts grantsSerial). Anything that
+//     ever bypassed it would get the `_headers` production set: serial=().
 //   - account_id is the CURRENT Cloudflare account, which also holds the
 //     synthetos.com zone (D39, which supersedes D34: Workers custom domains
 //     need the zone in the same account). It is locked down:
@@ -56,7 +62,17 @@
       "workers_dev": false,
       "preview_urls": false,
       "routes": [{ "pattern": "staging.run.synthetos.com", "custom_domain": true }],
-      "vars": { "RUN_ENV": "staging" }
+      "vars": { "RUN_ENV": "staging" },
+      // The top-level assets settings with run_worker_first for every path
+      // (see the rule above). tools/gates/src/deploy/wranglerConfig.ts pins
+      // both objects exactly.
+      "assets": {
+        "directory": "../../apps/web/dist",
+        "binding": "ASSETS",
+        "html_handling": "auto-trailing-slash",
+        "not_found_handling": "404-page",
+        "run_worker_first": true
+      }
     }
   }
 }

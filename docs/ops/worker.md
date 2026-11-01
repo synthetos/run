@@ -6,8 +6,26 @@ ROADMAP P0-04, RUN_PLAN §5.2, §6.3, §6.4, SAFETY H45, H46, T-S25.
 
 | Path | Served by | Headers from |
 |---|---|---|
-| `/`, `/404.html`, `/assets/*`, `/licenses/*` and every other static path | the Workers **asset layer**, without running the Worker (`html_handling: auto-trailing-slash`, `not_found_handling: 404-page`) | `apps/web/public/_headers`, copied into the build |
-| `/api/*`, `/auth/*` | the Worker first (`run_worker_first`) | `withSecurityHeaders()` in `workers/run/src/headers.ts` |
+| production: `/`, `/404.html`, `/assets/*`, `/licenses/*` and every other static path | the Workers **asset layer**, without running the Worker (`html_handling: auto-trailing-slash`, `not_found_handling: 404-page`) | `apps/web/public/_headers`, copied into the build |
+| production: `/api/*`, `/auth/*` | the Worker first (`run_worker_first`) | `withSecurityHeaders()` in `workers/run/src/headers.ts` |
+| staging: every path (P1-00) | the Worker first (`env.staging.assets.run_worker_first: true`), which fetches static paths from the asset layer | `withSecurityHeaders()`, with `serial=(self)` when `grantsSerial` holds |
+
+### Permissions-Policy per environment (P1-00)
+
+| Where | `serial` | How |
+|---|---|---|
+| production (`run.synthetos.com`) | `serial=()` | `_headers` and the Worker; unchanged until Phase 6 (P1-09) |
+| staging (`staging.run.synthetos.com`, behind Access) | `serial=(self)` | the Worker, only when `RUN_ENV` is exactly `staging` AND the request is `https://staging.run.synthetos.com` (`grantsSerial`); any other combination gets `serial=()` |
+| the localhost bench build | `serial=(self)` | the bench server (`pnpm bench:serve`), loopback only |
+| `wrangler dev` (e2e) | `serial=()`, or `serial=(self)` in the staging suite, which runs `--env staging` with the Worker seeing the staging URL | `tools/e2e/src/served.ts` |
+
+Every other header is identical in all of them. The static `_headers` file
+always carries the production set, so a response that somehow bypassed the
+staging Worker would deny serial (it fails closed). The Worker sets the
+immutable cache policy on `/assets/*` itself when it serves them, because
+`_headers` does not apply to Worker responses. Staging sits behind Access,
+so the post-deploy smoke test cannot read its headers; checking them after
+the first staging deploy is an owner action (docs/LEAD_ACTIONS.md).
 
 Both carry the same headers because both come from one module:
 `workers/run/src/headers.ts`. `_headers` is generated from it

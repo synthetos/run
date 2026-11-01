@@ -237,6 +237,12 @@ describe('the e2e-fake-serial job (P0-14)', () => {
   });
 });
 
+describe('the staging headers suite in the e2e job (P1-00)', () => {
+  it('fails when it is dropped', () => {
+    expect(rules(mutate(CI, '        run: pnpm --filter @synthetos/e2e e2e:staging\n', '        run: echo skipped\n'))).toEqual(['e2e-job']);
+  });
+});
+
 describe('the e2e job (P0-06)', () => {
   it('fails when it becomes conditional or stops needing build', () => {
     expect(rules(mutate(CI, '  e2e:\n    name: e2e\n    needs: [build]\n', "  e2e:\n    name: e2e\n    if: github.event_name == 'push'\n    needs: [build]\n"))).toEqual(['e2e-job']);

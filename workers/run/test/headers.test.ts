@@ -4,7 +4,17 @@
  * of how headers.ts assembles them, so a change to either side fails.
  */
 import { describe, expect, it } from 'vitest';
-import { HEADERS_FILE_MAX_LINE, renderHeadersFile, SECURITY_HEADERS, TRUSTED_TYPES_POLICIES, withSecurityHeaders } from '../src/headers.ts';
+import {
+  grantsSerial,
+  HEADERS_FILE_MAX_LINE,
+  renderHeadersFile,
+  securityHeadersFor,
+  SECURITY_HEADERS,
+  SERIAL_GRANTED_SECURITY_HEADERS,
+  STAGING_HOST,
+  TRUSTED_TYPES_POLICIES,
+  withSecurityHeaders,
+} from '../src/headers.ts';
 
 const RUN_PLAN_6_4: Record<string, string> = {
   'content-security-policy':
@@ -12,9 +22,9 @@ const RUN_PLAN_6_4: Record<string, string> = {
     "font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; " +
     "base-uri 'none'; form-action 'none'; object-src 'none'; " +
     "require-trusted-types-for 'script'; trusted-types rs-worker rs-svg-export",
-  // Phase 0 deviation from RUN_PLAN §6.4 (P0 review, P0-13): no document on
-  // this origin may use Web Serial until Phase 1 grants it, deliberately and
-  // on the bench app only.
+  // PRODUCTION stays at serial=() until Phase 6 (P0 review, P0-13; P1-00,
+  // P1-09: production gets the Phase 0 shell only). Staging and the bench
+  // build get serial=(self): SERIAL_GRANTED below.
   'permissions-policy':
     'serial=(), screen-wake-lock=(self), usb=(), hid=(), bluetooth=(), camera=(), microphone=(), geolocation=(), payment=()',
   'cross-origin-opener-policy': 'same-origin',
@@ -23,6 +33,13 @@ const RUN_PLAN_6_4: Record<string, string> = {
   'referrer-policy': 'no-referrer',
   'x-content-type-options': 'nosniff',
   'strict-transport-security': 'max-age=63072000; includeSubDomains',
+};
+
+/** RUN_PLAN §6.4's Phase 1 bench value, literally: the production set with serial=(self), nothing else changed. */
+const SERIAL_GRANTED: Record<string, string> = {
+  ...RUN_PLAN_6_4,
+  'permissions-policy':
+    'serial=(self), screen-wake-lock=(self), usb=(), hid=(), bluetooth=(), camera=(), microphone=(), geolocation=(), payment=()',
 };
 
 describe('SECURITY_HEADERS', () => {
@@ -36,7 +53,7 @@ describe('SECURITY_HEADERS', () => {
     expect(csp).not.toMatch(/'allow-duplicates'|trusted-types[^;]*\bdefault\b|'unsafe-|\*/);
   });
 
-  it('Phase 0: denies the serial port to every origin, this one included, and switches off every other device API', () => {
+  it('production: denies the serial port to every origin, this one included, and switches off every other device API', () => {
     const pp = SECURITY_HEADERS['permissions-policy'] ?? '';
     const serial = pp.split(',').map((f) => f.trim()).filter((f) => f.startsWith('serial='));
     expect(serial).toEqual(['serial=()']);
@@ -46,6 +63,58 @@ describe('SECURITY_HEADERS', () => {
 
   it('is frozen', () => {
     expect(Object.isFrozen(SECURITY_HEADERS)).toBe(true);
+  });
+});
+
+describe('SERIAL_GRANTED_SECURITY_HEADERS (P1-00: staging and the bench build)', () => {
+  it('is the production set with serial=(self), value for value', () => {
+    expect({ ...SERIAL_GRANTED_SECURITY_HEADERS }).toEqual(SERIAL_GRANTED);
+  });
+
+  it('differs from production in the permissions-policy only, and there in the serial feature only', () => {
+    const differs = Object.keys(SECURITY_HEADERS).filter((k) => SECURITY_HEADERS[k] !== SERIAL_GRANTED_SECURITY_HEADERS[k]);
+    expect(differs).toEqual(['permissions-policy']);
+    const prod = (SECURITY_HEADERS['permissions-policy'] ?? '').split(', ');
+    const granted = (SERIAL_GRANTED_SECURITY_HEADERS['permissions-policy'] ?? '').split(', ');
+    expect(granted.filter((f, i) => f !== prod[i])).toEqual(['serial=(self)']);
+  });
+
+  it('never grants serial to another origin or to frames', () => {
+    const pp = SERIAL_GRANTED_SECURITY_HEADERS['permissions-policy'] ?? '';
+    expect(pp).not.toMatch(/serial=\*|serial=\(self [^)]|serial=\([^)]*"/);
+    expect(Object.isFrozen(SERIAL_GRANTED_SECURITY_HEADERS)).toBe(true);
+  });
+});
+
+describe('grantsSerial and securityHeadersFor (P1-00)', () => {
+  const url = (u: string): URL => new URL(u);
+
+  it('grants serial only to the staging Worker on https://staging.run.synthetos.com', () => {
+    expect(STAGING_HOST).toBe('staging.run.synthetos.com');
+    expect(grantsSerial('staging', url('https://staging.run.synthetos.com/'))).toBe(true);
+    expect(grantsSerial('staging', url('https://staging.run.synthetos.com/safety/?x=1'))).toBe(true);
+  });
+
+  it.each([
+    ['the production Worker on its own host', 'production', 'https://run.synthetos.com/'],
+    ['the production Worker on the staging host', 'production', 'https://staging.run.synthetos.com/'],
+    ['the staging Worker on the production host', 'staging', 'https://run.synthetos.com/'],
+    ['the staging Worker on a workers.dev name', 'staging', 'https://run-staging.example.workers.dev/'],
+    ['the staging Worker on a look-alike host', 'staging', 'https://staging.run.synthetos.com.evil.example/'],
+    ['the staging Worker on a sub-host', 'staging', 'https://x.staging.run.synthetos.com/'],
+    ['the staging Worker over plain http', 'staging', 'http://staging.run.synthetos.com/'],
+    ['the staging Worker on another port', 'staging', 'https://staging.run.synthetos.com:8443/'],
+    ['wrangler dev (development)', 'development', 'http://127.0.0.1:8790/'],
+    ['a missing RUN_ENV', undefined, 'https://staging.run.synthetos.com/'],
+    ['RUN_ENV with other case', 'Staging', 'https://staging.run.synthetos.com/'],
+    ['RUN_ENV not a string', ['staging'], 'https://staging.run.synthetos.com/'],
+  ])('refuses %s', (_name, runEnv, u) => {
+    expect(grantsSerial(runEnv, url(u))).toBe(false);
+  });
+
+  it('securityHeadersFor picks the set', () => {
+    expect(securityHeadersFor(false)).toBe(SECURITY_HEADERS);
+    expect(securityHeadersFor(true)).toBe(SERIAL_GRANTED_SECURITY_HEADERS);
   });
 });
 
@@ -77,6 +146,11 @@ describe('withSecurityHeaders', () => {
     expect(await res.text()).toBe('body text');
   });
 
+  it('applies the serial-granted set when given, replacing an upstream serial=()', () => {
+    const res = withSecurityHeaders(new Response('x', { headers: { 'permissions-policy': 'serial=()' } }), SERIAL_GRANTED_SECURITY_HEADERS);
+    for (const [name, value] of Object.entries(SERIAL_GRANTED)) expect(res.headers.get(name)).toBe(value);
+  });
+
   it('works on a response with immutable headers (as Response.redirect and fetch return them)', () => {
     const upstream = Response.redirect('https://run.synthetos.com/', 307);
     expect(() => upstream.headers.set('x-test', 'y')).toThrow();
@@ -90,7 +164,7 @@ describe('withSecurityHeaders', () => {
 describe('renderHeadersFile', () => {
   const text = renderHeadersFile();
 
-  it('applies every security header to every asset path', () => {
+  it('applies every PRODUCTION security header (serial=()) to every asset path, in every environment', () => {
     const lines = text.split('\n');
     const all = lines.indexOf('/*');
     const assets = lines.indexOf('/assets/*');

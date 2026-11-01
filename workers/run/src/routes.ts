@@ -6,7 +6,7 @@
  * In Phase 0 the API is a single route, `GET /api/health`. Every other
  * `/api/*` and `/auth/*` path is a 404 until A1 adds sign-in.
  */
-import { API_CACHE_CONTROL } from './headers.ts';
+import { API_CACHE_CONTROL, HASHED_ASSET_CACHE_CONTROL } from './headers.ts';
 
 export const VERSION = '0.0.0';
 
@@ -92,7 +92,14 @@ export async function route(request: Request, env: Env): Promise<Response> {
     // no auth route at all.
     return notFound();
   }
-  // Not normally reached (only /api/* and /auth/* run the Worker first), but
-  // if it is, the asset layer answers and the headers are still applied.
-  return env.ASSETS.fetch(request);
+  // Production: not normally reached (only /api/* and /auth/* run the Worker
+  // first). Staging: every other request (the Worker runs first for all of
+  // them, P1-00). The asset layer answers; the caller applies the headers.
+  // `_headers` does not apply to responses the Worker returns, so the
+  // immutable cache policy of hashed assets is set here.
+  const asset = await env.ASSETS.fetch(request);
+  if (!under(pathname, '/assets') || asset.status !== 200) return asset;
+  const cached = new Response(asset.body, asset);
+  cached.headers.set('cache-control', HASHED_ASSET_CACHE_CONTROL);
+  return cached;
 }

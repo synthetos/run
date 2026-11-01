@@ -261,10 +261,11 @@ at run time, which is why it refuses the lookups that would use one
 (`capability-lookup`) rather than trying to recognise the name. The
 dependency-cruiser, source-check and ESLint rules on the source are the
 primary gates. None of these pattern gates can prove arbitrary JavaScript
-safe; in Phase 0 the browser enforces the ban as well, because
-`Permissions-Policy: serial=()` denies Web Serial to every document on the
-origin (workers/run/src/headers.ts). Phase 1 relaxes that deliberately, on
-the bench app only.
+safe; the browser enforces the ban as well wherever Web Serial is not
+meant to run, because `Permissions-Policy: serial=()` denies it to every
+document on the origin (workers/run/src/headers.ts). P1-00 grants
+`serial=(self)` on staging and the localhost bench build only; production
+keeps `serial=()` (docs/ops/worker.md).
 
 ## Artifact verification
 

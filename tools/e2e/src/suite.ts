@@ -1,7 +1,9 @@
 /**
- * The Playwright configuration both suites share (ROADMAP P0-04, P0-06,
- * P0-14): the main suite (`*.e2e.ts`, playwright.config.ts) and the
- * fake-serial suite (`*.fake-serial.ts`, playwright.fake-serial.config.ts).
+ * The Playwright configuration the suites share (ROADMAP P0-04, P0-06,
+ * P0-14, P1-00): the main suite (`*.e2e.ts`, playwright.config.ts), the
+ * fake-serial suite (`*.fake-serial.ts`, playwright.fake-serial.config.ts)
+ * and the staging headers suite (`*.staging.ts`,
+ * playwright.staging.config.ts).
  *
  * Each suite runs only in its own served modes (src/served.ts): the main
  * suite never runs against the fake-serial test build, and the fake-serial
@@ -9,13 +11,15 @@
  * configuration loads, before any server starts.
  */
 import { defineConfig, type PlaywrightTestConfig, type ReporterDescription } from '@playwright/test';
-import { servedMode, shellQuote, wranglerArgs, type ServedMode } from './served.ts';
+import { servedMode, shellQuote, wranglerArgs, type ServedMode, type WorkerEnvironment } from './served.ts';
 
 export interface SuiteOptions {
   readonly name: string;
   readonly port: number;
   readonly testMatch: string;
   readonly modes: readonly ServedMode['kind'][];
+  /** The deployment wrangler dev stands in for (default production; the staging suite, P1-00). */
+  readonly environment?: WorkerEnvironment;
 }
 
 export function suiteConfig(options: SuiteOptions, env: NodeJS.ProcessEnv = process.env, cwd = process.cwd()): PlaywrightTestConfig {
@@ -40,7 +44,7 @@ export function suiteConfig(options: SuiteOptions, env: NodeJS.ProcessEnv = proc
       bypassCSP: false,
     },
     webServer: {
-      command: ['node', ...wranglerArgs(mode, options.port)].map(shellQuote).join(' '),
+      command: ['node', ...wranglerArgs(mode, options.port, options.environment ?? 'production')].map(shellQuote).join(' '),
       url: `http://127.0.0.1:${options.port}/api/health`,
       reuseExistingServer: false,
       timeout: 60_000,

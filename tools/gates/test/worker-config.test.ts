@@ -61,6 +61,16 @@ describe('the committed wrangler.jsonc', () => {
     expect(c.env.staging['preview_urls']).toBe(false);
   });
 
+  it('P1-00: staging runs the Worker first for every path (it grants serial=(self)); production keeps only /api/* and /auth/*', () => {
+    expect(load().env.staging['assets']).toEqual({
+      directory: '../../apps/web/dist',
+      binding: 'ASSETS',
+      html_handling: 'auto-trailing-slash',
+      not_found_handling: '404-page',
+      run_worker_first: true,
+    });
+  });
+
   it('is refused for deploy while the account id is the placeholder', () => {
     expect(load()['account_id']).toBe(ACCOUNT_ID_PLACEHOLDER);
     expect(checkWorkerConfig(load(), { requireRealAccount: true }).map((f) => f.where)).toEqual(['account_id']);
@@ -88,7 +98,10 @@ describe('checkWorkerConfig refuses each H45/D39 weakening', () => {
     ['a non-custom-domain route', (c) => (c['routes'] = [{ pattern: 'run.synthetos.com/*', zone_name: 'synthetos.com' }]), '.'],
     ['staging on the production host', (c) => (c.env.staging['routes'] = [{ pattern: 'run.synthetos.com', custom_domain: true }]), 'env.staging'],
     ['staging overriding the account', (c) => (c.env.staging['account_id'] = REAL_ACCOUNT), 'env.staging.account_id'],
-    ['staging overriding the assets', (c) => (c.env.staging['assets'] = c['assets']), 'env.staging.assets'],
+    ['staging with the production assets settings (the Worker would not grant serial on documents)', (c) => (c.env.staging['assets'] = c['assets']), 'env.staging.assets'],
+    ['staging without assets settings', (c) => delete c.env.staging['assets'], 'env.staging.assets'],
+    ['staging assets on another directory', (c) => ((c.env.staging['assets'] as Record<string, unknown>)['directory'] = '../../apps/web/dist-bench'), 'env.staging.assets'],
+    ['staging with an SPA fallback', (c) => ((c.env.staging['assets'] as Record<string, unknown>)['not_found_handling'] = 'single-page-application'), 'env.staging.assets'],
     ['an extra environment', (c) => ((c.env as Record<string, unknown>)['preview'] = {}), 'env.preview'],
     ['an unsafe block', (c) => (c['unsafe'] = {}), '.'],
     ['a wrong RUN_ENV', (c) => (c['vars'] = { RUN_ENV: 'staging' }), '.'],

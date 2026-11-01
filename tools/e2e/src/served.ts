@@ -77,15 +77,35 @@ export const REQUIRED_SITE_FILES: readonly string[] = [
 /** The files that must exist in an artifact Worker directory. */
 export const REQUIRED_WORKER_FILES: readonly string[] = ['index.mjs', 'headers.mjs', 'routes.mjs'];
 
+/** The deployment a suite's `wrangler dev` stands in for. */
+export type WorkerEnvironment = 'production' | 'staging';
+
+/**
+ * The staging stand-in (P1-00): `--env staging`, and the Worker sees every
+ * request as `https://staging.run.synthetos.com/...` (wrangler's local
+ * upstream), so `grantsSerial` (workers/run/src/headers.ts) answers as it
+ * does on staging. The browser still talks to 127.0.0.1.
+ */
+export const STAGING_DEV_ARGS: readonly string[] = ['--env', 'staging', '--local-upstream', 'staging.run.synthetos.com', '--upstream-protocol', 'https'];
+
 /**
  * The argv (after `node`) that starts `wrangler dev` for the mode. The
  * artifact command is the deploy command with `dev` for `deploy`
  * (.github/workflows/ci.yml, docs/ops/worker.md).
  */
-export function wranglerArgs(mode: ServedMode, port: number): string[] {
+export function wranglerArgs(mode: ServedMode, port: number, environment: WorkerEnvironment = 'production'): string[] {
   const wrangler = join(REPO_ROOT, 'workers/run/node_modules/wrangler/bin/wrangler.js');
   const config = join(REPO_ROOT, 'workers/run/wrangler.jsonc');
-  const common = ['--config', config, '--port', String(port), '--ip', '127.0.0.1', '--show-interactive-dev-session=false'];
+  const common = [
+    '--config',
+    config,
+    '--port',
+    String(port),
+    '--ip',
+    '127.0.0.1',
+    '--show-interactive-dev-session=false',
+    ...(environment === 'staging' ? STAGING_DEV_ARGS : []),
+  ];
   if (mode.kind === 'source') return [wrangler, 'dev', ...common];
   if (mode.kind === 'fake-serial') return [wrangler, 'dev', '--assets', mode.siteDir, ...common];
   return [wrangler, 'dev', join(mode.workerDir, 'index.mjs'), '--no-bundle', '--assets', mode.siteDir, ...common];

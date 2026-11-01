@@ -83,6 +83,15 @@ export const EXPECTED_ASSETS = {
   run_worker_first: ['/api/*', '/auth/*'],
 } as const;
 
+/**
+ * env.staging's assets settings (P1-00): the top-level ones with the Worker
+ * first for every path, so that it can grant `serial=(self)` to staging
+ * documents (workers/run/src/headers.ts grantsSerial). Production keeps
+ * EXPECTED_ASSETS: the asset layer serves the shell with the `_headers`
+ * production set, serial=().
+ */
+export const EXPECTED_STAGING_ASSETS = { ...EXPECTED_ASSETS, run_worker_first: true } as const;
+
 /** Keys that would add a second origin, a gradual rollout or code from elsewhere. Never allowed. */
 const FORBIDDEN_KEYS = ['unsafe', 'routes_preview', 'route', 'tail_consumers', 'dispatch_namespaces', 'legacy_env', 'site'];
 
@@ -108,8 +117,8 @@ export const TOP_LEVEL_KEYS: readonly string[] = [
   'vars',
   'env',
 ];
-/** The only keys env.staging may hold; everything else is inherited from the top level. */
-export const STAGING_KEYS: readonly string[] = ['workers_dev', 'preview_urls', 'routes', 'vars'];
+/** The only keys env.staging may hold (each one required); everything else is inherited from the top level. */
+export const STAGING_KEYS: readonly string[] = ['workers_dev', 'preview_urls', 'routes', 'vars', 'assets'];
 
 /** Pinned values of the module settings the attested --no-bundle deploy depends on. */
 export const EXPECTED_MAIN = 'src/index.ts';
@@ -192,9 +201,10 @@ export function checkWorkerConfig(config: unknown, options: { requireRealAccount
     if (!isObject(staging)) add('env.staging', 'missing');
     else {
       checkScope(staging, 'env.staging', 'staging', findings);
-      for (const key of ['account_id', 'assets', 'name', 'main']) {
+      for (const key of ['account_id', 'name', 'main']) {
         if (key in staging) add(`env.staging.${key}`, 'must be inherited from the top level, never overridden');
       }
+      if (!same(staging['assets'], EXPECTED_STAGING_ASSETS)) add('env.staging.assets', `must be exactly ${JSON.stringify(EXPECTED_STAGING_ASSETS)}`);
     }
   }
   return findings;

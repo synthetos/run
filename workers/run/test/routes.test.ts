@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
 import worker from '../src/index.ts';
 import { type Env, route, VERSION } from '../src/routes.ts';
-import { SECURITY_HEADERS } from '../src/headers.ts';
+import { HASHED_ASSET_CACHE_CONTROL, SECURITY_HEADERS, SERIAL_GRANTED_SECURITY_HEADERS } from '../src/headers.ts';
 
 const ORIGIN = 'https://run.synthetos.com';
 
@@ -119,5 +119,49 @@ describe('errors', () => {
   it('route() itself adds no headers: the handler is the single place that does', async () => {
     const res = await route(req('/api/health'), env());
     expect(res.headers.get('content-security-policy')).toBeNull();
+  });
+});
+
+describe('P1-00: serial=(self) on staging only, decided per request', () => {
+  const STAGING = 'https://staging.run.synthetos.com';
+  const at = (origin: string, path: string, method = 'GET'): Request => new Request(`${origin}${path}`, { method });
+  const pp = (res: Response): string | null => res.headers.get('permissions-policy');
+
+  it.each(['/', '/safety/', '/no-such-page', '/assets/workspace-abc12345.js', '/api/health', '/api/nope', '/auth/login'])(
+    'the staging Worker on the staging host grants serial=(self) on %s, with every other header unchanged',
+    async (path) => {
+      const res = await worker.fetch(at(STAGING, path), env('staging'));
+      for (const [name, value] of Object.entries(SERIAL_GRANTED_SECURITY_HEADERS)) expect(res.headers.get(name), name).toBe(value);
+    },
+  );
+
+  it.each([
+    ['production Worker, production host', 'production', ORIGIN],
+    ['production Worker, staging host', 'production', STAGING],
+    ['staging Worker, production host', 'staging', ORIGIN],
+    ['development Worker, staging host', 'development', STAGING],
+    ['no RUN_ENV, staging host', null, STAGING],
+  ])('%s: serial=()', async (_name, runEnv, origin) => {
+    for (const path of ['/', '/api/health', '/assets/a-abc12345.js']) {
+      const res = await worker.fetch(at(origin, path), env(runEnv));
+      expect(pp(res), `${origin}${path}`).toBe(SECURITY_HEADERS['permissions-policy']);
+      expectSecurityHeaders(res);
+    }
+  });
+
+  it('an error inside the Worker on staging still gets the staging set and no detail', async () => {
+    const broken: Env = { RUN_ENV: 'staging', ASSETS: { fetch: () => Promise.reject(new Error('boom')) } };
+    const res = await worker.fetch(at(STAGING, '/'), broken);
+    expect(res.status).toBe(500);
+    expect(pp(res)).toBe(SERIAL_GRANTED_SECURITY_HEADERS['permissions-policy']);
+  });
+
+  it('a hashed asset the Worker serves gets the immutable cache policy; other paths and failures do not', async () => {
+    const e = env('staging');
+    expect((await worker.fetch(at(STAGING, '/assets/workspace-abc12345.js'), e)).headers.get('cache-control')).toBe(HASHED_ASSET_CACHE_CONTROL);
+    expect((await worker.fetch(at(STAGING, '/'), e)).headers.get('cache-control')).toBeNull();
+    const missing: Env = { RUN_ENV: 'staging', ASSETS: { fetch: () => Promise.resolve(new Response('nope', { status: 404 })) } };
+    expect((await worker.fetch(at(STAGING, '/assets/gone-abc12345.js'), missing)).headers.get('cache-control')).toBeNull();
+    expect((await worker.fetch(at(STAGING, '/assetsx/a.js'), e)).headers.get('cache-control')).toBeNull();
   });
 });

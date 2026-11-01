@@ -30,7 +30,8 @@
  *   `build`, points RUN_E2E_SITE and RUN_E2E_WORKER at the extracted
  *   artifact for every step (and nothing else in the job names them),
  *   verifies both trees against their manifests,
- *   then runs the suite, then the third-party canary, in that order.
+ *   then runs the suite, the staging headers suite (P1-00) and the
+ *   third-party canary, in that order.
  * - `fake-serial-job` (ci.yml, P0-14): the `e2e-fake-serial` job is
  *   unconditional, needs `build`, builds the fake-serial test artifact before
  *   it downloads anything, verifies the production site, runs the artifact
@@ -96,6 +97,7 @@ export const E2E_STEPS: readonly string[] = [
   'node tools/gates/src/repro/cli.ts verify site artifact/run-web.sha256',
   'node tools/gates/src/repro/cli.ts verify worker artifact/run-worker.sha256',
   'run: pnpm --filter @synthetos/e2e e2e',
+  'run: pnpm --filter @synthetos/e2e e2e:staging',
   'run: pnpm --filter @synthetos/e2e canary',
 ];
 

@@ -246,6 +246,8 @@ jobs:
           node tools/gates/src/repro/cli.ts verify worker artifact/run-worker.sha256
       - name: Playwright against wrangler dev serving the artifact (T-S25, origin guard)
         run: pnpm --filter @synthetos/e2e e2e
+      - name: Staging headers suite (the same artifact, wrangler dev as staging; serial=(self), P1-00)
+        run: pnpm --filter @synthetos/e2e e2e:staging
       - name: Third-party canary (a planted third-party URL must fail the suite)
         run: pnpm --filter @synthetos/e2e canary
 

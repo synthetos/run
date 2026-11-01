@@ -42,6 +42,7 @@ function main(): void {
   const env = { ...process.env, [SITE_ENV]: site, [WORKER_ENV]: worker };
   const cli = createRequire(join(REPO_ROOT, 'tools/e2e/package.json')).resolve('@playwright/test/cli');
   step('Playwright against wrangler dev serving the artifact (must pass)', [cli, 'test'], env, join(REPO_ROOT, 'tools/e2e'));
+  step('staging headers suite against the same artifact (must pass, P1-00)', [cli, 'test', '-c', 'playwright.staging.config.ts'], env, join(REPO_ROOT, 'tools/e2e'));
   step('third-party canary (the suite must fail through the origin guard)', [join(REPO_ROOT, 'tools/e2e/src/canary-cli.ts')], env);
   process.stdout.write(`\ne2e:artifact: ok (artifact in ${scratch})\n`);
 }

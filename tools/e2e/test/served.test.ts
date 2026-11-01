@@ -51,6 +51,19 @@ describe('wranglerArgs', () => {
   });
 });
 
+describe('wranglerArgs (staging stand-in, P1-00)', () => {
+  it('runs the staging environment with the Worker seeing https://staging.run.synthetos.com', () => {
+    for (const mode of [{ kind: 'source', siteDir: '/d' } as const, { kind: 'artifact', siteDir: '/a/site', workerDir: '/a/worker' } as const]) {
+      const args = wranglerArgs(mode, 8792, 'staging').join(' ');
+      expect(args).toContain('--env staging --local-upstream staging.run.synthetos.com --upstream-protocol https');
+    }
+  });
+
+  it('never adds the staging arguments by default', () => {
+    expect(wranglerArgs({ kind: 'source', siteDir: '/d' }, 8790).join(' ')).not.toContain('--env');
+  });
+});
+
 describe('wranglerArgs (fake-serial)', () => {
   it('bundles the source Worker and serves the test build as the asset directory', () => {
     const args = wranglerArgs({ kind: 'fake-serial', siteDir: '/r/apps/web/dist-fake-serial' }, 8791);

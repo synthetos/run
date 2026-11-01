@@ -47,13 +47,19 @@ export const CSP_DIRECTIVES: readonly string[] = [
  * Permissions-Policy features: the wake lock for this origin only; everything
  * else off.
  *
- * Phase 0 (P0 review, P0-13): `serial=()`. RUN_PLAN §6.4 grants
- * `serial=(self)`, but nothing in Phase 0 may reach a serial port, and the
- * source and bundle gates are pattern checks that cannot prove arbitrary
- * JavaScript safe. With `serial=()` the browser itself refuses Web Serial to
- * every document on this origin (and to the workers it creates), however a
- * script reaches the API. Phase 1 relaxes this deliberately, in its own
- * owner-approved change, and on the bench app only.
+ * PRODUCTION: `serial=()`. RUN_PLAN §6.4 grants `serial=(self)` "from the
+ * Phase 1 bench app onward", but production serves only the Phase 0 shell
+ * until Phase 6 (ROADMAP hard rules, P1-09), and the source and bundle gates
+ * are pattern checks that cannot prove arbitrary JavaScript safe. With
+ * `serial=()` the browser itself refuses Web Serial to every document on
+ * this origin (and to the workers it creates), however a script reaches the
+ * API. This is the set the static `_headers` file carries, so every response
+ * the Worker does not build (assets served directly by the asset layer)
+ * denies serial too: that path fails closed.
+ *
+ * P1-00 (owner-approved): staging and the localhost bench build get
+ * `serial=(self)` (SERIAL_GRANTED_PERMISSIONS_POLICY_FEATURES), and only
+ * through `grantsSerial` below or the bench server.
  */
 export const PERMISSIONS_POLICY_FEATURES: readonly string[] = [
   'serial=()',
@@ -68,20 +74,60 @@ export const PERMISSIONS_POLICY_FEATURES: readonly string[] = [
 ];
 
 /**
- * The headers every response carries, with lower-case names, in the order
- * RUN_PLAN §6.4 lists them. HSTS has no `preload` yet (D29: preload after a
- * further subdomain audit).
+ * The staging and bench Permissions-Policy (P1-00): the production list with
+ * `serial=(self)` in place of `serial=()`, and nothing else changed. Web
+ * Serial for this origin only, never for a frame or another origin.
  */
-export const SECURITY_HEADERS: Readonly<Record<string, string>> = Object.freeze({
-  'content-security-policy': CSP_DIRECTIVES.join('; '),
-  'permissions-policy': PERMISSIONS_POLICY_FEATURES.join(', '),
-  'cross-origin-opener-policy': 'same-origin',
-  'cross-origin-resource-policy': 'same-origin',
-  'x-frame-options': 'DENY',
-  'referrer-policy': 'no-referrer',
-  'x-content-type-options': 'nosniff',
-  'strict-transport-security': 'max-age=63072000; includeSubDomains',
-});
+export const SERIAL_GRANTED_PERMISSIONS_POLICY_FEATURES: readonly string[] = PERMISSIONS_POLICY_FEATURES.map((feature) =>
+  feature === 'serial=()' ? 'serial=(self)' : feature,
+);
+
+function securityHeaders(permissionsPolicy: readonly string[]): Readonly<Record<string, string>> {
+  return Object.freeze({
+    'content-security-policy': CSP_DIRECTIVES.join('; '),
+    'permissions-policy': permissionsPolicy.join(', '),
+    'cross-origin-opener-policy': 'same-origin',
+    'cross-origin-resource-policy': 'same-origin',
+    'x-frame-options': 'DENY',
+    'referrer-policy': 'no-referrer',
+    'x-content-type-options': 'nosniff',
+    'strict-transport-security': 'max-age=63072000; includeSubDomains',
+  });
+}
+
+/**
+ * The headers every PRODUCTION response carries (and the `_headers` file),
+ * with lower-case names, in the order RUN_PLAN §6.4 lists them. HSTS has no
+ * `preload` yet (D29: preload after a further subdomain audit).
+ */
+export const SECURITY_HEADERS: Readonly<Record<string, string>> = securityHeaders(PERMISSIONS_POLICY_FEATURES);
+
+/**
+ * The staging and bench headers (P1-00): SECURITY_HEADERS with
+ * `serial=(self)`. Every other header is identical.
+ */
+export const SERIAL_GRANTED_SECURITY_HEADERS: Readonly<Record<string, string>> = securityHeaders(SERIAL_GRANTED_PERMISSIONS_POLICY_FEATURES);
+
+/** The staging host (D31: behind Cloudflare Access). The only deployed host that may grant serial. */
+export const STAGING_HOST = 'staging.run.synthetos.com';
+
+/**
+ * True only for a request to `https://staging.run.synthetos.com` handled by
+ * the Worker deployed as staging (`RUN_ENV` exactly `staging`). Both must
+ * hold: a production Worker never grants serial whatever the host, and a
+ * staging Worker reached under any other name (there should be none:
+ * workers_dev and preview_urls are off, H45) does not either. Anything
+ * unexpected, a missing or odd RUN_ENV included, gets the production
+ * headers.
+ */
+export function grantsSerial(runEnv: unknown, url: URL): boolean {
+  return runEnv === 'staging' && url.protocol === 'https:' && url.hostname === STAGING_HOST && url.port === '';
+}
+
+/** The header set for a response: serial granted (staging, bench) or not (production, everything else). */
+export function securityHeadersFor(serialGranted: boolean): Readonly<Record<string, string>> {
+  return serialGranted ? SERIAL_GRANTED_SECURITY_HEADERS : SECURITY_HEADERS;
+}
 
 /** Cache policy for content-hashed build assets (`/assets/*`): their bytes never change under a name. */
 export const HASHED_ASSET_CACHE_CONTROL = 'public, max-age=31536000, immutable';
@@ -90,14 +136,15 @@ export const HASHED_ASSET_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 export const API_CACHE_CONTROL = 'no-store';
 
 /**
- * Returns a copy of `response` carrying exactly the security headers above.
- * Any value already present for one of these names (for example from the
- * asset layer) is replaced, never merged, so nothing upstream can weaken
- * them. Other headers, the status and the body are kept.
+ * Returns a copy of `response` carrying exactly the given security headers
+ * (production unless the caller says otherwise). Any value already present
+ * for one of these names (for example from the asset layer) is replaced,
+ * never merged, so nothing upstream can weaken or widen them. Other headers,
+ * the status and the body are kept.
  */
-export function withSecurityHeaders(response: Response): Response {
+export function withSecurityHeaders(response: Response, headers: Readonly<Record<string, string>> = SECURITY_HEADERS): Response {
   const wrapped = new Response(response.body, response);
-  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+  for (const [name, value] of Object.entries(headers)) {
     wrapped.headers.set(name, value);
   }
   return wrapped;
@@ -112,9 +159,12 @@ function displayName(name: string): string {
 export const HEADERS_FILE_MAX_LINE = 2000;
 
 /**
- * Renders the static-assets `_headers` file. `/*` applies the security
- * headers to every asset response, including the 404 page and redirects;
- * `/assets/*` adds the immutable cache policy for hashed files.
+ * Renders the static-assets `_headers` file. `/*` applies the PRODUCTION
+ * security headers (`serial=()`) to every asset response, including the 404
+ * page and redirects, in every environment: on staging, where the Worker runs
+ * first for every path (wrangler.jsonc), it replaces them; anything served
+ * past the Worker still denies serial. `/assets/*` adds the immutable cache
+ * policy for hashed files.
  */
 export function renderHeadersFile(): string {
   const lines = [
