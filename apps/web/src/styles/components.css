@@ -345,3 +345,32 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 
 /* The localhost bench build marks its version chip (P1-00, src/channel/bench.ts). */
 .version-chip[data-channel='bench'] { border-style: dashed; }
+
+/* Wiring editor (ROADMAP TB-05). The on-screen SVG uses these classes; the
+   export uses its own fixed print palette (packages/wiring render.ts). */
+.wiring-workbench, .wiring-editor { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 1fr); min-width: 0; overflow-wrap: anywhere; }
+.wiring-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; }
+.wiring-row label { display: grid; gap: 0.25rem; }
+.wiring-parts li { margin-block: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.wiring-table { border-collapse: collapse; width: 100%; }
+.wiring-table th, .wiring-table td { border-bottom: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: left; }
+.wiring-canvas { border: 1px solid var(--rule); background: var(--sheet); overflow: auto; }
+.wiring-canvas svg { width: 100%; height: auto; display: block; }
+.wiring-board { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
+.wiring-board-name, .wiring-part-label { fill: var(--ink); font-family: var(--sans); font-size: 13px; font-weight: 600; }
+.wiring-pin circle { fill: var(--paper); stroke: var(--ink); }
+.wiring-pin-label { fill: var(--muted); font-family: var(--mono); font-size: 10px; }
+.wiring-part rect { fill: var(--paper); stroke: var(--ink); }
+.wiring-wire { stroke: var(--blue); stroke-width: 1.5; }
+.wiring-wire-shielded { stroke-dasharray: 6 2; }
+.wiring-finding circle { stroke: var(--warn); }
+.wiring-finding-block circle, .wiring-finding-estop circle { stroke: var(--danger); }
+.wiring-watermark { fill: var(--danger); opacity: 0.3; font-family: var(--sans); font-size: 40px; font-weight: 700; }
+.wiring-watermark-notice, .wiring-error { color: var(--danger); font-weight: 600; }
+.wiring-findings [data-severity="block"] strong, .wiring-findings [data-severity="estop"] strong { color: var(--danger); }
+.wiring-findings [data-severity="warn"] strong { color: var(--warn); }
+.wiring-confirm { border: 2px solid var(--warn); padding: 0.75rem; display: grid; gap: 0.5rem; max-width: 36rem; }
+.wiring-editor select, .wiring-editor input[type="text"], .wiring-workbench select { max-width: 100%; }
+.wiring-row label { min-width: 0; max-width: 100%; }
+.wiring-table { display: block; overflow-x: auto; }
+.wiring-editor small { color: var(--muted); }

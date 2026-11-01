@@ -17,7 +17,7 @@ import { Shell } from '../src/shell/Shell.ts';
 
 const web = resolve(import.meta.dirname, '..');
 const build = { version: '0.0.0', sha: 'b'.repeat(40) };
-const HTML_FILES = ['index.html', 'safety/index.html', 'privacy/index.html', '404.html'];
+const HTML_FILES = ['index.html', 'wiring/index.html', 'safety/index.html', 'privacy/index.html', '404.html'];
 
 /** The text of the HTML as a browser would show it, entities decoded (only the ones renderToString emits). */
 function decoded(html: string): string {

@@ -6,7 +6,7 @@ import type { Page } from '@playwright/test';
 import { expect } from './fixtures.ts';
 
 /** The pages every safety-bar test visits. */
-export const PAGES = ['/', '/safety/', '/privacy/', '/no-such-page'] as const;
+export const PAGES = ['/', '/wiring/', '/safety/', '/privacy/', '/no-such-page'] as const;
 
 /** Waits until the page's entry script has run (it sets data-ready on <html>). */
 export async function ready(page: Page): Promise<void> {

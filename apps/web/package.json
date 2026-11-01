@@ -19,6 +19,7 @@
     "@synthetos/machine": "workspace:*",
     "@synthetos/safety": "workspace:*",
     "@synthetos/schema": "workspace:*",
+    "@synthetos/wiring": "workspace:*",
     "preact": "11.0.1"
   },
   "devDependencies": {

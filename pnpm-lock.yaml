@@ -64,6 +64,9 @@ importers:
       '@synthetos/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@synthetos/wiring':
+        specifier: workspace:*
+        version: link:../../packages/wiring
       preact:
         specifier: 11.0.1
         version: 11.0.1(preact-render-to-string@6.8.1)
