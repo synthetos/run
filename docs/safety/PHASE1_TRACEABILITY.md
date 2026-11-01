@@ -113,3 +113,42 @@ Open with this task:
   test (axe, AudioContext `running` in a real browser) runs then.
 - **Thresholds** are bench-validated in B-WD-1 (Phase 3); the 1 s idle
   interval is this task's choice (SAFETY §4.2 gives only the 2 s STALE).
+
+## P1-05: LIVE entry gates and the pluggable D1 sign-in gate
+
+Code: `apps/web/src/live/` (`authGate.ts`, `advisoryGate.ts`, `c1.ts`,
+`liveMarker.ts`, `fullscreen.ts`, `liveGates.ts`, `liveEntry.ts`,
+`ConnectPanel.ts`, `mount.ts`, `deviceSafety.ts`), `apps/web/src/cloud/live.ts`
+(the two `no-store` reads), `apps/web/src/channel/bench.ts` (bench identity),
+`apps/web/src/shell/SafetyBar.ts` (W6), `packages/protocol/src/safetyAdvisory.ts`,
+`workers/run/src/accessIdentity.ts` and `routes.ts` (`GET /api/identity`),
+`tools/gates/src/release/safetyAdvisory.ts` (`pnpm sign:advisory`).
+
+| Requirement | Implementation | Test | Status |
+|---|---|---|---|
+| D1 gate at Connect, UI/auth layer only; never reachable from the machine path | `AuthGate` over three providers (`run-session`: none until A1-07; `access`: staging only; `bench`: bench channel, loopback only); dependency-cruiser `machine-path-never-reaches-live-gates` | `apps/web/test/liveEntry.test.ts` "D1 sign-in gate", "signed out"; `tools/gates/test/bench-acceptance.test.ts` "AuthGate"; `channel.test.ts` bench identity | PASS |
+| Signed out: Connect refused | `LiveEntry.begin` refuses before the advisory, C1 or the chooser | `liveEntry.test.ts` "signed out: Connect is refused" | PASS |
+| Mid-session identity loss changes nothing in the machine path | `LiveGates`: never-gated actions allowed without an identity read; nothing in live/ sends the worker anything but `open`, `close`, `subscribe` | `liveEntry.test.ts` "mid-session loss of the identity" | PASS |
+| Staging: verified Access identity | `GET /api/identity`: RS256 under the team certs, AUD, issuer, expiry; staging Worker on the staging host only | `workers/run/test/identity.test.ts` | PASS (unit); the live check needs Access configured (LEAD_ACTIONS) |
+| T-S31 / H27: signed advisory, `no-store`, revoked or unverifiable refuses LIVE, 7-day cache | `checkAdvisory` (re-verifies the cached raw file on use, never falls back to the cache after a bad fetch) | `packages/protocol/test/safetyAdvisory.test.ts`; `liveEntry.test.ts` "advisory gate" | PASS (unit) |
+| T-S75: production rejects staging entries; expired cache fails closed; revocation while LIVE denies Arm/Start/jog, never a job or a stop | per-environment entries and keys; `AdvisoryPoller` (15 min, sticky revocation) feeding `LiveGates` | `safetyAdvisory.test.ts` "T-S75"; `liveEntry.test.ts` "T-S75" | PASS (unit) |
+| C1 per LIVE session, full/short by version and date in this browser | `c1.ts` (`ack.safety@<version>@<date>` in `device-safety`; version = hash of the full text) | `liveEntry.test.ts` "C1 per LIVE session", "same-day reconnect" | PASS (unit); browser E2E needs a signed advisory (below) |
+| Leave fullscreen on entering LIVE | `leaveFullscreen` in the C1 confirm click | `liveEntry.test.ts` | PASS |
+| T-S17: W6 marker and banner, overrides NOT CONNECTED | marker written at LIVE entry and on `pagehide`/`freeze` while LIVE, removed only by a clean Disconnect; `document.wasDiscarded`; SafetyBar swaps W7 for W6 | `liveEntry.test.ts` "W6" | PASS (unit) |
+| AudioContext unlocked in the Connect click (P1-04) | `LiveEntry.begin` calls `unlockAlarm` before any await; mount subscribes to snapshots and calls `alarm.sync` | `liveEntry.test.ts` "T-S30" | PASS (unit) |
+| HIL-1.3 | C1 same day short, next day full | `docs/bench/README.md` BENCH-P105-1 | HIL |
+
+Open with this task:
+
+- **No port chooser yet.** Every gate runs, then `mount.ts` stops at the
+  chooser: `requestPort()` may only be called from the Web Serial module, and
+  the main-thread chooser needs its own reviewed gate change (OD-3 in
+  `docs/ops/owner-decisions.md`). That change is the next step before any
+  bench connect.
+- **The committed advisory is unsigned** (`apps/web/public/safety-advisory.json`
+  has no entries), so every origin refuses LIVE until the owner signs it
+  (`pnpm sign:advisory`, LEAD_ACTIONS). For the same reason the browser E2E
+  for C1 short/full cannot pass the advisory gate yet; it is covered by the
+  controller tests above.
+- `Cache-Control` for `/safety-advisory.json` is the asset default; the
+  client fetches with `cache: 'no-store'`.

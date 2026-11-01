@@ -465,6 +465,17 @@ and kept production at `serial=()`. What only you can do:
   merges (`docs/safety/CODEX_FINDINGS_STATUS.md`).
 - The localhost bench build and its bench checks are in
   `docs/bench/README.md`.
+- **Sign the safety advisory (P1-05).** `apps/web/public/safety-advisory.json`
+  is committed with no entries, so LIVE is refused everywhere (fail closed).
+  Review `apps/web/advisory/safety-advisory.unsigned.json` (staging entry,
+  nothing revoked) and run `pnpm sign:advisory --key <pem outside the repo>
+  --kid <kid>` with a key authorised for staging (docs/ops/release-key.md).
+  The bench build on localhost reads the staging entry.
+- **Access identity for the D1 gate on staging (P1-05).** Set the staging
+  Worker vars `ACCESS_TEAM_DOMAIN` (`<team>.cloudflareaccess.com`) and
+  `ACCESS_AUD` (the Access application's AUD tag). Until both are set,
+  `GET /api/identity` answers `not-configured` and Connect is refused on
+  staging.
 
 ---
 
