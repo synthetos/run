@@ -66,6 +66,8 @@ describe('buildProbeResult', () => {
         id: '0BENCH-TWO',
         tokens: { spep: 'value', prbp: 'value', fstk: 'value', os: 'value' },
         spph: 'stubbed',
+        // Every answer's footer, in probe order: identity (5), fbs (100), the four tokens, spph (17).
+        footers: [0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 17].map((status) => ({ rev: 3, status, field3: 11, raw: [3, status, 11] })),
         conflicts: [],
       },
     });

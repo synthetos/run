@@ -8,7 +8,7 @@ import { READ_ONLY_STOP_JOB } from './shared.ts';
 import { TINYG_440 } from './tinyg440.ts';
 import { TINYG_449_STOCK } from './tinyg449Stock.ts';
 import { TINYG_EN } from './tinygEn.ts';
-import type { ClassifiedLine } from '../types.ts';
+import type { ClassifiedLine, Footer } from '../types.ts';
 import type { Dialect, DialectFlow, DialectId, MachineClass, StatusClass, StopSequence } from './types.ts';
 
 /** Every dialect that has data, in classification-table order. */
@@ -79,9 +79,27 @@ export function checkFooterForDialect(dialect: Dialect, event: ClassifiedLine): 
   if (event.kind !== 'Response' && event.kind !== 'Banner') return event;
   const footer = event.footer;
   if (footer === undefined) return event;
-  const hasChecksum = footer.checksum !== undefined;
-  if (hasChecksum === (dialect.caps.footerChecksum === 'required' && footer.rev === 1)) return event;
+  if (footerChecksumFits(dialect, footer)) return event;
   return Object.freeze({ kind: 'Garbled', reason: 'bad-footer', line: event.line });
+}
+
+/**
+ * Whether a footer's checksum presence is the dialect's: a revision-1 footer
+ * carries one exactly when the dialect always prints one (440.21), and a
+ * revision 2/3 footer never does.
+ */
+function footerChecksumFits(dialect: Dialect, footer: Footer): boolean {
+  return (footer.checksum !== undefined) === (dialect.caps.footerChecksum === 'required' && footer.rev === 1);
+}
+
+/**
+ * The whole footer contract of a dialect, as the classifier applies it to
+ * every footer the probe collected (P0-08 review): a revision the dialect
+ * prints and the dialect's checksum rule. A footer that fails either is
+ * evidence the board is not that dialect, or that the line was damaged.
+ */
+export function footerFitsDialect(dialect: Dialect, footer: Footer): boolean {
+  return dialect.caps.footerRevs.includes(footer.rev) && footerChecksumFits(dialect, footer);
 }
 
 /** What is known around an EN status-13 reply. */

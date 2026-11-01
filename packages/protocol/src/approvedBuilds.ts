@@ -100,7 +100,9 @@ export type ChannelRejection =
   | 'channel-mismatch'
   | 'environment-mismatch'
   | 'not-yet-valid'
-  | 'expired';
+  | 'expired'
+  /** `now` is not a valid Date (an Invalid Date, a non-Date): no validity window can be checked. */
+  | 'invalid-clock';
 
 export interface ChannelVerdict {
   /** The channel name as the file states it, or `?` when unreadable. */
@@ -118,7 +120,7 @@ export interface VerifiedApprovedBuilds {
 export interface VerifyOptions {
   /** `location.origin` of the page or worker. */
   readonly origin: string;
-  /** The current time (injected for tests). */
+  /** The current time (injected for tests). Anything but a valid Date approves nothing. */
   readonly now: Date;
   /** The trusted keys; the compiled-in `RELEASE_KEYS` unless a test passes its own. */
   readonly keys?: readonly ReleaseKey[];
@@ -157,8 +159,10 @@ export async function verifyApprovedBuilds(file: unknown, options: VerifyOptions
   }
   const verdicts: ChannelVerdict[] = [];
   const builds: ApprovedBuild[] = [];
+  // Read the clock once, before any channel: an invalid one fails every channel closed (P0-08 review).
+  const nowMs = clockMs(options.now);
   for (const entry of channels) {
-    const outcome = await verifyChannel(entry, environment, keys, options.now);
+    const outcome = nowMs === undefined ? 'invalid-clock' : await verifyChannel(entry, environment, keys, nowMs);
     const channel = isRecord(entry) && typeof entry['channel'] === 'string' ? entry['channel'] : '?';
     if (Array.isArray(outcome)) {
       builds.push(...outcome);
@@ -182,7 +186,7 @@ async function verifyChannel(
   entry: unknown,
   environment: Environment | null,
   keys: readonly ReleaseKey[],
-  now: Date,
+  nowMs: number,
 ): Promise<ApprovedBuild[] | ChannelRejection> {
   if (environment === null) return 'no-environment';
   if (!isRecord(entry)) return 'malformed';
@@ -200,13 +204,15 @@ async function verifyChannel(
   // The bytes are authentic from here on; their content is still checked strictly.
   const body = parseJson(payload);
   if (!isRecord(body) || body['format'] !== CHANNEL_PAYLOAD_FORMAT) return 'malformed-payload';
+  // A field this reader does not know could be a restriction it would silently ignore: refuse it.
+  if (!hasOnlyKeys(body, PAYLOAD_KEYS)) return 'malformed-payload';
   if (body['channel'] !== channel) return 'channel-mismatch';
   if (body['env'] !== environment) return 'environment-mismatch';
   const issued = parseTime(body['issued']);
   const expires = parseTime(body['expires']);
   if (issued === undefined || expires === undefined || !(issued < expires)) return 'malformed-payload';
-  if (now.getTime() < issued) return 'not-yet-valid';
-  if (now.getTime() >= expires) return 'expired';
+  if (nowMs < issued) return 'not-yet-valid';
+  if (nowMs >= expires) return 'expired';
   const builds = body['builds'];
   if (!Array.isArray(builds)) return 'malformed-payload';
   const out: ApprovedBuild[] = [];
@@ -219,7 +225,7 @@ async function verifyChannel(
 }
 
 function readBuild(b: unknown, channel: Channel): ApprovedBuild | undefined {
-  if (!isRecord(b)) return undefined;
+  if (!isRecord(b) || !hasOnlyKeys(b, BUILD_KEYS)) return undefined;
   const { dialect, fb, fbs, commit, note } = b;
   if (typeof dialect !== 'string' || !APPROVABLE_DIALECTS.includes(dialect as DialectId)) return undefined;
   if (typeof fb !== 'number' || !Number.isFinite(fb) || fb <= 0) return undefined;
@@ -258,11 +264,40 @@ function parseJson(text: string): unknown {
   }
 }
 
-/** An RFC 3339 UTC timestamp `YYYY-MM-DDTHH:MM:SSZ`, as milliseconds. */
+/**
+ * An RFC 3339 UTC timestamp `YYYY-MM-DDTHH:MM:SSZ`, as milliseconds. It must
+ * name a real instant exactly: `Date.parse` normalises 2026-02-31 to March 3
+ * and 24:00:00 to the next day, so the parsed instant must print back as the
+ * same text (P0-08 review).
+ */
 function parseTime(value: unknown): number | undefined {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value)) return undefined;
   const ms = Date.parse(value);
-  return Number.isNaN(ms) ? undefined : ms;
+  if (!Number.isFinite(ms)) return undefined;
+  return new Date(ms).toISOString() === `${value.slice(0, -1)}.000Z` ? ms : undefined;
+}
+
+/**
+ * The clock as milliseconds, or undefined unless `now` is a genuine Date
+ * holding a finite time. `Date.prototype.getTime` throws for anything that is
+ * not a Date (whatever its own `getTime` says), and an Invalid Date gives NaN,
+ * which would make both window comparisons false and fail open.
+ */
+function clockMs(now: unknown): number | undefined {
+  try {
+    const ms = Date.prototype.getTime.call(now);
+    return Number.isFinite(ms) ? ms : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The fields of a signed channel payload and of a build entry: nothing else is accepted. */
+const PAYLOAD_KEYS: readonly string[] = ['format', 'channel', 'env', 'issued', 'expires', 'builds'];
+const BUILD_KEYS: readonly string[] = ['dialect', 'fb', 'fbs', 'commit', 'note'];
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(value).every((k) => allowed.includes(k));
 }
 
 function isChannel(value: unknown): value is Channel {

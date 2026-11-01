@@ -24,6 +24,13 @@
  * The banner shape, when a banner was seen, must be the dialect's own. A
  * READ_ONLY dialect is READ_ONLY whatever the manifest says.
  *
+ * Every footer the probe collected (each answer and an `r-footer` banner)
+ * must also meet the matched dialect's footer contract (`footerFitsDialect`:
+ * a revision it prints, and a checksum exactly when it always prints one).
+ * A board that matches a row on everything else but fails this is
+ * unclassified with the offending footers in the detail (P0-08 review): a
+ * 440.21 answer without its checksum is not 440.21, or not intact.
+ *
  * "Unclassified" returns `dialect: null` (a deviation from RUN_PLAN §5.5,
  * which types `dialect` as always present): there is no honest dialect for a
  * board that matches no row, and the session must then use the unclassified
@@ -34,6 +41,7 @@ import { findApproval } from '../approvedBuilds.ts';
 import { CAPABILITY_TOKENS } from '../probe.ts';
 import type { ProbeResult, TokenAnswer } from '../probe.ts';
 import { G2CORE_EDGE } from './g2core.ts';
+import { footerFitsDialect } from './lookup.ts';
 import { TINYG_440 } from './tinyg440.ts';
 import { TINYG_449_STOCK } from './tinyg449Stock.ts';
 import { TINYG_EN } from './tinygEn.ts';
@@ -89,21 +97,31 @@ export function classify(p: ProbeResult, manifest: ApprovedBuilds): Classificati
   const tokensAll = (answer: TokenAnswer): boolean => CAPABILITY_TOKENS.every((t) => p.tokens[t] === answer);
   const fits = (d: Dialect): boolean =>
     d.caps.footerRevs.includes(p.footerRev) && (p.banner === 'none' || p.banner === d.bannerShape);
+  // Checked once a row matches on everything else, so a failure names the dialect it fails.
+  const footerViolation = (d: Dialect): Classification | undefined => {
+    const footers = Array.isArray(p.footers) ? p.footers : [];
+    const bad = footers.filter((f) => !footerFitsDialect(d, f));
+    if (footers.length > 0 && bad.length === 0) return undefined;
+    const evidence = footers.length === 0 ? 'no footers recorded' : bad.map((f) => JSON.stringify(f.raw)).join(', ');
+    return unclassified('conflict', `matches ${d.label} except its footer contract (${evidence}): read-only`);
+  };
 
   // Edge-next: proven by the capability tokens and the stubbed spph, approved by the manifest.
   if (fits(TINYG_EN) && p.fv === TINYG_FV && p.hp === TINYG_HP && tokensAll('value') && p.spph === 'stubbed') {
-    return approvable(TINYG_EN, p, manifest, 'en-approved', 'en-not-approved');
+    return footerViolation(TINYG_EN) ?? approvable(TINYG_EN, p, manifest, 'en-approved', 'en-not-approved');
   }
 
   const noCapabilityTokens = tokensAll('unrecognized') && p.spph === 'unrecognized';
 
   if (fits(TINYG_440) && p.fv === TINYG_FV && p.hp === TINYG_HP && p.fb === TG_FALLBACK_FB && noCapabilityTokens) {
-    return approvable(TINYG_440, p, manifest, 'tg440-approved', 'tg440-not-approved');
+    return footerViolation(TINYG_440) ?? approvable(TINYG_440, p, manifest, 'tg440-approved', 'tg440-not-approved');
   }
 
   // Stock edge-0.97. `hp` is not checked: it is unreliable there (E104). (A g2 signal with this fb
   // already returned as a conflict above.)
   if (fits(TINYG_449_STOCK) && p.fb !== undefined && p.fb >= 449 && p.fb < 450 && noCapabilityTokens) {
+    const violation = footerViolation(TINYG_449_STOCK);
+    if (violation !== undefined) return violation;
     return {
       dialect: TINYG_449_STOCK,
       mode: 'readOnly',
@@ -115,6 +133,8 @@ export function classify(p: ProbeResult, manifest: ApprovedBuilds): Classificati
 
   if (g2Signal) {
     if (fits(G2CORE_EDGE) && p.fb === G2_EDGE_FB) {
+      const violation = footerViolation(G2CORE_EDGE);
+      if (violation !== undefined) return violation;
       return {
         dialect: G2CORE_EDGE,
         mode: 'readOnly',

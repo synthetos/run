@@ -58,6 +58,7 @@ export type { InboundDecoder } from './inbound.ts';
 export {
   BUILD_HASH_TOKEN,
   CAPABILITY_TOKENS,
+  FSTK_MAX,
   IDENTITY_TOKENS,
   PROBE_STATUS,
   PROBE_STEPS,

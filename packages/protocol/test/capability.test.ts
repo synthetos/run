@@ -15,9 +15,10 @@ import {
   TINYG_EN,
   buildProbeResult,
   classify,
+  footerFitsDialect,
   verifyApprovedBuilds,
 } from '../src/index.ts';
-import type { ApprovedBuild, ApprovedBuilds, ProbeObservations, ProbeResult } from '../src/index.ts';
+import type { ApprovedBuild, ApprovedBuilds, Footer, ProbeObservations, ProbeResult } from '../src/index.ts';
 import { EN_CAPABILITIES, EN_450, G2_EDGE, NO_CAPABILITIES, STOCK_449, TG_440, observations, tinygIdentity } from './fixtures/probeFixtures.ts';
 
 const EN_COMMIT = 'ead639978c77601b150be7ef12774f47eed4c824';
@@ -182,6 +183,11 @@ describe('end to end: probe transcript + the committed signed manifest', () => {
 
 describe('properties', () => {
   const answer = fc.constantFrom('value' as const, 'unrecognized' as const, 'other' as const);
+  const footerArb: fc.Arbitrary<Footer> = fc
+    .record({ rev: fc.constantFrom(1 as const, 2 as const, 3 as const), checksum: fc.option(fc.constant(4242), { nil: undefined }) })
+    .map(({ rev, checksum }) =>
+      checksum === undefined ? { rev, status: 0, field3: 11, raw: [rev, 0, 11] } : { rev, status: 0, field3: 11, checksum, raw: [rev, 0, 11, checksum] },
+    );
   const probeArb: fc.Arbitrary<ProbeResult> = fc.record({
     banner: fc.constantFrom('r-footer' as const, 'bare-sr' as const, 'none' as const),
     footerRev: fc.constantFrom(1 as const, 2 as const, 3 as const),
@@ -190,6 +196,7 @@ describe('properties', () => {
     hp: fc.option(fc.oneof(fc.constantFrom(1, 3758096385), fc.constantFrom('ArduinoDue', 'gQuintic')), { nil: undefined }),
     tokens: fc.record({ spep: answer, prbp: answer, fstk: answer, os: answer }),
     spph: fc.constantFrom('stubbed' as const, 'value' as const, 'unrecognized' as const, 'other' as const),
+    footers: fc.array(footerArb, { maxLength: 4 }),
     conflicts: fc.constantFrom([], ['x']),
   }) as fc.Arbitrary<ProbeResult>;
   const manifestArb: fc.Arbitrary<ApprovedBuilds> = fc.record({
@@ -243,6 +250,18 @@ describe('properties', () => {
         expect(typeof c.detail).toBe('string');
       }),
       { numRuns: 2000 },
+    );
+  });
+
+  it('full only when the probe recorded footers and every one meets the dialect footer contract (P0-08 review)', () => {
+    fc.assert(
+      fc.property(probeArb, manifestArb, (p, m) => {
+        const c = classify(p, m);
+        if (c.mode !== 'full' || c.dialect === null) return;
+        expect(p.footers.length).toBeGreaterThan(0);
+        for (const f of p.footers) expect(footerFitsDialect(c.dialect, f)).toBe(true);
+      }),
+      { numRuns: 4000 },
     );
   });
 

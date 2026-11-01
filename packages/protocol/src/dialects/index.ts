@@ -37,6 +37,7 @@ export {
   DIALECTS,
   checkFooterForDialect,
   dialectById,
+  footerFitsDialect,
   holdName,
   mapStat,
   resolveBufferFull,

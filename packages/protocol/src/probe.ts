@@ -24,7 +24,7 @@
  * with `fbs: null` (P0 review). Firmware that has no `fbs` answers 100
  * (unrecognised): that is the only answer that means "reports none".
  */
-import type { Banner, JsonValue, Response } from './types.ts';
+import type { Banner, Footer, JsonValue, Response } from './types.ts';
 
 /** Status codes the probe interprets. Probing happens before classification, so these hold on every family. */
 export const PROBE_STATUS = Object.freeze({
@@ -95,6 +95,16 @@ export interface ProbeResult {
   readonly fbs?: string;
   /** Capability bitmask: proposed for edge-next (D4); no build reports it yet. */
   readonly cap?: number;
+  /**
+   * Every footer the probe saw, as received: the banner's (an `r-footer`
+   * banner) first, then each answer in `PROBE_STEPS` order. The probe runs
+   * before the dialect is known, so it cannot judge footer shape itself; the
+   * classifier checks every one against the candidate dialect's footer
+   * contract (440.21 always prints a checksum, g2core never does) before it
+   * allows full mode (P0-08 review). Empty only in a hand-built result,
+   * which the classifier never trusts.
+   */
+  readonly footers: readonly Footer[];
   readonly conflicts: readonly string[];
 }
 
@@ -154,7 +164,7 @@ export function buildProbeResult(obs: ProbeObservations): ProbeOutcome {
     }
   }
 
-  const tokens = Object.fromEntries(CAPABILITY_TOKENS.map((k) => [k, tokenAnswer(answer(k), k)])) as Record<
+  const tokens = Object.fromEntries(CAPABILITY_TOKENS.map((k) => [k, tokenAnswer(answer(k), k, conflicts)])) as Record<
     CapabilityToken,
     TokenAnswer
   >;
@@ -165,6 +175,9 @@ export function buildProbeResult(obs: ProbeObservations): ProbeOutcome {
   if (obs.banner !== undefined && bannerFbs !== fbs) {
     conflicts.push(`fbs: banner says ${String(bannerFbs ?? 'none')}, GET says ${String(fbs ?? 'none')}`);
   }
+  const footers: Footer[] = [];
+  if (obs.banner?.footer !== undefined) footers.push(obs.banner.footer);
+  for (const step of steps) footers.push(answer(step.key).footer);
   const result: ProbeResult = Object.freeze({
     banner: obs.banner?.shape ?? 'none',
     footerRev: footerRev as 1 | 2 | 3,
@@ -172,6 +185,7 @@ export function buildProbeResult(obs: ProbeObservations): ProbeOutcome {
     tokens: Object.freeze(tokens),
     spph,
     ...(fbs === undefined ? {} : { fbs }),
+    footers: Object.freeze(footers),
     conflicts: Object.freeze(conflicts),
   });
   return { ok: true, result };
@@ -216,11 +230,46 @@ function buildHash(r: Response, conflicts: string[]): string | undefined {
   return undefined;
 }
 
-function tokenAnswer(r: Response, key: CapabilityToken): TokenAnswer {
+/**
+ * How a capability token answered. A status-0 answer counts as `value` only
+ * when the value is one the edge-next firmware can print for that token
+ * (P0-08 review): a corrupt or foreign value must not prove the contract
+ * that enables control. A status-0 answer with any other value is `other`
+ * and a conflict, so the board stays READ_ONLY whatever else it answered.
+ */
+function tokenAnswer(r: Response, key: CapabilityToken, conflicts: string[]): TokenAnswer {
   if (r.footer.status === PROBE_STATUS.UNRECOGNIZED) return 'unrecognized';
-  if (r.footer.status === PROBE_STATUS.OK && singleValue(r, key) !== undefined) return 'value';
+  if (r.footer.status !== PROBE_STATUS.OK) return 'other';
+  const value = singleValue(r, key);
+  if (value !== undefined && CAPABILITY_VALUE_VALID[key](value)) return 'value';
+  conflicts.push(`${key}: status 0 with a value edge-next never reports (${value === undefined ? 'none' : JSON.stringify(value)})`);
   return 'other';
 }
+
+/** A uint8 setting whose setter refuses anything above 1 (@cite EN config.c:446-451 `set_01`). */
+const isZeroOrOne = (v: JsonValue): boolean => Object.is(v, 0) || v === 1;
+
+/**
+ * `fstk` is the lowest unused-stack watermark: a count of painted bytes from
+ * `__heap_start` up to SP, printed as an unsigned integer (@cite EN
+ * stack_report.c:47-58; util.c:366-376 `%lu`). Both ends lie in the
+ * atxmega192a3's 16 KB internal SRAM, 0x2000-0x5FFF (@cite EN Makefile:14),
+ * so the count is at most 0x5FFF - 0x2000 = 16383.
+ */
+export const FSTK_MAX = 0x5fff - 0x2000;
+
+/**
+ * The values edge-next can print for each capability token (@cite EN
+ * config_app.c:649-667): `spep` (spindle.c:64), `prbp` (switch.c:319) and
+ * `os` (`set_01`) are 0 or 1; `fstk` is an integer 0..FSTK_MAX.
+ */
+const CAPABILITY_VALUE_VALID: Readonly<Record<CapabilityToken, (v: JsonValue) => boolean>> = Object.freeze({
+  spep: isZeroOrOne,
+  prbp: isZeroOrOne,
+  os: isZeroOrOne,
+  // -0 is excluded: `%lu` never prints it.
+  fstk: (v: JsonValue) => typeof v === 'number' && Number.isSafeInteger(v) && !Object.is(v, -0) && v >= 0 && v <= FSTK_MAX,
+});
 
 function spphAnswer(r: Response): SpphAnswer {
   if (r.footer.status === PROBE_STATUS.STUBBED) return 'stubbed';
