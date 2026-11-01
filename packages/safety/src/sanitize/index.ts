@@ -23,3 +23,6 @@ export type {
   StartState,
   Wcs,
 } from './types.ts';
+// The firmware arc model, shared with the gcode interpreter so the preview draws the arc the sanitiser checked (T-S1).
+export { PLANES, modelArc } from './geometry.ts';
+export type { ArcInput, ArcModel, ArcModelResult, Plane } from './geometry.ts';
