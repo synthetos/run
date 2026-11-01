@@ -108,6 +108,10 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     alarmStopsSpindle: true, // spindle_reset() in cm_alarm (@cite EN canonical_machine.c:797, :835; E019)
     // `spph` answers 17 today (E060 not merged); a future build that answers a value may pause the spindle.
     spindlePauseOnHold: 'probe',
+    // `coph` is reserved with `spph` and answers 17 (@cite EN config_app.c:64-68, :654); the hold
+    // code that would pause coolant is commented out (@cite EN canonical_machine.c:837-838). A
+    // future build that answers a value may pause coolant on hold, so it is read, never assumed.
+    coolantPauseOnHold: 'probe',
     lineInSr: true, // default sr list starts with `line` (@cite EN settings/settings_default.h:84)
     footerRevs: [2, 3], // rev 2 at rxm=0, rev 3 at rxm=1, the default (@cite EN json_parser.c:848-852; settings/settings_default.h:74)
     footerChecksum: 'absent',

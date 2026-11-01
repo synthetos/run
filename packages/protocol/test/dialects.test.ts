@@ -146,8 +146,9 @@ describe('capabilities, limits and flow (PN §6.2, §7, §9)', () => {
   });
 
   it('TG: all of them false except m2ClearsAlarm; the M0 and arc corrections are encoded (PN §9.2, §10.2)', () => {
-    const { footerRevs, footerChecksum, spindlePauseOnHold, m2ClearsAlarm, ...flags } = TINYG_440.caps;
+    const { footerRevs, footerChecksum, spindlePauseOnHold, coolantPauseOnHold, m2ClearsAlarm, ...flags } = TINYG_440.caps;
     expect(Object.values(flags).every((v) => v === false)).toBe(true);
+    expect(coolantPauseOnHold).toBe('never');
     expect(footerRevs).toEqual([1]);
     expect(footerChecksum).toBe('required');
     expect(spindlePauseOnHold).toBe('never');

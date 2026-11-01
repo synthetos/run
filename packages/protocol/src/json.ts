@@ -17,7 +17,8 @@
  * - spaces and tabs between tokens.
  *
  * Refused input (each is a typed error, never an exception):
- * - anything over `maxChars` characters or nested deeper than `maxDepth`;
+ * - anything over `maxChars` characters or nested deeper than `maxDepth`
+ *   (each capped at `JSON_HARD_LIMITS`, so no caller limit can make it throw);
  * - a key repeated in one object with a different value, or with an object
  *   or array value (which value would the board have meant?). A key repeated
  *   with the same scalar value is accepted: TinyG 0.97 really prints
@@ -47,6 +48,20 @@ export interface JsonLimits {
  * Real output nests three levels (`{"r":{"sr":{...}}}`).
  */
 export const DEFAULT_JSON_LIMITS: JsonLimits = Object.freeze({ maxChars: 4096, maxDepth: 16 });
+
+/**
+ * Hard ceilings on any caller's limits. The parser recurses once per nesting
+ * level, so a caller's `maxDepth` must not reach the engine's stack limit
+ * (`'['.repeat(4096)` with `maxDepth: 10000` overflowed it); and `maxChars`
+ * bounds the work for one input. A caller can ask for smaller limits, never
+ * larger ones. A limit that is NaN or negative refuses every input.
+ */
+export const JSON_HARD_LIMITS: JsonLimits = Object.freeze({ maxChars: 65536, maxDepth: 64 });
+
+function capLimit(requested: number, hard: number): number {
+  if (typeof requested !== 'number' || Number.isNaN(requested) || requested < 0) return -1;
+  return Math.min(Math.floor(requested), hard);
+}
 
 export type JsonErrorReason =
   | 'too-large'
@@ -89,8 +104,11 @@ const ESCAPES: Readonly<Record<string, string>> = Object.freeze({
 
 /** Parse `text` as one strict-or-relaxed JSON value. Never throws. */
 export function parseJson(text: string, limits: JsonLimits = DEFAULT_JSON_LIMITS): JsonParseResult {
-  if (text.length > limits.maxChars) return { ok: false, reason: 'too-large', offset: limits.maxChars };
-  const s: State = { text, maxDepth: limits.maxDepth, pos: 0, depth: 0, reason: 'syntax', errorAt: 0 };
+  const maxChars = capLimit(limits.maxChars, JSON_HARD_LIMITS.maxChars);
+  const maxDepth = capLimit(limits.maxDepth, JSON_HARD_LIMITS.maxDepth);
+  if (maxChars < 0 || text.length > maxChars) return { ok: false, reason: 'too-large', offset: Math.max(0, maxChars) };
+  if (maxDepth < 0) return { ok: false, reason: 'too-deep', offset: 0 };
+  const s: State = { text, maxDepth, pos: 0, depth: 0, reason: 'syntax', errorAt: 0 };
   skipSpace(s);
   const value = parseValue(s);
   if (value === FAIL) return { ok: false, reason: s.reason, offset: s.errorAt };

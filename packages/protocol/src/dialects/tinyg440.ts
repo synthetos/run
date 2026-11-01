@@ -94,6 +94,9 @@ export const TINYG_440: Dialect = deepFreeze<Dialect>({
     arcSoftLimits: false, // the check is commented out (@cite TG plan_arc.c:39, :171; E041 on d440)
     alarmStopsSpindle: false, // a soft alarm keeps queued moves and the spindle running (OLD-PN §10)
     spindlePauseOnHold: 'never',
+    // No `coph` setting exists, and the feedhold sequencer touches only motion and the planner
+    // (@cite TG canonical_machine.c:1263-1291): coolant keeps running through a hold.
+    coolantPauseOnHold: 'never',
     lineInSr: false, // @cite TG settings.h:68
     footerRevs: [1], // [1,status,len+1,checksum] (@cite TG json_parser.c:529)
     footerChecksum: 'required', // 440.21 always prints [1,status,n,checksum] (@cite TG json_parser.c:529, :543-550)

@@ -171,6 +171,16 @@ export interface DialectCaps {
   readonly arcSoftLimits: boolean;
   readonly alarmStopsSpindle: boolean;
   readonly spindlePauseOnHold: 'never' | 'probe';
+  /**
+   * Whether a feedhold may pause coolant (M7/M8) and resume it at cycle
+   * start, independently of the spindle. `never`: the build has no such
+   * behaviour; `probe`: the build has (or reserves) a coolant pause setting
+   * (`coph`), so the live value must be read from the board, never assumed
+   * and never derived from `spindlePauseOnHold`: on g2 the two defaults
+   * differ (spph false, coph true, @cite G2 settings/settings_default.h:96-97,
+   * :145-146).
+   */
+  readonly coolantPauseOnHold: 'never' | 'probe';
   readonly lineInSr: boolean;
   readonly footerRevs: readonly FooterRev[];
   /**

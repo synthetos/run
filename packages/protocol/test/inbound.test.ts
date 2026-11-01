@@ -154,3 +154,17 @@ describe('inbound decoder', () => {
     expect(kinds).toEqual(['StatusReport', 'xoff', 'Response', 'xon', 'Ack']);
   });
 });
+
+describe('decodeInbound: large chunks (batch 9, finding P0-07 #1)', () => {
+  it('decodes one 200000-byte chunk of XON without a RangeError', () => {
+    const events = decodeInbound([new Uint8Array(200000).fill(0x11)]);
+    expect(events).toHaveLength(200000);
+    expect(events.every((e) => e.kind === 'FlowSignal')).toBe(true);
+  });
+
+  it('matches the live decoder on a chunk with more events than the argument limit', () => {
+    const chunk = new Uint8Array(300000).fill(0x13);
+    const live = createInboundDecoder().push(chunk);
+    expect(decodeInbound([chunk])).toEqual(live);
+  });
+});

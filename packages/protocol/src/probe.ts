@@ -41,6 +41,12 @@ export const IDENTITY_TOKENS = Object.freeze(['fb', 'fv', 'hp', 'id', 'hv'] as c
 export const CAPABILITY_TOKENS = Object.freeze(['spep', 'prbp', 'fstk', 'os'] as const);
 /** EN answers 17 (stubbed) while E060 is not merged (PN §2.3 step 4; @cite EN config_app.c:64-68, :652). */
 export const SPINDLE_PAUSE_TOKEN = 'spph';
+/**
+ * The coolant pause-on-hold setting (g2 `coph`; reserved and stubbed on
+ * edge-next). Read it, as its own fact, wherever `caps.coolantPauseOnHold`
+ * is `probe`; it is not part of the identity probe sequence.
+ */
+export const COOLANT_PAUSE_TOKEN = 'coph';
 /** The build hash (D4; g2core reports it today, @cite OLD-PN §2.2). TinyG builds without it answer 100. */
 export const BUILD_HASH_TOKEN = 'fbs';
 

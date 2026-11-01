@@ -23,10 +23,18 @@ export function createInboundDecoder(): InboundDecoder {
   };
 }
 
-/** Decode a whole byte stream given as chunks (tests, transcripts, replay). */
+/**
+ * Decode a whole byte stream given as chunks (tests, transcripts, replay).
+ *
+ * Events are appended one at a time: spreading a chunk's events into
+ * `push(...)` passes one argument per event, and a large chunk (one event per
+ * XON/XOFF byte) exceeds the engine's argument limit and throws RangeError.
+ */
 export function decodeInbound(chunks: Iterable<Uint8Array>): Inbound[] {
   const decoder = createInboundDecoder();
   const out: Inbound[] = [];
-  for (const chunk of chunks) out.push(...decoder.push(chunk));
+  for (const chunk of chunks) {
+    for (const event of decoder.push(chunk)) out.push(event);
+  }
   return out;
 }

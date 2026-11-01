@@ -132,6 +132,11 @@ export const G2CORE_EDGE: Dialect = deepFreeze<Dialect>({
     alarmStopsSpindle: false,
     // `spph` is a real setting on g2 (default false, @cite G2 settings/settings_default.h:96-97).
     spindlePauseOnHold: 'probe',
+    // `coph` is a real setting (@cite G2 config_app.cpp:974; coolant.cpp:180-184), default true
+    // (@cite G2 settings/settings_default.h:145-146), unlike `spph`. A hold queues COOLANT_PAUSE and
+    // cycle start COOLANT_RESUME (@cite G2 cycle_feedhold.cpp:872, :925), skipped when coph is 0
+    // (@cite G2 coolant.cpp:100-105). The live value must be probed, never taken from the default.
+    coolantPauseOnHold: 'probe',
     lineInSr: true, // @cite G2 settings/settings_default.h:208
     // [1,status,linelen+1], no checksum (@cite G2 json_parser.cpp:612-616). Field 3 meaning per build: B-G2-2.
     footerRevs: [1],

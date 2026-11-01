@@ -110,6 +110,8 @@ export const TINYG_449_STOCK: Dialect = deepFreeze<Dialect>({
     arcSoftLimits: false,
     alarmStopsSpindle: false, // E019
     spindlePauseOnHold: 'never',
+    // No `coph` setting; the optional coolant pause is commented out (@cite S449 canonical_machine.c:776-777, :1604-1605).
+    coolantPauseOnHold: 'never',
     lineInSr: true, // @cite S449 settings/settings_default.h:84
     footerRevs: [2, 3], // @cite S449 json_parser.c:683, :686
     footerChecksum: 'absent',

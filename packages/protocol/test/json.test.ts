@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_JSON_LIMITS, parseJson, parseJsonObject } from '../src/json.ts';
+import { DEFAULT_JSON_LIMITS, JSON_HARD_LIMITS, parseJson, parseJsonObject } from '../src/json.ts';
 import type { JsonValue } from '../src/types.ts';
 
 function ok(text: string): JsonValue {
@@ -171,5 +171,46 @@ describe('parseJsonObject', () => {
       expect(parseJsonObject(s), s).toEqual({ ok: false, reason: 'not-object', offset: 0 });
     }
     expect(parseJsonObject('{')).toMatchObject({ ok: false, reason: 'syntax' });
+  });
+});
+
+describe('parseJson: caller limits are capped (batch 9, finding P0-07 #2)', () => {
+  it('the reproduction: a deep array with maxDepth 10000 is refused, not thrown', () => {
+    const run = (): unknown => parseJson('['.repeat(4096), { maxChars: 4096, maxDepth: 10000 });
+    expect(run).not.toThrow();
+    const r = parseJson('['.repeat(4096), { maxChars: 4096, maxDepth: 10000 });
+    expect(r).toMatchObject({ ok: false, reason: 'too-deep' });
+  });
+
+  it('never throws for any nesting under the largest caller limits', () => {
+    for (const depth of [100, 1000, 10000, 100000]) {
+      const text = '['.repeat(depth) + ']'.repeat(depth);
+      expect(() => parseJson(text, { maxChars: Number.MAX_SAFE_INTEGER, maxDepth: Number.POSITIVE_INFINITY })).not.toThrow();
+      expect(() => parseJsonObject(text, { maxChars: 1e12, maxDepth: 1e9 })).not.toThrow();
+    }
+  });
+
+  it('caps maxDepth at JSON_HARD_LIMITS and maxChars too', () => {
+    const atCap = '['.repeat(JSON_HARD_LIMITS.maxDepth) + ']'.repeat(JSON_HARD_LIMITS.maxDepth);
+    expect(parseJson(atCap, { maxChars: 1e9, maxDepth: 1e9 }).ok).toBe(true);
+    const over = '[' + atCap + ']';
+    expect(parseJson(over, { maxChars: 1e9, maxDepth: 1e9 })).toMatchObject({ ok: false, reason: 'too-deep' });
+    const big = '"' + 'a'.repeat(JSON_HARD_LIMITS.maxChars) + '"';
+    expect(parseJson(big, { maxChars: 1e12, maxDepth: 16 })).toMatchObject({ ok: false, reason: 'too-large' });
+  });
+
+  it('fails closed on limits that are not numbers in range', () => {
+    for (const bad of [Number.NaN, -1, Number.NEGATIVE_INFINITY]) {
+      expect(parseJson('{"a":1}', { maxChars: bad, maxDepth: 16 }).ok).toBe(false);
+      expect(parseJson('{"a":1}', { maxChars: 4096, maxDepth: bad }).ok).toBe(false);
+      expect(parseJson('1', { maxChars: bad, maxDepth: 16 }).ok).toBe(false);
+      expect(parseJson('1', { maxChars: 4096, maxDepth: bad }).ok).toBe(false);
+    }
+  });
+
+  it('smaller caller limits still apply', () => {
+    expect(parseJson('[[1]]', { maxChars: 4096, maxDepth: 1 })).toMatchObject({ ok: false, reason: 'too-deep' });
+    expect(parseJson('[1,2]', { maxChars: 3, maxDepth: 16 })).toMatchObject({ ok: false, reason: 'too-large' });
+    expect(DEFAULT_JSON_LIMITS.maxDepth).toBeLessThanOrEqual(JSON_HARD_LIMITS.maxDepth);
   });
 });

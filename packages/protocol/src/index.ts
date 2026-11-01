@@ -48,7 +48,7 @@ export type {
   StatusReport,
   Text,
 } from './types.ts';
-export { DEFAULT_JSON_LIMITS, parseJson, parseJsonObject } from './json.ts';
+export { DEFAULT_JSON_LIMITS, JSON_HARD_LIMITS, parseJson, parseJsonObject } from './json.ts';
 export type { JsonErrorReason, JsonLimits, JsonObjectParseResult, JsonParseResult } from './json.ts';
 export { MAX_LINE_BYTES, XOFF, XON, createFramer } from './frame.ts';
 export type { FrameEvent, FramedLine, Framer } from './frame.ts';
@@ -62,6 +62,7 @@ export {
   IDENTITY_TOKENS,
   PROBE_STATUS,
   PROBE_STEPS,
+  COOLANT_PAUSE_TOKEN,
   SPINDLE_PAUSE_TOKEN,
   buildProbeResult,
 } from './probe.ts';

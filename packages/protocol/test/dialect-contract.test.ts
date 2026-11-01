@@ -10,7 +10,16 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { classifyLine, parseFooter } from '../src/classify.ts';
 import { deepFreeze, statusTable } from '../src/dialects/shared.ts';
-import { BYTE, DIALECTS, READ_ONLY_STOP_JOB, mapStat, selectFlowEngine, stopJobFor } from '../src/index.ts';
+import {
+  BYTE,
+  COOLANT_PAUSE_TOKEN,
+  DIALECTS,
+  READ_ONLY_STOP_JOB,
+  SPINDLE_PAUSE_TOKEN,
+  mapStat,
+  selectFlowEngine,
+  stopJobFor,
+} from '../src/index.ts';
 import type { Dialect } from '../src/index.ts';
 
 const each = (fn: (d: Dialect) => void) => {
@@ -255,5 +264,30 @@ describe('shared helpers', () => {
     expect(deepFreeze(null)).toBeNull();
     const o = deepFreeze({ a: [{ b: 1 }] });
     expect(Object.isFrozen(o.a[0])).toBe(true);
+  });
+});
+
+describe('contract: coolant pause on hold is its own fact (batch 10 addendum, finding P0-08 coph)', () => {
+  it('every dialect declares coolantPauseOnHold, separately from spindlePauseOnHold', () =>
+    each((d) => {
+      expect(Object.keys(d.caps), d.id).toContain('coolantPauseOnHold');
+      expect(['never', 'probe'], d.id).toContain(d.caps.coolantPauseOnHold);
+      expect(['never', 'probe'], d.id).toContain(d.caps.spindlePauseOnHold);
+    }));
+
+  it('per build, from the pinned source: EN reserves coph, 440.21 and stock 449 have none, g2 has a real coph', () => {
+    const byId = new Map(DIALECTS.map((d) => [d.id, d.caps.coolantPauseOnHold]));
+    expect(byId.get('tinyg-en')).toBe('probe');
+    expect(byId.get('tinyg-440')).toBe('never');
+    expect(byId.get('tinyg-449-stock')).toBe('never');
+    expect(byId.get('g2core-edge')).toBe('probe');
+    expect(byId.size).toBe(DIALECTS.length);
+  });
+
+  it('the g2 coolant answer is probed, never inferred from the spindle answer (defaults spph false, coph true)', () => {
+    const g2 = DIALECTS.find((d) => d.family === 'g2core');
+    expect(g2?.caps.coolantPauseOnHold).toBe('probe');
+    expect(COOLANT_PAUSE_TOKEN).toBe('coph');
+    expect(COOLANT_PAUSE_TOKEN).not.toBe(SPINDLE_PAUSE_TOKEN);
   });
 });
