@@ -189,6 +189,8 @@ describe('T-S8 (read-only subset): LOST, nothing written afterwards, UNKNOWN on 
   });
 
   it('against both firmware models: the link drops at random points, nothing is written after LOST, and the reconnect is UNKNOWN', async () => {
+    let lost = 0;
+    let lostAfterClassified = 0;
     for (const model of ['en', '440'] as const) {
       for (const atByte of [40, 400, 900, 1600]) {
         const h = harness(model, { faults: { faults: [{ kind: 'disconnect', direction: 'toHost', atByte }] } });
@@ -197,12 +199,17 @@ describe('T-S8 (read-only subset): LOST, nothing written afterwards, UNKNOWN on 
         const first = h.transports[0];
         expect(first, `${model}@${atByte}`).toBeDefined();
         if (!h.session.snapshot.overlays.includes('LOST')) continue; // the session finished before the cut
+        lost += 1;
+        if (h.session.snapshot.base === 'CONNECTED_UNKNOWN') lostAfterClassified += 1;
         const written = first?.writes.length;
         await h.run(10_000);
         expect(first?.writes.length, `${model}@${atByte}: written after LOST`).toBe(written);
         expect(h.session.acknowledgeLost()).toEqual({ allowed: true });
       }
     }
+    // The cut points must actually exercise LOST, including once the watchdog runs (not vacuous).
+    expect(lost).toBeGreaterThanOrEqual(4);
+    expect(lostAfterClassified).toBeGreaterThanOrEqual(1);
   });
 });
 

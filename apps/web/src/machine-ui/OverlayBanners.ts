@@ -13,8 +13,11 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { w3, w4 } from '@synthetos/safety';
-import type { SessionSnapshot } from '@synthetos/machine';
+// The page sees the session only as the worker sends it (T-S39: no page module imports @synthetos/machine).
+import type { WorkerStatus } from '../machine-worker/rpc.ts';
 import { signalText } from '../shell/signal.ts';
+
+type SessionSnapshot = WorkerStatus['session'];
 
 export interface OverlayBannersProps {
   readonly snapshot: Pick<SessionSnapshot, 'overlays' | 'stale'> | null;

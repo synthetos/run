@@ -15,7 +15,10 @@
  * (about two beeps a second), built from audio nodes only, so it keeps
  * going without page timers (Chrome throttles those in hidden tabs).
  */
-import type { SessionSnapshot } from '@synthetos/machine';
+// The page sees the session only as the worker sends it (T-S39: no page module imports @synthetos/machine).
+import type { WorkerStatus } from '../machine-worker/rpc.ts';
+
+type SessionSnapshot = WorkerStatus['session'];
 
 /** The tone's pitch. */
 export const ALARM_TONE_HZ = 880;
