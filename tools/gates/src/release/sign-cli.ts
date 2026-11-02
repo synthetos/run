@@ -10,8 +10,9 @@
  * will reject the channel. See docs/ops/release-key.md.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { isOutsideRepo } from './keyPath.ts';
 import { importPrivateKey, renderSignedManifest, signManifest } from './approvedBuilds.ts';
 import type { UnsignedManifest } from './approvedBuilds.ts';
 
@@ -22,7 +23,7 @@ if (values.key === undefined || values.kid === undefined) {
   process.exit(2);
 }
 const keyPath = resolve(values.key);
-if (!relative(root, keyPath).startsWith('..')) {
+if (!isOutsideRepo(root, keyPath)) {
   process.stderr.write('sign:builds: refusing a key file inside the repository\n');
   process.exit(2);
 }

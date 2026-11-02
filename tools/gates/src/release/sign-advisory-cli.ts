@@ -9,8 +9,9 @@
  * packages/protocol/src/releaseKeys.ts, authorised for each environment.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { isOutsideRepo } from './keyPath.ts';
 import { importPrivateKey } from './approvedBuilds.ts';
 import { renderSignedAdvisory, signAdvisory } from './safetyAdvisory.ts';
 import type { UnsignedAdvisory } from './safetyAdvisory.ts';
@@ -22,7 +23,7 @@ if (values.key === undefined || values.kid === undefined) {
   process.exit(2);
 }
 const keyPath = resolve(values.key);
-if (!relative(root, keyPath).startsWith('..')) {
+if (!isOutsideRepo(root, keyPath)) {
   process.stderr.write('sign:advisory: refusing a key file inside the repository\n');
   process.exit(2);
 }
