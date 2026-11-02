@@ -56,7 +56,7 @@ export interface ReadoutDeps {
 }
 
 export function referenceKey(dialectId: string, boardId: string): string {
-  return `settingsReference:${dialectId}:${boardId}`;
+  return `settings-reference/${dialectId}/${boardId}`;
 }
 
 function isReference(v: unknown): v is SettingsReference {
