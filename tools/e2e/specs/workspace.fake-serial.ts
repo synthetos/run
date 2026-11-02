@@ -136,6 +136,37 @@ test('Pause and Stop job turn prominent, in the safety-bar colours only, while a
   }
 });
 
+test('the notice raised after Stop job sits above the panels and the 3D canvas: its centre point hits it, and W1 stays visible', async ({ page }) => {
+  await connectedTab(page);
+  const tabB = await page.context().newPage();
+  await tabB.setViewportSize({ width: 1280, height: 720 });
+  await tabB.goto('/');
+  await expect(tabB.locator('[data-observer="controlled"]')).toContainText(BOARD);
+  // A loaded job puts the job card and the 3D preview right under the strip, where the notice appears.
+  await tabB.locator('[data-sample="mounting-plate"]').click();
+  await expect(tabB.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
+  await tabB.getByRole('button', { name: STOP_TEXT.stopJob, exact: true }).click();
+  const notice = tabB.locator('[data-stop-outcome]');
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText(`${STOP_TEXT.stopJob} delivered to`);
+  await expect(notice).toContainText(`as ${w2Label()}. Use your E-stop to remove power.`);
+  const hits = async (selector: string): Promise<boolean> =>
+    tabB.locator(selector).first().evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      // The centre point, and points just inside each corner, all land on the element itself.
+      const points = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + 4, r.top + 4], [r.right - 4, r.top + 4], [r.left + 4, r.bottom - 4], [r.right - 4, r.bottom - 4]] as const;
+      return points.every(([x, y]) => {
+        const top = document.elementFromPoint(x, y);
+        return top !== null && (top === el || el.contains(top));
+      });
+    });
+  // The notice overlaps the job card (the panel that used to cover it), so the hit test means something.
+  const [n, card] = [await notice.boundingBox(), await tabB.locator('.job-card').first().boundingBox()];
+  expect(n !== null && card !== null && n.y + n.height > card.y && n.y < card.y + card.height).toBe(true);
+  expect(await hits('[data-stop-outcome]')).toBe(true);
+  expect(await hits('[data-region="safety-bar"] [data-safety="W1"]')).toBe(true);
+});
+
 test('the document never scrolls at 1280 × 720, in any view', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await connectedTab(page);

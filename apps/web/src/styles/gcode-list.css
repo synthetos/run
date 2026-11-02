@@ -30,7 +30,7 @@
 .preview-row-gutter:hover .bp-dot, .preview-row-gutter:focus-visible .bp-dot { opacity: .3; }
 .preview-row-gutter[aria-pressed="true"] .bp-dot { opacity: 1; }
 
-.gcode-jump-current { position: absolute; right: 14px; bottom: 10px; z-index: 1; min-height: 28px; padding: 0 12px; border-radius: 14px; font-size: 12px; background: var(--blue); border-color: var(--blue); color: var(--on-blue); box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 18%, transparent); }
+.gcode-jump-current { position: absolute; right: 14px; bottom: 10px; z-index: var(--z-raised, 1); min-height: 28px; padding: 0 12px; border-radius: 14px; font-size: 12px; background: var(--blue); border-color: var(--blue); color: var(--on-blue); box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 18%, transparent); }
 .gcode-jump-current:hover:not(:disabled) { background: var(--blue-dk); border-color: var(--blue-dk); }
 
 @media (max-width: 640px) {
