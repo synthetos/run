@@ -101,6 +101,27 @@ test('Pause and Stop job are in the same place and enabled in every view (observ
   await expect.poll(() => bangs(workerA)).toBe(before + 2);
 });
 
+test('Pause and Stop job turn prominent, in the safety-bar colours only, while a machine may be moving (W29), in both themes', async ({ page }) => {
+  await connectedTab(page);
+  const tabB = await page.context().newPage();
+  await tabB.goto('/');
+  await expect(tabB.locator('[data-observer="controlled"]')).toContainText(BOARD);
+  await page.close();
+  await expect(tabB.locator('[data-safety="W29"]')).toBeVisible();
+  const pause = tabB.locator('[data-region="stop-controls"] [data-safety="W2"]');
+  const stop = tabB.locator('[data-region="stop-controls"] [data-action="stop-job"]');
+  await expect(pause).toHaveAttribute('data-prominent', 'true');
+  await expect(stop).toHaveAttribute('data-prominent', 'true');
+  await expect(pause).toBeEnabled();
+  await expect(stop).toBeEnabled();
+  for (const theme of ['light', 'dark'] as const) {
+    await tabB.emulateMedia({ colorScheme: theme });
+    const look = (el: Element): { bg: string; border: string; fg: string } => ({ bg: getComputedStyle(el).backgroundColor, border: getComputedStyle(el).borderTopColor, fg: getComputedStyle(el).color });
+    expect(await pause.evaluate(look), theme).toEqual({ bg: 'rgb(255, 158, 27)', border: 'rgb(17, 17, 17)', fg: 'rgb(17, 17, 17)' });
+    expect(await stop.evaluate(look), theme).toEqual({ bg: 'rgb(17, 17, 17)', border: 'rgb(17, 17, 17)', fg: 'rgb(255, 255, 255)' });
+  }
+});
+
 test('the document never scrolls at 1280 × 720, in any view', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await connectedTab(page);

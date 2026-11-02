@@ -264,7 +264,7 @@ function SettingsTab({ model }: { readonly model: WorkspaceModel | null }): Comp
 /** The backup's JSON shape, for the people who want to read it before they save one. */
 const BACKUP_SHAPE = '{ "format": "synthetos-run-settings-backup", "version": 1, "takenAt", "board": { "id", "dialect", "fb", "fv", "hp", "hv" }, "units": { "unit", "g21Sent": false }, "groups": { "x": { … } }, "tokens": { "xvm": … }, "unanswered": [ … ] }';
 
-function BackupsTab({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
+export function BackupsTab({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
   const snapshot = view?.message?.snapshot ?? null;
   const blocked = backupBlocked(snapshot);
@@ -282,7 +282,7 @@ function BackupsTab({ model }: { readonly model: WorkspaceModel | null }): Compo
         h('h2', null, 'Back up settings'),
         h(
           'button',
-          { type: 'button', class: 'primary small', 'data-action': 'backup', disabled: blocked !== null || busy || model === null, 'aria-describedby': 'backup-why', onClick: () => model?.actions.value?.backup() },
+          { type: 'button', class: 'primary small', 'data-action': 'backup', 'data-machine-control': 'read', disabled: blocked !== null || busy || model === null, 'aria-describedby': 'backup-why', onClick: () => model?.actions.value?.backup() },
           Icon('download', 16),
           status.kind === 'reading' ? 'Reading…' : 'Back up settings',
         ),
@@ -313,13 +313,13 @@ function BackupsTab({ model }: { readonly model: WorkspaceModel | null }): Compo
         { class: 'insp' },
         h('header', null, h('h2', null, 'Restore'), h('span', { class: 'tag' }, 'Settings writes')),
         h('p', { class: 'fine' }, 'Restore shows the difference between a backup and the board, then writes one setting at a time. It ships with settings writes, after Phase 1.'),
-        h('button', { type: 'button', class: 'wide', disabled: true }, 'Restore a backup'),
+        h('button', { type: 'button', class: 'wide', disabled: true, 'data-machine-control': 'settings-write' }, 'Restore a backup'),
       ),
     ),
   );
 }
 
-function FirmwareTab({ view }: { readonly view: LiveView | null }): ComponentChild {
+export function FirmwareTab({ view }: { readonly view: LiveView | null }): ComponentChild {
   const id = view?.message?.snapshot.identity ?? null;
   const on = view !== null && connected(view);
   return h(
@@ -345,7 +345,7 @@ function FirmwareTab({ view }: { readonly view: LiveView | null }): ComponentChi
         { class: 'insp', 'data-region': 'firmware-update' },
         h('header', null, h('h2', null, 'Update'), h('span', { class: 'tag' }, 'Own safety-reviewed phase')),
         h('ol', { class: 'fw-plan' }, ['Back up every setting', 'Restart into update mode', 'Write and verify the signed build', 'Reconnect and check the version', 'Restore your settings'].map((s, i) => h('li', { key: s }, h('span', null, String(i + 1)), s))),
-        h('button', { type: 'button', class: 'primary wide', disabled: true }, 'Review the update'),
+        h('button', { type: 'button', class: 'primary wide', disabled: true, 'data-machine-control': 'firmware' }, 'Review the update'),
         h('p', { class: 'fine' }, 'Firmware updates are a separate phase with their own safety review. Nothing is written to the board from here.'),
       ),
     ),

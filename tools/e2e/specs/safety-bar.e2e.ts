@@ -89,7 +89,10 @@ for (const width of WIDTHS) {
   }
 }
 
-test('the safety bar keeps its colours in both themes; only the bar and Pause and Stop job use the safety-bar colours', async ({ page }) => {
+/** The safety-bar colour set (tokens.css, the same in both themes): signal orange, black, white. */
+const SAFETY_BAR_COLOURS = ['rgb(255, 158, 27)', 'rgb(17, 17, 17)', 'rgb(255, 255, 255)'] as const;
+
+test('the safety bar, Pause and Stop job keep their exact colours in both themes, and nothing themed uses them', async ({ page }) => {
   for (const theme of THEMES) {
     await page.emulateMedia({ colorScheme: theme });
     await page.goto('/');
@@ -97,19 +100,22 @@ test('the safety bar keeps its colours in both themes; only the bar and Pause an
     const colours = await page.evaluate(() => {
       const bar = document.querySelector('[data-region="safety-bar"]') as HTMLElement;
       const stops = document.querySelector('[data-region="stop-controls"]') as HTMLElement;
-      const stop = document.querySelector('.stop-button') as HTMLElement;
+      const look = (el: Element): { bg: string; border: string; fg: string } => ({ bg: getComputedStyle(el).backgroundColor, border: getComputedStyle(el).borderTopColor, fg: getComputedStyle(el).color });
       const outside = [...document.querySelectorAll('body *')].filter((el) => !bar.contains(el) && !stops.contains(el));
       return {
         bar: getComputedStyle(bar).backgroundColor,
         stripes: getComputedStyle(bar, '::before').backgroundImage,
-        stop: getComputedStyle(stop).backgroundColor,
+        pause: look(document.querySelector('[data-region="stop-controls"] [data-safety="W2"]') as Element),
+        stop: look(document.querySelector('[data-region="stop-controls"] [data-action="stop-job"]') as Element),
         outside: [...new Set(outside.flatMap((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).borderTopColor]))],
       };
     });
     expect(colours.bar, theme).toBe('rgb(255, 158, 27)');
     expect(colours.stripes, theme).toContain('repeating-linear-gradient');
-    // Quiet while nothing can move (here: not connected); prominent (signal orange, black) only while something may be moving.
-    expect(colours.stop, theme).not.toBe('rgb(255, 158, 27)');
+    // Quiet (nothing can be moving: not connected): white with a black frame, in both themes.
+    expect(colours.pause, theme).toEqual({ bg: 'rgb(255, 255, 255)', border: 'rgb(17, 17, 17)', fg: 'rgb(17, 17, 17)' });
+    expect(colours.stop, theme).toEqual({ bg: 'rgb(255, 255, 255)', border: 'rgb(17, 17, 17)', fg: 'rgb(17, 17, 17)' });
+    for (const c of [colours.pause, colours.stop]) for (const v of Object.values(c)) expect(SAFETY_BAR_COLOURS, theme).toContain(v);
     expect(colours.outside, theme).not.toContain('rgb(255, 158, 27)');
     expect(colours.outside, theme).not.toContain('rgb(17, 17, 17)');
   }

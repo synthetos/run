@@ -154,8 +154,6 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .stop-group { display: flex; gap: 8px; margin-left: auto; flex: none; }
 .stop-group button { min-height: 42px; width: 118px; font-size: 14px; font-weight: 600; border-radius: var(--r); }
 .stop-group .pause svg { width: 14px; height: 14px; fill: currentColor; }
-.stop-group .pause { background: var(--sheet); border-color: var(--field); color: var(--ink); }
-.stop-group .stop { width: 128px; background: var(--sheet); border-color: var(--field); color: var(--ink); }
 .stop-mark { width: 11px; height: 11px; background: var(--stop-mark); border-radius: 1.5px; flex: none; }
 /* Prominent while anything may be moving or held. Same size, same place. */
 
@@ -846,17 +844,18 @@ body { background-image: none; }
 .statebar .state-band.warn { color: var(--warn); }
 .statebar .state-band[data-state="held"] { color: var(--state-hold); }
 .statebar .state-band strong { font-weight: 600; }
-.stop-group .stop-button, .stop-group .stop { min-height: 42px; width: 118px; padding: 0 12px; gap: 8px; font: 600 14px/1 var(--sans); border-radius: var(--r); background: var(--sheet); border: 1px solid var(--field); color: var(--ink); box-shadow: none; }
+.stop-group .stop-button, .stop-group .stop { min-height: 42px; width: 118px; padding: 0 12px; gap: 8px; font: 600 14px/1 var(--sans); border-radius: var(--r); background: var(--band-bg); border: 1px solid var(--band-fg); color: var(--band-fg); box-shadow: none; transition: none; }
 .stop-group .stop { width: 128px; }
 .stop-group .pause-icon { width: 14px; height: 14px; fill: currentColor; }
-.stop-group button:hover:not(:disabled) { background: var(--raise); border-color: var(--ink); }
-.stop-group button:disabled { color: color-mix(in srgb, var(--ink) 50%, var(--sheet)); background: color-mix(in srgb, var(--paper) 60%, var(--sheet)); border-color: var(--line-soft); cursor: not-allowed; }
+.stop-group button:hover:not(:disabled) { box-shadow: 0 0 0 1px var(--band-fg); }
+.stop-group button:disabled { opacity: .55; cursor: not-allowed; }
 .stop-group button:disabled .stop-mark { opacity: .5; }
-/* Prominent while anything may be moving, held or queued. Same size, same place. */
+/* Quiet: white with a black frame (band tokens). Prominent while anything may be moving, held or
+   queued: signal orange (Pause) and black (Stop job). Safety-bar tokens only, the same in both themes. */
 .stop-group .stop-button[data-prominent="true"] { background: var(--bar-bg); border-color: var(--bar-fg); color: var(--bar-fg); }
-.stop-group .stop-button[data-prominent="true"]:hover { background: color-mix(in srgb, var(--bar-bg) 88%, #000); }
+.stop-group .stop-button[data-prominent="true"]:hover { box-shadow: 0 0 0 2px var(--bar-fg); }
 .stop-group .stop[data-prominent="true"] { background: var(--stop-bg); border-color: var(--stop-bg); color: var(--on-stop); }
-.stop-group .stop[data-prominent="true"]:hover { background: var(--stop-bg); border-color: var(--stop-mark); }
+.stop-group .stop[data-prominent="true"]:hover { box-shadow: 0 0 0 2px var(--stop-mark); }
 .stop-group :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 .stop-outcome { position: absolute; right: 14px; top: calc(100% + 6px); z-index: 8; max-width: 440px; margin: 0; padding: 7px 12px; border-radius: var(--r-sm); font-size: 12.5px; line-height: 1.4; background: var(--sheet); color: var(--ink); border: 1px solid var(--rule); box-shadow: var(--pop); }
 .stop-outcome.not-delivered { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); font-weight: 600; }

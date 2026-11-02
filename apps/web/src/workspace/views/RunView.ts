@@ -133,7 +133,7 @@ export function PositionPanel({ model }: { readonly model: WorkspaceModel | null
 
 // ---------------------------------------------------------------- inspector: coming later
 
-function JogSection(): ComponentChild {
+export function JogSection(): ComponentChild {
   const pad = ['X−, Y+', 'Y+', 'X+, Y+', 'X−', 'Go to X0 Y0', 'X+', 'X−, Y−', 'Y−', 'X+, Y−'];
   const labels = ['↖', 'Y+', '↗', 'X−', '⌖', 'X+', '↙', 'Y−', '↘'];
   return h(
@@ -147,15 +147,15 @@ function JogSection(): ComponentChild {
       h(
         'div',
         { class: 'jog-pads' },
-        h('div', { class: 'jog-pad', role: 'group', 'aria-label': 'X and Y' }, pad.map((label, i) => h('button', { type: 'button', disabled: true, class: `j${i % 2 === 0 && i !== 4 ? ' diag' : ''}`, 'aria-label': label, key: label }, labels[i]))),
-        h('div', { class: 'jog-z', role: 'group', 'aria-label': 'Z' }, h('button', { type: 'button', disabled: true, class: 'j', 'aria-label': 'Z up' }, 'Z+'), h('button', { type: 'button', disabled: true, class: 'j', 'aria-label': 'Z down' }, 'Z−')),
+        h('div', { class: 'jog-pad', role: 'group', 'aria-label': 'X and Y' }, pad.map((label, i) => h('button', { type: 'button', disabled: true, class: `j${i % 2 === 0 && i !== 4 ? ' diag' : ''}`, 'aria-label': label, key: label, 'data-machine-control': i === 4 ? 'zero' : 'jog' }, labels[i]))),
+        h('div', { class: 'jog-z', role: 'group', 'aria-label': 'Z' }, h('button', { type: 'button', disabled: true, class: 'j', 'aria-label': 'Z up', 'data-machine-control': 'jog' }, 'Z+'), h('button', { type: 'button', disabled: true, class: 'j', 'aria-label': 'Z down', 'data-machine-control': 'jog' }, 'Z−')),
       ),
-      h('div', { class: 'seg full', role: 'group', 'aria-label': 'Step size' }, ['0.1', '1', '10', '50', 'Hold'].map((s) => h('button', { type: 'button', disabled: true, class: s === '1' ? 'selected' : undefined, key: s }, s))),
+      h('div', { class: 'seg full', role: 'group', 'aria-label': 'Step size' }, ['0.1', '1', '10', '50', 'Hold'].map((s) => h('button', { type: 'button', disabled: true, class: s === '1' ? 'selected' : undefined, key: s, 'data-machine-control': 'jog' }, s))),
     ),
   );
 }
 
-function SpindleSection(): ComponentChild {
+export function SpindleSection(): ComponentChild {
   return h(
     'section',
     { class: 'insp sec-spindle', 'aria-labelledby': 'spindle-title' },
@@ -169,20 +169,20 @@ function SpindleSection(): ComponentChild {
     h(
       'div',
       { class: 'spindle-controls' },
-      h('div', { class: 'seg full', role: 'group', 'aria-label': 'Spindle' }, ['Off', 'On · CW', 'On · CCW'].map((s) => h('button', { type: 'button', disabled: true, key: s }, s))),
-      h('div', { class: 'inline-field' }, h('span', null, 'Coolant'), h('span', { class: 'toggles' }, h('button', { type: 'button', class: 'toggle', disabled: true, 'aria-pressed': 'false' }, 'Mist'), h('button', { type: 'button', class: 'toggle', disabled: true, 'aria-pressed': 'false' }, 'Flood'))),
+      h('div', { class: 'seg full', role: 'group', 'aria-label': 'Spindle' }, ['Off', 'On · CW', 'On · CCW'].map((s) => h('button', { type: 'button', disabled: true, key: s, 'data-machine-control': 'spindle' }, s))),
+      h('div', { class: 'inline-field' }, h('span', null, 'Coolant'), h('span', { class: 'toggles' }, h('button', { type: 'button', class: 'toggle', disabled: true, 'aria-pressed': 'false', 'data-machine-control': 'coolant' }, 'Mist'), h('button', { type: 'button', class: 'toggle', disabled: true, 'aria-pressed': 'false', 'data-machine-control': 'coolant' }, 'Flood'))),
     ),
     h('p', { class: 'unavailable' }, 'Spindle and coolant control arrive with motion control. TinyG has no spindle speed sensor and does not report coolant: Run shows the last command it sent, never an actual speed.'),
   );
 }
 
-function OverridesSection(): ComponentChild {
+export function OverridesSection(): ComponentChild {
   const row = (label: string, id: string): ComponentChild =>
     h(
       'div',
       { class: 'ovr', key: id },
       h('div', { class: 'ovr-head' }, h('span', null, label), h('output', null, '100 %')),
-      h('div', { class: 'ovr-row' }, h('button', { type: 'button', class: 'small step', disabled: true, 'aria-label': `${label} minus 10 percent` }, '−10'), h('input', { type: 'range', min: 10, max: 200, value: 100, disabled: true, 'aria-label': `${label} override` }), h('button', { type: 'button', class: 'small step', disabled: true, 'aria-label': `${label} plus 10 percent` }, '+10')),
+      h('div', { class: 'ovr-row' }, h('button', { type: 'button', class: 'small step', disabled: true, 'aria-label': `${label} minus 10 percent`, 'data-machine-control': 'override' }, '−10'), h('input', { type: 'range', min: 10, max: 200, value: 100, disabled: true, 'aria-label': `${label} override`, 'data-machine-control': 'override' }), h('button', { type: 'button', class: 'small step', disabled: true, 'aria-label': `${label} plus 10 percent`, 'data-machine-control': 'override' }, '+10')),
     );
   return h(
     'section',
@@ -228,7 +228,7 @@ function JobCard({ parts }: { readonly parts: PreviewParts }): ComponentChild {
       'div',
       { class: 'job-start' },
       h('ol', { class: 'flow', 'aria-label': 'Before you start' }, h('li', { class: result !== null && !result.summary.blocked ? 'done' : undefined }, h('span', null, '1'), 'Check'), h('li', null, h('span', null, '2'), 'Set zero'), h('li', null, h('span', null, '3'), 'Start')),
-      h('button', { type: 'button', class: 'primary wide', disabled: true, 'data-action': 'start-job', 'aria-describedby': 'start-later' }, 'Start job'),
+      h('button', { type: 'button', class: 'primary wide', disabled: true, 'data-action': 'start-job', 'data-machine-control': 'start', 'aria-describedby': 'start-later' }, 'Start job'),
       h('p', { class: 'fine', id: 'start-later' }, 'Running jobs arrives in a later phase. Today you can check the file, the setup and the tools.'),
     ),
   );

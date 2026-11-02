@@ -211,7 +211,7 @@ function ToolInspector({ entry }: { readonly entry: ToolEntry }): ComponentChild
       { class: 'insp' },
       h('header', null, h('h2', null, 'Firmware tool table'), h('span', { class: 'tag mock' }, 'Needs firmware support')),
       h('p', { class: 'fine' }, 'The controller has no tool table today. It reports only the active tool number. If the firmware adds one, its slots line up with this library.'),
-      h('button', { type: 'button', class: 'wide', disabled: true }, 'Compare with the controller'),
+      h('button', { type: 'button', class: 'wide', disabled: true, 'data-machine-control': 'tool-table' }, 'Compare with the controller'),
     ),
   );
 }

@@ -10,6 +10,8 @@ import { Fragment, h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { STOP_TEXT, w1, w13, w2Label, w7 } from '@synthetos/safety';
 import { AppShell, VIEWS } from '../src/workspace/AppShell.ts';
+import { JogSection, OverridesSection, SpindleSection } from '../src/workspace/views/RunView.ts';
+import { BackupsTab, FirmwareTab } from '../src/workspace/views/BoardView.ts';
 import { SafetyBar, STOP_UNAVAILABLE } from '../src/shell/SafetyBar.ts';
 import { versionLabel } from '../src/build-info/buildInfo.ts';
 import { all, byAttr, one, root, text } from './tree.ts';
@@ -97,5 +99,94 @@ describe('SafetyBar', () => {
     expect(text(one(bar, byAttr('data-safety', 'W1')))).toBe(w1());
     expect(all(bar, byAttr('data-version'))).toEqual([]);
     expect(all(bar, (e) => e.tag === 'button')).toEqual([]);
+  });
+});
+
+/**
+ * Phase 1: no control in the workspace can act on the machine except the ones allowed to. Every button,
+ * input, select and textarea is classified: machine controls carry `data-machine-control` with a class;
+ * everything else must match the reviewed list of UI controls below. A new control fails this test until
+ * it is classified here.
+ */
+describe('Phase 1 control allowlist', () => {
+  const html = renderToString(h(Fragment, null, h(AppShell, { build })));
+  /** Must exist, and be disabled with no handler: they would move the machine or write to the board. */
+  const MACHINE_DISABLED = new Set(['jog', 'zero', 'spindle', 'coolant', 'override', 'start', 'settings-write', 'firmware', 'tool-table']);
+  /** Enabled only while a machine is LIVE in this browser (never gated otherwise): Pause and Stop job. */
+  const LIVE_ONLY = new Set(['stop']);
+  /** Reads only (GETs through the read allowlist): Back up settings. Disabled until a board is read. */
+  const READ_ONLY = new Set(['read']);
+  /** The Connect flow (live/ConnectPanel.ts): Connect, the C1 confirm and cancel, dismiss, Disconnect. */
+  const CONNECT = new Set(['connect', 'disconnect', 'confirm', 'cancel', 'dismiss']);
+  /** Controls that never reach the machine: views, tabs, the preview, and the local libraries. */
+  const UI: readonly RegExp[] = [
+    /^view:(run|setup|tools|materials|board|machines|projects|analyze|settings|safety)$/,
+    /^tab:(gcode|console|live)$/,
+    /^board-tab:(board|settings|backups|firmware)$/,
+    /^preview:(file|rapids|mode|scrubber|fit|cancel)$/,
+    /^sample:(mounting-plate|test-square)$/,
+    /^action:(add-tool|fork-material|copy-machine|fixture-file|save-transcript|dismiss-w29|pause-request|stop-job-request)$/,
+    /^label:(Toggle day\/night mode|Account: .*|Dialect|Find a machine|back left|back right|center|front left|front right)$/,
+    /^button:(Workshop|Stock|Whole bed|3D|Top|Front|Block|Round|Sheet|Stock top|Stock bottom|\d+ clamps|No clamps|Remove the fixture|Use the sample plate|All|End mills|Ball nose|V-bits|Drills|O-flutes|Built-in|Mine \(\d+\)|Belt driven|Screw driven|Go to Run|Add purchase link|T\d+ · .+)$/,
+    /^(input|select|textarea):/,
+  ];
+  // Material and tool rows are plain buttons whose text is data: any other button must be in the list above.
+  const LIST_ROW = /class="(material-row[^"]*|row-link)"/;
+
+  function controls(): { id: string; machine: string | null; disabled: boolean; attrs: string }[] {
+    const out: { id: string; machine: string | null; disabled: boolean; attrs: string }[] = [];
+    for (const m of html.matchAll(/<(button|input|select|textarea)\b([^>]*)>([\s\S]*?)(?=<\/button>|<(?:button|input|select|textarea)\b|$)/g)) {
+      const [, tag, attrs = '', inner = ''] = m;
+      const a = (n: string): string | undefined => new RegExp(`\\s${n}="([^"]*)"`).exec(attrs)?.[1];
+      const text = tag === 'button' ? inner.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').trim() : '';
+      const id =
+        (a('data-action') !== undefined ? `action:${a('data-action')}` : undefined) ??
+        (a('data-view') !== undefined ? `view:${a('data-view')}` : undefined) ??
+        (a('data-tab') !== undefined ? `tab:${a('data-tab')}` : undefined) ??
+        (a('data-board-tab') !== undefined ? `board-tab:${a('data-board-tab')}` : undefined) ??
+        (a('data-sample') !== undefined ? `sample:${a('data-sample')}` : undefined) ??
+        (a('data-preview') !== undefined ? `preview:${a('data-preview')}` : undefined) ??
+        (a('aria-label') !== undefined ? `label:${a('aria-label')}` : undefined) ??
+        `${tag}:${text}`;
+      out.push({ id, machine: a('data-machine-control') ?? null, disabled: /\sdisabled(=|\s|$)/.test(attrs), attrs });
+    }
+    return out;
+  }
+
+  it('every control is classified; machine-acting ones are disabled; only Connect, Pause, Stop job and Back up settings are machine-related', () => {
+    const list = controls();
+    expect(list.length).toBeGreaterThan(50);
+    const seen = new Set<string>();
+    for (const c of list) {
+      if (c.machine !== null) {
+        seen.add(c.machine);
+        expect(MACHINE_DISABLED.has(c.machine) || LIVE_ONLY.has(c.machine) || READ_ONLY.has(c.machine), `unknown machine control class ${c.machine}`).toBe(true);
+        expect(c.disabled, `${c.machine} control ${c.id} is enabled in the prerendered page`).toBe(true);
+        continue;
+      }
+      const action = c.id.startsWith('action:') ? c.id.slice(7) : null;
+      if (action !== null && CONNECT.has(action)) continue;
+      if (c.id.startsWith('button:') && !UI.some((r) => r.test(c.id))) {
+        expect(LIST_ROW.test(c.attrs), `unclassified control ${c.id}: classify it in shell.test.ts`).toBe(true);
+        continue;
+      }
+      expect(UI.some((r) => r.test(c.id)), `unclassified control ${c.id}: classify it in shell.test.ts`).toBe(true);
+    }
+    for (const k of [...MACHINE_DISABLED].filter((k) => k !== 'tool-table')) expect(seen.has(k), `no ${k} control rendered`).toBe(true);
+    expect(seen.has('stop')).toBe(true);
+    expect(seen.has('read')).toBe(true);
+  });
+
+  it('the machine-acting controls carry no handler at all: they dispatch nothing', () => {
+    const trees = [h(JogSection, null), h(SpindleSection, null), h(OverridesSection, null), h(FirmwareTab, { view: null }), h(BackupsTab, { model: null })].map((n) => root(n));
+    let count = 0;
+    for (const tree of trees) {
+      for (const el of all(tree, (e) => typeof e.props['data-machine-control'] === 'string' && MACHINE_DISABLED.has(e.props['data-machine-control'] as string))) {
+        count += 1;
+        expect(el.props['disabled'], String(el.props['aria-label'] ?? el.tag)).toBe(true);
+        expect(Object.keys(el.props).filter((k) => /^on[A-Z]/.test(k))).toEqual([]);
+      }
+    }
+    expect(count).toBeGreaterThan(20);
   });
 });
