@@ -224,6 +224,16 @@ The simulation handles all of them.
   - **reach:** the deepest cut against the tool's flute length or the holder ("the collet hits the stock below 22 mm");
   - **overall depth:** the deepest Z against the machine's Z travel.
 - **During a job (P3):** the same simulation is driven by the reported `line`, so the stock is cut on screen as the machine cuts. It catches up after reconnects from the line number, and never claims more than the reports show.
+- **Planner view during a job (owner, 2026-11-02; P3):** the toolpath is coloured by where each move is in the pipeline:
+  - **cut**, already executed: dimmed;
+  - **executing now**: the line in the latest `sr` `line`, highlighted, with the tool marker;
+  - **queued in the planner**: lines sent and accepted but not yet executed, in a distinct band colour;
+  - **not sent yet**: the normal preview colour.
+
+  The queued band's length is the look-ahead the machine has. When it shrinks to almost nothing while cutting, run is starving the planner. A small gauge beside the 3D view shows planner buffers in use (from `qr`) and the queued time in seconds, and turns to a warning when starving. That ties directly to the live tuning in §6.2. Accuracy:
+  - Run knows which lines it has sent and been acknowledged for, and the board reports the executing line.
+  - One G-code line can be several planner blocks (arcs, long moves), so the band is line-accurate, not block-accurate. The gauge uses `qr` for the true block count.
+  - The firmware's planned feed-limit reasons (§6.2, firmware step 1) can later colour queued blocks by cause, for example corner-limited or too short to reach feed.
 - **Round stock and rotary:** round stock lying flat or standing up is a 3-axis heightfield. A rotary A axis needs a cylindrical heightfield; that is a later phase.
 
 ## 8. Security and privacy
