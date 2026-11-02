@@ -64,6 +64,9 @@ importers:
       '@synthetos/gcode-view':
         specifier: workspace:*
         version: link:../../packages/gcode-view
+      '@synthetos/library':
+        specifier: workspace:*
+        version: link:../../packages/library
       '@synthetos/machine':
         specifier: workspace:*
         version: link:../../packages/machine

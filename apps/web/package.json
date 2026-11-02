@@ -19,6 +19,7 @@
     "@synthetos/contracts": "workspace:*",
     "@synthetos/gcode": "workspace:*",
     "@synthetos/gcode-view": "workspace:*",
+    "@synthetos/library": "workspace:*",
     "@synthetos/machine": "workspace:*",
     "@synthetos/protocol": "workspace:*",
     "@synthetos/safety": "workspace:*",

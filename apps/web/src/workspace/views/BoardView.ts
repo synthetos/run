@@ -50,7 +50,17 @@ function BoardFacts({ view }: { readonly view: LiveView | null }): ComponentChil
   return h(
     'section',
     { class: 'insp', 'data-region': 'board-facts', 'aria-labelledby': 'board-facts-title' },
-    h('header', null, h('h2', { id: 'board-facts-title' }, 'This board'), h('span', { class: `tag${readOnly ? ' mock' : ''}` }, on ? (readOnly ? 'Read only' : 'Connected') : 'Not connected')),
+    h(
+      'header',
+      null,
+      h(
+        'h2',
+        { id: 'board-facts-title', class: 'board-facts-title' },
+        on && c?.dialectId === 'tinyg-en' ? h('img', { class: 'edge-next-icon', src: '/brand/edge-next/tinyg-edge-next-2026-icon.png', alt: 'TinyG edge-next', width: 28, height: 28, 'data-board-logo': 'edge-next' }) : null,
+        'This board',
+      ),
+      h('span', { class: `tag${readOnly ? ' mock' : ''}` }, on ? (readOnly ? 'Read only' : 'Connected') : 'Not connected'),
+    ),
     on
       ? h(
           'dl',

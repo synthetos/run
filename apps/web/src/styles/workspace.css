@@ -1013,7 +1013,7 @@ code.block { display: block; white-space: pre-wrap; word-break: break-word; padd
   .scenario-notice .notice-text p { display: none; }
   .timeline { height: 34px; }
   .dock-tabs { height: 32px; }
-  .dock-panel { height: 132px; }
+  .dock-panel { height: 124px; }
   .insp { padding: 12px 14px 12px; }
 }
 
@@ -1035,3 +1035,8 @@ code.block { display: block; white-space: pre-wrap; word-break: break-word; padd
 @media (max-width: 650px) {
   .footer { height: auto; min-height: 22px; flex-wrap: wrap; gap: 0 10px; padding: 3px 12px; }
 }
+.board-facts-title { display: flex; align-items: center; gap: 8px; }
+.edge-next-icon { width: 28px; height: 28px; border-radius: 6px; flex: none; }
+.sourced { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.sourced .tag { height: 18px; font-size: 10.5px; }
+.safety-notes li.info { border-left-color: var(--blue); background: var(--blue-wash); }

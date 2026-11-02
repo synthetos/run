@@ -203,12 +203,16 @@ private half you should treat as disclosed. See `docs/ops/release-key.md`.
 Open http://localhost:8793/ in the bench profile. You should see:
 
 - the tab title starting with `[bench]`;
-- the version chip ending in `bench build, localhost only`;
-- the red WARNING bar: "This software is not an emergency stop...";
-- the state band showing **NOT CONNECTED**;
-- the **Pause (spindle stays on) — not an E-stop** button, shown as
-  "Available when a machine is connected";
-- a **Connect** button.
+- the version chip (in the footer) ending in `bench build, localhost only`;
+- the orange WARNING line at the top: "This software is not an emergency stop...";
+- the Stage 1 workspace: a top bar, the machine strip with the state
+  **Not connected** and the **NOT CONNECTED** band text, and a rail of views
+  (Run, Setup, Tools, Materials, Board, Machines, Projects, Analyze,
+  Settings, Safety). Switching views never reloads the page or touches the
+  connection;
+- **Pause** and **Stop job** at the right of the machine strip, shown as
+  "Available when a machine is connected" (OD-6 labels; amended W2);
+- a **Connect** button in the connect card of the Run view.
 
 From another device on your network, http://\<this computer's LAN
 address\>:8793/ must not answer. The server listens on 127.0.0.1 only and
@@ -313,17 +317,22 @@ when a polled `mpo` read arrives, so it can step rather than glide.
 
 ### 5.7 Pause and the stop paths
 
-- **Pause (spindle stays on) — not an E-stop**, or the **Escape** key from
-  anywhere on the page, writes `!` at once. The state band shows PAUSE
+- **Pause** (W2, amended 2026-11-02 by OD-6), or the **Escape** key from
+  anywhere on the page, writes `!` at once. Pause and Stop job sit in the
+  same place in every view: quiet while the machine is at rest, signal
+  orange and black while anything may be moving, held or orphaned. A Pause
+  pressed at rest reports "Paused: the machine was idle, nothing changed". The state band shows PAUSE
   REQUESTED, then W30 (held) once a status report confirms the hold. It
   never shows "STOPPED". Space never pauses.
 - Pause is never gated by sign-in, the advisory or anything else.
 - A second tab of the same profile shows "Machine is controlled in another
   tab", with **Pause request** and **Stop job request** buttons. A delivered
-  request shows "Delivered to \<board id\>". An unacknowledged one shows
+  request shows "Pause delivered to \<board id\>". An unacknowledged one shows
   **STOP NOT DELIVERED** (use your E-stop). When the controlling tab closes,
   the observer shows W29.
-- Phase 1 has no Resume (`~`), no Stop job (^D) and no Reset (^X). Under
+- **Stop job** in Phase 1 writes `!` only (no ^D): the strip says it went
+  out as Pause and to use your E-stop to remove power.
+- Phase 1 has no Resume (`~`), no ^D and no Reset (^X). Under
   ORPHANED_MOTION, Disconnect is not offered either (owner decision OD-4,
   decided 2026-11-02: keep it). To release the port, unplug the USB or
   close the tab.
@@ -382,8 +391,8 @@ written and every chunk received, with times. It is JSONL, one
 `recordingFromJsonl` + `ReplayTransport` in `@synthetos/testkit` replays it
 byte for byte.
 
-To save it: **Save transcript**, in the "Wire transcript" panel under the
-DRO and settings. The panel appears once a connection has opened in the
+To save it: **Save transcript**, in the Run view's **Console** tab (which
+also shows the live transcript). The panel appears once a connection has opened in the
 tab and stays after Disconnect or LOST, so you can save the record of a
 link that dropped. Chrome downloads
 `run-transcript-<UTC date and time>.jsonl`, for example

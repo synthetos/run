@@ -6,7 +6,8 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { allMaterials, material, sampleFixture, setupStore, type SetupState } from '../library.ts';
+import { allMaterials, doNotMachine, material, materialColor, sampleFixture, setupStore, type SetupState } from '../library.ts';
+import { SafetyNotes } from './LibraryViews.ts';
 import { Icon } from '../icons.ts';
 import { OutlineError, parseOutline, MAX_OUTLINE_BYTES } from '../outline.ts';
 import { SetupScene, type SetupCamera } from '../setupScene.ts';
@@ -36,7 +37,17 @@ function field(label: string, value: number, onChange: (n: number) => void, unit
   );
 }
 
-const ZEROS = ['back-left', 'back', 'back-right', 'left', 'center', 'right', 'front-left', 'front', 'front-right'] as const;
+const ZEROS = ['back-left', null, 'back-right', null, 'center', null, 'front-left', null, 'front-right'] as const;
+
+/** A short, stable hash of a file's text (FNV-1a), recorded with the fixture so a changed file is noticed. */
+function textHash(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `fnv1a-${h.toString(16).padStart(8, '0')}`;
+}
 
 function Viewer({ setup }: { readonly setup: SetupState }): ComponentChild {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -52,7 +63,7 @@ function Viewer({ setup }: { readonly setup: SetupState }): ComponentChild {
     };
   }, []);
   useEffect(() => {
-    scene.current?.update(setup, material(setup.stock.materialId)?.color ?? [196, 205, 212]);
+    scene.current?.update(setup, materialColor(setup.stock.materialRef.id));
   }, [setup]);
   const fixtureTop = setup.fixture?.height ?? 0;
   const stockTop = fixtureTop + setup.stock.thickness;
@@ -93,8 +104,8 @@ export function SetupView(): ComponentChild {
   const setStock = (patch: Partial<Stock>): void => set({ stock: { ...setup.stock, ...patch } });
   const st = setup.stock;
   const fx = setup.fixture;
-  const fits = fx === null || (st.shape === 'round' ? st.diameter : st.width) <= Math.max(...fx.outline.map((p) => p[0])) + 0.01;
-  const mat = material(st.materialId);
+  const fits = fx === null || (st.shape === 'round' ? (st.diameter ?? st.width) : st.width) <= Math.max(...fx.outline.map((p) => p[0])) + 0.01;
+  const mat = material(st.materialRef.id);
   return h(
     'div',
     { class: 'setup-view' },
@@ -115,7 +126,7 @@ export function SetupView(): ComponentChild {
             { class: 'shape-picker', role: 'group', 'aria-label': 'Stock shape' },
             (['block', 'round', 'sheet'] as const).map((shape) => h('button', { type: 'button', key: shape, class: st.shape === shape ? 'selected' : undefined, 'aria-pressed': st.shape === shape ? 'true' : 'false', onClick: () => setStock({ shape }) }, shape === 'block' ? 'Block' : shape === 'round' ? 'Round' : 'Sheet')),
           ),
-          h('div', { class: 'field-grid' }, ...(st.shape === 'round' ? [field('Diameter', st.diameter, (diameter) => setStock({ diameter }))] : [field('Width X', st.width, (width) => setStock({ width })), field('Depth Y', st.depth, (depth) => setStock({ depth }))]), field('Thickness', st.thickness, (thickness) => setStock({ thickness }), 'mm', 0.05, 0.1)),
+          h('div', { class: 'field-grid' }, ...(st.shape === 'round' ? [field('Diameter', st.diameter ?? st.width, (diameter) => setStock({ diameter }))] : [field('Width X', st.width, (width) => setStock({ width })), field('Depth Y', st.depth, (depth) => setStock({ depth }))]), field('Thickness', st.thickness, (thickness) => setStock({ thickness }), 'mm', 0.05, 0.1)),
           h(
             'label',
             { class: 'field' },
@@ -125,13 +136,19 @@ export function SetupView(): ComponentChild {
               { class: 'select-wrap' },
               h(
                 'select',
-                { value: st.materialId, onChange: (e: Event) => setStock({ materialId: (e.currentTarget as HTMLSelectElement).value }) },
-                allMaterials.value.filter((m) => !m.doNotMachine).map((m) => h('option', { value: m.id, key: m.id }, m.name)),
+                {
+                  value: st.materialRef.id,
+                  onChange: (e: Event) => {
+                    const m = material((e.currentTarget as HTMLSelectElement).value);
+                    if (m !== null) setStock({ materialRef: { id: m.id, version: m.version } });
+                  },
+                },
+                allMaterials.value.filter((v) => !doNotMachine(v.material)).map((v) => h('option', { value: v.material.id, key: v.material.id }, v.material.name)),
               ),
             ),
           ),
-          mat !== null && mat.safety.length > 0 ? h('ul', { class: 'safety-notes compact' }, mat.safety.map((s, i) => h('li', { key: String(i), class: s.level }, s.text))) : null,
-          h('div', { class: 'field-grid' }, field('Position X', st.x, (x) => setStock({ x }), 'mm', 1, -10000), field('Position Y', st.y, (y) => setStock({ y }), 'mm', 1, -10000)),
+          mat === null ? null : h(SafetyNotes, { m: mat, compact: true }),
+          h('div', { class: 'field-grid' }, field('Position X', st.position.x, (x) => setStock({ position: { ...st.position, x } }), 'mm', 1, -10000), field('Position Y', st.position.y, (y) => setStock({ position: { ...st.position, y } }), 'mm', 1, -10000)),
           h(
             'div',
             { class: 'field' },
@@ -139,20 +156,20 @@ export function SetupView(): ComponentChild {
             h(
               'div',
               { class: 'zero-pick' },
-              h('div', { class: 'zero-grid', role: 'radiogroup', 'aria-label': 'Work zero point on the stock' }, ZEROS.map((z) => h('button', { type: 'button', role: 'radio', key: z, 'aria-checked': st.zero === z ? 'true' : 'false', 'aria-label': z.replace('-', ' '), onClick: () => setStock({ zero: z }) }))),
-              h('div', { class: 'seg vertical', role: 'group', 'aria-label': 'Zero height' }, (['top', 'bottom'] as const).map((zh) => h('button', { type: 'button', key: zh, class: st.zeroHeight === zh ? 'selected' : undefined, onClick: () => setStock({ zeroHeight: zh }) }, zh === 'top' ? 'Stock top' : 'Stock bottom'))),
+              h('div', { class: 'zero-grid', role: 'radiogroup', 'aria-label': 'Work zero point on the stock' }, ZEROS.map((z, i) => (z === null ? h('span', { key: String(i), 'aria-hidden': 'true' }) : h('button', { type: 'button', role: 'radio', key: z, 'aria-checked': st.zero.corner === z ? 'true' : 'false', 'aria-label': z.replace('-', ' '), onClick: () => setStock({ zero: { ...st.zero, corner: z } }) })))),
+              h('div', { class: 'seg vertical', role: 'group', 'aria-label': 'Zero height' }, (['top', 'bottom'] as const).map((zh) => h('button', { type: 'button', key: zh, class: st.zero.height === zh ? 'selected' : undefined, onClick: () => setStock({ zero: { ...st.zero, height: zh } }) }, zh === 'top' ? 'Stock top' : 'Stock bottom'))),
             ),
           ),
         ),
         h(
           'section',
           { class: 'insp' },
-          h('header', null, h('h2', null, 'Fixture'), h('span', { class: 'tag' }, fx === null ? 'None' : fx.kind === 'sample' ? 'Sample' : fx.kind.toUpperCase())),
+          h('header', null, h('h2', null, 'Fixture'), h('span', { class: 'tag' }, fx === null ? 'None' : fx.source.hash === 'sample' ? 'Sample' : fx.source.kind.toUpperCase())),
           fx === null
             ? h('p', { class: 'fine' }, 'The stock sits straight on the bed.')
             : [
-                h('div', { class: 'fixture-item', key: 'item' }, h(FixtureThumb, { fixture: fx }), h('div', null, h('strong', null, fx.name), h('small', null, `${fx.file ?? 'built in'} · ${Math.round(Math.max(...fx.outline.map((p) => p[0])))} × ${Math.round(Math.max(...fx.outline.map((p) => p[1])))} mm · ${fx.holes.length} holes`))),
-                h('div', { class: 'field-grid three', key: 'dims' }, field('Height', fx.height, (height) => set({ fixture: { ...fx, height } })), field('X', fx.x, (x) => set({ fixture: { ...fx, x } }), 'mm', 1, -10000), field('Y', fx.y, (y) => set({ fixture: { ...fx, y } }), 'mm', 1, -10000)),
+                h('div', { class: 'fixture-item', key: 'item' }, h(FixtureThumb, { fixture: fx }), h('div', null, h('strong', null, fx.name), h('small', null, `${fx.source.hash === 'sample' ? 'built in' : fx.source.file} · ${Math.round(Math.max(...fx.outline.map((p) => p[0])))} × ${Math.round(Math.max(...fx.outline.map((p) => p[1])))} mm · ${fx.holes.length} holes`))),
+                h('div', { class: 'field-grid three', key: 'dims' }, field('Height', fx.height, (height) => set({ fixture: { ...fx, height } })), field('X', fx.position.x, (x) => set({ fixture: { ...fx, position: { ...fx.position, x } } }), 'mm', 1, -10000), field('Y', fx.position.y, (y) => set({ fixture: { ...fx, position: { ...fx.position, y } } }), 'mm', 1, -10000)),
               ],
           h(
             'label',
@@ -173,7 +190,18 @@ export function SetupView(): ComponentChild {
                   (text) => {
                     try {
                       const parsed = parseOutline(file.name, text);
-                      set({ fixture: { name: file.name.replace(/\.[^.]+$/, ''), file: file.name, kind: /\.dxf$/i.test(file.name) ? 'dxf' : 'svg', outline: parsed.outline, holes: parsed.holes, height: fx?.height ?? 12, x: fx?.x ?? 160, y: fx?.y ?? 120 } });
+                      set({
+                        fixture: {
+                          id: `fixture.${textHash(text).slice(6)}`,
+                          name: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Fixture',
+                          source: { file: file.name.slice(0, 120), kind: /\.dxf$/i.test(file.name) ? 'dxf' : 'svg', hash: textHash(text) },
+                          outline: parsed.outline.map(([x, y]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000] as const),
+                          holes: parsed.holes.map(([x, y, r]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000, Math.round(r * 1000) / 1000] as const),
+                          height: fx?.height ?? 12,
+                          position: fx?.position ?? { x: 160, y: 120 },
+                          material: fx?.material ?? 'Not recorded',
+                        },
+                      });
                       setStatus(`Read ${file.name}: ${Math.round(parsed.width)} × ${Math.round(parsed.depth)} mm, ${parsed.holes.length} holes.`);
                     } catch (error) {
                       setStatus(error instanceof OutlineError ? error.message : 'The file could not be read.');

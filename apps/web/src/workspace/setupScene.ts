@@ -168,13 +168,13 @@ export class SetupScene {
     if (fx !== null && fx.outline.length >= 3) {
       const fw = Math.max(...fx.outline.map((p) => p[0]));
       const fd = Math.max(...fx.outline.map((p) => p[1]));
-      prism(1, fx.outline, fx.x - fw / 2, fx.y - fd / 2, 0, fx.height, fixtureTone);
+      prism(1, fx.outline, fx.position.x - fw / 2, fx.position.y - fd / 2, 0, fx.height, fixtureTone);
     }
     const st = setup.stock;
-    const sw = st.shape === 'round' ? st.diameter : st.width;
-    const sd = st.shape === 'round' ? st.diameter : st.depth;
-    const sx = st.x - sw / 2;
-    const sy = st.y - sd / 2;
+    const sw = st.shape === 'round' ? (st.diameter ?? st.width) : st.width;
+    const sd = st.shape === 'round' ? (st.diameter ?? st.width) : st.depth;
+    const sx = st.position.x - sw / 2;
+    const sy = st.position.y - sd / 2;
     if (st.shape === 'round') {
       const ring = Array.from({ length: 40 }, (_, k) => [sw / 2 + (sw / 2) * Math.cos((k / 40) * Math.PI * 2), sd / 2 + (sd / 2) * Math.sin((k / 40) * Math.PI * 2)] as const);
       prism(2, ring, sx, sy, fixtureTop, fixtureTop + st.thickness, this.#stockColor);
@@ -230,8 +230,8 @@ export class SetupScene {
       const fd = Math.max(...fx.outline.map((p) => p[1]));
       ctx.fillStyle = shade(fixtureTone, 0.45);
       for (const [hx, hy, r] of fx.holes) {
-        const x = fx.x - fw / 2 + hx;
-        const y = fx.y - fd / 2 + hy;
+        const x = fx.position.x - fw / 2 + hx;
+        const y = fx.position.y - fd / 2 + hy;
         if (x > sx && x < sx + sw && y > sy && y < sy + sd) continue;
         ctx.beginPath();
         for (let k = 0; k <= 16; k++) {
@@ -243,9 +243,9 @@ export class SetupScene {
       }
     }
     // Work zero marker and axes.
-    const zx = st.zero.includes('right') ? sx + sw : st.zero.includes('left') ? sx : sx + sw / 2;
-    const zy = st.zero.includes('back') ? sy + sd : st.zero.includes('front') ? sy : sy + sd / 2;
-    const zz = st.zeroHeight === 'top' ? fixtureTop + st.thickness : fixtureTop;
+    const zx = st.zero.corner.includes('right') ? sx + sw : st.zero.corner.includes('left') ? sx : sx + sw / 2;
+    const zy = st.zero.corner.includes('back') ? sy + sd : st.zero.corner.includes('front') ? sy : sy + sd / 2;
+    const zz = st.zero.height === 'top' ? fixtureTop + st.thickness : fixtureTop;
     const o = S([zx, zy, zz]);
     ctx.strokeStyle = ink;
     ctx.fillStyle = ink;
