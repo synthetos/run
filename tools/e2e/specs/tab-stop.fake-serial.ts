@@ -113,7 +113,8 @@ test('Escape from any focus pauses through the worker; Space never does (T-S18)'
   await expect(page.locator('.stop-button')).toBeVisible();
 });
 
-test('Escape reaches the wire as `!` in under 100 ms (T-S19, without the 1M-segment preview until TB-03)', async ({ page }) => {
+test('Escape reaches the wire as `!` in under 100 ms with a 1M-segment preview loaded (T-S19)', async ({ page }) => {
+  test.setTimeout(240_000);
   // Stamp the Escape keydown before the app sees it: an init script's capture listener on window runs first.
   await page.addInitScript(() => {
     addEventListener(
@@ -125,6 +126,14 @@ test('Escape reaches the wire as `!` in under 100 ms (T-S19, without the 1M-segm
     );
   });
   const worker = await connectedTab(page);
+  // T-S19's load: a 1M-segment program drawn in the full 3D preview (TB-03), in this same tab.
+  const sheet = page.locator('[data-region="preview"]');
+  await sheet.locator('[data-preview="mode"]').selectOption('full');
+  const million = Buffer.from('G21 G90 G17\n' + 'G1 X10 Y5 F800\nG1 X0 Y0\n'.repeat(500_000));
+  await sheet.locator('[data-preview="file"]').setInputFiles({ name: 'million.nc', mimeType: 'text/plain', buffer: million });
+  await expect(sheet.locator('[data-preview="summary"]')).toBeVisible({ timeout: 180_000 });
+  await expect(sheet.locator('[data-lite="false"]')).toHaveCount(1);
+  await expect(sheet.locator('[data-preview="canvas"], [data-preview="svg"]')).toHaveCount(1);
   // Stamp every `!` the worker writes to the simulated board, on the same wall clock.
   await worker.evaluate(() => {
     interface Rec {
@@ -147,6 +156,8 @@ test('Escape reaches the wire as `!` in under 100 ms (T-S19, without the 1M-segm
   const bangAt = await worker.evaluate(() => (globalThis as unknown as { __bangAt: number[] }).__bangAt[0]);
   expect(typeof escAt).toBe('number');
   const latency = (bangAt as number) - (escAt as number);
+  test.info().annotations.push({ type: 'T-S19 keydown to ! (ms), 1M segments loaded', description: latency.toFixed(1) });
+  process.stdout.write(`T-S19: Escape keydown to '!' on the wire: ${latency.toFixed(1)} ms with the 1M-segment preview loaded\n`);
   expect(latency).toBeGreaterThanOrEqual(0);
   expect(latency).toBeLessThan(100);
 });
