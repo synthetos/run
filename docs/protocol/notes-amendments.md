@@ -4,7 +4,8 @@
 repository. The P0 review found facts PN is missing or states wrongly. The
 code already follows the facts below; each needs the owner's update in PN.
 Citations use the PN §1 tags at the pins in `vendor/firmware-pins.json`
-(EN = edge-next ead63997, TG = master d0418390).
+(EN = edge-next 97321391 since the 2026-11-02 re-pin, before it ead63997;
+TG = master d0418390).
 
 ## §2.2 Banners: a 440.21 reset can be invisible or msg-less
 
@@ -26,7 +27,7 @@ Citations use the PN §1 tags at the pins in `vendor/firmware-pins.json`
   is loaded (TG config.c:134, json_parser.c:485). Only a fresh EEPROM prints
   "Initializing configs to default settings".
 - Edge-next is not affected: its banner uses `json_print_object` and ignores
-  `jv` (EN report.c:65-78).
+  `jv` (EN report.c:68-81).
 
 ## §2.3 / D4 Probe and approval: `fbs` is read by GET, and `fb` alone approves nothing in production
 
@@ -37,9 +38,11 @@ Citations use the PN §1 tags at the pins in `vendor/firmware-pins.json`
   answers 100 (the only answer that means "reports none"); a banner `fbs`
   that disagrees with the GET is a conflict (READ_ONLY).
 - An entry with `fbs: null` matches **every** build that reports that `fb`.
-  The current bench entry (fb 450.01, commit ead63997) therefore approves
-  the local edge-next tip 222a45c0 and any build of the uncommitted working
-  tree, which all still define TINYG_FIRMWARE_BUILD 450.01 (EN tinyg.h:52).
+  The current bench entry (fb 450.01, commit 97321391 in the reviewed
+  unsigned file; the signed file still names ead63997 until the owner
+  re-signs) therefore approves any edge-next build that still defines
+  TINYG_FIRMWARE_BUILD 450.01 (EN tinyg.h:52), including d254eb0b, 222a45c0
+  and any build of an uncommitted working tree.
   The classifier no longer prints the manifest commit for such an entry
   ("commit not verifiable: the build reports no fbs ... (bench only)") and
   returns `buildIdentity: 'fbOnly'` for the UI.
@@ -49,8 +52,8 @@ Citations use the PN §1 tags at the pins in `vendor/firmware-pins.json`
 ## §2.3a Probe step 0: a leftover partial line can still run; detect it by the missing `sr`
 
 Measured on bench 2 on 2026-11-02 (TinyG HIL diagnostic
-test_leftover_line_reconnect, edge-next d254eb0b, 440.21 d0418390, pending
-merge to edge-next). Another program leaves a partial line in the RX
+test_leftover_line_reconnect, edge-next d254eb0b, 440.21 d0418390, merged
+to edge-next (97321391)). Another program leaves a partial line in the RX
 buffer; after a 0.5 s gap the connect line and LF arrive and join it.
 
 | Leftover fragment | Connect line | edge-next | 440.21 |
@@ -69,15 +72,30 @@ buffer; after a 0.5 s gap the connect line and LF arrive and join it.
   instead of repeating `{sr:null}` (`packages/machine/src/session/reducer.ts`,
   SAFETY H49 mitigation 3 as amended).
 - The test-kit models reproduce every row (`firmware-semantics.test.ts`).
-- A firmware-side fix (an idle-gap reset of a partial line when `{`
-  arrives) is pending the edge-next maintainer's decision.
+- **Firmware fact since edge-next 97321391 (E195, merged 2026-11-02):** a
+  line in progress that has had no byte for about 1 s (103 RTC ticks of
+  9.77 ms) is taken as left by a host that went away, and a `{` after it
+  starts a fresh line. The RX interrupt puts a mark (0x1A) in the ring ahead
+  of that `{`, and the reader drops the stale start when it reaches the mark
+  (EN xio/xio_usb.c:43-48, :245, :255-272; xio/xio_usart.c:343-346;
+  EN-HIL tests/bugs/test_e195_stale_partial_line_runs.py). A 0x1A byte from
+  the host is discarded (EN xio/xio_usb.c:242-244). It is a framing
+  heuristic: it needs the quiet gap and a `{` next, and any host pause that
+  long just before a `{` inside a line has the same effect. The diagnostic
+  now also runs every case with a 1.5 s gap; no 1.5 s result is recorded
+  here yet. The 0.5 s table above is inside the quiet time, so E195 does not
+  change it.
+- The host-side rule stays: a reply to the connect line with no `sr` is
+  ORPHANED_MOTION on every dialect. 440.21, edge-next before 97321391, and
+  any fragment followed by the connect line within about 1 s still behave
+  as in the table.
 
 ## §5 Status 13 on edge-next has two sources
 
 - E162 (EN controller.c:253-266): a line that lost bytes in an RX overrun
   never runs. The first raises ALARM 13 and prints `er` 13; later ones arrive
   while that alarm stands (no new `er`).
-- E102 (EN json_parser.c:860-866): a reply too big for the 512-byte output
+- E102 (EN json_parser.c:887-893): a reply too big for the 512-byte output
   buffer (EN controller.h:32) loses its body: `{"r":{},..,"f":[rev,13,n]}`,
   with 13 in place of OK. **The command has already run.**
 - The EN status table now classes 13 as `bufferFull`; `resolveBufferFull`
@@ -107,7 +125,7 @@ buffer; after a 0.5 s gap the connect line and LF arrive and join it.
 ## §5 / §8 Echo of `gc` on errors
 
 - Both firmwares run the verbosity filter on every error response (EN
-  json_parser.c:803-817 despite its comment; TG json_parser.c:490-500), and
+  json_parser.c:830-844 despite its comment; TG json_parser.c:490-500), and
   the filter drops the `gc` echo unless `jv`=5. A failed G-code line at the
   default `jv`=3 is answered `{"r":{},"f":[3,st,n]}`: nothing may match an
   error to its line through a `gc` echo.
@@ -115,7 +133,7 @@ buffer; after a 0.5 s gap the connect line and LF arrive and join it.
 ## SAFETY §4.4 EN Stop job when already alarmed (design change)
 
 - `cm_alarm()` returns without printing when the machine is already ALARM,
-  PANIC or SHUTDOWN (EN canonical_machine.c:797-803), so `^D` on an alarmed
+  PANIC or SHUTDOWN (EN canonical_machine.c:806-812), so `^D` on an alarmed
   board raises no `er` 207. The EN sequence now (a) ends early with E-stop
   advice and the reset path when the last `stat` is 12 or 13 (`haltIfStat`),
   and (b) treats an existing ALARM (stat 2) as the stop in `awaitAlarm`

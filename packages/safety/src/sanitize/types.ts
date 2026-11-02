@@ -75,7 +75,7 @@ export type LinearAxis = 'X' | 'Y' | 'Z';
  * `am`, the axis mode (@cite EN canonical_machine.h:286-293 `cmAxisMode`; TG
  * canonical_machine.h:510-517): 0 disabled, 1 standard, 2 inhibited,
  * 3 radius. `cm_set_am` refuses radius on X, Y and Z (@cite EN
- * canonical_machine.c:2510-2523; TG canonical_machine.c:1723-1732).
+ * canonical_machine.c:2601-2614; TG canonical_machine.c:1723-1732).
  */
 export type AxisMode = 0 | 1 | 2 | 3;
 
@@ -88,7 +88,7 @@ export const AXIS_MODE_RADIUS: AxisMode = 3;
  * A rotary axis's mode and radius, read live from the board (`aam`, `ara`, ...).
  * In radius mode both firmwares read the axis word in LINEAR units and turn
  * it into degrees: `_to_millimeters(v) × 360 / (2π × ra)` (@cite EN
- * canonical_machine.c:484-487 `_calc_ABC`; TG the same). A disabled axis
+ * canonical_machine.c:493-496 `_calc_ABC`; TG the same). A disabled axis
  * ignores its word, so its position does not change, but its joint is its
  * position (only INHIBITED zeroes it): an axis switched from inhibited to
  * disabled (or any other mode) while its position is away from its step
@@ -100,7 +100,7 @@ export const AXIS_MODE_RADIUS: AxisMode = 3;
  * inhibited axis). Its position follows the program, but the kinematics
  * force its joint to 0 on every segment of every move (@cite EN
  * kinematics.c:59; TG kinematics.c:63) and each segment moves the motor by
- * the difference of absolute step targets (@cite EN plan_exec.c:703-712; TG
+ * the difference of absolute step targets (@cite EN plan_exec.c:707-716; TG
  * plan_exec.c:718-727). So a motor left away from step 0 when the axis was
  * inhibited is driven back to step 0 by the next move of ANY axis. The
  * sanitiser blocks motion while any axis that is (or may be) inhibited reads
@@ -117,7 +117,7 @@ export interface RotaryAxisConfig {
  * move's modelled duration is its length over `v_eff = min(F, fr) × k`, a
  * rapid's over `vm × k`. TinyG limits feed moves by each axis's feed rate
  * maximum (`fr`), and only rapids by its velocity maximum (`vm`)
- * (@cite EN plan_line.c:349-353 `_calc_move_times`; TG the same).
+ * (@cite EN plan_line.c:377-381 `_calc_move_times`; TG the same).
  */
 export interface MotionModel {
   /** The queued-motion ceiling in seconds (SAFETY §4.3: default 5, range 2–20). */
@@ -143,7 +143,7 @@ export interface MotionModel {
    * linear axis with no entry is blocked, and so is one on a disabled axis
    * (the firmware ignores the word) or on one reading radius mode (refused
    * by `cm_set_am`; the firmware ignores the word too) (@cite EN
-   * canonical_machine.c:497-510; TG canonical_machine.c:444-454).
+   * canonical_machine.c:506-519; TG canonical_machine.c:444-454).
    */
   readonly linear: Readonly<Partial<Record<LinearAxis, AxisMode>>>;
 }

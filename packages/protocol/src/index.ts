@@ -18,7 +18,7 @@
  * Firmware citations (`@cite`) use the PROTOCOL_NOTES §1 tags. The commits
  * are pinned in `vendor/firmware-pins.json` (PIN-1), and a test keeps this
  * list and that file in agreement:
- * - `EN`: TinyG `edge-next` @ ead63997 (`firmware/tinyg/`; `tests/hil/` for EN-HIL).
+ * - `EN`: TinyG `edge-next` @ 97321391 (`firmware/tinyg/`; `tests/hil/` for EN-HIL).
  * - `TG`: TinyG master @ d0418390, build 440.21 (`firmware/tinyg/`).
  * - `S449`: TinyG origin/edge-0.97 @ c5024186, build 449.01 (`firmware/tinyg/`).
  * - `G2`: g2 edge-preview @ 1fb59404 (`g2core/`); `MOT`: its `Motate/MotateProject/motate/`.

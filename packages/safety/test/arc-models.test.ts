@@ -1,7 +1,7 @@
 /**
  * Codex P0-10 #1 and #2: the sanitiser's arc decisions checked against the
  * corrected firmware models (packages/testkit, bf3b2e5), which transcribe each
- * dialect's `_compute_arc()` in float32 (EN ead63997 plan_arc.c:291-377, TG
+ * dialect's `_compute_arc()` in float32 (EN 97321391 plan_arc.c:291-377, TG
  * d041839 plan_arc.c:243-330). The sanitiser's own arc helper is not used as
  * the oracle.
  *

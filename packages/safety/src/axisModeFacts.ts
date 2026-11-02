@@ -19,7 +19,7 @@
  *   away from 0, or is unknown. TinyG forces an inhibited axis's joint to 0
  *   on every segment (@cite EN kinematics.c:59; TG kinematics.c:63) and moves
  *   each motor by the difference of absolute step targets (@cite EN
- *   plan_exec.c:703-712; TG plan_exec.c:718-727), so the next move of ANY
+ *   plan_exec.c:707-716; TG plan_exec.c:718-727), so the next move of ANY
  *   axis drives that motor back to step 0.
  * - `inhibited`: inhibited and reading 0. Safe to leave as it is; but the
  *   board reports the mode and the position, never the step target, so if
@@ -34,7 +34,7 @@
  * - `linear-disabled`, `linear-radius`: X, Y or Z disabled (`am=0`; TinyG
  *   ignores its words) or reading radius mode (`am=3`, which `cm_set_am`
  *   refuses on a linear axis; the words are ignored too) (@cite EN
- *   canonical_machine.c:497-510, :2510-2523; TG canonical_machine.c:444-454,
+ *   canonical_machine.c:506-519, :2601-2614; TG canonical_machine.c:444-454,
  *   :1723-1732).
  *
  * Every fact here is `unsafeForMotion`: later motion stays blocked while it

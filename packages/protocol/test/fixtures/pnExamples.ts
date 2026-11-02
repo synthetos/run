@@ -56,7 +56,7 @@ export const PN_CONCRETE: readonly PnExample[] = [
     kind: 'Banner',
   },
   {
-    where: 'PN §2.2 EN bare-sr banner, strict (constructed from EN report.c:65-78)',
+    where: 'PN §2.2 EN bare-sr banner, strict (constructed from EN report.c:68-81)',
     line: '{"sr":{"fv":0.97,"fb":449.01,"hp":1,"hv":8,"id":"0BENCH-TWO","msg":"SYSTEM READY"}}',
     kind: 'Banner',
   },
@@ -87,7 +87,7 @@ export const PN_CONCRETE: readonly PnExample[] = [
   { where: 'PN §5.2 rev 2 (EN-HIL E031 transcript)', line: '{"r":{"stat":5},"f":[2,0,14]}', kind: 'Response' },
   { where: 'PN §5.2 rev 3 (EN-HIL test_harness_offline.py:27)', line: '{"r":{"fb":449.01},"f":[3,0,11]}', kind: 'Response' },
   // §5.3 tid.
-  { where: 'PN §5.3 top-level tid (EN json_parser.c:833-842)', line: '{"r":{"fb":449.01},"tid":33,"f":[3,0,11]}', kind: 'Response' },
+  { where: 'PN §5.3 top-level tid (EN json_parser.c:860-869)', line: '{"r":{"fb":449.01},"tid":33,"f":[3,0,11]}', kind: 'Response' },
   { where: 'PN §5.3 tid on an error (EN-HIL test_e049)', line: '{"r":{},"tid":17,"f":[3,132,11]}', kind: 'Response' },
   // §5.5 exceptions.
   {
@@ -97,7 +97,7 @@ export const PN_CONCRETE: readonly PnExample[] = [
   },
   // §6 reports.
   { where: 'PN §6.1 filtered status report (EN-HIL E031 transcript)', line: '{"sr":{"posx":-0.037}}', kind: 'StatusReport' },
-  { where: 'PN §6.2 queue report qv=1 (EN report.c:747)', line: '{"qr":32}', kind: 'QueueReport' },
+  { where: 'PN §6.2 queue report qv=1 (EN report.c:769)', line: '{"qr":32}', kind: 'QueueReport' },
   { where: 'PN §6.2 queue report qv=2 (forum fixture error-st_prep_line-move-time-is-nan)', line: '{"qr":28,"qi":1,"qo":1}', kind: 'QueueReport' },
   // OLD-PN, still relied on.
   {

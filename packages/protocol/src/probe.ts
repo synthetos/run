@@ -272,7 +272,7 @@ const isZeroOrOne = (v: JsonValue): boolean => Object.is(v, 0) || v === 1;
 /**
  * `fstk` is the lowest unused-stack watermark: a count of painted bytes from
  * `__heap_start` up to SP, printed as an unsigned integer (@cite EN
- * stack_report.c:47-58; util.c:366-376 `%lu`). Both ends lie in the
+ * stack_report.c:47-58; util.c:367-377 `%lu`). Both ends lie in the
  * atxmega192a3's 16 KB internal SRAM, 0x2000-0x5FFF (@cite EN Makefile:14),
  * so the count is at most 0x5FFF - 0x2000 = 16383.
  */
@@ -280,7 +280,7 @@ export const FSTK_MAX = 0x5fff - 0x2000;
 
 /**
  * The values edge-next can print for each capability token (@cite EN
- * config_app.c:649-667): `spep` (spindle.c:64), `prbp` (switch.c:319) and
+ * config_app.c:649-667): `spep` (spindle.c:64), `prbp` (switch.c:329) and
  * `os` (`set_01`) are 0 or 1; `fstk` is an integer 0..FSTK_MAX.
  */
 const CAPABILITY_VALUE_VALID: Readonly<Record<CapabilityToken, (v: JsonValue) => boolean>> = Object.freeze({

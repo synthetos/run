@@ -1,10 +1,10 @@
 {
   "format": "synthetos-board-overlay@1",
   "board": "tinyg-v8@8",
-  "note": "Connectors, driver and ratings read from the v8h schematic in the TinyG repository at EN@ead63997 (hardware/v8schematics/v8h, sheets 1 to 4). hv 8 also covers v8d to v8g, whose schematics are in the same folder and were not compared pin by pin. The private hardware repositories hold no TinyG design, so no hardware-repo fact applies.",
+  "note": "Connectors, driver and ratings read from the v8h schematic in the TinyG repository at EN@97321391 (hardware/v8schematics/v8h, sheets 1 to 4). hv 8 also covers v8d to v8g, whose schematics are in the same folder and were not compared pin by pin. The private hardware repositories hold no TinyG design, so no hardware-repo fact applies.",
   "motors": {
-    "driver": { "value": "TI DRV8818, one per motor (U2 to U5)", "src": "TinyG@ead63997 hardware/v8schematics/v8h sheets 3-4 (U2-U5)", "verified": "schematic" },
-    "currentSetting": { "value": "board", "src": "TinyG@ead63997 hardware/v8schematics/v8h sheets 3-4 (trimpots P1-P4 set each driver's VREF)", "verified": "schematic" }
+    "driver": { "value": "TI DRV8818, one per motor (U2 to U5)", "src": "TinyG@97321391 hardware/v8schematics/v8h sheets 3-4 (U2-U5)", "verified": "schematic" },
+    "currentSetting": { "value": "board", "src": "TinyG@97321391 hardware/v8schematics/v8h sheets 3-4 (trimpots P1-P4 set each driver's VREF)", "verified": "schematic" }
   },
   "usb": [
     { "vendorId": 1027, "productId": 24597, "role": "control", "src": "FT230X on the v8h schematic (U6, sheet 1); 0403:6015 is the FT230X factory default and is not confirmed on a board (B-ID-1 open)", "verified": "unverified" }
@@ -17,7 +17,7 @@
         { "n": 1, "label": "GND", "net": "GND" },
         { "n": 2, "label": "Vmot", "net": "VMOT" }
       ],
-      "src": "TinyG@ead63997 hardware/v8schematics/v8h sheet 2 (J1)",
+      "src": "TinyG@97321391 hardware/v8schematics/v8h sheet 2 (J1)",
       "verified": "schematic"
     },
     {
@@ -31,7 +31,7 @@
         { "n": 5, "label": "SpinPWM", "signal": "out.spindlePwm" },
         { "n": 6, "label": "Coolant", "signal": "out.coolant" }
       ],
-      "src": "TinyG@ead63997 hardware/v8schematics/v8h sheet 1 (J6)",
+      "src": "TinyG@97321391 hardware/v8schematics/v8h sheet 1 (J6)",
       "verified": "schematic"
     },
     {
@@ -45,7 +45,7 @@
         { "n": 5, "label": "Ymin", "signal": "in.limit-min-y" },
         { "n": 6, "label": "Ymax", "signal": "in.limit-max-y" }
       ],
-      "src": "TinyG@ead63997 hardware/v8schematics/v8h sheet 1 (J7)",
+      "src": "TinyG@97321391 hardware/v8schematics/v8h sheet 1 (J7)",
       "verified": "schematic"
     },
     {
@@ -59,14 +59,14 @@
         { "n": 5, "label": "Amin", "signal": "in.limit-min-a" },
         { "n": 6, "label": "Amax", "signal": "in.limit-max-a" }
       ],
-      "src": "TinyG@ead63997 hardware/v8schematics/v8h sheet 1 (J8)",
+      "src": "TinyG@97321391 hardware/v8schematics/v8h sheet 1 (J8)",
       "verified": "schematic"
     }
   ],
   "ratings": [
-    { "id": "logicLevel", "value": "3.3 V: J6, J7 and J8 carry Xmega port pins and the board's 3.3 V rail", "src": "TinyG@ead63997 hardware/v8schematics/v8h sheet 1 (J6-J8, +3.3V)", "verified": "schematic" },
-    { "id": "switchInputFilter", "value": "Each switch input has a 2.7 kOhm resistor to 3.3 V and 0.22 uF to ground", "src": "TinyG@ead63997 hardware/v8schematics/v8h sheet 1 (R10-R17, C43-C50)", "verified": "schematic" },
-    { "id": "motorSupplyCapacitors", "value": "100 uF 35 V bulk capacitor on Vmot (C2) and one per driver (C3-C6)", "src": "TinyG@ead63997 hardware/v8schematics/v8h sheets 2-4 (C2-C6)", "verified": "schematic" },
-    { "id": "senseResistors", "value": "0.1 Ohm current sense resistor per driver bridge", "src": "TinyG@ead63997 hardware/v8schematics/v8h sheets 3-4 (R22, R23, R29, R30, R36, R37, R43, R44)", "verified": "schematic" }
+    { "id": "logicLevel", "value": "3.3 V: J6, J7 and J8 carry Xmega port pins and the board's 3.3 V rail", "src": "TinyG@97321391 hardware/v8schematics/v8h sheet 1 (J6-J8, +3.3V)", "verified": "schematic" },
+    { "id": "switchInputFilter", "value": "Each switch input has a 2.7 kOhm resistor to 3.3 V and 0.22 uF to ground", "src": "TinyG@97321391 hardware/v8schematics/v8h sheet 1 (R10-R17, C43-C50)", "verified": "schematic" },
+    { "id": "motorSupplyCapacitors", "value": "100 uF 35 V bulk capacitor on Vmot (C2) and one per driver (C3-C6)", "src": "TinyG@97321391 hardware/v8schematics/v8h sheets 2-4 (C2-C6)", "verified": "schematic" },
+    { "id": "senseResistors", "value": "0.1 Ohm current sense resistor per driver bridge", "src": "TinyG@97321391 hardware/v8schematics/v8h sheets 3-4 (R22, R23, R29, R30, R36, R37, R43, R44)", "verified": "schematic" }
   ]
 }

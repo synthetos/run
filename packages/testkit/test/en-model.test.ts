@@ -126,7 +126,7 @@ describe('TinyGEdgeNextModel: P0-11 acceptance', () => {
     const r = replies(sim.host.lines());
     expect(r).toHaveLength(1);
     expect(r[0]?.f[1]).toBe(101);
-    expect(r[0]?.r).toEqual({}); // jv=3: the gc echo is filtered on errors too (EN json_parser.c:803-817)
+    expect(r[0]?.r).toEqual({}); // jv=3: the gc echo is filtered on errors too (EN json_parser.c:830-844)
     sim.clock.advance(1000);
     expect(sim.device.snapshot().position[0]).toBe(0);
   });

@@ -9,7 +9,7 @@ code that these files contain.
 
 | File | Firmware | Commit | `fb` | Used for |
 |---|---|---|---|---|
-| `den.json` | TinyG `edge-next` | `ead63997` | 450.01 | the `tinyg-en` dialect (primary, full support for approved builds) |
+| `den.json` | TinyG `edge-next` | `97321391` | 450.01 | the `tinyg-en` dialect (primary, full support for approved builds) |
 | `d440.json` | TinyG `master` (release 440.21) | `d0418390` | 440.21 | the `tinyg-440` fallback dialect |
 | `d449.json` | TinyG stock `edge-0.97` | `c5024186` | 449.01 | **the read-only `tinyg-449-stock` dialect only** |
 
@@ -26,11 +26,14 @@ code that these files contain.
 - **`den.json` is new (D32).** The harness did not ship an edge-next table at
   the pinned commit. It was generated for P0-09 by running the harness's own
   generator against `edge-next` @ ead63997 (`git archive` snapshot; the TinyG
-  working tree was not touched), twice, with byte-identical output. The
+  working tree was not touched), twice, with byte-identical output. It was
+  regenerated the same way at `97321391` on the 2026-11-02 re-pin: the
+  config, status and build sources did not change, so only its `commit` and
+  `ref` fields did. The
   firmware owner may later add it to the harness; when that happens, the
   harness copy must match this one byte for byte at the same commit.
 - `d440.json` and `d449.json` are byte-identical copies of the harness files at
-  the generator commit (`ead63997`), and both were regenerated with the same
+  the generator commit (`97321391`; the same blobs as at `ead63997`), and both were regenerated with the same
   script at their source commits to confirm the token and status maps.
 - The tables carry `group`, `type`, `precision`, the persist flag and the
   get/set function names for every cfgArray row. They do **not** carry the
@@ -38,9 +41,9 @@ code that these files contain.
   not emit them. run's hand overlay records `convert` for the keys it covers,
   cited to the cfgArray row. Adding both fields to `gen_tables.py` is a request
   for the firmware owner.
-- The edge-next tip has moved past `ead63997` (to `1581a4e9` at the time of
-  writing), but only `tests/hil/` changed; `firmware/` and the generator are
-  identical, so the table is unchanged.
+- History: when this table was first vendored at `ead63997`, the edge-next tip
+  had already moved to `1581a4e9`, but only `tests/hil/` had changed. The pin
+  is now `97321391` (2026-11-02).
 
 ## On a firmware bump
 

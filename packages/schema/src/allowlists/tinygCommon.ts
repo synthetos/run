@@ -5,7 +5,7 @@
  * helpers only spell out products of explicit lists (`cross(['x'], ['vm'])`
  * is `['xvm']`); nothing is derived from the vendored tables.
  *
- * Citations: EN = TinyG edge-next @ ead63997, TG = master @ d0418390,
+ * Citations: EN = TinyG edge-next @ 97321391, TG = master @ d0418390,
  * S449 = edge-0.97 @ c5024186; paths under firmware/tinyg/.
  */
 
@@ -138,9 +138,9 @@ export const REQUIRED_DENY: Readonly<Record<string, string>> = Object.freeze({
   alarm: 'GET raises an alarm (E138; EN config_app.c:463-504)',
   panic: 'GET raises a panic (E138; EN config_app.c:463-504)',
   shutd: 'GET raises a shutdown (E138; EN config_app.c:463-504)',
-  me: 'GET energizes every motor (EN stepper.c:1385-1408); commissioning only, never a read',
+  me: 'GET energizes every motor (EN stepper.c:1413-1436); commissioning only, never a read',
   md: 'GET de-energizes every motor: holding torque drops and Z can fall (EN config_app.c:464; TG config_app.c:469)',
-  er: 'GET fakes an exception report (EN report.c:159-162)',
+  er: 'GET fakes an exception report (EN report.c:162-165)',
   boot: 'not a value: any SET enters the bootloader (AUD E138); sent only by the flasher',
   defa: 'not a value: a SET restores factory defaults',
   test: 'not a value: a SET runs the board\'s built-in test',
@@ -156,8 +156,8 @@ export const REQUIRED_DENY: Readonly<Record<string, string>> = Object.freeze({
 export const COMMON_DENY: Readonly<Record<string, string>> = Object.freeze({
   gc: 'the G-code channel, not a value: G-code is sent as plain lines through the sanitiser',
   msg: 'message plumbing, not a value',
-  qi: 'GET resets the queue-report counter it returns (EN report.c:772-778), corrupting queue reports',
-  qo: 'GET resets the queue-report counter it returns (EN report.c:780-786), corrupting queue reports',
+  qi: 'GET resets the queue-report counter it returns (EN report.c:793-799), corrupting queue reports',
+  qo: 'GET resets the queue-report counter it returns (EN report.c:801-807), corrupting queue reports',
   $: 'uber-group: answers with several responses to one request (EN config_app.c:880-893), breaking one-request/one-response accounting; read the groups one at a time',
   m: 'uber-group of the motor groups (EN config_app.c:865-868): several responses to one request; read 1..4 one at a time',
   q: 'uber-group of the axis groups (EN config_app.c:870-873): several responses to one request; read x..c one at a time',
