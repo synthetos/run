@@ -8,7 +8,8 @@
  * markup; this function removes what a text node would still let through:
  * control characters that break lines or erase text, and the bidirectional
  * marks, embeddings, overrides and isolates that can reorder what the user
- * reads (a board id that displays as another machine's). Each such code
+ * reads (a board id that displays as another machine's), and the invisible
+ * format characters that make two ids look identical. Each such code
  * point becomes U+FFFD, so the user sees that something was there.
  *
  * Unlike `strings.ts` this never throws: a hostile board must not be able to
@@ -18,8 +19,13 @@
 /** Longest board string shown; longer ones are cut with an ellipsis. */
 export const BOARD_TEXT_MAX = 200;
 
-/** The same set `strings.ts` refuses, global so every occurrence is replaced. */
-const UNSAFE = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/gu;
+/**
+ * The controls `strings.ts` refuses, the line and paragraph separators, and every format character
+ * (\p{Cf}): the bidi marks, embeddings, overrides and isolates, and also the invisible ones
+ * (U+200B..U+200D, U+2060..U+2064, U+FEFF, U+00AD, U+180E) that make two different ids look the
+ * same (HIL-1.4: the operator picks a board by the id they see).
+ */
+const UNSAFE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\p{Cf}]/gu;
 
 /** `value` with every control and bidi-control character replaced by U+FFFD, capped at `max` code points. Non-strings show as ''. */
 export function boardText(value: unknown, max: number = BOARD_TEXT_MAX): string {

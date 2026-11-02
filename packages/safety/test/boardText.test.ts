@@ -20,6 +20,15 @@ describe('boardText (T-S85)', () => {
     expect(boardText('a\nb\rc\td\u0000e\u001bf\u007fg\u0085h\u009fi\u2028j\u2029k')).toBe('a\ufffdb\ufffdc\ufffdd\ufffde\ufffdf\ufffdg\ufffdh\ufffdi\ufffdj\ufffdk');
   });
 
+  it('replaces zero-width and other invisible format characters, so two ids never look the same (HIL-1.4)', () => {
+    expect(boardText('ABC\u200b123')).toBe('ABC\ufffd123');
+    expect(boardText('\ufeffABC123')).toBe('\ufffdABC123');
+    for (const c of ['\u200b', '\u200c', '\u200d', '\u2060', '\u2061', '\u2062', '\u2063', '\u2064', '\ufeff', '\u00ad', '\u180e']) {
+      expect(boardText(`A${c}B`), c.codePointAt(0)?.toString(16)).toBe('A\ufffdB');
+    }
+    expect(boardText('ABC\u200b123')).not.toBe(boardText('ABC123'));
+  });
+
   it('caps the length in code points', () => {
     const long = 'x'.repeat(BOARD_TEXT_MAX + 5);
     expect(boardText(long)).toBe(`${'x'.repeat(BOARD_TEXT_MAX)}\u2026`);
