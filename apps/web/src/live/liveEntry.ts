@@ -42,7 +42,7 @@ export type EntryState =
   | { readonly step: 'live' }
   | { readonly step: 'refused'; readonly refusal: EntryRefusal };
 
-export type ChooseResult = { readonly ok: true; readonly port: PortChoice; readonly confirm?: () => Promise<boolean> } | { readonly ok: false; readonly message: string };
+export type ChooseResult = { readonly ok: true; readonly port: PortChoice; readonly confirm?: () => Promise<boolean>; readonly release?: () => void } | { readonly ok: false; readonly message: string };
 export type OpenResult = { readonly ok: true } | { readonly ok: false; readonly message: string };
 
 export interface LiveEntryDeps {
@@ -118,7 +118,13 @@ export class LiveEntry {
     }
     const chosen = await choice.catch((): ChooseResult => ({ ok: false, message: 'The port chooser failed.' }));
     if (!chosen.ok) return this.#refuse({ kind: 'no-port', message: chosen.message });
-    const opened = await this.deps.open(chosen.port, chosen.confirm);
+    let opened: OpenResult;
+    try {
+      opened = await this.deps.open(chosen.port, chosen.confirm);
+    } finally {
+      // Ends the chooser's connect/disconnect guard on every exit (confirmed, refused, failed or thrown).
+      chosen.release?.();
+    }
     if (!opened.ok) return this.#refuse({ kind: 'open-failed', message: opened.message });
     try {
       await markLive(this.deps.store, this.deps.now());

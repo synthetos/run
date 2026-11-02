@@ -12,7 +12,8 @@ describe('portChooser', () => {
   it('passes the selector through, and words every refusal', () => {
     const selector = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 };
     const confirm = async () => true;
-    expect(toChooseResult({ ok: true, selector, confirm })).toEqual({ ok: true, port: selector, confirm });
+    const release = () => undefined;
+    expect(toChooseResult({ ok: true, selector, confirm, release })).toEqual({ ok: true, port: selector, confirm, release });
     for (const code of Object.keys(CHOOSER_TEXT) as (keyof typeof CHOOSER_TEXT)[]) {
       expect(toChooseResult({ ok: false, code, detail: 'x' })).toEqual({ ok: false, message: CHOOSER_TEXT[code] });
     }

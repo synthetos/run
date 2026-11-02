@@ -50,12 +50,16 @@ function benchDocument(hostname: string): Document {
 /** The browser's Web Serial object, as the window sees it with the simulated board granted at index 0. */
 function windowSerial(calls: string[]): unknown {
   const board = { getInfo: () => ({ usbVendorId: 0x0403, usbProductId: 0x6015 }) };
+  const events = new EventTarget();
   return {
     ['request' + 'Port']: () => {
       calls.push('chooser');
       return Promise.resolve(board);
     },
     ['get' + 'Ports']: () => Promise.resolve([board]),
+    // The real object is an EventTarget: the chooser listens for connect/disconnect until confirmation.
+    addEventListener: (type: string, listener: () => void) => events.addEventListener(type, listener),
+    removeEventListener: (type: string, listener: () => void) => events.removeEventListener(type, listener),
   };
 }
 
