@@ -437,6 +437,23 @@ describe('TinyGEdgeNextModel: planner and states', () => {
     expect(sim.device.snapshot().spindle).toBe('cw'); // an M5 during a hold waits behind the held move
   });
 
+  it('[EN-SPINDLE-READOUTS] spe, spc, spd, sps, cof and com report the outputs as last driven', () => {
+    const sim = enSim();
+    expect([get(sim, 'spe'), get(sim, 'spc'), get(sim, 'spd'), get(sim, 'sps'), get(sim, 'cof'), get(sim, 'com')]).toEqual([0, 0, 0, 0, 0, 0]);
+    sim.host.sendLine('G1 X10 F600');
+    sim.host.sendLine('M4 S12000');
+    sim.host.sendLine('M8');
+    sim.clock.advance(300);
+    expect(get(sim, 'spe')).toBe(0); // queued behind the move: the output is not driven yet
+    sim.clock.advance(1500);
+    expect([get(sim, 'spe'), get(sim, 'spc'), get(sim, 'spd'), get(sim, 'cof'), get(sim, 'com')]).toEqual([1, 2, 1, 1, 0]);
+    expect(get(sim, 'sps')).toBeGreaterThan(0);
+    sim.host.sendLine('M5');
+    sim.host.sendLine('M9');
+    sim.clock.advance(100);
+    expect([get(sim, 'spe'), get(sim, 'spc'), get(sim, 'spd'), get(sim, 'sps'), get(sim, 'cof')]).toEqual([0, 0, 1, 0, 0]); // spd keeps CCW while off
+  });
+
   it('[EN-PROGRAM-END] M2 turns the spindle and coolant off in queue order and ends the program', () => {
     const sim = enSim();
     sim.host.sendLine('M3');

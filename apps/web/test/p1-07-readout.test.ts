@@ -210,8 +210,9 @@ describe('Dro panel', () => {
     expect(text(one(el, (e) => e.props['data-dro'] === 'age'))).toBe('0.3 s ago');
     expect(one(el, (e) => e.props['data-lag'] !== undefined).props['data-lag']).toBe('fresh');
     expect(text(one(el, (e) => e.props['data-dro'] === 'wcs'))).toContain('G54 (offsets X 100.000, Y 50.000 mm)');
-    expect(text(el)).toContain('polled mpo');
-    expect(text(el)).toContain('last status report');
+    expect(text(el)).toContain('Machine position, read from the controller: 0.3 s ago · current.');
+    expect(text(el)).toContain('Work position: from its last status report.');
+    expect(text(el)).not.toMatch(/polled|mpo/);
   });
 
   it('ages the badge in the window: amber from 1 s, red from 2 s or at STALE', () => {

@@ -32,7 +32,7 @@ export function lagAt(ageMs: number | null, stale: boolean, lag: SnapshotMessage
   return ageMs >= lag.amberMs ? 'amber' : 'fresh';
 }
 
-const LAG_TEXT: Readonly<Record<Lag, string>> = { none: 'not polled yet', fresh: 'current', amber: 'lagging', red: 'stale' };
+const LAG_TEXT: Readonly<Record<Lag, string>> = { none: 'waiting for the first read', fresh: 'current', amber: 'lagging', red: 'stale' };
 
 export function formatAxis(v: number | null): string {
   return v === null ? '-' : v.toFixed(3);
@@ -66,11 +66,11 @@ export function Dro({ message, elapsedMs }: DroProps): ComponentChild {
     h(
       'p',
       { class: 'dro-source' },
-      'Machine position: polled mpo, ',
+      'Machine position, read from the controller: ',
       h('span', { 'data-dro': 'age' }, formatAge(ageMs)),
-      ' ',
+      ' · ',
       h('span', { class: `lag-badge lag-${lag}`, 'data-lag': lag, role: 'status' }, LAG_TEXT[lag]),
-      '. Work position: last status report.',
+      '. Work position: from its last status report.',
     ),
     h(
       'table',

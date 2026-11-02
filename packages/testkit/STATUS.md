@@ -7,7 +7,7 @@ Every behaviour a safety claim depends on carries a citation at a pinned commit 
 (RUN_PLAN §8.1 honesty rule). Pins: EN = TinyG edge-next `6ec70652`, TG = master `d0418390` (440.21),
 EN-HIL = edge-next `tests/hil/` (`vendor/firmware-pins.json`). EN and TG paths are under `firmware/tinyg/`.
 
-Totals: 81 behaviours (3 UNVERIFIED, 78 verified-source, 0 verified-bench).
+Totals: 82 behaviours (3 UNVERIFIED, 79 verified-source, 0 verified-bench).
 
 ## UNVERIFIED (release checklist)
 
@@ -63,6 +63,7 @@ Each must be bench-verified, or covered by a mitigation that does not depend on 
 | EN-SHUTDOWN | verified-source | SHUTDOWN (stat 12) halts, turns outputs off, flushes and un-homes; {clear} returns it to READY. (E045) | EN canonical_machine.c:874-892; EN canonical_machine.c:737-739; EN controller.c:471-480 |  |
 | EN-SOFT-LIMITS | verified-source | With sl=1 a straight move beyond the travel of a homed axis raises an ALARM (220) instead of moving. Every homed axis X..C is tested; an axis whose travel ends are fp_EQ (float32, \|a-b\| < 0.00001) is skipped; an end at or below DISABLE_SOFT_LIMIT (-1000000) is not tested. | EN canonical_machine.c:549-567; EN canonical_machine.c:552; EN canonical_machine.c:555; EN canonical_machine.c:557-563; EN canonical_machine.h:45; EN util.h:135-139; EN canonical_machine.c:1240-1243 |  |
 | EN-SPINDLE-QUEUED | verified-source | M3/M4/M5 and coolant M-codes are queued and switch the outputs when the runtime reaches them; an M5 sent during a hold waits behind the held moves. | EN spindle.c:182-186 |  |
+| EN-SPINDLE-READOUTS | verified-source | The read-only readouts spe, spc, spd and sps report the spindle output as last driven by the queued executor (spd keeps the last direction while off; sps is the clamped S in use, 0 while off), and cof and com the coolant outputs as last driven. | EN spindle.c:115-117; EN spindle.c:219-223; EN canonical_machine.c:1564-1565; EN config_app.c:686-692 |  |
 | EN-SPPH-STUB | verified-source | GET spph answers status 17 (function stubbed): E060 spindle pause on hold is not present. (E060) | EN config_app.c:65-69 | B-PROBE-1 |
 | EN-SR | verified-source | Filtered status reports (sv=1) of the default list (line first) at most every si=250 ms, only values that changed. | EN settings/settings_default.h:79-84 | B-POLL-1 |
 | EN-STARTUP-DELAY | verified-source | The first move into an empty, idle planner waits 50 ms (or until a second block is queued); a ! during that delay holds at once. | EN planner.c:78; EN planner.c:452-468; EN planner.c:493-510 |  |
@@ -131,4 +132,4 @@ Simplifications of the models. No safety claim may rest on them.
 | LIM-TG-OVERLONG | tinyg-440 | Overlong lines on 440.21 throw ModelGapError. |
 | LIM-REPORTS | both | Enumerated report values (momo, admo, frmo, macs, cycs, mots) use model numbering; qv=2 reports qr without qi/qo; status reports in text mode are still JSON. |
 | LIM-MODAL-TG | tinyg-440 | Two codes of one modal group on a 440.21 line: the last one wins; no modal-group error is modelled. |
-| LIM-EN-REPIN | tinyg-en | The model was built at edge-next ead63997; the 97321391 and 6ec70652 re-pins (2026-11-02) are not modelled beyond moved citations. Not modelled: the rt heartbeat family (rt, rthb, rtqt, rtup; the {"hb":...} line), the spindle and coolant readouts spe, spc, spd, sps, cof and com (a GET of one is a model gap), E195 (a partial line quiet for about 1 s is dropped when a { arrives; the model always joins it to the next line), the stricter input errors E168-E177, E191 and E193, and the timing fixes E165-E167, E180-E184, E190 and E192. |
+| LIM-EN-REPIN | tinyg-en | The model was built at edge-next ead63997; the 97321391 and 6ec70652 re-pins (2026-11-02) are modelled only for the spindle and coolant readouts spe, spc, spd, sps, cof and com (EN-SPINDLE-READOUTS; the model applies S when parsed, not queued, so sps follows a new S at once) and beyond that only as moved citations. Not modelled: the rt heartbeat family (rt, rthb, rtqt, rtup; the {"hb":...} line), E195 (a partial line quiet for about 1 s is dropped when a { arrives; the model always joins it to the next line), the stricter input errors E168-E177, E191 and E193, and the timing fixes E165-E167, E180-E184, E190 and E192. |

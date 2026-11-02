@@ -476,6 +476,33 @@ describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
     expect(none.overlays).toContain('FAULT');
   });
 
+  it('polled spindle and coolant answers (snapshot.values) never reach a safety decision either', () => {
+    const run = (answers: Readonly<Record<string, number>> | null): { effects: unknown[]; matrix: unknown; notices: unknown; overlays: unknown } => {
+      const d = connected(EN_ANSWERS, { manifest: EN_APPROVED });
+      if (answers !== null) {
+        const tokens = Object.keys(answers);
+        expect(d.intent({ intent: 'read', tokens }).allowed).toBe(true);
+        for (const t of tokens) d.line(`{"r":{"${t}":${String(answers[t])}},"f":[3,0,10]}`);
+        for (const t of tokens) expect(d.state.values[t]).toMatchObject({ value: answers[t], status: 0 });
+      }
+      const before = d.effects.length;
+      d.at = 42;
+      d.intent({ intent: 'feedhold' });
+      d.intent({ intent: 'stopJob' });
+      d.intent({ intent: 'spindleOffNow' });
+      d.line(EN_READY_BANNER);
+      // Timer sequence numbers count the earlier reads' timers; everything else must be identical.
+      const effects = d.effects.slice(before).map((e) => ('seq' in e ? { ...e, seq: 0 } : e));
+      return { effects, matrix: matrixSnapshot(d.state), notices: d.state.notices, overlays: d.state.overlays };
+    };
+    const none = run(null);
+    const on = run({ spe: 1, spc: 2, sps: 24000, cof: 1, com: 1 });
+    const off = run({ spe: 0, spc: 0, sps: 0, cof: 0, com: 0 });
+    expect(on).toEqual(none);
+    expect(off).toEqual(none);
+    expect(none.overlays).toContain('FAULT');
+  });
+
   it('a report while connecting that shows no motion changes no overlay', () => {
     const d = new Driver();
     d.open();

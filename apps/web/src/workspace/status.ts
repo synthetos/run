@@ -58,7 +58,30 @@ export function boardLabel(view: LiveView): string {
   return parts.join(' · ');
 }
 
-type Live = NonNullable<LiveView['message']>['snapshot']['live'];
+type Snapshot = NonNullable<LiveView['message']>['snapshot'];
+type Live = Snapshot['live'];
+
+/** The spindle and coolant readouts the page shows. */
+export const READOUT_KEYS = ['spe', 'spc', 'spd', 'sps', 'cof', 'com'] as const;
+
+/**
+ * The live state with each spindle and coolant readout taken from the status report when it carries it,
+ * otherwise from the worker's read-only poll (`snapshot.values[token]`, answered with status 0). Pure.
+ *
+ * DISPLAY ONLY: these say what the outputs were last driven to, each sampled on its own. Nothing that
+ * pauses, stops or decides anything reads them (SAFETY §4.4); the worker's reducer ignores them too.
+ */
+export function displayReadouts(snapshot: Snapshot | null | undefined): Live | undefined {
+  if (snapshot === null || snapshot === undefined) return undefined;
+  const live = snapshot.live;
+  const merged: Record<string, unknown> = { ...live };
+  for (const key of READOUT_KEYS) {
+    if (reported(live[key])) continue;
+    const polled = snapshot.values[key];
+    if (polled !== undefined && polled.status === 0 && reported(polled.value)) merged[key] = polled.value;
+  }
+  return merged as unknown as Live;
+}
 
 /** Shown when the board's status list (its answer to `{sr:null}`) does not carry a readout. */
 export const NOT_REPORTED = 'Not reported by this board’s status list';
@@ -68,11 +91,11 @@ export const SPINDLE_TITLE =
 export const COOLANT_TITLE =
   'What the controller reports it is driving the flood and mist outputs to, from its status reports. A command queued behind a move shows only once it runs. For display only: never rely on it for safety.';
 
-function reported(v: number | undefined): v is number {
+function reported(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v);
 }
 
-/** Neither readout of a pair is known: a dash, or "not reported" when the board's status list lacks them. */
+/** Neither readout of a pair is known (from the status list or a poll): a dash, or "not reported" when the board's status list lacks them. */
 function missing(live: Live | undefined, keys: readonly string[]): string {
   const list = live?.srList;
   return list !== undefined && !keys.some((k) => list.includes(k)) ? NOT_REPORTED : UNKNOWN;
@@ -108,7 +131,7 @@ export function coolantText(live: Live | undefined): string {
 
 /** The board reports the spindle on (`spe` 1). Only for the "Paused · spindle still on" wording; never a decision. */
 export function spindleReportedOn(view: LiveView): boolean {
-  return view.message?.snapshot.live.spe === 1;
+  return displayReadouts(view.message?.snapshot)?.spe === 1;
 }
 
 const MOVING = new Set(['running', 'jogging', 'homing', 'probing']);
@@ -120,7 +143,7 @@ function units(view: LiveView): string {
 }
 
 function readouts(view: LiveView): readonly Readout[] {
-  const live = view.message?.snapshot.live;
+  const live = displayReadouts(view.message?.snapshot);
   const feed = typeof live?.feed === 'number' ? live.feed : null;
   const vel = typeof live?.vel === 'number' ? live.vel : null;
   const line = typeof live?.line === 'number' && live.line > 0 ? live.line : null;
