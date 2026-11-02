@@ -146,6 +146,15 @@ describe('splice guard and boot (PN §2.3 step 0 and 1; SAFETY H49)', () => {
     }
   });
 
+  it('an ok answer whose "sr" is not an object still counts as the status answer and continues', () => {
+    const d = new Driver();
+    d.open();
+    d.written();
+    d.line('{"r":{"sr":null},"f":[3,0,10]}');
+    expect(d.state.overlays).not.toContain('ORPHANED_MOTION');
+    expect(d.writing).toBe('fb');
+  });
+
   it('an error answer that does carry "sr" repeats {sr:null} once, then continues either way', () => {
     const d = new Driver();
     d.open();
