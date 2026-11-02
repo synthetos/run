@@ -59,29 +59,6 @@ The P0-08 development key `placeholder-bench-2026-11-01` was removed from
 session's scratch directory and was treated as disclosed; nothing committed
 was signed with it any more, so removing it changes no approval.
 
-### The signed bench note predates D4
-
-The bench entry's `note` in `firmware/approved-builds.unsigned.json`, and so
-inside the signed payload of `firmware/approved-builds.json`, still says the
-build number is undecided, in the words it was signed with on 2026-11-01,
-before D4 was decided. Only the note is out of date: the entry's `fb`
-(450.01), `fbs` (`null`) and staging-only scope are correct, and no
-approval decision reads the note. (The commit is the previous pin; see the
-next section.)
-
-It was deliberately **not** edited in the P0 review fix pass. A note is part
-of the signed bytes, so changing it means re-signing (step 3 below) with a
-key only the owner holds. The 2026-11-02 re-sign with the owner's bench key
-kept the note's wording, so the note also still says it was signed with the
-placeholder bench key. Editing the unsigned file alone would fail the gate
-test that compares the two files.
-
-**At your next re-sign** (which step 2 below needs anyway), replace the note
-with, for example: "TinyG edge-next 450.01 (D4 done) for bench use on staging
-only. It reports no fbs, so every 450.01 build matches; no image has passed
-D5." The gate test `tools/gates/test/doc-drift.test.ts` then requires this
-section to be removed.
-
 ## Lead actions (owner)
 
 1. **Create the release key** on an offline, hardware-isolated machine:
@@ -100,8 +77,7 @@ section to be removed.
    `production` once D5 has an approved image). Remove the bench key entry
    once nothing committed is signed with it (see Rotation below).
 3. **Approve and sign.** Edit `firmware/approved-builds.unsigned.json` (bench:
-   the edge-next candidate you approve, by `fb` and commit; replace the bench
-   note that predates D4, see above), then run this on
+   the edge-next candidate you approve, by `fb` and commit), then run this on
    the offline machine:
 
    ```sh

@@ -13,7 +13,7 @@
           "fb": 450.01,
           "fbs": null,
           "commit": "6ec70652b7c62553eb7351c201af093d24b20978",
-          "note": "TinyG edge-next candidate (fb 450.01) for bench use on staging only. The release build number is not final (D4) and no image has passed D5. Signed with the placeholder bench key until the owner signs with the release key."
+          "note": "TinyG edge-next 450.01 (D4 done) for bench use on staging only. It reports no fbs, so every 450.01 build matches; no image has passed D5. Signed with the owner's staging-only bench key, not the release key."
         }
       ]
     },
