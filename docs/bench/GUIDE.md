@@ -352,7 +352,8 @@ commit) next to it.
   the transcript is `{sr:null}`, the probe GETs, `stat hold vel qr ex`,
   then only allowlisted GETs, ENQ and `!` (from Pause); classification
   `tinyg-en`, full; the probe answers are saved to
-  `test-fixtures/probe/<build>.txt` (B-PROBE-1; no hardware names or paths).
+  `test-fixtures/probe/<build>.txt` (B-PROBE-1; no hardware names or paths;
+  replace the board `id` value with `0X0000-XXX`, see section 9).
   Fail: any other byte, or a different classification.
 - [ ] **HIL-1.2 Stock 440.21 (and 449.01 if available).** Pass: 440.21 shows
   `tinyg-440` READ_ONLY with W25; 449.01 shows `tinyg-449-stock` READ_ONLY;
@@ -432,7 +433,12 @@ classification, a crash), collect:
 
 Open an issue in the run repository with these. The repository is public:
 leave out USB serial numbers, device paths, computer names and anything from
-the private hardware repository. Describe the board by its firmware build
+the private hardware repository. The board's `id` (the answer to the `id`
+GET, also in the `probe:` note and any `{"r":{"id":...}}` line) is a unique
+per-chip identifier: replace its value with the placeholder `0X0000-XXX`
+everywhere before posting. The transcript stores bytes as hex, so the id is
+in it in hex too: do not attach a raw transcript to a public issue; attach
+the session log with the id replaced, and offer the transcript privately. Describe the board by its firmware build
 only. **If the machine moved when it should not have, or a byte outside
 section 6 reached the board, stop all bench work until it is understood.**
 
