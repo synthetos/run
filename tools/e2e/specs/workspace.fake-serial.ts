@@ -173,25 +173,38 @@ test('the notice raised after Stop job sits above the panels and the 3D canvas: 
   // A loaded job puts the job card and the 3D preview right under the strip, where the notice appears.
   await tabB.locator('[data-sample="mounting-plate"]').click();
   await expect(tabB.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
+  // The owner's tab was LIVE, so it had no observer row above the view. This harness can only press Stop job
+  // from an observer tab; take that row out of the layout so the job card sits right under the strip, as it did.
+  await tabB.locator('[data-region="overlay-banners"]').evaluate((el) => (el as HTMLElement).style.setProperty('display', 'none', 'important'));
   await tabB.getByRole('button', { name: STOP_TEXT.stopJob, exact: true }).click();
   const notice = tabB.locator('[data-stop-outcome]');
   await expect(notice).toBeVisible();
   await expect(notice).toHaveText(`${STOP_TEXT.stopJob} went out as ${w2Label()} (feedhold) to ${BOARD}. Use your E-stop to remove power.`);
-  const hits = async (selector: string): Promise<boolean> =>
+  const covered = (selector: string): Promise<{ readonly points: number; readonly overCard: number; readonly hidden: readonly string[] }> =>
     tabB.locator(selector).first().evaluate((el) => {
       const r = el.getBoundingClientRect();
-      // The centre point, and points just inside each corner, all land on the element itself.
-      const points = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + 4, r.top + 4], [r.right - 4, r.top + 4], [r.left + 4, r.bottom - 4], [r.right - 4, r.bottom - 4]] as const;
-      return points.every(([x, y]) => {
-        const top = document.elementFromPoint(x, y);
-        return top !== null && (top === el || el.contains(top));
-      });
+      const card = document.querySelector('.job-card')?.getBoundingClientRect() ?? null;
+      const hidden: string[] = [];
+      let points = 0;
+      let overCard = 0;
+      // The centre point, and a grid across the whole element, all land on the element itself.
+      const xs = [r.left + r.width / 2, ...Array.from({ length: 9 }, (_, i) => r.left + 3 + ((r.width - 6) * i) / 8)];
+      const ys = [r.top + r.height / 2, ...Array.from({ length: 5 }, (_, i) => r.top + 3 + ((r.height - 6) * i) / 4)];
+      for (const x of xs) {
+        for (const y of ys) {
+          points += 1;
+          if (card !== null && x >= card.left && x <= card.right && y >= card.top && y <= card.bottom) overCard += 1;
+          const top = document.elementFromPoint(x, y);
+          if (top === null || !(top === el || el.contains(top))) hidden.push(`${Math.round(x)},${Math.round(y)} ${top?.tagName ?? ''}.${top?.className ?? ''}`);
+        }
+      }
+      return { points, overCard, hidden };
     });
-  // The notice overlaps the job card (the panel that used to cover it), so the hit test means something.
-  const [n, card] = [await notice.boundingBox(), await tabB.locator('.job-card').first().boundingBox()];
-  expect(n !== null && card !== null && n.y + n.height > card.y && n.y < card.y + card.height).toBe(true);
-  expect(await hits('[data-stop-outcome]')).toBe(true);
-  expect(await hits('[data-region="safety-bar"] [data-safety="W1"]')).toBe(true);
+  const n = await covered('[data-stop-outcome]');
+  // The notice lies over the job card (the panel that used to cover it), so the hit test means something.
+  expect(n.overCard).toBeGreaterThan(n.points / 3);
+  expect(n.hidden).toEqual([]);
+  expect((await covered('[data-region="safety-bar"] [data-safety="W1"]')).hidden).toEqual([]);
 });
 
 test('the document never scrolls at 1280 × 720, in any view', async ({ page }) => {
