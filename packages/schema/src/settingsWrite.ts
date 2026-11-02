@@ -1,5 +1,5 @@
 /**
- * Settings-write planning (SAFETY §4.6, H50-H54, amendment 2026-11-02;
+ * Settings-write planning (SAFETY §4.6, H57-H63, amendment 2026-11-02;
  * WORKSPACE_FEATURES "Restore (PW)").
  *
  * Pure functions the window's apply sequencer and the machine session share:
@@ -88,7 +88,7 @@ export function categoryOf(key: string): RiskCategory {
   return 'other';
 }
 
-/** The categories that always need the high-risk confirmation (SAFETY §4.6 typed C5, H50-H54). */
+/** The categories that always need the high-risk confirmation (SAFETY §4.6 typed C5, H57-H63). */
 export const HIGH_RISK_CATEGORIES: ReadonlySet<RiskCategory> = new Set(['switch', 'homing', 'motor', 'motorMap', 'axisMode', 'travel', 'comms', 'polarity']);
 
 export interface ChangeRisk {
@@ -120,7 +120,7 @@ function switchName(key: string): string {
   return `${axis}-${key.endsWith('sn') ? 'min' : 'max'}`;
 }
 
-/** The consequence text for a high-risk change (SAFETY H50-H54). */
+/** The consequence text for a high-risk change (SAFETY H57-H63). */
 function consequenceFor(category: RiskCategory, key: string, def: SettingDef | undefined, from: SettingValue | undefined, to: number): string {
   const was = valueWords(def, from);
   const now = valueWords(def, to);

@@ -437,7 +437,7 @@ function onRead(t: Tx, tokens: readonly string[], matrix: Decision): void {
   t.decide('read', matrix);
 }
 
-// --- Settings writes (SAFETY §4.6, H50-H54, amendment 2026-11-02) -----------
+// --- Settings writes (SAFETY §4.6, H57-H63, amendment 2026-11-02) -----------
 
 /** True while a settings write has not finished. */
 export function settingWriteActive(s: SessionState): boolean {

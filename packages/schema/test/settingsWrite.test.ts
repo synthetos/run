@@ -1,5 +1,5 @@
 /**
- * Settings-write planning (SAFETY §4.6, H50-H54, amendment 2026-11-02): order
+ * Settings-write planning (SAFETY §4.6, H57-H63, amendment 2026-11-02): order
  * (communication settings last, jv very last), high-risk classification and
  * consequence text, read-back precision, and restore by token name.
  */

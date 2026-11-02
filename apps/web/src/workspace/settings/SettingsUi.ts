@@ -1,5 +1,5 @@
 /**
- * The settings-write UI (SAFETY §4.6, H50-H54, amendment 2026-11-02):
+ * The settings-write UI (SAFETY §4.6, H57-H63, amendment 2026-11-02):
  *
  * - `SettingEditor`: one setting's new value (a number field or a list of
  *   its named values), kept as a pending change in this browser. Editing

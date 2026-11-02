@@ -254,7 +254,7 @@ very last. Restore by token name so an older backup maps onto newer firmware;
 unknown or renamed tokens are listed in the diff.
 
 *Shipped 2026-11-02 on the bench and staging builds (SAFETY §4.6 amendment,
-H50-H56); production stays read-only behind one switch.* Board, Machines and
+H57-H63); production stays read-only behind one switch.* Board, Machines and
 the backup file feed one Pending changes tray. Apply backs up first (saved on
 this computer and downloaded), passes the idle gate before every write, writes
 one token at a time and reads each back. It stops at the first failure and

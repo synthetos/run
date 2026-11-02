@@ -1,5 +1,5 @@
 /**
- * Settings writes in the machine session (SAFETY §4.6, H50-H54, T-S89..T-S93,
+ * Settings writes in the machine session (SAFETY §4.6, H57-H63, T-S95..T-S99,
  * amendment 2026-11-02): one token at a time, each answer awaited before any
  * other line, the idle gate read right before each write, the read-back,
  * refusals that never write, forbidden keys, and the write gate's own
@@ -223,7 +223,7 @@ describe('the write gate: settings lines are their own command kind', () => {
   });
 });
 
-describe('settings writes against the edge-next model with an EEPROM stall (T-S92)', () => {
+describe('settings writes against the edge-next model with an EEPROM stall (T-S98)', () => {
   it('each write is answered before anything else is sent: no byte is lost while EEPROM is written, and the value persists', async () => {
     const h = harness('en', { device: { eepromWriteMs: 30 }, session: { manifest: EN_APPROVED, release: PHASE_1_SETTINGS_RELEASE } });
     void h.session.connect(PORT);

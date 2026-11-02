@@ -67,7 +67,7 @@ item 20 covers 0x18 and 0x04). Items 22–40 are SAFETY §8 verbatim.
 - [ ] 38. No sanitised line can queue more than the queued-motion ceiling.
 - [ ] 39. The connect sequence writes `{"sr":null}` first and no ENQ before a footer revision 2/3 (H49, PN §2.3).
 - [ ] 40. Console (MDI) motion and spindle-on lines go through preflight, the ceiling and the target confirmation; no console path writes to the Transport except through `MachineSession` and `safety.allowed`.
-- [ ] 41. Settings writes stay behind the phase switch (`SETTINGS_WRITES`, production off), the approval gate and the idle gate; one token per line with its answer awaited and a read-back; a backup before every apply; no forbidden, identity or communication key is writable.
+- [ ] 42. Settings writes stay behind the phase switch (`SETTINGS_WRITES`, production off), the approval gate and the idle gate; one token per line with its answer awaited and a read-back; a backup before every apply; no forbidden, identity or communication key is writable.
 
 ### Notes for the safety reviewer
 

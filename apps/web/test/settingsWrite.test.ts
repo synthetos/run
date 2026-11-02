@@ -1,5 +1,5 @@
 /**
- * Settings writes in the window (SAFETY §4.6, H50-H54, T-S89..T-S93,
+ * Settings writes in the window (SAFETY §4.6, H57-H63, T-S95..T-S99,
  * amendment 2026-11-02): the apply sequencer (backup first, one write at a
  * time with its result awaited, communication settings last, stop at the
  * first failure, revert from the backup), the gate that enables the settings

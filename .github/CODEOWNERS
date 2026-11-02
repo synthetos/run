@@ -88,7 +88,7 @@
 /.npmrc                             @ril3y
 /package.json                       @ril3y
 
-# --- Settings writes (SAFETY §4.6, H50-H56, amendment 2026-11-02) -------
+# --- Settings writes (SAFETY §4.6, H57-H63, amendment 2026-11-02) -------
 # The phase switch (production stays read-only until the owner says so), the
 # worker's approved-builds gate and the session's settings-write path.
 /packages/safety/src/settingsPhase.ts             @ril3y

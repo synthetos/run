@@ -1,5 +1,5 @@
 /**
- * The machine session's side of a settings write (SAFETY §4.6, H50-H54,
+ * The machine session's side of a settings write (SAFETY §4.6, H57-H63,
  * amendment 2026-11-02). Pure helpers the reducer and the write gate share.
  *
  * One write is, in order and one line at a time:

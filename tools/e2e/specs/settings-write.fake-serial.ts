@@ -1,6 +1,6 @@
 /**
  * Settings writes in the built app (fake-serial TEST build; SAFETY §4.6,
- * H50-H54, T-S93, amendment 2026-11-02). The simulated edge-next board
+ * H57-H63, T-S99, amendment 2026-11-02). The simulated edge-next board
  * persists writes and stalls while its EEPROM is written.
  *
  * Edit a setting in the Board view, apply it: the backup is downloaded

@@ -1,5 +1,5 @@
 /**
- * Apply pending settings changes (SAFETY §4.6, H50-H54, amendment
+ * Apply pending settings changes (SAFETY §4.6, H57-H63, amendment
  * 2026-11-02; WORKSPACE_FEATURES "Restore (PW)").
  *
  * The window side of a settings write. The machine worker's session decides

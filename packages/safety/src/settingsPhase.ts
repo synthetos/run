@@ -1,5 +1,5 @@
 /**
- * THE SETTINGS-WRITE PHASE SWITCH (SAFETY §4.6, H50-H54, amendment
+ * THE SETTINGS-WRITE PHASE SWITCH (SAFETY §4.6, H57-H63, amendment
  * 2026-11-02). The one place that says where run may write settings to a
  * controller.
  *
