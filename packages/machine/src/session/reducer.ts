@@ -899,6 +899,7 @@ function onGarbled(t: Tx, at: number): void {
       // A damaged answer cannot prove that the first line was parsed as sr.
       // It may have completed a pre-existing motion fragment. Only a validated
       // sr-bearing error in onAnswer may retry; uncertainty stops the probe.
+      t.emit({ kind: 'log', text: 'probe: the answer to the first line ({sr:null}) arrived damaged: it cannot show the line was read as a status request, and a leftover partial line in the board\'s buffer may have joined it and run → ORPHANED_MOTION' });
       t.addOverlay('ORPHANED_MOTION');
       t.set({ queue: [] });
       return;
