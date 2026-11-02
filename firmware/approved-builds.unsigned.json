@@ -12,7 +12,7 @@
           "dialect": "tinyg-en",
           "fb": 450.01,
           "fbs": null,
-          "commit": "973213919e4deb55cfb3883a2da4424b4d65f7cc",
+          "commit": "6ec70652b7c62553eb7351c201af093d24b20978",
           "note": "TinyG edge-next candidate (fb 450.01) for bench use on staging only. The release build number is not final (D4) and no image has passed D5. Signed with the placeholder bench key until the owner signs with the release key."
         }
       ]

@@ -5,11 +5,11 @@
  * differences are explicit options rather than one "correct" parser:
  * - EN keeps any non-alphanumeric character so the line fails as malformed
  *   (E161), and a `%` that is not alone on the line stays in it and is
- *   rejected (@cite EN gcode_parser.c:143-156).
+ *   rejected (@cite EN gcode_parser.c:145-158).
  * - TG silently deletes every character other than letters, digits, `-` and
  *   `.` (@cite TG gcode_parser.c:131-138), so `X0.001*9` becomes `X0.0019`.
  * - EN reads `E` as a word letter, never as an exponent (E159, @cite EN
- *   gcode_parser.c:238-248); TG's strtof takes it as an exponent
+ *   gcode_parser.c:240-250); TG's strtof takes it as an exponent
  *   (@cite TG gcode_parser.c:190-196).
  * Comments start at `(` or `;` and end the block on both (text after a
  * comment is dropped, PN §9.3).

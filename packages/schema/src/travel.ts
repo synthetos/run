@@ -4,12 +4,12 @@
  *
  * TinyG (edge-next and 440.21) skips an axis's soft-limit test entirely when
  * its two travel ends are `fp_EQ`, and tests each end only when it is above
- * `DISABLE_SOFT_LIMIT` (@cite EN canonical_machine.c:545-561,
+ * `DISABLE_SOFT_LIMIT` (@cite EN canonical_machine.c:549-565,
  * canonical_machine.h:45; TG canonical_machine.c:480-496,
  * canonical_machine.h:50). The ends are IEEE single floats (avr-gcc `double`
  * is 32 bits), parsed with `strtof`/`str2float` (@cite EN text_parser.c:148,
- * json_parser.c:589; TG text_parser.c:128, json_parser.c:259) and stored as
- * given under G21 by `set_flu`/`set_flt` (@cite EN config_app.c:797-806).
+ * json_parser.c:670; TG text_parser.c:128, json_parser.c:259) and stored as
+ * given under G21 by `set_flu`/`set_flt` (@cite EN config_app.c:821-830).
  * `fp_EQ(a,b)` is `fabs(a-b) < (float)0.00001` (@cite EN util.h:134-139; TG
  * util.h:113-119).
  *
@@ -56,7 +56,7 @@ const TINYG: TravelSemantics = Object.freeze({
   reportedDecimals: 3,
   minSpan: 0.01,
   millimetresUnit: 1,
-  cite: 'EN canonical_machine.c:545-561, util.h:134-139, config_app.c:279-280, config_app.c:815-826 (F_CONVERT out), canonical_machine.h:217-218 (MILLIMETERS=1), canonical_machine.c:2412 (unit); TG canonical_machine.c:480-496, util.h:113-119, config_app.c:277-278, config_app.c:763-770, canonical_machine.h:447-448, canonical_machine.c:1634',
+  cite: 'EN canonical_machine.c:549-565, util.h:134-139, config_app.c:280-281, config_app.c:839-850 (F_CONVERT out), canonical_machine.h:217-218 (MILLIMETERS=1), canonical_machine.c:2427 (unit); TG canonical_machine.c:480-496, util.h:113-119, config_app.c:277-278, config_app.c:763-770, canonical_machine.h:447-448, canonical_machine.c:1634',
 });
 
 /** Per-dialect travel semantics. Stock 449 is read-only and its source is not pinned here: no entry. */

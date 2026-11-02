@@ -1,4 +1,4 @@
-# B-PROBE-1: edge-next fb 450.01 (fv 0.97, hp 1, hv 8), firmware commit d254eb0b (the app pinned ead63997 when this was recorded and pins 97321391 since 2026-11-02; see docs/bench/GUIDE.md section 0).
+# B-PROBE-1: edge-next fb 450.01 (fv 0.97, hp 1, hv 8), firmware commit d254eb0b (the app pinned ead63997 when this was recorded and pins 6ec70652 since the second 2026-11-02 re-pin; see docs/bench/GUIDE.md section 0).
 # Recorded 2026-11-02 on bench 2 (FTDI 0403:6015), idle board, no machine attached, through the app's MachineWorkerHost and read-only session
 # (a byte bridge stood in for Chrome's Web Serial). Session log from open to the end of READING: <ms>\t<dir>\t<text>.
 # The board id is replaced by the placeholder 0X0000-XXX everywhere (it is a unique per-chip id).

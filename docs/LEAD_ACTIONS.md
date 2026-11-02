@@ -418,14 +418,18 @@ From `docs/safety/PHASE0_TRACEABILITY.md` "Open items":
   as signed because changing it needs a new signature
   (`docs/ops/release-key.md`, "The signed bench note predates D4").
 - **D4 is done** (edge-next reported `fb` 450.01 at `ead63997` and still
-  does at `97321391`). **Re-pinned 2026-11-02:** `vendor/firmware-pins.json`,
-  the dialect citations, the HIL tables and the board tables now follow
+  does at `6ec70652`). **Re-pinned 2026-11-02, twice:** `vendor/firmware-pins.json`,
+  the dialect citations, the HIL tables and the board tables first followed
   edge-next `97321391` (the merge of the E195 stale-line fix; it also carries
-  the stricter input errors E168-E177, E191 and E193 from `d254eb0b`). Still
+  the stricter input errors E168-E177, E191 and E193 from `d254eb0b`) and now
+  follow `6ec70652` (the merge of the spindle and coolant readouts `spe`,
+  `spc`, `spd`, `sps`, `cof`, `com`, which also carries the `rt` heartbeat
+  family, phase A: `hb`, `qt`, `up`). All of them are read-only in run; the
+  bench manifest is re-signed for `6ec70652`. Still
   open, and separate from the build number: the `fbs` and `cap` tokens D4
   recommends (the build reports neither), D5 image approval (no image has
   passed it, so the `release` channel stays empty) and the D6 published
-  release. If the published release commit differs from `97321391`, re-pin
+  release. If the published release commit differs from `6ec70652`, re-pin
   and regenerate the HIL tables again (PIN-1, D32). The app detects the build
   by capability probe, never by number alone.
 - **O5**: raise mutation score of `packages/safety/src/sanitize/` above 90 %

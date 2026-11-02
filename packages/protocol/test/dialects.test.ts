@@ -67,7 +67,7 @@ describe('T-S4: three TinyG tables', () => {
   });
 
   it('EN 13 is a damaged line only with an er 13 or ALARM 13; otherwise the line ran and its reply was lost', () => {
-    // E162: the first damaged line raises ALARM 13 and prints er 13 (EN controller.c:253-266).
+    // E162: the first damaged line raises ALARM 13 and prints er 13 (EN controller.c:255-268).
     expect(resolveBufferFull({ exception13: true, alarmStatus: null })).toBe('damagedLine');
     // A later damaged line while ALARM 13 stands: no new er (cm_alarm returns early), still damaged.
     expect(resolveBufferFull({ exception13: false, alarmStatus: 13 })).toBe('damagedLine');
@@ -220,7 +220,7 @@ describe('stop sequences as data (SAFETY §4.4)', () => {
       'done',
     ]);
     expect(writtenBytes(TINYG_EN.stopJob)).toEqual([BYTE.KILL]);
-    // EN cm_alarm prints nothing when already ALARM/SHUTDOWN/PANIC (canonical_machine.c:806-812).
+    // EN cm_alarm prints nothing when already ALARM/SHUTDOWN/PANIC (canonical_machine.c:810-816).
     expect(TINYG_EN.stopJob.steps).toContainEqual({ kind: 'awaitAlarm', status: 207, alreadyAlarmedStat: [2], timeoutMs: 2000 });
     expect(TINYG_EN.stopJob.steps).toContainEqual({ kind: 'haltIfStat', stat: [12, 13], spindle: 'unknown' });
     expect(mapStat(TINYG_EN, 2)).toBe('alarm');

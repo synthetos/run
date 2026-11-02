@@ -1,7 +1,7 @@
 {
  "format": "synthetos-run/tinyg-board-facts@1",
- "firmware": "EN@97321391",
- "commit": "973213919e4deb55cfb3883a2da4424b4d65f7cc",
+ "firmware": "EN@6ec70652",
+ "commit": "6ec70652b7c62553eb7351c201af093d24b20978",
  "platform": {
   "value": 1,
   "src": "EN hardware.h:56; EN tinyg.h:56"
@@ -135,11 +135,11 @@
    "spindleEnable": "spep",
    "spindleDirection": "spdp"
   },
-  "src": "EN config_app.c:649-650"
+  "src": "EN config_app.c:650-651"
  },
  "switchTypeToken": {
   "value": "st",
-  "src": "EN config_app.c:461"
+  "src": "EN config_app.c:462"
  },
  "bootloader": {
   "value": true,

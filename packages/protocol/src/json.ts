@@ -4,16 +4,16 @@
  *
  * Why not `JSON.parse`: TinyG prints relaxed JSON (bare keys) when `js=0`,
  * and exception and queue reports pass through `json_relax()` on edge-next
- * (@cite EN json_parser.c:938-967, report.c:156 and :774; TG report.c:60-61,
+ * (@cite EN json_parser.c:1019-1048, report.c:156 and :774; TG report.c:60-61,
  * json_parser.c:376-380). `JSON.parse` would also accept input
  * of any size and nesting, and it throws.
  *
  * Accepted input:
  * - one value: object, array, string, number, `true`, `false`, `null`;
  * - object keys quoted (JSON strings) or bare (`[A-Za-z0-9_]+`, the token
- *   characters TinyG uses, @cite EN json_parser.c:101-104);
+ *   characters TinyG uses, @cite EN json_parser.c:102-105);
  * - the bare literals `t`, `f` and `n` that TinyG accepts for true, false and
- *   null (@cite EN json_parser.c:312-321, report.c:172-186);
+ *   null (@cite EN json_parser.c:393-402, report.c:172-186);
  * - spaces and tabs between tokens.
  *
  * Refused input (each is a typed error, never an exception):

@@ -28,7 +28,7 @@ describe('SETTINGS_SCHEMAS', () => {
   });
 
   it('the schema key names the dialect and the firmware commit (MachineProfile settings.schemaKey)', () => {
-    expect(SETTINGS_SCHEMAS['tinyg-en'].schemaKey).toBe('tinyg-en@97321391');
+    expect(SETTINGS_SCHEMAS['tinyg-en'].schemaKey).toBe('tinyg-en@6ec70652');
     expect(SETTINGS_SCHEMAS['tinyg-440'].schemaKey).toBe('tinyg-440@d0418390');
     expect(SETTINGS_SCHEMAS['tinyg-449-stock'].schemaKey).toBe('tinyg-449-stock@c5024186');
   });

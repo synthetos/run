@@ -8,8 +8,9 @@ owner signs it, `docs/bench/README.md`), **OPEN** (not done; owner task named).
 
 Sources: synthetos.com `docs/run/` (ROADMAP "Phase 1: Bench read-only",
 SAFETY §3, §4.1, §4.4, §10, PROTOCOL_NOTES §2.3). Firmware pins
-(`vendor/firmware-pins.json`): EN `97321391` since the 2026-11-02 re-pin
-(Phase 0 and P1-00 to P1-08 were traced at `ead63997`), TG `d0418390`.
+(`vendor/firmware-pins.json`): EN `6ec70652` since the second 2026-11-02
+re-pin (`97321391` after the first; Phase 0 and P1-00 to P1-08 were traced
+at `ead63997`), TG `d0418390`.
 
 ## P1-00: the Web Serial gate change
 

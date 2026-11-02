@@ -1,6 +1,6 @@
 /**
  * `cm_set_model_target()` axis modes and `cm_test_soft_limits()`, which read
- * the same in both pinned firmwares (@cite EN canonical_machine.c:491-563;
+ * the same in both pinned firmwares (@cite EN canonical_machine.c:495-567;
  * TG canonical_machine.c:430-498). Each model calls these with its own
  * settings; the citations in the models' behaviour register name both files.
  */
@@ -48,8 +48,8 @@ export interface TargetContext {
  *
  * The arithmetic is float32, as on the board (float32.ts): the word, its unit
  * conversion and its sum with the offset or the start are each a float, and
- * the target becomes the next start (@cite EN canonical_machine.c:499-520,
- * :422-423 `cm_finalize_move`; TG canonical_machine.c:430-498). A run of G91
+ * the target becomes the next start (@cite EN canonical_machine.c:503-524,
+ * :426-427 `cm_finalize_move`; TG canonical_machine.c:430-498). A run of G91
  * moves therefore accumulates float32 rounding that a double-precision sum
  * does not show (the arc-uncertainty finding after P0-10#1). The model folds
  * the coordinate, G92 and tool offsets into one float before the sum; the

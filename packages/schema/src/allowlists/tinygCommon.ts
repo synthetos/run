@@ -5,7 +5,7 @@
  * helpers only spell out products of explicit lists (`cross(['x'], ['vm'])`
  * is `['xvm']`); nothing is derived from the vendored tables.
  *
- * Citations: EN = TinyG edge-next @ 97321391, TG = master @ d0418390,
+ * Citations: EN = TinyG edge-next @ 6ec70652, TG = master @ d0418390,
  * S449 = edge-0.97 @ c5024186; paths under firmware/tinyg/.
  */
 
@@ -135,21 +135,21 @@ export const COMMON_SYS_TOKENS = [
  * denied in every dialect.
  */
 export const REQUIRED_DENY: Readonly<Record<string, string>> = Object.freeze({
-  alarm: 'GET raises an alarm (E138; EN config_app.c:463-504)',
-  panic: 'GET raises a panic (E138; EN config_app.c:463-504)',
-  shutd: 'GET raises a shutdown (E138; EN config_app.c:463-504)',
+  alarm: 'GET raises an alarm (E138; EN config_app.c:464-505)',
+  panic: 'GET raises a panic (E138; EN config_app.c:464-505)',
+  shutd: 'GET raises a shutdown (E138; EN config_app.c:464-505)',
   me: 'GET energizes every motor (EN stepper.c:1413-1436); commissioning only, never a read',
-  md: 'GET de-energizes every motor: holding torque drops and Z can fall (EN config_app.c:464; TG config_app.c:469)',
+  md: 'GET de-energizes every motor: holding torque drops and Z can fall (EN config_app.c:465; TG config_app.c:469)',
   er: 'GET fakes an exception report (EN report.c:162-165)',
   boot: 'not a value: any SET enters the bootloader (AUD E138); sent only by the flasher',
   defa: 'not a value: a SET restores factory defaults',
   test: 'not a value: a SET runs the board\'s built-in test',
   qf: 'not a value: a SET flushes the planner queue',
-  clear: 'GET clears an alarm (EN config_app.c:491); sent only by the C13 "clear alarm" intent, never as a read',
-  clr: 'GET clears an alarm (EN config_app.c:492, synonym of clear); never sent',
+  clear: 'GET clears an alarm (EN config_app.c:492); sent only by the C13 "clear alarm" intent, never as a read',
+  clr: 'GET clears an alarm (EN config_app.c:493, synonym of clear); never sent',
   help: 'prints text-mode help, not JSON (EN-HIL deny list)',
   h: 'prints text-mode help, not JSON (EN-HIL deny list)',
-  adc3: 'GET starts an ADC conversion on the J13/SPI2 pin (EN config_app.c:660); the probe never reads it (PN §2.3)',
+  adc3: 'GET starts an ADC conversion on the J13/SPI2 pin (EN config_app.c:661); the probe never reads it (PN §2.3)',
 });
 
 /** Deny entries for tokens every TinyG table has that are not readings of anything. */
@@ -158,10 +158,10 @@ export const COMMON_DENY: Readonly<Record<string, string>> = Object.freeze({
   msg: 'message plumbing, not a value',
   qi: 'GET resets the queue-report counter it returns (EN report.c:793-799), corrupting queue reports',
   qo: 'GET resets the queue-report counter it returns (EN report.c:801-807), corrupting queue reports',
-  $: 'uber-group: answers with several responses to one request (EN config_app.c:880-893), breaking one-request/one-response accounting; read the groups one at a time',
-  m: 'uber-group of the motor groups (EN config_app.c:865-868): several responses to one request; read 1..4 one at a time',
-  q: 'uber-group of the axis groups (EN config_app.c:870-873): several responses to one request; read x..c one at a time',
-  o: 'uber-group of the offset groups (EN config_app.c:875-878): several responses to one request; read g54..g30 one at a time',
+  $: 'uber-group: answers with several responses to one request (EN config_app.c:904-917), breaking one-request/one-response accounting; read the groups one at a time',
+  m: 'uber-group of the motor groups (EN config_app.c:889-892): several responses to one request; read 1..4 one at a time',
+  q: 'uber-group of the axis groups (EN config_app.c:894-897): several responses to one request; read x..c one at a time',
+  o: 'uber-group of the offset groups (EN config_app.c:899-902): several responses to one request; read g54..g30 one at a time',
 });
 
 export const JOG_PREFIX_DENY: Readonly<Record<string, string>> = Object.freeze({

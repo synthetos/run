@@ -9,14 +9,14 @@
  * a vendored table, and the allowlist tests hold the allowlists to them:
  * - an allowlisted token's getter must be `value`, `stub` or `group` (and a
  *   group only when every member is allowlisted too, because a group GET runs
- *   every member's getter: EN config.c:534-562);
+ *   every member's getter: EN config.c:543-571);
  * - an overlay key's setter must be `value`.
  *
  * A function that is not in these maps fails the tests, so a firmware bump
  * that adds one cannot pass CI until somebody has read it and classified it.
  * Changing a class needs the owner's review (CODEOWNERS).
  *
- * Citations are to EN (`edge-next` @ 97321391) unless tagged TG (master @
+ * Citations are to EN (`edge-next` @ 6ec70652) unless tagged TG (master @
  * d0418390) or S449 (edge-0.97 @ c5024186).
  */
 
@@ -34,10 +34,16 @@ export type GetterClass =
   /** Prints help or a debug dump as text. */
   | 'text'
   /** Acts on the board: never a read (E138). */
-  | 'sideEffect';
+  | 'sideEffect'
+  /**
+   * Runtime session state (the rt family): answers only inside a pure
+   * `{"rt":...}` envelope and STAT_UNRECOGNIZED_NAME anywhere else
+   * (runtime.c:94-104). Changes nothing, but it is not a settings read.
+   */
+  | 'session';
 
 export const GETTER_CLASS: Readonly<Record<string, GetterClass>> = Object.freeze({
-  // Plain value getters (config.c, canonical_machine.c:2410-2420, report.c).
+  // Plain value getters (config.c, canonical_machine.c:2425-2435, report.c).
   get_data: 'value',
   get_flt: 'value',
   get_int: 'value',
@@ -83,11 +89,22 @@ export const GETTER_CLASS: Readonly<Record<string, GetterClass>> = Object.freeze
   srs_get: 'value',
   /** One status-report field selector (report.c:631-637). */
   sr_get_se: 'value',
+  /**
+   * Spindle and coolant readouts (spindle.c:87-128, canonical_machine.c:1560-1565):
+   * the outputs as last driven by the executors, each field sampled on its own.
+   * Read-only (set_nul); display only, never an interlock input.
+   */
+  spindle_get_spe: 'value',
+  spindle_get_spd: 'value',
+  spindle_get_spc: 'value',
+  spindle_get_sps: 'value',
+  coolant_get_cof: 'value',
+  coolant_get_com: 'value',
 
   _reserved_hold_setting: 'stub',
 
   get_nul: 'constant',
-  /** Retired settings answer 0 (config_app.c:87-94). */
+  /** Retired settings answer 0 (config_app.c:88-95). */
   get_legacy_zero: 'constant',
   /** TG only: the G-code channel; a GET returns nothing useful. */
   gc_get_gc: 'constant',
@@ -125,6 +142,11 @@ export const GETTER_CLASS: Readonly<Record<string, GetterClass>> = Object.freeze
   /** GET resets the queue-report counter it returns (report.c:793-807). */
   qi_get: 'sideEffect',
   qo_get: 'sideEffect',
+
+  /** rt heartbeat interval, quiescence token and uptime (runtime.c:98-104, :119-138, :178-184). */
+  rt_get_hb: 'session',
+  rt_get_qt: 'session',
+  rt_get_up: 'session',
 });
 
 export type SetterClass =
@@ -139,9 +161,16 @@ export type SetterClass =
   /** Protocol plumbing (`msg`, `txt`, `tid`, `set`). */
   | 'plumbing'
   | 'stub'
-  /** A retired setting accepted only for backup compatibility (config_app.c:87-110). */
+  /** A retired setting accepted only for backup compatibility (config_app.c:88-111). */
   | 'legacy'
-  | 'group';
+  | 'group'
+  /**
+   * Runtime session state (rt heartbeat interval, quiescence token): RAM
+   * only, off at every reset, accepted only inside a pure `{"rt":...}`
+   * envelope (runtime.c:94-117, :152-176, :186-211). Never a setting; run
+   * does not send it.
+   */
+  | 'session';
 
 export const SETTER_CLASS: Readonly<Record<string, SetterClass>> = Object.freeze({
   set_nul: 'readOnly',
@@ -211,6 +240,10 @@ export const SETTER_CLASS: Readonly<Record<string, SetterClass>> = Object.freeze
   set_legacy_zero: 'legacy',
 
   set_grp: 'group',
+
+  rt_set_hb: 'session',
+  rt_set_qt: 'session',
+  rt_set_grp: 'session',
 });
 
 export function getterClass(getter: string): GetterClass | undefined {

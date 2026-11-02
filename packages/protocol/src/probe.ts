@@ -4,7 +4,7 @@
  * `PROBE_STEPS` is the probe as data: one allowlisted GET per line, one key
  * per line, in order. It never sends G-code (an unsupported word raises ALARM
  * on stock 449, E042), never reads `adc3` (it starts an ADC conversion on the
- * SPI2/J13 pin, @cite EN config_app.c:660), and never reads a token with side
+ * SPI2/J13 pin, @cite EN config_app.c:661), and never reads a token with side
  * effects (E138, PN §12.3). The first line written at connect is `{sr:null}`
  * (`SPLICE_GUARD_LINE`): it completes and spoils any partial line a previous
  * sender left in the RX ring, so that line never runs (PN §2.3 step 0, H49).
@@ -18,7 +18,7 @@
  * `G0 X1{sr:null}` reaches the G-code parser (wrapped or not) and fails as
  * `G0X1SRNULL`. The same holds for a partial JSON line (`{"gc":"G0 X1`),
  * whose string is then never closed. TinyG's tokenizer accepts bare keys
- * (@cite EN json_parser.c:262-275), so on a clean ring it is an ordinary GET.
+ * (@cite EN json_parser.c:343-356), so on a clean ring it is an ordinary GET.
  *
  * Timing, the one-line-in-flight rule, the single `{"sr":null}` retry and the
  * ORPHANED_MOTION path on silence belong to the machine (P1). This module only
@@ -48,9 +48,9 @@ export const PROBE_STATUS = Object.freeze({
 
 /** Identity tokens (PN §2.3 step 2, plus `hv`). */
 export const IDENTITY_TOKENS = Object.freeze(['fb', 'fv', 'hp', 'id', 'hv'] as const);
-/** Edge-next capability tokens (PN §2.3 step 3; @cite EN config_app.c:649-667). */
+/** Edge-next capability tokens (PN §2.3 step 3; @cite EN config_app.c:650-668). */
 export const CAPABILITY_TOKENS = Object.freeze(['spep', 'prbp', 'fstk', 'os'] as const);
-/** EN answers 17 (stubbed) while E060 is not merged (PN §2.3 step 4; @cite EN config_app.c:64-68, :652). */
+/** EN answers 17 (stubbed) while E060 is not merged (PN §2.3 step 4; @cite EN config_app.c:65-69, :653). */
 export const SPINDLE_PAUSE_TOKEN = 'spph';
 /**
  * The coolant pause-on-hold setting (g2 `coph`; reserved and stubbed on
@@ -266,7 +266,7 @@ function tokenAnswer(r: Response, key: CapabilityToken, conflicts: string[]): To
   return 'other';
 }
 
-/** A uint8 setting whose setter refuses anything above 1 (@cite EN config.c:446-451 `set_01`). */
+/** A uint8 setting whose setter refuses anything above 1 (@cite EN config.c:455-460 `set_01`). */
 const isZeroOrOne = (v: JsonValue): boolean => Object.is(v, 0) || v === 1;
 
 /**
@@ -280,7 +280,7 @@ export const FSTK_MAX = 0x5fff - 0x2000;
 
 /**
  * The values edge-next can print for each capability token (@cite EN
- * config_app.c:649-667): `spep` (spindle.c:64), `prbp` (switch.c:329) and
+ * config_app.c:650-668): `spep` (spindle.c:64), `prbp` (switch.c:329) and
  * `os` (`set_01`) are 0 or 1; `fstk` is an integer 0..FSTK_MAX.
  */
 const CAPABILITY_VALUE_VALID: Readonly<Record<CapabilityToken, (v: JsonValue) => boolean>> = Object.freeze({

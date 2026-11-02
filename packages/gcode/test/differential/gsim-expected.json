@@ -3246,7 +3246,7 @@
  },
  "gsim": {
   "blob": "3a9710bc504f3e09f9669c033a606c78bae7be41",
-  "commit": "973213919e4deb55cfb3883a2da4424b4d65f7cc",
+  "commit": "6ec70652b7c62553eb7351c201af093d24b20978",
   "path": "tests/hil/tinyg_hil/gsim.py"
  }
 }

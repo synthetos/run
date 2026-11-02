@@ -278,7 +278,7 @@ export class Motion {
    * Drop every queued block. The runtime must be idle (stopped); the held
    * block goes too. `cm_queue_flush()` then sets every axis's position from
    * the runtime, which resyncs the step targets (@cite EN
-   * canonical_machine.c:1989-1992; TG canonical_machine.c:1307-1309).
+   * canonical_machine.c:2004-2007; TG canonical_machine.c:1307-1309).
    */
   flush(t: number): void {
     if (!this.runtimeIdle()) throw new Error('flush while the runtime moves');
