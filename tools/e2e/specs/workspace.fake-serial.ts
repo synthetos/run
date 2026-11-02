@@ -110,7 +110,7 @@ test('Pause and Stop job are in the same place and enabled in every view (observ
   const before = await bangs(workerA);
   await stop.click();
   await expect.poll(() => bangs(workerA)).toBe(before + 1);
-  await expect(tabB.locator('[data-stop-outcome="delivered"]')).toContainText(`as ${w2Label()}`);
+  await expect(tabB.locator('[data-stop-outcome="delivered"]')).toContainText(`${STOP_TEXT.stopJob} delivered to ${BOARD}.`);
   await pause.click();
   await expect.poll(() => bangs(workerA)).toBe(before + 2);
 });

@@ -14,6 +14,7 @@
  * allowlist does not admit are not asked for; groups that do not answer are
  * listed as unanswered. Nothing here can write to the board.
  */
+import { READ_BASES } from './readout.ts';
 import { boardSettingsFrom, settingsReadGroups, type GroupAnswer } from '@synthetos/schema';
 import type { WorkerStatus } from '../machine-worker/rpc.ts';
 
@@ -75,7 +76,7 @@ export function backupFileName(boardId: string | null, at: Date): string {
 export function backupBlocked(s: SessionSnapshot | null): string | null {
   if (s === null || s.base === 'NOT_CONNECTED') return 'Connect a board to back up its settings.';
   if (s.overlays.includes('LOST')) return 'The connection was lost. Reconnect to back up the settings.';
-  if (s.base !== 'CONNECTED_UNKNOWN') return 'Wait until the board is identified and read.';
+  if (!READ_BASES.has(s.base)) return 'Wait until the board is identified, read and at rest.';
   const dialect = s.classification?.dialectId ?? null;
   if (dialect === null) return 'This board was not identified as a supported dialect, so its settings cannot be read.';
   if (settingsReadGroups(dialect).length === 0) return 'This firmware has no reviewed read allowlist yet, so its settings cannot be read.';
