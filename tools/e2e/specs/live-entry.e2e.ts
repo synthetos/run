@@ -48,3 +48,29 @@ test('T-S17: a liveSession marker from a previous session shows W6 instead of NO
   const axe = await new AxeBuilder({ page }).include('[data-region="safety-bar"]').withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(axe.violations.map((v) => v.id)).toEqual([]);
 });
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  for (const width of [390, 1280] as const) {
+    test(`the Connect control is a themed button inside the Workspace sheet (${colorScheme}, ${width} px), axe clean`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.emulateMedia({ colorScheme });
+      await page.goto('/');
+      await ready(page);
+      const connect = page.locator('.centre-placeholder .sheet-body [data-entry="idle"] [data-action="connect"]');
+      await expect(connect).toBeVisible();
+      const style = await connect.evaluate((el) => {
+        const s = getComputedStyle(el);
+        const root = getComputedStyle(document.documentElement);
+        return { bg: s.backgroundColor, border: Number.parseFloat(s.borderTopWidth), borderStyle: s.borderTopStyle, minHeight: s.minHeight, ink: root.getPropertyValue('--ink').trim() };
+      });
+      // Not the native grey control: the ink fill and a visible frame from the theme tokens.
+      const hex = (rgb: string): string => `#${(rgb.match(/\d+/g) ?? []).slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('')}`;
+      expect(hex(style.bg)).toBe(style.ink);
+      expect(style.border).toBeGreaterThanOrEqual(1);
+      expect(style.borderStyle).toBe('solid');
+      expect(style.minHeight).toBe('40px');
+      const results = await new AxeBuilder({ page }).include('.centre-placeholder').analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+}

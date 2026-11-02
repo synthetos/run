@@ -83,7 +83,11 @@ bannerContainer.dataset['region'] = 'overlay-banners';
 const container = document.createElement('div');
 container.dataset['region'] = 'live-entry';
 const observerContainer = document.createElement('div');
-centre?.prepend(bannerContainer, observerContainer, container);
+centre?.prepend(bannerContainer, observerContainer);
+// The Connect control goes inside the Workspace sheet, under its heading (falls back to the centre).
+const sheetBody = centre?.querySelector('.centre-placeholder .sheet-body') ?? null;
+if (sheetBody !== null) sheetBody.querySelector('h1')?.after(container);
+if (container.parentNode === null) centre?.append(container);
 effect(() => {
   render(
     h(ObserverPanel, {

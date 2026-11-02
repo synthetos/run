@@ -467,3 +467,31 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .preview-svg .pv-marker.lag-red { fill: var(--danger); }
 .pv-marker-readout { font-family: var(--mono); margin: 4px 0; overflow-wrap: anywhere; }
 .pv-marker-readout.lag-red { color: var(--danger); }
+
+/* LIVE entry (P1-05): the Connect control sits inside the Workspace sheet, in the blueprint style. */
+.live-entry {
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--ink);
+  border-left-width: 4px;
+  background: var(--sheet);
+  color: var(--ink);
+}
+.live-entry > p { margin: 0 0 10px; }
+.live-entry > :last-child { margin-bottom: 0; }
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 6px 16px;
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  background: var(--ink);
+  color: var(--paper);
+  font: 600 0.92rem/1.2 var(--sans);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.button:hover { background: var(--blue); border-color: var(--blue); color: var(--paper); }
+.button:disabled { cursor: not-allowed; opacity: 0.6; }
