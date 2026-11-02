@@ -60,7 +60,7 @@ Stock (Setup view) references a material by id and version, so a job records exa
 
 ## 4. Store (Mock now; Shopify later)
 
-- **Today:** the Synthetos store is Shopify (`synthetos.myshopify.com`).
+- **Today:** the Synthetos store is Shopify (`synthetos.myshopify.com`). The owner has API access (2026-11-02). Use a **Storefront API** token (catalogue, availability, cart and checkout URL), held as a Worker secret and called through our Worker. **Admin API** keys are never used by run and never reach the browser. Products are tagged in Shopify (for example `run:tool`, `run:material`), and a metafield links each product to its versioned tool or material spec.
 - **Provider seam:** a `StoreProvider` interface with `catalog()`, `product(sku)`, `cartUrl(items)` and `availability(skus)`.
   - **Now:** `MockStore` serves a small fixed catalogue of end mills, V-bits and material blanks.
   - **Later:** `ShopifyStore`, using the Storefront API through our Worker, so no store token reaches the browser.

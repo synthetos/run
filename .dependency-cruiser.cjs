@@ -18,6 +18,27 @@ const CLOUD = '^apps/web/src/cloud/';
 const NPM = '(^|/)node_modules/';
 /** The dev-only test kit, by path or through its workspace link. */
 const TESTKIT = '(^packages/testkit/|(^|/)node_modules/@synthetos/testkit/)';
+/**
+ * The machining assistant's pure packages (MACHINING_ASSISTANT §9: "no
+ * network, no machine import"). They are not on the machine path, but every
+ * engine's suggestion passes through advisor's envelope before it can reach
+ * an actuator, so they are held to the machine path's purity rules.
+ */
+const ASSISTANT = '(library|advisor)';
+/** Runtime (non-test) source of the assistant packages. */
+const ASSISTANT_SRC = `^packages/${ASSISTANT}/src/`;
+/**
+ * What the assistant packages may never reach, by path or workspace link:
+ * the machine path (machine, protocol and its transports, safety, flasher),
+ * contracts, the other app-facing packages, the test kit, every app (the
+ * cloud client included) and Worker, and all of schema except its
+ * dependency-free JSON Schema validator.
+ */
+const ASSISTANT_FORBIDDEN_REACH =
+  '(^packages/(machine|protocol|safety|flasher|contracts|testkit|gcode|gcode-view|wiring|provenance)/' +
+  '|(^|/)node_modules/@synthetos/(machine|protocol|safety|flasher|contracts|testkit|gcode|gcode-view|wiring|provenance)/' +
+  '|^packages/schema/(?!src/jsonSchema\\.ts$)|(^|/)node_modules/@synthetos/schema/(?!src/jsonSchema\\.ts$)' +
+  '|^apps/|^workers/)';
 
 /**
  * One layering rule (RUN_PLAN §5.3): runtime source of `pkg` may import its
@@ -60,6 +81,8 @@ module.exports = {
     layer('contracts', [], 'contracts depends only on valibot: it imports no workspace package'),
     layer('testkit', ['protocol', 'flasher'], 'the test kit may import protocol and flasher only'),
     layer('gcode-view', [], 'gcode-view is a publishable viewer whose input is a plain segment list: it imports no workspace package (never machine, safety, protocol or gcode)'),
+    layer('library', ['schema/src/jsonSchema.ts'], "library imports only schema's dependency-free JSON Schema validator: never machine, protocol, contracts or the cloud client (MACHINING_ASSISTANT §9)"),
+    layer('advisor', ['library', 'schema/src/jsonSchema.ts'], "advisor imports library and schema's JSON Schema validator only: never machine, protocol, contracts or the cloud client (MACHINING_ASSISTANT §9)"),
     {
       name: 'gcode-view-no-npm-or-node',
       comment: 'gcode-view is published on its own with zero runtime dependencies: no npm package and no Node built-in in its source (ROADMAP TB-03).',
@@ -107,6 +130,35 @@ module.exports = {
       severity: 'error',
       from: { path: '^packages/' },
       to: { path: '^(apps|workers)/' },
+    },
+
+    // --- Machining assistant: pure, no network, no machine (MACHINING_ASSISTANT §9) ---
+    {
+      name: 'assistant-no-npm',
+      comment:
+        'library and advisor have ZERO runtime npm dependencies, direct or reached through another workspace ' +
+        'package (MACHINING_ASSISTANT §9). Their validation uses the repository\'s own JSON Schema validator.',
+      severity: 'error',
+      from: { path: ASSISTANT_SRC },
+      to: { path: NPM, reachable: true },
+    },
+    {
+      name: 'assistant-no-node-core',
+      comment: 'library and advisor run in the browser: Node built-ins are never available there.',
+      severity: 'error',
+      from: { path: ASSISTANT_SRC },
+      to: { dependencyTypes: ['core'] },
+    },
+    {
+      name: 'assistant-never-reaches-machine-path',
+      comment:
+        'No chain of imports from library or advisor reaches machine, protocol, safety, flasher, contracts, the ' +
+        'other app-facing packages, the test kit, any app (the cloud client included), a Worker, or any part of ' +
+        'schema but its JSON Schema validator (MACHINING_ASSISTANT §1 principle 2, §9): advice never talks to the ' +
+        'board or the network.',
+      severity: 'error',
+      from: { path: ASSISTANT_SRC },
+      to: { path: ASSISTANT_FORBIDDEN_REACH, reachable: true },
     },
 
     // --- Cloud client (RUN_PLAN §5.3) ------------------------------------
