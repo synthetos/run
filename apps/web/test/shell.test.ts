@@ -1,99 +1,101 @@
 /**
- * The workspace shell and the safety bar (ROADMAP P0-05): W1, W7 NOT
- * CONNECTED, the version and SHA, and the disabled stop button labelled W2
- * with the tooltip "Available when a machine is connected". The browser-level
- * checks (visible at 320 px and desktop, sticky, axe) are in tools/e2e.
+ * The workspace shell (Stage 1) and the safety bar: W1 first, the top bar,
+ * the machine strip with W7 NOT CONNECTED and the disabled Pause (W2) and
+ * Stop job, the ten-view rail with only Run shown, W13 on the preview, and
+ * the version in the footer. The browser-level checks (no document scroll,
+ * view switching keeps the worker, axe) are in tools/e2e.
  */
 import { describe, expect, it } from 'vitest';
-import { h } from 'preact';
-import { w1, w13, w2Label, w7 } from '@synthetos/safety';
-import { Shell } from '../src/shell/Shell.ts';
+import { Fragment, h } from 'preact';
+import { renderToString } from 'preact-render-to-string';
+import { STOP_TEXT, w1, w13, w2Label, w7 } from '@synthetos/safety';
+import { AppShell, VIEWS } from '../src/workspace/AppShell.ts';
 import { SafetyBar, STOP_UNAVAILABLE } from '../src/shell/SafetyBar.ts';
 import { versionLabel } from '../src/build-info/buildInfo.ts';
 import { all, byAttr, one, root, text } from './tree.ts';
 
 const build = { version: '1.2.3', sha: '0123456789abcdef0123456789abcdef01234567' };
 
-describe('workspace Shell', () => {
-  const shell = root(h(Shell, { build }));
+function escaped(s: string): string {
+  return s.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
 
-  it('renders the safety bar first, then the header, the rail and centre, and the footer', () => {
-    expect(shell.props['data-shell']).toBe('workspace');
-    const top = shell.children.filter((c) => typeof c !== 'string');
-    expect(top.map((c) => (typeof c === 'string' ? c : `${c.tag}.${String(c.props['class'])}`))).toEqual([
-      'div.safety-bar',
-      'header.site-header',
-      'div.workspace',
-      'footer.site-footer',
-    ]);
-    const workspace = one(shell, (e) => e.props['class'] === 'workspace');
-    expect(workspace.children.map((c) => (typeof c === 'string' ? c : c.props['data-region']))).toEqual(['rail', 'centre']);
+describe('workspace AppShell (prerendered)', () => {
+  const html = renderToString(h(Fragment, null, h(AppShell, { build })));
+
+  it('renders W1 first, then the top bar, the machine strip, the rail and views, and the footer', () => {
+    const order = ['data-region="safety-bar"', 'class="topbar"', 'data-region="machine-strip"', 'data-region="rail"', 'data-region="centre"', 'class="footer"'].map((m) => html.indexOf(m));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(html).toContain(escaped(w1().slice(w1().indexOf(' — ') + 3)));
   });
 
-  it('the rail is empty and the centre holds the placeholder, then the preview sheet with W13', () => {
-    const rail = one(shell, byAttr('data-region', 'rail'));
-    expect(rail.tag).toBe('nav');
-    expect(rail.children).toEqual([]);
-    const centre = one(shell, byAttr('data-region', 'centre'));
-    expect(text(centre)).toContain('No machine connected');
-    expect(centre.children.filter((c) => typeof c !== 'string').map((c) => (c as { props: Record<string, unknown> }).props['data-region'] ?? 'placeholder')).toEqual(['placeholder', 'preview']);
-    expect(text(one(centre, byAttr('data-safety', 'W13')))).toBe(w13());
-  });
-
-  it('the safety bar shows W1 exactly, as a labelled region', () => {
-    const bar = one(shell, byAttr('data-region', 'safety-bar'));
-    expect(bar.props['role']).toBe('region');
-    expect(bar.props['aria-label']).toBe('Safety');
-    expect(text(one(bar, byAttr('data-safety', 'W1')))).toBe(w1());
-  });
-
-  it('the state band shows W7 NOT CONNECTED exactly, as a status', () => {
-    const band = one(shell, byAttr('data-safety', 'W7'));
-    expect(text(band)).toBe(w7());
-    expect(band.props['role']).toBe('status');
-    expect(band.props['data-state']).toBe('not-connected');
-  });
-
-  it('the version chip shows the version and SHA, with the full SHA in its title', () => {
-    const chip = one(shell, byAttr('data-version'), 'version chip');
-    expect(text(chip)).toBe(versionLabel(build));
-    expect(text(chip)).toBe('v1.2.3 · 0123456789ab');
-    expect(chip.props['title']).toContain(build.sha);
-  });
-
-  it('the stop button is disabled, labelled W2, and explains why', () => {
-    const buttons = all(shell, (e) => e.tag === 'button' && e.props['class'] === 'stop-button');
-    expect(buttons).toHaveLength(1);
-    const stop = buttons[0]!;
-    expect(stop.props['disabled']).toBe(true);
-    expect(stop.props['type']).toBe('button');
-    expect(text(stop)).toBe(w2Label());
-    expect(stop.props['title']).toBe(STOP_UNAVAILABLE);
-    expect(STOP_UNAVAILABLE).toBe('Available when a machine is connected');
-    const described = one(shell, byAttr('id', stop.props['aria-describedby'] as string));
-    expect(text(described)).toBe(STOP_UNAVAILABLE);
-    // The wrapper carries the tooltip too: Chrome shows no tooltip for a disabled button.
-    expect(one(shell, (e) => e.props['class'] === 'stop-wrap').props['title']).toBe(STOP_UNAVAILABLE);
-  });
-
-  it('no control in the shell can act: the only buttons are the disabled stop button and the theme toggle', () => {
-    const buttons = all(shell, (e) => e.tag === 'button');
-    expect(buttons.map((b) => b.props['class'])).toEqual(['stop-button', 'theme-toggle']);
-    // The prerendered preview's file, dialect, mode and rapids controls are disabled until the script runs.
-    for (const input of all(shell, (e) => e.tag === 'input' || e.tag === 'select')) expect(input.props['disabled']).toBe(true);
-    for (const el of all(shell, () => true)) {
-      expect(Object.keys(el.props).filter((k) => /^on[A-Z]/.test(k)), el.tag).toEqual([]);
+  it('the rail lists the ten views in order, and only Run is shown', () => {
+    expect(VIEWS.map((v) => v.label)).toEqual(['Run', 'Setup', 'Tools', 'Materials', 'Board', 'Machines', 'Projects', 'Analyze', 'Settings', 'Safety']);
+    for (const v of VIEWS) {
+      const at = html.indexOf(`data-screen="${v.id}"`);
+      expect(at, v.id).toBeGreaterThan(0);
+      const tag = html.slice(html.lastIndexOf('<section', at), html.indexOf('>', at));
+      expect(tag.includes('hidden'), v.id).toBe(v.id !== 'run');
     }
+    expect(html).toMatch(/data-view="run" aria-current="page"/);
+  });
+
+  it('the machine strip shows W7 NOT CONNECTED, and Pause and Stop job disabled with the reason', () => {
+    expect(html).toContain(escaped(w7().slice(w7().indexOf(' — ') + 3)));
+    expect(html).toContain('data-safety="W7"');
+    const pause = /<button[^>]*data-safety="W2"[^>]*>/.exec(html)?.[0] ?? '';
+    expect(pause).toContain('disabled');
+    expect(pause).toContain(`title="${STOP_UNAVAILABLE}"`);
+    expect(pause).toContain('aria-describedby="stop-unavailable"');
+    const stop = /<button[^>]*data-action="stop-job"[^>]*>/.exec(html)?.[0] ?? '';
+    expect(stop).toContain('disabled');
+    expect(html).toContain(`<span>${w2Label()}</span>`);
+    expect(html).toContain(`<span>${STOP_TEXT.stopJob}</span>`);
+    expect(html).toContain(`id="stop-unavailable" class="sr-only">${STOP_UNAVAILABLE}<`);
+  });
+
+  it('W13 is on the preview, and the version is in the footer', () => {
+    expect(html).toContain(escaped(w13()));
+    expect(html).toMatch(new RegExp(`data-version(="")? title="Version ${build.version}, commit ${build.sha}">${escaped(versionLabel(build))}<`));
+  });
+
+  it('prerendered, the preview controls are disabled and Start job is disabled with its reason', () => {
+    expect(/<input[^>]*data-preview="file"[^>]*>/.exec(html)?.[0]).toContain('disabled');
+    expect(/<select[^>]*data-preview="mode"[^>]*>/.exec(html)?.[0]).toContain('disabled');
+    expect(/<button[^>]*data-action="start-job"[^>]*>/.exec(html)?.[0]).toContain('disabled');
+    expect(html).toContain('Running jobs arrives in a later phase.');
+    expect(html).toContain('Jogging arrives with motion control.');
+    expect(html).toContain('Needs firmware support');
+  });
+
+  it('carries no inline style attribute (CSP style-src self) and no link to another origin', () => {
+    expect(html).not.toMatch(/\sstyle="/);
+    expect(html).not.toMatch(/:\/\//);
+  });
+
+  it('has no Play, Simulate or Animate control in the preview (SAFETY H15, T-S41)', () => {
+    const start = html.indexOf('data-region="preview"');
+    const region = html.slice(start, html.indexOf('data-screen="setup"'));
+    expect(region.replace(/<[^>]*>/g, ' ')).not.toMatch(/\b(play|simulat|animat)/i);
   });
 });
 
-describe('SafetyBar, page variant', () => {
-  const bar = root(h(SafetyBar, { build, variant: 'page' }));
-
-  it('shows W1 and the version chip, and no machine controls', () => {
+describe('SafetyBar', () => {
+  it('page variant: W1 and the version chip, and no machine controls', () => {
+    const bar = root(h(SafetyBar, { build, variant: 'page' }));
     expect(text(one(bar, byAttr('data-safety', 'W1')))).toBe(w1());
     expect(text(one(bar, byAttr('data-version')))).toBe(versionLabel(build));
     expect(all(bar, byAttr('data-safety', 'W7'))).toEqual([]);
+    expect(all(bar, (e) => e.tag === 'button')).toEqual([]);
+  });
+
+  it('workspace variant: W1 only, as a labelled region', () => {
+    const bar = root(h(SafetyBar, { build, variant: 'workspace' }));
+    expect(bar.props['role']).toBe('region');
+    expect(bar.props['aria-label']).toBe('Safety');
+    expect(text(one(bar, byAttr('data-safety', 'W1')))).toBe(w1());
+    expect(all(bar, byAttr('data-version'))).toEqual([]);
     expect(all(bar, (e) => e.tag === 'button')).toEqual([]);
   });
 });

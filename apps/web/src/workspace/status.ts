@@ -1,0 +1,110 @@
+/**
+ * What the machine strip says, in plain words (WORKSPACE_TENETS 3 and 4),
+ * from the session snapshot the worker posted. Unknown is never shown as
+ * zero: a value the board has not reported reads as an em dash.
+ *
+ * Pure: the same view gives the same words.
+ */
+import { boardText } from '@synthetos/safety';
+import type { LiveView } from './model.ts';
+
+export const UNKNOWN = '—';
+
+export type StripTone = 'off' | 'live' | 'run' | 'hold' | 'alarm' | 'warn';
+
+export interface Readout {
+  readonly label: string;
+  readonly value: string;
+  readonly unit?: string;
+  readonly title: string;
+}
+
+export interface StripStatus {
+  readonly connected: boolean;
+  readonly title: string;
+  readonly name: string;
+  readonly tone: StripTone;
+  readonly pill: { readonly text: string; readonly tone: 'live' | 'warn' | 'danger' | 'ok' } | null;
+  readonly text: string | null;
+  readonly readouts: readonly Readout[];
+}
+
+/** A number with a thin-space thousands separator, as the prototype shows them. */
+export function num(n: number, digits = 0): string {
+  const fixed = Math.abs(n).toFixed(digits);
+  const [int, frac] = fixed.split('.') as [string, string | undefined];
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${n < 0 ? '−' : ''}${grouped}${frac === undefined ? '' : `.${frac}`}`;
+}
+
+/** A coordinate with three decimals and a true minus sign, or the em dash. */
+export function coord(n: number | null | undefined): string {
+  return typeof n === 'number' && Number.isFinite(n) ? `${n < 0 ? '−' : ''}${Math.abs(n).toFixed(3)}` : UNKNOWN;
+}
+
+/** The board as a person reads it: "TinyG v8 · 450.01 · SIM-EN-0001". */
+export function boardLabel(view: LiveView): string {
+  const s = view.message?.snapshot ?? null;
+  const id = s?.identity ?? null;
+  if (s === null || s.base === 'NOT_CONNECTED') return 'No board connected';
+  const family = s.classification?.dialectId?.startsWith('g2') === true ? 'g2core' : 'TinyG';
+  const parts: string[] = [];
+  parts.push(id?.hv === undefined ? family : `${family} v${boardText(String(id.hv))}`);
+  if (typeof id?.fb === 'number') parts.push(`firmware ${id.fb.toFixed(2)}`);
+  const boardId = boardText(id?.id);
+  if (boardId !== '') parts.push(boardId);
+  return parts.join(' · ');
+}
+
+const MOVING = new Set(['running', 'jogging', 'homing', 'probing']);
+const ALARM = new Set(['alarm', 'shutdown', 'panic', 'softAlarm', 'interlock']);
+
+function units(view: LiveView): string {
+  const u = view.message?.dro.units ?? null;
+  return u === 'in' ? 'in/min' : u === 'mm' ? 'mm/min' : 'units/min';
+}
+
+function readouts(view: LiveView): readonly Readout[] {
+  const live = view.message?.snapshot.live;
+  const feed = typeof live?.feed === 'number' ? live.feed : null;
+  const vel = typeof live?.vel === 'number' ? live.vel : null;
+  const line = typeof live?.line === 'number' && live.line > 0 ? live.line : null;
+  const feedValue = feed === null && vel === null ? UNKNOWN : vel !== null && feed !== null ? `${num(vel)} / ${num(feed)}` : num((feed ?? vel) as number);
+  return [
+    {
+      label: 'Feed',
+      value: feedValue,
+      unit: feedValue === UNKNOWN ? '' : units(view),
+      title: 'Actual velocity over commanded feed, from the controller’s status reports. A dash means not reported yet.',
+    },
+    { label: 'Spindle, commanded', value: UNKNOWN, title: 'No spindle command was sent from this page. TinyG has no spindle speed sensor: Run shows the last commanded speed, never an actual speed.' },
+    { label: 'Coolant', value: UNKNOWN, title: 'No coolant command was sent from this page. The controller does not report coolant.' },
+    { label: 'Job', value: line === null ? UNKNOWN : `line ${num(line)}`, title: line === null ? 'No job is running from this page. Running jobs arrives in a later phase.' : 'The line the controller reports executing.' },
+  ];
+}
+
+export function stripStatus(view: LiveView, machineName: string | null): StripStatus {
+  const s = view.message?.snapshot ?? null;
+  const name = `${machineName ?? 'No machine profile'} · ${boardLabel(view)}`;
+  const entry = view.entry.step;
+  if (s === null || s.base === 'NOT_CONNECTED') {
+    const title = entry === 'checking' ? 'Checking before connect' : entry === 'opening' ? 'Choosing the port' : entry === 'c1' ? 'Confirm to connect' : 'Not connected';
+    return { connected: false, title, name: machineName ?? 'No board connected', tone: 'off', pill: null, text: null, readouts: [] };
+  }
+  const base = { connected: true, name, readouts: readouts(view) };
+  const o = s.overlays;
+  if (o.includes('LOST')) return { ...base, title: 'Connection lost', tone: 'alarm', pill: { text: 'Lost', tone: 'danger' }, text: 'The machine may still be moving. Use your E-stop if anything is unsafe.' };
+  if (o.includes('FAULT')) return { ...base, title: 'Fault', tone: 'alarm', pill: { text: 'Fault', tone: 'danger' }, text: s.fault?.detail ?? 'The session stopped trusting the link.' };
+  if (o.includes('ORPHANED_MOTION')) return { ...base, title: 'Motion this page did not send', tone: 'alarm', pill: { text: 'Check the machine', tone: 'danger' }, text: 'Held or queued moves from a previous session. Use Stop job or your E-stop.' };
+  if (s.base === 'OPENING' || s.base === 'PORT_REQUEST' || s.base === 'IDENTIFYING') return { ...base, title: 'Identifying the board', tone: 'live', pill: null, text: s.probe === null ? 'Asking the board what it is…' : `Asking the board what it is: ${s.probe.answered} of ${s.probe.of} answers` };
+  if (s.base === 'READING') return { ...base, title: 'Reading the board', tone: 'live', pill: null, text: 'Reading state and settings. Nothing is written.' };
+  if (s.base === 'BLOCKED') return { ...base, title: 'Not the selected board', tone: 'alarm', pill: { text: 'Blocked', tone: 'danger' }, text: 'Nothing is sent to this board.' };
+  if (o.includes('STALE')) return { ...base, title: 'No status from the machine', tone: 'warn', pill: { text: 'Stale', tone: 'warn' }, text: 'What you see may be out of date.' };
+  const cls = s.live.machineClass;
+  if (cls !== undefined && MOVING.has(cls)) return { ...base, title: 'Moving', tone: 'run', pill: null, text: null };
+  if (cls !== undefined && ALARM.has(cls)) return { ...base, title: 'Alarm', tone: 'alarm', pill: { text: 'Alarm', tone: 'danger' }, text: 'The controller reports an alarm. Check the machine.' };
+  if (o.includes('UNKNOWN')) return { ...base, title: 'Connected · state unknown', tone: 'warn', pill: { text: 'Unknown', tone: 'warn' }, text: 'The previous session ended while connected. Check the machine and re-home.' };
+  if (o.includes('NEEDS_REVIEW')) return { ...base, title: 'Connected · read only', tone: 'live', pill: { text: 'Needs review', tone: 'warn' }, text: 'The board’s settings differ from this computer’s reference.' };
+  if (o.includes('READ_ONLY')) return { ...base, title: 'Connected · read only', tone: 'live', pill: { text: 'Read only', tone: 'live' }, text: 'Phase 1: positions and settings are read, nothing is written.' };
+  return { ...base, title: 'Machine idle', tone: 'live', pill: null, text: null };
+}

@@ -13,7 +13,7 @@ import { CANNOT_GUARANTEE, w1, w10, w16, w22, w2Label } from '@synthetos/safety'
 import { BODY_MARKER, prerenderPage } from '../build/prerender.ts';
 import { PAGES } from '../src/pages/registry.ts';
 import { OUTBOUND, OUTBOUND_URLS } from '../src/pages/outbound.ts';
-import { Shell } from '../src/shell/Shell.ts';
+import { AppShell } from '../src/workspace/AppShell.ts';
 
 const web = resolve(import.meta.dirname, '..');
 const build = { version: '0.0.0', sha: 'b'.repeat(40) };
@@ -135,6 +135,6 @@ describe('outbound links', () => {
   });
 
   it('the shell, which ships in the client bundle, links to no other origin', () => {
-    expect(renderToString(h(Fragment, null, h(Shell, { build })))).not.toMatch(/:\/\//);
+    expect(renderToString(h(Fragment, null, h(AppShell, { build })))).not.toMatch(/:\/\//);
   });
 });

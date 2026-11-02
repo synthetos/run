@@ -5,10 +5,8 @@
  * serves the next load.
  */
 import type { Finding } from '@synthetos/gcode';
-import type { RunTrustedTypes } from '../security/tt.ts';
 import type { PreviewProgress, PreviewRequest, PreviewResult } from './pipeline.ts';
 import type { FromGcodeWorker, ToGcodeWorker } from './protocol.ts';
-import gcodeWorkerUrl from './gcode.worker.ts?worker&url';
 
 export const GCODE_WORKER_NAME = 'gcode';
 
@@ -99,10 +97,4 @@ export function createGcodePreviewClient(spawn: () => WorkerLike): GcodePreviewC
     cancel: stop,
     dispose: stop,
   };
-}
-
-/** Spawns the real worker through the `rs-worker` Trusted Types policy; null without Trusted Types (fail closed). */
-export function gcodeWorkerSpawner(tt: RunTrustedTypes | null): (() => WorkerLike) | null {
-  if (tt === null) return null;
-  return () => new Worker(tt.workerScriptUrl(gcodeWorkerUrl) as unknown as string, { type: 'module', name: GCODE_WORKER_NAME }) as unknown as WorkerLike;
 }

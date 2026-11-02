@@ -9,7 +9,6 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { h } from 'preact';
-import { signal } from '@preact/signals';
 import type { SessionSnapshot } from '@synthetos/machine';
 import type { Decision } from '@synthetos/safety';
 import { STOP_TEXT, w10, w29, w2Label, w30 } from '@synthetos/safety';
@@ -19,7 +18,10 @@ import { forgetDeviceSafety, memoryDeviceSafety } from '../src/live/deviceSafety
 import { ObserverPanel } from '../src/live/ObserverPanel.ts';
 import { StopControls } from '../src/live/stopControls.ts';
 import { installEscapeStop, LockWatcher, NO_ROLE, TabStop, type StopOutcome, type Timers } from '../src/live/tabStop.ts';
-import { SafetyBar, type StopBarView } from '../src/shell/SafetyBar.ts';
+import { type StopBarView } from '../src/shell/SafetyBar.ts';
+import { MachineStrip } from '../src/workspace/MachineStrip.ts';
+import { stripStatus } from '../src/workspace/status.ts';
+import { INITIAL_LIVE_VIEW } from '../src/workspace/model.ts';
 import { all, one, root, text } from './tree.ts';
 
 // ---------------------------------------------------------------- fakes
@@ -382,6 +384,7 @@ describe('StopControls', () => {
   function controls() {
     const sent: string[] = [];
     const own = vi.fn();
+    const stopOwn = vi.fn();
     let resolve!: (o: StopOutcome) => void;
     const c = new StopControls({
       broadcast: (action) => {
@@ -389,10 +392,54 @@ describe('StopControls', () => {
         return new Promise((r) => (resolve = r));
       },
       pauseOwnWorker: own,
+      stopJobOwnWorker: stopOwn,
       timers: realTimers,
     });
-    return { c, sent, own, settle: (o: StopOutcome) => resolve(o) };
+    return { c, sent, own, stopOwn, settle: (o: StopOutcome) => resolve(o) };
   }
+
+  const at = (machineClass: string, extra: Record<string, unknown> = {}): SessionSnapshot =>
+    ({ base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY'], live: { machineClass, vel: 0, pos: {}, mpo: {} }, ...extra }) as unknown as SessionSnapshot;
+
+  it('Stop job in a LIVE tab goes to its own worker and to every worker, synchronously (OD-6: never gated)', () => {
+    const { c, sent, stopOwn } = controls();
+    c.stopJob();
+    expect(stopOwn).not.toHaveBeenCalled();
+    expect(sent).toEqual(['stopJob']);
+    c.setLive(true);
+    c.stopJob();
+    expect(stopOwn).toHaveBeenCalledTimes(1);
+    expect(sent).toEqual(['stopJob', 'stopJob']);
+  });
+
+  it('Pause and Stop job are quiet at rest and prominent while moving, held, orphaned or lost', () => {
+    const { c } = controls();
+    c.setLive(true);
+    c.setSnapshot(at('idle'));
+    expect(c.view.value).toMatchObject({ available: true, prominent: false });
+    for (const s of [at('running'), at('held'), at('idle', { overlays: ['ORPHANED_MOTION'] }), at('idle', { overlays: ['LOST'] }), at('idle', { live: { machineClass: 'idle', vel: 12, pos: {}, mpo: {} } })]) {
+      c.setSnapshot(s);
+      expect(c.view.value.prominent).toBe(true);
+      expect(c.view.value.available).toBe(true);
+    }
+    c.setSnapshot(at('end'));
+    expect(c.view.value.prominent).toBe(false);
+  });
+
+  it('a Pause pressed while the machine was at rest is reported as "nothing changed"', async () => {
+    const { c, settle } = controls();
+    c.setLive(true);
+    c.setSnapshot(at('idle'));
+    c.pause();
+    settle({ kind: 'delivered', action: 'pause', machines: [{ machine: 'synthetos-machine:A', delivered: true, accepted: true }] });
+    await flush();
+    expect(c.view.value.outcome).toMatchObject({ kind: 'delivered', action: 'pause', idle: true });
+    c.setSnapshot(at('running'));
+    c.pause();
+    settle({ kind: 'delivered', action: 'pause', machines: [{ machine: 'synthetos-machine:A', delivered: true, accepted: true }] });
+    await flush();
+    expect(c.view.value.outcome?.idle).toBeUndefined();
+  });
 
   it('Pause in a LIVE tab goes to its own worker and to every worker, synchronously; PAUSE REQUESTED until a hold is reported, then W30', () => {
     const { c, sent, own } = controls();
@@ -401,10 +448,10 @@ describe('StopControls', () => {
     expect(own).toHaveBeenCalledTimes(1);
     expect(sent).toEqual(['pause']);
     expect(c.view.value.band).toBe('pause-requested');
-    c.setSnapshot({ live: { machineClass: 'held', pos: {}, mpo: {} } } as unknown as SessionSnapshot);
+    c.setSnapshot({ base: 'CONNECTED_UNKNOWN', overlays: [], live: { machineClass: 'held', pos: {}, mpo: {} } } as unknown as SessionSnapshot);
     expect(c.view.value.band).toBe('held');
     c.setLive(false);
-    expect(c.view.value).toEqual({ available: false, band: null, outcome: null });
+    expect(c.view.value).toEqual({ available: false, prominent: false, band: null, outcome: null });
   });
 
   it('Pause in a tab that is not LIVE still broadcasts (never gated) but sends no own intent', () => {
@@ -443,29 +490,53 @@ describe('StopControls', () => {
 
 // ---------------------------------------------------------------- rendering
 
-describe('safety bar and observer panel', () => {
-  const build = { version: '1.2.3', sha: '0123456789abcdef0123456789abcdef01234567' };
-  const bar = (view: StopBarView, onPause = (): void => undefined) => root(h(SafetyBar, { build, variant: 'workspace', stop: signal(view), onPause }));
+describe('machine strip stop controls and observer panel', () => {
+  const status = stripStatus(INITIAL_LIVE_VIEW, null);
+  const bar = (view: Omit<StopBarView, 'prominent'> & { prominent?: boolean }, onPause = (): void => undefined, onStopJob = (): void => undefined) =>
+    root(h(MachineStrip, { status, stop: { prominent: false, ...view }, previousSession: false, onPause, onStopJob }));
 
-  it('a hold shows W30 with W10, never "STOPPED"', () => {
+  it('a hold shows W30 with W10 and the plain "Paused" state, never "STOPPED"', () => {
     const el = bar({ available: true, band: 'held', outcome: null });
     const band = one(el, (e) => e.props['data-state'] === 'held');
     expect(band.props['data-safety']).toBe('W30');
     expect(text(band)).toContain(w30());
     expect(text(band)).toContain(w10());
+    expect(text(one(el, (e) => e.props['data-strip'] === 'state'))).toBe(STOP_TEXT.paused);
     expect(text(el)).not.toMatch(/STOPPED/);
     expect(text(bar({ available: true, band: 'pause-requested', outcome: null }))).toContain(STOP_TEXT.pauseRequested);
   });
 
-  it('the W2 button is enabled and acts while available; disabled otherwise', () => {
+  it('Pause (W2) and Stop job are enabled and act while available; disabled otherwise', () => {
     const onPause = vi.fn();
-    const enabled = one(bar({ available: true, band: null, outcome: null }, onPause), (e) => e.tag === 'button' && e.props['class'] === 'stop-button');
-    expect(enabled.props['disabled']).toBeUndefined();
-    expect(text(enabled)).toContain(w2Label());
-    (enabled.props['onClick'] as () => void)();
+    const onStopJob = vi.fn();
+    const strip = bar({ available: true, band: null, outcome: null }, onPause, onStopJob);
+    const pause = one(strip, (e) => e.tag === 'button' && e.props['data-safety'] === 'W2');
+    expect(pause.props['disabled']).toBeUndefined();
+    expect(text(pause)).toBe(w2Label());
+    expect(w2Label()).toBe('Pause');
+    (pause.props['onClick'] as () => void)();
     expect(onPause).toHaveBeenCalledTimes(1);
-    const disabled = one(bar({ available: false, band: null, outcome: null }), (e) => e.tag === 'button' && e.props['class'] === 'stop-button');
-    expect(disabled.props['disabled']).toBe(true);
+    const stop = one(strip, (e) => e.tag === 'button' && e.props['data-action'] === 'stop-job');
+    expect(text(stop)).toBe(STOP_TEXT.stopJob);
+    expect(text(stop)).not.toMatch(/spindle/i);
+    (stop.props['onClick'] as () => void)();
+    expect(onStopJob).toHaveBeenCalledTimes(1);
+    const off = bar({ available: false, band: null, outcome: null });
+    expect(one(off, (e) => e.tag === 'button' && e.props['data-safety'] === 'W2').props['disabled']).toBe(true);
+    expect(one(off, (e) => e.tag === 'button' && e.props['data-action'] === 'stop-job').props['disabled']).toBe(true);
+  });
+
+  it('quiet while idle and prominent while moving: same buttons, never disabled by it', () => {
+    const quiet = bar({ available: true, band: null, outcome: null, prominent: false });
+    const loud = bar({ available: true, band: null, outcome: null, prominent: true });
+    for (const [el, want] of [[quiet, 'false'], [loud, 'true']] as const) {
+      const buttons = all(el, (e) => e.tag === 'button');
+      expect(buttons).toHaveLength(2);
+      for (const b of buttons) {
+        expect(b.props['data-prominent']).toBe(want);
+        expect(b.props['disabled']).toBeUndefined();
+      }
+    }
   });
 
   it('an unacknowledged request shows STOP NOT DELIVERED with the machine', () => {
@@ -475,12 +546,14 @@ describe('safety bar and observer panel', () => {
     expect(text(line)).toBe(`${STOP_TEXT.notDelivered} (BOARD-A)`);
   });
 
-  it('a delivered Stop job or Spindle off request says it went out as Pause (spindle stays on), never as a stopped job (Phase 1)', () => {
-    const delivered = (action: 'pause' | 'stopJob' | 'spindleOff') =>
-      text(one(bar({ available: true, band: null, outcome: { kind: 'delivered', action, machines: [{ machine: 'synthetos-machine:BOARD-A', delivered: true }] } }), (e) => e.props['data-stop-outcome'] === 'delivered'));
-    expect(delivered('pause')).toBe('Delivered to BOARD-A');
-    expect(delivered('stopJob')).toBe(`Delivered to BOARD-A as ${w2Label()}`);
-    expect(delivered('spindleOff')).toBe(`Delivered to BOARD-A as ${w2Label()}`);
+  it('a delivered request says what happened in plain words; Stop job and Spindle off went out as Pause (Phase 1)', () => {
+    const delivered = (action: 'pause' | 'stopJob' | 'spindleOff', idle?: boolean) =>
+      text(one(bar({ available: true, band: null, outcome: { kind: 'delivered', action, machines: [{ machine: 'synthetos-machine:BOARD-A', delivered: true }], ...(idle === undefined ? {} : { idle }) } }), (e) => e.props['data-stop-outcome'] === 'delivered'));
+    expect(delivered('pause')).toBe('Pause delivered to BOARD-A');
+    expect(delivered('pause', true)).toBe(STOP_TEXT.pausedIdle);
+    expect(STOP_TEXT.pausedIdle).toBe('Paused: the machine was idle, nothing changed');
+    expect(delivered('stopJob')).toBe(`Stop job delivered to BOARD-A as ${w2Label()}. Use your E-stop to remove power.`);
+    expect(delivered('spindleOff')).toContain(`as ${w2Label()}`);
   });
 
   it('the observer panel offers the two requests, and W29 replaces them when the lock is released', () => {

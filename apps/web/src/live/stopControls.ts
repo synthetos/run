@@ -28,13 +28,37 @@ type SessionSnapshot = SnapshotMessage['snapshot'];
 /** How long a "delivered" line stays in the safety bar. A STOP NOT DELIVERED stays until the next request. */
 export const DELIVERED_SHOWN_MS = 5000;
 
-export const IDLE_VIEW: StopBarView = Object.freeze({ available: false, band: null, outcome: null });
+export const IDLE_VIEW: StopBarView = Object.freeze({ available: false, prominent: false, band: null, outcome: null });
+
+/** Machine classes during which something may be moving or held (Pause and Stop job are shown prominently). */
+const MOVING_CLASSES: ReadonlySet<string> = new Set(['running', 'held', 'probing', 'homing', 'jogging', 'programStop', 'unknown', 'initializing']);
+
+/**
+ * True when anything could be moving, held or queued on this tab's machine: a moving or held class, a
+ * non-zero velocity, motion this page did not send (ORPHANED_MOTION), or a lost link (it may still be
+ * moving). Pause and Stop job are then prominent; otherwise quiet. They are never disabled by this.
+ */
+export function mayBeMoving(snapshot: SessionSnapshot | null): boolean {
+  if (snapshot === null || snapshot.base === 'NOT_CONNECTED') return false;
+  if (snapshot.overlays.includes('ORPHANED_MOTION') || snapshot.overlays.includes('LOST') || snapshot.overlays.includes('FAULT')) return true;
+  const live = snapshot.live;
+  if (typeof live.vel === 'number' && live.vel !== 0) return true;
+  return live.machineClass !== undefined && MOVING_CLASSES.has(live.machineClass);
+}
+
+/** True when the last report says the machine is at rest (idle or ended) with nothing queued from elsewhere. */
+export function atRest(snapshot: SessionSnapshot | null): boolean {
+  if (snapshot === null || snapshot.base === 'NOT_CONNECTED' || mayBeMoving(snapshot)) return false;
+  return snapshot.live.machineClass === 'idle' || snapshot.live.machineClass === 'end';
+}
 
 export interface StopControlsDeps {
   /** Broadcasts a stop request and resolves with each machine's outcome (TabStop.request). */
   readonly broadcast: (action: StopAction) => Promise<StopOutcome>;
   /** Sends the feedhold intent straight to this tab's worker (only called while LIVE). */
   readonly pauseOwnWorker: () => void;
+  /** Sends the Stop job intent straight to this tab's worker (only called while LIVE; Phase 1 answers with `!`). */
+  readonly stopJobOwnWorker?: () => void;
   readonly timers: Timers;
 }
 
@@ -50,6 +74,8 @@ export class StopControls {
   #outcome: StopBarView['outcome'] = null;
   #clearOutcome: unknown = null;
   #requests = 0;
+  /** The machine was at rest when the latest Pause was pressed (the message then says nothing changed). */
+  #idleAtPress = false;
 
   constructor(deps: StopControlsDeps) {
     this.#deps = deps;
@@ -61,6 +87,7 @@ export class StopControls {
 
   /** The W2 button and Escape. */
   pause(): void {
+    this.#idleAtPress = this.#live && atRest(this.#snapshot);
     if (this.#live) {
       this.#holdWanted = true;
       try {
@@ -72,8 +99,26 @@ export class StopControls {
     this.request('pause');
   }
 
+  /**
+   * The Stop job button. In a LIVE tab the intent goes straight to this tab's worker, then a `stopJob`
+   * request is broadcast to every machine worker of this browser, like Pause (SAFETY §4.3). Phase 1
+   * answers Stop job with `!` only (SAFETY §4.4 READ_ONLY row); the outcome line says so.
+   */
+  stopJob(): void {
+    this.#idleAtPress = false;
+    if (this.#live) {
+      try {
+        this.#deps.stopJobOwnWorker?.();
+      } catch {
+        // The broadcast below still reaches this tab's worker.
+      }
+    }
+    this.request('stopJob');
+  }
+
   /** A stop request to every machine worker (the observer's buttons, and step 2 of Pause). */
   request(action: StopAction): void {
+    if (action !== 'pause') this.#idleAtPress = false;
     const n = ++this.#requests;
     const sent = this.#deps.broadcast(action);
     this.#draw();
@@ -107,7 +152,10 @@ export class StopControls {
   #show(outcome: StopOutcome): void {
     if (this.#clearOutcome !== null) this.#deps.timers.clearTimeout(this.#clearOutcome);
     this.#clearOutcome = null;
-    this.#outcome = outcome.kind === 'no-machine' ? null : { kind: outcome.kind, action: outcome.action, machines: outcome.machines };
+    this.#outcome =
+      outcome.kind === 'no-machine'
+        ? null
+        : { kind: outcome.kind, action: outcome.action, machines: outcome.machines, ...(outcome.kind === 'delivered' && outcome.action === 'pause' && this.#idleAtPress ? { idle: true } : {}) };
     if (outcome.kind === 'delivered') {
       this.#clearOutcome = this.#deps.timers.setTimeout(() => {
         this.#clearOutcome = null;
@@ -123,6 +171,7 @@ export class StopControls {
     const held = this.#live && this.#snapshot?.live.machineClass === 'held';
     this.view.value = Object.freeze({
       available: this.#live || role.observing || role.released.length > 0,
+      prominent: (this.#live && (mayBeMoving(this.#snapshot) || this.#holdWanted)) || role.released.length > 0,
       band: held ? 'held' : this.#live && this.#holdWanted ? 'pause-requested' : null,
       outcome: this.#outcome,
     });

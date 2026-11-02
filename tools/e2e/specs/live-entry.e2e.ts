@@ -42,21 +42,21 @@ test('T-S17: a liveSession marker from a previous session shows W6 instead of NO
   );
   await page.reload();
   await ready(page);
-  const band = page.locator('[data-region="safety-bar"] [data-safety="W6"]');
+  const band = page.locator('[data-region="machine-strip"] [data-safety="W6"]');
   await expect(band).toHaveText(w6());
-  await expect(page.locator('[data-region="safety-bar"] [data-safety="W7"]')).toHaveCount(0);
-  const axe = await new AxeBuilder({ page }).include('[data-region="safety-bar"]').withTags(['wcag2a', 'wcag2aa']).analyze();
+  await expect(page.locator('[data-region="machine-strip"] [data-safety="W7"]')).toHaveCount(0);
+  const axe = await new AxeBuilder({ page }).include('[data-region="safety-bar"]').include('[data-region="machine-strip"]').withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(axe.violations.map((v) => v.id)).toEqual([]);
 });
 
 for (const colorScheme of ['light', 'dark'] as const) {
   for (const width of [390, 1280] as const) {
-    test(`the Connect control is a themed button inside the Workspace sheet (${colorScheme}, ${width} px), axe clean`, async ({ page }) => {
+    test(`the Connect control is a themed button in the Run view's connect card (${colorScheme}, ${width} px), axe clean`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.emulateMedia({ colorScheme });
       await page.goto('/');
       await ready(page);
-      const connect = page.locator('.centre-placeholder .sheet-body [data-entry="idle"] [data-action="connect"]');
+      const connect = page.locator('[data-screen="run"] [data-region="connect"] [data-entry="idle"] [data-action="connect"]');
       await expect(connect).toBeVisible();
       const style = await connect.evaluate((el) => {
         const s = getComputedStyle(el);
@@ -68,8 +68,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
       expect(hex(style.bg)).toBe(style.ink);
       expect(style.border).toBeGreaterThanOrEqual(1);
       expect(style.borderStyle).toBe('solid');
-      expect(style.minHeight).toBe('40px');
-      const results = await new AxeBuilder({ page }).include('.centre-placeholder').analyze();
+      expect(style.minHeight).toBe('36px');
+      const results = await new AxeBuilder({ page }).include('[data-region="connect"]').analyze();
       expect(results.violations).toEqual([]);
     });
   }

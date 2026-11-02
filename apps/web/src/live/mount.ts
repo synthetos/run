@@ -1,33 +1,37 @@
 /**
  * Wires LIVE entry into the workspace page (ROADMAP P1-05). Called by the
  * workspace entry after hydration with the build channel and the machine
- * worker. Everything here is UI/auth layer: the worker gets only `open`,
- * `close` and `subscribe`, and never learns about identity or the advisory.
+ * worker. Everything here is UI/auth layer: the worker gets only `prepare`,
+ * `open`, `close`, `subscribe`, `read`, `drift` and `transcript`, and never
+ * learns about identity or the advisory.
+ *
+ * Stage 1 workspace: this module is the document-lifetime session owner.
+ * It publishes what the views show through the workspace model's signals
+ * (workspace/model.ts) instead of rendering into containers, so switching
+ * views never re-creates the subscription, the Connect flow or the reads.
  */
-import { h, render } from 'preact';
 import type { Signal } from '@preact/signals';
 import { environmentForOrigin } from '@synthetos/protocol';
 import { fetchIdentity, fetchSafetyAdvisory } from '../cloud/live.ts';
 import type { BuildChannel } from '../channel/channel.ts';
 import { AlarmTone } from '../machine-ui/alarm.ts';
-import { AxisModes, axisModeView } from '../machine-ui/AxisModes.ts';
+import { axisModeView } from '../machine-ui/AxisModes.ts';
 import { EMPTY_AXIS_MODE_SESSION, type AxisModeSession } from '@synthetos/safety';
-import { Dro, lagAt } from '../machine-ui/Dro.ts';
-import { SettingsView } from '../machine-ui/SettingsView.ts';
-import { TranscriptSave, transcriptFileName, type TranscriptStatus } from '../machine-ui/TranscriptSave.ts';
+import { lagAt } from '../machine-ui/Dro.ts';
+import { transcriptFileName, type TranscriptStatus } from '../machine-ui/TranscriptSave.ts';
 import { downloadTranscript } from './transcriptDownload.ts';
 import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
-import { OverlayBanners } from '../machine-ui/OverlayBanners.ts';
 import { callMachineWorker } from '../machine-worker/client.ts';
-import { RPC_VERSION, type MachineReply, type MachineRequest, type SnapshotMessage, type WorkerStatus } from '../machine-worker/rpc.ts';
+import { RPC_VERSION, type MachineReply, type MachineRequest, type SnapshotMessage } from '../machine-worker/rpc.ts';
 import { AdvisoryPoller, checkAdvisory, type AdvisoryCheck, type AdvisoryDeps } from './advisoryGate.ts';
 import { accessProvider, AuthGate, providersFor } from './authGate.ts';
-import { ConnectPanel } from './ConnectPanel.ts';
 import { memoryDeviceSafety, openDeviceSafety, type DeviceSafetyStore } from './deviceSafety.ts';
 import { leaveFullscreen } from './fullscreen.ts';
 import { LiveEntry } from './liveEntry.ts';
 import { windowChooser } from './portChooser.ts';
 import { LiveReadout } from './readout.ts';
+import { backupFileName, SettingsBackup } from './backup.ts';
+import type { BackupStatus, LiveSample, WorkspaceModel } from '../workspace/model.ts';
 import { cleanDisconnect, installLiveLifecycle, previousSessionEnded } from './liveMarker.ts';
 import type { StopControls } from './stopControls.ts';
 
@@ -66,8 +70,8 @@ export interface MountOptions {
   readonly channel: BuildChannel;
   readonly appSha: string;
   readonly worker: Worker | null;
-  readonly container: HTMLElement;
-  readonly bannerContainer: HTMLElement;
+  /** The workspace model the views read (workspace/model.ts). */
+  readonly model: WorkspaceModel;
   readonly previousSession: Signal<boolean>;
   /** P1-06: told when this tab enters or leaves LIVE, and given each snapshot (W30, PAUSE REQUESTED). */
   readonly stopControls: StopControls;
@@ -77,6 +81,8 @@ export interface MountOptions {
 
 /** How often the window re-renders the DRO's age and lag badge between snapshots. */
 export const DRO_TICK_MS = 250;
+/** How much status-report history the Live job tab keeps. */
+export const SAMPLE_WINDOW_MS = 60_000;
 
 export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> {
   let store: DeviceSafetyStore;
@@ -96,7 +102,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     { setInterval: (fn, ms) => setInterval(fn, ms), clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) },
     (blocked) => {
       advisoryBlocked = blocked;
-      draw();
+      publish();
     },
   );
   const alarm = new AlarmTone(typeof AudioContext === 'function' ? () => new AudioContext() : null);
@@ -126,31 +132,31 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
 
   installLiveLifecycle({ addEventListener: (type, listener) => addEventListener(type, listener) }, document, store, () => entry.state.step === 'live', () => new Date());
 
-  let snapshot: WorkerStatus['session'] | null = null;
   let staleSince: number | null = null;
   let droMessage: SnapshotMessage | null = null;
   let droReceivedAt = 0;
+  let samples: LiveSample[] = [];
+  let sampleEpoch = -1;
+  const unavailable = { ok: false as const, message: 'The machine worker is not running in this browser.' };
+  const read = (tokens: readonly string[]) => (worker === null ? Promise.resolve(unavailable) : callMachineWorker(worker, { v: RPC_VERSION, kind: 'read', tokens }));
   // P1-07: the connect-time settings read and the drift check. Reads go through the worker's `read`; nothing here writes.
   const readout = new LiveReadout({
-    read: (tokens) => (worker === null ? Promise.resolve({ ok: false, message: 'The machine worker is not running in this browser.' }) : callMachineWorker(worker, { v: RPC_VERSION, kind: 'read', tokens })),
+    read,
     drift: (epoch) => (worker === null ? Promise.resolve() : callMachineWorker(worker, { v: RPC_VERSION, kind: 'drift', epoch })),
     store,
     now: () => new Date(),
-    onChange: () => draw(),
+    onChange: () => publish(),
   });
-  const droContainer = document.createElement('div');
-  droContainer.dataset['region'] = 'live-readout';
-  options.container.after(droContainer);
-  const transcriptContainer = document.createElement('div');
-  transcriptContainer.dataset['region'] = 'live-transcript';
-  droContainer.after(transcriptContainer);
+  // Board view: "Back up settings", one allowlisted GET at a time (live/backup.ts).
+  const backup = new SettingsBackup();
+  let backupStatus: BackupStatus = { kind: 'idle' };
   let transcriptStatus: TranscriptStatus = { kind: 'idle' };
 
   // P1-08: "Save transcript" asks the worker for the last connection's transcript (it only reads) and downloads it.
   async function saveTranscript(): Promise<void> {
     if (worker === null || transcriptStatus.kind === 'saving') return;
     transcriptStatus = { kind: 'saving' };
-    drawReadout();
+    publish();
     const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'transcript' }).catch((e: unknown) => ({ ok: false as const, message: e instanceof Error ? e.message : String(e) }));
     if (!reply.ok || reply.kind !== 'transcript') {
       transcriptStatus = { kind: 'failed', message: reply.ok ? 'unexpected reply' : reply.message };
@@ -159,12 +165,43 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       downloadTranscript(document, reply.jsonl, name);
       transcriptStatus = { kind: 'saved', name, events: reply.events };
     }
-    drawReadout();
+    publish();
   }
+
+  async function transcriptText(): Promise<string | null> {
+    if (worker === null) return null;
+    const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'transcript' }).catch(() => null);
+    return reply !== null && reply.ok && reply.kind === 'transcript' ? reply.jsonl : null;
+  }
+
+  async function runBackup(): Promise<void> {
+    if (backup.running || readout.phase.kind === 'reading') return;
+    backupStatus = { kind: 'reading', done: 0, of: 1, token: '' };
+    publish();
+    try {
+      const file = await backup.run({
+        read,
+        now: () => new Date(),
+        setTimeout: (fn, ms) => setTimeout(fn, ms),
+        clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+        onProgress: (p) => {
+          backupStatus = { kind: 'reading', ...p };
+          publish();
+        },
+      });
+      const name = backupFileName(file.board.id, new Date(file.takenAt));
+      downloadTranscript(document, `${JSON.stringify(file, null, 2)}\n`, name, 'application/json');
+      backupStatus = { kind: 'saved', name, answered: Object.keys(file.groups).length, unanswered: file.unanswered.length };
+    } catch (e) {
+      backupStatus = { kind: 'failed', message: e instanceof Error ? e.message : String(e) };
+    }
+    publish();
+  }
+
   setInterval(() => {
     if (droMessage !== null && droMessage.dro.machineSource.ageMs !== null) {
       updateMarker();
-      drawReadout();
+      publish();
     }
   }, DRO_TICK_MS);
 
@@ -177,6 +214,21 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     const ageMs = m.ageMs + (performance.now() - droReceivedAt);
     options.marker.value = { x: m.x, y: m.y, z: m.z, ageMs, lag: lagAt(ageMs, droMessage.snapshot.overlays.includes('STALE'), droMessage.lag) };
   }
+
+  function sample(message: SnapshotMessage, at: number): void {
+    const s = message.snapshot;
+    if (s.epoch !== sampleEpoch) {
+      sampleEpoch = s.epoch;
+      samples = [];
+    }
+    if (s.base === 'NOT_CONNECTED') return;
+    const live = s.live;
+    const next: LiveSample = { t: at, line: live.line ?? null, feed: live.feed ?? null, vel: live.vel ?? null, qr: live.qr ?? null, stat: live.stat ?? null };
+    const last = samples.at(-1);
+    if (last !== undefined && last.line === next.line && last.feed === next.feed && last.vel === next.vel && last.qr === next.qr && last.stat === next.stat && at - last.t < 1000) return;
+    samples = [...samples.filter((x) => at - x.t <= SAMPLE_WINDOW_MS), next];
+  }
+
   if (worker !== null) {
     const channel = new MessageChannel();
     channel.port1.onmessage = (event: MessageEvent) => {
@@ -184,13 +236,15 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       if (message.kind !== 'snapshot') return;
       droMessage = message as SnapshotMessage;
       droReceivedAt = performance.now();
-      snapshot = droMessage.snapshot;
+      const snapshot = droMessage.snapshot;
       readout.onSnapshot(snapshot);
+      backup.onSnapshot(snapshot);
+      sample(droMessage, droReceivedAt);
       updateMarker();
       staleSince = snapshot.overlays.includes('STALE') ? (staleSince ?? Date.now()) : null;
       alarm.sync(snapshot);
       options.stopControls.setSnapshot(snapshot);
-      draw();
+      publish();
     };
     worker.postMessage({ v: RPC_VERSION, kind: 'subscribe' }, [channel.port2]);
   }
@@ -202,22 +256,6 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       advisoryBlocked = null;
       entry.reset();
     });
-  }
-
-  function draw(): void {
-    render(
-      h(ConnectPanel, {
-        state: entry.state,
-        advisoryBlocked,
-        onConnect: () => void entry.begin(),
-        onConfirm: (ticked) => void entry.confirm(ticked),
-        onCancel: () => entry.reset(),
-        onDisconnect: () => void disconnect(),
-      }),
-      options.container,
-    );
-    render(h(OverlayBanners, { snapshot, staleElapsedMs: staleSince === null ? 0 : Date.now() - staleSince }), options.bannerContainer);
-    drawReadout();
   }
 
   // Row 35 / BENCH-P100-5: the axes that read inhibited on this link (reset per link epoch).
@@ -239,28 +277,38 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     return view;
   }
 
-  function drawReadout(): void {
+  function publish(): void {
     const connected = droMessage !== null && droMessage.snapshot.base !== 'NOT_CONNECTED';
-    render(
-      connected
-        ? h(
-            'div',
-            { class: 'live-readout' },
-            h(Dro, { message: droMessage as SnapshotMessage, elapsedMs: performance.now() - droReceivedAt }),
-            h(AxisModes, { view: axisModes(droMessage as SnapshotMessage) }),
-            h(SettingsView, { dialectId: readout.dialectId, phase: readout.phase, settings: readout.settings, onKeep: () => void readout.keepBoardSettings().catch(() => undefined) }),
-          )
-        : null,
-      droContainer,
-    );
-    // Shown once a link has opened in this tab (epoch > 0), and still after Disconnect or LOST.
-    render(droMessage !== null && droMessage.snapshot.epoch > 0 ? h(TranscriptSave, { status: transcriptStatus, onSave: () => void saveTranscript() }) : null, transcriptContainer);
+    options.model.live.value = Object.freeze({
+      entry: entry.state,
+      advisoryBlocked,
+      message: droMessage,
+      receivedAt: droReceivedAt,
+      now: performance.now(),
+      staleSince,
+      readout: { dialectId: readout.dialectId, phase: readout.phase, settings: readout.settings },
+      axisModes: connected ? axisModes(droMessage as SnapshotMessage) : null,
+      transcript: transcriptStatus,
+      backup: backupStatus,
+      samples,
+    });
   }
+
+  options.model.actions.value = Object.freeze({
+    connect: () => void entry.begin(),
+    confirm: (ticked: readonly boolean[]) => void entry.confirm(ticked),
+    cancel: () => entry.reset(),
+    disconnect: () => void disconnect(),
+    saveTranscript: () => void saveTranscript(),
+    keepBoardSettings: () => void readout.keepBoardSettings().catch(() => undefined),
+    backup: () => void runBackup(),
+    transcriptText,
+  });
 
   entry.subscribe(() => {
     options.stopControls.setLive(entry.state.step === 'live');
-    draw();
+    publish();
   });
-  draw();
+  publish();
   return entry;
 }

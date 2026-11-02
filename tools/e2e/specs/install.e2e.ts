@@ -71,7 +71,8 @@ test('nothing depends on display-mode, so an installed window shows the same saf
   expect(dependsOnDisplayMode).toEqual({ css: [], js: 0 });
   const bar = page.locator('[data-region="safety-bar"]');
   await expect(bar.locator('[data-safety="W1"]')).toHaveText(w1());
-  await expect(bar.locator('[data-safety="W7"]')).toHaveText(w7());
-  await expect(bar.locator('[data-version]')).toBeVisible();
-  await expect(bar.getByRole('button', { name: w2Label() })).toBeDisabled();
+  const strip = page.locator('[data-region="machine-strip"]');
+  await expect(strip.locator('[data-safety="W7"]')).toHaveText(w7());
+  await expect(page.locator('[data-version]')).toBeAttached();
+  await expect(strip.getByRole('button', { name: w2Label(), exact: true })).toBeDisabled();
 });

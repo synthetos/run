@@ -54,6 +54,9 @@ test('the DRO machine position and the marker move only on polled mpo reads; set
   expect(after.filter((w) => w === '{"mpo":null}\n').length).toBeGreaterThan(before);
 
   // The settings were read through the allowlist (group GETs only) and recorded as this computer's reference.
+  // Stage 1 workspace: they are on the Board view's Settings tab.
+  await page.locator('[data-region="rail"] [data-view="board"]').click();
+  await page.locator('[data-board-tab="settings"]').click();
   await expect(page.locator('[data-settings="recorded"]')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('details[data-group="x"]')).toContainText('How the X axis moves');
   // Row 35 / BENCH-P100-5: the axis-mode facts are rendered from the same read (the simulated board's modes), not hidden.
@@ -66,7 +69,10 @@ test('the DRO machine position and the marker move only on polled mpo reads; set
   }
   for (const denied of ['{"md":null}\n', '{"me":null}\n', '{"clear":null}\n']) expect(after).not.toContain(denied);
 
-  // P1-08: Save transcript downloads the worker's {t, dir, hex} JSONL with a dated name, next to the board-id warning.
+  // P1-08: Save transcript downloads (Run view, Console tab) the worker's {t, dir, hex} JSONL with a dated name, next to the board-id warning.
+  await page.locator('[data-region="rail"] [data-view="run"]').click();
+  await page.locator('[data-tab="console"]').click();
+  await expect(page.locator('[data-console="lines"]')).toContainText('{sr:null}');
   const save = page.locator('[data-region="transcript"]');
   await expect(save.locator('[data-transcript="privacy"]')).toContainText('unique hardware id');
   const download = page.waitForEvent('download');

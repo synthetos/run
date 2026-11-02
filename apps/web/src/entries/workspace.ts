@@ -5,9 +5,11 @@
  * (security/tt.ts; imported modules evaluate earlier, see there), then
  * starts the build channel (channel/channel.ts: nothing in a release build;
  * the bench build refuses any host but localhost and marks the page, P1-00),
- * hydrates the shell that the build prerendered into index.html, wires
- * the theme toggle, starts `machine.worker` (P0-14) and mounts LIVE entry
- * (P1-05, live/mount.ts). The stop controls (P1-06: the W2 button,
+ * hydrates the workspace shell that the build prerendered into index.html
+ * (Stage 1: workspace/AppShell.ts, one page that never reloads), wires the
+ * theme toggle, loads the local libraries, starts `machine.worker` (P0-14)
+ * and mounts LIVE entry (P1-05, live/mount.ts), the session owner that
+ * publishes into the workspace model. The stop controls (P1-06: the W2 button,
  * Escape, the cross-tab requests and the observer panel) start before
  * hydration, and hydration runs guarded, so a rendering failure cannot
  * remove them (live/stopBoot.ts). The G-code preview (TB-03)
@@ -15,22 +17,24 @@
  * (RUN_PLAN §5.3, enforced from P0-02).
  */
 import { installTrustedTypes } from '../security/tt.ts';
-import { h, hydrate, render } from 'preact';
-import { effect, signal } from '@preact/signals';
+import { h, hydrate } from 'preact';
+import { signal } from '@preact/signals';
 import { checkBuildInfo } from '../build-info/buildInfo.ts';
 import { startBuildChannel } from '../channel/channel.ts';
-import { gcodeWorkerSpawner } from '../gcode-worker/client.ts';
+import { gcodeWorkerSpawner } from '../gcode-worker/spawn.ts';
 import { callMachineWorker, startMachineWorker } from '../machine-worker/client.ts';
 import { RPC_VERSION } from '../machine-worker/rpc.ts';
 import { browserLocks, openStopChannel } from '../machine-worker/stopChannel.ts';
 import { mountLiveEntry } from '../live/mount.ts';
-import { ObserverPanel } from '../live/ObserverPanel.ts';
 import { renderGuarded, startStopPaths } from '../live/stopBoot.ts';
 import type { Timers } from '../live/tabStop.ts';
-import { PreviewPanel, type LiveMarkerView } from '../preview/PreviewPanel.ts';
-import { Shell } from '../shell/Shell.ts';
+import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { startTheme } from '../theme/theme.ts';
+import { AppShell } from '../workspace/AppShell.ts';
+import { createWorkspaceModel } from '../workspace/model.ts';
+import { loadStoredLibraries } from '../workspace/storage.ts';
 import '../styles/base.css';
+import '../styles/workspace.css';
 
 const trustedTypes = installTrustedTypes();
 
@@ -42,6 +46,8 @@ const build = checkBuildInfo(__RUN_BUILD__);
 const previousSession = signal(false);
 // P1-07: the live position marker (polled `mpo`), drawn by the preview, set by LIVE entry.
 const marker = signal<LiveMarkerView | null>(null);
+// The document-lifetime session model the views read (workspace/model.ts).
+const model = createWorkspaceModel();
 
 // Stop controls (P1-06), before anything that could fail, hydration included: Pause, Escape and the
 // cross-tab requests are never gated, and a rendering failure cannot remove them (SAFETY §4.3).
@@ -56,16 +62,27 @@ const { stopControls, watcher } = startStopPaths({
   pauseOwnWorker: () => {
     if (worker !== null) void callMachineWorker(worker, { v: RPC_VERSION, kind: 'intent', intent: 'feedhold' });
   },
+  stopJobOwnWorker: () => {
+    if (worker !== null) void callMachineWorker(worker, { v: RPC_VERSION, kind: 'intent', intent: 'stopJob' });
+  },
 });
 renderGuarded(
   () =>
     hydrate(
-      h(Shell, {
+      h(AppShell, {
         build,
+        model,
         previousSession,
         stop: stopControls.view,
         onPause: () => stopControls.pause(),
-        preview: h(PreviewPanel, { spawn: gcodeWorkerSpawner(trustedTypes), marker }),
+        onStopJob: () => stopControls.stopJob(),
+        role: stopControls.role,
+        liveTab: stopControls.liveState,
+        onPauseRequest: () => stopControls.request('pause'),
+        onStopJobRequest: () => stopControls.request('stopJob'),
+        onDismissReleased: () => watcher.dismissReleased(),
+        spawn: gcodeWorkerSpawner(trustedTypes),
+        marker,
       }),
       root,
     ),
@@ -74,33 +91,11 @@ renderGuarded(
 // After hydration, so the bench marking of the version chip is not reconciled away; before the worker starts.
 const channel = startBuildChannel(document);
 startTheme();
+loadStoredLibraries();
 worker = startMachineWorker(trustedTypes);
 
 // LIVE entry (P1-05): the D1 sign-in gate, the signed advisory, C1, W6. UI/auth layer only.
-const centre = document.getElementById('main');
-const bannerContainer = document.createElement('div');
-bannerContainer.dataset['region'] = 'overlay-banners';
-const container = document.createElement('div');
-container.dataset['region'] = 'live-entry';
-const observerContainer = document.createElement('div');
-centre?.prepend(bannerContainer, observerContainer);
-// The Connect control goes inside the Workspace sheet, under its heading (falls back to the centre).
-const sheetBody = centre?.querySelector('.centre-placeholder .sheet-body') ?? null;
-if (sheetBody !== null) sheetBody.querySelector('h1')?.after(container);
-if (container.parentNode === null) centre?.append(container);
-effect(() => {
-  render(
-    h(ObserverPanel, {
-      role: stopControls.role.value,
-      live: stopControls.liveState.value,
-      onPauseRequest: () => stopControls.request('pause'),
-      onStopJobRequest: () => stopControls.request('stopJob'),
-      onDismiss: () => watcher.dismissReleased(),
-    }),
-    observerContainer,
-  );
-});
-void mountLiveEntry({ channel, appSha: build.sha, worker, container, bannerContainer, previousSession, stopControls, marker })
+void mountLiveEntry({ channel, appSha: build.sha, worker, model, previousSession, stopControls, marker })
   .catch(() => undefined)
   .finally(() => {
     document.documentElement.dataset['ready'] = 'true';
