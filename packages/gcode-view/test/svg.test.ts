@@ -22,6 +22,12 @@ describe('2D SVG fallback', () => {
     expect(p.highlight).toBe('M0 0L10 0');
   });
 
+  it('never tints a traverse with the highlight: rapids stay muted and dashed', () => {
+    const p = svgPaths(list, { highlightLine: 0 });
+    expect(p.rapid).toBe('M0 0L0 0');
+    expect(p.highlight).toBe('');
+  });
+
   it('decimates beyond the segment cap and says so', () => {
     const p = svgPaths(bigList(10_000), { maxSegments: 1000 });
     expect(p.decimated).toBe(true);

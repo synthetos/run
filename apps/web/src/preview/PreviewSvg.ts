@@ -3,7 +3,7 @@
  * WebGL2. Elements are built by Preact (createElementNS), never from markup.
  */
 import { h, type ComponentChild } from 'preact';
-import { svgEnvelope, svgPaths, type Box3, type SegmentList } from '@synthetos/gcode-view';
+import { svgEnvelope, svgGrid, svgPaths, type Box3, type SegmentList } from '@synthetos/gcode-view';
 
 export interface PreviewSvgProps {
   readonly segments: SegmentList;
@@ -22,12 +22,15 @@ export function markerRadius(viewBox: string | null): number {
 
 export function PreviewSvg({ segments, showRapids, highlight, envelope, marker = null }: PreviewSvgProps): ComponentChild {
   const p = svgPaths(segments, { showRapids, highlightLine: highlight, envelope });
+  const grid = svgGrid(segments, { showRapids, envelope });
   return h(
     'figure',
     { class: 'preview-svg', 'data-preview': 'svg' },
     h(
       'svg',
       { viewBox: p.viewBox ?? '0 0 1 1', role: 'img', 'aria-label': 'Toolpath preview, top view (X right, Y up)', preserveAspectRatio: 'xMidYMid meet' },
+      grid.minor === '' ? null : h('path', { class: 'pv-grid', d: grid.minor, 'data-preview': 'grid' }),
+      grid.major === '' ? null : h('path', { class: 'pv-grid-major', d: grid.major }),
       envelope === null ? null : h('path', { class: 'pv-envelope', d: svgEnvelope(envelope) }),
       h('path', { class: 'pv-rapid', d: p.rapid }),
       h('path', { class: 'pv-feed', d: p.feed }),

@@ -381,12 +381,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .preview-svg { margin: 0; }
 .preview-svg svg { display: block; width: 100%; height: min(60vh, 520px); }
 .preview-svg path { fill: none; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.preview-svg .pv-rapid { stroke: var(--muted); stroke-dasharray: 4 3; }
+.preview-svg .pv-rapid { stroke: color-mix(in srgb, var(--muted) 60%, var(--sheet)); stroke-width: 1; stroke-dasharray: 4 4; }
 .preview-svg .pv-feed { stroke: var(--ink); }
 .preview-svg .pv-uncertain { stroke: var(--rule); }
 .preview-svg .pv-oob { stroke: var(--danger); stroke-width: 2.5; }
 .preview-svg .pv-highlight { stroke: var(--warn); stroke-width: 2.5; }
 .preview-svg .pv-envelope { stroke: var(--muted); stroke-dasharray: 2 4; }
+.preview-svg .pv-grid { stroke: var(--grid); stroke-width: 1; }
+.preview-svg .pv-grid-major { stroke: var(--rule); stroke-width: 1; }
 .preview-svg figcaption { font-size: 0.85rem; color: var(--muted); padding: 4px 8px; }
 .preview-scrubber { display: flex; flex-direction: column; gap: 4px; margin: 0 0 12px; }
 .preview-scrubber input { width: 100%; }

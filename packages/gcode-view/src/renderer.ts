@@ -1,6 +1,7 @@
 /**
  * WebGL2 toolpath renderer. It draws a segment list as chunked line segments,
- * the work envelope as a box and the work-coordinate origin as an axis triad.
+ * the work envelope as a box, the work-coordinate origin as an axis triad and,
+ * when asked, the bed/work grid (grid.ts) under the drawing.
  *
  * It renders on demand only: a frame is drawn when something changed (data,
  * view, toggles, highlight, size) and never otherwise. There is no animation,
@@ -11,6 +12,7 @@ import { fitOrbit, pan, rotate, viewProjection, zoom, type Orbit } from './camer
 import { DEFAULT_SEGMENTS_PER_CHUNK, STYLE, chunks } from './geometry.ts';
 import { checkSegmentList, lineCount, type Box3, type SegmentList, type Vec3 } from './segments.ts';
 import { runSliced, type SliceOptions } from './slicer.ts';
+import { gridLayout, gridLines } from './grid.ts';
 
 export type Rgba = readonly [number, number, number, number];
 
@@ -26,11 +28,15 @@ export interface PreviewColors {
   readonly axisX: Rgba;
   readonly axisY: Rgba;
   readonly axisZ: Rgba;
+  /** Bed/work grid, minor lines. */
+  readonly grid: Rgba;
+  /** Bed/work grid, major lines (every 5 or 10 cells, through the origin). */
+  readonly gridMajor: Rgba;
 }
 
 /** Overlay styles follow the segment styles in the colour table. */
-const OVERLAY = Object.freeze({ ENVELOPE: 5, AXIS_X: 6, AXIS_Y: 7, AXIS_Z: 8 });
-const STYLE_COUNT = 9;
+const OVERLAY = Object.freeze({ ENVELOPE: 5, AXIS_X: 6, AXIS_Y: 7, AXIS_Z: 8, GRID: 9, GRID_MAJOR: 10 });
+const STYLE_COUNT = 11;
 
 export interface LoadOptions extends Pick<SliceOptions, 'signal' | 'budgetMs' | 'now' | 'yieldToHost'> {
   readonly segmentsPerChunk?: number;
@@ -53,6 +59,8 @@ export interface PreviewRenderer {
   setHighlight(line: number): void;
   /** Machine-coordinate work envelope (from the live board only), or null. */
   setEnvelope(envelope: Box3 | null): void;
+  /** Shows or hides the bed/work grid (see grid.ts). */
+  setGridVisible(visible: boolean): void;
   /** Origin of the active work coordinate system in machine coordinates, or null to hide the triad. */
   setWcsOrigin(origin: Vec3 | null, size?: number): void;
   setColors(colors: PreviewColors): void;
@@ -75,6 +83,11 @@ export interface RendererOptions {
   readonly colors: PreviewColors;
   /** Schedules a frame (default `requestAnimationFrame`). */
   readonly requestFrame?: (draw: () => void) => void;
+  /**
+   * Draw the bed/work grid in the XY plane at the bottom of the drawn extent, over the envelope
+   * (machine travel) when known or else the padded path extent (default false).
+   */
+  readonly grid?: boolean;
 }
 
 const VERTEX = `#version 300 es
@@ -82,6 +95,7 @@ precision highp float;
 in vec3 a_pos;
 in float a_style;
 in float a_line;
+in float a_dist;
 uniform mat4 u_mvp;
 uniform float u_showRapids;
 uniform float u_highlightEnd;
@@ -89,10 +103,16 @@ uniform vec4 u_colors[${String(STYLE_COUNT)}];
 uniform vec4 u_highlight;
 out vec4 v_color;
 out float v_hidden;
+out float v_dist;
+out float v_dash;
 void main() {
   int s = int(a_style + 0.5);
-  v_hidden = (s == ${String(STYLE.RAPID)} && u_showRapids < 0.5) ? 1.0 : 0.0;
-  v_color = (a_line >= 0.0 && a_line < u_highlightEnd) ? u_highlight : u_colors[s];
+  bool rapid = s == ${String(STYLE.RAPID)};
+  v_hidden = (rapid && u_showRapids < 0.5) ? 1.0 : 0.0;
+  v_dash = rapid ? 1.0 : 0.0;
+  v_dist = a_dist;
+  // The scrubber tints cutting moves; traverses stay muted and dashed so the cut stays dominant.
+  v_color = (!rapid && a_line >= 0.0 && a_line < u_highlightEnd) ? u_highlight : u_colors[s];
   gl_Position = u_mvp * vec4(a_pos, 1.0);
 }`;
 
@@ -100,9 +120,13 @@ const FRAGMENT = `#version 300 es
 precision mediump float;
 in vec4 v_color;
 in float v_hidden;
+in float v_dist;
+in float v_dash;
+uniform float u_dash;
 out vec4 o_color;
 void main() {
   if (v_hidden > 0.5) discard;
+  if (v_dash > 0.5 && u_dash > 0.0 && fract(v_dist / u_dash) > 0.55) discard;
   o_color = v_color;
 }`;
 
@@ -133,6 +157,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   gl.bindAttribLocation(program, 0, 'a_pos');
   gl.bindAttribLocation(program, 1, 'a_style');
   gl.bindAttribLocation(program, 2, 'a_line');
+  gl.bindAttribLocation(program, 3, 'a_dist');
   gl.linkProgram(program);
   if (gl.getProgramParameter(program, gl.LINK_STATUS) !== true) throw new Error(`gcode-view: program did not link: ${gl.getProgramInfoLog(program) ?? ''}`);
   const u = {
@@ -141,6 +166,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     highlightEnd: gl.getUniformLocation(program, 'u_highlightEnd'),
     colors: gl.getUniformLocation(program, 'u_colors'),
     highlight: gl.getUniformLocation(program, 'u_highlight'),
+    dash: gl.getUniformLocation(program, 'u_dash'),
   };
 
   let colors = options.colors;
@@ -151,6 +177,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   let envelope: Box3 | null = null;
   let wcs: { origin: Vec3; size: number } | null = null;
   let showRapids = true;
+  let showGrid = options.grid === true;
   let highlightLine = -1;
   let view: Orbit = fitOrbit(null);
   let width = 1, height = 1;
@@ -170,9 +197,20 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       gl.vertexAttribPointer(index, size, type, false, 0, 0);
       return b;
     };
-    const buffers = [make(positions, 0, 3, gl.FLOAT), make(styles, 1, 1, gl.UNSIGNED_BYTE), make(lines, 2, 1, gl.FLOAT)];
+    const buffers = [make(positions, 0, 3, gl.FLOAT), make(styles, 1, 1, gl.UNSIGNED_BYTE), make(lines, 2, 1, gl.FLOAT), make(dashDistances(positions, styles), 3, 1, gl.FLOAT)];
     gl.bindVertexArray(null);
     return { vao, buffers, vertexCount: positions.length / 3 };
+  }
+
+  /** Per vertex: distance along its traverse segment (0 at the start, the length at the end); 0 elsewhere. */
+  function dashDistances(positions: Float32Array, styles: Uint8Array): Float32Array {
+    const out = new Float32Array(styles.length);
+    for (let v = 0; v + 1 < styles.length; v += 2) {
+      if (styles[v] !== STYLE.RAPID) continue;
+      const i = v * 3;
+      out[v + 1] = Math.hypot((positions[i + 3] as number) - (positions[i] as number), (positions[i + 4] as number) - (positions[i + 1] as number), (positions[i + 5] as number) - (positions[i + 2] as number));
+    }
+    return out;
   }
 
   function release(c: GpuChunk): void {
@@ -189,6 +227,10 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       pos.push(...a, ...b);
       sty.push(s, s);
     };
+    const grid = showGrid ? gridLayout(bounds, envelope) : null;
+    if (grid !== null) {
+      for (const l of gridLines(grid)) seg([l.a[0], l.a[1], grid.z], [l.b[0], l.b[1], grid.z], l.major ? OVERLAY.GRID_MAJOR : OVERLAY.GRID);
+    }
     if (envelope !== null) {
       const [x0, y0, z0] = envelope.min;
       const [x1, y1, z1] = envelope.max;
@@ -208,7 +250,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   }
 
   function colorTable(): Float32Array {
-    const table = [colors.rapid, colors.feed, colors.arc, colors.outOfBounds, colors.uncertain, colors.envelope, colors.axisX, colors.axisY, colors.axisZ];
+    const table = [colors.rapid, colors.feed, colors.arc, colors.outOfBounds, colors.uncertain, colors.envelope, colors.axisX, colors.axisY, colors.axisZ, colors.grid, colors.gridMajor];
     return new Float32Array(table.flat());
   }
 
@@ -227,11 +269,20 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     gl.uniform1f(u.highlightEnd, highlightLine + 1);
     gl.uniform4fv(u.colors, colorTable());
     gl.uniform4fv(u.highlight, new Float32Array(colors.highlight));
+    gl.uniform1f(u.dash, dashPeriod());
     for (const c of overlay === null ? path : [...path, overlay]) {
       gl.bindVertexArray(c.vao);
       gl.drawArrays(gl.LINES, 0, c.vertexCount);
     }
     gl.bindVertexArray(null);
+  }
+
+  /** Dash period of traverses, in drawing units: about 1/120 of the framed extent (0, solid, with nothing framed). */
+  function dashPeriod(): number {
+    const box = fitBox();
+    if (box === null) return 0;
+    const span = Math.max(box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]);
+    return Number.isFinite(span) && span > 0 ? span / 120 : 0;
   }
 
   function requestRender(): void {
@@ -265,6 +316,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       const given = loadOptions.bounds;
       bounds = given === undefined ? null : given;
       view = fitOrbit(fitBox());
+      if (showGrid) rebuildOverlay();
       const total = Math.max(1, next.kinds.length);
       const box = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
       const source = chunks(next, loadOptions.segmentsPerChunk ?? DEFAULT_SEGMENTS_PER_CHUNK);
@@ -286,7 +338,10 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
             }
             const first = path.length === 1;
             bounds = { min: [box.min[0] as number, box.min[1] as number, box.min[2] as number], max: [box.max[0] as number, box.max[1] as number, box.max[2] as number] };
-            if (first) view = fitOrbit(fitBox());
+            if (first) {
+              view = fitOrbit(fitBox());
+              if (showGrid) rebuildOverlay();
+            }
           }
           loadOptions.onProgress?.(c.vertexEnd / total);
           requestRender();
@@ -301,17 +356,22 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
           ...(loadOptions.yieldToHost === undefined ? {} : { yieldToHost: loadOptions.yieldToHost }),
         });
       } catch (e) {
-        if (mine === generation) clearPath();
+        if (mine === generation) {
+          clearPath();
+          if (showGrid) rebuildOverlay();
+        }
         requestRender();
         throw e;
       }
       if (given === undefined) view = fitOrbit(fitBox());
+      if (showGrid) rebuildOverlay();
       loadOptions.onProgress?.(1);
       requestRender();
     },
     clear() {
       generation++;
       clearPath();
+      if (showGrid) rebuildOverlay();
       requestRender();
     },
     setRapidsVisible(visible) {
@@ -320,6 +380,12 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     },
     setHighlight(line) {
       highlightLine = list === null ? -1 : Math.min(Math.max(-1, Math.floor(line)), lineCount(list) - 1);
+      requestRender();
+    },
+    setGridVisible(visible) {
+      if (showGrid === visible) return;
+      showGrid = visible;
+      rebuildOverlay();
       requestRender();
     },
     setEnvelope(next) {

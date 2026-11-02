@@ -37,6 +37,8 @@ const FALLBACK: PreviewColors = {
   axisX: [0.8, 0.15, 0.15, 1],
   axisY: [0.1, 0.55, 0.2, 1],
   axisZ: [0.15, 0.3, 0.8, 1],
+  grid: [0.89, 0.91, 0.93, 1],
+  gridMajor: [0.78, 0.82, 0.85, 1],
 };
 
 /** Token per colour; a missing or unparsable token keeps the fallback. */
@@ -52,10 +54,21 @@ const TOKENS: Readonly<Record<keyof PreviewColors, string>> = {
   axisX: '--danger',
   axisY: '--ok',
   axisZ: '--blue',
+  grid: '--grid',
+  gridMajor: '--rule',
 };
+
+/** How far traverses (rapids) are mixed from --muted toward the background, so cutting moves stay dominant. */
+export const RAPID_MUTE = 0.4;
+
+function mix(a: Rgba, b: Rgba, t: number): Rgba {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t];
+}
 
 export function previewColors(read: (token: string) => string): PreviewColors {
   const out: Record<string, Rgba> = {};
   for (const key of Object.keys(TOKENS) as (keyof PreviewColors)[]) out[key] = parseColor(read(TOKENS[key])) ?? FALLBACK[key];
+  // Traverses are drawn muted (and dashed, by the renderer): --muted mixed toward the background.
+  out['rapid'] = mix(out['rapid'] as Rgba, out['background'] as Rgba, RAPID_MUTE);
   return out as unknown as PreviewColors;
 }
