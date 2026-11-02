@@ -38,7 +38,7 @@ The owner's direction (2026-11-02): "support open an issue / report a bug. Since
 | Event context: code, message, state history and overlays, the line being executed | on, when started from an event | — |
 | Recent transcript (the last 200 lines around the event) | on | Board id redacted; the user can trim it |
 | Settings (the backup format) | off; offer "only settings that differ from defaults" | id redacted |
-| G-code: ±25 lines around the line, or the whole file | excerpt on, whole file off | The file name and comments are shown before posting, because they may name customers or parts |
+| G-code | The ±25-line excerpt by default. The whole file only after an explicit consent step: "Upload the whole G-code file to this issue? Issues are public: anyone can read and download it." with **Upload the whole file** / **Only 25 lines around the problem**. The default button is the excerpt, and the choice is asked every time, never remembered | The file name and comments are shown before posting, because they may name customers or parts |
 | Screenshot of the 3D preview (canvas only) | off | — |
 
 ## 5. How it is filed
