@@ -334,6 +334,10 @@ export const STOP_TEXT = Object.freeze({
   pausedSpindleOn: 'Paused · spindle still on',
   /** §4.4 step 5, OD-6: a Pause pressed while the machine was idle. */
   pausedIdle: 'Paused: the machine was idle, nothing changed',
+  /** §4.4 Stop job, Phase 2 (§4.5b): the flush sequence completed. */
+  stopped: 'Stopped: queue cleared, spindle and coolant off',
+  /** §4.4 Resume, Phase 2 (§4.5b): `~` was written for a hold this session made. */
+  resumed: 'Resumed',
 });
 
 /** W30: state band during a hold, every TinyG dialect. */
@@ -357,6 +361,11 @@ export function w33(p: { readonly cause: string; readonly seconds: number }): st
     `DANGER — This page lost track of the machine (${text('cause', p.cause)}). The machine is paused and the spindle may be ` +
     `running. The job will be stopped with the spindle off in ${num('seconds', p.seconds)} s. Check the machine now.`
   );
+}
+
+/** W34: jog panel and confirmations while the machine is not homed (Phase 2, §4.5b). */
+export function w34(): string {
+  return 'WARNING — The machine is not homed, so soft limits may not protect it. A jog can drive an axis into its end. Use small steps and keep a hand on the E-stop.';
 }
 
 // ------------------------------------------------------------ §6 confirmations
@@ -630,4 +639,14 @@ export function c23(p: { readonly machineName: string; readonly boardId: string;
     `Keep the settings on ${text('machineName', p.machineName)} (${text('boardId', p.boardId)}) and save them as profile ` +
     `revision ${count('revision', p.revision)}? Nothing is written to the controller.`
   );
+}
+
+/** C24: manual spindle on (Phase 2, §4.5b). The user may turn it off for the rest of the browser session. */
+export function c24(p: { readonly direction: 'CW' | 'CCW'; readonly rpm: number }): string {
+  return `Spindle will start (${oneOf('direction', p.direction, ['CW', 'CCW'])}, S${num('rpm', p.rpm)}). Hands clear?`;
+}
+
+/** C25: go to work zero (Phase 2, §4.5b), with the path the session will send. */
+export function c25(p: { readonly axes: string; readonly path: string }): string {
+  return `Go to work zero on ${text('axes', p.axes)}? The machine will move: ${text('path', p.path)}. Keep a hand on the E-stop.`;
 }

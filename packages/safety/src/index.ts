@@ -20,6 +20,7 @@ export {
   INTENTS,
   OVERLAYS,
   PHASE_1_RELEASE,
+  PHASE_2_RELEASE,
   PORT_OPEN_STATES,
   STOP_CLASS,
   allowed,

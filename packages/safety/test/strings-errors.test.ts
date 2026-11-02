@@ -71,6 +71,8 @@ const VALID: Record<string, Params> = {
   c20Changed: { name: 'part.nc', machineName: 'Shop router', when: 'yesterday', device: 'Laptop', diffSummary: '3 lines changed' },
   c22: { spindle: 'on, S12000', coolant: 'on' },
   c23: { machineName: 'Shop router', boardId: '2U29', revision: 6 },
+  c24: { direction: 'CW', rpm: 12000 },
+  c25: { axes: 'X and Y', path: 'X and Y to 0' },
 };
 
 type Fn = (p: Params) => unknown;
