@@ -14,7 +14,7 @@ import { extractTinyG, renderFacts } from '../src/boards/tinyg.ts';
 import type { TinyGSourceFile } from '../src/boards/tinyg.ts';
 
 describe('the spindle PWM pin follows the timer, not the GPIO map', () => {
-  const pin = (board: ReturnType<typeof tinygBoard>, signal: string) => board.pins.find((p) => p.signal === signal);
+  const pin = (board: ReturnType<typeof tinygBoard>, signal: string) => board.pins?.find((p) => p.signal === signal);
   const output = (board: ReturnType<typeof tinygBoard>, id: string) => board.outputs.find((o) => o.id === id);
 
   it('hv 6: the GPIO bit is on PE5 but TCD1 OC1B drives PD5, so spindlePwm and coolant are conflicting and unverified', () => {
@@ -22,7 +22,7 @@ describe('the spindle PWM pin follows the timer, not the GPIO map', () => {
     expect(facts.spindlePwmTimer.value).toEqual({ timer: 'TCD1', channel: 'B', port: 'D', pin: 5 });
     const v6 = tinygBoard(facts, 6);
     expect(pin(v6, 'out.spindlePwm')).toMatchObject({ mcu: 'PD5', verified: 'unverified' });
-    expect(v6.pins.some((p) => p.signal === 'out.spindlePwm' && p.mcu === 'PE5')).toBe(false);
+    expect(v6.pins?.some((p) => p.signal === 'out.spindlePwm' && p.mcu === 'PE5')).toBe(false);
     expect(pin(v6, 'out.coolant')).toMatchObject({ mcu: 'PD5', verified: 'unverified' });
     expect(output(v6, 'spindlePwm')).toMatchObject({ verified: 'unverified', note: expect.stringContaining('PE5') });
     expect(output(v6, 'coolant')).toMatchObject({ verified: 'unverified', note: expect.stringContaining('Conflicting') });
