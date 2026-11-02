@@ -313,3 +313,29 @@ verify → reconnect → version check → offer to restore.
 6. ~~The W2 label~~ Done in Stage 1: SAFETY.md W2 reads "Pause" (amended
    2026-11-02, OD-6), the tooltip is unchanged, and T-S32 follows it.
 7. Units for imported DXF/SVG fixtures: assume millimetres, or ask each time?
+
+## Console command line (owner, 2026-11-02)
+
+The Console tab gets a command line you can type into, with history (↑/↓) and token completion that shows each token's plain-words description.
+
+- **Always JSON on the wire.** run translates what the user types, so the board never leaves JSON mode:
+
+  | Typed | Sent |
+  |---|---|
+  | `g0x100`, `G1 X10 F500` | `{"gc":"G0X100"}` (normalised and sanitised first) |
+  | `$xvm`, `xvm` | `{"xvm":null}` (read) |
+  | `$xvm=5000` | `{"xvm":5000}` (write) |
+  | `?` | `{"sr":null}` |
+  | raw JSON (`{...}`) | passed through only after it parses as an allowlisted request |
+
+  Text-mode-only commands (`$$`, `$h` and so on) are mapped to their JSON form or refused with an explanation. Single-character realtime commands (`!`, `~`, `%`, ^X) are never typed here: Pause and Stop job are the buttons.
+- **The same gates as the rest of run.** Every line goes through the sanitiser and the worker's write allowlist for the current phase:
+  - **Phase 1:** reads only (`?`, `$key`). Motion lines show "Motion arrives with motion control", and setting writes show "Settings writes arrive in a later phase". Nothing is sent for either.
+  - **Phase 2:** single motion lines are allowed, with the same checks as jog.
+  - **Settings writes:** go through the reviewed settings-write path, with the read-back.
+- **Never during a job.** While a job streams, the command line is read-only (queries only). It never gates Pause or Stop.
+- **Replies** are shown in plain words, with the raw JSON one click away.
+
+## Report a problem: the user picks the target (owner, 2026-11-02)
+
+The user chooses where a report goes. When a job fails, they can say it's a run problem (run's repo, or the forum until it exists) or a firmware problem (TinyG or g2core issues, pre-filled with the board facts). See REPORT_A_PROBLEM.md §3.
