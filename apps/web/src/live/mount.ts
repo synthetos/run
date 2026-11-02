@@ -21,20 +21,11 @@ import { accessProvider, AuthGate, providersFor } from './authGate.ts';
 import { ConnectPanel } from './ConnectPanel.ts';
 import { memoryDeviceSafety, openDeviceSafety, type DeviceSafetyStore } from './deviceSafety.ts';
 import { leaveFullscreen } from './fullscreen.ts';
-import { LiveEntry, type ChooseResult } from './liveEntry.ts';
+import { LiveEntry } from './liveEntry.ts';
+import { windowChooser } from './portChooser.ts';
 import { LiveReadout } from './readout.ts';
 import { cleanDisconnect, installLiveLifecycle, previousSessionEnded } from './liveMarker.ts';
 import type { StopControls } from './stopControls.ts';
-
-/**
- * The port chooser. `requestPort()` may run only in the Web Serial module,
- * and the main-thread chooser needs its own reviewed gate change (OD-3 in
- * docs/ops/owner-decisions.md), so this build has none: LIVE entry stops
- * here, after every gate has passed.
- */
-function noChooser(): Promise<ChooseResult> {
-  return Promise.resolve({ ok: false, message: 'This build has no port chooser yet: the main-thread chooser needs its own reviewed gate change (OD-3).' });
-}
 
 /**
  * The `open` request for the port the window chose. `previousSessionEnded` is the W6 state (a reload
@@ -89,7 +80,11 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     checkAdvisory: () => checkAdvisory(advisoryDeps),
     store,
     now: () => new Date(),
-    choosePort: noChooser,
+    // OD-3 (approved 2026-11-02): the browser's port chooser, from the C1 confirm click (the user
+    // gesture), only after sign-in (in the bench build, the localhost bench identity), the advisory and
+    // C1 have passed. Its PortSelector goes to the machine worker's `open`, which finds the same granted
+    // port or refuses. Pause, Escape and the stop requests never pass through here.
+    choosePort: () => windowChooser(),
     open: async (port) => {
       if (worker === null) return { ok: false, message: 'The machine worker is not running in this browser.' };
       const reply = await callMachineWorker(worker, openRequest(port, options.previousSession.value));

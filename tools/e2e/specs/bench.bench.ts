@@ -92,6 +92,85 @@ test('machine.worker asks Web Serial for the granted ports; with none granted, o
   expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ status: { source: 'serial', state: 'idle', session: { base: 'NOT_CONNECTED', overlays: [] } } });
 });
 
+/**
+ * OD-3: the real Connect in the bench build reaches the window's port
+ * chooser. Two stand-ins, both installed in this test's page only:
+ * - `requestPort`/`getPorts` on the page's Web Serial object answer with a
+ *   port that reports the edge-next FTDI identity (no USB device exists in
+ *   Playwright's browser);
+ * - the advisory: the placeholder release key's private half is not in the
+ *   repository, so no test can sign one. The test serves a well-formed
+ *   staging advisory and makes the page's Ed25519 verify answer true.
+ *   apps/web/test/advisoryGate.test.ts and the protocol tests cover real
+ *   verification.
+ * The machine worker is NOT stubbed: its real Web Serial source asks the
+ * browser for the granted ports, finds none, and refuses the open, which
+ * the page shows. Pause stays available throughout.
+ */
+const ADVISORY = JSON.stringify({
+  format: 'synthetos-run/safety-advisory@1',
+  advisories: [
+    {
+      env: 'staging',
+      kid: 'placeholder-bench-2026-11-01',
+      payload: JSON.stringify({ format: 'synthetos-run/safety-advisory-env@1', env: 'staging', issued: '2026-01-01T00:00:00Z', expires: '2099-01-01T00:00:00Z', revoked: [] }),
+      sig: 'AAAA',
+    },
+  ],
+});
+
+async function stubChooserAndAdvisory(page: import('@playwright/test').Page): Promise<void> {
+  await page.route('**/safety-advisory.json', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: ADVISORY }));
+  await page.addInitScript(() => {
+    const request = 'request' + 'Port';
+    const list = 'get' + 'Ports';
+    const calls: { active: boolean }[] = [];
+    (globalThis as unknown as { __chooserCalls: typeof calls }).__chooserCalls = calls;
+    const board = { getInfo: () => ({ usbVendorId: 0x0403, usbProductId: 0x6015 }) };
+    const proto = (globalThis as unknown as { Serial: { prototype: Record<string, unknown> } }).Serial.prototype;
+    proto[request] = function () {
+      calls.push({ active: (navigator as unknown as { userActivation: { isActive: boolean } }).userActivation.isActive });
+      return Promise.resolve(board);
+    };
+    proto[list] = () => Promise.resolve([board]);
+    SubtleCrypto.prototype.verify = () => Promise.resolve(true);
+  });
+}
+
+async function connectThroughC1(page: import('@playwright/test').Page): Promise<void> {
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+  await page.locator('[data-action="connect"]').click();
+  const c1 = page.locator('[data-safety="C1"]');
+  await expect(c1).toBeVisible();
+  for (const box of await c1.locator('input[type="checkbox"]').all()) await box.check();
+  await page.locator('[data-action="confirm"]').click();
+}
+
+test('OD-3: Connect passes the bench identity, the advisory and C1, then shows the chooser inside the click and hands the selector to the worker', async ({ page }) => {
+  await stubChooserAndAdvisory(page);
+  await connectThroughC1(page);
+  const refused = page.locator('[data-entry="refused"]');
+  await expect(refused).toBeVisible({ timeout: 10_000 });
+  // The worker got the selector, asked the browser for its granted ports, found none, and refused.
+  await expect(refused).toHaveAttribute('data-refusal', 'open-failed');
+  await expect(refused.getByRole('alert')).toHaveText('no port was chosen');
+  expect(await page.evaluate(() => (globalThis as unknown as { __chooserCalls: { active: boolean }[] }).__chooserCalls)).toEqual([{ active: true }]);
+  await expect(page.locator('.stop-button')).toBeVisible();
+});
+
+test("OD-3: a cancelled chooser is refused with the chooser's words, and nothing is opened", async ({ page }) => {
+  await stubChooserAndAdvisory(page);
+  await page.addInitScript(() => {
+    const proto = (globalThis as unknown as { Serial: { prototype: Record<string, unknown> } }).Serial.prototype;
+    proto['request' + 'Port'] = () => Promise.reject(new DOMException('No port selected by the user.', 'NotFoundError'));
+  });
+  await connectThroughC1(page);
+  const refused = page.locator('[data-entry="refused"][data-refusal="no-port"]');
+  await expect(refused).toBeVisible({ timeout: 10_000 });
+  await expect(refused.getByRole('alert')).toHaveText('No port was chosen. Press Connect to try again.');
+});
+
 for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(`390 px, ${colorScheme}`, () => {
     test.use({ viewport: { width: 390, height: 844 }, colorScheme });
