@@ -82,12 +82,12 @@ test('the browser allows Web Serial on the bench origin, in the page and in mach
 test('machine.worker asks Web Serial for the granted ports; with none granted, open is refused and the worker stays idle (P1-01)', async ({ page }) => {
   const worker = await machineWorker(page);
   expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ status: { source: 'serial', state: 'idle' } });
-  expect(await request(worker, { v: 3, kind: 'open', port: { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } })).toEqual({
+  expect(await request(worker, { v: 3, kind: 'prepare', port: { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0, grantSnapshot: ['1027:24597'] } })).toEqual({
     v: 3,
     ok: false,
-    kind: 'open',
+    kind: 'prepare',
     code: 'unavailable',
-    message: 'no port was chosen',
+    message: 'the granted ports changed or the selection expired',
   });
   expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ status: { source: 'serial', state: 'idle', session: { base: 'NOT_CONNECTED', overlays: [] } } });
 });
@@ -154,7 +154,7 @@ test('OD-3: Connect passes the bench identity, the advisory and C1, then shows t
   await expect(refused).toBeVisible({ timeout: 10_000 });
   // The worker got the selector, asked the browser for its granted ports, found none, and refused.
   await expect(refused).toHaveAttribute('data-refusal', 'open-failed');
-  await expect(refused.getByRole('alert')).toHaveText('no port was chosen');
+  await expect(refused.getByRole('alert')).toHaveText('the granted ports changed or the selection expired');
   expect(await page.evaluate(() => (globalThis as unknown as { __chooserCalls: { active: boolean }[] }).__chooserCalls)).toEqual([{ active: true }]);
   await expect(page.locator('.stop-button')).toBeVisible();
 });

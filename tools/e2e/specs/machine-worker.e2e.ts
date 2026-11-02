@@ -27,9 +27,9 @@ test('the workspace starts one machine worker, whose Web Serial source the produ
   expect(await worker.evaluate(() => (globalThis as unknown as { name: string }).name)).toBe('machine');
 
   expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ v: 3, ok: true, kind: 'status', status: { source: 'serial', state: 'idle', session: { base: 'NOT_CONNECTED', overlays: [] } } });
-  const reply = await request(worker, { v: 3, kind: 'open', port: { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } });
-  expect(reply).toMatchObject({ v: 3, ok: false, kind: 'open', code: 'unavailable' });
-  expect((reply as { message: string }).message).toMatch(/^the transport source failed: .*permissions policy/i);
+  const reply = await request(worker, { v: 3, kind: 'prepare', port: { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0, grantSnapshot: ['1027:24597'] } });
+  expect(reply).toMatchObject({ v: 3, ok: false, kind: 'prepare', code: 'unavailable' });
+  expect((reply as { message: string }).message).toBe('the granted ports could not be verified');
   expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ status: { source: 'serial', state: 'idle' } });
   expect(await request(worker, { v: 3, kind: 'close' })).toMatchObject({ ok: false, code: 'denied' });
   expect(await request(worker, { kind: 'open' })).toMatchObject({ ok: false, kind: 'invalid', code: 'invalid-request' });

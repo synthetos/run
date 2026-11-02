@@ -6,6 +6,9 @@
  * The worker owns one read-only `MachineSession` (packages/machine), the
  * single writer. This file only translates requests into session calls and
  * session state into replies:
+ * - `prepare` holds one unopened transport for at most 15 seconds. The window
+ *   then confirms its original grant objects. A serial `open` needs that
+ *   single-use preparation; it cannot enumerate and select a replacement.
  * - `open` connects the session to the port the window chose, through the
  *   build's transport source (transport.ts); the session opens it only
  *   through `GuardedTransport` and starts the probe with `{sr:null}`.
@@ -27,7 +30,7 @@
  *
  * It holds no account or network state (DECISIONS D1).
  */
-import { LAG_AMBER_MS, LAG_RED_MS, MachineSession, PositionPoller, droView, liveControlPlatform, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
+import { LAG_AMBER_MS, LAG_RED_MS, MachineSession, PositionPoller, droView, liveControlPlatform, type PortSelector, type Transport, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
 import type { Decision } from '@synthetos/safety';
 import { RPC_VERSION, parseRequest, refusal, type Denial, type MachineReply, type SnapshotMessage, type WindowIntent, type WorkerState } from './rpc.ts';
 
@@ -60,12 +63,23 @@ export function workerPlatform(): PlatformInfo | undefined {
   return typeof navigator === 'undefined' ? undefined : { userAgent: navigator.userAgent };
 }
 
+interface PreparedPort {
+  readonly id: number;
+  readonly port: PortSelector;
+  readonly transport: Transport;
+  readonly expires: number;
+}
+const PREPARATION_MS = 15_000;
+
 export class MachineWorkerHost {
   readonly #source: TransportSource;
   readonly #clock: SessionClock;
   readonly #session: MachineSession;
   readonly #platform: PlatformInfo | undefined;
   readonly #poller: PositionPoller;
+  #preparationId = 0;
+  #prepared: PreparedPort | null = null;
+  #approved: PreparedPort | null = null;
   #subscriber: SnapshotPort | null = null;
   #lastPost = Number.NEGATIVE_INFINITY;
   #pending: number | null = null;
@@ -75,7 +89,18 @@ export class MachineWorkerHost {
     this.#source = source;
     this.#clock = clock;
     this.#platform = platform;
-    this.#session = new MachineSession({ source, clock });
+    this.#session = new MachineSession({
+      source: {
+        kind: source.kind,
+        request: async (selector) => {
+          const approved = this.#approved;
+          this.#approved = null;
+          if (approved !== null) return clock.now() < approved.expires && JSON.stringify(approved.port) === JSON.stringify(selector) ? approved.transport : null;
+          return source.kind === 'serial' ? null : source.request(selector);
+        },
+      },
+      clock,
+    });
     this.#session.subscribe(() => this.#schedule());
     // P1-07: machine position for the DRO and the live marker comes only from polled `mpo` (SAFETY §4.2).
     // The poller only asks `session.read`; it is idle until a classified board is connected.
@@ -101,15 +126,41 @@ export class MachineWorkerHost {
     const request = parseRequest(data);
     if (request === null) return refusal('invalid', 'invalid-request', 'not a machine worker request');
     switch (request.kind) {
+      case 'prepare': {
+        const platform = liveControlPlatform(this.#platform);
+        if (!platform.allowed) return refusal('prepare', 'platform', platform.reason);
+        if (this.#session.snapshot.base !== 'NOT_CONNECTED') return refusal('prepare', 'unavailable', 'disconnect before choosing another port');
+        const id = ++this.#preparationId;
+        this.#prepared = null;
+        const expires = this.#clock.now() + PREPARATION_MS;
+        try {
+          const transport = await this.#source.request(request.port);
+          if (transport === null || id !== this.#preparationId || this.#clock.now() >= expires || this.#session.snapshot.base !== 'NOT_CONNECTED') return refusal('prepare', 'unavailable', 'the granted ports changed or the selection expired');
+          this.#prepared = { id, port: request.port, transport, expires };
+          return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'prepare', preparation: id });
+        } catch {
+          return refusal('prepare', 'unavailable', 'the granted ports could not be verified');
+        }
+      }
       case 'open': {
         const platform = liveControlPlatform(this.#platform);
         if (!platform.allowed) return refusal('open', 'platform', platform.reason);
+        const prepared = this.#prepared;
+        if (this.#source.kind === 'serial' || request.preparation !== undefined) {
+          if (prepared === null || request.preparation !== prepared.id || this.#clock.now() >= prepared.expires || JSON.stringify(prepared.port) !== JSON.stringify(request.port)) return refusal('open', 'unavailable', 'no confirmed port selection');
+          this.#prepared = null;
+          this.#approved = prepared;
+        }
         const outcome = await this.#session.connect(request.port, { expectedDeviceId: request.boardId, unknown: request.previousSessionEnded });
+        if (this.#approved === prepared) this.#approved = null;
         if (outcome.ok) return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'open', info: outcome.info });
         if (outcome.code === 'denied') return denied('open', outcome.decision);
         return refusal('open', outcome.code, outcome.reason);
       }
       case 'close': {
+        ++this.#preparationId;
+        this.#prepared = null;
+        this.#approved = null;
         const decision = await this.#session.disconnect();
         return decision.allowed ? Object.freeze({ v: RPC_VERSION, ok: true, kind: 'close' }) : denied('close', decision);
       }

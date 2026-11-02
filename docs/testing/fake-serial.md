@@ -235,21 +235,19 @@ Recommended for P1-01:
 - Move the seam **below** `WebSerialTransport`, to where the `SerialPort`
   comes from.
 - **`requestPort()` stays on the main thread.** It exists only on Window
-  (it needs a user gesture and shows the browser's chooser), never in a
-  dedicated worker. RUN_PLAN §5.4: "the window calls requestPort() with
-  filters. The worker opens the port". So the window calls `requestPort()`,
-  reads the chosen port's `getInfo()` and its index in its own
-  `getPorts()`, and sends `open` with that `PortSelector`
-  (`{usbVendorId, usbProductId, grantIndex}`, rpc.ts v2, P0 review).
+  and needs a user gesture. The chooser records the selected object, its
+  index, and the full ordered USB grant snapshot. Indistinguishable selected
+  USB identities are refused. The worker's `prepare` requires that snapshot
+  to match and holds an unopened transport; the window then confirms its
+  original grant objects still match, and sends `open` with the single-use
+  preparation ticket. The worker opens only its held port, without another
+  enumeration. See [port selection](../safety/PORT_SELECTION.md).
 - `packages/machine/src/webSerialTransport.ts` exports `WebSerialTransport`
-  (constructed with a `SerialPort`) and a `findGrantedPort(selector)` that
-  runs **inside machine.worker**: it calls `navigator.serial.getPorts()`,
-  takes the port at `grantIndex`, and returns it only if its `getInfo()`
-  matches the selector's USB identity; otherwise null (refuse, never guess:
-  with two granted boards, "the first matching" port could be the wrong
-  machine). That keeps the only `navigator.serial` use in the one file
-  P1-01's lint rule allows (plus the window's `requestPort()` call, which
-  P1-01 must allow in exactly one main-thread file).
+  and `findGrantedPort(selector)`. USB ids or grant indices alone are not
+  device identities. Reordered, changed, ambiguous, and snapshot-less live
+  selections are refused; no port is probed to find a match. The chooser and
+  transport remain the only Web Serial modules, with the existing importer
+  and serial-chunk gates.
 - The production seam's `request(selector)` calls both. The fake seam
   constructs the **real** `WebSerialTransport` around a test-kit
   `MockSerialPort` it picks by the same selector rule, and `MockTransport`

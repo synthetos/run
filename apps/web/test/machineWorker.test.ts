@@ -11,7 +11,7 @@ import type { PortSelector, SessionClock, Transport, TransportInfo, TransportOpe
 import { SESSION_BAUD_RATES, SESSION_OPEN_OPTIONS } from '@synthetos/machine';
 import { MachineWorkerHost, SNAPSHOT_INTERVAL_MS, realClock, workerState } from '../src/machine-worker/host.ts';
 import { MAX_BOARD_ID_LENGTH, MAX_READ_TOKENS, parseRequest, type SnapshotMessage } from '../src/machine-worker/rpc.ts';
-import { openRequest } from '../src/live/mount.ts';
+import { openConfirmedPort, openRequest } from '../src/live/mount.ts';
 import { createTransportSource } from '../src/machine-worker/transport.ts';
 
 /** The worker's navigator on a desktop OS: Node's own (`Node.js/<v>`) is not one, and T-S77 refuses an OS it cannot tell. */
@@ -222,7 +222,7 @@ describe('the release transport seam (P1-01: Web Serial)', () => {
 
   it('so the worker answers open with unavailable and stays idle', async () => {
     const host = new MachineWorkerHost(createTransportSource());
-    expect(await host.handle(OPEN)).toEqual({ v: 3, ok: false, kind: 'open', code: 'unavailable', message: 'no port was chosen' });
+    expect(await host.handle(OPEN)).toEqual({ v: 3, ok: false, kind: 'open', code: 'unavailable', message: 'no confirmed port selection' });
     expect(await host.handle(STATUS)).toMatchObject({ v: 3, ok: true, kind: 'status', status: { source: 'serial', state: 'idle', session: { base: 'NOT_CONNECTED' } } });
   });
 });
@@ -348,10 +348,10 @@ describe('MachineWorkerHost', () => {
   });
 
   it('answers unavailable when no port is chosen or the source fails', async () => {
-    expect(await new MachineWorkerHost(source('serial', () => null)).handle(OPEN)).toMatchObject({ code: 'unavailable', message: 'no port was chosen' });
+    expect(await new MachineWorkerHost(source('serial', () => null)).handle({ v: 3, kind: 'prepare', port: PORT })).toMatchObject({ code: 'unavailable', message: 'the granted ports changed or the selection expired' });
     expect(await new MachineWorkerHost(source('none', () => null)).handle(OPEN)).toMatchObject({ code: 'unavailable', message: 'this build cannot connect to a controller' });
     const failing = new MachineWorkerHost(source('serial', () => Promise.reject(new Error('picker dismissed')) as Promise<never>));
-    expect(await failing.handle(OPEN)).toMatchObject({ code: 'unavailable', message: 'the transport source failed: picker dismissed' });
+    expect(await failing.handle({ v: 3, kind: 'prepare', port: PORT })).toMatchObject({ code: 'unavailable', message: 'the granted ports could not be verified' });
   });
 
   it('a second open while one is open is denied by the allow-matrix, without asking the source again', async () => {
@@ -492,7 +492,7 @@ describe('MachineWorkerHost', () => {
   it('passes the chosen port to the source, unchanged', async () => {
     const s = source('serial', () => new BoardTransport());
     const host = new MachineWorkerHost(s);
-    await host.handle({ ...OPEN, port: { usbVendorId: 0x2341, usbProductId: 0x003e, grantIndex: 3 } });
+    await host.handle({ v: 3, kind: 'prepare', port: { usbVendorId: 0x2341, usbProductId: 0x003e, grantIndex: 3 } });
     expect(s.selectors).toEqual([{ usbVendorId: 0x2341, usbProductId: 0x003e, grantIndex: 3 }]);
   });
 
@@ -565,4 +565,125 @@ describe('P1-07: the polled mpo position and the drift report', () => {
     expect(last.dro.axes[0]).toMatchObject({ axis: 'x', machine: 3.5 });
     expect(last.dro.machineSource.label).toBe('polled mpo');
   });
+});
+
+
+describe('serial selection preparation', () => {
+  it('does not acquire or open a live port without preparation', async () => {
+    const board = new BoardTransport();
+    const s = source('serial', () => board);
+    const host = new MachineWorkerHost(s, new TestClock());
+    expect(await host.handle(OPEN)).toMatchObject({ ok: false, code: 'unavailable' });
+    expect(s.requests).toBe(0);
+    expect(board.opened).toEqual([]);
+  });
+
+  it('holds the prepared unopened transport, consumes its ticket once, and never reselects', async () => {
+    const board = new BoardTransport();
+    const replacement = new BoardTransport();
+    let current = board;
+    const s = source('serial', () => current);
+    const host = new MachineWorkerHost(s, new TestClock());
+    const prep = await host.handle({ v: 3, kind: 'prepare', port: PORT });
+    expect(prep).toMatchObject({ ok: true, kind: 'prepare' });
+    expect(board.opened).toEqual([]);
+    if (!prep.ok || prep.kind !== 'prepare') throw new Error('no preparation');
+    current = replacement;
+    expect(await host.handle({ ...OPEN, preparation: prep.preparation })).toMatchObject({ ok: true });
+    expect(board.opened).toHaveLength(1);
+    expect(replacement.opened).toEqual([]);
+    expect(s.requests).toBe(1);
+    await host.handle({ v: 3, kind: 'close' });
+    expect(await host.handle({ ...OPEN, preparation: prep.preparation })).toMatchObject({ ok: false });
+  });
+});
+
+
+it('the UI confirms only after worker preparation, and never opens after a failed confirmation', async () => {
+  for (const valid of [false, true]) {
+    const calls: string[] = [];
+    const result = await openConfirmedPort(async (request) => {
+      calls.push(request.kind);
+      if (request.kind === 'prepare') return { v: 3, ok: true, kind: 'prepare', preparation: 7 };
+      expect(request).toMatchObject({ kind: 'open', preparation: 7, previousSessionEnded: true });
+      return { v: 3, ok: true, kind: 'open', info: { kind: 'sim' } };
+    }, PORT, async () => { calls.push('confirm'); return valid; }, true);
+    expect(result.ok).toBe(valid);
+    expect(calls).toEqual(valid ? ['prepare', 'confirm', 'open'] : ['prepare', 'confirm']);
+  }
+});
+
+it('serial preparations expire, are bound to the selector, and are invalidated by disconnect', async () => {
+  const board = new BoardTransport();
+  const clock = new TestClock();
+  const s = source('serial', () => board);
+  const host = new MachineWorkerHost(s, clock);
+  const prep = await host.handle({ v: 3, kind: 'prepare', port: PORT });
+  if (!prep.ok || prep.kind !== 'prepare') throw new Error('no preparation');
+  expect(await host.handle({ ...OPEN, preparation: prep.preparation, port: { ...PORT, grantIndex: 1 } })).toMatchObject({ ok: false });
+  clock.advance(15_000);
+  expect(await host.handle({ ...OPEN, preparation: prep.preparation })).toMatchObject({ ok: false });
+  const fresh = await host.handle({ v: 3, kind: 'prepare', port: PORT });
+  if (!fresh.ok || fresh.kind !== 'prepare') throw new Error('no preparation');
+  await host.handle({ v: 3, kind: 'close' });
+  expect(await host.handle({ ...OPEN, preparation: fresh.preparation })).toMatchObject({ ok: false });
+  expect(board.opened).toEqual([]);
+});
+
+it('a late preparation cannot replace a newer one or survive a disconnect', async () => {
+  for (const disconnect of [false, true]) {
+    const old = new BoardTransport();
+    const fresh = new BoardTransport();
+    let resolve!: (port: Transport) => void;
+    let calls = 0;
+    const host = new MachineWorkerHost({ kind: 'serial', request: () => ++calls === 1 ? new Promise<Transport>((r) => { resolve = r; }) : Promise.resolve(fresh) }, new TestClock());
+    const first = host.handle({ v: 3, kind: 'prepare', port: PORT });
+    const second = await host.handle({ v: 3, kind: 'prepare', port: PORT });
+    if (disconnect) await host.handle({ v: 3, kind: 'close' });
+    resolve(old);
+    expect(await first).toMatchObject({ ok: false });
+    if (!second.ok || second.kind !== 'prepare') throw new Error('no preparation');
+    expect((await host.handle({ ...OPEN, preparation: second.preparation })).ok).toBe(!disconnect);
+    expect(old.opened).toEqual([]);
+    await host.handle({ v: 3, kind: 'close' });
+  }
+});
+
+it('copies snapshot arrays and refuses malformed preparation tickets', () => {
+  const grantSnapshot = ['1027:24597'];
+  const parsed = parseRequest({ v: 3, kind: 'prepare', port: { ...PORT, grantSnapshot } });
+  grantSnapshot[0] = '1:2';
+  expect(parsed).toMatchObject({ port: { grantSnapshot: ['1027:24597'] } });
+  for (const preparation of [undefined, null, 0, -1, 1.5, '1', Number.MAX_SAFE_INTEGER + 1]) expect(parseRequest({ ...OPEN, preparation })).toBeNull();
+  expect(parseRequest({ v: 3, kind: 'prepare', port: PORT, extra: 1 })).toBeNull();
+});
+
+it('preparation never waits ahead of safety intents, and late or non-idle selections refuse', async () => {
+  const board = new BoardTransport();
+  const clock = new TestClock();
+  let resolve!: (port: Transport) => void;
+  const host = new MachineWorkerHost({ kind: 'serial', request: () => new Promise<Transport>((r) => { resolve = r; }) }, clock);
+  const pending = host.handle({ v: 3, kind: 'prepare', port: PORT });
+  expect(await host.handle({ v: 3, kind: 'intent', intent: 'feedhold' })).toMatchObject({ kind: 'intent' });
+  clock.advance(15_000);
+  resolve(board);
+  expect(await pending).toMatchObject({ ok: false });
+  expect(board.opened).toEqual([]);
+  const live = new MachineWorkerHost(source('fake', () => new BoardTransport()), new TestClock());
+  await live.handle(OPEN);
+  expect(await live.handle({ v: 3, kind: 'prepare', port: PORT })).toMatchObject({ ok: false });
+  await live.handle({ v: 3, kind: 'close' });
+  const mobile = new MachineWorkerHost(source('serial', () => board), new TestClock(), { userAgent: 'Android' });
+  expect(await mobile.handle({ v: 3, kind: 'prepare', port: PORT })).toMatchObject({ code: 'platform' });
+});
+
+it('the UI never opens on missing, throwing or refused confirmation', async () => {
+  const call = vi.fn(async () => ({ v: 3 as const, ok: true as const, kind: 'prepare' as const, preparation: 1 }));
+  expect((await openConfirmedPort(call, PORT, undefined, false)).ok).toBe(false);
+  expect(call).not.toHaveBeenCalled();
+  expect((await openConfirmedPort(call, PORT, () => Promise.reject(new Error('gone')), false)).ok).toBe(false);
+  expect(call).toHaveBeenCalledTimes(1);
+  const confirm = vi.fn(async () => true);
+  expect((await openConfirmedPort(async () => ({ v: 3, ok: false, kind: 'prepare', code: 'unavailable', message: 'gone' }), PORT, confirm, false)).ok).toBe(false);
+  expect(confirm).not.toHaveBeenCalled();
 });

@@ -23,12 +23,13 @@ export const CHOOSER_TEXT: Readonly<Record<ChooserRefusal, string>> = Object.fre
   refused: 'The browser did not show the port chooser (it needs a click on this page, and this site must be allowed to use serial ports). Press Connect to try again.',
   'no-usb-identity': 'The chosen port has no USB identity, so it cannot be connected. Choose the board’s USB serial port.',
   'not-granted': 'The browser did not grant the chosen port to this page. Press Connect to try again.',
+  ambiguous: 'More than one granted port has the same USB identity. Disconnect or revoke the other grants, then choose again.',
   failed: 'The port chooser failed. Press Connect to try again.',
 });
 
 /** The LIVE entry result for one chooser answer. */
 export function toChooseResult(result: ChooserResult): ChooseResult {
-  return result.ok ? { ok: true, port: result.selector } : { ok: false, message: CHOOSER_TEXT[result.code] };
+  return result.ok ? { ok: true, port: result.selector, confirm: result.confirm } : { ok: false, message: CHOOSER_TEXT[result.code] };
 }
 
 /** Shows the browser's port chooser. Call it synchronously inside the user's click. */

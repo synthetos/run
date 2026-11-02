@@ -20,6 +20,10 @@
  * session through the allow-matrix; a refusal comes back with the matrix's
  * `{reason, remedy, citation}`.
  *
+ * `prepare` (additive): holds an unopened transport and returns a short-lived,
+ * single-use ticket. Serial `open` requires that ticket, after the window
+ * confirms its original grant objects. There is no re-enumeration on open.
+ *
  * `transcript` (P1-08, additive) answers with the session's wire transcript
  * (`{t, dir, hex}` JSONL) of the last link that opened, for bench runs. It
  * only reads; it never touches the port.
@@ -33,7 +37,7 @@ import type { Decision } from '@synthetos/safety';
 
 export const RPC_VERSION = 3;
 
-export const REQUEST_KINDS = ['open', 'close', 'status', 'intent', 'read', 'subscribe', 'transcript', 'drift'] as const;
+export const REQUEST_KINDS = ['prepare', 'open', 'close', 'status', 'intent', 'read', 'subscribe', 'transcript', 'drift'] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];
 
 /** Intents the window may send. Everything else the session does on its own. */
@@ -47,8 +51,9 @@ export const MAX_TOKEN_LENGTH = 16;
 export const MAX_BOARD_ID_LENGTH = 64;
 
 export type MachineRequest =
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'prepare'; readonly port: PortSelector }
   /** `previousSessionEnded`: a reload or discard ended a LIVE session (W6), so the connect starts UNKNOWN (SAFETY §3). */
-  | { readonly v: typeof RPC_VERSION; readonly kind: 'open'; readonly port: PortSelector; readonly boardId: string | null; readonly previousSessionEnded: boolean }
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'open'; readonly port: PortSelector; readonly preparation?: number; readonly boardId: string | null; readonly previousSessionEnded: boolean }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'close' | 'status' | 'subscribe' | 'transcript' }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'intent'; readonly intent: WindowIntent }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'read'; readonly tokens: readonly string[] }
@@ -80,6 +85,7 @@ export type RefusalCode =
 export type Denial = Extract<Decision, { allowed: false }>;
 
 export type MachineReply =
+  | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'prepare'; readonly preparation: number }
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'open'; readonly info: TransportInfo }
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'close' | 'subscribe' | 'intent' | 'read' | 'drift' }
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'status'; readonly status: WorkerStatus }
@@ -124,16 +130,20 @@ export function parseRequest(data: unknown): MachineRequest | null {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return null;
   if (Object.getPrototypeOf(data) !== Object.prototype) return null;
   const keys = Object.keys(data).sort().join(',');
-  const { v, kind, port, boardId, previousSessionEnded, intent, tokens, epoch } = data as Record<string, unknown>;
+  const { v, kind, port, boardId, previousSessionEnded, intent, tokens, epoch, preparation } = data as Record<string, unknown>;
   if (v !== RPC_VERSION || !isRequestKind(kind)) return null;
   switch (kind) {
+    case 'prepare':
+      if (keys !== 'kind,port,v' || !isPortSelector(port)) return null;
+      return Object.freeze({ v: RPC_VERSION, kind, port: copySelector(port) });
     case 'open': {
-      if (!OPEN_KEYS.has(keys) || !isPortSelector(port)) return null;
+      if (!OPEN_KEYS.has(Object.keys(data).filter((key) => key !== 'preparation').sort().join(',')) || !isPortSelector(port)) return null;
       const id = boardId ?? null;
       if (id !== null && (typeof id !== 'string' || id.length === 0 || id.length > MAX_BOARD_ID_LENGTH)) return null;
       if (previousSessionEnded !== undefined && typeof previousSessionEnded !== 'boolean') return null;
-      const selector = Object.freeze({ usbVendorId: port.usbVendorId, usbProductId: port.usbProductId, grantIndex: port.grantIndex });
-      return Object.freeze({ v: RPC_VERSION, kind, port: selector, boardId: id, previousSessionEnded: previousSessionEnded === true });
+      if ('preparation' in data && (typeof preparation !== 'number' || !Number.isSafeInteger(preparation) || preparation < 1)) return null;
+      const selector = copySelector(port);
+      return Object.freeze({ v: RPC_VERSION, kind, port: selector, ...(preparation === undefined ? {} : { preparation: preparation as number }), boardId: id, previousSessionEnded: previousSessionEnded === true });
     }
     case 'intent':
       if (keys !== 'intent,kind,v' || !isWindowIntent(intent)) return null;
@@ -157,4 +167,14 @@ export function parseRequest(data: unknown): MachineRequest | null {
 /** A refusal reply. */
 export function refusal(kind: RequestKind | 'invalid', code: RefusalCode, message: string, decision?: Denial): MachineReply {
   return Object.freeze({ v: RPC_VERSION, ok: false, kind, code, message, ...(decision === undefined ? {} : { decision: Object.freeze({ ...decision }) }) });
+}
+
+/** Copy untrusted message arrays: callers cannot mutate a prepared selection. */
+function copySelector(port: PortSelector): PortSelector {
+  return Object.freeze({
+    usbVendorId: port.usbVendorId,
+    usbProductId: port.usbProductId,
+    grantIndex: port.grantIndex,
+    ...(port.grantSnapshot === undefined ? {} : { grantSnapshot: Object.freeze([...port.grantSnapshot]) }),
+  });
 }

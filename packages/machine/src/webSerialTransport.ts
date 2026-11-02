@@ -337,17 +337,21 @@ export class WebSerialTransport implements Transport {
 }
 
 /**
- * The granted port the selector names, or null. Takes the port at
- * `grantIndex` in grant order and returns it only when its USB identity
- * matches the selector's; never "the first matching" port, which with two
- * boards of the same kind could be another machine.
+ * Match the complete ordered snapshot and require a unique selected USB
+ * identity. This only PREPARES an unopened port: the window must confirm
+ * its original grant objects before the host opens this exact port.
  */
 export async function findGrantedPort(selector: PortSelector, listPorts: GrantedPortLister = grantedPorts): Promise<SerialPortLike | null> {
   const ports = await listPorts();
-  const port = ports[selector.grantIndex];
-  if (port === undefined) return null;
-  const { usbVendorId, usbProductId } = port.getInfo();
-  return usbVendorId === selector.usbVendorId && usbProductId === selector.usbProductId ? port : null;
+  const snapshot = selector.grantSnapshot;
+  if (snapshot === undefined || snapshot.length !== ports.length) return null;
+  const ids = ports.map((port) => {
+    const info = port.getInfo();
+    return `${String(info.usbVendorId)}:${String(info.usbProductId)}`;
+  });
+  const selected = `${selector.usbVendorId}:${selector.usbProductId}`;
+  if (ids.some((id, i) => id !== snapshot[i]) || ids.filter((id) => id === selected).length !== 1) return null;
+  return ids[selector.grantIndex] === selected ? (ports[selector.grantIndex] as SerialPortLike) : null;
 }
 
 interface WebSerial {

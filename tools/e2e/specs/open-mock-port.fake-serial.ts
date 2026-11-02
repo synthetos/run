@@ -60,8 +60,14 @@ test('machine.worker runs the read-only session on the mock board: {sr:null} fir
   expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ status: { source: 'fake', state: 'idle', session: { base: 'NOT_CONNECTED' } } });
   expect(await ports(worker)).toEqual([]);
 
-  // The worker opens the port with the session options the guard allows.
-  expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toEqual({ v: 3, ok: true, kind: 'open', info: { kind: 'sim', usbVendorId: 0x0403, usbProductId: 0x6015 } });
+  // Prepare creates one unopened mock; committing the ticket must not acquire another.
+  const prepared = await request(worker, { v: 3, kind: 'prepare', port: PORT }) as { ok: boolean; kind: string; preparation: number };
+  expect(prepared).toMatchObject({ ok: true, kind: 'prepare' });
+  expect(await ports(worker)).toHaveLength(1);
+  expect((await ports(worker))[0]?.openLog).toEqual([]);
+  expect((await ports(worker))[0]?.writes).toEqual([]);
+  // The worker opens that held port with the session options the guard allows.
+  expect(await request(worker, { v: 3, kind: 'open', port: PORT, preparation: prepared.preparation })).toEqual({ v: 3, ok: true, kind: 'open', info: { kind: 'sim', usbVendorId: 0x0403, usbProductId: 0x6015 } });
   const opened = await ports(worker);
   expect(opened).toHaveLength(1);
   expect(opened[0]?.openLog).toEqual([{ options: { baudRate: 115200, flowControl: 'none', bufferSize: 256 }, ok: true }]);

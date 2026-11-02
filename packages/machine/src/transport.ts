@@ -60,24 +60,17 @@ export interface Transport {
 }
 
 /**
- * Which granted port the user chose (RUN_PLAN §5.4). `requestPort()` exists
- * only on Window, so the window shows the chooser; the worker, where only
- * `navigator.serial.getPorts()` is available, finds the same port among the
- * ports this origin was ever granted. The window describes its choice with
- * what it can read from the chosen `SerialPort`: its USB identity
- * (`getInfo()`) and its index in the window's own `getPorts()` list, which
- * the worker's `getPorts()` returns in the same order.
- *
- * A source must refuse (resolve null) rather than guess: no granted port
- * matches, or the identity matches a port other than the one at
- * `grantIndex`. It must never pick "the first matching" port, which could
- * be another machine.
+ * The window's selection. Grant ordering is not a device identity. Live
+ * serial requires an ordered USB snapshot, a unique selected USB identity,
+ * and the worker prepare / window object-confirm / worker open handshake.
+ * Snapshot-less selectors are retained only for simulated transports.
  */
 export interface PortSelector {
   readonly usbVendorId: number;
   readonly usbProductId: number;
   /** Index of the chosen port in the window's `navigator.serial.getPorts()`. */
   readonly grantIndex: number;
+  readonly grantSnapshot?: readonly string[];
 }
 
 /** True when `value` is a well-formed `PortSelector` (integers in range, no other keys). */
@@ -85,9 +78,16 @@ export function isPortSelector(value: unknown): value is PortSelector {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   if (Object.getPrototypeOf(value) !== Object.prototype) return false;
   const keys = Object.keys(value).sort();
-  if (keys.join(',') !== 'grantIndex,usbProductId,usbVendorId') return false;
-  const { usbVendorId, usbProductId, grantIndex } = value as Record<string, unknown>;
+  if (!['grantIndex,usbProductId,usbVendorId', 'grantIndex,grantSnapshot,usbProductId,usbVendorId'].includes(keys.join(','))) return false;
+  const { usbVendorId, usbProductId, grantIndex, grantSnapshot } = value as Record<string, unknown>;
   const u16 = (v: unknown): boolean => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 0xffff;
+  if ('grantSnapshot' in value) {
+    if (!Array.isArray(grantSnapshot) || grantSnapshot.length === 0 || grantSnapshot.length > 256) return false;
+    for (const id of grantSnapshot) {
+      if (typeof id !== 'string' || !/^(0|[1-9][0-9]{0,4}):(0|[1-9][0-9]{0,4})$/.test(id) || !id.split(':').every((part) => u16(Number(part)))) return false;
+    }
+    if (grantSnapshot[grantIndex as number] !== `${String(usbVendorId)}:${String(usbProductId)}`) return false;
+  }
   return u16(usbVendorId) && u16(usbProductId) && Number.isInteger(grantIndex) && (grantIndex as number) >= 0 && (grantIndex as number) < 256;
 }
 

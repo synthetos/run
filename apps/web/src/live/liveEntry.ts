@@ -42,7 +42,7 @@ export type EntryState =
   | { readonly step: 'live' }
   | { readonly step: 'refused'; readonly refusal: EntryRefusal };
 
-export type ChooseResult = { readonly ok: true; readonly port: PortChoice } | { readonly ok: false; readonly message: string };
+export type ChooseResult = { readonly ok: true; readonly port: PortChoice; readonly confirm?: () => Promise<boolean> } | { readonly ok: false; readonly message: string };
 export type OpenResult = { readonly ok: true } | { readonly ok: false; readonly message: string };
 
 export interface LiveEntryDeps {
@@ -52,7 +52,7 @@ export interface LiveEntryDeps {
   readonly now: () => Date;
   /** Shows the port chooser. Called synchronously inside the C1 confirm click. */
   readonly choosePort: () => Promise<ChooseResult>;
-  readonly open: (port: PortChoice) => Promise<OpenResult>;
+  readonly open: (port: PortChoice, confirm?: () => Promise<boolean>) => Promise<OpenResult>;
   readonly leaveFullscreen: () => Promise<unknown>;
   /** Must not await (it runs inside the Connect gesture). */
   readonly unlockAlarm: () => void;
@@ -118,7 +118,7 @@ export class LiveEntry {
     }
     const chosen = await choice.catch((): ChooseResult => ({ ok: false, message: 'The port chooser failed.' }));
     if (!chosen.ok) return this.#refuse({ kind: 'no-port', message: chosen.message });
-    const opened = await this.deps.open(chosen.port);
+    const opened = await this.deps.open(chosen.port, chosen.confirm);
     if (!opened.ok) return this.#refuse({ kind: 'open-failed', message: opened.message });
     try {
       await markLive(this.deps.store, this.deps.now());

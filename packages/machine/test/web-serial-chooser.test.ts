@@ -52,11 +52,32 @@ describe('chooseSerialPort', () => {
   });
 
   it("describes the choice by its USB identity and its index in the window's granted ports", async () => {
-    const other = port({ usbVendorId: 0x0403, usbProductId: 0x6015 });
+    const other = port({ usbVendorId: 0x2341, usbProductId: 0x003e });
     const board = port({ usbVendorId: 0x0403, usbProductId: 0x6015 });
     const result = await chooseSerialPort(serial(board, [other, board]));
-    expect(result).toEqual({ ok: true, selector: { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 1 } });
+    expect(result).toMatchObject({ ok: true, selector: { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 1, grantSnapshot: ['9025:62', '1027:24597'] } });
+    if (!result.ok) throw new Error('expected choice');
+    expect(await result.confirm()).toBe(true);
+    expect(await result.confirm()).toBe(false);
     expect(result.ok && isPortSelector(result.selector)).toBe(true);
+  });
+
+  it('refuses indistinguishable grants instead of relying on their indices', async () => {
+    const a = port({ usbVendorId: 1027, usbProductId: 24597 });
+    const b = port({ usbVendorId: 1027, usbProductId: 24597 });
+    expect(await chooseSerialPort(serial(a, [a, b]))).toMatchObject({ ok: false, code: 'ambiguous' });
+  });
+
+  it('confirms the original object once, refusing a replacement with the same USB ids', async () => {
+    const a = port({ usbVendorId: 1027, usbProductId: 24597 });
+    const b = port({ usbVendorId: 1027, usbProductId: 24597 });
+    let grants = [a];
+    const chosen = await chooseSerialPort(fakeSerial(() => Promise.resolve(a), () => Promise.resolve(grants)));
+    if (!chosen.ok) throw new Error('expected choice');
+    grants = [b];
+    expect(await chosen.confirm()).toBe(false);
+    grants = [a];
+    expect(await chosen.confirm()).toBe(false);
   });
 
   it('a closed chooser is cancelled; a refused one (no gesture, policy) is refused; anything else failed', async () => {
@@ -108,6 +129,32 @@ describe('chooseSerialPort', () => {
       },
     };
     expect(await chooseSerialPort(serial(broken, [broken]))).toMatchObject({ ok: false, code: 'refused' });
+  });
+
+  it('confirmation refuses removed, reordered or changed grants and listing failures', async () => {
+    for (const change of ['removed', 'reordered', 'changed', 'throw'] as const) {
+      const info = { usbVendorId: 1027, usbProductId: 24597 };
+      const board = port(info);
+      const other = port({ usbVendorId: 1, usbProductId: 2 });
+      let changed = false;
+      const choice = await chooseSerialPort(fakeSerial(() => Promise.resolve(board), async () => {
+        if (!changed) return [board, other];
+        if (change === 'throw') throw new Error('gone');
+        if (change === 'removed') return [];
+        if (change === 'reordered') return [other, board];
+        info.usbProductId = 3;
+        return [board, other];
+      }));
+      if (!choice.ok) throw new Error('expected choice');
+      changed = true;
+      expect(await choice.confirm(), change).toBe(false);
+    }
+  });
+
+  it('refuses an unidentifiable other grant or an oversized grant list even at index zero', async () => {
+    const board = port({ usbVendorId: 1, usbProductId: 2 });
+    expect(await chooseSerialPort(serial(board, [board, port({})]))).toMatchObject({ ok: false });
+    expect(await chooseSerialPort(serial(board, [board, ...Array.from({ length: 256 }, () => port({ usbVendorId: 3, usbProductId: 4 }))]))).toMatchObject({ ok: false, code: 'not-granted' });
   });
 
   it('without Web Serial (Node has a navigator but no serial) the chooser is unavailable', async () => {

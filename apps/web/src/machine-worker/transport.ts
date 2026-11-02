@@ -7,12 +7,13 @@
  * `createTransportSource`.
  *
  * - The release build (P1-01): Web Serial. `request(selector)` finds the
- *   granted port the window selected (`navigator.serial.getPorts()`, the
- *   port at the selector's grant index, and only if its USB identity
- *   matches; otherwise null) and hands the worker a new, unopened
+ *   granted port the window selected (`navigator.serial.getPorts()`, a full
+ *   ordered grant snapshot match, and a unique selected USB identity;
+ *   otherwise null) and hands the worker a new, unopened
  *   `WebSerialTransport` over it (packages/machine/src/webSerialTransport.ts,
  *   the one module that may touch Web Serial). The worker opens it only
- *   through `GuardedTransport`.
+ *   through `GuardedTransport`, after the prepare/confirm handshake holds
+ *   this exact port (docs/safety/PORT_SELECTION.md).
  *
  *   The same artifact runs on staging and production. Production serves
  *   `Permissions-Policy: serial=()`, so the browser refuses `getPorts()`

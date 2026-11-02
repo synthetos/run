@@ -19,7 +19,7 @@ import { downloadTranscript } from './transcriptDownload.ts';
 import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { OverlayBanners } from '../machine-ui/OverlayBanners.ts';
 import { callMachineWorker } from '../machine-worker/client.ts';
-import { RPC_VERSION, type MachineRequest, type SnapshotMessage, type WorkerStatus } from '../machine-worker/rpc.ts';
+import { RPC_VERSION, type MachineReply, type MachineRequest, type SnapshotMessage, type WorkerStatus } from '../machine-worker/rpc.ts';
 import { AdvisoryPoller, checkAdvisory, type AdvisoryCheck, type AdvisoryDeps } from './advisoryGate.ts';
 import { accessProvider, AuthGate, providersFor } from './authGate.ts';
 import { ConnectPanel } from './ConnectPanel.ts';
@@ -37,6 +37,25 @@ import type { StopControls } from './stopControls.ts';
  */
 export function openRequest(port: Extract<MachineRequest, { kind: 'open' }>['port'], previousSessionEnded: boolean): Extract<MachineRequest, { kind: 'open' }> {
   return { v: RPC_VERSION, kind: 'open', port, boardId: null, previousSessionEnded };
+}
+
+/** Prepare without opening; confirm original window objects; open only the held worker port. */
+export async function openConfirmedPort(
+  call: (request: MachineRequest) => Promise<MachineReply>,
+  port: Extract<MachineRequest, { kind: 'open' }>['port'],
+  confirm: (() => Promise<boolean>) | undefined,
+  previousSessionEnded: boolean,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (confirm === undefined) return { ok: false, message: 'Choose the port again to confirm its selection.' };
+  try {
+    const prepared = await call({ v: RPC_VERSION, kind: 'prepare', port });
+    if (!prepared.ok) return { ok: false, message: prepared.message };
+    if (prepared.kind !== 'prepare' || !(await confirm())) return { ok: false, message: 'The granted ports changed. Choose the port again.' };
+    const reply = await call({ ...openRequest(port, previousSessionEnded), preparation: prepared.preparation });
+    return reply.ok ? { ok: true } : { ok: false, message: reply.message };
+  } catch {
+    return { ok: false, message: 'The port selection could not be confirmed. Choose the port again.' };
+  }
 }
 
 export interface MountOptions {
@@ -89,10 +108,9 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     // C1 have passed. Its PortSelector goes to the machine worker's `open`, which finds the same granted
     // port or refuses. Pause, Escape and the stop requests never pass through here.
     choosePort: () => windowChooser(),
-    open: async (port) => {
+    open: async (port, confirm) => {
       if (worker === null) return { ok: false, message: 'The machine worker is not running in this browser.' };
-      const reply = await callMachineWorker(worker, openRequest(port, options.previousSession.value));
-      return reply.ok ? { ok: true } : { ok: false, message: reply.message };
+      return openConfirmedPort((request) => callMachineWorker(worker, request), port, confirm, options.previousSession.value);
     },
     leaveFullscreen: () => leaveFullscreen(document),
     unlockAlarm: () => alarm.unlock(),

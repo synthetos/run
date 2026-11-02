@@ -516,42 +516,40 @@ describe('choosing the granted port', () => {
   const a = new ScriptedSerialPort(TINYG);
   const b = new ScriptedSerialPort(TINYG);
   const g2 = new ScriptedSerialPort({ usbVendorId: 0x1d50, usbProductId: 0x606d });
-  const list = (): Promise<readonly SerialPortLike[]> => Promise.resolve([a, g2, b]);
+  const selector = { ...TINYG, grantIndex: 0, grantSnapshot: ['1027:24597', '7504:24685'] };
+  const list = (): Promise<readonly SerialPortLike[]> => Promise.resolve([a, g2]);
 
-  it('returns the port at grantIndex when its identity matches', async () => {
-    expect(await findGrantedPort({ ...TINYG, grantIndex: 0 }, list)).toBe(a);
-    expect(await findGrantedPort({ ...TINYG, grantIndex: 2 }, list)).toBe(b);
-    expect(await findGrantedPort({ usbVendorId: 0x1d50, usbProductId: 0x606d, grantIndex: 1 }, list)).toBe(g2);
+  it('matches the entire snapshot with a unique selected identity without opening', async () => {
+    expect(await findGrantedPort(selector, list)).toBe(a);
+    expect(a.opened).toEqual([]);
   });
 
-  it('refuses rather than guesses: an identity mismatch at that index, or no port there', async () => {
-    expect(await findGrantedPort({ ...TINYG, grantIndex: 1 }, list)).toBeNull();
-    expect(await findGrantedPort({ usbVendorId: 0x0403, usbProductId: 0x6001, grantIndex: 0 }, list)).toBeNull();
-    expect(await findGrantedPort({ usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 3 }, list)).toBeNull();
-    expect(await findGrantedPort({ ...TINYG, grantIndex: 0 }, () => Promise.resolve([]))).toBeNull();
+  it('refuses duplicate identities, changed order, shifted grants, missing snapshots and wrong indices', async () => {
+    expect(await findGrantedPort({ ...selector, grantSnapshot: ['1027:24597', '1027:24597'] }, () => Promise.resolve([a, b]))).toBeNull();
+    expect(await findGrantedPort(selector, () => Promise.resolve([g2, a]))).toBeNull();
+    expect(await findGrantedPort(selector, () => Promise.resolve([b]))).toBeNull();
+    expect(await findGrantedPort({ ...TINYG, grantIndex: 0 }, list)).toBeNull();
+    expect(await findGrantedPort({ ...selector, grantIndex: 1 }, list)).toBeNull();
+    expect(await findGrantedPort({ ...selector, grantIndex: 3 }, list)).toBeNull();
+    expect(await findGrantedPort({ ...selector, usbVendorId: 7 }, list)).toBeNull();
   });
 
-  it('where the API does not exist (here, Node), there are no granted ports', async () => {
-    expect(await findGrantedPort({ ...TINYG, grantIndex: 0 })).toBeNull();
-    expect(await webSerialTransportSource().request({ ...TINYG, grantIndex: 0 })).toBeNull();
+  it('where the API does not exist (Node), there are no granted ports', async () => {
+    expect(await findGrantedPort(selector)).toBeNull();
+    expect(await webSerialTransportSource().request(selector)).toBeNull();
   });
 
-  it('the transport source hands out a new, unopened WebSerialTransport over the selected port, or null', async () => {
+  it('the source prepares a new unopened transport or refuses, and propagates listing failures', async () => {
     const source = webSerialTransportSource(list);
     expect(source.kind).toBe('serial');
     expect(Object.isFrozen(source)).toBe(true);
-    const first = await source.request({ ...TINYG, grantIndex: 2 });
+    const first = await source.request(selector);
     expect(first).toBeInstanceOf(WebSerialTransport);
     expect(first?.info()).toEqual({ kind: 'serial', ...TINYG });
-    expect(b.opened).toEqual([]);
-    const second = await source.request({ ...TINYG, grantIndex: 2 });
-    expect(second).not.toBe(first);
-    expect(await source.request({ ...TINYG, grantIndex: 1 })).toBeNull();
-  });
-
-  it('a lister that fails fails the request (the worker reports the source failed)', async () => {
-    const source = webSerialTransportSource(() => Promise.reject(new DOMException('Access denied.', 'SecurityError')));
-    await expect(source.request({ ...TINYG, grantIndex: 0 })).rejects.toThrow('Access denied.');
+    expect(a.opened).toEqual([]);
+    expect(await source.request(selector)).not.toBe(first);
+    expect(await source.request({ ...selector, grantIndex: 1 })).toBeNull();
+    await expect(webSerialTransportSource(() => Promise.reject(new Error('denied'))).request(selector)).rejects.toThrow('denied');
   });
 });
 

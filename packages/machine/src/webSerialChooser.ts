@@ -9,8 +9,9 @@
  * on Window and needs a user gesture, so the machine worker cannot show the
  * chooser; this module does, on the main thread, and describes the choice as
  * a `PortSelector`: the chosen port's USB identity (`getInfo()`) and its
- * index in the window's own `getPorts()`. The worker then finds the same
- * port among its granted ports (`findGrantedPort`) or refuses.
+ * index and full USB grant snapshot. The worker holds an unopened matching
+ * port, then the window confirms the original grant objects still match.
+ * Only that held worker port may open; changed or ambiguous grants refuse.
  *
  * It never opens, reads or writes a port: it has no `open`, no streams and
  * no transport. Every gate holds it to that:
@@ -51,10 +52,12 @@ export type ChooserRefusal =
   | 'no-usb-identity'
   /** The chosen port is not in the window's granted ports. */
   | 'not-granted'
+  /** More than one grant has the selected USB identity. */
+  | 'ambiguous'
   /** Anything else the browser threw. */
   | 'failed';
 
-export type ChooserResult = { readonly ok: true; readonly selector: PortSelector } | { readonly ok: false; readonly code: ChooserRefusal; readonly detail: string };
+export type ChooserResult = { readonly ok: true; readonly selector: PortSelector; readonly confirm: () => Promise<boolean> } | { readonly ok: false; readonly code: ChooserRefusal; readonly detail: string };
 
 /** The largest grant index a `PortSelector` carries (isPortSelector). */
 const MAX_GRANT_INDEX = 255;
@@ -96,9 +99,29 @@ async function describe(serial: ChooserSerial, requested: Promise<ChooserPort>):
     if (!isU16(usbVendorId) || !isU16(usbProductId)) {
       return refusal('no-usb-identity', 'the chosen port reports no USB vendor and product id');
     }
-    const grantIndex = (await serial.getPorts()).indexOf(port);
-    if (grantIndex < 0 || grantIndex > MAX_GRANT_INDEX) return refusal('not-granted', 'the chosen port is not among the ports this page was granted');
-    return Object.freeze({ ok: true, selector: Object.freeze({ usbVendorId, usbProductId, grantIndex }) });
+    const grants = [...(await serial.getPorts())];
+    const grantIndex = grants.indexOf(port);
+    if (grantIndex < 0 || grantIndex > MAX_GRANT_INDEX || grants.length > MAX_GRANT_INDEX + 1) return refusal('not-granted', 'the chosen port is not among the ports this page was granted');
+    const snapshot = (): string[] => grants.map((p) => {
+      const info = p.getInfo();
+      if (!isU16(info.usbVendorId) || !isU16(info.usbProductId)) throw new Error('a grant has no USB identity');
+      return `${info.usbVendorId}:${info.usbProductId}`;
+    });
+    const grantSnapshot = Object.freeze(snapshot());
+    if (grantSnapshot.filter((id) => id === grantSnapshot[grantIndex]).length !== 1) return refusal('ambiguous', 'disconnect or revoke indistinguishable grants before choosing a port');
+    let consumed = false;
+    const confirm = async (): Promise<boolean> => {
+      if (consumed) return false;
+      consumed = true;
+      try {
+        const current = await serial.getPorts();
+        // Object identity catches removal/replacement even with identical USB ids.
+        return current.length === grants.length && current.every((p, i) => p === grants[i]) && snapshot().every((id, i) => id === grantSnapshot[i]);
+      } catch {
+        return false;
+      }
+    };
+    return Object.freeze({ ok: true, selector: Object.freeze({ usbVendorId, usbProductId, grantIndex, grantSnapshot }), confirm });
   } catch (error) {
     return fromError(error);
   }

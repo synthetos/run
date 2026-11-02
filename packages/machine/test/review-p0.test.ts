@@ -100,3 +100,12 @@ describe('disconnected flag', () => {
     expect(t.disconnected).toBe(false);
   });
 });
+
+
+it('validates bounded ordered grant snapshots without accepting missing or malformed entries', () => {
+  const port = { usbVendorId: 1027, usbProductId: 24597, grantIndex: 0 };
+  expect(isPortSelector({ ...port, grantSnapshot: ['1027:24597'] })).toBe(true);
+  for (const grantSnapshot of [undefined, null, '', [], Array(257).fill('1027:24597'), [1], ['bad'], ['65536:1'], ['1:65536'], ['01027:24597'], ['1027:24597', undefined], ['1:2']]) {
+    expect(isPortSelector({ ...port, grantSnapshot }), String(grantSnapshot)).toBe(false);
+  }
+});

@@ -80,12 +80,12 @@ test('the browser allows Web Serial on staging, in the page and in machine.worke
 test('machine.worker asks Web Serial for the granted ports; with none granted, open is refused and the worker stays idle (P1-01)', async ({ page }) => {
   const worker = await machineWorker(page);
   expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ status: { source: 'serial', state: 'idle' } });
-  expect(await request(worker, { v: 3, kind: 'open', port: { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } })).toEqual({
+  expect(await request(worker, { v: 3, kind: 'prepare', port: { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0, grantSnapshot: ['1027:24597'] } })).toEqual({
     v: 3,
     ok: false,
-    kind: 'open',
+    kind: 'prepare',
     code: 'unavailable',
-    message: 'no port was chosen',
+    message: 'the granted ports changed or the selection expired',
   });
   expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ status: { source: 'serial', state: 'idle', session: { base: 'NOT_CONNECTED', overlays: [] } } });
 });
