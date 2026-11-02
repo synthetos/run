@@ -2,7 +2,7 @@
   "name": "@synthetos/gcode-view",
   "version": "0.1.0",
   "description": "Toolpath preview for a plain segment list: chunked WebGL line rendering on demand, a 2D SVG fallback, a line scrubber and a virtualised list window. No G-code, no machine code.",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
   "exports": {

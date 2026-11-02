@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "G-code lexer/parser (cncjs fork, MIT), dialect-aware modal interpreter, arcs and analyser.",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
   "exports": {

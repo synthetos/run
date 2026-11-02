@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "DEV ONLY. Playwright tests against `wrangler dev` serving the built shell or the attested artifact with the production headers, under the origin guard (ROADMAP P0-04, P0-06), and the fake-serial suite against the test-only build (P0-14).",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
   "scripts": {

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Pure provenance logic: device-local trust-anchor records, SAME/NEW/CHANGED decision and display-name sanitiser.",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
   "exports": {

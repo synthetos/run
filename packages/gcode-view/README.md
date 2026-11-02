@@ -45,4 +45,4 @@ if (gl === null) {
 
 ## Licence
 
-Apache-2.0.
+AGPL-3.0-or-later, like the rest of the repository. See the root `LICENSE`.

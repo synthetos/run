@@ -1,7 +1,15 @@
 run.synthetos.com
 Copyright 2026 Synthetos
 
-This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by the
+Free Software Foundation, either version 3 of the License, or (at your option)
+any later version (SPDX: AGPL-3.0-or-later). See LICENSE.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details.
 
 Third-party code included in this product, with its licence, is listed in
 THIRD_PARTY_NOTICES.md.

@@ -330,3 +330,4 @@ software is not an emergency stop. "Stop job" no longer says "spindle off".
 - LICENSE, NOTICE, README, the package `license` fields, SPDX headers, the site footer and D3/PHASE0 traceability all move to AGPL-3.0.
 - The dependency licence gate is unchanged: dependencies stay permissive-only.
 - No push happens until the history audit is clean.
+- Implemented (branch public-cleanup): LICENSE carries the full AGPL-3.0 text; every package `license` field is `AGPL-3.0-or-later`; NOTICE, README, the site footer and `packages/gcode-view/README.md` say so; the PHASE0 D3 row is marked superseded. No source file carries SPDX headers, so there were none to change.
