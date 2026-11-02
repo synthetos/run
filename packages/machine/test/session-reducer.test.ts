@@ -75,7 +75,7 @@ describe('the connection path', () => {
     expect(d.state.classification).toMatchObject({ mode: 'full', reason: 'en-approved', buildIdentity: 'fbOnly' });
     expect(d.state.overlays).toEqual([]);
     for (const intent of ['jog', 'home', 'start', 'settingsWrite', 'resetController', 'spindleOn', 'setWorkZero'] as const) {
-      expect(d.intent({ intent }), intent).toMatchObject({ allowed: false, reason: 'Not available in this release.' });
+      expect(d.intent({ intent } as never), intent).toMatchObject({ allowed: false, reason: 'Not available in this release.' });
     }
   });
 

@@ -73,6 +73,7 @@ import {
 import { OVERLAYS, allowed, type Decision, type Intent, type MatrixSnapshot, type Overlay } from '@synthetos/safety';
 import { getLineFor, isReadAllowed } from '@synthetos/schema';
 import { writeLineCapFor } from '../writeShape.ts';
+import { gateTokens, judgeGate, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
 import {
   MAX_PROBE_RESTARTS,
   MAX_QUEUED_READS,
@@ -90,6 +91,8 @@ import {
   type SessionEvent,
   type SessionIntent,
   type SessionState,
+  type SettingWriteOutcome,
+  type SettingWriteState,
   type TimerId,
   type Transition,
 } from './types.ts';
@@ -152,6 +155,7 @@ export function initialState(): SessionState {
     timers: Object.freeze({}),
     timerSeq: 0,
     sent: Object.freeze({ lines: 0, realtime: 0 }),
+    settingWrite: null,
   });
 }
 
@@ -377,6 +381,9 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
     case 'read':
       onRead(t, request.tokens, matrix);
       return;
+    case 'settingsWrite':
+      onSettingsWrite(t, request.key, request.value, matrix);
+      return;
     default:
       t.decide(intent, deny(PHASE_1_NOT_HANDLED.reason, PHASE_1_NOT_HANDLED.remedy, `ROADMAP P1-02 (${t.config.release.name})`));
   }
@@ -428,6 +435,118 @@ function onRead(t: Tx, tokens: readonly string[], matrix: Decision): void {
   }
   t.set({ queue: [...t.s.queue, ...fresh.map((token) => ({ token, purpose: 'request' as const }))] });
   t.decide('read', matrix);
+}
+
+// --- Settings writes (SAFETY §4.6, H50-H54, amendment 2026-11-02) -----------
+
+/** True while a settings write has not finished. */
+export function settingWriteActive(s: SessionState): boolean {
+  return s.settingWrite !== null && s.settingWrite.phase !== 'done';
+}
+
+function onSettingsWrite(t: Tx, key: unknown, value: unknown, matrix: Decision): void {
+  const dialect = dialectOf(t.s);
+  if (dialect === null || t.s.classification?.mode !== 'full') {
+    t.decide('settingsWrite', deny('Settings are written only to an approved, identified board.', 'Connect a board running approved firmware.', 'SAFETY §4.6; P1-03'));
+    return;
+  }
+  if (settingWriteActive(t.s)) {
+    t.decide('settingsWrite', deny('One setting at a time: the last write has not finished.', 'Wait for its answer and read-back.', 'SAFETY §4.6 step 6; firmware maintainer 2026-11-02 (one token at a time)'));
+    return;
+  }
+  if (typeof key !== 'string') {
+    t.decide('settingsWrite', deny('Name one setting.', 'Name one setting.', 'SAFETY §4.6'));
+    return;
+  }
+  const refusal = settingRefusal(dialect.id, key, value, t.s.values);
+  if (refusal !== null) {
+    t.decide('settingsWrite', deny(`Not written: ${refusal}`, 'Correct the value and try again.', 'SAFETY §4.6; PN §12.4 (forbidden writes); schema overlay'));
+    return;
+  }
+  const holdTrusted = restingUsesHold(dialect);
+  const tokens = gateTokens(dialect, holdTrusted);
+  const id = (t.s.settingWrite?.id ?? 0) + 1;
+  t.set({
+    settingWrite: { id, key, value: value as number, phase: 'gate', gate: {} },
+    queue: [...tokens.map((token) => ({ token, purpose: 'gate' as const })), ...t.s.queue],
+  });
+  t.emit({ kind: 'log', text: `settings write #${id}: ${key} = ${String(value)} (gate: ${tokens.join(' ')})` });
+  t.decide('settingsWrite', matrix);
+}
+
+function finishSettingWrite(t: Tx, outcome: SettingWriteOutcome, detail: string, patch: Partial<SettingWriteState> = {}): void {
+  const w = t.s.settingWrite;
+  if (w === null || w.phase === 'done') return;
+  t.set({
+    settingWrite: { ...w, ...patch, phase: 'done', outcome, detail },
+    queue: t.s.queue.filter((q) => q.purpose !== 'gate' && q.purpose !== 'setting' && q.purpose !== 'readback'),
+  });
+  t.emit({ kind: 'log', text: `settings write #${w.id}: ${w.key} → ${outcome}${detail === '' ? '' : ` (${detail})`}` });
+}
+
+function onGateAnswer(t: Tx, token: string, r: Response): void {
+  const w = t.s.settingWrite;
+  if (w === null || w.phase !== 'gate') return;
+  const value = r.r[token];
+  if (r.footer.status !== 0 || typeof value !== 'number' || !Number.isFinite(value)) {
+    finishSettingWrite(t, 'refused', `Not written: the board did not answer the ${token} read (status ${r.footer.status}).`);
+    return;
+  }
+  const gate = { ...w.gate, [token]: value };
+  t.set({ settingWrite: { ...w, gate }, live: withNumber(t, t.s.live, token, value) });
+  if (t.s.queue.some((q) => q.purpose === 'gate')) return;
+  const dialect = dialectOf(t.s) as Dialect;
+  const verdict = judgeGate(dialect, gate, restingUsesHold(dialect));
+  if (!verdict.ok) {
+    finishSettingWrite(t, 'refused', verdict.detail);
+    return;
+  }
+  // The state may have changed while the gate was read (an overlay, a status report): ask the matrix again.
+  const again = allowed(matrixSnapshot(t.s), 'settingsWrite', t.config.release);
+  if (!again.allowed) {
+    finishSettingWrite(t, 'refused', `Not written: ${again.reason}`);
+    return;
+  }
+  t.set({ settingWrite: { ...(t.s.settingWrite as SettingWriteState), phase: 'writing' }, queue: [{ token: w.key, purpose: 'setting', value: w.value }, ...t.s.queue] });
+}
+
+function onSettingAnswer(t: Tx, r: Response): void {
+  const w = t.s.settingWrite;
+  if (w === null || w.phase !== 'writing') return;
+  const echoed = readBackValue(r.r, w.key);
+  if (w.exception !== undefined && r.footer.status === 0) {
+    // TG answers 0 after an `er` 9 although nothing was saved (TG-SETTINGS-GATE): the `er` decides.
+    finishSettingWrite(t, 'rejected', `The board refused to save the setting (status ${w.exception}: a cycle was active); it may hold the value until a reset.`, { answer: { status: 0, value: echoed } });
+    return;
+  }
+  if (r.footer.status !== 0) {
+    finishSettingWrite(t, 'rejected', `The board refused the write (status ${r.footer.status}); the setting was not stored.`, { answer: { status: r.footer.status, value: echoed } });
+    return;
+  }
+  t.set({ settingWrite: { ...w, phase: 'readback', answer: { status: 0, value: echoed } }, queue: [{ token: w.key, purpose: 'readback' }, ...t.s.queue] });
+}
+
+function onReadBackAnswer(t: Tx, r: Response, at: number): void {
+  const w = t.s.settingWrite;
+  if (w === null || w.phase !== 'readback') return;
+  const value = readBackValue(r.r, w.key);
+  t.set({ values: { ...t.s.values, [w.key]: { value, status: r.footer.status, at } } });
+  const dialect = dialectOf(t.s) as Dialect;
+  if (r.footer.status === 0 && readBackMatches(dialect.id, w.key, w.value, value)) {
+    finishSettingWrite(t, 'verified', '', { readBack: value });
+    return;
+  }
+  const shown = r.footer.status !== 0 ? `the read-back failed (status ${r.footer.status})` : `the board reads back ${JSON.stringify(value)}, not ${w.value}`;
+  finishSettingWrite(t, 'mismatch', `Written, but ${shown}.`, { readBack: value });
+}
+
+/** A settings write in progress is cut off (FAULT, LOST, reset, link change). */
+function interruptSettingWrite(t: Tx, why: string): void {
+  if (!settingWriteActive(t.s)) return;
+  const w = t.s.settingWrite as SettingWriteState;
+  // A write already sent may have been stored: say so.
+  const outcome: SettingWriteOutcome = w.phase === 'gate' ? 'refused' : 'interrupted';
+  finishSettingWrite(t, outcome, outcome === 'refused' ? `Not written: ${why}.` : `Interrupted: ${why}. The board may or may not hold the new value; read it back before trusting it.`);
 }
 
 function onAckFault(t: Tx, matrix: Decision): void {
@@ -505,6 +624,7 @@ function answerTimeout(t: Tx, purpose: ReadPurpose): number {
 }
 
 function onLinkLost(t: Tx): void {
+  interruptSettingWrite(t, 'the connection was lost');
   t.cancelAll();
   t.addOverlay('LOST');
   t.set({ queue: [], expected: [], writing: null, ackVerify: null, xoff: false, enqOutstanding: false, liveness: null, unknownOnNextConnect: true });
@@ -542,6 +662,9 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
     t.set({ queue: [] });
     return;
   }
+  if (missed.purpose === 'gate') finishSettingWrite(t, 'refused', `Not written: the board did not answer the ${missed.token} read in time.`);
+  if (missed.purpose === 'setting') finishSettingWrite(t, 'unconfirmed', 'The board did not answer the write in time. It may or may not hold the new value; read it back before trusting it.');
+  if (missed.purpose === 'readback') finishSettingWrite(t, 'mismatch', 'Written (status 0), but the read-back was not answered in time.');
   enterStale(t, at);
   const pendingReading = t.s.queue.some((q) => q.purpose === 'reading') || missed.purpose === 'reading';
   t.set({ queue: [] });
@@ -580,6 +703,13 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
     case 'Exception':
       // An `er` answering the first line is the spliced fragment being rejected (PN §2.3 step 0): recorded only.
       if (t.s.probe !== null && t.s.probe.next === 0 && !t.s.ready) return;
+      // A settings write refused because a cycle is active: EN prints an `er` with 106, TG answers 9
+      // (SAFETY §4.6 step 6, HIL-4.2). It is a refusal of this write, answered by its own response, not a FAULT.
+      if (t.s.settingWrite?.phase === 'writing' && (event.st === 106 || event.st === 9)) {
+        t.set({ settingWrite: { ...t.s.settingWrite, exception: event.st } });
+        t.emit({ kind: 'log', text: `settings write #${t.s.settingWrite.id}: the board reported ${event.st} (a cycle was active): refused` });
+        return;
+      }
       enterFault(t, 'exceptionReport', 'integrity', `the board reported an exception (status ${event.st}): ${event.msg.slice(0, 80)}`, at);
       return;
     case 'Ack':
@@ -595,6 +725,7 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
 }
 
 function onBanner(t: Tx, banner: Banner, at: number): void {
+  interruptSettingWrite(t, 'the board reset');
   // The board restarted: it boots in XON and never says so (@cite EN xio/xio_usart.c:128-130).
   // An ENQ written before the reset was either answered before the banner (lines arrive in order) or
   // lost with the RX ring, so no `ack` is still owed.
@@ -719,6 +850,15 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
     case 'liveness':
       // The answer itself is the proof of life (already recorded on receipt); keep the value it carries.
       if (r.footer.status === 0 && typeof value === 'number') t.set({ live: withNumber(t, t.s.live, e.token, value) });
+      return;
+    case 'gate':
+      onGateAnswer(t, e.token, r);
+      return;
+    case 'setting':
+      onSettingAnswer(t, r);
+      return;
+    case 'readback':
+      onReadBackAnswer(t, r, at);
       return;
   }
 }
@@ -929,6 +1069,15 @@ function onGarbled(t: Tx, at: number): void {
       return;
     case 'liveness':
       return;
+    case 'gate':
+      finishSettingWrite(t, 'refused', `Not written: the answer to the ${entry.token} read arrived damaged.`);
+      return;
+    case 'setting':
+      finishSettingWrite(t, 'unconfirmed', 'The answer to the write arrived damaged. The board may or may not hold the new value; read it back before trusting it.');
+      return;
+    case 'readback':
+      finishSettingWrite(t, 'mismatch', 'Written (status 0), but the read-back arrived damaged.');
+      return;
   }
 }
 
@@ -1035,6 +1184,7 @@ function askForLife(t: Tx): 'enq' | 'get' {
 // --- FAULT ------------------------------------------------------------------
 
 function enterFault(t: Tx, cause: FaultCause, kind: FaultKind, detail: string, at: number): void {
+  interruptSettingWrite(t, 'a fault latched');
   if (t.s.fault === null) t.set({ fault: { cause, kind, detail, at } });
   t.addOverlay('FAULT');
   t.cancel('verify');
@@ -1053,20 +1203,32 @@ function pump(t: Tx): void {
   const s = t.s;
   if (s.writing !== null || s.queue.length === 0 || !linkUp(s)) return;
   if (s.expected.some((e) => !e.late)) return;
-  if (!allowed(matrixSnapshot(s), 'read', t.config.release).allowed) return;
   const next = s.queue[0] as PendingRead;
+  const intent = next.purpose === 'setting' ? 'settingsWrite' : 'read';
+  if (!allowed(matrixSnapshot(s), intent, t.config.release).allowed) {
+    // A write the matrix no longer allows is dropped, never held for later (the state that allowed it is gone).
+    if (intent === 'settingsWrite') finishSettingWrite(t, 'refused', 'Not written: the machine is no longer in a state that allows settings writes.');
+    return;
+  }
   const line = lineFor(s, next);
   if (line === undefined) {
     t.set({ queue: s.queue.slice(1) });
-    enterFault(t, 'writeRefused', 'integrity', `no allowlisted GET for ${JSON.stringify(next.token)} in this state`, s.live.lastRxAt ?? 0);
+    enterFault(t, 'writeRefused', 'integrity', `no allowlisted ${intent === 'read' ? 'GET' : 'settings write'} for ${JSON.stringify(next.token)} in this state`, s.live.lastRxAt ?? 0);
     return;
   }
   const seq = s.sent.lines + 1;
   t.set({ queue: s.queue.slice(1), writing: { ...next, seq }, sent: { ...s.sent, lines: seq } });
-  t.emit({ kind: 'writeLine', epoch: s.epoch, seq, token: next.token, line });
+  t.emit({ kind: 'writeLine', epoch: s.epoch, seq, token: next.token, line, ...(intent === 'settingsWrite' ? { intent } : {}) });
 }
 
 function lineFor(s: SessionState, read: PendingRead): string | undefined {
+  if (read.purpose === 'setting') {
+    const w = s.settingWrite;
+    const dialect = dialectOf(s);
+    if (w === null || w.phase !== 'writing' || w.key !== read.token || w.value !== read.value || dialect === null) return undefined;
+    if (settingRefusal(dialect.id, w.key, w.value, s.values) !== null) return undefined;
+    return settingLine(w.key, w.value) ?? undefined;
+  }
   if (!readableNow(s, read.token)) return undefined;
   const dialect = dialectOf(s);
   if (dialect === null) return PROBE_STEPS.find((step) => step.key === read.token)?.line;

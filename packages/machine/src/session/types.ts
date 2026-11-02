@@ -85,11 +85,55 @@ export interface SessionConfig {
 
 /** Why a read is in flight. */
 /** `liveness`: the watchdog's proof-of-life GET where ENQ is not available (SAFETY §4.2). */
-export type ReadPurpose = 'splice' | 'probe' | 'reading' | 'request' | 'verify' | 'liveness';
+/**
+ * Settings writes (SAFETY §4.6, amendment 2026-11-02): `gate` is a polled read of the idle gate right
+ * before a write, `setting` is the write itself (`{"<key>":<value>}`), `readback` reads the key back.
+ */
+export type ReadPurpose = 'splice' | 'probe' | 'reading' | 'request' | 'verify' | 'liveness' | 'gate' | 'setting' | 'readback';
 
 export interface PendingRead {
   readonly token: string;
   readonly purpose: ReadPurpose;
+  /** The value of a `setting` line. */
+  readonly value?: number;
+}
+
+/** How a settings write ended. */
+export type SettingWriteOutcome =
+  /** Written, and the read-back matches at the table's precision. */
+  | 'verified'
+  /** Written (status 0), but the read-back differs or could not be read. */
+  | 'mismatch'
+  /** The board answered the write with a non-zero status: nothing was stored. */
+  | 'rejected'
+  /** Not written: the idle gate failed (or could not be read). */
+  | 'refused'
+  /** The write was sent but its answer never came or arrived damaged: the board may or may not hold the value. */
+  | 'unconfirmed'
+  /** The link dropped, the board reset or a FAULT latched while the write was in progress. */
+  | 'interrupted';
+
+/**
+ * One settings write in progress or just finished (SAFETY §4.6, amendment 2026-11-02). At most one exists:
+ * a new write is refused until this one is `done`.
+ */
+export interface SettingWriteState {
+  /** Increases by one per accepted write on this session (the window matches results by it). */
+  readonly id: number;
+  readonly key: string;
+  readonly value: number;
+  readonly phase: 'gate' | 'writing' | 'readback' | 'done';
+  /** Polled gate values, as read right before the write. */
+  readonly gate: Readonly<Partial<Record<'stat' | 'hold' | 'vel' | 'qr' | 'unit', number>>>;
+  /** The board's answer to the write: footer status and the value it echoed. */
+  readonly answer?: { readonly status: number; readonly value: JsonValue | null };
+  /** An exception report (`er`) the board sent while this write was being answered: its status (106 on EN, 9 on TG). */
+  readonly exception?: number;
+  /** The value read back after the write. */
+  readonly readBack?: JsonValue | null;
+  readonly outcome?: SettingWriteOutcome;
+  /** Plain words: why it was refused, or what went wrong. */
+  readonly detail?: string;
 }
 
 /** An answer the board still owes, oldest first (the board answers lines in order). */
@@ -281,6 +325,8 @@ export interface SessionState {
   readonly timerSeq: number;
   /** Lines and realtime bytes the reducer has asked for on this link (for the snapshot). */
   readonly sent: { readonly lines: number; readonly realtime: number };
+  /** The current or last settings write, or null (SAFETY §4.6, amendment 2026-11-02). */
+  readonly settingWrite: SettingWriteState | null;
 }
 
 /** `watchdog`: the receive-silence watchdog (SAFETY §4.2). */
@@ -301,8 +347,10 @@ export type SessionIntent =
   | { readonly intent: 'acknowledgeLost' }
   | { readonly intent: 'enq' }
   | { readonly intent: 'read'; readonly tokens: readonly string[] }
+  /** One settings write (SAFETY §4.6, amendment 2026-11-02): gate reads, `{"<key>":<value>}`, then a read-back. */
+  | { readonly intent: 'settingsWrite'; readonly key: string; readonly value: number }
   /** Any other allow-matrix intent: always denied in Phase 1 (decided, never silently dropped). */
-  | { readonly intent: Exclude<Intent, 'connect' | 'disconnect' | 'feedhold' | 'stopJob' | 'spindleOffNow' | 'ackFault' | 'acknowledgeLost' | 'enq' | 'read'> };
+  | { readonly intent: Exclude<Intent, 'connect' | 'disconnect' | 'feedhold' | 'stopJob' | 'spindleOffNow' | 'ackFault' | 'acknowledgeLost' | 'enq' | 'read' | 'settingsWrite'> };
 
 /** Everything that can happen to the session. */
 export type SessionEvent =
@@ -329,8 +377,11 @@ export type RealtimeName = 'feedhold' | 'enq';
 export type SessionEffect =
   | { readonly kind: 'acquireTransport'; readonly epoch: number; readonly port: PortSelector }
   | { readonly kind: 'open'; readonly epoch: number }
-  /** One single-token GET, `{"<token>":null}` (the executor appends LF); `seq` numbers it on this link. */
-  | { readonly kind: 'writeLine'; readonly epoch: number; readonly seq: number; readonly token: string; readonly line: string }
+  /**
+   * One single-token GET, `{"<token>":null}`, or (intent `settingsWrite`) one single-token settings write,
+   * `{"<token>":<number>}` (the executor appends LF); `seq` numbers it on this link.
+   */
+  | { readonly kind: 'writeLine'; readonly epoch: number; readonly seq: number; readonly token: string; readonly line: string; readonly intent?: 'settingsWrite' }
   | { readonly kind: 'writeRealtime'; readonly epoch: number; readonly name: RealtimeName; readonly byte: number }
   /** Lower the transport's line cap to the classified dialect's. */
   | { readonly kind: 'tightenLineCap'; readonly epoch: number; readonly maxLineBytes: number }

@@ -91,6 +91,8 @@ interface QueuedLine {
   readonly bytes: Uint8Array;
   /** The state in which the reducer asked for this line: its token rule (probe list or allowlist) applies. */
   readonly emitted: SessionState;
+  /** `settingsWrite` for a settings write line; reads otherwise. */
+  readonly intent: 'read' | 'settingsWrite';
 }
 
 const encoder = new TextEncoder();
@@ -244,6 +246,15 @@ export class MachineSession {
   }
 
   /**
+   * One settings write (SAFETY §4.6, amendment 2026-11-02): decided by the allow-matrix (the settings
+   * kind, idle, approved board), screened against the schema, then the idle gate reads, the write and a
+   * read-back, one line at a time. The result appears in `snapshot.settingWrite`.
+   */
+  writeSetting(key: string, value: number): Decision {
+    return this.#intent({ intent: 'settingsWrite', key, value });
+  }
+
+  /**
    * The verified approved-builds manifest the next connect classifies against
    * (ROADMAP P1-03). The worker verifies the signed file before each connect
    * and hands the result here. Taken only while NOT_CONNECTED, so a session in
@@ -313,7 +324,7 @@ export class MachineSession {
         void this.#open(effect.epoch);
         return;
       case 'writeLine': {
-        this.#lines.push({ epoch: effect.epoch, seq: effect.seq, bytes: encoder.encode(`${effect.line}\n`), emitted: this.#state });
+        this.#lines.push({ epoch: effect.epoch, seq: effect.seq, bytes: encoder.encode(`${effect.line}\n`), emitted: this.#state, intent: effect.intent ?? 'read' });
         void this.#drainLines();
         return;
       }
@@ -473,7 +484,7 @@ export class MachineSession {
           this.#dispatch({ type: 'lineDropped', epoch: item.epoch, seq: item.seq });
           continue;
         }
-        const check = checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, 'read');
+        const check = checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, item.intent);
         if (check !== undefined) {
           this.#note(check.reason);
           /* c8 ignore next -- the reducer only asks for GETs readable when it asks, so 'refused' needs a bug there; checkWrite's tests cover it */

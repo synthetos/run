@@ -22,6 +22,7 @@
 import { BYTE, SPLICE_GUARD_LINE } from '@synthetos/protocol';
 import { allowed, type Release } from '@synthetos/safety';
 import { enqAllowedNow, matrixSnapshot, readableNow } from './reducer.ts';
+import { SETTING_LINE, settingRefusal } from './settingWrite.ts';
 import type { SessionState } from './types.ts';
 
 export interface WriteContext {
@@ -29,9 +30,15 @@ export interface WriteContext {
   readonly readable: (token: string) => boolean;
   /** True when ENQ may be written now. */
   readonly enqAllowed: boolean;
+  /**
+   * Settings writes (amendment 2026-11-02): true when exactly this `{"<token>":<value>}` is the settings
+   * write the session is making now. Absent: no settings line is ever accepted.
+   */
+  readonly settingWritable?: (token: string, value: number) => boolean;
 }
 
-export type WriteVerdict = { readonly ok: true; readonly kind: 'get' | 'feedhold' | 'enq'; readonly token?: string } | { readonly ok: false; readonly reason: string };
+/** `setting`: one single-token settings write, its own command kind (SAFETY §4.6, amendment 2026-11-02). */
+export type WriteVerdict = { readonly ok: true; readonly kind: 'get' | 'feedhold' | 'enq' | 'setting'; readonly token?: string } | { readonly ok: false; readonly reason: string };
 
 /**
  * A GET line: one key of lowercase letters, digits and `_` (TinyG tokens
@@ -42,6 +49,9 @@ const GET_LINE = /^\{"([a-z0-9_]{1,8})":null\}\n$/;
 
 const MAX_GET_LINE_BYTES = 32;
 
+/** Longest settings write line: `{"` + 8-byte key + `":` + a 21-byte number + `}` + LF. */
+const MAX_SETTING_LINE_BYTES = 40;
+
 /** Decide one write. Pure; never throws. */
 export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): WriteVerdict {
   if (bytes.length === 1) {
@@ -50,12 +60,21 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
     if (b === BYTE.ENQ) return context.enqAllowed ? { ok: true, kind: 'enq' } : { ok: false, reason: 'ENQ is not allowed now (classified edge-next after a rev-2/3 footer only)' };
     return { ok: false, reason: `realtime byte 0x${(b as number).toString(16).padStart(2, '0')} is never written in this release` };
   }
-  if (bytes.length === 0 || bytes.length > MAX_GET_LINE_BYTES) return { ok: false, reason: `a ${bytes.length}-byte write is not a GET line` };
+  if (bytes.length === 0 || bytes.length > MAX_SETTING_LINE_BYTES) return { ok: false, reason: `a ${bytes.length}-byte write is not a GET or settings line` };
   let text = '';
   for (const b of bytes) {
     if (b > 0x7e || (b < 0x20 && b !== 0x0a)) return { ok: false, reason: 'a GET line is printable ASCII ending in LF' };
     text += String.fromCharCode(b);
   }
+  const setting = SETTING_LINE.exec(text);
+  if (setting !== null) {
+    const token = setting[1] as string;
+    const value = Number(setting[2]);
+    if (context.settingWritable === undefined) return { ok: false, reason: 'settings writes are not allowed in this release' };
+    if (!context.settingWritable(token, value)) return { ok: false, reason: `"${token}" = ${setting[2]} is not the settings write the session is making now` };
+    return { ok: true, kind: 'setting', token };
+  }
+  if (bytes.length > MAX_GET_LINE_BYTES) return { ok: false, reason: `a ${bytes.length}-byte write is not a GET line` };
   if (text === `${SPLICE_GUARD_LINE}\n`) {
     return context.readable('sr') ? { ok: true, kind: 'get', token: 'sr' } : { ok: false, reason: '"sr" is not readable now (not on the probe list or the dialect\'s read allowlist)' };
   }
@@ -67,7 +86,17 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
 }
 
 /** What a write is for: the allow-matrix intent it is checked against. */
-export type WriteIntent = 'read' | 'feedhold' | 'enq';
+export type WriteIntent = 'read' | 'feedhold' | 'enq' | 'settingsWrite';
+
+const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'setting'>> = { read: 'get', feedhold: 'feedhold', enq: 'enq', settingsWrite: 'setting' };
+
+/** True when `token` = `value` is exactly the settings write `state` is making (phase writing, same key and value, still allowed by the schema). */
+export function settingWritableIn(state: SessionState, token: string, value: number): boolean {
+  const w = state.settingWrite;
+  const dialect = state.dialect;
+  if (w === null || w.phase !== 'writing' || w.key !== token || w.value !== value || dialect === null) return false;
+  return settingRefusal(dialect.id, token, value, state.values) === null;
+}
 
 /**
  * The last check before the transport, in two parts:
@@ -89,8 +118,12 @@ export function checkWrite(
 ): { readonly kind: 'denied' | 'refused'; readonly reason: string } | undefined {
   const decision = allowed(matrixSnapshot(current), intent, release);
   if (!decision.allowed) return { kind: 'denied', reason: `not written: the allow-matrix denies ${intent} now (${decision.reason})` };
-  const verdict = phase1WriteVerdict(bytes, { readable: (token) => readableNow(emitted, token), enqAllowed: enqAllowedNow(current) });
+  const verdict = phase1WriteVerdict(bytes, {
+    readable: (token) => readableNow(emitted, token),
+    enqAllowed: enqAllowedNow(current),
+    ...(release.settings === true ? { settingWritable: (token: string, value: number) => settingWritableIn(current, token, value) } : {}),
+  });
   if (!verdict.ok) return { kind: 'refused', reason: verdict.reason };
-  if (verdict.kind !== (intent === 'read' ? 'get' : intent)) return { kind: 'refused', reason: `a ${verdict.kind} write was issued as ${intent}` };
+  if (verdict.kind !== VERDICT_FOR[intent]) return { kind: 'refused', reason: `a ${verdict.kind} write was issued as ${intent}` };
   return undefined;
 }

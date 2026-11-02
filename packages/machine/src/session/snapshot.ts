@@ -11,7 +11,7 @@
 import { OVERLAYS, type Overlay } from '@synthetos/safety';
 import { PROBE_STEPS, type FooterRev } from '@synthetos/protocol';
 import type { TransportInfo } from '../transport.ts';
-import type { ClassificationInfo, FaultInfo, Identity, LiveState, ReadValue, SessionBase, SessionNotices, SessionState } from './types.ts';
+import type { ClassificationInfo, FaultInfo, Identity, LiveState, ReadValue, SessionBase, SessionNotices, SessionState, SettingWriteState } from './types.ts';
 
 /** Longest string from the board a snapshot carries. */
 export const SNAPSHOT_STRING_MAX = 200;
@@ -43,6 +43,8 @@ export interface SessionSnapshot {
   /** STALE: how long the link had been silent when STALE was entered (W4 counts on from it). */
   readonly stale: { readonly silentForMs: number } | null;
   readonly sent: { readonly lines: number; readonly realtime: number };
+  /** The current or last settings write (SAFETY §4.6, amendment 2026-11-02), or null. */
+  readonly settingWrite: SettingWriteState | null;
 }
 
 function cap(s: string): string {
@@ -86,6 +88,7 @@ export function snapshotOf(state: SessionState): SessionSnapshot {
     lastAckAt: state.lastAckAt ?? null,
     stale: state.stale === null || !overlays.includes('STALE') ? null : { silentForMs: state.stale.silentForMs },
     sent: state.sent,
+    settingWrite: state.settingWrite,
   });
 }
 

@@ -124,3 +124,20 @@ export { GATE_MAX_DEPTH, GATE_MAX_LENGTH, GateSyntaxError, checkGate, evaluateGa
 export type { Gate, GateContext, GateResult, Unmet } from './facts/gate.ts';
 export { BOARD_DEFINITIONS, UNCERTAIN_BOARD_NOTICE, UNRECOGNISED_BOARD_NOTICE, boardPanels, selectGeneratedBoard } from './boardCatalog.ts';
 export type { BoardPanel, BoardPanelSet } from './boardCatalog.ts';
+export {
+  COMMS_KEYS,
+  COMMS_LAST,
+  HIGH_RISK_CATEGORIES,
+  IDENTITY_KEYS,
+  READOUT_KEYS,
+  categoryOf,
+  changeRisk,
+  isCommsKey,
+  orderWrites,
+  planSettingsWrite,
+  readBackMatches,
+  restoreChanges,
+  sameSetting,
+  valueWords,
+} from './settingsWrite.ts';
+export type { ChangeRisk, PlannedChange, ProposedValue, RestoreChanges, RestoreSkip, RiskCategory, SettingsPlan } from './settingsWrite.ts';
