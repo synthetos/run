@@ -446,6 +446,7 @@ export function settingWriteActive(s: SessionState): boolean {
 
 function onSettingsWrite(t: Tx, key: unknown, value: unknown, matrix: Decision): void {
   const dialect = dialectOf(t.s);
+  /* c8 ignore next 4 -- defence in depth: an unclassified or read-only board carries READ_ONLY, which the matrix denies first */
   if (dialect === null || t.s.classification?.mode !== 'full') {
     t.decide('settingsWrite', deny('Settings are written only to an approved, identified board.', 'Connect a board running approved firmware.', 'SAFETY §4.6; P1-03'));
     return;
@@ -476,6 +477,7 @@ function onSettingsWrite(t: Tx, key: unknown, value: unknown, matrix: Decision):
 
 function finishSettingWrite(t: Tx, outcome: SettingWriteOutcome, detail: string, patch: Partial<SettingWriteState> = {}): void {
   const w = t.s.settingWrite;
+  /* c8 ignore next -- callers finish only a write in progress; kept so a second finish can never overwrite the first */
   if (w === null || w.phase === 'done') return;
   t.set({
     settingWrite: { ...w, ...patch, phase: 'done', outcome, detail },
@@ -486,6 +488,7 @@ function finishSettingWrite(t: Tx, outcome: SettingWriteOutcome, detail: string,
 
 function onGateAnswer(t: Tx, token: string, r: Response): void {
   const w = t.s.settingWrite;
+  /* c8 ignore next -- gate reads are queued only by a write in its gate phase, and dropped when it ends */
   if (w === null || w.phase !== 'gate') return;
   const value = r.r[token];
   if (r.footer.status !== 0 || typeof value !== 'number' || !Number.isFinite(value)) {
@@ -503,6 +506,7 @@ function onGateAnswer(t: Tx, token: string, r: Response): void {
   }
   // The state may have changed while the gate was read (an overlay, a status report): ask the matrix again.
   const again = allowed(matrixSnapshot(t.s), 'settingsWrite', t.config.release);
+  /* c8 ignore next 4 -- an overlay that denies writes (FAULT, LOST) also ends the write before the gate completes; the re-check stays */
   if (!again.allowed) {
     finishSettingWrite(t, 'refused', `Not written: ${again.reason}`);
     return;
@@ -512,6 +516,7 @@ function onGateAnswer(t: Tx, token: string, r: Response): void {
 
 function onSettingAnswer(t: Tx, r: Response): void {
   const w = t.s.settingWrite;
+  /* c8 ignore next -- a setting line is written only in the writing phase */
   if (w === null || w.phase !== 'writing') return;
   const echoed = readBackValue(r.r, w.key);
   if (w.exception !== undefined && r.footer.status === 0) {
@@ -528,6 +533,7 @@ function onSettingAnswer(t: Tx, r: Response): void {
 
 function onReadBackAnswer(t: Tx, r: Response, at: number): void {
   const w = t.s.settingWrite;
+  /* c8 ignore next -- a read-back is queued only in the readback phase */
   if (w === null || w.phase !== 'readback') return;
   const value = readBackValue(r.r, w.key);
   t.set({ values: { ...t.s.values, [w.key]: { value, status: r.footer.status, at } } });
@@ -1207,13 +1213,14 @@ function pump(t: Tx): void {
   const intent = next.purpose === 'setting' ? 'settingsWrite' : 'read';
   if (!allowed(matrixSnapshot(s), intent, t.config.release).allowed) {
     // A write the matrix no longer allows is dropped, never held for later (the state that allowed it is gone).
+    /* c8 ignore next -- the setting line is queued in the same transition the matrix allowed it; dropped, never held, if that ever changes */
     if (intent === 'settingsWrite') finishSettingWrite(t, 'refused', 'Not written: the machine is no longer in a state that allows settings writes.');
     return;
   }
   const line = lineFor(s, next);
   if (line === undefined) {
     t.set({ queue: s.queue.slice(1) });
-    enterFault(t, 'writeRefused', 'integrity', `no allowlisted ${intent === 'read' ? 'GET' : 'settings write'} for ${JSON.stringify(next.token)} in this state`, s.live.lastRxAt ?? 0);
+    enterFault(t, 'writeRefused', 'integrity', `no allowlisted GET for ${JSON.stringify(next.token)} in this state`, s.live.lastRxAt ?? 0);
     return;
   }
   const seq = s.sent.lines + 1;
@@ -1222,6 +1229,7 @@ function pump(t: Tx): void {
 }
 
 function lineFor(s: SessionState, read: PendingRead): string | undefined {
+  /* c8 ignore start -- the queued setting line always matches the write in progress; any mismatch is a bug and becomes a writeRefused FAULT */
   if (read.purpose === 'setting') {
     const w = s.settingWrite;
     const dialect = dialectOf(s);
@@ -1229,6 +1237,7 @@ function lineFor(s: SessionState, read: PendingRead): string | undefined {
     if (settingRefusal(dialect.id, w.key, w.value, s.values) !== null) return undefined;
     return settingLine(w.key, w.value) ?? undefined;
   }
+  /* c8 ignore stop */
   if (!readableNow(s, read.token)) return undefined;
   const dialect = dialectOf(s);
   if (dialect === null) return PROBE_STEPS.find((step) => step.key === read.token)?.line;

@@ -50,12 +50,8 @@ export const SETTING_LINE = /^\{"([a-z0-9_]{1,8})":(-?\d{1,12}(?:\.\d{1,8})?)\}\
  * (`values['x']`), with later single-token reads (read-backs) on top.
  */
 export function sessionSettings(dialectId: string, values: Readonly<Record<string, ReadValue>>): Readonly<Record<string, SettingValue>> {
-  let settings: Record<string, SettingValue> = {};
-  try {
-    settings = { ...boardSettingsFrom(dialectId, values as Readonly<Record<string, GroupAnswer | undefined>>).settings };
-  } catch {
-    settings = {};
-  }
+  // Called only for a dialect with a settings schema (settingRefusal checks that first).
+  const settings: Record<string, SettingValue> = { ...boardSettingsFrom(dialectId, values as Readonly<Record<string, GroupAnswer | undefined>>).settings };
   for (const [key, v] of Object.entries(values)) {
     if (v.status === 0 && (typeof v.value === 'number' || typeof v.value === 'string') && settings[key] !== undefined) settings[key] = v.value;
   }

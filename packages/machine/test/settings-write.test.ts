@@ -8,7 +8,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ApprovedBuilds } from '@synthetos/protocol';
 import { PHASE_1_RELEASE, PHASE_1_SETTINGS_RELEASE } from '@synthetos/safety';
-import { checkWrite, phase1WriteVerdict, settingLine, wireNumber, type SessionEffect } from '../src/index.ts';
+import { TINYG_440, TINYG_EN } from '@synthetos/protocol';
+import { checkWrite, gateTokens, judgeGate, MachineSession, phase1WriteVerdict, sessionSettings, settingLine, settingRefusal, wireNumber, type SessionEffect } from '../src/index.ts';
 import { Driver, EN_ANSWERS } from './sessionDriver.ts';
 import { harness } from './sessionHarness.ts';
 import { PORT, shown } from './simTransport.ts';
@@ -242,5 +243,119 @@ describe('settings writes against the edge-next model with an EEPROM stall (T-S9
     expect(h.session.snapshot.overlays).toEqual([]);
     const writes = (h.transports.at(-1)?.writes ?? []).map(shown);
     expect(writes.filter((w) => /:\d/.test(w))).toEqual(['{"xvm":4321}\\n', '{"yfr":2345}\\n', '{"zjm":750}\\n']);
+  });
+});
+
+describe('settings writes: every way a write can end', () => {
+  function writing(): Driver {
+    const d = ready();
+    d.intent({ intent: 'settingsWrite', key: 'xvm', value: 1234 });
+    passGate(d);
+    return d;
+  }
+
+  it('a key that is not a string is refused', () => {
+    const d = ready();
+    expect(d.intent({ intent: 'settingsWrite', key: 5 as never, value: 1 })).toMatchObject({ allowed: false, reason: 'Name one setting.' });
+  });
+
+  it('TG style: an er 9 with a status-0 answer is rejected (nothing saved)', () => {
+    const d = writing();
+    d.written();
+    d.line('{"er":{"fb":450.01,"st":9,"msg":"x"}}');
+    d.line('{"r":{"xvm":1234},"f":[3,0,10]}');
+    expect(d.state.settingWrite).toMatchObject({ outcome: 'rejected', exception: 9 });
+  });
+
+  it('any other er while writing is still a FAULT', () => {
+    const d = writing();
+    d.written();
+    d.line('{"er":{"fb":450.01,"st":50,"msg":"x"}}');
+    expect(d.state.overlays).toContain('FAULT');
+    expect(d.state.settingWrite).toMatchObject({ outcome: 'interrupted' });
+  });
+
+  it('a read-back with a non-zero status is a mismatch', () => {
+    const d = writing();
+    d.written();
+    d.line('{"r":{"xvm":1234},"f":[3,0,10]}');
+    d.written();
+    d.line('{"r":{},"f":[3,100,10]}');
+    expect(d.state.settingWrite?.outcome).toBe('mismatch');
+    expect(d.state.settingWrite?.detail).toMatch(/read-back failed \(status 100\)/);
+  });
+
+  it('timeouts: an unanswered gate read refuses, an unanswered read-back is a mismatch', () => {
+    const g = ready();
+    g.intent({ intent: 'settingsWrite', key: 'xvm', value: 1234 });
+    g.written();
+    g.fire('answer');
+    expect(g.state.settingWrite).toMatchObject({ outcome: 'refused' });
+    const r = writing();
+    r.written();
+    r.line('{"r":{"xvm":1234},"f":[3,0,10]}');
+    r.written();
+    r.fire('answer');
+    expect(r.state.settingWrite).toMatchObject({ outcome: 'mismatch' });
+  });
+
+  it('a damaged answer: gate refuses, write unconfirmed, read-back mismatch', () => {
+    const g = ready();
+    g.intent({ intent: 'settingsWrite', key: 'xvm', value: 1234 });
+    g.written();
+    g.line('{"r":{"stat":1');
+    expect(g.state.settingWrite).toMatchObject({ outcome: 'refused' });
+    const w = writing();
+    w.written();
+    w.line('{"r":{"xvm":12');
+    expect(w.state.settingWrite).toMatchObject({ outcome: 'unconfirmed' });
+    const r = writing();
+    r.written();
+    r.line('{"r":{"xvm":1234},"f":[3,0,10]}');
+    r.written();
+    r.line('{"r":{"xvm":12');
+    expect(r.state.settingWrite).toMatchObject({ outcome: 'mismatch' });
+  });
+});
+
+describe('settings-write helpers', () => {
+  it('the gate skips hold where the dialect does not trust it', () => {
+    expect(gateTokens(TINYG_EN, true)).toEqual(['stat', 'hold', 'vel', 'qr', 'unit']);
+    expect(gateTokens(TINYG_440, false)).not.toContain('hold');
+  });
+
+  it('judgeGate names every unread value', () => {
+    const v = judgeGate(TINYG_EN, {}, true);
+    expect(v.ok).toBe(false);
+    for (const w of ['stat', 'hold state', 'velocity', 'planner queue', 'units']) expect(v.detail).toContain(w);
+    expect(judgeGate(TINYG_EN, { stat: 1, vel: 0, qr: TINYG_EN.limits.plannerBlocks, unit: 1 }, false).ok).toBe(true);
+  });
+
+  it('sessionSettings puts later single-token reads over the groups; settingRefusal refuses a dialect with no schema', () => {
+    const values = { x: { value: { vm: 100, fr: 50 }, status: 0, at: 1 }, xvm: { value: 200, status: 0, at: 2 }, xfr: { value: 1, status: 7, at: 3 }, zzz: { value: 5, status: 0, at: 4 } };
+    const s = sessionSettings('tinyg-en', values);
+    expect(s['xvm']).toBe(200);
+    expect(s['xfr']).toBe(50);
+    expect(s['zzz']).toBeUndefined();
+    expect(settingRefusal('g2core-edge', 'xvm', 1, {})).toMatch(/no settings schema/);
+    expect(settingRefusal('tinyg-en', 'xvm', '1', {})).toMatch(/not a number/);
+  });
+
+  it('a 33- to 40-byte line that is not a settings write is refused', () => {
+    const line = new TextEncoder().encode(`{"posx":null,"${'a'.repeat(16)}":1}\n`);
+    expect(line.length).toBeGreaterThan(32);
+    expect(phase1WriteVerdict(line, { readable: () => true, enqAllowed: false, settingWritable: () => true }).ok).toBe(false);
+  });
+
+  it('useApprovedBuilds is taken only while not connected', async () => {
+    const h = harness('en', { session: { release: PHASE_1_SETTINGS_RELEASE } });
+    expect(h.session.useApprovedBuilds(EN_APPROVED, 'note: approved')).toBe(true);
+    expect(h.session.useApprovedBuilds(EN_APPROVED)).toBe(true);
+    expect(h.session.log().some((e) => e.text === 'note: approved')).toBe(true);
+    void h.session.connect(PORT);
+    await h.run(6000);
+    expect(h.session.snapshot.classification).toMatchObject({ mode: 'full' });
+    expect(h.session.useApprovedBuilds(EN_APPROVED)).toBe(false);
+    expect(MachineSession).toBeDefined();
   });
 });
