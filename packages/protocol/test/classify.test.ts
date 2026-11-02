@@ -131,7 +131,7 @@ describe('classify: Banner (PN §2.2, SAFETY H19)', () => {
   });
 
   it('treats every boot message as a Banner (ready only for SYSTEM READY), including nested-footer TG builds', () => {
-    const init = withChecksum('{"r":{"fb":377.08,"fv":0.950,"hv":7,"id":"9H3583-KCR","msg":"Initializing configs to default settings","f":[1,15,8,', ']}}');
+    const init = withChecksum('{"r":{"fb":377.08,"fv":0.950,"hv":7,"id":"9H0000-AAB","msg":"Initializing configs to default settings","f":[1,15,8,', ']}}');
     expect(classifyLine(init)).toMatchObject({ kind: 'Banner', shape: 'r-footer', ready: false, footer: { status: 15 } });
   });
 

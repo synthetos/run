@@ -2,9 +2,11 @@
 # Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
 # synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
 # Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# Except: the board id (a unique per-chip value) is replaced by a synthetic id
+# of the same shape, with the footer checksum recomputed where the line had one.
 # source: https://synthetos.com/topics/motor-3-z-stalling-on-shapeoko-when-sending-program-file-via-coolterm/
 # reply 5753
-Response	{"r":{"sys":{"fb":380.08,"fv":0.960,"hv":8,"id":"2X2660-GFY","ja":2000000,"ct":0.0010,"st":0,"mt":60,"ej":1,"jv":3,"tv":0,"qv":0,"sv":1,"si":100,"ic":0,"ec":0,"ee":0,"ex":1,"baud":5,"gpl":0,"gun":1,"gco":1,"gpa":2,"gdi":0},"f":[1,0,19,8636]}}
+Response	{"r":{"sys":{"fb":380.08,"fv":0.960,"hv":8,"id":"2X0000-AAA","ja":2000000,"ct":0.0010,"st":0,"mt":60,"ej":1,"jv":3,"tv":0,"qv":0,"sv":1,"si":100,"ic":0,"ec":0,"ee":0,"ex":1,"baud":5,"gpl":0,"gun":1,"gco":1,"gpa":2,"gdi":0},"f":[1,0,19,3947]}}
 Response	{"r":{"2":{"ma":2,"sa":0.90,"tr":1.250,"mi":2,"po":0,"pm":1},"f":[1,0,9,5027]}}
 Response	{"r":{"3":{"ma":1,"sa":0.90,"tr":36.540,"mi":8,"po":0,"pm":0},"f":[1,0,9,1368]}}
 Response	{"r":{"4":{"ma":1,"sa":0.90,"tr":36.540,"mi":8,"po":1,"pm":0},"f":[1,0,9,3602]}}

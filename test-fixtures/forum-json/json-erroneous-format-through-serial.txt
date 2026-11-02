@@ -2,6 +2,8 @@
 # Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
 # synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
 # Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# Except: the board id (a unique per-chip value) is replaced by a synthetic id
+# of the same shape, with the footer checksum recomputed where the line had one.
 # source: https://synthetos.com/topics/json-erroneous-format-through-serial/
 # topic
 Garbled	{"r":{ "c":{"am":0,"vm":3600,"fr":3600, "tm":-1,"jm":20000000,"jd":0,"ra ":1.000},"f":[1,0,9,6752]}}
@@ -23,7 +25,7 @@ StatusReport	{"sr":{"posx":227.237,"vel":453.00}}
 StatusReport	{"sr":{"posx":227.385,"vel":12.00}}
 StatusReport	{"sr":{"vel":0.00,"stat":3}}
 Garbled	{"sr":{{"sr":{"vel":0.00,"stat":3}}
-Garbled	{"r":{"sys":{"fb":380.05,"fv":0.960,"hv":8,"id":"9H3583-PXN","ja":2540000,"ct":0.0254,"st":1,"mt":180,"ej":1,"{"sr":{"stat":3}}
+Garbled	{"r":{"sys":{"fb":380.05,"fv":0.960,"hv":8,"id":"9H0000-AAE","ja":2540000,"ct":0.0254,"st":1,"mt":180,"ej":1,"{"sr":{"stat":3}}
 # reply 5116
 Response	{"r":{"gc":"G1X-1000.0F150","f":[1,0,15,4488]}}
 StatusReport	{"sr":{"posx":-17.581,"vel":0.28,"stat":5}}

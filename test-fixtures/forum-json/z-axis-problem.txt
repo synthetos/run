@@ -2,6 +2,8 @@
 # Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
 # synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
 # Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# Except: the board id (a unique per-chip value) is replaced by a synthetic id
+# of the same shape, with the footer checksum recomputed where the line had one.
 # source: https://synthetos.com/topics/z-axis-problem/
 # reply 5664
 Response	{"r":{"1":{"ma":0,"sa":1.800,"tr":39.8500,"mi":8,"po":1,"pm":0,"mp":1.000}},"f":[1,0,9,1478]}
@@ -14,4 +16,4 @@ Response	{"r":{"c":{"am":0,"vm":3600,"fr":3600,"tn":-1,"tm":-1,"jm":20,"tn":-1,"
 Response	{"r":{"x":{"am":1,"vm":500,"fr":2000,"tn":0,"tm":450,"jm":5000,"jh":20000,"jd":0.0100,"sn":3,"sx":2,"sv":3000,"lv":300,"lb":10.000,"zb":323.000}},"f":[1,0,9,6446]}
 Response	{"r":{"y":{"am":1,"vm":500,"fr":2000,"tn":0,"tm":800,"jm":5000,"jh":20000,"jd":0.0100,"sn":3,"sx":2,"sv":3000,"lv":300,"lb":10.000,"zb":220.500}},"f":[1,0,9,4139]}
 Response	{"r":{"z":{"am":1,"vm":200,"fr":200,"tn":0,"tm":75,"jm":10,"jh":20,"jd":0.0100,"sn":0,"sx":1,"sv":400,"lv":100,"lb":2.000,"zb":1.000}},"f":[1,0,9,7]}
-Response	{"r":{"sys":{"fb":412.01,"fv":0.970,"hp":1,"hv":8,"id":"1H4973-HYT","ja":200000,"ct":0.0010,"sl":0,"st":1,"mt":1000.00,"ej":1,"jv":3,"js":1,"tv":0,"qv":0,"sv":1,"si":1000,"ec":0,"ee":0,"ex":1,"baud":5,"":0,"gpl":0,"gun":1,"gco":1,"gpa":2,"gdi":0}},"f":[1,0,11,3302]}
+Response	{"r":{"sys":{"fb":412.01,"fv":0.970,"hp":1,"hv":8,"id":"1H0000-AAA","ja":200000,"ct":0.0010,"sl":0,"st":1,"mt":1000.00,"ej":1,"jv":3,"js":1,"tv":0,"qv":0,"sv":1,"si":1000,"ec":0,"ee":0,"ex":1,"baud":5,"":0,"gpl":0,"gun":1,"gco":1,"gpa":2,"gdi":0}},"f":[1,0,11,9338]}

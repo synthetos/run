@@ -15,25 +15,25 @@ const bound = (id: string, family: BoundDevice['family'] = 'tinyg'): BoundDevice
   dialectId: family === 'tinyg' ? 'tinyg-en' : 'g2core-edge',
 });
 const m = (source: 'local' | 'cloud', key: string, device: BoundDevice | null): MachineCandidate => ({ source, key, boundDevice: device });
-const EN_BOARD: ProbedBoard = { dialectId: 'tinyg-en', id: '3X3566-YMS' };
+const EN_BOARD: ProbedBoard = { dialectId: 'tinyg-en', id: '3X0000-AAA' };
 
 describe('T-S50: suggestions by (family, board id); nothing is auto-selected', () => {
   it('two machines with the same board id: both offered, the user picks, none selected', () => {
-    const s = suggestMachines(EN_BOARD, [m('local', 'a', bound('3X3566-YMS')), m('local', 'b', bound('3X3566-YMS')), m('local', 'c', bound('OTHER'))], [], false);
+    const s = suggestMachines(EN_BOARD, [m('local', 'a', bound('3X0000-AAA')), m('local', 'b', bound('3X0000-AAA')), m('local', 'c', bound('OTHER'))], [], false);
     expect(s.matches.map((x) => x.key)).toEqual(['a', 'b']);
     expect(s.choice).toBe('pick');
     expect(s.selected).toBeNull();
   });
 
   it('one match is offered for confirmation, still not selected', () => {
-    const s = suggestMachines(EN_BOARD, [m('local', 'a', bound('3X3566-YMS'))], [], false);
+    const s = suggestMachines(EN_BOARD, [m('local', 'a', bound('3X0000-AAA'))], [], false);
     expect(s).toMatchObject({ choice: 'confirm', selected: null });
     expect(s.matches).toHaveLength(1);
   });
 
   it('cloud machines count only when signed in; a local and a cloud match together are a pick', () => {
-    const local = [m('local', 'a', bound('3X3566-YMS'))];
-    const cloud = [m('cloud', 'c1', bound('3X3566-YMS'))];
+    const local = [m('local', 'a', bound('3X0000-AAA'))];
+    const cloud = [m('cloud', 'c1', bound('3X0000-AAA'))];
     expect(suggestMachines(EN_BOARD, local, cloud, false).matches.map((x) => x.key)).toEqual(['a']);
     const signedIn = suggestMachines(EN_BOARD, local, cloud, true);
     expect(signedIn.matches.map((x) => x.key)).toEqual(['a', 'c1']);
@@ -41,18 +41,18 @@ describe('T-S50: suggestions by (family, board id); nothing is auto-selected', (
   });
 
   it('the family must match too; unbound machines, an unclassified board and a board with no id match nothing', () => {
-    const machines = [m('local', 'g2', bound('3X3566-YMS', 'g2core')), m('local', 'u', null)];
+    const machines = [m('local', 'g2', bound('3X0000-AAA', 'g2core')), m('local', 'u', null)];
     expect(suggestMachines(EN_BOARD, machines, [], false)).toMatchObject({ matches: [], choice: 'none', selected: null });
-    const same = [m('local', 'a', bound('3X3566-YMS'))];
-    expect(suggestMachines({ dialectId: null, id: '3X3566-YMS' }, same, [], false).choice).toBe('none');
+    const same = [m('local', 'a', bound('3X0000-AAA'))];
+    expect(suggestMachines({ dialectId: null, id: '3X0000-AAA' }, same, [], false).choice).toBe('none');
     expect(suggestMachines({ dialectId: 'tinyg-en', id: undefined }, same, [], false).choice).toBe('none');
   });
 
   it('a machine bound to another board (or family) is a hard block; an unbound one binds; a match passes', () => {
     expect(checkSelection(EN_BOARD, m('local', 'x', bound('OTHER')))).toMatchObject({ ok: false, code: 'bound-device-differs' });
-    expect(checkSelection(EN_BOARD, m('local', 'x', bound('3X3566-YMS', 'g2core')))).toMatchObject({ ok: false, code: 'bound-device-differs' });
+    expect(checkSelection(EN_BOARD, m('local', 'x', bound('3X0000-AAA', 'g2core')))).toMatchObject({ ok: false, code: 'bound-device-differs' });
     expect(checkSelection(EN_BOARD, m('local', 'x', null))).toEqual({ ok: true, binds: true });
-    expect(checkSelection(EN_BOARD, m('local', 'x', bound('3X3566-YMS')))).toEqual({ ok: true, binds: false });
+    expect(checkSelection(EN_BOARD, m('local', 'x', bound('3X0000-AAA')))).toEqual({ ok: true, binds: false });
     expect(checkSelection({ dialectId: null, id: 'A' }, m('local', 'x', null))).toMatchObject({ ok: false, code: 'unclassified' });
     expect(checkSelection({ dialectId: 'tinyg-en', id: undefined }, m('local', 'x', null))).toMatchObject({ ok: false, code: 'no-board-id' });
   });

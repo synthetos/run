@@ -16,6 +16,11 @@
  * JSON.parse plus the EN-HIL bare-key rewrite (tests/hil/tinyg_hil/protocol.py
  * `loads`), independent of src/classify.ts; every row was then reviewed by
  * hand, and a disagreement with the classifier fails the fixture test.
+ *
+ * After extraction, every board `id` (a unique per-chip value) was replaced
+ * by hand with a synthetic id of the same shape (`9H0000-AAA`), and the
+ * footer checksum recomputed where the line carried one. Redo that after
+ * any re-extraction.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

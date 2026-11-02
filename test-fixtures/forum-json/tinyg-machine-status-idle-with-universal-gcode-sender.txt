@@ -2,9 +2,11 @@
 # Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
 # synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
 # Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# Except: the board id (a unique per-chip value) is replaced by a synthetic id
+# of the same shape, with the footer checksum recomputed where the line had one.
 # source: https://synthetos.com/topics/tinyg-machine-status-idle-with-universal-gcode-sender/
 # reply 11999
-Banner	{"r":{"fv":0.970,"fb":440.20,"hp":1,"hv":8,"id":"3Y2462-PKY","msg":"SYSTEM READY"},"f":[1,0,0,5879]}
+Banner	{"r":{"fv":0.970,"fb":440.20,"hp":1,"hv":8,"id":"3Y0000-AAB","msg":"SYSTEM READY"},"f":[1,0,0,3492]}
 Response	{"r":{"ej":1},"f":[1,0,7,2003]}
 Response	{"r":{"sr":{"posx":0.000,"posy":0.000,"posz":0.000,"mpox":0.000,"mpoy":0.000,"mpoz":0.000,"plan":0,"vel":0.00,"unit":1,"stat":1,"dist":0,"frmo":1,"coor":1}},"f":[1,0,109,1782]}
 Response	{"r":{"jv":4},"f":[1,0,7,7333]}

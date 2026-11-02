@@ -11,7 +11,7 @@ export function v2Router(): MachineProfileV2 {
     schemaVersion: 2,
     id: MACHINE_ID,
     name: 'Shop router',
-    boundDevice: { family: 'tinyg', id: '9H3583-WQX', fb: 450.01, dialectId: 'tinyg-en' },
+    boundDevice: { family: 'tinyg', id: '9H0000-AAA', fb: 450.01, dialectId: 'tinyg-en' },
     board: { id: 'tinyg-v8', rev: 'v8h', hv: 8 },
     firmware: { dialectId: 'tinyg-en', fb: 450.01, imageSha256: 'c'.repeat(64) },
     machine: {
@@ -42,7 +42,7 @@ export function v1File(): Record<string, unknown> {
     schemaVersion: 1,
     id: MACHINE_ID,
     name: 'Shop router',
-    boundDevice: { family: 'tinyg', id: '9H3583-WQX', fb: 440.21 },
+    boundDevice: { family: 'tinyg', id: '9H0000-AAA', fb: 440.21 },
     board: { id: 'tinyg-v8', rev: 'v8h', hv: 8 },
     firmware: { dialectId: 'tinyg-440', fv: 0.97, fb: 440.21, imageSha256: 'c'.repeat(64) },
     machine: {

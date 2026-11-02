@@ -31,7 +31,7 @@ function unredactedIds(text: string): string[] {
 
 describe('board ids stay out of the public repository (B-PROBE-1)', () => {
   it('the check finds a real id and accepts the placeholder', () => {
-    expect(unredactedIds('probe: {"fb":450.01,"id":"3X3566-YMB"} {"r":{"id":"3X3566-YMB"},"f":[3,0,10]}')).toEqual(['3X3566-YMB', '3X3566-YMB']);
+    expect(unredactedIds('probe: {"fb":450.01,"id":"3X0000-AAB"} {"r":{"id":"3X0000-AAB"},"f":[3,0,10]}')).toEqual(['3X0000-AAB', '3X0000-AAB']);
     expect(unredactedIds(`probe: {"fb":450.01,"id":"${ID_PLACEHOLDER}"}`)).toEqual([]);
   });
 
