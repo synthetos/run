@@ -8,6 +8,9 @@
  * runner, however it ends. The helper takes the lock without waiting: a
  * held lock refuses the run before anything touches the board. Inside the
  * lock it runs `python -m tinyg_hil snapshot`, and `restore` on request.
+ * Both send G21 (and the restore settings writes), so the helper first reads
+ * the board and refuses unless it is idle with an empty planner, and refuses
+ * a restore to a board whose id or fb is not the snapshot's.
  */
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -113,6 +116,7 @@ export function acquireHilLock(options: HilLockOptions): Promise<HilLockOutcome>
         if (released) throw new Error('the lock was already released');
         child.stdin.write('restore\n');
         const reply = await next();
+        if (reply.word === 'refused') throw new Error(`restore refused: ${reply.rest}`);
         if (reply.word !== 'restored') throw new Error(`restore failed: ${reply.rest}`);
       },
       async release(): Promise<void> {

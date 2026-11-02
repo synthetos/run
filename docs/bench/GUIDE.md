@@ -296,6 +296,11 @@ when a polled `mpo` read arrives, so it can step rather than glide.
 tests check this over 10,000 random sessions. HIL-1.8 checks it on the
 real board.
 
+The bench runner (section 8.1) is the one other writer during a bench run:
+its settings snapshot and restore send `G21` and settings writes at the
+start and end of the run. Those bytes in a capture are the runner's, not
+the app's.
+
 ## 7. Transcripts
 
 Every session keeps a wire transcript of its last connection: every byte
@@ -334,9 +339,23 @@ node src/main.ts bench --port /dev/cu.usbserial-XXXX \
 
 The runner takes the EN-HIL board lock and snapshots the settings. It then
 opens Chrome, steps through the BENCH rows of README.md (answer pass, fail,
-skip or quit for each), restores the settings and writes `record.json`. It
-exits 3 if the lock is held, 2 under `CI` or for a URL that is not staging
-or localhost, and 1 if an item failed or you quit early. Items that need a
+skip or quit for each), asks before it restores the settings, and writes
+`record.json`. It exits 3 if the lock is held, 2 under `CI` or for a URL
+that is not staging or localhost, and 1 if an item failed or you quit early.
+
+**The runner, not the app, writes to the board.** The snapshot sends `G21`
+and then GETs at the start of the run; the restore sends `G21` and every
+setting that differs at the end. Those bytes are expected in a capture of
+the run, outside the app's section 6 rules. Before the snapshot the runner
+reads the board and refuses unless it is idle (stat 1 or 4, vel 0, hold 0)
+with an empty planner, so `G21` never lands in another sender's job. Before
+the restore it asks (`y` to restore; anything else, Ctrl-C or
+`--no-restore` skips it and prints the command to restore by hand), then
+refuses unless the board on the port reports the snapshot's `id` and `fb`
+and is idle with the planner as empty as at the start. This matters when you
+swap boards during a run (HIL-1.2, HIL-1.4): on Linux and Windows the port
+path stays the same, and one board's settings must never be written into
+another. Items that need a
 second program on the board must be done outside the runner (policy.md,
 "Items that need a second program on the board").
 

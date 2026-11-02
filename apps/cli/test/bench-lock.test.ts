@@ -5,7 +5,7 @@
  * (fixtures/fake_hil: the same lock, and a main() that records its calls).
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -79,6 +79,49 @@ describe.skipIf(PYTHON === undefined)('P1-08 bench runner and the EN-HIL board l
     expect(s.readCalls()).toEqual([`snapshot --port ${s.port} --out ${join(s.dir, 'snapshot')}`, `restore ${out.lock.snapshotPath} --port ${s.port}`]);
     // tinyg_hil's own output reached the log, not the protocol.
     expect(s.log).toContain('board: fake');
+  });
+
+  it('refuses to restore one board\'s snapshot into another board on the same port path', async () => {
+    const s = setup();
+    const board = join(s.dir, 'board.json');
+    s.options.env!['FAKE_HIL_BOARD_FILE'] = board;
+    const out = await acquireHilLock(s.options);
+    if (!out.ok) throw new Error(out.message);
+    // The EN board is swapped for a stock 440.21 on the same /dev path.
+    writeFileSync(board, JSON.stringify({ id: 'TG-OTHER', fb: 440.21 }));
+    await expect(out.lock.restore()).rejects.toThrow(/restore refused: the board on this port reports id 'TG-OTHER', but the snapshot is from id 'FAKE'/);
+    writeFileSync(board, JSON.stringify({ fb: 449.01 }));
+    await expect(out.lock.restore()).rejects.toThrow(/restore refused: .*fb 449\.01/);
+    await out.lock.release();
+    expect(s.readCalls().filter((c) => c.startsWith('restore'))).toEqual([]);
+  });
+
+  it.each([
+    ['held', { stat: 6, hold: 4 }, /not idle \(stat 6\)/],
+    ['moving', { stat: 5, vel: 120 }, /not idle \(stat 5\)/],
+    ['in a hold at stat 1', { hold: 2 }, /feedhold \(hold 2\)/],
+    ['with queued moves', { qr: 20 }, /planner is not empty \(qr 20, 32 when the run started\)/],
+  ])('refuses to restore to a board that is %s', async (_label, state, message) => {
+    const s = setup();
+    const board = join(s.dir, 'board.json');
+    s.options.env!['FAKE_HIL_BOARD_FILE'] = board;
+    const out = await acquireHilLock(s.options);
+    if (!out.ok) throw new Error(out.message);
+    writeFileSync(board, JSON.stringify(state));
+    await expect(out.lock.restore()).rejects.toThrow(message);
+    await out.lock.release();
+    expect(s.readCalls().filter((c) => c.startsWith('restore'))).toEqual([]);
+  });
+
+  it('refuses to snapshot (which sends G21) a board that is not idle: nothing is written', async () => {
+    const s = setup();
+    const board = join(s.dir, 'board.json');
+    writeFileSync(board, JSON.stringify({ stat: 5, vel: 80 }));
+    const out = await acquireHilLock({ ...s.options, env: { ...s.options.env, FAKE_HIL_BOARD_FILE: board } });
+    expect(out).toMatchObject({ ok: false, code: 'error' });
+    expect(out.ok ? '' : out.message).toMatch(/refusing to snapshot: the board is not idle \(stat 5\)/);
+    expect(s.readCalls()).toEqual([]);
+    expect(lockIsFree(s.port)).toBe(true);
   });
 
   it('refuses at once when the lock is held: busy, with the holder, and tinyg_hil is never run', async () => {

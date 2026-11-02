@@ -23,7 +23,7 @@ async function bench(argv: readonly string[]): Promise<number> {
   const profileDir = args.profileDir ?? join(home, 'chrome-profile');
   await mkdir(runDir, { recursive: true });
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  // Ctrl-C ends the questions; runBench's finally still closes Chrome, restores and unlocks.
+  // Ctrl-C ends the questions; runBench's finally still closes Chrome and unlocks (an interrupted run never restores: the restore needs a yes).
   let interrupted = false;
   rl.on('SIGINT', () => {
     interrupted = true;
@@ -31,7 +31,7 @@ async function bench(argv: readonly string[]): Promise<number> {
   });
   try {
     return await runBench(
-      { url: args.url, port: args.port, hilDir: args.hilDir, python: args.python, profileDir, runDir, items },
+      { url: args.url, port: args.port, hilDir: args.hilDir, python: args.python, profileDir, runDir, items, noRestore: args.noRestore },
       {
         env: process.env,
         lock: acquireHilLock,

@@ -8,8 +8,12 @@ describe('parseBenchArgs', () => {
     expect(parseBenchArgs(['--port', '/dev/x'])).toEqual({ ok: false, message: '--hil-dir is required' });
     expect(parseBenchArgs(['--port', '/dev/x', '--hil-dir', 'h'])).toEqual({
       ok: true,
-      args: { port: '/dev/x', hilDir: 'h', url: DEFAULT_URL, python: DEFAULT_PYTHON, profileDir: null, outDir: null, checklist: null, only: [] },
+      args: { port: '/dev/x', hilDir: 'h', url: DEFAULT_URL, python: DEFAULT_PYTHON, profileDir: null, outDir: null, checklist: null, only: [], noRestore: false },
     });
+  });
+
+  it('--no-restore is a flag without a value', () => {
+    expect(parseBenchArgs(['--port', 'p', '--no-restore', '--hil-dir', 'h'])).toMatchObject({ ok: true, args: { noRestore: true, hilDir: 'h' } });
   });
 
   it('reads every option, repeats --only, splits --python', () => {

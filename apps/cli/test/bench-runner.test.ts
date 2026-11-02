@@ -59,9 +59,10 @@ function fake(options: { lock?: HilLockOutcome | 'restore-fails'; answers?: stri
 
 describe('P1-08 bench runner', () => {
   it('takes the lock (with the snapshot), opens Chrome, asks each item, then closes Chrome, restores and unlocks, in that order', async () => {
-    const f = fake();
+    const f = fake({ answers: ['p', 'p', 'y'] });
     expect(await runBench(OPTIONS, f.deps)).toBe(EXIT.ok);
-    expect(f.calls.map((c) => c.split(' ')[0])).toEqual(['lock', 'browser', 'ask', 'ask', 'close', 'restore', 'release']);
+    expect(f.calls.map((c) => c.split(' ')[0])).toEqual(['lock', 'browser', 'ask', 'ask', 'close', 'ask', 'restore', 'release']);
+    expect(f.calls[5]).toMatch(/^ask Restore the settings snapshot to the board on \/dev\/cu\.usbserial-1 now\? This sends G21 and settings writes/);
     expect(f.calls[0]).toBe('lock /dev/cu.usbserial-1 /run/snapshot');
     expect(f.record()).toMatchObject({ snapshotPath: '/run/snapshot/EN-1.json', restore: 'restored', aborted: null, items: [{ id: 'BENCH-P102-1', result: 'pass' }, { id: 'BENCH-P104-1', result: 'pass' }] });
   });
@@ -110,24 +111,42 @@ describe('P1-08 bench runner', () => {
     ]);
   });
 
-  it('quit still closes Chrome, restores and unlocks, and is not a pass (exit 1)', async () => {
-    const f = fake({ answers: ['q'] });
+  it('quit still closes Chrome, asks, restores and unlocks, and is not a pass (exit 1)', async () => {
+    const f = fake({ answers: ['q', 'y'] });
     expect(await runBench(OPTIONS, f.deps)).toBe(EXIT.failed);
-    expect(f.calls.slice(-3)).toEqual(['close', 'restore', 'release']);
+    expect(f.calls.slice(-3).map((c) => c.split(' ')[0])).toEqual(['ask', 'restore', 'release']);
     expect(f.record()).toMatchObject({ aborted: 'stopped by the operator before BENCH-P102-1', items: [] });
   });
 
   it('restores and unlocks even when Chrome fails to start', async () => {
-    const f = fake({ browserFails: true });
+    const f = fake({ browserFails: true, answers: ['yes'] });
     expect(await runBench(OPTIONS, f.deps)).toBe(EXIT.error);
-    expect(f.calls).toEqual(['lock /dev/cu.usbserial-1 /run/snapshot', 'browser https://staging.run.synthetos.com/ /profile', 'restore', 'release']);
+    expect(f.calls.filter((c) => !c.startsWith('ask '))).toEqual(['lock /dev/cu.usbserial-1 /run/snapshot', 'browser https://staging.run.synthetos.com/ /profile', 'restore', 'release']);
     expect(f.record().aborted).toBe('error: chrome not installed');
   });
 
   it('a failed restore is an error in the record, and the lock is still released', async () => {
-    const f = fake({ lock: 'restore-fails' });
+    const f = fake({ lock: 'restore-fails', answers: ['p', 'p', 'y'] });
     expect(await runBench(OPTIONS, f.deps)).toBe(EXIT.error);
     expect(f.calls.slice(-2)).toEqual(['restore', 'release']);
     expect(f.record().restore).toEqual({ error: 'restore refused' });
+  });
+
+  it('the restore needs a yes: anything else (or Ctrl-C) skips it, logs how to restore by hand, and still unlocks', async () => {
+    for (const answer of ['', 'n', 'q', 'restore']) {
+      const f = fake({ answers: ['p', 'p', answer] });
+      expect(await runBench(OPTIONS, f.deps), answer).toBe(EXIT.ok);
+      expect(f.calls.some((c) => c === 'restore'), answer).toBe(false);
+      expect(f.calls.at(-1)).toBe('release');
+      expect(f.record().restore).toBe('skipped');
+    }
+  });
+
+  it('--no-restore never asks and never restores', async () => {
+    const f = fake({ answers: ['p', 'p'] });
+    expect(await runBench({ ...OPTIONS, noRestore: true }, f.deps)).toBe(EXIT.ok);
+    expect(f.calls.filter((c) => c.startsWith('ask '))).toHaveLength(2);
+    expect(f.calls).not.toContain('restore');
+    expect(f.record().restore).toBe('skipped');
   });
 });

@@ -18,7 +18,9 @@ def main(argv=None):
             raise RuntimeError("no answer from the board")
         out = pathlib.Path(argv[argv.index("--out") + 1])
         out.mkdir(parents=True, exist_ok=True)
-        (out / "FAKE-450.01-20261101T000000Z.json").write_text(json.dumps({"values": {"1ma": 0}}) + "\n")
+        from .driver import board
+        b = board()
+        (out / "FAKE-450.01-20261101T000000Z.json").write_text(json.dumps({"identity": {k: b[k] for k in ("fb", "fv", "hp", "hv", "id")}, "values": {"1ma": 0}}) + "\n")
     elif argv[0] == "restore":
         if os.environ.get("FAKE_HIL_FAIL") == "restore":
             raise RuntimeError("restore refused")

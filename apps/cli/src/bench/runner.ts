@@ -9,8 +9,10 @@
  *      under test (staging, or the localhost bench build);
  *   5. steps through the HIL checklist (docs/bench/README.md BENCH rows),
  *      one manual confirmation per item;
- *   6. closes the browser (which lets go of the port), restores the
- *      settings snapshot, and releases the lock, whatever happened in 4-5;
+ *   6. closes the browser (which lets go of the port), asks before it
+ *      restores the settings snapshot (skipped with --no-restore; the
+ *      helper refuses another board or a board that is not idle), and
+ *      releases the lock, whatever happened in 4-5;
  *   7. writes the run record (`record.json`) next to the snapshot.
  *
  * Everything with side effects is passed in (`BenchDeps`), so the order and
@@ -44,6 +46,8 @@ export interface BenchOptions {
   /** This run's directory: the snapshot and record.json go here. */
   readonly runDir: string;
   readonly items: readonly ChecklistItem[];
+  /** Do not write the snapshot back at the end (the operator restores by hand, or not at all). */
+  readonly noRestore?: boolean;
 }
 
 export interface BenchBrowser {
@@ -72,7 +76,7 @@ export interface BenchRecord {
   snapshotPath: string | null;
   readonly items: { id: string; covers: string; result: ItemResult; note: string; at: string }[];
   aborted: string | null;
-  restore: 'restored' | 'not-run' | { readonly error: string };
+  restore: 'restored' | 'not-run' | 'skipped' | { readonly error: string };
 }
 
 /** `p`, `f`, `s` or `q` (quit: the remaining items are not run). */
@@ -169,13 +173,32 @@ export async function runBench(options: BenchOptions, deps: BenchDeps): Promise<
         deps.log(`could not close Chrome: ${error instanceof Error ? error.message : String(error)}. Close it before the restore.`);
       }
     }
-    deps.log('restoring the settings snapshot…');
-    try {
-      await lock.restore();
-      record.restore = 'restored';
-    } catch (error) {
-      record.restore = { error: error instanceof Error ? error.message : String(error) };
-      deps.log(`RESTORE FAILED: ${record.restore.error}. Restore by hand: python -m tinyg_hil restore --port ${options.port} ${lock.snapshotPath}`);
+    // The restore sends G21 and settings writes to whatever board is on the port now: ask first.
+    const byHand = `python -m tinyg_hil restore --port ${options.port} ${lock.snapshotPath}`;
+    let restoreNow = false;
+    if (options.noRestore === true) deps.log('--no-restore: the settings snapshot is not written back.');
+    else {
+      try {
+        const answer = await deps.ask(
+          `Restore the settings snapshot to the board on ${options.port} now? This sends G21 and settings writes; it is refused unless the same board (id, fb) is there, idle with an empty planner. [y/N]: `,
+        );
+        restoreNow = /^y(es)?$/i.test(answer.trim());
+      } catch {
+        restoreNow = false;
+      }
+    }
+    if (!restoreNow) {
+      record.restore = 'skipped';
+      deps.log(`settings snapshot not restored. To restore it by hand: ${byHand}`);
+    } else {
+      deps.log('restoring the settings snapshot…');
+      try {
+        await lock.restore();
+        record.restore = 'restored';
+      } catch (error) {
+        record.restore = { error: error instanceof Error ? error.message : String(error) };
+        deps.log(`RESTORE FAILED: ${record.restore.error}. Restore by hand once the right board is idle: ${byHand}`);
+      }
     }
     await lock.release();
     deps.log('board lock released.');
@@ -183,7 +206,7 @@ export async function runBench(options: BenchOptions, deps: BenchDeps): Promise<
     await deps.writeFile(`${options.runDir}/record.json`, `${JSON.stringify(record, null, 2)}\n`);
     deps.log(`run record: ${options.runDir}/record.json`);
   }
-  if (record.restore !== 'restored' || (record.aborted !== null && record.aborted.startsWith('error:'))) return EXIT.error;
+  if ((record.restore !== 'restored' && record.restore !== 'skipped') || (record.aborted !== null && record.aborted.startsWith('error:'))) return EXIT.error;
   // A run the operator stopped before the end (quit, Ctrl-C) did not check every item: never exit 0 for it.
   return record.items.some((i) => i.result === 'fail') || record.aborted !== null ? EXIT.failed : EXIT.ok;
 }
