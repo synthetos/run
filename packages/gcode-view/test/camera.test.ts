@@ -29,8 +29,10 @@ describe('orbit camera', () => {
       let reach = 0;
       for (const cx of [box.min[0], box.max[0]]) for (const cy of [box.min[1], box.max[1]]) for (const cz of [box.min[2], box.max[2]]) {
         const p = project(m, [cx, cy, cz]);
-        expect(Math.abs(p[0])).toBeLessThanOrEqual(0.8 + 1e-4);
-        expect(Math.abs(p[1])).toBeLessThanOrEqual(0.8 + 1e-4);
+        // The matrix is Float32: a small box far from the origin (size 1 at x = -1454) projects with
+        // about 2e-4 of rounding, so 1e-4 failed about one run in three.
+        expect(Math.abs(p[0])).toBeLessThanOrEqual(0.8 + 1e-3);
+        expect(Math.abs(p[1])).toBeLessThanOrEqual(0.8 + 1e-3);
         reach = Math.max(reach, Math.abs(p[0]), Math.abs(p[1]));
       }
       expect(reach).toBeGreaterThan(0.6);
