@@ -280,3 +280,18 @@ ORPHANED_MOTION in Phase 1. The bench guide (section 5.7) tells the user to
 unplug the USB or close the tab. Nothing changes in the allow-matrix.
 
 The decision does not change any byte the app writes.
+
+## OD-5. A public board illustration for the configurator (owner, 2026-11-02)
+
+**Decision: approved.** The owner, who owns the hardware design, approves a
+separately authored, publishable illustration of the TinyG board (v8 first)
+for the visual configurator. It looks like the "Connecting TinyG" wiki images,
+but is cleaner and interactive.
+
+- **What may go into it:** connector positions, labels and orientation, taken
+  as derived facts.
+- **What may not:** no CAD file, netlist, layout export, screenshot or private
+  path from the hardware repositories is published (D26 and RUN_PLAN rule 6
+  still apply).
+- **Provenance:** each illustration records which reviewed public facts it
+  shows.
