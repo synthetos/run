@@ -27,6 +27,15 @@ export interface ReleaseKey {
 }
 
 export const RELEASE_KEYS: readonly ReleaseKey[] = Object.freeze([
+  // Owner's bench key (2026-11-02): staging and the localhost bench build only,
+  // so it can never approve a production build. Private half kept outside the
+  // repository (~/.synthetos-release-bench/). Not the offline release key.
+  Object.freeze({
+    kid: 'owner-bench-2026-11-02',
+    publicKey: 'pC9KYeUSYum5QOyA8MoehjMWLGOg/2luNgaB/O6oJkY=',
+    environments: Object.freeze(['staging'] as const),
+    placeholder: true,
+  }),
   Object.freeze({
     kid: 'placeholder-bench-2026-11-01',
     publicKey: 'yYYGnK63u6XSBDm94KyboC7q3nfTzjRlgxrB1VZWYuo=',

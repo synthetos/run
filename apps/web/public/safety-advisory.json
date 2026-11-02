@@ -1,4 +1,11 @@
 {
   "format": "synthetos-run/safety-advisory@1",
-  "advisories": []
+  "advisories": [
+    {
+      "env": "staging",
+      "kid": "owner-bench-2026-11-02",
+      "payload": "{\"format\":\"synthetos-run/safety-advisory-env@1\",\"env\":\"staging\",\"issued\":\"2026-11-01T00:00:00Z\",\"expires\":\"2027-02-01T00:00:00Z\",\"revoked\":[]}",
+      "sig": "Su96TBxi7kbRktKHK0q+2b8H9YIFru/ZwKoVTwrLVzqCKZm9zcBwQ+/OvGh1mkyE4X6eGBYaXdmM4ghkWqFQCg=="
+    }
+  ]
 }
