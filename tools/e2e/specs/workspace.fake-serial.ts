@@ -175,24 +175,56 @@ for (const width of [1440, 1280] as const) {
   for (const theme of ['light', 'dark'] as const) {
     test(`screenshots of the shell, ${width} px, ${theme}`, async ({ page }) => {
       test.skip(SHOTS === undefined, 'RUN_SCREENSHOTS_DIR is not set');
+      test.setTimeout(120_000);
       await page.setViewportSize({ width, height: width === 1440 ? 900 : 720 });
       await page.emulateMedia({ colorScheme: theme });
       await connectedTab(page);
       await expect(page.locator('[data-region="machine-strip"] [data-strip="state"]')).toHaveText('Connected · read only', { timeout: 10_000 });
+      const w29 = page.locator('[data-action="dismiss-w29"]');
+      if ((await w29.count()) > 0) await w29.click();
+      const shot = (name: string): Promise<Buffer> => page.screenshot({ path: `${SHOTS}/${width}-${theme}-${name}.png` });
       await page.locator('[data-sample="mounting-plate"]').click();
       await expect(page.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
-      await page.waitForTimeout(600);
-      await page.screenshot({ path: `${SHOTS}/${width}-${theme}-run.png` });
+      await page.waitForTimeout(800);
+      await shot('run');
+      await page.locator('.job-more > summary').click();
+      await shot('run-job-details');
+      await page.locator('.job-more > summary').click();
       await page.locator('[data-tab="live"]').click();
-      await page.screenshot({ path: `${SHOTS}/${width}-${theme}-run-live.png` });
-      for (const view of ['board', 'setup', 'tools', 'materials', 'machines'] as const) {
-        await show(page, view);
-        await page.waitForTimeout(300);
-        await page.screenshot({ path: `${SHOTS}/${width}-${theme}-${view}.png` });
-      }
+      await shot('run-live');
+      await page.locator('[data-tab="gcode"]').click();
+      if (width !== 1440) return;
+      await show(page, 'setup');
+      await page.waitForTimeout(300);
+      await shot('setup');
+      await show(page, 'tools');
+      await page.locator('[data-tab="buy"]').click();
+      await shot('tools-links');
+      await show(page, 'materials');
+      await shot('materials');
+      await page.locator('[data-action="new-material"]').click();
+      await shot('materials-new');
+      await page.locator('[data-region="material-form"] [data-tab="cutting"]').click();
+      await shot('materials-new-cutting');
+      await page.locator('[data-region="material-form"] [data-action="cancel-material"]').last().click();
       await show(page, 'board');
-      await page.locator('[data-board-tab="settings"]').click();
-      await page.screenshot({ path: `${SHOTS}/${width}-${theme}-board-settings.png` });
+      await expect(page.locator('[data-board-fact="id"]')).toHaveText(BOARD);
+      await shot('board-overview');
+      await page.locator('[data-pin="J7.3"]').click();
+      await page.locator('[data-pin="J6.3"]').hover();
+      await shot('board-pin');
+      await page.locator('[data-pin="M2.3"]').click();
+      await shot('board-motor-pin');
+      for (const tab of ['motors', 'axes', 'inputs', 'io', 'comms', 'settings', 'backups', 'firmware'] as const) {
+        await page.locator(`[data-board-tab="${tab}"]`).click();
+        await page.waitForTimeout(150);
+        await shot(`board-${tab}`);
+      }
+      await show(page, 'machines');
+      await page.locator('[data-tab="catalogue"]').click();
+      await page.locator('[data-action="copy-machine"]').first().click();
+      await page.locator('[data-tab="tinyg"]').click();
+      await shot('machines-tinyg');
     });
   }
 }

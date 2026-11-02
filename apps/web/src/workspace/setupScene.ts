@@ -25,6 +25,21 @@ function css(name: string, fallback: string): string {
   return v === '' ? fallback : v;
 }
 
+/** `#rrggbb` as [r, g, b], or null. */
+function rgbOf(hex: string): [number, number, number] | null {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (m === null) return null;
+  const n = Number.parseInt(m[1] as string, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/** The bed in the drafting accent (--tan), softened toward the sheet so it reads as a spoilboard in both themes. */
+function bedToneOf(): readonly number[] {
+  const tan = rgbOf(css('--tan', '#836428')) ?? [131, 100, 40];
+  const sheet = rgbOf(css('--sheet', '#ffffff')) ?? [255, 255, 255];
+  return tan.map((c, i) => Math.round(c * 0.62 + (sheet[i] as number) * 0.38));
+}
+
 function shade(rgb: readonly number[], k: number): string {
   return `rgb(${rgb.map((c) => Math.max(0, Math.min(255, Math.round(c * k)))).join(',')})`;
 }
@@ -122,7 +137,7 @@ export class SetupScene {
     const faces: Face[] = [];
     const ink = css('--blue', '#1d5aa6');
     const line = css('--field', '#8d9ca6');
-    const bedTone = [176, 140, 98];
+    const bedTone = bedToneOf();
     const fixtureTone = [125, 147, 168];
     const clampTone = [110, 122, 134];
     const box = (layer: number, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, tone: readonly number[], stroke: string): void => {

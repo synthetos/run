@@ -96,9 +96,9 @@ The library is host-side. The firmware has no tool table and none is planned:
 it reports only the active tool (`tool` in `sr`, the T word) and the G43/G49
 tool length. Each operation chooses its tool from the library.
 
-**Firmware tool table (Mock: firmware pending).** The UI reserves a slot table
-(`slot -> {T, length, diameter}`) beside the library with a "Compare with the
-controller" action. No design is decided; it is an owner question.
+**No firmware tool table for TinyG (owner, polish pass 1).** Tools live in
+software, in this library; the TinyG UI shows no firmware tool table. g2core
+may get one later; `Tool.firmwareSlot` keeps the shape for that and is unused.
 
 ### Operation and job (P1 to prepare; P3 to run)
 
@@ -299,13 +299,13 @@ verify → reconnect → version check → offer to restore.
 | Manual tool change | Works today (P3) | Host stops before M6; optional opt-in M6 pause later |
 | Spindle state report | Mock: firmware pending | A spindle key in sr/rt |
 | Overrides | Mock: firmware pending | Runtime override, perhaps `{rt:{fo}}` |
-| Firmware tool table | Mock: firmware pending | A new design; not planned |
+| Firmware tool table | Not for TinyG (tools live in the library) | g2core may get one later |
 | Feed-limit advisor via rt | Planned upstream | Optional |
 | Firmware update | PF | Signed manifest and hosting; bootloader protocol as above |
 
 ## Open questions for the owner
 
-1. Firmware tool table: wanted at all? If so, who owns its design?
+1. Firmware tool table: decided for TinyG (none; tools live in software). Open for g2core only.
 2. Spindle state key: shape and units (commanded S after the clamp, and whether to include the PWM duty).
 3. Overrides: wire format and ranges; does rapid override belong in v1?
 4. Release hosting and signing: who signs, where the manifest lives, the key.

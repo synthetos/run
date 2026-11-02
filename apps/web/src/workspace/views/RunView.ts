@@ -19,12 +19,18 @@ import type { WorkerLike } from '../../gcode-worker/client.ts';
 import { Dro } from '../../machine-ui/Dro.ts';
 import { TranscriptSave } from '../../machine-ui/TranscriptSave.ts';
 import { PreviewPanel, markerText, type LiveMarkerView, type PreviewParts } from '../../preview/PreviewPanel.ts';
-import { DIALECT_LABEL, MODE_LABEL, fileLevel, on, progressText, summary } from '../../preview/PreviewView.ts';
+import { DIALECT_LABEL, MODE_LABEL, fileLevel, on, progressText } from '../../preview/PreviewView.ts';
+import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
+import { renumbered, shownCounts } from '../../preview/gcodeList.ts';
+import type { SettingValue } from '@synthetos/schema';
 import { ConnectPanel } from '../../live/ConnectPanel.ts';
+import { connectorPins, dialectOf, plainValue, settingsOf, type PinInfo } from '../boardFacts.ts';
 import { Icon } from '../icons.ts';
+import { readStored, writeStored } from '../storage.ts';
+import { CheckRow, TabBar, TabPane } from '../ui.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
-import { COOLANT_TITLE, coolantText, coord, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
+import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
 
 export interface RunViewProps {
   readonly model: WorkspaceModel | null;
@@ -34,7 +40,9 @@ export interface RunViewProps {
 }
 
 export function RunView({ model, spawn, marker, onView }: RunViewProps): ComponentChild {
-  return h(PreviewPanel, { spawn, ...(marker === undefined ? {} : { marker }), layout: (parts: PreviewParts) => runLayout(parts, model, onView) });
+  const live = model?.live.value ?? null;
+  const reportedLine = live !== null && connected(live) ? (live.message?.snapshot.live.line ?? null) : null;
+  return h(PreviewPanel, { spawn, ...(marker === undefined ? {} : { marker }), reportedLine, layout: (parts: PreviewParts) => runLayout(parts, model, onView) });
 }
 
 // ---------------------------------------------------------------- connect
@@ -108,7 +116,7 @@ export function PositionPanel({ model }: { readonly model: WorkspaceModel | null
       'header',
       null,
       h('h2', { id: 'position-title' }, 'Position'),
-      h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: 'Machine position is polled from the controller; work position comes from its status reports.' }, age.text),
+      h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: 'Machine position is read from the controller about twice a second; work position comes from its status reports.' }, age.text),
     ),
     h(
       'div',
@@ -140,7 +148,6 @@ export function JogSection(): ComponentChild {
     'section',
     { class: 'insp sec-jog', 'aria-labelledby': 'jog-title' },
     h('header', null, h('h2', { id: 'jog-title' }, 'Jog'), h('span', { class: 'tag' }, 'Motion control')),
-    h('p', { class: 'unavailable', 'data-jog': 'note' }, 'Jogging arrives with motion control. These controls show what is coming and send nothing.'),
     h(
       'div',
       { class: 'jog', 'aria-disabled': 'true' },
@@ -152,20 +159,48 @@ export function JogSection(): ComponentChild {
       ),
       h('div', { class: 'seg full', role: 'group', 'aria-label': 'Step size' }, ['0.1', '1', '10', '50', 'Hold'].map((s) => h('button', { type: 'button', disabled: true, class: s === '1' ? 'selected' : undefined, key: s, 'data-machine-control': 'jog' }, s))),
     ),
+    h('p', { class: 'unavailable', 'data-jog': 'note' }, 'Jogging arrives with motion control. These controls show what is coming and send nothing.'),
+  );
+}
+
+/** The J6 output pins with what the board's settings say about each (board definition labels, never generic ones). */
+function OutputPins({ settings, dialect }: { readonly settings: Readonly<Record<string, SettingValue>>; readonly dialect: string | null }): ComponentChild {
+  const pins = connectorPins('J6').filter((p) => p.role === 'output');
+  if (pins.length === 0) return null;
+  const setting = (p: PinInfo): string => {
+    if (p.signal === 'out.spindleEnable') return plainValue('spep', settings['spep'], dialect) ?? 'polarity not read';
+    if (p.signal === 'out.spindleDirection') return plainValue('spdp', settings['spdp'], dialect) ?? 'polarity not read';
+    if (p.signal === 'out.spindlePwm') return 'speed signal';
+    return 'mist and flood share it';
+  };
+  return h(
+    'ul',
+    { class: 'pin-list', 'aria-label': 'Spindle and coolant pins on J6' },
+    pins.map((p) =>
+      h(
+        'li',
+        { key: p.ref, 'data-pin-row': p.ref },
+        h('span', { class: 'pin-ref' }, p.ref),
+        h('span', { class: 'pin-name' }, p.label, h('small', null, p.function)),
+        h('span', { class: 'pin-set' }, setting(p)),
+      ),
+    ),
   );
 }
 
 /**
- * Spindle and coolant as the board reports them (edge-next `spe`, `spc`, `spd`, `sps`, `cof`, `com`), when its
- * status list carries them; otherwise the dash or "Not reported by this board's status list". Display only:
- * the controls stay disabled, and nothing that pauses or stops reads these values.
+ * Spindle and coolant as the board reports them (edge-next `spe`, `spc`, `spd`, `sps`, `cof`, `com`): from its
+ * status list when it carries them, otherwise from the read-only GETs Run asks about once a second. Display
+ * only: the controls stay disabled, and nothing that pauses or stops reads these values.
  */
 export function SpindleSection({ model }: { readonly model?: WorkspaceModel | null } = {}): ComponentChild {
   const view = model?.live.value ?? null;
-  const live = view !== null && connected(view) ? view.message?.snapshot.live : undefined;
-  const spindle = spindleText(live);
+  const snapshot = view !== null && connected(view) ? view.message?.snapshot : undefined;
+  const r = displayReadouts(snapshot);
+  const spindle = spindleText(r);
   const spindleLine = spindle.startsWith('On') ? `Spindle o${spindle.slice(1)}` : spindle;
-  const coolant = coolantText(live);
+  const coolant = coolantText(r);
+  const settings = settingsOf(view);
   return h(
     'section',
     { class: 'insp sec-spindle', 'aria-labelledby': 'spindle-title' },
@@ -173,22 +208,22 @@ export function SpindleSection({ model }: { readonly model?: WorkspaceModel | nu
     h(
       'div',
       { class: 'spindle-state' },
-      h('svg', { class: 'spindle-dial', viewBox: '0 0 64 64', 'aria-hidden': 'true' }, h('circle', { cx: 32, cy: 32, r: 26, class: 'dial-track' })),
+      h('span', { class: `spindle-mark${spindle.startsWith('On') ? ' on' : ''}`, 'aria-hidden': 'true' }, Icon('spindle', 26)),
       h(
         'div',
         { class: 'spindle-text' },
         h('strong', { 'data-spindle': 'spindle', title: SPINDLE_TITLE }, spindleLine),
-        h('span', null, 'Outputs as the controller drives them; speed is commanded, not measured'),
         h('small', { 'data-spindle': 'coolant', title: COOLANT_TITLE }, `Coolant: ${coolant === UNKNOWN ? UNKNOWN : coolant === 'Off' ? 'off' : coolant}`),
       ),
     ),
+    h(OutputPins, { settings, dialect: dialectOf(view) }),
     h(
       'div',
       { class: 'spindle-controls' },
-      h('div', { class: 'seg full', role: 'group', 'aria-label': 'Spindle' }, ['Off', 'On · CW', 'On · CCW'].map((s) => h('button', { type: 'button', disabled: true, key: s, 'data-machine-control': 'spindle' }, s))),
-      h('div', { class: 'inline-field' }, h('span', null, 'Coolant'), h('span', { class: 'toggles' }, h('button', { type: 'button', class: 'toggle', disabled: true, 'aria-pressed': 'false', 'data-machine-control': 'coolant' }, 'Mist'), h('button', { type: 'button', class: 'toggle', disabled: true, 'aria-pressed': 'false', 'data-machine-control': 'coolant' }, 'Flood'))),
+      h('div', { class: 'seg full', role: 'group', 'aria-label': 'Spindle (J6.3 Spindle, J6.4 SpinDir)' }, ['Off', 'On · CW', 'On · CCW'].map((s) => h('button', { type: 'button', disabled: true, key: s, 'data-machine-control': 'spindle' }, s))),
+      h('div', { class: 'inline-field' }, h('span', null, 'J6.6 Coolant'), h('span', { class: 'toggles' }, h('button', { type: 'button', class: 'toggle', disabled: true, 'aria-pressed': 'false', 'data-machine-control': 'coolant' }, 'Mist'), h('button', { type: 'button', class: 'toggle', disabled: true, 'aria-pressed': 'false', 'data-machine-control': 'coolant' }, 'Flood'))),
     ),
-    h('p', { class: 'unavailable' }, 'Spindle and coolant control arrive with motion control. These readouts are for display only: a command queued behind a move shows only once it runs, so never rely on them for safety. TinyG has no spindle speed sensor.'),
+    h('p', { class: 'unavailable' }, 'Control arrives with motion control. Readouts are for display only: a command queued behind a move shows once it runs, and the speed is commanded, not measured. Never rely on them for safety.'),
   );
 }
 
@@ -210,43 +245,192 @@ export function OverridesSection(): ComponentChild {
   );
 }
 
-// ---------------------------------------------------------------- job card
+type InspTab = 'jog' | 'spindle' | 'overrides';
 
-function JobCard({ parts }: { readonly parts: PreviewParts }): ComponentChild {
-  const { state } = parts;
-  const result = state.status === 'ready' ? state.result : null;
-  const facts = useMemo(() => (result === null ? null : fileFacts(result.bytes)), [result]);
+/** The Run inspector: position always on top, the rest as tabs so nothing needs a long scroll. */
+function RunInspector({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
+  const [tab, setTab] = useState<InspTab>('spindle');
   return h(
-    'section',
-    { class: 'insp sec-job', 'data-region': 'job', 'aria-labelledby': 'job-title' },
-    h('header', null, h('h2', { id: 'job-title' }, 'Job'), h('span', { class: `tag${result?.summary.blocked === true ? ' danger' : result !== null ? ' ok' : ''}` }, result === null ? 'No file' : result.summary.blocked ? 'Blocked' : 'Checked')),
-    result === null
-      ? h('div', { class: 'job-none' }, h('p', null, state.status === 'loading' ? 'Checking the file…' : 'No file open. Open a G-code file or a sample and it appears here with its tools and the safety check.'))
-      : h(
-          'div',
-          { class: 'job-body' },
-          h('div', { class: 'job-file' }, Icon('file', 26), h('div', null, h('strong', null, state.fileName ?? ''), h('small', null, `${num(result.fileLines)} lines · ${facts?.toolChanges.length ?? 0} tool changes`))),
-          facts === null || facts.operations.length === 0
-            ? null
-            : h('ol', { class: 'job-ops' }, facts.operations.slice(0, 8).map((op, i) => h('li', { key: String(op.line), title: `Operation ${i + 1}: ${op.name}` }, h('span', { class: `op-swatch op-${i < 3 ? i + 1 : 4}`, 'aria-hidden': 'true' }, String(i + 1).padStart(2, '0')), h('span', { class: 'name' }, op.name, h('small', null, `Operation ${i + 1} · from line ${num(op.line)}`))))),
-          h(
-            'dl',
-            { class: 'facts' },
-            h('div', null, h('dt', null, 'Tools in the file'), h('dd', null, facts === null || facts.tools.length === 0 ? 'None named' : facts.tools.map((t) => `T${t}`).join(', '))),
-            h('div', null, h('dt', null, 'Spindle speeds'), h('dd', null, facts === null || facts.spindle.length === 0 ? 'None' : `${facts.spindle.map((s) => num(s)).join(', ')} rpm`)),
-            h('div', null, h('dt', null, 'Estimated time'), h('dd', null, 'Arrives with the job engine')),
-          ),
-          h('h3', { class: 'job-sub' }, 'Analysis'),
-          summary(result),
-          fileLevel(result.summary.fileLevel),
-        ),
+    'aside',
+    { class: 'inspector run-inspector', 'aria-label': 'Machine' },
+    h(PositionPanel, { model }),
     h(
       'div',
-      { class: 'job-start' },
-      h('ol', { class: 'flow', 'aria-label': 'Before you start' }, h('li', { class: result !== null && !result.summary.blocked ? 'done' : undefined }, h('span', null, '1'), 'Check'), h('li', null, h('span', null, '2'), 'Set zero'), h('li', null, h('span', null, '3'), 'Start')),
-      h('button', { type: 'button', class: 'primary wide', disabled: true, 'data-action': 'start-job', 'data-machine-control': 'start', 'aria-describedby': 'start-later' }, 'Start job'),
-      h('p', { class: 'fine', id: 'start-later' }, 'Running jobs arrives in a later phase. Today you can check the file, the setup and the tools.'),
+      { class: 'insp-tabs' },
+      h(TabBar<InspTab>, {
+        label: 'Machine controls',
+        prefix: 'insp',
+        variant: 'underline',
+        current: tab,
+        onSelect: setTab,
+        tabs: [
+          { id: 'spindle', label: 'Spindle and coolant' },
+          { id: 'jog', label: 'Jog' },
+          { id: 'overrides', label: 'Overrides' },
+        ],
+      }),
     ),
+    h(TabPane, { prefix: 'insp', id: 'spindle', current: tab, class: 'tpane insp-pane' }, h(SpindleSection, { model })),
+    h(TabPane, { prefix: 'insp', id: 'jog', current: tab, class: 'tpane insp-pane' }, h(JogSection, null)),
+    h(TabPane, { prefix: 'insp', id: 'overrides', current: tab, class: 'tpane insp-pane' }, h(OverridesSection, null)),
+  );
+}
+
+// ---------------------------------------------------------------- job card
+
+const fmtMm = (n: number): string => String(Math.round(n * 100) / 100);
+
+/** The job's checks as a compact list: icon, short label, value. Details sit behind the expander. */
+function jobChecks(result: PreviewResult, facts: ReturnType<typeof fileFacts>): ComponentChild[] {
+  const s = result.summary;
+  const b = s.bounds;
+  const renumber = renumbered(result);
+  const counts = shownCounts(result);
+  const changes = counts.change;
+  const rows: ComponentChild[] = [
+    s.blocked
+      ? h(CheckRow, { key: 'v', tone: 'danger', label: `Blocked: ${num(Math.max(1, s.counts.block))} ${s.counts.block === 1 ? 'finding stops' : 'findings stop'} this file`, attr: 'verdict' })
+      : h(CheckRow, { key: 'v', tone: 'ok', label: 'No blocking findings', attr: 'verdict' }),
+  ];
+  if (s.counts.warn > 0) rows.push(h(CheckRow, { key: 'w', tone: 'warn', label: `${num(s.counts.warn)} ${s.counts.warn === 1 ? 'warning' : 'warnings'}`, attr: 'warn' }));
+  if (changes > 0) rows.push(h(CheckRow, { key: 'c', tone: 'warn', label: `${num(changes)} ${changes === 1 ? 'change' : 'changes'}`, attr: 'change' }));
+  if (renumber > 0) rows.push(h(CheckRow, { key: 'n', tone: 'info', icon: 'lines', label: 'Line numbers renumbered by Run', value: `${num(renumber)} lines`, attr: 'renumber' }));
+  rows.push(h(CheckRow, { key: 'e', tone: 'info', icon: 'ruler', label: 'Extent', value: b === null ? 'nothing drawn' : `${fmtMm(b.max[0] - b.min[0])} × ${fmtMm(b.max[1] - b.min[1])} × ${fmtMm(b.max[2] - b.min[2])} mm`, attr: 'extent' }));
+  rows.push(h(CheckRow, { key: 'l', tone: 'info', icon: 'lines', label: 'Lines', value: num(result.sourceLines.length), attr: 'lines' }));
+  const tools = facts.tools.length === 0 ? 'none named' : facts.tools.map((t) => `T${t}`).join(', ');
+  rows.push(h(CheckRow, { key: 't', tone: 'info', icon: 'tools', label: 'Tools', value: facts.spindle.length === 0 ? tools : `${tools} · ${facts.spindle.map((x) => num(x)).join(', ')} rpm`, attr: 'tools' }));
+  return rows;
+}
+
+function JobDetails({ result, facts }: { readonly result: PreviewResult; readonly facts: ReturnType<typeof fileFacts> }): ComponentChild {
+  const s = result.summary;
+  const b = s.bounds;
+  return h(
+    'div',
+    { class: 'job-details' },
+    facts.operations.length === 0
+      ? null
+      : h(
+          'section',
+          null,
+          h('h3', null, 'Operations'),
+          h('ol', { class: 'job-ops' }, facts.operations.slice(0, 8).map((op, i) => h('li', { key: String(op.line) }, h('span', { class: `op-swatch op-${i < 3 ? i + 1 : 4}`, 'aria-hidden': 'true' }, String(i + 1)), h('span', { class: 'name' }, op.name, h('small', null, `from line ${num(op.line)}`))))),
+        ),
+    h(
+      'section',
+      null,
+      h('h3', null, 'The check'),
+      h(
+        'dl',
+        { class: 'job-facts', 'data-preview': 'summary-detail' },
+        h('dt', null, 'Findings'),
+        h('dd', null, `${num(s.counts.block)} block, ${num(s.counts.warn)} warn, ${num(s.counts.change)} change, ${num(s.counts.info)} info`),
+        h('dt', null, 'Lines'),
+        h('dd', null, `${num(result.fileLines)} in the file, ${num(result.sourceLines.length)} to send`),
+        h('dt', null, 'Extent'),
+        h('dd', null, b === null ? 'nothing drawn' : `X ${fmtMm(b.min[0])} to ${fmtMm(b.max[0])}, Y ${fmtMm(b.min[1])} to ${fmtMm(b.max[1])}, Z ${fmtMm(b.min[2])} to ${fmtMm(b.max[2])} mm`),
+        h('dt', null, 'Distance'),
+        h('dd', null, `${fmtMm(s.stats.feedMm)} mm cutting, ${fmtMm(s.stats.rapidMm)} mm traverse, ${num(s.stats.arcs)} arcs`),
+        h('dt', null, 'Envelope'),
+        h('dd', null, 'From the board’s travel settings, once a board is connected.'),
+        h('dt', null, 'Start'),
+        h('dd', null, 'Assumed machine at 0, 0, 0 in G54 with zero offsets, G21 G90 G17.'),
+        h('dt', null, 'Time'),
+        h('dd', null, 'Estimated with the job engine, later.'),
+      ),
+      fileLevel(s.fileLevel),
+    ),
+  );
+}
+
+/** The job: a card at the top of the Run view with the file, its checks, and the Check → Set zero → Start steps. */
+function JobCard({ parts }: { readonly parts: PreviewParts }): ComponentChild {
+  const { state, actions } = parts;
+  const loading = state.status === 'loading';
+  const disabled = !state.ready || loading;
+  const result = state.status === 'ready' ? state.result : null;
+  const facts = useMemo(() => (result === null ? null : fileFacts(result.bytes)), [result]);
+  const title = state.fileName === null ? 'No file open' : state.fileName.replace(/\.[^.]+$/, '');
+  const checked = result !== null && !result.summary.blocked;
+  return h(
+    'section',
+    { class: `job-card${result === null ? ' empty' : ''}`, 'data-region': 'job', 'aria-labelledby': 'run-title' },
+    h(
+      'div',
+      { class: 'job-id' },
+      h('span', { class: 'job-icon', 'aria-hidden': 'true' }, Icon('file', 22)),
+      h(
+        'div',
+        { class: 'job-name' },
+        h('h1', { id: 'run-title' }, title),
+        h(
+          'p',
+          null,
+          h('span', { class: state.fileName === null ? 'sr-only' : 'mono', 'data-preview': 'file-name' }, state.fileName ?? 'none'),
+          state.fileName === null ? (loading ? 'Checking the file…' : 'Open a G-code file or a sample to check it.') : result === null ? (loading ? ' · checking…' : '') : ` · ${num(result.fileLines)} lines`,
+        ),
+      ),
+    ),
+    result === null || facts === null ? h('div', { class: 'job-checks-empty' }) : h('ul', { class: 'job-checks', 'data-preview': 'summary', 'aria-label': 'The file check' }, jobChecks(result, facts)),
+    h(
+      'div',
+      { class: 'job-actions' },
+      h('ol', { class: 'flow', 'aria-label': 'Before you start' }, h('li', { class: checked ? 'done' : undefined }, h('span', null, checked ? '✓' : '1'), 'Check'), h('li', null, h('span', null, '2'), 'Set zero'), h('li', null, h('span', null, '3'), 'Start')),
+      h('button', { type: 'button', class: 'primary', disabled: true, 'data-action': 'start-job', 'data-machine-control': 'start', 'aria-describedby': 'start-later', title: 'Running jobs arrives in a later phase' }, 'Start job'),
+      h(
+        'label',
+        { class: `file-button${disabled ? ' is-disabled' : ''}` },
+        h('input', {
+          type: 'file',
+          accept: '.nc,.gcode,.ngc,.tap,.txt,.cnc,text/plain',
+          disabled,
+          'data-preview': 'file',
+          ...on('onChange', actions.onFile, (f) => (e: Event) => {
+            const file = (e.currentTarget as HTMLInputElement).files?.[0];
+            if (file !== undefined) f(file);
+          }),
+        }),
+        Icon('upload', 15),
+        result === null ? 'Open a file' : 'Open another',
+      ),
+    ),
+    result === null || facts === null
+      ? h('p', { class: 'sr-only', id: 'start-later' }, 'Running jobs arrives in a later phase.')
+      : h(
+          'details',
+          { class: 'job-more' },
+          h('summary', null, 'Details'),
+          h('div', { class: 'job-pop' }, h(JobDetails, { result, facts }), h('p', { class: 'fine', id: 'start-later' }, 'Running jobs arrives in a later phase. Today you can check the file, the setup and the tools.')),
+        ),
+  );
+}
+
+/** Traverses (G0) on or off: a toolbar toggle, remembered in this browser. */
+function TraverseToggle({ parts }: { readonly parts: PreviewParts }): ComponentChild {
+  const { state, actions } = parts;
+  const onRapids = actions.onRapids;
+  useEffect(() => {
+    const stored = readStored('preview-traverses', (v: unknown): v is boolean => typeof v === 'boolean');
+    if (stored !== null && stored !== state.showRapids) onRapids?.(stored);
+    // Once, when the actions arrive.
+  }, [onRapids === undefined]);
+  return h(
+    'button',
+    {
+      type: 'button',
+      class: 'tool-toggle',
+      'aria-pressed': state.showRapids ? 'true' : 'false',
+      disabled: !state.ready,
+      'data-preview': 'rapids',
+      title: state.showRapids ? 'Hide traverses (G0 moves)' : 'Show traverses (G0 moves)',
+      ...on('onClick', onRapids, (f) => () => {
+        const next = !state.showRapids;
+        writeStored('preview-traverses', next);
+        f(next);
+      }),
+    },
+    h('span', { class: 'toggle-dash', 'aria-hidden': 'true' }),
+    'Traverses',
   );
 }
 
@@ -418,39 +602,10 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
   const result = state.status === 'ready' ? state.result : null;
   const sent = result?.sourceLines.length ?? 0;
   const scrubLine = state.scrub > 0 && result !== null ? (result.sourceLines[state.scrub - 1] ?? 0) : 0;
-  const title = state.fileName === null ? 'Run' : state.fileName.replace(/\.[^.]+$/, '');
   return h(
     'div',
     { class: 'run-view', 'data-region': 'preview' },
-    h(
-      'div',
-      { class: 'view-head' },
-      h(
-        'div',
-        { class: 'title-block' },
-        h('h1', { id: 'run-title' }, title),
-        h('p', null, h('span', { class: 'file-label' }, 'File'), h('span', { class: 'mono', 'data-preview': 'file-name' }, state.fileName ?? 'none'), result === null ? null : h('span', null, ` · ${num(result.fileLines)} lines`)),
-      ),
-      h(
-        'div',
-        { class: 'view-actions' },
-        h(
-          'label',
-          { class: `file-button secondary-action${disabled ? ' is-disabled' : ''}` },
-          h('input', {
-            type: 'file',
-            accept: '.nc,.gcode,.ngc,.tap,.txt,.cnc,text/plain',
-            disabled,
-            'data-preview': 'file',
-            ...on('onChange', actions.onFile, (f) => (e: Event) => {
-              const file = (e.currentTarget as HTMLInputElement).files?.[0];
-              if (file !== undefined) f(file);
-            }),
-          }),
-          result === null ? 'Open a file' : 'Open another file',
-        ),
-      ),
-    ),
+    h(JobCard, { parts }),
     h(ConnectNotice, { model, onView }),
     h(
       'div',
@@ -468,7 +623,6 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
             h(
               'div',
               { class: 'seg viewer-options', role: 'group', 'aria-label': 'Preview options' },
-              h('label', { class: 'seg-check' }, h('input', { type: 'checkbox', checked: state.showRapids, disabled: !state.ready, 'data-preview': 'rapids', ...on('onChange', actions.onRapids, (f) => (e: Event) => { f((e.currentTarget as HTMLInputElement).checked); }) }), ' Rapids'),
               h(
                 'span',
                 { class: 'select-wrap compact' },
@@ -488,9 +642,12 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
                 ),
               ),
             ),
-            result !== null && !result.lite && state.drawing === 'webgl'
-              ? h('div', { class: 'seg', role: 'group', 'aria-label': 'Camera' }, h('button', { type: 'button', 'data-preview': 'fit', ...on('onClick', actions.onFit, (f) => () => { f(); }) }, 'Fit'))
-              : null,
+            h(
+              'div',
+              { class: 'viewer-tools', role: 'group', 'aria-label': 'View' },
+              h(TraverseToggle, { parts }),
+              result !== null && !result.lite && state.drawing === 'webgl' ? h('button', { type: 'button', class: 'tool-toggle', 'data-preview': 'fit', ...on('onClick', actions.onFit, (f) => () => { f(); }) }, 'Fit') : null,
+            ),
           ),
           result === null && !loading
             ? h(
@@ -547,7 +704,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
         ),
         h(Dock, { parts, model }),
       ),
-      h('aside', { tabindex: 0, class: 'inspector', 'aria-label': 'Machine and job' }, h(PositionPanel, { model }), h(JobCard, { parts }), h(JogSection, null), h(SpindleSection, { model }), h(OverridesSection, null)),
+      h(RunInspector, { model }),
     ),
   );
 }

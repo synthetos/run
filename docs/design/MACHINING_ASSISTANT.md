@@ -36,7 +36,7 @@ Each tool is a versioned record in the user's account, plus a local cache that w
 | `datasheetUrl` | Link only: we never fetch it from the browser (§8) |
 | `cuttingData[]` | `{ materialRef, vc, fz, ap, ae, coolant, source: 'manufacturer' \| 'synthetos' \| 'user' \| 'ai', note }`. Manufacturer data beats generic data |
 | `life` | Minutes cut, broken down by material, from jobs run (P3). Feeds "probably dull, reorder?" nudges and the advisor's wear factor |
-| `firmwareSlot?` | Mock: a possible firmware tool table entry (T number, length offset) |
+| `firmwareSlot?` | Unused. TinyG has no firmware tool table: tools live in software. Kept only in case g2core gets one later (T number, length offset) |
 | `tags`, `images` | Image upload comes later (Cloud) |
 
 Store tools (§4) arrive with verified geometry and cutting data in one click.

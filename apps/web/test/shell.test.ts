@@ -111,7 +111,7 @@ describe('SafetyBar', () => {
 describe('Phase 1 control allowlist', () => {
   const html = renderToString(h(Fragment, null, h(AppShell, { build })));
   /** Must exist, and be disabled with no handler: they would move the machine or write to the board. */
-  const MACHINE_DISABLED = new Set(['jog', 'zero', 'spindle', 'coolant', 'override', 'start', 'settings-write', 'firmware', 'tool-table']);
+  const MACHINE_DISABLED = new Set(['jog', 'zero', 'spindle', 'coolant', 'override', 'start', 'settings-write', 'firmware']);
   /** Enabled only while a machine is LIVE in this browser (never gated otherwise): Pause and Stop job. */
   const LIVE_ONLY = new Set(['stop']);
   /** Reads only (GETs through the read allowlist): Back up settings. Disabled until a board is read. */
@@ -121,13 +121,13 @@ describe('Phase 1 control allowlist', () => {
   /** Controls that never reach the machine: views, tabs, the preview, and the local libraries. */
   const UI: readonly RegExp[] = [
     /^view:(run|setup|tools|materials|board|machines|projects|analyze|settings|safety)$/,
-    /^tab:(gcode|console|live)$/,
-    /^board-tab:(board|settings|backups|firmware)$/,
+    /^tab:(gcode|console|live|spindle|jog|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
+    /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
     /^preview:(file|rapids|mode|scrubber|fit|cancel)$/,
     /^sample:(mounting-plate|test-square)$/,
-    /^action:(add-tool|fork-material|copy-machine|fixture-file|save-transcript|dismiss-w29|pause-request|stop-job-request)$/,
-    /^label:(Toggle day\/night mode|Account: .*|Dialect|Find a machine|back left|back right|center|front left|front right)$/,
-    /^button:(Workshop|Stock|Whole bed|3D|Top|Front|Block|Round|Sheet|Stock top|Stock bottom|\d+ clamps|No clamps|Remove the fixture|Use the sample plate|All|End mills|Ball nose|V-bits|Drills|O-flutes|Built-in|Mine \(\d+\)|Belt driven|Screw driven|Go to Run|Add purchase link|T\d+ · .+)$/,
+    /^action:(add-tool|fork-material|new-material|edit-material|ask-delete|delete-material|cancel-delete|save-material|cancel-material|close-material|add-safety|add-behaviour|remove-row|add-link|more-link|remove-link|clear-draft|clear-pin|fill-from-board|copy-machine|fixture-file|save-transcript|dismiss-w29|pause-request|stop-job-request)$/,
+    /^label:(Toggle day\/night mode|Account: .*|Dialect|Find a machine|back left|back right|center|front left|front right|Link|Shop|Price in US dollars|Close|TinyG v8 board drawing\..*|J\d\.\d .+|M\d\.\d .+|.+, draft|.+, your profile)$/,
+    /^button:(Workshop|Stock|Whole bed|3D|Top|Front|Block|Round|Sheet|Stock top|Stock bottom|\d+ clamps|No clamps|Remove the fixture|Use the sample plate|All|End mills|Ball nose|V-bits|Drills|O-flutes|Built-in|Mine \(\d+\)|Belt driven|Screw driven|Go to Run|T\d+ · .+|Motor \d|X|Y|Z|A)$/,
     /^(input|select|textarea):/,
   ];
   // Material and tool rows are plain buttons whose text is data: any other button must be in the list above.
@@ -172,7 +172,7 @@ describe('Phase 1 control allowlist', () => {
       }
       expect(UI.some((r) => r.test(c.id)), `unclassified control ${c.id}: classify it in shell.test.ts`).toBe(true);
     }
-    for (const k of [...MACHINE_DISABLED].filter((k) => k !== 'tool-table')) expect(seen.has(k), `no ${k} control rendered`).toBe(true);
+    for (const k of MACHINE_DISABLED) expect(seen.has(k), `no ${k} control rendered`).toBe(true);
     expect(seen.has('stop')).toBe(true);
     expect(seen.has('read')).toBe(true);
   });

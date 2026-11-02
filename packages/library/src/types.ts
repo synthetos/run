@@ -113,7 +113,11 @@ export interface ToolLife {
   readonly byMaterial: readonly { readonly materialRef: MaterialRef; readonly minutes: number }[];
 }
 
-/** Mock: a possible firmware tool table entry. No firmware has a tool table today. */
+/**
+ * Unused. TinyG has no firmware tool table: tools live in software, in this
+ * library, and the UI shows none. Kept only because g2core may get a firmware
+ * tool table later.
+ */
 export interface FirmwareSlot {
   /** T number. */
   readonly t: number;
