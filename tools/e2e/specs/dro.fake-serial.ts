@@ -55,6 +55,10 @@ test('the DRO machine position and the marker move only on polled mpo reads; set
   // The settings were read through the allowlist (group GETs only) and recorded as this computer's reference.
   await expect(page.locator('[data-settings="recorded"]')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('details[data-group="x"]')).toContainText('How the X axis moves');
+  // Row 35 / BENCH-P100-5: the axis-mode facts are rendered from the same read (the simulated board's modes), not hidden.
+  const axisModes = page.locator('[data-region="axis-modes"]');
+  await expect(axisModes).toBeVisible();
+  await expect(axisModes.locator('[data-axis-modes="clear"], [data-axis-modes="facts"]')).toHaveCount(1);
   for (const w of after) {
     expect(w.includes('\u0018') || w.includes('\u0004'), JSON.stringify(w)).toBe(false);
     expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005', JSON.stringify(w)).toBe(true);

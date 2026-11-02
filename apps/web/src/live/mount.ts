@@ -10,6 +10,8 @@ import { environmentForOrigin } from '@synthetos/protocol';
 import { fetchIdentity, fetchSafetyAdvisory } from '../cloud/live.ts';
 import type { BuildChannel } from '../channel/channel.ts';
 import { AlarmTone } from '../machine-ui/alarm.ts';
+import { AxisModes, axisModeView } from '../machine-ui/AxisModes.ts';
+import { EMPTY_AXIS_MODE_SESSION, type AxisModeSession } from '@synthetos/safety';
 import { Dro, lagAt } from '../machine-ui/Dro.ts';
 import { SettingsView } from '../machine-ui/SettingsView.ts';
 import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
@@ -174,6 +176,25 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     drawReadout();
   }
 
+  // Row 35 / BENCH-P100-5: the axes that read inhibited on this link (reset per link epoch).
+  let axisEpoch = -1;
+  let axisSession: AxisModeSession = EMPTY_AXIS_MODE_SESSION;
+  function axisModes(message: SnapshotMessage): ReturnType<typeof axisModeView> {
+    if (message.snapshot.epoch !== axisEpoch) {
+      axisEpoch = message.snapshot.epoch;
+      axisSession = EMPTY_AXIS_MODE_SESSION;
+    }
+    const view = axisModeView({
+      dialectId: message.snapshot.classification?.dialectId ?? null,
+      reading: readout.phase.kind === 'reading',
+      settings: readout.settings,
+      machine: message.dro.axes,
+      session: axisSession,
+    });
+    if (view.kind === 'facts') axisSession = view.session;
+    return view;
+  }
+
   function drawReadout(): void {
     const connected = droMessage !== null && droMessage.snapshot.base !== 'NOT_CONNECTED';
     render(
@@ -182,6 +203,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
             'div',
             { class: 'live-readout' },
             h(Dro, { message: droMessage as SnapshotMessage, elapsedMs: performance.now() - droReceivedAt }),
+            h(AxisModes, { view: axisModes(droMessage as SnapshotMessage) }),
             h(SettingsView, { dialectId: readout.dialectId, phase: readout.phase, settings: readout.settings, onKeep: () => void readout.keepBoardSettings().catch(() => undefined) }),
           )
         : null,
