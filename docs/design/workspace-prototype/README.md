@@ -31,9 +31,13 @@ are in [WORKSPACE_FEATURES.md](../WORKSPACE_FEATURES.md).
 | `prototype.mjs` | Interactions, built with DOM APIs only (no HTML sinks). |
 | `telemetry.mjs` | **The seam.** Every live value comes from here. Mocked firmware features (spindle report, overrides, tool table) are tagged `mock: 'firmware pending'`. |
 | `job.mjs` | Sample setup, materials, tools, the three-operation file, the advisor rules. |
+| `library.mjs` | Increment 3 data, not yet wired into the views: tool and material records in the MACHINING_ASSISTANT.md §2-§3 shape (purchases, datasheets, per-material cutting data with sources, tool life, safety notes, stock forms, forks), and the http(s)-only link sanitiser. Placeholder values, not advice. |
 | `scene.mjs` | Canvas 2D scene with a heightfield for material removal. |
 | `machines.mjs` | Hidden-line blueprint drawings of the catalogue machines. |
 | `capture.mjs` | Screenshots and checks with the repository's Playwright. |
+
+Spindle speeds are always the commanded S: TinyG has no spindle speed sensor
+(MACHINING_ASSISTANT.md §6.1).
 
 Labels follow OD-6: "Pause" and "Stop job", W1 on top, and the paused state
 reads "Paused · spindle still on". SAFETY.md W2 is not yet amended, so the

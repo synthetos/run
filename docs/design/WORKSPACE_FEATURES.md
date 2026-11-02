@@ -3,6 +3,10 @@
 Status: design for review (increment 2). It does not change shipping code. The
 [clickable prototype](workspace-prototype/) shows each feature; the
 [tenets](WORKSPACE_TENETS.md) and [proposal](WORKSPACE_PROPOSAL.md) set the rules.
+The machining assistant (tool and materials libraries, the store, the feeds and
+speeds advisor, live tuning, the AI seam and multi-depth simulation) is
+specified in [MACHINING_ASSISTANT.md](MACHINING_ASSISTANT.md). Where the two
+differ, that document is newer and wins.
 Firmware facts are from edge-next d254eb0b and the TinyG v8 bootloader, as
 reported by the firmware maintainer's session.
 
@@ -59,11 +63,16 @@ syncs. Units are taken as millimetres; a unit picker is a later refinement.
 ### Stock and material (Host, P1)
 
 ```
-Stock    { shape: block|round|sheet, width, depth, diameter?, thickness, materialId,
+Stock    { shape: block|round|sheet, width, depth, diameter?, thickness, materialId, materialVersion,
            position: {x, y}, zero: {corner: front-left|...|center, height: top|bottom} }
-Material { id, name, family: metal|wood|plastic|composite, color,
-           cutData: {vc: [min,max], fzPerD, docSlotFactor, mrrHobby}, coolantMatters }
 ```
+
+The Material record is defined in [MACHINING_ASSISTANT.md §3](MACHINING_ASSISTANT.md#3-materials-library-p1-cloud):
+built-in, mine (a fork that inherits until edited) and store sources; family
+and grade; cutting data per tool material; coolant need with its reason;
+behaviour; safety notes that are always shown; stock forms; purchase links. Stock
+references a material by id and version, so a job records exactly what it was
+cut from. The prototype's `library.mjs` holds example records in that shape.
 
 Heights are shown as a stack above the machine table (bed top, fixture top,
 stock top) with the Z room left. A check warns when the file's expected zero
@@ -72,9 +81,16 @@ differs from the chosen zero, and when the part does not fit the stock.
 ### Tool library (Host only; cloud-synced)
 
 ```
-Tool { id, number, type: flat|ball|vbit|drill|oflute|chamfer, diameter, flutes, fluteLength,
-       overallLength, shankDiameter, angle?, material, coating, vendor?, notes? }
+Tool { id, version, number, name, type: flat|ball|bull|vbit|chamfer|drill|engraver|oflute|surfacing|thread,
+       diameter, shank, flutes, fluteLength, overallLength, stickout, helix?, cornerRadius?, angle?,
+       toolMaterial, coating, manufacturer, partNumber, description, notes,
+       purchase: [{vendor, url, sku?, price?, currency?, boughtAt?, kind: store|link}], datasheetUrl,
+       cuttingData: [{materialRef, vc, fz, ap, ae, coolant, source: manufacturer|synthetos|user|ai, note}],
+       life: {minutesByMaterial}, firmwareSlot?, tags, images }
 ```
+
+The fields are specified in [MACHINING_ASSISTANT.md §2](MACHINING_ASSISTANT.md#2-tool-library-p1-cloud).
+Links accept http(s) only and are never fetched (§8).
 
 The library is host-side. The firmware has no tool table and none is planned:
 it reports only the active tool (`tool` in `sr`, the T word) and the G43/G49
@@ -139,10 +155,14 @@ block was): XY pad with diagonals and go-to-XY-zero, Z up/down, steps 0.1, 1,
 Commands: M3/M4/M5 with S; polarity from `spep`/`spdp`. Coolant M7/M8/M9.
 
 **Spindle state report (Mock: firmware pending).** The owner decided to design
-for a reported state: on/off, direction and actual speed, shown with a dial
-and "Commanded M3 S18000" beside it. Today no status key reports the spindle,
-so until the key ships the app shows only the last commanded value and says so.
-Candidate shape (not decided): `{"sr":{"spe":1,"spd":0,"sps":17940}}`.
+for a reported state: on/off, direction, the commanded S after the
+p1csl..p1csh clamp, and possibly the PWM duty. TinyG has no spindle speed
+sensor, so actual rpm is never reported: every speed the app shows is labelled
+"commanded", and live chipload uses the commanded S (MACHINING_ASSISTANT.md
+§6.1). Today no status key reports the spindle, so until the key ships the app
+shows only the last commanded value and says so. Candidate shape (not
+decided): `{"sr":{"spe":1,"spd":0,"sps":18000}}`, with `sps` the commanded S
+after the clamp.
 Coolant has no report and none is planned: it always shows the last command.
 
 ### Overrides (P3 UI; Mock: firmware pending)
@@ -174,6 +194,10 @@ segments that starve the planner point to arc fitting in Analyze. A firmware
 feed-limit advisor reported through `rt` is planned upstream and optional here.
 
 ### Feeds and speeds advisor (P1 UI; engine later; Host)
+
+Superseded in detail by [MACHINING_ASSISTANT.md §5](MACHINING_ASSISTANT.md#5-feeds-and-speeds-advisor-p1-rules-engine-ai-later)
+(model, achievable feed, engines) and §6 (live tuning in the Live job tab). The
+summary below is the increment 2 shape.
 
 ```
 Advice { operationId, materialId, toolId, machineId, coolant,
@@ -282,7 +306,7 @@ verify → reconnect → version check → offer to restore.
 ## Open questions for the owner
 
 1. Firmware tool table: wanted at all? If so, who owns its design?
-2. Spindle state key: shape and units, and whether actual speed needs a sensor.
+2. Spindle state key: shape and units (commanded S after the clamp, and whether to include the PWM duty).
 3. Overrides: wire format and ranges; does rapid override belong in v1?
 4. Release hosting and signing: who signs, where the manifest lives, the key.
 5. Minimum supported firmware number and how it is raised over time.

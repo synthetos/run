@@ -15,9 +15,12 @@
 export const FIRMWARE_PENDING = 'firmware pending';
 
 export const features = {
-  // (a) Spindle state report: on/off, direction, actual speed. Today the
-  // firmware has no such key; the app can only show the last M3/M4/M5 S.
-  spindleReport: { mock: FIRMWARE_PENDING, shape: '{"sr":{"spe":1,"spd":0,"sps":17940}} (candidate, not decided)' },
+  // (a) Spindle state report: on/off, direction, the commanded S after the
+  // p1csl..p1csh clamp, and possibly the PWM duty. TinyG has no spindle speed
+  // sensor, so actual rpm is never reported: every speed shown is the
+  // commanded one, and live chipload uses it (MACHINING_ASSISTANT.md §6.1).
+  // Today the firmware has no such key; the app shows the last M3/M4/M5 S.
+  spindleReport: { mock: FIRMWARE_PENDING, shape: '{"sr":{"spe":1,"spd":0,"sps":18000}} with sps = commanded S after the clamp (candidate, not decided)' },
   // (b) Live feed/spindle/rapid overrides. edge-next rejects M48-M51 and has
   // no realtime override characters. A runtime shape like {rt:{fo:0.8}} is
   // under discussion only.
@@ -43,12 +46,12 @@ const status = {
 // MOCK providers. Swap each for the real report when the firmware ships it.
 const mockSpindle = {
   disconnected: null,
-  identified: { on: false, dir: 'cw', rpm: 0, commanded: 0 },
-  idle: { on: false, dir: 'cw', rpm: 0, commanded: 0 },
-  outdated: { on: false, dir: 'cw', rpm: 0, commanded: 0 },
-  running: { on: true, dir: 'cw', rpm: 17940, commanded: 18000 },
-  toolchange: { on: false, dir: 'cw', rpm: 0, commanded: 0 },
-  held: { on: true, dir: 'cw', rpm: 17960, commanded: 18000 },
+  identified: { on: false, dir: 'cw', commanded: 0, duty: 0 },
+  idle: { on: false, dir: 'cw', commanded: 0, duty: 0 },
+  outdated: { on: false, dir: 'cw', commanded: 0, duty: 0 },
+  running: { on: true, dir: 'cw', commanded: 18000, duty: 0.6 },
+  toolchange: { on: false, dir: 'cw', commanded: 0, duty: 0 },
+  held: { on: true, dir: 'cw', commanded: 18000, duty: 0.6 },
   lost: null, orphaned: null,
 };
 const mockCoolant = { running: { mist: true, flood: false }, held: { mist: true, flood: false } };

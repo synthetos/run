@@ -113,7 +113,7 @@ function renderStrip() {
   } else { $('#machine-state').textContent = sc.state; pill.textContent = sc.pill[0]; pill.className = `pill ${sc.pill[1]}`; $('#state-text').textContent = sc.text; $('#scenario-heading').textContent = sc.head; $('#scenario-copy').textContent = sc.copy; $('#scenario-action').textContent = sc.action; }
   const snap = snapshot(st.scenario); const s0 = snap.status;
   $('#ro-feed').replaceChildren(s0?.vel != null ? nf(s0.vel) : '—', h('small', { text: ` / ${s0?.feed ? nf(s0.feed) : '—'}` }));
-  $('#ro-spindle').replaceChildren(snap.spindle ? nf(snap.spindle.rpm) : '—', h('small', { text: ' rpm' }));
+  $('#ro-spindle').replaceChildren(snap.spindle ? nf(snap.spindle.commanded) : '—', h('small', { text: ' rpm' }));
   $('#ro-coolant').textContent = snap.coolant.mist ? 'Mist' : snap.coolant.flood ? 'Flood' : 'Off';
   $('#ro-progress').textContent = `${Math.round(st.f * 100)} %`;
   const paused = ['running', 'held', 'toolchange'].includes(st.scenario);
@@ -188,11 +188,12 @@ function renderJob() {
 }
 function renderSpindle() {
   const snap = snapshot(st.scenario); const sp = snap.spindle;
-  const rpm = sp?.rpm ?? 0;
+  // Commanded speed only: TinyG has no spindle speed sensor (MACHINING_ASSISTANT.md §6.1).
+  const rpm = sp?.on ? sp.commanded : 0;
   $('#dial-value').setAttribute('stroke-dasharray', `${(rpm / machine.spindle.maxRpm) * 75} 100`);
-  $('#spindle-rpm').replaceChildren(sp ? nf(rpm) : '—', h('small', { text: ' rpm' }));
+  $('#spindle-rpm').replaceChildren(sp ? nf(rpm) : '—', h('small', { text: ' rpm commanded' }));
   $('#spindle-line').textContent = !sp ? 'Not reported' : sp.on ? `On · ${sp.dir === 'cw' ? 'clockwise' : 'counter-clockwise'}` : 'Off';
-  $('#spindle-cmd').textContent = !sp ? 'No report from the controller' : sp.on ? `Commanded M3 S${sp.commanded}` : 'Last commanded: M5';
+  $('#spindle-cmd').textContent = !sp ? 'No report from the controller' : sp.on ? `M3 S${sp.commanded}, after the speed clamp · no speed sensor, so not measured` : 'Last commanded: M5';
   $('#dial-dir').classList.toggle('ccw', sp?.dir === 'ccw');
   $$('.sec-spindle .seg button').forEach((b, i) => b.classList.toggle('selected', i === (sp?.on ? 1 : 0)));
   $('#mist').setAttribute('aria-pressed', String(snap.coolant.mist)); $('#flood').setAttribute('aria-pressed', String(snap.coolant.flood));
