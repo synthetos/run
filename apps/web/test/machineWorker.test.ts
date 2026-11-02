@@ -59,11 +59,11 @@ class BoardTransport implements Transport {
   /** When set, close() waits for it. */
   closeGate: Promise<void> | undefined;
 
-  readonly #answers: Readonly<Record<string, string>>;
+  readonly #answers: Record<string, string>;
 
   constructor(info: TransportInfo = { kind: 'sim', usbVendorId: 0x0403, usbProductId: 0x6015 }, answers: Readonly<Record<string, string>> = EN) {
     this.#info = info;
-    this.#answers = answers;
+    this.#answers = { unit: '{"r":{"unit":1},"f":[3,0,10]}', xvm: '{"r":{"xvm":16000},"f":[3,0,10]}', ...answers };
   }
   info(): TransportInfo {
     return this.#info;
@@ -75,6 +75,14 @@ class BoardTransport implements Transport {
   async writeLine(line: Uint8Array): Promise<void> {
     const text = new TextDecoder().decode(line);
     this.writes.push(text);
+    const set = /^\{"([a-z0-9_]+)":(-?[0-9.]+)\}\n$/.exec(text);
+    if (set !== null && !this.silent) {
+      // A settings write: stored, echoed (read back by the next GET).
+      const [, key, value] = set as unknown as [string, string, string];
+      this.#answers[key] = `{"r":{"${key}":${value}},"f":[3,0,10]}`;
+      queueMicrotask(() => this.feed(`{"r":{"${key}":${value}},"f":[3,0,10]}\n`));
+      return;
+    }
     const m = /^\{"?([^":]+)"?:null\}\n$/.exec(text);
     const reply = m === null || this.silent ? undefined : this.#answers[m[1] as string];
     if (reply !== undefined) queueMicrotask(() => this.feed(`${reply}\n`));
@@ -856,5 +864,54 @@ describe('P1-03: the worker classifies against the bundled, signed approved-buil
     expect(host.session.useApprovedBuilds({ environment: 'staging', builds: [] })).toBe(false);
     expect((await approvedBuildsFor({ format: 'nope' }, { origin: BENCH_ORIGIN, now: VALID_NOW })).approved.builds).toEqual([]);
     expect((await approvedBuildsFor(null, { origin: BENCH_ORIGIN, now: VALID_NOW })).approved.builds).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------- settings writes through the worker (amendment 2026-11-02)
+
+describe('settingWrite: the phase switch and the worker request', () => {
+  it('parses exactly { v, kind: settingWrite, key, value } with a short key and a finite number', () => {
+    expect(parseRequest({ v: 3, kind: 'settingWrite', key: 'xvm', value: 1234 })).toEqual({ v: 3, kind: 'settingWrite', key: 'xvm', value: 1234 });
+    for (const bad of [
+      { v: 3, kind: 'settingWrite', key: 'xvm' },
+      { v: 3, kind: 'settingWrite', key: '', value: 1 },
+      { v: 3, kind: 'settingWrite', key: 'x'.repeat(17), value: 1 },
+      { v: 3, kind: 'settingWrite', key: 'xvm', value: '1234' },
+      { v: 3, kind: 'settingWrite', key: 'xvm', value: Number.NaN },
+      { v: 3, kind: 'settingWrite', key: 'xvm', value: 1, extra: 1 },
+    ]) expect(parseRequest(bad)).toBeNull();
+  });
+
+  it('the worker turns settings writes on only for staging and the loopback bench; production and unknown origins stay read-only', () => {
+    const at = (origin: string | null) => new MachineWorkerHost(source('fake', () => new BoardTransport()), new TestClock(), undefined, origin === null ? null : { file: COMMITTED_MANIFEST, origin });
+    expect(at(BENCH_ORIGIN).release.settings).toBe(true);
+    expect(at(STAGING_ORIGIN).release.settings).toBe(true);
+    expect(at(PRODUCTION_ORIGIN).release.settings).toBeUndefined();
+    expect(at('https://run-abc.workers.dev').release.settings).toBeUndefined();
+    expect(at(null).release.settings).toBeUndefined();
+  });
+
+  it('production: a settings write is denied with "Not available in this release" and nothing is written', async () => {
+    const t = new BoardTransport();
+    const host = approvingHost(t, COMMITTED_MANIFEST, PRODUCTION_ORIGIN);
+    await classifyWith(t, host);
+    expect(await host.handle({ v: 3, kind: 'settingWrite', key: 'xvm', value: 1234 })).toMatchObject({ ok: false, code: 'denied', message: 'Not available in this release.' });
+    expect(t.writes.some((w) => w.includes('1234'))).toBe(false);
+  });
+
+  it('bench: an approved, idle board takes the write: gate reads, the write, the read-back; the snapshot says verified', async () => {
+    const t = new BoardTransport();
+    const host = approvingHost(t, COMMITTED_MANIFEST, BENCH_ORIGIN);
+    await classifyWith(t, host);
+    expect(await host.handle({ v: 3, kind: 'settingWrite', key: 'xvm', value: 1234 })).toEqual({ v: 3, ok: true, kind: 'settingWrite', id: 1 });
+    await settle();
+    expect(host.session.snapshot.settingWrite).toMatchObject({ id: 1, key: 'xvm', outcome: 'verified' });
+    const after = t.writes.slice(t.writes.indexOf('{"stat":null}\n', t.writes.length - 8));
+    expect(after).toEqual(['{"stat":null}\n', '{"hold":null}\n', '{"vel":null}\n', '{"qr":null}\n', '{"unit":null}\n', '{"xvm":1234}\n', '{"xvm":null}\n']);
+    // An unapproved board (READ_ONLY) on the bench is not written.
+    const ro = new BoardTransport(undefined, { ...EN, fb: '{"r":{"fb":450.02},"f":[3,0,10]}' });
+    const roHost = approvingHost(ro, COMMITTED_MANIFEST, BENCH_ORIGIN);
+    await classifyWith(ro, roHost);
+    expect(await roHost.handle({ v: 3, kind: 'settingWrite', key: 'xvm', value: 1234 })).toMatchObject({ ok: false, code: 'denied' });
   });
 });

@@ -32,6 +32,11 @@ export function valueText(v: SettingValue | null | undefined): string {
   return typeof v === 'number' ? String(v) : boardText(v);
 }
 
+/** The read's outcome: reading, recorded, match, or the drift diff with "Keep the board's settings". */
+export function SettingsStatus({ phase, onKeep }: { readonly phase: ReadoutPhase; readonly onKeep: () => void }): ComponentChild {
+  return status(phase, onKeep);
+}
+
 function status(phase: ReadoutPhase, onKeep: () => void): ComponentChild {
   switch (phase.kind) {
     case 'idle':

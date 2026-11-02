@@ -69,7 +69,9 @@ export function ConnectNotice({ model, onView }: { readonly model: WorkspaceMode
       ? 'Not connected'
       : 'Connect your TinyG';
   const copy = isConnected
-    ? 'Phase 1 is read-only: positions and settings are read and nothing is written to the board.'
+    ? view?.message?.settingsWrites === true
+      ? 'Phase 1: Run reads positions and settings and does not move the machine. Settings can be changed in the Board view, one reviewed write at a time.'
+      : 'Phase 1 is read-only: positions and settings are read and nothing is written to the board.'
     : 'Run checks sign-in, the safety advisory and a short checklist, then your browser asks which USB port to use.';
   return h(
     'div',

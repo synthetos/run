@@ -7,14 +7,18 @@
  * The TinyG settings tab makes the tie between the profile and the board
  * explicit: each profile field names the TinyG key it maps to, beside the
  * board's current value and a difference badge. Where the two differ the
- * profile value is a proposed draft: writing settings is a later phase.
+ * profile value can be added to the Board view's pending changes (never
+ * written from here; SAFETY §4.10 rule 4: a profile is never applied
+ * automatically, and applying goes through C5 and the write path).
  */
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
 import { CATALOGUE, machineDrawing, type MachineTemplate } from '../machineDrawings.ts';
 import type { SettingValue } from '@synthetos/schema';
 import { machineStore, selectedMachine, selectedMachineStore, type AxisProfile, type MachineProfile } from '../library.ts';
-import { dialectOf, motorFor, plainValue, settingMeta, settingsOf, stepsPerUnit, tinygV8 } from '../boardFacts.ts';
+import { dialectOf, motorFor, plainValue, setDraft, settingMeta, settingsOf, stepsPerUnit, tinygV8 } from '../boardFacts.ts';
+import { editBlocked } from '../settings/SettingsUi.ts';
+import { writableKey } from '../settings/pending.ts';
 import { Icon } from '../icons.ts';
 import { boardLabel, num } from '../status.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
@@ -159,6 +163,7 @@ function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): Com
   const mine = selectedMachine.value;
   const view: LiveView | null = model?.live.value ?? null;
   const [axis, setAxis] = useState<AxisId>('x');
+  const [stagedCount, setStagedCount] = useState<number | null>(null);
   if (mine === null) return h('div', { class: 'scroll-region' }, h('p', { class: 'board-empty' }, 'Make a machine first (Start from a machine), then its TinyG settings appear here.'));
   const settings = settingsOf(view);
   const dialect = dialectOf(view);
@@ -186,6 +191,16 @@ function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): Com
   const stDiff = mine.switchType === undefined ? 'unset' : st === undefined ? 'unread' : mine.switchType === st ? 'same' : 'differs';
   if (stDiff === 'differs') proposals.push({ axis: 'x', r: { id: 'st', label: 'Switch type', keyText: 'st', key: 'st', unit: '', profile: mine.switchType, board: st, boardText: plainValue('st', st, dialect) ?? '', field: null } });
   const on = view !== null && connected(view);
+  // Profile values as pending setting changes: the mapped key, or for travel the max end (tm = tn + travel).
+  const staged = proposals.flatMap(({ axis: a, r }): { key: string; value: number }[] => {
+    if (typeof r.profile !== 'number') return [];
+    if (r.field === 'travel') {
+      const tn = nOf(settings, `${a}tn`);
+      return tn === undefined ? [] : [{ key: `${a}tm`, value: tn + r.profile }];
+    }
+    return r.key === null ? [] : [{ key: r.key, value: r.profile }];
+  }).filter((x) => writableKey(x.key, dialect));
+  const blocked = editBlocked(view);
   return h(
     'div',
     { class: 'configure-grid' },
@@ -251,8 +266,22 @@ function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): Com
         proposals.length === 0
           ? h('p', { class: 'fine' }, on ? 'Your profile and the board agree wherever both are set.' : 'Connect a board to compare it with your profile.')
           : h('ul', { class: 'draft-list' }, proposals.map(({ r }) => h('li', { key: r.keyText }, h('code', { class: 'tinyg-key' }, r.key ?? r.keyText), h('span', { class: 'old' }, r.board === undefined ? '—' : String(Number(r.board.toFixed(4)))), Icon('chevron', 12), h('strong', { class: 'new' }, String(Number((r.profile as number).toFixed(4))))))),
-        h('button', { type: 'button', class: 'wide', disabled: true, 'data-machine-control': 'settings-write', title: 'Writing settings is a later, separately reviewed phase' }, 'Write to the board'),
-        h('p', { class: 'fine' }, 'A proposal only. Writing settings arrives in a later, separately reviewed phase.'),
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'wide',
+            'data-action': 'stage-profile',
+            disabled: blocked !== null || staged.length === 0,
+            title: blocked ?? 'Add these values to the pending changes in the Board view',
+            onClick: () => {
+              for (const x of staged) setDraft(x.key, x.value);
+              setStagedCount(staged.length);
+            },
+          },
+          'Add to pending changes',
+        ),
+        h('p', { class: 'fine', 'data-staged': stagedCount === null ? '' : String(stagedCount) }, stagedCount !== null ? `${stagedCount} ${stagedCount === 1 ? 'change was' : 'changes were'} added. Review and apply them in Board → Pending changes.` : (blocked ?? 'Nothing is written from here: the values go to Pending changes in the Board view, where you review and apply them.')),
       ),
       h(
         'section',

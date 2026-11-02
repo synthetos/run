@@ -16,6 +16,8 @@ import { signal, type Signal } from '@preact/signals';
 import type { BoardSettings } from '@synthetos/schema';
 import type { AdvisoryCheck } from '../live/advisoryGate.ts';
 import type { EntryState } from '../live/liveEntry.ts';
+import type { ApplyState } from '../live/settingsApply.ts';
+import type { PlannedChange } from '@synthetos/schema';
 import type { ReadoutPhase } from '../live/readout.ts';
 import type { AxisModeView } from '../machine-ui/AxisModes.ts';
 import type { TranscriptStatus } from '../machine-ui/TranscriptSave.ts';
@@ -56,6 +58,8 @@ export interface LiveView {
   readonly backup: BackupStatus;
   /** Status-report samples of the last 60 s of this link, oldest first. */
   readonly samples: readonly LiveSample[];
+  /** Applying pending settings changes (SAFETY §4.6, amendment 2026-11-02). */
+  readonly apply: ApplyState;
 }
 
 export interface LiveActions {
@@ -68,6 +72,12 @@ export interface LiveActions {
   readonly backup: () => void;
   /** The current link's wire transcript as JSONL, for the Console tab (it only reads). */
   readonly transcriptText: () => Promise<string | null>;
+  /** Backs up, then writes the changes one at a time with read-backs (live/settingsApply.ts). */
+  readonly applySettings: (changes: readonly PlannedChange[]) => void;
+  /** Writes the backed-up values back for what the last apply changed. */
+  readonly revertSettings: () => void;
+  /** Clears a finished apply result. */
+  readonly clearApply: () => void;
 }
 
 export const INITIAL_LIVE_VIEW: LiveView = Object.freeze({
@@ -82,6 +92,7 @@ export const INITIAL_LIVE_VIEW: LiveView = Object.freeze({
   transcript: Object.freeze({ kind: 'idle' as const }),
   backup: Object.freeze({ kind: 'idle' as const }),
   samples: Object.freeze([]),
+  apply: Object.freeze({ kind: 'idle' as const }),
 });
 
 export interface WorkspaceModel {

@@ -11,7 +11,7 @@ import { renderToString } from 'preact-render-to-string';
 import { STOP_TEXT, w1, w13, w2Label, w7 } from '@synthetos/safety';
 import { AppShell, VIEWS } from '../src/workspace/AppShell.ts';
 import { JogSection, OverridesSection, SpindleSection } from '../src/workspace/views/RunView.ts';
-import { BackupsTab, FirmwareTab } from '../src/workspace/views/BoardView.ts';
+import { FirmwareTab } from '../src/workspace/views/BoardView.ts';
 import { SafetyBar, STOP_UNAVAILABLE } from '../src/shell/SafetyBar.ts';
 import { versionLabel } from '../src/build-info/buildInfo.ts';
 import { all, byAttr, one, root, text } from './tree.ts';
@@ -111,7 +111,12 @@ describe('SafetyBar', () => {
 describe('Phase 1 control allowlist', () => {
   const html = renderToString(h(Fragment, null, h(AppShell, { build })));
   /** Must exist, and be disabled with no handler: they would move the machine or write to the board. */
-  const MACHINE_DISABLED = new Set(['jog', 'zero', 'spindle', 'coolant', 'override', 'start', 'settings-write', 'firmware']);
+  const MACHINE_DISABLED = new Set(['jog', 'zero', 'spindle', 'coolant', 'override', 'start', 'firmware']);
+  /**
+   * Settings writes (SAFETY §4.6, amendment 2026-11-02): disabled in the prerendered page (no board), and
+   * enabled only when the phase switch is on and the machine is idle (the settings-write tests below).
+   */
+  const SETTINGS_WRITE = new Set(['settings-write']);
   /** Enabled only while a machine is LIVE in this browser (never gated otherwise): Pause and Stop job. */
   const LIVE_ONLY = new Set(['stop']);
   /** Reads only (GETs through the read allowlist): Back up settings. Disabled until a board is read. */
@@ -123,10 +128,11 @@ describe('Phase 1 control allowlist', () => {
     /^view:(run|setup|tools|materials|board|machines|projects|analyze|settings|safety)$/,
     /^tab:(gcode|console|live|spindle|jog|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
+    /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
     /^preview:(file|rapids|mode|scrubber|fit|cancel)$/,
     /^sample:(mounting-plate|test-square)$/,
     /^action:(add-tool|fork-material|new-material|edit-material|ask-delete|delete-material|cancel-delete|save-material|cancel-material|close-material|add-safety|add-behaviour|remove-row|add-link|more-link|remove-link|clear-draft|clear-pin|fill-from-board|copy-machine|fixture-file|save-transcript|dismiss-w29|pause-request|stop-job-request)$/,
-    /^label:(Toggle day\/night mode|Account: .*|Dialect|Find a machine|back left|back right|center|front left|front right|Link|Shop|Price in US dollars|Close|TinyG v8 board drawing\..*|J\d\.\d .+|M\d\.\d .+|.+, draft|.+, your profile)$/,
+    /^label:(Toggle day\/night mode|Account: .*|Dialect|Find a machine|back left|back right|center|front left|front right|Link|Shop|Price in US dollars|Close|TinyG v8 board drawing\..*|J\d\.\d .+|M\d\.\d .+|.+, draft|.+, your profile|Search settings|Only pending changes)$/,
     /^button:(Workshop|Stock|Whole bed|3D|Top|Front|Block|Round|Sheet|Stock top|Stock bottom|\d+ clamps|No clamps|Remove the fixture|Use the sample plate|All|End mills|Ball nose|V-bits|Drills|O-flutes|Built-in|Mine \(\d+\)|Belt driven|Screw driven|Go to Run|T\d+ · .+|Motor \d|X|Y|Z|A)$/,
     /^(input|select|textarea):/,
   ];
@@ -160,7 +166,7 @@ describe('Phase 1 control allowlist', () => {
     for (const c of list) {
       if (c.machine !== null) {
         seen.add(c.machine);
-        expect(MACHINE_DISABLED.has(c.machine) || LIVE_ONLY.has(c.machine) || READ_ONLY.has(c.machine), `unknown machine control class ${c.machine}`).toBe(true);
+        expect(MACHINE_DISABLED.has(c.machine) || LIVE_ONLY.has(c.machine) || READ_ONLY.has(c.machine) || SETTINGS_WRITE.has(c.machine), `unknown machine control class ${c.machine}`).toBe(true);
         expect(c.disabled, `${c.machine} control ${c.id} is enabled in the prerendered page`).toBe(true);
         continue;
       }
@@ -175,10 +181,11 @@ describe('Phase 1 control allowlist', () => {
     for (const k of MACHINE_DISABLED) expect(seen.has(k), `no ${k} control rendered`).toBe(true);
     expect(seen.has('stop')).toBe(true);
     expect(seen.has('read')).toBe(true);
+    expect(seen.has('settings-write')).toBe(true);
   });
 
   it('the machine-acting controls carry no handler at all: they dispatch nothing', () => {
-    const trees = [h(JogSection, null), h(SpindleSection, null), h(OverridesSection, null), h(FirmwareTab, { view: null }), h(BackupsTab, { model: null })].map((n) => root(n));
+    const trees = [h(JogSection, null), h(SpindleSection, null), h(OverridesSection, null), h(FirmwareTab, { view: null })].map((n) => root(n));
     let count = 0;
     for (const tree of trees) {
       for (const el of all(tree, (e) => typeof e.props['data-machine-control'] === 'string' && MACHINE_DISABLED.has(e.props['data-machine-control'] as string))) {

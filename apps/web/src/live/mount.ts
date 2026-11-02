@@ -30,7 +30,10 @@ import { leaveFullscreen } from './fullscreen.ts';
 import { LiveEntry } from './liveEntry.ts';
 import { windowChooser } from './portChooser.ts';
 import { LiveReadout } from './readout.ts';
-import { backupFileName, SettingsBackup } from './backup.ts';
+import { backupFileName, SettingsBackup, type BackupFile } from './backup.ts';
+import { SettingsApplier, type ApplyState } from './settingsApply.ts';
+import type { PlannedChange } from '@synthetos/schema';
+import { clearDraft } from '../workspace/boardFacts.ts';
 import type { BackupStatus, LiveSample, WorkspaceModel } from '../workspace/model.ts';
 import { cleanDisconnect, installLiveLifecycle, previousSessionEnded } from './liveMarker.ts';
 import type { StopControls } from './stopControls.ts';
@@ -152,6 +155,43 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   let backupStatus: BackupStatus = { kind: 'idle' };
   let transcriptStatus: TranscriptStatus = { kind: 'idle' };
 
+  // Settings writes (SAFETY §4.6, amendment 2026-11-02): backup first, then one write at a time through the worker.
+  let applyState: ApplyState = { kind: 'idle' };
+  const applier = new SettingsApplier({
+    writeSetting: async (key, value) => {
+      if (worker === null) return unavailable;
+      const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'settingWrite', key, value });
+      if (reply.ok && reply.kind === 'settingWrite') return { ok: true as const, id: reply.id };
+      return { ok: false as const, message: reply.ok ? 'unexpected reply' : reply.message };
+    },
+    backup: (onProgress) =>
+      backup.run({
+        read,
+        now: () => new Date(),
+        setTimeout: (fn, ms) => setTimeout(fn, ms),
+        clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+        onProgress: (p) => onProgress(p.done, p.of),
+      }),
+    saveBackup: async (file: BackupFile) => {
+      const name = backupFileName(file.board.id, new Date(file.takenAt)).replace(/\.json$/, `-before-write-${file.takenAt.slice(11, 19).replace(/:/g, '')}.json`);
+      // Kept on this computer (device-safety) and offered as a download: the revert source and the user's copy.
+      await store.set(`settings-backup/${file.board.dialect}/${file.board.id ?? 'no-board-id'}/${file.takenAt}`, file).catch(() => undefined);
+      downloadTranscript(document, `${JSON.stringify(file, null, 2)}\n`, name, 'application/json');
+      return name;
+    },
+    setTimeout: (fn, ms) => setTimeout(fn, ms),
+    clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+    onChange: (state) => {
+      applyState = state;
+      if (state.kind === 'done' || state.kind === 'failed') {
+        // Verified changes are on the board now: drop them from the pending tray, and read the settings again.
+        if (state.mode === 'apply') clearDraft(state.steps.filter((x) => x.status === 'verified').map((x) => x.key));
+        if (state.steps.some((x) => x.status !== 'pending' && x.status !== 'notRun')) readout.reread();
+      }
+      publish();
+    },
+  });
+
   // P1-08: "Save transcript" asks the worker for the last connection's transcript (it only reads) and downloads it.
   async function saveTranscript(): Promise<void> {
     if (worker === null || transcriptStatus.kind === 'saving') return;
@@ -239,6 +279,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       const snapshot = droMessage.snapshot;
       readout.onSnapshot(snapshot);
       backup.onSnapshot(snapshot);
+      applier.onSnapshot(snapshot);
       sample(droMessage, droReceivedAt);
       updateMarker();
       staleSince = snapshot.overlays.includes('STALE') ? (staleSince ?? Date.now()) : null;
@@ -291,6 +332,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       transcript: transcriptStatus,
       backup: backupStatus,
       samples,
+      apply: applyState,
     });
   }
 
@@ -303,6 +345,9 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     keepBoardSettings: () => void readout.keepBoardSettings().catch(() => undefined),
     backup: () => void runBackup(),
     transcriptText,
+    applySettings: (changes: readonly PlannedChange[]) => void applier.apply(changes),
+    revertSettings: () => void applier.revert(),
+    clearApply: () => applier.reset(),
   });
 
   entry.subscribe(() => {

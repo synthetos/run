@@ -32,8 +32,8 @@
  * It holds no account or network state (DECISIONS D1).
  */
 import { LAG_AMBER_MS, LAG_RED_MS, MachineSession, PositionPoller, ReadoutPoller, droView, liveControlPlatform, type PortSelector, type Transport, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
-import type { Decision } from '@synthetos/safety';
-import { approvalRecord, approvedBuildsFor, type ApprovalOutcome } from './approval.ts';
+import { releaseFor, type Decision, type Release } from '@synthetos/safety';
+import { approvalEnvironment, approvalRecord, approvedBuildsFor, type ApprovalOutcome } from './approval.ts';
 import { RPC_VERSION, parseRequest, refusal, type Denial, type MachineReply, type SnapshotMessage, type WindowIntent, type WorkerState } from './rpc.ts';
 
 /** Snapshots are posted at most 20 times per second (OLD-TP §4.2). */
@@ -89,6 +89,7 @@ export class MachineWorkerHost {
   readonly #poller: PositionPoller;
   readonly #readouts: ReadoutPoller;
   readonly #approval: WorkerApproval | null;
+  readonly #release: Release;
   #preparationId = 0;
   #prepared: PreparedPort | null = null;
   #approved: PreparedPort | null = null;
@@ -102,7 +103,11 @@ export class MachineWorkerHost {
     this.#approval = approval;
     this.#clock = clock;
     this.#platform = platform;
+    // The settings-write phase switch (safety settingsPhase.ts) for this worker's own environment: settings
+    // writes exist only on staging and the loopback bench, never in production or on an unknown origin.
+    this.#release = releaseFor(approval === null ? null : approvalEnvironment(approval.origin));
     this.#session = new MachineSession({
+      release: this.#release,
       source: {
         kind: source.kind,
         request: async (selector) => {
@@ -128,6 +133,11 @@ export class MachineWorkerHost {
   /** The spindle and coolant readout poller (tests). */
   get readoutPoller(): ReadoutPoller {
     return this.#readouts;
+  }
+
+  /** The release this worker enforces (tests). */
+  get release(): Release {
+    return this.#release;
   }
 
   /** The `mpo` poller (tests). */
@@ -194,6 +204,11 @@ export class MachineWorkerHost {
       case 'read': {
         const decision = this.#session.read(request.tokens);
         return decision.allowed ? Object.freeze({ v: RPC_VERSION, ok: true, kind: 'read' }) : denied('read', decision);
+      }
+      case 'settingWrite': {
+        const decision = this.#session.writeSetting(request.key, request.value);
+        if (!decision.allowed) return denied('settingWrite', decision);
+        return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'settingWrite', id: this.#session.snapshot.settingWrite?.id ?? 0 });
       }
       case 'drift':
         this.#session.reportDrift(request.epoch);
@@ -265,7 +280,7 @@ export class MachineWorkerHost {
     this.#lastPost = this.#clock.now();
     try {
       const snapshot = this.#session.snapshot;
-      this.#subscriber?.postMessage(Object.freeze({ v: RPC_VERSION, kind: 'snapshot', snapshot, dro: droView(snapshot, this.#clock.now()), lag: LAG }));
+      this.#subscriber?.postMessage(Object.freeze({ v: RPC_VERSION, kind: 'snapshot', snapshot, dro: droView(snapshot, this.#clock.now()), lag: LAG, settingsWrites: this.#release.settings === true }));
     } catch {
       // A closed port: the window went away. Nothing in the machine path depends on it.
       this.#subscriber = null;
@@ -273,7 +288,7 @@ export class MachineWorkerHost {
   }
 }
 
-function denied(kind: 'open' | 'close' | 'intent' | 'read', decision: Denial): MachineReply {
+function denied(kind: 'open' | 'close' | 'intent' | 'read' | 'settingWrite', decision: Denial): MachineReply {
   return refusal(kind, 'denied', decision.reason, decision);
 }
 

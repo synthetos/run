@@ -73,6 +73,9 @@ export class LiveReadout {
   #boardId: string | null = null;
   #settings: BoardSettings = {};
   #checking = false;
+  /** Set by `reread`: the group answers seen before it (a fresh read must differ), and that the result becomes the reference. */
+  #rereadFrom: Readonly<Record<string, number>> | null = null;
+  #lastSnapshot: SessionSnapshot | null = null;
 
   constructor(deps: ReadoutDeps) {
     this.#deps = deps;
@@ -98,6 +101,7 @@ export class LiveReadout {
 
   /** Feed every snapshot from the worker. */
   onSnapshot(s: SessionSnapshot): void {
+    this.#lastSnapshot = s;
     const dialectId = s.classification?.dialectId ?? null;
     if (s.base !== 'CONNECTED_UNKNOWN' || dialectId === null || s.overlays.includes('LOST') || settingsReadGroups(dialectId).length === 0) {
       if (s.base === 'NOT_CONNECTED' && this.#phase.kind !== 'idle') {
@@ -130,6 +134,8 @@ export class LiveReadout {
     const groups = settingsReadGroups(dialectId);
     const values = s.values as Readonly<Record<string, GroupAnswer | undefined>>;
     if (!groups.every((g) => values[g.token] !== undefined)) return;
+    const from = this.#rereadFrom;
+    if (from !== null && !groups.every((g) => s.values[g.token]?.at !== from[g.token])) return;
     const read = boardSettingsFrom(dialectId, values);
     if (read.missing.length > 0) {
       this.#set({ kind: 'incomplete', message: `These groups did not answer: ${read.missing.join(', ')}. No drift check was made.` });
@@ -145,6 +151,18 @@ export class LiveReadout {
     const hash = await deviceHash(dialectId, settings);
     if (epoch !== this.#epoch) return;
     this.#settings = settings;
+    if (this.#rereadFrom !== null) {
+      // A re-read after this browser's own settings writes: the board now holds what was written (each
+      // value was read back), so the read becomes this computer's reference. Nothing is written here.
+      this.#rereadFrom = null;
+      if (this.#boardId !== null) {
+        await this.#deps.store.set(referenceKey(dialectId, this.#boardId), { deviceHash: hash, settings, at: this.#deps.now().toISOString() } satisfies SettingsReference).catch(() => undefined);
+        this.#set({ kind: 'recorded', hash });
+      } else {
+        this.#set({ kind: 'noBoardId', hash });
+      }
+      return;
+    }
     const boardId = this.#boardId;
     if (boardId === null) {
       this.#set({ kind: 'noBoardId', hash });
@@ -165,6 +183,21 @@ export class LiveReadout {
     }
     await this.#deps.drift(epoch).catch(() => undefined);
     this.#set({ kind: 'drift', hash, reference: stored, result, accepted: false });
+  }
+
+  /**
+   * Reads every settings group again after this browser wrote settings (SAFETY §4.6 step 8: writes
+   * invalidate what was read). The fresh read becomes the reference on this computer.
+   */
+  reread(): void {
+    const s = this.#lastSnapshot;
+    const dialectId = this.#dialectId;
+    if (s === null || dialectId === null || s.epoch !== this.#epoch) return;
+    const before: Record<string, number> = {};
+    for (const g of settingsReadGroups(dialectId)) before[g.token] = s.values[g.token]?.at ?? -1;
+    this.#rereadFrom = before;
+    this.#set({ kind: 'reading' });
+    void this.#requestAll(dialectId);
   }
 
   /**

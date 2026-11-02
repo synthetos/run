@@ -7,16 +7,19 @@
  *   reported about itself.
  * - Motors, Axes, Inputs, Spindle and coolant, Communications: every value is
  *   the real settings read, in plain words with the raw key as secondary
- *   text. Motors can be drafted (axis, step angle, travel per revolution,
- *   microsteps, polarity, power mode) as a proposal: writing settings is a
- *   later, separately reviewed phase.
- * - All settings (the full read with the drift check, P1-07), Backups and
- *   Firmware (future, disabled).
+ *   text. Values can be edited where Run may write them; edits collect as
+ *   pending changes.
+ * - All settings (grouped, searchable, with the drift check, P1-07), Backups
+ *   (back up, and restore through the same write path) and Firmware (future,
+ *   disabled).
  *
- * Every value is what the board answered to a GET through the read
- * allowlist; strings from the board go through `boardText` (T-S85). Pin names
- * come from the generated board definition (RUN_PLAN rule 6). Nothing here
- * writes to the board.
+ * Settings writes (SAFETY §4.6, amendment 2026-11-02): the pending changes
+ * tray (workspace/settings) shows the diff and is the only place that
+ * writes, through the model's `applySettings`, behind the phase switch and
+ * the idle gate. Every value shown is what the board answered to a GET
+ * through the read allowlist; strings from the board go through `boardText`
+ * (T-S85). Pin names come from the generated board definition (RUN_PLAN
+ * rule 6).
  */
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
@@ -24,7 +27,9 @@ import { boardText } from '@synthetos/safety';
 import type { SettingValue } from '@synthetos/schema';
 import { backupBlocked } from '../../live/backup.ts';
 import { AxisModes } from '../../machine-ui/AxisModes.ts';
-import { SettingsView } from '../../machine-ui/SettingsView.ts';
+import { SettingsStatus } from '../../machine-ui/SettingsView.ts';
+import { PendingTray, RestorePanel, SettingEditor, SettingsTable } from '../settings/SettingsUi.ts';
+import { editBlocked } from '../settings/SettingsUi.ts';
 import {
   AXIS_NAMES,
   MOTORS,
@@ -72,12 +77,29 @@ function fact(label: string, value: string, raw: string, attr?: string): Compone
   return h('div', { key: raw }, h('dt', null, label, h('small', { class: 'raw-key' }, raw)), h('dd', attr === undefined ? null : { 'data-board-fact': attr }, value));
 }
 
-/** A value from the read, plain words first and the raw key after; "Not read" when absent. */
-function cell(key: string, settings: Settings, dialect: string | null): ComponentChild {
+/** A value from the read, plain words first and the raw key after; "Not read" when absent. With `edit`, its editor below. */
+function cell(key: string, settings: Settings, dialect: string | null, edit: LiveView | null = null): ComponentChild {
   if (RESERVED.has(key)) return h('td', { key, class: 'muted' }, h(Keyed, { value: 'Reserved on this firmware', raw: key }));
   const v = plainValue(key, settings[key], dialect);
   const d = draftDiff(key, settings);
-  return h('td', { key, class: v === null ? 'muted' : undefined, title: settingMeta(key, dialect).description }, h(Keyed, { value: v ?? 'Not read', raw: key }), d === 'changed' || d === 'unread' ? h('span', { class: 'draft-badge', title: `Draft: ${String(draftStore.value.value[key])}` }, 'draft') : null);
+  return h(
+    'td',
+    { key, class: v === null ? 'muted' : undefined, title: settingMeta(key, dialect).description },
+    h(Keyed, { value: v ?? 'Not read', raw: key }),
+    d === 'changed' || d === 'unread' ? h('span', { class: 'draft-badge', title: `Pending: ${String(draftStore.value.value[key])}` }, 'pending') : null,
+    edit === null ? null : h('div', { class: 'cell-edit' }, h(SettingEditor, { k: key, view: edit, compact: true })),
+  );
+}
+
+/** "Edit values" for a tab's tables: editors appear under each value Run may write. */
+function EditToggle({ view, editing, onToggle }: { readonly view: LiveView | null; readonly editing: boolean; readonly onToggle: () => void }): ComponentChild {
+  const blocked = editBlocked(view);
+  return h(
+    'div',
+    { class: 'edit-bar' },
+    h('button', { type: 'button', class: `small${editing ? ' primary' : ''}`, 'data-action': 'toggle-edit', 'aria-pressed': editing ? 'true' : 'false', disabled: blocked !== null, title: blocked ?? 'Edit values; changes collect in Pending changes', onClick: onToggle }, editing ? 'Done editing' : 'Edit values'),
+    h('span', { class: 'fine' }, blocked ?? (editing ? 'Changes collect in Pending changes above. Nothing is written until you apply them.' : 'Values as read from the board.')),
+  );
 }
 
 function Empty({ view }: { readonly view: LiveView | null }): ComponentChild {
@@ -247,9 +269,9 @@ export function MotorDraft({ motor, view }: { readonly motor: number; readonly v
     h(
       'div',
       { class: 'draft-foot' },
-      h('span', { class: 'fine' }, changed.length === 0 ? 'No draft changes for this motor.' : `Proposed draft: ${changed.length} ${changed.length === 1 ? 'change' : 'changes'}. Kept in this browser.`),
+      h('span', { class: 'fine' }, changed.length === 0 ? 'No pending changes for this motor.' : `${changed.length} pending ${changed.length === 1 ? 'change' : 'changes'}. Kept in this browser.`),
       changed.length === 0 ? null : h('button', { type: 'button', class: 'small quiet', 'data-action': 'clear-draft', onClick: () => clearDraft(keys) }, 'Clear'),
-      h('button', { type: 'button', class: 'small', disabled: true, 'data-machine-control': 'settings-write', title: 'Writing settings is a later, separately reviewed phase' }, 'Write to the board'),
+      changed.length === 0 ? null : h('span', { class: 'fine' }, 'Review and apply them in Pending changes above.'),
     ),
   );
 }
@@ -455,7 +477,7 @@ const AXIS_HOMING = ['sn', 'sx', 'sv', 'lv', 'lb', 'zb', 'jh'] as const;
 const MOTION_HEAD = ['Mode', 'Max velocity', 'Max feed', 'Travel min', 'Travel max', 'Jerk', 'Junction deviation'];
 const HOMING_HEAD = ['Min switch', 'Max switch', 'Search velocity', 'Latch velocity', 'Latch backoff', 'Zero backoff', 'Homing jerk'];
 
-function axisTable(title: string, head: readonly string[], fields: readonly string[], settings: Settings, dialect: string | null): ComponentChild {
+function axisTable(title: string, head: readonly string[], fields: readonly string[], settings: Settings, dialect: string | null, edit: LiveView | null = null): ComponentChild {
   const axes = ['x', 'y', 'z', 'a', 'b', 'c'].filter((a) => fields.some((f) => settings[`${a}${f}`] !== undefined));
   return h(
     'section',
@@ -465,33 +487,39 @@ function axisTable(title: string, head: readonly string[], fields: readonly stri
       'table',
       { class: 'cfg-table' },
       h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Axis'), ...head.map((t) => h('th', { scope: 'col', key: t }, t)))),
-      h('tbody', null, axes.map((a) => h('tr', { key: a }, h('th', { scope: 'row' }, a.toUpperCase()), ...fields.map((f) => (settings[`${a}${f}`] === undefined ? h('td', { key: f, class: 'muted' }, '—') : cell(`${a}${f}`, settings, dialect)))))),
+      h('tbody', null, axes.map((a) => h('tr', { key: a }, h('th', { scope: 'row' }, a.toUpperCase()), ...fields.map((f) => (settings[`${a}${f}`] === undefined ? h('td', { key: f, class: 'muted' }, '—') : cell(`${a}${f}`, settings, dialect, edit)))))),
     ),
   );
 }
 
 function AxesTab({ view }: { readonly view: LiveView | null }): ComponentChild {
+  const [editing, setEditing] = useState(false);
   const settings = settingsOf(view);
   const dialect = dialectOf(view);
   if (settings['xam'] === undefined) return h('div', { class: 'scroll-region' }, h(Empty, { view }));
+  const edit = editing && editBlocked(view) === null ? view : null;
   return h(
     'div',
     { tabindex: 0, class: 'scroll-region cfg-scroll' },
+    h(EditToggle, { view, editing, onToggle: () => setEditing((e) => !e) }),
     view?.axisModes === null || view?.axisModes === undefined ? null : h(AxisModes, { view: view.axisModes }),
-    axisTable('Motion', MOTION_HEAD, AXIS_MOTION, settings, dialect),
-    axisTable('Homing and switches', HOMING_HEAD, AXIS_HOMING, settings, dialect),
-    h('dl', { class: 'facts inline-facts' }, ...['st', 'sl', 'mt', 'ja', 'ct'].map((k) => h('div', { key: k }, h('dt', null, settingMeta(k, dialect).label, h('small', { class: 'raw-key' }, k)), h('dd', null, plainValue(k, settings[k], dialect) ?? 'Not read')))),
+    axisTable('Motion', MOTION_HEAD, AXIS_MOTION, settings, dialect, edit),
+    axisTable('Homing and switches', HOMING_HEAD, AXIS_HOMING, settings, dialect, edit),
+    h('dl', { class: 'facts inline-facts' }, ...['st', 'sl', 'mt', 'ja', 'ct'].map((k) => h('div', { key: k }, h('dt', null, settingMeta(k, dialect).label, h('small', { class: 'raw-key' }, k)), h('dd', null, plainValue(k, settings[k], dialect) ?? 'Not read', edit === null ? null : h('div', { class: 'cell-edit' }, h(SettingEditor, { k, view: edit, compact: true })))))),
   );
 }
 
 function InputsTab({ view }: { readonly view: LiveView | null }): ComponentChild {
+  const [editing, setEditing] = useState(false);
   const settings = settingsOf(view);
   const dialect = dialectOf(view);
   const pins = [...connectorPins('J7'), ...connectorPins('J8')].filter((p) => p.role === 'input');
   const st = plainValue('st', settings['st'], dialect);
+  const edit = editing && editBlocked(view) === null ? view : null;
   return h(
     'div',
     { tabindex: 0, class: 'scroll-region cfg-scroll' },
+    h(EditToggle, { view, editing, onToggle: () => setEditing((e) => !e) }),
     h(
       'section',
       { class: 'cfg-section' },
@@ -510,7 +538,7 @@ function InputsTab({ view }: { readonly view: LiveView | null }): ComponentChild
               h('th', { scope: 'row' }, h('span', { class: 'pin-ref' }, p.ref)),
               h('td', null, h('strong', null, p.label)),
               h('td', null, p.function),
-              cell(p.keys[0] as string, settings, dialect),
+              cell(p.keys[0] as string, settings, dialect, edit),
               h('td', null, h(Keyed, { value: st ?? 'Not read', raw: 'st' })),
               h('td', { class: 'mono' }, p.mcu ?? '—'),
             ),
@@ -518,11 +546,14 @@ function InputsTab({ view }: { readonly view: LiveView | null }): ComponentChild
         ),
       ),
       h('p', { class: 'fine' }, 'On this firmware one switch type (st) applies to every input. Each input has a 2.7 kΩ pull-up to 3.3 V on the board.'),
+      edit === null ? null : h('dl', { class: 'facts inline-facts' }, h('div', null, h('dt', null, settingMeta('st', dialect).label, h('small', { class: 'raw-key' }, 'st')), h('dd', null, st ?? 'Not read', h('div', { class: 'cell-edit' }, h(SettingEditor, { k: 'st', view: edit, compact: true }))))),
     ),
   );
 }
 
 function OutputsTab({ view }: { readonly view: LiveView | null }): ComponentChild {
+  const [editing, setEditing] = useState(false);
+  const edit = editing && editBlocked(view) === null ? view : null;
   const settings = settingsOf(view);
   const dialect = dialectOf(view);
   const pins = connectorPins('J6');
@@ -534,6 +565,7 @@ function OutputsTab({ view }: { readonly view: LiveView | null }): ComponentChil
   return h(
     'div',
     { tabindex: 0, class: 'scroll-region cfg-scroll' },
+    h(EditToggle, { view, editing, onToggle: () => setEditing((e) => !e) }),
     h(
       'section',
       { class: 'cfg-section' },
@@ -552,7 +584,7 @@ function OutputsTab({ view }: { readonly view: LiveView | null }): ComponentChil
               h('th', { scope: 'row' }, h('span', { class: 'pin-ref' }, p.ref)),
               h('td', null, h('strong', null, p.label)),
               h('td', null, p.function),
-              p.signal === 'out.spindleEnable' ? cell('spep', settings, dialect) : p.signal === 'out.spindleDirection' ? cell('spdp', settings, dialect) : p.signal === 'out.spindlePwm' ? cell('spph', settings, dialect) : p.signal === 'out.coolant' ? cell('coph', settings, dialect) : h('td', { class: 'muted' }, '—'),
+              p.signal === 'out.spindleEnable' ? cell('spep', settings, dialect, edit) : p.signal === 'out.spindleDirection' ? cell('spdp', settings, dialect, edit) : p.signal === 'out.spindlePwm' ? cell('spph', settings, dialect) : p.signal === 'out.coolant' ? cell('coph', settings, dialect) : h('td', { class: 'muted' }, '—'),
               h('td', { class: 'mono' }, p.mcu ?? '—'),
             ),
           ),
@@ -596,7 +628,7 @@ function CommsTab({ view }: { readonly view: LiveView | null }): ComponentChild 
       { class: 'cfg-section' },
       h('h3', { class: 'tan-label' }, 'Serial link'),
       h('dl', { class: 'facts inline-facts' }, ...['baud', 'ex', 'ec', 'ee', 'ej', 'jv', 'js', 'tv', 'qv', 'sv', 'si', 'rxm'].filter((k) => settings[k] !== undefined).map((k) => h('div', { key: k }, h('dt', null, settingMeta(k, dialect).label, h('small', { class: 'raw-key' }, k)), h('dd', null, `${plainValue(k, settings[k], dialect) ?? 'Not read'}${k === 'si' ? ' ms' : ''}`)))),
-      h('p', { class: 'fine' }, 'Values as the board reports them. Run talks at the rate the USB link sets and does not change these.'),
+      h('p', { class: 'fine' }, 'Values as the board reports them. Run does not change these: they decide how the board answers, and a wrong value would stop Run (and other senders) from understanding it. Change them with your usual sender if you must.'),
     ),
     h(
       'section',
@@ -613,7 +645,8 @@ function SettingsTab({ model }: { readonly model: WorkspaceModel | null }): Comp
   return h(
     'div',
     { tabindex: 0, class: 'scroll-region settings-tab' },
-    h(SettingsView, { dialectId: view?.readout.dialectId ?? null, phase: view?.readout.phase ?? { kind: 'idle' }, settings: view?.readout.settings ?? {}, onKeep: () => model?.actions.value?.keepBoardSettings() }),
+    h('div', { class: 'settings-read', 'data-region': 'settings' }, h(SettingsStatus, { phase: view?.readout.phase ?? { kind: 'idle' }, onKeep: () => model?.actions.value?.keepBoardSettings() })),
+    h(SettingsTable, { view }),
   );
 }
 
@@ -657,20 +690,14 @@ export function BackupsTab({ model }: { readonly model: WorkspaceModel | null })
         h('li', { class: 'ok' }, 'GET requests only, through the session’s read allowlist'),
         h('li', { class: 'ok' }, 'One request at a time: each waits for the board’s answer'),
         h('li', { class: 'ok' }, 'Units recorded as reported (unit); no G21 is sent, because Phase 1 writes nothing'),
-        h('li', { class: 'locked' }, 'Restoring a backup is a settings write: a later, separately reviewed phase'),
+        h('li', { class: 'ok' }, 'Restoring a backup stages its values as pending changes; applying them backs up again first'),
       ),
       h('details', { class: 'more' }, h('summary', null, 'What the file contains'), h('code', { class: 'block' }, BACKUP_SHAPE)),
     ),
     h(
       'aside',
       { tabindex: 0, class: 'inspector', 'aria-label': 'Restore' },
-      h(
-        'section',
-        { class: 'insp' },
-        h('header', null, h('h2', null, 'Restore'), h('span', { class: 'tag' }, 'Settings writes')),
-        h('p', { class: 'fine' }, 'Restore shows the difference between a backup and the board, then writes one setting at a time. It ships with settings writes, after Phase 1.'),
-        h('button', { type: 'button', class: 'wide', disabled: true, 'data-machine-control': 'settings-write' }, 'Restore a backup'),
-      ),
+      h(RestorePanel, { view }),
     ),
   );
 }
@@ -728,6 +755,7 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     'div',
     { class: 'board-view' },
     h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, 'Board')), h('div', { class: 'view-actions board-tabs' }, h(TabBar<Tab>, { label: 'Board', prefix: 'board', attr: 'data-board-tab', current: tab, onSelect: setTab, tabs }))),
+    h(PendingTray, { model }),
     pane('overview', h(OverviewTab, { view })),
     pane('motors', h(MotorsTab, { view })),
     pane('axes', h(AxesTab, { view })),

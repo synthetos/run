@@ -30,6 +30,9 @@ export const FAKE_SERIAL_GLOBAL = '__RUN_FAKE_SERIAL__';
 /** The simulated board's boot time before its first banner, ms. */
 const BOOT_MS = 50;
 
+/** A persisted settings write stalls the simulated board this long (EEPROM; bytes sent meanwhile are lost). */
+const EEPROM_WRITE_MS = 25;
+
 export interface FakeSerialRegistry {
   readonly ports: MockSerialPort[];
 }
@@ -79,7 +82,7 @@ export function createTransportSource(): TransportSource {
       if (selector.usbVendorId !== g.usbVendorId || selector.usbProductId !== g.usbProductId || selector.grantIndex !== g.grantIndex) {
         return Promise.resolve(null);
       }
-      const device = new TinyGEdgeNextModel({ start: 'boot', bootMs: BOOT_MS });
+      const device = new TinyGEdgeNextModel({ start: 'boot', bootMs: BOOT_MS, eepromWriteMs: EEPROM_WRITE_MS });
       const endpoint = new SimEndpoint({ clock: realTimeClock(), device });
       const port = new MockSerialPort(endpoint);
       registry().ports.push(port);

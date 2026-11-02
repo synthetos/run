@@ -1,0 +1,77 @@
+/*
+ * Settings writes (SAFETY §4.6, amendment 2026-11-02): the pending changes
+ * tray, the high-risk confirmation, the All settings table and the inline
+ * editors. Colour only from the theme tokens (tokens.css, workspace.css).
+ * A redesign pass restyles this later.
+ */
+.board-view { position: relative; }
+button.danger { background: var(--danger); border-color: var(--danger); color: var(--sheet); }
+button.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 85%, var(--ink)); border-color: color-mix(in srgb, var(--danger) 85%, var(--ink)); }
+button.danger:disabled { background: color-mix(in srgb, var(--danger) 18%, var(--sheet)); border-color: transparent; color: color-mix(in srgb, var(--danger) 60%, var(--ink)); }
+
+/* ---------- Pending changes tray ---------- */
+.pending-tray { margin: 0 20px 12px; border: 1px solid color-mix(in srgb, var(--blue) 35%, var(--rule)); border-radius: 8px; background: var(--sheet); box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 8%, transparent); flex-shrink: 0; max-height: 46vh; display: flex; flex-direction: column; }
+.pending-tray .tray-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid transparent; flex-wrap: wrap; }
+.pending-tray.open .tray-head { border-bottom-color: var(--line-soft); background: var(--blue-wash); border-radius: 8px 8px 0 0; }
+.pending-tray .tray-toggle { border: 0; background: transparent; min-height: 28px; padding: 0 4px; gap: 8px; }
+.pending-tray .tray-toggle h2 { font-size: 15px; margin: 0; }
+.pending-tray .chev { color: var(--muted); width: 12px; }
+.pending-tray .tray-why { max-width: 46ch; }
+.pending-tray .grow { flex: 1; }
+.pending-tray .tray-body { overflow: auto; padding: 4px 12px 12px; }
+.pending-table th, .pending-table td { padding: 8px 12px 8px 0; }
+.pending-table .new-value { font-weight: 600; color: var(--blue-dk); }
+.pending-table tr.high-risk th { box-shadow: inset 3px 0 0 var(--danger); padding-left: 10px; }
+.pending-table .change-words small { color: var(--muted); max-width: 70ch; margin-top: 4px; line-height: 1.45; }
+.block { display: block; }
+.tray-refused { margin: 8px 0; padding: 8px 12px; border-radius: var(--r-sm); background: var(--danger-soft); color: var(--danger); font-size: 13px; }
+.tray-refused ul { margin: 6px 0 0; padding-left: 18px; }
+.tray-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+
+/* ---------- Apply progress ---------- */
+.apply-progress { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); background: var(--paper); font-size: 13px; }
+.apply-progress.failed { border-color: color-mix(in srgb, var(--danger) 45%, var(--rule)); background: var(--danger-soft); }
+.apply-progress.done { border-color: color-mix(in srgb, var(--ok) 40%, var(--rule)); background: var(--ok-soft); }
+.apply-steps { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.apply-steps li { display: grid; grid-template-columns: 18px minmax(160px, 1.2fr) minmax(140px, 1fr) minmax(160px, 1.4fr); gap: 10px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--line-soft); }
+.apply-steps .step-mark { font-weight: 700; text-align: center; color: var(--muted); }
+.apply-steps .step-verified .step-mark, .apply-steps .step-verified .step-status { color: var(--ok); }
+.apply-steps .step-failed .step-mark, .apply-steps .step-failed .step-status { color: var(--danger); }
+.apply-steps .step-notRun { color: var(--muted); }
+.apply-steps .step-name .raw-key { margin-left: 6px; }
+
+/* ---------- High-risk confirmation ---------- */
+.apply-confirm .risk-list { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 8px; }
+.apply-confirm .risk-list li { padding: 8px 10px; border-left: 3px solid var(--danger); background: var(--danger-soft); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.apply-confirm .c1-box { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.5; }
+.apply-confirm .c1-box input { margin-top: 4px; }
+.apply-confirm [data-c5] { font-size: 12.5px; color: var(--muted); }
+
+/* ---------- Inline editors ---------- */
+.edit-bar { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+.cell-edit { margin-top: 4px; }
+
+
+.setting-edit.changed input, .setting-edit.changed select { border-color: var(--blue); background: var(--blue-wash); }
+tr.drafted > th, tr.drafted > td { background: color-mix(in srgb, var(--blue-wash) 60%, transparent); }
+
+/* ---------- All settings ---------- */
+.settings-table { padding: 0 0 16px; }
+.settings-tools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; position: sticky; top: 0; z-index: 1; background: var(--sheet); padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.settings-tools h2 { font-size: 17px; margin: 0; }
+.settings-search { flex: 1; min-width: 220px; max-width: 420px; height: 34px; border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 0 10px; background: var(--sheet); }
+.settings-filter { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.all-settings { margin-top: 6px; }
+.all-settings tbody th { font-weight: 500; }
+.all-settings tbody th .raw-key { margin-left: 8px; }
+.all-settings .group-row th { padding: 16px 0 6px; background: transparent; border-bottom: 1px solid var(--rule); }
+.all-settings .group-row th span { font-size: 13.5px; font-weight: 700; font-family: var(--cond); letter-spacing: .02em; color: var(--tan); text-transform: uppercase; }
+.all-settings .group-row th small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.all-settings .settings-desc { color: var(--muted); max-width: 52ch; line-height: 1.45; font-size: 12.5px; }
+.all-settings td[data-value] { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+.file-pick { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--rule); border-radius: var(--r-sm); min-height: 36px; margin-top: 12px; cursor: pointer; font-weight: 500; font-size: 13px; }
+.file-pick.disabled { cursor: not-allowed; color: color-mix(in srgb, var(--ink) 42%, var(--sheet)); background: color-mix(in srgb, var(--paper) 60%, var(--sheet)); border-color: var(--line-soft); }
+.restore-result { margin-top: 10px; font-size: 13px; }
+.setting-edit.select-wrap, .setting-edit.unit-input { display: inline-flex; width: auto; max-width: 100%; }
+.setting-edit.select-wrap select { width: 16em; }
+.setting-edit.unit-input input { width: 9.5em; }

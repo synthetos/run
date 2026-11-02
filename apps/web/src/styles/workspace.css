@@ -10,6 +10,7 @@
  * Stop job use the stop tokens only while prominent. Nothing else uses them.
  * Imported by the workspace entry only.
  */
+@import './settings.css';
 
 /* Local layout tokens for the study. Colour comes only from the theme and
    safety tokens; these mix them, they never introduce new hues. */

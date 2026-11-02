@@ -214,7 +214,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
     h(
       'footer',
       { class: 'footer' },
-      h('span', null, 'Phase 1 · read only: nothing is written to the board'),
+      h('span', null, 'Phase 1 · no motion: settings are written only after review, where turned on'),
       h('span', { class: 'footer-secondary' }, 'Machines, tools and setup are kept in this browser'),
       h('span', { class: 'mono', 'data-version': '', title: `Version ${props.build.version}, commit ${props.build.sha}` }, versionLabel(props.build)),
     ),
