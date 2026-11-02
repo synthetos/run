@@ -1124,3 +1124,38 @@
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 }
 
 input::placeholder { color: var(--muted); opacity: 1; }
+
+/* Review-only scenario controls and configuration details. */
+.scenario-picker { display:flex; align-items:center; gap:8px; font:11px var(--mono); }
+.scenario-picker select { width:220px; min-height:36px; border:1px solid var(--rule); border-radius:4px; background:var(--sheet); color:var(--ink); padding:6px; font:12px var(--sans); }
+.scenario-notice { flex:none; margin:0 24px 14px; padding:12px 16px; border:1px solid var(--rule); border-left:3px solid var(--warn); background:var(--sheet); display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.scenario-notice p { margin-top:4px; font-size:12px; line-height:1.4; color:var(--muted); }
+.scenario-notice button { flex-shrink:0; }
+.app[data-scenario="running"] .state-dot { background:var(--state-run); }
+.app[data-scenario="held"] .state-dot { background:var(--state-hold); }
+.app[data-scenario="disconnected"] .state-dot { background:var(--muted); }
+.app[data-scenario="lost"] .state-dot,.app[data-scenario="orphaned"] .state-dot { background:var(--state-alarm); }
+.app[data-scenario="running"] #pause,.app[data-scenario="held"] #pause { background:var(--bar-bg); color:var(--bar-fg); border-color:var(--bar-fg); }
+.app[data-scenario="lost"] .scenario-notice,.app[data-scenario="orphaned"] .scenario-notice { border-left-color:var(--danger); }
+.app[data-scenario="lost"] .dro-row { opacity:.6; }
+.affected-inputs { display:flex; flex-wrap:wrap; gap:6px; padding:0; list-style:none; margin:12px 0; }
+.affected-inputs li { border:1px solid var(--rule); background:var(--blue-wash); padding:4px 7px; font:11px var(--mono); border-radius:3px; }
+.mechanical-story { border-left:2px solid var(--blue); padding:10px 12px; background:var(--blue-wash); font-size:12px; line-height:1.7; margin:14px 0; }
+.change-card { border:1px solid var(--rule); padding:14px; border-radius:4px; margin:12px 0; }
+.change-card h3 { font-family:var(--cond); font-size:19px; }
+.change-card p { margin:7px 0; }
+@media(max-width:1300px) { .topbar .context { display:none; } }
+@media(max-width:650px) {
+ .preview-tag,.scenario-picker>span { display:none; }
+ .scenario-picker select { width:155px; font-size:11px; }
+ .scenario-notice { margin:0 12px 10px; padding:10px; gap:8px; }
+ .scenario-notice strong { font-size:12px; }
+ .scenario-notice p { font-size:11px; }
+ .scenario-notice button { max-width:95px; font-size:11px; padding:6px; }
+}
+
+#motor-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:12px; }
+#motor-fields>h2,#motor-fields>p,#motor-fields>label:first-of-type { grid-column:1/-1; }
+#motor-fields .field { min-width:0; margin-top:12px; }
+#motor-fields .field>span { font-size:11px; }
+#motor-fields select,#motor-fields input { width:100%; min-width:0; }

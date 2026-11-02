@@ -33,6 +33,9 @@
 </div>
 <div class="top-actions">
 <span class="preview-tag">DESIGN PREVIEW · NO HARDWARE</span>
+<label class="scenario-picker"><span>Preview state</span><select id="scenario" aria-label="Preview machine state">
+<option value="disconnected">Disconnected</option><option value="identified">Identified · read only</option><option value="idle" selected>Idle · configuration differs</option><option value="running">Running · future concept</option><option value="held">Held · future concept</option><option value="lost">Connection lost</option><option value="orphaned">Motion unconfirmed</option>
+</select></label>
 <button class="icon-button quiet" id="theme" aria-label="Switch to dark theme">
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
 <circle cx="12" cy="12" r="4"/>
@@ -125,6 +128,7 @@
 <button class="secondary-action" data-dialog="connection">Connection</button>
 </div>
 </div>
+<div class="scenario-notice" id="scenario-notice"><div><strong id="scenario-heading"></strong><p id="scenario-copy"></p></div><button id="scenario-action" class="small">Review difference</button></div>
 <div class="workspace-grid">
 <div class="canvas-column">
 <div class="canvas">
@@ -249,9 +253,9 @@
 </section>
 <section class="inspector-section">
 <div class="section-line">
-<h3>Read-only connection</h3>
+<h3 id="phase-title">Read-only connection</h3>
 </div>
-<p class="muted">Inspect and prepare. Motion and settings writes are not available in Phase 1.</p>
+<p class="muted" id="phase-copy">Inspect and prepare. Motion and settings writes are not available in Phase 1.</p>
 <button class="wide" data-view="configure">Inspect configuration</button>
 </section>
 </aside>
@@ -261,7 +265,7 @@
 <div class="view-head">
 <div>
 <h1>Board configuration</h1>
-<p>Workshop router / Configuration · drafts never change the board.</p>
+<p id="editing-context">Editing Workshop router · connected to Workshop router. Drafts never change the board.</p>
 </div>
 <div class="view-actions">
 <button class="secondary-action" data-dialog="board">TinyG v8 ▾</button>
@@ -491,7 +495,9 @@
 <circle cx="89" cy="32" r="4" fill="var(--sheet)" stroke="currentColor"/>
 <circle cx="160" cy="32" r="4" fill="var(--sheet)" stroke="currentColor"/>
 </svg>
-<p class="hint">TinyG switch contact type is shared. Changing it requires reviewing every affected input.</p>
+<p class="hint">Shared contact setting · affects all eight inputs, not just X-min.</p>
+<ul class="affected-inputs" aria-label="Inputs affected by shared polarity"><li>X-min</li><li>X-max</li><li>Y-min</li><li>Y-max</li><li>Z-min</li><li>Z-max</li><li>A-min</li><li>A-max</li></ul>
+<p class="muted">Wiring compatibility: not checked. Review every switch before a future apply.</p>
 </div>
 <div id="motor-fields" hidden>
 <h2 id="motor-title">Motor 1</h2>
@@ -507,22 +513,22 @@
 </label>
 <label class="field">
 <span>Motor frame</span>
-<select><option>NEMA 23 · example</option><option>NEMA 17</option><option>Other / not recorded</option></select>
+<select id="motor-frame"><option>NEMA 23</option><option>NEMA 17</option><option>Other / not recorded</option></select>
 </label>
 <label class="field">
 <span>Nameplate current / A</span>
-<input type="number" min="0" step="0.1" placeholder="Not recorded">
+<input id="motor-current" type="number" min="0" step="0.1" placeholder="Not recorded">
 </label>
 <label class="field">
 <span>Step angle / degrees</span>
-<select>
+<select id="motor-angle">
 <option>1.8</option>
 <option>0.9</option>
 </select>
 </label>
 <label class="field">
 <span>Microsteps</span>
-<select>
+<select id="motor-microsteps">
 <option>8</option>
 <option>4</option>
 <option>2</option>
@@ -531,8 +537,9 @@
 </label>
 <label class="field">
 <span>Travel per revolution / mm</span>
-<input value="40" type="number" min="0.1" step="0.1">
+<input id="motor-travel" value="40" type="number" min="0.1" step="0.1">
 </label>
+<p class="mechanical-story" id="mechanical-story" aria-live="polite"></p>
 <p class="hint">Current is adjusted on the board. Motor size alone does not establish its electrical rating.</p>
 </div>
 <div id="other-fields" hidden>
@@ -544,12 +551,13 @@
 <h3>Change only the draft</h3>
 <div class="change-line">
 <span>On controller</span>
-<span>Not read</span>
+<span id="controller-value">Not read</span>
 </div>
 <div class="change-line">
 <span>Draft</span>
 <span class="draft-value">Homing + limit</span>
 </div>
+<p id="draft-status" class="muted" aria-live="polite">Not saved to draft</p>
 <button class="wide primary" id="save-draft">Save to draft</button>
 <p class="muted">No board writes. Apply requires a later reviewed phase.</p>
 </section>

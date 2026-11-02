@@ -10,7 +10,8 @@ python3 -m http.server 8766 --bind 127.0.0.1
 
 Open <http://127.0.0.1:8766/docs/design/workspace-prototype/>.
 Use `#run`, `#loaded`, `#configure`, `#machines`, `#projects`, or `#analyze`
-for review entry points. Navigation inside the prototype preserves its document.
+for view entry points. State links are `#disconnected`, `#identified`, `#idle`,
+`#running`, `#held`, `#lost`, and `#orphaned`. Navigation inside the prototype preserves its document.
 The state is simulated and all edits reset on reload. Do not use the board
 illustration as a wiring reference.
 
@@ -25,7 +26,7 @@ forbids network connections, workers, HTML/script sinks and third-party assets.
 It does not change production CSP or any gate exception. Serving the repository
 is for local review only, never deployment.
 
-Capture 40 review screenshots and check interactions with Python Playwright:
+Capture 104 review screenshots and check interactions with Python Playwright:
 
 ```sh
 python capture.py --output /absolute/path/to/screenshots
@@ -36,9 +37,12 @@ The harness records viewport bounds, fixed safety controls, unchanged document
 identity, drafts, machine copies, project loading, Back, and Pause/Escape in a
 panel. It refuses off-origin requests and checks browser errors, CSP violations
 and worker absence. Captures: 1280×720, 1440×900, 1920×1080, 390×844, light/dark,
-for idle, file-loaded, Configure, Machines and Projects.
+for seven state variants plus Board, X-min, Motor, changeset, Machines and Projects.
+The identified scene includes a loaded file. `review.html` is the contact sheet.
 
 The editor panel is deliberately modeless: it sits below the persistent safety
 strip and does not make Stop/Pause inert. In the prototype Escape shows simulated
 Pause feedback and closes the panel. Real controller delivery semantics are not
 implemented here.
+
+Implementation handoff: [WORKSPACE_SPEC.md](../WORKSPACE_SPEC.md).
