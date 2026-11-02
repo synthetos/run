@@ -20,7 +20,10 @@ bench runner come with P1-08.
 
 ## Running it
 
-From the repository root (Node 22, pnpm through Corepack):
+The owner's step-by-step guide, with the current blockers, is [GUIDE.md](GUIDE.md).
+
+From the repository root (Node 22, pnpm through Corepack; run `corepack enable pnpm`
+once, because the scripts call `pnpm` by name):
 
 ```sh
 corepack pnpm build          # the release build, apps/web/dist
