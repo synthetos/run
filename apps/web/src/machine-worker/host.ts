@@ -24,14 +24,16 @@
  * - `subscribe` keeps the reply port and posts the snapshot on it, at most
  *   once per `SNAPSHOT_INTERVAL_MS` (the last one is never dropped).
  *
- * The session is classified against `NO_APPROVED_BUILDS` here: every board
- * is READ_ONLY in this worker until the signed manifest is verified in it
- * (P1-03). Phase 1 writes nothing but reads and `!` either way.
+ * Before every `open` the worker verifies the bundled, signed approved-builds
+ * manifest for its own origin (approval.ts, P1-03) and the session classifies
+ * against the result. Without a manifest, or when it does not verify, every
+ * board is READ_ONLY.
  *
  * It holds no account or network state (DECISIONS D1).
  */
 import { LAG_AMBER_MS, LAG_RED_MS, MachineSession, PositionPoller, ReadoutPoller, droView, liveControlPlatform, type PortSelector, type Transport, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
 import type { Decision } from '@synthetos/safety';
+import { approvalRecord, approvedBuildsFor, type ApprovalOutcome } from './approval.ts';
 import { RPC_VERSION, parseRequest, refusal, type Denial, type MachineReply, type SnapshotMessage, type WindowIntent, type WorkerState } from './rpc.ts';
 
 /** Snapshots are posted at most 20 times per second (OLD-TP §4.2). */
@@ -71,6 +73,14 @@ interface PreparedPort {
 }
 const PREPARATION_MS = 15_000;
 
+/** The signed approved-builds file the worker verifies before each connect, and the worker's origin. */
+export interface WorkerApproval {
+  readonly file: unknown;
+  readonly origin: string;
+  /** Tests only: verify with these instead of the compiled-in release keys. */
+  readonly verify?: (file: unknown, origin: string, now: Date) => Promise<ApprovalOutcome>;
+}
+
 export class MachineWorkerHost {
   readonly #source: TransportSource;
   readonly #clock: SessionClock;
@@ -78,6 +88,7 @@ export class MachineWorkerHost {
   readonly #platform: PlatformInfo | undefined;
   readonly #poller: PositionPoller;
   readonly #readouts: ReadoutPoller;
+  readonly #approval: WorkerApproval | null;
   #preparationId = 0;
   #prepared: PreparedPort | null = null;
   #approved: PreparedPort | null = null;
@@ -86,8 +97,9 @@ export class MachineWorkerHost {
   #pending: number | null = null;
 
   /** `platform` is the worker's user agent (`workerPlatform`) unless a test passes one. */
-  constructor(source: TransportSource, clock: SessionClock = realClock(), platform: PlatformInfo | undefined = workerPlatform()) {
+  constructor(source: TransportSource, clock: SessionClock = realClock(), platform: PlatformInfo | undefined = workerPlatform(), approval: WorkerApproval | null = null) {
     this.#source = source;
+    this.#approval = approval;
     this.#clock = clock;
     this.#platform = platform;
     this.#session = new MachineSession({
@@ -161,6 +173,7 @@ export class MachineWorkerHost {
           this.#prepared = null;
           this.#approved = prepared;
         }
+        await this.#loadApprovals();
         const outcome = await this.#session.connect(request.port, { expectedDeviceId: request.boardId, unknown: request.previousSessionEnded });
         if (this.#approved === prepared) this.#approved = null;
         if (outcome.ok) return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'open', info: outcome.info });
@@ -203,6 +216,16 @@ export class MachineWorkerHost {
           status: Object.freeze({ source: this.#source.kind, state: workerState(this.#session.snapshot), session: this.#session.snapshot }),
         });
     }
+  }
+
+  /** Verifies the signed manifest now (its validity window uses this clock) and hands it to the session. */
+  async #loadApprovals(): Promise<void> {
+    const approval = this.#approval;
+    if (approval === null) return;
+    const now = new Date();
+    const outcome = await (approval.verify ?? ((file, origin, at) => approvedBuildsFor(file, { origin, now: at })))(approval.file, approval.origin, now).catch(() => null);
+    if (outcome === null) return;
+    this.#session.useApprovedBuilds(outcome.approved, approvalRecord(outcome));
   }
 
   #intent(intent: WindowIntent): Decision {

@@ -19,7 +19,8 @@
  * one, and such code has the worker's full power anyway. The fake-serial
  * Playwright test drives the worker that way (docs/testing/fake-serial.md).
  */
-import { MachineWorkerHost } from './host.ts';
+import approvedBuilds from '../../../../firmware/approved-builds.json';
+import { MachineWorkerHost, realClock, workerPlatform } from './host.ts';
 import { browserLocks, openStopChannel } from './stopChannel.ts';
 import { MachineStopService } from './stopService.ts';
 import { createTransportSource } from './transport.ts';
@@ -28,7 +29,9 @@ interface WorkerScope {
   addEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
 }
 
-const host = new MachineWorkerHost(createTransportSource());
+// The signed approved-builds manifest, bundled (the worker has no network code). It is verified again
+// before every connect, for this worker's own origin (approval.ts, P1-03).
+const host = new MachineWorkerHost(createTransportSource(), realClock(), workerPlatform(), { file: approvedBuilds as unknown, origin: (globalThis as unknown as { location: { origin: string } }).location.origin });
 new MachineStopService({ session: host.session, channel: openStopChannel(), locks: browserLocks(), instance: crypto.randomUUID() });
 
 (globalThis as unknown as WorkerScope).addEventListener('message', (event) => {

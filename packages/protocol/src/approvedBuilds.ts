@@ -125,6 +125,14 @@ export interface VerifyOptions {
   readonly now: Date;
   /** The trusted keys; the compiled-in `RELEASE_KEYS` unless a test passes its own. */
   readonly keys?: readonly ReleaseKey[];
+  /**
+   * The environment to verify for, when the caller has already decided it
+   * (the machine worker on the loopback bench server is `staging`, P1-03).
+   * When present it replaces `environmentForOrigin(origin)`; null approves
+   * nothing. A caller may only narrow what its origin allows: the worker's
+   * rule never maps run's production host to anything but production.
+   */
+  readonly environment?: Environment | null;
 }
 
 /** The environment of an origin: run's two hosts over https, nothing else (localhost, previews, workers.dev → null). */
@@ -152,7 +160,7 @@ export function findApproval(
 
 /** Verify the manifest file for this origin. Never throws; rejects anything it cannot fully verify. */
 export async function verifyApprovedBuilds(file: unknown, options: VerifyOptions): Promise<VerifiedApprovedBuilds> {
-  const environment = environmentForOrigin(options.origin);
+  const environment = options.environment !== undefined ? options.environment : environmentForOrigin(options.origin);
   const keys = options.keys ?? RELEASE_KEYS;
   const channels = readChannels(file);
   if (channels === undefined) {
