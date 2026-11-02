@@ -233,7 +233,7 @@ describe('Dro panel', () => {
     expect(shown).toBe('�EVIL<script>�x');
     // Rendered as a text child, never as markup.
     expect(all(el, (e) => e.tag === 'script')).toEqual([]);
-    expect(all(el, (e) => e.props['dangerouslySetInnerHTML'] !== undefined)).toEqual([]);
+    expect(all(el, (e) => Object.keys(e.props).some((k) => k.startsWith('dangerously')))).toEqual([]);
     const noId = root(h(Dro, { message: message({}, { identity: null }), elapsedMs: 0 }));
     expect(text(one(noId, (e) => e.props['data-dro'] === 'identity'))).toBe('Board without an id');
   });
