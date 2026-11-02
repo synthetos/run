@@ -315,3 +315,16 @@ describe('the committed firmware/approved-builds.json', () => {
     expect(new Set(RELEASE_KEYS.map((k) => k.kid)).size).toBe(RELEASE_KEYS.length);
   });
 });
+
+describe('the environment option (P1-03: the worker decides it for loopback)', () => {
+  it('replaces the origin-derived environment; null approves nothing', async () => {
+    const committed = JSON.parse(readFileSync(join(REPO, 'firmware/approved-builds.json'), 'utf8')) as unknown;
+    const bench = await verifyApprovedBuilds(committed, { origin: 'http://localhost:8793', now: NOW, environment: 'staging' });
+    expect(bench.approved.environment).toBe('staging');
+    expect(bench.approved.builds.map((b) => b.fb)).toEqual([450.01]);
+    const none = await verifyApprovedBuilds(committed, { origin: STAGING, now: NOW, environment: null });
+    expect(none.approved.builds).toEqual([]);
+    const derived = await verifyApprovedBuilds(committed, { origin: 'http://localhost:8793', now: NOW });
+    expect(derived.approved.builds).toEqual([]);
+  });
+});

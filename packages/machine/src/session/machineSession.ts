@@ -98,7 +98,7 @@ const encoder = new TextEncoder();
 export class MachineSession {
   readonly #source: TransportSource;
   readonly #clock: SessionClock;
-  readonly #config: SessionConfig;
+  #config: SessionConfig;
   readonly #logLimit: number;
   #state: SessionState = initialState();
   #snapshot: SessionSnapshot = snapshotOf(this.#state);
@@ -241,6 +241,20 @@ export class MachineSession {
    */
   reportDrift(epoch: number): void {
     this.#dispatch({ type: 'driftDetected', epoch });
+  }
+
+  /**
+   * The verified approved-builds manifest the next connect classifies against
+   * (ROADMAP P1-03). The worker verifies the signed file before each connect
+   * and hands the result here. Taken only while NOT_CONNECTED, so a session in
+   * progress is never reclassified; returns false (and changes nothing)
+   * otherwise. `note` goes to the session log.
+   */
+  useApprovedBuilds(manifest: ApprovedBuilds, note?: string): boolean {
+    if (this.#state.base !== 'NOT_CONNECTED' || this.#state.overlays.includes('LOST')) return false;
+    this.#config = Object.freeze({ ...this.#config, manifest });
+    if (note !== undefined) this.#note(note);
+    return true;
   }
 
   /** Any other intent: decided by the matrix and the session (always denied in Phase 1). */

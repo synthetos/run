@@ -256,7 +256,7 @@ line. It then probes the board and classifies it. Expect:
 
 | Board | Classification | Mode |
 |---|---|---|
-| edge-next fb 450.01 (`6ec70652`) | `tinyg-en` | READ_ONLY, reason `en-not-approved`, until a build is approved for this environment (P1-03); read-only in Phase 1 either way. Seen on the bench 2026-11-02. |
+| edge-next fb 450.01 (`6ec70652`) | `tinyg-en` | **Full**, reason `en-approved`: the machine worker verifies the bundled, owner-signed bench channel of `firmware/approved-builds.json` for its own origin (loopback over plain HTTP and staging are `staging`; P1-03, added 2026-11-02). Before that it was READ_ONLY `en-not-approved` (seen on the bench 2026-11-02). Any other fb, a reported `fbs`, an expired or tampered manifest, or the production origin stays READ_ONLY. |
 | stock 440.21 | `tinyg-440` | READ_ONLY, with W25 and the upgrade offer |
 | stock 449.01 | `tinyg-449-stock` | READ_ONLY |
 | EN with `$ex=2` | `tinyg-en` | READ_ONLY, reason flow control |
@@ -460,7 +460,7 @@ commit) next to it.
 - [ ] **HIL-1.1 Connect and identify EN.** Idle EN board (fb 450.01). Pass:
   the transcript is `{sr:null}`, the probe GETs, `stat hold vel qr ex`,
   then only allowlisted GETs, ENQ and `!` (from Pause); classification
-  `tinyg-en` (READ_ONLY `en-not-approved` until a build is approved); the
+  `tinyg-en`, full (`en-approved` on the bench channel, P1-03); the
   session log's `probe:` lines are saved to `test-fixtures/probe/<build>.txt`
   (B-PROBE-1) with the board `id` value replaced by `0X0000-XXX` everywhere
   before it is committed (the fixture check refuses any other id; no
