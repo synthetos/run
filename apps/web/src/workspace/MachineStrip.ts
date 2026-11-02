@@ -79,10 +79,10 @@ export function outcomeText(view: StopBarView | null): { readonly kind: 'deliver
     return { kind: 'not-delivered', text: missing.length > 0 ? `${STOP_TEXT.notDelivered} (${missing.join(', ')})` : STOP_TEXT.notDelivered };
   }
   const machines = outcome.machines.map((m) => machineLabel(m.machine)).join(', ');
-  if (outcome.action === 'pause') return { kind: 'delivered', text: outcome.idle === true ? STOP_TEXT.pausedIdle : `Pause delivered to ${machines}` };
+  if (outcome.action === 'pause') return { kind: 'delivered', text: outcome.idle === true ? STOP_TEXT.pausedIdle : `${w2Label()} went out to ${machines}` };
   // Phase 1: every session answers Stop job and Spindle off with `!` only (machine reducer, SAFETY §4.4), so
   // "delivered" alone would read as "the job is stopped, spindle off". Say what the machine actually got.
-  return { kind: 'delivered', text: `${outcome.action === 'stopJob' ? STOP_TEXT.stopJob : 'Spindle off'} delivered to ${machines} as ${w2Label()}. Use your E-stop to remove power.` };
+  return { kind: 'delivered', text: `${outcome.action === 'stopJob' ? STOP_TEXT.stopJob : 'Spindle off'} went out as ${w2Label()} (feedhold) to ${machines}. Use your E-stop to remove power.` };
 }
 
 function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined, onStopJob: (() => void) | undefined): ComponentChild {

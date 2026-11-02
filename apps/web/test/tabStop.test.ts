@@ -620,10 +620,10 @@ describe('machine strip stop controls and observer panel', () => {
   it('a delivered request says what happened in plain words; Stop job and Spindle off went out as Pause (Phase 1)', () => {
     const delivered = (action: 'pause' | 'stopJob' | 'spindleOff', idle?: boolean) =>
       text(one(bar({ available: true, band: null, outcome: { kind: 'delivered', action, machines: [{ machine: 'synthetos-machine:BOARD-A', delivered: true }], ...(idle === undefined ? {} : { idle }) } }), (e) => e.props['data-stop-outcome'] === 'delivered'));
-    expect(delivered('pause')).toBe('Pause delivered to BOARD-A');
+    expect(delivered('pause')).toBe('Pause went out to BOARD-A');
     expect(delivered('pause', true)).toBe(STOP_TEXT.pausedIdle);
     expect(STOP_TEXT.pausedIdle).toBe('Paused: the machine was idle, nothing changed');
-    expect(delivered('stopJob')).toBe(`Stop job delivered to BOARD-A as ${w2Label()}. Use your E-stop to remove power.`);
+    expect(delivered('stopJob')).toBe(`Stop job went out as ${w2Label()} (feedhold) to BOARD-A. Use your E-stop to remove power.`);
     expect(delivered('spindleOff')).toContain(`as ${w2Label()}`);
   });
 

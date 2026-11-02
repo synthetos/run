@@ -176,8 +176,7 @@ test('the notice raised after Stop job sits above the panels and the 3D canvas: 
   await tabB.getByRole('button', { name: STOP_TEXT.stopJob, exact: true }).click();
   const notice = tabB.locator('[data-stop-outcome]');
   await expect(notice).toBeVisible();
-  await expect(notice).toContainText(`${STOP_TEXT.stopJob} delivered to`);
-  await expect(notice).toContainText(`as ${w2Label()}. Use your E-stop to remove power.`);
+  await expect(notice).toHaveText(`${STOP_TEXT.stopJob} went out as ${w2Label()} (feedhold) to ${BOARD}. Use your E-stop to remove power.`);
   const hits = async (selector: string): Promise<boolean> =>
     tabB.locator(selector).first().evaluate((el) => {
       const r = el.getBoundingClientRect();

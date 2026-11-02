@@ -865,6 +865,8 @@ body { background-image: none; }
 .strip-connection .strip-disconnect { min-height: 32px; padding: 0 12px; font-size: 12.5px; }
 .strip-disconnect-refused { position: absolute; left: 20px; top: calc(100% + 6px); z-index: var(--z-notice); max-width: 440px; margin: 0; padding: 7px 12px; border-radius: var(--r-sm); font-size: 12.5px; line-height: 1.4; background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); box-shadow: var(--pop); }
 .statebar .state-meta { flex: 1 1 auto; min-width: 0; }
+/* An alarm's explanation says what to do: wrap it (up to three lines) instead of cutting it off. */
+.statebar[data-tone="alarm"] .meta-text { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; font-size: 12px; line-height: 1.35; }
 .statebar .state-band { display: flex; max-width: none; padding: 0; margin: 0; background: none; border: 0; color: var(--ink); font: 400 12px/1.35 var(--sans); }
 .statebar .state-band .band-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .statebar .state-band.warn { color: var(--warn); }
