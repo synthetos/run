@@ -908,7 +908,8 @@ describe('settingWrite: the phase switch and the worker request', () => {
   });
 
   it('bench: an approved, idle board takes the write: gate reads, the write, the read-back; the snapshot says verified', async () => {
-    const t = new BoardTransport();
+    // The bench release is Phase 2 with settings writes, so READING also reads `home` (the board then rests in IDLE_UNHOMED).
+    const t = new BoardTransport(undefined, { ...EN, home: '{"r":{"home":0},"f":[3,0,10]}' });
     const host = approvingHost(t, COMMITTED_MANIFEST, BENCH_ORIGIN, VALID_NOW, undefined, releaseFor(BENCH_ORIGIN));
     await classifyWith(t, host);
     expect(await host.handle({ v: 3, kind: 'settingWrite', key: 'xvm', value: 1234 })).toEqual({ v: 3, ok: true, kind: 'settingWrite', id: 1 });
