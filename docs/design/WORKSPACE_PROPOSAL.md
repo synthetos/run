@@ -100,11 +100,15 @@ reviewable diff; the later write pipeline retains all per-key and typed
 confirmations and fact invalidations. Configuration drawing is not electrical
 verification, and an E-stop drawn in a diagram does not certify the machine.
 
-D26 permits only approved derived facts from private hardware. Never publish
-CAD files, private images, paths or exported layout SVGs. A realistic private
-board illustration needs an approved public source or separately reviewed
-public artwork; otherwise use a clearly labelled connector map. Keep detailed
-extraction evidence private and expose public-safe provenance identifiers.
+OD-5 approves a separately authored, publishable, real-looking TinyG board
+illustration, v8 first. That is the configurator direction: a clean interactive
+board drawing in the spirit of the Connecting TinyG images. The prototype
+already uses this approach. Approval of the approach is settled; revision and
+pin accuracy still require verification before the art becomes wiring guidance.
+D26 still limits private-hardware inputs to derived connector positions, labels
+and orientation. Never publish CAD, netlists, layout exports, private screenshots
+or paths. Record the reviewed public facts shown by each illustration, and keep
+detailed private extraction evidence private.
 
 ## Machine library, versions and sharing
 
