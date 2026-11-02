@@ -179,7 +179,8 @@ test('the notice raised after Stop job sits above the panels and the 3D canvas: 
   await tabB.getByRole('button', { name: STOP_TEXT.stopJob, exact: true }).click();
   const notice = tabB.locator('[data-stop-outcome]');
   await expect(notice).toBeVisible();
-  await expect(notice).toHaveText(`${STOP_TEXT.stopJob} went out as ${w2Label()} (feedhold) to ${BOARD}. Use your E-stop to remove power.`);
+  // Loopback has the Phase 2 motion flag: Stop job runs the flush sequence, and the line says it went out.
+  await expect(notice).toHaveText(`${STOP_TEXT.stopJob} delivered to ${BOARD}.`);
   const covered = (selector: string): Promise<{ readonly points: number; readonly overCard: number; readonly hidden: readonly string[] }> =>
     tabB.locator(selector).first().evaluate((el) => {
       const r = el.getBoundingClientRect();
