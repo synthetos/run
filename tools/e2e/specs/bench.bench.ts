@@ -91,3 +91,18 @@ test('machine.worker asks Web Serial for the granted ports; with none granted, o
   });
   expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ status: { source: 'serial', state: 'idle', session: { base: 'NOT_CONNECTED', overlays: [] } } });
 });
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  test.describe(`390 px, ${colorScheme}`, () => {
+    test.use({ viewport: { width: 390, height: 844 }, colorScheme });
+    test('the bench version chip wraps: no horizontal page scroll', async ({ page }) => {
+      await page.goto('/');
+      await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+      await expect(page.locator('[data-version][data-channel="bench"]')).toContainText('bench build, localhost only');
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+      const chip = await page.locator('[data-version]').boundingBox();
+      expect((chip?.x ?? 0) + (chip?.width ?? 0)).toBeLessThanOrEqual(390);
+    });
+  });
+}

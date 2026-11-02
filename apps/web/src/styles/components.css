@@ -72,7 +72,11 @@
   border: 1.5px solid var(--bar-fg);
   padding: 2px 8px;
   font: 500 0.8rem/1.4 var(--mono);
-  white-space: nowrap;
+  /* The bench label is long: the chip wraps rather than push the safety bar past a phone-width window. */
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* The stop control: black with a red pause mark and a heavy frame, unlike any themed button. */
