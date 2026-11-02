@@ -203,3 +203,24 @@ Open with this task:
 - Items that need EN-HIL on the board at the same time (BENCH-P102-4/-6, P103-4/-5, P106-2/-3)
   can't run inside the runner, because the harness takes the same lock. Use `--only` and record
   them by hand.
+
+## P1-07: DRO, allowlisted settings read, drift check, live position marker
+
+| Requirement | Where | Test | Status |
+|---|---|---|---|
+| Machine DRO and marker from polled `mpo` only (S §4.2; EN's default `sr` has no `mpo*`) | `packages/machine/src/positionPoller.ts` (500 ms, one poll owed at a time, through `session.read`); `dro.ts` uses `values.mpo`, never `live.mpo` | `p1-07-dro.test.ts` "a status report with mpo* changes neither the machine DRO nor the marker", poller tests; `dro.fake-serial.ts` (built app: moving the simulated machine changes the DRO only after a further `{"mpo":null}`) | PASS |
+| Source and age labels; lag badge amber at 1 s, red at 2 s or STALE | `droView`/`lagOf`; `apps/web/src/machine-ui/Dro.ts` ages it on the window clock between snapshots | `p1-07-dro.test.ts` "lagOf", droView ages; `p1-07-readout.test.ts` "ages the badge in the window" | PASS |
+| DRO: work and machine coordinates, active WCS with offsets, homed flags | `droView` (`coor`, `g5x`, `ofs`, `hom` reads); `Dro.ts` | `p1-07-dro.test.ts`; `p1-07-readout.test.ts` "Dro panel" | PASS |
+| Settings view reads through the allowlist only, grouped and explained | `packages/schema/src/settingsRead.ts` `settingsReadGroups` (allowlisted group tokens with table members); `apps/web/src/live/readout.ts` reads via the worker `read`; `SettingsView.ts` | `settingsRead.test.ts`; `p1-07-readout.test.ts`; `dro.fake-serial.ts` (only allowlisted GETs on the wire) | PASS |
+| `deviceHash` and drift → NEEDS_REVIEW | `deviceHash`, `settingsDrift` (schema); reference per (dialect, board id) in `device-safety`; worker `drift` request → `MachineSession.reportDrift(epoch)` | `settingsRead.test.ts`; `p1-07-readout.test.ts` drift; `p1-07-dro.test.ts` "reportDrift"; `machineWorker.test.ts` P1-07 | PASS |
+| "Keep the board's settings" writes nothing to the machine | `LiveReadout.keepBoardSettings` replaces the local reference only | `p1-07-readout.test.ts` (no write button exists; Keep updates the store only) | PASS |
+| T-S85: serial strings via text nodes with bidi sanitising | `packages/safety/src/boardText.ts`; `Dro.ts`, `SettingsView.ts` | `boardText.test.ts`; `p1-07-readout.test.ts` "hostile board id" | PASS |
+| HIL-1.6 (connect while another tool runs a buffered job: no writes, state shown) | | test kit: `dro.fake-serial.ts` moves the model as another program would | HIL |
+| HIL-1.8 (read all settings and poll status for 10 minutes: no denied token in the transcript) | | test kit: `dro.fake-serial.ts` checks the transcript; run the bench for 10 min and export the transcript (P1-08) | HIL |
+
+Open with this task:
+
+- The 3D preview shows the live position as a readout line, not a drawn point; the 2D view draws it.
+- The drift reference is per computer (`device-safety`). The comparison with a profile draft
+  (`settingsDrift` `draft`) and the cloud head revision arrives with the profile store (TB-04, A2).
+- NEEDS_REVIEW stays until the next connect; there is no in-session clear yet.
