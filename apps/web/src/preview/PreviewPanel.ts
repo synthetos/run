@@ -47,8 +47,18 @@ export interface LiveMarkerView {
   readonly lag: 'none' | 'fresh' | 'amber' | 'red';
 }
 
+/** A coordinate with three decimals and a true minus sign. */
+function c3(n: number): string {
+  return `${n < 0 ? '−' : ''}${Math.abs(n).toFixed(3)}`;
+}
+
+/**
+ * The live tool position in plain words (WORKSPACE_TENETS 4): "Tool at X 1.000 Y 2.000 Z 3.000 · live",
+ * or "· 1.5 s old" once the position is late. Work coordinates in mm, as drawn.
+ */
 export function markerText(m: LiveMarkerView): string {
-  return `Live position (polled mpo minus offsets, ${(m.ageMs / 1000).toFixed(1)} s old): X ${m.x.toFixed(3)} Y ${m.y.toFixed(3)} Z ${m.z.toFixed(3)} mm`;
+  const age = m.lag === 'fresh' ? 'live' : `${(m.ageMs / 1000).toFixed(1)} s old`;
+  return `Tool at X ${c3(m.x)} Y ${c3(m.y)} Z ${c3(m.z)} · ${age}`;
 }
 
 function message(e: unknown): string {

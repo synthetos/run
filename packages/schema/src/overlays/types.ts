@@ -15,7 +15,7 @@ export type Unit =
   | 'deg'
   | 'deg/min'
   | 'deg/step'
-  /** Jerk, in millions: `5000` means 5 000 000 000 mm/min³ (EN canonical_machine.c:2921). */
+  /** Jerk, in millions: `5000` means 5 000 000 000 mm/min³ (EN canonical_machine.c:2936). */
   | 'Mmm/min3'
   | 'Mdeg/min3'
   | 'microsteps'

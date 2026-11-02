@@ -5,10 +5,13 @@
  * storage module, and the library adapter (placeholder data, safe links).
  */
 import { describe, expect, it } from 'vitest';
+import { h } from 'preact';
+import { one, root, text } from './tree.ts';
+import { SpindleSection } from '../src/workspace/views/RunView.ts';
 import { backupBlocked, backupFileName, BACKUP_CONTEXT_TOKENS, SettingsBackup } from '../src/live/backup.ts';
-import { INITIAL_LIVE_VIEW, type LiveView } from '../src/workspace/model.ts';
+import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveView } from '../src/workspace/model.ts';
 import { OutlineError, parseDxfOutline, parseSvgOutline } from '../src/workspace/outline.ts';
-import { coord, stripStatus, UNKNOWN } from '../src/workspace/status.ts';
+import { coolantText, coord, NOT_REPORTED, spindleText, stripStatus, UNKNOWN } from '../src/workspace/status.ts';
 import { readStored, writeStored, type StorageLike } from '../src/workspace/storage.ts';
 import { allMaterials, doNotMachine, safeExternalLink, SEED_SETUP, toolStore } from '../src/workspace/library.ts';
 import { isPlaceholder } from '@synthetos/library';
@@ -62,8 +65,53 @@ describe('machine strip status', () => {
     const withFeed = stripStatus(view(snap({ live: { machineClass: 'running', vel: 1112, feed: 1500, line: 135, pos: {}, mpo: {} } } as Partial<Snapshot>)), null);
     expect(withFeed.title).toBe('Moving');
     expect(withFeed.readouts[0]?.value).toBe('1 112 / 1 500');
-    expect(withFeed.readouts.find((r) => r.label === 'Spindle, commanded')?.value).toBe(UNKNOWN);
+    expect(withFeed.readouts.find((r) => r.label === 'Spindle')?.value).toBe(UNKNOWN);
+    expect(withFeed.readouts.find((r) => r.label === 'Coolant')?.value).toBe(UNKNOWN);
     expect(withFeed.readouts.find((r) => r.label === 'Job')?.value).toBe('line 135');
+  });
+
+  it('spindle and coolant readouts: shown only when the board reports them, in plain words', () => {
+    const live = (extra: Record<string, unknown>) => ({ pos: {}, mpo: {}, ...extra }) as Snapshot['live'];
+    const strip = (extra: Record<string, unknown>) => stripStatus(view(snap({ live: live(extra) } as Partial<Snapshot>)), null);
+    const value = (s: ReturnType<typeof stripStatus>, label: string) => s.readouts.find((r) => r.label === label)?.value;
+    const on = strip({ srList: ['stat', 'spe', 'spc', 'spd', 'sps', 'cof', 'com'], spe: 1, spc: 1, spd: 0, sps: 18000, cof: 1, com: 0 });
+    expect(value(on, 'Spindle')).toBe('On · CW · 18 000 rpm commanded');
+    expect(value(on, 'Coolant')).toBe('Flood');
+    expect(on.spindleOn).toBe(true);
+    expect(spindleText(live({ spe: 1, spc: 2, sps: 7000 }))).toBe('On · CCW · 7 000 rpm commanded');
+    expect(spindleText(live({ spe: 0, spc: 0, spd: 1, sps: 0 }))).toBe('Off');
+    expect(coolantText(live({ cof: 0, com: 0 }))).toBe('Off');
+    expect(coolantText(live({ cof: 1, com: 1 }))).toBe('Flood and mist');
+    expect(coolantText(live({ cof: 0, com: 1 }))).toBe('Mist');
+    // Not in the board's status list (its answer to {sr:null}): said so. Status list not seen yet: the dash.
+    const absent = strip({ srList: ['line', 'posx', 'stat'] });
+    expect(value(absent, 'Spindle')).toBe(NOT_REPORTED);
+    expect(value(absent, 'Coolant')).toBe(NOT_REPORTED);
+    expect(NOT_REPORTED).toBe('Not reported by this board’s status list');
+    expect(absent.spindleOn).toBe(false);
+    expect(value(strip({}), 'Spindle')).toBe(UNKNOWN);
+    expect(value(strip({}), 'Coolant')).toBe(UNKNOWN);
+  });
+
+  it('the Run spindle card shows the reported readouts, "Off", "not reported", or the dash', () => {
+    const card = (liveExtra: Record<string, unknown> | null) => {
+      const model = createWorkspaceModel();
+      if (liveExtra !== null) model.live.value = view(snap({ live: { pos: {}, mpo: {}, ...liveExtra } } as Partial<Snapshot>));
+      const el = root(h(SpindleSection, { model }));
+      return { spindle: text(one(el, (e) => e.props['data-spindle'] === 'spindle')), coolant: text(one(el, (e) => e.props['data-spindle'] === 'coolant')), el };
+    };
+    const on = card({ spe: 1, spc: 1, spd: 0, sps: 18000, cof: 0, com: 1 });
+    expect(on.spindle).toBe('Spindle on · CW · 18 000 rpm commanded');
+    expect(on.coolant).toBe('Coolant: Mist');
+    expect(card({ spe: 0, spc: 0, sps: 0, cof: 0, com: 0 })).toMatchObject({ spindle: 'Off', coolant: 'Coolant: off' });
+    expect(card({ srList: ['stat'] })).toMatchObject({ spindle: NOT_REPORTED, coolant: `Coolant: ${NOT_REPORTED}` });
+    expect(card(null)).toMatchObject({ spindle: UNKNOWN, coolant: `Coolant: ${UNKNOWN}` });
+    // Display only: every spindle and coolant control stays disabled whatever the board reports.
+    const buttons = (function walk(e: typeof on.el): (typeof on.el)[] {
+      return [...(e.tag === 'button' ? [e] : []), ...e.children.flatMap((c) => (typeof c === 'string' ? [] : walk(c)))];
+    })(on.el);
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const b of buttons) expect(b.props['disabled']).toBe(true);
   });
 
   it('lost, orphaned and needs-review are said plainly', () => {

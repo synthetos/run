@@ -34,7 +34,7 @@
  * - `linear-disabled`, `linear-radius`: X, Y or Z disabled (`am=0`; TinyG
  *   ignores its words) or reading radius mode (`am=3`, which `cm_set_am`
  *   refuses on a linear axis; the words are ignored too) (@cite EN
- *   canonical_machine.c:506-519, :2601-2614; TG canonical_machine.c:444-454,
+ *   canonical_machine.c:510-523, :2616-2629; TG canonical_machine.c:444-454,
  *   :1723-1732).
  *
  * Every fact here is `unsafeForMotion`: later motion stays blocked while it

@@ -66,7 +66,7 @@ export interface ValidateContext {
   readonly declaredSwitchType?: 'NO' | 'NC';
 }
 
-/** The 8 TinyG switch inputs: min and max on X, Y, Z and A (EN switch.h; config_app.c:284-331). */
+/** The 8 TinyG switch inputs: min and max on X, Y, Z and A (EN switch.h; config_app.c:285-332). */
 export const SWITCH_KEYS = Object.freeze(['xsn', 'xsx', 'ysn', 'ysx', 'zsn', 'zsx', 'asn', 'asx'] as const);
 /** Bit 0 of a switch mode is "homing" (EN switch.h:40-45): modes 1 and 3 (the probe mode 4 does not have it). */
 const SW_HOMING_BIT = 0x01;

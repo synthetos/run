@@ -440,6 +440,42 @@ describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
     expect(d.state.live.tool).toBe(3);
   });
 
+  it('a report carries the spindle and coolant readouts as reported, for display only; the {sr:null} answer records the status list', () => {
+    const d = connected();
+    expect(d.state.live.srList).toEqual(['line', 'posx', 'posy', 'posz', 'vel', 'unit', 'stat']);
+    expect(d.state.live.spe).toBeUndefined();
+    const before = d.effects.length;
+    d.line('{"sr":{"spe":1,"spc":1,"spd":0,"sps":18000,"cof":1,"com":0}}');
+    expect(d.state.live).toMatchObject({ spe: 1, spc: 1, spd: 0, sps: 18000, cof: 1, com: 0 });
+    expect(d.state.overlays).toEqual(['READ_ONLY']);
+    d.line('{"sr":{"spe":"on"}}');
+    expect(d.state.live.spe).toBe(1);
+    // Nothing is written in answer to a readout: no setting write, no sr-list configuration.
+    expect(d.effects.slice(before).filter((e) => e.kind === 'writeLine' || e.kind === 'writeRealtime')).toEqual([]);
+  });
+
+  it('the spindle and coolant readouts never reach a safety decision: Pause, Stop job, Spindle off and FAULT entry are the same whatever they say', () => {
+    const run = (report: string): { effects: unknown[]; matrix: unknown; notices: unknown; overlays: unknown } => {
+      const d = connected(EN_ANSWERS, { manifest: EN_APPROVED });
+      d.line(report);
+      const before = d.effects.length;
+      d.at = 42;
+      d.intent({ intent: 'feedhold' });
+      d.intent({ intent: 'stopJob' });
+      d.intent({ intent: 'spindleOffNow' });
+      // A reset banner while connected is a FAULT; at rest (vel 0, stat 1) no feedhold follows, whatever the spindle says.
+      d.line(EN_READY_BANNER);
+      return { effects: d.effects.slice(before), matrix: matrixSnapshot(d.state), notices: d.state.notices, overlays: d.state.overlays };
+    };
+    const none = run('{"sr":{"vel":0}}');
+    const on = run('{"sr":{"spe":1,"spc":2,"spd":1,"sps":24000,"cof":1,"com":1}}');
+    const off = run('{"sr":{"spe":0,"spc":0,"spd":0,"sps":0,"cof":0,"com":0}}');
+    expect(on).toEqual(none);
+    expect(off).toEqual(none);
+    expect(realtime(none.effects as SessionEffect[])).toEqual([BYTE.FEEDHOLD, BYTE.FEEDHOLD, BYTE.FEEDHOLD]);
+    expect(none.overlays).toContain('FAULT');
+  });
+
   it('a report while connecting that shows no motion changes no overlay', () => {
     const d = new Driver();
     d.open();

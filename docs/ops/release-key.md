@@ -18,7 +18,7 @@ token.
     exact image). Signed with `env: "production"`. Only `run.synthetos.com`
     reads it. It stays empty until an image passes D5. (D4, the build
     number, is done: edge-next reports 450.01, at `ead63997` and still at the
-    current pin `97321391`.)
+    current pin `6ec70652`.)
 - **One artifact for both sites.** The code works out its environment from
   `location.origin`. It accepts a channel only when all of these hold:
   - the signature verifies;
@@ -100,9 +100,9 @@ section (and its line in `docs/LEAD_ACTIONS.md`) to be removed.
    `firmware/`, `releaseKeys.ts` and `approvedBuilds.ts`.
 4. **When an edge-next image passes D5 and is published (D6):** D4, the
    build number, is already done (450.01; the pinned commit is now
-   `97321391`). Then:
+   `6ec70652`). Then:
    - add the release build to the `release` channel, signed for production;
-   - if the published release commit is not `97321391`, re-pin
+   - if the published release commit is not `6ec70652`, re-pin
      `vendor/firmware-pins.json` and the dialect citations to it (PIN-1);
    - ask for the `fbs` token D4 recommends, so that entries can name the
      build hash (a `release` entry without `fbs` is refused).

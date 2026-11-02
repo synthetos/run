@@ -170,6 +170,29 @@ export interface LiveState {
   readonly feed?: number;
   /** The active tool number (`tool` in a status report), as reported; never inferred from G-code. */
   readonly tool?: number;
+  /**
+   * Spindle and coolant readouts (edge-next `spe`, `spc`, `spd`, `sps`, `cof`, `com`), as reported, when the
+   * board's status list carries them. DISPLAY ONLY: they report the outputs as last driven, each field is
+   * sampled on its own, and an M5/M9/M30 queued behind a move reads "on" until it runs. Nothing that decides
+   * a write, a stop or an overlay may read them (SAFETY §4.4).
+   */
+  /** Spindle enabled: 1 on, 0 off. */
+  readonly spe?: number;
+  /** Spindle control: 0 off, 1 CW, 2 CCW. */
+  readonly spc?: number;
+  /** Direction last driven: 0 CW, 1 CCW (kept while off). */
+  readonly spd?: number;
+  /** Speed in use after the clamp: commanded, never measured (TinyG has no speed sensor). */
+  readonly sps?: number;
+  /** Flood coolant output: 1 on, 0 off. */
+  readonly cof?: number;
+  /** Mist coolant output: 1 on, 0 off. */
+  readonly com?: number;
+  /**
+   * The keys of the full status report the board sent in answer to `{sr:null}` at connect: the fields its
+   * status list carries. Undefined until that answer arrives. Read, never written (no sr-list configuration).
+   */
+  readonly srList?: readonly string[];
   /** Work position (`posx`..`posc`) and machine position (`mpox`..`mpoc`), as reported. */
   readonly pos: Readonly<Partial<Record<Axis, number>>>;
   readonly mpo: Readonly<Partial<Record<Axis, number>>>;

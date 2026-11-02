@@ -27,6 +27,8 @@ export interface StripStatus {
   readonly pill: { readonly text: string; readonly tone: 'live' | 'warn' | 'danger' | 'ok' } | null;
   readonly text: string | null;
   readonly readouts: readonly Readout[];
+  /** The board reports the spindle on (`spe` 1): only picks the held wording "Paused · spindle still on". */
+  readonly spindleOn: boolean;
 }
 
 /** A number with a thin-space thousands separator, as the prototype shows them. */
@@ -56,6 +58,59 @@ export function boardLabel(view: LiveView): string {
   return parts.join(' · ');
 }
 
+type Live = NonNullable<LiveView['message']>['snapshot']['live'];
+
+/** Shown when the board's status list (its answer to `{sr:null}`) does not carry a readout. */
+export const NOT_REPORTED = 'Not reported by this board’s status list';
+
+export const SPINDLE_TITLE =
+  'What the controller reports it is driving the spindle output to, from its status reports. The speed is the commanded speed after the controller’s limits, never a measured one: TinyG has no speed sensor. A command queued behind a move shows only once it runs. For display only: never rely on it for safety.';
+export const COOLANT_TITLE =
+  'What the controller reports it is driving the flood and mist outputs to, from its status reports. A command queued behind a move shows only once it runs. For display only: never rely on it for safety.';
+
+function reported(v: number | undefined): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+/** Neither readout of a pair is known: a dash, or "not reported" when the board's status list lacks them. */
+function missing(live: Live | undefined, keys: readonly string[]): string {
+  const list = live?.srList;
+  return list !== undefined && !keys.some((k) => list.includes(k)) ? NOT_REPORTED : UNKNOWN;
+}
+
+/**
+ * The spindle as the board reports it (edge-next `spe`, `spc`, `spd`, `sps`): "On · CW · 18 000 rpm
+ * commanded", "Off", or the dash. Display only (each field is sampled on its own; outputs as driven).
+ */
+export function spindleText(live: Live | undefined): string {
+  const spe = live?.spe;
+  const spc = live?.spc;
+  if (!reported(spe) && !reported(spc)) return missing(live, ['spe', 'spc']);
+  const on = reported(spe) ? spe === 1 : spc === 1 || spc === 2;
+  if (!on) return 'Off';
+  const parts = ['On'];
+  const dir = spc === 1 ? 'CW' : spc === 2 ? 'CCW' : live?.spd === 0 ? 'CW' : live?.spd === 1 ? 'CCW' : null;
+  if (dir !== null) parts.push(dir);
+  const sps = live?.sps;
+  if (reported(sps)) parts.push(`${num(sps)} rpm commanded`);
+  return parts.join(' · ');
+}
+
+/** Flood (`cof`) and mist (`com`) as the board reports them: "Off", "Flood", "Mist", "Flood and mist", or the dash. */
+export function coolantText(live: Live | undefined): string {
+  const cof = live?.cof;
+  const com = live?.com;
+  if (!reported(cof) && !reported(com)) return missing(live, ['cof', 'com']);
+  const on = [cof === 1 ? 'Flood' : null, com === 1 ? 'mist' : null].filter((x): x is string => x !== null);
+  if (on.length === 0) return reported(cof) && reported(com) ? 'Off' : cof === 0 ? 'Flood off' : 'Mist off';
+  return on.length === 2 ? 'Flood and mist' : on[0] === 'mist' ? 'Mist' : 'Flood';
+}
+
+/** The board reports the spindle on (`spe` 1). Only for the "Paused · spindle still on" wording; never a decision. */
+export function spindleReportedOn(view: LiveView): boolean {
+  return view.message?.snapshot.live.spe === 1;
+}
+
 const MOVING = new Set(['running', 'jogging', 'homing', 'probing']);
 const ALARM = new Set(['alarm', 'shutdown', 'panic', 'softAlarm', 'interlock']);
 
@@ -77,8 +132,8 @@ function readouts(view: LiveView): readonly Readout[] {
       unit: feedValue === UNKNOWN ? '' : units(view),
       title: 'Actual velocity over commanded feed, from the controller’s status reports. A dash means not reported yet.',
     },
-    { label: 'Spindle, commanded', value: UNKNOWN, title: 'No spindle command was sent from this page. TinyG has no spindle speed sensor: Run shows the last commanded speed, never an actual speed.' },
-    { label: 'Coolant', value: UNKNOWN, title: 'No coolant command was sent from this page. The controller does not report coolant.' },
+    { label: 'Spindle', value: spindleText(live), title: SPINDLE_TITLE },
+    { label: 'Coolant', value: coolantText(live), title: COOLANT_TITLE },
     { label: 'Job', value: line === null ? UNKNOWN : `line ${num(line)}`, title: line === null ? 'No job is running from this page. Running jobs arrives in a later phase.' : 'The line the controller reports executing.' },
   ];
 }
@@ -89,9 +144,9 @@ export function stripStatus(view: LiveView, machineName: string | null): StripSt
   const entry = view.entry.step;
   if (s === null || s.base === 'NOT_CONNECTED') {
     const title = entry === 'checking' ? 'Checking before connect' : entry === 'opening' ? 'Choosing the port' : entry === 'c1' ? 'Confirm to connect' : 'Not connected';
-    return { connected: false, title, name: machineName ?? 'No board connected', tone: 'off', pill: null, text: null, readouts: [] };
+    return { connected: false, title, name: machineName ?? 'No board connected', tone: 'off', pill: null, text: null, readouts: [], spindleOn: false };
   }
-  const base = { connected: true, name, readouts: readouts(view) };
+  const base = { connected: true, name, readouts: readouts(view), spindleOn: spindleReportedOn(view) };
   const o = s.overlays;
   if (o.includes('LOST')) return { ...base, title: 'Connection lost', tone: 'alarm', pill: { text: 'Lost', tone: 'danger' }, text: 'The machine may still be moving. Use your E-stop if anything is unsafe.' };
   if (o.includes('FAULT')) return { ...base, title: 'Fault', tone: 'alarm', pill: { text: 'Fault', tone: 'danger' }, text: s.fault?.detail ?? 'The session stopped trusting the link.' };

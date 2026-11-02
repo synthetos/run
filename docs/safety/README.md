@@ -18,7 +18,7 @@
 
 Later in-repo changes to `/SAFETY.md`, also to carry upstream: the
 2026-11-02 bench amendments to H49 (marked "Amended 2026-11-02"), and on the
-2026-11-02 re-pin to edge-next `97321391` the EN `file:line` citations that
-moved (the text they cite is unchanged).
+2026-11-02 re-pins to edge-next `97321391` and then `6ec70652` the EN
+`file:line` citations that moved (the text they cite is unchanged).
 
 Both files are read by tests. A change to either needs safety-path review.

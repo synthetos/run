@@ -16,7 +16,7 @@ import { machineLockName, parseStopAck, parseStopRequest, STOP_ACK_TIMEOUT_MS, t
 import { MachineStopService, type StopSession } from '../src/machine-worker/stopService.ts';
 import { forgetDeviceSafety, memoryDeviceSafety } from '../src/live/deviceSafety.ts';
 import { ObserverPanel } from '../src/live/ObserverPanel.ts';
-import { StopControls } from '../src/live/stopControls.ts';
+import { atRest, mayBeMoving, StopControls } from '../src/live/stopControls.ts';
 import { installEscapeStop, LockWatcher, NO_ROLE, TabStop, type StopOutcome, type Timers } from '../src/live/tabStop.ts';
 import { type StopBarView } from '../src/shell/SafetyBar.ts';
 import { MachineStrip } from '../src/workspace/MachineStrip.ts';
@@ -426,6 +426,21 @@ describe('StopControls', () => {
     expect(c.view.value.prominent).toBe(false);
   });
 
+  it('the spindle and coolant readouts never change the stop controls: same view, same prominence, same "at rest"', () => {
+    const readouts = [{}, { spe: 1, spc: 1, spd: 0, sps: 18000, cof: 1, com: 1 }, { spe: 0, spc: 0, spd: 1, sps: 0, cof: 0, com: 0 }];
+    for (const machineClass of ['idle', 'running', 'held', 'end']) {
+      const views = readouts.map((r) => {
+        const { c } = controls();
+        c.setLive(true);
+        const s = at(machineClass, { live: { machineClass, vel: 0, pos: {}, mpo: {}, srList: ['stat', 'spe', 'cof'], ...r } });
+        c.setSnapshot(s);
+        return { view: c.view.value, moving: mayBeMoving(s), rest: atRest(s) };
+      });
+      expect(views[1], machineClass).toEqual(views[0]);
+      expect(views[2], machineClass).toEqual(views[0]);
+    }
+  });
+
   it('a Pause pressed while the machine was at rest is reported as "nothing changed"', async () => {
     const { c, settle } = controls();
     c.setLive(true);
@@ -504,6 +519,17 @@ describe('machine strip stop controls and observer panel', () => {
     expect(text(one(el, (e) => e.props['data-strip'] === 'state'))).toBe(STOP_TEXT.paused);
     expect(text(el)).not.toMatch(/STOPPED/);
     expect(text(bar({ available: true, band: 'pause-requested', outcome: null }))).toContain(STOP_TEXT.pauseRequested);
+  });
+
+  it('held with the board reporting spe=1: "Paused · spindle still on"; never without that report', () => {
+    const held = (spindleOn: boolean) =>
+      root(h(MachineStrip, { status: { ...status, connected: true, spindleOn }, stop: { available: true, prominent: true, band: 'held', outcome: null }, previousSession: false }));
+    expect(text(one(held(true), (e) => e.props['data-strip'] === 'state'))).toBe(STOP_TEXT.pausedSpindleOn);
+    expect(STOP_TEXT.pausedSpindleOn).toBe('Paused · spindle still on');
+    expect(text(one(held(false), (e) => e.props['data-strip'] === 'state'))).toBe(STOP_TEXT.paused);
+    // Not held: the readout never changes the state title.
+    const idle = root(h(MachineStrip, { status: { ...status, connected: true, spindleOn: true }, stop: { available: true, prominent: false, band: null, outcome: null }, previousSession: false }));
+    expect(text(one(idle, (e) => e.props['data-strip'] === 'state'))).toBe(status.title);
   });
 
   it('Pause (W2) and Stop job are enabled and act while available; disabled otherwise', () => {

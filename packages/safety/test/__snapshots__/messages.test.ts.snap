@@ -1072,7 +1072,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en text-after": [
     {
       "line": 1,
-      "message": "Comments end the block, so text after one is silently dropped (PN §9.3; @cite EN gcode_parser.c:108-140).",
+      "message": "Comments end the block, so text after one is silently dropped (PN §9.3; @cite EN gcode_parser.c:110-142).",
       "rule": "text-after-comment",
       "severity": "block",
     },

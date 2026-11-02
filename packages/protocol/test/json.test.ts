@@ -65,7 +65,7 @@ describe('parseJson: strict JSON', () => {
 });
 
 describe('parseJson: TinyG relaxed syntax', () => {
-  it('accepts bare keys made of token characters (EN json_parser.c:101-104)', () => {
+  it('accepts bare keys made of token characters (EN json_parser.c:102-105)', () => {
     expect(ok('{er:{fb:440.21,st:204,msg:"Limit switch hit"}}')).toEqual({
       er: { fb: 440.21, st: 204, msg: 'Limit switch hit' },
     });

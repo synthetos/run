@@ -3,13 +3,13 @@
  * P0-11, RUN_PLAN §8.1), the primary target.
  *
  * Every behaviour a safety claim depends on is tagged `@behaviour <id>` here
- * and listed, with its `@cite` (file:line at edge-next 97321391,
+ * and listed, with its `@cite` (file:line at edge-next 6ec70652,
  * `vendor/firmware-pins.json`) and `@status`, in `behaviours.ts`, from which
  * STATUS.md is generated. Citations are `firmware/tinyg/<file>:<line>`.
  *
  * Structure follows the firmware so a reviewer can read the two side by side:
- * - `receive()` is the USB RX ISR (xio/xio_usb.c:191-273);
- * - `#pass()` is one pass of `_controller_HSM()` (controller.c:156-201);
+ * - `receive()` is the USB RX ISR (xio/xio_usb.c:193-276);
+ * - `#pass()` is one pass of `_controller_HSM()` (controller.c:157-203);
  * - `#readline()` is `_readline_linemode()` / `_readline_charmode()` (xio.c);
  * - `#gets()` is `_gets_helper()` (xio/xio_usart.c:263-372);
  * - `#alarm()`, `#requestFeedhold()`, `#clear()` ... mirror canonical_machine.c.
@@ -263,7 +263,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
-   * The USB RX ISR (@cite EN xio/xio_usb.c:191-273). Realtime characters are
+   * The USB RX ISR (@cite EN xio/xio_usb.c:193-276). Realtime characters are
    * trapped before the ring-full test, so they act even when the ring is full.
    */
   receive(byte: number, overrun: boolean): void {
@@ -282,12 +282,12 @@ export class TinyGEdgeNextModel implements SimDevice {
       return;
     }
     if (byte === CHAR.KILL) {
-      this.#jobKillRequested = true; // :168-171, raised from the main loop (canonical_machine.c:1864-1867)
+      this.#jobKillRequested = true; // :168-171, raised from the main loop (canonical_machine.c:1879-1882)
       this.#wake();
       return;
     }
     if (!this.#rxInLine && byte === CHAR.FLUSH) {
-      // @behaviour EN-RT-FLUSH: line boundary only (:213-221)
+      // @behaviour EN-RT-FLUSH: line boundary only (:217-225)
       this.#requestQueueFlush();
       if (this.#queueFlushInput) {
         this.#flushMarked = true;
@@ -341,7 +341,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   injectLimitSwitch(input: number): void {
-    // controller_assert_limit_condition() (@cite EN controller.c:484-487)
+    // controller_assert_limit_condition() (@cite EN controller.c:486-489)
     this.#limitAsserted = input;
     this.#wake();
   }
@@ -420,7 +420,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#motorOffTimer = undefined;
     this.#resetRam();
     // EEPROM: a record-0 layout marker other than layout 2 means "not set up": write the defaults
-    // (@behaviour EN-EEPROM; @cite EN config.c:204-211, :254-272).
+    // (@behaviour EN-EEPROM; @cite EN config.c:213-220, :263-281).
     const fresh = this.settings.eeprom['__layout'] !== 10002;
     if (fresh) {
       this.settings.resetToDefaults();
@@ -439,7 +439,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     const delay = (this.#options.bootMs ?? DEFAULT_BOOT_MS) + this.#bannerDelayMs;
     this.#bootTimer = clock.setTimeout(() => {
       this.#bootTimer = undefined;
-      // @behaviour EN-BANNER: bare `sr` banners, always strict (@cite EN report.c:68-100; config.c:223, :271; controller.c:209-213)
+      // @behaviour EN-BANNER: bare `sr` banners, always strict (@cite EN report.c:68-100; config.c:232, :280; controller.c:211-215)
       this.#banner(fresh ? 'Initializing configs to default settings' : 'Loading configs from EEPROM');
       this.#machine = 'ready';
       this.#banner('SYSTEM READY');
@@ -544,7 +544,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
-   * One pass of `_controller_HSM()` (@cite EN controller.c:156-201). A
+   * One pass of `_controller_HSM()` (@cite EN controller.c:157-203). A
    * routine returning EAGAIN ends the pass, so lower routines wait. Returns
    * true if anything happened.
    */
@@ -561,7 +561,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#feedholdSequencing(now);
     this.#motion.advance(now);
     if (!this.#syncToMotion()) return this.#progress !== before;
-    // @behaviour EN-PLANNER: a line is read only with 12 free buffers (@cite EN controller.c:616-622)
+    // @behaviour EN-PLANNER: a line is read only with 12 free buffers (@cite EN controller.c:618-624)
     if (this.#motion.available() < PLANNER_HEADROOM) return this.#progress !== before;
     this.#dispatchCommand();
     return this.#progress !== before;
@@ -576,12 +576,12 @@ export class TinyGEdgeNextModel implements SimDevice {
   #enquiryHandler(): void {
     if (!this.#enquiryRequested) return;
     this.#enquiryRequested = false;
-    // @behaviour EN-RT-ENQ: answered from the main loop (@cite EN controller.c:538-544)
+    // @behaviour EN-RT-ENQ: answered from the main loop (@cite EN controller.c:540-546)
     this.#println('{"ack":true}');
   }
 
   #limitSwitchHandler(): void {
-    // @behaviour EN-LIMIT (@cite EN controller.c:489-510)
+    // @behaviour EN-LIMIT (@cite EN controller.c:491-512)
     if (this.#machine === 'alarm' || this.#machine === 'panic' || this.#machine === 'shutdown') return;
     if (this.#limitAsserted === 0) return;
     const input = this.#limitAsserted;
@@ -614,23 +614,23 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (read === null) return;
     this.#progress++;
     if (read === 'damaged') {
-      // @behaviour EN-E162: a line that lost bytes never runs; the first raises ALARM 13 (@cite EN controller.c:258-268)
+      // @behaviour EN-E162: a line that lost bytes never runs; the first raises ALARM 13 (@cite EN controller.c:260-270)
       this.#alarm(ST('BUFFER_FULL'), 'input lost');
       this.#respond(ST('BUFFER_FULL'), {}, undefined);
       return;
     }
     if (read.overflow) {
-      // @behaviour EN-OVERLONG: one error, never run, no alarm (@cite EN controller.c:241-250)
+      // @behaviour EN-OVERLONG: one error, never run, no alarm (@cite EN controller.c:243-252)
       this.#respond(ST('INPUT_EXCEEDS_MAX_LENGTH'), {}, undefined);
       return;
     }
     this.#dispatchKernel(read.line);
   }
 
-  /** `_dispatch_kernel()` (@cite EN controller.c:355-418). */
+  /** `_dispatch_kernel()` (@cite EN controller.c:357-420). */
   #dispatchKernel(raw: string): void {
     let line = raw.replace(/^[ \t"]+/, '');
-    // @behaviour EN-TEXT-MODE: a stray leading `?` is stripped and the rest runs (E053, :365-369)
+    // @behaviour EN-TEXT-MODE: a stray leading `?` is stripped and the rest runs (E053, :367-371)
     if (line.startsWith('?') && line.length > 1) line = line.slice(1);
     const c = line[0];
     if (c === undefined) {
@@ -653,7 +653,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       this.#textPrompt();
     } else {
       const status = this.#gcodeParser(line);
-      // controller_defer_motion_response(): an accepted M400 answers when drained (@cite EN controller.c:572-581)
+      // controller_defer_motion_response(): an accepted M400 answers when drained (@cite EN controller.c:574-583)
       if (this.#motionSyncRequested !== null && status !== 0) this.#motionSyncRequested = null;
       if (this.#motionSyncRequested === null) this.#respondGcode(status, line);
     }
@@ -663,7 +663,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
   }
 
-  /** `_sync_to_motion()`: M400 holds the next data line until drained (@cite EN controller.c:583-614). */
+  /** `_sync_to_motion()`: M400 holds the next data line until drained (@cite EN controller.c:585-616). */
   #syncToMotion(): boolean {
     if (this.#motionSync === null) return true;
     const alarmed = this.#isAlarmed();
@@ -688,8 +688,8 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
-   * @behaviour EN-RX-LINEMODE: `_readline_linemode()` (@cite EN xio.c:843-902).
-   * Control lines are served before data lines (@cite EN xio.c:716-752).
+   * @behaviour EN-RX-LINEMODE: `_readline_linemode()` (@cite EN xio.c:862-921).
+   * Control lines are served before data lines (@cite EN xio.c:735-771).
    */
   #readlineLineMode(flags: 'ctrl' | 'both'): ReadResult {
     // 1. free the PROCESSING buffer
@@ -731,22 +731,22 @@ export class TinyGEdgeNextModel implements SimDevice {
     return RX_POOL_SIZE - bytes > RX_REQUESTED_SIZE;
   }
 
-  /** Free line headers, as footer revision 3 reports them (@cite EN xio.c:483). */
+  /** Free line headers, as footer revision 3 reports them (@cite EN xio.c:502). */
   #freeHeaders(): number {
     return RX_HEADERS - this.#pool.length - (this.#filling ? 1 : 0);
   }
 
   #postLine(text: string, overflow: boolean): void {
-    // _post_buffer() drops blank lines; an overlong line is posted flagged (@cite EN xio.c:580-610, :704-714)
+    // _post_buffer() drops blank lines; an overlong line is posted flagged (@cite EN xio.c:599-629, :723-733)
     const trimmed = text.replace(/^[\x00-\x20]+/, '');
     if (trimmed === '' && !overflow) return;
     this.#pool.push({ text: trimmed, kind: classifyLine(trimmed), overflow, state: 'full' });
   }
 
-  /** `_readline_charmode()` (@cite EN xio.c:952-1001): a data line read while only control is wanted is held. */
+  /** `_readline_charmode()` (@cite EN xio.c:971-1020): a data line read while only control is wanted is held. */
   #readlineCharMode(flags: 'ctrl' | 'both'): ReadResult {
     // E164: character-mode footers report every byte read since the previous reply, blank lines included
-    // (@cite EN controller.c:277-284). A line counts when readline hands it over.
+    // (@cite EN controller.c:279-286). A line counts when readline hands it over.
     if (this.#charHeld !== null) {
       if (flags !== 'both') return null;
       const held = this.#charHeld;
@@ -756,7 +756,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
     const status = this.#gets();
     if (status === 'EAGAIN') return null;
-    if (status === 'DAMAGED') return 'damaged'; // a damaged line has no length (@cite EN xio.c:968-972)
+    if (status === 'DAMAGED') return 'damaged'; // a damaged line has no length (@cite EN xio.c:987-991)
     const text = this.#takePartial();
     if (status === 'OVERFLOW') {
       this.#linelen += text.length + 1;
@@ -861,7 +861,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   // Canonical machine
   // =====================================================================
 
-  /** `cm_get_combined_state()` (@cite EN canonical_machine.c:180-216); @behaviour EN-STAT */
+  /** `cm_get_combined_state()` (@cite EN canonical_machine.c:184-220); @behaviour EN-STAT */
   #stat(): number {
     switch (this.#machine) {
       case 'initializing':
@@ -883,7 +883,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
   }
 
-  /** `cm_is_alarmed()` (@cite EN canonical_machine.c:742-748). */
+  /** `cm_is_alarmed()` (@cite EN canonical_machine.c:746-752). */
   #isAlarmed(): number {
     if (this.#machine === 'alarm') return ST('COMMAND_REJECTED_BY_ALARM');
     if (this.#machine === 'panic') return ST('COMMAND_REJECTED_BY_PANIC');
@@ -892,7 +892,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
-   * `cm_alarm()` (@cite EN canonical_machine.c:806-851). @behaviour EN-ALARM
+   * `cm_alarm()` (@cite EN canonical_machine.c:810-855). @behaviour EN-ALARM
    * Idle (nothing moving, incl. a dwell): HOLD at once and a stepper reset
    * stops the dwell (E044). Moving: feedhold plus planner flush. Either way
    * the spindle and coolant go off immediately (E019) and host input is kept
@@ -920,7 +920,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#progress++;
   }
 
-  /** `cm_clear()` (@cite EN canonical_machine.c:707-736). */
+  /** `cm_clear()` (@cite EN canonical_machine.c:711-740). */
   #clear(): void {
     if (this.#machine === 'alarm') {
       this.#machine = 'programStop';
@@ -940,7 +940,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
   }
 
-  /** `cm_shutdown()` (@cite EN canonical_machine.c:870-888). */
+  /** `cm_shutdown()` (@cite EN canonical_machine.c:874-892). */
   #shutdown(status: number, msg: string): void {
     if (this.#machine === 'shutdown' || this.#machine === 'panic') return;
     this.#haltMotion();
@@ -952,7 +952,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#exception(status, msg);
   }
 
-  /** `cm_panic()` (@cite EN canonical_machine.c:908-919). @behaviour EN-PANIC: only ^X leaves it. */
+  /** `cm_panic()` (@cite EN canonical_machine.c:912-923). @behaviour EN-PANIC: only ^X leaves it. */
   #panic(status: number, msg: string): void {
     if (this.#machine === 'panic') return;
     this.#haltMotion();
@@ -963,7 +963,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#exception(status, msg);
   }
 
-  /** `cm_halt_motion()` (@cite EN canonical_machine.c:766-773). */
+  /** `cm_halt_motion()` (@cite EN canonical_machine.c:770-777). */
   #haltMotion(): void {
     this.#motion.halt(this.#now());
     this.#cycle = 'off';
@@ -974,7 +974,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   /**
    * @behaviour EN-RT-FEEDHOLD: `cm_request_feedhold()` honours `!` only while
    * moving; during the 50 ms startup delay it holds at once
-   * (@cite EN canonical_machine.c:1775-1781; planner.c:452-468).
+   * (@cite EN canonical_machine.c:1789-1795; planner.c:452-468).
    */
   #requestFeedhold(): void {
     if (this.#startupPending) {
@@ -991,10 +991,10 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   #requestEndHold(): void {
-    if (this.#hold !== HOLD.OFF) this.#endHoldRequested = true; // @cite EN canonical_machine.c:1783-1788
+    if (this.#hold !== HOLD.OFF) this.#endHoldRequested = true; // @cite EN canonical_machine.c:1797-1802
   }
 
-  /** `cm_request_queue_flush()` (@cite EN canonical_machine.c:1790-1804). */
+  /** `cm_request_queue_flush()` (@cite EN canonical_machine.c:1804-1819). */
   #requestQueueFlush(): void {
     this.#requestPlannerFlush();
     if (this.#queueFlushRequested) {
@@ -1007,11 +1007,11 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (this.#hold !== HOLD.OFF && !this.#queueFlushRequested) this.#queueFlushRequested = true;
   }
 
-  /** `cm_feedhold_sequencing_callback()` (@cite EN canonical_machine.c:1862-1881). */
+  /** `cm_feedhold_sequencing_callback()` (@cite EN canonical_machine.c:1877-1896). */
   #feedholdSequencing(now: number): void {
     if (this.#jobKillRequested) {
       this.#jobKillRequested = false;
-      // @behaviour EN-RT-KILL: ^D is ALARM 207 (@cite EN canonical_machine.c:1864-1867)
+      // @behaviour EN-RT-KILL: ^D is ALARM 207 (@cite EN canonical_machine.c:1879-1882)
       this.#alarm(ST('KILL_JOB'), 'job kill');
     }
     if (this.#hold === HOLD.REQUESTED || this.#hold === HOLD.SYNC) this.#startHold(now);
@@ -1020,7 +1020,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (this.#endHoldRequested && !this.#queueFlushRequested) this.#endHold(now);
   }
 
-  /** `cm_start_hold()` (@cite EN canonical_machine.c:1889-1911). */
+  /** `cm_start_hold()` (@cite EN canonical_machine.c:1904-1926). */
   #startHold(now: number): void {
     const runnable = this.#motion.queue.length > 0;
     if (this.#hold === HOLD.REQUESTED && runnable) {
@@ -1037,7 +1037,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
   }
 
-  /** `_run_requested_queue_flush()` (@cite EN canonical_machine.c:1846-1860). */
+  /** `_run_requested_queue_flush()` (@cite EN canonical_machine.c:1861-1875). */
   #runRequestedQueueFlush(now: number): void {
     if (!this.#motion.runtimeIdle() || (this.#hold !== HOLD.OFF && this.#hold !== HOLD.REQUESTED && this.#hold !== HOLD.HOLD)) return;
     if (this.#queueFlushInput) {
@@ -1052,7 +1052,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
   }
 
-  /** `cm_queue_flush()` (@cite EN canonical_machine.c:1985-2010). */
+  /** `cm_queue_flush()` (@cite EN canonical_machine.c:2000-2025). */
   #queueFlush(now = this.#now()): void {
     if (!this.#motion.runtimeIdle()) return;
     this.#motion.flush(now);
@@ -1068,7 +1068,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#progress++;
   }
 
-  /** `_service_input_flush()`: drop the host input that came before the `%` (E146, @cite EN xio/xio_usb.c:312-339). */
+  /** `_service_input_flush()`: drop the host input that came before the `%` (E146, @cite EN xio/xio_usb.c:346-373). */
   #serviceInputFlush(): void {
     if (!this.#queueFlushInputDue) return;
     this.#queueFlushInputDue = false;
@@ -1087,7 +1087,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#progress++;
   }
 
-  /** `cm_end_hold()` (@cite EN canonical_machine.c:1913-1940). */
+  /** `cm_end_hold()` (@cite EN canonical_machine.c:1928-1955). */
   #endHold(now: number): void {
     if (this.#hold !== HOLD.HOLD) return;
     this.#programPaused = false;
@@ -1110,7 +1110,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#motionState = this.#motion.queue.length > 0 ? 'run' : 'stop';
   }
 
-  /** `cm_cycle_start()` (@cite EN canonical_machine.c:2082-2098). */
+  /** `cm_cycle_start()` (@cite EN canonical_machine.c:2097-2113). */
   #cycleStart(): void {
     if (this.#programPaused) return;
     this.#machine = 'cycle';
@@ -1119,7 +1119,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
-   * `cm_cycle_end()` (@cite EN canonical_machine.c:2100-2116). No alarm guard:
+   * `cm_cycle_end()` (@cite EN canonical_machine.c:2115-2131). No alarm guard:
    * a cycle that ends while ALARM is set finalizes to PROGRAM_STOP
    * (@behaviour EN-CYCLE-END-ALARM).
    */
@@ -1128,7 +1128,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (this.#cycle !== 'off') this.#programFinalize('programStop');
   }
 
-  /** `_exec_program_finalize()` (@cite EN canonical_machine.c:2064-2080). */
+  /** `_exec_program_finalize()` (@cite EN canonical_machine.c:2079-2095). */
   #programFinalize(state: 'programStop' | 'programEnd'): void {
     this.#machine = state;
     this.#motionState = 'stop';
@@ -1147,7 +1147,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#flood = false;
   }
 
-  /** `cm_outputs_inhibited()` (@cite EN canonical_machine.c:1584-1589). @behaviour EN-OUTPUTS-INHIBITED */
+  /** `cm_outputs_inhibited()` (@cite EN canonical_machine.c:1596-1601). @behaviour EN-OUTPUTS-INHIBITED */
   #outputsInhibited(): boolean {
     return this.#machine === 'alarm' || this.#machine === 'shutdown' || this.#machine === 'panic';
   }
@@ -1214,7 +1214,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   // G-code
   // =====================================================================
 
-  /** `gc_gcode_parser()` (@cite EN gcode_parser.c:57-87). */
+  /** `gc_gcode_parser()` (@cite EN gcode_parser.c:58-89). */
   #gcodeParser(line: string): number {
     const norm = normalizeBlock(line, EN_GCODE_SYNTAX);
     if (norm.block === '') return 0;
@@ -1229,7 +1229,7 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   /**
    * `_parse_clear()`: only a standalone M2, M02, M30 (optionally after N<k>)
-   * clears ALARM (@cite EN gcode_parser.c:191-204). @behaviour EN-M2-CLEARS-ALARM
+   * clears ALARM (@cite EN gcode_parser.c:193-206). @behaviour EN-M2-CLEARS-ALARM
    */
   #parseClear(block: string): void {
     if (this.#machine !== 'alarm') return;
@@ -1242,7 +1242,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (s === 'M2' || s === 'M02' || s === 'M30') this.#clear();
   }
 
-  /** `_parse_gcode_block()` + `_validate_gcode_block()` + `_execute_gcode_block()` (@cite EN gcode_parser.c:290-722). */
+  /** `_parse_gcode_block()` + `_validate_gcode_block()` + `_execute_gcode_block()` (@cite EN gcode_parser.c:292-724). */
   #parseAndExecute(words: readonly Word[], block: string): number {
     const g: GcodeInput = { target: [undefined, undefined, undefined, undefined, undefined, undefined], offsets: [undefined, undefined, undefined] };
     const modal = new Set<string>();
@@ -1321,9 +1321,9 @@ export class TinyGEdgeNextModel implements SimDevice {
             if (!setModal('M8') || g.mist === true || g.flood === true) return ST('GCODE_MODAL_GROUP_VIOLATION');
             g.flood = false;
           } else if (int >= 48 && int <= 51) {
-            return ST('MCODE_COMMAND_UNSUPPORTED'); // @cite EN gcode_parser.c:501-504
+            return ST('MCODE_COMMAND_UNSUPPORTED'); // @cite EN gcode_parser.c:503-506
           } else if (int === 400) {
-            // M400 must be alone on the line, an N prefix allowed (@cite EN gcode_parser.c:508-521)
+            // M400 must be alone on the line, an N prefix allowed (@cite EN gcode_parser.c:510-523)
             if (!/^(N\d+)?M400$/.test(block)) return ST('COMMAND_NOT_ACCEPTED');
             if (g.nextAction !== undefined) return ST('GCODE_MODAL_GROUP_VIOLATION');
             g.nextAction = 'motionSync';
@@ -1387,14 +1387,14 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (g.linenum !== undefined) gm.linenum = g.linenum;
     // @behaviour EN-FEED-UNITS-ORDER: cm_set_feed_rate() runs before cm_set_units_mode(), and _to_millimeters()
     // reads the model's units, so F in a block that also changes G20/G21 is in the PREVIOUS units
-    // (@cite EN gcode_parser.c:632-634, :654; canonical_machine.c:1364-1373; canonical_machine.h:42)
+    // (@cite EN gcode_parser.c:634-636, :656; canonical_machine.c:1368-1377; canonical_machine.h:42)
     if (g.feed !== undefined) gm.feed = g.feed * this.#unitFactor(undefined);
     if (g.s !== undefined) gm.spindleSpeed = g.s;
     if (g.tool !== undefined) gm.tool = g.tool;
     if (g.toolChange === true) this.#queueCommand('M6 tool change', () => undefined); // stores the tool only (PN §9.3)
     if (g.spindle !== undefined) {
       const mode = g.spindle;
-      // Spindle M-codes are queued and run in order; outputs stay off while inhibited (@cite EN spindle.c:139-150)
+      // Spindle M-codes are queued and run in order; outputs stay off while inhibited (@cite EN spindle.c:182-193)
       this.#queueCommand(`spindle ${mode}`, () => {
         // @behaviour EN-SPINDLE-QUEUED
         this.#spindle = this.#outputsInhibited() ? 'off' : mode;
@@ -1425,7 +1425,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     let status = 0;
     switch (g.nextAction) {
       case 'motionSync':
-        // controller_request_motion_sync() (@cite EN controller.c:559-570)
+        // controller_request_motion_sync() (@cite EN controller.c:561-572)
         if (this.#motionSync !== null) return ST('COMMAND_NOT_ACCEPTED');
         this.#motionSyncRequested = { tid: this.#currentTid };
         break;
@@ -1453,7 +1453,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (status !== 0) return status;
     if (g.programFlow === 'stop') this.#programStop();
     else if (g.programFlow === 'optionalStop') {
-      // @behaviour EN-M1-OS: M1 stops only with `os`=1 (@cite EN canonical_machine.c:2132-2135)
+      // @behaviour EN-M1-OS: M1 stops only with `os`=1 (@cite EN canonical_machine.c:2147-2150)
       if (this.settings.num('os') === 1) this.#programStop();
     } else if (g.programFlow === 'end') this.#programEnd();
     return 0;
@@ -1474,8 +1474,8 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
-   * `cm_set_model_target()` (@cite EN canonical_machine.c:491-532) with axis modes and rotary radius mode
-   * (@behaviour EN-AXIS-MODES). G53 only zeroes the offset (cm_get_active_coord_offset, :310-320);
+   * `cm_set_model_target()` (@cite EN canonical_machine.c:495-536) with axis modes and rotary radius mode
+   * (@behaviour EN-AXIS-MODES). G53 only zeroes the offset (cm_get_active_coord_offset, :314-324);
    * the distance mode still applies, as on the board.
    */
   #resolveTarget(g: GcodeInput): Vec {
@@ -1491,7 +1491,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
-   * Soft limits when `sl`=1 (@cite EN canonical_machine.c:545-563). @behaviour EN-SOFT-LIMITS: every homed
+   * Soft limits when `sl`=1 (@cite EN canonical_machine.c:549-567). @behaviour EN-SOFT-LIMITS: every homed
    * axis X..C; an axis whose ends are fp_EQ is skipped; an end at or below DISABLE_SOFT_LIMIT is not tested.
    */
   #testSoftLimits(target: Vec): number {
@@ -1505,7 +1505,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     const target = this.#resolveTarget(g);
     const soft = this.#testSoftLimits(target);
     if (soft !== 0) {
-      this.#alarm(soft, 'soft limit'); // cm_alarm on a soft limit (@cite EN canonical_machine.c:1236-1239, :1444-1447)
+      this.#alarm(soft, 'soft limit'); // cm_alarm on a soft limit (@cite EN canonical_machine.c:1240-1243, :1448-1451)
       return soft;
     }
     const from = gm.position;
@@ -1518,7 +1518,7 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   /**
    * `cm_arc_feed()` for a G17 center-format arc (@cite EN plan_arc.c:112-271). Called for every block in
-   * G2/G3 motion mode with no other next action, as the executor does (@cite EN gcode_parser.c:690-705).
+   * G2/G3 motion mode with no other next action, as the executor does (@cite EN gcode_parser.c:692-707).
    * @behaviour EN-ARC-COINCIDENT: end points fp_EQ to the start in both plane axes are a full circle; an
    * fp_ZERO angular travel is an alarm (arcs.ts, @cite EN plan_arc.c:324-350).
    * @behaviour EN-ARC-SOFT-LIMITS: the endpoint and the plane extremes the arc actually sweeps are checked,
@@ -1604,7 +1604,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   #queueMove(path: Path, feed: number): void {
-    // _queue_line(): the cycle starts before the move is queued (@cite EN canonical_machine.c:1188-1208)
+    // _queue_line(): the cycle starts before the move is queued (@cite EN canonical_machine.c:1192-1212)
     this.#cycleStart();
     const block: Block = { kind: 'move', path, feed, line: this.#gm.linenum };
     // The startup gate opens when the first ALINE meets an empty, idle planner (@cite EN planner.c:493-500)
@@ -1626,7 +1626,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#queueBlock({ kind: 'command', label, line: this.#gm.linenum, run });
   }
 
-  /** `cm_program_stop()` queues `_exec_program_stop` (@cite EN canonical_machine.c:2118-2130). @behaviour EN-M0 */
+  /** `cm_program_stop()` queues `_exec_program_stop` (@cite EN canonical_machine.c:2133-2145). @behaviour EN-M0 */
   #programStop(): void {
     this.#queueCommand('program stop', () => {
       this.#programFinalize('programStop');
@@ -1636,7 +1636,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     });
   }
 
-  /** `cm_program_end()` (@cite EN canonical_machine.c:2137-2178): spindle and coolant off at runtime (@behaviour EN-PROGRAM-END). */
+  /** `cm_program_end()` (@cite EN canonical_machine.c:2152-2193): spindle and coolant off at runtime (@behaviour EN-PROGRAM-END). */
   #programEnd(): void {
     this.#gm.g92Enabled = false;
     this.#gm.g92 = zeroVec();
@@ -1655,9 +1655,9 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   #currentTid: number | undefined;
 
-  /** `json_parser()` (@cite EN json_parser.c:158-260). @behaviour EN-JSON-PAIRS: every pair executes. */
+  /** `json_parser()` (@cite EN json_parser.c:235-341). @behaviour EN-JSON-PAIRS: every pair executes. */
   #jsonParser(line: string): void {
-    // @behaviour EN-TID: a top-level unsigned `tid` is echoed at the top level, on errors too (@cite EN json_parser.c:106-156, :861-871)
+    // @behaviour EN-TID: a top-level unsigned `tid` is echoed at the top level, on errors too (@cite EN json_parser.c:107-157, :942-952)
     const tid = scanTid(line);
     this.#currentTid = tid;
     const parsed = parseHostJson(line);
@@ -1677,7 +1677,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
     this.#currentTid = undefined;
     if (this.#motionSyncRequested !== null) {
-      // {"gc":"M400"}: an accepted request answers when drained; a failed one now (@cite EN controller.c:572-581)
+      // {"gc":"M400"}: an accepted request answers when drained; a failed one now (@cite EN controller.c:574-583)
       if (status === 0) return;
       this.#motionSyncRequested = null;
     }
@@ -1687,7 +1687,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   #jsonGet(key: string, body: Record<string, OutValue>): number {
     const info = token(T, key);
     if (info === undefined) return ST('UNRECOGNIZED_NAME');
-    // @behaviour EN-E138: GETs whose getter acts (@cite EN config_app.c:463-504; vendored den.json getters)
+    // @behaviour EN-E138: GETs whose getter acts (@cite EN config_app.c:464-505; vendored den.json getters)
     switch (info.get) {
       case 'cm_alrm':
         this.#sideEffect('alarm', `GET ${key}`);
@@ -1730,7 +1730,7 @@ export class TinyGEdgeNextModel implements SimDevice {
         this.#sideEffect('help-text', `GET ${key}`);
         return 0;
       case '_reserved_hold_setting':
-        return ST('FUNCTION_IS_STUBBED'); // @behaviour EN-SPPH-STUB (@cite EN config_app.c:64-68)
+        return ST('FUNCTION_IS_STUBBED'); // @behaviour EN-SPPH-STUB (@cite EN config_app.c:65-69)
       case 'sr_get':
         body[key] = this.#srValues(true);
         return 0;
@@ -1749,7 +1749,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   #jsonSet(key: string, value: HostValue, body: Record<string, OutValue>): number {
     const info = token(T, key);
     if (info === undefined) return ST('UNRECOGNIZED_NAME');
-    // @behaviour EN-SET-ALARMED: SETs are rejected while alarmed; GETs stay available (@cite EN json_parser.c:249-253)
+    // @behaviour EN-SET-ALARMED: SETs are rejected while alarmed; GETs stay available (@cite EN json_parser.c:330-334)
     const alarmed = this.#isAlarmed();
     if (alarmed !== 0) {
       body[key] = echo(value);
@@ -1758,7 +1758,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (info.set === 'gc_run_gc') {
       if (typeof value !== 'string') return ST('VALUE_TYPE_ERROR');
       const status = this.#gcodeParser(value);
-      // The gc echo is NV_TYPE_GCODE: dropped below jv=5 on success AND on error (@cite EN json_parser.c:830-844).
+      // The gc echo is NV_TYPE_GCODE: dropped below jv=5 on success AND on error (@cite EN json_parser.c:911-925).
       if (this.settings.num('jv') >= 5) body[key] = value;
       return status;
     }
@@ -1806,7 +1806,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     const n = typeof value === 'number' ? value : typeof value === 'boolean' ? (value ? 1 : 0) : NaN;
     if (Number.isNaN(n)) return ST('VALUE_TYPE_ERROR');
     if (info.set === 'cm_set_am') {
-      // Linear axes accept up to AXIS_INHIBITED, rotary up to AXIS_RADIUS (@cite EN canonical_machine.c:2601-2614)
+      // Linear axes accept up to AXIS_INHIBITED, rotary up to AXIS_RADIUS (@cite EN canonical_machine.c:2616-2629)
       if (axisModeTooLarge(key, n)) {
         body[key] = echo(value);
         return ST('INPUT_EXCEEDS_MAX_VALUE');
@@ -1828,11 +1828,11 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
     let stored = n;
     if (info.set === 'sr_set_si') stored = Math.max(n, 100); // STATUS_REPORT_MIN_MS (@cite EN settings/settings_default.h:80)
-    if (info.set === 'set_flu' && this.#gm.units === 'in') stored = n * 25.4; // @cite EN config_app.c:797-806
+    if (info.set === 'set_flu' && this.#gm.units === 'in') stored = n * 25.4; // @cite EN config_app.c:821-830
     this.settings.setRam(key, stored);
     body[key] = fixed(stored, info.precision);
     // @behaviour EN-SETTINGS-GATE: the RAM value is set, then persisting refuses while a cycle runs: 106 plus an `er`
-    // (@cite EN json_parser.c:253-256; persistence.c:88-92)
+    // (@cite EN json_parser.c:334-337; persistence.c:88-92)
     if (info.persist) {
       if (this.#cycle !== 'off') return this.#exception(ST('COMMAND_NOT_ACCEPTED'), "Can't save when moving");
       this.settings.persist(key);
@@ -1986,7 +1986,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
-   * A response line (@cite EN json_parser.c:804-897). @behaviour EN-FOOTER:
+   * A response line (@cite EN json_parser.c:885-978). @behaviour EN-FOOTER:
    * line mode prints `[3,status,free line headers]`; character mode
    * `[2,status,bytes read since the previous reply]` (E164).
    */
@@ -2007,7 +2007,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     const tidPart = tid !== undefined ? `,${q('tid')}:${tid}` : '';
     const line = `{${q('r')}:${serialize(shown, relaxed)}${tidPart},${q('f')}:[${rev},${status},${field3}]}`;
     // @behaviour EN-REPLY-OVERFLOW: a reply that does not fit the 512-byte output buffer loses its body; the
-    // line still gets `{"r":{},..}` with its tid and footer, and an OK becomes 13 (@cite EN json_parser.c:887-893,
+    // line still gets `{"r":{},..}` with its tid and footer, and an OK becomes 13 (@cite EN json_parser.c:968-974,
     // controller.h:32). The command has already run. Model approximation: the line plus LF and NUL must fit.
     if (line.length + 2 > OUTPUT_BUFFER_LEN) {
       const lost = status === 0 ? ST('BUFFER_FULL') : status;
@@ -2019,7 +2019,7 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   #respondGcode(status: number, line: string): void {
     // @behaviour EN-GC-ECHO: the gc echo is NV_TYPE_GCODE, dropped unless jv=5 whatever the status: the filter
-    // runs for every response once the machine is not INITIALIZING, and for every error (@cite EN json_parser.c:830-844).
+    // runs for every response once the machine is not INITIALIZING, and for every error (@cite EN json_parser.c:911-925).
     const jv = this.settings.num('jv');
     const body: Record<string, OutValue> = {};
     if (jv >= 5) body['gc'] = line;
@@ -2123,7 +2123,7 @@ function EN_FRESH_GCODE(): GcodeModel {
     arcDistance: 'inc',
     plane: 17,
     coord: 54,
-    motionMode: 'cancel', // never start a machine in a motion mode (@cite EN canonical_machine.c:634)
+    motionMode: 'cancel', // never start a machine in a motion mode (@cite EN canonical_machine.c:638)
     feed: 0,
     spindleSpeed: 0,
     tool: 0,
@@ -2134,7 +2134,7 @@ function EN_FRESH_GCODE(): GcodeModel {
   };
 }
 
-/** `_classify_line()` (@cite EN xio.c:679-691): control lines may run while the planner is full. */
+/** `_classify_line()` (@cite EN xio.c:698-710): control lines may run while the planner is full. */
 export function classifyLine(line: string): 'ctrl' | 'data' {
   let s = line.replace(/^[\x01-\x20\x7f]+/, '');
   if (s === '') return 'ctrl';
@@ -2143,14 +2143,14 @@ export function classifyLine(line: string): 'ctrl' | 'data' {
   return '$?!~%Hh'.includes(s[0] as string) ? 'ctrl' : 'data';
 }
 
-/** `_json_wraps_gcode()` (@cite EN xio.c:621-673), simplified to its top-level `gc` / `txt` test. */
+/** `_json_wraps_gcode()` (@cite EN xio.c:640-692), simplified to its top-level `gc` / `txt` test. */
 function jsonWrapsGcode(line: string): boolean {
   const parsed = parseHostJson(line);
   if (!parsed.ok) return false;
   return parsed.pairs.some(([k, v]) => (k === 'gc' && v !== null) || (k === 'txt' && typeof v === 'string' && v.startsWith('{')));
 }
 
-/** `_scan_tid()` (@cite EN json_parser.c:106-156): a top-level `tid` with a plain uint32 value. */
+/** `_scan_tid()` (@cite EN json_parser.c:107-157): a top-level `tid` with a plain uint32 value. */
 export function scanTid(line: string): number | undefined {
   const parsed = parseHostJson(line);
   if (!parsed.ok) return undefined;

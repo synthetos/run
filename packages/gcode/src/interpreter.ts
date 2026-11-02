@@ -164,7 +164,7 @@ class Interpreter {
     return this.units === 'G20' ? MM_PER_INCH : 1;
   }
 
-  /** The work offset on an axis. EN and TG apply the tool offset to X, Y and Z only (@cite EN canonical_machine.c:511-532). */
+  /** The work offset on an axis. EN and TG apply the tool offset to X, Y and Z only (@cite EN canonical_machine.c:515-536). */
   offset(a: Axis): number {
     return this.wcsOffsets[this.wcs][a] + (this.g92.active ? this.g92.offsets[a] : 0) + (ROTARY.has(a) ? 0 : this.tool[a]);
   }
@@ -359,7 +359,7 @@ class Interpreter {
     if (this.uncertain) this.flags[i] = (this.flags[i] as number) | LINE_FLAG.UNCERTAIN;
   }
 
-  /** M2/M30 (@cite EN canonical_machine.c:2019-2059): G92.1, default system, plane, units, G90, G80; outputs per dialect. */
+  /** M2/M30 (@cite EN canonical_machine.c:2034-2074): G92.1, default system, plane, units, G90, G80; outputs per dialect. */
   programEnd(): void {
     this.g92 = { offsets: zero(), active: false };
     this.wcs = this.defaults.wcs;
@@ -394,13 +394,13 @@ class Interpreter {
       const mm = this.offsetMm(a, v);
       if (l === 2) this.wcsOffsets[target][a] = mm;
       else {
-        // L20: the offset that makes the current position read `v` in that system (@cite EN canonical_machine.c:999-1006).
+        // L20: the offset that makes the current position read `v` in that system (@cite EN canonical_machine.c:1003-1010).
         this.wcsOffsets[target][a] = this.machine[a] - mm - (this.g92.active ? this.g92.offsets[a] : 0) - (ROTARY.has(a) ? 0 : this.tool[a]);
       }
     }
   }
 
-  /** G28/G30: an optional intermediate point, then the stored position on every axis (@cite EN canonical_machine.c:1316-1331). */
+  /** G28/G30: an optional intermediate point, then the stored position on every axis (@cite EN canonical_machine.c:1320-1335). */
   storedMove(code: 'G28' | 'G30', axisWords: ReadonlyMap<Axis, number>, src: number, n: number, i: number): void {
     if (axisWords.size > 0) {
       const to = { ...this.machine };

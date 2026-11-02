@@ -4,8 +4,8 @@
  *
  * No bench capture of the full probe exists yet (B-PROBE-1). The lines are
  * constructed from source at the pinned commits:
- * - edge-next: values from EN config_app.c:138-142, :649-667 (tokens),
- *   :64-68 (`spph` → 17), footer rev 3 from EN json_parser.c:879 (rxm=1 default);
+ * - edge-next: values from EN config_app.c:139-143, :650-668 (tokens),
+ *   :65-69 (`spph` → 17), footer rev 3 from EN json_parser.c:960 (rxm=1 default);
  * - 440.21: footer rev 1 with a real checksum (TG json_parser.c:529, :550);
  *   the capability tokens do not exist there, so they answer 100;
  * - stock 449: footer rev 3 (S449 json_parser.c:686); tokens answer 100;
@@ -80,7 +80,7 @@ export const NO_CAPABILITIES: ProbeAnswers = {
   spph: unrecognized('spph'),
 };
 
-/** Edge-next at 97321391 (fb 450.01), rxm=1. */
+/** Edge-next at 6ec70652 (fb 450.01), rxm=1. */
 export const EN_450 = (): ProbeObservations => observations({ ...tinygIdentity('450.01'), ...EN_CAPABILITIES }, 3);
 /** Stock 440.21. */
 export const TG_440 = (): ProbeObservations => observations({ ...tinygIdentity('440.21'), ...NO_CAPABILITIES }, 1);

@@ -29,7 +29,7 @@
       "required": ["kind", "firmware", "note"],
       "properties": {
         "kind": { "enum": ["fixture", "generated", "commonSubset"] },
-        "firmware": { "description": "Pinned firmware tag and commit, e.g. EN@97321391.", "type": "string", "pattern": "^[A-Z0-9]+@[0-9a-f]{7,40}$|^none$" },
+        "firmware": { "description": "Pinned firmware tag and commit, e.g. EN@6ec70652.", "type": "string", "pattern": "^[A-Z0-9]+@[0-9a-f]{7,40}$|^none$" },
         "note": { "type": "string" }
       }
     },

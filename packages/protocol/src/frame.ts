@@ -7,7 +7,7 @@
  *   appears, even inside a line. The bytes are removed, so they never appear
  *   inside an emitted line. Web Serial has no XON/XOFF support and OS flow
  *   control is off, so these bytes arrive in the data (PN §3.2). TinyG sends
- *   XOFF when its RX buffer fills and XON when it drains (@cite EN xio.h:425-426,
+ *   XOFF when its RX buffer fills and XON when it drains (@cite EN xio.h:426-427,
  *   xio_usart.h:68-69).
  * - `Line` for every non-empty line. CR, LF, CRLF and LFCR all end a line,
  *   and empty lines are dropped, so a CRLF never produces a blank line and

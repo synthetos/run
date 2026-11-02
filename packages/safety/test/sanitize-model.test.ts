@@ -238,7 +238,7 @@ describe('arcs', () => {
     expect(r.report.splits[0]?.segments).toBe(3);
   });
 
-  it('F on the line that sets G20 is converted with the units in force before it (EN gcode_parser.c:625-657)', () => {
+  it('F on the line that sets G20 is converted with the units in force before it (EN gcode_parser.c:627-659)', () => {
     // The board is in G21: the firmware sets F2 as 2 mm/min, then applies G20. X4 is 101.6 mm at
     // 2 × 0.5 mm/min = 6096 s, far above the ceiling. Read as 2 in/min it would have been 240 s.
     const r = run('G20 G91 G1 X4 F2\n', EN);
@@ -406,7 +406,7 @@ describe('feed moves are limited by fr, rapids by vm (EN plan_line.c:377-381)', 
   });
 });
 
-describe('rotary axis modes (EN canonical_machine.c:493-496 _calc_ABC)', () => {
+describe('rotary axis modes (EN canonical_machine.c:497-500 _calc_ABC)', () => {
   const radius = (radiusMm?: number) => ({ ...MOTION, rotary: { ...MOTION.rotary, A: radiusMm === undefined ? { mode: 3 as const } : { mode: 3 as const, radiusMm } } });
   const DEG_PER_MM = 360 / (2 * Math.PI);
 
@@ -490,7 +490,7 @@ describe('rotary offsets under G20 follow the dialect (TG canonical_machine.c:66
   });
 });
 
-describe('the tool length offset is applied to X, Y and Z only (EN canonical_machine.c:511-514 vs :526-532)', () => {
+describe('the tool length offset is applied to X, Y and Z only (EN canonical_machine.c:515-518 vs :530-536)', () => {
   const zero = { X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 };
 
   it('G43.1 A does not move the A target', () => {

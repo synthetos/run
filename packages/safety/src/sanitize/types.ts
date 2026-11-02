@@ -75,7 +75,7 @@ export type LinearAxis = 'X' | 'Y' | 'Z';
  * `am`, the axis mode (@cite EN canonical_machine.h:286-293 `cmAxisMode`; TG
  * canonical_machine.h:510-517): 0 disabled, 1 standard, 2 inhibited,
  * 3 radius. `cm_set_am` refuses radius on X, Y and Z (@cite EN
- * canonical_machine.c:2601-2614; TG canonical_machine.c:1723-1732).
+ * canonical_machine.c:2616-2629; TG canonical_machine.c:1723-1732).
  */
 export type AxisMode = 0 | 1 | 2 | 3;
 
@@ -88,7 +88,7 @@ export const AXIS_MODE_RADIUS: AxisMode = 3;
  * A rotary axis's mode and radius, read live from the board (`aam`, `ara`, ...).
  * In radius mode both firmwares read the axis word in LINEAR units and turn
  * it into degrees: `_to_millimeters(v) × 360 / (2π × ra)` (@cite EN
- * canonical_machine.c:493-496 `_calc_ABC`; TG the same). A disabled axis
+ * canonical_machine.c:497-500 `_calc_ABC`; TG the same). A disabled axis
  * ignores its word, so its position does not change, but its joint is its
  * position (only INHIBITED zeroes it): an axis switched from inhibited to
  * disabled (or any other mode) while its position is away from its step
@@ -143,7 +143,7 @@ export interface MotionModel {
    * linear axis with no entry is blocked, and so is one on a disabled axis
    * (the firmware ignores the word) or on one reading radius mode (refused
    * by `cm_set_am`; the firmware ignores the word too) (@cite EN
-   * canonical_machine.c:506-519; TG canonical_machine.c:444-454).
+   * canonical_machine.c:510-523; TG canonical_machine.c:444-454).
    */
   readonly linear: Readonly<Partial<Record<LinearAxis, AxisMode>>>;
 }

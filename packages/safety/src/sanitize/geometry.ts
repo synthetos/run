@@ -32,7 +32,7 @@
  *
  * The band also carries how well the sanitiser knows the start. The board
  * reports its machine position, offsets and stored positions to three
- * decimals (@cite EN config_app.c:165-177 `mpo` precision 3, :387-449 `g54x`..
+ * decimals (@cite EN config_app.c:166-178 `mpo` precision 3, :388-450 `g54x`..
  * `g30c` precision 3; TG config_app.c:131-143, :392-454), so a reported 0.000
  * may be 0.0004 mm, fifty times fp_EQ's EPSILON; and every incremental move
  * adds float32 rounding the double-precision model does not see. That
@@ -341,7 +341,7 @@ export const R_CHORD_ERRORS = 100;
  * (one rounding), its unit conversion (one) and its sum with the position or
  * the offset (one), each at most 2^-24 of the value; 2^-22 is four roundings.
  * The firmware keeps the target as its new position (@cite EN
- * canonical_machine.c:499-520 `cm_set_model_target`, :422-423 `cm_finalize_move`), so
+ * canonical_machine.c:503-524 `cm_set_model_target`, :426-427 `cm_finalize_move`), so
  * over a run of incremental moves these add up.
  */
 export const F32_STEP_ERROR = 2 ** -22;

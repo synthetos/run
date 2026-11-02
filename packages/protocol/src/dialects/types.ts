@@ -76,7 +76,7 @@ export type StatusClass =
    */
   | 'bufferFull'
   /**
-   * A damaged line that never ran (EN E162, @cite EN controller.c:253-266):
+   * A damaged line that never ran (EN E162, @cite EN controller.c:255-268):
    * it comes with an `er` 13 and ALARM 13 (the first one raises it; later
    * ones arrive while that alarm stands).
    */
@@ -370,7 +370,7 @@ export interface DialectJobGcode {
   /**
    * The frame of the G28/G30 intermediate point (the axis words on the
    * line). `work`: work coordinates, as for G0 (EN clears the absolute
-   * override for that leg, @cite EN canonical_machine.c:1316-1331).
+   * override for that leg, @cite EN canonical_machine.c:1320-1335).
    * `machine`: machine coordinates, as under G53 (440.21 sets the absolute
    * override before the intermediate traverse, @cite TG canonical_machine.c:907-914).
    */
@@ -380,7 +380,7 @@ export interface DialectJobGcode {
    * program units, so a rotary offset under G20 is scaled by 25.4. 440.21
    * applies `_to_millimeters` to every axis (@cite TG canonical_machine.c:669,
    * :788-789); EN stores rotary offsets as written, in degrees (@cite EN
-   * canonical_machine.c:998, :1136).
+   * canonical_machine.c:1002, :1140).
    */
   readonly rotaryOffsetsUseUnits: boolean;
   /**
@@ -418,7 +418,7 @@ export type StopStep =
    * machine is ALREADY in an alarm state (`alreadyAlarmedStat`, from the last
    * known `stat` before the kill byte or any report while waiting), the
    * firmware prints nothing new (EN `cm_alarm` returns early, @cite EN
-   * canonical_machine.c:806-812): the existing alarm stands in for this one
+   * canonical_machine.c:810-816): the existing alarm stands in for this one
    * and the step succeeds.
    */
   | { readonly kind: 'awaitAlarm'; readonly status: number; readonly alreadyAlarmedStat: readonly number[]; readonly timeoutMs: number }

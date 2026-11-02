@@ -28,7 +28,7 @@
 import { parseJsonObject } from './json.ts';
 import type { ClassifiedLine, Footer, Garbled, GarbledReason, JsonObject, JsonValue } from './types.ts';
 
-/** Largest transaction id the board can echo: EN parses and prints it as uint32 (@cite EN json_parser.c:139-145, :867). */
+/** Largest transaction id the board can echo: EN parses and prints it as uint32 (@cite EN json_parser.c:140-146, :948). */
 export const MAX_TID = 0xffff_ffff;
 
 /** Keys a banner carries besides `msg` (@cite EN report.c:68-81; TG report.c:88-101). */
@@ -155,7 +155,7 @@ function classifyException(line: string, o: JsonObject): ClassifiedLine {
  * integer. Revision 1 has three fields on g2core (@cite OLD-PN §5, G2
  * json_parser.cpp:611-618) and four on TG, the fourth being a checksum
  * (@cite TG json_parser.c:529, :550). Revisions 2 and 3 have exactly three
- * (@cite EN json_parser.c:876, :879; controller.c:605-611).
+ * (@cite EN json_parser.c:957, :960; controller.c:607-613).
  */
 export function parseFooter(f: JsonValue | undefined): Footer | undefined {
   if (!Array.isArray(f)) return undefined;

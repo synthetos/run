@@ -238,9 +238,9 @@ export class JobModel {
     this.spindle = s.spindle ?? 'off';
     this.mist = s.mist ?? false;
     this.flood = s.flood ?? false;
-    // Reported values: `mpo` is always mm (@cite EN canonical_machine.c:359-367); offsets and stored
+    // Reported values: `mpo` is always mm (@cite EN canonical_machine.c:363-371); offsets and stored
     // positions are printed in the units in force where the board converts them (F_CONVERT, @cite EN
-    // config_app.c:814-827 `prep_float`), so an inch board's three decimals are 0.0127 mm apart, and
+    // config_app.c:838-851 `prep_float`), so an inch board's three decimals are 0.0127 mm apart, and
     // unknown units are taken as inches.
     const offsetUnit = (axis: Axis): number =>
       (ROTARY.has(axis) && !job.rotaryOffsetsUseUnits) || s.units === 'G21' ? 1 : INCH_MM;
@@ -291,7 +291,7 @@ export class JobModel {
    * A block for a move word on a linear axis the firmware does not move as a
    * length: unknown mode, disabled (the word is ignored), or radius mode
    * (refused by `cm_set_am` on X/Y/Z, and ignored by `cm_set_model_target`
-   * if present) (@cite EN canonical_machine.c:506-519; TG canonical_machine.c:444-454).
+   * if present) (@cite EN canonical_machine.c:510-523; TG canonical_machine.c:444-454).
    */
   #linearModeFinding(axis: Axis): Finding | null {
     if (ROTARY.has(axis)) return null;
@@ -384,9 +384,9 @@ export class JobModel {
   /**
    * The tool offset added to a target on this axis. EN adds it to X, Y and Z
    * only: the A/B/C loop of `cm_set_model_target` uses the coordinate offset
-   * alone (@cite EN canonical_machine.c:511-514 vs :526-532), although G43.1
-   * stores A/B/C values (@cite EN canonical_machine.c:1525, E155), which G92
-   * and G10 L20 still subtract (@cite EN canonical_machine.c:999-1005, :1135-1136).
+   * alone (@cite EN canonical_machine.c:515-518 vs :530-536), although G43.1
+   * stores A/B/C values (@cite EN canonical_machine.c:1529, E155), which G92
+   * and G10 L20 still subtract (@cite EN canonical_machine.c:1003-1009, :1139-1140).
    */
   #appliedTool(axis: Axis): number | null {
     return ROTARY.has(axis) ? 0 : this.toolOffset[axis];
@@ -491,7 +491,7 @@ export class JobModel {
    * mm (or degrees) per program unit of a move target on an axis, or null
    * when it depends on something unknown. A rotary axis in radius mode reads
    * the word in linear units and turns it into degrees (@cite EN
-   * canonical_machine.c:493-496 `_calc_ABC`; TG the same); every other
+   * canonical_machine.c:497-500 `_calc_ABC`; TG the same); every other
    * rotary mode reads degrees.
    */
   #scale(axis: Axis, units: 'G20' | 'G21' | null): number | null {
@@ -508,7 +508,7 @@ export class JobModel {
   /**
    * mm (or degrees) per program unit of an offset word (G10, G92, G43.1).
    * Offsets never use the radius conversion. EN stores rotary offsets as
-   * written, in degrees (@cite EN canonical_machine.c:998, :1136, :1525);
+   * written, in degrees (@cite EN canonical_machine.c:1002, :1140, :1529);
    * 440.21 applies `_to_millimeters` to every axis, so a rotary offset under
    * G20 is scaled by 25.4 (@cite TG canonical_machine.c:669, :788-789), which
    * the dialect states as `rotaryOffsetsUseUnits`.
@@ -524,10 +524,10 @@ export class JobModel {
    * overrun distance is a true bound, so degrees never count as mm).
    * - Linear axes: 1.
    * - Radius mode: the firmware turns linear units into degrees at `ra`
-   *   (@cite EN canonical_machine.c:491-496; TG canonical_machine.c:430-440),
+   *   (@cite EN canonical_machine.c:495-500; TG canonical_machine.c:430-440),
    *   so one degree is π ra / 180 mm of surface travel at that radius.
    * - Disabled: the axis is skipped when the target is set, so its position
-   *   does not change (@cite EN canonical_machine.c:522-523; TG
+   *   does not change (@cite EN canonical_machine.c:526-527; TG
    *   canonical_machine.c:457). Its motor still follows its position: after
    *   inhibited mode it can be driven out to it (the remainder of the
    *   inhibited-axis finding, not visible in any read).
@@ -627,7 +627,7 @@ export class JobModel {
   }
 
   /**
-   * Program end resets the modal state (@cite EN canonical_machine.c:2036-2059; TG canonical_machine.c:1362-1374):
+   * Program end resets the modal state (@cite EN canonical_machine.c:2051-2074; TG canonical_machine.c:1362-1374):
    * G92 cancelled, the default coordinate system and plane, G94, motion cancelled. EN also restores the
    * default units and sets G90; TG keeps the units and restores the default distance mode. Where the two
    * differ, the value is kept only if both firmwares agree on it, otherwise it becomes unknown.
@@ -717,7 +717,7 @@ export class JobModel {
       findings.push(block('modal-conflict', 'G53 needs G0 or G1 in effect (NIST 3.5.12)'));
     }
     // TinyG applies G53 only by dropping the work offset: under G91 the values are still distances
-    // (@cite EN canonical_machine.c:510-516; TG canonical_machine.c:448-451), not machine coordinates.
+    // (@cite EN canonical_machine.c:514-520; TG canonical_machine.c:448-451), not machine coordinates.
     if (g53 && action === undefined && distance === 'G91') {
       findings.push(block('modal-conflict', 'G53 under G91: TinyG moves by these values as distances, not to machine coordinates; use G90'));
     }
@@ -747,8 +747,8 @@ export class JobModel {
       findings.push(block('bad-parameter', 'arc turns (P) must be a whole number of 0 or more'));
     }
     // F is converted with the units in force BEFORE this line's G20/G21: both firmwares set the feed
-    // rate before they apply the line's units mode (@cite EN gcode_parser.c:625-631 vs :657,
-    // canonical_machine.c:1372; TG gcode_parser.c:455 vs :474). `G20 G1 X4 F2` on a G21 board runs
+    // rate before they apply the line's units mode (@cite EN gcode_parser.c:627-633 vs :659,
+    // canonical_machine.c:1376; TG gcode_parser.c:455 vs :474). `G20 G1 X4 F2` on a G21 board runs
     // at 2 mm/min, not 50.8.
     const feedScale = JobModel.#unitScale(this.units);
     const feed = F === undefined ? this.feed : F.value > 0 && feedScale !== null ? F.value * feedScale : null;
@@ -785,7 +785,7 @@ export class JobModel {
         findings.push(block('rotary-radius', `${action} cannot be modelled while ${risky.join(', ')} ${risky.length === 1 ? 'is' : 'are'} in radius mode or of unknown axis mode`));
       }
       // The stored-position leg skips a disabled axis on both firmwares, but EN moves a linear axis that
-      // reads radius mode while 440.21 does not (@cite EN canonical_machine.c:1223-1230; TG via cm_set_model_target).
+      // reads radius mode while 440.21 does not (@cite EN canonical_machine.c:1227-1234; TG via cm_set_model_target).
       const linearOdd = AXES.filter((a) => !ROTARY.has(a)).filter((a) => {
         const mode = this.#modeOf(a);
         return mode !== AXIS_MODE_STANDARD && mode !== AXIS_MODE_INHIBITED;
@@ -949,7 +949,7 @@ export class JobModel {
             this.uWcs[target][a] = value === null ? Infinity : stepErrorMm(value);
             if (this.wcs === target) this.#shift(a, before === null || value === null ? null : before - value, beforeUnc + this.uWcs[target][a]);
           } else {
-            // L20: the offset that makes the current position read `value` in that system (@cite EN canonical_machine.c:999-1006).
+            // L20: the offset that makes the current position read `value` in that system (@cite EN canonical_machine.c:1003-1010).
             // It inherits the machine position's uncertainty; the work position then reads `value` itself.
             const m = this.machine[a];
             const g = this.#g92Part(a);
@@ -968,7 +968,7 @@ export class JobModel {
         return null;
       }
       case 'G92': {
-        // Work position := value on the named axes; offsets applied on every axis (@cite EN canonical_machine.c:1129-1143).
+        // Work position := value on the named axes; offsets applied on every axis (@cite EN canonical_machine.c:1133-1147).
         const offsets = { ...this.g92 };
         const unc = { ...this.uG92 };
         for (const w of axisWords) {
@@ -1019,7 +1019,7 @@ export class JobModel {
 
   /**
    * G28/G30: a rapid to the intermediate point, then a rapid on every axis to
-   * the stored position (@cite EN canonical_machine.c:1316-1331). Two moves in
+   * the stored position (@cite EN canonical_machine.c:1320-1335). Two moves in
    * one block cannot be split, so the pair must fit within the ceiling. The
    * intermediate point is in work or machine coordinates as the dialect says
    * (`storedMoveIntermediate`; 440.21 reads it as machine coordinates).

@@ -3,21 +3,21 @@
  * and the 89e2b5f fix verification). Each case is derived from the pinned
  * firmware source, read with `git show` only:
  *
- * - arcs: EN 97321391 plan_arc.c:324-341 compares the center-format end point
+ * - arcs: EN 6ec70652 plan_arc.c:324-341 compares the center-format end point
  *   with the start point position by position (fp_EQ, util.h:134-139) and runs
  *   a full circle; :348-350 alarms on fp_ZERO angular travel. TG d0418390
  *   plan_arc.c:276-295 compares ANGLES with fp_EQ and treats equal angles as
  *   zero angular travel; :165-167 refuses a zero-length arc with 201.
- * - rotary axis modes: EN canonical_machine.c:491-532, TG :430-465; defaults
+ * - rotary axis modes: EN canonical_machine.c:495-536, TG :430-465; defaults
  *   from settings/settings_default.h (A is AXIS_RADIUS, B and C disabled).
- * - F before G20/G21 in one block: EN gcode_parser.c:632-634 before :654,
+ * - F before G20/G21 in one block: EN gcode_parser.c:634-636 before :656,
  *   TG gcode_parser.c:455 before :473; `_to_millimeters` reads the model's
  *   units (canonical_machine.h:42 EN, :47 TG).
  * - inhibited axes: EN kinematics.c:59 and TG kinematics.c:63 force the joint
  *   to 0; plan_exec.c (EN :707-716, TG :718-727) moves each motor by the
  *   difference between step targets; a step resync (planner.c, EN :187-201,
  *   TG :160-170) rewrites the targets and moves nothing.
- * - soft limits: EN canonical_machine.c:545-563, TG :480-498: fp_EQ(min,max)
+ * - soft limits: EN canonical_machine.c:549-567, TG :480-498: fp_EQ(min,max)
  *   skips the axis, each end below DISABLE_SOFT_LIMIT (-1000000) is skipped,
  *   and every homed axis (X..C) is checked.
  *
@@ -437,7 +437,7 @@ describe('inhibited axes: the rotary verifier reproduction as written', () => {
 });
 
 describe('edge-next G53 under G91 (cm_set_model_target)', () => {
-  it('[EN-AXIS-MODES] G53 only zeroes the offset; in G91 the word is still a distance (canonical_machine.c:310-320, :508-517)', () => {
+  it('[EN-AXIS-MODES] G53 only zeroes the offset; in G91 the word is still a distance (canonical_machine.c:314-324, :512-521)', () => {
     const sim = enSim();
     expect(send(sim, 'G90 G0 X10', 2000)).toEqual([0]);
     expect(send(sim, 'G91 G53 G0 X5', 2000)).toEqual([0]);

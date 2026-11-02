@@ -250,7 +250,7 @@ describe('Dro panel', () => {
   });
 
   it('under G20 (unit 0) the G54 offsets are labelled in inches and the ofs total in millimetres', () => {
-    // g54x.. are F_CONVERT (printed in the current units); ofs is always mm (EN config_app.c:822-825).
+    // g54x.. are F_CONVERT (printed in the current units); ofs is always mm (EN config_app.c:846-849).
     const el = root(h(Dro, { message: message({ units: 'in', wcs: { code: 'G54', offsets: { x: 1 }, total: { x: 25.4 } } }), elapsedMs: 0 }));
     expect(text(one(el, (e) => e.props['data-dro'] === 'wcs'))).toBe('Work coordinate system: G54 (offsets X 1.000 in). Total offset including G92: X 25.400 mm.');
     const unread = root(h(Dro, { message: message({ units: null, wcs: { code: 'G54', offsets: { x: 1 }, total: null } }), elapsedMs: 0 }));
@@ -322,6 +322,9 @@ describe('the preview marker', () => {
     expect(all(root(h(PreviewSvg, { segments: segments as never, showRapids: true, highlight: -1, envelope: null })), (e) => e.props['data-preview'] === 'marker')).toEqual([]);
     expect(markerRadius('0 0 100 50')).toBe(1.5);
     expect(markerRadius(null)).toBe(0.015);
-    expect(markerText({ x: 1, y: 2, z: 3, ageMs: 1500, lag: 'amber' })).toBe('Live position (polled mpo minus offsets, 1.5 s old): X 1.000 Y 2.000 Z 3.000 mm');
+    expect(markerText({ x: 1, y: 2, z: 3, ageMs: 1500, lag: 'amber' })).toBe('Tool at X 1.000 Y 2.000 Z 3.000 · 1.5 s old');
+    expect(markerText({ x: -1, y: 0, z: 0.5, ageMs: 200, lag: 'fresh' })).toBe('Tool at X −1.000 Y 0.000 Z 0.500 · live');
+    // Plain words only (WORKSPACE_TENETS 4): no firmware token names in the chip.
+    expect(markerText({ x: 1, y: 2, z: 3, ageMs: 200, lag: 'fresh' })).not.toMatch(/mpo|polled|offsets/);
   });
 });
