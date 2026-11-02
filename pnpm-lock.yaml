@@ -58,6 +58,12 @@ importers:
       '@synthetos/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@synthetos/gcode':
+        specifier: workspace:*
+        version: link:../../packages/gcode
+      '@synthetos/gcode-view':
+        specifier: workspace:*
+        version: link:../../packages/gcode-view
       '@synthetos/machine':
         specifier: workspace:*
         version: link:../../packages/machine
@@ -86,7 +92,16 @@ importers:
 
   packages/flasher: {}
 
-  packages/gcode: {}
+  packages/gcode:
+    dependencies:
+      '@synthetos/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@synthetos/safety':
+        specifier: workspace:*
+        version: link:../safety
+
+  packages/gcode-view: {}
 
   packages/machine:
     dependencies:

@@ -1,7 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": [
-    "src",
-    "test"
-  ]
+  "compilerOptions": {
+    // protocol (imported for the dialect data) uses TextEncoder/TextDecoder.
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src"]
 }

@@ -147,6 +147,18 @@ describe('the remaining P0-02 rules', () => {
     expectFailure(repo.deps(), 'safety-path-no-npm');
   });
 
+  it('gcode-view importing safety, protocol, machine or gcode fails dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/gcode-view/src/index.ts', "export { VERSION as S } from '../../safety/src/index.ts';\n");
+    expectFailure(repo.deps(), 'layer-gcode-view');
+  });
+
+  it('an npm package or Node built-in in gcode-view fails dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/gcode-view/src/index.ts', "export { readFileSync } from 'node:fs';\n");
+    expectFailure(repo.deps(), 'gcode-view-no-npm-or-node');
+  });
+
   it('a Node built-in in a safety-path package fails dependency-cruiser', { timeout: TIMEOUT }, () => {
     const repo = fresh();
     repo.append('packages/protocol/src/index.ts', "export { readFileSync } from 'node:fs';\n");

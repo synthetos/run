@@ -1,0 +1,33 @@
+{
+  "DIASQU.txt": {
+    "lines": [
+      10,
+      11,
+      12,
+      13,
+      14,
+      18,
+      27,
+      35,
+      36
+    ],
+    "box": true,
+    "reason": "Not a bug. The sanitiser rejects G41/D (cutter compensation), G43/H and O words (lines 2, 7, 9, 17, 26) and a NUL byte (line 40). Lines 9, 17 and 26 also carry moves, so run (which never runs a rejected line) holds the previous position where gsim moves, and the later lines differ until an absolute move re-syncs them; gsim's box includes the passes run does not show. The job is blocked either way."
+  },
+  "circles2_25in.gcode": {
+    "lines": [
+      24,
+      25
+    ],
+    "box": true,
+    "reason": "Not a bug. Line 17's arc is within the float32 rounding band (arc-ambiguous), so the sanitiser rejects it and every later move whose start depends on it (unknown-state). run then holds the last known position, gsim keeps going. The job is blocked."
+  },
+  "tinyg_test_001.gcode": {
+    "lines": [
+      86,
+      123
+    ],
+    "box": true,
+    "reason": "Not a bug. Line 84 has two Y words (modal-conflict) and line 88 an arc whose end is 44.8 mm off its circle (the firmware would refuse it); gsim accepts both. Every later move is rejected as unknown-state, so run's path stops where gsim's continues. The job is blocked."
+  }
+}

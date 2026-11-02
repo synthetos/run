@@ -9,7 +9,8 @@
  * the theme toggle, starts `machine.worker` (P0-14) and mounts LIVE entry
  * (P1-05, live/mount.ts). The stop controls (P1-06: the W2 button,
  * Escape, the cross-tab requests and the observer panel) start right after
- * hydration, before anything that can fail. Entries must never import @synthetos/testkit
+ * hydration, before anything that can fail. The G-code preview (TB-03)
+ * starts `gcode.worker` on its first file; that worker has no transport. Entries must never import @synthetos/testkit
  * (RUN_PLAN §5.3, enforced from P0-02).
  */
 import { installTrustedTypes } from '../security/tt.ts';
@@ -17,6 +18,7 @@ import { h, hydrate, render } from 'preact';
 import { effect, signal } from '@preact/signals';
 import { checkBuildInfo } from '../build-info/buildInfo.ts';
 import { startBuildChannel } from '../channel/channel.ts';
+import { gcodeWorkerSpawner } from '../gcode-worker/client.ts';
 import { callMachineWorker, startMachineWorker } from '../machine-worker/client.ts';
 import { RPC_VERSION } from '../machine-worker/rpc.ts';
 import { browserLocks, openStopChannel } from '../machine-worker/stopChannel.ts';
@@ -24,6 +26,7 @@ import { mountLiveEntry } from '../live/mount.ts';
 import { ObserverPanel } from '../live/ObserverPanel.ts';
 import { StopControls } from '../live/stopControls.ts';
 import { installEscapeStop, LockWatcher, TabStop, type Timers } from '../live/tabStop.ts';
+import { PreviewPanel } from '../preview/PreviewPanel.ts';
 import { Shell } from '../shell/Shell.ts';
 import { startTheme } from '../theme/theme.ts';
 import '../styles/base.css';
@@ -49,7 +52,16 @@ const stopControls = new StopControls({
   },
   timers,
 });
-hydrate(h(Shell, { build, previousSession, stop: stopControls.view, onPause: () => stopControls.pause() }), root);
+hydrate(
+  h(Shell, {
+    build,
+    previousSession,
+    stop: stopControls.view,
+    onPause: () => stopControls.pause(),
+    preview: h(PreviewPanel, { spawn: gcodeWorkerSpawner(trustedTypes) }),
+  }),
+  root,
+);
 installEscapeStop({ addEventListener: (type, listener, options) => addEventListener(type, listener, options) }, () => stopControls.pause());
 const watcher = new LockWatcher(locks, () => stopControls.live, timers, (role) => stopControls.setRole(role));
 watcher.start();

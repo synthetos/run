@@ -4,11 +4,14 @@ import type { BuildInfo } from '../build-info/buildInfo.ts';
 import { SafetyBar, type StopBarView } from './SafetyBar.ts';
 import { SiteFooter } from './SiteFooter.ts';
 import { SiteHeader } from './SiteHeader.ts';
+import { IDLE_STATE, PreviewView } from '../preview/PreviewView.ts';
 
 /**
  * The workspace shell (ROADMAP P0-05): the safety bar (W1, W7 NOT CONNECTED,
  * version, the disabled stop button), the header, an empty rail and a centre
- * placeholder. It is prerendered into index.html at build time and hydrated
+ * placeholder, followed by the offline G-code preview sheet (TB-03). The
+ * build prerenders the preview idle with its controls disabled; the
+ * workspace entry passes the live PreviewPanel in its place. It is prerendered into index.html at build time and hydrated
  * by the workspace entry, so the safety bar shows even before (or without)
  * JavaScript. This module has no machine, serial or network code.
  */
@@ -18,9 +21,11 @@ export interface ShellProps {
   /** P1-06: the stop controls, wired by the workspace entry after hydration. */
   readonly stop?: ReadonlySignal<StopBarView>;
   readonly onPause?: () => void;
+  /** TB-03: the live G-code preview panel; the prerender shows it idle. */
+  readonly preview?: ComponentChild;
 }
 
-export function Shell({ build, previousSession, stop, onPause }: ShellProps): ComponentChild {
+export function Shell({ build, previousSession, stop, onPause, preview }: ShellProps): ComponentChild {
   return h(
     'div',
     { class: 'shell', 'data-shell': 'workspace' },
@@ -62,6 +67,7 @@ export function Shell({ build, previousSession, stop, onPause }: ShellProps): Co
             h('p', null, 'Before you ever connect a machine here, read the ', h('a', { href: '/safety/' }, 'safety contract'), '.'),
           ),
         ),
+        preview ?? h(PreviewView, { state: IDLE_STATE }),
       ),
     ),
     h(SiteFooter, { build }),
