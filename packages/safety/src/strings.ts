@@ -119,9 +119,9 @@ export function w1(): string {
   return 'WARNING — This software is not an emergency stop. Your machine must have a hardwired E-stop that removes motor and spindle power. Keep it within reach whenever the machine is powered.';
 }
 
-/** W2: the pause button label, every TinyG dialect. */
+/** W2: the pause button label, every TinyG dialect (amended 2026-11-02, OD-6: the single word "Pause"). */
 export function w2Label(): string {
-  return 'Pause (spindle stays on) — not an E-stop';
+  return 'Pause';
 }
 
 /** W2: the pause button tooltip. */
@@ -326,6 +326,14 @@ export const STOP_TEXT = Object.freeze({
   notDelivered: 'STOP NOT DELIVERED — use your E-stop',
   /** §2 H-row and §4.3: an observer tab. */
   controlledElsewhere: 'Machine is controlled in another tab',
+  /** §4.4, OD-6: the Stop job button label (no longer "spindle off"). */
+  stopJob: 'Stop job',
+  /** §4.4 step 5, OD-6: the machine strip while held. */
+  paused: 'Paused',
+  /** §4.4 step 5, OD-6: the machine strip while held with the spindle commanded on. */
+  pausedSpindleOn: 'Paused · spindle still on',
+  /** §4.4 step 5, OD-6: a Pause pressed while the machine was idle. */
+  pausedIdle: 'Paused: the machine was idle, nothing changed',
 });
 
 /** W30: state band during a hold, every TinyG dialect. */

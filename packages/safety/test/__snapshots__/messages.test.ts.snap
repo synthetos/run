@@ -71,7 +71,7 @@ exports[`W and C strings > render exactly as pinned 1`] = `
   "w27": "Job stopped. The controller turned the spindle and coolant off and is in alarm 207. Check the machine, then clear the alarm to continue.",
   "w28": "DANGER — Keep spindle and VFD mains switched off. While flashing, while the board is in the bootloader and until your settings are restored, the controller's outputs float or use factory polarity, which can switch an active-low spindle relay or VFD ON.",
   "w29": "NO TAB CONTROLS THIS MACHINE — the controlling tab closed or crashed. The machine may still be moving and the spindle may still be running. Use your E-stop.",
-  "w2Label": "Pause (spindle stays on) — not an E-stop",
+  "w2Label": "Pause",
   "w2Tooltip": "Decelerates and pauses motion. The spindle and coolant keep running. Use "Stop job" to stop with the spindle off, and your E-stop in an emergency.",
   "w3": "DANGER — Connection lost. The machine may still be moving and the spindle may still be running. Use your E-stop if anything is unsafe. Machine position is now unknown.",
   "w30": "PAUSED — SPINDLE MAY BE RUNNING",
