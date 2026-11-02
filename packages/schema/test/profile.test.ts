@@ -389,6 +389,17 @@ describe('import (T-S22)', () => {
     expect(kept.createdWith.sha).toBe('abcdef1');
     const belt = ok(readProfileValue({ ...minimal, machine: { type: 'router', axes: { y: { motors: [2], drive: { kind: 'belt', pitch: 2, teeth: 20 } } }, spindle: { kind: 'none' } } }));
     expect(belt.profile.machine.axes.y?.drive).toEqual({ kind: 'belt', pitchMm: 2, teeth: 20 });
+    // Unbound, with TinyG firmware: the family comes from the firmware, so the host-loss policy is forced to drain.
+    const unboundTinyg = ok(
+      readProfileValue({
+        ...minimal,
+        firmware: { dialectId: 'tinyg-440', fb: 440.21 },
+        machine: { type: 'router', axes: {}, spindle: { kind: 'none' }, hostLossPolicy: 'hold-and-spindle-pause' },
+      }),
+    );
+    expect(unboundTinyg.profile.boundDevice).toBeNull();
+    expect(unboundTinyg.profile.machine.hostLossPolicy).toBe('drain');
+    expect(unboundTinyg.notes.some((n) => /set to "drain"/.test(n))).toBe(true);
   });
 
   it('refuses a v1 file that is malformed or cannot become a valid v2 profile', () => {
