@@ -15,6 +15,7 @@
 import { signal, type Signal } from '@preact/signals';
 import type { BoardSettings } from '@synthetos/schema';
 import type { AdvisoryCheck } from '../live/advisoryGate.ts';
+import type { ConsoleAnswer } from '../live/consoleRead.ts';
 import type { EntryState } from '../live/liveEntry.ts';
 import type { ReadoutPhase } from '../live/readout.ts';
 import type { AxisModeView } from '../machine-ui/AxisModes.ts';
@@ -68,6 +69,8 @@ export interface LiveActions {
   readonly backup: () => void;
   /** The current link's wire transcript as JSONL, for the Console tab (it only reads). */
   readonly transcriptText: () => Promise<string | null>;
+  /** The Console command line's one read: an allowlisted GET through the worker's read path (live/consoleRead.ts). */
+  readonly consoleRead: (token: string) => Promise<ConsoleAnswer>;
 }
 
 export const INITIAL_LIVE_VIEW: LiveView = Object.freeze({

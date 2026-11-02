@@ -1,8 +1,9 @@
 /*
- * Report a problem. Colour comes only from the theme, safety and
- * drafting-accent tokens (tokens.css), mixed as workspace.css does. Blue
- * stays primary; the tan is kept to section labels and the report mark.
- * Imported by the workspace entry only.
+ * Report a problem and the Console command line. Colour comes only from the
+ * theme, safety and drafting-accent tokens (tokens.css), mixed as
+ * workspace.css does. Blue stays primary; the tan is kept to section labels,
+ * the report mark and the command prompt. Imported by the workspace entry
+ * only.
  */
 
 /* ---------------------------------------------------------------- shared */
@@ -102,3 +103,64 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .preview-row-report { position: absolute; right: 6px; top: 2px; width: 22px; min-height: 18px; height: 18px; padding: 0; border-color: transparent; background: var(--sheet); color: var(--muted); opacity: 0; }
 .preview-row:hover .preview-row-report, .preview-row-report:focus-visible { opacity: 1; }
 .preview-row-report:hover:not(:disabled) { color: var(--blue); border-color: var(--rule); }
+
+/* ---------------------------------------------------------------- console */
+@media (min-height: 820px) {
+  .dock[data-dock-tab="console"] .dock-panel { height: 272px; }
+}
+.console-pane { display: grid !important; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); min-height: 100%; height: 100%; }
+.console-wire { display: flex; flex-direction: column; min-height: 0; height: 100%; border-left: 1px solid var(--rule); overflow: hidden; }
+.console-wire > .live-empty { padding: 10px 14px; }
+.console-wire > .console { flex: 1; min-height: 0; overflow: auto; }
+.wire-save { flex: none; border-top: 1px solid var(--line-soft); max-height: 70%; overflow: auto; }
+.wire-save > summary { cursor: pointer; padding: 5px 12px; font-size: 11.5px; color: var(--blue); }
+.wire-save .transcript-save { padding: 0 12px 10px; }
+.wire-save .transcript-save h2 { display: none; }
+.wire-save .transcript-save p { font-size: 11.5px; line-height: 1.5; margin: 0 0 6px; }
+.cl { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.cl-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 4px 6px 4px 12px; border-bottom: 1px solid var(--line-soft); min-height: 30px; }
+.cl-title { display: inline-flex; align-items: center; gap: 6px; font: 600 12px/1 var(--cond); color: var(--tan); }
+.cl-title svg { width: 15px; height: 15px; }
+.cl-phase { font-size: 11px; color: var(--muted); margin-right: auto; }
+.cl-head .quiet-link { min-height: 24px; font-size: 11.5px; }
+.cl-empty { flex: 1; padding: 10px 12px; font-size: 12px; color: var(--muted); }
+.cl-log { flex: 1; min-height: 0; overflow: auto; padding: 4px 0; }
+.cl-entry { padding: 5px 12px 6px; border-bottom: 1px solid var(--line-soft); }
+.cl-sent { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.cl-typed { background: none; padding: 0; font-weight: 500; color: var(--ink); }
+.cl-typed::before { content: '› '; color: var(--field); }
+.cl-wire { font-size: 11px; color: var(--muted); background: var(--raise); }
+.kind-read .cl-wire { color: var(--blue); background: var(--blue-wash); }
+.cl-msg { font-size: 12px; margin-top: 3px; padding-left: 10px; border-left: 2px solid var(--rule); color: var(--muted); }
+.cl-msg.tone-warn { border-left-color: var(--warn); color: var(--ink); }
+.cl-msg.tone-info { border-left-color: var(--field); }
+.cl-wait { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.cl-reply { margin-top: 4px; }
+.cl-rows { display: grid; grid-template-columns: max-content 1fr; gap: 1px 14px; font-size: 12px; }
+.cl-rows > div { display: contents; }
+.cl-rows dt { color: var(--muted); }
+.cl-rows dt code { font-size: 10.5px; margin-left: 2px; }
+.cl-rows dd { font-weight: 600; font-variant-numeric: tabular-nums; }
+.cl-raw { margin-top: 3px; }
+.cl-raw > summary { cursor: pointer; font-size: 11px; color: var(--blue); width: max-content; }
+.cl-raw pre { margin: 3px 0 0; padding: 5px 8px; font: 11px/1.45 var(--mono); background: var(--paper); border: 1px solid var(--line-soft); border-radius: var(--r-sm); white-space: pre-wrap; word-break: break-all; }
+.cl-suggest { position: absolute; left: 10px; right: 10px; bottom: 62px; z-index: 3; max-height: 176px; overflow: auto; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r-sm); box-shadow: var(--pop); padding: 3px; }
+.cl-suggest li { display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: baseline; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+.cl-suggest li code { background: none; padding: 0; color: var(--ink); }
+.cl-suggest li span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-suggest li[aria-selected="true"] { background: var(--blue-wash); }
+.cl-suggest li[aria-selected="true"] code { color: var(--blue); }
+.cl-form { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 8px 0 12px; border-top: 1px solid var(--rule); }
+.cl-prompt { font: 600 15px/1 var(--mono); color: var(--tan); }
+.cl-form input { flex: 1; min-width: 0; height: 30px; border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--sheet); padding: 0 10px; font: 12.5px var(--mono); color: var(--ink); }
+.cl-form input:focus { border-color: var(--blue); outline: none; box-shadow: 0 0 0 2px var(--blue-wash); }
+.cl-preview { flex: none; max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); background: var(--raise); }
+.cl-preview.kind-read { color: var(--blue); background: var(--blue-wash); }
+.cl-hint { flex: none; padding: 3px 12px 5px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-hint code { font-size: 10.5px; }
+.cl-keys { color: var(--field); }
+
+@media (max-width: 1100px) {
+  .console-pane { grid-template-columns: 1fr; }
+  .console-wire { display: none; }
+}

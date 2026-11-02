@@ -39,6 +39,7 @@ const PATHS = {
   spindle: 'M9 2h6v5H9ZM8 7h8l-1 5H9ZM11 12h2v6l-1 3-1-3Z',
   info: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 11v6m0-9v.5',
   flag: 'M5 21V3.5m0 1h12.5l-2.5 4 2.5 4H5',
+  terminal: 'M3 5h18v14H3ZM7 9l3 3-3 3m5 0h5',
   pin: 'M12 3a5 5 0 0 1 5 5c0 4-5 9-5 9s-5-5-5-9a5 5 0 0 1 5-5Zm0 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z',
 } as const;
 

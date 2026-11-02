@@ -1,13 +1,15 @@
 /**
- * Report a problem in the built app (fake-serial TEST build).
+ * Report a problem and the Console command line in the built app
+ * (fake-serial TEST build).
  *
  * - A fault notice (the simulated board resets: a banner after ready) offers
  *   "Report this". The dialog triages, redacts the board id before the
  *   preview, keeps the G-code excerpt as the default and asks before the
  *   whole file, and builds a pre-filled issue link on the allowlisted repo.
  *   Reporting writes nothing to the board.
- * - The account menu, Safety and the Board view open it too; the forum
- *   target opens the new-discussion form.
+ * - Typing $xvm in the Console sends one allowlisted GET ({"xvm":null}) and
+ *   shows the answer in plain words, with the raw JSON one click away.
+ *   Motion typed there is shown and never sent.
  */
 import type { Page, Worker } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
@@ -166,4 +168,44 @@ test('the account menu, Safety and the Board view open the report; the forum tar
   await show(page, 'safety');
   await page.locator('[data-screen="safety"] [data-action="report-problem"]').click();
   await expect(dialog).toHaveAttribute('data-report-step', 'triage');
+});
+
+test('the Console turns $xvm into {"xvm":null}, sends it as a read and shows the answer in plain words', async ({ page }) => {
+  const worker = await connectedTab(page);
+  await page.locator('[data-tab="console"]').click();
+  const input = page.locator('[data-console="input"]');
+  await input.fill('$xv');
+  await expect(page.locator('#cl-suggest [role="option"]').first()).toContainText('xvm');
+  await expect(page.locator('[data-console="hint"]')).toContainText('X maximum velocity');
+  await input.press('Tab');
+  await expect(input).toHaveValue('$xvm');
+  await expect(page.locator('[data-console="preview"]')).toHaveText('{"xvm":null}');
+  const before = (await hostWrites(worker)).length;
+  await input.press('Enter');
+  const reply = page.locator('[data-console-entry="read"]').last();
+  await expect(reply.locator('[data-console-reply="answered"]')).toBeVisible({ timeout: 10_000 });
+  await expect(reply.locator('[data-console-key="xvm"]')).toContainText('X maximum velocity');
+  await reply.locator('.cl-raw > summary').click();
+  await expect(reply.locator('[data-console-raw]')).toContainText('"xvm"');
+  await expect.poll(async () => (await hostWrites(worker)).slice(before)).toContain('{"xvm":null}\n');
+
+  // Motion and writes are shown, never sent; realtime characters are refused.
+  const mark = (await hostWrites(worker)).length;
+  await input.fill('g0 x10');
+  await input.press('Enter');
+  await expect(page.locator('[data-console-reply="motion"]').last()).toContainText('Motion arrives with motion control');
+  await input.fill('$xvm=5000');
+  await input.press('Enter');
+  await expect(page.locator('[data-console-reply="write"]').last()).toContainText('Settings writes arrive in a later phase');
+  await input.fill('!');
+  await input.press('Enter');
+  await expect(page.locator('[data-console-reply="refused"]').last()).toContainText('Pause and Stop job');
+  const axe = await new AxeBuilder({ page }).include('[data-region="console-line"]').analyze();
+  expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  await input.press('ArrowUp');
+  await expect(input).toHaveValue('!');
+  await input.press('ArrowUp');
+  await expect(input).toHaveValue('$xvm=5000');
+  const writes = (await hostWrites(worker)).slice(mark);
+  for (const w of writes) expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005', JSON.stringify(w)).toBe(true);
 });

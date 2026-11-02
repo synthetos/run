@@ -114,7 +114,10 @@ describe('Phase 1 control allowlist', () => {
   const MACHINE_DISABLED = new Set(['jog', 'zero', 'spindle', 'coolant', 'override', 'start', 'settings-write', 'firmware']);
   /** Enabled only while a machine is LIVE in this browser (never gated otherwise): Pause and Stop job. */
   const LIVE_ONLY = new Set(['stop']);
-  /** Reads only (GETs through the read allowlist): Back up settings. Disabled until a board is read. */
+  /**
+   * Reads only (GETs through the read allowlist): Back up settings, and the Console command line's Send (it sends
+   * only allowlisted reads; motion and settings writes are shown and never sent). Disabled until a board is read.
+   */
   const READ_ONLY = new Set(['read']);
   /** The Connect flow (live/ConnectPanel.ts): Connect, the C1 confirm and cancel, dismiss, Disconnect. */
   const CONNECT = new Set(['connect', 'disconnect', 'confirm', 'cancel', 'dismiss']);

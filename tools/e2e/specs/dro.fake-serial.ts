@@ -82,6 +82,8 @@ test('the DRO machine position and the marker move only on polled mpo reads; set
   await page.locator('[data-region="rail"] [data-view="run"]').click();
   await page.locator('[data-tab="console"]').click();
   await expect(page.locator('[data-console="lines"]')).toContainText('{sr:null}');
+  // The save panel sits under the wire transcript, behind "Save the transcript".
+  await page.locator('.wire-save > summary').click();
   const save = page.locator('[data-region="transcript"]');
   await expect(save.locator('[data-transcript="privacy"]')).toContainText('unique hardware id');
   const download = page.waitForEvent('download');
