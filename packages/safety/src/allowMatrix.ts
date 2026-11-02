@@ -83,6 +83,10 @@ export const INTENTS = Object.freeze([
   'consoleLine',
   'spindleOn',
   'setWorkZero',
+  /** Phase 2: rapid to work zero, Z raised first in machine coordinates (WORKSPACE_FEATURES Jog). */
+  'goToZero',
+  /** Phase 2: `{"clear":null}` after the user read why the controller alarmed (C13). */
+  'clearAlarm',
   'optionalStop',
   'settingsWrite',
   'applyProfile',
@@ -160,6 +164,17 @@ export const CURRENT_RELEASE: Release = Object.freeze({ name: 'Phase 0', motion:
  * that carries the transport chunk and it serves `serial=()` (P1-09).
  */
 export const PHASE_1_RELEASE: Release = Object.freeze({ name: 'Phase 1', motion: false, write: false, port: true });
+
+/**
+ * Phase 2, bench motion (owner, 2026-11-02; SAFETY §4.5b): Phase 1 plus the
+ * motion intents (jog, go to zero, set work zero, spindle and coolant,
+ * clear alarm, resume of a hold this session made). Settings writes are a
+ * separate kind (`settings`), added on top by `withSettingsWrites` where the
+ * settings switch allows it (settingsPhase.ts). The machine worker uses this release only where
+ * the motion capability flag is on (bench and staging origins; never
+ * production, apps/web/src/machine-worker/motionFlag.ts).
+ */
+export const PHASE_2_RELEASE: Release = Object.freeze({ name: 'Phase 2', motion: true, write: false, port: true });
 
 /**
  * Phase 1 plus settings writes (SAFETY §4.6, amendment 2026-11-02): as
@@ -283,7 +298,17 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
     denied: { reason: 'There is no settings difference to resolve.', remedy: 'Nothing to do.' },
     citation: 'SAFETY §4.1 Anything else row (NEEDS_REVIEW), C23, T-S70',
   },
-  jog: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Jog row' },
+  // JOGGING: the next short step of the jog already running (a hold-jog or a long step fed in pieces, §4.5b).
+  // The session itself refuses to START a jog unless the base state is idle.
+  jog: { kind: 'motion', states: [...IDLE, 'JOGGING'], overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Jog row; §4.5b' },
+  goToZero: { kind: 'motion', states: [...IDLE, 'JOGGING'], overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Jog row; §4.5b Go to zero' },
+  clearAlarm: {
+    kind: 'motion',
+    states: ['ALARM'],
+    overlays: [],
+    denied: { reason: 'There is no alarm to clear.', remedy: 'Nothing to do.' },
+    citation: 'SAFETY §3 From ALARM (C13); §4.5b',
+  },
   home: {
     kind: 'motion',
     states: [...IDLE, 'CONNECTED_UNKNOWN'],
@@ -293,7 +318,8 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
   },
   consoleLine: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Console line row' },
   spindleOn: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Manual spindle/coolant on row' },
-  setWorkZero: { kind: 'write', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Set work zero row' },
+  // Kind `motion`: setting work zero is part of motion control (P2 in WORKSPACE_FEATURES), not a settings write (§4.5b).
+  setWorkZero: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Set work zero row; §4.5b' },
   optionalStop: { kind: 'write', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Optional stop row' },
   settingsWrite: {
     kind: 'settings',

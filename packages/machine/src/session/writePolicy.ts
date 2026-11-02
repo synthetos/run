@@ -20,7 +20,8 @@
  * built the bytes is the bug, SAFETY §3).
  */
 import { BYTE, SPLICE_GUARD_LINE } from '@synthetos/protocol';
-import { allowed, type Release } from '@synthetos/safety';
+import { allowed, type Intent, type Release } from '@synthetos/safety';
+import { motionLineKind } from './motionLines.ts';
 import { enqAllowedNow, matrixSnapshot, readableNow } from './reducer.ts';
 import { SETTING_LINE, settingRefusal } from './settingWrite.ts';
 import type { SessionState } from './types.ts';
@@ -31,14 +32,21 @@ export interface WriteContext {
   /** True when ENQ may be written now. */
   readonly enqAllowed: boolean;
   /**
+   * Phase 2 (SAFETY §4.5b, T-S94): the session's release allows motion. Only then are the motion command
+   * kind (a line of the closed grammar in motionLines.ts) and the realtime `%` and `~` admitted.
+   */
+  readonly motion?: boolean;
+  /**
    * Settings writes (amendment 2026-11-02): true when exactly this `{"<token>":<value>}` is the settings
    * write the session is making now. Absent: no settings line is ever accepted.
    */
   readonly settingWritable?: (token: string, value: number) => boolean;
 }
 
-/** `setting`: one single-token settings write, its own command kind (SAFETY §4.6, amendment 2026-11-02). */
-export type WriteVerdict = { readonly ok: true; readonly kind: 'get' | 'feedhold' | 'enq' | 'setting'; readonly token?: string } | { readonly ok: false; readonly reason: string };
+/** `motion`, `flush`, `resume`: Phase 2. `setting`: one single-token settings write, its own command kind (SAFETY §4.6, amendment 2026-11-02). */
+export type WriteVerdict = { readonly ok: true; readonly kind: 'get' | 'feedhold' | 'enq' | 'flush' | 'resume' | 'motion' | 'setting'; readonly token?: string } | { readonly ok: false; readonly reason: string };
+
+const MAX_MOTION_LINE_BYTES = 64;
 
 /**
  * A GET line: one key of lowercase letters, digits and `_` (TinyG tokens
@@ -58,9 +66,11 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
     const b = bytes[0];
     if (b === BYTE.FEEDHOLD) return { ok: true, kind: 'feedhold' };
     if (b === BYTE.ENQ) return context.enqAllowed ? { ok: true, kind: 'enq' } : { ok: false, reason: 'ENQ is not allowed now (classified edge-next after a rev-2/3 footer only)' };
+    if (context.motion === true && b === BYTE.FLUSH) return { ok: true, kind: 'flush' };
+    if (context.motion === true && b === BYTE.RESUME) return { ok: true, kind: 'resume' };
     return { ok: false, reason: `realtime byte 0x${(b as number).toString(16).padStart(2, '0')} is never written in this release` };
   }
-  if (bytes.length === 0 || bytes.length > MAX_SETTING_LINE_BYTES) return { ok: false, reason: `a ${bytes.length}-byte write is not a GET or settings line` };
+  if (bytes.length === 0 || bytes.length > Math.max(MAX_SETTING_LINE_BYTES, context.motion === true ? MAX_MOTION_LINE_BYTES : MAX_GET_LINE_BYTES)) return { ok: false, reason: `a ${bytes.length}-byte write is not a GET, settings or motion line` };
   let text = '';
   for (const b of bytes) {
     if (b > 0x7e || (b < 0x20 && b !== 0x0a)) return { ok: false, reason: 'a GET line is printable ASCII ending in LF' };
@@ -79,16 +89,21 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
     return context.readable('sr') ? { ok: true, kind: 'get', token: 'sr' } : { ok: false, reason: '"sr" is not readable now (not on the probe list or the dialect\'s read allowlist)' };
   }
   const match = GET_LINE.exec(text);
+  if (match !== null && context.readable(match[1] as string)) return { ok: true, kind: 'get', token: match[1] as string };
+  // The motion command kind: exactly one line of the closed grammar, and only with a motion release.
+  if (context.motion === true && text.endsWith('\n') && motionLineKind(text.slice(0, -1)) !== undefined) return { ok: true, kind: 'motion' };
   if (match === null) return { ok: false, reason: `not a single-token GET: ${JSON.stringify(text.slice(0, 32))}` };
-  const token = match[1] as string;
-  if (!context.readable(token)) return { ok: false, reason: `"${token}" is not readable now (not on the probe list or the dialect's read allowlist)` };
-  return { ok: true, kind: 'get', token };
+  return { ok: false, reason: `"${match[1] as string}" is not readable now (not on the probe list or the dialect's read allowlist)` };
 }
 
-/** What a write is for: the allow-matrix intent it is checked against. */
-export type WriteIntent = 'read' | 'feedhold' | 'enq' | 'settingsWrite';
+/**
+ * What a write is for. `read`, `feedhold` and `enq` are checked against the matrix intent of that name;
+ * `motion` (a motion line), `flush` (`%`) and `resume` (`~`) against the intent that issued them;
+ * `settingsWrite` (a settings line) against `settingsWrite`.
+ */
+export type WriteIntent = 'read' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'settingsWrite';
 
-const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'setting'>> = { read: 'get', feedhold: 'feedhold', enq: 'enq', settingsWrite: 'setting' };
+const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'setting'>> = { read: 'get', feedhold: 'feedhold', enq: 'enq', motion: 'motion', flush: 'flush', resume: 'resume', settingsWrite: 'setting' };
 
 /** True when `token` = `value` is exactly the settings write `state` is making (phase writing, same key and value, still allowed by the schema). */
 export function settingWritableIn(state: SessionState, token: string, value: number): boolean {
@@ -115,12 +130,16 @@ export function checkWrite(
   release: Release,
   bytes: Uint8Array,
   intent: WriteIntent,
+  issuedBy?: Intent,
 ): { readonly kind: 'denied' | 'refused'; readonly reason: string } | undefined {
-  const decision = allowed(matrixSnapshot(current), intent, release);
-  if (!decision.allowed) return { kind: 'denied', reason: `not written: the allow-matrix denies ${intent} now (${decision.reason})` };
+  const matrixIntent: Intent | undefined = intent === 'read' || intent === 'feedhold' || intent === 'enq' || intent === 'settingsWrite' ? intent : issuedBy;
+  if (matrixIntent === undefined) return { kind: 'refused', reason: `a ${intent} write names no issuing intent` };
+  const decision = allowed(matrixSnapshot(current), matrixIntent, release);
+  if (!decision.allowed) return { kind: 'denied', reason: `not written: the allow-matrix denies ${matrixIntent} now (${decision.reason})` };
   const verdict = phase1WriteVerdict(bytes, {
     readable: (token) => readableNow(emitted, token),
     enqAllowed: enqAllowedNow(current),
+    motion: release.motion,
     ...(release.settings === true ? { settingWritable: (token: string, value: number) => settingWritableIn(current, token, value) } : {}),
   });
   if (!verdict.ok) return { kind: 'refused', reason: verdict.reason };

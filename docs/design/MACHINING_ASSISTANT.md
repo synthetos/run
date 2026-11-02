@@ -264,3 +264,14 @@ The simulation handles all of them.
 3. Auto mode: is it wanted at all, or only Advise and Assist? (Recommendation: ship Advise first, and add Auto only with firmware overrides and its own safety review.)
 4. Stream rewrite (§6.5 B) as an interim actuator before the firmware has overrides.
 5. Built-in data sources: whose chipload and speed data we cite (manufacturer tables, a handbook, our own measurements).
+
+## Appendix: feed-limit push frames (firmware step 2 draft, TinyG feat/feed-limit-counters 887944cf, not merged)
+
+- `{"rt":{"fi":N}}` opens a window of 1-60 s. Longer values are clamped, and the reply echoes the value applied. Going from off to on is accepted only at quiescence (status 106 otherwise). `0` stops crediting and keeps the totals.
+- `{"fs":{"v":1,"e":1,"q":3,"c":[axisCap,corner,exactStop,short,single,other],"ct":ms,"cd":mm}}` arrives every N s while a cycle runs, plus one final `fs` after the runtime drains. The values are cumulative ms and mm. The `c` counters overlap, so their sum can exceed `ct`.
+- `{"fl":{"k":kind,"m":tags,"p":pct,"n":line}}` arrives on a kind or tag change, at most 4 per second, coalesced to the latest state. When idle it reads `{"fl":{"k":0,"m":0,"p":null,"n":null}}`.
+- An optional `"x":1` at the end of `fs` (commit c7851a58) means the window's totals are known to be short: pending counters wrapped after the main loop was held up for a very long time. It stays set for the rest of the window, and a new window clears it. run treats the totals as a lower bound and shows them as unreliable.
+- `{"rt":{"fs":null}}` pushes a summary now. The reply value is the `q` that summary will carry.
+- Tag bits: 1 axis cap, 2 corner, 4 exact stop, 8 short, 16 single segment; 32 is reserved. A missing corner tag does not prove there was no corner limit.
+- Only G94 linear XYZ feed segments count. Rapids, G93, rotary moves and deceleration into a feedhold do not.
+- `fl` and `fs` are not responses: no `r`, no footer, never counted as an acknowledgement, and never treated as unsolicited motion.

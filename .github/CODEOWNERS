@@ -74,6 +74,11 @@
 /workers/run/src/routes.ts               @ril3y
 /tools/e2e/fake-serial/                  @ril3y
 
+# --- Report a problem (REPORT_A_PROBLEM §6) -------------------------------
+# The fixed allowlist of report destinations. The bundle scan admits these
+# exact URLs in JavaScript chunks, so a change here changes what it allows.
+/apps/web/src/report/targets.ts          @ril3y
+
 # --- The gates that enforce the rules above (P0-03 addition) -------------
 # A change here can switch off a safety gate, leak the deploy token or
 # remove a required reviewer, so it is owned like the safety path itself.

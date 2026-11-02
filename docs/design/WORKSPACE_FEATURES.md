@@ -146,6 +146,10 @@ block was): XY pad with diagonals and go-to-XY-zero, Z up/down, steps 0.1, 1,
 - There is no continuous jog with cancel. Hold is built from short steps;
   releasing sends `!` (feedhold, honoured at once), then `%` to flush once the
   hold has stopped (`%` works only between lines).
+- *Built for Phase 2 (2026-11-02, SAFETY §4.5b):* run sends short `G21 G91 G1`
+  pieces (never the `jog*` tokens), at most two queued, with steps 0.01 to 100 mm
+  (or inches) and Hold; a held jog needs a keep-alive from the page. Zero has its
+  own tab; spindle on asks C24. Motion is on for the bench and staging origins only.
 - No latency is promised. In P1 the controls are visible and disabled with
   "Jogging arrives with motion control"; during a job, "not available while a
   job is in progress"; on old firmware, locked until the update.
@@ -338,7 +342,7 @@ The Console tab gets a command line you can type into, with history (↑/↓) an
 
   Text-mode-only commands (`$$`, `$h` and so on) are mapped to their JSON form or refused with an explanation. Single-character realtime commands (`!`, `~`, `%`, ^X) are never typed here: Pause and Stop job are the buttons.
 - **The same gates as the rest of run.** Every line goes through the sanitiser and the worker's write allowlist for the current phase:
-  - **Phase 1:** reads only (`?`, `$key`). Motion lines show "Motion arrives with motion control", and setting writes show "Settings writes arrive in a later phase". Nothing is sent for either.
+  - **Phase 1:** reads only (`?`, `$key`). Motion lines show "Typed motion comes later; use the jog panel", and setting writes show "Typed settings writes are not sent; change settings in Board → Pending changes". Nothing is sent for either: settings change through the Board view's reviewed Pending changes tray (SAFETY §4.6, amendment 2026-11-02).
   - **Phase 2:** single motion lines are allowed, with the same checks as jog.
   - **Settings writes:** go through the reviewed settings-write path, with the read-back.
 - **Never during a job.** While a job streams, the command line is read-only (queries only). It never gates Pause or Stop.

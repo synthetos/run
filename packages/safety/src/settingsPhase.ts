@@ -16,7 +16,7 @@
  * all. A test pins these values (packages/safety/test/settingsPhase.test.ts);
  * changing them is an owner decision and needs owner review (CODEOWNERS).
  */
-import { PHASE_1_RELEASE, PHASE_1_SETTINGS_RELEASE, type Release } from './allowMatrix.ts';
+import type { Release } from './allowMatrix.ts';
 
 export type SettingsEnvironment = 'staging' | 'production';
 
@@ -31,7 +31,12 @@ export function settingsWritesEnabled(environment: SettingsEnvironment | null | 
   return SETTINGS_WRITES[environment] === true;
 }
 
-/** The release the machine session enforces in this environment. */
-export function releaseFor(environment: SettingsEnvironment | null | undefined): Release {
-  return settingsWritesEnabled(environment) ? PHASE_1_SETTINGS_RELEASE : PHASE_1_RELEASE;
+/**
+ * `base` with the settings kind turned on where the switch allows it, else `base` unchanged. It composes
+ * with the motion flag: on staging the worker's Phase 2 release gains settings writes, so motion and
+ * settings are both on; on production `base` (read-only) is returned as it is.
+ */
+export function withSettingsWrites(base: Release, environment: SettingsEnvironment | null | undefined): Release {
+  if (!settingsWritesEnabled(environment)) return base;
+  return Object.freeze({ ...base, name: `${base.name} + settings writes`, settings: true });
 }

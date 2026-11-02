@@ -185,6 +185,7 @@ c({
   render: S.w33,
   subs: (e) => [['<cause>', e.cause], ['N', String(e.seconds)]],
 });
+fixed('W34', 'w34', S.w34);
 
 // ---------------------------------------------------------------- §6
 
@@ -379,6 +380,21 @@ c({
   render: S.c23,
   subs: (e) => [['<machine name>', e.machineName], ['<board id>', e.boardId], ['<n+1>', String(e.revision)]],
 });
+c({
+  doc: 'S', id: 'C24', segment: 0, exports: ['c24'],
+  examples: [{ direction: 'CW' as const, rpm: 12000 }, { direction: 'CCW' as const, rpm: 800 }],
+  render: S.c24,
+  subs: (e) => [['<direction>', e.direction], ['<rpm>', String(e.rpm)]],
+});
+c({
+  doc: 'S', id: 'C25', segment: 0, exports: ['c25'],
+  examples: [
+    { axes: 'X, Y and Z', path: 'Z up to machine 0 mm, then X and Y to 0, then Z to 0' },
+    { axes: 'Z', path: 'Z to 0' },
+  ],
+  render: S.c25,
+  subs: (e) => [['<axes>', e.axes], ['<path>', e.path]],
+});
 
 /**
  * Quoted strings in the document that are not user-facing text: an ARIA
@@ -493,10 +509,10 @@ describe('the T-S32 check itself', () => {
   it('notices a new warning added to SAFETY.md', () => {
     // Assembled from parts: a signal-word literal is allowed only in strings.ts.
     const newWarning = ['WARNING', '—', 'New.'].join(' ');
-    const grown = SAFETY_MD.replace('- **W33 (', `- **W34 (new):** "${newWarning}"\n- **W33 (`);
+    const grown = SAFETY_MD.replace('- **W33 (', `- **W90 (new):** "${newWarning}"\n- **W33 (`);
     const ids = [...warningBlocks(grown).keys()];
     const covered = new Set(cases.filter((k) => k.doc === 'S').map((k) => k.id));
-    expect(ids.filter((id) => !covered.has(id))).toEqual(['W34']);
+    expect(ids.filter((id) => !covered.has(id))).toEqual(['W90']);
   });
 });
 

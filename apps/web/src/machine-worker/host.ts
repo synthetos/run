@@ -32,9 +32,9 @@
  * It holds no account or network state (DECISIONS D1).
  */
 import { LAG_AMBER_MS, LAG_RED_MS, MachineSession, PositionPoller, ReadoutPoller, droView, liveControlPlatform, type PortSelector, type Transport, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
-import { releaseFor, type Decision, type Release } from '@synthetos/safety';
-import { approvalEnvironment, approvalRecord, approvedBuildsFor, type ApprovalOutcome } from './approval.ts';
-import { RPC_VERSION, parseRequest, refusal, type Denial, type MachineReply, type SnapshotMessage, type WindowIntent, type WorkerState } from './rpc.ts';
+import { PHASE_1_RELEASE, type Decision, type Release } from '@synthetos/safety';
+import { approvalRecord, approvedBuildsFor, type ApprovalOutcome } from './approval.ts';
+import { RPC_VERSION, parseRequest, refusal, type Denial, type MachineReply, type MotionCommand, type SnapshotMessage, type WindowIntent, type WorkerState } from './rpc.ts';
 
 /** Snapshots are posted at most 20 times per second (OLD-TP §4.2). */
 export const SNAPSHOT_INTERVAL_MS = 50;
@@ -98,16 +98,18 @@ export class MachineWorkerHost {
   #pending: number | null = null;
 
   /** `platform` is the worker's user agent (`workerPlatform`) unless a test passes one. */
-  constructor(source: TransportSource, clock: SessionClock = realClock(), platform: PlatformInfo | undefined = workerPlatform(), approval: WorkerApproval | null = null) {
+  /**
+   * `release`: the session's release, from the motion capability flag and the settings-write switch
+   * (motionFlag.ts `releaseFor`): Phase 2 with settings writes on the bench and staging origins,
+   * `PHASE_1_RELEASE` everywhere else (and by default).
+   */
+  constructor(source: TransportSource, clock: SessionClock = realClock(), platform: PlatformInfo | undefined = workerPlatform(), approval: WorkerApproval | null = null, release: Release = PHASE_1_RELEASE) {
     this.#source = source;
+    this.#release = release;
     this.#approval = approval;
     this.#clock = clock;
     this.#platform = platform;
-    // The settings-write phase switch (safety settingsPhase.ts) for this worker's own environment: settings
-    // writes exist only on staging and the loopback bench, never in production or on an unknown origin.
-    this.#release = releaseFor(approval === null ? null : approvalEnvironment(approval.origin));
     this.#session = new MachineSession({
-      release: this.#release,
       source: {
         kind: source.kind,
         request: async (selector) => {
@@ -118,6 +120,7 @@ export class MachineWorkerHost {
         },
       },
       clock,
+      release,
     });
     this.#session.subscribe(() => this.#schedule());
     // P1-07: machine position for the DRO and the live marker comes only from polled `mpo` (SAFETY §4.2).
@@ -210,6 +213,10 @@ export class MachineWorkerHost {
         if (!decision.allowed) return denied('settingWrite', decision);
         return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'settingWrite', id: this.#session.snapshot.settingWrite?.id ?? 0 });
       }
+      case 'motion': {
+        const decision = this.#motion(request.command);
+        return decision.allowed ? Object.freeze({ v: RPC_VERSION, ok: true, kind: 'motion' }) : denied('motion', decision);
+      }
       case 'drift':
         this.#session.reportDrift(request.epoch);
         return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'drift' });
@@ -258,6 +265,37 @@ export class MachineWorkerHost {
     }
   }
 
+  /** A Phase 2 motion command, as the session intent it is (SAFETY §4.5b). The session decides it. */
+  #motion(c: MotionCommand): Decision {
+    const s = this.#session;
+    switch (c.op) {
+      case 'jog':
+        return s.request({ intent: 'jog', axes: c.axes, distanceMm: c.distanceMm, feed: c.feed });
+      case 'jogRenew':
+        return s.request({ intent: 'jog', renew: true });
+      case 'jogRelease':
+        return s.request({ intent: 'feedhold', release: true });
+      case 'goToZero':
+        return s.request({ intent: 'goToZero', axes: c.axes, safeZ: c.safeZ });
+      case 'setZero':
+        return s.request({ intent: 'setWorkZero', axes: c.axes });
+      case 'spindleOn':
+        return s.request({ intent: 'spindleOn', output: 'spindle', direction: c.direction, rpm: c.rpm });
+      case 'coolantOn':
+        return s.request({ intent: 'spindleOn', output: c.which });
+      case 'spindleOff':
+        return s.request({ intent: 'spindleOffNow', outputs: 'spindle' });
+      case 'coolantOff':
+        return s.request({ intent: 'spindleOffNow', outputs: 'coolant' });
+      case 'resume':
+        return s.request({ intent: 'resume' });
+      case 'clearAlarm':
+        return s.request({ intent: 'clearAlarm' });
+      case 'positionVerify':
+        return s.request({ intent: 'positionVerify' });
+    }
+  }
+
   /** Posts now if the interval has passed, otherwise once at its end (with the snapshot current then). */
   #schedule(): void {
     if (this.#subscriber === null || this.#pending !== null) return;
@@ -280,7 +318,7 @@ export class MachineWorkerHost {
     this.#lastPost = this.#clock.now();
     try {
       const snapshot = this.#session.snapshot;
-      this.#subscriber?.postMessage(Object.freeze({ v: RPC_VERSION, kind: 'snapshot', snapshot, dro: droView(snapshot, this.#clock.now()), lag: LAG, settingsWrites: this.#release.settings === true }));
+      this.#subscriber?.postMessage(Object.freeze({ v: RPC_VERSION, kind: 'snapshot', snapshot, dro: droView(snapshot, this.#clock.now()), lag: LAG, motion: this.#release.motion, settingsWrites: this.#release.settings === true }));
     } catch {
       // A closed port: the window went away. Nothing in the machine path depends on it.
       this.#subscriber = null;
@@ -288,7 +326,7 @@ export class MachineWorkerHost {
   }
 }
 
-function denied(kind: 'open' | 'close' | 'intent' | 'read' | 'settingWrite', decision: Denial): MachineReply {
+function denied(kind: 'open' | 'close' | 'intent' | 'read' | 'motion' | 'settingWrite', decision: Denial): MachineReply {
   return refusal(kind, 'denied', decision.reason, decision);
 }
 

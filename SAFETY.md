@@ -67,6 +67,14 @@ Warning text is never accepted in place of a design measure that would have been
 - New HIL items: HIL-1.12 (partial-line splice), HIL-2.13 (hardwired E-stop pressed during a jog and a job), and HIL-6.5 (real loaded machine before public beta). The bench fixture has no cutter and no mass, so overrun, spindle run-down and Z-drop behaviour must be measured on a real machine before the public can drive one.
 - HB numbering made consistent: HB-1..HB-13 gate W5-HB; HB-14 is added for images that carry E060.
 
+**Phase 2, bench motion (owner, 2026-11-02; firmware facts from the edge-next maintainer at 6ec70652):**
+- Motion is behind a **motion capability flag** that is on for the loopback bench server and the staging host only. Production's host never turns it on (T-S93), and production still serves `serial=()` with no serial chunk. Settings writes stay a separate phase.
+- Jog, go to zero, set work zero (`G10 L20 P1`), manual spindle (`M3`/`M4` with S, `M5`) and coolant (`M7`/`M8`/`M9`) are new. They are written through their own **motion** command kind in the session's write gate, from a closed line grammar (§4.5b, T-S94).
+- A jog is fed in short pieces with a small lookahead, never more than a bounded distance and time ahead. A press-and-hold jog stops when the button is released, the window loses focus or visibility, or the page stops renewing it (H50).
+- **Stop job, in a motion session, is no longer sent as Pause** (amends the Phase 1 behaviour in §4.4): `!`, then `%` once the hold is confirmed by polled reads, then `M5` and `M9`. The message is "Stopped: queue cleared, spindle and coolant off". ^D stays reserved for jobs (Phase 3). READ_ONLY and ORPHANED_MOTION sessions keep `!` with "Use your E-stop".
+- Resume (`~`) is offered only for a hold of motion this session sent.
+- New hazards H50–H56; new W34, C24 and C25; new tests T-S89–T-S94.
+- The firmware watchdog (D8 phase B) is not built: nothing here relies on it. The `{rt:null}` heartbeat (phase A) is not used.
 **Settings writes (amendment 2026-11-02; the owner approved moving past read-only):**
 - run writes board settings on the **bench and staging builds only**. One switch (`packages/safety/src/settingsPhase.ts`, pinned by a test) turns the new `settings` intent kind on for the staging environment, which includes the localhost bench. Production stays read-only until the owner changes that switch.
 - A settings write needs an **approved board**: the machine worker now verifies the bundled, signed approved-builds manifest for its own origin (P1-03), and a READ_ONLY board is never written.
@@ -200,6 +208,8 @@ On EN, E162 also guarantees that a damaged line never executes (PN §7.2). Resid
 ### H6. Runaway or oversized jog
 Unchanged from OLD-S H6, with one EN note. E157 refuses only the firmware `jog*` tokens; it does not gate G-code jogs. **run never uses `jog*` tokens.** The host rules in §4.5 are the protection. On EN, an M400 barrier confirms idle before the next jog. Residual Low. Verification: M, E, H (HIL-2.x).
 
+*Amended 2026-11-02 (Phase 2, owner).* run still never uses the `jog*` tokens. A jog is short `G21 G91 G1` steps fed by the session with a bounded lookahead, then `G90` (and `G20` when the board was in inches) to restore the modes (§4.5b). The M400 barrier is replaced by polled idle confirmation (two consecutive polled reads with `stat` idle, `vel` 0 and `qr` = plannerBlocks): an M400 answer is deferred until the planner drains, and while it is owed no polled read can be answered, which the release and stop paths need. Continuous (press-and-hold) jog is allowed in Phase 2 and replaces "no continuous jog in v1" in §4.5; the runaway hazards are H50 and H54.
+
 ### H7. Alarm while moving
 | Field | Content |
 |---|---|
@@ -254,7 +264,7 @@ As OLD-S H13. The rules engine, export watermark, meter checklist and outputs te
 |---|---|
 | **Cause** | The tab crashes or closes while the board is in a feedhold (EN stat 6), at a program pause (EN stat 3 with `hold` 6 and the spindle on, PN §8), or with blocks still queued (up to 20 on EN) and up to 10 unread lines in the RX ring. After a reconnect, `~` would resume moves the new session never sent, never preflighted and cannot see. A `qr` read on a non-empty queue would also corrupt any "empty planner" value learned at the handshake, and GETs queued behind a stalled RX backlog may get no answer, which used to be classified as a conflict (READ_ONLY, feedhold only, spindle still running). |
 | **Rating** | S4, L2 |
-| **Mitigations** | 1. Reconnect always lands in UNKNOWN. No job state is persisted **locally or in the cloud**; a `runs` row is history only and can never be resumed. 2. **ORPHANED_MOTION overlay** (§3). It is entered when, at connect, stat ∉ {1, 4}, `hold` ≠ 0 (a readable token on EN, config_app.c:154; on TG only stat and `vel` are used, because `hold` on 440.21 is UNVERIFIED), `vel` ≠ 0, or `qr` is below the dialect's bench-verified empty value. Its only exits are Stop job (EN ^D then C13; TG `!` `%` `M5` `M9`) and Reset controller (C15). Home, jog, settings writes and Resume are denied. W32 explains it. 3. **`~` is allowed only to resume a hold or program pause of a job started by the current session id.** It is never available after a reconnect. 4. `plannerBlocks` is a **bench-verified dialect constant** (B-QR-1), never learned at the handshake. A lower reading means the queue is not empty. 5. The identity probe sends `{"sr":null}` first (PN §2.3 step 0). **No answer within 3 s, or unsolicited status reports showing motion, is "busy", never "conflicting identity"**: the session goes to ORPHANED_MOTION, not READ_ONLY. Until the probe has classified the board, ORPHANED_MOTION is **unclassified**: Stop job is `!` plus "Use your E-stop" (no ^D, `%` or M-codes to an unknown dialect) and Reset controller (C15) is available; the dialect's own Stop job becomes available once classification completes. ENQ is sent only after a footer revision 2/3 has been seen, because TG does not trap it (PN §2.3). "Conflicting identity" means answers whose values conflict, never missing answers. |
+| **Mitigations** | 1. Reconnect always lands in UNKNOWN. No job state is persisted **locally or in the cloud**; a `runs` row is history only and can never be resumed. 2. **ORPHANED_MOTION overlay** (§3). It is entered when, at connect, stat ∉ {1, 4}, `hold` ≠ 0 (a readable token on EN, config_app.c:154; on TG only stat and `vel` are used, because `hold` on 440.21 is UNVERIFIED), `vel` ≠ 0, or `qr` is below the dialect's bench-verified empty value. **(Amended 2026-11-02, bench 1 false positive.)** On EN, stat 3 with `hold` 0, `vel` 0 and `qr` at the empty value also counts as resting: every cycle that ends without M2/M30 finalizes to PROGRAM_STOP (EN canonical_machine.c `cm_cycle_end`, also after `{clear}`), so an idle board after another program's moves reads stat 3, while a program pause (M0/M1/M60) on EN reads stat 3 **with `hold` 6** (EN canonical_machine.c `_exec_program_stop`) and stays ORPHANED_MOTION. On TG stat 3 is still not resting, because `hold` is UNVERIFIED there and a program stop cannot be told apart. An unclassified board still needs stat ∈ {1, 4}. Its only exits are Stop job (EN ^D then C13; TG `!` `%` `M5` `M9`) and Reset controller (C15). Home, jog, settings writes and Resume are denied. W32 explains it. 3. **`~` is allowed only to resume a hold or program pause of a job started by the current session id.** It is never available after a reconnect. 4. `plannerBlocks` is a **bench-verified dialect constant** (B-QR-1), never learned at the handshake. A lower reading means the queue is not empty. 5. The identity probe sends `{"sr":null}` first (PN §2.3 step 0). **No answer within 3 s, or unsolicited status reports showing motion, is "busy", never "conflicting identity"**: the session goes to ORPHANED_MOTION, not READ_ONLY. Until the probe has classified the board, ORPHANED_MOTION is **unclassified**: Stop job is `!` plus "Use your E-stop" (no ^D, `%` or M-codes to an unknown dialect) and Reset controller (C15) is available; the dialect's own Stop job becomes available once classification completes. ENQ is sent only after a footer revision 2/3 has been seen, because TG does not trap it (PN §2.3). "Conflicting identity" means answers whose values conflict, never missing answers. |
 | **Residual** | Low. |
 | **Verification** | M: T-S60. E. H: HIL-1.10 (kill the tab while held with a full planner and an RX backlog, reconnect, and check that only stop-class intents are offered). |
 
@@ -543,6 +553,68 @@ Facts are device-local and never synced (H34). They are **bound to (machine id, 
 
 In every row the reply to the connect line is a G-code reply `{"r":{},"f":[...]}` with no `sr` key (status 0 plus motion where it ran). run's bare-key `{sr:null}` is the right form (it stops the quoted-form 440.21 case).
 
+### H50. Runaway jog: a lost key-up, pointer-up, focus or frozen page (NEW, Phase 2, 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | A press-and-hold jog whose release never arrives: the pointer leaves the button, the window loses focus while a key is held, the tab is hidden, the main thread freezes, or the release message is lost. TinyG has no continuous jog with cancel, so a host that kept feeding steps would keep the axis moving. |
+| **Rating** | S3–S4, L3 |
+| **Mitigations** | 1. **The session, not the page, feeds the jog**, one short `G21 G91 G1` piece at a time, and only while the planner holds fewer than the lookahead (`qr` polled after each piece): at most 2 pieces of at most 150 ms each are ever queued, so the machine stops within that much travel after feeding stops. 2. **Keep-alive:** a held jog needs a renewal from the page every 200 ms; with none for 500 ms the session ends the jog on its own (`!`, then `%` once held). A frozen main thread therefore stops the jog. 3. Release, `pointercancel`, `lostpointercapture`, window `blur` and `visibilitychange` to hidden all release the jog in the page. 4. Keyboard jog acts only while the jog panel has focus and the window is focused; auto-repeated key presses are ignored. 5. Releasing ends with `!`, then `%` once the hold is confirmed, so the board is never left held (H56). 6. A single step longer than one piece is fed the same way, so no jog ever queues more than the bound. |
+| **Residual** | Low. Overrun after a lost release is bounded by the lookahead plus the 500 ms keep-alive, plus deceleration. |
+| **Verification** | U/M: T-S89 (hold, release, focus loss, visibility, keep-alive expiry, maximum lookahead). E: jog hold and release on the fake board. H: HIL-2.2. |
+
+### H51. Jog into an unhomed limit (NEW, Phase 2, 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | Soft limits are skipped for unhomed axes (H3). The owner chose to allow jogging before homing on the bench. |
+| **Rating** | S2–S3, L3 |
+| **Mitigations** | The homing state is read at connect (`home`) and shown. While not homed, the jog panel shows W34 and every jog confirmation names it. Jog speed is capped (5000 mm/min, and by the firmware's own `fr`). Hard limits and the E-stop remain the protection. An alarm from a limit switch stops all motion (§4.5b, ALARM). |
+| **Residual** | Medium on unhomed machines. Low once homed with `sl=1`. |
+| **Verification** | U: T-S92 (the warning is part of the decision). H: HIL-2.9. |
+
+### H52. Spindle starts unexpectedly (NEW, Phase 2, 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | A mis-click on Spindle on, a double click, a stale page, or a spindle command sent while something else was planned. |
+| **Rating** | S4, L2 |
+| **Mitigations** | Spindle on needs C24 ("Spindle will start … Hands clear?") unless the user turned that off for this browser session (the choice is never stored). The intent is allowed only from idle with every motion precondition (§4.5b). `M3`/`M4` carry an explicit S, capped at 100000. The readouts are labelled "commanded" (TinyG measures nothing). Stop job always ends with `M5` and `M9`. |
+| **Residual** | Low-Medium: a user who switched C24 off for the session is not asked again. |
+| **Verification** | U: T-S92. E: spindle on and off on the fake board. |
+
+### H53. Go to zero crashes Z (NEW, Phase 2, 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | A rapid straight to work zero drags the tool through the stock or a clamp, or Z descends before X and Y have arrived. |
+| **Rating** | S2–S3, L3 |
+| **Mitigations** | For any move that includes X or Y, Z is first raised in machine coordinates (`G53 G0 Z<safe>`, never lower than where Z already is), then X and Y move (`G90 G0`), then Z descends to work 0 when Z was asked for. Each step waits for polled idle before the next. C25 shows the exact path before anything is sent. The work offset is shown next to the controls. |
+| **Residual** | Medium: a safe height that is wrong for the setup is the user's choice. |
+| **Verification** | U/M: T-S91 (the order of lines, the idle wait between them, Z never lowered first). E: go to zero on the fake board. |
+
+### H54. Connection lost mid-jog (NEW, Phase 2, 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | USB unplugged, the tab crashes, or the board resets during a jog. |
+| **Rating** | S3, L2 |
+| **Mitigations** | The board keeps only what is queued: at most the jog lookahead (H50), never a long move (a long step is fed in pieces). LOST stops the feeder at once and shows W3. The next connect is UNKNOWN; motion needs "I've checked the machine" (`positionVerify`) first. The firmware watchdog (D8 phase B) is not built and is not relied on. |
+| **Residual** | Low. |
+| **Verification** | M: T-S89 (LOST ends the feeder, nothing more is written). H: HIL-3.6 adapted to jog. |
+
+### H55. Two tabs drive motion (NEW, Phase 2, 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | A second tab of the same browser on the same machine. |
+| **Rating** | S3, L2 |
+| **Mitigations** | Only the tab that holds the machine Web Lock has a worker connection to the port. Other tabs get Pause and Stop job requests only, and the worker accepts only stop-class messages on the BroadcastChannel (§4.3), so a second tab can never jog, zero or start the spindle. |
+| **Residual** | Low. |
+| **Verification** | E: T-S73. |
+
+### H56. Stale state after `!` (NEW, Phase 2, 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | After a feedhold the page shows the last report, which can still say "moving" or "idle"; filtered reports may never repeat a value; a `%` sent before the hold has finished is ignored, which would leave the board held with moves queued. |
+| **Rating** | S2–S3, L3 |
+| **Mitigations** | Stop and release decisions use polled `stat`, `hold`, `vel` and `qr` (§4.2), never the last report. `%` is written only after two polled reads show the hold complete (`hold` 6) or the machine already at rest, and only after every written line has been answered (no line is cut). After `%` the session waits for `hold` 0 and an empty planner before it reports "Stopped" or returns to idle; a timeout is W12 and FAULT. No message says "requested": the page shows "Paused" or "Stopped" only from polled state. |
+| **Residual** | Low. |
+| **Verification** | M: T-S90. |
 ### H57. A settings write lost or merged during the EEPROM stall (NEW, amendment 2026-11-02)
 | Field | Content |
 |---|---|
@@ -739,6 +811,8 @@ Added:
 | Anything else | Denied under FAULT, ORPHANED_MOTION, LOST and UNKNOWN, except reads, the stop-class intents (normative rule) and, under UNKNOWN only, home and position-verify. STALE: reads and stop-class only. READ_ONLY: reads and stop-class (sent as `!`) only. NEEDS_REVIEW: reads, stop-class, **"Keep the board's settings and update the profile from the board"** (the default resolution, C23, zero serial writes, T-S70) and, as the secondary action, writes that resolve the drift through C19. |
 | Enter LIVE | A signed `safety-advisory.json` verified (fetched now, or a cached copy younger than 7 days, H27) and this version not revoked; C1 (or the short re-attestation) accepted **in this browser session**; not a mobile operating system (RUN_PLAN §2.3); the classifier did not return READ_ONLY (otherwise LIVE becomes LIVE_READ_ONLY). |
 
+*Amended 2026-11-02 (Phase 2, owner).* In a Phase 2 session (`PHASE_2_RELEASE`, motion flag on): **Jog** and **Go to zero** are allowed from IDLE_* (and JOGGING for the next piece of the jog already running), with no overlay, an approved build (no READ_ONLY), no ORPHANED_MOTION, no alarm and no job; the `dir.<axis>` fact and the unhomed caps are replaced by W34 while not homed (H51). **Set work zero** is `G10 L20 P1` (persisted on the controller, said in C16) and is a motion-kind intent of this phase, not a settings write. **Manual spindle/coolant on** needs C24 unless turned off for the session. **Clear alarm** (`{"clear":null}`, C13 with the alarm's meaning) is allowed only from ALARM. **Resume** (`~`) only from a hold of motion this session sent. Pause, Stop job and Spindle off stay never gated, in the same place, always enabled.
+
 **UI rules that protect the stop path while LIVE** (OLD-S §4.1, extended):
 - No fullscreen while LIVE.
 - No native file pickers or selects while RUNNING or HELD.
@@ -808,7 +882,7 @@ As OLD-S §4.3.
 1. Await the in-flight single-line write (at most about 120 B, roughly 10 ms). XOFF never delays a realtime byte.
 2. Write `!`.
 3. Stop feeding.
-4. Show "PAUSE REQUESTED".
+4. Show "PAUSE REQUESTED". *Amended 2026-11-02 (owner, bench 1; tenet 3):* the word "requested" is never shown. Until a report shows the held class the machine strip shows "Pausing…"; it resolves to "Paused" or "Paused · spindle still on" (step 5) once the hold is reported, to "Paused: the machine was idle, nothing changed" when the machine was or comes to rest, or, after 2 s without a hold, to "No answer from the board yet: use your E-stop if it's still moving". Pause and Stop job stay prominent while a hold is wanted.
 5. When a report shows the held class, the state band shows **"PAUSED — SPINDLE MAY BE RUNNING"** (W30) with the spindle state (reported, or UNCONFIRMED) plus W10. The word "STOPPED" is never used for a hold. *Amended 2026-11-02 (OD-6):* the machine strip names the state in plain words: "Paused · spindle still on" when the spindle was commanded on, otherwise "Paused", always with W30 and W10 beside it. A Pause pressed while the machine was idle is reported as "Paused: the machine was idle, nothing changed".
 6. If motion resumes while the user wants a hold, re-send `!`.
 7. **Dwell case (H43):** if the executing line is a dwell, the firmware ignores `!`. On EN the session **sends ^D automatically** (`dwellStop`), because the operator asked to stop and the only immediate stop is to end the job; W26 explains what happened. On TG (no immediate dwell abort exists), show W26, highlight Stop job, keep `!` requested and re-send it at the first motion.
@@ -832,6 +906,15 @@ As OLD-S §4.3.
 5. `M5`, wait for its `r`, then `M9`.
 6. Reset counters.
 7. IDLE, spindle "UNCONFIRMED".
+
+**Stop job, Phase 2 motion session** (*amended 2026-11-02, owner; supersedes "Stop job went out as Pause" from Phase 1 for these sessions*). Applies to a classified, approved board (no READ_ONLY, no ORPHANED_MOTION) in a session with the motion flag on. There are no jobs in Phase 2, so ^D is not used; it stays the Stop job of a running job from Phase 3.
+1. Stop feeding (a jog's pieces, a go-to-zero sequence). Await the in-flight line.
+2. Write `!`.
+3. Poll `stat`, `hold`, `vel`, `qr` every 100 ms until two consecutive reads show the hold complete (`hold` 6) or the machine at rest with an empty planner, and every written line has been answered. Up to 3 s.
+4. If the board is held or the planner is not empty, write `%`. Then poll until `hold` is 0 and `qr` = plannerBlocks twice. Up to 3 s.
+5. `M5`, then `M9`, each answered; then `G90` (and `G20` if the board was in inches).
+6. Show "Stopped: queue cleared, spindle and coolant off". IDLE.
+Any timeout: W12 and FAULT. **Pause** in a motion session writes `!` and stops feeding; the hold is shown as "Paused" from polled state (W30 and W10 still apply). **Resume** writes `~` only for a hold of motion this session sent, and shows "Resumed".
 
 **Stop job, READ_ONLY sessions** (stock 449, unknown builds): only `!` is available. The UI says "Use your E-stop or the controller's own stop" and never sends ^D or `%` to an unclassified build.
 
@@ -869,6 +952,22 @@ As OLD-S §4.5:
 **EN additions:**
 - Each jog line is followed by `M400` alone on a line. The next jog is accepted only after the M400 `r` and a report with `vel` = 0 (this replaces the pure timing inference).
 - **Never use `jog*` tokens** (E157) or M114 for targets (PN §9.3).
+
+### 4.5b Phase 2 bench motion (owner, 2026-11-02)
+
+**Phase gate.** The machine worker uses `PHASE_2_RELEASE` only where the motion capability flag is on: `http://localhost` and `http://127.0.0.1` (the loopback bench server, any port) and `https://staging.run.synthetos.com`. Every other origin, `https://run.synthetos.com` included, keeps `PHASE_1_RELEASE` (T-S93).
+
+**Preconditions for any motion intent** (the matrix plus the session): connected, classified and approved (no READ_ONLY); no FAULT, LOST, ORPHANED_MOTION, UNKNOWN or STALE; not in ALARM (an alarm needs **Clear alarm** with C13 and the alarm's meaning); no job; nothing else in motion. The homing state (`home`, read at connect) is shown; while not homed every jog shows W34. After a reconnect (UNKNOWN), motion needs "I've checked the machine" (`positionVerify`).
+
+**Jog.** Steps 0.01, 0.1, 1, 10 and 100 mm (0.001, 0.01, 0.1, 1 and 4 in), or Hold. Jog speed up to 5000 mm/min. Each piece is one line `G21 G91 G1 <axes> F<f>`, at most 150 ms of travel at the jog speed; at most 2 pieces are queued in the planner (`qr` polled after each piece). A step longer than one piece is fed in pieces the same way. Hold jogs need a keep-alive every 200 ms and end after 500 ms without one (H50). Ending a jog: stop feeding, `!`, then `%` once held (H56), then `G90` (and `G20` if the board was in inches). A jog that ran to its end waits for polled idle and restores the modes the same way. Keyboard jog (arrows for X and Y, Page Up and Page Down for Z) only while the jog panel has focus and the window is focused.
+
+**Go to zero.** Per axis or all. If X or Y moves: `G53 G0 Z<safe>` with `<safe>` never below the current machine Z, then `G90 G0 X0 Y0` (the axes asked for), then `G90 G0 Z0` if Z was asked for. Each line waits for polled idle before the next. C25 shows the path first.
+
+**Set zero.** `G10 L20 P1 <axes>0` (G54, persisted on the controller; never G92, which is a temporary offset). C16 states it. The work offset (machine minus work position) is shown.
+
+**Spindle and coolant.** `M3 S<rpm>` (CW), `M4 S<rpm>` (CCW), `M5`; `M7` mist, `M8` flood, `M9` both off (TinyG has one off command for both). Readouts (`spe`, `spc`, `spd`, `sps`, `cof`, `com`) are labelled commanded, never measured. Spindle on needs C24 unless the user turns it off for the browser session.
+
+**Write gate.** Motion lines are their own command kind in the session's write gate (writePolicy.ts). A line is written only if it matches the closed grammar above exactly (numbers bounded, LF-terminated, no other words), the session release allows motion, and the allow-matrix allows the intent that issued it in the current state. `%` is written only by the stop and release sequences, `~` only by Resume, `{"clear":null}` only by Clear alarm. ^D and ^X are still never written in Phase 2.
 
 ### 4.5a Temporary homing search cap (TinyG, Phase 4)
 
@@ -1075,6 +1174,7 @@ Signal words follow ANSI Z535 and ISO 3864-2 (OLD-S §5). **Single source:** eve
 - **W30 (state band during a hold, every TinyG dialect):** "PAUSED — SPINDLE MAY BE RUNNING"
 - **W31 (hold timeout countdown):** "This job will be stopped with the spindle off in N s, because it is paused with the spindle on. Choose \"Keep paused\" to wait longer."
 - **W32 (ORPHANED_MOTION):** "WARNING — This controller is paused, holding or still has queued moves from a previous session. This page did not send them and cannot resume them. Use \"Stop job\" to end them with the spindle off, or reset the controller."
+- **W34 (jog panel while not homed; Phase 2, 2026-11-02):** "WARNING — The machine is not homed, so soft limits may not protect it. A jog can drive an axis into its end. Use small steps and keep a hand on the E-stop."
 - **W33 (liveness FAULT countdown, `role="alert"`, tone):** "DANGER — This page lost track of the machine (<cause>). The machine is paused and the spindle may be running. The job will be stopped with the spindle off in N s. Check the machine now."
 
 ---
@@ -1117,6 +1217,8 @@ An identity or chip mismatch on a flash, a bound-device mismatch on a profile, a
 | C21 | Start without a screen wake lock (expert mode) | "The screen may sleep or lock during this job, which can freeze or hide this tab. Type NO WAKE LOCK to start anyway." | Typed |
 | C22 | Preflight finds that the job ends with the spindle or coolant on | "This file ends with the spindle <on, S…> and coolant <on> and no program end that turns them off. Append \"M5 M9\" so the job ends with them off?" Declining blocks the job. | Single |
 | C23 | Resolve NEEDS_REVIEW by updating the profile from the board (the default action) | "Keep the settings on <machine name> (<board id>) and save them as profile revision <n+1>? Nothing is written to the controller." | Single |
+| C24 | Manual spindle on (Phase 2, 2026-11-02), unless the user turned it off for this browser session | "Spindle will start (<direction>, S<rpm>). Hands clear?" | Single |
+| C25 | Go to work zero (Phase 2, 2026-11-02) | "Go to work zero on <axes>? The machine will move: <path>. Keep a hand on the E-stop." | Single |
 
 Stop job and Spindle off now are never behind a confirmation: they are direct actions in every connected state and every overlay (§4.1 normative rule).
 
@@ -1178,6 +1280,7 @@ OLD-S §8 items 1–21 all apply. Read "sim" as `testkit`, and read item 20 as c
 38. ☐ No sanitised line can queue more than the queued-motion ceiling.
 39. ☐ The connect sequence writes `{"sr":null}` first and no ENQ before a footer revision 2/3 (H49, PN §2.3).
 40. ☐ Console (MDI) motion and spindle-on lines go through preflight, the ceiling and the target confirmation; no console path writes to the Transport except through `MachineSession` and `safety.allowed`.
+41. ☐ Phase 2: every motion line matches the closed grammar of the motion command kind (§4.5b); no jog ever queues more than the lookahead; `%`, `~` and `{"clear":null}` come only from their named sequences; the motion flag stays off for the production host (T-S93).
 42. ☐ Settings writes stay behind the phase switch (`SETTINGS_WRITES`, production off), the approval gate and the idle gate; one token per line with its answer awaited and a read-back; a backup before every apply; no forbidden, identity or communication key is writable.
 
 ---
@@ -1223,6 +1326,7 @@ Manual, and never in CI. Signed in `RELEASES.md` in the run repo, with the evide
 - **HIL-2.10** Reset controller: W18 and C15, `^X` written exactly once, UNKNOWN.
 - **HIL-2.11** Outputs test with the relay module: record the relay state at power-up, reset and flash entry (B-IO-1, PN §13.1 boot float).
 - **HIL-2.12** Hold timeout: hold with M3 on; the W31 countdown runs; at zero ^D is written (EN) and the LED goes off; "Keep paused" restarts the countdown.
+- **HIL-2.14** (*Phase 2, 2026-11-02*) Press-and-hold jog on each axis, then release; repeat ending with a window switch, a hidden tab and a frozen page (no renewals): each ends with `!` then `%` within the H50 bound, and `hold` reads 0 afterwards. Stop job during a jog with M3 on: `!`, `%`, `M5`, `M9`, the spindle LED off, "Stopped: queue cleared, spindle and coolant off". Go to zero from below the safe height: Z rises first.
 - **HIL-2.13** Hardwired E-stop (Vmot cut; TinyG logic is powered from Vmot, so the board stops): press it during a slow jog and during a held job. The app goes STALE then FAULT (or LOST if USB drops, B-PWR-1), never resends a line, and shows the recovery card. When Vmot returns, the banner after Ready gives FAULT then UNKNOWN; homing is required; record the J6 relay state during power-up (boot float, PN §13.1).
 
 ### 9.4 Phase 3: bench streaming (first real job)
@@ -1359,6 +1463,12 @@ New tests:
 | T-S86 | Connect sequence: in every connect path (fresh, reconnect after LOST, after W6) the first line written is `{"sr":null}`; a reply to that first line with no `sr` key (a leftover fragment joined it, whether rejected or run: measured 2026-11-02, H49) leads to ORPHANED_MOTION unclassified, and so does no response, with only `!` and Reset controller allowed. | M, U |
 | T-S87 | ENQ ordering: across random probe interleavings, 0x05 never appears before a rev-2/3 footer, never on a rev-1 board, and after classification only on `tinyg-en`. | M |
 | T-S88 | Console (MDI): a motion line outside the envelope, a first feed without F, a line above the ceiling (split), an unhomed move beyond the jog caps, JSON, `$` and realtime bytes are refused or split; motion lines need the target confirmation; the console is denied under every overlay and while a job is armed or running. | U, M, E |
+| T-S89 | Jog state machine (Phase 2): a step is fed in pieces with at most 2 queued; Hold stops on release, on a missed keep-alive, and (in the page) on blur and on hidden; LOST ends the feeder with nothing more written; a new jog is refused while one runs. | U, M |
+| T-S90 | Stop sequence (Phase 2): `!`, polled hold, `%` only once held and every line answered, polled empty, `M5`, `M9`, then "Stopped: queue cleared, spindle and coolant off"; a timeout is W12 and FAULT; Pause and Resume write `!` and `~` only for this session's hold. | U, M, E |
+| T-S91 | Go to zero (Phase 2): Z raised first in machine coordinates and never lowered first, X and Y next, Z last, each after polled idle. | U, M, E |
+| T-S92 | Motion preconditions and control allowlist (Phase 2): motion controls are enabled only with the flag on, a classified approved board, no overlay, no alarm and no job; Pause and Stop job stay enabled. | U, E |
+| T-S93 | Motion flag: on for loopback and staging only, off for `https://run.synthetos.com` and every other origin. | U |
+| T-S94 | Write gate (Phase 2): the motion grammar admits exactly its line shapes with bounded numbers; anything else, and any motion line under `PHASE_1_RELEASE`, is refused. | U |
 | T-S85 | Output encoding: download `Content-Disposition` uses RFC 6266 `filename*` with a forced `.nc`/`.gcode` extension; export zip entry paths are ids; SVG export escapes labels and is only downloaded; strings from the serial port render via `textContent` with bidi sanitising. | U, E |
 | T-S95 | Settings writes, session (amendment 2026-11-02): only one write at a time (a second is refused until the first is done). The gate reads (`stat hold vel qr unit`), then exactly `{"<key>":<value>}`, then the read-back GET, with no other line while the write is unanswered. Forbidden, identity, readout, `rt*`, communication and unreviewed keys are refused at the intent and by the write gate. The write gate accepts a settings line only as the `setting` kind, for the exact key and value being written. | U, M |
 | T-S96 | Settings plan: communication keys are ordered last and `jv` very last. Switch, homing, motor, motor-map, axis-mode, travel, soft-limit, polarity and communication keys are high-risk with a named consequence. A refused value refuses the whole plan. A restore maps by token name and skips identity, readout, forbidden and unreviewed keys with reasons. Read-back compares at table precision. | U |

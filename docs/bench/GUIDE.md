@@ -500,7 +500,7 @@ commit) next to it.
   Keep the B-MD-1 evidence separately. Fail: any denied token.
 - [ ] **HIL-1.9 Feedhold during a slow move.** Start a slow move from the
   EN-HIL harness (outside the runner). Press Escape, and separately the
-  Pause button. Pass: `!` at once; PAUSE REQUESTED, then W30 once a report
+  Pause button. Pass: `!` at once; "Pausing…", then W30 once a report
   shows the hold. Record the keydown-to-`!` latency from the Saleae. Fail:
   no hold, or "STOPPED" shown.
 - [ ] **HIL-1.10 Orphaned motion.** From the EN-HIL harness, start a slow job

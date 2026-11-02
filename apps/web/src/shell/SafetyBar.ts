@@ -16,8 +16,12 @@ export interface StopBarView {
    * was lost (W29): Pause and Stop job are shown prominently. Quiet otherwise. Never disables them.
    */
   readonly prominent: boolean;
-  /** `held`: a report shows the held class (W30 plus W10). `pause-requested`: Pause was sent, no hold reported yet. */
-  readonly band: 'held' | 'pause-requested' | null;
+  /**
+   * `held`: a report shows the held class (W30 plus W10). After a Pause with no hold reported (SAFETY §4.4
+   * step 4, amended 2026-11-02): `pausing` (brief), `pause-no-answer` (none within 2 s), `paused-idle` (the
+   * machine was or came to rest, nothing changed).
+   */
+  readonly band: 'held' | 'pausing' | 'pause-no-answer' | 'paused-idle' | null;
   /** The last stop request's result, per machine (SAFETY §4.3), and what was asked for. */
   readonly outcome: {
     readonly kind: 'delivered' | 'not-delivered';

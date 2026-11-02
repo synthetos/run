@@ -74,9 +74,12 @@ import { OVERLAYS, allowed, type Decision, type Intent, type MatrixSnapshot, typ
 import { getLineFor, isReadAllowed } from '@synthetos/schema';
 import { writeLineCapFor } from '../writeShape.ts';
 import { gateTokens, judgeGate, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
+import { restingStat, restingUsesHold } from './resting.ts';
+import { abandonMotion, checkAlarm, idleBase, motionCapable, onMotionAnswer, onMotionIntent, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
 import {
   MAX_PROBE_RESTARTS,
   MAX_QUEUED_READS,
+  READY_BASES,
   type Axis,
   type Expected,
   type FaultCause,
@@ -108,6 +111,9 @@ export const READING_TOKENS: readonly string[] = Object.freeze(['stat', 'hold', 
  */
 export const FULL_SESSION_FLOW_CONTROL: ReadonlySet<number> = new Set([0, 1]);
 
+/** READING's extra tokens in a motion session: the homing state (W34, IDLE_HOMED) and the units to restore after a jog. */
+export const MOTION_READING_TOKENS: readonly string[] = Object.freeze(['home', 'unit']);
+
 /** Tokens the `ackFault` verification reads (SAFETY §3 FAULT exits). */
 export const VERIFY_TOKENS: readonly string[] = Object.freeze(['hold', 'qr']);
 
@@ -119,8 +125,9 @@ const AXES: readonly Axis[] = ['x', 'y', 'z', 'a', 'b', 'c'];
 /** Machine classes that mean the board is moving or about to (unsolicited report while connecting). */
 const MOTION_CLASSES: ReadonlySet<MachineClass> = new Set(['running', 'homing', 'jogging', 'probing']);
 
-/** Classes READING accepts as "not running anything" (PN §2.3 step 0: stat ∈ {1, 4}). */
-const RESTING_CLASSES: ReadonlySet<MachineClass> = new Set(['idle', 'end']);
+
+/** Classes READING takes as a controller alarm in a motion session (not motion from elsewhere). */
+const ALARM_CLASSES: ReadonlySet<MachineClass> = new Set(['alarm', 'softAlarm', 'shutdown']);
 
 const EMPTY_LIVE: LiveState = Object.freeze({ pos: Object.freeze({}), mpo: Object.freeze({}) });
 
@@ -155,6 +162,7 @@ export function initialState(): SessionState {
     timers: Object.freeze({}),
     timerSeq: 0,
     sent: Object.freeze({ lines: 0, realtime: 0 }),
+    motion: null,
     settingWrite: null,
   });
 }
@@ -249,6 +257,9 @@ class Tx {
   }
 }
 
+/** What the motion layer borrows from this file (motion.ts may not import it: no cycles). */
+const MOTION_DEPS: MotionDeps = { fault: (t, cause, kind, detail, at) => enterFault(t as Tx, cause, kind, detail, at) };
+
 /** The next state and effects. Pure: never throws for any event in any state. */
 export function reduce(config: SessionConfig, state: SessionState, event: SessionEvent): Transition {
   const t = new Tx(config, state);
@@ -277,7 +288,11 @@ export function reduce(config: SessionConfig, state: SessionState, event: Sessio
       }
       break;
     case 'inbound':
-      if (event.epoch === t.s.epoch && linkUp(t.s)) onInbound(t, event.event, event.at);
+      if (event.epoch === t.s.epoch && linkUp(t.s)) {
+        onInbound(t, event.event, event.at);
+        // An alarm ends any motion of this session; a cleared alarm returns to idle (SAFETY §4.5b).
+        checkAlarm(t, event.at);
+      }
       break;
     case 'lineWritten':
       // Only for the line being written: its answer may already have arrived (and the next line been asked for).
@@ -320,7 +335,7 @@ export function reduce(config: SessionConfig, state: SessionState, event: Sessio
 
 /** The port is open and the link has not been lost. */
 function linkUp(s: SessionState): boolean {
-  return (s.base === 'IDENTIFYING' || s.base === 'READING' || s.base === 'BLOCKED' || s.base === 'CONNECTED_UNKNOWN') && !s.overlays.includes('LOST');
+  return (s.base === 'IDENTIFYING' || s.base === 'READING' || s.base === 'BLOCKED' || READY_BASES.has(s.base)) && !s.overlays.includes('LOST');
 }
 
 // --- Intents -------------------------------------------------------------
@@ -361,6 +376,16 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
     case 'feedhold':
     case 'stopJob':
     case 'spindleOffNow': {
+      // A motion session (Phase 2, SAFETY §4.4): Pause holds this session's motion, Stop job runs the
+      // flush sequence, Spindle off sends M5/M9 when idle. A hold jog's release lands here too.
+      if (onMotionStop(t, request, at)) {
+        t.decide(intent, matrix);
+        return;
+      }
+      if ('release' in request) {
+        t.decide(intent, matrix); // no hold jog to release: nothing to send
+        return;
+      }
       // Phase 1 (and every READ_ONLY session): the only stop is `!`, with "Use your E-stop" for Stop
       // job and Spindle off (SAFETY §4.4). Never ^D, `%` or an M-code.
       writeFeedhold(t);
@@ -380,6 +405,22 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
       return;
     case 'read':
       onRead(t, request.tokens, matrix);
+      return;
+    case 'jog':
+    case 'goToZero':
+    case 'setWorkZero':
+    case 'spindleOn':
+    case 'clearAlarm':
+    case 'resume':
+    case 'positionVerify':
+      // Reached only when the release allows motion (the matrix denied it above otherwise), except
+      // positionVerify, a session intent: the motion layer refuses it without a motion release.
+      // Never while a settings write is being made: its gate, write and read-back own the link until it ends.
+      if (settingWriteActive(t.s)) {
+        t.decide(intent, deny('A setting is being written.', 'Wait for the write and its read-back to finish.', 'SAFETY §4.6 (amendment 2026-11-02)'));
+        return;
+      }
+      t.decide(intent, onMotionIntent(t, request, at));
       return;
     case 'settingsWrite':
       onSettingsWrite(t, request.key, request.value, matrix);
@@ -449,6 +490,11 @@ function onSettingsWrite(t: Tx, key: unknown, value: unknown, matrix: Decision):
   /* c8 ignore next 4 -- defence in depth: an unclassified or read-only board carries READ_ONLY, which the matrix denies first */
   if (dialect === null || t.s.classification?.mode !== 'full') {
     t.decide('settingsWrite', deny('Settings are written only to an approved, identified board.', 'Connect a board running approved firmware.', 'SAFETY §4.6; P1-03'));
+    return;
+  }
+  /* c8 ignore next 4 -- defence in depth: a move in progress has a motion base, which the settings row already denies */
+  if (t.s.motion !== null) {
+    t.decide('settingsWrite', deny('A move is in progress. Settings are written only while the machine is idle.', 'Wait for the move to finish.', 'SAFETY §4.6; §4.5b'));
     return;
   }
   if (settingWriteActive(t.s)) {
@@ -631,6 +677,7 @@ function answerTimeout(t: Tx, purpose: ReadPurpose): number {
 
 function onLinkLost(t: Tx): void {
   interruptSettingWrite(t, 'the connection was lost');
+  abandonMotion(t);
   t.cancelAll();
   t.addOverlay('LOST');
   t.set({ queue: [], expected: [], writing: null, ackVerify: null, xoff: false, enqOutstanding: false, liveness: null, unknownOnNextConnect: true });
@@ -651,6 +698,10 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
   }
   if (id === 'watchdog') {
     onWatchdog(t, at);
+    return;
+  }
+  if (id === 'motion') {
+    onMotionTimer(t, MOTION_DEPS, at);
     return;
   }
   if (id === 'verify') {
@@ -803,6 +854,8 @@ function consumeOwed(t: Tx, index: number): void {
 function answers(e: Expected, r: Response): boolean {
   if (e.purpose === 'splice') return true;
   const keys = Object.keys(r.r);
+  // A motion line is answered with an empty `r`, or with the line echoed as `gc` (jv ≥ 5), or `clear`.
+  if (e.purpose === 'motion') return keys.every((k) => k === 'gc' || k === e.token);
   return keys.length === 0 || (keys.length === 1 && keys[0] === e.token);
 }
 
@@ -856,6 +909,14 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
     case 'liveness':
       // The answer itself is the proof of life (already recorded on receipt); keep the value it carries.
       if (r.footer.status === 0 && typeof value === 'number') t.set({ live: withNumber(t, t.s.live, e.token, value) });
+      return;
+    case 'poll':
+      if (r.footer.status === 0 && typeof value === 'number' && Number.isFinite(value)) t.set({ live: withNumber(t, t.s.live, e.token, value) });
+      if (e.token === 'home' && (t.s.base === 'IDLE_HOMED' || t.s.base === 'IDLE_UNHOMED')) t.set({ base: idleBase(t.s) });
+      if (e.token === 'qr' && checkAlarm(t, at)) onPollDone(t, at);
+      return;
+    case 'motion':
+      onMotionAnswer(t, e.line, r.footer.status, at);
       return;
     case 'gate':
       onGateAnswer(t, e.token, r);
@@ -918,7 +979,8 @@ function finishProbe(t: Tx): void {
     return;
   }
   const dialect = c.dialect;
-  const reads = dialect === null ? [] : READING_TOKENS.filter((tok) => isReadAllowed(dialect.id, tok));
+  const tokens = t.config.release.motion ? [...READING_TOKENS, ...MOTION_READING_TOKENS] : READING_TOKENS;
+  const reads = dialect === null ? [] : tokens.filter((tok) => isReadAllowed(dialect.id, tok));
   if (reads.length === 0 || t.s.overlays.includes('ORPHANED_MOTION')) {
     t.set({ base: 'CONNECTED_UNKNOWN' });
     if (dialect === null) checkUnclassifiedResting(t);
@@ -958,26 +1020,21 @@ function checkUnclassifiedResting(t: Tx): void {
   t.emit({ kind: 'log', text: `probe: unclassified board not resting (stat ${live.stat ?? 'unknown'}, vel ${live.vel ?? 'unknown'}, hold ${live.hold ?? 'unknown'}) → ORPHANED_MOTION` });
 }
 
-/**
- * Whether the resting check consults `hold` on this dialect. SAFETY H14 mitigation 2: only where the
- * dialect does not list `hold` as unverified (on 440.21 only `stat` and `vel` are used).
- */
-export function restingUsesHold(dialect: Dialect): boolean {
-  return !dialect.unverified.some((u) => u.field === 'hold');
-}
+export { restingUsesHold } from './resting.ts';
 
 /** READING is complete: a board that is not resting is ORPHANED_MOTION (SAFETY H14, PN §2.3 step 0). */
 function finishReading(t: Tx): void {
   const dialect = dialectOf(t.s);
   const live = t.s.live;
-  const resting =
-    dialect !== null &&
-    live.stat !== undefined &&
-    RESTING_CLASSES.has(mapStat(dialect, live.stat)) &&
-    (!restingUsesHold(dialect) || live.hold === 0) &&
-    live.vel === 0 &&
-    live.qr === dialect.limits.plannerBlocks;
-  if (!resting) t.addOverlay('ORPHANED_MOTION');
+  const quiet = dialect !== null && (!restingUsesHold(dialect) || live.hold === 0) && live.vel === 0 && live.qr === dialect.limits.plannerBlocks;
+  // One rule for "at rest" (SAFETY H14 as amended 2026-11-02): idle or ended, or on edge-next a finished cycle
+  // (stat 3 with hold 0), shared with the motion layer (resting.ts).
+  const resting = quiet && live.stat !== undefined && restingStat(dialect, live.stat, live.hold);
+  const cls = dialect !== null && live.stat !== undefined ? mapStat(dialect, live.stat) : undefined;
+  // A motion session (Phase 2): a controller in alarm with nothing moving, held or queued is not motion
+  // from elsewhere; it is ALARM, left only by Clear alarm (C13, SAFETY §4.5b).
+  const alarmed = t.config.release.motion && quiet && cls !== undefined && ALARM_CLASSES.has(cls);
+  if (!resting && !alarmed) t.addOverlay('ORPHANED_MOTION');
   const c = t.s.classification;
   if (c !== null && c.mode === 'full' && (live.ex === undefined || !FULL_SESSION_FLOW_CONTROL.has(live.ex))) {
     const shown = live.ex === undefined ? 'could not be read' : `is ${live.ex}${live.ex === 2 ? ' (RTS/CTS)' : ''}`;
@@ -986,6 +1043,9 @@ function finishReading(t: Tx): void {
     t.emit({ kind: 'log', text: `classification: read-only, flow control (ex) ${shown}` });
   }
   t.set({ base: 'CONNECTED_UNKNOWN', queue: t.s.queue.filter((q) => q.purpose !== 'reading') });
+  // A motion session with nothing in the way goes to idle (or ALARM). UNKNOWN (after a reconnect) waits
+  // for "I've checked the machine" (positionVerify); any other overlay keeps CONNECTED_UNKNOWN.
+  if (motionCapable(t.s, t.config) && t.s.overlays.length === 0) t.set({ base: alarmed ? 'ALARM' : idleBase(t.s) });
 }
 
 function onVerifyAnswer(t: Tx, token: string, value: number | undefined): void {
@@ -1075,6 +1135,12 @@ function onGarbled(t: Tx, at: number): void {
       return;
     case 'liveness':
       return;
+    case 'poll':
+      return; // the next poll asks again
+    case 'motion':
+      // Nothing shows whether the line ran: stop trusting the link (SAFETY §3 garbled frame).
+      enterFault(t, 'unexpectedResponse', 'integrity', `the answer to a motion line (${String(entry.line)}) arrived damaged`, at);
+      return;
     case 'gate':
       finishSettingWrite(t, 'refused', `Not written: the answer to the ${entry.token} read arrived damaged.`);
       return;
@@ -1122,6 +1188,7 @@ function withNumber(t: Tx, live: LiveState, key: string, v: number): LiveState {
     case 'sps':
     case 'cof':
     case 'com':
+    case 'home':
       return { ...live, [key]: v };
   }
   for (const axis of AXES) {
@@ -1138,7 +1205,7 @@ export const LIVENESS_TOKEN = 'stat';
 
 /** The watchdog runs on a classified, connected link (it needs the dialect's ENQ or its read allowlist). */
 function watchdogActive(s: SessionState): boolean {
-  return linkUp(s) && s.base === 'CONNECTED_UNKNOWN' && dialectOf(s) !== null;
+  return linkUp(s) && READY_BASES.has(s.base) && dialectOf(s) !== null;
 }
 
 /** Arms the watchdog when it should run and is not armed; stops it when it should not run. */
@@ -1192,12 +1259,14 @@ function askForLife(t: Tx): 'enq' | 'get' {
 function enterFault(t: Tx, cause: FaultCause, kind: FaultKind, detail: string, at: number): void {
   interruptSettingWrite(t, 'a fault latched');
   if (t.s.fault === null) t.set({ fault: { cause, kind, detail, at } });
+  const wasMoving = t.s.motion !== null && t.s.motion.phase !== 'held';
+  abandonMotion(t);
   t.addOverlay('FAULT');
   t.cancel('verify');
   // Stop feeding (SAFETY §3 FAULT entry effect 1). Lines already written may still be answered.
   t.set({ queue: [], ackVerify: null });
   const live = t.s.live;
-  const moving = (live.vel !== undefined && live.vel !== 0) || (live.machineClass !== undefined && MOTION_CLASSES.has(live.machineClass));
+  const moving = wasMoving || (live.vel !== undefined && live.vel !== 0) || (live.machineClass !== undefined && MOTION_CLASSES.has(live.machineClass));
   // Effect 2: the machine was moving, so hold it. Phase 1 never ran a job; nothing else is sent.
   if (moving && allowed(matrixSnapshot(t.s), 'feedhold', t.config.release).allowed) writeFeedhold(t);
 }
@@ -1210,11 +1279,13 @@ function pump(t: Tx): void {
   if (s.writing !== null || s.queue.length === 0 || !linkUp(s)) return;
   if (s.expected.some((e) => !e.late)) return;
   const next = s.queue[0] as PendingRead;
-  const intent = next.purpose === 'setting' ? 'settingsWrite' : 'read';
+  const intent: Intent = next.purpose === 'motion' ? (next.intent as Intent) : next.purpose === 'setting' ? 'settingsWrite' : 'read';
   if (!allowed(matrixSnapshot(s), intent, t.config.release).allowed) {
-    // A write the matrix no longer allows is dropped, never held for later (the state that allowed it is gone).
-    /* c8 ignore next -- the setting line is queued in the same transition the matrix allowed it; dropped, never held, if that ever changes */
-    if (intent === 'settingsWrite') finishSettingWrite(t, 'refused', 'Not written: the machine is no longer in a state that allows settings writes.');
+    // A motion line or a settings write the matrix no longer allows (the state changed since it was queued) is dropped, never held.
+    /* c8 ignore next -- a safety net: every state change that ends motion (STALE, FAULT, LOST, ALARM) empties the motion queue first */
+    if (next.purpose === 'motion') t.set({ queue: s.queue.slice(1) });
+    /* c8 ignore next -- a setting line is queued in the same transition the matrix allowed it */
+    if (next.purpose === 'setting') finishSettingWrite(t, 'refused', 'Not written: the machine is no longer in a state that allows settings writes.');
     return;
   }
   const line = lineFor(s, next);
@@ -1225,10 +1296,11 @@ function pump(t: Tx): void {
   }
   const seq = s.sent.lines + 1;
   t.set({ queue: s.queue.slice(1), writing: { ...next, seq }, sent: { ...s.sent, lines: seq } });
-  t.emit({ kind: 'writeLine', epoch: s.epoch, seq, token: next.token, line, ...(intent === 'settingsWrite' ? { intent } : {}) });
+  t.emit({ kind: 'writeLine', epoch: s.epoch, seq, token: next.token, line, ...(next.purpose === 'motion' ? { motion: { intent } } : next.purpose === 'setting' ? { intent: 'settingsWrite' as const } : {}) });
 }
 
 function lineFor(s: SessionState, read: PendingRead): string | undefined {
+  if (read.purpose === 'motion') return read.line;
   /* c8 ignore start -- the queued setting line always matches the write in progress; any mismatch is a bug and becomes a writeRefused FAULT */
   if (read.purpose === 'setting') {
     const w = s.settingWrite;

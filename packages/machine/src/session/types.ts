@@ -21,8 +21,15 @@ import type { ApprovedBuilds, Banner, ClassifyReason, Dialect, DialectId, Footer
 import type { BaseState, Decision, Intent, Overlay, Release } from '@synthetos/safety';
 import type { PortSelector, TransportInfo } from '../transport.ts';
 
-/** The base states Phase 1 can be in (a subset of the allow-matrix's `BASE_STATES`). */
-export type SessionBase = Extract<BaseState, 'NOT_CONNECTED' | 'PORT_REQUEST' | 'OPENING' | 'IDENTIFYING' | 'READING' | 'BLOCKED' | 'CONNECTED_UNKNOWN'>;
+/**
+ * The base states the session can be in (a subset of the allow-matrix's `BASE_STATES`). The last six are
+ * reached only with a motion release (Phase 2, SAFETY §4.5b): idle (homed or not), a jog or go-to-zero in
+ * progress, a hold of motion this session sent, the Stop job sequence, and a controller alarm.
+ */
+export type SessionBase = Extract<
+  BaseState,
+  'NOT_CONNECTED' | 'PORT_REQUEST' | 'OPENING' | 'IDENTIFYING' | 'READING' | 'BLOCKED' | 'CONNECTED_UNKNOWN' | 'IDLE_UNHOMED' | 'IDLE_HOMED' | 'JOGGING' | 'HELD' | 'STOPPING_JOB' | 'ALARM'
+>;
 
 export const SESSION_BASES: readonly SessionBase[] = Object.freeze([
   'NOT_CONNECTED',
@@ -32,7 +39,16 @@ export const SESSION_BASES: readonly SessionBase[] = Object.freeze([
   'READING',
   'BLOCKED',
   'CONNECTED_UNKNOWN',
+  'IDLE_UNHOMED',
+  'IDLE_HOMED',
+  'JOGGING',
+  'HELD',
+  'STOPPING_JOB',
+  'ALARM',
 ]);
+
+/** Bases after the board was identified and read: the link is in use (watchdog, polling). */
+export const READY_BASES: ReadonlySet<SessionBase> = new Set(['CONNECTED_UNKNOWN', 'IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HELD', 'STOPPING_JOB', 'ALARM']);
 
 /** Timing of the read-only session. Every value is in milliseconds. */
 export interface SessionTimings {
@@ -86,14 +102,19 @@ export interface SessionConfig {
 /** Why a read is in flight. */
 /** `liveness`: the watchdog's proof-of-life GET where ENQ is not available (SAFETY §4.2). */
 /**
- * Settings writes (SAFETY §4.6, amendment 2026-11-02): `gate` is a polled read of the idle gate right
- * before a write, `setting` is the write itself (`{"<key>":<value>}`), `readback` reads the key back.
+ * `poll`: a polled read of the motion layer (SAFETY §4.2, §4.5b). `motion`: a motion line (Phase 2), never a GET.
+ * Settings writes (SAFETY §4.6, amendment 2026-11-02): `gate` is a polled read of the idle gate right before a
+ * write, `setting` is the write itself (`{"<key>":<value>}`), `readback` reads the key back.
  */
-export type ReadPurpose = 'splice' | 'probe' | 'reading' | 'request' | 'verify' | 'liveness' | 'gate' | 'setting' | 'readback';
+export type ReadPurpose = 'splice' | 'probe' | 'reading' | 'request' | 'verify' | 'liveness' | 'poll' | 'motion' | 'gate' | 'setting' | 'readback';
 
 export interface PendingRead {
   readonly token: string;
   readonly purpose: ReadPurpose;
+  /** `motion` only: the exact line (without LF), checked again by the motion write gate. */
+  readonly line?: string;
+  /** `motion` only: the allow-matrix intent the line is checked against when it is written. */
+  readonly intent?: Intent;
   /** The value of a `setting` line. */
   readonly value?: number;
 }
@@ -158,7 +179,9 @@ export type FaultCause =
   | 'writeRefused'
   | 'unexpectedResponse'
   | 'footerRevisionChanged'
-  | 'exceptionReport';
+  | 'exceptionReport'
+  /** Phase 2: a stop or release sequence timed out waiting for the hold or the flush (W12, SAFETY §4.4). */
+  | 'stopNotConfirmed';
 
 export interface FaultInfo {
   readonly cause: FaultCause;
@@ -237,6 +260,8 @@ export interface LiveState {
    * status list carries. Undefined until that answer arrives. Read, never written (no sr-list configuration).
    */
   readonly srList?: readonly string[];
+  /** Overall homing state (`home`, read at connect in a motion session): 1 homed. Shown, and decides W34. */
+  readonly home?: number;
   /** Work position (`posx`..`posc`) and machine position (`mpox`..`mpoc`), as reported. */
   readonly pos: Readonly<Partial<Record<Axis, number>>>;
   readonly mpo: Readonly<Partial<Record<Axis, number>>>;
@@ -261,6 +286,11 @@ export interface SessionNotices {
   readonly adviseEstop: boolean;
   /** Why the last `ackFault` did not complete (it stays latched). */
   readonly ackFaultRefused?: string;
+  /**
+   * Phase 2 (SAFETY §4.4, §4.5b): the last motion result in plain words, decided from polled state only
+   * ("Paused", "Stopped: queue cleared, spindle and coolant off", "Resumed", or why a move ended).
+   */
+  readonly motion?: { readonly kind: 'paused' | 'stopped' | 'resumed' | 'done' | 'refused' | 'failed'; readonly text: string; readonly at: number };
   /** The last connect attempt failed before the port opened. */
   readonly connectFailed?: { readonly code: 'unavailable' | 'open-failed'; readonly reason: string };
 }
@@ -325,12 +355,70 @@ export interface SessionState {
   readonly timerSeq: number;
   /** Lines and realtime bytes the reducer has asked for on this link (for the snapshot). */
   readonly sent: { readonly lines: number; readonly realtime: number };
+  /** Phase 2: the motion in progress, or null (SAFETY §4.5b). */
+  readonly motion: MotionCtx | null;
   /** The current or last settings write, or null (SAFETY §4.6, amendment 2026-11-02). */
   readonly settingWrite: SettingWriteState | null;
 }
 
-/** `watchdog`: the receive-silence watchdog (SAFETY §4.2). */
-export type TimerId = 'answer' | 'settle' | 'verify' | 'watchdog';
+export type JogAxis = 'x' | 'y' | 'z' | 'a';
+
+/** A jog being fed (SAFETY §4.5b, H50). */
+export interface JogFeed {
+  readonly axes: Readonly<Partial<Record<JogAxis, 1 | -1>>>;
+  /** Distance still to feed per axis, mm; null for a hold jog (until released). */
+  readonly remainingMm: number | null;
+  readonly feed: number;
+  /** Length of one piece, mm. */
+  readonly pieceMm: number;
+  /** When the page last renewed a hold jog. */
+  readonly renewedAt: number;
+}
+
+export type MotionOp = 'jog' | 'goToZero';
+
+/**
+ * - `feed`: lines (jog pieces or go-to-zero steps) are still being sent;
+ * - `drain`: waiting for polled idle (two consecutive reads) before the next step or the finish;
+ * - `hold`: `!` written, waiting for the hold to complete (polled);
+ * - `flush`: `%` written, waiting for hold 0 and an empty planner;
+ * - `held`: a Pause of this session's motion is confirmed (base HELD);
+ * - `finish`: the closing lines (`M5`, `M9`, `G90`) are being sent.
+ */
+export type MotionPhase = 'feed' | 'drain' | 'hold' | 'flush' | 'held' | 'finish';
+
+/** Why a hold was started: the user's Pause, a release or lost keep-alive of a hold jog, or Stop job / Spindle off. */
+export type HoldReason = 'pause' | 'release' | 'keepalive' | 'stopJob' | 'refused';
+
+export interface MotionCtx {
+  readonly op: MotionOp | 'stop';
+  readonly phase: MotionPhase;
+  readonly jog: JogFeed | null;
+  /** Go-to-zero lines still to send; each waits for polled idle before the next. */
+  readonly steps: readonly string[];
+  readonly reason: HoldReason | null;
+  /** Consecutive polled reads that met the current phase's condition. */
+  readonly confirmed: number;
+  /** The current hold or flush phase must complete by then (W12 and FAULT otherwise). */
+  readonly deadline: number | null;
+  /** `unit` when the motion started (0 inches): restored at the end. */
+  readonly units: number | undefined;
+  /** The base to return to when the motion ends. */
+  readonly returnTo: SessionBase;
+  /** The board answered a line of this motion with a non-zero status. */
+  readonly refusal: string | null;
+  /** Poll cycles completed in the current hold step (the first may have been asked before the `!`). */
+  readonly holdPolls: number;
+  /**
+   * Jog pieces believed queued in the planner: `plannerBlocks - qr` at the last poll, plus every piece written
+   * since. It only over-counts (the machine consumes blocks meanwhile), so feeding against it stays within the
+   * lookahead.
+   */
+  readonly queued: number;
+}
+
+/** `watchdog`: the receive-silence watchdog (SAFETY §4.2). `motion`: the motion layer's poll and keep-alive tick. */
+export type TimerId = 'answer' | 'settle' | 'verify' | 'watchdog' | 'motion';
 
 /** Intents the session handles. Everything else is denied (not in Phase 1). */
 export type SessionIntent =
@@ -347,10 +435,30 @@ export type SessionIntent =
   | { readonly intent: 'acknowledgeLost' }
   | { readonly intent: 'enq' }
   | { readonly intent: 'read'; readonly tokens: readonly string[] }
+  // --- Phase 2 motion (SAFETY §4.5b). Denied by the matrix under any release without motion.
+  /** Start a jog (`distanceMm` per axis; null = hold until released), or renew a hold jog's keep-alive. */
+  | { readonly intent: 'jog'; readonly axes: Readonly<Partial<Record<JogAxis, 1 | -1>>>; readonly distanceMm: number | null; readonly feed: number }
+  | { readonly intent: 'jog'; readonly renew: true }
+  | { readonly intent: 'goToZero'; readonly axes: readonly JogAxis[]; readonly safeZ: number }
+  | { readonly intent: 'setWorkZero'; readonly axes: readonly JogAxis[] }
+  | { readonly intent: 'spindleOn'; readonly output: 'spindle'; readonly direction: 'cw' | 'ccw'; readonly rpm: number }
+  | { readonly intent: 'spindleOn'; readonly output: 'mist' | 'flood' }
+  | { readonly intent: 'clearAlarm' }
+  | { readonly intent: 'resume' }
+  | { readonly intent: 'positionVerify' }
+  /** Release a hold jog (`!`, then `%` once held). Stop class: never gated. */
+  | { readonly intent: 'feedhold'; readonly release: true }
+  /** Spindle or coolant off alone, idle (Phase 2). Stop class. */
+  | { readonly intent: 'spindleOffNow'; readonly outputs: 'spindle' | 'coolant' }
   /** One settings write (SAFETY §4.6, amendment 2026-11-02): gate reads, `{"<key>":<value>}`, then a read-back. */
   | { readonly intent: 'settingsWrite'; readonly key: string; readonly value: number }
-  /** Any other allow-matrix intent: always denied in Phase 1 (decided, never silently dropped). */
-  | { readonly intent: Exclude<Intent, 'connect' | 'disconnect' | 'feedhold' | 'stopJob' | 'spindleOffNow' | 'ackFault' | 'acknowledgeLost' | 'enq' | 'read' | 'settingsWrite'> };
+  /** Any other allow-matrix intent: always denied (decided, never silently dropped). */
+  | {
+      readonly intent: Exclude<
+        Intent,
+        'connect' | 'disconnect' | 'feedhold' | 'stopJob' | 'spindleOffNow' | 'ackFault' | 'acknowledgeLost' | 'enq' | 'read' | 'jog' | 'goToZero' | 'setWorkZero' | 'spindleOn' | 'clearAlarm' | 'resume' | 'positionVerify' | 'settingsWrite'
+      >;
+    };
 
 /** Everything that can happen to the session. */
 export type SessionEvent =
@@ -371,18 +479,19 @@ export type SessionEvent =
   /** A settings drift check found a difference to the profile (NEEDS_REVIEW; its producer arrives with the drift check). */
   | { readonly type: 'driftDetected'; readonly epoch: number };
 
-/** The realtime bytes a Phase 1 session may write. Nothing else is expressible. */
-export type RealtimeName = 'feedhold' | 'enq';
+/** The realtime bytes a session may write: `!` and ENQ, and with a motion release `%` and `~`. Never ^D or ^X. */
+export type RealtimeName = 'feedhold' | 'enq' | 'flush' | 'resume';
 
 export type SessionEffect =
   | { readonly kind: 'acquireTransport'; readonly epoch: number; readonly port: PortSelector }
   | { readonly kind: 'open'; readonly epoch: number }
   /**
-   * One single-token GET, `{"<token>":null}`, or (intent `settingsWrite`) one single-token settings write,
-   * `{"<token>":<number>}` (the executor appends LF); `seq` numbers it on this link.
+   * One single-token GET, `{"<token>":null}`, a motion line (`motion`, Phase 2), or (intent `settingsWrite`) one
+   * single-token settings write, `{"<token>":<number>}` (the executor appends LF); `seq` numbers it on this link.
    */
-  | { readonly kind: 'writeLine'; readonly epoch: number; readonly seq: number; readonly token: string; readonly line: string; readonly intent?: 'settingsWrite' }
-  | { readonly kind: 'writeRealtime'; readonly epoch: number; readonly name: RealtimeName; readonly byte: number }
+  | { readonly kind: 'writeLine'; readonly epoch: number; readonly seq: number; readonly token: string; readonly line: string; readonly motion?: { readonly intent: Intent }; readonly intent?: 'settingsWrite' }
+  /** `intent`: the allow-matrix intent the byte is checked against (`%` from a stop is `stopJob`, from a release `feedhold`). */
+  | { readonly kind: 'writeRealtime'; readonly epoch: number; readonly name: RealtimeName; readonly byte: number; readonly intent?: Intent }
   /** Lower the transport's line cap to the classified dialect's. */
   | { readonly kind: 'tightenLineCap'; readonly epoch: number; readonly maxLineBytes: number }
   | { readonly kind: 'close'; readonly epoch: number }

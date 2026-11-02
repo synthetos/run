@@ -32,7 +32,7 @@ async function connectedTab(page: Page): Promise<Worker> {
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
   await expect
     .poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as { status: { session: { base: string } } }).status.session.base, { timeout: 10_000 })
-    .toBe('CONNECTED_UNKNOWN');
+    .toBe('IDLE_UNHOMED');
   return worker;
 }
 
@@ -40,10 +40,14 @@ function bangs(list: readonly string[]): number {
   return list.filter((w) => w === '!').length;
 }
 
-function phase1Only(list: readonly string[]): void {
+/**
+ * Never ^X or ^D; only GETs, `!`, and (Phase 2 on loopback, SAFETY §4.4) the Stop job sequence of an idle
+ * board: M5, M9, G90.
+ */
+function stopClassOnly(list: readonly string[]): void {
   for (const w of list) {
     expect(w.includes('\x18') || w.includes('\x04'), JSON.stringify(w)).toBe(false);
-    expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '!', JSON.stringify(w)).toBe(true);
+    expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '!' || ['M5\n', 'M9\n', 'G90\n'].includes(w), JSON.stringify(w)).toBe(true);
   }
 }
 
@@ -74,7 +78,7 @@ test('an observer tab sees the lock, its request reaches the worker while tab A 
 
   await tabB.locator('[data-action="stop-job-request"]').click();
   await expect.poll(async () => bangs(await writes(workerA))).toBe(before + 2);
-  phase1Only(await writes(workerA));
+  stopClassOnly(await writes(workerA));
 
   // Tab A goes away: the browser releases its lock and tab B shows W29 in place of the request buttons.
   await page.close();

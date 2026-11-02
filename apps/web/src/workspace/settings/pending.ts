@@ -45,7 +45,8 @@ export function settingsWriteBlocked(view: LiveView | null): string | null {
   if (s.classification === null || s.base === 'IDENTIFYING' || s.base === 'READING') return 'Wait until the board is identified and read.';
   if (s.base === 'BLOCKED') return 'This board is not the machine you selected.';
   if (s.overlays.includes('READ_ONLY') || s.classification.mode !== 'full') return 'This board is read-only here: its firmware build is not approved for changes.';
-  if (s.base !== 'CONNECTED_UNKNOWN') return 'Settings are changed only while the machine is idle.';
+  if (s.base !== 'CONNECTED_UNKNOWN' && s.base !== 'IDLE_UNHOMED' && s.base !== 'IDLE_HOMED') return 'Settings are changed only while the machine is idle.';
+  if (m.snapshot.motion !== null && m.snapshot.motion !== undefined) return 'A move is in progress. Settings are changed only while the machine is idle.';
   const cls = s.live.machineClass;
   if (cls !== undefined && cls !== 'idle' && cls !== 'end') return `The machine is ${cls}. Settings are changed only while it is idle.`;
   if (s.live.vel !== undefined && s.live.vel !== 0) return 'The machine is moving. Settings are changed only while it is idle.';

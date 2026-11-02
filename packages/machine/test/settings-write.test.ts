@@ -359,3 +359,24 @@ describe('settings-write helpers', () => {
     expect(MachineSession).toBeDefined();
   });
 });
+
+describe('settings writes and Phase 2 motion share the link, never at once', () => {
+  it('a jog is refused while a setting is being written, and a setting is refused while a move is in progress', async () => {
+    const { PHASE_2_RELEASE, withSettingsWrites } = await import('@synthetos/safety');
+    const release = withSettingsWrites(PHASE_2_RELEASE, 'staging');
+    const answers = { ...ANSWERS, home: '{"r":{"home":0},"f":[3,0,10]}' };
+    const d = new Driver({ release, manifest: EN_APPROVED });
+    d.open();
+    d.answer(answers);
+    expect(d.state.base).toBe('IDLE_UNHOMED');
+    expect(d.intent({ intent: 'settingsWrite', key: 'xvm', value: 1234 }).allowed).toBe(true);
+    expect(d.intent({ intent: 'jog', axes: { x: 1 }, distanceMm: 0.1, feed: 600 })).toMatchObject({ allowed: false, reason: 'A setting is being written.' });
+
+    const m = new Driver({ release, manifest: EN_APPROVED });
+    m.open();
+    m.answer(answers);
+    expect(m.intent({ intent: 'jog', axes: { x: 1 }, distanceMm: 0.1, feed: 600 }).allowed).toBe(true);
+    expect(m.state.motion).not.toBeNull();
+    expect(m.intent({ intent: 'settingsWrite', key: 'xvm', value: 1234 })).toMatchObject({ allowed: false });
+  });
+});

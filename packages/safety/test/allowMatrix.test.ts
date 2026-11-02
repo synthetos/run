@@ -17,6 +17,7 @@ import {
   INTENTS,
   OVERLAYS,
   PHASE_1_RELEASE,
+  PHASE_2_RELEASE,
   PORT_OPEN_STATES,
   STOP_CLASS,
   allowed,
@@ -240,8 +241,8 @@ describe('Phase 0 release gate', () => {
 
   it('every motion and write intent is classified as such', () => {
     const kinds = Object.fromEntries(INTENTS.map((i) => [i, intentKind(i)]));
-    for (const i of ['jog', 'home', 'start', 'resume', 'arm', 'consoleLine', 'spindleOn']) expect(kinds[i], i).toBe('motion');
-    for (const i of ['applyProfile', 'setWorkZero', 'optionalStop', 'flash', 'resetController']) expect(kinds[i], i).toBe('write');
+    for (const i of ['jog', 'home', 'start', 'resume', 'arm', 'consoleLine', 'spindleOn', 'setWorkZero', 'goToZero', 'clearAlarm']) expect(kinds[i], i).toBe('motion');
+    for (const i of ['applyProfile', 'optionalStop', 'flash', 'resetController']) expect(kinds[i], i).toBe('write');
     // Settings writes have their own gate (amendment 2026-11-02).
     expect(kinds['settingsWrite']).toBe('settings');
     expect(kinds['connect']).toBe('port');
@@ -300,6 +301,41 @@ describe('Phase 1 release gate (ROADMAP P1-02: read-only bench)', () => {
     }
     expect(PHASE_1_RELEASE).toEqual({ name: 'Phase 1', motion: false, write: false, port: true });
     expect(Object.isFrozen(PHASE_1_RELEASE)).toBe(true);
+  });
+});
+
+describe('Phase 2 release gate (owner 2026-11-02: bench motion; SAFETY §4.5b, T-S92)', () => {
+  const MOTION_P2: readonly Intent[] = ['jog', 'goToZero', 'setWorkZero', 'spindleOn', 'clearAlarm', 'resume'];
+
+  it('allows the Phase 2 motion intents only in their states with no overlay at all, and never a settings write', () => {
+    const wrong: string[] = [];
+    for (const { s, intent } of cells()) {
+      const d = allowed(s, intent, PHASE_2_RELEASE);
+      if (intentKind(intent) === 'write' && d.allowed) wrong.push(`write ${s.base} ${intent}`);
+      if (!MOTION_P2.includes(intent) || !d.allowed) continue;
+      if (s.overlays.length > 0) wrong.push(`overlay ${s.base} [${s.overlays.join('+')}] ${intent}`);
+      const states: Record<string, readonly string[]> = {
+        jog: ['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING'],
+        goToZero: ['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING'],
+        setWorkZero: ['IDLE_UNHOMED', 'IDLE_HOMED'],
+        spindleOn: ['IDLE_UNHOMED', 'IDLE_HOMED'],
+        clearAlarm: ['ALARM'],
+        resume: ['HELD', 'PROGRAM_PAUSED'],
+      };
+      if (!(states[intent] as readonly string[]).includes(s.base)) wrong.push(`state ${s.base} ${intent}`);
+    }
+    expect(wrong.slice(0, 20)).toEqual([]);
+  });
+
+  it('never gates the stop class and denies motion in a job state, ORPHANED_MOTION, READ_ONLY and STALE', () => {
+    for (const { s, intent } of cells()) {
+      if (STOP_CLASS.includes(intent)) expect(allowed(s, intent, PHASE_2_RELEASE).allowed).toBe(portOpen(s));
+    }
+    for (const base of ['RUNNING', 'HELD', 'STOPPING_JOB', 'CONNECTED_UNKNOWN'] as const) expect(allowed(snap(base), 'jog', PHASE_2_RELEASE).allowed, base).toBe(false);
+    for (const o of ['ORPHANED_MOTION', 'READ_ONLY', 'STALE', 'UNKNOWN', 'FAULT'] as const) expect(allowed(snap('IDLE_HOMED', [o]), 'jog', PHASE_2_RELEASE).allowed, o).toBe(false);
+    expect(allowed(snap('IDLE_HOMED'), 'jog', PHASE_2_RELEASE).allowed).toBe(true);
+    expect(PHASE_2_RELEASE).toEqual({ name: 'Phase 2', motion: true, write: false, port: true });
+    expect(Object.isFrozen(PHASE_2_RELEASE)).toBe(true);
   });
 });
 

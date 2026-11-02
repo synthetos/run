@@ -45,7 +45,7 @@ function snap(extra: Partial<Snapshot> = {}): Snapshot {
 }
 
 function view(s: Snapshot): LiveView {
-  return { ...INITIAL_LIVE_VIEW, message: { v: 3, kind: 'snapshot', snapshot: s, dro: { axes: [], machineSource: { label: 'polled mpo', at: null, ageMs: null, lag: 'none' }, workSource: { label: 'status report' }, units: 'mm', wcs: { code: null, offsets: null, total: null }, marker: null }, lag: { amberMs: 1000, redMs: 2000 } } as LiveView['message'] };
+  return { ...INITIAL_LIVE_VIEW, message: { v: 3, kind: 'snapshot', snapshot: s, dro: { axes: [], machineSource: { label: 'polled mpo', at: null, ageMs: null, lag: 'none' }, workSource: { label: 'status report' }, units: 'mm', wcs: { code: null, offsets: null, total: null }, marker: null }, lag: { amberMs: 1000, redMs: 2000 }, motion: false } as LiveView['message'] };
 }
 
 describe('machine strip status', () => {
@@ -134,6 +134,11 @@ describe('machine strip status', () => {
   it('lost, orphaned and needs-review are said plainly', () => {
     expect(stripStatus(view(snap({ overlays: ['LOST', 'READ_ONLY'] })), null).title).toBe('Connection lost');
     expect(stripStatus(view(snap({ overlays: ['ORPHANED_MOTION'] })), null).tone).toBe('alarm');
+    const orphaned = stripStatus(view(snap({ overlays: ['ORPHANED_MOTION'] })), null);
+    expect(orphaned.title).toBe("Moves this page didn't send");
+    // What to do comes first, in plain words: look, E-stop if it moves, how to clear it.
+    expect(orphaned.text).toMatch(/^Look at the machine: if it moves, use your E-stop\./);
+    expect(orphaned.text).toContain('reset or power-cycle the controller, then reload this page and connect again');
     expect(stripStatus(view(snap({ overlays: ['READ_ONLY', 'NEEDS_REVIEW'] })), null).pill?.text).toBe('Needs review');
   });
 

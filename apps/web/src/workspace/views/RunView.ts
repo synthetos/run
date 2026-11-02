@@ -11,8 +11,8 @@
  */
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
-import { useEffect, useMemo, useState } from 'preact/hooks';
-import { w13 } from '@synthetos/safety';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { c13, c16, c24, c25, w13, w34 } from '@synthetos/safety';
 import { DIALECTS, type DialectId } from '@synthetos/protocol';
 import { LITE_THRESHOLD_LINES, PREVIEW_DIALECTS, type PreviewMode } from '../../gcode-worker/pipeline.ts';
 import type { WorkerLike } from '../../gcode-worker/client.ts';
@@ -29,7 +29,13 @@ import { Icon } from '../icons.ts';
 import { readStored, writeStored } from '../storage.ts';
 import { CheckRow, TabBar, TabPane } from '../ui.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
+import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineZ, motionUi, workOffsets, type JogTimers, type MotionUi } from '../motion.ts';
+import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
+import { signalText } from '../../shell/signal.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
+import { ConsoleLine } from '../../console/ConsoleLine.ts';
+import { openReport } from '../../report/state.ts';
+import { currentFile, pendingOpen } from '../fileBridge.ts';
 import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
 
 export interface RunViewProps {
@@ -42,7 +48,27 @@ export interface RunViewProps {
 export function RunView({ model, spawn, marker, onView }: RunViewProps): ComponentChild {
   const live = model?.live.value ?? null;
   const reportedLine = live !== null && connected(live) ? (live.message?.snapshot.live.line ?? null) : null;
-  return h(PreviewPanel, { spawn, ...(marker === undefined ? {} : { marker }), reportedLine, layout: (parts: PreviewParts) => runLayout(parts, model, onView) });
+  return h(PreviewPanel, { spawn, ...(marker === undefined ? {} : { marker }), reportedLine, onReportLine: (line: number) => openReport({ origin: 'line', line }), layout: (parts: PreviewParts) => runLayout(parts, model, onView) });
+}
+
+/**
+ * Publishes the open file for a report's excerpt (workspace/fileBridge.ts), and opens a file another
+ * view asked for ("Open in Run" in Projects). Renders nothing.
+ */
+function RunBridge({ parts }: { readonly parts: PreviewParts }): ComponentChild {
+  const { state, actions } = parts;
+  const result = state.status === 'ready' ? state.result : null;
+  useEffect(() => {
+    currentFile.value = result === null || state.fileName === null ? null : { name: state.fileName, bytes: result.bytes };
+  }, [result, state.fileName]);
+  const pending = pendingOpen.value;
+  const onFile = actions.onFile;
+  useEffect(() => {
+    if (pending === null || !state.ready || onFile === undefined) return;
+    pendingOpen.value = null;
+    onFile(pending);
+  }, [pending, state.ready, onFile]);
+  return null;
 }
 
 // ---------------------------------------------------------------- connect
@@ -77,7 +103,14 @@ export function ConnectNotice({ model, onView }: { readonly model: WorkspaceMode
     'div',
     { class: `scenario-notice connect-notice${isConnected ? ' is-connected' : ''}`, 'data-region': 'connect' },
     h('div', { class: 'notice-text' }, h('strong', null, heading), h('p', null, copy)),
-    h('div', { class: 'notice-actions' }, step === 'c1' ? null : panel, isConnected ? h('button', { type: 'button', class: 'small', onClick: () => onView('board') }, 'Open the board') : null),
+    h(
+      'div',
+      { class: 'notice-actions' },
+      step === 'c1' ? null : panel,
+      // The port is open or opening but LIVE entry has not finished (or ended elsewhere): Disconnect still applies.
+      isConnected && step !== 'live' && step !== 'c1' ? h('button', { type: 'button', class: 'button', 'data-action': 'disconnect', onClick: () => actions?.disconnect() }, 'Disconnect') : null,
+      isConnected ? h('button', { type: 'button', class: 'small', onClick: () => onView('board') }, 'Open the board') : null,
+    ),
     step === 'c1'
       ? h(
           'div',
@@ -141,28 +174,391 @@ export function PositionPanel({ model }: { readonly model: WorkspaceModel | null
   );
 }
 
-// ---------------------------------------------------------------- inspector: coming later
+// ---------------------------------------------------------------- inspector: motion (Phase 2)
 
-export function JogSection(): ComponentChild {
-  const pad = ['X−, Y+', 'Y+', 'X+, Y+', 'X−', 'Go to X0 Y0', 'X+', 'X−, Y−', 'Y−', 'X+, Y−'];
-  const labels = ['↖', 'Y+', '↗', 'X−', '⌖', 'X+', '↙', 'Y−', '↘'];
+/** The page's own "don't ask again" for C24, for this page load only: never stored (SAFETY §4.5b, H52). */
+let spindleConfirmSkipped = false;
+
+/** Tests only: forget the session's "don't ask again" for C24. */
+export function resetSpindleConfirm(): void {
+  spindleConfirmSkipped = false;
+}
+
+/**
+ * The hooks a motion section uses. A section renders with real hooks only while a LIVE motion session can act
+ * (the model has the motion action); otherwise it renders once, statically, with every control disabled and no
+ * handler (the prerendered page, and the shell tests' tree expansion).
+ */
+interface Hooks {
+  state<T>(initial: T): [T, (v: T) => void];
+  memo<T>(make: () => T, deps: readonly unknown[]): T;
+  effect(run: () => void | (() => void), deps: readonly unknown[]): void;
+}
+const LIVE_HOOKS: Hooks = {
+  state: <T,>(initial: T) => useState<T>(initial) as [T, (v: T) => void],
+  memo: (make, deps) => useMemo(make, deps as unknown[]),
+  effect: (run, deps) => useEffect(run, deps as unknown[]),
+};
+const STATIC_HOOKS: Hooks = { state: <T,>(initial: T): [T, (v: T) => void] => [initial, () => undefined], memo: (make) => make(), effect: () => undefined };
+
+function isLive(model: WorkspaceModel | null | undefined): boolean {
+  return model?.actions.value?.motion !== undefined;
+}
+
+type Send = (command: MotionCommand) => Promise<string | null>;
+
+/** Focuses an element once, when it mounts (a stable callback ref, so later renders never steal the focus back). */
+function focusOnMount(el: HTMLElement | null): void {
+  if (el === null || el.dataset['focused'] === '1') return;
+  el.dataset['focused'] = '1';
+  el.focus();
+}
+
+/** An inline confirmation (never a modal over the stop controls, SAFETY §4.1 UI rules). Cancel has the focus; Enter does not confirm. */
+function ConfirmCard(props: {
+  readonly text: string;
+  readonly confirm: string;
+  readonly onConfirm: () => void;
+  readonly onCancel: () => void;
+  readonly safety: string;
+  readonly children?: ComponentChild;
+}): ComponentChild {
+  return h(
+    'div',
+    { class: 'motion-confirm', role: 'alertdialog', 'aria-label': props.confirm, 'data-safety': props.safety },
+    h('p', null, props.text),
+    props.children ?? null,
+    h(
+      'div',
+      { class: 'motion-confirm-actions' },
+      h('button', { type: 'button', class: 'small', 'data-action': 'motion-cancel', ref: focusOnMount, onClick: props.onCancel }, 'Cancel'),
+      h('button', { type: 'button', class: 'small primary', 'data-action': 'motion-confirm', onClick: props.onConfirm }, props.confirm),
+    ),
+  );
+}
+
+function motionNote(ui: MotionUi, note: string | null): ComponentChild {
+  const text = note ?? ui.reason ?? ui.notice;
+  if (text === null) return null;
+  return h('p', { class: ui.enabled && note === null ? 'motion-note' : 'unavailable', 'data-jog': 'note', role: 'status' }, text);
+}
+
+/** "I've checked the machine" after a reconnect, and Clear alarm with its meaning (C13). */
+function MotionRecovery({ ui, send, view, hk }: { readonly ui: MotionUi; readonly send: Send | undefined; readonly view: LiveView | null; readonly hk: Hooks }): ComponentChild {
+  const [asking, setAsking] = hk.state<'verify' | 'clear' | null>(null);
+  if (send === undefined || (!ui.unknown && !ui.alarm)) return null;
+  if (asking === 'clear') {
+    const stat = view?.message?.snapshot.live.stat;
+    return h(ConfirmCard, {
+      text: c13({ meaning: `The controller reports an alarm (state ${stat ?? 'unknown'}) and stopped any motion` }),
+      confirm: 'Clear alarm',
+      safety: 'C13',
+      onCancel: () => setAsking(null),
+      onConfirm: () => {
+        setAsking(null);
+        void send({ op: 'clearAlarm' });
+      },
+    });
+  }
+  if (asking === 'verify') {
+    return h(ConfirmCard, {
+      text: 'The previous session ended while connected. Check that nothing is moving and that the machine is where you expect. Position is not verified by this page.',
+      confirm: 'I’ve checked the machine',
+      safety: 'W6',
+      onCancel: () => setAsking(null),
+      onConfirm: () => {
+        setAsking(null);
+        void send({ op: 'positionVerify' });
+      },
+    });
+  }
+  return h(
+    'div',
+    { class: 'motion-recovery' },
+    ui.alarm ? h('button', { type: 'button', class: 'small', 'data-machine-control': 'clear-alarm', onClick: () => setAsking('clear') }, 'Clear alarm…') : null,
+    ui.unknown ? h('button', { type: 'button', class: 'small', 'data-machine-control': 'verify', onClick: () => setAsking('verify') }, 'I’ve checked the machine…') : null,
+  );
+}
+
+const PAD: readonly { readonly label: string; readonly text: string; readonly axes: Readonly<Partial<Record<MotionAxis, 1 | -1>>> | null }[] = [
+  { label: 'X−, Y+', text: '↖', axes: { x: -1, y: 1 } },
+  { label: 'Y+', text: 'Y+', axes: { y: 1 } },
+  { label: 'X+, Y+', text: '↗', axes: { x: 1, y: 1 } },
+  { label: 'X−', text: 'X−', axes: { x: -1 } },
+  { label: 'Go to X0 Y0', text: '⌖', axes: null },
+  { label: 'X+', text: 'X+', axes: { x: 1 } },
+  { label: 'X−, Y−', text: '↙', axes: { x: -1, y: -1 } },
+  { label: 'Y−', text: 'Y−', axes: { y: -1 } },
+  { label: 'X+, Y−', text: '↘', axes: { x: 1, y: -1 } },
+];
+
+const realTimers: JogTimers = { setInterval: (fn, ms) => setInterval(fn, ms), clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) };
+
+/**
+ * The jog panel (SAFETY §4.5b, H50, H51): the XY pad and Z, step sizes in mm or inches or Hold, the jog speed,
+ * and keyboard jog while the panel has focus. Without a LIVE motion session every control is disabled and
+ * carries no handler.
+ */
+function jogBody({ model, onGoToZero }: JogProps, hk: Hooks): ComponentChild {
+  const view = model?.live.value ?? null;
+  const ui = motionUi(view);
+  const send = model?.actions.value?.motion;
+  const enabled = ui.enabled && send !== undefined;
+  const [units, setUnits] = hk.state<'mm' | 'in'>('mm');
+  const [stepIndex, setStepIndex] = hk.state<number | null>(2);
+  const [feed, setFeed] = hk.state<number>(JOG_FEED.default);
+  const [note, setNote] = hk.state<string | null>(null);
+  const controller = hk.memo(
+    () =>
+      new JogController((c) => {
+        void send?.(c).then((reason) => {
+          if (c.op === 'jog') setNote(reason);
+        });
+      }, realTimers),
+    [send],
+  );
+  hk.effect(() => {
+    // Any held jog stops when the window loses focus or the page is hidden, or on any pointer-up (H50).
+    const release = (): void => controller.release();
+    const hidden = (): void => {
+      if (document.visibilityState !== 'visible') controller.release();
+    };
+    addEventListener('blur', release);
+    addEventListener('pointerup', release);
+    addEventListener('pointercancel', release);
+    document.addEventListener('visibilitychange', hidden);
+    return () => {
+      controller.release();
+      removeEventListener('blur', release);
+      removeEventListener('pointerup', release);
+      removeEventListener('pointercancel', release);
+      document.removeEventListener('visibilitychange', hidden);
+    };
+  }, [controller]);
+  const steps = units === 'mm' ? STEPS_MM : STEPS_IN;
+  const settings = (): { stepMm: number | null; feed: number } => ({ stepMm: stepIndex === null ? null : (steps[stepIndex] as number) * (units === 'in' ? MM_PER_IN : 1), feed });
+  // A held jog keeps its buttons live so the release always arrives (a disabled button gets no pointer-up).
+  const live = send !== undefined && (ui.enabled || ui.busy || controller.holding);
+  const press = (axes: Readonly<Partial<Record<MotionAxis, 1 | -1>>>) => (e: PointerEvent) => {
+    if (!enabled) return;
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    setNote(null);
+    controller.press(axes, settings());
+  };
+  const jogButton = (label: string, text: string, axes: Readonly<Partial<Record<MotionAxis, 1 | -1>>>, cls: string): ComponentChild =>
+    h(
+      'button',
+      {
+        type: 'button',
+        class: cls,
+        'aria-label': label,
+        key: label,
+        'data-machine-control': 'jog',
+        ...(live ? { onPointerDown: press(axes), onPointerUp: () => controller.release(), onLostPointerCapture: () => controller.release() } : { disabled: true }),
+      },
+      text,
+    );
+  const onKeyDown = (e: KeyboardEvent): void => {
+    const axes = jogKey(e.key);
+    if (axes === null || !live || !document.hasFocus()) return;
+    e.preventDefault();
+    if (e.repeat || !enabled) return;
+    setNote(null);
+    controller.press(axes, settings());
+  };
+  const onKeyUp = (e: KeyboardEvent): void => {
+    if (jogKey(e.key) !== null) controller.release();
+  };
   return h(
     'section',
     { class: 'insp sec-jog', 'aria-labelledby': 'jog-title' },
-    h('header', null, h('h2', { id: 'jog-title' }, 'Jog'), h('span', { class: 'tag' }, 'Motion control')),
+    h(
+      'header',
+      null,
+      h('h2', { id: 'jog-title' }, 'Jog'),
+      h('span', { class: `tag${ui.homed === false ? ' warn' : ''}`, 'data-jog': 'homed' }, ui.homed === null ? 'Motion control' : ui.homed ? 'Homed' : 'Not homed'),
+    ),
+    // The section header is hidden inside the inspector tabs: the homing state gets its own visible line.
+    ui.connected && ui.flag ? h('p', { class: 'jog-status' }, h('span', { class: `tag${ui.homed === false ? ' warn' : ' ok'}`, 'data-jog': 'homing' }, ui.homed === true ? 'Homed' : ui.homed === false ? 'Not homed' : 'Homing not read'), ui.homed === true ? 'Soft limits protect homed axes when they are on ($sl=1).' : null) : null,
+    ui.flag && ui.connected && ui.homed === false ? h('p', { class: 'motion-warning', 'data-safety': 'W34', role: 'note' }, ...signalText(w34())) : null,
+    MotionRecovery({ ui, send, view, hk }),
     h(
       'div',
-      { class: 'jog', 'aria-disabled': 'true' },
+      {
+        class: 'jog',
+        'aria-disabled': live ? 'false' : 'true',
+        tabindex: live ? 0 : -1,
+        'data-jog': 'panel',
+        'aria-label': 'Jog pad. Arrow keys jog X and Y, Page Up and Page Down jog Z, while this panel has focus.',
+        ...(live
+          ? {
+              onKeyDown,
+              onKeyUp,
+              // Focus leaving the panel (not moving between its own buttons) ends a held keyboard jog.
+              onFocusOut: (e: FocusEvent) => {
+                if (!(e.currentTarget as Element).contains(e.relatedTarget as Node | null)) controller.release();
+              },
+            }
+          : {}),
+      },
       h(
         'div',
         { class: 'jog-pads' },
-        h('div', { class: 'jog-pad', role: 'group', 'aria-label': 'X and Y' }, pad.map((label, i) => h('button', { type: 'button', disabled: true, class: `j${i % 2 === 0 && i !== 4 ? ' diag' : ''}`, 'aria-label': label, key: label, 'data-machine-control': i === 4 ? 'zero' : 'jog' }, labels[i]))),
-        h('div', { class: 'jog-z', role: 'group', 'aria-label': 'Z' }, h('button', { type: 'button', disabled: true, class: 'j', 'aria-label': 'Z up', 'data-machine-control': 'jog' }, 'Z+'), h('button', { type: 'button', disabled: true, class: 'j', 'aria-label': 'Z down', 'data-machine-control': 'jog' }, 'Z−')),
+        h(
+          'div',
+          { class: 'jog-pad', role: 'group', 'aria-label': 'X and Y' },
+          PAD.map((p, i) =>
+            p.axes === null
+              ? h('button', { type: 'button', class: 'j', 'aria-label': p.label, key: p.label, 'data-machine-control': 'zero', ...(enabled && onGoToZero !== undefined ? { onClick: () => onGoToZero(['x', 'y']) } : { disabled: true }) }, p.text)
+              : jogButton(p.label, p.text, p.axes, `j${i % 2 === 0 ? ' diag' : ''}`),
+          ),
+        ),
+        h('div', { class: 'jog-z', role: 'group', 'aria-label': 'Z' }, jogButton('Z up', 'Z+', { z: 1 }, 'j'), jogButton('Z down', 'Z−', { z: -1 }, 'j')),
       ),
-      h('div', { class: 'seg full', role: 'group', 'aria-label': 'Step size' }, ['0.1', '1', '10', '50', 'Hold'].map((s) => h('button', { type: 'button', disabled: true, class: s === '1' ? 'selected' : undefined, key: s, 'data-machine-control': 'jog' }, s))),
+      h(
+        'div',
+        { class: 'seg full', role: 'group', 'aria-label': 'Step size' },
+        steps.map((v, i) =>
+          h('button', { type: 'button', key: `${units}${v}`, class: stepIndex === i ? 'selected' : undefined, 'aria-pressed': stepIndex === i ? 'true' : 'false', 'data-machine-control': 'jog', ...(enabled ? { onClick: () => setStepIndex(i) } : { disabled: true }) }, String(v)),
+        ),
+        h('button', { type: 'button', class: stepIndex === null ? 'selected' : undefined, 'aria-pressed': stepIndex === null ? 'true' : 'false', 'data-machine-control': 'jog', title: 'Jog while the button or key is held', ...(enabled ? { onClick: () => setStepIndex(null) } : { disabled: true }) }, 'Hold'),
+      ),
+      h(
+        'div',
+        { class: 'jog-settings' },
+        h('div', { class: 'seg', role: 'group', 'aria-label': 'Step units' }, (['mm', 'in'] as const).map((u) => h('button', { type: 'button', key: u, class: units === u ? 'selected' : undefined, 'aria-pressed': units === u ? 'true' : 'false', 'data-machine-control': 'jog', ...(enabled ? { onClick: () => setUnits(u) } : { disabled: true }) }, u))),
+        h(
+          'label',
+          { class: 'jog-feed' },
+          h('span', null, 'Jog speed'),
+          h('input', {
+            type: 'number',
+            min: JOG_FEED.min,
+            max: JOG_FEED.max,
+            step: 10,
+            value: feed,
+            ...(enabled ? { onInput: (e: Event) => setFeed(Math.min(JOG_FEED.max, Math.max(JOG_FEED.min, Number((e.currentTarget as HTMLInputElement).value) || JOG_FEED.default))) } : { disabled: true }),
+            'aria-label': 'Jog speed, mm per minute',
+            'data-machine-control': 'jog',
+          }),
+          h('small', null, 'mm/min'),
+        ),
+      ),
     ),
-    h('p', { class: 'unavailable', 'data-jog': 'note' }, 'Jogging arrives with motion control. These controls show what is coming and send nothing.'),
+    motionNote(ui, note),
   );
+}
+
+type JogProps = { readonly model?: WorkspaceModel | null; readonly onGoToZero?: (axes: readonly MotionAxis[]) => void };
+
+function JogLive(props: JogProps): ComponentChild {
+  return jogBody(props, LIVE_HOOKS);
+}
+
+export function JogSection(props: JogProps = {}): ComponentChild {
+  return isLive(props.model) ? h(JogLive, props) : jogBody(props, STATIC_HOOKS);
+}
+
+const AXIS_ROWS: readonly MotionAxis[] = ['x', 'y', 'z'];
+
+/**
+ * Set zero and Go to zero, per axis and for all (SAFETY §4.5b, H53, C16, C25). Set zero is G10 L20 P1 (G54, saved
+ * on the controller). Go to zero shows its path first; Z rises in machine coordinates before X and Y move.
+ */
+function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
+  const view = model?.live.value ?? null;
+  const ui = motionUi(view);
+  const send = model?.actions.value?.motion;
+  const settings = settingsOf(view);
+  const zNow = machineZ(view);
+  const ztm = typeof settings['ztm'] === 'number' ? (settings['ztm'] as number) : null;
+  const [safeZ, setSafeZ] = hk.state<number | null>(null);
+  const safe = safeZ ?? (ztm !== null && ui.homed === true ? Math.round((ztm - 1) * 1000) / 1000 : (zNow ?? 0));
+  const [confirm, setConfirm] = hk.state<{ readonly kind: 'set' | 'go'; readonly axes: readonly MotionAxis[] } | null>(null);
+  const [note, setNote] = hk.state<string | null>(null);
+  hk.effect(() => {
+    if (ask !== null && ask !== undefined && ui.enabled) setConfirm({ kind: 'go', axes: ask.axes });
+  }, [ask?.at]);
+  const offsets = workOffsets(view);
+  const dro = view?.message?.dro.axes ?? [];
+  const work = (a: MotionAxis): number | null => dro.find((d) => d.axis === a)?.work ?? null;
+  const machine = (a: MotionAxis): number | null => dro.find((d) => d.axis === a)?.machine ?? null;
+  const enabled = ui.enabled && send !== undefined;
+  const run = (command: MotionCommand): void => {
+    setConfirm(null);
+    setNote(null);
+    void send?.(command).then(setNote);
+  };
+  const button = (label: string, aria: string, onClick: () => void): ComponentChild =>
+    h('button', { type: 'button', class: 'small', 'aria-label': aria, 'data-machine-control': 'zero', ...(enabled ? { onClick } : { disabled: true }) }, label);
+  const confirmCard = (): ComponentChild => {
+    if (confirm === null || !enabled) return null;
+    if (confirm.kind === 'set') {
+      const text = confirm.axes
+        .map((a) => c16({ wcs: 'G54', axis: a.toUpperCase(), machinePositionMm: machine(a) ?? 0, newOffsetMm: machine(a) ?? 0 }))
+        .join(' ');
+      return h(ConfirmCard, { text, confirm: 'Set zero', safety: 'C16', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) });
+    }
+    const path = goToZeroPath(confirm.axes, safe, zNow);
+    return h(ConfirmCard, { text: c25({ axes: axesText(confirm.axes), path }), confirm: 'Go to zero', safety: 'C25', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });
+  };
+  return h(
+    'section',
+    { class: 'insp sec-zero', 'aria-labelledby': 'zero-title' },
+    h('header', null, h('h2', { id: 'zero-title' }, 'Work zero'), h('span', { class: 'tag' }, 'G54 · G10 L20')),
+    h(
+      'table',
+      { class: 'zero-table' },
+      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Axis'), h('th', { scope: 'col' }, 'Work'), h('th', { scope: 'col' }, 'Offset'), h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Actions')))),
+      h(
+        'tbody',
+        null,
+        AXIS_ROWS.map((a) =>
+          h(
+            'tr',
+            { key: a, 'data-zero-axis': a },
+            h('th', { scope: 'row' }, a.toUpperCase()),
+            h('td', { class: 'num' }, coord(work(a))),
+            h('td', { class: 'num', 'data-zero-offset': a }, coord(offsets[a])),
+            h('td', { class: 'zero-actions' }, button('Set 0', `Set ${a.toUpperCase()} zero here`, () => setConfirm({ kind: 'set', axes: [a] })), button('Go to 0', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }))),
+          ),
+        ),
+        h(
+          'tr',
+          { 'data-zero-axis': 'all' },
+          h('th', { scope: 'row' }, 'All'),
+          h('td', { colSpan: 2, class: 'fine' }, 'X, Y and Z'),
+          h('td', { class: 'zero-actions' }, button('Set 0', 'Set X, Y and Z zero here', () => setConfirm({ kind: 'set', axes: ['x', 'y', 'z'] })), button('Go to 0', 'Go to X, Y and Z zero', () => setConfirm({ kind: 'go', axes: ['x', 'y', 'z'] }))),
+        ),
+      ),
+    ),
+    h(
+      'label',
+      { class: 'jog-feed' },
+      h('span', null, 'Safe Z'),
+      h('input', {
+        type: 'number',
+        step: 1,
+        value: safe,
+        ...(enabled ? { onInput: (e: Event) => setSafeZ(Number((e.currentTarget as HTMLInputElement).value)) } : { disabled: true }),
+        'aria-label': 'Safe Z height in machine coordinates, mm',
+        'data-machine-control': 'zero',
+      }),
+      h('small', null, 'mm, machine. Z never goes lower than it is.'),
+    ),
+    confirmCard(),
+    motionNote(ui, note),
+  );
+}
+
+type ZeroProps = { readonly model?: WorkspaceModel | null; readonly ask?: { readonly axes: readonly MotionAxis[]; readonly at: number } | null };
+
+function ZeroLive(props: ZeroProps): ComponentChild {
+  return zeroBody(props, LIVE_HOOKS);
+}
+
+export function ZeroSection(props: ZeroProps = {}): ComponentChild {
+  return isLive(props.model) ? h(ZeroLive, props) : zeroBody(props, STATIC_HOOKS);
 }
 
 /** The J6 output pins with what the board's settings say about each (board definition labels, never generic ones). */
@@ -191,11 +587,12 @@ function OutputPins({ settings, dialect }: { readonly settings: Readonly<Record<
 }
 
 /**
- * Spindle and coolant as the board reports them (edge-next `spe`, `spc`, `spd`, `sps`, `cof`, `com`): from its
- * status list when it carries them, otherwise from the read-only GETs Run asks about once a second. Display
- * only: the controls stay disabled, and nothing that pauses or stops reads these values.
+ * Spindle and coolant (SAFETY §4.5b, H52). The readouts are what the board reports (edge-next `spe`, `spc`,
+ * `spd`, `sps`, `cof`, `com`), from its status list or the GETs Run asks about once a second, labelled
+ * commanded: TinyG measures nothing. Nothing that pauses or stops reads them. In a motion session the controls
+ * send M3/M4 with S, M5, M7, M8 and M9; Spindle on asks C24 first unless the user turned that off for this page.
  */
-export function SpindleSection({ model }: { readonly model?: WorkspaceModel | null } = {}): ComponentChild {
+function spindleBody({ model }: SpindleProps, hk: Hooks): ComponentChild {
   const view = model?.live.value ?? null;
   const snapshot = view !== null && connected(view) ? view.message?.snapshot : undefined;
   const r = displayReadouts(snapshot);
@@ -203,10 +600,39 @@ export function SpindleSection({ model }: { readonly model?: WorkspaceModel | nu
   const spindleLine = spindle.startsWith('On') ? `Spindle o${spindle.slice(1)}` : spindle;
   const coolant = coolantText(r);
   const settings = settingsOf(view);
+  const ui = motionUi(view);
+  const send = model?.actions.value?.motion;
+  const [rpm, setRpm] = hk.state(10000);
+  const [asking, setAsking] = hk.state<'cw' | 'ccw' | null>(null);
+  const [skip, setSkip] = hk.state(false);
+  const [note, setNote] = hk.state<string | null>(null);
+  const on = ui.enabled && send !== undefined;
+  // Spindle and coolant off are stop-class: offered whenever a motion session is connected, never gated.
+  const off = send !== undefined && ui.flag && ui.connected;
+  const run = (command: MotionCommand): void => {
+    setNote(null);
+    void send?.(command).then(setNote);
+  };
+  const start = (direction: 'cw' | 'ccw'): void => {
+    if (spindleConfirmSkipped) run({ op: 'spindleOn', direction, rpm });
+    else setAsking(direction);
+  };
+  const mist = r?.com === 1;
+  const flood = r?.cof === 1;
+  const coolantToggle = (which: 'mist' | 'flood', pressed: boolean): void => {
+    if (!pressed) {
+      run({ op: 'coolantOn', which });
+      return;
+    }
+    // TinyG has one off command for both outputs (M9): turn the other one back on if it was on.
+    run({ op: 'coolantOff' });
+    const other = which === 'mist' ? flood : mist;
+    if (other) run({ op: 'coolantOn', which: which === 'mist' ? 'flood' : 'mist' });
+  };
   return h(
     'section',
     { class: 'insp sec-spindle', 'aria-labelledby': 'spindle-title' },
-    h('header', null, h('h2', { id: 'spindle-title' }, 'Spindle and coolant'), h('span', { class: 'tag' }, 'Reported')),
+    h('header', null, h('h2', { id: 'spindle-title' }, 'Spindle and coolant'), h('span', { class: 'tag' }, 'Commanded')),
     h(
       'div',
       { class: 'spindle-state' },
@@ -222,11 +648,73 @@ export function SpindleSection({ model }: { readonly model?: WorkspaceModel | nu
     h(
       'div',
       { class: 'spindle-controls' },
-      h('div', { class: 'seg full', role: 'group', 'aria-label': 'Spindle (J6.3 Spindle, J6.4 SpinDir)' }, ['Off', 'On · CW', 'On · CCW'].map((s) => h('button', { type: 'button', disabled: true, key: s, 'data-machine-control': 'spindle' }, s))),
-      h('div', { class: 'inline-field' }, h('span', null, 'J6.6 Coolant'), h('span', { class: 'toggles' }, h('button', { type: 'button', class: 'toggle', disabled: true, 'aria-pressed': 'false', 'data-machine-control': 'coolant' }, 'Mist'), h('button', { type: 'button', class: 'toggle', disabled: true, 'aria-pressed': 'false', 'data-machine-control': 'coolant' }, 'Flood'))),
+      h(
+        'div',
+        { class: 'seg full', role: 'group', 'aria-label': 'Spindle (J6.3 Spindle, J6.4 SpinDir)' },
+        h('button', { type: 'button', key: 'off', 'data-machine-control': 'spindle', ...(off ? { onClick: () => run({ op: 'spindleOff' }) } : { disabled: true }) }, 'Off'),
+        h('button', { type: 'button', key: 'cw', 'data-machine-control': 'spindle', ...(on ? { onClick: () => start('cw') } : { disabled: true }) }, 'On · CW'),
+        h('button', { type: 'button', key: 'ccw', 'data-machine-control': 'spindle', ...(on ? { onClick: () => start('ccw') } : { disabled: true }) }, 'On · CCW'),
+      ),
+      h(
+        'label',
+        { class: 'jog-feed' },
+        h('span', null, 'Speed'),
+        h('input', {
+          type: 'number',
+          min: 1,
+          max: 100000,
+          step: 100,
+          value: rpm,
+          ...(on ? { onInput: (e: Event) => setRpm(Math.max(1, Math.round(Number((e.currentTarget as HTMLInputElement).value) || 1))) } : { disabled: true }),
+          'aria-label': 'Spindle speed, rpm (commanded)',
+          'data-machine-control': 'spindle',
+        }),
+        h('small', null, 'rpm, commanded'),
+      ),
+      asking === null || !on
+        ? null
+        : h(
+            ConfirmCard,
+            {
+              text: c24({ direction: asking === 'cw' ? 'CW' : 'CCW', rpm }),
+              confirm: 'Start spindle',
+              safety: 'C24',
+              onCancel: () => setAsking(null),
+              onConfirm: () => {
+                if (skip) spindleConfirmSkipped = true;
+                const direction = asking;
+                setAsking(null);
+                run({ op: 'spindleOn', direction, rpm });
+              },
+            },
+            h('label', { class: 'check' }, h('input', { type: 'checkbox', 'data-action': 'skip-spindle-confirm', checked: skip, onChange: (e: Event) => setSkip((e.currentTarget as HTMLInputElement).checked) }), ' Don’t ask again until I reload this page'),
+          ),
+      h(
+        'div',
+        { class: 'inline-field' },
+        h('span', null, 'J6.6 Coolant'),
+        h(
+          'span',
+          { class: 'toggles' },
+          h('button', { type: 'button', class: 'toggle', 'aria-pressed': mist ? 'true' : 'false', 'data-machine-control': 'coolant', ...((mist ? off : on) ? { onClick: () => coolantToggle('mist', mist) } : { disabled: true }) }, 'Mist'),
+          h('button', { type: 'button', class: 'toggle', 'aria-pressed': flood ? 'true' : 'false', 'data-machine-control': 'coolant', ...((flood ? off : on) ? { onClick: () => coolantToggle('flood', flood) } : { disabled: true }) }, 'Flood'),
+        ),
+      ),
     ),
-    h('p', { class: 'unavailable' }, 'Control arrives with motion control. Readouts are for display only: a command queued behind a move shows once it runs, and the speed is commanded, not measured. Never rely on them for safety.'),
+    note !== null
+      ? h('p', { class: 'unavailable', role: 'status' }, note)
+      : h('p', { class: 'fine', 'data-spindle': 'note' }, ui.enabled || off ? 'Readouts show what the controller reports driving, labelled commanded: a command queued behind a move shows once it runs, and the speed is never measured. Never rely on them for safety.' : (ui.reason ?? 'Readouts are for display only.')),
   );
+}
+
+type SpindleProps = { readonly model?: WorkspaceModel | null };
+
+function SpindleLive(props: SpindleProps): ComponentChild {
+  return spindleBody(props, LIVE_HOOKS);
+}
+
+export function SpindleSection(props: SpindleProps = {}): ComponentChild {
+  return isLive(props.model) ? h(SpindleLive, props) : spindleBody(props, STATIC_HOOKS);
 }
 
 export function OverridesSection(): ComponentChild {
@@ -247,11 +735,12 @@ export function OverridesSection(): ComponentChild {
   );
 }
 
-type InspTab = 'jog' | 'spindle' | 'overrides';
+type InspTab = 'jog' | 'zero' | 'spindle' | 'overrides';
 
 /** The Run inspector: position always on top, the rest as tabs so nothing needs a long scroll. */
 function RunInspector({ model, onView }: { readonly model: WorkspaceModel | null; readonly onView: (view: string) => void }): ComponentChild {
-  const [tab, setTab] = useState<InspTab>('spindle');
+  const [tab, setTab] = useState<InspTab>('jog');
+  const [ask, setAsk] = useState<{ readonly axes: readonly MotionAxis[]; readonly at: number } | null>(null);
   return h(
     'aside',
     { class: 'inspector run-inspector', 'aria-label': 'Machine' },
@@ -267,14 +756,26 @@ function RunInspector({ model, onView }: { readonly model: WorkspaceModel | null
         current: tab,
         onSelect: setTab,
         tabs: [
-          { id: 'spindle', label: 'Spindle and coolant' },
           { id: 'jog', label: 'Jog' },
+          { id: 'zero', label: 'Zero' },
+          { id: 'spindle', label: 'Spindle and coolant' },
           { id: 'overrides', label: 'Overrides' },
         ],
       }),
     ),
     h(TabPane, { prefix: 'insp', id: 'spindle', current: tab, class: 'tpane insp-pane' }, h(SpindleSection, { model })),
-    h(TabPane, { prefix: 'insp', id: 'jog', current: tab, class: 'tpane insp-pane' }, h(JogSection, null)),
+    h(
+      TabPane,
+      { prefix: 'insp', id: 'jog', current: tab, class: 'tpane insp-pane' },
+      h(JogSection, {
+        model,
+        onGoToZero: (axes) => {
+          setAsk({ axes, at: Date.now() });
+          setTab('zero');
+        },
+      }),
+    ),
+    h(TabPane, { prefix: 'insp', id: 'zero', current: tab, class: 'tpane insp-pane' }, h(ZeroSection, { model, ask })),
     h(TabPane, { prefix: 'insp', id: 'overrides', current: tab, class: 'tpane insp-pane' }, h(OverridesSection, null)),
   );
 }
@@ -488,13 +989,40 @@ function ConsolePane({ model, active }: { readonly model: WorkspaceModel | null;
     };
   }, [active, model, epoch]);
   const t0 = lines?.[0]?.t ?? 0;
+  const wire = useRef<HTMLOListElement>(null);
+  const pinned = useRef(true);
+  // Keep the newest line in view, unless the user scrolled up to read.
+  useEffect(() => {
+    const el = wire.current;
+    if (el !== null && pinned.current) el.scrollTop = el.scrollHeight;
+  }, [lines]);
+  const saving = view === null || view.message === null || view.message.snapshot.epoch === 0 ? null : h(TranscriptSave, { status: view.transcript, onSave: () => model?.actions.value?.saveTranscript() });
   return h(
     'div',
     { class: 'console-pane' },
-    epoch === 0 || lines === null
-      ? h('p', { class: 'live-empty' }, h('strong', null, 'The console shows the conversation with the board.'), 'Every line Run sends and every answer, once a board is connected in this tab. It only reads.')
-      : h('ol', { class: 'console', 'data-console': 'lines', 'aria-label': 'Wire transcript' }, lines.map((l, i) => h('li', { key: String(i), class: l.dir === 'tx' ? 'tx' : 'rx' }, h('time', null, `${((l.t - t0) / 1000).toFixed(2)}`), h('span', { class: 'dir' }, l.dir === 'tx' ? '→' : '←'), h('span', null, l.text)))),
-    view === null || view.message === null || view.message.snapshot.epoch === 0 ? null : h(TranscriptSave, { status: view.transcript, onSave: () => model?.actions.value?.saveTranscript() }),
+    h(ConsoleLine, { model }),
+    h(
+      'div',
+      { class: 'console-wire' },
+      h('div', { class: 'cl-head' }, h('span', { class: 'cl-title' }, 'Wire transcript'), h('span', { class: 'cl-phase' }, 'Every byte, as sent and received')),
+      epoch === 0 || lines === null
+        ? h('p', { class: 'live-empty' }, h('strong', null, 'The console shows the conversation with the board.'), 'Every line Run sends and every answer, once a board is connected in this tab. It only reads.')
+        : h(
+            'ol',
+            {
+              class: 'console',
+              ref: wire,
+              'data-console': 'lines',
+              'aria-label': 'Wire transcript',
+              onScroll: (e: Event) => {
+                const el = e.currentTarget as HTMLOListElement;
+                pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+              },
+            },
+            lines.map((l, i) => h('li', { key: String(i), class: l.dir === 'tx' ? 'tx' : 'rx' }, h('time', null, `${((l.t - t0) / 1000).toFixed(2)}`), h('span', { class: 'dir' }, l.dir === 'tx' ? '→' : '←'), h('span', null, l.text))),
+          ),
+      saving === null ? null : h('details', { class: 'wire-save' }, h('summary', null, 'Save the transcript'), saving),
+    ),
   );
 }
 
@@ -575,7 +1103,7 @@ function Dock({ parts, model }: { readonly parts: PreviewParts; readonly model: 
   ];
   return h(
     'div',
-    { class: 'dock' },
+    { class: 'dock', 'data-dock-tab': tab },
     h(
       'div',
       { class: 'dock-tabs', role: 'tablist', 'aria-label': 'File and machine' },
@@ -611,6 +1139,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
   return h(
     'div',
     { class: 'run-view', 'data-region': 'preview' },
+    h(RunBridge, { parts }),
     h(JobCard, { parts }),
     h(
       'div',

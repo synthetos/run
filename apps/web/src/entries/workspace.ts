@@ -36,6 +36,7 @@ import { loadStoredLibraries } from '../workspace/storage.ts';
 import '../styles/base.css';
 import '../styles/workspace.css';
 import '../styles/gcode-list.css';
+import '../styles/features.css';
 
 const trustedTypes = installTrustedTypes();
 

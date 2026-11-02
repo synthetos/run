@@ -65,6 +65,12 @@ function isReference(v: unknown): v is SettingsReference {
   return typeof r['deviceHash'] === 'string' && typeof r['settings'] === 'object' && r['settings'] !== null && typeof r['at'] === 'string';
 }
 
+/**
+ * Bases in which the board is identified, read and at rest: CONNECTED_UNKNOWN (Phase 1, or UNKNOWN) and, in a
+ * Phase 2 motion session, idle or in alarm (SAFETY §4.5b). Never while a move of this session runs.
+ */
+export const READ_BASES: ReadonlySet<string> = new Set(['CONNECTED_UNKNOWN', 'IDLE_UNHOMED', 'IDLE_HOMED', 'ALARM']);
+
 export class LiveReadout {
   readonly #deps: ReadoutDeps;
   #phase: ReadoutPhase = { kind: 'idle' };
@@ -103,7 +109,7 @@ export class LiveReadout {
   onSnapshot(s: SessionSnapshot): void {
     this.#lastSnapshot = s;
     const dialectId = s.classification?.dialectId ?? null;
-    if (s.base !== 'CONNECTED_UNKNOWN' || dialectId === null || s.overlays.includes('LOST') || settingsReadGroups(dialectId).length === 0) {
+    if (!READ_BASES.has(s.base) || dialectId === null || s.overlays.includes('LOST') || settingsReadGroups(dialectId).length === 0) {
       if (s.base === 'NOT_CONNECTED' && this.#phase.kind !== 'idle') {
         this.#epoch = -1;
         this.#set({ kind: 'idle' });

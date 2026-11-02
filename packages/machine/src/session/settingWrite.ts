@@ -5,7 +5,7 @@
  * One write is, in order and one line at a time:
  * 1. the idle gate: polled GETs of `stat`, `hold` (where the dialect trusts
  *    it), `vel`, `qr` and `unit`, answered right before the write. The board
- *    must be at rest (stat idle or end, hold 0, vel 0, the planner empty:
+ *    must be at rest (stat idle or end, or on edge-next stat 3 with hold 0; hold 0, vel 0, the planner empty:
  *    `qr` = plannerBlocks) and in millimetres (`unit` = 1, G21), or nothing
  *    is written;
  * 2. the write, `{"<key>":<value>}` and LF. Its answer is awaited before
@@ -19,6 +19,7 @@
  * values this session has read).
  */
 import { mapStat, type Dialect, type JsonObject, type JsonValue } from '@synthetos/protocol';
+import { restingStat } from './resting.ts';
 import { boardSettingsFrom, isReadAllowed, readBackMatches, screenWritePlan, settingsSchemaFor, type GroupAnswer, type SettingValue } from '@synthetos/schema';
 import type { ReadValue, SettingWriteState } from './types.ts';
 
@@ -84,10 +85,8 @@ export function judgeGate(dialect: Dialect, gate: SettingWriteState['gate'], hol
   const problems: string[] = [];
   const stat = gate.stat;
   if (stat === undefined) problems.push('its state (stat) could not be read');
-  else {
-    const cls = mapStat(dialect, stat);
-    if (cls !== 'idle' && cls !== 'end') problems.push(`it is ${cls} (stat ${stat}), not idle`);
-  }
+  // The shared resting rule: stat idle or end, and on edge-next stat 3 with hold 0 (a finished cycle, resting.ts).
+  else if (!restingStat(dialect, stat, holdTrusted ? gate.hold : undefined)) problems.push(`it is ${mapStat(dialect, stat)} (stat ${stat}), not idle`);
   if (holdTrusted && gate.hold !== 0) problems.push(gate.hold === undefined ? 'its hold state could not be read' : `it is holding (hold ${gate.hold})`);
   if (gate.vel !== 0) problems.push(gate.vel === undefined ? 'its velocity could not be read' : `it is moving (velocity ${gate.vel})`);
   if (gate.qr !== dialect.limits.plannerBlocks) problems.push(gate.qr === undefined ? 'its planner queue could not be read' : `it has moves queued (${gate.qr} of ${dialect.limits.plannerBlocks} planner buffers free)`);

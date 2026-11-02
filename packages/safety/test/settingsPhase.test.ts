@@ -4,7 +4,7 @@
  * together, in a reviewed change.
  */
 import { describe, expect, it } from 'vitest';
-import { PHASE_1_RELEASE, PHASE_1_SETTINGS_RELEASE, SETTINGS_WRITES, allowed, releaseFor, settingsWritesEnabled } from '../src/index.ts';
+import { PHASE_1_RELEASE, PHASE_1_SETTINGS_RELEASE, PHASE_2_RELEASE, SETTINGS_WRITES, allowed, settingsWritesEnabled, withSettingsWrites } from '../src/index.ts';
 
 describe('the settings-write phase switch', () => {
   it('is on for staging (and the localhost bench, which is staging) and off for production', () => {
@@ -18,10 +18,12 @@ describe('the settings-write phase switch', () => {
     for (const env of [null, undefined, 'bench', 'Staging', '', 'toString', '__proto__'] as unknown[]) expect(settingsWritesEnabled(env as never)).toBe(false);
   });
 
-  it('picks the release: settings kind on only where enabled; motion and other writes never', () => {
-    expect(releaseFor('staging')).toBe(PHASE_1_SETTINGS_RELEASE);
-    expect(releaseFor('production')).toBe(PHASE_1_RELEASE);
-    expect(releaseFor(null)).toBe(PHASE_1_RELEASE);
+  it('composes with the base release: settings on only where enabled, the base unchanged otherwise', () => {
+    expect(withSettingsWrites(PHASE_2_RELEASE, 'staging')).toMatchObject({ motion: true, write: false, port: true, settings: true, name: 'Phase 2 + settings writes' });
+    expect(withSettingsWrites(PHASE_1_RELEASE, 'staging')).toMatchObject({ motion: false, settings: true });
+    expect(Object.isFrozen(withSettingsWrites(PHASE_2_RELEASE, 'staging'))).toBe(true);
+    expect(withSettingsWrites(PHASE_1_RELEASE, 'production')).toBe(PHASE_1_RELEASE);
+    expect(withSettingsWrites(PHASE_2_RELEASE, null)).toBe(PHASE_2_RELEASE);
     expect(PHASE_1_SETTINGS_RELEASE).toMatchObject({ motion: false, write: false, port: true, settings: true });
     expect(PHASE_1_RELEASE.settings).toBeUndefined();
   });

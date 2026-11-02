@@ -27,7 +27,8 @@ interface Status {
 async function connectedTab(page: Page): Promise<Worker> {
   const worker = await machineWorker(page);
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
-  await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as Status).status.session.base, { timeout: 10_000 }).toBe('CONNECTED_UNKNOWN');
+  // Loopback is the bench: the motion flag is on too, so the identified board rests in IDLE_UNHOMED.
+  await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as Status).status.session.base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
   expect(((await request(worker, { v: 3, kind: 'status' })) as Status).status.session.classification?.mode).toBe('full');
   return worker;
 }

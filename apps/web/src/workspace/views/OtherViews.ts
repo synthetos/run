@@ -1,38 +1,18 @@
 /**
- * The Projects, Analyze, Settings and Safety views. Projects and the feeds
- * and speeds advisor arrive with accounts and the advisor package; until
- * then these views say so plainly instead of showing invented data.
+ * The Analyze, Settings and Safety views. The feeds and speeds advisor
+ * arrives with the advisor package; until then Analyze says so plainly
+ * instead of showing invented data. Projects is projects/ProjectsView.ts.
  */
 import { h, type ComponentChild } from 'preact';
 import { CANNOT_GUARANTEE, w1 } from '@synthetos/safety';
 import { type BuildInfo, versionLabel } from '../../build-info/buildInfo.ts';
 import { signalText } from '../../shell/signal.ts';
 import { machineStore, myMaterialStore, setupStore, toolStore } from '../library.ts';
-import { SAMPLES } from '../samples.ts';
+import { Icon } from '../icons.ts';
+import { openReport } from '../../report/state.ts';
 
 function head(title: string, sub: string): ComponentChild {
   return h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, title), h('p', null, sub)));
-}
-
-export function ProjectsView({ onView }: { readonly onView: (v: string) => void }): ComponentChild {
-  return h(
-    'div',
-    { class: 'projects-view' },
-    head('Projects', 'Files, setup, tools and history, kept together.'),
-    h(
-      'div',
-      { tabindex: 0, class: 'scroll-region' },
-      h(
-        'div',
-        { class: 'panel empty-panel' },
-        h('h2', null, 'Projects arrive with your Synthetos account'),
-        h('p', null, 'A project keeps its G-code files and versions, the setup, the tools and the run history, synced across your devices. Until accounts are live, open files from this computer on the Run view.'),
-        h('button', { type: 'button', class: 'primary', onClick: () => onView('run') }, 'Go to Run'),
-      ),
-      h('div', { class: 'section-heading' }, h('h2', null, 'Sample files')),
-      h('ul', { class: 'op-list' }, SAMPLES.map((s, i) => h('li', { class: 'op-row', key: s.id }, h('span', { class: 'num' }, String(i + 1).padStart(2, '0')), h('span', null, h('strong', null, s.title), h('small', null, s.name)), h('span', { class: 'fine' }, 'Generated in this browser'), h('span', null), h('span', null)))),
-    ),
-  );
 }
 
 export function AnalyzeView(): ComponentChild {
@@ -104,6 +84,13 @@ export function SafetyView(): ComponentChild {
         h('div', { class: 'panel-head' }, h('h2', null, 'Pause and Stop job')),
         h('p', null, 'Pause and Stop job sit in the same place in every view and are never blocked by sign-in or by a mode. Escape pauses from anywhere. They are controlled stops sent over a channel that is not safety rated, and they may be delayed or never delivered.'),
         h('p', null, 'In this release Stop job sends a feedhold, like Pause. On TinyG a feedhold does not stop the spindle or coolant: use your E-stop to remove power.'),
+      ),
+      h(
+        'div',
+        { class: 'panel report-panel' },
+        h('div', { class: 'panel-head' }, h('h2', null, 'Report a problem')),
+        h('p', null, 'Something wrong with run, the firmware or the board? Run gathers what it already knows, shows you every piece before anything is posted, and opens the right place: run or firmware issues on GitHub, or the forum for questions. Reporting sends nothing to the machine.'),
+        h('button', { type: 'button', class: 'small', 'data-action': 'report-problem', onClick: () => openReport({ origin: 'safety' }) }, Icon('flag', 14), 'Report a problem'),
       ),
       h('div', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h2', null, 'What this tool cannot guarantee')), h('ol', { class: 'cannot-list' }, CANNOT_GUARANTEE.map((item) => h('li', { key: item }, item)))),
       h('p', { class: 'fine' }, 'The full safety contract is at ', h('a', { href: '/safety/', target: '_blank', rel: 'noopener' }, 'run.synthetos.com/safety'), ' (opens in a new tab, so this workspace keeps its connection).'),

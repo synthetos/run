@@ -1354,7 +1354,11 @@ export class TinyGEdgeNextModel implements SimDevice {
           } else if (code === '92.1') {
             if (g.nextAction !== undefined) return ST('GCODE_MODAL_GROUP_VIOLATION');
             g.nextAction = 'resetOrigin';
-          } else if (['10', '28', '28.1', '28.2', '28.3', '28.4', '30', '30.1', '38.2', '43.1', '92.2', '92.3', '93'].includes(code)) {
+          } else if (code === '10') {
+            // G10 L2 / L20 Pn: set a coordinate system's offset (model limit LIM-EN-G10)
+            if (g.nextAction !== undefined) return ST('GCODE_MODAL_GROUP_VIOLATION');
+            g.nextAction = 'setCoord';
+          } else if (['28', '28.1', '28.2', '28.3', '28.4', '30', '30.1', '38.2', '43.1', '92.2', '92.3', '93'].includes(code)) {
             throw new ModelGapError(`edge-next G${code}`);
           } else {
             return ST('GCODE_COMMAND_UNSUPPORTED');
@@ -1424,6 +1428,7 @@ export class TinyGEdgeNextModel implements SimDevice {
           break;
         case 'L':
           if (!(v >= 0) || v > 255 || v !== Math.trunc(v)) return ST('L_WORD_IS_INVALID');
+          g.l = v;
           break;
         case 'R':
           throw new ModelGapError('edge-next arc radius (R) format');
@@ -1503,6 +1508,24 @@ export class TinyGEdgeNextModel implements SimDevice {
         gm.g92 = zeroVec();
         gm.g92Enabled = false;
         break;
+      case 'setCoord': {
+        // Model limit LIM-EN-G10 (uncited): L2 sets the offset to the value given; L20 so that the current position reads
+        // the value given (EN allows L2 and L20 only, SAFETY §4.7). P1..P6 select G54..G59. Persisted.
+        const p = g.p;
+        if (g.l !== 2 && g.l !== 20) return ST('GCODE_COMMAND_UNSUPPORTED');
+        if (p === undefined || p !== Math.trunc(p) || p < 1 || p > 6) return ST('P_WORD_IS_INVALID');
+        const coord = 53 + p;
+        const pos = gm.position;
+        for (let i = 0; i < 6; i++) {
+          const t = g.target[i];
+          if (t === undefined) continue;
+          const name = `g${coord}${AXES[i] as string}`;
+          const value = g.l === 2 ? t * this.#unitFactor(undefined, i) : (pos[i] as number) - t * this.#unitFactor(undefined, i) - (gm.g92Enabled ? (gm.g92[i] as number) : 0);
+          this.settings.setRam(name, value);
+          this.settings.persist(name);
+        }
+        break;
+      }
       case undefined:
         if (g.motion !== undefined) gm.motionMode = g.motion;
         if (gm.motionMode === 'g2' || gm.motionMode === 'g3') status = this.#arc(g);
@@ -2193,7 +2216,8 @@ export class TinyGEdgeNextModel implements SimDevice {
 interface GcodeInput {
   motion?: MotionMode;
   cancel?: boolean;
-  nextAction?: 'dwell' | 'motionSync' | 'setOrigin' | 'resetOrigin';
+  nextAction?: 'dwell' | 'motionSync' | 'setOrigin' | 'resetOrigin' | 'setCoord';
+  l?: number;
   plane?: 17 | 18 | 19;
   units?: 'mm' | 'in';
   coord?: number;
