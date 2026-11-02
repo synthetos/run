@@ -65,7 +65,7 @@ async function expectRailOn(page: Page, view: (typeof VIEWS)[number]): Promise<v
 test('switching views keeps the same machine worker and link, and never navigates', async ({ page }) => {
   const worker = await connectedTab(page);
   const before = ((await request(worker, { v: 3, kind: 'status' })) as Status).status.session.epoch;
-  await expect(page.locator('[data-region="machine-strip"] [data-strip="state"]')).toHaveText('Connected · read only', { timeout: 10_000 });
+  await expect(page.locator('[data-region="machine-strip"] [data-strip="state"]')).toHaveText('Machine idle', { timeout: 10_000 });
   let navigations = 0;
   page.on('framenavigated', (frame) => {
     if (frame === page.mainFrame()) navigations += 1;
@@ -193,7 +193,7 @@ for (const width of [1440, 1280] as const) {
       await page.setViewportSize({ width, height: width === 1440 ? 900 : 720 });
       await page.emulateMedia({ colorScheme: theme });
       await connectedTab(page);
-      await expect(page.locator('[data-region="machine-strip"] [data-strip="state"]')).toHaveText('Connected · read only', { timeout: 10_000 });
+      await expect(page.locator('[data-region="machine-strip"] [data-strip="state"]')).toHaveText('Machine idle', { timeout: 10_000 });
       const w29 = page.locator('[data-action="dismiss-w29"]');
       if ((await w29.count()) > 0) await w29.click();
       const shot = (name: string): Promise<Buffer> => page.screenshot({ path: `${SHOTS}/${width}-${theme}-${name}.png` });
