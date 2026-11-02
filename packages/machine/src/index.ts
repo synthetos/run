@@ -37,3 +37,5 @@ export { liveControlPlatform } from './platform.ts';
 export type { PlatformDecision, PlatformInfo } from './platform.ts';
 export { checkSelection, suggestMachines } from './suggest.ts';
 export type { MachineCandidate, MachineSuggestion, ProbedBoard, SelectionCheck } from './suggest.ts';
+export { EVENT_LOG_MAX_BYTES, EventLog, EventLogTruncatedError, toHex, wireEventsToJsonl } from './eventLog.ts';
+export type { WireDirection, WireEvent } from './eventLog.ts';

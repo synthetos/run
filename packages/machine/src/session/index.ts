@@ -1,6 +1,6 @@
 /** The read-only machine session (ROADMAP P1-02). */
 export { MachineSession, escape } from './machineSession.ts';
-export type { ConnectOutcome, LogEntry, MachineSessionOptions, SessionClock } from './machineSession.ts';
+export type { ConnectOutcome, LogEntry, MachineSessionOptions, SessionClock, TranscriptExport } from './machineSession.ts';
 export { FULL_SESSION_FLOW_CONTROL, LIVENESS_TOKEN, PROBE_TOKENS, READING_TOKENS, VERIFY_TOKENS, probeRecord, dialectOf, enqAllowedNow, initialState, matrixSnapshot, readableNow, reduce } from './reducer.ts';
 export { SNAPSHOT_STRING_MAX, snapshotOf } from './snapshot.ts';
 export type { SessionSnapshot } from './snapshot.ts';

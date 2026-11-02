@@ -88,6 +88,12 @@ describe('package entry', () => {
         'liveControlPlatform',
         'readOnlyNotice',
         'suggestMachines',
+        // Wire transcript (P1-08).
+        'EVENT_LOG_MAX_BYTES',
+        'EventLog',
+        'EventLogTruncatedError',
+        'toHex',
+        'wireEventsToJsonl',
       ].sort(),
     );
   });

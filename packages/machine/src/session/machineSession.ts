@@ -28,6 +28,7 @@
 import { NO_APPROVED_BUILDS, createInboundDecoder, type ApprovedBuilds, type Inbound } from '@synthetos/protocol';
 import { PHASE_1_RELEASE, type Decision, type Intent, type Release } from '@synthetos/safety';
 import { GuardedTransport } from '../guardedTransport.ts';
+import { EventLog } from '../eventLog.ts';
 import { SESSION_OPEN_OPTIONS } from '../openPolicy.ts';
 import type { PortSelector, Transport, TransportInfo, TransportSource } from '../transport.ts';
 import { initialState, reduce } from './reducer.ts';
@@ -52,7 +53,14 @@ export interface MachineSessionOptions {
   readonly timings?: Partial<SessionTimings>;
   /** Entries kept in the TX/RX log. Default 2000. */
   readonly logLimit?: number;
+  /** Bound of the wire transcript, in payload bytes. Default `EVENT_LOG_MAX_BYTES`. */
+  readonly transcriptMaxBytes?: number;
 }
+
+/** The wire transcript of the last link that opened, as JSONL (P1-08). */
+export type TranscriptExport =
+  | { readonly ok: true; readonly jsonl: string; readonly events: number }
+  | { readonly ok: false; readonly reason: string };
 
 /** One line of the session log: bytes written (escaped) or a line received. */
 export interface LogEntry {
@@ -73,6 +81,8 @@ interface Link {
   closing: boolean;
   /** Settles when the link is fully closed. */
   closed: Promise<void> | null;
+  /** The wire transcript of this link, from the moment its port opened (P1-08). */
+  wire: EventLog | null;
 }
 
 interface QueuedLine {
@@ -98,6 +108,9 @@ export class MachineSession {
   readonly #timers = new Map<TimerId, number>();
   readonly #listeners = new Set<(snapshot: SessionSnapshot) => void>();
   readonly #log: LogEntry[] = [];
+  readonly #wireOptions: { readonly maxBytes?: number };
+  /** The transcript of the most recent link that opened (it stays after a disconnect, for export). */
+  #wire: EventLog | null = null;
   /** The board's XOFF, as the executor saw it in the byte stream (lines wait; realtime does not). */
   #xoff = false;
   #xonWaiters: (() => void)[] = [];
@@ -114,6 +127,7 @@ export class MachineSession {
       timings: Object.freeze({ ...DEFAULT_TIMINGS, ...options.timings }),
     });
     this.#logLimit = options.logLimit ?? 2000;
+    this.#wireOptions = options.transcriptMaxBytes === undefined ? {} : { maxBytes: options.transcriptMaxBytes };
   }
 
   /** The current snapshot. */
@@ -130,6 +144,22 @@ export class MachineSession {
   subscribe(listener: (snapshot: SessionSnapshot) => void): () => void {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
+  }
+
+  /**
+   * The wire transcript (`{t, dir, hex}` JSONL) of the most recent link that
+   * opened, including one that has since disconnected. Refused when no port
+   * has opened yet, or when the transcript passed its bound (a partial one
+   * would not replay).
+   */
+  exportTranscript(): TranscriptExport {
+    const wire = this.#wire;
+    if (wire === null) return Object.freeze({ ok: false, reason: 'no port has been opened in this session' });
+    try {
+      return Object.freeze({ ok: true, jsonl: wire.toJsonl(), events: wire.events().length });
+    } catch (error) {
+      return Object.freeze({ ok: false, reason: describe(error) });
+    }
   }
 
   /** A copy of the TX/RX log, oldest first. */
@@ -312,7 +342,7 @@ export class MachineSession {
     if (previous !== null) await previous.closed;
     // Disconnected while the previous port was closing: do not even ask for the port.
     if (this.#state.epoch !== epoch) return;
-    const link: Link = { epoch, inner: null, guarded: null, closing: false, closed: null };
+    const link: Link = { epoch, inner: null, guarded: null, closing: false, closed: null, wire: null };
     this.#link = link;
     let inner: Transport | null;
     try {
@@ -353,6 +383,8 @@ export class MachineSession {
       return;
     }
     this.#xoff = false;
+    link.wire = new EventLog(this.#clock.now(), this.#wireOptions);
+    this.#wire = link.wire;
     void this.#read(link, guarded);
     this.#dispatch({ type: 'opened', epoch, info: guarded.info() });
   }
@@ -362,6 +394,7 @@ export class MachineSession {
     try {
       for await (const chunk of guarded.readable) {
         if (link.closing) break;
+        link.wire?.rx(this.#clock.now(), chunk);
         for (const event of decoder.push(chunk)) this.#inbound(link.epoch, event);
       }
     } catch {
@@ -425,6 +458,7 @@ export class MachineSession {
           continue;
         }
         this.#append({ t: this.#clock.now(), dir: 'tx', text: escape(item.bytes) });
+        this.#wireTx(item.epoch, item.bytes);
         try {
           await guarded.writeLine(item.bytes);
         } catch (error) {
@@ -451,11 +485,17 @@ export class MachineSession {
     }
     /* c8 ignore stop */
     this.#append({ t: this.#clock.now(), dir: 'tx', text: escape(bytes) });
+    this.#wireTx(epoch, bytes);
     try {
       await guarded.writeLine(bytes);
     } catch (error) {
       this.#dispatch({ type: 'writeFailed', epoch, at: this.#clock.now(), detail: describe(error) });
     }
+  }
+
+  #wireTx(epoch: number, bytes: Uint8Array): void {
+    const link = this.#link;
+    if (link !== null && link.epoch === epoch) link.wire?.tx(this.#clock.now(), bytes);
   }
 
   #releaseXon(): void {
