@@ -164,7 +164,11 @@ describe('T-S39: only MachineSession writes to the transport', () => {
 
   it('the web app reaches the machine only through the worker: no page or panel module imports the transport layer', () => {
     const app = sources(join(repo, 'apps', 'web', 'src')).filter((p) => !p.includes(`${join('src', 'machine-worker')}`));
-    const offenders = app.filter((p) => /from '@synthetos\/machine/.test(readFileSync(p, 'utf8'))).map((p) => relative(repo, p));
-    expect(offenders).toEqual([]);
+    const importers = app.filter((p) => /from '@synthetos\/machine/.test(readFileSync(p, 'utf8'))).map((p) => relative(repo, p));
+    // OD-3: the one exception is the window's port chooser module, which imports only the chooser
+    // subpath (it shows Chrome's chooser and never opens a port).
+    expect(importers).toEqual(['apps/web/src/live/portChooser.ts']);
+    const imports = [...readFileSync(join(repo, 'apps/web/src/live/portChooser.ts'), 'utf8').matchAll(/from '(@synthetos\/machine[^']*)'/g)].map((m) => m[1]);
+    expect(imports).toEqual(['@synthetos/machine/web-serial-chooser']);
   });
 });

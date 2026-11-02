@@ -109,8 +109,12 @@ describe('package entry', () => {
     );
   });
 
-  it('exposes the Web Serial transport only on its own subpath, which only the machine worker seam may import (dependency-cruiser)', () => {
-    expect((pkg as { exports: object }).exports).toEqual({ '.': './src/index.ts', './web-serial-transport': './src/webSerialTransport.ts' });
+  it('exposes the Web Serial transport and (OD-3) the window port chooser only on their own subpaths, each with its one importer (dependency-cruiser)', () => {
+    expect((pkg as { exports: object }).exports).toEqual({
+      '.': './src/index.ts',
+      './web-serial-transport': './src/webSerialTransport.ts',
+      './web-serial-chooser': './src/webSerialChooser.ts',
+    });
   });
 
   it('declares its runtime workspace edges as dependencies and keeps the test kit a dev dependency', () => {
