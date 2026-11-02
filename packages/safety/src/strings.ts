@@ -314,6 +314,20 @@ export function w29(): string {
   return 'NO TAB CONTROLS THIS MACHINE — the controlling tab closed or crashed. The machine may still be moving and the spindle may still be running. Use your E-stop.';
 }
 
+/**
+ * Short stop-path texts SAFETY quotes outside the numbered warnings
+ * (§4.3 "Web Lock", §4.4 Pause step 4, §4.9 timeout row, the H-row for
+ * other tabs). Not W-numbered; checked against SAFETY.md by strings.test.ts.
+ */
+export const STOP_TEXT = Object.freeze({
+  /** §4.4 Pause step 4. */
+  pauseRequested: 'PAUSE REQUESTED',
+  /** §4.3, §4.9: a stop request no machine worker acknowledged within 250 ms. */
+  notDelivered: 'STOP NOT DELIVERED — use your E-stop',
+  /** §2 H-row and §4.3: an observer tab. */
+  controlledElsewhere: 'Machine is controlled in another tab',
+});
+
 /** W30: state band during a hold, every TinyG dialect. */
 export function w30(): string {
   return 'PAUSED — SPINDLE MAY BE RUNNING';

@@ -499,3 +499,11 @@ describe('the T-S32 check itself', () => {
     expect(ids.filter((id) => !covered.has(id))).toEqual(['W34']);
   });
 });
+
+describe('STOP_TEXT (P1-06)', () => {
+  it('each stop-path text is quoted verbatim in SAFETY.md', () => {
+    for (const [key, value] of Object.entries(S.STOP_TEXT)) {
+      expect(SAFETY_MD.includes(`"${value}"`), key).toBe(true);
+    }
+  });
+});
