@@ -310,7 +310,6 @@ verify → reconnect → version check → offer to restore.
 3. Overrides: wire format and ranges; does rapid override belong in v1?
 4. Release hosting and signing: who signs, where the manifest lives, the key.
 5. Minimum supported firmware number and how it is raised over time.
-6. The W2 label: OD-6 says "Pause", but SAFETY.md W2 and `strings.ts` still
-   carry the long label. The prototype shows "Pause" and keeps the canonical
-   tooltip; the SAFETY.md amendment and T-S32 update are still to do.
+6. ~~The W2 label~~ Done in Stage 1: SAFETY.md W2 reads "Pause" (amended
+   2026-11-02, OD-6), the tooltip is unchanged, and T-S32 follows it.
 7. Units for imported DXF/SVG fixtures: assume millimetres, or ask each time?

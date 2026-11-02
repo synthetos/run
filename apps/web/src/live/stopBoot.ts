@@ -18,6 +18,8 @@ export interface StopBootDeps {
   readonly newId: () => string;
   /** Feedhold this tab's own machine worker (none until it starts). */
   readonly pauseOwnWorker: () => void;
+  /** Stop job on this tab's own machine worker (none until it starts). */
+  readonly stopJobOwnWorker?: () => void;
 }
 
 export interface StopPaths {
@@ -28,7 +30,7 @@ export interface StopPaths {
 
 export function startStopPaths(deps: StopBootDeps): StopPaths {
   const tabStop = new TabStop({ channel: deps.channel, locks: deps.locks, timers: deps.timers, newId: deps.newId });
-  const stopControls = new StopControls({ broadcast: (action) => tabStop.request(action), pauseOwnWorker: deps.pauseOwnWorker, timers: deps.timers });
+  const stopControls = new StopControls({ broadcast: (action) => tabStop.request(action), pauseOwnWorker: deps.pauseOwnWorker, ...(deps.stopJobOwnWorker === undefined ? {} : { stopJobOwnWorker: deps.stopJobOwnWorker }), timers: deps.timers });
   installEscapeStop(deps.target, () => stopControls.pause());
   const watcher = new LockWatcher(deps.locks, () => stopControls.live, deps.timers, (role) => stopControls.setRole(role));
   watcher.start();

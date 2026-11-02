@@ -12,7 +12,7 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { w1, w2Label, w7 } from '../../../packages/safety/src/strings.ts';
+import { STOP_TEXT, w1, w2Label, w7 } from '../../../packages/safety/src/strings.ts';
 import { guardContext } from './fixtures.ts';
 import { PAGES, ready } from './helpers.ts';
 
@@ -66,14 +66,17 @@ for (const width of WIDTHS) {
         });
       }
 
-      test('workspace: W7 NOT CONNECTED, version chip, and the disabled stop button labelled W2', async ({ page }) => {
+      test('workspace: W7 NOT CONNECTED in the machine strip, the version, and Pause (W2) and Stop job disabled with the reason', async ({ page }) => {
         await page.goto('/');
         await ready(page);
-        const bar = page.locator('[data-region="safety-bar"]');
+        const bar = page.locator('[data-region="machine-strip"]');
         await expect(bar.locator('[data-safety="W7"]')).toHaveText(w7());
         await expect(bar.locator('[data-safety="W7"]')).toBeVisible();
-        await expect(bar.locator('[data-version]')).toHaveText(/^v\d+\.\d+\.\d+ · [0-9a-f]{12}(-dirty)?$/);
-        const stop = bar.getByRole('button', { name: w2Label() });
+        await expect(page.locator('[data-version]')).toHaveText(/^v\d+\.\d+\.\d+ · [0-9a-f]{12}(-dirty)?$/);
+        const stopJob = bar.getByRole('button', { name: STOP_TEXT.stopJob, exact: true });
+        await expect(stopJob).toBeVisible();
+        await expect(stopJob).toBeDisabled();
+        const stop = bar.getByRole('button', { name: w2Label(), exact: true });
         await expect(stop).toBeVisible();
         await expect(stop).toBeDisabled();
         await expect(stop).toHaveAttribute('title', 'Available when a machine is connected');
@@ -86,27 +89,33 @@ for (const width of WIDTHS) {
   }
 }
 
-test('the safety bar and stop button keep their colours in both themes, and nothing themed uses them', async ({ page }) => {
+/** The safety-bar colour set (tokens.css, the same in both themes): signal orange, black, white. */
+const SAFETY_BAR_COLOURS = ['rgb(255, 158, 27)', 'rgb(17, 17, 17)', 'rgb(255, 255, 255)'] as const;
+
+test('the safety bar, Pause and Stop job keep their exact colours in both themes, and nothing themed uses them', async ({ page }) => {
   for (const theme of THEMES) {
     await page.emulateMedia({ colorScheme: theme });
     await page.goto('/');
     await ready(page);
     const colours = await page.evaluate(() => {
       const bar = document.querySelector('[data-region="safety-bar"]') as HTMLElement;
-      const stop = document.querySelector('.stop-button') as HTMLElement;
-      const outside = [...document.querySelectorAll('body *')].filter((el) => !bar.contains(el));
+      const stops = document.querySelector('[data-region="stop-controls"]') as HTMLElement;
+      const look = (el: Element): { bg: string; border: string; fg: string } => ({ bg: getComputedStyle(el).backgroundColor, border: getComputedStyle(el).borderTopColor, fg: getComputedStyle(el).color });
+      const outside = [...document.querySelectorAll('body *')].filter((el) => !bar.contains(el) && !stops.contains(el));
       return {
         bar: getComputedStyle(bar).backgroundColor,
         stripes: getComputedStyle(bar, '::before').backgroundImage,
-        stop: getComputedStyle(stop).backgroundColor,
-        stopBorder: getComputedStyle(stop).borderTopColor,
+        pause: look(document.querySelector('[data-region="stop-controls"] [data-safety="W2"]') as Element),
+        stop: look(document.querySelector('[data-region="stop-controls"] [data-action="stop-job"]') as Element),
         outside: [...new Set(outside.flatMap((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).borderTopColor]))],
       };
     });
     expect(colours.bar, theme).toBe('rgb(255, 158, 27)');
     expect(colours.stripes, theme).toContain('repeating-linear-gradient');
-    expect(colours.stop, theme).toBe('rgb(17, 17, 17)');
-    expect(colours.stopBorder, theme).toBe('rgb(17, 17, 17)');
+    // Quiet (nothing can be moving: not connected): white with a black frame, in both themes.
+    expect(colours.pause, theme).toEqual({ bg: 'rgb(255, 255, 255)', border: 'rgb(17, 17, 17)', fg: 'rgb(17, 17, 17)' });
+    expect(colours.stop, theme).toEqual({ bg: 'rgb(255, 255, 255)', border: 'rgb(17, 17, 17)', fg: 'rgb(17, 17, 17)' });
+    for (const c of [colours.pause, colours.stop]) for (const v of Object.values(c)) expect(SAFETY_BAR_COLOURS, theme).toContain(v);
     expect(colours.outside, theme).not.toContain('rgb(255, 158, 27)');
     expect(colours.outside, theme).not.toContain('rgb(17, 17, 17)');
   }
@@ -122,7 +131,8 @@ test('without JavaScript the safety bar, W1, W7 and the disabled stop button are
   }
   await page.goto('/');
   await expect(page.locator('[data-safety="W7"]')).toHaveText(w7());
-  await expect(page.getByRole('button', { name: w2Label() })).toBeDisabled();
+  await expect(page.getByRole('button', { name: w2Label(), exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: STOP_TEXT.stopJob, exact: true })).toBeDisabled();
   await guard.assertClean();
   await context.close();
 });

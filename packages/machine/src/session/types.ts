@@ -166,6 +166,10 @@ export interface LiveState {
   /** Flow control mode, read once in READING (0 off, 1 XON/XOFF, 2 RTS/CTS). */
   readonly ex?: number;
   readonly line?: number;
+  /** Commanded feed rate (`feed` in a status report), in the board's units per minute, as reported. */
+  readonly feed?: number;
+  /** The active tool number (`tool` in a status report), as reported; never inferred from G-code. */
+  readonly tool?: number;
   /** Work position (`posx`..`posc`) and machine position (`mpox`..`mpoc`), as reported. */
   readonly pos: Readonly<Partial<Record<Axis, number>>>;
   readonly mpo: Readonly<Partial<Record<Axis, number>>>;

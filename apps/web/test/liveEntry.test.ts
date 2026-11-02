@@ -10,7 +10,6 @@
 import type { webcrypto } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
-import { signal } from '@preact/signals';
 import { c1Full, c1Short, w6, w7 } from '@synthetos/safety';
 import { ADVISORY_PAYLOAD_FORMAT, ADVISORY_SIGNING_PREFIX, SAFETY_ADVISORY_FORMAT, type ReleaseKey } from '@synthetos/protocol';
 import { fetchIdentity, fetchSafetyAdvisory, type AdvisoryFetch } from '../src/cloud/live.ts';
@@ -32,7 +31,9 @@ import { leaveFullscreen } from '../src/live/fullscreen.ts';
 import { LiveEntry, type LiveEntryDeps, type PortChoice } from '../src/live/liveEntry.ts';
 import { LiveGates } from '../src/live/liveGates.ts';
 import { LIVE_MARKER_KEY, cleanDisconnect, clearLive, installLiveLifecycle, markLive, previousSessionEnded } from '../src/live/liveMarker.ts';
-import { SafetyBar } from '../src/shell/SafetyBar.ts';
+import { MachineStrip } from '../src/workspace/MachineStrip.ts';
+import { stripStatus } from '../src/workspace/status.ts';
+import { INITIAL_LIVE_VIEW } from '../src/workspace/model.ts';
 import { all, byAttr, root, text } from './tree.ts';
 
 const SHA = '0123456789abcdef0123456789abcdef01234567';
@@ -457,16 +458,14 @@ describe('W6 and the liveSession marker (T-S17)', () => {
     expect(unload()).toBe(true);
   });
 
-  it('T-S17: the previous-session banner overrides NOT CONNECTED in the safety bar', () => {
-    const build = { version: '0.0.0', sha: SHA, builtAt: '2026-11-01T00:00:00Z' } as never;
-    const previous = signal(true);
-    const bar = root(h(SafetyBar, { build, variant: 'workspace', previousSession: previous }));
+  it('T-S17: the previous-session banner overrides NOT CONNECTED in the machine strip', () => {
+    const status = stripStatus(INITIAL_LIVE_VIEW, null);
+    const bar = root(h(MachineStrip, { status, stop: null, previousSession: true }));
     expect(all(bar, byAttr('data-safety', 'W7'))).toHaveLength(0);
     const band = all(bar, byAttr('data-safety', 'W6'));
     expect(band).toHaveLength(1);
     expect(text(band[0] as never)).toContain(w6().slice(-60));
-    previous.value = false;
-    const again = root(h(SafetyBar, { build, variant: 'workspace', previousSession: previous }));
+    const again = root(h(MachineStrip, { status, stop: null, previousSession: false }));
     expect(all(again, byAttr('data-safety', 'W6'))).toHaveLength(0);
     expect(text(all(again, byAttr('data-safety', 'W7'))[0] as never)).toContain(w7().slice(0, 13));
   });

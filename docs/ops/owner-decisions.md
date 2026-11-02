@@ -307,4 +307,8 @@ software is not an emergency stop. "Stop job" no longer says "spindle off".
   compares the strings byte for byte, follows the amended SAFETY.md.
 - The spindle-stays-on fact moves to the state shown while paused:
   "Paused · spindle still on".
-- Implemented with the workspace rebuild.
+- Implemented with the workspace rebuild (Stage 1, branch workspace-stage1):
+  SAFETY.md W2 and §4.4 carry the dated "Amended 2026-11-02 (OD-6)" notes,
+  `strings.ts` `w2Label()` is "Pause", `STOP_TEXT` gains "Stop job",
+  "Paused", "Paused · spindle still on" and "Paused: the machine was idle,
+  nothing changed", and T-S32 checks them byte for byte.

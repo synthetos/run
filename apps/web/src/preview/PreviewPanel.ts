@@ -14,13 +14,27 @@ import type { PreviewMode, PreviewResult } from '../gcode-worker/pipeline.ts';
 import { LineList } from './LineList.ts';
 import { Preview3D } from './Preview3D.ts';
 import { PreviewSvg } from './PreviewSvg.ts';
-import { IDLE_STATE, PreviewView, type PreviewViewState } from './PreviewView.ts';
+import { IDLE_STATE, PreviewView, type PreviewSlots, type PreviewViewActions, type PreviewViewState } from './PreviewView.ts';
+
+/** What a layout gets to arrange: the state, the actions and the rendered pieces. */
+export interface PreviewParts {
+  readonly state: PreviewViewState;
+  readonly actions: PreviewViewActions;
+  readonly slots: PreviewSlots;
+  /** The live marker, for a layout that shows it elsewhere. */
+  readonly live: LiveMarkerView | null;
+}
 
 export interface PreviewPanelProps {
   /** Starts `gcode.worker`; null without Trusted Types (the panel stays disabled). */
   readonly spawn: (() => WorkerLike) | null;
   /** P1-07: the live position marker (polled `mpo`), drawn on the 2D view and read out under both views. */
   readonly marker?: ReadonlySignal<LiveMarkerView | null>;
+  /**
+   * Arranges the pieces (the workspace Run view). Without it the panel is the TB-03 preview sheet
+   * (PreviewView). Either way the state, the worker client and the drawing are the same.
+   */
+  readonly layout?: (parts: PreviewParts) => ComponentChild;
 }
 
 /** The live position in the preview's frame (work coordinates, mm), with where it came from. */
@@ -41,7 +55,7 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, marker }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, marker, layout }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -97,9 +111,7 @@ export function PreviewPanel({ spawn, marker }: PreviewPanelProps): ComponentChi
         : h(PreviewSvg, { segments, showRapids: state.showRapids, highlight, envelope: result.summary.envelope, marker: live });
   const readout = live === null ? undefined : h('p', { class: `pv-marker-readout lag-${live.lag}`, 'data-preview': 'marker-readout', role: 'status' }, markerText(live));
 
-  return h(PreviewView, {
-    state,
-    actions: {
+  const actions: PreviewViewActions = {
       onFile: (file) => { load(file, state.dialect, state.mode); },
       onDialect: (dialect) => {
         if (lastFile.current !== null) load(lastFile.current, dialect, state.mode);
@@ -117,11 +129,11 @@ export function PreviewPanel({ spawn, marker }: PreviewPanelProps): ComponentChi
       onRapids: (showRapids) => { setState((s) => ({ ...s, showRapids })); },
       onScrub: (scrub) => { setState((s) => ({ ...s, scrub })); },
       onFit: () => { setFitRequest((n) => n + 1); },
-    },
-    slots: {
-      ...(drawing === undefined ? {} : { drawing }),
-      ...(readout === undefined ? {} : { marker: readout }),
-      ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings }) }),
-    },
-  });
+  };
+  const slots: PreviewSlots = {
+    ...(drawing === undefined ? {} : { drawing }),
+    ...(readout === undefined ? {} : { marker: readout }),
+    ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings }) }),
+  };
+  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live });
 }

@@ -69,27 +69,27 @@ export const IDLE_STATE: PreviewViewState = Object.freeze({
   drawing: 'webgl',
 });
 
-const DIALECT_LABEL: Readonly<Record<string, string>> = { 'tinyg-en': 'TinyG edge-next (EN)', 'tinyg-440': 'TinyG 440.xx' };
-const MODE_LABEL: Readonly<Record<PreviewMode, string>> = {
+export const DIALECT_LABEL: Readonly<Record<string, string>> = { 'tinyg-en': 'TinyG edge-next (EN)', 'tinyg-440': 'TinyG 440.xx' };
+export const MODE_LABEL: Readonly<Record<PreviewMode, string>> = {
   auto: `Auto (lite above ${LITE_THRESHOLD_LINES.toLocaleString('en-US')} lines)`,
   lite: 'Lite: list and summary, no drawing',
   full: 'Full: always draw',
 };
 
-function progressText(p: PreviewProgress | null): string {
+export function progressText(p: PreviewProgress | null): string {
   if (p === null) return 'Starting';
   if (p.phase === 'read') return `Reading the file: ${String(Math.round(p.fraction * 100))}%`;
   return { sanitise: 'Checking every line', interpret: 'Interpreting', pack: 'Preparing the preview' }[p.phase];
 }
 
 /** An event handler prop only when the action exists, so the prerendered sheet carries none. */
-function on<A, E>(name: string, action: A | undefined, make: (action: A) => (e: E) => void): Record<string, (e: E) => void> {
+export function on<A, E>(name: string, action: A | undefined, make: (action: A) => (e: E) => void): Record<string, (e: E) => void> {
   return action === undefined ? {} : { [name]: make(action) };
 }
 
 const fmt = (n: number): string => (Math.round(n * 1000) / 1000).toString();
 
-function summary(result: PreviewResult): ComponentChild {
+export function summary(result: PreviewResult): ComponentChild {
   const s = result.summary;
   const b = s.bounds;
   const sent = result.sourceLines.length;
@@ -113,7 +113,7 @@ function summary(result: PreviewResult): ComponentChild {
   );
 }
 
-function fileLevel(findings: readonly Finding[]): ComponentChild {
+export function fileLevel(findings: readonly Finding[]): ComponentChild {
   if (findings.length === 0) return null;
   return h(
     'ul',

@@ -97,7 +97,7 @@ export function checkExternalUrl(input: unknown): UrlCheck {
   const name = scheme?.[1]?.toLowerCase();
   if (name !== 'http' && name !== 'https') return fail('scheme', 'Only http and https links are allowed.');
   const rest = input.slice(name.length + 1);
-  if (!rest.startsWith('//')) return fail('syntax', 'The link must start with http:// or https://.');
+  if (!rest.startsWith('//')) return fail('syntax', 'The link must start with http or https, then two slashes.');
   const afterSlashes = rest.slice(2);
   const end = afterSlashes.search(/[/?#]/);
   const authority = end === -1 ? afterSlashes : afterSlashes.slice(0, end);

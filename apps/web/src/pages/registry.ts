@@ -1,6 +1,6 @@
 import { h, type ComponentChild } from 'preact';
 import type { BuildInfo } from '../build-info/buildInfo.ts';
-import { Shell } from '../shell/Shell.ts';
+import { AppShell } from '../workspace/AppShell.ts';
 import { NotFoundPage } from './not-found/NotFoundPage.ts';
 import { PrivacyPage } from './privacy/PrivacyPage.ts';
 import { SafetyPage } from './safety/SafetyPage.ts';
@@ -11,7 +11,7 @@ import { WiringPage } from './wiring/WiringPage.ts';
  * page's path relative to the web root (the Vite inputs in vite.config.ts).
  */
 export const PAGES: Readonly<Record<string, (build: BuildInfo) => ComponentChild>> = Object.freeze({
-  '/index.html': (build: BuildInfo) => h(Shell, { build }),
+  '/index.html': (build: BuildInfo) => h(AppShell, { build }),
   '/safety/index.html': (build: BuildInfo) => h(SafetyPage, { build }),
   '/privacy/index.html': (build: BuildInfo) => h(PrivacyPage, { build }),
   '/wiring/index.html': (build: BuildInfo) => h(WiringPage, { build }),
