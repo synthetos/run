@@ -512,7 +512,6 @@ describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
   });
 
   it.each([
-    ['stat 3 (program stop)', 'stat', '{"r":{"stat":3},"f":[3,0,10]}'],
     ['stat 2 (alarm)', 'stat', '{"r":{"stat":2},"f":[3,0,10]}'],
     ['an unknown stat', 'stat', '{"r":{"stat":99},"f":[3,0,10]}'],
     ['hold 2', 'hold', '{"r":{"hold":2},"f":[3,0,10]}'],
@@ -523,6 +522,25 @@ describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
   ])('READING finds the board not resting (%s): ORPHANED_MOTION', (_label, token, reply) => {
     const d = connected({ ...EN_ANSWERS, [token]: reply });
     expect(d.state.base).toBe('CONNECTED_UNKNOWN');
+    expect(d.state.overlays).toContain('ORPHANED_MOTION');
+  });
+
+  it('stat 3 with hold 6 (an edge-next program pause, M0) is not resting: ORPHANED_MOTION', () => {
+    const d = connected({ ...EN_ANSWERS, stat: '{"r":{"stat":3},"f":[3,0,10]}', hold: '{"r":{"hold":6},"f":[3,0,10]}' });
+    expect(d.state.overlays).toContain('ORPHANED_MOTION');
+  });
+
+  it('stat 3 with hold 0, vel 0 and an empty planner (a finished cycle on edge-next) counts as resting (SAFETY H14 amended 2026-11-02)', () => {
+    const d = connected({ ...EN_ANSWERS, stat: '{"r":{"stat":3},"f":[3,0,10]}' });
+    expect(d.state.overlays).toEqual(['READ_ONLY']);
+  });
+
+  it.each([
+    ['vel 10', '{"r":{"vel":10},"f":[3,0,10]}', 'vel'],
+    ['a short qr', '{"r":{"qr":30},"f":[3,0,10]}', 'qr'],
+    ['hold not answered', '{"r":{},"f":[3,100,10]}', 'hold'],
+  ])('stat 3 with %s is still ORPHANED_MOTION', (_label, reply, token) => {
+    const d = connected({ ...EN_ANSWERS, stat: '{"r":{"stat":3},"f":[3,0,10]}', [token]: reply });
     expect(d.state.overlays).toContain('ORPHANED_MOTION');
   });
 

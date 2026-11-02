@@ -119,6 +119,23 @@ const MOTION_CLASSES: ReadonlySet<MachineClass> = new Set(['running', 'homing', 
 /** Classes READING accepts as "not running anything" (PN §2.3 step 0: stat ∈ {1, 4}). */
 const RESTING_CLASSES: ReadonlySet<MachineClass> = new Set(['idle', 'end']);
 
+/**
+ * Dialects on which PROGRAM_STOP (stat 3) with `hold` 0 is a finished cycle, not a pause (SAFETY H14 as
+ * amended 2026-11-02). On edge-next every cycle that ends without M2/M30 finalizes to PROGRAM_STOP
+ * (@cite EN canonical_machine.c cm_cycle_end; also after `{clear}`), while a program pause (M0/M1/M60)
+ * is stat 3 **with hold 6** (@cite EN canonical_machine.c _exec_program_stop). Bench 1, 2026-11-02: an idle
+ * 450.01 board after a harness run answered stat 3, hold 0, vel 0, qr 32. Not on 440.21 (`hold` is
+ * unverified there) nor on any dialect whose program pause is not shown in `hold`.
+ */
+const STAT3_RESTS_WITH_HOLD_ZERO: ReadonlySet<string> = new Set(['tinyg-en']);
+
+/** Whether `stat` is a resting class for READING (PN §2.3 step 0; SAFETY H14 mitigation 2). */
+function restingStat(dialect: Dialect, stat: number, hold: number | undefined): boolean {
+  const cls = mapStat(dialect, stat);
+  if (RESTING_CLASSES.has(cls)) return true;
+  return cls === 'programStop' && STAT3_RESTS_WITH_HOLD_ZERO.has(dialect.id) && restingUsesHold(dialect) && hold === 0;
+}
+
 const EMPTY_LIVE: LiveState = Object.freeze({ pos: Object.freeze({}), mpo: Object.freeze({}) });
 
 export function initialState(): SessionState {
@@ -827,7 +844,7 @@ function finishReading(t: Tx): void {
   const resting =
     dialect !== null &&
     live.stat !== undefined &&
-    RESTING_CLASSES.has(mapStat(dialect, live.stat)) &&
+    restingStat(dialect, live.stat, live.hold) &&
     (!restingUsesHold(dialect) || live.hold === 0) &&
     live.vel === 0 &&
     live.qr === dialect.limits.plannerBlocks;

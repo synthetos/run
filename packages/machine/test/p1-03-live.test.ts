@@ -207,3 +207,71 @@ describe('T-S60 (live): a board left busy by a previous session is ORPHANED_MOTI
     }
   }
 });
+
+/**
+ * Bench 1, 2026-11-02 (hotfix): the owner connected right after the firmware maintainer's harness had run
+ * moves on edge-next 450.01 (feed-limit build 50659c90). Nothing was queued or held: the last report was
+ * {"sr":{"stat":3}} (cycle end finalizes to PROGRAM_STOP, @cite EN canonical_machine.c cm_cycle_end), then the
+ * harness restored ex, qv, si and the jerk settings and disconnected. READING then read stat 3, hold 0,
+ * vel 0, qr 32, and the session showed ORPHANED_MOTION because only stat 1 and 4 counted as resting.
+ * A program pause (M0) on edge-next is stat 3 **with hold 6**, and that must still be ORPHANED_MOTION.
+ */
+describe('T-S60 (live): stat 3 after a finished cycle is resting on edge-next; a program pause is not', () => {
+  async function maintainerRun(h: Harness, tail: readonly string[]): Promise<void> {
+    for (const text of ['{"ex":1}\n', 'G1 X5 F600\n', ...tail]) {
+      previousSender(h, text);
+      await h.run(400);
+    }
+    await h.run(2000);
+  }
+
+  it('en: moves finished (stat 3, hold 0, planner empty), settings restored: no ORPHANED_MOTION', async () => {
+    const h = make('en', EN_APPROVED);
+    await maintainerRun(h, ['{"qv":0}\n', '{"si":100}\n', '{"xjm":20}\n', '{"yjm":20}\n', '{"zjm":20}\n']);
+    const before = h.device.snapshot();
+    expect(before.stat).toBe(3);
+    expect(before.hold).toBe(0);
+    expect(before.velocity).toBe(0);
+    await connect(h);
+    const snap = h.session.snapshot;
+    expect(snap.live.stat).toBe(3);
+    expect(snap.live.qr).toBe(32);
+    expect(snap.overlays).not.toContain('ORPHANED_MOTION');
+    expect(snap.overlays).toEqual([]);
+  });
+
+  it('en: a program pause (M0: stat 3, hold 6) left by the previous sender is still ORPHANED_MOTION', async () => {
+    const h = make('en', EN_APPROVED);
+    await maintainerRun(h, ['M0\n']);
+    const before = h.device.snapshot();
+    expect(before.stat).toBe(3);
+    expect(before.hold).not.toBe(0);
+    await connect(h);
+    expect(h.session.snapshot.overlays).toContain('ORPHANED_MOTION');
+  });
+
+  it('440: stat 3 stays not resting (hold is unverified on 440.21, so a program stop cannot be told apart)', async () => {
+    const h = make('440');
+    await maintainerRun(h, []);
+    expect(h.device.snapshot().stat).toBe(3);
+    await connect(h);
+    expect(h.session.snapshot.overlays).toContain('ORPHANED_MOTION');
+  });
+
+  it('the spindle and coolant poll never asks anything before identification and READING are done', async () => {
+    const h = make('en', EN_APPROVED);
+    await maintainerRun(h, []);
+    void h.session.connect(PORT);
+    const seen: string[] = [];
+    for (let i = 0; i < 60; i++) {
+      await h.run(100);
+      const base = h.session.snapshot.base;
+      const writes = (h.transports.at(-1)?.writes ?? []).map(shown);
+      if (base === 'IDENTIFYING' || base === 'READING' || base === 'OPENING') {
+        for (const w of writes) expect(w, `${base}: ${w}`).not.toMatch(/"?(spe|spc|sps|cof|com|mpo)"?:null/);
+      }
+      seen.push(base);
+    }
+    expect(seen).toContain('CONNECTED_UNKNOWN');
+  });
+});
