@@ -386,6 +386,21 @@ export class TinyGEdgeNextModel implements SimDevice {
     };
   }
 
+  /**
+   * Test hook: the machine now stands at `p` (machine coordinates, mm), as
+   * if another program had moved it while idle (HIL-1.6 in the test kit).
+   * Only an idle model can be moved: a queued or running move would make
+   * the jump meaningless.
+   */
+  setMachinePosition(p: Partial<Record<'x' | 'y' | 'z' | 'a' | 'b' | 'c', number>>): void {
+    const now = this.#now();
+    if (!this.#motion.runtimeIdle()) throw new Error('setMachinePosition: the model is moving');
+    const next = this.#motion.position(now);
+    for (const [axis, v] of Object.entries(p)) next[AXES.indexOf(axis as (typeof AXES)[number])] = v;
+    this.#motion.setPosition(next);
+    this.#gm.position = [...next];
+  }
+
   /** Test hook: mark axes homed at their current position, as a completed G28.2 would (homing is not modelled). */
   setHomed(axes: readonly ('x' | 'y' | 'z' | 'a' | 'b' | 'c')[]): void {
     for (const a of axes) this.#homed[AXES.indexOf(a)] = true;

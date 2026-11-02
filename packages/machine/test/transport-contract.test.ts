@@ -94,6 +94,17 @@ describe('package entry', () => {
         'EventLogTruncatedError',
         'toHex',
         'wireEventsToJsonl',
+        // DRO, polled position and the live marker (P1-07).
+        'DRO_AXES',
+        'LAG_AMBER_MS',
+        'LAG_RED_MS',
+        'MPO_POLL_ANSWER_MS',
+        'MPO_POLL_MS',
+        'MPO_TOKEN',
+        'PositionPoller',
+        'droView',
+        'lagOf',
+        'positionPollable',
       ].sort(),
     );
   });

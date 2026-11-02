@@ -233,6 +233,16 @@ export class MachineSession {
     return this.#intent({ intent: 'read', tokens: [...tokens] });
   }
 
+  /**
+   * The settings drift check found a difference for the link `epoch`
+   * (ROADMAP P1-07; RUN_PLAN §7.2 step 6): NEEDS_REVIEW. It only adds an
+   * overlay, so it can never loosen a gate; a report for an earlier link,
+   * or with the link down, is ignored by the reducer.
+   */
+  reportDrift(epoch: number): void {
+    this.#dispatch({ type: 'driftDetected', epoch });
+  }
+
   /** Any other intent: decided by the matrix and the session (always denied in Phase 1). */
   request(request: SessionIntent): Decision {
     return this.#intent(request);

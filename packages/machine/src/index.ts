@@ -39,3 +39,7 @@ export { checkSelection, suggestMachines } from './suggest.ts';
 export type { MachineCandidate, MachineSuggestion, ProbedBoard, SelectionCheck } from './suggest.ts';
 export { EVENT_LOG_MAX_BYTES, EventLog, EventLogTruncatedError, toHex, wireEventsToJsonl } from './eventLog.ts';
 export type { WireDirection, WireEvent } from './eventLog.ts';
+export { MPO_POLL_ANSWER_MS, MPO_POLL_MS, MPO_TOKEN, PositionPoller, positionPollable } from './positionPoller.ts';
+export type { PollTarget, PositionPollerOptions } from './positionPoller.ts';
+export { DRO_AXES, LAG_AMBER_MS, LAG_RED_MS, droView, lagOf } from './dro.ts';
+export type { DroAxis, DroMarker, DroView, DroWcs, Lag } from './dro.ts';
