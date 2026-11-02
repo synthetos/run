@@ -14,6 +14,8 @@ import { AxisModes, axisModeView } from '../machine-ui/AxisModes.ts';
 import { EMPTY_AXIS_MODE_SESSION, type AxisModeSession } from '@synthetos/safety';
 import { Dro, lagAt } from '../machine-ui/Dro.ts';
 import { SettingsView } from '../machine-ui/SettingsView.ts';
+import { TranscriptSave, transcriptFileName, type TranscriptStatus } from '../machine-ui/TranscriptSave.ts';
+import { downloadTranscript } from './transcriptDownload.ts';
 import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { OverlayBanners } from '../machine-ui/OverlayBanners.ts';
 import { callMachineWorker } from '../machine-worker/client.ts';
@@ -117,6 +119,26 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   const droContainer = document.createElement('div');
   droContainer.dataset['region'] = 'live-readout';
   options.container.after(droContainer);
+  const transcriptContainer = document.createElement('div');
+  transcriptContainer.dataset['region'] = 'live-transcript';
+  droContainer.after(transcriptContainer);
+  let transcriptStatus: TranscriptStatus = { kind: 'idle' };
+
+  // P1-08: "Save transcript" asks the worker for the last connection's transcript (it only reads) and downloads it.
+  async function saveTranscript(): Promise<void> {
+    if (worker === null || transcriptStatus.kind === 'saving') return;
+    transcriptStatus = { kind: 'saving' };
+    drawReadout();
+    const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'transcript' }).catch((e: unknown) => ({ ok: false as const, message: e instanceof Error ? e.message : String(e) }));
+    if (!reply.ok || reply.kind !== 'transcript') {
+      transcriptStatus = { kind: 'failed', message: reply.ok ? 'unexpected reply' : reply.message };
+    } else {
+      const name = transcriptFileName(new Date());
+      downloadTranscript(document, reply.jsonl, name);
+      transcriptStatus = { kind: 'saved', name, events: reply.events };
+    }
+    drawReadout();
+  }
   setInterval(() => {
     if (droMessage !== null && droMessage.dro.machineSource.ageMs !== null) {
       updateMarker();
@@ -209,6 +231,8 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
         : null,
       droContainer,
     );
+    // Shown once a link has opened in this tab (epoch > 0), and still after Disconnect or LOST.
+    render(droMessage !== null && droMessage.snapshot.epoch > 0 ? h(TranscriptSave, { status: transcriptStatus, onSave: () => void saveTranscript() }) : null, transcriptContainer);
   }
 
   entry.subscribe(() => {

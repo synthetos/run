@@ -9,6 +9,7 @@
  * polled value change only after a further `{"mpo":null}` GET, and that the
  * page read the settings through the allowlist and recorded a reference.
  */
+import { readFile } from 'node:fs/promises';
 import { expect, test } from './fixtures.ts';
 import { machineWorker, request } from './machineWorker.ts';
 
@@ -64,6 +65,21 @@ test('the DRO machine position and the marker move only on polled mpo reads; set
     expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005', JSON.stringify(w)).toBe(true);
   }
   for (const denied of ['{"md":null}\n', '{"me":null}\n', '{"clear":null}\n']) expect(after).not.toContain(denied);
+
+  // P1-08: Save transcript downloads the worker's {t, dir, hex} JSONL with a dated name, next to the board-id warning.
+  const save = page.locator('[data-region="transcript"]');
+  await expect(save.locator('[data-transcript="privacy"]')).toContainText('unique hardware id');
+  const download = page.waitForEvent('download');
+  await save.locator('[data-action="save-transcript"]').click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^run-transcript-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.jsonl$/);
+  const text = await readFile(await file.path(), 'utf8');
+  const events = text.trim().split('\n').map((l) => JSON.parse(l) as { t: number; dir: string; hex: string });
+  const tx = events.filter((e) => e.dir === 'tx').map((e) => Buffer.from(e.hex, 'hex').toString('latin1'));
+  expect(tx[0]).toBe('{sr:null}\n');
+  for (const w of tx) expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005' || w === '!', JSON.stringify(w)).toBe(true);
+  expect(events.some((e) => e.dir === 'rx')).toBe(true);
+  await expect(save.locator('[data-transcript="saved"]')).toContainText(file.suggestedFilename());
 
   expect(await request(worker, { v: 3, kind: 'close' })).toMatchObject({ ok: true });
 });
