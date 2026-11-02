@@ -1,40 +1,18 @@
 /**
- * The Projects, Analyze, Settings and Safety views. Projects and the feeds
- * and speeds advisor arrive with accounts and the advisor package; until
- * then these views say so plainly instead of showing invented data.
+ * The Analyze, Settings and Safety views. The feeds and speeds advisor
+ * arrives with the advisor package; until then Analyze says so plainly
+ * instead of showing invented data. Projects is projects/ProjectsView.ts.
  */
 import { h, type ComponentChild } from 'preact';
 import { CANNOT_GUARANTEE, w1 } from '@synthetos/safety';
 import { type BuildInfo, versionLabel } from '../../build-info/buildInfo.ts';
 import { signalText } from '../../shell/signal.ts';
 import { machineStore, myMaterialStore, setupStore, toolStore } from '../library.ts';
-import { SAMPLES } from '../samples.ts';
 import { Icon } from '../icons.ts';
 import { openReport } from '../../report/state.ts';
 
 function head(title: string, sub: string): ComponentChild {
   return h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, title), h('p', null, sub)));
-}
-
-export function ProjectsView({ onView }: { readonly onView: (v: string) => void }): ComponentChild {
-  return h(
-    'div',
-    { class: 'projects-view' },
-    head('Projects', 'Files, setup, tools and history, kept together.'),
-    h(
-      'div',
-      { tabindex: 0, class: 'scroll-region' },
-      h(
-        'div',
-        { class: 'panel empty-panel' },
-        h('h2', null, 'Projects arrive with your Synthetos account'),
-        h('p', null, 'A project keeps its G-code files and versions, the setup, the tools and the run history, synced across your devices. Until accounts are live, open files from this computer on the Run view.'),
-        h('button', { type: 'button', class: 'primary', onClick: () => onView('run') }, 'Go to Run'),
-      ),
-      h('div', { class: 'section-heading' }, h('h2', null, 'Sample files')),
-      h('ul', { class: 'op-list' }, SAMPLES.map((s, i) => h('li', { class: 'op-row', key: s.id }, h('span', { class: 'num' }, String(i + 1).padStart(2, '0')), h('span', null, h('strong', null, s.title), h('small', null, s.name)), h('span', { class: 'fine' }, 'Generated in this browser'), h('span', null), h('span', null)))),
-    ),
-  );
 }
 
 export function AnalyzeView(): ComponentChild {

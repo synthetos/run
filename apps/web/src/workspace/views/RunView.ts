@@ -32,7 +32,7 @@ import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
 import { ConsoleLine } from '../../console/ConsoleLine.ts';
 import { openReport } from '../../report/state.ts';
-import { currentFile } from '../fileBridge.ts';
+import { currentFile, pendingOpen } from '../fileBridge.ts';
 import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
 
 export interface RunViewProps {
@@ -48,13 +48,23 @@ export function RunView({ model, spawn, marker, onView }: RunViewProps): Compone
   return h(PreviewPanel, { spawn, ...(marker === undefined ? {} : { marker }), reportedLine, onReportLine: (line: number) => openReport({ origin: 'line', line }), layout: (parts: PreviewParts) => runLayout(parts, model, onView) });
 }
 
-/** Publishes the open file for a report's excerpt (workspace/fileBridge.ts). Renders nothing. */
+/**
+ * Publishes the open file for a report's excerpt (workspace/fileBridge.ts), and opens a file another
+ * view asked for ("Open in Run" in Projects). Renders nothing.
+ */
 function RunBridge({ parts }: { readonly parts: PreviewParts }): ComponentChild {
-  const { state } = parts;
+  const { state, actions } = parts;
   const result = state.status === 'ready' ? state.result : null;
   useEffect(() => {
     currentFile.value = result === null || state.fileName === null ? null : { name: state.fileName, bytes: result.bytes };
   }, [result, state.fileName]);
+  const pending = pendingOpen.value;
+  const onFile = actions.onFile;
+  useEffect(() => {
+    if (pending === null || !state.ready || onFile === undefined) return;
+    pendingOpen.value = null;
+    onFile(pending);
+  }, [pending, state.ready, onFile]);
   return null;
 }
 

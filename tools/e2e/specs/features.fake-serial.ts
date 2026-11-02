@@ -1,5 +1,5 @@
 /**
- * Report a problem and the Console command line in the built app
+ * Report a problem, the Console command line and Projects in the built app
  * (fake-serial TEST build).
  *
  * - A fault notice (the simulated board resets: a banner after ready) offers
@@ -10,6 +10,10 @@
  * - Typing $xvm in the Console sends one allowlisted GET ({"xvm":null}) and
  *   shows the answer in plain words, with the raw JSON one click away.
  *   Motion typed there is shown and never sent.
+ * - A new project takes a G-code file and opens it in Run.
+ *
+ * With RUN_SCREENSHOTS_DIR set, screenshots of the three features are
+ * written there at 1440 px, light and dark.
  */
 import type { Page, Worker } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
@@ -18,6 +22,7 @@ import { machineWorker, request } from './machineWorker.ts';
 
 const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as const;
 const BOARD = 'SIM-EN-0001';
+const SHOTS = process.env['RUN_SCREENSHOTS_DIR'];
 
 interface Status {
   readonly status: { readonly session: { readonly base: string; readonly overlays: readonly string[] } };
@@ -209,3 +214,154 @@ test('the Console turns $xvm into {"xvm":null}, sends it as a read and shows the
   const writes = (await hostWrites(worker)).slice(mark);
   for (const w of writes) expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005', JSON.stringify(w)).toBe(true);
 });
+
+test('a new project takes a G-code file and opens it in Run', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+  await show(page, 'projects');
+  const create = page.locator('[data-action="project-new"]');
+  await expect(create).toBeEnabled();
+  await create.click();
+  await expect(page.locator('[data-project="detail"]')).toBeVisible();
+  await page.locator('[data-action="project-rename"]').click();
+  await page.locator('[data-project="name-input"]').fill('Fixture plate');
+  await page.locator('[data-action="project-save-name"]').click();
+  await expect(page.locator('[data-project="name"]')).toHaveText('Fixture plate');
+  const gcode = ['(fixture plate test)', 'G21 G90', 'G0 X0 Y0 Z5', 'G1 Z-1 F200', 'G1 X40 F600', 'G1 Y30', 'G1 X0', 'G1 Y0', 'G0 Z5', 'M2', ''].join('\n');
+  await page.locator('[data-project="file-input"]').setInputFiles({ name: 'plate-test.nc', mimeType: 'text/plain', buffer: Buffer.from(gcode) });
+  const row = page.locator('[data-project-file="plate-test.nc"]');
+  await expect(row).toBeVisible();
+  await expect(row.locator('[data-project="file-role"]')).toHaveValue('gcode');
+  await expect(page.locator('[data-project="usage"]')).toContainText('of 500 MB');
+  const axe = await new AxeBuilder({ page }).include('[data-screen="projects"]').analyze();
+  expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  // It survives a reload (IndexedDB).
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+  await show(page, 'projects');
+  await expect(page.locator('[data-project-row="Fixture plate"]')).toBeVisible();
+  await page.locator('[data-project-file="plate-test.nc"] [data-action="project-open-in-run"]').click();
+  await expect(page.locator('[data-screen="run"]')).toBeVisible();
+  await expect(page.locator('[data-preview="file-name"]')).toHaveText('plate-test.nc', { timeout: 30_000 });
+  await expect(page.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
+});
+
+/** A PNG made in the page (a 2400 × 1600 gradient), to show the 2000 px re-encode. */
+async function samplePhoto(page: Page): Promise<Buffer> {
+  const b64 = await page.evaluate(async () => {
+    const c = new OffscreenCanvas(2400, 1600);
+    const ctx = c.getContext('2d') as OffscreenCanvasRenderingContext2D;
+    const g = ctx.createLinearGradient(0, 0, 2400, 1600);
+    g.addColorStop(0, '#c9c3b6');
+    g.addColorStop(1, '#6f7c86');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 2400, 1600);
+    ctx.fillStyle = '#9aa3aa';
+    ctx.fillRect(500, 420, 1400, 760);
+    ctx.fillStyle = '#3d454c';
+    for (let i = 0; i < 6; i++) for (let j = 0; j < 3; j++) {
+      ctx.beginPath();
+      ctx.arc(640 + i * 225, 560 + j * 240, 38, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const blob = await c.convertToBlob({ type: 'image/png' });
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let s = '';
+    for (const b of bytes) s += String.fromCharCode(b);
+    return btoa(s);
+  });
+  return Buffer.from(b64, 'base64');
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`screenshots of report, console and projects, 1440 px, ${theme}`, async ({ page }) => {
+    test.skip(SHOTS === undefined, 'RUN_SCREENSHOTS_DIR is not set');
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.emulateMedia({ colorScheme: theme });
+    const shot = async (name: string): Promise<void> => {
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${SHOTS}/1440-${theme}-${name}.png` });
+    };
+    const worker = await connectedTab(page);
+    await openSample(page);
+
+    // Console with replies.
+    await page.locator('[data-tab="console"]').click();
+    const input = page.locator('[data-console="input"]');
+    for (const line of ['$xvm', 'g0 x10']) {
+      await input.fill(line);
+      await input.press('Enter');
+    }
+    await expect(page.locator('[data-console-reply="answered"]').first()).toBeVisible({ timeout: 10_000 });
+    await input.fill('?');
+    await input.press('Enter');
+    await expect(page.locator('[data-console-reply="answered"]').nth(1)).toBeVisible({ timeout: 10_000 });
+    await page.locator('[data-console-entry="read"]').first().locator('.cl-raw > summary').click();
+    await page.locator('.cl-log').evaluate((el) => el.scrollTo(0, 0));
+    await input.fill('$xv');
+    await shot('console');
+    await input.fill('');
+    await page.locator('.cl-log').evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    await shot('console-replies');
+
+    // Report from a notice.
+    await resetBoard(worker);
+    await expect(page.locator('[data-event-notice]')).toBeVisible({ timeout: 10_000 });
+    await page.locator('[data-action="report-event"]').click();
+    const dialog = page.locator('[data-region="report"] [role="dialog"]');
+    await dialog.locator('[data-report-kind="firmware"]').click();
+    await shot('report-triage');
+    await dialog.locator('[data-action="report-next"]').click();
+    await dialog.locator('#report-happened').fill('The board printed its start-up banner while idle, about a minute after connecting. Nothing was running.');
+    await dialog.locator('#report-steps').fill('1. Connect\n2. Leave it idle for a minute');
+    await expect.poll(() => dialog.locator('[data-report-item="transcript"] input').isChecked(), { timeout: 5000 }).toBe(true);
+    await dialog.locator('[data-report-item="board"] .report-preview > summary').click();
+    await dialog.locator('[data-report-item="gcode"] .report-preview > summary').click();
+    await dialog.locator('[data-report-item="gcode"]').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+    await shot('report-preview');
+    await dialog.locator('[data-report="scope-whole"]').click();
+    await expect(page.locator('[data-report="consent"]')).toBeVisible();
+    await shot('report-consent');
+    await page.locator('[data-action="consent-excerpt"]').click();
+    await dialog.locator('[data-action="report-close"]').click();
+
+    // Projects: list, detail, upload.
+    await show(page, 'projects');
+    await page.locator('[data-action="project-new"]').click();
+    await page.locator('[data-action="project-rename"]').click();
+    await page.locator('[data-project="name-input"]').fill('Fixture plate, 6061');
+    await page.locator('[data-action="project-save-name"]').click();
+    await page.locator('[data-action="project-edit-description"]').click();
+    await page.locator('[data-project="description-input"]').fill('A 300 × 200 mm fixture plate for the router, drilled on a 50 mm grid.\n\n- 5 mm holes, tapped M6 by hand\n- Faced both sides first\n\nNext time: **slow the drill** to 0.04 mm/rev. Notes on the [forum thread](https://synthetos.com/forum/).');
+    await page.locator('[data-action="project-save-description"]').click();
+    const plate = Buffer.from(['(fixture plate)', 'G21 G90', 'G0 Z5', 'G0 X25 Y25', 'G81 Z-6 R2 F120', 'X75', 'X125', 'G80', 'M2', ''].join('\n'));
+    await page.locator('[data-project="file-input"]').setInputFiles([
+      { name: 'plate-drill.nc', mimeType: 'text/plain', buffer: plate },
+      { name: 'plate-outline.dxf', mimeType: 'application/dxf', buffer: Buffer.from('0\nSECTION\n0\nEOF\n') },
+      { name: 'plate.jpg', mimeType: 'image/png', buffer: await samplePhoto(page) },
+    ]);
+    await expect(page.locator('[data-project-image]')).toHaveCount(1, { timeout: 10_000 });
+    await page.locator('[data-project-file="plate-drill.nc"] [data-project="file-note"]').fill('Drilling, T5 5 mm drill');
+    await page.locator('[data-project="detail"] .link-form input[type="text"]').fill('Fixture drawing');
+    await page.locator('[data-project="detail"] .link-form input[type="url"]').fill('https://example.com/fixture-plate.pdf');
+    await page.locator('[data-action="project-add-link"]').click();
+    await page.locator('[data-project="setup"] select[aria-label="Material"]').selectOption({ label: 'Aluminium 6061-T6' });
+    await page.locator('[data-action="project-use-stock"]').click();
+    await page.locator('[data-project="setup"] .tool-chip').nth(4).click();
+    const huge = test.info().outputPath('huge-surfacing.nc');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(huge, Buffer.alloc(51 * 1024 * 1024, 0x47));
+    await page.locator('[data-project="file-input"]').setInputFiles(huge);
+    await expect(page.locator('.upload-errors li')).toHaveCount(1);
+    await page.locator('[data-project="detail"] .project-sections h2').nth(1).evaluate((el) => el.scrollIntoView({ block: 'start' }));
+    await shot('projects-upload');
+    await page.locator('[data-action="project-new"]').click();
+    await page.locator('[data-action="project-new"]').click();
+    await page.locator('[data-project-row="Fixture plate, 6061"]').click();
+    await page.locator('[data-project="detail"]').evaluate((el) => el.scrollTo(0, 0));
+    await shot('projects-detail');
+    await page.locator('[data-project-row="Project 3"]').click();
+    await shot('projects-list');
+  });
+}
