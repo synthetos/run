@@ -295,3 +295,16 @@ but is cleaner and interactive.
   still apply).
 - **Provenance:** each illustration records which reviewed public facts it
   shows.
+
+## OD-6. Short Pause and Stop labels (owner, 2026-11-02)
+
+**Decision.** The Pause button reads "Pause". The words "not an E-stop" are
+removed from the button. The permanent W1 warning at the top still says the
+software is not an emergency stop. "Stop job" no longer says "spindle off".
+
+**Consequences.**
+- SAFETY.md W2 and the related C-strings change. The T-S32 test, which
+  compares the strings byte for byte, follows the amended SAFETY.md.
+- The spindle-stays-on fact moves to the state shown while paused:
+  "Paused · spindle still on".
+- Implemented with the workspace rebuild.
