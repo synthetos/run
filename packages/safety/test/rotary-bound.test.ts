@@ -1,5 +1,5 @@
 /**
- * P0-10 #3 (Codex, fix verification at 89e2b5f): the overrun distance is a
+ * P0-10 #3 (independent review, fix verification at 89e2b5f): the overrun distance is a
  * true upper bound in millimetres (SAFETY §4.3, H1), so it must never sum
  * rotary degrees as if they were millimetres.
  *
@@ -44,7 +44,7 @@ function bound(file: string, d: Dialect, motion: MotionModel, start: StartState 
 }
 
 describe.each(DIALECTS)('the overrun bound converts rotary travel with a known radius (%s)', (_name, d) => {
-  it('Codex residual: ra = 1000, A0 -> G1 A10 is 10 mm of travel, not 0.573', () => {
+  it('Independent review residual: ra = 1000, A0 -> G1 A10 is 10 mm of travel, not 0.573', () => {
     // Firmware target: 10 * 360 / (2π 1000) = 0.5729578 degrees; at ra = 1000 that is 10 mm.
     const b = bound('G21 G90\nG1 A10 F100\n', d, radiusA(1000));
     expect(b).toBeGreaterThanOrEqual(10 - 1e-9);

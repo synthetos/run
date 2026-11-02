@@ -1,5 +1,5 @@
 /**
- * Firmware semantics the sanitiser's fixes are checked against (Codex batch 14
+ * Firmware semantics the sanitiser's fixes are checked against (independent review batch 14
  * and the 89e2b5f fix verification). Each case is derived from the pinned
  * firmware source, read with `git show` only:
  *
@@ -554,7 +554,7 @@ describe('soft limits: fp_EQ skip, DISABLE_SOFT_LIMIT ends, every homed axis', (
 
 // ---------------------------------------------------------------- the original reproductions, per model
 
-describe('Codex batch 14 reproductions, as written (review-models.mjs)', () => {
+describe('Independent review batch 14 reproductions, as written (review-models.mjs)', () => {
   const radius = (sim: AnySim): number => {
     send(sim, '{"aam":3}');
     send(sim, '{"ara":1}');

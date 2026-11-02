@@ -3,7 +3,7 @@
  *
  * The two firmwares disagree on near-coincident end points, so each has its
  * own transcription of `_compute_arc()`; neither borrows the other's rule, and
- * neither borrows the sanitiser's arc helper (Codex batch 14 #1):
+ * neither borrows the sanitiser's arc helper (independent review batch 14 #1):
  *
  * - edge-next compares the end point with the start POSITION by position
  *   (fp_EQ on each plane axis) and runs a full circle when they coincide; it

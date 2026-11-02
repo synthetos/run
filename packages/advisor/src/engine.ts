@@ -6,7 +6,7 @@
  * - `RulesEngine` is the default: local, offline and deterministic.
  * - `MockAiEngine` returns canned output, clearly labelled
  *   "AI assistant (preview)". No model is called; a `CloudAiEngine` (later)
- *   calls Claude through the Worker, never from this package.
+ *   calls an AI model (configured in the Worker) through the Worker, never from this package.
  * - `GuardedEngine` wraps ANY engine. AI proposes, rules decide: whatever an
  *   engine returns is checked against a schema (structured data only, never
  *   free text turned into commands), its numbers are bounded (plan values to

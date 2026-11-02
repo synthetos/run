@@ -1,7 +1,7 @@
 # Independent review findings: status
 
 Status of every finding in the independent Phase 0 review record
-(`synthetos/.agent-bridge/findings/phase0-codex.md` in the site workspace, batches 1-15, the
+(kept outside this repository; batches 1-15, the
 fix verification at 89e2b5f, the fix-pass verifications at 2583725 and
 50496a2, and the round-1 verification at bf2e9f4), first tabled at `fb05e3c`
 and brought up to date at `0a4eb06` (this round: the final gate below, and

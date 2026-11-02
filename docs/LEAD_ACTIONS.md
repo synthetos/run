@@ -470,7 +470,7 @@ and kept production at `serial=()`. What only you can do:
   `docs/ops/worker.md`. The post-deploy smoke test cannot see staging
   headers behind Access. Record it in RELEASES.md.
 - **Branch protection (row 4)** must be on before the P1-01 transport
-  merges (`docs/safety/CODEX_FINDINGS_STATUS.md`).
+  merges (`docs/safety/REVIEW_FINDINGS_STATUS.md`).
 - The localhost bench build and its bench checks are in
   `docs/bench/README.md`.
 - **Sign the safety advisory (P1-05).** `apps/web/public/safety-advisory.json`
@@ -497,7 +497,7 @@ here needs code from you.
 3. **Branch protection (row 4)** on, then the independent D40 review of
    P1-00 to P1-08 (each task's commits; traced in
    `docs/safety/PHASE1_TRACEABILITY.md`) and the re-verification of rows 4,
-   9, 10, 12, 13, 17, 19, 33, 34, 35 (`docs/safety/CODEX_FINDINGS_STATUS.md`).
+   9, 10, 12, 13, 17, 19, 33, 34, 35 (`docs/safety/REVIEW_FINDINGS_STATUS.md`).
 4. **Re-sign the bench manifest note (row 18)**, sign the safety advisory
    (above), and set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` on staging.
 5. **Bench rig (D10)**: E-stop, J6 LED and relay, Saleae, USB power switch;
