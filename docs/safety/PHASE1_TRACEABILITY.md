@@ -10,6 +10,37 @@ Sources: synthetos.com `docs/run/` (ROADMAP "Phase 1: Bench read-only",
 SAFETY §3, §4.1, §4.4, §10, PROTOCOL_NOTES §2.3). Firmware pins as Phase 0
 (`vendor/firmware-pins.json`: EN `ead63997`, TG `d0418390`).
 
+## P1-00: the Web Serial gate change
+
+Code: `eslint.config.js` (`navigator.serial` admitted only in
+`packages/machine/src/webSerialTransport.ts`), `tools/gates/src/source/`,
+`.dependency-cruiser.cjs`, `tools/gates/src/bundle/` (Web Serial only in
+the `assets/serial/` chunk), `workers/run/src/` (`SERIAL_GRANTED_SECURITY_HEADERS`,
+`grantsSerial`), `tools/gates/src/bench/` (localhost bench server).
+
+| Requirement | Implementation | Test | Status |
+|---|---|---|---|
+| `navigator.serial` only in the Web Serial module, in source and through aliases | lint rule, source scan, dependency-cruiser | `acceptance.test.ts` "navigator.serial in machine fails lint", "... through an alias fails lint"; `eslint-rules.test.ts`; `source-scan.test.ts` | PASS |
+| Web Serial only in the serial chunk; production artifact refuses it | bundle scan targets `production`, `staging`, `bench` | `bundle-scan.test.ts` "fails on navigator.serial in every spelling", "staging admits ... in the serial chunk", "bench still refuses Web Serial outside the serial chunk"; `serial-chunk-acceptance.test.ts`; `artifact-diff.test.ts` (P1-00) | PASS |
+| Production `serial=()`; staging and localhost bench `serial=(self)` | Worker header sets; bench server | `worker-config.test.ts` "P1-00: staging runs the Worker first ..."; `workers/run/test/headers.test.ts`; `headers-file.test.ts`; `headers.e2e.ts` (production set, `SecurityError` in page and worker); `bench.bench.ts` | PASS |
+| The bench build is never deployable: marked, localhost only, differs from the release only in the channel chunk, no test kit | bench marker, `bench-cli.ts`, bench server (127.0.0.1, Host check) | `bench-diff.test.ts`, `bench-acceptance.test.ts`, `bench-server.test.ts`; `bench.bench.ts` "refuses a request under another Host name" | PASS |
+| BENCH-P100-1..5 | | `docs/bench/README.md` | HIL (P100-3 needs the port chooser; P100-4 needs the staging deploy; P100-5 needs the axis-mode facts rendered, see "Open at the Phase 1 gate") |
+
+## P1-01: `WebSerialTransport`
+
+Code: `packages/machine/src/webSerialTransport.ts`, open policy
+`packages/machine/src/openPolicy.ts`, `guardedTransport.ts`, worker seam
+`apps/web/src/machine-worker/transport.ts`.
+
+| Requirement | Implementation | Test | Status |
+|---|---|---|---|
+| `bufferSize` 256, 8N1, `flowControl:'none'` only; `open({flowControl:'hardware'})` throws and never opens | `WebSerialTransport.open` + open policy | `web-serial-transport.test.ts` "opens the port once, 8N1 ... bufferSize 256", "open({flowControl:'hardware'}) throws"; `t-s16.test.ts` "refuses flowControl 'hardware'" | PASS |
+| T-S16: 1200 baud needs the flasher's single-use token; 2341:003D refused before `open()` | open policy | `t-s16.test.ts` (all cases); `web-serial-transport.test.ts` "refuses 1200 baud before open", "refuses the Due programming port" | PASS |
+| No `abort()`; close waits for the write in progress | `close` | `web-serial-transport.test.ts` "has exactly the Transport members ... (SAFETY H2b)", "closes (never aborts) the writable" | PASS |
+| `getInfo()` recorded once | constructor | `web-serial-transport.test.ts` "getInfo() is recorded once, at construction" | PASS |
+| `ReplayTransport` conformance against EN-HIL transcripts | | `web-serial-conformance.test.ts` (replay identical on both paths; divergence fails the same way; live vs replay against both models); `replay-conformance.test.ts` | PASS |
+| BENCH-P101-1 (B-ID-1), BENCH-P101-2 | | `docs/bench/README.md` | HIL (needs the port chooser) |
+
 ## P1-02: `machine.worker` and the read-only `MachineSession`
 
 Code: `packages/machine/src/session/` (reducer, executor, write gate,
@@ -224,3 +255,100 @@ Open with this task:
 - The drift reference is per computer (`device-safety`). The comparison with a profile draft
   (`settingsDrift` `draft`) and the cloud head revision arrives with the profile store (TB-04, A2).
 - NEEDS_REVIEW stays until the next connect; there is no in-session clear yet.
+
+## Track B items in the Phase 1 gate: TB-01, TB-02, TB-03, TB-05a, TB-05
+
+| Item | Acceptance | Code | Test | Status |
+|---|---|---|---|---|
+| TB-01 | Property test from old P1-01 | `packages/schema/src/` fact store (`addFact`, `invalidate`, `view`) | `facts.test.ts` "property test (old P1-01)" (three properties, one an independent oracle over the §5.2 table) | PASS |
+| TB-01 | T-S22 (import: facts need re-verify, `boundDevice` cleared) | profile import | `profile.test.ts` "import (T-S22)"; `facts.test.ts` "T-S22: after importing a profile ..." | PASS |
+| TB-01 | 5 MB + 1 byte profile rejected before parsing | profile reader | `profile.test.ts` "a 5 MB + 1 byte file is refused with ProfileTooLarge before it is parsed" | PASS |
+| TB-01 | Fact-age rule with an injected clock | `view` age rule (H28) | `facts.test.ts` "fact age with an injected clock (H28)" | PASS |
+| TB-01 | T-S47 precursor: stored/exported schema has no fact fields | MachineProfile v2 schema, `exportProfile` | `profile.test.ts` three "T-S47 precursor" tests; "exportProfile strips facts ... even when smuggled in through a cast" | PASS |
+| TB-01 | Gate DSL | `parseGate`, `evaluateGate` | `gate.test.ts` (grammar, fail closed, property: never met while a named fact is not valid) | PASS |
+| TB-02 | EN `G10 L20 P1 X0` sets the offset; TG blocks | `packages/gcode/src/` interpreter, dialect data | `interpreter.test.ts` "EN: G10 L20 P1 X0 ...", "TG: the interpreter itself refuses G10 L20" | PASS |
+| TB-02 | TG G18 arc blocked; EN E029 fixture dips to Z-0.5 | | `interpreter.test.ts` "EN draws the E029 fixture G18 arc", "TG: a G18 arc is blocked" | PASS |
+| TB-02 | Mid-file M30 block (EN) / warn (TG); M201.3 block (EN); `S1000 T1 M6 M3 M8 G4 P1` block (TG, E088) | | `interpreter.test.ts` (one test each) | PASS |
+| TB-02 | Old P1-03 goldens | | `interpreter.test.ts` "old P1-03 goldens" | PASS |
+| TB-02 | Differential against `gsim.py` over the corpus, disagreements triaged | committed gsim results + `test/differential/triage.json` | `differential.test.ts` (every corpus file has a gsim result; triage only for corpus files) | PASS |
+| TB-03 | 1M lines, no main-thread slice over 50 ms; cancel; preview equals interpretation of the sanitised lines | `apps/web/src/gcode-worker/`, `packages/gcode-view/` | `gcodeLarge.test.ts` "1M lines ..."; `gcodeWorker.test.ts` "cancel terminates the worker at once", "the preview draws exactly the interpretation of the sanitised lines"; `preview.e2e.ts` "Cancel stops a load at once" | PASS |
+| TB-03 | T-S41: no Play or Simulate | `PreviewView.ts` (scrubber only) | `apps/web/test/preview.test.ts` "T-S41"; `preview.e2e.ts` | PASS |
+| TB-03 | 750k lines in lite mode without exhausting memory | lite mode, virtual list | `gcodeLarge.test.ts` "750k lines open in lite mode"; `preview.e2e.ts` "lite mode" | PASS (CI machine; the "mid-range laptop" recording is an owner measurement) |
+| TB-05a | Drift test: regenerate equals committed | `tools/gates/src/boards/` | `boards-gen.test.ts` "packages/schema/%s is byte-identical to a fresh render", "re-extracting at the pinned commit reproduces ... byte for byte" | PASS |
+| TB-05a | Every overlay pin exists in the generated data | overlay merge | `boards-gen.test.ts` "refuses an overlay pin naming a signal ..."; `boardCatalog.test.ts` "every overlay connector pin ..." | PASS |
+| TB-05a | Capability-driven panel set per board | `apps/web/src/` BoardPanels, `boardCatalog` | `boardPanels.test.ts` "TinyG v8 shows its connectors; v6 does not ..."; `boardCatalog.test.ts` "capability-driven panels" | PASS |
+| TB-05a | Unknown `hv` → safe subset with "unrecognised board revision" notice | board selection | `boards.test.ts` "an unknown revision gets the empty subset"; `boardCatalog.test.ts` "an unknown hv selects the empty safe subset ..."; `boardPanels.test.ts` "an unknown hv renders no panels and an alert" | PASS |
+| TB-05 | One test per rule, every finding cites a source | `packages/wiring/src/rules` | `rules.test.ts` (one per rule; "every rule in RULES has a test named after it") | PASS |
+| TB-05 | EN rule text (boot float); active-low BLOCK reason per dialect | | `rules.test.ts` "WR-ACTIVE-LOW EN rule text ..." | PASS |
+| TB-05 | Keyboard-only build; watermark on and off (W14); typed confirmation per key class | wiring editor | `wiringEditor.test.ts` (keyboard path, one Accept per key, typed confirmation, W14); `render.test.ts`; `wiring.e2e.ts` (keyboard-only, axe clean) | PASS |
+
+## Phase 1 exit: HIL and bench items
+
+Every item below needs the physical bench and the owner's signature
+(`docs/bench/README.md`, `docs/bench/GUIDE.md` §8). Each one has a
+procedure and, where the test kit can model it, a test that runs the same
+steps against the simulated board in CI.
+
+| Item | Procedure | Runs today against the test kit | Status |
+|---|---|---|---|
+| HIL-1.1 identify EN, transcript only GETs, ENQ, `!` | BENCH-P102-1, BENCH-P103-1 | `session-model-en.test.ts`; `open-mock-port.fake-serial.ts` | needs bench |
+| HIL-1.2 449.01 / 440.21 READ_ONLY, no G-code | BENCH-P102-2, BENCH-P103-2 | `session-model-440.test.ts`; `p1-03-*.test.ts` | needs bench |
+| HIL-1.3 C1 short form same day, full next day | BENCH-P105-1 | `apps/web/test/liveEntry.test.ts`; `live-entry.e2e.ts` | needs bench |
+| HIL-1.4 two boards, same board id, nothing auto-selected | BENCH-P103-3 | `p1-03-host.test.ts` (T-S50) | needs bench |
+| HIL-1.5 USB pull → LOST then UNKNOWN; reset → FAULT then UNKNOWN | BENCH-P102-3, BENCH-P104-1 | `p1-04-watchdog.test.ts`; `session-reducer.test.ts` T-S10 | needs bench |
+| HIL-1.6 connect during another tool's buffered job | BENCH-P102-4 | `dro.fake-serial.ts`; `session-reducer.test.ts` ORPHANED_MOTION | needs bench |
+| HIL-1.7 stop request while the controlling tab is frozen | BENCH-P106-1 | `tab-stop.fake-serial.ts` (T-S29) | needs bench |
+| HIL-1.8 10-minute settings read and poll, no denied token | GUIDE §8.2 HIL-1.8 | `dro.fake-serial.ts` (transcript check) | needs bench |
+| HIL-1.9 feedhold during a slow move, latency recorded | BENCH-P102-6, BENCH-P106-2 | `tab-stop.fake-serial.ts` (T-S18, T-S19) | needs bench |
+| HIL-1.10 orphaned motion after a killed tab | BENCH-P103-4 | `session-reducer.test.ts` T-S60 | needs bench |
+| HIL-1.11 port exclusivity across browsers and OSes (B-EXCL-1) | BENCH-P106-3 | `tab-stop.fake-serial.ts` "STOP NOT DELIVERED" | needs bench |
+| HIL-1.12 partial-line splice (B-SPLICE-1) | BENCH-P103-5 | `p1-03-live.test.ts` T-S86 | needs bench |
+| B-ID-1 FT230X VID:PID read from a v8 board | BENCH-P101-1 | n/a (a hardware fact) | needs bench |
+| B-SIG-1 Chrome DTR/RTS at `open()` on macOS/Linux | BENCH-P109-1 | n/a | needs bench |
+| T2.1 port selection between window and worker | BENCH-P109-2 | `bench.bench.ts` (the worker calls `getPorts()`) | needs bench |
+| B-POL-1 `SerialAllowUsbDevicesForUrls` | BENCH-P108-1 | n/a | needs bench |
+| B-PROBE-1 recorded probe fixtures | BENCH-P103-1 | `bench-docs.test.ts` (fixture placeholder check) | needs bench |
+| B-MD-1 a GET of `md` de-energizes the motors | BENCH-P109-3 | testkit `honesty/behaviours.ts` (E138); `md` is denied by the allowlist | needs bench |
+| B-EXCL-1 | BENCH-P106-3 | as HIL-1.11 | needs bench |
+| B-SPLICE-1 | BENCH-P103-5 | as HIL-1.12 | needs bench |
+
+## Open at the Phase 1 gate (final check, 2026-11-01)
+
+These are not done and are not trivial fixes:
+
+1. **No port chooser in the window (OD-3).** `apps/web/src/live/mount.ts`
+   `noChooser()` refuses: the main-thread `requestPort()` needs its own
+   reviewed gate change. Until it lands, no bench item that connects a real
+   board can run (every "needs bench" row above except B-POL-1 and the
+   cross-browser parts of B-EXCL-1). Owner decision, then a reviewed change.
+2. **The axis-mode facts are not rendered.** `packages/safety/src/axisModeFacts.ts`
+   is tested but nothing in `apps/web` shows it (BENCH-P100-5; the Phase 1
+   consequence of findings row 35). Needed before the bench session with
+   an inhibited axis.
+3. **No "save transcript" control on the page.** The worker's `transcript`
+   request exists; the bench transcript evidence for HIL-1.x needs the button.
+4. **T-S19 with a 1M-segment preview.** `tab-stop.fake-serial.ts` measures
+   Escape to `!` without the large preview loaded; TB-03 now exists, so the
+   test should load the 1M file first.
+5. **P1-09 release record.** `RELEASES.md` entry with the HIL record id,
+   artifact hash and bench board EN commit and `fb`: owner, after the bench.
+
+## Final gate run (2026-11-01, at 600ba81 plus this docs commit)
+
+From a clean install (`node_modules`, `apps/web/dist*`, e2e results and
+`.wrangler` removed; `pnpm install --frozen-lockfile`):
+
+| Check | Result |
+|---|---|
+| `pnpm check` (typecheck, gates, unit tests with coverage, build, scan, fake-serial build and diff, bench build and check) | pass (after one fix: a fixed test for a `migrate.ts` branch that only the fuzz sometimes reached, which failed the 100 % branch threshold) |
+| `pnpm e2e` (source) | 72 passed |
+| `pnpm e2e:fake-serial` | 8 passed |
+| `pnpm e2e:bench` | 7 passed |
+| `pnpm e2e:artifact` (artifact suite, staging headers, canary) | 72 + 5 passed; canary failed as it must, all 4 planted URLs reported |
+| Production artifact served by the Worker | `Permissions-Policy: serial=(), ...`; `navigator.serial.getPorts()` in the page throws `SecurityError`; channel chunk `{kind:'release', benchIdentity:null}`; title and page carry no bench marker. Web Serial code is only in `assets/serial/`, and `--target production` refuses that chunk, so production deploys keep the Phase 0 shell |
+| Bench artifact | `serial=(self)`; title `[bench] ...`; differs from the release only in the channel chunk |
+| End to end on the simulated board (fake-serial build, same app code as bench apart from the test kit and channel chunk) | connect, probe (`tinyg-en`, READ_ONLY, not approved), DRO from polled `mpo`, settings read and recorded, Escape writes `!`, preview, wiring. First write `{sr:null}`; every write an allowlisted GET or `!` (47 writes) |
+
+The bench build cannot be driven end to end against the simulated board
+itself: the bench tree refuses the test kit by design, and the window has
+no port chooser yet (item 1 above).

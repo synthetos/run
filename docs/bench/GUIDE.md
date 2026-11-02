@@ -433,7 +433,7 @@ commit) next to it.
   it at the first double quote. Fail: any motion, or a changed setting.
 
 The other Phase 1 exit tasks are B-ID-1 (USB VID/PID read from the board,
-BENCH-P101-1), B-SIG-1, T2.1, B-POL-1 (policy.md), B-PROBE-1, B-MD-1,
+BENCH-P101-1), B-SIG-1 (BENCH-P109-1), T2.1 (BENCH-P109-2), B-POL-1 (policy.md), B-PROBE-1, B-MD-1 (BENCH-P109-3),
 B-EXCL-1 and B-SPLICE-1. README.md lists the BENCH-P1xx rows that feed
 each one.
 

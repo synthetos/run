@@ -79,6 +79,14 @@ The SAFETY §9 HIL-1.x items and the bench tasks B-ID-1, B-SIG-1, T2.1,
 B-POL-1, B-PROBE-1, B-MD-1, B-EXCL-1 and B-SPLICE-1 are the Phase 1 exit
 (ROADMAP "Phase 1: Bench read-only"); a signed HIL record is always taken
 on the staging artifact (SAFETY HIL-6.4), never on the bench build.
+`docs/safety/PHASE1_TRACEABILITY.md` ("Phase 1 exit") maps each one to its
+procedure. The three that no other row covers:
+
+| ID | Check | When |
+|---|---|---|
+| BENCH-P109-1 (B-SIG-1) | Saleae on the FT230X DTR and RTS pins (and the board's RESET line): open and close the port from the app on macOS and on Linux. Record whether Chrome changes DTR or RTS at `open()` and at `close()`, and confirm the board does not reset (no banner in the transcript). | after the window's port chooser lands |
+| BENCH-P109-2 (T2.1) | With two boards granted to the origin, choose the second one in the window: the worker's `open` reply reports that board's `getInfo()` and board id (the worker finds it by index and identity in its own `getPorts()`; the port object is never transferred). Unplug the first board and repeat. | after the window's port chooser lands |
+| BENCH-P109-3 (B-MD-1) | With Z supported mechanically (blocked up, never free to fall), from the EN-HIL harness (not run) send `{"md":null}` on EN and on 440.21: record whether the motors de-energize. This is evidence for keeping `md` off the read allowlist, not a feature. | any time, outside run |
 
 ## Bench runner and transcripts (P1-08)
 

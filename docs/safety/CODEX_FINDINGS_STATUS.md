@@ -169,6 +169,34 @@ including an axis seen leaving inhibited mode during the session
 (`packages/safety/src/axisModeFacts.ts`, `axisModeFacts.test.ts`, with a
 property cross-check against the sanitiser). P1-07 must render them.
 
+### Phase 1 final gate (checked at 600ba81)
+
+Still open from the findings table (unchanged since 0a4eb06): row 35
+remainder (High, latent), row 4 (owner: native branch protection with the
+D40 ruleset), row 18 (owner: re-sign the bench manifest note), row 32
+(owner: attribution in old commit bodies, history not rewritten), and the
+independent re-verification of rows 4 (D40 part), 9, 10, 12, 13, 17, 19,
+33, 34 and 35. P1-00 to P1-08 are done locally and traced in
+`docs/safety/PHASE1_TRACEABILITY.md`; each still needs its own recorded
+independent review (D40) before it merges.
+
+Phase 1 cannot exit yet: no window port chooser (OD-3), so the HIL-1.x and
+B-* bench items cannot connect a real board; the axis-mode facts (row 35's
+Phase 1 consequence) are not yet rendered; no "save transcript" control
+(PHASE1_TRACEABILITY "Open at the Phase 1 gate").
+
+### What blocks Phase 2 (bench motion)
+
+- **Row 35 remainder** (High): the host must own every `am` change and
+  resync the position afterwards, or use a bench-verified step-position
+  read, before any motion. Stays a blocker until closed and re-verified.
+- **Re-verification of rows 33, 34 and 35** by the independent reviewer:
+  the sanitiser's arc and axis-state reasoning gates every Phase 2 move.
+- **Row 4**: branch protection on before any motion code merges.
+- **Phase 1 exit**: HIL-1.1 to HIL-1.12 signed and the B-* items closed
+  (needs the port chooser first), and the axis-mode facts rendered and
+  checked on the bench (BENCH-P100-5).
+
 ## Final gate at 0a4eb06
 
 Clean install: every `node_modules`, `apps/web/dist` and

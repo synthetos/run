@@ -477,6 +477,36 @@ and kept production at `serial=()`. What only you can do:
   `GET /api/identity` answers `not-configured` and Connect is refused on
   staging.
 
+## Phase 1: your actions to finish it (P1-09)
+
+In order. Everything before step 5 is a decision or a setting; nothing
+here needs code from you.
+
+1. **Confirm or change D41** (OD-3, above) and record it in `DECISIONS.md`.
+2. **Approve the port chooser gate change.** The window has no
+   `requestPort()` yet (`apps/web/src/live/mount.ts` refuses with "no port
+   chooser yet"), so no bench item can connect a real board. It is its own
+   reviewed change to the Web Serial gate (OD-3).
+3. **Branch protection (row 4)** on, then the independent D40 review of
+   P1-00 to P1-08 (each task's commits; traced in
+   `docs/safety/PHASE1_TRACEABILITY.md`) and the re-verification of rows 4,
+   9, 10, 12, 13, 17, 19, 33, 34, 35 (`docs/safety/CODEX_FINDINGS_STATUS.md`).
+4. **Re-sign the bench manifest note (row 18)**, sign the safety advisory
+   (above), and set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` on staging.
+5. **Bench rig (D10)**: E-stop, J6 LED and relay, Saleae, USB power switch;
+   set the `SerialAllowUsbDevicesForUrls` policy (`docs/bench/policy.md`,
+   B-POL-1).
+6. **Run the bench checklist** on the staging artifact (`docs/bench/GUIDE.md`
+   §8, `docs/bench/README.md` BENCH-P100 to P109): HIL-1.1 to HIL-1.12 and
+   B-ID-1, B-SIG-1, T2.1, B-PROBE-1, B-MD-1, B-EXCL-1, B-SPLICE-1. Commit the
+   probe fixtures with the board id replaced by the placeholder.
+7. **Record the release** in `RELEASES.md`: HIL record id, artifact hash, the
+   bench board's EN commit and `fb`. Production stays the Phase 0 shell.
+
+Still to build before step 6 (not owner actions): render the axis-mode
+facts (BENCH-P100-5), a "save transcript" control, and the T-S19 test with
+the 1M-segment preview loaded.
+
 ---
 
 ## State at hand-over (2026-11-01)
