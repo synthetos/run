@@ -47,7 +47,8 @@ export const MAX_TOKEN_LENGTH = 16;
 export const MAX_BOARD_ID_LENGTH = 64;
 
 export type MachineRequest =
-  | { readonly v: typeof RPC_VERSION; readonly kind: 'open'; readonly port: PortSelector; readonly boardId: string | null }
+  /** `previousSessionEnded`: a reload or discard ended a LIVE session (W6), so the connect starts UNKNOWN (SAFETY §3). */
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'open'; readonly port: PortSelector; readonly boardId: string | null; readonly previousSessionEnded: boolean }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'close' | 'status' | 'subscribe' | 'transcript' }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'intent'; readonly intent: WindowIntent }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'read'; readonly tokens: readonly string[] }
@@ -116,20 +117,23 @@ function isWindowIntent(value: unknown): value is WindowIntent {
   return typeof value === 'string' && (WINDOW_INTENTS as readonly string[]).includes(value);
 }
 
+const OPEN_KEYS: ReadonlySet<string> = new Set(['kind,port,v', 'boardId,kind,port,v', 'kind,port,previousSessionEnded,v', 'boardId,kind,port,previousSessionEnded,v']);
+
 /** The request in `data`, or null when it is not exactly a valid request. */
 export function parseRequest(data: unknown): MachineRequest | null {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return null;
   if (Object.getPrototypeOf(data) !== Object.prototype) return null;
   const keys = Object.keys(data).sort().join(',');
-  const { v, kind, port, boardId, intent, tokens, epoch } = data as Record<string, unknown>;
+  const { v, kind, port, boardId, previousSessionEnded, intent, tokens, epoch } = data as Record<string, unknown>;
   if (v !== RPC_VERSION || !isRequestKind(kind)) return null;
   switch (kind) {
     case 'open': {
-      if ((keys !== 'kind,port,v' && keys !== 'boardId,kind,port,v') || !isPortSelector(port)) return null;
+      if (!OPEN_KEYS.has(keys) || !isPortSelector(port)) return null;
       const id = boardId ?? null;
       if (id !== null && (typeof id !== 'string' || id.length === 0 || id.length > MAX_BOARD_ID_LENGTH)) return null;
+      if (previousSessionEnded !== undefined && typeof previousSessionEnded !== 'boolean') return null;
       const selector = Object.freeze({ usbVendorId: port.usbVendorId, usbProductId: port.usbProductId, grantIndex: port.grantIndex });
-      return Object.freeze({ v: RPC_VERSION, kind, port: selector, boardId: id });
+      return Object.freeze({ v: RPC_VERSION, kind, port: selector, boardId: id, previousSessionEnded: previousSessionEnded === true });
     }
     case 'intent':
       if (keys !== 'intent,kind,v' || !isWindowIntent(intent)) return null;

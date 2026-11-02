@@ -261,7 +261,11 @@ export type TimerId = 'answer' | 'settle' | 'verify' | 'watchdog';
 
 /** Intents the session handles. Everything else is denied (not in Phase 1). */
 export type SessionIntent =
-  | { readonly intent: 'connect'; readonly port: PortSelector; readonly expectedDeviceId: string | null }
+  /**
+   * `unknown`: the window knows the previous session ended without a clean disconnect (a reload or
+   * discard while LIVE, W6), so this connect starts in the UNKNOWN overlay (SAFETY §3).
+   */
+  | { readonly intent: 'connect'; readonly port: PortSelector; readonly expectedDeviceId: string | null; readonly unknown?: boolean }
   | { readonly intent: 'disconnect' }
   | { readonly intent: 'feedhold' }
   | { readonly intent: 'stopJob' }

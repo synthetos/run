@@ -15,7 +15,7 @@ import { SettingsView } from '../machine-ui/SettingsView.ts';
 import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { OverlayBanners } from '../machine-ui/OverlayBanners.ts';
 import { callMachineWorker } from '../machine-worker/client.ts';
-import { RPC_VERSION, type SnapshotMessage, type WorkerStatus } from '../machine-worker/rpc.ts';
+import { RPC_VERSION, type MachineRequest, type SnapshotMessage, type WorkerStatus } from '../machine-worker/rpc.ts';
 import { AdvisoryPoller, checkAdvisory, type AdvisoryCheck, type AdvisoryDeps } from './advisoryGate.ts';
 import { accessProvider, AuthGate, providersFor } from './authGate.ts';
 import { ConnectPanel } from './ConnectPanel.ts';
@@ -34,6 +34,14 @@ import type { StopControls } from './stopControls.ts';
  */
 function noChooser(): Promise<ChooseResult> {
   return Promise.resolve({ ok: false, message: 'This build has no port chooser yet: the main-thread chooser needs its own reviewed gate change (OD-3).' });
+}
+
+/**
+ * The `open` request for the port the window chose. `previousSessionEnded` is the W6 state (a reload
+ * or discard ended a LIVE session), so the worker starts this connect in UNKNOWN (SAFETY §3).
+ */
+export function openRequest(port: Extract<MachineRequest, { kind: 'open' }>['port'], previousSessionEnded: boolean): Extract<MachineRequest, { kind: 'open' }> {
+  return { v: RPC_VERSION, kind: 'open', port, boardId: null, previousSessionEnded };
 }
 
 export interface MountOptions {
@@ -84,7 +92,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     choosePort: noChooser,
     open: async (port) => {
       if (worker === null) return { ok: false, message: 'The machine worker is not running in this browser.' };
-      const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'open', port, boardId: null });
+      const reply = await callMachineWorker(worker, openRequest(port, options.previousSession.value));
       return reply.ok ? { ok: true } : { ok: false, message: reply.message };
     },
     leaveFullscreen: () => leaveFullscreen(document),

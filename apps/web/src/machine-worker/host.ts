@@ -104,7 +104,7 @@ export class MachineWorkerHost {
       case 'open': {
         const platform = liveControlPlatform(this.#platform);
         if (!platform.allowed) return refusal('open', 'platform', platform.reason);
-        const outcome = await this.#session.connect(request.port, { expectedDeviceId: request.boardId });
+        const outcome = await this.#session.connect(request.port, { expectedDeviceId: request.boardId, unknown: request.previousSessionEnded });
         if (outcome.ok) return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'open', info: outcome.info });
         if (outcome.code === 'denied') return denied('open', outcome.decision);
         return refusal('open', outcome.code, outcome.reason);

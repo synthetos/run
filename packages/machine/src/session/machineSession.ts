@@ -171,8 +171,8 @@ export class MachineSession {
    * Connect to the port the window chose. Resolves when the port is open
    * (the probe has started) or the attempt failed.
    */
-  connect(port: PortSelector, options: { readonly expectedDeviceId?: string | null } = {}): Promise<ConnectOutcome> {
-    const decision = this.#intent({ intent: 'connect', port, expectedDeviceId: options.expectedDeviceId ?? null });
+  connect(port: PortSelector, options: { readonly expectedDeviceId?: string | null; readonly unknown?: boolean } = {}): Promise<ConnectOutcome> {
+    const decision = this.#intent({ intent: 'connect', port, expectedDeviceId: options.expectedDeviceId ?? null, unknown: options.unknown === true });
     if (!decision.allowed) return Promise.resolve({ ok: false, code: 'denied', decision });
     const epoch = this.#state.epoch;
     // Settles on the first snapshot that leaves PORT_REQUEST/OPENING for this epoch, or moves to another one.

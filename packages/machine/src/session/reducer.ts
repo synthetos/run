@@ -340,7 +340,7 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
   switch (request.intent) {
     case 'connect': {
       const epoch = t.s.epoch + 1;
-      t.s = { ...initialState(), epoch, unknownOnNextConnect: t.s.unknownOnNextConnect, timerSeq: t.s.timerSeq };
+      t.s = { ...initialState(), epoch, unknownOnNextConnect: t.s.unknownOnNextConnect || request.unknown === true, timerSeq: t.s.timerSeq };
       t.set({ base: 'PORT_REQUEST', port: request.port, expectedDeviceId: request.expectedDeviceId });
       t.emit({ kind: 'acquireTransport', epoch, port: request.port });
       t.decide(intent, matrix);

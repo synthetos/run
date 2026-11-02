@@ -283,6 +283,21 @@ describe('T-S21: the board is not the selected machine', () => {
   });
 });
 
+describe('UNKNOWN on the connect after a reload or discard while LIVE (SAFETY §3)', () => {
+  it('connect with unknown: true adds the UNKNOWN overlay on open; a plain connect does not', () => {
+    const d = new Driver();
+    d.intent({ intent: 'connect', port: PORT, expectedDeviceId: null, unknown: true });
+    d.feed({ type: 'transportAcquired', epoch: 1 });
+    d.feed({ type: 'opened', epoch: 1, info: SIM_INFO });
+    expect(d.state.overlays).toEqual(['UNKNOWN']);
+    d.answer(EN_ANSWERS);
+    expect(d.state.overlays).toEqual(['UNKNOWN', 'READ_ONLY']);
+
+    const plain = connected();
+    expect(plain.state.overlays).toEqual(['READ_ONLY']);
+  });
+});
+
 describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
   it('no answer to {sr:null} within 3 s: ORPHANED_MOTION, unclassified, and only ! is allowed', () => {
     const d = new Driver();

@@ -9,8 +9,9 @@
  * IndexedDB write started in `pagehide` may never commit.
  *
  * On load, a marker or `document.wasDiscarded` shows W6, which overrides the
- * NOT CONNECTED band (shell/SafetyBar.ts). The next connect goes to UNKNOWN
- * (the session always does) and replaces the marker. Nothing is sent to the
+ * NOT CONNECTED band (shell/SafetyBar.ts). The next connect carries
+ * `previousSessionEnded` in the `open` request, so the session adds the
+ * UNKNOWN overlay (SAFETY §3), and replaces the marker. Nothing is sent to the
  * machine from any lifecycle event; `beforeunload` only asks the user to stay
  * while LIVE.
  */

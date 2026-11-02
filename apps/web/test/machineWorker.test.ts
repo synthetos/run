@@ -11,6 +11,7 @@ import type { PortSelector, SessionClock, Transport, TransportInfo, TransportOpe
 import { SESSION_BAUD_RATES, SESSION_OPEN_OPTIONS } from '@synthetos/machine';
 import { MachineWorkerHost, SNAPSHOT_INTERVAL_MS, realClock, workerState } from '../src/machine-worker/host.ts';
 import { MAX_BOARD_ID_LENGTH, MAX_READ_TOKENS, parseRequest, type SnapshotMessage } from '../src/machine-worker/rpc.ts';
+import { openRequest } from '../src/live/mount.ts';
 import { createTransportSource } from '../src/machine-worker/transport.ts';
 
 /** The worker's navigator on a desktop OS: Node's own (`Node.js/<v>`) is not one, and T-S77 refuses an OS it cannot tell. */
@@ -157,9 +158,16 @@ describe('parseRequest', () => {
   });
 
   it('accepts open with a port selector, and an optional board id of the selected machine', () => {
-    expect(parseRequest(OPEN)).toEqual({ ...OPEN, boardId: null });
-    expect(parseRequest({ ...OPEN, boardId: 'ABC-1' })).toEqual({ ...OPEN, boardId: 'ABC-1' });
-    expect(parseRequest({ ...OPEN, boardId: null })).toEqual({ ...OPEN, boardId: null });
+    expect(parseRequest(OPEN)).toEqual({ ...OPEN, boardId: null, previousSessionEnded: false });
+    expect(parseRequest({ ...OPEN, boardId: 'ABC-1' })).toEqual({ ...OPEN, boardId: 'ABC-1', previousSessionEnded: false });
+    expect(parseRequest({ ...OPEN, boardId: null })).toEqual({ ...OPEN, boardId: null, previousSessionEnded: false });
+  });
+
+  it('accepts open with previousSessionEnded (W6), a boolean only', () => {
+    expect(parseRequest({ ...OPEN, previousSessionEnded: true })).toEqual({ ...OPEN, boardId: null, previousSessionEnded: true });
+    expect(parseRequest({ ...OPEN, boardId: 'ABC-1', previousSessionEnded: false })).toEqual({ ...OPEN, boardId: 'ABC-1', previousSessionEnded: false });
+    expect(parseRequest({ ...OPEN, previousSessionEnded: 'yes' })).toBeNull();
+    expect(parseRequest({ ...OPEN, previousSessionEnded: 1 })).toBeNull();
   });
 
   it('accepts the window intents and bounded reads', () => {
@@ -277,6 +285,24 @@ describe('MachineWorkerHost', () => {
     expect(await host.handle(STATUS)).toMatchObject({
       status: { source: 'fake', state: 'open', session: { base: 'CONNECTED_UNKNOWN', classification: { dialectId: 'tinyg-en', mode: 'readOnly' }, identity: { id: 'EN-1' } } },
     });
+  });
+
+  it('a W6 marker (previousSessionEnded) makes the connect start in the UNKNOWN overlay (SAFETY §3); a plain open does not', async () => {
+    // The window's open request carries the W6 state (mount.ts openRequest).
+    expect(openRequest(PORT, true)).toEqual({ ...OPEN, boardId: null, previousSessionEnded: true });
+    const marked = new MachineWorkerHost(source('fake', () => new BoardTransport()));
+    expect(await marked.handle(openRequest(PORT, true))).toMatchObject({ ok: true, kind: 'open' });
+    await settle();
+    const after = await marked.handle(STATUS);
+    if (!after.ok || after.kind !== 'status') throw new Error('status refused');
+    expect(after.status.session?.overlays).toContain('UNKNOWN');
+
+    const plain = new MachineWorkerHost(source('fake', () => new BoardTransport()));
+    await plain.handle(OPEN);
+    await settle();
+    const fresh = await plain.handle(STATUS);
+    if (!fresh.ok || fresh.kind !== 'status') throw new Error('status refused');
+    expect(fresh.status.session?.overlays).not.toContain('UNKNOWN');
   });
 
   it('transcript (P1-08): refused before any open; after one, the {t, dir, hex} JSONL of exactly the bytes written and received', async () => {
