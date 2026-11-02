@@ -493,9 +493,13 @@ export class MachineSession {
     }
   }
 
-  /** Called only with a current guard for the link, which opened (so its transcript exists). */
+  /**
+   * Called only with a current guard for the link, which opened (so its transcript exists).
+   * It must never throw: it runs just before the `!` is written, and a recording fault may not stop that.
+   */
   #wireTx(bytes: Uint8Array): void {
-    ((this.#link as Link).wire as EventLog).tx(this.#clock.now(), bytes);
+    /* c8 ignore next -- a current guard always belongs to a link whose port opened; never throw ahead of the write regardless */
+    this.#link?.wire?.tx(this.#clock.now(), bytes);
   }
 
   #releaseXon(): void {

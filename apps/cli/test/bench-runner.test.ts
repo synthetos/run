@@ -110,9 +110,9 @@ describe('P1-08 bench runner', () => {
     ]);
   });
 
-  it('quit still closes Chrome, restores and unlocks', async () => {
+  it('quit still closes Chrome, restores and unlocks, and is not a pass (exit 1)', async () => {
     const f = fake({ answers: ['q'] });
-    expect(await runBench(OPTIONS, f.deps)).toBe(EXIT.ok);
+    expect(await runBench(OPTIONS, f.deps)).toBe(EXIT.failed);
     expect(f.calls.slice(-3)).toEqual(['close', 'restore', 'release']);
     expect(f.record()).toMatchObject({ aborted: 'stopped by the operator before BENCH-P102-1', items: [] });
   });

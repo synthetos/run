@@ -83,7 +83,8 @@ input close and releases the lock. If the helper dies, the flock goes with it.
 
 `--python` sets the Python command. The default is `uv run python`, as in the EN-HIL README.
 
-Exit codes: 0 every item passed or was skipped, 1 an item failed, 2 refused (CI, a URL that is
+Exit codes: 0 every item passed or was skipped, 1 an item failed or the run was stopped before
+the last item (quit, Ctrl-C), 2 refused (CI, a URL that is
 not staging or localhost, bad options), 3 the board lock is held, 4 an error (snapshot, browser,
 restore).
 

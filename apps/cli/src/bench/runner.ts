@@ -184,5 +184,6 @@ export async function runBench(options: BenchOptions, deps: BenchDeps): Promise<
     deps.log(`run record: ${options.runDir}/record.json`);
   }
   if (record.restore !== 'restored' || (record.aborted !== null && record.aborted.startsWith('error:'))) return EXIT.error;
-  return record.items.some((i) => i.result === 'fail') ? EXIT.failed : EXIT.ok;
+  // A run the operator stopped before the end (quit, Ctrl-C) did not check every item: never exit 0 for it.
+  return record.items.some((i) => i.result === 'fail') || record.aborted !== null ? EXIT.failed : EXIT.ok;
 }
