@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { Finding } from '@synthetos/gcode';
 import { createGcodePreviewClient, type GcodePreviewClient, type WorkerLike } from '../gcode-worker/client.ts';
 import type { PreviewMode, PreviewResult } from '../gcode-worker/pipeline.ts';
+import { executingFileLine, fileKey } from './gcodeList.ts';
 import { LineList } from './LineList.ts';
 import { Preview3D } from './Preview3D.ts';
 import { PreviewSvg } from './PreviewSvg.ts';
@@ -35,6 +36,12 @@ export interface PreviewPanelProps {
    * (PreviewView). Either way the state, the worker client and the drawing are the same.
    */
   readonly layout?: (parts: PreviewParts) => ComponentChild;
+  /**
+   * The line the controller reports executing (status report `line`), for the G-code list's Follow.
+   * It is a host line number (Run renumbers every sent line), mapped to the file line through the
+   * sent lines; null or 0 when nothing runs. Display only.
+   */
+  readonly reportedLine?: number | null;
 }
 
 /** The live position in the preview's frame (work coordinates, mm), with where it came from. */
@@ -65,7 +72,7 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, marker, layout }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, marker, layout, reportedLine = null }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -103,6 +110,8 @@ export function PreviewPanel({ spawn, marker, layout }: PreviewPanelProps): Comp
   const highlight = state.scrub - 1;
   const highlightLine = state.scrub > 0 && result !== null ? (result.sourceLines[state.scrub - 1] ?? 0) : 0;
   const listData = useMemo(() => (result === null ? null : { bytes: result.bytes, spans: result.spans, verdicts: result.verdicts }), [result]);
+  const listKey = useMemo(() => (result === null || state.fileName === null ? null : fileKey(state.fileName, result.bytes)), [result, state.fileName]);
+  const executingLine = result === null ? null : executingFileLine(reportedLine, result.sourceLines);
 
   const drawing =
     segments === null || result === null
@@ -143,7 +152,7 @@ export function PreviewPanel({ spawn, marker, layout }: PreviewPanelProps): Comp
   const slots: PreviewSlots = {
     ...(drawing === undefined ? {} : { drawing }),
     ...(readout === undefined ? {} : { marker: readout }),
-    ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings }) }),
+    ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine }) }),
   };
   return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live });
 }

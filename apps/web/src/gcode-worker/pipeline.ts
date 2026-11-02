@@ -12,7 +12,6 @@ import { sanitizeJob, type MotionModel, type StartState } from '@synthetos/safet
 import {
   indexFindings,
   interpretJob,
-  lineVerdicts,
   previewSegments,
   sentSourceLines,
   type Box,
@@ -30,6 +29,31 @@ export const MAX_FILE_BYTES = 50 * 1024 * 1024;
 export const LITE_THRESHOLD_LINES = 300_000;
 /** File-level findings carried in the summary; per-line findings are fetched for the rows in view. */
 export const MAX_SUMMARY_FINDINGS = 50;
+
+/**
+ * Findings that are routine and expected on almost every line of a CAM file, so the G-code list does
+ * not show a row for each: `n-word-stripped` (Run replaces the file's N word with its own line number).
+ * Presentation only; the sanitiser still reports them and they still count.
+ */
+export const ROUTINE_RULES: ReadonlySet<string> = new Set(['n-word-stripped']);
+
+const RANK_OF: Readonly<Record<FindingSeverity, number>> = { info: 1, change: 2, warn: 3, block: 4 };
+
+/** The per-line verdicts without the routine findings, and how many routine findings there were. */
+export function listVerdictsOf(findings: readonly Finding[], fileLines: number): { readonly verdicts: Uint8Array; readonly renumbered: number } {
+  const verdicts = new Uint8Array(fileLines);
+  let renumbered = 0;
+  for (const f of findings) {
+    if (ROUTINE_RULES.has(f.rule)) {
+      renumbered++;
+      continue;
+    }
+    if (f.line < 1 || f.line > fileLines) continue;
+    const r = RANK_OF[f.severity];
+    if (r > (verdicts[f.line - 1] as number)) verdicts[f.line - 1] = r;
+  }
+  return { verdicts, renumbered };
+}
 
 /** Dialects the preview offers: the two TinyG dialects that accept jobs. */
 export const PREVIEW_DIALECTS: readonly DialectId[] = ['tinyg-en', 'tinyg-440'];
@@ -101,8 +125,15 @@ export interface PreviewResult {
   readonly fileLines: number;
   /** Null in lite mode: no 3D geometry is kept or sent. */
   readonly segments: PreviewSegments | null;
-  /** Verdict per file line (gcode `VERDICT`). */
+  /**
+   * Verdict per file line (gcode `VERDICT`), as the G-code list shows it: the routine findings
+   * (`ROUTINE_RULES`, Run renumbering N words) are left out, so a line whose only finding is its
+   * renumbering reads as clean. Presentation only: the sanitiser, its findings and `summary.counts`
+   * are unchanged.
+   */
   readonly verdicts: Uint8Array;
+  /** Lines whose N word Run replaces with its own line number (one summary line, never a row each). */
+  readonly renumbered: number;
   /** File line of each sent line (the scrubber steps over sent lines). */
   readonly sourceLines: Uint32Array;
   /** The file, and [start, end) spans per line, for the virtualised list. */
@@ -158,6 +189,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
   const analysis = interpretJob(sanitized, dialect, { start: OFFLINE_START });
   onProgress?.({ phase: 'pack' });
   const findings = indexFindings(analysis.findings);
+  const shown = listVerdictsOf(analysis.findings, fileLines);
   return {
     findings,
     result: {
@@ -165,7 +197,8 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
       liteBySize,
       fileLines,
       segments: lite ? null : previewSegments(analysis),
-      verdicts: lineVerdicts(analysis, fileLines),
+      verdicts: shown.verdicts,
+      renumbered: shown.renumbered,
       sourceLines: sentSourceLines(sanitized),
       bytes,
       spans,

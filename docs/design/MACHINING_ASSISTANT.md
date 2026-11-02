@@ -224,6 +224,11 @@ The simulation handles all of them.
   - **reach:** the deepest cut against the tool's flute length or the holder ("the collet hits the stock below 22 mm");
   - **overall depth:** the deepest Z against the machine's Z travel.
 - **During a job (P3):** the same simulation is driven by the reported `line`, so the stock is cut on screen as the machine cuts. It catches up after reconnects from the line number, and never claims more than the reports show.
+- **Breakpoints (P3; the gutter and per-file storage ship now):** click a line's margin in the G-code panel to set one.
+  - Run stops sending lines before the breakpoint line. The moves already queued finish and the machine comes to a clean stop there: the queue drains, so no feedhold is needed.
+  - The strip then shows "Stopped at breakpoint · line N", with "· spindle still on" when `spe` 1 is reported. Resume streams on from that line.
+  - A breakpoint takes effect only on a line not yet sent: lines in the planner cannot be recalled, so the panel says so when one sits inside the queued band.
+  - Breakpoints never gate Pause or Stop job.
 - **Round stock and rotary:** round stock lying flat or standing up is a 3-axis heightfield. A rotary A axis needs a cylindrical heightfield; that is a later phase.
 
 ## 8. Security and privacy
