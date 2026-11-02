@@ -182,3 +182,24 @@ Open with this task:
   Escape still broadcasts and the worker answers once its port is open.
 - `STOP_TEXT` and the W29/STOP NOT DELIVERED paths render through Preact
   text nodes; the board id in a lock name is reduced to `[A-Za-z0-9._-]`.
+
+## P1-08: transcript export and bench runner
+
+| Requirement | Where | Test | Status |
+|---|---|---|---|
+| EventLog export, JSONL `{t, dir, hex}` | `packages/machine/src/eventLog.ts`; `MachineSession.exportTranscript()` (one log per link, from the open); worker `transcript` request | `p1-08-transcript.test.ts`; `machineWorker.test.ts` "transcript (P1-08)" | PASS |
+| Transcripts replay byte-identically through `ReplayTransport` | | `p1-08-transcript.test.ts` (EN and 440.21 models: replay has no divergence, ends exactly at the last step, and the replayed session's transcript equals the original) | PASS |
+| A partial transcript is never exported | 8 MiB bound; past it the log stops and export refuses | `p1-08-transcript.test.ts` "never exports a partial transcript", "refused when the transcript passed its bound" | PASS |
+| Bench runner refuses to start if the lock is held | `apps/cli/src/bench/runner.ts`, `hilLock.ts`, `hil_lock_helper.py` (EN-HIL `BoardLock`, no wait) | `bench-lock.test.ts` (real flock held by a second process: exit 3, no browser, tinyg_hil never run); `bench-runner.test.ts` | PASS |
+| Snapshot, then Chrome, then checklist, then close, restore, unlock, on every path | `runBench` `finally` | `bench-runner.test.ts` (order; quit; Chrome fails; restore fails) | PASS |
+| HIL never in CI | `runBench` refuses when `CI` is set | `bench-runner.test.ts` "never runs in CI" | PASS |
+| Only staging or the localhost bench build | `checkTargetUrl` | `bench-runner.test.ts` | PASS |
+| B-POL-1 | `docs/bench/policy.md` | BENCH-P108-1..3 | HIL |
+
+Open with this task:
+
+- The page has no "save transcript" control yet. The worker's `transcript` request is in place;
+  the button (a Blob behind `<a download>`) is a UI follow-up.
+- Items that need EN-HIL on the board at the same time (BENCH-P102-4/-6, P103-4/-5, P106-2/-3)
+  can't run inside the runner, because the harness takes the same lock. Use `--only` and record
+  them by hand.
