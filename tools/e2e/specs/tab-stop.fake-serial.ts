@@ -112,3 +112,41 @@ test('Escape from any focus pauses through the worker; Space never does (T-S18)'
   // The stop button stays visible and focusable.
   await expect(page.locator('.stop-button')).toBeVisible();
 });
+
+test('Escape reaches the wire as `!` in under 100 ms (T-S19, without the 1M-segment preview until TB-03)', async ({ page }) => {
+  // Stamp the Escape keydown before the app sees it: an init script's capture listener on window runs first.
+  await page.addInitScript(() => {
+    addEventListener(
+      'keydown',
+      (event) => {
+        if (event.key === 'Escape') (globalThis as unknown as { __escAt?: number }).__escAt = performance.timeOrigin + performance.now();
+      },
+      { capture: true },
+    );
+  });
+  const worker = await connectedTab(page);
+  // Stamp every `!` the worker writes to the simulated board, on the same wall clock.
+  await worker.evaluate(() => {
+    interface Rec {
+      record(entry: { kind: string; data?: Uint8Array }): void;
+    }
+    const registry = (globalThis as unknown as { __RUN_FAKE_SERIAL__?: { ports: { endpoint: { transcript: Rec } }[] } }).__RUN_FAKE_SERIAL__;
+    const transcript = registry?.ports[0]?.endpoint.transcript;
+    if (transcript === undefined) throw new Error('no fake serial transcript');
+    const original = transcript.record.bind(transcript);
+    const stamps: number[] = [];
+    (globalThis as unknown as { __bangAt: number[] }).__bangAt = stamps;
+    transcript.record = (entry) => {
+      if (entry.kind === 'host-write' && entry.data !== undefined && entry.data.length === 1 && entry.data[0] === 0x21) stamps.push(performance.timeOrigin + performance.now());
+      original(entry);
+    };
+  });
+  await page.keyboard.press('Escape');
+  await expect.poll(() => worker.evaluate(() => (globalThis as unknown as { __bangAt: number[] }).__bangAt.length)).toBe(1);
+  const escAt = await page.evaluate(() => (globalThis as unknown as { __escAt?: number }).__escAt);
+  const bangAt = await worker.evaluate(() => (globalThis as unknown as { __bangAt: number[] }).__bangAt[0]);
+  expect(typeof escAt).toBe('number');
+  const latency = (bangAt as number) - (escAt as number);
+  expect(latency).toBeGreaterThanOrEqual(0);
+  expect(latency).toBeLessThan(100);
+});
