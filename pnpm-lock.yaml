@@ -90,6 +90,15 @@ importers:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)
 
+  packages/advisor:
+    dependencies:
+      '@synthetos/library':
+        specifier: workspace:*
+        version: link:../library
+      '@synthetos/schema':
+        specifier: workspace:*
+        version: link:../schema
+
   packages/contracts:
     dependencies:
       valibot:
