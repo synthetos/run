@@ -12,7 +12,8 @@
  *   moving, held or queued (`StopBarView.prominent`). Same size either way.
  * - The state band strings come from @synthetos/safety (T-S32): W7 NOT
  *   CONNECTED, W6 after a session that ended while LIVE, W30 with W10 for a
- *   hold, PAUSE REQUESTED, and STOP NOT DELIVERED.
+ *   hold, what a Pause has come to (Pausing…, no answer yet, idle), and STOP
+ *   NOT DELIVERED.
  *
  * A pure function of its props.
  */
@@ -41,8 +42,14 @@ function band(status: StripStatus, view: StopBarView | null, previousSession: bo
       h('span', { class: 'band-text' }, h('strong', null, w30()), h('span', { class: 'state-band-note', 'data-safety': 'W10' }, ` ${w10()}`)),
     );
   }
-  if (view?.band === 'pause-requested') {
-    return h('div', { class: 'state-meta state-band', 'data-state': 'pause-requested', role: 'status' }, h('span', { class: 'band-text' }, h('strong', null, STOP_TEXT.pauseRequested)));
+  if (view?.band === 'pausing') {
+    return h('div', { class: 'state-meta state-band', 'data-state': 'pausing', role: 'status' }, h('span', { class: 'band-text' }, h('strong', null, STOP_TEXT.pausing)));
+  }
+  if (view?.band === 'pause-no-answer') {
+    return h('div', { class: 'state-meta state-band warn', 'data-state': 'pause-no-answer', role: 'alert' }, h('span', { class: 'band-text' }, h('strong', null, STOP_TEXT.pauseNoAnswer)));
+  }
+  if (view?.band === 'paused-idle') {
+    return h('div', { class: 'state-meta state-band', 'data-state': 'paused-idle', role: 'status' }, h('span', { class: 'band-text' }, h('strong', null, STOP_TEXT.pausedIdle)));
   }
   if (!status.connected) {
     return previousSession
@@ -117,8 +124,11 @@ export function MachineStrip({ status, stop, previousSession, onPause, onStopJob
   // "spindle still on" only when the board reports spe=1 while held; wording only, nothing decides on it.
   const title = held ? (status.spindleOn ? STOP_TEXT.pausedSpindleOn : STOP_TEXT.paused) : status.title;
   const tone = held ? 'hold' : status.tone;
-  const outcome = outcomeText(stop);
-  const showReadouts = status.connected && !held && stop?.band !== 'pause-requested' && status.readouts.length > 0;
+  const reported = outcomeText(stop);
+  // The band already says "Paused: the machine was idle, nothing changed"; do not say it twice.
+  const outcome = stop?.band === 'paused-idle' && reported?.text === STOP_TEXT.pausedIdle ? null : reported;
+  const pauseBand = stop?.band === 'pausing' || stop?.band === 'pause-no-answer' || stop?.band === 'paused-idle';
+  const showReadouts = status.connected && !held && !pauseBand && status.readouts.length > 0;
   return h(
     'section',
     { class: 'statebar', 'data-region': 'machine-strip', 'data-tone': tone, 'aria-label': 'Machine state and stop controls' },

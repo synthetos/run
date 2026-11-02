@@ -737,7 +737,7 @@ As OLD-S §4.3.
 1. Await the in-flight single-line write (at most about 120 B, roughly 10 ms). XOFF never delays a realtime byte.
 2. Write `!`.
 3. Stop feeding.
-4. Show "PAUSE REQUESTED".
+4. Show "PAUSE REQUESTED". *Amended 2026-11-02 (owner, bench 1; tenet 3):* the word "requested" is never shown. Until a report shows the held class the machine strip shows "Pausing…"; it resolves to "Paused" or "Paused · spindle still on" (step 5) once the hold is reported, to "Paused: the machine was idle, nothing changed" when the machine was or comes to rest, or, after 2 s without a hold, to "No answer from the board yet: use your E-stop if it's still moving". Pause and Stop job stay prominent while a hold is wanted.
 5. When a report shows the held class, the state band shows **"PAUSED — SPINDLE MAY BE RUNNING"** (W30) with the spindle state (reported, or UNCONFIRMED) plus W10. The word "STOPPED" is never used for a hold. *Amended 2026-11-02 (OD-6):* the machine strip names the state in plain words: "Paused · spindle still on" when the spindle was commanded on, otherwise "Paused", always with W30 and W10 beside it. A Pause pressed while the machine was idle is reported as "Paused: the machine was idle, nothing changed".
 6. If motion resumes while the user wants a hold, re-send `!`.
 7. **Dwell case (H43):** if the executing line is a dwell, the firmware ignores `!`. On EN the session **sends ^D automatically** (`dwellStop`), because the operator asked to stop and the only immediate stop is to end the job; W26 explains what happened. On TG (no immediate dwell abort exists), show W26, highlight Stop job, keep `!` requested and re-send it at the first motion.
