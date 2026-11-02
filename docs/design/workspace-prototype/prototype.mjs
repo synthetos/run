@@ -91,6 +91,7 @@ function setScenario(name, { autoUpdate = true } = {}) {
   $('#machine-state').textContent = sc.state;
   const pill = $('#state-pill'); pill.textContent = sc.pill[0]; pill.className = `pill ${sc.pill[1]}`;
   $('#state-text').textContent = sc.text;
+  st.switchCheck = false;
   $('#scenario-heading').textContent = sc.head; $('#scenario-copy').textContent = sc.copy; $('#scenario-action').textContent = sc.action;
   st.fwOld = name === 'outdated'; $('.app').dataset.fw = st.fwOld ? 'old' : 'ok';
   st.loaded = name !== 'disconnected' && name !== 'orphaned';
@@ -105,6 +106,11 @@ function loadFile() { st.loaded = true; if (!LIVE.has(st.scenario)) st.f = 1; re
 
 // ---------- Machine strip and Run inspector ----------
 function renderStrip() {
+  const sc = scenarios[st.scenario]; const pill = $('#state-pill');
+  if (st.switchCheck) {
+    $('#machine-state').textContent = 'Check limit switches'; pill.textContent = 'Locked'; pill.className = 'pill warn'; $('#state-text').textContent = 'The update changed the switch settings';
+    $('#scenario-heading').textContent = 'Check your limit switches. The update changed the switch settings.'; $('#scenario-copy').textContent = 'Jobs and jogging stay locked until your backup is restored and every setting is read back and checked.'; $('#scenario-action').textContent = 'Restore my settings';
+  } else { $('#machine-state').textContent = sc.state; pill.textContent = sc.pill[0]; pill.className = `pill ${sc.pill[1]}`; $('#state-text').textContent = sc.text; $('#scenario-heading').textContent = sc.head; $('#scenario-copy').textContent = sc.copy; $('#scenario-action').textContent = sc.action; }
   const snap = snapshot(st.scenario); const s0 = snap.status;
   $('#ro-feed').replaceChildren(s0?.vel != null ? nf(s0.vel) : '—', h('small', { text: ` / ${s0?.feed ? nf(s0.feed) : '—'}` }));
   $('#ro-spindle').replaceChildren(snap.spindle ? nf(snap.spindle.rpm) : '—', h('small', { text: ' rpm' }));
@@ -128,7 +134,7 @@ function renderPosition() {
     row.querySelector('strong').textContent = work ? nf(work[i], 3).replace('-', '−') : '—';
     row.querySelector('span:last-child').textContent = work ? nf(work[i] + off[i], 3).replace('-', '−') : '—';
   });
-  $('#pos-source').textContent = !s0 ? 'Not read' : st.scenario === 'lost' ? 'Last report · 8 s ago' : `Live · ${s0.age} s`;
+  $('#pos-source').textContent = !s0 ? 'Not read' : st.scenario === 'lost' ? 'Last report · 8 s ago' : s0.age == null ? 'Not trusted' : `Live · ${s0.age} s`;
   $('#pos-tool').textContent = s0?.tool ? `T${s0.tool}, reported` : '—';
   $('#pos-homing').textContent = st.scenario === 'disconnected' ? '—' : 'Not verified';
 }
@@ -157,7 +163,7 @@ function renderJob() {
   $('#job-time').textContent = `${fmtTime(job.seconds)}, estimated`;
   $('#job-progress').hidden = !live; $('#job-start').hidden = live; $('#job-checks').hidden = live;
   $('#job-bar').style.width = `${st.f * 100}%`; $('#job-pct').textContent = `${Math.round(st.f * 100)} %`; $('#job-remaining').textContent = `${fmtTime(Math.round(job.seconds * (1 - st.f)))} left, estimated`;
-  const t = { running: ['Running', 'ok'], held: ['Paused', 'warn'], toolchange: ['Waiting', 'warn'], lost: ['State unknown', 'danger'] }[st.scenario] ?? (st.fwOld ? ['Locked until update', 'warn'] : ['Ready to check', '']);
+  const t = { running: ['Running', 'ok'], held: ['Paused', 'warn'], toolchange: ['Waiting', 'warn'], lost: ['State unknown', 'danger'] }[st.scenario] ?? (!st.loaded ? ['No file', ''] : st.switchCheck ? ['Locked', 'warn'] : st.fwOld ? ['Locked until update', 'warn'] : ['Ready to check', '']);
   const tag = $('#job-tag'); tag.textContent = t[0]; tag.className = `tag ${t[1]}`;
   const checks = $('#job-checks'); checks.replaceChildren();
   const worst = operations.findIndex((op) => advise(effectiveOp(op), toolById(st.opTools[op.id]), sk.material, st.coolant).verdict === 'Too aggressive');
@@ -170,14 +176,15 @@ function renderJob() {
     unknownTools.length ? ['warn', `Tool ${unknownTools[0].to} is not in your library`, ''] : ['ok', '2 tool changes, both tools in your library', 'Run stops before each M6'],
     worst >= 0 ? ['warn', `${operations[worst].name}: too aggressive for ${m.name}`, null, 'analyze'] : ['ok', 'Feeds and speeds look reasonable', ''],
     st.zero !== 'front-left' ? ['warn', 'Work zero differs from the file', 'This file expects the front-left top corner'] : null,
+    st.switchCheck ? ['warn', 'Check your limit switches. The update changed the switch settings.', null, 'update'] : null,
     st.fwOld ? ['warn', 'Update the firmware before running jobs', null, 'firmware'] : ['todo', 'Homing not verified', 'Arrives with motion control'],
   ].filter(Boolean);
   for (const [kind, text, small, link] of items) {
     const body = link ? h('button', { class: 'link', text, 'data-go': link }) : h('span', {}, text);
     checks.append(h('li', { class: kind }, h('div', {}, body, small ? h('small', { text: small }) : null)));
   }
-  for (const b of $$('[data-go]', checks)) b.addEventListener('click', () => { if (b.dataset.go === 'firmware') { view('configure'); selectCtab('firmware'); } else view('analyze'); });
-  $('#start-job').textContent = st.fwOld ? 'Update firmware first' : 'Start job';
+  for (const b of $$('[data-go]', checks)) b.addEventListener('click', () => { if (b.dataset.go === 'update') openUpdate(5); else if (b.dataset.go === 'firmware') { view('configure'); selectCtab('firmware'); } else view('analyze'); });
+  $('#start-job').textContent = st.fwOld ? 'Update firmware first' : st.switchCheck ? 'Check limit switches first' : 'Start job';
 }
 function renderSpindle() {
   const snap = snapshot(st.scenario); const sp = snap.spindle;
@@ -192,7 +199,7 @@ function renderSpindle() {
   const live = st.scenario === 'running' || st.scenario === 'held';
   for (const el of $$('.sec-overrides input, .sec-overrides button')) el.disabled = !live;
   $('#ovr-note').textContent = live ? 'Mock: the firmware has no live overrides yet, so nothing is sent. A runtime shape such as {rt:{fo:0.8}} is only under discussion.' : 'Adjust while a job runs. The firmware has no live overrides yet; this is where they will live.';
-  $('#jog-note').textContent = st.fwOld ? 'Jogging is locked until this board runs firmware 450.01 or newer.' : LIVE.has(st.scenario) ? 'Jogging is not available while a job is in progress.' : 'Jogging arrives with motion control. These controls show what is coming and send nothing.';
+  $('#jog-note').textContent = st.switchCheck ? 'Check your limit switches. The update changed the switch settings. Jogging stays locked until they are restored and checked.' : st.fwOld ? 'Jogging is locked until this board runs firmware 450.01 or newer.' : LIVE.has(st.scenario) ? 'Jogging is not available while a job is in progress.' : 'Jogging arrives with motion control. These controls show what is coming and send nothing.';
   $('#spindle-note').textContent = st.fwOld ? 'Spindle and coolant control stay locked until the firmware update.' : 'Spindle and coolant control arrive with motion control. Coolant shows the last M7, M8 or M9 sent; the controller does not report it.';
 }
 function syncOverride(kind, value) { const input = $(`#ovr-${kind}`); input.value = String(value); $(`#ovr-${kind}-val`).textContent = `${input.value} %`; }
@@ -719,13 +726,14 @@ function dialog(kind, value) {
 
 // Firmware update: a guided, simulated flow. Flashing is its own reviewed
 // phase (a confined AVR109 flasher beside the serial transport).
-const updateSteps = ['Back up', 'Update mode', 'Write', 'Verify', 'Reconnect', 'Version', 'Restore'];
+const updateSteps = ['Back up', 'Update mode', 'Write', 'Verify', 'Reconnect', 'Compare', 'Restore'];
+const postUpdateDiff = [['Switch type', 'st', 'NC', 'NO', true], ['Z-min switch', 'zsn', 'Homing + limit', 'Disabled', true], ['X maximum speed', 'xvm', '12000', '16000', false]];
 let flashTimer = null;
 function openUpdate(step = 0, mode = '') {
   if ($('#dialog-wrap').hidden) returnFocus = document.activeElement;
   clearInterval(flashTimer); closeMenu();
   $('.dialog').classList.add('wide');
-  $('#dialog-title').textContent = st.fwOld ? 'Update this board’s firmware' : 'Firmware update steps';
+  $('#dialog-title').textContent = st.fwOld || st.switchCheck || st.scenario === 'outdated' ? 'Update this board’s firmware' : 'Firmware update steps';
   const content = $('#dialog-content'); content.replaceChildren();
   const steps = h('ol', { class: 'update-steps', 'aria-label': 'Update steps' }, ...updateSteps.map((n, i) => h('li', { class: i < step ? 'done' : i === step ? 'now' : '', text: `${i + 1}  ${n}`, 'aria-current': i === step ? 'step' : null })));
   const icon = () => { const e = s('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'aria-hidden': 'true' }); e.append(s('path', { d: 'm12 3 10 18H2Z M12 9v5m0 3v1' })); return e; };
@@ -774,14 +782,24 @@ function openUpdate(step = 0, mode = '') {
     body.append(P('Reading the firmware back and comparing it with the signed build.'), ...progress('Verifying', 50, () => openUpdate(4), 'Continue'));
   } else if (step === 4) {
     body.append(P('The board restarted. Run reconnects to the same board and identifies it again before anything else. No job, jog or setting is restored automatically.'));
-    action.textContent = 'Reconnect'; action.onclick = () => openUpdate(5);
+    action.textContent = 'Reconnect'; action.onclick = () => { st.fwOld = false; st.switchCheck = true; $('.app').dataset.fw = 'ok'; renderAll(); openUpdate(5); };
   } else if (step === 5) {
-    body.append(facts('450.01', 'Matches', 'v8 · TG-8-0412', 'Board reports', 'Signed build'), P('The board reports firmware 450.01 for hardware v8. The version check no longer locks jobs, jogging or settings changes.'));
-    action.textContent = 'Continue'; action.onclick = () => openUpdate(6);
+    // After the reconnect: compare the live board with the pre-update backup.
+    const table = h('table', { class: 'diff-table' }, h('thead', {}, h('tr', {}, h('th', { text: 'Setting' }), h('th', { text: 'Your backup' }), h('th', { text: 'Board now' }))),
+      h('tbody', {}, ...postUpdateDiff.map(([name, key, a, b2, hot]) => h('tr', { class: hot ? 'hot' : '' }, h('td', {}, h('strong', { text: name }), h('small', { text: key })), h('td', { class: 'new', text: a }), h('td', { class: 'old', text: b2 })))));
+    body.append(facts('450.01', 'Matches', 'v8 · TG-8-0412', 'Board reports', 'Signed build'),
+      callout('Check your limit switches. The update changed the switch settings.', 'The new firmware started with default settings. A switch set to the wrong contact type can leave limits or homing not working, so jobs and jogging stay locked until your settings are restored and checked.', true),
+      table);
+    action.textContent = 'Continue to restore'; action.onclick = () => openUpdate(6);
+    $('#dialog-cancel').textContent = 'Close, keep locked';
+  } else if (step === 6 && mode !== 'restoring') {
+    body.append(P(`Run restores your backup by setting name, one setting at a time, waiting for the board after each. ${postUpdateDiff.length} settings differ; the switch settings are among them. This step is required before the update is done.`),
+      P('Restoring is a settings write. In the app it ships with settings writes, after Phase 1; this preview only simulates it.'));
+    action.textContent = 'Restore and check'; action.onclick = () => openUpdate(6, 'restoring');
+    $('#dialog-cancel').textContent = 'Close, keep locked';
   } else {
-    body.append(callout('The new firmware started with fresh settings.', 'Its settings layout changed, so on first start it reset to defaults. Your backup from before the update brings your settings back.'),
-      P('Restoring is a settings write: you see every difference, then apply, one setting at a time. It ships with settings writes, after Phase 1.'));
-    action.textContent = 'Review and restore my settings'; action.onclick = () => { closeDialog(); view('configure'); selectCtab('backups'); st.against = 'live'; for (const x of $$('[data-against]')) x.classList.toggle('selected', x.dataset.against === 'live'); renderBackups(); };
+    body.append(P('Writing your settings back, then reading every setting again to confirm it matches the backup.'),
+      ...progress('Restoring and reading back', 60, () => { closeDialog(); setScenario('identified'); notify('Restored and checked: all 112 settings match your backup. Jobs and jogging are no longer locked by the update.'); }, 'Done: all settings match'));
   }
   content.append(steps, body);
   $('#dialog-wrap').hidden = false; $('#close-dialog').focus();
@@ -797,6 +815,7 @@ $('#scenario-action').addEventListener('click', () => {
   if (sc === 'idle') { view('configure'); selectCtab('wiring'); dialog('changes'); }
   else if (sc === 'identified') view('configure');
   else if (sc === 'disconnected') dialog('connection');
+  else if (st.switchCheck) openUpdate(6);
   else if (sc === 'outdated') openUpdate();
   else dialog('recovery');
 });

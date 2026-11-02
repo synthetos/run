@@ -237,42 +237,6 @@
 </div>
 </section>
 
-<section class="insp sec-overrides" id="sec-overrides">
-<header><h2>Overrides</h2><span class="tag mock">Mock · firmware pending</span></header>
-<div class="ovr">
-<div class="ovr-head"><span>Feed</span><output id="ovr-feed-val">100 %</output></div>
-<div class="ovr-row"><button class="small step" data-ovr="feed" data-step="-10" aria-label="Feed minus 10 percent">−10</button><input type="range" min="10" max="200" step="1" value="100" aria-label="Feed override" id="ovr-feed"><button class="small step" data-ovr="feed" data-step="10" aria-label="Feed plus 10 percent">+10</button></div>
-</div>
-<div class="ovr">
-<div class="ovr-head"><span>Spindle speed</span><output id="ovr-spindle-val">100 %</output></div>
-<div class="ovr-row"><button class="small step" data-ovr="spindle" data-step="-10" aria-label="Spindle minus 10 percent">−10</button><input type="range" min="50" max="150" step="1" value="100" aria-label="Spindle speed override" id="ovr-spindle"><button class="small step" data-ovr="spindle" data-step="10" aria-label="Spindle plus 10 percent">+10</button></div>
-</div>
-<div class="ovr">
-<div class="ovr-head"><span>Rapid moves</span></div>
-<div class="seg full" role="group" aria-label="Rapid override"><button data-rapid="25">25 %</button><button data-rapid="50">50 %</button><button data-rapid="100" class="selected">100 %</button></div>
-</div>
-<button class="wide" id="ovr-reset">Reset all to 100 %</button>
-<p class="fine" id="ovr-note">Adjust while a job runs.</p>
-</section>
-
-<section class="insp sec-spindle" id="sec-spindle">
-<header><h2>Spindle and coolant</h2><span class="tag mock">Reported · mock</span></header>
-<div class="spindle-state">
-<svg class="spindle-dial" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" class="dial-track"/><circle cx="32" cy="32" r="26" class="dial-value" id="dial-value" pathLength="100" stroke-dasharray="0 100"/><path class="dial-dir" id="dial-dir" d="M22 20a15 15 0 0 1 20 0m0 0-1-5m1 5-5 1"/></svg>
-<div class="spindle-text">
-<strong id="spindle-rpm">0<small> rpm</small></strong>
-<span id="spindle-line">Off</span>
-<small id="spindle-cmd">Last commanded: M5</small>
-</div>
-</div>
-<div class="spindle-controls">
-<div class="seg full" role="group" aria-label="Spindle"><button disabled class="selected">Off</button><button disabled>On · CW</button><button disabled>On · CCW</button></div>
-<div class="inline-field"><label for="rpm-set">Speed</label><span class="unit-input"><input id="rpm-set" type="number" value="18000" min="10000" max="30000" step="500" disabled><i>rpm</i></span></div>
-<div class="inline-field"><span>Coolant</span><span class="toggles"><button class="toggle" disabled aria-pressed="false" id="mist">Mist</button><button class="toggle" disabled aria-pressed="false" id="flood">Flood</button></span></div>
-</div>
-<p class="unavailable" id="spindle-note">Spindle and coolant control arrive with motion control. Coolant shows the last M7, M8 or M9 sent; the controller does not report it.</p>
-</section>
-
 <section class="insp sec-jog" id="sec-jog">
 <header><h2>Jog</h2><span class="tag">Phase 2</span></header>
 <p class="unavailable" id="jog-note">Jogging arrives with motion control. These controls show what is coming and send nothing.</p>
@@ -307,6 +271,42 @@
 <p class="fine">Each press is one move to a target inside the soft limits. Hold repeats short steps; letting go pauses and clears the rest.</p>
 </div>
 </section>
+<section class="insp sec-spindle" id="sec-spindle">
+<header><h2>Spindle and coolant</h2><span class="tag mock">Reported · mock</span></header>
+<div class="spindle-state">
+<svg class="spindle-dial" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" class="dial-track"/><circle cx="32" cy="32" r="26" class="dial-value" id="dial-value" pathLength="100" stroke-dasharray="0 100"/><path class="dial-dir" id="dial-dir" d="M22 20a15 15 0 0 1 20 0m0 0-1-5m1 5-5 1"/></svg>
+<div class="spindle-text">
+<strong id="spindle-rpm">0<small> rpm</small></strong>
+<span id="spindle-line">Off</span>
+<small id="spindle-cmd">Last commanded: M5</small>
+</div>
+</div>
+<div class="spindle-controls">
+<div class="seg full" role="group" aria-label="Spindle"><button disabled class="selected">Off</button><button disabled>On · CW</button><button disabled>On · CCW</button></div>
+<div class="inline-field"><label for="rpm-set">Speed</label><span class="unit-input"><input id="rpm-set" type="number" value="18000" min="10000" max="30000" step="500" disabled><i>rpm</i></span></div>
+<div class="inline-field"><span>Coolant</span><span class="toggles"><button class="toggle" disabled aria-pressed="false" id="mist">Mist</button><button class="toggle" disabled aria-pressed="false" id="flood">Flood</button></span></div>
+</div>
+<p class="unavailable" id="spindle-note">Spindle and coolant control arrive with motion control. Coolant shows the last M7, M8 or M9 sent; the controller does not report it.</p>
+</section>
+
+<section class="insp sec-overrides" id="sec-overrides">
+<header><h2>Overrides</h2><span class="tag mock">Mock · firmware pending</span></header>
+<div class="ovr">
+<div class="ovr-head"><span>Feed</span><output id="ovr-feed-val">100 %</output></div>
+<div class="ovr-row"><button class="small step" data-ovr="feed" data-step="-10" aria-label="Feed minus 10 percent">−10</button><input type="range" min="10" max="200" step="1" value="100" aria-label="Feed override" id="ovr-feed"><button class="small step" data-ovr="feed" data-step="10" aria-label="Feed plus 10 percent">+10</button></div>
+</div>
+<div class="ovr">
+<div class="ovr-head"><span>Spindle speed</span><output id="ovr-spindle-val">100 %</output></div>
+<div class="ovr-row"><button class="small step" data-ovr="spindle" data-step="-10" aria-label="Spindle minus 10 percent">−10</button><input type="range" min="50" max="150" step="1" value="100" aria-label="Spindle speed override" id="ovr-spindle"><button class="small step" data-ovr="spindle" data-step="10" aria-label="Spindle plus 10 percent">+10</button></div>
+</div>
+<div class="ovr">
+<div class="ovr-head"><span>Rapid moves</span></div>
+<div class="seg full" role="group" aria-label="Rapid override"><button data-rapid="25">25 %</button><button data-rapid="50">50 %</button><button data-rapid="100" class="selected">100 %</button></div>
+</div>
+<button class="wide" id="ovr-reset">Reset all to 100 %</button>
+<p class="fine" id="ovr-note">Adjust while a job runs.</p>
+</section>
+
 </aside>
 </div>
 </section>

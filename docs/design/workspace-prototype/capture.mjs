@@ -74,6 +74,13 @@ for (const [width, height] of sizes) {
         await page.keyboard.press('Escape');
         assert(await page.locator('#dialog-wrap').isHidden(), 'Escape closes the panel');
         assert((await page.locator('#machine-state').innerText()) === 'Firmware out of date', 'Escape pauses without changing state');
+        // After an update: the live settings differ from the backup, so jobs and jog lock.
+        await api('reviewApi.openUpdate(4)');
+        await page.click('#dialog-action');
+        assert((await page.locator('.diff-table tr.hot').count()) === 2, 'switch differences shown prominently');
+        assert((await page.locator('#jog-note').textContent()).includes('Check your limit switches'), 'switch check locks jog');
+        await capture('update-check');
+        await page.keyboard.press('Escape');
       }
     }
     await page.selectOption('#scenario', 'idle');

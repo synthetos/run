@@ -392,6 +392,7 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .app[data-scenario="running"] .sec-position, .app[data-scenario="held"] .sec-position { order: -3; }
 .app[data-scenario="running"] .sec-job, .app[data-scenario="held"] .sec-job { order: -2; }
 .app[data-scenario="running"] .sec-spindle, .app[data-scenario="held"] .sec-spindle { order: 0; }
+.app[data-scenario="running"] .sec-jog, .app[data-scenario="held"] .sec-jog { order: 1; }
 .app[data-scenario="toolchange"] .sec-toolchange { order: -5; }
 
 /* ---------- Setup ---------- */
@@ -818,7 +819,9 @@ table { border-collapse: collapse; }
   .advisor-detail, .analysis-row { grid-template-columns: 1fr; }
   .releases li { grid-template-columns: 1fr; gap: 6px; }
   .update-steps { grid-template-columns: repeat(4, 1fr); }
-  .update-facts { grid-template-columns: 1fr; }
+  .update-facts { gap: 6px; }
+  .update-facts div { padding: 6px 8px; }
+  .update-facts strong { font-size: 12px; }
   .footer { height: 22px; font-size: 10px; padding: 0 12px; }
   .footer-secondary { display: none; }
   .account-menu { right: 6px; left: 6px; width: auto; }
@@ -827,3 +830,6 @@ table { border-collapse: collapse; }
   .toast { bottom: 70px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+.countdown { font: 600 20px var(--mono); color: var(--ink); }
+.diff-table tr.hot td { background: var(--danger-soft); }
+.diff-table tr.hot td:first-child { box-shadow: inset 3px 0 var(--danger); padding-left: 8px; }

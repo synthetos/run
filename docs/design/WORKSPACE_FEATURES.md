@@ -248,8 +248,19 @@ verify → reconnect → version check → offer to restore.
   layout changed, the restore step brings them back, and the panel says so in
   plain words: the new firmware started with fresh settings and your backup is
   being applied (as a reviewed write).
+- **After the reconnect, compare the live settings with the pre-update
+  backup.** A firmware change can load defaults on first boot (bench: 450 to
+  440.21 and back loaded defaults, the E022 layout marker, and changed `st`
+  and the Z-min switch). If anything differs, above all the switch settings
+  (`st` and the per-axis switch modes), homing or limits, motor polarity or
+  current, or travel, the panel shows it prominently and the restore step is
+  required: there is no skip to done. After the restore Run reads every
+  setting again and checks it matches the backup. Until the switch settings
+  are confirmed, jobs and jog stay locked with "Check your limit switches. The
+  update changed the switch settings."
 - **Never send chip erase.** xboot's `e` erases the application and all of
-  EEPROM. Page erase-write only (avrdude `-D`). Backup and restore stay
+  EEPROM. Page erase-write only. (Current avrdude no longer erases by
+  default; Run's flasher simply never sends `e`.) Backup and restore stay
   mandatory around every flash because the settings layout can change.
 - The flasher is a new confined module beside the Web Serial transport, under
   the same confinement gates. Releases come from a Run-hosted signed manifest:

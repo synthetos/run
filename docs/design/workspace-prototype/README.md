@@ -39,7 +39,7 @@ Labels follow OD-6: "Pause" and "Stop job", W1 on top, and the paused state
 reads "Paused · spindle still on". SAFETY.md W2 is not yet amended, so the
 button label is set in the template while the tooltip stays canonical.
 
-Capture the review set (144 screenshots: 18 views, 1280, 1440, 1920 and 390
+Capture the review set (152 screenshots: 19 views, 1280, 1440, 1920 and 390
 wide, light and dark) while the server runs:
 
 ```sh
