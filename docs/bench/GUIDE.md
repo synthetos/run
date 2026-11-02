@@ -252,6 +252,7 @@ line. It then probes the board and classifies it. Expect:
 | stock 449.01 | `tinyg-449-stock` | READ_ONLY |
 | EN with `$ex=2` | `tinyg-en` | READ_ONLY, reason flow control |
 | board moving, held, with a short queue, or silent for 3 s | **ORPHANED_MOTION** (W32) | only Pause offered |
+| a partial line left in the board's buffer by another program (the reply to `{sr:null}` has no `sr`) | **ORPHANED_MOTION** (W32) | only Pause offered. A fragment ending in a comment may already have RUN (measured 2026-11-02); check the machine, unplug, power-cycle the board |
 
 The board id, firmware build and the other identity strings show as plain
 text. Control and bidi characters are replaced (T-S85). While the board is
@@ -503,9 +504,12 @@ commit) next to it.
 - [ ] **HIL-1.12 Partial-line splice (B-SPLICE-1).** With a second program,
   leave `G0 X1` (the start of `G0 X100`) in the board's RX buffer, and
   separately a partial `$xvm=1`. Close that program, then connect run. Pass:
-  the transcript starts with `{sr:null}`; the board reports an error for
-  the spliced line; no step pulses (Saleae on the step lines); `xvm`
-  unchanged. Do it on 440.21 both in text mode and in JSON mode (JSON is its
+  the transcript starts with `{sr:null}`; the board's reply to it has no
+  `sr` key and the app shows ORPHANED_MOTION (W32) with only Pause; for
+  these fragments no step pulses (Saleae on the step lines) and `xvm`
+  unchanged. Add `G0 X0.5 (rough` as a third fragment: it RUNS on both
+  builds (measured 2026-11-02, SAFETY H49); expect the move and the
+  ORPHANED_MOTION screen (bench board only, no machine attached, E-stop in reach). Do it on 440.21 both in text mode and in JSON mode (JSON is its
   default; any `{...}` line from the other program leaves it there), because
   in JSON mode 440.21 runs a G-code fragment wrapped as `{"gc":"..."}` and cuts
   it at the first double quote. Fail: any motion, or a changed setting.
