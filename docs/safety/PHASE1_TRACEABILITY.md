@@ -152,3 +152,33 @@ Open with this task:
   controller tests above.
 - `Cache-Control` for `/safety-advisory.json` is the asset default; the
   client fetches with `cache: 'no-store'`.
+
+## P1-06: Pause, Escape, Web Lock, cross-tab stop requests
+
+Code: `apps/web/src/machine-worker/stopChannel.ts` (protocol, lock names),
+`stopService.ts` (worker: lock while a port is open, stop requests),
+`apps/web/src/live/tabStop.ts` (requests, lock watcher, Escape),
+`stopControls.ts`, `ObserverPanel.ts`, `deviceSafety.ts`
+(`forgetDeviceSafety`), `apps/web/src/shell/SafetyBar.ts` (W2, W30, outcome
+line), `packages/safety/src/strings.ts` (`STOP_TEXT`). Gate changes:
+`navigator.locks` admitted, `synthetos-machine:` exempt from the
+url-scheme literal rule (both tested in `tools/gates`).
+
+| Requirement | Implementation | Test | Status |
+|---|---|---|---|
+| T-S18: Escape from any focus, capture phase; Space never | `installEscapeStop` on window, capture | `tabStop.test.ts` "Escape"; `tab-stop.fake-serial.ts` "Escape from any focus" | PASS |
+| T-S19: stop under 100 ms with a 1M-segment preview | request posted before any await | `tabStop.test.ts` "posts the request synchronously"; `tab-stop.fake-serial.ts` "under 100 ms" (keydown to `!` on the wire) | PASS without a preview; the 1M-segment load waits for TB-03 (no preview exists yet) |
+| T-S29: request from another tab with the controlling tab frozen arrives as `!` | `machine.worker` subscribes to the stop channel itself | `tab-stop.fake-serial.ts` observer test (3 s busy loop in tab A) | PASS |
+| T-S73: W29 on release; unacknowledged = STOP NOT DELIVERED; two machines; non-stop messages ignored; destructive storage refused while locked | `LockWatcher`, `TabStop` (250 ms window, one ack per held lock), `parseStopRequest`, `forgetDeviceSafety` | `tabStop.test.ts`; `tab-stop.fake-serial.ts` | PASS (two machines at unit level only: the fake-serial build has one port per tab) |
+| W30 for a hold, never "STOPPED"; PAUSE REQUESTED first | `StopControls` band | `tabStop.test.ts` "a hold shows W30 with W10" | PASS |
+| Phase 1 stop path writes only `!` | session reducer maps every stop-class intent to `!`; a delivered Stop job / Spindle off request reads "as Pause (spindle stays on)" | `tab-stop.fake-serial.ts` `phase1Only`; `tabStop.test.ts` "went out as Pause" | PASS |
+| HIL-1.7, HIL-1.9, HIL-1.11 | | `docs/bench/README.md` BENCH-P106-1..3 (HIL-1.9 also BENCH-P102-6) | HIL |
+
+Open with this task:
+
+- A LIVE tab's Pause sends feedhold to its own worker and also broadcasts,
+  so its own machine gets `!` twice (harmless; the hold is idempotent).
+- The W2 button is enabled only once LIVE (step `live`); during `opening`
+  Escape still broadcasts and the worker answers once its port is open.
+- `STOP_TEXT` and the W29/STOP NOT DELIVERED paths render through Preact
+  text nodes; the board id in a lock name is reduced to `[A-Za-z0-9._-]`.
