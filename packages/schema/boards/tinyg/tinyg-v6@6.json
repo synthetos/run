@@ -77,14 +77,15 @@
     },
     {
       "id": "spindlePwm",
-      "src": "EN hardware.h:181-185",
-      "verified": "source"
+      "note": "Conflicting: the GPIO bit is on PE5, the PWM waveform on PD5 (TCD1 OC1B). Do not wire the speed signal from PE5.",
+      "src": "EN hardware.h:181-185; EN hardware.h:201; EN pwm.c:62-89 (TCD1 compare B drives PD5)",
+      "verified": "unverified"
     },
     {
       "id": "coolant",
-      "note": "Mist and flood share one output.",
-      "src": "EN hardware.h:181-185",
-      "verified": "source"
+      "note": "Mist and flood share one output. Conflicting: PD5 is also the spindle PWM timer output, which overrides on/off writes.",
+      "src": "EN hardware.h:181-185; EN hardware.h:201; EN pwm.c:62-89 (TCD1 compare B drives PD5)",
+      "verified": "unverified"
     }
   ],
   "adc": [],
@@ -283,15 +284,15 @@
     },
     {
       "signal": "out.spindlePwm",
-      "mcu": "PE5",
-      "src": "EN hardware.h:181-185; EN hardware.c:61 (hv 6 uses the v6 output mapping); EN hardware.h:129-132; EN gpio.c:170-173; EN hardware.h:160-167",
-      "verified": "source"
+      "mcu": "PD5",
+      "src": "EN hardware.h:201; EN pwm.c:62-89 (TCD1 compare B drives PD5); GPIO bit on PE5 (EN hardware.h:181-185): conflicting",
+      "verified": "unverified"
     },
     {
       "signal": "out.coolant",
       "mcu": "PD5",
-      "src": "EN hardware.h:181-185; EN hardware.c:61 (hv 6 uses the v6 output mapping); EN hardware.h:129-132; EN gpio.c:170-173; EN hardware.h:160-167",
-      "verified": "source"
+      "src": "EN hardware.h:181-185; EN hardware.h:129-132; EN hardware.h:201; EN pwm.c:62-89 (TCD1 compare B drives PD5): conflicting",
+      "verified": "unverified"
     }
   ]
 }

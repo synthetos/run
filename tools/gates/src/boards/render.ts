@@ -87,19 +87,44 @@ export function tinygBoard(facts: TinyGFacts, hv: number): BoardDefinition {
       verified: 'source',
     });
   }
-  const outputs = (['spindleEnable', 'spindleDirection', 'spindlePwm', 'coolant'] as const).map((id) => {
-    const mask = facts.outputMasks.value[id];
-    const index = facts.maskToOutPort.value[`0x${mask.toString(16).padStart(2, '0')}`];
-    const port = index === undefined ? undefined : outPorts.value[index];
-    if (port === undefined) throw new Error(`gen-boards: output ${id} has no port`);
-    pins.push({ signal: `out.${id}`, mcu: pinName(port, bits.gpio1Out), src: `${facts.outputMasks.src}; ${outSrc}; ${facts.portBits.src}`, verified: 'source' });
+  const ids = ['spindleEnable', 'spindleDirection', 'spindlePwm', 'coolant'] as const;
+  const gpioPin = Object.fromEntries(
+    ids.map((id) => {
+      const mask = facts.outputMasks.value[id];
+      const index = facts.maskToOutPort.value[`0x${mask.toString(16).padStart(2, '0')}`];
+      const port = index === undefined ? undefined : outPorts.value[index];
+      if (port === undefined) throw new Error(`gen-boards: output ${id} has no port`);
+      return [id, pinName(port, bits.gpio1Out)];
+    }),
+  ) as Record<(typeof ids)[number], string>;
+  // The PWM waveform comes out on the timer's compare pin, whatever the GPIO mapping says. Where the
+  // two disagree, neither the PWM output nor the output whose GPIO pin the timer drives is trusted.
+  const timer = facts.spindlePwmTimer.value;
+  const pwmPin = pinName(timer.port, timer.pin);
+  const timerSrc = `${facts.spindlePwmTimer.src} (${timer.timer} compare ${timer.channel} drives ${pwmPin})`;
+  const pwmSplit = gpioPin.spindlePwm !== pwmPin;
+  const conflict = (id: (typeof ids)[number]): string | undefined => {
+    if (!pwmSplit) return undefined;
+    if (id === 'spindlePwm') return `Conflicting: the GPIO bit is on ${gpioPin.spindlePwm}, the PWM waveform on ${pwmPin} (${timer.timer} OC${timer.timer.slice(-1)}${timer.channel}). Do not wire the speed signal from ${gpioPin.spindlePwm}.`;
+    if (gpioPin[id] === pwmPin) return `Conflicting: ${pwmPin} is also the spindle PWM timer output, which overrides on/off writes.`;
+    return undefined;
+  };
+  const outputs = ids.map((id) => {
+    const why = conflict(id);
+    const base = `${facts.outputMasks.src}; ${outSrc}; ${facts.portBits.src}`;
+    if (why === undefined) pins.push({ signal: `out.${id}`, mcu: gpioPin[id], src: base, verified: 'source' });
+    // The PWM pin is the timer's; the GPIO pin is named only in the output's note.
+    else if (id === 'spindlePwm') pins.push({ signal: 'out.spindlePwm', mcu: pwmPin, src: `${timerSrc}; GPIO bit on ${gpioPin[id]} (${facts.outputMasks.src}): conflicting`, verified: 'unverified' });
+    else pins.push({ signal: `out.${id}`, mcu: gpioPin[id], src: `${facts.outputMasks.src}; ${outPorts.src}; ${timerSrc}: conflicting`, verified: 'unverified' });
+    const notes = [...(id === 'coolant' ? ['Mist and flood share one output.'] : []), ...(why === undefined ? [] : [why])];
+    const src = id === 'spindleEnable' || id === 'spindleDirection' ? `${facts.outputMasks.src}; ${facts.polarityTokens.src}` : facts.outputMasks.src;
     return {
       id,
       ...(id === 'spindleEnable' ? { polarityToken: facts.polarityTokens.value.spindleEnable } : {}),
       ...(id === 'spindleDirection' ? { polarityToken: facts.polarityTokens.value.spindleDirection } : {}),
-      ...(id === 'coolant' ? { note: 'Mist and flood share one output.' } : {}),
-      src: id === 'spindleEnable' || id === 'spindleDirection' ? `${facts.outputMasks.src}; ${facts.polarityTokens.src}` : facts.outputMasks.src,
-      verified: 'source' as const,
+      ...(notes.length === 0 ? {} : { note: notes.join(' ') }),
+      src: why === undefined ? src : `${src}; ${timerSrc}`,
+      verified: why === undefined ? ('source' as const) : ('unverified' as const),
     };
   });
 

@@ -41,13 +41,16 @@ describe('generated TinyG definitions', () => {
     }
   });
 
-  it('v6 moves the PWM and coolant outputs to other ports (hardware.c v6 mapping)', () => {
+  it('v6 moves the coolant GPIO output to PD5; the spindle PWM waveform stays on PD5 (TCD1 OC1B), so both are conflicting', () => {
     const mcu = (b: BoardDefinition, signal: string) => b.pins?.find((p) => p.signal === signal)?.mcu;
+    const verified = (b: BoardDefinition, signal: string) => b.pins?.find((p) => p.signal === signal)?.verified;
     expect(mcu(byId('tinyg-v8@8'), 'out.spindlePwm')).toBe('PD5');
     expect(mcu(byId('tinyg-v8@8'), 'out.coolant')).toBe('PE5');
     expect(mcu(byId('tinyg-v7@7'), 'out.spindlePwm')).toBe('PD5');
-    expect(mcu(byId('tinyg-v6@6'), 'out.spindlePwm')).toBe('PE5');
+    expect(mcu(byId('tinyg-v6@6'), 'out.spindlePwm')).toBe('PD5');
+    expect(verified(byId('tinyg-v6@6'), 'out.spindlePwm')).toBe('unverified');
     expect(mcu(byId('tinyg-v6@6'), 'out.coolant')).toBe('PD5');
+    expect(verified(byId('tinyg-v6@6'), 'out.coolant')).toBe('unverified');
     expect(mcu(byId('tinyg-v6@6'), 'out.spindleEnable')).toBe('PA5');
   });
 

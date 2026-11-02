@@ -13,6 +13,36 @@ import type { BoardOverlay } from '../src/boards/render.ts';
 import { extractTinyG, renderFacts } from '../src/boards/tinyg.ts';
 import type { TinyGSourceFile } from '../src/boards/tinyg.ts';
 
+describe('the spindle PWM pin follows the timer, not the GPIO map', () => {
+  const pin = (board: ReturnType<typeof tinygBoard>, signal: string) => board.pins.find((p) => p.signal === signal);
+  const output = (board: ReturnType<typeof tinygBoard>, id: string) => board.outputs.find((o) => o.id === id);
+
+  it('hv 6: the GPIO bit is on PE5 but TCD1 OC1B drives PD5, so spindlePwm and coolant are conflicting and unverified', () => {
+    const facts = readFacts();
+    expect(facts.spindlePwmTimer.value).toEqual({ timer: 'TCD1', channel: 'B', port: 'D', pin: 5 });
+    const v6 = tinygBoard(facts, 6);
+    expect(pin(v6, 'out.spindlePwm')).toMatchObject({ mcu: 'PD5', verified: 'unverified' });
+    expect(v6.pins.some((p) => p.signal === 'out.spindlePwm' && p.mcu === 'PE5')).toBe(false);
+    expect(pin(v6, 'out.coolant')).toMatchObject({ mcu: 'PD5', verified: 'unverified' });
+    expect(output(v6, 'spindlePwm')).toMatchObject({ verified: 'unverified', note: expect.stringContaining('PE5') });
+    expect(output(v6, 'coolant')).toMatchObject({ verified: 'unverified', note: expect.stringContaining('Conflicting') });
+  });
+
+  it('hv 7 and 8: GPIO and timer agree on PD5, so nothing is marked conflicting', () => {
+    for (const hv of [7, 8]) {
+      const board = tinygBoard(readFacts(), hv);
+      expect(pin(board, 'out.spindlePwm'), `hv ${hv}`).toMatchObject({ mcu: 'PD5', verified: 'source' });
+      expect(board.outputs.every((o) => o.verified === 'source'), `hv ${hv}`).toBe(true);
+    }
+  });
+
+  it('the extractor derives the compare pin: TCx1 channel B is pin 5, and a TCx1 channel C is refused', () => {
+    expect(extract(sources()).spindlePwmTimer.value).toEqual({ timer: 'TCD1', channel: 'B', port: 'D', pin: 5 });
+    const s = sources();
+    expect(() => extract({ ...s, 'firmware/tinyg/pwm.c': s['firmware/tinyg/pwm.c'].replace('CCBEN', 'CCCEN') })).toThrow(/only compare channels A and B/);
+  });
+});
+
 describe('committed board definitions', () => {
   const rendered = renderAllBoards();
 
@@ -88,6 +118,7 @@ function sources(): Record<TinyGSourceFile, string> {
       '#define SPINDLE_PWM\t0x02',
       '#define MIST_COOLANT_BIT\t0x01',
       '#define FLOOD_COOLANT_BIT\t0x01',
+      '#define TIMER_PWM1\t\t\tTCD1\t\t// PWM timer #1',
     ].join('\n'),
     'firmware/tinyg/hardware.c': [
       '\tif (hw_version > 6.9) {',
@@ -114,6 +145,7 @@ function sources(): Record<TinyGSourceFile, string> {
     'firmware/tinyg/stepper.c': '\tif ((mi != 1) && (mi != 2) && (mi != 4) && (mi != 8)) {',
     'firmware/tinyg/config_app.c': ['\t{ "sys","st", x },', '\t{ "sys","spep",x },', '\t{ "sys","spdp",x },'].join('\n'),
     'firmware/tinyg/settings.h': '#include "settings/settings_default.h"',
+    'firmware/tinyg/pwm.c': ['#define PWM1_CTRLB \t\t\t(3 | TC0_CCBEN_bm)', '\tpwm.p[PWM_1].timer = &TIMER_PWM1;'].join('\n'),
   };
 }
 const COMMIT = 'a'.repeat(40);

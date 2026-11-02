@@ -27,6 +27,7 @@ export const TINYG_SOURCE_FILES = [
   'firmware/tinyg/stepper.c',
   'firmware/tinyg/config_app.c',
   'firmware/tinyg/settings.h',
+  'firmware/tinyg/pwm.c',
 ] as const;
 export type TinyGSourceFile = (typeof TINYG_SOURCE_FILES)[number];
 
@@ -61,6 +62,12 @@ export interface TinyGFacts {
   readonly outputMasks: Cited<Readonly<Record<OutputSignal, number>>>;
   /** Which out_port index each GPIO1 mask drives (gpio_set_bit_on). */
   readonly maskToOutPort: Cited<Readonly<Record<string, number>>>;
+  /**
+   * The hardware timer that makes the spindle PWM waveform, and the pin its compare output drives.
+   * On the xmega a timer's compare outputs are fixed pins of its own port (TCx0 A..D on pins 0..3,
+   * TCx1 A..B on pins 4..5), whatever the GPIO output mapping says.
+   */
+  readonly spindlePwmTimer: Cited<{ readonly timer: string; readonly channel: string; readonly port: XmegaPort; readonly pin: number }>;
   readonly motors: Cited<number>;
   readonly switches: Cited<readonly string[]>;
   readonly microsteps: Cited<readonly number[]>;
@@ -225,6 +232,19 @@ export function extractTinyG(read: (path: TinyGSourceFile) => string, tag: strin
     if (maskToOutPort.value[`0x${m.toString(16).padStart(2, '0')}`] === undefined) throw new Error(`gen-boards: mask 0x${m.toString(16)} drives no out_port`);
   }
 
+  // The spindle PWM timer and its compare channel (TIMER_PWM1, PWM1_CTRLB).
+  const pwmTimer = one('firmware/tinyg/hardware.h', /^#define\s+TIMER_PWM1\s+TC([C-F])([01])\b/);
+  const pwmCtrlb = one('firmware/tinyg/pwm.c', /^#define\s+PWM1_CTRLB\s+\(3 \| TC0_CC([A-D])EN_bm\)/);
+  const pwmBind = one('firmware/tinyg/pwm.c', /^\s*pwm\.p\[PWM_1\]\.timer = &TIMER_PWM1;/);
+  const timerIndex = Number(group(pwmTimer, 2));
+  const channel = group(pwmCtrlb, 1);
+  const channelIndex = channel.charCodeAt(0) - 'A'.charCodeAt(0);
+  if (timerIndex === 1 && channelIndex > 1) throw new Error('gen-boards: a TCx1 timer has only compare channels A and B');
+  const spindlePwmTimer = {
+    value: { timer: `TC${group(pwmTimer, 1)}${timerIndex}`, channel, port: group(pwmTimer, 1) as XmegaPort, pin: (timerIndex === 1 ? 4 : 0) + channelIndex },
+    src: `${cite('firmware/tinyg/hardware.h', pwmTimer.line)}; ${cite('firmware/tinyg/pwm.c', pwmCtrlb.line, pwmBind.line)}`,
+  };
+
   const motorsHit = one('firmware/tinyg/tinyg.h', /^#define\s+MOTORS\s+(\d+)\b/);
   const motors = { value: Number(group(motorsHit, 1)), src: cite('firmware/tinyg/tinyg.h', motorsHit.line) };
   if (motors.value !== motorPorts.value.length) throw new Error('gen-boards: MOTORS does not match the PORT_MOTOR_n bindings');
@@ -267,6 +287,7 @@ export function extractTinyG(read: (path: TinyGSourceFile) => string, tag: strin
     portBits,
     outputMasks,
     maskToOutPort,
+    spindlePwmTimer,
     motors,
     switches,
     microsteps,

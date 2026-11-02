@@ -95,6 +95,15 @@
   },
   "src": "EN gpio.c:170-173"
  },
+ "spindlePwmTimer": {
+  "value": {
+   "timer": "TCD1",
+   "channel": "B",
+   "port": "D",
+   "pin": 5
+  },
+  "src": "EN hardware.h:201; EN pwm.c:62-89"
+ },
  "motors": {
   "value": 4,
   "src": "EN tinyg.h:90"
