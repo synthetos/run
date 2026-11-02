@@ -104,6 +104,35 @@ describe('T-S86 (live): a partial line left by a previous sender never runs', ()
   }
 });
 
+describe('T-S60 (live): a held board whose probe answer arrives damaged is ORPHANED_MOTION, not just READ_ONLY', () => {
+  const HELD = ['G1 X20 F200\nG1 X40\nG1 X60\n', '!'];
+  async function heldThenConnect(h: Harness): Promise<void> {
+    for (const text of HELD) {
+      previousSender(h, text);
+      await h.run(400);
+    }
+    await connect(h, 4000);
+  }
+
+  it('en: the hp answer is damaged on the wire; the session is unclassified and ORPHANED_MOTION', async () => {
+    // A clean run of the same deterministic scenario locates the hp answer among the bytes to the host.
+    const clean = make('en', EN_APPROVED);
+    await heldThenConnect(clean);
+    expect(clean.session.snapshot.overlays).toContain('ORPHANED_MOTION');
+    const text = new TextDecoder().decode(clean.endpoint.transcript.bytesOf('host-read'));
+    const at = text.indexOf('{"r":{"hp"');
+    expect(at).toBeGreaterThan(0);
+
+    const h = harness('en', { device: { start: 'ready', bootMs: 200 }, session: { manifest: EN_APPROVED }, faults: { faults: [{ kind: 'drop', direction: 'toHost', select: { at: [at + 4] } }] } });
+    await heldThenConnect(h);
+    expect(h.device.snapshot().hold).not.toBe(0);
+    const snap = h.session.snapshot;
+    expect(snap.classification).toMatchObject({ dialectId: null, reason: 'probeFailed' });
+    expect(snap.overlays).toContain('ORPHANED_MOTION');
+    expect((h.transports.at(-1)?.writes ?? []).map(shown)).not.toContain('~');
+  });
+});
+
 describe('T-S60 (live): a board left busy by a previous session is ORPHANED_MOTION, never just READ_ONLY', () => {
   const busy: readonly { readonly name: string; readonly sender: readonly string[] }[] = [
     { name: 'held with a queue', sender: ['G1 X20 F200\nG1 X40\nG1 X60\n', '!'] },

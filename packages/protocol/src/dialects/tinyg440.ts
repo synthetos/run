@@ -238,6 +238,8 @@ export const TINYG_440: Dialect = deepFreeze<Dialect>({
   },
 
   unverified: [
+    // SAFETY H14 mitigation 2: the resting check at connect uses only `stat` and `vel` on TG.
+    { field: 'hold', bench: 'B-HOLD-1', note: 'What `hold` reads on an idle 440.21 board is not confirmed, so it is not used to decide whether the board is resting.' },
     { field: 'limits.plannerBlocks', bench: 'B-QR-1', note: 'Expected 32 free when empty. Until it closes, the drain check may fall back to polled vel = 0 (SAFETY §4.4).' },
     { field: 'transport.usb', bench: 'B-ID-1', note: 'FT230X default VID:PID; not read from a v8 board yet.' },
     { field: 'flow.engine', bench: 'B-FC-1', note: 'Overrun bytes are tossed silently and can splice lines; prevention relies on the host window.' },

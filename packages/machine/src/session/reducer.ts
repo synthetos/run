@@ -729,6 +729,7 @@ function finishProbe(t: Tx): void {
     t.set({ classification: { dialectId: null, mode: 'readOnly', reason: 'probeFailed', detail: `the probe could not be read (${outcome.reason} at ${outcome.key})`, upgradeOffer: false } });
     t.addOverlay('READ_ONLY');
     t.set({ base: 'CONNECTED_UNKNOWN' });
+    checkUnclassifiedResting(t);
     return;
   }
   const result = outcome.result;
@@ -760,6 +761,7 @@ function finishProbe(t: Tx): void {
   const reads = dialect === null ? [] : READING_TOKENS.filter((tok) => isReadAllowed(dialect.id, tok));
   if (reads.length === 0 || t.s.overlays.includes('ORPHANED_MOTION')) {
     t.set({ base: 'CONNECTED_UNKNOWN' });
+    if (dialect === null) checkUnclassifiedResting(t);
     return;
   }
   // Only READING's own answers count: values from the earlier `{"sr":null}` answer are dropped, so a
@@ -775,6 +777,35 @@ export function probeRecord(result: ProbeResult, c: Classification): string {
   return `probe: ${JSON.stringify({ ...rest, footers: footers.map((f) => f.raw) })} → ${verdict}: ${c.detail}`;
 }
 
+/** Raw `stat` values that count as resting without a dialect: READY and PROGRAM_END (SAFETY H14 mitigation 2). */
+const UNCLASSIFIED_RESTING_STAT: ReadonlySet<number> = new Set([1, 4]);
+
+/**
+ * The probe ended without a dialect (a failed or damaged probe), so READING never runs. The raw
+ * values from the `{"sr":null}` answer are all there is: a board that is not plainly resting is
+ * treated as busy (SAFETY H14 mitigation 5, T-S60), never as merely read-only.
+ */
+function checkUnclassifiedResting(t: Tx): void {
+  const live = t.s.live;
+  const busy =
+    live.stat === undefined ||
+    !UNCLASSIFIED_RESTING_STAT.has(live.stat) ||
+    (live.vel !== undefined && live.vel !== 0) ||
+    (live.hold !== undefined && live.hold !== 0);
+  if (!busy) return;
+  t.addOverlay('ORPHANED_MOTION');
+  t.set({ queue: [] });
+  t.emit({ kind: 'log', text: `probe: unclassified board not resting (stat ${live.stat ?? 'unknown'}, vel ${live.vel ?? 'unknown'}, hold ${live.hold ?? 'unknown'}) → ORPHANED_MOTION` });
+}
+
+/**
+ * Whether the resting check consults `hold` on this dialect. SAFETY H14 mitigation 2: only where the
+ * dialect does not list `hold` as unverified (on 440.21 only `stat` and `vel` are used).
+ */
+export function restingUsesHold(dialect: Dialect): boolean {
+  return !dialect.unverified.some((u) => u.field === 'hold');
+}
+
 /** READING is complete: a board that is not resting is ORPHANED_MOTION (SAFETY H14, PN §2.3 step 0). */
 function finishReading(t: Tx): void {
   const dialect = dialectOf(t.s);
@@ -783,7 +814,7 @@ function finishReading(t: Tx): void {
     dialect !== null &&
     live.stat !== undefined &&
     RESTING_CLASSES.has(mapStat(dialect, live.stat)) &&
-    live.hold === 0 &&
+    (!restingUsesHold(dialect) || live.hold === 0) &&
     live.vel === 0 &&
     live.qr === dialect.limits.plannerBlocks;
   if (!resting) t.addOverlay('ORPHANED_MOTION');
@@ -868,6 +899,7 @@ function onGarbled(t: Tx, at: number): void {
       });
       t.addOverlay('READ_ONLY');
       t.emit({ kind: 'log', text: `probe: the answer to ${entry.token} arrived damaged → unclassified, read-only` });
+      checkUnclassifiedResting(t);
       return;
     case 'reading':
       if (!t.s.queue.some((q) => q.purpose === 'reading')) finishReading(t);
