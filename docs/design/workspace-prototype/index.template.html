@@ -6,854 +6,769 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
 <title>Run — workspace design preview</title>
 <link rel="stylesheet" href="prototype.css">
-<script type="module" src="prototype.mjs">
-</script>
+<script type="module" src="prototype.mjs"></script>
 </head>
 <body>
-<div class="app">
-<div class="warning">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-<path d="m12 3 10 18H2Z M12 9v5m0 3v1"/>
-</svg>
+<div class="app" data-scenario="idle">
+<div class="warning" role="note">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 10 18H2Z M12 9v5m0 3v1"/></svg>
 <span>{{W1}}</span>
 </div>
+
 <header class="topbar">
 <div class="brand">
-<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-<circle cx="14" cy="14" r="9"/>
-<path d="M14 0v9m0 10v9M0 14h9m10 0h9"/>
-</svg>
-<strong>Synthetos</strong>
-<span>RUN</span>
+<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="14" cy="14" r="9"/><path d="M14 0v9m0 10v9M0 14h9m10 0h9"/></svg>
+<strong>Synthetos</strong><span class="brand-run">Run</span>
 </div>
-<div class="context">
-<button class="quiet small" data-view="projects">Workshop projects</button>
-<span class="sep">/</span>
-<span class="context-secondary">Mounting plate</span>
-</div>
+<nav class="context" aria-label="Project">
+<button class="crumb" data-view="projects">Workshop</button>
+<span class="sep" aria-hidden="true">/</span>
+<button class="crumb" data-view="projects">Mounting plate</button>
+<span class="sep context-file" aria-hidden="true">/</span>
+<span class="crumb-file context-file">mounting-plate.nc</span>
+</nav>
 <div class="top-actions">
-<span class="preview-tag">DESIGN PREVIEW · NO HARDWARE</span>
-<label class="scenario-picker"><span>Preview state</span><select id="scenario" aria-label="Preview machine state">
-<option value="disconnected">Disconnected</option><option value="identified">Identified · read only</option><option value="idle" selected>Idle · configuration differs</option><option value="running">Running · future concept</option><option value="held">Held · future concept</option><option value="lost">Connection lost</option><option value="orphaned">Motion unconfirmed</option>
-</select></label>
-<button class="icon-button quiet" id="theme" aria-label="Switch to dark theme">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-<circle cx="12" cy="12" r="4"/>
-<path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2"/>
-</svg>
+<label class="scenario-picker" title="Review tool for this design study, not a product control">
+<span>Preview</span>
+<span class="select-wrap"><select id="scenario" aria-label="Preview machine state">
+<option value="disconnected">Not connected</option>
+<option value="identified">Connected · read only</option>
+<option value="idle" selected>Idle · settings differ</option>
+<option value="outdated">Firmware out of date</option>
+<option value="running">Running · later phase</option>
+<option value="toolchange">Tool change · later phase</option>
+<option value="held">Paused · later phase</option>
+<option value="lost">Connection lost</option>
+<option value="orphaned">Motion unconfirmed</option>
+</select></span>
+</label>
+<button class="icon-button quiet mobile-safety" data-dialog="safety" aria-label="Safety">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5Z"/></svg>
 </button>
-<div class="avatar" aria-label="Example account">JD</div>
+<button class="icon-button quiet" id="theme" aria-label="Switch to dark theme">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2"/></svg>
+</button>
+<button class="account-button" id="account-button" aria-haspopup="true" aria-expanded="false" aria-controls="account-menu" aria-label="Account: Jamie Doe. All changes synced">
+<span class="avatar" aria-hidden="true">JD</span>
+<span class="sync-badge" id="sync-badge" data-sync="synced" aria-hidden="true">
+<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path class="i-synced" d="m4.5 8.2 2.2 2.2 4.8-4.8"/><path class="i-paused" d="M6 5v6m4-6v6"/><path class="i-offline" d="M4 4l8 8"/></svg>
+</span>
+</button>
 </div>
 </header>
-<section class="statebar" aria-label="Persistent machine controls">
+
+<section class="statebar" aria-label="Machine state and stop controls">
 <div class="state-title">
-<span class="state-dot">
-</span>
+<span class="state-dot" aria-hidden="true"></span>
 <div>
 <strong id="machine-state">Machine idle</strong>
-<small>Workshop router · TinyG v8 · simulated</small>
+<small id="machine-name">Workshop router · TinyG v8 · simulated</small>
 </div>
 </div>
-<div class="state-meta">
-<span class="pill readonly">Read only</span>
-<span class="mono meta-detail">mm</span>
-<span class="muted meta-detail">No active job</span>
+<div class="state-meta" id="state-meta">
+<span class="pill" id="state-pill">Needs review</span>
+<span class="meta-text" id="state-text">1 setting differs from your profile</span>
+</div>
+<div class="readouts" id="readouts" aria-label="Live job readouts">
+<div class="readout"><span>Feed</span><strong id="ro-feed">1 112<small> / 1 500</small></strong></div>
+<div class="readout"><span>Spindle</span><strong id="ro-spindle">17 940<small> rpm</small></strong></div>
+<div class="readout ro-coolant"><span>Coolant</span><strong id="ro-coolant">Mist</strong></div>
+<div class="readout"><span>Job</span><strong id="ro-progress">35 %</strong></div>
 </div>
 <div class="stop-group">
-<button class="pause" id="pause" title="{{W2TIP}}">{{W2}}</button>
-<button class="stop" id="stop">
-<span class="stop-mark">■</span>Stop job<br>
-<small>spindle off</small>
-</button>
+<button class="pause" id="pause" title="{{W2TIP}}"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="2.5" width="3" height="11" rx=".5"/><rect x="9.5" y="2.5" width="3" height="11" rx=".5"/></svg><span>Pause</span></button>
+<button class="stop" id="stop"><span class="stop-mark" aria-hidden="true"></span><span>Stop job</span></button>
 </div>
 </section>
+
 <div class="body">
 <nav class="rail" aria-label="Workspace">
-<button data-view="run" aria-current="page">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-<path d="m8 5 11 7-11 7Z"/>
-</svg>
-<span>Run</span>
-</button>
-<button data-view="configure" aria-current="false">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-<rect x="5" y="5" width="14" height="14" rx="2"/>
-<path d="M9 1v4m6-4v4M9 19v4m6-4v4M1 9h4m-4 6h4m14-6h4m-4 6h4M9 9h6v6H9Z"/>
-</svg>
-<span>Configure</span>
-</button>
-<button data-view="machines" aria-current="false">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-<path d="M3 20V5h18v15M3 9h18M8 9v7h8V9M1 20h22M12 16v4"/>
-</svg>
-<span>Machines</span>
-</button>
-<button data-view="projects" aria-current="false">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-<path d="M3 5h7l2 3h9v12H3Z"/>
-</svg>
-<span>Projects</span>
-</button>
-<button data-view="analyze" aria-current="false">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-<path d="M3 3v18h19M6 16l4-6 5 3 6-8"/>
-</svg>
-<span>Analyze</span>
-</button>
-<button class="rail-bottom" data-dialog="settings">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-<circle cx="12" cy="12" r="3"/>
-<path d="m9 3 6 0 1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1Z"/>
-</svg>
-<span>Settings</span>
-</button>
-<button data-dialog="safety">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-<circle cx="12" cy="12" r="9"/>
-<path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4m0 3v1"/>
-</svg>
-<span>Safety</span>
-</button>
+<button data-view="run" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 4.5v15l12-7.5Z"/></svg><span>Run</span></button>
+<button data-view="setup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 19h20M4 19v-3h16v3M7 16v-4h10v4M6 12V9h3v3m6 0V9h3v3"/></svg><span>Setup</span></button>
+<button data-view="tools"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 2h6v7H9ZM10 9h4v8l-2 4-2-4ZM10 12.5l4-1.5M10 15.5l4-1.5"/></svg><span>Tools</span></button>
+<button data-view="configure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 1v4m6-4v4M9 19v4m6-4v4M1 9h4m-4 6h4m14-6h4m-4 6h4M9 9h6v6H9Z"/></svg><span>Board</span></button>
+<button data-view="machines"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 20h20M4 20V8m16 12V8M3 8h18M10 8v6h4V8m-2 6v3"/></svg><span>Machines</span></button>
+<button data-view="projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 5h7l2 3h9v12H3Z"/></svg><span>Projects</span></button>
+<button data-view="analyze"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 3v18h19M6 16l4-6 5 3 6-8"/></svg><span>Analyze</span></button>
+<button class="rail-bottom" data-dialog="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="m9 3 6 0 1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1Z"/></svg><span>Settings</span></button>
+<button class="rail-safety" data-dialog="safety"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5Z"/></svg><span>Safety</span></button>
 </nav>
+
 <div class="content-frame">
 <main class="view-area" id="main">
+
+<!-- RUN -->
 <section class="view" data-screen="run">
 <div class="view-head">
-<div>
-<h1 id="run-title">Workshop router</h1>
-<p id="run-subtitle">Connected in this preview. Choose a file to explore the workflow.</p>
+<div class="title-block">
+<h1 id="run-title">Mounting plate</h1>
+<p id="run-subtitle">mounting-plate.nc · version 3</p>
 </div>
 <div class="view-actions">
-<button id="load-file" class="primary">Load sample file</button>
-<button class="secondary-action" data-dialog="connection">Connection</button>
+<button id="load-file" class="secondary-action">Open a file</button>
 </div>
 </div>
 <div class="scenario-notice" id="scenario-notice"><div><strong id="scenario-heading"></strong><p id="scenario-copy"></p></div><button id="scenario-action" class="small">Review difference</button></div>
+<div class="workspace-grid run-grid">
+<div class="canvas-column">
+<div class="viewer" id="run-viewer">
+<canvas id="run-canvas" aria-label="Stock, fixture and toolpath preview. Drag to orbit, scroll to zoom." role="img"></canvas>
+<div class="viewer-top">
+<div class="seg" role="group" aria-label="Show">
+<button data-mode="path">Toolpath</button><button data-mode="result">Result</button><button data-mode="both" class="selected">Both</button>
+</div>
+<div class="seg" role="group" aria-label="Camera">
+<button data-camera="iso" class="selected">3D</button><button data-camera="top">Top</button><button data-camera="front">Front</button><button data-camera="fit" aria-label="Fit to view">Fit</button>
+</div>
+</div>
+<div class="viewer-key" id="viewer-key">
+<span class="key-swatch" id="key-material"></span><span id="key-stock">6061 aluminium · 180 × 120 × 6.35 mm</span><span class="key-sim" id="key-sim">Simulated from the toolpath</span>
+</div>
+<p class="viewer-notice">{{W13}}</p>
+<div class="empty-prompt" id="empty-prompt" hidden>
+<h2>Open a file to see it on your stock</h2>
+<p>The preview uses your workholding, stock and tools, so you see the result before you cut.</p>
+<button class="primary small" id="empty-open">Open the sample file</button>
+</div>
+</div>
+<div class="timeline" id="timeline" aria-label="Job timeline">
+<button class="icon-button play" id="play" aria-label="Play the preview"><svg viewBox="0 0 16 16" aria-hidden="true"><path class="i-play" d="M4.5 2.5v11l9-5.5Z"/><path class="i-pause" d="M4 2.5h3v11H4Zm5 0h3v11H9Z"/></svg></button>
+<div class="track-wrap">
+<div class="track" id="track"></div>
+<input type="range" id="scrub" min="0" max="1000" value="1000" aria-label="Preview position in the job">
+</div>
+<span class="time" id="time-label">15:10</span>
+</div>
+<div class="dock" id="dock">
+<div class="dock-tabs" role="tablist">
+<button role="tab" data-tab="gcode" aria-selected="true">G-code</button>
+<button role="tab" data-tab="console" aria-selected="false">Console</button>
+<button role="tab" data-tab="live" aria-selected="false">Live job <span class="live-dot" aria-hidden="true"></span></button>
+<span class="dock-summary" id="dock-summary">784 lines · 2 tool changes</span>
+<button class="icon-button quiet dock-toggle" id="dock-toggle" aria-expanded="false" aria-label="Expand panel"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4 10 4-4 4 4"/></svg></button>
+</div>
+<div class="dock-panel" id="dock-panel" hidden>
+<div class="dock-pane" data-pane="gcode"><ol class="gcode" id="gcode"></ol></div>
+<div class="dock-pane" data-pane="console" hidden><ol class="console" id="console"></ol></div>
+<div class="dock-pane live" data-pane="live" hidden>
+<div class="live-empty" id="live-empty"><strong>Live job data appears here while a job runs.</strong><p>Progress, the current line, actual against programmed feed, planner health and warnings, all computed from the controller's status reports.</p></div>
+<div class="live-grid" id="live-grid">
+<div class="live-progress">
+<span class="live-big" id="live-pct">35 %</span>
+<span class="live-sub" id="live-line">Line 136 of 784</span>
+<div class="bar"><span id="live-bar"></span></div>
+<dl class="live-times"><div><dt>Elapsed</dt><dd id="live-elapsed">5 min 19 s</dd></div><div><dt>Remaining</dt><dd id="live-remaining">9 min 51 s</dd></div></dl>
+</div>
+<div class="live-feed">
+<div class="live-head"><span>Feed: actual and programmed</span><strong id="live-feed-num">1 112 / 1 500</strong></div>
+<svg id="feed-chart" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Actual feed over the last 60 seconds against programmed feed"></svg>
+<div class="live-head"><span>Planner buffers free</span><strong id="live-qr">19 · starving</strong></div>
+<div class="qr-meter" id="qr-meter"></div>
+</div>
+<ol class="live-stream" id="live-stream" aria-live="polite"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<aside class="inspector" id="run-inspector" aria-label="Machine and job">
+<section class="insp sec-toolchange" id="sec-toolchange" hidden>
+<header><h2>Change the tool</h2><span class="tag warn">Job waiting</span></header>
+<p class="lede">The job stopped before line 71, <code>T1 M6</code>. The machine is idle and the planner queue is empty.</p>
+<div class="tc-pair">
+<figure><svg class="tool-mini" data-tool="T5" aria-hidden="true"></svg><figcaption><span>In the spindle</span><strong>T5 · 5 mm drill</strong><small>86 mm long</small></figcaption></figure>
+<svg class="tc-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 12h15m-5-5 5 5-5 5"/></svg>
+<figure><svg class="tool-mini" data-tool="T1" aria-hidden="true"></svg><figcaption><span>Fit next</span><strong>T1 · 3.175 mm end mill</strong><small>2 flutes · 38 mm long</small></figcaption></figure>
+</div>
+<ol class="tc-steps">
+<li class="done"><span class="step-mark"></span><div><strong>Spindle stopped</strong><small>Reported off (mock: firmware pending)</small></div></li>
+<li><span class="step-mark"></span><div><strong>Move to the change position</strong><small>X 0 · Y 600 · Z 80, machine</small></div><button class="small" disabled>Go there</button></li>
+<li><span class="step-mark"></span><div><strong>Swap the tool</strong><small>Tighten the collet nut</small></div></li>
+<li><span class="step-mark"></span><div><strong>Set the new tool length</strong><small>Optional: probe, or touch off</small></div><button class="small" disabled>Probe</button></li>
+</ol>
+<button class="primary wide" disabled>Resume job</button>
+<p class="fine">Resume sends <code>T1 M6</code>, then streams from line 72. Available with jobs in Phase 3.</p>
+</section>
+
+<section class="insp sec-position" id="sec-position">
+<header><h2>Position</h2><span class="source" id="pos-source" title="In the app: machine position polled from the controller, work position from its status reports.">Live · 0.25 s</span></header>
+<div class="dro" role="table" aria-label="Position">
+<div class="dro-head" role="row"><span role="columnheader"><span class="sr-only">Axis</span></span><span role="columnheader">Work</span><span role="columnheader">Machine</span></div>
+<div class="dro-row" role="row"><span class="axis" role="rowheader">X</span><strong role="cell">0.000</strong><span role="cell">220.000</span></div>
+<div class="dro-row" role="row"><span class="axis" role="rowheader">Y</span><strong role="cell">0.000</strong><span role="cell">160.000</span></div>
+<div class="dro-row" role="row"><span class="axis" role="rowheader">Z</span><strong role="cell">12.000</strong><span role="cell">−21.000</span></div>
+</div>
+<dl class="facts">
+<div><dt>Work offset</dt><dd id="pos-wcs">G54 · stock corner</dd></div>
+<div><dt>Homing</dt><dd id="pos-homing">Not verified</dd></div>
+<div><dt>Active tool</dt><dd id="pos-tool">T1, reported</dd></div>
+</dl>
+</section>
+
+<section class="insp sec-job" id="sec-job">
+<header><h2>Job</h2><span class="tag" id="job-tag">Ready to check</span></header>
+<div class="job-none" id="job-none" hidden><p>No file open. Open a G-code file and it appears here with its tools, stock and checks.</p></div>
+<div id="job-body">
+<div class="job-file">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 2h9l5 5v15H5Z M14 2v6h5M8 13h8m-8 4h5"/></svg>
+<div><strong>mounting-plate.nc</strong><small>Version 3 · 784 lines · 3 operations</small></div>
+</div>
+<div class="job-progress" id="job-progress" hidden>
+<div class="bar"><span id="job-bar"></span></div>
+<div class="job-progress-text"><strong id="job-pct">35 %</strong><span id="job-remaining">9 min 51 s left</span></div>
+</div>
+<ol class="job-ops" id="job-ops"></ol>
+<dl class="facts">
+<div><dt>Stock</dt><dd><button class="link" data-view="setup" id="job-stock">6061 · 180 × 120 × 6.35</button></dd></div>
+<div><dt>Workholding</dt><dd><button class="link" data-view="setup">Fixture plate · 4 clamps</button></dd></div>
+<div><dt>Estimated time</dt><dd id="job-time">15 min 10 s</dd></div>
+</dl>
+<ul class="checks" id="job-checks"></ul>
+<div class="job-start" id="job-start">
+<ol class="flow" aria-label="Before you start">
+<li class="done"><span>1</span>Check</li>
+<li><span>2</span>Set zero</li>
+<li><span>3</span>Start</li>
+</ol>
+<button class="primary wide" disabled id="start-job">Start job</button>
+<p class="fine">Starting jobs arrives in Phase 3. Today you can check the file, the setup and the tools.</p>
+</div>
+</div>
+</section>
+
+<section class="insp sec-overrides" id="sec-overrides">
+<header><h2>Overrides</h2><span class="tag mock">Mock · firmware pending</span></header>
+<div class="ovr">
+<div class="ovr-head"><span>Feed</span><output id="ovr-feed-val">100 %</output></div>
+<div class="ovr-row"><button class="small step" data-ovr="feed" data-step="-10" aria-label="Feed minus 10 percent">−10</button><input type="range" min="10" max="200" step="1" value="100" aria-label="Feed override" id="ovr-feed"><button class="small step" data-ovr="feed" data-step="10" aria-label="Feed plus 10 percent">+10</button></div>
+</div>
+<div class="ovr">
+<div class="ovr-head"><span>Spindle speed</span><output id="ovr-spindle-val">100 %</output></div>
+<div class="ovr-row"><button class="small step" data-ovr="spindle" data-step="-10" aria-label="Spindle minus 10 percent">−10</button><input type="range" min="50" max="150" step="1" value="100" aria-label="Spindle speed override" id="ovr-spindle"><button class="small step" data-ovr="spindle" data-step="10" aria-label="Spindle plus 10 percent">+10</button></div>
+</div>
+<div class="ovr">
+<div class="ovr-head"><span>Rapid moves</span></div>
+<div class="seg full" role="group" aria-label="Rapid override"><button data-rapid="25">25 %</button><button data-rapid="50">50 %</button><button data-rapid="100" class="selected">100 %</button></div>
+</div>
+<button class="wide" id="ovr-reset">Reset all to 100 %</button>
+<p class="fine" id="ovr-note">Adjust while a job runs.</p>
+</section>
+
+<section class="insp sec-spindle" id="sec-spindle">
+<header><h2>Spindle and coolant</h2><span class="tag mock">Reported · mock</span></header>
+<div class="spindle-state">
+<svg class="spindle-dial" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" class="dial-track"/><circle cx="32" cy="32" r="26" class="dial-value" id="dial-value" pathLength="100" stroke-dasharray="0 100"/><path class="dial-dir" id="dial-dir" d="M22 20a15 15 0 0 1 20 0m0 0-1-5m1 5-5 1"/></svg>
+<div class="spindle-text">
+<strong id="spindle-rpm">0<small> rpm</small></strong>
+<span id="spindle-line">Off</span>
+<small id="spindle-cmd">Last commanded: M5</small>
+</div>
+</div>
+<div class="spindle-controls">
+<div class="seg full" role="group" aria-label="Spindle"><button disabled class="selected">Off</button><button disabled>On · CW</button><button disabled>On · CCW</button></div>
+<div class="inline-field"><label for="rpm-set">Speed</label><span class="unit-input"><input id="rpm-set" type="number" value="18000" min="10000" max="30000" step="500" disabled><i>rpm</i></span></div>
+<div class="inline-field"><span>Coolant</span><span class="toggles"><button class="toggle" disabled aria-pressed="false" id="mist">Mist</button><button class="toggle" disabled aria-pressed="false" id="flood">Flood</button></span></div>
+</div>
+<p class="unavailable" id="spindle-note">Spindle and coolant control arrive with motion control. Coolant shows the last M7, M8 or M9 sent; the controller does not report it.</p>
+</section>
+
+<section class="insp sec-jog" id="sec-jog">
+<header><h2>Jog</h2><span class="tag">Phase 2</span></header>
+<p class="unavailable" id="jog-note">Jogging arrives with motion control. These controls show what is coming and send nothing.</p>
+<div class="jog" aria-disabled="true">
+<div class="jog-pads">
+<div class="jog-pad" role="group" aria-label="X and Y">
+<button disabled class="j diag" aria-label="X minus, Y plus"><svg viewBox="0 0 16 16"><path d="M11 11 5 5m0 5V5h5"/></svg></button>
+<button disabled class="j" aria-label="Y plus">Y+</button>
+<button disabled class="j diag" aria-label="X plus, Y plus"><svg viewBox="0 0 16 16"><path d="m5 11 6-6m0 5V5H6"/></svg></button>
+<button disabled class="j" aria-label="X minus">X−</button>
+<button disabled class="j home" aria-label="Go to X0 Y0"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v3m0 8v3M1 8h3m8 0h3"/></svg></button>
+<button disabled class="j" aria-label="X plus">X+</button>
+<button disabled class="j diag" aria-label="X minus, Y minus"><svg viewBox="0 0 16 16"><path d="m11 5-6 6m0-5v5h5"/></svg></button>
+<button disabled class="j" aria-label="Y minus">Y−</button>
+<button disabled class="j diag" aria-label="X plus, Y minus"><svg viewBox="0 0 16 16"><path d="m5 5 6 6m0-5v5H6"/></svg></button>
+</div>
+<div class="jog-z" role="group" aria-label="Z">
+<button disabled class="j" aria-label="Z up">Z+</button>
+<button disabled class="j" aria-label="Z down">Z−</button>
+</div>
+</div>
+<div class="seg full" role="group" aria-label="Step size"><button disabled>0.1</button><button disabled class="selected">1</button><button disabled>10</button><button disabled>50</button><button disabled title="Press and hold: repeats short steps until you let go">Hold</button></div>
+<div class="inline-field"><label for="jog-speed">Speed</label><span class="unit-input"><input id="jog-speed" type="number" value="1500" disabled><i>mm/min</i></span></div>
+<table class="axis-table">
+<caption class="sr-only">Zero per axis</caption>
+<tbody>
+<tr><th scope="row">X</th><td><button disabled class="small">Set zero</button></td><td><button disabled class="small">Go to 0</button></td></tr>
+<tr><th scope="row">Y</th><td><button disabled class="small">Set zero</button></td><td><button disabled class="small">Go to 0</button></td></tr>
+<tr><th scope="row">Z</th><td><button disabled class="small">Set zero</button></td><td><button disabled class="small">Go to 0</button></td></tr>
+</tbody>
+</table>
+<p class="fine">Each press is one move to a target inside the soft limits. Hold repeats short steps; letting go pauses and clears the rest.</p>
+</div>
+</section>
+</aside>
+</div>
+</section>
+
+<!-- SETUP -->
+<section class="view" data-screen="setup" hidden>
+<div class="view-head">
+<div class="title-block">
+<h1>Workholding and stock</h1>
+<p>What sits on the bed, how high, and where work zero is.</p>
+</div>
+<div class="view-actions">
+<div class="seg" role="group" aria-label="Frame the view"><button data-fit="fixture" class="selected">Stock</button><button data-fit="bed">Whole bed</button></div>
+</div>
+</div>
 <div class="workspace-grid">
 <div class="canvas-column">
-<div class="canvas">
-<div class="canvas-toolbar">
-<span class="pill" id="canvas-label">WORK ENVELOPE · ILLUSTRATION</span>
-<div class="view-tools">
-<button class="selected" data-camera="iso">3D</button>
-<button data-camera="top">Top</button>
-<button data-camera="fit">Fit</button>
+<div class="viewer" id="setup-viewer">
+<canvas id="setup-canvas" role="img" aria-label="Bed, fixture plate, clamps and stock. Drag to orbit."></canvas>
+<div class="viewer-top">
+<span class="viewer-label" id="setup-label">Drag to orbit · scroll to zoom</span>
+<div class="seg" role="group" aria-label="Camera">
+<button data-camera2="iso" class="selected">3D</button><button data-camera2="top">Top</button><button data-camera2="front">Front</button>
 </div>
 </div>
-<svg class="scene" viewBox="0 0 800 530" aria-label="Illustrative toolpath for a mounting plate, not a simulation" role="img">
-<g transform="translate(140 65)">
-<path d="M5 270 310 107 525 235 220 410Z" class="stock" fill-opacity=".45"/>
-<path d="M5 270v13l215 131 305-172v-7M220 410v4" class="dim"/>
-<path d="M33 270 310 123 494 235 218 391Z" class="dim" stroke-dasharray="5 5"/>
-<g class="loaded-geometry">
-<path d="M83 270Q68 260 86 251L293 142Q309 134 323 143L462 227Q480 239 461 251L238 377Q223 386 209 377Z" class="toolpath"/>
-<path d="m154 262 151-80 93 55-152 87Z" class="toolpath"/>
-<path d="m167 261 139-72 79 48-139 78Z" class="toolpath" opacity=".6"/>
-<path d="m180 260 126-63 65 40-125 70Z" class="toolpath" opacity=".4"/>
-<ellipse cx="103" cy="264" rx="13" ry="7" class="toolpath"/>
-<ellipse cx="311" cy="156" rx="13" ry="7" class="toolpath"/>
-<ellipse cx="442" cy="237" rx="13" ry="7" class="toolpath"/>
-<ellipse cx="227" cy="364" rx="13" ry="7" class="toolpath"/>
-<path d="m103 264 208-108 131 81-215 127-124-100" class="toolpath" stroke-dasharray="5 7" opacity=".35"/>
-</g>
-<path d="m5 304 213 129m0-7v13M0 298v13M250 422l282-160m-3-6 8 11m-292 149 9 12" class="dim"/>
-<text x="82" y="370" transform="rotate(31 82 370)">100 mm</text>
-<text x="369" y="368" transform="rotate(-30 369 368)">160 mm</text>
-<path d="M5 270v-80m0 80 60 36m-60-36 59-32" stroke="var(--muted)" fill="none"/>
-<text x="0" y="181">Z</text>
-<text x="67" y="315">X</text>
-<text x="69" y="237">Y</text>
-</g>
-</svg>
-<div class="empty-prompt" id="empty-prompt">
-<span class="eyebrow">Ready to explore</span>
-<h2>Start with a project.</h2>
-<p>Inspect a toolpath, understand the setup, then review what comes next.</p>
-<button data-view="projects">Open projects →</button>
-</div>
-<div class="axis-key">
-<span>X</span>
-<span>Y</span>
-<span>Z</span>
-<span class="muted">G54 · mm</span>
-</div>
-<div class="canvas-caption">Illustration · not measured geometry</div>
-</div>
-<p class="preview-notice">{{W13}}</p>
-<div class="below-canvas">
-<button data-dialog="gcode">G-code</button>
-<button data-view="analyze">Analysis</button>
-<button data-dialog="console">Console</button>
-<span class="summary" id="file-summary">No file loaded</span>
+<div class="stack-diagram" aria-label="Heights above the machine table">
+<div class="stack-row s-stock"><i></i><span>Stock top</span><strong id="h-stock">37.35</strong></div>
+<div class="stack-row s-fixture"><i></i><span>Fixture top</span><strong id="h-fixture">31.00</strong></div>
+<div class="stack-row s-bed"><i></i><span>Bed top</span><strong id="h-bed">19.00</strong></div>
+<small>mm above the machine table</small>
 </div>
 </div>
-<aside class="inspector" aria-label="Machine and operation">
-<section class="inspector-section">
-<div class="section-line">
-<h2>Position</h2>
-<span class="source" title="Simulated values. In the real app: polled machine position (mpo); work position from controller reports. Sample age is illustrative.">Sample · 0.2 s</span>
 </div>
-<div class="dro-head">
-<span>
-</span>
-<span>WORK / mm</span>
-<span>MACHINE / mm</span>
+<aside class="inspector" aria-label="Setup details">
+<section class="insp">
+<header><h2>Stock</h2><span class="tag ok" id="stock-fit">Fits the fixture</span></header>
+<div class="shape-picker" role="group" aria-label="Stock shape">
+<button data-shape="block" class="selected"><svg viewBox="0 0 40 28" aria-hidden="true"><path d="M4 12 20 6l16 6-16 6Z"/><path d="M4 12v6l16 6 16-6v-6M20 18v6"/></svg>Block</button>
+<button data-shape="round"><svg viewBox="0 0 40 28" aria-hidden="true"><ellipse cx="20" cy="11" rx="15" ry="6"/><path d="M5 11v6c0 3.3 6.7 6 15 6s15-2.7 15-6v-6"/></svg>Round</button>
+<button data-shape="sheet"><svg viewBox="0 0 40 28" aria-hidden="true"><path d="M2 14 20 7l18 7-18 7Z"/><path d="M2 14v2l18 7 18-7v-2"/></svg>Sheet</button>
 </div>
-<div class="dro-row">
-<span>X</span>
-<strong>0.000</strong>
-<span class="secondary">125.000</span>
+<div class="field-grid" id="stock-dims">
+<label class="field" data-shapes="block sheet"><span>Width X</span><span class="unit-input"><input type="number" id="st-width" value="180" min="1" step="0.5"><i>mm</i></span></label>
+<label class="field" data-shapes="block sheet"><span>Depth Y</span><span class="unit-input"><input type="number" id="st-depth" value="120" min="1" step="0.5"><i>mm</i></span></label>
+<label class="field" data-shapes="round" hidden><span>Diameter</span><span class="unit-input"><input type="number" id="st-diameter" value="150" min="1" step="0.5"><i>mm</i></span></label>
+<label class="field"><span>Thickness</span><span class="unit-input"><input type="number" id="st-thick" value="6.35" min="0.1" step="0.05"><i>mm</i></span></label>
 </div>
-<div class="dro-row">
-<span>Y</span>
-<strong>0.000</strong>
-<span class="secondary">80.000</span>
+<label class="field"><span>Material</span><span class="select-wrap swatched"><span class="key-swatch" id="st-swatch"></span><select id="st-material"></select></span></label>
+<div class="field-grid">
+<label class="field"><span>Position X</span><span class="unit-input"><input type="number" id="st-x" value="220" step="1"><i>mm</i></span></label>
+<label class="field"><span>Position Y</span><span class="unit-input"><input type="number" id="st-y" value="160" step="1"><i>mm</i></span></label>
 </div>
-<div class="dro-row">
-<span>Z</span>
-<strong>12.000</strong>
-<span class="secondary">−8.000</span>
+<div class="field">
+<span>Work zero</span>
+<div class="zero-pick">
+<div class="zero-grid" role="radiogroup" aria-label="Work zero point on the stock">
+<button role="radio" aria-checked="false" data-zero="back-left" aria-label="Back left"></button><button role="radio" aria-checked="false" data-zero="back" aria-label="Back middle"></button><button role="radio" aria-checked="false" data-zero="back-right" aria-label="Back right"></button>
+<button role="radio" aria-checked="false" data-zero="left" aria-label="Left middle"></button><button role="radio" aria-checked="false" data-zero="center" aria-label="Centre"></button><button role="radio" aria-checked="false" data-zero="right" aria-label="Right middle"></button>
+<button role="radio" aria-checked="true" data-zero="front-left" aria-label="Front left"></button><button role="radio" aria-checked="false" data-zero="front" aria-label="Front middle"></button><button role="radio" aria-checked="false" data-zero="front-right" aria-label="Front right"></button>
 </div>
-<div class="coordinates">
-<strong>G54</strong>
-<span>Offsets: +125, +80, −20</span>
+<div class="seg vertical" role="group" aria-label="Zero height"><button class="selected">Stock top</button><button>Stock bottom</button></div>
 </div>
-<div class="info-row">
-<span>Homing</span>
-<strong>Not verified</strong>
-</div>
-<div class="info-row">
-<span>Spindle</span>
-<strong>Unconfirmed</strong>
 </div>
 </section>
-<section class="inspector-section">
-<div class="section-line">
-<h2>Next operation</h2>
-<span class="eyebrow">01</span>
+<section class="insp">
+<header><h2>Fixtures</h2><span class="tag" id="fixture-count">1 fixture</span></header>
+<div class="fixture-item">
+<svg class="fixture-thumb" id="fixture-thumb" viewBox="0 0 300 200" aria-hidden="true"></svg>
+<div><strong id="fixture-name">Fixture plate</strong><small id="fixture-meta">fixture-plate.dxf · 300 × 200 mm · 24 holes</small></div>
 </div>
-<div id="no-job" class="hint">No file loaded. Your machine connection stays here as you browse.</div>
-<div id="job-info" hidden>
-<p class="job-title">Mounting plate · contour</p>
-<p class="raw-key">plate-contour.nc · version 3</p>
-<div class="info-row">
-<span>Tool</span>
-<strong>3.175 mm end mill</strong>
+<div class="field-grid three">
+<label class="field"><span>Height</span><span class="unit-input"><input type="number" id="fx-height" value="12" min="0" step="0.5"><i>mm</i></span></label>
+<label class="field"><span>X</span><span class="unit-input"><input type="number" id="fx-x" value="160" step="1"><i>mm</i></span></label>
+<label class="field"><span>Y</span><span class="unit-input"><input type="number" id="fx-y" value="120" step="1"><i>mm</i></span></label>
 </div>
-<div class="info-row">
-<span>Estimated time</span>
-<strong>8 min 42 s</strong>
-</div>
-<div class="info-row">
-<span>Review</span>
-<strong>Not yet checked</strong>
-</div>
-<button class="wide primary" data-dialog="review">Review operation →</button>
-</div>
+<label class="upload">
+<input type="file" id="fixture-file" accept=".dxf,.svg,image/svg+xml">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 16V4m-5 5 5-5 5 5M4 15v5h16v-5"/></svg>
+<span><strong>Add a fixture from DXF or SVG</strong><small>Outlines and holes become a solid at the height you set</small></span>
+</label>
+<p class="fine" id="upload-status" aria-live="polite">Reads lines, polylines, circles and rectangles. The file stays on this computer.</p>
+<div class="switch-row"><span>Toe clamps on the stock edges</span><button class="toggle" aria-pressed="true" id="clamps-toggle">4 clamps</button></div>
 </section>
-<section class="inspector-section">
-<div class="section-line">
-<h3 id="phase-title">Read-only connection</h3>
+<section class="insp">
+<header><h2>Bed</h2><span class="tag">From your machine</span></header>
+<div class="field-grid three">
+<label class="field"><span>Width</span><span class="unit-input"><input type="number" id="bed-w" value="790"><i>mm</i></span></label>
+<label class="field"><span>Depth</span><span class="unit-input"><input type="number" id="bed-d" value="790"><i>mm</i></span></label>
+<label class="field"><span>Thickness</span><span class="unit-input"><input type="number" id="bed-t" value="19" step="0.5"><i>mm</i></span></label>
 </div>
-<p class="muted" id="phase-copy">Inspect and prepare. Motion and settings writes are not available in Phase 1.</p>
-<button class="wide" data-view="configure">Inspect configuration</button>
+<dl class="facts">
+<div><dt>Spoilboard</dt><dd>MDF · surfaced 12 Oct</dd></div>
+<div><dt>Z room above the stock</dt><dd id="z-clear">57.6 mm</dd></div>
+</dl>
 </section>
 </aside>
 </div>
 </section>
+
+<!-- TOOLS -->
+<section class="view" data-screen="tools" hidden>
+<div class="view-head">
+<div class="title-block">
+<h1>Tool library</h1>
+<p>Your cutters, synced to your account. Pick one for each operation in the job.</p>
+</div>
+<div class="view-actions">
+<button class="primary" data-dialog="add-tool">Add a tool</button>
+</div>
+</div>
+<div class="workspace-grid tools-grid">
+<div class="list-panel">
+<div class="filter-row" role="group" aria-label="Filter tools">
+<button class="chip selected" data-tool-filter="all">All</button>
+<button class="chip" data-tool-filter="flat">End mills</button>
+<button class="chip" data-tool-filter="ball">Ball nose</button>
+<button class="chip" data-tool-filter="vbit">V-bits</button>
+<button class="chip" data-tool-filter="drill">Drills</button>
+<span class="sync-line" id="tools-sync"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.3 7a2.8 2.8 0 0 0 .2 5.5Z"/><path d="m6.2 9.4 1.4 1.4 2.6-2.6"/></svg>Synced</span>
+</div>
+<div class="tool-table-wrap">
+<table class="tool-table" id="tool-table">
+<thead><tr><th scope="col"><span class="sr-only">Drawing</span></th><th scope="col">Tool</th><th scope="col">Diameter</th><th scope="col">Flutes</th><th scope="col">Material</th><th scope="col">Used in</th><th scope="col"><span class="sr-only">Sync</span></th></tr></thead>
+<tbody id="tool-rows"></tbody>
+</table>
+</div>
+</div>
+<aside class="inspector" aria-label="Selected tool">
+<section class="insp">
+<header><h2 id="tool-title">T1 · 3.175 mm flat end mill</h2></header>
+<svg class="tool-drawing" id="tool-drawing" aria-label="Tool drawing with dimensions" role="img"></svg>
+<div class="field-grid">
+<label class="field"><span>Diameter</span><span class="unit-input"><input type="number" id="tl-dia" step="0.001"><i>mm</i></span></label>
+<label class="field"><span>Flutes</span><span class="unit-input"><input type="number" id="tl-flutes" min="1" max="8"></span></label>
+<label class="field"><span>Flute length</span><span class="unit-input"><input type="number" id="tl-flute" step="0.5"><i>mm</i></span></label>
+<label class="field"><span>Overall length</span><span class="unit-input"><input type="number" id="tl-overall" step="0.5"><i>mm</i></span></label>
+<label class="field"><span>Material</span><span class="select-wrap"><select id="tl-material"><option>Carbide</option><option>HSS</option><option>HSS-Co</option></select></span></label>
+<label class="field"><span>Coating</span><span class="select-wrap"><select id="tl-coating"><option>Uncoated</option><option>ZrN</option><option>AlTiN</option><option>TiN</option><option>DLC</option></select></span></label>
+</div>
+<dl class="facts" id="tool-used"></dl>
+</section>
+<section class="insp">
+<header><h2>Firmware tool table</h2><span class="tag mock">Mock · firmware pending</span></header>
+<p class="fine">The controller has no tool table today. It reports only the active tool number and the G43/G49 tool length. If the firmware adds one, its slots line up with this library.</p>
+<table class="slot-table" id="slot-table"><thead><tr><th scope="col">Slot</th><th scope="col">Tool</th><th scope="col">Length</th></tr></thead><tbody></tbody></table>
+<button class="wide" disabled>Compare with the controller</button>
+</section>
+</aside>
+</div>
+</section>
+
+<!-- CONFIGURE (board, firmware, backups) -->
 <section class="view" data-screen="configure" hidden>
 <div class="view-head">
-<div>
-<h1>Board configuration</h1>
-<p id="editing-context">Editing Workshop router · connected to Workshop router. Drafts never change the board.</p>
+<div class="title-block">
+<h1>Board</h1>
+<p id="editing-context">Editing Workshop router, connected to Workshop router. Drafts never change the board.</p>
 </div>
 <div class="view-actions">
-<button class="secondary-action" data-dialog="board">TinyG v8 ▾</button>
-<button class="primary" data-dialog="changes">Review draft <span class="draft-count-label">(0)</span>
-</button>
+<div class="tabs" role="tablist" aria-label="Board">
+<button role="tab" data-ctab="wiring" aria-selected="true">Wiring</button>
+<button role="tab" data-ctab="firmware" aria-selected="false">Firmware <span class="tab-flag" id="fw-flag" hidden>Update</span></button>
+<button role="tab" data-ctab="backups" aria-selected="false">Backups</button>
 </div>
 </div>
+</div>
+<div class="cpane" data-cpane="wiring">
 <div class="configure-grid">
-<div class="canvas board-canvas">
-<div class="canvas-toolbar">
-<span class="pill">TINYG v8 · LAYOUT STUDY</span>
-<span class="board-label">Component side</span>
-</div>
+<div class="viewer board-canvas">
+<div class="viewer-top"><span class="viewer-label">TinyG v8 · layout study</span><span class="cfg-actions"><button class="small" data-dialog="board">TinyG v8</button><button class="small primary" data-dialog="changes">Review draft <span class="draft-count-label">(0)</span></button></span></div>
 <svg class="board-svg" viewBox="0 0 700 620" role="group" aria-label="TinyG v8 board layout study. Motor 4 through 1 along the lower edge, USB at left, inputs and outputs along the top. Use the connector buttons or inspector list to select.">
 <rect x="35" y="30" width="630" height="560" rx="15" class="board-base"/>
-<circle cx="51" cy="46" r="7" fill="#b5c8cf"/>
-<circle cx="51" cy="46" r="3" fill="#193f52"/>
-<circle cx="649" cy="46" r="7" fill="#b5c8cf"/>
-<circle cx="649" cy="46" r="3" fill="#193f52"/>
-<circle cx="51" cy="574" r="7" fill="#b5c8cf"/>
-<circle cx="51" cy="574" r="3" fill="#193f52"/>
-<circle cx="649" cy="574" r="7" fill="#b5c8cf"/>
-<circle cx="649" cy="574" r="3" fill="#193f52"/>
-<path d="M125 490V340l25-30V120" class="board-trace"/>
-<path d="M185 490V340l25-30V120" class="board-trace"/>
-<path d="M245 490V340l25-30V120" class="board-trace"/>
-<path d="M305 490V340l25-30V120" class="board-trace"/>
-<path d="M365 490V340l25-30V120" class="board-trace"/>
-<path d="M425 490V340l25-30V120" class="board-trace"/>
-<path d="M485 490V340l25-30V120" class="board-trace"/>
-<path d="M545 490V340l25-30V120" class="board-trace"/>
-<text x="310" y="330" class="board-title">TinyG</text>
-<text x="405" y="330" class="board-print">v8</text>
-<rect x="270" y="180" width="85" height="85" rx="3" class="chip"/>
-<text x="282" y="228" class="board-print">ATxmega</text>
-<rect x="25" y="125" width="85" height="62" rx="3" fill="#a4b6be"/>
-<rect x="25" y="136" width="27" height="39" fill="#203541"/>
-<text x="65" y="161" fill="#142b36" font-size="13">USB</text>
-<rect x="596" y="504" width="54" height="59" class="connector"/>
-<text x="600" y="581" class="board-print">POWER</text>
-<circle cx="610" cy="519" r="7" class="contact"/>
-<circle cx="634" cy="542" r="7" class="contact"/>
-<g class="board-hotspot" role="button" tabindex="0" aria-label="Select Z / A inputs" aria-pressed="false" data-connector="aux">
-<rect x="137" y="48" width="154" height="81" class="hit"/>
-<rect x="145" y="58" width="138" height="35" class="connector"/>
-<circle cx="158" cy="75" r="6" class="contact"/>
-<path d="m155 75h6" stroke="#4c5d59"/>
-<circle cx="180" cy="75" r="6" class="contact"/>
-<path d="m177 75h6" stroke="#4c5d59"/>
-<circle cx="202" cy="75" r="6" class="contact"/>
-<path d="m199 75h6" stroke="#4c5d59"/>
-<circle cx="224" cy="75" r="6" class="contact"/>
-<path d="m221 75h6" stroke="#4c5d59"/>
-<circle cx="246" cy="75" r="6" class="contact"/>
-<path d="m243 75h6" stroke="#4c5d59"/>
-<circle cx="268" cy="75" r="6" class="contact"/>
-<path d="m265 75h6" stroke="#4c5d59"/>
-<text x="145" y="113" class="board-print">Z / A inputs</text>
-</g>
-<g class="board-hotspot" role="button" tabindex="0" aria-label="Select X / Y inputs" aria-pressed="true" data-connector="xmin">
-<rect x="302" y="48" width="154" height="81" class="hit"/>
-<rect x="310" y="58" width="138" height="35" class="connector"/>
-<circle cx="323" cy="75" r="6" class="contact"/>
-<path d="m320 75h6" stroke="#4c5d59"/>
-<circle cx="345" cy="75" r="6" class="contact"/>
-<path d="m342 75h6" stroke="#4c5d59"/>
-<circle cx="367" cy="75" r="6" class="contact"/>
-<path d="m364 75h6" stroke="#4c5d59"/>
-<circle cx="389" cy="75" r="6" class="contact"/>
-<path d="m386 75h6" stroke="#4c5d59"/>
-<circle cx="411" cy="75" r="6" class="contact"/>
-<path d="m408 75h6" stroke="#4c5d59"/>
-<circle cx="433" cy="75" r="6" class="contact"/>
-<path d="m430 75h6" stroke="#4c5d59"/>
-<text x="310" y="113" class="board-print">X / Y inputs</text>
-</g>
-<g class="board-hotspot" role="button" tabindex="0" aria-label="Select Spindle / coolant" aria-pressed="false" data-connector="outputs">
-<rect x="467" y="48" width="154" height="81" class="hit"/>
-<rect x="475" y="58" width="138" height="35" class="connector"/>
-<circle cx="488" cy="75" r="6" class="contact"/>
-<path d="m485 75h6" stroke="#4c5d59"/>
-<circle cx="510" cy="75" r="6" class="contact"/>
-<path d="m507 75h6" stroke="#4c5d59"/>
-<circle cx="532" cy="75" r="6" class="contact"/>
-<path d="m529 75h6" stroke="#4c5d59"/>
-<circle cx="554" cy="75" r="6" class="contact"/>
-<path d="m551 75h6" stroke="#4c5d59"/>
-<circle cx="576" cy="75" r="6" class="contact"/>
-<path d="m573 75h6" stroke="#4c5d59"/>
-<circle cx="598" cy="75" r="6" class="contact"/>
-<path d="m595 75h6" stroke="#4c5d59"/>
-<text x="475" y="113" class="board-print">Spindle / coolant</text>
-</g>
-<g class="board-hotspot" role="button" tabindex="0" aria-label="Select motor 4" aria-pressed="false" data-connector="motor4">
-<rect x="111" y="358" width="112" height="208" class="hit"/>
-<text x="124" y="382" class="board-print">MOTOR 4</text>
-<rect x="141" y="398" width="48" height="47" class="chip"/>
-<circle cx="180" cy="473" r="15" fill="#97aab3"/>
-<circle cx="180" cy="473" r="10" fill="#d2dce0"/>
-<rect x="125" y="462" width="17" height="17" fill="#9bafbb"/>
-<path d="m128 470h11" stroke="#132b35"/>
-<rect x="122" y="507" width="95" height="35" class="connector"/>
-<circle cx="133" cy="524" r="7" class="contact"/>
-<path d="m130 524h6" stroke="#4c5d59"/>
-<circle cx="156" cy="524" r="7" class="contact"/>
-<path d="m153 524h6" stroke="#4c5d59"/>
-<circle cx="179" cy="524" r="7" class="contact"/>
-<path d="m176 524h6" stroke="#4c5d59"/>
-<circle cx="202" cy="524" r="7" class="contact"/>
-<path d="m199 524h6" stroke="#4c5d59"/>
-<text x="122" y="557" class="board-print">Unassigned</text>
-</g>
-<g class="board-hotspot" role="button" tabindex="0" aria-label="Select motor 3" aria-pressed="false" data-connector="motor3">
-<rect x="231" y="358" width="112" height="208" class="hit"/>
-<text x="244" y="382" class="board-print">MOTOR 3</text>
-<rect x="261" y="398" width="48" height="47" class="chip"/>
-<circle cx="300" cy="473" r="15" fill="#97aab3"/>
-<circle cx="300" cy="473" r="10" fill="#d2dce0"/>
-<rect x="245" y="462" width="17" height="17" fill="#9bafbb"/>
-<path d="m248 470h11" stroke="#132b35"/>
-<rect x="242" y="507" width="95" height="35" class="connector"/>
-<circle cx="253" cy="524" r="7" class="contact"/>
-<path d="m250 524h6" stroke="#4c5d59"/>
-<circle cx="276" cy="524" r="7" class="contact"/>
-<path d="m273 524h6" stroke="#4c5d59"/>
-<circle cx="299" cy="524" r="7" class="contact"/>
-<path d="m296 524h6" stroke="#4c5d59"/>
-<circle cx="322" cy="524" r="7" class="contact"/>
-<path d="m319 524h6" stroke="#4c5d59"/>
-<text x="242" y="557" class="board-print">Z axis</text>
-</g>
-<g class="board-hotspot" role="button" tabindex="0" aria-label="Select motor 2" aria-pressed="false" data-connector="motor2">
-<rect x="351" y="358" width="112" height="208" class="hit"/>
-<text x="364" y="382" class="board-print">MOTOR 2</text>
-<rect x="381" y="398" width="48" height="47" class="chip"/>
-<circle cx="420" cy="473" r="15" fill="#97aab3"/>
-<circle cx="420" cy="473" r="10" fill="#d2dce0"/>
-<rect x="365" y="462" width="17" height="17" fill="#9bafbb"/>
-<path d="m368 470h11" stroke="#132b35"/>
-<rect x="362" y="507" width="95" height="35" class="connector"/>
-<circle cx="373" cy="524" r="7" class="contact"/>
-<path d="m370 524h6" stroke="#4c5d59"/>
-<circle cx="396" cy="524" r="7" class="contact"/>
-<path d="m393 524h6" stroke="#4c5d59"/>
-<circle cx="419" cy="524" r="7" class="contact"/>
-<path d="m416 524h6" stroke="#4c5d59"/>
-<circle cx="442" cy="524" r="7" class="contact"/>
-<path d="m439 524h6" stroke="#4c5d59"/>
-<text x="362" y="557" class="board-print">Y axis</text>
-</g>
-<g class="board-hotspot" role="button" tabindex="0" aria-label="Select motor 1" aria-pressed="false" data-connector="motor1">
-<rect x="471" y="358" width="112" height="208" class="hit"/>
-<text x="484" y="382" class="board-print">MOTOR 1</text>
-<rect x="501" y="398" width="48" height="47" class="chip"/>
-<circle cx="540" cy="473" r="15" fill="#97aab3"/>
-<circle cx="540" cy="473" r="10" fill="#d2dce0"/>
-<rect x="485" y="462" width="17" height="17" fill="#9bafbb"/>
-<path d="m488 470h11" stroke="#132b35"/>
-<rect x="482" y="507" width="95" height="35" class="connector"/>
-<circle cx="493" cy="524" r="7" class="contact"/>
-<path d="m490 524h6" stroke="#4c5d59"/>
-<circle cx="516" cy="524" r="7" class="contact"/>
-<path d="m513 524h6" stroke="#4c5d59"/>
-<circle cx="539" cy="524" r="7" class="contact"/>
-<path d="m536 524h6" stroke="#4c5d59"/>
-<circle cx="562" cy="524" r="7" class="contact"/>
-<path d="m559 524h6" stroke="#4c5d59"/>
-<text x="482" y="557" class="board-print">X axis</text>
-</g>
-<rect x="505" y="183" width="54" height="39" class="chip"/>
-<text x="511" y="245" class="board-print">ICSP</text>
-<circle cx="610" cy="158" r="12" fill="#aab9bf"/>
-<text x="590" y="185" class="board-print">RESET</text>
-<rect x="611" y="405" width="34" height="53" class="connector"/>
-<text x="613" y="478" class="board-print">FAN</text>
-<rect x="66" y="238" width="9" height="5" fill="#b5ceba"/>
-<text x="82" y="244" class="board-print">PWR</text>
-<rect x="66" y="258" width="9" height="5" fill="#b5ceba"/>
-<text x="82" y="264" class="board-print">TX</text>
-<rect x="66" y="278" width="9" height="5" fill="#b5ceba"/>
-<text x="82" y="284" class="board-print">RX</text>
-<rect x="66" y="337" width="9" height="5" fill="#b5ceba"/>
-<text x="82" y="343" class="board-print">SPIN</text>
-<rect x="66" y="357" width="9" height="5" fill="#b5ceba"/>
-<text x="82" y="363" class="board-print">COOL</text>
+<circle cx="51" cy="46" r="7" class="board-hole"/><circle cx="649" cy="46" r="7" class="board-hole"/><circle cx="51" cy="574" r="7" class="board-hole"/><circle cx="649" cy="574" r="7" class="board-hole"/>
+<path d="M125 490V340l25-30V120M185 490V340l25-30V120M245 490V340l25-30V120M305 490V340l25-30V120M365 490V340l25-30V120M425 490V340l25-30V120M485 490V340l25-30V120M545 490V340l25-30V120" class="board-trace"/>
+<text x="310" y="330" class="board-title">TinyG</text><text x="405" y="330" class="board-print">v8</text>
+<rect x="270" y="180" width="85" height="85" rx="3" class="chip"/><text x="282" y="228" class="board-print">ATxmega</text>
+<rect x="25" y="125" width="85" height="62" rx="3" class="usb"/><rect x="25" y="136" width="27" height="39" class="usb-in"/><text x="62" y="161" class="board-print dark">USB</text>
+<rect x="596" y="504" width="54" height="59" class="connector"/><text x="600" y="581" class="board-print">POWER</text><circle cx="610" cy="519" r="7" class="contact"/><circle cx="634" cy="542" r="7" class="contact"/>
+<g class="board-hotspot" role="button" tabindex="0" aria-label="Select Z / A inputs" aria-pressed="false" data-connector="aux"><rect x="137" y="48" width="154" height="81" class="hit"/><rect x="145" y="58" width="138" height="35" class="connector"/><g class="pins" data-x="158" data-y="75" data-n="6" data-r="6"></g><text x="145" y="113" class="board-print">Z / A inputs</text></g>
+<g class="board-hotspot" role="button" tabindex="0" aria-label="Select X / Y inputs" aria-pressed="true" data-connector="xmin"><rect x="302" y="48" width="154" height="81" class="hit"/><rect x="310" y="58" width="138" height="35" class="connector"/><g class="pins" data-x="323" data-y="75" data-n="6" data-r="6"></g><text x="310" y="113" class="board-print">X / Y inputs</text></g>
+<g class="board-hotspot" role="button" tabindex="0" aria-label="Select Spindle / coolant" aria-pressed="false" data-connector="outputs"><rect x="467" y="48" width="154" height="81" class="hit"/><rect x="475" y="58" width="138" height="35" class="connector"/><g class="pins" data-x="488" data-y="75" data-n="6" data-r="6"></g><text x="475" y="113" class="board-print">Spindle / coolant</text></g>
+<g class="board-hotspot" role="button" tabindex="0" aria-label="Select motor 4" aria-pressed="false" data-connector="motor4"><rect x="111" y="358" width="112" height="208" class="hit"/><text x="124" y="382" class="board-print">MOTOR 4</text><rect x="141" y="398" width="48" height="47" class="chip"/><circle cx="180" cy="473" r="15" class="pot"/><circle cx="180" cy="473" r="10" class="pot-in"/><rect x="122" y="507" width="95" height="35" class="connector"/><g class="pins" data-x="133" data-y="524" data-n="4" data-r="7"></g><text x="122" y="557" class="board-print">Unassigned</text></g>
+<g class="board-hotspot" role="button" tabindex="0" aria-label="Select motor 3" aria-pressed="false" data-connector="motor3"><rect x="231" y="358" width="112" height="208" class="hit"/><text x="244" y="382" class="board-print">MOTOR 3</text><rect x="261" y="398" width="48" height="47" class="chip"/><circle cx="300" cy="473" r="15" class="pot"/><circle cx="300" cy="473" r="10" class="pot-in"/><rect x="242" y="507" width="95" height="35" class="connector"/><g class="pins" data-x="253" data-y="524" data-n="4" data-r="7"></g><text x="242" y="557" class="board-print">Z axis</text></g>
+<g class="board-hotspot" role="button" tabindex="0" aria-label="Select motor 2" aria-pressed="false" data-connector="motor2"><rect x="351" y="358" width="112" height="208" class="hit"/><text x="364" y="382" class="board-print">MOTOR 2</text><rect x="381" y="398" width="48" height="47" class="chip"/><circle cx="420" cy="473" r="15" class="pot"/><circle cx="420" cy="473" r="10" class="pot-in"/><rect x="362" y="507" width="95" height="35" class="connector"/><g class="pins" data-x="373" data-y="524" data-n="4" data-r="7"></g><text x="362" y="557" class="board-print">Y axis</text></g>
+<g class="board-hotspot" role="button" tabindex="0" aria-label="Select motor 1" aria-pressed="false" data-connector="motor1"><rect x="471" y="358" width="112" height="208" class="hit"/><text x="484" y="382" class="board-print">MOTOR 1</text><rect x="501" y="398" width="48" height="47" class="chip"/><circle cx="540" cy="473" r="15" class="pot"/><circle cx="540" cy="473" r="10" class="pot-in"/><rect x="482" y="507" width="95" height="35" class="connector"/><g class="pins" data-x="493" data-y="524" data-n="4" data-r="7"></g><text x="482" y="557" class="board-print">X axis</text></g>
+<rect x="505" y="183" width="54" height="39" class="chip"/><text x="511" y="245" class="board-print">ICSP</text>
+<circle cx="610" cy="158" r="12" class="pot"/><text x="590" y="185" class="board-print">RESET</text>
+<rect x="611" y="405" width="34" height="53" class="connector"/><text x="613" y="478" class="board-print">FAN</text>
+<g class="leds"><rect x="66" y="238" width="9" height="5"/><rect x="66" y="258" width="9" height="5"/><rect x="66" y="278" width="9" height="5"/><rect x="66" y="337" width="9" height="5"/><rect x="66" y="357" width="9" height="5"/></g>
+<text x="82" y="244" class="board-print">PWR</text><text x="82" y="264" class="board-print">TX</text><text x="82" y="284" class="board-print">RX</text><text x="82" y="343" class="board-print">SPIN</text><text x="82" y="363" class="board-print">COOL</text>
 </svg>
-<div class="axis-key">Public-board illustration · exact revision must be verified</div>
+<div class="viewer-foot">Public-board illustration · exact revision must be verified</div>
 </div>
 <aside class="inspector" aria-label="Selected connector">
-<section class="inspector-section">
-<div class="section-line">
-<span class="eyebrow">Selected connection</span>
-<span class="pill">Draft</span>
-</div>
-<label class="field">
-<span>Choose a connection</span>
-<select id="connector-select">
-<option value="xmin">X-min input</option>
-<option value="motor1">Motor 1 · X axis</option>
-<option value="motor2">Motor 2 · Y axis</option>
-<option value="motor3">Motor 3 · Z axis</option>
-<option value="motor4">Motor 4 · Unassigned</option>
-<option value="aux">Z / A inputs</option>
-<option value="outputs">Spindle / coolant</option>
-</select>
-</label>
+<section class="insp">
+<header><h2>Selected connection</h2><span class="tag">Draft</span></header>
+<label class="field"><span>Choose a connection</span><span class="select-wrap"><select id="connector-select">
+<option value="xmin">X-min input</option><option value="motor1">Motor 1 · X axis</option><option value="motor2">Motor 2 · Y axis</option><option value="motor3">Motor 3 · Z axis</option><option value="motor4">Motor 4 · Unassigned</option><option value="aux">Z / A inputs</option><option value="outputs">Spindle / coolant</option>
+</select></span></label>
 <div id="input-fields">
-<h2>X-min input</h2>
+<h3>X-min input</h3>
 <p class="raw-key">J7.3 · xsn</p>
-<label class="field">
-<span>Switch function</span>
-<select id="switch-function">
-<option>Homing + limit</option> <option>Homing only</option>
-<option>Disabled</option>
-</select>
-</label>
-<div class="field">
-<span>Switch contact</span>
-<div class="segmented">
-<button data-contact="NO">Normally open</button>
-<button data-contact="NC" class="selected">Normally closed</button>
-</div>
-</div>
-<svg class="switch-diagram" viewBox="0 0 260 62" aria-label="Contact illustration only">
-<path d="M20 32h64M165 32h75" fill="none" stroke="currentColor" stroke-width="2"/>
-<path id="contact-arm" d="M93 32h63" fill="none" stroke="currentColor" stroke-width="2"/>
-<circle cx="89" cy="32" r="4" fill="var(--sheet)" stroke="currentColor"/>
-<circle cx="160" cy="32" r="4" fill="var(--sheet)" stroke="currentColor"/>
-</svg>
-<p class="hint">Shared contact setting · affects all eight inputs, not just X-min.</p>
+<label class="field"><span>Switch function</span><span class="select-wrap"><select id="switch-function"><option>Homing + limit</option><option>Homing only</option><option>Disabled</option></select></span></label>
+<div class="field"><span>Switch contact</span><div class="seg full"><button data-contact="NO">Normally open</button><button data-contact="NC" class="selected">Normally closed</button></div></div>
+<svg class="switch-diagram" viewBox="0 0 260 62" aria-label="Contact illustration only"><path d="M20 32h64M165 32h75" fill="none" stroke="currentColor" stroke-width="2"/><path id="contact-arm" d="M93 32h63" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="89" cy="32" r="4" class="pin-dot"/><circle cx="160" cy="32" r="4" class="pin-dot"/></svg>
+<p class="note">Shared contact setting: it affects all eight inputs, not just X-min.</p>
 <ul class="affected-inputs" aria-label="Inputs affected by shared polarity"><li>X-min</li><li>X-max</li><li>Y-min</li><li>Y-max</li><li>Z-min</li><li>Z-max</li><li>A-min</li><li>A-max</li></ul>
-<p class="muted">Wiring compatibility: not checked. Review every switch before a future apply.</p>
+<p class="fine">Wiring compatibility: not checked. Review every switch before a future apply.</p>
 </div>
 <div id="motor-fields" hidden>
-<h2 id="motor-title">Motor 1</h2>
+<h3 id="motor-title">Motor 1</h3>
 <p class="raw-key">Motor assignment · mechanical setup</p>
-<label class="field">
-<span>Assigned axis</span>
-<select id="motor-axis">
-<option>X</option>
-<option>Y</option>
-<option>Z</option>
-<option>Unassigned</option>
-</select>
-</label>
-<label class="field">
-<span>Motor frame</span>
-<select id="motor-frame"><option>NEMA 23</option><option>NEMA 17</option><option>Other / not recorded</option></select>
-</label>
-<label class="field">
-<span>Nameplate current / A</span>
-<input id="motor-current" type="number" min="0" step="0.1" placeholder="Not recorded">
-</label>
-<label class="field">
-<span>Step angle / degrees</span>
-<select id="motor-angle">
-<option>1.8</option>
-<option>0.9</option>
-</select>
-</label>
-<label class="field">
-<span>Microsteps</span>
-<select id="motor-microsteps">
-<option>8</option>
-<option>4</option>
-<option>2</option>
-<option>1</option>
-</select>
-</label>
-<label class="field">
-<span>Travel per revolution / mm</span>
-<input id="motor-travel" value="40" type="number" min="0.1" step="0.1">
-</label>
+<label class="field"><span>Assigned axis</span><span class="select-wrap"><select id="motor-axis"><option>X</option><option>Y</option><option>Z</option><option>Unassigned</option></select></span></label>
+<label class="field"><span>Motor frame</span><span class="select-wrap"><select id="motor-frame"><option>NEMA 23</option><option>NEMA 17</option><option>Other / not recorded</option></select></span></label>
+<label class="field"><span>Nameplate current</span><span class="unit-input"><input id="motor-current" type="number" min="0" step="0.1" placeholder="Not recorded"><i>A</i></span></label>
+<label class="field"><span>Step angle</span><span class="select-wrap"><select id="motor-angle"><option>1.8</option><option>0.9</option></select></span></label>
+<label class="field"><span>Microsteps</span><span class="select-wrap"><select id="motor-microsteps"><option>8</option><option>4</option><option>2</option><option>1</option></select></span></label>
+<label class="field"><span>Travel per rev</span><span class="unit-input"><input id="motor-travel" value="40" type="number" min="0.1" step="0.1"><i>mm</i></span></label>
 <p class="mechanical-story" id="mechanical-story" aria-live="polite"></p>
-<p class="hint">Current is adjusted on the board. Motor size alone does not establish its electrical rating.</p>
+<p class="fine">Current is adjusted on the board. Motor size alone does not establish its electrical rating.</p>
 </div>
 <div id="other-fields" hidden>
-<h2 id="other-title">Board connection</h2>
-<p class="hint">Detailed configuration for this connection comes in increment 4. No pin behavior is assumed here.</p>
+<h3 id="other-title">Board connection</h3>
+<p class="fine">Detailed configuration for this connection comes in a later increment. No pin behaviour is assumed here.</p>
 </div>
 </section>
-<section class="inspector-section">
-<h3>Change only the draft</h3>
-<div class="change-line">
-<span>On controller</span>
-<span id="controller-value">Not read</span>
-</div>
-<div class="change-line">
-<span>Draft</span>
-<span class="draft-value">Homing + limit</span>
-</div>
-<p id="draft-status" class="muted" aria-live="polite">Not saved to draft</p>
+<section class="insp">
+<header><h2>Change only the draft</h2></header>
+<div class="change-line"><span>On controller</span><span id="controller-value">Not read</span></div>
+<div class="change-line"><span>Draft</span><span class="draft-value">Homing + limit</span></div>
+<p id="draft-status" class="fine" aria-live="polite">Not saved to draft</p>
 <button class="wide primary" id="save-draft">Save to draft</button>
-<p class="muted">No board writes. Apply requires a later reviewed phase.</p>
+<p class="fine">No board writes. Apply requires a later reviewed phase.</p>
 </section>
 </aside>
 </div>
+</div>
+
+<div class="cpane" data-cpane="firmware" hidden>
+<div class="configure-grid">
+<div class="list-panel releases-panel">
+<div class="fw-current" id="fw-current">
+<div class="fw-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 1v4m6-4v4M9 19v4m6-4v4M1 9h4m-4 6h4m14-6h4m-4 6h4"/></svg></div>
+<div class="grow">
+<span class="kicker">On this board</span>
+<h2 id="fw-version">Firmware 450.01</h2>
+<p id="fw-detail">TinyG · hardware version 8 · read when connected</p>
+</div>
+<span class="pill ok" id="fw-status">Up to date</span>
+</div>
+<div class="section-heading tight"><h2>Releases for hardware v8</h2><span class="fine">Signed builds only · other hardware hidden</span></div>
+<ol class="releases" id="releases"></ol>
+</div>
+<aside class="inspector" aria-label="Firmware update">
+<section class="insp">
+<header><h2>Update</h2><span class="tag">Own safety-reviewed phase</span></header>
+<p class="lede" id="fw-lede">This board runs the current release.</p>
+<ol class="fw-plan">
+<li><span>1</span>Back up every setting to your account</li>
+<li><span>2</span>Restart into update mode, no button needed</li>
+<li><span>3</span>Write and verify the signed build</li>
+<li><span>4</span>Reconnect and check the version</li>
+<li><span>5</span>Offer to restore your settings</li>
+</ol>
+<button class="primary wide" id="open-update">Review the update</button>
+<p class="fine">The update panel walks through each step. In this design preview nothing is written to a board.</p>
 </section>
+<section class="insp">
+<header><h2>What an old version locks</h2></header>
+<ul class="lock-list">
+<li class="ok">Connect, identify and view</li>
+<li class="ok">Back up settings</li>
+<li class="locked">Run jobs</li>
+<li class="locked">Jog</li>
+<li class="locked">Change settings</li>
+</ul>
+</section>
+</aside>
+</div>
+</div>
+
+<div class="cpane" data-cpane="backups" hidden>
+<div class="configure-grid">
+<div class="list-panel">
+<div class="section-heading tight"><h2>Backups of this board</h2><span class="cfg-actions"><button class="small" id="backup-now">Back up now</button><button class="small" id="export-json">Export JSON</button><label class="small file-button"><input type="file" accept=".json,application/json" id="import-json">Import JSON</label></span></div>
+<p class="fine">Board TG-8-0412 · each backup is the full configuration with the firmware version it was read from, saved to your account.</p>
+<table class="backup-table" id="backup-table">
+<thead><tr><th scope="col"><span class="sr-only">Compare</span></th><th scope="col">Taken</th><th scope="col">Firmware</th><th scope="col">Why</th><th scope="col">Settings</th></tr></thead>
+<tbody id="backup-rows"></tbody>
+</table>
+</div>
+<aside class="inspector" aria-label="Compare backups">
+<section class="insp">
+<header><h2>Compare</h2><span class="tag" id="diff-count">3 differences</span></header>
+<div class="seg full" role="group" aria-label="Compare against"><button data-against="backup" class="selected">Two backups</button><button data-against="live">Backup and live board</button></div>
+<p class="fine" id="diff-caption">Today 09:12 against 12 Oct 18:40</p>
+<table class="diff-table" id="diff-table"><thead><tr><th scope="col">Setting</th><th scope="col">Older</th><th scope="col">Newer</th></tr></thead><tbody></tbody></table>
+<button class="wide" disabled>Restore this backup</button>
+<p class="fine">Restore is a settings write: you review the difference, then apply. It ships with settings writes, after Phase 1.</p>
+</section>
+</aside>
+</div>
+</div>
+</section>
+
+<!-- MACHINES -->
 <section class="view" data-screen="machines" hidden>
 <div class="view-head">
-<div>
-<h1>Machine library</h1>
-<p>Start with a template. Make every detail match your hardware.</p>
+<div class="title-block">
+<h1>Machines</h1>
+<p>Start from a machine like yours, then make every detail match what you built.</p>
 </div>
 <div class="view-actions">
-<button class="primary" data-dialog="custom">+ Custom machine</button>
+<span class="search-wrap"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg><input class="search" id="machine-search" placeholder="Find a machine" aria-label="Find a machine"></span>
 </div>
 </div>
 <div class="scroll-region">
-<div class="section-heading">
-<h2>Your machines</h2>
-<span class="eyebrow">On this computer</span>
-</div>
 <div class="my-machine">
-<svg viewBox="0 0 290 150" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-<path fill="var(--sheet)" d="m28 111 113-52 125 48-116 32Z"/>
-<path d="m37 108 110-45m-91 51 110-45m-90 51 110-45m-90 51 110-45m-90 51 110-45" opacity=".25"/>
-<path d="M52 100V41l135-2v70M46 100V32l148-2v82M46 32l40-20 147 0-39 18m-7 9 38-18v68M86 12v60"/>
-<path fill="var(--blue-wash)" d="m105 35 35-1v32l-35 2Z"/>
-<path d="M122 67v17m-5 0h10M55 100l-12 8m142 2 12 6"/>
-<circle cx="119" cy="48" r="5"/>
-</svg>
+<svg class="machine-drawing" id="my-machine-art" aria-hidden="true"></svg>
 <div class="grow">
-<h3 id="my-machine-name">Workshop router</h3>
-<p>TinyG v8 · custom build · example profile</p>
+<span class="kicker">Your machine</span>
+<h2 id="my-machine-name">Workshop router</h2>
+<p>TinyG v8 · belt drive · 750 × 750 × 95 mm travel · trim router</p>
 </div>
-<span class="pill readonly">Selected</span>
-<button class="small" data-view="configure">Configure →</button>
+<span class="pill connected">Connected</span>
+<button class="small" data-view="configure">Open board</button>
 </div>
 <div class="section-heading">
-<h2>Find a starting point</h2>
-<span class="eyebrow">Catalogue concept</span>
-</div>
-<div class="filter-row">
-<input class="search" id="machine-search" placeholder="Find a machine…" aria-label="Find a machine">
-<button class="small selected" data-filter="all">All machines</button>
-<button class="small" data-filter="belt">Belt driven</button>
-<button class="small" data-filter="screw">Screw driven</button>
-</div>
-<div class="library-grid">
-<article class="machine-card" data-machine="X-Carve" data-drive="belt">
-<div class="machine-art">
-<svg viewBox="0 0 290 150" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-<path fill="var(--sheet)" d="m28 111 113-52 125 48-116 32Z"/>
-<path d="m37 108 110-45m-91 51 110-45m-90 51 110-45m-90 51 110-45m-90 51 110-45" opacity=".25"/>
-<path d="M52 100V41l135-2v70M46 100V32l148-2v82M46 32l40-20 147 0-39 18m-7 9 38-18v68M86 12v60"/>
-<path fill="var(--blue-wash)" d="m105 35 35-1v32l-35 2Z"/>
-<path d="M122 67v17m-5 0h10M55 100l-12 8m142 2 12 6"/>
-<circle cx="119" cy="48" r="5"/>
-</svg>
-</div>
-<div class="card-body">
-<span class="eyebrow">Template preview</span>
-<h3>X-Carve</h3>
-<p>Belt-driven gantry · choose a mechanical revision</p>
-<div class="card-bottom">
-<span class="raw-key">Source review pending</span>
-<button class="small" data-fork="X-Carve">Make a copy</button>
+<h2>Start from a machine like yours</h2>
+<div class="filter-row" role="group" aria-label="Filter by drive">
+<button class="chip selected" data-filter="all">All</button>
+<button class="chip" data-filter="belt">Belt driven</button>
+<button class="chip" data-filter="screw">Screw driven</button>
 </div>
 </div>
-</article>
-<article class="machine-card" data-machine="Shapeoko" data-drive="belt">
-<div class="machine-art">
-<svg viewBox="0 0 290 150" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-<path fill="var(--sheet)" d="m28 111 113-52 125 48-116 32Z"/>
-<path d="m37 108 110-45m-91 51 110-45m-90 51 110-45m-90 51 110-45m-90 51 110-45" opacity=".25"/>
-<path d="M52 100V41l135-2v70M46 100V32l148-2v82M46 32l40-20 147 0-39 18m-7 9 38-18v68M86 12v60"/>
-<path fill="var(--blue-wash)" d="m105 35 35-1v32l-35 2Z"/>
-<path d="M122 67v17m-5 0h10M55 100l-12 8m142 2 12 6"/>
-<circle cx="119" cy="48" r="5"/>
-</svg>
-</div>
-<div class="card-body">
-<span class="eyebrow">Template preview</span>
-<h3>Shapeoko</h3>
-<p>Rigid desktop router · controller conversion required</p>
-<div class="card-bottom">
-<span class="raw-key">Source review pending</span>
-<button class="small" data-fork="Shapeoko">Make a copy</button>
-</div>
-</div>
-</article>
-<article class="machine-card" data-machine="OpenBuilds" data-drive="screw">
-<div class="machine-art">
-<svg viewBox="0 0 290 150" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-<path fill="var(--sheet)" d="m28 111 113-52 125 48-116 32Z"/>
-<path d="m37 108 110-45m-91 51 110-45m-90 51 110-45m-90 51 110-45m-90 51 110-45" opacity=".25"/>
-<path d="M52 100V41l135-2v70M46 100V32l148-2v82M46 32l40-20 147 0-39 18m-7 9 38-18v68M86 12v60"/>
-<path fill="var(--blue-wash)" d="m105 35 35-1v32l-35 2Z"/>
-<path d="M122 67v17m-5 0h10M55 100l-12 8m142 2 12 6"/>
-<circle cx="119" cy="48" r="5"/>
-</svg>
-</div>
-<div class="card-body">
-<span class="eyebrow">Template preview</span>
-<h3>OpenBuilds</h3>
-<p>Modular extrusion builds · select your drive system</p>
-<div class="card-bottom">
-<span class="raw-key">Source review pending</span>
-<button class="small" data-fork="OpenBuilds">Make a copy</button>
-</div>
-</div>
-</article>
-<article class="machine-card" data-machine="3040 / 4060 / 6040" data-drive="screw">
-<div class="machine-art">
-<svg viewBox="0 0 290 150" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-<path fill="var(--sheet)" d="m28 111 113-52 125 48-116 32Z"/>
-<path d="m37 108 110-45m-91 51 110-45m-90 51 110-45m-90 51 110-45m-90 51 110-45" opacity=".25"/>
-<path d="M52 100V41l135-2v70M46 100V32l148-2v82M46 32l40-20 147 0-39 18m-7 9 38-18v68M86 12v60"/>
-<path fill="var(--blue-wash)" d="m105 35 35-1v32l-35 2Z"/>
-<path d="M122 67v17m-5 0h10M55 100l-12 8m142 2 12 6"/>
-<circle cx="119" cy="48" r="5"/>
-</svg>
-</div>
-<div class="card-body">
-<span class="eyebrow">Template preview</span>
-<h3>3040 / 4060 / 6040</h3>
-<p>Many electronics variants · verify before configuring</p>
-<div class="card-bottom">
-<span class="raw-key">Source review pending</span>
-<button class="small" data-fork="3040 / 4060 / 6040">Make a copy</button>
-</div>
-</div>
-</article>
-</div>
-<p class="preview-notice">Catalogue examples only: presets need a sourced revision and controller compatibility review before use.</p>
+<div class="library-grid" id="library-grid"></div>
+<p class="fine catalogue-note">Templates are examples until each has a sourced revision and a controller compatibility review. Copying one never copies safety facts or homing.</p>
 </div>
 </section>
+
+<!-- PROJECTS -->
 <section class="view" data-screen="projects" hidden>
 <div class="view-head">
-<div>
+<div class="title-block">
 <h1>Projects</h1>
-<p>Files, operations and history, together in one project.</p>
+<p>Files, setup, tools and history, kept together.</p>
 </div>
 <div class="view-actions">
-<button class="primary" data-dialog="new-project">+ New project</button>
+<button class="primary" data-dialog="new-project">New project</button>
 </div>
 </div>
 <div class="scroll-region">
 <div class="project-layout">
 <div>
 <div class="project-hero">
-<div>
-<span class="eyebrow">Workshop / 01</span>
-<h2>Mounting plate</h2>
-<p>A small fixture for the next build.<br>Aluminium · 160 × 100 × 6 mm</p>
-</div>
-<svg viewBox="0 0 260 150" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-<path fill="var(--sheet)" d="m24 65 138-43 80 48-137 53Z"/>
-<path d="m24 65 0 12 81 49 137-44V70m-137 53v3"/>
-<path d="m68 68 94-28 38 25-93 34Z"/>
-<ellipse cx="53" cy="68" rx="6" ry="3"/>
-<ellipse cx="161" cy="36" rx="6" ry="3"/>
-<ellipse cx="215" cy="70" rx="6" ry="3"/>
-<ellipse cx="109" cy="108" rx="6" ry="3"/>
-</svg>
-</div>
-<div class="section-heading">
-<h2>Operations</h2>
-<span class="muted">Arm each operation separately</span>
-</div>
-<div class="file-list">
-<div class="file-row">
-<div class="file-icon">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-<path d="M5 2h9l5 5v15H5Z M14 2v6h5M8 12h8m-8 4h8"/>
-</svg>
-</div>
-<div>
-<strong>01 · Drill mounting holes</strong>
-<p>plate-drill.nc · v2 · 42 lines</p>
-</div>
-<span class="file-meta raw-key">3 mm drill</span>
-<button data-operation="drill">Inspect</button>
-</div>
-<div class="file-row">
-<div class="file-icon">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-<path d="M5 2h9l5 5v15H5Z M14 2v6h5M8 12h8m-8 4h8"/>
-</svg>
-</div>
-<div>
-<strong>02 · Cut the contour</strong>
-<p>plate-contour.nc · v3 · 246 lines</p>
-</div>
-<span class="file-meta raw-key">3.175 mm</span>
-<button data-operation="contour">Inspect</button>
+<canvas id="project-canvas" aria-label="The finished part, simulated" role="img"></canvas>
+<div class="project-hero-text">
+<span class="kicker">Workshop</span>
+<h2 class="project-name">Mounting plate</h2>
+<p>A small fixture for the next build. 6061 aluminium, 160 × 100 mm from 6.35 mm plate.</p>
+<span class="sync-line"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.3 7a2.8 2.8 0 0 0 .2 5.5Z"/><path d="m6.2 9.4 1.4 1.4 2.6-2.6"/></svg>Synced 2 minutes ago</span>
 </div>
 </div>
-<div class="section-heading">
-<h2>Project notes</h2>
-</div>
-<p class="muted">Check stock thickness and workholding before preparing the job. This is sample content, not a machining prescription.</p>
+<div class="section-heading tight"><h2>mounting-plate.nc · version 3</h2><button class="small" data-operation="open">Open in Run</button></div>
+<div class="op-list" id="op-list"></div>
 </div>
 <aside class="project-side">
-<span class="eyebrow">Project details</span>
-<div class="info-row">
-<span>Machine</span>
-<strong>Workshop router</strong>
-</div>
-<div class="info-row">
-<span>Storage</span>
-<strong>Example only</strong>
-</div>
-<div class="info-row">
-<span>Cloud</span>
-<strong>Not connected</strong>
-</div>
-<button class="wide" data-dialog="account">Account & sync</button>
-<div class="timeline">
-<p>Contour revised<small>Example · version 3</small>
-</p>
-<p>Drilling operation added<small>Example · version 2</small>
-</p>
-<p>Project created<small>No job has run from this prototype</small>
-</p>
-</div>
+<h3>Setup</h3>
+<dl class="facts">
+<div><dt>Machine</dt><dd>Workshop router</dd></div>
+<div><dt>Stock</dt><dd>6061 · 180 × 120 × 6.35</dd></div>
+<div><dt>Workholding</dt><dd>Fixture plate · 4 clamps</dd></div>
+</dl>
+<h3>History</h3>
+<ol class="history">
+<li><strong>Pocket feed lowered</strong><small>Version 3 · today</small></li>
+<li><strong>Tabs added to the cut-out</strong><small>Version 2 · yesterday</small></li>
+<li><strong>Project created</strong><small>Version 1 · 28 Oct</small></li>
+</ol>
+<p class="fine">History is a record, never a resumable job.</p>
 </aside>
 </div>
 </div>
 </section>
+
+<!-- ANALYZE -->
 <section class="view" data-screen="analyze" hidden>
 <div class="view-head">
-<div>
-<h1>Operation analysis</h1>
-<p>Mounting plate / Contour · analysis concept, illustrative values.</p>
+<div class="title-block">
+<h1>Analysis</h1>
+<p>mounting-plate.nc · version 3 · estimates, not measurements</p>
 </div>
-<div class="view-actions">
-<button data-view="run">Back to preview</button>
-</div>
+<div class="view-actions"><button data-view="run">Back to the preview</button></div>
 </div>
 <div class="scroll-region">
-<div class="analysis-grid">
-<div class="metric">
-<span class="eyebrow">Estimated duration</span>
-<strong>8m 42s</strong>
-<span class="muted">An estimate, not a motion bound</span>
+<div class="metrics">
+<div class="metric"><span>Estimated time</span><strong id="m-time">15 min</strong><small>Includes two manual tool changes</small></div>
+<div class="metric"><span>Toolpath length</span><strong id="m-length">9.9 m</strong><small>Cutting and rapids</small></div>
+<div class="metric"><span>Tool changes</span><strong>2</strong><small>T5, then T1 · both in your library</small></div>
+<div class="metric"><span>Shortest moves</span><strong>0.16 mm</strong><small>In the pocket's finishing lap</small></div>
 </div>
-<div class="metric">
-<span class="eyebrow">Toolpath length</span>
-<strong>2.4 m</strong>
-<span class="muted">Cutting + travel · sample data</span>
+<div class="advisor">
+<div class="advisor-head">
+<div><h2>Feeds and speeds</h2><p>Checks each operation against your material, tool, machine and coolant.</p></div>
+<span class="tag">Preview of a later engine</span>
 </div>
-<div class="metric">
-<span class="eyebrow">Optimization</span>
-<strong>Review first</strong>
-<span class="muted">Never changes an armed file</span>
+<div class="advisor-context">
+<label class="field"><span>Material</span><span class="select-wrap"><select id="adv-material"></select></span></label>
+<div class="field"><span>Machine</span><strong class="static">Workshop router · belt · 710 W router</strong></div>
+<div class="field"><span>Coolant</span><div class="seg" role="group" aria-label="Coolant"><button data-coolant="none" class="selected">None</button><button data-coolant="air">Air</button><button data-coolant="mist">Mist</button><button data-coolant="flood">Flood</button></div></div>
 </div>
+<div class="advisor-table-wrap">
+<table class="advisor-table">
+<thead><tr><th scope="col">Operation</th><th scope="col">Tool</th><th scope="col">Feed</th><th scope="col">Speed</th><th scope="col">Depth</th><th scope="col">Chip load</th><th scope="col">Removal</th><th scope="col">Verdict</th></tr></thead>
+<tbody id="advisor-rows"></tbody>
+</table>
 </div>
-<div class="analysis-chart">
-<div class="section-line">
-<h2>One operation, in detail</h2>
-<span class="eyebrow">Planned feed · illustration</span>
+<div class="advisor-detail" id="advisor-detail"></div>
 </div>
-<svg viewBox="0 0 900 180" role="img" aria-label="Illustrative planned feed timeline">
-<path d="M30 20v130h850M30 100h850M30 50h850" fill="none" stroke="var(--rule)"/>
-<path d="M30 150 70 150 80 80 180 80 190 130 220 130 240 45 430 45 440 130 490 130 500 65 720 65 740 120 790 120 800 150 880 150" fill="none" stroke="currentColor" stroke-width="2"/>
-<text x="30" y="175" fill="var(--muted)" font-size="12">00:00</text>
-<text x="830" y="175" fill="var(--muted)" font-size="12">08:42</text>
-</svg>
-<div class="section-line">
-<p class="muted">Select a span to inspect its source lines. Generation and arc fitting will live here.</p>
-<button data-dialog="optimization">Compare an optimization</button>
+<div class="analysis-row">
+<div class="panel">
+<div class="panel-head"><h2>Tool changes</h2><span class="fine">Found before the job starts</span></div>
+<ol class="change-list" id="change-list"></ol>
+</div>
+<div class="panel">
+<div class="panel-head"><h2>Planned feed over the job</h2><button class="small" data-dialog="optimization">Compare an optimisation</button></div>
+<svg id="plan-chart" viewBox="0 0 600 150" preserveAspectRatio="none" role="img" aria-label="Planned feed across the three operations"></svg>
+<p class="fine">Select a span to see its source lines. Arc fitting and segment merging live here, and always make a new file version.</p>
 </div>
 </div>
 </div>
 </section>
 </main>
+
+<div class="account-menu" id="account-menu" role="menu" hidden>
+<div class="account-id">
+<span class="avatar large" aria-hidden="true">JD</span>
+<div><strong>Jamie Doe</strong><small>Signed in with GitHub · @jdoe</small></div>
+</div>
+<div class="sync-row" id="sync-row" data-sync="synced">
+<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.3 7a2.8 2.8 0 0 0 .2 5.5Z"/></svg>
+<div><strong id="sync-title">All changes synced</strong><small id="sync-detail">Projects, machines and tools · 2 minutes ago</small></div>
+</div>
+<button role="menuitem" class="menu-item" data-dialog="account">Account and devices</button>
+<button role="menuitem" class="menu-item" id="sign-out">Sign out</button>
+<p class="menu-foot">Homing, safety confirmations and permission to resume stay on this computer and never sync.</p>
+</div>
+
 <div class="dialog-wrap" id="dialog-wrap" hidden>
 <section class="dialog" role="dialog" aria-labelledby="dialog-title">
-<div class="section-line">
-<h2 id="dialog-title">Details</h2>
-<button class="icon-button quiet" id="close-dialog" aria-label="Close panel">×</button>
-</div>
-<div id="dialog-content">
-</div>
-<div class="dialog-actions">
-<button id="dialog-cancel">Close</button>
-<button class="primary" id="dialog-action" hidden>Continue</button>
-</div>
+<div class="dialog-head"><h2 id="dialog-title">Details</h2><button class="icon-button quiet" id="close-dialog" aria-label="Close panel"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg></button></div>
+<div id="dialog-content"></div>
+<div class="dialog-actions"><button id="dialog-cancel">Close</button><button class="primary" id="dialog-action" hidden>Continue</button></div>
 </section>
 </div>
 </div>
 </div>
+
 <footer class="footer">
-<span>DESIGN PREVIEW · no connection or board writes</span>
-<span class="footer-secondary">Local examples · changes reset on reload</span>
-<span>Increment 01</span>
+<span>Design preview · no connection, no board writes</span>
+<span class="footer-secondary">Examples reset on reload</span>
+<span>Increment 2</span>
 </footer>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </div>

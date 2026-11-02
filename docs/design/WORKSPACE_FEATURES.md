@@ -1,0 +1,281 @@
+# Workspace features and data model
+
+Status: design for review (increment 2). It does not change shipping code. The
+[clickable prototype](workspace-prototype/) shows each feature; the
+[tenets](WORKSPACE_TENETS.md) and [proposal](WORKSPACE_PROPOSAL.md) set the rules.
+Firmware facts are from edge-next d254eb0b and the TinyG v8 bootloader, as
+reported by the firmware maintainer's session.
+
+## Phase tags
+
+| Tag | Meaning |
+| --- | --- |
+| **P1** | Read-only, ships now: read, show, prepare. Nothing is written to the board. |
+| **P2** | Motion control: jog, home, set zero, spindle and coolant commands. |
+| **P3** | Jobs: arm, stream, pause/resume, tool changes, live job data. |
+| **PW** | Settings writes: restore, configurator apply. A later, separately reviewed phase. |
+| **PF** | Firmware update: its own safety-reviewed phase (see Firmware update). |
+| **Host** | Runs in the browser only; needs no firmware change. |
+| **Mock: firmware pending** | UI is built against a mocked value. It becomes real when the firmware ships the feature. Mocks live behind one seam, `telemetry.mjs` in the prototype (the session snapshot in the app). Swapping in real telemetry changes that one provider, not the views. |
+
+Pause and Stop job are never part of any phase gate: they are always reachable
+and enabled whenever a port is open (SAFETY §4.1). OD-6 labels: "Pause" and
+"Stop job"; W1 stays on top; the paused state reads "Paused · spindle still on".
+
+## Entities
+
+All identifiers are stable ids, never display names. Lengths are millimetres,
+feeds mm/min, speeds rpm. Every cloud-synced record carries
+`{ id, owner, revision, updatedAt, device }`; provenance is written by the
+server (SAFETY threat table). Nothing below carries homing, safety facts,
+confirmations or permission to resume: those stay on the device.
+
+### Machine profile (Host; P1 to view, PW to apply)
+
+```
+Machine { id, name, templateId?, templateVersion?, controller: {family, hv}, drive: belt|screw|rack,
+          travel: {x, y, z}, axes: [{axis, motor, travelPerRev, stepAngle, microsteps}],
+          spindle: {kind, minRpm, maxRpm, powerW, cooling}, rigidity: hobby|rigid|industrial }
+Template { id, name, drive, source, revision, version, illustration, reviewStatus }
+```
+
+Catalogue cards (X-Carve, Shapeoko, OpenBuilds LEAD and WorkBee, 3040/6040,
+Custom) each have their own drawing, generated from simple solids in the
+blueprint style. A copy pins the template version and copies no board settings.
+
+### Workholding and bed (Host, P1)
+
+```
+Bed     { width, depth, thickness, material, surfacedAt? }        // spoilboard; bed top is z = 0 of the scene
+Fixture { id, name, source: {file, kind: dxf|svg, hash}, outline: [[x,y]...], holes: [[x,y,r]...],
+          height, position: {x, y}, material, clamps?: [{kind, x, y, w, d, h}] }
+```
+
+DXF (LWPOLYLINE, CIRCLE) and SVG (rect, circle, polygon, polyline, simple
+paths) are parsed locally; the largest closed outline becomes the solid and
+circles become holes. The file never leaves the computer unless the project
+syncs. Units are taken as millimetres; a unit picker is a later refinement.
+
+### Stock and material (Host, P1)
+
+```
+Stock    { shape: block|round|sheet, width, depth, diameter?, thickness, materialId,
+           position: {x, y}, zero: {corner: front-left|...|center, height: top|bottom} }
+Material { id, name, family: metal|wood|plastic|composite, color,
+           cutData: {vc: [min,max], fzPerD, docSlotFactor, mrrHobby}, coolantMatters }
+```
+
+Heights are shown as a stack above the machine table (bed top, fixture top,
+stock top) with the Z room left. A check warns when the file's expected zero
+differs from the chosen zero, and when the part does not fit the stock.
+
+### Tool library (Host only; cloud-synced)
+
+```
+Tool { id, number, type: flat|ball|vbit|drill|oflute|chamfer, diameter, flutes, fluteLength,
+       overallLength, shankDiameter, angle?, material, coating, vendor?, notes? }
+```
+
+The library is host-side. The firmware has no tool table and none is planned:
+it reports only the active tool (`tool` in `sr`, the T word) and the G43/G49
+tool length. Each operation chooses its tool from the library.
+
+**Firmware tool table (Mock: firmware pending).** The UI reserves a slot table
+(`slot -> {T, length, diameter}`) beside the library with a "Compare with the
+controller" action. No design is decided; it is an owner question.
+
+### Operation and job (P1 to prepare; P3 to run)
+
+```
+File      { id, projectId, version, name, hash, lines, sanitizerResult, preScan }
+PreScan   { toolChanges: [{line, from, to, known}], unknownTools: [T], shortestMove, estimate }
+Operation { id, fileId, number, name, toolId, rpm, feed, plunge, doc, woc, coolant: none|air|mist|flood }
+Job       { id, fileId, fileVersion, machineId, setupSnapshot, operations: [...], estimate,
+            checks: [{kind, status: ok|warn|todo, detail}] }
+```
+
+The **Job card** in the Run inspector replaces "Next operation": file and
+version, operations with their tool pickers, stock, workholding, estimated
+time, checks (travel, part in stock, clamp clearance, tool changes and library,
+feeds and speeds, work zero, homing, firmware version), then the start flow
+"Check, Set zero, Start". Start is disabled until P3 and says so.
+
+### Manual tool change (Host; P3)
+
+Edge-next treats a bare T as a selection only. M6 is queued and changes `sr`
+`tool` when executed, but the machine never pauses, so the host must stop:
+
+1. The pre-scan lists every M6 (T may share the line or come earlier) and flags
+   tool numbers missing from the library.
+2. Streaming stops before the M6 line.
+3. Run waits for `stat` idle with an empty planner queue.
+4. The tool-change card shows the current tool, the next tool from the library
+   (diameter, length), the spindle state, "move to the change position"
+   (P2 jog), the optional Z re-zero or tool-length probe, then Resume.
+5. On Resume Run sends the M6 line itself, so `sr` `tool` stays truthful, then
+   streams on.
+
+Tool changes appear as markers in the job timeline and in the G-code listing.
+An opt-in firmware mode where M6 pauses until cycle start is on the
+maintainer's list: a possible firmware feature, not a dependency.
+
+### Jog (P2)
+
+The Run inspector's jog section (where the read-only "Inspect configuration"
+block was): XY pad with diagonals and go-to-XY-zero, Z up/down, steps 0.1, 1,
+10, 50 and Hold, jog speed, and set-zero and go-to-zero per axis.
+
+- Each press is one single-axis move to a target inside the soft limits,
+  `{"jogx": <target>}` (also jogy, jogz, joga), or a small G91 G1 move.
+- There is no continuous jog with cancel. Hold is built from short steps;
+  releasing sends `!` (feedhold, honoured at once), then `%` to flush once the
+  hold has stopped (`%` works only between lines).
+- No latency is promised. In P1 the controls are visible and disabled with
+  "Jogging arrives with motion control"; during a job, "not available while a
+  job is in progress"; on old firmware, locked until the update.
+
+### Spindle and coolant (commands P2; state Mock: firmware pending)
+
+Commands: M3/M4/M5 with S; polarity from `spep`/`spdp`. Coolant M7/M8/M9.
+
+**Spindle state report (Mock: firmware pending).** The owner decided to design
+for a reported state: on/off, direction and actual speed, shown with a dial
+and "Commanded M3 S18000" beside it. Today no status key reports the spindle,
+so until the key ships the app shows only the last commanded value and says so.
+Candidate shape (not decided): `{"sr":{"spe":1,"spd":0,"sps":17940}}`.
+Coolant has no report and none is planned: it always shows the last command.
+
+### Overrides (P3 UI; Mock: firmware pending)
+
+Feed and spindle override sliders with -10 and +10 and Reset to 100 %, and a
+rapid override 25/50/100 %. Edge-next has no overrides: M48-M51 are rejected
+and there are no realtime override characters. A runtime shape such as
+`{rt:{fo:0.8}}` is only under discussion, so the wire format is not fixed. The
+section is tagged "Mock · firmware pending", is enabled only while a job runs,
+and sends nothing.
+
+### Live job analysis (P3; Host)
+
+A "Live job" tab next to G-code and Console. Computed host-side from today's
+reports: default `sr` fields `line, posx..posa, feed` (commanded F), `vel`
+(actual velocity), `unit, coor, dist, admo, frmo, momo, stat`, change-filtered
+every `si` ms (default 250, minimum 100), plus `qr` with `qv` 1 or 2.
+
+```
+LiveSample { t, line, pos, feed, vel, stat, qr }
+LiveEvent  { t, kind: info|warn|toolchange, text, line? }
+```
+
+It shows progress, line N of M, elapsed and remaining (estimate), actual
+against programmed feed over the last 60 s, planner buffers free, and an event
+stream. `qr` high while cutting means the planner is starving (the sender is
+not keeping up); around 11-12 means full and corner- or jerk-limited. Short
+segments that starve the planner point to arc fitting in Analyze. A firmware
+feed-limit advisor reported through `rt` is planned upstream and optional here.
+
+### Feeds and speeds advisor (P1 UI; engine later; Host)
+
+```
+Advice { operationId, materialId, toolId, machineId, coolant,
+         chipLoad, surfaceSpeed, removalRate, verdict: within|check|too-aggressive,
+         findings: [{level, text}], suggestion?: {feed, doc, passes, coolant} }
+```
+
+Lives in Analyze, linked from the Job card check. Inputs: the stock material,
+each operation's tool, the machine's rigidity and spindle, and coolant (none,
+air, mist, flood). Example: a 3.175 mm two-flute end mill in 6061 at 1500
+mm/min, 2 mm deep, no coolant is "Too aggressive" (63 % of diameter in a slot,
+0.042 mm/tooth, 9.5 cm³/min); it suggests 900 mm/min, 4 passes of 0.5 mm, mist
+or air. "Make a revised copy" creates a new file version for review, never an
+edit of an armed file. The prototype's rules are rough placeholders.
+
+### Preview and simulation (P1; Host)
+
+The 3D view draws bed, fixture, clamps, stock and toolpath, and removes
+material from a heightfield using the tool's real shape (flat, ball, V,
+drill). Modes: Toolpath, Result, Both; cameras 3D, Top, Front, Fit; drag to
+orbit. The timeline scrubs or plays the simulation. During a job the same view
+follows reported progress. It is not the interpreter and not a collision
+check; W13 stays on the view.
+
+### Account and sync (Host)
+
+An avatar menu replaces the old panel: "Signed in with GitHub", one sync row
+(synced, syncing, paused while a job runs, offline), Account and devices, and
+Sign out (disabled while a job runs). The avatar carries a small sync badge.
+Synced: projects, files, setups, machine profiles, tools, settings backups.
+
+### Firmware gate, update and backups (Configure: Wiring · Firmware · Backups)
+
+**Minimum firmware gate (P1).** A board below the supported minimum (for
+example 440.20 when 450.01 is current) may connect, identify, be viewed and be
+backed up. Jobs, jogging and settings writes stay locked; the strip says why,
+and the board opens straight into the Update panel.
+
+**Settings backup (P1, read-only).** Taken automatically before any update and
+on demand. Saved to the account by board id and date with the firmware
+version. Read token by token in JSON, never by parsing `$$`; send G21 first so
+values are in mm. Cover `sys`, motors 1-4, axes x/y/z/a/b/c, `p1`, offsets
+g54-g59/g92/g28/g30, and the `sr` list by name (never se00-se29). Per board: a
+list, diff of any two or against the live board, export and import as JSON.
+
+```
+Backup { id, boardId, hv, fb, takenAt, reason: manual|before-update|first-connect|import, tokens: {name: value} }
+```
+
+**Restore (PW).** A reviewed write: show the diff, then apply. Never write
+`fb fv hp hv id baud`. Write one token at a time and wait for each reply
+(EEPROM writes stall the board). Comms tokens `js ee ec ej ex rxm` last, `jv`
+very last. Restore by token name so an older backup maps onto newer firmware;
+unknown or renamed tokens are listed in the diff.
+
+**Firmware update (PF: separate review).** The panel lists signed releases for
+the board's hardware version only, changelog style, with Recommended on the
+newest. Steps: back up → restart into update mode → write with progress →
+verify → reconnect → version check → offer to restore.
+
+- Normal entry: open the port at 115200 8N1, send `{"boot":1}` plus newline;
+  the board resets into xboot and waits 60 s; discard leftovers, send ESC,
+  flash over AVR109 block mode with CRC (part x192a3). No DTR/RTS.
+- Recovery: with no running application, the user unplugs and replugs USB (or
+  resets) while Run sends ESC repeatedly within the short LED-blink window. The
+  panel shows "Unplug the USB cable and plug it back in now" with a countdown.
+  The bootloader survives a failed flash, so a retry always works.
+- Before writing, Run also takes a raw EEPROM read over AVR109 and stores it
+  with the backup as a second recovery copy. The token-by-token JSON backup
+  stays the primary copy used for restore.
+- If the new firmware resets its own settings on first boot because the EEPROM
+  layout changed, the restore step brings them back, and the panel says so in
+  plain words: the new firmware started with fresh settings and your backup is
+  being applied (as a reviewed write).
+- **Never send chip erase.** xboot's `e` erases the application and all of
+  EEPROM. Page erase-write only (avrdude `-D`). Backup and restore stay
+  mandatory around every flash because the settings layout can change.
+- The flasher is a new confined module beside the Web Serial transport, under
+  the same confinement gates. Releases come from a Run-hosted signed manifest:
+  per hv a SHA-256-hashed `.hex` and a changelog, published by the maintainer.
+
+## Firmware dependencies
+
+| Feature | Status | Needs |
+| --- | --- | --- |
+| Live job data, progress, starvation | Works today | sr fields above, qr with qv |
+| Jog | Works today (P2) | jogx/jogy/jogz/joga, `!` then `%` |
+| Manual tool change | Works today (P3) | Host stops before M6; optional opt-in M6 pause later |
+| Spindle state report | Mock: firmware pending | A spindle key in sr/rt |
+| Overrides | Mock: firmware pending | Runtime override, perhaps `{rt:{fo}}` |
+| Firmware tool table | Mock: firmware pending | A new design; not planned |
+| Feed-limit advisor via rt | Planned upstream | Optional |
+| Firmware update | PF | Signed manifest and hosting; bootloader protocol as above |
+
+## Open questions for the owner
+
+1. Firmware tool table: wanted at all? If so, who owns its design?
+2. Spindle state key: shape and units, and whether actual speed needs a sensor.
+3. Overrides: wire format and ranges; does rapid override belong in v1?
+4. Release hosting and signing: who signs, where the manifest lives, the key.
+5. Minimum supported firmware number and how it is raised over time.
+6. The W2 label: OD-6 says "Pause", but SAFETY.md W2 and `strings.ts` still
+   carry the long label. The prototype shows "Pause" and keeps the canonical
+   tooltip; the SAFETY.md amendment and T-S32 update are still to do.
+7. Units for imported DXF/SVG fixtures: assume millimetres, or ask each time?

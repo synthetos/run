@@ -3,6 +3,14 @@
 Status: design prototype for review, not shipping application code. This
 increment stops before the SPA/session migration. This design increment changes no shipping app or safety implementation. Direction: [Workspace tenets](WORKSPACE_TENETS.md).
 
+Increment 2 (owner review) adds workholding and stock, the tool library and
+manual tool change, jog, spindle and coolant, overrides, the live job console,
+the feeds and speeds advisor, new machine drawings, a minimal account menu and
+firmware update and backups. Its spec and data model are in
+[WORKSPACE_FEATURES.md](WORKSPACE_FEATURES.md); where it differs from this
+document (for example the OD-6 labels and the Job card replacing "Next
+operation"), increment 2 wins.
+
 ## The working model
 
 One persistent shell holds one machine session. A fixed warning and machine
