@@ -162,7 +162,7 @@ Code: `apps/web/src/live/` (`authGate.ts`, `advisoryGate.ts`, `c1.ts`,
 | D1 gate at Connect, UI/auth layer only; never reachable from the machine path | `AuthGate` over three providers (`run-session`: none until A1-07; `access`: staging only; `bench`: bench channel, loopback only); dependency-cruiser `machine-path-never-reaches-live-gates` | `apps/web/test/liveEntry.test.ts` "D1 sign-in gate", "signed out"; `tools/gates/test/bench-acceptance.test.ts` "AuthGate"; `channel.test.ts` bench identity | PASS |
 | Signed out: Connect refused | `LiveEntry.begin` refuses before the advisory, C1 or the chooser | `liveEntry.test.ts` "signed out: Connect is refused" | PASS |
 | Mid-session identity loss changes nothing in the machine path | `LiveGates`: never-gated actions allowed without an identity read; nothing in live/ sends the worker anything but `open`, `close`, `subscribe` | `liveEntry.test.ts` "mid-session loss of the identity" | PASS |
-| Staging: verified Access identity | `GET /api/identity`: RS256 under the team certs, AUD, issuer, expiry; staging Worker on the staging host only | `workers/run/test/identity.test.ts` | PASS (unit); the live check needs Access configured (LEAD_ACTIONS) |
+| Staging: verified Access identity | `GET /api/identity`: RS256 under the team certs, AUD, issuer, expiry; staging Worker on the staging host only | `workers/run/test/identity.test.ts` | PASS (unit); the live check needs Access configured (`docs/ops/access.md`) |
 | T-S31 / H27: signed advisory, `no-store`, revoked or unverifiable refuses LIVE, 7-day cache | `checkAdvisory` (re-verifies the cached raw file on use, never falls back to the cache after a bad fetch) | `packages/protocol/test/safetyAdvisory.test.ts`; `liveEntry.test.ts` "advisory gate" | PASS (unit) |
 | T-S75: production rejects staging entries; expired cache fails closed; revocation while LIVE denies Arm/Start/jog, never a job or a stop | per-environment entries and keys; `AdvisoryPoller` (15 min, sticky revocation) feeding `LiveGates` | `safetyAdvisory.test.ts` "T-S75"; `liveEntry.test.ts` "T-S75" | PASS (unit) |
 | C1 per LIVE session, full/short by version and date in this browser | `c1.ts` (`ack.safety@<version>@<date>` in `device-safety`; version = hash of the full text) | `liveEntry.test.ts` "C1 per LIVE session", "same-day reconnect" | PASS (unit); browser E2E needs a signed advisory (below) |
@@ -183,7 +183,7 @@ Open with this task:
   Connect reaches the chooser inside the click, chooser stubbed).
 - **The committed advisory is unsigned** (`apps/web/public/safety-advisory.json`
   has no entries), so every origin refuses LIVE until the owner signs it
-  (`pnpm sign:advisory`, LEAD_ACTIONS). For the same reason the browser E2E
+  (`pnpm sign:advisory`, `docs/bench/GUIDE.md` §2.3). For the same reason the browser E2E
   for C1 short/full cannot pass the advisory gate yet; it is covered by the
   controller tests above.
 - `Cache-Control` for `/safety-advisory.json` is the asset default; the

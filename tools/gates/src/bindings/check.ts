@@ -10,7 +10,7 @@
  * allowlist, deploy/wranglerConfig.ts, does not allow any binding yet: Phase
  * 1 adds exactly that one). Every other wrangler configuration in the tree
  * that binds accounts in any way is refused. The accounts and site
- * repositories carry the matching rule (docs/LEAD_ACTIONS.md Step 0).
+ * repositories carry the matching rule (docs/ops/account.md §1).
  *
  * Fails closed: a wrangler.toml cannot be read by this dependency-free check,
  * so any is refused (use wrangler.json or wrangler.jsonc); a configuration

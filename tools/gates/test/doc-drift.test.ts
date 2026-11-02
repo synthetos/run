@@ -35,9 +35,9 @@ const SIGNED_MANIFEST = ['firmware/approved-builds.json', 'firmware/approved-bui
  */
 const VENDORED = ['SAFETY.md', 'docs/safety/OLD-S.md'];
 
-/** The marker both owner pages carry while the signed bench note predates D4. */
+/** The marker the release-key page carries while the signed bench note predates D4. */
 const PENDING_RESIGN_MARKER = 'signed bench note predates D4';
-const PENDING_RESIGN_PAGES = ['docs/LEAD_ACTIONS.md', 'docs/ops/release-key.md'];
+const PENDING_RESIGN_PAGES = ['docs/ops/release-key.md'];
 
 const SELF = 'tools/gates/test/doc-drift.test.ts';
 
@@ -95,7 +95,7 @@ describe('D4 is done: no stale build-number claim', () => {
     expect(header).toMatch(/never classified\s+\*?\s*by `fb` alone/);
   });
 
-  it('a stale signed bench note is recorded on both owner pages, and the record goes when the note is re-signed', () => {
+  it('a stale signed bench note is recorded on the release-key page, and the record goes when the note is re-signed', () => {
     const stale = benchNotes().some((n) => staleIn(n).length > 0);
     for (const page of PENDING_RESIGN_PAGES) {
       expect(read(page).includes(PENDING_RESIGN_MARKER), `${page} records the pending re-sign: ${String(stale)}`).toBe(stale);
@@ -107,7 +107,8 @@ describe('status pages', () => {
   it('the README status names P0-15 and where its owner steps are', () => {
     const status = /> \*\*Status:[\s\S]*?(?=\n\n)/.exec(read('README.md'))?.[0] ?? '';
     expect(status).toContain('P0-15');
-    expect(status).toContain('docs/LEAD_ACTIONS.md');
+    expect(status).toContain('docs/ops/');
+    expect(status).toContain('release-key.md');
   });
 
   // Needs the synthetos.com clone: RUN_SITE_REPO=<path> (as tokens.test.ts).
@@ -128,7 +129,7 @@ describe('status pages', () => {
         if (/DECIDED/.test(row(d))) {
           expect(odRow(od), od).not.toMatch(/OPEN/);
           expect(odRow(od), od).toContain(d);
-          expect(read('docs/LEAD_ACTIONS.md'), d).toContain(d);
+          expect(owner, d).toContain(d);
         }
       }
     },

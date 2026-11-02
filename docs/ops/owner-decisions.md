@@ -17,8 +17,8 @@ update this page and the pages it names in one reviewed PR.
 | OD-4 | In Phase 1, a session under ORPHANED_MOTION cannot be disconnected from the app (the matrix allows only Stop job and Reset controller as exits, and Phase 1 has neither ^D nor ^X). Keep that, or allow Disconnect there in Phase 1? | **DECIDED (owner, 2026-11-02): keep it (option 1).** No Disconnect under ORPHANED_MOTION; the bench guide says unplug the USB or close the tab | — |
 
 OD-1, OD-2 and OD-3 are recorded in `DECISIONS.md` (D40, D39, D41), and the gates and ops pages
-now implement them (`docs/LEAD_ACTIONS.md` Step 0 summarises what changed
-and what the accounts and site repositories must match).
+now implement them (`docs/ops/account.md` §1 records what the accounts and
+site repositories must match).
 
 ---
 
@@ -37,7 +37,7 @@ joins.
 and, on every safety-path PR, the SAFETY §8 checklist and a recorded
 independent review committed as `docs/safety/reviews/pr-<N>.md`, bound to
 the head commit (`docs/safety/reviews/README.md`). The ruleset
-(`docs/LEAD_ACTIONS.md` Step 6, `docs/ops/branch-protection.md` §1) requires
+(`docs/ops/branch-protection.md` §1) requires
 zero approvals and has Code Owner review and last-push approval off, since
 GitHub never lets authors approve their own PRs. The `safety-review-job`
 CI-policy rule against a PR weakening its own enforcement workflow stays,
@@ -65,7 +65,7 @@ review' approval"), and the trust fix for `safety-review` (reviewers' actual
 repository permission, native branch protection as the primary control)
 makes it stricter, not looser.
 
-**Options for the owner** (from `docs/LEAD_ACTIONS.md` Step 0b):
+**Options for the owner** (from the owner's checklist, Step 0b):
 1. Add a second maintainer with write access. This is the intended fix and
    needs no change to any rule.
 2. Put the owner on the ruleset's bypass list "for pull requests only", and
@@ -89,12 +89,12 @@ the same account.
 
 **As implemented here.** `workers/run/wrangler.jsonc`,
 `tools/gates/src/deploy/wranglerConfig.ts`, `docs/ops/account.md`,
-`docs/ops/branch-protection.md` and `docs/LEAD_ACTIONS.md` describe the
+and `docs/ops/branch-protection.md` describe the
 current account with the D39 lockdown; the account id placeholder is
 `RUN_ACCOUNT_ID_PLACEHOLDER` (still refused by every deploy). `pnpm
 ci-policy` refuses any wrangler configuration other than run's that binds
-`accounts` (`tools/gates/src/bindings/check.ts`), and `docs/LEAD_ACTIONS.md`
-Step 0 records the matching requirement for the accounts and site
+`accounts` (`tools/gates/src/bindings/check.ts`), and `docs/ops/account.md`
+§1 records the matching requirement for the accounts and site
 repositories.
 
 The analysis that led to it:
@@ -116,7 +116,7 @@ try to add `staging.run.synthetos.com` as a custom domain of a throwaway
 Worker in it. If that works with no zone permission on the CI token, there is
 nothing to decide.
 
-**Options if it does not work** (from `docs/LEAD_ACTIONS.md` Step 0a):
+**Options if it does not work** (from the owner's checklist, Step 0a):
 1. **Subdomain zone.** A zone `run.synthetos.com` in the dedicated account,
    delegated with NS records (and a DS record for DNSSEC) from
    `synthetos.com`. Keeps D34's isolation. Plan limits on subdomain zones

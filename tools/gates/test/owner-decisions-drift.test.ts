@@ -1,8 +1,8 @@
 /**
  * D39 and D40 are carried into the repository (docs/ops/owner-decisions.md).
  * Nothing that configures or deploys run may still describe the superseded
- * dedicated D34 account, and the owner's checklist must give the D40
- * ruleset.
+ * dedicated D34 account, and the ops pages must give the D40 ruleset and
+ * the accounts-binding rule the other repositories must match.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -31,7 +31,7 @@ const CURRENT = [
 describe('D39: the current account, not a dedicated one', () => {
   it('the placeholder no longer names D34, and the committed config carries the D39 one or a real id', () => {
     expect(ACCOUNT_ID_PLACEHOLDER).toBe('RUN_ACCOUNT_ID_PLACEHOLDER');
-    for (const path of [...CURRENT, 'docs/LEAD_ACTIONS.md', 'docs/ops/account.md', 'docs/ops/branch-protection.md']) {
+    for (const path of [...CURRENT, 'docs/ops/account.md', 'docs/ops/branch-protection.md']) {
       expect(read(path), path).not.toContain('D34_RUN_ACCOUNT_ID_PLACEHOLDER');
     }
   });
@@ -41,8 +41,8 @@ describe('D39: the current account, not a dedicated one', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('the account page and the owner checklist describe the D39 lockdown', () => {
-    for (const path of ['docs/ops/account.md', 'docs/LEAD_ACTIONS.md']) {
+  it('the account page describes the D39 lockdown', () => {
+    for (const path of ['docs/ops/account.md']) {
       const text = read(path);
       expect(text, path).toMatch(/current\*{0,2} Cloudflare account/);
       expect(text, path).toMatch(/hardware(-| )(security )?key/);
@@ -52,8 +52,8 @@ describe('D39: the current account, not a dedicated one', () => {
     expect(read('docs/ops/account.md')).toMatch(/no local `wrangler login`/i);
   });
 
-  it('the owner checklist records the matching accounts-binding rule for the accounts and site repositories', () => {
-    const text = read('docs/LEAD_ACTIONS.md');
+  it('the account page records the matching accounts-binding rule for the accounts and site repositories', () => {
+    const text = read('docs/ops/account.md');
     expect(text).toContain('**accounts repository**');
     expect(text).toContain('**site repository (synthetos.com) and forumbot**');
     expect(text).toMatch(/refuse any\s+wrangler configuration that binds `accounts`/);
@@ -61,8 +61,8 @@ describe('D39: the current account, not a dedicated one', () => {
 });
 
 describe('D40: the ruleset for a single maintainer', () => {
-  it('the owner checklist ruleset requires zero approvals and no Code Owner or last-push approval, and keeps safety-review required', () => {
-    const text = read('docs/LEAD_ACTIONS.md');
+  it('the branch protection ruleset requires zero approvals and no Code Owner or last-push approval, and keeps safety-review required', () => {
+    const text = read('docs/ops/branch-protection.md');
     const json = /```json\n([\s\S]*?)\n```/.exec(text.slice(text.indexOf('**Ruleset for `main`**')))?.[1];
     const ruleset = JSON.parse(json ?? 'null') as { bypass_actors: unknown[]; rules: { type: string; parameters?: Record<string, unknown> }[] };
     const pr = ruleset.rules.find((r) => r.type === 'pull_request')?.parameters;

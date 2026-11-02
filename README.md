@@ -29,7 +29,9 @@ account.
 > are awaiting re-verification. P0-15 (first deploy and the `run-v0.1.0`
 > tag) is not done: there is no GitHub remote or Cloudflare deployment yet,
 > and the owner decisions D39 and D40 are still to be carried into the gates.
-> The owner's steps, in order: `docs/LEAD_ACTIONS.md`.
+> The owner's steps are on the ops pages (`docs/ops/`): the account
+> (`account.md`), branch protection (`branch-protection.md`), Access
+> (`access.md`), the Worker (`worker.md`) and the release key (`release-key.md`).
 
 > **This software is not an emergency stop.** Any machine it drives must have
 > a hardwired, latching E-stop that removes motor and spindle power in

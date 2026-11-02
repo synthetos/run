@@ -25,8 +25,8 @@ async function testKey(): Promise<{ pem: string; publicKey: string; privateKey: 
 }
 
 /**
- * The one difference the two files may have, and only while both owner pages
- * record it: after the 2026-11-02 re-pin from ead63997 to 97321391 the
+ * The one difference the two files may have, and only while the release-key
+ * page records it: after the 2026-11-02 re-pin from ead63997 to 97321391 the
  * unsigned bench entry names the new pin, but the signed file still names the
  * old one, because re-signing needs the owner's bench key (docs/ops/release-key.md).
  * Nothing that decides an approval reads the commit (the entry has `fbs: null`,
@@ -36,7 +36,7 @@ async function testKey(): Promise<{ pem: string; publicKey: string; privateKey: 
 const PENDING_RESIGN = {
   signedCommit: 'ead639978c77601b150be7ef12774f47eed4c824',
   marker: 'signed bench entry names the previous pin',
-  pages: ['docs/LEAD_ACTIONS.md', 'docs/ops/release-key.md'],
+  pages: ['docs/ops/release-key.md'],
 } as const;
 
 describe('committed approved-builds files', () => {
@@ -59,7 +59,7 @@ describe('committed approved-builds files', () => {
     });
   });
 
-  it('a pending re-sign is recorded on both owner pages, exactly while the signed file differs', () => {
+  it('a pending re-sign is recorded on the release-key page, exactly while the signed file differs', () => {
     for (const page of PENDING_RESIGN.pages) {
       const text = readFileSync(join(REPO, page), 'utf8');
       expect(text.includes(PENDING_RESIGN.marker), `${page} records the pending re-sign: ${String(pending)}`).toBe(pending);
