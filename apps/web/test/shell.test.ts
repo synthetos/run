@@ -195,7 +195,7 @@ describe('Phase 1 control allowlist', () => {
     expect(stripOf(html)).not.toContain('data-action="disconnect"');
     const model = createWorkspaceModel();
     const disconnect = vi.fn();
-    model.actions.value = { connect: vi.fn(), confirm: vi.fn(), cancel: vi.fn(), disconnect, saveTranscript: vi.fn(), keepBoardSettings: vi.fn(), backup: vi.fn(), transcriptText: () => Promise.resolve(null) };
+    model.actions.value = { connect: vi.fn(), confirm: vi.fn(), cancel: vi.fn(), disconnect, saveTranscript: vi.fn(), keepBoardSettings: vi.fn(), backup: vi.fn(), transcriptText: () => Promise.resolve(null), consoleRead: vi.fn() };
     const rendered = (): string => stripOf(renderToString(h(AppShell, { build, model })));
     expect(rendered()).not.toContain('data-action="disconnect"');
     model.live.value = { ...INITIAL_LIVE_VIEW, entry: { step: 'live' } };
