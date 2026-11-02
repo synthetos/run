@@ -339,3 +339,12 @@ The Console tab gets a command line you can type into, with history (↑/↓) an
 ## Report a problem: the user picks the target (owner, 2026-11-02)
 
 The user chooses where a report goes. When a job fails, they can say it's a run problem (run's repo, or the forum until it exists) or a firmware problem (TinyG or g2core issues, pre-filled with the board facts). See REPORT_A_PROBLEM.md §3.
+
+## Roles (owner, 2026-11-02; with the Synthetos account)
+
+run gets roles from the shared Synthetos account, the same list as the forum:
+- **member**: their own machines, tools, materials and projects.
+- **moderator**: everything a member has, plus reviewing shared material, tool and machine records before they enter the public catalogue, and reviewing shared projects.
+- **admin**: everything a moderator has, plus editing the built-in catalogue, managing early-access features, and publishing firmware releases to the signed update list (signing stays an offline owner step).
+
+A role never controls Pause, Stop job or the warning line. Until accounts land, live access to run.synthetos.com is a Cloudflare Access allowlist of the owner's and partners' emails, plus run's sign-in gate (D41).
