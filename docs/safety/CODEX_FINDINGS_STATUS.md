@@ -180,10 +180,10 @@ independent re-verification of rows 4 (D40 part), 9, 10, 12, 13, 17, 19,
 `docs/safety/PHASE1_TRACEABILITY.md`; each still needs its own recorded
 independent review (D40) before it merges.
 
-Phase 1 cannot exit yet: no window port chooser (OD-3), so the HIL-1.x and
-B-* bench items cannot connect a real board; the axis-mode facts (row 35's
-Phase 1 consequence) are not yet rendered; no "save transcript" control
-(PHASE1_TRACEABILITY "Open at the Phase 1 gate").
+Phase 1 cannot exit yet: the HIL-1.x and B-* bench items are still to be
+run and signed on staging (the window port chooser, the axis-mode facts of
+row 35's Phase 1 consequence and the "save transcript" control landed on
+2026-11-02; PHASE1_TRACEABILITY "Open at the Phase 1 gate").
 
 ### What blocks Phase 2 (bench motion)
 
@@ -194,8 +194,8 @@ Phase 1 consequence) are not yet rendered; no "save transcript" control
   the sanitiser's arc and axis-state reasoning gates every Phase 2 move.
 - **Row 4**: branch protection on before any motion code merges.
 - **Phase 1 exit**: HIL-1.1 to HIL-1.12 signed and the B-* items closed
-  (needs the port chooser first), and the axis-mode facts rendered and
-  checked on the bench (BENCH-P100-5).
+  (the port chooser landed 2026-11-02), and the axis-mode facts (rendered
+  since 2026-11-02) checked on the bench (BENCH-P100-5).
 
 ## Final gate at 0a4eb06
 

@@ -430,7 +430,7 @@ From `docs/safety/PHASE0_TRACEABILITY.md` "Open items":
 - **O6**: copy the in-repo SAFETY.md amendments back into the authoritative
   copy in synthetos.com so the two are identical again.
 - **D1 (sign-in required)**: Phase 1 adds the sign-in gate at Connect and
-  Start (P1-05, pluggable per D41 proposed), with a test that revoking the
+  Start (P1-05, pluggable per D41, accepted 2026-11-02), with a test that revoking the
   session mid-job changes nothing in the machine path. Nothing in Phase 0
   consults a session.
 
@@ -442,10 +442,11 @@ P1-00 lifted the Phase 0 Web Serial ban for `packages/machine/src/webSerialTrans
 only, granted `serial=(self)` on staging and in the localhost bench build,
 and kept production at `serial=()`. What only you can do:
 
-- **Confirm or change D41** (`docs/ops/owner-decisions.md` OD-3): the
-  pluggable sign-in gate (run session, staging Access identity, localhost
-  bench identity), the never-deployed bench build, and where serial is
-  granted. Record it in `DECISIONS.md` (synthetos.com) if you accept it.
+- **D41: done (owner, 2026-11-02).** Accepted as proposed
+  (`docs/ops/owner-decisions.md` OD-3) and recorded in `DECISIONS.md`
+  (synthetos.com). The port chooser gate change was approved the same day
+  and is implemented; OD-4 was decided (keep: no Disconnect under
+  ORPHANED_MOTION).
 - **Production deploys from P1-01 on (now in effect: the P1-01 commit
   wires the transport into the release build).** The production deploy job now scans
   as `--target production`, which refuses any artifact that carries the Web
@@ -482,11 +483,10 @@ and kept production at `serial=()`. What only you can do:
 In order. Everything before step 5 is a decision or a setting; nothing
 here needs code from you.
 
-1. **Confirm or change D41** (OD-3, above) and record it in `DECISIONS.md`.
-2. **Approve the port chooser gate change.** The window has no
-   `requestPort()` yet (`apps/web/src/live/mount.ts` refuses with "no port
-   chooser yet"), so no bench item can connect a real board. It is its own
-   reviewed change to the Web Serial gate (OD-3).
+1. **D41**: done 2026-11-02 (accepted, recorded in `DECISIONS.md`).
+2. **The port chooser gate change**: approved and implemented 2026-11-02
+   (02fea94, c75f8c1). It still needs its recorded independent review (D40)
+   with step 3.
 3. **Branch protection (row 4)** on, then the independent D40 review of
    P1-00 to P1-08 (each task's commits; traced in
    `docs/safety/PHASE1_TRACEABILITY.md`) and the re-verification of rows 4,
@@ -503,9 +503,9 @@ here needs code from you.
 7. **Record the release** in `RELEASES.md`: HIL record id, artifact hash, the
    bench board's EN commit and `fb`. Production stays the Phase 0 shell.
 
-Still to build before step 6 (not owner actions): render the axis-mode
-facts (BENCH-P100-5), a "save transcript" control, and the T-S19 test with
-the 1M-segment preview loaded.
+Built on 2026-11-02 (were "still to build before step 6"): the window's
+port chooser and Connect (OD-3), the axis-mode facts (BENCH-P100-5),
+**Save transcript**, and T-S19 with the 1M-segment preview loaded.
 
 ---
 

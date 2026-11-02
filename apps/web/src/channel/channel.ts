@@ -35,7 +35,7 @@ export interface BenchIdentityProvider {
 
 export interface BuildChannel {
   readonly kind: 'release' | 'bench';
-  /** The D1 gate's localhost bench identity (D41 proposed): only the bench channel has one. */
+  /** The D1 gate's localhost bench identity (D41, accepted 2026-11-02): only the bench channel has one. */
   readonly benchIdentity: BenchIdentityProvider | null;
 }
 

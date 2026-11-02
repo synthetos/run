@@ -165,7 +165,7 @@ describe('advisory gate (H27, T-S31, T-S75)', () => {
 
 const provider = (kind: Identity['provider'], id: () => Identity | null): IdentityProvider => ({ kind, current: () => Promise.resolve(id()) });
 
-describe('D1 sign-in gate (RUN_PLAN §2.2, D41 proposed)', () => {
+describe('D1 sign-in gate (RUN_PLAN §2.2, D41, accepted 2026-11-02)', () => {
   it('G and the never-gated list are disjoint; a non-G action given to check is refused, never passed', async () => {
     expect(IDENTITY_GATED.filter((a) => (NEVER_GATED as readonly string[]).includes(a))).toEqual([]);
     const gate = new AuthGate([provider('bench', () => ({ provider: 'bench', subject: 'x' }))]);

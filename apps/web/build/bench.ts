@@ -1,5 +1,5 @@
 /**
- * The localhost BENCH build (P1-00; owner decision D41, proposed:
+ * The localhost BENCH build (P1-00; owner decision D41, accepted 2026-11-02:
  * docs/ops/owner-decisions.md).
  *
  * `vite build --mode bench` writes `dist-bench/` (never `dist/`, which is

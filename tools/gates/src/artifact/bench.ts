@@ -1,5 +1,5 @@
 /**
- * Release artifact vs the localhost bench artifact (P1-00; D41 proposed).
+ * Release artifact vs the localhost bench artifact (P1-00; D41, accepted 2026-11-02).
  *
  * The owner looks at a real TinyG through the bench build, so what the bench
  * shows must be the release code. This check takes both site trees and

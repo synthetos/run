@@ -70,7 +70,7 @@
  *   deploy as `production` (which refuses any Web Serial code: production
  *   gets the Phase 0 shell only until Phase 6). Each of those jobs must scan,
  *   and no other job may.
- * - `bench-never-in-ci` (every workflow, P1-00, D41 proposed): no line
+ * - `bench-never-in-ci` (every workflow, P1-00, D41, accepted 2026-11-02): no line
  *   builds, checks, scans or serves the localhost bench build
  *   (BENCH_REFERENCES). It exists for the owner's computer only; CI proves
  *   it is never deployed through the scans (the bench marker fails every

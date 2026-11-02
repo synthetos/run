@@ -102,4 +102,6 @@ received, with times. It is the `{t, dir, hex}` JSONL format, one object per lin
 since the port opened. The machine worker returns it for the `transcript` request (RPC v3).
 `recordingFromJsonl` + `ReplayTransport` in `@synthetos/testkit` replays it byte for byte. A
 transcript past its 8 MiB bound is refused rather than cut, because a partial transcript would
-not replay. The page doesn't have a button to save it yet (see the P1-08 note in the README).
+not replay. The page's **Save transcript** button downloads it as
+`run-transcript-<UTC date and time>.jsonl`. It holds the board's unique hardware id (as hex):
+keep it private with the HIL record, never commit it or attach it to a public issue.

@@ -1,5 +1,5 @@
 /**
- * The BENCH replacement for the build-channel seam (P1-00, D41 proposed).
+ * The BENCH replacement for the build-channel seam (P1-00, D41, accepted 2026-11-02).
  * BENCH BUILD ONLY: `vite build --mode bench` resolves every import of
  * ./channel.ts to this file (apps/web/build/bench.ts). Nothing imports it
  * directly (dependency-cruiser `bench-channel-only-through-the-build`).
@@ -26,7 +26,7 @@ export class BenchHostError extends Error {
   override readonly name = 'BenchHostError';
 }
 
-/** The bench identity's subject: whoever sits at this computer (D41 proposed). */
+/** The bench identity's subject: whoever sits at this computer (D41, accepted 2026-11-02). */
 export const BENCH_SUBJECT = 'bench operator (localhost)';
 
 /**

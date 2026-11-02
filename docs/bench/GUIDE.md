@@ -5,26 +5,65 @@ app on this computer against a real TinyG. The detailed checks with their IDs
 are in [README.md](README.md). The Chrome policy and the bench runner are in
 [policy.md](policy.md).
 
+**Before anything else: a hardwired E-stop that cuts motor (and spindle)
+power must be within reach every time the board is powered (section 1).
+Pause in this app is a feedhold request, not an emergency stop.**
+
 Phase 1 is **read-only**. The app reads the board and can pause it. It never
 moves the machine, changes a setting or resets the board.
 
-## 0. Status at the time of writing (read this first)
+## 0. Quick start and status (read this first)
 
-Every command below was run on 2026-11-01 at commit `42c24a2`, up to the
-point where a real board is needed. Past that point the fake-serial
-Playwright suite stood in for the board. Three things still stop a real
-connection from the bench build:
+The exact commands, from the repository root, with Node 22.18 or newer:
+
+```sh
+corepack enable pnpm              # once (section 2.1)
+pnpm install --frozen-lockfile    # once, and after every pull
+pnpm build                        # the release build, apps/web/dist
+pnpm build:bench                  # the bench build, apps/web/dist-bench
+pnpm bench:check                  # must end: "bench diff: <n> files; only the build-channel chunk differs"
+pnpm bench:serve                  # leave running; Ctrl-C stops it
+```
+
+Then open **http://localhost:8793/** in Chrome (desktop), in the bench
+profile (section 3), press **Connect**, accept C1, and pick the TinyG
+(FTDI, `0403:6015`) in Chrome's port chooser (section 5).
+
+Every command above was run on 2026-11-02 at the commit that carries this
+guide, up to the point where a board is needed: `bench:check` passed,
+`bench:serve` printed the three lines in section 2.2, the page answered
+`200` with `Permissions-Policy: serial=(self), ...`, and a request under
+another Host name got `421`. The bench Playwright suite (`pnpm e2e:bench`)
+drives the real Connect up to Chrome's chooser (with the chooser stubbed),
+and the fake-serial suite covers the connected screens on a simulated
+board.
+
+What changed on 2026-11-02: the owner accepted D41 (OD-3) and approved the
+window's port chooser, which is now in the page; OD-4 is decided (no
+Disconnect under ORPHANED_MOTION); the page has **Save transcript** and
+shows the axis-mode facts.
+
+One thing still stops a real connection from the page:
 
 | # | Blocker | What you see | Who clears it |
 |---|---|---|---|
 | 1 | The safety advisory is not signed. `apps/web/public/safety-advisory.json` is committed with no entries, so LIVE is refused everywhere (fail closed). | Pressing **Connect** shows "The safety advisory could not be verified (no-entry), so this page will not connect a machine." | Owner: step 2.3. |
-| 2 | There is no port chooser in the page. Calling `requestPort()` from the main thread needs its own reviewed gate change (owner-decisions OD-3, "The window's port chooser"). | After C1 is accepted: "This build has no port chooser yet: the main-thread chooser needs its own reviewed gate change (OD-3)." | Owner reviews the gate change, then a task implements it. |
-| 3 | The page has no "Save transcript" button. The machine worker already returns the transcript (RPC `transcript`). Only the button is missing. | Nothing to click. | A later task. Until then, use the bench runner's `record.json` and a Saleae capture as the record (section 7). |
 
-So today you can do sections 1 to 4 in full, and the offline screens in
-section 5 (preview, wiring, safety). The connected screens and the HIL
-checklist (sections 5 to 8) are written for when blockers 1 and 2 are
-cleared. Each one says what to expect.
+**A real board was read on 2026-11-02** (bench 2, a blank edge-next board,
+no machine attached) through the app's own machine worker and read-only
+session, with a byte bridge standing in for Chrome's Web Serial (the
+chooser cannot be automated on macOS without an admin-installed policy):
+classified `tinyg-en` in 1.3 s, **READ_ONLY** with reason
+`en-not-approved` (no approved-builds entry in this build, so Phase 1
+stays read-only even on edge-next); DRO from polled `mpo`; all 186
+settings read with no group missing; no axis-mode facts (`xam yam zam` 1,
+`aam` 3, `bam cam` 0); Pause wrote one `!`; the transcript's first write
+was `{sr:null}` and every write was an allowlisted GET or `!`. The probe
+log is `test-fixtures/probe/tinyg-en-450.01-d254eb0b.txt` (id replaced).
+That board ran edge-next `d254eb0b` (fb still 450.01); the app pins
+`ead63997`. The difference is stricter input handling only (E168-E177,
+E191, E193); footers, `sr` keys and GETs are unchanged. Re-pinning is a
+separate task.
 
 ## 1. Before you power anything: the hardwired E-stop
 
@@ -111,11 +150,13 @@ it with Ctrl-C.
 Optional self-test (no board needed): stop the server first, then
 
 ```sh
-pnpm e2e:bench        # 5 tests: the page marks itself, serial headers, Host check, Web Serial allowed
-pnpm e2e:fake-serial  # 8 tests: read-only session on a mock board, DRO, tab stop, Escape
+pnpm e2e:bench        # 9 tests: the page marks itself, serial headers, Host check, Web Serial allowed,
+                      #   Connect reaches the port chooser inside the click (chooser stubbed)
+pnpm e2e:fake-serial  # 8 tests: read-only session on a mock board, DRO, axis modes, settings,
+                      #   Save transcript, tab stop, Escape (T-S19 with a 1M-segment preview)
 ```
 
-Both passed at `42c24a2`.
+Both passed on 2026-11-02.
 
 ### 2.3 Sign the safety advisory (blocker 1)
 
@@ -176,18 +217,28 @@ answers `421` to any other Host name.
 
 1. Plug in the board's USB with the E-stop pressed or motor power off (it is
    read-only, but get into the habit).
-2. Press **Connect**. The gates run in this order:
-   - Sign-in. On the bench build the identity is "bench operator
-     (localhost)" (D41, section 9). On staging it is your Access identity.
-     If you are signed out, Connect is refused with the sign-in text.
-   - The safety advisory. If it is unsigned, Connect is refused (blocker 1).
+2. Press **Connect**. The gates run in this order, and each refusal stops
+   here with its reason on screen:
+   - Sign-in (D1). On the bench build the identity is "bench operator
+     (localhost)" (D41). It exists only on `localhost`/`127.0.0.1` over
+     plain HTTP. On staging it is your Access identity. Signed out, Connect
+     is refused with the sign-in text.
+   - The safety advisory. Unsigned, Connect is refused (blocker 1).
    - **C1**, the safety confirmation. The first time on a given day it is
      the full form with checkboxes. A same-day reconnect gets the short
      form. Tick every box, then **Confirm and choose port**.
-   - The Chrome port chooser. Pick the TinyG (FTDI, USB `0403:6015`). Until
-     blocker 2 is cleared, the page says it has no port chooser and stops
-     here.
-3. Leaving fullscreen on Connect is expected (LIVE entry leaves fullscreen).
+3. That click opens **Chrome's port chooser** (the click is the user
+   gesture Chrome requires). Pick the TinyG: FTDI, USB `0403:6015`
+   (usually shown as "FT230X Basic UART" or "USB Serial"). What the page
+   says if you do not:
+   - closing the chooser: "No port was chosen. Press Connect to try again.";
+   - a port without a USB identity: refused, choose the board's USB port.
+4. The page hands the choice (USB identity and its index among the ports
+   Chrome granted this page) to the machine worker, which finds the same
+   port and opens it at 115200 8N1, no flow control. The state band then
+   shows the probe (section 5.2). The page leaves fullscreen on Connect.
+
+Pause, Escape and the stop requests never pass through any of these gates.
 
 ### 5.2 Probe and identity
 
@@ -196,7 +247,7 @@ line. It then probes the board and classifies it. Expect:
 
 | Board | Classification | Mode |
 |---|---|---|
-| edge-next fb 450.01 (`ead63997`) | `tinyg-en` | full classification. Still read-only in Phase 1. |
+| edge-next fb 450.01 (`ead63997`) | `tinyg-en` | READ_ONLY, reason `en-not-approved`, until a build is approved for this environment (P1-03); read-only in Phase 1 either way. Seen on the bench 2026-11-02. |
 | stock 440.21 | `tinyg-440` | READ_ONLY, with W25 and the upgrade offer |
 | stock 449.01 | `tinyg-449-stock` | READ_ONLY |
 | EN with `$ex=2` | `tinyg-en` | READ_ONLY, reason flow control |
@@ -229,11 +280,25 @@ still unclassified, only Pause (with "Use your E-stop") is offered.
   updates the reference stored in this browser.
 - Nothing on this screen writes a setting.
 
+### 5.4a Axis modes
+
+"Axis modes (read only)" sits under the DRO. From the settings read
+(`xam`..`cam`) and the polled machine position it lists every axis
+configuration that would block motion in a later release, one sentence
+each: an inhibited axis (`am=2`) away from 0 or of unknown position, a mode
+that was not read or is not recognised, a disabled or radius-mode linear
+axis, and an axis that left inhibited during the session. A mode that was
+not read is shown as not read, never assumed standard (a board without a
+read allowlist, such as stock 449.01, shows every axis as not read). With
+nothing to report it says "Every axis reads a mode that later motion can
+use...". BENCH-P100-5 checks it with `aam=2` and A away from 0.
+
 ### 5.5 Wiring
 
 `/wiring/` (the **Wiring** tab) is the offline wiring editor: board
 connectors, components and rule checks. It does not talk to the board in
-Phase 1. It should load and work with or without a board connected.
+Phase 1. It should load and work with or without a board connected. For a
+board that reports `hv 8`, choose the TinyG v8 board (`tinyg-v8@8`).
 
 ### 5.6 G-code preview
 
@@ -256,7 +321,11 @@ when a polled `mpo` read arrives, so it can step rather than glide.
   the observer shows W29.
 - Phase 1 has no Resume (`~`), no Stop job (^D) and no Reset (^X). Under
   ORPHANED_MOTION, Disconnect is not offered either (owner decision OD-4,
-  open). To release the port, unplug the USB or close the tab.
+  decided 2026-11-02: keep it). To release the port, unplug the USB or
+  close the tab.
+- After a Pause the board stays in feedhold: the app never sends `~`. To
+  resume it, use another sender (or the EN-HIL harness) after the app has
+  disconnected.
 
 ### 5.8 Banners
 
@@ -309,15 +378,21 @@ written and every chunk received, with times. It is JSONL, one
 `recordingFromJsonl` + `ReplayTransport` in `@synthetos/testkit` replays it
 byte for byte.
 
-Today there is no button to save it (blocker 3). Until there is:
+To save it: **Save transcript**, in the "Wire transcript" panel under the
+DRO and settings. The panel appears once a connection has opened in the
+tab and stays after Disconnect or LOST, so you can save the record of a
+link that dropped. Chrome downloads
+`run-transcript-<UTC date and time>.jsonl`, for example
+`run-transcript-2026-11-02T07-15-26Z.jsonl`. A transcript over 8 MiB is
+refused rather than cut.
 
-- keep the Saleae capture of RX for each HIL item, which is the independent
-  record anyway;
-- run the items through the bench runner (section 8.1). Its `record.json`
-  holds every item's pass/fail and notes.
-
-Once the button lands, save one transcript per HIL item next to the run's
-`record.json`. A transcript over 8 MiB is refused rather than cut.
+**A transcript is private.** It holds every byte the board sent, including
+its unique per-chip hardware id (the answer to the `id` read, as hex). The
+panel says so. Keep transcripts with your HIL record, outside the
+repository. Never commit one and never attach one to a public issue (it is
+not redacted: a redacted transcript would no longer replay byte for byte).
+Save one transcript per HIL item next to the run's `record.json`, and keep
+the Saleae capture of RX as the independent record.
 
 ## 8. The HIL-1.x checklist
 
@@ -370,9 +445,12 @@ commit) next to it.
 - [ ] **HIL-1.1 Connect and identify EN.** Idle EN board (fb 450.01). Pass:
   the transcript is `{sr:null}`, the probe GETs, `stat hold vel qr ex`,
   then only allowlisted GETs, ENQ and `!` (from Pause); classification
-  `tinyg-en`, full; the probe answers are saved to
-  `test-fixtures/probe/<build>.txt` (B-PROBE-1; no hardware names or paths;
-  replace the board `id` value with `0X0000-XXX`, see section 9).
+  `tinyg-en` (READ_ONLY `en-not-approved` until a build is approved); the
+  session log's `probe:` lines are saved to `test-fixtures/probe/<build>.txt`
+  (B-PROBE-1) with the board `id` value replaced by `0X0000-XXX` everywhere
+  before it is committed (the fixture check refuses any other id; no
+  hardware names or paths). Commit only that text, never the transcript
+  (section 7).
   Fail: any other byte, or a different classification.
 - [ ] **HIL-1.2 Stock 440.21 (and 449.01 if available).** Pass: 440.21 shows
   `tinyg-440` READ_ONLY with W25; 449.01 shows `tinyg-449-stock` READ_ONLY;
@@ -446,8 +524,8 @@ classification, a crash), collect:
 - the commit (the version chip shows it, for example `42c24a2c75b9`), and
   whether this was the bench build or staging;
 - the board's `fb`, firmware commit and dialect as the app showed them;
-- the transcript (once the button exists), the Saleae capture, and the
-  runner's `record.json` if you used it;
+- the Saleae capture and the runner's `record.json` if you used it (the
+  transcript only privately, see below);
 - a screenshot of the state band and banners.
 
 Open an issue in the run repository with these. The repository is public:
@@ -461,33 +539,18 @@ the session log with the id replaced, and offer the transcript privately. Descri
 only. **If the machine moved when it should not have, or a byte outside
 section 6 reached the board, stop all bench work until it is understood.**
 
-## 10. The D41 decision you need to confirm
+## 10. Decisions (recorded 2026-11-02)
 
-D41 is **proposed, not decided** (`docs/ops/owner-decisions.md`, OD-3).
-Confirm it, or reject it, and record your answer in `DECISIONS.md` in
-synthetos.com. This repository does not edit that file. The proposal:
-
-1. The D1 sign-in gate is pluggable, with exactly three identity
-   providers: the run session (later; the only one production accepts),
-   the verified Cloudflare Access identity (staging), and a
-   **localhost-only bench identity** ("whoever sits at this computer") that
-   exists only in the bench build.
-2. The **bench build** (`pnpm build:bench`) is the release build with one
-   module swapped. `pnpm bench:check` proves that nothing else differs. It
-   runs only on localhost, served by the loopback bench server, and is
-   **never deployed**. Every staging and production scan, and CI policy,
-   refuses it.
-3. **Web Serial** is granted (`serial=(self)`) on staging and by the bench
-   server only. **Production stays at `serial=()`** until Phase 6.
-
-What to weigh: the bench build is a second artifact (signed HIL records are
-still taken on staging); the bench identity has the same trust as the bench
-itself; and the production deploy job now stops at its scan on every push,
-by design. If you reject it, the bench build is removed in one change, and
-staging and production are unaffected.
-
-Two related decisions are open in the same file. **Blocker 2** (the
-main-thread port chooser gate change) needs your review before anyone can
-connect from the page. **OD-4** decides whether Disconnect is offered under
-ORPHANED_MOTION in Phase 1. Today it is not, and section 5.7 tells you to
-unplug instead.
+- **D41 (OD-3): accepted as proposed** and recorded in `DECISIONS.md`
+  (synthetos.com). The D1 sign-in gate is pluggable with exactly three
+  providers (the run session, the only one production accepts; Cloudflare
+  Access on staging; the localhost-only bench identity of the bench
+  build). The bench build is never deployed. Web Serial is granted on
+  staging and by the bench server only; production stays `serial=()` until
+  Phase 6. Signed HIL records are taken on staging.
+- **The window's port chooser: approved and implemented.** Chrome's
+  chooser runs in one module (`packages/machine/src/webSerialChooser.ts`)
+  with one main-thread importer (`apps/web/src/live/portChooser.ts`),
+  admitted by every gate; production still refuses it.
+- **OD-4: keep it.** No Disconnect under ORPHANED_MOTION in Phase 1; unplug
+  the USB or close the tab (section 5.7).

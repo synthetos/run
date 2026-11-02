@@ -1,5 +1,5 @@
 /**
- * The build-channel seam (P1-00, D41 proposed): the release module does
+ * The build-channel seam (P1-00, D41, accepted 2026-11-02): the release module does
  * nothing; the bench replacement refuses every host but loopback over plain
  * HTTP, before the machine worker starts, and marks the page visibly. The
  * bench build configuration is checked here too; the real builds and the
@@ -89,7 +89,7 @@ describe('the bench channel', () => {
     expect(bench.startBuildChannel(asDoc(fakeDoc('http://localhost:8793/', false)))).toMatchObject({ kind: 'bench' });
   });
 
-  it('P1-05 (D41 proposed): carries the localhost bench identity, which re-checks the host on every request', async () => {
+  it('P1-05 (D41, accepted 2026-11-02): carries the localhost bench identity, which re-checks the host on every request', async () => {
     const d = fakeDoc('http://localhost:8793/');
     const identity = bench.startBuildChannel(asDoc(d)).benchIdentity;
     if (identity === null) throw new Error('the bench channel must carry the bench identity');

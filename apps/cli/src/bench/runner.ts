@@ -23,7 +23,7 @@ import type { HilLockOptions, HilLockOutcome } from './hilLock.ts';
 
 export const EXIT = Object.freeze({ ok: 0, failed: 1, refused: 2, busy: 3, error: 4 });
 
-/** Pages the runner opens: staging, or the localhost bench build (D41, proposed). */
+/** Pages the runner opens: staging, or the localhost bench build (D41, accepted 2026-11-02). */
 export function checkTargetUrl(raw: string): { readonly ok: true; readonly url: string } | { readonly ok: false; readonly reason: string } {
   let url: URL;
   try {

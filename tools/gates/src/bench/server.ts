@@ -1,5 +1,5 @@
 /**
- * The localhost bench server (P1-00; owner decision D41, proposed:
+ * The localhost bench server (P1-00; owner decision D41, accepted 2026-11-02:
  * docs/ops/owner-decisions.md). It is how the owner opens the bench build
  * (`pnpm build:bench`, apps/web/build/bench.ts) next to a real TinyG.
  *

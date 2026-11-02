@@ -171,11 +171,14 @@ Code: `apps/web/src/live/` (`authGate.ts`, `advisoryGate.ts`, `c1.ts`,
 
 Open with this task:
 
-- **No port chooser yet.** Every gate runs, then `mount.ts` stops at the
-  chooser: `requestPort()` may only be called from the Web Serial module, and
-  the main-thread chooser needs its own reviewed gate change (OD-3 in
-  `docs/ops/owner-decisions.md`). That change is the next step before any
-  bench connect.
+- **Port chooser: closed 2026-11-02.** The owner approved the gate change
+  (OD-3): `packages/machine/src/webSerialChooser.ts`, one main-thread
+  importer `apps/web/src/live/portChooser.ts`, admitted by every gate
+  (02fea94); the C1 confirm click shows Chrome's chooser and hands the
+  selector to the worker (c75f8c1). Tests: `web-serial-chooser.test.ts`,
+  `portChooser.test.ts`, `tools/e2e/test/connect-chain.test.ts` (bench
+  identity to a classified simulated board), `bench.bench.ts` (the real
+  Connect reaches the chooser inside the click, chooser stubbed).
 - **The committed advisory is unsigned** (`apps/web/public/safety-advisory.json`
   has no entries), so every origin refuses LIVE until the owner signs it
   (`pnpm sign:advisory`, LEAD_ACTIONS). For the same reason the browser E2E
@@ -198,7 +201,7 @@ url-scheme literal rule (both tested in `tools/gates`).
 | Requirement | Implementation | Test | Status |
 |---|---|---|---|
 | T-S18: Escape from any focus, capture phase; Space never | `installEscapeStop` on window, capture | `tabStop.test.ts` "Escape"; `tab-stop.fake-serial.ts` "Escape from any focus" | PASS |
-| T-S19: stop under 100 ms with a 1M-segment preview | request posted before any await | `tabStop.test.ts` "posts the request synchronously"; `tab-stop.fake-serial.ts` "under 100 ms" (keydown to `!` on the wire) | PASS without a preview; the 1M-segment load waits for TB-03 (no preview exists yet) |
+| T-S19: stop under 100 ms with a 1M-segment preview | request posted before any await | `tabStop.test.ts` "posts the request synchronously"; `tab-stop.fake-serial.ts` "under 100 ms with a 1M-segment preview loaded" (1M segments drawn in the full preview in the same tab, then keydown to `!` on the wire) | PASS (2026-11-02: 0.7 ms on the development machine; CI and the bench record their own) |
 | T-S29: request from another tab with the controlling tab frozen arrives as `!` | `machine.worker` subscribes to the stop channel itself | `tab-stop.fake-serial.ts` observer test (3 s busy loop in tab A) | PASS |
 | T-S73: W29 on release; unacknowledged = STOP NOT DELIVERED; two machines; non-stop messages ignored; destructive storage refused while locked | `LockWatcher`, `TabStop` (250 ms window, one ack per held lock), `parseStopRequest`, `forgetDeviceSafety` | `tabStop.test.ts`; `tab-stop.fake-serial.ts` | PASS (two machines at unit level only: the fake-serial build has one port per tab) |
 | W30 for a hold, never "STOPPED"; PAUSE REQUESTED first | `StopControls` band | `tabStop.test.ts` "a hold shows W30 with W10" | PASS |
@@ -316,20 +319,17 @@ steps against the simulated board in CI.
 
 These are not done and are not trivial fixes:
 
-1. **No port chooser in the window (OD-3).** `apps/web/src/live/mount.ts`
-   `noChooser()` refuses: the main-thread `requestPort()` needs its own
-   reviewed gate change. Until it lands, no bench item that connects a real
-   board can run (every "needs bench" row above except B-POL-1 and the
-   cross-browser parts of B-EXCL-1). Owner decision, then a reviewed change.
-2. **The axis-mode facts are not rendered.** `packages/safety/src/axisModeFacts.ts`
-   is tested but nothing in `apps/web` shows it (BENCH-P100-5; the Phase 1
-   consequence of findings row 35). Needed before the bench session with
-   an inhibited axis.
-3. **No "save transcript" control on the page.** The worker's `transcript`
-   request exists; the bench transcript evidence for HIL-1.x needs the button.
-4. **T-S19 with a 1M-segment preview.** `tab-stop.fake-serial.ts` measures
-   Escape to `!` without the large preview loaded; TB-03 now exists, so the
-   test should load the 1M file first.
+1. **Closed 2026-11-02: the window's port chooser (OD-3).** Approved and
+   implemented (02fea94 gates, c75f8c1 Connect wiring).
+2. **Closed 2026-11-02: the axis-mode facts are rendered** in the live
+   readout ("Axis modes (read only)", `apps/web/src/machine-ui/AxisModes.ts`;
+   `axisModes.test.ts`, `dro.fake-serial.ts`). BENCH-P100-5 still checks it on
+   the bench with an inhibited axis.
+3. **Closed 2026-11-02: Save transcript** (`TranscriptSave.ts`,
+   `dro.fake-serial.ts` downloads one and checks `{sr:null}` first and every
+   write allowlisted). Transcripts hold the board id as hex and stay private.
+4. **Closed 2026-11-02: T-S19 with the 1M-segment preview loaded**
+   (`tab-stop.fake-serial.ts`).
 5. **P1-09 release record.** `RELEASES.md` entry with the HIL record id,
    artifact hash and bench board EN commit and `fb`: owner, after the bench.
 

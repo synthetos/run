@@ -13,10 +13,10 @@ update this page and the pages it names in one reviewed PR.
 |---|---|---|---|
 | OD-1 | How does a solo maintainer meet the review rules? | **DECIDED as D40 (owner, 2026-11-01); carried into this repository** | — |
 | OD-2 | How does `run.synthetos.com` reach a Worker in the dedicated D34 account, when the `synthetos.com` zone is in another account? | **DECIDED as D39 (owner, 2026-11-01), superseding D34; carried into this repository** | — |
-| OD-3 | D41 (proposed): how is the D1 sign-in gate satisfied before accounts.synthetos.com and staging Access exist, and how is Web Serial granted for Phase 1? | **PROPOSED (2026-11-01), awaiting the owner's confirmation** | P1-05 (gate providers); the P1-00 implementation below is already in place and safe either way |
-| OD-4 | In Phase 1, a session under ORPHANED_MOTION cannot be disconnected from the app (the matrix allows only Stop job and Reset controller as exits, and Phase 1 has neither ^D nor ^X). Keep that, or allow Disconnect there in Phase 1? | **OPEN (raised in P1-02, 2026-11-01)** | Nothing in Phase 1 is unsafe either way; it decides what the bench guide tells the user (unplug or close the tab today) |
+| OD-3 | D41: how is the D1 sign-in gate satisfied before accounts.synthetos.com and staging Access exist, and how is Web Serial granted for Phase 1? | **ACCEPTED as D41 (owner, 2026-11-02), as proposed; the window's port chooser gate change APPROVED the same day and implemented (commits 02fea94, c75f8c1)** | — |
+| OD-4 | In Phase 1, a session under ORPHANED_MOTION cannot be disconnected from the app (the matrix allows only Stop job and Reset controller as exits, and Phase 1 has neither ^D nor ^X). Keep that, or allow Disconnect there in Phase 1? | **DECIDED (owner, 2026-11-02): keep it (option 1).** No Disconnect under ORPHANED_MOTION; the bench guide says unplug the USB or close the tab | — |
 
-Both decisions are recorded in `DECISIONS.md`, and the gates and ops pages
+OD-1, OD-2 and OD-3 are recorded in `DECISIONS.md` (D40, D39, D41), and the gates and ops pages
 now implement them (`docs/LEAD_ACTIONS.md` Step 0 summarises what changed
 and what the accounts and site repositories must match).
 
@@ -138,10 +138,12 @@ The options above are moot under D39 and kept as the record. Deploys stay off
 (`RUN_DEPLOY_ENABLED` unset) until the Step 1 to 10 owner actions are done,
 and the preflight refuses while `account_id` is the placeholder.
 
-## OD-3. D41 (proposed): pluggable sign-in gate, the localhost bench build, and where serial is granted
+## OD-3. D41 (accepted 2026-11-02): pluggable sign-in gate, the localhost bench build, and where serial is granted
 
-**Status: PROPOSED, for the owner to confirm and record in `DECISIONS.md`
-(synthetos.com). This repository does not edit that file.**
+**Status: ACCEPTED (owner, 2026-11-02), as proposed below, and recorded as
+D41 in `DECISIONS.md` (synthetos.com). The window's port chooser change
+described at the end of this section was APPROVED the same day and is
+implemented (see "The window's port chooser: as implemented").**
 
 **Context.** D1: signing in is required to Connect and Start, nothing in the
 machine path ever consults the session, and Pause, stop and recovery are
@@ -153,7 +155,7 @@ Phase 1 bench app onward", but RUN_PLAN §5.2 runs one attested artifact on
 both staging and production, so a static header file cannot differ between
 them.
 
-**Proposed decision.**
+**Decision (as proposed, accepted 2026-11-02).**
 1. The D1 gate (P1-05) is **pluggable** in the UI/auth layer, with exactly
    three identity providers: the run session (A1-07, later; production
    only ever accepts this one); the verified Cloudflare Access identity
@@ -220,7 +222,29 @@ Nothing in the machine path imports the build channel
   change, or the owner amends the ROADMAP wording "only in
   machine/src/webSerialTransport.ts".
 
-**If the owner rejects it.** Remove the bench build (`apps/web/build/bench.ts`,
+**The window's port chooser: as implemented (approved 2026-11-02).** The
+narrowest form, in its own reviewed commit (02fea94): the chooser is one
+named sibling of the transport, `packages/machine/src/webSerialChooser.ts`
+(`WEB_SERIAL_CHOOSER_MODULE`). It calls `requestPort()` synchronously,
+reads `getInfo()` and the chosen port's index in the window's
+`getPorts()`, and returns a `PortSelector`; it never opens a port and
+imports types only. A sibling rather than an export of the transport
+itself, so the page chunk holds no transport code and the fake-serial test
+artifact (whose page imports it too) still holds no transport. Exactly one
+main-thread module imports it, `apps/web/src/live/portChooser.ts`
+(`WEB_SERIAL_CHOOSER_IMPORTER`), and every gate says so: lint and the
+source check admit a static `navigator.serial` read in the chooser only;
+dependency-cruiser `web-serial-chooser-importers` and
+`web-serial-chooser-type-imports-only`; the page build files its chunk as
+`assets/serial/web-serial-chooser-<hash>.js` (`apps/web/build/chunks.ts`),
+which the staging and bench scans admit and the production scan refuses;
+the fake-serial diff accepts that chunk only when byte-identical in both
+artifacts. The Connect wiring followed in its own commit (c75f8c1): the C1
+confirm click calls the chooser after the D1 gate (the bench identity in
+the bench build), the advisory and C1, and hands the selector to the
+machine worker. Pause, Escape and the stop requests are never gated.
+
+**If the owner had rejected it.** Remove the bench build (`apps/web/build/bench.ts`,
 `apps/web/src/channel/bench*.ts`, `tools/gates/src/bench/`, the bench scan
 target and the policy rule) in one reviewed change; staging and production
 headers are independent of it.
@@ -250,5 +274,9 @@ The P1-02 implementation follows the matrix as written; the bench guide
 2. Allow Disconnect under ORPHANED_MOTION in the Phase 1 release only (an
    allow-matrix change, needs safety review): the app then releases the port
    while the board may still be moving, with W32 shown.
+
+**Decision (owner, 2026-11-02): option 1, keep it.** No Disconnect under
+ORPHANED_MOTION in Phase 1. The bench guide (section 5.7) tells the user to
+unplug the USB or close the tab. Nothing changes in the allow-matrix.
 
 The decision does not change any byte the app writes.

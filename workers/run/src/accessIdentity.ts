@@ -1,6 +1,6 @@
 /**
  * The verified Cloudflare Access identity (ROADMAP P1-05; RUN_PLAN §2.2;
- * D31, D41 proposed).
+ * D31, D41, accepted 2026-11-02).
  *
  * On staging, before A1-07 ships accounts.synthetos.com sessions, the D1
  * sign-in gate is satisfied by the Access identity: Cloudflare Access puts a

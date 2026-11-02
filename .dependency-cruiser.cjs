@@ -259,7 +259,7 @@ module.exports = {
       to: { dependencyTypesNot: ['type-only'] },
     },
 
-    // --- The localhost bench build (P1-00, D41 proposed) -----------------
+    // --- The localhost bench build (P1-00, D41, accepted 2026-11-02) -----------------
     {
       name: 'bench-channel-only-through-the-build',
       comment:

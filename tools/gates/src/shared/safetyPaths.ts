@@ -33,7 +33,7 @@ export const SAFETY_REVIEW_PATHS: readonly string[] = [
   '/apps/web/src/workers/',
   '/apps/web/src/machine-worker/',
   // The build channel (P1-00): the bench seam, where the localhost bench
-  // identity of the D1 gate lives (D41 proposed).
+  // identity of the D1 gate lives (D41, accepted 2026-11-02).
   '/apps/web/src/channel/',
   // Data that moves between the cloud client and the machine path.
   '/apps/web/src/cloud/',
