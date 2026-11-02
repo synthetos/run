@@ -19,6 +19,15 @@
  *    themes (signal orange, black, white), so nothing themed can resemble
  *    them and an operator recognises them in either theme.
  *
+ * 4. DRAFTING ACCENT TOKENS: run's own warm accent, a kraft/vellum tan that
+ *    sits beside the pencil blue (`--tan`, `--tan-wash`, `--on-tan`). Not on
+ *    the site yet; named so synthetos.com can adopt them unchanged (then they
+ *    move to section 1 and the pin). Used sparingly for section labels and
+ *    rules, secondary selection accents, the setup bed, material swatches and
+ *    the board drawing's terminal highlights. Never a safety colour, never
+ *    primary. Checked for contrast like the safety tokens: `--tan` at 4.5:1 as
+ *    text on --sheet, --paper and --tan-wash; `--on-tan` at 4.5:1 on --tan.
+ *
  * Dark mode follows the OS (`prefers-color-scheme`) unless the theme toggle
  * has set `data-theme` on <html>. The two dark blocks below must stay
  * identical; a test compares them.
@@ -64,6 +73,11 @@
   --on-stop: #ffffff;
   --stop-mark: #ff4d40;
 
+  /* 4. Drafting accent tokens, light. */
+  --tan: #836428;
+  --tan-wash: #f5eedf;
+  --on-tan: #ffffff;
+
   color-scheme: light;
 }
 
@@ -92,6 +106,11 @@
     --state-hold: #ffb454;
     --state-alarm: #ff6b6b;
 
+    /* 4. Drafting accent tokens, dark. */
+    --tan: #d6b97f;
+    --tan-wash: #2b2416;
+    --on-tan: #1a140a;
+
     color-scheme: dark;
   }
 }
@@ -119,6 +138,11 @@
   --state-run: #6fdc9b;
   --state-hold: #ffb454;
   --state-alarm: #ff6b6b;
+
+  /* 4. Drafting accent tokens, dark. */
+  --tan: #d6b97f;
+  --tan-wash: #2b2416;
+  --on-tan: #1a140a;
 
   color-scheme: dark;
 }

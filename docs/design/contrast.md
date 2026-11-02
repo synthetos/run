@@ -28,6 +28,11 @@ Where a row names two foreground tokens, the element shows both at its edge
 | light | `--state-alarm` #a4161a | `--sheet` #ffffff | --state-alarm as text or icon on a sheet panel | text | 7.75 | 4.5 | yes |
 | light | `--state-alarm` #a4161a | `--paper` #f6f8f9 | --state-alarm as text or icon on the drafting paper | text | 7.27 | 4.5 | yes |
 | light | `--state-alarm` #a4161a | `--blue-wash` #e8f0f9 | --state-alarm as text on a selected (pencil-blue wash) row | text | 6.74 | 4.5 | yes |
+| light | `--tan` #836428 | `--sheet` #ffffff | drafting accent (tan) as a section label on a sheet panel | text | 5.49 | 4.5 | yes |
+| light | `--tan` #836428 | `--paper` #f6f8f9 | drafting accent (tan) as text on the drafting paper | text | 5.16 | 4.5 | yes |
+| light | `--tan` #836428 | `--tan-wash` #f5eedf | drafting accent (tan) as text on its own wash (a secondary selection) | text | 4.76 | 4.5 | yes |
+| light | `--ink` #15222c | `--tan-wash` #f5eedf | body text on the tan wash | text | 14.01 | 4.5 | yes |
+| light | `--on-tan` #ffffff | `--tan` #836428 | text on a solid tan fill | text | 5.49 | 4.5 | yes |
 | light | `--bar-fg` #111111 | `--bar-bg` #ff9e1b | safety bar text (W1, version chip) | text | 9.13 | 4.5 | yes |
 | light | `--band-fg` #111111 | `--band-bg` #ffffff | state band text (W7) | text | 18.88 | 4.5 | yes |
 | light | `--band-fg` #111111 | `--band-hatch` #d9d9d9 | state band text over its hatch stripes | text | 13.37 | 4.5 | yes |
@@ -57,6 +62,11 @@ Where a row names two foreground tokens, the element shows both at its edge
 | dark | `--state-alarm` #ff6b6b | `--sheet` #131f28 | --state-alarm as text or icon on a sheet panel | text | 6.03 | 4.5 | yes |
 | dark | `--state-alarm` #ff6b6b | `--paper` #0d161d | --state-alarm as text or icon on the drafting paper | text | 6.58 | 4.5 | yes |
 | dark | `--state-alarm` #ff6b6b | `--blue-wash` #1a2d42 | --state-alarm as text on a selected (pencil-blue wash) row | text | 5.05 | 4.5 | yes |
+| dark | `--tan` #d6b97f | `--sheet` #131f28 | drafting accent (tan) as a section label on a sheet panel | text | 8.85 | 4.5 | yes |
+| dark | `--tan` #d6b97f | `--paper` #0d161d | drafting accent (tan) as text on the drafting paper | text | 9.65 | 4.5 | yes |
+| dark | `--tan` #d6b97f | `--tan-wash` #2b2416 | drafting accent (tan) as text on its own wash (a secondary selection) | text | 8.12 | 4.5 | yes |
+| dark | `--ink` #e4ebf0 | `--tan-wash` #2b2416 | body text on the tan wash | text | 12.76 | 4.5 | yes |
+| dark | `--on-tan` #1a140a | `--tan` #d6b97f | text on a solid tan fill | text | 9.67 | 4.5 | yes |
 | dark | `--bar-fg` #111111 | `--bar-bg` #ff9e1b | safety bar text (W1, version chip) | text | 9.13 | 4.5 | yes |
 | dark | `--band-fg` #111111 | `--band-bg` #ffffff | state band text (W7) | text | 18.88 | 4.5 | yes |
 | dark | `--band-fg` #111111 | `--band-hatch` #d9d9d9 | state band text over its hatch stripes | text | 13.37 | 4.5 | yes |

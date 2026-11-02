@@ -7,7 +7,7 @@ run.synthetos.com uses the synthetos.com "blueprint" (Datasheet) theme
 
 | File | What |
 |---|---|
-| `apps/web/src/styles/tokens.css` | Theme tokens (copied), safety tokens, safety bar tokens; light and dark |
+| `apps/web/src/styles/tokens.css` | Theme tokens (copied), safety tokens, safety bar tokens, drafting accent tokens; light and dark |
 | `apps/web/src/styles/tokens.pin.json` | The synthetos.com commit the theme tokens were copied from |
 | `apps/web/src/styles/base.css`, `components.css` | Drafting-grid page, sheets with title blocks, labels, buttons, inputs, tables, safety bar, stop button |
 | `docs/design/contrast.md` | Generated contrast table (`pnpm gen:contrast`) |
@@ -37,3 +37,16 @@ both themes. The safety bar (signal orange, black hazard stripes, white state
 band) and the stop button (black, red pause mark) use tokens that are the same
 in both themes; an E2E test asserts no element outside the bar uses those
 colours.
+
+## Drafting accent (tan)
+
+`--tan --tan-wash --on-tan` are run's own warm accent, a kraft or blueprint
+vellum tan beside the pencil blue. synthetos.com has no such token yet; the
+names are chosen so the site can adopt them as they are (then they move into
+the copied theme section and the pin). Values: light `#836428` / `#f5eedf` /
+`#ffffff`, dark `#d6b97f` / `#2b2416` / `#1a140a`, checked in the contrast
+table (tan at 4.5:1 as text on `--sheet`, `--paper` and `--tan-wash`).
+
+Use them sparingly: section labels and rules, secondary selection accents, the
+setup bed, material swatches, the board drawing's terminal highlights. Blue
+stays primary and the safety colours stay reserved.

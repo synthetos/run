@@ -48,6 +48,18 @@ describe('tokens.css', () => {
     }
   });
 
+  it('defines the drafting accent (--tan, --tan-wash, --on-tan) in both themes, distinct from blue and the safety colours', () => {
+    const { light, dark } = loadThemes();
+    for (const theme of [light, dark]) {
+      const reserved = new Set([theme.get('--blue'), theme.get('--blue-dk'), ...SAFETY_TOKENS.map((t) => theme.get(t))]);
+      for (const t of ['--tan', '--tan-wash', '--on-tan']) {
+        expect(theme.get(t), t).toMatch(/^#[0-9a-f]{6}$/);
+        expect(reserved.has(theme.get(t)), t).toBe(false);
+      }
+    }
+    expect(dark.get('--tan')).not.toBe(light.get('--tan'));
+  });
+
   it('never uses the theme pencil-blue for a safety colour', () => {
     const { light, dark } = loadThemes();
     const blues = new Set([light.get('--blue'), light.get('--blue-dk'), dark.get('--blue'), dark.get('--blue-dk')]);
