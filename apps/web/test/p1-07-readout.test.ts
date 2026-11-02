@@ -322,6 +322,9 @@ describe('the preview marker', () => {
     expect(all(root(h(PreviewSvg, { segments: segments as never, showRapids: true, highlight: -1, envelope: null })), (e) => e.props['data-preview'] === 'marker')).toEqual([]);
     expect(markerRadius('0 0 100 50')).toBe(1.5);
     expect(markerRadius(null)).toBe(0.015);
-    expect(markerText({ x: 1, y: 2, z: 3, ageMs: 1500, lag: 'amber' })).toBe('Live position (polled mpo minus offsets, 1.5 s old): X 1.000 Y 2.000 Z 3.000 mm');
+    expect(markerText({ x: 1, y: 2, z: 3, ageMs: 1500, lag: 'amber' })).toBe('Tool at X 1.000 Y 2.000 Z 3.000 · 1.5 s old');
+    expect(markerText({ x: -1, y: 0, z: 0.5, ageMs: 200, lag: 'fresh' })).toBe('Tool at X −1.000 Y 0.000 Z 0.500 · live');
+    // Plain words only (WORKSPACE_TENETS 4): no firmware token names in the chip.
+    expect(markerText({ x: 1, y: 2, z: 3, ageMs: 200, lag: 'fresh' })).not.toMatch(/mpo|polled|offsets/);
   });
 });
