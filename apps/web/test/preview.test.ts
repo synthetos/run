@@ -99,11 +99,15 @@ describe('scrubber, lite mode and drawing', () => {
   it('the 2D fallback draws the same segments as a top view, with the scrubbed lines highlighted', () => {
     const segments = full.segments;
     if (segments === null) throw new Error('expected segments');
-    const svg = root(h(PreviewSvg, { segments, showRapids: true, highlight: 1, envelope: null }));
+    // Highlight every line: the tint goes on cutting moves only (traverses stay muted and dashed).
+    const svg = root(h(PreviewSvg, { segments, showRapids: true, highlight: 1_000, envelope: null }));
     const d = (cls: string): string => String(one(svg, (e) => e.props['class'] === cls).props['d']);
     expect(d('pv-feed')).toContain('L20 -10');
     expect(d('pv-rapid')).toContain('L10 -10');
     expect(d('pv-highlight')).not.toBe('');
+    // The bed/work grid stays under the drawing once a file is loaded.
+    expect(d('pv-grid')).toMatch(/^M/);
+    expect(d('pv-grid-major')).toMatch(/^M/);
   });
 });
 
@@ -140,5 +144,11 @@ describe('colours from the design tokens', () => {
     const c = previewColors((t) => (t === '--danger' ? '#cc0000' : ''));
     expect(c.outOfBounds).toEqual([0.8, 0, 0, 1]);
     expect(c.feed).toHaveLength(4);
+    const g = previewColors((t) => (t === '--grid' ? '#e3e9ed' : t === '--rule' ? '#c7d2d9' : ''));
+    expect(g.grid).toEqual(parseColor('#e3e9ed'));
+    expect(g.gridMajor).toEqual(parseColor('#c7d2d9'));
+    // Traverses are --muted mixed toward the background.
+    const m = previewColors((t) => (t === '--muted' ? '#000000' : t === '--sheet' ? '#ffffff' : ''));
+    expect(m.rapid[0]).toBeCloseTo(0.4);
   });
 });

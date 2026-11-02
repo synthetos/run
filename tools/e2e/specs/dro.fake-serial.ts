@@ -32,7 +32,7 @@ function writes(worker: import('@playwright/test').Worker): Promise<string[]> {
   });
 }
 
-test('the DRO machine position and the marker move only on polled mpo reads; settings are read through the allowlist', async ({ page }) => {
+test('the DRO machine position and the marker move only on polled mpo reads; settings and the spindle and coolant readouts are read through the allowlist', async ({ page }) => {
   const worker = await machineWorker(page);
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true, kind: 'open' });
   await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as StatusView).status.session.base, { timeout: 10_000 }).toBe('CONNECTED_UNKNOWN');
@@ -41,7 +41,8 @@ test('the DRO machine position and the marker move only on polled mpo reads; set
   const dro = page.locator('[data-region="dro"]');
   const machineX = dro.locator('tr[data-axis="x"] [data-dro="machine"]');
   await expect(machineX).toHaveText('0.000', { timeout: 5000 });
-  await expect(dro).toContainText('polled mpo');
+  await expect(dro).toContainText('Machine position, read from the controller:');
+  await expect(dro).not.toContainText('polled mpo');
 
   // Another program moves the machine. Nothing has been polled since: the DRO still shows the old value.
   const before = (await writes(worker)).filter((w) => w === '{"mpo":null}\n').length;
@@ -60,6 +61,8 @@ test('the DRO machine position and the marker move only on polled mpo reads; set
   await expect(page.locator('[data-settings="recorded"]')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('details[data-group="x"]')).toContainText('How the X axis moves');
   // Row 35 / BENCH-P100-5: the axis-mode facts are rendered from the same read (the simulated board's modes), not hidden.
+  // Polish pass 1: they sit on the Board view's Axes tab.
+  await page.locator('[data-board-tab="axes"]').click();
   const axisModes = page.locator('[data-region="axis-modes"]');
   await expect(axisModes).toBeVisible();
   await expect(axisModes.locator('[data-axis-modes="clear"], [data-axis-modes="facts"]')).toHaveCount(1);
@@ -68,6 +71,12 @@ test('the DRO machine position and the marker move only on polled mpo reads; set
     expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005', JSON.stringify(w)).toBe(true);
   }
   for (const denied of ['{"md":null}\n', '{"me":null}\n', '{"clear":null}\n']) expect(after).not.toContain(denied);
+  // The simulated board's status list lacks the spindle and coolant readouts, so the worker reads them with
+  // plain GETs about once a second (display only), through the same allowlist.
+  await expect.poll(async () => (await writes(worker)).filter((w) => w === '{"spe":null}\n').length, { timeout: 5000 }).toBeGreaterThan(0);
+  const polledReadouts = await writes(worker);
+  for (const t of ['spc', 'sps', 'cof', 'com']) expect(polledReadouts, t).toContain(`{"${t}":null}\n`);
+  for (const w of polledReadouts) expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005', JSON.stringify(w)).toBe(true);
 
   // P1-08: Save transcript downloads (Run view, Console tab) the worker's {t, dir, hex} JSONL with a dated name, next to the board-id warning.
   await page.locator('[data-region="rail"] [data-view="run"]').click();

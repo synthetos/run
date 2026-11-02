@@ -128,6 +128,31 @@ const EN_DEFAULTS: Readonly<Record<string, SettingValue>> = Object.freeze({
   ctn: -1, // :236
   ctm: -1, // :237
   cra: 1, // :241
+  // Motor map and drive settings (settings_default.h:105-134): motors 1-4 drive X, Y, Z and A
+  '1ma': 0, // :105 AXIS_X
+  '1sa': 1.8, // :106
+  '1tr': 1.25, // :107
+  '1mi': 8, // :108
+  '1po': 0, // :109
+  '1pm': 2, // :110 MOTOR_POWER_MODE = MOTOR_POWERED_IN_CYCLE (:63; stepper.h:266-269)
+  '2ma': 1, // :113 AXIS_Y
+  '2sa': 1.8, // :114
+  '2tr': 1.25, // :115
+  '2mi': 8, // :116
+  '2po': 0, // :117
+  '2pm': 2, // :118
+  '3ma': 2, // :121 AXIS_Z
+  '3sa': 1.8, // :122
+  '3tr': 1.25, // :123
+  '3mi': 8, // :124
+  '3po': 0, // :125
+  '3pm': 2, // :126
+  '4ma': 3, // :129 AXIS_A
+  '4sa': 1.8, // :130
+  '4tr': 360, // :131
+  '4mi': 8, // :132
+  '4po': 0, // :133
+  '4pm': 2, // :134
   avm: 800, // placeholder
   afr: 800, // placeholder
   ej: 1, // placeholder (JSON mode)
@@ -230,6 +255,8 @@ export class TinyGEdgeNextModel implements SimDevice {
   #homed = ALL_AXES_UNHOMED();
   #gm: GcodeModel = EN_FRESH_GCODE();
   #spindle: 'off' | 'cw' | 'ccw' = 'off';
+  /** Direction last driven (`spindle_out.ccw`): kept while the spindle is off. */
+  #spindleCcw = false;
   #mist = false;
   #flood = false;
   #motorsEnergized = false;
@@ -493,6 +520,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#homed = ALL_AXES_UNHOMED();
     this.#gm = EN_FRESH_GCODE();
     this.#spindle = 'off';
+    this.#spindleCcw = false;
     this.#mist = false;
     this.#flood = false;
     this.#motorsEnergized = false;
@@ -1142,6 +1170,21 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#spindle = 'off'; // spindle_reset(): immediate, S kept
   }
 
+  /**
+   * `sps`: the S in use after the p1csl..p1csh (CW) or p1wsl..p1wsh (CCW) clamp, 0 while off
+   * (@cite EN spindle.c:165-166, :223). The model applies S at parse time, not queued (LIM-EN-REPIN).
+   */
+  #spindleSpeedInUse(): number {
+    if (this.#spindle === 'off') return 0;
+    const [lo, hi] = this.#spindle === 'cw' ? ['p1csl', 'p1csh'] : ['p1wsl', 'p1wsh'];
+    const l = this.settings.get(lo);
+    const h = this.settings.get(hi);
+    let speed = this.#gm.spindleSpeed;
+    if (typeof l === 'number' && speed < l) speed = l;
+    if (typeof h === 'number' && speed > h) speed = h;
+    return speed;
+  }
+
   #coolantOff(): void {
     this.#mist = false;
     this.#flood = false;
@@ -1398,6 +1441,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       this.#queueCommand(`spindle ${mode}`, () => {
         // @behaviour EN-SPINDLE-QUEUED
         this.#spindle = this.#outputsInhibited() ? 'off' : mode;
+        if (this.#spindle !== 'off') this.#spindleCcw = this.#spindle === 'ccw';
       });
     }
     if (g.mist !== undefined || g.flood !== undefined) {
@@ -1893,6 +1937,20 @@ export class TinyGEdgeNextModel implements SimDevice {
         return this.#motion.available();
       case 'get_rx':
         return this.#ring.free;
+      // @behaviour EN-SPINDLE-READOUTS: the outputs as last driven by the queued executors, not the model
+      // (@cite EN spindle.c:115-117, :219-223; canonical_machine.c:1564-1565, :1570, :1619)
+      case 'spindle_get_spe':
+        return this.#spindle === 'off' ? 0 : 1;
+      case 'spindle_get_spc':
+        return this.#spindle === 'off' ? 0 : this.#spindle === 'cw' ? 1 : 2;
+      case 'spindle_get_spd':
+        return this.#spindleCcw ? 1 : 0;
+      case 'spindle_get_sps':
+        return fixed(this.#spindleSpeedInUse(), p);
+      case 'coolant_get_cof':
+        return this.#flood ? 1 : 0;
+      case 'coolant_get_com':
+        return this.#mist ? 1 : 0;
       case 'hw_get_id':
         return this.#options.id ?? 'SIM-EN-0001';
       case 'hw_get_fstk':

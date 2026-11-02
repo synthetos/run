@@ -11,7 +11,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { TinyGEdgeNextModel } from '@synthetos/testkit';
-import { LAG_AMBER_MS, LAG_RED_MS, MPO_POLL_ANSWER_MS, MPO_POLL_MS, PositionPoller, droView, lagOf, positionPollable, snapshotOf, type PollTarget, type SessionSnapshot } from '../src/index.ts';
+import { LAG_AMBER_MS, LAG_RED_MS, MPO_POLL_ANSWER_MS, MPO_POLL_MS, PositionPoller, READOUT_POLL_ANSWER_MS, READOUT_POLL_MS, ReadoutPoller, droView, lagOf, positionPollable, readoutsToPoll, snapshotOf, type PollTarget, type SessionSnapshot } from '../src/index.ts';
 import { Driver, EN_ANSWERS } from './sessionDriver.ts';
 import { harness, type Harness } from './sessionHarness.ts';
 import { PORT } from './simTransport.ts';
@@ -192,6 +192,80 @@ describe('PositionPoller: one poll owed at a time', () => {
     expect(positionPollable({ ...s, overlays: ['LOST'] })).toBe(false);
     expect(positionPollable({ ...s, overlays: ['FAULT'] })).toBe(false);
     expect(positionPollable({ ...s, overlays: ['READ_ONLY', 'NEEDS_REVIEW'] })).toBe(true);
+  });
+});
+
+describe('ReadoutPoller: spindle and coolant readouts the status list lacks (display only)', () => {
+  it('on the simulated board, GETs spe, spc, sps, cof and com about once a second, and the answers land in values', async () => {
+    const h = await connectedEn();
+    const poller = new ReadoutPoller(h.session, h.clock);
+    poller.start();
+    const before = lines(h).length;
+    await h.run(READOUT_POLL_MS * 3 + 50);
+    const sent = lines(h).slice(before);
+    for (const t of ['spe', 'spc', 'sps', 'cof', 'com']) expect(sent.filter((l) => l === `{"${t}":null}\n`).length, t).toBe(3);
+    expect(sent.filter((l) => l === '{"spd":null}\n')).toEqual([]);
+    expect(poller.polls).toBe(3);
+    for (const t of ['spe', 'spc', 'sps', 'cof', 'com']) expect(h.session.snapshot.values[t], t).toMatchObject({ value: 0, status: 0 });
+    for (const l of lines(h)) expect(/^\{"?[a-z0-9]+"?:null\}\n$/.test(l) || l === '\u0005', JSON.stringify(l)).toBe(true);
+    poller.stop();
+  });
+
+  it('polls only the readouts missing from the status list, waits for the list, and polls nothing when it carries them all', () => {
+    const s = snapshotOf(connectedDriver().state);
+    expect(readoutsToPoll(s)).toEqual(['spe', 'spc', 'sps', 'cof', 'com']);
+    expect(readoutsToPoll({ ...s, live: { ...s.live, srList: [...(s.live.srList ?? []), 'spe', 'cof'] } })).toEqual(['spc', 'sps', 'com']);
+    expect(readoutsToPoll({ ...s, live: { ...s.live, srList: ['spe', 'spc', 'sps', 'cof', 'com'] } })).toEqual([]);
+    const { srList: _list, ...noList } = s.live;
+    expect(readoutsToPoll({ ...s, live: noList })).toEqual([]);
+    expect(readoutsToPoll({ ...s, overlays: ['LOST'] })).toEqual([]);
+    expect(readoutsToPoll({ ...s, base: 'READING' })).toEqual([]);
+  });
+
+  it('one poll owed at a time: skipped while unanswered, given up after answerMs; a denied read is not counted', () => {
+    const d = connectedDriver();
+    const t = target(snapshotOf(d.state));
+    const clock = new FakeClock();
+    const p = new ReadoutPoller(t, clock);
+    p.start();
+    p.start();
+    clock.advance(READOUT_POLL_MS);
+    expect(t.reads).toEqual([['spe', 'spc', 'sps', 'cof', 'com']]);
+    clock.advance(READOUT_POLL_MS);
+    expect(t.reads).toHaveLength(1);
+    const answered = Object.fromEntries(['spe', 'spc', 'sps', 'cof', 'com'].map((k) => [k, { value: 0, status: 0, at: clock.t }]));
+    t.snap = { ...t.snap, values: answered };
+    clock.advance(READOUT_POLL_MS);
+    expect(t.reads).toHaveLength(2);
+    clock.advance(READOUT_POLL_ANSWER_MS);
+    expect(t.reads).toHaveLength(3);
+    t.allowed = false;
+    clock.advance(READOUT_POLL_MS * 2);
+    expect(p.polls).toBe(3);
+    p.stop();
+    clock.advance(READOUT_POLL_MS * 3);
+    expect(t.reads).toHaveLength(4); // the last tick before stop was a denied read
+  });
+});
+
+describe('ReadoutPoller: nothing to poll, and a new link', () => {
+  it('reads nothing while the status list carries every readout, and a new link does not wait for the old poll', () => {
+    const d = connectedDriver();
+    const s = snapshotOf(d.state);
+    const t = target({ ...s, live: { ...s.live, srList: ['spe', 'spc', 'sps', 'cof', 'com'] } });
+    const clock = new FakeClock();
+    const p = new ReadoutPoller(t, clock, { intervalMs: 100, answerMs: 1000 });
+    p.start();
+    clock.advance(300);
+    expect(t.reads).toEqual([]);
+    t.snap = s;
+    clock.advance(100);
+    expect(t.reads).toHaveLength(1);
+    t.snap = { ...s, epoch: s.epoch + 1 };
+    clock.advance(100);
+    expect(t.reads).toHaveLength(2);
+    p.stop();
+    p.stop(); // idempotent
   });
 });
 

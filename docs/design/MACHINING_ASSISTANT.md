@@ -36,7 +36,7 @@ Each tool is a versioned record in the user's account, plus a local cache that w
 | `datasheetUrl` | Link only: we never fetch it from the browser (§8) |
 | `cuttingData[]` | `{ materialRef, vc, fz, ap, ae, coolant, source: 'manufacturer' \| 'synthetos' \| 'user' \| 'ai', note }`. Manufacturer data beats generic data |
 | `life` | Minutes cut, broken down by material, from jobs run (P3). Feeds "probably dull, reorder?" nudges and the advisor's wear factor |
-| `firmwareSlot?` | Mock: a possible firmware tool table entry (T number, length offset) |
+| `firmwareSlot?` | Unused. TinyG has no firmware tool table: tools live in software. Kept only in case g2core gets one later (T number, length offset) |
 | `tags`, `images` | Image upload comes later (Cloud) |
 
 Store tools (§4) arrive with verified geometry and cutting data in one click.
@@ -234,6 +234,11 @@ The simulation handles all of them.
   - Run knows which lines it has sent and been acknowledged for, and the board reports the executing line.
   - One G-code line can be several planner blocks (arcs, long moves), so the band is line-accurate, not block-accurate. The gauge uses `qr` for the true block count.
   - The firmware's planned feed-limit reasons (§6.2, firmware step 1) can later colour queued blocks by cause, for example corner-limited or too short to reach feed.
+- **Breakpoints (P3; the gutter and per-file storage ship now):** click a line's margin in the G-code panel to set one.
+  - Run stops sending lines before the breakpoint line. The moves already queued finish and the machine comes to a clean stop there: the queue drains, so no feedhold is needed.
+  - The strip then shows "Stopped at breakpoint · line N", with "· spindle still on" when `spe` 1 is reported. Resume streams on from that line.
+  - A breakpoint takes effect only on a line not yet sent: lines in the planner cannot be recalled, so the panel says so when one sits inside the queued band.
+  - Breakpoints never gate Pause or Stop job.
 - **Round stock and rotary:** round stock lying flat or standing up is a 3-axis heightfield. A rotary A axis needs a cylindrical heightfield; that is a later phase.
 
 ## 8. Security and privacy

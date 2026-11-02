@@ -1,0 +1,40 @@
+/*
+ * The G-code list (preview/LineList.ts): a tool row (go to line, Follow,
+ * breakpoints), the virtualised rows with a breakpoint gutter, subtle
+ * alternating shading and the "Jump to current" pill. Theme and safety
+ * tokens only: the breakpoint dot is --danger, as a debugger's is, and it
+ * never stands for a safety state on its own (it always sits in the gutter
+ * with its label).
+ */
+.gcode-list { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.sheet .gcode-list { height: 380px; }
+.gcode-tools { flex: none; display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-bottom: 1px solid var(--line-soft, var(--rule)); font-size: 12px; min-width: 0; }
+.gcode-jump input { width: 104px; height: 26px; font-size: 12px; font-family: var(--mono); padding: 0 8px; border: 1px solid var(--rule); border-radius: 4px; background: var(--sheet); color: var(--ink); }
+.gcode-jump input[aria-invalid="true"] { border-color: var(--danger); }
+.gcode-follow { min-height: 26px; padding: 0 10px; font-size: 12px; }
+.gcode-bp-note { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.gcode-bp-note.warn { color: var(--warn); }
+.gcode-scroll { position: relative; flex: 1; min-height: 0; }
+.gcode-scroll .preview-list { position: absolute; inset: 0; height: auto; max-height: none; border: 0; margin: 0; overscroll-behavior: contain; }
+
+.gcode-list .preview-row { grid-template-columns: 18px 4.5em 4.5em minmax(12em, max-content) minmax(0, 1fr); gap: 8px; padding: 0 8px 0 2px; }
+.gcode-list .preview-row[data-odd="true"] { background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.gcode-list .preview-row[data-highlight="true"] { background: var(--blue-wash); }
+.gcode-list .preview-row[data-executing="true"] { background: color-mix(in srgb, var(--blue) 16%, var(--sheet)); box-shadow: inset 3px 0 0 var(--blue); }
+.gcode-list .preview-row[data-verdict="block"] { box-shadow: inset 3px 0 0 var(--danger); }
+
+.preview-row-gutter { all: unset; box-sizing: border-box; display: grid; place-items: center; width: 18px; height: 22px; cursor: pointer; border-radius: 3px; }
+.preview-row-gutter:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.bp-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); flex: none; }
+.preview-row-gutter .bp-dot { opacity: 0; transition: opacity .1s; }
+.preview-row-gutter:hover .bp-dot, .preview-row-gutter:focus-visible .bp-dot { opacity: .3; }
+.preview-row-gutter[aria-pressed="true"] .bp-dot { opacity: 1; }
+
+.gcode-jump-current { position: absolute; right: 14px; bottom: 10px; z-index: 1; min-height: 28px; padding: 0 12px; border-radius: 14px; font-size: 12px; background: var(--blue); border-color: var(--blue); color: var(--on-blue); box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 18%, transparent); }
+.gcode-jump-current:hover:not(:disabled) { background: var(--blue-dk); border-color: var(--blue-dk); }
+
+@media (max-width: 640px) {
+  .gcode-list .preview-row { grid-template-columns: 18px 4em 4em minmax(0, 1fr); }
+  .gcode-bp-note { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .preview-row-gutter .bp-dot { transition: none; } }

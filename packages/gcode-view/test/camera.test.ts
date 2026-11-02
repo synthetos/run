@@ -20,6 +20,23 @@ describe('orbit camera', () => {
     }));
   });
 
+  it('with the canvas shape, the fit is tight: every corner inside the fill, and the box reaching it (property)', () => {
+    const coord = fc.double({ min: -2000, max: 2000, noNaN: true });
+    fc.assert(fc.property(coord, coord, fc.double({ min: 1, max: 1500, noNaN: true }), fc.double({ min: 0.5, max: 3, noNaN: true }), (x, y, size, aspect) => {
+      const box = { min: [x, y, -size * 0.05] as const, max: [x + size, y + size * 0.7, 0] as const };
+      const o = fitOrbit(box, Math.PI / 4, aspect, 0.8);
+      const m = viewProjection(o, aspect);
+      let reach = 0;
+      for (const cx of [box.min[0], box.max[0]]) for (const cy of [box.min[1], box.max[1]]) for (const cz of [box.min[2], box.max[2]]) {
+        const p = project(m, [cx, cy, cz]);
+        expect(Math.abs(p[0])).toBeLessThanOrEqual(0.8 + 1e-4);
+        expect(Math.abs(p[1])).toBeLessThanOrEqual(0.8 + 1e-4);
+        reach = Math.max(reach, Math.abs(p[0]), Math.abs(p[1]));
+      }
+      expect(reach).toBeGreaterThan(0.6);
+    }));
+  });
+
   it('Z is up: a point above the target projects above the centre', () => {
     const o = fitOrbit({ min: [0, 0, 0], max: [10, 10, 10] });
     const m = viewProjection(o, 1);

@@ -8,6 +8,7 @@
 import { drawnBounds, type Box3, type SegmentList } from './segments.ts';
 import { STYLE, styleOf } from './geometry.ts';
 import { lineOfVertex } from './segments.ts';
+import { gridLayout, gridLines } from './grid.ts';
 
 export interface SvgPaths {
   /** `minX minY width height`, or null for an empty list. */
@@ -17,7 +18,7 @@ export interface SvgPaths {
   readonly feed: string;
   readonly outOfBounds: string;
   readonly uncertain: string;
-  /** The scrubbed lines (0..highlightLine), drawn on top. */
+  /** The scrubbed lines' cutting moves (0..highlightLine; traverses excluded), drawn on top. */
   readonly highlight: string;
   /** True when segments were dropped to stay under `maxSegments`. */
   readonly decimated: boolean;
@@ -58,7 +59,8 @@ export function svgPaths(list: SegmentList, options: SvgOptions = {}): SvgPaths 
     const seg = `M${fmt(v[(i - 1) * 3] as number)} ${fmt(-(v[(i - 1) * 3 + 1] as number))}L${fmt(v[i * 3] as number)} ${fmt(-(v[i * 3 + 1] as number))}`;
     const key = style === STYLE.RAPID ? 'rapid' : style === STYLE.OUT_OF_BOUNDS ? 'outOfBounds' : style === STYLE.UNCERTAIN ? 'uncertain' : 'feed';
     parts[key].push(seg);
-    if (line <= highlightLine) parts.highlight.push(seg);
+    // The scrubber tints cutting moves only: traverses stay muted and dashed (the caller's `.pv-rapid` style).
+    if (line <= highlightLine && style !== STYLE.RAPID) parts.highlight.push(seg);
   }
   const b = drawnBounds(list, showRapids);
   const env = options.envelope ?? null;
@@ -88,4 +90,17 @@ export function svgEnvelope(envelope: Box3 | null): string {
   const [x0, y0] = envelope.min;
   const [x1, y1] = envelope.max;
   return `M${fmt(x0)} ${fmt(-y0)}L${fmt(x1)} ${fmt(-y0)}L${fmt(x1)} ${fmt(-y1)}L${fmt(x0)} ${fmt(-y1)}Z`;
+}
+
+/**
+ * The bed/work grid under a top view (same Y flip), as minor and major path data: over the envelope
+ * when given, else the padded drawn extent including the origin (grid.ts). Empty strings for an empty list.
+ */
+export function svgGrid(list: SegmentList, options: { readonly showRapids?: boolean; readonly envelope?: Box3 | null } = {}): { readonly minor: string; readonly major: string; readonly box: string | null } {
+  const g = gridLayout(drawnBounds(list, options.showRapids ?? true), options.envelope ?? null);
+  if (g === null) return { minor: '', major: '', box: null };
+  const minor: string[] = [];
+  const major: string[] = [];
+  for (const l of gridLines(g)) (l.major ? major : minor).push(`M${fmt(l.a[0])} ${fmt(-l.a[1])}L${fmt(l.b[0])} ${fmt(-l.b[1])}`);
+  return { minor: minor.join(''), major: major.join(''), box: `${fmt(g.x0)} ${fmt(-g.y1)} ${fmt(g.x1 - g.x0)} ${fmt(g.y1 - g.y0)}` };
 }

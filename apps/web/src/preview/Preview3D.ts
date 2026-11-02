@@ -35,7 +35,8 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
       return;
     }
     const style = getComputedStyle(el);
-    const r = createRenderer(gl, { colors: previewColors((t) => style.getPropertyValue(t)) });
+    // The bed/work grid is always drawn, so the drawing keeps its floor and scale once a file is loaded.
+    const r = createRenderer(gl, { colors: previewColors((t) => style.getPropertyValue(t)), grid: true });
     renderer.current = r;
     const detach = attachViewControls(el, r);
     const size = (): void => { r.resize(el.clientWidth, el.clientHeight, devicePixelRatio); };

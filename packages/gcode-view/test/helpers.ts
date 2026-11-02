@@ -103,4 +103,5 @@ export function frameQueue(): { request: (draw: () => void) => void; flush: () =
 export const COLORS = {
   background: [1, 1, 1, 1], rapid: [0, 0, 1, 1], feed: [0, 0, 0, 1], arc: [0, 0.3, 0, 1], outOfBounds: [1, 0, 0, 1],
   uncertain: [0.5, 0.5, 0.5, 1], highlight: [1, 0.6, 0, 1], envelope: [0.2, 0.2, 0.2, 1], axisX: [1, 0, 0, 1], axisY: [0, 1, 0, 1], axisZ: [0, 0, 1, 1],
+  grid: [0.9, 0.9, 0.9, 1], gridMajor: [0.8, 0.8, 0.8, 1],
 } as const;

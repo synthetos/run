@@ -11,6 +11,7 @@ import { SafetyNotes } from './LibraryViews.ts';
 import { Icon } from '../icons.ts';
 import { OutlineError, parseOutline, MAX_OUTLINE_BYTES } from '../outline.ts';
 import { SetupScene, type SetupCamera } from '../setupScene.ts';
+import { TabBar, TabPane } from '../ui.ts';
 
 type Stock = SetupState['stock'];
 
@@ -97,8 +98,11 @@ function FixtureThumb({ fixture }: { readonly fixture: NonNullable<SetupState['f
   return h('svg', { class: 'fixture-thumb', viewBox: `-6 -6 ${w + 12} ${d + 12}`, 'aria-hidden': 'true' }, h('path', { d: path, class: 'ol' }), ...fixture.holes.slice(0, 200).map(([x, y, r], i) => h('circle', { cx: x, cy: d - y, r: Math.max(r, w / 120), key: String(i) })));
 }
 
+type SetupTab = 'stock' | 'fixture' | 'bed';
+
 export function SetupView(): ComponentChild {
   const setup = setupStore.value.value;
+  const [tab, setTab] = useState<SetupTab>('stock');
   const [status, setStatus] = useState('Reads lines, polylines, circles and rectangles. The file stays on this computer. Units are taken as millimetres.');
   const set = (patch: Partial<SetupState>): void => setupStore.set({ ...setup, ...patch });
   const setStock = (patch: Partial<Stock>): void => set({ stock: { ...setup.stock, ...patch } });
@@ -116,7 +120,11 @@ export function SetupView(): ComponentChild {
       h('div', { class: 'canvas-column' }, h(Viewer, { setup })),
       h(
         'aside',
-        { tabindex: 0, class: 'inspector', 'aria-label': 'Setup details' },
+        { class: 'inspector tabbed', 'aria-label': 'Setup details' },
+        h(TabBar<SetupTab>, { label: 'Setup', prefix: 'setup', variant: 'underline', current: tab, onSelect: setTab, tabs: [{ id: 'stock', label: 'Stock' }, { id: 'fixture', label: 'Fixture' }, { id: 'bed', label: 'Bed' }] }),
+        h(
+          TabPane,
+          { prefix: 'setup', id: 'stock', current: tab, class: 'tpane insp-scroll' },
         h(
           'section',
           { class: 'insp' },
@@ -161,6 +169,10 @@ export function SetupView(): ComponentChild {
             ),
           ),
         ),
+        ),
+        h(
+          TabPane,
+          { prefix: 'setup', id: 'fixture', current: tab, class: 'tpane insp-scroll' },
         h(
           'section',
           { class: 'insp' },
@@ -224,12 +236,17 @@ export function SetupView(): ComponentChild {
           ),
           h('div', { class: 'switch-row' }, h('span', null, 'Fixture'), h('button', { type: 'button', class: 'small', onClick: () => set({ fixture: fx === null ? sampleFixture() : null }) }, fx === null ? 'Use the sample plate' : 'Remove the fixture')),
         ),
+        ),
+        h(
+          TabPane,
+          { prefix: 'setup', id: 'bed', current: tab, class: 'tpane insp-scroll' },
         h(
           'section',
           { class: 'insp' },
           h('header', null, h('h2', null, 'Bed'), h('span', { class: 'tag' }, 'Spoilboard')),
           h('div', { class: 'field-grid three' }, field('Width', setup.bed.width, (width) => set({ bed: { ...setup.bed, width } }), 'mm', 1, 1), field('Depth', setup.bed.depth, (depth) => set({ bed: { ...setup.bed, depth } }), 'mm', 1, 1), field('Thickness', setup.bed.thickness, (thickness) => set({ bed: { ...setup.bed, thickness } }))),
           h('p', { class: 'fine' }, setupStore.saved.value ? 'Saved in this browser. Account sync comes later.' : 'Not saved: this browser blocks storage. Changes last for this page only.'),
+        ),
         ),
       ),
     ),

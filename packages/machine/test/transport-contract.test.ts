@@ -105,6 +105,12 @@ describe('package entry', () => {
         'droView',
         'lagOf',
         'positionPollable',
+        // Spindle and coolant readouts the status list lacks, polled for display only.
+        'READOUT_POLL_ANSWER_MS',
+        'READOUT_POLL_MS',
+        'READOUT_TOKENS',
+        'ReadoutPoller',
+        'readoutsToPoll',
       ].sort(),
     );
   });

@@ -30,7 +30,7 @@
  *
  * It holds no account or network state (DECISIONS D1).
  */
-import { LAG_AMBER_MS, LAG_RED_MS, MachineSession, PositionPoller, droView, liveControlPlatform, type PortSelector, type Transport, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
+import { LAG_AMBER_MS, LAG_RED_MS, MachineSession, PositionPoller, ReadoutPoller, droView, liveControlPlatform, type PortSelector, type Transport, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
 import type { Decision } from '@synthetos/safety';
 import { RPC_VERSION, parseRequest, refusal, type Denial, type MachineReply, type SnapshotMessage, type WindowIntent, type WorkerState } from './rpc.ts';
 
@@ -77,6 +77,7 @@ export class MachineWorkerHost {
   readonly #session: MachineSession;
   readonly #platform: PlatformInfo | undefined;
   readonly #poller: PositionPoller;
+  readonly #readouts: ReadoutPoller;
   #preparationId = 0;
   #prepared: PreparedPort | null = null;
   #approved: PreparedPort | null = null;
@@ -106,6 +107,15 @@ export class MachineWorkerHost {
     // The poller only asks `session.read`; it is idle until a classified board is connected.
     this.#poller = new PositionPoller(this.#session, clock);
     this.#poller.start();
+    // Spindle and coolant readouts the board's status list lacks, as GETs about once a second. DISPLAY ONLY:
+    // their answers are shown by the page and read by no decision (SAFETY §4.4).
+    this.#readouts = new ReadoutPoller(this.#session, clock);
+    this.#readouts.start();
+  }
+
+  /** The spindle and coolant readout poller (tests). */
+  get readoutPoller(): ReadoutPoller {
+    return this.#readouts;
   }
 
   /** The `mpo` poller (tests). */

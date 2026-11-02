@@ -472,6 +472,18 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [{ src: 'EN', file: 'spindle.c', lines: [182, 186], quote: 'mp_queue_command(_exec_spindle_control' }],
   },
+  {
+    id: 'EN-SPINDLE-READOUTS',
+    model: EN,
+    summary: 'The read-only readouts spe, spc, spd and sps report the spindle output as last driven by the queued executor (spd keeps the last direction while off; sps is the clamped S in use, 0 while off), and cof and com the coolant outputs as last driven.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'spindle.c', lines: [115, 117], quote: 'spindle_out.mode != SPINDLE_OFF' },
+      { src: 'EN', file: 'spindle.c', lines: [219, 223], quote: 'spindle_out.ccw = (spindle_mode == SPINDLE_CCW)' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1564, 1565], quote: 'nv->value_int = coolant_out_flood' },
+      { src: 'EN', file: 'config_app.c', lines: [686, 692], quote: 'spindle_get_spe, set_nul' },
+    ],
+  },
   // ------------------------------------------------------------------ edge-next: settings and reads
   {
     id: 'EN-SETTINGS-GATE',
@@ -929,5 +941,5 @@ export const MODEL_LIMITS: readonly ModelLimit[] = Object.freeze([
   { id: 'LIM-TG-OVERLONG', scope: 'tinyg-440', summary: 'Overlong lines on 440.21 throw ModelGapError.' },
   { id: 'LIM-REPORTS', scope: 'both', summary: 'Enumerated report values (momo, admo, frmo, macs, cycs, mots) use model numbering; qv=2 reports qr without qi/qo; status reports in text mode are still JSON.' },
   { id: 'LIM-MODAL-TG', scope: 'tinyg-440', summary: 'Two codes of one modal group on a 440.21 line: the last one wins; no modal-group error is modelled.' },
-  { id: 'LIM-EN-REPIN', scope: 'tinyg-en', summary: 'The model was built at edge-next ead63997; the 97321391 and 6ec70652 re-pins (2026-11-02) are not modelled beyond moved citations. Not modelled: the rt heartbeat family (rt, rthb, rtqt, rtup; the {"hb":...} line), the spindle and coolant readouts spe, spc, spd, sps, cof and com (a GET of one is a model gap), E195 (a partial line quiet for about 1 s is dropped when a { arrives; the model always joins it to the next line), the stricter input errors E168-E177, E191 and E193, and the timing fixes E165-E167, E180-E184, E190 and E192.' },
+  { id: 'LIM-EN-REPIN', scope: 'tinyg-en', summary: 'The model was built at edge-next ead63997; the 97321391 and 6ec70652 re-pins (2026-11-02) are modelled only for the spindle and coolant readouts spe, spc, spd, sps, cof and com (EN-SPINDLE-READOUTS; the model applies S when parsed, not queued, so sps follows a new S at once) and beyond that only as moved citations. Not modelled: the rt heartbeat family (rt, rthb, rtqt, rtup; the {"hb":...} line), E195 (a partial line quiet for about 1 s is dropped when a { arrives; the model always joins it to the next line), the stricter input errors E168-E177, E191 and E193, and the timing fixes E165-E167, E180-E184, E190 and E192.' },
 ]);

@@ -22,6 +22,7 @@ import {
   forkRecord,
   readFixture,
   readFork,
+  readMaterial,
   readStock,
   readTool,
   resolveFork,
@@ -96,7 +97,26 @@ export function doNotMachine(m: Material): boolean {
 
 // ---------------------------------------------------------------- types kept locally
 
+/** One axis of a machine profile, in the profile's own words; each field maps to one TinyG key (Machines view). */
+export interface AxisProfile {
+  readonly stepAngle?: number;
+  readonly microsteps?: number;
+  readonly travelPerRev?: number;
+  readonly maxVelocity?: number;
+  readonly maxFeed?: number;
+  readonly jerk?: number;
+  readonly homingSearch?: number;
+  readonly homingLatch?: number;
+  readonly latchBackoff?: number;
+  readonly zeroBackoff?: number;
+  readonly minSwitch?: number;
+  readonly maxSwitch?: number;
+}
+
 export interface MachineProfile {
+  readonly axes?: Readonly<Partial<Record<'x' | 'y' | 'z' | 'a', AxisProfile>>>;
+  /** Switch type for every input (TinyG `st`): 0 normally open, 1 normally closed. */
+  readonly switchType?: number;
   readonly id: string;
   readonly name: string;
   readonly templateId: string;
@@ -126,6 +146,9 @@ const isSetup = (v: unknown): v is SetupState =>
 
 export const toolStore = stored<readonly ToolEntry[]>('tools.v2', SEED_TOOLS, isToolList);
 export const myMaterialStore = stored<readonly LibraryFork[]>('materials.v2', [], isForks);
+const isOwnMaterials = (v: unknown): v is Material[] => isArray(v) && v.every((m) => readMaterial(m).ok);
+/** Materials I created from scratch (full records, versioned with `reviseRecord`). */
+export const ownMaterialStore = stored<readonly Material[]>('materials.own.v1', [], isOwnMaterials);
 export const machineStore = stored<readonly MachineProfile[]>('machines', [], isMachines);
 export const selectedMachineStore = stored<string | null>('machine-selected', null, isSelected);
 
@@ -177,7 +200,11 @@ function resolved(fork: LibraryFork): MaterialView | null {
 export const allMaterials = computed<readonly MaterialView[]>(() => [
   ...BUILTIN_MATERIALS.map((material) => ({ material, source: 'builtin' as const })),
   ...myMaterialStore.value.value.map(resolved).filter((m): m is MaterialView => m !== null),
+  ...ownMaterialStore.value.value.map((material) => ({ material, source: 'mine' as const })),
 ]);
+
+/** How many materials are mine (copies and my own). */
+export const myMaterialCount = computed(() => allMaterials.value.filter((m) => m.source === 'mine').length);
 
 export function materialView(id: string): MaterialView | null {
   return allMaterials.value.find((m) => m.material.id === id) ?? null;
@@ -215,6 +242,64 @@ export function editMyMaterial(id: string, path: 'name' | 'notes' | 'purchase', 
   if (!next.ok) return next.issues[0]?.message ?? 'The change was refused.';
   myMaterialStore.set(list.map((f) => (f.id === id ? next.value : f)));
   return null;
+}
+
+/** The fields of a material the create/edit form writes (everything but id, version and forkOf). */
+export type MaterialFields = Omit<Material, 'id' | 'version' | 'forkOf'>;
+
+const EDIT_FIELDS: readonly (keyof MaterialFields)[] = ['name', 'family', 'grade', 'physical', 'cutting', 'coolant', 'behaviour', 'safety', 'stockForms', 'purchase', 'description', 'notes'];
+
+function firstIssue(r: { readonly ok: false; readonly issues: readonly { readonly path: string; readonly message: string }[] }): string {
+  const i = r.issues[0];
+  return i === undefined ? 'The material was refused.' : `${i.path === '' ? '' : `${i.path}: `}${i.message}`;
+}
+
+/** Creates one of my own materials. Returns its id, or why the schema refused it. */
+export function createMaterial(fields: MaterialFields): { readonly id: string } | { readonly error: string } {
+  const slug = fields.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'material';
+  const id = `mine.${slug}-${Date.now().toString(36)}`.slice(0, 64);
+  const r = readMaterial({ ...JSON.parse(JSON.stringify(fields)), id, version: 1 });
+  if (!r.ok) return { error: firstIssue(r) };
+  ownMaterialStore.set([...ownMaterialStore.value.value, r.value]);
+  return { id };
+}
+
+/** Saves an edit of one of my materials (a copy or my own); built-ins are never edited. Returns why it was refused, or null. */
+export function updateMaterial(id: string, fields: MaterialFields): string | null {
+  const own = ownMaterialStore.value.value.find((m) => m.id === id);
+  if (own !== undefined) {
+    const r = reviseRecord('material', own, JSON.parse(JSON.stringify(fields)) as Record<string, unknown>);
+    if (!r.ok) return firstIssue(r);
+    ownMaterialStore.set(ownMaterialStore.value.value.map((m) => (m.id === id ? r.value : m)));
+    return null;
+  }
+  const list = myMaterialStore.value.value;
+  const fork = list.find((f) => f.id === id);
+  const parent = fork === undefined ? undefined : builtinMaterial(fork.forkOf.id);
+  const current = material(id);
+  if (fork === undefined || parent === undefined || current === null) return 'Only your own materials can be edited. Make your own copy first.';
+  let next = fork as LibraryFork & { readonly kind: 'material' };
+  for (const field of EDIT_FIELDS) {
+    if (JSON.stringify(current[field]) === JSON.stringify(fields[field])) continue;
+    const r = editFork(next, parent, field, JSON.parse(JSON.stringify(fields[field])));
+    if (!r.ok) return firstIssue(r);
+    next = r.value as LibraryFork & { readonly kind: 'material' };
+  }
+  myMaterialStore.set(list.map((f) => (f.id === id ? next : f)));
+  return null;
+}
+
+/** Deletes one of my materials. Built-ins cannot be deleted. Returns false when it is not mine. */
+export function deleteMaterial(id: string): boolean {
+  if (ownMaterialStore.value.value.some((m) => m.id === id)) {
+    ownMaterialStore.set(ownMaterialStore.value.value.filter((m) => m.id !== id));
+    return true;
+  }
+  if (myMaterialStore.value.value.some((f) => f.id === id)) {
+    myMaterialStore.set(myMaterialStore.value.value.filter((f) => f.id !== id));
+    return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------- tools

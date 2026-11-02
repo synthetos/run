@@ -31,8 +31,8 @@ describe('WebGL renderer', () => {
     await r.load(list, { ...instant, segmentsPerChunk: 100 });
     const drawn = 1000 - Math.ceil(1000 / 97);
     expect(r.chunkCount).toBe(Math.ceil(drawn / 100));
-    // Buffers go up as (positions, styles, lines) per chunk.
-    const uploaded = uploads.filter((_, i) => i % 3 === 0).flatMap((u) => Array.from(u as Float32Array));
+    // Buffers go up as (positions, styles, lines, traverse dash distances) per chunk.
+    const uploaded = uploads.filter((_, i) => i % 4 === 0).flatMap((u) => Array.from(u as Float32Array));
     const expected = [...chunks(list, 100)].flatMap((c) => Array.from(c.positions));
     expect(uploaded).toEqual(expected);
     frames.flush();
@@ -82,5 +82,17 @@ describe('WebGL renderer', () => {
     expect(live()).toBe(0);
     r.requestRender();
     expect(frames.pending).toBe(0);
+  });
+
+  it('traverses carry their distance along the segment for the dash; other moves carry none; still one draw per chunk', async () => {
+    const { gl, calls, uploads } = fakeGl();
+    const frames = frameQueue();
+    const r = createRenderer(gl, { colors: COLORS, requestFrame: frames.request });
+    await r.load(listOf([[[SEGMENT.RAPID, 3, 4, 0]], [[SEGMENT.FEED, 3, 10, 0]]]), instant);
+    const dist = Array.from(uploads[3] as Float32Array);
+    expect(dist).toEqual([0, 5, 0, 0]);
+    frames.flush();
+    expect(calls.get('drawArrays')).toBe(1);
+    expect(calls.get('uniform1f')).toBeGreaterThanOrEqual(3);
   });
 });

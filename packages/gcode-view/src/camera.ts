@@ -19,12 +19,39 @@ export interface Orbit {
 
 const LIMIT = Math.PI / 2 - 1e-3;
 
-/** The default view: from the front-right, above, looking at the box centre, fitting the whole box. */
-export function fitOrbit(box: Box3 | null, fovY: number = Math.PI / 4): Orbit {
-  if (box === null) return { target: [0, 0, 0], distance: 100, azimuth: -Math.PI / 4, elevation: Math.PI / 5 };
+/**
+ * The default view: from the front-right, above, looking at the box centre, fitting the whole box.
+ * Without `aspect` the whole bounding sphere fits the vertical field of view (loose). With `aspect`
+ * (width / height) the box's corners are fitted tightly so the box fills `fill` of the view (0.8 by
+ * default) in whichever direction is tighter.
+ */
+export function fitOrbit(box: Box3 | null, fovY: number = Math.PI / 4, aspect?: number, fill = 0.8): Orbit {
+  const azimuth = -Math.PI / 4;
+  const elevation = Math.PI / 5;
+  if (box === null) return { target: [0, 0, 0], distance: 100, azimuth, elevation };
   const c: Vec3 = [(box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2];
   const r = Math.max(1e-3, Math.hypot(box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]) / 2);
-  return { target: c, distance: r / Math.sin(fovY / 2) * 1.05, azimuth: -Math.PI / 4, elevation: Math.PI / 5 };
+  if (aspect === undefined || !(aspect > 0) || !(fill > 0)) return { target: c, distance: r / Math.sin(fovY / 2) * 1.05, azimuth, elevation };
+  const ce = Math.cos(elevation);
+  const se = Math.sin(elevation);
+  const f: Vec3 = [ce * Math.cos(azimuth), ce * Math.sin(azimuth), se];
+  const right: Vec3 = [-Math.sin(azimuth), Math.cos(azimuth), 0];
+  const up: Vec3 = [-se * Math.cos(azimuth), -se * Math.sin(azimuth), ce];
+  const ty = Math.tan(fovY / 2) * fill;
+  const tx = ty * aspect;
+  let d = 1e-3;
+  for (const x of [box.min[0], box.max[0]]) {
+    for (const y of [box.min[1], box.max[1]]) {
+      for (const z of [box.min[2], box.max[2]]) {
+        const v: Vec3 = [x - c[0], y - c[1], z - c[2]];
+        const dot = (a: Vec3): number => v[0] * a[0] + v[1] * a[1] + v[2] * a[2];
+        const toward = dot(f);
+        d = Math.max(d, toward + Math.abs(dot(right)) / tx, toward + Math.abs(dot(up)) / ty);
+      }
+    }
+  }
+  // Keep the camera outside the box, whatever its shape.
+  return { target: c, distance: Math.max(d, r * 1.05), azimuth, elevation };
 }
 
 export function eye(o: Orbit): Vec3 {

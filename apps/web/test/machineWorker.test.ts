@@ -526,6 +526,21 @@ describe('P1-07: the polled mpo position and the drift report', () => {
     }
   });
 
+  it('the host reads the spindle and coolant readouts its status list lacks with GETs about once a second (display only)', async () => {
+    const clock = new TestClock();
+    const t = new BoardTransport();
+    const host = new MachineWorkerHost(source('fake', () => t), clock);
+    await host.handle(OPEN);
+    await settle();
+    expect(host.session.snapshot.base).toBe('CONNECTED_UNKNOWN');
+    expect(t.writes.filter((w) => w === '{"spe":null}\n')).toEqual([]);
+    clock.advance(1000);
+    await settle();
+    expect(host.readoutPoller.polls).toBe(1);
+    expect(t.writes).toContain('{"spe":null}\n');
+    for (const w of t.writes) expect(/^\{"?[a-z0-9]+"?:null\}\n$/.test(w) || w === '\u0005', JSON.stringify(w)).toBe(true);
+  });
+
   it('the host polls {"mpo":null} every 500 ms once a board is classified, and drift raises NEEDS_REVIEW', async () => {
     const clock = new TestClock();
     const t = new BoardTransport();

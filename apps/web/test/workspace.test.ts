@@ -11,7 +11,7 @@ import { SpindleSection } from '../src/workspace/views/RunView.ts';
 import { backupBlocked, backupFileName, BACKUP_CONTEXT_TOKENS, SettingsBackup } from '../src/live/backup.ts';
 import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveView } from '../src/workspace/model.ts';
 import { OutlineError, parseDxfOutline, parseSvgOutline } from '../src/workspace/outline.ts';
-import { coolantText, coord, NOT_REPORTED, spindleText, stripStatus, UNKNOWN } from '../src/workspace/status.ts';
+import { coolantText, coord, displayReadouts, NOT_REPORTED, spindleText, stripStatus, UNKNOWN } from '../src/workspace/status.ts';
 import { readStored, writeStored, type StorageLike } from '../src/workspace/storage.ts';
 import { allMaterials, doNotMachine, safeExternalLink, SEED_SETUP, toolStore } from '../src/workspace/library.ts';
 import { isPlaceholder } from '@synthetos/library';
@@ -91,6 +91,23 @@ describe('machine strip status', () => {
     expect(absent.spindleOn).toBe(false);
     expect(value(strip({}), 'Spindle')).toBe(UNKNOWN);
     expect(value(strip({}), 'Coolant')).toBe(UNKNOWN);
+  });
+
+  it('polled readouts (the worker’s read-only GETs) fill in what the status list lacks; the status report wins; failed answers are ignored', () => {
+    const polled = (v: unknown, status = 0) => ({ value: v, status, at: 1 });
+    const s = snap({ live: { pos: {}, mpo: {}, srList: ['stat', 'line'], cof: 0 }, values: { spe: polled(1), spc: polled(2), sps: polled(9000), cof: polled(1), com: polled(1, 100) } } as unknown as Partial<Snapshot>);
+    const r = displayReadouts(s);
+    expect(r).toMatchObject({ spe: 1, spc: 2, sps: 9000, cof: 0 });
+    expect(r?.com).toBeUndefined();
+    expect(spindleText(r)).toBe('On · CCW · 9 000 rpm commanded');
+    expect(coolantText(r)).toBe('Flood off');
+    const strip = stripStatus(view(s), null);
+    expect(strip.readouts.find((x) => x.label === 'Spindle')?.value).toBe('On · CCW · 9 000 rpm commanded');
+    expect(strip.spindleOn).toBe(true);
+    // No status-list field and no poll answer yet: still "not reported".
+    const none = snap({ live: { pos: {}, mpo: {}, srList: ['stat'] } } as unknown as Partial<Snapshot>);
+    expect(spindleText(displayReadouts(none))).toBe(NOT_REPORTED);
+    expect(displayReadouts(null)).toBeUndefined();
   });
 
   it('the Run spindle card shows the reported readouts, "Off", "not reported", or the dash', () => {
