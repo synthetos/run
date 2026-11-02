@@ -955,6 +955,8 @@ function withNumber(t: Tx, live: LiveState, key: string, v: number): LiveState {
     case 'ex':
     case 'line':
     case 'unit':
+    case 'feed':
+    case 'tool':
       return { ...live, [key]: v };
   }
   for (const axis of AXES) {

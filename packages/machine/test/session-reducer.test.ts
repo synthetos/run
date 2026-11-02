@@ -431,6 +431,15 @@ describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
     expect(d.state.live).toMatchObject({ vel: 50, stat: 5, machineClass: 'running', mpo: { x: 4 }, pos: { a: 9 } });
   });
 
+  it('a report carries the commanded feed and the active tool as reported, for display only', () => {
+    const d = connected();
+    d.line('{"sr":{"feed":1500,"tool":3}}');
+    expect(d.state.live).toMatchObject({ feed: 1500, tool: 3 });
+    expect(d.state.overlays).toEqual(['READ_ONLY']);
+    d.line('{"sr":{"tool":"x"}}');
+    expect(d.state.live.tool).toBe(3);
+  });
+
   it('a report while connecting that shows no motion changes no overlay', () => {
     const d = new Driver();
     d.open();
