@@ -1244,6 +1244,7 @@ Manual, and never in CI. Signed in `RELEASES.md` in the run repo, with the evide
 - **HIL-2.10** Reset controller: W18 and C15, `^X` written exactly once, UNKNOWN.
 - **HIL-2.11** Outputs test with the relay module: record the relay state at power-up, reset and flash entry (B-IO-1, PN §13.1 boot float).
 - **HIL-2.12** Hold timeout: hold with M3 on; the W31 countdown runs; at zero ^D is written (EN) and the LED goes off; "Keep paused" restarts the countdown.
+- **HIL-2.14** (*Phase 2, 2026-11-02*) Press-and-hold jog on each axis, then release; repeat ending with a window switch, a hidden tab and a frozen page (no renewals): each ends with `!` then `%` within the H50 bound, and `hold` reads 0 afterwards. Stop job during a jog with M3 on: `!`, `%`, `M5`, `M9`, the spindle LED off, "Stopped: queue cleared, spindle and coolant off". Go to zero from below the safe height: Z rises first.
 - **HIL-2.13** Hardwired E-stop (Vmot cut; TinyG logic is powered from Vmot, so the board stops): press it during a slow jog and during a held job. The app goes STALE then FAULT (or LOST if USB drops, B-PWR-1), never resends a line, and shows the recovery card. When Vmot returns, the banner after Ready gives FAULT then UNKNOWN; homing is required; record the J6 relay state during power-up (boot float, PN §13.1).
 
 ### 9.4 Phase 3: bench streaming (first real job)

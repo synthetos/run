@@ -175,6 +175,13 @@ function isLive(model: WorkspaceModel | null | undefined): boolean {
 
 type Send = (command: MotionCommand) => Promise<string | null>;
 
+/** Focuses an element once, when it mounts (a stable callback ref, so later renders never steal the focus back). */
+function focusOnMount(el: HTMLElement | null): void {
+  if (el === null || el.dataset['focused'] === '1') return;
+  el.dataset['focused'] = '1';
+  el.focus();
+}
+
 /** An inline confirmation (never a modal over the stop controls, SAFETY §4.1 UI rules). Cancel has the focus; Enter does not confirm. */
 function ConfirmCard(props: {
   readonly text: string;
@@ -192,7 +199,7 @@ function ConfirmCard(props: {
     h(
       'div',
       { class: 'motion-confirm-actions' },
-      h('button', { type: 'button', class: 'small', 'data-action': 'motion-cancel', autoFocus: true, onClick: props.onCancel }, 'Cancel'),
+      h('button', { type: 'button', class: 'small', 'data-action': 'motion-cancel', ref: focusOnMount, onClick: props.onCancel }, 'Cancel'),
       h('button', { type: 'button', class: 'small primary', 'data-action': 'motion-confirm', onClick: props.onConfirm }, props.confirm),
     ),
   );
@@ -299,7 +306,7 @@ function jogBody({ model, onGoToZero }: JogProps, hk: Hooks): ComponentChild {
   const steps = units === 'mm' ? STEPS_MM : STEPS_IN;
   const settings = (): { stepMm: number | null; feed: number } => ({ stepMm: stepIndex === null ? null : (steps[stepIndex] as number) * (units === 'in' ? MM_PER_IN : 1), feed });
   // A held jog keeps its buttons live so the release always arrives (a disabled button gets no pointer-up).
-  const live = send !== undefined && (ui.enabled || ui.holdJog);
+  const live = send !== undefined && (ui.enabled || ui.busy || controller.holding);
   const press = (axes: Readonly<Partial<Record<MotionAxis, 1 | -1>>>) => (e: PointerEvent) => {
     if (!enabled) return;
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
@@ -339,6 +346,8 @@ function jogBody({ model, onGoToZero }: JogProps, hk: Hooks): ComponentChild {
       h('h2', { id: 'jog-title' }, 'Jog'),
       h('span', { class: `tag${ui.homed === false ? ' warn' : ''}`, 'data-jog': 'homed' }, ui.homed === null ? 'Motion control' : ui.homed ? 'Homed' : 'Not homed'),
     ),
+    // The section header is hidden inside the inspector tabs: the homing state gets its own visible line.
+    ui.connected && ui.flag ? h('p', { class: 'jog-status' }, h('span', { class: `tag${ui.homed === false ? ' warn' : ' ok'}`, 'data-jog': 'homing' }, ui.homed === true ? 'Homed' : ui.homed === false ? 'Not homed' : 'Homing not read'), ui.homed === true ? 'Soft limits protect homed axes when they are on ($sl=1).' : null) : null,
     ui.flag && ui.connected && ui.homed === false ? h('p', { class: 'motion-warning', 'data-safety': 'W34', role: 'note' }, ...signalText(w34())) : null,
     MotionRecovery({ ui, send, view, hk }),
     h(
@@ -349,7 +358,16 @@ function jogBody({ model, onGoToZero }: JogProps, hk: Hooks): ComponentChild {
         tabindex: live ? 0 : -1,
         'data-jog': 'panel',
         'aria-label': 'Jog pad. Arrow keys jog X and Y, Page Up and Page Down jog Z, while this panel has focus.',
-        ...(live ? { onKeyDown, onKeyUp, onFocusOut: () => controller.release() } : {}),
+        ...(live
+          ? {
+              onKeyDown,
+              onKeyUp,
+              // Focus leaving the panel (not moving between its own buttons) ends a held keyboard jog.
+              onFocusOut: (e: FocusEvent) => {
+                if (!(e.currentTarget as Element).contains(e.relatedTarget as Node | null)) controller.release();
+              },
+            }
+          : {}),
       },
       h(
         'div',

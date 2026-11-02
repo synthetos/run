@@ -146,6 +146,10 @@ block was): XY pad with diagonals and go-to-XY-zero, Z up/down, steps 0.1, 1,
 - There is no continuous jog with cancel. Hold is built from short steps;
   releasing sends `!` (feedhold, honoured at once), then `%` to flush once the
   hold has stopped (`%` works only between lines).
+- *Built for Phase 2 (2026-11-02, SAFETY §4.5b):* run sends short `G21 G91 G1`
+  pieces (never the `jog*` tokens), at most two queued, with steps 0.01 to 100 mm
+  (or inches) and Hold; a held jog needs a keep-alive from the page. Zero has its
+  own tab; spindle on asks C24. Motion is on for the bench and staging origins only.
 - No latency is promised. In P1 the controls are visible and disabled with
   "Jogging arrives with motion control"; during a job, "not available while a
   job is in progress"; on old firmware, locked until the update.

@@ -302,6 +302,17 @@ describe('Pause, Stop job and Spindle off variants', () => {
 });
 
 describe('more branches', () => {
+  it('a hold that the board ignored (moving, hold 0) gets ! again on the next poll', () => {
+    const d = connected();
+    req(d, { intent: 'jog', axes: { x: 1 }, distanceMm: 10, feed: 600 });
+    d.intent({ intent: 'feedhold' });
+    const n = realtimeNames(d).length;
+    const moving = answers({ stat: num('stat', 5), vel: num('vel', 10), qr: num('qr', 31) });
+    // The first cycle after `!` may predate it: no re-send yet. The second still moving with hold 0: `!` again.
+    d.answer(moving, (t) => t === 'stat' && (d.state.motion?.holdPolls ?? 0) >= 2);
+    expect(realtimeNames(d).slice(n)).toEqual(['feedhold']);
+  });
+
   it('go to zero while a jog runs is refused; a second Resume before the first poll is refused', () => {
     const d = connected();
     req(d, { intent: 'jog', axes: { x: 1 }, distanceMm: 10, feed: 600 });

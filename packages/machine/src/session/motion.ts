@@ -175,7 +175,7 @@ function setMotion(t: MotionTx, patch: Partial<MotionCtx>): void {
 
 function newCtx(s: SessionState, op: MotionCtx['op']): MotionCtx {
   // A Stop job from CONNECTED_UNKNOWN (UNKNOWN overlay, or a FAULT) returns there; everything else to idle.
-  return { op, phase: 'feed', jog: null, steps: [], reason: null, confirmed: 0, deadline: null, units: s.live.unit, returnTo: s.base === 'CONNECTED_UNKNOWN' ? s.base : 'IDLE_UNHOMED', refusal: null };
+  return { op, phase: 'feed', jog: null, steps: [], reason: null, confirmed: 0, deadline: null, units: s.live.unit, returnTo: s.base === 'CONNECTED_UNKNOWN' ? s.base : 'IDLE_UNHOMED', refusal: null, holdPolls: 0, queued: 0 };
 }
 
 /** Where a motion returns: CONNECTED_UNKNOWN if it started there, else the idle base for the homing state. */
@@ -313,6 +313,12 @@ function machineZ(s: SessionState): number | undefined {
   return typeof z === 'number' && Number.isFinite(z) ? z : undefined;
 }
 
+/** Sends the next jog piece when fewer than the lookahead are believed queued and nothing is being written. */
+function feedMore(t: MotionTx): void {
+  const ctx = t.s.motion as MotionCtx;
+  if (ctx.queued < MOTION_LIMITS.lookahead && motionLinesSettled(t.s)) sendPiece(t);
+}
+
 function moreToFeed(jog: JogFeed): boolean {
   return jog.remainingMm === null || jog.remainingMm > 1e-9;
 }
@@ -327,7 +333,7 @@ function sendPiece(t: MotionTx): void {
     if (sign !== undefined) move[LETTER[axis]] = sign * d;
   }
   queueLine(t, jogLine(move, jog.feed), 'jog');
-  setMotion(t, { jog: { ...jog, remainingMm: jog.remainingMm === null ? null : Math.max(0, jog.remainingMm - d) } });
+  setMotion(t, { jog: { ...jog, remainingMm: jog.remainingMm === null ? null : Math.max(0, jog.remainingMm - d) }, queued: ctx.queued + 1 });
 }
 
 // --- Stops ----------------------------------------------------------------------
@@ -347,7 +353,7 @@ export function beginHold(t: MotionTx, reason: HoldReason, at: number): void {
   const ctx = s.motion ?? newCtx(s, 'stop');
   t.set({
     queue,
-    motion: { ...ctx, phase: 'hold', reason, jog: null, steps: [], confirmed: 0, deadline: at + MOTION_LIMITS.stopStepMs },
+    motion: { ...ctx, phase: 'hold', reason, jog: null, steps: [], confirmed: 0, deadline: at + MOTION_LIMITS.stopStepMs, holdPolls: 0 },
     ...(stop ? { base: 'STOPPING_JOB' as const } : {}),
   });
   requestPoll(t);
@@ -400,10 +406,14 @@ export function onPollDone(t: MotionTx, at: number): void {
   switch (ctx.phase) {
     case 'feed': {
       const jog = ctx.jog as JogFeed;
-      // `qr` is always known here: READING required it, or the board would be ORPHANED_MOTION.
-      const queued = planner(s) - (s.live.qr as number);
+      // `qr` is always known here: READING required it, or the board would be ORPHANED_MOTION. Every piece
+      // written before this poll's `qr` is counted in it (lines are answered in order).
+      // Pieces still waiting are not in `qr` yet: count them too. (Nothing is being written: this runs as `qr`
+      // is answered, before the next line goes out.)
+      const unwritten = s.queue.filter((q) => q.purpose === 'motion').length;
+      setMotion(t, { queued: planner(s) - (s.live.qr as number) + unwritten });
       if (moreToFeed(jog)) {
-        if (queued < MOTION_LIMITS.lookahead && motionLinesSettled(s)) sendPiece(t);
+        feedMore(t);
       } else {
         setMotion(t, { phase: 'drain', confirmed: 0 });
       }
@@ -430,6 +440,11 @@ export function onPollDone(t: MotionTx, at: number): void {
     }
     case 'hold': {
       const held = heldNow(s);
+      // `!` is ignored while nothing moves (a line still being parsed, the planner's start-up): if the board is
+      // moving with no hold in progress, send it again (SAFETY §4.4 Pause step 6).
+      // The first cycle may have been asked before the `!` was written, so only later cycles count.
+      if (ctx.holdPolls > 0 && s.live.hold === 0 && s.live.vel !== undefined && s.live.vel !== 0) writeRealtime(t, 'feedhold', ctx.reason === 'stopJob' ? 'stopJob' : 'feedhold');
+      setMotion(t, { holdPolls: ctx.holdPolls + 1 });
       const confirmed = confirm((held || atRest(s)) && motionLinesSettled(s));
       if (confirmed < MOTION_LIMITS.confirmations) {
         setMotion(t, { confirmed });
@@ -508,6 +523,8 @@ export function onMotionAnswer(t: MotionTx, line: string | undefined, status: nu
     }
   }
   const now = t.s.motion;
+  // A piece was taken: top the planner up at once rather than waiting for the next poll (no stutter).
+  if (status === 0 && now !== null && now.phase === 'feed' && now.jog !== null && moreToFeed(now.jog)) feedMore(t);
   if (now !== null && now.phase === 'finish' && motionLinesSettled(t.s)) complete(t, at);
 }
 

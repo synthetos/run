@@ -75,11 +75,12 @@ test('machine.worker runs the read-only session on the mock board: {sr:null} fir
   // The simulated board boots while it is probed: the session waits for SYSTEM READY, probes again from {sr:null}, and reads it.
   await expect
     .poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as StatusView).status.session.base, { timeout: 10_000 })
-    .toBe('CONNECTED_UNKNOWN');
+    .toBe('IDLE_UNHOMED');
   const status = (await request(worker, { v: 3, kind: 'status' })) as StatusView;
   // P1-03: the worker verifies the bundled signed manifest for its own origin. The test server is plain-HTTP
   // loopback, which the worker treats as the bench (staging) environment, so the owner-signed bench channel
-  // approves edge-next 450.01 (no fbs) and the simulated board classifies full. Phase 1 still writes only GETs and `!`.
+  // approves edge-next 450.01 (no fbs) and the simulated board classifies full. Loopback also has the Phase 2
+  // motion flag (motionFlag.ts), so the session is idle (not homed); nothing here moves, so only GETs and `!` are written.
   expect(status).toMatchObject({
     status: { state: 'open', session: { overlays: [], classification: { dialectId: 'tinyg-en', mode: 'full', reason: 'en-approved' }, identity: { fb: 450.01, id: 'SIM-EN-0001' } } },
   });
@@ -119,13 +120,13 @@ test('a subscribed port receives the session snapshots, at most 20 per second', 
         const bases: string[] = [];
         const times: number[] = [];
         const channel = new MessageChannel();
-        const timer = setTimeout(() => reject(new Error(`no CONNECTED_UNKNOWN snapshot within 10 s: ${bases.join(' ')}`)), 10_000);
+        const timer = setTimeout(() => reject(new Error(`no IDLE_UNHOMED snapshot within 10 s: ${bases.join(' ')}`)), 10_000);
         channel.port1.onmessage = (event) => {
           const data = event.data as { kind: string; snapshot?: { base: string } };
           if (data.kind !== 'snapshot' || data.snapshot === undefined) return;
           bases.push(data.snapshot.base);
           times.push(performance.now());
-          if (data.snapshot.base === 'CONNECTED_UNKNOWN') {
+          if (data.snapshot.base === 'IDLE_UNHOMED') {
             clearTimeout(timer);
             resolve({ bases, times });
           }
@@ -138,7 +139,7 @@ test('a subscribed port receives the session snapshots, at most 20 per second', 
   );
   expect(seen.bases[0]).toBe('NOT_CONNECTED');
   expect(seen.bases).toContain('IDENTIFYING');
-  expect(seen.bases.at(-1)).toBe('CONNECTED_UNKNOWN');
+  expect(seen.bases.at(-1)).toBe('IDLE_UNHOMED');
   for (let i = 2; i < seen.times.length; i++) expect((seen.times[i] as number) - (seen.times[i - 1] as number)).toBeGreaterThanOrEqual(45);
 });
 

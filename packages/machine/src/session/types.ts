@@ -361,6 +361,14 @@ export interface MotionCtx {
   readonly returnTo: SessionBase;
   /** The board answered a line of this motion with a non-zero status. */
   readonly refusal: string | null;
+  /** Poll cycles completed in the current hold step (the first may have been asked before the `!`). */
+  readonly holdPolls: number;
+  /**
+   * Jog pieces believed queued in the planner: `plannerBlocks - qr` at the last poll, plus every piece written
+   * since. It only over-counts (the machine consumes blocks meanwhile), so feeding against it stays within the
+   * lookahead.
+   */
+  readonly queued: number;
 }
 
 /** `watchdog`: the receive-silence watchdog (SAFETY §4.2). `motion`: the motion layer's poll and keep-alive tick. */

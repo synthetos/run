@@ -35,7 +35,7 @@ function writes(worker: import('@playwright/test').Worker): Promise<string[]> {
 test('the DRO machine position and the marker move only on polled mpo reads; settings and the spindle and coolant readouts are read through the allowlist', async ({ page }) => {
   const worker = await machineWorker(page);
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true, kind: 'open' });
-  await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as StatusView).status.session.base, { timeout: 10_000 }).toBe('CONNECTED_UNKNOWN');
+  await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as StatusView).status.session.base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
 
   // The poller reads mpo; the DRO shows it with its source.
   const dro = page.locator('[data-region="dro"]');

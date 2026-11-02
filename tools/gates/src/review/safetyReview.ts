@@ -101,8 +101,8 @@ export function hasWriteAccess(login: string, permissions: ReviewerPermissions):
   return WRITE_PERMISSIONS.includes(p.permission) && p.push !== false;
 }
 
-/** Item numbers of the SAFETY §8 checklist (OLD-S 1–21 plus SAFETY 22–40). */
-export const CHECKLIST_ITEMS: readonly number[] = Array.from({ length: 40 }, (_, i) => i + 1);
+/** Item numbers of the SAFETY §8 checklist (OLD-S 1–21 plus SAFETY 22–41; 41 is Phase 2 motion). */
+export const CHECKLIST_ITEMS: readonly number[] = Array.from({ length: 41 }, (_, i) => i + 1);
 
 export interface Review {
   readonly user: string;

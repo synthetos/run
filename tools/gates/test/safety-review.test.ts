@@ -74,8 +74,8 @@ describe('the PR template', () => {
   });
 
   it('fails when SAFETY.md §8 gains an item the check does not read', () => {
-    const grown = SAFETY.replace('40. ☐ Console (MDI)', '41. ☐ A new rule.\n40. ☐ Console (MDI)');
-    expect(checkTemplate(TEMPLATE, grown)).toContain('SAFETY.md §8 item 41 is not in the checklist the safety-review check reads');
+    const grown = SAFETY.replace('41. ☐ Phase 2:', '42. ☐ A new rule.\n41. ☐ Phase 2:');
+    expect(checkTemplate(TEMPLATE, grown)).toContain('SAFETY.md §8 item 42 is not in the checklist the safety-review check reads');
   });
 });
 
