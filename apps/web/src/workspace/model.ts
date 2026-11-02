@@ -57,6 +57,8 @@ export interface LiveView {
   readonly backup: BackupStatus;
   /** Status-report samples of the last 60 s of this link, oldest first. */
   readonly samples: readonly LiveSample[];
+  /** Why the last Disconnect was refused (the worker's allow-matrix words), or null. */
+  readonly disconnectRefused: string | null;
 }
 
 export interface LiveActions {
@@ -85,6 +87,7 @@ export const INITIAL_LIVE_VIEW: LiveView = Object.freeze({
   transcript: Object.freeze({ kind: 'idle' as const }),
   backup: Object.freeze({ kind: 'idle' as const }),
   samples: Object.freeze([]),
+  disconnectRefused: null,
 });
 
 export interface WorkspaceModel {
@@ -99,6 +102,14 @@ export function createWorkspaceModel(): WorkspaceModel {
 /** The session snapshot of a live view, or null. */
 export function snapshotOf(view: LiveView): SnapshotMessage['snapshot'] | null {
   return view.message?.snapshot ?? null;
+}
+
+/**
+ * True when Disconnect applies: the worker has a port open or opening (any base state but
+ * NOT_CONNECTED), or LIVE entry finished. Shown in the machine strip in every view.
+ */
+export function portOpen(view: LiveView): boolean {
+  return connected(view) || view.entry.step === 'live';
 }
 
 /** True when a port is open (any base state but NOT_CONNECTED). */

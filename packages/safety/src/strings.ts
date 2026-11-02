@@ -320,8 +320,10 @@ export function w29(): string {
  * other tabs). Not W-numbered; checked against SAFETY.md by strings.test.ts.
  */
 export const STOP_TEXT = Object.freeze({
-  /** §4.4 Pause step 4. */
-  pauseRequested: 'PAUSE REQUESTED',
+  /** §4.4 Pause step 4 (amended 2026-11-02): Pause was sent and no hold is reported yet. Brief; resolves. */
+  pausing: 'Pausing…',
+  /** §4.4 Pause step 4 (amended 2026-11-02): no hold reported within a couple of seconds of a Pause. */
+  pauseNoAnswer: "No answer from the board yet: use your E-stop if it's still moving",
   /** §4.3, §4.9: a stop request no machine worker acknowledged within 250 ms. */
   notDelivered: 'STOP NOT DELIVERED — use your E-stop',
   /** §2 H-row and §4.3: an observer tab. */

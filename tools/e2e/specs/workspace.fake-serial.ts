@@ -136,6 +136,77 @@ test('Pause and Stop job turn prominent, in the safety-bar colours only, while a
   }
 });
 
+test('Disconnect is in the machine strip in every view: disconnecting from a non-Run view closes the port and offers Connect again', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const worker = await connectedTab(page);
+  const strip = page.locator('[data-region="machine-strip"]');
+  const disconnect = strip.locator('[data-action="disconnect"]');
+  for (const view of VIEWS) {
+    await show(page, view);
+    await expect(disconnect, view).toBeVisible();
+    await expect(disconnect, view).toBeEnabled();
+    await expect(disconnect, view).toBeInViewport();
+  }
+  await show(page, 'board');
+  await disconnect.click();
+  await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as Status).status.session.base, { timeout: 10_000 }).toBe('NOT_CONNECTED');
+  // The simulated port itself is closed (a closed Web Serial port has no streams).
+  const streams = await worker.evaluate(() => {
+    const registry = (globalThis as unknown as { __RUN_FAKE_SERIAL__?: { ports: { readable: unknown; writable: unknown }[] } }).__RUN_FAKE_SERIAL__;
+    const port = registry?.ports.at(-1);
+    return port === undefined ? 'no port' : { readable: port.readable, writable: port.writable };
+  });
+  expect(streams).toEqual({ readable: null, writable: null });
+  await expect(disconnect).toHaveCount(0);
+  await expect(strip.locator('[data-state="not-connected"]')).toBeVisible();
+  await show(page, 'run');
+  await expect(page.locator('[data-screen="run"] [data-region="connect"] [data-entry="idle"] [data-action="connect"]')).toBeVisible();
+  await expect(strip.locator('[data-disconnect="refused"]')).toHaveCount(0);
+});
+
+test('the notice raised after Stop job sits above the panels and the 3D canvas: its centre point hits it, and W1 stays visible', async ({ page }) => {
+  await connectedTab(page);
+  const tabB = await page.context().newPage();
+  await tabB.setViewportSize({ width: 1280, height: 720 });
+  await tabB.goto('/');
+  await expect(tabB.locator('[data-observer="controlled"]')).toContainText(BOARD);
+  // A loaded job puts the job card and the 3D preview right under the strip, where the notice appears.
+  await tabB.locator('[data-sample="mounting-plate"]').click();
+  await expect(tabB.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
+  // The owner's tab was LIVE, so it had no observer row above the view. This harness can only press Stop job
+  // from an observer tab; take that row out of the layout so the job card sits right under the strip, as it did.
+  await tabB.locator('[data-region="overlay-banners"]').evaluate((el) => (el as HTMLElement).style.setProperty('display', 'none', 'important'));
+  await tabB.getByRole('button', { name: STOP_TEXT.stopJob, exact: true }).click();
+  const notice = tabB.locator('[data-stop-outcome]');
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveText(`${STOP_TEXT.stopJob} went out as ${w2Label()} (feedhold) to ${BOARD}. Use your E-stop to remove power.`);
+  const covered = (selector: string): Promise<{ readonly points: number; readonly overCard: number; readonly hidden: readonly string[] }> =>
+    tabB.locator(selector).first().evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const card = document.querySelector('.job-card')?.getBoundingClientRect() ?? null;
+      const hidden: string[] = [];
+      let points = 0;
+      let overCard = 0;
+      // The centre point, and a grid across the whole element, all land on the element itself.
+      const xs = [r.left + r.width / 2, ...Array.from({ length: 9 }, (_, i) => r.left + 3 + ((r.width - 6) * i) / 8)];
+      const ys = [r.top + r.height / 2, ...Array.from({ length: 5 }, (_, i) => r.top + 3 + ((r.height - 6) * i) / 4)];
+      for (const x of xs) {
+        for (const y of ys) {
+          points += 1;
+          if (card !== null && x >= card.left && x <= card.right && y >= card.top && y <= card.bottom) overCard += 1;
+          const top = document.elementFromPoint(x, y);
+          if (top === null || !(top === el || el.contains(top))) hidden.push(`${Math.round(x)},${Math.round(y)} ${top?.tagName ?? ''}.${top?.className ?? ''}`);
+        }
+      }
+      return { points, overCard, hidden };
+    });
+  const n = await covered('[data-stop-outcome]');
+  // The notice lies over the job card (the panel that used to cover it), so the hit test means something.
+  expect(n.overCard).toBeGreaterThan(n.points / 3);
+  expect(n.hidden).toEqual([]);
+  expect((await covered('[data-region="safety-bar"] [data-safety="W1"]')).hidden).toEqual([]);
+});
+
 test('the document never scrolls at 1280 × 720, in any view', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await connectedTab(page);

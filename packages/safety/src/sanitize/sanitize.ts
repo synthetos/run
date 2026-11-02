@@ -23,7 +23,7 @@
 import type { Dialect } from '@synthetos/protocol';
 import { JobModel, type Finding } from './analyze.ts';
 import type { Segment } from './geometry.ts';
-import { lexLine, removeWords, type Word } from './lex.ts';
+import { canonicalCode, lexLine, removeWords, type Word } from './lex.ts';
 import { applyCommentRule, findControlByte, isTapeMarker, splitLines, trimLine } from './text.ts';
 import type {
   LineMotion,
@@ -166,7 +166,7 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
     if (nWords.length > 0) add(lineNo, { severity: 'change', rule: 'n-word-stripped', message: 'line number replaced by the host line number' });
 
     const analysis = model.analyze(words);
-    for (const f of analysis.findings) add(lineNo, f);
+    for (const f of analysis.findings) add(lineNo, spacedCode(f, code, words, lineNo));
     if (!analysis.ok) return;
 
     const removals: Word[] = [...nWords];
@@ -292,6 +292,26 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
       endState: { spindle: model.spindle, mist: model.mist, flood: model.flood },
     },
   };
+}
+
+/**
+ * Presentation only (the finding's level and rule are unchanged): an unsupported G or M code that was
+ * written with spaces inside its number (`G92 064`), which TinyG reads as one number (`G92064`) because
+ * it ignores spaces. Says so in plain words; this is usually a line the post-processor broke.
+ */
+export function spacedCode(f: Finding, code: string, words: readonly Word[], lineNo: number): Finding {
+  if (f.rule !== 'unsupported-code') return f;
+  for (const w of words) {
+    if (w.letter !== 'G' && w.letter !== 'M') continue;
+    const written = code.slice(w.start, w.end);
+    if (!/[0-9][ \t]+[0-9.]/.test(written)) continue;
+    const joined = `${w.letter}${w.text}`;
+    const canonical = canonicalCode(w);
+    if (!f.message.startsWith(`${joined} `) && (canonical === undefined || !f.message.startsWith(`${canonical} `))) continue;
+    const shown = written.replace(/[ \t]+/g, ' ').toUpperCase();
+    return { ...f, message: `'${shown}' reads as ${canonical ?? joined} because TinyG ignores spaces, and that isn't a valid command. This looks like a broken line from the post-processor. Check the file around line ${String(lineNo)}.` };
+  }
+  return f;
 }
 
 function inserted(sourceLine: number, origin: LineOrigin, body: string, barrier: boolean, group: number): Candidate {

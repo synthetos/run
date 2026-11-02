@@ -27,6 +27,8 @@ type SessionSnapshot = SnapshotMessage['snapshot'];
 
 /** How long a "delivered" line stays in the safety bar. A STOP NOT DELIVERED stays until the next request. */
 export const DELIVERED_SHOWN_MS = 5000;
+/** How long "Pausing…" waits for a report of the hold before it says the board has not answered (SAFETY §4.4 step 4). */
+export const PAUSE_ANSWER_MS = 2000;
 
 export const IDLE_VIEW: StopBarView = Object.freeze({ available: false, prominent: false, band: null, outcome: null });
 
@@ -76,6 +78,13 @@ export class StopControls {
   #requests = 0;
   /** The machine was at rest when the latest Pause was pressed (the message then says nothing changed). */
   #idleAtPress = false;
+  /**
+   * What the latest Pause has come to in this LIVE tab (SAFETY §4.4 step 4, amended 2026-11-02): `pausing`
+   * until a hold is reported, `no-answer` when none was within PAUSE_ANSWER_MS, `idle` when the machine was
+   * or came to rest. A reported hold is shown from the snapshot itself.
+   */
+  #pausePhase: 'none' | 'pausing' | 'no-answer' | 'idle' = 'none';
+  #pauseTimer: unknown = null;
 
   constructor(deps: StopControlsDeps) {
     this.#deps = deps;
@@ -89,7 +98,8 @@ export class StopControls {
   pause(): void {
     this.#idleAtPress = this.#live && atRest(this.#snapshot);
     if (this.#live) {
-      this.#holdWanted = true;
+      this.#holdWanted = !this.#idleAtPress;
+      this.#setPausePhase(this.#idleAtPress ? 'idle' : this.#held() ? 'none' : 'pausing');
       try {
         this.#deps.pauseOwnWorker();
       } catch {
@@ -106,6 +116,7 @@ export class StopControls {
    */
   stopJob(): void {
     this.#idleAtPress = false;
+    if (this.#pausePhase === 'idle') this.#setPausePhase('none');
     if (this.#live) {
       try {
         this.#deps.stopJobOwnWorker?.();
@@ -135,13 +146,46 @@ export class StopControls {
     if (!live) {
       this.#holdWanted = false;
       this.#snapshot = null;
+      this.#setPausePhase('none');
     }
     this.#draw();
   }
 
   setSnapshot(snapshot: SessionSnapshot | null): void {
     this.#snapshot = snapshot;
+    if (this.#pausePhase === 'pausing' || this.#pausePhase === 'no-answer') {
+      if (this.#held()) this.#setPausePhase('none');
+      else if (atRest(snapshot)) {
+        // Nothing was moving any more, so the feedhold had nothing to hold (TinyG ignores it at rest).
+        this.#holdWanted = false;
+        this.#setPausePhase('idle');
+      }
+    }
     this.#draw();
+  }
+
+  #held(): boolean {
+    return this.#live && this.#snapshot?.live.machineClass === 'held';
+  }
+
+  #setPausePhase(phase: 'none' | 'pausing' | 'no-answer' | 'idle'): void {
+    if (this.#pauseTimer !== null) this.#deps.timers.clearTimeout(this.#pauseTimer);
+    this.#pauseTimer = null;
+    this.#pausePhase = phase;
+    if (phase === 'pausing') {
+      this.#pauseTimer = this.#deps.timers.setTimeout(() => {
+        this.#pauseTimer = null;
+        if (this.#pausePhase !== 'pausing') return;
+        this.#pausePhase = 'no-answer';
+        this.#draw();
+      }, PAUSE_ANSWER_MS);
+    } else if (phase === 'idle') {
+      this.#pauseTimer = this.#deps.timers.setTimeout(() => {
+        this.#pauseTimer = null;
+        this.#pausePhase = 'none';
+        this.#draw();
+      }, DELIVERED_SHOWN_MS);
+    }
   }
 
   setRole(role: TabRole): void {
@@ -168,11 +212,12 @@ export class StopControls {
 
   #draw(): void {
     const role = this.role.value;
-    const held = this.#live && this.#snapshot?.live.machineClass === 'held';
+    const held = this.#held();
+    const phase = this.#live ? this.#pausePhase : 'none';
     this.view.value = Object.freeze({
       available: this.#live || role.observing || role.released.length > 0,
       prominent: (this.#live && (mayBeMoving(this.#snapshot) || this.#holdWanted)) || role.released.length > 0,
-      band: held ? 'held' : this.#live && this.#holdWanted ? 'pause-requested' : null,
+      band: held ? 'held' : phase === 'pausing' ? 'pausing' : phase === 'no-answer' ? 'pause-no-answer' : phase === 'idle' ? 'paused-idle' : null,
       outcome: this.#outcome,
     });
   }
