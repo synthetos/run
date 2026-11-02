@@ -401,5 +401,13 @@ describe('verdict wording from the bench 1 file (presentation only: levels and r
     // Without spaces inside the number the plain message stays.
     expect(messages(run('G92064 X0\n', EN), 'unsupported-code')).toEqual(['G92064 is not supported in a job on this firmware']);
     expect(messages(run('M1 14\n', EN), 'unsupported-code')[0]).toMatch(/^'M1 14' reads as M114 because TinyG ignores spaces/);
+    // Only the spaced word's finding is reworded; another unsupported code on the line keeps its message.
+    const two = messages(run('G43 G1 2\n', EN), 'unsupported-code');
+    expect(two).toContain('G43 is not supported in a job on this firmware');
+    expect(two.some((m) => m.startsWith("'G1 2' reads as G12 "))).toBe(true);
+    // Leading zeros: the message names the code as TinyG counts it.
+    expect(messages(run('G01 2\n', EN), 'unsupported-code')[0]).toMatch(/^'G01 2' reads as G12 /);
+    // A signed code has no canonical form: named as written.
+    expect(messages(run('G-1 2\n', EN), 'unsupported-code')[0]).toMatch(/^'G-1 2' reads as G-12 /);
   });
 });
