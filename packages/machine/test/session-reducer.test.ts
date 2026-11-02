@@ -132,14 +132,28 @@ describe('the connection path', () => {
 });
 
 describe('splice guard and boot (PN §2.3 step 0 and 1; SAFETY H49)', () => {
-  it('an error answer to the first line repeats {sr:null} once, then continues either way', () => {
+  it('a G-code answer to the first line (no "sr" key) is a leftover partial line: ORPHANED_MOTION, the probe stops (bench 2, 2026-11-02)', () => {
+    for (const reply of ['{"r":{},"f":[3,101,10]}', '{"r":{},"f":[1,102,17,7684]}', '{"r":{},"f":[3,0,10]}', '{"r":{},"f":[1,0,24,104]}']) {
+      const d = new Driver();
+      d.open();
+      d.written();
+      d.line(reply);
+      expect(d.state.overlays, reply).toContain('ORPHANED_MOTION');
+      expect(d.state.queue, reply).toEqual([]);
+      expect(d.writing, reply).toBeUndefined();
+      expect(d.lines(), reply).toEqual(['{sr:null}']);
+      expect(d.state.classification, reply).toBeNull();
+    }
+  });
+
+  it('an error answer that does carry "sr" repeats {sr:null} once, then continues either way', () => {
     const d = new Driver();
     d.open();
     d.written();
-    d.line('{"r":{},"f":[3,101,10]}');
+    d.line('{"r":{"sr":{"stat":1}},"f":[3,108,10]}');
     expect(d.writing).toBe('sr');
     d.written();
-    d.line('{"r":{},"f":[3,101,10]}');
+    d.line('{"r":{"sr":{"stat":1}},"f":[3,108,10]}');
     expect(d.writing).toBe('fb');
     expect(d.lines().slice(0, 3)).toEqual(['{sr:null}', '{sr:null}', '{"fb":null}']);
   });
@@ -148,7 +162,7 @@ describe('splice guard and boot (PN §2.3 step 0 and 1; SAFETY H49)', () => {
     const d = new Driver();
     d.open();
     d.written();
-    d.line('{"r":{},"f":[3,101,10]}');
+    d.line('{"r":{"sr":{"stat":1}},"f":[3,108,10]}');
     d.answer(EN_ANSWERS);
     expect(d.state.base).toBe('CONNECTED_UNKNOWN');
   });

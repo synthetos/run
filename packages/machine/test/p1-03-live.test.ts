@@ -85,25 +85,59 @@ describe('ex = 2 (RTS/CTS) → READ_ONLY (PN §5.3)', () => {
   });
 });
 
-describe('T-S86 (live): a partial line left by a previous sender never runs', () => {
+/**
+ * A partial line left in the board's buffer by another program, then a gap, then this session's
+ * `{sr:null}` (bench 2, 2026-11-02; PROTOCOL_NOTES §2.3a; TinyG HIL diagnostic
+ * test_leftover_line_reconnect, edge-next d254eb0b and 440.21 d0418390). The fragment and the guard
+ * line join into one line. The test-kit models reproduce every measured row.
+ *
+ * | fragment          | edge-next      | 440.21         |
+ * | `G0 X0.5`         | rejected (101) | rejected (102) |
+ * | `G0 X0.`          | rejected (101) | rejected (102) |
+ * | `G0 X0.5 (rough`  | RUNS, status 0 | RUNS, status 0 |
+ * | `G0 X0.5 ;rough`  | RUNS, status 0 | RUNS, status 0 |
+ *
+ * In every row the answer to the guard line is a G-code reply (`{"r":{},"f":[...]}`) with no `sr`
+ * key, so the session classifies ORPHANED_MOTION: only `!` (and "Use your E-stop") from then on.
+ */
+describe('T-S86 (live): a leftover partial line joins {sr:null}; the G-code answer (no "sr") is ORPHANED_MOTION', () => {
+  const ROWS = [
+    { fragment: 'G0 X0.5', runs: false },
+    { fragment: 'G0 X0.', runs: false },
+    { fragment: 'G0 X0.5 (rough', runs: true },
+    { fragment: 'G0 X0.5 ;rough', runs: true },
+  ] as const;
   for (const model of ['en', '440'] as const) {
-    it(`${model}: the first line is {sr:null}; the spliced G0 does not move the machine`, async () => {
-      const h = make(model);
-      previousSender(h, 'G0 X1');
-      await h.run(200);
-      const writes = await connect(h);
-      // 440.21 is in JSON mode (its default): the fragment is run wrapped as {"gc":"..."}, cut at the
-      // first double quote of the guard line (TG-GC-WRAP-QUOTE). A quoted {"sr":null} would let G0 X1 run.
-      const snap = h.device.snapshot();
-      expect(snap.position.every((v) => v === 0)).toBe(true);
-      expect(snap.machineState).not.toMatch(/run|cycle/i);
-      expect(writes[0]).toBe('{sr:null}\\n');
-      // The board answered the spliced first line with an error status (the fragment did not parse as G-code).
-      expect(h.session.log().find((e) => e.dir === 'rx')?.text).toMatch(model === 'en' ? /"f":\[3,[1-9]\d*,/ : /"f":\[1,[1-9]\d*,/);
-      expect(h.session.snapshot.classification?.dialectId).toBe(model === 'en' ? 'tinyg-en' : 'tinyg-440');
-      expect(h.session.snapshot.overlays).not.toContain('ORPHANED_MOTION');
-    });
+    for (const { fragment, runs } of ROWS) {
+      it(`${model}: "${fragment}" + {sr:null} ${runs ? 'RUNS on the board' : 'is rejected'}; the session stops at ORPHANED_MOTION and writes nothing else`, async () => {
+        const h = make(model, model === 'en' ? EN_APPROVED : undefined);
+        previousSender(h, fragment);
+        await h.run(500);
+        const writes = await connect(h);
+        expect(writes).toEqual(['{sr:null}\\n']);
+        const reply = h.session.log().find((e) => e.dir === 'rx')?.text ?? '';
+        expect(reply).not.toContain('"sr"');
+        expect(reply).toMatch(runs ? /"f":\[[13],0,/ : model === 'en' ? /"f":\[3,101,/ : /"f":\[1,102,/);
+        const x = h.device.snapshot().position[0] as number;
+        expect(x).toBeCloseTo(runs ? 0.5 : 0, 3);
+        const snap = h.session.snapshot;
+        expect(snap.overlays).toContain('ORPHANED_MOTION');
+        expect(snap.classification).toBeNull();
+        expect(h.session.log().some((e) => e.dir === 'note' && e.text.includes('answered as G-code (no "sr" key'))).toBe(true);
+        // Only stop-class bytes are offered now: Pause writes `!`, and nothing that ends a line follows.
+        expect(h.session.feedhold()).toMatchObject({ allowed: true });
+        await h.run(200);
+        expect((h.transports.at(-1)?.writes ?? []).map(shown)).toEqual(['{sr:null}\\n', '!']);
+      });
+    }
   }
+
+  it('a clean buffer still answers {sr:null} with "sr": no ORPHANED_MOTION', async () => {
+    const h = make('en');
+    await connect(h);
+    expect(h.session.log().find((e) => e.dir === 'rx')?.text).toContain('"sr"');
+    expect(h.session.snapshot.overlays).not.toContain('ORPHANED_MOTION');
+  });
 });
 
 describe('T-S60 (live): a held board whose probe answer arrives damaged is ORPHANED_MOTION, not just READ_ONLY', () => {

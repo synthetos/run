@@ -46,6 +46,32 @@ Citations use the PN §1 tags at the pins in `vendor/firmware-pins.json`
 - A `release` (production) channel entry without `fbs` is rejected as a
   malformed payload: production never approves a build by `fb` alone.
 
+## §2.3a Probe step 0: a leftover partial line can still run; detect it by the missing `sr`
+
+Measured on bench 2 on 2026-11-02 (TinyG HIL diagnostic
+test_leftover_line_reconnect, edge-next d254eb0b, 440.21 d0418390, pending
+merge to edge-next). Another program leaves a partial line in the RX
+buffer; after a 0.5 s gap the connect line and LF arrive and join it.
+
+| Leftover fragment | Connect line | edge-next | 440.21 |
+|---|---|---|---|
+| `G0 X0.5` or `G0 X0.` | `{sr:null}` | rejected (101), no move | rejected (102), no move |
+| `G0 X0.5` | `{"sr":null}` | rejected, no move | **RUNS** (X to 0.5) |
+| `G0 X0.5 (rough` or `G0 X0.5 ;rough` | either form | **RUNS** (X to 0.5, status 0) | **RUNS** (X to 0.5, status 0) |
+
+- PN §2.3 step 0 ("a spliced fragment fails to parse on both dialects") is
+  wrong for a fragment that ends in a comment: the comment swallows the
+  connect line and the fragment runs. No host prefix fixes this.
+- The bare-key `{sr:null}` is right: the quoted form also runs on 440.21.
+- Detection is clean: in every case the reply to the connect line is a
+  G-code reply `{"r":{},"f":[...]}` with **no `sr` key**. run now
+  classifies such a reply as ORPHANED_MOTION (only `!`, "Use your E-stop")
+  instead of repeating `{sr:null}` (`packages/machine/src/session/reducer.ts`,
+  SAFETY H49 mitigation 3 as amended).
+- The test-kit models reproduce every row (`firmware-semantics.test.ts`).
+- A firmware-side fix (an idle-gap reset of a partial line when `{`
+  arrives) is pending the edge-next maintainer's decision.
+
 ## §5 Status 13 on edge-next has two sources
 
 - E162 (EN controller.c:253-266): a line that lost bytes in an RX overrun

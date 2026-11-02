@@ -674,6 +674,17 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
   switch (e.purpose) {
     case 'splice': {
       const probe = t.s.probe as ProbeProgress;
+      if (!Object.hasOwn(r.r, 'sr')) {
+        // The first line was answered as G-code ({"r":{},"f":[...]}, no `sr` key): a partial line another
+        // program left in the board's buffer joined it. Measured on bench 2, 2026-11-02 (PROTOCOL_NOTES
+        // §2.3a): rejected when the fragment does not parse, but RUN when it ends in a comment ("G0 X0.5 (rough"
+        // on edge-next and 440.21) and, with the quoted form, on 440.21. Nothing tells the two apart
+        // safely, so the board may be moving: only stop-class bytes from now on (SAFETY §3).
+        t.emit({ kind: 'log', text: `probe: the first line was answered as G-code (no "sr" key, status ${r.footer.status}): a leftover partial line in the board's buffer joined it and may have run → ORPHANED_MOTION` });
+        t.addOverlay('ORPHANED_MOTION');
+        t.set({ queue: [] });
+        return;
+      }
       if (r.footer.status === 0) {
         if (isObject(value)) mergeLive(t, value);
         advanceProbe(t, { ...probe, next: 1 });

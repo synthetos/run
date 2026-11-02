@@ -600,3 +600,36 @@ describe('Codex batch 14 reproductions, as written (review-models.mjs)', () => {
     expect(sim.device.snapshot().motionState).toBe('run');
   });
 });
+
+// ---------------------------------------------------------------- leftover partial line, then the connect line
+
+describe('a leftover partial line, a 0.5 s gap, then the connect line (bench 2, 2026-11-02: edge-next d254eb0b, 440.21 d0418390)', () => {
+  // TinyG HIL diagnostic test_leftover_line_reconnect. [fragment, connect line, edge-next status or 'runs', 440.21 status or 'runs'].
+  const TABLE: readonly (readonly [string, string, number | 'runs', number | 'runs'])[] = [
+    ['G0 X0.5', '{sr:null}', 101, 102],
+    ['G0 X0.', '{sr:null}', 101, 102],
+    ['G0 X0.5', '{"sr":null}', 101, 'runs'],
+    ['G0 X0.5 (rough', '{sr:null}', 'runs', 'runs'],
+    ['G0 X0.5 ;rough', '{sr:null}', 'runs', 'runs'],
+    ['G0 X0.5 (rough', '{"sr":null}', 'runs', 'runs'],
+    ['G0 X0.5 ;rough', '{"sr":null}', 'runs', 'runs'],
+  ];
+  for (const [fragment, connectLine, en, tg] of TABLE) {
+    for (const [name, make, expected] of [['edge-next', enSim, en], ['440.21', tgSim, tg]] as const) {
+      it(`${name}: "${fragment}" + ${connectLine} ${expected === 'runs' ? 'runs' : `is rejected (${expected})`}; the reply has no "sr" key either way`, () => {
+        const sim: AnySim = make();
+        sim.clock.advance(2000);
+        sim.host.take();
+        sim.host.send(fragment);
+        sim.clock.advance(500);
+        sim.host.sendLine(connectLine);
+        sim.clock.advance(5000);
+        const lines = sim.host.take();
+        const reply = JSON.parse(lines[0] as string) as { r: Record<string, unknown>; f: number[] };
+        expect(Object.keys(reply.r)).toEqual([]);
+        expect(reply.f[1]).toBe(expected === 'runs' ? 0 : expected);
+        expect(sim.device.snapshot().position[0]).toBeCloseTo(expected === 'runs' ? 0.5 : 0, 3);
+      });
+    }
+  }
+});
