@@ -26,6 +26,9 @@ export const SAFETY_REVIEW_PATHS: readonly string[] = [
   '/packages/flasher/',
   '/packages/schema/',
   '/packages/testkit/',
+  // MACHINING_ASSISTANT §6.4: the override envelope in advisor bounds every
+  // live change any engine proposes before it can reach an actuator.
+  '/packages/advisor/',
   // Jog, control and firmware UI, and the workers that own the port.
   '/apps/web/src/panels/jog/',
   '/apps/web/src/panels/control/',

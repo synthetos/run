@@ -18,6 +18,16 @@ const ALL_SOURCE = ['**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'];
  */
 const NO_NETWORK = ['packages/{protocol,safety,machine,flasher,provenance,schema}/**'];
 
+/**
+ * The machining assistant's pure packages (MACHINING_ASSISTANT §9: "no
+ * network, no machine import"), in .dependency-cruiser.cjs as ASSISTANT. Not
+ * on the machine path, but every engine's suggestion passes through advisor's
+ * envelope before it can reach an actuator, so they get the machine path's
+ * no-network rule (P0-02 #2 style: in scope before anything imports them)
+ * and its determinism rule.
+ */
+const ASSISTANT = ['packages/{library,advisor}/**'];
+
 /** Runtime source: what ships, or runs on the machine path (not tests, not tools, not build config). */
 const RUNTIME_SOURCE = ['{packages,apps,workers}/*/src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'];
 
@@ -144,7 +154,7 @@ export default tseslint.config(
     },
   },
   {
-    files: NO_NETWORK,
+    files: [...NO_NETWORK, ...ASSISTANT],
     rules: { 'run/no-network-api': 'error' },
   },
   {
@@ -183,6 +193,20 @@ export default tseslint.config(
           property: 'random',
           message: 'Math.random is banned in safety and protocol: their behaviour must be deterministic and testable.',
         },
+      ],
+    },
+  },
+  {
+    // MACHINING_ASSISTANT §5.2, §6.4: the advisor and the library are pure and
+    // deterministic. No randomness, and no clock: time comes in as an argument
+    // (the envelope's rate limit and the live window read the caller's clock).
+    files: ASSISTANT,
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        { object: 'Math', property: 'random', message: 'Math.random is banned in library and advisor: their output must be deterministic.' },
+        { object: 'Date', property: 'now', message: 'Date.now is banned in library and advisor: pass the time in, so results are deterministic.' },
+        { object: 'performance', property: 'now', message: 'performance.now is banned in library and advisor: pass the time in, so results are deterministic.' },
       ],
     },
   },

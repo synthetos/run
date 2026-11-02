@@ -365,6 +365,73 @@ describe('package layering (RUN_PLAN §5.3, P0 review)', () => {
   });
 });
 
+describe('the machining assistant packages: pure, no network, no machine (MACHINING_ASSISTANT §9)', () => {
+  it('advisor importing machine fails dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/advisor/src/index.ts', "export { VERSION as M } from '../../machine/src/index.ts';\n");
+    const result = repo.deps();
+    expectFailure(result, 'layer-advisor');
+    expect(result.output).toContain('assistant-never-reaches-machine-path');
+  });
+
+  it('library importing advisor fails dependency-cruiser: advisor may import library, never the reverse', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/library/src/index.ts', "export { VERSION as A } from '../../advisor/src/index.ts';\n");
+    const result = repo.deps();
+    expectFailure(result, 'layer-library');
+    expect(result.output).toContain('no-circular');
+  });
+
+  it('library importing contracts, or advisor importing the cloud client, fails dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write('apps/web/src/cloud/client.ts', 'export const CLOUD = 1;\n');
+    repo.append('packages/library/src/index.ts', "export { VERSION as C } from '../../contracts/src/index.ts';\n");
+    repo.append('packages/advisor/src/index.ts', "export { CLOUD } from '../../../apps/web/src/cloud/client.ts';\n");
+    const result = repo.deps();
+    expectFailure(result, 'layer-library');
+    expect(result.output).toContain('assistant-never-reaches-machine-path: packages/library/src/index.ts → packages/contracts/src/index.ts');
+    expect(result.output).toContain('safety-path-no-apps-or-workers: packages/advisor/src/index.ts → apps/web/src/cloud/client.ts');
+    expect(result.output).toContain('machine-path-never-reaches-live-gates');
+  });
+
+  it("advisor importing the schema entry (which reaches protocol) fails; schema's JSON Schema validator is the one allowed edge", { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/advisor/src/index.ts', "export { VERSION as SC } from '../../schema/src/index.ts';\n");
+    const result = repo.deps();
+    expectFailure(result, 'layer-advisor');
+    expect(result.output).toContain('assistant-never-reaches-machine-path');
+    expect(result.output).toContain('packages/protocol/');
+  });
+
+  it('an npm package or a Node built-in in library or advisor fails dependency-cruiser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/library/src/index.ts', "import fc from 'fast-check';\nexport const _fc = fc;\n");
+    repo.append('packages/advisor/src/index.ts', "export { readFileSync } from 'node:fs';\n");
+    const result = repo.deps();
+    expectFailure(result, 'assistant-no-npm');
+    expect(result.output).toContain('assistant-no-node-core');
+  });
+
+  it('a network identifier in library or advisor fails lint (P0-02 #2 scope)', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    const packages = ['library', 'advisor'];
+    for (const name of packages) {
+      repo.append(`packages/${name}/src/index.ts`, "export const ws = (): unknown => new WebSocket('wss://x');\n");
+    }
+    const result = repo.lint();
+    expectFailure(result, 'run/no-network-api');
+    for (const name of packages) expect(result.output).toContain(`packages/${name}/src/index.ts`);
+  });
+
+  it('Math.random or Date.now in advisor fails lint: it is deterministic', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.append('packages/advisor/src/index.ts', 'export const jitter = (): number => Math.random() + Date.now();\n');
+    const result = repo.lint();
+    expectFailure(result, 'no-restricted-properties');
+    expect(result.output).toContain('Date.now is banned in library and advisor');
+  });
+});
+
 describe('ROADMAP P0-12 rules', () => {
   it('machine source importing the bootloader capability mint fails dependency-cruiser', { timeout: TIMEOUT }, () => {
     const repo = fresh();
