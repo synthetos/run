@@ -458,7 +458,7 @@ export class MachineSession {
           continue;
         }
         this.#append({ t: this.#clock.now(), dir: 'tx', text: escape(item.bytes) });
-        this.#wireTx(item.epoch, item.bytes);
+        this.#wireTx(item.bytes);
         try {
           await guarded.writeLine(item.bytes);
         } catch (error) {
@@ -485,7 +485,7 @@ export class MachineSession {
     }
     /* c8 ignore stop */
     this.#append({ t: this.#clock.now(), dir: 'tx', text: escape(bytes) });
-    this.#wireTx(epoch, bytes);
+    this.#wireTx(bytes);
     try {
       await guarded.writeLine(bytes);
     } catch (error) {
@@ -493,9 +493,9 @@ export class MachineSession {
     }
   }
 
-  #wireTx(epoch: number, bytes: Uint8Array): void {
-    const link = this.#link;
-    if (link !== null && link.epoch === epoch) link.wire?.tx(this.#clock.now(), bytes);
+  /** Called only with a current guard for the link, which opened (so its transcript exists). */
+  #wireTx(bytes: Uint8Array): void {
+    ((this.#link as Link).wire as EventLog).tx(this.#clock.now(), bytes);
   }
 
   #releaseXon(): void {
