@@ -114,7 +114,10 @@ describe('Phase 1 control allowlist', () => {
   const MACHINE_DISABLED = new Set(['jog', 'zero', 'spindle', 'coolant', 'override', 'start', 'settings-write', 'firmware']);
   /** Enabled only while a machine is LIVE in this browser (never gated otherwise): Pause and Stop job. */
   const LIVE_ONLY = new Set(['stop']);
-  /** Reads only (GETs through the read allowlist): Back up settings. Disabled until a board is read. */
+  /**
+   * Reads only (GETs through the read allowlist): Back up settings, and the Console command line's Send (it sends
+   * only allowlisted reads; motion and settings writes are shown and never sent). Disabled until a board is read.
+   */
   const READ_ONLY = new Set(['read']);
   /** The Connect flow (live/ConnectPanel.ts): Connect, the C1 confirm and cancel, dismiss, Disconnect. */
   const CONNECT = new Set(['connect', 'disconnect', 'confirm', 'cancel', 'dismiss']);
@@ -129,6 +132,12 @@ describe('Phase 1 control allowlist', () => {
     /^label:(Toggle day\/night mode|Account: .*|Dialect|Find a machine|back left|back right|center|front left|front right|Link|Shop|Price in US dollars|Close|TinyG v8 board drawing\..*|J\d\.\d .+|M\d\.\d .+|.+, draft|.+, your profile)$/,
     /^button:(Workshop|Stock|Whole bed|3D|Top|Front|Block|Round|Sheet|Stock top|Stock bottom|\d+ clamps|No clamps|Remove the fixture|Use the sample plate|All|End mills|Ball nose|V-bits|Drills|O-flutes|Built-in|Mine \(\d+\)|Belt driven|Screw driven|Go to Run|T\d+ · .+|Motor \d|X|Y|Z|A)$/,
     /^(input|select|textarea):/,
+    // Report a problem (REPORT_A_PROBLEM): opens the dialog and builds links, files and Markdown from data run
+    // already holds. Never a board command; the dialog covers the views only, so it never gates Pause or Stop.
+    /^action:report-(problem|board|console|event|cancel|next|back|close|copy|download|open)$/,
+    /^action:consent-(whole|excerpt)$/,
+    // Projects (local): records and files in this browser's IndexedDB. "Open in Run" only loads the preview.
+    /^action:project-(new|rename|save-name|cancel-rename|delete|confirm-delete|cancel-delete|share|edit-description|save-description|cancel-description|open-in-run|remove-file|set-cover|remove-image|add-link|remove-link|use-stock|go-run)$/,
   ];
   // Material and tool rows are plain buttons whose text is data: any other button must be in the list above.
   const LIST_ROW = /class="(material-row[^"]*|row-link)"/;

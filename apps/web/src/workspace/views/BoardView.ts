@@ -46,6 +46,7 @@ import {
   type PinInfo,
 } from '../boardFacts.ts';
 import { Icon } from '../icons.ts';
+import { openReport } from '../../report/state.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { coolantText, displayReadouts, num, spindleText, UNKNOWN } from '../status.ts';
 import { Keyed, TabBar, TabPane } from '../ui.ts';
@@ -136,6 +137,11 @@ function BoardFacts({ view }: { readonly view: LiveView | null }): ComponentChil
           c?.detail === undefined || c.detail === '' ? null : h('small', { class: 'raw-key block' }, boardText(c.detail)),
         )
       : null,
+    h(
+      'div',
+      { class: 'board-report' },
+      h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'report-board', onClick: () => openReport({ origin: 'board', kind: 'firmware' }) }, Icon('flag', 14), 'Report a firmware problem'),
+    ),
   );
 }
 

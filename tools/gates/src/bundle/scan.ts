@@ -23,6 +23,14 @@
  *   A link is navigation the user chooses; it loads nothing into the page.
  *   The same URL anywhere else (a `<link>`, `<img>`, CSS, a script, or a
  *   JavaScript chunk) is still an `origin-literal` finding.
+ * - Report destinations (REPORT_A_PROBLEM §6): the exact URLs in
+ *   apps/web/src/report/targets.ts (`REPORT_URLS`) are allowed as string
+ *   literals in a JavaScript chunk, and nowhere else, and only when each also
+ *   starts with one of the reviewed `REPORT_URL_PREFIXES` (the synthetos
+ *   GitHub organisation and the Synthetos forum). Report a problem builds a
+ *   link from them that the user opens in a new tab; nothing is fetched. A
+ *   longer or different URL, or the same URL in markup or CSS, is still an
+ *   `origin-literal` finding.
  * - `headers-file` (P0-04): the static-assets `_headers` file at the dist
  *   root is missing or differs from `renderHeadersFile()` in
  *   workers/run/src/headers.ts. Cloudflare applies that file to every asset
@@ -127,6 +135,7 @@ import { CLOUD_ASSET_DIR, SERIAL_ASSET_DIR } from '../../../../apps/web/build/ch
 import { NETWORK_IDENTIFIERS } from '../shared/networkIdentifiers.ts';
 import { renderHeadersFile } from '../../../../workers/run/src/headers.ts';
 import { OUTBOUND_URLS } from '../../../../apps/web/src/pages/outbound.ts';
+import { REPORT_URLS } from '../../../../apps/web/src/report/targets.ts';
 import { TESTKIT_MARKER } from '../../../../packages/testkit/src/marker.ts';
 import { BENCH_MARKER } from '../../../../apps/web/src/channel/benchMarker.ts';
 import { WEB_SERIAL_METHODS, WEB_SERIAL_PROPERTY } from '../shared/webSerialNames.ts';
@@ -185,6 +194,17 @@ export const LICENCE_TEXT_URIS: readonly string[] = ['http://scripts.sil.org/OFL
 
 /** The reviewed outbound links (P0-05), allowed only as `<a href>` in HTML. */
 export { OUTBOUND_URLS };
+
+/**
+ * The reviewed allowance for report destinations: a `REPORT_URLS` entry is admitted in a chunk only when it
+ * starts with one of these. Widening this list is a reviewed change to the scan.
+ */
+export const REPORT_URL_PREFIXES: readonly string[] = Object.freeze(['https://github.com/synthetos/', 'https://synthetos.com/forum/']);
+
+/** The report URLs the scan admits in JavaScript chunks: exact, https, and under a reviewed prefix. */
+export const ADMITTED_REPORT_URLS: readonly string[] = Object.freeze(REPORT_URLS.filter((u) => REPORT_URL_PREFIXES.some((p) => u.startsWith(p) && u.length > p.length)));
+
+export { REPORT_URLS };
 
 /**
  * True when the URL starting at `index` in an HTML file is the whole value of
@@ -497,6 +517,12 @@ function testkitAndSerialFindings(path: string, text: string, target: ScanTarget
   return findings;
 }
 
+/** True when `url` at `at` is a whole string literal: a quote right before it and the same quote right after. */
+function isStringLiteral(text: string, at: number, url: string): boolean {
+  const before = text[at - 1];
+  return (before === '"' || before === "'" || before === '`') && text[at + url.length] === before;
+}
+
 /** Scans one text file for a target. Exported for the tests. */
 export function scanText(path: string, text: string, target: ScanTarget): ScanFinding[] {
   const findings: ScanFinding[] = [];
@@ -509,6 +535,7 @@ export function scanText(path: string, text: string, target: ScanTarget): ScanFi
     if (LICENCE_TEXT_RE.test(path) && LICENCE_TEXT_URIS.includes(url)) continue;
     if (cloud && isSelfOrigin(url)) continue;
     if (ext === '.html' && OUTBOUND_URLS.includes(url) && isAnchorHref(text, match.index ?? 0, url)) continue;
+    if ((ext === '.js' || ext === '.mjs') && ADMITTED_REPORT_URLS.includes(url) && isStringLiteral(text, match.index ?? 0, url)) continue;
     findings.push({ file: path, rule: 'origin-literal', match: clip(url) });
   }
   for (const match of text.matchAll(SCRIPT_URL_RE)) {

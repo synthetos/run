@@ -31,6 +31,7 @@ import { LiveEntry } from './liveEntry.ts';
 import { windowChooser } from './portChooser.ts';
 import { LiveReadout } from './readout.ts';
 import { backupFileName, SettingsBackup } from './backup.ts';
+import { ConsoleReader } from './consoleRead.ts';
 import type { BackupStatus, LiveSample, WorkspaceModel } from '../workspace/model.ts';
 import { cleanDisconnect, installLiveLifecycle, previousSessionEnded } from './liveMarker.ts';
 import type { StopControls } from './stopControls.ts';
@@ -149,6 +150,8 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   });
   // Board view: "Back up settings", one allowlisted GET at a time (live/backup.ts).
   const backup = new SettingsBackup();
+  // The Console command line: one allowlisted read at a time (live/consoleRead.ts).
+  const consoleReader = new ConsoleReader();
   let backupStatus: BackupStatus = { kind: 'idle' };
   let transcriptStatus: TranscriptStatus = { kind: 'idle' };
 
@@ -239,6 +242,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       const snapshot = droMessage.snapshot;
       readout.onSnapshot(snapshot);
       backup.onSnapshot(snapshot);
+      consoleReader.onSnapshot(snapshot);
       sample(droMessage, droReceivedAt);
       updateMarker();
       staleSince = snapshot.overlays.includes('STALE') ? (staleSince ?? Date.now()) : null;
@@ -303,6 +307,14 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     keepBoardSettings: () => void readout.keepBoardSettings().catch(() => undefined),
     backup: () => void runBackup(),
     transcriptText,
+    consoleRead: (token: string) =>
+      consoleReader.read(token, {
+        snapshot: () => droMessage?.snapshot ?? null,
+        read,
+        transcript: transcriptText,
+        setTimeout: (fn, ms) => setTimeout(fn, ms),
+        clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+      }),
   });
 
   entry.subscribe(() => {

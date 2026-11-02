@@ -42,6 +42,8 @@ export interface PreviewPanelProps {
    * sent lines; null or 0 when nothing runs. Display only.
    */
   readonly reportedLine?: number | null;
+  /** A G-code line's "Report a problem with this line" action (the workspace Run view). */
+  readonly onReportLine?: (line: number) => void;
 }
 
 /** The live position in the preview's frame (work coordinates, mm), with where it came from. */
@@ -72,7 +74,7 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, marker, layout, reportedLine = null }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onReportLine }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -152,7 +154,7 @@ export function PreviewPanel({ spawn, marker, layout, reportedLine = null }: Pre
   const slots: PreviewSlots = {
     ...(drawing === undefined ? {} : { drawing }),
     ...(readout === undefined ? {} : { marker: readout }),
-    ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine }) }),
+    ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine, ...(onReportLine === undefined ? {} : { onReportLine }) }) }),
   };
   return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live });
 }
