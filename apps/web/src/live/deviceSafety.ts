@@ -12,6 +12,7 @@
  * it then sees "nothing recorded", which is the conservative answer (full
  * C1, no cached advisory).
  */
+import { heldMachineLocks, type LockManagerLike } from '../machine-worker/stopChannel.ts';
 
 export interface DeviceSafetyStore {
   get(key: string): Promise<unknown>;
@@ -68,4 +69,25 @@ export async function openDeviceSafety(factory: IDBFactory): Promise<DeviceSafet
       return all.filter((k): k is string => typeof k === 'string' && k.startsWith(prefix)).sort();
     },
   };
+}
+
+// ------------------------------------------------- destructive operations
+
+export type DestructiveOutcome = { readonly ok: true; readonly removed: number } | { readonly ok: false; readonly reason: 'machine-locked' | 'locks-unknown' };
+
+/**
+ * Removes every key under `prefix` ("forget this machine on this computer",
+ * logout clean-up). SAFETY §4.1 destructive storage row (P1-06, T-S73):
+ * refused while any tab of this browser holds a `synthetos-machine:*` lock,
+ * and refused when the locks cannot be read, which is the conservative
+ * answer. An empty prefix is refused too: nothing clears the whole store.
+ */
+export async function forgetDeviceSafety(store: DeviceSafetyStore, locks: LockManagerLike | null, prefix: string): Promise<DestructiveOutcome> {
+  if (prefix.length === 0) throw new Error('device-safety: forgetDeviceSafety needs a key prefix');
+  const held = await heldMachineLocks(locks);
+  if (held === null) return { ok: false, reason: 'locks-unknown' };
+  if (held.length > 0) return { ok: false, reason: 'machine-locked' };
+  const keys = await store.keys(prefix);
+  for (const key of keys) await store.delete(key);
+  return { ok: true, removed: keys.length };
 }

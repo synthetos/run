@@ -1,7 +1,7 @@
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
 import type { BuildInfo } from '../build-info/buildInfo.ts';
-import { SafetyBar } from './SafetyBar.ts';
+import { SafetyBar, type StopBarView } from './SafetyBar.ts';
 import { SiteFooter } from './SiteFooter.ts';
 import { SiteHeader } from './SiteHeader.ts';
 
@@ -12,11 +12,25 @@ import { SiteHeader } from './SiteHeader.ts';
  * by the workspace entry, so the safety bar shows even before (or without)
  * JavaScript. This module has no machine, serial or network code.
  */
-export function Shell({ build, previousSession }: { readonly build: BuildInfo; readonly previousSession?: ReadonlySignal<boolean> }): ComponentChild {
+export interface ShellProps {
+  readonly build: BuildInfo;
+  readonly previousSession?: ReadonlySignal<boolean>;
+  /** P1-06: the stop controls, wired by the workspace entry after hydration. */
+  readonly stop?: ReadonlySignal<StopBarView>;
+  readonly onPause?: () => void;
+}
+
+export function Shell({ build, previousSession, stop, onPause }: ShellProps): ComponentChild {
   return h(
     'div',
     { class: 'shell', 'data-shell': 'workspace' },
-    h(SafetyBar, { build, variant: 'workspace', ...(previousSession === undefined ? {} : { previousSession }) }),
+    h(SafetyBar, {
+      build,
+      variant: 'workspace',
+      ...(previousSession === undefined ? {} : { previousSession }),
+      ...(stop === undefined ? {} : { stop }),
+      ...(onPause === undefined ? {} : { onPause }),
+    }),
     h(SiteHeader, { current: '/' }),
     h(
       'div',

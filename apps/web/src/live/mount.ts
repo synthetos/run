@@ -20,6 +20,7 @@ import { memoryDeviceSafety, openDeviceSafety, type DeviceSafetyStore } from './
 import { leaveFullscreen } from './fullscreen.ts';
 import { LiveEntry, type ChooseResult } from './liveEntry.ts';
 import { cleanDisconnect, installLiveLifecycle, previousSessionEnded } from './liveMarker.ts';
+import type { StopControls } from './stopControls.ts';
 
 /**
  * The port chooser. `requestPort()` may run only in the Web Serial module,
@@ -38,6 +39,8 @@ export interface MountOptions {
   readonly container: HTMLElement;
   readonly bannerContainer: HTMLElement;
   readonly previousSession: Signal<boolean>;
+  /** P1-06: told when this tab enters or leaves LIVE, and given each snapshot (W30, PAUSE REQUESTED). */
+  readonly stopControls: StopControls;
 }
 
 export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> {
@@ -95,6 +98,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       snapshot = (message as SnapshotMessage).snapshot;
       staleSince = snapshot.overlays.includes('STALE') ? (staleSince ?? Date.now()) : null;
       alarm.sync(snapshot);
+      options.stopControls.setSnapshot(snapshot);
       draw();
     };
     worker.postMessage({ v: RPC_VERSION, kind: 'subscribe' }, [channel.port2]);
@@ -124,7 +128,10 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     render(h(OverlayBanners, { snapshot, staleElapsedMs: staleSince === null ? 0 : Date.now() - staleSince }), options.bannerContainer);
   }
 
-  entry.subscribe(draw);
+  entry.subscribe(() => {
+    options.stopControls.setLive(entry.state.step === 'live');
+    draw();
+  });
   draw();
   return entry;
 }
