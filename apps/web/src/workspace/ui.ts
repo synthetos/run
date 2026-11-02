@@ -52,7 +52,7 @@ export function TabBar<T extends string>(props: {
 
 /** One tab pane, hidden unless current. */
 export function TabPane(props: { readonly prefix: string; readonly id: string; readonly current: string; readonly class?: string; readonly children?: ComponentChild }): ComponentChild {
-  return h('div', { role: 'tabpanel', id: `${props.prefix}-pane-${props.id}`, 'aria-labelledby': `${props.prefix}-tab-${props.id}`, hidden: props.current !== props.id, class: props.class ?? 'tpane' }, props.children);
+  return h('div', { role: 'tabpanel', tabindex: 0, id: `${props.prefix}-pane-${props.id}`, 'aria-labelledby': `${props.prefix}-tab-${props.id}`, hidden: props.current !== props.id, class: props.class ?? 'tpane' }, props.children);
 }
 
 export type CheckTone = 'ok' | 'warn' | 'danger' | 'info' | 'todo';
