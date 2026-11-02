@@ -420,6 +420,7 @@ describe('StopControls', () => {
     settle({ kind: 'not-delivered', action: 'stopJob', machines: [{ machine: 'synthetos-machine:A', delivered: false, accepted: false }] });
     await flush();
     expect(c.view.value.outcome?.kind).toBe('not-delivered');
+    expect(c.view.value.outcome?.action).toBe('stopJob');
     await vi.advanceTimersByTimeAsync(60_000);
     expect(c.view.value.outcome?.kind).toBe('not-delivered');
     c.request('pause');
@@ -468,10 +469,18 @@ describe('safety bar and observer panel', () => {
   });
 
   it('an unacknowledged request shows STOP NOT DELIVERED with the machine', () => {
-    const el = bar({ available: true, band: null, outcome: { kind: 'not-delivered', machines: [{ machine: 'synthetos-machine:BOARD-A', delivered: false }] } });
+    const el = bar({ available: true, band: null, outcome: { kind: 'not-delivered', action: 'pause', machines: [{ machine: 'synthetos-machine:BOARD-A', delivered: false }] } });
     const line = one(el, (e) => e.props['data-stop-outcome'] === 'not-delivered');
     expect(line.props['role']).toBe('alert');
     expect(text(line)).toBe(`${STOP_TEXT.notDelivered} (BOARD-A)`);
+  });
+
+  it('a delivered Stop job or Spindle off request says it went out as Pause (spindle stays on), never as a stopped job (Phase 1)', () => {
+    const delivered = (action: 'pause' | 'stopJob' | 'spindleOff') =>
+      text(one(bar({ available: true, band: null, outcome: { kind: 'delivered', action, machines: [{ machine: 'synthetos-machine:BOARD-A', delivered: true }] } }), (e) => e.props['data-stop-outcome'] === 'delivered'));
+    expect(delivered('pause')).toBe('Delivered to BOARD-A');
+    expect(delivered('stopJob')).toBe(`Delivered to BOARD-A as ${w2Label()}`);
+    expect(delivered('spindleOff')).toBe(`Delivered to BOARD-A as ${w2Label()}`);
   });
 
   it('the observer panel offers the two requests, and W29 replaces them when the lock is released', () => {

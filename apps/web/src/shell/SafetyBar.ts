@@ -14,8 +14,8 @@ export interface StopBarView {
   readonly available: boolean;
   /** `held`: a report shows the held class (W30 plus W10). `pause-requested`: Pause was sent, no hold reported yet. */
   readonly band: 'held' | 'pause-requested' | null;
-  /** The last stop request's result, per machine (SAFETY §4.3). */
-  readonly outcome: { readonly kind: 'delivered' | 'not-delivered'; readonly machines: readonly { readonly machine: string; readonly delivered: boolean }[] } | null;
+  /** The last stop request's result, per machine (SAFETY §4.3), and what was asked for. */
+  readonly outcome: { readonly kind: 'delivered' | 'not-delivered'; readonly action: 'pause' | 'stopJob' | 'spindleOff'; readonly machines: readonly { readonly machine: string; readonly delivered: boolean }[] } | null;
 }
 
 /** A machine lock name as the user reads it (the board id). */
@@ -68,7 +68,10 @@ function outcomeLine(view: StopBarView | undefined): ComponentChild {
     const missing = outcome.machines.filter((m) => !m.delivered).map((m) => machineLabel(m.machine));
     return h('p', { class: 'stop-outcome', 'data-stop-outcome': 'not-delivered', role: 'alert' }, missing.length > 0 ? `${STOP_TEXT.notDelivered} (${missing.join(', ')})` : STOP_TEXT.notDelivered);
   }
-  return h('p', { class: 'stop-outcome', 'data-stop-outcome': 'delivered', role: 'status' }, `Delivered to ${outcome.machines.map((m) => machineLabel(m.machine)).join(', ')}`);
+  // Phase 1: every session answers Stop job and Spindle off with `!` only (machine reducer, SAFETY §4.4), so
+  // "Delivered" alone would read as "the job is stopped, spindle off". Say what the machine actually got.
+  const as = outcome.action === 'pause' ? '' : ` as ${w2Label()}`;
+  return h('p', { class: 'stop-outcome', 'data-stop-outcome': 'delivered', role: 'status' }, `Delivered to ${outcome.machines.map((m) => machineLabel(m.machine)).join(', ')}${as}`);
 }
 
 function stopButton(view: StopBarView | undefined, onPause: (() => void) | undefined): ComponentChild {

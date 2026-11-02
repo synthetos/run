@@ -104,7 +104,7 @@ export class StopControls {
   #show(outcome: StopOutcome): void {
     if (this.#clearOutcome !== null) this.#deps.timers.clearTimeout(this.#clearOutcome);
     this.#clearOutcome = null;
-    this.#outcome = outcome.kind === 'no-machine' ? null : { kind: outcome.kind, machines: outcome.machines };
+    this.#outcome = outcome.kind === 'no-machine' ? null : { kind: outcome.kind, action: outcome.action, machines: outcome.machines };
     if (outcome.kind === 'delivered') {
       this.#clearOutcome = this.#deps.timers.setTimeout(() => {
         this.#clearOutcome = null;
