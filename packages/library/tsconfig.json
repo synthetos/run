@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Runtime source gets neither DOM nor Node types: nothing in library/src
+    // can name fetch, URL, structuredClone or a Node built-in by accident
+    // (MACHINING_ASSISTANT §9: no network, no machine import).
+    "types": []
+  },
+  "include": ["src"]
+}

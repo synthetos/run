@@ -1,0 +1,20 @@
+{
+  "name": "@synthetos/advisor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Feeds and speeds advisor: the deterministic rules model, achievable-feed estimate, live chipload estimator, the override envelope, and the AdvisorEngine seam with RulesEngine and MockAiEngine.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@synthetos/library": "workspace:*",
+    "@synthetos/schema": "workspace:*"
+  }
+}

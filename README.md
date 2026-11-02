@@ -49,6 +49,8 @@ account.
 | `packages/wiring` | Board data, components, rules engine, renderers |
 | `packages/provenance` | Device-local trust anchor and authorship decisions (pure) |
 | `packages/contracts` | API types and valibot schemas shared by the web app and the Worker |
+| `packages/library` | Tool, material, stock, fixture and store-product records: schemas and validation, external link sanitising, versioning and forking, built-in seed data (`docs/design/MACHINING_ASSISTANT.md` §2-§4) |
+| `packages/advisor` | Feeds and speeds: the deterministic rules model, achievable-feed estimate, live chipload estimator, the override envelope, and the `AdvisorEngine` seam with `RulesEngine` and `MockAiEngine` (§5, §6) |
 | `packages/testkit` | **Dev only.** Firmware models and fakes for tests; never in a production bundle |
 | `apps/web` | The workspace UI (Preact, Vite multi-page app) |
 | `apps/cli` | Bench tooling (Node) |
@@ -64,6 +66,10 @@ account.
 - `protocol`, `safety`, `machine`, `schema`, `flasher` and `provenance` have
   **no runtime npm dependencies** and never import network APIs, `contracts`
   or the cloud client.
+- `library` and `advisor` (the machining assistant, `docs/design/MACHINING_ASSISTANT.md`
+  §9) have no runtime npm dependencies, use no network API, are deterministic
+  (no `Math.random`, no clock) and never reach `machine`, `protocol`, `safety`,
+  `contracts`, the cloud client or any app.
 - The cloud client (`apps/web/src/cloud`) imports only `contracts` and
   `provenance`, so never `machine`, `protocol` or `safety`, and the safety
   path never imports it.
@@ -75,7 +81,8 @@ account.
   and the `flasher` entry; `flasher` imports `protocol`; `gcode`, `wiring`
   and `provenance` import `safety` and `protocol`; `contracts` imports no
   workspace package; `testkit` imports `protocol` and `flasher`. No import
-  cycle anywhere in `packages/`. Runtime workspace edges are `dependencies`
+  cycle anywhere in `packages/`. `library` imports only `schema`'s JSON Schema
+  validator; `advisor` imports `library` and that validator. Runtime workspace edges are `dependencies`
   (`workspace:*`), so the production build graph (`--filter-prod`) never
   includes the test kit.
 - Panels act only through typed intents checked by `safety.allowed`; no code
@@ -86,8 +93,8 @@ These rules are enforced by the gates below (P0-02, P0-03, P0-13).
 
 | Gate | Command | What it enforces |
 |---|---|---|
-| Boundaries | `pnpm deps` | `.dependency-cruiser.cjs`: the package layering above (`layer-*` rules) and `no-circular`; no npm (direct or transitive) and no Node built-ins in the safety path; no `contracts` or cloud client in the safety path; the cloud client imports only its own modules, `contracts` and `provenance`, and no chain of imports from it reaches `machine`, `flasher`, `schema`, `gcode`, `wiring`, `testkit` or any other web-app module (`protocol` and `safety` only through `provenance`); `workers/run` imports only `contracts`; no entry reaches `testkit`; nothing imports from outside the repository; every import resolves. Then `tools/gates/src/source/cli.ts` parses every runtime source file and refuses what dependency-cruiser cannot see: a computed or reflective capability lookup (`capability-lookup`) and an `import()` with a computed specifier (`dynamic-import`) |
-| Lint | `pnpm lint` | `eslint.config.js` with the repository's own rules in `tools/gates/src/eslint/`: no `eval`/`new Function`; no HTML sinks (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `dangerouslySetInnerHTML`) outside `apps/web/src/security/tt.ts`; no `abort` in `machine`; no `Math.random` in `safety` and `protocol`; no network identifiers in `protocol`, `safety`, `machine`, `flasher`, `provenance` and `schema`; in runtime source, `navigator` only as a static read of a reviewed data property, window aliases only with static keys, no `Reflect` (`run/no-capability-lookup`; the test kit is exempt) and no `import()` with a computed specifier (`run/no-dynamic-import`); no `navigator.serial`, `requestPort` or `getPorts` anywhere except `packages/machine/src/webSerialTransport.ts`, which may read `navigator.serial` statically and nothing more (P1-00; its tests are not exempt); no `WARNING —`, `DANGER —` or `NOTICE —` strings outside `packages/safety/src/strings.ts`. Inline `eslint-disable` comments are ignored (`noInlineConfig`), so a rule can be relaxed only in `eslint.config.js` |
+| Boundaries | `pnpm deps` | `.dependency-cruiser.cjs`: the package layering above (`layer-*` rules) and `no-circular`; no npm (direct or transitive) and no Node built-ins in the safety path; no `contracts` or cloud client in the safety path; the cloud client imports only its own modules, `contracts` and `provenance`, and no chain of imports from it reaches `machine`, `flasher`, `schema`, `gcode`, `wiring`, `testkit` or any other web-app module (`protocol` and `safety` only through `provenance`); `workers/run` imports only `contracts`; `library` and `advisor` have no npm or Node built-in and reach no machine-path package, `contracts`, app or Worker (`assistant-*`); no entry reaches `testkit`; nothing imports from outside the repository; every import resolves. Then `tools/gates/src/source/cli.ts` parses every runtime source file and refuses what dependency-cruiser cannot see: a computed or reflective capability lookup (`capability-lookup`) and an `import()` with a computed specifier (`dynamic-import`) |
+| Lint | `pnpm lint` | `eslint.config.js` with the repository's own rules in `tools/gates/src/eslint/`: no `eval`/`new Function`; no HTML sinks (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `dangerouslySetInnerHTML`) outside `apps/web/src/security/tt.ts`; no `abort` in `machine`; no `Math.random` in `safety` and `protocol`, and no `Math.random`, `Date.now` or `performance.now` in `library` and `advisor`; no network identifiers in `protocol`, `safety`, `machine`, `flasher`, `provenance`, `schema`, `library` and `advisor`; in runtime source, `navigator` only as a static read of a reviewed data property, window aliases only with static keys, no `Reflect` (`run/no-capability-lookup`; the test kit is exempt) and no `import()` with a computed specifier (`run/no-dynamic-import`); no `navigator.serial`, `requestPort` or `getPorts` anywhere except `packages/machine/src/webSerialTransport.ts`, which may read `navigator.serial` statically and nothing more (P1-00; its tests are not exempt); no `WARNING —`, `DANGER —` or `NOTICE —` strings outside `packages/safety/src/strings.ts`. Inline `eslint-disable` comments are ignored (`noInlineConfig`), so a rule can be relaxed only in `eslint.config.js` |
 | Licences | `pnpm licence` | Production dependencies: MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0 or OFL-1.1. Dev dependencies may also be MPL-2.0, or carry a reviewed exception in `tools/gates/src/licence/exceptions.ts`. GPL and AGPL are never allowed |
 | CI policy | `pnpm ci-policy` | Workflows: only the deploy jobs touch secrets or the Cloudflare token; deploy jobs run only on a push to `main` behind protected environments; actions pinned by SHA; no `pull_request_target`; no `${{ }}` in scripts. CODEOWNERS covers every SAFETY §8 path. The PR template carries the SAFETY §8 checklist verbatim |
 | Bundle scan | `pnpm scan` (after a build) | No origin literal, `//host`, `javascript:` URL or network identifier in `apps/web/dist` outside the cloud-client chunks (`assets/cloud/`, decided by content in `apps/web/build/chunks.ts`); the static-assets `_headers` file present and identical to what `workers/run/src/headers.ts` renders. Anywhere in the bundle (P0-13, T-S40): no test-kit marker, `MockSerialPort`, `transport=` query handling, URL scheme other than relative, `data:` and `blob:`, or Web Serial (`navigator.serial`, `requestPort`, `getPorts`); in code, no computed or reflective capability lookup and no `import()` with a computed specifier; see docs/ops/ci.md |
