@@ -119,6 +119,8 @@ export class SettingsBackup {
         resolve('timeout');
       }, BACKUP_TOKEN_TIMEOUT_MS);
       this.#waiters.add(check);
+      // The answer may already be in the last snapshot (it can arrive before the read's reply).
+      check();
     });
   }
 
