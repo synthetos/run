@@ -114,7 +114,8 @@ function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined
 
 export function MachineStrip({ status, stop, previousSession, onPause, onStopJob }: MachineStripProps): ComponentChild {
   const held = stop?.band === 'held';
-  const title = held ? STOP_TEXT.paused : status.title;
+  // "spindle still on" only when the board reports spe=1 while held; wording only, nothing decides on it.
+  const title = held ? (status.spindleOn ? STOP_TEXT.pausedSpindleOn : STOP_TEXT.paused) : status.title;
   const tone = held ? 'hold' : status.tone;
   const outcome = outcomeText(stop);
   const showReadouts = status.connected && !held && stop?.band !== 'pause-requested' && status.readouts.length > 0;

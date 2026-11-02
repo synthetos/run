@@ -24,7 +24,7 @@ import { ConnectPanel } from '../../live/ConnectPanel.ts';
 import { Icon } from '../icons.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
-import { coord, num, UNKNOWN } from '../status.ts';
+import { COOLANT_TITLE, coolantText, coord, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
 
 export interface RunViewProps {
   readonly model: WorkspaceModel | null;
@@ -155,16 +155,32 @@ export function JogSection(): ComponentChild {
   );
 }
 
-export function SpindleSection(): ComponentChild {
+/**
+ * Spindle and coolant as the board reports them (edge-next `spe`, `spc`, `spd`, `sps`, `cof`, `com`), when its
+ * status list carries them; otherwise the dash or "Not reported by this board's status list". Display only:
+ * the controls stay disabled, and nothing that pauses or stops reads these values.
+ */
+export function SpindleSection({ model }: { readonly model?: WorkspaceModel | null } = {}): ComponentChild {
+  const view = model?.live.value ?? null;
+  const live = view !== null && connected(view) ? view.message?.snapshot.live : undefined;
+  const spindle = spindleText(live);
+  const spindleLine = spindle.startsWith('On') ? `Spindle o${spindle.slice(1)}` : spindle;
+  const coolant = coolantText(live);
   return h(
     'section',
     { class: 'insp sec-spindle', 'aria-labelledby': 'spindle-title' },
-    h('header', null, h('h2', { id: 'spindle-title' }, 'Spindle and coolant'), h('span', { class: 'tag' }, 'Commanded')),
+    h('header', null, h('h2', { id: 'spindle-title' }, 'Spindle and coolant'), h('span', { class: 'tag' }, 'Reported')),
     h(
       'div',
       { class: 'spindle-state' },
       h('svg', { class: 'spindle-dial', viewBox: '0 0 64 64', 'aria-hidden': 'true' }, h('circle', { cx: 32, cy: 32, r: 26, class: 'dial-track' })),
-      h('div', { class: 'spindle-text' }, h('strong', null, UNKNOWN, h('small', null, ' rpm commanded')), h('span', null, 'No command sent from this page'), h('small', null, 'Coolant: no command sent')),
+      h(
+        'div',
+        { class: 'spindle-text' },
+        h('strong', { 'data-spindle': 'spindle', title: SPINDLE_TITLE }, spindleLine),
+        h('span', null, 'Outputs as the controller drives them; speed is commanded, not measured'),
+        h('small', { 'data-spindle': 'coolant', title: COOLANT_TITLE }, `Coolant: ${coolant === UNKNOWN ? UNKNOWN : coolant === 'Off' ? 'off' : coolant}`),
+      ),
     ),
     h(
       'div',
@@ -172,7 +188,7 @@ export function SpindleSection(): ComponentChild {
       h('div', { class: 'seg full', role: 'group', 'aria-label': 'Spindle' }, ['Off', 'On · CW', 'On · CCW'].map((s) => h('button', { type: 'button', disabled: true, key: s, 'data-machine-control': 'spindle' }, s))),
       h('div', { class: 'inline-field' }, h('span', null, 'Coolant'), h('span', { class: 'toggles' }, h('button', { type: 'button', class: 'toggle', disabled: true, 'aria-pressed': 'false', 'data-machine-control': 'coolant' }, 'Mist'), h('button', { type: 'button', class: 'toggle', disabled: true, 'aria-pressed': 'false', 'data-machine-control': 'coolant' }, 'Flood'))),
     ),
-    h('p', { class: 'unavailable' }, 'Spindle and coolant control arrive with motion control. TinyG has no spindle speed sensor and does not report coolant: Run shows the last command it sent, never an actual speed.'),
+    h('p', { class: 'unavailable' }, 'Spindle and coolant control arrive with motion control. These readouts are for display only: a command queued behind a move shows only once it runs, so never rely on them for safety. TinyG has no spindle speed sensor.'),
   );
 }
 
@@ -531,7 +547,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
         ),
         h(Dock, { parts, model }),
       ),
-      h('aside', { tabindex: 0, class: 'inspector', 'aria-label': 'Machine and job' }, h(PositionPanel, { model }), h(JobCard, { parts }), h(JogSection, null), h(SpindleSection, null), h(OverridesSection, null)),
+      h('aside', { tabindex: 0, class: 'inspector', 'aria-label': 'Machine and job' }, h(PositionPanel, { model }), h(JobCard, { parts }), h(JogSection, null), h(SpindleSection, { model }), h(OverridesSection, null)),
     ),
   );
 }

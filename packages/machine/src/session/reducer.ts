@@ -686,7 +686,10 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
         return;
       }
       if (r.footer.status === 0) {
-        if (isObject(value)) mergeLive(t, value);
+        if (isObject(value)) {
+          mergeLive(t, value);
+          t.set({ live: { ...t.s.live, srList: Object.freeze(Object.keys(value)) } });
+        }
         advanceProbe(t, { ...probe, next: 1 });
       } else if (!probe.spliceRetried) {
         // A spliced fragment was rejected: send `{sr:null}` once more before continuing (PN §2.3 step 0).
@@ -957,6 +960,13 @@ function withNumber(t: Tx, live: LiveState, key: string, v: number): LiveState {
     case 'unit':
     case 'feed':
     case 'tool':
+    // Display only (spindle and coolant outputs as last driven): stored for the UI, read by no decision here.
+    case 'spe':
+    case 'spc':
+    case 'spd':
+    case 'sps':
+    case 'cof':
+    case 'com':
       return { ...live, [key]: v };
   }
   for (const axis of AXES) {
