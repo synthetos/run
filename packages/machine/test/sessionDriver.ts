@@ -98,7 +98,7 @@ export class Driver {
     return (decisions[0] as Extract<SessionEffect, { kind: 'decision' }>).decision;
   }
 
-  /** Connect and open: the session is IDENTIFYING with `{"sr":null}` handed to the transport. */
+  /** Connect and open: the session is IDENTIFYING with `{sr:null}` handed to the transport. */
   open(expectedDeviceId: string | null = null): void {
     this.intent({ intent: 'connect', port: PORT, expectedDeviceId });
     this.feed({ type: 'transportAcquired', epoch: this.state.epoch });

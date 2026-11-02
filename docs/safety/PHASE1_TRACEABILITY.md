@@ -26,7 +26,7 @@ snapshot), `packages/safety/src/allowMatrix.ts` (`PHASE_1_RELEASE`),
 | Banner after Ready → FAULT then UNKNOWN, both banner shapes (T-S10) | `onBanner` | `session-reducer.test.ts` "T-S10" (bare-sr and r-footer, boot banner, 440.21 jv=1 banner, during READING) | PASS |
 | Device id mismatch → BLOCKED, no writes (T-S21) | `finishProbe` (expected device id from the window's `open.boardId`) | `session-reducer.test.ts` "T-S21"; `apps/web/test/machineWorker.test.ts` "board id ... BLOCKED" | PASS |
 | T-S3 (the matrix decides every intent; generated) | `onIntent` | `allowMatrix.test.ts` T-S3 over Phase 0, Phase 1 and all-open releases; `session-reducer.test.ts` | PASS |
-| Model test: 10k random sessions against both test-kit models; first line `{"sr":null}`; only allowlisted GETs, ENQ (EN, never before a rev-2/3 footer) and `!` | `sessionModel.ts` (random requests, device faults, link faults; checks every connection's writes against what it had read) | `session-model-en.test.ts`, `session-model-440.test.ts` (5000 each) | PASS |
+| Model test: 10k random sessions against both test-kit models; first line `{sr:null}`; only allowlisted GETs, ENQ (EN, never before a rev-2/3 footer) and `!` | `sessionModel.ts` (random requests, device faults, link faults; checks every connection's writes against what it had read) | `session-model-en.test.ts`, `session-model-440.test.ts` (5000 each) | PASS |
 | T-S38: fuzz every read path, no token outside the allowlist, side-effect tokens never | probe list before classification, `isReadAllowed` after; byte gate | `session-write-policy.test.ts` "T-S38" (fast-check over request tokens on EN and 440.21); model test random reads | PASS |
 | T-S39: only `MachineSession` writes to the transport | `machineSession.ts` is the only caller above `GuardedTransport` | `session-write-policy.test.ts` "T-S39" (source scan; no web-app module outside `machine-worker/` imports `@synthetos/machine`) | PASS |
 | One line in flight; answers matched in order; late answers consumed; an answer before the write completes | `owedAnswers`, `consumeOwed`, line `seq` | `session-reducer.test.ts` "ordering of answers and writes"; generated test invariant | PASS |
@@ -50,7 +50,7 @@ Design points recorded with this task (also in the task report):
   Stop job and Reset controller, SAFETY §3), and Phase 1 has neither ^D nor
   ^X. A board reset (its banner) ends the overlay and the probe restarts.
   Closing the tab also releases the port. Raised for the owner.
-- **READING trusts only its own reads.** Values from the `{"sr":null}`
+- **READING trusts only its own reads.** Values from the `{sr:null}`
   answer are dropped when READING starts, so a failed `stat`/`hold`/`vel`/
   `qr` read leaves the board "not resting" (ORPHANED_MOTION), never idle by
   default.
@@ -65,7 +65,7 @@ The probe and classifier themselves are P0-08 (`packages/protocol`).
 | Requirement | Implementation | Test | Status |
 |---|---|---|---|
 | T-S55 against live-shaped transcripts | session against the EN and 440.21 test-kit models (booting and already powered), with and without an approval | `p1-03-live.test.ts` "T-S55"; classifier fixtures `protocol/test/capability.test.ts` (incl. stock 449, conflicts) | PASS |
-| T-S86: first line `{"sr":null}` in every connect path; a spliced fragment never runs | `startProbe` (fresh, after LOST, after ackFault) | `p1-03-live.test.ts` "T-S86 (live)" (partial `G0 X1` left in the RX ring on both models: no motion, error answer); `session-reducer.test.ts` splice guard; model tests | PASS |
+| T-S86: first line `{sr:null}` in every connect path; a spliced fragment never runs | `startProbe` (fresh, after LOST, after ackFault) | `p1-03-live.test.ts` "T-S86 (live)" (partial `G0 X1` left in the RX ring on both models: no motion, error answer); `session-reducer.test.ts` splice guard; model tests | PASS |
 | T-S87: ENQ never before a rev-2/3 footer, never on rev 1, after classification only on `tinyg-en` | `enqByte` | model tests (10k random sessions, both models); `session-reducer.test.ts` ENQ tests | PASS |
 | T-S60: a held, moving or queued board is ORPHANED_MOTION, not READ_ONLY; only `!`; `~` never | READING (`stat hold vel qr`), unsolicited reports, 3 s first-answer timeout | `p1-03-live.test.ts` "T-S60 (live)" (previous sender leaves each model held with a queue, or moving); `session-reducer.test.ts` "ORPHANED_MOTION" | PASS |
 | `ex` = 2 (RTS/CTS) → READ_ONLY on both dialects (PN §5.3); unreadable `ex` the same | READING reads `ex`; `finishReading` → reason `flowControl` | `session-reducer.test.ts` "flow control"; `p1-03-live.test.ts` "ex = 2" (set by a previous sender on the EN model) | PASS |

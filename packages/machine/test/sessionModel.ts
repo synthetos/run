@@ -140,7 +140,7 @@ export async function randomSession(seed: number, model: ModelName): Promise<Ses
     enqWritten: all.filter((w) => w.length === 1 && w[0] === 0x05).length,
     feedholdWritten: all.filter((w) => w.length === 1 && w[0] === 0x21).length,
     requestReads: all.filter((w) => {
-      const m = /^\{"([^"]*)":null\}\n$/.exec(new TextDecoder().decode(w));
+      const m = /^\{"?([^":]*)"?:null\}\n$/.exec(new TextDecoder().decode(w));
       return m !== null && !probeOrReading.has(m[1] as string);
     }).length,
   };
@@ -177,13 +177,13 @@ export function checkConnection(events: readonly { readonly dir: 'w' | 'r'; read
       problems.push(`realtime byte ${text} written`);
       continue;
     }
-    const match = /^\{"([^"]*)":null\}\n$/.exec(new TextDecoder().decode(bytes));
+    const match = /^\{"?([^":]*)"?:null\}\n$/.exec(new TextDecoder().decode(bytes));
     if (match === null) {
       problems.push(`not a GET: ${text}`);
       continue;
     }
     const token = match[1] as string;
-    if (first && token !== 'sr') problems.push(`the first line written is ${text}, not {"sr":null}`);
+    if (first && token !== 'sr') problems.push(`the first line written is ${text}, not {sr:null}`);
     first = false;
     if (NEVER_READ.includes(token)) problems.push(`forbidden GET ${text}`);
     if (!PROBE_TOKENS.has(token) && !isReadAllowed(dialect, token)) problems.push(`GET of a token outside the probe list and the ${dialect} allowlist: ${text}`);

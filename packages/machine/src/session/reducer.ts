@@ -8,7 +8,7 @@
  *
  * The path: NOT_CONNECTED → PORT_REQUEST (the worker asks the build's
  * transport source for the chosen port) → OPENING → IDENTIFYING (the
- * capability probe, PN §2.3, `{"sr":null}` first) → READING (`stat`,
+ * capability probe, PN §2.3, `{sr:null}` first) → READING (`stat`,
  * `hold`, `vel`, `qr`, `ex`) → CONNECTED_UNKNOWN. The probe result and the
  * classification are recorded in the session log (a `log` effect). BLOCKED when the board's id is
  * not the selected machine's (T-S21): nothing more is written.
@@ -20,7 +20,7 @@
  *   `er` report, a board that keeps resetting during the probe. Latched;
  *   `ackFault` completes only when two polled reads 250 ms apart show
  *   `hold` = 0 and `qr` = the dialect's `plannerBlocks`, then the board is
- *   probed again from `{"sr":null}`.
+ *   probed again from `{sr:null}`.
  * - LOST: the link dropped. The port is closed; acknowledging it returns to
  *   NOT_CONNECTED and the next connect starts with UNKNOWN.
  * - ORPHANED_MOTION: no answer to a probe GET (3 s for the first line), an
@@ -475,7 +475,7 @@ function onOpened(t: Tx): void {
   startProbe(t, 0, undefined);
 }
 
-/** (Re)starts the probe from `{"sr":null}`: the first line written on every connect path (T-S86, H49). */
+/** (Re)starts the probe from `{sr:null}`: the first line written on every connect path (T-S86, H49). */
 function startProbe(t: Tx, restarts: number, banner: Banner | undefined): void {
   t.set({
     probe: { next: 0, answers: [], banner, spliceRetried: false, settling: 'none', restarts },
@@ -678,7 +678,7 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
         if (isObject(value)) mergeLive(t, value);
         advanceProbe(t, { ...probe, next: 1 });
       } else if (!probe.spliceRetried) {
-        // A spliced fragment was rejected: send `{"sr":null}` once more before continuing (PN §2.3 step 0).
+        // A spliced fragment was rejected: send `{sr:null}` once more before continuing (PN §2.3 step 0).
         t.set({ probe: { ...probe, spliceRetried: true }, queue: [{ token: 'sr', purpose: 'splice' }, ...t.s.queue] });
       } else {
         advanceProbe(t, { ...probe, next: 1 });
@@ -764,7 +764,7 @@ function finishProbe(t: Tx): void {
     if (dialect === null) checkUnclassifiedResting(t);
     return;
   }
-  // Only READING's own answers count: values from the earlier `{"sr":null}` answer are dropped, so a
+  // Only READING's own answers count: values from the earlier `{sr:null}` answer are dropped, so a
   // read that fails leaves its value unknown and the board is not trusted as resting.
   const { stat: _stat, machineClass: _class, hold: _hold, vel: _vel, qr: _qr, ...kept } = t.s.live;
   t.set({ base: 'READING', live: kept, queue: [...t.s.queue, ...reads.map((token) => ({ token, purpose: 'reading' as const }))] });
@@ -782,7 +782,7 @@ const UNCLASSIFIED_RESTING_STAT: ReadonlySet<number> = new Set([1, 4]);
 
 /**
  * The probe ended without a dialect (a failed or damaged probe), so READING never runs. The raw
- * values from the `{"sr":null}` answer are all there is: a board that is not plainly resting is
+ * values from the `{sr:null}` answer are all there is: a board that is not plainly resting is
  * treated as busy (SAFETY H14 mitigation 5, T-S60), never as merely read-only.
  */
 function checkUnclassifiedResting(t: Tx): void {
@@ -848,7 +848,7 @@ function onVerifyAnswer(t: Tx, token: string, value: number | undefined): void {
     t.arm('verify', t.config.timings.verifyIntervalMs);
     return;
   }
-  // Verified twice: the fault is acknowledged. Identify the board again from `{"sr":null}`; the position is not trusted.
+  // Verified twice: the fault is acknowledged. Identify the board again from `{sr:null}`; the position is not trusted.
   t.set({ fault: null, ackVerify: null, base: 'IDENTIFYING', queue: [] });
   t.removeOverlay('FAULT');
   t.removeOverlay('READ_ONLY');

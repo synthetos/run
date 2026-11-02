@@ -14,7 +14,7 @@
  * answered with an `invalid-request` refusal and does nothing.
  *
  * Version 3 (P1-02): `open` starts the read-only `MachineSession` (it
- * writes `{"sr":null}` and the probe GETs, nothing else), `close` is the
+ * writes `{sr:null}` and the probe GETs, nothing else), `close` is the
  * session's Disconnect, `status` carries the session snapshot, and
  * `intent`, `read` and `subscribe` are new. Every intent is decided by the
  * session through the allow-matrix; a refusal comes back with the matrix's

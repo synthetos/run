@@ -12,8 +12,16 @@ import { EN_450, EN_CAPABILITIES, G2_EDGE, STOCK_449, TG_440, observations, resp
 const NEVER_READ = ['adc3', 'alarm', 'panic', 'shutd', 'me', 'md', 'er', 'boot', 'defa', 'test', 'qf', 'clear', 'clr', 'help', 'h'];
 
 describe('PROBE_STEPS', () => {
-  it('writes {"sr":null} first (it spoils a partial line left in the RX ring, H49)', () => {
-    expect(PROBE_STEPS[0]).toEqual({ key: 'sr', line: '{"sr":null}', stage: 'spliceGuard' });
+  it('writes {sr:null} first (it spoils a partial line left in the RX ring, H49)', () => {
+    expect(PROBE_STEPS[0]).toEqual({ key: 'sr', line: '{sr:null}', stage: 'spliceGuard' });
+  });
+
+  it('the splice guard has no double quote: 440.21 in JSON mode cuts a wrapped G-code line at the first one (PN §2.3 step 0)', () => {
+    // A fragment `G0 X1` + the guard is wrapped as {"gc":"G0 X1<guard>"}; the gc string ends at the guard's
+    // first quote, so everything before it must not be runnable G-code. With no quote, the whole line reaches
+    // the G-code parser and S/R/N/U/L words with no number fail it.
+    expect(PROBE_STEPS[0]?.line).not.toContain('"');
+    expect(PROBE_STEPS[0]?.line.replace(/[^A-Za-z0-9.]/g, '').toUpperCase()).toBe('SRNULL');
   });
 
   it('every step is a GET: one line, one key, value null', () => {
@@ -30,7 +38,7 @@ describe('PROBE_STEPS', () => {
 
   it('never sends G-code, text-mode commands or realtime bytes: every line starts with {', () => {
     for (const step of PROBE_STEPS) {
-      expect(step.line.startsWith('{"'), step.line).toBe(true);
+      expect(step.line.startsWith(step.stage === 'spliceGuard' ? '{' : '{"'), step.line).toBe(true);
       expect(step.line).not.toMatch(/[!~%$?\x04\x05\x18]/);
     }
   });

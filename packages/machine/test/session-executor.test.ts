@@ -117,7 +117,7 @@ class ScriptTransport implements Transport {
 }
 
 function enResponder(line: string): string | undefined {
-  const m = /^\{"([^"]+)":null\}$/.exec(line);
+  const m = /^\{"?([^":]+)"?:null\}$/.exec(line);
   return m === null ? undefined : EN_ANSWERS[m[1] as string];
 }
 
@@ -147,7 +147,7 @@ function setup(transports: ScriptTransport[] = [new ScriptTransport()], options:
 }
 
 describe('MachineSession: connecting', () => {
-  it('connects, probes from {"sr":null}, reads, and resolves connect() with the port identity', async () => {
+  it('connects, probes from {sr:null}, reads, and resolves connect() with the port identity', async () => {
     const { session, t, src } = setup();
     const seen: string[] = [];
     session.subscribe((s) => seen.push(s.base));
@@ -156,13 +156,13 @@ describe('MachineSession: connecting', () => {
     expect(await outcome).toEqual({ ok: true, info: { kind: 'sim', usbVendorId: 0x0403, usbProductId: 0x6015 } });
     expect(src.selectors).toEqual([PORT]);
     expect(t.opened).toEqual([{ baudRate: 115200, flowControl: 'none', bufferSize: 256 }]);
-    expect(t.writes[0]).toBe('{"sr":null}\n');
+    expect(t.writes[0]).toBe('{sr:null}\n');
     expect(session.snapshot.base).toBe('CONNECTED_UNKNOWN');
     expect(t.writes).toHaveLength(17);
     expect([...new Set(seen)]).toEqual(['PORT_REQUEST', 'OPENING', 'IDENTIFYING', 'READING', 'CONNECTED_UNKNOWN']);
     expect(session.state.classification?.dialectId).toBe('tinyg-en');
     const log = session.log();
-    expect(log[0]).toMatchObject({ dir: 'tx', text: '{"sr":null}\\n' });
+    expect(log[0]).toMatchObject({ dir: 'tx', text: '{sr:null}\\n' });
     expect(log.some((e) => e.dir === 'rx' && e.text.includes('"fb":450.01'))).toBe(true);
   });
 
@@ -270,7 +270,7 @@ describe('MachineSession: connecting', () => {
     await closing;
     await settle();
     expect(src.selectors).toHaveLength(2);
-    expect(second.writes[0]).toBe('{"sr":null}\n');
+    expect(second.writes[0]).toBe('{sr:null}\n');
   });
 
   it('a port whose close fails is still released by the session (the error never escapes)', async () => {
@@ -371,7 +371,7 @@ describe('T-S5 (XOFF part): realtime bytes bypass the XOFF gate', () => {
     await settle();
     t.push(Uint8Array.of(0x11));
     await settle();
-    expect(t.writes).toEqual(['{"sr":null}\n', '{"fb":null}\n']);
+    expect(t.writes).toEqual(['{sr:null}\n', '{"fb":null}\n']);
     expect(session.state.writing).toBeNull();
     expect(session.log().some((e) => e.dir === 'note' && e.text.startsWith('not written'))).toBe(true);
   });
@@ -386,7 +386,7 @@ describe('T-S5 (XOFF part): realtime bytes bypass the XOFF gate', () => {
     t.push(`${EN_ANSWERS.fb}\n`);
     await settle();
     expect(session.state.writing?.token).toBe('fv');
-    expect(t.writes).toEqual(['{"sr":null}\n', '{"fb":null}\n']);
+    expect(t.writes).toEqual(['{sr:null}\n', '{"fb":null}\n']);
     // The board resets: its READY banner, and no XON.
     t.responder = enResponder;
     t.push(`${EN_READY_BANNER}\n`);
@@ -394,8 +394,8 @@ describe('T-S5 (XOFF part): realtime bytes bypass the XOFF gate', () => {
     expect(session.snapshot.xoff).toBe(false);
     clock.advance(1000);
     await settle();
-    // The line that waited is dropped, never written to the rebooted board: the probe starts again from {"sr":null}.
-    expect(t.writes.slice(0, 3)).toEqual(['{"sr":null}\n', '{"fb":null}\n', '{"sr":null}\n']);
+    // The line that waited is dropped, never written to the rebooted board: the probe starts again from {sr:null}.
+    expect(t.writes.slice(0, 3)).toEqual(['{sr:null}\n', '{"fb":null}\n', '{sr:null}\n']);
     expect(session.log().some((e) => e.dir === 'note' && e.text.startsWith('not written: the board reset'))).toBe(true);
     expect(session.state.probe?.next).toBeGreaterThan(0);
   });
@@ -432,7 +432,7 @@ describe('MachineSession: failures', () => {
     expect(session.snapshot.fault).toMatchObject({ cause: 'writeFailed' });
   });
 
-  it('the link dropping is LOST: the port is closed; acknowledging it and reconnecting starts UNKNOWN from {"sr":null}', async () => {
+  it('the link dropping is LOST: the port is closed; acknowledging it and reconnecting starts UNKNOWN from {sr:null}', async () => {
     const first = new ScriptTransport();
     const second = new ScriptTransport();
     const { session } = setup([first, second]);
@@ -447,7 +447,7 @@ describe('MachineSession: failures', () => {
     expect(session.snapshot.base).toBe('NOT_CONNECTED');
     void session.connect(PORT);
     await settle();
-    expect(second.writes[0]).toBe('{"sr":null}\n');
+    expect(second.writes[0]).toBe('{sr:null}\n');
     expect(session.snapshot.overlays).toEqual(['UNKNOWN', 'READ_ONLY']);
   });
 
@@ -461,7 +461,7 @@ describe('MachineSession: failures', () => {
     expect(session.snapshot.overlays[0]).toBe('LOST');
   });
 
-  it('timers come from the clock: 3 s of silence after {"sr":null} is ORPHANED_MOTION', async () => {
+  it('timers come from the clock: 3 s of silence after {sr:null} is ORPHANED_MOTION', async () => {
     const t = new ScriptTransport(undefined, () => undefined);
     const { session, clock } = setup([t]);
     void session.connect(PORT);

@@ -255,7 +255,9 @@ describe('TinyG440Model: receive path and realtime bytes', () => {
     const r = replies(sim.host.lines());
     expect(sim.host.lines()).not.toContain('{"ack":true}');
     expect(r).toHaveLength(2);
-    expect(r.every((x) => x.f[1] !== 0 && !('fb' in x.r) && !('stat' in x.r))).toBe(true);
+    // The control byte makes each line G-code, run wrapped as {"gc":"..."} and cut at the first quote
+    // (TG-GC-WRAP-QUOTE): the GET never runs.
+    expect(r.every((x) => !('fb' in x.r) && !('stat' in x.r))).toBe(true);
   });
 
   it('[TG-RESET-DEFERRED] ^X resets through the main loop, but not while a stalled TX buffer blocks it', () => {
@@ -385,6 +387,31 @@ describe('TinyG440Model: replies and settings', () => {
     expect(r[0]?.r).toEqual({ fv: 0.97, hp: null });
     expect(r[1]?.f[1]).toBe(100);
     expect(r[1]?.tid).toBeUndefined();
+  });
+
+  it('[TG-GC-WRAP-QUOTE] JSON mode: a partial G0 X1 completed by {"sr":null} moves; completed by {sr:null} it does not', () => {
+    const quoted = tgSim();
+    quoted.host.send('G0 X1');
+    quoted.host.sendLine('{"sr":null}');
+    quoted.clock.advance(2000);
+    expect(statuses(quoted.host.lines())[0]).toBe(0);
+    expect(quoted.device.snapshot().position[0]).not.toBe(0);
+
+    const bare = tgSim();
+    bare.host.send('G0 X1');
+    bare.host.sendLine('{sr:null}');
+    bare.clock.advance(2000);
+    expect(statuses(bare.host.lines())[0]).not.toBe(0);
+    expect(bare.device.snapshot().position.every((v) => v === 0)).toBe(true);
+  });
+
+  it('a clean {sr:null} (bare key) answers the status report', () => {
+    const sim = tgSim();
+    sim.host.sendLine('{sr:null}');
+    sim.clock.advance(30);
+    const r = replies(sim.host.lines());
+    expect(r[0]?.f[1]).toBe(0);
+    expect(r[0]?.r).toHaveProperty('sr');
   });
 
   it('[TG-E138] a GET of md de-energizes the motors', () => {

@@ -8,7 +8,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { BYTE, PROBE_STEPS } from '@synthetos/protocol';
+import { BYTE, PROBE_STEPS, SPLICE_GUARD_LINE } from '@synthetos/protocol';
 import { READ_ALLOWLISTS, isReadAllowed } from '@synthetos/schema';
 import { PROBE_TOKENS, phase1WriteVerdict } from '../src/index.ts';
 import { Driver, EN_ANSWERS, TG_ANSWERS } from './sessionDriver.ts';
@@ -18,6 +18,12 @@ const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
 const ANY = { readable: (): boolean => true, enqAllowed: true };
 
 describe('phase1WriteVerdict', () => {
+  it('accepts the bare-key splice guard {sr:null} exactly, only while sr is readable; no other bare key', () => {
+    expect(phase1WriteVerdict(enc('{sr:null}\n'), ANY)).toEqual({ ok: true, kind: 'get', token: 'sr' });
+    expect(phase1WriteVerdict(enc('{sr:null}\n'), { readable: () => false, enqAllowed: false })).toMatchObject({ ok: false });
+    for (const line of ['{fb:null}\n', '{sr:n}\n', '{SR:null}\n', '{ sr:null}\n']) expect(phase1WriteVerdict(enc(line), ANY), line).toMatchObject({ ok: false });
+  });
+
   it('passes `{"<token>":null}` LF for a readable token, ! and an allowed ENQ, and nothing else of one byte', () => {
     expect(phase1WriteVerdict(enc('{"posx":null}\n'), ANY)).toEqual({ ok: true, kind: 'get', token: 'posx' });
     expect(phase1WriteVerdict(enc('{"_cs1":null}\n'), ANY)).toMatchObject({ ok: true, token: '_cs1' });
@@ -79,7 +85,7 @@ describe('phase1WriteVerdict', () => {
 describe('T-S38: fuzz the read paths over all dialects', () => {
   it('the probe (before classification) reads only its own tokens, none with side effects', () => {
     for (const step of PROBE_STEPS) {
-      expect(step.line).toBe(`{"${step.key}":null}`);
+      expect(step.line).toBe(step.stage === 'spliceGuard' ? SPLICE_GUARD_LINE : `{"${step.key}":null}`);
       expect(NEVER_READ).not.toContain(step.key);
     }
     // Every probe token except fbs (no TinyG build has it; it answers 100) is on the edge-next allowlist.
@@ -110,7 +116,7 @@ describe('T-S38: fuzz the read paths over all dialects', () => {
           }
         }
         for (const line of d.lines().slice(before)) {
-          const m = /^\{"([^"]+)":null\}$/.exec(line);
+          const m = /^\{"?([^":]+)"?:null\}$/.exec(line);
           expect(m, line).not.toBeNull();
           const token = (m as RegExpExecArray)[1] as string;
           expect(isReadAllowed(dialect, token), line).toBe(true);

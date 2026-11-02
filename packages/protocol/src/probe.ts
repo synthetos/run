@@ -5,9 +5,20 @@
  * per line, in order. It never sends G-code (an unsupported word raises ALARM
  * on stock 449, E042), never reads `adc3` (it starts an ADC conversion on the
  * SPI2/J13 pin, @cite EN config_app.c:660), and never reads a token with side
- * effects (E138, PN §12.3). The first line written at connect is `{"sr":null}`:
- * it completes and spoils any partial line a previous sender left in the RX
- * ring, so that line never runs (PN §2.3 step 0, H49).
+ * effects (E138, PN §12.3). The first line written at connect is `{sr:null}`
+ * (`SPLICE_GUARD_LINE`): it completes and spoils any partial line a previous
+ * sender left in the RX ring, so that line never runs (PN §2.3 step 0, H49).
+ *
+ * The key is bare on purpose. On 440.21 in JSON mode (its default, and the
+ * mode any JSON sender leaves behind) a G-code line is run wrapped as
+ * `{"gc":"<line>"}`, and the gc string ends at the line's first double quote
+ * with no syntax error (@cite TG controller.c:277-282, json_parser.c:273-277,
+ * :309-321). A quoted `{"sr":null}` after a fragment `G0 X1` would leave
+ * gc = `G0 X1{`, and G0 X1 would run. With no quote in the line, the whole
+ * `G0 X1{sr:null}` reaches the G-code parser (wrapped or not) and fails as
+ * `G0X1SRNULL`. The same holds for a partial JSON line (`{"gc":"G0 X1`),
+ * whose string is then never closed. TinyG's tokenizer accepts bare keys
+ * (@cite EN json_parser.c:262-275), so on a clean ring it is an ordinary GET.
  *
  * Timing, the one-line-in-flight rule, the single `{"sr":null}` retry and the
  * ORPHANED_MOTION path on silence belong to the machine (P1). This module only
@@ -61,13 +72,16 @@ export interface ProbeStep {
   readonly stage: 'spliceGuard' | 'identity' | 'buildHash' | 'capability' | 'spindlePause';
 }
 
+/** The splice guard, the first line of every probe: a GET of `sr` with a bare key (see the module comment). */
+export const SPLICE_GUARD_LINE = '{sr:null}';
+
 function get(key: ProbeKey, stage: ProbeStep['stage']): ProbeStep {
   return Object.freeze({ key, line: `{"${key}":null}`, stage });
 }
 
 /** The probe, in order. Every line is a single-key GET. */
 export const PROBE_STEPS: readonly ProbeStep[] = Object.freeze([
-  get('sr', 'spliceGuard'),
+  Object.freeze({ key: 'sr', line: SPLICE_GUARD_LINE, stage: 'spliceGuard' }),
   ...IDENTITY_TOKENS.map((k) => get(k, 'identity')),
   get(BUILD_HASH_TOKEN, 'buildHash'),
   ...CAPABILITY_TOKENS.map((k) => get(k, 'capability')),

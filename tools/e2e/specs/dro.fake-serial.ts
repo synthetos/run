@@ -57,7 +57,7 @@ test('the DRO machine position and the marker move only on polled mpo reads; set
   await expect(page.locator('details[data-group="x"]')).toContainText('How the X axis moves');
   for (const w of after) {
     expect(w.includes('\u0018') || w.includes('\u0004'), JSON.stringify(w)).toBe(false);
-    expect(/^\{"[a-z0-9_]+":null\}\n$/.test(w) || w === '\u0005', JSON.stringify(w)).toBe(true);
+    expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005', JSON.stringify(w)).toBe(true);
   }
   for (const denied of ['{"md":null}\n', '{"me":null}\n', '{"clear":null}\n']) expect(after).not.toContain(denied);
 

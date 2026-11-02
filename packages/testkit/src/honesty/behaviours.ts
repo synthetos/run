@@ -861,6 +861,17 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     ],
   },
   {
+    id: 'TG-GC-WRAP-QUOTE',
+    model: TG,
+    summary: 'In JSON mode a G-code line is wrapped as {"gc":"..."}; the string ends at the line\'s first double quote and the rest is skipped without an error, so the text before that quote runs as G-code.',
+    status: 'verified-source',
+    cites: [
+      { src: 'TG', file: 'controller.c', lines: [277, 282], quote: '%.244s' },
+      { src: 'TG', file: 'json_parser.c', lines: [273, 277], quote: 'find the end of the string' },
+      { src: 'TG', file: 'json_parser.c', lines: [309, 321], quote: 'strpbrk(*pstr, terminators)' },
+    ],
+  },
+  {
     id: 'TG-E138',
     model: TG,
     summary: 'GET md de-energizes the motors; GET me energizes them; GET clear clears a soft alarm; GET er fakes an exception.',

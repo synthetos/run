@@ -116,9 +116,9 @@ describe('P1-08 transcript export from a MachineSession', () => {
       const txRecorded = recording.steps.flatMap((s) => ('expect' in s ? [...s.expect] : []));
       const txWritten = (h.transports[0]?.writes ?? []).flatMap((w) => [...w]);
       expect(txRecorded).toEqual(txWritten);
-      // The Pause and the first {"sr":null} are in it.
+      // The Pause and the first {sr:null} are in it.
       expect(recording.steps.find((s) => 'expect' in s && s.expect.length === 1 && s.expect[0] === 0x21)).toBeDefined();
-      expect(recording.steps[0]).toEqual({ expect: enc('{"sr":null}\n') });
+      expect(recording.steps[0]).toEqual({ expect: enc('{sr:null}\n') });
 
       // Replay it to a fresh session on a fresh clock.
       const clock = new VirtualClock();
@@ -148,6 +148,6 @@ describe('P1-08 transcript export from a MachineSession', () => {
     const second = h.session.exportTranscript();
     if (!first.ok || !second.ok) throw new Error('export refused');
     expect(second.jsonl).not.toBe(first.jsonl);
-    expect(JSON.parse(second.jsonl.split('\n')[0] as string)).toEqual({ t: 0, dir: 'tx', hex: toHex(enc('{"sr":null}\n')) });
+    expect(JSON.parse(second.jsonl.split('\n')[0] as string)).toEqual({ t: 0, dir: 'tx', hex: toHex(enc('{sr:null}\n')) });
   });
 });

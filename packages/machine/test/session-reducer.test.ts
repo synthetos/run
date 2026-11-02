@@ -34,7 +34,7 @@ const realtime = (effects: readonly SessionEffect[]): number[] =>
   effects.filter((e) => e.kind === 'writeRealtime').map((e) => (e as Extract<SessionEffect, { kind: 'writeRealtime' }>).byte);
 
 describe('the connection path', () => {
-  it('NOT_CONNECTED → PORT_REQUEST → OPENING → IDENTIFYING → READING → CONNECTED_UNKNOWN, {"sr":null} first (edge-next)', () => {
+  it('NOT_CONNECTED → PORT_REQUEST → OPENING → IDENTIFYING → READING → CONNECTED_UNKNOWN, {sr:null} first (edge-next)', () => {
     const d = new Driver();
     expect(d.state.base).toBe('NOT_CONNECTED');
     expect(d.intent({ intent: 'connect', port: PORT, expectedDeviceId: null })).toEqual({ allowed: true });
@@ -45,7 +45,7 @@ describe('the connection path', () => {
     expect(d.last).toContainEqual({ kind: 'open', epoch: 1 });
     d.feed({ type: 'opened', epoch: 1, info: SIM_INFO });
     expect(d.state.base).toBe('IDENTIFYING');
-    expect(d.last).toContainEqual({ kind: 'writeLine', epoch: 1, seq: 1, token: 'sr', line: '{"sr":null}' });
+    expect(d.last).toContainEqual({ kind: 'writeLine', epoch: 1, seq: 1, token: 'sr', line: '{sr:null}' });
     d.answer(EN_ANSWERS, (t) => t === 'stat');
     expect(d.state.base).toBe('READING');
     expect(d.last).toContainEqual({ kind: 'tightenLineCap', epoch: 1, maxLineBytes: 255 });
@@ -132,7 +132,7 @@ describe('the connection path', () => {
 });
 
 describe('splice guard and boot (PN §2.3 step 0 and 1; SAFETY H49)', () => {
-  it('an error answer to the first line repeats {"sr":null} once, then continues either way', () => {
+  it('an error answer to the first line repeats {sr:null} once, then continues either way', () => {
     const d = new Driver();
     d.open();
     d.written();
@@ -141,7 +141,7 @@ describe('splice guard and boot (PN §2.3 step 0 and 1; SAFETY H49)', () => {
     d.written();
     d.line('{"r":{},"f":[3,101,10]}');
     expect(d.writing).toBe('fb');
-    expect(d.lines().slice(0, 3)).toEqual(['{"sr":null}', '{"sr":null}', '{"fb":null}']);
+    expect(d.lines().slice(0, 3)).toEqual(['{sr:null}', '{sr:null}', '{"fb":null}']);
   });
 
   it('a successful repeat continues with the identity GETs', () => {
@@ -174,7 +174,7 @@ describe('splice guard and boot (PN §2.3 step 0 and 1; SAFETY H49)', () => {
     expect(d.writing).toBe('fb');
   });
 
-  it('a board that boots while it is probed: the probe restarts from {"sr":null} once it is ready and quiet', () => {
+  it('a board that boots while it is probed: the probe restarts from {sr:null} once it is ready and quiet', () => {
     const d = new Driver();
     d.open();
     d.written();
@@ -192,7 +192,7 @@ describe('splice guard and boot (PN §2.3 step 0 and 1; SAFETY H49)', () => {
     d.answer(EN_ANSWERS);
     expect(d.state.base).toBe('CONNECTED_UNKNOWN');
     expect(d.state.overlays).toEqual(['READ_ONLY']);
-    expect(d.lines().filter((l) => l === '{"sr":null}')).toHaveLength(2);
+    expect(d.lines().filter((l) => l === '{sr:null}')).toHaveLength(2);
   });
 
   it('a line whose write completes while the board resets expects no answer', () => {
@@ -284,7 +284,7 @@ describe('T-S21: the board is not the selected machine', () => {
 });
 
 describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
-  it('no answer to {"sr":null} within 3 s: ORPHANED_MOTION, unclassified, and only ! is allowed', () => {
+  it('no answer to {sr:null} within 3 s: ORPHANED_MOTION, unclassified, and only ! is allowed', () => {
     const d = new Driver();
     d.open();
     d.written();
@@ -301,7 +301,7 @@ describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
     // The late answer is consumed, and nothing more is written.
     d.line(EN_ANSWERS.sr as string);
     expect(d.state.fault).toBeNull();
-    expect(d.lines()).toEqual(['{"sr":null}']);
+    expect(d.lines()).toEqual(['{sr:null}']);
   });
 
   it('silence in the middle of the probe is ORPHANED_MOTION as well', () => {
@@ -410,7 +410,7 @@ describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
   });
 });
 
-describe('an unclassified board is checked for rest from its {"sr":null} answer (SAFETY H14 mitigation 5, T-S60)', () => {
+describe('an unclassified board is checked for rest from its {sr:null} answer (SAFETY H14 mitigation 5, T-S60)', () => {
   const HELD_SR = '{"r":{"sr":{"line":0,"posx":1.5,"vel":0,"unit":1,"stat":6,"hold":6}},"f":[3,0,10]}';
 
   it('a held board whose probe answer arrives damaged is ORPHANED_MOTION, not only READ_ONLY', () => {
@@ -652,7 +652,7 @@ describe('FAULT triggers and ackFault (SAFETY §3)', () => {
     expect(realtime(homing.last)).toEqual([BYTE.FEEDHOLD]);
   });
 
-  it('ackFault verifies hold = 0 and qr = plannerBlocks twice, 250 ms apart, then probes again from {"sr":null}', () => {
+  it('ackFault verifies hold = 0 and qr = plannerBlocks twice, 250 ms apart, then probes again from {sr:null}', () => {
     const d = connected();
     d.line(EN_READY_BANNER);
     expect(d.intent({ intent: 'ackFault' })).toEqual({ allowed: true });
@@ -1170,7 +1170,7 @@ describe('T-S26, T-S24a: generated over states × events (and every overlay reac
               }
             }
             if (effect.kind === 'writeLine') {
-              const m = /^\{"([a-z0-9_]+)":null\}$/.exec(effect.line);
+              const m = /^\{"?([a-z0-9_]+)"?:null\}$/.exec(effect.line);
               expect(m?.[1], effect.line).toBe(effect.token);
               expect(readableNow(d.state, effect.token), effect.line).toBe(true);
             }
@@ -1198,7 +1198,7 @@ describe('ordering of answers and writes', () => {
     const d = new Driver();
     d.open();
     const first = d.state.writing?.seq as number;
-    // The board answers {"sr":null} before lineWritten: the probe moves on to fb.
+    // The board answers {sr:null} before lineWritten: the probe moves on to fb.
     d.line(EN_ANSWERS.sr as string);
     expect(d.writing).toBe('fb');
     expect(d.state.timers.answer).toBeUndefined();

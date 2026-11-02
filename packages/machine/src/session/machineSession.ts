@@ -453,9 +453,9 @@ export class MachineSession {
         const guarded = this.#currentGuarded(item.epoch);
         if (guarded === null) continue;
         // The board reset while this line waited (its XOFF ended with the boot banner): the probe starts
-        // again from {"sr":null} (PN §2.3 step 0), so nothing from before the reset is written ahead of it.
+        // again from {sr:null} (PN §2.3 step 0), so nothing from before the reset is written ahead of it.
         if (this.#state.probe !== null && this.#state.probe.settling !== 'none') {
-          this.#note('not written: the board reset while this line waited; the probe starts again from {"sr":null}');
+          this.#note('not written: the board reset while this line waited; the probe starts again from {sr:null}');
           this.#dispatch({ type: 'lineDropped', epoch: item.epoch, seq: item.seq });
           continue;
         }

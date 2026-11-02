@@ -7,7 +7,7 @@ Every behaviour a safety claim depends on carries a citation at a pinned commit 
 (RUN_PLAN §8.1 honesty rule). Pins: EN = TinyG edge-next `ead63997`, TG = master `d0418390` (440.21),
 EN-HIL = edge-next `tests/hil/` (`vendor/firmware-pins.json`). EN and TG paths are under `firmware/tinyg/`.
 
-Totals: 80 behaviours (3 UNVERIFIED, 77 verified-source, 0 verified-bench).
+Totals: 81 behaviours (3 UNVERIFIED, 78 verified-source, 0 verified-bench).
 
 ## UNVERIFIED (release checklist)
 
@@ -88,6 +88,7 @@ Each must be bench-verified, or covered by a mitigation that does not depend on 
 | TG-FEED-UNITS-ORDER | verified-source | F is set before G20/G21 in the same block and is converted with the units in force before the block: G20 then G21 G1 X1 F100 is 2540 mm/min. | TG gcode_parser.c:455; TG gcode_parser.c:474; TG canonical_machine.c:940-948; TG canonical_machine.h:47 |  |
 | TG-FLUSH-REPORTS | verified-source | A queue flush (%) requests a queue report (printed only when qv is not 0) and an rx report, printed as {"rx":n} whatever jv, js or qv. | TG canonical_machine.c:1302-1303; TG report.c:541-548; TG controller.c:173-174 | B-FH-1 |
 | TG-FOOTER | verified-source | Footer [1,status,line length + 1,checksum]; the checksum is a 31x rolling hash mod 9999 of the output up to the last comma. | TG json_parser.c:528-551; TG util.c:255-266; TG controller.c:251 |  |
+| TG-GC-WRAP-QUOTE | verified-source | In JSON mode a G-code line is wrapped as {"gc":"..."}; the string ends at the line's first double quote and the rest is skipped without an error, so the text before that quote runs as G-code. | TG controller.c:277-282; TG json_parser.c:273-277; TG json_parser.c:309-321 |  |
 | TG-GCODE-DROP-INVALID | verified-source | The normalizer deletes every character other than letters, digits, - and . so X0.001*9 runs as X0.0019. (E161) | TG gcode_parser.c:131-138 |  |
 | TG-HARD-ALARM | verified-source | A limit switch is a hard alarm: stepper hard stop, SHUTDOWN (stat 11), every later command unanswered until ^X. | TG controller.c:427-434; TG canonical_machine.c:600-616; TG controller.c:303-312 |  |
 | TG-HOST-XON-DEADLOCK | verified-source | An XON from the host turns the transmit interrupt off: the board stops sending (and, once its TX buffer fills, stops running its main loop). (E142) | TG xio/xio_usb.c:162-172 |  |

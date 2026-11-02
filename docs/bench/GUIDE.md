@@ -191,7 +191,7 @@ answers `421` to any other Host name.
 
 ### 5.2 Probe and identity
 
-Right after the port opens, the session writes `{"sr":null}` as its first
+Right after the port opens, the session writes `{sr:null}` as its first
 line. It then probes the board and classifies it. Expect:
 
 | Board | Classification | Mode |
@@ -263,7 +263,7 @@ when a polled `mpo` read arrives, so it can step rather than glide.
 - **W3 (LOST)**: red, with an alarm tone, when the link is gone (USB pulled,
   transport error). Nothing is written after it. Acknowledge it, then
   reconnect. The board is then UNKNOWN and is probed again from
-  `{"sr":null}`.
+  `{sr:null}`.
 - **W4 (STALE)**: amber, "No status from the machine for N s", after 2 s of
   unexpected silence. It clears when the board answers.
 - **FAULT, then UNKNOWN**: shown when the board resets mid-session (a bare
@@ -276,7 +276,7 @@ when a polled `mpo` read arrives, so it can step rather than glide.
 
 **Will send**, and nothing else:
 
-1. `{"sr":null}`, always the first line of every connection (H49: it makes a
+1. `{sr:null}`, always the first line of every connection (H49: it makes a
    G-code fragment left in the board's buffer fail to parse).
 2. Allowlisted JSON GETs (`{"<token>":null}`):
    - probe: `fb fv hp id hv`, `fbs`, `spep prbp fstk os`, `spph`;
@@ -320,7 +320,7 @@ A signed HIL record for the Phase 1 release must be taken on the **staging**
 artifact (SAFETY HIL-6.4), not on the bench build. Run through the list on
 the bench build first, then sign it on staging. For every item, keep the
 Saleae capture and the transcript, and check the transcript rule: first line
-`{"sr":null}`, then only allowlisted GETs, ENQ (EN only, never before a
+`{sr:null}`, then only allowlisted GETs, ENQ (EN only, never before a
 rev-2/3 footer) and `!`.
 
 ### 8.1 With the bench runner
@@ -349,7 +349,7 @@ Tick each one, and write the date, the board and the firmware (`fb`,
 commit) next to it.
 
 - [ ] **HIL-1.1 Connect and identify EN.** Idle EN board (fb 450.01). Pass:
-  the transcript is `{"sr":null}`, the probe GETs, `stat hold vel qr ex`,
+  the transcript is `{sr:null}`, the probe GETs, `stat hold vel qr ex`,
   then only allowlisted GETs, ENQ and `!` (from Pause); classification
   `tinyg-en`, full; the probe answers are saved to
   `test-fixtures/probe/<build>.txt` (B-PROBE-1; no hardware names or paths).
@@ -369,7 +369,7 @@ commit) next to it.
 - [ ] **HIL-1.5 Pull USB, reset, silence.** Pass: idle for 5 minutes with no
   STALE (EN: one ENQ and one `{"ack":true}` per second; 440.21: one
   `{"stat":null}`); pulling USB gives LOST, W3 and the tone, with nothing
-  written after; reconnecting gives UNKNOWN with first line `{"sr":null}`;
+  written after; reconnecting gives UNKNOWN with first line `{sr:null}`;
   pressing reset mid-session gives FAULT then UNKNOWN; holding the board in
   reset (or cutting its TX) for 3 s gives STALE with W4, which clears when it
   answers. Fail: a missing banner, a missing tone, or a write after LOST.
@@ -405,9 +405,12 @@ commit) next to it.
 - [ ] **HIL-1.12 Partial-line splice (B-SPLICE-1).** With a second program,
   leave `G0 X1` (the start of `G0 X100`) in the board's RX buffer, and
   separately a partial `$xvm=1`. Close that program, then connect run. Pass:
-  the transcript starts with `{"sr":null}`; the board reports an error for
+  the transcript starts with `{sr:null}`; the board reports an error for
   the spliced line; no step pulses (Saleae on the step lines); `xvm`
-  unchanged. Fail: any motion, or a changed setting.
+  unchanged. Do it on 440.21 both in text mode and in JSON mode (JSON is its
+  default; any `{...}` line from the other program leaves it there), because
+  in JSON mode 440.21 runs a G-code fragment wrapped as `{"gc":"..."}` and cuts
+  it at the first double quote. Fail: any motion, or a changed setting.
 
 The other Phase 1 exit tasks are B-ID-1 (USB VID/PID read from the board,
 BENCH-P101-1), B-SIG-1, T2.1, B-POL-1 (policy.md), B-PROBE-1, B-MD-1,

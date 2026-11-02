@@ -185,7 +185,7 @@ describe('T-S8 (read-only subset): LOST, nothing written afterwards, UNKNOWN on 
     expect(d.intent({ intent: 'acknowledgeLost' })).toEqual({ allowed: true });
     d.open();
     expect(d.state.overlays).toContain('UNKNOWN');
-    expect(d.lines().at(-1)).toBe('{"sr":null}');
+    expect(d.lines().at(-1)).toBe('{sr:null}');
   });
 
   it('against both firmware models: the link drops at random points, nothing is written after LOST, and the reconnect is UNKNOWN', async () => {

@@ -36,7 +36,7 @@ export const SESSION_BASES: readonly SessionBase[] = Object.freeze([
 
 /** Timing of the read-only session. Every value is in milliseconds. */
 export interface SessionTimings {
-  /** No answer to the first `{"sr":null}` within this → ORPHANED_MOTION, unclassified (PN §2.3 step 0). */
+  /** No answer to the first `{sr:null}` within this → ORPHANED_MOTION, unclassified (PN §2.3 step 0). */
   readonly firstAnswerMs: number;
   /** No answer to any later probe GET within this → ORPHANED_MOTION (continued silence, PN §2.3 step 0). */
   readonly probeAnswerMs: number;
@@ -149,7 +149,7 @@ export interface ProbeProgress {
   readonly next: number;
   readonly answers: readonly (readonly [ProbeKey, Response])[];
   readonly banner: Banner | undefined;
-  /** The single `{"sr":null}` repeat after an error answer has been used (PN §2.3 step 0). */
+  /** The single `{sr:null}` repeat after an error answer has been used (PN §2.3 step 0). */
   readonly spliceRetried: boolean;
   /** A boot banner arrived: waiting for the board to settle before the probe restarts. */
   readonly settling: 'none' | 'boot' | 'ready';

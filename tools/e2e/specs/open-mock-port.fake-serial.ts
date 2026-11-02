@@ -2,7 +2,7 @@
  * ROADMAP P0-14 acceptance: "a passing example test that opens the mock port
  * from `machine.worker` in the built app", and ROADMAP P1-02 in the built
  * app: the read-only `MachineSession` probes the simulated board from
- * `{"sr":null}`, classifies it, reads it, and writes nothing but
+ * `{sr:null}`, classifies it, reads it, and writes nothing but
  * allowlisted GETs and `!`.
  *
  * Runs only against the fake-serial TEST build (apps/web/dist-fake-serial),
@@ -55,7 +55,7 @@ interface StatusView {
 const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as const;
 const text = (bytes: readonly number[]): string => String.fromCharCode(...bytes);
 
-test('machine.worker runs the read-only session on the mock board: {"sr":null} first, classified, read, and only GETs and ! written', async ({ page }) => {
+test('machine.worker runs the read-only session on the mock board: {sr:null} first, classified, read, and only GETs and ! written', async ({ page }) => {
   const worker = await machineWorker(page);
   expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ status: { source: 'fake', state: 'idle', session: { base: 'NOT_CONNECTED' } } });
   expect(await ports(worker)).toEqual([]);
@@ -66,7 +66,7 @@ test('machine.worker runs the read-only session on the mock board: {"sr":null} f
   expect(opened).toHaveLength(1);
   expect(opened[0]?.openLog).toEqual([{ options: { baudRate: 115200, flowControl: 'none', bufferSize: 256 }, ok: true }]);
 
-  // The simulated board boots while it is probed: the session waits for SYSTEM READY, probes again from {"sr":null}, and reads it.
+  // The simulated board boots while it is probed: the session waits for SYSTEM READY, probes again from {sr:null}, and reads it.
   await expect
     .poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as StatusView).status.session.base, { timeout: 10_000 })
     .toBe('CONNECTED_UNKNOWN');
@@ -82,10 +82,10 @@ test('machine.worker runs the read-only session on the mock board: {"sr":null} f
   await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as StatusView).status.session.values['posx']?.value, { timeout: 5000 }).toBe(0);
 
   const writes = (await ports(worker))[0]?.writes ?? [];
-  expect(text(writes[0] ?? [])).toBe('{"sr":null}\n');
+  expect(text(writes[0] ?? [])).toBe('{sr:null}\n');
   for (const w of writes) {
     expect(w.includes(0x18) || w.includes(0x04), text(w)).toBe(false);
-    expect(/^\{"[a-z0-9_]+":null\}\n$/.test(text(w)) || text(w) === '!', text(w)).toBe(true);
+    expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(text(w)) || text(w) === '!', text(w)).toBe(true);
   }
   expect(writes.map(text)).toContain('!');
   expect(writes.map(text)).not.toContain('{"md":null}\n');

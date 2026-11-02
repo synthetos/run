@@ -40,7 +40,7 @@ describe('T-S55 against live-shaped transcripts (the models answer the probe)', 
     for (const start of ['ready', 'boot'] as const) {
       const h = make('en', undefined, start);
       const writes = await connect(h);
-      expect(writes[0]).toBe('{"sr":null}\\n');
+      expect(writes[0]).toBe('{sr:null}\\n');
       expect(h.session.snapshot.classification, start).toMatchObject({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'en-not-approved' });
       expect(h.session.snapshot.overlays).toEqual(['READ_ONLY']);
 
@@ -55,7 +55,7 @@ describe('T-S55 against live-shaped transcripts (the models answer the probe)', 
   it('440.21: tinyg-440 READ_ONLY (no approval until D22), with the upgrade offer', async () => {
     const h = make('440');
     const writes = await connect(h);
-    expect(writes[0]).toBe('{"sr":null}\\n');
+    expect(writes[0]).toBe('{sr:null}\\n');
     expect(h.session.snapshot.classification).toMatchObject({ dialectId: 'tinyg-440', mode: 'readOnly', reason: 'tg440-not-approved', upgradeOffer: true });
     // An edge-next approval for fb 450.01 does not approve a 440.21 board.
     const a = make('440', EN_APPROVED);
@@ -87,15 +87,17 @@ describe('ex = 2 (RTS/CTS) → READ_ONLY (PN §5.3)', () => {
 
 describe('T-S86 (live): a partial line left by a previous sender never runs', () => {
   for (const model of ['en', '440'] as const) {
-    it(`${model}: the first line is {"sr":null}; the spliced G0 does not move the machine`, async () => {
+    it(`${model}: the first line is {sr:null}; the spliced G0 does not move the machine`, async () => {
       const h = make(model);
       previousSender(h, 'G0 X1');
       await h.run(200);
       const writes = await connect(h);
-      expect(writes[0]).toBe('{"sr":null}\\n');
+      // 440.21 is in JSON mode (its default): the fragment is run wrapped as {"gc":"..."}, cut at the
+      // first double quote of the guard line (TG-GC-WRAP-QUOTE). A quoted {"sr":null} would let G0 X1 run.
       const snap = h.device.snapshot();
       expect(snap.position.every((v) => v === 0)).toBe(true);
       expect(snap.machineState).not.toMatch(/run|cycle/i);
+      expect(writes[0]).toBe('{sr:null}\\n');
       // The board answered the spliced first line with an error status (the fragment did not parse as G-code).
       expect(h.session.log().find((e) => e.dir === 'rx')?.text).toMatch(model === 'en' ? /"f":\[3,[1-9]\d*,/ : /"f":\[1,[1-9]\d*,/);
       expect(h.session.snapshot.classification?.dialectId).toBe(model === 'en' ? 'tinyg-en' : 'tinyg-440');
@@ -165,7 +167,7 @@ describe('T-S60 (live): a board left busy by a previous session is ORPHANED_MOTI
         expect(bytes).not.toContain(0x04);
         for (const w of h.transports.at(-1)?.writes ?? []) {
           const text = shown(w);
-          expect(text === '!' || text === '\\x05' || /^\{"[a-z0-9]+":null\}\\n$/.test(text), text).toBe(true);
+          expect(text === '!' || text === '\\x05' || /^\{"?[a-z0-9]+"?:null\}\\n$/.test(text), text).toBe(true);
         }
       });
     }

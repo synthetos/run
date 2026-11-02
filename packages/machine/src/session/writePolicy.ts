@@ -9,6 +9,7 @@
  * - `{"<token>":null}` + LF, where `<token>` is readable now (the probe's
  *   tokens before classification, the classified dialect's read allowlist
  *   after it);
+ * - the splice guard `{sr:null}` + LF exactly (a bare key, PN §2.3 step 0);
  * - the single feedhold byte `!`;
  * - the single ENQ byte, only while ENQ is allowed (classified `tinyg-en`
  *   after a revision 2 or 3 footer).
@@ -18,7 +19,7 @@
  * upstream asks for. A refusal is reported as a FAULT (the code path that
  * built the bytes is the bug, SAFETY §3).
  */
-import { BYTE } from '@synthetos/protocol';
+import { BYTE, SPLICE_GUARD_LINE } from '@synthetos/protocol';
 import { allowed, type Release } from '@synthetos/safety';
 import { enqAllowedNow, matrixSnapshot, readableNow } from './reducer.ts';
 import type { SessionState } from './types.ts';
@@ -54,6 +55,9 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
   for (const b of bytes) {
     if (b > 0x7e || (b < 0x20 && b !== 0x0a)) return { ok: false, reason: 'a GET line is printable ASCII ending in LF' };
     text += String.fromCharCode(b);
+  }
+  if (text === `${SPLICE_GUARD_LINE}\n`) {
+    return context.readable('sr') ? { ok: true, kind: 'get', token: 'sr' } : { ok: false, reason: '"sr" is not readable now (not on the probe list or the dialect\'s read allowlist)' };
   }
   const match = GET_LINE.exec(text);
   if (match === null) return { ok: false, reason: `not a single-token GET: ${JSON.stringify(text.slice(0, 32))}` };

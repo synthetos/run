@@ -53,7 +53,7 @@ describe('PositionPoller on the simulated edge-next board', () => {
     expect(h.session.snapshot.values['mpo']?.value).toMatchObject({ x: 12.5, y: -3 });
 
     // Only GETs and the watchdog's ENQ reached the board.
-    for (const l of lines(h)) expect(/^\{"[a-z0-9]+":null\}\n$/.test(l) || l === '\u0005', JSON.stringify(l)).toBe(true);
+    for (const l of lines(h)) expect(/^\{"?[a-z0-9]+"?:null\}\n$/.test(l) || l === '\u0005', JSON.stringify(l)).toBe(true);
 
     poller.stop();
     const stopped = lines(h).length;

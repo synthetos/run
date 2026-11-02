@@ -67,7 +67,7 @@ class BoardTransport implements Transport {
   async writeLine(line: Uint8Array): Promise<void> {
     const text = new TextDecoder().decode(line);
     this.writes.push(text);
-    const m = /^\{"([^"]+)":null\}\n$/.exec(text);
+    const m = /^\{"?([^":]+)"?:null\}\n$/.exec(text);
     const reply = m === null || this.silent ? undefined : EN[m[1] as string];
     if (reply !== undefined) queueMicrotask(() => this.feed(`${reply}\n`));
   }
@@ -265,15 +265,15 @@ describe('MachineWorkerHost', () => {
     expect(s.requests).toBe(0);
   });
 
-  it('opens through the guard with the session options, probes from {"sr":null}, and reports the session in status', async () => {
+  it('opens through the guard with the session options, probes from {sr:null}, and reports the session in status', async () => {
     const t = new BoardTransport();
     const host = new MachineWorkerHost(source('fake', () => t));
     expect(await host.handle(OPEN)).toEqual({ v: 3, ok: true, kind: 'open', info: { kind: 'sim', usbVendorId: 0x0403, usbProductId: 0x6015 } });
     expect(t.opened).toEqual([SESSION_OPEN_OPTIONS]);
     expect([...SESSION_BAUD_RATES]).toEqual([SESSION_OPEN_OPTIONS.baudRate]);
     await settle();
-    expect(t.writes[0]).toBe('{"sr":null}\n');
-    expect(t.writes.every((w) => /^\{"[a-z0-9_]+":null\}\n$/.test(w))).toBe(true);
+    expect(t.writes[0]).toBe('{sr:null}\n');
+    expect(t.writes.every((w) => /^\{"?[a-z0-9_]+"?:null\}\n$/.test(w))).toBe(true);
     expect(await host.handle(STATUS)).toMatchObject({
       status: { source: 'fake', state: 'open', session: { base: 'CONNECTED_UNKNOWN', classification: { dialectId: 'tinyg-en', mode: 'readOnly' }, identity: { id: 'EN-1' } } },
     });

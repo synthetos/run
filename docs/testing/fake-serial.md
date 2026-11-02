@@ -182,7 +182,7 @@ The test asserts (RPC version 3, P1-02) that:
 - the mock port's `openLog` shows one open with
   `{ baudRate: 115200, flowControl: 'none', bufferSize: 256 }`;
 - the read-only `MachineSession` waits out the simulated board's boot,
-  probes it from `{"sr":null}`, classifies it `tinyg-en` (READ_ONLY: the
+  probes it from `{sr:null}`, classifies it `tinyg-en` (READ_ONLY: the
   worker has no approved builds yet) and reaches CONNECTED_UNKNOWN;
 - Pause writes `!`, an allowlisted read is answered, `md` is refused, and
   every byte written to the board is a single-token GET or `!` (read from

@@ -8,7 +8,7 @@
  * session state into replies:
  * - `open` connects the session to the port the window chose, through the
  *   build's transport source (transport.ts); the session opens it only
- *   through `GuardedTransport` and starts the probe with `{"sr":null}`.
+ *   through `GuardedTransport` and starts the probe with `{sr:null}`.
  *   On a mobile operating system (or ChromeOS, or an OS it cannot tell)
  *   `open` is refused before the transport source is asked, whatever
  *   `navigator.serial` offers (T-S77, RUN_PLAN §2.3). The window hides

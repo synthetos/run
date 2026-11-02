@@ -43,7 +43,7 @@ function bangs(list: readonly string[]): number {
 function phase1Only(list: readonly string[]): void {
   for (const w of list) {
     expect(w.includes('\x18') || w.includes('\x04'), JSON.stringify(w)).toBe(false);
-    expect(/^\{"[a-z0-9_]+":null\}\n$/.test(w) || w === '!', JSON.stringify(w)).toBe(true);
+    expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '!', JSON.stringify(w)).toBe(true);
   }
 }
 

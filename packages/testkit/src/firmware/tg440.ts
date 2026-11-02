@@ -882,9 +882,16 @@ export class TinyG440Model implements SimDevice {
 
   // ---------------------------------------------------------------- JSON
 
-  /** G-code in JSON mode is run as `{"gc":"..."}` (@cite TG controller.c:277-286). */
+  /**
+   * G-code in JSON mode is run as `{"gc":"%.244s"}` (@cite TG controller.c:277-282).
+   * @behaviour TG-GC-WRAP-QUOTE: the wrapped string ends at the line's first double quote
+   * (`strchr`, @cite TG json_parser.c:274-277) and the rest up to the next `}` is skipped without
+   * an error (@cite TG json_parser.c:305-311), so only the text before that quote runs as G-code.
+   */
   #runGcodeAsJson(line: string): void {
-    const status = this.#gcodeParser(line);
+    const wrapped = line.slice(0, 244);
+    const quote = wrapped.indexOf('"');
+    const status = this.#gcodeParser(quote < 0 ? wrapped : wrapped.slice(0, quote));
     this.#respond(status, {});
   }
 
