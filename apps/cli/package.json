@@ -2,7 +2,7 @@
   "name": "@synthetos/cli",
   "version": "0.0.0",
   "private": true,
-  "description": "Bench tooling (Node): transcript recorder/replayer and bench runner. Empty in P0-01.",
+  "description": "Bench tooling (Node): the bench runner (run-cli bench, P1-08). Never in CI.",
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
