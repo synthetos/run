@@ -137,6 +137,8 @@ tester.run('run/no-capability-lookup', rule('no-capability-lookup'), {
     'const lang = navigator.language;',
     'const ua = globalThis.navigator.userAgent;',
     'const online = self.navigator.onLine;',
+    // P1-06: the Web Locks manager (machine lock, SAFETY §4.3).
+    'const locks = navigator.locks;',
     "const has = typeof navigator !== 'undefined';",
     'const o = globalThis.location.origin;',
     "const tt = (globalThis as { trustedTypes?: unknown })['trustedTypes'];",

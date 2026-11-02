@@ -151,6 +151,15 @@ function admitsWebSerial(target: ScanTarget): boolean {
 /** URL schemes the bundle may use besides relative URLs (ROADMAP P0-13). */
 export const ALLOWED_URL_SCHEMES: readonly string[] = ['data', 'blob'];
 
+/**
+ * Web Lock name prefixes (P1-06, SAFETY §4.3 `synthetos-machine:<board id>`)
+ * that look like a scheme to the JavaScript string-literal rule. Exempt in
+ * JavaScript string literals only (never in markup or CSS), exact and
+ * case-sensitive. Residual: the rule cannot tell such a literal used as a
+ * lock name from one assigned to `href`; no handler is registered for it.
+ */
+export const LOCK_NAME_PREFIXES: readonly string[] = ['synthetos-machine'];
+
 /** run's own origins: the only origin literals allowed, and only in cloud chunks. */
 export const SELF_ORIGINS: readonly string[] = ['https://run.synthetos.com', 'https://staging.run.synthetos.com'];
 
@@ -431,6 +440,7 @@ export function isSerialAsset(path: string): boolean {
 function schemeFindings(path: string, text: string, re: RegExp): ScanFinding[] {
   const findings: ScanFinding[] = [];
   for (const match of text.matchAll(re)) {
+    if (re === LITERAL_SCHEME_RE && LOCK_NAME_PREFIXES.includes(match[1] as string)) continue;
     const scheme = (match[1] as string).toLowerCase();
     const end = (match.index ?? 0) + match[0].length;
     if (ALLOWED_URL_SCHEMES.includes(scheme) || scheme === 'javascript' || scheme === 'vbscript') continue;

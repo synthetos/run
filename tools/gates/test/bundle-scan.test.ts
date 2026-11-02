@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALLOWED_URL_SCHEMES,
+  LOCK_NAME_PREFIXES,
   CLOUD_ASSET_DIR,
   type BundleFile,
   NAMESPACE_URIS,
@@ -264,6 +265,14 @@ describe('URL schemes other than relative, data: and blob: (P0-13)', () => {
     expect(rules('index.html', '<img src="data:image/png;base64,AAAA"><a href="/privacy/">p</a><link href="BLOB:x">')).toEqual([]);
   });
 
+  it('exempts only the machine Web Lock prefix, only in JavaScript literals, only exactly (P1-06)', () => {
+    expect(LOCK_NAME_PREFIXES).toEqual(['synthetos-machine']);
+    expect(rules('assets/w.js', 'const n=`synthetos-machine:${id}`;l.request("synthetos-machine:ABC")')).toEqual([]);
+    expect(rules('assets/w.js', 'a.href="Synthetos-Machine:x"')).toEqual(['url-scheme']);
+    expect(rules('assets/w.js', 'a.href="synthetos-machine2:x"')).toEqual(['url-scheme']);
+    expect(rules('index.html', '<a href="synthetos-machine:x">m</a>')).toEqual(['url-scheme']);
+  });
+
   it('fails on other schemes in JavaScript string literals', () => {
     for (const url of ['mailto:help@synthetos.com', 'tel:+15555550100', 'about:blank', 'file:C:/x', 'intent:x#Intent;end', 'chrome:settings', 'Filesystem:x']) {
       expect(rules('assets/a.js', `a.href="${url}"`), url).toEqual(['url-scheme']);
@@ -431,7 +440,7 @@ describe('computed or reflective capability lookup in the bundle (P0 review, P0-
     ['globalThis members', 'c(e,globalThis.location.origin);globalThis.matchMedia(`(prefers-color-scheme: dark)`);globalThis.addEventListener(`message`,e)'],
     ['a static computed member', 'globalThis["trustedTypes"];window?.[`x`]'],
     ['typeof checks', 'typeof window<"u"&&typeof navigator<"u"'],
-    ['a reviewed navigator property', 'navigator.language;globalThis.navigator.userAgent;self.navigator.onLine;navigator.languages'],
+    ['a reviewed navigator property', 'navigator.language;globalThis.navigator.userAgent;self.navigator.onLine;navigator.languages;navigator.locks'],
     ['prose that ends a sentence with a global name', 'const m=`prevention relies on the host window.`;'],
     ['names that only contain the words', 'const selfTest=1,windowSize=2,myself=3,navigatorish=4,e={}.Reflection'],
   ])('%s passes', (_name, code) => {

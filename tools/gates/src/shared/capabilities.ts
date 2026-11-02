@@ -39,10 +39,12 @@ export const NAVIGATOR_NAMES: readonly string[] = ['navigator', 'clientInformati
 
 /**
  * Navigator properties runtime code may read. Each is plain data (strings
- * and a boolean), never an object that leads to a device API. Adding one is
- * a safety-path change (SAFETY §8).
+ * and a boolean) or, for `locks` (P1-06, the machine Web Lock of SAFETY
+ * §4.3), the Web Locks manager, which coordinates tabs of this origin and
+ * leads to no device API. Never an object that leads to a device API.
+ * Adding one is a safety-path change (SAFETY §8).
  */
-export const NAVIGATOR_ALLOWED_PROPERTIES: readonly string[] = ['language', 'languages', 'onLine', 'userAgent'];
+export const NAVIGATOR_ALLOWED_PROPERTIES: readonly string[] = ['language', 'languages', 'locks', 'onLine', 'userAgent'];
 
 /** Global names that denote a window or worker global object. */
 export const GLOBAL_OBJECT_NAMES: readonly string[] = ['globalThis', 'window', 'self', 'global', 'top', 'parent', 'frames', 'opener'];
