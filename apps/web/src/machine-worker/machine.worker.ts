@@ -21,6 +21,7 @@
  */
 import approvedBuilds from '../../../../firmware/approved-builds.json';
 import { MachineWorkerHost, realClock, workerPlatform } from './host.ts';
+import { releaseFor } from './motionFlag.ts';
 import { browserLocks, openStopChannel } from './stopChannel.ts';
 import { MachineStopService } from './stopService.ts';
 import { createTransportSource } from './transport.ts';
@@ -31,7 +32,10 @@ interface WorkerScope {
 
 // The signed approved-builds manifest, bundled (the worker has no network code). It is verified again
 // before every connect, for this worker's own origin (approval.ts, P1-03).
-const host = new MachineWorkerHost(createTransportSource(), realClock(), workerPlatform(), { file: approvedBuilds as unknown, origin: (globalThis as unknown as { location: { origin: string } }).location.origin });
+const origin = (globalThis as unknown as { location: { origin: string } }).location.origin;
+// The motion capability flag comes from the worker's own origin (motionFlag.ts): Phase 2 on the bench and
+// staging origins only, Phase 1 (read-only) everywhere else, production included.
+const host = new MachineWorkerHost(createTransportSource(), realClock(), workerPlatform(), { file: approvedBuilds as unknown, origin }, releaseFor(origin));
 new MachineStopService({ session: host.session, channel: openStopChannel(), locks: browserLocks(), instance: crypto.randomUUID() });
 
 (globalThis as unknown as WorkerScope).addEventListener('message', (event) => {

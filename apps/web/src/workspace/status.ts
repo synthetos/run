@@ -178,11 +178,14 @@ export function stripStatus(view: LiveView, machineName: string | null): StripSt
   if (s.base === 'READING') return { ...base, title: 'Reading the board', tone: 'live', pill: null, text: 'Reading state and settings. Nothing is written.' };
   if (s.base === 'BLOCKED') return { ...base, title: 'Not the selected board', tone: 'alarm', pill: { text: 'Blocked', tone: 'danger' }, text: 'Nothing is sent to this board.' };
   if (o.includes('STALE')) return { ...base, title: 'No status from the machine', tone: 'warn', pill: { text: 'Stale', tone: 'warn' }, text: 'What you see may be out of date.' };
+  // Phase 2 (SAFETY §4.4): the Stop job sequence, from the session's own state; never "requested".
+  if (s.base === 'STOPPING_JOB') return { ...base, title: 'Stopping', tone: 'run', pill: null, text: 'Clearing the queue, then spindle and coolant off.' };
   const cls = s.live.machineClass;
   if (cls !== undefined && MOVING.has(cls)) return { ...base, title: 'Moving', tone: 'run', pill: null, text: null };
   if (cls !== undefined && ALARM.has(cls)) return { ...base, title: 'Alarm', tone: 'alarm', pill: { text: 'Alarm', tone: 'danger' }, text: 'The controller reports an alarm. Check the machine.' };
   if (o.includes('UNKNOWN')) return { ...base, title: 'Connected · state unknown', tone: 'warn', pill: { text: 'Unknown', tone: 'warn' }, text: 'The previous session ended while connected. Check the machine and re-home.' };
   if (o.includes('NEEDS_REVIEW')) return { ...base, title: 'Connected · read only', tone: 'live', pill: { text: 'Needs review', tone: 'warn' }, text: 'The board’s settings differ from this computer’s reference.' };
   if (o.includes('READ_ONLY')) return { ...base, title: 'Connected · read only', tone: 'live', pill: { text: 'Read only', tone: 'live' }, text: 'Phase 1: positions and settings are read, nothing is written.' };
-  return { ...base, title: 'Machine idle', tone: 'live', pill: null, text: null };
+  // Phase 2: the last motion result in plain words ("Stopped: queue cleared, spindle and coolant off"), from polled state.
+  return { ...base, title: 'Machine idle', tone: 'live', pill: null, text: s.notices.motion?.text ?? null };
 }

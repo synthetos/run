@@ -43,13 +43,16 @@ export function mayBeMoving(snapshot: SessionSnapshot | null): boolean {
   if (snapshot.overlays.includes('ORPHANED_MOTION') || snapshot.overlays.includes('LOST') || snapshot.overlays.includes('FAULT')) return true;
   const live = snapshot.live;
   if (typeof live.vel === 'number' && live.vel !== 0) return true;
+  // STOP (stat 3) with hold 0 is where edge-next rests after every move this page sent (Phase 2); a program
+  // pause is stat 3 with hold 6 and still counts as held.
+  if (live.machineClass === 'programStop' && live.hold === 0) return false;
   return live.machineClass !== undefined && MOVING_CLASSES.has(live.machineClass);
 }
 
 /** True when the last report says the machine is at rest (idle or ended) with nothing queued from elsewhere. */
 export function atRest(snapshot: SessionSnapshot | null): boolean {
   if (snapshot === null || snapshot.base === 'NOT_CONNECTED' || mayBeMoving(snapshot)) return false;
-  return snapshot.live.machineClass === 'idle' || snapshot.live.machineClass === 'end';
+  return snapshot.live.machineClass === 'idle' || snapshot.live.machineClass === 'end' || snapshot.live.machineClass === 'programStop';
 }
 
 export interface StopControlsDeps {

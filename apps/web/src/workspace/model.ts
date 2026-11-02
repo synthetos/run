@@ -19,7 +19,7 @@ import type { EntryState } from '../live/liveEntry.ts';
 import type { ReadoutPhase } from '../live/readout.ts';
 import type { AxisModeView } from '../machine-ui/AxisModes.ts';
 import type { TranscriptStatus } from '../machine-ui/TranscriptSave.ts';
-import type { SnapshotMessage } from '../machine-worker/rpc.ts';
+import type { MotionCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
 
 /** One live sample for the Live job tab, taken from a status report the window received. */
 export interface LiveSample {
@@ -68,6 +68,11 @@ export interface LiveActions {
   readonly backup: () => void;
   /** The current link's wire transcript as JSONL, for the Console tab (it only reads). */
   readonly transcriptText: () => Promise<string | null>;
+  /**
+   * Phase 2 (SAFETY §4.5b): one motion command to the worker. Resolves with the refusal reason, or null when
+   * the session accepted it. The session decides; the page never assumes it moved.
+   */
+  readonly motion?: (command: MotionCommand) => Promise<string | null>;
 }
 
 export const INITIAL_LIVE_VIEW: LiveView = Object.freeze({

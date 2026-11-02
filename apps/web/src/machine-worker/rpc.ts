@@ -37,12 +37,29 @@ import type { Decision } from '@synthetos/safety';
 
 export const RPC_VERSION = 3;
 
-export const REQUEST_KINDS = ['prepare', 'open', 'close', 'status', 'intent', 'read', 'subscribe', 'transcript', 'drift'] as const;
+export const REQUEST_KINDS = ['prepare', 'open', 'close', 'status', 'intent', 'read', 'subscribe', 'transcript', 'drift', 'motion'] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];
 
 /** Intents the window may send. Everything else the session does on its own. */
 export const WINDOW_INTENTS = ['feedhold', 'stopJob', 'spindleOffNow', 'ackFault', 'acknowledgeLost'] as const;
 export type WindowIntent = (typeof WINDOW_INTENTS)[number];
+
+/** Axes a motion command may name (SAFETY §4.5b). */
+export const MOTION_AXES = ['x', 'y', 'z', 'a'] as const;
+export type MotionAxis = (typeof MOTION_AXES)[number];
+
+/**
+ * Phase 2 motion commands (additive; owner 2026-11-02, SAFETY §4.5b). The worker hands each to the session,
+ * which decides it through the allow-matrix and the motion preconditions; under a release without motion
+ * every one is denied. `jogRelease`, `spindleOff` and `coolantOff` are stop-class and never gated.
+ */
+export type MotionCommand =
+  | { readonly op: 'jog'; readonly axes: Readonly<Partial<Record<MotionAxis, 1 | -1>>>; readonly distanceMm: number | null; readonly feed: number }
+  | { readonly op: 'jogRenew' | 'jogRelease' | 'spindleOff' | 'coolantOff' | 'resume' | 'clearAlarm' | 'positionVerify' }
+  | { readonly op: 'goToZero'; readonly axes: readonly MotionAxis[]; readonly safeZ: number }
+  | { readonly op: 'setZero'; readonly axes: readonly MotionAxis[] }
+  | { readonly op: 'spindleOn'; readonly direction: 'cw' | 'ccw'; readonly rpm: number }
+  | { readonly op: 'coolantOn'; readonly which: 'mist' | 'flood' };
 
 /** Most tokens one `read` may name, and the longest token. */
 export const MAX_READ_TOKENS = 32;
@@ -58,7 +75,8 @@ export type MachineRequest =
   | { readonly v: typeof RPC_VERSION; readonly kind: 'intent'; readonly intent: WindowIntent }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'read'; readonly tokens: readonly string[] }
   /** P1-07: the window's settings drift check found a difference on link `epoch` (NEEDS_REVIEW; it can only add the overlay). */
-  | { readonly v: typeof RPC_VERSION; readonly kind: 'drift'; readonly epoch: number };
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'drift'; readonly epoch: number }
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'motion'; readonly command: MotionCommand };
 
 /** The link, in the words of the Phase 0 protocol: derived from the session's base state and LOST. */
 export type WorkerState = 'idle' | 'opening' | 'open' | 'lost';
@@ -87,7 +105,7 @@ export type Denial = Extract<Decision, { allowed: false }>;
 export type MachineReply =
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'prepare'; readonly preparation: number }
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'open'; readonly info: TransportInfo }
-  | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'close' | 'subscribe' | 'intent' | 'read' | 'drift' }
+  | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'close' | 'subscribe' | 'intent' | 'read' | 'drift' | 'motion' }
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'status'; readonly status: WorkerStatus }
   /** The wire transcript of the last link that opened, as `{t, dir, hex}` JSONL (P1-08). */
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'transcript'; readonly jsonl: string; readonly events: number }
@@ -113,6 +131,8 @@ export interface SnapshotMessage {
    */
   readonly dro: DroView;
   readonly lag: { readonly amberMs: number; readonly redMs: number };
+  /** The motion capability flag of this worker (Phase 2: bench and staging origins only, SAFETY §4.5b). */
+  readonly motion: boolean;
 }
 
 function isRequestKind(value: unknown): value is RequestKind {
@@ -130,7 +150,7 @@ export function parseRequest(data: unknown): MachineRequest | null {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return null;
   if (Object.getPrototypeOf(data) !== Object.prototype) return null;
   const keys = Object.keys(data).sort().join(',');
-  const { v, kind, port, boardId, previousSessionEnded, intent, tokens, epoch, preparation } = data as Record<string, unknown>;
+  const { v, kind, port, boardId, previousSessionEnded, intent, tokens, epoch, preparation, command } = data as Record<string, unknown>;
   if (v !== RPC_VERSION || !isRequestKind(kind)) return null;
   switch (kind) {
     case 'prepare':
@@ -155,6 +175,11 @@ export function parseRequest(data: unknown): MachineRequest | null {
       if (!list.every((t) => typeof t === 'string' && t.length > 0 && t.length <= MAX_TOKEN_LENGTH)) return null;
       return Object.freeze({ v: RPC_VERSION, kind, tokens: Object.freeze([...(list as string[])]) });
     }
+    case 'motion': {
+      if (keys !== 'command,kind,v') return null;
+      const parsed = parseMotionCommand(command);
+      return parsed === null ? null : Object.freeze({ v: RPC_VERSION, kind, command: parsed });
+    }
     case 'drift':
       if (keys !== 'epoch,kind,v' || typeof epoch !== 'number' || !Number.isSafeInteger(epoch) || epoch < 0) return null;
       return Object.freeze({ v: RPC_VERSION, kind, epoch });
@@ -177,4 +202,66 @@ function copySelector(port: PortSelector): PortSelector {
     grantIndex: port.grantIndex,
     ...(port.grantSnapshot === undefined ? {} : { grantSnapshot: Object.freeze([...port.grantSnapshot]) }),
   });
+}
+
+function plainKeys(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) return null;
+  return Object.keys(value).sort().join(',');
+}
+
+function finite(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function axisList(value: unknown): readonly MotionAxis[] | null {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length === 0 || value.length > MOTION_AXES.length) return null;
+  const list: unknown[] = value;
+  if (!list.every((a) => typeof a === 'string' && (MOTION_AXES as readonly string[]).includes(a)) || new Set(list).size !== list.length) return null;
+  return Object.freeze([...(list as MotionAxis[])]);
+}
+
+/** A motion command, strictly: exactly its keys, known values, finite numbers. Ranges are the session's. */
+export function parseMotionCommand(value: unknown): MotionCommand | null {
+  const keys = plainKeys(value);
+  if (keys === null) return null;
+  const c = value as Record<string, unknown>;
+  switch (c['op']) {
+    case 'jog': {
+      if (keys !== 'axes,distanceMm,feed,op' || !finite(c['feed']) || (c['distanceMm'] !== null && !finite(c['distanceMm']))) return null;
+      const axesKeys = plainKeys(c['axes']);
+      if (axesKeys === null || axesKeys === '') return null;
+      const axes = c['axes'] as Record<string, unknown>;
+      const out: Partial<Record<MotionAxis, 1 | -1>> = {};
+      for (const [k, d] of Object.entries(axes)) {
+        if (!(MOTION_AXES as readonly string[]).includes(k) || (d !== 1 && d !== -1)) return null;
+        out[k as MotionAxis] = d;
+      }
+      return Object.freeze({ op: 'jog', axes: Object.freeze(out), distanceMm: c['distanceMm'] as number | null, feed: c['feed'] });
+    }
+    case 'jogRenew':
+    case 'jogRelease':
+    case 'spindleOff':
+    case 'coolantOff':
+    case 'resume':
+    case 'clearAlarm':
+    case 'positionVerify':
+      return keys === 'op' ? Object.freeze({ op: c['op'] }) : null;
+    case 'goToZero': {
+      const axes = axisList(c['axes']);
+      if (keys !== 'axes,op,safeZ' || axes === null || !finite(c['safeZ'])) return null;
+      return Object.freeze({ op: 'goToZero', axes, safeZ: c['safeZ'] });
+    }
+    case 'setZero': {
+      const axes = axisList(c['axes']);
+      return keys === 'axes,op' && axes !== null ? Object.freeze({ op: 'setZero', axes }) : null;
+    }
+    case 'spindleOn':
+      if (keys !== 'direction,op,rpm' || (c['direction'] !== 'cw' && c['direction'] !== 'ccw') || !finite(c['rpm'])) return null;
+      return Object.freeze({ op: 'spindleOn', direction: c['direction'], rpm: c['rpm'] });
+    case 'coolantOn':
+      if (keys !== 'op,which' || (c['which'] !== 'mist' && c['which'] !== 'flood')) return null;
+      return Object.freeze({ op: 'coolantOn', which: c['which'] });
+    default:
+      return null;
+  }
 }

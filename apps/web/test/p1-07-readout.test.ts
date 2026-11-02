@@ -181,6 +181,7 @@ function message(over: Partial<SnapshotMessage['dro']> = {}, snapOver: Record<st
     kind: 'snapshot',
     snapshot: { overlays: [], identity: { id: 'SIM-EN-0001', fbs: 'abc123' }, ...snapOver } as unknown as Snapshot,
     lag: { amberMs: 1000, redMs: 2000 },
+    motion: false,
     dro: {
       axes: [
         { axis: 'x', machine: 110, work: 10, homed: true },

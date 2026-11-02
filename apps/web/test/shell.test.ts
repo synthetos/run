@@ -10,7 +10,7 @@ import { Fragment, h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { STOP_TEXT, w1, w13, w2Label, w7 } from '@synthetos/safety';
 import { AppShell, VIEWS } from '../src/workspace/AppShell.ts';
-import { JogSection, OverridesSection, SpindleSection } from '../src/workspace/views/RunView.ts';
+import { JogSection, OverridesSection, SpindleSection, ZeroSection } from '../src/workspace/views/RunView.ts';
 import { BackupsTab, FirmwareTab } from '../src/workspace/views/BoardView.ts';
 import { SafetyBar, STOP_UNAVAILABLE } from '../src/shell/SafetyBar.ts';
 import { versionLabel } from '../src/build-info/buildInfo.ts';
@@ -67,7 +67,7 @@ describe('workspace AppShell (prerendered)', () => {
     expect(/<select[^>]*data-preview="mode"[^>]*>/.exec(html)?.[0]).toContain('disabled');
     expect(/<button[^>]*data-action="start-job"[^>]*>/.exec(html)?.[0]).toContain('disabled');
     expect(html).toContain('Running jobs arrives in a later phase.');
-    expect(html).toContain('Jogging arrives with motion control.');
+    expect(html).toContain('Connect a machine to use these controls.');
     expect(html).toContain('Needs firmware support');
   });
 
@@ -121,7 +121,7 @@ describe('Phase 1 control allowlist', () => {
   /** Controls that never reach the machine: views, tabs, the preview, and the local libraries. */
   const UI: readonly RegExp[] = [
     /^view:(run|setup|tools|materials|board|machines|projects|analyze|settings|safety)$/,
-    /^tab:(gcode|console|live|spindle|jog|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
+    /^tab:(gcode|console|live|spindle|jog|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
     /^preview:(file|rapids|mode|scrubber|fit|cancel)$/,
     /^sample:(mounting-plate|test-square)$/,
@@ -178,7 +178,7 @@ describe('Phase 1 control allowlist', () => {
   });
 
   it('the machine-acting controls carry no handler at all: they dispatch nothing', () => {
-    const trees = [h(JogSection, null), h(SpindleSection, null), h(OverridesSection, null), h(FirmwareTab, { view: null }), h(BackupsTab, { model: null })].map((n) => root(n));
+    const trees = [h(JogSection, null), h(ZeroSection, null), h(SpindleSection, null), h(OverridesSection, null), h(FirmwareTab, { view: null }), h(BackupsTab, { model: null })].map((n) => root(n));
     let count = 0;
     for (const tree of trees) {
       for (const el of all(tree, (e) => typeof e.props['data-machine-control'] === 'string' && MACHINE_DISABLED.has(e.props['data-machine-control'] as string))) {

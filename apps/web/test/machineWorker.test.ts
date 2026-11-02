@@ -14,6 +14,8 @@ import { MAX_BOARD_ID_LENGTH, MAX_READ_TOKENS, parseRequest, type SnapshotMessag
 import { openConfirmedPort, openRequest } from '../src/live/mount.ts';
 import { createTransportSource } from '../src/machine-worker/transport.ts';
 import { approvalEnvironment, approvedBuildsFor } from '../src/machine-worker/approval.ts';
+import { motionEnabledFor, releaseFor } from '../src/machine-worker/motionFlag.ts';
+import { PHASE_1_RELEASE, PHASE_2_RELEASE } from '@synthetos/safety';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { RELEASE_KEYS, SIGNING_PREFIX, type ReleaseKey } from '@synthetos/protocol';
@@ -856,5 +858,114 @@ describe('P1-03: the worker classifies against the bundled, signed approved-buil
     expect(host.session.useApprovedBuilds({ environment: 'staging', builds: [] })).toBe(false);
     expect((await approvedBuildsFor({ format: 'nope' }, { origin: BENCH_ORIGIN, now: VALID_NOW })).approved.builds).toEqual([]);
     expect((await approvedBuildsFor(null, { origin: BENCH_ORIGIN, now: VALID_NOW })).approved.builds).toEqual([]);
+  });
+});
+
+describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S93)', () => {
+  const EN_MOTION = { ...EN, home: '{"r":{"home":0},"f":[3,0,10]}', unit: '{"r":{"unit":1},"f":[3,0,10]}' };
+  const phase2Host = (t: BoardTransport, origin: string): MachineWorkerHost =>
+    new MachineWorkerHost(
+      source('fake', () => t),
+      new TestClock(),
+      undefined,
+      { file: COMMITTED_MANIFEST, origin, verify: (f, o) => approvedBuildsFor(f, { origin: o, now: VALID_NOW }) },
+      releaseFor(origin),
+    );
+
+  it('the motion flag is on for loopback and staging only; production and every other origin keep Phase 1', () => {
+    for (const o of [BENCH_ORIGIN, 'http://127.0.0.1:4173', 'http://localhost', STAGING_ORIGIN]) {
+      expect(motionEnabledFor(o), o).toBe(true);
+      expect(releaseFor(o)).toBe(PHASE_2_RELEASE);
+    }
+    for (const o of [PRODUCTION_ORIGIN, 'http://run.synthetos.com', 'https://localhost:8793', 'https://run-abc.workers.dev', 'http://10.0.0.2:8793', 'null', '']) {
+      expect(motionEnabledFor(o), o).toBe(false);
+      expect(releaseFor(o)).toBe(PHASE_1_RELEASE);
+    }
+  });
+
+  it('on the bench origin a jog reaches the board as a motion line; the snapshot carries the flag', async () => {
+    const t = new BoardTransport(undefined, EN_MOTION);
+    const host = phase2Host(t, BENCH_ORIGIN);
+    expect((await classifyWith(t, host)).mode).toBe('full');
+    expect(host.session.snapshot.base).toBe('IDLE_UNHOMED');
+    const reply = await host.handle({ v: 3, kind: 'motion', command: { op: 'jog', axes: { x: 1 }, distanceMm: 0.1, feed: 600 } });
+    expect(reply).toMatchObject({ ok: true, kind: 'motion' });
+    await settle();
+    expect(t.writes).toContain('G21 G91 G1 X0.1 F600\n');
+    const posted: SnapshotMessage[] = [];
+    await host.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => posted.push(m) });
+    expect(posted.at(-1)?.motion).toBe(true);
+  });
+
+  it('every command maps to its session intent; the production origin refuses them all and writes nothing', async () => {
+    const commands = [
+      { op: 'jogRenew' },
+      { op: 'jogRelease' },
+      { op: 'setZero', axes: ['x'] },
+      { op: 'spindleOn', direction: 'cw', rpm: 1000 },
+      { op: 'coolantOn', which: 'mist' },
+      { op: 'spindleOff' },
+      { op: 'coolantOff' },
+      { op: 'goToZero', axes: ['z'], safeZ: 0 },
+      { op: 'resume' },
+      { op: 'clearAlarm' },
+      { op: 'positionVerify' },
+    ] as const;
+    const t = new BoardTransport(undefined, EN_MOTION);
+    const host = phase2Host(t, BENCH_ORIGIN);
+    await classifyWith(t, host);
+    const outcomes = [];
+    for (const command of commands) outcomes.push((await host.handle({ v: 3, kind: 'motion', command })).ok);
+    // Allowed now: release (nothing to release), set zero, spindle and coolant on and off, go to zero. Refused: no hold
+    // jog to renew, no hold to resume, no alarm to clear, no UNKNOWN to verify.
+    expect(outcomes).toEqual([false, true, true, true, true, true, true, true, false, false, false]);
+
+    const p = new BoardTransport();
+    const prod = phase2Host(p, PRODUCTION_ORIGIN);
+    await classifyWith(p, prod);
+    const before = p.writes.filter((w) => !w.startsWith('{')).length;
+    for (const command of [{ op: 'jog', axes: { x: 1 }, distanceMm: 1, feed: 600 }, ...commands.filter((c) => c.op !== 'jogRelease' && c.op !== 'spindleOff' && c.op !== 'coolantOff')]) {
+      const reply = await prod.handle({ v: 3, kind: 'motion', command });
+      expect(reply.ok, command.op).toBe(false);
+    }
+    await settle();
+    expect(p.writes.filter((w) => !w.startsWith('{')).length).toBe(before);
+  });
+
+  it('parses motion commands strictly', () => {
+    const ok = [
+      { op: 'jog', axes: { x: 1, y: -1 }, distanceMm: null, feed: 600 },
+      { op: 'goToZero', axes: ['x', 'y', 'z'], safeZ: -1 },
+      { op: 'setZero', axes: ['a'] },
+      { op: 'spindleOn', direction: 'ccw', rpm: 5000 },
+      { op: 'coolantOn', which: 'flood' },
+      { op: 'resume' },
+    ];
+    for (const command of ok) expect(parseRequest({ v: 3, kind: 'motion', command }), JSON.stringify(command)).not.toBeNull();
+    const bad: unknown[] = [
+      null,
+      [],
+      { op: 'jog', axes: { x: 1 }, distanceMm: 1 },
+      { op: 'jog', axes: { x: 2 }, distanceMm: 1, feed: 1 },
+      { op: 'jog', axes: { w: 1 }, distanceMm: 1, feed: 1 },
+      { op: 'jog', axes: {}, distanceMm: 1, feed: 1 },
+      { op: 'jog', axes: [], distanceMm: 1, feed: 1 },
+      { op: 'jog', axes: { x: 1 }, distanceMm: Number.NaN, feed: 1 },
+      { op: 'jog', axes: { x: 1 }, distanceMm: 1, feed: Number.POSITIVE_INFINITY },
+      { op: 'goToZero', axes: ['x', 'x'], safeZ: 0 },
+      { op: 'goToZero', axes: [], safeZ: 0 },
+      { op: 'goToZero', axes: 'x', safeZ: 0 },
+      { op: 'goToZero', axes: ['q'], safeZ: 0 },
+      { op: 'goToZero', axes: ['x'] },
+      { op: 'setZero', axes: ['x'], extra: 1 },
+      { op: 'spindleOn', direction: 'up', rpm: 1 },
+      { op: 'spindleOn', direction: 'cw', rpm: '1' },
+      { op: 'coolantOn', which: 'air' },
+      { op: 'resume', now: true },
+      { op: 'raw', line: 'G0 X0' },
+      Object.create({ op: 'resume' }) as unknown,
+    ];
+    for (const command of bad) expect(parseRequest({ v: 3, kind: 'motion', command }), JSON.stringify(command)).toBeNull();
+    expect(parseRequest({ v: 3, kind: 'motion', command: { op: 'resume' }, extra: 1 })).toBeNull();
   });
 });

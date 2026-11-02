@@ -22,7 +22,7 @@ import { transcriptFileName, type TranscriptStatus } from '../machine-ui/Transcr
 import { downloadTranscript } from './transcriptDownload.ts';
 import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { callMachineWorker } from '../machine-worker/client.ts';
-import { RPC_VERSION, type MachineReply, type MachineRequest, type SnapshotMessage } from '../machine-worker/rpc.ts';
+import { RPC_VERSION, type MachineReply, type MachineRequest, type MotionCommand, type SnapshotMessage } from '../machine-worker/rpc.ts';
 import { AdvisoryPoller, checkAdvisory, type AdvisoryCheck, type AdvisoryDeps } from './advisoryGate.ts';
 import { accessProvider, AuthGate, providersFor } from './authGate.ts';
 import { memoryDeviceSafety, openDeviceSafety, type DeviceSafetyStore } from './deviceSafety.ts';
@@ -303,6 +303,12 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     keepBoardSettings: () => void readout.keepBoardSettings().catch(() => undefined),
     backup: () => void runBackup(),
     transcriptText,
+    motion: async (command: MotionCommand) => {
+      if (worker === null) return unavailable.message;
+      const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'motion', command }).catch(() => null);
+      if (reply === null) return 'The machine worker did not answer.';
+      return reply.ok ? null : reply.message;
+    },
   });
 
   entry.subscribe(() => {

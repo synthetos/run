@@ -82,6 +82,11 @@ function Strip(props: AppShellProps): ComponentChild {
     previousSession: props.previousSession?.value === true,
     ...(props.onPause === undefined ? {} : { onPause: props.onPause }),
     ...(props.onStopJob === undefined ? {} : { onStopJob: props.onStopJob }),
+    // Phase 2: Resume (`~`) only for a hold of this session's motion, decided by the session (SAFETY §4.5b).
+    ...(view.message?.snapshot.motion?.held === true && props.model?.actions.value?.motion !== undefined
+      ? { onResume: () => void props.model?.actions.value?.motion?.({ op: 'resume' }) }
+      : {}),
+    motion: view.message?.motion === true,
   });
 }
 

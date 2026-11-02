@@ -28,17 +28,25 @@ export interface MachineStripProps {
   readonly previousSession: boolean;
   readonly onPause?: () => void;
   readonly onStopJob?: () => void;
+  /** Phase 2: shown in the held band only while this session holds its own motion (SAFETY §4.5b). */
+  readonly onResume?: () => void;
+  /** Phase 2: the worker's motion flag. Stop job then runs the flush sequence instead of a feedhold. */
+  readonly motion?: boolean;
 }
 
 /** What Stop job does in this release, said plainly next to the button. */
 export const STOP_JOB_PHASE1 = 'In this release Stop job sends a feedhold, like Pause, and leaves the spindle as it is. Use your E-stop to remove power.';
 
-function band(status: StripStatus, view: StopBarView | null, previousSession: boolean): ComponentChild {
+/** What Stop job does with motion control (SAFETY §4.4, Phase 2 amendment). */
+export const STOP_JOB_PHASE2 = 'Stops motion, clears the queue, and turns the spindle and coolant off. Not an emergency stop: use your E-stop to remove power.';
+
+function band(status: StripStatus, view: StopBarView | null, previousSession: boolean, onResume?: () => void): ComponentChild {
   if (view?.band === 'held') {
     return h(
       'div',
       { class: 'state-meta state-band', 'data-state': 'held', 'data-safety': 'W30', role: 'alert' },
       h('span', { class: 'band-text' }, h('strong', null, w30()), h('span', { class: 'state-band-note', 'data-safety': 'W10' }, ` ${w10()}`)),
+      onResume === undefined ? null : h('button', { type: 'button', class: 'small resume', 'data-machine-control': 'resume', onClick: onResume }, 'Resume'),
     );
   }
   if (view?.band === 'pause-requested') {
@@ -58,7 +66,7 @@ function band(status: StripStatus, view: StopBarView | null, previousSession: bo
 }
 
 /** The last stop request's result, in plain words (SAFETY §4.3; OD-6). */
-export function outcomeText(view: StopBarView | null): { readonly kind: 'delivered' | 'not-delivered'; readonly text: string } | null {
+export function outcomeText(view: StopBarView | null, motion = false): { readonly kind: 'delivered' | 'not-delivered'; readonly text: string } | null {
   const outcome = view?.outcome;
   if (outcome === null || outcome === undefined) return null;
   if (outcome.kind === 'not-delivered') {
@@ -67,12 +75,14 @@ export function outcomeText(view: StopBarView | null): { readonly kind: 'deliver
   }
   const machines = outcome.machines.map((m) => machineLabel(m.machine)).join(', ');
   if (outcome.action === 'pause') return { kind: 'delivered', text: outcome.idle === true ? STOP_TEXT.pausedIdle : `Pause delivered to ${machines}` };
+  // Phase 2: the session runs the flush sequence and reports "Stopped: …" in the strip from polled state.
+  if (motion) return { kind: 'delivered', text: `${outcome.action === 'stopJob' ? STOP_TEXT.stopJob : 'Spindle off'} delivered to ${machines}.` };
   // Phase 1: every session answers Stop job and Spindle off with `!` only (machine reducer, SAFETY §4.4), so
   // "delivered" alone would read as "the job is stopped, spindle off". Say what the machine actually got.
   return { kind: 'delivered', text: `${outcome.action === 'stopJob' ? STOP_TEXT.stopJob : 'Spindle off'} delivered to ${machines} as ${w2Label()}. Use your E-stop to remove power.` };
 }
 
-function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined, onStopJob: (() => void) | undefined): ComponentChild {
+function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined, onStopJob: (() => void) | undefined, motion: boolean): ComponentChild {
   const available = view?.available === true;
   const prominent = available && view?.prominent === true ? 'true' : 'false';
   const pause = available && onPause !== undefined;
@@ -102,7 +112,7 @@ function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined
         'data-action': 'stop-job',
         'data-machine-control': 'stop',
         'data-prominent': prominent,
-        title: stop ? STOP_JOB_PHASE1 : STOP_UNAVAILABLE,
+        title: stop ? (motion ? STOP_JOB_PHASE2 : STOP_JOB_PHASE1) : STOP_UNAVAILABLE,
         ...(stop ? { onClick: onStopJob } : { disabled: true, 'aria-describedby': 'stop-unavailable' }),
       },
       h('span', { class: 'stop-mark', 'aria-hidden': 'true' }),
@@ -112,12 +122,12 @@ function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined
   );
 }
 
-export function MachineStrip({ status, stop, previousSession, onPause, onStopJob }: MachineStripProps): ComponentChild {
+export function MachineStrip({ status, stop, previousSession, onPause, onStopJob, onResume, motion = false }: MachineStripProps): ComponentChild {
   const held = stop?.band === 'held';
   // "spindle still on" only when the board reports spe=1 while held; wording only, nothing decides on it.
   const title = held ? (status.spindleOn ? STOP_TEXT.pausedSpindleOn : STOP_TEXT.paused) : status.title;
   const tone = held ? 'hold' : status.tone;
-  const outcome = outcomeText(stop);
+  const outcome = outcomeText(stop, motion);
   const showReadouts = status.connected && !held && stop?.band !== 'pause-requested' && status.readouts.length > 0;
   return h(
     'section',
@@ -128,7 +138,7 @@ export function MachineStrip({ status, stop, previousSession, onPause, onStopJob
       h('span', { class: 'state-dot', 'aria-hidden': 'true' }),
       h('div', null, h('strong', { 'data-strip': 'state' }, title), h('small', { 'data-strip': 'name' }, status.name)),
     ),
-    band(status, stop, previousSession),
+    band(status, stop, previousSession, onResume),
     showReadouts
       ? h(
           'div',
@@ -138,7 +148,7 @@ export function MachineStrip({ status, stop, previousSession, onPause, onStopJob
           ),
         )
       : null,
-    stopButtons(stop, onPause, onStopJob),
+    stopButtons(stop, onPause, onStopJob, motion),
     outcome === null
       ? null
       : h('p', { class: `stop-outcome ${outcome.kind}`, 'data-stop-outcome': outcome.kind, role: outcome.kind === 'not-delivered' ? 'alert' : 'status' }, outcome.text),
