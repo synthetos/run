@@ -8,8 +8,9 @@
  * hydrates the shell that the build prerendered into index.html, wires
  * the theme toggle, starts `machine.worker` (P0-14) and mounts LIVE entry
  * (P1-05, live/mount.ts). The stop controls (P1-06: the W2 button,
- * Escape, the cross-tab requests and the observer panel) start right after
- * hydration, before anything that can fail. The G-code preview (TB-03)
+ * Escape, the cross-tab requests and the observer panel) start before
+ * hydration, and hydration runs guarded, so a rendering failure cannot
+ * remove them (live/stopBoot.ts). The G-code preview (TB-03)
  * starts `gcode.worker` on its first file; that worker has no transport. Entries must never import @synthetos/testkit
  * (RUN_PLAN §5.3, enforced from P0-02).
  */
@@ -24,8 +25,8 @@ import { RPC_VERSION } from '../machine-worker/rpc.ts';
 import { browserLocks, openStopChannel } from '../machine-worker/stopChannel.ts';
 import { mountLiveEntry } from '../live/mount.ts';
 import { ObserverPanel } from '../live/ObserverPanel.ts';
-import { StopControls } from '../live/stopControls.ts';
-import { installEscapeStop, LockWatcher, TabStop, type Timers } from '../live/tabStop.ts';
+import { renderGuarded, startStopPaths } from '../live/stopBoot.ts';
+import type { Timers } from '../live/tabStop.ts';
 import { PreviewPanel, type LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { Shell } from '../shell/Shell.ts';
 import { startTheme } from '../theme/theme.ts';
@@ -42,31 +43,34 @@ const previousSession = signal(false);
 // P1-07: the live position marker (polled `mpo`), drawn by the preview, set by LIVE entry.
 const marker = signal<LiveMarkerView | null>(null);
 
-// Stop controls (P1-06), before anything that could fail: Pause, Escape and the cross-tab requests are never gated.
+// Stop controls (P1-06), before anything that could fail, hydration included: Pause, Escape and the
+// cross-tab requests are never gated, and a rendering failure cannot remove them (SAFETY §4.3).
 const timers: Timers = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>) };
-const locks = browserLocks();
-const tabStop = new TabStop({ channel: openStopChannel(), locks, timers, newId: () => crypto.randomUUID() });
 let worker: Worker | null = null;
-const stopControls = new StopControls({
-  broadcast: (action) => tabStop.request(action),
+const { stopControls, watcher } = startStopPaths({
+  target: { addEventListener: (type, listener, options) => addEventListener(type, listener, options) },
+  channel: openStopChannel(),
+  locks: browserLocks(),
+  timers,
+  newId: () => crypto.randomUUID(),
   pauseOwnWorker: () => {
     if (worker !== null) void callMachineWorker(worker, { v: RPC_VERSION, kind: 'intent', intent: 'feedhold' });
   },
-  timers,
 });
-hydrate(
-  h(Shell, {
-    build,
-    previousSession,
-    stop: stopControls.view,
-    onPause: () => stopControls.pause(),
-    preview: h(PreviewPanel, { spawn: gcodeWorkerSpawner(trustedTypes), marker }),
-  }),
-  root,
+renderGuarded(
+  () =>
+    hydrate(
+      h(Shell, {
+        build,
+        previousSession,
+        stop: stopControls.view,
+        onPause: () => stopControls.pause(),
+        preview: h(PreviewPanel, { spawn: gcodeWorkerSpawner(trustedTypes), marker }),
+      }),
+      root,
+    ),
+  (error) => console.error('run: the workspace shell failed to render; Escape and the cross-tab stop still work', error),
 );
-installEscapeStop({ addEventListener: (type, listener, options) => addEventListener(type, listener, options) }, () => stopControls.pause());
-const watcher = new LockWatcher(locks, () => stopControls.live, timers, (role) => stopControls.setRole(role));
-watcher.start();
 // After hydration, so the bench marking of the version chip is not reconciled away; before the worker starts.
 const channel = startBuildChannel(document);
 startTheme();
