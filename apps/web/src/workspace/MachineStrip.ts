@@ -15,6 +15,10 @@
  *   hold, what a Pause has come to (Pausing…, no answer yet, idle), and STOP
  *   NOT DELIVERED.
  *
+ * - Disconnect sits in the connection area (beside the state title) whenever
+ *   a port is open or opening, so it is reachable from every view, not only
+ *   from the Run view's Connect card. A refused Disconnect says why.
+ *
  * A pure function of its props.
  */
 import { h, type ComponentChild } from 'preact';
@@ -29,6 +33,8 @@ export interface MachineStripProps {
   readonly previousSession: boolean;
   readonly onPause?: () => void;
   readonly onStopJob?: () => void;
+  /** Present while a port is open or opening: Disconnect, and why the last one was refused. */
+  readonly connection?: { readonly onDisconnect: () => void; readonly refused: string | null } | null;
 }
 
 /** What Stop job does in this release, said plainly next to the button. */
@@ -119,7 +125,17 @@ function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined
   );
 }
 
-export function MachineStrip({ status, stop, previousSession, onPause, onStopJob }: MachineStripProps): ComponentChild {
+function connectionArea(connection: MachineStripProps['connection']): ComponentChild {
+  if (connection === undefined || connection === null) return null;
+  return h(
+    'div',
+    { class: 'strip-connection', 'data-region': 'strip-connection' },
+    h('button', { type: 'button', class: 'small strip-disconnect', 'data-action': 'disconnect', onClick: connection.onDisconnect, title: 'Close the serial port. The board keeps running what it already has.' }, 'Disconnect'),
+    connection.refused === null ? null : h('p', { class: 'strip-disconnect-refused', role: 'alert', 'data-disconnect': 'refused' }, connection.refused),
+  );
+}
+
+export function MachineStrip({ status, stop, previousSession, onPause, onStopJob, connection }: MachineStripProps): ComponentChild {
   const held = stop?.band === 'held';
   // "spindle still on" only when the board reports spe=1 while held; wording only, nothing decides on it.
   const title = held ? (status.spindleOn ? STOP_TEXT.pausedSpindleOn : STOP_TEXT.paused) : status.title;
@@ -138,6 +154,7 @@ export function MachineStrip({ status, stop, previousSession, onPause, onStopJob
       h('span', { class: 'state-dot', 'aria-hidden': 'true' }),
       h('div', null, h('strong', { 'data-strip': 'state' }, title), h('small', { 'data-strip': 'name' }, status.name)),
     ),
+    connectionArea(connection),
     band(status, stop, previousSession),
     showReadouts
       ? h(

@@ -75,7 +75,14 @@ export function ConnectNotice({ model, onView }: { readonly model: WorkspaceMode
     'div',
     { class: `scenario-notice connect-notice${isConnected ? ' is-connected' : ''}`, 'data-region': 'connect' },
     h('div', { class: 'notice-text' }, h('strong', null, heading), h('p', null, copy)),
-    h('div', { class: 'notice-actions' }, step === 'c1' ? null : panel, isConnected ? h('button', { type: 'button', class: 'small', onClick: () => onView('board') }, 'Open the board') : null),
+    h(
+      'div',
+      { class: 'notice-actions' },
+      step === 'c1' ? null : panel,
+      // The port is open or opening but LIVE entry has not finished (or ended elsewhere): Disconnect still applies.
+      isConnected && step !== 'live' && step !== 'c1' ? h('button', { type: 'button', class: 'button', 'data-action': 'disconnect', onClick: () => actions?.disconnect() }, 'Disconnect') : null,
+      isConnected ? h('button', { type: 'button', class: 'small', onClick: () => onView('board') }, 'Open the board') : null,
+    ),
     step === 'c1'
       ? h(
           'div',

@@ -860,6 +860,10 @@ body { background-image: none; }
 .statebar[data-tone="warn"] .state-dot { background: var(--warn); }
 .state-title { flex: none; min-width: 200px; max-width: 300px; }
 .state-title small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Disconnect, in every view while a port is open or opening. A refusal is a notice under the strip. */
+.strip-connection { flex: none; display: flex; align-items: center; }
+.strip-connection .strip-disconnect { min-height: 32px; padding: 0 12px; font-size: 12.5px; }
+.strip-disconnect-refused { position: absolute; left: 20px; top: calc(100% + 6px); z-index: var(--z-notice); max-width: 440px; margin: 0; padding: 7px 12px; border-radius: var(--r-sm); font-size: 12.5px; line-height: 1.4; background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); box-shadow: var(--pop); }
 .statebar .state-meta { flex: 1 1 auto; min-width: 0; }
 .statebar .state-band { display: flex; max-width: none; padding: 0; margin: 0; background: none; border: 0; color: var(--ink); font: 400 12px/1.35 var(--sans); }
 .statebar .state-band .band-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }

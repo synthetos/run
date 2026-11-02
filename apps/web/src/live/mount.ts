@@ -151,6 +151,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   const backup = new SettingsBackup();
   let backupStatus: BackupStatus = { kind: 'idle' };
   let transcriptStatus: TranscriptStatus = { kind: 'idle' };
+  let disconnectRefused: string | null = null;
 
   // P1-08: "Save transcript" asks the worker for the last connection's transcript (it only reads) and downloads it.
   async function saveTranscript(): Promise<void> {
@@ -242,6 +243,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       sample(droMessage, droReceivedAt);
       updateMarker();
       staleSince = snapshot.overlays.includes('STALE') ? (staleSince ?? Date.now()) : null;
+      if (snapshot.base === 'NOT_CONNECTED') disconnectRefused = null;
       alarm.sync(snapshot);
       options.stopControls.setSnapshot(snapshot);
       publish();
@@ -250,12 +252,25 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   }
 
   async function disconnect(): Promise<void> {
-    // Only a close the worker confirmed removes the marker (W6) and leaves LIVE.
-    await cleanDisconnect(() => (worker === null ? Promise.resolve({ ok: true }) : callMachineWorker(worker, { v: RPC_VERSION, kind: 'close' })), store, () => {
-      poller.stop();
-      advisoryBlocked = null;
-      entry.reset();
-    });
+    // Only a close the worker confirmed removes the marker (W6) and leaves LIVE. A refusal is shown in
+    // the allow matrix's own words next to Disconnect, never swallowed.
+    let refused: string | null = null;
+    const closed = await cleanDisconnect(
+      async () => {
+        if (worker === null) return { ok: true };
+        const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'close' });
+        if (!reply.ok) refused = reply.decision === undefined ? `Disconnect failed: ${reply.message}` : `${reply.decision.reason} ${reply.decision.remedy}`;
+        return reply;
+      },
+      store,
+      () => {
+        poller.stop();
+        advisoryBlocked = null;
+        entry.reset();
+      },
+    );
+    disconnectRefused = closed ? null : (refused ?? 'Disconnect failed.');
+    publish();
   }
 
   // Row 35 / BENCH-P100-5: the axes that read inhibited on this link (reset per link epoch).
@@ -291,6 +306,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       transcript: transcriptStatus,
       backup: backupStatus,
       samples,
+      disconnectRefused,
     });
   }
 

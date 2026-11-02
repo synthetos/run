@@ -136,6 +136,34 @@ test('Pause and Stop job turn prominent, in the safety-bar colours only, while a
   }
 });
 
+test('Disconnect is in the machine strip in every view: disconnecting from a non-Run view closes the port and offers Connect again', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const worker = await connectedTab(page);
+  const strip = page.locator('[data-region="machine-strip"]');
+  const disconnect = strip.locator('[data-action="disconnect"]');
+  for (const view of VIEWS) {
+    await show(page, view);
+    await expect(disconnect, view).toBeVisible();
+    await expect(disconnect, view).toBeEnabled();
+    await expect(disconnect, view).toBeInViewport();
+  }
+  await show(page, 'board');
+  await disconnect.click();
+  await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as Status).status.session.base, { timeout: 10_000 }).toBe('NOT_CONNECTED');
+  // The simulated port itself is closed (a closed Web Serial port has no streams).
+  const streams = await worker.evaluate(() => {
+    const registry = (globalThis as unknown as { __RUN_FAKE_SERIAL__?: { ports: { readable: unknown; writable: unknown }[] } }).__RUN_FAKE_SERIAL__;
+    const port = registry?.ports.at(-1);
+    return port === undefined ? 'no port' : { readable: port.readable, writable: port.writable };
+  });
+  expect(streams).toEqual({ readable: null, writable: null });
+  await expect(disconnect).toHaveCount(0);
+  await expect(strip.locator('[data-state="not-connected"]')).toBeVisible();
+  await show(page, 'run');
+  await expect(page.locator('[data-screen="run"] [data-region="connect"] [data-entry="idle"] [data-action="connect"]')).toBeVisible();
+  await expect(strip.locator('[data-disconnect="refused"]')).toHaveCount(0);
+});
+
 test('the notice raised after Stop job sits above the panels and the 3D canvas: its centre point hits it, and W1 stays visible', async ({ page }) => {
   await connectedTab(page);
   const tabB = await page.context().newPage();

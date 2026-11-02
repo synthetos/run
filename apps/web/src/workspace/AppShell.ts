@@ -30,7 +30,7 @@ import type { TabRole } from '../live/tabStop.ts';
 import { Icon, type IconName } from './icons.ts';
 import { selectedMachine } from './library.ts';
 import { MachineStrip } from './MachineStrip.ts';
-import { INITIAL_LIVE_VIEW, type WorkspaceModel } from './model.ts';
+import { INITIAL_LIVE_VIEW, portOpen, type WorkspaceModel } from './model.ts';
 import { stripStatus } from './status.ts';
 import { BoardView } from './views/BoardView.ts';
 import { MaterialsView, ToolsView } from './views/LibraryViews.ts';
@@ -76,7 +76,10 @@ export interface AppShellProps {
 function Strip(props: AppShellProps): ComponentChild {
   const view = props.model?.live.value ?? INITIAL_LIVE_VIEW;
   const status = stripStatus(view, selectedMachine.value?.name ?? null);
+  const actions = props.model?.actions.value ?? null;
+  const connection = actions !== null && portOpen(view) ? { onDisconnect: actions.disconnect, refused: view.disconnectRefused } : null;
   return h(MachineStrip, {
+    connection,
     status,
     stop: props.stop?.value ?? null,
     previousSession: props.previousSession?.value === true,
