@@ -33,7 +33,7 @@ import { SESSION_OPEN_OPTIONS } from '../openPolicy.ts';
 import type { PortSelector, Transport, TransportInfo, TransportSource } from '../transport.ts';
 import { initialState, reduce } from './reducer.ts';
 import { snapshotOf, type SessionSnapshot } from './snapshot.ts';
-import { DEFAULT_TIMINGS, type SessionConfig, type SessionEffect, type SessionEvent, type SessionIntent, type SessionState, type SessionTimings, type TimerId } from './types.ts';
+import { DEFAULT_TIMINGS, type RealtimeName, type SessionConfig, type SessionEffect, type SessionEvent, type SessionIntent, type SessionState, type SessionTimings, type TimerId } from './types.ts';
 import { checkWrite } from './writePolicy.ts';
 
 /** The timer functions the session needs (a real clock in the worker, a virtual one in tests). */
@@ -91,6 +91,8 @@ interface QueuedLine {
   readonly bytes: Uint8Array;
   /** The state in which the reducer asked for this line: its token rule (probe list or allowlist) applies. */
   readonly emitted: SessionState;
+  /** A motion line (Phase 2): the matrix intent that issued it. */
+  readonly motion?: Intent;
 }
 
 const encoder = new TextEncoder();
@@ -313,12 +315,12 @@ export class MachineSession {
         void this.#open(effect.epoch);
         return;
       case 'writeLine': {
-        this.#lines.push({ epoch: effect.epoch, seq: effect.seq, bytes: encoder.encode(`${effect.line}\n`), emitted: this.#state });
+        this.#lines.push({ epoch: effect.epoch, seq: effect.seq, bytes: encoder.encode(`${effect.line}\n`), emitted: this.#state, ...(effect.motion === undefined ? {} : { motion: effect.motion.intent }) });
         void this.#drainLines();
         return;
       }
       case 'writeRealtime':
-        void this.#writeRealtime(effect.epoch, effect.name, effect.byte);
+        void this.#writeRealtime(effect.epoch, effect.name, effect.byte, effect.intent);
         return;
       case 'tightenLineCap': {
         const guarded = this.#currentGuarded(effect.epoch);
@@ -473,7 +475,7 @@ export class MachineSession {
           this.#dispatch({ type: 'lineDropped', epoch: item.epoch, seq: item.seq });
           continue;
         }
-        const check = checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, 'read');
+        const check = item.motion === undefined ? checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, 'read') : checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, 'motion', item.motion);
         if (check !== undefined) {
           this.#note(check.reason);
           /* c8 ignore next -- the reducer only asks for GETs readable when it asks, so 'refused' needs a bug there; checkWrite's tests cover it */
@@ -496,10 +498,10 @@ export class MachineSession {
     }
   }
 
-  async #writeRealtime(epoch: number, name: 'feedhold' | 'enq', byte: number): Promise<void> {
+  async #writeRealtime(epoch: number, name: RealtimeName, byte: number, issuedBy?: Intent): Promise<void> {
     const guarded = this.#currentGuarded(epoch);
     const bytes = Uint8Array.of(byte);
-    const check = checkWrite(this.#state, this.#state, this.#config.release, bytes, name);
+    const check = checkWrite(this.#state, this.#state, this.#config.release, bytes, name, issuedBy);
     /* c8 ignore start -- a realtime byte is written in the same turn the reducer allowed it on an open link, so the link cannot be closing and the matrix cannot have changed; the reducer only emits ! and an allowed ENQ. checkWrite's own tests cover every outcome. */
     if (guarded === null) return;
     if (check !== undefined) {

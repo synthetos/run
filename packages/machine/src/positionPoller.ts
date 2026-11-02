@@ -18,6 +18,7 @@
 import type { Decision } from '@synthetos/safety';
 import type { SessionClock } from './session/machineSession.ts';
 import type { SessionSnapshot } from './session/snapshot.ts';
+import { READY_BASES } from './session/types.ts';
 
 /** SAFETY §4.2: `mpo` every 500 ms. */
 export const MPO_POLL_MS = 500;
@@ -38,7 +39,7 @@ export interface PositionPollerOptions {
 
 /** True when a classified board is connected and the link is neither LOST nor in FAULT. */
 export function positionPollable(s: SessionSnapshot): boolean {
-  return s.base === 'CONNECTED_UNKNOWN' && s.classification?.dialectId != null && !s.overlays.includes('LOST') && !s.overlays.includes('FAULT');
+  return READY_BASES.has(s.base) && s.classification?.dialectId != null && !s.overlays.includes('LOST') && !s.overlays.includes('FAULT');
 }
 
 export class PositionPoller {

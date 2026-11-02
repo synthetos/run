@@ -43,6 +43,11 @@ export interface SessionSnapshot {
   /** STALE: how long the link had been silent when STALE was entered (W4 counts on from it). */
   readonly stale: { readonly silentForMs: number } | null;
   readonly sent: { readonly lines: number; readonly realtime: number };
+  /**
+   * Phase 2 (SAFETY §4.5b): the motion in progress, or null. `hold` is true for a press-and-hold jog;
+   * `held` once a Pause of it is confirmed by polled reads (Resume is offered then).
+   */
+  readonly motion: { readonly op: 'jog' | 'goToZero' | 'stop'; readonly phase: string; readonly hold: boolean; readonly held: boolean; readonly stopping: boolean } | null;
 }
 
 function cap(s: string): string {
@@ -86,6 +91,16 @@ export function snapshotOf(state: SessionState): SessionSnapshot {
     lastAckAt: state.lastAckAt ?? null,
     stale: state.stale === null || !overlays.includes('STALE') ? null : { silentForMs: state.stale.silentForMs },
     sent: state.sent,
+    motion:
+      state.motion === null
+        ? null
+        : {
+            op: state.motion.op,
+            phase: state.motion.phase,
+            hold: state.motion.jog !== null && state.motion.jog.remainingMm === null,
+            held: state.motion.phase === 'held',
+            stopping: state.motion.phase === 'hold' || state.motion.phase === 'flush' || state.motion.reason === 'stopJob',
+          },
   });
 }
 

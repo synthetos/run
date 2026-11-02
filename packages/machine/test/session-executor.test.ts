@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { PHASE_1_RELEASE, CURRENT_RELEASE } from '@synthetos/safety';
 import { BYTE } from '@synthetos/protocol';
-import { MachineSession, checkWrite, escape, initialState, type PortSelector, type SessionClock, type Transport, type TransportInfo, type TransportOpenOptions, type TransportSource } from '../src/index.ts';
+import { MachineSession, checkWrite, escape, initialState, type SessionIntent, type PortSelector, type SessionClock, type Transport, type TransportInfo, type TransportOpenOptions, type TransportSource } from '../src/index.ts';
 import { Driver, EN_ANSWERS, EN_READY_BANNER, TG_ANSWERS } from './sessionDriver.ts';
 import { PORT } from './simTransport.ts';
 
@@ -505,7 +505,7 @@ describe('MachineSession: failures', () => {
 
   it('every request goes through the same path: other intents are decided and denied', async () => {
     const { session } = setup();
-    expect(session.request({ intent: 'jog' })).toMatchObject({ allowed: false });
+    expect(session.request({ intent: 'jog' } as unknown as SessionIntent)).toMatchObject({ allowed: false });
     expect(session.stopJob()).toMatchObject({ allowed: false });
     expect(session.spindleOffNow()).toMatchObject({ allowed: false });
     expect(session.ackFault()).toMatchObject({ allowed: false });

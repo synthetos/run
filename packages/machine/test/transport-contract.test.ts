@@ -111,6 +111,17 @@ describe('package entry', () => {
         'READOUT_TOKENS',
         'ReadoutPoller',
         'readoutsToPoll',
+        // Phase 2 bench motion (SAFETY §4.5b).
+        'CLEAR_LINE',
+        'MAX_JOG_FEED',
+        'MAX_MOTION_MM',
+        'MAX_RPM',
+        'MOTION_LIMITS',
+        'MOTION_READING_TOKENS',
+        'POLL_TOKENS',
+        'READY_BASES',
+        'motionCapable',
+        'motionLineKind',
       ].sort(),
     );
   });

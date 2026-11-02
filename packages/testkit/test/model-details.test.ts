@@ -103,8 +103,29 @@ describe('edge-next G-code word rules', () => {
     expect(sim.device.snapshot().coolant).toEqual({ mist: false, flood: false });
   });
 
+  it('G10 L20 and L2 set and persist the G54..G59 offset; other L and P values are refused (LIM-EN-G10)', () => {
+    const sim = enSim();
+    sim.host.sendLine('G0 X5 Y2');
+    sim.clock.advance(2000);
+    sim.host.sendLine('G10 L20 P1 X0 Y1');
+    sim.clock.advance(20);
+    expect(sim.device.settings.num('g54x')).toBeCloseTo(5, 6);
+    expect(sim.device.settings.num('g54y')).toBeCloseTo(1, 6);
+    expect(sim.device.settings.eeprom['g54x']).toBeCloseTo(5, 6);
+    sim.host.sendLine('G10 L2 P2 Z-3');
+    sim.clock.advance(20);
+    expect(sim.device.settings.num('g55z')).toBe(-3);
+    for (const line of ['G10 L1 P1 X0', 'G10 L20 P7 X0', 'G10 L20 X0']) {
+      const s = enSim();
+      s.host.take();
+      s.host.sendLine(line);
+      s.clock.advance(20);
+      expect(statuses(s.host.take()), line).not.toContain(0);
+    }
+  });
+
   it('throws ModelGapError for firmware features the model does not implement', () => {
-    for (const line of ['G28.2 X0', 'G10 L2 P1 X0', 'G38.2 Z-1 F10', 'M114', 'G2 X1 R1 F100']) {
+    for (const line of ['G28.2 X0', 'G38.2 Z-1 F10', 'M114', 'G2 X1 R1 F100']) {
       const sim = enSim();
       sim.host.sendLine(line);
       expect(() => sim.clock.advance(20), line).toThrow(ModelGapError);

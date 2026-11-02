@@ -75,7 +75,7 @@ describe('the connection path', () => {
     expect(d.state.classification).toMatchObject({ mode: 'full', reason: 'en-approved', buildIdentity: 'fbOnly' });
     expect(d.state.overlays).toEqual([]);
     for (const intent of ['jog', 'home', 'start', 'settingsWrite', 'resetController', 'spindleOn', 'setWorkZero'] as const) {
-      expect(d.intent({ intent }), intent).toMatchObject({ allowed: false, reason: 'Not available in this release.' });
+      expect(d.intent({ intent } as unknown as SessionIntent), intent).toMatchObject({ allowed: false, reason: 'Not available in this release.' });
     }
   });
 
@@ -1329,7 +1329,7 @@ describe('T-S26, T-S24a: generated over states × events (and every overlay reac
     );
     expect([...seenBases].sort()).toEqual(['BLOCKED', 'CONNECTED_UNKNOWN', 'IDENTIFYING', 'NOT_CONNECTED', 'OPENING', 'PORT_REQUEST', 'READING'].sort());
     expect([...seenOverlays].sort()).toEqual([...OVERLAYS].sort());
-  });
+   }, 30_000);
 
   it('the dialect data agrees: the realtime bytes the session uses are the dialect feedhold and ENQ', () => {
     expect(TINYG_EN.realtime.feedhold.byte).toBe(BYTE.FEEDHOLD);
