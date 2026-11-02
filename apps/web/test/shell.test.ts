@@ -129,6 +129,10 @@ describe('Phase 1 control allowlist', () => {
     /^label:(Toggle day\/night mode|Account: .*|Dialect|Find a machine|back left|back right|center|front left|front right|Link|Shop|Price in US dollars|Close|TinyG v8 board drawing\..*|J\d\.\d .+|M\d\.\d .+|.+, draft|.+, your profile)$/,
     /^button:(Workshop|Stock|Whole bed|3D|Top|Front|Block|Round|Sheet|Stock top|Stock bottom|\d+ clamps|No clamps|Remove the fixture|Use the sample plate|All|End mills|Ball nose|V-bits|Drills|O-flutes|Built-in|Mine \(\d+\)|Belt driven|Screw driven|Go to Run|T\d+ · .+|Motor \d|X|Y|Z|A)$/,
     /^(input|select|textarea):/,
+    // Report a problem (REPORT_A_PROBLEM): opens the dialog and builds links, files and Markdown from data run
+    // already holds. Never a board command; the dialog covers the views only, so it never gates Pause or Stop.
+    /^action:report-(problem|board|console|event|cancel|next|back|close|copy|download|open)$/,
+    /^action:consent-(whole|excerpt)$/,
   ];
   // Material and tool rows are plain buttons whose text is data: any other button must be in the list above.
   const LIST_ROW = /class="(material-row[^"]*|row-link)"/;

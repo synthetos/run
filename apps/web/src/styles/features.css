@@ -1,0 +1,104 @@
+/*
+ * Report a problem. Colour comes only from the theme, safety and
+ * drafting-accent tokens (tokens.css), mixed as workspace.css does. Blue
+ * stays primary; the tan is kept to section labels and the report mark.
+ * Imported by the workspace entry only.
+ */
+
+/* ---------------------------------------------------------------- shared */
+.quiet-link { border-color: transparent !important; background: none !important; color: var(--blue); padding: 0 6px !important; }
+.quiet-link:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+.quiet-link svg { width: 14px; height: 14px; }
+a.button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 0 14px; border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--sheet); color: var(--ink); font-weight: 500; font-size: 13px; text-decoration: none; white-space: nowrap; }
+a.button.primary { background: var(--blue); border-color: var(--blue); color: var(--on-blue); }
+a.button.primary:hover { background: var(--blue-dk); border-color: var(--blue-dk); }
+a.button svg, .report-actions button svg { width: 15px; height: 15px; }
+.clipboard-buffer { position: fixed; top: 0; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.body { position: relative; }
+.pick { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; cursor: pointer; }
+.pick input { margin: 0; accent-color: var(--blue); }
+
+/* ---------------------------------------------------------------- event notice */
+.event-notice { display: flex; align-items: center; gap: 10px; padding: 7px 20px; border-bottom: 1px solid var(--rule); border-left: 3px solid var(--danger); background: var(--danger-soft); font-size: 12.5px; }
+.event-notice p { margin: 0 auto 0 0; }
+.event-notice strong { color: var(--danger); }
+.event-icon { color: var(--danger); display: inline-grid; }
+.event-notice button svg { width: 14px; height: 14px; }
+
+/* ---------------------------------------------------------------- report dialog */
+.report-wrap { position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; padding: 18px; background: color-mix(in srgb, var(--ink) 26%, transparent); }
+.report-dialog { position: relative; width: 760px; display: flex; flex-direction: column; padding: 18px 22px 16px; }
+.report-dialog.is-write { width: min(1080px, 100%); height: 100%; max-height: 860px; }
+.report-dialog .dialog-head { margin-bottom: 4px; align-items: flex-start; }
+.report-head { display: flex; align-items: center; gap: 12px; }
+.report-mark { width: 36px; height: 36px; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--tan-wash); color: var(--tan); flex: none; }
+.report-mark svg { width: 18px; height: 18px; }
+.report-sub { font-size: 12px !important; color: var(--muted); margin: 2px 0 0 !important; line-height: 1.3 !important; }
+.report-dialog .dialog-head .icon-button { font-size: 20px; line-height: 1; }
+.report-safe { font-size: 12px !important; color: var(--muted); margin: 6px 0 12px !important; padding: 6px 10px; border-radius: var(--r-sm); background: var(--raise); border: 1px solid var(--line-soft); }
+.report-lead { color: var(--muted); margin: 0 0 12px !important; }
+
+.triage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.triage-card { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 4px; min-height: 108px; padding: 12px 14px; text-align: left; white-space: normal; font-weight: 400; }
+.triage-card strong { font: 600 15px/1.25 var(--cond); }
+.triage-card span { font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.triage-card .triage-dest { margin-top: auto; padding-top: 6px; font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.triage-card .triage-dest::before { content: ''; width: 14px; height: 1px; background: var(--field); }
+.triage-card[aria-checked="true"] { border-color: var(--blue); background: var(--blue-wash); box-shadow: inset 0 0 0 1px var(--blue); }
+.triage-card[aria-checked="true"] .triage-dest { color: var(--blue); }
+.triage-card[aria-checked="true"] .triage-dest::before { background: var(--blue); }
+.firmware-pick { display: flex; align-items: center; gap: 16px; margin-top: 12px; padding: 8px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); font-size: 12.5px; }
+.firmware-pick > span { color: var(--muted); }
+
+.report-write { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.15fr); gap: 22px; }
+.report-words, .report-collected { min-height: 0; overflow: auto; padding-right: 4px; }
+.report-words .field { margin: 0 0 12px; }
+.report-words label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.report-words .req { color: var(--tan); font-size: 11px; }
+.report-words input, .report-words textarea { width: 100%; border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--sheet); color: var(--ink); font: inherit; font-size: 13px; padding: 7px 10px; }
+.report-words input { height: 34px; }
+.report-words textarea { resize: vertical; line-height: 1.5; min-height: 52px; }
+.report-collected > .fine { margin: -2px 0 10px; }
+.report-items { display: flex; flex-direction: column; gap: 6px; }
+.report-item { border: 1px solid var(--line-soft); border-radius: var(--r-sm); padding: 8px 10px; background: var(--sheet); }
+.report-item.is-on { border-color: var(--rule); }
+.report-item.is-missing { background: var(--raise); }
+.report-item.is-missing label { opacity: .72; }
+.report-item-head { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: start; }
+.report-item-head input { margin: 2px 0 0; accent-color: var(--blue); }
+.report-item-head label { display: flex; flex-direction: column; gap: 1px; cursor: pointer; }
+.report-item-head strong { font-size: 13px; }
+.report-item-head small { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+.report-preview { margin: 6px 0 0 26px; }
+.report-preview > summary { cursor: pointer; font-size: 11.5px; color: var(--blue); width: max-content; }
+.report-preview pre { margin: 6px 0 2px; max-height: 180px; overflow: auto; padding: 8px 10px; border-radius: var(--r-sm); background: var(--paper); border: 1px solid var(--line-soft); font: 11.5px/1.5 var(--mono); white-space: pre; color: var(--ink); }
+.gcode-facts { margin: 8px 0 0 26px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.report-dialog .gcode-facts p, .report-dialog .report-items p { margin: 0; font-size: 12px; line-height: 1.5; }
+.gcode-facts .gcode-name code { background: var(--tan-wash); color: var(--ink); }
+.gcode-comments ul { margin: 4px 0 0 !important; padding: 5px 8px !important; max-height: 104px; overflow: auto; border-left: 2px solid var(--tan); background: var(--tan-wash); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.gcode-comments li { font: 11.5px/1.55 var(--mono); margin: 0 !important; padding: 0 !important; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scope-pick { display: flex; gap: 16px; padding-top: 2px; }
+
+.report-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.report-status { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); }
+
+.consent-wrap { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 20px; border-radius: 8px; background: color-mix(in srgb, var(--sheet) 70%, transparent); backdrop-filter: blur(1.5px); }
+.consent { width: 460px; max-width: 100%; display: grid; grid-template-columns: 36px 1fr; gap: 4px 14px; padding: 18px 20px; background: var(--sheet); border: 1px solid var(--rule); border-top: 3px solid var(--tan); border-radius: 8px; box-shadow: var(--pop); }
+.consent-icon { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--tan-wash); color: var(--tan); }
+.consent p { margin: 0 !important; font-size: 14px !important; line-height: 1.5 !important; font-weight: 500; align-self: center; }
+.consent-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+@media (max-width: 1100px) {
+  .report-write { grid-template-columns: 1fr; overflow: auto; }
+  .report-words, .report-collected { overflow: visible; }
+}
+@media (max-width: 720px) {
+  .triage-grid { grid-template-columns: 1fr; }
+  .report-actions { flex-wrap: wrap; }
+}
+
+/* ---------------------------------------------------------------- G-code line report */
+.preview-row { position: relative; }
+.preview-row-report { position: absolute; right: 6px; top: 2px; width: 22px; min-height: 18px; height: 18px; padding: 0; border-color: transparent; background: var(--sheet); color: var(--muted); opacity: 0; }
+.preview-row:hover .preview-row-report, .preview-row-report:focus-visible { opacity: 1; }
+.preview-row-report:hover:not(:disabled) { color: var(--blue); border-color: var(--rule); }

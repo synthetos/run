@@ -9,6 +9,8 @@ import { type BuildInfo, versionLabel } from '../../build-info/buildInfo.ts';
 import { signalText } from '../../shell/signal.ts';
 import { machineStore, myMaterialStore, setupStore, toolStore } from '../library.ts';
 import { SAMPLES } from '../samples.ts';
+import { Icon } from '../icons.ts';
+import { openReport } from '../../report/state.ts';
 
 function head(title: string, sub: string): ComponentChild {
   return h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, title), h('p', null, sub)));
@@ -104,6 +106,13 @@ export function SafetyView(): ComponentChild {
         h('div', { class: 'panel-head' }, h('h2', null, 'Pause and Stop job')),
         h('p', null, 'Pause and Stop job sit in the same place in every view and are never blocked by sign-in or by a mode. Escape pauses from anywhere. They are controlled stops sent over a channel that is not safety rated, and they may be delayed or never delivered.'),
         h('p', null, 'In this release Stop job sends a feedhold, like Pause. On TinyG a feedhold does not stop the spindle or coolant: use your E-stop to remove power.'),
+      ),
+      h(
+        'div',
+        { class: 'panel report-panel' },
+        h('div', { class: 'panel-head' }, h('h2', null, 'Report a problem')),
+        h('p', null, 'Something wrong with run, the firmware or the board? Run gathers what it already knows, shows you every piece before anything is posted, and opens the right place: run or firmware issues on GitHub, or the forum for questions. Reporting sends nothing to the machine.'),
+        h('button', { type: 'button', class: 'small', 'data-action': 'report-problem', onClick: () => openReport({ origin: 'safety' }) }, Icon('flag', 14), 'Report a problem'),
       ),
       h('div', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h2', null, 'What this tool cannot guarantee')), h('ol', { class: 'cannot-list' }, CANNOT_GUARANTEE.map((item) => h('li', { key: item }, item)))),
       h('p', { class: 'fine' }, 'The full safety contract is at ', h('a', { href: '/safety/', target: '_blank', rel: 'noopener' }, 'run.synthetos.com/safety'), ' (opens in a new tab, so this workspace keeps its connection).'),

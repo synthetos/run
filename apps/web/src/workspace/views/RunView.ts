@@ -30,6 +30,8 @@ import { readStored, writeStored } from '../storage.ts';
 import { CheckRow, TabBar, TabPane } from '../ui.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
+import { openReport } from '../../report/state.ts';
+import { currentFile } from '../fileBridge.ts';
 import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
 
 export interface RunViewProps {
@@ -42,7 +44,17 @@ export interface RunViewProps {
 export function RunView({ model, spawn, marker, onView }: RunViewProps): ComponentChild {
   const live = model?.live.value ?? null;
   const reportedLine = live !== null && connected(live) ? (live.message?.snapshot.live.line ?? null) : null;
-  return h(PreviewPanel, { spawn, ...(marker === undefined ? {} : { marker }), reportedLine, layout: (parts: PreviewParts) => runLayout(parts, model, onView) });
+  return h(PreviewPanel, { spawn, ...(marker === undefined ? {} : { marker }), reportedLine, onReportLine: (line: number) => openReport({ origin: 'line', line }), layout: (parts: PreviewParts) => runLayout(parts, model, onView) });
+}
+
+/** Publishes the open file for a report's excerpt (workspace/fileBridge.ts). Renders nothing. */
+function RunBridge({ parts }: { readonly parts: PreviewParts }): ComponentChild {
+  const { state } = parts;
+  const result = state.status === 'ready' ? state.result : null;
+  useEffect(() => {
+    currentFile.value = result === null || state.fileName === null ? null : { name: state.fileName, bytes: result.bytes };
+  }, [result, state.fileName]);
+  return null;
 }
 
 // ---------------------------------------------------------------- connect
@@ -609,6 +621,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
   return h(
     'div',
     { class: 'run-view', 'data-region': 'preview' },
+    h(RunBridge, { parts }),
     h(JobCard, { parts }),
     h(
       'div',

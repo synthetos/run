@@ -37,6 +37,9 @@ import { MaterialsView, ToolsView } from './views/LibraryViews.ts';
 import { MachinesView } from './views/MachinesView.ts';
 import { AnalyzeView, PreferencesView, ProjectsView, SafetyView } from './views/OtherViews.ts';
 import { RunView } from './views/RunView.ts';
+import { eventNotice } from '../report/notice.ts';
+import { ReportDialog } from '../report/ReportDialog.ts';
+import { openReport } from '../report/state.ts';
 import { SetupView } from './views/SetupView.ts';
 
 export type ViewId = 'run' | 'setup' | 'tools' | 'materials' | 'board' | 'machines' | 'projects' | 'analyze' | 'settings' | 'safety';
@@ -103,6 +106,21 @@ function AccountMenu(): ComponentChild {
           h('div', { class: 'account-id' }, h('span', { class: 'avatar large', 'aria-hidden': 'true' }, Icon('cloud', 18)), h('div', null, h('strong', null, 'Not signed in'), h('small', null, 'Synthetos accounts arrive soon'))),
           h('div', { class: 'sync-row', 'data-sync': 'local' }, h('div', null, h('strong', null, 'Kept in this browser'), h('small', null, 'Machines, tools, materials and setup are saved here. Account sync comes later.'))),
           h('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: true }, 'Sign in with GitHub'),
+          h(
+            'button',
+            {
+              type: 'button',
+              class: 'menu-item',
+              role: 'menuitem',
+              'data-action': 'report-problem',
+              onClick: () => {
+                setOpen(false);
+                openReport({ origin: 'menu' });
+              },
+            },
+            Icon('flag', 15),
+            'Report a problem',
+          ),
           h('p', { class: 'menu-foot' }, 'Pause, Stop job and the other stop controls never need you to be signed in.'),
         )
       : null,
@@ -114,10 +132,20 @@ function Banners(props: AppShellProps): ComponentChild {
   const snapshot = view?.message?.snapshot ?? null;
   const role = props.role?.value ?? null;
   const live = props.liveTab?.value === true;
+  const notice = eventNotice(snapshot);
   return h(
     'div',
     { class: 'banners', 'data-region': 'overlay-banners' },
     h(OverlayBanners, { snapshot, staleElapsedMs: view?.staleSince === null || view?.staleSince === undefined ? 0 : Date.now() - view.staleSince }),
+    notice === null
+      ? null
+      : h(
+          'div',
+          { class: 'event-notice', role: 'status', 'data-event-notice': notice.kind },
+          h('span', { class: 'event-icon', 'aria-hidden': 'true' }, Icon('hazard', 16)),
+          h('p', null, h('strong', null, notice.title), ' ', notice.detail),
+          h('button', { type: 'button', class: 'small', 'data-action': 'report-event', onClick: () => openReport({ origin: 'notice', event: notice.event }) }, Icon('flag', 14), 'Report this'),
+        ),
     role === null || live || (!role.observing && role.released.length === 0)
       ? null
       : h(
@@ -210,6 +238,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
           pane('safety', h(SafetyView, null)),
         ),
       ),
+      h(ReportDialog, { build: props.build, model, view: current }),
     ),
     h(
       'footer',

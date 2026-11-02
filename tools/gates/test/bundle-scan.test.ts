@@ -13,6 +13,9 @@ import {
   type BundleFile,
   NAMESPACE_URIS,
   OUTBOUND_URLS,
+  ADMITTED_REPORT_URLS,
+  REPORT_URL_PREFIXES,
+  REPORT_URLS,
   scanBundle as scanBundleFor,
   scanText as scanTextFor,
   SCAN_TARGETS,
@@ -201,6 +204,43 @@ describe('outbound links (P0-05)', () => {
   it('refuses an unreviewed URL even in an anchor', () => {
     expect(rules('index.html', '<a href="https://evil.example/">x</a>')).toEqual(['origin-literal']);
     expect(rules('index.html', '<a href="https://support.google.com/chrome/answer/1">x</a>')).toEqual(['origin-literal']);
+  });
+});
+
+describe('report destinations (REPORT_A_PROBLEM §6)', () => {
+  const run = 'https://github.com/synthetos/run/issues/new';
+  const forum = 'https://synthetos.com/forum/new/';
+
+  it('the reviewed allowance is the synthetos GitHub organisation and the forum, and every report URL is under it', () => {
+    expect(REPORT_URL_PREFIXES).toEqual(['https://github.com/synthetos/', 'https://synthetos.com/forum/']);
+    expect(REPORT_URLS).toContain(run);
+    expect(REPORT_URLS).toContain(forum);
+    for (const u of REPORT_URLS) expect(REPORT_URL_PREFIXES.some((p) => u.startsWith(p)), u).toBe(true);
+    expect(ADMITTED_REPORT_URLS).toEqual(REPORT_URLS);
+  });
+
+  it('allows each report URL as a whole string literal in a JavaScript chunk', () => {
+    for (const u of REPORT_URLS) {
+      expect(rules('assets/workspace-abc.js', `const t={url:"${u}"};`), u).toEqual([]);
+      expect(rules('assets/workspace-abc.js', `const t={url:'${u}'};`), u).toEqual([]);
+    }
+  });
+
+  it('refuses anything longer, shorter or different, even under the same prefix', () => {
+    expect(rules('assets/workspace-abc.js', `x("${run}?title=a")`)).toEqual(['origin-literal']);
+    expect(rules('assets/workspace-abc.js', `x(\`${run}?title=\${t}\`)`)).toEqual(['origin-literal']);
+    expect(rules('assets/workspace-abc.js', 'x("https://github.com/synthetos/")')).toEqual(['origin-literal']);
+    expect(rules('assets/workspace-abc.js', 'x("https://github.com/synthetos/run/issues/new2")')).toEqual(['origin-literal']);
+    expect(rules('assets/workspace-abc.js', 'x("https://github.com/evil/run/issues/new")')).toEqual(['origin-literal']);
+    expect(rules('assets/workspace-abc.js', 'x("https://synthetos.com/forum/admin/")')).toEqual(['origin-literal']);
+  });
+
+  it('refuses a report URL that is not a whole literal, and in markup, CSS or any other file', () => {
+    expect(rules('assets/workspace-abc.js', `x("${run}'+y)`)).toEqual(['origin-literal']);
+    expect(rules('index.html', `<a href="${run}">x</a>`)).toEqual(['origin-literal']);
+    expect(rules('index.html', `<img src="${forum}">`)).toEqual(['origin-literal']);
+    expect(rules('assets/base.css', `a{background:url("${run}")}`)).toEqual(['origin-literal']);
+    expect(rules('manifest.webmanifest', `{"start_url":"${forum}"}`)).toEqual(['origin-literal']);
   });
 });
 
