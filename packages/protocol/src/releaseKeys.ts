@@ -7,13 +7,16 @@
  * not sign for production cannot make a production approval, whatever its
  * payload says (the payload's `env` must ALSO match: approvedBuilds.ts).
  *
- * LEAD ACTION (owner): the only key below is a PLACEHOLDER generated during
- * P0-08 so the bench channel can be signed and tested now. It is authorised
- * for `staging` only, so it can never approve a production build. Before any
- * release-channel entry is needed (D4, D5), the owner generates the offline
- * Ed25519 release key on a hardware-isolated machine, adds its public half
- * here with the environments it may sign, removes the placeholder, and
+ * Owner action: the only key below is the owner's bench key. It is marked
+ * `placeholder` and authorised for `staging` only, so it can never approve a
+ * production build. Before any release-channel entry is needed (D5), the
+ * owner generates the offline Ed25519 release key on a hardware-isolated
+ * machine, adds its public half here with the environments it may sign, and
  * re-signs the manifest with `pnpm sign:builds` (docs/ops/release-key.md).
+ *
+ * The P0-08 development key `placeholder-bench-2026-11-01` was removed on
+ * 2026-11-02: its private half was treated as disclosed, and nothing
+ * committed is signed with it any more.
  */
 
 export interface ReleaseKey {
@@ -33,12 +36,6 @@ export const RELEASE_KEYS: readonly ReleaseKey[] = Object.freeze([
   Object.freeze({
     kid: 'owner-bench-2026-11-02',
     publicKey: 'pC9KYeUSYum5QOyA8MoehjMWLGOg/2luNgaB/O6oJkY=',
-    environments: Object.freeze(['staging'] as const),
-    placeholder: true,
-  }),
-  Object.freeze({
-    kid: 'placeholder-bench-2026-11-01',
-    publicKey: 'yYYGnK63u6XSBDm94KyboC7q3nfTzjRlgxrB1VZWYuo=',
     environments: Object.freeze(['staging'] as const),
     placeholder: true,
   }),

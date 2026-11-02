@@ -298,7 +298,7 @@ describe('the committed firmware/approved-builds.json', () => {
     expect(out.approved.builds[0]?.fb).toBe(pins.pins.EN.fb);
   });
 
-  it('approves nothing in production: the release channel is empty and the placeholder key cannot sign for it', async () => {
+  it('approves nothing in production: the release channel is empty and the staging-only bench key cannot sign for it', async () => {
     const out = await verifyApprovedBuilds(committed, { origin: PRODUCTION, now: NOW });
     expect(out.approved.builds).toEqual([]);
     expect(out.channels).toEqual([

@@ -40,14 +40,24 @@ token.
   `firmware/approved-builds.unsigned.json`. The signed file holds each channel
   as a JSON string with its signature. A gate test fails if the two disagree.
 
-## Status (2026-11-01): placeholder key
+## Status (2026-11-02): owner bench key
 
-The only key in `releaseKeys.ts` is `placeholder-bench-2026-11-01`. It was
-generated during P0-08 so that the bench channel could be signed and tested.
-It is authorised for **staging only**, and a test fails if a placeholder key
-is ever authorised for production. Its private half is not in the repository.
-It was left in the P0-08 build session's scratch directory; treat it as
-disclosed and replace it.
+The only key in `releaseKeys.ts` is `owner-bench-2026-11-02`, the owner's
+bench key. It is marked `placeholder: true` and authorised for **staging
+only**, and a test fails if a placeholder key is ever authorised for
+production. Its private half is kept outside the repository. It is not the
+offline release key, which step 1 below still creates.
+
+Both committed signed files are signed with it, and each signature verifies
+against its compiled-in public key:
+
+- `firmware/approved-builds.json`: the `bench` and `release` channels;
+- `apps/web/public/safety-advisory.json`: the `staging` advisory.
+
+The P0-08 development key `placeholder-bench-2026-11-01` was removed from
+`RELEASE_KEYS` on 2026-11-02. Its private half had been left in a build
+session's scratch directory and was treated as disclosed; nothing committed
+was signed with it any more, so removing it changes no approval.
 
 ### The signed bench note predates D4
 
@@ -60,16 +70,17 @@ approval decision reads the note. (The commit is the previous pin; see the
 next section.)
 
 It was deliberately **not** edited in the P0 review fix pass. A note is part
-of the signed bytes, so changing it means re-signing (step 3 below), and the
-only key that could sign is the placeholder whose private half is treated as
-disclosed and is not available to a fix pass. Editing the unsigned file alone
-would fail the gate test that compares the two files.
+of the signed bytes, so changing it means re-signing (step 3 below) with a
+key only the owner holds. The 2026-11-02 re-sign with the owner's bench key
+kept the note's wording, so the note also still says it was signed with the
+placeholder bench key. Editing the unsigned file alone would fail the gate
+test that compares the two files.
 
 **At your next re-sign** (which step 2 below needs anyway), replace the note
 with, for example: "TinyG edge-next 450.01 (D4 done) for bench use on staging
 only. It reports no fbs, so every 450.01 build matches; no image has passed
 D5." The gate test `tools/gates/test/doc-drift.test.ts` then requires this
-section (and its line in `docs/LEAD_ACTIONS.md`) to be removed.
+section to be removed.
 
 ## Lead actions (owner)
 
@@ -86,7 +97,8 @@ section (and its line in `docs/LEAD_ACTIONS.md`) to be removed.
 2. **Compile the public key in.** Add it to `RELEASE_KEYS` in
    `packages/protocol/src/releaseKeys.ts` with a new `kid`,
    `placeholder: false`, and the environments it may sign (`staging`, and
-   `production` once D5 has an approved image). Remove the placeholder entry.
+   `production` once D5 has an approved image). Remove the bench key entry
+   once nothing committed is signed with it (see Rotation below).
 3. **Approve and sign.** Edit `firmware/approved-builds.unsigned.json` (bench:
    the edge-next candidate you approve, by `fb` and commit; replace the bench
    note that predates D4, see above), then run this on
