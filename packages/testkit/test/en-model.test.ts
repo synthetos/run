@@ -233,6 +233,32 @@ describe('TinyGEdgeNextModel: P0-11 acceptance', () => {
     expect(sim.device.settings.eeprom['xvm']).toBe(1300);
   });
 
+  it('[EN-EEPROM-STALL] a persisted write stalls the board: its answer waits for the EEPROM write, and bytes sent meanwhile are lost', () => {
+    const sim = enSim({ eepromWriteMs: 40 });
+    sim.host.sendLine('{"xvm":1234}');
+    sim.clock.advance(5);
+    // The write is being saved: no answer yet, and a GET sent now is lost.
+    expect(replies(sim.host.take())).toEqual([]);
+    sim.host.sendLine('{"xfr":null}');
+    sim.clock.advance(60);
+    const lines = sim.host.take();
+    expect(statuses(lines)).toEqual([0]);
+    expect(replies(lines)[0]?.r).toEqual({ xvm: 1234 });
+    expect(sim.device.settings.eeprom['xvm']).toBe(1234);
+    expect(sim.device.eepromWrites).toBe(1);
+    expect(sim.device.eepromLostBytes).toBe('{"xfr":null}\n'.length);
+    // After the stall the board answers again; a write that changes nothing in EEPROM does not stall.
+    sim.host.sendLine('{"xvm":1234}');
+    sim.clock.advance(30);
+    expect(statuses(sim.host.take())).toEqual([0]);
+    expect(sim.device.eepromWrites).toBe(1);
+    // Off by default: existing transcripts are unchanged.
+    const plain = enSim();
+    plain.host.sendLine('{"xvm":1300}');
+    plain.clock.advance(30);
+    expect(statuses(plain.host.take())).toEqual([0]);
+  });
+
   it('[EN-E138] a GET of md sets the motors-de-energized flag', () => {
     const sim = enSim();
     sim.host.sendLine('G1 X1 F600');

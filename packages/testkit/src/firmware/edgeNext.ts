@@ -204,6 +204,12 @@ export class TinyGEdgeNextModel implements SimDevice {
   readonly baudRate = 115200;
   readonly settings: Settings;
   readonly sideEffects: SideEffect[] = [];
+  /** Bytes the board lost because they arrived while a persisted write was stalling it (EEPROM). */
+  eepromLostBytes = 0;
+  /** Persisted settings writes that changed EEPROM (each stalled the board). */
+  eepromWrites = 0;
+  #eepromBusyUntil = Number.NEGATIVE_INFINITY;
+  #eepromTx: number[] = [];
   readonly #options: TinyGModelOptions;
   #io: DeviceIo | undefined;
 
@@ -295,6 +301,12 @@ export class TinyGEdgeNextModel implements SimDevice {
    */
   receive(byte: number, overrun: boolean): void {
     if (!this.#booted) return; // the UART is not initialised yet (model limit: bytes during boot are lost)
+    if (this.#eepromBusy()) {
+      // @behaviour EN-EEPROM-STALL (model): a persisted write stalls the board; bytes sent meanwhile are lost.
+      this.eepromLostBytes++;
+      this.#event(`byte 0x${byte.toString(16).padStart(2, '0')} lost: EEPROM write in progress`);
+      return;
+    }
     // @behaviour EN-RT-TRAP
     if (byte === CHAR.RESET) {
       // @behaviour EN-RT-RESET: hw_hard_reset() straight from the ISR (:201-204): interrupts off, the
@@ -542,6 +554,11 @@ export class TinyGEdgeNextModel implements SimDevice {
   #tick(): void {
     this.#tickTimer = undefined;
     if (!this.#booted) return;
+    if (this.#eepromBusy()) {
+      // The main loop is stalled until the EEPROM write ends.
+      this.#tickTimer = this.#clock().setTimeout(() => this.#tick(), Math.max(0, this.#eepromBusyUntil - this.#now()));
+      return;
+    }
     for (let i = 0; i < 256; i++) {
       if (!this.#pass()) break;
     }
@@ -1879,7 +1896,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     // (@cite EN json_parser.c:334-337; persistence.c:88-92)
     if (info.persist) {
       if (this.#cycle !== 'off') return this.#exception(ST('COMMAND_NOT_ACCEPTED'), "Can't save when moving");
-      this.settings.persist(key);
+      if (this.settings.persist(key)) this.#eepromStall(key);
     }
     return 0;
   }
@@ -2114,9 +2131,32 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#progress++;
   }
 
+  #eepromBusy(): boolean {
+    return this.#now() < this.#eepromBusyUntil;
+  }
+
+  /** A persisted write changed EEPROM: the board stalls; its answer goes out when the stall ends. */
+  #eepromStall(key: string): void {
+    const ms = this.#options.eepromWriteMs ?? 0;
+    if (ms <= 0) return;
+    this.eepromWrites++;
+    this.#eepromBusyUntil = this.#now() + ms;
+    this.#event(`EEPROM write of ${key}: stalled for ${ms} ms`);
+    this.#clock().setTimeout(() => {
+      const held = this.#eepromTx;
+      this.#eepromTx = [];
+      if (held.length > 0) this.#transmit(held);
+      this.#wake();
+    }, ms);
+  }
+
   #transmit(bytes: number[]): void {
     const io = this.#io;
     if (io === undefined) return;
+    if (this.#eepromBusy()) {
+      this.#eepromTx.push(...bytes);
+      return;
+    }
     if (this.#hostXoff && !(bytes.length === 1 && (bytes[0] === CHAR.XON || bytes[0] === CHAR.XOFF))) {
       this.#txHeld.push(...bytes);
       return;

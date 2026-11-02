@@ -7,7 +7,7 @@ Every behaviour a safety claim depends on carries a citation at a pinned commit 
 (RUN_PLAN §8.1 honesty rule). Pins: EN = TinyG edge-next `6ec70652`, TG = master `d0418390` (440.21),
 EN-HIL = edge-next `tests/hil/` (`vendor/firmware-pins.json`). EN and TG paths are under `firmware/tinyg/`.
 
-Totals: 82 behaviours (3 UNVERIFIED, 79 verified-source, 0 verified-bench).
+Totals: 83 behaviours (4 UNVERIFIED, 79 verified-source, 0 verified-bench).
 
 ## UNVERIFIED (release checklist)
 
@@ -15,6 +15,7 @@ Each must be bench-verified, or covered by a mitigation that does not depend on 
 
 | Id | Status | Behaviour | Citation | Bench |
 |---|---|---|---|---|
+| EN-EEPROM-STALL | UNVERIFIED | A persisted SET that changes EEPROM stalls the board while the bytes are written: input received meanwhile is lost and the answer goes out when the write ends. Off by default in the model (eepromWriteMs); the duration is a model value. | EN persistence.c:93-101 | B-EEPROM-1 (proposed: time a persisted write and send a GET during it; firmware maintainer note 2026-11-02) |
 | TG-HARD-ALARM-SPINDLE | UNVERIFIED | The hard alarm's spindle off is itself a queued command behind a stopped runtime; the model keeps the spindle on (the conservative reading). Whether it actually turns off is not known. | TG canonical_machine.c:603-604; TG spindle.c:91-96 | B-TG-ALARM-1 (proposed; not yet in PROTOCOL_NOTES §15) |
 | TG-OVERRUN-SPLICE | UNVERIFIED | After an overrun the reader joins the head of one line to the tail of another, and the spliced line runs if it parses. (E162) | TG xio/xio_usb.c:186-191 | B-FC-1 |
 | TG-PROGRAM-END-SPINDLE | UNVERIFIED | At program end the finalize queues spindle off and coolant off as further commands; the model runs them in queue order. | TG canonical_machine.c:1363-1371 | B-M2-1 |
@@ -23,6 +24,7 @@ Each must be bench-verified, or covered by a mitigation that does not depend on 
 
 | Id | Status | Behaviour | Citation | Bench |
 |---|---|---|---|---|
+| EN-EEPROM-STALL | UNVERIFIED | A persisted SET that changes EEPROM stalls the board while the bytes are written: input received meanwhile is lost and the answer goes out when the write ends. Off by default in the model (eepromWriteMs); the duration is a model value. | EN persistence.c:93-101 | B-EEPROM-1 (proposed: time a persisted write and send a GET during it; firmware maintainer note 2026-11-02) |
 | EN-ALARM | verified-source | cm_alarm: idle (incl. a dwell) holds at once and stops the dwell; moving gets a feedhold and a planner flush; spindle and coolant off immediately; host input is kept and rejected line by line with 204. (E044, E019, E145) | EN canonical_machine.c:810-855; EN gcode_parser.c:78-80 |  |
 | EN-ARC-COINCIDENT | verified-source | Center-format G17 arcs as cm_arc_feed()/_compute_arc(): end points fp_EQ to the start on both plane axes (float32) are a full circle in the commanded direction; otherwise the atan2 angle difference is wrapped (G2 positive, G3 negative); fp_ZERO angular travel is ALARM 159; an end radius off by more than 1 mm (or 0.005 mm and 5 %) is ALARM 154. No X/Y word is a full circle; P adds turns (a fractional P is used as given). Every block in G2/G3 mode reaches the arc code: no G2/G3 word and no I/J/K is a no-op; a G2/G3 word with no XYZ, offset or P only sets the mode. | EN plan_arc.c:133-145; EN plan_arc.c:176-183; EN plan_arc.c:201-214; EN plan_arc.c:308-314; EN plan_arc.c:324-330; EN plan_arc.c:347-350; EN plan_arc.h:35-37; EN gcode_parser.c:701-707; EN util.h:135-145 |  |
 | EN-ARC-SOFT-LIMITS | verified-source | Arcs are soft-limit checked (endpoint and the plane extremes the arc sweeps); a violation is an ALARM. The extent test has the same fp_EQ skip and DISABLE_SOFT_LIMIT ends as cm_test_soft_limits(). (E041) | EN plan_arc.c:259-265; EN plan_arc.c:590-603; EN plan_arc.c:606-618 |  |

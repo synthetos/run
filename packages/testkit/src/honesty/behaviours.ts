@@ -496,6 +496,15 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     ],
   },
   {
+    id: 'EN-EEPROM-STALL',
+    model: EN,
+    summary:
+      'A persisted SET that changes EEPROM stalls the board while the bytes are written: input received meanwhile is lost and the answer goes out when the write ends. Off by default in the model (eepromWriteMs); the duration is a model value.',
+    status: 'UNVERIFIED',
+    cites: [{ src: 'EN', file: 'persistence.c', lines: [93, 101], quote: 'EEPROM_WriteBytes' }],
+    bench: 'B-EEPROM-1 (proposed: time a persisted write and send a GET during it; firmware maintainer note 2026-11-02)',
+  },
+  {
     id: 'EN-E138',
     model: EN,
     summary:

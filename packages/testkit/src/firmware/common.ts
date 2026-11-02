@@ -26,6 +26,14 @@ export interface TinyGModelOptions {
   readonly holdDecelMs?: number;
   /** Model timing: boot time before the first banner. Default 1000 ms. Not a firmware fact. */
   readonly bootMs?: number;
+  /**
+   * Model timing: how long a persisted settings write stalls the board while EEPROM is written
+   * (edge-next model). Default 0 (no stall), so existing transcripts are unchanged; tests that model it pass a value. During the stall the board neither reads nor answers: bytes
+   * received are lost, and the write's own answer is sent when the stall ends (firmware maintainer,
+   * 2026-11-02: "a persisted write stalls the board while EEPROM writes, and bytes sent meanwhile are
+   * lost"). The duration is not a measured firmware fact.
+   */
+  readonly eepromWriteMs?: number;
 }
 
 /** What a test can inspect without going through the wire. */
