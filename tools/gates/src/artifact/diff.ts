@@ -26,7 +26,13 @@
  *   production seam imports the transport, the test seam replaces it, so the
  *   chunk exists in production only. It is the one file the production tree
  *   may have that the test tree lacks. `test-web-serial`: the test tree has
- *   a file there; the test build must never reach a real port.
+ *   any other file there; the test build must never reach a real port.
+ * - The window's port chooser chunk (`assets/serial/web-serial-chooser.js`,
+ *   OD-3, approved 2026-11-02): the page imports it in every build, so both
+ *   trees hold it, and it must be byte-identical (`test-web-serial`
+ *   otherwise). It shows the browser's chooser and describes the choice; it
+ *   cannot open a port, and in the test build the worker's mock source only
+ *   accepts the simulated board's selector.
  *
  * Dependency-free (node: only), like the other build gates.
  */
@@ -34,10 +40,13 @@ import { createHash } from 'node:crypto';
 import type { TreeFile } from '../shared/files.ts';
 import { TESTKIT_MARKER } from '../../../../packages/testkit/src/marker.ts';
 import { TRANSPORT_CHUNK_NAME } from '../../../../apps/web/build/fakeSerial.ts';
-import { SERIAL_ASSET_DIR } from '../../../../apps/web/build/chunks.ts';
+import { SERIAL_ASSET_DIR, SERIAL_CHOOSER_CHUNK_NAME } from '../../../../apps/web/build/chunks.ts';
 
 /** The one file allowed to differ. */
 export const SEAM_CHUNK = `assets/${TRANSPORT_CHUNK_NAME}.js`;
+
+/** The window's port chooser chunk: under assets/serial/, in both trees, identical (OD-3). */
+export const CHOOSER_CHUNK = `${SERIAL_ASSET_DIR}${SERIAL_CHOOSER_CHUNK_NAME}.js`;
 
 /** File types whose content can name other files (and is normalised before hashing). */
 const TEXT = /\.(js|mjs|css|html|json|webmanifest|svg|txt|xml|map)$|(^|\/)_headers$|(^|\/)LICENSE[^/]*$/;
@@ -128,10 +137,11 @@ export function compareArtifacts(production: readonly TreeFile[], test: readonly
   const fakeBy = new Map(fake.entries.map((e) => [e.logical, e]));
 
   for (const logical of prodBy.keys()) {
-    if (fakeBy.has(logical) || logical.startsWith(SERIAL_ASSET_DIR)) continue;
+    if (fakeBy.has(logical) || (logical.startsWith(SERIAL_ASSET_DIR) && logical !== CHOOSER_CHUNK)) continue;
     findings.push({ rule: 'file-set', file: logical, message: `${logical} is in the production artifact but not in the test artifact` });
   }
-  for (const logical of fakeBy.keys()) {
+  for (const [logical, t] of fakeBy) {
+    if (logical === CHOOSER_CHUNK && prodBy.get(logical)?.sha256 === t.sha256) continue;
     if (logical.startsWith(SERIAL_ASSET_DIR)) {
       findings.push({ rule: 'test-web-serial', file: logical, message: `${logical}: the test artifact holds the Web Serial transport's chunk; it must never reach a real port` });
     } else if (!prodBy.has(logical)) {
@@ -140,7 +150,7 @@ export function compareArtifacts(production: readonly TreeFile[], test: readonly
   }
   for (const [logical, p] of prodBy) {
     const t = fakeBy.get(logical);
-    if (t === undefined || logical === SEAM_CHUNK || t.sha256 === p.sha256) continue;
+    if (t === undefined || logical === SEAM_CHUNK || t.sha256 === p.sha256 || logical.startsWith(SERIAL_ASSET_DIR)) continue;
     findings.push({
       rule: 'unexpected-difference',
       file: logical,
@@ -174,7 +184,7 @@ export function renderHashList(production: HashList, test: HashList): string {
   const lines = production.entries.map((p) => {
     const t = testBy.get(p.logical);
     const state =
-      t === undefined ? (p.logical.startsWith(SERIAL_ASSET_DIR) ? 'serial' : 'MISSING') : t.sha256 === p.sha256 ? 'same' : p.logical === SEAM_CHUNK ? 'seam' : 'DIFFERS';
+      t === undefined ? (p.logical.startsWith(SERIAL_ASSET_DIR) && p.logical !== CHOOSER_CHUNK ? 'serial' : 'MISSING') : t.sha256 === p.sha256 ? 'same' : p.logical === SEAM_CHUNK ? 'seam' : 'DIFFERS';
     return `${state.padEnd(8)} ${p.sha256.slice(0, 16)} ${(t?.sha256 ?? '-').slice(0, 16).padEnd(16)} ${p.logical}`;
   });
   return `${'state'.padEnd(8)} ${'production'.padEnd(16)} ${'test'.padEnd(16)} file\n${lines.join('\n')}\n`;

@@ -234,6 +234,31 @@ module.exports = {
       to: { dependencyTypesNot: ['type-only'] },
     },
 
+    {
+      name: 'web-serial-chooser-importers',
+      comment:
+        "The window's port chooser (packages/machine/src/webSerialChooser.ts; OD-3, approved by the owner " +
+        '2026-11-02) is the second and last module that may touch navigator.serial. It calls requestPort(), ' +
+        "which exists only on Window, and describes the choice as a PortSelector; it never opens a port. " +
+        'Exactly one main-thread module may import it, apps/web/src/live/portChooser.ts ' +
+        '(tools/gates/src/shared/webSerialNames.ts, WEB_SERIAL_CHOOSER_IMPORTER), plus the machine ' +
+        "package's own tests. The machine package entry never re-exports it.",
+      severity: 'error',
+      from: { pathNot: '(^apps/web/src/live/portChooser\\.ts$|^packages/machine/test/)' },
+      to: { path: '^packages/machine/src/webSerialChooser\\.ts$' },
+    },
+
+    {
+      name: 'web-serial-chooser-type-imports-only',
+      comment:
+        'The port chooser imports types only, so its page chunk holds that one module ' +
+        '(apps/web/build/chunks.ts files it under assets/serial/, the only place the bundle scan admits ' +
+        'Web Serial) and nothing else can join it.',
+      severity: 'error',
+      from: { path: '^packages/machine/src/webSerialChooser\\.ts$' },
+      to: { dependencyTypesNot: ['type-only'] },
+    },
+
     // --- The localhost bench build (P1-00, D41 proposed) -----------------
     {
       name: 'bench-channel-only-through-the-build',

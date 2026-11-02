@@ -21,8 +21,8 @@ import {
   TESTKIT_MARKER,
   BENCH_MARKER,
 } from '../src/bundle/scan.ts';
-import { WEB_SERIAL_TRANSPORT_MODULE } from '../src/shared/webSerialNames.ts';
-import { WEB_SERIAL_TRANSPORT_PATH } from '../../../apps/web/build/chunks.ts';
+import { WEB_SERIAL_CHOOSER_MODULE, WEB_SERIAL_TRANSPORT_MODULE } from '../src/shared/webSerialNames.ts';
+import { WEB_SERIAL_CHOOSER_PATH, WEB_SERIAL_TRANSPORT_PATH } from '../../../apps/web/build/chunks.ts';
 import { NETWORK_IDENTIFIERS } from '../src/shared/networkIdentifiers.ts';
 import { renderHeadersFile } from '../../../workers/run/src/headers.ts';
 
@@ -482,6 +482,10 @@ describe('P1-00: scan targets and the Web Serial chunk', () => {
 
   it("names the same transport module as the gates' canonical constant", () => {
     expect(WEB_SERIAL_TRANSPORT_PATH).toBe(WEB_SERIAL_TRANSPORT_MODULE);
+  });
+
+  it("names the same port chooser module as the gates' canonical constant (OD-3)", () => {
+    expect(WEB_SERIAL_CHOOSER_PATH).toBe(WEB_SERIAL_CHOOSER_MODULE);
   });
 
   it('staging admits a static navigator.serial read and the Web Serial method names in the serial chunk', () => {

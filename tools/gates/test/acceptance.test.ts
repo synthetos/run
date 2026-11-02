@@ -451,3 +451,62 @@ describe('P1-00: Web Serial is allowed in packages/machine/src/webSerialTranspor
     expect(deps.status, deps.output).toBe(0);
   });
 });
+
+describe("OD-3: the window's port chooser is the second and last Web Serial module, with exactly one main-thread importer", () => {
+  const CHOOSER = 'packages/machine/src/webSerialChooser.ts';
+  const IMPORTER = 'apps/web/src/live/portChooser.ts';
+  const IMPORT_LINE = "export { request } from '../../../../packages/machine/src/webSerialChooser.ts';\n";
+
+  it('the chooser may read navigator.serial: lint and the source check pass', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write(CHOOSER, TRANSPORT_STANDIN);
+    const lint = repo.lint();
+    expect(lint.status, lint.output).toBe(0);
+    const deps = repo.deps();
+    expect(deps.status, deps.output).toBe(0);
+  });
+
+  it('a computed lookup in the chooser still fails lint and the source check', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write(CHOOSER, "export const s = (navigator as unknown as Record<string, unknown>)['ser' + 'ial'];\n");
+    expectFailure(repo.lint(), 'run/no-capability-lookup');
+    expectFailure(repo.deps(), 'capability-lookup');
+  });
+
+  it('the chooser code in the importer itself fails lint and the source check', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write(IMPORTER, TRANSPORT_STANDIN);
+    expectFailure(repo.lint(), 'run/no-web-serial');
+    expectFailure(repo.deps(), 'capability-lookup');
+  });
+
+  it('the named main-thread importer may import the chooser', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write(CHOOSER, TRANSPORT_STANDIN);
+    repo.write(IMPORTER, IMPORT_LINE);
+    const deps = repo.deps();
+    expect(deps.status, deps.output).toBe(0);
+  });
+
+  it.each([
+    ['another main-thread module', 'apps/web/src/live/mount2.ts'],
+    ['the machine worker seam', 'apps/web/src/machine-worker/transport2.ts'],
+    ['a sibling machine module', 'packages/machine/src/chooserUser.ts'],
+  ])('%s importing the chooser fails dependency-cruiser', { timeout: TIMEOUT }, (_name, path) => {
+    const repo = fresh();
+    repo.write(CHOOSER, TRANSPORT_STANDIN);
+    const depth = path.split('/').length - 1;
+    repo.write(path, `export { request } from '${'../'.repeat(depth)}packages/machine/src/webSerialChooser.ts';\n`);
+    expectFailure(repo.deps(), 'web-serial-chooser-importers');
+  });
+
+  it('the importer may not import the transport, and the chooser imports types only', { timeout: TIMEOUT }, () => {
+    const repo = fresh();
+    repo.write('packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
+    repo.write(IMPORTER, "export { ports } from '../../../../packages/machine/src/webSerialTransport.ts';\n");
+    expectFailure(repo.deps(), 'web-serial-transport-importers');
+    const other = fresh();
+    other.write(CHOOSER, `${TRANSPORT_STANDIN}export { RPC_VERSION } from '../../protocol/src/index.ts';\n`);
+    expectFailure(other.deps(), 'web-serial-chooser-type-imports-only');
+  });
+});

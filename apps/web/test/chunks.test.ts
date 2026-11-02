@@ -70,7 +70,29 @@ describe('workerChunkFileName: the Web Serial transport (P1-00)', () => {
     expect(policy.workerChunkFileName({ moduleIds: [cloud] })).toBe(`${CLOUD_ASSET_DIR}[name]-[hash].js`);
   });
 
-  it('the page build never files anything under assets/serial/', () => {
+  it('the page build never files the transport under assets/serial/', () => {
     expect(policy.chunkFileName({ moduleIds: [transport] })).toBe('assets/[name]-[hash].js');
+  });
+});
+
+describe("chunkFileName: the window's port chooser (OD-3)", () => {
+  const chooser = join(repo, 'packages/machine/src/webSerialChooser.ts');
+
+  it('recognises exactly packages/machine/src/webSerialChooser.ts', () => {
+    expect(policy.isWebSerialChooserModule(chooser)).toBe(true);
+    expect(policy.isWebSerialChooserModule(join(repo, 'packages/machine/src/webSerialTransport.ts'))).toBe(false);
+    expect(policy.isWebSerialChooserModule(join(web, 'src/live/portChooser.ts'))).toBe(false);
+    expect(policy.isWebSerialChooserModule(join(repo, 'packages/protocol/src/webSerialChooser.ts'))).toBe(false);
+  });
+
+  it('files a page chunk of the chooser alone (with the bundler runtime) under assets/serial/', () => {
+    expect(policy.chunkFileName({ moduleIds: [chooser] })).toBe(`${SERIAL_ASSET_DIR}[name]-[hash].js`);
+    expect(policy.chunkFileName({ moduleIds: ['\0rolldown/runtime.js', chooser] })).toBe(`${SERIAL_ASSET_DIR}[name]-[hash].js`);
+  });
+
+  it('files the chooser with any other module (the transport included) under assets/, where the scan refuses Web Serial', () => {
+    for (const other of [join(repo, 'packages/machine/src/webSerialTransport.ts'), join(web, 'src/live/portChooser.ts'), join(repo, 'node_modules/x/index.js')]) {
+      expect(policy.chunkFileName({ moduleIds: [chooser, other] })).toBe('assets/[name]-[hash].js');
+    }
   });
 });

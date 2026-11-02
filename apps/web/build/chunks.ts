@@ -26,8 +26,16 @@
  * should anything ever do so, the chunk is filed under `assets/` instead and
  * the bundle scan refuses its Web Serial code. The bundle scan admits Web
  * Serial only in `assets/serial/`, and only for the staging and bench
- * targets. The main (page) build never files anything there:
- * `chunkFileName` has no serial case.
+ * targets.
+ *
+ * The page build has exactly one serial case (OD-3, approved 2026-11-02):
+ * the window's port chooser, `packages/machine/src/webSerialChooser.ts`.
+ * A code-splitting group gives it a chunk of its own, and `chunkFileName`
+ * files a chunk under `assets/serial/` only when it holds the chooser and
+ * nothing else but the bundler runtime. The transport never goes there
+ * from the page build (dependency-cruiser keeps it out of the main
+ * thread), and should anything join the chooser's chunk it lands under
+ * `assets/`, where the scan refuses its Web Serial code.
  *
  * A change to this file changes what the bundle scan trusts and needs
  * safety-path review (CODEOWNERS).
@@ -46,6 +54,9 @@ export const SERIAL_ASSET_DIR = 'assets/serial/';
 /** The worker build's chunk group name for the Web Serial transport. */
 export const SERIAL_CHUNK_NAME = 'web-serial';
 
+/** The page build's chunk group name for the window's port chooser (OD-3). */
+export const SERIAL_CHOOSER_CHUNK_NAME = 'web-serial-chooser';
+
 /**
  * The one module that may use Web Serial, repository-relative. The gates'
  * copy (tools/gates/src/shared/webSerialNames.ts, WEB_SERIAL_TRANSPORT_MODULE)
@@ -53,6 +64,9 @@ export const SERIAL_CHUNK_NAME = 'web-serial';
  * tools/gates/test/bundle-scan.test.ts fails if the two ever differ.
  */
 export const WEB_SERIAL_TRANSPORT_PATH = 'packages/machine/src/webSerialTransport.ts';
+
+/** The window's port chooser, repository-relative (copy of WEB_SERIAL_CHOOSER_MODULE; the same test checks it). */
+export const WEB_SERIAL_CHOOSER_PATH = 'packages/machine/src/webSerialChooser.ts';
 
 /** Normalises a module id to forward slashes so the tests below hold on every OS. */
 function slashes(id: string): string {
@@ -71,6 +85,8 @@ export interface ChunkPolicy {
   isWebSerialModule(id: string): boolean;
   /** True for a module that may be in the serial chunk: the transport itself and the bundler runtime. */
   isSerialChunkMember(id: string): boolean;
+  /** True for the window's port chooser (OD-3). */
+  isWebSerialChooserModule(id: string): boolean;
   /** The output file name pattern for a non-entry chunk of a worker build. */
   workerChunkFileName(chunk: { readonly moduleIds: readonly string[] }): string;
 }
@@ -106,9 +122,13 @@ export function chunkPolicy(webRoot: string): ChunkPolicy {
   const webSerial = `${repo}/${WEB_SERIAL_TRANSPORT_PATH}`;
   const isWebSerialModule = (id: string): boolean => slashes(id) === webSerial;
   const isSerialChunkMember = (id: string): boolean => id === bundlerRuntime || isWebSerialModule(id);
+  const chooser = `${repo}/${WEB_SERIAL_CHOOSER_PATH}`;
+  const isWebSerialChooserModule = (id: string): boolean => slashes(id) === chooser;
+  const isChooserChunkMember = (id: string): boolean => id === bundlerRuntime || isWebSerialChooserModule(id);
 
   const chunkFileName = (chunk: { readonly moduleIds: readonly string[] }): string => {
     const ids = chunk.moduleIds;
+    if (ids.some(isWebSerialChooserModule) && ids.every(isChooserChunkMember)) return `${SERIAL_ASSET_DIR}[name]-[hash].js`;
     const cloud = ids.length > 0 && ids.some(isCloudModule) && ids.every(isCloudChunkMember);
     return cloud ? `${CLOUD_ASSET_DIR}[name]-[hash].js` : 'assets/[name]-[hash].js';
   };
@@ -119,6 +139,7 @@ export function chunkPolicy(webRoot: string): ChunkPolicy {
     chunkFileName,
     isWebSerialModule,
     isSerialChunkMember,
+    isWebSerialChooserModule,
     workerChunkFileName(chunk) {
       const ids = chunk.moduleIds;
       const serial = ids.some(isWebSerialModule) && ids.every(isSerialChunkMember);

@@ -7,13 +7,13 @@
  * Scans every runtime source file: `src/` of each package, app and Worker.
  * The dev-only test kit gets the dynamic-import rule only (it installs its
  * fake serial seam on the global object; no production build can contain
- * it). WEB_SERIAL_TRANSPORT_MODULE, and only it, may read `navigator.serial`
- * (P1-00). Exit status: 0 clean, 1 findings, 2 the check could not run.
+ * it). WEB_SERIAL_TRANSPORT_MODULE (P1-00) and WEB_SERIAL_CHOOSER_MODULE
+ * (OD-3), and only they, may read `navigator.serial`. Exit status: 0 clean, 1 findings, 2 the check could not run.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { scanSource, type SourceFinding } from './scan.ts';
-import { WEB_SERIAL_PROPERTY, WEB_SERIAL_TRANSPORT_MODULE } from '../shared/webSerialNames.ts';
+import { WEB_SERIAL_MODULES, WEB_SERIAL_PROPERTY } from '../shared/webSerialNames.ts';
 
 const WORKSPACE_GROUPS = ['packages', 'apps', 'workers'];
 const SOURCE_FILE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
@@ -56,7 +56,7 @@ function main(argv: readonly string[]): number {
     const findings: SourceFinding[] = [];
     for (const file of files) {
       const capabilities = !file.startsWith(`${TESTKIT}/`);
-      const navigatorProperties = file === WEB_SERIAL_TRANSPORT_MODULE ? [WEB_SERIAL_PROPERTY] : [];
+      const navigatorProperties = WEB_SERIAL_MODULES.includes(file) ? [WEB_SERIAL_PROPERTY] : [];
       findings.push(...scanSource(file, readFileSync(join(root, file), 'utf8'), { capabilities, navigatorProperties }));
     }
     if (findings.length > 0) {

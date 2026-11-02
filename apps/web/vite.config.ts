@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { buildInfo } from './build/buildInfo.ts';
-import { CLOUD_CHUNK_NAME, SERIAL_CHUNK_NAME, chunkPolicy } from './build/chunks.ts';
+import { CLOUD_CHUNK_NAME, SERIAL_CHOOSER_CHUNK_NAME, SERIAL_CHUNK_NAME, chunkPolicy } from './build/chunks.ts';
 import { FAKE_SERIAL_MODE, FAKE_SERIAL_OUT_DIR, TRANSPORT_CHUNK_NAME, assertBuildMode, fakeSerialPlugins, transportSeam } from './build/fakeSerial.ts';
 import { prerender } from './build/prerender.ts';
 import { BENCH_MODE, BENCH_OUT_DIR, CHANNEL_CHUNK_NAME, benchPlugin, channelSeam } from './build/bench.ts';
@@ -96,9 +96,12 @@ export default defineConfig(({ command, mode }) => {
           // allows network identifiers nowhere else.
           // The build-channel seam gets a chunk of its own in every build, so
           // the bench build differs from release in that chunk only
-          // (build/bench.ts).
+          // (build/bench.ts). The window's port chooser (OD-3) gets its own
+          // chunk too, filed under assets/serial/ only when its contents
+          // qualify (build/chunks.ts).
           codeSplitting: {
             groups: [
+              { name: SERIAL_CHOOSER_CHUNK_NAME, test: (id: string) => chunks.isWebSerialChooserModule(id), priority: 2 },
               { name: CLOUD_CHUNK_NAME, test: (id: string) => chunks.isCloudModule(id) },
               { name: CHANNEL_CHUNK_NAME, test: (id: string) => channel.isSeamModule(id) },
             ],

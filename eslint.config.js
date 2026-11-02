@@ -6,7 +6,7 @@
 // exception without a reviewed reason in the comment next to it.
 import tseslint from 'typescript-eslint';
 import run from './tools/gates/src/eslint/plugin.ts';
-import { WEB_SERIAL_PROPERTY, WEB_SERIAL_TRANSPORT_MODULE } from './tools/gates/src/shared/webSerialNames.ts';
+import { WEB_SERIAL_CHOOSER_MODULE, WEB_SERIAL_PROPERTY, WEB_SERIAL_TRANSPORT_MODULE } from './tools/gates/src/shared/webSerialNames.ts';
 
 const ALL_SOURCE = ['**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'];
 
@@ -64,6 +64,13 @@ const WEB_SERIAL_NAMES = 'tools/gates/src/shared/webSerialNames.ts';
  */
 const WEB_SERIAL_TRANSPORT = WEB_SERIAL_TRANSPORT_MODULE;
 
+/**
+ * The window's port chooser (OD-3, owner-approved 2026-11-02, its own
+ * reviewed change): the second and last module that may use Web Serial,
+ * held to exactly the transport's terms. Its tests are not exempt either.
+ */
+const WEB_SERIAL_CHOOSER = WEB_SERIAL_CHOOSER_MODULE;
+
 export default tseslint.config(
   {
     ignores: [
@@ -102,7 +109,7 @@ export default tseslint.config(
     // Nothing reaches a serial port except the Web Serial transport (P1-00,
     // owner-approved; ROADMAP P1-01).
     files: ALL_SOURCE,
-    ignores: [WEB_SERIAL_RULE_DEFINITION, WEB_SERIAL_NAMES, WEB_SERIAL_TRANSPORT],
+    ignores: [WEB_SERIAL_RULE_DEFINITION, WEB_SERIAL_NAMES, WEB_SERIAL_TRANSPORT, WEB_SERIAL_CHOOSER],
     rules: { 'run/no-web-serial': 'error' },
   },
   {
@@ -149,9 +156,10 @@ export default tseslint.config(
   },
   {
     // P1-00: the static read `navigator.serial` is admitted in the Web Serial
-    // transport only. This block must stay after the one above (flat config:
-    // the later setting wins for a file both match).
-    files: [WEB_SERIAL_TRANSPORT],
+    // transport and (OD-3) the window's port chooser only. This block must
+    // stay after the one above (flat config: the later setting wins for a
+    // file both match).
+    files: [WEB_SERIAL_TRANSPORT, WEB_SERIAL_CHOOSER],
     rules: { 'run/no-capability-lookup': ['error', { navigatorProperties: [WEB_SERIAL_PROPERTY] }] },
   },
   {

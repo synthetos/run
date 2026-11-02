@@ -3,8 +3,10 @@
  * `SerialPort` (ROADMAP P1-01; RUN_PLAN §5.1 rules 1 and 5, §5.4; SAFETY
  * H2b, §3 OPENING, T-S16; PN §7.4; OLD-TP §4.2).
  *
- * THIS IS THE ONE MODULE THAT MAY TOUCH WEB SERIAL
+ * THIS IS THE ONE MODULE THAT MAY OPEN A WEB SERIAL PORT
  * (tools/gates/src/shared/webSerialNames.ts, WEB_SERIAL_TRANSPORT_MODULE).
+ * The only other Web Serial module is the window's port chooser
+ * (webSerialChooser.ts, OD-3), which shows the chooser and never opens.
  * Every gate holds it to that: lint admits a static `navigator.serial` read
  * here and nowhere else, dependency-cruiser lets only the machine worker's
  * transport seam (and this package's tests) import it, and the build files
@@ -55,7 +57,7 @@
  *
  * Choosing a port (RUN_PLAN §5.4): `requestPort()` exists only on Window and
  * needs a user gesture, so the window shows the chooser and describes its
- * choice as a `PortSelector`. Inside `machine.worker`, `findGrantedPort`
+ * choice as a `PortSelector` (webSerialChooser.ts). Inside `machine.worker`, `findGrantedPort`
  * finds that same port among the ports this origin was granted, or refuses.
  */
 import type { PortSelector, Transport, TransportInfo, TransportOpenOptions, TransportSource } from './transport.ts';

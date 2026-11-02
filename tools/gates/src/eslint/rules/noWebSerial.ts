@@ -1,10 +1,11 @@
 import type { Rule } from 'eslint';
 import { type AnyNode, isGlobalReference, isNode, staticName, stringValue, unwrap } from '../ast.ts';
-import { WEB_SERIAL_METHODS, WEB_SERIAL_TRANSPORT_MODULE } from '../../shared/webSerialNames.ts';
+import { WEB_SERIAL_CHOOSER_MODULE, WEB_SERIAL_METHODS, WEB_SERIAL_TRANSPORT_MODULE } from '../../shared/webSerialNames.ts';
 
 const MESSAGE =
   `The Web Serial API (navigator.serial) is allowed only in ${WEB_SERIAL_TRANSPORT_MODULE} ` +
-  '(ROADMAP P0-02, P1-00, P1-01). Everything else reaches a port through the Transport interface.';
+  `and the window's port chooser ${WEB_SERIAL_CHOOSER_MODULE} ` +
+  '(ROADMAP P0-02, P1-00, P1-01; OD-3). Everything else reaches a port through the Transport interface.';
 
 function isNavigator(node: unknown): boolean {
   return isGlobalReference(node, 'navigator');
@@ -19,8 +20,9 @@ function isNavigator(node: unknown): boolean {
  * (identifier, member, key or whole-string literal).
  *
  * eslint.config.js applies it to every file except
- * WEB_SERIAL_TRANSPORT_MODULE (P1-00, owner-approved): no other code may be
- * able to open a port.
+ * WEB_SERIAL_TRANSPORT_MODULE (P1-00, owner-approved) and
+ * WEB_SERIAL_CHOOSER_MODULE (OD-3, owner-approved 2026-11-02): no other code
+ * may be able to choose or open a port.
  */
 export const noWebSerial: Rule.RuleModule = {
   meta: {

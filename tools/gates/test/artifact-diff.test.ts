@@ -74,6 +74,16 @@ describe('compareArtifacts', () => {
     expect(rules([...PROD, file('assets/web-serial-SeRi0001.js', 'x')], TEST)).toEqual(['file-set assets/web-serial.js']);
   });
 
+  it("accepts the window's port chooser chunk in both artifacts only when identical; missing from either is a file-set difference (OD-3)", () => {
+    const chooser = file('assets/serial/web-serial-chooser-ChOo0001.js', 'export const c=()=>navigator.serial.requestPort();');
+    const serial = file('assets/serial/web-serial-SeRi0001.js', 'const s=navigator.serial;export{s};');
+    expect(rules([...PROD, serial, chooser], [...TEST, chooser])).toEqual([]);
+    const changed = file('assets/serial/web-serial-chooser-ChOo0002.js', 'export const c=()=>navigator.serial.open();');
+    expect(rules([...PROD, serial, chooser], [...TEST, changed])).toEqual(['test-web-serial assets/serial/web-serial-chooser.js']);
+    expect(rules([...PROD, serial, chooser], TEST)).toEqual(['file-set assets/serial/web-serial-chooser.js']);
+    expect(rules([...PROD, serial], [...TEST, chooser])).toEqual(['test-web-serial assets/serial/web-serial-chooser.js']);
+  });
+
   it('refuses two files with one logical name (name-collision)', () => {
     const prod = [...PROD, file('assets/workspace-ZZZZZZZZ.js', 'other')];
     expect(rules(prod, TEST)).toContain('name-collision assets/workspace-ZZZZZZZZ.js');
