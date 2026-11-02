@@ -67,6 +67,14 @@ Warning text is never accepted in place of a design measure that would have been
 - New HIL items: HIL-1.12 (partial-line splice), HIL-2.13 (hardwired E-stop pressed during a jog and a job), and HIL-6.5 (real loaded machine before public beta). The bench fixture has no cutter and no mass, so overrun, spindle run-down and Z-drop behaviour must be measured on a real machine before the public can drive one.
 - HB numbering made consistent: HB-1..HB-13 gate W5-HB; HB-14 is added for images that carry E060.
 
+**Settings writes (amendment 2026-11-02; the owner approved moving past read-only):**
+- run writes board settings on the **bench and staging builds only**. One switch (`packages/safety/src/settingsPhase.ts`, pinned by a test) turns the new `settings` intent kind on for the staging environment, which includes the localhost bench. Production stays read-only until the owner changes that switch.
+- A settings write needs an **approved board**: the machine worker now verifies the bundled, signed approved-builds manifest for its own origin (P1-03), and a READ_ONLY board is never written.
+- Each write passes an **idle gate of polled reads** taken right before it, then goes out **one token at a time**. Its answer is awaited before any other line, because a persisted write stalls the board while EEPROM is written and bytes sent meanwhile are lost. The token is then **read back** and compared at the table's precision.
+- Every apply takes a **mandatory backup** first. A run **stops at the first failure** and offers **revert** from that backup.
+- High-risk changes need a confirmation that **names the consequence**. Communication and identity settings are never written.
+- New hazards H50-H56, tests T-S89-T-S94, checklist item 41 and HIL-4.8/4.9. §4.1 (Settings write row) and §4.6 are amended.
+
 ---
 
 ## 1. Scope and intended use
@@ -535,6 +543,69 @@ Facts are device-local and never synced (H34). They are **bound to (machine id, 
 
 In every row the reply to the connect line is a G-code reply `{"r":{},"f":[...]}` with no `sr` key (status 0 plus motion where it ran). run's bare-key `{sr:null}` is the right form (it stops the quoted-form 440.21 case).
 
+### H50. A settings write lost or merged during the EEPROM stall (NEW, amendment 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | A persisted write stalls the board while EEPROM is written, and bytes sent meanwhile are lost (firmware maintainer, 2026-11-02, edge-next 6ec70652). A status poll, a read or a second write sent during the stall can be lost whole or in part. The rest of the line can then join the next one, or a write can be dropped without the host noticing. |
+| **Rating** | S2–S3, L3 |
+| **Mitigations** | 1. **One token at a time:** `{"<key>":<value>}` and LF, one key per line (SAFETY §4.6 as amended). 2. **The session never has more than one line unanswered.** Every line, the pollers' GETs included, waits until the write's answer has arrived (`pump` waits for owed answers). 3. A second write is refused until the first is done: gate, answer and read-back. 4. **Read-back** of the key, compared at the table's precision. A write that went unanswered is `unconfirmed` (STALE), never assumed. 5. The write gate gives settings lines their own command kind (`setting`). It accepts only the exact key and value the session is writing now. |
+| **Residual** | Low. The stall length is UNVERIFIED (B-EEPROM-1); the design does not depend on it. |
+| **Verification** | U/M: T-S89, T-S92 (test-kit model with the stall: zero bytes lost across writes with reads queued). E: T-S93. H: HIL-4.8. |
+
+### H51. Wrong switch type or switch mode written (NEW, amendment 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | `st` (normally open or closed, one value for every input on this firmware) or a per-axis `sn`/`sx` mode is written so that it does not match the wiring. Every switch then reads as always pressed or never pressed: a limit no longer stops the machine at the end of travel, and homing never finds its switch or stops at once. A backup from another machine restored by name does the same. |
+| **Rating** | S3–S4, L2 |
+| **Mitigations** | 1. **High-risk confirmation (typed C5):** each change of switch type or mode is listed with its consequence in plain words, for example "Changing the switch type from normally open to normally closed when the switches are wired the other way means every switch reads as always pressed or never pressed … Test each switch after applying". Each needs its own tick and the word WRITE (schema `changeRisk`). 2. The schema's cross-key rules: all 8 switch modes known, no axis with a homing switch on both ends, at most one probe input, `st` matching a declared switch type. 3. A mandatory backup before the write, and revert. 4. W20 after the write, and the confirmation says to test each switch. The fact store is not yet wired to writes, so `switch.*` facts are not yet invalidated automatically (§4.6 step 8 as amended); until it is, the switch test is a step the user is told to do, not one that is enforced. |
+| **Residual** | Medium: run cannot see the wiring. The confirmation and the switch test are the controls. |
+| **Verification** | U: T-S90. E: T-S93 (the high-risk confirmation is shown and blocks until ticked and typed). H: HIL-4.9. |
+
+### H52. Motor, axis, travel or homing settings written wrong (NEW, amendment 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | Motor polarity (`po`), power mode (`pm`), the motor map (`ma`), axis mode (`am`), travel (`tn`/`tm`), soft limits (`sl`) or homing (`sv lv lb zb jh`) is written wrong. An axis then moves the other way, another axis moves, Z drops when its motor is not powered, a disabled axis ignores moves, or the machine runs past its end or homes into a hard stop. |
+| **Rating** | S3–S4, L2 |
+| **Mitigations** | 1. Every key in these classes is **high-risk**: its consequence is named, it is ticked one by one and the typed C5 is needed. 2. The schema refuses impossible values: ranges, enums, the hardware microstep set, and the travel rules (`tn < tm`, float32 ends and soft-limit semantics, travel.ts). 3. W20 after polarity, motor-map, scale or travel writes, until the commissioning tests run. 4. Backup and revert. |
+| **Residual** | Medium, as H51. |
+| **Verification** | U: T-S90. H: HIL-4.1, HIL-4.6. |
+
+### H53. Settings written while the machine is not idle, or in inches (NEW, amendment 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | A write is sent while a move, a hold or a queued plan is active, or while the board works in G20. The firmware may refuse the save but keep the RAM value: EN 106 plus `er`, TG `er` 9 with status 0 (EN-SETTINGS-GATE, TG-SETTINGS-GATE). Or a length setting can be written and read in inches. |
+| **Rating** | S2–S3, L2 |
+| **Mitigations** | 1. The allow-matrix allows `settingsWrite` only in an idle-class base state: IDLE_* or CONNECTED_UNKNOWN (amended), with no overlay but NEEDS_REVIEW. UNKNOWN, ORPHANED_MOTION, FAULT, STALE, READ_ONLY and LOST all deny it. 2. **Immediately before each write**, the session reads `stat`, `hold` (where the dialect trusts it), `vel`, `qr` and `unit`. Nothing is written unless stat is idle or end, hold is 0, vel is 0, `qr` equals the dialect's bench-verified `plannerBlocks`, and `unit` is 1 (G21). The matrix is asked again after the gate. 3. An `er` 106 or 9 during the write is a refusal of that write (`rejected`), never a silent success. The value is reverted with the rest. 4. run sends no G-code in the settings path: no G21 and no M400. |
+| **Residual** | Low. |
+| **Verification** | U/M: T-S91. H: HIL-4.2, HIL-4.3. |
+
+### H54. Communication or identity settings written (NEW, amendment 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | A setting that changes how the board answers is written: `js`, `ee`, `ec`, `ej`, `ex`, `rxm`, `jv`. Run and other senders then stop understanding the board (echo on breaks the JSON parser). Or an identity or hardware key is written (`fb`, `fv`, `hp`, `hv`, `id`, `baud`), or a read-only readout or the `rt` family: the pin map, the link or the session controls change. A restored backup carries all of these. |
+| **Rating** | S2–S4, L2 |
+| **Mitigations** | 1. The forbidden-write list (PN §12.4: `hv baud ex ej js=0 jv qv fd rxm rt*`, `boot`, `defa`, `se00..se29`, `jog*`) is enforced by the schema, the session and the write gate. 2. Only keys with a reviewed overlay entry can be written. `js`, `ee` and `ec` have none, so no communication setting is writable today, and the Communications view stays read-only with the reason given. 3. A restore maps by token name and skips identity keys (`fb fbs fv hp hv id baud`), readouts (`spe spc spd sps cof com`), `rt*` and every forbidden or unreviewed key, listing each with its reason. 4. If a communication key ever becomes writable, it is written after every other key, and `jv` very last (schema `orderWrites`), with a high-risk confirmation. |
+| **Residual** | Low. |
+| **Verification** | U/M: T-S89 (forbidden and identity keys refused at the intent and at the gate), T-S90 (ordering). |
+
+### H55. A partial apply leaves the board between two configurations (NEW, amendment 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | A multi-key apply stops part-way: a refusal, a mismatch, the link dropping or a tab closing. Some keys hold the new value and some the old, and the user may not know which. |
+| **Rating** | S2–S3, L2 |
+| **Mitigations** | 1. **A mandatory backup before the first write:** every allowlisted group is read and saved on this computer (`device-safety`) and offered as a download. If the backup cannot be completed, nothing is written. 2. The plan is screened as a whole before anything is written: one refused value refuses the plan. 3. **Stop at the first failure:** the remaining steps are marked "not written". 4. **Revert** writes the backed-up values back through the same path, one token at a time with read-backs. It covers every step that was written or may have been (verified, mismatched, unconfirmed, interrupted or rejected). 5. After any write, the settings are read again, and that read becomes this computer's reference. 6. Per-token results are shown during the run. |
+| **Residual** | Low-Medium: a tab closed mid-apply leaves the board partly written. The downloaded backup and the drift check on the next connect (NEEDS_REVIEW) show it. |
+| **Verification** | U: T-S93. E: T-S93 (fake-serial: apply, backup downloaded, read-back verified, revert). |
+
+### H56. Settings writes reach production, or an unapproved build, before review (NEW, amendment 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | A build flag, a release object or a dialect check lets settings writes run on the production origin, or on a board whose firmware is not approved. |
+| **Rating** | S3, L1 |
+| **Mitigations** | 1. A single phase switch, `SETTINGS_WRITES = { staging: true, production: false }`, pinned by a test. The worker derives its environment from its own origin: the production host is production, the staging host and plain-HTTP loopback are staging, and anything else has no environment and stays off. 2. `settingsWrite` has its own matrix kind, `settings`, so a later release that turns on other writes (work zero) does not turn it on. 3. Production also refuses any artifact that carries the serial transport (P1-09). 4. P1-03: the worker classifies against the signed manifest, and a board that does not match an approved build is READ_ONLY, which denies settings writes. |
+| **Residual** | Low. |
+| **Verification** | U: T-S94. |
+
 ---
 
 ## 3. Connection and motion state machine
@@ -655,7 +726,7 @@ Added:
 | Reset controller (`^X`) | Any connected state except BOOTLOADER_MODE; explicit action after W16, W18 and C15. TG also shows "may not work if the controller is stalled; use the reset button" (E128). |
 | Jog | IDLE_* and LIVE_READY and fresh, no overlay, controlling tab, visible document, `dir.<axis>` fact (except the guided first move). |
 | Home | IDLE_* and fresh, `dir.<axis>` verified, `switch.<axis>` tested this session; dual-motor axes need both motors verified. Denied under FAULT, STALE and ORPHANED_MOTION. |
-| Settings write | IDLE, stat ∈ {1,4}, no job loaded or armed, `qr` = plannerBlocks, `vel` = 0, nothing outstanding in RX, `mots` = 0. EN: an M400 barrier first. |
+| Settings write | IDLE, stat ∈ {1,4}, no job loaded or armed, `qr` = plannerBlocks, `vel` = 0, nothing outstanding in RX, `mots` = 0. EN: an M400 barrier first. *Amended 2026-11-02:* its own release kind (`settings`), on only where the phase switch allows it (staging and the localhost bench). Also allowed in CONNECTED_UNKNOWN, because a settings write moves nothing. Denied under every overlay but NEEDS_REVIEW, UNKNOWN included. The idle conditions are proven by polled reads of `stat`, `hold`, `vel`, `qr` and `unit` (= 1) right before each write, and no other line is outstanding. The M400 barrier is replaced by those reads (no G-code in the settings path). The board must be approved (not READ_ONLY). H50-H56. |
 | Apply stored profile | As settings write, plus a diff shown (C19) against the machine's baseline (H47), typed C5 for high-risk keys, bound device matching, and the same firmware schema. Host-gate fields that loosen a gate also need C19 (§4.10 rule 4). **Never automatic.** |
 | Load job | Not RUNNING or HELD (no native pickers while running). From the library: download complete and the hash verified locally. Library download or decompression, including previewing another library file, is denied while RUNNING, HELD, BARRIER_DRAINING or STOPPING_JOB; decompression is streamed with a byte cap (H39). |
 | Arm | PREFLIGHT_OK; trust state SAME, or C20 accepted for NEW/CHANGED; hash re-checked on the in-memory copy; this version not revoked by the advisory poll (H27). |
@@ -829,6 +900,18 @@ Typed C5 for:
 Forbidden keys: PN §12.4.
 
 **Session normalisation:** not performed on EN by default (H24). Where it is needed (TG `qv` for queue reports), it follows OLD-S §4.6 with W19 and restore.
+
+**Amendment 2026-11-02 (settings writes on the bench and staging; H50-H56).** The pipeline as built:
+1. **Gate:** the phase switch is on, the board is approved (not READ_ONLY), the allow-matrix allows `settingsWrite`, and the session refuses a second write while one is in progress.
+2. **Snapshot:** before the first write of an apply, the full settings backup (every allowlisted group) is read, kept in `device-safety` and downloaded. If it is incomplete, nothing is written. Account backups follow with §4.10 rule 6 when sync ships.
+3. **Diff and plan:** the pending changes are compared with the last read at the table's precision. The plan is screened as a whole (schema `screenWritePlan`: forbidden keys, reviewed overlay, ranges, enums, travel and switch rules) and ordered: communication keys last, `jv` very last. Every key is screened again in the session, against the values the session itself read.
+4-5. **Units:** no G21 is sent. Instead the session reads `unit` right before each write, together with `stat`, `hold`, `vel` and `qr`, and writes nothing unless `unit` = 1 and the board is at rest. Lengths are therefore written and read back in millimetres, and the board's units are never changed by the settings path.
+6. **One key per line**, `{"<key>":<value>}` with a plain decimal number. Its answer is awaited before any other line is sent (H50), then the key is read back. A non-zero status, an `er` 106 or 9, a read-back that differs at the table's precision, or no answer stops the plan, and revert is offered.
+7. Not applicable: the units are never changed (steps 4-5).
+8. **Re-read:** after the run, every group is read again and becomes this computer's reference. Facts that depend on the written keys are invalidated when the fact store is wired to writes. Until then, W20 is shown after any write.
+9. W20 after a write of a key whose overlay says so (polarity, motor map, scale, travel).
+
+The confirmation is C5. When a change is high-risk (switch type or mode, homing, motor polarity, power or map, axis mode, travel and soft limits, the EN polarity keys `spep`/`spdp`/`prbp`, communications, or a jerk or velocity ×2), C5 also names each high-risk change with its consequence, each needs its own tick, and the word WRITE must be typed.
 
 ### 4.7 Sanitiser (job and console)
 
@@ -1095,6 +1178,7 @@ OLD-S §8 items 1–21 all apply. Read "sim" as `testkit`, and read item 20 as c
 38. ☐ No sanitised line can queue more than the queued-motion ceiling.
 39. ☐ The connect sequence writes `{"sr":null}` first and no ENQ before a footer revision 2/3 (H49, PN §2.3).
 40. ☐ Console (MDI) motion and spindle-on lines go through preflight, the ceiling and the target confirmation; no console path writes to the Transport except through `MachineSession` and `safety.allowed`.
+41. ☐ Settings writes stay behind the phase switch (`SETTINGS_WRITES`, production off), the approval gate and the idle gate; one token per line with its answer awaited and a read-back; a backup before every apply; no forbidden, identity or communication key is writable.
 
 ---
 
@@ -1168,6 +1252,8 @@ Manual, and never in CI. Signed in `RELEASES.md` in the run repo, with the evide
 - **HIL-4.5** Temporary homing cap: pull USB mid-homing, reconnect, NEEDS_REVIEW, C17 restore; values read back equal to the snapshot (B-HOME-1).
 - **HIL-4.6** After a polarity write: W20; `dir.*` cleared; the direction test is required.
 - **HIL-4.7** After a session, CNCjs connects and streams correctly (no normalisation was written on EN).
+- **HIL-4.8** (amendment 2026-11-02, B-EEPROM-1) EEPROM stall: time a persisted write, and send a GET during it from the EN-HIL harness: record how long the board stalls and which bytes are lost. With run, apply 10 changes with the `mpo` and readout pollers running: the transcript shows each write's answer before the next line, and every read-back matches.
+- **HIL-4.9** (amendment 2026-11-02) High-risk changes on the bench: change `st` and one `xsn` with the switches wired. The confirmation names the consequence and needs the ticks and WRITE. After applying, the switch test shows the inverted reading. Revert from the backup restores it, read back.
 
 ### 9.6 Phase 5: flasher
 - **HIL-5.1** B-FL-1 on EN: interrupt after the stub, mid-pages, and just before the final page 0; the board stays in xboot and a retry succeeds. Watchdog during `e`; a 2 s host stall; a power cut and a USB pull during the final page 0 write (record the outcome).
@@ -1274,3 +1360,9 @@ New tests:
 | T-S87 | ENQ ordering: across random probe interleavings, 0x05 never appears before a rev-2/3 footer, never on a rev-1 board, and after classification only on `tinyg-en`. | M |
 | T-S88 | Console (MDI): a motion line outside the envelope, a first feed without F, a line above the ceiling (split), an unhomed move beyond the jog caps, JSON, `$` and realtime bytes are refused or split; motion lines need the target confirmation; the console is denied under every overlay and while a job is armed or running. | U, M, E |
 | T-S85 | Output encoding: download `Content-Disposition` uses RFC 6266 `filename*` with a forced `.nc`/`.gcode` extension; export zip entry paths are ids; SVG export escapes labels and is only downloaded; strings from the serial port render via `textContent` with bidi sanitising. | U, E |
+| T-S89 | Settings writes, session (amendment 2026-11-02): only one write at a time (a second is refused until the first is done). The gate reads (`stat hold vel qr unit`), then exactly `{"<key>":<value>}`, then the read-back GET, with no other line while the write is unanswered. Forbidden, identity, readout, `rt*`, communication and unreviewed keys are refused at the intent and by the write gate. The write gate accepts a settings line only as the `setting` kind, for the exact key and value being written. | U, M |
+| T-S90 | Settings plan: communication keys are ordered last and `jv` very last. Switch, homing, motor, motor-map, axis-mode, travel, soft-limit, polarity and communication keys are high-risk with a named consequence. A refused value refuses the whole plan. A restore maps by token name and skips identity, readout, forbidden and unreviewed keys with reasons. Read-back compares at table precision. | U |
+| T-S91 | Idle gate: a board that is running, holding, moving, has moves queued, is in inches, or does not answer a gate read is not written (`refused`, with the reason in plain words). An `er` 106 during a write is a refusal, not a FAULT. A FAULT or a lost link interrupts a write in progress. An unanswered write is `unconfirmed`. | U, M |
+| T-S92 | EEPROM stall: against the test-kit edge-next model with the stall modelled, writes with reads queued behind them lose zero bytes, persist, and read back verified. | M |
+| T-S93 | Apply and revert: a backup is taken (and downloaded) before the first write, and none is written if it fails. Writes go one at a time, each after the previous result. The run stops at the first failure, marks the rest not written, and offers revert. Revert writes the backed-up values back through the same path. Fake-serial: edit a setting, apply, backup downloaded, read-back verified, persisted, revert. | U, E |
+| T-S94 | Phase switch and controls: `SETTINGS_WRITES` is pinned (staging on, production off). The worker turns the `settings` kind on only for the staging and loopback origins. The settings controls are disabled in the prerendered page, and enabled only when the switch is on and the board is approved, identified, read and idle. | U, E |

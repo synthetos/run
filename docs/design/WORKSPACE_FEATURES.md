@@ -253,6 +253,14 @@ Backup { id, boardId, hv, fb, takenAt, reason: manual|before-update|first-connec
 very last. Restore by token name so an older backup maps onto newer firmware;
 unknown or renamed tokens are listed in the diff.
 
+*Shipped 2026-11-02 on the bench and staging builds (SAFETY §4.6 amendment,
+H50-H56); production stays read-only behind one switch.* Board, Machines and
+the backup file feed one Pending changes tray. Apply backs up first (saved on
+this computer and downloaded), passes the idle gate before every write, writes
+one token at a time and reads each back. It stops at the first failure and
+offers revert from the backup. High-risk changes name their consequence and
+need WRITE typed. No communication setting is writable yet.
+
 **Firmware update (PF: separate review).** The panel lists signed releases for
 the board's hardware version only, changelog style, with Recommended on the
 newest. Steps: back up → restart into update mode → write with progress →
