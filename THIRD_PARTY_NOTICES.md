@@ -28,3 +28,49 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## IBM Plex fonts (OFL-1.1)
+
+Copyright © 2017 IBM Corp. with Reserved Font Name "Plex". Licensed under the
+SIL Open Font License, Version 1.1.
+
+The web app self-hosts IBM's own Latin-1 subsets of IBM Plex Sans, IBM Plex
+Sans Condensed and IBM Plex Mono, copied unmodified from the official npm
+packages `@ibm/plex-sans@1.1.0`, `@ibm/plex-sans-condensed@2.0.0` and
+`@ibm/plex-mono@2.5.0`:
+
+- the font files: `apps/web/src/fonts/ibm-plex/*.woff2` (each file, its
+  package and its SHA-256 are listed in `apps/web/src/fonts/ibm-plex/README.md`);
+- the licence text: `apps/web/src/fonts/ibm-plex/OFL.txt`, also served with
+  the site at `/licenses/IBM-Plex-OFL.txt` (`apps/web/public/licenses/IBM-Plex-OFL.txt`).
+
+The fonts stay under the OFL-1.1; run's AGPL-3.0 licence does not apply to them.
+
+## TinyG (GPL-2.0)
+
+TinyG is © Alden S. Hart, Jr. / Synthetos, licensed under the GNU General
+Public License version 2 (https://github.com/synthetos/TinyG). run does not
+include the firmware itself; these parts of run are derived from its source
+or its repository:
+
+- **Vendored tables.** `vendor/tinyg-hil-tables/` (token and status-code
+  tables, with their message text) and `vendor/tinyg-board-facts/` (board
+  facts: hardware platforms, versions, port bindings) are generated from
+  synthetos/TinyG at the commits pinned in `vendor/firmware-pins.json`
+  (edge-next `6ec70652`, master `d0418390` for 440.21, edge-0.97 `c5024186`
+  for 449.01). `vendor/tinyg-hil-tables/SOURCES.json` records each file's
+  source commit, how it was produced and its SHA-256. Code generated from
+  these tables (the dialect status and settings tables in
+  `packages/protocol`, the board definitions in `packages/schema/boards/`)
+  keeps its `file:line` citations into TinyG.
+- **Test firmware model.** `packages/testkit/src/firmware/` is a model of
+  TinyG's observable behaviour, written from that source (with citations) so
+  that run's tests can exercise a simulated board. It is test tooling, not
+  firmware.
+- **Logo images.** `apps/web/public/brand/edge-next/tinyg-edge-next-2026.png`
+  and `tinyg-edge-next-2026-icon.png` are copied from synthetos/TinyG
+  `docs/images/` at edge-next commit `e08d8d9c` (provenance:
+  `apps/web/brand/edge-next/SOURCE.md`).
+
+The owner's position on the licensing of these generated tables is recorded in
+OD-7 (`docs/ops/owner-decisions.md`).
