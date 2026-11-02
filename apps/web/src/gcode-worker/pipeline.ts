@@ -32,27 +32,29 @@ export const MAX_SUMMARY_FINDINGS = 50;
 
 /**
  * Findings that are routine and expected on almost every line of a CAM file, so the G-code list does
- * not show a row for each: `n-word-stripped` (Run replaces the file's N word with its own line number).
- * Presentation only; the sanitiser still reports them and they still count.
+ * not show a row for each and the Job card sums them in one line: `n-word-stripped` (Run replaces the
+ * file's N word with its own line number), `comment-stripped` (comments are not sent), `dropped-empty`
+ * and `dropped-tape-marker` (nothing to send). Presentation only; the sanitiser still reports them and
+ * they still count. Real changes (M1 removed, a move split, M5/M9 added) keep their rows.
  */
-export const ROUTINE_RULES: ReadonlySet<string> = new Set(['n-word-stripped']);
+export const ROUTINE_RULES: ReadonlySet<string> = new Set(['n-word-stripped', 'comment-stripped', 'dropped-empty', 'dropped-tape-marker']);
 
 const RANK_OF: Readonly<Record<FindingSeverity, number>> = { info: 1, change: 2, warn: 3, block: 4 };
 
-/** The per-line verdicts without the routine findings, and how many routine findings there were. */
-export function listVerdictsOf(findings: readonly Finding[], fileLines: number): { readonly verdicts: Uint8Array; readonly renumbered: number } {
+/** The per-line verdicts without the routine findings, and how many routine findings there were, by rule. */
+export function listVerdictsOf(findings: readonly Finding[], fileLines: number): { readonly verdicts: Uint8Array; readonly renumbered: number; readonly routine: Readonly<Record<string, number>> } {
   const verdicts = new Uint8Array(fileLines);
-  let renumbered = 0;
+  const routine: Record<string, number> = {};
   for (const f of findings) {
     if (ROUTINE_RULES.has(f.rule)) {
-      renumbered++;
+      routine[f.rule] = (routine[f.rule] ?? 0) + 1;
       continue;
     }
     if (f.line < 1 || f.line > fileLines) continue;
     const r = RANK_OF[f.severity];
     if (r > (verdicts[f.line - 1] as number)) verdicts[f.line - 1] = r;
   }
-  return { verdicts, renumbered };
+  return { verdicts, renumbered: routine['n-word-stripped'] ?? 0, routine };
 }
 
 /** Dialects the preview offers: the two TinyG dialects that accept jobs. */
@@ -134,6 +136,8 @@ export interface PreviewResult {
   readonly verdicts: Uint8Array;
   /** Lines whose N word Run replaces with its own line number (one summary line, never a row each). */
   readonly renumbered: number;
+  /** Routine findings by rule (`ROUTINE_RULES`): summed in one Job card line, never a row each. */
+  readonly routine: Readonly<Record<string, number>>;
   /** File line of each sent line (the scrubber steps over sent lines). */
   readonly sourceLines: Uint32Array;
   /** The file, and [start, end) spans per line, for the virtualised list. */
@@ -199,6 +203,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
       segments: lite ? null : previewSegments(analysis),
       verdicts: shown.verdicts,
       renumbered: shown.renumbered,
+      routine: shown.routine,
       sourceLines: sentSourceLines(sanitized),
       bytes,
       spans,

@@ -18,6 +18,7 @@ import {
   parseJumpLine,
   queuedBreakpoints,
   renumbered,
+  routineChanges,
   saveBreakpoints,
   shownCounts,
   showJumpToCurrent,
@@ -43,6 +44,18 @@ describe('routine renumbering', () => {
     expect(Array.from(result.verdicts)).toEqual([0, 0, 0, 0]);
     expect(renumbered(result)).toBe(4);
     expect(shownCounts(result).change).toBe(result.summary.counts.change - 4);
+  });
+
+  it('comments removed and empty lines are routine too: one summary, no per-line rows; real changes keep theirs', () => {
+    const src = '(header comment)\nN5 G21 G90 (units)\n\nG0 X1\nT2 M6\nM30\n';
+    const { result: r } = analyseBytes(bytesOf(src), { dialect: 'tinyg-en', mode: 'full' });
+    const routine = routineChanges(r);
+    expect(routine.comments).toBeGreaterThanOrEqual(2);
+    expect(routine.renumbered).toBe(1);
+    expect(r.verdicts[0]).toBe(0);
+    expect(r.verdicts[1]).toBe(0);
+    expect(r.verdicts[4]).toBeGreaterThan(0);
+    expect(shownCounts(r).change).toBe(r.summary.counts.change - routine.total);
   });
 
   it('worstByLine drops the renumber finding but keeps a real one on the same line', () => {

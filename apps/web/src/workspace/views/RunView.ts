@@ -21,7 +21,7 @@ import { TranscriptSave } from '../../machine-ui/TranscriptSave.ts';
 import { PreviewPanel, markerText, type LiveMarkerView, type PreviewParts } from '../../preview/PreviewPanel.ts';
 import { DIALECT_LABEL, MODE_LABEL, fileLevel, on, progressText } from '../../preview/PreviewView.ts';
 import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
-import { renumbered, shownCounts } from '../../preview/gcodeList.ts';
+import { routineChanges, shownCounts } from '../../preview/gcodeList.ts';
 import type { SettingValue } from '@synthetos/schema';
 import { ConnectPanel } from '../../live/ConnectPanel.ts';
 import { connectorPins, dialectOf, plainValue, settingsOf, type PinInfo } from '../boardFacts.ts';
@@ -248,11 +248,12 @@ export function OverridesSection(): ComponentChild {
 type InspTab = 'jog' | 'spindle' | 'overrides';
 
 /** The Run inspector: position always on top, the rest as tabs so nothing needs a long scroll. */
-function RunInspector({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
+function RunInspector({ model, onView }: { readonly model: WorkspaceModel | null; readonly onView: (view: string) => void }): ComponentChild {
   const [tab, setTab] = useState<InspTab>('spindle');
   return h(
     'aside',
     { class: 'inspector run-inspector', 'aria-label': 'Machine' },
+    h(ConnectNotice, { model, onView }),
     h(PositionPanel, { model }),
     h(
       'div',
@@ -284,7 +285,7 @@ const fmtMm = (n: number): string => String(Math.round(n * 100) / 100);
 function jobChecks(result: PreviewResult, facts: ReturnType<typeof fileFacts>): ComponentChild[] {
   const s = result.summary;
   const b = s.bounds;
-  const renumber = renumbered(result);
+  const routine = routineChanges(result);
   const counts = shownCounts(result);
   const changes = counts.change;
   const rows: ComponentChild[] = [
@@ -294,7 +295,10 @@ function jobChecks(result: PreviewResult, facts: ReturnType<typeof fileFacts>): 
   ];
   if (s.counts.warn > 0) rows.push(h(CheckRow, { key: 'w', tone: 'warn', label: `${num(s.counts.warn)} ${s.counts.warn === 1 ? 'warning' : 'warnings'}`, attr: 'warn' }));
   if (changes > 0) rows.push(h(CheckRow, { key: 'c', tone: 'warn', label: `${num(changes)} ${changes === 1 ? 'change' : 'changes'}`, attr: 'change' }));
-  if (renumber > 0) rows.push(h(CheckRow, { key: 'n', tone: 'info', icon: 'lines', label: 'Line numbers renumbered by Run', value: `${num(renumber)} lines`, attr: 'renumber' }));
+  if (routine.total > 0) {
+    const parts = [routine.comments > 0 ? 'comments removed' : null, routine.renumbered > 0 ? 'line numbers' : null, routine.empty > 0 ? 'empty lines' : null].filter((x): x is string => x !== null);
+    rows.push(h('li', { key: 'n', class: 'check-row tone-info', 'data-check': 'routine', title: `Run's routine clean-up, not listed line by line: ${parts.join(', ')}` }, h('span', { class: 'check-icon' }, Icon('lines', 15)), h('span', { class: 'check-label' }, 'Clean-up by Run'), h('strong', { class: 'check-value' }, `${num(routine.total)} lines`)));
+  }
   rows.push(h(CheckRow, { key: 'e', tone: 'info', icon: 'ruler', label: 'Extent', value: b === null ? 'nothing drawn' : `${fmtMm(b.max[0] - b.min[0])} × ${fmtMm(b.max[1] - b.min[1])} × ${fmtMm(b.max[2] - b.min[2])} mm`, attr: 'extent' }));
   rows.push(h(CheckRow, { key: 'l', tone: 'info', icon: 'lines', label: 'Lines', value: num(result.sourceLines.length), attr: 'lines' }));
   const tools = facts.tools.length === 0 ? 'none named' : facts.tools.map((t) => `T${t}`).join(', ');
@@ -606,7 +610,6 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
     'div',
     { class: 'run-view', 'data-region': 'preview' },
     h(JobCard, { parts }),
-    h(ConnectNotice, { model, onView }),
     h(
       'div',
       { class: 'workspace-grid run-grid' },
@@ -704,7 +707,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
         ),
         h(Dock, { parts, model }),
       ),
-      h(RunInspector, { model }),
+      h(RunInspector, { model, onView }),
     ),
   );
 }

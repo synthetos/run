@@ -128,6 +128,31 @@ const EN_DEFAULTS: Readonly<Record<string, SettingValue>> = Object.freeze({
   ctn: -1, // :236
   ctm: -1, // :237
   cra: 1, // :241
+  // Motor map and drive settings (settings_default.h:105-134): motors 1-4 drive X, Y, Z and A
+  '1ma': 0, // :105 AXIS_X
+  '1sa': 1.8, // :106
+  '1tr': 1.25, // :107
+  '1mi': 8, // :108
+  '1po': 0, // :109
+  '1pm': 2, // :110 MOTOR_POWER_MODE = MOTOR_POWERED_IN_CYCLE (:63; stepper.h:266-269)
+  '2ma': 1, // :113 AXIS_Y
+  '2sa': 1.8, // :114
+  '2tr': 1.25, // :115
+  '2mi': 8, // :116
+  '2po': 0, // :117
+  '2pm': 2, // :118
+  '3ma': 2, // :121 AXIS_Z
+  '3sa': 1.8, // :122
+  '3tr': 1.25, // :123
+  '3mi': 8, // :124
+  '3po': 0, // :125
+  '3pm': 2, // :126
+  '4ma': 3, // :129 AXIS_A
+  '4sa': 1.8, // :130
+  '4tr': 360, // :131
+  '4mi': 8, // :132
+  '4po': 0, // :133
+  '4pm': 2, // :134
   avm: 800, // placeholder
   afr: 800, // placeholder
   ej: 1, // placeholder (JSON mode)

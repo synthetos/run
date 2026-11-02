@@ -22,10 +22,19 @@ export function renumbered(result: PreviewResult): number {
   return result.renumbered;
 }
 
-/** The finding counts without the routine renumbering (what the Job card's check list counts). */
+/** Routine changes Run makes (comments removed, renumbering, empty lines): the total and the parts, for one Job card line. */
+export function routineChanges(result: PreviewResult): { readonly total: number; readonly comments: number; readonly renumbered: number; readonly empty: number } {
+  const r = result.routine;
+  const comments = r['comment-stripped'] ?? 0;
+  const renumber = r['n-word-stripped'] ?? 0;
+  const empty = (r['dropped-empty'] ?? 0) + (r['dropped-tape-marker'] ?? 0);
+  return { total: comments + renumber + empty, comments, renumbered: renumber, empty };
+}
+
+/** The finding counts without the routine changes (what the Job card's check list counts). */
 export function shownCounts(result: PreviewResult): Readonly<Record<'block' | 'warn' | 'change' | 'info', number>> {
   const c = result.summary.counts;
-  return { ...c, change: Math.max(0, c.change - result.renumbered) };
+  return { ...c, change: Math.max(0, c.change - routineChanges(result).total) };
 }
 
 // ---------------------------------------------------------------- follow

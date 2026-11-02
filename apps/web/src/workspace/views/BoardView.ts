@@ -307,7 +307,7 @@ function BoardIllustration({ selected, onSelect, settings }: { readonly selected
       h('circle', { key: `m${n}-pi`, cx: x + 58, cy: 473, r: 10, class: 'pot-in' }),
       h('rect', { key: `m${n}-b`, x, y: 507, width: 95, height: 35, class: 'connector' }),
       ...pins.map((p, i) => target(p, p.ref, x + 12 + i * 23.5, 524, 23.5, 56, 7)),
-      h('text', { key: `m${n}-a`, x, y: 566, class: 'board-print' }, typeof ma === 'number' ? `${AXIS_NAMES[ma] ?? `axis ${ma}`} AXIS` : 'AXIS NOT READ'),
+      h('text', { key: `m${n}-a`, x, y: 566, class: 'board-print' }, typeof ma === 'number' ? `${AXIS_NAMES[ma] ?? `axis ${ma}`} AXIS` : 'AXIS ?'),
     ];
   };
   const power = connectorPins('J1');

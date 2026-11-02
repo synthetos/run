@@ -180,6 +180,8 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   let showGrid = options.grid === true;
   let highlightLine = -1;
   let view: Orbit = fitOrbit(null);
+  /** True until the person turns, zooms or pans the view: a resize then refits it. */
+  let autoFit = true;
   let width = 1, height = 1;
   let scheduled = false;
   let frames = 0;
@@ -298,6 +300,11 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     bounds = null;
   }
 
+  /** The path (and envelope) framed to fill about 80% of the canvas, for its current shape. */
+  function fitView(): Orbit {
+    return fitOrbit(fitBox(), undefined, width / height, 0.8);
+  }
+
   function fitBox(): Box3 | null {
     if (bounds === null) return envelope;
     if (envelope === null) return bounds;
@@ -315,7 +322,8 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       list = next;
       const given = loadOptions.bounds;
       bounds = given === undefined ? null : given;
-      view = fitOrbit(fitBox());
+      autoFit = true;
+      view = fitView();
       if (showGrid) rebuildOverlay();
       const total = Math.max(1, next.kinds.length);
       const box = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
@@ -339,7 +347,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
             const first = path.length === 1;
             bounds = { min: [box.min[0] as number, box.min[1] as number, box.min[2] as number], max: [box.max[0] as number, box.max[1] as number, box.max[2] as number] };
             if (first) {
-              view = fitOrbit(fitBox());
+              view = fitView();
               if (showGrid) rebuildOverlay();
             }
           }
@@ -363,7 +371,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
         requestRender();
         throw e;
       }
-      if (given === undefined) view = fitOrbit(fitBox());
+      if (given === undefined) view = fitView();
       if (showGrid) rebuildOverlay();
       loadOptions.onProgress?.(1);
       requestRender();
@@ -410,21 +418,26 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       const canvas = gl.canvas;
       canvas.width = Math.round(width * pixelRatio);
       canvas.height = Math.round(height * pixelRatio);
+      if (autoFit) view = fitView();
       requestRender();
     },
     fit() {
-      view = fitOrbit(fitBox());
+      autoFit = true;
+      view = fitView();
       requestRender();
     },
     orbit(dA, dE) {
+      autoFit = false;
       view = rotate(view, dA, dE);
       requestRender();
     },
     zoomBy(factor) {
+      autoFit = false;
       view = zoom(view, factor);
       requestRender();
     },
     panBy(dx, dy) {
+      autoFit = false;
       view = pan(view, dx, dy);
       requestRender();
     },

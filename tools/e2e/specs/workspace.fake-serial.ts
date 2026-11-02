@@ -51,6 +51,17 @@ async function show(page: Page, view: (typeof VIEWS)[number]): Promise<void> {
   await expect(page.locator(`[data-screen="${view}"]`)).toBeVisible();
 }
 
+/** The rail marks exactly the shown view, and no other rail button looks selected. */
+async function expectRailOn(page: Page, view: (typeof VIEWS)[number]): Promise<void> {
+  const current = page.locator('[data-region="rail"] [aria-current="page"]');
+  await expect(current).toHaveCount(1);
+  await expect(current).toHaveAttribute('data-view', view);
+  await page.mouse.move(700, 5);
+  const looks = await page.locator('[data-region="rail"] button').evaluateAll((els) => els.map((el) => ({ view: el.getAttribute('data-view'), bg: getComputedStyle(el).backgroundColor })));
+  const selected = looks.find((l) => l.view === view)?.bg;
+  for (const l of looks) if (l.view !== view) expect(l.bg, `${l.view ?? ''} looks selected while ${view} is shown`).not.toBe(selected);
+}
+
 test('switching views keeps the same machine worker and link, and never navigates', async ({ page }) => {
   const worker = await connectedTab(page);
   const before = ((await request(worker, { v: 3, kind: 'status' })) as Status).status.session.epoch;
@@ -59,7 +70,10 @@ test('switching views keeps the same machine worker and link, and never navigate
   page.on('framenavigated', (frame) => {
     if (frame === page.mainFrame()) navigations += 1;
   });
-  for (const view of [...VIEWS, 'run' as const]) await show(page, view);
+  for (const view of [...VIEWS, 'run' as const]) {
+    await show(page, view);
+    await expectRailOn(page, view);
+  }
   expect(navigations).toBe(0);
   const machineWorkers = page.workers().filter((w) => /machine\.worker/.test(w.url()));
   expect(machineWorkers).toHaveLength(1);
