@@ -10,6 +10,9 @@ import { environmentForOrigin } from '@synthetos/protocol';
 import { fetchIdentity, fetchSafetyAdvisory } from '../cloud/live.ts';
 import type { BuildChannel } from '../channel/channel.ts';
 import { AlarmTone } from '../machine-ui/alarm.ts';
+import { Dro, lagAt } from '../machine-ui/Dro.ts';
+import { SettingsView } from '../machine-ui/SettingsView.ts';
+import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { OverlayBanners } from '../machine-ui/OverlayBanners.ts';
 import { callMachineWorker } from '../machine-worker/client.ts';
 import { RPC_VERSION, type SnapshotMessage, type WorkerStatus } from '../machine-worker/rpc.ts';
@@ -19,6 +22,7 @@ import { ConnectPanel } from './ConnectPanel.ts';
 import { memoryDeviceSafety, openDeviceSafety, type DeviceSafetyStore } from './deviceSafety.ts';
 import { leaveFullscreen } from './fullscreen.ts';
 import { LiveEntry, type ChooseResult } from './liveEntry.ts';
+import { LiveReadout } from './readout.ts';
 import { cleanDisconnect, installLiveLifecycle, previousSessionEnded } from './liveMarker.ts';
 import type { StopControls } from './stopControls.ts';
 
@@ -41,7 +45,12 @@ export interface MountOptions {
   readonly previousSession: Signal<boolean>;
   /** P1-06: told when this tab enters or leaves LIVE, and given each snapshot (W30, PAUSE REQUESTED). */
   readonly stopControls: StopControls;
+  /** P1-07: the live position marker the G-code preview draws (polled `mpo` only). */
+  readonly marker: Signal<LiveMarkerView | null>;
 }
+
+/** How often the window re-renders the DRO's age and lag badge between snapshots. */
+export const DRO_TICK_MS = 250;
 
 export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> {
   let store: DeviceSafetyStore;
@@ -90,12 +99,45 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
 
   let snapshot: WorkerStatus['session'] | null = null;
   let staleSince: number | null = null;
+  let droMessage: SnapshotMessage | null = null;
+  let droReceivedAt = 0;
+  // P1-07: the connect-time settings read and the drift check. Reads go through the worker's `read`; nothing here writes.
+  const readout = new LiveReadout({
+    read: (tokens) => (worker === null ? Promise.resolve({ ok: false, message: 'The machine worker is not running in this browser.' }) : callMachineWorker(worker, { v: RPC_VERSION, kind: 'read', tokens })),
+    drift: (epoch) => (worker === null ? Promise.resolve() : callMachineWorker(worker, { v: RPC_VERSION, kind: 'drift', epoch })),
+    store,
+    now: () => new Date(),
+    onChange: () => draw(),
+  });
+  const droContainer = document.createElement('div');
+  droContainer.dataset['region'] = 'live-readout';
+  options.container.after(droContainer);
+  setInterval(() => {
+    if (droMessage !== null && droMessage.dro.machineSource.ageMs !== null) {
+      updateMarker();
+      drawReadout();
+    }
+  }, DRO_TICK_MS);
+
+  function updateMarker(): void {
+    const m = droMessage?.dro.marker ?? null;
+    if (droMessage === null || m === null) {
+      options.marker.value = null;
+      return;
+    }
+    const ageMs = m.ageMs + (performance.now() - droReceivedAt);
+    options.marker.value = { x: m.x, y: m.y, z: m.z, ageMs, lag: lagAt(ageMs, droMessage.snapshot.overlays.includes('STALE'), droMessage.lag) };
+  }
   if (worker !== null) {
     const channel = new MessageChannel();
     channel.port1.onmessage = (event: MessageEvent) => {
       const message = event.data as SnapshotMessage | { kind?: unknown };
       if (message.kind !== 'snapshot') return;
-      snapshot = (message as SnapshotMessage).snapshot;
+      droMessage = message as SnapshotMessage;
+      droReceivedAt = performance.now();
+      snapshot = droMessage.snapshot;
+      readout.onSnapshot(snapshot);
+      updateMarker();
       staleSince = snapshot.overlays.includes('STALE') ? (staleSince ?? Date.now()) : null;
       alarm.sync(snapshot);
       options.stopControls.setSnapshot(snapshot);
@@ -126,6 +168,22 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       options.container,
     );
     render(h(OverlayBanners, { snapshot, staleElapsedMs: staleSince === null ? 0 : Date.now() - staleSince }), options.bannerContainer);
+    drawReadout();
+  }
+
+  function drawReadout(): void {
+    const connected = droMessage !== null && droMessage.snapshot.base !== 'NOT_CONNECTED';
+    render(
+      connected
+        ? h(
+            'div',
+            { class: 'live-readout' },
+            h(Dro, { message: droMessage as SnapshotMessage, elapsedMs: performance.now() - droReceivedAt }),
+            h(SettingsView, { dialectId: readout.dialectId, phase: readout.phase, settings: readout.settings, onKeep: () => void readout.keepBoardSettings().catch(() => undefined) }),
+          )
+        : null,
+      droContainer,
+    );
   }
 
   entry.subscribe(() => {

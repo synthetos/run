@@ -51,6 +51,8 @@ export interface PreviewSlots {
   readonly drawing?: ComponentChild;
   /** The virtualised G-code list. */
   readonly list?: ComponentChild;
+  /** P1-07: the live position readout. */
+  readonly marker?: ComponentChild;
 }
 
 export const IDLE_STATE: PreviewViewState = Object.freeze({
@@ -138,6 +140,7 @@ export function PreviewView({ state, actions = {}, slots = {} }: { readonly stat
       h('span', { class: 'value', 'data-preview': 'file-name' }, state.fileName ?? 'none'),
     ),
     h('p', { class: 'preview-w13', role: 'note', 'data-safety': 'W13' }, w13()),
+    slots.marker ?? null,
     h(
       'div',
       { class: 'sheet-body' },

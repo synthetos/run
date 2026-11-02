@@ -37,6 +37,7 @@ const EN: Readonly<Record<string, string>> = {
   qr: '{"r":{"qr":32},"f":[3,0,10]}',
   ex: '{"r":{"ex":1},"f":[3,0,10]}',
   posx: '{"r":{"posx":12.5},"f":[3,0,10]}',
+  mpo: '{"r":{"mpo":{"x":3.5,"y":0,"z":0,"a":0,"b":0,"c":0}},"f":[3,0,10]}',
 };
 
 /** A Transport that answers GETs like an idle edge-next board, and whose stream the test can end or fail. */
@@ -488,5 +489,54 @@ describe('MachineWorkerHost', () => {
     }, 1);
     clock.clearTimeout(id);
     await new Promise((resolve) => setTimeout(resolve, 5));
+  });
+});
+
+describe('P1-07: the polled mpo position and the drift report', () => {
+  it('parses exactly { v: 3, kind: drift, epoch } with a whole, non-negative epoch', () => {
+    expect(parseRequest({ v: 3, kind: 'drift', epoch: 2 })).toEqual({ v: 3, kind: 'drift', epoch: 2 });
+    for (const bad of [{ v: 3, kind: 'drift' }, { v: 3, kind: 'drift', epoch: -1 }, { v: 3, kind: 'drift', epoch: 1.5 }, { v: 3, kind: 'drift', epoch: '1' }, { v: 3, kind: 'drift', epoch: 1, extra: 1 }]) {
+      expect(parseRequest(bad)).toBeNull();
+    }
+  });
+
+  it('the host polls {"mpo":null} every 500 ms once a board is classified, and drift raises NEEDS_REVIEW', async () => {
+    const clock = new TestClock();
+    const t = new BoardTransport();
+    const host = new MachineWorkerHost(source('fake', () => t), clock);
+    clock.advance(2000);
+    expect(t.writes).toEqual([]);
+    await host.handle(OPEN);
+    await settle();
+    expect(host.session.snapshot.base).toBe('CONNECTED_UNKNOWN');
+    clock.advance(500);
+    await settle();
+    expect(t.writes.at(-1)).toBe('{"mpo":null}\n');
+    expect(host.poller.polls).toBe(1);
+    expect(host.session.snapshot.values['mpo']).toMatchObject({ value: { x: 3.5 }, status: 0 });
+
+    const epoch = host.session.snapshot.epoch;
+    expect(await host.handle({ v: 3, kind: 'drift', epoch: epoch + 1 })).toEqual({ v: 3, ok: true, kind: 'drift' });
+    expect(host.session.snapshot.overlays).not.toContain('NEEDS_REVIEW');
+    expect(await host.handle({ v: 3, kind: 'drift', epoch })).toEqual({ v: 3, ok: true, kind: 'drift' });
+    expect(host.session.snapshot.overlays).toContain('NEEDS_REVIEW');
+  });
+
+  it('every posted snapshot carries its DRO view, computed from polled mpo on the worker clock, and the lag thresholds', async () => {
+    const clock = new TestClock();
+    const t = new BoardTransport();
+    const host = new MachineWorkerHost(source('fake', () => t), clock);
+    const posted: SnapshotMessage[] = [];
+    await host.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => posted.push(m) });
+    expect(posted[0]?.dro.machineSource).toEqual({ label: 'polled mpo', at: null, ageMs: null, lag: 'none' });
+    expect(posted[0]?.lag).toEqual({ amberMs: 1000, redMs: 2000 });
+    await host.handle(OPEN);
+    await settle();
+    clock.advance(500);
+    await settle();
+    clock.advance(100);
+    const last = posted.at(-1) as SnapshotMessage;
+    expect(last.dro.axes[0]).toMatchObject({ axis: 'x', machine: 3.5 });
+    expect(last.dro.machineSource.label).toBe('polled mpo');
   });
 });

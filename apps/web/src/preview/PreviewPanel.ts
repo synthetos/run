@@ -6,6 +6,7 @@
  * Nothing here reaches a machine: the worker has no transport.
  */
 import { h, type ComponentChild } from 'preact';
+import type { ReadonlySignal } from '@preact/signals';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Finding } from '@synthetos/gcode';
 import { createGcodePreviewClient, type GcodePreviewClient, type WorkerLike } from '../gcode-worker/client.ts';
@@ -18,13 +19,30 @@ import { IDLE_STATE, PreviewView, type PreviewViewState } from './PreviewView.ts
 export interface PreviewPanelProps {
   /** Starts `gcode.worker`; null without Trusted Types (the panel stays disabled). */
   readonly spawn: (() => WorkerLike) | null;
+  /** P1-07: the live position marker (polled `mpo`), drawn on the 2D view and read out under both views. */
+  readonly marker?: ReadonlySignal<LiveMarkerView | null>;
+}
+
+/** The live position in the preview's frame (work coordinates, mm), with where it came from. */
+export interface LiveMarkerView {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  /** Age of the polled position when the window received it, ms. */
+  readonly ageMs: number;
+  readonly lag: 'none' | 'fresh' | 'amber' | 'red';
+}
+
+export function markerText(m: LiveMarkerView): string {
+  return `Live position (polled mpo minus offsets, ${(m.ageMs / 1000).toFixed(1)} s old): X ${m.x.toFixed(3)} Y ${m.y.toFixed(3)} Z ${m.z.toFixed(3)} mm`;
 }
 
 function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, marker }: PreviewPanelProps): ComponentChild {
+  const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
   const client = useRef<GcodePreviewClient | null>(null);
@@ -76,7 +94,8 @@ export function PreviewPanel({ spawn }: PreviewPanelProps): ComponentChild {
             fitRequest,
             onUnavailable: () => { setState((s) => ({ ...s, drawing: 'svg' })); },
           })
-        : h(PreviewSvg, { segments, showRapids: state.showRapids, highlight, envelope: result.summary.envelope });
+        : h(PreviewSvg, { segments, showRapids: state.showRapids, highlight, envelope: result.summary.envelope, marker: live });
+  const readout = live === null ? undefined : h('p', { class: `pv-marker-readout lag-${live.lag}`, 'data-preview': 'marker-readout', role: 'status' }, markerText(live));
 
   return h(PreviewView, {
     state,
@@ -101,6 +120,7 @@ export function PreviewPanel({ spawn }: PreviewPanelProps): ComponentChild {
     },
     slots: {
       ...(drawing === undefined ? {} : { drawing }),
+      ...(readout === undefined ? {} : { marker: readout }),
       ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings }) }),
     },
   });

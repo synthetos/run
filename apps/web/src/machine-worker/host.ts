@@ -27,12 +27,14 @@
  *
  * It holds no account or network state (DECISIONS D1).
  */
-import { MachineSession, liveControlPlatform, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
+import { LAG_AMBER_MS, LAG_RED_MS, MachineSession, PositionPoller, droView, liveControlPlatform, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
 import type { Decision } from '@synthetos/safety';
 import { RPC_VERSION, parseRequest, refusal, type Denial, type MachineReply, type SnapshotMessage, type WindowIntent, type WorkerState } from './rpc.ts';
 
 /** Snapshots are posted at most 20 times per second (OLD-TP §4.2). */
 export const SNAPSHOT_INTERVAL_MS = 50;
+
+const LAG = Object.freeze({ amberMs: LAG_AMBER_MS, redMs: LAG_RED_MS });
 
 /** Where a subscriber's snapshots go (a MessagePort in the worker). */
 export interface SnapshotPort {
@@ -63,6 +65,7 @@ export class MachineWorkerHost {
   readonly #clock: SessionClock;
   readonly #session: MachineSession;
   readonly #platform: PlatformInfo | undefined;
+  readonly #poller: PositionPoller;
   #subscriber: SnapshotPort | null = null;
   #lastPost = Number.NEGATIVE_INFINITY;
   #pending: number | null = null;
@@ -74,6 +77,15 @@ export class MachineWorkerHost {
     this.#platform = platform;
     this.#session = new MachineSession({ source, clock });
     this.#session.subscribe(() => this.#schedule());
+    // P1-07: machine position for the DRO and the live marker comes only from polled `mpo` (SAFETY §4.2).
+    // The poller only asks `session.read`; it is idle until a classified board is connected.
+    this.#poller = new PositionPoller(this.#session, clock);
+    this.#poller.start();
+  }
+
+  /** The `mpo` poller (tests). */
+  get poller(): PositionPoller {
+    return this.#poller;
   }
 
   /** The session (tests and the snapshot posting). */
@@ -109,6 +121,9 @@ export class MachineWorkerHost {
         const decision = this.#session.read(request.tokens);
         return decision.allowed ? Object.freeze({ v: RPC_VERSION, ok: true, kind: 'read' }) : denied('read', decision);
       }
+      case 'drift':
+        this.#session.reportDrift(request.epoch);
+        return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'drift' });
       case 'subscribe':
         if (port === undefined) return refusal('subscribe', 'invalid-request', 'subscribe needs a reply port');
         this.#subscriber = port;
@@ -165,7 +180,8 @@ export class MachineWorkerHost {
     }
     this.#lastPost = this.#clock.now();
     try {
-      this.#subscriber?.postMessage(Object.freeze({ v: RPC_VERSION, kind: 'snapshot', snapshot: this.#session.snapshot }));
+      const snapshot = this.#session.snapshot;
+      this.#subscriber?.postMessage(Object.freeze({ v: RPC_VERSION, kind: 'snapshot', snapshot, dro: droView(snapshot, this.#clock.now()), lag: LAG }));
     } catch {
       // A closed port: the window went away. Nothing in the machine path depends on it.
       this.#subscriber = null;

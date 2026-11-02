@@ -26,7 +26,7 @@ import { mountLiveEntry } from '../live/mount.ts';
 import { ObserverPanel } from '../live/ObserverPanel.ts';
 import { StopControls } from '../live/stopControls.ts';
 import { installEscapeStop, LockWatcher, TabStop, type Timers } from '../live/tabStop.ts';
-import { PreviewPanel } from '../preview/PreviewPanel.ts';
+import { PreviewPanel, type LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { Shell } from '../shell/Shell.ts';
 import { startTheme } from '../theme/theme.ts';
 import '../styles/base.css';
@@ -39,6 +39,8 @@ if (root === null) {
 }
 const build = checkBuildInfo(__RUN_BUILD__);
 const previousSession = signal(false);
+// P1-07: the live position marker (polled `mpo`), drawn by the preview, set by LIVE entry.
+const marker = signal<LiveMarkerView | null>(null);
 
 // Stop controls (P1-06), before anything that could fail: Pause, Escape and the cross-tab requests are never gated.
 const timers: Timers = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>) };
@@ -58,7 +60,7 @@ hydrate(
     previousSession,
     stop: stopControls.view,
     onPause: () => stopControls.pause(),
-    preview: h(PreviewPanel, { spawn: gcodeWorkerSpawner(trustedTypes) }),
+    preview: h(PreviewPanel, { spawn: gcodeWorkerSpawner(trustedTypes), marker }),
   }),
   root,
 );
@@ -90,7 +92,7 @@ effect(() => {
     observerContainer,
   );
 });
-void mountLiveEntry({ channel, appSha: build.sha, worker, container, bannerContainer, previousSession, stopControls })
+void mountLiveEntry({ channel, appSha: build.sha, worker, container, bannerContainer, previousSession, stopControls, marker })
   .catch(() => undefined)
   .finally(() => {
     document.documentElement.dataset['ready'] = 'true';

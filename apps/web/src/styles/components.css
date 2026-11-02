@@ -439,3 +439,27 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .wiring-row label { min-width: 0; max-width: 100%; }
 .wiring-table { display: block; overflow-x: auto; }
 .wiring-editor small { color: var(--muted); }
+
+/* ---------------------------------------------------------------- DRO, settings read, live marker (P1-07) */
+.live-readout { display: grid; gap: 16px; margin: 16px 0; }
+.dro, .settings-read { background: var(--sheet); border: 1px solid var(--rule); padding: 12px 16px; min-width: 0; }
+.dro h2, .settings-read h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.dro-untrusted { color: var(--warn); margin: 4px 0; }
+.dro-source, .dro-identity, .dro-wcs { margin: 4px 0; overflow-wrap: anywhere; }
+.dro-table { border-collapse: collapse; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.dro-table th, .dro-table td { padding: 2px 12px 2px 0; text-align: right; }
+.dro-table th[scope="row"] { text-align: left; }
+.lag-badge { display: inline-block; padding: 0 6px; border-radius: 3px; font-size: 0.85rem; color: var(--on-blue); background: var(--muted); }
+.lag-badge.lag-fresh { background: var(--ok); }
+.lag-badge.lag-amber { background: var(--warn); }
+.lag-badge.lag-red { background: var(--danger); }
+.settings-group summary { cursor: pointer; font-weight: 600; }
+.settings-group table { border-collapse: collapse; width: 100%; }
+.settings-group th, .settings-group td { padding: 2px 8px 2px 0; text-align: left; vertical-align: top; }
+.settings-explain, .settings-desc { color: var(--muted); font-size: 0.9rem; }
+.settings-read { overflow-x: auto; }
+.preview-svg .pv-marker { fill: var(--live); stroke: var(--sheet); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.preview-svg .pv-marker.lag-amber { fill: var(--warn); }
+.preview-svg .pv-marker.lag-red { fill: var(--danger); }
+.pv-marker-readout { font-family: var(--mono); margin: 4px 0; overflow-wrap: anywhere; }
+.pv-marker-readout.lag-red { color: var(--danger); }

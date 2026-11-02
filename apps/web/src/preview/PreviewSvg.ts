@@ -10,9 +10,17 @@ export interface PreviewSvgProps {
   readonly showRapids: boolean;
   readonly highlight: number;
   readonly envelope: Box3 | null;
+  /** P1-07: the live position (work coordinates, from polled `mpo`), or null. */
+  readonly marker?: { readonly x: number; readonly y: number; readonly lag: string } | null;
 }
 
-export function PreviewSvg({ segments, showRapids, highlight, envelope }: PreviewSvgProps): ComponentChild {
+/** Marker radius: 1.5 % of the larger view-box side. */
+export function markerRadius(viewBox: string | null): number {
+  const parts = (viewBox ?? '0 0 1 1').split(' ').map(Number);
+  return Math.max(parts[2] ?? 1, parts[3] ?? 1) * 0.015;
+}
+
+export function PreviewSvg({ segments, showRapids, highlight, envelope, marker = null }: PreviewSvgProps): ComponentChild {
   const p = svgPaths(segments, { showRapids, highlightLine: highlight, envelope });
   return h(
     'figure',
@@ -26,6 +34,7 @@ export function PreviewSvg({ segments, showRapids, highlight, envelope }: Previe
       h('path', { class: 'pv-uncertain', d: p.uncertain }),
       h('path', { class: 'pv-oob', d: p.outOfBounds }),
       h('path', { class: 'pv-highlight', d: p.highlight }),
+      marker === null ? null : h('circle', { class: `pv-marker lag-${marker.lag}`, 'data-preview': 'marker', cx: marker.x, cy: -marker.y, r: markerRadius(p.viewBox) }),
     ),
     h('figcaption', null, 'Top view.', p.decimated ? ' Simplified: some segments are left out at this size.' : '', ' Out-of-bounds moves are red.'),
   );
