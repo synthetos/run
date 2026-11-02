@@ -150,7 +150,7 @@ const OPEN = { v: 3, kind: 'open', port: PORT } as const;
 const STATUS = { v: 3, kind: 'status' } as const;
 
 describe('parseRequest', () => {
-  it.each(['close', 'status', 'subscribe'])('accepts exactly { v: 3, kind: %s }', (kind) => {
+  it.each(['close', 'status', 'subscribe', 'transcript'])('accepts exactly { v: 3, kind: %s }', (kind) => {
     expect(parseRequest({ v: 3, kind })).toEqual({ v: 3, kind });
     expect(parseRequest({ kind, v: 3 })).toEqual({ v: 3, kind });
   });
@@ -276,6 +276,21 @@ describe('MachineWorkerHost', () => {
     expect(await host.handle(STATUS)).toMatchObject({
       status: { source: 'fake', state: 'open', session: { base: 'CONNECTED_UNKNOWN', classification: { dialectId: 'tinyg-en', mode: 'readOnly' }, identity: { id: 'EN-1' } } },
     });
+  });
+
+  it('transcript (P1-08): refused before any open; after one, the {t, dir, hex} JSONL of exactly the bytes written and received', async () => {
+    const t = new BoardTransport();
+    const host = new MachineWorkerHost(source('fake', () => t));
+    expect(await host.handle({ v: 3, kind: 'transcript' })).toMatchObject({ ok: false, kind: 'transcript', code: 'unavailable', message: 'no port has been opened in this session' });
+    await host.handle(OPEN);
+    await settle();
+    const reply = await host.handle({ v: 3, kind: 'transcript' });
+    if (!reply.ok || reply.kind !== 'transcript') throw new Error('transcript refused');
+    const lines = reply.jsonl.trimEnd().split('\n').map((l) => JSON.parse(l) as { t: number; dir: string; hex: string });
+    expect(lines).toHaveLength(reply.events);
+    const hexText = (h: string): string => new TextDecoder().decode(Uint8Array.from(h.match(/../g) ?? [], (b) => Number.parseInt(b, 16)));
+    expect(lines.filter((l) => l.dir === 'tx').map((l) => hexText(l.hex))).toEqual(t.writes);
+    expect(lines.some((l) => l.dir === 'rx')).toBe(true);
   });
 
   it('passes the selected machine\'s board id: a different board is BLOCKED and nothing more is written', async () => {

@@ -114,6 +114,11 @@ export class MachineWorkerHost {
         this.#subscriber = port;
         this.#post();
         return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'subscribe' });
+      case 'transcript': {
+        const out = this.#session.exportTranscript();
+        if (!out.ok) return refusal('transcript', 'unavailable', out.reason);
+        return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'transcript', jsonl: out.jsonl, events: out.events });
+      }
       case 'status':
         return Object.freeze({
           v: RPC_VERSION,

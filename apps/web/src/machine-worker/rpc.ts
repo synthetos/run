@@ -20,6 +20,10 @@
  * session through the allow-matrix; a refusal comes back with the matrix's
  * `{reason, remedy, citation}`.
  *
+ * `transcript` (P1-08, additive) answers with the session's wire transcript
+ * (`{t, dir, hex}` JSONL) of the last link that opened, for bench runs. It
+ * only reads; it never touches the port.
+ *
  * D1 (sign-in required to connect and start): the sign-in gate lives in the
  * main-thread UI. Nothing in this protocol carries, and nothing in the
  * worker consults, a session or an account (DECISIONS D1 safety condition).
@@ -29,7 +33,7 @@ import type { Decision } from '@synthetos/safety';
 
 export const RPC_VERSION = 3;
 
-export const REQUEST_KINDS = ['open', 'close', 'status', 'intent', 'read', 'subscribe'] as const;
+export const REQUEST_KINDS = ['open', 'close', 'status', 'intent', 'read', 'subscribe', 'transcript'] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];
 
 /** Intents the window may send. Everything else the session does on its own. */
@@ -44,7 +48,7 @@ export const MAX_BOARD_ID_LENGTH = 64;
 
 export type MachineRequest =
   | { readonly v: typeof RPC_VERSION; readonly kind: 'open'; readonly port: PortSelector; readonly boardId: string | null }
-  | { readonly v: typeof RPC_VERSION; readonly kind: 'close' | 'status' | 'subscribe' }
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'close' | 'status' | 'subscribe' | 'transcript' }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'intent'; readonly intent: WindowIntent }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'read'; readonly tokens: readonly string[] };
 
@@ -76,6 +80,8 @@ export type MachineReply =
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'open'; readonly info: TransportInfo }
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'close' | 'subscribe' | 'intent' | 'read' }
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'status'; readonly status: WorkerStatus }
+  /** The wire transcript of the last link that opened, as `{t, dir, hex}` JSONL (P1-08). */
+  | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'transcript'; readonly jsonl: string; readonly events: number }
   | {
       readonly v: typeof RPC_VERSION;
       readonly ok: false;
