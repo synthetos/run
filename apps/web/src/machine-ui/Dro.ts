@@ -96,15 +96,16 @@ export function Dro({ message, elapsedMs }: DroProps): ComponentChild {
       { class: 'dro-wcs', 'data-dro': 'wcs' },
       'Work coordinate system: ',
       dro.wcs.code ?? 'not read',
-      dro.wcs.offsets === null ? null : ` (offsets ${offsetText(dro.wcs.offsets)})`,
-      dro.wcs.total === null ? null : `. Total offset including G92: ${offsetText(dro.wcs.total)}.`,
+      // G54..G59 print in the board's current units (F_CONVERT); ofs is always millimetres (EN config_app.c:822-825).
+      dro.wcs.offsets === null ? null : ` (offsets ${offsetText(dro.wcs.offsets, dro.units === null ? ', units not read' : ` ${dro.units}`)})`,
+      dro.wcs.total === null ? null : `. Total offset including G92: ${offsetText(dro.wcs.total, ' mm')}.`,
     ),
   );
 }
 
-function offsetText(o: Readonly<Partial<Record<string, number>>>): string {
+function offsetText(o: Readonly<Partial<Record<string, number>>>, unit: string): string {
   const parts = Object.entries(o)
     .filter(([axis]) => ['x', 'y', 'z'].includes(axis))
     .map(([axis, v]) => `${axis.toUpperCase()} ${formatAxis(v ?? null)}`);
-  return parts.length === 0 ? 'none' : parts.join(', ');
+  return parts.length === 0 ? 'none' : `${parts.join(', ')}${unit}`;
 }

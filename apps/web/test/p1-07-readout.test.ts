@@ -209,7 +209,7 @@ describe('Dro panel', () => {
     expect(text(one(rows[2] as never, (e) => e.props['data-dro'] === 'homed'))).toBe('not read');
     expect(text(one(el, (e) => e.props['data-dro'] === 'age'))).toBe('0.3 s ago');
     expect(one(el, (e) => e.props['data-lag'] !== undefined).props['data-lag']).toBe('fresh');
-    expect(text(one(el, (e) => e.props['data-dro'] === 'wcs'))).toContain('G54 (offsets X 100.000, Y 50.000)');
+    expect(text(one(el, (e) => e.props['data-dro'] === 'wcs'))).toContain('G54 (offsets X 100.000, Y 50.000 mm)');
     expect(text(el)).toContain('polled mpo');
     expect(text(el)).toContain('last status report');
   });
@@ -247,6 +247,14 @@ describe('Dro panel', () => {
     expect(text(noWcs)).toContain('Work (units unknown)');
     const g53 = root(h(Dro, { message: message({ wcs: { code: 'G53', offsets: null, total: { a: 1 } } }), elapsedMs: 0 }));
     expect(text(one(g53, (e) => e.props['data-dro'] === 'wcs'))).toBe('Work coordinate system: G53. Total offset including G92: none.');
+  });
+
+  it('under G20 (unit 0) the G54 offsets are labelled in inches and the ofs total in millimetres', () => {
+    // g54x.. are F_CONVERT (printed in the current units); ofs is always mm (EN config_app.c:822-825).
+    const el = root(h(Dro, { message: message({ units: 'in', wcs: { code: 'G54', offsets: { x: 1 }, total: { x: 25.4 } } }), elapsedMs: 0 }));
+    expect(text(one(el, (e) => e.props['data-dro'] === 'wcs'))).toBe('Work coordinate system: G54 (offsets X 1.000 in). Total offset including G92: X 25.400 mm.');
+    const unread = root(h(Dro, { message: message({ units: null, wcs: { code: 'G54', offsets: { x: 1 }, total: null } }), elapsedMs: 0 }));
+    expect(text(one(unread, (e) => e.props['data-dro'] === 'wcs'))).toBe('Work coordinate system: G54 (offsets X 1.000, units not read)');
   });
 });
 
