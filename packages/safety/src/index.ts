@@ -11,6 +11,7 @@
 export const VERSION = '0.0.0';
 
 export * from './strings.ts';
+export { BOARD_TEXT_MAX, boardText } from './boardText.ts';
 export { CANNOT_GUARANTEE } from './contract.ts';
 export * from './sanitize/index.ts';
 export {
