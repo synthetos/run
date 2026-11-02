@@ -31,6 +31,20 @@ export async function clearLive(store: DeviceSafetyStore): Promise<void> {
   await store.delete(LIVE_MARKER_KEY);
 }
 
+/**
+ * The Disconnect button. Only a close the worker CONFIRMED is a clean
+ * Disconnect: then the marker is removed and `onClean` returns the page to
+ * NOT CONNECTED. A refused, failed or rejected close leaves the session,
+ * the marker (W6) and the LIVE controls as they are.
+ */
+export async function cleanDisconnect(close: () => Promise<{ readonly ok: boolean }>, store: DeviceSafetyStore, onClean: () => void): Promise<boolean> {
+  const reply = await close().catch(() => ({ ok: false }));
+  if (!reply.ok) return false;
+  await clearLive(store).catch(() => undefined);
+  onClean();
+  return true;
+}
+
 /** True when W6 must show: the marker survived, or the browser discarded the page. Unreadable store: W6 (fail safe). */
 export async function previousSessionEnded(store: DeviceSafetyStore, wasDiscarded: boolean): Promise<boolean> {
   if (wasDiscarded) return true;

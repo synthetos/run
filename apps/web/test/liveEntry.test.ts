@@ -31,7 +31,7 @@ import { memoryDeviceSafety } from '../src/live/deviceSafety.ts';
 import { leaveFullscreen } from '../src/live/fullscreen.ts';
 import { LiveEntry, type LiveEntryDeps, type PortChoice } from '../src/live/liveEntry.ts';
 import { LiveGates } from '../src/live/liveGates.ts';
-import { LIVE_MARKER_KEY, clearLive, installLiveLifecycle, markLive, previousSessionEnded } from '../src/live/liveMarker.ts';
+import { LIVE_MARKER_KEY, cleanDisconnect, clearLive, installLiveLifecycle, markLive, previousSessionEnded } from '../src/live/liveMarker.ts';
 import { SafetyBar } from '../src/shell/SafetyBar.ts';
 import { all, byAttr, root, text } from './tree.ts';
 
@@ -401,6 +401,20 @@ describe('W6 and the liveSession marker (T-S17)', () => {
     await clearLive(store);
     expect(await previousSessionEnded(store, false)).toBe(false);
     expect(await previousSessionEnded({ ...store, get: () => Promise.reject(new Error('x')) }, false)).toBe(true);
+  });
+
+  it('only a close the worker confirmed is a clean Disconnect: a refused or failed close keeps the marker and LIVE', async () => {
+    const store = memoryDeviceSafety();
+    await markLive(store, DAY1);
+    let cleaned = 0;
+    const onClean = () => void cleaned++;
+    expect(await cleanDisconnect(() => Promise.resolve({ ok: false }), store, onClean)).toBe(false);
+    expect(await cleanDisconnect(() => Promise.reject(new Error('worker gone')), store, onClean)).toBe(false);
+    expect(store.data.has(LIVE_MARKER_KEY)).toBe(true);
+    expect(cleaned).toBe(0);
+    expect(await cleanDisconnect(() => Promise.resolve({ ok: true }), store, onClean)).toBe(true);
+    expect(store.data.has(LIVE_MARKER_KEY)).toBe(false);
+    expect(cleaned).toBe(1);
   });
 
   it('pagehide and freeze record the marker only while LIVE; beforeunload prompts only while LIVE', async () => {

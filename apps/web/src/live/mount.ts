@@ -19,7 +19,7 @@ import { ConnectPanel } from './ConnectPanel.ts';
 import { memoryDeviceSafety, openDeviceSafety, type DeviceSafetyStore } from './deviceSafety.ts';
 import { leaveFullscreen } from './fullscreen.ts';
 import { LiveEntry, type ChooseResult } from './liveEntry.ts';
-import { clearLive, installLiveLifecycle, previousSessionEnded } from './liveMarker.ts';
+import { cleanDisconnect, installLiveLifecycle, previousSessionEnded } from './liveMarker.ts';
 
 /**
  * The port chooser. `requestPort()` may run only in the Web Serial module,
@@ -101,12 +101,12 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   }
 
   async function disconnect(): Promise<void> {
-    if (worker !== null) await callMachineWorker(worker, { v: RPC_VERSION, kind: 'close' });
-    poller.stop();
-    advisoryBlocked = null;
-    // Only a clean Disconnect removes the marker (W6).
-    await clearLive(store).catch(() => undefined);
-    entry.reset();
+    // Only a close the worker confirmed removes the marker (W6) and leaves LIVE.
+    await cleanDisconnect(() => (worker === null ? Promise.resolve({ ok: true }) : callMachineWorker(worker, { v: RPC_VERSION, kind: 'close' })), store, () => {
+      poller.stop();
+      advisoryBlocked = null;
+      entry.reset();
+    });
   }
 
   function draw(): void {
