@@ -87,6 +87,7 @@ export default defineConfig(({ command, mode }) => {
           workspace: 'index.html',
           safety: 'safety/index.html',
           privacy: 'privacy/index.html',
+          wiring: 'wiring/index.html',
           notFound: '404.html',
         },
         output: {

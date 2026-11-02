@@ -67,6 +67,7 @@ export function servedMode(env: Readonly<Record<string, string | undefined>>, cw
 /** The files that must exist in a served site tree before the suite starts. */
 export const REQUIRED_SITE_FILES: readonly string[] = [
   'index.html',
+  'wiring/index.html',
   'safety/index.html',
   'privacy/index.html',
   '404.html',

@@ -1,10 +1,11 @@
 import { h, type ComponentChild } from 'preact';
 import { MoonIcon, SunIcon } from './icons.ts';
 
-export type Route = '/' | '/safety/' | '/privacy/' | null;
+export type Route = '/' | '/wiring/' | '/safety/' | '/privacy/' | null;
 
 const NAV: readonly { readonly href: Exclude<Route, null>; readonly label: string }[] = [
   { href: '/', label: 'Workspace' },
+  { href: '/wiring/', label: 'Wiring' },
   { href: '/safety/', label: 'Safety' },
   { href: '/privacy/', label: 'Privacy' },
 ];

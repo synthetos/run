@@ -1,6 +1,5 @@
 {
   "$comment": "Board definition schema (ROADMAP P0-08; RUN_PLAN §5.1 rule 6). A board definition describes one controller board and revision as data, so the UI is driven by the detected board, not by code. Definitions are generated from firmware sources at pinned commits (TB-05a); hand-authored overlays add what firmware does not know. Every fact records its source (src) and how it was verified. Validated by packages/schema/src/jsonSchema.ts, which refuses any keyword it does not implement.",
-  "$id": "urn:synthetos:run:board-definition:1",
   "type": "object",
   "additionalProperties": false,
   "required": ["format", "id", "family", "name", "match", "source", "motors", "inputs", "outputs", "adc", "usb", "flasher", "defaults", "buildFlags"],
@@ -76,13 +75,31 @@
       "type": "array",
       "maxItems": 32,
       "items": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*(=[A-Za-z0-9_.-]+)?$" }
+    },
+    "pins": {
+      "description": "Generated from firmware: the MCU pin that carries each signal the firmware drives or reads (TB-05a).",
+      "type": "array",
+      "maxItems": 128,
+      "items": { "$ref": "#/$defs/pin" }
+    },
+    "connectors": {
+      "description": "From an overlay: the board's connectors. A pin that names a signal must name one in pins (parseBoardDefinition checks it).",
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/connector" }
+    },
+    "ratings": {
+      "description": "From an overlay: component ratings shown beside the wiring. Information only, never a safety limit.",
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/rating" }
     }
   },
   "$defs": {
     "src": { "type": "string", "minLength": 3, "maxLength": 300 },
     "verified": {
-      "description": "source: read in firmware source at the pinned commit; bench: measured on hardware; hardware-repo: checked against the private hardware sources (recorded, never published, RUN_PLAN §5.1 rule 6); unverified: neither.",
-      "enum": ["source", "bench", "hardware-repo", "unverified"]
+      "description": "source: read in firmware source at the pinned commit; schematic: read in the board schematic published in the firmware repository at the pinned commit; bench: measured on hardware; hardware-repo: checked against the private hardware sources (recorded, never published, RUN_PLAN §5.1 rule 6); unverified: none of these.",
+      "enum": ["source", "schematic", "bench", "hardware-repo", "unverified"]
     },
     "factCount": {
       "type": "object",
@@ -178,6 +195,58 @@
         "vendorId": { "type": "integer", "minimum": 0, "maximum": 65535 },
         "productId": { "type": "integer", "minimum": 0, "maximum": 65535 },
         "role": { "enum": ["control", "bootloader", "refuse"] },
+        "src": { "$ref": "#/$defs/src" },
+        "verified": { "$ref": "#/$defs/verified" }
+      }
+    },
+    "pin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signal", "mcu", "src", "verified"],
+      "properties": {
+        "signal": { "$ref": "#/$defs/signal" },
+        "mcu": { "description": "MCU pin, e.g. PA5 (Xmega port A bit 5).", "type": "string", "pattern": "^[A-Za-z0-9_.]{1,16}$" },
+        "src": { "$ref": "#/$defs/src" },
+        "verified": { "$ref": "#/$defs/verified" }
+      }
+    },
+    "signal": {
+      "type": "string",
+      "pattern": "^(motor[1-9]\\.(step|dir|enable|ms0|ms1)|in\\.(limit-(min|max)-[xyzabc]|probe)|out\\.(spindleEnable|spindleDirection|spindlePwm|coolant|coolantMist|coolantFlood))$"
+    },
+    "connector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "pins", "src", "verified"],
+      "properties": {
+        "id": { "description": "Reference designator, e.g. J6.", "type": "string", "pattern": "^[A-Z]{1,3}[0-9]{1,3}$" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "pins": { "type": "array", "minItems": 1, "maxItems": 40, "items": { "$ref": "#/$defs/connectorPin" } },
+        "src": { "$ref": "#/$defs/src" },
+        "verified": { "$ref": "#/$defs/verified" }
+      }
+    },
+    "connectorPin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["n", "label"],
+      "properties": {
+        "n": { "type": "integer", "minimum": 1, "maximum": 40 },
+        "label": { "description": "The pin name printed on the schematic.", "type": "string", "minLength": 1, "maxLength": 24 },
+        "signal": { "$ref": "#/$defs/signal" },
+        "net": {
+          "description": "A power or shared net, for a pin that carries no firmware signal.",
+          "enum": ["GND", "3V3", "5V", "12V", "VMOT", "USB-VBUS", "USB-D+", "USB-D-", "SHIELD", "SERIAL-TX", "SERIAL-RX", "SPI", "NC"]
+        }
+      }
+    },
+    "rating": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "value", "src", "verified"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]{2,40}$" },
+        "value": { "type": "string", "minLength": 1, "maxLength": 120 },
         "src": { "$ref": "#/$defs/src" },
         "verified": { "$ref": "#/$defs/verified" }
       }

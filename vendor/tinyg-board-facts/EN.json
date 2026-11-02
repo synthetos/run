@@ -1,0 +1,143 @@
+{
+ "format": "synthetos-run/tinyg-board-facts@1",
+ "firmware": "EN@ead63997",
+ "commit": "ead639978c77601b150be7ef12774f47eed4c824",
+ "platform": {
+  "value": 1,
+  "src": "EN hardware.h:56; EN tinyg.h:56"
+ },
+ "hvMax": {
+  "value": 8,
+  "src": "EN tinyg.h:57-58; EN hardware.c:229 (hw_set_hv rejects hv above it)"
+ },
+ "revisions": [
+  {
+   "value": 6,
+   "src": "EN hardware.h:70"
+  },
+  {
+   "value": 7,
+   "src": "EN hardware.h:71"
+  },
+  {
+   "value": 8,
+   "src": "EN hardware.h:72"
+  }
+ ],
+ "outputMapThreshold": {
+  "value": 6.9,
+  "src": "EN hardware.c:61"
+ },
+ "motorPorts": {
+  "value": [
+   "A",
+   "F",
+   "E",
+   "D"
+  ],
+  "src": "EN hardware.h:114-117"
+ },
+ "switchPorts": {
+  "value": {
+   "x": "A",
+   "y": "D",
+   "z": "E",
+   "a": "F"
+  },
+  "src": "EN hardware.h:119-122"
+ },
+ "outputPortsV7": {
+  "value": [
+   "A",
+   "F",
+   "D",
+   "E"
+  ],
+  "src": "EN hardware.h:124-127"
+ },
+ "outputPortsV6": {
+  "value": [
+   "A",
+   "F",
+   "E",
+   "D"
+  ],
+  "src": "EN hardware.h:129-132"
+ },
+ "portBits": {
+  "value": {
+   "step": 0,
+   "dir": 1,
+   "enable": 2,
+   "ms0": 3,
+   "ms1": 4,
+   "gpio1Out": 5,
+   "swMin": 6,
+   "swMax": 7
+  },
+  "src": "EN hardware.h:160-167"
+ },
+ "outputMasks": {
+  "value": {
+   "spindleEnable": 8,
+   "spindleDirection": 4,
+   "spindlePwm": 2,
+   "coolant": 1
+  },
+  "src": "EN hardware.h:181-185"
+ },
+ "maskToOutPort": {
+  "value": {
+   "0x08": 0,
+   "0x04": 1,
+   "0x02": 2,
+   "0x01": 3
+  },
+  "src": "EN gpio.c:170-173"
+ },
+ "motors": {
+  "value": 4,
+  "src": "EN tinyg.h:90"
+ },
+ "switches": {
+  "value": [
+   "limit-min-x",
+   "limit-max-x",
+   "limit-min-y",
+   "limit-max-y",
+   "limit-min-z",
+   "limit-max-z",
+   "limit-min-a",
+   "limit-max-a"
+  ],
+  "src": "EN switch.h:67-75"
+ },
+ "microsteps": {
+  "value": [
+   1,
+   2,
+   4,
+   8
+  ],
+  "src": "EN stepper.c:1302 (other values warn as non-standard)"
+ },
+ "polarityTokens": {
+  "value": {
+   "spindleEnable": "spep",
+   "spindleDirection": "spdp"
+  },
+  "src": "EN config_app.c:649-650"
+ },
+ "switchTypeToken": {
+  "value": "st",
+  "src": "EN config_app.c:461"
+ },
+ "bootloader": {
+  "value": true,
+  "src": "EN hardware.c:180 (hw_request_bootloader); PROTOCOL_NOTES §13.1 (xboot 1.7, AVR109)"
+ },
+ "defaults": {
+  "value": "firmware/tinyg/settings/settings_default.h",
+  "src": "EN settings.h:51"
+ }
+}

@@ -20,8 +20,8 @@ export const VERSION = '0.0.0';
 export { validateSchema } from './jsonSchema.ts';
 export type { Schema, SchemaError } from './jsonSchema.ts';
 export { deepFreeze } from './frozen.ts';
-export { BOARD_SCHEMA, commonSubset, parseBoardDefinition, selectBoard } from './boards.ts';
-export type { BoardDefinition, BoardIdentity, BoardOutput, BoardSelection, Fact, OutputId, ParsedBoard, Verified } from './boards.ts';
+export { BOARD_SCHEMA, checkBoardConsistency, commonSubset, parseBoardDefinition, selectBoard } from './boards.ts';
+export type { BoardConnector, BoardDefinition, BoardIdentity, BoardOutput, BoardPin, BoardRating, BoardSelection, ConnectorNet, Fact, OutputId, ParsedBoard, Verified } from './boards.ts';
 
 // --- P0-09: vendored HIL tables, read allowlists, forbidden writes, EN overlay ---
 export type { GeneratedTable, GeneratedTokenRow, HilTable, TableName, TableSource, TinyGDialectId, TokenDef, TokenType } from './tables/types.ts';
@@ -120,3 +120,5 @@ export {
 export type { Clock, FactBinding, FactRecord, FactState, FactStatus, FactView, NewFact, ViewOptions } from './facts/store.ts';
 export { GATE_MAX_DEPTH, GATE_MAX_LENGTH, GateSyntaxError, checkGate, evaluateGate, parseGate } from './facts/gate.ts';
 export type { Gate, GateContext, GateResult, Unmet } from './facts/gate.ts';
+export { BOARD_DEFINITIONS, UNCERTAIN_BOARD_NOTICE, UNRECOGNISED_BOARD_NOTICE, boardPanels, selectGeneratedBoard } from './boardCatalog.ts';
+export type { BoardPanel, BoardPanelSet } from './boardCatalog.ts';

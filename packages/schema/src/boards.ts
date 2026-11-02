@@ -25,7 +25,7 @@ import type { Schema, SchemaError } from './jsonSchema.ts';
 
 export const BOARD_SCHEMA: Schema = schemaJson as Schema;
 
-export type Verified = 'source' | 'bench' | 'hardware-repo' | 'unverified';
+export type Verified = 'source' | 'schematic' | 'bench' | 'hardware-repo' | 'unverified';
 
 export interface Fact<T> {
   readonly value: T;
@@ -39,6 +39,32 @@ export interface BoardOutput {
   readonly id: OutputId;
   readonly polarityToken?: string;
   readonly note?: string;
+  readonly src: string;
+  readonly verified: Verified;
+}
+
+/** A firmware signal and the MCU pin that carries it (generated, TB-05a). */
+export interface BoardPin {
+  readonly signal: string;
+  readonly mcu: string;
+  readonly src: string;
+  readonly verified: Verified;
+}
+
+export type ConnectorNet = 'GND' | '3V3' | '5V' | '12V' | 'VMOT' | 'USB-VBUS' | 'USB-D+' | 'USB-D-' | 'SHIELD' | 'SERIAL-TX' | 'SERIAL-RX' | 'SPI' | 'NC';
+
+/** A board connector (from an overlay). A pin names a signal in `pins`, or a net. */
+export interface BoardConnector {
+  readonly id: string;
+  readonly label: string;
+  readonly pins: readonly { readonly n: number; readonly label: string; readonly signal?: string; readonly net?: ConnectorNet }[];
+  readonly src: string;
+  readonly verified: Verified;
+}
+
+export interface BoardRating {
+  readonly id: string;
+  readonly value: string;
   readonly src: string;
   readonly verified: Verified;
 }
@@ -70,6 +96,9 @@ export interface BoardDefinition {
   readonly flasher: Fact<'xboot-avr109' | 'sam-ba-bossa' | 'none'>;
   readonly defaults: Fact<string>;
   readonly buildFlags: readonly string[];
+  readonly pins?: readonly BoardPin[];
+  readonly connectors?: readonly BoardConnector[];
+  readonly ratings?: readonly BoardRating[];
 }
 
 export type ParsedBoard = { readonly ok: true; readonly board: BoardDefinition } | { readonly ok: false; readonly errors: readonly SchemaError[] };
@@ -78,8 +107,41 @@ export type ParsedBoard = { readonly ok: true; readonly board: BoardDefinition }
 export function parseBoardDefinition(json: unknown): ParsedBoard {
   const errors = validateSchema(BOARD_SCHEMA, json);
   if (errors.length > 0) return { ok: false, errors };
+  const consistency = checkBoardConsistency(json as BoardDefinition);
+  if (consistency.length > 0) return { ok: false, errors: consistency };
   // A JSON round trip copies the validated value, so the caller's object is never frozen or shared.
   return { ok: true, board: deepFreeze(JSON.parse(JSON.stringify(json)) as BoardDefinition) };
+}
+
+/**
+ * What the schema cannot say: every connector pin that names a signal names
+ * one the generated pin map has (TB-05a acceptance), a signal appears once in
+ * the pin map, connector ids and pin numbers are unique, and a connector pin
+ * names a signal or a net, not both.
+ */
+export function checkBoardConsistency(board: BoardDefinition): SchemaError[] {
+  const errors: SchemaError[] = [];
+  const signals = new Set<string>();
+  (board.pins ?? []).forEach((p, i) => {
+    if (signals.has(p.signal)) errors.push({ path: `/pins/${i}/signal`, message: `signal ${p.signal} appears twice in pins` });
+    signals.add(p.signal);
+  });
+  const ids = new Set<string>();
+  (board.connectors ?? []).forEach((c, i) => {
+    if (ids.has(c.id)) errors.push({ path: `/connectors/${i}/id`, message: `connector ${c.id} appears twice` });
+    ids.add(c.id);
+    const numbers = new Set<number>();
+    c.pins.forEach((p, j) => {
+      const at = `/connectors/${i}/pins/${j}`;
+      if (numbers.has(p.n)) errors.push({ path: `${at}/n`, message: `${c.id} pin ${p.n} appears twice` });
+      numbers.add(p.n);
+      if (p.signal !== undefined && p.net !== undefined) errors.push({ path: at, message: `${c.id} pin ${p.n} names both a signal and a net` });
+      if (p.signal !== undefined && !signals.has(p.signal)) {
+        errors.push({ path: `${at}/signal`, message: `${c.id} pin ${p.n} names ${p.signal}, which the generated pin map does not have` });
+      }
+    });
+  });
+  return errors;
 }
 
 /** What the firmware and the classifier say about the connected board. */
