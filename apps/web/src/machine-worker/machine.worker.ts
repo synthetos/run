@@ -10,12 +10,18 @@
  * snapshots. A message without a reply port gets no answer and does
  * nothing.
  *
+ * The worker also holds the machine Web Lock while a port is open and
+ * answers stop-class requests from any tab on the stop BroadcastChannel
+ * (P1-06, stopService.ts).
+ *
  * Synthetic `message` events are not filtered out (`isTrusted` is not
  * checked): only code already running inside this worker could dispatch
  * one, and such code has the worker's full power anyway. The fake-serial
  * Playwright test drives the worker that way (docs/testing/fake-serial.md).
  */
 import { MachineWorkerHost } from './host.ts';
+import { browserLocks, openStopChannel } from './stopChannel.ts';
+import { MachineStopService } from './stopService.ts';
 import { createTransportSource } from './transport.ts';
 
 interface WorkerScope {
@@ -23,6 +29,7 @@ interface WorkerScope {
 }
 
 const host = new MachineWorkerHost(createTransportSource());
+new MachineStopService({ session: host.session, channel: openStopChannel(), locks: browserLocks(), instance: crypto.randomUUID() });
 
 (globalThis as unknown as WorkerScope).addEventListener('message', (event) => {
   const reply = event.ports[0];
