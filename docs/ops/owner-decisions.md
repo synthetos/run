@@ -312,3 +312,21 @@ software is not an emergency stop. "Stop job" no longer says "spindle off".
   `strings.ts` `w2Label()` is "Pause", `STOP_TEXT` gains "Stop job",
   "Paused", "Paused · spindle still on" and "Paused: the machine was idle,
   nothing changed", and T-S32 checks them byte for byte.
+
+## OD-7. run is public and licensed AGPL-3.0 (owner, 2026-11-02)
+
+**Decision.**
+- run is open source in the public repo `synthetos/run`, created by the owner on 2026-11-02.
+- Its license changes from Apache-2.0 (D3) to **AGPL-3.0**.
+- The owner's intent: run is open source and not commercial. Anyone who modifies it and distributes it or serves it over a network must publish their source under the same license.
+
+**TinyG note.**
+- TinyG is GPL-2.0-only, © Alden S. Hart, Jr.
+- Some run files are generated from TinyG source: the settings tables, and the error codes with their text.
+- The owner's position: the license obligation belongs to the firmware, not to run.
+- Recorded here so the provenance stays clear: the generated tables keep their TinyG source citations.
+
+**Consequences.**
+- LICENSE, NOTICE, README, the package `license` fields, SPDX headers, the site footer and D3/PHASE0 traceability all move to AGPL-3.0.
+- The dependency licence gate is unchanged: dependencies stay permissive-only.
+- No push happens until the history audit is clean.
