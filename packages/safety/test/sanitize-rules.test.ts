@@ -379,3 +379,27 @@ describe('step 9: numbering and length', () => {
     expect(blocks(run(`${filler}\n${body}\n`, EN))).toEqual(['too-long']);
   });
 });
+
+describe('verdict wording from the bench 1 file (presentation only: levels and rules unchanged)', () => {
+  const messages = (r: ReturnType<typeof run>, rule: string): string[] => r.report.entries.filter((e) => e.rule === rule).map((e) => e.message);
+
+  it('a tool change stays a BLOCK and says what happens, with the tool number', () => {
+    const r = run('G21\nN10 T1 M06\n', EN);
+    expect(blocks(r)).toContain('m6-without-c14');
+    expect(r.report.entries.find((e) => e.rule === 'm6-without-c14')?.severity).toBe('block');
+    expect(messages(r, 'm6-without-c14')).toEqual(["Tool change (T1): TinyG doesn't stop for M6. Run will stop here and walk you through the change when running jobs arrives."]);
+    expect(messages(run('M6\n', EN), 'm6-without-c14')).toEqual(["Tool change: TinyG doesn't stop for M6. Run will stop here and walk you through the change when running jobs arrives."]);
+  });
+
+  it('a G or M word whose digits run together across spaces is explained, still as unsupported-code', () => {
+    const r = run('G21\nG90\nG0 X0 Y0\nS5000\nG17\nN30 G92 064 Y0.326 X0.000\n', EN);
+    expect(blocks(r)).toContain('unsupported-code');
+    const entry = r.report.entries.find((e) => e.rule === 'unsupported-code');
+    expect(entry?.severity).toBe('block');
+    expect(entry?.line).toBe(6);
+    expect(entry?.message).toBe("'G92 064' reads as G92064 because TinyG ignores spaces, and that isn't a valid command. This looks like a broken line from the post-processor. Check the file around line 6.");
+    // Without spaces inside the number the plain message stays.
+    expect(messages(run('G92064 X0\n', EN), 'unsupported-code')).toEqual(['G92064 is not supported in a job on this firmware']);
+    expect(messages(run('M1 14\n', EN), 'unsupported-code')[0]).toMatch(/^'M1 14' reads as M114 because TinyG ignores spaces/);
+  });
+});
