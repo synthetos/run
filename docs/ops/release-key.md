@@ -71,27 +71,6 @@ only. It reports no fbs, so every 450.01 build matches; no image has passed
 D5." The gate test `tools/gates/test/doc-drift.test.ts` then requires this
 section (and its line in `docs/LEAD_ACTIONS.md`) to be removed.
 
-### The signed bench entry names the previous pin (2026-11-02)
-
-On 2026-11-02 the EN pin moved from `ead63997` to `97321391`
-(`vendor/firmware-pins.json`). The bench entry in
-`firmware/approved-builds.unsigned.json` names the new commit; the signed
-file still names `ead63997`, because re-signing needs the owner's bench key
-(`owner-bench-2026-11-02`, private half in `~/.synthetos-release-bench/`),
-which agents do not use. No approval changes: the entry has `fbs: null`, so
-it matches by dialect and `fb` and the commit is never verified.
-`tools/gates/test/approved-builds.test.ts` allows exactly this one
-difference, and only while this section and `docs/LEAD_ACTIONS.md` record
-it. To close it, on your machine:
-
-```sh
-pnpm sign:builds --key ~/.synthetos-release-bench/bench.pkcs8.pem --kid owner-bench-2026-11-02
-```
-
-If you replace the bench note at the same time (previous section), edit it
-in the unsigned file first, so one signature covers both. Then remove this
-section and its line in `docs/LEAD_ACTIONS.md`, and commit both files.
-
 ## Lead actions (owner)
 
 1. **Create the release key** on an offline, hardware-isolated machine:

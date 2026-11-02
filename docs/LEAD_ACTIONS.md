@@ -428,22 +428,6 @@ From `docs/safety/PHASE0_TRACEABILITY.md` "Open items":
   release. If the published release commit differs from `97321391`, re-pin
   and regenerate the HIL tables again (PIN-1, D32). The app detects the build
   by capability probe, never by number alone.
-- **Re-sign the bench manifest for the re-pin.** The signed bench entry names the previous pin:
-  `firmware/approved-builds.unsigned.json` names `97321391`, but
-  `firmware/approved-builds.json` still carries `ead63997`, because signing
-  needs your bench key, which no agent uses. Nothing changes at run time
-  meanwhile: the entry has `fbs: null`, so it matches every 450.01 build by
-  dialect and `fb`, and the commit is never checked. A gate test allows
-  exactly this difference while this line and `docs/ops/release-key.md`
-  record it. Run, outside any agent session:
-
-  ```sh
-  pnpm sign:builds --key ~/.synthetos-release-bench/bench.pkcs8.pem --kid owner-bench-2026-11-02
-  ```
-
-  Then delete this item and the matching section of
-  `docs/ops/release-key.md` (the gate test requires it once the files
-  agree), and commit both manifest files.
 - **O5**: raise mutation score of `packages/safety/src/sanitize/` above 90 %
   and add a mutation or coverage gate to `protocol`, `machine` and `schema`.
 - **O6**: copy the in-repo SAFETY.md amendments back into the authoritative
