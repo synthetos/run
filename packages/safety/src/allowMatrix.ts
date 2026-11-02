@@ -106,9 +106,12 @@ export type Intent = (typeof INTENTS)[number];
 
 /**
  * What kind of intent this is. `stop` is the normative stop class.
- * `motion`, `write` and `port` are the kinds a release can hold back.
+ * `motion`, `write`, `settings` and `port` are the kinds a release can hold back.
+ * `settings` (settings writes, SAFETY §4.6, amendment 2026-11-02) has a gate of
+ * its own, so turning on other writes (work zero) never turns on settings
+ * writes, and the reverse.
  */
-export type IntentKind = 'stop' | 'read' | 'recovery' | 'session' | 'motion' | 'write' | 'port' | 'job' | 'cloud';
+export type IntentKind = 'stop' | 'read' | 'recovery' | 'session' | 'motion' | 'write' | 'settings' | 'port' | 'job' | 'cloud';
 
 /** The stop-class intents of the normative rule (SAFETY §4.1). */
 export const STOP_CLASS: readonly Intent[] = Object.freeze(['feedhold', 'stopJob', 'spindleOffNow']);
@@ -133,6 +136,12 @@ export interface Release {
   readonly motion: boolean;
   readonly write: boolean;
   readonly port: boolean;
+  /**
+   * Settings writes (kind `settings`). Absent means false. Turned on only by
+   * the settings-write phase switch (settingsPhase.ts) for the bench and
+   * staging environments.
+   */
+  readonly settings?: boolean;
 }
 
 /** This release: Phase 0, no serial (ROADMAP P0-10, RUN_PLAN §11). */
@@ -151,6 +160,15 @@ export const CURRENT_RELEASE: Release = Object.freeze({ name: 'Phase 0', motion:
  * that carries the transport chunk and it serves `serial=()` (P1-09).
  */
 export const PHASE_1_RELEASE: Release = Object.freeze({ name: 'Phase 1', motion: false, write: false, port: true });
+
+/**
+ * Phase 1 plus settings writes (SAFETY §4.6, amendment 2026-11-02): as
+ * `PHASE_1_RELEASE`, and the `settings` kind is on, so `settingsWrite` is
+ * decided by its row (idle, approved firmware, no overlay but NEEDS_REVIEW).
+ * Motion and every other write stay off. The machine worker uses it only
+ * where `settingsWritesEnabled` says so (bench and staging, never production).
+ */
+export const PHASE_1_SETTINGS_RELEASE: Release = Object.freeze({ name: 'Phase 1 + settings writes', motion: false, write: false, port: true, settings: true });
 
 /** Base states in which the serial port is open (from the first read of IDENTIFYING onwards). */
 export const PORT_OPEN_STATES: ReadonlySet<BaseState> = new Set(
@@ -278,11 +296,14 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
   setWorkZero: { kind: 'write', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Set work zero row' },
   optionalStop: { kind: 'write', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Optional stop row' },
   settingsWrite: {
-    kind: 'write',
-    states: IDLE,
+    kind: 'settings',
+    // CONNECTED_UNKNOWN (amendment 2026-11-02): a settings write moves nothing, so an untrusted position
+    // does not stop it. The session still proves the board idle with polled reads before every write
+    // (stat idle or end, hold 0, vel 0, qr = plannerBlocks), and the UNKNOWN overlay still denies it.
+    states: [...IDLE, 'CONNECTED_UNKNOWN'],
     overlays: ['NEEDS_REVIEW'],
     denied: { reason: 'Settings are written only while idle with no job loaded or armed.', remedy: 'Wait until the machine is idle and unload the job.' },
-    citation: 'SAFETY §4.1 Settings write row; Anything else row (NEEDS_REVIEW via C19)',
+    citation: 'SAFETY §4.1 Settings write row; Anything else row (NEEDS_REVIEW via C19); amendment 2026-11-02',
   },
   applyProfile: {
     kind: 'write',
@@ -401,7 +422,7 @@ export function allowed(snapshot: MatrixSnapshot, intent: Intent, release: Relea
     return deny('Unknown request.', 'Reload the page.', 'SAFETY §4.1 (fail closed)');
   }
   const overlays = new Set(snapshot.overlays);
-  if ((row.kind === 'motion' && !release.motion) || (row.kind === 'write' && !release.write) || (row.kind === 'port' && !release.port)) {
+  if ((row.kind === 'motion' && !release.motion) || (row.kind === 'write' && !release.write) || (row.kind === 'settings' && release.settings !== true) || (row.kind === 'port' && !release.port)) {
     return deny(NOT_IN_RELEASE.reason, NOT_IN_RELEASE.remedy, `ROADMAP P0-10 (${release.name})`);
   }
   // The normative rule: stop-class depends on nothing but an open port.

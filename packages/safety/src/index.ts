@@ -20,6 +20,7 @@ export {
   INTENTS,
   OVERLAYS,
   PHASE_1_RELEASE,
+  PHASE_1_SETTINGS_RELEASE,
   PORT_OPEN_STATES,
   STOP_CLASS,
   allowed,
@@ -27,6 +28,8 @@ export {
   isLive,
 } from './allowMatrix.ts';
 export type { BaseState, Decision, Intent, IntentKind, MatrixSnapshot, Overlay, Release } from './allowMatrix.ts';
+export { SETTINGS_WRITES, settingsWritesEnabled, releaseFor } from './settingsPhase.ts';
+export type { SettingsEnvironment } from './settingsPhase.ts';
 export { overrunBound } from './overrun.ts';
 export { EMPTY_AXIS_MODE_SESSION, INHIBITED_JOINT_BEHAVIOUR, axisModeFacts } from './axisModeFacts.ts';
 export type { AxisModeFact, AxisModeFactCode, AxisModeReading, AxisModeSession } from './axisModeFacts.ts';

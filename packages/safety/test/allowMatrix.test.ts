@@ -30,7 +30,7 @@ import {
 } from '../src/index.ts';
 import { runs } from './sanitizeHelpers.ts';
 
-const OPEN: Release = { name: 'all gates open', motion: true, write: true, port: true };
+const OPEN: Release = { name: 'all gates open', motion: true, write: true, port: true, settings: true };
 
 /** Every subset of the overlays (2^7 = 128). */
 const OVERLAY_SETS: readonly (readonly Overlay[])[] = Array.from({ length: 1 << OVERLAYS.length }, (_, mask) =>
@@ -226,7 +226,7 @@ describe('Phase 0 release gate', () => {
     let gated = 0;
     for (const { s, intent } of cells()) {
       const kind = intentKind(intent);
-      if (kind !== 'motion' && kind !== 'write' && kind !== 'port') continue;
+      if (kind !== 'motion' && kind !== 'write' && kind !== 'settings' && kind !== 'port') continue;
       gated++;
       const d = allowed(s, intent);
       if (d.allowed || d.reason !== 'Not available in this release.' || !d.citation.includes('Phase 0')) {
@@ -241,7 +241,9 @@ describe('Phase 0 release gate', () => {
   it('every motion and write intent is classified as such', () => {
     const kinds = Object.fromEntries(INTENTS.map((i) => [i, intentKind(i)]));
     for (const i of ['jog', 'home', 'start', 'resume', 'arm', 'consoleLine', 'spindleOn']) expect(kinds[i], i).toBe('motion');
-    for (const i of ['settingsWrite', 'applyProfile', 'setWorkZero', 'optionalStop', 'flash', 'resetController']) expect(kinds[i], i).toBe('write');
+    for (const i of ['applyProfile', 'setWorkZero', 'optionalStop', 'flash', 'resetController']) expect(kinds[i], i).toBe('write');
+    // Settings writes have their own gate (amendment 2026-11-02).
+    expect(kinds['settingsWrite']).toBe('settings');
     expect(kinds['connect']).toBe('port');
     for (const i of STOP_CLASS) expect(kinds[i]).toBe('stop');
   });
@@ -257,7 +259,7 @@ describe('Phase 0 release gate', () => {
 
 describe('Phase 1 release gate (ROADMAP P1-02: read-only bench)', () => {
   /** Intents that can put bytes on the wire. */
-  const MACHINE = INTENTS.filter((i) => ['stop', 'read', 'recovery', 'motion', 'write'].includes(intentKind(i)));
+  const MACHINE = INTENTS.filter((i) => ['stop', 'read', 'recovery', 'motion', 'write', 'settings'].includes(intentKind(i)));
 
   it('of the intents that reach the machine, allows only read, enq (classified EN), ackFault (under FAULT) and the stop class', () => {
     const wrong: string[] = [];
@@ -281,7 +283,7 @@ describe('Phase 1 release gate (ROADMAP P1-02: read-only bench)', () => {
     const wrong: string[] = [];
     for (const { s, intent } of cells()) {
       const kind = intentKind(intent);
-      if (kind !== 'motion' && kind !== 'write') continue;
+      if (kind !== 'motion' && kind !== 'write' && kind !== 'settings') continue;
       const d = allowed(s, intent, PHASE_1_RELEASE);
       if (d.allowed || d.reason !== 'Not available in this release.' || !d.citation.includes('Phase 1')) wrong.push(`${s.base} ${intent}`);
     }

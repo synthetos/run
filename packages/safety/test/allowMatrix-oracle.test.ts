@@ -72,7 +72,7 @@ describe('intent kinds (which release gate and which rule applies)', () => {
       spindleOn: 'motion',
       setWorkZero: 'write',
       optionalStop: 'write',
-      settingsWrite: 'write',
+      settingsWrite: 'settings',
       applyProfile: 'write',
       flash: 'write',
       loadJob: 'job',

@@ -204,7 +204,7 @@ describe('sanitiser report messages', () => {
 
 describe('allow-matrix denials', () => {
   it('are pinned for every intent and overlay', () => {
-    const open: Release = { name: 'all gates open', motion: true, write: true, port: true };
+    const open: Release = { name: 'all gates open', motion: true, write: true, port: true, settings: true };
     const out: Record<string, unknown> = {};
     for (const intent of INTENTS) {
       out[`${intent} NOT_CONNECTED`] = allowed({ base: 'NOT_CONNECTED', overlays: [], classified: false, enqCapable: false }, intent, open);

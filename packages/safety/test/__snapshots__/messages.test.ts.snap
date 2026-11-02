@@ -536,13 +536,13 @@ exports[`allow-matrix denials > are pinned for every intent and overlay 1`] = `
   },
   "settingsWrite BOOTLOADER_MODE": {
     "allowed": false,
-    "citation": "SAFETY §4.1 Settings write row; Anything else row (NEEDS_REVIEW via C19)",
+    "citation": "SAFETY §4.1 Settings write row; Anything else row (NEEDS_REVIEW via C19); amendment 2026-11-02",
     "reason": "Settings are written only while idle with no job loaded or armed.",
     "remedy": "Wait until the machine is idle and unload the job.",
   },
   "settingsWrite NOT_CONNECTED": {
     "allowed": false,
-    "citation": "SAFETY §4.1 Settings write row; Anything else row (NEEDS_REVIEW via C19)",
+    "citation": "SAFETY §4.1 Settings write row; Anything else row (NEEDS_REVIEW via C19); amendment 2026-11-02",
     "reason": "Settings are written only while idle with no job loaded or armed.",
     "remedy": "Wait until the machine is idle and unload the job.",
   },
