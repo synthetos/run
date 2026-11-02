@@ -110,8 +110,8 @@ describe('bundle scan on the real build', () => {
 
   it('a network identifier outside apps/web/src/cloud fails the scan', { timeout: TIMEOUT }, () => {
     const repo = fresh();
-    repo.append('apps/web/src/shell/Shell.ts', "\nexport const ping = (): Promise<Response> => fetch('/api/health');\n");
-    repo.append('apps/web/src/entries/workspace.ts', "\nimport { ping } from '../shell/Shell.ts';\nvoid ping();\n");
+    repo.append('apps/web/src/workspace/AppShell.ts', "\nexport const ping = (): Promise<Response> => fetch('/api/health');\n");
+    repo.append('apps/web/src/entries/workspace.ts', "\nimport { ping } from '../workspace/AppShell.ts';\nvoid ping();\n");
     built(repo);
     const result = repo.scan();
     expect(result.status, result.output).toBe(1);

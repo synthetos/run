@@ -132,7 +132,7 @@ describe('the remaining P0-02 rules', () => {
   it('testkit reached transitively from an entry fails dependency-cruiser', { timeout: TIMEOUT }, () => {
     const repo = fresh();
     repo.append(
-      'apps/web/src/shell/Shell.ts',
+      'apps/web/src/workspace/AppShell.ts',
       "import { TESTKIT_MARKER } from '../../../../packages/testkit/src/index.ts';\nexport const _m = TESTKIT_MARKER;\n",
     );
     const result = repo.deps();
@@ -261,7 +261,7 @@ describe('the remaining P0-02 rules', () => {
     const text = `WARNING ${'—'} This software is not an emergency stop.`;
     repo.write('packages/safety/src/strings.ts', `export const W1 = (): string => '${text}';\n`);
     { const r = repo.lint(); expect(r.status, r.output).toBe(0); }
-    repo.append('apps/web/src/shell/Shell.ts', `export const BAR = '${text}';\n`);
+    repo.append('apps/web/src/workspace/AppShell.ts', `export const BAR = '${text}';\n`);
     expectFailure(repo.lint(), 'run/no-signal-word-literal');
   });
 
@@ -292,7 +292,7 @@ describe('the remaining P0-02 rules', () => {
   it('navigator.serial reached through an alias fails lint', { timeout: TIMEOUT }, () => {
     const repo = fresh();
     repo.append(
-      'apps/web/src/shell/Shell.ts',
+      'apps/web/src/workspace/AppShell.ts',
       'declare const navigator: { serial: { requestPort(): Promise<unknown> } };\n' +
         'const nav = navigator;\nexport const open = () => nav.serial.requestPort();\n',
     );
@@ -442,7 +442,7 @@ describe('ROADMAP P0-12 rules', () => {
   it('web app source importing the mint by relative path fails dependency-cruiser', { timeout: TIMEOUT }, () => {
     const repo = fresh();
     repo.append(
-      'apps/web/src/shell/Shell.ts',
+      'apps/web/src/workspace/AppShell.ts',
       "export { mintBootloaderCapability } from '../../../../packages/flasher/src/bootloaderCapability.ts';\n",
     );
     expectFailure(repo.deps(), 'bootloader-capability-mint-is-flasher-only');
@@ -506,7 +506,7 @@ describe('P1-00: Web Serial is allowed in packages/machine/src/webSerialTranspor
   it('the main thread importing the transport fails dependency-cruiser', { timeout: TIMEOUT }, () => {
     const repo = fresh();
     repo.write('packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
-    repo.append('apps/web/src/shell/Shell.ts', "export { ports } from '../../../../packages/machine/src/webSerialTransport.ts';\n");
+    repo.append('apps/web/src/workspace/AppShell.ts', "export { ports } from '../../../../packages/machine/src/webSerialTransport.ts';\n");
     expectFailure(repo.deps(), 'web-serial-transport-importers');
   });
 
