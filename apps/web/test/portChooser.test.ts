@@ -3,8 +3,10 @@
  * windowChooser calls the chooser synchronously (inside the C1 click).
  */
 import { describe, expect, it } from 'vitest';
-import type { ChooserResult } from '@synthetos/machine/web-serial-chooser';
 import { CHOOSER_TEXT, toChooseResult, windowChooser } from '../src/live/portChooser.ts';
+
+/** The chooser's answer type, through portChooser.ts (the only module that may import the chooser). */
+type ChooserResult = Parameters<typeof toChooseResult>[0];
 
 describe('portChooser', () => {
   it('passes the selector through, and words every refusal', () => {
