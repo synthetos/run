@@ -11,6 +11,26 @@
  * Imported by the workspace entry only.
  */
 
+/* Stacking order of the workspace, in one place. Every z-index in this file
+   uses one of these. Low to high:
+   - raised: sticky table heads and overlays inside a panel (the 3D canvas's
+     own labels, the "jump to current line" button);
+   - panel: panels that pop over their neighbours (the job card and its menu);
+   - notice: the machine strip and what it raises (the Stop job / Pause
+     outcome under it) and toasts. Above every panel and the 3D canvas, so a
+     notice can always be read;
+   - menu: the account menu;
+   - dialog: modal dialogs (C1 and the others): above notices;
+   - safety: W1, the safety bar. Nothing ever covers it. */
+:root {
+  --z-raised: 1;
+  --z-panel: 2;
+  --z-notice: 4;
+  --z-menu: 5;
+  --z-dialog: 6;
+  --z-safety: 7;
+}
+
 /* Local layout tokens for the study. Colour comes only from the theme and
    safety tokens; these mix them, they never introduce new hues. */
 :root {
@@ -186,7 +206,7 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .viewer { position: relative; flex: 1; min-height: 160px; border: 1px solid var(--rule); border-radius: var(--r) var(--r) 0 0; background-color: var(--sheet); background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; background-position: -1px -1px; overflow: hidden; }
 .viewer canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .viewer canvas:active { cursor: grabbing; }
-.viewer-top { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; pointer-events: none; z-index: 1; }
+.viewer-top { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; pointer-events: none; z-index: var(--z-raised); }
 .viewer-top > * { pointer-events: auto; }
 .viewer-top .seg { background: color-mix(in srgb, var(--sheet) 88%, transparent); backdrop-filter: blur(4px); }
 .viewer-label { font-size: 12px; color: var(--muted); background: color-mix(in srgb, var(--sheet) 85%, transparent); padding: 3px 8px; border-radius: var(--r-sm); }
@@ -436,7 +456,7 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .tool-table-wrap { flex: 1; min-height: 0; overflow: auto; }
 table { border-collapse: collapse; }
 .tool-table, .backup-table { width: 100%; font-size: 12.5px; }
-.tool-table th, .backup-table th { text-align: left; font-weight: 500; font-size: 11.5px; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--sheet); z-index: 1; }
+.tool-table th, .backup-table th { text-align: left; font-weight: 500; font-size: 11.5px; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--sheet); z-index: var(--z-raised); }
 .tool-table td, .backup-table td { padding: 8px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
 .tool-table tbody tr, .backup-table tbody tr { cursor: pointer; }
 .tool-table tbody tr:hover, .backup-table tbody tr:hover { background: var(--raise); }
@@ -665,7 +685,7 @@ table { border-collapse: collapse; }
 .change-list code { font-size: 11.5px; }
 
 /* ---------- Account menu, dialogs, toast ---------- */
-.account-menu { position: absolute; top: 4px; right: 12px; width: 300px; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r); box-shadow: var(--pop); z-index: 7; padding: 6px; }
+.account-menu { position: absolute; top: 4px; right: 12px; width: 300px; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r); box-shadow: var(--pop); z-index: var(--z-menu); padding: 6px; }
 .account-id { display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: center; padding: 10px; }
 .account-id strong { display: block; font-size: 14px; }
 .account-id small { color: var(--muted); font-size: 12px; }
@@ -679,7 +699,7 @@ table { border-collapse: collapse; }
 .menu-item:disabled { background: none; }
 .menu-foot { font-size: 11.5px; color: var(--muted); padding: 8px 10px 6px; border-top: 1px solid var(--line-soft); margin-top: 4px; }
 
-.dialog-wrap { position: absolute; inset: 0; z-index: 6; display: flex; align-items: center; justify-content: center; padding: 20px; background: color-mix(in srgb, var(--ink) 30%, transparent); }
+.dialog-wrap { position: absolute; inset: 0; z-index: var(--z-dialog); display: flex; align-items: center; justify-content: center; padding: 20px; background: color-mix(in srgb, var(--ink) 30%, transparent); }
 .dialog { width: 520px; max-width: 100%; max-height: 100%; overflow: auto; background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 20px 22px; box-shadow: var(--pop); }
 .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .dialog-head h2 { font-size: 20px; }
@@ -687,7 +707,7 @@ table { border-collapse: collapse; }
 .dialog .field { margin-top: 12px; }
 .dialog .field input { width: 100%; height: 34px; border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--sheet); padding: 0 10px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
-.toast { position: absolute; left: 50%; bottom: 36px; transform: translateX(-50%); max-width: min(560px, calc(100% - 28px)); background: var(--ink); color: var(--sheet); padding: 10px 16px; border-radius: var(--r); font-size: 12.5px; line-height: 1.5; z-index: 9; box-shadow: var(--pop); }
+.toast { position: absolute; left: 50%; bottom: 36px; transform: translateX(-50%); max-width: min(560px, calc(100% - 28px)); background: var(--ink); color: var(--sheet); padding: 10px 16px; border-radius: var(--r); font-size: 12.5px; line-height: 1.5; z-index: var(--z-notice); box-shadow: var(--pop); }
 .toast:empty { display: none; }
 
 /* ---------- Short screens: keep the preview usable ---------- */
@@ -827,7 +847,7 @@ body { background-image: none; }
 .app .label { all: unset; }
 
 /* W1: one line at the top, safety-bar tokens only, stripes as the left edge. */
-.app .safety-bar-workspace { position: relative; flex: none; display: flex; border-bottom: 1px solid var(--hazard-dark); z-index: 2; }
+.app .safety-bar-workspace { position: relative; flex: none; display: flex; border-bottom: 1px solid var(--hazard-dark); z-index: var(--z-safety); }
 .app .safety-bar-workspace::before { width: 12px; height: auto; flex: none; }
 .app .safety-bar-workspace .safety-bar-inner { flex: 1; padding: 5px 16px 5px 12px; }
 .app .safety-bar-workspace .safety-w1 { flex: 1 1 auto; align-items: center; gap: 8px; font: 500 12px/1.4 var(--sans); }
@@ -853,7 +873,9 @@ body { background-image: none; }
 .sync-badge[data-sync="local"] { background: var(--field); }
 
 /* Machine strip */
-.statebar { position: relative; z-index: 3; }
+/* The strip is a stacking context at the notice level: the outcome line it raises under itself after
+   Stop job or Pause must sit above every panel (the job card) and the 3D canvas, below dialogs. */
+.statebar { position: relative; z-index: var(--z-notice); }
 .statebar .state-dot { background: var(--field); box-shadow: none; }
 .statebar[data-tone="live"] .state-dot { background: var(--live); box-shadow: 0 0 0 4px color-mix(in srgb, var(--live) 14%, transparent); }
 .statebar[data-tone="run"] .state-dot { background: var(--state-run); box-shadow: 0 0 0 4px color-mix(in srgb, var(--state-run) 16%, transparent); }
@@ -862,7 +884,13 @@ body { background-image: none; }
 .statebar[data-tone="warn"] .state-dot { background: var(--warn); }
 .state-title { flex: none; min-width: 200px; max-width: 300px; }
 .state-title small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Disconnect, in every view while a port is open or opening. A refusal is a notice under the strip. */
+.strip-connection { flex: none; display: flex; align-items: center; }
+.strip-connection .strip-disconnect { min-height: 32px; padding: 0 12px; font-size: 12.5px; }
+.strip-disconnect-refused { position: absolute; left: 20px; top: calc(100% + 6px); z-index: var(--z-notice); max-width: 440px; margin: 0; padding: 7px 12px; border-radius: var(--r-sm); font-size: 12.5px; line-height: 1.4; background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); box-shadow: var(--pop); }
 .statebar .state-meta { flex: 1 1 auto; min-width: 0; }
+/* An alarm's explanation says what to do: wrap it (up to three lines) instead of cutting it off. */
+.statebar[data-tone="alarm"] .meta-text { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; font-size: 12px; line-height: 1.35; }
 .statebar .state-band { display: flex; max-width: none; padding: 0; margin: 0; background: none; border: 0; color: var(--ink); font: 400 12px/1.35 var(--sans); }
 .statebar .state-band .band-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .statebar .state-band.warn { color: var(--warn); }
@@ -881,7 +909,7 @@ body { background-image: none; }
 .stop-group .stop[data-prominent="true"] { background: var(--stop-bg); border-color: var(--stop-bg); color: var(--on-stop); }
 .stop-group .stop[data-prominent="true"]:hover { box-shadow: 0 0 0 2px var(--stop-mark); }
 .stop-group :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
-.stop-outcome { position: absolute; right: 14px; top: calc(100% + 6px); z-index: 8; max-width: 440px; margin: 0; padding: 7px 12px; border-radius: var(--r-sm); font-size: 12.5px; line-height: 1.4; background: var(--sheet); color: var(--ink); border: 1px solid var(--rule); box-shadow: var(--pop); }
+.stop-outcome { position: absolute; right: 14px; top: calc(100% + 6px); z-index: var(--z-notice); max-width: 440px; margin: 0; padding: 7px 12px; border-radius: var(--r-sm); font-size: 12.5px; line-height: 1.4; background: var(--sheet); color: var(--ink); border: 1px solid var(--rule); box-shadow: var(--pop); }
 .stop-outcome.not-delivered { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); font-weight: 600; }
 
 /* Views fill the area; panels scroll inside themselves. */
@@ -1098,7 +1126,7 @@ code.block { display: block; white-space: pre-wrap; word-break: break-word; padd
 .check-value { font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* The job card: top of the Run view. */
-.job-card { position: relative; flex: none; display: grid; grid-template-columns: minmax(180px, 260px) minmax(0, 1fr) auto; align-items: center; gap: 10px 18px; margin: 12px 20px 10px; padding: 10px 14px 10px 12px; border: 1px solid var(--rule); border-left: 3px solid var(--tan); border-radius: var(--r); background: var(--sheet); z-index: 4; }
+.job-card { position: relative; flex: none; display: grid; grid-template-columns: minmax(180px, 260px) minmax(0, 1fr) auto; align-items: center; gap: 10px 18px; margin: 12px 20px 10px; padding: 10px 14px 10px 12px; border: 1px solid var(--rule); border-left: 3px solid var(--tan); border-radius: var(--r); background: var(--sheet); z-index: var(--z-panel); }
 .job-card.empty { border-left-color: var(--rule); }
 .job-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .job-icon { width: 36px; height: 36px; border-radius: var(--r-sm); display: grid; place-items: center; flex: none; background: var(--tan-wash); color: var(--tan); }
@@ -1198,7 +1226,7 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 
 /* Materials: a tight table */
 .mat-table { width: 100%; font-size: 12.5px; }
-.mat-table thead th { text-align: left; font-weight: 500; font-size: 11.5px; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--sheet); z-index: 1; }
+.mat-table thead th { text-align: left; font-weight: 500; font-size: 11.5px; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--sheet); z-index: var(--z-raised); }
 .mat-table td { padding: 6px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
 .mat-table tbody tr:not(.family-row) { cursor: pointer; }
 .mat-table tbody tr:not(.family-row):hover { background: var(--raise); }

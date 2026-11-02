@@ -11,7 +11,7 @@
  */
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { c13, c16, c24, c25, w13, w34 } from '@synthetos/safety';
 import { DIALECTS, type DialectId } from '@synthetos/protocol';
 import { LITE_THRESHOLD_LINES, PREVIEW_DIALECTS, type PreviewMode } from '../../gcode-worker/pipeline.ts';
@@ -33,6 +33,9 @@ import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZ
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
 import { signalText } from '../../shell/signal.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
+import { ConsoleLine } from '../../console/ConsoleLine.ts';
+import { openReport } from '../../report/state.ts';
+import { currentFile, pendingOpen } from '../fileBridge.ts';
 import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
 
 export interface RunViewProps {
@@ -45,7 +48,27 @@ export interface RunViewProps {
 export function RunView({ model, spawn, marker, onView }: RunViewProps): ComponentChild {
   const live = model?.live.value ?? null;
   const reportedLine = live !== null && connected(live) ? (live.message?.snapshot.live.line ?? null) : null;
-  return h(PreviewPanel, { spawn, ...(marker === undefined ? {} : { marker }), reportedLine, layout: (parts: PreviewParts) => runLayout(parts, model, onView) });
+  return h(PreviewPanel, { spawn, ...(marker === undefined ? {} : { marker }), reportedLine, onReportLine: (line: number) => openReport({ origin: 'line', line }), layout: (parts: PreviewParts) => runLayout(parts, model, onView) });
+}
+
+/**
+ * Publishes the open file for a report's excerpt (workspace/fileBridge.ts), and opens a file another
+ * view asked for ("Open in Run" in Projects). Renders nothing.
+ */
+function RunBridge({ parts }: { readonly parts: PreviewParts }): ComponentChild {
+  const { state, actions } = parts;
+  const result = state.status === 'ready' ? state.result : null;
+  useEffect(() => {
+    currentFile.value = result === null || state.fileName === null ? null : { name: state.fileName, bytes: result.bytes };
+  }, [result, state.fileName]);
+  const pending = pendingOpen.value;
+  const onFile = actions.onFile;
+  useEffect(() => {
+    if (pending === null || !state.ready || onFile === undefined) return;
+    pendingOpen.value = null;
+    onFile(pending);
+  }, [pending, state.ready, onFile]);
+  return null;
 }
 
 // ---------------------------------------------------------------- connect
@@ -78,7 +101,14 @@ export function ConnectNotice({ model, onView }: { readonly model: WorkspaceMode
     'div',
     { class: `scenario-notice connect-notice${isConnected ? ' is-connected' : ''}`, 'data-region': 'connect' },
     h('div', { class: 'notice-text' }, h('strong', null, heading), h('p', null, copy)),
-    h('div', { class: 'notice-actions' }, step === 'c1' ? null : panel, isConnected ? h('button', { type: 'button', class: 'small', onClick: () => onView('board') }, 'Open the board') : null),
+    h(
+      'div',
+      { class: 'notice-actions' },
+      step === 'c1' ? null : panel,
+      // The port is open or opening but LIVE entry has not finished (or ended elsewhere): Disconnect still applies.
+      isConnected && step !== 'live' && step !== 'c1' ? h('button', { type: 'button', class: 'button', 'data-action': 'disconnect', onClick: () => actions?.disconnect() }, 'Disconnect') : null,
+      isConnected ? h('button', { type: 'button', class: 'small', onClick: () => onView('board') }, 'Open the board') : null,
+    ),
     step === 'c1'
       ? h(
           'div',
@@ -957,13 +987,40 @@ function ConsolePane({ model, active }: { readonly model: WorkspaceModel | null;
     };
   }, [active, model, epoch]);
   const t0 = lines?.[0]?.t ?? 0;
+  const wire = useRef<HTMLOListElement>(null);
+  const pinned = useRef(true);
+  // Keep the newest line in view, unless the user scrolled up to read.
+  useEffect(() => {
+    const el = wire.current;
+    if (el !== null && pinned.current) el.scrollTop = el.scrollHeight;
+  }, [lines]);
+  const saving = view === null || view.message === null || view.message.snapshot.epoch === 0 ? null : h(TranscriptSave, { status: view.transcript, onSave: () => model?.actions.value?.saveTranscript() });
   return h(
     'div',
     { class: 'console-pane' },
-    epoch === 0 || lines === null
-      ? h('p', { class: 'live-empty' }, h('strong', null, 'The console shows the conversation with the board.'), 'Every line Run sends and every answer, once a board is connected in this tab. It only reads.')
-      : h('ol', { class: 'console', 'data-console': 'lines', 'aria-label': 'Wire transcript' }, lines.map((l, i) => h('li', { key: String(i), class: l.dir === 'tx' ? 'tx' : 'rx' }, h('time', null, `${((l.t - t0) / 1000).toFixed(2)}`), h('span', { class: 'dir' }, l.dir === 'tx' ? '→' : '←'), h('span', null, l.text)))),
-    view === null || view.message === null || view.message.snapshot.epoch === 0 ? null : h(TranscriptSave, { status: view.transcript, onSave: () => model?.actions.value?.saveTranscript() }),
+    h(ConsoleLine, { model }),
+    h(
+      'div',
+      { class: 'console-wire' },
+      h('div', { class: 'cl-head' }, h('span', { class: 'cl-title' }, 'Wire transcript'), h('span', { class: 'cl-phase' }, 'Every byte, as sent and received')),
+      epoch === 0 || lines === null
+        ? h('p', { class: 'live-empty' }, h('strong', null, 'The console shows the conversation with the board.'), 'Every line Run sends and every answer, once a board is connected in this tab. It only reads.')
+        : h(
+            'ol',
+            {
+              class: 'console',
+              ref: wire,
+              'data-console': 'lines',
+              'aria-label': 'Wire transcript',
+              onScroll: (e: Event) => {
+                const el = e.currentTarget as HTMLOListElement;
+                pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+              },
+            },
+            lines.map((l, i) => h('li', { key: String(i), class: l.dir === 'tx' ? 'tx' : 'rx' }, h('time', null, `${((l.t - t0) / 1000).toFixed(2)}`), h('span', { class: 'dir' }, l.dir === 'tx' ? '→' : '←'), h('span', null, l.text))),
+          ),
+      saving === null ? null : h('details', { class: 'wire-save' }, h('summary', null, 'Save the transcript'), saving),
+    ),
   );
 }
 
@@ -1044,7 +1101,7 @@ function Dock({ parts, model }: { readonly parts: PreviewParts; readonly model: 
   ];
   return h(
     'div',
-    { class: 'dock' },
+    { class: 'dock', 'data-dock-tab': tab },
     h(
       'div',
       { class: 'dock-tabs', role: 'tablist', 'aria-label': 'File and machine' },
@@ -1080,6 +1137,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
   return h(
     'div',
     { class: 'run-view', 'data-region': 'preview' },
+    h(RunBridge, { parts }),
     h(JobCard, { parts }),
     h(
       'div',

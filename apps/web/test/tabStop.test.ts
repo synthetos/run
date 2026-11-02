@@ -16,7 +16,7 @@ import { machineLockName, parseStopAck, parseStopRequest, STOP_ACK_TIMEOUT_MS, t
 import { MachineStopService, type StopSession } from '../src/machine-worker/stopService.ts';
 import { forgetDeviceSafety, memoryDeviceSafety } from '../src/live/deviceSafety.ts';
 import { ObserverPanel } from '../src/live/ObserverPanel.ts';
-import { atRest, mayBeMoving, StopControls } from '../src/live/stopControls.ts';
+import { atRest, DELIVERED_SHOWN_MS, mayBeMoving, PAUSE_ANSWER_MS, StopControls } from '../src/live/stopControls.ts';
 import { installEscapeStop, LockWatcher, NO_ROLE, TabStop, type StopOutcome, type Timers } from '../src/live/tabStop.ts';
 import { type StopBarView } from '../src/shell/SafetyBar.ts';
 import { MachineStrip } from '../src/workspace/MachineStrip.ts';
@@ -456,17 +456,53 @@ describe('StopControls', () => {
     expect(c.view.value.outcome?.idle).toBeUndefined();
   });
 
-  it('Pause in a LIVE tab goes to its own worker and to every worker, synchronously; PAUSE REQUESTED until a hold is reported, then W30', () => {
+  it('Pause in a LIVE tab goes to its own worker and to every worker, synchronously; "Pausing…" until a hold is reported, then W30', () => {
     const { c, sent, own } = controls();
     c.setLive(true);
+    c.setSnapshot(at('running'));
     c.pause();
     expect(own).toHaveBeenCalledTimes(1);
     expect(sent).toEqual(['pause']);
-    expect(c.view.value.band).toBe('pause-requested');
+    expect(c.view.value.band).toBe('pausing');
     c.setSnapshot({ base: 'CONNECTED_UNKNOWN', overlays: [], live: { machineClass: 'held', pos: {}, mpo: {} } } as unknown as SessionSnapshot);
     expect(c.view.value.band).toBe('held');
     c.setLive(false);
     expect(c.view.value).toEqual({ available: false, prominent: false, band: null, outcome: null });
+  });
+
+  it('"Pausing…" with no hold reported within 2 s says the board has not answered, and resolves when the hold arrives', async () => {
+    const { c } = controls();
+    c.setLive(true);
+    c.setSnapshot(at('running'));
+    c.pause();
+    expect(c.view.value.band).toBe('pausing');
+    await vi.advanceTimersByTimeAsync(PAUSE_ANSWER_MS - 1);
+    expect(c.view.value.band).toBe('pausing');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(c.view.value.band).toBe('pause-no-answer');
+    expect(c.view.value.prominent).toBe(true);
+    c.setSnapshot(at('held'));
+    expect(c.view.value.band).toBe('held');
+  });
+
+  it('a Pause pressed at rest shows "nothing changed" at once, never "Pausing…", and clears after a few seconds', async () => {
+    const { c } = controls();
+    c.setLive(true);
+    c.setSnapshot(at('idle'));
+    c.pause();
+    expect(c.view.value.band).toBe('paused-idle');
+    expect(c.view.value.prominent).toBe(false);
+    await vi.advanceTimersByTimeAsync(DELIVERED_SHOWN_MS);
+    expect(c.view.value.band).toBeNull();
+  });
+
+  it('a machine that comes to rest while "Pausing…" resolves to "nothing changed"', () => {
+    const { c } = controls();
+    c.setLive(true);
+    c.setSnapshot(at('running'));
+    c.pause();
+    c.setSnapshot(at('end'));
+    expect(c.view.value.band).toBe('paused-idle');
   });
 
   it('Pause in a tab that is not LIVE still broadcasts (never gated) but sends no own intent', () => {
@@ -518,7 +554,16 @@ describe('machine strip stop controls and observer panel', () => {
     expect(text(band)).toContain(w10());
     expect(text(one(el, (e) => e.props['data-strip'] === 'state'))).toBe(STOP_TEXT.paused);
     expect(text(el)).not.toMatch(/STOPPED/);
-    expect(text(bar({ available: true, band: 'pause-requested', outcome: null }))).toContain(STOP_TEXT.pauseRequested);
+    expect(text(bar({ available: true, band: 'pausing', outcome: null }))).toContain('Pausing…');
+    expect(text(bar({ available: true, band: 'pause-no-answer', outcome: null }))).toContain("No answer from the board yet: use your E-stop if it's still moving");
+    expect(text(bar({ available: true, band: 'paused-idle', outcome: null }))).toContain(STOP_TEXT.pausedIdle);
+  });
+
+  it('never shows the word "requested" for any pause state', () => {
+    for (const band of ['held', 'pausing', 'pause-no-answer', 'paused-idle', null] as const) {
+      expect(text(bar({ available: true, band, outcome: null })), String(band)).not.toMatch(/requested/i);
+    }
+    expect(Object.values(STOP_TEXT).join(' ')).not.toMatch(/requested/i);
   });
 
   it('held with the board reporting spe=1: "Paused · spindle still on"; never without that report', () => {
@@ -575,10 +620,10 @@ describe('machine strip stop controls and observer panel', () => {
   it('a delivered request says what happened in plain words; Stop job and Spindle off went out as Pause (Phase 1)', () => {
     const delivered = (action: 'pause' | 'stopJob' | 'spindleOff', idle?: boolean) =>
       text(one(bar({ available: true, band: null, outcome: { kind: 'delivered', action, machines: [{ machine: 'synthetos-machine:BOARD-A', delivered: true }], ...(idle === undefined ? {} : { idle }) } }), (e) => e.props['data-stop-outcome'] === 'delivered'));
-    expect(delivered('pause')).toBe('Pause delivered to BOARD-A');
+    expect(delivered('pause')).toBe('Pause went out to BOARD-A');
     expect(delivered('pause', true)).toBe(STOP_TEXT.pausedIdle);
     expect(STOP_TEXT.pausedIdle).toBe('Paused: the machine was idle, nothing changed');
-    expect(delivered('stopJob')).toBe(`Stop job delivered to BOARD-A as ${w2Label()}. Use your E-stop to remove power.`);
+    expect(delivered('stopJob')).toBe(`Stop job went out as ${w2Label()} (feedhold) to BOARD-A. Use your E-stop to remove power.`);
     expect(delivered('spindleOff')).toContain(`as ${w2Label()}`);
   });
 

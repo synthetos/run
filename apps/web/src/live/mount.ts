@@ -31,6 +31,7 @@ import { LiveEntry } from './liveEntry.ts';
 import { windowChooser } from './portChooser.ts';
 import { LiveReadout } from './readout.ts';
 import { backupFileName, SettingsBackup } from './backup.ts';
+import { ConsoleReader } from './consoleRead.ts';
 import type { BackupStatus, LiveSample, WorkspaceModel } from '../workspace/model.ts';
 import { cleanDisconnect, installLiveLifecycle, previousSessionEnded } from './liveMarker.ts';
 import type { StopControls } from './stopControls.ts';
@@ -149,8 +150,11 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   });
   // Board view: "Back up settings", one allowlisted GET at a time (live/backup.ts).
   const backup = new SettingsBackup();
+  // The Console command line: one allowlisted read at a time (live/consoleRead.ts).
+  const consoleReader = new ConsoleReader();
   let backupStatus: BackupStatus = { kind: 'idle' };
   let transcriptStatus: TranscriptStatus = { kind: 'idle' };
+  let disconnectRefused: string | null = null;
 
   // P1-08: "Save transcript" asks the worker for the last connection's transcript (it only reads) and downloads it.
   async function saveTranscript(): Promise<void> {
@@ -239,9 +243,11 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       const snapshot = droMessage.snapshot;
       readout.onSnapshot(snapshot);
       backup.onSnapshot(snapshot);
+      consoleReader.onSnapshot(snapshot);
       sample(droMessage, droReceivedAt);
       updateMarker();
       staleSince = snapshot.overlays.includes('STALE') ? (staleSince ?? Date.now()) : null;
+      if (snapshot.base === 'NOT_CONNECTED') disconnectRefused = null;
       alarm.sync(snapshot);
       options.stopControls.setSnapshot(snapshot);
       publish();
@@ -250,12 +256,25 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   }
 
   async function disconnect(): Promise<void> {
-    // Only a close the worker confirmed removes the marker (W6) and leaves LIVE.
-    await cleanDisconnect(() => (worker === null ? Promise.resolve({ ok: true }) : callMachineWorker(worker, { v: RPC_VERSION, kind: 'close' })), store, () => {
-      poller.stop();
-      advisoryBlocked = null;
-      entry.reset();
-    });
+    // Only a close the worker confirmed removes the marker (W6) and leaves LIVE. A refusal is shown in
+    // the allow matrix's own words next to Disconnect, never swallowed.
+    let refused: string | null = null;
+    const closed = await cleanDisconnect(
+      async () => {
+        if (worker === null) return { ok: true };
+        const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'close' });
+        if (!reply.ok) refused = reply.decision === undefined ? `Disconnect failed: ${reply.message}` : `${reply.decision.reason} ${reply.decision.remedy}`;
+        return reply;
+      },
+      store,
+      () => {
+        poller.stop();
+        advisoryBlocked = null;
+        entry.reset();
+      },
+    );
+    disconnectRefused = closed ? null : (refused ?? 'Disconnect failed.');
+    publish();
   }
 
   // Row 35 / BENCH-P100-5: the axes that read inhibited on this link (reset per link epoch).
@@ -291,6 +310,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       transcript: transcriptStatus,
       backup: backupStatus,
       samples,
+      disconnectRefused,
     });
   }
 
@@ -309,6 +329,14 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       if (reply === null) return 'The machine worker did not answer.';
       return reply.ok ? null : reply.message;
     },
+    consoleRead: (token: string) =>
+      consoleReader.read(token, {
+        snapshot: () => droMessage?.snapshot ?? null,
+        read,
+        transcript: transcriptText,
+        setTimeout: (fn, ms) => setTimeout(fn, ms),
+        clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+      }),
   });
 
   entry.subscribe(() => {

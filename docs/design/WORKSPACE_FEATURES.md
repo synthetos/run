@@ -334,7 +334,7 @@ The Console tab gets a command line you can type into, with history (↑/↓) an
 
   Text-mode-only commands (`$$`, `$h` and so on) are mapped to their JSON form or refused with an explanation. Single-character realtime commands (`!`, `~`, `%`, ^X) are never typed here: Pause and Stop job are the buttons.
 - **The same gates as the rest of run.** Every line goes through the sanitiser and the worker's write allowlist for the current phase:
-  - **Phase 1:** reads only (`?`, `$key`). Motion lines show "Motion arrives with motion control", and setting writes show "Settings writes arrive in a later phase". Nothing is sent for either.
+  - **Phase 1:** reads only (`?`, `$key`). Motion lines show "Typed motion comes later; use the jog panel", and setting writes show "Settings writes arrive in a later phase". Nothing is sent for either.
   - **Phase 2:** single motion lines are allowed, with the same checks as jog.
   - **Settings writes:** go through the reviewed settings-write path, with the read-back.
 - **Never during a job.** While a job streams, the command line is read-only (queries only). It never gates Pause or Stop.

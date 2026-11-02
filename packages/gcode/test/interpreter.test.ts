@@ -177,6 +177,7 @@ describe('old P1-03 goldens', () => {
     const flags = sanitized.lines.map((l, i) => [l.sourceLine, ((a.lineFlags[i] as number) & LINE_FLAG.UNCERTAIN) !== 0]);
     expect(flags).toEqual([[1, false], [2, false], [4, true], [5, true]]);
     expect(rules(a, 'info')).toContain('after-rejected-line');
+    expect(a.findings.find((f) => f.rule === 'after-rejected-line')?.message).toBe("Line 3 is blocked, so it isn't sent: positions after it may not match what the file intends.");
     expect(a.kinds[a.kinds.length - 1]! & KIND.UNCERTAIN).toBeTruthy();
   });
 

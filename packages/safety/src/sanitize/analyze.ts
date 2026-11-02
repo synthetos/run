@@ -685,7 +685,9 @@ export class JobModel {
     }
     const toolChange = has('M6');
     if (toolChange && this.#options.c14 !== true) {
-      findings.push(block('m6-without-c14', 'a tool change needs C14: TinyG only stores the tool number, and the spindle keeps running'));
+      // Still a BLOCK: jobs are not run in this release, and M6 does not pause on TinyG (it only stores the tool number).
+      const tool = T !== undefined && Number.isInteger(T.value) && T.value >= 0 ? ` (T${String(T.value)})` : '';
+      findings.push(block('m6-without-c14', `Tool change${tool}: TinyG doesn't stop for M6. Run will stop here and walk you through the change when running jobs arrives.`));
     }
 
     // The modal state this line runs under (modal codes apply before the block's action, EN execution order).

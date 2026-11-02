@@ -97,3 +97,84 @@ export function loadStoredLibraries(): void {
 
 export const isArray = (v: unknown): v is unknown[] => Array.isArray(v);
 export const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+// ---------------------------------------------------------------- IndexedDB records
+
+/**
+ * Larger local records (Projects: project records and their files and images) live in IndexedDB,
+ * database `run.ws`, one object store per kind. Same rules as above: a browser without IndexedDB,
+ * or one that refuses it, gets the in-memory store, and the UI says changes last for this page only.
+ * Nothing safety-related is ever stored here.
+ */
+export const RECORD_DB = 'run.ws';
+export const RECORD_DB_VERSION = 1;
+export const RECORD_STORES = ['projects', 'blobs'] as const;
+export type RecordStoreName = (typeof RECORD_STORES)[number];
+
+export interface RecordStore {
+  /** False for the in-memory fallback. */
+  readonly persistent: boolean;
+  get(store: RecordStoreName, key: string): Promise<unknown>;
+  put(store: RecordStoreName, key: string, value: unknown): Promise<void>;
+  delete(store: RecordStoreName, key: string): Promise<void>;
+  keys(store: RecordStoreName): Promise<string[]>;
+}
+
+/** The in-memory record store (tests, and browsers without IndexedDB). */
+export function memoryRecordStore(): RecordStore & { readonly data: Map<string, Map<string, unknown>> } {
+  const data = new Map<string, Map<string, unknown>>(RECORD_STORES.map((s) => [s, new Map<string, unknown>()]));
+  const of = (s: RecordStoreName): Map<string, unknown> => data.get(s) as Map<string, unknown>;
+  return {
+    persistent: false,
+    data,
+    get: (s, key) => Promise.resolve(of(s).get(key)),
+    put: (s, key, value) => {
+      of(s).set(key, value);
+      return Promise.resolve();
+    },
+    delete: (s, key) => {
+      of(s).delete(key);
+      return Promise.resolve();
+    },
+    keys: (s) => Promise.resolve([...of(s).keys()].sort()),
+  };
+}
+
+function idb<T>(req: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error ?? new Error('run.ws: request failed'));
+  });
+}
+
+/** Opens (creating on first use) the IndexedDB record store. */
+export async function openRecordStore(factory: IDBFactory): Promise<RecordStore> {
+  const open = factory.open(RECORD_DB, RECORD_DB_VERSION);
+  open.onupgradeneeded = () => {
+    for (const s of RECORD_STORES) if (!open.result.objectStoreNames.contains(s)) open.result.createObjectStore(s);
+  };
+  const db = await idb(open);
+  const tx = (s: RecordStoreName, mode: IDBTransactionMode): IDBObjectStore => db.transaction(s, mode).objectStore(s);
+  return {
+    persistent: true,
+    get: (s, key) => idb(tx(s, 'readonly').get(key)) as Promise<unknown>,
+    put: async (s, key, value) => {
+      await idb(tx(s, 'readwrite').put(value, key));
+    },
+    delete: async (s, key) => {
+      await idb(tx(s, 'readwrite').delete(key));
+    },
+    keys: async (s) => (await idb(tx(s, 'readonly').getAllKeys())).filter((k): k is string => typeof k === 'string').sort(),
+  };
+}
+
+/** The browser's record store, or the in-memory one when IndexedDB is missing or refused. */
+export async function browserRecordStore(): Promise<RecordStore> {
+  try {
+    const factory = globalThis.indexedDB;
+    if (factory === undefined) return memoryRecordStore();
+    return await openRecordStore(factory);
+  } catch {
+    return memoryRecordStore();
+  }
+}

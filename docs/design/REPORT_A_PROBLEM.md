@@ -23,7 +23,7 @@ The owner's direction (2026-11-02): "support open an issue / report a bug. Since
 
 | The user picks | Destination | Pre-filled facts |
 |---|---|---|
-| "run isn't working right" | `synthetos/run` issues (owner decision: the public repo doesn't exist yet; until it does, the forum) | run version and commit, build channel, browser and OS (coarse), view, session state |
+| "run isn't working right" | `synthetos/run` issues (the repository is public under AGPL-3.0) | run version and commit, build channel, browser and OS (coarse), view, session state |
 | "The firmware did something wrong" | `synthetos/TinyG` (dialect tinyg-en / tinyg-tg) or `synthetos/g2core` | Reported fb, fv, hp, hv and fbs; the dialect, meaning the branch (edge-next for tinyg-en, master 440.xx for tinyg-tg), and whether the build matches run's pinned commit ("fb 450.01, matches run's edge-next pin 6ec70652"). The alarm or error code with its text, the stat at the time, and the line being executed |
 | "I have a question / not sure" | The forum: a new discussion in the right category, pre-filled | The same facts, as a collapsed block |
 | Hardware (a board fault) | The forum, or support contact. Hardware repos are private | Board hardware version, and symptoms only |
@@ -48,6 +48,7 @@ The owner's direction (2026-11-02): "support open an issue / report a bug. Since
 - Diagnostics go in a collapsed `<details>` block, kept under the URL size limit (about 8 kB). Anything larger is truncated, with a note.
 - Attachments can't be sent through a URL. run offers **"Download report files"**: one zip with the G-code, transcript and settings JSON, which the user drags into the issue.
 - **"Copy report"** puts Markdown on the clipboard as a fallback.
+- **The forum:** forumbot's new-discussion form (`GET new/`) takes only `?category=` and `?ref=`, not a title or body, so run opens the form in a new tab and copies the report to the clipboard in the same click.
 - The URL opens in a new tab with `noopener`. run only learns the result if the user pastes the issue link back, which is optional.
 
 **Phase B (with accounts and cloud).**
@@ -64,6 +65,6 @@ The owner's direction (2026-11-02): "support open an issue / report a bug. Since
 
 ## 7. Owner and maintainer decisions
 
-1. Create the public `synthetos/run` repo for run issues, or send run problems to the forum until it exists.
+1. ~~Create the public `synthetos/run` repo for run issues~~: done, it is public.
 2. Issue forms (bug.yml with field ids) in `synthetos/TinyG` and `synthetos/g2core`, and labels such as `from-run`. Repo owner or maintainer approval.
 3. Phase B attachment hosting: a gist in the user's account, or our storage.

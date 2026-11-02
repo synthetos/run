@@ -619,7 +619,7 @@ export function interpretJob(result: SanitizeResult, dialect: Dialect, options: 
   lines.forEach((line, i) => {
     if (!it.uncertain && line.sourceLine > firstRejected) {
       it.uncertain = true;
-      it.add(line.sourceLine, line.n, 'info', 'after-rejected-line', `line ${String(firstRejected)} was rejected and is not sent: positions from here on may differ from what the file intends`);
+      it.add(line.sourceLine, line.n, 'info', 'after-rejected-line', `Line ${String(firstRejected)} is blocked, so it isn't sent: positions after it may not match what the file intends.`);
     }
     it.step(line, i, i === lastIndex);
   });

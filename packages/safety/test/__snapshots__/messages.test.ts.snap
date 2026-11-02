@@ -997,7 +997,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en m6": [
     {
       "line": 1,
-      "message": "a tool change needs C14: TinyG only stores the tool number, and the spindle keeps running",
+      "message": "Tool change (T1): TinyG doesn't stop for M6. Run will stop here and walk you through the change when running jobs arrives.",
       "rule": "m6-without-c14",
       "severity": "block",
     },

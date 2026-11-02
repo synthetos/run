@@ -5,11 +5,14 @@
  * the version in the footer. The browser-level checks (no document scroll,
  * view switching keeps the worker, axe) are in tools/e2e.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Fragment, h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { STOP_TEXT, w1, w13, w2Label, w7 } from '@synthetos/safety';
 import { AppShell, VIEWS } from '../src/workspace/AppShell.ts';
+import { createWorkspaceModel, INITIAL_LIVE_VIEW, portOpen, type LiveView } from '../src/workspace/model.ts';
+import { MachineStrip } from '../src/workspace/MachineStrip.ts';
+import { stripStatus } from '../src/workspace/status.ts';
 import { JogSection, OverridesSection, SpindleSection, ZeroSection } from '../src/workspace/views/RunView.ts';
 import { BackupsTab, FirmwareTab } from '../src/workspace/views/BoardView.ts';
 import { SafetyBar, STOP_UNAVAILABLE } from '../src/shell/SafetyBar.ts';
@@ -114,9 +117,12 @@ describe('Phase 1 control allowlist', () => {
   const MACHINE_DISABLED = new Set(['jog', 'zero', 'spindle', 'coolant', 'override', 'start', 'settings-write', 'firmware']);
   /** Enabled only while a machine is LIVE in this browser (never gated otherwise): Pause and Stop job. */
   const LIVE_ONLY = new Set(['stop']);
-  /** Reads only (GETs through the read allowlist): Back up settings. Disabled until a board is read. */
+  /**
+   * Reads only (GETs through the read allowlist): Back up settings, and the Console command line's Send (it sends
+   * only allowlisted reads; motion and settings writes are shown and never sent). Disabled until a board is read.
+   */
   const READ_ONLY = new Set(['read']);
-  /** The Connect flow (live/ConnectPanel.ts): Connect, the C1 confirm and cancel, dismiss, Disconnect. */
+  /** The Connect flow (live/ConnectPanel.ts): Connect, the C1 confirm and cancel, dismiss, Disconnect. Disconnect also sits in the machine strip, enabled while a port is open or opening (absent otherwise). */
   const CONNECT = new Set(['connect', 'disconnect', 'confirm', 'cancel', 'dismiss']);
   /** Controls that never reach the machine: views, tabs, the preview, and the local libraries. */
   const UI: readonly RegExp[] = [
@@ -129,6 +135,12 @@ describe('Phase 1 control allowlist', () => {
     /^label:(Toggle day\/night mode|Account: .*|Dialect|Find a machine|back left|back right|center|front left|front right|Link|Shop|Price in US dollars|Close|TinyG v8 board drawing\..*|J\d\.\d .+|M\d\.\d .+|.+, draft|.+, your profile)$/,
     /^button:(Workshop|Stock|Whole bed|3D|Top|Front|Block|Round|Sheet|Stock top|Stock bottom|\d+ clamps|No clamps|Remove the fixture|Use the sample plate|All|End mills|Ball nose|V-bits|Drills|O-flutes|Built-in|Mine \(\d+\)|Belt driven|Screw driven|Go to Run|T\d+ · .+|Motor \d|X|Y|Z|A)$/,
     /^(input|select|textarea):/,
+    // Report a problem (REPORT_A_PROBLEM): opens the dialog and builds links, files and Markdown from data run
+    // already holds. Never a board command; the dialog covers the views only, so it never gates Pause or Stop.
+    /^action:report-(problem|board|console|event|cancel|next|back|close|copy|download|open)$/,
+    /^action:consent-(whole|excerpt)$/,
+    // Projects (local): records and files in this browser's IndexedDB. "Open in Run" only loads the preview.
+    /^action:project-(new|rename|save-name|cancel-rename|delete|confirm-delete|cancel-delete|share|edit-description|save-description|cancel-description|open-in-run|remove-file|set-cover|remove-image|add-link|remove-link|use-stock|go-run)$/,
   ];
   // Material and tool rows are plain buttons whose text is data: any other button must be in the list above.
   const LIST_ROW = /class="(material-row[^"]*|row-link)"/;
@@ -175,6 +187,36 @@ describe('Phase 1 control allowlist', () => {
     for (const k of MACHINE_DISABLED) expect(seen.has(k), `no ${k} control rendered`).toBe(true);
     expect(seen.has('stop')).toBe(true);
     expect(seen.has('read')).toBe(true);
+  });
+
+  it('Disconnect: absent from the prerendered strip; in the machine strip, enabled with a handler, while a port is open or opening', () => {
+    const stripOf = (page: string): string => page.slice(page.indexOf('data-region="machine-strip"'), page.indexOf('data-region="rail"'));
+    // Prerendered (no model): the strip offers no Disconnect.
+    expect(stripOf(html)).not.toContain('data-action="disconnect"');
+    const model = createWorkspaceModel();
+    const disconnect = vi.fn();
+    model.actions.value = { connect: vi.fn(), confirm: vi.fn(), cancel: vi.fn(), disconnect, saveTranscript: vi.fn(), keepBoardSettings: vi.fn(), backup: vi.fn(), transcriptText: () => Promise.resolve(null), consoleRead: vi.fn() };
+    const rendered = (): string => stripOf(renderToString(h(AppShell, { build, model })));
+    expect(rendered()).not.toContain('data-action="disconnect"');
+    model.live.value = { ...INITIAL_LIVE_VIEW, entry: { step: 'live' } };
+    const tag = /<button\b[^>]*data-action="disconnect"[^>]*>/.exec(rendered())?.[0] ?? '';
+    expect(tag).not.toBe('');
+    expect(tag).not.toMatch(/\sdisabled/);
+    expect(tag).not.toContain('data-machine-control');
+    // Opening or identifying (the worker has the port) counts as open too; NOT_CONNECTED does not.
+    const at = (base: string): LiveView => ({ ...INITIAL_LIVE_VIEW, entry: { step: 'opening' }, message: { snapshot: { base } } as unknown as LiveView['message'] });
+    expect(portOpen(at('OPENING'))).toBe(true);
+    expect(portOpen(at('IDENTIFYING'))).toBe(true);
+    expect(portOpen(at('NOT_CONNECTED'))).toBe(false);
+    expect(portOpen(INITIAL_LIVE_VIEW)).toBe(false);
+    expect(CONNECT.has('disconnect')).toBe(true);
+    // The strip's button calls the Disconnect action; a refusal says why, in the strip (every view).
+    const status = stripStatus(INITIAL_LIVE_VIEW, null);
+    const strip = root(h(MachineStrip, { status, stop: null, previousSession: false, connection: { onDisconnect: disconnect, refused: 'Disconnecting now would leave the machine running what it has queued. Use Stop job.' } }));
+    (one(strip, byAttr('data-action', 'disconnect')).props['onClick'] as () => void)();
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(text(one(strip, byAttr('data-disconnect', 'refused')))).toContain('Disconnecting now would leave');
+    expect(all(root(h(MachineStrip, { status, stop: null, previousSession: false, connection: null })), byAttr('data-action', 'disconnect'))).toEqual([]);
   });
 
   it('the machine-acting controls carry no handler at all: they dispatch nothing', () => {

@@ -33,6 +33,7 @@
  */
 import { STOP_TEXT, type Decision, type Intent } from '@synthetos/safety';
 import { mapStat, type Dialect, type MachineClass } from '@synthetos/protocol';
+import { restingStat } from './resting.ts';
 import { CLEAR_LINE, MAX_JOG_FEED, MAX_RPM, jogLine, motionLineKind, restoreLine, safeZLine, setZeroLine, spindleLine, toZeroLine, type MotionAxisLetter } from './motionLines.ts';
 import type { FaultCause, FaultKind, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
 
@@ -62,12 +63,6 @@ export const POLL_TOKENS: readonly string[] = Object.freeze(['stat', 'hold', 've
 const LETTER: Readonly<Record<JogAxis, MotionAxisLetter>> = { x: 'X', y: 'Y', z: 'Z', a: 'A' };
 const JOG_AXES: readonly JogAxis[] = ['x', 'y', 'z', 'a'];
 
-/**
- * Classes that are at rest when `hold` is 0: ready, program end, and STOP (stat 3), which edge-next reports
- * after every move that finished without a program end. A program pause is stat 3 with `hold` 6 (PN §8),
- * which `atRest` excludes by requiring `hold` 0.
- */
-const RESTING: ReadonlySet<MachineClass> = new Set(['idle', 'end', 'programStop']);
 const ALARMED: ReadonlySet<MachineClass> = new Set(['alarm', 'softAlarm', 'shutdown', 'panic']);
 /** Bases an alarm report moves to ALARM. */
 const ALARMABLE: ReadonlySet<SessionBase> = new Set(['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HELD', 'STOPPING_JOB']);
@@ -123,8 +118,8 @@ function planner(s: SessionState): number {
 
 /** At rest by polled values: idle or ended, not moving, nothing held, planner empty. */
 function atRest(s: SessionState): boolean {
-  const cls = machineClass(s);
-  return cls !== undefined && RESTING.has(cls) && s.live.vel === 0 && s.live.hold === 0 && s.live.qr === planner(s);
+  // The same rule as READING (resting.ts, SAFETY H14 as amended 2026-11-02), plus hold 0 on every dialect.
+  return s.live.stat !== undefined && restingStat(dialect(s), s.live.stat, s.live.hold) && s.live.vel === 0 && s.live.hold === 0 && s.live.qr === planner(s);
 }
 
 function heldNow(s: SessionState): boolean {
@@ -564,7 +559,7 @@ export function checkAlarm(t: MotionTx, at: number): boolean {
     if (moving) message(t, 'failed', 'The controller alarmed and stopped the move. Read the alarm, then clear it.', at);
     return false;
   }
-  if (s.base === 'ALARM' && RESTING.has(cls)) t.set({ base: idleBase(s) });
+  if (s.base === 'ALARM' && restingStat(dialect(s), s.live.stat as number, s.live.hold)) t.set({ base: idleBase(s) });
   return true;
 }
 

@@ -73,6 +73,7 @@ import {
 import { OVERLAYS, allowed, type Decision, type Intent, type MatrixSnapshot, type Overlay } from '@synthetos/safety';
 import { getLineFor, isReadAllowed } from '@synthetos/schema';
 import { writeLineCapFor } from '../writeShape.ts';
+import { restingStat, restingUsesHold } from './resting.ts';
 import { abandonMotion, checkAlarm, idleBase, motionCapable, onMotionAnswer, onMotionIntent, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
 import {
   MAX_PROBE_RESTARTS,
@@ -121,8 +122,6 @@ const AXES: readonly Axis[] = ['x', 'y', 'z', 'a', 'b', 'c'];
 /** Machine classes that mean the board is moving or about to (unsolicited report while connecting). */
 const MOTION_CLASSES: ReadonlySet<MachineClass> = new Set(['running', 'homing', 'jogging', 'probing']);
 
-/** Classes READING accepts as "not running anything" (PN §2.3 step 0: stat ∈ {1, 4}). */
-const RESTING_CLASSES: ReadonlySet<MachineClass> = new Set(['idle', 'end']);
 
 /** Classes READING takes as a controller alarm in a motion session (not motion from elsewhere). */
 const ALARM_CLASSES: ReadonlySet<MachineClass> = new Set(['alarm', 'softAlarm', 'shutdown']);
@@ -865,21 +864,17 @@ function checkUnclassifiedResting(t: Tx): void {
   t.emit({ kind: 'log', text: `probe: unclassified board not resting (stat ${live.stat ?? 'unknown'}, vel ${live.vel ?? 'unknown'}, hold ${live.hold ?? 'unknown'}) → ORPHANED_MOTION` });
 }
 
-/**
- * Whether the resting check consults `hold` on this dialect. SAFETY H14 mitigation 2: only where the
- * dialect does not list `hold` as unverified (on 440.21 only `stat` and `vel` are used).
- */
-export function restingUsesHold(dialect: Dialect): boolean {
-  return !dialect.unverified.some((u) => u.field === 'hold');
-}
+export { restingUsesHold } from './resting.ts';
 
 /** READING is complete: a board that is not resting is ORPHANED_MOTION (SAFETY H14, PN §2.3 step 0). */
 function finishReading(t: Tx): void {
   const dialect = dialectOf(t.s);
   const live = t.s.live;
   const quiet = dialect !== null && (!restingUsesHold(dialect) || live.hold === 0) && live.vel === 0 && live.qr === dialect.limits.plannerBlocks;
+  // One rule for "at rest" (SAFETY H14 as amended 2026-11-02): idle or ended, or on edge-next a finished cycle
+  // (stat 3 with hold 0), shared with the motion layer (resting.ts).
+  const resting = quiet && live.stat !== undefined && restingStat(dialect, live.stat, live.hold);
   const cls = dialect !== null && live.stat !== undefined ? mapStat(dialect, live.stat) : undefined;
-  const resting = quiet && cls !== undefined && RESTING_CLASSES.has(cls);
   // A motion session (Phase 2): a controller in alarm with nothing moving, held or queued is not motion
   // from elsewhere; it is ALARM, left only by Clear alarm (C13, SAFETY §4.5b).
   const alarmed = t.config.release.motion && quiet && cls !== undefined && ALARM_CLASSES.has(cls);

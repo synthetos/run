@@ -62,12 +62,15 @@ export interface RowOptions {
   /** The file line the controller reports executing, or null. */
   readonly executing?: number | null;
   readonly onToggleBreakpoint?: (line: number) => void;
+  /** The line's context action: "Report a problem with this line" (REPORT_A_PROBLEM §2). */
+  readonly onReportLine?: (line: number) => void;
 }
 
 /** The rows of one window (pure, for the tests). `highlightLine` is a 1-based file line; 0 for none. */
 export function listRows(data: ListData, win: ListWindow, highlightLine: number, worst: ReadonlyMap<number, Finding>, options: RowOptions = {}): ComponentChild[] {
   const rows: ComponentChild[] = [];
   const toggle = options.onToggleBreakpoint;
+  const report = options.onReportLine;
   for (let i = win.first; i < win.end; i++) {
     const line = i + 1;
     const word = VERDICT_WORD[data.verdicts[i] ?? 0] ?? '';
@@ -104,6 +107,13 @@ export function listRows(data: ListData, win: ListWindow, highlightLine: number,
         h('span', { class: 'verdict-badge' }, word === '' ? h('span', { class: 'sr-only' }, 'no findings') : [h('span', { class: 'sr-only', key: 'v' }, 'verdict '), word]),
         h('code', { class: 'preview-row-text' }, lineText(data.bytes, data.spans, i)),
         h('span', { class: 'preview-row-finding' }, finding?.message ?? ''),
+        report === undefined
+          ? null
+          : h(
+              'button',
+              { type: 'button', class: 'preview-row-report', 'aria-label': `Report a problem with line ${String(line)}`, title: 'Report a problem with this line', 'data-gcode': 'report', onClick: () => { report(line); } },
+              h('svg', { viewBox: '0 0 24 24', width: 13, height: 13, fill: 'none', stroke: 'currentColor', 'stroke-width': '1.6', 'aria-hidden': 'true' }, h('path', { d: 'M5 21V3.5m0 1h12.5l-2.5 4 2.5 4H5' })),
+            ),
       ),
     );
   }
@@ -122,6 +132,8 @@ export interface LineListProps {
   readonly executingLine?: number | null;
   /** The last file line already sent to the planner (jobs, Phase 3), or null. */
   readonly sentThrough?: number | null;
+  /** Each row's "Report a problem with this line" action; absent, rows have none. */
+  readonly onReportLine?: (line: number) => void;
 }
 
 function reducedMotion(): boolean {
@@ -132,7 +144,7 @@ function reducedMotion(): boolean {
   }
 }
 
-export function LineList({ data, highlightLine, revealLine, fetchFindings, fileKey = null, executingLine = null, sentThrough = null }: LineListProps): ComponentChild {
+export function LineList({ data, highlightLine, revealLine, fetchFindings, fileKey = null, executingLine = null, sentThrough = null, onReportLine }: LineListProps): ComponentChild {
   const count = data.spans.length / 2;
   const box = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -266,7 +278,7 @@ export function LineList({ data, highlightLine, revealLine, fetchFindings, fileK
         h(
           'div',
           { class: 'preview-list-space', style: { height: `${String(win.totalHeight)}px` } },
-          h('div', { class: 'preview-list-rows', style: { transform: `translateY(${String(win.offsetTop)}px)` } }, listRows(data, win, highlightLine, worst, { breakpoints: bpSet, executing: executingLine, onToggleBreakpoint: onToggle })),
+          h('div', { class: 'preview-list-rows', style: { transform: `translateY(${String(win.offsetTop)}px)` } }, listRows(data, win, highlightLine, worst, { breakpoints: bpSet, executing: executingLine, onToggleBreakpoint: onToggle, ...(onReportLine === undefined ? {} : { onReportLine }) })),
         ),
       ),
       jumpBack ? h('button', { type: 'button', class: 'gcode-jump-current', 'data-gcode': 'jump-to-current', onClick: () => { dispatch({ kind: 'jump-to-current' }); } }, `Jump to current · line ${String(executingLine)}`) : null,

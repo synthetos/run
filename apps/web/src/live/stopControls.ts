@@ -27,6 +27,8 @@ type SessionSnapshot = SnapshotMessage['snapshot'];
 
 /** How long a "delivered" line stays in the safety bar. A STOP NOT DELIVERED stays until the next request. */
 export const DELIVERED_SHOWN_MS = 5000;
+/** How long "Pausing…" waits for a report of the hold before it says the board has not answered (SAFETY §4.4 step 4). */
+export const PAUSE_ANSWER_MS = 2000;
 
 export const IDLE_VIEW: StopBarView = Object.freeze({ available: false, prominent: false, band: null, outcome: null });
 
@@ -43,16 +45,24 @@ export function mayBeMoving(snapshot: SessionSnapshot | null): boolean {
   if (snapshot.overlays.includes('ORPHANED_MOTION') || snapshot.overlays.includes('LOST') || snapshot.overlays.includes('FAULT')) return true;
   const live = snapshot.live;
   if (typeof live.vel === 'number' && live.vel !== 0) return true;
-  // STOP (stat 3) with hold 0 is where edge-next rests after every move this page sent (Phase 2); a program
-  // pause is stat 3 with hold 6 and still counts as held.
-  if (live.machineClass === 'programStop' && live.hold === 0) return false;
+  if (finishedCycle(snapshot)) return false;
   return live.machineClass !== undefined && MOVING_CLASSES.has(live.machineClass);
 }
 
 /** True when the last report says the machine is at rest (idle or ended) with nothing queued from elsewhere. */
 export function atRest(snapshot: SessionSnapshot | null): boolean {
   if (snapshot === null || snapshot.base === 'NOT_CONNECTED' || mayBeMoving(snapshot)) return false;
-  return snapshot.live.machineClass === 'idle' || snapshot.live.machineClass === 'end' || snapshot.live.machineClass === 'programStop';
+  return snapshot.live.machineClass === 'idle' || snapshot.live.machineClass === 'end' || finishedCycle(snapshot);
+}
+
+/**
+ * The page's copy of the one stat-3 rule (SAFETY H14 as amended 2026-11-02; machine session resting.ts): on
+ * edge-next only, PROGRAM_STOP with hold 0 and no velocity is a finished cycle, not a pause. A program pause
+ * (M0, hold 6) and every other dialect keep stat 3 as held or moving.
+ */
+function finishedCycle(snapshot: SessionSnapshot): boolean {
+  const live = snapshot.live;
+  return snapshot.classification?.dialectId === 'tinyg-en' && live.machineClass === 'programStop' && live.hold === 0 && live.vel === 0;
 }
 
 export interface StopControlsDeps {
@@ -79,6 +89,13 @@ export class StopControls {
   #requests = 0;
   /** The machine was at rest when the latest Pause was pressed (the message then says nothing changed). */
   #idleAtPress = false;
+  /**
+   * What the latest Pause has come to in this LIVE tab (SAFETY §4.4 step 4, amended 2026-11-02): `pausing`
+   * until a hold is reported, `no-answer` when none was within PAUSE_ANSWER_MS, `idle` when the machine was
+   * or came to rest. A reported hold is shown from the snapshot itself.
+   */
+  #pausePhase: 'none' | 'pausing' | 'no-answer' | 'idle' = 'none';
+  #pauseTimer: unknown = null;
 
   constructor(deps: StopControlsDeps) {
     this.#deps = deps;
@@ -92,7 +109,8 @@ export class StopControls {
   pause(): void {
     this.#idleAtPress = this.#live && atRest(this.#snapshot);
     if (this.#live) {
-      this.#holdWanted = true;
+      this.#holdWanted = !this.#idleAtPress;
+      this.#setPausePhase(this.#idleAtPress ? 'idle' : this.#held() ? 'none' : 'pausing');
       try {
         this.#deps.pauseOwnWorker();
       } catch {
@@ -109,6 +127,7 @@ export class StopControls {
    */
   stopJob(): void {
     this.#idleAtPress = false;
+    if (this.#pausePhase === 'idle') this.#setPausePhase('none');
     if (this.#live) {
       try {
         this.#deps.stopJobOwnWorker?.();
@@ -138,13 +157,46 @@ export class StopControls {
     if (!live) {
       this.#holdWanted = false;
       this.#snapshot = null;
+      this.#setPausePhase('none');
     }
     this.#draw();
   }
 
   setSnapshot(snapshot: SessionSnapshot | null): void {
     this.#snapshot = snapshot;
+    if (this.#pausePhase === 'pausing' || this.#pausePhase === 'no-answer') {
+      if (this.#held()) this.#setPausePhase('none');
+      else if (atRest(snapshot)) {
+        // Nothing was moving any more, so the feedhold had nothing to hold (TinyG ignores it at rest).
+        this.#holdWanted = false;
+        this.#setPausePhase('idle');
+      }
+    }
     this.#draw();
+  }
+
+  #held(): boolean {
+    return this.#live && this.#snapshot?.live.machineClass === 'held';
+  }
+
+  #setPausePhase(phase: 'none' | 'pausing' | 'no-answer' | 'idle'): void {
+    if (this.#pauseTimer !== null) this.#deps.timers.clearTimeout(this.#pauseTimer);
+    this.#pauseTimer = null;
+    this.#pausePhase = phase;
+    if (phase === 'pausing') {
+      this.#pauseTimer = this.#deps.timers.setTimeout(() => {
+        this.#pauseTimer = null;
+        if (this.#pausePhase !== 'pausing') return;
+        this.#pausePhase = 'no-answer';
+        this.#draw();
+      }, PAUSE_ANSWER_MS);
+    } else if (phase === 'idle') {
+      this.#pauseTimer = this.#deps.timers.setTimeout(() => {
+        this.#pauseTimer = null;
+        this.#pausePhase = 'none';
+        this.#draw();
+      }, DELIVERED_SHOWN_MS);
+    }
   }
 
   setRole(role: TabRole): void {
@@ -171,11 +223,12 @@ export class StopControls {
 
   #draw(): void {
     const role = this.role.value;
-    const held = this.#live && this.#snapshot?.live.machineClass === 'held';
+    const held = this.#held();
+    const phase = this.#live ? this.#pausePhase : 'none';
     this.view.value = Object.freeze({
       available: this.#live || role.observing || role.released.length > 0,
       prominent: (this.#live && (mayBeMoving(this.#snapshot) || this.#holdWanted)) || role.released.length > 0,
-      band: held ? 'held' : this.#live && this.#holdWanted ? 'pause-requested' : null,
+      band: held ? 'held' : phase === 'pausing' ? 'pausing' : phase === 'no-answer' ? 'pause-no-answer' : phase === 'idle' ? 'paused-idle' : null,
       outcome: this.#outcome,
     });
   }

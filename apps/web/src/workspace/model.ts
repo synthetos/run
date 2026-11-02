@@ -15,6 +15,7 @@
 import { signal, type Signal } from '@preact/signals';
 import type { BoardSettings } from '@synthetos/schema';
 import type { AdvisoryCheck } from '../live/advisoryGate.ts';
+import type { ConsoleAnswer } from '../live/consoleRead.ts';
 import type { EntryState } from '../live/liveEntry.ts';
 import type { ReadoutPhase } from '../live/readout.ts';
 import type { AxisModeView } from '../machine-ui/AxisModes.ts';
@@ -56,6 +57,8 @@ export interface LiveView {
   readonly backup: BackupStatus;
   /** Status-report samples of the last 60 s of this link, oldest first. */
   readonly samples: readonly LiveSample[];
+  /** Why the last Disconnect was refused (the worker's allow-matrix words), or null. */
+  readonly disconnectRefused: string | null;
 }
 
 export interface LiveActions {
@@ -73,6 +76,8 @@ export interface LiveActions {
    * the session accepted it. The session decides; the page never assumes it moved.
    */
   readonly motion?: (command: MotionCommand) => Promise<string | null>;
+  /** The Console command line's one read: an allowlisted GET through the worker's read path (live/consoleRead.ts). */
+  readonly consoleRead: (token: string) => Promise<ConsoleAnswer>;
 }
 
 export const INITIAL_LIVE_VIEW: LiveView = Object.freeze({
@@ -87,6 +92,7 @@ export const INITIAL_LIVE_VIEW: LiveView = Object.freeze({
   transcript: Object.freeze({ kind: 'idle' as const }),
   backup: Object.freeze({ kind: 'idle' as const }),
   samples: Object.freeze([]),
+  disconnectRefused: null,
 });
 
 export interface WorkspaceModel {
@@ -101,6 +107,14 @@ export function createWorkspaceModel(): WorkspaceModel {
 /** The session snapshot of a live view, or null. */
 export function snapshotOf(view: LiveView): SnapshotMessage['snapshot'] | null {
   return view.message?.snapshot ?? null;
+}
+
+/**
+ * True when Disconnect applies: the worker has a port open or opening (any base state but
+ * NOT_CONNECTED), or LIVE entry finished. Shown in the machine strip in every view.
+ */
+export function portOpen(view: LiveView): boolean {
+  return connected(view) || view.entry.step === 'live';
 }
 
 /** True when a port is open (any base state but NOT_CONNECTED). */
