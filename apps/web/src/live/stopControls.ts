@@ -17,10 +17,13 @@
  * is awaited first.
  */
 import { signal, type Signal } from '@preact/signals';
-import type { SessionSnapshot } from '@synthetos/machine';
+import type { SnapshotMessage } from '../machine-worker/rpc.ts';
 import type { StopAction } from '../machine-worker/stopChannel.ts';
 import type { StopBarView } from '../shell/SafetyBar.ts';
 import { NO_ROLE, type StopOutcome, type TabRole, type Timers } from './tabStop.ts';
+
+/** The worker's snapshot, typed through the worker RPC (T-S39: no page module imports @synthetos/machine). */
+type SessionSnapshot = SnapshotMessage['snapshot'];
 
 /** How long a "delivered" line stays in the safety bar. A STOP NOT DELIVERED stays until the next request. */
 export const DELIVERED_SHOWN_MS = 5000;
