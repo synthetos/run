@@ -137,7 +137,7 @@ Every engine returns structured data validated against a schema. The envelope (Â
 ### 6.1 What the board tells us (edge-next today, plus mocks)
 
 - **Already reported:** `vel` (actual path velocity), `feed` (commanded F), `qr` (planner buffers free), `line` and `stat`, every 100-250 ms.
-- **Mock until the firmware adds it:** spindle state and actual rpm. Until then, run assumes the commanded S.
+- **Mock until the firmware adds it:** a spindle state report: on/off, direction, the commanded S after the p1csl..p1csh clamp, and possibly the PWM duty. TinyG has no spindle speed sensor, so actual rpm is never reported. Chipload always uses the commanded S, labelled "commanded". A VFD with feedback is a possible later source.
 
 ### 6.2 Live chipload and its causes
 
