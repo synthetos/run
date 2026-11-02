@@ -109,6 +109,12 @@ importers:
 
   packages/gcode-view: {}
 
+  packages/library:
+    dependencies:
+      '@synthetos/schema':
+        specifier: workspace:*
+        version: link:../schema
+
   packages/machine:
     dependencies:
       '@synthetos/flasher':
