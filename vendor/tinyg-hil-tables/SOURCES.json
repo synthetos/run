@@ -3,7 +3,7 @@
   "note": "Provenance of the vendored TinyG HIL tables (ROADMAP P0-09, RUN_PLAN §8.2, D32). Every table is byte-identical to what EN-HIL's generator writes. tools/gates/test/schema-tables.test.ts checks each sha256, and packages/schema/test checks each table against vendor/firmware-pins.json. On a firmware bump: regenerate, re-vendor, run `pnpm gen:schema`, and review the diff (CODEOWNERS: owner).",
   "generator": {
     "repo": "https://github.com/synthetos/TinyG",
-    "commit": "ead639978c77601b150be7ef12774f47eed4c824",
+    "commit": "973213919e4deb55cfb3883a2da4424b4d65f7cc",
     "path": "tests/hil/tools/gen_tables.py",
     "blob": "9ff89c7ae8b1a7d213129171e392e36e904deab3",
     "method": "cfgArray rows from `avr-gcc -E -P -mmcu=atxmega192a3 -DF_CPU=32000000UL -std=gnu99 config_app.c` (so #if'd rows match the firmware build), STAT_* defines from error.h (tinyg.h on older trees), TINYG_FIRMWARE_BUILD from tinyg.h"
@@ -13,12 +13,12 @@
       "file": "den.json",
       "dialect": "tinyg-en",
       "pin": "EN",
-      "sourceCommit": "ead639978c77601b150be7ef12774f47eed4c824",
+      "sourceCommit": "973213919e4deb55cfb3883a2da4424b4d65f7cc",
       "fb": 450.01,
       "use": "full",
       "origin": "generated",
-      "generatedWith": "python3 tests/hil/tools/gen_tables.py ead639978c77601b150be7ef12774f47eed4c824 den, run from a `git archive` snapshot of the generator commit with the TinyG object store available read-only (avr-gcc 9.5.0, Python 3.15); regenerated twice, byte-identical",
-      "sha256": "4b22938c0218c5b39bd63bf13f7675352cea78e80d33a0c93977b596856dfd66"
+      "generatedWith": "python3 tests/hil/tools/gen_tables.py 973213919e4deb55cfb3883a2da4424b4d65f7cc den, run from a `git archive` snapshot of the generator commit with the TinyG object store available read-only (avr-gcc 9.5.0, Python 3.15); regenerated twice, byte-identical. Re-pinned 2026-11-02 from ead63997: config_app.c, config.h, error.h and tinyg.h are unchanged between the two commits, so only the commit and ref fields differ from the ead63997 table",
+      "sha256": "bfd7d9916402f5504f78e4b0fddbce96b8273f0b2b95ed4a553c47e8744a85ba"
     },
     "d440": {
       "file": "d440.json",
@@ -29,7 +29,7 @@
       "use": "full",
       "origin": "harness",
       "harnessPath": "tests/hil/tinyg_hil/data/d440.json",
-      "harnessCommit": "ead639978c77601b150be7ef12774f47eed4c824",
+      "harnessCommit": "973213919e4deb55cfb3883a2da4424b4d65f7cc",
       "harnessBlob": "75aee9df3685e25608183b51ef14c49f67890715",
       "regenerated": "same generator at d0418390: identical commit, fb, status and tokens (only name and ref differ, which name the invocation)",
       "sha256": "65fb9b8c28007ca0cfd3a2a3caabe7774bb2b271977fdd971a0abd76ef3fa7c0"
@@ -43,7 +43,7 @@
       "use": "readOnly",
       "origin": "harness",
       "harnessPath": "tests/hil/tinyg_hil/data/d449.json",
-      "harnessCommit": "ead639978c77601b150be7ef12774f47eed4c824",
+      "harnessCommit": "973213919e4deb55cfb3883a2da4424b4d65f7cc",
       "harnessBlob": "a4a0c7bb9aed3476e89215d2e17d51f965e2eb5b",
       "regenerated": "same generator at c5024186: identical commit, fb, status and tokens (only name and ref differ, which name the invocation)",
       "sha256": "baa13f664e0d38051fd6f39fa5e0121c22a9b57d78045d882302b175788b8b54"

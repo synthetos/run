@@ -19,12 +19,28 @@ function port(info: { usbVendorId?: unknown; usbProductId?: unknown }): ChooserP
 const REQUEST = 'request' + 'Port';
 const LIST = 'get' + 'Ports';
 
-/** A stand-in for the window's Web Serial object. */
-function fakeSerial(request: () => Promise<ChooserPort>, list: () => Promise<readonly ChooserPort[]>): ChooserSerial {
-  return { [REQUEST]: request, [LIST]: list } as unknown as ChooserSerial;
+/** A stand-in for the window's Web Serial object: an EventTarget, as the real one is. */
+type FakeSerial = ChooserSerial & { readonly events: EventTarget; listeners(): number };
+function fakeSerial(request: () => Promise<ChooserPort>, list: () => Promise<readonly ChooserPort[]>): FakeSerial {
+  const events = new EventTarget();
+  const live = new Map<string, Set<unknown>>([['connect', new Set()], ['disconnect', new Set()]]);
+  return {
+    [REQUEST]: request,
+    [LIST]: list,
+    events,
+    listeners: () => [...live.values()].reduce((n, set) => n + set.size, 0),
+    addEventListener: (type: string, l: () => void) => {
+      live.get(type)?.add(l);
+      events.addEventListener(type, l);
+    },
+    removeEventListener: (type: string, l: () => void) => {
+      live.get(type)?.delete(l);
+      events.removeEventListener(type, l);
+    },
+  } as unknown as FakeSerial;
 }
 
-function serial(chosen: ChooserPort | Error, granted: readonly ChooserPort[], calls: string[] = []): ChooserSerial {
+function serial(chosen: ChooserPort | Error, granted: readonly ChooserPort[], calls: string[] = []): FakeSerial {
   return fakeSerial(
     () => {
       calls.push('request');
@@ -155,6 +171,104 @@ describe('chooseSerialPort', () => {
     const board = port({ usbVendorId: 1, usbProductId: 2 });
     expect(await chooseSerialPort(serial(board, [board, port({})]))).toMatchObject({ ok: false });
     expect(await chooseSerialPort(serial(board, [board, ...Array.from({ length: 256 }, () => port({ usbVendorId: 3, usbProductId: 4 }))]))).toMatchObject({ ok: false, code: 'not-granted' });
+  });
+
+  describe('the connect/disconnect guard between choice and confirmation', () => {
+    const info = { usbVendorId: 0x0403, usbProductId: 0x6015 };
+
+    it.each(['connect', 'disconnect'])('a %s event after the choice refuses confirmation, even when the grants look unchanged', async (type) => {
+      const board = port(info);
+      const s = serial(board, [board]);
+      const choice = await chooseSerialPort(s);
+      if (!choice.ok) throw new Error('expected choice');
+      expect(s.listeners()).toBe(2);
+      // The device left and came back as the same object: identity alone would pass.
+      s.events.dispatchEvent(new Event(type));
+      expect(await choice.confirm()).toBe(false);
+      expect(s.listeners()).toBe(0);
+    });
+
+    it('an event while the grants are listed during confirmation refuses', async () => {
+      const board = port(info);
+      let fire = false;
+      const s: FakeSerial = fakeSerial(() => Promise.resolve(board), async () => {
+        if (fire) s.events.dispatchEvent(new Event('disconnect'));
+        return [board];
+      });
+      const choice = await chooseSerialPort(s);
+      if (!choice.ok) throw new Error('expected choice');
+      fire = true;
+      expect(await choice.confirm()).toBe(false);
+      expect(s.listeners()).toBe(0);
+    });
+
+    it('an event while the choice is described refuses it as changed, with the listeners removed', async () => {
+      const board = port(info);
+      const s: FakeSerial = fakeSerial(() => Promise.resolve(board), async () => {
+        s.events.dispatchEvent(new Event('connect'));
+        return [board];
+      });
+      expect(await chooseSerialPort(s)).toMatchObject({ ok: false, code: 'changed' });
+      expect(s.listeners()).toBe(0);
+    });
+
+    it('no event: confirmation still passes, and the listeners are removed once it answers', async () => {
+      const board = port(info);
+      const s = serial(board, [board]);
+      const choice = await chooseSerialPort(s);
+      if (!choice.ok) throw new Error('expected choice');
+      expect(await choice.confirm()).toBe(true);
+      expect(s.listeners()).toBe(0);
+      s.events.dispatchEvent(new Event('disconnect'));
+      expect(await choice.confirm()).toBe(false);
+    });
+
+    it('no listener is installed before the choice, and none is left by a cancel or a refusal', async () => {
+      const cancelled = serial(named('NotFoundError'), []);
+      const pending = chooseSerialPort(cancelled);
+      expect(cancelled.listeners()).toBe(0);
+      expect(await pending).toMatchObject({ ok: false, code: 'cancelled' });
+      expect(cancelled.listeners()).toBe(0);
+      const p = port({});
+      const noUsb = serial(p, [p]);
+      expect(await chooseSerialPort(noUsb)).toMatchObject({ ok: false, code: 'no-usb-identity' });
+      expect(noUsb.listeners()).toBe(0);
+      const a = port(info);
+      const ambiguous = serial(a, [a, port(info)]);
+      expect(await chooseSerialPort(ambiguous)).toMatchObject({ ok: false, code: 'ambiguous' });
+      expect(ambiguous.listeners()).toBe(0);
+      const throwing = fakeSerial(() => Promise.resolve(a), () => Promise.reject(new Error('gone')));
+      expect(await chooseSerialPort(throwing)).toMatchObject({ ok: false, code: 'failed' });
+      expect(throwing.listeners()).toBe(0);
+    });
+
+    it('release() ends the guard without confirming (an exit that never reaches confirm), and is idempotent', async () => {
+      const board = port(info);
+      const s = serial(board, [board]);
+      const choice = await chooseSerialPort(s);
+      if (!choice.ok) throw new Error('expected choice');
+      choice.release();
+      choice.release();
+      expect(s.listeners()).toBe(0);
+      expect(await choice.confirm()).toBe(false);
+    });
+
+    it('a Web Serial object that cannot be listened to is refused, nothing left installed', async () => {
+      const board = port(info);
+      const s = serial(board, [board]);
+      let added = 0;
+      const broken = {
+        ...s,
+        addEventListener: (type: 'connect' | 'disconnect', l: () => void) => {
+          if (++added === 2) throw new Error('no events');
+          s.addEventListener(type, l);
+        },
+      } as ChooserSerial;
+      expect(await chooseSerialPort(broken)).toMatchObject({ ok: false, code: 'failed' });
+      expect(s.listeners()).toBe(0);
+      const odd = { ...s, addEventListener: () => { throw 'no events'; } } as unknown as ChooserSerial;
+      expect(await chooseSerialPort(odd)).toEqual({ ok: false, code: 'failed', detail: 'the port events cannot be watched: no events' });
+    });
   });
 
   it('without Web Serial (Node has a navigator but no serial) the chooser is unavailable', async () => {

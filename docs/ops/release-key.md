@@ -17,7 +17,8 @@ token.
   - `release`: builds that pass D5 (a hash match and a signed HIL run of that
     exact image). Signed with `env: "production"`. Only `run.synthetos.com`
     reads it. It stays empty until an image passes D5. (D4, the build
-    number, is done: edge-next reports 450.01 at `ead63997`.)
+    number, is done: edge-next reports 450.01, at `ead63997` and still at the
+    current pin `97321391`.)
 - **One artifact for both sites.** The code works out its environment from
   `location.origin`. It accepts a channel only when all of these hold:
   - the signature verifies;
@@ -54,8 +55,9 @@ The bench entry's `note` in `firmware/approved-builds.unsigned.json`, and so
 inside the signed payload of `firmware/approved-builds.json`, still says the
 build number is undecided, in the words it was signed with on 2026-11-01,
 before D4 was decided. Only the note is out of date: the entry's `fb`
-(450.01), `fbs` (`null`), commit (`ead63997`) and staging-only scope are
-correct, and no approval decision reads the note.
+(450.01), `fbs` (`null`) and staging-only scope are correct, and no
+approval decision reads the note. (The commit is the previous pin; see the
+next section.)
 
 It was deliberately **not** edited in the P0 review fix pass. A note is part
 of the signed bytes, so changing it means re-signing (step 3 below), and the
@@ -68,6 +70,27 @@ with, for example: "TinyG edge-next 450.01 (D4 done) for bench use on staging
 only. It reports no fbs, so every 450.01 build matches; no image has passed
 D5." The gate test `tools/gates/test/doc-drift.test.ts` then requires this
 section (and its line in `docs/LEAD_ACTIONS.md`) to be removed.
+
+### The signed bench entry names the previous pin (2026-11-02)
+
+On 2026-11-02 the EN pin moved from `ead63997` to `97321391`
+(`vendor/firmware-pins.json`). The bench entry in
+`firmware/approved-builds.unsigned.json` names the new commit; the signed
+file still names `ead63997`, because re-signing needs the owner's bench key
+(`owner-bench-2026-11-02`, private half in `~/.synthetos-release-bench/`),
+which agents do not use. No approval changes: the entry has `fbs: null`, so
+it matches by dialect and `fb` and the commit is never verified.
+`tools/gates/test/approved-builds.test.ts` allows exactly this one
+difference, and only while this section and `docs/LEAD_ACTIONS.md` record
+it. To close it, on your machine:
+
+```sh
+pnpm sign:builds --key ~/.synthetos-release-bench/bench.pkcs8.pem --kid owner-bench-2026-11-02
+```
+
+If you replace the bench note at the same time (previous section), edit it
+in the unsigned file first, so one signature covers both. Then remove this
+section and its line in `docs/LEAD_ACTIONS.md`, and commit both files.
 
 ## Lead actions (owner)
 
@@ -97,10 +120,10 @@ section (and its line in `docs/LEAD_ACTIONS.md`) to be removed.
    Commit both files. CODEOWNERS makes you a required reviewer of
    `firmware/`, `releaseKeys.ts` and `approvedBuilds.ts`.
 4. **When an edge-next image passes D5 and is published (D6):** D4, the
-   build number, is already done (450.01 at `ead63997`, the commit pinned
-   now). Then:
+   build number, is already done (450.01; the pinned commit is now
+   `97321391`). Then:
    - add the release build to the `release` channel, signed for production;
-   - if the published release commit is not `ead63997`, re-pin
+   - if the published release commit is not `97321391`, re-pin
      `vendor/firmware-pins.json` and the dialect citations to it (PIN-1);
    - ask for the `fbs` token D4 recommends, so that entries can name the
      build hash (a `release` entry without `fbs` is refused).

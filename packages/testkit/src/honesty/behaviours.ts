@@ -6,8 +6,8 @@
  * title of at least one test; `test/honesty.test.ts` enforces both, and that
  * STATUS.md (generated from this file) is current.
  *
- * Citations: EN = TinyG edge-next ead63997, TG = master d0418390 (440.21),
- * EN-HIL = edge-next `tests/hil/` at ead63997 (vendor/firmware-pins.json).
+ * Citations: EN = TinyG edge-next 97321391, TG = master d0418390 (440.21),
+ * EN-HIL = edge-next `tests/hil/` at 97321391 (vendor/firmware-pins.json).
  * Each carries a `quote` that must appear in the cited lines; the local
  * citation check re-reads the pinned firmware to prove it.
  */
@@ -26,7 +26,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'xio/xio_usart.h', lines: [53, 54], quote: 'RX_BUFFER_SIZE (buffer_t)250' },
-      { src: 'EN', file: 'xio/xio_usb.c', lines: [208, 216], quote: 'buffer-full - toss the incoming character' },
+      { src: 'EN', file: 'xio/xio_usb.c', lines: [259, 271], quote: 'buffer-full - toss the incoming character' },
     ],
     bench: 'B-FC-1',
   },
@@ -37,7 +37,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'xio/xio_usart.h', lines: [68, 69], quote: 'RX_BUFFER_SIZE * 0.3' },
-      { src: 'EN', file: 'xio/xio_usb.c', lines: [213, 215], quote: 'XOFF_RX_HI_WATER_MARK' },
+      { src: 'EN', file: 'xio/xio_usb.c', lines: [262, 264], quote: 'XOFF_RX_HI_WATER_MARK' },
     ],
     issues: ['E163'],
   },
@@ -59,7 +59,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     model: EN,
     summary: 'The gc echo is dropped below jv=5 on success and on error alike: the verbosity filter runs for every error response.',
     status: 'verified-source',
-    cites: [{ src: 'EN', file: 'json_parser.c', lines: [803, 817], quote: 'if (!js.echo_json_gcode_block)' }],
+    cites: [{ src: 'EN', file: 'json_parser.c', lines: [830, 844], quote: 'if (!js.echo_json_gcode_block)' }],
     bench: 'B-PROBE-1',
   },
   {
@@ -68,7 +68,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'A reply too big for the 512-byte output buffer loses its body: {"r":{},..} with its tid and footer, OK replaced by 13. The command has already run.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'json_parser.c', lines: [860, 866], quote: '(status == STAT_OK) ? STAT_BUFFER_FULL : status' },
+      { src: 'EN', file: 'json_parser.c', lines: [887, 893], quote: '(status == STAT_OK) ? STAT_BUFFER_FULL : status' },
       { src: 'EN', file: 'controller.h', lines: [32, 32], quote: 'OUTPUT_BUFFER_LEN 512' },
     ],
     bench: 'B-PROBE-1',
@@ -79,7 +79,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'Footer [3,status,free line headers] in line mode; [2,status,bytes read since the previous reply] in character mode (E164).',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'json_parser.c', lines: [848, 853], quote: '"3,%d,%d"' },
+      { src: 'EN', file: 'json_parser.c', lines: [875, 880], quote: '"3,%d,%d"' },
       { src: 'EN', file: 'controller.c', lines: [277, 284], quote: 'cs.linelen += size' },
     ],
     // The free-header count the model reports for one line at a time (10: the line PROCESSING plus a
@@ -93,7 +93,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'Boot prints bare {"sr":{fv,fb,hp,hv,id,msg}} banners with no footer, always strict JSON; the last says SYSTEM READY.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'report.c', lines: [65, 78], quote: 'nv_reset_nv_list("sr")' },
+      { src: 'EN', file: 'report.c', lines: [68, 81], quote: 'nv_reset_nv_list("sr")' },
       { src: 'EN', file: 'controller.c', lines: [209, 213], quote: 'rpt_print_system_ready_message' },
     ],
     bench: 'B-PROBE-1',
@@ -105,7 +105,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'json_parser.c', lines: [106, 156], quote: '_scan_tid' },
-      { src: 'EN', file: 'json_parser.c', lines: [834, 844], quote: 'a peer of r{} and f[]' },
+      { src: 'EN', file: 'json_parser.c', lines: [861, 871], quote: 'a peer of r{} and f[]' },
     ],
     issues: ['E049'],
   },
@@ -124,7 +124,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'planner.h', lines: [83, 84], quote: 'PLANNER_BUFFER_HEADROOM 12' },
-      { src: 'EN', file: 'controller.c', lines: [606, 612], quote: 'PLANNER_BUFFER_HEADROOM' },
+      { src: 'EN', file: 'controller.c', lines: [616, 622], quote: 'PLANNER_BUFFER_HEADROOM' },
       { src: 'EN', file: 'planner.c', lines: [251, 258], quote: 'cm_cycle_end();' },
     ],
     bench: 'B-QR-1',
@@ -137,8 +137,8 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'planner.c', lines: [78, 78], quote: 'PLANNER_STARTUP_MS 50' },
-      { src: 'EN', file: 'planner.c', lines: [438, 454], quote: 'mp_hold_startup' },
-      { src: 'EN', file: 'planner.c', lines: [479, 496], quote: 'startup_pending = true' },
+      { src: 'EN', file: 'planner.c', lines: [452, 468], quote: 'mp_hold_startup' },
+      { src: 'EN', file: 'planner.c', lines: [493, 510], quote: 'startup_pending = true' },
     ],
   },
   {
@@ -146,7 +146,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     model: EN,
     summary: 'stat: machine states 0..4 report as themselves; a cycle reports 5 (run, also with motion stopped) or 6 (hold); 12 SHUTDOWN, 13 PANIC.',
     status: 'verified-source',
-    cites: [{ src: 'EN', file: 'canonical_machine.c', lines: [177, 213], quote: 'cm_get_combined_state' }],
+    cites: [{ src: 'EN', file: 'canonical_machine.c', lines: [180, 216], quote: 'cm_get_combined_state' }],
   },
   // ------------------------------------------------------------------ edge-next: realtime bytes
   {
@@ -154,7 +154,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     model: EN,
     summary: 'The RX ISR traps ^X, !, ^D and ENQ anywhere and % and ~ only at a line boundary, before the ring-full test.',
     status: 'verified-source',
-    cites: [{ src: 'EN', file: 'xio/xio_usb.c', lines: [159, 188], quote: 'trap async commands' }],
+    cites: [{ src: 'EN', file: 'xio/xio_usb.c', lines: [200, 229], quote: 'trap async commands' }],
     issues: ['E021', 'E146'],
   },
   {
@@ -163,7 +163,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: '^X calls hw_hard_reset() from the ISR: interrupts off, watchdog reset after ~15 ms; a stalled main loop cannot defer it.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'xio/xio_usb.c', lines: [160, 163], quote: 'hw_hard_reset();' },
+      { src: 'EN', file: 'xio/xio_usb.c', lines: [201, 204], quote: 'hw_hard_reset();' },
       { src: 'EN', file: 'hardware.c', lines: [155, 162], quote: 'WDTO_15MS' },
     ],
   },
@@ -173,8 +173,8 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: '! is honoured only while moving (motion_state != STOP); with no motion, or during a dwell that no move started, it changes nothing.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'canonical_machine.c', lines: [1761, 1767], quote: 'cm.motion_state != MOTION_STOP' },
-      { src: 'EN', file: 'plan_exec.c', lines: [68, 72], quote: 'BLOCK_TYPE_ALINE' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1775, 1781], quote: 'cm.motion_state != MOTION_STOP' },
+      { src: 'EN', file: 'plan_exec.c', lines: [69, 73], quote: 'BLOCK_TYPE_ALINE' },
     ],
     bench: 'B-FH-1',
   },
@@ -184,9 +184,9 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: '% is honoured only at a line boundary and only while a hold or an alarm flush exists (otherwise ignored, not latched); it then drops the host input received before it and keeps what follows.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'xio/xio_usb.c', lines: [172, 180], quote: '!rx_in_line && c == CHAR_QUEUE_FLUSH' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [1776, 1790], quote: "don't honor request unless you are in a feedhold" },
-      { src: 'EN', file: 'xio/xio_usb.c', lines: [266, 298], quote: "drop what arrived before a host '%'" },
+      { src: 'EN', file: 'xio/xio_usb.c', lines: [213, 221], quote: '!rx_in_line && c == CHAR_QUEUE_FLUSH' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1790, 1804], quote: "don't honor request unless you are in a feedhold" },
+      { src: 'EN', file: 'xio/xio_usb.c', lines: [307, 339], quote: "drop what arrived before a host '%'" },
     ],
     bench: 'B-QR-1',
     issues: ['E146'],
@@ -208,9 +208,9 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: '^D raises ALARM 207 from the main loop: feedhold (or immediate hold if idle), planner flush, spindle and coolant off immediately.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'xio/xio_usb.c', lines: [168, 171], quote: 'cm_request_job_kill' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [1848, 1853], quote: 'STAT_KILL_JOB' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [835, 836], quote: 'spindle_reset();' },
+      { src: 'EN', file: 'xio/xio_usb.c', lines: [209, 212], quote: 'cm_request_job_kill' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1862, 1867], quote: 'STAT_KILL_JOB' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [844, 845], quote: 'spindle_reset();' },
     ],
     bench: 'B-KILL-1',
     issues: ['E096', 'E019'],
@@ -221,8 +221,8 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'ENQ (0x05) is trapped and answered {"ack":true} from the main loop, ahead of the planner gates.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'xio/xio_usb.c', lines: [185, 188], quote: 'controller_request_enquiry' },
-      { src: 'EN', file: 'controller.c', lines: [528, 534], quote: 'ack' },
+      { src: 'EN', file: 'xio/xio_usb.c', lines: [226, 229], quote: 'controller_request_enquiry' },
+      { src: 'EN', file: 'controller.c', lines: [538, 544], quote: 'ack' },
     ],
     bench: 'B-ENQ-1',
     issues: ['E052'],
@@ -235,7 +235,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
       'cm_alarm: idle (incl. a dwell) holds at once and stops the dwell; moving gets a feedhold and a planner flush; spindle and coolant off immediately; host input is kept and rejected line by line with 204.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'canonical_machine.c', lines: [797, 842], quote: 'kept and rejected line by line' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [806, 851], quote: 'kept and rejected line by line' },
       { src: 'EN', file: 'gcode_parser.c', lines: [76, 78], quote: 'ritorno(cm_is_alarmed())' },
     ],
     issues: ['E044', 'E019', 'E145'],
@@ -248,8 +248,8 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'planner.c', lines: [282, 289], quote: 'cm_cycle_end();' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [2084, 2100], quote: '_exec_program_finalize(value, FLAGS_ONE)' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [2048, 2051], quote: 'cm.machine_state = (uint8_t)value[0]' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [2100, 2116], quote: '_exec_program_finalize(value, FLAGS_ONE)' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [2064, 2067], quote: 'cm.machine_state = (uint8_t)value[0]' },
     ],
     bench: 'B-KILL-1',
   },
@@ -259,7 +259,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'In ALARM, SHUTDOWN and PANIC a queued M3/M4/M7/M8 cannot switch an output back on.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'canonical_machine.c', lines: [1570, 1575], quote: 'cm_outputs_inhibited' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1584, 1589], quote: 'cm_outputs_inhibited' },
       { src: 'EN', file: 'spindle.c', lines: [149, 149], quote: 'cm_outputs_inhibited() ? SPINDLE_OFF' },
     ],
   },
@@ -276,7 +276,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     model: EN,
     summary: 'A limit switch raises ALARM 203, keeps position and un-homes every axis; limits are ignored while already alarmed.',
     status: 'verified-source',
-    cites: [{ src: 'EN', file: 'controller.c', lines: [479, 500], quote: 'STAT_LIMIT_SWITCH_HIT' }],
+    cites: [{ src: 'EN', file: 'controller.c', lines: [489, 510], quote: 'STAT_LIMIT_SWITCH_HIT' }],
     issues: ['E031'],
   },
   {
@@ -285,9 +285,9 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'SHUTDOWN (stat 12) halts, turns outputs off, flushes and un-homes; {clear} returns it to READY.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'canonical_machine.c', lines: [861, 879], quote: 'cm.machine_state = MACHINE_SHUTDOWN' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [724, 726], quote: 'cm.machine_state = MACHINE_READY' },
-      { src: 'EN', file: 'controller.c', lines: [459, 468], quote: 'so {clear:n} can exit SHUTDOWN' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [870, 888], quote: 'cm.machine_state = MACHINE_SHUTDOWN' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [733, 735], quote: 'cm.machine_state = MACHINE_READY' },
+      { src: 'EN', file: 'controller.c', lines: [469, 478], quote: 'so {clear:n} can exit SHUTDOWN' },
     ],
     issues: ['E045'],
   },
@@ -296,7 +296,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     model: EN,
     summary: 'PANIC (stat 13) halts and turns outputs off; {clear} does not leave it, only ^X.',
     status: 'verified-source',
-    cites: [{ src: 'EN', file: 'canonical_machine.c', lines: [899, 910], quote: 'Panics are not recoverable' }],
+    cites: [{ src: 'EN', file: 'canonical_machine.c', lines: [908, 919], quote: 'Panics are not recoverable' }],
   },
   {
     id: 'EN-E162',
@@ -305,8 +305,8 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
       'Input lost to a ring overrun is marked; every line that lost bytes or follows lost bytes is answered 13 and never runs; the first raises ALARM 13.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'xio/xio_usb.c', lines: [221, 231], quote: 'Remember where input was lost' },
-      { src: 'EN', file: 'xio/xio_usart.c', lines: [313, 348], quote: 'A line that lost bytes must not run' },
+      { src: 'EN', file: 'xio/xio_usb.c', lines: [173, 189], quote: 'Remember where input was lost' },
+      { src: 'EN', file: 'xio/xio_usart.c', lines: [328, 367], quote: 'A line that lost bytes must not run' },
       { src: 'EN', file: 'controller.c', lines: [258, 268], quote: 'input lost' },
       { src: 'EN-HIL', file: 'tests/hil/tests/bugs/test_e162_rx_overrun_splices_lines.py', lines: [1, 9], quote: 'such a line never runs' },
     ],
@@ -320,7 +320,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'controller.c', lines: [236, 250], quote: '_reject_overlong_line' },
-      { src: 'EN', file: 'xio/xio_usart.c', lines: [329, 340], quote: 'discard the rest of an overlong line' },
+      { src: 'EN', file: 'xio/xio_usart.c', lines: [348, 359], quote: 'discard the rest of an overlong line' },
     ],
     issues: ['E087'],
   },
@@ -331,13 +331,13 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
       'With sl=1 a straight move beyond the travel of a homed axis raises an ALARM (220) instead of moving. Every homed axis X..C is tested; an axis whose travel ends are fp_EQ (float32, |a-b| < 0.00001) is skipped; an end at or below DISABLE_SOFT_LIMIT (-1000000) is not tested.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'canonical_machine.c', lines: [536, 554], quote: 'cm_test_soft_limits' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [539, 539], quote: 'axis < AXES' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [542, 542], quote: 'fp_EQ(cm.a[axis].travel_min, cm.a[axis].travel_max)' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [544, 550], quote: 'travel_max > DISABLE_SOFT_LIMIT' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [545, 563], quote: 'cm_test_soft_limits' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [548, 548], quote: 'axis < AXES' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [551, 551], quote: 'fp_EQ(cm.a[axis].travel_min, cm.a[axis].travel_max)' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [553, 559], quote: 'travel_max > DISABLE_SOFT_LIMIT' },
       { src: 'EN', file: 'canonical_machine.h', lines: [45, 45], quote: 'DISABLE_SOFT_LIMIT (-1000000)' },
       { src: 'EN', file: 'util.h', lines: [135, 139], quote: 'fp_EQ(a,b) (fabs(a-b) < EPSILON)' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [1227, 1230], quote: 'cm_alarm(status, cs.saved_buf)' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1236, 1239], quote: 'cm_alarm(status, cs.saved_buf)' },
     ],
   },
   {
@@ -367,7 +367,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
       { src: 'EN', file: 'plan_arc.c', lines: [324, 330], quote: 'fp_EQ(arc.gm.target[arc.plane_axis_0], arc.position[arc.plane_axis_0])' },
       { src: 'EN', file: 'plan_arc.c', lines: [347, 350], quote: 'fp_ZERO(arc.angular_travel)' },
       { src: 'EN', file: 'plan_arc.h', lines: [35, 37], quote: 'ARC_RADIUS_TOLERANCE    ((float)0.05)' },
-      { src: 'EN', file: 'gcode_parser.c', lines: [679, 685], quote: 'cm_arc_feed' },
+      { src: 'EN', file: 'gcode_parser.c', lines: [699, 705], quote: 'cm_arc_feed' },
       { src: 'EN', file: 'util.h', lines: [135, 145], quote: 'fp_ZERO(a) (fabs(a) < EPSILON)' },
     ],
   },
@@ -378,11 +378,11 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
       'Axis modes in cm_set_model_target(): a DISABLED axis ignores its word; X/Y/Z STANDARD or INHIBITED are lengths; A/B/C STANDARD or INHIBITED are degrees; A/B/C RADIUS take a length (G20 x 25.4) and convert it to degrees on the axis radius (v*360/(2*pi*ra)), in G90 plus the offset or in G91 added. cm_set_am refuses radius mode on X/Y/Z (109). Defaults: X/Y/Z standard, A radius with ra = 1.25/(2*pi), B and C disabled. Targets are float32: the word, its unit conversion and its sum with the offset or the start each round to float, and cm_finalize_move() keeps the target as the next start, so a run of G91 moves accumulates float32 rounding (the model folds the coordinate, G92 and tool offsets into one float before the sum).',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'canonical_machine.c', lines: [482, 488], quote: '360 / (2 * M_PI * cm.a[axis].radius)' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [490, 523], quote: 'cm.a[axis].axis_mode == AXIS_DISABLED' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [490, 523], quote: 'cm.gm.target[axis] += _to_millimeters(target[axis]);' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [413, 414], quote: 'copy_vector(cm.gmx.position, cm.gm.target);' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [2510, 2523], quote: 'AXIS_MODE_MAX_LINEAR' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [491, 497], quote: '360 / (2 * M_PI * cm.a[axis].radius)' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [499, 532], quote: 'cm.a[axis].axis_mode == AXIS_DISABLED' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [499, 532], quote: 'cm.gm.target[axis] += _to_millimeters(target[axis]);' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [422, 423], quote: 'copy_vector(cm.gmx.position, cm.gm.target);' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [2601, 2614], quote: 'AXIS_MODE_MAX_LINEAR' },
       { src: 'EN', file: 'canonical_machine.h', lines: [286, 293], quote: 'AXIS_RADIUS' },
       { src: 'EN', file: 'settings/settings_default.h', lines: [201, 209], quote: 'A_AXIS_MODE 			AXIS_RADIUS' },
       { src: 'EN', file: 'settings/settings_default.h', lines: [217, 233], quote: 'C_AXIS_MODE 			AXIS_DISABLED' },
@@ -396,11 +396,11 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'kinematics.c', lines: [59, 59], quote: 'if (cm.a[axis].axis_mode == AXIS_INHIBITED) { joint[axis] = 0;}' },
-      { src: 'EN', file: 'plan_exec.c', lines: [703, 712], quote: 'kn_inverse_kinematics(mr.gm.target, mr.target_steps);' },
-      { src: 'EN', file: 'plan_exec.c', lines: [703, 712], quote: 'travel_steps[i] = mr.target_steps[i] - mr.position_steps[i];' },
+      { src: 'EN', file: 'plan_exec.c', lines: [707, 716], quote: 'kn_inverse_kinematics(mr.gm.target, mr.target_steps);' },
+      { src: 'EN', file: 'plan_exec.c', lines: [707, 716], quote: 'travel_steps[i] = mr.target_steps[i] - mr.position_steps[i];' },
       { src: 'EN', file: 'planner.c', lines: [187, 201], quote: 'kn_inverse_kinematics(mr.position, step_position);' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [1060, 1068], quote: 'mp_set_steps_to_runtime_position();' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [1973, 1976], quote: 'cm_set_position(axis, mp_get_runtime_absolute_position(axis));' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1069, 1077], quote: 'mp_set_steps_to_runtime_position();' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1989, 1992], quote: 'cm_set_position(axis, mp_get_runtime_absolute_position(axis));' },
     ],
   },
   {
@@ -409,9 +409,9 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'F is set before G20/G21 in the same block and is converted with the units in force before the block: G20 then G21 G1 X1 F100 is 2540 mm/min.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'gcode_parser.c', lines: [610, 615], quote: 'cm_set_feed_rate(cm.gn.feed_rate)' },
-      { src: 'EN', file: 'gcode_parser.c', lines: [634, 634], quote: 'cm_set_units_mode' },
-      { src: 'EN', file: 'canonical_machine.c', lines: [1350, 1359], quote: '_to_millimeters(feed_rate)' },
+      { src: 'EN', file: 'gcode_parser.c', lines: [630, 635], quote: 'cm_set_feed_rate(cm.gn.feed_rate)' },
+      { src: 'EN', file: 'gcode_parser.c', lines: [654, 654], quote: 'cm_set_units_mode' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1364, 1373], quote: '_to_millimeters(feed_rate)' },
       { src: 'EN', file: 'canonical_machine.h', lines: [42, 42], quote: 'cm.gm.units_mode == INCHES' },
     ],
   },
@@ -422,8 +422,8 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'M0/M60 run in queue order and pause: stat 3 with hold 6, the spindle stays on, ~ resumes.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'canonical_machine.c', lines: [2102, 2114], quote: 'cm.program_paused = true' },
-      { src: 'EN', file: 'plan_exec.c', lines: [58, 59], quote: 'A program stop also blocks queued dwells' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [2118, 2130], quote: 'cm.program_paused = true' },
+      { src: 'EN', file: 'plan_exec.c', lines: [59, 60], quote: 'A program stop also blocks queued dwells' },
     ],
     bench: 'B-M0-1',
     issues: ['E020'],
@@ -433,7 +433,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     model: EN,
     summary: 'M1 stops only when the session-only optional stop os=1.',
     status: 'verified-source',
-    cites: [{ src: 'EN', file: 'canonical_machine.c', lines: [2116, 2119], quote: 'optional_stop_enabled' }],
+    cites: [{ src: 'EN', file: 'canonical_machine.c', lines: [2132, 2135], quote: 'optional_stop_enabled' }],
   },
   {
     id: 'EN-M400',
@@ -441,8 +441,8 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'M400 must be alone on its line (N allowed); its reply waits until the planner and runtime are drained; control lines still run meanwhile; an alarm answers 204.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'gcode_parser.c', lines: [499, 512], quote: 'M400' },
-      { src: 'EN', file: 'controller.c', lines: [573, 604], quote: '_sync_to_motion' },
+      { src: 'EN', file: 'gcode_parser.c', lines: [508, 521], quote: 'M400' },
+      { src: 'EN', file: 'controller.c', lines: [583, 614], quote: '_sync_to_motion' },
     ],
     issues: ['E002'],
   },
@@ -463,7 +463,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     model: EN,
     summary: 'M2/M30 turn the spindle and coolant off at runtime, in queue order, and end the program (stat 4).',
     status: 'verified-source',
-    cites: [{ src: 'EN', file: 'canonical_machine.c', lines: [2151, 2162], quote: 'spindle_reset();' }],
+    cites: [{ src: 'EN', file: 'canonical_machine.c', lines: [2167, 2178], quote: 'spindle_reset();' }],
   },
   {
     id: 'EN-SPINDLE-QUEUED',
@@ -492,7 +492,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     cites: [
       { src: 'EN', file: 'config_app.c', lines: [463, 464], quote: 'st_set_md, st_set_md' },
       { src: 'EN', file: 'config_app.c', lines: [484, 492], quote: 'cm_alrm, cm_alrm' },
-      { src: 'EN', file: 'stepper.c', lines: [1385, 1397], quote: 'st_deenergize_motors()' },
+      { src: 'EN', file: 'stepper.c', lines: [1413, 1425], quote: 'st_deenergize_motors()' },
     ],
     bench: 'B-MD-1',
     issues: ['E138'],
@@ -523,8 +523,8 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'A first character of $ ? H h switches to text mode (replies are text, not JSON); { switches back; a stray leading ? before a line is stripped and the line runs (E053).',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'controller.c', lines: [359, 363], quote: "A stray leading '?'" },
-      { src: 'EN', file: 'controller.c', lines: [382, 386], quote: '$?Hh' },
+      { src: 'EN', file: 'controller.c', lines: [365, 369], quote: "A stray leading '?'" },
+      { src: 'EN', file: 'controller.c', lines: [389, 393], quote: '$?Hh' },
     ],
     issues: ['E053'],
   },
@@ -929,4 +929,5 @@ export const MODEL_LIMITS: readonly ModelLimit[] = Object.freeze([
   { id: 'LIM-TG-OVERLONG', scope: 'tinyg-440', summary: 'Overlong lines on 440.21 throw ModelGapError.' },
   { id: 'LIM-REPORTS', scope: 'both', summary: 'Enumerated report values (momo, admo, frmo, macs, cycs, mots) use model numbering; qv=2 reports qr without qi/qo; status reports in text mode are still JSON.' },
   { id: 'LIM-MODAL-TG', scope: 'tinyg-440', summary: 'Two codes of one modal group on a 440.21 line: the last one wins; no modal-group error is modelled.' },
+  { id: 'LIM-EN-REPIN', scope: 'tinyg-en', summary: 'The model was built at edge-next ead63997; the 97321391 re-pin (2026-11-02) is not modelled beyond moved citations. Not modelled: E195 (a partial line quiet for about 1 s is dropped when a { arrives; the model always joins it to the next line), the stricter input errors E168-E177, E191 and E193, and the timing fixes E165-E167, E180-E184, E190 and E192.' },
 ]);

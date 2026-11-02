@@ -60,10 +60,13 @@ settings read with no group missing; no axis-mode facts (`xam yam zam` 1,
 `aam` 3, `bam cam` 0); Pause wrote one `!`; the transcript's first write
 was `{sr:null}` and every write was an allowlisted GET or `!`. The probe
 log is `test-fixtures/probe/tinyg-en-450.01-d254eb0b.txt` (id replaced).
-That board ran edge-next `d254eb0b` (fb still 450.01); the app pins
+That board ran edge-next `d254eb0b` (fb still 450.01); the app then pinned
 `ead63997`. The difference is stricter input handling only (E168-E177,
-E191, E193); footers, `sr` keys and GETs are unchanged. Re-pinning is a
-separate task.
+E191, E193); footers, `sr` keys and GETs are unchanged. **Re-pinned
+2026-11-02:** the app now pins edge-next `97321391`, which is `d254eb0b`
+plus the E195 fix (a partial line that has been quiet for about 1 s is
+dropped when a `{` arrives; section 5.2). Flash `97321391` for the bench
+checks.
 
 ## 1. Before you power anything: the hardwired E-stop
 
@@ -96,7 +99,7 @@ Bench rig for the Phase 1 checks (ROADMAP Phase 1 gate, D10):
 - a Saleae (or similar) on the board's RX line and the step lines, to see
   exactly what bytes arrive and that no step pulses happen;
 - a switched USB hub or power switch, for the pull-USB and power-up checks;
-- edge-next on the bench board (fb 450.01, commit `ead63997`), plus a stock
+- edge-next on the bench board (fb 450.01, commit `97321391`), plus a stock
   440.21 board (and stock 449.01 if you have one) for the read-only checks;
 - the EN-HIL harness from your own edge-next checkout (`tests/hil`), for the
   items that need a second program on the board.
@@ -247,12 +250,12 @@ line. It then probes the board and classifies it. Expect:
 
 | Board | Classification | Mode |
 |---|---|---|
-| edge-next fb 450.01 (`ead63997`) | `tinyg-en` | READ_ONLY, reason `en-not-approved`, until a build is approved for this environment (P1-03); read-only in Phase 1 either way. Seen on the bench 2026-11-02. |
+| edge-next fb 450.01 (`97321391`) | `tinyg-en` | READ_ONLY, reason `en-not-approved`, until a build is approved for this environment (P1-03); read-only in Phase 1 either way. Seen on the bench 2026-11-02. |
 | stock 440.21 | `tinyg-440` | READ_ONLY, with W25 and the upgrade offer |
 | stock 449.01 | `tinyg-449-stock` | READ_ONLY |
 | EN with `$ex=2` | `tinyg-en` | READ_ONLY, reason flow control |
 | board moving, held, with a short queue, or silent for 3 s | **ORPHANED_MOTION** (W32) | only Pause offered |
-| a partial line left in the board's buffer by another program (the reply to `{sr:null}` has no `sr`) | **ORPHANED_MOTION** (W32) | only Pause offered. A fragment ending in a comment may already have RUN (measured 2026-11-02); check the machine, unplug, power-cycle the board |
+| a partial line left in the board's buffer by another program (the reply to `{sr:null}` has no `sr`) | **ORPHANED_MOTION** (W32) | only Pause offered. A fragment ending in a comment may already have RUN (measured 2026-11-02 with a 0.5 s gap); check the machine, unplug, power-cycle the board. On edge-next `97321391`, a fragment that has been quiet for more than about 1 s is dropped when `{sr:null}` arrives (E195), so the reply carries `sr` and the probe goes on; 440.21 and shorter gaps still end here |
 
 The board id, firmware build and the other identity strings show as plain
 text. Control and bidi characters are replaced (T-S85). While the board is

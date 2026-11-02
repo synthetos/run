@@ -1,7 +1,7 @@
 /**
  * Travel ranges against the firmware's soft-limit test (finding P0-09, batch
  * 12): `fp_EQ` on float32 ends skips the axis, and an end at or below
- * DISABLE_SOFT_LIMIT is not tested (EN canonical_machine.c:536-552; TG
+ * DISABLE_SOFT_LIMIT is not tested (EN canonical_machine.c:545-561; TG
  * canonical_machine.c:480-496).
  *
  * The oracle is the corrected test-kit firmware models (finding P0-11 #4,

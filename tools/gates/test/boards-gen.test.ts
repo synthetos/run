@@ -190,7 +190,7 @@ describe('the TinyG extractor', () => {
   });
 
   it('refuses a short commit or a bad tag', () => {
-    expect(() => extractTinyG((p) => sources()[p], 'EN', 'ead63997')).toThrow(/40-hex/);
+    expect(() => extractTinyG((p) => sources()[p], 'EN', '97321391')).toThrow(/40-hex/);
     expect(() => extractTinyG((p) => sources()[p], 'en', COMMIT)).toThrow(/tag/);
   });
 });

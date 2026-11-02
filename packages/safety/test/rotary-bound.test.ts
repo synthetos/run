@@ -6,14 +6,14 @@
  * Firmware facts these tests rest on (read-only, pinned source):
  * - A rotary target is held in degrees. In radius mode (am=3) the program
  *   word is linear units, turned into degrees as
- *   `_to_millimeters(w) * 360 / (2π ra)` (@cite EN ead63997
- *   canonical_machine.c:482-487 `_calc_ABC`; TG d041839 canonical_machine.c:430-440).
+ *   `_to_millimeters(w) * 360 / (2π ra)` (@cite EN 97321391
+ *   canonical_machine.c:491-496 `_calc_ABC`; TG d041839 canonical_machine.c:430-440).
  *   So one degree of travel on a radius-mode axis is `π ra / 180` mm of
  *   surface travel at the configured radius.
  * - In standard mode (am=1) the word is degrees and the board knows no
  *   physical radius, so degrees cannot be turned into a distance.
  * - A disabled axis (am=0) is skipped when the target is set (@cite EN
- *   canonical_machine.c:513-514; TG :457), so it does not move.
+ *   canonical_machine.c:522-523; TG :457), so it does not move.
  * - An inhibited axis (am=2) has its absolute joint forced to 0 in the
  *   kinematics (@cite EN kinematics.c:59; TG kinematics.c:63), so a motor
  *   left away from 0 can move on a move of ANY axis; its travel is not
@@ -57,7 +57,7 @@ describe.each(DIALECTS)('the overrun bound converts rotary travel with a known r
   });
 
   it('the original radius = 1 case: live A = 10 degrees, G1 A10 travels 9.82547 mm', () => {
-    // Target 10 * 360 / (2π) = 572.9578 degrees (EN canonical_machine.c:514-523); travel 562.9578 degrees.
+    // Target 10 * 360 / (2π) = 572.9578 degrees (EN canonical_machine.c:523-532); travel 562.9578 degrees.
     const start: StartState = { ...START, machine: { ...START.machine, A: 10 } };
     const travelDeg = (10 * 360) / (2 * Math.PI) - 10;
     const b = bound('G21 G90\nG1 A10 F100\n', d, radiusA(1), start);

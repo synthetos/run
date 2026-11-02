@@ -28,7 +28,7 @@ export const TINYG_EN_READ: ReadAllowlist = defineReadAllowlist({
     /** Input states in1..in8 (EN config_app.c, `get_int`, read-only). */
     'in',
     ...cross(['in'], ['1', '2', '3', '4', '5', '6', '7', '8']),
-    /** Motor enabled flags (EN stepper.c:1356-1365). */
+    /** Motor enabled flags (EN stepper.c:1384-1393). */
     ...cross(['pwr'], MOTORS),
     ...commonGroupedTokens(),
     ...COMMON_SYS_TOKENS,
@@ -43,7 +43,7 @@ export const TINYG_EN_READ: ReadAllowlist = defineReadAllowlist({
     'spph',
     ...LIVE_STATE_TOKENS,
     'admo',
-    /** Short status report (EN report.c:612-615). */
+    /** Short status report (EN report.c:621-624). */
     'srs',
     /** Stack watermark diagnostic (EN stack_report.c:47-60); one of the capability-probe tokens (PN §2.3). */
     'fstk',

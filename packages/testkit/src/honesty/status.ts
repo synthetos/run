@@ -61,7 +61,7 @@ export function renderStatus(behaviours: readonly Behaviour[], limits: readonly 
     '',
     'DEV ONLY. The firmware models in this package exist for tests; they never ship (RUN_PLAN §8.1, T-S40).',
     'Every behaviour a safety claim depends on carries a citation at a pinned commit and a status',
-    '(RUN_PLAN §8.1 honesty rule). Pins: EN = TinyG edge-next `ead63997`, TG = master `d0418390` (440.21),',
+    '(RUN_PLAN §8.1 honesty rule). Pins: EN = TinyG edge-next `97321391`, TG = master `d0418390` (440.21),',
     'EN-HIL = edge-next `tests/hil/` (`vendor/firmware-pins.json`). EN and TG paths are under `firmware/tinyg/`.',
     '',
     `Totals: ${behaviours.length} behaviours (${counts}).`,

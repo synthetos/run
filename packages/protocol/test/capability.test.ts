@@ -21,7 +21,7 @@ import {
 import type { ApprovedBuild, ApprovedBuilds, Footer, ProbeObservations, ProbeResult } from '../src/index.ts';
 import { EN_CAPABILITIES, EN_450, G2_EDGE, NO_CAPABILITIES, STOCK_449, TG_440, observations, tinygIdentity } from './fixtures/probeFixtures.ts';
 
-const EN_COMMIT = 'ead639978c77601b150be7ef12774f47eed4c824';
+const EN_COMMIT = '973213919e4deb55cfb3883a2da4424b4d65f7cc';
 const TG_COMMIT = 'd04183905470714254c24d299f6aad75f6bcbb7a';
 
 const approval = (dialect: ApprovedBuild['dialect'], fb: number, commit = EN_COMMIT): ApprovedBuild => ({
@@ -47,7 +47,7 @@ describe('T-S55: classifier fixtures', () => {
     expect(c.approval).toEqual(BENCH.builds[0]);
     expect(c.detail).toContain('450.01');
     // The probe cannot verify the commit, and with no fbs every 450.01 build matches: never claim it.
-    expect(c.detail).not.toContain('ead63997');
+    expect(c.detail).not.toContain('97321391');
     expect(c.detail).toContain('commit not verifiable');
     expect(c.buildIdentity).toBe('fbOnly');
   });
@@ -59,7 +59,7 @@ describe('T-S55: classifier fixtures', () => {
     const c = classify(probe(reporting), named);
     expect(c).toMatchObject({ mode: 'full', buildIdentity: 'fbs' });
     expect(c.detail).toContain('identified by fbs');
-    expect(c.detail).toContain('ead63997');
+    expect(c.detail).toContain('97321391');
     // And the fbs-less board does not match the named entry.
     expect(classify(probe(EN_450()), named).mode).toBe('readOnly');
   });

@@ -176,7 +176,7 @@ describe('switch rules', () => {
     expect(codes(validate({ xsn: 1 }, EN, { base: { ...BOARD, asx: Number.NaN } }))).toEqual([['asx', 'switchesIncomplete']]);
   });
 
-  it('one homing switch per axis (EN cycle_homing.c:261)', () => {
+  it('one homing switch per axis (EN cycle_homing.c:265)', () => {
     expect(codes(validate({ xsx: 1 }, EN, { base: BOARD }))).toEqual([['xsn', 'multipleHomingSwitches']]);
     expect(codes(validate({ asn: 3, asx: 1 }, EN, { base: BOARD }))).toEqual([['asn', 'multipleHomingSwitches']]);
     expect(validate({ xsn: 2, xsx: 3 }, EN, { base: BOARD })).toEqual([]);

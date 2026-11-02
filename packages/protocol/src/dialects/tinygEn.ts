@@ -1,7 +1,7 @@
 /**
  * `tinyg-en`: TinyG edge-next, the primary TinyG target (PN §2.1).
  *
- * Every `@cite EN` is `firmware/tinyg/<file>:<line>` at edge-next ead63997
+ * Every `@cite EN` is `firmware/tinyg/<file>:<line>` at edge-next 97321391
  * (`vendor/firmware-pins.json`, PIN-1), the commit that reports `fb` 450.01.
  * D4 is done: 450.01 is edge-next's build number (EN tinyg.h:52). It reports
  * no `fbs` or `cap` token yet, no image has passed D5, and `make FW_BUILD=x.y`
@@ -18,7 +18,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
   label: 'TinyG edge-next',
   mode: 'manifest',
   upgradeOffer: false,
-  // Always strict JSON, no footer (@cite EN report.c:65-78).
+  // Always strict JSON, no footer (@cite EN report.c:68-81).
   bannerShape: 'bare-sr',
 
   // @cite EN canonical_machine.h:60-73 (cmCombinedState).
@@ -35,7 +35,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
   status: statusTable([
     // Two sources: E162, a damaged line that never ran (with er 13 and ALARM 13, @cite EN controller.c:253-266),
     // and E102, a line that ran but whose reply overflowed the output buffer (`{"r":{},...}`, no er, no alarm,
-    // @cite EN json_parser.c:861-866). `resolveBufferFull` tells them apart; nothing acts on 13 alone.
+    // @cite EN json_parser.c:888-893). `resolveBufferFull` tells them apart; nothing acts on 13 alone.
     [13, 'BUFFER_FULL', 'bufferFull'],
     [17, 'FUNCTION_IS_STUBBED', 'stubbed'], // `spph`, `spde`, `coph` (@cite EN config_app.c:64-68)
     [100, 'UNRECOGNIZED_NAME', 'unrecognizedToken'],
@@ -79,19 +79,19 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     [254, 'PROBE_SWITCH_ON_ABC_AXIS', 'probeFailed'],
   ]),
 
-  // Realtime bytes are trapped in the RX ISR before the ring-full test (@cite EN xio/xio_usb.c:155-188, :216).
+  // Realtime bytes are trapped in the RX ISR before the ring-full test (@cite EN xio/xio_usb.c:191-229, :265).
   realtime: {
-    // Ignored unless the machine is moving: a feedhold during a dwell does nothing (@cite EN canonical_machine.c:1761-1767).
-    feedhold: { byte: BYTE.FEEDHOLD, scope: 'anywhere' }, // @cite EN xio/xio_usb.c:164-167
-    resume: { byte: BYTE.RESUME, scope: 'lineBoundary' }, // E021 (@cite EN xio/xio_usb.c:181-184)
-    flush: { byte: BYTE.FLUSH, scope: 'lineBoundary' }, // E146 (@cite EN xio/xio_usb.c:172-180)
-    reset: { byte: BYTE.RESET, scope: 'anywhere' }, // hw_hard_reset() from the ISR (@cite EN xio/xio_usb.c:160-162)
+    // Ignored unless the machine is moving: a feedhold during a dwell does nothing (@cite EN canonical_machine.c:1775-1781).
+    feedhold: { byte: BYTE.FEEDHOLD, scope: 'anywhere' }, // @cite EN xio/xio_usb.c:205-208
+    resume: { byte: BYTE.RESUME, scope: 'lineBoundary' }, // E021 (@cite EN xio/xio_usb.c:222-225)
+    flush: { byte: BYTE.FLUSH, scope: 'lineBoundary' }, // E146 (@cite EN xio/xio_usb.c:213-221)
+    reset: { byte: BYTE.RESET, scope: 'anywhere' }, // hw_hard_reset() from the ISR (@cite EN xio/xio_usb.c:201-203)
     // ALARM 207: feedhold, flush, spindle and coolant off at once, even in a dwell or a hold
-    // (@cite EN xio/xio_usb.c:168-171; canonical_machine.c:1756-1759, :1852).
+    // (@cite EN xio/xio_usb.c:209-212; canonical_machine.c:1770-1773, :1866).
     kill: { byte: BYTE.KILL, scope: 'anywhere' },
-    // Answered {"ack":true} from the main loop ahead of the planner gates (@cite EN xio/xio_usb.c:185-188; controller.c:169).
+    // Answered {"ack":true} from the main loop ahead of the planner gates (@cite EN xio/xio_usb.c:226-229; controller.c:169).
     enq: { byte: BYTE.ENQ, scope: 'anywhere' },
-    // Honoured only while a hold or an alarm flush exists, otherwise ignored (@cite EN canonical_machine.c:1776-1790).
+    // Honoured only while a hold or an alarm flush exists, otherwise ignored (@cite EN canonical_machine.c:1790-1804).
     flushHonoured: 'holdOrAlarmFlush',
     resetLosesPort: false,
     resetDeferredByMainLoop: false,
@@ -100,20 +100,20 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
   caps: {
     jobKill: true,
     enq: true,
-    tid: true, // echoed at the top level, on errors too (@cite EN json_parser.c:93-160, :834-843; E049)
-    m400: true, // reply deferred until drained (@cite EN controller.c:196, :573)
-    programStopPauses: true, // M0/M60 → stat 3, hold 6, spindle stays on (@cite EN canonical_machine.c:2102-2114; E020)
+    tid: true, // echoed at the top level, on errors too (@cite EN json_parser.c:93-160, :861-870; E049)
+    m400: true, // reply deferred until drained (@cite EN controller.c:196, :583)
+    programStopPauses: true, // M0/M60 → stat 3, hold 6, spindle stays on (@cite EN canonical_machine.c:2118-2130; E020)
     m2ClearsAlarm: true, // a standalone M2/M30 clears ALARM (@cite EN gcode_parser.c:76-78, :186-205; E135)
     arcSoftLimits: true, // @cite EN plan_arc.c:256-265, :590-601 (E041)
-    alarmStopsSpindle: true, // spindle_reset() in cm_alarm (@cite EN canonical_machine.c:797, :835; E019)
+    alarmStopsSpindle: true, // spindle_reset() in cm_alarm (@cite EN canonical_machine.c:806, :844; E019)
     // `spph` answers 17 today (E060 not merged); a future build that answers a value may pause the spindle.
     spindlePauseOnHold: 'probe',
     // `coph` is reserved with `spph` and answers 17 (@cite EN config_app.c:64-68, :654); the hold
-    // code that would pause coolant is commented out (@cite EN canonical_machine.c:837-838). A
+    // code that would pause coolant is commented out (@cite EN canonical_machine.c:846-847). A
     // future build that answers a value may pause coolant on hold, so it is read, never assumed.
     coolantPauseOnHold: 'probe',
     lineInSr: true, // default sr list starts with `line` (@cite EN settings/settings_default.h:84)
-    footerRevs: [2, 3], // rev 2 at rxm=0, rev 3 at rxm=1, the default (@cite EN json_parser.c:848-852; settings/settings_default.h:74)
+    footerRevs: [2, 3], // rev 2 at rxm=0, rev 3 at rxm=1, the default (@cite EN json_parser.c:875-879; settings/settings_default.h:74)
     footerChecksum: 'absent',
   },
 
@@ -153,7 +153,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
 
   gcode: {
     // L2 and L20 (L20 accounts for G92 and the tool length offset, E023); other L → 173, none → 172
-    // (@cite EN canonical_machine.c:956-983).
+    // (@cite EN canonical_machine.c:965-992).
     lWords: [2, 20],
     blocked: [
       {
@@ -165,7 +165,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
         id: 'm201.3',
         kind: 'code',
         code: 'M201.3',
-        reason: 'Changes jerk in RAM at parse time, not in queue order (PN §9.3; @cite EN canonical_machine.c:2553-2554).',
+        reason: 'Changes jerk in RAM at parse time, not in queue order (PN §9.3; @cite EN canonical_machine.c:2644-2645).',
       },
       {
         id: 'g93',
@@ -176,10 +176,10 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     ],
     barrierCodes: ['M0', 'M60', 'M1'],
     holdbackEndCodes: ['M2', 'M30'],
-    // The job subset of the EN parser (@cite EN gcode_parser.c:364-547). Left out on purpose, as host-only:
+    // The job subset of the EN parser (@cite EN gcode_parser.c:373-565). Left out on purpose, as host-only:
     // G28.2/G28.3/G28.4 (homing and set-position: they redefine the machine position that preflight checked),
     // G38.2 (probing, rejected in v1 by S §4.7), M105/M114/M115 (reports whose replies are not line
-    // responses) and M400 (the host's own barrier). M48-M51 answer 132 (@cite EN gcode_parser.c:493-495),
+    // responses) and M400 (the host's own barrier). M48-M51 answer 132 (@cite EN gcode_parser.c:502-504),
     // so they are not listed either and a job containing them is blocked.
     job: {
       codes: [
@@ -192,10 +192,10 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
       words: ['T', 'F', 'P', 'S', 'X', 'Y', 'Z', 'A', 'B', 'C', 'I', 'J', 'K', 'L', 'R'],
       maxTool: 31, // TOOL_SELECT_MAX with __BITFIELDS (@cite EN canonical_machine.h:326-330; tinyg.h:62; E154)
       midFileProgramEnd: 'block', // a buffered M2/M30 clears an alarm (E135, H35)
-      optionalStopOff: 'send', // M1 is skipped unless `os`=1 (@cite EN canonical_machine.c:2112-2115)
-      programEndStopsOutputs: true, // spindle and coolant off at program end (@cite EN canonical_machine.c:2003-2043)
-      storedMoveIntermediate: 'work', // the intermediate point uses work coordinates (@cite EN canonical_machine.c:1302-1317)
-      rotaryOffsetsUseUnits: false, // rotary offsets are degrees as written (@cite EN canonical_machine.c:989, :1127)
+      optionalStopOff: 'send', // M1 is skipped unless `os`=1 (@cite EN canonical_machine.c:2128-2131)
+      programEndStopsOutputs: true, // spindle and coolant off at program end (@cite EN canonical_machine.c:2019-2059)
+      storedMoveIntermediate: 'work', // the intermediate point uses work coordinates (@cite EN canonical_machine.c:1316-1331)
+      rotaryOffsetsUseUnits: false, // rotary offsets are degrees as written (@cite EN canonical_machine.c:998, :1136)
       arcCoincidence: 'position', // end points fp_EQ on both plane axes are a full circle (@cite EN plan_arc.c:320-329)
     },
   },
@@ -206,7 +206,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
       { kind: 'awaitInFlightWrite' },
       { kind: 'stopFeeding' },
       // SHUTDOWN (12) or PANIC (13): {clear} cannot leave them, and ^D would raise nothing (cm_alarm returns
-      // early, @cite EN canonical_machine.c:797-803). Advise the E-stop and offer the reset path instead.
+      // early, @cite EN canonical_machine.c:806-812). Advise the E-stop and offer the reset path instead.
       { kind: 'haltIfStat', stat: [12, 13], spindle: 'unknown' },
       { kind: 'writeRealtime', byte: BYTE.KILL },
       // Already in ALARM (stat 2: a limit 203, lost input 13, ...): ^D raises no 207, the existing alarm is the

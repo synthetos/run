@@ -12,7 +12,7 @@
  * #1 A capability answer proves the edge-next contract only when its value
  *    is one the firmware can print: `spep`, `prbp` and `os` are uint8
  *    settings whose setters refuse anything above 1 (@cite EN
- *    config_app.c:649, :656, :667; spindle.c:64; switch.c:319; config.c:446-451);
+ *    config_app.c:649, :656, :667; spindle.c:64; switch.c:329; config.c:446-451);
  *    `fstk` is the unused-stack watermark, an unsigned count of bytes between
  *    `__heap_start` and SP on the atxmega192a3's 16 KB SRAM, so 0..16383
  *    (@cite EN stack_report.c:47-58; Makefile:14).
@@ -206,7 +206,7 @@ describe('P0-08 #3: the manifest verifier rejects an invalid clock and malformed
   const b64 = (bytes: ArrayBuffer) => Buffer.from(new Uint8Array(bytes)).toString('base64');
   const pair = (await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as webcrypto.CryptoKeyPair;
   const key: ReleaseKey = { kid: 'test-1', publicKey: b64(await subtle.exportKey('raw', pair.publicKey)), environments: ['staging'], placeholder: false };
-  const enBuild = { dialect: 'tinyg-en', fb: 450.01, fbs: null, commit: 'ead639978c77601b150be7ef12774f47eed4c824', note: 'bench' };
+  const enBuild = { dialect: 'tinyg-en', fb: 450.01, fbs: null, commit: '973213919e4deb55cfb3883a2da4424b4d65f7cc', note: 'bench' };
   const signedFile = async (overrides: Record<string, unknown> = {}, builds: unknown[] = [enBuild]) => {
     const payload = JSON.stringify({
       format: CHANNEL_PAYLOAD_FORMAT,

@@ -24,7 +24,9 @@ const REPO = resolve(import.meta.dirname, '../../..');
 const PRODUCTION = 'https://run.synthetos.com';
 const STAGING = 'https://staging.run.synthetos.com';
 const NOW = new Date('2026-11-01T12:00:00Z');
-const EN_COMMIT = 'ead639978c77601b150be7ef12774f47eed4c824';
+const EN_COMMIT = '973213919e4deb55cfb3883a2da4424b4d65f7cc';
+/** The bench entry the committed signed file names until the owner re-signs after the 2026-11-02 re-pin (tools/gates/test/approved-builds.test.ts holds the difference to this). */
+const SIGNED_BEFORE_RESIGN = 'ead639978c77601b150be7ef12774f47eed4c824';
 
 const subtle = globalThis.crypto.subtle;
 const b64 = (bytes: ArrayBuffer | Uint8Array) => Buffer.from(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)).toString('base64');
@@ -290,9 +292,9 @@ describe('the committed firmware/approved-builds.json', () => {
       { channel: 'bench', accepted: true },
       { channel: 'release', accepted: false, rejection: 'wrong-environment-for-channel' },
     ]);
-    expect(out.approved.builds).toEqual([expect.objectContaining({ channel: 'bench', dialect: 'tinyg-en', fb: 450.01, fbs: null, commit: EN_COMMIT })]);
+    expect(out.approved.builds).toEqual([expect.objectContaining({ channel: 'bench', dialect: 'tinyg-en', fb: 450.01, fbs: null })]);
     const pins = JSON.parse(readFileSync(join(REPO, 'vendor/firmware-pins.json'), 'utf8')) as { pins: { EN: { commit: string; fb: number } } };
-    expect(out.approved.builds[0]?.commit).toBe(pins.pins.EN.commit);
+    expect([pins.pins.EN.commit, SIGNED_BEFORE_RESIGN]).toContain(out.approved.builds[0]?.commit);
     expect(out.approved.builds[0]?.fb).toBe(pins.pins.EN.fb);
   });
 

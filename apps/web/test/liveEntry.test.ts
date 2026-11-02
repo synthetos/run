@@ -373,6 +373,24 @@ describe('LiveEntry', () => {
     expect(u.calls).not.toContain('onLive');
   });
 
+  it("the chooser's connect/disconnect guard is released on every exit from open: opened, refused, or thrown", async () => {
+    for (const outcome of ['ok', 'refused', 'throws'] as const) {
+      const order: string[] = [];
+      const t = harness({
+        choosePort: () => Promise.resolve({ ok: true, port: PORT, confirm: async () => true, release: () => order.push('release') }),
+        open: async () => {
+          order.push('open');
+          if (outcome === 'throws') throw new Error('worker gone');
+          return outcome === 'ok' ? { ok: true } : { ok: false, message: 'The granted ports changed. Choose the port again.' };
+        },
+      });
+      await t.entry.begin();
+      await t.entry.confirm([true, true, true, true, true]).catch(() => undefined);
+      expect(order, outcome).toEqual(['open', 'release']);
+      if (outcome === 'refused') expect(t.entry.state).toMatchObject({ step: 'refused', refusal: { kind: 'open-failed' } });
+    }
+  });
+
   it('mid-session loss of the identity changes nothing in the machine path: no worker call, stops still allowed, only new G requests refused', async () => {
     const t = harness();
     await t.entry.begin();

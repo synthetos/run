@@ -5,7 +5,7 @@
  * A feed move's modelled duration is its path length over
  * `v_eff = min(F, fr) × k`; a rapid's is over `vm × k`. TinyG limits feed
  * moves by the axis feed rate maximum `fr` and only rapids by the velocity
- * maximum `vm` (@cite EN plan_line.c:349-353 `_calc_move_times`; TG the
+ * maximum `vm` (@cite EN plan_line.c:377-381 `_calc_move_times`; TG the
  * same). `fr` and `vm` are the smallest board value among the axes that
  * move, so the model never assumes a move faster than its slowest axis
  * allows (the firmware takes the longest per-axis time, which is never
@@ -341,7 +341,7 @@ export const R_CHORD_ERRORS = 100;
  * (one rounding), its unit conversion (one) and its sum with the position or
  * the offset (one), each at most 2^-24 of the value; 2^-22 is four roundings.
  * The firmware keeps the target as its new position (@cite EN
- * canonical_machine.c:490-511 `cm_set_model_target`, :413-414 `cm_finalize_move`), so
+ * canonical_machine.c:499-520 `cm_set_model_target`, :422-423 `cm_finalize_move`), so
  * over a run of incremental moves these add up.
  */
 export const F32_STEP_ERROR = 2 ** -22;

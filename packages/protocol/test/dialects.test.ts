@@ -220,7 +220,7 @@ describe('stop sequences as data (SAFETY §4.4)', () => {
       'done',
     ]);
     expect(writtenBytes(TINYG_EN.stopJob)).toEqual([BYTE.KILL]);
-    // EN cm_alarm prints nothing when already ALARM/SHUTDOWN/PANIC (canonical_machine.c:797-803).
+    // EN cm_alarm prints nothing when already ALARM/SHUTDOWN/PANIC (canonical_machine.c:806-812).
     expect(TINYG_EN.stopJob.steps).toContainEqual({ kind: 'awaitAlarm', status: 207, alreadyAlarmedStat: [2], timeoutMs: 2000 });
     expect(TINYG_EN.stopJob.steps).toContainEqual({ kind: 'haltIfStat', stat: [12, 13], spindle: 'unknown' });
     expect(mapStat(TINYG_EN, 2)).toBe('alarm');

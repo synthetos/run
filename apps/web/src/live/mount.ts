@@ -39,7 +39,11 @@ export function openRequest(port: Extract<MachineRequest, { kind: 'open' }>['por
   return { v: RPC_VERSION, kind: 'open', port, boardId: null, previousSessionEnded };
 }
 
-/** Prepare without opening; confirm original window objects; open only the held worker port. */
+/**
+ * Prepare without opening; confirm original window objects; open only the held worker port. `confirm`
+ * also refuses if any port connected or disconnected since the choice (the chooser's event guard,
+ * docs/safety/PORT_SELECTION.md); LIVE entry releases that guard on every exit (liveEntry.ts).
+ */
 export async function openConfirmedPort(
   call: (request: MachineRequest) => Promise<MachineReply>,
   port: Extract<MachineRequest, { kind: 'open' }>['port'],

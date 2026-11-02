@@ -19,7 +19,7 @@ const pins = (JSON.parse(readFileSync(join(REPO_ROOT, 'vendor/firmware-pins.json
 
 describe('citations', () => {
   it('cite the pinned commits only (EN and EN-HIL at the EN pin, TG at the TG pin)', () => {
-    expect(pins['EN']?.commit).toMatch(/^ead63997/);
+    expect(pins['EN']?.commit).toMatch(/^97321391/);
     expect(pins['TG']?.commit).toMatch(/^d0418390/);
     const sources = new Set(BEHAVIOURS.flatMap((b) => b.cites.map((c) => c.src)));
     expect([...sources].sort()).toEqual(['EN', 'EN-HIL', 'TG']);

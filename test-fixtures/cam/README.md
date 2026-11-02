@@ -10,5 +10,5 @@ holds a raw 0x18 and `11-crlf.nc` uses CRLF line endings
 
 `12-g18-arc.nc` is the EN-HIL fixture of
 `tests/hil/tests/bugs/test_e029_g18_arc_direction.py:45` at edge-next
-ead63997: on EN the arc dips to Z-0.5; on 440.21 it runs the other way
+ead63997 (unchanged at the current pin `97321391`): on EN the arc dips to Z-0.5; on 440.21 it runs the other way
 (E029), so the TG dialect blocks it.

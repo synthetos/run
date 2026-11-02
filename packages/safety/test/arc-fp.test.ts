@@ -4,7 +4,7 @@
  * rule, and absolute arc endpoints never invented.
  *
  * Source, read with `git show` only:
- * - EN ead63997 plan_arc.c:320-350: a centre-format arc whose end point is
+ * - EN 97321391 plan_arc.c:320-350: a centre-format arc whose end point is
  *   fp_EQ to the start on BOTH plane axes (machine coordinates, float32) is a
  *   full circle in its direction; otherwise the atan2 travel decides, and a
  *   travel that is fp_ZERO alarms 159. util.h:134-139: fp_EQ(a,b) is
@@ -228,7 +228,7 @@ describe('P0-10 #2: full circles and split arcs never invent absolute coordinate
 /**
  * Arc uncertainty (found by the verification of the P0-10#1 fix): the board
  * reports its machine position, offsets and stored positions to three
- * decimals (EN ead63997 config_app.c:165-177 `mpo` precision 3, :387-449
+ * decimals (EN 97321391 config_app.c:165-177 `mpo` precision 3, :387-449
  * `g54x`..`g30c` precision 3; TG d041839 config_app.c:131-143, :392-454), so
  * a start that reads 0.000 may really be 0.0004 mm away, fifty times fp_EQ's
  * EPSILON, and incremental moves add float32 rounding. Every coincidence and
@@ -344,7 +344,7 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
     const segments = split.lines.filter((l) => l.sourceLine === 3);
     expect(segments.length).toBeGreaterThan(700);
     // The firmware's target is its float32 position plus the float32 word, stored as the next position
-    // (@cite EN canonical_machine.c:490-511 `cm_set_model_target`, :413-414 `cm_finalize_move`).
+    // (@cite EN canonical_machine.c:499-520 `cm_set_model_target`, :422-423 `cm_finalize_move`).
     let y = Math.fround(600);
     for (const l of segments) y = Math.fround(y + Math.fround(words(l.body).get('Y') as number));
     expect(Math.abs(y - 630)).toBeGreaterThan(0.005);

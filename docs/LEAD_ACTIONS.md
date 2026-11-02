@@ -417,14 +417,33 @@ From `docs/safety/PHASE0_TRACEABILITY.md` "Open items":
   note predates D4 and still calls the build number undecided. It was left
   as signed because changing it needs a new signature
   (`docs/ops/release-key.md`, "The signed bench note predates D4").
-- **D4 is done** (edge-next reports `fb` 450.01 at `ead63997`, which is the
-  commit `vendor/firmware-pins.json` and the dialect citations are pinned
-  to). Still open, and separate from the build number: the `fbs` and `cap`
-  tokens D4 recommends (the build reports neither), D5 image approval (no
-  image has passed it, so the `release` channel stays empty) and the D6
-  published release. If the published release commit differs from
-  `ead63997`, re-pin and regenerate the HIL tables (PIN-1, D32). The app
-  detects the build by capability probe, never by number alone.
+- **D4 is done** (edge-next reported `fb` 450.01 at `ead63997` and still
+  does at `97321391`). **Re-pinned 2026-11-02:** `vendor/firmware-pins.json`,
+  the dialect citations, the HIL tables and the board tables now follow
+  edge-next `97321391` (the merge of the E195 stale-line fix; it also carries
+  the stricter input errors E168-E177, E191 and E193 from `d254eb0b`). Still
+  open, and separate from the build number: the `fbs` and `cap` tokens D4
+  recommends (the build reports neither), D5 image approval (no image has
+  passed it, so the `release` channel stays empty) and the D6 published
+  release. If the published release commit differs from `97321391`, re-pin
+  and regenerate the HIL tables again (PIN-1, D32). The app detects the build
+  by capability probe, never by number alone.
+- **Re-sign the bench manifest for the re-pin.** The signed bench entry names the previous pin:
+  `firmware/approved-builds.unsigned.json` names `97321391`, but
+  `firmware/approved-builds.json` still carries `ead63997`, because signing
+  needs your bench key, which no agent uses. Nothing changes at run time
+  meanwhile: the entry has `fbs: null`, so it matches every 450.01 build by
+  dialect and `fb`, and the commit is never checked. A gate test allows
+  exactly this difference while this line and `docs/ops/release-key.md`
+  record it. Run, outside any agent session:
+
+  ```sh
+  pnpm sign:builds --key ~/.synthetos-release-bench/bench.pkcs8.pem --kid owner-bench-2026-11-02
+  ```
+
+  Then delete this item and the matching section of
+  `docs/ops/release-key.md` (the gate test requires it once the files
+  agree), and commit both manifest files.
 - **O5**: raise mutation score of `packages/safety/src/sanitize/` above 90 %
   and add a mutation or coverage gate to `protocol`, `machine` and `schema`.
 - **O6**: copy the in-repo SAFETY.md amendments back into the authoritative

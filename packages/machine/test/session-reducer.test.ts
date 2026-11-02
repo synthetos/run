@@ -220,6 +220,17 @@ describe('splice guard and boot (PN §2.3 step 0 and 1; SAFETY H49)', () => {
     }
   });
 
+  it('a damaged splice answer writes the same kind of session-log line as a clean answer with no sr', () => {
+    const d = new Driver();
+    d.open();
+    d.written();
+    d.line('{"r":{"sr":');
+    const logs = d.effects.filter((e) => e.kind === 'log').map((e) => (e as Extract<SessionEffect, { kind: 'log' }>).text);
+    expect(logs).toEqual([
+      "probe: the answer to the first line ({sr:null}) arrived damaged: it cannot show the line was read as a status request, and a leftover partial line in the board's buffer may have joined it and run → ORPHANED_MOTION",
+    ]);
+  });
+
   it('a board that boots while it is probed: the probe restarts from {sr:null} once it is ready and quiet', () => {
     const d = new Driver();
     d.open();
