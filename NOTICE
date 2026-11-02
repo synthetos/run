@@ -1,7 +1,28 @@
 run.synthetos.com
 Copyright 2026 Synthetos
 
-This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by the
+Free Software Foundation, either version 3 of the License, or (at your option)
+any later version (SPDX: AGPL-3.0-or-later). See LICENSE.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details.
 
 Third-party code included in this product, with its licence, is listed in
-THIRD_PARTY_NOTICES.md.
+THIRD_PARTY_NOTICES.md. In summary:
+
+- cncjs gcode-parser (MIT, Copyright (c) 2015-present Cheton Wu): the G-code
+  line parser in packages/gcode/src/parser.ts is forked from it.
+- IBM Plex Sans, Sans Condensed and Mono (SIL Open Font License 1.1,
+  Copyright 2017 IBM Corp. with Reserved Font Name "Plex"): font files in
+  apps/web/src/fonts/ibm-plex/, licence text in
+  apps/web/src/fonts/ibm-plex/OFL.txt and apps/web/public/licenses/.
+- TinyG (GPL-2.0, Copyright Alden S. Hart, Jr. / Synthetos): the vendored
+  tables in vendor/tinyg-hil-tables/ and vendor/tinyg-board-facts/ are
+  generated from synthetos/TinyG at pinned commits; the test firmware model in
+  packages/testkit/src/firmware/ is written from that source; the edge-next
+  logo images in apps/web/public/brand/edge-next/ come from TinyG docs/images
+  at e08d8d9c.

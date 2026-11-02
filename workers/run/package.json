@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The run Cloudflare Worker: static shell, security headers, /api/health (ROADMAP P0-04). /auth/* arrives in A1.",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
   "exports": {

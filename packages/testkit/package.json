@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "DEV ONLY. Firmware models, MockSerial, fault plans, virtual clock and replay transport for tests. Never part of a production bundle.",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "sideEffects": true,
   "exports": {

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Wire protocol for Synthetos controllers: framing, inbound classification, dialect data, capability probe and classifier, read allowlists.",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
   "exports": {

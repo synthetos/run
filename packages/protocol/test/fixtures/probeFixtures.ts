@@ -94,7 +94,7 @@ export const G2_EDGE = (fb = '101.06'): ProbeObservations =>
       fb: value('fb', fb),
       fv: value('fv', '0.99'),
       hp: value('hp', '"ArduinoDue"'),
-      id: value('id', '"3X3584-QAM"'),
+      id: value('id', '"3X0000-AAC"'),
       hv: value('hv', '"na"'),
       fbs: value('fbs', '"101.06-2-gabc1234"'),
       ...NO_CAPABILITIES,

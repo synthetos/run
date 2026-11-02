@@ -2,10 +2,12 @@
 # Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
 # synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
 # Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# Except: the board id (a unique per-chip value) is replaced by a synthetic id
+# of the same shape, with the footer checksum recomputed where the line had one.
 # source: https://synthetos.com/topics/spindle-and-coolant-on-v6/
 # reply 3928
-Banner	{"r":{"fb":370.080,"fv":0.950,"hv":7.000,"id":"9H3583-RMP","msg":"Loading configs from EEPROM","f":[1,15,0,8118]}}
-Banner	{"r":{"fb":370.080,"fv":0.950,"hv":7.000,"id":"9H3583-RMP","msg":"SYSTEM READY","f":[1,0,0,3609]}}
+Banner	{"r":{"fb":370.080,"fv":0.950,"hv":7.000,"id":"9H0000-AAH","msg":"Loading configs from EEPROM","f":[1,15,0,2821]}}
+Banner	{"r":{"fb":370.080,"fv":0.950,"hv":7.000,"id":"9H0000-AAH","msg":"SYSTEM READY","f":[1,0,0,6872]}}
 # reply 3931
-Banner	{"r":{"fb":370.080,"fv":0.950,"hv":7.000,"id":"9H3906-SWX","msg":"Loading configs from EEPROM","f":[1,15,0,5124]}}
-Banner	{"r":{"fb":370.080,"fv":0.950,"hv":7.000,"id":"9H3906-SWX","msg":"SYSTEM READY","f":[1,0,0,8270]}}
+Banner	{"r":{"fb":370.080,"fv":0.950,"hv":7.000,"id":"9H0000-AAI","msg":"Loading configs from EEPROM","f":[1,15,0,8635]}}
+Banner	{"r":{"fb":370.080,"fv":0.950,"hv":7.000,"id":"9H0000-AAI","msg":"SYSTEM READY","f":[1,0,0,1431]}}

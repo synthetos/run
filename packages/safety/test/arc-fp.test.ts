@@ -1,5 +1,5 @@
 /**
- * Codex P0-10 #1 and #2 (batch 13; still open at the 89e2b5f fix
+ * Independent review P0-10 #1 and #2 (batch 13; still open at the 89e2b5f fix
  * verification): arc coincidence decided with each dialect's own float32
  * rule, and absolute arc endpoints never invented.
  *
@@ -155,7 +155,7 @@ describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', (
 });
 
 describe('P0-10 #2: full circles and split arcs never invent absolute coordinates', () => {
-  it('Codex repro: G2 I10 with the machine position unknown is blocked, not split around (0, 0)', () => {
+  it('Independent review repro: G2 I10 with the machine position unknown is blocked, not split around (0, 0)', () => {
     const r = run('G2 I10 F100\n', EN, { start: without('machine') });
     expect(r.report.blocked).toBe(true);
     expect(blocks(r)).toContain('unknown-state');

@@ -144,7 +144,7 @@ preview, analyser and preflight interpret exactly those lines.
   chord is at least 0.01 mm (so a sub-arc never rounds to coincident
   endpoints, which EN runs as a full circle).
 - Coincidence and direction are decided with each dialect's own float32 rule
-  (`arcCoincidence`, Codex P0-10 #1): EN runs a centre-format arc whose end
+  (`arcCoincidence`, independent review P0-10 #1): EN runs a centre-format arc whose end
   point is fp_EQ (`|a-b| < (float)0.00001`) to the start on both plane axes
   as a full circle in its direction, plus P turns (EN plan_arc.c:320-341);
   TG treats fp_EQ start and end ANGLES as zero travel plus P turns, and
@@ -189,7 +189,7 @@ preview, analyser and preflight interpret exactly those lines.
   accepted as a 0.011 mm arc while EN runs a full circle). The firmware-model cross-check
   (`packages/safety/test/arc-models.test.ts`) runs these cases on the test-kit
   models, whose targets are float32 like the board's.
-- No coordinate is ever assumed (Codex P0-10 #2): an absolute (G90) full
+- No coordinate is ever assumed (independent review P0-10 #2): an absolute (G90) full
   circle needs the work start of both plane axes, and an absolute arc that
   must be split needs the start of both plane axes, because every sub-arc
   writes both. Incremental (G91) arcs write deltas only and need neither.

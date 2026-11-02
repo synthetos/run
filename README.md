@@ -29,7 +29,9 @@ account.
 > are awaiting re-verification. P0-15 (first deploy and the `run-v0.1.0`
 > tag) is not done: there is no GitHub remote or Cloudflare deployment yet,
 > and the owner decisions D39 and D40 are still to be carried into the gates.
-> The owner's steps, in order: `docs/LEAD_ACTIONS.md`.
+> The owner's steps are on the ops pages (`docs/ops/`): the account
+> (`account.md`), branch protection (`branch-protection.md`), Access
+> (`access.md`), the Worker (`worker.md`) and the release key (`release-key.md`).
 
 > **This software is not an emergency stop.** Any machine it drives must have
 > a hardwired, latching E-stop that removes motor and spindle power in
@@ -95,7 +97,7 @@ These rules are enforced by the gates below (P0-02, P0-03, P0-13).
 |---|---|---|
 | Boundaries | `pnpm deps` | `.dependency-cruiser.cjs`: the package layering above (`layer-*` rules) and `no-circular`; no npm (direct or transitive) and no Node built-ins in the safety path; no `contracts` or cloud client in the safety path; the cloud client imports only its own modules, `contracts` and `provenance`, and no chain of imports from it reaches `machine`, `flasher`, `schema`, `gcode`, `wiring`, `testkit` or any other web-app module (`protocol` and `safety` only through `provenance`); `workers/run` imports only `contracts`; `library` and `advisor` have no npm or Node built-in and reach no machine-path package, `contracts`, app or Worker (`assistant-*`); no entry reaches `testkit`; nothing imports from outside the repository; every import resolves. Then `tools/gates/src/source/cli.ts` parses every runtime source file and refuses what dependency-cruiser cannot see: a computed or reflective capability lookup (`capability-lookup`) and an `import()` with a computed specifier (`dynamic-import`) |
 | Lint | `pnpm lint` | `eslint.config.js` with the repository's own rules in `tools/gates/src/eslint/`: no `eval`/`new Function`; no HTML sinks (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `dangerouslySetInnerHTML`) outside `apps/web/src/security/tt.ts`; no `abort` in `machine`; no `Math.random` in `safety` and `protocol`, and no `Math.random`, `Date.now` or `performance.now` in `library` and `advisor`; no network identifiers in `protocol`, `safety`, `machine`, `flasher`, `provenance`, `schema`, `library` and `advisor`; in runtime source, `navigator` only as a static read of a reviewed data property, window aliases only with static keys, no `Reflect` (`run/no-capability-lookup`; the test kit is exempt) and no `import()` with a computed specifier (`run/no-dynamic-import`); no `navigator.serial`, `requestPort` or `getPorts` anywhere except `packages/machine/src/webSerialTransport.ts`, which may read `navigator.serial` statically and nothing more (P1-00; its tests are not exempt); no `WARNING —`, `DANGER —` or `NOTICE —` strings outside `packages/safety/src/strings.ts`. Inline `eslint-disable` comments are ignored (`noInlineConfig`), so a rule can be relaxed only in `eslint.config.js` |
-| Licences | `pnpm licence` | Production dependencies: MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0 or OFL-1.1. Dev dependencies may also be MPL-2.0, or carry a reviewed exception in `tools/gates/src/licence/exceptions.ts`. GPL and AGPL are never allowed |
+| Licences | `pnpm licence` | Production dependencies: MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0 or OFL-1.1. Dev dependencies may also be MPL-2.0, or carry a reviewed exception in `tools/gates/src/licence/exceptions.ts`. GPL and AGPL dependencies are never allowed (run itself is AGPL-3.0-or-later; see Licence) |
 | CI policy | `pnpm ci-policy` | Workflows: only the deploy jobs touch secrets or the Cloudflare token; deploy jobs run only on a push to `main` behind protected environments; actions pinned by SHA; no `pull_request_target`; no `${{ }}` in scripts. CODEOWNERS covers every SAFETY §8 path. The PR template carries the SAFETY §8 checklist verbatim |
 | Bundle scan | `pnpm scan` (after a build) | No origin literal, `//host`, `javascript:` URL or network identifier in `apps/web/dist` outside the cloud-client chunks (`assets/cloud/`, decided by content in `apps/web/build/chunks.ts`); the static-assets `_headers` file present and identical to what `workers/run/src/headers.ts` renders. Anywhere in the bundle (P0-13, T-S40): no test-kit marker, `MockSerialPort`, `transport=` query handling, URL scheme other than relative, `data:` and `blob:`, or Web Serial (`navigator.serial`, `requestPort`, `getPorts`); in code, no computed or reflective capability lookup and no `import()` with a computed specifier; see docs/ops/ci.md |
 | Reproducible build | `pnpm repro` | Clones `HEAD` twice, installs only the build toolchain, builds both and fails unless they are byte-identical, then scans |
@@ -208,5 +210,17 @@ less than seven days ago (`minimumReleaseAge`).
 
 ## Licence
 
-Apache License 2.0. See `LICENSE` and `NOTICE`. Controller firmware (TinyG,
-g2core) is GPL-2.0 and lives in its own repositories.
+GNU Affero General Public License v3.0 or later (`AGPL-3.0-or-later`). See
+`LICENSE` and `NOTICE`. Anyone who modifies run and distributes it, or serves
+it to users over a network, must offer those users the corresponding source
+under the same licence (owner decision OD-7, `docs/ops/owner-decisions.md`).
+
+The production dependency policy is unchanged: dependencies must be permissive
+(MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0 or OFL-1.1). Permissive
+licences are compatible with AGPL-3.0, so they can be combined with run and
+distributed under its terms. GPL and AGPL dependencies stay disallowed by the
+licence gate; that rule governs what run depends on, not run's own licence.
+
+Controller firmware (TinyG, g2core) is GPL-2.0 and lives in its own
+repositories. Tables generated from TinyG source and the TinyG logo files are
+listed with their provenance in `THIRD_PARTY_NOTICES.md`.

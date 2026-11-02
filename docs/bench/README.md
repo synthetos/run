@@ -73,7 +73,7 @@ Each needs the physical bench and cannot be signed by the implementer.
 | BENCH-P106-2 (HIL-1.9) | Start a slow move from the EN-HIL harness, then press Escape (and separately the W2 button) in the LIVE tab: `!` at once, PAUSE REQUESTED then W30 with W10 once a report shows the hold; record keydown-to-`!` latency on the Saleae. | now (the chooser landed 2026-11-02; needs a signed advisory, GUIDE.md 2.3) |
 | BENCH-P106-3 (HIL-1.11, B-EXCL-1) | With the port open in Chrome, try Edge, a second Chrome profile and CNCjs on Windows, macOS and Linux; record whether each open is refused. Close the controlling tab with the task manager: the observer tab shows W29. Freeze the machine worker (DevTools, pause in the worker): a stop request from the observer shows STOP NOT DELIVERED — use your E-stop. | now (the chooser landed 2026-11-02; needs a signed advisory, GUIDE.md 2.3) |
 | BENCH-P100-5 | Read-only session with an axis in inhibited mode (`am=2`) away from 0, or of unknown mode: the axis-mode facts are shown, not hidden (`axisModeFacts`, row 35). | now: the live readout renders them ("Axis modes (read only)", `data-region="axis-modes"`) |
-| BENCH-P100-4 | After the first staging deploy: the staging document carries `serial=(self)`, and `run.synthetos.com` still `serial=()` (docs/LEAD_ACTIONS.md, "Phase 1, from P1-00"). | after the staging deploy |
+| BENCH-P100-4 | After the first staging deploy: the staging document carries `serial=(self)`, and `run.synthetos.com` still `serial=()` (docs/ops/worker.md). | after the staging deploy |
 
 The SAFETY §9 HIL-1.x items and the bench tasks B-ID-1, B-SIG-1, T2.1,
 B-POL-1, B-PROBE-1, B-MD-1, B-EXCL-1 and B-SPLICE-1 are the Phase 1 exit

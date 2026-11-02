@@ -67,7 +67,7 @@ export const PN_CONCRETE: readonly PnExample[] = [
   },
   {
     where: 'PN §2.2 g2 banner with fbs and a string hp (constructed from OLD-PN §2.2)',
-    line: '{"r":{"fv":0.99,"fb":101.03,"fbs":"101.03-1-g1fb5940","fbc":"settings_default.h","hp":"gQuadratic","hv":"b","id":"3X3566-GHM","msg":"SYSTEM READY"},"f":[1,0,10]}',
+    line: '{"r":{"fv":0.99,"fb":101.03,"fbs":"101.03-1-g1fb5940","fbc":"settings_default.h","hp":"gQuadratic","hv":"b","id":"3X0000-AAD","msg":"SYSTEM READY"},"f":[1,0,10]}',
     kind: 'Banner',
   },
   // §2.3 probe answers.

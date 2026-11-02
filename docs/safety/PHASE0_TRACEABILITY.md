@@ -157,14 +157,14 @@ write, jog, flasher, preview, cloud API, console): N/A until their phase.
 | P0-13 | T-S40; importing the test kit into an entry fails both dependency-cruiser and the scan | `bundle-acceptance.test.ts` | PASS |
 | P0-14 | Written result; a passing example that opens the mock port from `machine.worker` in the built app | `docs/testing/fake-serial.md`; `tools/e2e/specs/open-mock-port.fake-serial.ts`; `fake-serial-acceptance.test.ts`, `artifact-diff.test.ts` | PASS |
 | Phase 0 rule | Nothing opens a serial port; no `navigator.serial` outside test fakes | lint `noWebSerial.ts`; bundle scan Web Serial rule; `machine-worker.e2e.ts` ("has no transport in Phase 0") | PASS |
-| P0-15 | Tag `run-v0.1.0`, `RELEASES.md`, production deploy with smoke output, live site, staging behind Access | `RELEASES.md` entry written (pending); deploy and tag need a GitHub remote, the D39 account lockdown and D31 Access, in the order of `docs/LEAD_ACTIONS.md` | **FAIL: not done, blocked on owner (O1, O2, O4)** |
+| P0-15 | Tag `run-v0.1.0`, `RELEASES.md`, production deploy with smoke output, live site, staging behind Access | `RELEASES.md` entry written (pending); deploy and tag need a GitHub remote, the D39 account lockdown and D31 Access, in the order of the owner's checklist (the ops pages under `docs/ops/`) | **FAIL: not done, blocked on owner (O1, O2, O4)** |
 
 ## D. Owner decisions with a Phase 0 safety condition
 
 | Decision | Condition | Code | Test | Status |
 |---|---|---|---|---|
 | D1 | Sign-in required to connect and start; nothing in the machine path consults the session; stop and recovery never need sign-in | `MatrixSnapshot` has no account field (`allowMatrix.ts`); machine-path packages cannot import `contracts` or `cloud` (`.dependency-cruiser.cjs`); W22 and §4.9 wording (`strings.ts`, `SAFETY.md`) | `allowMatrix-oracle.test.ts` (D1 block: type-level key check, decisions unchanged by any attached account state), `acceptance.test.ts` (contracts and cloud rules), T-S62, T-S32 | **FIXED** (F1, F5). The sign-in gate itself is UI work in Phase 1 and lives outside the machine path |
-| D3 | Public Apache-2.0 repo | `LICENSE`, `NOTICE`, licence gate | `licence-policy.test.ts`, `spdx.test.ts` | PASS |
+| D3 | ~~Public Apache-2.0 repo~~ **Superseded by OD-7** (`docs/ops/owner-decisions.md`, 2026-11-02): public repo, AGPL-3.0-or-later | `LICENSE` (AGPL-3.0 text), `NOTICE`, package `license` fields, licence gate (dependency policy unchanged) | `licence-policy.test.ts`, `spdx.test.ts` | SUPERSEDED (OD-7); PASS under AGPL-3.0-or-later |
 | D4 | Detect by capability probe, never by build number alone | `classify.ts` | T-S55; `capability.test.ts` property tests | PASS |
 | D31, D39 (supersedes D34) | Staging behind Access; the current account, locked down; placeholder until the owner sets its id; only run may bind accounts | `workers/run/wrangler.jsonc` (placeholder account id), `tools/gates/src/deploy/preflight.ts`, `tools/gates/src/bindings/check.ts`, `docs/ops/account.md`, `docs/ops/access.md` | `worker-config.test.ts` ("is refused for deploy while the account id is the placeholder"), `accounts-binding.test.ts`, `owner-decisions-drift.test.ts`, `smoke.test.ts` (Access checks) | PASS for code; activation is O1 |
 | D32 | `den.json` generated from the edge-next candidate | `vendor/tinyg-hil-tables/` | `hilTables.test.ts` | PASS |
@@ -245,11 +245,11 @@ and the source restored.
   (`docs/ops/install-check.md`). The automated installability test passes.
 - **O4. P0-15 not done.** `RELEASES.md` has the `run-v0.1.0` entry, marked
   pending; the production deploy, smoke output and tag depend on O1 and O2.
-  The owner's steps, in order and with commands, are in `docs/LEAD_ACTIONS.md`,
-  which also covers the two decisions found in the final gate. The owner has
+  The owner's steps, with commands, are on the ops pages under `docs/ops/`;
+  the owner's checklist also covered the two decisions found in the final gate. The owner has
   since decided both (D39: run stays in the current Cloudflare account,
   superseding D34; D40: single-maintainer review), and both are now carried
-  into the gates and ops pages (`docs/LEAD_ACTIONS.md` Step 0).
+  into the gates and ops pages (`docs/ops/account.md`, `docs/ops/branch-protection.md`).
 - **O5. Mutation margin and coverage of the other safety-path packages.**
   The `safety` package now passes at 90.84 %, but `sanitize/` alone is at
   88.4 % (`analyze.ts` 88.6 %, `geometry.ts` 80.7 %, 333 survivors), so the

@@ -168,8 +168,8 @@ Both passed on 2026-11-02.
 Connect is refused until `apps/web/public/safety-advisory.json` carries a
 signed `staging` entry. The bench build counts as staging for this. You
 need a key whose public half is in `packages/protocol/src/releaseKeys.ts`,
-authorised for `staging`. Today that is only the placeholder key, whose
-private half you should treat as disclosed. See `docs/ops/release-key.md`.
+authorised for `staging`. Today that is only the owner's bench key
+(`owner-bench-2026-11-02`). See `docs/ops/release-key.md`.
 
 1. Review `apps/web/advisory/safety-advisory.unsigned.json`. It holds one
    staging entry, issued 2026-11-01, expiring 2027-02-01, with nothing

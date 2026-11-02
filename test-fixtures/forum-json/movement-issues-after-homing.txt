@@ -2,9 +2,11 @@
 # Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
 # synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
 # Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# Except: the board id (a unique per-chip value) is replaced by a synthetic id
+# of the same shape, with the footer checksum recomputed where the line had one.
 # source: https://synthetos.com/topics/movement-issues-after-homing/
 # reply 7157
 # Exactly fv, fb, hp, hv and id with field 3 = 0 (no input line consumed): a TG boot banner at jv=1,
 # whose msg the verbosity filter dropped (TG main.c:131-136, json_parser.c:490-511). Re-reviewed in P0
 # review: it is the board resetting, not an answer, so it must be a Banner (SAFETY H19).
-Banner	{"r":{"fv":0.970,"fb":438.02,"hp":1,"hv":8,"id":"9H3906-QCS"},"f":[1,0,0,991]}
+Banner	{"r":{"fv":0.970,"fb":438.02,"hp":1,"hv":8,"id":"9H0000-AAG"},"f":[1,0,0,4763]}

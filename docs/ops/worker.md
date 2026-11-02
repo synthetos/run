@@ -25,7 +25,9 @@ staging Worker would deny serial (it fails closed). The Worker sets the
 immutable cache policy on `/assets/*` itself when it serves them, because
 `_headers` does not apply to Worker responses. Staging sits behind Access,
 so the post-deploy smoke test cannot read its headers; checking them after
-the first staging deploy is an owner action (docs/LEAD_ACTIONS.md).
+the first staging deploy is an owner action: open the staging site signed in through Access and
+check in DevTools that `Permissions-Policy` starts with `serial=(self)` and
+every other header matches this page.
 
 Both carry the same headers because both come from one module:
 `workers/run/src/headers.ts`. `_headers` is generated from it

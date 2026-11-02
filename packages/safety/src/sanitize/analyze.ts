@@ -1230,13 +1230,13 @@ export class JobModel {
     if (d1 === null) missing.push(p.a1);
     if (dLin === null) missing.push(p.lin);
     if (absoluteCentre && (w0 === null || w1 === null)) missing.push(`${p.a0}${p.a1} (for the G90.1 centre)`);
-    // An absolute full circle ends where it starts: both plane starts must be known, never assumed (Codex P0-10 #2).
+    // An absolute full circle ends where it starts: both plane starts must be known, never assumed (independent review P0-10 #2).
     if (centreFormat && noPlaneEndpoint && absolute && (w0 === null || w1 === null)) missing.push(`${p.a0}${p.a1} (for an absolute full circle)`);
     if (missing.length > 0) {
       findings.push(block('unknown-state', `this arc cannot be modelled: the start position of ${missing.join(', ')} is not known`));
       return forget();
     }
-    // The firmware decides coincidence in float32 machine coordinates; their size bounds its rounding (Codex P0-10 #1).
+    // The firmware decides coincidence in float32 machine coordinates; their size bounds its rounding (independent review P0-10 #1).
     const magnitude = this.#planeMagnitude([p.a0, p.a1]);
     if (magnitude === null) {
       findings.push(
@@ -1300,7 +1300,7 @@ export class JobModel {
       const v = start[axis];
       return v === null ? null : v / s;
     };
-    // An absolute split writes both plane axes on every sub-arc, so each start must be known (Codex P0-10 #2).
+    // An absolute split writes both plane axes on every sub-arc, so each start must be known (independent review P0-10 #2).
     const unwritable = absolute ? [p.a0, p.a1].filter((a) => startOf(a) === null) : [];
     if (unwritable.length > 0) {
       findings.push(

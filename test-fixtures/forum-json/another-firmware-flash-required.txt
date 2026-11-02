@@ -2,7 +2,9 @@
 # Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
 # synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
 # Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# Except: the board id (a unique per-chip value) is replaced by a synthetic id
+# of the same shape, with the footer checksum recomputed where the line had one.
 # source: https://synthetos.com/topics/another-firmware-flash-required/
 # reply 4270
-Banner	{"r":{"fb":375.01,"fv":0.950,"hv":0,"id":"9H3583-QTW","msg":"Loading configs from EEPROM","f":[1,15,0,693]}}
-Banner	{"r":{"fb":375.01,"fv":0.950,"hv":7,"id":"9H3583-QTW","msg":"SYSTEM READY","f":[1,0,0,6403]}}
+Banner	{"r":{"fb":375.01,"fv":0.950,"hv":0,"id":"9H0000-AAC","msg":"Loading configs from EEPROM","f":[1,15,0,1932]}}
+Banner	{"r":{"fb":375.01,"fv":0.950,"hv":7,"id":"9H0000-AAC","msg":"SYSTEM READY","f":[1,0,0,212]}}

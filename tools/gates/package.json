@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "DEV ONLY. Repository gates: the run ESLint rules, the licence gate and the acceptance tests for the boundary, licence and lint gates (ROADMAP P0-02).",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
   "scripts": {

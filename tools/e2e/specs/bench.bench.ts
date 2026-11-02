@@ -98,7 +98,7 @@ test('machine.worker asks Web Serial for the granted ports; with none granted, o
  * - `requestPort`/`getPorts` on the page's Web Serial object answer with a
  *   port that reports the edge-next FTDI identity (no USB device exists in
  *   Playwright's browser);
- * - the advisory: the placeholder release key's private half is not in the
+ * - the advisory: the bench key's private half is not in the
  *   repository, so no test can sign one. The test serves a well-formed
  *   staging advisory and makes the page's Ed25519 verify answer true.
  *   apps/web/test/advisoryGate.test.ts and the protocol tests cover real
@@ -112,7 +112,7 @@ const ADVISORY = JSON.stringify({
   advisories: [
     {
       env: 'staging',
-      kid: 'placeholder-bench-2026-11-01',
+      kid: 'owner-bench-2026-11-02',
       payload: JSON.stringify({ format: 'synthetos-run/safety-advisory-env@1', env: 'staging', issued: '2026-01-01T00:00:00Z', expires: '2099-01-01T00:00:00Z', revoked: [] }),
       sig: 'AAAA',
     },

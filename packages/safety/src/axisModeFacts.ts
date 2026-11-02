@@ -1,6 +1,6 @@
 /**
  * Axis-mode facts for read-only sessions (Phase 0 finding row 35, its
- * consequence for Phase 1; docs/safety/CODEX_FINDINGS_STATUS.md).
+ * consequence for Phase 1; docs/safety/REVIEW_FINDINGS_STATUS.md).
  *
  * Phase 1 sends no motion, but it is the first time run reads a real board,
  * and an axis-mode configuration that is unsafe for LATER motion must be

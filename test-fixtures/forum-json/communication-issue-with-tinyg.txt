@@ -2,6 +2,8 @@
 # Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
 # synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
 # Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# Except: the board id (a unique per-chip value) is replaced by a synthetic id
+# of the same shape, with the footer checksum recomputed where the line had one.
 # source: https://synthetos.com/topics/communication-issue-with-tinyg/
 # reply 7739
 Garbled	{sr:}
@@ -13,7 +15,7 @@ Response	{"r":{"jv":1},"f":[1,0,9,4386]}
 Response	{"r":{"js":1},"f":[1,0,9,93]}
 Response	{"r":{"tv":1},"f":[1,0,9,4294]}
 # reply 7744
-Garbled	{"r":{"fv":0.970,"fb":438.02,"hp":1,"hv":8,"id":"3X3566-GHM","msg":"Initializing configs t
+Garbled	{"r":{"fv":0.970,"fb":438.02,"hp":1,"hv":8,"id":"3X0000-AAD","msg":"Initializing configs t
 Response	{"r":{"ja":2000000},"f":[1,0,15,558]}
 Response	{"r":{"qv":0},"f":[1,0,9,8355]}
 Response	{"r":{"sv":0},"f":[1,0,9,1603]}

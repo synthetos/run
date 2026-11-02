@@ -22,7 +22,7 @@ export function SiteFooter({ build }: { readonly build: BuildInfo }): ComponentC
         h('a', { href: '/privacy/' }, 'Privacy'),
         ' · ',
         h('a', { href: '/licenses/IBM-Plex-OFL.txt' }, 'Font licence (OFL)'),
-        ' · Apache-2.0 · A Synthetos project',
+        ' · AGPL-3.0 · A Synthetos project',
       ),
     ),
   );

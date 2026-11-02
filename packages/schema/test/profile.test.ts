@@ -334,7 +334,7 @@ describe('import (T-S22)', () => {
   it('migrates v1 to v2 field by field, with safe defaults for what v1 lacked', () => {
     const r = ok(readProfileValue(v1File()));
     const p = r.profile;
-    expect(p.boundDevice).toEqual({ family: 'tinyg', id: '9H3583-WQX', fb: 440.21, dialectId: 'tinyg-440' });
+    expect(p.boundDevice).toEqual({ family: 'tinyg', id: '9H0000-AAA', fb: 440.21, dialectId: 'tinyg-440' });
     expect(p.firmware).toEqual({ dialectId: 'tinyg-440', fb: 440.21, imageSha256: 'c'.repeat(64) });
     expect(p.machine.axes).toEqual({
       x: { motors: [1], drive: { kind: 'screw', pitchMm: 2, starts: 1 }, measuredTravelMm: 300, homeEnd: 'min' },

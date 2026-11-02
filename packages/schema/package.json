@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Units, generated settings schemas from vendored HIL tables plus overlays, MachineProfile v2, fact engine and invalidation rules.",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
   "exports": {

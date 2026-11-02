@@ -57,7 +57,7 @@ export function parseJsonc(text: string): unknown {
 
 /**
  * The placeholder kept in the repository until the owner fills in the account
- * id (docs/LEAD_ACTIONS.md Step 2). Under D39 (which supersedes D34) that is
+ * id (docs/ops/account.md §2 step 9). Under D39 (which supersedes D34) that is
  * the CURRENT Cloudflare account, locked down (docs/ops/account.md), not a
  * dedicated one. Deploys refuse it.
  */
@@ -180,7 +180,7 @@ export function checkWorkerConfig(config: unknown, options: { requireRealAccount
   const account = config['account_id'];
   if (typeof account !== 'string') add('account_id', 'must be set (the current Cloudflare account, locked down, D39)');
   else if (account === ACCOUNT_ID_PLACEHOLDER) {
-    if (options.requireRealAccount) add('account_id', 'is still the placeholder: set the current account id (D39, docs/ops/account.md, docs/LEAD_ACTIONS.md Step 2)');
+    if (options.requireRealAccount) add('account_id', 'is still the placeholder: set the current account id (D39, docs/ops/account.md §2 step 9)');
   } else if (!ACCOUNT_ID_RE.test(account)) add('account_id', 'must be a 32-character lower-case hex Cloudflare account id');
   if (!same(config['assets'], EXPECTED_ASSETS)) add('assets', `must be exactly ${JSON.stringify(EXPECTED_ASSETS)}`);
   if (config['main'] !== EXPECTED_MAIN) add('main', `must be '${EXPECTED_MAIN}'`);

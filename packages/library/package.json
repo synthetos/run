@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Tool, material, stock, fixture and store-product records: types, schemas and validation, URL sanitising, versioning and forking, and the built-in seed data.",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
   "exports": {

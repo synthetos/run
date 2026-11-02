@@ -16,7 +16,7 @@
  * MockSerialPort) → the read-only session probes and classifies the board.
  *
  * The one stand-in besides the board: the advisory check answers "ok".
- * The placeholder release key's private half is not in the repository, so
+ * The bench key's private half is not in the repository, so
  * no test can sign an advisory; advisoryGate.test.ts covers verification.
  *
  * The browser layers are covered by Playwright: bench.bench.ts (the chooser

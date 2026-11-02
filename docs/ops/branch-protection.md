@@ -41,6 +41,47 @@ Enforcement: **Active**.
   bypass is ever needed, the owner alone may bypass, and every use is
   recorded in the PR with its reason.
 
+**Ruleset for `main`** as JSON (save as `ruleset.json` outside the repository,
+then create it with the GitHub CLI):
+
+```json
+{
+  "name": "main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "bypass_actors": [],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    { "type": "pull_request", "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true } },
+    { "type": "required_status_checks", "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          { "context": "verify" }, { "context": "build" }, { "context": "e2e" },
+          { "context": "e2e-fake-serial" }, { "context": "safety-review" } ] } }
+  ]
+}
+```
+
+```sh
+gh api -X POST repos/synthetos/run/rulesets --input ruleset.json
+```
+
+Leave `bypass_actors` empty: D40 removes the need for a bypass by setting
+required reviews to zero, not by exempting the owner. Check the result under
+Settings → Rules → Rulesets against the list above.
+When a second maintainer joins, set `required_approving_review_count` to 1
+and `require_code_owner_review` and `require_last_push_approval` to true, in
+the same week as the one-line change in
+`tools/gates/src/review/reviewPolicy.ts`.
+
 ### What actually enforces review: native branch protection first
 
 The **primary** controls are GitHub's own settings on this page: the

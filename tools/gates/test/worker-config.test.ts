@@ -13,7 +13,7 @@ import { REPO_ROOT } from './scratch.ts';
 const CONFIG_PATH = join(REPO_ROOT, 'workers/run/wrangler.jsonc');
 const COMMITTED = readFileSync(CONFIG_PATH, 'utf8');
 // The committed file carries the placeholder until the owner fills in the
-// current account's id (D39, docs/LEAD_ACTIONS.md Step 2). The tests below run on the
+// current account's id (D39, docs/ops/account.md §2 step 9). The tests below run on the
 // committed text with the account id put back to the placeholder, so they keep
 // testing the same rules after that one-line change.
 const ACCOUNT_LINE = /"account_id": "[^"]*"/;

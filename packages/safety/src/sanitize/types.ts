@@ -257,7 +257,7 @@ export type SanitizeRule =
   | 'axis-mode'
   /** An axis that is (or may be) inhibited reads away from 0: the next move of any axis can drive its motor (finding: inhibited axis). */
   | 'inhibited-axis'
-  /** An arc whose float32 coincidence or direction decision lies within the rounding band (Codex P0-10 #1). */
+  /** An arc whose float32 coincidence or direction decision lies within the rounding band (independent review P0-10 #1). */
   | 'arc-ambiguous'
   | 'split'
   | 'split-impossible'

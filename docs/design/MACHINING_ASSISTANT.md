@@ -127,7 +127,7 @@ interface AdvisorEngine {
 - **`MockAiEngine`:** canned, clearly labelled "AI assistant (preview)" output.
 - **`CloudAiEngine` (later):**
   - The browser sends a summary to our Worker: machine, tool, material, operation summaries and aggregated telemetry. Never raw streams, never identity beyond the account.
-  - The Worker calls Claude, so no model key ever reaches the browser. The model is configuration, not code.
+  - The Worker calls an AI model (configured in the Worker), so no model key ever reaches the browser. The model is configuration, not code.
   - It needs explicit consent per account, has a cost and quota policy (owner decision), and falls back to rules when offline.
 
 Every engine returns structured data validated against a schema. The envelope (§6.4) bounds whatever it proposes.

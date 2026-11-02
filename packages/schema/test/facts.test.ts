@@ -33,7 +33,7 @@ import { HASH_A, HASH_B, MACHINE_ID, v1File } from './fixtures/profiles.ts';
 
 const T0 = Date.UTC(2026, 10, 1);
 const clockAt = (t: number) => () => t;
-const BOARD = '9H3583-WQX';
+const BOARD = '9H0000-AAA';
 const OTHER_MACHINE = '00000000-0000-4000-8000-000000000002';
 const BIND: FactBinding = { machineId: MACHINE_ID, boardId: BOARD, fb: 450.01, deviceHash: HASH_A };
 const SESSION = 'live-1';

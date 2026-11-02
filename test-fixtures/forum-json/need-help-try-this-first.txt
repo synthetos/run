@@ -2,7 +2,9 @@
 # Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
 # synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
 # Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# Except: the board id (a unique per-chip value) is replaced by a synthetic id
+# of the same shape, with the footer checksum recomputed where the line had one.
 # source: https://synthetos.com/topics/need-help-try-this-first/
 # reply 6334
-Banner	{"r":{"fb":371.030,"fv":0.950,"hv":7.000,"id":"9H3583-RMP","msg":"Loading configs from EEPROM","f":[1,15,0,8891]}}
-Banner	{"r":{"fb":371.030,"fv":0.950,"hv":7.000,"id":"9H3583-RMP","msg":"SYSTEM READY","f":[1,0,0,8820]}}
+Banner	{"r":{"fb":371.030,"fv":0.950,"hv":7.000,"id":"9H0000-AAH","msg":"Loading configs from EEPROM","f":[1,15,0,3594]}}
+Banner	{"r":{"fb":371.030,"fv":0.950,"hv":7.000,"id":"9H0000-AAH","msg":"SYSTEM READY","f":[1,0,0,2084]}}

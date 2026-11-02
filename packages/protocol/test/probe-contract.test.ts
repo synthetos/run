@@ -1,5 +1,5 @@
 /**
- * P0-08 review regressions (Codex batch 10 #1-#3, re-verified open at
+ * P0-08 review regressions (independent review batch 10 #1-#3, re-verified open at
  * 89e2b5f). Every case runs the production path: raw lines through
  * `classifyLine`, `buildProbeResult`, then `classify` against a manifest that
  * `verifyApprovedBuilds` produced (the committed signed file where it can).
@@ -50,7 +50,7 @@ async function committedStaging(now = new Date('2026-11-02T00:00:00Z')): Promise
   return (await verifyApprovedBuilds(COMMITTED, { origin: STAGING, now })).approved;
 }
 
-/** A synthetic future TG approval, as in Codex's reproduction (the committed manifest approves no TG). */
+/** A synthetic future TG approval, as in the independent review's reproduction (the committed manifest approves no TG). */
 const FUTURE_TG: ApprovedBuilds = {
   environment: 'staging',
   builds: [{ channel: 'bench', dialect: 'tinyg-440', fb: 440.21, fbs: null, commit: TG_COMMIT, note: 'synthetic future approval' }],
@@ -85,7 +85,7 @@ const tgLine = (inner: string, status = 0): string => {
 };
 
 describe('P0-08 #2: the dialect footer contract is enforced before full mode', () => {
-  it('Codex reproduction: a checksumless fb answer on an otherwise 440.21 probe is never full', () => {
+  it('Independent review reproduction: a checksumless fb answer on an otherwise 440.21 probe is never full', () => {
     const obs = withAnswer(TG_440(), 'fb', '{"r":{"fb":440.21},"f":[1,0,12]}');
     const out = buildProbeResult(obs);
     expect(out.ok).toBe(true);
@@ -159,7 +159,7 @@ describe('P0-08 #2: the dialect footer contract is enforced before full mode', (
 describe('P0-08 #1: malformed capability values never prove the edge-next contract', () => {
   const MALFORMED: readonly string[] = ['null', '{}', '"bad"', '999', '2', '-1', '0.5', 'true', 'false', '[]', '[1]', '"1"', '1e300', '-0'];
 
-  it('Codex reproduction: spep null, {}, "bad", 999 against the committed signed bench manifest', async () => {
+  it('Independent review reproduction: spep null, {}, "bad", 999 against the committed signed bench manifest', async () => {
     const manifest = await committedStaging();
     for (const v of ['null', '{}', '"bad"', '999']) {
       const c = classify(probe(withAnswer(EN_450(), 'spep', `{"r":{"spep":${v}},"f":[3,0,11]}`)), manifest);
@@ -222,7 +222,7 @@ describe('P0-08 #3: the manifest verifier rejects an invalid clock and malformed
   };
   const verify = (f: unknown, now: Date = new Date('2026-11-02T00:00:00Z')) => verifyApprovedBuilds(f, { origin: STAGING, now, keys: [key] });
 
-  it('Codex reproduction: an Invalid Date approves nothing from the committed manifest', async () => {
+  it('Independent review reproduction: an Invalid Date approves nothing from the committed manifest', async () => {
     expect((await committedStaging(new Date('2040-01-01T00:00:00Z'))).builds).toHaveLength(0);
     const out = await verifyApprovedBuilds(COMMITTED, { origin: STAGING, now: new Date(Number.NaN) });
     expect(out.approved.builds).toHaveLength(0);

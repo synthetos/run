@@ -104,7 +104,7 @@ describe('buildProbeResult', () => {
     expect(out.ok && out.result.conflicts).toEqual([]);
 
     const g2 = G2_EDGE();
-    const withBanner = { ...g2, banner: toBanner('{"r":{"fv":0.99,"fb":101.06,"fbs":"101.06-2-gabc1234","hp":"ArduinoDue","hv":"na","id":"3X3584-QAM","msg":"SYSTEM READY"},"f":[1,0,12]}') };
+    const withBanner = { ...g2, banner: toBanner('{"r":{"fv":0.99,"fb":101.06,"fbs":"101.06-2-gabc1234","hp":"ArduinoDue","hv":"na","id":"3X0000-AAC","msg":"SYSTEM READY"},"f":[1,0,12]}') };
     const g2out = buildProbeResult(withBanner);
     expect(g2out.ok && g2out.result).toMatchObject({ banner: 'r-footer', fbs: '101.06-2-gabc1234', conflicts: [] });
   });

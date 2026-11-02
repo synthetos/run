@@ -2,6 +2,8 @@
 # Extracted by packages/protocol/test/fixtures/extractForumJson.ts from
 # synthetos.com src/data/forum/topics.jsonl @ 513e99a5, then reviewed.
 # Rows: <expected kind><TAB><line exactly as quoted in the post>.
+# Except: the board id (a unique per-chip value) is replaced by a synthetic id
+# of the same shape, with the footer checksum recomputed where the line had one.
 # source: https://synthetos.com/topics/board-wont-execute-gcode/
 # reply 4492
-Banner	{"r":{"fb":377.08,"fv":0.950,"hv":7,"id":"9H3583-KCR","msg":"Initializing configs to default settings","f":[1,15,8,5568]}}
+Banner	{"r":{"fb":377.08,"fv":0.950,"hv":7,"id":"9H0000-AAB","msg":"Initializing configs to default settings","f":[1,15,8,5803]}}

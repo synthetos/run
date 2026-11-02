@@ -27,7 +27,7 @@ next to the site and forumbot, and that account is locked down:
 
 **Status (2026-11-01).** The repository carries the placeholder
 `RUN_ACCOUNT_ID_PLACEHOLDER` in `workers/run/wrangler.jsonc` until the owner
-puts in the current account's id (`docs/LEAD_ACTIONS.md` Step 2). The deploy
+puts in the current account's id (§2 step 9). The deploy
 preflight (`tools/gates/src/deploy/preflight.ts`) refuses every deploy while
 the placeholder (or the superseded D34 placeholder, or anything that is not
 a 32-character hex id) is there, and deploys stay off until
@@ -53,9 +53,28 @@ review and CI do:
   refuses any `wrangler.toml` it cannot read
   (`tools/gates/src/bindings/check.ts`). run's own key allowlist does not
   allow any binding yet; Phase 1 adds exactly the accounts one;
-- the accounts and site repositories must carry the matching rule
-  (`docs/LEAD_ACTIONS.md` Step 0 lists it);
+- the accounts and site repositories must carry the matching rule (below);
 - forumbot reaches accounts over OIDC over HTTPS, never through a binding.
+
+**Matching requirement for the other repositories (D39).** The rule above
+covers only this repository. Before `accounts` is deployed into the shared
+account:
+
+- **accounts repository**: its CI must refuse any change that lets a Worker
+  other than `run` (and `run-staging`) call `RunEntrypoint`: no binding to
+  itself from its own configurations, and its documentation must name run
+  as the only allowed caller. Its deploy token is the same D39 token or one
+  scoped the same way, used only by CI.
+- **site repository (synthetos.com) and forumbot**: their CI must refuse any
+  wrangler configuration that binds `accounts` or `accounts-staging` in any
+  way (service, entrypoint `RunEntrypoint`, Durable Object, Workflow, tail
+  consumer), and any configuration their check cannot read. forumbot talks
+  to accounts over OIDC over HTTPS only. Their deploy tokens must not be
+  able to deploy `run` or `accounts` (or, if Cloudflare cannot scope them
+  that narrowly, that is recorded in `docs/ops/account.md` and the audit
+  alerts cover it), and they lose DNS:Edit (§2 step 6).
+
+Record in those repositories' own lead-actions lists that this is done.
 
 ## 2. Locking the account down (owner, once)
 
@@ -103,7 +122,7 @@ review and CI do:
 6. **The zone.** `synthetos.com` is in the same account, so the Workers
    custom domains attach directly (the deploy creates their DNS records).
    Confirm on the first staging deploy that attaching the custom domain
-   works with the CI token as scoped (`docs/LEAD_ACTIONS.md` Step 11). Then,
+   works with the CI token as scoped. Then,
    on the zone:
    - **Remove DNS:Edit from every day-to-day token** (the site's deploy
      token, forumbot's, the owner's local wrangler token). DNS changes are
@@ -135,7 +154,7 @@ review and CI do:
    token. Also alert on any change to account members, API tokens and the
    `synthetos.com` DNS records, whoever makes it. Test it once by viewing (not
    changing) a setting and confirming that only real changes alert.
-9. **Point the repository at it** (`docs/LEAD_ACTIONS.md` Step 2):
+9. **Point the repository at it**:
    - replace `RUN_ACCOUNT_ID_PLACEHOLDER` in `workers/run/wrangler.jsonc`
      with the current account's id;
    - set the repository variable `CLOUDFLARE_ACCOUNT_ID` to the same id (the
