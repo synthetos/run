@@ -155,6 +155,17 @@ describe('splice guard and boot (PN §2.3 step 0 and 1; SAFETY H49)', () => {
     expect(d.writing).toBe('fb');
   });
 
+  it('a damaged identity probe after an empty status answer cannot establish rest', () => {
+    const d = new Driver();
+    d.open();
+    d.written();
+    d.line('{"r":{"sr":null},"f":[3,0,10]}');
+    d.written();
+    d.line('damaged{');
+    expect(d.state.overlays).toContain('ORPHANED_MOTION');
+    expect(d.state.queue).toEqual([]);
+  });
+
   it('an error answer that does carry "sr" repeats {sr:null} once, then continues either way', () => {
     const d = new Driver();
     d.open();
@@ -186,15 +197,27 @@ describe('splice guard and boot (PN §2.3 step 0 and 1; SAFETY H49)', () => {
     expect(d.writing).toBe('fb');
   });
 
-  it('a damaged answer to the first line is treated as an error answer', () => {
-    const d = new Driver();
-    d.open();
-    d.written();
-    d.line('{"r":{"sr":');
-    expect(d.writing).toBe('sr');
-    d.written();
-    d.line('garbage{');
-    expect(d.writing).toBe('fb');
+  it.each([false, true])('a damaged splice answer stops identification (write pending: %s)', (pendingWrite) => {
+    for (const retried of [false, true]) {
+      const d = new Driver();
+      d.open();
+      if (retried) {
+        d.written();
+        d.line('{"r":{"sr":{"stat":1}},"f":[3,108,10]}');
+      }
+      if (!pendingWrite) d.written();
+      d.line('{"r":{"sr":');
+      expect(d.state.overlays).toContain('ORPHANED_MOTION');
+      expect(d.state.queue).toEqual([]);
+      if (pendingWrite) d.written();
+      // Late clean data must not restart identification after an uncertain splice.
+      d.line(EN_ANSWERS.sr as string);
+      expect(d.writing).toBeUndefined();
+      expect(d.lines()).toEqual(retried ? ['{sr:null}', '{sr:null}'] : ['{sr:null}']);
+      expect(d.state.classification).toBeNull();
+      expect(d.intent({ intent: 'feedhold' })).toEqual({ allowed: true });
+      expect(d.realtime()).toContain(BYTE.FEEDHOLD);
+    }
   });
 
   it('a board that boots while it is probed: the probe restarts from {sr:null} once it is ready and quiet', () => {

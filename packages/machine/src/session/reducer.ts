@@ -896,9 +896,11 @@ function onGarbled(t: Tx, at: number): void {
   t.cancel('answer');
   switch (entry.purpose) {
     case 'splice': {
-      const probe = t.s.probe as ProbeProgress;
-      if (!probe.spliceRetried) t.set({ probe: { ...probe, spliceRetried: true }, queue: [{ token: 'sr', purpose: 'splice' }, ...t.s.queue] });
-      else advanceProbe(t, { ...probe, next: 1 });
+      // A damaged answer cannot prove that the first line was parsed as sr.
+      // It may have completed a pre-existing motion fragment. Only a validated
+      // sr-bearing error in onAnswer may retry; uncertainty stops the probe.
+      t.addOverlay('ORPHANED_MOTION');
+      t.set({ queue: [] });
       return;
     }
     case 'probe':
