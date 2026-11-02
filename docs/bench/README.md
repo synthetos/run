@@ -76,3 +76,16 @@ The SAFETY §9 HIL-1.x items and the bench tasks B-ID-1, B-SIG-1, T2.1,
 B-POL-1, B-PROBE-1, B-MD-1, B-EXCL-1 and B-SPLICE-1 are the Phase 1 exit
 (ROADMAP "Phase 1: Bench read-only"); a signed HIL record is always taken
 on the staging artifact (SAFETY HIL-6.4), never on the bench build.
+
+## Bench runner and transcripts (P1-08)
+
+`docs/bench/policy.md` covers the bench runner (`run-cli bench`), the
+`SerialAllowUsbDevicesForUrls` policy (B-POL-1) and the wire transcript.
+The page has no "save transcript" button yet: the worker's `transcript`
+request returns it, and the UI control is still to come.
+
+| ID | Check | When |
+|---|---|---|
+| BENCH-P108-1 (B-POL-1) | Set the policy from policy.md on the bench computer: `chrome://policy` shows it OK with the staging origin and 1027/24597; staging lists the board in `navigator.serial.getPorts()` with no chooser; the localhost bench origin does not. Record the platform (macOS is UNVERIFIED). | now |
+| BENCH-P108-2 | Hold the board with EN-HIL (`uv run python -m tinyg_hil info --port P` in a loop, or a pytest run), start `run-cli bench` on the same port: it exits 3 naming the holder, and no browser opens. Then run it with the board free and quit at the first item: Chrome closes, the restore runs, `/tmp/tinyg-hil-<port>.lock` is free, `record.json` says `restored`. | now |
+| BENCH-P108-3 | Save a real bench transcript (EN idle connect, then Pause) and replay it with `recordingFromJsonl` + `ReplayTransport` against a fresh session: no divergence. Commit no hardware names or paths with it. | after the save-transcript control |
