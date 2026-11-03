@@ -76,7 +76,8 @@ async function hub(server: Served): Promise<{ hub: FirmwareHub; flashes: unknown
   const view = h.view();
   expect(view.releases.ok).toBe(true);
   if (!view.releases.ok) throw new Error('no list');
-  const release = releasesForHardware(view.releases.list, 8)?.releases[0];
+  // 450.01 (edge-next pre-release) is listed beside it since 2026-11-03: pick 440.21 by name, the image the repository holds a copy of.
+  const release = releasesForHardware(view.releases.list, 8)?.releases.find((r) => r.file === 'tinyg-440.21.hex');
   if (release === undefined) throw new Error('440.21 is not listed');
   return { hub: h, flashes, phases, release };
 }
@@ -96,6 +97,8 @@ describe('firmware hub: downloading a listed release (OD-10)', () => {
     expect(release).toMatchObject({ fb: 440.21, hv: 8, file: 'tinyg-440.21.hex', repo: 'synthetos/TinyG', tag: '440.21', recommended: false, simulatorOnly: false, size: IMAGE.length });
     const view = h.view();
     expect(view.releases.ok && releasesForHardware(view.releases.list, 8)?.minimumFb).toBe(440.21);
+    // The edge-next pre-release sits beside it, from GitHub Releases, not recommended until the maintainer calls a 450.xx build current.
+    expect(view.releases.ok && releasesForHardware(view.releases.list, 8)?.releases.find((r) => r.file === 'tinyg-450.01.hex')).toMatchObject({ fb: 450.01, hv: 8, repo: 'synthetos/TinyG', tag: '450.01', recommended: false, simulatorOnly: false, size: 434318 });
     expect(view.download).toBeNull();
   });
 

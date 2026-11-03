@@ -221,8 +221,11 @@ describe('proxyFirmwareAsset: only what the list names for this environment', ()
     expect((await proxyFirmwareAsset(PATH, 'staging', deps)).ok).toBe(true);
   });
 
-  it('the committed list names the one real TinyG release for staging only, and production lists nothing', () => {
-    expect(FIRMWARE_ASSETS).toEqual([{ env: 'staging', repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex', sha256: 'c2c1693e82f0ed88ec8dec4338a0bc799059c10b3323acb1189564f6a2265e92', size: 334978 }]);
+  it('the committed list names the two real TinyG releases for staging only, and production lists nothing', () => {
+    expect(FIRMWARE_ASSETS).toEqual([
+      { env: 'staging', repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex', sha256: 'c2c1693e82f0ed88ec8dec4338a0bc799059c10b3323acb1189564f6a2265e92', size: 334978 },
+      { env: 'staging', repo: 'synthetos/TinyG', tag: '450.01', asset: 'tinyg-450.01.hex', sha256: 'b83763af4ecfe283d0c009fce3e6aa8df491b7f5b2a101693bccf534bb893811', size: 434318 },
+    ]);
     expect(FIRMWARE_ASSETS.filter((a) => a.env === 'production')).toEqual([]);
     for (const a of FIRMWARE_ASSETS) expect(FIRMWARE_REPOSITORIES).toContain(a.repo);
   });

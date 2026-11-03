@@ -100,14 +100,22 @@ its **own origin**, at the path `releasePath` in `packages/protocol` derives:
 The Firmware tab downloads first (with progress), checks the image, then
 asks C6 about the checked image; the flash path itself is unchanged.
 
-The staging list names **440.21** (`synthetos/TinyG`, tag `440.21`,
-`tinyg-440.21.hex`, 334,978 bytes) for hardware version 8: the one TinyG
-release with assets today, listed as an older, not recommended build to prove
-the pipeline. Its `minimumFb` is 440.21 so the listed build is not below the
-gate. **Owner step, later**: once an edge-next release (450.01 or later) is
-published, add it, raise hardware version 8's `minimumFb` to 450+ (a 440.21
-board is then locked to read-only until updated, and 440.21 should be dropped
-or hidden from the list rather than offered as a downgrade), and re-sign.
+The staging list names two builds for hardware version 8: **450.01**
+(`synthetos/TinyG`, tag `450.01`, `tinyg-450.01.hex`, 434,318 bytes, SHA-256
+`b83763af…`, published 2026-11-03 as an edge-next pre-release built from
+`425fa92e`; the hash and size are the published `SHA256SUMS` and asset size,
+passed on verbatim by the firmware maintainer's session because this
+session could not reach the asset host) and **440.21** (tag `440.21`,
+`tinyg-440.21.hex`, 334,978 bytes), the first CI-built release of the 440
+line. Both are listed as not recommended: 450.01 is a pre-release that
+450.02 and later supersede, 440.21 is older than the bench firmware. Its
+`minimumFb` is 440.21 so neither listed build is below the gate. **Owner
+step, later**: once the maintainer calls a 450.xx build current, mark it
+recommended, raise hardware version 8's `minimumFb` to 450+ (a 440.21 board
+is then locked to read-only until updated, and 440.21 should be dropped or
+hidden from the list rather than offered as a downgrade), and re-sign. Each
+later 450.xx release is added the same way (entry, re-sign, the Worker's
+asset table regenerates).
 `firmware/tinyg-440.21.hex` is the repository's copy of the listed bytes for
 the tests (the hash gate, the bench and the fake-serial suite's stubbed
 GitHub); the Worker serves GitHub's, never this copy.

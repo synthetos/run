@@ -12,6 +12,20 @@
           "minimumFb": 440.21,
           "releases": [
             {
+              "fb": 450.01,
+              "fv": 0.97,
+              "dialect": "tinyg-en",
+              "part": "x192a3",
+              "file": "tinyg-450.01.hex",
+              "sha256": "b83763af4ecfe283d0c009fce3e6aa8df491b7f5b2a101693bccf534bb893811",
+              "size": 434318,
+              "date": "2026-11-03",
+              "changelog": "TinyG 450.01 (edge-next pre-release, built from edge-next 425fa92e): every fix made on edge-next since edge-0.97 build 449.01 (158 firmware fixes, 5 features), among them the fast position-keeping limit stop (E031), lost serial input never running as a corrupted move (E162), G10 persistence, and the empty-arc cycle end. Later builds (450.02, ...) supersede it. Flashing it resets every setting to the defaults (the build number changes): Run restores your backed-up settings afterwards.",
+              "recommended": false,
+              "repo": "synthetos/TinyG",
+              "tag": "450.01"
+            },
+            {
               "fb": 440.21,
               "fv": 0.97,
               "dialect": "tinyg-440",
