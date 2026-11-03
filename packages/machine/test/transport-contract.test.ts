@@ -120,6 +120,7 @@ describe('package entry', () => {
         'SEED_TOKENS',
         'SI_DEFAULT',
         'SI_MAX_SENSIBLE',
+        'heartbeatCoversHold',
         'heartbeatLine',
         'reportLineShape',
         'reportSteps',
