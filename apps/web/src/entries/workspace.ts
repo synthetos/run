@@ -46,7 +46,7 @@ if (root === null) {
 }
 const build = checkBuildInfo(__RUN_BUILD__);
 const previousSession = signal(false);
-// P1-07: the live position marker (polled `mpo`), drawn by the preview, set by LIVE entry.
+// P1-07: the live position marker (machine position from the board's reports), drawn by the preview, set by LIVE entry.
 const marker = signal<LiveMarkerView | null>(null);
 // The document-lifetime session model the views read (workspace/model.ts).
 const model = createWorkspaceModel();

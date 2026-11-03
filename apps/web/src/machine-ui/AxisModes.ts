@@ -9,7 +9,7 @@
  * rendered as a text node. An axis whose mode was not read is reported as
  * such, never assumed standard.
  *
- * `axisModeView` turns the settings read (`xam`..`cam`) and the polled
+ * `axisModeView` turns the settings read (`xam`..`cam`) and the reported
  * machine position into the facts; `AxisModes` renders them. Both are pure.
  */
 import { h, type ComponentChild } from 'preact';
@@ -41,7 +41,7 @@ export interface AxisModeInput {
   readonly reading: boolean;
   /** The flattened settings of the last complete read (`xam`..`cam` among them), or empty. */
   readonly settings: Readonly<Record<string, SettingValue>>;
-  /** The DRO axes (lower-case axis names; machine position from polled `mpo`, or null). */
+  /** The DRO axes (lower-case axis names; machine position from the board's reports, or null). */
   readonly machine: readonly { readonly axis: string; readonly machine: number | null }[];
   readonly session?: AxisModeSession;
 }

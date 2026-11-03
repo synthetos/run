@@ -114,7 +114,11 @@ describe('SafetyBar', () => {
 describe('Phase 1 control allowlist', () => {
   const html = renderToString(h(Fragment, null, h(AppShell, { build })));
   /** Must exist, and be disabled with no handler: they would move the machine or write to the board. */
-  const MACHINE_DISABLED = new Set(['jog', 'zero', 'spindle', 'coolant', 'override', 'start', 'firmware']);
+  /**
+   * Amendment 2026-11-02: `home` (G28.2, and G28.3 where homing is not configured) and `offset` (G54..G59, G92,
+   * G92.1) are machine controls too, disabled in the prerendered page like the rest.
+   */
+  const MACHINE_DISABLED = new Set(['jog', 'zero', 'home', 'offset', 'spindle', 'coolant', 'override', 'start', 'firmware']);
   /**
    * Settings writes (SAFETY §4.6, amendment 2026-11-02): disabled in the prerendered page (no board), and
    * enabled only when the phase switch is on and the machine is idle (the settings-write tests below).
@@ -132,7 +136,7 @@ describe('Phase 1 control allowlist', () => {
   /** Controls that never reach the machine: views, tabs, the preview, and the local libraries. */
   const UI: readonly RegExp[] = [
     /^view:(run|setup|tools|materials|board|machines|projects|analyze|settings|safety)$/,
-    /^tab:(gcode|console|live|spindle|jog|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
+    /^tab:(gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
     /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
     /^preview:(file|rapids|mode|scrubber|fit|cancel)$/,

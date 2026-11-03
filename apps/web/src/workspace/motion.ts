@@ -13,6 +13,7 @@
  * Pure apart from the timers `JogController` is given. The page sees the session only through the worker
  * RPC (T-S39).
  */
+import { homingAxes, type HomingAxisConfig, type SettingValue } from '@synthetos/schema';
 import type { MotionAxis, MotionCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
 import type { LiveView } from './model.ts';
 
@@ -76,6 +77,7 @@ function why(s: Snapshot | null, flag: boolean): string | null {
   if (s.base === 'ALARM') return 'The controller is in alarm. Clear the alarm first.';
   if (s.base === 'HELD') return 'Paused. Resume, or use Stop job.';
   if (s.base === 'STOPPING_JOB') return 'Stopping.';
+  if (s.base === 'HOMING') return 'Homing. Pause or Stop job ends it.';
   if (s.base === 'JOGGING' || (s.motion ?? null) !== null) return 'A move is running.';
   if (s.base !== 'IDLE_UNHOMED' && s.base !== 'IDLE_HOMED') return 'Only available while the machine is idle.';
   return null;
@@ -117,7 +119,7 @@ export function workOffsets(view: LiveView | null): Readonly<Partial<Record<Moti
   return out;
 }
 
-/** Current machine Z (polled), or null. */
+/** Current machine Z (connect-time read, then pushed reports), or null. */
 export function machineZ(view: LiveView | null): number | null {
   const z = view?.message?.dro.axes.find((a) => a.axis === 'z')?.machine;
   return typeof z === 'number' ? z : null;
@@ -222,4 +224,89 @@ export function jogKey(key: string): Readonly<Partial<Record<MotionAxis, 1 | -1>
     default:
       return null;
   }
+}
+
+// --- Homing, set machine position and offsets (amendment 2026-11-02) ---------------
+
+/** The axes the page offers for homing and offsets. */
+export const HOME_AXES: readonly MotionAxis[] = Object.freeze(['x', 'y', 'z', 'a']);
+
+export interface HomingView {
+  /** Home (and Set machine position) may be sent now: idle, or connected with UNKNOWN as the only overlay. */
+  readonly enabled: boolean;
+  /** Why not, in plain words (null when enabled). */
+  readonly reason: string | null;
+  /** Each axis's homing configuration, from the settings read at connect. */
+  readonly axes: Readonly<Record<MotionAxis, HomingAxisConfig>>;
+  /** X, Y, Z (and A when configured): the axes Home all homes. */
+  readonly configured: readonly MotionAxis[];
+  /** The settings were read (the configuration is known). */
+  readonly read: boolean;
+  /** Homing is running now. */
+  readonly homing: boolean;
+  /** The largest search distance of the configured axes, mm (C4), when known. */
+  readonly searchMm: number | null;
+}
+
+/** Whether Home and Set machine position can be sent, and which axes are configured (SAFETY §4.5b as amended, H65). */
+export function homingView(view: LiveView | null, settings: Readonly<Record<string, SettingValue>>): HomingView {
+  const s = snapshotOf(view);
+  const flag = view?.message?.motion === true;
+  const axes = homingAxes(settings) as Readonly<Record<MotionAxis, HomingAxisConfig>>;
+  const configured = HOME_AXES.filter((a) => axes[a].configured);
+  const read = Object.keys(settings).length > 0;
+  const searches = configured.map((a) => axes[a].searchMm).filter((v): v is number => v !== null);
+  const searchMm = searches.length === 0 ? null : Math.max(...searches);
+  let reason: string | null = null;
+  if (s === null) reason = 'Connect a machine to home it.';
+  else if (!flag) reason = 'Motion control is not enabled in this build.';
+  else if (s.base === 'HOMING') reason = 'Homing. Pause or Stop job ends it.';
+  else if (s.classification?.mode !== 'full' || s.overlays.includes('READ_ONLY')) reason = 'This firmware is not approved for motion control.';
+  else if (s.overlays.some((o) => o !== 'UNKNOWN')) reason = why(s, flag) ?? 'Not available now.';
+  else if (s.base !== 'IDLE_UNHOMED' && s.base !== 'IDLE_HOMED' && s.base !== 'CONNECTED_UNKNOWN') reason = why(s, flag) ?? 'Only available while the machine is idle.';
+  else if ((s.motion ?? null) !== null) reason = 'A move is running.';
+  return Object.freeze({ enabled: reason === null, reason, axes, configured, read, homing: s?.base === 'HOMING', searchMm });
+}
+
+/** `G54`..`G59` for the active system (`coor` 1..6), or null. */
+export function activeSystem(view: LiveView | null): { readonly n: number; readonly code: string } | null {
+  const coor = snapshotOf(view)?.live.coor;
+  return coor !== undefined && Number.isInteger(coor) && coor >= 1 && coor <= 6 ? { n: coor, code: `G${53 + coor}` } : null;
+}
+
+function group(view: LiveView | null, token: string): Readonly<Partial<Record<MotionAxis, number>>> | null {
+  const r = snapshotOf(view)?.values[token];
+  if (r === undefined || r.status !== 0 || typeof r.value !== 'object' || r.value === null || Array.isArray(r.value)) return null;
+  const out: Partial<Record<MotionAxis, number>> = {};
+  for (const a of HOME_AXES) {
+    const v = (r.value as Record<string, unknown>)[a];
+    if (typeof v === 'number' && Number.isFinite(v)) out[a] = v;
+  }
+  return out;
+}
+
+export interface OffsetsView {
+  /** The active system (`G54`..`G59`), or null when not read or G53. */
+  readonly system: string | null;
+  /** Its saved offsets, as read. */
+  readonly saved: Readonly<Partial<Record<MotionAxis, number>>> | null;
+  /** The temporary (G92) offset, as read; null when not read. */
+  readonly temporary: Readonly<Partial<Record<MotionAxis, number>>> | null;
+  /** A temporary offset is in force (any axis not 0). */
+  readonly temporaryInForce: boolean;
+  /** The total offset (`ofs`), as read. */
+  readonly total: Readonly<Partial<Record<MotionAxis, number>>> | null;
+}
+
+/** The active offsets as the board reported them (each change is read back once). */
+export function offsetsView(view: LiveView | null): OffsetsView {
+  const sys = activeSystem(view);
+  const temporary = group(view, 'g92');
+  return Object.freeze({
+    system: sys?.code ?? null,
+    saved: sys === null ? null : group(view, sys.code.toLowerCase()),
+    temporary,
+    temporaryInForce: temporary !== null && Object.values(temporary).some((v) => v !== 0),
+    total: group(view, 'ofs'),
+  });
 }

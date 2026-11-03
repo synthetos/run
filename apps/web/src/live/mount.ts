@@ -79,7 +79,7 @@ export interface MountOptions {
   readonly previousSession: Signal<boolean>;
   /** P1-06: told when this tab enters or leaves LIVE, and given each snapshot (W30, PAUSE REQUESTED). */
   readonly stopControls: StopControls;
-  /** P1-07: the live position marker the G-code preview draws (polled `mpo` only). */
+  /** P1-07: the live position marker the G-code preview draws (machine position from reports, minus the read offsets). */
   readonly marker: Signal<LiveMarkerView | null>;
 }
 

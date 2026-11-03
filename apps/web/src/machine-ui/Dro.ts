@@ -3,10 +3,11 @@
  * coordinate system with its offsets, homed flags, and the board's
  * identity, each value labelled with where it came from.
  *
- * - Machine coordinates come only from polled `mpo` (the worker's
- *   `droView`); their age and a lag badge are shown: amber from 1 s, red
- *   from 2 s or at STALE (SAFETY §4.2).
- * - Work coordinates are what the last status report carried.
+ * - Machine and work coordinates come from the connect-time read and then
+ *   from the board's pushed status reports (the worker's `droView`,
+ *   amendment 2026-11-02). Their age is the time since the board last said
+ *   anything; the lag badge turns amber, then red at the silence window or
+ *   STALE (SAFETY §4.2).
  * - Position is never trusted in Phase 1: the panel says so.
  * - Strings from the serial port (`id`, `fbs`) are rendered as text nodes
  *   after `boardText` (T-S85); nothing from the board becomes markup.
@@ -66,11 +67,11 @@ export function Dro({ message, elapsedMs }: DroProps): ComponentChild {
     h(
       'p',
       { class: 'dro-source' },
-      'Machine position, read from the controller: ',
+      'Position, from the controller’s status reports: ',
       h('span', { 'data-dro': 'age' }, formatAge(ageMs)),
       ' · ',
       h('span', { class: `lag-badge lag-${lag}`, 'data-lag': lag, role: 'status' }, LAG_TEXT[lag]),
-      '. Work position: from its last status report.',
+      '. The controller reports a change; between changes the last value holds while it keeps talking.',
     ),
     h(
       'table',

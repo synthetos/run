@@ -567,7 +567,7 @@ function OutputsTab({ view }: { readonly view: LiveView | null }): ComponentChil
   const r = displayReadouts(snapshot);
   const pwm = Object.keys(settings).filter((k) => /^p1/.test(k)).sort();
   const srList = snapshot?.live.srList;
-  const polled = srList !== undefined && !['spe', 'spc', 'sps', 'cof', 'com'].every((k) => srList.includes(k));
+  const missing = srList !== undefined && !['spe', 'spc', 'sps', 'cof', 'com'].every((k) => srList.includes(k));
   return h(
     'div',
     { tabindex: 0, class: 'scroll-region cfg-scroll' },
@@ -608,7 +608,7 @@ function OutputsTab({ view }: { readonly view: LiveView | null }): ComponentChil
         h('div', null, h('dt', null, 'Spindle', h('small', { class: 'raw-key' }, 'spe spc sps')), h('dd', null, spindleText(r))),
         h('div', null, h('dt', null, 'Coolant', h('small', { class: 'raw-key' }, 'cof com')), h('dd', null, coolantText(r))),
       ),
-      h('p', { class: 'fine' }, polled ? 'This board’s status list does not carry these, so Run asks for them with read-only GETs about once a second. Display only: never rely on them for safety.' : 'From the board’s status reports. Display only: never rely on them for safety.'),
+      h('p', { class: 'fine' }, missing ? 'This board’s status list does not carry these: they were read once at connect and change only when the list carries them. Display only: never rely on them for safety.' : 'From the board’s status reports. Display only: never rely on them for safety.'),
     ),
     pwm.length === 0
       ? null

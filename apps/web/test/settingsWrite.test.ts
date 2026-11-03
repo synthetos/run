@@ -51,7 +51,7 @@ function view(s: Snapshot | null, settingsWrites = true, settings: Record<string
   if (s === null) return INITIAL_LIVE_VIEW;
   return {
     ...INITIAL_LIVE_VIEW,
-    message: { v: 3, kind: 'snapshot', snapshot: s, dro: { axes: [], machineSource: { label: 'polled mpo', at: null, ageMs: null, lag: 'none' }, workSource: { label: 'status report' }, units: 'mm', wcs: { code: null, offsets: null, total: null }, marker: null }, lag: { amberMs: 1000, redMs: 2000 }, motion: false, settingsWrites } as LiveView['message'],
+    message: { v: 3, kind: 'snapshot', snapshot: s, dro: { axes: [], machineSource: { label: 'status report', at: null, ageMs: null, lag: 'none' }, workSource: { label: 'status report' }, units: 'mm', wcs: { code: null, offsets: null, total: null }, marker: null }, lag: { amberMs: 1000, redMs: 2000 }, motion: false, settingsWrites } as LiveView['message'],
     readout: { dialectId: 'tinyg-en', phase: { kind: 'recorded', hash: 'h' }, settings },
   };
 }

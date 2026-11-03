@@ -42,6 +42,7 @@ import { eventNotice } from '../report/notice.ts';
 import { ReportDialog } from '../report/ReportDialog.ts';
 import { openReport } from '../report/state.ts';
 import { SetupView } from './views/SetupView.ts';
+import { UnknownExits } from './homing.ts';
 
 export type ViewId = 'run' | 'setup' | 'tools' | 'materials' | 'board' | 'machines' | 'projects' | 'analyze' | 'settings' | 'safety';
 
@@ -146,6 +147,8 @@ function Banners(props: AppShellProps): ComponentChild {
     'div',
     { class: 'banners', 'data-region': 'overlay-banners' },
     h(OverlayBanners, { snapshot, staleElapsedMs: view?.staleSince === null || view?.staleSince === undefined ? 0 : Date.now() - view.staleSince }),
+    // Never a trap (amendment 2026-11-02): UNKNOWN comes with its ways out.
+    h(UnknownExits, { model: props.model ?? null }),
     notice === null
       ? null
       : h(

@@ -9,8 +9,9 @@ import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { STOP_TEXT, w34 } from '@synthetos/safety';
 import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveActions, type LiveView } from '../src/workspace/model.ts';
-import { JogController, RENEW_MS, axesText, goToZeroPath, jogKey, machineZ, motionUi, workOffsets } from '../src/workspace/motion.ts';
-import { JogSection, SpindleSection, ZeroSection, resetSpindleConfirm } from '../src/workspace/views/RunView.ts';
+import { JogController, RENEW_MS, activeSystem, axesText, goToZeroPath, homingView, jogKey, machineZ, motionUi, offsetsView, workOffsets } from '../src/workspace/motion.ts';
+import { HomeSection, UnknownExits, unknownApplies } from '../src/workspace/homing.ts';
+import { ConnectNotice, JogSection, SpindleSection, ZeroSection, resetSpindleConfirm } from '../src/workspace/views/RunView.ts';
 import { MachineStrip, outcomeText, STOP_JOB_PHASE2 } from '../src/workspace/MachineStrip.ts';
 import { stripStatus } from '../src/workspace/status.ts';
 import type { MotionCommand } from '../src/machine-worker/rpc.ts';
@@ -51,7 +52,7 @@ function view(s: Snapshot | null, flag = true, axes: { axis: string; machine: nu
       v: 3,
       kind: 'snapshot',
       snapshot: s,
-      dro: { axes: axes.map((a) => ({ ...a, homed: null })), machineSource: { label: 'polled mpo', at: null, ageMs: null, lag: 'none' }, workSource: { label: 'status report' }, units: 'mm', wcs: { code: null, offsets: null, total: null }, marker: null },
+      dro: { axes: axes.map((a) => ({ ...a, homed: null })), machineSource: { label: 'status report', at: null, ageMs: null, lag: 'none' }, workSource: { label: 'status report' }, units: 'mm', wcs: { code: null, offsets: null, total: null }, marker: null },
       lag: { amberMs: 1000, redMs: 2000 },
       motion: flag,
     } as unknown as LiveView['message'],
@@ -228,5 +229,104 @@ describe('T-S92: control allowlist with a LIVE motion session', () => {
     const stopped = stripStatus(view(snap({ notices: { adviseEstop: false, motion: { kind: 'stopped', text: STOP_TEXT.stopped, at: 1 } } })), null);
     expect(stopped.text).toBe(STOP_TEXT.stopped);
     expect(stripStatus(view(snap({ base: 'STOPPING_JOB' })), null).title).toBe('Stopping');
+  });
+});
+
+describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S104–T-S106, control allowlist)', () => {
+  const HOMING = { xam: 1, xsn: 0, xsx: 1, xsv: 500, xtn: 0, xtm: 100, xlb: 2, yam: 1, ysn: 1, ysx: 0, ysv: 500, yam2: 0, zam: 1, zsn: 0, zsx: 0, zsv: 0, aam: 0, asn: 0, asx: 0, asv: 0 };
+  function withSettings(s: Snapshot, settings: Record<string, number>, flag = true): LiveView {
+    const v = view(s, flag);
+    return { ...v, readout: { dialectId: 'tinyg-en', phase: { kind: 'recorded', hash: 'x' }, settings } } as LiveView;
+  }
+  function model(v: LiveView, motion = true) {
+    const m = createWorkspaceModel();
+    m.live.value = v;
+    m.actions.value = { ...({} as LiveActions), ...(motion ? { motion: () => Promise.resolve(null) } : {}) } as LiveActions;
+    return m;
+  }
+  const machineButtons = (html: string, cls: string): { disabled: boolean; text: string }[] =>
+    [...html.matchAll(new RegExp(`<button\\b([^>]*data-machine-control="${cls}"[^>]*)>([^<]*)`, 'g'))].map((m) => ({ disabled: /\sdisabled(=|\s|\/|>|$)/.test(m[1] as string), text: m[2] as string }));
+
+  it('homingView: configured axes from the settings, why not otherwise, and when Home may be sent', () => {
+    const hv = homingView(withSettings(snap(), HOMING), HOMING);
+    expect(hv).toMatchObject({ enabled: true, reason: null, configured: ['x', 'y'], read: true, homing: false, searchMm: 102 });
+    expect(hv.axes.z.reason).toBe('no switch is set for homing');
+    expect(homingView(withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'] }), HOMING), HOMING).enabled).toBe(true);
+    const cases: [LiveView | null, string][] = [
+      [null, 'Connect a machine'],
+      [withSettings(snap(), HOMING, false), 'not enabled in this build'],
+      [withSettings(snap({ base: 'HOMING' }), HOMING), 'Homing.'],
+      [withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY'], classification: { dialectId: 'tinyg-en', mode: 'readOnly' } }), HOMING), 'not approved'],
+      [withSettings(snap({ overlays: ['STALE'] }), HOMING), 'No status'],
+      [withSettings(snap({ base: 'ALARM' }), HOMING), 'alarm'],
+      [withSettings(snap({ motion: { op: 'change', phase: 'drain', hold: false, held: false, stopping: false } }), HOMING), 'A move is running'],
+    ];
+    for (const [v, text] of cases) expect(homingView(v, HOMING).reason, text).toContain(text);
+    expect(homingView(withSettings(snap(), {}), {}).read).toBe(false);
+  });
+
+  it('offsetsView: the active system, its saved offset, the temporary offset and the total, as read', () => {
+    const v = view(snap({ live: { coor: 2, pos: {}, mpo: {} }, values: { g55: { value: { x: 10, y: 5, z: -1 }, status: 0, at: 1 }, g92: { value: { x: 0, y: 2, z: 0 }, status: 0, at: 1 }, ofs: { value: { x: 10, y: 7, z: -1 }, status: 0, at: 1 } } }));
+    expect(offsetsView(v)).toEqual({ system: 'G55', saved: { x: 10, y: 5, z: -1 }, temporary: { x: 0, y: 2, z: 0 }, temporaryInForce: true, total: { x: 10, y: 7, z: -1 } });
+    expect(activeSystem(view(snap({ live: { coor: 0, pos: {}, mpo: {} } })))).toBeNull();
+    expect(offsetsView(view(snap({ values: { g92: { value: [1], status: 0, at: 1 } } })))).toMatchObject({ system: null, saved: null, temporary: null, temporaryInForce: false });
+  });
+
+  it('the Home tab: Home per configured axis and Home all; G28.3 offered only when nothing is configured', () => {
+    const live = renderToString(h(HomeSection, { model: model(withSettings(snap(), HOMING)) }));
+    const buttons = machineButtons(live, 'home');
+    expect(buttons.filter((b) => !b.disabled).map((b) => b.text)).toEqual(['Home', 'Home', 'Home all (X and Y)']);
+    expect(live).not.toContain('G28.3');
+    const none = renderToString(h(HomeSection, { model: model(withSettings(snap(), { xam: 1, xsn: 0, xsx: 0, xsv: 0, yam: 1, ysn: 0, ysx: 0, ysv: 0, zam: 1, zsn: 0, zsx: 0, zsv: 0, aam: 0, asn: 0, asx: 0, asv: 0 })) }));
+    expect(none).toContain('Homing is not configured on this board');
+    expect(machineButtons(none, 'home').find((b) => b.text.includes('G28.3'))?.disabled).toBe(false);
+    // Prerendered and without the flag: every control disabled.
+    for (const html of [renderToString(h(HomeSection, { model: null })), renderToString(h(HomeSection, { model: model(withSettings(snap(), HOMING, false)) }))]) {
+      expect(machineButtons(html, 'home').every((b) => b.disabled)).toBe(true);
+    }
+  });
+
+  it('the Offsets tab: G54–G59, Set work zero saved in the active system, the temporary offset apart, all disabled without motion', () => {
+    const v = view(snap({ live: { coor: 1, pos: {}, mpo: {} }, values: { g54: { value: { x: 1, y: 2, z: 3 }, status: 0, at: 1 }, g92: { value: { x: 0, y: 0, z: 0 }, status: 0, at: 1 } } }));
+    const html = renderToString(h(ZeroSection, { model: model(v) }));
+    expect(html).toContain('Set work zero (G10 L20, saved in G54)');
+    expect(html).toContain('Temporary offset (G92)');
+    const offset = machineButtons(html, 'offset');
+    expect(offset.map((b) => b.text)).toEqual(['G54', 'G55', 'G56', 'G57', 'G58', 'G59', 'X = 0', 'Y = 0', 'Z = 0', 'All = 0', 'Clear (G92.1)']);
+    // The active system is selected (not offered again); Clear is offered only while a temporary offset is in force.
+    expect(offset.filter((b) => b.disabled).map((b) => b.text)).toEqual(['G54', 'Clear (G92.1)']);
+    expect(machineButtons(renderToString(h(ZeroSection, { model: null })), 'offset').every((b) => b.disabled)).toBe(true);
+    expect(machineButtons(renderToString(h(ZeroSection, { model: model(v) })), 'zero').length).toBeGreaterThan(0);
+  });
+
+  it('the UNKNOWN banner offers its exits; the strip says Homing and "No reports from the board"', () => {
+    const unknown = withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'], primaryOverlay: 'UNKNOWN' }), HOMING);
+    expect(unknownApplies(unknown)).toBe(true);
+    const html = renderToString(h(UnknownExits, { model: model(unknown) }));
+    expect(html).toContain('data-action="unknown-verify"');
+    expect(html).toContain('data-action="unknown-home"');
+    expect(html).not.toContain('data-action="unknown-position"');
+    const noSwitches = withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'], primaryOverlay: 'UNKNOWN' }), { xam: 1, xsn: 0, xsx: 0, xsv: 0 });
+    expect(renderToString(h(UnknownExits, { model: model(noSwitches) }))).toContain('data-action="unknown-position"');
+    // Without motion the verify exit is still there: UNKNOWN never traps.
+    const p1 = renderToString(h(UnknownExits, { model: model(withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'], primaryOverlay: 'UNKNOWN' }), HOMING, false)) }));
+    expect(p1).toContain('data-action="unknown-verify"');
+    expect(p1).toContain('Homing is not available');
+    expect(renderToString(h(UnknownExits, { model: model(withSettings(snap(), HOMING)) }))).toBe('');
+    expect(stripStatus(view(snap({ base: 'HOMING' })), null).title).toBe('Homing');
+    expect(stripStatus(view(snap({ overlays: ['STALE'] })), null).title).toBe('No reports from the board');
+  });
+
+  it('the Connect card says what Run changed in the board\'s status reporting (W35, W36), and why it did not finish', () => {
+    const reports = { phase: 'done', heartbeatMs: null, changes: [{ setting: 'sr' }, { setting: 'sv', from: 0, to: 1 }], detail: 'the board refused {si:250} (status 100)' };
+    const html = renderToString(h(ConnectNotice, { model: model(view(snap({ reports }))), onView: () => undefined }));
+    expect(html).toContain('data-safety="W35"');
+    expect(html).toContain('status report list to include machine position and spindle/coolant');
+    expect(html).toContain('data-safety="W36"');
+    expect(html).toContain('sv from 0 to 1');
+    expect(html).toContain('Status reports: the board refused {si:250} (status 100).');
+    expect(html).toContain('data-reports="no-heartbeat"');
+    const quiet = renderToString(h(ConnectNotice, { model: model(view(snap({ reports: { phase: 'done', heartbeatMs: 1000, changes: [], detail: null } }))), onView: () => undefined }));
+    expect(quiet).not.toContain('data-reports');
   });
 });

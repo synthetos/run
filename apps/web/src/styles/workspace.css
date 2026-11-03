@@ -1385,3 +1385,10 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
   .run-inspector .dro-row strong { font-size: 18px; }
   .run-inspector .sec-position .facts { margin-top: 8px; padding-top: 6px; }
 }
+
+/* Amendment 2026-11-02: the UNKNOWN banner's actions, the Home tab, the temporary offset row and the report notice. */
+.unknown-exits .notice-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+.unknown-exits .motion-confirm { margin-top: 8px; }
+.temp-offset { justify-content: flex-start; flex-wrap: wrap; margin: 4px 0 10px; }
+.sec-zero .tan-label, .sec-home .tan-label { margin: 12px 0 6px; }
+.reports-notice p { margin: 6px 0 0; }

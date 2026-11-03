@@ -3,8 +3,9 @@
  * RUN_PLAN §7.2 connect flow steps 4-8; SAFETY §3 READING → NEEDS_REVIEW).
  *
  * Once per link, when a classified board reaches CONNECTED_UNKNOWN, this
- * asks the worker to read the DRO tokens (`coor`, `unit`, `ofs`, `hom`)
- * and every allowlisted settings group. Every read goes through the
+ * asks the worker to read every allowlisted settings group. (The machine
+ * state, `coor`, `unit`, `ofs`, `hom` and the positions, is read by the
+ * session itself at connect: amendment 2026-11-02.) Every read goes through the
  * worker's `read`, so the session's allow-matrix and read allowlist decide
  * each token again; this module cannot write anything.
  *
@@ -25,9 +26,6 @@ import type { WorkerStatus } from '../machine-worker/rpc.ts';
 import type { DeviceSafetyStore } from './deviceSafety.ts';
 
 type SessionSnapshot = WorkerStatus['session'];
-
-/** DRO reads besides the settings groups (the `g5x` offsets are settings groups). */
-export const DRO_TOKENS: readonly string[] = Object.freeze(['coor', 'unit', 'ofs', 'hom']);
 
 export interface SettingsReference {
   readonly deviceHash: string;
@@ -130,7 +128,7 @@ export class LiveReadout {
 
   async #requestAll(dialectId: string): Promise<void> {
     const epoch = this.#epoch;
-    const tokens = [...DRO_TOKENS, ...settingsReadGroups(dialectId).map((g) => g.token)];
+    const tokens = settingsReadGroups(dialectId).map((g) => g.token);
     const reply = await this.#deps.read(tokens).catch((e: unknown) => ({ ok: false, message: e instanceof Error ? e.message : String(e) }));
     if (epoch !== this.#epoch || reply.ok) return;
     this.#set({ kind: 'incomplete', message: reply.message ?? 'The worker refused the read.' });

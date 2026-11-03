@@ -10,7 +10,7 @@ export interface PreviewSvgProps {
   readonly showRapids: boolean;
   readonly highlight: number;
   readonly envelope: Box3 | null;
-  /** P1-07: the live position (work coordinates, from polled `mpo`), or null. */
+  /** P1-07: the live position (work coordinates, from the reported machine position), or null. */
   readonly marker?: { readonly x: number; readonly y: number; readonly lag: string } | null;
 }
 

@@ -74,3 +74,33 @@ export function CheckRow(props: { readonly tone: CheckTone; readonly label: stri
 export function Keyed(props: { readonly value: string; readonly raw: string; readonly title?: string }): ComponentChild {
   return h('span', { class: 'keyed', ...(props.title === undefined ? {} : { title: props.title }) }, h('span', null, props.value), h('code', { class: 'raw-key' }, props.raw));
 }
+
+/** Focuses an element once, when it mounts (a stable callback ref, so later renders never steal the focus back). */
+export function focusOnMount(el: HTMLElement | null): void {
+  if (el === null || el.dataset['focused'] === '1') return;
+  el.dataset['focused'] = '1';
+  el.focus();
+}
+
+/** An inline confirmation (never a modal over the stop controls, SAFETY §4.1 UI rules). Cancel has the focus; Enter does not confirm. */
+export function ConfirmCard(props: {
+  readonly text: string;
+  readonly confirm: string;
+  readonly onConfirm: () => void;
+  readonly onCancel: () => void;
+  readonly safety: string;
+  readonly children?: ComponentChild;
+}): ComponentChild {
+  return h(
+    'div',
+    { class: 'motion-confirm', role: 'alertdialog', 'aria-label': props.confirm, 'data-safety': props.safety },
+    h('p', null, props.text),
+    props.children ?? null,
+    h(
+      'div',
+      { class: 'motion-confirm-actions' },
+      h('button', { type: 'button', class: 'small', 'data-action': 'motion-cancel', ref: focusOnMount, onClick: props.onCancel }, 'Cancel'),
+      h('button', { type: 'button', class: 'small primary', 'data-action': 'motion-confirm', onClick: props.onConfirm }, props.confirm),
+    ),
+  );
+}

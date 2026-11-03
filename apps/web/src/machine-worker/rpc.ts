@@ -58,6 +58,10 @@ export type MotionCommand =
   | { readonly op: 'jogRenew' | 'jogRelease' | 'spindleOff' | 'coolantOff' | 'resume' | 'clearAlarm' | 'positionVerify' }
   | { readonly op: 'goToZero'; readonly axes: readonly MotionAxis[]; readonly safeZ: number }
   | { readonly op: 'setZero'; readonly axes: readonly MotionAxis[] }
+  /** Amendment 2026-11-02: G28.2 homing, G28.3 set machine position, G92 / G92.1 temporary offset, G54..G59. */
+  | { readonly op: 'home' | 'setPosition' | 'tempOffset'; readonly axes: readonly MotionAxis[] }
+  | { readonly op: 'clearTempOffset' }
+  | { readonly op: 'selectCoord'; readonly system: number }
   | { readonly op: 'spindleOn'; readonly direction: 'cw' | 'ccw'; readonly rpm: number }
   | { readonly op: 'coolantOn'; readonly which: 'mist' | 'flood' };
 
@@ -259,7 +263,17 @@ export function parseMotionCommand(value: unknown): MotionCommand | null {
     case 'resume':
     case 'clearAlarm':
     case 'positionVerify':
+    case 'clearTempOffset':
       return keys === 'op' ? Object.freeze({ op: c['op'] }) : null;
+    case 'home':
+    case 'setPosition':
+    case 'tempOffset': {
+      const axes = axisList(c['axes']);
+      return keys === 'axes,op' && axes !== null ? Object.freeze({ op: c['op'], axes }) : null;
+    }
+    case 'selectCoord':
+      if (keys !== 'op,system' || typeof c['system'] !== 'number' || !Number.isInteger(c['system']) || c['system'] < 1 || c['system'] > 6) return null;
+      return Object.freeze({ op: 'selectCoord', system: c['system'] });
     case 'goToZero': {
       const axes = axisList(c['axes']);
       if (keys !== 'axes,op,safeZ' || axes === null || !finite(c['safeZ'])) return null;

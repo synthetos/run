@@ -45,6 +45,27 @@ const EN: Readonly<Record<string, string>> = {
   ex: '{"r":{"ex":1},"f":[3,0,10]}',
   posx: '{"r":{"posx":12.5},"f":[3,0,10]}',
   mpo: '{"r":{"mpo":{"x":3.5,"y":0,"z":0,"a":0,"b":0,"c":0}},"f":[3,0,10]}',
+  // The rest of the connect-time state read (amendment 2026-11-02).
+  home: '{"r":{"home":0},"f":[3,0,10]}',
+  hom: '{"r":{"hom":{"x":0,"y":0,"z":0}},"f":[3,0,10]}',
+  coor: '{"r":{"coor":1},"f":[3,0,10]}',
+  dist: '{"r":{"dist":0},"f":[3,0,10]}',
+  tool: '{"r":{"tool":0},"f":[3,0,10]}',
+  pos: '{"r":{"pos":{"x":12.5,"y":0,"z":0}},"f":[3,0,10]}',
+  ofs: '{"r":{"ofs":{"x":0,"y":0,"z":0}},"f":[3,0,10]}',
+  g92: '{"r":{"g92":{"x":0,"y":0,"z":0}},"f":[3,0,10]}',
+  g28: '{"r":{"g28":{"x":0,"y":0,"z":0}},"f":[3,0,10]}',
+  g30: '{"r":{"g30":{"x":0,"y":0,"z":0}},"f":[3,0,10]}',
+  spe: '{"r":{"spe":0},"f":[3,0,10]}',
+  spc: '{"r":{"spc":0},"f":[3,0,10]}',
+  spd: '{"r":{"spd":0},"f":[3,0,10]}',
+  sps: '{"r":{"sps":0},"f":[3,0,10]}',
+  cof: '{"r":{"cof":0},"f":[3,0,10]}',
+  com: '{"r":{"com":0},"f":[3,0,10]}',
+  sv: '{"r":{"sv":1},"f":[3,0,10]}',
+  si: '{"r":{"si":250},"f":[3,0,10]}',
+  // No heartbeat on this scripted board.
+  rt: '{"r":{},"f":[3,100,10]}',
 };
 
 /** A Transport that answers GETs like an idle edge-next board, and whose stream the test can end or fail. */
@@ -77,6 +98,14 @@ class BoardTransport implements Transport {
   async writeLine(line: Uint8Array): Promise<void> {
     const text = new TextDecoder().decode(line);
     this.writes.push(text);
+    // The status report list (amendment 2026-11-02): replaced, answered with its values, read back by {"sr":null}.
+    const list = /^\{sr:\{(.*)\}\}\n$/.exec(text);
+    if (list !== null && !this.silent) {
+      const body = `{${(list[1] as string).split(',').map((p) => p.split(':')[0] as string).map((k) => `"${k}":${k === 'coor' || k === 'unit' || k === 'stat' ? 1 : k === 'qr' ? 32 : 0}`).join(',')}}`;
+      this.#answers['sr'] = `{"r":{"sr":${body}},"f":[3,0,10]}`;
+      queueMicrotask(() => this.feed(`{"r":{"sr":${body}},"f":[3,0,10]}\n`));
+      return;
+    }
     const set = /^\{"([a-z0-9_]+)":(-?[0-9.]+)\}\n$/.exec(text);
     if (set !== null && !this.silent) {
       // A settings write: stored, echoed (read back by the next GET).
@@ -535,7 +564,7 @@ describe('MachineWorkerHost', () => {
   });
 });
 
-describe('P1-07: the polled mpo position and the drift report', () => {
+describe('P1-07: the position from the connect-time read and pushed reports, and the drift report', () => {
   it('parses exactly { v: 3, kind: drift, epoch } with a whole, non-negative epoch', () => {
     expect(parseRequest({ v: 3, kind: 'drift', epoch: 2 })).toEqual({ v: 3, kind: 'drift', epoch: 2 });
     for (const bad of [{ v: 3, kind: 'drift' }, { v: 3, kind: 'drift', epoch: -1 }, { v: 3, kind: 'drift', epoch: 1.5 }, { v: 3, kind: 'drift', epoch: '1' }, { v: 3, kind: 'drift', epoch: 1, extra: 1 }]) {
@@ -543,22 +572,7 @@ describe('P1-07: the polled mpo position and the drift report', () => {
     }
   });
 
-  it('the host reads the spindle and coolant readouts its status list lacks with GETs about once a second (display only)', async () => {
-    const clock = new TestClock();
-    const t = new BoardTransport();
-    const host = new MachineWorkerHost(source('fake', () => t), clock);
-    await host.handle(OPEN);
-    await settle();
-    expect(host.session.snapshot.base).toBe('CONNECTED_UNKNOWN');
-    expect(t.writes.filter((w) => w === '{"spe":null}\n')).toEqual([]);
-    clock.advance(1000);
-    await settle();
-    expect(host.readoutPoller.polls).toBe(1);
-    expect(t.writes).toContain('{"spe":null}\n');
-    for (const w of t.writes) expect(/^\{"?[a-z0-9]+"?:null\}\n$/.test(w) || w === '\u0005', JSON.stringify(w)).toBe(true);
-  });
-
-  it('the host polls {"mpo":null} every 500 ms once a board is classified, and drift raises NEEDS_REVIEW', async () => {
+  it('the host never polls: after the connect-time read nothing is written while idle, and drift raises NEEDS_REVIEW', async () => {
     const clock = new TestClock();
     const t = new BoardTransport();
     const host = new MachineWorkerHost(source('fake', () => t), clock);
@@ -567,11 +581,15 @@ describe('P1-07: the polled mpo position and the drift report', () => {
     await host.handle(OPEN);
     await settle();
     expect(host.session.snapshot.base).toBe('CONNECTED_UNKNOWN');
-    clock.advance(500);
+    expect(t.writes).toContain('{"mpo":null}\n');
+    expect(t.writes).toContain('{"spe":null}\n');
+    const after = t.writes.length;
+    clock.advance(4000);
     await settle();
-    expect(t.writes.at(-1)).toBe('{"mpo":null}\n');
-    expect(host.poller.polls).toBe(1);
-    expect(host.session.snapshot.values['mpo']).toMatchObject({ value: { x: 3.5 }, status: 0 });
+    // Push-driven (amendment 2026-11-02): no mpo or readout poll; the watchdog's fallback ask comes only after 5 s.
+    expect(t.writes.slice(after)).toEqual([]);
+    expect(host.session.snapshot.live.mpo).toMatchObject({ x: 3.5 });
+    expect(host.session.snapshot.live.spe).toBe(0);
 
     const epoch = host.session.snapshot.epoch;
     expect(await host.handle({ v: 3, kind: 'drift', epoch: epoch + 1 })).toEqual({ v: 3, ok: true, kind: 'drift' });
@@ -580,14 +598,14 @@ describe('P1-07: the polled mpo position and the drift report', () => {
     expect(host.session.snapshot.overlays).toContain('NEEDS_REVIEW');
   });
 
-  it('every posted snapshot carries its DRO view, computed from polled mpo on the worker clock, and the lag thresholds', async () => {
+  it('every posted snapshot carries its DRO view, computed on the worker clock, and the lag thresholds of its silence window', async () => {
     const clock = new TestClock();
     const t = new BoardTransport();
     const host = new MachineWorkerHost(source('fake', () => t), clock);
     const posted: SnapshotMessage[] = [];
     await host.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => posted.push(m) });
-    expect(posted[0]?.dro.machineSource).toEqual({ label: 'polled mpo', at: null, ageMs: null, lag: 'none' });
-    expect(posted[0]?.lag).toEqual({ amberMs: 1000, redMs: 2000 });
+    expect(posted[0]?.dro.machineSource).toEqual({ label: 'status report', at: null, ageMs: null, lag: 'none' });
+    expect(posted[0]?.lag).toEqual({ amberMs: 5600, redMs: 7000 });
     await host.handle(OPEN);
     await settle();
     clock.advance(500);
@@ -595,7 +613,7 @@ describe('P1-07: the polled mpo position and the drift report', () => {
     clock.advance(100);
     const last = posted.at(-1) as SnapshotMessage;
     expect(last.dro.axes[0]).toMatchObject({ axis: 'x', machine: 3.5 });
-    expect(last.dro.machineSource.label).toBe('polled mpo');
+    expect(last.dro.machineSource.label).toBe('status report');
   });
 });
 
@@ -966,7 +984,6 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
     const commands = [
       { op: 'jogRenew' },
       { op: 'jogRelease' },
-      { op: 'setZero', axes: ['x'] },
       { op: 'spindleOn', direction: 'cw', rpm: 1000 },
       { op: 'coolantOn', which: 'mist' },
       { op: 'spindleOff' },
@@ -981,15 +998,35 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
     await classifyWith(t, host);
     const outcomes = [];
     for (const command of commands) outcomes.push((await host.handle({ v: 3, kind: 'motion', command })).ok);
-    // Allowed now: release (nothing to release), set zero, spindle and coolant on and off, go to zero. Refused: no hold
-    // jog to renew, no hold to resume, no alarm to clear, no UNKNOWN to verify.
-    expect(outcomes).toEqual([false, true, true, true, true, true, true, true, false, false, false]);
+    // Allowed now: release (nothing to release), spindle and coolant on and off, go to zero. Refused: no hold jog to
+    // renew, no hold to resume, no alarm to clear, no UNKNOWN to verify.
+    expect(outcomes).toEqual([false, true, true, true, true, true, true, false, false, false]);
+    // The changes (amendment 2026-11-02) each run to their read-back before anything else moves: one host each.
+    const changes = [
+      { op: 'setZero', axes: ['x'] },
+      { op: 'tempOffset', axes: ['x'] },
+      { op: 'clearTempOffset' },
+      { op: 'selectCoord', system: 2 },
+      { op: 'setPosition', axes: ['x', 'y', 'z'] },
+    ] as const;
+    const lines = ['G10 L20 P1 X0\n', 'G92 X0\n', 'G92.1\n', 'G55\n', 'G28.3 X0 Y0 Z0\n'];
+    for (const [i, command] of changes.entries()) {
+      const ct = new BoardTransport(undefined, EN_MOTION);
+      const ch = phase2Host(ct, BENCH_ORIGIN);
+      await classifyWith(ct, ch);
+      const r = await ch.handle({ v: 3, kind: 'motion', command });
+      expect(r.ok, `${command.op} ${JSON.stringify(r)}`).toBe(true);
+      await settle();
+      expect(ct.writes, command.op).toContain(lines[i]);
+    }
+    // Homing needs its axis settings read: without them it is refused with the reason.
+    expect(await host.handle({ v: 3, kind: 'motion', command: { op: 'home', axes: ['x'] } })).toMatchObject({ ok: false, code: 'denied' });
 
     const p = new BoardTransport();
     const prod = phase2Host(p, PRODUCTION_ORIGIN);
     await classifyWith(p, prod);
     const before = p.writes.filter((w) => !w.startsWith('{')).length;
-    for (const command of [{ op: 'jog', axes: { x: 1 }, distanceMm: 1, feed: 600 }, ...commands.filter((c) => c.op !== 'jogRelease' && c.op !== 'spindleOff' && c.op !== 'coolantOff')]) {
+    for (const command of [{ op: 'jog', axes: { x: 1 }, distanceMm: 1, feed: 600 }, { op: 'home', axes: ['x'] }, { op: 'setZero', axes: ['x'] }, { op: 'tempOffset', axes: ['x'] }, { op: 'clearTempOffset' }, { op: 'selectCoord', system: 2 }, { op: 'setPosition', axes: ['x'] }, ...commands.filter((c) => c.op !== 'jogRelease' && c.op !== 'spindleOff' && c.op !== 'coolantOff')]) {
       const reply = await prod.handle({ v: 3, kind: 'motion', command });
       expect(reply.ok, command.op).toBe(false);
     }
@@ -1005,6 +1042,11 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
       { op: 'spindleOn', direction: 'ccw', rpm: 5000 },
       { op: 'coolantOn', which: 'flood' },
       { op: 'resume' },
+      { op: 'home', axes: ['z', 'x'] },
+      { op: 'setPosition', axes: ['x'] },
+      { op: 'tempOffset', axes: ['y'] },
+      { op: 'clearTempOffset' },
+      { op: 'selectCoord', system: 6 },
     ];
     for (const command of ok) expect(parseRequest({ v: 3, kind: 'motion', command }), JSON.stringify(command)).not.toBeNull();
     const bad: unknown[] = [
@@ -1027,6 +1069,13 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
       { op: 'spindleOn', direction: 'cw', rpm: '1' },
       { op: 'coolantOn', which: 'air' },
       { op: 'resume', now: true },
+      { op: 'home', axes: [] },
+      { op: 'home', axes: ['x'], extra: 1 },
+      { op: 'clearTempOffset', axes: ['x'] },
+      { op: 'selectCoord', system: 0 },
+      { op: 'selectCoord', system: 7 },
+      { op: 'selectCoord', system: 1.5 },
+      { op: 'selectCoord' },
       { op: 'raw', line: 'G0 X0' },
       Object.create({ op: 'resume' }) as unknown,
     ];

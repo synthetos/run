@@ -29,7 +29,7 @@ export interface PreviewParts {
 export interface PreviewPanelProps {
   /** Starts `gcode.worker`; null without Trusted Types (the panel stays disabled). */
   readonly spawn: (() => WorkerLike) | null;
-  /** P1-07: the live position marker (polled `mpo`), drawn on the 2D view and read out under both views. */
+  /** P1-07: the live position marker (reported machine position), drawn on the 2D view and read out under both views. */
   readonly marker?: ReadonlySignal<LiveMarkerView | null>;
   /**
    * Arranges the pieces (the workspace Run view). Without it the panel is the TB-03 preview sheet
@@ -51,7 +51,7 @@ export interface LiveMarkerView {
   readonly x: number;
   readonly y: number;
   readonly z: number;
-  /** Age of the polled position when the window received it, ms. */
+  /** Age of the reported position when the window received it, ms. */
   readonly ageMs: number;
   readonly lag: 'none' | 'fresh' | 'amber' | 'red';
 }

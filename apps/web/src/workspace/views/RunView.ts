@@ -12,7 +12,7 @@
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { c13, c16, c24, c25, w13, w34 } from '@synthetos/safety';
+import { c13, c16, c24, c25, c27, c28, c29, w13, w34, w35, w36 } from '@synthetos/safety';
 import { DIALECTS, type DialectId } from '@synthetos/protocol';
 import { LITE_THRESHOLD_LINES, PREVIEW_DIALECTS, type PreviewMode } from '../../gcode-worker/pipeline.ts';
 import type { WorkerLike } from '../../gcode-worker/client.ts';
@@ -27,9 +27,10 @@ import { ConnectPanel } from '../../live/ConnectPanel.ts';
 import { connectorPins, dialectOf, plainValue, settingsOf, type PinInfo } from '../boardFacts.ts';
 import { Icon } from '../icons.ts';
 import { readStored, writeStored } from '../storage.ts';
-import { CheckRow, TabBar, TabPane } from '../ui.ts';
+import { CheckRow, ConfirmCard, TabBar, TabPane } from '../ui.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
-import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineZ, motionUi, workOffsets, type JogTimers, type MotionUi } from '../motion.ts';
+import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
+import { HomeSection } from '../homing.ts';
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
 import { signalText } from '../../shell/signal.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
@@ -102,7 +103,7 @@ export function ConnectNotice({ model, onView }: { readonly model: WorkspaceMode
   return h(
     'div',
     { class: `scenario-notice connect-notice${isConnected ? ' is-connected' : ''}`, 'data-region': 'connect' },
-    h('div', { class: 'notice-text' }, h('strong', null, heading), h('p', null, copy)),
+    h('div', { class: 'notice-text' }, h('strong', null, heading), h('p', null, copy), reportsNotice(view)),
     h(
       'div',
       { class: 'notice-actions' },
@@ -119,6 +120,23 @@ export function ConnectNotice({ model, onView }: { readonly model: WorkspaceMode
         )
       : null,
   );
+}
+
+/**
+ * What the session changed in the board's status reporting at connect, in plain words (W35, W36; H64), and why
+ * the configuration did not finish when it did not.
+ */
+function reportsNotice(view: LiveView | null): ComponentChild {
+  const r = view !== null && connected(view) ? view.message?.snapshot.reports : undefined;
+  if (r === undefined) return null;
+  const lines: ComponentChild[] = [];
+  for (const c of r.changes) {
+    if (c.setting === 'sr') lines.push(h('p', { key: 'sr', class: 'fine', 'data-safety': 'W35', 'data-reports': 'sr' }, ...signalText(w35())));
+    else if (c.from !== undefined && c.to !== undefined) lines.push(h('p', { key: c.setting, class: 'fine', 'data-safety': 'W36', 'data-reports': c.setting }, ...signalText(w36({ setting: c.setting, from: c.from, to: c.to }))));
+  }
+  if (r.detail !== null) lines.push(h('p', { key: 'detail', class: 'fine', 'data-reports': 'detail' }, `Status reports: ${r.detail}.`));
+  if (r.phase === 'done' && r.heartbeatMs === null) lines.push(h('p', { key: 'hb', class: 'fine', 'data-reports': 'no-heartbeat' }, 'This firmware has no heartbeat: Run checks the link only after a few seconds of silence.'));
+  return lines.length === 0 ? null : h('div', { class: 'reports-notice' }, lines);
 }
 
 // ---------------------------------------------------------------- position
@@ -151,7 +169,7 @@ export function PositionPanel({ model }: { readonly model: WorkspaceModel | null
       'header',
       null,
       h('h2', { id: 'position-title' }, 'Position'),
-      h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: 'Machine position is read from the controller about twice a second; work position comes from its status reports.' }, age.text),
+      h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: 'Machine and work position come from the controller’s status reports, which it sends when they change. The age is the time since the controller last said anything.' }, age.text),
     ),
     h(
       'div',
@@ -206,36 +224,6 @@ function isLive(model: WorkspaceModel | null | undefined): boolean {
 }
 
 type Send = (command: MotionCommand) => Promise<string | null>;
-
-/** Focuses an element once, when it mounts (a stable callback ref, so later renders never steal the focus back). */
-function focusOnMount(el: HTMLElement | null): void {
-  if (el === null || el.dataset['focused'] === '1') return;
-  el.dataset['focused'] = '1';
-  el.focus();
-}
-
-/** An inline confirmation (never a modal over the stop controls, SAFETY §4.1 UI rules). Cancel has the focus; Enter does not confirm. */
-function ConfirmCard(props: {
-  readonly text: string;
-  readonly confirm: string;
-  readonly onConfirm: () => void;
-  readonly onCancel: () => void;
-  readonly safety: string;
-  readonly children?: ComponentChild;
-}): ComponentChild {
-  return h(
-    'div',
-    { class: 'motion-confirm', role: 'alertdialog', 'aria-label': props.confirm, 'data-safety': props.safety },
-    h('p', null, props.text),
-    props.children ?? null,
-    h(
-      'div',
-      { class: 'motion-confirm-actions' },
-      h('button', { type: 'button', class: 'small', 'data-action': 'motion-cancel', ref: focusOnMount, onClick: props.onCancel }, 'Cancel'),
-      h('button', { type: 'button', class: 'small primary', 'data-action': 'motion-confirm', onClick: props.onConfirm }, props.confirm),
-    ),
-  );
-}
 
 function motionNote(ui: MotionUi, note: string | null): ComponentChild {
   const text = note ?? ui.reason ?? ui.notice;
@@ -462,8 +450,10 @@ export function JogSection(props: JogProps = {}): ComponentChild {
 const AXIS_ROWS: readonly MotionAxis[] = ['x', 'y', 'z'];
 
 /**
- * Set zero and Go to zero, per axis and for all (SAFETY §4.5b, H53, C16, C25). Set zero is G10 L20 P1 (G54, saved
- * on the controller). Go to zero shows its path first; Z rises in machine coordinates before X and Y move.
+ * Offsets (amendment 2026-11-02; SAFETY §4.5b, H53, H68, C16, C25, C27-C29): the work coordinate system (G54..G59),
+ * Set work zero per axis and for all (G10 L20 in the active system, saved on the controller), Go to zero (Z rises in
+ * machine coordinates first), the temporary offset (G92, not saved; cleared with G92.1), and the active offsets as the
+ * board reported them. Every change is read back by the session.
  */
 function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
   const view = model?.live.value ?? null;
@@ -474,12 +464,14 @@ function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
   const ztm = typeof settings['ztm'] === 'number' ? (settings['ztm'] as number) : null;
   const [safeZ, setSafeZ] = hk.state<number | null>(null);
   const safe = safeZ ?? (ztm !== null && ui.homed === true ? Math.round((ztm - 1) * 1000) / 1000 : (zNow ?? 0));
-  const [confirm, setConfirm] = hk.state<{ readonly kind: 'set' | 'go'; readonly axes: readonly MotionAxis[] } | null>(null);
+  type Confirm = { readonly kind: 'set' | 'go' | 'temp'; readonly axes: readonly MotionAxis[] } | { readonly kind: 'clear' } | { readonly kind: 'system'; readonly n: number } | null;
+  const [confirm, setConfirm] = hk.state<Confirm>(null);
   const [note, setNote] = hk.state<string | null>(null);
   hk.effect(() => {
     if (ask !== null && ask !== undefined && ui.enabled) setConfirm({ kind: 'go', axes: ask.axes });
   }, [ask?.at]);
-  const offsets = workOffsets(view);
+  const off = offsetsView(view);
+  const system = off.system ?? 'G54';
   const dro = view?.message?.dro.axes ?? [];
   const work = (a: MotionAxis): number | null => dro.find((d) => d.axis === a)?.work ?? null;
   const machine = (a: MotionAxis): number | null => dro.find((d) => d.axis === a)?.machine ?? null;
@@ -489,27 +481,48 @@ function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
     setNote(null);
     void send?.(command).then(setNote);
   };
-  const button = (label: string, aria: string, onClick: () => void): ComponentChild =>
-    h('button', { type: 'button', class: 'small', 'aria-label': aria, 'data-machine-control': 'zero', ...(enabled ? { onClick } : { disabled: true }) }, label);
+  const button = (label: string, aria: string, onClick: () => void, control = 'zero', ok = true): ComponentChild =>
+    h('button', { type: 'button', class: 'small', 'aria-label': aria, 'data-machine-control': control, ...(enabled && ok ? { onClick } : { disabled: true }) }, label);
   const confirmCard = (): ComponentChild => {
     if (confirm === null || !enabled) return null;
-    if (confirm.kind === 'set') {
-      const text = confirm.axes
-        .map((a) => c16({ wcs: 'G54', axis: a.toUpperCase(), machinePositionMm: machine(a) ?? 0, newOffsetMm: machine(a) ?? 0 }))
-        .join(' ');
-      return h(ConfirmCard, { text, confirm: 'Set zero', safety: 'C16', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) });
+    const cancel = (): void => setConfirm(null);
+    switch (confirm.kind) {
+      case 'set': {
+        const text = confirm.axes.map((a) => c16({ wcs: system, axis: a.toUpperCase(), machinePositionMm: machine(a) ?? 0, newOffsetMm: machine(a) ?? 0 })).join(' ');
+        return h(ConfirmCard, { text, confirm: 'Set work zero', safety: 'C16', onCancel: cancel, onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) });
+      }
+      case 'go':
+        return h(ConfirmCard, { text: c25({ axes: axesText(confirm.axes), path: goToZeroPath(confirm.axes, safe, zNow) }), confirm: 'Go to zero', safety: 'C25', onCancel: cancel, onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });
+      case 'temp':
+        return h(ConfirmCard, { text: c27({ axes: axesText(confirm.axes), system }), confirm: 'Set temporary offset', safety: 'C27', onCancel: cancel, onConfirm: () => run({ op: 'tempOffset', axes: confirm.axes }) });
+      case 'clear':
+        return h(ConfirmCard, { text: c28({ system }), confirm: 'Clear temporary offset', safety: 'C28', onCancel: cancel, onConfirm: () => run({ op: 'clearTempOffset' }) });
+      default:
+        return h(ConfirmCard, { text: c29({ system: `G${53 + confirm.n}` }), confirm: `Use G${53 + confirm.n}`, safety: 'C29', onCancel: cancel, onConfirm: () => run({ op: 'selectCoord', system: confirm.n }) });
     }
-    const path = goToZeroPath(confirm.axes, safe, zNow);
-    return h(ConfirmCard, { text: c25({ axes: axesText(confirm.axes), path }), confirm: 'Go to zero', safety: 'C25', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });
   };
+  const offsetLine = (o: Readonly<Partial<Record<MotionAxis, number>>> | null): string =>
+    o === null ? UNKNOWN : AXIS_ROWS.map((a) => `${a.toUpperCase()} ${coord(o[a])}`).join(', ');
   return h(
     'section',
     { class: 'insp sec-zero', 'aria-labelledby': 'zero-title' },
-    h('header', null, h('h2', { id: 'zero-title' }, 'Work zero'), h('span', { class: 'tag' }, 'G54 · G10 L20')),
+    h('header', null, h('h2', { id: 'zero-title' }, 'Offsets'), h('span', { class: 'tag', 'data-offsets': 'system' }, off.system ?? 'G54–G59')),
+    h(
+      'div',
+      { class: 'seg full', role: 'group', 'aria-label': 'Work coordinate system' },
+      [1, 2, 3, 4, 5, 6].map((n) =>
+        h(
+          'button',
+          { type: 'button', key: n, class: off.system === `G${53 + n}` ? 'selected' : undefined, 'aria-pressed': off.system === `G${53 + n}` ? 'true' : 'false', 'data-machine-control': 'offset', ...(enabled && off.system !== `G${53 + n}` ? { onClick: () => setConfirm({ kind: 'system', n }) } : { disabled: true }) },
+          `G${53 + n}`,
+        ),
+      ),
+    ),
+    h('h3', { class: 'tan-label' }, `Set work zero (G10 L20, saved in ${system})`),
     h(
       'table',
       { class: 'zero-table' },
-      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Axis'), h('th', { scope: 'col' }, 'Work'), h('th', { scope: 'col' }, 'Offset'), h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Actions')))),
+      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Axis'), h('th', { scope: 'col' }, 'Work'), h('th', { scope: 'col' }, `${system} offset`), h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Actions')))),
       h(
         'tbody',
         null,
@@ -519,8 +532,8 @@ function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
             { key: a, 'data-zero-axis': a },
             h('th', { scope: 'row' }, a.toUpperCase()),
             h('td', { class: 'num' }, coord(work(a))),
-            h('td', { class: 'num', 'data-zero-offset': a }, coord(offsets[a])),
-            h('td', { class: 'zero-actions' }, button('Set 0', `Set ${a.toUpperCase()} zero here`, () => setConfirm({ kind: 'set', axes: [a] })), button('Go to 0', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }))),
+            h('td', { class: 'num', 'data-zero-offset': a }, coord(off.saved?.[a])),
+            h('td', { class: 'zero-actions' }, button('Set 0', `Set work zero for ${a.toUpperCase()} here, saved in ${system}`, () => setConfirm({ kind: 'set', axes: [a] })), button('Go to 0', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }))),
           ),
         ),
         h(
@@ -528,7 +541,7 @@ function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
           { 'data-zero-axis': 'all' },
           h('th', { scope: 'row' }, 'All'),
           h('td', { colSpan: 2, class: 'fine' }, 'X, Y and Z'),
-          h('td', { class: 'zero-actions' }, button('Set 0', 'Set X, Y and Z zero here', () => setConfirm({ kind: 'set', axes: ['x', 'y', 'z'] })), button('Go to 0', 'Go to X, Y and Z zero', () => setConfirm({ kind: 'go', axes: ['x', 'y', 'z'] }))),
+          h('td', { class: 'zero-actions' }, button('Set 0', `Set work zero for X, Y and Z here, saved in ${system}`, () => setConfirm({ kind: 'set', axes: ['x', 'y', 'z'] })), button('Go to 0', 'Go to X, Y and Z zero', () => setConfirm({ kind: 'go', axes: ['x', 'y', 'z'] }))),
         ),
       ),
     ),
@@ -546,8 +559,24 @@ function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
       }),
       h('small', null, 'mm, machine. Z never goes lower than it is.'),
     ),
+    h('h3', { class: 'tan-label' }, 'Temporary offset (G92)'),
+    h('p', { class: 'fine' }, `Shifts work positions so the axes read 0 here, without changing the saved ${system} offset. It is not saved: a reset or a program end clears it. Clear it with G92.1.`),
+    h(
+      'div',
+      { class: 'zero-actions temp-offset' },
+      AXIS_ROWS.map((a) => button(`${a.toUpperCase()} = 0`, `Temporary offset: ${a.toUpperCase()} reads 0 here`, () => setConfirm({ kind: 'temp', axes: [a] }), 'offset')),
+      button('All = 0', 'Temporary offset: X, Y and Z read 0 here', () => setConfirm({ kind: 'temp', axes: ['x', 'y', 'z'] }), 'offset'),
+      button('Clear (G92.1)', 'Clear the temporary offset (G92.1)', () => setConfirm({ kind: 'clear' }), 'offset', off.temporaryInForce),
+    ),
+    h(
+      'dl',
+      { class: 'facts', 'data-offsets': 'active' },
+      h('div', null, h('dt', null, `Saved (${system})`), h('dd', { 'data-offsets': 'saved' }, offsetLine(off.saved))),
+      h('div', null, h('dt', null, 'Temporary (G92)'), h('dd', { 'data-offsets': 'temporary' }, off.temporary === null ? UNKNOWN : off.temporaryInForce ? `${offsetLine(off.temporary)} · in force, not saved` : 'none')),
+      h('div', null, h('dt', null, 'Total'), h('dd', { 'data-offsets': 'total' }, offsetLine(off.total))),
+    ),
     confirmCard(),
-    motionNote(ui, note),
+    motionNote(ui, note ?? (enabled ? (view?.message?.snapshot.notices.change?.text ?? null) : null)),
   );
 }
 
@@ -735,7 +764,7 @@ export function OverridesSection(): ComponentChild {
   );
 }
 
-type InspTab = 'jog' | 'zero' | 'spindle' | 'overrides';
+type InspTab = 'jog' | 'home' | 'zero' | 'spindle' | 'overrides';
 
 /** The Run inspector: position always on top, the rest as tabs so nothing needs a long scroll. */
 function RunInspector({ model, onView }: { readonly model: WorkspaceModel | null; readonly onView: (view: string) => void }): ComponentChild {
@@ -757,7 +786,8 @@ function RunInspector({ model, onView }: { readonly model: WorkspaceModel | null
         onSelect: setTab,
         tabs: [
           { id: 'jog', label: 'Jog' },
-          { id: 'zero', label: 'Zero' },
+          { id: 'home', label: 'Home' },
+          { id: 'zero', label: 'Offsets' },
           { id: 'spindle', label: 'Spindle and coolant' },
           { id: 'overrides', label: 'Overrides' },
         ],
@@ -775,6 +805,7 @@ function RunInspector({ model, onView }: { readonly model: WorkspaceModel | null
         },
       }),
     ),
+    h(TabPane, { prefix: 'insp', id: 'home', current: tab, class: 'tpane insp-pane' }, h(HomeSection, { model })),
     h(TabPane, { prefix: 'insp', id: 'zero', current: tab, class: 'tpane insp-pane' }, h(ZeroSection, { model, ask })),
     h(TabPane, { prefix: 'insp', id: 'overrides', current: tab, class: 'tpane insp-pane' }, h(OverridesSection, null)),
   );

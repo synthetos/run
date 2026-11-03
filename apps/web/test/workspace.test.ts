@@ -45,7 +45,7 @@ function snap(extra: Partial<Snapshot> = {}): Snapshot {
 }
 
 function view(s: Snapshot): LiveView {
-  return { ...INITIAL_LIVE_VIEW, message: { v: 3, kind: 'snapshot', snapshot: s, dro: { axes: [], machineSource: { label: 'polled mpo', at: null, ageMs: null, lag: 'none' }, workSource: { label: 'status report' }, units: 'mm', wcs: { code: null, offsets: null, total: null }, marker: null }, lag: { amberMs: 1000, redMs: 2000 }, motion: false } as LiveView['message'] };
+  return { ...INITIAL_LIVE_VIEW, message: { v: 3, kind: 'snapshot', snapshot: s, dro: { axes: [], machineSource: { label: 'status report', at: null, ageMs: null, lag: 'none' }, workSource: { label: 'status report' }, units: 'mm', wcs: { code: null, offsets: null, total: null }, marker: null }, lag: { amberMs: 1000, redMs: 2000 }, motion: false } as LiveView['message'] };
 }
 
 describe('machine strip status', () => {

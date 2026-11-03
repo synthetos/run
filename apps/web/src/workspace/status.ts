@@ -177,13 +177,15 @@ export function stripStatus(view: LiveView, machineName: string | null): StripSt
   if (s.base === 'OPENING' || s.base === 'PORT_REQUEST' || s.base === 'IDENTIFYING') return { ...base, title: 'Identifying the board', tone: 'live', pill: null, text: s.probe === null ? 'Asking the board what it is…' : `Asking the board what it is: ${s.probe.answered} of ${s.probe.of} answers` };
   if (s.base === 'READING') return { ...base, title: 'Reading the board', tone: 'live', pill: null, text: 'Reading state and settings. Nothing is written.' };
   if (s.base === 'BLOCKED') return { ...base, title: 'Not the selected board', tone: 'alarm', pill: { text: 'Blocked', tone: 'danger' }, text: 'Nothing is sent to this board.' };
-  if (o.includes('STALE')) return { ...base, title: 'No status from the machine', tone: 'warn', pill: { text: 'Stale', tone: 'warn' }, text: 'What you see may be out of date.' };
+  // Push-driven (amendment 2026-11-02): neither a report nor a heartbeat for the silence window. The link is suspect.
+  if (o.includes('STALE')) return { ...base, title: 'No reports from the board', tone: 'warn', pill: { text: 'Stale', tone: 'warn' }, text: 'Nothing has arrived from the board for a while. Commands are blocked; what you see may be out of date.' };
   // Phase 2 (SAFETY §4.4): the Stop job sequence, from the session's own state; never "requested".
   if (s.base === 'STOPPING_JOB') return { ...base, title: 'Stopping', tone: 'run', pill: null, text: 'Clearing the queue, then spindle and coolant off.' };
+  if (s.base === 'HOMING') return { ...base, title: 'Homing', tone: 'run', pill: null, text: 'Each axis moves to its switch. Pause or Stop job ends it.' };
   const cls = s.live.machineClass;
   if (cls !== undefined && MOVING.has(cls)) return { ...base, title: 'Moving', tone: 'run', pill: null, text: null };
   if (cls !== undefined && ALARM.has(cls)) return { ...base, title: 'Alarm', tone: 'alarm', pill: { text: 'Alarm', tone: 'danger' }, text: 'The controller reports an alarm. Check the machine.' };
-  if (o.includes('UNKNOWN')) return { ...base, title: 'Connected · state unknown', tone: 'warn', pill: { text: 'Unknown', tone: 'warn' }, text: 'The previous session ended while connected. Check the machine and re-home.' };
+  if (o.includes('UNKNOWN')) return { ...base, title: 'Connected · state unknown', tone: 'warn', pill: { text: 'Unknown', tone: 'warn' }, text: 'The previous session ended while connected. Check the machine, then confirm it or home it (below).' };
   if (o.includes('NEEDS_REVIEW')) return { ...base, title: 'Connected · read only', tone: 'live', pill: { text: 'Needs review', tone: 'warn' }, text: 'The board’s settings differ from this computer’s reference.' };
   if (o.includes('READ_ONLY')) return { ...base, title: 'Connected · read only', tone: 'live', pill: { text: 'Read only', tone: 'live' }, text: 'Phase 1: positions and settings are read, nothing is written.' };
   // Phase 2: the last motion result in plain words ("Stopped: queue cleared, spindle and coolant off"), from polled state.

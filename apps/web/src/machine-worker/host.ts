@@ -31,15 +31,13 @@
  *
  * It holds no account or network state (DECISIONS D1).
  */
-import { LAG_AMBER_MS, LAG_RED_MS, MachineSession, PositionPoller, ReadoutPoller, droView, liveControlPlatform, type PortSelector, type Transport, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
+import { MachineSession, droView, lagThresholds, liveControlPlatform, type PortSelector, type Transport, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
 import { PHASE_1_RELEASE, type Decision, type Release } from '@synthetos/safety';
 import { approvalRecord, approvedBuildsFor, type ApprovalOutcome } from './approval.ts';
 import { RPC_VERSION, parseRequest, refusal, type Denial, type MachineReply, type MotionCommand, type SnapshotMessage, type WindowIntent, type WorkerState } from './rpc.ts';
 
 /** Snapshots are posted at most 20 times per second (OLD-TP §4.2). */
 export const SNAPSHOT_INTERVAL_MS = 50;
-
-const LAG = Object.freeze({ amberMs: LAG_AMBER_MS, redMs: LAG_RED_MS });
 
 /** Where a subscriber's snapshots go (a MessagePort in the worker). */
 export interface SnapshotPort {
@@ -86,8 +84,6 @@ export class MachineWorkerHost {
   readonly #clock: SessionClock;
   readonly #session: MachineSession;
   readonly #platform: PlatformInfo | undefined;
-  readonly #poller: PositionPoller;
-  readonly #readouts: ReadoutPoller;
   readonly #approval: WorkerApproval | null;
   readonly #release: Release;
   #preparationId = 0;
@@ -122,30 +118,15 @@ export class MachineWorkerHost {
       clock,
       release,
     });
+    // Push-driven state (SAFETY §4.2 as amended 2026-11-02): nothing here polls the board. The session reads the
+    // full state once at connect, sets the status report list it needs, turns on the heartbeat, and from then on
+    // the snapshot follows pushed reports.
     this.#session.subscribe(() => this.#schedule());
-    // P1-07: machine position for the DRO and the live marker comes only from polled `mpo` (SAFETY §4.2).
-    // The poller only asks `session.read`; it is idle until a classified board is connected.
-    this.#poller = new PositionPoller(this.#session, clock);
-    this.#poller.start();
-    // Spindle and coolant readouts the board's status list lacks, as GETs about once a second. DISPLAY ONLY:
-    // their answers are shown by the page and read by no decision (SAFETY §4.4).
-    this.#readouts = new ReadoutPoller(this.#session, clock);
-    this.#readouts.start();
-  }
-
-  /** The spindle and coolant readout poller (tests). */
-  get readoutPoller(): ReadoutPoller {
-    return this.#readouts;
   }
 
   /** The release this worker enforces (tests). */
   get release(): Release {
     return this.#release;
-  }
-
-  /** The `mpo` poller (tests). */
-  get poller(): PositionPoller {
-    return this.#poller;
   }
 
   /** The session (tests and the snapshot posting). */
@@ -279,6 +260,16 @@ export class MachineWorkerHost {
         return s.request({ intent: 'goToZero', axes: c.axes, safeZ: c.safeZ });
       case 'setZero':
         return s.request({ intent: 'setWorkZero', axes: c.axes });
+      case 'home':
+        return s.request({ intent: 'home', axes: c.axes });
+      case 'setPosition':
+        return s.request({ intent: 'setMachinePosition', axes: c.axes });
+      case 'tempOffset':
+        return s.request({ intent: 'tempOffset', axes: c.axes });
+      case 'clearTempOffset':
+        return s.request({ intent: 'tempOffset', clear: true });
+      case 'selectCoord':
+        return s.request({ intent: 'selectCoordSystem', system: c.system });
       case 'spindleOn':
         return s.request({ intent: 'spindleOn', output: 'spindle', direction: c.direction, rpm: c.rpm });
       case 'coolantOn':
@@ -318,7 +309,7 @@ export class MachineWorkerHost {
     this.#lastPost = this.#clock.now();
     try {
       const snapshot = this.#session.snapshot;
-      this.#subscriber?.postMessage(Object.freeze({ v: RPC_VERSION, kind: 'snapshot', snapshot, dro: droView(snapshot, this.#clock.now()), lag: LAG, motion: this.#release.motion, settingsWrites: this.#release.settings === true }));
+      this.#subscriber?.postMessage(Object.freeze({ v: RPC_VERSION, kind: 'snapshot', snapshot, dro: droView(snapshot, this.#clock.now()), lag: Object.freeze(lagThresholds(snapshot)), motion: this.#release.motion, settingsWrites: this.#release.settings === true }));
     } catch {
       // A closed port: the window went away. Nothing in the machine path depends on it.
       this.#subscriber = null;

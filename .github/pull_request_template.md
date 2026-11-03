@@ -69,6 +69,9 @@ item 20 covers 0x18 and 0x04). Items 22–40 are SAFETY §8 verbatim.
 - [ ] 40. Console (MDI) motion and spindle-on lines go through preflight, the ceiling and the target confirmation; no console path writes to the Transport except through `MachineSession` and `safety.allowed`.
 - [ ] 41. Phase 2: every motion line matches the closed grammar of the motion command kind (§4.5b); no jog ever queues more than the lookahead; `%`, `~` and `{"clear":null}` come only from their named sequences; the motion flag stays off for the production host (T-S93).
 - [ ] 42. Settings writes stay behind the phase switch (`SETTINGS_WRITES`, production off), the approval gate and the idle gate; one token per line with its answer awaited and a read-back; a backup before every apply; no forbidden, identity or communication key is writable.
+- [ ] 43. (amendment 2026-11-02) Nothing polls while idle: no periodic GET, only the confirming reads §4.2 lists and one read-back per change; the full state is read at every connect; liveness comes from reports and the heartbeat (STALE after the silence window).
+- [ ] 44. (amendment 2026-11-02) The status report list, `sv` and `si` are written only where they differ, one line at a time with a read-back, through the `report` kind and the `reports` release gate; never a `ram` key; the change is shown (W35, W36) and logged.
+- [ ] 45. (amendment 2026-11-02) Homing, G28.3, G92/G92.1 and G54..G59 are separate intents with their confirmations (C4, C26–C29) and read-backs; each motion line kind comes only from its intents; UNKNOWN always offers its exits.
 
 ### Notes for the safety reviewer
 

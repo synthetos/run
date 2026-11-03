@@ -6,7 +6,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { h } from 'preact';
 import { settingsReadGroups } from '@synthetos/schema';
-import { DRO_TOKENS, LiveReadout, referenceKey, type ReadoutDeps } from '../src/live/readout.ts';
+import { LiveReadout, referenceKey, type ReadoutDeps } from '../src/live/readout.ts';
 import { memoryDeviceSafety } from '../src/live/deviceSafety.ts';
 import { Dro, formatAge, formatAxis, lagAt } from '../src/machine-ui/Dro.ts';
 import { SettingsView, valueText } from '../src/machine-ui/SettingsView.ts';
@@ -79,7 +79,7 @@ describe('LiveReadout: the connect-time read and the drift check', () => {
     expect(d.reads).toEqual([]);
     r.onSnapshot(snap({}));
     r.onSnapshot(snap({}));
-    expect(d.reads).toEqual([[...DRO_TOKENS, ...GROUPS.map((g) => g.token)]]);
+    expect(d.reads).toEqual([GROUPS.map((g) => g.token)]);
     expect(d.reads[0]?.length).toBeLessThanOrEqual(32);
     expect(r.phase).toEqual({ kind: 'reading' });
     expect(r.dialectId).toBe('tinyg-en');
@@ -119,7 +119,7 @@ describe('LiveReadout: the connect-time read and the drift check', () => {
     if (phase.kind !== 'drift') throw new Error('unreachable');
     expect(phase.result.diffs).toEqual([{ key: 'xvm', expected: 16000, board: 9000, source: 'previous' }]);
     // The read sent nothing but the DRO and group GETs.
-    for (const tokens of d.reads) for (const t of tokens) expect([...DRO_TOKENS, ...GROUPS.map((g) => g.token)]).toContain(t);
+    for (const tokens of d.reads) for (const t of tokens) expect(GROUPS.map((g) => g.token)).toContain(t);
 
     await r.keepBoardSettings();
     expect(r.phase).toMatchObject({ kind: 'drift', accepted: true });
@@ -189,7 +189,7 @@ function message(over: Partial<SnapshotMessage['dro']> = {}, snapOver: Record<st
         { axis: 'z', machine: null, work: null, homed: null },
         { axis: 'a', machine: null, work: null, homed: null },
       ],
-      machineSource: { label: 'polled mpo', at: 1000, ageMs: 200, lag: 'fresh' },
+      machineSource: { label: 'status report', at: 1000, ageMs: 200, lag: 'fresh' },
       workSource: { label: 'status report' },
       units: 'mm',
       wcs: { code: 'G54', offsets: { x: 100, y: 50 }, total: { x: 100, y: 50, z: 0 } },
@@ -211,8 +211,8 @@ describe('Dro panel', () => {
     expect(text(one(el, (e) => e.props['data-dro'] === 'age'))).toBe('0.3 s ago');
     expect(one(el, (e) => e.props['data-lag'] !== undefined).props['data-lag']).toBe('fresh');
     expect(text(one(el, (e) => e.props['data-dro'] === 'wcs'))).toContain('G54 (offsets X 100.000, Y 50.000 mm)');
-    expect(text(el)).toContain('Machine position, read from the controller: 0.3 s ago · current.');
-    expect(text(el)).toContain('Work position: from its last status report.');
+    expect(text(el)).toContain('Position, from the controller’s status reports: 0.3 s ago · current.');
+    expect(text(el)).toContain('The controller reports a change; between changes the last value holds while it keeps talking.');
     expect(text(el)).not.toMatch(/polled|mpo/);
   });
 
@@ -223,7 +223,7 @@ describe('Dro panel', () => {
     expect(lagOf(800)).toBe('amber');
     expect(lagOf(1800)).toBe('red');
     expect(lagOf(0, ['STALE'])).toBe('red');
-    const none = root(h(Dro, { message: message({ machineSource: { label: 'polled mpo', at: null, ageMs: null, lag: 'none' } }), elapsedMs: 5000 }));
+    const none = root(h(Dro, { message: message({ machineSource: { label: 'status report', at: null, ageMs: null, lag: 'none' } }), elapsedMs: 5000 }));
     expect(one(none, (e) => e.props['data-lag'] !== undefined).props['data-lag']).toBe('none');
     expect(lagAt(null, true, { amberMs: 1, redMs: 2 })).toBe('none');
   });
