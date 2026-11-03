@@ -1,6 +1,7 @@
 import { computed, signal } from '@preact/signals';
 import { currentFile, type OpenFile } from './fileBridge.ts';
-import { material, selectedMachine, setupStore, toolStore } from './library.ts';
+import { material, selectedMachine, toolStore } from './library.ts';
+import { activeJob, SEED_JOB } from './jobModel.ts';
 import { advisorCheck, advisorFile, advisorMachine, advisorRow, type AdvisorFields } from './advisorModel.ts';
 import { isObject, stored } from './storage.ts';
 
@@ -13,7 +14,8 @@ export const advisorOperations = computed(() => {
   const preview = currentFile.value?.preview;
   return preview === undefined ? { operations: [], problem: null } : advisorFile(preview);
 });
-export const advisorStock = computed(() => material(setupStore.value.value.stock.materialRef.id));
+/** The active job's stock material (the Job record owns the setup; the seed draft before any job exists). */
+export const advisorStock = computed(() => material((activeJob.value ?? SEED_JOB).setup.stock.materialRef.id));
 export const machineFields = computed(() => advisorProfiles.value.value[selectedMachine.value?.id ?? ''] ?? {});
 export const machineInput = computed(() => advisorMachine(selectedMachine.value, machineFields.value));
 export function operationFields(id: string): AdvisorFields {
