@@ -5,15 +5,16 @@
  * Everything that reaches the board goes through the machine worker
  * (`flash`, `read`, `settingWrite` requests); this module never touches a port.
  */
-import { verifyFirmwareReleases, type FirmwareRelease } from '@synthetos/protocol';
+import { sha256Hex } from '@synthetos/flasher';
+import { releasePath, verifyFirmwareReleases, type FirmwareRelease } from '@synthetos/protocol';
 import { restoreChanges, settingsReadGroups, type PlannedChange, type SettingValue } from '@synthetos/schema';
 import firmwareReleasesFile from '../../../../firmware/releases.json';
-import { fetchFirmwareFile } from '../cloud/live.ts';
+import { fetchFirmwareImage } from '../cloud/live.ts';
 import { FirmwareUpdater } from '../firmware/updater.ts';
 import { installedKey, memoryRepository, openRepository, parseBackupImport, settingsRecord, trustRecords, type BackupRepository, type InstalledRecord } from '../firmware/store.ts';
 import { approvalEnvironment } from '../machine-worker/approval.ts';
 import type { FlashBackupsPost, FlashCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
-import type { FirmwareActions, FirmwareHubView } from '../workspace/model.ts';
+import type { FirmwareActions, FirmwareDownload, FirmwareHubView, ReleaseImage } from '../workspace/model.ts';
 import { setDraft } from '../workspace/boardFacts.ts';
 import type { BackupFile } from './backup.ts';
 import type { DeviceSafetyStore } from './deviceSafety.ts';
@@ -58,6 +59,7 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
   let installed: InstalledRecord | null = null;
   let notice: FirmwareHubView['notice'] = null;
   let compare: FirmwareHubView['compare'] = null;
+  let download: FirmwareDownload | null = null;
   let loadedRevision = -1;
   let installedFor: string | null = null;
 
@@ -104,16 +106,52 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
     void reload();
   };
 
-  async function hexOf(release: FirmwareRelease, localText?: string): Promise<string | null> {
-    if (localText !== undefined) return localText;
-    return fetchFirmwareFile(release.file, release.simulatorOnly);
+  const setDownload = (d: FirmwareDownload | null): void => {
+    download = d;
+    deps.onChange();
+  };
+
+  /**
+   * The page's own check of an image against its signed entry (SAFETY H22, H79): the exact bytes must hash to the
+   * entry's SHA-256 at the entry's size. The machine worker checks again before it parses anything (authorizeFlash).
+   */
+  async function checkedImage(release: FirmwareRelease, bytes: Uint8Array, from: ReleaseImage['from']): Promise<{ readonly ok: true; readonly image: ReleaseImage } | { readonly ok: false; readonly message: string }> {
+    if (bytes.byteLength !== release.size) return { ok: false, message: `The file is ${bytes.byteLength} bytes, not the ${release.size} the signed release list names for ${release.file}. Nothing was flashed.` };
+    const sha256 = await sha256Hex(bytes);
+    if (sha256 !== release.sha256) return { ok: false, message: `The file's SHA-256 is not the one the signed release list names for ${release.file}. It may be damaged or altered; nothing was flashed.` };
+    return { ok: true, image: { release, hex: new TextDecoder().decode(bytes), from } };
   }
 
+  const localCopyHint = (release: FirmwareRelease): string => `Use a local copy: choose ${release.file}; Run checks it against the signed SHA-256.`;
+
   const actions: FirmwareActions = {
-    updateRelease: async (release, localText) => {
-      const hex = await hexOf(release, localText);
-      if (hex === null) return `${release.file} is not served by this site. Use a local copy: choose the .hex file; Run checks it against the signed SHA-256.`;
-      return updater.start({ source: { kind: 'release', hv: release.hv, fb: release.fb, file: release.file }, hex, name: release.file });
+    downloadRelease: async (release) => {
+      if (download !== null && download.phase === 'fetching') return { ok: false, message: 'A download is already running.' };
+      const path = releasePath(release);
+      setDownload({ file: release.file, phase: 'fetching', received: 0, total: release.size, message: null });
+      const fetched = await fetchFirmwareImage(path, release.size, (p) => setDownload({ file: release.file, phase: 'fetching', received: p.received, total: p.total ?? release.size, message: null }));
+      if (!fetched.ok) {
+        const message = fetched.reason === 'not-served' ? `${release.file} is not served by this site${release.repo === null ? '' : ' (GitHub Releases did not answer, or the file there is not the listed one)'}. ${localCopyHint(release)}` : fetched.reason === 'too-large' ? `The download is longer than the ${release.size} bytes the signed release list names for ${release.file}; nothing was flashed. ${localCopyHint(release)}` : `The download failed. Check the connection and try again, or ${localCopyHint(release).replace(/^Use/, 'use')}`;
+        setDownload({ file: release.file, phase: 'failed', received: 0, total: release.size, message });
+        return { ok: false, message };
+      }
+      setDownload({ file: release.file, phase: 'checking', received: fetched.bytes.byteLength, total: release.size, message: null });
+      const checked = await checkedImage(release, fetched.bytes, 'site');
+      setDownload({ file: release.file, phase: checked.ok ? 'ready' : 'failed', received: fetched.bytes.byteLength, total: release.size, message: checked.ok ? null : `${checked.message} ${localCopyHint(release)}` });
+      return checked.ok ? checked : { ok: false, message: `${checked.message} ${localCopyHint(release)}` };
+    },
+    checkLocalCopy: async (release, text) => {
+      const checked = await checkedImage(release, new TextEncoder().encode(text), 'local');
+      setDownload(checked.ok ? null : { file: release.file, phase: 'failed', received: 0, total: release.size, message: checked.message });
+      return checked;
+    },
+    updateRelease: async (image) => {
+      const { release } = image;
+      // Checked again right here: the image given to the worker is the one that was checked, whatever the panel held.
+      const checked = await checkedImage(release, new TextEncoder().encode(image.hex), image.from);
+      if (!checked.ok) return checked.message;
+      setDownload(null);
+      return updater.start({ source: { kind: 'release', hv: release.hv, fb: release.fb, file: release.file }, hex: image.hex, name: release.file });
     },
     putBack: async (id) => {
       const record = (await repo.listFirmware()).find((f) => f.id === id);
@@ -204,7 +242,7 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
     updater,
     actions,
     record,
-    view: () => ({ releases, step: updater.step, settings, firmware, trust, installed, pollingSwitches: updater.pollingSwitches, notice, compare }),
+    view: () => ({ releases, step: updater.step, settings, firmware, trust, installed, pollingSwitches: updater.pollingSwitches, notice, compare, download }),
     onSnapshot(m, readoutDone, readoutSeq) {
       const before = message?.snapshot.identity?.id;
       message = m;

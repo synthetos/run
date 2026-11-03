@@ -20,7 +20,7 @@ import { signalText } from '../../shell/signal.ts';
 import { RestorePanel } from '../settings/SettingsUi.ts';
 import { backupBlocked } from '../../live/backup.ts';
 import { Icon } from '../icons.ts';
-import { connected, type FirmwareActions, type FirmwareHubView, type LiveView, type WorkspaceModel } from '../model.ts';
+import { connected, type FirmwareActions, type FirmwareDownload, type FirmwareHubView, type LiveView, type ReleaseImage, type WorkspaceModel } from '../model.ts';
 import type { FlashView } from '../../machine-worker/flashService.ts';
 import type { MotionCommand } from '../../machine-worker/rpc.ts';
 
@@ -60,7 +60,7 @@ export function flashBlocked(view: LiveView | null): string | null {
 }
 
 type Target =
-  | { readonly kind: 'release'; readonly release: FirmwareRelease; readonly localText?: string }
+  | { readonly kind: 'release'; readonly image: ReleaseImage }
   | { readonly kind: 'backup'; readonly id: string; readonly fb: number | null; readonly sha256: string }
   | { readonly kind: 'custom'; readonly name: string; readonly text: string; readonly sha256: string };
 
@@ -70,8 +70,8 @@ function ConfirmFlash({ view, target, onCancel, onConfirm }: { readonly view: Li
   const [ticked, setTicked] = useState<boolean[]>(boxes.map(() => false));
   const id = view.message?.snapshot.identity;
   const boardId = typeof id?.id === 'string' ? boardText(id.id) : 'unknown board';
-  const toBuild = target.kind === 'release' ? fbText(target.release.fb) : target.kind === 'backup' ? `${fbText(target.fb)} (firmware backup)` : 'custom';
-  const sha = target.kind === 'release' ? target.release.sha256 : target.sha256;
+  const toBuild = target.kind === 'release' ? fbText(target.image.release.fb) : target.kind === 'backup' ? `${fbText(target.fb)} (firmware backup)` : 'custom';
+  const sha = target.kind === 'release' ? target.image.release.sha256 : target.sha256;
   const allTicked = ticked.every((t, i) => t && ticked.slice(0, i).every(Boolean));
   return h(
     'div',
@@ -121,6 +121,25 @@ function Progress({ flash }: { readonly flash: FlashView }): ComponentChild {
     pct === null ? null : h('div', { class: 'flash-bar', 'aria-hidden': 'true' }, h('span', { style: { width: `${pct}%` } })),
     flash.note === null ? null : h('p', { class: 'fine' }, flash.note),
     h('p', { class: 'fine' }, `Flashing ${flash.target.label} · sha256 ${shortSha(flash.target.sha256)}`),
+  );
+}
+
+/** The release image on its way from this site's own origin (OD-10), then its check against the signed entry. */
+function DownloadCard({ download }: { readonly download: FirmwareDownload }): ComponentChild {
+  const pct = download.total !== null && download.total > 0 ? Math.min(100, Math.round((download.received / download.total) * 100)) : null;
+  const words: Record<FirmwareDownload['phase'], string> = { fetching: 'Downloading', checking: 'Checking the SHA-256', ready: 'Downloaded and checked', failed: 'Not downloaded' };
+  return h(
+    'section',
+    { class: 'insp', 'data-region': 'firmware-download', 'data-download-phase': download.phase },
+    h('header', null, h('h2', null, 'Release image'), h('span', { class: `tag ${download.phase === 'failed' ? 'danger' : download.phase === 'ready' ? 'ok' : ''}` }, words[download.phase])),
+    h(
+      'div',
+      { class: 'flash-progress', role: 'status' },
+      h('div', { class: 'flash-progress-head' }, h('strong', null, boardText(download.file)), pct === null ? null : h('span', { 'data-download-percent': String(pct) }, `${pct}%`)),
+      pct === null ? null : h('div', { class: 'flash-bar', 'aria-hidden': 'true' }, h('span', { style: { width: `${pct}%` } })),
+      h('p', { class: 'fine' }, `${Math.round(download.received / 1024)} KB${download.total === null ? '' : ` of ${Math.round(download.total / 1024)} KB`} from this site`),
+    ),
+    download.message === null ? null : h('p', { class: 'backup-progress danger', role: 'alert' }, download.message),
   );
 }
 
@@ -281,8 +300,23 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
     const fw = actions?.firmware;
     setTarget(null);
     if (t === null || fw === undefined) return;
-    const run = t.kind === 'release' ? fw.updateRelease(t.release, t.localText) : t.kind === 'backup' ? fw.putBack(t.id) : fw.flashCustom(t.name, t.text);
+    const run = t.kind === 'release' ? fw.updateRelease(t.image) : t.kind === 'backup' ? fw.putBack(t.id) : fw.flashCustom(t.name, t.text);
     void run.then(setMsg);
+  };
+  const download = hub?.download ?? null;
+  const fetching = download !== null && (download.phase === 'fetching' || download.phase === 'checking');
+  /** Fetch the listed image from this site (the Worker's proxy for a GitHub release), check it, then ask C6. */
+  const pick = (r: FirmwareRelease): void => {
+    const fw = actions?.firmware;
+    if (fw === undefined) return;
+    setMsg(null);
+    void fw.downloadRelease(r).then((got) => (got.ok ? setTarget({ kind: 'release', image: got.image }) : setMsg(got.message)));
+  };
+  const pickLocal = (r: FirmwareRelease, text: string): void => {
+    const fw = actions?.firmware;
+    if (fw === undefined) return;
+    setMsg(null);
+    void fw.checkLocalCopy(r, text).then((got) => (got.ok ? setTarget({ kind: 'release', image: got.image }) : setMsg(got.message)));
   };
   return h(
     'div',
@@ -314,20 +348,31 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
               { class: 'releases' },
               hw.releases.map((r) => {
                 const installed = typeof id?.fb === 'number' && Math.round(id.fb * 100) === Math.round(r.fb * 100);
+                // Older than what the board runs: offered, never recommended (the owner's minimum filter comes later, docs/ops/firmware-releases.md).
+                const older = typeof id?.fb === 'number' && Math.round(r.fb * 100) < Math.round(id.fb * 100);
+                const source = r.repo !== null && r.tag !== null ? `GitHub Releases: ${r.repo} ${r.tag}` : r.simulatorOnly ? 'simulated image' : 'bundled with this site';
                 return h(
                   'li',
-                  { key: r.file, 'data-release': r.file },
-                  h('div', { class: 'rel-ver' }, h('strong', null, fbText(r.fb)), h('small', null, r.date), r.recommended ? h('span', { class: 'tag ok' }, 'Recommended') : null, r.simulatorOnly ? h('span', { class: 'tag mock' }, 'Simulated board only') : null),
+                  { key: r.file, 'data-release': r.file, 'data-release-age': installed ? 'installed' : older ? 'older' : 'newer', 'data-release-source': r.repo === null ? 'site' : 'github' },
+                  h(
+                    'div',
+                    { class: 'rel-ver' },
+                    h('strong', null, fbText(r.fb)),
+                    h('small', null, r.date),
+                    r.recommended ? h('span', { class: 'tag ok' }, 'Recommended') : null,
+                    older && !r.recommended ? h('span', { class: 'tag' }, 'Older') : null,
+                    r.simulatorOnly ? h('span', { class: 'tag mock' }, 'Simulated board only') : null,
+                  ),
                   h(
                     'div',
                     { class: 'rel-notes' },
                     h('h3', null, `TinyG ${r.dialect === 'tinyg-en' ? 'edge-next' : '440'} ${fbText(r.fb)} · fv ${r.fv}`),
                     h('p', { class: 'changelog' }, r.changelog),
-                    h('p', { class: 'installed' }, `${r.file} · sha256 ${shortSha(r.sha256)} · ${Math.round(r.size / 1024)} KB${installed ? ' · installed' : ''}`),
+                    h('p', { class: 'installed' }, `${r.file} · sha256 ${shortSha(r.sha256)} · ${Math.round(r.size / 1024)} KB · ${source}${installed ? ' · installed' : ''}`),
                     h(
                       'div',
                       { class: 'row-actions' },
-                      h('button', { type: 'button', class: r.recommended ? 'primary small' : 'small', 'data-machine-control': 'flash', 'data-action': 'update-release', disabled: blocked !== null || running || actions?.firmware === undefined, title: blocked ?? undefined, onClick: () => setTarget({ kind: 'release', release: r }) }, installed ? 'Flash again' : `Update to ${fbText(r.fb)}`),
+                      h('button', { type: 'button', class: r.recommended ? 'primary small' : 'small', 'data-machine-control': 'flash', 'data-action': 'update-release', disabled: blocked !== null || running || fetching || actions?.firmware === undefined, title: blocked ?? undefined, onClick: () => pick(r) }, installed ? 'Flash again' : `Update to ${fbText(r.fb)}`),
                       h(
                         'label',
                         { class: `small file-pick${blocked === null ? '' : ' disabled'}` },
@@ -336,13 +381,13 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
                           type: 'file',
                           accept: '.hex',
                           class: 'sr-only',
-                          disabled: blocked !== null || running,
+                          disabled: blocked !== null || running || fetching,
                           'data-machine-control': 'flash',
                           'data-action': 'release-local',
                           onChange: (e: Event) => {
                             const input = e.currentTarget as HTMLInputElement;
                             const file = input.files?.[0];
-                            if (file !== undefined) void file.text().then((text) => setTarget({ kind: 'release', release: r, localText: text }));
+                            if (file !== undefined) void file.text().then((text) => pickLocal(r, text));
                             input.value = '';
                           },
                         }),
@@ -357,6 +402,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
       'aside',
       { tabindex: 0, class: 'inspector', 'aria-label': 'Firmware update' },
       view !== null && target !== null ? h(ConfirmFlash, { view, target, onCancel: () => setTarget(null), onConfirm: start }) : null,
+      download !== null && target === null && !running ? h(DownloadCard, { download }) : null,
       flash !== null && running && flash.phase !== 'recovery'
         ? h(
             'section',
@@ -546,7 +592,7 @@ export function BackupsHub({ model }: { readonly model: WorkspaceModel | null })
               const t = target;
               setTarget(null);
               if (fw === undefined) return;
-              say(t.kind === 'backup' ? fw.putBack(t.id) : t.kind === 'custom' ? fw.flashCustom(t.name, t.text) : fw.updateRelease(t.release, t.localText));
+              say(t.kind === 'backup' ? fw.putBack(t.id) : t.kind === 'custom' ? fw.flashCustom(t.name, t.text) : fw.updateRelease(t.image));
             },
           })
         : null,

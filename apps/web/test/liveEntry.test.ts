@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { c1Full, c1Short, w6, w7 } from '@synthetos/safety';
 import { ADVISORY_PAYLOAD_FORMAT, ADVISORY_SIGNING_PREFIX, SAFETY_ADVISORY_FORMAT, type ReleaseKey } from '@synthetos/protocol';
-import { fetchIdentity, fetchSafetyAdvisory, type AdvisoryFetch } from '../src/cloud/live.ts';
+import { fetchFirmwareImage, fetchIdentity, fetchSafetyAdvisory, type AdvisoryFetch, type FirmwareImageProgress } from '../src/cloud/live.ts';
 import { ADVISORY_CACHE_KEY, ADVISORY_MAX_CACHE_AGE_MS, ADVISORY_POLL_MS, AdvisoryPoller, checkAdvisory, type AdvisoryDeps } from '../src/live/advisoryGate.ts';
 import {
   AuthGate,
@@ -221,6 +221,44 @@ describe('cloud reads', () => {
       ['/api/identity', 'no-store'],
       ['/api/identity', 'no-store'],
     ]);
+  });
+
+  it('fetch a release image from this origin in chunks with progress, capped at the listed size, same-origin, no redirects', async () => {
+    const seen: [string, RequestInit][] = [];
+    const chunks = (parts: readonly string[], headers: Record<string, string> = {}, status = 200) => (url: string, init: RequestInit) => {
+      seen.push([url, init]);
+      const enc = new TextEncoder();
+      let i = 0;
+      const body = new ReadableStream<Uint8Array>({
+        pull(c) {
+          if (i < parts.length) c.enqueue(enc.encode(parts[i++] as string));
+          else c.close();
+        },
+      });
+      return Promise.resolve(new Response(body, { status, headers }));
+    };
+    const progress: FirmwareImageProgress[] = [];
+    const got = await fetchFirmwareImage('/firmware/synthetos/TinyG/440.21/tinyg-440.21.hex', 16, (p) => progress.push(p), chunks([':0200', '0004', '0000FA\n'], { 'content-length': '16' }));
+    expect(got).toEqual({ ok: true, bytes: new TextEncoder().encode(':020000040000FA\n') });
+    expect(got.ok && new TextDecoder().decode(got.bytes)).toBe(':020000040000FA\n');
+    expect(progress).toEqual([
+      { received: 0, total: 16 },
+      { received: 5, total: 16 },
+      { received: 9, total: 16 },
+      { received: 16, total: 16 },
+    ]);
+    expect(seen[0]?.[0]).toBe('/firmware/synthetos/TinyG/440.21/tinyg-440.21.hex');
+    expect(seen[0]?.[1]).toMatchObject({ credentials: 'same-origin', redirect: 'error' });
+    // Longer than the listed size: refused while reading, or at once by content-length.
+    expect(await fetchFirmwareImage('/firmware/sim/sim-edge-next-450.02.hex', 8, undefined, chunks([':0200', '0004', '0000FA\n']))).toEqual({ ok: false, reason: 'too-large' });
+    expect(await fetchFirmwareImage('/firmware/sim/sim-edge-next-450.02.hex', 8, undefined, chunks([':02'], { 'content-length': '9' }))).toEqual({ ok: false, reason: 'too-large' });
+    // Not served (404), a network error, and paths that are not a listed image's.
+    expect(await fetchFirmwareImage('/firmware/tinyg-440.21.hex', 100, undefined, chunks([], {}, 404))).toEqual({ ok: false, reason: 'not-served' });
+    expect(await fetchFirmwareImage('/firmware/tinyg-440.21.hex', 100, undefined, () => Promise.reject(new Error('offline')))).toEqual({ ok: false, reason: 'failed' });
+    for (const bad of ['/firmware/../x.hex', '/firmware//x.hex', '/api/x.hex', 'https://evil.example/x.hex', '/firmware/x.bin', '/firmware/.hex']) {
+      expect(await fetchFirmwareImage(bad, 100, undefined, chunks(['x'])), bad).toEqual({ ok: false, reason: 'not-served' });
+    }
+    expect(seen).toHaveLength(4);
   });
 });
 

@@ -86,11 +86,40 @@ export interface FirmwareHubView {
   readonly notice: { readonly kind: 'ok' | 'error'; readonly text: string } | null;
   /** A comparison of a stored settings backup with the board, when one was asked for. */
   readonly compare: { readonly id: string; readonly changes: number; readonly same: number; readonly skipped: number; readonly keys: readonly string[] } | null;
+  /** A release image being fetched from the site's own origin (OD-10), or null. */
+  readonly download: FirmwareDownload | null;
+}
+
+/** The progress of a release image's download, then its check against the signed entry. */
+export interface FirmwareDownload {
+  readonly file: string;
+  readonly phase: 'fetching' | 'checking' | 'ready' | 'failed';
+  readonly received: number;
+  readonly total: number | null;
+  /** Why it failed, for the panel. */
+  readonly message: string | null;
+}
+
+/** A release image the page fetched (or the user chose) and checked against the signed entry: what the C6 question is asked about. */
+export interface ReleaseImage {
+  readonly release: FirmwareRelease;
+  /** The exact text, whose SHA-256 and size equal the entry's. */
+  readonly hex: string;
+  readonly from: 'site' | 'local';
 }
 
 /** The firmware actions (each resolves with a refusal or null). */
 export interface FirmwareActions {
-  readonly updateRelease: (release: FirmwareRelease, localText?: string) => Promise<string | null>;
+  /**
+   * Fetch a listed image from this site's own origin (the Worker's proxy for a GitHub release, OD-10) and check it
+   * against the signed entry (SHA-256 and size); progress is in the hub view's `download`. Resolves with the checked
+   * image, or with why not (then the panel offers the local-copy fallback).
+   */
+  readonly downloadRelease: (release: FirmwareRelease) => Promise<{ readonly ok: true; readonly image: ReleaseImage } | { readonly ok: false; readonly message: string }>;
+  /** A local copy the user chose: checked the same way, never flashed when it differs from the entry. */
+  readonly checkLocalCopy: (release: FirmwareRelease, text: string) => Promise<{ readonly ok: true; readonly image: ReleaseImage } | { readonly ok: false; readonly message: string }>;
+  /** Start the update with a checked image (after C6). The flash path itself is unchanged: the worker checks everything again. */
+  readonly updateRelease: (image: ReleaseImage) => Promise<string | null>;
   readonly putBack: (id: string) => Promise<string | null>;
   readonly flashCustom: (name: string, text: string) => Promise<string | null>;
   readonly recover: () => Promise<string | null>;
