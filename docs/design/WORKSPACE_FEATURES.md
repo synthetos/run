@@ -360,3 +360,12 @@ run gets roles from the shared Synthetos account, the same list as the forum:
 - **admin**: everything a moderator has, plus editing the built-in catalogue, managing early-access features, and publishing firmware releases to the signed update list (signing stays an offline owner step).
 
 A role never controls Pause, Stop job or the warning line. Until accounts land, live access to run.synthetos.com is a Cloudflare Access allowlist of the owner's and partners' emails, plus run's sign-in gate (D41).
+
+## Status reports: push instead of polling (firmware facts, 2026-11-02)
+
+From TinyG edge-next report.c, per the firmware maintainer:
+
+- **Pushed sr is change-filtered and sampled when it prints.** Only one report request is pending at a time, so short states can be missed: a state that comes and goes between two reports never appears, and an intermediate stat (5 → 6 → 3) can be skipped. A state that persists, such as a finished feedhold at stat 6, always appears within about si ms.
+- **Pushed stat is fine for display, never for proof.** Safety steps keep one confirming GET, for example before '%' in the jog release and in Stop job.
+- **Order is safe.** A pushed sr never reflects a write before that write's reply has arrived. The reply prints in the same main-loop pass that runs the command, and the report prints on a later pass.
+- **Plan.** A RAM-only session sr list (`{"rt":{"sr":{...}}}`, off at boot and reset, persisted list untouched) is proposed to the maintainer. If approved, run enables it at connect together with `{"rt":{"hb":N}}`, and drops the once-a-second mpo and spindle/coolant polling. One seeding GET remains at connect and after a reconnect. Until then, polling stays.
