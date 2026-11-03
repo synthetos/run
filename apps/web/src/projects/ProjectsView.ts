@@ -15,13 +15,14 @@ import { h, type ComponentChild } from 'preact';
 import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../workspace/icons.ts';
-import { executionLock, openJob, openProjectJob } from '../workspace/fileBridge.ts';
+import { ContextHelp } from '../shell/ContextHelp.ts';
+import { executionLock, openProjectFile, openProjectJob } from '../workspace/fileBridge.ts';
 import { activeJob, stockFootprint, updateActiveJob, withSetup, type Job } from '../workspace/jobModel.ts';
 import { allMaterials, machineStore, safeExternalLink, toolStore, hostOf } from '../workspace/library.ts';
 import { FixtureThumb } from '../workspace/views/SetupView.ts';
 import { projectStore, withProjects as act } from './browserStore.ts';
 import { Description } from './description.ts';
-import { formatBytes, LIMITS, ROLE_LABEL, type FileRole } from './limits.ts';
+import { formatBytes, isGcodeFile, LIMITS, ROLE_LABEL, type FileRole } from './limits.ts';
 import { projectsState, projectUsage, type Project, type ProjectFile, type ProjectSetup } from './store.ts';
 import { applyImport, checkDrawing, JOB_ROLE_LABEL, rolesFor, scaled, skippedText, type ImportCheck, type JobRole, type Units } from './useInJob.ts';
 
@@ -141,28 +142,17 @@ export interface ImportRequest {
   readonly role: Exclude<JobRole, 'gcode' | 'reference'>;
 }
 
-/** The stored file as a File for the opener; null when its bytes are gone. */
-async function fileOf(file: ProjectFile): Promise<File | null> {
-  const s = await projectStore();
-  const b = await s.blob(file.id);
-  return b === null ? null : new File([b], file.name, { type: 'text/plain' });
-}
-
-function FileRow({ project, file, onView, onImport }: { readonly project: Project; readonly file: Project['files'][number]; readonly onView: (v: string) => void; readonly onImport: (r: ImportRequest) => void }): ComponentChild {
+/** File actions share the central opener with the project header and Files drawer. */
+function FileRow({ project, file, onView, onImport, openLabel = 'Open in Job' }: { readonly project: Project; readonly file: Project['files'][number]; readonly onView: (v: string) => void; readonly onImport: (r: ImportRequest) => void; readonly openLabel?: string }): ComponentChild {
   const [note, setNote] = useState(file.note);
   const [error, setError] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   const open = (): void => {
     setError(null);
-    void fileOf(file).then(async (f) => {
-      if (f === null) {
-        setError('The file is no longer stored in this browser.');
-        return;
-      }
-      const r = await openJob(f, { kind: 'project', projectId: project.id, fileId: file.id });
+    void openProjectFile(project.id, file.id).then((r) => {
       if (r.ok) onView('job');
       else setError(r.reason);
-    });
+    }).catch((e: unknown) => setError(e instanceof Error ? e.message : 'The file could not be opened.'));
   };
   const use = (role: JobRole): void => {
     setMenu(false);
@@ -188,7 +178,7 @@ function FileRow({ project, file, onView, onImport }: { readonly project: Projec
     h(
       'div',
       { class: 'row-actions' },
-      file.role === 'gcode' ? h('button', { type: 'button', class: 'small', 'data-action': 'project-open-in-run', onClick: open }, Icon('run', 14), 'Open in Job') : null,
+      isGcodeFile(file) ? h('button', { type: 'button', class: 'small', 'data-action': 'project-open-in-run', disabled: executionLock.value !== null, title: executionLock.value ?? undefined, onClick: open }, Icon('run', 14), openLabel) : null,
       h(
         'span',
         { class: 'use-menu' },
@@ -544,13 +534,37 @@ function JobRow({ project, job, onView }: { readonly project: Project; readonly 
     h(
       'div',
       { class: 'row-actions' },
-      h('button', { type: 'button', class: 'small', 'data-action': 'project-open-job', disabled: file === undefined, onClick: () => void openProjectJob(project.id, job.id).then((r) => { if (r.ok) onView('job'); else setError(r.reason); }) }, Icon('run', 14), 'Open'),
+      h('button', { type: 'button', class: 'small', 'data-action': 'project-open-job', disabled: file === undefined || executionLock.value !== null, onClick: () => void openProjectJob(project.id, job.id).then((r) => { if (r.ok) onView('job'); else setError(r.reason); }).catch((e: unknown) => setError(e instanceof Error ? e.message : 'The job could not be opened.')) }, Icon('run', 14), 'Open job'),
       h('button', { type: 'button', class: 'small icon-button quiet', 'aria-label': `Remove the job ${job.name}`, 'data-action': 'project-remove-job', onClick: () => void act((s) => s.removeJob(project.id, job.id)) }, Icon('trash', 15)),
     ),
   );
 }
 
 // ---------------------------------------------------------------- detail
+
+function ProjectOpen({ project, onView }: { readonly project: Project; readonly onView: (view: string) => void }): ComponentChild {
+  const files = project.files.filter(isGcodeFile);
+  const [selected, setSelected] = useState(activeJob.value?.projectId === project.id ? activeJob.value.file?.fileId ?? '' : '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const file = files.find((f) => f.id === selected) ?? files[0];
+  const open = (): void => {
+    if (file === undefined || busy || executionLock.value !== null) return;
+    setBusy(true);
+    setError(null);
+    void openProjectFile(project.id, file.id).then((r) => {
+      if (r.ok) onView('job');
+      else setError(r.reason);
+    }).catch((e: unknown) => setError(e instanceof Error ? e.message : 'The file could not be opened.')).finally(() => setBusy(false));
+  };
+  return h('div', { class: 'project-open' },
+    h('div', { class: 'project-open-controls' },
+      h('label', { class: 'field' }, h('span', null, 'G-code file'), h('select', { 'data-project': 'open-file', value: file?.id ?? '', disabled: busy || files.length === 0, onChange: (e: Event) => setSelected((e.currentTarget as HTMLSelectElement).value) },
+        files.length === 0 ? h('option', { value: '' }, 'Add a G-code file to this project') : files.map((f) => h('option', { key: f.id, value: f.id }, f.name)))),
+      h('button', { type: 'button', class: 'small primary', 'data-action': 'project-open', disabled: file === undefined || busy || executionLock.value !== null, onClick: open }, Icon('run', 14), busy ? 'Opening…' : 'Open in Job'),
+      executionLock.value === null ? null : h(ContextHelp, { id: `project-open-locked-${project.id}`, label: 'Why opening another job is unavailable' }, `${executionLock.value} Stop the current job before opening another file.`)),
+    error === null ? null : h('p', { class: 'fine tone-warn', role: 'alert' }, error));
+}
 
 function ProjectDetail({ project, onView, onDeleted }: { readonly project: Project; readonly onView: (v: string) => void; readonly onDeleted: () => void }): ComponentChild {
   const [renaming, setRenaming] = useState(false);
@@ -575,7 +589,7 @@ function ProjectDetail({ project, onView, onDeleted }: { readonly project: Proje
       () => setName(project.name),
     );
   };
-  const gcode = project.files.filter((f) => f.role === 'gcode').length;
+  const gcode = project.files.filter(isGcodeFile).length;
   return h(
     'article',
     { class: 'project-detail', 'data-project': 'detail', 'aria-labelledby': 'project-name' },
@@ -606,6 +620,7 @@ function ProjectDetail({ project, onView, onDeleted }: { readonly project: Proje
             )
           : h('div', { class: 'project-title-row' }, h('h1', { id: 'project-name', 'data-project': 'name' }, project.name), h('button', { type: 'button', class: 'small icon-button quiet', 'aria-label': 'Rename the project', 'data-action': 'project-rename', onClick: () => setRenaming(true) }, Icon('edit', 16))),
         h('p', { class: 'project-meta' }, `Created ${dateText(project.createdAt)} · changed ${dateText(project.updatedAt)} · ${project.files.length} ${project.files.length === 1 ? 'file' : 'files'}${gcode === 0 ? '' : ` (${gcode} G-code)`} · ${project.images.length} ${project.images.length === 1 ? 'photo' : 'photos'}`),
+        h(ProjectOpen, { key: project.id, project, onView }),
         h(UsageMeter, { used }),
         h(
           'div',
@@ -714,18 +729,22 @@ export function ProjectsView({ onView }: { readonly onView: (v: string) => void 
   );
 }
 
-/** The active project's files, using the same role/import flow as Projects. */
+/** Browse project files even when the current job is a demo or an empty draft. */
 export function JobFiles({ onView }: { readonly onView: (view: string) => void }): ComponentChild {
   const [importing, setImporting] = useState<ImportRequest | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [browseId, setBrowseId] = useState<string | null>(null);
   const job = activeJob.value;
-  const project = projectsState.value.list.find((p) => p.id === job?.projectId) ?? null;
+  const projects = projectsState.value.list;
+  const project = projects.find((p) => p.id === browseId) ?? projects.find((p) => p.id === job?.projectId) ?? projects.find((p) => p.id === selectedProjectId.value) ?? projects[0] ?? null;
   useEffect(() => { void projectStore(); }, []);
-  useEffect(() => { setImporting(null); setNote(null); }, [job?.id]);
-  return h('section', { class: 'job-files-content' }, h('h2', null, project?.name ?? 'Draft files'),
-    project === null ? h('p', null, 'Save this draft to a project to keep drawings and reference files with it.') : [
+  useEffect(() => { setBrowseId(null); }, [job?.id]);
+  useEffect(() => { setImporting(null); setNote(null); }, [job?.id, project?.id]);
+  return h('section', { class: 'job-files-content' }, h('h2', null, 'Project files'),
+    project === null ? h('p', null, 'Create a project to add G-code, drawings and reference files.') : [
+      h('label', { class: 'field' }, h('span', null, 'Project'), h('select', { 'aria-label': 'Project files', value: project.id, onChange: (e: Event) => setBrowseId((e.currentTarget as HTMLSelectElement).value) }, projects.map((p) => h('option', { key: p.id, value: p.id }, p.name)))),
       h(Dropzone, { project, onResult: (added, refused) => setNote([...added.map((n) => `Added ${n}`), ...refused].join('; ')) }),
-      h('ul', { class: 'file-list' }, project.files.map((file) => h(FileRow, { key: file.id, project, file, onView, onImport: setImporting }))),
+      h('ul', { class: 'file-list' }, project.files.map((file) => h(FileRow, { key: file.id, project, file, onView, onImport: setImporting, openLabel: 'Open as the job' }))),
     ],
     importing === null ? null : h(DrawingImport, { key: `${importing.file.id}:${importing.role}`, request: importing, onDone: (text) => { setImporting(null); setNote(text); } }),
     note === null ? null : h('p', { role: 'status' }, note),

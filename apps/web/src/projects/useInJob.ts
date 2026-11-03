@@ -15,7 +15,7 @@ import { activeJob, illustrativeClamps, updateActiveJob, withMachine, withSetup,
 import { machineStore } from '../workspace/library.ts';
 import type { ProjectFile } from './store.ts';
 import { executionLock } from '../workspace/fileBridge.ts';
-import { formatBytes } from './limits.ts';
+import { formatBytes, isGcodeFile } from './limits.ts';
 
 export type JobRole = 'gcode' | 'stock' | 'fixture' | 'bed' | 'reference';
 
@@ -23,7 +23,7 @@ export const JOB_ROLE_LABEL: Readonly<Record<JobRole, string>> = { gcode: 'G-cod
 
 /** The roles a stored file can take, from its name: drawings become geometry, G-code opens, the rest is reference. */
 export function rolesFor(file: Pick<ProjectFile, 'name' | 'role'>): readonly JobRole[] {
-  if (file.role === 'gcode') return ['gcode', 'reference'];
+  if (isGcodeFile(file)) return ['gcode', 'reference'];
   if (/\.(dxf|svg)$/i.test(file.name)) return ['fixture', 'stock', 'bed', 'reference'];
   return ['reference'];
 }

@@ -372,6 +372,11 @@ export class ProjectStore {
   async aside(key: string): Promise<Blob | null> {
     return this.blob(`aside/${key}`);
   }
+
+  /** Removes only a draft blob, leaving project files and saved jobs intact. */
+  async forgetAside(key: string): Promise<void> {
+    await this.#deps.records.delete('blobs', `aside/${key}`);
+  }
 }
 
 /** A project or link name: one line, trimmed, at most 120 characters. */

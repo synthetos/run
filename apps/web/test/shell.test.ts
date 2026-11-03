@@ -144,7 +144,7 @@ describe('Phase 1 control allowlist', () => {
   const UI: readonly RegExp[] = [
     /^action:advisor-(open|engine|input)$/,
     /^action:context-help$/,
-    /^action:job-(step-(machine|stock|place|check|run|back|next)|files|files-close|projects|library-machines|use-machine)$/,
+    /^action:job-(step-(machine|stock|place|check|run|back|next)|files|files-close|projects|close|library-machines|use-machine)$/,
     /^view:(job|library|board|projects|analyze|settings|safety)$/,
     /^tab:(machines|tools|materials|gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
@@ -166,7 +166,7 @@ describe('Phase 1 control allowlist', () => {
     /^action:report-(problem|board|console|event|cancel|next|back|close|copy|download|open)$/,
     /^action:consent-(whole|excerpt)$/,
     // Projects (local): records and files in this browser's IndexedDB. "Open in Run" only loads the preview.
-    /^action:project-(new|rename|save-name|cancel-rename|delete|confirm-delete|cancel-delete|share|edit-description|save-description|cancel-description|open-in-run|remove-file|set-cover|remove-image|add-link|remove-link|use-stock|go-run)$/,
+    /^action:project-(new|open|rename|save-name|cancel-rename|delete|confirm-delete|cancel-delete|share|edit-description|save-description|cancel-description|open-in-run|remove-file|set-cover|remove-image|add-link|remove-link|use-stock|go-run)$/,
   ];
   // Material and tool rows are plain buttons whose text is data: any other button must be in the list above.
   const LIST_ROW = /class="(material-row[^"]*|row-link)"/;

@@ -139,6 +139,7 @@ test('a file streams to completion from the stepper; Start is enabled only when 
   await page.locator('[data-job-step="stock"]').click();
   await expect(page.locator('[data-job-panel="stock"] input').first()).toBeDisabled();
   await expect(page.locator('[data-region="job"] [data-preview="file"]')).toBeDisabled();
+  await expect(page.locator('[data-action="job-close"]')).toBeDisabled();
   await page.locator('[data-job-step="run"]').click();
   await expect.poll(async () => (await session(worker)).job?.acked ?? 0, { timeout: 20_000 }).toBeGreaterThan(8);
   await shot(page, 'job-running');
@@ -153,6 +154,10 @@ test('a file streams to completion from the stepper; Start is enabled only when 
   expect(w.filter((x) => x.startsWith('N'))).toHaveLength((await session(worker)).job?.total as number);
   expect(w).toContain('{"rxm":0}\n');
   await expect(page.locator('[data-job="message"]')).toContainText('Job finished');
+  await page.locator('[data-action="job-close"]').click();
+  await expect(page.locator('[data-preview="file-name"]')).toHaveText('none');
+  await expect(page.locator('.strip-disconnect[data-action="disconnect"]')).toBeEnabled();
+  expect(await phase(worker)).toBe('done'); // Closing the workspace file leaves the connected worker alone.
 });
 
 test('Pause holds the job and Resume streams on; Stop job clears the queue, spindle and coolant off', async ({ page }) => {
@@ -165,6 +170,7 @@ test('Pause holds the job and Resume streams on; Stop job clears the queue, spin
   await expect.poll(() => phase(worker), { timeout: 10_000 }).toBe('paused');
   expect((await board(worker)).hold).toBe(6);
   await expect(page.locator('[data-job="phase"]')).toHaveText('Paused');
+  await expect(page.locator('[data-action="job-close"]')).toBeDisabled();
   await page.locator('[data-job="status"] [data-machine-control="resume"]').click();
   await expect.poll(() => phase(worker), { timeout: 10_000 }).toBe('running');
   await expect.poll(async () => (await session(worker)).job?.acked ?? 0, { timeout: 20_000 }).toBeGreaterThan(14);

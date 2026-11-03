@@ -23,7 +23,7 @@ export type FileRole = 'gcode' | 'drawing' | 'model' | 'other';
 
 export const ROLE_LABEL: Readonly<Record<FileRole, string>> = { gcode: 'G-code', drawing: 'Drawing (DXF, SVG)', model: 'Model (STL, STEP)', other: 'Other' };
 
-export const GCODE_EXTENSIONS: readonly string[] = ['.nc', '.gcode', '.ngc', '.tap', '.txt'];
+export const GCODE_EXTENSIONS: readonly string[] = ['.nc', '.gcode', '.ngc', '.tap', '.txt', '.cnc'];
 const DRAWING = ['.dxf', '.svg'];
 const MODEL = ['.stl', '.step', '.stp'];
 const IMAGE = ['.jpg', '.jpeg', '.png', '.webp'];
@@ -42,6 +42,11 @@ export function classify(name: string, type = ''): FileRole | 'image' {
   if (DRAWING.includes(e)) return 'drawing';
   if (MODEL.includes(e)) return 'model';
   return 'other';
+}
+
+/** Also recognises files saved as Other before their extension was supported. */
+export function isGcodeFile(file: { readonly name: string; readonly role: FileRole }): boolean {
+  return file.role === 'gcode' || (file.role === 'other' && classify(file.name) === 'gcode');
 }
 
 export function formatBytes(n: number): string {

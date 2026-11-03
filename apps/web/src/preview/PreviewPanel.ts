@@ -175,7 +175,7 @@ export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onRep
       onCancel: () => {
         client.current?.cancel();
         lastFile.current = null;
-        setState((s) => ({ ...s, status: 'idle', progress: null, fileName: null, result: null }));
+        setState((s) => ({ ...s, status: 'idle', progress: null, fileName: null, result: null, error: null, scrub: 0 }));
       },
       onRapids: (showRapids) => { setState((s) => ({ ...s, showRapids })); },
       onScrub: (scrub) => { setState((s) => ({ ...s, scrub })); },

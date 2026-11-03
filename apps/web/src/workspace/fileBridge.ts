@@ -20,7 +20,7 @@ import type { Box3, SegmentList } from '@synthetos/gcode-view';
 import { projectStore } from '../projects/browserStore.ts';
 import { sha256Hex } from '../projects/image.ts';
 import type { ProjectStore } from '../projects/store.ts';
-import { activeJobStore, BROWSER_CLOCK, cloneJob, draftJobStore, newDraftJob, reviseJob, setActiveJob, withMachine, type Job, type JobClock, type JobFile } from './jobModel.ts';
+import { activeJobStore, BROWSER_CLOCK, cloneJob, DRAFT_NAME, draftJobStore, newDraftJob, reviseJob, setActiveJob, withMachine, type Job, type JobClock, type JobFile } from './jobModel.ts';
 import { selectedMachine, type MachineProfile } from './library.ts';
 
 export interface OpenFile {
@@ -73,6 +73,27 @@ export interface OpenDeps {
 
 const BROWSER_DEPS: OpenDeps = { projects: projectStore, hash: sha256Hex, machine: () => selectedMachine.value, clock: BROWSER_CLOCK };
 
+let openRequest = 0;
+
+function openRefusal(request: number): Extract<OpenResult, { ok: false }> | null {
+  if (executionLock.value !== null) return { ok: false, reason: `${executionLock.value} Stop the current job before opening another file.` };
+  return request === openRequest ? null : { ok: false, reason: 'The file request was cancelled.' };
+}
+
+/** Leaves an empty bench with the current setup; saved project jobs are untouched. */
+export function closeJob(deps: OpenDeps = BROWSER_DEPS): OpenResult {
+  if (executionLock.value !== null) return { ok: false, reason: `${executionLock.value} Stop the current job before closing it.` };
+  const request = ++openRequest;
+  const job = { ...cloneJob(activeJobStore.value.value ?? newDraftJob(deps.clock), deps.clock), name: DRAFT_NAME };
+  pendingOpen.value = null;
+  currentFile.value = null;
+  currentPreview.value = null;
+  setActiveJob(job);
+  // Do not erase a newer draft if opening storage finishes after another open request.
+  void deps.projects().then((projects) => request === openRequest ? projects.forgetAside(DRAFT_FILE_KEY) : undefined).catch(() => undefined);
+  return { ok: true, job };
+}
+
 /**
  * Resolves the job for `file` and makes it active:
  * - bytes that are a project file (by SHA-256, whichever entry they came through) belong to that project: the
@@ -81,11 +102,17 @@ const BROWSER_DEPS: OpenDeps = { projects: projectStore, hash: sha256Hex, machin
  * - any other bytes go to the local draft, which keeps its setup from file to file (the draft is one bench).
  */
 export async function openJob(file: File, source: OpenSource, deps: OpenDeps = BROWSER_DEPS): Promise<OpenResult> {
-  const lock = executionLock.value;
-  if (lock !== null) return { ok: false, reason: `${lock} Pause or stop it before opening another file.` };
+  return resolveJob(file, source, deps, ++openRequest);
+}
+
+async function resolveJob(file: File, source: OpenSource, deps: OpenDeps, request: number): Promise<OpenResult> {
+  const refused = openRefusal(request);
+  if (refused !== null) return refused;
   const bytes = await file.arrayBuffer();
   const hash = await deps.hash(bytes);
   const projects = await deps.projects();
+  const stale = openRefusal(request);
+  if (stale !== null) return stale;
   const found =
     source.kind === 'project'
       ? projectFile(projects, source.projectId, source.fileId)
@@ -114,9 +141,23 @@ export async function openJob(file: File, source: OpenSource, deps: OpenDeps = B
     job = draft.file?.hash === hash && draft.file.name === file.name ? draft : reviseJob(draft, { file: ref }, deps.clock);
     void projects.keepAside(DRAFT_FILE_KEY, file);
   }
+  const late = openRefusal(request);
+  if (late !== null) return late;
   setActiveJob(job);
   pendingOpen.value = { file, job };
   return { ok: true, job };
+}
+
+/** Opens stored G-code directly, reusing its saved job when one already exists. */
+export async function openProjectFile(projectId: string, fileId: string, deps: OpenDeps = BROWSER_DEPS): Promise<OpenResult> {
+  const request = ++openRequest;
+  const refused = openRefusal(request);
+  if (refused !== null) return refused;
+  const projects = await deps.projects();
+  const found = projectFile(projects, projectId, fileId);
+  const blob = found === null ? null : await projects.blob(fileId);
+  if (found === null || blob === null) return { ok: false, reason: 'The file is no longer stored in this browser.' };
+  return resolveJob(new File([blob], found.file.name, { type: 'text/plain' }), { kind: 'project', projectId, fileId }, deps, request);
 }
 
 function projectFile(projects: ProjectStore, projectId: string, fileId: string): ReturnType<ProjectStore['findFile']> {
@@ -127,6 +168,9 @@ function projectFile(projects: ProjectStore, projectId: string, fileId: string):
 
 /** Opens a project's job: its file version from the project's storage. */
 export async function openProjectJob(projectId: string, jobId: string, deps: OpenDeps = BROWSER_DEPS): Promise<OpenResult> {
+  const request = ++openRequest;
+  const refused = openRefusal(request);
+  if (refused !== null) return refused;
   const projects = await deps.projects();
   const project = projects.find(projectId);
   const job = project?.jobs.find((j) => j.id === jobId);
@@ -135,7 +179,7 @@ export async function openProjectJob(projectId: string, jobId: string, deps: Ope
   const stored = project.files.find((f) => f.id === job.file?.fileId);
   const blob = stored === undefined ? null : await projects.blob(stored.id);
   if (stored === undefined || blob === null) return { ok: false, reason: 'The job’s file is no longer stored in this browser.' };
-  return openJob(new File([blob], stored.name, { type: 'text/plain' }), { kind: 'job', projectId, jobId }, deps);
+  return resolveJob(new File([blob], stored.name, { type: 'text/plain' }), { kind: 'job', projectId, jobId }, deps, request);
 }
 
 let reopened = false;
@@ -150,10 +194,11 @@ export async function reopenActiveJob(deps: OpenDeps = BROWSER_DEPS): Promise<Op
   const job = activeJobStore.value.value;
   if (job === null || job.file === null || executionLock.value !== null) return null;
   if (job.projectId !== null) return openProjectJob(job.projectId, job.id, deps);
+  const request = ++openRequest;
   const projects = await deps.projects();
   const blob = await projects.aside(DRAFT_FILE_KEY);
   if (blob === null) return null;
-  return openJob(new File([blob], job.file.name, { type: 'text/plain' }), { kind: 'reopen' }, deps);
+  return resolveJob(new File([blob], job.file.name, { type: 'text/plain' }), { kind: 'reopen' }, deps, request);
 }
 
 /** Tests only: forget that the page reopened its job. */

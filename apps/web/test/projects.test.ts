@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { blocks, Description } from '../src/projects/description.ts';
-import { checkEncoded, checkFile, checkImage, classify, fitWithin, formatBytes, LIMITS, MB } from '../src/projects/limits.ts';
+import { checkEncoded, checkFile, checkImage, classify, fitWithin, formatBytes, isGcodeFile, LIMITS, MB } from '../src/projects/limits.ts';
 import { isProject, ProjectStore, projectUsage, type EncodedImage, type ProjectDeps } from '../src/projects/store.ts';
 import { memoryRecordStore } from '../src/workspace/storage.ts';
 
@@ -19,7 +19,9 @@ describe('project limits', () => {
   });
 
   it('classifies files by extension and images by type', () => {
-    for (const n of ['a.nc', 'a.gcode', 'a.NGC', 'a.tap', 'a.txt']) expect(classify(n), n).toBe('gcode');
+    for (const n of ['a.nc', 'a.gcode', 'a.NGC', 'a.tap', 'a.txt', 'a.cnc', 'a.CNC']) expect(classify(n), n).toBe('gcode');
+    expect(isGcodeFile({ name: 'old-upload.cnc', role: 'other' })).toBe(true);
+    expect(isGcodeFile({ name: 'notes.pdf', role: 'other' })).toBe(false);
     expect(classify('fixture.dxf')).toBe('drawing');
     expect(classify('part.svg')).toBe('drawing');
     expect(classify('part.STEP')).toBe('model');

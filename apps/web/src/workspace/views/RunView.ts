@@ -35,7 +35,7 @@ import { signalText } from '../../shell/signal.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
 import { ConsoleLine } from '../../console/ConsoleLine.ts';
 import { openReport } from '../../report/state.ts';
-import { currentFile, currentPreview, executionLock, openJob, pendingOpen, reopenActiveJob, saveDraftToProject, type OpenSource } from '../fileBridge.ts';
+import { closeJob, currentFile, currentPreview, executionLock, openJob, pendingOpen, reopenActiveJob, saveDraftToProject, type OpenSource } from '../fileBridge.ts';
 import { activeJob, type Job } from '../jobModel.ts';
 import { materialColor } from '../library.ts';
 import { projectsState } from '../../projects/store.ts';
@@ -981,7 +981,15 @@ function JobCard({ parts, model, onView, onFiles }: { readonly parts: PreviewPar
       'div',
       { class: 'job-actions' },
       h('button', { type: 'button', class: 'small', 'data-action': 'job-files', onClick: onFiles }, 'Files'),
-      h('button', { type: 'button', class: 'small', 'data-action': 'job-projects', onClick: () => onView('projects') }, 'Projects'),
+      h('button', { type: 'button', class: 'small', 'data-action': 'job-projects', onClick: () => onView('projects') }, 'Open project'),
+      state.fileName === null ? null : h('button', { type: 'button', class: 'small', 'data-action': 'job-close', disabled: jobUi(model?.live.value ?? null).active || actions.onCancel === undefined, onClick: () => {
+        const result = closeJob();
+        if (!result.ok) { setNote(result.reason); return; }
+        actions.onCancel?.();
+        setNote(null);
+        jobStep.value = 'machine';
+      } }, 'Close job'),
+      executionLock.value === null ? null : h(ContextHelp, { id: 'job-file-lock-help', label: 'Why closing or replacing the job is unavailable' }, `${executionLock.value} Stop the current job before closing it or opening another file.`),
       h(
         'label',
         { class: `file-button${disabled ? ' is-disabled' : ''}` },
@@ -1303,7 +1311,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
     h(RunBridge, { parts }),
     h(JobCard, { parts, model, onView, onFiles: () => setFiles(!files) }),
     h('nav', { class: 'job-step-bar', 'aria-label': 'Job steps' }, JOB_STEPS.map((item, i) => h('button', { type: 'button', key: item.id, 'data-action': `job-step-${item.id}`, 'data-job-step': item.id, 'aria-current': step === item.id ? 'step' : undefined, 'aria-controls': 'job-work-panel', onClick: () => { jobStep.value = item.id; } }, h('span', { class: 'step-number' }, String(i + 1)), h('span', null, h('strong', null, item.label), h('small', null, stepStatus(item.id, parts, model)))))),
-    h('div', { class: 'job-files-drawer', hidden: !files, 'aria-label': 'Job files' }, h(JobFiles, { onView }), h('button', { type: 'button', class: 'small', 'data-action': 'job-files-close', onClick: () => setFiles(false) }, 'Close files')),
+    h('div', { class: 'job-files-drawer', hidden: !files, 'aria-label': 'Job files' }, files ? h(JobFiles, { onView: (view) => { if (view === 'job') setFiles(false); onView(view); } }) : null, h('button', { type: 'button', class: 'small', 'data-action': 'job-files-close', onClick: () => setFiles(false) }, 'Close files')),
     h(
       'div',
       { class: 'workspace-grid run-grid job-grid' },

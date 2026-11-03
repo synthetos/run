@@ -17,7 +17,7 @@ import { activeJobStore, bedBehind, clampsAreIllustrative, datumPoint, draftJobS
 import { jobScene } from '../src/preview/sceneModel.ts';
 import { PreviewSvg } from '../src/preview/PreviewSvg.ts';
 import { ProjectStore, readProject, type ProjectDeps } from '../src/projects/store.ts';
-import { executionLock, openJob, openProjectJob, pendingOpen, resetReopen, type OpenDeps } from '../src/workspace/fileBridge.ts';
+import { closeJob, currentFile, currentPreview, DRAFT_FILE_KEY, executionLock, openJob, openProjectFile, openProjectJob, pendingOpen, reopenActiveJob, resetReopen, type OpenDeps } from '../src/workspace/fileBridge.ts';
 import { applyImport, checkDrawing, rolesFor, scaled, skippedText } from '../src/projects/useInJob.ts';
 import { parseDxfOutline, parseSvgOutline } from '../src/workspace/outline.ts';
 import { analyseBytes } from '../src/gcode-worker/pipeline.ts';
@@ -316,10 +316,76 @@ describe('the one job opener', () => {
     for (const source of [{ kind: 'picker' } as const, { kind: 'sample' } as const, { kind: 'project', projectId: p.id, fileId: file?.id ?? '' } as const]) {
       const r = await openJob(new File(['G0 X1\n'], 'a.nc'), source, d);
       expect(r.ok).toBe(false);
-      expect(!r.ok && r.reason).toContain('Pause or stop it before opening another file');
+      expect(!r.ok && r.reason).toContain('Stop the current job before opening another file');
     }
     expect(pendingOpen.value).toBeNull();
     executionLock.value = null;
+  });
+
+  it('closing clears the preview, preserves setup and saved jobs, and stays closed on reload', async () => {
+    const { deps: d, store } = deps();
+    executionLock.value = null;
+    const p = await store.create('Bracket');
+    await store.add(p.id, [new File(['G21 G0 X12\n'], 'bracket.cnc')]);
+    const file = store.find(p.id)?.files[0];
+    if (file === undefined) throw new Error('no file');
+    const opened = await openProjectFile(p.id, file.id, d);
+    if (!opened.ok) throw new Error(opened.reason);
+    currentFile.value = { name: file.name, bytes: new TextEncoder().encode('G21 G0 X12\n') };
+    await store.keepAside(DRAFT_FILE_KEY, new Blob(['old demo']));
+    const closed = closeJob(d);
+    await Promise.resolve();
+    expect(await store.aside(DRAFT_FILE_KEY)).toBeNull();
+    expect(closed.ok).toBe(true);
+    expect(activeJobStore.value.value?.file).toBeNull();
+    expect(activeJobStore.value.value?.projectId).toBeNull();
+    expect(activeJobStore.value.value?.setup).toEqual(opened.job.setup);
+    expect(pendingOpen.value).toBeNull();
+    expect(currentFile.value).toBeNull();
+    expect(currentPreview.value).toBeNull();
+    expect(store.find(p.id)?.jobs[0]?.file?.name).toBe('bracket.cnc');
+    resetReopen();
+    expect(await reopenActiveJob(d)).toBeNull();
+    const reopened = await openProjectFile(p.id, file.id, d);
+    expect(reopened.ok && reopened.job.id).toBe(opened.job.id);
+    expect(store.find(p.id)?.jobs).toHaveLength(1);
+  });
+
+  it('closing cancels an opener that is still reading a file; a late result cannot reopen it', async () => {
+    const { deps: d } = deps();
+    executionLock.value = null;
+    let release!: (hash: string) => void;
+    const hash = new Promise<string>((resolve) => { release = resolve; });
+    const opening = openJob(new File(['G0 X9\n'], 'slow.nc'), { kind: 'picker' }, { ...d, hash: () => hash });
+    expect(closeJob(d).ok).toBe(true);
+    release('h6'.padEnd(64, '0'));
+    expect(await opening).toEqual({ ok: false, reason: 'The file request was cancelled.' });
+    expect(activeJobStore.value.value?.file).toBeNull();
+    expect(pendingOpen.value).toBeNull();
+  });
+
+  it('neither running nor paused execution allows a close or a stored-file replacement', async () => {
+    const { deps: d } = deps();
+    const job = activeJobStore.value.value;
+    for (const state of ['running', 'paused']) {
+      executionLock.value = `Job ${state}.`;
+      expect(closeJob(d).ok).toBe(false);
+      expect((await openProjectFile('project', 'file', d)).ok).toBe(false);
+      expect(activeJobStore.value.value).toBe(job);
+    }
+    executionLock.value = null;
+  });
+
+  it('a delayed draft cleanup cannot erase the next opened file', async () => {
+    const { deps: d, store } = deps();
+    executionLock.value = null;
+    let release!: (projects: ProjectStore) => void;
+    const projects = new Promise<ProjectStore>((resolve) => { release = resolve; });
+    expect(closeJob({ ...d, projects: () => projects }).ok).toBe(true);
+    expect((await openJob(new File(['G0 X8\n'], 'next.nc'), { kind: 'picker' }, d)).ok).toBe(true);
+    release(store);
+    await Promise.resolve();
+    expect(await (await store.aside(DRAFT_FILE_KEY))?.text()).toBe('G0 X8\n');
   });
 });
 
