@@ -7,7 +7,7 @@
 import { type ApprovedBuilds } from '@synthetos/protocol';
 import { PHASE_2_RELEASE } from '@synthetos/safety';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TIMINGS, HEARTBEAT_MS, RUN_SR_FIELDS, checkWrite, droView, phase1WriteVerdict, reportSteps, snapshotOf, srListLine, srListMatches, type SessionEffect, type SessionIntent } from '../src/index.ts';
+import { DEFAULT_TIMINGS, HEARTBEAT_INTERVAL_MS, HEARTBEAT_S, RUN_SR_FIELDS, checkWrite, droView, phase1WriteVerdict, reportSteps, snapshotOf, srListLine, srListMatches, type SessionEffect, type SessionIntent } from '../src/index.ts';
 import { Driver, EN_ANSWERS, TG_ANSWERS } from './sessionDriver.ts';
 
 const EN_APPROVED: ApprovedBuilds = {
@@ -64,6 +64,27 @@ describe('T-S101: report configuration branches', () => {
     expect(logs(d).at(-1)).toContain('reports: configured (heartbeat not available)');
   });
 
+  it('a heartbeat refused with a range error (110) leaves the no-heartbeat liveness path: one ENQ after the idle window, then STALE', () => {
+    const d = toReports({ sr: RUN_SR, rt: '{"r":{"rt":{"hb":0,"qt":"","up":5}},"f":[3,0,10]}' });
+    step(d, '{"r":{"rt":{"hb":0,"qt":"","up":5}},"f":[3,0,10]}');
+    expect(d.state.reports.step?.line).toBe(`{"rt":{"hb":${HEARTBEAT_S}}}`);
+    expect(d.state.reports.step?.line).toBe('{"rt":{"hb":1}}');
+    step(d, '{"r":{},"f":[3,110,10]}');
+    expect(d.state.reports).toMatchObject({ phase: 'done', heartbeatMs: null, detail: 'the board refused the heartbeat (status 110)' });
+    expect(d.state.link).toEqual({ heartbeatMs: null, silenceMs: DEFAULT_TIMINGS.livenessIdleMs + DEFAULT_TIMINGS.staleAfterMs });
+    expect(snapshotOf(d.state).reports.heartbeatMs).toBeNull();
+    // The heartbeat-on path would go STALE after reportSilenceMs without asking; this one asks once first.
+    d.at += DEFAULT_TIMINGS.livenessIdleMs;
+    const before = d.effects.length;
+    d.fire('watchdog');
+    expect(d.state.overlays).not.toContain('STALE');
+    expect(d.effects.slice(before)).toContainEqual(expect.objectContaining({ kind: 'writeRealtime' }));
+    expect(d.state.liveness).not.toBeNull();
+    d.at += DEFAULT_TIMINGS.staleAfterMs;
+    d.fire('watchdog');
+    expect(d.state.overlays).toContain('STALE');
+  });
+
   it('sv and si are set and read back; a read-back that differs is said', () => {
     const d = toReports({ sv: num('sv', 0), si: num('si', 2000), sr: RUN_SR });
     expect(d.state.reports.step?.line).toBe('{sv:1}');
@@ -73,13 +94,13 @@ describe('T-S101: report configuration branches', () => {
     step(d, num('si', 250));
     step(d, '{"r":{},"f":[3,100,10]}');
     step(d, '{"r":{"rt":{"hb":0,"qt":"","up":5}},"f":[3,0,10]}');
-    step(d, `{"r":{"rt":{"hb":${HEARTBEAT_MS}}},"f":[3,0,10]}`);
+    step(d, `{"r":{"rt":{"hb":${HEARTBEAT_S}}},"f":[3,0,10]}`);
     expect(d.state.reports.changes).toEqual([
       { setting: 'sv', from: 0, to: 1 },
       { setting: 'si', from: 2000, to: 250 },
     ]);
     expect(d.state.reports.detail).toBe('sv reads back 0, not 1; si reads back null, not 250');
-    expect(d.state.reports.heartbeatMs).toBe(HEARTBEAT_MS);
+    expect(d.state.reports.heartbeatMs).toBe(HEARTBEAT_INTERVAL_MS);
     expect(logs(d)).toContain('reports: Run changed sv from 0 to 1 (saved on the board)');
   });
 
@@ -164,8 +185,8 @@ describe('T-S101: report configuration branches', () => {
   it('with the heartbeat on, silence for the window is STALE and nothing is sent; any line clears it', () => {
     const d = toReports({ sr: RUN_SR, rt: '{"r":{"rt":{"hb":0,"qt":"","up":5}},"f":[3,0,10]}' });
     step(d, '{"r":{"rt":{"hb":0,"qt":"","up":5}},"f":[3,0,10]}');
-    step(d, `{"r":{"rt":{"hb":${HEARTBEAT_MS}}},"f":[3,0,10]}`);
-    expect(d.state.link).toEqual({ heartbeatMs: HEARTBEAT_MS, silenceMs: DEFAULT_TIMINGS.reportSilenceMs });
+    step(d, `{"r":{"rt":{"hb":${HEARTBEAT_S}}},"f":[3,0,10]}`);
+    expect(d.state.link).toEqual({ heartbeatMs: HEARTBEAT_INTERVAL_MS, silenceMs: DEFAULT_TIMINGS.reportSilenceMs });
     expect(d.last).toContainEqual(expect.objectContaining({ kind: 'armTimer', id: 'watchdog', ms: DEFAULT_TIMINGS.reportSilenceMs }));
     const before = d.effects.length;
     d.at += DEFAULT_TIMINGS.reportSilenceMs;
@@ -276,7 +297,9 @@ describe('the write gate: report configuration lines (H64)', () => {
     expect(phase1WriteVerdict(enc('{sv:1}'), { ...ctx, reportWritable: () => false })).toMatchObject({ ok: false });
     expect(phase1WriteVerdict(enc('{sv:1}'), { ...ctx, reportWritable: () => true })).toEqual({ ok: true, kind: 'report' });
     expect(phase1WriteVerdict(enc('{sr:{stat:true,mpox:true}}'), { ...ctx, reportWritable: () => true })).toEqual({ ok: true, kind: 'report' });
-    for (const bad of ['{sr:{stat:true,md:true}}', '{ram:1,sr:{stat:true}}', '{sv:2}', '{si:5}', '{"rt":{"unsaved":null}}', '{"rt":{"hb":1}}', '{sr:{}}']) {
+    // The heartbeat is whole seconds, 1..60 (edge-next RT_HB_MAX); run asks for 1.
+    for (const good of ['{"rt":{"hb":1}}', '{"rt":{"hb":60}}']) expect(phase1WriteVerdict(enc(good), { ...ctx, reportWritable: () => true }), good).toEqual({ ok: true, kind: 'report' });
+    for (const bad of ['{sr:{stat:true,md:true}}', '{ram:1,sr:{stat:true}}', '{sv:2}', '{si:5}', '{"rt":{"unsaved":null}}', '{"rt":{"hb":1000}}', '{"rt":{"hb":0}}', '{"rt":{"hb":61}}', '{"rt":{"hb":1.5}}', '{sr:{}}']) {
       expect(phase1WriteVerdict(enc(bad), { ...ctx, reportWritable: () => true }).ok, bad).toBe(false);
     }
     const d = toReports();

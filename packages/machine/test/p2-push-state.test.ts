@@ -9,7 +9,7 @@ import type { ApprovedBuilds } from '@synthetos/protocol';
 import { PHASE_2_RELEASE } from '@synthetos/safety';
 import type { TinyGEdgeNextModel, TinyGModelOptions } from '@synthetos/testkit';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TIMINGS, HEARTBEAT_MS, RUN_SR_FIELDS, SEED_TOKENS, srListLine, type SessionIntent } from '../src/index.ts';
+import { DEFAULT_TIMINGS, HEARTBEAT_INTERVAL_MS, HEARTBEAT_S, RUN_SR_FIELDS, SEED_TOKENS, srListLine, type SessionIntent } from '../src/index.ts';
 import { harness, type Harness } from './sessionHarness.ts';
 import { PORT, shown } from './simTransport.ts';
 
@@ -56,10 +56,10 @@ describe('T-S101: the connect sequence', () => {
     for (const t of SEED_TOKENS) expect(w.filter((x) => x === `{"${t}":null}\\n`).length, t).toBeGreaterThanOrEqual(1);
     expect(seedAt).toBeGreaterThan(0);
     const config = w.slice(w.indexOf('{"si":null}\\n') + 1);
-    expect(config).toEqual([`${srListLine()}\\n`, '{"sr":null}\\n', '{"rt":null}\\n', `{"rt":{"hb":${HEARTBEAT_MS}}}\\n`]);
+    expect(config).toEqual([`${srListLine()}\\n`, '{"sr":null}\\n', '{"rt":null}\\n', `{"rt":{"hb":${HEARTBEAT_S}}}\\n`]);
     const s = h.session.snapshot;
-    expect(s.reports).toMatchObject({ phase: 'done', heartbeatMs: HEARTBEAT_MS, changes: [{ setting: 'sr' }], detail: null });
-    expect(s.link).toEqual({ heartbeatMs: HEARTBEAT_MS, silenceMs: DEFAULT_TIMINGS.reportSilenceMs });
+    expect(s.reports).toMatchObject({ phase: 'done', heartbeatMs: HEARTBEAT_INTERVAL_MS, changes: [{ setting: 'sr' }], detail: null });
+    expect(s.link).toEqual({ heartbeatMs: HEARTBEAT_INTERVAL_MS, silenceMs: DEFAULT_TIMINGS.reportSilenceMs });
     expect(s.live.srList).toEqual(RUN_SR_FIELDS);
     expect(model(h).snapshot().srList).toEqual(RUN_SR_FIELDS);
     expect(model(h).srListWrites).toBe(1);
@@ -72,7 +72,7 @@ describe('T-S101: the connect sequence', () => {
   it('a board whose list already holds what run needs is not written; sv 0 and an absurd si are set and read back', async () => {
     const h = await connected({ srList: RUN_SR_FIELDS, eeprom: { ...EN_LAYOUT, sv: 0, si: 5000 } });
     const config = writes(h).slice(writes(h).indexOf('{"si":null}\\n') + 1);
-    expect(config).toEqual(['{sv:1}\\n', '{"sv":null}\\n', '{si:250}\\n', '{"si":null}\\n', '{"rt":null}\\n', `{"rt":{"hb":${HEARTBEAT_MS}}}\\n`]);
+    expect(config).toEqual(['{sv:1}\\n', '{"sv":null}\\n', '{si:250}\\n', '{"si":null}\\n', '{"rt":null}\\n', `{"rt":{"hb":${HEARTBEAT_S}}}\\n`]);
     expect(model(h).srListWrites).toBe(0);
     expect(h.session.snapshot.reports.changes).toEqual([
       { setting: 'sv', from: 0, to: 1 },
@@ -134,7 +134,7 @@ describe('T-S103: liveness', () => {
     });
     void h.session.connect(PORT);
     await h.run(9_999);
-    expect(h.session.snapshot.reports.heartbeatMs).toBe(HEARTBEAT_MS);
+    expect(h.session.snapshot.reports.heartbeatMs).toBe(HEARTBEAT_INTERVAL_MS);
     expect(h.session.snapshot.overlays).toEqual([]);
     const from = writes(h).length;
     await h.run(DEFAULT_TIMINGS.reportSilenceMs + 1500);

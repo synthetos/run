@@ -129,7 +129,8 @@ export interface Banner {
 
 /**
  * `{"hb":{"stat":..,"hold":..,"up":..,"qt":..}}`: an edge-next runtime heartbeat line (EN runtime.c), printed every
- * `hb` ms after `{"rt":{"hb":N}}` while nothing else is printed. It has no `r` and no footer and answers nothing:
+ * `hb` seconds (1..60) after `{"rt":{"hb":N}}` while the link and the machine are quiet; `up` is seconds since
+ * power-up. It has no `r` and no footer and answers nothing:
  * it is proof of life only. `stat` and `hold` are what the board reported, kept for display.
  */
 export interface Heartbeat {

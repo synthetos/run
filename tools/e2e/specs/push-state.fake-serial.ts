@@ -74,7 +74,7 @@ test('connect reads the state once, sets the status report list (W35) and the he
   const worker = await connect(page);
   const w = await writes(worker);
   expect(w.filter((x) => x.startsWith('{sr:{'))).toHaveLength(1);
-  expect(w).toContain('{"rt":{"hb":1000}}\n');
+  expect(w).toContain('{"rt":{"hb":1}}\n');
   for (const t of ['mpo', 'pos', 'g92', 'coor', 'spe', 'sv', 'si']) expect(w, t).toContain(`{"${t}":null}\n`);
   const s = await session(worker);
   expect(s.reports.heartbeatMs).toBe(1000);

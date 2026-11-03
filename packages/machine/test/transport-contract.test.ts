@@ -112,7 +112,8 @@ describe('package entry', () => {
         'lagOf',
         'lagThresholds',
         // The connect-time read and the status-report configuration (amendment 2026-11-02, H64).
-        'HEARTBEAT_MS',
+        'HEARTBEAT_INTERVAL_MS',
+        'HEARTBEAT_S',
         'REPORT_DIALECTS',
         'RT_PROBE_LINE',
         'RUN_SR_FIELDS',

@@ -16,7 +16,7 @@ const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as con
 
 /** What run may write here: single-token GETs, ENQ, and the connect-time status report configuration (H64). */
 function allowedWrite(w: string): boolean {
-  return /^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005' || /^\{sr:\{([a-z]{2,4}:true,?)+\}\}\n$/.test(w) || /^\{(sv:1|si:250)\}\n$/.test(w) || w === '{"rt":{"hb":1000}}\n';
+  return /^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005' || /^\{sr:\{([a-z]{2,4}:true,?)+\}\}\n$/.test(w) || /^\{(sv:1|si:250)\}\n$/.test(w) || w === '{"rt":{"hb":1}}\n';
 }
 
 interface StatusView {

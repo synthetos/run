@@ -64,6 +64,8 @@ const OUTPUT_BUFFER_LEN = 512;
 
 /** hw_hard_reset() arms the watchdog at WDTO_15MS (@cite EN hardware.c:159). */
 const WATCHDOG_RESET_MS = 15;
+/** RT_HB_MAX: the longest rt heartbeat interval, seconds (@cite EN runtime.h:15). */
+const RT_HB_MAX = 60;
 
 const HOLD = { OFF: 0, REQUESTED: 1, SYNC: 2, DECEL_CONTINUE: 3, DECEL_TO_ZERO: 4, PENDING: 5, HOLD: 6 } as const;
 
@@ -278,10 +280,11 @@ export class TinyGEdgeNextModel implements SimDevice {
   #srList: string[] = [...SR_DEFAULTS];
   /** Writes of the status report list (`{"sr":{...}}`) that changed it. */
   srListWrites = 0;
-  /** rt heartbeat interval, ms (RAM only, 0 = off). */
-  #hbMs = 0;
+  /** rt heartbeat interval, whole seconds 1..60 (RAM only, 0 = off; @cite EN runtime.h:15, :26). */
+  #hbS = 0;
   #hbTimer: number | undefined;
-  #lastPrintAt = -Infinity;
+  /** When the board last went quiet for the heartbeat, or last beat (`rt.hb_quiet_since`, @cite EN runtime.h:27). */
+  #hbQuietSince = 0;
   #bootAt = 0;
   /** A G28.2 homing cycle is queued or running (stat 9). */
   #homingCycle = false;
@@ -313,6 +316,8 @@ export class TinyGEdgeNextModel implements SimDevice {
    */
   receive(byte: number, overrun: boolean): void {
     if (!this.#booted) return; // the UART is not initialised yet (model limit: bytes during boot are lost)
+    // Any byte in, realtime characters too, restarts the heartbeat interval (@cite EN xio/xio_usb.c:197; runtime.c:56-59).
+    this.#hbQuietSince = this.#now();
     if (this.#eepromBusy()) {
       // @behaviour EN-EEPROM-STALL (model): a persisted write stalls the board; bytes sent meanwhile are lost.
       this.eepromLostBytes++;
@@ -514,7 +519,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#tickTimer = undefined;
     if (this.#hbTimer !== undefined) clock.clearTimeout(this.#hbTimer);
     this.#hbTimer = undefined;
-    this.#hbMs = 0;
+    this.#hbS = 0;
     if (this.#bootTimer !== undefined) clock.clearTimeout(this.#bootTimer);
     this.#bootTimer = clock.setTimeout(() => this.#powerUp(true), WATCHDOG_RESET_MS);
   }
@@ -560,7 +565,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#startupPending = false;
     this.#motion = this.#newMotion();
     this.#srRequestAt = null;
-    this.#hbMs = 0;
+    this.#hbS = 0;
     this.#homingCycle = false;
     this.#lastQr = PLANNER_POOL;
   }
@@ -591,10 +596,10 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   /** While idle with a heartbeat on, wake the loop when the next `{"hb":...}` line is due. */
   #scheduleHeartbeat(): void {
-    if (this.#hbMs <= 0) return;
+    if (this.#hbS <= 0) return;
     const clock = this.#clock();
     if (this.#hbTimer !== undefined) clock.clearTimeout(this.#hbTimer);
-    const due = Math.max(0, this.#lastPrintAt + this.#hbMs - this.#now());
+    const due = Math.max(0, this.#hbQuietSince + this.#hbS * 1000 - this.#now());
     this.#hbTimer = clock.setTimeout(() => {
       this.#hbTimer = undefined;
       this.#wake();
@@ -1845,14 +1850,21 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   /**
    * The rt family (model limit LIM-EN-RT-HB): only as the single pair of a line (a pure envelope).
-   * `{"rt":null}` reads hb, qt and up; `{"rt":{"hb":N}}` sets the RAM heartbeat interval (0..60000 ms).
+   * `{"rt":null}` reads hb, qt and up (seconds since power-up, @cite EN runtime.c:178-184); `{"rt":{"hb":N}}`
+   * sets the RAM heartbeat interval in whole seconds, 0 off, at most RT_HB_MAX 60 (@cite EN runtime.h:6, :15).
+   * An integer above 60 is 110 INPUT_VALUE_RANGE_ERROR and changes nothing, never clamped (@cite EN
+   * runtime.c:106-117; error.h:202); a negative is 110 in the number parser (@cite EN util.c:224). A
+   * non-integer (1.5, a string) is modelled as 110 too, as the firmware maintainer stated (2026-11-02); read at
+   * 6ec70652 the typesafe parser looks to answer 116 VALUE_TYPE_ERROR for those before rt_set_hb runs
+   * (@cite EN json_parser.c:673-679; util.c:270), unverified on hardware (the HIL suite only asserts non-zero),
+   * see LIM-EN-RT-HB. Setting it restarts the interval (runtime.c:114).
    * A build without it (option `rt: false`) answers 100 (UNRECOGNIZED_NAME).
    */
   #runtime(pairs: readonly (readonly [string, HostValue])[], body: Record<string, OutValue>): number {
     if (this.#options.rt === false || pairs.length !== 1) return ST('UNRECOGNIZED_NAME');
     const value = (pairs[0] as readonly [string, HostValue])[1];
     if (value === null) {
-      body['rt'] = { hb: this.#hbMs, qt: '', up: this.#uptime() };
+      body['rt'] = { hb: this.#hbS, qt: '', up: this.#uptime() };
       return 0;
     }
     if (typeof value !== 'object') return ST('VALUE_TYPE_ERROR');
@@ -1864,8 +1876,9 @@ export class TinyGEdgeNextModel implements SimDevice {
         continue;
       }
       if (k !== 'hb') return ST('UNRECOGNIZED_NAME');
-      if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 60000) return ST('INPUT_VALUE_RANGE_ERROR');
-      this.#hbMs = v;
+      if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > RT_HB_MAX) return ST('INPUT_VALUE_RANGE_ERROR');
+      this.#hbS = v;
+      this.#hbQuietSince = this.#now();
       set[k] = v;
     }
     body['rt'] = set;
@@ -2187,16 +2200,40 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#progress++;
   }
 
-  /** `{"hb":{...}}` while the rt heartbeat is on and nothing else was printed for `hb` ms (model limit LIM-EN-RT-HB). */
+  /**
+   * `{"hb":{...}}` every `hb` seconds while the link and the machine are quiet (model limit LIM-EN-RT-HB;
+   * @cite EN runtime.c:53-92). Quiet: JSON mode, no byte in or out (receive and println restart the interval),
+   * nothing unread, and the machine stopped with nothing held, flushing or queued (`_machine_quiet`, runtime.c:32-51).
+   * Any activity restarts the interval; skipped beats are never made up.
+   */
   #heartbeatCallback(now: number): void {
-    // A small tolerance: the wake timer is due exactly at lastPrintAt + hb, and float rounding must not make the
+    if (this.#hbS <= 0 || this.#commMode !== 'json' || this.#ring.count > 0 || this.#partial !== '' || !this.#machineQuiet()) {
+      this.#hbQuietSince = now;
+      return;
+    }
+    // A small tolerance: the wake timer is due exactly at quietSince + hb, and float rounding must not make the
     // pass see it a hair early and reschedule forever.
-    if (this.#hbMs <= 0 || now - this.#lastPrintAt < this.#hbMs - 1e-6) return;
+    if (now - this.#hbQuietSince < this.#hbS * 1000 - 1e-6) return;
     this.#println(serialize({ hb: { stat: this.#stat(), hold: this.#hold, up: this.#uptime(), qt: '' } }, false));
   }
 
+  /** `_machine_quiet()` (@cite EN runtime.c:36-51): nothing moving, held, flushing or queued. */
+  #machineQuiet(): boolean {
+    return (
+      this.#cycle === 'off' &&
+      this.#motionState === 'stop' &&
+      this.#hold === HOLD.OFF &&
+      !this.#queueFlushRequested &&
+      !this.#endHoldRequested &&
+      !this.#jobKillRequested &&
+      this.#motion.queue.length === 0 &&
+      this.#motion.current() === null
+    );
+  }
+
+  /** Whole seconds since power-up (`SysTickTimer_getValue() / RT_TICKS_PER_SECOND`, @cite EN runtime.c:89, :181). */
   #uptime(): number {
-    return Math.max(0, Math.round(this.#now() - this.#bootAt));
+    return Math.max(0, Math.floor((this.#now() - this.#bootAt) / 1000));
   }
 
   // ---- status report list (EEPROM)
@@ -2398,7 +2435,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   #println(s: string): void {
-    this.#lastPrintAt = this.#now();
+    this.#hbQuietSince = this.#now(); // a byte out restarts the heartbeat interval (@cite EN runtime.c:56-59)
     this.#transmit(Array.from(s + '\n', (ch) => ch.charCodeAt(0)));
     this.#progress++;
   }

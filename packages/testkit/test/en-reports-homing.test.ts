@@ -125,21 +125,28 @@ describe('pushed status report timing', () => {
 });
 
 describe('rt family and heartbeat', () => {
-  it('{"rt":null} reads hb, qt and up; {"rt":{"hb":N}} sets the interval; range, envelope and unsupported builds', () => {
+  it('{"rt":null} reads hb, qt and up; {"rt":{"hb":N}} sets whole seconds 0..60; range, envelope and unsupported builds', () => {
     const sim = enSim();
-    sim.clock.advance(100);
+    sim.clock.advance(2100);
     sim.host.sendLine('{"rt":null}');
     sim.clock.advance(30);
     const r = lastReply(sim.host.take());
     expect(r.f[1]).toBe(0);
     expect(r.r['rt']).toMatchObject({ hb: 0, qt: '' });
-    expect(typeof (r.r['rt'] as { up: unknown }).up).toBe('number');
-    sim.host.sendLine('{"rt":{"hb":500}}');
-    sim.clock.advance(30);
-    expect(lastReply(sim.host.take()).r).toEqual({ rt: { hb: 500 } });
+    // up is whole seconds since power-up (runtime.c rt_get_up)
+    expect((r.r['rt'] as { up: unknown }).up).toBe(2);
+    for (const n of [60, 0, 1]) {
+      sim.host.sendLine(`{"rt":{"hb":${n}}}`);
+      sim.clock.advance(30);
+      expect(lastReply(sim.host.take()).r).toEqual({ rt: { hb: n } });
+    }
     for (const [line, st] of [
+      ['{"rt":{"hb":1000}}', 110],
+      ['{"rt":{"hb":61}}', 110],
       ['{"rt":{"hb":70000}}', 110],
       ['{"rt":{"hb":1.5}}', 110],
+      ['{"rt":{"hb":-1}}', 110],
+      ['{"rt":{"hb":"1"}}', 110],
       ['{"rt":{"qq":1}}', 100],
       ['{"rt":5}', 116],
       ['{"rt":null,"stat":null}', 100],
@@ -149,6 +156,10 @@ describe('rt family and heartbeat', () => {
       sim.clock.advance(30);
       expect(statuses(sim.host.take()), line).toEqual([st]);
     }
+    // A refused value changes nothing.
+    sim.host.sendLine('{"rt":null}');
+    sim.clock.advance(30);
+    expect(lastReply(sim.host.take()).r['rt']).toMatchObject({ hb: 1 });
     const old = enSim({ rt: false });
     old.host.sendLine('{"rt":null}');
     old.clock.advance(30);
@@ -157,16 +168,44 @@ describe('rt family and heartbeat', () => {
     expect(o.r).toEqual({});
   });
 
-  it('hb lines arrive while idle and quiet, not while reports flow; ^X turns the heartbeat off', () => {
+  it('hb lines arrive every hb seconds while the link and the machine are quiet; 0 and ^X turn it off', () => {
     const sim = enSim();
-    sim.host.sendLine('{"rt":{"hb":500}}');
-    sim.clock.advance(2040);
+    sim.host.sendLine('{"rt":{"hb":1}}');
+    sim.clock.advance(3500);
     const idle = hbLines(sim.host.take());
-    expect(idle.length).toBe(4);
+    expect(idle.length).toBe(3);
     expect(idle[0]).toMatchObject({ stat: 1, hold: 0, qt: '' });
-    sim.host.sendLine('G1 X10 F600');
-    sim.clock.advance(900);
+    const ups = idle.map((b) => b['up'] as number);
+    expect(ups.every((u) => Number.isInteger(u))).toBe(true);
+    expect((ups[2] as number) - (ups[0] as number)).toBe(2);
+    // A longer interval: one beat in 2.5 s at hb 2.
+    sim.host.sendLine('{"rt":{"hb":2}}');
+    sim.clock.advance(2500);
+    expect(hbLines(sim.host.take()).length).toBe(1);
+    sim.host.sendLine('{"rt":{"hb":1}}');
+    sim.clock.advance(30);
+    sim.host.take();
+    // While the machine moves (reports flow or not) no beat is sent.
+    sim.host.sendLine('{sv:0}');
+    sim.clock.advance(30);
+    sim.host.sendLine('G1 X30 F600');
+    sim.clock.advance(2500);
     expect(hbLines(sim.host.take())).toEqual([]);
+    // Host bytes restart the interval: a byte (XON, a no-op here) every 600 ms keeps the link busy.
+    sim.clock.advance(2000);
+    sim.host.take();
+    for (let i = 0; i < 5; i++) {
+      sim.host.send('\x11');
+      sim.clock.advance(600);
+    }
+    expect(hbLines(sim.host.take())).toEqual([]);
+    sim.clock.advance(1100);
+    expect(hbLines(sim.host.take()).length).toBe(1);
+    sim.host.sendLine('{"rt":{"hb":0}}');
+    sim.clock.advance(5000);
+    expect(hbLines(sim.host.take())).toEqual([]);
+    sim.host.sendLine('{"rt":{"hb":1}}');
+    sim.clock.advance(30);
     sim.host.send('\x18');
     sim.clock.advance(5000);
     expect(hbLines(sim.host.take())).toEqual([]);

@@ -50,8 +50,14 @@ export const RUN_SR_FIELDS: readonly string[] = Object.freeze([
 /** Dialects whose status report list and heartbeat run configures. */
 export const REPORT_DIALECTS: ReadonlySet<string> = new Set(['tinyg-en']);
 
-/** The heartbeat interval run asks for, ms. */
-export const HEARTBEAT_MS = 1000;
+/**
+ * The heartbeat interval run asks for, in whole SECONDS: one beat per second. The edge-next `hb` is seconds,
+ * 0 off, 1..60 (RT_HB_MAX; @cite EN runtime.h:6, :15); anything else is refused with 110 (runtime.c:106-117).
+ * Amended 2026-11-02: run sent `{"rt":{"hb":1000}}` (ms), which the firmware refuses, so there was no heartbeat.
+ */
+export const HEARTBEAT_S = 1;
+/** The same interval in ms, for the session's own timing. */
+export const HEARTBEAT_INTERVAL_MS = HEARTBEAT_S * 1000;
 /** `si` above this is absurd and is set back to `SI_DEFAULT`. */
 export const SI_MAX_SENSIBLE = 1000;
 /** The firmware default status interval (@cite EN settings/settings_default.h:81). */
@@ -95,8 +101,9 @@ export function srListLine(): string {
   return `{sr:{${RUN_SR_FIELDS.map((f) => `${f}:true`).join(',')}}}`;
 }
 
-export function heartbeatLine(ms: number): string {
-  return `{"rt":{"hb":${Math.round(ms)}}}`;
+/** `{"rt":{"hb":N}}`, N whole seconds (1..60). */
+export function heartbeatLine(seconds: number): string {
+  return `{"rt":{"hb":${Math.round(seconds)}}}`;
 }
 
 export const RT_PROBE_LINE = '{"rt":null}';
@@ -113,7 +120,7 @@ export function reportSteps(current: ReportCurrent): readonly ReportStep[] {
   if (current.si !== undefined && current.si > SI_MAX_SENSIBLE) {
     steps.push({ kind: 'si', token: 'si', line: `{si:${SI_DEFAULT}}`, from: current.si }, { kind: 'siReadback', token: 'si' });
   }
-  steps.push({ kind: 'rtProbe', token: 'rt', line: RT_PROBE_LINE }, { kind: 'heartbeat', token: 'rt', line: heartbeatLine(HEARTBEAT_MS) });
+  steps.push({ kind: 'rtProbe', token: 'rt', line: RT_PROBE_LINE }, { kind: 'heartbeat', token: 'rt', line: heartbeatLine(HEARTBEAT_S) });
   return steps;
 }
 
@@ -123,7 +130,7 @@ const REPORT_LINES: readonly RegExp[] = [
   /^\{sv:1\}$/,
   new RegExp(`^\\{si:${SI_DEFAULT}\\}$`),
   /^\{"rt":null\}$/,
-  /^\{"rt":\{"hb":\d{3,5}\}\}$/,
+  /^\{"rt":\{"hb":([1-9]|[1-5]\d|60)\}\}$/,
 ];
 
 /** True when `line` is one of the configuration shapes, with only run's fields in a list. */

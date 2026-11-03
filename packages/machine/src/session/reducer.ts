@@ -76,7 +76,7 @@ import { writeLineCapFor } from '../writeShape.ts';
 import { gateTokens, judgeGate, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
 import { restingStat, restingUsesHold } from './resting.ts';
 import { abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
-import { HEARTBEAT_MS, REPORT_DIALECTS, SEED_TOKENS, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
+import { HEARTBEAT_INTERVAL_MS, REPORT_DIALECTS, SEED_TOKENS, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
 import {
   MAX_PROBE_RESTARTS,
   MAX_QUEUED_READS,
@@ -1394,7 +1394,7 @@ function onReportAnswer(t: Tx, r: Response, at: number): void {
         nextReportStep(t, `the board refused the heartbeat (status ${status})`);
         return;
       }
-      t.set({ reports: { ...t.s.reports, heartbeatMs: HEARTBEAT_MS }, link: { heartbeatMs: HEARTBEAT_MS, silenceMs: t.config.timings.reportSilenceMs }, liveness: null });
+      t.set({ reports: { ...t.s.reports, heartbeatMs: HEARTBEAT_INTERVAL_MS }, link: { heartbeatMs: HEARTBEAT_INTERVAL_MS, silenceMs: t.config.timings.reportSilenceMs }, liveness: null });
       t.arm('watchdog', t.config.timings.reportSilenceMs);
       nextReportStep(t, null);
       return;

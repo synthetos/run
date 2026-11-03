@@ -9,7 +9,7 @@ export { SETTING_LINE, gateTokens, judgeGate, sessionSettings, settingLine, sett
 export type { WriteContext, WriteIntent, WriteVerdict } from './writePolicy.ts';
 export { DEFAULT_TIMINGS, MAX_PROBE_RESTARTS, MAX_QUEUED_READS, READY_BASES, SESSION_BASES } from './types.ts';
 export { MOTION_LIMITS, POLL_TOKENS, activeSystem, motionCapable } from './motion.ts';
-export { HEARTBEAT_MS, REPORT_DIALECTS, RT_PROBE_LINE, RUN_SR_FIELDS, SEED_TOKENS, SI_DEFAULT, SI_MAX_SENSIBLE, heartbeatLine, reportLineShape, reportSteps, srListLine, srListMatches } from './reports.ts';
+export { HEARTBEAT_INTERVAL_MS, HEARTBEAT_S, REPORT_DIALECTS, RT_PROBE_LINE, RUN_SR_FIELDS, SEED_TOKENS, SI_DEFAULT, SI_MAX_SENSIBLE, heartbeatLine, reportLineShape, reportSteps, srListLine, srListMatches } from './reports.ts';
 export type { ReportCurrent, ReportStep, ReportStepKind } from './reports.ts';
 export { CLEAR_LINE, LINE_INTENTS, MAX_JOG_FEED, MAX_MOTION_MM, MAX_RPM, motionLineKind } from './motionLines.ts';
 export type { MotionLineKind } from './motionLines.ts';

@@ -18,5 +18,5 @@ export async function ready(page: Page): Promise<void> {
  * list, `sv` 1, an absurd `si` back to 250, and the heartbeat. Allowed on the wire besides GETs.
  */
 export function isReportConfig(w: string): boolean {
-  return /^\{sr:\{([a-z]{2,4}:true,?)+\}\}\n$/.test(w) || /^\{(sv:1|si:250)\}\n$/.test(w) || w === '{"rt":{"hb":1000}}\n';
+  return /^\{sr:\{([a-z]{2,4}:true,?)+\}\}\n$/.test(w) || /^\{(sv:1|si:250)\}\n$/.test(w) || w === '{"rt":{"hb":1}}\n';
 }
