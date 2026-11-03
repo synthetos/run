@@ -116,8 +116,11 @@ export {
   FIRMWARE_RELEASES_FORMAT,
   FIRMWARE_RELEASES_PAYLOAD_FORMAT,
   FIRMWARE_RELEASES_SIGNING_PREFIX,
+  FIRMWARE_RELEASE_REPOSITORIES,
+  FIRMWARE_RELEASE_TAG_RE,
   MAX_RELEASE_HEX_BYTES,
   belowMinimum,
+  releasePath,
   releasesForHardware,
   verifyFirmwareReleases,
 } from './firmwareReleases.ts';

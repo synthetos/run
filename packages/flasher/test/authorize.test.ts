@@ -28,6 +28,8 @@ async function release(text: string, over: Partial<FirmwareRelease> = {}): Promi
     changelog: 'x',
     recommended: true,
     simulatorOnly: false,
+    repo: null,
+    tag: null,
     ...over,
   };
 }

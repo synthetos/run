@@ -21,10 +21,13 @@
  * board (fake-serial builds); the machine worker refuses to flash it to
  * anything but a simulated port, whatever the page says (H86).
  *
- * The hex itself is hosted wherever the owner decides (docs/ops/
- * firmware-releases.md); the page may also read a local file the user
- * chooses. Either way its SHA-256 and size must equal the entry before
- * anything is parsed or flashed.
+ * The hex itself comes from GitHub Releases (OD-10, docs/ops/
+ * firmware-releases.md): an entry naming `repo` and `tag` is the release
+ * asset `file` of that release, which the page fetches from its own origin
+ * through run's Worker (`/firmware/<repo>/<tag>/<file>`, `releasePath`);
+ * an entry without them is a file the site bundles. The page may also read
+ * a local file the user chooses. Either way its SHA-256 and size must equal
+ * the entry before anything is parsed or flashed.
  *
  * Verification never throws: anything malformed, unsigned, expired or for
  * another environment offers nothing.
@@ -60,6 +63,10 @@ export interface FirmwareRelease {
   readonly recommended: boolean;
   /** An image for the test kit's simulated board only (fake-serial). */
   readonly simulatorOnly: boolean;
+  /** The GitHub repository (`owner/name`, one of FIRMWARE_RELEASE_REPOSITORIES) whose release holds `file`, or null when the site bundles it. */
+  readonly repo: string | null;
+  /** The release tag in `repo` (`440.21`, `v2.0.0`), or null with `repo`. */
+  readonly tag: string | null;
 }
 
 export interface HardwareReleases {
@@ -103,8 +110,17 @@ export interface ReleasesVerifyOptions {
 const ENTRY_KEYS: readonly string[] = ['env', 'kid', 'payload', 'sig'];
 const PAYLOAD_KEYS: readonly string[] = ['format', 'env', 'issued', 'expires', 'boards'];
 const BOARD_KEYS: readonly string[] = ['hv', 'minimumFb', 'releases'];
-const RELEASE_KEYS_ALLOWED: readonly string[] = ['fb', 'fv', 'dialect', 'part', 'file', 'sha256', 'size', 'date', 'changelog', 'recommended', 'simulatorOnly'];
+const RELEASE_KEYS_ALLOWED: readonly string[] = ['fb', 'fv', 'dialect', 'part', 'file', 'sha256', 'size', 'date', 'changelog', 'recommended', 'simulatorOnly', 'repo', 'tag'];
 const FLASHABLE_DIALECTS: readonly DialectId[] = ['tinyg-en', 'tinyg-440'];
+/**
+ * The GitHub repositories whose release assets a listed release may come from
+ * (OD-10). The Worker proxies assets of these repositories only
+ * (workers/run/src/firmwareProxy.ts keeps the same list; a gate test holds
+ * the two equal). Widening it is a reviewed change.
+ */
+export const FIRMWARE_RELEASE_REPOSITORIES: readonly string[] = Object.freeze(['synthetos/TinyG', 'synthetos/tg-xboot']);
+/** A release tag as the Worker's route accepts it (`440.21`, `v2.0.0`): one path segment, no dots-only names. */
+export const FIRMWARE_RELEASE_TAG_RE = /^(?!\.+$)[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 /** The largest `.hex` an entry may name (a full 192 KB image is about 540 KB of text). */
 export const MAX_RELEASE_HEX_BYTES = 2 * 1024 * 1024;
 const MAX_CHANGELOG = 4000;
@@ -122,7 +138,7 @@ function isDate(v: unknown): v is string {
 
 function readRelease(r: unknown, hv: number): FirmwareRelease | undefined {
   if (!isRecord(r) || !hasOnlyKeys(r, RELEASE_KEYS_ALLOWED)) return undefined;
-  const { fb, fv, dialect, part, file, sha256, size, date, changelog, recommended, simulatorOnly } = r;
+  const { fb, fv, dialect, part, file, sha256, size, date, changelog, recommended, simulatorOnly, repo, tag } = r;
   if (!positive(fb) || !positive(fv)) return undefined;
   if (typeof dialect !== 'string' || !FLASHABLE_DIALECTS.includes(dialect as DialectId)) return undefined;
   if (part !== 'x192a3') return undefined;
@@ -133,7 +149,12 @@ function readRelease(r: unknown, hv: number): FirmwareRelease | undefined {
   if (typeof changelog !== 'string' || changelog.length > MAX_CHANGELOG) return undefined;
   if (typeof recommended !== 'boolean') return undefined;
   if (simulatorOnly !== undefined && typeof simulatorOnly !== 'boolean') return undefined;
-  return Object.freeze({ hv, fb, fv, dialect: dialect as DialectId, part: 'x192a3', file, sha256, size, date, changelog, recommended, simulatorOnly: simulatorOnly === true });
+  // A GitHub-released image names both its repository and its tag; a bundled or simulator image names neither.
+  if ((repo === undefined) !== (tag === undefined)) return undefined;
+  if (repo !== undefined && (typeof repo !== 'string' || !FIRMWARE_RELEASE_REPOSITORIES.includes(repo))) return undefined;
+  if (tag !== undefined && (typeof tag !== 'string' || !FIRMWARE_RELEASE_TAG_RE.test(tag))) return undefined;
+  if (repo !== undefined && simulatorOnly === true) return undefined;
+  return Object.freeze({ hv, fb, fv, dialect: dialect as DialectId, part: 'x192a3', file, sha256, size, date, changelog, recommended, simulatorOnly: simulatorOnly === true, repo: (repo as string | undefined) ?? null, tag: (tag as string | undefined) ?? null });
 }
 
 function readBoard(b: unknown): HardwareReleases | undefined {
@@ -214,4 +235,16 @@ export function belowMinimum(releases: FirmwareReleases | null, hv: number | nul
   if (minimumFb === null || typeof fb !== 'number' || !Number.isFinite(fb)) return { below: false, minimumFb };
   // Builds are compared to the hundredth they are printed with (450.01).
   return { below: Math.round(fb * 100) < Math.round(minimumFb * 100), minimumFb };
+}
+
+/**
+ * The same-origin path the page fetches a listed image from: a GitHub-released
+ * image through the Worker's proxy (`/firmware/<owner>/<name>/<tag>/<file>`,
+ * OD-10), a simulator image from `/firmware/sim/`, anything else from
+ * `/firmware/` (a file the site bundles). Never another origin: the page's
+ * CSP is `connect-src 'self'`.
+ */
+export function releasePath(release: Pick<FirmwareRelease, 'file' | 'simulatorOnly' | 'repo' | 'tag'>): string {
+  if (release.repo !== null && release.tag !== null) return `/firmware/${release.repo}/${release.tag}/${release.file}`;
+  return `/firmware/${release.simulatorOnly ? 'sim/' : ''}${release.file}`;
 }

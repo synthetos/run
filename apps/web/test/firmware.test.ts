@@ -99,7 +99,7 @@ async function sim(name: SimImageName) {
 async function releaseList(minimumFb: number): Promise<FirmwareReleases> {
   const rel = async (name: SimImageName, recommended: boolean) => {
     const x = await sim(name);
-    return { hv: 99, fb: x.fb, fv: 0.97, dialect: 'tinyg-en' as const, part: 'x192a3' as const, file: x.file, sha256: x.sha256, size: x.size, date: '2026-11-03', changelog: 'test', recommended, simulatorOnly: true };
+    return { hv: 99, fb: x.fb, fv: 0.97, dialect: 'tinyg-en' as const, part: 'x192a3' as const, file: x.file, sha256: x.sha256, size: x.size, date: '2026-11-03', changelog: 'test', recommended, simulatorOnly: true, repo: null, tag: null };
   };
   return { env: 'staging', issuedMs: 0, expiresMs: Number.MAX_SAFE_INTEGER, boards: [{ hv: 99, minimumFb, releases: [await rel('newLayout', true), await rel('update', false), await rel('current', false)] }] };
 }

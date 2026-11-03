@@ -14,6 +14,7 @@ import {
   FIRMWARE_RELEASES_SIGNING_PREFIX,
   SIGNING_PREFIX,
   belowMinimum,
+  releasePath,
   releasesForHardware,
   verifyFirmwareReleases,
   type ReleaseKey,
@@ -73,7 +74,7 @@ describe('verifyFirmwareReleases', () => {
     const hw = releasesForHardware(v.releases, 8);
     expect(hw?.minimumFb).toBe(450.01);
     expect(hw?.releases.map((r) => r.fb)).toEqual([450.02, 450.01]);
-    expect(hw?.releases[0]).toMatchObject({ hv: 8, simulatorOnly: false, recommended: true });
+    expect(hw?.releases[0]).toMatchObject({ hv: 8, simulatorOnly: false, recommended: true, repo: null, tag: null });
     expect(releasesForHardware(v.releases, 7)).toBeNull();
     expect(releasesForHardware(v.releases, null)).toBeNull();
     expect(releasesForHardware(null, 8)).toBeNull();
@@ -152,11 +153,35 @@ describe('verifyFirmwareReleases', () => {
       body('staging', board([RELEASE, { ...RELEASE, fb: 450.03 }])),
       body('staging', board([RELEASE, { ...RELEASE, file: 'b.hex' }])),
       body('staging', board([RELEASE, { ...RELEASE, fb: 450.03, file: 'b.hex' }])),
+      // A GitHub-released image names both its repository and its tag, from the reviewed list, never a simulator image.
+      body('staging', board([{ ...RELEASE, repo: 'synthetos/TinyG' }])),
+      body('staging', board([{ ...RELEASE, tag: '440.21' }])),
+      body('staging', board([{ ...RELEASE, repo: 'evil/TinyG', tag: '440.21' }])),
+      body('staging', board([{ ...RELEASE, repo: 'synthetos/TinyG', tag: '../440.21' }])),
+      body('staging', board([{ ...RELEASE, repo: 'synthetos/TinyG', tag: '440.21/x' }])),
+      body('staging', board([{ ...RELEASE, repo: 'synthetos/TinyG', tag: '..' }])),
+      body('staging', board([{ ...RELEASE, repo: 'synthetos/TinyG', tag: '' }])),
+      body('staging', board([{ ...RELEASE, repo: 'synthetos/TinyG', tag: 440.21 }])),
+      body('staging', board([{ ...RELEASE, repo: 'synthetos/TinyG', tag: '440.21', simulatorOnly: true }])),
     ];
     for (const payload of cases) expect(await bad(payload), payload).toEqual({ ok: false, rejection: 'malformed-payload' });
     // A simulator image may share a build number with a real one.
     const sim = await bad(body('staging', board([RELEASE, { ...RELEASE, file: 'sim.hex', simulatorOnly: true, recommended: false }])));
     expect(sim.ok).toBe(true);
+  });
+
+  it('a GitHub-released image carries its repository and tag, and is fetched through the Worker on the page’s own origin', async () => {
+    const k = await makeKey('s', ['staging']);
+    const github = { ...RELEASE, fb: 440.21, dialect: 'tinyg-440', file: 'tinyg-440.21.hex', recommended: false, repo: 'synthetos/TinyG', tag: '440.21' };
+    const payload = body('staging', { boards: [{ hv: 8, minimumFb: 440.21, releases: [github] }] });
+    const v = await verifyFirmwareReleases(file(await entry(k, 'staging', payload)), { environment: 'staging', now: NOW, keys: [k.key] });
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    const r = releasesForHardware(v.releases, 8)?.releases[0];
+    expect(r).toMatchObject({ fb: 440.21, repo: 'synthetos/TinyG', tag: '440.21', simulatorOnly: false });
+    expect(releasePath(r as NonNullable<typeof r>)).toBe('/firmware/synthetos/TinyG/440.21/tinyg-440.21.hex');
+    expect(releasePath({ file: 'sim-edge-next-450.02.hex', simulatorOnly: true, repo: null, tag: null })).toBe('/firmware/sim/sim-edge-next-450.02.hex');
+    expect(releasePath({ file: 'tinyg-edge-next-450.02.hex', simulatorOnly: false, repo: null, tag: null })).toBe('/firmware/tinyg-edge-next-450.02.hex');
   });
 
   it('the committed file verifies for staging with the compiled-in keys, and production has no entry (stays empty)', async () => {
