@@ -237,10 +237,12 @@ test('custom firmware: labelled unsigned, read-only after the update; trusted on
   await flashableBoard(worker, { __layout: 10002 });
   await connect(page, worker);
   await openFirmware(page, 'backups');
-  await expect(page.locator('[data-safety="W47"]').first()).toBeVisible();
+  // W47 is shown where the decision is made (the confirmation), not as a permanent banner (OD-9).
+  await expect(page.locator('[data-safety="W47"]')).toHaveCount(0);
   const input = page.locator('[data-action="custom-file"]');
   await expect(input).toBeEnabled({ timeout: 20_000 });
   await input.setInputFiles({ name: 'my-tinyg.hex', mimeType: 'text/plain', buffer: readFileSync(join(REPO, 'firmware/sim/sim-custom-450.90.hex')) });
+  await expect(page.locator('[data-region="flash-confirm"] [data-safety="W47"]')).toBeVisible();
   await expect(page.locator('[data-region="flash-confirm"] [data-safety="C37"]')).toBeVisible();
   await confirmFlash(page);
   await page.locator('[data-board-tab="firmware"]').click();

@@ -992,10 +992,9 @@ code.block { display: block; white-space: pre-wrap; word-break: break-word; padd
 .board-hotspot:hover rect.hit, .board-hotspot:focus-visible rect.hit, .board-hotspot[aria-pressed="true"] rect.hit { stroke: #96ccff; fill: #91c9ff22; }
 .board-facts dd { font-family: var(--mono); font-size: 12px; }
 .cpane > .configure-grid, .cpane > .scroll-region { flex: 1; min-height: 0; }
+.cpane > .hub { flex: 1; min-height: 0; }
 .settings-tab { padding-top: 0; }
 .settings-tab .settings-read, .settings-tab .axis-modes { border: 1px solid var(--rule); background: var(--sheet); border-radius: var(--r); padding: 14px 18px; margin: 0 0 14px; }
-.backups-panel { padding-bottom: 14px; overflow: auto; }
-.backups-panel > p, .backups-panel > ul, .backups-panel > details { margin: 0 18px 10px; }
 .backup-progress { font-size: 12.5px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--raise); border: 1px solid var(--line-soft); }
 .backup-progress.ok { color: var(--ok); }
 .backup-progress.danger { color: var(--danger); background: var(--danger-soft); }

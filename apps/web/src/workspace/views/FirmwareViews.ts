@@ -405,35 +405,73 @@ export function BackupsHub({ model }: { readonly model: WorkspaceModel | null })
   const hub = view?.firmware ?? null;
   const snapshot = view?.message?.snapshot ?? null;
   const readBlocked = backupBlocked(snapshot);
+  // The Board's own settings read and the backup share the read path; one at a time, and the button says so.
+  const readingSettings = view?.readout.phase.kind === 'reading';
   const status = view?.backup ?? { kind: 'idle' as const };
   const flashBlockedWhy = flashBlocked(view);
   const thisBoard = typeof snapshot?.identity?.id === 'string' ? snapshot.identity.id : null;
   const [target, setTarget] = useState<Target | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const say = (p: Promise<string | null>): void => void p.then(setMsg);
+  // One column, left-aligned, each section carrying its own action at natural width (owner, 2026-11-03: "never
+  // stretch buttons across the screen"). The unsigned-firmware warning (W47) is shown where the decision is made,
+  // in the flash confirmation beside C37, not as a permanent banner (OD-9).
+  const importPick = h(
+    'label',
+    { class: `button small file-pick${fw === undefined ? ' disabled' : ''}` },
+    'Import a backup file…',
+    h('input', {
+      type: 'file',
+      accept: 'application/json,.json',
+      class: 'sr-only',
+      disabled: fw === undefined,
+      'data-action': 'backup-import',
+      onChange: (e: Event) => {
+        const input = e.currentTarget as HTMLInputElement;
+        const file = input.files?.[0];
+        if (file !== undefined && fw !== undefined) void file.text().then((t) => say(fw.importSettings(t)));
+        input.value = '';
+      },
+    }),
+  );
   return h(
     'div',
-    { class: 'configure-grid hub-grid' },
+    { tabindex: 0, class: 'hub', 'data-region': 'backups-hub' },
+    view !== null && target !== null
+      ? h(ConfirmFlash, {
+          view,
+          target,
+          onCancel: () => setTarget(null),
+          onConfirm: () => {
+            const t = target;
+            setTarget(null);
+            if (fw === undefined) return;
+            say(t.kind === 'backup' ? fw.putBack(t.id) : t.kind === 'custom' ? fw.flashCustom(t.name, t.text) : fw.updateRelease(t.release, t.localText));
+          },
+        })
+      : null,
+    msg === null ? null : h('p', { class: 'backup-progress', role: 'status', 'data-hub-message': 'true' }, msg),
+    hub?.notice === null || hub?.notice === undefined ? null : h('p', { class: `backup-progress ${hub.notice.kind === 'ok' ? 'ok' : 'danger'}`, role: 'status' }, hub.notice.text),
     h(
-      'div',
-      { tabindex: 0, class: 'list-panel backups-panel', 'data-region': 'backups-hub' },
+      'section',
+      { class: 'hub-section', 'aria-labelledby': 'hub-settings' },
       h(
-        'div',
-        { class: 'section-heading tight' },
-        h('h2', null, 'Settings backups'),
+        'header',
+        { class: 'hub-head' },
+        h('h2', { id: 'hub-settings' }, 'Settings backups'),
         h(
           'button',
-          { type: 'button', class: 'primary small', 'data-action': 'backup', 'data-machine-control': 'read', disabled: readBlocked !== null || status.kind === 'reading' || model === null, 'aria-describedby': 'backup-why', onClick: () => model?.actions.value?.backup() },
+          { type: 'button', class: 'primary small', 'data-action': 'backup', 'data-machine-control': 'read', disabled: readBlocked !== null || readingSettings || status.kind === 'reading' || model === null, 'aria-describedby': 'backup-why', onClick: () => model?.actions.value?.backup() },
           Icon('download', 16),
           status.kind === 'reading' ? 'Reading…' : 'Back up settings',
         ),
       ),
-      h('p', { class: 'fine', id: 'backup-why', 'data-backup': readBlocked === null ? 'ready' : 'blocked' }, readBlocked ?? 'Every setting, read one GET at a time and kept on this computer. Run also backs up automatically before every settings apply and every firmware update.'),
+      h('p', { class: 'fine', id: 'backup-why', 'data-backup': readBlocked !== null ? 'blocked' : readingSettings ? 'waiting' : 'ready' }, readBlocked ?? (readingSettings ? "Reading the board's settings first; the backup can start when that finishes." : 'Kept on this computer. Run also backs up before every settings apply and every firmware update.')),
       status.kind === 'reading' ? h('p', { class: 'backup-progress', role: 'status', 'data-backup': 'reading' }, `Reading ${status.token === '' ? 'the last answer' : `"${status.token}"`}: ${status.done} of ${status.of}`) : null,
       status.kind === 'saved' ? h('p', { class: 'backup-progress ok', role: 'status', 'data-backup': 'saved' }, `Saved ${status.name}: ${status.answered} groups${status.unanswered === 0 ? '' : `, ${status.unanswered} unanswered (listed in the file)`}.`) : null,
       status.kind === 'failed' ? h('p', { class: 'backup-progress danger', role: 'alert', 'data-backup': 'failed' }, `The backup was not saved: ${status.message}`) : null,
       hub === null || hub.settings.length === 0
-        ? h('p', { class: 'fine', 'data-settings-backups': '0' }, 'No settings backups on this computer yet.')
+        ? h('div', { class: 'hub-empty' }, h('p', { class: 'fine', 'data-settings-backups': '0' }, 'No settings backups on this computer yet.'), importPick)
         : h(
             'ul',
             { class: 'hub-list', 'data-settings-backups': String(hub.settings.length) },
@@ -454,25 +492,13 @@ export function BackupsHub({ model }: { readonly model: WorkspaceModel | null })
               ),
             ),
           ),
-      h(
-        'label',
-        { class: `button small file-pick${fw === undefined ? ' disabled' : ''}` },
-        'Import a backup file…',
-        h('input', {
-          type: 'file',
-          accept: 'application/json,.json',
-          class: 'sr-only',
-          disabled: fw === undefined,
-          'data-action': 'backup-import',
-          onChange: (e: Event) => {
-            const input = e.currentTarget as HTMLInputElement;
-            const file = input.files?.[0];
-            if (file !== undefined && fw !== undefined) void file.text().then((t) => say(fw.importSettings(t)));
-            input.value = '';
-          },
-        }),
-      ),
-      h('div', { class: 'section-heading tight' }, h('h2', null, 'Firmware image backups'), h('span', { class: 'fine' }, 'Read from the board before each update')),
+      hub !== null && hub.settings.length > 0 ? h('div', { class: 'hub-foot' }, importPick) : null,
+      h(RestorePanel, { view }),
+    ),
+    h(
+      'section',
+      { class: 'hub-section', 'aria-labelledby': 'hub-images' },
+      h('header', { class: 'hub-head' }, h('h2', { id: 'hub-images' }, 'Firmware image backups'), h('span', { class: 'fine' }, 'Read from the board before each update')),
       hub === null || hub.firmware.length === 0
         ? h('p', { class: 'fine', 'data-firmware-backups': '0' }, 'None yet. Run reads the whole firmware from the board, with its EEPROM, before every update.')
         : h(
@@ -497,28 +523,40 @@ export function BackupsHub({ model }: { readonly model: WorkspaceModel | null })
               ),
             ),
           ),
-      h('div', { class: 'section-heading tight' }, h('h2', null, 'Custom firmware'), h('span', { class: 'tag warn' }, 'Unsigned')),
-      h('p', { class: 'flash-warn', 'data-safety': 'W47' }, ...signalText(w47())),
+    ),
+    h(
+      'section',
+      { class: 'hub-section', 'aria-labelledby': 'hub-custom' },
       h(
-        'label',
-        { class: `button small file-pick${flashBlockedWhy === null ? '' : ' disabled'}` },
-        'Choose a .hex file…',
-        h('input', {
-          type: 'file',
-          accept: '.hex',
-          class: 'sr-only',
-          disabled: flashBlockedWhy !== null,
-          'data-machine-control': 'flash',
-          'data-action': 'custom-file',
-          onChange: (e: Event) => {
-            const input = e.currentTarget as HTMLInputElement;
-            const file = input.files?.[0];
-            if (file !== undefined) void file.text().then(async (text) => setTarget({ kind: 'custom', name: file.name, text, sha256: await sha256Of(text) }));
-            input.value = '';
-          },
-        }),
+        'header',
+        { class: 'hub-head' },
+        h('h2', { id: 'hub-custom' }, 'Custom firmware'),
+        h(
+          'label',
+          { class: `button small file-pick${flashBlockedWhy === null ? '' : ' disabled'}`, title: flashBlockedWhy ?? undefined },
+          'Choose a .hex file…',
+          h('input', {
+            type: 'file',
+            accept: '.hex',
+            class: 'sr-only',
+            disabled: flashBlockedWhy !== null,
+            'data-machine-control': 'flash',
+            'data-action': 'custom-file',
+            onChange: (e: Event) => {
+              const input = e.currentTarget as HTMLInputElement;
+              const file = input.files?.[0];
+              if (file !== undefined) void file.text().then(async (text) => setTarget({ kind: 'custom', name: file.name, text, sha256: await sha256Of(text) }));
+              input.value = '';
+            },
+          }),
+        ),
       ),
-      h('div', { class: 'section-heading tight' }, h('h2', null, 'Trusted custom builds'), h('span', { class: 'fine' }, 'On this computer only')),
+      h('p', { class: 'fine' }, 'Unsigned builds are flashed after a backup and stay read-only until you trust them on this board. The full warning is shown before you confirm.'),
+    ),
+    h(
+      'section',
+      { class: 'hub-section', 'aria-labelledby': 'hub-trust' },
+      h('header', { class: 'hub-head' }, h('h2', { id: 'hub-trust' }, 'Trusted custom builds'), h('span', { class: 'fine' }, 'On this computer only')),
       hub === null || hub.trust.length === 0
         ? h('p', { class: 'fine', 'data-trusted': '0' }, 'None. A custom build stays read-only unless you trust it on its board.')
         : h(
@@ -533,26 +571,6 @@ export function BackupsHub({ model }: { readonly model: WorkspaceModel | null })
               ),
             ),
           ),
-    ),
-    h(
-      'aside',
-      { tabindex: 0, class: 'inspector', 'aria-label': 'Restore and flash' },
-      view !== null && target !== null
-        ? h(ConfirmFlash, {
-            view,
-            target,
-            onCancel: () => setTarget(null),
-            onConfirm: () => {
-              const t = target;
-              setTarget(null);
-              if (fw === undefined) return;
-              say(t.kind === 'backup' ? fw.putBack(t.id) : t.kind === 'custom' ? fw.flashCustom(t.name, t.text) : fw.updateRelease(t.release, t.localText));
-            },
-          })
-        : null,
-      msg === null ? null : h('p', { class: 'backup-progress', role: 'status', 'data-hub-message': 'true' }, msg),
-      hub?.notice === null || hub?.notice === undefined ? null : h('p', { class: `backup-progress ${hub.notice.kind === 'ok' ? 'ok' : 'danger'}`, role: 'status' }, hub.notice.text),
-      h(RestorePanel, { view }),
     ),
   );
 }
