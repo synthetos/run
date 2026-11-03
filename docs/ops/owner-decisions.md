@@ -366,3 +366,15 @@ The owner explicitly requested that routine explanatory paragraphs become `?` he
 
 Recorded from the bench 2 Console transcript the owner pasted: the first lines run read after opening the port were pushed status reports, a torn heartbeat fragment and only then the answer to run's own `{sr:null}`. The firmware maintainer's session confirmed the board never originates an `r` frame and that the tear happens in the FTDI and macOS buffers once nobody drains the port. Run now discards everything before the first answer on a link (counted in the session log) instead of taking a torn line for a damaged answer. Not an owner decision; recorded here because it changes connect behaviour the owner saw.
 
+## OD-13. The machine pane: one warning, the machine's axes, no scrolling (owner, 2026-11-03)
+
+**Owner's words.** "still so many words nothing works … no way to actually home it or set it homed. so many estop references its over the top already … ugly text, terrible scrolling on this window, spindle and coolant cut off, everything is greyed out, there is entirely too much text and too much scrolling for anyone to use this ever. i want this fixed visually; if it doesnt fit come up with a different solution, look at other cnc uis how they do it. also why cannot i jog right now, move it to a position then set work home or machine home with a button; not all machines have limit switches to home."
+
+**Decisions.**
+1. W1 is the only warning that stays on screen. W34 (not homed) is a small "Not homed" tag whose help carries the registered text, and it is still named in every jog confirmation; the "keep a hand on the E-stop" sentence appears once, in W1, and nowhere in panel copy.
+2. The pane shows the machine's axes only (X, Y, Z, plus A when the machine has one), never B and C for a TinyG.
+3. The pane fits a 1280 × 720 window without scrolling: Position, jog, zero and home on one screen at Simple; tabs only at Advanced; tab labels short enough to fit ("Spindle", not "Spindle and coolant").
+4. Zero here, Go to zero, Home all and "Set machine zero here" (G28.3, for a machine without switches) are buttons on the pane; "Set machine zero here" is offered whenever the machine is connected and at rest, whether or not the homing settings were read.
+5. A gate that greys the pane out says how to clear it where the user is: NEEDS_REVIEW (the board's settings differ from the reference) offers "Keep the board's settings" and "Review" in the same banner, on every view; nothing is greyed out without its way out beside it.
+6. Safety behaviour is unchanged: the confirmations (C4, C16, C25, C26), the motion preconditions and the never-gated Pause, Stop job and Spindle off stay as SAFETY states them.
+

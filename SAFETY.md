@@ -610,7 +610,7 @@ In every row the reply to the connect line is a G-code reply `{"r":{},"f":[...]}
 |---|---|
 | **Cause** | Soft limits are skipped for unhomed axes (H3). The owner chose to allow jogging before homing on the bench. |
 | **Rating** | S2–S3, L3 |
-| **Mitigations** | The homing state is read at connect (`home`) and shown. While not homed, the jog panel shows W34 and every jog confirmation names it. Jog speed is capped (5000 mm/min, and by the firmware's own `fr`). Hard limits and the E-stop remain the protection. An alarm from a limit switch stops all motion (§4.5b, ALARM). |
+| **Mitigations** | The homing state is read at connect (`home`) and shown. While not homed, the jog panel shows W34 and every jog confirmation names it. **(Amended 2026-11-03, owner, OD-13.)** On the pane W34 is a "Not homed" tag whose help carries the registered text (OD-9: W1 is the only warning that stays on screen); every jog confirmation still names it in full. Jog speed is capped (5000 mm/min, and by the firmware's own `fr`). Hard limits and the E-stop remain the protection. An alarm from a limit switch stops all motion (§4.5b, ALARM). |
 | **Residual** | Medium on unhomed machines. Low once homed with `sl=1`. |
 | **Verification** | U: T-S92 (the warning is part of the decision). H: HIL-2.9. |
 
