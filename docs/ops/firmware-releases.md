@@ -90,3 +90,10 @@ and the whole application section as a firmware image backup (`.hex`, with
 ("Put this firmware back"), on the board it was read from only, through the
 same flow and checks. Cloud sync of backups comes later behind the
 `BackupRepository` seam (`apps/web/src/firmware/store.ts`).
+
+## Where the images come from (OD-10, facts from the firmware maintainer, 2026-11-03)
+
+- **TinyG** (`synthetos/TinyG`): a GitHub Release is created only when a tag matching `[0-9]*` or `v*` is pushed; the tag is the firmware build number (for example `440.21`) and the release is marked pre-release. Assets: `tinyg-<BUILD>.hex`, `tinyg-<BUILD>.elf`, `SHA256SUMS` (sha256sum of the hex and the elf) and `size.txt`. Checksums only, no signatures. One hex per release: the firmware targets the v8 board, and the hardware version is a runtime setting, not a build variant. Example: https://github.com/synthetos/TinyG/releases/tag/440.21. Pushes to branches produce Actions artifacts only, never releases.
+- **450.01 / edge-next is not published yet.** The bench build is a local build of the edge-next tip. A release needs the maintainer to push a tag such as `450.01` on edge-next.
+- **tg-xboot** (`synthetos/tg-xboot`): tags `v<semver>`; assets `tg-xboot-v2.0.0.hex`, `tg-xboot-v2.0.0-boot.hex`, `.elf`, `SHA256SUMS`, `TOOLCHAIN.txt`.
+- **Browsers cannot fetch these assets directly.** The download redirects to `release-assets.githubusercontent.com`, whose response carries no `Access-Control-Allow-Origin` header (checked 2026-11-03), so a cross-origin fetch from run's page fails whatever run's own policy says. run's Worker fetches the asset server-side, checks its SHA-256 against the signed list (and against the release's `SHA256SUMS`), caches it, and serves it same-origin.
