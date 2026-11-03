@@ -2,7 +2,7 @@ import { h, type ComponentChild } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { GuardedEngine, LEVELS, MockAiEngine, RulesEngine, type GuardedPlan } from '@synthetos/advisor';
 import type { AdvisorFields, AdvisorRow } from '../advisorModel.ts';
-import { advisorEngine, advisorOperations, advisorProfiles, advisorRows, advisorStock, machineFields, machineInput, operationFields, setMachineField, setOperationField } from '../advisorState.ts';
+import { advisorEngine, advisorOperations, advisorProfiles, advisorRows, advisorStock, machineFields, operationFields, setMachineField, setOperationField } from '../advisorState.ts';
 import { currentFile } from '../fileBridge.ts';
 import { selectedMachine, toolStore } from '../library.ts';
 
@@ -19,7 +19,7 @@ function MachineInputs(): ComponentChild {
   const profile = selectedMachine.value;
   if (profile === null) return h('p', { class: 'fine' }, 'Select a machine in Machines to enter its cutting limits.');
   const fields = machineFields.value;
-  return h('details', { class: 'panel', open: machineInput.value.machine === null },
+  return h('details', { class: 'panel', open: true },
     h('summary', null, `Machine inputs · ${profile.name}`),
     h('p', { class: 'fine' }, `Profile drive: ${profile.drive === 'any' ? 'unspecified' : profile.drive}. Spindle: ${profile.spindle || 'unspecified'}. Supplementary inputs below are saved for this profile; they do not change board settings.`),
     h('div', { class: 'advisor-fields' },
