@@ -76,6 +76,10 @@ item 20 covers 0x18 and 0x04). Items 22–40 are SAFETY §8 verbatim.
 - [ ] 47. (Phase 3) Job lines go out only in line mode (footer revision 3), never beyond `f[2]` less the owed lines less the reserve; only `r` answers are counted; every job line passes the gate as exactly its sanitised line.
 - [ ] 48. (Phase 3) A refused line holds the job (W38, C33); a reset is a FAULT (W40); a tool change stops before the M6 with the spindle and coolant off (W37, C34, C35); breakpoints stop before their line and say when they cannot (W41).
 - [ ] 49. (Phase 3) `rxm` is written only by the `lineMode` intent: only if it differs, read back, and put back after the job, and at connect only with this browser's pending record (H77); the job flag is sent only where the capability probe finds it.
+- [ ] 50. (firmware update, 2026-11-03) The flasher stays behind its switch (`FLASHER`, production off); the capability is minted only by the flasher's authorization and consumed by the bootloader-role open; the port reopened is the session's own selector.
+- [ ] 51. (firmware update) No path can send `e`, `l`, an EEPROM write or a page at or above 0x30000: the closed command set, the frame guard and their tests are intact; every flash test asserts the fake xboot's erase count is 0.
+- [ ] 52. (firmware update) Backups (settings token by token, raw EEPROM, the application section) are stored before the first page; after the reconnect the settings compare, the required restore and the switch check gate jobs, jog and settings writes in the worker.
+- [ ] 53. (firmware update) The release list is verified per environment in the worker; simulator images never reach a real port; a trusted custom build is per board and per image SHA-256, local only, and never applies on production.
 
 ### Notes for the safety reviewer
 

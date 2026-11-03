@@ -201,10 +201,13 @@ export function stripStatus(view: LiveView, machineName: string | null): StripSt
   }
   const old = view.message?.oldFirmware ?? null;
   if (old !== null) return { ...base, title: 'Firmware update needed', tone: 'warn', pill: { text: 'Update needed', tone: 'warn' }, text: w50({ fb: old.fb.toFixed(2), minimum: old.minimumFb.toFixed(2) }) };
+  // A custom build the user trusted on this board (SAFETY H87): the banner stays whatever else the strip says (W48).
+  const trusted = s.classification?.approvalSource === 'trusted';
+  if (trusted && o.includes('NEEDS_REVIEW')) return { ...base, title: 'Connected · settings to review', tone: 'live', pill: { text: w48(), tone: 'warn' }, text: 'The board’s settings differ from this computer’s reference.' };
   if (o.includes('NEEDS_REVIEW')) return { ...base, title: 'Connected · read only', tone: 'live', pill: { text: 'Needs review', tone: 'warn' }, text: 'The board’s settings differ from this computer’s reference.' };
   if (o.includes('READ_ONLY')) return { ...base, title: 'Connected · read only', tone: 'live', pill: { text: 'Read only', tone: 'live' }, text: 'Phase 1: positions and settings are read, nothing is written.' };
   // A custom build the user trusted on this board (SAFETY H87): a persistent banner while it is in use (W48).
-  if (s.classification?.approvalSource === 'trusted') return { ...base, title: 'Machine idle', tone: 'live', pill: { text: w48(), tone: 'warn' }, text: s.notices.motion?.text ?? 'This board runs custom firmware you trusted on it. It is not a signed build.' };
+  if (trusted) return { ...base, title: 'Machine idle', tone: 'live', pill: { text: w48(), tone: 'warn' }, text: s.notices.motion?.text ?? 'This board runs custom firmware you trusted on it. It is not a signed build.' };
   // Phase 2: the last motion result in plain words ("Stopped: queue cleared, spindle and coolant off"), from polled state.
   return { ...base, title: 'Machine idle', tone: 'live', pill: null, text: s.notices.motion?.text ?? null };
 }

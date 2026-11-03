@@ -36,7 +36,7 @@ import { LiveReadout } from './readout.ts';
 import { backupFileName, SettingsBackup, type BackupFile } from './backup.ts';
 import { SettingsApplier, type ApplyState } from './settingsApply.ts';
 import type { PlannedChange } from '@synthetos/schema';
-import { clearDraft } from '../workspace/boardFacts.ts';
+import { clearDraft, setDraft } from '../workspace/boardFacts.ts';
 import { lineModeRecord, pendingLineMode } from '../workspace/jobUi.ts';
 import { ConsoleReader } from './consoleRead.ts';
 import type { BackupStatus, LiveSample, WorkspaceModel } from '../workspace/model.ts';
@@ -287,7 +287,9 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
         return file;
       }),
     boardSettings: () => readout.settings,
-    applyRestore: (changes) => void applier.apply(changes),
+    stageRestore: (changes) => {
+      for (const c of changes) setDraft(c.key, c.to);
+    },
     reread: () => readout.reread(),
     onChange: () => publish(),
   }).catch(() => null);

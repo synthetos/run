@@ -331,10 +331,12 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
     denied: { reason: 'The connection is not lost.', remedy: 'Nothing to do.' },
     citation: 'SAFETY §3 LOST overlay',
   },
+  // NEEDS_REVIEW (amended 2026-11-03): after a firmware update the board restarted (UNKNOWN) and its settings differ
+  // from this computer's reference (NEEDS_REVIEW); the restore needs UNKNOWN cleared, and confirming moves nothing.
   positionVerify: {
     kind: 'session',
     states: ['CONNECTED_UNKNOWN'],
-    overlays: ['UNKNOWN'],
+    overlays: ['UNKNOWN', 'NEEDS_REVIEW'],
     denied: { reason: 'Position verification is only offered while the position is untrusted.', remedy: 'Nothing to do.' },
     citation: 'SAFETY §3 CONNECTED_UNKNOWN; §4.1 Anything else row',
   },

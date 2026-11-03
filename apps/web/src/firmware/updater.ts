@@ -65,8 +65,11 @@ export interface UpdaterDeps {
   readonly reread: () => void;
   /** The board's settings as last read (the readout). */
   readonly boardSettings: () => Readonly<Record<string, SettingValue>>;
-  /** Apply restore changes through the settings write path (live/settingsApply.ts). */
-  readonly applyRestore: (changes: readonly PlannedChange[]) => void;
+  /**
+   * Stage the restore as pending changes: the user reviews and applies them in the Pending changes tray, with the
+   * usual C5 (typed WRITE for the switch and homing keys) and the settings write path (SAFETY §4.6).
+   */
+  readonly stageRestore: (changes: readonly PlannedChange[]) => void;
   /** One read of the input states (in1..in8) through the worker's read path. */
   readonly readInputs: () => Promise<unknown>;
   readonly setInterval: (fn: () => void, ms: number) => unknown;
@@ -227,7 +230,7 @@ export class FirmwareUpdater {
     if (post.phase !== 'switchCheck') this.#stopPolling();
   }
 
-  /** The required restore: the backup's values for every setting that differs, through the settings write path. */
+  /** The required restore: the backup's values for every setting that differs, staged for the settings write path. */
   async restore(): Promise<string | null> {
     const m = this.#message;
     const post = m?.postFlash ?? null;
@@ -242,7 +245,7 @@ export class FirmwareUpdater {
     });
     const plan = planSettingsWrite(dialect, proposed, this.#d.boardSettings());
     if (!plan.ok) return `The restore was refused: ${plan.refused.map((r) => r.message).join('; ')}`;
-    this.#d.applyRestore(plan.changes);
+    this.#d.stageRestore(plan.changes);
     return null;
   }
 

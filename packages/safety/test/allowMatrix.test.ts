@@ -190,6 +190,8 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
       'jobBreakpoints',
       'keepBoardSettings',
       'lineMode',
+      // Amendment 2026-11-03: confirming the machine after a firmware update moves nothing.
+      'positionVerify',
       'read',
       'resetController',
       'settingsWrite',

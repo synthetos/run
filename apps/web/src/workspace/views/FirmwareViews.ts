@@ -22,6 +22,7 @@ import { backupBlocked } from '../../live/backup.ts';
 import { Icon } from '../icons.ts';
 import { connected, type FirmwareActions, type FirmwareHubView, type LiveView, type WorkspaceModel } from '../model.ts';
 import type { FlashView } from '../../machine-worker/flashService.ts';
+import type { MotionCommand } from '../../machine-worker/rpc.ts';
 
 const fbText = (fb: number | null | undefined): string => (typeof fb === 'number' ? fb.toFixed(2) : 'unknown');
 const shortSha = (sha: string): string => `${sha.slice(0, 4)}…${sha.slice(-4)}`;
@@ -131,7 +132,7 @@ function RecoveryCard({ flash, actions }: { readonly flash: FlashView; readonly 
     h('header', null, h('h2', null, 'Recovery'), h('span', { class: 'tag danger' }, 'No firmware running')),
     counting
       ? h('p', { class: 'recovery-count', role: 'alert', 'data-safety': 'W49' }, w49({ seconds: flash.countdown ?? 0 }))
-      : h('p', null, 'The board has no complete firmware, so it waits in its bootloader. Run flashes it again through the bootloader’s reset window: start recovery, then unplug the USB cable and plug it back in.'),
+      : h('p', null, 'The board has no complete firmware, so it waits in its bootloader. Run flashes it again while the bootloader waits after a reset. Start recovery, then unplug the USB cable and plug it back in.'),
     h('p', { class: 'flash-danger', 'data-safety': 'W28' }, ...signalText(w28())),
     counting ? null : h('button', { type: 'button', class: 'primary wide', 'data-machine-control': 'flash', 'data-action': 'flash-recover', disabled: actions?.firmware === undefined, onClick: () => void actions?.firmware?.recover() }, 'Start recovery'),
   );
@@ -157,6 +158,14 @@ function PostFlash({ view, hub }: { readonly view: LiveView; readonly hub: Firmw
             h('thead', null, h('tr', null, h('th', null, 'Setting'), h('th', null, 'Your backup'), h('th', null, 'Board now'))),
             h('tbody', null, post.differences.map((d) => h('tr', { key: d.key }, h('td', null, h('code', null, d.key)), h('td', null, String(d.backup)), h('td', null, d.board === null ? 'not read' : boardText(String(d.board)))))),
           ),
+          view.message?.snapshot.overlays.includes('UNKNOWN') === true
+            ? h(
+                'div',
+                { class: 'post-flash-unknown', 'data-region': 'post-flash-unknown' },
+                h('p', { class: 'fine' }, 'The board restarted for the update, so run does not trust its position. Check that nothing is moving and the machine is where you expect, then confirm. That moves nothing, and it lets the restore write.'),
+                h('button', { type: 'button', class: 'small', 'data-machine-control': 'verify', 'data-action': 'post-flash-verify', onClick: () => void MOTION.current?.({ op: 'positionVerify' }) }, 'I’ve checked the machine'),
+              )
+            : null,
           h(RestoreButton, { view }),
         )
       : null,
@@ -181,7 +190,7 @@ function RestoreButton({ view }: { readonly view: LiveView }): ComponentChild {
       },
       view.apply.kind === 'writing' ? 'Restoring…' : 'Restore my settings',
     ),
-    h('p', { class: 'fine' }, 'Run writes your backed-up values one at a time and reads each back. Nothing else is written until they all match.'),
+    h('p', { class: 'fine' }, 'Your backed-up values become pending changes. Apply them in Pending changes at the top: Run writes them one at a time and reads each back. Nothing else is written until they all match.'),
     msg === null ? null : h('p', { class: 'backup-progress danger', role: 'alert' }, msg),
   );
 }
@@ -215,6 +224,8 @@ function SwitchCheck({ view, hub }: { readonly view: LiveView; readonly hub: Fir
 
 /** The firmware actions of the page, set by the views (preact hooks cannot reach the model inside PostFlash's children). */
 const FIRMWARE_ACTIONS: { current: FirmwareActions | null } = { current: null };
+/** The page's motion action (positionVerify after the board restarted), set by the views like FIRMWARE_ACTIONS. */
+const MOTION: { current: ((command: MotionCommand) => Promise<string | null>) | null } = { current: null };
 
 function TrustOffer({ view, hub }: { readonly view: LiveView; readonly hub: FirmwareHubView }): ComponentChild {
   const [open, setOpen] = useState(false);
@@ -250,6 +261,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
   const view = model?.live.value ?? viewProp ?? null;
   const actions = model?.actions.value ?? null;
   FIRMWARE_ACTIONS.current = actions?.firmware ?? null;
+  MOTION.current = actions?.motion ?? null;
   const hub = view?.firmware ?? null;
   const [target, setTarget] = useState<Target | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -318,7 +330,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
                       h('button', { type: 'button', class: r.recommended ? 'primary small' : 'small', 'data-machine-control': 'flash', 'data-action': 'update-release', disabled: blocked !== null || running || actions?.firmware === undefined, title: blocked ?? undefined, onClick: () => setTarget({ kind: 'release', release: r }) }, installed ? 'Flash again' : `Update to ${fbText(r.fb)}`),
                       h(
                         'label',
-                        { class: `button small file-pick${blocked === null ? '' : ' disabled'}` },
+                        { class: `small file-pick${blocked === null ? '' : ' disabled'}` },
                         'Use a local copy…',
                         h('input', {
                           type: 'file',

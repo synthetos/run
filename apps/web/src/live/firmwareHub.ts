@@ -26,7 +26,7 @@ export interface FirmwareHubDeps {
   /** The full settings backup through the read path (live/backup.ts). */
   readonly runBackup: () => Promise<BackupFile>;
   readonly boardSettings: () => Readonly<Record<string, SettingValue>>;
-  readonly applyRestore: (changes: readonly PlannedChange[]) => void;
+  readonly stageRestore: (changes: readonly PlannedChange[]) => void;
   readonly reread: () => void;
   readonly onChange: () => void;
 }
@@ -77,7 +77,7 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
     },
     reread: deps.reread,
     boardSettings: deps.boardSettings,
-    applyRestore: deps.applyRestore,
+    stageRestore: deps.stageRestore,
     readInputs: () => deps.read(['in']),
     setInterval: (fn, ms) => setInterval(fn, ms),
     clearInterval: (h) => clearInterval(h as ReturnType<typeof setInterval>),

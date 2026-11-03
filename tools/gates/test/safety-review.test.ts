@@ -60,7 +60,7 @@ function pr(overrides: Partial<PullRequestFacts>): PullRequestFacts {
 const TWO_MAINTAINERS = { requiredApprovals: 2 };
 
 describe('the PR template', () => {
-  it('carries items 1 to 49, unticked, with 22 to 49 verbatim from SAFETY.md §8', () => {
+  it('carries items 1 to 53, unticked, with 22 to 53 verbatim from SAFETY.md §8', () => {
     expect(checkTemplate(TEMPLATE, SAFETY)).toEqual([]);
     expect([...templateItems(TEMPLATE).keys()]).toEqual(CHECKLIST_ITEMS);
     expect([...safetyChecklistItems(SAFETY).keys()]).toEqual(CHECKLIST_ITEMS.slice(21));
@@ -74,8 +74,8 @@ describe('the PR template', () => {
   });
 
   it('fails when SAFETY.md §8 gains an item the check does not read', () => {
-    const grown = SAFETY.replace('49. ☐ (Phase 3) `rxm`', '50. ☐ A new rule.\n49. ☐ (Phase 3) `rxm`');
-    expect(checkTemplate(TEMPLATE, grown)).toContain('SAFETY.md §8 item 50 is not in the checklist the safety-review check reads');
+    const grown = SAFETY.replace('53. ☐ (firmware update) The release list', '54. ☐ A new rule.\n53. ☐ (firmware update) The release list');
+    expect(checkTemplate(TEMPLATE, grown)).toContain('SAFETY.md §8 item 54 is not in the checklist the safety-review check reads');
   });
 });
 

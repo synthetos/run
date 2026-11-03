@@ -302,6 +302,19 @@ verify → reconnect → version check → offer to restore.
   the same confinement gates. Releases come from a Run-hosted signed manifest:
   per hv a SHA-256-hashed `.hex` and a changelog, published by the maintainer.
 
+*Built 2026-11-03 on the bench and staging builds (SAFETY §4.8 as amended,
+H79-H89; production off behind `FLASHER`).* packages/flasher (HEX validator,
+stub-first page plan, a closed AVR109 command set with no `e`, the frame
+guard, the xboot client and flash run, the authorization that mints the
+bootloader capability); the worker's flash service (the session's idle-gated
+`{"boot":1}`, the same port reopened in bootloader role, backups stored before
+any write, verify, CRC, reconnect, version check, the post-flash lock); the
+Firmware tab (signed releases with changelog, C6, progress, recovery with a
+countdown, the required restore, the switch check) and the Firmware & Backups
+hub (settings and firmware image backups on this computer, compare, restore,
+export, import, put a firmware back, custom firmware, trusted builds). The
+signed release list and its hosting: docs/ops/firmware-releases.md.
+
 ## Firmware dependencies
 
 | Feature | Status | Needs |
