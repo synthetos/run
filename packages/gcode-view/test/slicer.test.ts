@@ -38,7 +38,10 @@ describe('time slicing', () => {
     expect(clock.t).toBeLessThanOrEqual(5 * 3 * 3);
   });
 
-  it('old P1-04 acceptance: 1M lines of geometry build with no main-thread slice over 50 ms (real clock)', async () => {
+  // Wall clock: a slice that the host pre-empts (the other packages' tests run on the same cores under
+  // `pnpm check`) reads long without the slicer having overrun its budget, so this gets two retries.
+  // The fake-clock case above proves the budget itself; a slicer that never yields still fails all three.
+  it('old P1-04 acceptance: 1M lines of geometry build with no main-thread slice over 50 ms (real clock)', { retry: 2 }, async () => {
     const list = bigList(1_000_000);
     let longest = 0;
     let sliceStart = performance.now();
