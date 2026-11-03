@@ -267,3 +267,38 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
   .pj-hero { grid-template-columns: 1fr; }
   .project-cover { width: 100%; }
 }
+
+/* Firmware update and Firmware & Backups (SAFETY §4.8 as amended 2026-11-03) */
+.flash-confirm { display: grid; gap: 10px; padding: 14px 16px; margin: 0 0 12px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--sheet); }
+.flash-danger, .flash-warn { margin: 0; padding: 8px 12px; font-size: 12.5px; line-height: 1.45; border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.flash-danger { border-left: 3px solid var(--danger); background: var(--danger-soft); }
+.flash-warn { border-left: 3px solid var(--warn); background: var(--warn-soft); }
+.flash-warn.pad { margin: 12px 18px 0; }
+.flash-boxes { display: grid; gap: 6px; font-size: 12.5px; }
+.flash-boxes label { display: flex; gap: 8px; align-items: flex-start; }
+.flash-boxes input { margin-top: 2px; }
+.flash-question { margin: 0; font-weight: 500; font-size: 13px; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+.row-actions .file-pick { margin-top: 0; min-height: 30px; padding: 0 10px; }
+.flash-progress { display: grid; gap: 6px; margin-top: 10px; }
+.flash-progress-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.flash-bar { height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; }
+.flash-bar span { display: block; height: 100%; background: var(--blue); transition: width 0.2s linear; }
+.flash-recovery .recovery-count { margin: 0 0 8px; padding: 10px 12px; font-size: 15px; font-weight: 600; border-radius: var(--r-sm); border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--rule)); background: var(--danger-soft); color: var(--ink); }
+.diff-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12.5px; }
+.diff-table th, .diff-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line-soft); }
+.diff-table th { color: var(--muted); font-weight: 500; }
+.switch-list { display: grid; gap: 6px; margin: 10px 0; font-size: 12.5px; }
+.switch-list li { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: center; }
+.switch-list li::before { content: ''; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--warn); background: var(--warn-soft); }
+.switch-list li.ok::before { border-color: var(--ok); background: var(--ok); }
+.post-flash-unknown { display: grid; gap: 6px; margin: 8px 0; }
+.hub-list { display: grid; margin: 0 18px 12px; }
+.hub-list li { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+.hub-list li:last-child { border-bottom: 0; }
+.hub-row-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hub-row-main small { flex-basis: 100%; color: var(--muted); font-size: 11.5px; }
+.backups-panel > .file-pick { margin: 0 18px 12px; padding: 0 12px; }
+.rel-notes .changelog { font-size: 12.5px; margin: 2px 0 4px; white-space: pre-line; }
+.releases li { grid-template-columns: 150px 1fr; }
+.rel-ver .tag { display: inline-flex; }

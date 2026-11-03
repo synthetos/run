@@ -1,0 +1,63 @@
+{
+  "format": "synthetos-run/firmware-releases-unsigned@1",
+  "manifests": [
+    {
+      "format": "synthetos-run/firmware-releases-env@1",
+      "env": "staging",
+      "issued": "2026-11-03T00:00:00Z",
+      "expires": "2027-05-01T00:00:00Z",
+      "boards": [
+        {
+          "hv": 8,
+          "minimumFb": 450.01,
+          "releases": []
+        },
+        {
+          "hv": 99,
+          "minimumFb": 450.01,
+          "releases": [
+            {
+              "fb": 450.02,
+              "fv": 0.97,
+              "dialect": "tinyg-en",
+              "part": "x192a3",
+              "file": "sim-edge-next-450.02.hex",
+              "sha256": "57857fdf837c0870f6b41c823b392e3eeb0337c81a59507d8cc46b6489537c84",
+              "size": 95772,
+              "date": "2026-11-03",
+              "changelog": "SIMULATOR ONLY. Simulated update for the fake-serial suite (same EEPROM layout). Not firmware: never flashed to a real board.",
+              "recommended": true,
+              "simulatorOnly": true
+            },
+            {
+              "fb": 451.0,
+              "fv": 0.97,
+              "dialect": "tinyg-en",
+              "part": "x192a3",
+              "file": "sim-edge-next-451.00.hex",
+              "sha256": "cbd9271edf57005ba903c7bf784af21ae1e5bc336a5a6a889dd88aa26d935d9e",
+              "size": 101404,
+              "date": "2026-11-03",
+              "changelog": "SIMULATOR ONLY. Simulated update with a new EEPROM layout: the board loads its defaults on first boot (switch type and switch modes change). Not firmware: never flashed to a real board.",
+              "recommended": false,
+              "simulatorOnly": true
+            },
+            {
+              "fb": 450.01,
+              "fv": 0.97,
+              "dialect": "tinyg-en",
+              "part": "x192a3",
+              "file": "sim-edge-next-450.01.hex",
+              "sha256": "1a342f40f1b56cd1a3be565175d2476cdc6eceb1712b55c3ba5820aeef59d29e",
+              "size": 90140,
+              "date": "2026-11-01",
+              "changelog": "SIMULATOR ONLY. The simulated board's factory image. Not firmware: never flashed to a real board.",
+              "recommended": false,
+              "simulatorOnly": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -145,7 +145,7 @@ export type Intent = (typeof INTENTS)[number];
  * its own, so turning on other writes (work zero) never turns on settings
  * writes, and the reverse.
  */
-export type IntentKind = 'stop' | 'read' | 'recovery' | 'session' | 'motion' | 'write' | 'settings' | 'reports' | 'jobs' | 'port' | 'job' | 'cloud';
+export type IntentKind = 'stop' | 'read' | 'recovery' | 'session' | 'motion' | 'write' | 'settings' | 'reports' | 'jobs' | 'flash' | 'port' | 'job' | 'cloud';
 
 /** The stop-class intents of the normative rule (SAFETY §4.1). */
 export const STOP_CLASS: readonly Intent[] = Object.freeze(['feedhold', 'stopJob', 'spindleOffNow']);
@@ -188,6 +188,12 @@ export interface Release {
    * only by the jobs phase switch (jobsPhase.ts) for the bench and staging environments, on top of motion.
    */
   readonly jobs?: boolean;
+  /**
+   * The firmware update (kind `flash`, owner 2026-11-03, SAFETY §4.8 as amended): the session's `{"boot":1}` into
+   * the bootloader, after its own idle gate. Absent means false. Turned on only by the flasher phase switch
+   * (flasherPhase.ts) for the bench and staging environments.
+   */
+  readonly flash?: boolean;
 }
 
 /** This release: Phase 0, no serial (ROADMAP P0-10, RUN_PLAN §11). */
@@ -325,10 +331,12 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
     denied: { reason: 'The connection is not lost.', remedy: 'Nothing to do.' },
     citation: 'SAFETY §3 LOST overlay',
   },
+  // NEEDS_REVIEW (amended 2026-11-03): after a firmware update the board restarted (UNKNOWN) and its settings differ
+  // from this computer's reference (NEEDS_REVIEW); the restore needs UNKNOWN cleared, and confirming moves nothing.
   positionVerify: {
     kind: 'session',
     states: ['CONNECTED_UNKNOWN'],
-    overlays: ['UNKNOWN'],
+    overlays: ['UNKNOWN', 'NEEDS_REVIEW'],
     denied: { reason: 'Position verification is only offered while the position is untrusted.', remedy: 'Nothing to do.' },
     citation: 'SAFETY §3 CONNECTED_UNKNOWN; §4.1 Anything else row',
   },
@@ -439,12 +447,16 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
     denied: { reason: 'A stored profile is applied only while idle with no job loaded or armed.', remedy: 'Wait until the machine is idle and unload the job.' },
     citation: 'SAFETY §4.1 Apply stored profile row',
   },
+  // Kind `flash` (amended 2026-11-03): only with the flasher phase switch. READ_ONLY is allowed because an old or
+  // unapproved build is exactly what an update replaces (the old-firmware gate); UNKNOWN and NEEDS_REVIEW because
+  // entering the bootloader moves nothing. FAULT, LOST, ORPHANED_MOTION and STALE deny it, and so does any state
+  // but idle: the session also proves the board at rest with polled reads right before `{"boot":1}`.
   flash: {
-    kind: 'write',
-    states: [...IDLE, 'SHUTDOWN'],
-    overlays: [],
-    denied: { reason: 'Flashing is allowed only from idle (or shutdown, with confirmation), never in an alarm.', remedy: 'Wait until the machine is idle.' },
-    citation: 'SAFETY §4.1 Flash row',
+    kind: 'flash',
+    states: [...IDLE, 'CONNECTED_UNKNOWN'],
+    overlays: ['READ_ONLY', 'UNKNOWN', 'NEEDS_REVIEW'],
+    denied: { reason: 'Firmware is updated only while the machine is idle, never in an alarm or with motion queued.', remedy: 'Wait until the machine is idle.' },
+    citation: 'SAFETY §4.1 Flash row (amended 2026-11-03); §4.8',
   },
   loadJob: {
     kind: 'job',
@@ -555,6 +567,7 @@ export function allowed(snapshot: MatrixSnapshot, intent: Intent, release: Relea
     (row.kind === 'settings' && release.settings !== true) ||
     (row.kind === 'reports' && release.reports !== true) ||
     (row.kind === 'jobs' && release.jobs !== true) ||
+    (row.kind === 'flash' && release.flash !== true) ||
     (row.kind === 'port' && !release.port)
   ) {
     return deny(NOT_IN_RELEASE.reason, NOT_IN_RELEASE.remedy, `ROADMAP P0-10 (${release.name})`);

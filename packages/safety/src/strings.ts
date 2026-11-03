@@ -438,6 +438,42 @@ export function w44(p: { readonly to: number }): string {
   return `NOTICE — Run had switched this board to line mode (rxm 1) for a job that did not end here. Run put it back to rxm ${count('to', p.to)} (saved on the board).`;
 }
 
+/** W45: the update changed the board's settings; the restore is required (firmware update, 2026-11-03, H81). */
+export function w45(p: { readonly count: number }): string {
+  return (
+    `WARNING — The update changed this board's settings (${count('count', p.count)} differ from your backup taken before the update). ` +
+    'Restore them before you use the machine. Jobs, jogging and settings changes stay locked until the restore is read back and the switch check is done.'
+  );
+}
+
+/** W46: the switch check after an update that changed switch settings (firmware update, 2026-11-03, H82). */
+export function w46(): string {
+  return 'WARNING — Check your limit switches. The update changed the switch settings. Press and release each limit switch: Run unlocks jobs and jogging only after it has seen every one change.';
+}
+
+/** W47: unsigned custom firmware (firmware update, 2026-11-03, H85). */
+export function w47(): string {
+  return "WARNING — This is unsigned custom firmware. Run has not checked what it does. Run backs up the board's settings and its current firmware first, and the board stays read-only after the update unless you trust this build on this board.";
+}
+
+/** W48: the machine strip while a custom build the user trusted runs on the board (H87). */
+export function w48(): string {
+  return 'Custom firmware (trusted by you)';
+}
+
+/** W49: recovery, the board has no application (firmware update, 2026-11-03, H80). */
+export function w49(p: { readonly seconds: number }): string {
+  return `Unplug the USB cable and plug it back in now. Run is waiting for the bootloader: ${count('seconds', p.seconds)} s.`;
+}
+
+/** W50: the old-firmware gate (firmware update, 2026-11-03). */
+export function w50(p: { readonly fb: string; readonly minimum: string }): string {
+  return (
+    `This board runs firmware ${text('fb', p.fb)}, older than the minimum ${text('minimum', p.minimum)} for its hardware. ` +
+    'You can view it and back it up; update it to use jobs, jogging and settings changes.'
+  );
+}
+
 // ------------------------------------------------------------ §6 confirmations
 
 /** C1, full form: the first time, on a text-version change, and once per calendar day in this browser. */
@@ -795,4 +831,20 @@ export function c35(p: { readonly direction: 'M3' | 'M4'; readonly rpm: number }
 /** C36: start a job on a machine that is not homed (Phase 3, H73). */
 export function c36(): string {
   return 'The machine is not homed, so soft limits may not protect it. Start only if you have checked where every axis is and that the job fits. I\'ve checked the machine.';
+}
+
+/** C37: flash unsigned custom firmware (firmware update, 2026-11-03, H85). */
+export function c37(p: { readonly name: string; readonly sha256Short: string; readonly boardId: string }): string {
+  return (
+    `Flash unsigned custom firmware ${text('name', p.name)} (sha256 ${text('sha256Short', p.sha256Short)}) to ${text('boardId', p.boardId)}? ` +
+    'Run has not checked what it does. Your settings and the current firmware are backed up first.'
+  );
+}
+
+/** C38: trust one custom build on one board (firmware update, 2026-11-03, H87). */
+export function c38(p: { readonly name: string; readonly sha256Short: string; readonly boardId: string }): string {
+  return (
+    `Trust ${text('name', p.name)} (sha256 ${text('sha256Short', p.sha256Short)}) on board ${text('boardId', p.boardId)}? ` +
+    'Run will let this exact build control this board as if it were approved. It never applies to another board or another build, and you can revoke it in Firmware & Backups.'
+  );
 }

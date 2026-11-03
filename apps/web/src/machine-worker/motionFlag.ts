@@ -10,7 +10,7 @@
  *
  * A change to this file changes where the machine can be moved and needs safety review (SAFETY §8).
  */
-import { PHASE_1_RELEASE, PHASE_2_RELEASE, withJobs, withSettingsWrites, type Release } from '@synthetos/safety';
+import { PHASE_1_RELEASE, PHASE_2_RELEASE, withFlasher, withJobs, withSettingsWrites, type Release } from '@synthetos/safety';
 import { approvalEnvironment } from './approval.ts';
 
 /** True where motion is enabled: the staging environment (staging host, loopback bench). */
@@ -27,5 +27,7 @@ export function releaseFor(origin: string): Release {
   // Phase 3 (SAFETY §4.4a): the jobs switch (safety jobsPhase.ts) adds jobs to the motion release for the same
   // environment; production and unknown origins keep PHASE_1_RELEASE.
   const environment = approvalEnvironment(origin);
-  return withJobs(withSettingsWrites(motionEnabledFor(origin) ? PHASE_2_RELEASE : PHASE_1_RELEASE, environment), environment);
+  // The firmware update (SAFETY §4.8 as amended 2026-11-03): the flasher switch (safety flasherPhase.ts) adds the
+  // flash kind for the same environment; production and unknown origins keep PHASE_1_RELEASE.
+  return withFlasher(withJobs(withSettingsWrites(motionEnabledFor(origin) ? PHASE_2_RELEASE : PHASE_1_RELEASE, environment), environment), environment);
 }

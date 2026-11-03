@@ -13,11 +13,16 @@ describe('@synthetos/flasher', () => {
     expect(pkg.exports['.']).toBe('./src/index.ts');
   });
 
-  it('declares no runtime npm dependencies (including optional, peer and bundled)', () => {
+  it('declares no runtime npm dependencies: its only dependency is the protocol workspace package', () => {
     const fields = pkg as Record<string, unknown>;
-    for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies', 'bundleDependencies', 'bundledDependencies']) {
+    for (const field of ['optionalDependencies', 'peerDependencies', 'bundleDependencies', 'bundledDependencies']) {
       const value = fields[field] ?? {};
       expect(Object.keys(value as object), field).toEqual([]);
     }
+    // flasher imports protocol only (.dependency-cruiser.cjs layer-flasher); the edge is declared so the
+    // build graph is right, and it is a workspace link, never npm (RUN_PLAN §5.3).
+    const deps = (fields['dependencies'] ?? {}) as Record<string, string>;
+    expect(Object.keys(deps)).toEqual(['@synthetos/protocol']);
+    for (const spec of Object.values(deps)) expect(spec).toBe('workspace:*');
   });
 });

@@ -54,6 +54,15 @@
       "paths": "*.md",
       "status": "documentation",
       "note": "Used only where the source is silent (line-mode protocol)."
+    },
+    "XB": {
+      "repo": "https://github.com/synthetos/tg-xboot",
+      "ref": "dev",
+      "commit": "29d080133bb2b2ea8c323840d3e9cdd4fa785690",
+      "committed": "2026-10-31T20:54:47-04:00",
+      "paths": "src/, conf/x192a3.mk, scripts/",
+      "status": "released",
+      "note": "TinyG's xboot bootloader (AVR109, x192a3). The flasher (packages/flasher) and the test kit's xboot model cite it as XB. ENABLE_FLASH_ERASE_WRITE, block support and CRC are on; code, EEPROM and bootloader protection are off."
     }
   }
 }

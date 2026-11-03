@@ -49,7 +49,12 @@ describe('BootloaderCapability', () => {
   });
 
   it('the package entry exports the verifier but never the mint', () => {
-    expect(Object.keys(entry).sort()).toEqual(['VERSION', 'consumeBootloaderCapability']);
+    const names = Object.keys(entry);
+    expect(names).toContain('consumeBootloaderCapability');
+    expect(names.filter((n) => /mint/i.test(n))).toEqual([]);
     expect(entry.consumeBootloaderCapability).toBe(consumeBootloaderCapability);
+    // Tokens come only from a FlashAuthorization, which only authorizeFlash creates (authorize.test.ts).
+    expect(names).toContain('authorizeFlash');
+    expect(names).not.toContain('FlashAuthorization');
   });
 });

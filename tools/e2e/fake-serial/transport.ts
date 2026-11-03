@@ -20,7 +20,7 @@
  * port, the simulated edge-next board (FTDI 0403:6015) at grant index 0, and
  * any other selector resolves null (refuse, never guess).
  */
-import { MockSerialPort, SimEndpoint, TinyGEdgeNextModel, type Clock, type TinyGModelOptions } from '@synthetos/testkit';
+import { FlashableBoard, MockSerialPort, SimEndpoint, TinyGEdgeNextModel, type Clock, type FlashableBoardOptions, type TinyGModelOptions } from '@synthetos/testkit';
 import type { PortSelector, TransportSource } from '@synthetos/machine';
 import { MockTransport } from './mockTransport.ts';
 
@@ -29,6 +29,9 @@ export const FAKE_SERIAL_GLOBAL = '__RUN_FAKE_SERIAL__';
 
 /** The simulated board's boot time before its first banner, ms. */
 const BOOT_MS = 50;
+
+/** The flashable board's link rate (fast, so a whole flash takes seconds in real time). */
+const FLASH_LINK_BAUD = 2_000_000;
 
 /** A persisted settings write stalls the simulated board this long (EEPROM; bytes sent meanwhile are lost). */
 const EEPROM_WRITE_MS = 25;
@@ -40,6 +43,15 @@ export interface FakeSerialRegistry {
    * homing switches before it opens the port (amendment 2026-11-02 specs).
    */
   next?: Partial<TinyGModelOptions> | undefined;
+  /**
+   * The firmware update specs (SAFETY §4.8 as amended 2026-11-03): when set before the first open, the source keeps
+   * ONE simulated flashable board (the xboot model plus the edge-next model running the flashed image) behind one
+   * MockSerialPort for every request, as the FTDI port stays the same across `{"boot":1}`. Its link runs fast so a
+   * whole flash takes seconds.
+   */
+  flashable?: FlashableBoardOptions | undefined;
+  /** The persistent flashable board and its port, once created. */
+  board?: { readonly device: FlashableBoard; readonly endpoint: SimEndpoint; readonly port: MockSerialPort } | undefined;
 }
 
 /** A `Clock` on the host's real timers (the virtual clock is for unit tests). */
@@ -88,6 +100,17 @@ export function createTransportSource(): TransportSource {
         return Promise.resolve(null);
       }
       const reg = registry();
+      if (reg.flashable !== undefined) {
+        if (reg.board === undefined) {
+          const device = new FlashableBoard({ linkBaud: FLASH_LINK_BAUD, ...reg.flashable, model: { bootMs: BOOT_MS, eepromWriteMs: EEPROM_WRITE_MS, rxm: 0, ...reg.flashable.model } });
+          const endpoint = new SimEndpoint({ clock: realTimeClock(), device, link: { baudRate: FLASH_LINK_BAUD, latencyMs: 1, coalesceMs: 4 } });
+          const port = new MockSerialPort(endpoint);
+          reg.board = { device, endpoint, port };
+          reg.ports.push(port);
+        }
+        // The same port, reopened: a disconnected (unplugged) board has no port until it is plugged back in.
+        return Promise.resolve(reg.board.endpoint.connected ? new MockTransport(reg.board.port) : null);
+      }
       const next = reg.next ?? {};
       reg.next = undefined;
       // In character mode (rxm 0), as a board another sender used: a job then switches it to line mode and back (H77).

@@ -92,6 +92,7 @@ export class MockSerialPort extends EventTarget {
     this.endpoint = endpoint;
     this.#info = options.info ?? { usbVendorId: endpoint.device.usb.vendorId, usbProductId: endpoint.device.usb.productId };
     endpoint.onDisconnect(() => this.#onDisconnect());
+    endpoint.onReconnect(() => this.#onReconnect());
   }
 
   get connected(): boolean {
@@ -235,6 +236,14 @@ export class MockSerialPort extends EventTarget {
     // Data that arrives with nobody reading is buffered in the stream (bufferSize is the high-water mark).
     void this.readable;
     this.#readController?.enqueue(new Uint8Array(chunk));
+  }
+
+  #onReconnect(): void {
+    if (this.#state === 'forgotten') return;
+    this.#physicallyConnected = true;
+    const event = new Event('connect');
+    this.onconnect?.call(this, event);
+    this.dispatchEvent(event);
   }
 
   #onDisconnect(): void {

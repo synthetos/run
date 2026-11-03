@@ -58,6 +58,9 @@ importers:
       '@synthetos/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@synthetos/flasher':
+        specifier: workspace:*
+        version: link:../../packages/flasher
       '@synthetos/gcode':
         specifier: workspace:*
         version: link:../../packages/gcode
@@ -86,6 +89,9 @@ importers:
         specifier: 11.0.1
         version: 11.0.1(preact-render-to-string@6.8.1)
     devDependencies:
+      '@synthetos/testkit':
+        specifier: workspace:*
+        version: link:../../packages/testkit
       preact-render-to-string:
         specifier: 6.8.1
         version: 6.8.1(preact@11.0.1)
@@ -108,7 +114,11 @@ importers:
         specifier: 1.5.0
         version: 1.5.0(typescript@6.0.3)
 
-  packages/flasher: {}
+  packages/flasher:
+    dependencies:
+      '@synthetos/protocol':
+        specifier: workspace:*
+        version: link:../protocol
 
   packages/gcode:
     dependencies:
@@ -175,6 +185,9 @@ importers:
 
   packages/testkit:
     devDependencies:
+      '@synthetos/flasher':
+        specifier: workspace:*
+        version: link:../flasher
       '@synthetos/protocol':
         specifier: workspace:*
         version: link:../protocol

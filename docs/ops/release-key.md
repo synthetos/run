@@ -98,6 +98,14 @@ was signed with it any more, so removing it changes no approval.
    channel approves nothing, so every board becomes READ_ONLY. That fails
    safe, but it stops the bench.
 
+## The firmware release list (2026-11-03)
+
+`firmware/releases.json` is signed with the same keys and the same rules (per
+environment, an authorised key, the payload naming its environment, an
+expiry), over its own prefix, with `pnpm sign:releases`. Staging is signed with
+the bench key; production has no entry until you sign one with the release key.
+See docs/ops/firmware-releases.md.
+
 ## Rotation and revocation
 
 - **Rotation:** add the new key, re-sign, ship, then remove the old key in a

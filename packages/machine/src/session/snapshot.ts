@@ -11,7 +11,8 @@
 import { OVERLAYS, type Overlay } from '@synthetos/safety';
 import { PROBE_STEPS, type FooterRev } from '@synthetos/protocol';
 import type { TransportInfo } from '../transport.ts';
-import type { ClassificationInfo, FaultInfo, Identity, JobEvent, JobPhase, JobReportSummary, JobState, LinkWindow, LiveState, ReadValue, ReportChange, RxmState, SessionBase, SessionNotices, SessionState, SettingWriteState } from './types.ts';
+import type { PortSelector } from '../transport.ts';
+import type { ClassificationInfo, FaultInfo, Identity, JobEvent, JobPhase, JobReportSummary, JobState, LinkWindow, LiveState, ReadValue, ReportChange, RxmState, SessionBase, SessionNotices, SessionState, SettingWriteState, BootEntryState } from './types.ts';
 
 /** What the page sees of a job (SAFETY §4.4a). The sanitised lines never leave the worker. */
 export interface JobView {
@@ -78,6 +79,8 @@ export interface SessionSnapshot {
   readonly epoch: number;
   /** The open port's identity (USB vendor and product id), or null. */
   readonly port: TransportInfo | null;
+  /** The port the window chose (the flasher reopens exactly this one, SAFETY §4.8 as amended 2026-11-03). */
+  readonly portSelector: PortSelector | null;
   /** Probe progress while IDENTIFYING: answered GETs out of all, and the banner shape seen. */
   readonly probe: { readonly answered: number; readonly of: number; readonly banner: 'r-footer' | 'bare-sr' | 'none'; readonly restarts: number } | null;
   readonly identity: Identity | null;
@@ -98,6 +101,8 @@ export interface SessionSnapshot {
   readonly sent: { readonly lines: number; readonly realtime: number };
   /** The current or last settings write (SAFETY §4.6, amendment 2026-11-02), or null. */
   readonly settingWrite: SettingWriteState | null;
+  /** The firmware update's entry into the bootloader in progress (its idle gate), or null. */
+  readonly bootEntry: BootEntryState | null;
   /**
    * Phase 2 (SAFETY §4.5b): the motion in progress, or null. `hold` is true for a press-and-hold jog;
    * `held` once a Pause of it is confirmed by polled reads (Resume is offered then).
@@ -149,6 +154,7 @@ export function snapshotOf(state: SessionState): SessionSnapshot {
     primaryOverlay: overlays[0] ?? null,
     epoch: state.epoch,
     port: state.portInfo,
+    portSelector: state.port,
     probe:
       probe === null || state.base !== 'IDENTIFYING'
         ? null
@@ -167,6 +173,7 @@ export function snapshotOf(state: SessionState): SessionSnapshot {
     stale: state.stale === null || !overlays.includes('STALE') ? null : { silentForMs: state.stale.silentForMs },
     sent: state.sent,
     settingWrite: state.settingWrite,
+    bootEntry: state.bootEntry,
     motion:
       state.motion === null
         ? null

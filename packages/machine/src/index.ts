@@ -31,7 +31,9 @@ export {
   sessionOpenOptionsFor,
   sharedSessionOptions,
 } from './openPolicy.ts';
-export type { OpenDecision, OpenRefusalReason } from './openPolicy.ts';
+export type { OpenDecision, OpenRefusalReason, OpenRole } from './openPolicy.ts';
+export { BootloaderLink, BootloaderLinkError, bootloaderOpenOptions } from './bootloaderLink.ts';
+export type { FlashWireEvent } from './bootloaderLink.ts';
 export * from './session/index.ts';
 export { liveControlPlatform } from './platform.ts';
 export type { PlatformDecision, PlatformInfo } from './platform.ts';

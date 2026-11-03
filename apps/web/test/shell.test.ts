@@ -118,7 +118,13 @@ describe('Phase 1 control allowlist', () => {
    * Amendment 2026-11-02: `home` (G28.2, and G28.3 where homing is not configured) and `offset` (G54..G59, G92,
    * G92.1) are machine controls too, disabled in the prerendered page like the rest.
    */
-  const MACHINE_DISABLED = new Set(['jog', 'zero', 'home', 'offset', 'spindle', 'coolant', 'override', 'start', 'firmware']);
+  const MACHINE_DISABLED = new Set(['jog', 'zero', 'home', 'offset', 'spindle', 'coolant', 'override', 'start']);
+  /**
+   * The firmware update (SAFETY §4.8 as amended 2026-11-03): every control that can lead to a flash or a trust. Disabled
+   * in the prerendered page (no board, no worker); enabled only with the worker's flasher switch on and a board
+   * identified, and the worker decides each request (firmware.test.ts).
+   */
+  const FLASH = new Set(['flash']);
   /**
    * Settings writes (SAFETY §4.6, amendment 2026-11-02): disabled in the prerendered page (no board), and
    * enabled only when the phase switch is on and the machine is idle (the settings-write tests below).
@@ -139,6 +145,8 @@ describe('Phase 1 control allowlist', () => {
     /^tab:(gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
     /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
+    // Firmware & Backups: records on this computer (export, import, compare, delete, download) and dialog controls.
+    /^action:(backup-compare|backup-export|backup-delete|backup-import|firmware-download|firmware-delete|trust-revoke|trust-cancel|cancel-flash|flash-cancel|flash-dismiss|flash-reconnect|switch-test-start)$/,
     /^preview:(file|rapids|mode|scrubber|fit|cancel)$/,
     /^sample:(mounting-plate|test-square)$/,
     /^action:(add-tool|fork-material|new-material|edit-material|ask-delete|delete-material|cancel-delete|save-material|cancel-material|close-material|add-safety|add-behaviour|remove-row|add-link|more-link|remove-link|clear-draft|clear-pin|fill-from-board|copy-machine|fixture-file|save-transcript|dismiss-w29|pause-request|stop-job-request)$/,
@@ -182,7 +190,7 @@ describe('Phase 1 control allowlist', () => {
     for (const c of list) {
       if (c.machine !== null) {
         seen.add(c.machine);
-        expect(MACHINE_DISABLED.has(c.machine) || LIVE_ONLY.has(c.machine) || READ_ONLY.has(c.machine) || SETTINGS_WRITE.has(c.machine), `unknown machine control class ${c.machine}`).toBe(true);
+        expect(MACHINE_DISABLED.has(c.machine) || LIVE_ONLY.has(c.machine) || READ_ONLY.has(c.machine) || SETTINGS_WRITE.has(c.machine) || FLASH.has(c.machine), `unknown machine control class ${c.machine}`).toBe(true);
         expect(c.disabled, `${c.machine} control ${c.id} is enabled in the prerendered page`).toBe(true);
         continue;
       }
@@ -198,6 +206,7 @@ describe('Phase 1 control allowlist', () => {
     expect(seen.has('stop')).toBe(true);
     expect(seen.has('read')).toBe(true);
     expect(seen.has('settings-write')).toBe(true);
+    expect(seen.has('flash')).toBe(true);
   });
 
   it('Disconnect: absent from the prerendered strip; in the machine strip, enabled with a handler, while a port is open or opening', () => {
@@ -232,7 +241,9 @@ describe('Phase 1 control allowlist', () => {
 
   it('the machine-acting controls carry no handler at all: they dispatch nothing', () => {
     // BackupsTab is not here: its Restore control is a settings-write control with a handler, gated by the settings tests (settingsWrite.test.ts).
-    const trees = [h(JogSection, null), h(ZeroSection, null), h(SpindleSection, null), h(OverridesSection, null), h(FirmwareTab, { view: null })].map((n) => root(n));
+    // FirmwareTab is not here: its flash controls carry handlers and are gated by the flasher switch (firmware.test.ts).
+    const trees = [h(JogSection, null), h(ZeroSection, null), h(SpindleSection, null), h(OverridesSection, null)].map((n) => root(n));
+    void FirmwareTab;
     let count = 0;
     for (const tree of trees) {
       for (const el of all(tree, (e) => typeof e.props['data-machine-control'] === 'string' && MACHINE_DISABLED.has(e.props['data-machine-control'] as string))) {

@@ -79,6 +79,25 @@ export interface ApprovedBuild {
    */
   readonly commit: string;
   readonly note: string;
+  /**
+   * Where the approval came from (absent: the signed manifest). `release-list`: the build is a release in the
+   * signed firmware release list for this environment (firmwareReleases.ts), which the machine worker adds for
+   * the staging environment only. `trusted`: this browser's explicit trust in one custom image on one board
+   * ("Trust this build on this board", SAFETY H87); never from a file, never for another board.
+   */
+  readonly source?: 'release-list' | 'trusted';
+  /** Restricts the approval to boards reporting this hardware version (release-list entries). */
+  readonly hv?: number;
+  /** Restricts the approval to this one board id (a trusted custom build). */
+  readonly boardId?: string;
+  /** The image a trusted build was flashed from (SHA-256 of its .hex), for display. */
+  readonly imageSha256?: string;
+}
+
+/** What the probe read about the board that an approval may be restricted to. */
+export interface ProbedBoard {
+  readonly hv?: number | string | undefined;
+  readonly id?: string | undefined;
 }
 
 export interface ApprovedBuilds {
@@ -152,10 +171,19 @@ export function findApproval(
   dialect: DialectId,
   fb: number | undefined,
   fbs: string | undefined,
+  board: ProbedBoard = {},
 ): ApprovedBuild | undefined {
   if (fb === undefined) return undefined;
   // A build that reports an fbs differs from one approved without it, and vice versa (D4: manifest(fb, fbs)).
-  return manifest.builds.find((b) => b.dialect === dialect && b.fb === fb && b.fbs === (fbs ?? null));
+  // A restricted approval (one hardware version, one board) matches only that board.
+  return manifest.builds.find(
+    (b) =>
+      b.dialect === dialect &&
+      b.fb === fb &&
+      b.fbs === (fbs ?? null) &&
+      (b.hv === undefined || b.hv === board.hv) &&
+      (b.boardId === undefined || (typeof board.id === 'string' && b.boardId === board.id)),
+  );
 }
 
 /** Verify the manifest file for this origin. Never throws; rejects anything it cannot fully verify. */

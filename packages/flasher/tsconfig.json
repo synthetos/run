@@ -1,5 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // TextEncoder, crypto.subtle and the timer types the flasher uses. dependency-cruiser's
+    // safety-path-no-node-core still refuses any Node built-in import in src.
+    "types": ["node"]
+  },
   "include": [
     "src",
     "test"

@@ -32,7 +32,7 @@ import {
 } from '../src/index.ts';
 import { runs } from './sanitizeHelpers.ts';
 
-const OPEN: Release = { name: 'all gates open', motion: true, write: true, port: true, settings: true, reports: true, jobs: true };
+const OPEN: Release = { name: 'all gates open', motion: true, write: true, port: true, settings: true, reports: true, jobs: true, flash: true };
 
 /** Every subset of the overlays (2^7 = 128). */
 const OVERLAY_SETS: readonly (readonly Overlay[])[] = Array.from({ length: 1 << OVERLAYS.length }, (_, mask) =>
@@ -164,6 +164,8 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
       'disconnect',
       'enq',
       'feedhold',
+      // Amendment 2026-11-03: entering the bootloader moves nothing (the flash gate, §4.8).
+      'flash',
       'home',
       'jobBreakpoints',
       'lineMode',
@@ -175,7 +177,8 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
       'stopJob',
     ]);
     expect([...allowedUnder('STALE')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
-    expect([...allowedUnder('READ_ONLY')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
+    // Amendment 2026-11-03: under READ_ONLY the firmware update too (the old-firmware gate opens the Update panel).
+    expect([...allowedUnder('READ_ONLY')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'flash', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
     expect([...allowedUnder('NEEDS_REVIEW')].sort()).toEqual([
       'applyProfile',
       'cloudSync',
@@ -183,9 +186,12 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
       'disconnect',
       'enq',
       'feedhold',
+      'flash',
       'jobBreakpoints',
       'keepBoardSettings',
       'lineMode',
+      // Amendment 2026-11-03: confirming the machine after a firmware update moves nothing.
+      'positionVerify',
       'read',
       'resetController',
       'settingsWrite',
@@ -255,7 +261,9 @@ describe('Phase 0 release gate', () => {
     for (const i of ['jog', 'home', 'start', 'resume', 'arm', 'consoleLine', 'spindleOn', 'setWorkZero', 'goToZero', 'clearAlarm', 'setMachinePosition', 'tempOffset', 'selectCoordSystem']) expect(kinds[i], i).toBe('motion');
     // The status-report configuration has its own gate (amendment 2026-11-02, H64).
     expect(kinds['configureReports']).toBe('reports');
-    for (const i of ['applyProfile', 'optionalStop', 'flash', 'resetController']) expect(kinds[i], i).toBe('write');
+    for (const i of ['applyProfile', 'optionalStop', 'resetController']) expect(kinds[i], i).toBe('write');
+    // The firmware update has its own gate (amendment 2026-11-03, flasherPhase.ts).
+    expect(kinds['flash']).toBe('flash');
     // Settings writes have their own gate (amendment 2026-11-02).
     expect(kinds['settingsWrite']).toBe('settings');
     expect(kinds['connect']).toBe('port');
@@ -393,11 +401,18 @@ describe('rows', () => {
     expect(allowed(snap('IDLE_HOMED'), 'loadJob').allowed).toBe(true);
   });
 
-  it('Arm only from PREFLIGHT_OK; Resume only from HELD or PROGRAM_PAUSED; Flash from idle or shutdown', () => {
+  it('Arm only from PREFLIGHT_OK; Resume only from HELD or PROGRAM_PAUSED; Flash from idle (amended 2026-11-03: and CONNECTED_UNKNOWN)', () => {
     for (const base of BASE_STATES) {
       expect(allowed(snap(base), 'arm', OPEN).allowed, base).toBe(base === 'PREFLIGHT_OK');
       expect(allowed(snap(base), 'resume', OPEN).allowed, base).toBe(base === 'HELD' || base === 'PROGRAM_PAUSED');
-      expect(allowed(snap(base), 'flash', OPEN).allowed, base).toBe(base === 'IDLE_UNHOMED' || base === 'IDLE_HOMED' || base === 'SHUTDOWN');
+      expect(allowed(snap(base), 'flash', OPEN).allowed, base).toBe(base === 'IDLE_UNHOMED' || base === 'IDLE_HOMED' || base === 'CONNECTED_UNKNOWN');
+    }
+  });
+
+  it('Flash: allowed under READ_ONLY (an old or unapproved build is what an update replaces), UNKNOWN and NEEDS_REVIEW; never under FAULT, LOST, ORPHANED_MOTION or STALE', () => {
+    for (const overlay of OVERLAYS) {
+      const ok = allowed({ base: 'IDLE_HOMED', overlays: [overlay], classified: true, enqCapable: true }, 'flash', OPEN).allowed;
+      expect(ok, overlay).toBe(overlay === 'READ_ONLY' || overlay === 'UNKNOWN' || overlay === 'NEEDS_REVIEW');
     }
   });
 

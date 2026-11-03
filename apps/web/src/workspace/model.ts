@@ -13,6 +13,9 @@
  * worker RPC.
  */
 import { signal, type Signal } from '@preact/signals';
+import type { FirmwareRelease, FirmwareReleases } from '@synthetos/protocol';
+import type { UpdaterStep } from '../firmware/updater.ts';
+import type { FirmwareBackupRecord, InstalledRecord, SettingsBackupRecord, TrustRecord } from '../firmware/store.ts';
 import type { BoardSettings } from '@synthetos/schema';
 import type { AdvisoryCheck } from '../live/advisoryGate.ts';
 import type { ConsoleAnswer } from '../live/consoleRead.ts';
@@ -63,6 +66,50 @@ export interface LiveView {
   readonly apply: ApplyState;
   /** Why the last Disconnect was refused (the worker's allow-matrix words), or null. */
   readonly disconnectRefused: string | null;
+  /** Firmware & Backups (SAFETY §4.8 as amended 2026-11-03): absent before the page loads its records. */
+  readonly firmware?: FirmwareHubView;
+}
+
+/** What the Firmware and Firmware & Backups tabs show (firmware/hub.ts builds it). */
+export interface FirmwareHubView {
+  /** The release list this page verified for its own environment. */
+  readonly releases: { readonly ok: true; readonly list: FirmwareReleases } | { readonly ok: false; readonly reason: string };
+  readonly step: UpdaterStep;
+  readonly settings: readonly Omit<SettingsBackupRecord, 'file'>[];
+  readonly firmware: readonly Omit<FirmwareBackupRecord, 'hex' | 'eeprom'>[];
+  readonly trust: readonly TrustRecord[];
+  /** The image this browser last flashed onto the connected board, or null. */
+  readonly installed: InstalledRecord | null;
+  /** The switch check's reads are running. */
+  readonly pollingSwitches: boolean;
+  /** The last message from a firmware action (a refusal, a result), or null. */
+  readonly notice: { readonly kind: 'ok' | 'error'; readonly text: string } | null;
+  /** A comparison of a stored settings backup with the board, when one was asked for. */
+  readonly compare: { readonly id: string; readonly changes: number; readonly same: number; readonly skipped: number; readonly keys: readonly string[] } | null;
+}
+
+/** The firmware actions (each resolves with a refusal or null). */
+export interface FirmwareActions {
+  readonly updateRelease: (release: FirmwareRelease, localText?: string) => Promise<string | null>;
+  readonly putBack: (id: string) => Promise<string | null>;
+  readonly flashCustom: (name: string, text: string) => Promise<string | null>;
+  readonly recover: () => Promise<string | null>;
+  readonly cancel: () => Promise<string | null>;
+  readonly reconnect: () => Promise<string | null>;
+  readonly dismiss: () => Promise<void>;
+  readonly restore: () => Promise<string | null>;
+  readonly startSwitchCheck: () => void;
+  readonly finishSwitchCheck: () => Promise<string | null>;
+  readonly backupNow: () => Promise<string | null>;
+  readonly exportSettings: (id: string) => Promise<void>;
+  readonly importSettings: (text: string) => Promise<string | null>;
+  readonly deleteSettings: (id: string) => Promise<void>;
+  readonly compareSettings: (id: string) => Promise<string | null>;
+  readonly stageSettings: (id: string) => Promise<string | null>;
+  readonly downloadFirmware: (id: string) => Promise<void>;
+  readonly deleteFirmware: (id: string) => Promise<void>;
+  readonly trust: (boardId: string) => Promise<string | null>;
+  readonly revoke: (boardId: string, sha256: string) => Promise<void>;
 }
 
 export interface LiveActions {
@@ -93,6 +140,8 @@ export interface LiveActions {
   readonly job?: (command: JobCommand) => Promise<string | null>;
   /** The Console command line's one read: an allowlisted GET through the worker's read path (live/consoleRead.ts). */
   readonly consoleRead: (token: string) => Promise<ConsoleAnswer>;
+  /** Firmware & Backups (SAFETY §4.8 as amended 2026-11-03). Absent without a worker. */
+  readonly firmware?: FirmwareActions;
 }
 
 export const INITIAL_LIVE_VIEW: LiveView = Object.freeze({

@@ -25,10 +25,10 @@ import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
 import { boardText } from '@synthetos/safety';
 import type { SettingValue } from '@synthetos/schema';
-import { backupBlocked } from '../../live/backup.ts';
 import { AxisModes } from '../../machine-ui/AxisModes.ts';
 import { SettingsStatus } from '../../machine-ui/SettingsView.ts';
-import { PendingTray, RestorePanel, SettingEditor, SettingsTable } from '../settings/SettingsUi.ts';
+import { PendingTray, SettingEditor, SettingsTable } from '../settings/SettingsUi.ts';
+import { BackupsHub, FirmwareTab } from './FirmwareViews.ts';
 import { editBlocked } from '../settings/SettingsUi.ts';
 import {
   AXIS_NAMES,
@@ -656,94 +656,20 @@ function SettingsTab({ model }: { readonly model: WorkspaceModel | null }): Comp
   );
 }
 
-/** The backup's JSON shape, for the people who want to read it before they save one. */
-const BACKUP_SHAPE = '{ "format": "synthetos-run-settings-backup", "version": 1, "takenAt", "board": { "id", "dialect", "fb", "fv", "hp", "hv" }, "units": { "unit", "g21Sent": false }, "groups": { "x": { … } }, "tokens": { "xvm": … }, "unanswered": [ … ] }';
-
-export function BackupsTab({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
-  const view = model?.live.value ?? null;
-  const snapshot = view?.message?.snapshot ?? null;
-  const blocked = backupBlocked(snapshot);
-  const status = view?.backup ?? { kind: 'idle' as const };
-  const busy = status.kind === 'reading' || view?.readout.phase.kind === 'reading';
-  return h(
-    'div',
-    { class: 'configure-grid' },
-    h(
-      'div',
-      { tabindex: 0, class: 'list-panel backups-panel' },
-      h(
-        'div',
-        { class: 'section-heading tight' },
-        h('h2', null, 'Back up settings'),
-        h(
-          'button',
-          { type: 'button', class: 'primary small', 'data-action': 'backup', 'data-machine-control': 'read', disabled: blocked !== null || busy || model === null, 'aria-describedby': 'backup-why', onClick: () => model?.actions.value?.backup() },
-          Icon('download', 16),
-          status.kind === 'reading' ? 'Reading…' : 'Back up settings',
-        ),
-      ),
-      h(
-        'p',
-        { class: 'fine', id: 'backup-why', 'data-backup': blocked === null ? 'ready' : 'blocked' },
-        blocked ?? 'Reads every setting the read allowlist admits, one GET at a time, and saves them as a JSON file named by board id and date. The board is not changed.',
-      ),
-      status.kind === 'reading' ? h('p', { class: 'backup-progress', role: 'status', 'data-backup': 'reading' }, `Reading ${status.token === '' ? 'the last answer' : `"${status.token}"`}: ${status.done} of ${status.of}`) : null,
-      status.kind === 'saved' ? h('p', { class: 'backup-progress ok', role: 'status', 'data-backup': 'saved' }, `Saved ${status.name}: ${status.answered} groups${status.unanswered === 0 ? '' : `, ${status.unanswered} unanswered (listed in the file)`}.`) : null,
-      status.kind === 'failed' ? h('p', { class: 'backup-progress danger', role: 'alert', 'data-backup': 'failed' }, `The backup was not saved: ${status.message}`) : null,
-      h(
-        'ul',
-        { class: 'lock-list backup-rules' },
-        h('li', { class: 'ok' }, 'GET requests only, through the session’s read allowlist'),
-        h('li', { class: 'ok' }, 'One request at a time: each waits for the board’s answer'),
-        h('li', { class: 'ok' }, 'Units recorded as reported (unit); no G21 is sent, because Phase 1 writes nothing'),
-        h('li', { class: 'ok' }, 'Restoring a backup stages its values as pending changes; applying them backs up again first'),
-      ),
-      h('details', { class: 'more' }, h('summary', null, 'What the file contains'), h('code', { class: 'block' }, BACKUP_SHAPE)),
-    ),
-    h(
-      'aside',
-      { tabindex: 0, class: 'inspector', 'aria-label': 'Restore' },
-      h(RestorePanel, { view }),
-    ),
-  );
-}
-
-export function FirmwareTab({ view }: { readonly view: LiveView | null }): ComponentChild {
-  const id = view?.message?.snapshot.identity ?? null;
-  const on = view !== null && connected(view);
-  return h(
-    'div',
-    { class: 'configure-grid' },
-    h(
-      'div',
-      { tabindex: 0, class: 'list-panel releases-panel' },
-      h(
-        'div',
-        { class: 'fw-current' },
-        h('div', { class: 'fw-chip' }, Icon('chip', 26)),
-        h('div', { class: 'grow' }, h('span', { class: 'kicker' }, 'On this board'), h('h2', null, on && typeof id?.fb === 'number' ? `Firmware ${id.fb.toFixed(2)}` : 'Firmware not read'), h('p', null, on ? `Hardware version ${id?.hv === undefined ? UNKNOWN : boardText(String(id.hv))} · read when connected` : 'Connect a board to read its firmware version.')),
-      ),
-      h('div', { class: 'section-heading tight' }, h('h2', null, 'Releases'), h('span', { class: 'fine' }, 'Signed builds only, for this board’s hardware')),
-      h('p', { class: 'fine pad' }, 'The signed release list arrives with firmware updates. No release is offered by this page.'),
-    ),
-    h(
-      'aside',
-      { tabindex: 0, class: 'inspector', 'aria-label': 'Firmware update' },
-      h(
-        'section',
-        { class: 'insp', 'data-region': 'firmware-update' },
-        h('header', null, h('h2', null, 'Update'), h('span', { class: 'tag' }, 'Own safety-reviewed phase')),
-        h('ol', { class: 'fw-plan' }, ['Back up every setting', 'Restart into update mode', 'Write and verify the signed build', 'Reconnect and check the version', 'Restore your settings'].map((s, i) => h('li', { key: s }, h('span', null, String(i + 1)), s))),
-        h('button', { type: 'button', class: 'primary wide', disabled: true, 'data-machine-control': 'firmware' }, 'Review the update'),
-        h('p', { class: 'fine' }, 'Firmware updates are a separate phase with their own safety review. Nothing is written to the board from here.'),
-      ),
-    ),
-  );
-}
+// Backups and Firmware (SAFETY §4.8 as amended 2026-11-03): the Firmware & Backups hub and the Update panel.
+export { BackupsHub as BackupsTab, FirmwareTab } from './FirmwareViews.ts';
 
 export function BoardView({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
-  const [tab, setTab] = useState<Tab>('overview');
   const view = model?.live.value ?? null;
+  // The old-firmware gate: a board below the signed list's minimum opens straight into the Update panel.
+  const old = view?.message?.oldFirmware ?? null;
+  const [tab, setTab] = useState<Tab>(old === null ? 'overview' : 'firmware');
+  const [oldSeen, setOldSeen] = useState<string | null>(null);
+  const oldKey = old === null ? null : `${view?.message?.snapshot.epoch ?? 0}`;
+  if (oldKey !== null && oldKey !== oldSeen) {
+    setOldSeen(oldKey);
+    if (tab !== 'firmware') setTab('firmware');
+  }
   const drafts = Object.keys(draftStore.value.value).length;
   const tabs: readonly { id: Tab; label: string; badge?: string }[] = [
     { id: 'overview', label: 'Overview' },
@@ -753,8 +679,8 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     { id: 'io', label: 'Spindle and coolant' },
     { id: 'comms', label: 'Communications' },
     { id: 'settings', label: 'All settings' },
-    { id: 'backups', label: 'Backups' },
-    { id: 'firmware', label: 'Firmware' },
+    { id: 'backups', label: 'Firmware & Backups' },
+    { id: 'firmware', label: 'Firmware', ...(old === null ? {} : { badge: 'Update' }) },
   ];
   const pane = (id: Tab, child: ComponentChild): ComponentChild => h(TabPane, { prefix: 'board', id, current: tab, class: 'cpane' }, child);
   return h(
@@ -769,7 +695,7 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     pane('io', h(OutputsTab, { view })),
     pane('comms', h(CommsTab, { view })),
     pane('settings', h(SettingsTab, { model })),
-    pane('backups', h(BackupsTab, { model })),
-    pane('firmware', h(FirmwareTab, { view })),
+    pane('backups', h(BackupsHub, { model })),
+    pane('firmware', h(FirmwareTab, { model })),
   );
 }

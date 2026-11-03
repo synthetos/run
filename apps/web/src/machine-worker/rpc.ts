@@ -34,10 +34,12 @@
  */
 import { isPortSelector, type DroView, type PortSelector, type SessionSnapshot, type TransportInfo, type TransportSource } from '@synthetos/machine';
 import type { Decision } from '@synthetos/safety';
+import { MAX_TRUSTED_BUILDS, parseTrustedBuild, type TrustedBuild } from './approval.ts';
+import type { FlashBackupsMessage, FlashSourceRequest, FlashView, PostFlashView } from './flashService.ts';
 
 export const RPC_VERSION = 3;
 
-export const REQUEST_KINDS = ['prepare', 'open', 'close', 'status', 'intent', 'read', 'subscribe', 'transcript', 'drift', 'motion', 'settingWrite', 'job'] as const;
+export const REQUEST_KINDS = ['prepare', 'open', 'close', 'status', 'intent', 'read', 'subscribe', 'transcript', 'drift', 'motion', 'settingWrite', 'job', 'flash'] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];
 
 /** Intents the window may send. Everything else the session does on its own. */
@@ -83,6 +85,33 @@ export type JobCommand =
   | { readonly op: 'breakpoints'; readonly lines: readonly number[] }
   | { readonly op: 'lineModeMemory'; readonly epoch: number; readonly remembered: 0 | 1 | null };
 
+/**
+ * The firmware update (SAFETY §4.8 as amended 2026-11-03; additive). The worker's flash service decides every one:
+ * - `begin`: the image text and what it is (a signed release by hv/fb/file, a firmware backup of this board, or
+ *   confirmed custom firmware), with the settings backup's tokens as the post-flash baseline;
+ * - `backupsSaved`: the page stored the backups the worker posted (`flashBackups`), with the image backup's SHA-256;
+ * - `cancel` (before the first page only), `recover` (the same image through the reset window), `reconnect`,
+ *   `compare` (the live settings against the baseline), `switchCheckDone`, `dismiss`;
+ * - `lock`: the page remembers an unfinished update of this board (a reload): the worker re-arms its lock.
+ */
+export type FlashCommand =
+  | {
+      readonly op: 'begin';
+      readonly source: FlashSourceRequest;
+      readonly hex: string;
+      readonly sha256: string;
+      readonly settingsBackup: 'saved' | 'unreadable';
+      readonly baseline: Readonly<Record<string, number | string>> | null;
+      readonly recovery: boolean;
+    }
+  | { readonly op: 'backupsSaved'; readonly sha256: string }
+  | { readonly op: 'cancel' | 'recover' | 'reconnect' | 'compare' | 'switchCheckDone' | 'dismiss' }
+  | { readonly op: 'lock'; readonly boardId: string; readonly baseline: Readonly<Record<string, number | string>> };
+
+/** Largest `.hex` text, and most baseline tokens, the window may send. */
+export const MAX_HEX_TEXT = 2 * 1024 * 1024;
+export const MAX_BASELINE_TOKENS = 1000;
+
 /** Largest job text the window may send (RUN_PLAN §4: 50 MB), and most breakpoints. */
 export const MAX_JOB_TEXT = 50 * 1024 * 1024;
 export const MAX_JOB_NAME = 200;
@@ -97,7 +126,16 @@ export const MAX_BOARD_ID_LENGTH = 64;
 export type MachineRequest =
   | { readonly v: typeof RPC_VERSION; readonly kind: 'prepare'; readonly port: PortSelector }
   /** `previousSessionEnded`: a reload or discard ended a LIVE session (W6), so the connect starts UNKNOWN (SAFETY §3). */
-  | { readonly v: typeof RPC_VERSION; readonly kind: 'open'; readonly port: PortSelector; readonly preparation?: number; readonly boardId: string | null; readonly previousSessionEnded: boolean }
+  | {
+      readonly v: typeof RPC_VERSION;
+      readonly kind: 'open';
+      readonly port: PortSelector;
+      readonly preparation?: number;
+      readonly boardId: string | null;
+      readonly previousSessionEnded: boolean;
+      /** Custom builds the user trusted, each for one board (SAFETY H87; the page's device-safety records). */
+      readonly trusted?: readonly TrustedBuild[];
+    }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'close' | 'status' | 'subscribe' | 'transcript' }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'intent'; readonly intent: WindowIntent }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'read'; readonly tokens: readonly string[] }
@@ -110,7 +148,8 @@ export type MachineRequest =
    */
   | { readonly v: typeof RPC_VERSION; readonly kind: 'settingWrite'; readonly key: string; readonly value: number }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'motion'; readonly command: MotionCommand }
-  | { readonly v: typeof RPC_VERSION; readonly kind: 'job'; readonly command: JobCommand };
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'job'; readonly command: JobCommand }
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'flash'; readonly command: FlashCommand };
 
 /** The link, in the words of the Phase 0 protocol: derived from the session's base state and LOST. */
 export type WorkerState = 'idle' | 'opening' | 'open' | 'lost';
@@ -139,7 +178,7 @@ export type Denial = Extract<Decision, { allowed: false }>;
 export type MachineReply =
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'prepare'; readonly preparation: number }
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'open'; readonly info: TransportInfo }
-  | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'close' | 'subscribe' | 'intent' | 'read' | 'drift' | 'motion' | 'job' }
+  | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'close' | 'subscribe' | 'intent' | 'read' | 'drift' | 'motion' | 'job' | 'flash' }
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'status'; readonly status: WorkerStatus }
   /** The settings write was accepted; its result appears in `snapshot.settingWrite` with this id. */
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'settingWrite'; readonly id: number }
@@ -175,6 +214,23 @@ export interface SnapshotMessage {
   readonly jobs?: boolean;
   /** Time since the job started (or its run time once ended), ms on the worker's clock at post time; null without one. */
   readonly jobElapsedMs?: number | null;
+  /** The flasher phase switch of this worker (bench and staging only, never production). */
+  readonly flasher?: boolean;
+  /** The firmware update in progress or just finished, or null. */
+  readonly flash?: FlashView | null;
+  /** The post-flash lock of the connected board, or null. */
+  readonly postFlash?: PostFlashView | null;
+  /** The old-firmware gate: the board's build is below the signed list's minimum for its hardware. */
+  readonly oldFirmware?: { readonly fb: number; readonly minimumFb: number } | null;
+  /** The port is the test kit's simulated board (fake-serial builds only). */
+  readonly simulated?: boolean;
+}
+
+/** Posted once on the subscribed port during an update: the backups the page must store before anything is written. */
+export interface FlashBackupsPost {
+  readonly v: typeof RPC_VERSION;
+  readonly kind: 'flashBackups';
+  readonly backups: FlashBackupsMessage;
 }
 
 function isRequestKind(value: unknown): value is RequestKind {
@@ -187,25 +243,47 @@ function isWindowIntent(value: unknown): value is WindowIntent {
 
 const OPEN_KEYS: ReadonlySet<string> = new Set(['kind,port,v', 'boardId,kind,port,v', 'kind,port,previousSessionEnded,v', 'boardId,kind,port,previousSessionEnded,v']);
 
+function parseTrusted(value: unknown): readonly TrustedBuild[] | null {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > MAX_TRUSTED_BUILDS) return null;
+  const out: TrustedBuild[] = [];
+  for (const v of value as unknown[]) {
+    const t = parseTrustedBuild(v);
+    if (t === null) return null;
+    out.push(t);
+  }
+  return Object.freeze(out);
+}
+
 /** The request in `data`, or null when it is not exactly a valid request. */
 export function parseRequest(data: unknown): MachineRequest | null {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return null;
   if (Object.getPrototypeOf(data) !== Object.prototype) return null;
   const keys = Object.keys(data).sort().join(',');
-  const { v, kind, port, boardId, previousSessionEnded, intent, tokens, epoch, preparation, command, key, value } = data as Record<string, unknown>;
+  const { v, kind, port, boardId, previousSessionEnded, intent, tokens, epoch, preparation, command, key, value, trusted } = data as Record<string, unknown>;
   if (v !== RPC_VERSION || !isRequestKind(kind)) return null;
   switch (kind) {
     case 'prepare':
       if (keys !== 'kind,port,v' || !isPortSelector(port)) return null;
       return Object.freeze({ v: RPC_VERSION, kind, port: copySelector(port) });
     case 'open': {
-      if (!OPEN_KEYS.has(Object.keys(data).filter((key) => key !== 'preparation').sort().join(',')) || !isPortSelector(port)) return null;
+      if (!OPEN_KEYS.has(Object.keys(data).filter((key) => key !== 'preparation' && key !== 'trusted').sort().join(',')) || !isPortSelector(port)) return null;
+      const trustedBuilds = parseTrusted(trusted);
+      if (trustedBuilds === null) return null;
       const id = boardId ?? null;
       if (id !== null && (typeof id !== 'string' || id.length === 0 || id.length > MAX_BOARD_ID_LENGTH)) return null;
       if (previousSessionEnded !== undefined && typeof previousSessionEnded !== 'boolean') return null;
       if ('preparation' in data && (typeof preparation !== 'number' || !Number.isSafeInteger(preparation) || preparation < 1)) return null;
       const selector = copySelector(port);
-      return Object.freeze({ v: RPC_VERSION, kind, port: selector, ...(preparation === undefined ? {} : { preparation: preparation as number }), boardId: id, previousSessionEnded: previousSessionEnded === true });
+      return Object.freeze({
+        v: RPC_VERSION,
+        kind,
+        port: selector,
+        ...(preparation === undefined ? {} : { preparation: preparation as number }),
+        boardId: id,
+        previousSessionEnded: previousSessionEnded === true,
+        ...(trustedBuilds.length === 0 ? {} : { trusted: trustedBuilds }),
+      });
     }
     case 'intent':
       if (keys !== 'intent,kind,v' || !isWindowIntent(intent)) return null;
@@ -229,6 +307,11 @@ export function parseRequest(data: unknown): MachineRequest | null {
     case 'job': {
       if (keys !== 'command,kind,v') return null;
       const parsed = parseJobCommand(command);
+      return parsed === null ? null : Object.freeze({ v: RPC_VERSION, kind, command: parsed });
+    }
+    case 'flash': {
+      if (keys !== 'command,kind,v') return null;
+      const parsed = parseFlashCommand(command);
       return parsed === null ? null : Object.freeze({ v: RPC_VERSION, kind, command: parsed });
     }
     case 'drift':
@@ -368,6 +451,78 @@ export function parseJobCommand(value: unknown): JobCommand | null {
       if (keys !== 'epoch,op,remembered' || typeof epoch !== 'number' || !Number.isSafeInteger(epoch) || epoch < 0) return null;
       if (remembered !== null && remembered !== 0 && remembered !== 1) return null;
       return Object.freeze({ op: 'lineModeMemory', epoch, remembered });
+    }
+    default:
+      return null;
+  }
+}
+
+function parseBaseline(value: unknown): Readonly<Record<string, number | string>> | null {
+  if (plainKeys(value) === null) return null;
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length > MAX_BASELINE_TOKENS) return null;
+  const out: Record<string, number | string> = {};
+  for (const [k, v] of entries) {
+    if (!/^[a-z0-9_]{1,8}$/.test(k)) return null;
+    if (typeof v === 'number') {
+      if (!Number.isFinite(v)) return null;
+      out[k] = v;
+    } else if (typeof v === 'string' && v.length <= 64) out[k] = v;
+    else return null;
+  }
+  return Object.freeze(out);
+}
+
+function parseFlashSource(value: unknown): FlashSourceRequest | null {
+  const keys = plainKeys(value);
+  if (keys === null) return null;
+  const c = value as Record<string, unknown>;
+  switch (c['kind']) {
+    case 'release':
+      if (keys !== 'fb,file,hv,kind' || !finite(c['hv']) || !finite(c['fb']) || typeof c['file'] !== 'string' || c['file'].length === 0 || c['file'].length > 100) return null;
+      return Object.freeze({ kind: 'release', hv: c['hv'], fb: c['fb'], file: c['file'] });
+    case 'backup':
+      if (keys !== 'boardId,fb,kind' || typeof c['boardId'] !== 'string' || c['boardId'].length === 0 || c['boardId'].length > MAX_BOARD_ID_LENGTH || (c['fb'] !== null && !finite(c['fb']))) return null;
+      return Object.freeze({ kind: 'backup', boardId: c['boardId'], fb: c['fb'] as number | null });
+    case 'custom':
+      if (keys !== 'confirmed,kind,name' || typeof c['name'] !== 'string' || c['name'].length === 0 || c['name'].length > 200 || typeof c['confirmed'] !== 'boolean') return null;
+      return Object.freeze({ kind: 'custom', name: c['name'], confirmed: c['confirmed'] });
+    default:
+      return null;
+  }
+}
+
+/** A flash command, strictly. The flash service and the flasher decide the rest. */
+export function parseFlashCommand(value: unknown): FlashCommand | null {
+  const keys = plainKeys(value);
+  if (keys === null) return null;
+  const c = value as Record<string, unknown>;
+  switch (c['op']) {
+    case 'begin': {
+      if (keys !== 'baseline,hex,op,recovery,settingsBackup,sha256,source') return null;
+      const source = parseFlashSource(c['source']);
+      const baseline = c['baseline'] === null ? null : parseBaseline(c['baseline']);
+      if (source === null || (c['baseline'] !== null && baseline === null)) return null;
+      if (typeof c['hex'] !== 'string' || c['hex'].length === 0 || c['hex'].length > MAX_HEX_TEXT) return null;
+      if (typeof c['sha256'] !== 'string' || !/^[0-9a-f]{64}$/.test(c['sha256'])) return null;
+      if (c['settingsBackup'] !== 'saved' && c['settingsBackup'] !== 'unreadable') return null;
+      if (typeof c['recovery'] !== 'boolean') return null;
+      return Object.freeze({ op: 'begin', source, hex: c['hex'], sha256: c['sha256'], settingsBackup: c['settingsBackup'], baseline, recovery: c['recovery'] });
+    }
+    case 'backupsSaved':
+      if (keys !== 'op,sha256' || typeof c['sha256'] !== 'string' || !/^[0-9a-f]{64}$/.test(c['sha256'])) return null;
+      return Object.freeze({ op: 'backupsSaved', sha256: c['sha256'] });
+    case 'cancel':
+    case 'recover':
+    case 'reconnect':
+    case 'compare':
+    case 'switchCheckDone':
+    case 'dismiss':
+      return keys === 'op' ? Object.freeze({ op: c['op'] }) : null;
+    case 'lock': {
+      const baseline = parseBaseline(c['baseline']);
+      if (keys !== 'baseline,boardId,op' || typeof c['boardId'] !== 'string' || c['boardId'].length === 0 || c['boardId'].length > MAX_BOARD_ID_LENGTH || baseline === null) return null;
+      return Object.freeze({ op: 'lock', boardId: c['boardId'], baseline });
     }
     default:
       return null;

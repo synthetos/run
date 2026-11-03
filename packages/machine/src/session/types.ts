@@ -161,7 +161,10 @@ export type ReadPurpose =
   | 'job'
   | 'jobPrep'
   | 'lineMode'
-  | 'jobRuntime';
+  | 'jobRuntime'
+  /** The firmware update (SAFETY §4.8 as amended 2026-11-03): the idle gate before `{"boot":1}`, and that line. */
+  | 'bootGate'
+  | 'boot';
 
 /** What runs when the last read-back of a change has been answered. */
 export type FollowUp = 'homed' | 'positionSet';
@@ -265,6 +268,8 @@ export interface ClassificationInfo {
   readonly detail: string;
   readonly upgradeOffer: boolean;
   readonly buildIdentity?: 'fbs' | 'fbOnly';
+  /** Where a full session's approval came from (absent: the signed manifest; SAFETY H87). */
+  readonly approvalSource?: 'release-list' | 'trusted';
 }
 
 export interface Identity {
@@ -365,6 +370,19 @@ export interface SessionNotices {
   readonly change?: { readonly kind: 'done' | 'refused' | 'failed'; readonly text: string; readonly at: number };
   /** The last connect attempt failed before the port opened. */
   readonly connectFailed?: { readonly code: 'unavailable' | 'open-failed'; readonly reason: string };
+  /**
+   * The firmware update (SAFETY §4.8 as amended 2026-11-03): `{"boot":1}` went out at `at` on the port `port`, the
+   * link was closed, and the board is resetting into its bootloader. The flasher takes the same port from here.
+   */
+  readonly bootloaderEntered?: { readonly at: number; readonly port: PortSelector; readonly boardId: string | null };
+  /** Why the last request to enter the bootloader was not carried out (the idle gate, a lost link). */
+  readonly bootRefused?: string;
+}
+
+/** The firmware update's entry into the bootloader, while it is in progress (SAFETY §4.8 as amended). */
+export interface BootEntryState {
+  readonly phase: 'gate' | 'writing';
+  readonly gate: { readonly stat?: number; readonly hold?: number; readonly vel?: number; readonly qr?: number };
 }
 
 export interface AckVerify {
@@ -617,6 +635,8 @@ export interface SessionState {
   readonly motion: MotionCtx | null;
   /** The current or last settings write, or null (SAFETY §4.6, amendment 2026-11-02). */
   readonly settingWrite: SettingWriteState | null;
+  /** The firmware update's entry into the bootloader in progress, or null (SAFETY §4.8 as amended 2026-11-03). */
+  readonly bootEntry: BootEntryState | null;
   /** The connect-time read and report configuration (amendment 2026-11-02). */
   readonly reports: ReportsState;
   readonly link: LinkWindow;
@@ -746,6 +766,8 @@ export type SessionIntent =
   | { readonly intent: 'spindleOffNow'; readonly outputs: 'spindle' | 'coolant' }
   /** One settings write (SAFETY §4.6, amendment 2026-11-02): gate reads, `{"<key>":<value>}`, then a read-back. */
   | { readonly intent: 'settingsWrite'; readonly key: string; readonly value: number }
+  /** The firmware update (SAFETY §4.8 as amended 2026-11-03): the idle gate, then `{"boot":1}`, then the link closes. */
+  | { readonly intent: 'flash' }
   // --- Phase 3 jobs (SAFETY §4.4a). Denied by the matrix and the session under any release without jobs.
   /** Load a job (the file text, sanitised here with the live board's values), or unload it (`job: null`). */
   | { readonly intent: 'loadJob'; readonly job: { readonly name: string; readonly text: string; readonly c22: boolean } | null }
@@ -775,6 +797,7 @@ export type SessionIntent =
         | 'resume'
         | 'positionVerify'
         | 'settingsWrite'
+        | 'flash'
         | 'home'
         | 'setMachinePosition'
         | 'tempOffset'
@@ -794,7 +817,7 @@ export type SessionEvent =
   | { readonly type: 'openFailed'; readonly epoch: number; readonly reason: string }
   | { readonly type: 'inbound'; readonly epoch: number; readonly at: number; readonly event: Inbound }
   /** The write of line `seq` completed. */
-  | { readonly type: 'lineWritten'; readonly epoch: number; readonly seq: number }
+  | { readonly type: 'lineWritten'; readonly epoch: number; readonly seq: number; readonly at?: number }
   /** Line `seq` was not written: by the time it reached the transport the matrix no longer allowed it. `index`: a job line's. */
   | { readonly type: 'lineDropped'; readonly epoch: number; readonly seq: number; readonly index?: number }
   | { readonly type: 'writeFailed'; readonly epoch: number; readonly at: number; readonly detail: string }
@@ -826,7 +849,7 @@ export type SessionEffect =
       readonly token: string;
       readonly line: string;
       readonly motion?: { readonly intent: Intent };
-      readonly intent?: 'settingsWrite' | 'configureReports' | 'jobLine' | 'lineMode' | 'jobRuntime';
+      readonly intent?: 'settingsWrite' | 'configureReports' | 'jobLine' | 'lineMode' | 'jobRuntime' | 'flash';
       /** `jobLine`: the job line's index (the write gate checks the bytes are exactly that line). */
       readonly index?: number;
     }

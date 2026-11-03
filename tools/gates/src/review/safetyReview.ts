@@ -101,8 +101,8 @@ export function hasWriteAccess(login: string, permissions: ReviewerPermissions):
   return WRITE_PERMISSIONS.includes(p.permission) && p.push !== false;
 }
 
-/** Item numbers of the SAFETY §8 checklist (OLD-S 1–21 plus SAFETY 22–49; 41 is Phase 2 motion, 42 settings writes, 43–45 the push-driven state, report configuration, homing and offsets, 46–49 Phase 3 jobs). */
-export const CHECKLIST_ITEMS: readonly number[] = Array.from({ length: 49 }, (_, i) => i + 1);
+/** Item numbers of the SAFETY §8 checklist (OLD-S 1–21 plus SAFETY 22–53; 41 is Phase 2 motion, 42 settings writes, 43–45 the push-driven state, report configuration, homing and offsets, 46–49 Phase 3 jobs, 50–53 the firmware update). */
+export const CHECKLIST_ITEMS: readonly number[] = Array.from({ length: 53 }, (_, i) => i + 1);
 
 export interface Review {
   readonly user: string;

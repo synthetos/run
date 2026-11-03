@@ -44,3 +44,21 @@ export async function fetchIdentity(fetchFn: FetchLike = (i, o) => fetch(i, o)):
     return null;
   }
 }
+
+/**
+ * A firmware `.hex` named by the signed release list (SAFETY §4.8 as amended 2026-11-03): fetched from run's own
+ * origin (`/firmware/<file>`, or `/firmware/sim/<file>` for the simulated board's images), as text. Hosting is the
+ * owner's decision (docs/ops/firmware-releases.md): when the file is not served, the page asks the user for a local
+ * copy instead. Either way the page and then the machine worker check its SHA-256 and size against the signed
+ * entry before anything is parsed or flashed; this function decides nothing.
+ */
+export async function fetchFirmwareFile(file: string, simulator: boolean, fetchFn: FetchLike = (i, o) => fetch(i, o)): Promise<string | null> {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,95}\.hex$/.test(file)) return null;
+  try {
+    const response = await fetchFn(`/firmware/${simulator ? 'sim/' : ''}${file}`, NO_STORE);
+    if (!response.ok) return null;
+    return await response.text();
+  } catch {
+    return null;
+  }
+}

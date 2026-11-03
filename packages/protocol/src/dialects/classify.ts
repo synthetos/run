@@ -75,6 +75,8 @@ export interface Classification {
    * reporting this `fb` matches; the UI must show that).
    */
   readonly buildIdentity?: 'fbs' | 'fbOnly';
+  /** Where a full session's approval came from (absent: the signed manifest). */
+  readonly approvalSource?: 'release-list' | 'trusted';
 }
 
 /** TinyG builds report fv 0.97 (@cite EN tinyg.h:54; TG tinyg.h:52). */
@@ -160,7 +162,7 @@ function approvable(
   const upgradeOffer = dialect.upgradeOffer;
   // Only called for dialects whose mode is `manifest`; the manifest parser also refuses entries for
   // READ_ONLY dialects, so a manifest can never lift tinyg-449-stock or g2core out of READ_ONLY.
-  const approval = findApproval(manifest, dialect.id, p.fb, p.fbs);
+  const approval = findApproval(manifest, dialect.id, p.fb, p.fbs, { hv: p.hv, id: p.id });
   const build = `fb ${describe(p.fb)}${p.fbs === undefined ? '' : ` (${p.fbs})`}`;
   if (approval === undefined) {
     return {
@@ -174,17 +176,21 @@ function approvable(
   // The probe cannot read the commit. Without fbs it cannot even tell builds that share this fb apart,
   // so the manifest's commit is not shown as if it identified the board (D4, P0 review).
   const identity =
-    approval.fbs === null
-      ? 'commit not verifiable: the build reports no fbs, so every build reporting this fb matches (bench only)'
-      : `identified by fbs; manifest commit ${approval.commit.slice(0, 8)}`;
+    approval.source === 'trusted'
+      ? `custom firmware you trusted on this board (image sha256 ${(approval.imageSha256 ?? '').slice(0, 12)}); not a signed build`
+      : approval.fbs === null
+        ? 'commit not verifiable: the build reports no fbs, so every build reporting this fb matches (bench only)'
+        : `identified by fbs; manifest commit ${approval.commit.slice(0, 8)}`;
+  const where = approval.source === 'trusted' ? 'by you on this board' : approval.source === 'release-list' ? `as a signed release on the ${approval.channel} channel` : `on the ${approval.channel} channel`;
   return {
     dialect,
     mode: 'full',
     reason: approved,
-    detail: `${dialect.label} ${build}, approved on the ${approval.channel} channel (${identity})`,
+    detail: `${dialect.label} ${build}, approved ${where} (${identity})`,
     upgradeOffer,
     approval,
     buildIdentity: approval.fbs === null ? 'fbOnly' : 'fbs',
+    ...(approval.source === undefined ? {} : { approvalSource: approval.source }),
   };
 }
 
