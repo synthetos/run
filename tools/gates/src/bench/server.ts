@@ -36,6 +36,7 @@ import type { TreeFile } from '../shared/files.ts';
 import { HASHED_ASSET_CACHE_CONTROL, SERIAL_GRANTED_SECURITY_HEADERS } from '../../../../workers/run/src/headers.ts';
 import { type ScanFinding, scanBundle } from '../bundle/scan.ts';
 import { isFirmwarePath, type BenchFirmware } from './firmware.ts';
+import { consoleRespond, isConsolePath, type BenchConsole } from './console.ts';
 
 /** The only interface the server binds. */
 export const BENCH_BIND_ADDRESS = '127.0.0.1';
@@ -67,6 +68,8 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
 export interface BenchSite {
   readonly files: ReadonlyMap<string, Uint8Array>;
   readonly firmware?: BenchFirmware;
+  /** The console route (`/console`): the page's wire transcript, for readers on this computer. */
+  readonly console?: BenchConsole;
 }
 
 export class BenchSiteRefused extends Error {
@@ -79,10 +82,10 @@ export class BenchSiteRefused extends Error {
 }
 
 /** Accepts a tree only if it passes the bundle scan for the bench target. */
-export function benchSite(files: readonly TreeFile[], firmware?: BenchFirmware): BenchSite {
+export function benchSite(files: readonly TreeFile[], firmware?: BenchFirmware, console?: BenchConsole): BenchSite {
   const findings = scanBundle(files, 'bench');
   if (findings.length > 0) throw new BenchSiteRefused(findings);
-  return firmware === undefined ? { files: new Map(files.map((f) => [f.path, f.bytes])) } : { files: new Map(files.map((f) => [f.path, f.bytes])), firmware };
+  return { files: new Map(files.map((f) => [f.path, f.bytes])), ...(firmware === undefined ? {} : { firmware }), ...(console === undefined ? {} : { console }) };
 }
 
 export interface BenchRequest {
@@ -90,6 +93,8 @@ export interface BenchRequest {
   /** The request target as sent (`/path?query`). */
   readonly url: string;
   readonly host: string | undefined;
+  /** The request body, when the server read one (POST). */
+  readonly body?: Uint8Array;
 }
 
 export interface BenchResponse {
@@ -167,8 +172,41 @@ export async function benchRespond(site: BenchSite, port: number, req: BenchRequ
   const refused = hostRefused(port, req.host);
   if (refused !== undefined) return refused;
   const path = cleanPath(req.url);
+  if (site.console !== undefined && path !== undefined && isConsolePath(path)) {
+    const answer = consoleRespond(site.console, req.method, req.url, req.body);
+    return { ...answer, headers: { ...SERIAL_GRANTED_SECURITY_HEADERS, ...answer.headers } };
+  }
   if (site.firmware !== undefined && path !== undefined && isFirmwarePath(path)) return site.firmware.respond(req.method, path);
   return benchResponse(site, port, req);
+}
+
+/** The most a request body may hold (the console transcript); anything larger is cut and refused by the route. */
+const MAX_BODY_BYTES = 16 * 1024 * 1024 + 1;
+
+/** Collects a POST body, keeping at most `limit` bytes (`limit` 0: bodies are not read). Other methods carry none. */
+function readBody(req: IncomingMessage, limit: number): Promise<Uint8Array | undefined> {
+  if (req.method !== 'POST' || limit === 0) return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    const parts: Uint8Array[] = [];
+    let size = 0;
+    req.on('data', (chunk: Uint8Array) => {
+      if (size >= limit) return; // past the limit: the rest is drained and dropped; the route refuses the cut body
+      const keep = chunk.subarray(0, limit - size);
+      parts.push(keep);
+      size += keep.byteLength;
+    });
+    req.on('end', () => {
+      const out = new Uint8Array(size);
+      let at = 0;
+      for (const p of parts) {
+        out.set(p, at);
+        at += p.byteLength;
+      }
+      resolve(out);
+    });
+    /* c8 ignore next -- a socket error ends the request before its body: answered as a bodiless POST (400) */
+    req.on('error', () => resolve(undefined));
+  });
 }
 
 /** Starts the server on 127.0.0.1:`port` (0 picks a free port). Resolves with the server and the bound port. */
@@ -176,7 +214,9 @@ export function listen(site: BenchSite, port: number): Promise<{ server: Server;
   return new Promise((resolve, reject) => {
     let bound = port;
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-      void benchRespond(site, bound, { method: req.method ?? '', url: req.url ?? '', host: req.headers.host }).then(
+      void readBody(req, site.console === undefined ? 0 : MAX_BODY_BYTES)
+        .then((body) => benchRespond(site, bound, { method: req.method ?? '', url: req.url ?? '', host: req.headers.host, ...(body === undefined ? {} : { body }) }))
+        .then(
         (answer) => {
           res.writeHead(answer.status, answer.headers);
           res.end(answer.body);

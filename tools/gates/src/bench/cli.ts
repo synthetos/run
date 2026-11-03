@@ -15,6 +15,7 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { readTree } from '../shared/files.ts';
 import { benchFirmware, benchFirmwareAssets } from './firmware.ts';
+import { BenchConsole } from './console.ts';
 import { BENCH_DEFAULT_PORT, BenchSiteRefused, benchSite, listen } from './server.ts';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
@@ -41,13 +42,14 @@ async function main(argv: readonly string[]): Promise<number> {
     if (!existsSync(root)) throw new Error(`${root} does not exist: run pnpm build:bench first`);
     // The firmware route (OD-10): the GitHub-released images of the signed staging list, fetched from GitHub on request.
     const assets = await benchFirmwareAssets(JSON.parse(readFileSync(resolve(REPO_ROOT, 'firmware/releases.json'), 'utf8')) as unknown);
-    const site = benchSite(readTree(root), benchFirmware(assets));
+    const site = benchSite(readTree(root), benchFirmware(assets), new BenchConsole());
     const { port: bound } = await listen(site, port);
     process.stdout.write(
       [
         `bench: serving the BENCH build from ${root}`,
         `bench: open http://localhost:${bound}/ (listening on 127.0.0.1 only; Web Serial granted to this origin)`,
         `bench: firmware images fetched from GitHub Releases on request and checked against the signed list: ${assets.length === 0 ? 'none listed' : assets.map((a) => `${a.repo} ${a.tag} ${a.asset}`).join(', ')}`,
+        `bench: the page posts its wire transcript here; read it with GET http://localhost:${bound}/console (?raw for the JSONL)`,
         'bench: this build is for this computer only. It is never deployed. Stop with Ctrl-C.',
         '',
       ].join('\n'),

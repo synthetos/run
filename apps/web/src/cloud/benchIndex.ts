@@ -14,3 +14,15 @@ export function fetchIndexHtml(): Promise<string | null> {
     .then((r) => (r.ok ? r.text() : null))
     .catch(() => null);
 }
+
+/**
+ * Posts the worker's wire transcript to the bench server's `/console` route
+ * (tools/gates/src/bench/console.ts), so it can be read on this computer
+ * without the browser. True when the server took it.
+ */
+export function postConsole(jsonl: string): Promise<boolean> {
+  return fetch('/console', { method: 'POST', body: jsonl, headers: { 'content-type': 'text/plain; charset=utf-8' }, cache: 'no-store', credentials: 'omit', redirect: 'manual' })
+    .then((r) => r.status === 204)
+    .catch(() => false);
+}
+
