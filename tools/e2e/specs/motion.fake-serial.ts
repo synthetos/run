@@ -21,7 +21,7 @@ const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as con
 const SHOTS = process.env['RUN_SCREENSHOTS_DIR'];
 
 interface Status {
-  readonly status: { readonly session: { readonly base: string; readonly notices: { readonly motion?: { readonly text: string } }; readonly motion: { readonly held: boolean } | null } };
+  readonly status: { readonly session: { readonly base: string; readonly reports: { readonly phase: string }; readonly notices: { readonly motion?: { readonly text: string } }; readonly motion: { readonly held: boolean } | null } };
 }
 
 async function status(worker: Worker): Promise<Status['status']['session']> {
@@ -58,6 +58,8 @@ async function connected(page: Page): Promise<Worker> {
   const worker = await machineWorker(page);
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
   await expect.poll(async () => (await status(worker)).base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
+  // The connect-time report configuration (amendment 2026-11-02) has finished: only motion is written from here.
+  await expect.poll(async () => (await status(worker)).reports.phase, { timeout: 10_000 }).toBe('done');
   await expect(page.locator('[data-jog="homing"]')).toHaveText('Not homed', { timeout: 10_000 });
   return worker;
 }
@@ -143,7 +145,7 @@ test('Set zero (G10 L20 P1) and Go to zero (Z first, then X and Y, then Z), each
   await idle(worker);
   await tab(page, 'zero');
   const from = (await writes(worker)).length;
-  await page.getByRole('button', { name: 'Set X, Y and Z zero here' }).click();
+  await page.getByRole('button', { name: 'Set work zero for X, Y and Z here, saved in G54' }).click();
   await expect(page.locator('[data-safety="C16"]')).toContainText('This offset is saved on the controller.');
   await expect(page.locator('[data-action="motion-cancel"]')).toBeFocused();
   await page.locator('[data-action="motion-confirm"]').click();

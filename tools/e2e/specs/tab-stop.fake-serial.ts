@@ -9,6 +9,7 @@
  */
 import type { Page, Worker } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
+import { isReportConfig } from './helpers.ts';
 import { STOP_TEXT, w29 } from '../../../packages/safety/src/strings.ts';
 import { machineWorker, request } from './machineWorker.ts';
 
@@ -47,7 +48,7 @@ function bangs(list: readonly string[]): number {
 function stopClassOnly(list: readonly string[]): void {
   for (const w of list) {
     expect(w.includes('\x18') || w.includes('\x04'), JSON.stringify(w)).toBe(false);
-    expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '!' || ['M5\n', 'M9\n', 'G90\n'].includes(w), JSON.stringify(w)).toBe(true);
+    expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '!' || ['M5\n', 'M9\n', 'G90\n'].includes(w) || isReportConfig(w), JSON.stringify(w)).toBe(true);
   }
 }
 

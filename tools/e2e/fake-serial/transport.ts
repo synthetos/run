@@ -20,7 +20,7 @@
  * port, the simulated edge-next board (FTDI 0403:6015) at grant index 0, and
  * any other selector resolves null (refuse, never guess).
  */
-import { MockSerialPort, SimEndpoint, TinyGEdgeNextModel, type Clock } from '@synthetos/testkit';
+import { MockSerialPort, SimEndpoint, TinyGEdgeNextModel, type Clock, type TinyGModelOptions } from '@synthetos/testkit';
 import type { PortSelector, TransportSource } from '@synthetos/machine';
 import { MockTransport } from './mockTransport.ts';
 
@@ -35,6 +35,11 @@ const EEPROM_WRITE_MS = 25;
 
 export interface FakeSerialRegistry {
   readonly ports: MockSerialPort[];
+  /**
+   * Options for the next simulated board only (then cleared): a spec sets, for example, an EEPROM image with
+   * homing switches before it opens the port (amendment 2026-11-02 specs).
+   */
+  next?: Partial<TinyGModelOptions> | undefined;
 }
 
 /** A `Clock` on the host's real timers (the virtual clock is for unit tests). */
@@ -82,7 +87,10 @@ export function createTransportSource(): TransportSource {
       if (selector.usbVendorId !== g.usbVendorId || selector.usbProductId !== g.usbProductId || selector.grantIndex !== g.grantIndex) {
         return Promise.resolve(null);
       }
-      const device = new TinyGEdgeNextModel({ start: 'boot', bootMs: BOOT_MS, eepromWriteMs: EEPROM_WRITE_MS });
+      const reg = registry();
+      const next = reg.next ?? {};
+      reg.next = undefined;
+      const device = new TinyGEdgeNextModel({ start: 'boot', bootMs: BOOT_MS, eepromWriteMs: EEPROM_WRITE_MS, ...next });
       const endpoint = new SimEndpoint({ clock: realTimeClock(), device });
       const port = new MockSerialPort(endpoint);
       registry().ports.push(port);

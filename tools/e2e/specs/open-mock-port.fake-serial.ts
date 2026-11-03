@@ -13,6 +13,7 @@
  * `GuardedTransport`, exactly as shipped.
  */
 import { expect, test } from './fixtures.ts';
+import { isReportConfig } from './helpers.ts';
 import { w7 } from '../../../packages/safety/src/strings.ts';
 import { machineWorker, request } from './machineWorker.ts';
 
@@ -95,7 +96,7 @@ test('machine.worker runs the read-only session on the mock board: {sr:null} fir
   expect(text(writes[0] ?? [])).toBe('{sr:null}\n');
   for (const w of writes) {
     expect(w.includes(0x18) || w.includes(0x04), text(w)).toBe(false);
-    expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(text(w)) || text(w) === '!', text(w)).toBe(true);
+    expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(text(w)) || text(w) === '!' || isReportConfig(text(w)), text(w)).toBe(true);
   }
   expect(writes.map(text)).toContain('!');
   expect(writes.map(text)).not.toContain('{"md":null}\n');
