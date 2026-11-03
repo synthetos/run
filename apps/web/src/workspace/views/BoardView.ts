@@ -55,8 +55,10 @@ import { openReport } from '../../report/state.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { coolantText, displayReadouts, num, spindleText, UNKNOWN } from '../status.ts';
 import { Keyed, TabBar, TabPane } from '../ui.ts';
+import { boardTab, type BoardTab as Tab } from '../boardNavigation.ts';
+import { uiLevel } from '../jobWorkflow.ts';
+import { GuidedSettings } from '../settings/GuidedSettings.ts';
 
-type Tab = 'overview' | 'motors' | 'axes' | 'inputs' | 'io' | 'comms' | 'settings' | 'backups' | 'firmware';
 type Settings = Readonly<Record<string, SettingValue>>;
 
 const REASON_TEXT: Readonly<Record<string, string>> = {
@@ -652,7 +654,7 @@ function SettingsTab({ model }: { readonly model: WorkspaceModel | null }): Comp
     'div',
     { tabindex: 0, class: 'scroll-region settings-tab' },
     h('div', { class: 'settings-read', 'data-region': 'settings' }, h(SettingsStatus, { phase: view?.readout.phase ?? { kind: 'idle' }, onKeep: () => model?.actions.value?.keepBoardSettings() })),
-    h(SettingsTable, { view }),
+    uiLevel.value.value === 'simple' ? h(GuidedSettings, { view, prefix: 'board' }) : h(SettingsTable, { view }),
   );
 }
 
@@ -663,7 +665,8 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
   const view = model?.live.value ?? null;
   // The old-firmware gate: a board below the signed list's minimum opens straight into the Update panel.
   const old = view?.message?.oldFirmware ?? null;
-  const [tab, setTab] = useState<Tab>(old === null ? 'overview' : 'firmware');
+  const tab = boardTab.value;
+  const setTab = (next: Tab): void => { boardTab.value = next; };
   const [oldSeen, setOldSeen] = useState<string | null>(null);
   const oldKey = old === null ? null : `${view?.message?.snapshot.epoch ?? 0}`;
   if (oldKey !== null && oldKey !== oldSeen) {

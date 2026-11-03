@@ -66,7 +66,7 @@ test('the DRO machine position follows pushed reports, with no poll; settings an
   await page.locator('[data-board-tab="settings"]').click();
   await expect(page.locator('[data-settings="recorded"]')).toBeVisible({ timeout: 10_000 });
   // Settings writes: All settings is one grouped table (a tbody per group), no longer a list of <details>.
-  await expect(page.locator('tbody[data-group="x"]')).toContainText('How the X axis moves');
+  await expect(page.locator('#board-pane-settings tbody[data-group="x"]')).toContainText('How the X axis moves');
   // Row 35 / BENCH-P100-5: the axis-mode facts are rendered from the same read (the simulated board's modes), not hidden.
   // Polish pass 1: they sit on the Board view's Axes tab.
   await page.locator('[data-board-tab="axes"]').click();

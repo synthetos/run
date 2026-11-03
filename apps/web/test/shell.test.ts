@@ -154,6 +154,7 @@ describe('Phase 1 control allowlist', () => {
     /^action:review-(keep|open|cancel)$/,
     // The interface level (OD-13): presentation only.
     /^action:ui-level-(simple|advanced)$/,
+    /^action:machine-(review-settings|backups)$/,
     /^action:job-(step-(machine|stock|place|check|run|back|next)|files|files-close|projects|close|library-machines|use-machine)$/,
     /^view:(job|library|board|projects|analyze|settings|safety)$/,
     /^tab:(machines|tools|materials|gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,

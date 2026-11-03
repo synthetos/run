@@ -20,7 +20,7 @@
  * `applySettings` and `revertSettings` actions.
  */
 import { h, type ComponentChild } from 'preact';
-import { useState } from 'preact/hooks';
+import { useLayoutEffect, useState } from 'preact/hooks';
 import { TYPED_WORDS, boardText, c5, w20 } from '@synthetos/safety';
 import { restoreChanges, settingsReadGroups, type PlannedChange, type RestoreChanges, type SettingValue } from '@synthetos/schema';
 import { draftStore, plainValue, setDraft, clearDraft, settingMeta } from '../boardFacts.ts';
@@ -44,9 +44,12 @@ export function SettingEditor({ k, view, compact = false }: { readonly k: string
   const dialect = view?.readout.dialectId ?? null;
   const settings: Settings = view?.readout.settings ?? {};
   const meta = settingMeta(k, dialect);
+  const draft = draftStore.value.value[k];
+  const [input, setInput] = useState(draft === undefined ? '' : String(draft));
+  // A live snapshot must not erase a number while the user is still typing it.
+  useLayoutEffect(() => { setInput(draft === undefined ? '' : String(draft)); }, [draft]);
   if (!writableKey(k, dialect)) return compact ? null : h('span', { class: 'muted fine', title: 'Run does not write this setting: it is not reviewed for writing, it is read-only, or it is never written.' }, 'Read only');
   const blocked = editBlocked(view);
-  const draft = draftStore.value.value[k];
   const board = settings[k];
   const pick = (raw: string): void => {
     if (raw.trim() === '') {
@@ -82,7 +85,8 @@ export function SettingEditor({ k, view, compact = false }: { readonly k: string
       disabled: blocked !== null,
       title: blocked ?? meta.description,
       placeholder: typeof board === 'number' ? String(board) : '',
-      value: draft === undefined ? '' : String(draft),
+      value: input,
+      onInput: (e: Event) => setInput((e.currentTarget as HTMLInputElement).value),
       onChange: (e: Event) => pick((e.currentTarget as HTMLInputElement).value),
     }),
     meta.unit === '' ? null : h('i', null, meta.unit),
@@ -266,7 +270,7 @@ export function PendingTray({ model }: { readonly model: WorkspaceModel | null }
 // ---------------------------------------------------------------- all settings
 
 /** "All settings": grouped, searchable, plain names, units and descriptions, with an editor where writable. */
-export function SettingsTable({ view }: { readonly view: LiveView | null }): ComponentChild {
+export function SettingsTable({ view, id = 'all-settings-title' }: { readonly view: LiveView | null; readonly id?: string }): ComponentChild {
   const [query, setQuery] = useState('');
   const [changedOnly, setChangedOnly] = useState(false);
   const dialect = view?.readout.dialectId ?? null;
@@ -288,11 +292,11 @@ export function SettingsTable({ view }: { readonly view: LiveView | null }): Com
   const total = rows.reduce((n, r) => n + r.members.length, 0);
   return h(
     'section',
-    { class: 'settings-table', 'data-region': 'all-settings', 'aria-labelledby': 'all-settings-title' },
+    { class: 'settings-table', 'data-region': 'all-settings', 'aria-labelledby': id },
     h(
       'div',
       { class: 'settings-tools' },
-      h('h2', { id: 'all-settings-title' }, 'All settings'),
+      h('h2', { id }, 'All settings'),
       h('input', { type: 'search', class: 'settings-search', placeholder: 'Search by name, key or description', 'aria-label': 'Search settings', value: query, onInput: (e: Event) => setQuery((e.currentTarget as HTMLInputElement).value) }),
       h('label', { class: 'settings-filter' }, h('input', { type: 'checkbox', 'aria-label': 'Only pending changes', checked: changedOnly, onChange: (e: Event) => setChangedOnly((e.currentTarget as HTMLInputElement).checked) }), ' Only pending changes'),
       h('span', { class: 'fine' }, Object.keys(settings).length === 0 ? '' : `${total} settings`),

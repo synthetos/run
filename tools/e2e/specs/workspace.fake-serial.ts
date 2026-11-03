@@ -315,7 +315,7 @@ for (const width of [1440, 1280] as const) {
       await show(page, 'machines');
       await page.locator('[data-tab="catalogue"]').click();
       await page.locator('[data-action="copy-machine"]').first().click();
-      await page.locator('[data-tab="tinyg"]').click();
+      await page.locator('[data-action="ui-level-advanced"]').click();
       await shot('machines-tinyg');
     });
   }

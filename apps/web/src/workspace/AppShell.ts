@@ -33,6 +33,7 @@ import { MachineStrip } from './MachineStrip.ts';
 import { INITIAL_LIVE_VIEW, portOpen, type WorkspaceModel } from './model.ts';
 import { stripStatus } from './status.ts';
 import { BoardView } from './views/BoardView.ts';
+import { boardTab } from './boardNavigation.ts';
 import { LibraryView } from './views/LibraryView.ts';
 import { jobStep, librarySection, type LibrarySection } from './jobWorkflow.ts';
 import { AnalyzeView, PreferencesView, SafetyView } from './views/OtherViews.ts';
@@ -248,7 +249,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
         h(
           'main',
           { class: 'view-area', id: 'main', 'data-region': 'centre' },
-          h(Banners, { ...props, onReview: () => onView('board') }),
+          h(Banners, { ...props, onReview: () => { boardTab.value = 'settings'; onView('board'); } }),
           pane('job', h(JobView, { model, spawn: props.spawn ?? null, ...(props.marker === undefined ? {} : { marker: props.marker }), onView, ...(props.onPause === undefined ? {} : { onPause: props.onPause }), ...(props.onStopJob === undefined ? {} : { onStopJob: props.onStopJob }) })),
           pane('library', h(LibraryView, { model, onView })),
           pane('board', h(BoardView, { model })),
