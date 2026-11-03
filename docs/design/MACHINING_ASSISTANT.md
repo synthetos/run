@@ -275,3 +275,14 @@ The simulation handles all of them.
 - Tag bits: 1 axis cap, 2 corner, 4 exact stop, 8 short, 16 single segment; 32 is reserved. A missing corner tag does not prove there was no corner limit.
 - Only G94 linear XYZ feed segments count. Rapids, G93, rotary moves and deceleration into a feedhold do not.
 - `fl` and `fs` are not responses: no `r`, no footer, never counted as an acknowledgement, and never treated as unsolicited motion.
+
+### Feed-limit step 3 (agreed design, not built)
+
+- **Job flag.** `{"rt":{"job":1}}` when run starts streaming a job; `{"rt":{"job":0}}` right after the last motion line is sent, and also before run's own deliberate stops (M6 tool change, breakpoints), with `job:1` again on resume. The flag is accepted at any time, including while moving. A feedhold doesn't clear it; reset, `%` and job kill do. Without `job:1` the board reports no supply gaps.
+- **`fs` v2.** `"v":2`. `c` gains a 7th entry, command boundary. `"g":[ms_waiting, ms_unavailable, gap_count]`. `"b":[[count,ms],[count,ms],[count,ms]]` for spindle/S, coolant and other. All values are cumulative, and `x` behaves as in v1. run reads `v` and handles v1 and v2.
+- **`fl` while starved.** `{"fl":{"k":0,"m":0,"p":null,"n":<last executed line>,"g":1|2}}`: 1 = input waiting (the board was the limit), 2 = input unavailable (the host or link fell behind).
+- **Display.**
+  - **Gap, input unavailable:** "Run fell behind: the machine waited 1.2 s (4 times)", with tips.
+  - **Gap, input waiting:** "The board is planning-limited: segments are too short", with a link to smooth or arc-fit in Analyze (TB-07).
+  - **Planner view:** the queued band turns amber while starved.
+  - **Repeated command boundaries:** "Spindle commands between moves forced N stops (about T s lost)", with an offer of a cleaned copy (re-checked). Analyze also flags this before the job starts.
