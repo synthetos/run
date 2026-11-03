@@ -18,6 +18,8 @@ import { readStored, writeStored, type StorageLike } from './storage.ts';
 
 type Snapshot = SnapshotMessage['snapshot'];
 export type JobSnapshot = NonNullable<Snapshot['job']>;
+/** One feed-limit summary as the worker reports it (the page never imports the machine package: T-S39). */
+type FeedSummary = NonNullable<NonNullable<JobSnapshot['feedLimit']>['last']>;
 
 /** Phases in which a job owns the machine. */
 export const ACTIVE_JOB_PHASES: ReadonlySet<string> = new Set(['checking', 'preparing', 'running', 'draining', 'ending', 'pausing', 'paused', 'refused', 'outputsOff', 'toolChange', 'breakpoint', 'programStop', 'resuming']);
@@ -237,14 +239,81 @@ export function starving(s: Snapshot | null, plannerBlocks: number | null): bool
   return typeof qr === 'number' && typeof vel === 'number' && vel > 0 && plannerBlocks - qr <= 2 && job.sent < job.total;
 }
 
-/** The feed-limit summary as observational lines: time below programmed feed by what was limiting it (H78). */
-export function feedLimitLines(fl: JobSnapshot['feedLimit']): readonly { readonly label: string; readonly seconds: number }[] | null {
-  const fs = fl?.fs;
-  if (fs === null || fs === undefined) return null;
-  const c = fs['c'];
-  if (!Array.isArray(c)) return null;
-  const labels = ['an axis feed limit', 'a corner', 'an exact stop', 'moves too short to reach feed', 'single-segment moves', 'something else'];
-  return c.slice(0, 6).map((v, i) => ({ label: labels[i] as string, seconds: typeof v === 'number' ? v / 1000 : 0 }));
+/** The six causes of the firmware's feed-limit counters, in `c[]` order, as words (MACHINING_ASSISTANT appendix). */
+export const FEED_CAUSES: readonly string[] = Object.freeze(['an axis speed limit', 'corners', 'exact stops', 'moves too short to reach the feed', 'single-segment moves', 'ramps and the end of the path']);
+
+/** The `fl` cause bits, in the same words. */
+const FEED_MOVE_CAUSES: readonly (readonly [number, string])[] = Object.freeze([
+  [1, 'an axis speed limit'],
+  [2, 'a corner'],
+  [4, 'an exact stop'],
+  [8, 'too short to reach the feed'],
+  [16, 'a single-segment move'],
+]);
+
+export interface FeedShare {
+  readonly cause: string;
+  /** Share of the cutting time spent below the programmed feed under this cause (causes overlap: shares can sum above 1). */
+  readonly fraction: number;
+  readonly seconds: number;
+}
+
+/** What run shows from the feed-limit frames: observational, never a decision (H78). */
+export interface FeedReport {
+  readonly cuttingS: number;
+  readonly cuttingMm: number;
+  /** Over the whole window (the job), largest first, causes under 2% left out. */
+  readonly job: readonly FeedShare[];
+  /** Over the last interval between two summaries, or null before the second summary. */
+  readonly recent: readonly FeedShare[] | null;
+  /** The executing move as last pushed: its percent of the programmed feed and its cause words; null between feed moves. */
+  readonly move: { readonly pct: number | null; readonly causes: string } | null;
+  /** Plain-language notes from the maintainer's thresholds, for the end of the job. */
+  readonly notes: readonly string[];
+  readonly short: boolean;
+  readonly unsupported: boolean;
+}
+
+function shares(from: FeedSummary | null, to: FeedSummary): readonly FeedShare[] {
+  const ct = to.ct - (from?.ct ?? 0);
+  if (ct <= 0) return [];
+  return FEED_CAUSES.map((cause, i) => {
+    const ms = (to.c[i] ?? 0) - (from?.c[i] ?? 0);
+    return { cause, fraction: Math.max(0, ms) / ct, seconds: Math.max(0, ms) / 1000 };
+  })
+    .filter((x) => x.fraction >= 0.02)
+    .sort((a, b) => b.fraction - a.fraction);
+}
+
+const pct = (f: number): string => `${Math.round(f * 100)}%`;
+
+export function feedReport(fl: JobSnapshot['feedLimit']): FeedReport | null {
+  if (fl === null || fl === undefined) return null;
+  const last = fl.last;
+  const move = fl.move === null || fl.move.k !== 1 ? null : { pct: fl.move.p, causes: FEED_MOVE_CAUSES.filter(([bit]) => (fl.move?.m ?? 0) & bit).map(([, w]) => w).join(', ') };
+  if (last === null) return { cuttingS: 0, cuttingMm: 0, job: [], recent: null, move, notes: [], short: fl.short, unsupported: fl.unsupported };
+  const job = shares(null, last);
+  const of = (i: number): number => (last.ct > 0 ? (last.c[i] ?? 0) / last.ct : 0);
+  const notes: string[] = [];
+  if (of(0) > 0.05) notes.push(`An axis's own speed limit held the feed below the programmed value for ${pct(of(0))} of the cutting time: the programmed feed is above what the machine can do on that axis (its fr setting).`);
+  if (of(3) + of(4) > 0.3) notes.push(`Moves too short to reach the feed for ${pct(Math.min(1, of(3) + of(4)))} of the cutting time: dense CAM output with these jerk settings, the usual reason a dense file runs slow.`);
+  if (of(1) > 0.3) notes.push(`The planner slowed into corners for ${pct(of(1))} of the cutting time: normal on a cornered path; on a smooth path the junction settings (jd, ja) are conservative.`);
+  if (of(5) > 0.3) notes.push(`Ramps and the end of the path for ${pct(of(5))} of the cutting time: expected at the start and end of every chain. A large share mid-job means the planner kept running out of look-ahead, which can be a supply gap, but this firmware does not report why.`);
+  return {
+    cuttingS: last.ct / 1000,
+    cuttingMm: last.cd,
+    job,
+    recent: fl.prev === null ? null : shares(fl.prev, last),
+    move,
+    notes,
+    short: fl.short,
+    unsupported: fl.unsupported,
+  };
+}
+
+/** One line for the shares, "short moves 41%, corners 18%", or null when nothing is above 2%. */
+export function feedShareLine(list: readonly FeedShare[]): string | null {
+  return list.length === 0 ? null : list.map((x) => `${x.cause} ${pct(x.fraction)}`).join(', ');
 }
 
 /**

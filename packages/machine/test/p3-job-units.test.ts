@@ -22,10 +22,11 @@ import {
 } from '../src/index.ts';
 import {
   abandonLoad,
+  feedLimitWindow,
   maybeRestoreLineMode,
   onFeedLimit,
-  onJobBreakpoints,
   onJobAnswer,
+  onJobBreakpoints,
   onJobFault,
   onJobLinkLost,
   onJobMotionAnswer,
@@ -403,16 +404,36 @@ describe('the guards of the job decisions', () => {
 
   it('runtime answers, feed-limit lines, abandoned loads and slot room', async () => {
     const s = await ready();
-    const r = tx(withJob(s, { feedLimit: { fi: 2, fs: null, short: false, fl: null } }));
+    const r = tx(withJob(s, { feedLimit: feedLimitWindow(2) }));
     onJobRuntimeAnswer(r.t, { token: 'rt', purpose: 'jobRuntime', line: feedLimitLine(2) }, null, 0);
     expect(r.t.s.job?.feedLimit).toBeNull();
     onJobRuntimeAnswer(r.t, { token: 'rt', purpose: 'jobRuntime', line: jobFlagLine(1) }, null, 0);
     expect(r.t.s.job?.events.at(-1)?.text).toMatch(/did not take the job flag/);
     onJobRuntimeAnswer(tx({ ...s, job: null }).t, { token: 'rt', purpose: 'jobRuntime' }, null, 0);
-    const f = tx(withJob(s, { feedLimit: { fi: 2, fs: null, short: false, fl: null } }));
-    onFeedLimit(f.t, 'fl', { k: 1 }, false);
-    onFeedLimit(f.t, 'fs', { v: 1 }, true);
-    expect(f.t.s.job?.feedLimit).toEqual({ fi: 2, fs: { v: 1 }, short: true, fl: { k: 1 } });
+    const f = tx(withJob(s, { feedLimit: feedLimitWindow(2) }));
+    onFeedLimit(f.t, 'fl', { k: 1, m: 9, p: 37, n: 12 }, false);
+    expect(f.t.s.job?.feedLimit?.move).toEqual({ k: 1, m: 9, p: 37, n: 12 });
+    onFeedLimit(f.t, 'fl', { k: 'x' }, false); // malformed: ignored
+    onFeedLimit(f.t, 'fl', { k: 0 }, false); // missing m, p, n read as 0, null, null
+    expect(f.t.s.job?.feedLimit?.move).toEqual({ k: 0, m: 0, p: null, n: null });
+    onFeedLimit(f.t, 'fs', { v: 1 }, true); // malformed: no counters
+    onFeedLimit(f.t, 'fs', { v: 'x', e: 1, q: 1, c: [0, 0, 0, 0, 0, 0], ct: 1, cd: 0 }, false); // no version number: malformed, not unsupported
+    onFeedLimit(f.t, 'fs', { v: 1, e: 1, q: 1, c: [0, 0, 0], ct: 1, cd: 0 }, false); // too few counters
+    onFeedLimit(f.t, 'fs', { v: 1, e: 1, q: 1, c: [0, 0, 0, 0, 0, 'x'], ct: 1, cd: 0 }, false); // a counter that is not a number
+    expect(f.t.s.job?.feedLimit).toMatchObject({ last: null, unsupported: false });
+    const fs1 = { v: 1, e: 2, q: 1, c: [950, 0, 0, 0, 0, 0], ct: 950, cd: 7.998 };
+    const fs3 = { v: 1, e: 2, q: 3, c: [2967, 252, 0, 1190, 0, 0], ct: 2967, cd: 16.698 };
+    onFeedLimit(f.t, 'fs', fs1, false);
+    onFeedLimit(f.t, 'fs', fs3, true);
+    onFeedLimit(f.t, 'fs', { ...fs3, q: 2 }, false); // late or repeated: ignored
+    expect(f.t.s.job?.feedLimit).toMatchObject({ first: { e: 2, q: 1 }, prev: { e: 2, q: 1 }, last: { e: 2, q: 3, c: [2967, 252, 0, 1190, 0, 0] }, short: true, unsupported: false });
+    onFeedLimit(f.t, 'fs', { v: 2, e: 2, q: 4, c: [0, 0, 0, 0, 0, 0, 0], ct: 1, cd: 0 }, false); // a format run does not read: said, not folded
+    expect(f.t.s.job?.feedLimit).toMatchObject({ last: { q: 3 }, unsupported: true });
+    const said = f.t.s.job?.feedLimit;
+    onFeedLimit(f.t, 'fs', { v: 2, e: 2, q: 5, c: [], ct: 1, cd: 0 }, false); // said once: the state does not change again
+    expect(f.t.s.job?.feedLimit).toBe(said);
+    onFeedLimit(f.t, 'fs', { v: 1, e: 3, q: 1, c: [1, 0, 0, 0, 0, 0], ct: 10, cd: 0.1 }, false); // a new window starts over
+    expect(f.t.s.job?.feedLimit).toMatchObject({ first: { e: 3, q: 1 }, prev: null, last: { e: 3, q: 1 } });
     onFeedLimit(tx(s).t, 'fs', {}, false);
     const loading = tx({ ...withJob(s, { phase: 'loading' }), queue: [{ token: 'x', purpose: 'jobPrep' }] });
     abandonLoad(loading.t, 0, 'gone');

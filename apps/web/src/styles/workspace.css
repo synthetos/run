@@ -1662,3 +1662,10 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 /* Connected: the connect card is one line (the Connect button is gone, Disconnect and Open the board stay). */
 .connect-notice.is-connected { padding-top: 6px; padding-bottom: 6px; margin-bottom: 8px; }
 
+
+/* Feed-limit feedback in the Live job tab (H78, observational): one line while cutting, a summary after. */
+.live-feedlimit .feed-move { margin: 6px 0 2px; font-size: 12.5px; }
+.live-feedlimit .feed-move strong { font-variant-numeric: tabular-nums; }
+.feed-summary p { margin: 6px 0 0; font-size: 12.5px; }
+.feed-notes { margin: 6px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.45; color: var(--ink); }
+.feed-notes li + li { margin-top: 4px; }

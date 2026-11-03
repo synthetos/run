@@ -11,7 +11,7 @@ import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveActions, type LiveVie
 import {
   bytesText,
   duration,
-  feedLimitLines,
+  feedReport,
   jobUi,
   lineModeRecord,
   loadPlan,
@@ -165,9 +165,9 @@ describe('the planner view and the live numbers', () => {
   });
 
   it('feed-limit lines are observational, per cause, from the summary counters', () => {
-    expect(feedLimitLines(null)).toBeNull();
-    expect(feedLimitLines({ fi: 2, fs: { c: 'x' }, short: false, fl: null })).toBeNull();
-    expect(feedLimitLines({ fi: 2, fs: { c: [1200, 0, 0, 500, 0, 0] }, short: false, fl: null })?.[0]).toEqual({ label: 'an axis feed limit', seconds: 1.2 });
+    expect(feedReport(null)).toBeNull();
+    const window = { fi: 2, first: null, prev: null, last: { e: 1, q: 1, c: [1200, 0, 0, 500, 0, 0], ct: 2000, cd: 9 }, move: null, short: false, unsupported: false };
+    expect(feedReport(window)?.job[0]).toEqual({ cause: 'an axis speed limit', fraction: 0.6, seconds: 1.2 });
   });
 
   it('durations, the Latin-1 text and the hash the worker computes', () => {

@@ -62,7 +62,7 @@ import { MOTION_LIMITS, atRestPolled, beginHold, completedPoll, heldPolled, idle
 import { sessionSettings } from './settingWrite.ts';
 import { ACTIVE_PHASES, failJob, jobActive, jobEvent, lastFileLine, patchJob, type JobTx } from './jobState.ts';
 import { ABSOLUTE_MM_LINE, motionLineKind, restoreLine, returnXYLine, safeZLine, spindleLine } from './motionLines.ts';
-import type { Axis, Expected, JobReportSummary, JobState, PendingRead, PolledValues, SessionConfig, SessionIntent, SessionState } from './types.ts';
+import type { Axis, Expected, FeedLimitState, FeedMove, FeedSummary, JobReportSummary, JobState, PendingRead, PolledValues, SessionConfig, SessionIntent, SessionState } from './types.ts';
 
 /** Timing and bounds of the job layer (SAFETY §4.4a). Milliseconds unless named otherwise. */
 export const JOB_LIMITS = Object.freeze({
@@ -694,7 +694,7 @@ function lineModeReady(t: JobLayerTx, at: number): void {
   // The feed-limit window (accepted only at quiescence: the machine is idle now) and the job flag, where the board has them.
   if (feedLimitSupported(t.s)) {
     queue(t, { token: 'rt', purpose: 'jobRuntime', line: feedLimitLine(JOB_LIMITS.feedLimitS) });
-    patchJob(t, { feedLimit: { fi: JOB_LIMITS.feedLimitS, fs: null, short: false, fl: null } });
+    patchJob(t, { feedLimit: feedLimitWindow(JOB_LIMITS.feedLimitS) });
   }
   sendJobFlag(t, 1);
   t.set({ base: 'RUNNING' });
@@ -720,10 +720,50 @@ export function onJobRuntimeAnswer(t: JobLayerTx, e: PendingRead, r: Response | 
 }
 
 /** A feed-limit summary or change line arrived (display only; observational, never a cause, H78). */
+/** A fresh window for a job that just opened one. */
+export function feedLimitWindow(fi: number): FeedLimitState {
+  return { fi, first: null, prev: null, last: null, move: null, short: false, unsupported: false };
+}
+
+const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/** An `fs` body as a summary; 'unsupported' for a format version run does not read; null for a malformed one. */
+export function parseFeedSummary(body: JsonObject): FeedSummary | 'unsupported' | null {
+  if (body['v'] !== 1) return finite(body['v']) ? 'unsupported' : null;
+  const c = body['c'];
+  if (!Array.isArray(c) || c.length < 6 || !c.every(finite) || !finite(body['e']) || !finite(body['q']) || !finite(body['ct']) || !finite(body['cd'])) return null;
+  return Object.freeze({ e: body['e'], q: body['q'], c: Object.freeze(c.slice(0, 6) as number[]), ct: body['ct'], cd: body['cd'] });
+}
+
+/** An `fl` body as the executing move's limit; null for a malformed one. Missing `m`, `p`, `n` read as 0, null, null. */
+export function parseFeedMove(body: JsonObject): FeedMove | null {
+  if (!finite(body['k'])) return null;
+  return Object.freeze({ k: body['k'], m: finite(body['m']) ? body['m'] : 0, p: finite(body['p']) ? body['p'] : null, n: finite(body['n']) ? body['n'] : null });
+}
+
+/**
+ * Folds one feed-limit push into the window (pure; the UI's replay tests use it too). A summary of a new window epoch
+ * starts over; one that does not advance the sequence is ignored (a repeat or a late frame); the executing move
+ * replaces the last one.
+ */
+export function foldFeedLimit(state: FeedLimitState, kind: 'fs' | 'fl', body: JsonObject, short: boolean): FeedLimitState {
+  if (kind === 'fl') {
+    const move = parseFeedMove(body);
+    return move === null ? state : { ...state, move };
+  }
+  const fs = parseFeedSummary(body);
+  if (fs === null) return state;
+  if (fs === 'unsupported') return state.unsupported ? state : { ...state, unsupported: true };
+  const sameWindow = state.last !== null && state.last.e === fs.e;
+  if (sameWindow && fs.q <= (state.last as FeedSummary).q) return state;
+  return { ...state, first: sameWindow && state.first !== null ? state.first : fs, prev: sameWindow ? state.last : null, last: fs, short: state.short || short };
+}
+
 export function onFeedLimit(t: JobLayerTx, kind: 'fs' | 'fl', body: JsonObject, short: boolean): void {
   const fl = t.s.job?.feedLimit;
   if (fl === null || fl === undefined) return;
-  patchJob(t, { feedLimit: kind === 'fs' ? { ...fl, fs: body, short: fl.short || short } : { ...fl, fl: body } });
+  const next = foldFeedLimit(fl, kind, body, short);
+  if (next !== fl) patchJob(t, { feedLimit: next });
 }
 
 // --- Streaming (H76) ----------------------------------------------------------------------------------------

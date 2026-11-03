@@ -17,7 +17,7 @@
  * Everything here is controller-neutral: dialects are looked up by id and
  * every TinyG fact comes from dialect data (RUN_PLAN §5.1 rules 4 and 5).
  */
-import type { ApprovedBuilds, Banner, ClassifyReason, Dialect, DialectId, FooterRev, Inbound, JsonObject, JsonValue, MachineClass, ProbeKey, Response } from '@synthetos/protocol';
+import type { ApprovedBuilds, Banner, ClassifyReason, Dialect, DialectId, FooterRev, Inbound, JsonValue, MachineClass, ProbeKey, Response } from '@synthetos/protocol';
 import type { BaseState, Decision, Intent, Overlay, Release, SentLine } from '@synthetos/safety';
 import type { PortSelector, TransportInfo } from '../transport.ts';
 import type { ReportStep } from './reports.ts';
@@ -560,8 +560,13 @@ export interface JobState {
   readonly rxmFrom: number | null;
   /** The job flag last sent, or null (only with the capability, MACHINING_ASSISTANT feed-limit step 3). */
   readonly jobFlag: 0 | 1 | null;
-  /** The feed-limit window of this job (`{"rt":{"fi":N}}`) and the last summary and change line, when the board has it. */
-  readonly feedLimit: { readonly fi: number; readonly fs: JsonObject | null; readonly short: boolean; readonly fl: JsonObject | null } | null;
+  /**
+   * The feed-limit window of this job (`{"rt":{"fi":N}}`, MACHINING_ASSISTANT appendix, H78): the window's first and
+   * latest summaries and the one before the latest (all cumulative since the window opened), the executing move's
+   * limit as last pushed, whether a summary said its totals are short, and whether a summary came in a format run
+   * does not read.
+   */
+  readonly feedLimit: FeedLimitState | null;
   /** A liveness FAULT stops the job with the spindle off at this time unless it is stopped first (W33). */
   readonly faultStopAt: number | null;
   /** Set when a stop sequence for this job is under way (Stop job, a fault). */
@@ -910,3 +915,40 @@ export interface Transition {
   readonly state: SessionState;
   readonly effects: readonly SessionEffect[];
 }
+
+/** One feed-limit summary (`fs`, format v1): cumulative since the window opened (MACHINING_ASSISTANT appendix). */
+export interface FeedSummary {
+  /** Window epoch: a new one zeroes the totals. */
+  readonly e: number;
+  /** Sequence within the window. */
+  readonly q: number;
+  /** Milliseconds of cutting time below the programmed feed per cause: axis cap, junction, exact stop, short, single segment, other. */
+  readonly c: readonly number[];
+  /** Cumulative cutting milliseconds. */
+  readonly ct: number;
+  /** Cumulative cutting millimetres. */
+  readonly cd: number;
+}
+
+/** The executing move's feed limit as last pushed (`fl`): rate-limited and coalesced, never a measurement. */
+export interface FeedMove {
+  /** 0 nothing running, 1 feed move, 2 rapid. */
+  readonly k: number;
+  /** Cause bits: 1 axis cap, 2 junction, 4 exact stop, 8 short, 16 single segment. */
+  readonly m: number;
+  /** Percent of the programmed feed the move cruises at (not clamped at 100), null unless a feed move with F. */
+  readonly p: number | null;
+  /** The executing G-code line, null when nothing runs. */
+  readonly n: number | null;
+}
+
+export interface FeedLimitState {
+  readonly fi: number;
+  readonly first: FeedSummary | null;
+  readonly prev: FeedSummary | null;
+  readonly last: FeedSummary | null;
+  readonly move: FeedMove | null;
+  readonly short: boolean;
+  readonly unsupported: boolean;
+}
+

@@ -9,55 +9,11 @@ export { SETTING_LINE, gateTokens, judgeGate, sessionSettings, settingLine, sett
 export type { WriteContext, WriteIntent, WriteVerdict } from './writePolicy.ts';
 export { DEFAULT_TIMINGS, MAX_PROBE_RESTARTS, MAX_QUEUED_READS, READY_BASES, SESSION_BASES } from './types.ts';
 export { MOTION_LIMITS, POLL_TOKENS, activeSystem, motionCapable } from './motion.ts';
-export { JOB_DIALECTS, JOB_LIMITS, JOB_PREP_TOKENS, feedLimitLine, feedLimitSupported, jobFlagLine, jobFlagSupported, jobInFlight, jobsCapable, liveMotion, liveStart, queuedLine, rxmLine, rxmTarget, sanitizeLive, slotRoom, statusMeaning, textHash } from './job.ts';
+export { JOB_DIALECTS, JOB_LIMITS, JOB_PREP_TOKENS, feedLimitLine, feedLimitSupported, feedLimitWindow, foldFeedLimit, jobFlagLine, jobFlagSupported, jobInFlight, jobsCapable, liveMotion, liveStart, queuedLine, rxmLine, rxmTarget, sanitizeLive, slotRoom, statusMeaning, textHash } from './job.ts';
 export { ACTIVE_PHASES, jobActive } from './jobState.ts';
 export { HEARTBEAT_INTERVAL_MS, HEARTBEAT_S, REPORT_DIALECTS, RT_PROBE_LINE, RUN_SR_FIELDS, SEED_TOKENS, SI_DEFAULT, SI_MAX_SENSIBLE, heartbeatCoversHold, heartbeatLine, reportLineShape, reportSteps, srListLine, srListMatches } from './reports.ts';
 export type { ReportCurrent, ReportStep, ReportStepKind } from './reports.ts';
 export { CLEAR_LINE, LINE_INTENTS, MAX_JOG_FEED, MAX_MOTION_MM, MAX_RPM, motionLineKind } from './motionLines.ts';
 export type { MotionLineKind } from './motionLines.ts';
-export type {
-  AckVerify,
-  Axis,
-  ChangeKind,
-  FollowUp,
-  LinkWindow,
-  ReportChange,
-  ReportsState,
-  ClassificationInfo,
-  Expected,
-  FaultCause,
-  FaultInfo,
-  FaultKind,
-  HoldReason,
-  JobEvent,
-  JobPhase,
-  JobReportSummary,
-  JobState,
-  JobStopPoint,
-  RxmState,
-  JogAxis,
-  JogFeed,
-  MotionCtx,
-  MotionOp,
-  MotionPhase,
-  Identity,
-  LiveState,
-  PendingRead,
-  ProbeProgress,
-  ReadPurpose,
-  ReadValue,
-  RealtimeName,
-  SessionBase,
-  SessionConfig,
-  SessionEffect,
-  SessionEvent,
-  SessionIntent,
-  SessionNotices,
-  SessionState,
-  SessionTimings,
-  SettingWriteOutcome,
-  SettingWriteState,
-  TimerId,
-  Transition,
-} from './types.ts';
+export type { AckVerify, Axis, ChangeKind, ClassificationInfo, Expected, FaultCause, FaultInfo, FaultKind, FeedLimitState, FeedMove, FeedSummary, FollowUp, HoldReason, Identity, JobEvent, JobPhase, JobReportSummary, JobState, JobStopPoint, JogAxis, JogFeed, LinkWindow, LiveState, MotionCtx, MotionOp, MotionPhase, PendingRead, ProbeProgress, ReadPurpose, ReadValue, RealtimeName, ReportChange, ReportsState, RxmState, SessionBase, SessionConfig, SessionEffect, SessionEvent, SessionIntent, SessionNotices, SessionState, SessionTimings, SettingWriteOutcome, SettingWriteState, TimerId, Transition } from './types.ts';
 export { readOnlyNotice } from './notices.ts';

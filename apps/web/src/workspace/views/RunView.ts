@@ -45,7 +45,7 @@ import { sceneColors, tokenReader } from '../../preview/colors.ts';
 import { ViewButtons } from '../../preview/SceneView.ts';
 import type { ViewPreset } from '@synthetos/gcode-view';
 import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
-import { duration as durationText, feedLimitLines, jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
+import { duration as durationText, feedReport, feedShareLine, jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
 
 const PHASE_LABEL = (phase: string): string => PHASE_TEXT[phase] ?? phase;
 import { JobStatus, JobSteps, JobStopCard, type StopHooks } from './JobViews.ts';
@@ -1232,7 +1232,8 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
   const ui = jobUi(view);
   const job = ui.job !== null && ui.job.startedAt !== null ? ui.job : null;
   const starve = starving(s, blocks);
-  const fl = feedLimitLines(job?.feedLimit ?? null);
+  const feed = feedReport(job?.feedLimit ?? null);
+  const finished = job !== null && !ui.active;
   return h(
     'div',
     { class: 'live-grid', 'data-live': 'connected' },
@@ -1263,14 +1264,28 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
       ),
       h('div', { class: 'live-head' }, h('span', null, 'Queue space available'), h('strong', { 'data-live': 'qr' }, qr === null ? 'Unknown' : blocks === null ? String(qr) : `${qr} of ${blocks}`)),
       blocks === null || qr === null ? null : h('div', { class: `qr-meter${starve ? ' starving' : ''}`, 'data-live': 'planner-gauge', 'data-starving': starve ? 'true' : 'false', 'aria-hidden': 'true' }, Array.from({ length: blocks }, (_, i) => h('i', { key: String(i), class: i < blocks - qr ? 'used' : undefined }))),
-      job === null ? null : h('p', { class: `fine${starve ? ' warn-text' : ''}`, 'data-live': 'queued' }, `Queued on the controller: about ${durationText(job.queuedSeconds)} of motion${job.queuedBoundMm === null ? '' : `, at most ${Math.round(job.queuedBoundMm)} mm`}${starve ? '. The planner is nearly empty while cutting: lines arrive slower than they run.' : '.'}`),
-      fl === null
+      job === null ? null : h('p', { class: `fine${starve ? ' warn-text' : ''}`, 'data-live': 'queued' }, `Queued on the controller: about ${durationText(job.queuedSeconds)} of motion${job.queuedBoundMm === null ? '' : `, at most ${Math.round(job.queuedBoundMm)} mm`}${starve ? '. Observational: the planner ran out of motion while cutting; the cause is not reported by this firmware.' : '.'}`),
+      feed === null
         ? null
         : h(
             'div',
-            { class: 'live-feedlimit', 'data-live': 'feed-limit' },
-            h('span', null, `Time below programmed feed, by what was limiting it${job?.feedLimit?.short === true ? ' (at least: the board says its totals are short)' : ''}`),
-            h('ul', null, fl.filter((x) => x.seconds > 0).map((x) => h('li', { key: x.label }, `${x.label}: ${x.seconds.toFixed(1)} s`))),
+            { class: 'live-feedlimit', 'data-live': 'feed-limit', 'data-feed-state': finished ? 'summary' : 'live' },
+            // The executing move, as the firmware last pushed it (rate-limited, coalesced: what it said, not a measurement).
+            finished || feed.move === null
+              ? null
+              : h('p', { class: 'feed-move', 'data-feed': 'move' }, feed.move.pct === null ? 'Feed move' : h('strong', null, `${feed.move.pct}% of the programmed feed`), feed.move.causes === '' ? '' : ` · ${feed.move.causes}`),
+            finished
+              ? h(
+                  'div',
+                  { class: 'feed-summary', 'data-feed': 'summary' },
+                  h('p', null, `Cut for ${durationText(feed.cuttingS)} over ${Math.round(feed.cuttingMm)} mm${feed.short ? ' (at least: the board says its totals are short)' : ''}.`),
+                  feedShareLine(feed.job) === null ? h('p', { class: 'fine' }, 'The feed was held at the programmed value.') : h('p', { class: 'fine' }, `Below the programmed feed: ${feedShareLine(feed.job) as string}.`),
+                  feed.notes.length === 0 ? null : h('ul', { class: 'feed-notes' }, feed.notes.map((n, i) => h('li', { key: String(i) }, n))),
+                )
+              : feed.recent === null && feed.job.length === 0
+                ? null
+                : h('p', { class: 'fine', 'data-feed': 'shares' }, `Below the programmed feed${feed.recent === null ? '' : ' (last interval)'}: ${feedShareLine(feed.recent ?? feed.job) ?? 'nothing above 2%'}.`),
+            feed.unsupported ? h('p', { class: 'fine' }, 'This firmware sends its feed summaries in a format this build does not read.') : null,
           ),
     ),
     h(

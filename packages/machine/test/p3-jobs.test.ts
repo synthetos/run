@@ -421,7 +421,7 @@ describe('the job flag and the feed-limit window (capability seams)', () => {
     const w = writes(h).slice(before);
     expect(w).toContain(`{"rt":{"fi":${JOB_LIMITS.feedLimitS}}}`);
     expect(w).toContain('{"rt":{"fi":0}}');
-    expect(h.session.snapshot.job?.feedLimit?.fs).toMatchObject({ v: 1 });
+    expect(h.session.snapshot.job?.feedLimit?.last).toMatchObject({ e: expect.any(Number), q: expect.any(Number) });
   });
 });
 
