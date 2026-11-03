@@ -3,18 +3,19 @@
  *
  * Left: the projects in this browser, newest change first. Right: the open
  * project: cover and name, description, files (drag and drop or the picker,
- * with roles and notes, "Open in Run" for G-code), images, links, and the
+ * with roles and notes, "Open in Job" for G-code), images, links, and the
  * machine, stock, material and tools it was cut with. "Share to forum" is
  * shown and disabled until accounts arrive.
  *
  * Everything is kept in this browser's IndexedDB (projects/store.ts). Nothing
- * here reaches a machine: "Open in Run" only loads the file into the Run
+ * here reaches a machine: "Open in Job" only loads the file into the Run
  * view's preview and check.
  */
 import { h, type ComponentChild } from 'preact';
+import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../workspace/icons.ts';
-import { openJob, openProjectJob } from '../workspace/fileBridge.ts';
+import { executionLock, openJob, openProjectJob } from '../workspace/fileBridge.ts';
 import { activeJob, stockFootprint, updateActiveJob, withSetup, type Job } from '../workspace/jobModel.ts';
 import { allMaterials, machineStore, safeExternalLink, toolStore, hostOf } from '../workspace/library.ts';
 import { FixtureThumb } from '../workspace/views/SetupView.ts';
@@ -27,6 +28,7 @@ import { applyImport, checkDrawing, JOB_ROLE_LABEL, rolesFor, scaled, skippedTex
 export { projectStore };
 
 const blobUrls = new Map<string, string>();
+const selectedProjectId = signal<string | null>(null);
 
 /** An object URL for a stored image, created once per page and revoked when the image is removed. */
 function useBlobUrl(id: string | null): string | null {
@@ -158,12 +160,13 @@ function FileRow({ project, file, onView, onImport }: { readonly project: Projec
         return;
       }
       const r = await openJob(f, { kind: 'project', projectId: project.id, fileId: file.id });
-      if (r.ok) onView('run');
+      if (r.ok) onView('job');
       else setError(r.reason);
     });
   };
   const use = (role: JobRole): void => {
     setMenu(false);
+    if (executionLock.value !== null) { setError(executionLock.value); return; }
     if (role === 'gcode') open();
     else if (role === 'reference') {
       setError(null);
@@ -185,7 +188,7 @@ function FileRow({ project, file, onView, onImport }: { readonly project: Projec
     h(
       'div',
       { class: 'row-actions' },
-      file.role === 'gcode' ? h('button', { type: 'button', class: 'small', 'data-action': 'project-open-in-run', onClick: open }, Icon('run', 14), 'Open in Run') : null,
+      file.role === 'gcode' ? h('button', { type: 'button', class: 'small', 'data-action': 'project-open-in-run', onClick: open }, Icon('run', 14), 'Open in Job') : null,
       h(
         'span',
         { class: 'use-menu' },
@@ -541,7 +544,7 @@ function JobRow({ project, job, onView }: { readonly project: Project; readonly 
     h(
       'div',
       { class: 'row-actions' },
-      h('button', { type: 'button', class: 'small', 'data-action': 'project-open-job', disabled: file === undefined, onClick: () => void openProjectJob(project.id, job.id).then((r) => { if (r.ok) onView('run'); else setError(r.reason); }) }, Icon('run', 14), 'Open'),
+      h('button', { type: 'button', class: 'small', 'data-action': 'project-open-job', disabled: file === undefined, onClick: () => void openProjectJob(project.id, job.id).then((r) => { if (r.ok) onView('job'); else setError(r.reason); }) }, Icon('run', 14), 'Open'),
       h('button', { type: 'button', class: 'small icon-button quiet', 'aria-label': `Remove the job ${job.name}`, 'data-action': 'project-remove-job', onClick: () => void act((s) => s.removeJob(project.id, job.id)) }, Icon('trash', 15)),
     ),
   );
@@ -643,9 +646,9 @@ function ProjectDetail({ project, onView, onDeleted }: { readonly project: Proje
         importing === null ? null : h(DrawingImport, { key: `${importing.file.id}:${importing.role}`, request: importing, onDone: (text) => { setImporting(null); setImported(text); } }),
         imported === null ? null : h('p', { class: 'fine', role: 'status', 'data-project': 'import-result' }, imported),
         project.images.length === 0 ? null : [h('h2', { key: 'h', class: 'tan-label' }, 'Photos'), h('ul', { key: 'l', class: 'image-strip' }, project.images.map((i) => h(ImageTile, { key: i.id, project, image: i })))],
-        gcode === 0 ? null : h('p', { class: 'fine' }, '“Open in Run” opens the file as this project’s job: its machine, bed, stock and fixture are saved here and come back with it. ', h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'project-go-run', onClick: () => onView('run') }, 'Go to Run')),
+        gcode === 0 ? null : h('p', { class: 'fine' }, 'Open a saved job or start one from a file. ', h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'project-go-run', onClick: () => onView('job') }, 'Back to Job')),
         h('h2', { class: 'tan-label' }, 'Jobs'),
-        project.jobs.length === 0 ? h('p', { class: 'fine', 'data-project': 'no-jobs' }, 'No jobs yet. “Open in Run” on a G-code file starts one; “Save to project” in Run brings a draft here.') : h('ul', { class: 'file-list', 'data-project': 'jobs' }, project.jobs.map((j) => h(JobRow, { key: j.id, project, job: j, onView }))),
+        project.jobs.length === 0 ? h('p', { class: 'fine', 'data-project': 'no-jobs' }, 'No jobs yet. “Open in Job” on a G-code file starts one; “Save to project” in Job brings a draft here.') : h('ul', { class: 'file-list', 'data-project': 'jobs' }, project.jobs.map((j) => h(JobRow, { key: j.id, project, job: j, onView }))),
       ),
       h(
         'section',
@@ -661,7 +664,8 @@ function ProjectDetail({ project, onView, onDeleted }: { readonly project: Proje
 
 export function ProjectsView({ onView }: { readonly onView: (v: string) => void }): ComponentChild {
   const state = projectsState.value;
-  const [openId, setOpenId] = useState<string | null>(null);
+  const openId = selectedProjectId.value;
+  const setOpenId = (id: string | null): void => { selectedProjectId.value = id; };
   const started = useRef(false);
   useEffect(() => {
     if (started.current) return;
@@ -708,4 +712,22 @@ export function ProjectsView({ onView }: { readonly onView: (v: string) => void 
         : h(ProjectDetail, { key: open.id, project: open, onView, onDeleted: () => setOpenId(null) }),
     ),
   );
+}
+
+/** The active project's files, using the same role/import flow as Projects. */
+export function JobFiles({ onView }: { readonly onView: (view: string) => void }): ComponentChild {
+  const [importing, setImporting] = useState<ImportRequest | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const job = activeJob.value;
+  const project = projectsState.value.list.find((p) => p.id === job?.projectId) ?? null;
+  useEffect(() => { void projectStore(); }, []);
+  useEffect(() => { setImporting(null); setNote(null); }, [job?.id]);
+  return h('section', { class: 'job-files-content' }, h('h2', null, project?.name ?? 'Draft files'),
+    project === null ? h('p', null, 'Save this draft to a project to keep drawings and reference files with it.') : [
+      h(Dropzone, { project, onResult: (added, refused) => setNote([...added.map((n) => `Added ${n}`), ...refused].join('; ')) }),
+      h('ul', { class: 'file-list' }, project.files.map((file) => h(FileRow, { key: file.id, project, file, onView, onImport: setImporting }))),
+    ],
+    importing === null ? null : h(DrawingImport, { key: `${importing.file.id}:${importing.role}`, request: importing, onDone: (text) => { setImporting(null); setNote(text); } }),
+    note === null ? null : h('p', { role: 'status' }, note),
+    h('button', { type: 'button', class: 'small', 'data-action': 'job-projects', onClick: () => { if (project !== null) selectedProjectId.value = project.id; onView('projects'); } }, project === null ? 'Create or open a project' : 'Open project details'));
 }

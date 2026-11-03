@@ -35,15 +35,15 @@ describe('workspace AppShell (prerendered)', () => {
     expect(html).toContain(escaped(w1().slice(w1().indexOf(' — ') + 3)));
   });
 
-  it('the rail lists the ten views in order, and only Run is shown', () => {
-    expect(VIEWS.map((v) => v.label)).toEqual(['Run', 'Setup', 'Tools', 'Materials', 'Board', 'Machines', 'Projects', 'Analyze', 'Settings', 'Safety']);
+  it('the rail groups Job and Library, and only Job is shown', () => {
+    expect(VIEWS.map((v) => v.label)).toEqual(['Job', 'Library', 'Board', 'Projects', 'Analyze', 'Settings', 'Safety']);
     for (const v of VIEWS) {
       const at = html.indexOf(`data-screen="${v.id}"`);
       expect(at, v.id).toBeGreaterThan(0);
       const tag = html.slice(html.lastIndexOf('<section', at), html.indexOf('>', at));
-      expect(tag.includes('hidden'), v.id).toBe(v.id !== 'run');
+      expect(tag.includes('hidden'), v.id).toBe(v.id !== 'job');
     }
-    expect(html).toMatch(/data-view="run" aria-current="page"/);
+    expect(html).toMatch(/data-view="job" aria-current="page"/);
   });
 
   it('the machine strip shows W7 NOT CONNECTED, and Pause and Stop job disabled with the reason', () => {
@@ -144,8 +144,9 @@ describe('Phase 1 control allowlist', () => {
   const UI: readonly RegExp[] = [
     /^action:advisor-(open|engine|input)$/,
     /^action:context-help$/,
-    /^view:(run|setup|tools|materials|board|machines|projects|analyze|settings|safety)$/,
-    /^tab:(gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
+    /^action:job-(step-(machine|stock|place|check|run|back|next)|files|files-close|projects|library-machines|use-machine)$/,
+    /^view:(job|library|board|projects|analyze|settings|safety)$/,
+    /^tab:(machines|tools|materials|gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
     /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
     // Firmware & Backups: records on this computer (export, import, compare, delete, download) and dialog controls.

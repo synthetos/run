@@ -140,6 +140,7 @@ test('Escape reaches the wire as `!` in under 100 ms with a 1M-segment preview l
   await sheet.locator('[data-preview="mode"]').selectOption('full');
   const million = Buffer.from('G21 G90 G17\n' + 'G1 X10 Y5 F800\nG1 X0 Y0\n'.repeat(500_000));
   await sheet.locator('[data-preview="file"]').setInputFiles({ name: 'million.nc', mimeType: 'text/plain', buffer: million });
+  await sheet.locator('[data-job-step="check"]').click();
   await expect(sheet.locator('[data-preview="summary"]')).toBeVisible({ timeout: 180_000 });
   await expect(sheet.locator('[data-lite="false"]')).toHaveCount(1);
   await expect(sheet.locator('[data-preview="canvas"], [data-preview="svg"]')).toHaveCount(1);

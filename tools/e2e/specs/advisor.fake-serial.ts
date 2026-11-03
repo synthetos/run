@@ -9,10 +9,12 @@ test('sample advisor shows inputs, three levels, guarded preview and a non-block
   });
   await page.reload();
   await page.locator('[data-sample="test-square"]').click();
+  await page.locator('[data-job-step="check"]').click();
   await expect(page.locator('[data-preview="summary"]')).toBeVisible();
+  await page.locator('[data-job-step="run"]').click();
   await expect(page.locator('[data-job="advisor"]')).toContainText('Feeds: needs review');
   await expect(page.locator('[data-action="start-job"]')).toBeDisabled();
-  await page.locator('[data-action="advisor-open"]').click();
+  await page.locator('[data-job-panel="run"] [data-action="advisor-open"]').click();
   const view = page.locator('[data-screen="analyze"]');
   await expect(view).toBeVisible();
   await expect(view.locator('[data-advisor="table"]')).toHaveCount(2); // plunge and XY feed
@@ -37,7 +39,7 @@ test('sample advisor shows inputs, three levels, guarded preview and a non-block
   await view.locator('details.panel > summary').click();
   await view.locator('.scroll-region').evaluate((el) => { el.scrollTop = 0; });
   await page.screenshot({ path: testInfo.outputPath('analyze.png') });
-  await page.locator('[data-region="rail"] [data-view="run"]').click();
+  await page.locator('[data-region="rail"] [data-view="job"]').click();
   await expect(page.locator('[data-job="advisor"]')).toContainText('placeholder data; not advice');
   await expect(page.locator('[data-action="start-job"]')).toBeDisabled();
   await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name: 'second.nc', mimeType: 'text/plain', buffer: Buffer.from('G21 G90 G17 G94\nS12000 M3\nG1 X10 F600\nM5\nM30\n') });

@@ -1,8 +1,8 @@
 import { computed, signal } from '@preact/signals';
 import { currentFile, type OpenFile } from './fileBridge.ts';
 import { material, selectedMachine, toolStore } from './library.ts';
-import { activeJob, SEED_JOB } from './jobModel.ts';
 import { advisorCheck, advisorFile, advisorMachine, advisorRow, type AdvisorFields } from './advisorModel.ts';
+import { activeJob, SEED_JOB } from './jobModel.ts';
 import { isObject, stored } from './storage.ts';
 
 const validFields = (v: unknown): v is Record<string, AdvisorFields> => isObject(v) && Object.values(v).every((f) => isObject(f) && Object.values(f).every((s) => typeof s === 'string'));
@@ -35,4 +35,4 @@ export const advisorRows = computed(() => {
   const input = machineInput.value;
   return file.operations.map((o) => advisorRow(o, operationFields(o.id), input.machine, advisorStock.value, toolStore.value.value, file.problem, input.problem));
 });
-export const advisorSummary = computed(() => advisorOperations.value.problem === null ? advisorCheck(advisorRows.value) : 'Feeds: resolve the file findings in Run');
+export const advisorSummary = computed(() => advisorOperations.value.problem === null ? advisorCheck(advisorRows.value) : 'Feeds: resolve the file findings in Job');

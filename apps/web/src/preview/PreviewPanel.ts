@@ -141,16 +141,16 @@ export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onRep
   const plannerView = result === null || planner === undefined ? null : planner(result.sourceLines);
 
   const drawing =
-    segments === null || result === null
+    (segments === null || result === null) && scene === null
       ? undefined
       : state.drawing === 'webgl'
         ? h(Preview3D, {
             segments,
-            bounds: result.summary.bounds,
+            bounds: result?.summary.bounds ?? null,
             showRapids: state.showRapids,
             highlight,
-            wcsOrigin: scene === null ? result.summary.wcsOrigin : scene.zero,
-            envelope: result.summary.envelope,
+            wcsOrigin: scene === null ? result?.summary.wcsOrigin ?? [0, 0, 0] : scene.zero,
+            envelope: result?.summary.envelope ?? null,
             fitRequest,
             view,
             planner: plannerView,
@@ -159,7 +159,7 @@ export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onRep
             pathOffset: scene?.pathOffset ?? [0, 0, 0],
             onUnavailable: () => { setState((s) => ({ ...s, drawing: 'svg' })); },
           })
-        : h(PreviewSvg, { segments, showRapids: state.showRapids, highlight, envelope: result.summary.envelope, marker: live, scene: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? [0, 0, 0], ...(scene === null ? {} : { zero: scene.zero }) });
+        : h(PreviewSvg, { segments, showRapids: state.showRapids, highlight, envelope: result?.summary.envelope ?? null, marker: live, scene: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? [0, 0, 0], ...(scene === null ? {} : { zero: scene.zero }) });
   const readout = live === null ? undefined : h('p', { class: `pv-marker-readout lag-${live.lag}`, 'data-preview': 'marker-readout', role: 'status' }, markerText(live));
 
   const actions: PreviewViewActions = {

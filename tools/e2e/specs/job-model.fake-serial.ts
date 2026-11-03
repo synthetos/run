@@ -1,3 +1,4 @@
+import { showWorkspace } from './workspace-navigation.ts';
 /**
  * The Job model's first slice in the built app (fake-serial TEST build;
  * FLOW_ANALYSIS §4 steps 1-4): a project's G-code opens as that project's
@@ -14,8 +15,7 @@ import { expect, test } from './fixtures.ts';
 const SHOTS = process.env['RUN_SCREENSHOTS_DIR'];
 
 async function show(page: Page, view: string): Promise<void> {
-  await page.locator(`[data-region="rail"] [data-view="${view}"]`).click();
-  await expect(page.locator(`[data-screen="${view}"]`)).toBeVisible();
+  await showWorkspace(page, view);
 }
 
 const GCODE = ['(plate)', 'G21 G90', 'G0 Z5', 'G0 X10 Y10', 'G1 Z-2 F200', 'G1 X150 F600', 'G1 Y90', 'G1 X10', 'G1 Y10', 'G0 Z5', 'M2', ''].join('\n');
@@ -65,25 +65,27 @@ test('a project file opens as the project’s job on a machine bed; the scene, U
 
   // The G-code opens as this project's job, on the selected machine's bed, with the file on it.
   await page.locator('[data-project-file="plate.nc"] [data-action="project-open-in-run"]').click();
-  await expect(page.locator('[data-screen="run"]')).toBeVisible();
+  await expect(page.locator('[data-screen="job"]')).toBeVisible();
   await expect(page.locator('[data-preview="file-name"]')).toHaveText('plate.nc', { timeout: 30_000 });
+  await page.locator('[data-job-step="check"]').click();
   await expect(page.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
   const identity = page.locator('[data-job="identity"]');
   await expect(identity.locator('[data-job="project"]')).toHaveText('Mounting plate');
   await expect(identity.locator('[data-job="machine"]')).toContainText('My X-Carve');
   await expect(identity.locator('[data-job="bed"]')).toHaveAttribute('data-bed', 'placeholder');
-  await expect(page.locator('[data-screen="run"] [data-scene="bed"]')).toContainText('placeholder');
-  await expect(page.locator('[data-screen="run"] [data-preview="canvas"], [data-screen="run"] [data-preview="svg"]')).toHaveCount(1);
+  await expect(page.locator('[data-screen="job"] [data-scene="bed"]')).toContainText('placeholder');
+  await expect(page.locator('[data-screen="job"] [data-preview="canvas"], [data-screen="job"] [data-preview="svg"]')).toHaveCount(1);
   await shot('run-scene-3d');
-  await page.locator('[data-screen="run"] [data-preview="view-top"]').click();
+  await page.locator('[data-screen="job"] [data-preview="view-top"]').click();
   await shot('run-scene-top');
 
   // Setup edits the same job and shows the same scene with the path on it.
   await show(page, 'setup');
-  await expect(page.locator('[data-setup="job-name"]')).toHaveText('plate');
-  await expect(page.locator('[data-screen="setup"] [data-scene="bed"]')).toContainText('My X-Carve');
-  await expect(page.locator('[data-screen="setup"] [data-preview="canvas"], [data-screen="setup"] [data-preview="svg"]')).toHaveCount(1);
-  await expect(page.locator('[data-height="fixture"]')).toHaveText('−50.00');
+  await expect(page.locator('[data-job="name"]')).toHaveText('plate');
+  await expect(page.locator('[data-screen="job"] [data-scene="bed"]')).toContainText('My X-Carve');
+  await expect(page.locator('[data-screen="job"] [data-preview="canvas"], [data-screen="job"] [data-preview="svg"]')).toHaveCount(1);
+  await page.locator('[data-job-step="place"]').click();
+  await expect(page.locator('[data-height="fixture"]')).toHaveText('-50.00');
   await shot('setup-scene');
 
   // Projects lists the job; it is the open one.
@@ -98,7 +100,8 @@ test('a project file opens as the project’s job on a machine bed; the scene, U
   await expect(identity.locator('[data-job="project"]')).toHaveText('Mounting plate');
   await expect(identity.locator('[data-job="machine"]')).toContainText('My X-Carve');
   await show(page, 'setup');
-  await expect(page.locator('[data-height="fixture"]')).toHaveText('−50.00');
+  await page.locator('[data-job-step="place"]').click();
+  await expect(page.locator('[data-height="fixture"]')).toHaveText('-50.00');
   await show(page, 'run');
   await shot('run-reopened-job');
 });

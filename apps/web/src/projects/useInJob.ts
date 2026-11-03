@@ -14,11 +14,12 @@ import { saveMachineBed, type MachineProfile } from '../workspace/library.ts';
 import { activeJob, illustrativeClamps, updateActiveJob, withMachine, withSetup, type Job } from '../workspace/jobModel.ts';
 import { machineStore } from '../workspace/library.ts';
 import type { ProjectFile } from './store.ts';
+import { executionLock } from '../workspace/fileBridge.ts';
 import { formatBytes } from './limits.ts';
 
 export type JobRole = 'gcode' | 'stock' | 'fixture' | 'bed' | 'reference';
 
-export const JOB_ROLE_LABEL: Readonly<Record<JobRole, string>> = { gcode: 'G-code: open in Run', stock: 'Stock outline', fixture: 'Fixture', bed: 'Bed drawing (saved to the machine)', reference: 'Reference file' };
+export const JOB_ROLE_LABEL: Readonly<Record<JobRole, string>> = { gcode: 'G-code: open in Job', stock: 'Stock outline', fixture: 'Fixture', bed: 'Bed drawing (saved to the machine)', reference: 'Reference file' };
 
 /** The roles a stored file can take, from its name: drawings become geometry, G-code opens, the rest is reference. */
 export function rolesFor(file: Pick<ProjectFile, 'name' | 'role'>): readonly JobRole[] {
@@ -71,6 +72,7 @@ export type ApplyResult = { readonly ok: true; readonly text: string } | { reado
 
 /** Applies an accepted drawing to the active job (fixture, stock outline) or the job's machine (bed). */
 export function applyImport(role: Exclude<JobRole, 'gcode' | 'reference'>, file: ProjectFile, check: Extract<ImportCheck, { ok: true }>, options: ImportOptions, machines: readonly MachineProfile[] = machineStore.value.value): ApplyResult {
+  if (executionLock.value !== null) return { ok: false, reason: executionLock.value };
   const parsed = scaled(check.parsed, options.units, options.scale);
   const source = { file: file.name.slice(0, 120), kind: check.kind, hash: file.hash } as const;
   const at = new Date().toISOString();
@@ -99,7 +101,7 @@ export function applyImport(role: Exclude<JobRole, 'gcode' | 'reference'>, file:
     return job === null ? { ok: false, reason: 'No job is open yet.' } : { ok: true, text: `${file.name} is the stock outline of ${job.name}: ${Math.round(parsed.width)} × ${Math.round(parsed.depth)} × ${options.height} mm.` };
   }
   const machineId = machines.find((m) => m.id === (activeJob.value?.machine?.id ?? ''))?.id ?? null;
-  if (machineId === null) return { ok: false, reason: 'Choose a machine for this job first (Setup → Machine): a bed drawing is saved to the machine as a bed revision.' };
+  if (machineId === null) return { ok: false, reason: 'Choose a machine for this job first (Job → Machine): a bed drawing is saved to the machine as a bed revision.' };
   const bed = saveMachineBed(machineId, { width: parsed.width, depth: parsed.depth, thickness: options.height, outline: parsed.outline, holes: parsed.holes, toMachine: { x: 0, y: 0, z: options.bedTopZ }, source: { kind: 'drawing', file: file.name.slice(0, 120), hash: file.hash, units: options.units, scale: options.scale, at } });
   if (bed === null) return { ok: false, reason: 'The job’s machine no longer exists.' };
   const machine = machineStore.value.value.find((m) => m.id === machineId) ?? null;

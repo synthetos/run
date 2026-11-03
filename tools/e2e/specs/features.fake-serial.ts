@@ -1,3 +1,4 @@
+import { showWorkspace } from './workspace-navigation.ts';
 /**
  * Report a problem, the Console command line and Projects in the built app
  * (fake-serial TEST build).
@@ -59,13 +60,13 @@ async function resetBoard(worker: Worker): Promise<void> {
 }
 
 async function show(page: Page, view: string): Promise<void> {
-  await page.locator(`[data-region="rail"] [data-view="${view}"]`).click();
-  await expect(page.locator(`[data-screen="${view}"]`)).toBeVisible();
+  await showWorkspace(page, view);
 }
 
 async function openSample(page: Page): Promise<void> {
   await show(page, 'run');
   await page.locator('[data-sample="mounting-plate"]').click();
+  await page.locator('[data-job-step="check"]').click();
   await expect(page.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
 }
 
@@ -241,8 +242,9 @@ test('a new project takes a G-code file and opens it in Run', async ({ page }) =
   await show(page, 'projects');
   await expect(page.locator('[data-project-row="Fixture plate"]')).toBeVisible();
   await page.locator('[data-project-file="plate-test.nc"] [data-action="project-open-in-run"]').click();
-  await expect(page.locator('[data-screen="run"]')).toBeVisible();
+  await expect(page.locator('[data-screen="job"]')).toBeVisible();
   await expect(page.locator('[data-preview="file-name"]')).toHaveText('plate-test.nc', { timeout: 30_000 });
+  await page.locator('[data-job-step="check"]').click();
   await expect(page.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
 });
 

@@ -1,3 +1,4 @@
+import { showWorkspace, workspaceDestination } from './workspace-navigation.ts';
 /**
  * Stage 1 workspace shell in the built app (fake-serial TEST build): one
  * page that never reloads or scrolls, with Pause and Stop job reachable in
@@ -22,7 +23,7 @@ import { machineWorker, request } from './machineWorker.ts';
 
 const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as const;
 const BOARD = 'SIM-EN-0001';
-const VIEWS = ['run', 'setup', 'tools', 'materials', 'board', 'machines', 'projects', 'analyze', 'settings', 'safety'] as const;
+const VIEWS = ['job', 'library', 'board', 'projects', 'analyze', 'settings', 'safety'] as const;
 const SHOTS = process.env['RUN_SCREENSHOTS_DIR'];
 
 interface Status {
@@ -47,13 +48,13 @@ function bangs(worker: Worker): Promise<number> {
   });
 }
 
-async function show(page: Page, view: (typeof VIEWS)[number]): Promise<void> {
-  await page.locator(`[data-region="rail"] [data-view="${view}"]`).click();
-  await expect(page.locator(`[data-screen="${view}"]`)).toBeVisible();
+async function show(page: Page, view: string): Promise<void> {
+  await showWorkspace(page, view);
 }
 
 /** The rail marks exactly the shown view, and no other rail button looks selected. */
-async function expectRailOn(page: Page, view: (typeof VIEWS)[number]): Promise<void> {
+async function expectRailOn(page: Page, requested: string): Promise<void> {
+  const view = workspaceDestination(requested);
   const current = page.locator('[data-region="rail"] [aria-current="page"]');
   await expect(current).toHaveCount(1);
   await expect(current).toHaveAttribute('data-view', view);
@@ -161,7 +162,7 @@ test('Disconnect is in the machine strip in every view: disconnecting from a non
   await expect(disconnect).toHaveCount(0);
   await expect(strip.locator('[data-state="not-connected"]')).toBeVisible();
   await show(page, 'run');
-  await expect(page.locator('[data-screen="run"] [data-region="connect"] [data-entry="idle"] [data-action="connect"]')).toBeVisible();
+  await expect(page.locator('[data-screen="job"] [data-region="connect"] [data-entry="idle"] [data-action="connect"]')).toBeVisible();
   await expect(strip.locator('[data-disconnect="refused"]')).toHaveCount(0);
 });
 
@@ -173,6 +174,7 @@ test('the notice raised after Stop job sits above the panels and the 3D canvas: 
   await expect(tabB.locator('[data-observer="controlled"]')).toContainText(BOARD);
   // A loaded job puts the job card and the 3D preview right under the strip, where the notice appears.
   await tabB.locator('[data-sample="mounting-plate"]').click();
+  await tabB.locator('[data-job-step="check"]').click();
   await expect(tabB.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
   // The owner's tab was LIVE, so it had no observer row above the view. This harness can only press Stop job
   // from an observer tab; take that row out of the layout so the job card sits right under the strip, as it did.
@@ -213,6 +215,7 @@ test('the document never scrolls at 1280 × 720, in any view', async ({ page }) 
   await page.setViewportSize({ width: 1280, height: 720 });
   await connectedTab(page);
   await page.locator('[data-sample="mounting-plate"]').click();
+  await page.locator('[data-job-step="check"]').click();
   await expect(page.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
   for (const view of VIEWS) {
     await show(page, view);
@@ -271,6 +274,7 @@ for (const width of [1440, 1280] as const) {
       if ((await w29.count()) > 0) await w29.click();
       const shot = (name: string): Promise<Buffer> => page.screenshot({ path: `${SHOTS}/${width}-${theme}-${name}.png` });
       await page.locator('[data-sample="mounting-plate"]').click();
+      await page.locator('[data-job-step="check"]').click();
       await expect(page.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
       await page.waitForTimeout(800);
       await shot('run');

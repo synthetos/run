@@ -96,6 +96,7 @@ function zigzag(n: number, tail: readonly string[] = [], head: readonly string[]
 
 /** Opens `text` in the Run view and waits until the worker has checked it with the board. */
 async function open(page: Page, text: string, name = 'job.nc'): Promise<void> {
+  await page.locator('[data-job-step="run"]').click();
   await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
   await expect(page.locator('[data-job="check"]')).toContainText('Checked with this board', { timeout: 15_000 });
 }
@@ -135,6 +136,10 @@ test('a file streams to completion from the stepper; Start is enabled only when 
   await start(page);
   await expect.poll(() => phase(worker), { timeout: 10_000 }).toBe('running');
   await expect(page.locator('[data-job="status"]')).toBeVisible();
+  await page.locator('[data-job-step="stock"]').click();
+  await expect(page.locator('[data-job-panel="stock"] input').first()).toBeDisabled();
+  await expect(page.locator('[data-region="job"] [data-preview="file"]')).toBeDisabled();
+  await page.locator('[data-job-step="run"]').click();
   await expect.poll(async () => (await session(worker)).job?.acked ?? 0, { timeout: 20_000 }).toBeGreaterThan(8);
   await shot(page, 'job-running');
   await page.locator('[data-tab="live"]').click();

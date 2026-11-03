@@ -1,8 +1,7 @@
 /**
- * The Run view (Stage 1, read-only): connect, the live position, the G-code
- * preview with its timeline, the G-code, Console and Live job tabs, and the
- * job card. Jog, spindle, coolant and overrides are shown as what is coming
- * and send nothing.
+ * The Job workspace: machine, stock, placement, checks and execution share
+ * one preview and live session. The existing machine controls and execution
+ * gates stay mounted as the user moves between preparation steps.
  *
  * The preview is the TB-03 PreviewPanel (gcode.worker, Preview3D, LineList)
  * arranged by `runLayout`. There is no Play, Simulate or Animate control
@@ -50,6 +49,9 @@ import { duration as durationText, feedLimitLines, jobUi, PHASE_TEXT, plannerRan
 
 const PHASE_LABEL = (phase: string): string => PHASE_TEXT[phase] ?? phase;
 import { JobStatus, JobSteps, JobStopCard, type StopHooks } from './JobViews.ts';
+import { JOB_STEPS, jobStep } from '../jobWorkflow.ts';
+import { JobSetupPanel } from './SetupView.ts';
+import { JobFiles } from '../../projects/ProjectsView.ts';
 
 export interface RunViewProps {
   readonly model: WorkspaceModel | null;
@@ -947,12 +949,11 @@ function JobIdentity({ job, fileOpen, onNote }: { readonly job: Job | null; read
 }
 
 /** The job: a card at the top of the Run view with the file, its checks, and the Check → Set zero → Start steps. */
-function JobCard({ parts, model, stops, onView }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly stops: StopHooks; readonly onView: (view: string) => void }): ComponentChild {
+function JobCard({ parts, model, onView, onFiles }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly onView: (view: string) => void; readonly onFiles: () => void }): ComponentChild {
   const { state, actions } = parts;
   const loading = state.status === 'loading';
-  const disabled = !state.ready || loading;
+  const disabled = !state.ready || loading || jobUi(model?.live.value ?? null).active;
   const result = state.status === 'ready' ? state.result : null;
-  const facts = useMemo(() => (result === null ? null : fileFacts(result.bytes)), [result]);
   const title = state.fileName === null ? 'No file open' : state.fileName.replace(/\.[^.]+$/, '');
   const [note, setNote] = useState<string | null>(null);
   return h(
@@ -976,10 +977,11 @@ function JobCard({ parts, model, stops, onView }: { readonly parts: PreviewParts
         note === null ? null : h('p', { class: 'fine tone-warn', role: 'status', 'data-job': 'note' }, note),
       ),
     ),
-    result === null || facts === null ? h('div', { class: 'job-checks-empty' }) : h('ul', { class: 'job-checks', 'data-preview': 'summary', 'aria-label': 'The file check' }, jobChecks(result, facts)),
     h(
       'div',
       { class: 'job-actions' },
+      h('button', { type: 'button', class: 'small', 'data-action': 'job-files', onClick: onFiles }, 'Files'),
+      h('button', { type: 'button', class: 'small', 'data-action': 'job-projects', onClick: () => onView('projects') }, 'Projects'),
       h(
         'label',
         { class: `file-button${disabled ? ' is-disabled' : ''}` },
@@ -999,11 +1001,7 @@ function JobCard({ parts, model, stops, onView }: { readonly parts: PreviewParts
         result === null ? 'Open a file' : 'Open another',
       ),
     ),
-    h(JobSteps, { parts, model, onAnalyze: () => onView('analyze') }),
-    h(JobStatus, { model, ...stops }),
-    result === null || facts === null
-      ? null
-      : h('details', { class: 'job-more' }, h('summary', null, 'Details'), h('div', { class: 'job-pop' }, h(JobDetails, { result, facts }))),
+
   );
 }
 
@@ -1244,6 +1242,43 @@ function Dock({ parts, model }: { readonly parts: PreviewParts; readonly model: 
   );
 }
 
+function stepStatus(step: typeof JOB_STEPS[number]['id'], parts: PreviewParts, model: WorkspaceModel | null): string {
+  const job = activeJob.value;
+  const result = parts.state.status === 'ready' ? parts.state.result : null;
+  const ui = jobUi(model?.live.value ?? null);
+  switch (step) {
+    case 'machine': return job?.machine?.name ?? 'Choose machine';
+    case 'stock': return job === null ? 'Define stock' : `${job.setup.stock.width} × ${job.setup.stock.depth} × ${job.setup.stock.thickness} mm`;
+    case 'place': return job === null ? 'Choose datum' : `${job.placement.datum.corner.replaceAll('-', ' ')} · ${job.placement.datum.height}`;
+    case 'check': return result === null ? 'Open a file' : result.summary.blocked ? 'Blocked' : result.summary.counts.warn > 0 ? 'Review findings' : 'File checked';
+    case 'run': return ui.active ? PHASE_LABEL(ui.job?.phase ?? 'running') : ui.connected ? 'Review & start' : 'Connect machine';
+  }
+}
+
+function JobWorkPanel({ parts, model, stops, onView }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly stops: StopHooks; readonly onView: (view: string) => void }): ComponentChild {
+  const step = jobStep.value;
+  const result = parts.state.status === 'ready' ? parts.state.result : null;
+  const facts = useMemo(() => result === null ? null : fileFacts(result.bytes), [result]);
+  const ui = jobUi(model?.live.value ?? null);
+  const index = JOB_STEPS.findIndex((s) => s.id === step);
+  return h('aside', { class: 'job-work-panel', id: 'job-work-panel', 'aria-label': 'Job preparation' },
+    h('div', { class: 'job-panel-scroll', tabindex: 0 },
+      h(JobSetupPanel, { step, locked: ui.active, onView }),
+      h('section', { hidden: step !== 'check', 'data-job-panel': 'check' }, h('h2', null, 'Check file'),
+        result === null || facts === null ? h('p', null, 'Open G-code to check it.') : [
+          h('ul', { class: 'job-checks', 'data-preview': 'summary', 'aria-label': 'The file check' }, jobChecks(result, facts)),
+          h('details', null, h('summary', null, 'File details'), h(JobDetails, { result, facts })),
+        ],
+        h('button', { type: 'button', class: 'small', 'data-action': 'advisor-open', onClick: () => onView('analyze') }, 'Analyze feeds & speeds'),
+        h('p', { class: 'fine' }, ui.connected ? 'Review the live board check in Run.' : 'Connect for the live board check.')),
+      h('section', { hidden: step !== 'run', 'data-job-panel': 'run' }, h('h2', null, 'Run job'),
+        h(JobSteps, { parts, model, onAnalyze: () => onView('analyze') }),
+        h(JobStatus, { model, ...stops }))),
+    h('div', { class: 'job-step-actions' },
+      index === 0 ? null : h('button', { type: 'button', class: 'small', 'data-action': 'job-step-back', onClick: () => { jobStep.value = JOB_STEPS[index - 1]?.id ?? 'machine'; } }, 'Back'),
+      index === JOB_STEPS.length - 1 ? null : h('button', { type: 'button', class: 'small primary', 'data-action': 'job-step-next', onClick: () => { jobStep.value = JOB_STEPS[index + 1]?.id ?? 'run'; } }, `Next: ${JOB_STEPS[index + 1]?.label ?? 'Run'}`)));
+}
+
 // ---------------------------------------------------------------- layout
 
 function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (view: string) => void, stops: StopHooks = {}): ComponentChild {
@@ -1253,26 +1288,33 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
 function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly onView: (view: string) => void; readonly stops: StopHooks }): ComponentChild {
   const { state, actions, slots, live, scene } = parts;
   const [preset, setPreset] = useState<ViewPreset>('iso');
+  const [files, setFiles] = useState(false);
+  const step = jobStep.value;
+  const active = jobUi(model?.live.value ?? null).active;
+  useEffect(() => { if (active) jobStep.value = 'run'; }, [active]);
   const loading = state.status === 'loading';
-  const disabled = !state.ready || loading;
+  const disabled = !state.ready || loading || jobUi(model?.live.value ?? null).active;
   const result = state.status === 'ready' ? state.result : null;
   const sent = result?.sourceLines.length ?? 0;
   const scrubLine = state.scrub > 0 && result !== null ? (result.sourceLines[state.scrub - 1] ?? 0) : 0;
   return h(
     'div',
-    { class: 'run-view', 'data-region': 'preview' },
+    { class: 'run-view job-view', 'data-region': 'preview', 'data-job-stage': step },
     h(RunBridge, { parts }),
-    h(JobCard, { parts, model, stops, onView }),
+    h(JobCard, { parts, model, onView, onFiles: () => setFiles(!files) }),
+    h('nav', { class: 'job-step-bar', 'aria-label': 'Job steps' }, JOB_STEPS.map((item, i) => h('button', { type: 'button', key: item.id, 'data-action': `job-step-${item.id}`, 'data-job-step': item.id, 'aria-current': step === item.id ? 'step' : undefined, 'aria-controls': 'job-work-panel', onClick: () => { jobStep.value = item.id; } }, h('span', { class: 'step-number' }, String(i + 1)), h('span', null, h('strong', null, item.label), h('small', null, stepStatus(item.id, parts, model)))))),
+    h('div', { class: 'job-files-drawer', hidden: !files, 'aria-label': 'Job files' }, h(JobFiles, { onView }), h('button', { type: 'button', class: 'small', 'data-action': 'job-files-close', onClick: () => setFiles(false) }, 'Close files')),
     h(
       'div',
-      { class: 'workspace-grid run-grid' },
+      { class: 'workspace-grid run-grid job-grid' },
+      h(JobWorkPanel, { parts, model, stops, onView }),
       h(
         'div',
         { class: 'canvas-column' },
         h(
           'div',
           { class: 'viewer', ...(result === null ? {} : { 'data-lite': result.lite ? 'true' : 'false' }) },
-          result !== null && !result.lite ? h('div', { class: 'preview-drawing', 'data-preview': 'drawing', 'data-drawing': state.drawing }, slots.drawing ?? null) : null,
+          (scene !== null || result !== null) && !result?.lite ? h('div', { class: 'preview-drawing', 'data-preview': 'drawing', 'data-drawing': state.drawing }, slots.drawing ?? null) : null,
           h(
             'div',
             { class: 'viewer-top' },
@@ -1302,14 +1344,14 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
               'div',
               { class: 'viewer-tools', role: 'group', 'aria-label': 'View' },
               h(TraverseToggle, { parts }),
-              result !== null && !result.lite && state.drawing === 'webgl' ? h(ViewButtons, { current: preset, ...(actions.onView === undefined ? {} : { onView: (p: ViewPreset) => { setPreset(p); actions.onView?.(p); } }), ...(actions.onFit === undefined ? {} : { onFit: () => actions.onFit?.() }) }) : null,
+              (scene !== null || result !== null) && !result?.lite && state.drawing === 'webgl' ? h(ViewButtons, { current: preset, ...(actions.onView === undefined ? {} : { onView: (p: ViewPreset) => { setPreset(p); actions.onView?.(p); } }), ...(actions.onFit === undefined ? {} : { onFit: () => actions.onFit?.() }) }) : null,
             ),
           ),
-          scene === null || result === null || result.lite ? null : h('p', { class: 'viewer-key', 'data-scene': 'bed' }, scene.bedLabel),
+          scene === null || result?.lite ? null : h('p', { class: 'viewer-key', 'data-scene': 'bed' }, scene.bedLabel),
           result === null && !loading
             ? h(
                 'div',
-                { class: 'empty-prompt' },
+                { class: `empty-prompt${scene === null ? '' : ' scene-empty-prompt'}` },
                 h('h2', null, state.status === 'error' ? 'The file could not be checked' : 'Open a file to check and preview it'),
                 state.status === 'error'
                   ? h('p', { class: 'preview-error', role: 'alert', 'data-preview': 'error' }, state.error ?? 'The preview failed.')
