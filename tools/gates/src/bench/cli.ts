@@ -10,11 +10,14 @@
  *
  * Exit status: 2 could not start (bad usage, missing or refused tree).
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { readTree } from '../shared/files.ts';
+import { benchFirmware, benchFirmwareAssets } from './firmware.ts';
 import { BENCH_DEFAULT_PORT, BenchSiteRefused, benchSite, listen } from './server.ts';
+
+const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
 
 const USAGE = 'usage: bench/cli.ts [--port <1024-65535>] [bench site directory]\n';
 
@@ -36,12 +39,15 @@ async function main(argv: readonly string[]): Promise<number> {
   const root = resolve(dir);
   try {
     if (!existsSync(root)) throw new Error(`${root} does not exist: run pnpm build:bench first`);
-    const site = benchSite(readTree(root));
+    // The firmware route (OD-10): the GitHub-released images of the signed staging list, fetched from GitHub on request.
+    const assets = await benchFirmwareAssets(JSON.parse(readFileSync(resolve(REPO_ROOT, 'firmware/releases.json'), 'utf8')) as unknown);
+    const site = benchSite(readTree(root), benchFirmware(assets));
     const { port: bound } = await listen(site, port);
     process.stdout.write(
       [
         `bench: serving the BENCH build from ${root}`,
         `bench: open http://localhost:${bound}/ (listening on 127.0.0.1 only; Web Serial granted to this origin)`,
+        `bench: firmware images fetched from GitHub Releases on request and checked against the signed list: ${assets.length === 0 ? 'none listed' : assets.map((a) => `${a.repo} ${a.tag} ${a.asset}`).join(', ')}`,
         'bench: this build is for this computer only. It is never deployed. Stop with Ctrl-C.',
         '',
       ].join('\n'),

@@ -23,6 +23,10 @@
  *   policy and everything else `no-cache`; directories follow the asset
  *   layer's `auto-trailing-slash` (308 to the slash form), and anything
  *   missing gets the built 404 page.
+ * - `/firmware/<owner>/<name>/<tag>/<asset>` (OD-10) is the run Worker's
+ *   firmware proxy, run here with the signed release list and Node's fetch
+ *   (firmware.ts), when the site was given one; otherwise it is a site path
+ *   like any other (a 404).
  *
  * It is a dev tool: nothing deploys it, and ci-policy `bench-never-in-ci`
  * refuses any workflow line that runs it. Dependency-free (node: only).
@@ -31,6 +35,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { TreeFile } from '../shared/files.ts';
 import { HASHED_ASSET_CACHE_CONTROL, SERIAL_GRANTED_SECURITY_HEADERS } from '../../../../workers/run/src/headers.ts';
 import { type ScanFinding, scanBundle } from '../bundle/scan.ts';
+import { isFirmwarePath, type BenchFirmware } from './firmware.ts';
 
 /** The only interface the server binds. */
 export const BENCH_BIND_ADDRESS = '127.0.0.1';
@@ -58,9 +63,10 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.gif': 'image/gif',
 };
 
-/** A site the server may serve: the scanned bytes by path. */
+/** A site the server may serve: the scanned bytes by path, and the firmware route when the CLI set one up. */
 export interface BenchSite {
   readonly files: ReadonlyMap<string, Uint8Array>;
+  readonly firmware?: BenchFirmware;
 }
 
 export class BenchSiteRefused extends Error {
@@ -73,10 +79,10 @@ export class BenchSiteRefused extends Error {
 }
 
 /** Accepts a tree only if it passes the bundle scan for the bench target. */
-export function benchSite(files: readonly TreeFile[]): BenchSite {
+export function benchSite(files: readonly TreeFile[], firmware?: BenchFirmware): BenchSite {
   const findings = scanBundle(files, 'bench');
   if (findings.length > 0) throw new BenchSiteRefused(findings);
-  return { files: new Map(files.map((f) => [f.path, f.bytes])) };
+  return firmware === undefined ? { files: new Map(files.map((f) => [f.path, f.bytes])) } : { files: new Map(files.map((f) => [f.path, f.bytes])), firmware };
 }
 
 export interface BenchRequest {
@@ -123,12 +129,19 @@ function cleanPath(target: string): string | undefined {
   return path;
 }
 
-/** Answers one request from the site. Pure, for the tests; `listen` wires it to node:http. */
-export function benchResponse(site: BenchSite, port: number, req: BenchRequest): BenchResponse {
+/** The Host check every request passes first: loopback names with this port only (DNS rebinding). */
+function hostRefused(port: number, host: string | undefined): BenchResponse | undefined {
   const allowedHosts = [`${BENCH_BIND_ADDRESS}:${port}`, `localhost:${port}`];
-  if (req.host === undefined || !allowedHosts.includes(req.host.toLowerCase())) {
+  if (host === undefined || !allowedHosts.includes(host.toLowerCase())) {
     return plain(421, `the bench server answers only ${allowedHosts.join(' and ')}`);
   }
+  return undefined;
+}
+
+/** Answers one request from the site's files. Pure, for the tests; `benchRespond` adds the firmware route. */
+export function benchResponse(site: BenchSite, port: number, req: BenchRequest): BenchResponse {
+  const refused = hostRefused(port, req.host);
+  if (refused !== undefined) return refused;
   if (req.method !== 'GET' && req.method !== 'HEAD') return plain(405, 'GET and HEAD only', { allow: 'GET, HEAD' });
   const path = cleanPath(req.url);
   if (path === undefined) return plain(400, 'bad request path');
@@ -149,14 +162,31 @@ export function benchResponse(site: BenchSite, port: number, req: BenchRequest):
   return { status: 200, headers: { ...SERIAL_GRANTED_SECURITY_HEADERS, 'content-type': type, 'cache-control': cache }, body: req.method === 'HEAD' ? new Uint8Array() : bytes };
 }
 
+/** Answers one request: the Host check, then the firmware route when the site has one, else the site's files. */
+export async function benchRespond(site: BenchSite, port: number, req: BenchRequest): Promise<BenchResponse> {
+  const refused = hostRefused(port, req.host);
+  if (refused !== undefined) return refused;
+  const path = cleanPath(req.url);
+  if (site.firmware !== undefined && path !== undefined && isFirmwarePath(path)) return site.firmware.respond(req.method, path);
+  return benchResponse(site, port, req);
+}
+
 /** Starts the server on 127.0.0.1:`port` (0 picks a free port). Resolves with the server and the bound port. */
 export function listen(site: BenchSite, port: number): Promise<{ server: Server; port: number }> {
   return new Promise((resolve, reject) => {
     let bound = port;
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-      const answer = benchResponse(site, bound, { method: req.method ?? '', url: req.url ?? '', host: req.headers.host });
-      res.writeHead(answer.status, answer.headers);
-      res.end(answer.body);
+      void benchRespond(site, bound, { method: req.method ?? '', url: req.url ?? '', host: req.headers.host }).then(
+        (answer) => {
+          res.writeHead(answer.status, answer.headers);
+          res.end(answer.body);
+        },
+        () => {
+          const answer = plain(500, 'internal error');
+          res.writeHead(answer.status, answer.headers);
+          res.end(answer.body);
+        },
+      );
     });
     server.once('error', reject);
     server.listen(port, BENCH_BIND_ADDRESS, () => {
