@@ -1449,7 +1449,7 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .live-stream li.ev-warn span, .live-stream li.ev-toolchange span { color: var(--warn); }
 
 /* ---------- Job model (FLOW_ANALYSIS §4 steps 1-4): identity, Use in Job, drawing import, the one scene ---------- */
-.job-identity { font-size: 11.5px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
+.job-identity { font-size: 11.5px; color: var(--muted); margin-top: 2px; white-space: normal; line-height: 1.35; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
 .job-identity [data-job="name"] { color: var(--ink); font-weight: 600; }
 .job-identity [data-bed="placeholder"] { color: var(--warn); }
 .job-save { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; }

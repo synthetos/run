@@ -270,6 +270,8 @@ describe('the one job opener', () => {
     executionLock.value = null;
     pendingOpen.value = null;
     draftJobStore.value.value = null;
+    // The bench carries over: a fixture height chosen in the draft before the file is opened goes into the new job.
+    activeJobStore.value.value = withSetup(newDraftJob(d.clock), { fixture: { ...sampleFixture(), height: 33 } });
     const p = await store.create('Plate');
     await store.add(p.id, [new File(['G0 X1\nG1 X2\n'], 'plate.nc')]);
     const file = store.find(p.id)?.files[0];
@@ -279,6 +281,8 @@ describe('the one job opener', () => {
     const job: Job = fromProject.job;
     expect(job.projectId).toBe(p.id);
     expect(job.machine?.id).toBe('m1');
+    expect(job.setup.fixture?.height).toBe(33);
+    expect(job.revision).toBe(1);
     expect(job.file).toEqual({ projectId: p.id, fileId: file.id, name: 'plate.nc', hash: file.hash, size: 12 });
     expect(store.find(p.id)?.jobs.map((j) => j.id)).toEqual([job.id]);
     expect(peek(pendingOpen)?.job.id).toBe(job.id);

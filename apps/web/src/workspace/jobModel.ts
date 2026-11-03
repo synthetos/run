@@ -249,6 +249,12 @@ export function newDraftJob(clock: JobClock = BROWSER_CLOCK): Job {
 /** The job the prerendered page shows before the stores load: the seed, with fixed ids and dates so hydration matches. */
 export const SEED_JOB: Job = jobFromSetup(SEED_SETUP, DRAFT_NAME, { now: () => new Date(0), newId: () => 'seed-draft' });
 
+/** A new job with another job's setup and placement (the bench carries over): a new id, revision 1, no file, no project. */
+export function cloneJob(base: Job, clock: JobClock = BROWSER_CLOCK): Job {
+  const at = clock.now().toISOString();
+  return { ...base, id: clock.newId(), projectId: null, file: null, revision: 1, createdAt: at, updatedAt: at };
+}
+
 /** A changed job: the next revision. */
 export function reviseJob(job: Job, patch: Partial<Omit<Job, 'id' | 'v' | 'revision' | 'createdAt' | 'updatedAt'>>, clock: JobClock = BROWSER_CLOCK): Job {
   return { ...job, ...patch, revision: job.revision + 1, updatedAt: clock.now().toISOString() };

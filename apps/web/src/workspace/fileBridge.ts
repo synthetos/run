@@ -19,7 +19,7 @@ import type { Box3, SegmentList } from '@synthetos/gcode-view';
 import { projectStore } from '../projects/browserStore.ts';
 import { sha256Hex } from '../projects/image.ts';
 import type { ProjectStore } from '../projects/store.ts';
-import { activeJobStore, BROWSER_CLOCK, draftJobStore, newDraftJob, reviseJob, setActiveJob, withMachine, type Job, type JobClock, type JobFile } from './jobModel.ts';
+import { activeJobStore, BROWSER_CLOCK, cloneJob, draftJobStore, newDraftJob, reviseJob, setActiveJob, withMachine, type Job, type JobClock, type JobFile } from './jobModel.ts';
 import { selectedMachine, type MachineProfile } from './library.ts';
 
 export interface OpenFile {
@@ -74,7 +74,8 @@ const BROWSER_DEPS: OpenDeps = { projects: projectStore, hash: sha256Hex, machin
 /**
  * Resolves the job for `file` and makes it active:
  * - bytes that are a project file (by SHA-256, whichever entry they came through) belong to that project: the
- *   project's job for that file version, or a new job on the selected machine;
+ *   project's job for that file version, or a new job that takes the active job's setup (the bench carries
+ *   over: a fixture chosen before the file was opened is not lost) on its machine or the selected one;
  * - any other bytes go to the local draft, which keeps its setup from file to file (the draft is one bench).
  */
 export async function openJob(file: File, source: OpenSource, deps: OpenDeps = BROWSER_DEPS): Promise<OpenResult> {
@@ -97,8 +98,9 @@ export async function openJob(file: File, source: OpenSource, deps: OpenDeps = B
     const existing = source.kind === 'job' ? found.project.jobs.find((j) => j.id === source.jobId) : found.project.jobs.find((j) => j.file?.fileId === found.file.id && j.file.hash === hash);
     if (existing !== undefined) job = existing;
     else {
-      const fresh = withMachine(newDraftJob(deps.clock), deps.machine(), deps.clock);
-      job = reviseJob(fresh, { projectId: found.project.id, name: file.name.replace(/\.[^.]+$/, '').slice(0, 120) || 'Job', file: ref }, deps.clock);
+      const base = cloneJob(activeJobStore.value.value ?? newDraftJob(deps.clock), deps.clock);
+      const fresh = base.machine === null ? withMachine(base, deps.machine(), deps.clock) : base;
+      job = { ...fresh, projectId: found.project.id, name: file.name.replace(/\.[^.]+$/, '').slice(0, 120) || 'Job', file: ref, revision: 1 };
       try {
         await projects.saveJob(job);
       } catch (e) {
