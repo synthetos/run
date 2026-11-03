@@ -351,3 +351,7 @@ software is not an emergency stop. "Stop job" no longer says "spindle off".
 ## OD-11. Three staging-only approvals from the firmware-update phase (owner, 2026-11-03)
 
 **Decision.** Approved as built: (1) a signed release on the staging release list counts as an approved build for its hardware version, so a board updated to a listed release is not read-only when its settings restore must be written; (2) the simulated board's test images are listed under hardware version 99 and refused on any real port; (3) `positionVerify` is allowed under NEEDS_REVIEW, so the post-update restore can be written. All three are staging-only; production is unchanged.
+
+## 2026-11-03: routine explanations on demand
+
+The owner explicitly requested that routine explanatory paragraphs become `?` help instead of always-visible copy, citing the spindle readouts, Connect card, preview disclaimer W13, disconnected explanation W7, setup and machine-template copy. The implementation preserves the registered wording and makes help available by hover, keyboard focus and tap; CSS hover/focus works without JavaScript. W1 retains its existing visible presentation. This changes routine presentation, not active faults, confirmations, or Pause/Stop behavior. SAFETY §5 records the presentation amendment. Claude independently reviews the implementation before merging.

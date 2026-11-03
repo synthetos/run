@@ -114,6 +114,10 @@ test('Escape from any focus pauses through the worker; Space never does (T-S18)'
   expect(bangs(await writes(worker))).toBe(before);
   await page.keyboard.press('Escape');
   await expect.poll(async () => bangs(await writes(worker))).toBe(before + 1);
+  await page.getByRole('button', { name: 'About the preview', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => bangs(await writes(worker))).toBe(before + 2);
+  await expect(page.locator('[data-safety="W13"]')).toBeHidden();
   // The stop button stays visible and focusable.
   await expect(page.locator('.stop-button')).toBeVisible();
 });

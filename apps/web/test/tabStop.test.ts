@@ -601,7 +601,7 @@ describe('machine strip stop controls and observer panel', () => {
     const quiet = bar({ available: true, band: null, outcome: null, prominent: false });
     const loud = bar({ available: true, band: null, outcome: null, prominent: true });
     for (const [el, want] of [[quiet, 'false'], [loud, 'true']] as const) {
-      const buttons = all(el, (e) => e.tag === 'button');
+      const buttons = all(el, (e) => e.tag === 'button' && e.props['data-machine-control'] === 'stop');
       expect(buttons).toHaveLength(2);
       for (const b of buttons) {
         expect(b.props['data-prominent']).toBe(want);

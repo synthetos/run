@@ -69,7 +69,8 @@ describe('workspace AppShell (prerendered)', () => {
     expect(/<input[^>]*data-preview="file"[^>]*>/.exec(html)?.[0]).toContain('disabled');
     expect(/<select[^>]*data-preview="mode"[^>]*>/.exec(html)?.[0]).toContain('disabled');
     expect(/<button[^>]*data-action="start-job"[^>]*>/.exec(html)?.[0]).toContain('disabled');
-    expect(html).toContain('Running jobs arrives in a later phase.');
+    expect(html).toContain('Connect to see live job data.');
+    expect(html).not.toContain('Phase 1 · no motion');
     expect(html).toContain('Connect a machine to use these controls.');
     expect(html).toContain('Needs firmware support');
   });
@@ -92,7 +93,7 @@ describe('SafetyBar', () => {
     expect(text(one(bar, byAttr('data-safety', 'W1')))).toBe(w1());
     expect(text(one(bar, byAttr('data-version')))).toBe(versionLabel(build));
     expect(all(bar, byAttr('data-safety', 'W7'))).toEqual([]);
-    expect(all(bar, (e) => e.tag === 'button')).toEqual([]);
+    expect(all(bar, (e) => e.tag === 'button').every((e) => e.props['data-action'] === 'context-help')).toBe(true);
   });
 
   it('workspace variant: W1 only, as a labelled region', () => {
@@ -101,7 +102,7 @@ describe('SafetyBar', () => {
     expect(bar.props['aria-label']).toBe('Safety');
     expect(text(one(bar, byAttr('data-safety', 'W1')))).toBe(w1());
     expect(all(bar, byAttr('data-version'))).toEqual([]);
-    expect(all(bar, (e) => e.tag === 'button')).toEqual([]);
+    expect(all(bar, (e) => e.tag === 'button').every((e) => e.props['data-action'] === 'context-help')).toBe(true);
   });
 });
 
@@ -141,6 +142,8 @@ describe('Phase 1 control allowlist', () => {
   const CONNECT = new Set(['connect', 'disconnect', 'confirm', 'cancel', 'dismiss']);
   /** Controls that never reach the machine: views, tabs, the preview, and the local libraries. */
   const UI: readonly RegExp[] = [
+    /^action:advisor-(open|engine|input)$/,
+    /^action:context-help$/,
     /^view:(run|setup|tools|materials|board|machines|projects|analyze|settings|safety)$/,
     /^tab:(gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,

@@ -262,7 +262,7 @@ function DescriptionSection({ project }: { readonly project: Project }): Compone
     return h(
       'div',
       null,
-      project.description.trim() === '' ? h('p', { class: 'fine' }, 'No description yet: what it is, what you learned, what to change next time.') : h(Description, { text: project.description }),
+      project.description.trim() === '' ? h('p', { class: 'fine' }, 'Add notes about this project.') : h(Description, { text: project.description }),
       h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'project-edit-description', onClick: () => setEditing(true) }, Icon('edit', 13), project.description.trim() === '' ? 'Write a description' : 'Edit'),
     );
   }
@@ -313,7 +313,7 @@ function LinksSection({ project }: { readonly project: Project }): ComponentChil
     'div',
     null,
     project.links.length === 0
-      ? h('p', { class: 'fine' }, 'Drawings, videos, the forum thread: anything on the web about this project.')
+      ? h('p', { class: 'fine' }, 'Add drawings, videos or a forum thread.')
       : h(
           'ul',
           { class: 'link-list' },
@@ -521,7 +521,7 @@ function ProjectDetail({ project, onView, onDeleted }: { readonly project: Proje
             ),
         project.files.length === 0 ? null : h('ul', { class: 'file-list' }, project.files.map((f) => h(FileRow, { key: f.id, project, file: f, onView }))),
         project.images.length === 0 ? null : [h('h2', { key: 'h', class: 'tan-label' }, 'Photos'), h('ul', { key: 'l', class: 'image-strip' }, project.images.map((i) => h(ImageTile, { key: i.id, project, image: i })))],
-        gcode === 0 ? null : h('p', { class: 'fine' }, '“Open in Run” loads the file into the Run view to check and preview it. ', h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'project-go-run', onClick: () => onView('run') }, 'Go to Run')),
+        gcode === 0 ? null : h('p', { class: 'fine' }, 'Open a file in Run to check and preview it. ', h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'project-go-run', onClick: () => onView('run') }, 'Go to Run')),
       ),
       h(
         'section',
@@ -580,7 +580,7 @@ export function ProjectsView({ onView }: { readonly onView: (v: string) => void 
             ),
       ),
       open === null
-        ? h('div', { class: 'panel empty-panel project-detail-empty' }, h('h2', null, 'No project open'), h('p', null, 'Create a project, then drop in its G-code, drawings and photos. Everything stays in this browser until accounts arrive.'))
+        ? h('div', { class: 'panel empty-panel project-detail-empty' }, h('h2', null, 'No project open'), h('p', null, 'Create a project and add files or photos. Saved in this browser.'))
         : h(ProjectDetail, { key: open.id, project: open, onView, onDeleted: () => setOpenId(null) }),
     ),
   );

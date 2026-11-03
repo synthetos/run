@@ -4,10 +4,12 @@
  * ("Open in Run"). Plain data between views; nothing here reaches a machine.
  */
 import { signal } from '@preact/signals';
+import type { PreviewResult } from '../gcode-worker/pipeline.ts';
 
 export interface OpenFile {
   readonly name: string;
   readonly bytes: Uint8Array;
+  readonly preview?: PreviewResult;
 }
 
 /** The file the Run view has open and checked, or null. */

@@ -24,6 +24,7 @@
 import { h, type ComponentChild } from 'preact';
 import { STOP_TEXT, w10, w2Label, w2Tooltip, w30, w6, w7 } from '@synthetos/safety';
 import { machineLabel, STOP_UNAVAILABLE, type StopBarView } from '../shell/SafetyBar.ts';
+import { ContextHelp } from '../shell/ContextHelp.ts';
 import { signalText } from '../shell/signal.ts';
 import type { StripStatus } from './status.ts';
 
@@ -68,7 +69,7 @@ function band(status: StripStatus, view: StopBarView | null, previousSession: bo
   if (!status.connected) {
     return previousSession
       ? h('div', { class: 'state-meta state-band warn', 'data-state': 'previous-session', 'data-safety': 'W6', role: 'alert' }, h('span', { class: 'band-text' }, ...signalText(w6())))
-      : h('div', { class: 'state-meta state-band', 'data-state': 'not-connected', 'data-safety': 'W7', role: 'status' }, h('span', { class: 'band-text' }, ...signalText(w7())));
+      : h('div', { class: 'state-meta', 'data-state': 'not-connected' }, h(ContextHelp, { id: 'connection-help', label: 'About the disconnected state', safety: 'W7', below: true }, ...signalText(w7())));
   }
   return h(
     'div',

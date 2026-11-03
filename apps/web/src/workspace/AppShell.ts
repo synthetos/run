@@ -118,7 +118,7 @@ function AccountMenu(): ComponentChild {
           'div',
           { class: 'account-menu', id: 'account-menu', role: 'menu' },
           h('div', { class: 'account-id' }, h('span', { class: 'avatar large', 'aria-hidden': 'true' }, Icon('cloud', 18)), h('div', null, h('strong', null, 'Not signed in'), h('small', null, 'Synthetos accounts arrive soon'))),
-          h('div', { class: 'sync-row', 'data-sync': 'local' }, h('div', null, h('strong', null, 'Kept in this browser'), h('small', null, 'Machines, tools, materials and setup are saved here. Account sync comes later.'))),
+          h('div', { class: 'sync-row', 'data-sync': 'local' }, h('div', null, h('strong', null, 'Kept in this browser'), h('small', null, 'Machines, tools, materials and setup are saved on this device.'))),
           h('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: true }, 'Sign in with GitHub'),
           h(
             'button',
@@ -259,8 +259,8 @@ export function AppShell(props: AppShellProps): ComponentChild {
     h(
       'footer',
       { class: 'footer' },
-      h('span', null, 'Phase 1 · no motion: settings are written only after review, where turned on'),
-      h('span', { class: 'footer-secondary' }, 'Machines, tools and setup are kept in this browser'),
+      h('span', null, 'Review settings before applying'),
+      h('span', { class: 'footer-secondary' }, 'Libraries saved in this browser'),
       h('span', { class: 'mono', 'data-version': '', title: `Version ${props.build.version}, commit ${props.build.sha}` }, versionLabel(props.build)),
     ),
   );

@@ -12,6 +12,7 @@
  * scrubber highlights lines and segments and nothing moves.
  */
 import { h, type ComponentChild } from 'preact';
+import { ContextHelp } from '../shell/ContextHelp.ts';
 import { w13 } from '@synthetos/safety';
 import type { Finding } from '@synthetos/gcode';
 import type { DialectId } from '@synthetos/protocol';
@@ -139,7 +140,7 @@ export function PreviewView({ state, actions = {}, slots = {} }: { readonly stat
       h('span', { class: 'label' }, 'File'),
       h('span', { class: 'value', 'data-preview': 'file-name' }, state.fileName ?? 'none'),
     ),
-    h('p', { class: 'preview-w13', role: 'note', 'data-safety': 'W13' }, w13()),
+    h('div', { class: 'preview-help' }, h(ContextHelp, { id: 'preview-sheet-help', label: 'About the preview', safety: 'W13', below: true }, w13())),
     slots.marker ?? null,
     h(
       'div',

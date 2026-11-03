@@ -85,7 +85,7 @@ export function displayReadouts(snapshot: Snapshot | null | undefined): Live | u
 }
 
 /** Shown when the board's status list (its answer to `{sr:null}`) does not carry a readout. */
-export const NOT_REPORTED = 'Not reported by this board’s status list';
+export const NOT_REPORTED = 'Not reported';
 
 export const SPINDLE_TITLE =
   'What the controller reports it is driving the spindle output to, from its status reports. The speed is the commanded speed after the controller’s limits, never a measured one: TinyG has no speed sensor. A command queued behind a move shows only once it runs. For display only: never rely on it for safety.';
@@ -99,7 +99,7 @@ function reported(v: unknown): v is number {
 /** Neither readout of a pair is known (from the status list or a poll): a dash, or "not reported" when the board's status list lacks them. */
 function missing(live: Live | undefined, keys: readonly string[]): string {
   const list = live?.srList;
-  return list !== undefined && !keys.some((k) => list.includes(k)) ? NOT_REPORTED : UNKNOWN;
+  return list !== undefined && !keys.some((k) => list.includes(k)) ? NOT_REPORTED : 'Unknown';
 }
 
 /**
@@ -148,17 +148,17 @@ function readouts(view: LiveView): readonly Readout[] {
   const feed = typeof live?.feed === 'number' ? live.feed : null;
   const vel = typeof live?.vel === 'number' ? live.vel : null;
   const line = typeof live?.line === 'number' && live.line > 0 ? live.line : null;
-  const feedValue = feed === null && vel === null ? UNKNOWN : vel !== null && feed !== null ? `${num(vel)} / ${num(feed)}` : num((feed ?? vel) as number);
+  const feedValue = feed === null && vel === null ? 'Unknown' : vel !== null && feed !== null ? `${num(vel)} / ${num(feed)}` : num((feed ?? vel) as number);
   return [
     {
       label: 'Feed',
       value: feedValue,
-      unit: feedValue === UNKNOWN ? '' : units(view),
-      title: 'Actual velocity over commanded feed, from the controller’s status reports. A dash means not reported yet.',
+      unit: feedValue === 'Unknown' ? '' : units(view),
+      title: 'Actual / commanded feed reported by the controller.',
     },
     { label: 'Spindle', value: spindleText(live), title: SPINDLE_TITLE },
     { label: 'Coolant', value: coolantText(live), title: COOLANT_TITLE },
-    { label: 'Job', value: line === null ? UNKNOWN : `line ${num(line)}`, title: line === null ? 'No job is running from this page. Running jobs arrives in a later phase.' : 'The line the controller reports executing.' },
+    { label: 'Job', value: line === null ? 'No line reported' : `line ${num(line)}`, title: line === null ? 'The controller has not reported an active line.' : 'The line the controller reports executing.' },
   ];
 }
 

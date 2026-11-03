@@ -22,9 +22,8 @@ import { PreviewPanel, markerText, type LiveMarkerView, type PreviewParts } from
 import { DIALECT_LABEL, MODE_LABEL, fileLevel, on, progressText } from '../../preview/PreviewView.ts';
 import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
 import { routineChanges, shownCounts } from '../../preview/gcodeList.ts';
-import type { SettingValue } from '@synthetos/schema';
 import { ConnectPanel } from '../../live/ConnectPanel.ts';
-import { connectorPins, dialectOf, plainValue, settingsOf, type PinInfo } from '../boardFacts.ts';
+import { settingsOf } from '../boardFacts.ts';
 import { Icon } from '../icons.ts';
 import { readStored, writeStored } from '../storage.ts';
 import { CheckRow, ConfirmCard, TabBar, TabPane } from '../ui.ts';
@@ -32,6 +31,7 @@ import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
 import { HomeSection } from '../homing.ts';
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
+import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { signalText } from '../../shell/signal.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
 import { ConsoleLine } from '../../console/ConsoleLine.ts';
@@ -82,7 +82,7 @@ function RunBridge({ parts }: { readonly parts: PreviewParts }): ComponentChild 
   const { state, actions } = parts;
   const result = state.status === 'ready' ? state.result : null;
   useEffect(() => {
-    currentFile.value = result === null || state.fileName === null ? null : { name: state.fileName, bytes: result.bytes };
+    currentFile.value = result === null || state.fileName === null ? null : { name: state.fileName, bytes: result.bytes, preview: result };
   }, [result, state.fileName]);
   const pending = pendingOpen.value;
   const onFile = actions.onFile;
@@ -111,21 +111,21 @@ export function ConnectNotice({ model, onView }: { readonly model: WorkspaceMode
     onDisconnect: () => actions?.disconnect(),
   });
   const heading = isConnected
-    ? step === 'live'
-      ? 'Connected. Inspect before you operate.'
-      : 'Connected'
+    ? 'Connected'
     : step === 'refused'
       ? 'Not connected'
       : 'Connect your TinyG';
   const copy = isConnected
-    ? view?.message?.settingsWrites === true
-      ? 'Phase 1: Run reads positions and settings and does not move the machine. Settings can be changed in the Board view, one reviewed write at a time.'
-      : 'Phase 1 is read-only: positions and settings are read and nothing is written to the board.'
-    : 'Run checks sign-in, the safety advisory and a short checklist, then your browser asks which USB port to use.';
+    ? view?.message?.motion === true
+      ? 'Controls follow the machine’s current state.'
+      : view?.message?.settingsWrites === true
+        ? 'Review and apply settings in Board.'
+        : 'Read-only connection.'
+    : 'Connect by USB to read your board and check its setup.';
   return h(
     'div',
     { class: `scenario-notice connect-notice${isConnected ? ' is-connected' : ''}`, 'data-region': 'connect' },
-    h('div', { class: 'notice-text' }, h('strong', null, heading), h('p', null, copy), reportsNotice(view)),
+    h('div', { class: 'notice-text' }, h('strong', null, heading), h(ContextHelp, { id: 'connect-help', label: 'About connecting', below: true, end: true }, copy), reportsNotice(view)),
     h(
       'div',
       { class: 'notice-actions' },
@@ -179,12 +179,13 @@ function ageText(view: LiveView): { readonly text: string; readonly lag: string 
 export function PositionPanel({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
   const m = view !== null && connected(view) ? view.message : null;
+  if (m === null) return h('section', { class: 'insp sec-position', 'data-region': 'position', 'aria-labelledby': 'position-title' }, h('header', null, h('h2', { id: 'position-title' }, 'Position'), h('span', { class: 'source' }, 'Not connected')));
   const axes = m === null ? (['x', 'y', 'z'] as const).map((axis) => ({ axis, work: null, machine: null, homed: null })) : m.dro.axes.filter((a) => a.work !== null || ['x', 'y', 'z'].includes(a.axis));
   const age = view === null ? { text: 'Not connected', lag: 'none' } : ageText(view);
   const wcs = m?.dro.wcs ?? null;
   const homed = m === null ? null : m.dro.axes.filter((a) => ['x', 'y', 'z'].includes(a.axis));
   const homingText =
-    homed === null || homed.every((a) => a.homed === null) ? 'Not read' : homed.every((a) => a.homed === true) ? 'Homed (reported)' : `Not homed: ${homed.filter((a) => a.homed !== true).map((a) => a.axis.toUpperCase()).join(' ')}`;
+    homed === null || homed.every((a) => a.homed === null) ? 'Unknown' : homed.every((a) => a.homed === true) ? 'Homed (reported)' : `Not homed: ${homed.filter((a) => a.homed !== true).map((a) => a.axis.toUpperCase()).join(' ')}`;
   const tool = m?.snapshot.live.tool;
   const units = m?.dro.units ?? null;
   return h(
@@ -207,12 +208,12 @@ export function PositionPanel({ model }: { readonly model: WorkspaceModel | null
     h(
       'dl',
       { class: 'facts' },
-      h('div', null, h('dt', null, 'Work offset'), h('dd', { 'data-position': 'wcs' }, wcs?.code ?? (m === null ? UNKNOWN : 'Not read'))),
-      h('div', null, h('dt', null, 'Homing'), h('dd', { 'data-position': 'homing' }, m === null ? UNKNOWN : homingText)),
-      h('div', null, h('dt', null, 'Active tool'), h('dd', { 'data-position': 'tool' }, typeof tool === 'number' ? `T${tool}, reported` : m === null ? UNKNOWN : 'Not reported')),
+      h('div', null, h('dt', null, 'Work offset'), h('dd', { 'data-position': 'wcs' }, wcs?.code ?? 'Unknown')),
+      h('div', null, h('dt', null, 'Homing'), h('dd', { 'data-position': 'homing' }, m === null ? 'Unknown' : homingText)),
+      h('div', null, h('dt', null, 'Active tool'), h('dd', { 'data-position': 'tool' }, typeof tool === 'number' ? `T${tool}, reported` : m === null ? 'Unknown' : 'Not reported')),
     ),
     m === null
-      ? h('p', { class: 'fine' }, 'Position appears when a board is connected. Unknown values show a dash, never zero.')
+      ? h('p', { class: 'fine' }, 'Connect to show position.')
       : h('details', { class: 'more' }, h('summary', null, 'Where these numbers come from'), h(Dro, { message: m, elapsedMs: (view as LiveView).now - (view as LiveView).receivedAt })),
   );
 }
@@ -392,7 +393,7 @@ function jogBody({ model, onGoToZero }: JogProps, hk: Hooks): ComponentChild {
       h('span', { class: `tag${ui.homed === false ? ' warn' : ''}`, 'data-jog': 'homed' }, ui.homed === null ? 'Motion control' : ui.homed ? 'Homed' : 'Not homed'),
     ),
     // The section header is hidden inside the inspector tabs: the homing state gets its own visible line.
-    ui.connected && ui.flag ? h('p', { class: 'jog-status' }, h('span', { class: `tag${ui.homed === false ? ' warn' : ' ok'}`, 'data-jog': 'homing' }, ui.homed === true ? 'Homed' : ui.homed === false ? 'Not homed' : 'Homing not read'), ui.homed === true ? 'Soft limits protect homed axes when they are on ($sl=1).' : null) : null,
+    ui.connected && ui.flag ? h('p', { class: 'jog-status' }, h('span', { class: `tag${ui.homed === false ? ' warn' : ' ok'}`, 'data-jog': 'homing' }, ui.homed === true ? 'Homed' : ui.homed === false ? 'Not homed' : 'Homing unknown'), ui.homed === true ? 'Soft limits apply when enabled.' : null) : null,
     ui.flag && ui.connected && ui.homed === false ? h('p', { class: 'motion-warning', 'data-safety': 'W34', role: 'note' }, ...signalText(w34())) : null,
     MotionRecovery({ ui, send, view, hk }),
     h(
@@ -615,31 +616,6 @@ export function ZeroSection(props: ZeroProps = {}): ComponentChild {
   return isLive(props.model) ? h(ZeroLive, props) : zeroBody(props, STATIC_HOOKS);
 }
 
-/** The J6 output pins with what the board's settings say about each (board definition labels, never generic ones). */
-function OutputPins({ settings, dialect }: { readonly settings: Readonly<Record<string, SettingValue>>; readonly dialect: string | null }): ComponentChild {
-  const pins = connectorPins('J6').filter((p) => p.role === 'output');
-  if (pins.length === 0) return null;
-  const setting = (p: PinInfo): string => {
-    if (p.signal === 'out.spindleEnable') return plainValue('spep', settings['spep'], dialect) ?? 'polarity not read';
-    if (p.signal === 'out.spindleDirection') return plainValue('spdp', settings['spdp'], dialect) ?? 'polarity not read';
-    if (p.signal === 'out.spindlePwm') return 'speed signal';
-    return 'mist and flood share it';
-  };
-  return h(
-    'ul',
-    { class: 'pin-list', 'aria-label': 'Spindle and coolant pins on J6' },
-    pins.map((p) =>
-      h(
-        'li',
-        { key: p.ref, 'data-pin-row': p.ref },
-        h('span', { class: 'pin-ref' }, p.ref),
-        h('span', { class: 'pin-name' }, p.label, h('small', null, p.function)),
-        h('span', { class: 'pin-set' }, setting(p)),
-      ),
-    ),
-  );
-}
-
 /**
  * Spindle and coolant (SAFETY §4.5b, H52). The readouts are what the board reports (edge-next `spe`, `spc`,
  * `spd`, `sps`, `cof`, `com`), from its status list or the GETs Run asks about once a second, labelled
@@ -651,9 +627,8 @@ function spindleBody({ model }: SpindleProps, hk: Hooks): ComponentChild {
   const snapshot = view !== null && connected(view) ? view.message?.snapshot : undefined;
   const r = displayReadouts(snapshot);
   const spindle = spindleText(r);
-  const spindleLine = spindle.startsWith('On') ? `Spindle o${spindle.slice(1)}` : spindle;
+  const spindleLine = snapshot === undefined ? 'Not connected' : spindle === UNKNOWN ? 'Unknown' : spindle;
   const coolant = coolantText(r);
-  const settings = settingsOf(view);
   const ui = motionUi(view);
   const send = model?.actions.value?.motion;
   const [rpm, setRpm] = hk.state(10000);
@@ -695,24 +670,23 @@ function spindleBody({ model }: SpindleProps, hk: Hooks): ComponentChild {
         'div',
         { class: 'spindle-text' },
         h('strong', { 'data-spindle': 'spindle', title: SPINDLE_TITLE }, spindleLine),
-        h('small', { 'data-spindle': 'coolant', title: COOLANT_TITLE }, `Coolant: ${coolant === UNKNOWN ? UNKNOWN : coolant === 'Off' ? 'off' : coolant}`),
+        h('small', { 'data-spindle': 'coolant', title: COOLANT_TITLE }, `Coolant: ${snapshot === undefined ? 'not connected' : coolant === UNKNOWN ? 'unknown' : coolant === 'Off' ? 'off' : coolant}`),
       ),
     ),
-    h(OutputPins, { settings, dialect: dialectOf(view) }),
     h(
       'div',
-      { class: 'spindle-controls' },
+      { class: 'spindle-controls', title: ui.reason ?? undefined },
       h(
         'div',
-        { class: 'seg full', role: 'group', 'aria-label': 'Spindle (J6.3 Spindle, J6.4 SpinDir)' },
+        { class: 'seg full', role: 'group', 'aria-label': 'Spindle direction' },
         h('button', { type: 'button', key: 'off', 'data-machine-control': 'spindle', ...(off ? { onClick: () => run({ op: 'spindleOff' }) } : { disabled: true }) }, 'Off'),
-        h('button', { type: 'button', key: 'cw', 'data-machine-control': 'spindle', ...(on ? { onClick: () => start('cw') } : { disabled: true }) }, 'On · CW'),
-        h('button', { type: 'button', key: 'ccw', 'data-machine-control': 'spindle', ...(on ? { onClick: () => start('ccw') } : { disabled: true }) }, 'On · CCW'),
+        h('button', { type: 'button', key: 'cw', 'data-machine-control': 'spindle', ...(on ? { onClick: () => start('cw') } : { disabled: true }) }, 'CW'),
+        h('button', { type: 'button', key: 'ccw', 'data-machine-control': 'spindle', ...(on ? { onClick: () => start('ccw') } : { disabled: true }) }, 'CCW'),
       ),
       h(
         'label',
-        { class: 'jog-feed' },
-        h('span', null, 'Speed'),
+        { class: 'spindle-speed' },
+        h('span', { class: 'sr-only' }, 'Speed'),
         h('input', {
           type: 'number',
           min: 1,
@@ -723,7 +697,7 @@ function spindleBody({ model }: SpindleProps, hk: Hooks): ComponentChild {
           'aria-label': 'Spindle speed, rpm (commanded)',
           'data-machine-control': 'spindle',
         }),
-        h('small', null, 'rpm, commanded'),
+        h('small', null, 'rpm'),
       ),
       asking === null || !on
         ? null
@@ -746,7 +720,7 @@ function spindleBody({ model }: SpindleProps, hk: Hooks): ComponentChild {
       h(
         'div',
         { class: 'inline-field' },
-        h('span', null, 'J6.6 Coolant'),
+        h('span', null, 'Coolant'),
         h(
           'span',
           { class: 'toggles' },
@@ -755,9 +729,8 @@ function spindleBody({ model }: SpindleProps, hk: Hooks): ComponentChild {
         ),
       ),
     ),
-    note !== null
-      ? h('p', { class: 'unavailable', role: 'status' }, note)
-      : h('p', { class: 'fine', 'data-spindle': 'note' }, ui.enabled || off ? 'Readouts show what the controller reports driving, labelled commanded: a command queued behind a move shows once it runs, and the speed is never measured. Never rely on them for safety.' : (ui.reason ?? 'Readouts are for display only.')),
+    note === null ? null : h('p', { class: 'unavailable', role: 'status' }, note),
+    h('div', { class: 'spindle-help', 'data-spindle': 'note' }, h(ContextHelp, { id: 'spindle-help', label: 'About spindle and coolant readouts', end: true }, SPINDLE_TITLE, ' ', COOLANT_TITLE)),
   );
 }
 
@@ -785,7 +758,7 @@ export function OverridesSection(): ComponentChild {
     h('header', null, h('h2', { id: 'ovr-title' }, 'Overrides'), h('span', { class: 'tag mock' }, 'Needs firmware support')),
     row('Feed', 'feed'),
     row('Spindle speed', 'spindle'),
-    h('p', { class: 'fine' }, 'TinyG edge-next has no feed or spindle overrides yet. These controls send nothing until the firmware supports them.'),
+    h('p', { class: 'fine' }, 'Overrides are unavailable on this firmware.'),
   );
 }
 
@@ -900,7 +873,7 @@ function JobDetails({ result, facts }: { readonly result: PreviewResult; readonl
         h('dt', null, 'Start'),
         h('dd', null, 'Assumed machine at 0, 0, 0 in G54 with zero offsets, G21 G90 G17.'),
         h('dt', null, 'Time'),
-        h('dd', null, 'Estimated with the job engine, later.'),
+        h('dd', null, 'Available after checking with the connected board.'),
       ),
       fileLevel(s.fileLevel),
     ),
@@ -908,7 +881,7 @@ function JobDetails({ result, facts }: { readonly result: PreviewResult; readonl
 }
 
 /** The job: a card at the top of the Run view with the file, its checks, and the Check → Set zero → Start steps. */
-function JobCard({ parts, model, stops }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly stops: StopHooks }): ComponentChild {
+function JobCard({ parts, model, stops, onView }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly stops: StopHooks; readonly onView: (view: string) => void }): ComponentChild {
   const { state, actions } = parts;
   const loading = state.status === 'loading';
   const disabled = !state.ready || loading;
@@ -955,7 +928,7 @@ function JobCard({ parts, model, stops }: { readonly parts: PreviewParts; readon
         result === null ? 'Open a file' : 'Open another',
       ),
     ),
-    h(JobSteps, { parts, model }),
+    h(JobSteps, { parts, model, onAnalyze: () => onView('analyze') }),
     h(JobStatus, { model, ...stops }),
     result === null || facts === null
       ? null
@@ -1057,7 +1030,7 @@ function ConsolePane({ model, active }: { readonly model: WorkspaceModel | null;
       { class: 'console-wire' },
       h('div', { class: 'cl-head' }, h('span', { class: 'cl-title' }, 'Wire transcript'), h('span', { class: 'cl-phase' }, 'Every byte, as sent and received')),
       epoch === 0 || lines === null
-        ? h('p', { class: 'live-empty' }, h('strong', null, 'The console shows the conversation with the board.'), 'Every line Run sends and every answer, once a board is connected in this tab. It only reads.')
+        ? h('p', { class: 'live-empty' }, h('strong', null, 'The console shows the conversation with the board.'), 'Connect to see commands and replies.')
         : h(
             'ol',
             {
@@ -1099,7 +1072,7 @@ const STAT_TEXT: Readonly<Record<string, string>> = {
 function LivePane({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
   if (view === null || !connected(view) || view.message === null) {
-    return h('div', { class: 'live-empty', 'data-live': 'empty' }, h('strong', null, 'Live job data appears here while a board is connected.'), h('p', null, 'The machine state, the current line, actual against programmed feed and the planner buffers, all from the controller’s status reports. Running jobs arrives in a later phase.'));
+    return h('div', { class: 'live-empty', 'data-live': 'empty' }, h('strong', null, 'Connect to see live job data.'), h('p', null, 'State, feed and progress reported by the controller.'));
   }
   const s = view.message.snapshot;
   const live = s.live;
@@ -1121,7 +1094,7 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
     h(
       'div',
       { class: 'live-progress' },
-      h('span', { class: 'live-big', 'data-live': 'stat' }, live.machineClass === undefined ? UNKNOWN : (STAT_TEXT[live.machineClass] ?? live.machineClass)),
+      h('span', { class: 'live-big', 'data-live': 'stat' }, live.machineClass === undefined ? 'Unknown' : (STAT_TEXT[live.machineClass] ?? live.machineClass)),
       job === null
         ? h('span', { class: 'live-sub', 'data-live': 'line' }, typeof live.line === 'number' ? `Line ${num(live.line)} reported` : 'No line reported')
         : h('span', { class: 'live-sub', 'data-live': 'line' }, job.executing === null ? `${num(job.acked)} of ${num(job.total)} lines answered` : `File line ${num(job.executing.line)} · ${num(job.executing.n)} of ${num(job.total)}`),
@@ -1130,20 +1103,20 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
         : h(
             'p',
             { class: 'fine', 'data-live': 'job-time' },
-            `${PHASE_LABEL(job.phase)} · elapsed ${ui.elapsedMs === null ? '—' : durationText(ui.elapsedMs / 1000)} · about ${durationText(job.remainingSeconds)} left (estimate)`,
+            `${PHASE_LABEL(job.phase)} · elapsed ${ui.elapsedMs === null ? 'unknown' : durationText(ui.elapsedMs / 1000)} · about ${durationText(job.remainingSeconds)} left (estimate)`,
           ),
     ),
     h(
       'div',
       { class: 'live-feed' },
-      h('div', { class: 'live-head' }, h('span', null, 'Feed: actual and programmed'), h('strong', { 'data-live': 'feed' }, `${live.vel === undefined ? UNKNOWN : num(live.vel)} / ${live.feed === undefined ? UNKNOWN : num(live.feed)}`)),
+      h('div', { class: 'live-head' }, h('span', null, 'Feed: actual and programmed'), h('strong', { 'data-live': 'feed' }, `${live.vel === undefined ? 'Unknown' : num(live.vel)} / ${live.feed === undefined ? 'Unknown' : num(live.feed)}`)),
       h(
         'svg',
         { class: 'feed-chart', viewBox: '0 0 300 70', preserveAspectRatio: 'none', role: 'img', 'aria-label': 'Actual velocity over the last 60 seconds against programmed feed' },
         feedPts.length > 1 ? h('polyline', { class: 'prog', points: feedPts.join(' ') }) : null,
         pts.length > 1 ? h('polyline', { class: 'act', points: pts.join(' ') }) : null,
       ),
-      h('div', { class: 'live-head' }, h('span', null, 'Planner buffers free'), h('strong', { 'data-live': 'qr' }, qr === null ? UNKNOWN : blocks === null ? String(qr) : `${qr} of ${blocks}`)),
+      h('div', { class: 'live-head' }, h('span', null, 'Queue space available'), h('strong', { 'data-live': 'qr' }, qr === null ? 'Unknown' : blocks === null ? String(qr) : `${qr} of ${blocks}`)),
       blocks === null || qr === null ? null : h('div', { class: `qr-meter${starve ? ' starving' : ''}`, 'data-live': 'planner-gauge', 'data-starving': starve ? 'true' : 'false', 'aria-hidden': 'true' }, Array.from({ length: blocks }, (_, i) => h('i', { key: String(i), class: i < blocks - qr ? 'used' : undefined }))),
       job === null ? null : h('p', { class: `fine${starve ? ' warn-text' : ''}`, 'data-live': 'queued' }, `Queued on the controller: about ${durationText(job.queuedSeconds)} of motion${job.queuedBoundMm === null ? '' : `, at most ${Math.round(job.queuedBoundMm)} mm`}${starve ? '. The planner is nearly empty while cutting: lines arrive slower than they run.' : '.'}`),
       fl === null
@@ -1213,7 +1186,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
     'div',
     { class: 'run-view', 'data-region': 'preview' },
     h(RunBridge, { parts }),
-    h(JobCard, { parts, model, stops }),
+    h(JobCard, { parts, model, stops, onView }),
     h(
       'div',
       { class: 'workspace-grid run-grid' },
@@ -1263,7 +1236,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
                 h('h2', null, state.status === 'error' ? 'The file could not be checked' : 'Open a file to check and preview it'),
                 state.status === 'error'
                   ? h('p', { class: 'preview-error', role: 'alert', 'data-preview': 'error' }, state.error ?? 'The preview failed.')
-                  : h('p', null, 'Every line is checked by the safety sanitiser and drawn in 3D. The file stays in this browser.'),
+                  : null,
                 h('div', { class: 'sample-row' }, SAMPLES.map((s) => h('button', { type: 'button', class: 'small', key: s.id, disabled, 'data-sample': s.id, ...on('onClick', actions.onFile, (f) => () => { f(sampleFile(s)); }) }, `Open the ${s.title.toLowerCase()} sample`))),
               )
             : null,
@@ -1285,7 +1258,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
               )
             : null,
           live === null ? null : h('p', { class: `viewer-key pv-marker-readout lag-${live.lag}`, 'data-preview': 'marker-readout', role: 'status' }, markerText(live)),
-          h('p', { class: 'viewer-notice', role: 'note', 'data-safety': 'W13' }, w13()),
+          h('div', { class: 'viewer-notice viewer-help' }, h(ContextHelp, { id: 'run-preview-help', label: 'About the preview', safety: 'W13', end: true }, w13())),
         ),
         h(
           'div',

@@ -1,7 +1,5 @@
 /**
- * The Analyze, Settings and Safety views. The feeds and speeds advisor
- * arrives with the advisor package; until then Analyze says so plainly
- * instead of showing invented data. Projects is projects/ProjectsView.ts.
+ * Settings and Safety views, plus the Analyze view export.
  */
 import { h, type ComponentChild } from 'preact';
 import { CANNOT_GUARANTEE, w1 } from '@synthetos/safety';
@@ -12,34 +10,17 @@ import { Icon } from '../icons.ts';
 import { openReport } from '../../report/state.ts';
 
 function head(title: string, sub: string): ComponentChild {
-  return h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, title), h('p', null, sub)));
+  return h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, title), sub === '' ? null : h('p', null, sub)));
 }
 
-export function AnalyzeView(): ComponentChild {
-  return h(
-    'div',
-    { class: 'analyze-view' },
-    head('Analyze', 'Feeds and speeds, time estimates and toolpath optimisation.'),
-    h(
-      'div',
-      { tabindex: 0, class: 'scroll-region' },
-      h(
-        'div',
-        { class: 'panel empty-panel' },
-        h('h2', null, 'The machining assistant arrives in a later stage'),
-        h('p', null, 'It will check each operation’s chip load, depth and coolant against your stock, tool and machine, and suggest a revised copy of the file for you to review. An optimised file is always your choice, shown before and after, and re-checked by the sanitiser.'),
-        h('p', { class: 'fine' }, 'Today the Run view checks every line of a file with the safety sanitiser and shows the findings.'),
-      ),
-    ),
-  );
-}
+export { AnalyzeView } from './AnalyzeView.ts';
 
 export function PreferencesView({ build }: { readonly build: BuildInfo }): ComponentChild {
   const saved = toolStore.saved.value && setupStore.saved.value;
   return h(
     'div',
     { class: 'settings-view' },
-    head('Settings', 'This browser, this app.'),
+    head('Settings', ''),
     h(
       'div',
       { tabindex: 0, class: 'scroll-region' },
@@ -47,7 +28,7 @@ export function PreferencesView({ build }: { readonly build: BuildInfo }): Compo
         'div',
         { class: 'panel' },
         h('div', { class: 'panel-head' }, h('h2', null, 'Theme')),
-        h('p', { class: 'fine' }, 'Light or dark, following your computer until you choose. The safety colours never change with the theme.'),
+        h('p', { class: 'fine' }, 'Follows your system until you choose.'),
         h('button', { type: 'button', class: 'small', 'data-theme-toggle': '', 'aria-label': 'Toggle day/night mode' }, 'Switch light or dark'),
       ),
       h(
@@ -62,7 +43,7 @@ export function PreferencesView({ build }: { readonly build: BuildInfo }): Compo
           h('div', null, h('dt', null, 'My materials'), h('dd', null, String(myMaterialStore.value.value.length))),
           h('div', null, h('dt', null, 'Storage'), h('dd', null, saved ? 'Available' : 'Blocked: changes last for this page only')),
         ),
-        h('p', { class: 'fine' }, 'Account sync comes later. Safety records (the settings reference, confirmations and the session marker) stay on this device and are never synced.'),
+        h('p', { class: 'fine' }, 'Stored on this device. Safety records are never synced.'),
       ),
       h('div', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h2', null, 'Version')), h('p', { class: 'mono' }, versionLabel(build))),
     ),
