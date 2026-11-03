@@ -408,6 +408,16 @@ describe('verdict wording from the bench 1 file (presentation only: levels and r
     expect(atEnd.lines.find((l) => l.toolChange !== undefined)?.toolChange?.restartsSpindle).toBe(false);
   });
 
+  it('a tool change on a move long enough to be split rides on the first segment only', () => {
+    // Deterministic cover for the split path's tool-change branch (the property tests reach it only by chance).
+    const r = run('G21 G90\nT2 M6 G1 X100 F600\n', EN, { motion: { ...MOTION, ceilingSeconds: 2, maxVelocity: { X: 600 }, feedrateMax: { X: 600 } } });
+    expect(r.report.blocked, JSON.stringify(r.report.entries)).toBe(false);
+    const segments = r.lines.filter((l) => l.origin === 'split');
+    expect(segments.length).toBeGreaterThan(1);
+    expect(segments[0]?.toolChange).toMatchObject({ tool: 2 });
+    expect(segments.slice(1).every((l) => l.toolChange === undefined)).toBe(true);
+  });
+
   it('a G or M word whose digits run together across spaces is explained, still as unsupported-code', () => {
     const r = run('G21\nG90\nG0 X0 Y0\nS5000\nG17\nN30 G92 064 Y0.326 X0.000\n', EN);
     expect(blocks(r)).toContain('unsupported-code');
