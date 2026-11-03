@@ -25,17 +25,22 @@ export function buildInfo(webRoot: string, env: NodeJS.ProcessEnv = process.env)
   const pkg = JSON.parse(readFileSync(join(webRoot, 'package.json'), 'utf8')) as { version: string };
   const fromEnv = env['RUN_BUILD_SHA'];
   let sha: string;
+  let committedAt: string | undefined;
   if (fromEnv !== undefined && fromEnv !== '') {
     sha = fromEnv;
+    const time = env['RUN_BUILD_COMMITTED_AT'];
+    if (time !== undefined && time !== '') committedAt = time;
   } else {
     try {
       sha = git(webRoot, ['rev-parse', '--verify', 'HEAD^{commit}']);
       if (git(webRoot, ['status', '--porcelain', '--untracked-files=normal']) !== '') sha += '-dirty';
+      // The commit's own time (not the build's), so rebuilding one commit gives the same bytes.
+      committedAt = git(webRoot, ['show', '-s', '--format=%cI', 'HEAD']);
     } catch (error) {
       throw new Error(
         `refusing to build without a commit SHA: set RUN_BUILD_SHA or build from a git checkout (${error instanceof Error ? error.message : String(error)})`,
       );
     }
   }
-  return checkBuildInfo({ version: pkg.version, sha });
+  return checkBuildInfo(committedAt === undefined ? { version: pkg.version, sha } : { version: pkg.version, sha, committedAt });
 }

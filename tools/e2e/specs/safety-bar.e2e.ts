@@ -72,7 +72,7 @@ for (const width of WIDTHS) {
         const bar = page.locator('[data-region="machine-strip"]');
         await expect(bar.locator('[data-safety="W7"]')).toHaveText(w7());
         await expect(bar.locator('[data-safety="W7"]')).toBeVisible();
-        await expect(page.locator('[data-version]')).toHaveText(/^v\d+\.\d+\.\d+ · [0-9a-f]{12}(-dirty)?$/);
+        await expect(page.locator('[data-version]')).toHaveText(/^v\d+\.\d+\.\d+ · [0-9a-f]{12}(-dirty)?( · \d{4}-\d{2}-\d{2} \d{2}:\d{2})?$/);
         const stopJob = bar.getByRole('button', { name: STOP_TEXT.stopJob, exact: true });
         await expect(stopJob).toBeVisible();
         await expect(stopJob).toBeDisabled();

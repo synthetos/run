@@ -20,7 +20,9 @@ import { installTrustedTypes } from '../security/tt.ts';
 import { h, hydrate } from 'preact';
 import { signal } from '@preact/signals';
 import { checkBuildInfo } from '../build-info/buildInfo.ts';
+import { watchBuildFreshness } from '../build-info/freshness.ts';
 import { startBuildChannel } from '../channel/channel.ts';
+import { fetchIndexHtml } from '../cloud/benchIndex.ts';
 import { gcodeWorkerSpawner } from '../gcode-worker/spawn.ts';
 import { callMachineWorker, startMachineWorker } from '../machine-worker/client.ts';
 import { RPC_VERSION } from '../machine-worker/rpc.ts';
@@ -92,6 +94,10 @@ renderGuarded(
 );
 // After hydration, so the bench marking of the version chip is not reconciled away; before the worker starts.
 const channel = startBuildChannel(document);
+// Bench only: the owner rebuilds often, so an open tab learns when the server has a newer build (it never reloads itself).
+if (channel.kind === 'bench') {
+  watchBuildFreshness(document.querySelector('[data-version]'), build, { fetchHtml: fetchIndexHtml, setInterval: (fn, ms) => window.setInterval(fn, ms), clearInterval: (h) => window.clearInterval(h as number) });
+}
 startTheme();
 loadStoredLibraries();
 worker = startMachineWorker(trustedTypes);
