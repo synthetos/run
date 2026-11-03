@@ -95,11 +95,14 @@ test('a jog step from the panel, with the unhomed warning; a hold jog stops on r
   const hold = (await writes(worker)).length;
   await page.locator('.sec-jog [aria-label="Step size"] button', { hasText: 'Hold' }).click();
   const yPlus = page.getByRole('button', { name: 'Y+', exact: true });
+  await yPlus.scrollIntoViewIfNeeded();
   const box = await yPlus.boundingBox();
   await page.mouse.move((box?.x ?? 0) + 10, (box?.y ?? 0) + 10);
   await page.mouse.down();
   await page.waitForTimeout(800);
   await page.mouse.up();
+  // The release reaches the worker after the page's own round trip: wait for the stop to finish, not only for idle.
+  await expect.poll(async () => (await motionWrites(worker, hold)).at(-1), { timeout: 15_000 }).toBe('G90\n');
   await idle(worker);
   const w = await motionWrites(worker, hold);
   expect(w[0]).toMatch(/^G21 G91 G1 Y\d/);

@@ -1412,6 +1412,15 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .job-tick input { margin-top: 2px; flex: none; }
 .job-w5 { font-size: 11.5px; line-height: 1.45; color: var(--muted); margin: 2px 0 0; }
 .job-blockers { margin: 2px 0 0; padding-left: 16px; list-style: disc; color: var(--muted); font-size: 11.5px; }
+/* On a short screen the stepper scrolls inside the card and the Run view scrolls inside itself (never the
+   document), so the 3D view keeps a usable height while a job is being set up. */
+@media (max-height: 800px) and (min-width: 651px) {
+  .job-prep { max-height: 132px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+  .job-card { margin-top: 8px; margin-bottom: 6px; padding-top: 8px; padding-bottom: 8px; }
+  .job-steps { padding-top: 7px; }
+  .run-view { overflow-y: auto; }
+  .run-view > .run-grid { min-height: 430px; }
+}
 .job-status { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(150px, auto) minmax(0, 1fr) auto; gap: 6px 18px; align-items: center; border-top: 1px solid var(--line-soft); padding-top: 9px; }
 .job-status-head { display: flex; gap: 10px; align-items: baseline; }
 .job-status-head strong { font: 600 14px/1.2 var(--cond); color: var(--state-run); }
