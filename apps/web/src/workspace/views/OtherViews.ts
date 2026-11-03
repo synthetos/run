@@ -7,7 +7,8 @@ import { h, type ComponentChild } from 'preact';
 import { CANNOT_GUARANTEE, w1 } from '@synthetos/safety';
 import { type BuildInfo, versionLabel } from '../../build-info/buildInfo.ts';
 import { signalText } from '../../shell/signal.ts';
-import { machineStore, myMaterialStore, setupStore, toolStore } from '../library.ts';
+import { machineStore, myMaterialStore, toolStore } from '../library.ts';
+import { jobSaved } from '../jobModel.ts';
 import { Icon } from '../icons.ts';
 import { openReport } from '../../report/state.ts';
 
@@ -35,7 +36,7 @@ export function AnalyzeView(): ComponentChild {
 }
 
 export function PreferencesView({ build }: { readonly build: BuildInfo }): ComponentChild {
-  const saved = toolStore.saved.value && setupStore.saved.value;
+  const saved = toolStore.saved.value && jobSaved.value;
   return h(
     'div',
     { class: 'settings-view' },

@@ -14,43 +14,17 @@
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../workspace/icons.ts';
-import { openInRun } from '../workspace/fileBridge.ts';
-import { allMaterials, machineStore, safeExternalLink, setupStore, toolStore, hostOf } from '../workspace/library.ts';
-import { browserRecordStore } from '../workspace/storage.ts';
+import { openJob, openProjectJob } from '../workspace/fileBridge.ts';
+import { activeJob, stockFootprint, updateActiveJob, withSetup, type Job } from '../workspace/jobModel.ts';
+import { allMaterials, machineStore, safeExternalLink, toolStore, hostOf } from '../workspace/library.ts';
+import { FixtureThumb } from '../workspace/views/SetupView.ts';
+import { projectStore, withProjects as act } from './browserStore.ts';
 import { Description } from './description.ts';
-import { encodeImage, sha256Hex } from './image.ts';
 import { formatBytes, LIMITS, ROLE_LABEL, type FileRole } from './limits.ts';
-import { projectsState, ProjectStore, projectUsage, type Project, type ProjectSetup } from './store.ts';
+import { projectsState, projectUsage, type Project, type ProjectFile, type ProjectSetup } from './store.ts';
+import { applyImport, checkDrawing, JOB_ROLE_LABEL, rolesFor, scaled, skippedText, type ImportCheck, type JobRole, type Units } from './useInJob.ts';
 
-let store: ProjectStore | null = null;
-let starting: Promise<ProjectStore> | null = null;
-
-function publish(s: ProjectStore): void {
-  projectsState.value = { loaded: true, persistent: s.persistent, list: s.list };
-}
-
-/** The one project store of this page, opened on first use. */
-export function projectStore(): Promise<ProjectStore> {
-  if (store !== null) return Promise.resolve(store);
-  starting ??= (async () => {
-    const records = await browserRecordStore();
-    const s = new ProjectStore({ records, now: () => new Date(), newId: () => crypto.randomUUID(), hash: sha256Hex, encodeImage: (f) => encodeImage(f) });
-    await s.load().catch(() => undefined);
-    store = s;
-    publish(s);
-    return s;
-  })();
-  return starting;
-}
-
-async function act<T>(fn: (s: ProjectStore) => Promise<T>): Promise<T> {
-  const s = await projectStore();
-  try {
-    return await fn(s);
-  } finally {
-    publish(s);
-  }
-}
+export { projectStore };
 
 const blobUrls = new Map<string, string>();
 
@@ -159,19 +133,43 @@ function Dropzone({ project, onResult }: { readonly project: Project; readonly o
   );
 }
 
-function FileRow({ project, file, onView }: { readonly project: Project; readonly file: Project['files'][number]; readonly onView: (v: string) => void }): ComponentChild {
+/** What "Use in Job" asked for: a drawing to check and accept, with the role it would take. */
+export interface ImportRequest {
+  readonly file: ProjectFile;
+  readonly role: Exclude<JobRole, 'gcode' | 'reference'>;
+}
+
+/** The stored file as a File for the opener; null when its bytes are gone. */
+async function fileOf(file: ProjectFile): Promise<File | null> {
+  const s = await projectStore();
+  const b = await s.blob(file.id);
+  return b === null ? null : new File([b], file.name, { type: 'text/plain' });
+}
+
+function FileRow({ project, file, onView, onImport }: { readonly project: Project; readonly file: Project['files'][number]; readonly onView: (v: string) => void; readonly onImport: (r: ImportRequest) => void }): ComponentChild {
   const [note, setNote] = useState(file.note);
   const [error, setError] = useState<string | null>(null);
+  const [menu, setMenu] = useState(false);
   const open = (): void => {
-    void projectStore()
-      .then((s) => s.blob(file.id))
-      .then((b) => {
-        if (b === null) setError('The file is no longer stored in this browser.');
-        else {
-          openInRun(new File([b], file.name, { type: 'text/plain' }));
-          onView('run');
-        }
-      });
+    setError(null);
+    void fileOf(file).then(async (f) => {
+      if (f === null) {
+        setError('The file is no longer stored in this browser.');
+        return;
+      }
+      const r = await openJob(f, { kind: 'project', projectId: project.id, fileId: file.id });
+      if (r.ok) onView('run');
+      else setError(r.reason);
+    });
+  };
+  const use = (role: JobRole): void => {
+    setMenu(false);
+    if (role === 'gcode') open();
+    else if (role === 'reference') {
+      setError(null);
+      const job = updateActiveJob((j) => (j.setup.references.some((x) => x.fileId === file.id) ? j : withSetup(j, { references: [...j.setup.references, { fileId: file.id, name: file.name, hash: file.hash }] })));
+      if (job === null) setError('No job is open yet.');
+    } else onImport({ file, role });
   };
   return h(
     'li',
@@ -188,6 +186,18 @@ function FileRow({ project, file, onView }: { readonly project: Project; readonl
       'div',
       { class: 'row-actions' },
       file.role === 'gcode' ? h('button', { type: 'button', class: 'small', 'data-action': 'project-open-in-run', onClick: open }, Icon('run', 14), 'Open in Run') : null,
+      h(
+        'span',
+        { class: 'use-menu' },
+        h('button', { type: 'button', class: 'small', 'data-action': 'project-use-in-job', 'aria-haspopup': 'menu', 'aria-expanded': menu ? 'true' : 'false', onClick: () => setMenu(!menu) }, 'Use in Job', Icon('chevron', 12)),
+        menu
+          ? h(
+              'div',
+              { class: 'account-menu use-menu-list', role: 'menu', 'aria-label': `Use ${file.name} in the job as` },
+              rolesFor(file).map((role) => h('button', { type: 'button', key: role, class: 'menu-item', role: 'menuitem', 'data-use-as': role, onClick: () => use(role) }, JOB_ROLE_LABEL[role])),
+            )
+          : null,
+      ),
       h('button', { type: 'button', class: 'small icon-button quiet', 'aria-label': `Remove ${file.name}`, 'data-action': 'project-remove-file', onClick: () => void act((s) => s.removeFile(project.id, file.id)) }, Icon('trash', 15)),
     ),
     h(
@@ -353,8 +363,11 @@ function LinksSection({ project }: { readonly project: Project }): ComponentChil
 }
 
 function stockText(): string {
-  const s = setupStore.value.value.stock;
-  const shape = s.shape === 'round' ? `Round ⌀${s.diameter}` : `${s.shape === 'sheet' ? 'Sheet' : 'Block'} ${s.width} × ${s.depth}`;
+  const job = activeJob.value;
+  if (job === null) return 'Not recorded';
+  const s = job.setup.stock;
+  const { w, d } = stockFootprint(s);
+  const shape = s.shape === 'round' ? `Round ⌀${s.diameter ?? w}` : `${s.shape === 'sheet' ? 'Sheet' : 'Block'} ${w} × ${d}`;
   return `${shape} × ${s.thickness} mm`;
 }
 
@@ -431,6 +444,109 @@ function SetupSection({ project }: { readonly project: Project }): ComponentChil
   );
 }
 
+// ---------------------------------------------------------------- use in job: drawings and jobs
+
+/**
+ * A drawing on its way into the job: read with the outline reader, shown with its geometry, size, units and
+ * scale and what was left out, and accepted only on Accept. The stored file is untouched either way.
+ */
+function DrawingImport({ request, onDone }: { readonly request: ImportRequest; readonly onDone: (text: string | null) => void }): ComponentChild {
+  const { file, role } = request;
+  const [check, setCheck] = useState<ImportCheck | null>(null);
+  const [units, setUnits] = useState<Units>('mm');
+  const [scale, setScale] = useState(1);
+  const [height, setHeight] = useState(role === 'bed' ? 19 : role === 'stock' ? 6.35 : 12);
+  const [bedTopZ, setBedTopZ] = useState(() => activeJob.value?.setup.bed.toMachine.z ?? 0);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void projectStore()
+      .then((s) => s.blob(file.id))
+      .then(async (b) => {
+        if (!live) return;
+        if (b === null) setCheck({ ok: false, reason: 'The file is no longer stored in this browser.' });
+        else setCheck(checkDrawing(file, new TextDecoder().decode(await b.arrayBuffer())));
+      });
+    return () => {
+      live = false;
+    };
+  }, [file.id]);
+  const parsed = check?.ok === true ? scaled(check.parsed, units, scale) : null;
+  const num = (e: Event, min: number): number | null => {
+    const n = Number.parseFloat((e.currentTarget as HTMLInputElement).value);
+    return Number.isFinite(n) && n >= min ? n : null;
+  };
+  return h(
+    'div',
+    { class: 'panel drawing-import', 'data-project': 'import', 'data-import-role': role, role: 'region', 'aria-label': `Use ${file.name} as ${JOB_ROLE_LABEL[role]}` },
+    h('div', { class: 'panel-head' }, h('h3', null, `Use ${file.name} as ${role === 'bed' ? 'the bed drawing' : role === 'stock' ? 'the stock outline' : 'the fixture'}`)),
+    check === null
+      ? h('p', { class: 'fine' }, 'Reading the drawing…')
+      : !check.ok
+        ? h('p', { class: 'fine tone-warn', role: 'alert', 'data-import': 'refused' }, check.reason)
+        : parsed === null
+          ? null
+          : [
+              h('div', { class: 'fixture-item', key: 'geom' }, h(FixtureThumb, { outline: parsed.outline, holes: parsed.holes }), h('div', null, h('strong', { 'data-import': 'size' }, `${Math.round(parsed.width)} × ${Math.round(parsed.depth)} mm`), h('small', null, `${parsed.outline.length} outline points · ${parsed.holes.length} holes · read as ${units === 'mm' ? 'millimetres' : 'inches'}${scale === 1 ? '' : ` × ${scale}`}`), skippedText(parsed) === '' ? null : h('small', { class: 'tone-warn', 'data-import': 'skipped' }, skippedText(parsed)))),
+              h(
+                'div',
+                { class: 'field-grid three', key: 'fields' },
+                h('label', { class: 'field' }, h('span', null, 'Drawing units'), h('span', { class: 'select-wrap' }, h('select', { 'aria-label': 'Drawing units', 'data-import': 'units', value: units, onChange: (e: Event) => setUnits((e.currentTarget as HTMLSelectElement).value as Units) }, h('option', { value: 'mm' }, 'mm'), h('option', { value: 'in' }, 'inches')))),
+                h('label', { class: 'field' }, h('span', null, 'Scale'), h('span', { class: 'unit-input' }, h('input', { type: 'number', step: 0.001, min: 0.001, value: scale, 'data-import': 'scale', onChange: (e: Event) => { const n = num(e, 0.001); if (n !== null) setScale(n); } }), h('i', null, '×'))),
+                h('label', { class: 'field' }, h('span', null, role === 'bed' ? 'Thickness' : role === 'stock' ? 'Stock thickness' : 'Fixture height'), h('span', { class: 'unit-input' }, h('input', { type: 'number', step: 0.1, min: 0.1, value: height, 'data-import': 'height', onChange: (e: Event) => { const n = num(e, 0.1); if (n !== null) setHeight(n); } }), h('i', null, 'mm'))),
+                role !== 'bed' ? null : h('label', { class: 'field' }, h('span', null, 'Bed top, machine Z'), h('span', { class: 'unit-input' }, h('input', { type: 'number', step: 0.1, value: bedTopZ, 'data-import': 'bed-top', onChange: (e: Event) => { const n = num(e, -100000); if (n !== null) setBedTopZ(n); } }), h('i', null, 'mm'))),
+              ),
+              h('p', { class: 'fine', key: 'note' }, 'Check one known dimension against the size above before accepting. The original file and its hash stay in the project; a photo is never used as geometry.'),
+            ],
+    error === null ? null : h('p', { class: 'fine tone-warn', role: 'alert', 'data-import': 'error' }, error),
+    h(
+      'div',
+      { class: 'edit-actions' },
+      h('button', { type: 'button', class: 'small', 'data-action': 'import-cancel', onClick: () => onDone(null) }, 'Cancel'),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'small primary',
+          'data-action': 'import-accept',
+          disabled: check === null || !check.ok,
+          onClick: () => {
+            if (check === null || !check.ok) return;
+            const r = applyImport(role, file, check, { units, scale, height, bedTopZ });
+            if (r.ok) onDone(r.text);
+            else setError(r.reason);
+          },
+        },
+        'Accept',
+      ),
+    ),
+  );
+}
+
+function JobRow({ project, job, onView }: { readonly project: Project; readonly job: Job; readonly onView: (v: string) => void }): ComponentChild {
+  const [error, setError] = useState<string | null>(null);
+  const file = project.files.find((f) => f.id === job.file?.fileId);
+  const current = activeJob.value?.id === job.id;
+  return h(
+    'li',
+    { class: 'file-row job-row', 'data-project-job': job.name, 'aria-current': current ? 'true' : undefined },
+    h('span', { class: 'file-icon', 'aria-hidden': 'true' }, Icon('run', 18)),
+    h(
+      'div',
+      { class: 'file-name' },
+      h('strong', null, job.name, current ? h('span', { class: 'tag ok' }, 'Open') : null),
+      h('small', null, `${file === undefined ? (job.file === null ? 'no file' : `${job.file.name} (file removed)`) : file.name} · ${job.machine === null ? 'no machine' : `${job.machine.name}, bed revision ${job.setup.bed.revision}${job.setup.bed.source.kind === 'placeholder' ? ' (placeholder)' : ''}`} · revision ${job.revision} · changed ${dateText(job.updatedAt)}`),
+      error === null ? null : h('small', { class: 'tone-warn', role: 'alert' }, error),
+    ),
+    h(
+      'div',
+      { class: 'row-actions' },
+      h('button', { type: 'button', class: 'small', 'data-action': 'project-open-job', disabled: file === undefined, onClick: () => void openProjectJob(project.id, job.id).then((r) => { if (r.ok) onView('run'); else setError(r.reason); }) }, Icon('run', 14), 'Open'),
+      h('button', { type: 'button', class: 'small icon-button quiet', 'aria-label': `Remove the job ${job.name}`, 'data-action': 'project-remove-job', onClick: () => void act((s) => s.removeJob(project.id, job.id)) }, Icon('trash', 15)),
+    ),
+  );
+}
+
 // ---------------------------------------------------------------- detail
 
 function ProjectDetail({ project, onView, onDeleted }: { readonly project: Project; readonly onView: (v: string) => void; readonly onDeleted: () => void }): ComponentChild {
@@ -438,6 +554,8 @@ function ProjectDetail({ project, onView, onDeleted }: { readonly project: Proje
   const [name, setName] = useState(project.name);
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<{ added: readonly string[]; refused: readonly string[] } | null>(null);
+  const [importing, setImporting] = useState<ImportRequest | null>(null);
+  const [imported, setImported] = useState<string | null>(null);
   const cover = useBlobUrl(project.cover);
   const used = projectUsage(project);
   useEffect(() => {
@@ -445,6 +563,8 @@ function ProjectDetail({ project, onView, onDeleted }: { readonly project: Proje
     setRenaming(false);
     setConfirming(false);
     setResult(null);
+    setImporting(null);
+    setImported(null);
   }, [project.id]);
   const saveName = (): void => {
     void act((s) => s.rename(project.id, name)).then(
@@ -519,9 +639,13 @@ function ProjectDetail({ project, onView, onDeleted }: { readonly project: Proje
               result.added.length === 0 ? null : h('p', { class: 'fine' }, `Added ${result.added.join(', ')}.`),
               result.refused.length === 0 ? null : h('ul', { class: 'upload-errors' }, result.refused.map((r) => h('li', { key: r }, r))),
             ),
-        project.files.length === 0 ? null : h('ul', { class: 'file-list' }, project.files.map((f) => h(FileRow, { key: f.id, project, file: f, onView }))),
+        project.files.length === 0 ? null : h('ul', { class: 'file-list' }, project.files.map((f) => h(FileRow, { key: f.id, project, file: f, onView, onImport: (r) => { setImported(null); setImporting(r); } }))),
+        importing === null ? null : h(DrawingImport, { key: `${importing.file.id}:${importing.role}`, request: importing, onDone: (text) => { setImporting(null); setImported(text); } }),
+        imported === null ? null : h('p', { class: 'fine', role: 'status', 'data-project': 'import-result' }, imported),
         project.images.length === 0 ? null : [h('h2', { key: 'h', class: 'tan-label' }, 'Photos'), h('ul', { key: 'l', class: 'image-strip' }, project.images.map((i) => h(ImageTile, { key: i.id, project, image: i })))],
-        gcode === 0 ? null : h('p', { class: 'fine' }, '“Open in Run” loads the file into the Run view to check and preview it. ', h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'project-go-run', onClick: () => onView('run') }, 'Go to Run')),
+        gcode === 0 ? null : h('p', { class: 'fine' }, '“Open in Run” opens the file as this project’s job: its machine, bed, stock and fixture are saved here and come back with it. ', h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'project-go-run', onClick: () => onView('run') }, 'Go to Run')),
+        h('h2', { class: 'tan-label' }, 'Jobs'),
+        project.jobs.length === 0 ? h('p', { class: 'fine', 'data-project': 'no-jobs' }, 'No jobs yet. “Open in Run” on a G-code file starts one; “Save to project” in Run brings a draft here.') : h('ul', { class: 'file-list', 'data-project': 'jobs' }, project.jobs.map((j) => h(JobRow, { key: j.id, project, job: j, onView }))),
       ),
       h(
         'section',

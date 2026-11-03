@@ -16,6 +16,8 @@ import { LineList } from './LineList.ts';
 import { Preview3D } from './Preview3D.ts';
 import { PreviewSvg } from './PreviewSvg.ts';
 import { IDLE_STATE, PreviewView, type PreviewSlots, type PreviewViewActions, type PreviewViewState } from './PreviewView.ts';
+import type { JobScene } from './sceneModel.ts';
+import type { ViewPreset } from '@synthetos/gcode-view';
 
 /** What a layout gets to arrange: the state, the actions and the rendered pieces. */
 export interface PreviewParts {
@@ -24,6 +26,8 @@ export interface PreviewParts {
   readonly slots: PreviewSlots;
   /** The live marker, for a layout that shows it elsewhere. */
   readonly live: LiveMarkerView | null;
+  /** The job's scene drawn under the path, or null. */
+  readonly scene: JobScene | null;
 }
 
 export interface PreviewPanelProps {
@@ -53,6 +57,8 @@ export interface PreviewPanelProps {
   readonly planner?: (sourceLines: Uint32Array) => PlannerView | null;
   /** Phase 3: the G-code list's breakpoints changed (the job gets them at once). */
   readonly onBreakpoints?: (lines: readonly number[]) => void;
+  /** The job's scene (bed, stock, fixture, clamps and the planned zero), drawn under the path; null for the path alone. */
+  readonly scene?: JobScene | null;
 }
 
 /** The planner view the 3D drawing shows during a job (gcode-view `PlannerOverlay`). */
@@ -91,10 +97,11 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
+  const [view, setView] = useState<{ readonly preset: ViewPreset; readonly seq: number }>({ preset: 'iso', seq: 0 });
   const client = useRef<GcodePreviewClient | null>(null);
   const lastFile = useRef<File | null>(null);
 
@@ -142,14 +149,17 @@ export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onRep
             bounds: result.summary.bounds,
             showRapids: state.showRapids,
             highlight,
-            wcsOrigin: result.summary.wcsOrigin,
+            wcsOrigin: scene === null ? result.summary.wcsOrigin : scene.zero,
             envelope: result.summary.envelope,
             fitRequest,
+            view,
             planner: plannerView,
             toolMarker: plannerView !== null && live !== null ? [live.x, live.y, live.z] : null,
+            scene: scene?.layers ?? null,
+            pathOffset: scene?.pathOffset ?? [0, 0, 0],
             onUnavailable: () => { setState((s) => ({ ...s, drawing: 'svg' })); },
           })
-        : h(PreviewSvg, { segments, showRapids: state.showRapids, highlight, envelope: result.summary.envelope, marker: live });
+        : h(PreviewSvg, { segments, showRapids: state.showRapids, highlight, envelope: result.summary.envelope, marker: live, scene: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? [0, 0, 0], ...(scene === null ? {} : { zero: scene.zero }) });
   const readout = live === null ? undefined : h('p', { class: `pv-marker-readout lag-${live.lag}`, 'data-preview': 'marker-readout', role: 'status' }, markerText(live));
 
   const actions: PreviewViewActions = {
@@ -170,11 +180,12 @@ export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onRep
       onRapids: (showRapids) => { setState((s) => ({ ...s, showRapids })); },
       onScrub: (scrub) => { setState((s) => ({ ...s, scrub })); },
       onFit: () => { setFitRequest((n) => n + 1); },
+      onView: (preset) => { setView((v) => ({ preset, seq: v.seq + 1 })); },
   };
   const slots: PreviewSlots = {
     ...(drawing === undefined ? {} : { drawing }),
     ...(readout === undefined ? {} : { marker: readout }),
     ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine, sentThrough: job?.sentThrough ?? null, ...(onReportLine === undefined ? {} : { onReportLine }), ...(onBreakpoints === undefined ? {} : { onBreakpoints }) }) }),
   };
-  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live });
+  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene });
 }

@@ -15,7 +15,7 @@ import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
 import { CATALOGUE, machineDrawing, type MachineTemplate } from '../machineDrawings.ts';
 import type { SettingValue } from '@synthetos/schema';
-import { machineStore, selectedMachine, selectedMachineStore, type AxisProfile, type MachineProfile } from '../library.ts';
+import { bedIsPlaceholder, bedOf, machineStore, saveMachineBed, selectedMachine, selectedMachineStore, updateMachine, type AxisProfile, type MachineProfile } from '../library.ts';
 import { dialectOf, motorFor, plainValue, setDraft, settingMeta, settingsOf, stepsPerUnit, tinygV8 } from '../boardFacts.ts';
 import { editBlocked } from '../settings/SettingsUi.ts';
 import { writableKey } from '../settings/pending.ts';
@@ -42,7 +42,41 @@ function copyOf(t: MachineTemplate, n: number): MachineProfile {
     travel: t.travel,
     spindle: 'Trim router',
     createdAt: new Date().toISOString(),
+    revision: 1,
+    homeFrame: 'front-left-top',
   };
+}
+
+/**
+ * The machine's bed (FLOW_ANALYSIS §4 step 3): its revision, where its dimensions came from, and the fields.
+ * A change is saved as the next bed revision; jobs keep the revision they were planned on until asked.
+ */
+function BedSection({ machine }: { readonly machine: MachineProfile }): ComponentChild {
+  const bed = bedOf(machine);
+  const [note, setNote] = useState<string | null>(null);
+  const save = (patch: Partial<Pick<typeof bed, 'width' | 'depth' | 'thickness'>> & { readonly z?: number }): void => {
+    const { z, ...dims } = patch;
+    const saved = saveMachineBed(machine.id, { ...bed, ...dims, toMachine: z === undefined ? bed.toMachine : { ...bed.toMachine, z }, source: { kind: 'measured', note: 'Entered in Machines.', at: new Date().toISOString() } });
+    if (saved !== null) setNote(`Saved as bed revision ${saved.revision}. Jobs planned on an earlier revision keep it until they take this one.`);
+  };
+  const numField = (label: string, value: number, onChange: (n: number) => void, min: number, step = 1): ComponentChild =>
+    h('label', { class: 'field', key: label }, h('span', null, label), h('span', { class: 'unit-input' }, h('input', { type: 'number', min, step, value, 'aria-label': `${label}, bed`, onChange: (e: Event) => { const n = Number.parseFloat((e.currentTarget as HTMLInputElement).value); if (Number.isFinite(n) && n >= min) onChange(n); } }), h('i', null, 'mm')));
+  const placeholder = bedIsPlaceholder(bed);
+  return h(
+    'div',
+    { class: 'machine-bed', 'data-machine': 'bed', 'data-bed': placeholder ? 'placeholder' : bed.source.kind, 'data-bed-revision': String(bed.revision) },
+    h('div', { class: 'bed-head' }, h('h3', null, 'Bed'), h('span', { class: `tag${placeholder ? ' warn' : ' ok'}` }, placeholder ? 'Placeholder' : bed.source.kind === 'measured' ? 'Measured' : 'From a drawing'), h('span', { class: 'fine' }, bed.revision === 0 ? 'no revision saved yet' : `revision ${bed.revision}`)),
+    h('p', { class: 'fine' }, bed.source.kind === 'placeholder' ? bed.source.note : bed.source.kind === 'measured' ? `${bed.source.note} ${dateText(bed.source.at)}` : `From ${bed.source.file}, ${bed.source.units}${bed.source.scale === 1 ? '' : ` × ${bed.source.scale}`}, ${dateText(bed.source.at)}; ${bed.outline?.length ?? 0} outline points, ${bed.holes.length} holes.`),
+    h('div', { class: 'field-grid three' }, numField('Width', bed.width, (width) => save({ width }), 1), numField('Depth', bed.depth, (depth) => save({ depth }), 1), numField('Thickness', bed.thickness, (thickness) => save({ thickness }), 0.1, 0.5)),
+    h('div', { class: 'field-grid' }, numField('Bed top, machine Z', bed.toMachine.z, (z) => save({ z }), -100000, 0.1)),
+    h('p', { class: 'fine' }, 'Bed coordinates start at the front-left corner of the bed’s top; the Z above says where that corner sits in machine coordinates. A spoilboard drawing comes in from Projects → Use in Job → Bed drawing.'),
+    note === null ? null : h('p', { class: 'fine', role: 'status', 'data-machine': 'bed-note' }, note),
+  );
+}
+
+function dateText(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function MyMachine({ model, onView }: { readonly model: WorkspaceModel | null; readonly onView: (v: string) => void }): ComponentChild {
@@ -61,7 +95,7 @@ function MyMachine({ model, onView }: { readonly model: WorkspaceModel | null; r
     );
   }
   const update = (patch: Partial<MachineProfile>): void => {
-    machineStore.set(machineStore.value.value.map((m) => (m.id === mine.id ? { ...m, ...patch } : m)));
+    updateMachine(mine.id, patch);
   };
   const num = (v: string, fallback: number): number => {
     const n = Number.parseFloat(v);
@@ -85,10 +119,11 @@ function MyMachine({ model, onView }: { readonly model: WorkspaceModel | null; r
             ),
             h('label', { class: 'field' }, h('span', null, 'Spindle'), h('span', { class: 'unit-input' }, h('input', { value: mine.spindle, maxLength: 40, onChange: (e: Event) => update({ spindle: (e.currentTarget as HTMLInputElement).value.slice(0, 40) }) }))),
           )
-        : [h('h2', { key: 'n' }, mine.name), h('p', { key: 'p' }, `${CATALOGUE.find((t) => t.id === mine.templateId)?.name ?? 'Custom'} · ${mine.drive === 'any' ? 'any drive' : `${mine.drive} drive`} · ${mine.travel.x} × ${mine.travel.y} × ${mine.travel.z} mm travel · ${mine.spindle}`), isOn && view !== null ? h('p', { key: 'b', class: 'fine' }, `Connected: ${boardLabel(view)}`) : null],
+        : [h('h2', { key: 'n' }, mine.name), h('p', { key: 'p' }, `${CATALOGUE.find((t) => t.id === mine.templateId)?.name ?? 'Custom'} · ${mine.drive === 'any' ? 'any drive' : `${mine.drive} drive`} · ${mine.travel.x} × ${mine.travel.y} × ${mine.travel.z} mm travel · ${mine.spindle} · revision ${mine.revision ?? 1}`), isOn && view !== null ? h('p', { key: 'b', class: 'fine' }, `Connected: ${boardLabel(view)}`) : null],
     ),
     h('span', { class: `pill${isOn ? ' connected' : ''}` }, isOn ? 'Connected' : 'Not connected'),
     h('div', { class: 'card-actions' }, h('button', { type: 'button', class: 'small', onClick: () => setEditing(!editing) }, editing ? 'Done' : 'Edit'), h('button', { type: 'button', class: 'small', onClick: () => onView('board') }, 'Open board')),
+    h(BedSection, { machine: mine }),
   );
 }
 
@@ -168,7 +203,7 @@ function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): Com
   const settings = settingsOf(view);
   const dialect = dialectOf(view);
   const rows = mappingRows(mine, axis, settings, dialect);
-  const update = (patch: Partial<MachineProfile>): void => machineStore.set(machineStore.value.value.map((m) => (m.id === mine.id ? { ...m, ...patch } : m)));
+  const update = (patch: Partial<MachineProfile>): void => void updateMachine(mine.id, patch);
   const setField = (r: MappingRow, v: number | undefined): void => {
     if (r.field === null) return;
     if (r.field === 'travel') {
@@ -247,7 +282,7 @@ function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): Com
               'tr',
               { class: 'global', 'data-map': 'st' },
               h('th', { scope: 'row' }, 'Switch type (all inputs)'),
-              h('td', null, h('span', { class: 'select-wrap' }, h('select', { 'aria-label': 'Switch type, your profile', value: mine.switchType === undefined ? '' : String(mine.switchType), onChange: (e: Event) => { const v = (e.currentTarget as HTMLSelectElement).value; const { switchType: _drop, ...rest } = mine; machineStore.set(machineStore.value.value.map((m) => (m.id === mine.id ? (v === '' ? rest : { ...rest, switchType: Number(v) }) : m))); } }, h('option', { value: '' }, 'Not set'), h('option', { value: '0' }, 'normally open'), h('option', { value: '1' }, 'normally closed')))),
+              h('td', null, h('span', { class: 'select-wrap' }, h('select', { 'aria-label': 'Switch type, your profile', value: mine.switchType === undefined ? '' : String(mine.switchType), onChange: (e: Event) => { const v = (e.currentTarget as HTMLSelectElement).value; const { switchType: _drop, ...rest } = mine; machineStore.set(machineStore.value.value.map((m) => (m.id === mine.id ? { ...(v === '' ? rest : { ...rest, switchType: Number(v) }), revision: (m.revision ?? 1) + 1 } : m))); } }, h('option', { value: '' }, 'Not set'), h('option', { value: '0' }, 'normally open'), h('option', { value: '1' }, 'normally closed')))),
               h('td', null, h('code', { class: 'tinyg-key' }, 'st')),
               h('td', { class: st === undefined ? 'muted' : undefined }, plainValue('st', st, dialect) ?? 'Not read'),
               h('td', null, h('span', { class: `diff-badge diff-${stDiff}` }, DIFF_TEXT[stDiff])),
