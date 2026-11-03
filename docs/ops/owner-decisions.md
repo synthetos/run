@@ -331,3 +331,9 @@ software is not an emergency stop. "Stop job" no longer says "spindle off".
 - The dependency licence gate is unchanged: dependencies stay permissive-only.
 - No push happens until the history audit is clean.
 - Implemented (branch public-cleanup): LICENSE carries the full AGPL-3.0 text; every package `license` field is `AGPL-3.0-or-later`; NOTICE, README, the site footer and `packages/gcode-view/README.md` say so; the PHASE0 D3 row is marked superseded. No source file carries SPDX headers, so there were none to change.
+
+## OD-8. Board photos may be published; schematics and Gerbers may not (owner, 2026-11-03)
+
+**Decision.** Photographs and rendered images of Synthetos boards from the private hardware repositories may be used in run and on synthetos.com. Schematics, KiCad sources, layouts, netlists and Gerbers stay private: only derived facts (pin names, functions, connector positions, ratings) from them may be published, with a file:line citation, as before (OD-5, RUN_PLAN rule 6).
+
+**Consequences.** Machine and board pages may show real board photos (for example `synthetos-hardware/docs/images/TinyGv8h.jpg`), copied into the public repo with a SOURCE note naming the origin commit. The OD-5 illustration stays the interactive drawing; photos are reference images beside it.
