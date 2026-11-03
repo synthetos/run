@@ -94,12 +94,12 @@ renderGuarded(
 );
 // After hydration, so the bench marking of the version chip is not reconciled away; before the worker starts.
 const channel = startBuildChannel(document);
+startTheme();
+loadStoredLibraries();
 // Bench only: the owner rebuilds often, so an open tab learns when the server has a newer build (it never reloads itself).
 if (channel.kind === 'bench') {
   watchBuildFreshness(document.querySelector('[data-version]'), build, { fetchHtml: fetchIndexHtml, setInterval: (fn, ms) => window.setInterval(fn, ms), clearInterval: (h) => window.clearInterval(h as number) });
 }
-startTheme();
-loadStoredLibraries();
 worker = startMachineWorker(trustedTypes);
 
 // LIVE entry (P1-05): the D1 sign-in gate, the signed advisory, C1, W6. UI/auth layer only.
