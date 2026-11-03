@@ -252,7 +252,7 @@ describe('Dro panel', () => {
   });
 
   it('under G20 (unit 0) the G54 offsets are labelled in inches and the ofs total in millimetres', () => {
-    // g54x.. are F_CONVERT (printed in the current units); ofs is always mm (EN config_app.c:846-849).
+    // g54x.. are F_CONVERT (printed in the current units); ofs is always mm (EN config_app.c:852-855).
     const el = root(h(Dro, { message: message({ units: 'in', wcs: { code: 'G54', offsets: { x: 1 }, total: { x: 25.4 } } }), elapsedMs: 0 }));
     expect(text(one(el, (e) => e.props['data-dro'] === 'wcs'))).toBe('Work coordinate system: G54 (offsets X 1.000 in). Total offset including G92: X 25.400 mm.');
     const unread = root(h(Dro, { message: message({ units: null, wcs: { code: 'G54', offsets: { x: 1 }, total: null } }), elapsedMs: 0 }));

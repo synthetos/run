@@ -1,7 +1,7 @@
 """Writes gsim-expected.json: what EN-HIL's reference path simulator (gsim.py) says each corpus file does.
 
 Usage (gsim.py is never vendored; extract it read-only from the pinned TinyG commit):
-    git -C <TinyG> show 6ec70652:tests/hil/tinyg_hil/gsim.py > /tmp/gsim/gsim.py
+    git -C <TinyG> show 93a723b8:tests/hil/tinyg_hil/gsim.py > /tmp/gsim/gsim.py
     python3 -I gsim_expected.py /tmp/gsim > gsim-expected.json
 
 For every line of every file in corpus/: the machine position after it (mm, G54 offsets zero, start at 0),
@@ -23,7 +23,7 @@ def r(v):
     return round(v + 0.0, 6)
 
 
-out = {"gsim": {"commit": "6ec70652b7c62553eb7351c201af093d24b20978", "path": "tests/hil/tinyg_hil/gsim.py",
+out = {"gsim": {"commit": "93a723b813d3eb2cf6cf2b90e919a2affef557d1", "path": "tests/hil/tinyg_hil/gsim.py",
                 "blob": "3a9710bc504f3e09f9669c033a606c78bae7be41"}, "files": {}}
 for name in sorted(os.listdir(CORPUS)):
     text = open(os.path.join(CORPUS, name), encoding="latin-1").read()

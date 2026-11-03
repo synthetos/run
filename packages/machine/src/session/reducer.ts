@@ -779,6 +779,13 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
       // Proof of life (recorded above). Its stat and hold are what the board reported: kept for display.
       mergeLive(t, Object.fromEntries(Object.entries(event.hb).filter(([k]) => k === 'stat' || k === 'hold')));
       return;
+    case 'FeedLimitSummary':
+    case 'FeedLimitEvent':
+      // Edge-next feed-limit push lines (fs, fl): proof of life only (recorded above). They answer nothing, are
+      // never an acknowledgement and never a report of motion, so they touch no owed answer, no ENQ and no
+      // ORPHANED_MOTION check, in any state. run never turns the push on, but another host may have (RAM, kept
+      // until a reset). Nothing reads their values yet; an fs with "x":1 would be shown as a lower bound only.
+      return;
     case 'QueueReport':
       t.set({ live: { ...t.s.live, qr: event.qr } });
       return;

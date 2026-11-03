@@ -24,7 +24,7 @@ const REPO = resolve(import.meta.dirname, '../../..');
 const PRODUCTION = 'https://run.synthetos.com';
 const STAGING = 'https://staging.run.synthetos.com';
 const NOW = new Date('2026-11-01T12:00:00Z');
-const EN_COMMIT = '6ec70652b7c62553eb7351c201af093d24b20978';
+const EN_COMMIT = '93a723b813d3eb2cf6cf2b90e919a2affef557d1';
 /** The bench entry the committed signed file names until the owner re-signs after the 2026-11-02 re-pin (tools/gates/test/approved-builds.test.ts holds the difference to this). */
 const SIGNED_BEFORE_RESIGN = 'ead639978c77601b150be7ef12774f47eed4c824';
 

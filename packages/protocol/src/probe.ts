@@ -18,7 +18,7 @@
  * `G0 X1{sr:null}` reaches the G-code parser (wrapped or not) and fails as
  * `G0X1SRNULL`. The same holds for a partial JSON line (`{"gc":"G0 X1`),
  * whose string is then never closed. TinyG's tokenizer accepts bare keys
- * (@cite EN json_parser.c:343-356), so on a clean ring it is an ordinary GET.
+ * (@cite EN json_parser.c:348-361), so on a clean ring it is an ordinary GET.
  *
  * Timing, the one-line-in-flight rule, the single `{"sr":null}` retry and the
  * ORPHANED_MOTION path on silence belong to the machine (P1). This module only
@@ -266,7 +266,7 @@ function tokenAnswer(r: Response, key: CapabilityToken, conflicts: string[]): To
   return 'other';
 }
 
-/** A uint8 setting whose setter refuses anything above 1 (@cite EN config.c:455-460 `set_01`). */
+/** A uint8 setting whose setter refuses anything above 1 (@cite EN config.c:456-461 `set_01`). */
 const isZeroOrOne = (v: JsonValue): boolean => Object.is(v, 0) || v === 1;
 
 /**

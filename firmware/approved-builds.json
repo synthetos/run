@@ -4,8 +4,8 @@
     {
       "channel": "bench",
       "kid": "owner-bench-2026-11-02",
-      "payload": "{\"format\":\"synthetos-run/approved-builds-channel@1\",\"channel\":\"bench\",\"env\":\"staging\",\"issued\":\"2026-11-01T00:00:00Z\",\"expires\":\"2027-05-01T00:00:00Z\",\"builds\":[{\"dialect\":\"tinyg-en\",\"fb\":450.01,\"fbs\":null,\"commit\":\"6ec70652b7c62553eb7351c201af093d24b20978\",\"note\":\"TinyG edge-next 450.01 (D4 done) for bench use on staging only. It reports no fbs, so every 450.01 build matches; no image has passed D5. Signed with the owner's staging-only bench key, not the release key.\"}]}",
-      "sig": "WTHcN3Cvwu6TIPI5mHOkOVgwWQ017bYDmjJWaSqGx24MVqRmJ9MdZPgec26zmYlbFGnQaS2h6YCPiN4JrcfCDQ=="
+      "payload": "{\"format\":\"synthetos-run/approved-builds-channel@1\",\"channel\":\"bench\",\"env\":\"staging\",\"issued\":\"2026-11-01T00:00:00Z\",\"expires\":\"2027-05-01T00:00:00Z\",\"builds\":[{\"dialect\":\"tinyg-en\",\"fb\":450.01,\"fbs\":null,\"commit\":\"93a723b813d3eb2cf6cf2b90e919a2affef557d1\",\"note\":\"TinyG edge-next 450.01 (D4 done) for bench use on staging only. It reports no fbs, so every 450.01 build matches; no image has passed D5. Signed with the owner's staging-only bench key, not the release key.\"}]}",
+      "sig": "NjtI4ZAZs28QzAhD/oy4/uc1pzGnIRAXy2santRNuNcl3P3G3I72ZSjLvN8mOCcZoHy8OUrDCMsU7RBjUUnKBQ=="
     },
     {
       "channel": "release",

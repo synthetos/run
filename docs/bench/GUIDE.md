@@ -65,10 +65,13 @@ That board ran edge-next `d254eb0b` (fb still 450.01); the app then pinned
 E191, E193); footers, `sr` keys and GETs are unchanged. **Re-pinned
 2026-11-02:** the app pinned edge-next `97321391`, which is `d254eb0b`
 plus the E195 fix (a partial line that has been quiet for about 1 s is
-dropped when a `{` arrives; section 5.2), and now pins `6ec70652`, which
-adds the read-only spindle and coolant readouts (`spe`, `spc`, `spd`, `sps`,
-`cof`, `com`) and the `rt` heartbeat family (phase A). Flash `6ec70652` for
-the bench checks.
+dropped when a `{` arrives; section 5.2), then `6ec70652`, which adds
+the read-only spindle and coolant readouts (`spe`, `spc`, `spd`, `sps`,
+`cof`, `com`) and the `rt` heartbeat family (phase A), and now pins
+`93a723b8`, which adds the feed-limit report (`rt` `flk`, `flm`, `flp`,
+`flf`), the feed-limit push (`rt` `fi`, pushed `fs` and `fl` lines, `rt`
+`fs`) and the planner fixes E196 and E197. run does not turn the push on.
+Flash `93a723b8` for the bench checks.
 
 ## 1. Before you power anything: the hardwired E-stop
 
@@ -101,7 +104,7 @@ Bench rig for the Phase 1 checks (ROADMAP Phase 1 gate, D10):
 - a Saleae (or similar) on the board's RX line and the step lines, to see
   exactly what bytes arrive and that no step pulses happen;
 - a switched USB hub or power switch, for the pull-USB and power-up checks;
-- edge-next on the bench board (fb 450.01, commit `6ec70652`), plus a stock
+- edge-next on the bench board (fb 450.01, commit `93a723b8`), plus a stock
   440.21 board (and stock 449.01 if you have one) for the read-only checks;
 - the EN-HIL harness from your own edge-next checkout (`tests/hil`), for the
   items that need a second program on the board.
@@ -256,12 +259,12 @@ line. It then probes the board and classifies it. Expect:
 
 | Board | Classification | Mode |
 |---|---|---|
-| edge-next fb 450.01 (`6ec70652`) | `tinyg-en` | **Full**, reason `en-approved`: the machine worker verifies the bundled, owner-signed bench channel of `firmware/approved-builds.json` for its own origin (loopback over plain HTTP and staging are `staging`; P1-03, added 2026-11-02). Before that it was READ_ONLY `en-not-approved` (seen on the bench 2026-11-02). Any other fb, a reported `fbs`, an expired or tampered manifest, or the production origin stays READ_ONLY. |
+| edge-next fb 450.01 (`93a723b8`) | `tinyg-en` | **Full**, reason `en-approved`: the machine worker verifies the bundled, owner-signed bench channel of `firmware/approved-builds.json` for its own origin (loopback over plain HTTP and staging are `staging`; P1-03, added 2026-11-02). Before that it was READ_ONLY `en-not-approved` (seen on the bench 2026-11-02). Any other fb, a reported `fbs`, an expired or tampered manifest, or the production origin stays READ_ONLY. |
 | stock 440.21 | `tinyg-440` | READ_ONLY, with W25 and the upgrade offer |
 | stock 449.01 | `tinyg-449-stock` | READ_ONLY |
 | EN with `$ex=2` | `tinyg-en` | READ_ONLY, reason flow control |
 | board moving, held, with a short queue, or silent for 3 s | **ORPHANED_MOTION** (W32) | only Pause offered |
-| a partial line left in the board's buffer by another program (the reply to `{sr:null}` has no `sr`) | **ORPHANED_MOTION** (W32) | only Pause offered. A fragment ending in a comment may already have RUN (measured 2026-11-02 with a 0.5 s gap); check the machine, unplug, power-cycle the board. On edge-next since `97321391` (the pin is `6ec70652`), a fragment that has been quiet for more than about 1 s is dropped when `{sr:null}` arrives (E195), so the reply carries `sr` and the probe goes on; 440.21 and shorter gaps still end here |
+| a partial line left in the board's buffer by another program (the reply to `{sr:null}` has no `sr`) | **ORPHANED_MOTION** (W32) | only Pause offered. A fragment ending in a comment may already have RUN (measured 2026-11-02 with a 0.5 s gap); check the machine, unplug, power-cycle the board. On edge-next since `97321391` (the pin is `93a723b8`), a fragment that has been quiet for more than about 1 s is dropped when `{sr:null}` arrives (E195), so the reply carries `sr` and the probe goes on; 440.21 and shorter gaps still end here |
 
 The board id, firmware build and the other identity strings show as plain
 text. Control and bidi characters are replaced (T-S85). While the board is

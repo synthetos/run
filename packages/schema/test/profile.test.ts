@@ -194,7 +194,7 @@ describe('MachineProfile v2 schema', () => {
     ]);
     expect(issue(['firmware.dialectId', 'g2core-edge'])).toEqual([
       '/firmware/dialectId: firmware dialect g2core-edge does not belong to the bound tinyg board',
-      '/settings/schemaKey: the settings draft was made for tinyg-en@6ec70652, not for g2core-edge',
+      '/settings/schemaKey: the settings draft was made for tinyg-en@93a723b8, not for g2core-edge',
     ]);
     // g2core: six motors and the pause policy are legitimate; TinyG limits are not built into the shape.
     expect(

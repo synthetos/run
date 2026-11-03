@@ -128,7 +128,7 @@ preview, analyser and preflight interpret exactly those lines.
 - The modelled duration of a feed move is length / (`min(F, fr) × k`), with
   `fr` the smallest feed rate maximum among the moving axes; a rapid uses
   `vm × k`. TinyG limits feed moves by `fr`, never `vm` (EN
-  plan_line.c:377-381). A smaller `v_eff` only means more, shorter segments.
+  plan_line.c:396-400). A smaller `v_eff` only means more, shorter segments.
 - Sub-segments are sized against 99.9% of the ceiling, so re-sanitising the
   output never splits again (T-S1 idempotence), and each sub-segment's
   duration is recomputed from the rounded numbers actually written.

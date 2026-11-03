@@ -100,7 +100,7 @@ export const AXIS_MODE_RADIUS: AxisMode = 3;
  * inhibited axis). Its position follows the program, but the kinematics
  * force its joint to 0 on every segment of every move (@cite EN
  * kinematics.c:59; TG kinematics.c:63) and each segment moves the motor by
- * the difference of absolute step targets (@cite EN plan_exec.c:707-716; TG
+ * the difference of absolute step targets (@cite EN plan_exec.c:712-721; TG
  * plan_exec.c:718-727). So a motor left away from step 0 when the axis was
  * inhibited is driven back to step 0 by the next move of ANY axis. The
  * sanitiser blocks motion while any axis that is (or may be) inhibited reads
@@ -117,7 +117,7 @@ export interface RotaryAxisConfig {
  * move's modelled duration is its length over `v_eff = min(F, fr) × k`, a
  * rapid's over `vm × k`. TinyG limits feed moves by each axis's feed rate
  * maximum (`fr`), and only rapids by its velocity maximum (`vm`)
- * (@cite EN plan_line.c:377-381 `_calc_move_times`; TG the same).
+ * (@cite EN plan_line.c:396-400 `_calc_move_times`; TG the same).
  */
 export interface MotionModel {
   /** The queued-motion ceiling in seconds (SAFETY §4.3: default 5, range 2–20). */

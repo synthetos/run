@@ -6,7 +6,7 @@
  * Firmware facts these tests rest on (read-only, pinned source):
  * - A rotary target is held in degrees. In radius mode (am=3) the program
  *   word is linear units, turned into degrees as
- *   `_to_millimeters(w) * 360 / (2π ra)` (@cite EN 6ec70652
+ *   `_to_millimeters(w) * 360 / (2π ra)` (@cite EN 93a723b8
  *   canonical_machine.c:495-500 `_calc_ABC`; TG d041839 canonical_machine.c:430-440).
  *   So one degree of travel on a radius-mode axis is `π ra / 180` mm of
  *   surface travel at the configured radius.

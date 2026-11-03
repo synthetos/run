@@ -163,7 +163,7 @@ export class JobModel {
    * Axes that are inhibited, or of unknown mode, and do not read exactly 0 at
    * the start (finding: inhibited axis). Their motor may be away from step 0,
    * and the first segment of the next move of ANY axis drives it there
-   * (@cite EN kinematics.c:59, plan_exec.c:707-716; TG kinematics.c:63,
+   * (@cite EN kinematics.c:59, plan_exec.c:712-721; TG kinematics.c:63,
    * plan_exec.c:718-727): every motion line is blocked.
    */
   readonly #jointRisk: readonly Axis[];
@@ -240,7 +240,7 @@ export class JobModel {
     this.flood = s.flood ?? false;
     // Reported values: `mpo` is always mm (@cite EN canonical_machine.c:363-371); offsets and stored
     // positions are printed in the units in force where the board converts them (F_CONVERT, @cite EN
-    // config_app.c:838-851 `prep_float`), so an inch board's three decimals are 0.0127 mm apart, and
+    // config_app.c:844-857 `prep_float`), so an inch board's three decimals are 0.0127 mm apart, and
     // unknown units are taken as inches.
     const offsetUnit = (axis: Axis): number =>
       (ROTARY.has(axis) && !job.rotaryOffsetsUseUnits) || s.units === 'G21' ? 1 : INCH_MM;

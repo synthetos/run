@@ -57,7 +57,7 @@ or its repository:
   tables, with their message text) and `vendor/tinyg-board-facts/` (board
   facts: hardware platforms, versions, port bindings) are generated from
   synthetos/TinyG at the commits pinned in `vendor/firmware-pins.json`
-  (edge-next `6ec70652`, master `d0418390` for 440.21, edge-0.97 `c5024186`
+  (edge-next `93a723b8`, master `d0418390` for 440.21, edge-0.97 `c5024186`
   for 449.01). `vendor/tinyg-hil-tables/SOURCES.json` records each file's
   source commit, how it was produced and its SHA-256. Code generated from
   these tables (the dialect status and settings tables in

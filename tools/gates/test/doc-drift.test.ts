@@ -3,8 +3,8 @@
  *
  * DECISIONS D4 is done: edge-next reports `fb` 450.01 (EN tinyg.h:52), at
  * ead63997 when D4 was decided, at 97321391 after the first 2026-11-02
- * re-pin and still at 6ec70652, the commit pinned in `vendor/firmware-pins.json`
- * since the second 2026-11-02 re-pin. Nothing in this
+ * re-pin, at 6ec70652 after the second, and still at 93a723b8, the commit
+ * pinned in `vendor/firmware-pins.json` since the third 2026-11-02 re-pin. Nothing in this
  * repository may still say the build number is "not final" or that D4 is
  * pending. The `fbs`/`cap` tokens D4 recommended, D5 image approval and the
  * D6 published release stay open and stay distinct from the build number.
@@ -73,12 +73,12 @@ describe('D4 is done: no stale build-number claim', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('the EN pin is 450.01 at 6ec70652 and its note records D4 as done, with fbs/cap and D5 still open', () => {
+  it('the EN pin is 450.01 at 93a723b8 and its note records D4 as done, with fbs/cap and D5 still open', () => {
     const pins = JSON.parse(read('vendor/firmware-pins.json')) as {
       pins: Record<string, { commit: string; fb: number; note: string }>;
     };
     const en = pins.pins['EN'];
-    expect(en?.commit).toBe('6ec70652b7c62553eb7351c201af093d24b20978');
+    expect(en?.commit).toBe('93a723b813d3eb2cf6cf2b90e919a2affef557d1');
     expect(en?.fb).toBe(450.01);
     const note = en?.note ?? '';
     expect(note).toMatch(/D4 (is )?done/);

@@ -30,7 +30,7 @@ export function v2Router(): MachineProfileV2 {
       jogCaps: { maxStepMm: 10, maxFeedMmPerMin: 1000 },
       holdTimeoutS: 60,
     },
-    settings: { draft: { xvm: 16000, '1ma': 0, '1tr': 5 }, schemaKey: 'tinyg-en@6ec70652', deviceHash: HASH_A },
+    settings: { draft: { xvm: 16000, '1ma': 0, '1tr': 5 }, schemaKey: 'tinyg-en@93a723b8', deviceHash: HASH_A },
     wiringRef: { id: 'wiring-1', sha256: 'd'.repeat(64) },
     createdWith: { tool: 'run', version: '0.2.0', sha: '35ca895' },
   };

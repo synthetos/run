@@ -97,7 +97,7 @@ export function Dro({ message, elapsedMs }: DroProps): ComponentChild {
       { class: 'dro-wcs', 'data-dro': 'wcs' },
       'Work coordinate system: ',
       dro.wcs.code ?? 'not read',
-      // G54..G59 print in the board's current units (F_CONVERT); ofs is always millimetres (EN config_app.c:846-849).
+      // G54..G59 print in the board's current units (F_CONVERT); ofs is always millimetres (EN config_app.c:852-855).
       dro.wcs.offsets === null ? null : ` (offsets ${offsetText(dro.wcs.offsets, dro.units === null ? ', units not read' : ` ${dro.units}`)})`,
       dro.wcs.total === null ? null : `. Total offset including G92: ${offsetText(dro.wcs.total, ' mm')}.`,
     ),

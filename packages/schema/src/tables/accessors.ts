@@ -9,14 +9,14 @@
  * a vendored table, and the allowlist tests hold the allowlists to them:
  * - an allowlisted token's getter must be `value`, `stub` or `group` (and a
  *   group only when every member is allowlisted too, because a group GET runs
- *   every member's getter: EN config.c:543-571);
+ *   every member's getter: EN config.c:544-572);
  * - an overlay key's setter must be `value`.
  *
  * A function that is not in these maps fails the tests, so a firmware bump
  * that adds one cannot pass CI until somebody has read it and classified it.
  * Changing a class needs the owner's review (CODEOWNERS).
  *
- * Citations are to EN (`edge-next` @ 6ec70652) unless tagged TG (master @
+ * Citations are to EN (`edge-next` @ 93a723b8) unless tagged TG (master @
  * d0418390) or S449 (edge-0.97 @ c5024186).
  */
 
@@ -27,9 +27,9 @@ export type GetterClass =
   | 'stub'
   /** Returns nothing (null) or a constant; not a reading of anything. */
   | 'constant'
-  /** A group: runs every member's getter (config.c:534-562). */
+  /** A group: runs every member's getter (config.c:544-572). */
   | 'group'
-  /** An uber-group: prints several groups as several responses to one request (config_app.c:847-893). */
+  /** An uber-group: prints several groups as several responses to one request (config_app.c:895-923). */
   | 'uberGroup'
   /** Prints help or a debug dump as text. */
   | 'text'
@@ -38,7 +38,7 @@ export type GetterClass =
   /**
    * Runtime session state (the rt family): answers only inside a pure
    * `{"rt":...}` envelope and STAT_UNRECOGNIZED_NAME anywhere else
-   * (runtime.c:94-104). Changes nothing, but it is not a settings read.
+   * (runtime.c:95-105). Changes nothing, but it is not a settings read.
    */
   | 'session';
 
@@ -78,9 +78,9 @@ export const GETTER_CLASS: Readonly<Record<string, GetterClass>> = Object.freeze
   hw_get_id: 'value',
   /** Stack watermark (stack_report.c:47-60): updates only its own watermark. */
   hw_get_fstk: 'value',
-  /** Motor enabled flag (stepper.c:1384-1393). */
+  /** Motor enabled flag (stepper.c:1437-1446). */
   st_get_pwr: 'value',
-  /** RX bytes or line buffers free (config_app.c:969-985). */
+  /** RX bytes or line buffers free (config_app.c:999-1015). */
   get_rx: 'value',
   /** Planner buffers free (report.c:786-791). */
   qr_get: 'value',
@@ -132,7 +132,7 @@ export const GETTER_CLASS: Readonly<Record<string, GetterClass>> = Object.freeze
   /** GET clears an alarm (config_app.c:491-492; TG cm_clear, canonical_machine.c:590-598). */
   cm_clr: 'sideEffect',
   cm_clear: 'sideEffect',
-  /** GET of `me` energizes, of `md` de-energizes every motor (stepper.c:1413-1436): Z can fall. */
+  /** GET of `me` energizes, of `md` de-energizes every motor (stepper.c:1466-1489): Z can fall. */
   st_set_me: 'sideEffect',
   st_set_md: 'sideEffect',
   /** GET fakes an exception report (report.c:162-165). */
@@ -143,10 +143,20 @@ export const GETTER_CLASS: Readonly<Record<string, GetterClass>> = Object.freeze
   qi_get: 'sideEffect',
   qo_get: 'sideEffect',
 
-  /** rt heartbeat interval, quiescence token and uptime (runtime.c:98-104, :119-138, :178-184). */
+  /** rt heartbeat interval, quiescence token and uptime (runtime.c:99-105, :120-139, :179-185). */
   rt_get_hb: 'session',
   rt_get_qt: 'session',
   rt_get_up: 'session',
+  /**
+   * rt feed-limit report of the running move (runtime.c:214-293), the push interval (runtime.c:491-497) and the
+   * summary request, whose GET pushes an fs line after its reply (runtime.c:547-563).
+   */
+  rt_get_flk: 'session',
+  rt_get_flm: 'session',
+  rt_get_flp: 'session',
+  rt_get_flf: 'session',
+  rt_get_fi: 'session',
+  rt_get_fs: 'session',
 });
 
 export type SetterClass =
@@ -167,7 +177,7 @@ export type SetterClass =
   /**
    * Runtime session state (rt heartbeat interval, quiescence token): RAM
    * only, off at every reset, accepted only inside a pure `{"rt":...}`
-   * envelope (runtime.c:94-117, :152-176, :186-211). Never a setting; run
+   * envelope (runtime.c:95-118, :153-177, :187-212). Never a setting; run
    * does not send it.
    */
   | 'session';
@@ -243,6 +253,8 @@ export const SETTER_CLASS: Readonly<Record<string, SetterClass>> = Object.freeze
 
   rt_set_hb: 'session',
   rt_set_qt: 'session',
+  /** Feed-limit push interval: 0 off, 1..60 s (clamped), off to on only at quiescence (runtime.c:499-545). */
+  rt_set_fi: 'session',
   rt_set_grp: 'session',
 });
 

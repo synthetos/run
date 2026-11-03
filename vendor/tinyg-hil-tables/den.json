@@ -1,8 +1,8 @@
 {
- "commit": "6ec70652",
+ "commit": "93a723b8",
  "fb": 450.01,
  "name": "den",
- "ref": "6ec70652b7c62553eb7351c201af093d24b20978",
+ "ref": "93a723b813d3eb2cf6cf2b90e919a2affef557d1",
  "status": {
   "ALARM": 18,
   "ALARMED": 27,
@@ -2724,6 +2724,54 @@
    "precision": 0,
    "set": "rt_set_grp",
    "type": "null"
+  },
+  "rtfi": {
+   "get": "rt_get_fi",
+   "group": "rt",
+   "persist": false,
+   "precision": 0,
+   "set": "rt_set_fi",
+   "type": "integer"
+  },
+  "rtflf": {
+   "get": "rt_get_flf",
+   "group": "rt",
+   "persist": false,
+   "precision": 0,
+   "set": "set_nul",
+   "type": "float"
+  },
+  "rtflk": {
+   "get": "rt_get_flk",
+   "group": "rt",
+   "persist": false,
+   "precision": 0,
+   "set": "set_nul",
+   "type": "integer"
+  },
+  "rtflm": {
+   "get": "rt_get_flm",
+   "group": "rt",
+   "persist": false,
+   "precision": 0,
+   "set": "set_nul",
+   "type": "integer"
+  },
+  "rtflp": {
+   "get": "rt_get_flp",
+   "group": "rt",
+   "persist": false,
+   "precision": 0,
+   "set": "set_nul",
+   "type": "integer"
+  },
+  "rtfs": {
+   "get": "rt_get_fs",
+   "group": "rt",
+   "persist": false,
+   "precision": 0,
+   "set": "set_nul",
+   "type": "integer"
   },
   "rthb": {
    "get": "rt_get_hb",

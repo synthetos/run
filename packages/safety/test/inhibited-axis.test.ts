@@ -2,9 +2,9 @@
  * Finding: inhibited axis (rotary verifier, round 2). An inhibited axis
  * (am=2) is "computed but not activated": its position follows the program,
  * but the kinematics force its joint to 0 on every segment of every move
- * (@cite EN 6ec70652 kinematics.c:59; TG d041839 kinematics.c:63), and each
+ * (@cite EN 93a723b8 kinematics.c:59; TG d041839 kinematics.c:63), and each
  * segment moves the motor by the difference of ABSOLUTE step targets
- * (@cite EN plan_exec.c:707-716; TG plan_exec.c:718-727). So an axis switched
+ * (@cite EN plan_exec.c:712-721; TG plan_exec.c:718-727). So an axis switched
  * to inhibited while its motor sits away from step 0 is driven back to step
  * 0 by the next move of ANY axis, while the overrun bound of that move
  * reported only the axes it names.

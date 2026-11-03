@@ -15,7 +15,7 @@ the result of running that test. A requirement without a passing test is a
 | `SAFETY.md` (in-repo copy) | synthetos.com `docs/run/SAFETY.md` at `f2760cd2` (D1 wording) plus the "Amended in P0 review" text; see `docs/safety/README.md` |
 | ROADMAP Phase 0, RUN_PLAN, PROTOCOL_NOTES, DECISIONS | synthetos.com `docs/run/` at `53ff9998` |
 | OLD-S (cited by SAFETY.md §8 and §10) | `docs/safety/OLD-S.md` |
-| Edge-next firmware (EN) | `ead639978c77601b150be7ef12774f47eed4c824` (fb 450.01), `vendor/firmware-pins.json`. The local `edge-next` tip has since moved to `222a45c0`; nothing was re-pinned in this audit. (Note 2026-11-02: re-pinned after this audit to `97321391`, the E195 merge, and then to `6ec70652`, the spindle and coolant readouts and rt heartbeat merge; fb still 450.01.) |
+| Edge-next firmware (EN) | `ead639978c77601b150be7ef12774f47eed4c824` (fb 450.01), `vendor/firmware-pins.json`. The local `edge-next` tip has since moved to `222a45c0`; nothing was re-pinned in this audit. (Note 2026-11-02: re-pinned after this audit to `97321391`, the E195 merge, then to `6ec70652`, the spindle and coolant readouts and rt heartbeat merge, and then to `93a723b8`, the feed-limit report and push merge with E196 and E197; fb still 450.01.) |
 | Stock 440.21 (TG) | `d04183905470714254c24d299f6aad75f6bcbb7a` |
 | Repository state audited | `eeaadb0` plus the audit commit that adds this file |
 

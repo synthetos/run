@@ -3,13 +3,13 @@
  * P0-11, RUN_PLAN §8.1), the primary target.
  *
  * Every behaviour a safety claim depends on is tagged `@behaviour <id>` here
- * and listed, with its `@cite` (file:line at edge-next 6ec70652,
+ * and listed, with its `@cite` (file:line at edge-next 93a723b8,
  * `vendor/firmware-pins.json`) and `@status`, in `behaviours.ts`, from which
  * STATUS.md is generated. Citations are `firmware/tinyg/<file>:<line>`.
  *
  * Structure follows the firmware so a reviewer can read the two side by side:
  * - `receive()` is the USB RX ISR (xio/xio_usb.c:193-276);
- * - `#pass()` is one pass of `_controller_HSM()` (controller.c:157-203);
+ * - `#pass()` is one pass of `_controller_HSM()` (controller.c:157-204);
  * - `#readline()` is `_readline_linemode()` / `_readline_charmode()` (xio.c);
  * - `#gets()` is `_gets_helper()` (xio/xio_usart.c:263-372);
  * - `#alarm()`, `#requestFeedhold()`, `#clear()` ... mirror canonical_machine.c.
@@ -280,10 +280,10 @@ export class TinyGEdgeNextModel implements SimDevice {
   #srList: string[] = [...SR_DEFAULTS];
   /** Writes of the status report list (`{"sr":{...}}`) that changed it. */
   srListWrites = 0;
-  /** rt heartbeat interval, whole seconds 1..60 (RAM only, 0 = off; @cite EN runtime.h:15, :26). */
+  /** rt heartbeat interval, whole seconds 1..60 (RAM only, 0 = off; @cite EN runtime.h:15, :28). */
   #hbS = 0;
   #hbTimer: number | undefined;
-  /** When the board last went quiet for the heartbeat, or last beat (`rt.hb_quiet_since`, @cite EN runtime.h:27). */
+  /** When the board last went quiet for the heartbeat, or last beat (`rt.hb_quiet_since`, @cite EN runtime.h:29). */
   #hbQuietSince = 0;
   #bootAt = 0;
   /** A G28.2 homing cycle is queued or running (stat 9). */
@@ -316,7 +316,7 @@ export class TinyGEdgeNextModel implements SimDevice {
    */
   receive(byte: number, overrun: boolean): void {
     if (!this.#booted) return; // the UART is not initialised yet (model limit: bytes during boot are lost)
-    // Any byte in, realtime characters too, restarts the heartbeat interval (@cite EN xio/xio_usb.c:197; runtime.c:56-59).
+    // Any byte in, realtime characters too, restarts the heartbeat interval (@cite EN xio/xio_usb.c:197; runtime.c:57-60).
     this.#hbQuietSince = this.#now();
     if (this.#eepromBusy()) {
       // @behaviour EN-EEPROM-STALL (model): a persisted write stalls the board; bytes sent meanwhile are lost.
@@ -397,7 +397,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   injectLimitSwitch(input: number): void {
-    // controller_assert_limit_condition() (@cite EN controller.c:486-489)
+    // controller_assert_limit_condition() (@cite EN controller.c:487-490)
     this.#limitAsserted = input;
     this.#wake();
   }
@@ -480,7 +480,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#bootAt = this.#now();
     this.#resetRam();
     // EEPROM: a record-0 layout marker other than layout 2 means "not set up": write the defaults
-    // (@behaviour EN-EEPROM; @cite EN config.c:213-220, :263-281).
+    // (@behaviour EN-EEPROM; @cite EN config.c:214-221, :264-282).
     const fresh = this.settings.eeprom['__layout'] !== 10002;
     if (fresh) {
       this.settings.resetToDefaults();
@@ -501,7 +501,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     const delay = (this.#options.bootMs ?? DEFAULT_BOOT_MS) + this.#bannerDelayMs;
     this.#bootTimer = clock.setTimeout(() => {
       this.#bootTimer = undefined;
-      // @behaviour EN-BANNER: bare `sr` banners, always strict (@cite EN report.c:68-100; config.c:232, :280; controller.c:211-215)
+      // @behaviour EN-BANNER: bare `sr` banners, always strict (@cite EN report.c:68-100; config.c:233, :281; controller.c:212-216)
       this.#banner(fresh ? 'Initializing configs to default settings' : 'Loading configs from EEPROM');
       this.#machine = 'ready';
       this.#banner('SYSTEM READY');
@@ -631,7 +631,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
-   * One pass of `_controller_HSM()` (@cite EN controller.c:157-203). A
+   * One pass of `_controller_HSM()` (@cite EN controller.c:157-204). A
    * routine returning EAGAIN ends the pass, so lower routines wait. Returns
    * true if anything happened.
    */
@@ -649,7 +649,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#feedholdSequencing(now);
     this.#motion.advance(now);
     if (!this.#syncToMotion()) return this.#progress !== before;
-    // @behaviour EN-PLANNER: a line is read only with 12 free buffers (@cite EN controller.c:618-624)
+    // @behaviour EN-PLANNER: a line is read only with 12 free buffers (@cite EN controller.c:619-625)
     if (this.#motion.available() < PLANNER_HEADROOM) return this.#progress !== before;
     this.#dispatchCommand();
     return this.#progress !== before;
@@ -664,12 +664,12 @@ export class TinyGEdgeNextModel implements SimDevice {
   #enquiryHandler(): void {
     if (!this.#enquiryRequested) return;
     this.#enquiryRequested = false;
-    // @behaviour EN-RT-ENQ: answered from the main loop (@cite EN controller.c:540-546)
+    // @behaviour EN-RT-ENQ: answered from the main loop (@cite EN controller.c:541-547)
     this.#println('{"ack":true}');
   }
 
   #limitSwitchHandler(): void {
-    // @behaviour EN-LIMIT (@cite EN controller.c:491-512)
+    // @behaviour EN-LIMIT (@cite EN controller.c:492-513)
     if (this.#machine === 'alarm' || this.#machine === 'panic' || this.#machine === 'shutdown') return;
     if (this.#limitAsserted === 0) return;
     const input = this.#limitAsserted;
@@ -680,7 +680,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   #startupCallback(now: number): void {
-    // @behaviour EN-STARTUP-DELAY (@cite EN planner.c:470-485)
+    // @behaviour EN-STARTUP-DELAY (@cite EN planner.c:471-486)
     if (this.#startupPending && this.#isAlarmed() === 0 && this.#hold === HOLD.OFF && now - this.#startupStarted >= PLANNER_STARTUP_MS) {
       this.#startupPending = false;
       this.#motion.advance(now);
@@ -702,20 +702,20 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (read === null) return;
     this.#progress++;
     if (read === 'damaged') {
-      // @behaviour EN-E162: a line that lost bytes never runs; the first raises ALARM 13 (@cite EN controller.c:260-270)
+      // @behaviour EN-E162: a line that lost bytes never runs; the first raises ALARM 13 (@cite EN controller.c:261-271)
       this.#alarm(ST('BUFFER_FULL'), 'input lost');
       this.#respond(ST('BUFFER_FULL'), {}, undefined);
       return;
     }
     if (read.overflow) {
-      // @behaviour EN-OVERLONG: one error, never run, no alarm (@cite EN controller.c:243-252)
+      // @behaviour EN-OVERLONG: one error, never run, no alarm (@cite EN controller.c:244-253)
       this.#respond(ST('INPUT_EXCEEDS_MAX_LENGTH'), {}, undefined);
       return;
     }
     this.#dispatchKernel(read.line);
   }
 
-  /** `_dispatch_kernel()` (@cite EN controller.c:357-420). */
+  /** `_dispatch_kernel()` (@cite EN controller.c:358-421). */
   #dispatchKernel(raw: string): void {
     let line = raw.replace(/^[ \t"]+/, '');
     // @behaviour EN-TEXT-MODE: a stray leading `?` is stripped and the rest runs (E053, :367-371)
@@ -741,7 +741,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       this.#textPrompt();
     } else {
       const status = this.#gcodeParser(line);
-      // controller_defer_motion_response(): an accepted M400 answers when drained (@cite EN controller.c:574-583)
+      // controller_defer_motion_response(): an accepted M400 answers when drained (@cite EN controller.c:575-584)
       if (this.#motionSyncRequested !== null && status !== 0) this.#motionSyncRequested = null;
       if (this.#motionSyncRequested === null) this.#respondGcode(status, line);
     }
@@ -751,7 +751,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
   }
 
-  /** `_sync_to_motion()`: M400 holds the next data line until drained (@cite EN controller.c:585-616). */
+  /** `_sync_to_motion()`: M400 holds the next data line until drained (@cite EN controller.c:586-617). */
   #syncToMotion(): boolean {
     if (this.#motionSync === null) return true;
     const alarmed = this.#isAlarmed();
@@ -834,7 +834,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   /** `_readline_charmode()` (@cite EN xio.c:971-1020): a data line read while only control is wanted is held. */
   #readlineCharMode(flags: 'ctrl' | 'both'): ReadResult {
     // E164: character-mode footers report every byte read since the previous reply, blank lines included
-    // (@cite EN controller.c:279-286). A line counts when readline hands it over.
+    // (@cite EN controller.c:280-287). A line counts when readline hands it over.
     if (this.#charHeld !== null) {
       if (flags !== 'both') return null;
       const held = this.#charHeld;
@@ -1065,7 +1065,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   /**
    * @behaviour EN-RT-FEEDHOLD: `cm_request_feedhold()` honours `!` only while
    * moving; during the 50 ms startup delay it holds at once
-   * (@cite EN canonical_machine.c:1789-1795; planner.c:452-468).
+   * (@cite EN canonical_machine.c:1789-1795; planner.c:453-469).
    */
   #requestFeedhold(): void {
     if (this.#startupPending) {
@@ -1149,8 +1149,8 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#motion.flush(now);
     // A flushed homing cycle ends: axes not yet homed stay unhomed (model limit LIM-EN-HOMING).
     this.#homingCycle = false;
-    this.#startupPending = false; // mp_init_buffers() (@cite EN planner.c:399-400)
-    this.#motionState = 'stop'; // mp_flush_planner() (@cite EN planner.c:153-159)
+    this.#startupPending = false; // mp_init_buffers() (@cite EN planner.c:400-401)
+    this.#motionState = 'stop'; // mp_flush_planner() (@cite EN planner.c:154-160)
     this.#gm.position = this.#motion.position(now);
     if (this.#hold === HOLD.HOLD) this.#endHold(now);
     if (this.#queueFlushInput) {
@@ -1161,7 +1161,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#progress++;
   }
 
-  /** `_service_input_flush()`: drop the host input that came before the `%` (E146, @cite EN xio/xio_usb.c:346-373). */
+  /** `_service_input_flush()`: drop the host input that came before the `%` (E146, @cite EN xio/xio_usb.c:373-400). */
   #serviceInputFlush(): void {
     if (!this.#queueFlushInputDue) return;
     this.#queueFlushInputDue = false;
@@ -1197,7 +1197,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#progress++;
   }
 
-  /** `mp_exit_hold_state()` (@cite EN plan_exec.c:385-395). */
+  /** `mp_exit_hold_state()` (@cite EN plan_exec.c:388-398). */
   #exitHoldState(): void {
     this.#hold = HOLD.OFF;
     this.#motionState = this.#motion.queue.length > 0 ? 'run' : 'stop';
@@ -1278,7 +1278,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   #newMotion(): Motion {
     return new Motion(PLANNER_POOL, {
       earliestStart: (block, t) => {
-        // A program stop also blocks queued dwells and outputs (@cite EN plan_exec.c:57-61)
+        // A program stop also blocks queued dwells and outputs (@cite EN plan_exec.c:58-62)
         if (this.#programPaused) return null;
         if (this.#hold === HOLD.HOLD) return null;
         if (this.#hold !== HOLD.OFF) {
@@ -1298,13 +1298,13 @@ export class TinyGEdgeNextModel implements SimDevice {
       },
       onStart: (block, t) => {
         if (block.kind === 'move' && this.#startupPending && t >= this.#startupStarted + PLANNER_STARTUP_MS) this.#startupPending = false;
-        // Only ALINE blocks set MOTION_RUN (@cite EN plan_exec.c:69-73)
+        // Only ALINE blocks set MOTION_RUN (@cite EN plan_exec.c:70-74)
         if (block.kind === 'move' && this.#motionState !== 'run' && this.#motionState !== 'hold') this.#motionState = 'run';
         if (block.kind === 'move') this.#energizeMotors();
       },
       onFree: (_block, empty) => {
         // Every block type frees its buffer and ends the cycle when the planner is empty
-        // (@cite EN planner.c:251-258, :282-289)
+        // (@cite EN planner.c:252-259, :283-290)
         if (empty) this.#cycleEnd();
         this.#progress++;
       },
@@ -1542,7 +1542,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     let status = 0;
     switch (g.nextAction) {
       case 'motionSync':
-        // controller_request_motion_sync() (@cite EN controller.c:561-572)
+        // controller_request_motion_sync() (@cite EN controller.c:562-573)
         if (this.#motionSync !== null) return ST('COMMAND_NOT_ACCEPTED');
         this.#motionSyncRequested = { tid: this.#currentTid };
         break;
@@ -1748,7 +1748,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     // _queue_line(): the cycle starts before the move is queued (@cite EN canonical_machine.c:1192-1212)
     this.#cycleStart();
     const block: Block = { kind: 'move', path, feed, line: this.#gm.linenum };
-    // The startup gate opens when the first ALINE meets an empty, idle planner (@cite EN planner.c:493-500)
+    // The startup gate opens when the first ALINE meets an empty, idle planner (@cite EN planner.c:494-501)
     if (this.#motion.queue.length === 0 && this.#motion.runtimeIdle() && this.#hold === HOLD.OFF && this.#cycle === 'machining') {
       this.#startupPending = true;
       this.#startupStarted = this.#now();
@@ -1759,7 +1759,7 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   #queueBlock(block: Block): void {
     this.#motion.push(block);
-    // A committed successor ends the startup delay early (@cite EN planner.c:507-510)
+    // A committed successor ends the startup delay early (@cite EN planner.c:508-511)
     if (this.#startupPending && this.#motion.queue.length >= 2) this.#startupPending = false;
   }
 
@@ -1796,9 +1796,9 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   #currentTid: number | undefined;
 
-  /** `json_parser()` (@cite EN json_parser.c:235-341). @behaviour EN-JSON-PAIRS: every pair executes. */
+  /** `json_parser()` (@cite EN json_parser.c:239-346). @behaviour EN-JSON-PAIRS: every pair executes. */
   #jsonParser(line: string): void {
-    // @behaviour EN-TID: a top-level unsigned `tid` is echoed at the top level, on errors too (@cite EN json_parser.c:107-157, :942-952)
+    // @behaviour EN-TID: a top-level unsigned `tid` is echoed at the top level, on errors too (@cite EN json_parser.c:107-157, :947-957)
     const tid = scanTid(line);
     this.#currentTid = tid;
     const parsed = parseHostJson(line);
@@ -1841,7 +1841,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#currentTid = undefined;
     this.#ramLine = false;
     if (this.#motionSyncRequested !== null) {
-      // {"gc":"M400"}: an accepted request answers when drained; a failed one now (@cite EN controller.c:574-583)
+      // {"gc":"M400"}: an accepted request answers when drained; a failed one now (@cite EN controller.c:575-584)
       if (status === 0) return;
       this.#motionSyncRequested = null;
     }
@@ -1850,14 +1850,14 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   /**
    * The rt family (model limit LIM-EN-RT-HB): only as the single pair of a line (a pure envelope).
-   * `{"rt":null}` reads hb, qt and up (seconds since power-up, @cite EN runtime.c:178-184); `{"rt":{"hb":N}}`
+   * `{"rt":null}` reads hb, qt and up (seconds since power-up, @cite EN runtime.c:179-185); `{"rt":{"hb":N}}`
    * sets the RAM heartbeat interval in whole seconds, 0 off, at most RT_HB_MAX 60 (@cite EN runtime.h:6, :15).
    * An integer above 60 is 110 INPUT_VALUE_RANGE_ERROR and changes nothing, never clamped (@cite EN
-   * runtime.c:106-117; error.h:202); a negative is 110 in the number parser (@cite EN util.c:224). A
+   * runtime.c:107-118; error.h:202); a negative is 110 in the number parser (@cite EN util.c:224). A
    * non-integer (1.5, a string) is modelled as 110 too, as the firmware maintainer stated (2026-11-02); read at
-   * 6ec70652 the typesafe parser looks to answer 116 VALUE_TYPE_ERROR for those before rt_set_hb runs
-   * (@cite EN json_parser.c:673-679; util.c:270), unverified on hardware (the HIL suite only asserts non-zero),
-   * see LIM-EN-RT-HB. Setting it restarts the interval (runtime.c:114).
+   * 93a723b8 the typesafe parser looks to answer 116 VALUE_TYPE_ERROR for those before rt_set_hb runs
+   * (@cite EN json_parser.c:678-684; util.c:270), unverified on hardware (the HIL suite only asserts non-zero),
+   * see LIM-EN-RT-HB. Setting it restarts the interval (runtime.c:115).
    * A build without it (option `rt: false`) answers 100 (UNRECOGNIZED_NAME).
    */
   #runtime(pairs: readonly (readonly [string, HostValue])[], body: Record<string, OutValue>): number {
@@ -1910,7 +1910,7 @@ export class TinyGEdgeNextModel implements SimDevice {
         body[key] = null;
         return 0;
       case 'st_set_md':
-        // @cite EN stepper.c:1413-1425: NULL de-energizes every motor; Z can fall
+        // @cite EN stepper.c:1466-1478: NULL de-energizes every motor; Z can fall
         this.#motorsEnergized = false;
         this.#sideEffect('motors-deenergized', `GET ${key}`);
         body[key] = null;
@@ -1953,7 +1953,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   #jsonSet(key: string, value: HostValue, body: Record<string, OutValue>): number {
     const info = token(T, key);
     if (info === undefined) return ST('UNRECOGNIZED_NAME');
-    // @behaviour EN-SET-ALARMED: SETs are rejected while alarmed; GETs stay available (@cite EN json_parser.c:330-334)
+    // @behaviour EN-SET-ALARMED: SETs are rejected while alarmed; GETs stay available (@cite EN json_parser.c:335-339)
     const alarmed = this.#isAlarmed();
     if (alarmed !== 0) {
       body[key] = echo(value);
@@ -1962,7 +1962,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (info.set === 'gc_run_gc') {
       if (typeof value !== 'string') return ST('VALUE_TYPE_ERROR');
       const status = this.#gcodeParser(value);
-      // The gc echo is NV_TYPE_GCODE: dropped below jv=5 on success AND on error (@cite EN json_parser.c:911-925).
+      // The gc echo is NV_TYPE_GCODE: dropped below jv=5 on success AND on error (@cite EN json_parser.c:916-930).
       if (this.settings.num('jv') >= 5) body[key] = value;
       return status;
     }
@@ -2033,11 +2033,11 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
     let stored = n;
     if (info.set === 'sr_set_si') stored = Math.max(n, 100); // STATUS_REPORT_MIN_MS (@cite EN settings/settings_default.h:80)
-    if (info.set === 'set_flu' && this.#gm.units === 'in') stored = n * 25.4; // @cite EN config_app.c:821-830
+    if (info.set === 'set_flu' && this.#gm.units === 'in') stored = n * 25.4; // @cite EN config_app.c:827-836
     this.settings.setRam(key, stored);
     body[key] = fixed(stored, info.precision);
     // @behaviour EN-SETTINGS-GATE: the RAM value is set, then persisting refuses while a cycle runs: 106 plus an `er`
-    // (@cite EN json_parser.c:334-337; persistence.c:88-92)
+    // (@cite EN json_parser.c:339-342; persistence.c:88-92)
     if (info.persist && !this.#ramLine) {
       if (this.#cycle !== 'off') return this.#exception(ST('COMMAND_NOT_ACCEPTED'), "Can't save when moving");
       if (this.settings.persist(key)) this.#eepromStall(key);
@@ -2202,8 +2202,8 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   /**
    * `{"hb":{...}}` every `hb` seconds while the link and the machine are quiet (model limit LIM-EN-RT-HB;
-   * @cite EN runtime.c:53-92). Quiet: JSON mode, no byte in or out (receive and println restart the interval),
-   * nothing unread, and the machine stopped with nothing held, flushing or queued (`_machine_quiet`, runtime.c:32-51).
+   * @cite EN runtime.c:54-93). Quiet: JSON mode, no byte in or out (receive and println restart the interval),
+   * nothing unread, and the machine stopped with nothing held, flushing or queued (`_machine_quiet`, runtime.c:33-52).
    * Any activity restarts the interval; skipped beats are never made up.
    */
   #heartbeatCallback(now: number): void {
@@ -2217,7 +2217,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#println(serialize({ hb: { stat: this.#stat(), hold: this.#hold, up: this.#uptime(), qt: '' } }, false));
   }
 
-  /** `_machine_quiet()` (@cite EN runtime.c:36-51): nothing moving, held, flushing or queued. */
+  /** `_machine_quiet()` (@cite EN runtime.c:37-52): nothing moving, held, flushing or queued. */
   #machineQuiet(): boolean {
     return (
       this.#cycle === 'off' &&
@@ -2231,7 +2231,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     );
   }
 
-  /** Whole seconds since power-up (`SysTickTimer_getValue() / RT_TICKS_PER_SECOND`, @cite EN runtime.c:89, :181). */
+  /** Whole seconds since power-up (`SysTickTimer_getValue() / RT_TICKS_PER_SECOND`, @cite EN runtime.c:90, :182). */
   #uptime(): number {
     return Math.max(0, Math.floor((this.#now() - this.#bootAt) / 1000));
   }
@@ -2369,7 +2369,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
-   * A response line (@cite EN json_parser.c:885-978). @behaviour EN-FOOTER:
+   * A response line (@cite EN json_parser.c:890-983). @behaviour EN-FOOTER:
    * line mode prints `[3,status,free line headers]`; character mode
    * `[2,status,bytes read since the previous reply]` (E164).
    */
@@ -2390,7 +2390,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     const tidPart = tid !== undefined ? `,${q('tid')}:${tid}` : '';
     const line = `{${q('r')}:${serialize(shown, relaxed)}${tidPart},${q('f')}:[${rev},${status},${field3}]}`;
     // @behaviour EN-REPLY-OVERFLOW: a reply that does not fit the 512-byte output buffer loses its body; the
-    // line still gets `{"r":{},..}` with its tid and footer, and an OK becomes 13 (@cite EN json_parser.c:968-974,
+    // line still gets `{"r":{},..}` with its tid and footer, and an OK becomes 13 (@cite EN json_parser.c:973-979,
     // controller.h:32). The command has already run. Model approximation: the line plus LF and NUL must fit.
     if (line.length + 2 > OUTPUT_BUFFER_LEN) {
       const lost = status === 0 ? ST('BUFFER_FULL') : status;
@@ -2402,7 +2402,7 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   #respondGcode(status: number, line: string): void {
     // @behaviour EN-GC-ECHO: the gc echo is NV_TYPE_GCODE, dropped unless jv=5 whatever the status: the filter
-    // runs for every response once the machine is not INITIALIZING, and for every error (@cite EN json_parser.c:911-925).
+    // runs for every response once the machine is not INITIALIZING, and for every error (@cite EN json_parser.c:916-930).
     const jv = this.settings.num('jv');
     const body: Record<string, OutValue> = {};
     if (jv >= 5) body['gc'] = line;
@@ -2435,7 +2435,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   #println(s: string): void {
-    this.#hbQuietSince = this.#now(); // a byte out restarts the heartbeat interval (@cite EN runtime.c:56-59)
+    this.#hbQuietSince = this.#now(); // a byte out restarts the heartbeat interval (@cite EN runtime.c:57-60)
     this.#transmit(Array.from(s + '\n', (ch) => ch.charCodeAt(0)));
     this.#progress++;
   }

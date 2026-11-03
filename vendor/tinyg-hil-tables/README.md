@@ -9,7 +9,7 @@ code that these files contain.
 
 | File | Firmware | Commit | `fb` | Used for |
 |---|---|---|---|---|
-| `den.json` | TinyG `edge-next` | `6ec70652` | 450.01 | the `tinyg-en` dialect (primary, full support for approved builds) |
+| `den.json` | TinyG `edge-next` | `93a723b8` | 450.01 | the `tinyg-en` dialect (primary, full support for approved builds) |
 | `d440.json` | TinyG `master` (release 440.21) | `d0418390` | 440.21 | the `tinyg-440` fallback dialect |
 | `d449.json` | TinyG stock `edge-0.97` | `c5024186` | 449.01 | **the read-only `tinyg-449-stock` dialect only** |
 
@@ -32,11 +32,14 @@ code that these files contain.
   `ref` fields did. It was regenerated again at `6ec70652` on the second
   re-pin: config_app.c adds ten rows (the `rt` group with `rthb`, `rtqt`,
   `rtup`, and the read-only readouts `spe`, `spd`, `spc`, `sps`, `cof`,
-  `com`); the status codes and `fb` are unchanged. The
-  firmware owner may later add it to the harness; when that happens, the
+  `com`); the status codes and `fb` are unchanged. It was regenerated again
+  at `93a723b8` on the third re-pin: config_app.c adds six `rt` rows (the
+  feed-limit report `rtflk`, `rtflm`, `rtflp`, `rtflf`, the push interval
+  `rtfi` and the summary request `rtfs`); the status codes and `fb` are
+  unchanged. The firmware owner may later add it to the harness; when that happens, the
   harness copy must match this one byte for byte at the same commit.
 - `d440.json` and `d449.json` are byte-identical copies of the harness files at
-  the generator commit (`6ec70652`; the same blobs as at `ead63997`), and both were regenerated with the same
+  the generator commit (`93a723b8`; the same blobs as at `ead63997`), and both were regenerated with the same
   script at their source commits to confirm the token and status maps.
 - The tables carry `group`, `type`, `precision`, the persist flag and the
   get/set function names for every cfgArray row. They do **not** carry the
@@ -46,7 +49,7 @@ code that these files contain.
   for the firmware owner.
 - History: when this table was first vendored at `ead63997`, the edge-next tip
   had already moved to `1581a4e9`, but only `tests/hil/` had changed. The pin
-  is now `6ec70652` (2026-11-02).
+  is now `93a723b8` (2026-11-02).
 
 ## On a firmware bump
 

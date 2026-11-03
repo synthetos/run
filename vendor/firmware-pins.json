@@ -5,13 +5,13 @@
     "EN": {
       "repo": "https://github.com/synthetos/TinyG",
       "ref": "edge-next",
-      "commit": "6ec70652b7c62553eb7351c201af093d24b20978",
-      "committed": "2026-11-02T12:14:23-05:00",
+      "commit": "93a723b813d3eb2cf6cf2b90e919a2affef557d1",
+      "committed": "2026-11-02T22:49:27-05:00",
       "fb": 450.01,
       "fv": 0.97,
       "paths": "firmware/tinyg/ (EN), tests/hil/ (EN-HIL)",
       "status": "candidate",
-      "note": "Re-pinned 2026-11-02 from 97321391 to 6ec70652 (edge-next merge of feat/spindle-status; it also carries feat/runtime-heartbeat). It adds the rt runtime session family, phase A (rthb, rtqt, rtup), and the read-only spindle and coolant readouts spe, spc, spd, sps, cof and com. The earlier re-pin (ead63997 to 97321391) brought the E195 fix and d254eb0b's stricter input errors E168-E177, E191, E193. fb is still 450.01 (tinyg.h:52). D4 is done (owner, 2026-11-01). Still open and separate: the fbs and cap identity tokens D4 recommends (not in this build), D5 image approval (no image has passed it) and the D6 published release (edge-next is not pushed publicly). The bench manifest approves this commit only, and classification never relies on fb alone (PN §2.3): make FW_BUILD overrides the number."
+      "note": "Re-pinned 2026-11-02 from 6ec70652 to 93a723b8 (edge-next merge of feat/feed-limit-counters; it also carries feat/feed-limit-reasons and the E196 and E197 planner fixes). It adds the feed-limit report of the running move (rt flk, flm, flp, flf), the feed-limit push interval rt fi with the pushed fs and fl lines, and the rt fs summary request. The re-pin before (97321391 to 6ec70652) added the rt runtime session family, phase A (rthb, rtqt, rtup), and the read-only spindle and coolant readouts spe, spc, spd, sps, cof and com. The earlier re-pin (ead63997 to 97321391) brought the E195 fix and d254eb0b's stricter input errors E168-E177, E191, E193. fb is still 450.01 (tinyg.h:52). D4 is done (owner, 2026-11-01). Still open and separate: the fbs and cap identity tokens D4 recommends (not in this build), D5 image approval (no image has passed it) and the D6 published release (edge-next is not pushed publicly). The bench manifest approves this commit only, and classification never relies on fb alone (PN §2.3): make FW_BUILD overrides the number."
     },
     "TG": {
       "repo": "https://github.com/synthetos/TinyG",

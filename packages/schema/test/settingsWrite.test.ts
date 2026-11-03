@@ -81,7 +81,7 @@ describe('read-back and restore', () => {
   });
 
   it('restores by token name, skipping identity, readouts, forbidden and unreviewed keys, and values already on the board', () => {
-    const backup = { xvm: 12000, xfr: 2000, fb: 449.01, hv: 7, id: 'OTHER', baud: 5, spe: 1, ex: 2, jv: 1, rthb: 1, si: 250, xyz: 1, gun: 'x', zjm: 800 };
+    const backup = { xvm: 12000, xfr: 2000, fb: 449.01, hv: 7, id: 'OTHER', baud: 5, spe: 1, ex: 2, jv: 1, rthb: 1, rtfi: 5, rtflk: 1, si: 250, xyz: 1, gun: 'x', zjm: 800 };
     const r = restoreChanges('tinyg-en', backup, BOARD);
     expect(r.changes).toEqual([{ key: 'xvm', value: 12000 }, { key: 'zjm', value: 800 }]);
     expect(r.same).toBe(1);
@@ -92,6 +92,8 @@ describe('read-back and restore', () => {
     expect(skipped['baud']).toMatch(/identity/);
     expect(skipped['spe']).toMatch(/read-only/);
     expect(skipped['rthb']).toMatch(/read-only/);
+    expect(skipped['rtfi']).toMatch(/read-only/);
+    expect(skipped['rtflk']).toMatch(/read-only/);
     expect(skipped['ex']).toMatch(/forbidden/);
     expect(skipped['jv']).toMatch(/forbidden/);
     expect(skipped['si']).toMatch(/not reviewed/);

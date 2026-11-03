@@ -1,7 +1,7 @@
 /**
  * `tinyg-en`: TinyG edge-next, the primary TinyG target (PN §2.1).
  *
- * Every `@cite EN` is `firmware/tinyg/<file>:<line>` at edge-next 6ec70652
+ * Every `@cite EN` is `firmware/tinyg/<file>:<line>` at edge-next 93a723b8
  * (`vendor/firmware-pins.json`, PIN-1), the commit that reports `fb` 450.01.
  * D4 is done: 450.01 is edge-next's build number (EN tinyg.h:52). It reports
  * no `fbs` or `cap` token yet, no image has passed D5, and `make FW_BUILD=x.y`
@@ -33,9 +33,9 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
 
   // @cite EN error.h:88, :92, :192, :198-200, :231, :275-276, :313-317, :333-347, :356-363, :367-371.
   status: statusTable([
-    // Two sources: E162, a damaged line that never ran (with er 13 and ALARM 13, @cite EN controller.c:255-268),
+    // Two sources: E162, a damaged line that never ran (with er 13 and ALARM 13, @cite EN controller.c:256-269),
     // and E102, a line that ran but whose reply overflowed the output buffer (`{"r":{},...}`, no er, no alarm,
-    // @cite EN json_parser.c:969-974). `resolveBufferFull` tells them apart; nothing acts on 13 alone.
+    // @cite EN json_parser.c:974-979). `resolveBufferFull` tells them apart; nothing acts on 13 alone.
     [13, 'BUFFER_FULL', 'bufferFull'],
     [17, 'FUNCTION_IS_STUBBED', 'stubbed'], // `spph`, `spde`, `coph` (@cite EN config_app.c:65-69)
     [100, 'UNRECOGNIZED_NAME', 'unrecognizedToken'],
@@ -100,8 +100,8 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
   caps: {
     jobKill: true,
     enq: true,
-    tid: true, // echoed at the top level, on errors too (@cite EN json_parser.c:93-157, :235-238, :942-951; E049)
-    m400: true, // reply deferred until drained (@cite EN controller.c:198, :585)
+    tid: true, // echoed at the top level, on errors too (@cite EN json_parser.c:93-157, :239-242, :947-956; E049)
+    m400: true, // reply deferred until drained (@cite EN controller.c:199, :586)
     programStopPauses: true, // M0/M60 → stat 3, hold 6, spindle stays on (@cite EN canonical_machine.c:2133-2145; E020)
     m2ClearsAlarm: true, // a standalone M2/M30 clears ALARM (@cite EN gcode_parser.c:78-80, :188-207; E135)
     arcSoftLimits: true, // @cite EN plan_arc.c:256-265, :590-601 (E041)
@@ -113,7 +113,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     // future build that answers a value may pause coolant on hold, so it is read, never assumed.
     coolantPauseOnHold: 'probe',
     lineInSr: true, // default sr list starts with `line` (@cite EN settings/settings_default.h:84)
-    footerRevs: [2, 3], // rev 2 at rxm=0, rev 3 at rxm=1, the default (@cite EN json_parser.c:956-960; settings/settings_default.h:74)
+    footerRevs: [2, 3], // rev 2 at rxm=0, rev 3 at rxm=1, the default (@cite EN json_parser.c:961-965; settings/settings_default.h:74)
     footerChecksum: 'absent',
   },
 

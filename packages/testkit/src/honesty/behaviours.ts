@@ -6,8 +6,8 @@
  * title of at least one test; `test/honesty.test.ts` enforces both, and that
  * STATUS.md (generated from this file) is current.
  *
- * Citations: EN = TinyG edge-next 6ec70652, TG = master d0418390 (440.21),
- * EN-HIL = edge-next `tests/hil/` at 6ec70652 (vendor/firmware-pins.json).
+ * Citations: EN = TinyG edge-next 93a723b8, TG = master d0418390 (440.21),
+ * EN-HIL = edge-next `tests/hil/` at 93a723b8 (vendor/firmware-pins.json).
  * Each carries a `quote` that must appear in the cited lines; the local
  * citation check re-reads the pinned firmware to prove it.
  */
@@ -59,7 +59,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     model: EN,
     summary: 'The gc echo is dropped below jv=5 on success and on error alike: the verbosity filter runs for every error response.',
     status: 'verified-source',
-    cites: [{ src: 'EN', file: 'json_parser.c', lines: [911, 925], quote: 'if (!js.echo_json_gcode_block)' }],
+    cites: [{ src: 'EN', file: 'json_parser.c', lines: [916, 930], quote: 'if (!js.echo_json_gcode_block)' }],
     bench: 'B-PROBE-1',
   },
   {
@@ -68,7 +68,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'A reply too big for the 512-byte output buffer loses its body: {"r":{},..} with its tid and footer, OK replaced by 13. The command has already run.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'json_parser.c', lines: [968, 974], quote: '(status == STAT_OK) ? STAT_BUFFER_FULL : status' },
+      { src: 'EN', file: 'json_parser.c', lines: [973, 979], quote: '(status == STAT_OK) ? STAT_BUFFER_FULL : status' },
       { src: 'EN', file: 'controller.h', lines: [32, 32], quote: 'OUTPUT_BUFFER_LEN 512' },
     ],
     bench: 'B-PROBE-1',
@@ -79,8 +79,8 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'Footer [3,status,free line headers] in line mode; [2,status,bytes read since the previous reply] in character mode (E164).',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'json_parser.c', lines: [956, 961], quote: '"3,%d,%d"' },
-      { src: 'EN', file: 'controller.c', lines: [279, 286], quote: 'cs.linelen += size' },
+      { src: 'EN', file: 'json_parser.c', lines: [961, 966], quote: '"3,%d,%d"' },
+      { src: 'EN', file: 'controller.c', lines: [280, 287], quote: 'cs.linelen += size' },
     ],
     // The free-header count the model reports for one line at a time (10: the line PROCESSING plus a
     // FILLING buffer allocated by readline step 3) is read from xio.c, not yet seen on a board.
@@ -94,7 +94,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'report.c', lines: [68, 81], quote: 'nv_reset_nv_list("sr")' },
-      { src: 'EN', file: 'controller.c', lines: [211, 215], quote: 'rpt_print_system_ready_message' },
+      { src: 'EN', file: 'controller.c', lines: [212, 216], quote: 'rpt_print_system_ready_message' },
     ],
     bench: 'B-PROBE-1',
   },
@@ -105,7 +105,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'json_parser.c', lines: [107, 157], quote: '_scan_tid' },
-      { src: 'EN', file: 'json_parser.c', lines: [942, 952], quote: 'a peer of r{} and f[]' },
+      { src: 'EN', file: 'json_parser.c', lines: [947, 957], quote: 'a peer of r{} and f[]' },
     ],
     issues: ['E049'],
   },
@@ -114,7 +114,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     model: EN,
     summary: 'Every pair of a multi-pair JSON line executes, in order, until the first error.',
     status: 'verified-source',
-    cites: [{ src: 'EN', file: 'json_parser.c', lines: [300, 339], quote: 'one executable NV at a time' }],
+    cites: [{ src: 'EN', file: 'json_parser.c', lines: [305, 344], quote: 'one executable NV at a time' }],
   },
   // ------------------------------------------------------------------ edge-next: planner
   {
@@ -124,8 +124,8 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'planner.h', lines: [83, 84], quote: 'PLANNER_BUFFER_HEADROOM 12' },
-      { src: 'EN', file: 'controller.c', lines: [618, 624], quote: 'PLANNER_BUFFER_HEADROOM' },
-      { src: 'EN', file: 'planner.c', lines: [251, 258], quote: 'cm_cycle_end();' },
+      { src: 'EN', file: 'controller.c', lines: [619, 625], quote: 'PLANNER_BUFFER_HEADROOM' },
+      { src: 'EN', file: 'planner.c', lines: [252, 259], quote: 'cm_cycle_end();' },
     ],
     bench: 'B-QR-1',
     issues: ['E088'],
@@ -137,8 +137,8 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'planner.c', lines: [78, 78], quote: 'PLANNER_STARTUP_MS 50' },
-      { src: 'EN', file: 'planner.c', lines: [452, 468], quote: 'mp_hold_startup' },
-      { src: 'EN', file: 'planner.c', lines: [493, 510], quote: 'startup_pending = true' },
+      { src: 'EN', file: 'planner.c', lines: [453, 469], quote: 'mp_hold_startup' },
+      { src: 'EN', file: 'planner.c', lines: [494, 511], quote: 'startup_pending = true' },
     ],
   },
   {
@@ -174,7 +174,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'canonical_machine.c', lines: [1789, 1795], quote: 'cm.motion_state != MOTION_STOP' },
-      { src: 'EN', file: 'plan_exec.c', lines: [69, 73], quote: 'BLOCK_TYPE_ALINE' },
+      { src: 'EN', file: 'plan_exec.c', lines: [70, 74], quote: 'BLOCK_TYPE_ALINE' },
     ],
     bench: 'B-FH-1',
   },
@@ -186,7 +186,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     cites: [
       { src: 'EN', file: 'xio/xio_usb.c', lines: [216, 224], quote: '!rx_in_line && c == CHAR_QUEUE_FLUSH' },
       { src: 'EN', file: 'canonical_machine.c', lines: [1804, 1819], quote: "don't honor request unless you are in a feedhold" },
-      { src: 'EN', file: 'xio/xio_usb.c', lines: [341, 373], quote: "drop what arrived before a host '%'" },
+      { src: 'EN', file: 'xio/xio_usb.c', lines: [368, 400], quote: "drop what arrived before a host '%'" },
     ],
     bench: 'B-QR-1',
     issues: ['E146'],
@@ -222,7 +222,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'xio/xio_usb.c', lines: [229, 232], quote: 'controller_request_enquiry' },
-      { src: 'EN', file: 'controller.c', lines: [540, 546], quote: 'ack' },
+      { src: 'EN', file: 'controller.c', lines: [541, 547], quote: 'ack' },
     ],
     bench: 'B-ENQ-1',
     issues: ['E052'],
@@ -247,7 +247,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
       'An alarm raised while a moving cycle runs its last non-move block (a dwell after a move) is overwritten by the cycle end when the planner empties: stat goes 2 then 3; the er report is the only lasting evidence.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'planner.c', lines: [282, 289], quote: 'cm_cycle_end();' },
+      { src: 'EN', file: 'planner.c', lines: [283, 290], quote: 'cm_cycle_end();' },
       { src: 'EN', file: 'canonical_machine.c', lines: [2115, 2131], quote: '_exec_program_finalize(value, FLAGS_ONE)' },
       { src: 'EN', file: 'canonical_machine.c', lines: [2079, 2082], quote: 'cm.machine_state = (uint8_t)value[0]' },
     ],
@@ -268,7 +268,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     model: EN,
     summary: 'While alarmed, SETs are rejected (204/205/206); GETs still answer.',
     status: 'verified-source',
-    cites: [{ src: 'EN', file: 'json_parser.c', lines: [330, 334], quote: 'GETs remain available' }],
+    cites: [{ src: 'EN', file: 'json_parser.c', lines: [335, 339], quote: 'GETs remain available' }],
     issues: ['E153'],
   },
   {
@@ -276,7 +276,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     model: EN,
     summary: 'A limit switch raises ALARM 203, keeps position and un-homes every axis; limits are ignored while already alarmed.',
     status: 'verified-source',
-    cites: [{ src: 'EN', file: 'controller.c', lines: [491, 512], quote: 'STAT_LIMIT_SWITCH_HIT' }],
+    cites: [{ src: 'EN', file: 'controller.c', lines: [492, 513], quote: 'STAT_LIMIT_SWITCH_HIT' }],
     issues: ['E031'],
   },
   {
@@ -287,7 +287,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     cites: [
       { src: 'EN', file: 'canonical_machine.c', lines: [874, 892], quote: 'cm.machine_state = MACHINE_SHUTDOWN' },
       { src: 'EN', file: 'canonical_machine.c', lines: [737, 739], quote: 'cm.machine_state = MACHINE_READY' },
-      { src: 'EN', file: 'controller.c', lines: [471, 480], quote: 'so {clear:n} can exit SHUTDOWN' },
+      { src: 'EN', file: 'controller.c', lines: [472, 481], quote: 'so {clear:n} can exit SHUTDOWN' },
     ],
     issues: ['E045'],
   },
@@ -307,7 +307,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     cites: [
       { src: 'EN', file: 'xio/xio_usb.c', lines: [175, 191], quote: 'Remember where input was lost' },
       { src: 'EN', file: 'xio/xio_usart.c', lines: [328, 367], quote: 'A line that lost bytes must not run' },
-      { src: 'EN', file: 'controller.c', lines: [260, 270], quote: 'input lost' },
+      { src: 'EN', file: 'controller.c', lines: [261, 271], quote: 'input lost' },
       { src: 'EN-HIL', file: 'tests/hil/tests/bugs/test_e162_rx_overrun_splices_lines.py', lines: [1, 9], quote: 'such a line never runs' },
     ],
     bench: 'B-N-1',
@@ -319,7 +319,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'A line of 255 or more characters is answered once with 107 and never runs; its tail is discarded; no alarm.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'controller.c', lines: [238, 252], quote: '_reject_overlong_line' },
+      { src: 'EN', file: 'controller.c', lines: [239, 253], quote: '_reject_overlong_line' },
       { src: 'EN', file: 'xio/xio_usart.c', lines: [348, 359], quote: 'discard the rest of an overlong line' },
     ],
     issues: ['E087'],
@@ -396,9 +396,9 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'kinematics.c', lines: [59, 59], quote: 'if (cm.a[axis].axis_mode == AXIS_INHIBITED) { joint[axis] = 0;}' },
-      { src: 'EN', file: 'plan_exec.c', lines: [707, 716], quote: 'kn_inverse_kinematics(mr.gm.target, mr.target_steps);' },
-      { src: 'EN', file: 'plan_exec.c', lines: [707, 716], quote: 'travel_steps[i] = mr.target_steps[i] - mr.position_steps[i];' },
-      { src: 'EN', file: 'planner.c', lines: [187, 201], quote: 'kn_inverse_kinematics(mr.position, step_position);' },
+      { src: 'EN', file: 'plan_exec.c', lines: [712, 721], quote: 'kn_inverse_kinematics(mr.gm.target, mr.target_steps);' },
+      { src: 'EN', file: 'plan_exec.c', lines: [712, 721], quote: 'travel_steps[i] = mr.target_steps[i] - mr.position_steps[i];' },
+      { src: 'EN', file: 'planner.c', lines: [188, 202], quote: 'kn_inverse_kinematics(mr.position, step_position);' },
       { src: 'EN', file: 'canonical_machine.c', lines: [1073, 1081], quote: 'mp_set_steps_to_runtime_position();' },
       { src: 'EN', file: 'canonical_machine.c', lines: [2004, 2007], quote: 'cm_set_position(axis, mp_get_runtime_absolute_position(axis));' },
     ],
@@ -423,7 +423,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'canonical_machine.c', lines: [2133, 2145], quote: 'cm.program_paused = true' },
-      { src: 'EN', file: 'plan_exec.c', lines: [59, 60], quote: 'A program stop also blocks queued dwells' },
+      { src: 'EN', file: 'plan_exec.c', lines: [60, 61], quote: 'A program stop also blocks queued dwells' },
     ],
     bench: 'B-M0-1',
     issues: ['E020'],
@@ -442,7 +442,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'gcode_parser.c', lines: [510, 523], quote: 'M400' },
-      { src: 'EN', file: 'controller.c', lines: [585, 616], quote: '_sync_to_motion' },
+      { src: 'EN', file: 'controller.c', lines: [586, 617], quote: '_sync_to_motion' },
     ],
     issues: ['E002'],
   },
@@ -481,7 +481,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
       { src: 'EN', file: 'spindle.c', lines: [115, 117], quote: 'spindle_out.mode != SPINDLE_OFF' },
       { src: 'EN', file: 'spindle.c', lines: [219, 223], quote: 'spindle_out.ccw = (spindle_mode == SPINDLE_CCW)' },
       { src: 'EN', file: 'canonical_machine.c', lines: [1564, 1565], quote: 'nv->value_int = coolant_out_flood' },
-      { src: 'EN', file: 'config_app.c', lines: [686, 692], quote: 'spindle_get_spe, set_nul' },
+      { src: 'EN', file: 'config_app.c', lines: [692, 698], quote: 'spindle_get_spe, set_nul' },
     ],
   },
   // ------------------------------------------------------------------ edge-next: settings and reads
@@ -492,7 +492,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'persistence.c', lines: [88, 92], quote: "Can't save when moving" },
-      { src: 'EN', file: 'json_parser.c', lines: [333, 337], quote: 'ritorno(nv_persist(nv))' },
+      { src: 'EN', file: 'json_parser.c', lines: [338, 342], quote: 'ritorno(nv_persist(nv))' },
     ],
   },
   {
@@ -513,7 +513,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     cites: [
       { src: 'EN', file: 'config_app.c', lines: [464, 465], quote: 'st_set_md, st_set_md' },
       { src: 'EN', file: 'config_app.c', lines: [485, 493], quote: 'cm_alrm, cm_alrm' },
-      { src: 'EN', file: 'stepper.c', lines: [1413, 1425], quote: 'st_deenergize_motors()' },
+      { src: 'EN', file: 'stepper.c', lines: [1466, 1478], quote: 'st_deenergize_motors()' },
     ],
     bench: 'B-MD-1',
     issues: ['E138'],
@@ -533,7 +533,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'Persisted settings survive a reset (EEPROM); an image with another layout marker is replaced by the defaults; non-persisted tokens return to defaults.',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'config.c', lines: [217, 232], quote: 'rpt_print_loading_configs_message' },
+      { src: 'EN', file: 'config.c', lines: [218, 233], quote: 'rpt_print_loading_configs_message' },
       { src: 'EN', file: 'persistence.c', lines: [93, 101], quote: 'EEPROM_WriteBytes' },
     ],
     issues: ['E022'],
@@ -544,8 +544,8 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     summary: 'A first character of $ ? H h switches to text mode (replies are text, not JSON); { switches back; a stray leading ? before a line is stripped and the line runs (E053).',
     status: 'verified-source',
     cites: [
-      { src: 'EN', file: 'controller.c', lines: [367, 371], quote: "A stray leading '?'" },
-      { src: 'EN', file: 'controller.c', lines: [391, 395], quote: '$?Hh' },
+      { src: 'EN', file: 'controller.c', lines: [368, 372], quote: "A stray leading '?'" },
+      { src: 'EN', file: 'controller.c', lines: [392, 396], quote: '$?Hh' },
     ],
     issues: ['E053'],
   },
@@ -942,7 +942,7 @@ export const MODEL_LIMITS: readonly ModelLimit[] = Object.freeze([
   { id: 'LIM-EN-G10', scope: 'tinyg-en', summary: 'Edge-next G10 L2 and L20 with P1..P6 set the G54..G59 offset and persist it, uncited (added for the Phase 2 fake board: set work zero). L20 uses the end of the last queued move as the current position; other L values are refused with status 130 as an unsupported command, other P values with P_WORD_IS_INVALID. 440.21 G10 still throws ModelGapError.' },
   { id: 'LIM-EN-SR-LIST', scope: 'tinyg-en', summary: 'Edge-next {"sr":{...}} replaces the status report list with the keys set to true, in order (TinyG report.c sr_set as remembered, uncited at the pin): a non-true value or unknown token is 100, an empty list 101, more than 30 entries 107 (INPUT_EXCEEDS_MAX_LENGTH, the closest status); it is persisted (one EEPROM write) and answered with the values of the new list. Kept in the EEPROM image as token indexes.' },
   { id: 'LIM-EN-SR-TIMING', scope: 'tinyg-en', summary: 'Status report requests are modelled as one timed request recorded at the first change against the values last sent; the report prints si ms later sampling the values then (report.c facts from the firmware maintainer, 2026-11-02, not cited at the pin). Which firmware events request a report is not modelled: any change of a listed value does.' },
-  { id: 'LIM-EN-RT-HB', scope: 'tinyg-en', summary: 'The rt family as the single pair of a line: {"rt":null} reads hb, qt and up (whole seconds since power-up, runtime.c:178-184); {"rt":{"hb":N}} sets the RAM heartbeat in whole seconds, 0 off, 1..60 (RT_HB_MAX, runtime.h:6, :15); an integer above 60 or a negative is 110 and changes nothing, never clamped (runtime.c:106-117; util.c:224); a non-integer (1.5, a string) is 110 as the firmware maintainer stated (2026-11-02), though the typesafe parser read at 6ec70652 looks to answer 116 for those (json_parser.c:673-679; util.c:270), unverified on hardware (a JSON true is converted to 1 by that parser, json_parser.c:674-676; the model refuses it with 110); any other member 100; option rt:false answers 100. While hb > 0 a {"hb":{"stat","hold","up","qt"}} line prints every hb seconds while the link and the machine are quiet (JSON mode, no byte in or out, nothing unread; nothing moving, held, flushing or queued, runtime.c:32-92); any activity restarts the interval. hb is 0 after boot and ^X. Not modelled: qt (always ""), a beat skipped when it cannot go out whole, and the full planner-and-stepper quiet test (the model uses its motion queue).' },
+  { id: 'LIM-EN-RT-HB', scope: 'tinyg-en', summary: 'The rt family as the single pair of a line: {"rt":null} reads hb, qt and up (whole seconds since power-up, runtime.c:179-185); {"rt":{"hb":N}} sets the RAM heartbeat in whole seconds, 0 off, 1..60 (RT_HB_MAX, runtime.h:6, :15); an integer above 60 or a negative is 110 and changes nothing, never clamped (runtime.c:107-118; util.c:224); a non-integer (1.5, a string) is 110 as the firmware maintainer stated (2026-11-02), though the typesafe parser read at 93a723b8 looks to answer 116 for those (json_parser.c:678-684; util.c:270), unverified on hardware (a JSON true is converted to 1 by that parser, json_parser.c:679-681; the model refuses it with 110); any other member 100; option rt:false answers 100. While hb > 0 a {"hb":{"stat","hold","up","qt"}} line prints every hb seconds while the link and the machine are quiet (JSON mode, no byte in or out, nothing unread; nothing moving, held, flushing or queued, runtime.c:33-93); any activity restarts the interval. hb is 0 after boot and ^X. Not modelled: qt (always ""), a beat skipped when it cannot go out whole, and the full planner-and-stepper quiet test (the model uses its motion queue).' },
   { id: 'LIM-EN-HOMING', scope: 'tinyg-en', summary: 'G28.2: each named axis needs exactly one homing switch (sn or sx mode 1 or 3), sv > 0 and am != 0, else the block fails with 246 (241 with no axis) and nothing moves. Axes home Z, X, Y, A as straight moves toward the switch end at sv mm/min (at most |tm-tn|+lb), then the axis position is set to tn or tm and marked homed; no latch, backoff or switch input is modelled. stat 9 while the cycle runs; a flush, an alarm, ^D or a reset ends it with the remaining axes unhomed. G28.3 queues a set of the named axes positions (unit-converted) and marks them homed. Uncited.' },
   { id: 'LIM-EN-RAM-WRITES', scope: 'tinyg-en', summary: 'Option ramWrites (default off) models a proposed firmware capability, not in any build: {"rt":{"unsaved":null}} answers unsaved 0, and a line whose first pair is ram:1 applies the rest in RAM without persisting. Without it any ram key answers 100 after the pairs before it have run.' },
   { id: 'LIM-TEXT', scope: 'both', summary: 'Text mode replies only with a prompt line; text-mode commands are not executed.' },
@@ -957,5 +957,5 @@ export const MODEL_LIMITS: readonly ModelLimit[] = Object.freeze([
   { id: 'LIM-TG-OVERLONG', scope: 'tinyg-440', summary: 'Overlong lines on 440.21 throw ModelGapError.' },
   { id: 'LIM-REPORTS', scope: 'both', summary: 'Enumerated report values (momo, admo, frmo, macs, cycs, mots) use model numbering; qv=2 reports qr without qi/qo; status reports in text mode are still JSON.' },
   { id: 'LIM-MODAL-TG', scope: 'tinyg-440', summary: 'Two codes of one modal group on a 440.21 line: the last one wins; no modal-group error is modelled.' },
-  { id: 'LIM-EN-REPIN', scope: 'tinyg-en', summary: 'The model was built at edge-next ead63997; the 97321391 and 6ec70652 re-pins (2026-11-02) are modelled only for the spindle and coolant readouts spe, spc, spd, sps, cof and com (EN-SPINDLE-READOUTS; the model applies S when parsed, not queued, so sps follows a new S at once) and beyond that only as moved citations. Not modelled: the rt family beyond LIM-EN-RT-HB, E195 (a partial line quiet for about 1 s is dropped when a { arrives; the model always joins it to the next line), the stricter input errors E168-E177, E191 and E193, and the timing fixes E165-E167, E180-E184, E190 and E192.' },
+  { id: 'LIM-EN-REPIN', scope: 'tinyg-en', summary: 'The model was built at edge-next ead63997; the 97321391, 6ec70652 and 93a723b8 re-pins (2026-11-02) are modelled only for the spindle and coolant readouts spe, spc, spd, sps, cof and com (EN-SPINDLE-READOUTS; the model applies S when parsed, not queued, so sps follows a new S at once) and beyond that only as moved citations. Not modelled: the rt family beyond LIM-EN-RT-HB (at 93a723b8 the feed-limit report leaves flk, flm, flp and flf, the push interval fi with its pushed fs and fl lines, and the fs summary request; the model answers 100 for them), E195 (a partial line quiet for about 1 s is dropped when a { arrives; the model always joins it to the next line), the stricter input errors E168-E177, E191 and E193, the timing fixes E165-E167, E180-E184, E190 and E192, and the planner fixes E196 (the junction limit read from the runtime direction when the previous block is freed) and E197 (a runtime halt clears the runtime exit velocity).' },
 ]);
