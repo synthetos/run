@@ -4,6 +4,7 @@
  * file, parsed in this browser (workspace/outline.ts); the file never leaves
  * the computer. Kept in this browser through the library adapter.
  */
+import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { allMaterials, doNotMachine, material, materialColor, sampleFixture, setupStore, type SetupState } from '../library.ts';
@@ -87,7 +88,7 @@ function Viewer({ setup }: { readonly setup: SetupState }): ComponentChild {
       h('div', { class: 'stack-row s-bed' }, h('i', null), h('span', null, 'Bed top'), h('strong', null, bedTop.toFixed(2))),
       h('small', null, 'mm above the machine table'),
     ),
-    h('p', { class: 'viewer-notice' }, 'An illustration of your setup, not a collision check.'),
+    h('div', { class: 'viewer-notice viewer-help' }, h(ContextHelp, { id: 'setup-preview-help', label: 'About the setup illustration', end: true }, 'An illustration of your setup, not a collision check.')),
   );
 }
 
@@ -113,7 +114,7 @@ export function SetupView(): ComponentChild {
   return h(
     'div',
     { class: 'setup-view' },
-    h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, 'Workholding and stock'), h('p', null, 'Stock, fixture and work zero.'))),
+    h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, 'Workholding and stock'))),
     h(
       'div',
       { class: 'workspace-grid' },

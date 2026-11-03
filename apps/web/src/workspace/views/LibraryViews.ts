@@ -268,7 +268,7 @@ export function ToolsView(): ComponentChild {
     h(
       'div',
       { class: 'view-head' },
-      h('div', { class: 'title-block' }, h('h1', null, 'Tool library'), h('p', null, 'Your cutters, kept in this browser.')),
+      h('div', { class: 'title-block' }, h('h1', null, 'Tool library')),
       h('div', { class: 'view-actions' }, h('button', { type: 'button', class: 'primary', 'data-action': 'add-tool', onClick: () => setSelected(addTool()) }, Icon('plus', 15), 'Add a tool')),
     ),
     h(
@@ -493,7 +493,7 @@ export function MaterialsView(): ComponentChild {
     h(
       'div',
       { class: 'view-head' },
-      h('div', { class: 'title-block' }, h('h1', null, 'Materials'), h('p', null, 'What you cut, with its safety notes.')),
+      h('div', { class: 'title-block' }, h('h1', null, 'Materials')),
       h('div', { class: 'view-actions' }, h('button', { type: 'button', class: 'primary', 'data-action': 'new-material', onClick: () => setForm({ mode: 'new' }) }, Icon('plus', 15), 'New material')),
     ),
     h(

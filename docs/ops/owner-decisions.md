@@ -331,3 +331,8 @@ software is not an emergency stop. "Stop job" no longer says "spindle off".
 - The dependency licence gate is unchanged: dependencies stay permissive-only.
 - No push happens until the history audit is clean.
 - Implemented (branch public-cleanup): LICENSE carries the full AGPL-3.0 text; every package `license` field is `AGPL-3.0-or-later`; NOTICE, README, the site footer and `packages/gcode-view/README.md` say so; the PHASE0 D3 row is marked superseded. No source file carries SPDX headers, so there were none to change.
+
+
+## 2026-11-03: routine explanations on demand
+
+The owner explicitly requested that routine explanatory paragraphs become `?` help instead of always-visible copy, citing the spindle readouts, Connect card, preview disclaimer W13, disconnected explanation W7, setup and machine-template copy. The implementation preserves the registered wording and makes help available by hover, keyboard focus and tap; CSS hover/focus works without JavaScript. W1 retains its existing visible presentation. This changes routine presentation, not active faults, confirmations, or Pause/Stop behavior. SAFETY §5 records the presentation amendment. Claude independently reviews the implementation before merging.

@@ -1,3 +1,4 @@
+import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { GuardedEngine, LEVELS, MockAiEngine, RulesEngine, type GuardedPlan } from '@synthetos/advisor';
@@ -9,10 +10,11 @@ import { selectedMachine, toolStore } from '../library.ts';
 const number = (v: number | null): string => v === null ? 'Not specified' : Math.round(v).toLocaleString('en-US');
 type Change = (key: string, value: string) => void;
 function field(label: string, key: string, values: AdvisorFields, change: Change, options?: readonly (readonly [string, string])[]): ComponentChild {
-  const props = { 'data-action': 'advisor-input', 'data-advisor-field': key, value: values[key] ?? '', onChange: (e: Event) => change(key, (e.currentTarget as HTMLInputElement).value) };
+  const update = (e: Event): void => change(key, (e.currentTarget as HTMLInputElement).value);
+  const props = { 'data-action': 'advisor-input', 'data-advisor-field': key, value: values[key] ?? '' };
   return h('label', null, h('span', null, label), options === undefined
-    ? h('input', { ...props, type: key === 'dial' ? 'text' : 'number', ...(key === 'dial' ? { placeholder: '1=10000, 2=12000' } : { min: '0', step: 'any' }) })
-    : h('select', props, h('option', { value: '' }, 'Choose…'), options.map(([value, text]) => h('option', { value, key: value }, text))));
+    ? h('input', { ...props, onInput: update, type: key === 'dial' ? 'text' : 'number', ...(key === 'dial' ? { placeholder: '1=10000, 2=12000' } : { min: '0', step: 'any' }) })
+    : h('select', { ...props, onChange: update }, h('option', { value: '' }, 'Choose…'), options.map(([value, text]) => h('option', { value, key: value }, text))));
 }
 
 function MachineInputs(): ComponentChild {
@@ -63,7 +65,7 @@ function Operation({ row }: { readonly row: AdvisorRow }): ComponentChild {
         field('Coolant', 'coolant', fields, change, [['none', 'None'], ['air', 'Air'], ['mist', 'Mist'], ['flood', 'Flood']]))),
     row.problem === null ? null : h('p', { class: 'warn-text', 'data-advisor': 'needs-input' }, row.problem),
     plan?.ok === true ? h('div', null,
-      plan.provenance.placeholder ? h('p', { class: 'warn-text', 'data-advisor': 'placeholder' }, `Placeholder data: not advice until sourced (${plan.provenance.placeholderInputs.join(', ')}).`) : null,
+      plan.provenance.placeholder ? h('p', { class: 'warn-text', 'data-advisor': 'placeholder' }, 'Placeholder data · not advice ', h(ContextHelp, { id: `advisor-source-${op.id}`, label: 'About placeholder inputs' }, `Not advice until sourced. Placeholder inputs: ${plan.provenance.placeholderInputs.join(', ')}.`)) : null,
       h('p', { 'data-advisor': 'verdict' }, `Rules comparison: ${plan.comparison?.verdict.replaceAll('-', ' ') ?? 'not available'}`),
       h('ul', null, plan.comparison?.reasons.map((reason) => h('li', { key: reason }, reason))),
       h('p', { class: 'fine', 'data-advisor': 'achievable' }, row.achievable === null ? 'Achievable feed estimate unavailable: supply motion inputs and a full, certain preview path (up to 10,000 vertices).' : `Achievable feed: about ${number(row.achievable)} mm/min (estimate; continuous cuts start and end at rest).`),
@@ -76,7 +78,7 @@ function Operation({ row }: { readonly row: AdvisorRow }): ComponentChild {
         const value = recommendations?.recommendations.find((r) => r.level === level);
         return h('tr', { key: level }, h('th', { scope: 'row' }, level), h('td', null, value === undefined ? 'Unavailable' : number(value.feed)), h('td', null, value === undefined ? 'Unavailable' : number(value.rpm)), h('td', null, value?.dialSetting ?? 'Not applicable'));
       }))),
-    recommendations === null ? null : h('ul', { class: 'fine' }, [...new Set([...recommendations.recommendations.flatMap((r) => r.reasons), ...recommendations.refused.map((r) => r.reason)])].map((reason) => h('li', { key: reason }, reason))));
+    recommendations === null ? null : h('details', null, h('summary', null, 'Why these values'), h('ul', { class: 'fine' }, [...new Set([...recommendations.recommendations.flatMap((r) => r.reasons), ...recommendations.refused.map((r) => r.reason)])].map((reason) => h('li', { key: reason }, reason)))));
 }
 
 export function AnalyzeView(): ComponentChild {
@@ -87,7 +89,7 @@ export function AnalyzeView(): ComponentChild {
     h('div', { class: 'scroll-region', tabindex: 0 },
       h('div', { class: 'panel' },
         h('label', null, 'Engine ', h('select', { 'data-action': 'advisor-engine', value: advisorEngine.value, onChange: (e: Event) => { advisorEngine.value = (e.currentTarget as HTMLSelectElement).value === 'mock-ai' ? 'mock-ai' : 'rules'; } }, h('option', { value: 'rules' }, 'Rules · local'), h('option', { value: 'mock-ai' }, 'AI assistant (preview)'))),
-        h('p', { class: 'fine' }, 'Review only; no changes to the file, machine or Start checks. AI preview calls no model. Geometry uses the preview’s assumed start at machine zero.'),
+        h(ContextHelp, { id: 'advisor-help', label: 'About the analysis', below: true }, 'Review only; no changes to the file, machine or Start checks. AI preview calls no model. Geometry uses the preview’s assumed start at machine zero.'),
         h('p', null, `Stock: ${stock?.name ?? 'choose a material in Setup'}`),
         stock?.safety.map((note) => h('p', { class: 'warn-text', key: note.text }, note.text))),
       h(MachineInputs, null),

@@ -121,13 +121,13 @@ describe('machine strip status', () => {
     expect(on.spindle).toBe('On · CW · 18 000 rpm commanded');
     expect(on.coolant).toBe('Coolant: Mist');
     expect(text(on.el)).not.toMatch(/J6\.|polarity|share it/);
-    expect(text(on.el)).toContain('Shows what was commanded, not measured.');
+    expect(text(on.el)).toContain('never a measured one');
     expect(card({ spe: 0, spc: 0, sps: 0, cof: 0, com: 0 })).toMatchObject({ spindle: 'Off', coolant: 'Coolant: off' });
     expect(card({ srList: ['stat'] })).toMatchObject({ spindle: NOT_REPORTED, coolant: `Coolant: ${NOT_REPORTED}` });
     expect(card(null)).toMatchObject({ spindle: 'Not connected', coolant: 'Coolant: not connected' });
     // Display only: every spindle and coolant control stays disabled whatever the board reports.
     const buttons = (function walk(e: typeof on.el): (typeof on.el)[] {
-      return [...(e.tag === 'button' ? [e] : []), ...e.children.flatMap((c) => (typeof c === 'string' ? [] : walk(c)))];
+      return [...(e.tag === 'button' && e.props['data-machine-control'] !== undefined ? [e] : []), ...e.children.flatMap((c) => (typeof c === 'string' ? [] : walk(c)))];
     })(on.el);
     expect(buttons.length).toBeGreaterThan(0);
     for (const b of buttons) expect(b.props['disabled']).toBe(true);

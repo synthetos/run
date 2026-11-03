@@ -51,22 +51,24 @@ describe('T-S41: no element offers Play or Simulate', () => {
       for (const key of ['aria-label', 'title', 'value', 'aria-valuetext']) expect(String(e.props[key] ?? '')).not.toMatch(/\b(play|simulat|animat)/i);
     }
     // The only buttons are Cancel (while loading) and Fit view (3D).
-    const buttons = all(el, (e) => e.tag === 'button').map((b) => text(b));
+    const buttons = all(el, (e) => e.tag === 'button' && e.props['data-action'] !== 'context-help').map((b) => text(b));
     for (const b of buttons) expect(['Cancel', 'Fit view']).toContain(b);
   });
 });
 
 describe('W13 and the prerendered sheet', () => {
-  it.each(Object.keys(STATES))('W13 is pinned to the preview in state %s', (name) => {
+  it.each(Object.keys(STATES))('W13 is available in preview help in state %s', (name) => {
     const note = one(view(STATES[name] as PreviewViewState), byAttr('data-safety', 'W13'));
     expect(text(note)).toBe(w13());
-    expect(note.props['role']).toBe('note');
+    expect(note.props['role']).toBe('tooltip');
   });
 
   it('prerendered, every control is disabled and carries no handler', () => {
     const el = root(h(PreviewView, { state: IDLE_STATE }));
     for (const input of all(el, (e) => e.tag === 'input' || e.tag === 'select')) expect(input.props['disabled'], String(input.props['type'])).toBe(true);
-    for (const e of all(el, () => true)) expect(Object.keys(e.props).filter((k) => /^on[A-Z]/.test(k))).toEqual([]);
+    for (const e of all(el, () => true)) {
+      if (e.props['data-action'] !== 'context-help') expect(Object.keys(e.props).filter((k) => /^on[A-Z]/.test(k))).toEqual([]);
+    }
   });
 
   it('the live panel first renders exactly the prerendered markup (hydration matches)', () => {

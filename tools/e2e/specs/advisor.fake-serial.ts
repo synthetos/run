@@ -1,6 +1,6 @@
 import { expect, test } from './fixtures.ts';
 
-test('sample advisor shows inputs, three levels, guarded preview and a non-blocking job check', async ({ page }) => {
+test('sample advisor shows inputs, three levels, guarded preview and a non-blocking job check', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
   await page.evaluate(() => {
@@ -34,9 +34,12 @@ test('sample advisor shows inputs, three levels, guarded preview and a non-block
   const size = await page.evaluate(() => ({ h: document.documentElement.scrollHeight, w: document.documentElement.scrollWidth, ih: innerHeight, iw: innerWidth }));
   expect(size.h).toBeLessThanOrEqual(size.ih);
   expect(size.w).toBeLessThanOrEqual(size.iw);
+  await view.locator('details.panel > summary').click();
+  await view.locator('.scroll-region').evaluate((el) => { el.scrollTop = 0; });
+  await page.screenshot({ path: testInfo.outputPath('analyze.png') });
   await page.locator('[data-region="rail"] [data-view="run"]').click();
   await expect(page.locator('[data-job="advisor"]')).toContainText('placeholder data; not advice');
   await expect(page.locator('[data-action="start-job"]')).toBeDisabled();
-  await page.locator('[data-sample="mounting-plate"]').click();
+  await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name: 'second.nc', mimeType: 'text/plain', buffer: Buffer.from('G21 G90 G17 G94\nS12000 M3\nG1 X10 F600\nM5\nM30\n') });
   await expect(page.locator('[data-job="advisor"]')).toContainText('needs review'); // no inputs carried from previous file
 });

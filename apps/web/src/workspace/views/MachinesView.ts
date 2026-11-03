@@ -11,6 +11,7 @@
  * written from here; SAFETY §4.10 rule 4: a profile is never applied
  * automatically, and applying goes through C5 and the write path).
  */
+import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
 import { CATALOGUE, machineDrawing, type MachineTemplate } from '../machineDrawings.ts';
@@ -327,7 +328,7 @@ export function MachinesView({ model, onView }: { readonly model: WorkspaceModel
               mine.map((m) => h('button', { type: 'button', class: `chip${selectedMachineStore.value.value === m.id ? ' selected' : ''}`, key: m.id, onClick: () => selectedMachineStore.set(m.id) }, m.name)),
             )
           : null,
-        h('p', { class: 'fine catalogue-note' }, 'Templates do not copy board settings or homing. Compare settings in the TinyG tab.'),
+        h('div', { class: 'catalogue-help' }, h(ContextHelp, { id: 'machine-copy-help', label: 'About machine templates', below: true, end: true }, 'Templates do not copy board settings or homing. Compare settings in the TinyG tab.')),
       ),
     ),
     h(TabPane, { prefix: 'mach', id: 'tinyg', current: tab, class: 'cpane' }, h(TinygMapping, { model })),
@@ -391,7 +392,7 @@ export function MachinesView({ model, onView }: { readonly model: WorkspaceModel
             ),
           ),
         ),
-        h('p', { class: 'fine catalogue-note' }, 'Example templates: verify specifications and controller compatibility.'),
+        h('div', { class: 'catalogue-help' }, h(ContextHelp, { id: 'machine-catalogue-help', label: 'About template specifications', end: true }, 'Example templates: verify specifications and controller compatibility.')),
       ),
     ),
   );

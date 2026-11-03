@@ -31,6 +31,7 @@ import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
 import { HomeSection } from '../homing.ts';
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
+import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { signalText } from '../../shell/signal.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
 import { ConsoleLine } from '../../console/ConsoleLine.ts';
@@ -124,7 +125,7 @@ export function ConnectNotice({ model, onView }: { readonly model: WorkspaceMode
   return h(
     'div',
     { class: `scenario-notice connect-notice${isConnected ? ' is-connected' : ''}`, 'data-region': 'connect' },
-    h('div', { class: 'notice-text' }, h('strong', null, heading), h('p', null, copy), reportsNotice(view)),
+    h('div', { class: 'notice-text' }, h('strong', null, heading), h(ContextHelp, { id: 'connect-help', label: 'About connecting', below: true, end: true }, copy), reportsNotice(view)),
     h(
       'div',
       { class: 'notice-actions' },
@@ -178,6 +179,7 @@ function ageText(view: LiveView): { readonly text: string; readonly lag: string 
 export function PositionPanel({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
   const m = view !== null && connected(view) ? view.message : null;
+  if (m === null) return h('section', { class: 'insp sec-position', 'data-region': 'position', 'aria-labelledby': 'position-title' }, h('header', null, h('h2', { id: 'position-title' }, 'Position'), h('span', { class: 'source' }, 'Not connected')));
   const axes = m === null ? (['x', 'y', 'z'] as const).map((axis) => ({ axis, work: null, machine: null, homed: null })) : m.dro.axes.filter((a) => a.work !== null || ['x', 'y', 'z'].includes(a.axis));
   const age = view === null ? { text: 'Not connected', lag: 'none' } : ageText(view);
   const wcs = m?.dro.wcs ?? null;
@@ -728,7 +730,7 @@ function spindleBody({ model }: SpindleProps, hk: Hooks): ComponentChild {
       ),
     ),
     note === null ? null : h('p', { class: 'unavailable', role: 'status' }, note),
-    h('p', { class: 'fine', 'data-spindle': 'note', title: SPINDLE_TITLE }, 'Shows what was commanded, not measured.'),
+    h('div', { class: 'spindle-help', 'data-spindle': 'note' }, h(ContextHelp, { id: 'spindle-help', label: 'About spindle and coolant readouts', end: true }, SPINDLE_TITLE, ' ', COOLANT_TITLE)),
   );
 }
 
@@ -1234,7 +1236,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
                 h('h2', null, state.status === 'error' ? 'The file could not be checked' : 'Open a file to check and preview it'),
                 state.status === 'error'
                   ? h('p', { class: 'preview-error', role: 'alert', 'data-preview': 'error' }, state.error ?? 'The preview failed.')
-                  : h('p', null, 'Every line is checked by the safety sanitiser and drawn in 3D. The file stays in this browser.'),
+                  : null,
                 h('div', { class: 'sample-row' }, SAMPLES.map((s) => h('button', { type: 'button', class: 'small', key: s.id, disabled, 'data-sample': s.id, ...on('onClick', actions.onFile, (f) => () => { f(sampleFile(s)); }) }, `Open the ${s.title.toLowerCase()} sample`))),
               )
             : null,
@@ -1256,7 +1258,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
               )
             : null,
           live === null ? null : h('p', { class: `viewer-key pv-marker-readout lag-${live.lag}`, 'data-preview': 'marker-readout', role: 'status' }, markerText(live)),
-          h('p', { class: 'viewer-notice', role: 'note', 'data-safety': 'W13' }, w13()),
+          h('div', { class: 'viewer-notice viewer-help' }, h(ContextHelp, { id: 'run-preview-help', label: 'About the preview', safety: 'W13', end: true }, w13())),
         ),
         h(
           'div',

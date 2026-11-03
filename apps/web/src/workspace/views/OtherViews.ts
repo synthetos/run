@@ -10,7 +10,7 @@ import { Icon } from '../icons.ts';
 import { openReport } from '../../report/state.ts';
 
 function head(title: string, sub: string): ComponentChild {
-  return h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, title), h('p', null, sub)));
+  return h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, title), sub === '' ? null : h('p', null, sub)));
 }
 
 export { AnalyzeView } from './AnalyzeView.ts';
@@ -20,7 +20,7 @@ export function PreferencesView({ build }: { readonly build: BuildInfo }): Compo
   return h(
     'div',
     { class: 'settings-view' },
-    head('Settings', 'This browser, this app.'),
+    head('Settings', ''),
     h(
       'div',
       { tabindex: 0, class: 'scroll-region' },
