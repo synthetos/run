@@ -48,7 +48,9 @@ function invariants(s: SessionState) {
     expected: s.expected,
     writing: s.writing,
     enqOutstanding: s.enqOutstanding,
-    probe: s.probe,
+    // Before the first answer a pushed line is a previous program's unread output and is counted (H49 amendment
+    // 2026-11-03): the count may move, nothing else in the probe may.
+    probe: s.probe === null ? null : { ...s.probe, backlog: 0 },
     classification: s.classification,
     motion: s.motion,
     reports: s.reports,

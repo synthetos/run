@@ -843,7 +843,7 @@ function onOpened(t: Tx): void {
 /** (Re)starts the probe from `{sr:null}`: the first line written on every connect path (T-S86, H49). */
 function startProbe(t: Tx, restarts: number, banner: Banner | undefined): void {
   t.set({
-    probe: { next: 0, answers: [], banner, spliceRetried: false, settling: 'none', restarts },
+    probe: { next: 0, answers: [], banner, spliceRetried: false, settling: 'none', restarts, backlog: 0 },
     classification: null,
     dialect: null,
     identity: null,
@@ -959,6 +959,16 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
   if (t.s.timers.watchdog !== undefined) t.arm('watchdog', watchdogMs(t));
   const dialect = dialectOf(t.s);
   const event: ClassifiedLine = dialect === null ? raw : checkFooterForDialect(dialect, raw);
+  // Before the first answer on this link, a line is output a previous program left unread: pushed reports and
+  // heartbeats (the board keeps sending them to a port nobody drains), and fragments of them torn by the USB and
+  // tty buffers (bench 2, 2026-11-03). The board answers in order, so that backlog ends at the first `r` frame:
+  // it is counted and discarded, never merged into the live view and never taken for a damaged answer (H49
+  // amendment 2026-11-03). A banner still means the board reset.
+  const probe = t.s.probe;
+  if (probe !== null && probe.settling === 'none' && probe.next === 0 && !probe.spliceRetried && !t.s.ready && event.kind !== 'Banner' && event.kind !== 'Response') {
+    t.set({ probe: { ...probe, backlog: probe.backlog + 1 } });
+    return;
+  }
   switch (event.kind) {
     case 'Banner':
       onBanner(t, event, at);
@@ -1121,7 +1131,12 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
   const value: JsonValue | undefined = r.r[e.token];
   switch (e.purpose) {
     case 'splice': {
-      const probe = t.s.probe as ProbeProgress;
+      let probe = t.s.probe as ProbeProgress;
+      if (probe.backlog > 0) {
+        t.emit({ kind: 'log', text: `probe: ${probe.backlog} line${probe.backlog === 1 ? '' : 's'} of output left unread by a previous program arrived before the first answer: discarded` });
+        probe = { ...probe, backlog: 0 };
+        t.set({ probe });
+      }
       if (!Object.hasOwn(r.r, 'sr')) {
         // The first line was answered as G-code ({"r":{},"f":[...]}, no `sr` key): a partial line another
         // program left in the board's buffer joined it. Measured on bench 2, 2026-11-02 (PROTOCOL_NOTES

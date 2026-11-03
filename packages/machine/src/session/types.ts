@@ -292,6 +292,8 @@ export interface ProbeProgress {
   /** A boot banner arrived: waiting for the board to settle before the probe restarts. */
   readonly settling: 'none' | 'boot' | 'ready';
   readonly restarts: number;
+  /** Lines read before the first answer on this link: a previous program's unread output, discarded (H49 amendment 2026-11-03). */
+  readonly backlog: number;
 }
 
 /** Live values from status reports and reads (the DRO and state band source). */

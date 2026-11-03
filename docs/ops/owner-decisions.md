@@ -355,3 +355,14 @@ software is not an emergency stop. "Stop job" no longer says "spindle off".
 ## 2026-11-03: routine explanations on demand
 
 The owner explicitly requested that routine explanatory paragraphs become `?` help instead of always-visible copy, citing the spindle readouts, Connect card, preview disclaimer W13, disconnected explanation W7, setup and machine-template copy. The implementation preserves the registered wording and makes help available by hover, keyboard focus and tap; CSS hover/focus works without JavaScript. W1 retains its existing visible presentation. This changes routine presentation, not active faults, confirmations, or Pause/Stop behavior. SAFETY §5 records the presentation amendment. Claude independently reviews the implementation before merging.
+
+## OD-12. Disconnect is never refused for ORPHANED_MOTION (owner, 2026-11-03)
+
+**Owner's words.** "disconnect button is not working. The machine has motion left from a previous session: it can only be stopped. Use Stop job or Reset controller. another bug" (bench 2, after a connect that read another program's unread output).
+
+**Decision.** Disconnect is allowed under ORPHANED_MOTION. Closing the port writes nothing and changes nothing on the board, so the refusal protected nothing; it only kept the user in a session whose one remaining action was `!`. Disconnecting does not stop the machine: Stop job, Reset controller or the E-stop do, and the next connect lands in UNKNOWN as after every abnormal end (W6). Disconnect stays refused while a job, jog, homing, settings write or flash owns the machine. SAFETY H14 and the §4.1 matrix carry the amendment.
+
+## 2026-11-03: output left unread by a previous program (H49 amendment)
+
+Recorded from the bench 2 Console transcript the owner pasted: the first lines run read after opening the port were pushed status reports, a torn heartbeat fragment and only then the answer to run's own `{sr:null}`. The firmware maintainer's session confirmed the board never originates an `r` frame and that the tear happens in the FTDI and macOS buffers once nobody drains the port. Run now discards everything before the first answer on a link (counted in the session log) instead of taking a torn line for a damaged answer. Not an owner decision; recorded here because it changes connect behaviour the owner saw.
+

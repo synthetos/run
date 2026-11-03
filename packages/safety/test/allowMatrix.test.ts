@@ -154,7 +154,8 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
     };
     // jobBreakpoints (Phase 3) is the page's list of breakpoints for a loaded job: it writes nothing to the controller.
     expect([...allowedUnder('FAULT')].sort()).toEqual(['ackFault', 'cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
-    expect([...allowedUnder('ORPHANED_MOTION')].sort()).toEqual(['cloudSync', 'enq', 'feedhold', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
+    // Amendment 2026-11-03 (OD-12): Disconnect closes the port and changes nothing on the board.
+    expect([...allowedUnder('ORPHANED_MOTION')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
     expect([...allowedUnder('LOST')].sort()).toEqual(['acknowledgeLost', 'cloudSync']);
     // Amendment 2026-11-02: the ways out of UNKNOWN are home, position-verify and, for a machine without homing
     // switches, set machine position (G28.3); the session's status-report configuration moves nothing.
@@ -422,6 +423,12 @@ describe('rows', () => {
     }
     expect(allowed(snap('IDLE_HOMED'), 'disconnect').allowed).toBe(true);
     expect(allowed(snap('PORT_REQUEST'), 'disconnect').allowed).toBe(true);
+  });
+
+  it('Disconnect is allowed under ORPHANED_MOTION: closing the port changes nothing on the board (OD-12); LOST still needs its acknowledgement', () => {
+    expect(allowed(snap('CONNECTED_UNKNOWN', ['ORPHANED_MOTION']), 'disconnect').allowed).toBe(true);
+    expect(allowed(snap('IDLE_HOMED', ['ORPHANED_MOTION', 'UNKNOWN']), 'disconnect').allowed).toBe(true);
+    expect(allowed(snap('IDLE_HOMED', ['LOST']), 'disconnect').allowed).toBe(false);
   });
 
   it('acknowledgements need their overlay', () => {

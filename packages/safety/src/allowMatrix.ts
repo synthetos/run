@@ -503,8 +503,10 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
   disconnect: {
     kind: 'session',
     states: ALL_STATES.filter((s) => s !== 'NOT_CONNECTED' && !JOB_ACTIVE.includes(s) && !['JOGGING', 'HOMING', 'SETTINGS_WRITE', 'BOOTLOADER_MODE'].includes(s)),
-    // Not under ORPHANED_MOTION: its only exits are Stop job and Reset controller (SAFETY §3).
-    overlays: ['FAULT', 'UNKNOWN', 'STALE', 'READ_ONLY', 'NEEDS_REVIEW'],
+    // Under ORPHANED_MOTION too (owner, 2026-11-03, OD-12): closing the port writes nothing and changes nothing on
+    // the board; refusing it only kept the user in a session that could do nothing but `!`. The machine is stopped
+    // by Stop job, Reset controller or the E-stop, never by a disconnect; the next connect lands in UNKNOWN (H14).
+    overlays: ['FAULT', 'UNKNOWN', 'STALE', 'READ_ONLY', 'NEEDS_REVIEW', 'ORPHANED_MOTION'],
     denied: {
       reason: 'Disconnecting now would leave the machine running what it has queued.',
       remedy: 'Use Stop job, or wait for the move or write to finish.',
