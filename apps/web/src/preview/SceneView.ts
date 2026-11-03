@@ -44,7 +44,7 @@ export function SceneView({ scene, preview, active }: SceneViewProps): Component
   const [view, setView] = useState<{ readonly preset: ViewPreset; readonly seq: number }>({ preset: 'iso', seq: 0 });
   const [fit, setFit] = useState(0);
   const segments = preview?.segments ?? null;
-  const label = 'Bed, fixture, clamps and stock with the toolpath, in machine coordinates. Drag to orbit, scroll to zoom.';
+  const label = 'Bed, fixture, clamps and stock with the toolpath, in machine coordinates. Drag to orbit, middle-drag or shift-drag to pan, scroll to zoom.';
   return h(
     'div',
     { class: 'scene-view', 'data-preview': 'scene', 'data-drawing': drawing },

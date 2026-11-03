@@ -23,7 +23,9 @@ function nullGl(): WebGL2RenderingContext {
 }
 
 describe('large files', () => {
-  it('1M lines: full preview with no main-thread slice over 50 ms while the geometry uploads', { timeout: 240_000 }, async () => {
+  // Wall clock: a slice the host pre-empts (the other packages' tests share the cores under `pnpm check`) reads long
+  // without the pipeline having overrun its budget, so this gets two retries, like the slicer's real-clock case.
+  it('1M lines: full preview with no main-thread slice over 50 ms while the geometry uploads', { timeout: 240_000, retry: 2 }, async () => {
     const { result } = analyseBytes(job(1_000_000), { dialect: 'tinyg-en', mode: 'full' });
     expect(result.summary.blocked).toBe(false);
     const segments = result.segments;

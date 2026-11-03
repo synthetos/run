@@ -49,7 +49,7 @@ import { duration as durationText, feedLimitLines, jobUi, PHASE_TEXT, plannerRan
 
 const PHASE_LABEL = (phase: string): string => PHASE_TEXT[phase] ?? phase;
 import { JobStatus, JobSteps, JobStopCard, type StopHooks } from './JobViews.ts';
-import { JOB_STEPS, jobStep, uiLevel, type UiLevel } from '../jobWorkflow.ts';
+import { JOB_STEPS, jobStep, uiLevel } from '../jobWorkflow.ts';
 import { JobSetupPanel } from './SetupView.ts';
 import { JobFiles } from '../../projects/ProjectsView.ts';
 
@@ -128,7 +128,7 @@ function RunBridge({ parts }: { readonly parts: PreviewParts }): ComponentChild 
 // ---------------------------------------------------------------- connect
 
 /** The Connect card: the existing LIVE entry flow (live/ConnectPanel.ts), restyled. C1 opens as a dialog. */
-export function ConnectNotice({ model, onView }: { readonly model: WorkspaceModel | null; readonly onView: (view: string) => void }): ComponentChild {
+export function ConnectNotice({ model, onView, compact = false }: { readonly model: WorkspaceModel | null; readonly onView?: (view: string) => void; readonly compact?: boolean }): ComponentChild {
   const view = model?.live.value ?? null;
   const actions = model?.actions.value ?? null;
   const step = view?.entry.step ?? 'idle';
@@ -153,6 +153,17 @@ export function ConnectNotice({ model, onView }: { readonly model: WorkspaceMode
         ? 'Review and apply settings in Board.'
         : 'Read-only connection.'
     : 'Connect by USB to read your board and check its setup.';
+  if (compact) {
+    // In the machine strip (owner, 2026-11-03): the Connect flow beside the state, nothing said twice.
+    return h(
+      'div',
+      { class: 'connect-notice compact', 'data-region': 'connect' },
+      step === 'c1' ? null : panel,
+      step === 'c1'
+        ? h('div', { class: 'dialog-wrap', role: 'presentation' }, h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'c1-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'c1-title' }, 'Before you connect')), panel))
+        : null,
+    );
+  }
   return h(
     'div',
     { class: `scenario-notice connect-notice${isConnected ? ' is-connected' : ''}`, 'data-region': 'connect' },
@@ -163,7 +174,7 @@ export function ConnectNotice({ model, onView }: { readonly model: WorkspaceMode
       step === 'c1' ? null : panel,
       // The port is open or opening but LIVE entry has not finished (or ended elsewhere): Disconnect still applies.
       isConnected && step !== 'live' && step !== 'c1' ? h('button', { type: 'button', class: 'button', 'data-action': 'disconnect', onClick: () => actions?.disconnect() }, 'Disconnect') : null,
-      isConnected ? h('button', { type: 'button', class: 'small', onClick: () => onView('board') }, 'Open the board') : null,
+      isConnected && onView !== undefined ? h('button', { type: 'button', class: 'small', onClick: () => onView('board') }, 'Open the board') : null,
     ),
     step === 'c1'
       ? h(
@@ -263,8 +274,7 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
         'span',
         { class: 'pos-head-right' },
         gate === null ? null : h('span', { class: 'tag warn', 'data-position': 'gate' }, /approved/.test(gate) ? 'Read only' : 'Controls off', h(ContextHelp, { id: 'position-gate-help', label: 'Why the controls are off', below: true, end: true }, gate)),
-        h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: `${age.text}. The age is the time since the controller last said anything.` }, age.lag === 'none' ? age.text : age.text.slice(age.text.indexOf('·') + 2)),
-        h(LevelSwitch, null),
+        m === null ? null : h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: `${age.text}. The age is the time since the controller last said anything.` }, age.lag === 'none' ? age.text : age.text.slice(age.text.indexOf('·') + 2)),
       ),
     ),
     h(
@@ -287,9 +297,11 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
       'div',
       { class: 'pos-status' },
       uiLevel.value.value === 'advanced' || units === null ? null : h('span', { class: 'tag', 'data-position': 'units' }, `work in ${units}`),
-      h('span', { class: 'tag', 'data-position': 'wcs' }, wcs?.code ?? '—'),
-      homed === null
-        ? h('span', { class: 'tag', 'data-position': 'homing' }, m === null ? 'Not connected' : 'Homing unknown')
+      m === null ? null : h('span', { class: 'tag', 'data-position': 'wcs' }, wcs?.code ?? '—'),
+      m === null
+        ? null
+        : homed === null
+        ? h('span', { class: 'tag', 'data-position': 'homing' }, 'Homing unknown')
         : homed
           ? h('span', { class: 'tag ok', 'data-position': 'homing' }, 'Homed')
           : h('span', { class: 'tag warn', 'data-position': 'homing' }, 'Not homed', h(ContextHelp, { id: 'w34-help', label: 'About moving before homing', safety: 'W34', below: true }, ...signalText(w34()))),
@@ -298,17 +310,12 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
     ),
     card,
     note === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-position': 'note' }, note),
-    m === null || uiLevel.value.value !== 'advanced' ? null : h('details', { class: 'more' }, h('summary', null, 'Where these numbers come from'), h(Dro, { message: m, elapsedMs: (view as LiveView).now - (view as LiveView).receivedAt })),
+    // Advanced: the DRO sources and what Run changed in the board's reporting (W35, W36), behind one disclosure.
+    m === null || uiLevel.value.value !== 'advanced' ? null : h('details', { class: 'more' }, h('summary', null, 'Where these numbers come from'), reportsNotice(view), h(Dro, { message: m, elapsedMs: (view as LiveView).now - (view as LiveView).receivedAt })),
   );
 }
 
-/** Simple | Advanced (OD-13): presentation only, kept per browser. Pause, Stop job, Spindle off and W1 are the same at both. */
-function LevelSwitch(): ComponentChild {
-  const level = uiLevel.value.value;
-  const option = (id: UiLevel, label: string): ComponentChild =>
-    h('button', { type: 'button', key: id, class: level === id ? 'selected' : undefined, 'aria-pressed': level === id ? 'true' : 'false', 'data-action': `ui-level-${id}`, onClick: () => uiLevel.set(id) }, label);
-  return h('span', { class: 'seg level-switch', role: 'group', 'aria-label': 'Interface level', 'data-ui-level': level }, option('simple', 'Simple'), option('advanced', 'Advanced'));
-}
+
 
 type PositionProps = { readonly model?: WorkspaceModel | null };
 
@@ -845,10 +852,10 @@ export function OverridesSection(): ComponentChild {
   );
 }
 
-type InspTab = 'jog' | 'home' | 'zero' | 'spindle' | 'overrides';
+type InspTab = 'jog' | 'home' | 'zero' | 'spindle';
 
 /** The Run inspector: position always on top, the rest as tabs so nothing needs a long scroll. */
-function RunInspector({ model, onView, stops }: { readonly model: WorkspaceModel | null; readonly onView: (view: string) => void; readonly stops: StopHooks }): ComponentChild {
+function RunInspector({ model, stops }: { readonly model: WorkspaceModel | null; readonly stops: StopHooks }): ComponentChild {
   const [tab, setTab] = useState<InspTab>('jog');
   const [ask, setAsk] = useState<{ readonly axes: readonly MotionAxis[]; readonly at: number } | null>(null);
   const simple = uiLevel.value.value !== 'advanced';
@@ -858,8 +865,6 @@ function RunInspector({ model, onView, stops }: { readonly model: WorkspaceModel
       'aside',
       { class: 'inspector run-inspector simple', 'aria-label': 'Machine', 'data-ui-level': 'simple' },
       h(JobStopCard, { model, ...stops }),
-      // Connected, the machine strip says so and carries Disconnect; the card is for connecting (OD-13 §3: no scrolling).
-      model?.live.value !== undefined && connected(model.live.value) ? null : h(ConnectNotice, { model, onView }),
       h(PositionPanel, { model }),
       h('div', { class: 'simple-pane' }, h(JogSection, { model, onGoToZero: (axes) => setAsk({ axes, at: Date.now() }) }), h(HomeQuick, { model }), h(SpindleSection, { model, compact: true })),
       ask === null ? null : h(ZeroSection, { model, ask, goOnly: true }),
@@ -869,7 +874,6 @@ function RunInspector({ model, onView, stops }: { readonly model: WorkspaceModel
     'aside',
     { class: 'inspector run-inspector', 'aria-label': 'Machine', 'data-ui-level': 'advanced' },
     h(JobStopCard, { model, ...stops, onZeroZ: () => setTab('zero') }),
-    h(ConnectNotice, { model, onView }),
     h(PositionPanel, { model }),
     h(
       'div',
@@ -885,7 +889,6 @@ function RunInspector({ model, onView, stops }: { readonly model: WorkspaceModel
           { id: 'home', label: 'Home' },
           { id: 'zero', label: 'Offsets' },
           { id: 'spindle', label: 'Spindle' },
-          { id: 'overrides', label: 'Overrides' },
         ],
       }),
     ),
@@ -903,7 +906,6 @@ function RunInspector({ model, onView, stops }: { readonly model: WorkspaceModel
     ),
     h(TabPane, { prefix: 'insp', id: 'home', current: tab, class: 'tpane insp-pane' }, h(HomeSection, { model })),
     h(TabPane, { prefix: 'insp', id: 'zero', current: tab, class: 'tpane insp-pane' }, h(ZeroSection, { model, ask })),
-    h(TabPane, { prefix: 'insp', id: 'overrides', current: tab, class: 'tpane insp-pane' }, h(OverridesSection, null)),
   );
 }
 
@@ -1483,6 +1485,6 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
       ),
     ),
     ),
-    h(RunInspector, { model, onView, stops }),
+    h(RunInspector, { model, stops }),
   );
 }

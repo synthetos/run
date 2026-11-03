@@ -162,7 +162,7 @@ test('Disconnect is in the machine strip in every view: disconnecting from a non
   await expect(disconnect).toHaveCount(0);
   await expect(strip.locator('[data-state="not-connected"]')).toBeVisible();
   await show(page, 'run');
-  await expect(page.locator('[data-screen="job"] [data-region="connect"] [data-entry="idle"] [data-action="connect"]')).toBeVisible();
+  await expect(page.locator('[data-region="strip-connection"] [data-region="connect"] [data-entry="idle"] [data-action="connect"]')).toBeVisible();
   await expect(strip.locator('[data-disconnect="refused"]')).toHaveCount(0);
 });
 
@@ -187,7 +187,8 @@ test('the notice raised after Stop job sits above the panels and the 3D canvas: 
   const covered = (selector: string): Promise<{ readonly points: number; readonly overCard: number; readonly hidden: readonly string[] }> =>
     tabB.locator(selector).first().evaluate((el) => {
       const r = el.getBoundingClientRect();
-      const card = document.querySelector('.job-card')?.getBoundingClientRect() ?? null;
+      // The panels the notice lies over: the job card, and since the machine pane became a rail (OD-13) that rail too.
+      const panels = ['.job-card', '.run-inspector'].map((s) => document.querySelector(s)?.getBoundingClientRect() ?? null).filter((p): p is DOMRect => p !== null);
       const hidden: string[] = [];
       let points = 0;
       let overCard = 0;
@@ -197,7 +198,7 @@ test('the notice raised after Stop job sits above the panels and the 3D canvas: 
       for (const x of xs) {
         for (const y of ys) {
           points += 1;
-          if (card !== null && x >= card.left && x <= card.right && y >= card.top && y <= card.bottom) overCard += 1;
+          if (panels.some((card) => x >= card.left && x <= card.right && y >= card.top && y <= card.bottom)) overCard += 1;
           const top = document.elementFromPoint(x, y);
           if (top === null || !(top === el || el.contains(top))) hidden.push(`${Math.round(x)},${Math.round(y)} ${top?.tagName ?? ''}.${top?.className ?? ''}`);
         }
@@ -205,7 +206,7 @@ test('the notice raised after Stop job sits above the panels and the 3D canvas: 
       return { points, overCard, hidden };
     });
   const n = await covered('[data-stop-outcome]');
-  // The notice lies over the job card (the panel that used to cover it), so the hit test means something.
+  // The notice lies over the job card or the machine pane (the panels that used to cover it), so the hit test means something.
   expect(n.overCard).toBeGreaterThan(n.points / 3);
   expect(n.hidden).toEqual([]);
   expect((await covered('[data-region="safety-bar"] [data-safety="W1"]')).hidden).toEqual([]);

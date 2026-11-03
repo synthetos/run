@@ -40,6 +40,8 @@ export interface MachineStripProps {
   readonly motion?: boolean;
   /** Present while a port is open or opening: Disconnect, and why the last one was refused. */
   readonly connection?: { readonly onDisconnect: () => void; readonly refused: string | null } | null;
+  /** While no port is open: the Connect flow (owner, 2026-11-03: Connect lives beside the state, not in the pane). */
+  readonly connect?: ComponentChild;
 }
 
 /** What Stop job does in this release, said plainly next to the button. */
@@ -136,8 +138,8 @@ function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined
   );
 }
 
-function connectionArea(connection: MachineStripProps['connection']): ComponentChild {
-  if (connection === undefined || connection === null) return null;
+function connectionArea(connection: MachineStripProps['connection'], connect: ComponentChild | undefined): ComponentChild {
+  if (connection === undefined || connection === null) return connect === undefined ? null : h('div', { class: 'strip-connection', 'data-region': 'strip-connection' }, connect);
   return h(
     'div',
     { class: 'strip-connection', 'data-region': 'strip-connection' },
@@ -146,7 +148,7 @@ function connectionArea(connection: MachineStripProps['connection']): ComponentC
   );
 }
 
-export function MachineStrip({ status, stop, previousSession, onPause, onStopJob, connection, onResume, motion = false }: MachineStripProps): ComponentChild {
+export function MachineStrip({ status, stop, previousSession, onPause, onStopJob, connection, connect, onResume, motion = false }: MachineStripProps): ComponentChild {
   const held = stop?.band === 'held';
   // "spindle still on" only when the board reports spe=1 while held; wording only, nothing decides on it.
   const title = held ? (status.spindleOn ? STOP_TEXT.pausedSpindleOn : STOP_TEXT.paused) : status.title;
@@ -165,7 +167,7 @@ export function MachineStrip({ status, stop, previousSession, onPause, onStopJob
       h('span', { class: 'state-dot', 'aria-hidden': 'true' }),
       h('div', null, h('strong', { 'data-strip': 'state' }, title), h('small', { 'data-strip': 'name' }, status.name)),
     ),
-    connectionArea(connection),
+    connectionArea(connection, connect),
     band(status, stop, previousSession, onResume),
     showReadouts
       ? h(

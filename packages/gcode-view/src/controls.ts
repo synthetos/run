@@ -8,7 +8,8 @@ import type { PreviewRenderer } from './renderer.ts';
 export function attachViewControls(canvas: HTMLCanvasElement, renderer: PreviewRenderer): () => void {
   let drag: { x: number; y: number; pan: boolean; id: number } | null = null;
   const down = (e: PointerEvent): void => {
-    drag = { x: e.clientX, y: e.clientY, pan: e.shiftKey || e.button === 2, id: e.pointerId };
+    // The middle button pans (the hand), as in every CAD viewer; so do shift-drag and right-drag. Left-drag orbits.
+    drag = { x: e.clientX, y: e.clientY, pan: e.shiftKey || e.button === 1 || e.button === 2, id: e.pointerId };
     canvas.setPointerCapture(e.pointerId);
   };
   const move = (e: PointerEvent): void => {

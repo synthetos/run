@@ -56,7 +56,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme });
       await page.goto('/');
       await ready(page);
-      const connect = page.locator('[data-screen="job"] [data-region="connect"] [data-entry="idle"] [data-action="connect"]');
+      const connect = page.locator('[data-region="strip-connection"] [data-region="connect"] [data-entry="idle"] [data-action="connect"]');
       await expect(connect).toBeVisible();
       const style = await connect.evaluate((el) => {
         const s = getComputedStyle(el);

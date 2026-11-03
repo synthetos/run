@@ -43,6 +43,8 @@ import { ReportDialog } from '../report/ReportDialog.ts';
 import { openReport } from '../report/state.ts';
 import { UnknownExits } from './homing.ts';
 import { ReviewExits } from './reviewExits.ts';
+import { LevelSwitch } from './LevelSwitch.ts';
+import { ConnectNotice } from './views/RunView.ts';
 
 export type ViewId = 'job' | 'library' | 'board' | 'projects' | 'analyze' | 'settings' | 'safety';
 
@@ -84,6 +86,8 @@ function Strip(props: AppShellProps): ComponentChild {
   const connection = actions !== null && portOpen(view) ? { onDisconnect: actions.disconnect, refused: view.disconnectRefused } : null;
   return h(MachineStrip, {
     connection,
+    // While no port is open the Connect flow sits here, beside the state (owner, 2026-11-03), not in the machine pane.
+    ...(connection === null ? { connect: h(ConnectNotice, { model: props.model ?? null, compact: true }) } : {}),
     status,
     stop: props.stop?.value ?? null,
     previousSession: props.previousSession?.value === true,
@@ -228,6 +232,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
       h(
         'div',
         { class: 'top-actions' },
+        h(LevelSwitch, null),
         h('button', { type: 'button', class: 'icon-button quiet theme-toggle', [THEME_TOGGLE_ATTR]: '', 'aria-label': 'Toggle day/night mode', title: 'Toggle day/night mode' }, h('span', { class: 'theme-sun' }, Icon('sun', 18)), h('span', { class: 'theme-moon' }, Icon('moon', 18))),
         h(AccountMenu, null),
       ),

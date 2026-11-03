@@ -220,7 +220,8 @@ describe('Phase 1 control allowlist', () => {
       }
       expect(UI.some((r) => r.test(c.id)), `unclassified control ${c.id}: classify it in shell.test.ts`).toBe(true);
     }
-    for (const k of MACHINE_DISABLED) expect(seen.has(k), `no ${k} control rendered`).toBe(true);
+    // Overrides left the pane until the firmware supports them (OD-13); the section itself is still classified below.
+    for (const k of MACHINE_DISABLED) if (k !== 'override') expect(seen.has(k), `no ${k} control rendered`).toBe(true);
     expect(seen.has('stop')).toBe(true);
     expect(seen.has('read')).toBe(true);
     expect(seen.has('settings-write')).toBe(true);
