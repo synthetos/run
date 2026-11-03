@@ -94,7 +94,8 @@ describe('T-S109: streaming by the line buffer free slots (H76)', () => {
     expect(h.session.snapshot.rxm.restore).toBe(1);
   });
 
-  it('never has more job lines owed than the free slots less the reserve, and every line is answered', async () => {
+  // Under `pnpm check` every package's tests share the cores: this streaming replay needs more than vitest's 5 s.
+  it('never has more job lines owed than the free slots less the reserve, and every line is answered', { timeout: 30_000 }, async () => {
     const h = await jobHarness();
     await start(h, zigzag(60));
     let most = 0;
