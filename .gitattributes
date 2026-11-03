@@ -1,2 +1,4 @@
 test-fixtures/cam/*.nc -text
 packages/gcode/test/differential/corpus/* -text
+firmware/*.hex -text
+firmware/sim/*.hex -text

@@ -7,9 +7,16 @@
  * D1 sign-in gate's identity: the verified Cloudflare Access identity on
  * staging, none in production until A1-07). Every other `/api/*` and
  * `/auth/*` path is a 404 until A1 adds sign-in.
+ *
+ * `GET /firmware/<owner>/<name>/<tag>/<asset>` (OD-10) serves a listed
+ * GitHub release asset through the firmware proxy (firmwareProxy.ts). In
+ * production only `/api/*` and `/auth/*` run the Worker first
+ * (wrangler.jsonc), so there the path reaches the asset layer and is a 404:
+ * production lists no firmware and its flasher is off.
  */
 import type { IdentityBody } from '@synthetos/contracts';
 import { accessConfig, type CertsFetcher, fetchAccessCerts, verifyAccessJwt } from './accessIdentity.ts';
+import { firmwareAssetPath, firmwareHeaders, NO_CACHE, proxyFirmwareAsset, type FirmwareCache, type FirmwareProxyDeps } from './firmwareProxy.ts';
 import { API_CACHE_CONTROL, grantsSerial, HASHED_ASSET_CACHE_CONTROL } from './headers.ts';
 
 export const VERSION = '0.0.0';
@@ -101,9 +108,42 @@ function under(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
+/**
+ * The Cache API as the firmware proxy's store, keyed by hash under this
+ * request's origin. Absent or failing, nothing is cached (the proxy still
+ * verifies every body it serves).
+ */
+function workerFirmwareCache(origin: string): FirmwareCache {
+  const store = (globalThis as { caches?: { default?: Cache } }).caches?.default;
+  if (store === undefined) return NO_CACHE;
+  const key = (sha256: string): string => `${origin}/firmware/.sha256/${sha256}`;
+  return {
+    async get(sha256) {
+      const hit = await store.match(key(sha256));
+      return hit === undefined ? undefined : new Uint8Array(await hit.arrayBuffer());
+    },
+    async put(sha256, bytes) {
+      await store.put(key(sha256), new Response(bytes.slice(), { headers: { 'cache-control': 'public, max-age=31536000, immutable' } }));
+    },
+  };
+}
+
+function liveFirmwareDeps(origin: string): FirmwareProxyDeps {
+  return { fetch: (url, init) => fetch(url, init), cache: workerFirmwareCache(origin) };
+}
+
+/** `GET`/`HEAD /firmware/<owner>/<name>/<tag>/<asset>`: a listed asset, verified, or a 404 (a 502 when GitHub fails). */
+async function firmware(request: Request, env: Env, pathname: string, deps: FirmwareProxyDeps): Promise<Response> {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, { error: 'method_not_allowed' }, { allow: 'GET, HEAD' });
+  const result = await proxyFirmwareAsset(pathname, env.RUN_ENV, deps);
+  if (!result.ok) return result.reason === 'upstream' ? json(502, { error: 'upstream_unavailable' }) : notFound();
+  return new Response(request.method === 'HEAD' ? null : result.bytes, { status: 200, headers: firmwareHeaders(result.bytes) });
+}
+
 /** Routes one request. Exported for the tests; production goes through `fetch` below. */
-export async function route(request: Request, env: Env, fetchCerts: CertsFetcher = fetchAccessCerts): Promise<Response> {
-  const { pathname } = new URL(request.url);
+export async function route(request: Request, env: Env, fetchCerts: CertsFetcher = fetchAccessCerts, firmwareDeps?: FirmwareProxyDeps): Promise<Response> {
+  const url = new URL(request.url);
+  const { pathname } = url;
   if (under(pathname, '/api')) {
     if (pathname === '/api/identity') {
       if (request.method === 'GET') return identity(request, env, fetchCerts);
@@ -119,6 +159,7 @@ export async function route(request: Request, env: Env, fetchCerts: CertsFetcher
     // no auth route at all.
     return notFound();
   }
+  if (firmwareAssetPath(pathname) !== null) return firmware(request, env, pathname, firmwareDeps ?? liveFirmwareDeps(url.origin));
   // Production: not normally reached (only /api/* and /auth/* run the Worker
   // first). Staging: every other request (the Worker runs first for all of
   // them, P1-00). The asset layer answers; the caller applies the headers.

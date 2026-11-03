@@ -4,15 +4,19 @@
  * exactly the reviewed unsigned file; production has no entry until the
  * owner signs one with the release key; every `.hex` the repository holds for
  * a listed release has the SHA-256 and size the list names; what the tool
- * signs verifies in the app's own verifier.
+ * signs verifies in the app's own verifier; the run Worker's generated copy
+ * of the GitHub-released entries (workers/run/src/firmwareAssets.ts, OD-10)
+ * is what the committed signed file renders.
  */
 import { createHash } from 'node:crypto';
 import type { webcrypto } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { verifyFirmwareReleases } from '../../../packages/protocol/src/firmwareReleases.ts';
-import { renderSignedReleases, signReleases, type SignedReleases, type UnsignedReleases } from '../src/release/firmwareReleases.ts';
+import { FIRMWARE_RELEASE_REPOSITORIES, verifyFirmwareReleases } from '../../../packages/protocol/src/firmwareReleases.ts';
+import { FIRMWARE_ASSETS } from '../../../workers/run/src/firmwareAssets.ts';
+import { FIRMWARE_REPOSITORIES } from '../../../workers/run/src/firmwareProxy.ts';
+import { renderSignedReleases, renderWorkerFirmwareAssets, signReleases, WORKER_FIRMWARE_ASSETS_PATH, workerFirmwareAssets, type SignedReleases, type UnsignedReleases } from '../src/release/firmwareReleases.ts';
 
 const REPO = resolve(import.meta.dirname, '../../..');
 const read = <T>(path: string) => JSON.parse(readFileSync(join(REPO, path), 'utf8')) as T;
@@ -23,6 +27,9 @@ interface ReleaseEntry {
   readonly sha256: string;
   readonly size: number;
   readonly simulatorOnly?: boolean;
+  readonly repo?: string;
+  readonly tag?: string;
+  readonly recommended: boolean;
 }
 
 describe('committed firmware release files', () => {
@@ -54,6 +61,30 @@ describe('committed firmware release files', () => {
       }
     }
     expect(checked).toBeGreaterThan(0);
+  });
+
+  it('the one real TinyG release, 440.21 from GitHub Releases, is listed for hardware version 8 as an older, not recommended build (OD-10)', () => {
+    const staging = unsigned.manifests.find((m) => m['env'] === 'staging') as { boards: { hv: number; minimumFb: number | null; releases: ReleaseEntry[] }[] };
+    const hv8 = staging.boards.find((b) => b.hv === 8);
+    expect(hv8?.releases).toEqual([
+      expect.objectContaining({ file: 'tinyg-440.21.hex', repo: 'synthetos/TinyG', tag: '440.21', sha256: 'c2c1693e82f0ed88ec8dec4338a0bc799059c10b3323acb1189564f6a2265e92', size: 334978, recommended: false }),
+    ]);
+    // Listed, so not below the minimum: the owner raises the minimum to 450+ once an edge-next release exists (docs/ops/firmware-releases.md).
+    expect(hv8?.minimumFb).toBe(440.21);
+    // The repository holds a copy of the image for the tests (the Worker serves GitHub's); it is the listed bytes.
+    const copy = readFileSync(join(REPO, 'firmware/tinyg-440.21.hex'));
+    expect(createHash('sha256').update(copy).digest('hex')).toBe('c2c1693e82f0ed88ec8dec4338a0bc799059c10b3323acb1189564f6a2265e92');
+  });
+
+  it('the Worker’s generated asset list is what the committed signed file renders, under the same repository allowlist as protocol', () => {
+    expect(readFileSync(join(REPO, WORKER_FIRMWARE_ASSETS_PATH), 'utf8')).toBe(renderWorkerFirmwareAssets(signed));
+    expect(FIRMWARE_ASSETS).toEqual(workerFirmwareAssets(signed));
+    expect(FIRMWARE_REPOSITORIES).toEqual(FIRMWARE_RELEASE_REPOSITORIES);
+    for (const a of FIRMWARE_ASSETS) expect(FIRMWARE_REPOSITORIES, a.repo).toContain(a.repo);
+    // Only GitHub-released entries are rendered; simulator and bundled images are not the Worker's to serve.
+    expect(FIRMWARE_ASSETS.map((a) => a.asset)).toEqual(['tinyg-440.21.hex']);
+    expect(workerFirmwareAssets({ format: signed.format, manifests: [{ env: 'staging', kid: 'k', sig: 's', payload: JSON.stringify({ boards: [{ hv: 8, releases: [{ file: 'a.hex', sha256: 'x', size: 1 }] }] }) }] })).toEqual([]);
+    expect(() => workerFirmwareAssets({ format: signed.format, manifests: [{ env: 'staging', kid: 'k', sig: 's', payload: JSON.stringify({ boards: [{ hv: 8, releases: [{ file: 'a.hex', sha256: 'x', size: 1, repo: 'synthetos/TinyG' }] }] }) }] })).toThrow(/repo, tag/);
   });
 
   it('the tool signs what the app verifies', async () => {

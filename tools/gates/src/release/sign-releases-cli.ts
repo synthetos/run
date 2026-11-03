@@ -1,5 +1,7 @@
 /**
- * DEV ONLY. Re-signs firmware/releases.json from firmware/releases.unsigned.json.
+ * DEV ONLY. Re-signs firmware/releases.json from firmware/releases.unsigned.json,
+ * and regenerates the run Worker's copy of the GitHub-released entries,
+ * workers/run/src/firmwareAssets.ts (OD-10).
  *
  *   pnpm sign:releases --key /path/outside/the/repo/key.pkcs8.pem --kid <key id>
  *
@@ -14,7 +16,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { importPrivateKey } from './approvedBuilds.ts';
-import { renderSignedReleases, signReleases, type UnsignedReleases } from './firmwareReleases.ts';
+import { renderSignedReleases, renderWorkerFirmwareAssets, signReleases, WORKER_FIRMWARE_ASSETS_PATH, type UnsignedReleases } from './firmwareReleases.ts';
 import { isOutsideRepo } from './keyPath.ts';
 
 const root = resolve(import.meta.dirname, '../../../..');
@@ -32,4 +34,5 @@ const unsigned = JSON.parse(readFileSync(resolve(root, 'firmware/releases.unsign
 const key = await importPrivateKey(readFileSync(keyPath, 'utf8'));
 const signed = await signReleases(unsigned, key, values.kid);
 writeFileSync(resolve(root, 'firmware/releases.json'), renderSignedReleases(signed));
-process.stdout.write(`sign:releases: signed ${signed.manifests.length} manifest(s) with ${values.kid}\n`);
+writeFileSync(resolve(root, WORKER_FIRMWARE_ASSETS_PATH), renderWorkerFirmwareAssets(signed));
+process.stdout.write(`sign:releases: signed ${signed.manifests.length} manifest(s) with ${values.kid}; wrote ${WORKER_FIRMWARE_ASSETS_PATH}\n`);
