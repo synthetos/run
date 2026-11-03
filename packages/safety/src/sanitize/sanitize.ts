@@ -33,6 +33,7 @@ import type {
   SanitizeResult,
   SentLine,
   SplitRecord,
+  ToolChange,
 } from './types.ts';
 
 /** SAFETY §4.3: the queued-motion ceiling's default and range, and the default `k`. */
@@ -53,6 +54,10 @@ interface Candidate {
   readonly motion: LineMotion | null;
   /** Lines split from one source line share a group, so a failure removes all of them. */
   readonly group: number;
+  /** The line commands the spindle on (M3 or M4): a tool change after which the file restarts it (H74). */
+  readonly startsSpindle?: boolean;
+  /** Phase 3: a manual tool-change stop (H74); `restartsSpindle` is filled in after the last line. */
+  readonly toolChange?: Omit<ToolChange, 'restartsSpindle'>;
 }
 
 function checkOptions(options: SanitizeOptions): void {
@@ -165,6 +170,7 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
     }
     if (nWords.length > 0) add(lineNo, { severity: 'change', rule: 'n-word-stripped', message: 'line number replaced by the host line number' });
 
+    const before = { spindle: model.spindle, speed: model.speed, mist: model.mist, flood: model.flood };
     const analysis = model.analyze(words);
     for (const f of analysis.findings) add(lineNo, spacedCode(f, code, words, lineNo));
     if (!analysis.ok) return;
@@ -178,7 +184,10 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
     }
     const barrier = analysis.programStop || (m1 !== null && optionalStopOn);
 
-    if (analysis.toolChange) insertC14(candidates, lineNo, ++group, add);
+    if (analysis.toolChange && options.c14 === true) insertC14(candidates, lineNo, ++group, add);
+    // Phase 3 (H74): without C14 an M6 that passed is a manual tool-change stop (edge-next only; others block it).
+    const toolChange = analysis.toolChange && options.c14 !== true ? { tool: model.tool, ...before } : undefined;
+    const startsSpindle = words.some((w) => w.letter === 'M' && (canonicalCode(w) === 'M3' || canonicalCode(w) === 'M4'));
 
     group++;
     if (analysis.motion?.kind === 'split') {
@@ -197,6 +206,8 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
           outputsOn: i === 0 && analysis.outputsOn,
           motion: { plannerLength: seg.plannerLength, boundMm: seg.boundMm, seconds: seg.seconds },
           group,
+          ...(i === 0 && startsSpindle ? { startsSpindle } : {}),
+          ...(i === 0 && toolChange !== undefined ? { toolChange } : {}),
         });
       });
       return;
@@ -210,7 +221,7 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
       analysis.motion === null
         ? null
         : { plannerLength: analysis.motion.plannerLength, boundMm: analysis.motion.boundMm, seconds: analysis.motion.seconds };
-    candidates.push({ sourceLine: lineNo, origin: 'file', body, barrier, programEnd: analysis.programEnd, outputsOn: analysis.outputsOn, motion, group });
+    candidates.push({ sourceLine: lineNo, origin: 'file', body, barrier, programEnd: analysis.programEnd, outputsOn: analysis.outputsOn, motion, group, ...(startsSpindle ? { startsSpindle } : {}), ...(toolChange === undefined ? {} : { toolChange }) });
   });
 
   // Step 8: program end.
@@ -279,6 +290,7 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
     barrier: c.barrier,
     holdback: i === holdbackIndex,
     motion: c.motion,
+    ...(c.toolChange === undefined ? {} : { toolChange: { ...c.toolChange, restartsSpindle: restartsSpindle(candidates, i) } }),
   }));
   const longestMoveSeconds = sent.reduce((m, l) => Math.max(m, l.motion?.seconds ?? 0), 0);
   return {
@@ -312,6 +324,16 @@ export function spacedCode(f: Finding, code: string, words: readonly Word[], lin
     return { ...f, message: `'${shown}' reads as ${canonical ?? joined} because TinyG ignores spaces, and that isn't a valid command. This looks like a broken line from the post-processor. Check the file around line ${String(lineNo)}.` };
   }
   return f;
+}
+
+/** H74: does the file turn the spindle on at or after the tool change at `index`, before its next move? */
+function restartsSpindle(candidates: readonly Candidate[], index: number): boolean {
+  for (let j = index; j < candidates.length; j++) {
+    const c = candidates[j] as Candidate;
+    if (c.startsSpindle === true) return true;
+    if (c.motion !== null) return false;
+  }
+  return false;
 }
 
 function inserted(sourceLine: number, origin: LineOrigin, body: string, barrier: boolean, group: number): Candidate {

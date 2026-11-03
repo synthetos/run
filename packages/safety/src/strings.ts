@@ -386,6 +386,58 @@ export function w36(p: { readonly setting: string; readonly from: number; readon
   );
 }
 
+/**
+ * W37: the tool-change card (Phase 3, H74). Run stopped before the M6, waited for the queue to drain and turned
+ * the spindle and coolant off.
+ */
+export function w37(): string {
+  return 'WARNING — Tool change. The job is stopped and Run turned the spindle and coolant off. Wait until the spindle has stopped turning before you reach in, and keep a hand on the E-stop while you jog.';
+}
+
+/** W38: a job line the controller refused (Phase 3, H70). The job is paused at that line. */
+export function w38(p: { readonly line: number; readonly status: number; readonly meaning: string }): string {
+  return (
+    `WARNING — The controller refused line ${count('line', p.line)} (status ${count('status', p.status)}: ${text('meaning', p.meaning)}). ` +
+    'The job is paused and nothing after that line is sent. Lines sent before it may still run. Use "Stop job", or skip the line and continue.'
+  );
+}
+
+/** W39: run switched the board to line mode for a job (Phase 3, H77). Saved on the board; put back when the job ends. */
+export function w39(p: { readonly from: number }): string {
+  return (
+    `NOTICE — Run switched this board to line mode (rxm 1, saved on the board) for the job. It puts it back to rxm ${count('from', p.from)} ` +
+    'when the job ends. If this page closes during the job, the next connect puts it back. Programs that count characters need character mode (rxm 0).'
+  );
+}
+
+/** W40: the controller reset during a job (Phase 3, H72). A FAULT. */
+export function w40(p: { readonly line: number }): string {
+  return (
+    `DANGER — The controller reset during the job at line ${count('line', p.line)}. Everything queued is gone and the machine ` +
+    'position is unknown. Outputs may have switched during the reset. Check the machine before doing anything.'
+  );
+}
+
+/** W41: a breakpoint on a line already queued on the controller (Phase 3, H75). */
+export function w41(p: { readonly line: number }): string {
+  return `Line ${count('line', p.line)} is already queued on the controller, so a breakpoint there cannot stop the job.`;
+}
+
+/** W42: Stop job ended a running job (Phase 3, §4.4a): the flush sequence completed. */
+export function w42(p: { readonly line: number }): string {
+  return `Stopped at line ${count('line', p.line)}: queue cleared, spindle and coolant off`;
+}
+
+/** W43: the job stopped before a breakpoint line and the queue drained (Phase 3, H75). */
+export function w43(p: { readonly line: number }): string {
+  return `Stopped at breakpoint · line ${count('line', p.line)}`;
+}
+
+/** W44: run put the board's line-mode setting back at connect, outside a job (Phase 3, H77). */
+export function w44(p: { readonly to: number }): string {
+  return `NOTICE — This board was left in line mode (rxm 1) outside a job. Run put it back to rxm ${count('to', p.to)} (saved on the board).`;
+}
+
 // ------------------------------------------------------------ §6 confirmations
 
 /** C1, full form: the first time, on a text-version change, and once per calendar day in this browser. */
@@ -693,4 +745,54 @@ export function c28(p: { readonly system: string }): string {
 /** C29: select the work coordinate system, `G54`..`G59` (amendment 2026-11-02). */
 export function c29(p: { readonly system: string }): string {
   return `Use ${text('system', p.system)} for work coordinates? Work positions, Set work zero and Go to zero then use its saved offsets.`;
+}
+
+/** C30: start a job (Phase 3, §4.4a), with the work zero and the spindle the job will use. */
+export function c30(p: { readonly file: string; readonly lines: number; readonly workZero: string; readonly spindle: string }): string {
+  return (
+    `Start ${text('file', p.file)} now? Run sends ${count('lines', p.lines)} lines to the controller. Work zero: ${text('workZero', p.workZero)}. ` +
+    `Spindle: ${text('spindle', p.spindle)}. Keep a hand on the E-stop.`
+  );
+}
+
+/** C31: the board's work zero is not the plan's (Phase 3, H73). */
+export function c31(p: { readonly board: string; readonly plan: string }): string {
+  return (
+    `The board's work zero (${text('board', p.board)}) is not your plan's (${text('plan', p.plan)}). The job cuts where the board's ` +
+    'work zero is. Use the board\'s work zero for this job?'
+  );
+}
+
+/** C32: the job turns the spindle on (Phase 3, H52, H74). */
+export function c32(p: { readonly speeds: string }): string {
+  return `This job starts the spindle (${text('speeds', p.speeds)}). It starts when that line runs, without another question. Hands clear of the cutter?`;
+}
+
+/** C33: skip a refused line and continue (Phase 3, H70). */
+export function c33(p: { readonly line: number; readonly text: string }): string {
+  return (
+    `Skip line ${count('line', p.line)} (${text('text', p.text)}) and continue? The controller refused it, so it did not run. ` +
+    'The job continues with the next line, which may not be what the file meant.'
+  );
+}
+
+/** C34: resume after a manual tool change (Phase 3, H74). */
+export function c34(p: { readonly line: number; readonly tool: string }): string {
+  return (
+    `Resume with ${text('tool', p.tool)}? Run sends the tool change line ${count('line', p.line)}, returns to where the job stopped at a ` +
+    'safe height if you moved the machine, and continues the job.'
+  );
+}
+
+/** C35: start the spindle again after a tool change the file does not restart it after (Phase 3, H74). */
+export function c35(p: { readonly direction: 'M3' | 'M4'; readonly rpm: number }): string {
+  return (
+    `The spindle was on before the tool change and the file does not start it again. Run starts it (${oneOf('direction', p.direction, ['M3', 'M4'])} ` +
+    `S${num('rpm', p.rpm)}) before the job continues. Hands clear?`
+  );
+}
+
+/** C36: start a job on a machine that is not homed (Phase 3, H73). */
+export function c36(): string {
+  return 'The machine is not homed, so soft limits may not protect it. Start only if you have checked where every axis is and that the job fits. I\'ve checked the machine.';
 }

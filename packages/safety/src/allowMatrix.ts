@@ -100,6 +100,22 @@ export const INTENTS = Object.freeze([
    */
   'configureReports',
   'optionalStop',
+  /**
+   * Phase 3 (jobs, owner 2026-11-02; SAFETY §4.4a): start streaming the loaded job, from idle, after the start
+   * preconditions (C30-C32, C36). The session itself checks the job, the line mode and the board.
+   */
+  'startJob',
+  /** Phase 3: one line of the running job, written only while RUNNING (the streamer's own lines). */
+  'jobLine',
+  /**
+   * Phase 3: the line-mode switch `{"rxm":1}` for a job and the write that puts the board's own value back
+   * (SAFETY H77): its own reviewed intent, never a settings write. Only while nothing moves.
+   */
+  'lineMode',
+  /** Phase 3: the RAM-only `rt` lines of a job, the job flag (`{"rt":{"job":N}}`) and the feed-limit window (`{"rt":{"fi":N}}`). */
+  'jobRuntime',
+  /** Phase 3: the window's breakpoints for the loaded job. Writes nothing to the controller. */
+  'jobBreakpoints',
   'settingsWrite',
   'applyProfile',
   'flash',
@@ -129,7 +145,7 @@ export type Intent = (typeof INTENTS)[number];
  * its own, so turning on other writes (work zero) never turns on settings
  * writes, and the reverse.
  */
-export type IntentKind = 'stop' | 'read' | 'recovery' | 'session' | 'motion' | 'write' | 'settings' | 'reports' | 'port' | 'job' | 'cloud';
+export type IntentKind = 'stop' | 'read' | 'recovery' | 'session' | 'motion' | 'write' | 'settings' | 'reports' | 'jobs' | 'port' | 'job' | 'cloud';
 
 /** The stop-class intents of the normative rule (SAFETY §4.1). */
 export const STOP_CLASS: readonly Intent[] = Object.freeze(['feedhold', 'stopJob', 'spindleOffNow']);
@@ -166,6 +182,12 @@ export interface Release {
    * Absent means false. On with the Phase 2 motion release (bench and staging only).
    */
   readonly reports?: boolean;
+  /**
+   * Phase 3 jobs (kind `jobs`, owner 2026-11-02, SAFETY §4.4a): start a job, stream its lines, switch the board
+   * to line mode for it and put the value back, and the job's RAM-only `rt` lines. Absent means false. Turned on
+   * only by the jobs phase switch (jobsPhase.ts) for the bench and staging environments, on top of motion.
+   */
+  readonly jobs?: boolean;
 }
 
 /** This release: Phase 0, no serial (ROADMAP P0-10, RUN_PLAN §11). */
@@ -320,7 +342,8 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
   },
   // JOGGING: the next short step of the jog already running (a hold-jog or a long step fed in pieces, §4.5b).
   // The session itself refuses to START a jog unless the base state is idle.
-  jog: { kind: 'motion', states: [...IDLE, 'JOGGING'], overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Jog row; §4.5b' },
+  // PROGRAM_PAUSED (Phase 3): jogging to the change position during a manual tool change; the session allows it only then.
+  jog: { kind: 'motion', states: [...IDLE, 'JOGGING', 'PROGRAM_PAUSED'], overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Jog row; §4.5b; §4.4a tool change' },
   goToZero: { kind: 'motion', states: [...IDLE, 'JOGGING'], overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Jog row; §4.5b Go to zero' },
   clearAlarm: {
     kind: 'motion',
@@ -361,7 +384,43 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
   consoleLine: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Console line row' },
   spindleOn: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Manual spindle/coolant on row' },
   // Kind `motion`: setting work zero is part of motion control (P2 in WORKSPACE_FEATURES), not a settings write (§4.5b).
-  setWorkZero: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Set work zero row; §4.5b' },
+  // PROGRAM_PAUSED (Phase 3): the optional Z re-zero during a manual tool change; the session allows it only then.
+  setWorkZero: { kind: 'motion', states: [...IDLE, 'PROGRAM_PAUSED'], overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Set work zero row; §4.5b; §4.4a tool change' },
+  startJob: {
+    kind: 'jobs',
+    states: IDLE,
+    overlays: [],
+    denied: { reason: 'A job starts only while the machine is idle, with nothing in the way.', remedy: 'Wait until the machine is idle, and clear any warning first.' },
+    citation: 'SAFETY §4.4a Start (Phase 3); §4.1 Start row',
+  },
+  jobLine: {
+    kind: 'jobs',
+    states: ['RUNNING'],
+    overlays: [],
+    denied: { reason: 'Job lines are sent only while the job runs.', remedy: 'Resume the job, or stop it.' },
+    citation: 'SAFETY §4.4a streaming (Phase 3); H70, H76',
+  },
+  lineMode: {
+    kind: 'jobs',
+    states: [...IDLE, 'CONNECTED_UNKNOWN', 'PREAMBLE'],
+    overlays: ['UNKNOWN', 'NEEDS_REVIEW'],
+    denied: { reason: 'The line-mode setting is changed only while the machine is idle.', remedy: 'Wait until the machine is idle.' },
+    citation: 'SAFETY §4.4a line mode (Phase 3); H77',
+  },
+  jobRuntime: {
+    kind: 'jobs',
+    states: [...IDLE, 'PREAMBLE', 'RUNNING', 'HELD', 'PROGRAM_PAUSED'],
+    overlays: [],
+    denied: { reason: 'The job flag and the feed-limit window are sent only around a job.', remedy: 'Nothing to do.' },
+    citation: 'SAFETY §4.4a job flag and feed-limit window (Phase 3); MACHINING_ASSISTANT feed-limit step 3',
+  },
+  jobBreakpoints: {
+    kind: 'session',
+    states: PORT_OPEN,
+    overlays: PORT_OVERLAYS,
+    denied: { reason: 'Breakpoints are kept only while a board is connected.', remedy: 'Connect first.' },
+    citation: 'SAFETY §4.4a breakpoints (Phase 3); H75',
+  },
   optionalStop: { kind: 'write', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Optional stop row' },
   settingsWrite: {
     kind: 'settings',
@@ -495,6 +554,7 @@ export function allowed(snapshot: MatrixSnapshot, intent: Intent, release: Relea
     (row.kind === 'write' && !release.write) ||
     (row.kind === 'settings' && release.settings !== true) ||
     (row.kind === 'reports' && release.reports !== true) ||
+    (row.kind === 'jobs' && release.jobs !== true) ||
     (row.kind === 'port' && !release.port)
   ) {
     return deny(NOT_IN_RELEASE.reason, NOT_IN_RELEASE.remedy, `ROADMAP P0-10 (${release.name})`);

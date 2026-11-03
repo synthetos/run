@@ -47,6 +47,22 @@ export interface TinyGModelOptions {
    * rest of the line in RAM without persisting (echoing `"ram":1` first). When false any `ram` key answers 100.
    */
   readonly ramWrites?: boolean;
+  /**
+   * Edge-next model: `rxm` on a fresh EEPROM (default: line mode, 1, @cite EN settings/settings_default.h:74). 0 is a
+   * board another sender left in character mode (footer revision 2), the case run's job preparation switches.
+   */
+  readonly rxm?: 0 | 1;
+  /**
+   * Edge-next model: the feed-limit push (`{"rt":{"fi":N}}`, pushed `fs` lines; @cite EN runtime.c:296-563). Default
+   * false, so existing transcripts are unchanged; edge-next 93a723b8 has it. The model's summary counters are a
+   * model limit (LIM-EN-FEED-LIMIT): cutting time and distance are modelled, the per-cause counters stay 0.
+   */
+  readonly feedLimit?: boolean;
+  /**
+   * Edge-next model: the job flag `{"rt":{"job":N}}` (feed-limit step 3: designed, NOT in any firmware yet). Default
+   * false. For the tests of run's capability seam only.
+   */
+  readonly jobFlag?: boolean;
 }
 
 /** What a test can inspect without going through the wire. */

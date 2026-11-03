@@ -174,6 +174,11 @@ export class JobModel {
    * bound, or null when that includes rotary degrees with no known radius.
    */
   readonly #jointResidualMm: number | null;
+  /**
+   * Phase 3: run streams jobs to this dialect and stops before each M6 for a manual tool change (SAFETY §4.4a,
+   * H74), so M6 is an INFO stop point instead of a block. Only edge-next streams jobs (line mode, H76).
+   */
+  readonly #manualToolChange: boolean;
 
   units: 'G20' | 'G21' | null;
   distance: 'G90' | 'G91' | null;
@@ -193,6 +198,10 @@ export class JobModel {
   spindle: 'off' | 'cw' | 'ccw';
   mist: boolean;
   flood: boolean;
+  /** The last S word (commanded speed), or null. For the tool-change spindle restart (H74). */
+  speed: number | null = null;
+  /** The last T word (selected tool), or null. */
+  tool: number | null = null;
   /**
    * How well the model knows the firmware's positions, offsets and stored
    * positions (finding: arc uncertainty, after P0-10#1). The board reports
@@ -212,6 +221,7 @@ export class JobModel {
 
   constructor(dialect: Dialect, job: DialectJobGcode, options: SanitizeOptions) {
     this.#job = job;
+    this.#manualToolChange = dialect.id === 'tinyg-en';
     this.#rules = dialect.gcode.blocked;
     this.#lWords = dialect.gcode.lWords;
     this.#options = options;
@@ -685,9 +695,11 @@ export class JobModel {
     }
     const toolChange = has('M6');
     if (toolChange && this.#options.c14 !== true) {
-      // Still a BLOCK: jobs are not run in this release, and M6 does not pause on TinyG (it only stores the tool number).
       const tool = T !== undefined && Number.isInteger(T.value) && T.value >= 0 ? ` (T${String(T.value)})` : '';
-      findings.push(block('m6-without-c14', `Tool change${tool}: TinyG doesn't stop for M6. Run will stop here and walk you through the change when running jobs arrives.`));
+      // Phase 3 (SAFETY §4.4a, H74): M6 does not pause on TinyG (it only stores the tool number), so run stops the
+      // stream before the line, turns the spindle and coolant off, and walks the user through the change.
+      if (this.#manualToolChange) findings.push({ severity: 'info', rule: 'tool-change-stop', message: `Tool change${tool}: Run stops here for a manual tool change.` });
+      else findings.push(block('m6-without-c14', `Tool change${tool}: TinyG doesn't stop for M6, and Run streams jobs only to edge-next, which it stops before each tool change.`));
     }
 
     // The modal state this line runs under (modal codes apply before the block's action, EN execution order).
@@ -853,6 +865,8 @@ export class JobModel {
     }
 
     // --- Outputs and program flow (after motion in the block). ---
+    if (S !== undefined) this.speed = S.value;
+    if (T !== undefined) this.tool = T.value;
     if (has('M3')) this.spindle = 'cw';
     if (has('M4')) this.spindle = 'ccw';
     if (has('M5')) this.spindle = 'off';

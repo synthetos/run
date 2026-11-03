@@ -383,12 +383,29 @@ describe('step 9: numbering and length', () => {
 describe('verdict wording from the bench 1 file (presentation only: levels and rules unchanged)', () => {
   const messages = (r: ReturnType<typeof run>, rule: string): string[] => r.report.entries.filter((e) => e.rule === rule).map((e) => e.message);
 
-  it('a tool change stays a BLOCK and says what happens, with the tool number', () => {
+  it('a tool change is an INFO stop point on edge-next (Phase 3, H74), with the tool number; 440.21 still blocks it', () => {
     const r = run('G21\nN10 T1 M06\n', EN);
-    expect(blocks(r)).toContain('m6-without-c14');
-    expect(r.report.entries.find((e) => e.rule === 'm6-without-c14')?.severity).toBe('block');
-    expect(messages(r, 'm6-without-c14')).toEqual(["Tool change (T1): TinyG doesn't stop for M6. Run will stop here and walk you through the change when running jobs arrives."]);
-    expect(messages(run('M6\n', EN), 'm6-without-c14')).toEqual(["Tool change: TinyG doesn't stop for M6. Run will stop here and walk you through the change when running jobs arrives."]);
+    expect(blocks(r)).toEqual([]);
+    expect(r.report.entries.find((e) => e.rule === 'tool-change-stop')?.severity).toBe('info');
+    expect(messages(r, 'tool-change-stop')).toEqual(['Tool change (T1): Run stops here for a manual tool change.']);
+    expect(messages(run('M6\n', EN), 'tool-change-stop')).toEqual(['Tool change: Run stops here for a manual tool change.']);
+    const line = r.lines.find((l) => l.toolChange !== undefined);
+    expect(line?.toolChange).toEqual({ tool: 1, spindle: 'off', speed: null, mist: false, flood: false, restartsSpindle: false });
+    expect(r.lines.filter((l) => l.origin === 'c14')).toEqual([]);
+    expect(messages(run('G21\nT1 M6\n', TG), 'm6-without-c14')).toEqual(["Tool change (T1): TinyG doesn't stop for M6, and Run streams jobs only to edge-next, which it stops before each tool change."]);
+  });
+
+  it('a tool change records the spindle and coolant before it, and whether the file restarts the spindle before moving', () => {
+    const on = run('G21 G90\nM3 S9000\nM8\nG1 X1 F100\nT2 M6\nM3 S8000\nG1 X2\nT3 M6\nG1 X3\nM5 M9\nM30\n', EN);
+    const tcs = on.lines.filter((l) => l.toolChange !== undefined).map((l) => l.toolChange);
+    expect(tcs).toEqual([
+      { tool: 2, spindle: 'cw', speed: 9000, mist: false, flood: true, restartsSpindle: true },
+      { tool: 3, spindle: 'cw', speed: 8000, mist: false, flood: true, restartsSpindle: false },
+    ]);
+    const sameLine = run('G21\nT4 M6 M4 S500\nG1 X1 F100\nM5\n', EN);
+    expect(sameLine.lines.find((l) => l.toolChange !== undefined)?.toolChange?.restartsSpindle).toBe(true);
+    const atEnd = run('G21\nT4 M6\n', EN);
+    expect(atEnd.lines.find((l) => l.toolChange !== undefined)?.toolChange?.restartsSpindle).toBe(false);
   });
 
   it('a G or M word whose digits run together across spaces is explained, still as unsupported-code', () => {

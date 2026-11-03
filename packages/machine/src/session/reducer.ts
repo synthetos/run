@@ -81,6 +81,32 @@ import { restingStat, restingUsesHold } from './resting.ts';
 import { abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
 import { HEARTBEAT_INTERVAL_MS, REPORT_DIALECTS, SEED_TOKENS, heartbeatCoversHold, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
 import {
+  abandonLoad,
+  maybeRestoreLineMode,
+  onFeedLimit,
+  onJobAnswer,
+  onJobBreakpoints,
+  onJobFault,
+  onJobLinkLost,
+  onJobMotionAnswer,
+  onJobPause,
+  onJobPoll,
+  onJobPrepAnswer,
+  onJobReset,
+  onJobResume,
+  onJobRuntimeAnswer,
+  onJobStop,
+  onJobTimer,
+  onLineModeAnswer,
+  onLineModeMemory,
+  onLoadJob,
+  onStartJob,
+  pumpJob,
+  rxmLine,
+  type JobDeps,
+} from './job.ts';
+import { jobActive, patchJob } from './jobState.ts';
+import {
   MAX_PROBE_RESTARTS,
   MAX_QUEUED_READS,
   READY_BASES,
@@ -95,6 +121,7 @@ import {
   type ReadPurpose,
   type ReportChange,
   type ReportsState,
+  type RxmState,
   type SessionConfig,
   type SessionEffect,
   type SessionEvent,
@@ -139,6 +166,8 @@ const EMPTY_LIVE: LiveState = Object.freeze({ pos: Object.freeze({}), mpo: Objec
 
 const REPORTS_IDLE: ReportsState = Object.freeze({ phase: 'idle', step: null, remaining: Object.freeze([]), heartbeatMs: null, changes: Object.freeze([]), detail: null });
 
+const RXM_IDLE: RxmState = Object.freeze({ restore: null, memoryKnown: false, step: null, footerExpect: null, current: null, changed: null, detail: null });
+
 export function initialState(): SessionState {
   return Object.freeze({
     base: 'NOT_CONNECTED',
@@ -174,6 +203,9 @@ export function initialState(): SessionState {
     settingWrite: null,
     reports: REPORTS_IDLE,
     link: Object.freeze({ heartbeatMs: null, silenceMs: DEFAULT_SILENCE_MS }),
+    job: null,
+    rxm: RXM_IDLE,
+    rtLeaves: Object.freeze([]),
   });
 }
 
@@ -272,6 +304,7 @@ class Tx {
 
 /** What the motion layer borrows from this file (motion.ts may not import it: no cycles). */
 const MOTION_DEPS: MotionDeps = { fault: (t, cause, kind, detail, at) => enterFault(t as Tx, cause, kind, detail, at) };
+const JOB_DEPS: JobDeps = { fault: (t, cause, kind, detail, at) => enterFault(t as Tx, cause, kind, detail, at) };
 
 /** The next state and effects. Pure: never throws for any event in any state. */
 export function reduce(config: SessionConfig, state: SessionState, event: SessionEvent): Transition {
@@ -312,7 +345,8 @@ export function reduce(config: SessionConfig, state: SessionState, event: Sessio
       if (event.epoch === t.s.epoch && linkUp(t.s) && t.s.writing?.seq === event.seq) onLineWritten(t);
       break;
     case 'lineDropped':
-      if (event.epoch === t.s.epoch && t.s.writing?.seq === event.seq) t.set({ writing: null });
+      if (event.epoch === t.s.epoch && event.index !== undefined) onJobLineDropped(t, event.index);
+      else if (event.epoch === t.s.epoch && t.s.writing?.seq === event.seq) t.set({ writing: null });
       break;
     case 'writeFailed':
       if (event.epoch === t.s.epoch && linkUp(t.s)) {
@@ -327,7 +361,7 @@ export function reduce(config: SessionConfig, state: SessionState, event: Sessio
       }
       break;
     case 'linkLost':
-      if (event.epoch === t.s.epoch && linkUp(t.s)) onLinkLost(t);
+      if (event.epoch === t.s.epoch && linkUp(t.s)) onLinkLost(t, event.at);
       break;
     case 'timer':
       if (t.s.timers[event.id] === event.seq) {
@@ -340,11 +374,24 @@ export function reduce(config: SessionConfig, state: SessionState, event: Sessio
     case 'driftDetected':
       if (event.epoch === t.s.epoch && linkUp(t.s)) t.addOverlay('NEEDS_REVIEW');
       break;
+    case 'lineModeMemory':
+      // The page's remembered line mode for this board (H77). It writes nothing; only a jobs release uses it.
+      if (event.epoch === t.s.epoch && linkUp(t.s) && t.config.release.jobs === true) onLineModeMemory(t, event.remembered);
+      break;
   }
   maybeConfigure(t);
+  maybeRestoreLineMode(t, linkUp(t.s) && allowed(matrixSnapshot(t.s), 'lineMode', t.config.release).allowed);
   pump(t);
+  pumpJob(t, linkUp(t.s) && allowed(matrixSnapshot(t.s), 'jobLine', t.config.release).allowed);
   syncWatchdog(t);
   return t.done();
+}
+
+/** A job line the executor did not write (the matrix no longer allowed it): it is sent again from there. */
+function onJobLineDropped(t: Tx, index: number): void {
+  t.set({ expected: t.s.expected.filter((e) => !(e.purpose === 'job' && e.index === index)) });
+  const job = t.s.job;
+  if (job !== null && index < job.next) patchJob(t, { next: index });
 }
 
 /** The port is open and the link has not been lost. */
@@ -390,6 +437,17 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
     case 'feedhold':
     case 'stopJob':
     case 'spindleOffNow': {
+      // Phase 3 (SAFETY §4.4a): during a job, Pause holds the job (`!`, streaming stops) and Stop job runs the
+      // flush sequence for it. Spindle off at a stop point where nothing is queued sends M5/M9 alone.
+      if (request.intent === 'feedhold' && !('release' in request) && onJobPause(t, at)) {
+        t.decide(intent, matrix);
+        return;
+      }
+      const atStopPoint = t.s.job !== null && (t.s.job.phase === 'toolChange' || t.s.job.phase === 'breakpoint' || t.s.job.phase === 'programStop') && t.s.motion === null;
+      if (request.intent !== 'feedhold' && !(request.intent === 'spindleOffNow' && atStopPoint) && onJobStop(t, at)) {
+        t.decide(intent, matrix);
+        return;
+      }
       // A motion session (Phase 2, SAFETY §4.4): Pause holds this session's motion, Stop job runs the
       // flush sequence, Spindle off sends M5/M9 when idle. A hold jog's release lands here too.
       if (onMotionStop(t, request, at)) {
@@ -438,7 +496,30 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
         t.decide(intent, deny('A setting is being written.', 'Wait for the write and its read-back to finish.', 'SAFETY §4.6 (amendment 2026-11-02)'));
         return;
       }
+      // Phase 3: a job owns the machine. Resume goes to the job; at a tool change only a jog and the Z re-zero.
+      if (request.intent === 'resume' && jobActive(t.s) && t.s.motion === null) {
+        t.decide(intent, onJobResume(t, request, at));
+        return;
+      }
+      if (t.s.base === 'PROGRAM_PAUSED' && t.s.job?.phase !== 'toolChange') {
+        t.decide(intent, deny('Only Resume and Stop job are offered at this stop.', 'Resume the job, or stop it.', 'SAFETY §4.4a'));
+        return;
+      }
+      /* c8 ignore next 4 -- defence in depth: the matrix allows no motion intent but Resume in RUNNING, HELD or PREAMBLE */
+      if (jobActive(t.s) && t.s.base !== 'PROGRAM_PAUSED' && request.intent !== 'resume') {
+        t.decide(intent, deny('A job is running.', 'Pause or stop the job first.', 'SAFETY §4.4a'));
+        return;
+      }
       t.decide(intent, onMotionIntent(t, request, at));
+      return;
+    case 'loadJob':
+      t.decide(intent, onLoadJob(t, request, at));
+      return;
+    case 'startJob':
+      t.decide(intent, onStartJob(t, request, at));
+      return;
+    case 'jobBreakpoints':
+      t.decide(intent, onJobBreakpoints(t, request.lines, at));
       return;
     case 'settingsWrite':
       onSettingsWrite(t, request.key, request.value, matrix);
@@ -696,8 +777,10 @@ function answerTimeout(t: Tx, purpose: ReadPurpose): number {
   return timings.readAnswerMs;
 }
 
-function onLinkLost(t: Tx): void {
+function onLinkLost(t: Tx, at: number): void {
   interruptSettingWrite(t, 'the connection was lost');
+  onJobLinkLost(t, at);
+  abandonLoad(t, at, 'the connection was lost');
   abandonMotion(t);
   t.cancelAll();
   t.addOverlay('LOST');
@@ -725,12 +808,17 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
     onMotionTimer(t, MOTION_DEPS, at);
     return;
   }
+  if (id === 'job') {
+    onJobTimer(t, JOB_DEPS, at);
+    return;
+  }
   if (id === 'verify') {
     if (t.s.ackVerify?.round === 1) t.set({ queue: [...VERIFY_TOKENS.map((token) => ({ token, purpose: 'verify' as const })), ...t.s.queue] });
     return;
   }
-  // 'answer': the line in flight went unanswered.
-  const index = t.s.expected.findIndex((e) => !e.late);
+  // 'answer': the line in flight went unanswered. Job lines have no answer timer: in line mode a line can wait in
+  // the board's buffer for as long as the planner is full, and liveness comes from reports (SAFETY §4.2, H76).
+  const index = t.s.expected.findIndex((e) => !e.late && e.purpose !== 'job');
   if (index < 0) return;
   const missed = t.s.expected[index] as Expected;
   t.set({ expected: t.s.expected.map((e, i) => (i === index ? { ...e, late: true } : e)) });
@@ -743,6 +831,8 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
   if (missed.purpose === 'gate') finishSettingWrite(t, 'refused', `Not written: the board did not answer the ${missed.token} read in time.`);
   if (missed.purpose === 'setting') finishSettingWrite(t, 'unconfirmed', 'The board did not answer the write in time. It may or may not hold the new value; read it back before trusting it.');
   if (missed.purpose === 'readback') finishSettingWrite(t, 'mismatch', 'Written (status 0), but the read-back was not answered in time.');
+  if (missed.purpose === 'jobPrep') abandonLoad(t, at, `the controller did not answer the ${missed.token} read in time`);
+  if (missed.purpose === 'lineMode') onLineModeAnswer(t, null, at);
   if (missed.purpose === 'seed' || missed.purpose === 'report' || t.s.reports.phase === 'seeding' || t.s.reports.phase === 'configuring') {
     failReports(t, `the board did not answer the ${missed.token} read in time`);
   }
@@ -782,12 +872,15 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
       // Proof of life (recorded above). Its stat and hold are what the board reported: kept for display.
       mergeLive(t, Object.fromEntries(Object.entries(event.hb).filter(([k]) => k === 'stat' || k === 'hold')));
       return;
+    // Edge-next feed-limit push lines (fs, fl): proof of life (recorded above). They answer nothing, are never an
+    // acknowledgement and never a report of motion, so they touch no owed answer, no ENQ and no ORPHANED_MOTION
+    // check, in any state. During a job that opened a feed-limit window they feed its display (observational, H78);
+    // otherwise nothing reads them (another host may have turned the push on: RAM, kept until a reset).
     case 'FeedLimitSummary':
+      onFeedLimit(t, 'fs', event.fs, event.totalsShort);
+      return;
     case 'FeedLimitEvent':
-      // Edge-next feed-limit push lines (fs, fl): proof of life only (recorded above). They answer nothing, are
-      // never an acknowledgement and never a report of motion, so they touch no owed answer, no ENQ and no
-      // ORPHANED_MOTION check, in any state. run never turns the push on, but another host may have (RAM, kept
-      // until a reset). Nothing reads their values yet; an fs with "x":1 would be shown as a lower bound only.
+      onFeedLimit(t, 'fl', event.fl, false);
       return;
     case 'QueueReport':
       t.set({ live: { ...t.s.live, qr: event.qr } });
@@ -823,7 +916,9 @@ function onBanner(t: Tx, banner: Banner, at: number): void {
   // lost with the RX ring, so no `ack` is still owed.
   t.set({ xoff: false, enqOutstanding: false });
   if (t.s.ready) {
-    // SAFETY H19, T-S10: any banner after Ready means the board reset. FAULT, then UNKNOWN.
+    // SAFETY H19, T-S10: any banner after Ready means the board reset. FAULT, then UNKNOWN. A job is over (H72).
+    onJobReset(t, at);
+    abandonLoad(t, at, 'the controller reset');
     enterFault(t, 'bannerAfterReady', 'integrity', `the board printed a boot banner (${banner.shape}) after it was ready: it reset`, at);
     t.addOverlay('UNKNOWN');
     return;
@@ -847,15 +942,27 @@ function onResponse(t: Tx, r: Response, at: number): void {
   if (t.s.footerRev === undefined) {
     t.set({ footerRev: r.footer.rev });
   } else if (r.footer.rev !== t.s.footerRev) {
-    enterFault(t, 'footerRevisionChanged', 'integrity', `the footer revision changed from ${t.s.footerRev} to ${r.footer.rev}: the board was reset or reconfigured`, at);
-    return;
+    // H77: the answer to the line-mode write carries the new footer (revision 3 in line mode, 2 in character mode).
+    const expect = t.s.rxm.footerExpect;
+    if (expect === null || r.footer.rev !== expect || t.s.rxm.step?.kind !== 'write') {
+      enterFault(t, 'footerRevisionChanged', 'integrity', `the footer revision changed from ${t.s.footerRev} to ${r.footer.rev}: the board was reset or reconfigured`, at);
+      return;
+    }
+    t.set({ footerRev: r.footer.rev, rxm: { ...t.s.rxm, footerExpect: null } });
+    t.emit({ kind: 'log', text: `line mode: the footer is now revision ${r.footer.rev}` });
   }
-  // The board answers lines in order. Late (timed-out) entries ahead of the match are lost. The line
+  // Line mode (H76): f[2] is the free line slots, in every answer.
+  if (r.footer.rev === 3 && t.s.job !== null) patchJob(t, { free: r.footer.field3 });
+  // The board answers lines in order; in line mode it serves control lines (`{...}`) before data lines (G-code),
+  // so the answers come as two queues, each in order: data answers (no key but `gc`) match the oldest data line,
+  // the rest the oldest control line. Late (timed-out) entries ahead of the match in its queue are lost. The line
   // being written comes last: its answer can arrive before the transport reports the write complete.
   const owed = owedAnswers(t.s);
+  const data = Object.keys(r.r).every((k) => k === 'gc') && owed.some(isDataEntry);
   let index = -1;
   for (let i = 0; i < owed.length; i++) {
     const e = owed[i] as Expected;
+    if (e.purpose !== 'splice' && isDataEntry(e) !== data) continue;
     if (answers(e, r)) {
       index = i;
       break;
@@ -868,10 +975,15 @@ function onResponse(t: Tx, r: Response, at: number): void {
     return;
   }
   const entry = owed[index] as Expected;
-  consumeOwed(t, index);
+  consumeOwed(t, owed, index, data);
   if (entry.late) return;
-  t.cancel('answer');
+  if (entry.purpose !== 'job') t.cancel('answer');
   onAnswer(t, entry, r, at);
+}
+
+/** A data line (G-code): a job line or a motion line. Control lines are JSON (`{...}`). */
+function isDataEntry(e: Expected): boolean {
+  return e.purpose === 'job' || (e.purpose === 'motion' && e.token === 'gc');
 }
 
 /** Answers the board owes, oldest first: the written lines, then the line being written. */
@@ -879,10 +991,15 @@ function owedAnswers(s: SessionState): readonly Expected[] {
   return s.writing === null ? s.expected : [...s.expected, { token: s.writing.token, purpose: s.writing.purpose, late: false }];
 }
 
-/** Removes the first `index + 1` owed answers (the last of them may be the line being written). */
-function consumeOwed(t: Tx, index: number): void {
-  if (index >= t.s.expected.length) t.set({ expected: [], writing: null });
-  else t.set({ expected: t.s.expected.slice(index + 1) });
+/** Removes the answered entry and the late entries of its queue before it (the last owed may be the line being written). */
+function consumeOwed(t: Tx, owed: readonly Expected[], index: number, data: boolean): void {
+  const gone = new Set<number>([index]);
+  for (let i = 0; i < index; i++) {
+    const e = owed[i] as Expected;
+    if (e.purpose === 'splice' || isDataEntry(e) === data) gone.add(i);
+  }
+  const count = t.s.expected.length;
+  t.set({ expected: t.s.expected.filter((_, i) => !gone.has(i)), ...(gone.has(count) ? { writing: null } : {}) });
 }
 
 /** Does `r` answer `e`? A GET's answer holds its own key or nothing; the first line accepts any answer (a splice). */
@@ -948,10 +1065,25 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
     case 'poll':
       if (r.footer.status === 0 && typeof value === 'number' && Number.isFinite(value)) t.set({ live: withNumber(t, t.s.live, e.token, value) });
       if (e.token === 'home' && (t.s.base === 'IDLE_HOMED' || t.s.base === 'IDLE_UNHOMED')) t.set({ base: idleBase(t.s) });
-      if (e.token === 'qr' && checkAlarm(t, at)) onPollDone(t, at);
+      if (e.token === 'qr' && checkAlarm(t, at)) {
+        onPollDone(t, at);
+        onJobPoll(t, at);
+      }
       return;
     case 'motion':
-      onMotionAnswer(t, e.line, r.footer.status, at);
+      if (!onJobMotionAnswer(t, e.line, r.footer.status, at)) onMotionAnswer(t, e.line, r.footer.status, at);
+      return;
+    case 'job':
+      onJobAnswer(t, e, r, at);
+      return;
+    case 'jobPrep':
+      onJobPrepAnswer(t, e, r, at);
+      return;
+    case 'lineMode':
+      onLineModeAnswer(t, r, at);
+      return;
+    case 'jobRuntime':
+      onJobRuntimeAnswer(t, e, r, at);
       return;
     case 'gate':
       onGateAnswer(t, e.token, r);
@@ -1143,9 +1275,14 @@ function onGarbled(t: Tx, at: number): void {
   const owed = owedAnswers(t.s);
   const index = owed.findIndex((e) => !e.late);
   if (index < 0) return; // nothing was asked: nothing to trust or distrust
+  // With job lines owed (line mode), a damaged answer could belong to any of them: stop trusting the link.
+  if (owed.some((e) => !e.late && e.purpose === 'job')) {
+    enterFault(t, 'unexpectedResponse', 'integrity', 'an answer arrived damaged while job lines were owed', at);
+    return;
+  }
   // The answer in flight arrived damaged.
   const entry = owed[index] as Expected;
-  consumeOwed(t, index);
+  consumeOwed(t, owed, index, isDataEntry(entry));
   t.cancel('answer');
   switch (entry.purpose) {
     case 'splice': {
@@ -1200,6 +1337,18 @@ function onGarbled(t: Tx, at: number): void {
       return;
     case 'report':
       failReports(t, `the answer to ${reportStepText(t.s.reports.step as ReportStep)} arrived damaged`);
+      return;
+    /* c8 ignore next 2 -- a job entry owed makes the damaged answer a FAULT above */
+    case 'job':
+      return;
+    case 'jobPrep':
+      onJobPrepAnswer(t, entry, null, at);
+      return;
+    case 'lineMode':
+      onLineModeAnswer(t, null, at);
+      return;
+    case 'jobRuntime':
+      onJobRuntimeAnswer(t, entry, null, at);
       return;
   }
 }
@@ -1391,6 +1540,8 @@ function onReportAnswer(t: Tx, r: Response, at: number): void {
     case 'rtProbe': {
       const rt = r.r['rt'];
       if (status === 0 && isObject(rt)) {
+        // The leaves it answers with are the capability probe of the job flag and the feed-limit window (Phase 3).
+        t.set({ rtLeaves: Object.freeze(Object.keys(rt)) });
         nextReportStep(t, null);
         return;
       }
@@ -1520,9 +1671,15 @@ function askForLife(t: Tx): 'enq' | 'get' {
 
 function enterFault(t: Tx, cause: FaultCause, kind: FaultKind, detail: string, at: number): void {
   interruptSettingWrite(t, 'a fault latched');
+  abandonLoad(t, at, 'a fault latched');
   if (t.s.reports.phase === 'seeding' || t.s.reports.phase === 'configuring' || t.s.reports.phase === 'pending') failReports(t, 'a fault latched');
   if (t.s.fault === null) t.set({ fault: { cause, kind, detail, at } });
-  const wasMoving = t.s.motion !== null && t.s.motion.phase !== 'held';
+  // A stop sequence of this session is what failed, or the board reset: no new stop is started for the job.
+  // An `er` during a job comes with a controller alarm on edge-next, which has already flushed and turned the
+  // outputs off (SAFETY §3 effect 3): no flush sequence is sent into an alarm.
+  const jobStopUsable = t.s.motion?.reason !== 'stopJob' && t.s.job?.stopping !== true && cause !== 'stopNotConfirmed' && cause !== 'bannerAfterReady' && cause !== 'writeFailed' && cause !== 'exceptionReport';
+  if (t.s.rxm.step !== null) t.set({ rxm: { ...t.s.rxm, step: null, footerExpect: null, detail: 'a fault latched' } });
+  const wasMoving = (t.s.motion !== null && t.s.motion.phase !== 'held') || t.s.base === 'RUNNING';
   abandonMotion(t);
   t.addOverlay('FAULT');
   t.cancel('verify');
@@ -1530,8 +1687,10 @@ function enterFault(t: Tx, cause: FaultCause, kind: FaultKind, detail: string, a
   t.set({ queue: [], ackVerify: null });
   const live = t.s.live;
   const moving = wasMoving || (live.vel !== undefined && live.vel !== 0) || (live.machineClass !== undefined && MOTION_CLASSES.has(live.machineClass));
-  // Effect 2: the machine was moving, so hold it. Phase 1 never ran a job; nothing else is sent.
+  // Effect 2: the machine was moving, so hold it.
   if (moving && allowed(matrixSnapshot(t.s), 'feedhold', t.config.release).allowed) writeFeedhold(t);
+  // Effects 3 and 4 for a job (Phase 3): end it with the flush sequence, at once or after the grace period.
+  onJobFault(t, kind, detail, at, jobStopUsable);
 }
 
 // --- Writing ----------------------------------------------------------------
@@ -1540,10 +1699,24 @@ function enterFault(t: Tx, cause: FaultCause, kind: FaultKind, detail: string, a
 function pump(t: Tx): void {
   const s = t.s;
   if (s.writing !== null || s.queue.length === 0 || !linkUp(s)) return;
-  if (s.expected.some((e) => !e.late)) return;
+  // One line at a time, except job lines in line mode (H76): those are paced by the free slots (job.ts).
+  if (s.expected.some((e) => !e.late && e.purpose !== 'job')) return;
+  if (s.footerRev !== 3 && s.expected.some((e) => !e.late)) return;
   const next = s.queue[0] as PendingRead;
   const reportWrite = next.purpose === 'report' && s.reports.step?.line !== undefined;
-  const intent: Intent = next.purpose === 'motion' ? (next.intent as Intent) : next.purpose === 'setting' ? 'settingsWrite' : reportWrite ? 'configureReports' : 'read';
+  const lineModeWrite = next.purpose === 'lineMode' && next.value !== undefined;
+  const intent: Intent =
+    next.purpose === 'motion'
+      ? (next.intent as Intent)
+      : next.purpose === 'setting'
+        ? 'settingsWrite'
+        : reportWrite
+          ? 'configureReports'
+          : lineModeWrite
+            ? 'lineMode'
+            : next.purpose === 'jobRuntime'
+              ? 'jobRuntime'
+              : 'read';
   if (!allowed(matrixSnapshot(s), intent, t.config.release).allowed) {
     // A motion line or a settings write the matrix no longer allows (the state changed since it was queued) is dropped, never held.
     /* c8 ignore next -- a safety net: every state change that ends motion (STALE, FAULT, LOST, ALARM) empties the motion queue first */
@@ -1568,7 +1741,17 @@ function pump(t: Tx): void {
     seq,
     token: next.token,
     line,
-    ...(next.purpose === 'motion' ? { motion: { intent } } : next.purpose === 'setting' ? { intent: 'settingsWrite' as const } : reportWrite ? { intent: 'configureReports' as const } : {}),
+    ...(next.purpose === 'motion'
+      ? { motion: { intent } }
+      : next.purpose === 'setting'
+        ? { intent: 'settingsWrite' as const }
+        : reportWrite
+          ? { intent: 'configureReports' as const }
+          : lineModeWrite
+            ? { intent: 'lineMode' as const }
+            : next.purpose === 'jobRuntime'
+              ? { intent: 'jobRuntime' as const }
+              : {}),
   });
 }
 
@@ -1583,6 +1766,8 @@ function lineFor(s: SessionState, read: PendingRead): string | undefined {
     return settingLine(w.key, w.value) ?? undefined;
   }
   /* c8 ignore stop */
+  if (read.purpose === 'lineMode' && read.value !== undefined) return rxmLine(read.value === 1 ? 1 : 0);
+  if (read.purpose === 'jobRuntime') return read.line;
   if (read.purpose === 'report' && s.reports.step?.line !== undefined) {
     const line = s.reports.step.line;
     /* c8 ignore next -- the steps are built from the shapes the gate admits; a mismatch is a bug and becomes a writeRefused FAULT */

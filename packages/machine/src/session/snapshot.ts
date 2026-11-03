@@ -11,7 +11,60 @@
 import { OVERLAYS, type Overlay } from '@synthetos/safety';
 import { PROBE_STEPS, type FooterRev } from '@synthetos/protocol';
 import type { TransportInfo } from '../transport.ts';
-import type { ClassificationInfo, FaultInfo, Identity, LinkWindow, LiveState, ReadValue, ReportChange, SessionBase, SessionNotices, SessionState, SettingWriteState } from './types.ts';
+import type { ClassificationInfo, FaultInfo, Identity, JobEvent, JobPhase, JobReportSummary, JobState, LinkWindow, LiveState, ReadValue, ReportChange, RxmState, SessionBase, SessionNotices, SessionState, SettingWriteState } from './types.ts';
+
+/** What the page sees of a job (SAFETY §4.4a). The sanitised lines never leave the worker. */
+export interface JobView {
+  readonly id: number;
+  readonly name: string;
+  readonly hash: string;
+  readonly bytes: number;
+  readonly phase: JobPhase;
+  /** Lines to send, sent, and answered. */
+  readonly total: number;
+  readonly sent: number;
+  readonly acked: number;
+  /** Free line slots in the last footer, and job lines owed an answer now. */
+  readonly free: number | null;
+  readonly inFlight: number;
+  /** The line the controller reports executing (`line`, a host number), and its file line. */
+  readonly executing: { readonly n: number; readonly line: number } | null;
+  /** File lines: the last one sent, the last one answered (null before any). */
+  readonly sentThrough: number | null;
+  readonly ackedThrough: number | null;
+  readonly startedAt: number | null;
+  readonly endedAt: number | null;
+  /** Modelled seconds (estimates, SAFETY §4.3): the whole job, still to run, and queued on the controller now. */
+  readonly totalSeconds: number;
+  readonly remainingSeconds: number;
+  readonly queuedSeconds: number;
+  /** An upper bound of the travel queued on the controller now, mm (W5), or null when it cannot be bounded. */
+  readonly queuedBoundMm: number | null;
+  readonly stop: { readonly kind: 'toolChange' | 'breakpoint' | 'barrier' | 'end'; readonly line: number } | null;
+  readonly refused: { readonly line: number; readonly status: number; readonly text: string } | null;
+  readonly toolChange: {
+    readonly line: number;
+    readonly tool: number | null;
+    readonly spindle: 'off' | 'cw' | 'ccw';
+    readonly speed: number | null;
+    readonly mist: boolean;
+    readonly flood: boolean;
+    readonly restartsSpindle: boolean;
+    /** The machine was moved since the job stopped (Resume returns at a safe height). */
+    readonly moved: boolean;
+  } | null;
+  readonly message: string | null;
+  readonly events: readonly JobEvent[];
+  readonly breakpoints: readonly number[];
+  /** Breakpoints on lines already sent: they cannot stop the job (W41). */
+  readonly queuedBreakpoints: readonly number[];
+  readonly report: JobReportSummary | null;
+  readonly rxmFrom: number | null;
+  readonly jobFlag: 0 | 1 | null;
+  readonly feedLimit: JobState['feedLimit'];
+  readonly faultStopAt: number | null;
+  readonly stopping: boolean;
+}
 
 /** Longest string from the board a snapshot carries. */
 export const SNAPSHOT_STRING_MAX = 200;
@@ -57,6 +110,19 @@ export interface SessionSnapshot {
   readonly reports: { readonly phase: string; readonly heartbeatMs: number | null; readonly changes: readonly ReportChange[]; readonly detail: string | null };
   /** The liveness window: the page shows freshness, and "No reports from the board", against it. */
   readonly link: LinkWindow;
+  /** Phase 3: the loaded or running job, or null. */
+  readonly job: JobView | null;
+  /** Phase 3: the line-mode setting (H77). The page remembers `restore` per board on this computer. */
+  readonly rxm: Omit<RxmState, 'step' | 'footerExpect'> & { readonly busy: boolean };
+  /** `rt` leaves the board answered `{"rt":null}` with (the job flag and feed-limit capabilities). */
+  readonly rtLeaves: readonly string[];
+}
+
+/** Longest job message or event text a snapshot carries (the warnings they quote are longer than a board string). */
+const JOB_TEXT_MAX = 600;
+
+function capLong(s: string): string {
+  return s.length > JOB_TEXT_MAX ? `${s.slice(0, JOB_TEXT_MAX)}…` : s;
 }
 
 function cap(s: string): string {
@@ -113,7 +179,67 @@ export function snapshotOf(state: SessionState): SessionSnapshot {
           },
     reports: { phase: state.reports.phase, heartbeatMs: state.reports.heartbeatMs, changes: state.reports.changes, detail: state.reports.detail === null ? null : cap(state.reports.detail) },
     link: state.link,
+    job: state.job === null ? null : jobView(state, state.job),
+    rxm: { restore: state.rxm.restore, memoryKnown: state.rxm.memoryKnown, current: state.rxm.current, changed: state.rxm.changed, detail: state.rxm.detail, busy: state.rxm.step !== null },
+    rtLeaves: state.rtLeaves,
   });
+}
+
+function jobView(state: SessionState, job: JobState): JobView {
+  const total = job.lines.length;
+  const reported = state.live.line;
+  const running = job.startedAt !== null;
+  const exec = running && reported !== undefined && Number.isInteger(reported) && reported >= 1 && reported <= Math.max(job.next, 1) && reported <= total ? reported : null;
+  const execIndex = exec === null ? Math.min(job.acked, total) : exec - 1;
+  const fileLine = (i: number): number | null => (i >= 0 && i < total ? (job.lines[i] as JobState['lines'][number]).sourceLine : null);
+  let inFlight = 0;
+  for (const e of state.expected) if (e.purpose === 'job' && !e.late) inFlight++;
+  let bound: number | null = 0;
+  for (let i = execIndex; i < job.next && bound !== null; i++) {
+    const m = job.lines[i]?.motion;
+    if (m === null || m === undefined) continue;
+    bound = m.boundMm === null ? null : bound + m.boundMm;
+  }
+  const secondsAt = (i: number): number => job.secondsFrom[Math.min(Math.max(i, 0), total)] ?? 0;
+  const tc = job.toolChange;
+  const mpo = state.live.mpo;
+  const moved = tc !== null && (['x', 'y', 'z'] as const).some((a) => tc.at[a] !== undefined && (mpo[a] === undefined || Math.abs((mpo[a] as number) - (tc.at[a] as number)) > 0.01));
+  const queuedLines = new Set(job.lines.slice(execIndex, job.next).map((l) => l.sourceLine));
+  const active = ['running', 'draining', 'ending', 'pausing', 'paused', 'refused', 'toolChange', 'breakpoint', 'programStop', 'resuming'].includes(job.phase);
+  return {
+    id: job.id,
+    name: cap(job.name),
+    hash: job.hash,
+    bytes: job.bytes,
+    phase: job.phase,
+    total,
+    sent: job.next,
+    acked: job.acked,
+    free: job.free,
+    inFlight,
+    executing: exec === null ? null : { n: exec, line: fileLine(exec - 1) as number },
+    sentThrough: job.next > 0 ? fileLine(job.next - 1) : null,
+    ackedThrough: job.acked > 0 ? fileLine(job.acked - 1) : null,
+    startedAt: job.startedAt,
+    endedAt: job.endedAt,
+    totalSeconds: secondsAt(0),
+    remainingSeconds: running ? secondsAt(execIndex) : secondsAt(0),
+    queuedSeconds: running ? Math.max(0, secondsAt(execIndex) - secondsAt(job.next)) : 0,
+    queuedBoundMm: running ? bound : 0,
+    stop: job.stop === null ? null : { kind: job.stop.kind, line: fileLine(job.stop.index) as number },
+    refused: job.refused === null ? null : { line: fileLine(job.refused.index) as number, status: job.refused.status, text: cap(job.refused.text) },
+    toolChange: tc === null ? null : { line: fileLine(tc.index) as number, tool: tc.tool, spindle: tc.spindle, speed: tc.speed, mist: tc.mist, flood: tc.flood, restartsSpindle: tc.restartsSpindle, moved },
+    message: job.message === null ? null : capLong(job.message),
+    events: job.events.map((e) => ({ ...e, text: capLong(e.text) })),
+    breakpoints: job.breakpoints,
+    queuedBreakpoints: active ? job.breakpoints.filter((b) => queuedLines.has(b) && b !== fileLine(job.passed ?? -1)) : [],
+    report: job.report,
+    rxmFrom: job.rxmFrom,
+    jobFlag: job.jobFlag,
+    feedLimit: job.feedLimit,
+    faultStopAt: job.faultStopAt,
+    stopping: job.stopping,
+  };
 }
 
 function deepFreeze<T>(value: T): T {

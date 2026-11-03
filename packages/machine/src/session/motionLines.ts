@@ -10,7 +10,8 @@
  * | Shape | Use |
  * |---|---|
  * | `G21 G91 G1 X<d> [Y<d>] [Z<d>] [A<d>] F<f>` | one jog piece (axes in XYZA order) |
- * | `G90` / `G90 G20` | restore absolute distance (and inches) after a jog |
+ * | `G90` / `G90 G20` / `G91` / `G91 G20` | restore the distance mode (and inches) after a jog |
+ * | `G53 G0 X<d> Y<d>` | back to where a job stopped for a tool change, at a safe height (Phase 3) |
  * | `G53 G0 Z<d>` | go to zero: raise Z in machine coordinates first |
  * | `G90 G0 X0 [Y0] [Z0] [A0]` | go to zero: rapid to work zero |
  * | `G10 L20 P<1-6> X0 [Y0] [Z0] [A0]` | set work zero in the active system (G54..G59), saved |
@@ -46,8 +47,9 @@ const NUM = '-?\\d{1,5}(?:\\.\\d{1,4})?';
 /** Each admitted shape, anchored. Axis words appear at most once each, in XYZA order. */
 const SHAPES: readonly { readonly name: MotionLineKind; readonly re: RegExp }[] = [
   { name: 'jog', re: new RegExp(`^G21 G91 G1(?: X(${NUM}))?(?: Y(${NUM}))?(?: Z(${NUM}))?(?: A(${NUM}))? F(\\d{1,5})$`) },
-  { name: 'restore', re: /^G90(?: G20)?$/ },
+  { name: 'restore', re: /^G9[01](?: G20)?$/ },
   { name: 'safeZ', re: new RegExp(`^G53 G0 Z(${NUM})$`) },
+  { name: 'returnXY', re: new RegExp(`^G53 G0 X(${NUM}) Y(${NUM})$`) },
   { name: 'toZero', re: /^G90 G0(?: X0)?(?: Y0)?(?: Z0)?(?: A0)?$/ },
   { name: 'setZero', re: /^G10 L20 P[1-6](?: X0)?(?: Y0)?(?: Z0)?(?: A0)?$/ },
   { name: 'home', re: /^G28\.2(?: X0)?(?: Y0)?(?: Z0)?(?: A0)?$/ },
@@ -66,6 +68,7 @@ export type MotionLineKind =
   | 'jog'
   | 'restore'
   | 'safeZ'
+  | 'returnXY'
   | 'toZero'
   | 'setZero'
   | 'home'
@@ -86,7 +89,8 @@ export type MotionLineKind =
 export const LINE_INTENTS: Readonly<Record<MotionLineKind, readonly string[]>> = Object.freeze({
   jog: ['jog'],
   restore: ['jog', 'stopJob'],
-  safeZ: ['goToZero'],
+  safeZ: ['goToZero', 'resume'],
+  returnXY: ['resume'],
   toZero: ['goToZero'],
   setZero: ['setWorkZero'],
   home: ['home'],
@@ -94,9 +98,9 @@ export const LINE_INTENTS: Readonly<Record<MotionLineKind, readonly string[]>> =
   tempOffset: ['tempOffset'],
   clearTempOffset: ['tempOffset'],
   selectCoord: ['selectCoordSystem'],
-  spindle: ['spindleOn'],
+  spindle: ['spindleOn', 'resume'],
   spindleOff: ['spindleOffNow', 'stopJob'],
-  coolant: ['spindleOn'],
+  coolant: ['spindleOn', 'resume'],
   coolantOff: ['spindleOffNow', 'stopJob'],
   clear: ['clearAlarm'],
 });
@@ -114,6 +118,7 @@ export function motionLineKind(line: string): MotionLineKind | undefined {
       return name;
     }
     if (name === 'safeZ' && Math.abs(Number(m[1])) > MAX_MOTION_MM) return undefined;
+    if (name === 'returnXY' && (Math.abs(Number(m[1])) > MAX_MOTION_MM || Math.abs(Number(m[2])) > MAX_MOTION_MM)) return undefined;
     if ((name === 'toZero' || name === 'setZero' || name === 'home' || name === 'setPosition' || name === 'tempOffset') && !/ [XYZA]0/.test(line)) return undefined;
     if (name === 'spindle' && Number(m[1]) > MAX_RPM) return undefined;
     return name;
@@ -133,9 +138,9 @@ export function jogLine(move: Readonly<Partial<Record<MotionAxisLetter, number>>
   return `G21 G91 G1 ${words.join(' ')} F${Math.round(feed)}`;
 }
 
-/** `G90`, plus `G20` when the board was in inches before the motion (`unit` 0). */
-export function restoreLine(units: number | undefined): string {
-  return units === 0 ? 'G90 G20' : 'G90';
+/** `G90` (or `G91` when the board was incremental, `dist` 1), plus `G20` when it was in inches (`unit` 0). */
+export function restoreLine(units: number | undefined, dist?: number): string {
+  return `${dist === 1 ? 'G91' : 'G90'}${units === 0 ? ' G20' : ''}`;
 }
 
 export function safeZLine(machineZ: number): string {

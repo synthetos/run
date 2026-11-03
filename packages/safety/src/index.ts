@@ -31,6 +31,7 @@ export {
 export type { BaseState, Decision, Intent, IntentKind, MatrixSnapshot, Overlay, Release } from './allowMatrix.ts';
 export { SETTINGS_WRITES, settingsWritesEnabled, withSettingsWrites } from './settingsPhase.ts';
 export type { SettingsEnvironment } from './settingsPhase.ts';
+export { JOBS, jobsEnabled, withJobs } from './jobsPhase.ts';
 export { overrunBound } from './overrun.ts';
 export { EMPTY_AXIS_MODE_SESSION, INHIBITED_JOINT_BEHAVIOUR, axisModeFacts } from './axisModeFacts.ts';
 export type { AxisModeFact, AxisModeFactCode, AxisModeReading, AxisModeSession } from './axisModeFacts.ts';

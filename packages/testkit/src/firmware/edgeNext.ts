@@ -402,6 +402,17 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#wake();
   }
 
+  /**
+   * Test control (fault injection, not firmware behaviour): the next `count` G-code lines matching `match` are
+   * answered with `status` and not run. Models the refusal the firmware bug hunt found (2026-11-02): back-to-back
+   * G10 L2/L20 answered with status 13 (buffer full) although the host waited for each reply (cause unknown).
+   */
+  injectRefusal(match: RegExp, status: number, count = 1): void {
+    this.#refusals.push({ match, status, count });
+  }
+
+  #refusals: { match: RegExp; status: number; count: number }[] = [];
+
   setReportSuppression(on: boolean): void {
     this.#reportsSuppressed = on;
     if (!on) this.#wake();
@@ -484,6 +495,10 @@ export class TinyGEdgeNextModel implements SimDevice {
     const fresh = this.settings.eeprom['__layout'] !== 10002;
     if (fresh) {
       this.settings.resetToDefaults();
+      if (this.#options.rxm !== undefined) {
+        this.settings.setRam('rxm', this.#options.rxm);
+        this.settings.persist('rxm');
+      }
       this.settings.eeprom['__layout'] = 10002;
       this.#storeSrList(this.#options.srList ?? SR_DEFAULTS);
     } else {
@@ -566,6 +581,9 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#motion = this.#newMotion();
     this.#srRequestAt = null;
     this.#hbS = 0;
+    this.#fi = 0;
+    this.#fiRunning = false;
+    this.jobFlag = 0;
     this.#homingCycle = false;
     this.#lastQr = PLANNER_POOL;
   }
@@ -644,6 +662,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#startupCallback(now);
     this.#dispatchControl();
     this.#heartbeatCallback(now);
+    this.#feedLimitCallback(now);
     this.#statusReportCallback(now);
     this.#queueReportCallback();
     this.#feedholdSequencing(now);
@@ -739,6 +758,8 @@ export class TinyGEdgeNextModel implements SimDevice {
     } else if (this.#commMode === 'text') {
       this.#gcodeParser(line);
       this.#textPrompt();
+    } else if (this.#takeRefusal(line) !== undefined) {
+      this.#respondGcode(this.#lastRefusal, line);
     } else {
       const status = this.#gcodeParser(line);
       // controller_defer_motion_response(): an accepted M400 answers when drained (@cite EN controller.c:575-584)
@@ -749,6 +770,16 @@ export class TinyGEdgeNextModel implements SimDevice {
       this.#motionSync = this.#motionSyncRequested;
       this.#motionSyncRequested = null;
     }
+  }
+
+  #lastRefusal = 0;
+
+  #takeRefusal(line: string): number | undefined {
+    const r = this.#refusals.find((x) => x.count > 0 && x.match.test(line));
+    if (r === undefined) return undefined;
+    r.count--;
+    this.#lastRefusal = r.status;
+    return r.status;
   }
 
   /** `_sync_to_motion()`: M400 holds the next data line until drained (@cite EN controller.c:586-617). */
@@ -1864,7 +1895,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (this.#options.rt === false || pairs.length !== 1) return ST('UNRECOGNIZED_NAME');
     const value = (pairs[0] as readonly [string, HostValue])[1];
     if (value === null) {
-      body['rt'] = { hb: this.#hbS, qt: '', up: this.#uptime() };
+      body['rt'] = { hb: this.#hbS, qt: '', up: this.#uptime(), ...(this.#options.feedLimit === true ? { fi: this.#fi, fs: this.#fiEpoch === 0 ? null : this.#fiQ + 1 } : {}), ...(this.#options.jobFlag === true ? { job: this.jobFlag } : {}) };
       return 0;
     }
     if (typeof value !== 'object') return ST('VALUE_TYPE_ERROR');
@@ -1873,6 +1904,27 @@ export class TinyGEdgeNextModel implements SimDevice {
       // `unsaved`: the RAM-write capability probe (option `ramWrites`); 100 on a build without it.
       if (k === 'unsaved' && v === null && this.#options.ramWrites === true) {
         set[k] = 0;
+        continue;
+      }
+      if (k === 'fi' && this.#options.feedLimit === true) {
+        // rt_set_fi (@cite EN runtime.c:499-545): 0 stops; above 60 clamped; off to on only at quiescence (106).
+        if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) return ST('INPUT_VALUE_RANGE_ERROR');
+        const fi = Math.min(60, v);
+        if (fi !== 0 && this.#fi === 0) {
+          if (!this.#machineQuiet() || this.#pool.some((l) => l.state === 'full' && l.kind === 'data')) return ST('COMMAND_NOT_ACCEPTED');
+          this.#fiEpoch++;
+          this.#fiQ = 0;
+          this.#fiCycleMs = 0;
+          this.#fiRunning = false;
+        }
+        this.#fi = fi;
+        set[k] = fi;
+        continue;
+      }
+      if (k === 'job' && this.#options.jobFlag === true) {
+        if (v !== 0 && v !== 1) return ST('INPUT_VALUE_RANGE_ERROR');
+        this.jobFlag = v;
+        set[k] = v;
         continue;
       }
       if (k !== 'hb') return ST('UNRECOGNIZED_NAME');
@@ -2086,6 +2138,9 @@ export class TinyGEdgeNextModel implements SimDevice {
         return this.#gm.distance === 'abs' ? 0 : 1;
       case 'cm_get_admo':
         return this.#gm.arcDistance === 'abs' ? 0 : 1;
+      // The active plane, 0 G17, 1 G18, 2 G19 (@cite EN canonical_machine.c cm_get_plan; config_app.c:158).
+      case 'cm_get_plan':
+        return this.#gm.plane - 17;
       case 'cm_get_frmo':
         return 1;
       case 'cm_get_momo':
@@ -2216,6 +2271,50 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (now - this.#hbQuietSince < this.#hbS * 1000 - 1e-6) return;
     this.#println(serialize({ hb: { stat: this.#stat(), hold: this.#hold, up: this.#uptime(), qt: '' } }, false));
   }
+
+  /**
+   * The feed-limit push (option `feedLimit`, @behaviour EN-FEED-LIMIT-PUSH; @cite EN runtime.c:296-370): while a cycle
+   * runs an `fs` summary every `fi` seconds, and one final summary once the cycle has ended. Model limit
+   * LIM-EN-FEED-LIMIT: `ct` is the cycle time and `cd` 0; the per-cause counters `c` stay 0.
+   */
+  #feedLimitCallback(now: number): void {
+    if (this.#fi <= 0) return;
+    const running = this.#cycle !== 'off';
+    if (running) {
+      if (!this.#fiRunning) {
+        this.#fiRunning = true;
+        this.#fiNext = now + this.#fi * 1000;
+        this.#fiSince = now;
+      }
+      if (now >= this.#fiNext) {
+        this.#fiCycleMs += now - this.#fiSince;
+        this.#fiSince = now;
+        this.#fiNext = now + this.#fi * 1000;
+        this.#sendFs();
+      }
+      return;
+    }
+    if (this.#fiRunning) {
+      this.#fiRunning = false;
+      this.#fiCycleMs += now - this.#fiSince;
+      this.#sendFs();
+    }
+  }
+
+  #sendFs(): void {
+    this.#fiQ++;
+    this.#println(`{"fs":{"v":1,"e":${this.#fiEpoch},"q":${this.#fiQ},"c":[0,0,0,0,0,0],"ct":${Math.round(this.#fiCycleMs)},"cd":0.000}}`);
+  }
+
+  #fi = 0;
+  #fiEpoch = 0;
+  #fiQ = 0;
+  #fiCycleMs = 0;
+  #fiRunning = false;
+  #fiNext = 0;
+  #fiSince = 0;
+  /** The job flag (option `jobFlag`): RAM only; not in any firmware yet. */
+  jobFlag = 0;
 
   /** `_machine_quiet()` (@cite EN runtime.c:37-52): nothing moving, held, flushing or queued. */
   #machineQuiet(): boolean {

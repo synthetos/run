@@ -130,7 +130,9 @@ describe('barriers, optional stop and pauses', () => {
     const m0 = sanitized.lines.find((l) => l.origin === 'c14' && l.body === 'M0');
     expect(m0).toBeDefined();
     expect(a.pausePoints).toEqual([m0?.n]);
-    expect(rules(analyse(fixture('cam/18-m6-tool-change.nc'), TINYG_EN).analysis)).toContain('m6-without-c14');
+    // Phase 3 (SAFETY §4.4a, H74): without C14, edge-next M6 is a manual tool-change stop (INFO), 440.21 still blocks it.
+    expect(rules(analyse(fixture('cam/18-m6-tool-change.nc'), TINYG_EN).analysis, 'info')).toContain('tool-change-stop');
+    expect(rules(analyse(fixture('cam/18-m6-tool-change.nc'), TINYG_440).analysis)).toContain('m6-without-c14');
   });
 });
 

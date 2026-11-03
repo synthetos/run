@@ -209,6 +209,27 @@ export interface SentLine {
   readonly holdback: boolean;
   /** Modelled motion, or null for a line that does not move. */
   readonly motion: LineMotion | null;
+  /**
+   * Phase 3 (SAFETY §4.4a, H74): an M6 line the streamer stops before for a manual tool change. Absent on every
+   * other line, and with C14 (whose inserted M0 is the stop instead).
+   */
+  readonly toolChange?: ToolChange;
+}
+
+/** What the streamer needs to know at a manual tool change (H74). */
+export interface ToolChange {
+  /** The tool the line selects (its T word, or the last T before it), or null. */
+  readonly tool: number | null;
+  /** The commanded spindle and coolant just before the M6 line, and the last S word. */
+  readonly spindle: 'off' | 'cw' | 'ccw';
+  readonly speed: number | null;
+  readonly mist: boolean;
+  readonly flood: boolean;
+  /**
+   * True when the file turns the spindle on again (M3 or M4) after the M6 and before its next move. When false and
+   * the spindle was on, the user is asked to restart it before the job goes on (C35).
+   */
+  readonly restartsSpindle: boolean;
 }
 
 /** The terminator the streamer appends to every `SentLine.text`. LF only (SAFETY §4.7 step 1). */
@@ -217,6 +238,8 @@ export const LINE_TERMINATOR = '\n';
 export type Severity =
   /** The job cannot run (a rejected line, or a file-level block). */
   | 'block'
+  /** Phase 3: something Run does at this line that the user should know about (a tool-change stop, H74). Never blocks. */
+  | 'info'
   /** Kept, but the user should know. */
   | 'warn'
   /** A change the sanitiser made. */
@@ -248,6 +271,8 @@ export type SanitizeRule =
   | 'bad-parameter'
   | 'l-word'
   | 'm6-without-c14'
+  /** Phase 3: M6 on edge-next is a manual tool-change stop (INFO, H74). */
+  | 'tool-change-stop'
   | 'c14-inserted'
   | 'feed-not-set'
   | 'unknown-state'

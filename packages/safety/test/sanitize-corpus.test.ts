@@ -121,10 +121,10 @@ describe('T-S2: CAM corpus', () => {
     expect(blocks(run(corpus('15-m201-3.nc'), TINYG_440))).toEqual(['unsupported-code']);
   });
 
-  it('"S1000 T1 M6 M3 M8 G4 P1": TG blocks it (E088) even with C14; EN needs only C14', () => {
+  it('"S1000 T1 M6 M3 M8 G4 P1": TG blocks it (E088) even with C14; EN passes it (a manual tool-change stop, H74)', () => {
     expect(blocks(run(corpus('16-e088-queued.nc'), TINYG_440))).toEqual(['m6-without-c14', 'e088-queued-per-line']);
     expect(blocks(run(corpus('16-e088-queued.nc'), TINYG_440, { c14: true }))).toEqual(['e088-queued-per-line']);
-    expect(blocks(run(corpus('16-e088-queued.nc'), TINYG_EN))).toEqual(['m6-without-c14']);
+    expect(blocks(run(corpus('16-e088-queued.nc'), TINYG_EN))).toEqual([]);
     expect(run(corpus('16-e088-queued.nc'), TINYG_EN, { c14: true }).report.blocked).toBe(false);
   });
 
@@ -137,9 +137,10 @@ describe('T-S2: CAM corpus', () => {
     }
   });
 
-  it('M6 is rejected without C14; with C14 it is preceded by M5, M9, M0 and the M0 is a barrier', () => {
+  it('M6 is rejected without C14 on 440.21 and a tool-change stop on EN; with C14 it is preceded by M5, M9, M0 and the M0 is a barrier', () => {
+    expect(blocks(run(corpus('18-m6-tool-change.nc'), TINYG_440))).toEqual(['m6-without-c14']);
+    expect(blocks(run(corpus('18-m6-tool-change.nc'), TINYG_EN))).toEqual([]);
     for (const d of BOTH) {
-      expect(blocks(run(corpus('18-m6-tool-change.nc'), d)), d.id).toEqual(['m6-without-c14']);
       const r = run(corpus('18-m6-tool-change.nc'), d, { c14: true });
       expect(r.report.blocked).toBe(false);
       expect(bodies(r).slice(1, 5)).toEqual(['M5', 'M9', 'M0', 'T2 M6']);

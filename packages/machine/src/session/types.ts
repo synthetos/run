@@ -17,8 +17,8 @@
  * Everything here is controller-neutral: dialects are looked up by id and
  * every TinyG fact comes from dialect data (RUN_PLAN §5.1 rules 4 and 5).
  */
-import type { ApprovedBuilds, Banner, ClassifyReason, Dialect, DialectId, FooterRev, Inbound, JsonValue, MachineClass, ProbeKey, Response } from '@synthetos/protocol';
-import type { BaseState, Decision, Intent, Overlay, Release } from '@synthetos/safety';
+import type { ApprovedBuilds, Banner, ClassifyReason, Dialect, DialectId, FooterRev, Inbound, JsonObject, JsonValue, MachineClass, ProbeKey, Response } from '@synthetos/protocol';
+import type { BaseState, Decision, Intent, Overlay, Release, SentLine } from '@synthetos/safety';
 import type { PortSelector, TransportInfo } from '../transport.ts';
 import type { ReportStep } from './reports.ts';
 
@@ -29,7 +29,23 @@ import type { ReportStep } from './reports.ts';
  */
 export type SessionBase = Extract<
   BaseState,
-  'NOT_CONNECTED' | 'PORT_REQUEST' | 'OPENING' | 'IDENTIFYING' | 'READING' | 'BLOCKED' | 'CONNECTED_UNKNOWN' | 'IDLE_UNHOMED' | 'IDLE_HOMED' | 'JOGGING' | 'HOMING' | 'HELD' | 'STOPPING_JOB' | 'ALARM'
+  | 'NOT_CONNECTED'
+  | 'PORT_REQUEST'
+  | 'OPENING'
+  | 'IDENTIFYING'
+  | 'READING'
+  | 'BLOCKED'
+  | 'CONNECTED_UNKNOWN'
+  | 'IDLE_UNHOMED'
+  | 'IDLE_HOMED'
+  | 'JOGGING'
+  | 'HOMING'
+  | 'HELD'
+  | 'STOPPING_JOB'
+  | 'ALARM'
+  | 'PREAMBLE'
+  | 'RUNNING'
+  | 'PROGRAM_PAUSED'
 >;
 
 export const SESSION_BASES: readonly SessionBase[] = Object.freeze([
@@ -47,10 +63,13 @@ export const SESSION_BASES: readonly SessionBase[] = Object.freeze([
   'HELD',
   'STOPPING_JOB',
   'ALARM',
+  'PREAMBLE',
+  'RUNNING',
+  'PROGRAM_PAUSED',
 ]);
 
 /** Bases after the board was identified and read: the link is in use (watchdog, reports). */
-export const READY_BASES: ReadonlySet<SessionBase> = new Set(['CONNECTED_UNKNOWN', 'IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HOMING', 'HELD', 'STOPPING_JOB', 'ALARM']);
+export const READY_BASES: ReadonlySet<SessionBase> = new Set(['CONNECTED_UNKNOWN', 'IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HOMING', 'HELD', 'STOPPING_JOB', 'ALARM', 'PREAMBLE', 'RUNNING', 'PROGRAM_PAUSED']);
 
 /** Timing of the read-only session. Every value is in milliseconds. */
 export interface SessionTimings {
@@ -119,7 +138,30 @@ export interface SessionConfig {
  * single read-back after run changed a value (set zero, G92, G28.3, a coordinate system, homing); `report` is
  * one line of the status-report configuration (a write, or its read-back GET).
  */
-export type ReadPurpose = 'splice' | 'probe' | 'reading' | 'request' | 'verify' | 'liveness' | 'poll' | 'motion' | 'gate' | 'setting' | 'readback' | 'seed' | 'report';
+/**
+ * Phase 3 jobs (SAFETY §4.4a): `job` is one line of the running job (data, many may be owed at once in line
+ * mode), `jobPrep` a read taken when a job is loaded (the board's limits, offsets and modes for the sanitiser),
+ * `lineMode` the line-mode read, write or read-back (`rxm`, H77), `jobRuntime` a RAM-only `rt` line of the job
+ * (the job flag, the feed-limit window).
+ */
+export type ReadPurpose =
+  | 'splice'
+  | 'probe'
+  | 'reading'
+  | 'request'
+  | 'verify'
+  | 'liveness'
+  | 'poll'
+  | 'motion'
+  | 'gate'
+  | 'setting'
+  | 'readback'
+  | 'seed'
+  | 'report'
+  | 'job'
+  | 'jobPrep'
+  | 'lineMode'
+  | 'jobRuntime';
 
 /** What runs when the last read-back of a change has been answered. */
 export type FollowUp = 'homed' | 'positionSet';
@@ -135,6 +177,8 @@ export interface PendingRead {
   readonly value?: number;
   /** `seed` only: run after this read is answered (the last read-back of a homing or G28.3). */
   readonly then?: FollowUp;
+  /** `job` only: the index of the job line. */
+  readonly index?: number;
 }
 
 /** How a settings write ended. */
@@ -199,7 +243,11 @@ export type FaultCause =
   | 'footerRevisionChanged'
   | 'exceptionReport'
   /** Phase 2: a stop or release sequence timed out waiting for the hold or the flush (W12, SAFETY §4.4). */
-  | 'stopNotConfirmed';
+  | 'stopNotConfirmed'
+  /** Phase 3: the controller answered a job line with status 13, a damaged line (E162, H9). */
+  | 'damagedLine'
+  /** Phase 3: STALE for longer than the limit while a job runs (liveness, SAFETY §3, H71). */
+  | 'staleWhileRunning';
 
 export interface FaultInfo {
   readonly cause: FaultCause;
@@ -359,6 +407,149 @@ export interface LinkWindow {
   readonly silenceMs: number;
 }
 
+/**
+ * Phase 3 (SAFETY §4.4a): what a job is doing.
+ * - `loading`: the prep reads are being taken; `ready` / `blocked`: sanitised with the live board's values;
+ * - `preparing` (base PREAMBLE): the line mode is checked and set (H77), the job's `rt` lines are sent;
+ * - `running`: lines are streamed by the line buffer's free slots; `draining`: feeding stopped before a stop
+ *   point (a tool change, a breakpoint, after a program stop line) and the queue is draining; `ending`: every line
+ *   is sent and the queue is draining to the end;
+ * - `pausing` / `paused`: a Pause (`!`) and its confirmed hold; `refused`: a line was refused and the job is held;
+ * - `toolChange`, `breakpoint`, `programStop` (base PROGRAM_PAUSED): drained and stopped at the stop point;
+ * - `resuming`: the lines that put the machine back after a tool change;
+ * - `done`, `stopped`, `failed`: ended.
+ */
+export type JobPhase =
+  | 'loading'
+  | 'ready'
+  | 'blocked'
+  | 'preparing'
+  | 'running'
+  | 'draining'
+  | 'ending'
+  | 'pausing'
+  | 'paused'
+  | 'refused'
+  | 'toolChange'
+  | 'breakpoint'
+  | 'programStop'
+  | 'resuming'
+  | 'done'
+  | 'stopped'
+  | 'failed';
+
+/** Where feeding stops: before `index` (a tool change, a breakpoint), or after it (a program stop line, the end). */
+export interface JobStopPoint {
+  readonly kind: 'toolChange' | 'breakpoint' | 'barrier' | 'end';
+  readonly index: number;
+}
+
+export interface JobEvent {
+  /** Session time (ms). */
+  readonly t: number;
+  readonly kind: 'info' | 'warn' | 'toolchange' | 'error';
+  readonly text: string;
+  /** The file line it is about, when it is about one. */
+  readonly line?: number;
+}
+
+/** What the sanitiser said, as the page shows it (the lines themselves never leave the worker). */
+export interface JobReportSummary {
+  readonly blocked: boolean;
+  readonly counts: Readonly<Record<'block' | 'warn' | 'change' | 'info', number>>;
+  /** The first blocking findings, in plain words with their file line. */
+  readonly blocks: readonly { readonly line: number; readonly message: string }[];
+  readonly splits: number;
+  readonly longestMoveSeconds: number;
+  readonly endState: { readonly spindle: 'off' | 'cw' | 'ccw'; readonly mist: boolean; readonly flood: boolean };
+  /** File lines of each manual tool change (H74). */
+  readonly toolChanges: readonly number[];
+  /** Spindle speeds the job commands with M3/M4 (C32), and whether it turns the spindle on at all. */
+  readonly startsSpindle: boolean;
+  readonly speeds: readonly number[];
+  /** Modelled seconds of the whole job (an estimate, SAFETY §4.3). */
+  readonly seconds: number;
+}
+
+export interface JobState {
+  readonly id: number;
+  readonly name: string;
+  /** FNV-1a of the file text, hex: the page checks it is the file it previewed. */
+  readonly hash: string;
+  readonly bytes: number;
+  readonly phase: JobPhase;
+  /** The file text while the prep reads are taken (dropped once sanitised). */
+  readonly pending: { readonly text: string; readonly c22: boolean } | null;
+  /** The sanitised lines, frozen (SAFETY §4.7 single source of truth). Empty until sanitised. */
+  readonly lines: readonly SentLine[];
+  /** Modelled seconds still to run from each line to the end (suffix sums), for the remaining-time estimate. */
+  readonly secondsFrom: readonly number[];
+  readonly report: JobReportSummary | null;
+  /** Index of the next line to send. */
+  readonly next: number;
+  /** Lines answered (the data answers come in order: every line before this index is answered). */
+  readonly acked: number;
+  /** Free line-buffer slots in the last footer (line mode `f[2]`), or null before the first. */
+  readonly free: number | null;
+  /** File lines with a breakpoint (the page's, H75). */
+  readonly breakpoints: readonly number[];
+  /** The stop point the job last stopped at and was resumed from: it is not stopped at again. */
+  readonly passed: number | null;
+  readonly stop: JobStopPoint | null;
+  /** Polled reads in a row that met the drain or pause condition. */
+  readonly confirmed: number;
+  readonly refused: { readonly index: number; readonly status: number; readonly text: string } | null;
+  readonly toolChange: {
+    readonly index: number;
+    readonly tool: number | null;
+    readonly spindle: 'off' | 'cw' | 'ccw';
+    readonly speed: number | null;
+    readonly mist: boolean;
+    readonly flood: boolean;
+    readonly restartsSpindle: boolean;
+    /** Machine position where the job stopped (from reports), to return to at a safe height. */
+    readonly at: Readonly<Partial<Record<Axis, number>>>;
+  } | null;
+  /** Lines still to send to put the machine back before the job continues (after a tool change). */
+  readonly resumeSteps: readonly { readonly line: string; readonly intent: Intent }[];
+  readonly startedAt: number | null;
+  readonly endedAt: number | null;
+  /** When the current pause was asked for (Pause, or a refused line). */
+  readonly pauseAt: number | null;
+  /** The plain-words result or state (W42, W43, W38, ...). */
+  readonly message: string | null;
+  readonly events: readonly JobEvent[];
+  /** The rxm value found when the job was prepared (H77). */
+  readonly rxmFrom: number | null;
+  /** The job flag last sent, or null (only with the capability, MACHINING_ASSISTANT feed-limit step 3). */
+  readonly jobFlag: 0 | 1 | null;
+  /** The feed-limit window of this job (`{"rt":{"fi":N}}`) and the last summary and change line, when the board has it. */
+  readonly feedLimit: { readonly fi: number; readonly fs: JsonObject | null; readonly short: boolean; readonly fl: JsonObject | null } | null;
+  /** A liveness FAULT stops the job with the spindle off at this time unless it is stopped first (W33). */
+  readonly faultStopAt: number | null;
+  /** Set when a stop sequence for this job is under way (Stop job, a fault). */
+  readonly stopping: boolean;
+}
+
+/**
+ * The line-mode setting (`rxm`, H77): what to put back when no job runs, and the read or write in progress.
+ * `restore` is the value found when this session last prepared a job, or the page's remembered value; null with
+ * `memoryKnown` means nothing is remembered (the default, 0, applies). Without `memoryKnown` and no job this
+ * session, nothing is restored.
+ */
+export interface RxmState {
+  readonly restore: number | null;
+  readonly memoryKnown: boolean;
+  readonly step: { readonly kind: 'read' | 'write' | 'readback'; readonly purpose: 'job' | 'restore'; readonly value: 0 | 1 } | null;
+  /** The footer revision the answer to the write is expected to carry (it changes with the mode). */
+  readonly footerExpect: FooterRev | null;
+  /** The last value read or written and confirmed, or null. */
+  readonly current: number | null;
+  /** The last thing the session changed, for W39 and W44. */
+  readonly changed: { readonly kind: 'job' | 'restore'; readonly from: number; readonly to: number } | null;
+  readonly detail: string | null;
+}
+
 /** The reducer's whole state. Plain, frozen data. */
 export interface SessionState {
   readonly base: SessionBase;
@@ -419,6 +610,12 @@ export interface SessionState {
   /** The connect-time read and report configuration (amendment 2026-11-02). */
   readonly reports: ReportsState;
   readonly link: LinkWindow;
+  /** Phase 3: the loaded or running job, or null (SAFETY §4.4a). */
+  readonly job: JobState | null;
+  /** Phase 3: the line-mode setting (H77). */
+  readonly rxm: RxmState;
+  /** The `rt` leaves `{"rt":null}` answered with at connect: the job flag and the feed-limit window need theirs. */
+  readonly rtLeaves: readonly string[];
 }
 
 export type JogAxis = 'x' | 'y' | 'z' | 'a';
@@ -470,6 +667,8 @@ export interface MotionCtx {
   readonly deadline: number | null;
   /** `unit` when the motion started (0 inches): restored at the end. */
   readonly units: number | undefined;
+  /** `dist` when the motion started (1 incremental): a jog during a job's tool change restores it (Phase 3). */
+  readonly dist?: number | undefined;
   /** The base to return to when the motion ends. */
   readonly returnTo: SessionBase;
   /** The board answered a line of this motion with a non-zero status. */
@@ -487,10 +686,18 @@ export interface MotionCtx {
   readonly change?: ChangeKind;
   /** `home`: a poll or report has shown the homing cycle running (stat homing, or moving). */
   readonly seen?: boolean;
+  /**
+   * `change` of an offset (G10 L20, G54..G59): the line, how many times it was written, and when it is written
+   * again after a status 13 (buffer full) refusal (firmware bug hunt 2026-11-02, cause unknown: up to 3 attempts).
+   */
+  readonly line?: string;
+  readonly attempts?: number;
+  readonly retryAt?: number | null;
 }
 
 /** `watchdog`: the receive-silence watchdog (SAFETY §4.2). `motion`: the motion layer's poll and keep-alive tick. */
-export type TimerId = 'answer' | 'settle' | 'verify' | 'watchdog' | 'motion';
+/** `job`: the job layer's poll tick (drain, pause, the planner gauge) and its deadlines. */
+export type TimerId = 'answer' | 'settle' | 'verify' | 'watchdog' | 'motion' | 'job';
 
 /** Intents the session handles. Everything else is denied (not in Phase 1). */
 export type SessionIntent =
@@ -522,7 +729,6 @@ export type SessionIntent =
   | { readonly intent: 'spindleOn'; readonly output: 'spindle'; readonly direction: 'cw' | 'ccw'; readonly rpm: number }
   | { readonly intent: 'spindleOn'; readonly output: 'mist' | 'flood' }
   | { readonly intent: 'clearAlarm' }
-  | { readonly intent: 'resume' }
   | { readonly intent: 'positionVerify' }
   /** Release a hold jog (`!`, then `%` once held). Stop class: never gated. */
   | { readonly intent: 'feedhold'; readonly release: true }
@@ -530,6 +736,14 @@ export type SessionIntent =
   | { readonly intent: 'spindleOffNow'; readonly outputs: 'spindle' | 'coolant' }
   /** One settings write (SAFETY §4.6, amendment 2026-11-02): gate reads, `{"<key>":<value>}`, then a read-back. */
   | { readonly intent: 'settingsWrite'; readonly key: string; readonly value: number }
+  // --- Phase 3 jobs (SAFETY §4.4a). Denied by the matrix and the session under any release without jobs.
+  /** Load a job (the file text, sanitised here with the live board's values), or unload it (`job: null`). */
+  | { readonly intent: 'loadJob'; readonly job: { readonly name: string; readonly text: string; readonly c22: boolean } | null }
+  /** Start the loaded job. `confirm`: the page's confirmations (C36 unhomed, C31 work zero, C32 spindle). */
+  | { readonly intent: 'startJob'; readonly breakpoints: readonly number[]; readonly confirm: { readonly unhomed: boolean; readonly workZero: boolean; readonly spindle: boolean } }
+  /** Resume a paused or stopped job. `skip`: continue past a refused line (C33). `spindleRestart`: C35 accepted. */
+  | { readonly intent: 'resume'; readonly skip?: boolean; readonly spindleRestart?: boolean }
+  | { readonly intent: 'jobBreakpoints'; readonly lines: readonly number[] }
   /** Any other allow-matrix intent: always denied (decided, never silently dropped). */
   | {
       readonly intent: Exclude<
@@ -555,6 +769,9 @@ export type SessionIntent =
         | 'setMachinePosition'
         | 'tempOffset'
         | 'selectCoordSystem'
+        | 'loadJob'
+        | 'startJob'
+        | 'jobBreakpoints'
       >;
     };
 
@@ -568,17 +785,22 @@ export type SessionEvent =
   | { readonly type: 'inbound'; readonly epoch: number; readonly at: number; readonly event: Inbound }
   /** The write of line `seq` completed. */
   | { readonly type: 'lineWritten'; readonly epoch: number; readonly seq: number }
-  /** Line `seq` was not written: by the time it reached the transport the matrix no longer allowed a read. */
-  | { readonly type: 'lineDropped'; readonly epoch: number; readonly seq: number }
+  /** Line `seq` was not written: by the time it reached the transport the matrix no longer allowed it. `index`: a job line's. */
+  | { readonly type: 'lineDropped'; readonly epoch: number; readonly seq: number; readonly index?: number }
   | { readonly type: 'writeFailed'; readonly epoch: number; readonly at: number; readonly detail: string }
   | { readonly type: 'writeRefused'; readonly epoch: number; readonly at: number; readonly detail: string }
   | { readonly type: 'linkLost'; readonly epoch: number; readonly at: number }
   | { readonly type: 'timer'; readonly id: TimerId; readonly seq: number; readonly at: number }
   /** A settings drift check found a difference to the profile (NEEDS_REVIEW; its producer arrives with the drift check). */
-  | { readonly type: 'driftDetected'; readonly epoch: number };
+  | { readonly type: 'driftDetected'; readonly epoch: number }
+  /** Phase 3 (H77): the page's remembered line mode for this board (0 or 1), or null when it remembers none. */
+  | { readonly type: 'lineModeMemory'; readonly epoch: number; readonly remembered: number | null };
 
 /** The realtime bytes a session may write: `!` and ENQ, and with a motion release `%` and `~`. Never ^D or ^X. */
 export type RealtimeName = 'feedhold' | 'enq' | 'flush' | 'resume';
+
+/** The command kinds of the job layer's lines in the write gate (SAFETY §4.4a). */
+export type JobLineKind = 'job' | 'lineMode' | 'jobRuntime';
 
 export type SessionEffect =
   | { readonly kind: 'acquireTransport'; readonly epoch: number; readonly port: PortSelector }
@@ -587,7 +809,17 @@ export type SessionEffect =
    * One single-token GET, `{"<token>":null}`, a motion line (`motion`, Phase 2), or (intent `settingsWrite`) one
    * single-token settings write, `{"<token>":<number>}` (the executor appends LF); `seq` numbers it on this link.
    */
-  | { readonly kind: 'writeLine'; readonly epoch: number; readonly seq: number; readonly token: string; readonly line: string; readonly motion?: { readonly intent: Intent }; readonly intent?: 'settingsWrite' | 'configureReports' }
+  | {
+      readonly kind: 'writeLine';
+      readonly epoch: number;
+      readonly seq: number;
+      readonly token: string;
+      readonly line: string;
+      readonly motion?: { readonly intent: Intent };
+      readonly intent?: 'settingsWrite' | 'configureReports' | 'jobLine' | 'lineMode' | 'jobRuntime';
+      /** `jobLine`: the job line's index (the write gate checks the bytes are exactly that line). */
+      readonly index?: number;
+    }
   /** `intent`: the allow-matrix intent the byte is checked against (`%` from a stop is `stopJob`, from a release `feedhold`). */
   | { readonly kind: 'writeRealtime'; readonly epoch: number; readonly name: RealtimeName; readonly byte: number; readonly intent?: Intent }
   /** Lower the transport's line cap to the classified dialect's. */

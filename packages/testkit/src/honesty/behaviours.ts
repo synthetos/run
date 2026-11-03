@@ -55,6 +55,18 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     ],
   },
   {
+    id: 'EN-FEED-LIMIT-PUSH',
+    model: EN,
+    summary:
+      'Option feedLimit (93a723b8 has it): {"rt":{"fi":N}} sets the summary interval, 0 stops, above 60 is clamped, off to on only at quiescence (106 otherwise); while a cycle runs an fs line every fi seconds and one final fs after the cycle; {"rt":null} lists fi and fs. fs and fl lines have no r and no footer.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'runtime.c', lines: [296, 298], quote: 'Feed-limit push (step 2)' },
+      { src: 'EN', file: 'runtime.c', lines: [504, 527], quote: 'STAT_COMMAND_NOT_ACCEPTED' },
+      { src: 'EN', file: 'runtime.c', lines: [356, 368], quote: '_fl_send_fs' },
+    ],
+  },
+  {
     id: 'EN-GC-ECHO',
     model: EN,
     summary: 'The gc echo is dropped below jv=5 on success and on error alike: the verbosity filter runs for every error response.',
@@ -957,5 +969,7 @@ export const MODEL_LIMITS: readonly ModelLimit[] = Object.freeze([
   { id: 'LIM-TG-OVERLONG', scope: 'tinyg-440', summary: 'Overlong lines on 440.21 throw ModelGapError.' },
   { id: 'LIM-REPORTS', scope: 'both', summary: 'Enumerated report values (momo, admo, frmo, macs, cycs, mots) use model numbering; qv=2 reports qr without qi/qo; status reports in text mode are still JSON.' },
   { id: 'LIM-MODAL-TG', scope: 'tinyg-440', summary: 'Two codes of one modal group on a 440.21 line: the last one wins; no modal-group error is modelled.' },
-  { id: 'LIM-EN-REPIN', scope: 'tinyg-en', summary: 'The model was built at edge-next ead63997; the 97321391, 6ec70652 and 93a723b8 re-pins (2026-11-02) are modelled only for the spindle and coolant readouts spe, spc, spd, sps, cof and com (EN-SPINDLE-READOUTS; the model applies S when parsed, not queued, so sps follows a new S at once) and beyond that only as moved citations. Not modelled: the rt family beyond LIM-EN-RT-HB (at 93a723b8 the feed-limit report leaves flk, flm, flp and flf, the push interval fi with its pushed fs and fl lines, and the fs summary request; the model answers 100 for them), E195 (a partial line quiet for about 1 s is dropped when a { arrives; the model always joins it to the next line), the stricter input errors E168-E177, E191 and E193, the timing fixes E165-E167, E180-E184, E190 and E192, and the planner fixes E196 (the junction limit read from the runtime direction when the previous block is freed) and E197 (a runtime halt clears the runtime exit velocity).' },
+  { id: 'LIM-EN-FEED-LIMIT', scope: 'tinyg-en', summary: 'The feed-limit push (option feedLimit, EN-FEED-LIMIT-PUSH) models the window, the interval and when fs lines are pushed; its counters do not model the firmware: ct is the time a cycle ran, cd is 0 and every per-cause counter in c is 0. No fl lines are pushed, x is never set, and {"rt":{"fs":null}} is not modelled.' },
+  { id: 'LIM-EN-JOB-FLAG', scope: 'tinyg-en', summary: 'Option jobFlag models {"rt":{"job":0|1}} (feed-limit step 3), which is designed and NOT in any firmware: it only stores the value and lists job in {"rt":null}, so run\'s capability seam can be tested. Default off, as on every real board.' },
+  { id: 'LIM-EN-REPIN', scope: 'tinyg-en', summary: 'The model was built at edge-next ead63997; the 97321391, 6ec70652 and 93a723b8 re-pins (2026-11-02) are modelled only for the spindle and coolant readouts spe, spc, spd, sps, cof and com (EN-SPINDLE-READOUTS; the model applies S when parsed, not queued, so sps follows a new S at once) and beyond that only as moved citations. Not modelled: the rt family beyond LIM-EN-RT-HB (at 93a723b8 the feed-limit report leaves flk, flm, flp and flf, the fl lines and the fs summary request, which the model answers 100 for; the push interval fi and its fs lines are modelled only with option feedLimit, EN-FEED-LIMIT-PUSH), E195 (a partial line quiet for about 1 s is dropped when a { arrives; the model always joins it to the next line), the stricter input errors E168-E177, E191 and E193, the timing fixes E165-E167, E180-E184, E190 and E192, and the planner fixes E196 (the junction limit read from the runtime direction when the previous block is freed) and E197 (a runtime halt clears the runtime exit velocity).' },
 ]);

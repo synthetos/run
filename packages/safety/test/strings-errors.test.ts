@@ -78,6 +78,19 @@ const VALID: Record<string, Params> = {
   c27: { axes: 'X', system: 'G54' },
   c28: { system: 'G54' },
   c29: { system: 'G55' },
+  w38: { line: 12, status: 221, meaning: 'outside the soft limits' },
+  w39: { from: 0 },
+  w40: { line: 40 },
+  w41: { line: 40 },
+  w42: { line: 40 },
+  w43: { line: 40 },
+  w44: { to: 0 },
+  c30: { file: 'part.nc', lines: 10, workZero: 'G54', spindle: 'not used' },
+  c31: { board: 'X 0', plan: 'X 1' },
+  c32: { speeds: 'S12000' },
+  c33: { line: 4, text: 'G1 X300' },
+  c34: { line: 7, tool: 'T2' },
+  c35: { direction: 'M3', rpm: 12000 },
 };
 
 type Fn = (p: Params) => unknown;

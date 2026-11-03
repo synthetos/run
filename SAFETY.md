@@ -83,6 +83,18 @@ Warning text is never accepted in place of a design measure that would have been
 - High-risk changes need a confirmation that **names the consequence**. Communication and identity settings are never written.
 - New hazards H57-H63, tests T-S95-T-S100, checklist item 42 and HIL-4.8/4.9. §4.1 (Settings write row) and §4.6 are amended.
 
+**Phase 3, jobs (amendment 2026-11-03; the owner approved the order settings writes, motion, jobs):**
+- run streams a whole G-code file on the **bench and staging builds only**. One switch (`packages/safety/src/jobsPhase.ts`, `JOBS = { staging: true, production: false }`, pinned by a test) adds the new `jobs` intent kind to the motion release there. Production stays read-only.
+- The file is sanitised **again in the machine worker**, with the live board's limits, offsets and modes read for it, never the preview's offline model (§4.7). The sanitised lines never leave the worker.
+- Streaming uses the board's **line mode** (`rxm` 1, footer revision 3, `f[2]` the free line slots). A line is written only while the last footer's free slots, less every job line still owed an answer, leave more than 2 slots for control lines. Job preparation reads `rxm`, writes `{"rxm":1}` only if it differs, reads it back, and streams only once the footer says revision 3. When the job ends, run puts the value it found back (§4.4a, H77).
+- A **refused line** (a non-zero status) holds the job at that line: Stop job, or "Skip line and continue" behind C33 (H70; amends H9 for job lines).
+- **Pause** is `!`, **Resume** is `~` and streaming goes on from where it was. **Stop job** in a job is the flush sequence (`!`, `%` once held, `M5`, `M9`), then W42. ^D stays unused in Phase 3 (the firmware maintainer's sequence).
+- **M6 is a manual tool-change stop on edge-next**: the sanitiser reports it as INFO "Run stops here for a manual tool change" instead of a block; run stops feeding before it, waits for the queue to drain, turns the spindle and coolant off and shows the tool-change card (H74). C14 stays for 440.21.
+- **Breakpoints** stop feeding before their line and let the queue drain; one on a line already queued cannot stop the job and says so (W41, H75). Program stops (M0, M60, M1 with optional stop) are host barriers as H36 already says.
+- A **reset mid-job** is a FAULT with W40 (H72). The **job flag** (`{"rt":{"job":N}}`, feed-limit step 3) has its seam and its capability probe, which finds nothing on the board today, so it is never sent. The feed-limit window (`{"rt":{"fi":N}}`) is opened for a job where `{"rt":null}` lists `fi`; its summaries are shown in observational words only (H78).
+- New hazards H70-H78; new W37-W44 and C30-C36; new tests T-S108-T-S119; checklist items 46-49; HIL-3.18-HIL-3.23.
+- Offset writes and status 13 (firmware bug hunt, 2026-11-02): back-to-back `G10 L2/L20` can be refused with status 13 (buffer full) although each reply is awaited; the cause is not known yet. Until it is, Set work zero and G54..G59 write the line again after about 0.5 s, at most 3 attempts in all, and log each refusal (§4.5b Offsets, T-S119).
+
 ---
 
 ## 1. Scope and intended use
@@ -237,6 +249,8 @@ On EN, `line` in the default `sr` and ENQ make the watchdog more precise (§4.2)
 | **Residual** | Low. On TG, splice protection depends on the host window (PN §7.2). |
 | **Verification** | U, M (T-S12), H (B-N-1). |
 
+*Amended 2026-11-03 (Phase 3, H70).* For a **job line**, a non-zero status other than one that comes with an `er` (a damaged line, E162, raises `er` 13 and ALARM 13, which latch a FAULT as before) no longer latches a FAULT: the job is held at that line (`!`, nothing more sent), the status is shown in plain words with the line (W38), and the user chooses Stop job or "Skip line and continue" (C33). The line itself did not run. Lines are still never resent automatically.
+
 ### H10. Unintended reset or bootloader entry
 As OLD-S H10, with two additions:
 - On EN, any SET of `boot` enters the bootloader (PN §12.3). `boot` is forbidden outside the flasher.
@@ -331,8 +345,12 @@ The edge-next image must be published as a reviewed GitHub release first (D6). R
 | **Residual** | Medium. The inserted M5 is queued and runs only when reached. A file edited outside the tool is not protected. |
 | **Verification** | U: golden tests. M: barrier present before every M6 and no line after it is sent before drain. H: HIL-3.5 on both dialects. |
 
+*Amended 2026-11-03 (Phase 3, H74).* On edge-next, M6 without C14 is no longer a block: the sanitiser marks the line as a manual tool-change stop (INFO), and the streamer stops feeding **before** the M6 line, waits for every answer and two polled reads at rest, then writes `M5` and `M9` itself before the card is shown. The M6 line is sent only on Resume (C34), so the reported `tool` stays truthful. C14 (and its M0 barrier) remains for 440.21, where run streams no jobs.
+
 ### H24. Session normalisation breaks another sender
 As OLD-S H24. Persisted reporting keys on EN are `ej, jv, js, tv, qv, sv, si, ex, rxm` and `se00..se29` (PN §12.2). **The default plan on EN normalises nothing.** The default `sr` already contains `line`, and run does not write `jv`, `qv`, `rxm` or the `sr` list. Any future normalisation is consented, uses W19, and is restored on disconnect, with C17 recovery. `os` (and the proposed `hbt`) are session-only, so this hazard does not apply to them. Residual Low.
+
+*Amended 2026-11-03 (Phase 3, H77).* run now writes `rxm` for a job: `{"rxm":1}` only when the board is in character mode, read back, and the value it found written back when the job ends. That is not a normalisation and needs no W19 consent: it is part of job preparation, through its own reviewed intent (`lineMode`), and it is undone by run itself (H77).
 
 ### H25. A second program commands g2 through the other CDC port
 Unchanged (OLD-S H25). Phase 7.
@@ -732,6 +750,87 @@ In every row the reply to the connect line is a G-code reply `{"r":{},"f":[...]}
 | **Residual** | Low. |
 | **Verification** | U/M: T-S102, T-S103, T-S108. H: HIL-1.13. |
 
+### H70. The stream continues after a refused line (NEW, Phase 3, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | The board answers a job line with a non-zero status (outside the soft limits, an M code it does not support, not accepted now). The line did not run, but a sender that keeps streaming runs the rest of the file without it: a missing Z retract or a skipped move can drive the tool through the stock or a clamp. |
+| **Rating** | S2–S4, L2 |
+| **Mitigations** | 1. Every job line gets its own answer, matched in order in the data queue (control answers are matched apart, §4.4a). 2. On the first refused line the session stops feeding at once and writes `!`; the job is held at that line (`refused`). 3. The status is shown in plain words with the file line and its text (W38). 4. The user chooses Stop job (the flush sequence) or "Skip line and continue", which needs C33 and a confirmed hold. 5. Later refusals of lines already queued are recorded in the job's events. 6. A damaged line (status 13 with `er` 13) stays a FAULT (H9). |
+| **Residual** | Low-Medium: lines already queued on the board (at most the free slots less the reserve) still run after the refused one. |
+| **Verification** | U/M: T-S111. E: T-S118 (a refused line on the fake board). H: HIL-3.19. |
+
+### H71. Connection lost or the tab closed mid-job (NEW, Phase 3, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | USB unplugged, the tab closed, crashed, slept or was discarded while a job streams. |
+| **Rating** | S4, L3 |
+| **Mitigations** | H1 applies. In line mode at most the free line slots less the reserve (12 headers less 2 on edge-next) are buffered beyond the planner, and every line is bounded by the queued-motion ceiling (§4.7 step 6a), so the motion after loss is bounded. LOST ends the job (`failed`, "The connection was lost at line N"), nothing more is written, and the next connect is UNKNOWN. W5 is shown before Start and while the job runs, with the queued travel bound and time from the job (W5-style warnings stay for hiding the tab and sleep). STALE for 5 s while lines go out is a liveness FAULT: `!`, then the flush sequence after the 20 s grace period unless the user stops first (W33). A board left in line mode is put back at the next connect (H77). |
+| **Residual** | Medium, as H1: the spindle stays in its last state after the queue drains. |
+| **Verification** | M: T-S114. E: T-S118. H: HIL-3.6, HIL-3.20. |
+
+### H72. The controller resets mid-job (NEW, Phase 3, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | A brown-out, the reset button, a watchdog. The board prints SYSTEM READY again; everything queued is gone, positions and homing are lost, and outputs float during the reset (W16). A sender that does not notice would stream the rest of the file into a board that no longer knows where it is. |
+| **Rating** | S3–S4, L2 |
+| **Mitigations** | Any banner after Ready is a FAULT (H19) and UNKNOWN. A job then ends at once (`failed`) with W40, the job lines still owed are dropped, and nothing more is written. Resume is never offered after a FAULT. |
+| **Residual** | Low. |
+| **Verification** | M: T-S114, T-S115 (the model's banner while lines are queued). E: T-S118. H: HIL-3.21. |
+
+### H73. The job runs from the wrong work zero, or unhomed (NEW, Phase 3, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | The board's G54 offset is not where the user planned the job (an earlier job, a G92 left behind, another program). Or the machine is not homed, so soft limits do not protect it. The job then cuts in the wrong place, into a clamp or past an end. |
+| **Rating** | S2–S4, L3 |
+| **Mitigations** | 1. The file is sanitised with the board's live offsets, position and modes; a move whose length depends on something not read is blocked (§4.7). 2. The Check → Set zero → Start stepper shows **plan versus board** work zero, warns when they differ and needs C31 to start with the board's. 3. Start needs the machine homed, or C36 ("I've checked the machine"). 4. The session checks the confirmations again before PREAMBLE. 5. C30 names the work zero and the spindle. |
+| **Residual** | Medium: run cannot see the stock. |
+| **Verification** | U: T-S117 (the start preconditions). E: T-S118. H: HIL-3.22. |
+
+### H74. The spindle is on during a tool change, or the resume moves through the stock (NEW, Phase 3, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | M6 only stores the tool number on TinyG; the machine keeps cutting with the spindle on (H23). After a manual change the user has jogged away; the next line moves straight back from there, possibly through the work. Or the spindle stays off after the change because the file does not start it again. |
+| **Rating** | S4, L3 |
+| **Mitigations** | 1. Feeding stops before the M6 line; every answer and two polled reads at rest come first. 2. run writes `M5` and `M9` itself; the card says the spindle and coolant are off (W37) and only Resume, Stop job, a jog and the Z re-zero are offered. 3. On Resume (C34), if the machine moved, run raises Z in machine coordinates to at least where it was, returns X and Y to where the job stopped, then sends the M6 line itself. 4. When the spindle was on and the file does not start it again before its next move, Resume needs C35 and run starts it (and the coolant it had) before going on. 5. A jog during the change restores the job's distance mode, not G90. |
+| **Residual** | Medium: the Z height the job continues from after a re-zero is the user's setup. |
+| **Verification** | U/M: T-S112. E: T-S118. H: HIL-3.5, HIL-3.18. |
+
+### H75. A breakpoint on a line already queued (NEW, Phase 3, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | Lines in the board's buffers cannot be recalled. A breakpoint set on one of them would not stop the job, and a user who trusts it reaches in. |
+| **Rating** | S3, L2 |
+| **Mitigations** | 1. A breakpoint takes effect only on a line not yet sent: feeding stops before it and the queue drains (no feedhold), then "Stopped at breakpoint · line N" (W43, with "· spindle still on" when reported). 2. A breakpoint set on a line already queued is reported at once with W41 in the job's events and next to the G-code list. 3. Breakpoints never gate Pause or Stop job. |
+| **Residual** | Low. |
+| **Verification** | U/M: T-S113. E: T-S118. |
+
+### H76. The line-buffer slot accounting is wrong (NEW, Phase 3, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | A sender that writes more lines than the board has free line slots overruns its receive ring (E162 damaged lines) or starves its control lines, so `!`, `%` and the polls that confirm a stop wait behind job lines. Counting a pushed report, a heartbeat or an `fs`/`fl` line as an answer would make the count drift. |
+| **Rating** | S3, L2 |
+| **Mitigations** | 1. Streaming only in line mode (footer revision 3) on edge-next; refused otherwise. 2. A job line is written only while the last footer's `f[2]` less every job line still owed leaves more than 2 slots (the reserve for control lines); the count only over-estimates. 3. Only `r` answers are counted, matched in order in two queues (data lines, control lines: the board serves control lines first); pushed `sr`, `qr`, `hb`, `fs` and `fl` lines are never answers. 4. Job lines have no answer timeout (a line can wait for planner room); liveness comes from reports and the watchdog. 5. After `%` the lines still owed are marked late (the board dropped them). 6. Each job line passes the write gate as exactly the sanitised line at its index. |
+| **Residual** | Low. |
+| **Verification** | U/M: T-S109 (never more owed than the slots less the reserve), T-S115. H: HIL-3.1. |
+
+### H77. The line mode is left changed for other senders (NEW, Phase 3, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | `rxm` is saved in EEPROM and changes the footer every sender sees: character mode answers `[2, status, bytes]`, line mode `[3, status, free lines]`. A character-counting sender (CNCjs and others) left in line mode mis-paces, and blank lines are handled differently. |
+| **Rating** | S2–S3, L2 |
+| **Mitigations** | 1. **Decision (2026-11-03, the firmware maintainer's guidance): run restores.** Job preparation reads `rxm`; only if it is not 1 it writes `{"rxm":1}` through its own reviewed intent (`lineMode`, never a settings write), reads it back and streams only once the footer is revision 3 (W39 says so). 2. When the job ends (done, stopped, failed and recovered), run writes back the value it found, only if it differs, and reads it back. 3. The page remembers that value per board on this computer (`device-safety`). If the page closes or the cable is pulled mid-job the board may stay in line mode; at the next connect run sees footer revision 3 outside a job and puts back the remembered value, or 0 when nothing is remembered, and says so (W44) and logs it. 4. `rxm` stays on the forbidden list for settings writes (H61). |
+| **Residual** | Low-Medium. A board whose user wants line mode (the edge-next factory default is rxm 1, settings_default.h:74) is put back to 0 at the first connect from a computer that remembers nothing; an owner decision may narrow this. |
+| **Verification** | U/M: T-S116. E: T-S118. H: HIL-3.23, HIL-4.7. |
+
+### H78. Feed-limit summaries read as causes (NEW, Phase 3, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | The feed-limit counters (`fs`) show time below programmed feed by constraint; read as proven causes they can mislead a user into unsafe feeds or speeds. |
+| **Rating** | S1–S2, L2 |
+| **Mitigations** | The window is opened only for a job and only where `{"rt":null}` lists `fi`; the summaries are display only, in observational words ("time spent below programmed feed, by what was limiting it"), a summary with `x` 1 is shown as a lower bound, and nothing is changed by them. |
+| **Residual** | Low. |
+| **Verification** | U/M: T-S114 (the window). E: the Live job tab. |
+
 ---
 
 ## 3. Connection and motion state machine
@@ -871,6 +970,8 @@ Added:
 
 *Amended 2026-11-02 (push-driven state, homing, offsets).* **Home** (G28.2) is allowed from IDLE_* and from CONNECTED_UNKNOWN under UNKNOWN (and HOMING only for the line being written), for axes whose homing is configured (H65), after C4. **Set machine position** (`setMachinePosition`, G28.3) has the same states and overlays, after C26 (H67). **Temporary offset** (`tempOffset`, G92 and G92.1, C27 and C28) and **Work coordinate system** (`selectCoordSystem`, G54..G59, C29) are allowed from IDLE_* with no overlay. **Set work zero** is G10 L20 in the active system (P1..P6), not always P1. **Report configuration** (`configureReports`, kind `reports`) is the session's own: idle or CONNECTED_UNKNOWN, under UNKNOWN or NEEDS_REVIEW only, never in ALARM, and only with a release that has `reports` (Phase 2) (H64). Each is a separate intent with its own confirmation and read-back.
 
+*Amended 2026-11-03 (Phase 3, jobs).* New kind `jobs`, on only with the jobs release (bench and staging, `jobsPhase.ts`). **Start** (`startJob`) is from IDLE_* with no overlay; the session also needs a checked job with no block, line mode available, and the page's confirmations (homed or C36, C31, C32 when the job starts the spindle); there is no separate ARMED state on the bench: the stepper's confirmations are the arm. **Job lines** (`jobLine`) only while RUNNING with no overlay (STALE stops them). **Line mode** (`lineMode`, the `rxm` write and its restore) only from IDLE_*, CONNECTED_UNKNOWN or PREAMBLE, under UNKNOWN or NEEDS_REVIEW at most. **Job rt lines** (`jobRuntime`) around a job, no overlay. **Resume** from HELD or PROGRAM_PAUSED as before. **Jog** and **Set work zero** are also allowed in PROGRAM_PAUSED; the session allows them only at a manual tool change. Disconnect stays denied while a job owns the machine. Pause, Stop job and Spindle off stay never gated.
+
 **UI rules that protect the stop path while LIVE** (OLD-S §4.1, extended):
 - No fullscreen while LIVE.
 - No native file pickers or selects while RUNNING or HELD.
@@ -997,6 +1098,20 @@ After any stop the tool never auto-clears an alarm. No stop sequence sends `^X`.
 - **TG (soft alarm):** `!` immediately, then `%`, latch FAULT, show "spindle may still be running" with Stop job.
 - **EN:** stop feeding, latch FAULT, show the alarm meaning. The spindle is off by firmware (E019); show "OFF (controller alarm)".
 
+### 4.4a Phase 3 jobs (amendment 2026-11-03)
+
+**Load.** The page sends the file text to the machine worker, which reads the board's axis limits and modes, every offset, the position, the modal state, the G-code defaults and `rxm`, and sanitises the text with them (§4.7). The result is shown as a summary (blocks with their file line, warnings, tool changes, spindle speeds, the modelled time); the lines never leave the worker.
+
+**Preparation (PREAMBLE).** `{"rxm":null}`; if it is not 1, `{"rxm":1}` (its answer carries footer revision 3, which the session accepts only for this write), then `{"rxm":null}` again. Nothing streams unless the read-back is 1 and the footer is revision 3. Where `{"rt":null}` listed `fi`, `{"rt":{"fi":2}}` (accepted only at quiescence); where it listed `job`, `{"rt":{"job":1}}`.
+
+**Streaming (RUNNING).** One job line is written whenever the last `f[2]` less the job lines owed is more than 2; control lines (polls, `rt` lines) go one at a time and use the reserve. Answers are matched in two queues, data and control, because the board serves control lines first. Job lines have no answer timeout. A `qr` poll every 500 ms gives the planner gauge and a fresh `f[2]`.
+
+**Stop points.** Feeding stops before a tool change (M6) and a breakpoint line, after a program stop line, and the final M2/M30 is held back until every earlier line is answered (H35). The job flag goes to 0 before run's own stops and after the last line, and back to 1 on resume (only with the capability). The queue drains: every line answered and two polled reads at rest (a program stop: stat 3 or 4, planner empty, `vel` 0). Then PROGRAM_PAUSED: the tool-change card (H74), "Stopped at breakpoint · line N" (W43), or the program stop (W17).
+
+**Pause, Resume, Stop job.** Pause writes `!` and stops feeding; HELD once two polled reads show the hold (or the machine at rest). Resume writes `~` when anything is held and streaming goes on from the next line not sent. Stop job: `!`, polled hold, `%`, the job lines still owed are dropped, polled empty planner, `M5`, `M9`, `G90`, then "Stopped at line N: queue cleared, spindle and coolant off" (W42). ^D is not used in Phase 3. A FAULT during a job ends it: integrity faults with the same flush sequence at once (an `er` comes with a controller alarm, which has already flushed and turned the outputs off, so none is sent into it), liveness faults after the grace period (W33).
+
+**End.** After the last answer and two polled reads at rest: "Job finished: N lines, ..." with the commanded spindle and coolant state (H48), `{"rt":{"fi":0}}` where a window was opened, then `rxm` is put back (H77).
+
 ### 4.5 Jog rules
 
 As OLD-S §4.5:
@@ -1035,7 +1150,7 @@ As OLD-S §4.5:
 
 **Set machine position** (*amended 2026-11-02*). `G28.3 X0 [Y0] [Z0] [A0]`, after C26, for machines without homing switches (H67). Then polled idle and the read-back of `mpo`, `pos`, `hom`, `ofs` and `home`; UNKNOWN clears when X, Y and Z read homed.
 
-**Offsets** (*amended 2026-11-02*). Set work zero is `G10 L20 P<n>` in the active system (`coor` 1..6; refused when it is not known or G53), saved on the controller (C16); its offsets are read back. **Temporary offset:** `G92 X0 [Y0] [Z0] [A0]` (C27) and `G92.1` (C28), not saved; `g92`, `ofs` and `pos` are read back. **Work coordinate system:** `G54`..`G59` (C29); `coor`, `ofs`, `pos` and g54..g59 are read back. Each change waits for polled idle before its read-back; a refused line ends it without a hold.
+**Offsets** (*amended 2026-11-02*). Set work zero is `G10 L20 P<n>` in the active system (`coor` 1..6; refused when it is not known or G53), saved on the controller (C16); its offsets are read back. **Temporary offset:** `G92 X0 [Y0] [Z0] [A0]` (C27) and `G92.1` (C28), not saved; `g92`, `ofs` and `pos` are read back. **Work coordinate system:** `G54`..`G59` (C29); `coor`, `ofs`, `pos` and g54..g59 are read back. Each change waits for polled idle before its read-back; a refused line ends it without a hold. *Amended 2026-11-03 (firmware bug hunt):* a `G10 L20` or `G54`..`G59` answered with status 13 (buffer full) is written again after about 0.5 s, at most 3 attempts in all, each refusal logged; after the third the change ends with a plain message and nothing changed.
 
 **Write gate.** Motion lines are their own command kind in the session's write gate (writePolicy.ts). A line is written only if it matches the closed grammar above exactly (numbers bounded, LF-terminated, no other words), the session release allows motion, and the allow-matrix allows the intent that issued it in the current state. `%` is written only by the stop and release sequences, `~` only by Resume, `{"clear":null}` only by Clear alarm. ^D and ^X are still never written in Phase 2. *Amended 2026-11-02:* the grammar adds `G28.2`, `G28.3`, `G92`, `G92.1`, `G54`..`G59` and `G10 L20 P1..P6` (axis words `X0`..`A0` only), and each line kind is admitted only from the intents that may send it (no G28.2 issued as a jog). The status-report configuration lines are a separate kind (`report`, H64).
 
@@ -1099,7 +1214,7 @@ Order of operations (OLD-S §4.7, per dialect):
    - it contains G38.x;
    - it contains a code unsupported by the dialect, a dotted code, or a modal conflict (EN rejects these too, E150/E152);
    - it contains negative F or S;
-   - M6 without C14 (with C14, insert `M5`, `M9`, `M0` and mark that M0 as a barrier);
+   - M6 without C14 (with C14, insert `M5`, `M9`, `M0` and mark that M0 as a barrier); *amended 2026-11-03 (Phase 3):* on edge-next an M6 without C14 is not rejected: it is reported as INFO "Run stops here for a manual tool change" and the line carries the tool, the spindle and coolant state before it and whether the file starts the spindle again before its next move (H74);
    - it contains M201.3 (EN);
    - TG only: G10 with L ≠ 2; **G18 arcs; G28/G30 under G20 or G91; G28.4; an `E` word**; more than 3 queued commands per line (E088);
    - EN only: G10 with L ∉ {2, 20};
@@ -1248,6 +1363,14 @@ Signal words follow ANSI Z535 and ISO 3864-2 (OLD-S §5). **Single source:** eve
 - **W33 (liveness FAULT countdown, `role="alert"`, tone):** "DANGER — This page lost track of the machine (<cause>). The machine is paused and the spindle may be running. The job will be stopped with the spindle off in N s. Check the machine now."
 - **W35 (status report list set at connect; amendment 2026-11-02, H64):** "NOTICE — Run set this board's status report list to include machine position and spindle/coolant. The list is saved on the board, so other programs that read its status reports see the change too."
 - **W36 (another saved reporting setting changed at connect; H64):** "NOTICE — Run changed a reporting setting saved on this board: <setting> from <old> to <new>. Other programs that read its status reports see the change too."
+- **W37 (the tool-change card; Phase 3, H74):** "WARNING — Tool change. The job is stopped and Run turned the spindle and coolant off. Wait until the spindle has stopped turning before you reach in, and keep a hand on the E-stop while you jog."
+- **W38 (a refused job line; Phase 3, H70):** "WARNING — The controller refused line <line> (status <status>: <meaning>). The job is paused and nothing after that line is sent. Lines sent before it may still run. Use \"Stop job\", or skip the line and continue."
+- **W39 (line mode set for a job; Phase 3, H77):** "NOTICE — Run switched this board to line mode (rxm 1, saved on the board) for the job. It puts it back to rxm <from> when the job ends. If this page closes during the job, the next connect puts it back. Programs that count characters need character mode (rxm 0)."
+- **W40 (reset mid-job, `role="alert"`; Phase 3, H72):** "DANGER — The controller reset during the job at line <line>. Everything queued is gone and the machine position is unknown. Outputs may have switched during the reset. Check the machine before doing anything."
+- **W41 (breakpoint on a queued line; Phase 3, H75):** "Line <line> is already queued on the controller, so a breakpoint there cannot stop the job."
+- **W42 (Stop job result in a job; Phase 3, §4.4a):** "Stopped at line <line>: queue cleared, spindle and coolant off"
+- **W43 (stopped at a breakpoint; Phase 3, H75):** "Stopped at breakpoint · line <line>"
+- **W44 (line mode put back at connect; Phase 3, H77):** "NOTICE — This board was left in line mode (rxm 1) outside a job. Run put it back to rxm <to> (saved on the board)."
 
 ---
 
@@ -1295,6 +1418,13 @@ An identity or chip mismatch on a flash, a bound-device mismatch on a profile, a
 | C27 | Temporary offset, G92 (amendment 2026-11-02, H68) | "Set a temporary offset so that <axes> read 0 here (G92)? It is not saved on the controller: a reset or a program end clears it, and Clear temporary offset (G92.1) removes it. The saved <system> offset does not change." | Single |
 | C28 | Clear the temporary offset, G92.1 (amendment 2026-11-02, H68) | "Clear the temporary offset (G92.1)? Work positions go back to the saved <system> offsets." | Single |
 | C29 | Select the work coordinate system, G54 to G59 (amendment 2026-11-02) | "Use <system> for work coordinates? Work positions, Set work zero and Go to zero then use its saved offsets." | Single |
+| C30 | Start a job (Phase 3, 2026-11-03) | "Start <file> now? Run sends <lines> lines to the controller. Work zero: <work zero>. Spindle: <spindle>. Keep a hand on the E-stop." | Single |
+| C31 | The board's work zero is not the plan's (Phase 3, H73) | "The board's work zero (<board>) is not your plan's (<plan>). The job cuts where the board's work zero is. Use the board's work zero for this job?" | Single |
+| C32 | The job starts the spindle (Phase 3, H52, H74) | "This job starts the spindle (<speeds>). It starts when that line runs, without another question. Hands clear of the cutter?" | Single |
+| C33 | Skip a refused line and continue (Phase 3, H70) | "Skip line <line> (<text>) and continue? The controller refused it, so it did not run. The job continues with the next line, which may not be what the file meant." | Single |
+| C34 | Resume after a manual tool change (Phase 3, H74) | "Resume with <tool>? Run sends the tool change line <line>, returns to where the job stopped at a safe height if you moved the machine, and continues the job." | Single |
+| C35 | Start the spindle again after a tool change the file does not restart it after (Phase 3, H74) | "The spindle was on before the tool change and the file does not start it again. Run starts it (<direction> S<rpm>) before the job continues. Hands clear?" | Single |
+| C36 | Start a job on a machine that is not homed (Phase 3, H73; replaces the typed C10 on the bench) | "The machine is not homed, so soft limits may not protect it. Start only if you have checked where every axis is and that the job fits. I've checked the machine." | Single |
 
 Stop job and Spindle off now are never behind a confirmation: they are direct actions in every connected state and every overlay (§4.1 normative rule).
 
@@ -1361,6 +1491,10 @@ OLD-S §8 items 1–21 all apply. Read "sim" as `testkit`, and read item 20 as c
 43. ☐ (amendment 2026-11-02) Nothing polls while idle: no periodic GET, only the confirming reads §4.2 lists and one read-back per change; the full state is read at every connect; liveness comes from reports and the heartbeat (STALE after the silence window).
 44. ☐ (amendment 2026-11-02) The status report list, `sv` and `si` are written only where they differ, one line at a time with a read-back, through the `report` kind and the `reports` release gate; never a `ram` key; the change is shown (W35, W36) and logged.
 45. ☐ (amendment 2026-11-02) Homing, G28.3, G92/G92.1 and G54..G59 are separate intents with their confirmations (C4, C26–C29) and read-backs; each motion line kind comes only from its intents; UNKNOWN always offers its exits.
+46. ☐ (Phase 3, 2026-11-03) Jobs stay behind the jobs switch (`JOBS`, production off) and the motion release; the job is sanitised in the worker with live values; Start needs its confirmations (homed or C36, C31, C32).
+47. ☐ (Phase 3) Job lines go out only in line mode (footer revision 3), never beyond `f[2]` less the owed lines less the reserve; only `r` answers are counted; every job line passes the gate as exactly its sanitised line.
+48. ☐ (Phase 3) A refused line holds the job (W38, C33); a reset is a FAULT (W40); a tool change stops before the M6 with the spindle and coolant off (W37, C34, C35); breakpoints stop before their line and say when they cannot (W41).
+49. ☐ (Phase 3) `rxm` is written only by the `lineMode` intent: only if it differs, read back, and put back after the job and at connect (H77); the job flag is sent only where the capability probe finds it.
 
 ---
 
@@ -1430,6 +1564,12 @@ Manual, and never in CI. Signed in `RELEASES.md` in the run repo, with the evide
 - **HIL-3.15** A long single line (`G1 X300 F100`) and a long G2: the streamer sends split sub-segments; pull USB mid-move; the measured overrun is at most the displayed bound and the ceiling.
 - **HIL-3.16** A job with a mid-file G92 and G10 L20: the machine DRO and the live marker (polled `mpo`) stay correct; stop verification under filtered reports gives no false W12 (B-POLL-1).
 - **HIL-3.17** Integrity FAULT during a job (inject a `tid` mismatch through the harness): `!` then ^D immediately, LED off. Liveness FAULT (freeze the main thread while visible): `!`, W33 countdown, then ^D. Resume is not offered after either.
+- **HIL-3.18** (*Phase 3, 2026-11-03*) Manual tool change: a job with M3, `T2 M6`, more cuts. The streamer stops before M6; the spindle LED goes off before the card shows (W37); jog Z up; Resume with C34 (and C35 when the file does not restart the spindle): Z rises, X and Y return, the spindle restarts, `N.. T2 M6` is written, the job continues; `tool` reads 2.
+- **HIL-3.19** (*Phase 3*) A refused line (a G1 past the soft limits with `sl` 1 on homed axes): the job holds at that line with W38; Skip line (C33) continues; repeat with Stop job.
+- **HIL-3.20** (*Phase 3*) Pull USB mid-job and close the tab mid-job: no line after; the next connect is UNKNOWN; with the page's memory the board's `rxm` is put back (W44).
+- **HIL-3.21** (*Phase 3*) Press the board's reset mid-job: SYSTEM READY, FAULT with W40, nothing more written.
+- **HIL-3.22** (*Phase 3*) Start with the board's G54 different from the plan: the stepper warns and needs C31; not homed: C36.
+- **HIL-3.23** (*Phase 3*) Start on a board in character mode (`rxm` 0): `{"rxm":1}`, its read-back, footer revision 3, the job, then `{"rxm":0}` and its read-back; CNCjs streams correctly afterwards. Record the free-slot counts (`f[2]`) during a 10k-line job.
 
 ### 9.5 Phase 4: settings write and configuration
 - **HIL-4.1** Write and read back each risk class, including `spep`, `spdp`, `prbp`. Rollback works.
@@ -1567,3 +1707,15 @@ New tests:
 | T-S107 | (amendment 2026-11-02) Test-kit edge-next reports: change-filtered, the first request wins and values are sampled at print, a short state is missed, a persistent one appears within `si`; the sr list GET and SET; rt and heartbeat lines; G28.2, G28.3, G92 and G92.1. | M |
 | T-S108 | (amendment 2026-11-02) Edge-next feed-limit push lines: `fs` (with and without `"x":1`) and `fl` are classified as their own line kinds, never as a response, an ack or `Garbled`; fed into the session while connecting (the first line and the probe owed, READING, the state read, the report configuration), idle, jogging, with a motion line owed, held, with an ENQ outstanding, STALE, FAULT, ORPHANED_MOTION and READ_ONLY, they change nothing but the receive time and write nothing. | U |
 | T-S100 | Phase switch and controls: `SETTINGS_WRITES` is pinned (staging on, production off). The worker turns the `settings` kind on only for the staging and loopback origins. The settings controls are disabled in the prerendered page, and enabled only when the switch is on and the board is approved, identified, read and idle. | U, E |
+| T-S108 | (Phase 3) Load: the file is sanitised in the worker with the board's live limits, offsets and modes; a block stops Start; M6 on edge-next is an INFO stop point; jobs need the jobs release, an approved board and an idle machine. | M |
+| T-S109 | (Phase 3) Streaming: never more job lines owed than the free slots less the reserve; every line answered; the executing line and the sent band map to file lines through the sanitiser; the final M2/M30 only after every earlier answer. | M |
+| T-S110 | (Phase 3) Pause (`!`, HELD, no line sent while held), Resume (`~`, on to the end), Stop job (`!`, `%`, `M5`, `M9`, W42, nothing more sent), Spindle off ends a running job, Stop job while preparing sends no job line. | M |
+| T-S111 | (Phase 3) A refused line holds the job with W38; Resume needs Skip (C33); Stop job after a refusal runs the flush sequence. | M |
+| T-S112 | (Phase 3) Tool change: stop before M6, drain, `M5` `M9`, the card; C35 before a spindle restart; a jog returns PROGRAM_PAUSED with the job's distance mode; Resume returns at a safe height and sends the M6 line itself. | M |
+| T-S113 | (Phase 3) Breakpoints stop before their line with the queue drained; one on a queued line gives W41; an M0 is a host barrier. | M |
+| T-S114 | (Phase 3) A reset (FAULT, W40, nothing more written), a lost link, an alarm, STALE beyond the limit (liveness FAULT and the grace period) and an integrity FAULT (the flush sequence) during a job; the job flag only with the capability, at its four points; the feed-limit window opened and closed. | M, U |
+| T-S115 | (Phase 3) Test-kit edge-next as a streaming target: line mode with `f[2]`, an answer per line with its status, a refused line, a reset banner with lines queued, `rxm` 0 → 1 changing the footer, the feed-limit push. | M |
+| T-S116 | (Phase 3) Line mode: written only when it differs, read back, footer revision 3 before any job line, put back at the end; at connect a board in line mode is put back to the remembered value or 0, only with the page's memory and the jobs release. | M |
+| T-S117 | (Phase 3) The jobs switch is pinned (staging on, production off); the `jobs` kind is denied without it in every cell; the job intents' states; the worker release; the control allowlist: Start is enabled only when every precondition passes, Pause and Stop job always. | U, E |
+| T-S118 | (Phase 3) Fake-serial end to end: a sample to completion, pause and resume, Stop job mid-job, the tool-change flow, a breakpoint, a refused line, a reset mid-job. | E |
+| T-S119 | (2026-11-03, firmware bug hunt) An offset write answered with status 13 is written again after about 0.5 s, at most 3 attempts, each refusal logged; another status is refused at once. | M |

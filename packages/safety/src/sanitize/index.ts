@@ -21,6 +21,7 @@ export type {
   Severity,
   SplitRecord,
   StartState,
+  ToolChange,
   Wcs,
 } from './types.ts';
 // The firmware arc model, shared with the gcode interpreter so the preview draws the arc the sanitiser checked (T-S1).

@@ -194,6 +194,20 @@ c({
   subs: (e) => [['<setting>', e.setting], ['<old>', String(e.from)], ['<new>', String(e.to)]],
 });
 
+fixed('W37', 'w37', S.w37);
+c({
+  doc: 'S', id: 'W38', segment: 0, exports: ['w38'],
+  examples: [{ line: 12, status: 221, meaning: 'outside the soft limits' }, { line: 3, status: 132, meaning: 'an M code this firmware does not support' }],
+  render: S.w38,
+  subs: (e) => [['<line>', String(e.line)], ['<status>', String(e.status)], ['<meaning>', e.meaning]],
+});
+c({ doc: 'S', id: 'W39', segment: 0, exports: ['w39'], examples: [{ from: 0 }, { from: 1 }], render: S.w39, subs: (e) => [['<from>', String(e.from)]] });
+c({ doc: 'S', id: 'W40', segment: 1, exports: ['w40'], examples: [{ line: 40 }, { line: 7 }], render: S.w40, subs: (e) => [['<line>', String(e.line)]] });
+c({ doc: 'S', id: 'W41', segment: 0, exports: ['w41'], examples: [{ line: 40 }, { line: 7 }], render: S.w41, subs: (e) => [['<line>', String(e.line)]] });
+c({ doc: 'S', id: 'W42', segment: 0, exports: ['w42'], examples: [{ line: 40 }, { line: 7 }], render: S.w42, subs: (e) => [['<line>', String(e.line)]] });
+c({ doc: 'S', id: 'W43', segment: 0, exports: ['w43'], examples: [{ line: 40 }, { line: 7 }], render: S.w43, subs: (e) => [['<line>', String(e.line)]] });
+c({ doc: 'S', id: 'W44', segment: 0, exports: ['w44'], examples: [{ to: 0 }, { to: 1 }], render: S.w44, subs: (e) => [['<to>', String(e.to)]] });
+
 // ---------------------------------------------------------------- §6
 
 const fixedC = (doc: Doc, id: string, exp: keyof typeof S, render: () => string, segment = 0): void =>
@@ -427,6 +441,42 @@ c({
   subs: (e) => [['<system>', e.system]],
 });
 
+c({
+  doc: 'S', id: 'C30', segment: 0, exports: ['c30'],
+  examples: [
+    { file: 'sign.nc', lines: 1200, workZero: 'G54 at X 10 Y 20 Z -5 (machine)', spindle: 'starts with M3 S12000' },
+    { file: 'part', lines: 8, workZero: 'G55', spindle: 'not used' },
+  ],
+  render: S.c30,
+  subs: (e) => [['<file>', e.file], ['<lines>', String(e.lines)], ['<work zero>', e.workZero], ['<spindle>', e.spindle]],
+});
+c({
+  doc: 'S', id: 'C31', segment: 0, exports: ['c31'],
+  examples: [{ board: 'X 10 Y 20 Z -5', plan: 'X 12 Y 20 Z -5' }, { board: 'X 0 Y 0 Z 0', plan: 'not set' }],
+  render: S.c31,
+  subs: (e) => [['<board>', e.board], ['<plan>', e.plan]],
+});
+c({ doc: 'S', id: 'C32', segment: 0, exports: ['c32'], examples: [{ speeds: 'S12000' }, { speeds: 'S8000, S18000' }], render: S.c32, subs: (e) => [['<speeds>', e.speeds]] });
+c({
+  doc: 'S', id: 'C33', segment: 0, exports: ['c33'],
+  examples: [{ line: 12, text: 'G1 X300' }, { line: 4, text: 'M7' }],
+  render: S.c33,
+  subs: (e) => [['<line>', String(e.line)], ['<text>', e.text]],
+});
+c({
+  doc: 'S', id: 'C34', segment: 0, exports: ['c34'],
+  examples: [{ line: 40, tool: 'T2 (6 mm flat)' }, { line: 7, tool: 'the new tool' }],
+  render: S.c34,
+  subs: (e) => [['<tool>', e.tool], ['<line>', String(e.line)]],
+});
+c({
+  doc: 'S', id: 'C35', segment: 0, exports: ['c35'],
+  examples: [{ direction: 'M3' as const, rpm: 12000 }, { direction: 'M4' as const, rpm: 800 }],
+  render: S.c35,
+  subs: (e) => [['<direction>', e.direction], ['<rpm>', String(e.rpm)]],
+});
+fixedC('S', 'C36', 'c36', S.c36, 0);
+
 /**
  * Quoted strings in the document that are not user-facing text: an ARIA
  * role, and the words typed for a typed confirmation (checked against
@@ -436,6 +486,7 @@ const NOT_TEXT: ReadonlyMap<string, readonly number[]> = new Map([
   ['S:W3', [0]],
   ['S:W12', [0]],
   ['S:W33', [0]],
+  ['S:W40', [0]],
   ['S:C5', [1]],
   ['S:C19', [1]],
   ['OLD-S:C12', [1]],

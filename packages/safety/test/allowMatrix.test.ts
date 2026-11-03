@@ -21,6 +21,7 @@ import {
   PORT_OPEN_STATES,
   STOP_CLASS,
   allowed,
+  withJobs,
   intentKind,
   isLive,
   type BaseState,
@@ -31,7 +32,7 @@ import {
 } from '../src/index.ts';
 import { runs } from './sanitizeHelpers.ts';
 
-const OPEN: Release = { name: 'all gates open', motion: true, write: true, port: true, settings: true, reports: true };
+const OPEN: Release = { name: 'all gates open', motion: true, write: true, port: true, settings: true, reports: true, jobs: true };
 
 /** Every subset of the overlays (2^7 = 128). */
 const OVERLAY_SETS: readonly (readonly Overlay[])[] = Array.from({ length: 1 << OVERLAYS.length }, (_, mask) =>
@@ -151,8 +152,9 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
       for (const base of BASE_STATES) for (const i of INTENTS) if (allowed(snap(base, [o]), i, OPEN).allowed) out.add(i);
       return out;
     };
-    expect([...allowedUnder('FAULT')].sort()).toEqual(['ackFault', 'cloudSync', 'disconnect', 'enq', 'feedhold', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
-    expect([...allowedUnder('ORPHANED_MOTION')].sort()).toEqual(['cloudSync', 'enq', 'feedhold', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
+    // jobBreakpoints (Phase 3) is the page's list of breakpoints for a loaded job: it writes nothing to the controller.
+    expect([...allowedUnder('FAULT')].sort()).toEqual(['ackFault', 'cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
+    expect([...allowedUnder('ORPHANED_MOTION')].sort()).toEqual(['cloudSync', 'enq', 'feedhold', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
     expect([...allowedUnder('LOST')].sort()).toEqual(['acknowledgeLost', 'cloudSync']);
     // Amendment 2026-11-02: the ways out of UNKNOWN are home, position-verify and, for a machine without homing
     // switches, set machine position (G28.3); the session's status-report configuration moves nothing.
@@ -163,6 +165,8 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
       'enq',
       'feedhold',
       'home',
+      'jobBreakpoints',
+      'lineMode',
       'positionVerify',
       'read',
       'resetController',
@@ -170,8 +174,8 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
       'spindleOffNow',
       'stopJob',
     ]);
-    expect([...allowedUnder('STALE')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
-    expect([...allowedUnder('READ_ONLY')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
+    expect([...allowedUnder('STALE')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
+    expect([...allowedUnder('READ_ONLY')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
     expect([...allowedUnder('NEEDS_REVIEW')].sort()).toEqual([
       'applyProfile',
       'cloudSync',
@@ -179,7 +183,9 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
       'disconnect',
       'enq',
       'feedhold',
+      'jobBreakpoints',
       'keepBoardSettings',
+      'lineMode',
       'read',
       'resetController',
       'settingsWrite',
@@ -232,7 +238,7 @@ describe('Phase 0 release gate', () => {
     let gated = 0;
     for (const { s, intent } of cells()) {
       const kind = intentKind(intent);
-      if (kind !== 'motion' && kind !== 'write' && kind !== 'settings' && kind !== 'reports' && kind !== 'port') continue;
+      if (kind !== 'motion' && kind !== 'write' && kind !== 'settings' && kind !== 'reports' && kind !== 'jobs' && kind !== 'port') continue;
       gated++;
       const d = allowed(s, intent);
       if (d.allowed || d.reason !== 'Not available in this release.' || !d.citation.includes('Phase 0')) {
@@ -267,7 +273,7 @@ describe('Phase 0 release gate', () => {
 
 describe('Phase 1 release gate (ROADMAP P1-02: read-only bench)', () => {
   /** Intents that can put bytes on the wire. */
-  const MACHINE = INTENTS.filter((i) => ['stop', 'read', 'recovery', 'motion', 'write', 'settings', 'reports'].includes(intentKind(i)));
+  const MACHINE = INTENTS.filter((i) => ['stop', 'read', 'recovery', 'motion', 'write', 'settings', 'reports', 'jobs'].includes(intentKind(i)));
 
   it('of the intents that reach the machine, allows only read, enq (classified EN), ackFault (under FAULT) and the stop class', () => {
     const wrong: string[] = [];
@@ -291,7 +297,7 @@ describe('Phase 1 release gate (ROADMAP P1-02: read-only bench)', () => {
     const wrong: string[] = [];
     for (const { s, intent } of cells()) {
       const kind = intentKind(intent);
-      if (kind !== 'motion' && kind !== 'write' && kind !== 'settings' && kind !== 'reports') continue;
+      if (kind !== 'motion' && kind !== 'write' && kind !== 'settings' && kind !== 'reports' && kind !== 'jobs') continue;
       const d = allowed(s, intent, PHASE_1_RELEASE);
       if (d.allowed || d.reason !== 'Not available in this release.' || !d.citation.includes('Phase 1')) wrong.push(`${s.base} ${intent}`);
     }
@@ -322,9 +328,10 @@ describe('Phase 2 release gate (owner 2026-11-02: bench motion; SAFETY §4.5b, T
       if (!MOTION_P2.includes(intent) || !d.allowed) continue;
       if (s.overlays.length > 0) wrong.push(`overlay ${s.base} [${s.overlays.join('+')}] ${intent}`);
       const states: Record<string, readonly string[]> = {
-        jog: ['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING'],
+        // PROGRAM_PAUSED (Phase 3): the jog and Z re-zero of a manual tool change; the session allows them only then.
+        jog: ['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'PROGRAM_PAUSED'],
         goToZero: ['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING'],
-        setWorkZero: ['IDLE_UNHOMED', 'IDLE_HOMED'],
+        setWorkZero: ['IDLE_UNHOMED', 'IDLE_HOMED', 'PROGRAM_PAUSED'],
         spindleOn: ['IDLE_UNHOMED', 'IDLE_HOMED'],
         clearAlarm: ['ALARM'],
         resume: ['HELD', 'PROGRAM_PAUSED'],
@@ -417,5 +424,42 @@ describe('rows', () => {
     const d = allowed(snap('IDLE_HOMED', ['NEEDS_REVIEW', 'STALE', 'FAULT']), 'loadJob');
     expect(d.allowed).toBe(false);
     if (!d.allowed) expect(d.citation).toContain('FAULT');
+  });
+});
+
+describe('Phase 3 release gate (owner 2026-11-02: jobs; SAFETY §4.4a)', () => {
+  const JOBS = withJobs(PHASE_2_RELEASE, 'staging');
+  const JOB_INTENTS: readonly Intent[] = ['startJob', 'jobLine', 'lineMode', 'jobRuntime'];
+
+  it('the job intents are kind jobs and denied in every cell without the jobs release, with every other gate open', () => {
+    const noJobs: Release = { ...OPEN, jobs: false };
+    for (const intent of JOB_INTENTS) expect(intentKind(intent)).toBe('jobs');
+    for (const { s, intent } of cells()) {
+      if (!JOB_INTENTS.includes(intent)) continue;
+      expect(allowed(s, intent, noJobs).allowed).toBe(false);
+      expect(allowed(s, intent, PHASE_2_RELEASE).allowed).toBe(false);
+    }
+  });
+
+  it('with jobs: Start from idle only, job lines while RUNNING only, the line mode only while nothing moves, never under FAULT', () => {
+    const states: Record<string, readonly string[]> = {
+      startJob: ['IDLE_UNHOMED', 'IDLE_HOMED'],
+      jobLine: ['RUNNING'],
+      lineMode: ['IDLE_UNHOMED', 'IDLE_HOMED', 'CONNECTED_UNKNOWN', 'PREAMBLE'],
+      jobRuntime: ['IDLE_UNHOMED', 'IDLE_HOMED', 'PREAMBLE', 'RUNNING', 'HELD', 'PROGRAM_PAUSED'],
+    };
+    const wrong: string[] = [];
+    for (const { s, intent } of cells()) {
+      if (!JOB_INTENTS.includes(intent) || !allowed(s, intent, JOBS).allowed) continue;
+      if (!(states[intent] as readonly string[]).includes(s.base)) wrong.push(`state ${s.base} ${intent}`);
+      const okOverlays = intent === 'lineMode' ? ['UNKNOWN', 'NEEDS_REVIEW'] : [];
+      if (!s.overlays.every((o) => okOverlays.includes(o))) wrong.push(`overlay ${s.base} [${s.overlays.join('+')}] ${intent}`);
+    }
+    expect(wrong.slice(0, 20)).toEqual([]);
+    expect(allowed(snap('RUNNING'), 'jobLine', JOBS).allowed).toBe(true);
+    expect(allowed(snap('RUNNING', ['STALE']), 'jobLine', JOBS).allowed).toBe(false);
+    expect(allowed(snap('IDLE_HOMED'), 'startJob', JOBS).allowed).toBe(true);
+    // Disconnect stays denied while a job owns the machine.
+    for (const base of ['PREAMBLE', 'RUNNING', 'HELD', 'PROGRAM_PAUSED', 'STOPPING_JOB'] as const) expect(allowed(snap(base), 'disconnect', JOBS).allowed, base).toBe(false);
   });
 });

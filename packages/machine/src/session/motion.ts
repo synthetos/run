@@ -54,6 +54,7 @@ import {
   type MotionAxisLetter,
 } from './motionLines.ts';
 import { sessionSettings } from './settingWrite.ts';
+import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './jobState.ts';
 import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
 
 /** Timing and bounds of the motion layer (SAFETY §4.5b). Milliseconds unless named otherwise. */
@@ -70,6 +71,13 @@ export const MOTION_LIMITS = Object.freeze({
   stopStepMs: 3000,
   /** Consecutive polled reads that must agree (SAFETY §4.2). */
   confirmations: 2,
+  /**
+   * An offset write (G10 L20, G54..G59) refused with status 13 (buffer full) is written again after this long, at
+   * most `offsetAttempts` times in all (firmware bug hunt 2026-11-02: back-to-back G10 can be refused with 13 even
+   * when each reply is awaited; the cause is not known yet).
+   */
+  offsetRetryMs: 500,
+  offsetAttempts: 3,
   /** Longest single jog step, mm (100 mm, or 4 in = 101.6 mm). */
   maxStepMm: 102,
   maxFeed: MAX_JOG_FEED,
@@ -91,9 +99,9 @@ const JOG_AXES: readonly JogAxis[] = ['x', 'y', 'z', 'a'];
 const SETTLE_BASES: ReadonlySet<SessionBase> = new Set(['HOMING', 'CONNECTED_UNKNOWN', 'IDLE_UNHOMED', 'IDLE_HOMED']);
 const ALARMED: ReadonlySet<MachineClass> = new Set(['alarm', 'softAlarm', 'shutdown', 'panic']);
 /** Bases an alarm report moves to ALARM. */
-const ALARMABLE: ReadonlySet<SessionBase> = new Set(['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HOMING', 'HELD', 'STOPPING_JOB']);
-/** Bases a Stop job in a motion session may start from (anything else keeps the Phase 1 `!` only). */
-const STOPPABLE: ReadonlySet<SessionBase> = new Set(['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HOMING', 'HELD', 'STOPPING_JOB', 'CONNECTED_UNKNOWN']);
+const ALARMABLE: ReadonlySet<SessionBase> = new Set(['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HOMING', 'HELD', 'STOPPING_JOB', 'PREAMBLE', 'RUNNING', 'PROGRAM_PAUSED']);
+/** Bases a Stop job in a motion session may start from (anything else keeps the Phase 1 `!` only). Phase 3 adds the job bases. */
+const STOPPABLE: ReadonlySet<SessionBase> = new Set(['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HOMING', 'HELD', 'STOPPING_JOB', 'CONNECTED_UNKNOWN', 'PREAMBLE', 'RUNNING', 'PROGRAM_PAUSED']);
 
 /** The reducer's transition, as this module uses it. */
 export interface MotionTx {
@@ -216,8 +224,10 @@ function setMotion(t: MotionTx, patch: Partial<MotionCtx>): void {
 }
 
 function newCtx(s: SessionState, op: MotionCtx['op']): MotionCtx {
-  // A Stop job from CONNECTED_UNKNOWN (UNKNOWN overlay, or a FAULT) returns there; everything else to idle.
-  return { op, phase: 'feed', jog: null, steps: [], reason: null, confirmed: 0, deadline: null, units: s.live.unit, returnTo: s.base === 'CONNECTED_UNKNOWN' ? s.base : 'IDLE_UNHOMED', refusal: null, holdPolls: 0, queued: 0 };
+  // A Stop job from CONNECTED_UNKNOWN (UNKNOWN overlay, or a FAULT) returns there; a jog or Z re-zero during a
+  // job's tool change (Phase 3) returns to PROGRAM_PAUSED; everything else to idle.
+  const returnTo: SessionBase = s.base === 'CONNECTED_UNKNOWN' || s.base === 'PROGRAM_PAUSED' ? s.base : 'IDLE_UNHOMED';
+  return { op, phase: 'feed', jog: null, steps: [], reason: null, confirmed: 0, deadline: null, units: s.live.unit, dist: s.live.dist, returnTo, refusal: null, holdPolls: 0, queued: 0 };
 }
 
 /**
@@ -225,7 +235,8 @@ function newCtx(s: SessionState, op: MotionCtx['op']): MotionCtx {
  * its single read-back. The base stays where it is; the motion context only keeps other motion out meanwhile.
  */
 function startChange(t: MotionTx, change: ChangeKind, line: string, intent: Intent, axes: readonly JogAxis[] = []): Decision {
-  t.set({ motion: { ...newCtx(t.s, 'change'), phase: 'drain', change, axes: [...axes], returnTo: t.s.base } });
+  const retried = change === 'setZero' || change === 'selectCoord' ? { line, attempts: 1, retryAt: null } : {};
+  t.set({ motion: { ...newCtx(t.s, 'change'), phase: 'drain', change, axes: [...axes], returnTo: t.s.base, ...retried } });
   queueLine(t, line, intent);
   requestPoll(t);
   tick(t);
@@ -234,6 +245,7 @@ function startChange(t: MotionTx, change: ChangeKind, line: string, intent: Inte
 
 /** Where a motion returns: CONNECTED_UNKNOWN if it started there, else the idle base for the homing state. */
 function returnBase(ctx: MotionCtx, s: SessionState): SessionBase {
+  if (ctx.returnTo === 'PROGRAM_PAUSED' && ctx.reason !== 'stopJob' && jobActive(s)) return 'PROGRAM_PAUSED';
   return ctx.returnTo === 'CONNECTED_UNKNOWN' && s.overlays.length > 0 ? 'CONNECTED_UNKNOWN' : idleBase(s);
 }
 
@@ -524,7 +536,8 @@ export function onPollDone(t: MotionTx, at: number): void {
     }
     case 'drain': {
       if (s.base === 'HELD') t.set({ base: 'JOGGING' });
-      const confirmed = confirm(atRest(s) && motionLinesSettled(s));
+      // An offset write waiting to be written again (status 13) is not settled yet.
+      const confirmed = confirm(atRest(s) && motionLinesSettled(s) && (ctx.retryAt ?? null) === null);
       if (confirmed < MOTION_LIMITS.confirmations) {
         setMotion(t, { confirmed });
         requestPoll(t);
@@ -567,6 +580,8 @@ export function onPollDone(t: MotionTx, at: number): void {
       }
       if (held || s.live.qr !== planner(s)) {
         writeRealtime(t, 'flush', ctx.reason === 'stopJob' ? 'stopJob' : 'feedhold');
+        // `%` drops the board's line buffers: job lines still owed may never be answered (Phase 3).
+        forgetJobLines(t);
         setMotion(t, { phase: 'flush', confirmed: 0, deadline: at + MOTION_LIMITS.stopStepMs });
         requestPoll(t);
         return;
@@ -611,8 +626,9 @@ function finish(t: MotionTx, at: number): void {
   const ctx = t.s.motion as MotionCtx;
   const stop = ctx.reason === 'stopJob';
   const lines = stop ? ['M5', 'M9'] : [];
-  // A jog used G21 G91: put the modes back. Go to zero used G90 and the non-modal G53 only.
-  if (ctx.op === 'jog' || stop) lines.push(restoreLine(ctx.units));
+  // A jog used G21 G91: put the modes back. Go to zero used G90 and the non-modal G53 only. A Stop job ends with
+  // absolute distance; a jog during a job's tool change puts back the job's own distance mode (Phase 3, H74).
+  if (ctx.op === 'jog' || stop) lines.push(restoreLine(ctx.units, stop ? 0 : ctx.dist));
   setMotion(t, { phase: 'finish', confirmed: 0, deadline: null });
   for (const line of lines) queueLine(t, line, stop ? 'stopJob' : 'jog');
   t.cancel('motion');
@@ -650,7 +666,10 @@ function complete(t: MotionTx, at: number): void {
     readBack(t, ['hom', 'mpo', 'pos', 'home']);
     if (ctx.reason === 'homeAbort') changeNotice(t, 'failed', 'Homing stopped by Pause. The machine is not homed: home again before relying on positions.', at);
   }
-  if (ctx.reason === 'stopJob') message(t, 'stopped', STOP_TEXT.stopped, at);
+  if (ctx.reason === 'stopJob') {
+    message(t, 'stopped', STOP_TEXT.stopped, at);
+    jobStopped(t, at);
+  }
   else if (ctx.reason === 'keepalive') message(t, 'failed', 'Jog stopped: the page stopped holding the button.', at);
   else if (ctx.refusal !== null) message(t, 'refused', ctx.refusal, at);
 }
@@ -690,6 +709,19 @@ export function onMotionReport(t: MotionTx, sr: Readonly<Record<string, unknown>
 /** A motion line was answered. A non-zero status ends the motion (the board refused it). */
 export function onMotionAnswer(t: MotionTx, line: string | undefined, status: number, at: number): void {
   const ctx = t.s.motion;
+  if (status === 13 && ctx !== null && ctx.op === 'change' && ctx.line === line && ctx.attempts !== undefined) {
+    if (ctx.attempts < MOTION_LIMITS.offsetAttempts) {
+      // Status 13 (buffer full) on an offset write: wait, then write the same line again (bug hunt 2026-11-02).
+      t.emit({ kind: 'log', text: `offset: the controller refused ${String(line)} with status 13 (buffer full), attempt ${ctx.attempts} of ${MOTION_LIMITS.offsetAttempts}; writing it again in ${MOTION_LIMITS.offsetRetryMs} ms` });
+      setMotion(t, { retryAt: at + MOTION_LIMITS.offsetRetryMs, confirmed: 0 });
+      return;
+    }
+    t.emit({ kind: 'log', text: `offset: the controller refused ${String(line)} with status 13 (buffer full) ${ctx.attempts} times; not written` });
+    t.set({ motion: null, base: returnBase(ctx, t.s), queue: t.s.queue.filter((q) => q.purpose !== 'motion' && q.purpose !== 'poll') });
+    t.cancel('motion');
+    changeNotice(t, 'refused', `The controller refused ${String(line)} ${ctx.attempts} times (status 13, its buffer was full). Nothing was changed: try again in a moment.`, at);
+    return;
+  }
   if (status !== 0) {
     const text = `The controller refused ${String(line)} (status ${status}).`;
     if (ctx !== null && (ctx.op === 'change' || (ctx.op === 'home' && ctx.phase === 'homing'))) {
@@ -724,6 +756,13 @@ export function onMotionTimer(t: MotionTx, deps: MotionDeps, at: number): void {
     deps.fault(t, 'stopNotConfirmed', 'integrity', `the controller ${what} within ${MOTION_LIMITS.stopStepMs / 1000} s`, at);
     return;
   }
+  if (ctx.retryAt !== undefined && ctx.retryAt !== null && at >= ctx.retryAt && ctx.line !== undefined) {
+    setMotion(t, { retryAt: null, attempts: (ctx.attempts as number) + 1, confirmed: 0 });
+    queueLine(t, ctx.line, ctx.change === 'setZero' ? 'setWorkZero' : 'selectCoordSystem');
+    requestPoll(t);
+    tick(t);
+    return;
+  }
   if (ctx.phase === 'homing') {
     // The fallback check: a pushed report may have been missed (only one is pending at a time).
     requestPoll(t);
@@ -753,6 +792,8 @@ export function checkAlarm(t: MotionTx, at: number): boolean {
     t.set({ motion: null, base: 'ALARM', queue: s.queue.filter((q) => q.purpose !== 'motion') });
     t.cancel('motion');
     if (moving) message(t, 'failed', 'The controller alarmed and stopped the move. Read the alarm, then clear it.', at);
+    // Phase 3: an alarm ends the job (on edge-next the controller has already flushed and turned its outputs off).
+    if (jobActive(t.s)) failJob(t, at, `The controller alarmed at line ${lastFileLine(t.s.job as NonNullable<SessionState['job']>, t.s.live.line)} and stopped the job. Read the alarm, then clear it.`);
     return false;
   }
   if (s.base === 'ALARM' && restingStat(dialect(s), s.live.stat as number, s.live.hold)) t.set({ base: idleBase(s) });

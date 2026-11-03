@@ -47,12 +47,21 @@ export interface WriteContext {
    * session is making now. Absent: no configuration line is ever accepted.
    */
   readonly reportWritable?: (line: string) => boolean;
+  /**
+   * Phase 3 jobs (SAFETY §4.4a): true when this text is exactly the job line the session is writing now (the
+   * sanitised `SentLine.text` at the index the reducer emitted). Absent: no job line is ever accepted.
+   */
+  readonly jobLine?: (text: string) => boolean;
+  /** Phase 3 (H77): true when this line is exactly the line-mode step in progress. Absent: never accepted. */
+  readonly lineModeWritable?: (line: string) => boolean;
+  /** Phase 3: true when this is exactly a job `rt` line the session is sending now. Absent: never accepted. */
+  readonly jobRuntimeWritable?: (line: string) => boolean;
 }
 
 /** `motion`, `flush`, `resume`: Phase 2. `setting`: one single-token settings write, its own command kind (SAFETY §4.6, amendment 2026-11-02). */
 /** `report`: one line of the session's status-report configuration (amendment 2026-11-02). */
 export type WriteVerdict =
-  | { readonly ok: true; readonly kind: 'get' | 'feedhold' | 'enq' | 'flush' | 'resume' | 'motion' | 'setting' | 'report'; readonly token?: string; readonly lineKind?: MotionLineKind }
+  | { readonly ok: true; readonly kind: 'get' | 'feedhold' | 'enq' | 'flush' | 'resume' | 'motion' | 'setting' | 'report' | 'job' | 'lineMode' | 'jobRuntime'; readonly token?: string; readonly lineKind?: MotionLineKind }
   | { readonly ok: false; readonly reason: string };
 
 const MAX_MOTION_LINE_BYTES = 64;
@@ -72,6 +81,13 @@ const MAX_SETTING_LINE_BYTES = 40;
 /** Longest report-configuration line (the status report list), LF included: under the 254-byte JSON line. */
 const MAX_REPORT_LINE_BYTES = 255;
 
+/** Longest job line, LF included: the sanitiser keeps every line within the dialect's limit (SAFETY §4.7 step 9). */
+const MAX_JOB_LINE_BYTES = 256;
+
+/** The line-mode lines (H77) and the job `rt` lines (the job flag, the feed-limit window): exact shapes only. */
+const LINE_MODE_SHAPE = /^\{"rxm":[01]\}$/;
+const JOB_RUNTIME_SHAPE = /^\{"rt":\{"(?:job|fi)":\d{1,2}\}\}$/;
+
 /** Decide one write. Pure; never throws. */
 export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): WriteVerdict {
   if (bytes.length === 1) {
@@ -82,12 +98,25 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
     if (context.motion === true && b === BYTE.RESUME) return { ok: true, kind: 'resume' };
     return { ok: false, reason: `realtime byte 0x${(b as number).toString(16).padStart(2, '0')} is never written in this release` };
   }
-  const longest = Math.max(MAX_SETTING_LINE_BYTES, context.motion === true ? MAX_MOTION_LINE_BYTES : MAX_GET_LINE_BYTES, context.reportWritable === undefined ? 0 : MAX_REPORT_LINE_BYTES);
-  if (bytes.length === 0 || bytes.length > longest) return { ok: false, reason: `a ${bytes.length}-byte write is not a GET, settings, report or motion line` };
+  const longest = Math.max(MAX_SETTING_LINE_BYTES, context.motion === true ? MAX_MOTION_LINE_BYTES : MAX_GET_LINE_BYTES, context.reportWritable === undefined ? 0 : MAX_REPORT_LINE_BYTES, context.jobLine === undefined ? 0 : MAX_JOB_LINE_BYTES);
+  if (bytes.length === 0 || bytes.length > longest) return { ok: false, reason: `a ${bytes.length}-byte write is not a GET, settings, report, motion or job line` };
   let text = '';
   for (const b of bytes) {
     if (b > 0x7e || (b < 0x20 && b !== 0x0a)) return { ok: false, reason: 'a GET line is printable ASCII ending in LF' };
     text += String.fromCharCode(b);
+  }
+  // Phase 3: a job line is exactly the sanitised line being written now, and only when the intent is jobLine.
+  if (context.jobLine !== undefined && text.endsWith('\n') && context.jobLine(text.slice(0, -1))) return { ok: true, kind: 'job' };
+  // The line-mode kind (H77): `{"rxm":0}` or `{"rxm":1}`, exactly the step in progress.
+  if (text.endsWith('\n') && LINE_MODE_SHAPE.test(text.slice(0, -1))) {
+    if (context.lineModeWritable === undefined) return { ok: false, reason: 'the line-mode setting is not written in this release' };
+    if (!context.lineModeWritable(text.slice(0, -1))) return { ok: false, reason: `${JSON.stringify(text.slice(0, -1))} is not the line-mode step the session is making now` };
+    return { ok: true, kind: 'lineMode' };
+  }
+  // The job `rt` kind: the job flag and the feed-limit window, exactly the line the session is sending now.
+  if (text.endsWith('\n') && JOB_RUNTIME_SHAPE.test(text.slice(0, -1))) {
+    if (context.jobRuntimeWritable === undefined || !context.jobRuntimeWritable(text.slice(0, -1))) return { ok: false, reason: `${JSON.stringify(text.slice(0, -1))} is not a job rt line the session is sending now` };
+    return { ok: true, kind: 'jobRuntime' };
   }
   // The report-configuration kind: one of its exact shapes, and exactly the step in progress.
   if (text.endsWith('\n') && reportLineShape(text.slice(0, -1))) {
@@ -121,9 +150,9 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
  * `motion` (a motion line), `flush` (`%`) and `resume` (`~`) against the intent that issued them;
  * `settingsWrite` (a settings line) against `settingsWrite`.
  */
-export type WriteIntent = 'read' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'settingsWrite' | 'configureReports';
+export type WriteIntent = 'read' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'settingsWrite' | 'configureReports' | 'jobLine' | 'lineMode' | 'jobRuntime';
 
-const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'setting' | 'report'>> = {
+const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'setting' | 'report' | 'job' | 'lineMode' | 'jobRuntime'>> = {
   read: 'get',
   feedhold: 'feedhold',
   enq: 'enq',
@@ -132,7 +161,32 @@ const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'mo
   resume: 'resume',
   settingsWrite: 'setting',
   configureReports: 'report',
+  jobLine: 'job',
+  lineMode: 'lineMode',
+  jobRuntime: 'jobRuntime',
 };
+
+/** True when `text` is exactly job line `index` of the job `state` is running, and that line has been emitted. */
+export function jobLineWritableIn(state: SessionState, index: number | undefined, text: string): boolean {
+  const job = state.job;
+  if (job === null || index === undefined || !Number.isInteger(index) || index < 0 || index >= job.next) return false;
+  return job.lines[index]?.text === text;
+}
+
+/** True when `line` is exactly the line-mode write `state` is making. */
+export function lineModeWritableIn(state: SessionState, line: string): boolean {
+  const step = state.rxm.step;
+  return step !== null && step.kind === 'write' && line === `{"rxm":${step.value}}`;
+}
+
+/** True when `line` is a job `rt` line `state` has queued or is writing (the job flag only where it is supported). */
+export function jobRuntimeWritableIn(state: SessionState, line: string): boolean {
+  if (state.job === null) return false;
+  const pending = [...state.queue, ...(state.writing === null ? [] : [state.writing])];
+  if (!pending.some((q) => q.purpose === 'jobRuntime' && q.line === line)) return false;
+  if (line.includes('"job"')) return state.rtLeaves.includes('job');
+  return state.rtLeaves.includes('fi');
+}
 
 /** True when `line` is exactly the report-configuration step `state` is making. */
 export function reportWritableIn(state: SessionState, line: string): boolean {
@@ -165,8 +219,10 @@ export function checkWrite(
   bytes: Uint8Array,
   intent: WriteIntent,
   issuedBy?: Intent,
+  index?: number,
 ): { readonly kind: 'denied' | 'refused'; readonly reason: string } | undefined {
-  const matrixIntent: Intent | undefined = intent === 'read' || intent === 'feedhold' || intent === 'enq' || intent === 'settingsWrite' || intent === 'configureReports' ? intent : issuedBy;
+  const own = intent === 'read' || intent === 'feedhold' || intent === 'enq' || intent === 'settingsWrite' || intent === 'configureReports' || intent === 'jobLine' || intent === 'lineMode' || intent === 'jobRuntime';
+  const matrixIntent: Intent | undefined = own ? intent : issuedBy;
   if (matrixIntent === undefined) return { kind: 'refused', reason: `a ${intent} write names no issuing intent` };
   const decision = allowed(matrixSnapshot(current), matrixIntent, release);
   if (!decision.allowed) return { kind: 'denied', reason: `not written: the allow-matrix denies ${matrixIntent} now (${decision.reason})` };
@@ -176,6 +232,8 @@ export function checkWrite(
     motion: release.motion,
     ...(release.settings === true ? { settingWritable: (token: string, value: number) => settingWritableIn(current, token, value) } : {}),
     ...(release.reports === true ? { reportWritable: (line: string) => reportWritableIn(current, line) } : {}),
+    ...(release.jobs === true && intent === 'jobLine' ? { jobLine: (text: string) => jobLineWritableIn(current, index, text) } : {}),
+    ...(release.jobs === true ? { lineModeWritable: (line: string) => lineModeWritableIn(current, line), jobRuntimeWritable: (line: string) => jobRuntimeWritableIn(emitted, line) } : {}),
   });
   if (!verdict.ok) return { kind: 'refused', reason: verdict.reason };
   if (verdict.kind !== VERDICT_FOR[intent]) return { kind: 'refused', reason: `a ${verdict.kind} write was issued as ${intent}` };

@@ -97,6 +97,10 @@ interface QueuedLine {
   readonly setting?: true;
   /** A report-configuration line (amendment 2026-11-02, H64). */
   readonly report?: true;
+  /** Phase 3: a job line (its index), a line-mode write, or a job `rt` line (SAFETY §4.4a). */
+  readonly job?: number;
+  readonly lineMode?: true;
+  readonly jobRuntime?: true;
 }
 
 const encoder = new TextEncoder();
@@ -272,6 +276,32 @@ export class MachineSession {
     return true;
   }
 
+  /**
+   * Phase 3 (SAFETY §4.4a): load a job (the file text; the session sanitises it with the live board's values) or
+   * unload it (null). Decided by the matrix and the session (jobs release, approved edge-next board, idle).
+   */
+  loadJob(job: { readonly name: string; readonly text: string; readonly c22?: boolean } | null): Decision {
+    return this.#intent({ intent: 'loadJob', job: job === null ? null : { name: job.name, text: job.text, c22: job.c22 === true } });
+  }
+
+  /** Phase 3: start the loaded job, with the page's breakpoints and confirmations. */
+  startJob(breakpoints: readonly number[], confirm: { readonly unhomed: boolean; readonly workZero: boolean; readonly spindle: boolean }): Decision {
+    return this.#intent({ intent: 'startJob', breakpoints: [...breakpoints], confirm: { ...confirm } });
+  }
+
+  /** Phase 3: the page's breakpoints for the loaded job. */
+  setBreakpoints(lines: readonly number[]): Decision {
+    return this.#intent({ intent: 'jobBreakpoints', lines: [...lines] });
+  }
+
+  /**
+   * Phase 3 (H77): the page's remembered line-mode value for the board on link `epoch` (0 or 1), or null when it
+   * remembers none. It writes nothing by itself; a board left in line mode outside a job is put back to it.
+   */
+  rememberLineMode(epoch: number, remembered: number | null): void {
+    this.#dispatch({ type: 'lineModeMemory', epoch, remembered });
+  }
+
   /** Any other intent: decided by the matrix and the session (always denied in Phase 1). */
   request(request: SessionIntent): Decision {
     return this.#intent(request);
@@ -328,7 +358,18 @@ export class MachineSession {
         void this.#open(effect.epoch);
         return;
       case 'writeLine': {
-        this.#lines.push({ epoch: effect.epoch, seq: effect.seq, bytes: encoder.encode(`${effect.line}\n`), emitted: this.#state, ...(effect.motion === undefined ? {} : { motion: effect.motion.intent }), ...(effect.intent === 'settingsWrite' ? { setting: true as const } : {}), ...(effect.intent === 'configureReports' ? { report: true as const } : {}) });
+        this.#lines.push({
+          epoch: effect.epoch,
+          seq: effect.seq,
+          bytes: encoder.encode(`${effect.line}\n`),
+          emitted: this.#state,
+          ...(effect.motion === undefined ? {} : { motion: effect.motion.intent }),
+          ...(effect.intent === 'settingsWrite' ? { setting: true as const } : {}),
+          ...(effect.intent === 'configureReports' ? { report: true as const } : {}),
+          ...(effect.intent === 'jobLine' ? { job: effect.index as number } : {}),
+          ...(effect.intent === 'lineMode' ? { lineMode: true as const } : {}),
+          ...(effect.intent === 'jobRuntime' ? { jobRuntime: true as const } : {}),
+        });
         void this.#drainLines();
         return;
       }
@@ -491,11 +532,16 @@ export class MachineSession {
         const check =
           item.motion !== undefined
             ? checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, 'motion', item.motion)
-            : checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, item.setting === true ? 'settingsWrite' : item.report === true ? 'configureReports' : 'read');
+            : item.job !== undefined
+              ? checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, 'jobLine', undefined, item.job)
+              : checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, writeIntentOf(item));
         if (check !== undefined) {
           this.#note(check.reason);
           /* c8 ignore next -- the reducer only asks for GETs readable when it asks, so 'refused' needs a bug there; checkWrite's tests cover it */
-          const event: SessionEvent = check.kind === 'denied' ? { type: 'lineDropped', epoch: item.epoch, seq: item.seq } : { type: 'writeRefused', epoch: item.epoch, at: this.#clock.now(), detail: check.reason };
+          const event: SessionEvent =
+            check.kind === 'denied'
+              ? { type: 'lineDropped', epoch: item.epoch, seq: item.seq, ...(item.job === undefined ? {} : { index: item.job }) }
+              : { type: 'writeRefused', epoch: item.epoch, at: this.#clock.now(), detail: check.reason };
           this.#dispatch(event);
           continue;
         }
@@ -558,6 +604,14 @@ export class MachineSession {
     this.#log.push(Object.freeze(entry));
     if (this.#log.length > this.#logLimit) this.#log.splice(0, this.#log.length - this.#logLimit);
   }
+}
+
+function writeIntentOf(item: QueuedLine): 'settingsWrite' | 'configureReports' | 'lineMode' | 'jobRuntime' | 'read' {
+  if (item.setting === true) return 'settingsWrite';
+  if (item.report === true) return 'configureReports';
+  if (item.lineMode === true) return 'lineMode';
+  if (item.jobRuntime === true) return 'jobRuntime';
+  return 'read';
 }
 
 function describe(error: unknown): string {
