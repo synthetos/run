@@ -16,6 +16,7 @@ import { h, type ComponentChild } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'preact/hooks';
 import type { Finding } from '@synthetos/gcode';
 import { listWindow, scrollTopFor, type ListWindow } from '@synthetos/gcode-view';
+import { w41 } from '@synthetos/safety';
 import { lineText } from '../gcode-worker/lines.ts';
 import {
   followReducer,
@@ -134,6 +135,8 @@ export interface LineListProps {
   readonly sentThrough?: number | null;
   /** Each row's "Report a problem with this line" action; absent, rows have none. */
   readonly onReportLine?: (line: number) => void;
+  /** Phase 3: told the breakpoints whenever they change (a running job takes them at once). */
+  readonly onBreakpoints?: (lines: readonly number[]) => void;
 }
 
 function reducedMotion(): boolean {
@@ -144,7 +147,7 @@ function reducedMotion(): boolean {
   }
 }
 
-export function LineList({ data, highlightLine, revealLine, fetchFindings, fileKey = null, executingLine = null, sentThrough = null, onReportLine }: LineListProps): ComponentChild {
+export function LineList({ data, highlightLine, revealLine, fetchFindings, fileKey = null, executingLine = null, sentThrough = null, onReportLine, onBreakpoints }: LineListProps): ComponentChild {
   const count = data.spans.length / 2;
   const box = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -203,6 +206,7 @@ export function LineList({ data, highlightLine, revealLine, fetchFindings, fileK
     const next = toggleBreakpoint(breakpoints, line);
     setBreakpoints(next);
     if (fileKey !== null) saveBreakpoints(fileKey, next);
+    onBreakpoints?.(next);
   };
   const manual = (): void => { dispatch({ kind: 'manual-scroll' }); };
   const queued = queuedBreakpoints(breakpoints, executingLine, sentThrough);
@@ -249,9 +253,9 @@ export function LineList({ data, highlightLine, revealLine, fetchFindings, fileK
         'Follow',
       ),
       breakpoints.length === 0
-        ? h('span', { class: 'gcode-bp-note' }, 'Click a line’s margin to set a breakpoint. Breakpoints take effect when running jobs arrives.')
-        : h('span', { class: 'gcode-bp-note', 'data-gcode': 'breakpoints' }, h('span', { class: 'bp-dot', 'aria-hidden': 'true' }), `${String(breakpoints.length)} breakpoint${breakpoints.length === 1 ? '' : 's'}. Breakpoints take effect when running jobs arrives.`),
-      queued.length === 0 ? null : h('span', { class: 'gcode-bp-note warn', role: 'status' }, `Already queued, so a breakpoint cannot stop it: line ${queued.map(String).join(', ')}`),
+        ? h('span', { class: 'gcode-bp-note' }, 'Click a line’s margin to set a breakpoint: a job stops before that line, with the queue drained.')
+        : h('span', { class: 'gcode-bp-note', 'data-gcode': 'breakpoints' }, h('span', { class: 'bp-dot', 'aria-hidden': 'true' }), `${String(breakpoints.length)} breakpoint${breakpoints.length === 1 ? '' : 's'}. A job stops before each one.`),
+      queued.length === 0 ? null : h('span', { class: 'gcode-bp-note warn', role: 'status', 'data-safety': 'W41' }, queued.map((line) => w41({ line })).join(' ')),
     ),
     h(
       'div',

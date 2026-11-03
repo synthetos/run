@@ -34,7 +34,7 @@
 import { MachineSession, droView, lagThresholds, liveControlPlatform, type PortSelector, type Transport, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
 import { PHASE_1_RELEASE, type Decision, type Release } from '@synthetos/safety';
 import { approvalRecord, approvedBuildsFor, type ApprovalOutcome } from './approval.ts';
-import { RPC_VERSION, parseRequest, refusal, type Denial, type MachineReply, type MotionCommand, type SnapshotMessage, type WindowIntent, type WorkerState } from './rpc.ts';
+import { RPC_VERSION, parseRequest, refusal, type Denial, type JobCommand, type MachineReply, type MotionCommand, type SnapshotMessage, type WindowIntent, type WorkerState } from './rpc.ts';
 
 /** Snapshots are posted at most 20 times per second (OLD-TP §4.2). */
 export const SNAPSHOT_INTERVAL_MS = 50;
@@ -198,6 +198,10 @@ export class MachineWorkerHost {
         const decision = this.#motion(request.command);
         return decision.allowed ? Object.freeze({ v: RPC_VERSION, ok: true, kind: 'motion' }) : denied('motion', decision);
       }
+      case 'job': {
+        const decision = this.#job(request.command);
+        return decision.allowed ? Object.freeze({ v: RPC_VERSION, ok: true, kind: 'job' }) : denied('job', decision);
+      }
       case 'drift':
         this.#session.reportDrift(request.epoch);
         return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'drift' });
@@ -287,6 +291,26 @@ export class MachineWorkerHost {
     }
   }
 
+  /** A Phase 3 job command, as the session call it is (SAFETY §4.4a). The session decides it. */
+  #job(c: JobCommand): Decision {
+    const s = this.#session;
+    switch (c.op) {
+      case 'load':
+        return s.loadJob({ name: c.name, text: c.text, c22: c.c22 });
+      case 'unload':
+        return s.loadJob(null);
+      case 'start':
+        return s.startJob(c.breakpoints, c.confirm);
+      case 'resume':
+        return s.request({ intent: 'resume', skip: c.skip, spindleRestart: c.spindleRestart });
+      case 'breakpoints':
+        return s.setBreakpoints(c.lines);
+      case 'lineModeMemory':
+        s.rememberLineMode(c.epoch, c.remembered);
+        return { allowed: true };
+    }
+  }
+
   /** Posts now if the interval has passed, otherwise once at its end (with the snapshot current then). */
   #schedule(): void {
     if (this.#subscriber === null || this.#pending !== null) return;
@@ -309,7 +333,12 @@ export class MachineWorkerHost {
     this.#lastPost = this.#clock.now();
     try {
       const snapshot = this.#session.snapshot;
-      this.#subscriber?.postMessage(Object.freeze({ v: RPC_VERSION, kind: 'snapshot', snapshot, dro: droView(snapshot, this.#clock.now()), lag: Object.freeze(lagThresholds(snapshot)), motion: this.#release.motion, settingsWrites: this.#release.settings === true }));
+      const now = this.#clock.now();
+      const job = snapshot.job;
+      const jobElapsedMs = job === null || job.startedAt === null ? null : Math.max(0, (job.endedAt ?? now) - job.startedAt);
+      this.#subscriber?.postMessage(
+        Object.freeze({ v: RPC_VERSION, kind: 'snapshot', snapshot, dro: droView(snapshot, now), lag: Object.freeze(lagThresholds(snapshot)), motion: this.#release.motion, settingsWrites: this.#release.settings === true, jobs: this.#release.jobs === true, jobElapsedMs }),
+      );
     } catch {
       // A closed port: the window went away. Nothing in the machine path depends on it.
       this.#subscriber = null;
@@ -317,7 +346,7 @@ export class MachineWorkerHost {
   }
 }
 
-function denied(kind: 'open' | 'close' | 'intent' | 'read' | 'motion' | 'settingWrite', decision: Denial): MachineReply {
+function denied(kind: 'open' | 'close' | 'intent' | 'read' | 'motion' | 'settingWrite' | 'job', decision: Denial): MachineReply {
   return refusal(kind, 'denied', decision.reason, decision);
 }
 

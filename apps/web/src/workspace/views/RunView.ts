@@ -38,18 +38,40 @@ import { ConsoleLine } from '../../console/ConsoleLine.ts';
 import { openReport } from '../../report/state.ts';
 import { currentFile, pendingOpen } from '../fileBridge.ts';
 import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
+import { duration as durationText, feedLimitLines, jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
+
+const PHASE_LABEL = (phase: string): string => PHASE_TEXT[phase] ?? phase;
+import { JobStatus, JobSteps, JobStopCard, type StopHooks } from './JobViews.ts';
 
 export interface RunViewProps {
   readonly model: WorkspaceModel | null;
   readonly spawn: (() => WorkerLike) | null;
   readonly marker?: ReadonlySignal<LiveMarkerView | null>;
   readonly onView: (view: string) => void;
+  /** Pause and Stop job: the machine strip's own calls (never gated; absent in the prerendered page). */
+  readonly onPause?: () => void;
+  readonly onStopJob?: () => void;
 }
 
-export function RunView({ model, spawn, marker, onView }: RunViewProps): ComponentChild {
+export function RunView({ model, spawn, marker, onView, onPause, onStopJob }: RunViewProps): ComponentChild {
   const live = model?.live.value ?? null;
   const reportedLine = live !== null && connected(live) ? (live.message?.snapshot.live.line ?? null) : null;
-  return h(PreviewPanel, { spawn, ...(marker === undefined ? {} : { marker }), reportedLine, onReportLine: (line: number) => openReport({ origin: 'line', line }), layout: (parts: PreviewParts) => runLayout(parts, model, onView) });
+  const ui = jobUi(live);
+  const job = ui.job !== null && ui.job.startedAt !== null ? ui.job : null;
+  const blocks = DIALECTS.find((d) => d.id === ui.snapshot?.classification?.dialectId)?.limits.plannerBlocks ?? null;
+  const starve = starving(ui.snapshot, blocks);
+  const stops: StopHooks = { ...(onPause === undefined ? {} : { onPause }), ...(onStopJob === undefined ? {} : { onStopJob }) };
+  const sendJob = model?.actions.value?.job;
+  return h(PreviewPanel, {
+    spawn,
+    ...(marker === undefined ? {} : { marker }),
+    reportedLine,
+    job: job === null ? null : { executing: job.executing?.line ?? null, sentThrough: job.sentThrough },
+    planner: (sourceLines: Uint32Array) => plannerRanges(job, sourceLines, starve),
+    ...(sendJob === undefined ? {} : { onBreakpoints: (lines: readonly number[]) => void sendJob({ op: 'breakpoints', lines: [...lines] }) }),
+    onReportLine: (line: number) => openReport({ origin: 'line', line }),
+    layout: (parts: PreviewParts) => runLayout(parts, model, onView, stops),
+  });
 }
 
 /**
@@ -767,12 +789,13 @@ export function OverridesSection(): ComponentChild {
 type InspTab = 'jog' | 'home' | 'zero' | 'spindle' | 'overrides';
 
 /** The Run inspector: position always on top, the rest as tabs so nothing needs a long scroll. */
-function RunInspector({ model, onView }: { readonly model: WorkspaceModel | null; readonly onView: (view: string) => void }): ComponentChild {
+function RunInspector({ model, onView, stops }: { readonly model: WorkspaceModel | null; readonly onView: (view: string) => void; readonly stops: StopHooks }): ComponentChild {
   const [tab, setTab] = useState<InspTab>('jog');
   const [ask, setAsk] = useState<{ readonly axes: readonly MotionAxis[]; readonly at: number } | null>(null);
   return h(
     'aside',
     { class: 'inspector run-inspector', 'aria-label': 'Machine' },
+    h(JobStopCard, { model, ...stops, onZeroZ: () => setTab('zero') }),
     h(ConnectNotice, { model, onView }),
     h(PositionPanel, { model }),
     h(
@@ -882,14 +905,13 @@ function JobDetails({ result, facts }: { readonly result: PreviewResult; readonl
 }
 
 /** The job: a card at the top of the Run view with the file, its checks, and the Check → Set zero → Start steps. */
-function JobCard({ parts }: { readonly parts: PreviewParts }): ComponentChild {
+function JobCard({ parts, model, stops }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly stops: StopHooks }): ComponentChild {
   const { state, actions } = parts;
   const loading = state.status === 'loading';
   const disabled = !state.ready || loading;
   const result = state.status === 'ready' ? state.result : null;
   const facts = useMemo(() => (result === null ? null : fileFacts(result.bytes)), [result]);
   const title = state.fileName === null ? 'No file open' : state.fileName.replace(/\.[^.]+$/, '');
-  const checked = result !== null && !result.summary.blocked;
   return h(
     'section',
     { class: `job-card${result === null ? ' empty' : ''}`, 'data-region': 'job', 'aria-labelledby': 'run-title' },
@@ -913,8 +935,6 @@ function JobCard({ parts }: { readonly parts: PreviewParts }): ComponentChild {
     h(
       'div',
       { class: 'job-actions' },
-      h('ol', { class: 'flow', 'aria-label': 'Before you start' }, h('li', { class: checked ? 'done' : undefined }, h('span', null, checked ? '✓' : '1'), 'Check'), h('li', null, h('span', null, '2'), 'Set zero'), h('li', null, h('span', null, '3'), 'Start')),
-      h('button', { type: 'button', class: 'primary', disabled: true, 'data-action': 'start-job', 'data-machine-control': 'start', 'aria-describedby': 'start-later', title: 'Running jobs arrives in a later phase' }, 'Start job'),
       h(
         'label',
         { class: `file-button${disabled ? ' is-disabled' : ''}` },
@@ -932,14 +952,11 @@ function JobCard({ parts }: { readonly parts: PreviewParts }): ComponentChild {
         result === null ? 'Open a file' : 'Open another',
       ),
     ),
+    h(JobSteps, { parts, model }),
+    h(JobStatus, { model, ...stops }),
     result === null || facts === null
-      ? h('p', { class: 'sr-only', id: 'start-later' }, 'Running jobs arrives in a later phase.')
-      : h(
-          'details',
-          { class: 'job-more' },
-          h('summary', null, 'Details'),
-          h('div', { class: 'job-pop' }, h(JobDetails, { result, facts }), h('p', { class: 'fine', id: 'start-later' }, 'Running jobs arrives in a later phase. Today you can check the file, the setup and the tools.')),
-        ),
+      ? null
+      : h('details', { class: 'job-more' }, h('summary', null, 'Details'), h('div', { class: 'job-pop' }, h(JobDetails, { result, facts }))),
   );
 }
 
@@ -1091,6 +1108,10 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
   const pts = samples.filter((x) => x.vel !== null).map((x) => `${(300 - ((tEnd - x.t) / 60_000) * 300).toFixed(1)},${(68 - ((x.vel as number) / maxFeed) * 64).toFixed(1)}`);
   const feedPts = samples.filter((x) => x.feed !== null).map((x) => `${(300 - ((tEnd - x.t) / 60_000) * 300).toFixed(1)},${(68 - ((x.feed as number) / maxFeed) * 64).toFixed(1)}`);
   const qr = typeof live.qr === 'number' ? live.qr : null;
+  const ui = jobUi(view);
+  const job = ui.job !== null && ui.job.startedAt !== null ? ui.job : null;
+  const starve = starving(s, blocks);
+  const fl = feedLimitLines(job?.feedLimit ?? null);
   return h(
     'div',
     { class: 'live-grid', 'data-live': 'connected' },
@@ -1098,8 +1119,16 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
       'div',
       { class: 'live-progress' },
       h('span', { class: 'live-big', 'data-live': 'stat' }, live.machineClass === undefined ? UNKNOWN : (STAT_TEXT[live.machineClass] ?? live.machineClass)),
-      h('span', { class: 'live-sub', 'data-live': 'line' }, typeof live.line === 'number' ? `Line ${num(live.line)} reported` : 'No line reported'),
-      h('p', { class: 'fine' }, 'No job is running from this page. Progress, elapsed and remaining time appear with jobs in a later phase.'),
+      job === null
+        ? h('span', { class: 'live-sub', 'data-live': 'line' }, typeof live.line === 'number' ? `Line ${num(live.line)} reported` : 'No line reported')
+        : h('span', { class: 'live-sub', 'data-live': 'line' }, job.executing === null ? `${num(job.acked)} of ${num(job.total)} lines answered` : `File line ${num(job.executing.line)} · ${num(job.executing.n)} of ${num(job.total)}`),
+      job === null
+        ? h('p', { class: 'fine' }, view.message.jobs === true ? 'No job is running. Start one from the job card above.' : 'Running jobs is not enabled in this build.')
+        : h(
+            'p',
+            { class: 'fine', 'data-live': 'job-time' },
+            `${PHASE_LABEL(job.phase)} · elapsed ${ui.elapsedMs === null ? '—' : durationText(ui.elapsedMs / 1000)} · about ${durationText(job.remainingSeconds)} left (estimate)`,
+          ),
     ),
     h(
       'div',
@@ -1112,11 +1141,21 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
         pts.length > 1 ? h('polyline', { class: 'act', points: pts.join(' ') }) : null,
       ),
       h('div', { class: 'live-head' }, h('span', null, 'Planner buffers free'), h('strong', { 'data-live': 'qr' }, qr === null ? UNKNOWN : blocks === null ? String(qr) : `${qr} of ${blocks}`)),
-      blocks === null || qr === null ? null : h('div', { class: 'qr-meter', 'aria-hidden': 'true' }, Array.from({ length: blocks }, (_, i) => h('i', { key: String(i), class: i < blocks - qr ? 'used' : undefined }))),
+      blocks === null || qr === null ? null : h('div', { class: `qr-meter${starve ? ' starving' : ''}`, 'data-live': 'planner-gauge', 'data-starving': starve ? 'true' : 'false', 'aria-hidden': 'true' }, Array.from({ length: blocks }, (_, i) => h('i', { key: String(i), class: i < blocks - qr ? 'used' : undefined }))),
+      job === null ? null : h('p', { class: `fine${starve ? ' warn-text' : ''}`, 'data-live': 'queued' }, `Queued on the controller: about ${durationText(job.queuedSeconds)} of motion${job.queuedBoundMm === null ? '' : `, at most ${Math.round(job.queuedBoundMm)} mm`}${starve ? '. The planner is nearly empty while cutting: lines arrive slower than they run.' : '.'}`),
+      fl === null
+        ? null
+        : h(
+            'div',
+            { class: 'live-feedlimit', 'data-live': 'feed-limit' },
+            h('span', null, `Time below programmed feed, by what was limiting it${job?.feedLimit?.short === true ? ' (at least: the board says its totals are short)' : ''}`),
+            h('ul', null, fl.filter((x) => x.seconds > 0).map((x) => h('li', { key: x.label }, `${x.label}: ${x.seconds.toFixed(1)} s`))),
+          ),
     ),
     h(
       'ol',
-      { class: 'live-stream', 'aria-live': 'polite' },
+      { class: 'live-stream', 'aria-live': 'polite', 'data-live': 'events' },
+      ...(job === null ? [] : [...job.events].reverse().slice(0, 30).map((e, i) => h('li', { key: `e${i}`, class: `ev-${e.kind}`, 'data-event': e.kind }, h('time', null, e.line === undefined ? '' : `L${e.line}`), h('span', null, e.text)))),
       h('li', null, h('time', null, 'now'), h('span', null, s.overlays.includes('READ_ONLY') ? 'Read only: Run watches the status reports and writes nothing.' : 'Watching the status reports.')),
       typeof live.qr === 'number' && blocks !== null && live.qr === blocks ? h('li', null, h('time', null, 'now'), h('span', null, 'The planner queue is empty.')) : null,
     ),
@@ -1160,7 +1199,7 @@ function Dock({ parts, model }: { readonly parts: PreviewParts; readonly model: 
 
 // ---------------------------------------------------------------- layout
 
-function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (view: string) => void): ComponentChild {
+function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (view: string) => void, stops: StopHooks = {}): ComponentChild {
   const { state, actions, slots, live } = parts;
   const loading = state.status === 'loading';
   const disabled = !state.ready || loading;
@@ -1171,7 +1210,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
     'div',
     { class: 'run-view', 'data-region': 'preview' },
     h(RunBridge, { parts }),
-    h(JobCard, { parts }),
+    h(JobCard, { parts, model, stops }),
     h(
       'div',
       { class: 'workspace-grid run-grid' },
@@ -1269,7 +1308,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
         ),
         h(Dock, { parts, model }),
       ),
-      h(RunInspector, { model, onView }),
+      h(RunInspector, { model, onView, stops }),
     ),
   );
 }

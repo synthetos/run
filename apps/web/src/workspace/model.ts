@@ -22,7 +22,7 @@ import type { PlannedChange } from '@synthetos/schema';
 import type { ReadoutPhase } from '../live/readout.ts';
 import type { AxisModeView } from '../machine-ui/AxisModes.ts';
 import type { TranscriptStatus } from '../machine-ui/TranscriptSave.ts';
-import type { MotionCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
+import type { JobCommand, MotionCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
 
 /** One live sample for the Live job tab, taken from a status report the window received. */
 export interface LiveSample {
@@ -86,6 +86,11 @@ export interface LiveActions {
    * the session accepted it. The session decides; the page never assumes it moved.
    */
   readonly motion?: (command: MotionCommand) => Promise<string | null>;
+  /**
+   * Phase 3 (SAFETY §4.4a): one job command to the worker. Resolves with the refusal reason, or null when the session
+   * accepted it. Absent without a worker.
+   */
+  readonly job?: (command: JobCommand) => Promise<string | null>;
   /** The Console command line's one read: an allowlisted GET through the worker's read path (live/consoleRead.ts). */
   readonly consoleRead: (token: string) => Promise<ConsoleAnswer>;
 }

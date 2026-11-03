@@ -73,7 +73,9 @@ function why(s: Snapshot | null, flag: boolean): string | null {
   if (o.includes('UNKNOWN')) return 'The previous session ended while connected. Check the machine, then confirm below.';
   if (o.includes('NEEDS_REVIEW')) return 'The board’s settings differ from the reference. Review them first.';
   if (s.base === 'BLOCKED') return 'This is not the selected board.';
-  if (JOB_STATES.has(s.base)) return 'Not available while a job is in progress.';
+  // Phase 3 (H74): at a manual tool change the jog and the Z re-zero are offered (the session allows only those).
+  if (s.base === 'PROGRAM_PAUSED' && s.job?.phase === 'toolChange' && s.motion === null) return null;
+  if (JOB_STATES.has(s.base) || (s.base === 'HELD' && s.job?.phase === 'paused')) return 'Not available while a job is in progress.';
   if (s.base === 'ALARM') return 'The controller is in alarm. Clear the alarm first.';
   if (s.base === 'HELD') return 'Paused. Resume, or use Stop job.';
   if (s.base === 'STOPPING_JOB') return 'Stopping.';

@@ -32,11 +32,29 @@ export interface PreviewColors {
   readonly grid: Rgba;
   /** Bed/work grid, major lines (every 5 or 10 cells, through the origin). */
   readonly gridMajor: Rgba;
+  /** Planner view (a running job): the line executing now, and the queued band; amber while starving. Defaults derive from the others. */
+  readonly plannerExec?: Rgba;
+  readonly plannerQueued?: Rgba;
+  readonly plannerStarving?: Rgba;
+}
+
+/**
+ * The planner view of a running job, in the drawn list's line indices: lines before `cutEnd` are cut (drawn
+ * dimmed), lines in [cutEnd, execEnd) are executing now, lines in [execEnd, queuedEnd) are sent and acknowledged but
+ * not yet executed, the rest are not sent yet (normal colours). It comes from the board's reports; it never
+ * animates anything by itself.
+ */
+export interface PlannerOverlay {
+  readonly cutEnd: number;
+  readonly execEnd: number;
+  readonly queuedEnd: number;
+  /** The queued band is nearly empty while cutting: drawn amber. */
+  readonly starving: boolean;
 }
 
 /** Overlay styles follow the segment styles in the colour table. */
-const OVERLAY = Object.freeze({ ENVELOPE: 5, AXIS_X: 6, AXIS_Y: 7, AXIS_Z: 8, GRID: 9, GRID_MAJOR: 10 });
-const STYLE_COUNT = 11;
+const OVERLAY = Object.freeze({ ENVELOPE: 5, AXIS_X: 6, AXIS_Y: 7, AXIS_Z: 8, GRID: 9, GRID_MAJOR: 10, MARKER: 11 });
+const STYLE_COUNT = 12;
 
 export interface LoadOptions extends Pick<SliceOptions, 'signal' | 'budgetMs' | 'now' | 'yieldToHost'> {
   readonly segmentsPerChunk?: number;
@@ -63,6 +81,10 @@ export interface PreviewRenderer {
   setGridVisible(visible: boolean): void;
   /** Origin of the active work coordinate system in machine coordinates, or null to hide the triad. */
   setWcsOrigin(origin: Vec3 | null, size?: number): void;
+  /** The planner view of a running job (lines cut, executing, queued), or null for none. */
+  setPlanner(planner: PlannerOverlay | null): void;
+  /** The tool position the board reports, drawn as a small marker, or null to hide it. */
+  setToolMarker(position: Vec3 | null): void;
   setColors(colors: PreviewColors): void;
   /** Canvas size in CSS pixels and the device pixel ratio. */
   resize(width: number, height: number, pixelRatio?: number): void;
@@ -101,6 +123,10 @@ uniform float u_showRapids;
 uniform float u_highlightEnd;
 uniform vec4 u_colors[${String(STYLE_COUNT)}];
 uniform vec4 u_highlight;
+uniform vec4 u_plan;
+uniform vec4 u_cut;
+uniform vec4 u_exec;
+uniform vec4 u_queued;
 out vec4 v_color;
 out float v_hidden;
 out float v_dist;
@@ -113,6 +139,12 @@ void main() {
   v_dist = a_dist;
   // The scrubber tints cutting moves; traverses stay muted and dashed so the cut stays dominant.
   v_color = (!rapid && a_line >= 0.0 && a_line < u_highlightEnd) ? u_highlight : u_colors[s];
+  // The planner view of a running job: cut lines dimmed, the executing line highlighted, the queued band.
+  if (u_plan.w > 0.5 && a_line >= 0.0) {
+    if (a_line < u_plan.x) v_color = u_cut;
+    else if (a_line < u_plan.y) v_color = u_exec;
+    else if (a_line < u_plan.z) v_color = u_queued;
+  }
   gl_Position = u_mvp * vec4(a_pos, 1.0);
 }`;
 
@@ -167,6 +199,10 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     colors: gl.getUniformLocation(program, 'u_colors'),
     highlight: gl.getUniformLocation(program, 'u_highlight'),
     dash: gl.getUniformLocation(program, 'u_dash'),
+    plan: gl.getUniformLocation(program, 'u_plan'),
+    cut: gl.getUniformLocation(program, 'u_cut'),
+    exec: gl.getUniformLocation(program, 'u_exec'),
+    queued: gl.getUniformLocation(program, 'u_queued'),
   };
 
   let colors = options.colors;
@@ -179,6 +215,8 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   let showRapids = true;
   let showGrid = options.grid === true;
   let highlightLine = -1;
+  let planner: PlannerOverlay | null = null;
+  let marker: Vec3 | null = null;
   let view: Orbit = fitOrbit(null);
   /** True until the person turns, zooms or pans the view: a resize then refits it. */
   let autoFit = true;
@@ -240,6 +278,14 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       const edges = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]] as const;
       for (const [a, b] of edges) seg(c[a] as Vec3, c[b] as Vec3, OVERLAY.ENVELOPE);
     }
+    if (marker !== null) {
+      const [x, y, z] = marker;
+      const box = fitBox();
+      const r = box === null ? 2 : Math.max(0.5, Math.max(box.max[0] - box.min[0], box.max[1] - box.min[1]) / 60);
+      seg([x - r, y, z], [x + r, y, z], OVERLAY.MARKER);
+      seg([x, y - r, z], [x, y + r, z], OVERLAY.MARKER);
+      seg([x, y, z], [x, y, z + r * 3], OVERLAY.MARKER);
+    }
     if (wcs !== null) {
       const [x, y, z] = wcs.origin;
       const s = wcs.size;
@@ -252,8 +298,18 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   }
 
   function colorTable(): Float32Array {
-    const table = [colors.rapid, colors.feed, colors.arc, colors.outOfBounds, colors.uncertain, colors.envelope, colors.axisX, colors.axisY, colors.axisZ, colors.grid, colors.gridMajor];
+    const table = [colors.rapid, colors.feed, colors.arc, colors.outOfBounds, colors.uncertain, colors.envelope, colors.axisX, colors.axisY, colors.axisZ, colors.grid, colors.gridMajor, plannerColors().exec];
     return new Float32Array(table.flat());
+  }
+
+  /** The planner view's colours: cut lines are the feed colour mixed most of the way to the background. */
+  function plannerColors(): { readonly cut: Rgba; readonly exec: Rgba; readonly queued: Rgba } {
+    const bg = colors.background;
+    const f = colors.feed;
+    const cut: Rgba = [f[0] + (bg[0] - f[0]) * 0.7, f[1] + (bg[1] - f[1]) * 0.7, f[2] + (bg[2] - f[2]) * 0.7, 1];
+    const exec = colors.plannerExec ?? colors.highlight;
+    const queued = planner?.starving === true ? (colors.plannerStarving ?? colors.highlight) : (colors.plannerQueued ?? colors.arc);
+    return { cut, exec, queued };
   }
 
   function draw(): void {
@@ -272,6 +328,11 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     gl.uniform4fv(u.colors, colorTable());
     gl.uniform4fv(u.highlight, new Float32Array(colors.highlight));
     gl.uniform1f(u.dash, dashPeriod());
+    const pc = plannerColors();
+    gl.uniform4fv(u.plan, new Float32Array(planner === null ? [0, 0, 0, 0] : [planner.cutEnd, planner.execEnd, planner.queuedEnd, 1]));
+    gl.uniform4fv(u.cut, new Float32Array(pc.cut));
+    gl.uniform4fv(u.exec, new Float32Array(pc.exec));
+    gl.uniform4fv(u.queued, new Float32Array(pc.queued));
     for (const c of overlay === null ? path : [...path, overlay]) {
       gl.bindVertexArray(c.vao);
       gl.drawArrays(gl.LINES, 0, c.vertexCount);
@@ -410,6 +471,15 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     },
     setColors(next) {
       colors = next;
+      requestRender();
+    },
+    setPlanner(next) {
+      planner = next;
+      requestRender();
+    },
+    setToolMarker(position) {
+      marker = position;
+      rebuildOverlay();
       requestRender();
     },
     resize(w, h, pixelRatio = 1) {

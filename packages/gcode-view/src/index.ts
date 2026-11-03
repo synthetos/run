@@ -19,7 +19,7 @@ export type { SliceOptions } from './slicer.ts';
 export { eye, fitOrbit, lookAt, multiply, pan, perspective, project, rotate, viewProjection, zoom } from './camera.ts';
 export type { Mat4, Orbit } from './camera.ts';
 export { createRenderer } from './renderer.ts';
-export type { LoadOptions, PreviewColors, PreviewRenderer, RendererOptions, Rgba } from './renderer.ts';
+export type { LoadOptions, PlannerOverlay, PreviewColors, PreviewRenderer, RendererOptions, Rgba } from './renderer.ts';
 export { attachViewControls } from './controls.ts';
 export { svgEnvelope, svgGrid, svgPaths } from './svg.ts';
 export { GRID_MAX_CELLS, gridLayout, gridLines, niceStep } from './grid.ts';

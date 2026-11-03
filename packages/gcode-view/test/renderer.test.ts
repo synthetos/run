@@ -95,4 +95,25 @@ describe('WebGL renderer', () => {
     expect(calls.get('drawArrays')).toBe(1);
     expect(calls.get('uniform1f')).toBeGreaterThanOrEqual(3);
   });
+
+  it('the planner view and the tool marker are drawn on demand from what the page gives, and never animate', async () => {
+    const { gl, calls, uploads } = fakeGl();
+    const frames = frameQueue();
+    const r = createRenderer(gl, { colors: { ...COLORS, plannerStarving: [1, 0.6, 0, 1] }, requestFrame: frames.request });
+    await r.load(listOf([[[SEGMENT.FEED, 1, 1, 0]], [[SEGMENT.FEED, 2, 2, 0]], [[SEGMENT.FEED, 3, 3, 0]]]), instant);
+    frames.flush();
+    const before = calls.get('uniform4fv') ?? 0;
+    r.setPlanner({ cutEnd: 1, execEnd: 2, queuedEnd: 3, starving: false });
+    expect(frames.flush()).toBe(1);
+    r.setPlanner({ cutEnd: 1, execEnd: 2, queuedEnd: 3, starving: true });
+    frames.flush();
+    expect((calls.get('uniform4fv') ?? 0) - before).toBeGreaterThanOrEqual(8);
+    const overlays = uploads.length;
+    r.setToolMarker([1, 2, 3]);
+    expect(uploads.length).toBeGreaterThan(overlays);
+    r.setToolMarker(null);
+    r.setPlanner(null);
+    expect(frames.flush()).toBe(1);
+    expect(frames.flush()).toBe(0);
+  });
 });

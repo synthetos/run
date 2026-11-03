@@ -10,7 +10,7 @@
  *
  * A change to this file changes where the machine can be moved and needs safety review (SAFETY §8).
  */
-import { PHASE_1_RELEASE, PHASE_2_RELEASE, withSettingsWrites, type Release } from '@synthetos/safety';
+import { PHASE_1_RELEASE, PHASE_2_RELEASE, withJobs, withSettingsWrites, type Release } from '@synthetos/safety';
 import { approvalEnvironment } from './approval.ts';
 
 /** True where motion is enabled: the staging environment (staging host, loopback bench). */
@@ -24,5 +24,8 @@ export function motionEnabledFor(origin: string): boolean {
  * and the loopback bench both are on; production and unknown origins get `PHASE_1_RELEASE` unchanged.
  */
 export function releaseFor(origin: string): Release {
-  return withSettingsWrites(motionEnabledFor(origin) ? PHASE_2_RELEASE : PHASE_1_RELEASE, approvalEnvironment(origin));
+  // Phase 3 (SAFETY §4.4a): the jobs switch (safety jobsPhase.ts) adds jobs to the motion release for the same
+  // environment; production and unknown origins keep PHASE_1_RELEASE.
+  const environment = approvalEnvironment(origin);
+  return withJobs(withSettingsWrites(motionEnabledFor(origin) ? PHASE_2_RELEASE : PHASE_1_RELEASE, environment), environment);
 }

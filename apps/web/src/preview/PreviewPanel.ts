@@ -44,6 +44,23 @@ export interface PreviewPanelProps {
   readonly reportedLine?: number | null;
   /** A G-code line's "Report a problem with this line" action (the workspace Run view). */
   readonly onReportLine?: (line: number) => void;
+  /**
+   * Phase 3 (SAFETY §4.4a): the running job's file lines, from the worker (which maps the reported line through its
+   * own sanitised lines): the line executing and the last line sent. They take precedence over `reportedLine`.
+   */
+  readonly job?: { readonly executing: number | null; readonly sentThrough: number | null } | null;
+  /** Phase 3: the planner view for the 3D drawing, from the preview's line indices (jobUi.plannerRanges). */
+  readonly planner?: (sourceLines: Uint32Array) => PlannerView | null;
+  /** Phase 3: the G-code list's breakpoints changed (the job gets them at once). */
+  readonly onBreakpoints?: (lines: readonly number[]) => void;
+}
+
+/** The planner view the 3D drawing shows during a job (gcode-view `PlannerOverlay`). */
+export interface PlannerView {
+  readonly cutEnd: number;
+  readonly execEnd: number;
+  readonly queuedEnd: number;
+  readonly starving: boolean;
 }
 
 /** The live position in the preview's frame (work coordinates, mm), with where it came from. */
@@ -74,7 +91,7 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onReportLine }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -113,7 +130,8 @@ export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onRep
   const highlightLine = state.scrub > 0 && result !== null ? (result.sourceLines[state.scrub - 1] ?? 0) : 0;
   const listData = useMemo(() => (result === null ? null : { bytes: result.bytes, spans: result.spans, verdicts: result.verdicts }), [result]);
   const listKey = useMemo(() => (result === null || state.fileName === null ? null : fileKey(state.fileName, result.bytes)), [result, state.fileName]);
-  const executingLine = result === null ? null : executingFileLine(reportedLine, result.sourceLines);
+  const executingLine = result === null ? null : job !== null ? job.executing : executingFileLine(reportedLine, result.sourceLines);
+  const plannerView = result === null || planner === undefined ? null : planner(result.sourceLines);
 
   const drawing =
     segments === null || result === null
@@ -127,6 +145,8 @@ export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onRep
             wcsOrigin: result.summary.wcsOrigin,
             envelope: result.summary.envelope,
             fitRequest,
+            planner: plannerView,
+            toolMarker: plannerView !== null && live !== null ? [live.x, live.y, live.z] : null,
             onUnavailable: () => { setState((s) => ({ ...s, drawing: 'svg' })); },
           })
         : h(PreviewSvg, { segments, showRapids: state.showRapids, highlight, envelope: result.summary.envelope, marker: live });
@@ -154,7 +174,7 @@ export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onRep
   const slots: PreviewSlots = {
     ...(drawing === undefined ? {} : { drawing }),
     ...(readout === undefined ? {} : { marker: readout }),
-    ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine, ...(onReportLine === undefined ? {} : { onReportLine }) }) }),
+    ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine, sentThrough: job?.sentThrough ?? null, ...(onReportLine === undefined ? {} : { onReportLine }), ...(onBreakpoints === undefined ? {} : { onBreakpoints }) }) }),
   };
   return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live });
 }

@@ -94,6 +94,10 @@ function Strip(props: AppShellProps): ComponentChild {
     ...(view.message?.snapshot.motion?.held === true && props.model?.actions.value?.motion !== undefined
       ? { onResume: () => void props.model?.actions.value?.motion?.({ op: 'resume' }) }
       : {}),
+    // Phase 3: Resume (`~`) for a paused job of this session (SAFETY §4.4a).
+    ...(view.message?.snapshot.job?.phase === 'paused' && props.model?.actions.value?.job !== undefined
+      ? { onResume: () => void props.model?.actions.value?.job?.({ op: 'resume', skip: false, spindleRestart: false }) }
+      : {}),
     motion: view.message?.motion === true,
   });
 }
@@ -238,7 +242,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
           'main',
           { class: 'view-area', id: 'main', 'data-region': 'centre' },
           h(Banners, props),
-          pane('run', h(RunView, { model, spawn: props.spawn ?? null, ...(props.marker === undefined ? {} : { marker: props.marker }), onView })),
+          pane('run', h(RunView, { model, spawn: props.spawn ?? null, ...(props.marker === undefined ? {} : { marker: props.marker }), onView, ...(props.onPause === undefined ? {} : { onPause: props.onPause }), ...(props.onStopJob === undefined ? {} : { onStopJob: props.onStopJob }) })),
           pane('setup', h(SetupView, null)),
           pane('tools', h(ToolsView, null)),
           pane('materials', h(MaterialsView, null)),

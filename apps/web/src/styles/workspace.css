@@ -1392,3 +1392,49 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .temp-offset { justify-content: flex-start; flex-wrap: wrap; margin: 4px 0 10px; }
 .sec-zero .tan-label, .sec-home .tan-label { margin: 12px 0 6px; }
 .reports-notice p { margin: 6px 0 0; }
+
+/* Phase 3 jobs: the Check → Set zero → Start stepper, the running job, and the stop cards (SAFETY §4.4a). */
+.job-steps { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 18px; align-items: start; border-top: 1px solid var(--line-soft); padding-top: 9px; }
+.job-steps .flow { margin: 2px 0 0; grid-template-columns: repeat(3, auto); gap: 0; }
+.job-steps .flow li { border-top: 0; padding: 0 10px 0 0; white-space: nowrap; }
+.job-steps .flow li + li::before { content: ''; width: 12px; height: 1px; background: var(--field); margin-right: 8px; }
+.job-steps .flow li.done { color: var(--ok); }
+.job-steps > .fine { grid-column: 2; margin: 2px 0 0; }
+.job-steps > button.primary { grid-column: 3; grid-row: 1; min-height: 36px; }
+.job-steps > .motion-confirm { grid-column: 2 / -1; margin: 0; }
+.job-prep { grid-column: 2; display: grid; gap: 5px; font-size: 12px; line-height: 1.4; min-width: 0; }
+.job-prep-row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.job-prep-row > strong { min-width: 78px; font: 600 12px/1.4 var(--cond); color: var(--tan); }
+.job-prep-row button.small { min-height: 26px; padding: 0 9px; font-size: 11.5px; }
+.job-prep-row.zero-differs > span, .warn-text { color: var(--warn); }
+.job-prep-row.zero-match > span { color: var(--ok); }
+.job-tick { display: flex; gap: 7px; align-items: flex-start; font-size: 12px; line-height: 1.4; }
+.job-tick input { margin-top: 2px; flex: none; }
+.job-w5 { font-size: 11.5px; line-height: 1.45; color: var(--muted); margin: 2px 0 0; }
+.job-blockers { margin: 2px 0 0; padding-left: 16px; list-style: disc; color: var(--muted); font-size: 11.5px; }
+.job-status { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(150px, auto) minmax(0, 1fr) auto; gap: 6px 18px; align-items: center; border-top: 1px solid var(--line-soft); padding-top: 9px; }
+.job-status-head { display: flex; gap: 10px; align-items: baseline; }
+.job-status-head strong { font: 600 14px/1.2 var(--cond); color: var(--state-run); }
+.job-status.phase-paused .job-status-head strong, .job-status.phase-refused .job-status-head strong, .job-status.phase-toolChange .job-status-head strong, .job-status.phase-breakpoint .job-status-head strong { color: var(--state-hold); }
+.job-status.phase-failed .job-status-head strong { color: var(--state-alarm); }
+.job-status.phase-done .job-status-head strong, .job-status.phase-stopped .job-status-head strong { color: var(--ink); }
+.job-pct { font: 500 12px/1 var(--mono); color: var(--muted); }
+.job-status .job-progress { grid-column: 1 / -1; grid-row: 2; margin: 0; height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; }
+.job-status .job-progress i { display: block; height: 100%; background: var(--state-run); }
+.job-status .job-facts { grid-template-columns: repeat(4, auto); gap: 2px 16px; }
+.job-status .job-facts > div { display: grid; gap: 1px; }
+.job-status .job-facts dd { font: 500 12px/1.3 var(--mono); }
+.job-message { grid-column: 1 / -1; font-size: 12px; line-height: 1.45; margin: 0; }
+.job-message.danger { color: var(--danger); }
+.job-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.job-controls button.small { min-height: 30px; }
+.job-stop { flex: none; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--rule); border-left: 3px solid var(--state-hold); border-radius: var(--r-sm); background: var(--sheet); font-size: 12.5px; }
+.job-stop h2 { font: 600 14px/1.3 var(--cond); margin: 0 0 8px; }
+.job-stop .job-facts { margin: 0 0 8px; }
+.job-stop .fine { margin: 0 0 8px; }
+.job-stop.refused { border-left-color: var(--danger); }
+.job-line { font: 12px/1.4 var(--mono); background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 6px 8px; margin: 0 0 8px; white-space: pre-wrap; }
+.live-feedlimit { margin-top: 8px; font-size: 11.5px; color: var(--muted); }
+.live-feedlimit ul { margin: 3px 0 0; padding-left: 16px; }
+.live-stream li.ev-error span { color: var(--danger); }
+.live-stream li.ev-warn span, .live-stream li.ev-toolchange span { color: var(--warn); }

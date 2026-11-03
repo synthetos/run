@@ -1,0 +1,229 @@
+/**
+ * Phase 3 jobs in the page (SAFETY §4.4a, H70-H78; T-S117): the start preconditions with every blocker in plain
+ * words, plan versus board work zero, the planner view ranges, the Phase 3 control allowlist (Start enabled only when
+ * every precondition passes; Pause and Stop job always), and the stop cards.
+ */
+import { describe, expect, it, vi } from 'vitest';
+import { w38 } from '@synthetos/safety';
+import { h } from 'preact';
+import { renderToString } from 'preact-render-to-string';
+import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveActions, type LiveView } from '../src/workspace/model.ts';
+import {
+  bytesText,
+  duration,
+  feedLimitLines,
+  jobUi,
+  loadPlan,
+  plannerRanges,
+  savePlan,
+  startBlockers,
+  starving,
+  textHash,
+  zeroCheck,
+  type JobSnapshot,
+  type StartChoices,
+} from '../src/workspace/jobUi.ts';
+import { JobStatus, JobStopCard } from '../src/workspace/views/JobViews.ts';
+import { motionUi } from '../src/workspace/motion.ts';
+import { byAttr, one, root, text } from './tree.ts';
+
+type Snapshot = NonNullable<LiveView['message']>['snapshot'];
+
+function job(extra: Partial<JobSnapshot> = {}): JobSnapshot {
+  return {
+    id: 1,
+    name: 'part.nc',
+    hash: textHash('G0 X1\nM30'),
+    bytes: 9,
+    phase: 'ready',
+    total: 2,
+    sent: 0,
+    acked: 0,
+    free: null,
+    inFlight: 0,
+    executing: null,
+    sentThrough: null,
+    ackedThrough: null,
+    startedAt: null,
+    endedAt: null,
+    totalSeconds: 3,
+    remainingSeconds: 3,
+    queuedSeconds: 0,
+    queuedBoundMm: 0,
+    stop: null,
+    refused: null,
+    toolChange: null,
+    message: null,
+    events: [],
+    breakpoints: [],
+    queuedBreakpoints: [],
+    report: { blocked: false, counts: { block: 0, warn: 0, change: 0, info: 0 }, blocks: [], splits: 0, longestMoveSeconds: 1, endState: { spindle: 'off', mist: false, flood: false }, toolChanges: [], startsSpindle: false, speeds: [], seconds: 3 },
+    rxmFrom: null,
+    jobFlag: null,
+    feedLimit: null,
+    faultStopAt: null,
+    stopping: false,
+    ...extra,
+  };
+}
+
+function snap(extra: Record<string, unknown> = {}): Snapshot {
+  return {
+    base: 'IDLE_HOMED',
+    overlays: [],
+    epoch: 1,
+    identity: { id: 'SIM-EN-0001' },
+    classification: { dialectId: 'tinyg-en', mode: 'full', reason: 'en-approved', detail: '', upgradeOffer: false },
+    footerRev: 3,
+    live: { stat: 1, hold: 0, vel: 0, qr: 32, home: 1, pos: {}, mpo: {} },
+    values: { ofs: { value: { x: 10, y: 20, z: -5 }, status: 0, at: 0 } },
+    notices: { adviseEstop: false },
+    motion: null,
+    reports: { phase: 'done', heartbeatMs: 1000, changes: [], detail: null },
+    rxm: { restore: 0, memoryKnown: true, current: 0, changed: null, detail: null, busy: false },
+    rtLeaves: [],
+    job: job(),
+    ...extra,
+  } as unknown as Snapshot;
+}
+
+function view(s: Snapshot | null, jobs = true): LiveView {
+  if (s === null) return INITIAL_LIVE_VIEW;
+  return { ...INITIAL_LIVE_VIEW, message: { v: 3, kind: 'snapshot', snapshot: s, motion: true, jobs, jobElapsedMs: 4000 } as unknown as LiveView['message'] };
+}
+
+const ALL: StartChoices = { unhomed: true, workZero: true, spindle: true, attended: true };
+const FILE = { name: 'part.nc', hash: textHash('G0 X1\nM30') };
+
+describe('T-S117: Start is enabled only when every precondition passes, each blocker in plain words', () => {
+  const zero = zeroCheck({ x: 10, y: 20, z: -5 }, { x: 10, y: 20, z: -5 });
+
+  it('no blocker on an idle, approved, homed board with the file checked and the attestation ticked', () => {
+    expect(startBlockers(jobUi(view(snap())), FILE, zero, ALL)).toEqual([]);
+  });
+
+  it('names each blocker', () => {
+    const ids = (s: Snapshot | null, choices: StartChoices = ALL, file: { readonly name: string | null; readonly hash: string | null } = FILE, jobs = true): string[] => startBlockers(jobUi(view(s, jobs)), file, zero, choices).map((b) => b.id);
+    expect(ids(null)).toEqual(['connect']);
+    expect(ids(snap(), ALL, FILE, false)).toEqual(['build']);
+    expect(ids(snap({ overlays: ['FAULT'] }))).toContain('fault');
+    expect(ids(snap({ overlays: ['LOST'] }))).toContain('lost');
+    expect(ids(snap({ overlays: ['ORPHANED_MOTION'] }))).toContain('orphaned');
+    expect(ids(snap({ overlays: ['READ_ONLY'], classification: { mode: 'readOnly' } }))).toContain('approved');
+    expect(ids(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'] }))).toContain('unknown');
+    expect(ids(snap({ overlays: ['STALE'] }))).toContain('stale');
+    expect(ids(snap({ overlays: ['NEEDS_REVIEW'] }))).toContain('review');
+    expect(ids(snap({ base: 'ALARM' }))).toContain('alarm');
+    expect(ids(snap({ base: 'JOGGING' }))).toEqual(['idle']);
+    expect(ids(snap({ rxm: { busy: true } }))).toContain('busy');
+    expect(ids(snap(), ALL, { name: null, hash: null })).toContain('file');
+    expect(ids(snap({ job: job({ phase: 'loading' }) }))).toContain('check');
+    expect(ids(snap({ job: null }))).toContain('check');
+    expect(ids(snap({ job: job({ report: { ...job().report, blocked: true, counts: { block: 1, warn: 0, change: 0, info: 0 } } as never }) }))).toContain('blocked');
+    expect(ids(snap({ live: { home: 0, pos: {}, mpo: {} } }), { ...ALL, unhomed: false })).toContain('homed');
+    expect(ids(snap({ job: job({ report: { ...job().report, startsSpindle: true } as never }) }), { ...ALL, spindle: false })).toContain('spindle');
+    expect(ids(snap(), { ...ALL, attended: false })).toContain('attended');
+    const text = startBlockers(jobUi(view(snap({ job: job({ phase: 'running', startedAt: 1 }), base: 'RUNNING' }))), FILE, zero, ALL);
+    expect(text.find((b) => b.id === 'idle')?.text).toBe('A job is running.');
+  });
+
+  it('plan versus board: no plan or a difference needs the confirmation; a match does not', () => {
+    const storage = new Map<string, string>();
+    const s = { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => void storage.set(k, v), removeItem: (k: string) => void storage.delete(k) };
+    expect(loadPlan('k', s)).toBeNull();
+    expect(savePlan('k', { x: 1, y: 2, z: 3 }, s)).toBe(true);
+    expect(loadPlan('k', s)).toEqual({ x: 1, y: 2, z: 3 });
+    expect(zeroCheck(null, null).state).toBe('unknown');
+    expect(zeroCheck({ x: 0, y: 0, z: 0 }, null)).toMatchObject({ state: 'differs', text: expect.stringMatching(/^No plan is recorded/) });
+    expect(zeroCheck({ x: 0, y: 0, z: 0 }, { x: 0.02, y: 0, z: 0 }).state).toBe('match');
+    const d = zeroCheck({ x: 0, y: 0, z: 0 }, { x: 14.2, y: 0, z: -1 });
+    expect(d).toMatchObject({ state: 'differs', text: 'The board’s work zero is not your plan’s: it differs in X by 14.20 mm, Z by 1.00 mm.' });
+    const ui = jobUi(view(snap()));
+    expect(startBlockers(ui, FILE, d, { ...ALL, workZero: false }).map((b) => b.id)).toEqual(['zero']);
+    expect(startBlockers(ui, FILE, zeroCheck(null, null), ALL).map((b) => b.id)).toEqual(['zero']);
+  });
+});
+
+describe('the planner view and the live numbers', () => {
+  it('maps file lines to the preview’s own line indices: cut, executing, queued', () => {
+    const sourceLines = Uint32Array.from([1, 2, 2, 3, 4, 5, 6]);
+    const j = job({ phase: 'running', startedAt: 0, executing: { n: 3, line: 2 }, ackedThrough: 4 });
+    expect(plannerRanges(j, sourceLines, false)).toEqual({ cutEnd: 1, execEnd: 3, queuedEnd: 5, starving: false });
+    expect(plannerRanges(job(), sourceLines, false)).toBeNull();
+    expect(plannerRanges(job({ phase: 'preparing', startedAt: 0 }), sourceLines, false)).toBeNull();
+    expect(plannerRanges(job({ phase: 'paused', startedAt: 0, ackedThrough: 6 }), sourceLines, true)).toEqual({ cutEnd: 6, execEnd: 7, queuedEnd: 7, starving: true });
+  });
+
+  it('starving: cutting with the planner almost empty and lines still to send', () => {
+    const running = snap({ job: job({ phase: 'running', startedAt: 0, sent: 1, total: 9 }), live: { qr: 31, vel: 400, pos: {}, mpo: {} } });
+    expect(starving(running, 32)).toBe(true);
+    expect(starving({ ...running, live: { ...running.live, qr: 10 } }, 32)).toBe(false);
+    expect(starving(snap(), 32)).toBe(false);
+    expect(starving(running, null)).toBe(false);
+  });
+
+  it('feed-limit lines are observational, per cause, from the summary counters', () => {
+    expect(feedLimitLines(null)).toBeNull();
+    expect(feedLimitLines({ fi: 2, fs: { c: 'x' }, short: false, fl: null })).toBeNull();
+    expect(feedLimitLines({ fi: 2, fs: { c: [1200, 0, 0, 500, 0, 0] }, short: false, fl: null })?.[0]).toEqual({ label: 'an axis feed limit', seconds: 1.2 });
+  });
+
+  it('durations, the Latin-1 text and the hash the worker computes', () => {
+    expect(duration(12)).toBe('12 s');
+    expect(duration(245)).toBe('4 min 05 s');
+    expect(duration(3725)).toBe('1 h 02 min');
+    expect(bytesText(Uint8Array.from([71, 48, 0xb0]))).toBe('G0°');
+    expect(textHash('abc')).toMatch(/^[0-9a-f]{8}$/);
+    expect(jobUi(view(snap({ job: job({ startedAt: 0 }) }))).elapsedMs).toBe(4000);
+  });
+});
+
+describe('T-S117: the Phase 3 controls', () => {
+  function live(s: Snapshot): { model: ReturnType<typeof createWorkspaceModel>; job: ReturnType<typeof vi.fn> } {
+    const model = createWorkspaceModel();
+    const jobFn = vi.fn(() => Promise.resolve(null));
+    model.actions.value = { job: jobFn } as unknown as LiveActions;
+    model.live.value = view(s);
+    return { model, job: jobFn };
+  }
+
+  it('Pause and Stop job in the running job card are enabled whenever the strip gives them, and call the strip’s own actions', () => {
+    const { model } = live(snap({ base: 'RUNNING', job: job({ phase: 'running', startedAt: 0, sent: 1, acked: 1, executing: { n: 1, line: 1 } }) }));
+    const pause = vi.fn();
+    const stop = vi.fn();
+    const tree = root(h(JobStatus, { model, onPause: pause, onStopJob: stop }));
+    (one(tree, byAttr('data-machine-control', 'job-pause')).props['onClick'] as () => void)();
+    (one(tree, byAttr('data-machine-control', 'job-stop')).props['onClick'] as () => void)();
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(text(one(tree, byAttr('data-job', 'line')))).toBe('file line 1 (1 of 2)');
+    // Without the strip's calls (the prerendered page), they are shown and disabled.
+    const bare = root(h(JobStatus, { model }));
+    expect(one(bare, byAttr('data-machine-control', 'job-pause')).props['disabled']).toBe(true);
+  });
+
+  it('the tool-change card: W37, the tools, Resume behind C34 (and C35 when the file does not restart the spindle)', () => {
+    const tc = { line: 5, tool: 2, spindle: 'cw' as const, speed: 12000, mist: false, flood: false, restartsSpindle: false, moved: true };
+    const { model, job: jobFn } = live(snap({ base: 'PROGRAM_PAUSED', job: job({ phase: 'toolChange', startedAt: 0, toolChange: tc, message: 'x' }), live: { tool: 1, spe: 0, pos: {}, mpo: {} } }));
+    const html = renderToString(h(JobStopCard, { model }));
+    expect(html).toContain('data-safety="W37"');
+    expect(html).toContain('Tool change at line 5');
+    expect(html).toContain('T2, 6 mm 3-flute ZrN (6 mm)');
+    expect(html).toContain('Stopped (Run sent M5 and M9)');
+    expect(html).toContain('Resume returns at a safe height first');
+    expect(jobFn).not.toHaveBeenCalled();
+    expect(motionUi(model.live.value).enabled).toBe(true);
+  });
+
+  it('the refused-line card: W38 with the line, Stop job and Skip behind C33; nothing at other phases', () => {
+    const { model } = live(snap({ base: 'HELD', job: job({ phase: 'refused', startedAt: 0, refused: { line: 6, status: 220, text: 'G1 X300' }, message: w38({ line: 6, status: 220, meaning: 'outside the soft limits' }) }) }));
+    const html = renderToString(h(JobStopCard, { model }));
+    expect(html).toContain('data-safety="W38"');
+    expect(html).toContain('G1 X300');
+    expect(html).toContain('data-action="skip-line"');
+    const none = live(snap()).model;
+    expect(renderToString(h(JobStopCard, { model: none }))).toBe('');
+    const bp = live(snap({ base: 'PROGRAM_PAUSED', job: job({ phase: 'breakpoint', startedAt: 0, message: 'Stopped at breakpoint · line 8' }) })).model;
+    expect(renderToString(h(JobStopCard, { model: bp }))).toContain('data-safety="W43"');
+  });
+});

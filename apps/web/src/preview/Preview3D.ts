@@ -5,7 +5,7 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
-import { attachViewControls, createRenderer, type Box3, type PreviewRenderer, type SegmentList, type Vec3 } from '@synthetos/gcode-view';
+import { attachViewControls, createRenderer, type Box3, type PlannerOverlay, type PreviewRenderer, type SegmentList, type Vec3 } from '@synthetos/gcode-view';
 import { previewColors } from './colors.ts';
 
 export interface Preview3DProps {
@@ -20,6 +20,10 @@ export interface Preview3DProps {
   readonly fitRequest: number;
   readonly onUnavailable: () => void;
   readonly onProgress?: (fraction: number) => void;
+  /** Phase 3: the planner view of a running job (cut, executing, queued), or null. */
+  readonly planner?: PlannerOverlay | null;
+  /** Phase 3: the tool position the board reports during a job (work coordinates, as drawn), or null. */
+  readonly toolMarker?: Vec3 | null;
 }
 
 export function Preview3D(props: Preview3DProps): ComponentChild {
@@ -68,6 +72,10 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
   useEffect(() => { renderer.current?.setRapidsVisible(props.showRapids); }, [props.showRapids]);
   useEffect(() => { renderer.current?.setHighlight(props.highlight); }, [props.highlight]);
   useEffect(() => { if (props.fitRequest > 0) renderer.current?.fit(); }, [props.fitRequest]);
+  const plan = props.planner ?? null;
+  useEffect(() => { renderer.current?.setPlanner(plan); }, [plan?.cutEnd, plan?.execEnd, plan?.queuedEnd, plan?.starving, plan === null]);
+  const tool = props.toolMarker ?? null;
+  useEffect(() => { renderer.current?.setToolMarker(tool); }, [tool?.[0], tool?.[1], tool?.[2], tool === null]);
 
   return h('canvas', {
     ref: canvas,

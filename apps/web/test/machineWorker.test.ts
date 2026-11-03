@@ -958,7 +958,7 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
     for (const o of [BENCH_ORIGIN, 'http://127.0.0.1:4173', 'http://localhost', STAGING_ORIGIN]) {
       expect(motionEnabledFor(o), o).toBe(true);
       // Phase 2 composed with the settings-write switch: both on in the staging environment.
-      expect(releaseFor(o)).toMatchObject({ ...PHASE_2_RELEASE, name: 'Phase 2 + settings writes', settings: true });
+      expect(releaseFor(o)).toMatchObject({ ...PHASE_2_RELEASE, name: 'Phase 2 + settings writes + jobs', settings: true, jobs: true });
     }
     for (const o of [PRODUCTION_ORIGIN, 'http://run.synthetos.com', 'https://localhost:8793', 'https://run-abc.workers.dev', 'http://10.0.0.2:8793', 'null', '']) {
       expect(motionEnabledFor(o), o).toBe(false);
@@ -1081,5 +1081,90 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
     ];
     for (const command of bad) expect(parseRequest({ v: 3, kind: 'motion', command }), JSON.stringify(command)).toBeNull();
     expect(parseRequest({ v: 3, kind: 'motion', command: { op: 'resume' }, extra: 1 })).toBeNull();
+  });
+});
+
+describe('Phase 3: job commands through the worker (SAFETY §4.4a, T-S117)', () => {
+  const EN_MOTION = { ...EN, home: '{"r":{"home":0},"f":[3,0,10]}', unit: '{"r":{"unit":1},"f":[3,0,10]}' };
+  const host3 = (t: BoardTransport, origin: string): MachineWorkerHost =>
+    new MachineWorkerHost(
+      source('fake', () => t),
+      new TestClock(),
+      undefined,
+      { file: COMMITTED_MANIFEST, origin, verify: (f, o) => approvedBuildsFor(f, { origin: o, now: VALID_NOW }) },
+      releaseFor(origin),
+    );
+
+  it('the jobs switch is on with the motion release on loopback and staging only; production never gets it', () => {
+    for (const o of [BENCH_ORIGIN, STAGING_ORIGIN]) expect(releaseFor(o).jobs, o).toBe(true);
+    for (const o of [PRODUCTION_ORIGIN, 'https://run-abc.workers.dev', '']) expect(releaseFor(o).jobs, o).toBeUndefined();
+  });
+
+  it('job commands reach the session: production refuses them and writes nothing; the snapshot carries the switch', async () => {
+    const p = new BoardTransport();
+    const prod = host3(p, PRODUCTION_ORIGIN);
+    await classifyWith(p, prod);
+    const before = p.writes.length;
+    for (const command of [
+      { op: 'load', name: 'a.nc', text: 'G0 X1\nM30', c22: false },
+      { op: 'start', breakpoints: [], confirm: { unhomed: true, workZero: true, spindle: true } },
+      { op: 'resume', skip: false, spindleRestart: false },
+      { op: 'breakpoints', lines: [3] },
+      { op: 'unload' },
+    ] as const) {
+      const reply = await prod.handle({ v: 3, kind: 'job', command });
+      expect(reply, command.op).toMatchObject({ ok: false, code: 'denied' });
+    }
+    expect(await prod.handle({ v: 3, kind: 'job', command: { op: 'lineModeMemory', epoch: prod.session.snapshot.epoch, remembered: 0 } })).toEqual({ v: 3, ok: true, kind: 'job' });
+    await settle();
+    expect(p.writes.length).toBe(before);
+    const posted: SnapshotMessage[] = [];
+    await prod.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => posted.push(m) });
+    expect(posted.at(-1)).toMatchObject({ jobs: false, jobElapsedMs: null });
+    const t = new BoardTransport(undefined, EN_MOTION);
+    const bench = host3(t, BENCH_ORIGIN);
+    await classifyWith(t, bench);
+    const benchPosted: SnapshotMessage[] = [];
+    await bench.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => benchPosted.push(m) });
+    expect(benchPosted.at(-1)?.jobs).toBe(true);
+    // Start with nothing loaded is refused by the session, with its reason.
+    expect(await bench.handle({ v: 3, kind: 'job', command: { op: 'start', breakpoints: [], confirm: { unhomed: true, workZero: true, spindle: true } } })).toMatchObject({ ok: false, code: 'denied', message: 'No job is loaded and checked.' });
+  });
+
+  it('parses job commands strictly', () => {
+    const good = [
+      { op: 'load', name: 'a.nc', text: 'G0', c22: true },
+      { op: 'unload' },
+      { op: 'start', breakpoints: [1, 2], confirm: { unhomed: false, workZero: true, spindle: false } },
+      { op: 'resume', skip: true, spindleRestart: false },
+      { op: 'breakpoints', lines: [] },
+      { op: 'lineModeMemory', epoch: 3, remembered: null },
+      { op: 'lineModeMemory', epoch: 3, remembered: 1 },
+    ];
+    for (const command of good) expect(parseRequest({ v: 3, kind: 'job', command }), JSON.stringify(command)).not.toBeNull();
+    const bad: unknown[] = [
+      { op: 'load', name: '', text: 'G0', c22: false },
+      { op: 'load', name: 'a', text: '', c22: false },
+      { op: 'load', name: 'a', text: 'G0', c22: 'no' },
+      { op: 'load', name: 'a'.repeat(201), text: 'G0', c22: false },
+      { op: 'load', name: 'a', text: 'G0' },
+      { op: 'unload', now: true },
+      { op: 'start', breakpoints: [0], confirm: { unhomed: false, workZero: true, spindle: false } },
+      { op: 'start', breakpoints: [1.5], confirm: { unhomed: false, workZero: true, spindle: false } },
+      { op: 'start', breakpoints: 'x', confirm: { unhomed: false, workZero: true, spindle: false } },
+      { op: 'start', breakpoints: [], confirm: { unhomed: 'yes', workZero: true, spindle: false } },
+      { op: 'start', breakpoints: [], confirm: { unhomed: false, workZero: true } },
+      { op: 'start', breakpoints: [] },
+      { op: 'resume', skip: 1, spindleRestart: false },
+      { op: 'resume' },
+      { op: 'breakpoints', lines: new Array(1001).fill(1) },
+      { op: 'lineModeMemory', epoch: -1, remembered: 0 },
+      { op: 'lineModeMemory', epoch: 1, remembered: 2 },
+      { op: 'lineModeMemory', epoch: 1.5, remembered: 0 },
+      { op: 'stream', line: 'G0 X0' },
+      'load',
+    ];
+    for (const command of bad) expect(parseRequest({ v: 3, kind: 'job', command }), JSON.stringify(command)).toBeNull();
+    expect(parseRequest({ v: 3, kind: 'job', command: { op: 'unload' }, extra: 1 })).toBeNull();
   });
 });

@@ -39,6 +39,9 @@ const FALLBACK: PreviewColors = {
   axisZ: [0.15, 0.3, 0.8, 1],
   grid: [0.89, 0.91, 0.93, 1],
   gridMajor: [0.78, 0.82, 0.85, 1],
+  plannerExec: [0.56, 0.12, 0.56, 1],
+  plannerQueued: [0.08, 0.42, 0.26, 1],
+  plannerStarving: [0.58, 0.31, 0, 1],
 };
 
 /** Token per colour; a missing or unparsable token keeps the fallback. */
@@ -56,6 +59,10 @@ const TOKENS: Readonly<Record<keyof PreviewColors, string>> = {
   axisZ: '--blue',
   grid: '--grid',
   gridMajor: '--rule',
+  // The planner view of a running job (MACHINING_ASSISTANT §7): the line executing, the queued band, amber when starving.
+  plannerExec: '--live',
+  plannerQueued: '--state-run',
+  plannerStarving: '--state-hold',
 };
 
 /** How far traverses (rapids) are mixed from --muted toward the background, so cutting moves stay dominant. */
@@ -67,7 +74,7 @@ function mix(a: Rgba, b: Rgba, t: number): Rgba {
 
 export function previewColors(read: (token: string) => string): PreviewColors {
   const out: Record<string, Rgba> = {};
-  for (const key of Object.keys(TOKENS) as (keyof PreviewColors)[]) out[key] = parseColor(read(TOKENS[key])) ?? FALLBACK[key];
+  for (const key of Object.keys(TOKENS) as (keyof PreviewColors)[]) out[key] = parseColor(read(TOKENS[key])) ?? (FALLBACK[key] as Rgba);
   // Traverses are drawn muted (and dashed, by the renderer): --muted mixed toward the background.
   out['rapid'] = mix(out['rapid'] as Rgba, out['background'] as Rgba, RAPID_MUTE);
   return out as unknown as PreviewColors;

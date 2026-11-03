@@ -22,7 +22,7 @@ import { transcriptFileName, type TranscriptStatus } from '../machine-ui/Transcr
 import { downloadTranscript } from './transcriptDownload.ts';
 import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { callMachineWorker } from '../machine-worker/client.ts';
-import { RPC_VERSION, type MachineReply, type MachineRequest, type MotionCommand, type SnapshotMessage } from '../machine-worker/rpc.ts';
+import { RPC_VERSION, type JobCommand, type MachineReply, type MachineRequest, type MotionCommand, type SnapshotMessage } from '../machine-worker/rpc.ts';
 import { AdvisoryPoller, checkAdvisory, type AdvisoryCheck, type AdvisoryDeps } from './advisoryGate.ts';
 import { accessProvider, AuthGate, providersFor } from './authGate.ts';
 import { memoryDeviceSafety, openDeviceSafety, type DeviceSafetyStore } from './deviceSafety.ts';
@@ -273,6 +273,32 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     samples = [...samples.filter((x) => at - x.t <= SAMPLE_WINDOW_MS), next];
   }
 
+  // Phase 3 (H77): what this computer remembers of each board's line mode. The worker is told once per link, as soon
+  // as the board is identified, and every value a job finds is remembered here (device-safety, never synced).
+  let rxmEpoch = -1;
+  let rxmSaved: string | null = null;
+  function syncLineMode(message: SnapshotMessage): void {
+    const s = message.snapshot;
+    const id = s.identity?.id;
+    if (worker === null || message.jobs !== true || id === undefined || s.classification?.mode !== 'full') return;
+    const key = `rxm/${id}`;
+    if (s.epoch !== rxmEpoch) {
+      rxmEpoch = s.epoch;
+      void store.get(key).then(
+        (v) => {
+          const remembered = v === 0 || v === 1 ? v : null;
+          void callMachineWorker(worker, { v: RPC_VERSION, kind: 'job', command: { op: 'lineModeMemory', epoch: s.epoch, remembered } });
+        },
+        () => undefined,
+      );
+    }
+    const restore = s.rxm.restore;
+    if ((restore === 0 || restore === 1) && rxmSaved !== `${key}=${restore}`) {
+      rxmSaved = `${key}=${restore}`;
+      void store.set(key, restore).catch(() => undefined);
+    }
+  }
+
   if (worker !== null) {
     const channel = new MessageChannel();
     channel.port1.onmessage = (event: MessageEvent) => {
@@ -286,6 +312,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       applier.onSnapshot(snapshot);
       consoleReader.onSnapshot(snapshot);
       sample(droMessage, droReceivedAt);
+      syncLineMode(droMessage);
       updateMarker();
       staleSince = snapshot.overlays.includes('STALE') ? (staleSince ?? Date.now()) : null;
       if (snapshot.base === 'NOT_CONNECTED') disconnectRefused = null;
@@ -371,6 +398,12 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     motion: async (command: MotionCommand) => {
       if (worker === null) return unavailable.message;
       const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'motion', command }).catch(() => null);
+      if (reply === null) return 'The machine worker did not answer.';
+      return reply.ok ? null : reply.message;
+    },
+    job: async (command: JobCommand) => {
+      if (worker === null) return unavailable.message;
+      const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'job', command }).catch(() => null);
       if (reply === null) return 'The machine worker did not answer.';
       return reply.ok ? null : reply.message;
     },

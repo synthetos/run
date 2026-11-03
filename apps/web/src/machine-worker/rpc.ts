@@ -37,7 +37,7 @@ import type { Decision } from '@synthetos/safety';
 
 export const RPC_VERSION = 3;
 
-export const REQUEST_KINDS = ['prepare', 'open', 'close', 'status', 'intent', 'read', 'subscribe', 'transcript', 'drift', 'motion', 'settingWrite'] as const;
+export const REQUEST_KINDS = ['prepare', 'open', 'close', 'status', 'intent', 'read', 'subscribe', 'transcript', 'drift', 'motion', 'settingWrite', 'job'] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];
 
 /** Intents the window may send. Everything else the session does on its own. */
@@ -65,6 +65,29 @@ export type MotionCommand =
   | { readonly op: 'spindleOn'; readonly direction: 'cw' | 'ccw'; readonly rpm: number }
   | { readonly op: 'coolantOn'; readonly which: 'mist' | 'flood' };
 
+/**
+ * Phase 3 job commands (additive; owner 2026-11-02, SAFETY §4.4a). The worker hands each to the session, which
+ * decides it through the allow-matrix (the `jobs` kind, on only with the jobs release) and the job's own checks.
+ * Pause and Stop job are the window intents (`feedhold`, `stopJob`): never gated, never here.
+ * - `load`: the file text, sanitised in the worker with the live board's values; `null` text unloads.
+ * - `start`: the page's breakpoints and confirmations (C36 unhomed, C31 work zero, C32 spindle).
+ * - `resume`: after a pause, a stop point, a refused line (`skip`, C33) or a tool change (`spindleRestart`, C35).
+ * - `breakpoints`: the G-code list's breakpoints, any time.
+ * - `lineModeMemory`: what this computer remembers of the board's `rxm` (H77), for link `epoch`.
+ */
+export type JobCommand =
+  | { readonly op: 'load'; readonly name: string; readonly text: string; readonly c22: boolean }
+  | { readonly op: 'unload' }
+  | { readonly op: 'start'; readonly breakpoints: readonly number[]; readonly confirm: { readonly unhomed: boolean; readonly workZero: boolean; readonly spindle: boolean } }
+  | { readonly op: 'resume'; readonly skip: boolean; readonly spindleRestart: boolean }
+  | { readonly op: 'breakpoints'; readonly lines: readonly number[] }
+  | { readonly op: 'lineModeMemory'; readonly epoch: number; readonly remembered: 0 | 1 | null };
+
+/** Largest job text the window may send (RUN_PLAN §4: 50 MB), and most breakpoints. */
+export const MAX_JOB_TEXT = 50 * 1024 * 1024;
+export const MAX_JOB_NAME = 200;
+export const MAX_BREAKPOINTS = 1000;
+
 /** Most tokens one `read` may name, and the longest token. */
 export const MAX_READ_TOKENS = 32;
 export const MAX_TOKEN_LENGTH = 16;
@@ -86,7 +109,8 @@ export type MachineRequest =
    * under the id the reply carries.
    */
   | { readonly v: typeof RPC_VERSION; readonly kind: 'settingWrite'; readonly key: string; readonly value: number }
-  | { readonly v: typeof RPC_VERSION; readonly kind: 'motion'; readonly command: MotionCommand };
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'motion'; readonly command: MotionCommand }
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'job'; readonly command: JobCommand };
 
 /** The link, in the words of the Phase 0 protocol: derived from the session's base state and LOST. */
 export type WorkerState = 'idle' | 'opening' | 'open' | 'lost';
@@ -115,7 +139,7 @@ export type Denial = Extract<Decision, { allowed: false }>;
 export type MachineReply =
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'prepare'; readonly preparation: number }
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'open'; readonly info: TransportInfo }
-  | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'close' | 'subscribe' | 'intent' | 'read' | 'drift' | 'motion' }
+  | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'close' | 'subscribe' | 'intent' | 'read' | 'drift' | 'motion' | 'job' }
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'status'; readonly status: WorkerStatus }
   /** The settings write was accepted; its result appears in `snapshot.settingWrite` with this id. */
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'settingWrite'; readonly id: number }
@@ -147,6 +171,10 @@ export interface SnapshotMessage {
   readonly settingsWrites?: boolean;
   /** The motion capability flag of this worker (Phase 2: bench and staging origins only, SAFETY §4.5b). */
   readonly motion: boolean;
+  /** The jobs phase switch of this worker (Phase 3: bench and staging only, never production). */
+  readonly jobs?: boolean;
+  /** Time since the job started (or its run time once ended), ms on the worker's clock at post time; null without one. */
+  readonly jobElapsedMs?: number | null;
 }
 
 function isRequestKind(value: unknown): value is RequestKind {
@@ -196,6 +224,11 @@ export function parseRequest(data: unknown): MachineRequest | null {
     case 'motion': {
       if (keys !== 'command,kind,v') return null;
       const parsed = parseMotionCommand(command);
+      return parsed === null ? null : Object.freeze({ v: RPC_VERSION, kind, command: parsed });
+    }
+    case 'job': {
+      if (keys !== 'command,kind,v') return null;
+      const parsed = parseJobCommand(command);
       return parsed === null ? null : Object.freeze({ v: RPC_VERSION, kind, command: parsed });
     }
     case 'drift':
@@ -289,6 +322,53 @@ export function parseMotionCommand(value: unknown): MotionCommand | null {
     case 'coolantOn':
       if (keys !== 'op,which' || (c['which'] !== 'mist' && c['which'] !== 'flood')) return null;
       return Object.freeze({ op: 'coolantOn', which: c['which'] });
+    default:
+      return null;
+  }
+}
+
+function lineList(value: unknown): readonly number[] | null {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > MAX_BREAKPOINTS) return null;
+  const list: unknown[] = value;
+  if (!list.every((n) => typeof n === 'number' && Number.isSafeInteger(n) && n >= 1)) return null;
+  return Object.freeze([...(list as number[])]);
+}
+
+/** A job command, strictly: exactly its keys, known values. The session checks the rest. */
+export function parseJobCommand(value: unknown): JobCommand | null {
+  const keys = plainKeys(value);
+  if (keys === null) return null;
+  const c = value as Record<string, unknown>;
+  switch (c['op']) {
+    case 'load': {
+      const { name, text, c22 } = c;
+      if (keys !== 'c22,name,op,text' || typeof name !== 'string' || name.length === 0 || name.length > MAX_JOB_NAME) return null;
+      if (typeof text !== 'string' || text.length === 0 || text.length > MAX_JOB_TEXT || typeof c22 !== 'boolean') return null;
+      return Object.freeze({ op: 'load', name, text, c22 });
+    }
+    case 'unload':
+      return keys === 'op' ? Object.freeze({ op: 'unload' }) : null;
+    case 'start': {
+      const breakpoints = lineList(c['breakpoints']);
+      const confirm = c['confirm'];
+      if (keys !== 'breakpoints,confirm,op' || breakpoints === null || plainKeys(confirm) !== 'spindle,unhomed,workZero') return null;
+      const f = confirm as Record<string, unknown>;
+      if (typeof f['unhomed'] !== 'boolean' || typeof f['workZero'] !== 'boolean' || typeof f['spindle'] !== 'boolean') return null;
+      return Object.freeze({ op: 'start', breakpoints, confirm: Object.freeze({ unhomed: f['unhomed'], workZero: f['workZero'], spindle: f['spindle'] }) });
+    }
+    case 'resume':
+      if (keys !== 'op,skip,spindleRestart' || typeof c['skip'] !== 'boolean' || typeof c['spindleRestart'] !== 'boolean') return null;
+      return Object.freeze({ op: 'resume', skip: c['skip'], spindleRestart: c['spindleRestart'] });
+    case 'breakpoints': {
+      const lines = lineList(c['lines']);
+      return keys === 'lines,op' && lines !== null ? Object.freeze({ op: 'breakpoints', lines }) : null;
+    }
+    case 'lineModeMemory': {
+      const { epoch, remembered } = c;
+      if (keys !== 'epoch,op,remembered' || typeof epoch !== 'number' || !Number.isSafeInteger(epoch) || epoch < 0) return null;
+      if (remembered !== null && remembered !== 0 && remembered !== 1) return null;
+      return Object.freeze({ op: 'lineModeMemory', epoch, remembered });
+    }
     default:
       return null;
   }
