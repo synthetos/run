@@ -362,7 +362,7 @@ export class ProjectStore {
   /** Keeps a blob outside any project (the draft job's file), replacing the last one; false when refused. */
   async keepAside(key: string, blob: Blob): Promise<boolean> {
     try {
-      await this.#deps.records.put('blobs', `aside:${key}`, blob);
+      await this.#deps.records.put('blobs', `aside/${key}`, blob);
       return true;
     } catch {
       return false;
@@ -370,7 +370,7 @@ export class ProjectStore {
   }
 
   async aside(key: string): Promise<Blob | null> {
-    return this.blob(`aside:${key}`);
+    return this.blob(`aside/${key}`);
   }
 }
 
