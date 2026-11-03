@@ -217,10 +217,14 @@ export class LiveReadout {
    */
   async keepBoardSettings(): Promise<void> {
     const phase = this.#phase;
-    if (phase.kind !== 'drift' || phase.accepted || this.#dialectId === null || this.#boardId === null) return;
+    const epoch = this.#driftEpoch;
+    if (phase.kind !== 'drift' || phase.accepted || this.#dialectId === null || this.#boardId === null || epoch === null) return;
     const reference: SettingsReference = { deviceHash: phase.hash, settings: this.#settings, at: this.#deps.now().toISOString(), revision: (phase.reference.revision ?? 1) + 1 };
     await this.#deps.store.set(referenceKey(this.#dialectId, this.#boardId), reference);
+    // The write is asynchronous: if the link changed meanwhile, this answer belongs to a drift that is gone. The
+    // reference is kept (it is this board's settings as read), but the new link's review stays its own.
+    if (this.#phase !== phase || this.#driftEpoch !== epoch) return;
     this.#set({ ...phase, accepted: true });
-    if (this.#driftEpoch !== null) await this.#deps.resolveDrift(this.#driftEpoch).catch(() => undefined);
+    await this.#deps.resolveDrift(epoch).catch(() => undefined);
   }
 }
