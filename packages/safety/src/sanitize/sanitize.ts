@@ -184,7 +184,20 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
     }
     const barrier = analysis.programStop || (m1 !== null && optionalStopOn);
 
-    if (analysis.toolChange && options.c14 === true) insertC14(candidates, lineNo, ++group, add);
+    if (analysis.toolChange && options.c14 === true) {
+      insertC14(candidates, lineNo, ++group, add);
+      // The M5 and M9 before the tool change turn the outputs off on the machine before this line runs, so the
+      // model follows them, except for what this line itself switches (an M3/M4/M7/M8 on the M6 line turns on again
+      // after the stop). Without this the end-state check still saw the file's own M3 on and added a second M5 M9
+      // after the M0, and sanitising that output again inserted the C14 block once more (T-S1 counterexample
+      // `M3 ()\nM6 M2`, 2026-11-03).
+      const codes = words.filter((w) => w.letter === 'M').map(canonicalCode);
+      if (!codes.some((c) => c === 'M3' || c === 'M4' || c === 'M5')) model.spindle = 'off';
+      if (!codes.some((c) => c === 'M7' || c === 'M8' || c === 'M9')) {
+        model.mist = false;
+        model.flood = false;
+      }
+    }
     // Phase 3 (H74): without C14 an M6 that passed is a manual tool-change stop (edge-next only; others block it).
     const toolChange = analysis.toolChange && options.c14 !== true ? { tool: model.tool, ...before } : undefined;
     const startsSpindle = words.some((w) => w.letter === 'M' && (canonicalCode(w) === 'M3' || canonicalCode(w) === 'M4'));

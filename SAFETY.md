@@ -575,7 +575,7 @@ Facts are device-local and never synced (H34). They are **bound to (machine id, 
 |---|---|
 | **Cause** | A file with no M5, M2 or M30 reaches its end with the spindle or coolant commanded on, the UI shows "done", and the operator reaches in. A hold left without a time limit with the spindle on (H16). |
 | **Rating** | S4, L3 |
-| **Mitigations** | Preflight blocks a file whose final commanded state has the spindle or coolant on, unless the user accepts C22, which appends `M5` and `M9`. On EN a final M2/M30 counts as off, because program end stops the spindle and coolant (EN canonical_machine.c:2034-2074). On TG this is UNVERIFIED (B-M2-1), so `M5 M9` are also offered before a final M2/M30 when the spindle is on. DONE shows the commanded spindle and coolant state. The hold timeout (§4.4) covers holds. |
+| **Mitigations** | Preflight blocks a file whose final commanded state has the spindle or coolant on, unless the user accepts C22, which appends `M5` and `M9`. On EN a final M2/M30 counts as off, because program end stops the spindle and coolant (EN canonical_machine.c:2034-2074). On TG this is UNVERIFIED (B-M2-1), so `M5 M9` are also offered before a final M2/M30 when the spindle is on. DONE shows the commanded spindle and coolant state. The hold timeout (§4.4) covers holds. **(Amended 2026-11-03, T-S1 counterexample.)** The `M5 M9` that C14 inserts before a tool change count as the commanded state from then on (except for what the M6 line itself switches), so a file whose M6 line also ends the program is not given a second `M5 M9` after the C14 `M0`; sanitising a sanitised file changes nothing (`M3 ()`, `M6 M2`). |
 | **Residual** | Low. |
 | **Verification** | U: T-S76. M. |
 

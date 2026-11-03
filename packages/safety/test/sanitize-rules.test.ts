@@ -278,6 +278,26 @@ describe('step 7: barriers and M1', () => {
     expect(bodies(r)).toEqual(['M5', 'M9', 'M0', 'T1 M6']);
     expect(r.report.entries.some((e) => e.rule === 'c14-inserted')).toBe(false);
   });
+
+  // T-S1 counterexample (2026-11-03): the C14 M5 M9 are the commanded state from then on, so the end-state check adds
+  // nothing after the M0 for a file whose M6 line also ends the program, and a second sanitise changes nothing.
+  it.each([
+    ['EN', EN],
+    ['TG', TG],
+  ] as const)('C14 before an M6 that ends the program (%s): no second M5 M9 after the M0, and sanitising again changes nothing', (_name, d) => {
+    const o = { c14: true, c22: true };
+    const once = run('M3 ()\nM6 M2\n', d, o);
+    expect(once.report.blocked).toBe(false);
+    expect(bodies(once)).toEqual(['M3', 'M5', 'M9', 'M0', 'M6 M2']);
+    expect(once.report.entries.some((e) => e.rule === 'c22-inserted')).toBe(false);
+    expect(once.report.endState).toEqual({ spindle: 'off', mist: false, flood: false });
+    const again = run(`${once.lines.map((l) => l.text).join('\n')}\n`, d, o);
+    expect(again.lines.map((l) => l.text)).toEqual(once.lines.map((l) => l.text));
+    // An M6 line that also turns the spindle on again keeps that: the state after the line is what the line says.
+    const restart = run('M3 S1000\nM6 M3\nG1 X1 F100\nM2\n', d, o);
+    expect(bodies(restart).slice(0, 5)).toEqual(['M3 S1000', 'M5', 'M9', 'M0', 'M6 M3']);
+    expect(restart.report.entries.some((e) => e.rule === 'c22-inserted')).toBe(d.gcode.job?.programEndStopsOutputs !== true);
+  });
 });
 
 describe('step 8: holdback and mid-file program end', () => {
