@@ -42,6 +42,11 @@ export interface StopServiceOptions {
   readonly locks: LockManagerLike | null;
   /** Unique to this worker (names an unidentified board's lock). */
   readonly instance: string;
+  /**
+   * The board a firmware update holds while the session has no link (SAFETY H88): the lock stays with this tab
+   * while the board is in its bootloader, so no other tab takes it or shows W29 then. Null when none.
+   */
+  readonly flashing?: () => { readonly boardId: string | null } | null;
 }
 
 export class MachineStopService {
@@ -49,6 +54,7 @@ export class MachineStopService {
   readonly #channel: BroadcastChannelLike | null;
   readonly #locks: LockManagerLike | null;
   readonly #instance: string;
+  readonly #flashing: () => { readonly boardId: string | null } | null;
   #lock: LockState = { kind: 'none' };
   /** Ends the current lock request's hold (resolves the promise the lock callback returned). */
   #release: (() => void) | null = null;
@@ -60,6 +66,7 @@ export class MachineStopService {
     this.#channel = options.channel;
     this.#locks = options.locks;
     this.#instance = options.instance;
+    this.#flashing = options.flashing ?? (() => null);
     this.#channel?.addEventListener('message', (event) => this.#onMessage(event.data));
     this.#session.subscribe(() => this.#syncLock());
     this.#syncLock();
@@ -95,9 +102,15 @@ export class MachineStopService {
     }
   }
 
+  /** Re-decide the lock (the flash service calls it when an update starts or ends). */
+  sync(): void {
+    this.#syncLock();
+  }
+
   #syncLock(): void {
     const snapshot = this.#session.snapshot;
-    const wanted = snapshot.port === null ? null : machineLockName(snapshot.identity?.id, this.#instance);
+    const flashing = this.#flashing();
+    const wanted = snapshot.port !== null ? machineLockName(snapshot.identity?.id, this.#instance) : flashing !== null ? machineLockName(flashing.boardId ?? undefined, this.#instance) : null;
     const current = this.machine;
     if (wanted === current) return;
     this.#let();

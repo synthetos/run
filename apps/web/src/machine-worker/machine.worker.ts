@@ -37,7 +37,14 @@ const origin = (globalThis as unknown as { location: { origin: string } }).locat
 // The motion capability flag comes from the worker's own origin (motionFlag.ts): Phase 2 on the bench and
 // staging origins only, Phase 1 (read-only) everywhere else, production included.
 const host = new MachineWorkerHost(createTransportSource(), realClock(), workerPlatform(), { file: approvedBuilds as unknown, origin, releasesFile: firmwareReleases as unknown }, releaseFor(origin));
-new MachineStopService({ session: host.session, channel: openStopChannel(), locks: browserLocks(), instance: crypto.randomUUID() });
+const stops = new MachineStopService({
+  session: host.session,
+  channel: openStopChannel(),
+  locks: browserLocks(),
+  instance: crypto.randomUUID(),
+  flashing: () => (host.flash.busy ? { boardId: host.flash.view?.boardId ?? null } : null),
+});
+host.flashListener = () => stops.sync();
 
 (globalThis as unknown as WorkerScope).addEventListener('message', (event) => {
   const reply = event.ports[0];

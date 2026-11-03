@@ -102,6 +102,8 @@ export class MachineWorkerHost {
   #lastPost = Number.NEGATIVE_INFINITY;
   #pending: number | null = null;
   #trusted: readonly TrustedBuild[] = [];
+  /** Called whenever the firmware update changes (the stop service keeps the machine lock during it). */
+  flashListener: (() => void) | null = null;
   #releases: FirmwareReleases | null = null;
   readonly #flash: FlashService;
 
@@ -136,7 +138,10 @@ export class MachineWorkerHost {
       clock,
       releases: () => this.#loadReleases(),
       enabled: release.flash === true,
-      onChange: () => this.#schedule(),
+      onChange: () => {
+        this.flashListener?.();
+        this.#schedule();
+      },
       postBackups: (backups) => this.#postBackups(backups),
       approveTransport: (port, transport) => {
         this.#approved = { id: 0, port, transport, expires: clock.now() + PREPARATION_MS };
