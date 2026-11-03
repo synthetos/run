@@ -14,6 +14,7 @@
  * their EXIF metadata (location included); the original is never stored.
  */
 import { signal } from '@preact/signals';
+import { isJob, type Job } from '../workspace/jobModel.ts';
 import { safeExternalLink } from '../workspace/library.ts';
 import { isArray, isObject, type RecordStore } from '../workspace/storage.ts';
 import { checkEncoded, checkFile, checkImage, classify, type FileRole } from './limits.ts';
@@ -73,6 +74,8 @@ export interface Project {
   readonly files: readonly ProjectFile[];
   readonly links: readonly ProjectLink[];
   readonly setup: ProjectSetup;
+  /** The project's jobs (workspace/jobModel.ts): each links one of `files` to a machine revision and a setup. */
+  readonly jobs: readonly Job[];
   readonly tags: readonly string[];
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -95,7 +98,16 @@ export function isProject(v: unknown): v is Project {
   if (!v['images'].every((i) => isObject(i) && typeof i['id'] === 'string' && typeof i['size'] === 'number')) return false;
   if (!v['links'].every((l) => isObject(l) && typeof l['url'] === 'string' && typeof l['title'] === 'string')) return false;
   const s = v['setup'];
-  return isObject(s) && isRef(s['machine']) && isRef(s['stock']) && isRef(s['material']) && isArray(s['tools']) && s['tools'].every(isRef);
+  if (!(isObject(s) && isRef(s['machine']) && isRef(s['stock']) && isRef(s['material']) && isArray(s['tools']) && s['tools'].every(isRef))) return false;
+  // Records from before jobs have none; a job that no longer reads is skipped by `readProject`, never trusted.
+  return v['jobs'] === undefined || isArray(v['jobs']);
+}
+
+/** A stored record as a project, with its jobs read one by one (an unreadable job is dropped, the rest kept). */
+export function readProject(v: unknown): Project | null {
+  if (!isProject(v)) return null;
+  const jobs = (v.jobs as readonly unknown[] | undefined) ?? [];
+  return { ...v, jobs: jobs.filter(isJob) };
 }
 
 export interface EncodedImage {
@@ -142,8 +154,8 @@ export class ProjectStore {
     const keys = await this.#deps.records.keys('projects');
     const found: Project[] = [];
     for (const k of keys) {
-      const v = await this.#deps.records.get('projects', k);
-      if (isProject(v)) found.push(v);
+      const p = readProject(await this.#deps.records.get('projects', k));
+      if (p !== null) found.push(p);
     }
     this.#projects = found;
   }
@@ -170,7 +182,7 @@ export class ProjectStore {
   create(name: string): Promise<Project> {
     return this.#serial(async () => {
       const at = this.#deps.now().toISOString();
-      const p: Project = { v: PROJECT_FORMAT, id: this.#deps.newId(), name: cleanName(name) || 'Untitled project', description: '', cover: null, images: [], files: [], links: [], setup: EMPTY_SETUP, tags: [], createdAt: at, updatedAt: at };
+      const p: Project = { v: PROJECT_FORMAT, id: this.#deps.newId(), name: cleanName(name) || 'Untitled project', description: '', cover: null, images: [], files: [], links: [], setup: EMPTY_SETUP, jobs: [], tags: [], createdAt: at, updatedAt: at };
       return this.#save(p);
     });
   }
@@ -312,10 +324,53 @@ export class ProjectStore {
     });
   }
 
+  /**
+   * Writes a job into its project (added, or replaced by id). The project record is the authority for its
+   * jobs; a write the store refuses leaves the record as it was.
+   */
+  saveJob(job: Job): Promise<Project> {
+    return this.#serial(async () => {
+      if (job.projectId === null) throw new Error('A draft job has no project.');
+      const p = this.#need(job.projectId);
+      const jobs = p.jobs.some((j) => j.id === job.id) ? p.jobs.map((j) => (j.id === job.id ? job : j)) : [...p.jobs, job];
+      return this.#save({ ...p, jobs });
+    });
+  }
+
+  removeJob(id: string, jobId: string): Promise<Project> {
+    return this.#serial(async () => {
+      const p = this.#need(id);
+      return this.#save({ ...p, jobs: p.jobs.filter((j) => j.id !== jobId) });
+    });
+  }
+
+  /** The project file with these bytes (by SHA-256), in any project; null when none has it. */
+  findFile(hash: string): { readonly project: Project; readonly file: ProjectFile } | null {
+    for (const project of this.list) {
+      const file = project.files.find((f) => f.hash === hash);
+      if (file !== undefined) return { project, file };
+    }
+    return null;
+  }
+
   /** A stored file's or image's bytes, or null. */
   async blob(blobId: string): Promise<Blob | null> {
     const v = await this.#deps.records.get('blobs', blobId);
     return v instanceof Blob ? v : null;
+  }
+
+  /** Keeps a blob outside any project (the draft job's file), replacing the last one; false when refused. */
+  async keepAside(key: string, blob: Blob): Promise<boolean> {
+    try {
+      await this.#deps.records.put('blobs', `aside:${key}`, blob);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async aside(key: string): Promise<Blob | null> {
+    return this.blob(`aside:${key}`);
   }
 }
 

@@ -2,14 +2,19 @@
  * The 3D drawing (ROADMAP TB-03): a canvas driven by gcode-view's WebGL2
  * renderer. It renders on demand only and never animates. Without WebGL2 it
  * reports `onUnavailable` and the panel shows the 2D SVG drawing instead.
+ *
+ * With a scene (preview/sceneModel.ts) the bed, stock, fixture and clamps
+ * are drawn under the path, in machine coordinates, and the path is moved
+ * to the planned work zero by the renderer's offset uniform.
  */
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
-import { attachViewControls, createRenderer, type Box3, type PlannerOverlay, type PreviewRenderer, type SegmentList, type Vec3 } from '@synthetos/gcode-view';
+import { attachViewControls, createRenderer, type Box3, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
 import { previewColors } from './colors.ts';
 
 export interface Preview3DProps {
-  readonly segments: SegmentList;
+  /** The path, or null for a scene alone (the Setup view before a file is open). */
+  readonly segments: SegmentList | null;
   readonly bounds: Box3 | null;
   readonly showRapids: boolean;
   /** Highlight sent lines 0..this; -1 for none. */
@@ -24,6 +29,13 @@ export interface Preview3DProps {
   readonly planner?: PlannerOverlay | null;
   /** Phase 3: the tool position the board reports during a job (work coordinates, as drawn), or null. */
   readonly toolMarker?: Vec3 | null;
+  /** The scene solids under the path (machine coordinates), or null. */
+  readonly scene?: SceneLayers | null;
+  /** Where the path's origin sits in the scene (the planned work zero); [0, 0, 0] without a scene. */
+  readonly pathOffset?: Vec3;
+  /** A named view asked for: changes when the user picks one. */
+  readonly view?: { readonly preset: ViewPreset; readonly seq: number };
+  readonly label?: string;
 }
 
 export function Preview3D(props: Preview3DProps): ComponentChild {
@@ -58,20 +70,33 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
     };
   }, []);
 
+  const scene = props.scene ?? null;
+  const offset = props.pathOffset ?? null;
+  useEffect(() => { renderer.current?.setScene(scene); }, [scene]);
+  useEffect(() => { renderer.current?.setPathOffset(offset ?? [0, 0, 0]); }, [offset?.[0], offset?.[1], offset?.[2], offset === null]);
+
   useEffect(() => {
     const r = renderer.current;
     if (r === null) return;
     const controller = new AbortController();
     r.setEnvelope(props.envelope);
+    if (props.segments === null) {
+      r.clear();
+      r.setWcsOrigin(props.wcsOrigin);
+      return;
+    }
     void r
       .load(props.segments, { signal: controller.signal, bounds: props.bounds, ...(props.onProgress === undefined ? {} : { onProgress: props.onProgress }) })
       .then(() => { r.setWcsOrigin(props.wcsOrigin); }, () => {});
     return () => { controller.abort(); };
   }, [props.segments]);
 
+  useEffect(() => { renderer.current?.setWcsOrigin(props.wcsOrigin); }, [props.wcsOrigin[0], props.wcsOrigin[1], props.wcsOrigin[2]]);
   useEffect(() => { renderer.current?.setRapidsVisible(props.showRapids); }, [props.showRapids]);
   useEffect(() => { renderer.current?.setHighlight(props.highlight); }, [props.highlight]);
   useEffect(() => { if (props.fitRequest > 0) renderer.current?.fit(); }, [props.fitRequest]);
+  const view = props.view;
+  useEffect(() => { if (view !== undefined && view.seq > 0) renderer.current?.setView(view.preset); }, [view?.seq]);
   const plan = props.planner ?? null;
   useEffect(() => { renderer.current?.setPlanner(plan); }, [plan?.cutEnd, plan?.execEnd, plan?.queuedEnd, plan?.starving, plan === null]);
   const tool = props.toolMarker ?? null;
@@ -82,7 +107,7 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
     class: 'preview-canvas',
     tabIndex: 0,
     role: 'img',
-    'aria-label': 'Toolpath preview, 3D. Drag or use the arrow keys to turn it, shift to pan, plus and minus to zoom, 0 to fit.',
+    'aria-label': props.label ?? 'Toolpath preview, 3D. Drag or use the arrow keys to turn it, shift to pan, plus and minus to zoom, 0 to fit.',
     'data-preview': 'canvas',
   });
 }

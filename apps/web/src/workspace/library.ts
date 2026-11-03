@@ -20,7 +20,6 @@ import {
   builtinMaterial,
   editFork,
   forkRecord,
-  readFixture,
   readFork,
   readMaterial,
   readStock,
@@ -113,6 +112,37 @@ export interface AxisProfile {
   readonly maxSwitch?: number;
 }
 
+/**
+ * Where a bed's dimensions came from (FLOW_ANALYSIS §5.7): a placeholder until someone measures the bed
+ * or imports a drawing of it. Unverified dimensions are shown as Placeholder and never count as a fit check.
+ */
+export type BedSource =
+  | { readonly kind: 'placeholder'; readonly note: string }
+  | { readonly kind: 'measured'; readonly note: string; readonly at: string }
+  | { readonly kind: 'drawing'; readonly file: string; readonly hash: string; readonly units: 'mm' | 'in'; readonly scale: number; readonly at: string };
+
+/**
+ * A machine's bed (spoilboard), one revision at a time. Bed-local coordinates put the front-left corner of
+ * the bed's top face at (0, 0, 0), X right, Y back, Z up (the Setup view's own frame, kept). `toMachine` is
+ * the bed-to-machine transform: the machine coordinates of that corner, so machine = bed-local + toMachine.
+ */
+export interface MachineBed {
+  readonly revision: number;
+  readonly width: number;
+  readonly depth: number;
+  readonly thickness: number;
+  /** The bed's outline in bed-local XY when it came from a drawing; null for the plain rectangle. */
+  readonly outline: readonly (readonly [number, number])[] | null;
+  /** Holes in the bed (`[x, y, r]`, bed-local), from a drawing. */
+  readonly holes: readonly (readonly [number, number, number])[];
+  readonly toMachine: { readonly x: number; readonly y: number; readonly z: number };
+  readonly source: BedSource;
+  readonly savedAt: string;
+}
+
+/** Where the machine's home position sits relative to its bed, as the profile describes it (not measured). */
+export type HomeFrame = 'front-left-top' | 'back-left-top' | 'front-right-top' | 'back-right-top';
+
 export interface MachineProfile {
   readonly axes?: Readonly<Partial<Record<'x' | 'y' | 'z' | 'a', AxisProfile>>>;
   /** Switch type for every input (TinyG `st`): 0 normally open, 1 normally closed. */
@@ -124,8 +154,14 @@ export interface MachineProfile {
   readonly travel: { readonly x: number; readonly y: number; readonly z: number };
   readonly spindle: string;
   readonly createdAt: string;
+  /** Bumped on every change to the profile; absent on records from before revisions (read as 1). */
+  readonly revision?: number;
+  /** The machine's bed; absent means the placeholder bed derived from its travel (`bedOf`). */
+  readonly bed?: MachineBed;
+  readonly homeFrame?: HomeFrame;
 }
 
+/** The setup as the Setup view kept it before jobs (storage `setup.v2`); read once, to migrate it into the draft job. */
 export interface SetupState {
   readonly bed: { readonly width: number; readonly depth: number; readonly thickness: number };
   readonly stock: Stock;
@@ -141,8 +177,14 @@ const isToolList = (v: unknown): v is ToolEntry[] => isArray(v) && v.every((t) =
 const isForks = (v: unknown): v is LibraryFork[] => isArray(v) && v.every((f) => readFork(f).ok);
 const isMachines = (v: unknown): v is MachineProfile[] => isArray(v) && v.every((m) => isObject(m) && typeof m['id'] === 'string' && typeof m['name'] === 'string' && isObject(m['travel']));
 const isSelected = (v: unknown): v is string | null => v === null || typeof v === 'string';
+/**
+ * The old setup record, read leniently: the fixture's source hash never matched the library schema (the
+ * sample's was "sample", a picked file's FNV-1a), so a strict read lost every stored fixture. The job
+ * migration (jobModel.ts) repairs the hash; here the fixture only has to look like one.
+ */
+const looksLikeFixture = (v: unknown): v is Fixture => isObject(v) && typeof v['name'] === 'string' && isArray(v['outline']) && isArray(v['holes']) && typeof v['height'] === 'number' && isObject(v['position']) && isObject(v['source']);
 const isSetup = (v: unknown): v is SetupState =>
-  isObject(v) && isObject(v['bed']) && readStock(v['stock']).ok && (v['fixture'] === null || readFixture(v['fixture']).ok) && typeof v['clamps'] === 'boolean';
+  isObject(v) && isObject(v['bed']) && readStock(v['stock']).ok && (v['fixture'] === null || looksLikeFixture(v['fixture'])) && typeof v['clamps'] === 'boolean';
 
 export const toolStore = stored<readonly ToolEntry[]>('tools.v2', SEED_TOOLS, isToolList);
 export const myMaterialStore = stored<readonly LibraryFork[]>('materials.v2', [], isForks);
@@ -168,18 +210,25 @@ export function sampleFixture(width = 300, depth = 200): Fixture {
   corner(r, r, Math.PI);
   const holes: [number, number, number][] = [];
   for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) holes.push([25 + i * 50, 25 + j * 50, 3.25]);
-  return { id: 'sample.fixture-plate', name: 'Fixture plate (sample)', source: { file: 'sample-fixture-plate.svg', kind: 'svg', hash: 'sample' }, outline, holes, height: 12, position: { x: 160, y: 120 }, material: 'Aluminium' };
+  return { id: 'sample.fixture-plate', name: 'Fixture plate (sample)', source: { file: 'sample-fixture-plate.svg', kind: 'svg', hash: SAMPLE_HASH }, outline, holes, height: 12, position: { x: 160, y: 120 }, material: 'Aluminium' };
 }
+
+/** The fixture schema wants a SHA-256; a built-in or unverified source carries this all-zero one and says so. */
+export const SAMPLE_HASH = '0'.repeat(64);
 
 const AL = BUILTIN_MATERIALS[0] as Material;
 
 export const SEED_SETUP: SetupState = {
   bed: { width: 790, depth: 790, thickness: 19 },
-  stock: { shape: 'block', width: 180, depth: 120, diameter: 150, thickness: 6.35, materialRef: { id: AL.id, version: AL.version }, position: { x: 160, y: 120 }, zero: { corner: 'front-left', height: 'top' } },
+  stock: { shape: 'block', width: 180, depth: 120, thickness: 6.35, materialRef: { id: AL.id, version: AL.version }, position: { x: 160, y: 120 }, zero: { corner: 'front-left', height: 'top' } },
   fixture: sampleFixture(),
   clamps: true,
 };
-export const setupStore = stored<SetupState>('setup.v2', SEED_SETUP, isSetup);
+/**
+ * The pre-job setup record (`setup.v2`). Kept for the migration into the draft job only (jobModel.ts): it is
+ * never written again and never deleted, so the original stays until the draft has been persisted.
+ */
+export const legacySetupStore = stored<SetupState>('setup.v2', SEED_SETUP, isSetup);
 
 // ---------------------------------------------------------------- materials
 
@@ -349,3 +398,57 @@ export const selectedMachine = computed<MachineProfile | null>(() => {
   const id = selectedMachineStore.value.value;
   return machineStore.value.value.find((m) => m.id === id) ?? null;
 });
+
+/** A profile's revision (records from before revisions read as 1). */
+export function machineRevision(m: MachineProfile): number {
+  return m.revision ?? 1;
+}
+
+/** The default spoilboard thickness assumed until measured, mm. */
+export const PLACEHOLDER_BED_THICKNESS = 19;
+
+/**
+ * The bed a profile implies until one is recorded: the travel's footprint, a 19 mm board, its top at the
+ * bottom of Z travel below home (home at the front-left, Z at the top). Every number is a placeholder.
+ */
+export function placeholderBed(m: Pick<MachineProfile, 'travel'>): MachineBed {
+  return {
+    revision: 0,
+    width: m.travel.x,
+    depth: m.travel.y,
+    thickness: PLACEHOLDER_BED_THICKNESS,
+    outline: null,
+    holes: [],
+    toMachine: { x: 0, y: 0, z: -m.travel.z },
+    source: { kind: 'placeholder', note: 'From the profile’s travel: measure the bed and where its top sits below home.' },
+    savedAt: '',
+  };
+}
+
+/** The machine's bed: its recorded revision, or the placeholder. */
+export function bedOf(m: MachineProfile): MachineBed {
+  return m.bed ?? placeholderBed(m);
+}
+
+/** True when the bed's dimensions are not from a measurement or drawing (shown as Placeholder, excluded from fit certainty). */
+export function bedIsPlaceholder(bed: MachineBed): boolean {
+  return bed.source.kind === 'placeholder';
+}
+
+/** Changes a profile: a new revision of it. Returns false when there is no such machine. */
+export function updateMachine(id: string, patch: Partial<Omit<MachineProfile, 'id' | 'revision'>>): boolean {
+  const list = machineStore.value.value;
+  const m = list.find((x) => x.id === id);
+  if (m === undefined) return false;
+  machineStore.set(list.map((x) => (x.id === id ? { ...x, ...patch, revision: machineRevision(x) + 1 } : x)));
+  return true;
+}
+
+/** Saves a bed as the machine's next bed revision (a new machine revision too). Returns the saved bed, or null. */
+export function saveMachineBed(id: string, bed: Omit<MachineBed, 'revision' | 'savedAt'>, now: () => Date = () => new Date()): MachineBed | null {
+  const m = machineStore.value.value.find((x) => x.id === id);
+  if (m === undefined) return null;
+  const next: MachineBed = { ...bed, revision: (m.bed?.revision ?? 0) + 1, savedAt: now().toISOString() };
+  updateMachine(id, { bed: next });
+  return next;
+}

@@ -243,7 +243,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
           { class: 'view-area', id: 'main', 'data-region': 'centre' },
           h(Banners, props),
           pane('run', h(RunView, { model, spawn: props.spawn ?? null, ...(props.marker === undefined ? {} : { marker: props.marker }), onView, ...(props.onPause === undefined ? {} : { onPause: props.onPause }), ...(props.onStopJob === undefined ? {} : { onStopJob: props.onStopJob }) })),
-          pane('setup', h(SetupView, null)),
+          pane('setup', h(SetupView, { active: current === 'setup' })),
           pane('tools', h(ToolsView, null)),
           pane('materials', h(MaterialsView, null)),
           pane('board', h(BoardView, { model })),

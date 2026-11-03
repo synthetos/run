@@ -36,7 +36,15 @@ import { signalText } from '../../shell/signal.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
 import { ConsoleLine } from '../../console/ConsoleLine.ts';
 import { openReport } from '../../report/state.ts';
-import { currentFile, pendingOpen } from '../fileBridge.ts';
+import { currentFile, currentPreview, executionLock, openJob, pendingOpen, reopenActiveJob, saveDraftToProject, type OpenSource } from '../fileBridge.ts';
+import { activeJob, type Job } from '../jobModel.ts';
+import { materialColor } from '../library.ts';
+import { projectsState } from '../../projects/store.ts';
+import { projectStore } from '../../projects/browserStore.ts';
+import { jobScene } from '../../preview/sceneModel.ts';
+import { sceneColors, tokenReader } from '../../preview/colors.ts';
+import { ViewButtons } from '../../preview/SceneView.ts';
+import type { ViewPreset } from '@synthetos/gcode-view';
 import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
 import { duration as durationText, feedLimitLines, jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
 
@@ -62,6 +70,12 @@ export function RunView({ model, spawn, marker, onView, onPause, onStopJob }: Ru
   const starve = starving(ui.snapshot, blocks);
   const stops: StopHooks = { ...(onPause === undefined ? {} : { onPause }), ...(onStopJob === undefined ? {} : { onStopJob }) };
   const sendJob = model?.actions.value?.job;
+  // The active-execution lock (FLOW_ANALYSIS §3): while the worker's job owns the machine nothing replaces the preview.
+  useEffect(() => {
+    executionLock.value = ui.active ? `${PHASE_LABEL(ui.job?.phase ?? 'running')}: the job owns the preview.` : null;
+  }, [ui.active, ui.job?.phase]);
+  const active = activeJob.value;
+  const scene = useMemo(() => (active === null ? null : jobScene(active, sceneColors(tokenReader()), materialColor(active.setup.stock.materialRef.id))), [active]);
   return h(PreviewPanel, {
     spawn,
     ...(marker === undefined ? {} : { marker }),
@@ -70,27 +84,42 @@ export function RunView({ model, spawn, marker, onView, onPause, onStopJob }: Ru
     planner: (sourceLines: Uint32Array) => plannerRanges(job, sourceLines, starve),
     ...(sendJob === undefined ? {} : { onBreakpoints: (lines: readonly number[]) => void sendJob({ op: 'breakpoints', lines: [...lines] }) }),
     onReportLine: (line: number) => openReport({ origin: 'line', line }),
+    scene,
     layout: (parts: PreviewParts) => runLayout(parts, model, onView, stops),
   });
 }
 
+/** Opens a file through the one job opener and reports a refusal in the job card. */
+function openFrom(file: File, source: OpenSource, setNote: (n: string | null) => void): void {
+  setNote(null);
+  void openJob(file, source).then((r) => {
+    if (!r.ok) setNote(r.reason);
+  });
+}
+
 /**
- * Publishes the open file for a report's excerpt (workspace/fileBridge.ts), and opens a file another
- * view asked for ("Open in Run" in Projects). Renders nothing.
+ * Publishes the open file for a report's excerpt and its path for the Setup view's scene
+ * (workspace/fileBridge.ts), loads the file the job opener resolved, and reopens the active job's file
+ * once after a reload. Renders nothing.
  */
 function RunBridge({ parts }: { readonly parts: PreviewParts }): ComponentChild {
   const { state, actions } = parts;
   const result = state.status === 'ready' ? state.result : null;
   useEffect(() => {
     currentFile.value = result === null || state.fileName === null ? null : { name: state.fileName, bytes: result.bytes, preview: result };
+    currentPreview.value = result === null || state.fileName === null ? null : { name: state.fileName, segments: result.segments, bounds: result.summary.bounds };
   }, [result, state.fileName]);
   const pending = pendingOpen.value;
   const onFile = actions.onFile;
   useEffect(() => {
     if (pending === null || !state.ready || onFile === undefined) return;
     pendingOpen.value = null;
-    onFile(pending);
+    onFile(pending.file);
   }, [pending, state.ready, onFile]);
+  useEffect(() => {
+    if (!state.ready || onFile === undefined) return;
+    void reopenActiveJob();
+  }, [state.ready, onFile === undefined]);
   return null;
 }
 
@@ -880,6 +909,43 @@ function JobDetails({ result, facts }: { readonly result: PreviewResult; readonl
   );
 }
 
+/** The job's identity under the title: its name, project, machine and bed, and Save to project for the draft. */
+function JobIdentity({ job, fileOpen, onNote }: { readonly job: Job | null; readonly fileOpen: boolean; readonly onNote: (n: string | null) => void }): ComponentChild {
+  const projects = projectsState.value;
+  const [target, setTarget] = useState('');
+  useEffect(() => {
+    if (job?.projectId === null && !projects.loaded) void projectStore();
+  }, [job?.projectId, projects.loaded]);
+  if (job === null) return null;
+  const project = job.projectId === null ? null : (projects.list.find((p) => p.id === job.projectId) ?? null);
+  const bed = job.setup.bed;
+  return h(
+    'p',
+    { class: 'job-identity', 'data-job': 'identity' },
+    h('span', { 'data-job': 'name' }, job.name),
+    ' · ',
+    job.projectId === null ? h('span', { 'data-job': 'project' }, 'local draft') : h('span', { 'data-job': 'project' }, project === null ? 'project' : project.name),
+    ' · ',
+    h('span', { 'data-job': 'machine' }, job.machine === null ? 'no machine' : `${job.machine.name} (rev ${job.machine.revision})`),
+    ' · ',
+    h('span', { 'data-job': 'bed', 'data-bed': bed.source.kind }, `bed ${Math.round(bed.width)} × ${Math.round(bed.depth)} mm${bed.source.kind === 'placeholder' ? ', placeholder' : job.setup.bedFrom === 'machine' ? `, revision ${bed.revision}` : ''}`),
+    ` · revision ${job.revision}`,
+    job.projectId !== null || !fileOpen
+      ? null
+      : h(
+          'span',
+          { class: 'job-save', 'data-job': 'save' },
+          h(
+            'select',
+            { 'aria-label': 'Project to save the draft to', value: target, 'data-job': 'save-target', onChange: (e: Event) => setTarget((e.currentTarget as HTMLSelectElement).value) },
+            h('option', { value: '' }, projects.list.length === 0 ? 'No projects yet' : 'Choose a project'),
+            projects.list.map((p) => h('option', { key: p.id, value: p.id }, p.name)),
+          ),
+          h('button', { type: 'button', class: 'small', 'data-action': 'job-save-to-project', disabled: target === '', onClick: () => void saveDraftToProject(target).then((r) => onNote(r.ok ? `Saved to the project as “${r.job.name}”.` : r.reason)) }, 'Save to project'),
+        ),
+  );
+}
+
 /** The job: a card at the top of the Run view with the file, its checks, and the Check → Set zero → Start steps. */
 function JobCard({ parts, model, stops, onView }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly stops: StopHooks; readonly onView: (view: string) => void }): ComponentChild {
   const { state, actions } = parts;
@@ -888,6 +954,7 @@ function JobCard({ parts, model, stops, onView }: { readonly parts: PreviewParts
   const result = state.status === 'ready' ? state.result : null;
   const facts = useMemo(() => (result === null ? null : fileFacts(result.bytes)), [result]);
   const title = state.fileName === null ? 'No file open' : state.fileName.replace(/\.[^.]+$/, '');
+  const [note, setNote] = useState<string | null>(null);
   return h(
     'section',
     { class: `job-card${result === null ? ' empty' : ''}`, 'data-region': 'job', 'aria-labelledby': 'run-title' },
@@ -905,6 +972,8 @@ function JobCard({ parts, model, stops, onView }: { readonly parts: PreviewParts
           h('span', { class: state.fileName === null ? 'sr-only' : 'mono', 'data-preview': 'file-name' }, state.fileName ?? 'none'),
           state.fileName === null ? (loading ? 'Checking the file…' : 'Open a G-code file or a sample to check it.') : result === null ? (loading ? ' · checking…' : '') : ` · ${num(result.fileLines)} lines`,
         ),
+        h(JobIdentity, { job: activeJob.value, fileOpen: result !== null, onNote: setNote }),
+        note === null ? null : h('p', { class: 'fine tone-warn', role: 'status', 'data-job': 'note' }, note),
       ),
     ),
     result === null || facts === null ? h('div', { class: 'job-checks-empty' }) : h('ul', { class: 'job-checks', 'data-preview': 'summary', 'aria-label': 'The file check' }, jobChecks(result, facts)),
@@ -919,9 +988,11 @@ function JobCard({ parts, model, stops, onView }: { readonly parts: PreviewParts
           accept: '.nc,.gcode,.ngc,.tap,.txt,.cnc,text/plain',
           disabled,
           'data-preview': 'file',
-          ...on('onChange', actions.onFile, (f) => (e: Event) => {
-            const file = (e.currentTarget as HTMLInputElement).files?.[0];
-            if (file !== undefined) f(file);
+          ...on('onChange', actions.onFile, () => (e: Event) => {
+            const input = e.currentTarget as HTMLInputElement;
+            const file = input.files?.[0];
+            if (file !== undefined) openFrom(file, { kind: 'picker' }, setNote);
+            input.value = '';
           }),
         }),
         Icon('upload', 15),
@@ -1176,7 +1247,12 @@ function Dock({ parts, model }: { readonly parts: PreviewParts; readonly model: 
 // ---------------------------------------------------------------- layout
 
 function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (view: string) => void, stops: StopHooks = {}): ComponentChild {
-  const { state, actions, slots, live } = parts;
+  return h(RunLayout, { parts, model, onView, stops });
+}
+
+function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly onView: (view: string) => void; readonly stops: StopHooks }): ComponentChild {
+  const { state, actions, slots, live, scene } = parts;
+  const [preset, setPreset] = useState<ViewPreset>('iso');
   const loading = state.status === 'loading';
   const disabled = !state.ready || loading;
   const result = state.status === 'ready' ? state.result : null;
@@ -1226,9 +1302,10 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
               'div',
               { class: 'viewer-tools', role: 'group', 'aria-label': 'View' },
               h(TraverseToggle, { parts }),
-              result !== null && !result.lite && state.drawing === 'webgl' ? h('button', { type: 'button', class: 'tool-toggle', 'data-preview': 'fit', ...on('onClick', actions.onFit, (f) => () => { f(); }) }, 'Fit') : null,
+              result !== null && !result.lite && state.drawing === 'webgl' ? h(ViewButtons, { current: preset, ...(actions.onView === undefined ? {} : { onView: (p: ViewPreset) => { setPreset(p); actions.onView?.(p); } }), ...(actions.onFit === undefined ? {} : { onFit: () => actions.onFit?.() }) }) : null,
             ),
           ),
+          scene === null || result === null || result.lite ? null : h('p', { class: 'viewer-key', 'data-scene': 'bed' }, scene.bedLabel),
           result === null && !loading
             ? h(
                 'div',
@@ -1237,7 +1314,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
                 state.status === 'error'
                   ? h('p', { class: 'preview-error', role: 'alert', 'data-preview': 'error' }, state.error ?? 'The preview failed.')
                   : null,
-                h('div', { class: 'sample-row' }, SAMPLES.map((s) => h('button', { type: 'button', class: 'small', key: s.id, disabled, 'data-sample': s.id, ...on('onClick', actions.onFile, (f) => () => { f(sampleFile(s)); }) }, `Open the ${s.title.toLowerCase()} sample`))),
+                h('div', { class: 'sample-row' }, SAMPLES.map((s) => h('button', { type: 'button', class: 'small', key: s.id, disabled, 'data-sample': s.id, ...on('onClick', actions.onFile, () => () => { openFrom(sampleFile(s), { kind: 'sample' }, () => undefined); }) }, `Open the ${s.title.toLowerCase()} sample`))),
               )
             : null,
           loading

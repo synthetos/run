@@ -87,6 +87,11 @@ export function stored<T>(name: string, seed: T, valid: (v: unknown) => v is T, 
   };
 }
 
+/** Runs `fn` after the stores registered before it have loaded (a migration that reads one store into another). */
+export function afterLoad(fn: () => void): void {
+  loaders.push(fn);
+}
+
 /**
  * Loads every stored library. The workspace entry calls it once, after hydration, so the prerendered
  * page (which shows the seed) and the first client render match.

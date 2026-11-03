@@ -10,7 +10,12 @@
  * other construct is ignored. The DXF reader takes LWPOLYLINE, POLYLINE with
  * VERTEX, LINE chains and CIRCLE entities from the ENTITIES section.
  *
- * Pure and bounded: files over `MAX_OUTLINE_BYTES` are refused.
+ * What a file holds that the reader does not understand is counted in
+ * `skipped` (by entity or element name, curves flattened to chords under
+ * "curves"), so an import can say what it left out before it is accepted.
+ *
+ * Pure and bounded: files over `MAX_OUTLINE_BYTES` are refused. The cap
+ * matches what a project stores for a drawing (projects/limits.ts `other`).
  */
 export type Pt = readonly [number, number];
 
@@ -19,9 +24,11 @@ export interface ParsedOutline {
   readonly holes: readonly (readonly [number, number, number])[];
   readonly width: number;
   readonly depth: number;
+  /** Entities or elements the reader ignored, by name, with how many; curves it flattened under `curves`. */
+  readonly skipped: Readonly<Record<string, number>>;
 }
 
-export const MAX_OUTLINE_BYTES = 4 * 1024 * 1024;
+export const MAX_OUTLINE_BYTES = 20 * 1024 * 1024;
 
 export class OutlineError extends Error {
   override readonly name = 'OutlineError';
@@ -38,7 +45,7 @@ function area(poly: readonly Pt[]): number {
 }
 
 /** Moves the result so its outline starts at 0,0 (bottom-left), with Y up. */
-function finish(polys: readonly (readonly Pt[])[], circles: readonly (readonly [number, number, number])[], flipY: boolean): ParsedOutline {
+function finish(polys: readonly (readonly Pt[])[], circles: readonly (readonly [number, number, number])[], flipY: boolean, skipped: Readonly<Record<string, number>>): ParsedOutline {
   const closed = polys.filter((p) => p.length >= 3);
   let best: readonly Pt[] | null = null;
   for (const p of closed) if (best === null || area(p) > area(best)) best = p;
@@ -64,7 +71,12 @@ function finish(polys: readonly (readonly Pt[])[], circles: readonly (readonly [
     holes: holes.filter((c) => c[0] > minX && c[0] < maxX && c[1] > minY && c[1] < maxY).map((c) => [...tx([c[0], c[1]]), c[2]] as const),
     width: maxX - minX,
     depth: maxY - minY,
+    skipped,
   };
+}
+
+function count(into: Record<string, number>, name: string, n = 1): void {
+  if (n > 0) into[name] = (into[name] ?? 0) + n;
 }
 
 // ---------------------------------------------------------------- SVG
@@ -85,8 +97,8 @@ function numbers(text: string): number[] {
   return (text.match(NUM) ?? []).map(Number);
 }
 
-/** Path data with M/L/H/V/Z (absolute or relative) into closed polygons; curves are skipped as straight chords. */
-function pathPolys(d: string): Pt[][] {
+/** Path data with M/L/H/V/Z (absolute or relative) into closed polygons; curves are skipped as straight chords (counted in `skipped.curves`). */
+function pathPolys(d: string, skipped: Record<string, number>): Pt[][] {
   const out: Pt[][] = [];
   let cur: Pt[] = [];
   let x = 0;
@@ -139,6 +151,7 @@ function pathPolys(d: string): Pt[][] {
         x = (rel ? x : 0) + next();
         y = (rel ? y : 0) + next();
         cur.push([x, y]);
+        count(skipped, 'curves');
         break;
       case 'S':
       case 'Q':
@@ -146,17 +159,20 @@ function pathPolys(d: string): Pt[][] {
         x = (rel ? x : 0) + next();
         y = (rel ? y : 0) + next();
         cur.push([x, y]);
+        count(skipped, 'curves');
         break;
       case 'T':
         x = (rel ? x : 0) + next();
         y = (rel ? y : 0) + next();
         cur.push([x, y]);
+        count(skipped, 'curves');
         break;
       case 'A':
         i += 5;
         x = (rel ? x : 0) + next();
         y = (rel ? y : 0) + next();
         cur.push([x, y]);
+        count(skipped, 'curves');
         break;
       default:
         i++;
@@ -166,10 +182,15 @@ function pathPolys(d: string): Pt[][] {
   return out.filter((p) => p.every((q) => Number.isFinite(q[0]) && Number.isFinite(q[1])));
 }
 
+/** SVG elements that draw something the reader does not take. */
+const SVG_UNREAD = /<\s*(line|text|image|use|g)\b/gi;
+
 export function parseSvgOutline(text: string): ParsedOutline {
   if (text.length > MAX_OUTLINE_BYTES) throw new OutlineError('The file is too large to read here.');
   const polys: Pt[][] = [];
   const circles: [number, number, number][] = [];
+  const skipped: Record<string, number> = {};
+  for (const m of text.matchAll(SVG_UNREAD)) if ((m[1] as string).toLowerCase() !== 'g') count(skipped, (m[1] as string).toLowerCase());
   for (const m of text.matchAll(/<\s*(rect|circle|ellipse|polygon|polyline|path)\b([^>]*)>/gi)) {
     const kind = (m[1] as string).toLowerCase();
     const tag = m[2] as string;
@@ -191,10 +212,10 @@ export function parseSvgOutline(text: string): ParsedOutline {
       for (let i = 0; i + 1 < v.length; i += 2) pts.push([v[i] as number, v[i + 1] as number]);
       if (pts.length >= 3) polys.push(pts);
     } else {
-      polys.push(...pathPolys(attr(tag, 'd') ?? ''));
+      polys.push(...pathPolys(attr(tag, 'd') ?? '', skipped));
     }
   }
-  return finish(polys, circles, true);
+  return finish(polys, circles, true, skipped);
 }
 
 // ---------------------------------------------------------------- DXF
@@ -207,6 +228,7 @@ export function parseDxfOutline(text: string): ParsedOutline {
   const polys: Pt[][] = [];
   const circles: [number, number, number][] = [];
   const segments: [Pt, Pt][] = [];
+  const skipped: Record<string, number> = {};
   let inEntities = false;
   let i = 0;
   while (i < pairs.length) {
@@ -245,7 +267,7 @@ export function parseDxfOutline(text: string): ParsedOutline {
         if (Number.isFinite(x) && Number.isFinite(y)) pts.push([x, y]);
       }
       if (pts.length >= 3) polys.push(pts);
-    }
+    } else if (type !== 'VERTEX' && type !== 'SEQEND') count(skipped, type);
   }
   // Chain LINE segments end to end into closed loops.
   const key = (p: Pt): string => `${p[0].toFixed(3)},${p[1].toFixed(3)}`;
@@ -266,7 +288,7 @@ export function parseDxfOutline(text: string): ParsedOutline {
     }
     if (loop.length >= 4 && key(loop[loop.length - 1] as Pt) === key(loop[0] as Pt)) polys.push(loop.slice(0, -1));
   }
-  return finish(polys, circles, false);
+  return finish(polys, circles, false, skipped);
 }
 
 export function parseOutline(name: string, text: string): ParsedOutline {
