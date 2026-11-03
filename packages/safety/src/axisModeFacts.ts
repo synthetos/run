@@ -19,7 +19,7 @@
  *   away from 0, or is unknown. TinyG forces an inhibited axis's joint to 0
  *   on every segment (@cite EN kinematics.c:59; TG kinematics.c:63) and moves
  *   each motor by the difference of absolute step targets (@cite EN
- *   plan_exec.c:707-716; TG plan_exec.c:718-727), so the next move of ANY
+ *   plan_exec.c:712-721; TG plan_exec.c:718-727), so the next move of ANY
  *   axis drives that motor back to step 0.
  * - `inhibited`: inhibited and reading 0. Safe to leave as it is; but the
  *   board reports the mode and the position, never the step target, so if

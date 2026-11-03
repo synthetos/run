@@ -210,7 +210,7 @@ describe('collected items and the G-code consent', () => {
     const board = reportItems(input({ snapshot })).find((i) => i.id === 'board');
     expect(board?.available).toBe(true);
     expect(board?.text).toContain('board id: 0X0000-XXX');
-    expect(board?.text).toContain("fb 450.01, matches run's edge-next pin 6ec70652");
+    expect(board?.text).toContain("fb 450.01, matches run's edge-next pin 93a723b8");
     expect(board?.text).not.toContain('SIM-EN');
     expect(pinText('tinyg-440', 440.2)).toContain("differs from run's master 440.xx pin");
   });

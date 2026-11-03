@@ -5,7 +5,7 @@
  * A feed move's modelled duration is its path length over
  * `v_eff = min(F, fr) × k`; a rapid's is over `vm × k`. TinyG limits feed
  * moves by the axis feed rate maximum `fr` and only rapids by the velocity
- * maximum `vm` (@cite EN plan_line.c:377-381 `_calc_move_times`; TG the
+ * maximum `vm` (@cite EN plan_line.c:396-400 `_calc_move_times`; TG the
  * same). `fr` and `vm` are the smallest board value among the axes that
  * move, so the model never assumes a move faster than its slowest axis
  * allows (the firmware takes the longest per-axis time, which is never

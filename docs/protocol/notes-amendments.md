@@ -4,8 +4,8 @@
 repository. The P0 review found facts PN is missing or states wrongly. The
 code already follows the facts below; each needs the owner's update in PN.
 Citations use the PN §1 tags at the pins in `vendor/firmware-pins.json`
-(EN = edge-next 6ec70652 since the second 2026-11-02 re-pin, before it
-97321391 and ead63997;
+(EN = edge-next 93a723b8 since the third 2026-11-02 re-pin, before it
+6ec70652, 97321391 and ead63997;
 TG = master d0418390).
 
 ## §2.2 Banners: a 440.21 reset can be invisible or msg-less
@@ -39,7 +39,7 @@ TG = master d0418390).
   answers 100 (the only answer that means "reports none"); a banner `fbs`
   that disagrees with the GET is a conflict (READ_ONLY).
 - An entry with `fbs: null` matches **every** build that reports that `fb`.
-  The current bench entry (fb 450.01, commit 6ec70652, signed with the
+  The current bench entry (fb 450.01, commit 93a723b8, signed with the
   owner's bench key) therefore approves any edge-next build that still defines
   TINYG_FIRMWARE_BUILD 450.01 (EN tinyg.h:52), including d254eb0b, 222a45c0
   and any build of an uncommitted working tree.
@@ -92,10 +92,10 @@ buffer; after a 0.5 s gap the connect line and LF arrive and join it.
 
 ## §5 Status 13 on edge-next has two sources
 
-- E162 (EN controller.c:255-268): a line that lost bytes in an RX overrun
+- E162 (EN controller.c:256-269): a line that lost bytes in an RX overrun
   never runs. The first raises ALARM 13 and prints `er` 13; later ones arrive
   while that alarm stands (no new `er`).
-- E102 (EN json_parser.c:968-974): a reply too big for the 512-byte output
+- E102 (EN json_parser.c:973-979): a reply too big for the 512-byte output
   buffer (EN controller.h:32) loses its body: `{"r":{},..,"f":[rev,13,n]}`,
   with 13 in place of OK. **The command has already run.**
 - The EN status table now classes 13 as `bufferFull`; `resolveBufferFull`
@@ -125,7 +125,7 @@ buffer; after a 0.5 s gap the connect line and LF arrive and join it.
 ## §5 / §8 Echo of `gc` on errors
 
 - Both firmwares run the verbosity filter on every error response (EN
-  json_parser.c:911-925 despite its comment; TG json_parser.c:490-500), and
+  json_parser.c:916-930 despite its comment; TG json_parser.c:490-500), and
   the filter drops the `gc` echo unless `jv`=5. A failed G-code line at the
   default `jv`=3 is answered `{"r":{},"f":[3,st,n]}`: nothing may match an
   error to its line through a `gc` echo.

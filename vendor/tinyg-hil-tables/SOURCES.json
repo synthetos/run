@@ -3,7 +3,7 @@
   "note": "Provenance of the vendored TinyG HIL tables (ROADMAP P0-09, RUN_PLAN §8.2, D32). Every table is byte-identical to what EN-HIL's generator writes. tools/gates/test/schema-tables.test.ts checks each sha256, and packages/schema/test checks each table against vendor/firmware-pins.json. On a firmware bump: regenerate, re-vendor, run `pnpm gen:schema`, and review the diff (CODEOWNERS: owner).",
   "generator": {
     "repo": "https://github.com/synthetos/TinyG",
-    "commit": "6ec70652b7c62553eb7351c201af093d24b20978",
+    "commit": "93a723b813d3eb2cf6cf2b90e919a2affef557d1",
     "path": "tests/hil/tools/gen_tables.py",
     "blob": "9ff89c7ae8b1a7d213129171e392e36e904deab3",
     "method": "cfgArray rows from `avr-gcc -E -P -mmcu=atxmega192a3 -DF_CPU=32000000UL -std=gnu99 config_app.c` (so #if'd rows match the firmware build), STAT_* defines from error.h (tinyg.h on older trees), TINYG_FIRMWARE_BUILD from tinyg.h"
@@ -13,12 +13,12 @@
       "file": "den.json",
       "dialect": "tinyg-en",
       "pin": "EN",
-      "sourceCommit": "6ec70652b7c62553eb7351c201af093d24b20978",
+      "sourceCommit": "93a723b813d3eb2cf6cf2b90e919a2affef557d1",
       "fb": 450.01,
       "use": "full",
       "origin": "generated",
-      "generatedWith": "python3 tests/hil/tools/gen_tables.py 6ec70652b7c62553eb7351c201af093d24b20978 den, run from a `git archive` snapshot of the generator commit with the TinyG object store available read-only (avr-gcc 9.5.0, Python 3.15); regenerated twice, byte-identical. Re-pinned 2026-11-02 from 97321391: config_app.c adds ten rows (the rt group with rthb, rtqt and rtup; the spe, spd, spc, sps, cof and com readouts); error.h and tinyg.h are unchanged, so the status table and fb are the same",
-      "sha256": "148b2a75381a02539b90ce0dfc364388e11d2dd464dd393b1821008b0c464f10"
+      "generatedWith": "python3 tests/hil/tools/gen_tables.py 93a723b813d3eb2cf6cf2b90e919a2affef557d1 den, run from a `git archive` snapshot of the generator commit with the TinyG object store available read-only (avr-gcc 9.5.0, Python 3.15); regenerated twice, byte-identical. Re-pinned 2026-11-02 from 6ec70652: config_app.c adds six rt rows (rtflk, rtflm, rtflp and rtflf, the feed-limit report of the running move; rtfi, the feed-limit push interval; rtfs, the summary request); error.h and tinyg.h are unchanged, so the status table and fb are the same. The previous re-pin from 97321391 added the rt group with rthb, rtqt and rtup and the spe, spd, spc, sps, cof and com readouts",
+      "sha256": "3bf13fedb081884b01ffa43cf22304bfded4de9d889d1d82b30240b1f8476e60"
     },
     "d440": {
       "file": "d440.json",
@@ -29,7 +29,7 @@
       "use": "full",
       "origin": "harness",
       "harnessPath": "tests/hil/tinyg_hil/data/d440.json",
-      "harnessCommit": "6ec70652b7c62553eb7351c201af093d24b20978",
+      "harnessCommit": "93a723b813d3eb2cf6cf2b90e919a2affef557d1",
       "harnessBlob": "75aee9df3685e25608183b51ef14c49f67890715",
       "regenerated": "same generator at d0418390: identical commit, fb, status and tokens (only name and ref differ, which name the invocation)",
       "sha256": "65fb9b8c28007ca0cfd3a2a3caabe7774bb2b271977fdd971a0abd76ef3fa7c0"
@@ -43,7 +43,7 @@
       "use": "readOnly",
       "origin": "harness",
       "harnessPath": "tests/hil/tinyg_hil/data/d449.json",
-      "harnessCommit": "6ec70652b7c62553eb7351c201af093d24b20978",
+      "harnessCommit": "93a723b813d3eb2cf6cf2b90e919a2affef557d1",
       "harnessBlob": "a4a0c7bb9aed3476e89215d2e17d51f965e2eb5b",
       "regenerated": "same generator at c5024186: identical commit, fb, status and tokens (only name and ref differ, which name the invocation)",
       "sha256": "baa13f664e0d38051fd6f39fa5e0121c22a9b57d78045d882302b175788b8b54"

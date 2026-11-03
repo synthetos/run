@@ -42,7 +42,7 @@ export type OutputSignal = 'spindleEnable' | 'spindleDirection' | 'spindlePwm' |
 
 export interface TinyGFacts {
   readonly format: typeof TINYG_FACTS_FORMAT;
-  /** e.g. EN@6ec70652 */
+  /** e.g. EN@93a723b8 */
   readonly firmware: string;
   readonly commit: string;
   readonly platform: Cited<number>;

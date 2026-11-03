@@ -3,7 +3,7 @@
  * and the 89e2b5f fix verification). Each case is derived from the pinned
  * firmware source, read with `git show` only:
  *
- * - arcs: EN 6ec70652 plan_arc.c:324-341 compares the center-format end point
+ * - arcs: EN 93a723b8 plan_arc.c:324-341 compares the center-format end point
  *   with the start point position by position (fp_EQ, util.h:134-139) and runs
  *   a full circle; :348-350 alarms on fp_ZERO angular travel. TG d0418390
  *   plan_arc.c:276-295 compares ANGLES with fp_EQ and treats equal angles as
@@ -293,7 +293,7 @@ describe('rotary axis modes and radius (cm_set_model_target)', () => {
 /**
  * Finding: inhibited axis. Each executed segment sets the step target to the
  * joint of the segment's ABSOLUTE target and moves the motor by the
- * difference from the previous step target (EN plan_exec.c:707-716, TG
+ * difference from the previous step target (EN plan_exec.c:712-721, TG
  * plan_exec.c:718-727); the joint of an inhibited axis is 0 (EN
  * kinematics.c:59, TG kinematics.c:63). So the reported position and the
  * motor part ways, and the next move of ANY axis moves the motor.

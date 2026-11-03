@@ -51,7 +51,7 @@ describe('settings writes: the gates before anything is written', () => {
     const d = ready();
     const cases: [string, number][] = [
       ['hv', 8], ['fb', 450.01], ['fv', 0.97], ['id', 1], ['baud', 5], ['ex', 1], ['ej', 1], ['jv', 4], ['js', 0], ['rxm', 1], ['boot', 1], ['defa', 1],
-      ['rt', 1], ['rthb', 1], ['spe', 1], ['sps', 1000], ['cof', 1], ['md', 1], ['me', 1], ['se00', 1], ['jogx', 1], ['si', 250], ['ee', 1], ['ec', 1], ['XVM', 5], ['zzz', 1],
+      ['rt', 1], ['rthb', 1], ['rtfi', 5], ['rtfs', 1], ['rtflk', 1], ['rtflm', 1], ['rtflp', 1], ['rtflf', 1], ['spe', 1], ['sps', 1000], ['cof', 1], ['md', 1], ['me', 1], ['se00', 1], ['jogx', 1], ['si', 250], ['ee', 1], ['ec', 1], ['XVM', 5], ['zzz', 1],
     ];
     for (const [key, value] of cases) {
       const decision = d.intent({ intent: 'settingsWrite', key, value });

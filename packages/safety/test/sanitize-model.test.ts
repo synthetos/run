@@ -378,7 +378,7 @@ describe('offset arithmetic with non-zero values (signs matter)', () => {
 });
 
 
-describe('feed moves are limited by fr, rapids by vm (EN plan_line.c:377-381)', () => {
+describe('feed moves are limited by fr, rapids by vm (EN plan_line.c:396-400)', () => {
   const frSlow = { ...MOTION, maxVelocity: { ...MOTION.maxVelocity, X: 16000 }, feedrateMax: { ...MOTION.feedrateMax, X: 1000 } };
 
   it('a G1 faster than fr is modelled at fr and split', () => {

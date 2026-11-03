@@ -103,13 +103,13 @@ export class Motion {
    * units, relative to power-up. Each executed segment sets the step target
    * to the joint of the segment's ABSOLUTE target, the joint being 0 on an
    * inhibited axis, and moves the motor by the difference from the previous
-   * step target (@cite EN plan_exec.c:707-716; TG plan_exec.c:718-727). So an
+   * step target (@cite EN plan_exec.c:712-721; TG plan_exec.c:718-727). So an
    * axis inhibited while its step target is away from 0 is driven back to
    * step 0 by the next move of any axis, and an axis un-inhibited while its
    * position is away from 0 is driven out to it, while the reported position
    * (`mpo`) shows neither. A step resync (`mp_set_steps_to_runtime_position`,
    * from `cm_set_position` and G28.3) rewrites the step target from the
-   * position without moving any motor (@cite EN planner.c:187-201; TG
+   * position without moving any motor (@cite EN planner.c:188-202; TG
    * planner.c:160-170).
    */
   #steps: Vec = zeroVec();

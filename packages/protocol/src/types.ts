@@ -139,6 +139,36 @@ export interface Heartbeat {
   readonly hb: JsonObject;
 }
 
+/**
+ * `{"fs":{"v":1,"e":..,"q":..,"c":[6 counters],"ct":ms,"cd":mm[,"x":1]}}`: an edge-next feed-limit summary
+ * (EN runtime.c:295-370). Pushed every `fi` seconds while a cycle runs, once more after the runtime drains,
+ * and after `{"rt":{"fs":null}}`, once `{"rt":{"fi":N}}` has opened a window. The push is a RAM session
+ * setting that outlives the host that set it (until a reset), so it can arrive in any run session, though run
+ * never turns it on. Like the heartbeat it has no `r` and no footer: it answers nothing, it is never an
+ * acknowledgement, and it is not a report of motion. `x`: 1 marks the window's totals as known to be short
+ * (a pending counter wrapped): a lower bound only.
+ */
+export interface FeedLimitSummary {
+  readonly kind: 'FeedLimitSummary';
+  readonly line: string;
+  readonly fs: JsonObject;
+  /** True when the summary carries `"x":1`: the totals are a lower bound, not to be trusted as exact. */
+  readonly totalsShort: boolean;
+}
+
+/**
+ * `{"fl":{"k":kind,"m":tags,"p":pct,"n":line}}`: an edge-next feed-limit change line (EN runtime.c:393-453),
+ * pushed when the executing move's kind or constraint tags change, at most 4 a second, while the feed-limit
+ * push is on. Tag bits: 1 axis cap, 2 corner, 4 exact stop, 8 short, 16 single segment, 32 reserved. Not a
+ * response, not an acknowledgement, and not a report of motion (it is not the status report the session's
+ * motion checks read).
+ */
+export interface FeedLimitEvent {
+  readonly kind: 'FeedLimitEvent';
+  readonly line: string;
+  readonly fl: JsonObject;
+}
+
 /** `{"ack":true}`: the answer to ENQ (PN §5.6). */
 export interface Ack {
   readonly kind: 'Ack';
@@ -199,7 +229,19 @@ export interface FlowSignal {
 }
 
 /** A classified line (everything except flow signals). */
-export type ClassifiedLine = Response | StatusReport | QueueReport | RxReport | Exception | Banner | Ack | Heartbeat | Text | Garbled;
+export type ClassifiedLine =
+  | Response
+  | StatusReport
+  | QueueReport
+  | RxReport
+  | Exception
+  | Banner
+  | Ack
+  | Heartbeat
+  | FeedLimitSummary
+  | FeedLimitEvent
+  | Text
+  | Garbled;
 
 /** Everything the inbound decoder emits, in stream order. */
 export type Inbound = ClassifiedLine | FlowSignal;

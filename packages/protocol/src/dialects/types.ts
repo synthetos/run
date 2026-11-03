@@ -76,7 +76,7 @@ export type StatusClass =
    */
   | 'bufferFull'
   /**
-   * A damaged line that never ran (EN E162, @cite EN controller.c:255-268):
+   * A damaged line that never ran (EN E162, @cite EN controller.c:256-269):
    * it comes with an `er` 13 and ALARM 13 (the first one raises it; later
    * ones arrive while that alarm stands).
    */

@@ -67,7 +67,7 @@ describe('T-S4: three TinyG tables', () => {
   });
 
   it('EN 13 is a damaged line only with an er 13 or ALARM 13; otherwise the line ran and its reply was lost', () => {
-    // E162: the first damaged line raises ALARM 13 and prints er 13 (EN controller.c:255-268).
+    // E162: the first damaged line raises ALARM 13 and prints er 13 (EN controller.c:256-269).
     expect(resolveBufferFull({ exception13: true, alarmStatus: null })).toBe('damagedLine');
     // A later damaged line while ALARM 13 stands: no new er (cm_alarm returns early), still damaged.
     expect(resolveBufferFull({ exception13: false, alarmStatus: 13 })).toBe('damagedLine');

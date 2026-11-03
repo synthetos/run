@@ -30,7 +30,7 @@ describe('generated TinyG definitions', () => {
     for (const d of BOARD_DEFINITIONS) {
       expect(d.family).toBe('tinyg');
       expect(d.match.hp).toBe(1);
-      expect(d.source).toMatchObject({ kind: 'generated', firmware: 'EN@6ec70652' });
+      expect(d.source).toMatchObject({ kind: 'generated', firmware: 'EN@93a723b8' });
     }
   });
 

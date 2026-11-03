@@ -35,7 +35,10 @@
  *   most one outstanding), otherwise a `stat` GET. No byte within
  *   `staleAfterMs` of asking is unexpected silence: STALE. A read after
  *   classification that goes unanswered is STALE as well. Cleared by the
- *   next line received.
+ *   next line received. With the heartbeat on, the window is
+ *   `reportSilenceMs` and ends in STALE with nothing sent, except while the
+ *   machine is held, dwelling or queued without stepping (the heartbeat is
+ *   silent then): one ask per window, STALE only if it goes unanswered.
  * - READ_ONLY: the classifier returned READ_ONLY, or READING found `ex`
  *   other than 0 or 1 (2 is RTS/CTS, READ_ONLY on both dialects, PN §5.3;
  *   an unread `ex` counts the same, fail closed).
@@ -76,7 +79,7 @@ import { writeLineCapFor } from '../writeShape.ts';
 import { gateTokens, judgeGate, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
 import { restingStat, restingUsesHold } from './resting.ts';
 import { abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
-import { HEARTBEAT_INTERVAL_MS, REPORT_DIALECTS, SEED_TOKENS, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
+import { HEARTBEAT_INTERVAL_MS, REPORT_DIALECTS, SEED_TOKENS, heartbeatCoversHold, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
 import {
   MAX_PROBE_RESTARTS,
   MAX_QUEUED_READS,
@@ -779,6 +782,13 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
       // Proof of life (recorded above). Its stat and hold are what the board reported: kept for display.
       mergeLive(t, Object.fromEntries(Object.entries(event.hb).filter(([k]) => k === 'stat' || k === 'hold')));
       return;
+    case 'FeedLimitSummary':
+    case 'FeedLimitEvent':
+      // Edge-next feed-limit push lines (fs, fl): proof of life only (recorded above). They answer nothing, are
+      // never an acknowledgement and never a report of motion, so they touch no owed answer, no ENQ and no
+      // ORPHANED_MOTION check, in any state. run never turns the push on, but another host may have (RAM, kept
+      // until a reset). Nothing reads their values yet; an fs with "x":1 would be shown as a lower bound only.
+      return;
     case 'QueueReport':
       t.set({ live: { ...t.s.live, qr: event.qr } });
       return;
@@ -1437,11 +1447,44 @@ function enterStale(t: Tx, at: number): void {
   t.set({ stale: { at, silentForMs: Math.max(0, at - (t.s.live.lastRxAt as number)) } });
 }
 
+/**
+ * True when the last known state is one in which the edge-next heartbeat is silent and no report is due, so a
+ * silent window proves nothing (SAFETY §4.2 amendment "heartbeat silence during hold and dwell"): the heartbeat
+ * beats only while the machine is quiet, with nothing moving, held, flushing or queued (@cite EN
+ * runtime.c:37-52, :62-71), and a finished feedhold or a long G4 dwell pushes no report either. That is a hold
+ * (`hold` ≠ 0, or a held `stat`), or a cycle that is not stepping: a dwell, or moves queued but not moving
+ * (a running, homing, jogging or probing `stat`, or planner buffers in use), with `vel` 0. Never while steps may
+ * be moving (`vel` not 0, or unknown): pushed position reports cover liveness then, and nothing is sent.
+ */
+function silentWhileBusy(s: SessionState): boolean {
+  const live = s.live;
+  if (live.vel !== 0) return false;
+  if ((live.hold !== undefined && live.hold !== 0) || live.machineClass === 'held') return true;
+  if (live.machineClass !== undefined && MOTION_CLASSES.has(live.machineClass)) return true;
+  const blocks = dialectOf(s)?.limits.plannerBlocks;
+  return blocks !== undefined && live.qr !== undefined && live.qr < blocks;
+}
+
 function onWatchdog(t: Tx, at: number): void {
   // Armed only while the watchdog is active: syncWatchdog cancels it in the transition that ends that.
   if (t.s.reports.heartbeatMs !== null) {
+    if (t.s.liveness !== null) {
+      // Asked once for this silent window and no byte came back within `staleAfterMs`: unexpected silence.
+      enterStale(t, at);
+      t.set({ liveness: null });
+      t.arm('watchdog', t.config.timings.reportSilenceMs);
+      return;
+    }
+    if (silentWhileBusy(t.s) && !heartbeatCoversHold()) {
+      // Held, dwelling or queued without stepping: the heartbeat does not beat and no report is due, so the
+      // silence is expected. Ask ONCE for this window (ENQ, else a `stat` GET); STALE only if that goes unanswered.
+      t.set({ liveness: { since: at, via: askForLife(t) } });
+      t.arm('watchdog', t.config.timings.staleAfterMs);
+      return;
+    }
     // Neither a report, a heartbeat nor an answer for the whole window: "No reports from the board". The link
-    // is suspect (STALE: only reads and stops), and nothing is sent to ask: the heartbeat is the proof of life.
+    // is suspect (STALE: only reads and stops), and nothing is sent to ask: while the machine is quiet the
+    // heartbeat is the proof of life, and while steps move the pushed position reports are.
     enterStale(t, at);
     t.arm('watchdog', t.config.timings.reportSilenceMs);
     return;

@@ -113,9 +113,9 @@ export interface BufferFullEvidence {
 /**
  * EN status 13 means either "this damaged line never ran" (E162: it comes
  * with an `er` 13, or arrives while ALARM 13 stands, @cite EN
- * controller.c:255-268) or "this line ran, but its reply overflowed"
+ * controller.c:256-269) or "this line ran, but its reply overflowed"
  * (E102: `{"r":{},...}` with 13 in place of OK, no `er`, no alarm,
- * @cite EN json_parser.c:969-974). Only the first is safe to resend. With
+ * @cite EN json_parser.c:974-979). Only the first is safe to resend. With
  * no evidence of E162, the answer is `responseLost`: never resend (a group
  * SET would be applied twice), re-read state instead. An alarm of another
  * status is not evidence of E162.

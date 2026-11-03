@@ -4,7 +4,7 @@
  * rule, and absolute arc endpoints never invented.
  *
  * Source, read with `git show` only:
- * - EN 6ec70652 plan_arc.c:320-350: a centre-format arc whose end point is
+ * - EN 93a723b8 plan_arc.c:320-350: a centre-format arc whose end point is
  *   fp_EQ to the start on BOTH plane axes (machine coordinates, float32) is a
  *   full circle in its direction; otherwise the atan2 travel decides, and a
  *   travel that is fp_ZERO alarms 159. util.h:134-139: fp_EQ(a,b) is
@@ -228,7 +228,7 @@ describe('P0-10 #2: full circles and split arcs never invent absolute coordinate
 /**
  * Arc uncertainty (found by the verification of the P0-10#1 fix): the board
  * reports its machine position, offsets and stored positions to three
- * decimals (EN 6ec70652 config_app.c:166-178 `mpo` precision 3, :388-450
+ * decimals (EN 93a723b8 config_app.c:166-178 `mpo` precision 3, :388-450
  * `g54x`..`g30c` precision 3; TG d041839 config_app.c:131-143, :392-454), so
  * a start that reads 0.000 may really be 0.0004 mm away, fifty times fp_EQ's
  * EPSILON, and incremental moves add float32 rounding. Every coincidence and

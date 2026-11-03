@@ -198,6 +198,21 @@ describe('classify: StatusReport, QueueReport, Exception, Ack', () => {
     expect(garbledReason('{"hb":{"stat":1},"x":1}')).toBe('unrecognized-shape');
   });
 
+  it('FeedLimitSummary and FeedLimitEvent for exactly {"fs":{...}} and {"fl":{...}} (edge-next feed-limit push)', () => {
+    const fs = '{"fs":{"v":1,"e":1,"q":3,"c":[120,40,0,15,0,0],"ct":900,"cd":12.345}}';
+    expect(classifyLine(fs)).toMatchObject({ kind: 'FeedLimitSummary', line: fs, totalsShort: false, fs: { v: 1, e: 1, q: 3, ct: 900, cd: 12.345 } });
+    const short = '{"fs":{"v":1,"e":2,"q":1,"c":[0,0,0,0,0,0],"ct":0,"cd":0.000,"x":1}}';
+    expect(classifyLine(short)).toMatchObject({ kind: 'FeedLimitSummary', totalsShort: true });
+    const fl = '{"fl":{"k":1,"m":10,"p":62,"n":118}}';
+    expect(classifyLine(fl)).toMatchObject({ kind: 'FeedLimitEvent', line: fl, fl: { k: 1, m: 10, p: 62, n: 118 } });
+    expect(classifyLine('{"fl":{"k":0,"m":0,"p":null,"n":null}}')).toMatchObject({ kind: 'FeedLimitEvent', fl: { k: 0, p: null } });
+    // Never a response or an ack: no `r`, no footer.
+    expect(garbledReason('{"fs":1}')).toBe('bad-value');
+    expect(garbledReason('{"fl":[1]}')).toBe('bad-value');
+    expect(garbledReason('{"fl":{"k":1},"f":[3,0,10]}')).toBe('unrecognized-shape');
+    expect(garbledReason('{"fs":{"v":1},"fl":{"k":0}}')).toBe('unrecognized-shape');
+  });
+
   it('Ack only for {"ack":true}', () => {
     expect(classifyLine('{"ack":true}')).toEqual({ kind: 'Ack', line: '{"ack":true}' });
     expect(classifyLine('{ack:t}')).toMatchObject({ kind: 'Ack' });

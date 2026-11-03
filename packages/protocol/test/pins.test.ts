@@ -42,7 +42,7 @@ describe('PIN-1: firmware pins', () => {
   });
 
   it('pins the edge-next commit that reports fb 450.01 and the 440.21 release', () => {
-    expect(pins['EN']?.commit.startsWith('6ec70652')).toBe(true);
+    expect(pins['EN']?.commit.startsWith('93a723b8')).toBe(true);
     expect(pins['EN']?.fb).toBe(450.01);
     expect(pins['TG']?.fb).toBe(440.21);
     expect(pins['S449']?.fb).toBe(449.01);

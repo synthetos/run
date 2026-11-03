@@ -3,7 +3,7 @@
  *
  * TinyG's tokenizer is relaxed: keys may be bare or quoted and are folded to
  * lower case; whitespace outside strings is dropped (@cite EN
- * json_parser.c:343-356). This reader is written independently of
+ * json_parser.c:348-361). This reader is written independently of
  * `@synthetos/protocol` (which parses controller OUTPUT), so the models never
  * share a parser with the code they test.
  *

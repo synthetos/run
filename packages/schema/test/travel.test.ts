@@ -250,7 +250,7 @@ describe('read-back confirms soft limits before they count as on', () => {
   });
 
   it('a read-back under G20 is not interpreted: linear travel then reports in inches (F_CONVERT)', () => {
-    // EN config_app.c:839-850 / TG config_app.c:763-770 divide an F_CONVERT float by 25.4 on output while the
+    // EN config_app.c:845-856 / TG config_app.c:763-770 divide an F_CONVERT float by 25.4 on output while the
     // units mode is inches. A stored minimum of -1000000 mm (DISABLE_SOFT_LIMIT: that end is not tested) then
     // reads back as -39370.079, which taken as millimetres would look tested.
     const inches = { sl: 1, unit: 0, xtn: Number((-1_000_000 / 25.4).toFixed(3)), xtm: Number((300 / 25.4).toFixed(3)) };
