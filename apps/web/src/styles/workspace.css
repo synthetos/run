@@ -1546,7 +1546,7 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .job-work-panel .job-prep-row { display: flex; flex-direction: column; align-items: flex-start; }
 .job-work-panel .job-prep { display: flex; flex-direction: column; }
 .job-work-panel .job-tick { font-size: 12px; }
-.job-work-panel .job-steps > [data-action="start-job"] { position: sticky; bottom: 0; width: 100%; }
+.job-work-panel .job-steps > [data-action="start-job"] { position: sticky; bottom: 0; justify-self: end; }
 .job-work-panel .advisor-job-check { flex-wrap: wrap; }
 .job-work-panel .job-facts { grid-template-columns: 1fr 1fr; }
 .job-view .scene-empty-prompt { top: auto; left: 12px; right: 12px; bottom: 34px; transform: none; width: auto; padding: 12px; }
