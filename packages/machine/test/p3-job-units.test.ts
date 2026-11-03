@@ -325,6 +325,12 @@ describe('the guards of the job decisions', () => {
     const coolant = tx({ ...withJob(s, { phase: 'ending', stop: { kind: 'end', index: 3 }, confirmed: 1, acked: 4, next: 4, report: { ...(s.job as JobState).report, endState: { spindle: 'off', mist: true, flood: false } } as never }), live: { ...s.live, ...rest } });
     onJobPoll(coolant.t, 10);
     expect(coolant.t.s.job?.message).toBe('Job finished: 4 lines, spindle off, coolant ON (commanded).');
+    const flood = tx({ ...withJob(s, { phase: 'ending', stop: { kind: 'end', index: 3 }, confirmed: 1, acked: 4, next: 4, report: { ...(s.job as JobState).report, endState: { spindle: 'off', mist: false, flood: true } } as never }), live: { ...s.live, ...rest } });
+    onJobPoll(flood.t, 10);
+    expect(flood.t.s.job?.message).toBe('Job finished: 4 lines, spindle off, coolant ON (commanded).');
+    const spindle = tx({ ...withJob(s, { phase: 'ending', stop: { kind: 'end', index: 3 }, confirmed: 1, acked: 4, next: 4, report: { ...(s.job as JobState).report, endState: { spindle: 'ccw', mist: false, flood: false } } as never }), live: { ...s.live, ...rest } });
+    onJobPoll(spindle.t, 10);
+    expect(spindle.t.s.job?.message).toBe('Job finished: 4 lines, spindle ON, coolant off (commanded).');
   });
 
   it('the timer: the liveness grace period, the STALE limit, and quiet stops', async () => {

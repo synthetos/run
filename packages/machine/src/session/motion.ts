@@ -630,6 +630,9 @@ function finish(t: MotionTx, at: number): void {
   // absolute distance; a jog during a job's tool change puts back the job's own distance mode (Phase 3, H74).
   if (ctx.op === 'jog' || stop) lines.push(restoreLine(ctx.units, stop ? 0 : ctx.dist));
   setMotion(t, { phase: 'finish', confirmed: 0, deadline: null });
+  // Phase 3: the hold and the flush are confirmed, so every job line the board still had is gone (`%` dropped its
+  // line buffers) and every one it ran has been answered: none is owed any more, and M5's answer is M5's.
+  if (stop) t.set({ expected: t.s.expected.filter((e) => e.purpose !== 'job') });
   for (const line of lines) queueLine(t, line, stop ? 'stopJob' : 'jog');
   t.cancel('motion');
   if (lines.length === 0) complete(t, at);

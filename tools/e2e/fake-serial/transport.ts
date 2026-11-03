@@ -90,7 +90,8 @@ export function createTransportSource(): TransportSource {
       const reg = registry();
       const next = reg.next ?? {};
       reg.next = undefined;
-      const device = new TinyGEdgeNextModel({ start: 'boot', bootMs: BOOT_MS, eepromWriteMs: EEPROM_WRITE_MS, ...next });
+      // In character mode (rxm 0), as a board another sender used: a job then switches it to line mode and back (H77).
+      const device = new TinyGEdgeNextModel({ start: 'boot', bootMs: BOOT_MS, eepromWriteMs: EEPROM_WRITE_MS, rxm: 0, ...next });
       const endpoint = new SimEndpoint({ clock: realTimeClock(), device });
       const port = new MockSerialPort(endpoint);
       registry().ports.push(port);

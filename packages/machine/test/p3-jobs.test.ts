@@ -193,6 +193,22 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     expect(w42({ line: 3 })).toBe('Stopped at line 3: queue cleared, spindle and coolant off');
   });
 
+  it('Stop job after a Pause and a Resume still reaches stopped: late job answers do not swallow M5 (H76)', async () => {
+    const h = await jobHarness();
+    const before = await start(h, zigzag(40));
+    await runUntil(h, () => (h.session.snapshot.job?.acked ?? 0) > 5);
+    h.session.feedhold();
+    await runUntil(h, () => h.session.snapshot.job?.phase === 'paused');
+    expect(h.session.request({ intent: 'resume' })).toEqual({ allowed: true });
+    await runUntil(h, () => (h.session.snapshot.job?.acked ?? 0) > 14);
+    expect(h.session.stopJob()).toEqual({ allowed: true });
+    await runUntil(h, () => h.session.snapshot.job?.phase === 'stopped');
+    const w = writes(h).slice(before);
+    const tail = w.slice(w.lastIndexOf('!')).filter((x) => !x.startsWith('{"') && x !== '\\x05');
+    expect(tail.slice(0, 5)).toEqual(['!', '%', 'M5', 'M9', 'G90']);
+    expect(h.session.snapshot.motion).toBeNull();
+  });
+
   it('Spindle off during a running job ends it like Stop job', async () => {
     const h = await jobHarness();
     await start(h, zigzag(20));
