@@ -14,3 +14,7 @@ stryker-setup-*.js
 dist-fake-serial/
 workers/run/wrangler.deploy.json
 dist-bench/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+.ignore
