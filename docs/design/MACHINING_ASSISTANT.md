@@ -280,9 +280,13 @@ The simulation handles all of them.
 
 - **Job flag.** `{"rt":{"job":1}}` when run starts streaming a job; `{"rt":{"job":0}}` right after the last motion line is sent, and also before run's own deliberate stops (M6 tool change, breakpoints), with `job:1` again on resume. The flag is accepted at any time, including while moving. A feedhold doesn't clear it; reset, `%` and job kill do. Without `job:1` the board reports no supply gaps.
 - **`fs` v2.** `"v":2`. `c` gains a 7th entry, command boundary. `"g":[ms_waiting, ms_unavailable, gap_count]`. `"b":[[count,ms],[count,ms],[count,ms]]` for spindle/S, coolant and other. All values are cumulative, and `x` behaves as in v1. run reads `v` and handles v1 and v2.
-- **`fl` while starved.** `{"fl":{"k":0,"m":0,"p":null,"n":<last executed line>,"g":1|2}}`: 1 = input waiting (the board was the limit), 2 = input unavailable (the host or link fell behind).
+- **`fl` while starved.** `{"fl":{"k":0,"m":0,"p":null,"n":<last executed line>,"g":1|2}}`. The labels are observational, never causal (independent review of the firmware):
+  - 1 = input pending: a full data line was buffered or being dispatched, or local work such as an arc was in progress. This doesn't prove the planner was too slow; a dispatch gate can hold a line, and a data line may not be motion.
+  - 2 = no known complete input. This doesn't prove the host or link fell behind; a complete line can sit unseen in the raw receive ring.
+  - Gap times are estimates: about 10 ms SysTick steps plus loop delay.
+  - `b` counts motion breaks: S, M3, M8 back to back between two moves count as one.
 - **Display.**
-  - **Gap, input unavailable:** "Run fell behind: the machine waited 1.2 s (4 times)", with tips.
-  - **Gap, input waiting:** "The board is planning-limited: segments are too short", with a link to smooth or arc-fit in Analyze (TB-07).
+  - **Gap, g 2:** "No data was ready for the machine (about 1.2 s, 4 times)", with link tips (keep the tab visible, no sleep, a direct USB cable). This is never presented as a proven cause.
+  - **Gap, g 1:** "Data was waiting, but the board didn't get it planned in time", with the smoothing suggestion. This is never presented as a proven cause.
   - **Planner view:** the queued band turns amber while starved.
   - **Repeated command boundaries:** "Spindle commands between moves forced N stops (about T s lost)", with an offer of a cleaned copy (re-checked). Analyze also flags this before the job starts.
