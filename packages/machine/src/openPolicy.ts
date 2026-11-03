@@ -118,7 +118,15 @@ function isUsbId(n: unknown): n is number {
  * `hasCapability` says whether a valid, unused `BootloaderCapability` came
  * with the call. Pure; the guard calls it before touching the port.
  */
-export function decideOpen(info: TransportInfo, options: TransportOpenOptions, hasCapability: boolean): OpenDecision {
+/**
+ * `role`: `session` (default) for a machine session; `bootloader` for the flasher's port open after
+ * `{"boot":1}` or in recovery (SAFETY §4.8 as amended 2026-11-03). A bootloader-role open always needs the
+ * capability, whatever the port and rate: only the flasher, after its authorization, can make one. The FTDI port
+ * of a TinyG is the same port in both roles, at the same 115200 baud (xboot conf/x192a3.mk UART_BAUD_RATE).
+ */
+export type OpenRole = 'session' | 'bootloader';
+
+export function decideOpen(info: TransportInfo, options: TransportOpenOptions, hasCapability: boolean, role: OpenRole = 'session'): OpenDecision {
   const vid = info.usbVendorId;
   const pid = info.usbProductId;
   // A half-known or malformed identity cannot be checked against the refusal list, so it is refused.
@@ -147,9 +155,9 @@ export function decideOpen(info: TransportInfo, options: TransportOpenOptions, h
   if (!capabilityBaud && !SESSION_BAUD_RATES.has(baud)) {
     return { ok: false, reason: 'baud-rate', detail: `baud rate ${String(baud)} is not one a controller uses` };
   }
-  const needsCapability = capabilityBaud || bootloaderPort;
+  const needsCapability = capabilityBaud || bootloaderPort || role === 'bootloader';
   if (needsCapability && !hasCapability) {
-    const what = capabilityBaud ? `${baud} baud` : `bootloader port ${hex4(vid as number)}:${hex4(pid as number)}`;
+    const what = capabilityBaud ? `${baud} baud` : bootloaderPort ? `bootloader port ${hex4(vid as number)}:${hex4(pid as number)}` : 'a bootloader-role open';
     return { ok: false, reason: 'capability-required', detail: `${what} needs the flasher's bootloader capability` };
   }
   if (!needsCapability && hasCapability) {

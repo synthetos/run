@@ -158,8 +158,10 @@ describe('T-S39: only MachineSession writes to the transport', () => {
       .filter((p) => /\.writeLine\(/.test(readFileSync(p, 'utf8')))
       .map((p) => relative(repo, p))
       .sort();
-    // guardedTransport forwards to the inner transport; the session is the one caller above it.
-    expect(callers).toEqual(['packages/machine/src/guardedTransport.ts', 'packages/machine/src/session/machineSession.ts']);
+    // guardedTransport forwards to the inner transport; the session is the one caller above it. The bootloader link
+    // (SAFETY §4.8 as amended 2026-11-03) is the port in bootloader role: it writes only frames the flasher's frame
+    // guard admits, and opens only with the flasher's capability.
+    expect(callers).toEqual(['packages/machine/src/bootloaderLink.ts', 'packages/machine/src/guardedTransport.ts', 'packages/machine/src/session/machineSession.ts']);
   });
 
   it('the web app reaches the machine only through the worker: no page or panel module imports the transport layer', () => {

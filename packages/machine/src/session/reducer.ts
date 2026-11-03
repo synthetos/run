@@ -76,6 +76,7 @@ import {
 import { OVERLAYS, allowed, type Decision, type Intent, type MatrixSnapshot, type Overlay } from '@synthetos/safety';
 import { getLineFor, isReadAllowed } from '@synthetos/schema';
 import { writeLineCapFor } from '../writeShape.ts';
+import type { PortSelector } from '../transport.ts';
 import { gateTokens, judgeGate, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
 import { restingStat, restingUsesHold } from './resting.ts';
 import { abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
@@ -201,6 +202,7 @@ export function initialState(): SessionState {
     sent: Object.freeze({ lines: 0, realtime: 0 }),
     motion: null,
     settingWrite: null,
+    bootEntry: null,
     reports: REPORTS_IDLE,
     link: Object.freeze({ heartbeatMs: null, silenceMs: DEFAULT_SILENCE_MS }),
     job: null,
@@ -342,7 +344,7 @@ export function reduce(config: SessionConfig, state: SessionState, event: Sessio
       break;
     case 'lineWritten':
       // Only for the line being written: its answer may already have arrived (and the next line been asked for).
-      if (event.epoch === t.s.epoch && linkUp(t.s) && t.s.writing?.seq === event.seq) onLineWritten(t);
+      if (event.epoch === t.s.epoch && linkUp(t.s) && t.s.writing?.seq === event.seq) onLineWritten(t, event.at ?? 0);
       break;
     case 'lineDropped':
       if (event.epoch === t.s.epoch && event.index !== undefined) onJobLineDropped(t, event.index);
@@ -524,6 +526,9 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
     case 'settingsWrite':
       onSettingsWrite(t, request.key, request.value, matrix);
       return;
+    case 'flash':
+      onFlash(t, matrix);
+      return;
     default:
       t.decide(intent, deny(PHASE_1_NOT_HANDLED.reason, PHASE_1_NOT_HANDLED.remedy, `ROADMAP P1-02 (${t.config.release.name})`));
   }
@@ -693,11 +698,98 @@ function onReadBackAnswer(t: Tx, r: Response, at: number): void {
 
 /** A settings write in progress is cut off (FAULT, LOST, reset, link change). */
 function interruptSettingWrite(t: Tx, why: string): void {
+  interruptBootEntry(t, why);
   if (!settingWriteActive(t.s)) return;
   const w = t.s.settingWrite as SettingWriteState;
   // A write already sent may have been stored: say so.
   const outcome: SettingWriteOutcome = w.phase === 'gate' ? 'refused' : 'interrupted';
   finishSettingWrite(t, outcome, outcome === 'refused' ? `Not written: ${why}.` : `Interrupted: ${why}. The board may or may not hold the new value; read it back before trusting it.`);
+}
+
+// --- The firmware update: into the bootloader (SAFETY §4.8 as amended 2026-11-03, H79-H88) -------
+
+/** The TinyG dialects whose firmware takes `{"boot":1}` (EN `hw_run_boot`; TG and stock 449 the same token). */
+const BOOT_DIALECTS: readonly string[] = ['tinyg-en', 'tinyg-440', 'tinyg-449-stock'];
+
+/** The exact line that asks the running firmware to reset into its bootloader. Written only by `flash`. */
+export const BOOT_LINE = '{"boot":1}';
+
+function refuseBoot(t: Tx, why: string): void {
+  t.set({ bootEntry: null, queue: t.s.queue.filter((q) => q.purpose !== 'bootGate' && q.purpose !== 'boot'), notices: { ...t.s.notices, bootRefused: why } });
+  t.emit({ kind: 'log', text: `bootloader entry refused: ${why}` });
+}
+
+/**
+ * `flash`: the idle gate (polled `stat`, `hold` where trusted, `vel`, `qr`), then `{"boot":1}`. The firmware
+ * answers, then resets into xboot (a 60 s window); the session closes the link as soon as the line is written
+ * and returns to NOT_CONNECTED, so the flasher can open the same port in bootloader role. Allowed by the matrix
+ * row of kind `flash` (the flasher phase switch); the session also needs a classified TinyG dialect, no job, no
+ * move and no settings write in progress.
+ */
+function onFlash(t: Tx, matrix: Decision): void {
+  const dialect = dialectOf(t.s);
+  if (dialect === null || !BOOT_DIALECTS.includes(dialect.id)) {
+    t.decide('flash', deny('This board was not identified as a TinyG, so run does not ask it to enter its bootloader.', 'Use recovery: unplug the USB cable and plug it back in while run waits for the bootloader.', 'SAFETY §4.8 (amended 2026-11-03); OLD-S §4.8 step 1'));
+    return;
+  }
+  if (t.s.bootEntry !== null) {
+    t.decide('flash', deny('The board is already being asked to enter its bootloader.', 'Wait for it.', 'SAFETY §4.8'));
+    return;
+  }
+  if (settingWriteActive(t.s) || t.s.motion !== null || t.s.job !== null) {
+    t.decide('flash', deny('Something else is in progress: a move, a job or a settings write.', 'Wait for it to finish, and unload the job.', 'SAFETY §4.1 Flash row; §4.8'));
+    return;
+  }
+  const tokens = gateTokens(dialect, restingUsesHold(dialect)).filter((tok) => tok !== 'unit');
+  const { bootRefused: _old, ...notices } = t.s.notices;
+  t.set({ bootEntry: { phase: 'gate', gate: {} }, notices, queue: [...tokens.map((token) => ({ token, purpose: 'bootGate' as const })), ...t.s.queue] });
+  t.emit({ kind: 'log', text: `bootloader entry: idle gate (${tokens.join(' ')})` });
+  t.decide('flash', matrix);
+}
+
+function onBootGateAnswer(t: Tx, token: string, r: Response): void {
+  const b = t.s.bootEntry;
+  /* c8 ignore next -- gate reads are queued only by an entry in its gate phase, and dropped when it ends */
+  if (b === null || b.phase !== 'gate') return;
+  const value = r.r[token];
+  if (r.footer.status !== 0 || typeof value !== 'number' || !Number.isFinite(value)) {
+    refuseBoot(t, `the board did not answer the ${token} read (status ${r.footer.status})`);
+    return;
+  }
+  const gate = { ...b.gate, [token]: value };
+  t.set({ bootEntry: { ...b, gate }, live: withNumber(t, t.s.live, token, value) });
+  if (t.s.queue.some((q) => q.purpose === 'bootGate')) return;
+  const dialect = dialectOf(t.s) as Dialect;
+  // The settings gate's rule without the units (the bootloader does not care whether the board works in inches).
+  const verdict = judgeGate(dialect, { ...gate, unit: 1 }, restingUsesHold(dialect));
+  if (!verdict.ok) {
+    refuseBoot(t, verdict.detail.replace('Not written: ', '').replace(', with nothing queued and in millimetres', ', with nothing queued'));
+    return;
+  }
+  const again = allowed(matrixSnapshot(t.s), 'flash', t.config.release);
+  /* c8 ignore next 4 -- an overlay that denies the entry (FAULT, LOST) also ends it before the gate completes; the re-check stays */
+  if (!again.allowed) {
+    refuseBoot(t, again.reason);
+    return;
+  }
+  t.set({ bootEntry: { phase: 'writing', gate }, queue: [{ token: 'boot', purpose: 'boot' }, ...t.s.queue] });
+}
+
+/** `{"boot":1}` was written: the board resets now. Close the link and leave the port to the flasher. */
+function onBootWritten(t: Tx, at: number): void {
+  const port = t.s.port as PortSelector;
+  const boardId = typeof t.s.identity?.id === 'string' ? t.s.identity.id : null;
+  t.emit({ kind: 'log', text: 'bootloader entry: {"boot":1} written; the board resets into its bootloader; the link closes' });
+  t.emit({ kind: 'close', epoch: t.s.epoch });
+  // The board resets: position, homing and every RAM setting are gone. The next connect starts in UNKNOWN.
+  resetToNotConnected(t, true);
+  t.set({ notices: { ...t.s.notices, bootloaderEntered: { at, port, boardId } } });
+}
+
+/** An entry in progress is cut off (FAULT, LOST, reset). */
+function interruptBootEntry(t: Tx, why: string): void {
+  if (t.s.bootEntry === null) return;
+  refuseBoot(t, why);
 }
 
 function onAckFault(t: Tx, matrix: Decision): void {
@@ -761,9 +853,13 @@ function startProbe(t: Tx, restarts: number, banner: Banner | undefined): void {
   });
 }
 
-function onLineWritten(t: Tx): void {
+function onLineWritten(t: Tx, at: number): void {
   const { seq: _seq, ...line } = t.s.writing as PendingRead & { readonly seq: number };
   t.set({ writing: null });
+  if (line.purpose === 'boot') {
+    onBootWritten(t, at);
+    return;
+  }
   // A line written while the board was resetting is lost with its RX ring: expect nothing for it.
   if (t.s.probe !== null && t.s.probe.settling !== 'none') return;
   t.set({ expected: [...t.s.expected, { ...line, late: false }] });
@@ -829,6 +925,7 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
     return;
   }
   if (missed.purpose === 'gate') finishSettingWrite(t, 'refused', `Not written: the board did not answer the ${missed.token} read in time.`);
+  if (missed.purpose === 'bootGate') refuseBoot(t, `the board did not answer the ${missed.token} read in time`);
   if (missed.purpose === 'setting') finishSettingWrite(t, 'unconfirmed', 'The board did not answer the write in time. It may or may not hold the new value; read it back before trusting it.');
   if (missed.purpose === 'readback') finishSettingWrite(t, 'mismatch', 'Written (status 0), but the read-back was not answered in time.');
   if (missed.purpose === 'jobPrep') abandonLoad(t, at, `the controller did not answer the ${missed.token} read in time`);
@@ -1088,6 +1185,12 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
     case 'gate':
       onGateAnswer(t, e.token, r);
       return;
+    case 'bootGate':
+      onBootGateAnswer(t, e.token, r);
+      return;
+    /* c8 ignore next 2 -- the link closes as soon as {"boot":1} is written, so its answer is never read */
+    case 'boot':
+      return;
     case 'setting':
       onSettingAnswer(t, r);
       return;
@@ -1325,6 +1428,12 @@ function onGarbled(t: Tx, at: number): void {
       return;
     case 'gate':
       finishSettingWrite(t, 'refused', `Not written: the answer to the ${entry.token} read arrived damaged.`);
+      return;
+    case 'bootGate':
+      refuseBoot(t, `the answer to the ${entry.token} read arrived damaged`);
+      return;
+    /* c8 ignore next 2 -- the link closes as soon as {"boot":1} is written */
+    case 'boot':
       return;
     case 'setting':
       finishSettingWrite(t, 'unconfirmed', 'The answer to the write arrived damaged. The board may or may not hold the new value; read it back before trusting it.');
@@ -1717,7 +1826,9 @@ function pump(t: Tx): void {
             ? 'lineMode'
             : next.purpose === 'jobRuntime'
               ? 'jobRuntime'
-              : 'read';
+              : next.purpose === 'boot'
+                ? 'flash'
+                : 'read';
   if (!allowed(matrixSnapshot(s), intent, t.config.release).allowed) {
     // A motion line or a settings write the matrix no longer allows (the state changed since it was queued) is dropped, never held.
     /* c8 ignore next -- a safety net: every state change that ends motion (STALE, FAULT, LOST, ALARM) empties the motion queue first */
@@ -1752,7 +1863,9 @@ function pump(t: Tx): void {
             ? { intent: 'lineMode' as const }
             : next.purpose === 'jobRuntime'
               ? { intent: 'jobRuntime' as const }
-              : {}),
+              : next.purpose === 'boot'
+                ? { intent: 'flash' as const }
+                : {}),
   });
 }
 
@@ -1769,6 +1882,8 @@ function lineFor(s: SessionState, read: PendingRead): string | undefined {
   /* c8 ignore stop */
   if (read.purpose === 'lineMode' && read.value !== undefined) return rxmLine(read.value === 1 ? 1 : 0);
   if (read.purpose === 'jobRuntime') return read.line;
+  /* c8 ignore next -- the boot line is queued only when the entry passes its gate, in the same transition */
+  if (read.purpose === 'boot') return s.bootEntry?.phase === 'writing' ? BOOT_LINE : undefined;
   if (read.purpose === 'report' && s.reports.step?.line !== undefined) {
     const line = s.reports.step.line;
     /* c8 ignore next -- the steps are built from the shapes the gate admits; a mismatch is a bug and becomes a writeRefused FAULT */

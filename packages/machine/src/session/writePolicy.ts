@@ -56,12 +56,18 @@ export interface WriteContext {
   readonly lineModeWritable?: (line: string) => boolean;
   /** Phase 3: true when this is exactly a job `rt` line the session is sending now. Absent: never accepted. */
   readonly jobRuntimeWritable?: (line: string) => boolean;
+  /**
+   * The firmware update (SAFETY §4.8 as amended 2026-11-03): true when the session's bootloader entry passed its
+   * idle gate and is writing `{"boot":1}` now. Absent: the line is never accepted (`boot` is forbidden outside the
+   * flasher, H10).
+   */
+  readonly bootWritable?: () => boolean;
 }
 
 /** `motion`, `flush`, `resume`: Phase 2. `setting`: one single-token settings write, its own command kind (SAFETY §4.6, amendment 2026-11-02). */
 /** `report`: one line of the session's status-report configuration (amendment 2026-11-02). */
 export type WriteVerdict =
-  | { readonly ok: true; readonly kind: 'get' | 'feedhold' | 'enq' | 'flush' | 'resume' | 'motion' | 'setting' | 'report' | 'job' | 'lineMode' | 'jobRuntime'; readonly token?: string; readonly lineKind?: MotionLineKind }
+  | { readonly ok: true; readonly kind: 'get' | 'feedhold' | 'enq' | 'flush' | 'resume' | 'motion' | 'setting' | 'report' | 'job' | 'lineMode' | 'jobRuntime' | 'boot'; readonly token?: string; readonly lineKind?: MotionLineKind }
   | { readonly ok: false; readonly reason: string };
 
 const MAX_MOTION_LINE_BYTES = 64;
@@ -104,6 +110,11 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
   for (const b of bytes) {
     if (b > 0x7e || (b < 0x20 && b !== 0x0a)) return { ok: false, reason: 'a GET line is printable ASCII ending in LF' };
     text += String.fromCharCode(b);
+  }
+  // The firmware update: exactly `{"boot":1}`, and only while the session's bootloader entry is writing it.
+  if (text === '{"boot":1}\n') {
+    if (context.bootWritable === undefined || !context.bootWritable()) return { ok: false, reason: '{"boot":1} is written only by the firmware update, after its idle gate' };
+    return { ok: true, kind: 'boot' };
   }
   // Phase 3: a job line is exactly the sanitised line being written now, and only when the intent is jobLine.
   if (context.jobLine !== undefined && text.endsWith('\n') && context.jobLine(text.slice(0, -1))) return { ok: true, kind: 'job' };
@@ -150,9 +161,9 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
  * `motion` (a motion line), `flush` (`%`) and `resume` (`~`) against the intent that issued them;
  * `settingsWrite` (a settings line) against `settingsWrite`.
  */
-export type WriteIntent = 'read' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'settingsWrite' | 'configureReports' | 'jobLine' | 'lineMode' | 'jobRuntime';
+export type WriteIntent = 'read' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'settingsWrite' | 'configureReports' | 'jobLine' | 'lineMode' | 'jobRuntime' | 'flash';
 
-const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'setting' | 'report' | 'job' | 'lineMode' | 'jobRuntime'>> = {
+const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'setting' | 'report' | 'job' | 'lineMode' | 'jobRuntime' | 'boot'>> = {
   read: 'get',
   feedhold: 'feedhold',
   enq: 'enq',
@@ -164,6 +175,7 @@ const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'mo
   jobLine: 'job',
   lineMode: 'lineMode',
   jobRuntime: 'jobRuntime',
+  flash: 'boot',
 };
 
 /** True when `text` is exactly job line `index` of the job `state` is running, and that line has been emitted. */
@@ -221,7 +233,7 @@ export function checkWrite(
   issuedBy?: Intent,
   index?: number,
 ): { readonly kind: 'denied' | 'refused'; readonly reason: string } | undefined {
-  const own = intent === 'read' || intent === 'feedhold' || intent === 'enq' || intent === 'settingsWrite' || intent === 'configureReports' || intent === 'jobLine' || intent === 'lineMode' || intent === 'jobRuntime';
+  const own = intent === 'read' || intent === 'feedhold' || intent === 'enq' || intent === 'settingsWrite' || intent === 'configureReports' || intent === 'jobLine' || intent === 'lineMode' || intent === 'jobRuntime' || intent === 'flash';
   const matrixIntent: Intent | undefined = own ? intent : issuedBy;
   if (matrixIntent === undefined) return { kind: 'refused', reason: `a ${intent} write names no issuing intent` };
   const decision = allowed(matrixSnapshot(current), matrixIntent, release);
@@ -234,6 +246,7 @@ export function checkWrite(
     ...(release.reports === true ? { reportWritable: (line: string) => reportWritableIn(current, line) } : {}),
     ...(release.jobs === true && intent === 'jobLine' ? { jobLine: (text: string) => jobLineWritableIn(current, index, text) } : {}),
     ...(release.jobs === true ? { lineModeWritable: (line: string) => lineModeWritableIn(current, line), jobRuntimeWritable: (line: string) => jobRuntimeWritableIn(emitted, line) } : {}),
+    ...(release.flash === true ? { bootWritable: () => current.bootEntry?.phase === 'writing' } : {}),
   });
   if (!verdict.ok) return { kind: 'refused', reason: verdict.reason };
   if (verdict.kind !== VERDICT_FOR[intent]) return { kind: 'refused', reason: `a ${verdict.kind} write was issued as ${intent}` };

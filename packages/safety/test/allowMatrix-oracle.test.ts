@@ -85,7 +85,7 @@ describe('intent kinds (which release gate and which rule applies)', () => {
       jobBreakpoints: 'session',
       settingsWrite: 'settings',
       applyProfile: 'write',
-      flash: 'write',
+      flash: 'flash',
       loadJob: 'job',
       loadLibraryJob: 'job',
       arm: 'motion',

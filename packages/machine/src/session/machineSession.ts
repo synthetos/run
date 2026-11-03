@@ -101,6 +101,8 @@ interface QueuedLine {
   readonly job?: number;
   readonly lineMode?: true;
   readonly jobRuntime?: true;
+  /** The firmware update's `{"boot":1}` (SAFETY §4.8 as amended 2026-11-03). */
+  readonly boot?: true;
 }
 
 const encoder = new TextEncoder();
@@ -369,6 +371,7 @@ export class MachineSession {
           ...(effect.intent === 'jobLine' ? { job: effect.index as number } : {}),
           ...(effect.intent === 'lineMode' ? { lineMode: true as const } : {}),
           ...(effect.intent === 'jobRuntime' ? { jobRuntime: true as const } : {}),
+          ...(effect.intent === 'flash' ? { boot: true as const } : {}),
         });
         void this.#drainLines();
         return;
@@ -553,7 +556,7 @@ export class MachineSession {
           this.#dispatch({ type: 'writeFailed', epoch: item.epoch, at: this.#clock.now(), detail: describe(error) });
           continue;
         }
-        this.#dispatch({ type: 'lineWritten', epoch: item.epoch, seq: item.seq });
+        this.#dispatch({ type: 'lineWritten', epoch: item.epoch, seq: item.seq, at: this.#clock.now() });
       }
     } finally {
       this.#lineWorker = false;
@@ -606,7 +609,8 @@ export class MachineSession {
   }
 }
 
-function writeIntentOf(item: QueuedLine): 'settingsWrite' | 'configureReports' | 'lineMode' | 'jobRuntime' | 'read' {
+function writeIntentOf(item: QueuedLine): 'settingsWrite' | 'configureReports' | 'lineMode' | 'jobRuntime' | 'flash' | 'read' {
+  if (item.boot === true) return 'flash';
   if (item.setting === true) return 'settingsWrite';
   if (item.report === true) return 'configureReports';
   if (item.lineMode === true) return 'lineMode';
