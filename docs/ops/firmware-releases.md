@@ -21,7 +21,13 @@ Per hardware version (`hv`):
 - `releases`, each with `fb`, `fv`, `dialect`, `part` (`x192a3`), `file` (the
   `.hex` name), `sha256` and `size` of the exact `.hex` bytes, `date`,
   `changelog`, `recommended` (at most one per hardware) and, for test images
-  only, `simulatorOnly`.
+  only, `simulatorOnly`. A GitHub-released image also names `repo`
+  (`synthetos/TinyG` or `synthetos/tg-xboot`, the reviewed list
+  `FIRMWARE_RELEASE_REPOSITORIES`) and `tag` (the release tag; `file` is the
+  asset name in that release). The release page is
+  `https://github.com/<repo>/releases/tag/<tag>`; the list carries no URL
+  because it is bundled into the page and the bundle scan admits no foreign
+  origin literal there.
 
 On staging a listed release also counts as an approved build for its hardware
 version (the release list is a signed approval for that environment), so a
@@ -39,6 +45,12 @@ corepack pnpm sign:releases --key /path/outside/the/repo/key.pkcs8.pem --kid <ki
 - **Staging** is signed with the owner's bench key
   (`--key /Users/ril3y/.synthetos-release-bench/bench.pkcs8.pem --kid owner-bench-2026-11-02`),
   which is authorised for staging only.
+- The same command regenerates `workers/run/src/firmwareAssets.ts`: the
+  GitHub-released entries (environment, repository, tag, asset, SHA-256, size)
+  as a plain data module, because the Worker may import nothing outside its
+  own directory (tools/gates/src/build/worker.ts). The gate test holds that
+  file equal to what the committed signed file renders, so an edited list
+  that was not re-signed fails CI.
 - **Production stays empty**: the file has no production entry, so production
   offers no firmware. It gets one only when the owner signs it with the offline
   release key (docs/ops/release-key.md), after the image passed D5. The
@@ -46,24 +58,59 @@ corepack pnpm sign:releases --key /path/outside/the/repo/key.pkcs8.pem --kid <ki
   production, pinned by a test.
 
 `tools/gates/test/firmware-releases.test.ts` checks that the signed file
-decodes to the unsigned one, that production has no entry, and that every
-`.hex` the repository holds matches the SHA-256 and size its entry names.
+decodes to the unsigned one, that production has no entry, that every
+`.hex` the repository holds matches the SHA-256 and size its entry names, and
+that the Worker's generated asset list and repository allowlist match the
+list and `packages/protocol`.
 
-## Hosting the `.hex` files (owner decision, open)
+## Fetching the images (OD-10, built 2026-11-03)
 
-Where release images live is not decided. For now:
+Official images are GitHub Release assets, and a browser cannot fetch them
+(see "Where the images come from"). The page fetches every listed image from
+its **own origin**, at the path `releasePath` in `packages/protocol` derives:
 
-- **Bundled**: a file placed in `apps/web/public/firmware/<file>` is served at
-  `/firmware/<file>` and the page fetches it from there.
-- **Local**: when the file is not served, the user chooses a local copy ("Use
-  a local copy…"). It must match the signed SHA-256 and size; the page checks,
-  and the worker checks again before parsing it.
+- **GitHub-released** (`repo` and `tag` set):
+  `/firmware/<owner>/<name>/<tag>/<file>`. On staging the run Worker's
+  firmware proxy (`workers/run/src/firmwareProxy.ts`) answers it: only a
+  repository in the allowlist and an asset name matching
+  `^[A-Za-z0-9._-]+\.(hex|txt)$|^SHA256SUMS$` are routed at all; only a tag
+  and asset the generated list names for the Worker's environment is fetched
+  (`https://github.com/<repo>/releases/download/<tag>/<asset>`, server-side,
+  capped at 2 MiB); the body is served only when its SHA-256 and size equal
+  the list's and, for a `.hex`, the release's `SHA256SUMS` names that hash
+  too. A verified body is cached under its hash (the Cache API) and served
+  `text/plain` with `cache-control: public, max-age=31536000, immutable` and
+  the Worker's security headers. A mismatch or anything unlisted is a 404 with
+  no detail; GitHub down is a 502. The Worker is never trusted for safety: the
+  page hashes the bytes again against the signed entry before C6 is asked,
+  and the machine worker again before it parses anything. In production only
+  `/api/*` and `/auth/*` run the Worker first, so there the path is an asset
+  404: production lists no firmware and its flasher is off.
+- **Bench**: the localhost bench server (`pnpm bench:serve`) runs the same
+  proxy code (`tools/gates/src/bench/firmware.ts`) over the signed staging
+  list it verifies at start, with Node's fetch and an in-memory cache, so the
+  owner can exercise the fetch against the real GitHub on this computer.
+- **Simulator images** (`simulatorOnly`) come from `/firmware/sim/<file>`
+  (the fake-serial suite serves them) and anything else from
+  `/firmware/<file>` (a file placed in `apps/web/public/firmware/`).
+- **Local copy**: when the download fails or the file is not served, the user
+  chooses a local `.hex` ("Use a local copy…"). It must match the signed
+  SHA-256 and size; the page checks before C6, and the worker checks again.
 
-The current staging list has **no real release** for hardware version 8: no
-edge-next image has a reviewed, reproducible build to list yet. The owner or
-the firmware maintainer adds the 450.01 (or later) build: put its SHA-256 and
-size in `firmware/releases.unsigned.json`, re-sign, and either bundle the file
-or hand it to bench testers as a local copy.
+The Firmware tab downloads first (with progress), checks the image, then
+asks C6 about the checked image; the flash path itself is unchanged.
+
+The staging list names **440.21** (`synthetos/TinyG`, tag `440.21`,
+`tinyg-440.21.hex`, 334,978 bytes) for hardware version 8: the one TinyG
+release with assets today, listed as an older, not recommended build to prove
+the pipeline. Its `minimumFb` is 440.21 so the listed build is not below the
+gate. **Owner step, later**: once an edge-next release (450.01 or later) is
+published, add it, raise hardware version 8's `minimumFb` to 450+ (a 440.21
+board is then locked to read-only until updated, and 440.21 should be dropped
+or hidden from the list rather than offered as a downgrade), and re-sign.
+`firmware/tinyg-440.21.hex` is the repository's copy of the listed bytes for
+the tests (the hash gate, the bench and the fake-serial suite's stubbed
+GitHub); the Worker serves GitHub's, never this copy.
 
 The three releases listed for hardware version 99 are simulated images for the
 fake-serial suite (`firmware/sim/`, generated by
