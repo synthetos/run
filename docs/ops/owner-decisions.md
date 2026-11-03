@@ -337,3 +337,7 @@ software is not an emergency stop. "Stop job" no longer says "spindle off".
 **Decision.** Photographs and rendered images of Synthetos boards from the private hardware repositories may be used in run and on synthetos.com. Schematics, KiCad sources, layouts, netlists and Gerbers stay private: only derived facts (pin names, functions, connector positions, ratings) from them may be published, with a file:line citation, as before (OD-5, RUN_PLAN rule 6).
 
 **Consequences.** Machine and board pages may show real board photos (for example `synthetos-hardware/docs/images/TinyGv8h.jpg`), copied into the public repo with a SOURCE note naming the origin commit. The OD-5 illustration stays the interactive drawing; photos are reference images beside it.
+
+## OD-9. W1 stays visible; other explanations go behind help (owner, 2026-11-03)
+
+**Decision.** The W1 warning line stays permanently visible, as SAFETY.md requires. Every other explanatory paragraph in the workspace (Connect, setup, W13, W7 and similar) moves behind compact (?) help reachable by hover, focus or tap, or is removed. Registered strings stay byte-exact wherever they are shown.
