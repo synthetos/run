@@ -19,15 +19,32 @@ export interface Orbit {
 
 const LIMIT = Math.PI / 2 - 1e-3;
 
+/** The camera's angles only. */
+export interface ViewAngles {
+  readonly azimuth: number;
+  readonly elevation: number;
+}
+
+/**
+ * The named views: `iso` from the front-right, above (the default); `top` straight down with X right
+ * and Y up on the screen; `front` from the front (the −Y side), a little above the table.
+ */
+export type ViewPreset = 'iso' | 'top' | 'front';
+
+export const VIEW_ANGLES: Readonly<Record<ViewPreset, ViewAngles>> = Object.freeze({
+  iso: Object.freeze({ azimuth: -Math.PI / 4, elevation: Math.PI / 5 }),
+  top: Object.freeze({ azimuth: -Math.PI / 2, elevation: LIMIT }),
+  front: Object.freeze({ azimuth: -Math.PI / 2, elevation: Math.PI / 15 }),
+});
+
 /**
  * The default view: from the front-right, above, looking at the box centre, fitting the whole box.
  * Without `aspect` the whole bounding sphere fits the vertical field of view (loose). With `aspect`
  * (width / height) the box's corners are fitted tightly so the box fills `fill` of the view (0.8 by
- * default) in whichever direction is tighter.
+ * default) in whichever direction is tighter. `angles` picks another direction (a named view).
  */
-export function fitOrbit(box: Box3 | null, fovY: number = Math.PI / 4, aspect?: number, fill = 0.8): Orbit {
-  const azimuth = -Math.PI / 4;
-  const elevation = Math.PI / 5;
+export function fitOrbit(box: Box3 | null, fovY: number = Math.PI / 4, aspect?: number, fill = 0.8, angles: ViewAngles = VIEW_ANGLES.iso): Orbit {
+  const { azimuth, elevation } = angles;
   if (box === null) return { target: [0, 0, 0], distance: 100, azimuth, elevation };
   const c: Vec3 = [(box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2];
   const r = Math.max(1e-3, Math.hypot(box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]) / 2);

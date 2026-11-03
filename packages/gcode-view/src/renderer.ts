@@ -1,20 +1,29 @@
 /**
  * WebGL2 toolpath renderer. It draws a segment list as chunked line segments,
- * the work envelope as a box, the work-coordinate origin as an axis triad and,
- * when asked, the bed/work grid (grid.ts) under the drawing.
+ * the work envelope as a box, the work-coordinate origin as an axis triad,
+ * when asked the bed/work grid (grid.ts) under the drawing, and the scene
+ * solids the caller gives it (scene.ts: bed, stock, fixture, clamps) as
+ * flat-shaded triangles under the path.
+ *
+ * Frames: the solids, the grid, the envelope and the triad are in the
+ * drawing's own (machine) frame. The path and the tool marker are in the
+ * path's frame, moved into the drawing by `setPathOffset` (the planned work
+ * zero): a uniform in the vertex shader, so a million segments move without
+ * a re-upload.
  *
  * It renders on demand only: a frame is drawn when something changed (data,
  * view, toggles, highlight, size) and never otherwise. There is no animation,
  * no playback and no simulated tool position in this package, by design: a
  * preview must never look like a machine that is moving.
  */
-import { fitOrbit, pan, rotate, viewProjection, zoom, type Orbit } from './camera.ts';
+import { VIEW_ANGLES, fitOrbit, pan, rotate, viewProjection, zoom, type Orbit, type ViewAngles, type ViewPreset } from './camera.ts';
 import { DEFAULT_SEGMENTS_PER_CHUNK, STYLE, chunks } from './geometry.ts';
 import { checkSegmentList, lineCount, type Box3, type SegmentList, type Vec3 } from './segments.ts';
 import { runSliced, type SliceOptions } from './slicer.ts';
 import { gridLayout, gridLines } from './grid.ts';
+import { offsetBox, ringSegments, sceneBounds, solidTriangles, unionBox, type Rgba, type SceneLayers } from './scene.ts';
 
-export type Rgba = readonly [number, number, number, number];
+export type { Rgba };
 
 export interface PreviewColors {
   readonly background: Rgba;
@@ -53,8 +62,8 @@ export interface PlannerOverlay {
 }
 
 /** Overlay styles follow the segment styles in the colour table. */
-const OVERLAY = Object.freeze({ ENVELOPE: 5, AXIS_X: 6, AXIS_Y: 7, AXIS_Z: 8, GRID: 9, GRID_MAJOR: 10, MARKER: 11 });
-const STYLE_COUNT = 12;
+const OVERLAY = Object.freeze({ ENVELOPE: 5, AXIS_X: 6, AXIS_Y: 7, AXIS_Z: 8, GRID: 9, GRID_MAJOR: 10, MARKER: 11, RING: 12 });
+const STYLE_COUNT = 13;
 
 export interface LoadOptions extends Pick<SliceOptions, 'signal' | 'budgetMs' | 'now' | 'yieldToHost'> {
   readonly segmentsPerChunk?: number;
@@ -83,12 +92,18 @@ export interface PreviewRenderer {
   setWcsOrigin(origin: Vec3 | null, size?: number): void;
   /** The planner view of a running job (lines cut, executing, queued), or null for none. */
   setPlanner(planner: PlannerOverlay | null): void;
-  /** The tool position the board reports, drawn as a small marker, or null to hide it. */
+  /** The tool position the board reports (in the path's frame), drawn as a small marker, or null to hide it. */
   setToolMarker(position: Vec3 | null): void;
+  /** The scene solids under the path (bed, stock, fixture, clamps), in the drawing's frame, or null for none. */
+  setScene(scene: SceneLayers | null): void;
+  /** Where the path's origin sits in the drawing's frame (the planned work zero); [0, 0, 0] by default. */
+  setPathOffset(offset: Vec3): void;
+  /** Turns the view to a named direction and refits it. */
+  setView(preset: ViewPreset): void;
   setColors(colors: PreviewColors): void;
   /** Canvas size in CSS pixels and the device pixel ratio. */
   resize(width: number, height: number, pixelRatio?: number): void;
-  /** Fits the view to the drawn path (and envelope). */
+  /** Fits the view to the drawn path (and envelope and scene). */
   fit(): void;
   orbit(dAzimuth: number, dElevation: number): void;
   zoomBy(factor: number): void;
@@ -98,6 +113,8 @@ export interface PreviewRenderer {
   /** Number of frames drawn (for tests and diagnostics). */
   readonly frames: number;
   readonly chunkCount: number;
+  /** Number of scene solids uploaded (for tests and diagnostics). */
+  readonly solidCount: number;
   dispose(): void;
 }
 
@@ -119,6 +136,7 @@ in float a_style;
 in float a_line;
 in float a_dist;
 uniform mat4 u_mvp;
+uniform vec3 u_offset;
 uniform float u_showRapids;
 uniform float u_highlightEnd;
 uniform vec4 u_colors[${String(STYLE_COUNT)}];
@@ -145,7 +163,7 @@ void main() {
     else if (a_line < u_plan.y) v_color = u_exec;
     else if (a_line < u_plan.z) v_color = u_queued;
   }
-  gl_Position = u_mvp * vec4(a_pos, 1.0);
+  gl_Position = u_mvp * vec4(a_pos + u_offset, 1.0);
 }`;
 
 const FRAGMENT = `#version 300 es
@@ -159,6 +177,26 @@ out vec4 o_color;
 void main() {
   if (v_hidden > 0.5) discard;
   if (v_dash > 0.5 && u_dash > 0.0 && fract(v_dist / u_dash) > 0.55) discard;
+  o_color = v_color;
+}`;
+
+/** The scene solids: flat triangles with a baked colour per vertex. */
+const SOLID_VERTEX = `#version 300 es
+precision highp float;
+in vec3 a_pos;
+in vec4 a_color;
+uniform mat4 u_mvp;
+out vec4 v_color;
+void main() {
+  v_color = a_color;
+  gl_Position = u_mvp * vec4(a_pos, 1.0);
+}`;
+
+const SOLID_FRAGMENT = `#version 300 es
+precision mediump float;
+in vec4 v_color;
+out vec4 o_color;
+void main() {
   o_color = v_color;
 }`;
 
@@ -177,23 +215,28 @@ function compile(gl: WebGL2RenderingContext, type: number, source: string): WebG
   return shader;
 }
 
+function link(gl: WebGL2RenderingContext, vertex: string, fragment: string, attributes: readonly string[]): WebGLProgram {
+  const program = gl.createProgram();
+  gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, vertex));
+  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fragment));
+  attributes.forEach((name, i) => { gl.bindAttribLocation(program, i, name); });
+  gl.linkProgram(program);
+  if (gl.getProgramParameter(program, gl.LINK_STATUS) !== true) throw new Error(`gcode-view: program did not link: ${gl.getProgramInfoLog(program) ?? ''}`);
+  return program;
+}
+
 function abortError(): DOMException {
   return new DOMException('the preview load was cancelled', 'AbortError');
 }
 
+const NO_OFFSET: Vec3 = [0, 0, 0];
+
 export function createRenderer(gl: WebGL2RenderingContext, options: RendererOptions): PreviewRenderer {
   const requestFrame = options.requestFrame ?? ((draw: () => void) => { requestAnimationFrame(draw); });
-  const program = gl.createProgram();
-  gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX));
-  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAGMENT));
-  gl.bindAttribLocation(program, 0, 'a_pos');
-  gl.bindAttribLocation(program, 1, 'a_style');
-  gl.bindAttribLocation(program, 2, 'a_line');
-  gl.bindAttribLocation(program, 3, 'a_dist');
-  gl.linkProgram(program);
-  if (gl.getProgramParameter(program, gl.LINK_STATUS) !== true) throw new Error(`gcode-view: program did not link: ${gl.getProgramInfoLog(program) ?? ''}`);
+  const program = link(gl, VERTEX, FRAGMENT, ['a_pos', 'a_style', 'a_line', 'a_dist']);
   const u = {
     mvp: gl.getUniformLocation(program, 'u_mvp'),
+    offset: gl.getUniformLocation(program, 'u_offset'),
     showRapids: gl.getUniformLocation(program, 'u_showRapids'),
     highlightEnd: gl.getUniformLocation(program, 'u_highlightEnd'),
     colors: gl.getUniformLocation(program, 'u_colors'),
@@ -204,19 +247,31 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     exec: gl.getUniformLocation(program, 'u_exec'),
     queued: gl.getUniformLocation(program, 'u_queued'),
   };
+  const solidProgram = link(gl, SOLID_VERTEX, SOLID_FRAGMENT, ['a_pos', 'a_color']);
+  const su = { mvp: gl.getUniformLocation(solidProgram, 'u_mvp') };
 
   let colors = options.colors;
   let path: GpuChunk[] = [];
-  let overlay: GpuChunk | null = null;
+  /** The grid, in the drawing's frame, depth-tested so the stock hides it. */
+  let gridChunk: GpuChunk | null = null;
+  /** Envelope, triad and hole rings, in the drawing's frame. */
+  let frameOverlay: GpuChunk | null = null;
+  /** The tool marker, in the path's frame. */
+  let markerOverlay: GpuChunk | null = null;
+  let solids: GpuChunk[] = [];
   let list: SegmentList | null = null;
   let bounds: Box3 | null = null;
   let envelope: Box3 | null = null;
+  let scene: SceneLayers | null = null;
+  let sceneBox: Box3 | null = null;
+  let pathOffset: Vec3 = NO_OFFSET;
   let wcs: { origin: Vec3; size: number } | null = null;
   let showRapids = true;
   let showGrid = options.grid === true;
   let highlightLine = -1;
   let planner: PlannerOverlay | null = null;
   let marker: Vec3 | null = null;
+  let angles: ViewAngles = VIEW_ANGLES.iso;
   let view: Orbit = fitOrbit(null);
   /** True until the person turns, zooms or pans the view: a resize then refits it. */
   let autoFit = true;
@@ -242,6 +297,22 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     return { vao, buffers, vertexCount: positions.length / 3 };
   }
 
+  function uploadSolid(positions: Float32Array, vertexColors: Float32Array): GpuChunk {
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    const make = (data: ArrayBufferView, index: number, size: number): WebGLBuffer => {
+      const b = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, b);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(index);
+      gl.vertexAttribPointer(index, size, gl.FLOAT, false, 0, 0);
+      return b;
+    };
+    const buffers = [make(positions, 0, 3), make(vertexColors, 1, 4)];
+    gl.bindVertexArray(null);
+    return { vao, buffers, vertexCount: positions.length / 3 };
+  }
+
   /** Per vertex: distance along its traverse segment (0 at the start, the length at the end); 0 elsewhere. */
   function dashDistances(positions: Float32Array, styles: Uint8Array): Float32Array {
     const out = new Float32Array(styles.length);
@@ -258,18 +329,27 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     for (const b of c.buffers) gl.deleteBuffer(b);
   }
 
+  function linesChunk(pos: number[], sty: number[]): GpuChunk | null {
+    return pos.length === 0 ? null : upload(new Float32Array(pos), new Uint8Array(sty), new Float32Array(sty.length).fill(-1));
+  }
+
   function rebuildOverlay(): void {
-    if (overlay !== null) release(overlay);
-    overlay = null;
+    if (gridChunk !== null) release(gridChunk);
+    if (frameOverlay !== null) release(frameOverlay);
+    if (markerOverlay !== null) release(markerOverlay);
+    gridChunk = frameOverlay = markerOverlay = null;
     const pos: number[] = [];
     const sty: number[] = [];
     const seg = (a: Vec3, b: Vec3, s: number): void => {
       pos.push(...a, ...b);
       sty.push(s, s);
     };
-    const grid = showGrid ? gridLayout(bounds, envelope) : null;
+    const grid = showGrid ? gridLayout(unionBox(offsetBox(bounds, pathOffset), sceneBox), envelope) : null;
     if (grid !== null) {
       for (const l of gridLines(grid)) seg([l.a[0], l.a[1], grid.z], [l.b[0], l.b[1], grid.z], l.major ? OVERLAY.GRID_MAJOR : OVERLAY.GRID);
+      gridChunk = linesChunk(pos, sty);
+      pos.length = 0;
+      sty.length = 0;
     }
     if (envelope !== null) {
       const [x0, y0, z0] = envelope.min;
@@ -278,13 +358,11 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       const edges = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]] as const;
       for (const [a, b] of edges) seg(c[a] as Vec3, c[b] as Vec3, OVERLAY.ENVELOPE);
     }
-    if (marker !== null) {
-      const [x, y, z] = marker;
-      const box = fitBox();
-      const r = box === null ? 2 : Math.max(0.5, Math.max(box.max[0] - box.min[0], box.max[1] - box.min[1]) / 60);
-      seg([x - r, y, z], [x + r, y, z], OVERLAY.MARKER);
-      seg([x, y - r, z], [x, y + r, z], OVERLAY.MARKER);
-      seg([x, y, z], [x, y, z + r * 3], OVERLAY.MARKER);
+    if (scene !== null) {
+      for (const ring of scene.rings) {
+        const pts = ringSegments(ring);
+        for (let i = 0; i + 1 < pts.length; i += 2) seg(pts[i] as Vec3, pts[i + 1] as Vec3, OVERLAY.RING);
+      }
     }
     if (wcs !== null) {
       const [x, y, z] = wcs.origin;
@@ -293,12 +371,33 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       seg([x, y, z], [x, y + s, z], OVERLAY.AXIS_Y);
       seg([x, y, z], [x, y, z + s], OVERLAY.AXIS_Z);
     }
-    if (pos.length === 0) return;
-    overlay = upload(new Float32Array(pos), new Uint8Array(sty), new Float32Array(sty.length).fill(-1));
+    frameOverlay = linesChunk(pos, sty);
+    pos.length = 0;
+    sty.length = 0;
+    if (marker !== null) {
+      const [x, y, z] = marker;
+      const box = fitBox();
+      const r = box === null ? 2 : Math.max(0.5, Math.max(box.max[0] - box.min[0], box.max[1] - box.min[1]) / 60);
+      seg([x - r, y, z], [x + r, y, z], OVERLAY.MARKER);
+      seg([x, y - r, z], [x, y + r, z], OVERLAY.MARKER);
+      seg([x, y, z], [x, y, z + r * 3], OVERLAY.MARKER);
+      markerOverlay = linesChunk(pos, sty);
+    }
+  }
+
+  function rebuildSolids(): void {
+    for (const s of solids) release(s);
+    solids = [];
+    if (scene === null) return;
+    for (const solid of scene.solids) {
+      const t = solidTriangles(solid);
+      if (t.positions.length > 0) solids.push(uploadSolid(t.positions, t.colors));
+    }
   }
 
   function colorTable(): Float32Array {
-    const table = [colors.rapid, colors.feed, colors.arc, colors.outOfBounds, colors.uncertain, colors.envelope, colors.axisX, colors.axisY, colors.axisZ, colors.grid, colors.gridMajor, plannerColors().exec];
+    const ring = colors.envelope;
+    const table = [colors.rapid, colors.feed, colors.arc, colors.outOfBounds, colors.uncertain, colors.envelope, colors.axisX, colors.axisY, colors.axisZ, colors.grid, colors.gridMajor, plannerColors().exec, ring];
     return new Float32Array(table.flat());
   }
 
@@ -320,9 +419,19 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     const bg = colors.background;
     gl.clearColor(bg[0], bg[1], bg[2], bg[3]);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.enable(gl.DEPTH_TEST);
+    const mvp = viewProjection(view, width / height);
+    // 1. The scene solids, depth-tested among themselves.
+    if (solids.length > 0) {
+      gl.enable(gl.DEPTH_TEST);
+      gl.useProgram(solidProgram);
+      gl.uniformMatrix4fv(su.mvp, false, mvp);
+      for (const s of solids) {
+        gl.bindVertexArray(s.vao);
+        gl.drawArrays(gl.TRIANGLES, 0, s.vertexCount);
+      }
+    }
     gl.useProgram(program);
-    gl.uniformMatrix4fv(u.mvp, false, viewProjection(view, width / height));
+    gl.uniformMatrix4fv(u.mvp, false, mvp);
     gl.uniform1f(u.showRapids, showRapids ? 1 : 0);
     gl.uniform1f(u.highlightEnd, highlightLine + 1);
     gl.uniform4fv(u.colors, colorTable());
@@ -333,7 +442,22 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     gl.uniform4fv(u.cut, new Float32Array(pc.cut));
     gl.uniform4fv(u.exec, new Float32Array(pc.exec));
     gl.uniform4fv(u.queued, new Float32Array(pc.queued));
-    for (const c of overlay === null ? path : [...path, overlay]) {
+    // 2. The grid, in the drawing's frame, hidden where a solid stands on it.
+    gl.uniform3f(u.offset, 0, 0, 0);
+    if (gridChunk !== null) {
+      gl.enable(gl.DEPTH_TEST);
+      gl.bindVertexArray(gridChunk.vao);
+      gl.drawArrays(gl.LINES, 0, gridChunk.vertexCount);
+    }
+    // 3. The path and the marker (the path's frame) and the frame overlay, always on top: a cut inside
+    //    the stock must stay visible, so lines are never hidden by a solid.
+    gl.disable(gl.DEPTH_TEST);
+    if (frameOverlay !== null) {
+      gl.bindVertexArray(frameOverlay.vao);
+      gl.drawArrays(gl.LINES, 0, frameOverlay.vertexCount);
+    }
+    gl.uniform3f(u.offset, pathOffset[0], pathOffset[1], pathOffset[2]);
+    for (const c of markerOverlay === null ? path : [...path, markerOverlay]) {
       gl.bindVertexArray(c.vao);
       gl.drawArrays(gl.LINES, 0, c.vertexCount);
     }
@@ -361,18 +485,14 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     bounds = null;
   }
 
-  /** The path (and envelope) framed to fill about 80% of the canvas, for its current shape. */
+  /** The path (and envelope and scene) framed to fill about 80% of the canvas, for its current shape. */
   function fitView(): Orbit {
-    return fitOrbit(fitBox(), undefined, width / height, 0.8);
+    return fitOrbit(fitBox(), undefined, width / height, 0.8, angles);
   }
 
+  /** The box of everything drawn: the path moved by its offset, the envelope and the scene. */
   function fitBox(): Box3 | null {
-    if (bounds === null) return envelope;
-    if (envelope === null) return bounds;
-    return {
-      min: [Math.min(bounds.min[0], envelope.min[0]), Math.min(bounds.min[1], envelope.min[1]), Math.min(bounds.min[2], envelope.min[2])],
-      max: [Math.max(bounds.max[0], envelope.max[0]), Math.max(bounds.max[1], envelope.max[1]), Math.max(bounds.max[2], envelope.max[2])],
-    };
+    return unionBox(offsetBox(bounds, pathOffset), envelope, sceneBox);
   }
 
   return {
@@ -385,7 +505,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       bounds = given === undefined ? null : given;
       autoFit = true;
       view = fitView();
-      if (showGrid) rebuildOverlay();
+      rebuildOverlay();
       const total = Math.max(1, next.kinds.length);
       const box = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
       const source = chunks(next, loadOptions.segmentsPerChunk ?? DEFAULT_SEGMENTS_PER_CHUNK);
@@ -409,7 +529,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
             bounds = { min: [box.min[0] as number, box.min[1] as number, box.min[2] as number], max: [box.max[0] as number, box.max[1] as number, box.max[2] as number] };
             if (first) {
               view = fitView();
-              if (showGrid) rebuildOverlay();
+              rebuildOverlay();
             }
           }
           loadOptions.onProgress?.(c.vertexEnd / total);
@@ -427,20 +547,20 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       } catch (e) {
         if (mine === generation) {
           clearPath();
-          if (showGrid) rebuildOverlay();
+          rebuildOverlay();
         }
         requestRender();
         throw e;
       }
       if (given === undefined) view = fitView();
-      if (showGrid) rebuildOverlay();
+      rebuildOverlay();
       loadOptions.onProgress?.(1);
       requestRender();
     },
     clear() {
       generation++;
       clearPath();
-      if (showGrid) rebuildOverlay();
+      rebuildOverlay();
       requestRender();
     },
     setRapidsVisible(visible) {
@@ -459,6 +579,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     },
     setEnvelope(next) {
       envelope = next;
+      if (autoFit) view = fitView();
       rebuildOverlay();
       requestRender();
     },
@@ -467,6 +588,27 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       const auto = box === null ? 10 : Math.max(1, Math.max(box.max[0] - box.min[0], box.max[1] - box.min[1]) / 8);
       wcs = origin === null ? null : { origin, size: size ?? auto };
       rebuildOverlay();
+      requestRender();
+    },
+    setScene(next) {
+      scene = next;
+      sceneBox = sceneBounds(next);
+      rebuildSolids();
+      if (autoFit) view = fitView();
+      rebuildOverlay();
+      requestRender();
+    },
+    setPathOffset(offset) {
+      if (offset[0] === pathOffset[0] && offset[1] === pathOffset[1] && offset[2] === pathOffset[2]) return;
+      pathOffset = offset;
+      if (autoFit) view = fitView();
+      rebuildOverlay();
+      requestRender();
+    },
+    setView(preset) {
+      angles = VIEW_ANGLES[preset];
+      autoFit = true;
+      view = fitView();
       requestRender();
     },
     setColors(next) {
@@ -518,14 +660,21 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     get chunkCount() {
       return path.length;
     },
+    get solidCount() {
+      return solids.length;
+    },
     dispose() {
       disposed = true;
       generation++;
       clearPath();
-      if (overlay !== null) release(overlay);
-      overlay = null;
+      for (const s of solids) release(s);
+      solids = [];
+      if (gridChunk !== null) release(gridChunk);
+      if (frameOverlay !== null) release(frameOverlay);
+      if (markerOverlay !== null) release(markerOverlay);
+      gridChunk = frameOverlay = markerOverlay = null;
       gl.deleteProgram(program);
+      gl.deleteProgram(solidProgram);
     },
   };
 }
-
