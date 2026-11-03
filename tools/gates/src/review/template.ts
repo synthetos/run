@@ -1,7 +1,7 @@
 /**
  * PR template check (ROADMAP P0-03): `.github/pull_request_template.md`
- * carries every SAFETY §8 checklist item, 1 to 45, unticked, and items 22 to
- * 45 are SAFETY §8's text verbatim, so the template cannot drift from the
+ * carries every SAFETY §8 checklist item, 1 to 49, unticked, and items 22 to
+ * 49 are SAFETY §8's text verbatim, so the template cannot drift from the
  * in-repo safety case. Items 1 to 21 come from OLD-S §8, which SAFETY §8
  * adopts by reference. Dependency-free.
  */

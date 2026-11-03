@@ -631,7 +631,7 @@ function sendJobFlag(t: JobLayerTx, on: 0 | 1): void {
 export function onJobRuntimeAnswer(t: JobLayerTx, e: PendingRead, r: Response | null, at: number): void {
   const status = r === null ? -1 : r.footer.status;
   if (status === 0 || t.s.job === null) return;
-  const what = e.line?.includes('"fi"') === true ? 'the feed-limit window' : 'the job flag';
+  const what = e.line?.includes('"fi"') === true ? 'the feed-limit period' : 'the job flag';
   if (e.line?.includes('"fi"') === true && t.s.job.feedLimit !== null) patchJob(t, { feedLimit: null });
   jobEvent(t, at, 'info', `The controller did not take ${what} (status ${status}); the job runs without it.`);
 }

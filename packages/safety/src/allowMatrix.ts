@@ -411,8 +411,8 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
     kind: 'jobs',
     states: [...IDLE, 'PREAMBLE', 'RUNNING', 'HELD', 'PROGRAM_PAUSED'],
     overlays: [],
-    denied: { reason: 'The job flag and the feed-limit window are sent only around a job.', remedy: 'Nothing to do.' },
-    citation: 'SAFETY §4.4a job flag and feed-limit window (Phase 3); MACHINING_ASSISTANT feed-limit step 3',
+    denied: { reason: 'The job flag and the feed-limit period are sent only around a job.', remedy: 'Nothing to do.' },
+    citation: 'SAFETY §4.4a job flag and feed-limit period (Phase 3); MACHINING_ASSISTANT feed-limit step 3',
   },
   jobBreakpoints: {
     kind: 'session',

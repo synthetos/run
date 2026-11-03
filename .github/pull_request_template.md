@@ -72,6 +72,10 @@ item 20 covers 0x18 and 0x04). Items 22–40 are SAFETY §8 verbatim.
 - [ ] 43. (amendment 2026-11-02) Nothing polls while idle: no periodic GET, only the confirming reads §4.2 lists and one read-back per change; the full state is read at every connect; liveness comes from reports and the heartbeat (STALE after the silence window).
 - [ ] 44. (amendment 2026-11-02) The status report list, `sv` and `si` are written only where they differ, one line at a time with a read-back, through the `report` kind and the `reports` release gate; never a `ram` key; the change is shown (W35, W36) and logged.
 - [ ] 45. (amendment 2026-11-02) Homing, G28.3, G92/G92.1 and G54..G59 are separate intents with their confirmations (C4, C26–C29) and read-backs; each motion line kind comes only from its intents; UNKNOWN always offers its exits.
+- [ ] 46. (Phase 3, 2026-11-03) Jobs stay behind the jobs switch (`JOBS`, production off) and the motion release; the job is sanitised in the worker with live values; Start needs its confirmations (homed or C36, C31, C32).
+- [ ] 47. (Phase 3) Job lines go out only in line mode (footer revision 3), never beyond `f[2]` less the owed lines less the reserve; only `r` answers are counted; every job line passes the gate as exactly its sanitised line.
+- [ ] 48. (Phase 3) A refused line holds the job (W38, C33); a reset is a FAULT (W40); a tool change stops before the M6 with the spindle and coolant off (W37, C34, C35); breakpoints stop before their line and say when they cannot (W41).
+- [ ] 49. (Phase 3) `rxm` is written only by the `lineMode` intent: only if it differs, read back, and put back after the job and at connect (H77); the job flag is sent only where the capability probe finds it.
 
 ### Notes for the safety reviewer
 
