@@ -139,10 +139,14 @@ describe('Phase 1 control allowlist', () => {
     /^tab:(gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
     /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
-    /^preview:(file|rapids|mode|scrubber|fit|cancel)$/,
+    /^preview:(file|rapids|mode|scrubber|fit|cancel|view-iso|view-top|view-front)$/,
     /^sample:(mounting-plate|test-square)$/,
     /^action:(add-tool|fork-material|new-material|edit-material|ask-delete|delete-material|cancel-delete|save-material|cancel-material|close-material|add-safety|add-behaviour|remove-row|add-link|more-link|remove-link|clear-draft|clear-pin|fill-from-board|copy-machine|fixture-file|save-transcript|dismiss-w29|pause-request|stop-job-request)$/,
     /^label:(Toggle day\/night mode|Account: .*|Dialect|Find a machine|back left|back right|center|front left|front right|Link|Shop|Price in US dollars|Close|TinyG v8 board drawing\..*|J\d\.\d .+|M\d\.\d .+|.+, draft|.+, your profile|Search settings|Only pending changes)$/,
+    // The Job model (FLOW_ANALYSIS §4 steps 1-4): the job's machine and bed, Save to project, Projects' "Use in Job"
+    // and the drawing import, the camera views. Records in this browser and the drawing only; never a board command.
+    /^label:(Machine for this job|Project to save the draft to|Drawing units|(Width|Depth|Thickness|Bed top, machine Z), bed)$/,
+    /^action:(job-take-bed|bed-save-machine|stock-outline-remove|job-save-to-project|project-use-in-job|project-open-job|project-remove-job|import-cancel|import-accept)$/,
     /^button:(Workshop|Stock|Whole bed|3D|Top|Front|Block|Round|Sheet|Stock top|Stock bottom|\d+ clamps|No clamps|Remove the fixture|Use the sample plate|All|End mills|Ball nose|V-bits|Drills|O-flutes|Built-in|Mine \(\d+\)|Belt driven|Screw driven|Go to Run|T\d+ · .+|Motor \d|X|Y|Z|A)$/,
     /^(input|select|textarea):/,
     // Report a problem (REPORT_A_PROBLEM): opens the dialog and builds links, files and Markdown from data run
