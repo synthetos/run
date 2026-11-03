@@ -13,5 +13,8 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@synthetos/protocol": "workspace:*"
   }
 }

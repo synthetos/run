@@ -12,9 +12,11 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --coverage",
-    "gen:status": "node scripts/gen-status.ts"
+    "gen:status": "node scripts/gen-status.ts",
+    "gen:sim-firmware": "node scripts/gen-sim-firmware.ts"
   },
   "devDependencies": {
+    "@synthetos/flasher": "workspace:*",
     "@synthetos/protocol": "workspace:*"
   }
 }

@@ -63,6 +63,24 @@ export interface TinyGModelOptions {
    * false. For the tests of run's capability seam only.
    */
   readonly jobFlag?: boolean;
+  /**
+   * Edge-next model, test kit flasher (SAFETY §4.8 amendment 2026-11-03): the build this board runs, as the
+   * flashable board reads it from the flashed image (simFirmware.ts). `fb` and `fv` are what the board reports,
+   * `hv` its hardware version, and `layout` the EEPROM layout marker: a board whose EEPROM holds another layout
+   * loads the defaults on boot (@cite EN config.c:214-221, :264-282). Default: edge-next 450.01, hv 8, layout 10002.
+   */
+  readonly build?: { readonly fb: number; readonly fv: number; readonly hv: number; readonly layout: number };
+  /**
+   * Edge-next model, test kit flasher: `{"boot":1}` (`hw_run_boot`) answers, then the board resets into its
+   * bootloader with the software-reset flag set (@cite EN hardware.c:155-162; XB src/xboot.c:236-246). Without this
+   * option the model refuses the SET as a model gap, as before.
+   */
+  readonly onBootRequest?: () => void;
+  /**
+   * Edge-next model, test kit switch check: the input states `in1`..`in8` (1 closed, 0 open) as a test drives them.
+   * Without it every input reads 0.
+   */
+  readonly inputs?: (input: number) => number;
 }
 
 /** What a test can inspect without going through the wire. */

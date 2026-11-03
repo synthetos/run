@@ -1,7 +1,7 @@
 /**
  * @synthetos/protocol
  *
- * Wire protocol for Synthetos controllers: framing, inbound classification, dialect data, capability probe and classifier, signed approved-builds manifest.
+ * Wire protocol for Synthetos controllers: framing, inbound classification, dialect data, capability probe and classifier, signed approved-builds manifest, signed firmware release list.
  *
  * The read allowlists and forbidden writes are NOT here: they are generated
  * from the vendored HIL tables and live in `@synthetos/schema`
@@ -97,6 +97,7 @@ export type {
   ChannelRejection,
   ChannelVerdict,
   Environment,
+  ProbedBoard,
   VerifiedApprovedBuilds,
   VerifyOptions,
 } from './approvedBuilds.ts';
@@ -111,3 +112,13 @@ export {
   verifySafetyAdvisory,
 } from './safetyAdvisory.ts';
 export type { AdvisoryEnvironment, AdvisoryRejection, AdvisoryVerdict, AdvisoryVerifyOptions, Revocation, SafetyAdvisory } from './safetyAdvisory.ts';
+export {
+  FIRMWARE_RELEASES_FORMAT,
+  FIRMWARE_RELEASES_PAYLOAD_FORMAT,
+  FIRMWARE_RELEASES_SIGNING_PREFIX,
+  MAX_RELEASE_HEX_BYTES,
+  belowMinimum,
+  releasesForHardware,
+  verifyFirmwareReleases,
+} from './firmwareReleases.ts';
+export type { FirmwareRelease, FirmwareReleases, HardwareReleases, ReleasesEnvironment, ReleasesRejection, ReleasesVerdict, ReleasesVerifyOptions } from './firmwareReleases.ts';

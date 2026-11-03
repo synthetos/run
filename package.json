@@ -38,6 +38,7 @@
     "tokens:drift": "node tools/gates/src/tokens/drift-cli.ts",
     "sign:builds": "node tools/gates/src/release/sign-cli.ts",
     "sign:advisory": "node tools/gates/src/release/sign-advisory-cli.ts",
+    "sign:releases": "node tools/gates/src/release/sign-releases-cli.ts",
     "gen:schema": "node tools/gates/src/schema/gen.ts",
     "gen:boards": "node tools/gates/src/boards/gen.ts",
     "gen:boards-hw": "node tools/gates/src/boards/hw-cli.ts"

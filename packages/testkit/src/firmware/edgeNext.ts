@@ -492,14 +492,15 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#resetRam();
     // EEPROM: a record-0 layout marker other than layout 2 means "not set up": write the defaults
     // (@behaviour EN-EEPROM; @cite EN config.c:214-221, :264-282).
-    const fresh = this.settings.eeprom['__layout'] !== 10002;
+    const layout = this.#options.build?.layout ?? 10002;
+    const fresh = this.settings.eeprom['__layout'] !== layout;
     if (fresh) {
       this.settings.resetToDefaults();
       if (this.#options.rxm !== undefined) {
         this.settings.setRam('rxm', this.#options.rxm);
         this.settings.persist('rxm');
       }
-      this.settings.eeprom['__layout'] = 10002;
+      this.settings.eeprom['__layout'] = layout;
       this.#storeSrList(this.#options.srList ?? SR_DEFAULTS);
     } else {
       this.settings.load();
@@ -2048,8 +2049,15 @@ export class TinyGEdgeNextModel implements SimDevice {
         return 0;
       case '_reserved_hold_setting':
         return ST('FUNCTION_IS_STUBBED');
+      case 'hw_run_boot': {
+        // `hw_request_bootloader()`: the answer goes out, then the main loop resets the chip with the software
+        // reset flag set, which xboot reads as "stay 60 s" (@cite EN hardware.c:155-162; XB src/xboot.c:236-246).
+        const request = this.#options.onBootRequest;
+        if (request === undefined) throw new ModelGapError(`edge-next SET ${key} (${info.set})`);
+        this.#clock().setTimeout(() => request(), 5);
+        return 0;
+      }
       case 'set_baud':
-      case 'hw_run_boot':
       case 'set_defaults':
       case 'run_test':
       case 'cm_run_qf':
@@ -2176,10 +2184,13 @@ export class TinyGEdgeNextModel implements SimDevice {
       default:
         break;
     }
-    if (key === 'fb') return fixed(FW_BUILD, p);
-    if (key === 'fv') return fixed(FW_VERSION, p);
+    if (key === 'fb') return fixed(this.#options.build?.fb ?? FW_BUILD, p);
+    if (key === 'fv') return fixed(this.#options.build?.fv ?? FW_VERSION, p);
     if (key === 'hp') return HW_PLATFORM;
-    if (key === 'hv') return fixed(HW_VERSION, p);
+    if (key === 'hv') return fixed(this.#options.build?.hv ?? HW_VERSION, p);
+    // Input states (`get_int`, read-only): what the test drives, 0 otherwise.
+    const input = /^in([1-8])$/.exec(key);
+    if (input !== null) return this.#options.inputs?.(Number(input[1])) ?? 0;
     if (info.group === 'hom' && axis >= 0) return this.#homed[axis] ? 1 : 0;
     // The active G92 offset, mm (0 while G92 is off); g28/g30 read their (unset, 0) stored positions below.
     if (info.group === 'g92' && axis >= 0) return fixed(this.#gm.g92Enabled ? (this.#gm.g92[axis] as number) : 0, p);
@@ -2512,16 +2523,16 @@ export class TinyGEdgeNextModel implements SimDevice {
   /** `rpt_exception()` (@cite EN report.c:144-159). Returns the status. */
   #exception(status: number, msg: string): number {
     const name = Object.entries(T.status).find(([, c]) => c === status)?.[0] ?? 'ERROR';
-    this.#println(serialize({ er: { fb: fixed(FW_BUILD, 2), st: status, msg: `${name} - ${msg}` } }, this.#relaxed()));
+    this.#println(serialize({ er: { fb: fixed(this.#options.build?.fb ?? FW_BUILD, 2), st: status, msg: `${name} - ${msg}` } }, this.#relaxed()));
     return status;
   }
 
   #banner(msg: string): void {
     const sr: OutObject = {
-      fv: fixed(FW_VERSION, 3),
-      fb: fixed(FW_BUILD, 2),
+      fv: fixed(this.#options.build?.fv ?? FW_VERSION, 3),
+      fb: fixed(this.#options.build?.fb ?? FW_BUILD, 2),
       hp: HW_PLATFORM,
-      hv: HW_VERSION,
+      hv: this.#options.build?.hv ?? HW_VERSION,
       id: this.#options.id ?? 'SIM-EN-0001',
       msg,
     };

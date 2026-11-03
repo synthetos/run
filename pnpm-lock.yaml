@@ -108,7 +108,11 @@ importers:
         specifier: 1.5.0
         version: 1.5.0(typescript@6.0.3)
 
-  packages/flasher: {}
+  packages/flasher:
+    dependencies:
+      '@synthetos/protocol':
+        specifier: workspace:*
+        version: link:../protocol
 
   packages/gcode:
     dependencies:
@@ -175,6 +179,9 @@ importers:
 
   packages/testkit:
     devDependencies:
+      '@synthetos/flasher':
+        specifier: workspace:*
+        version: link:../flasher
       '@synthetos/protocol':
         specifier: workspace:*
         version: link:../protocol

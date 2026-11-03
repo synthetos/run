@@ -26,6 +26,13 @@ export interface LinkOptions {
   readonly baudRate?: number;
   /** USB bridge latency added to every byte, both directions. Default 1 ms. */
   readonly latencyMs?: number;
+  /**
+   * Deliver host bytes whose arrival times fall within this many ms of the first in one timer (default 0: one
+   * timer per byte, as every existing model test expects). The flasher's simulated board sets it so a 516-byte
+   * page write does not cost 516 real-time timers in the fake-serial build; each byte's fate (faults) is still
+   * decided byte by byte.
+   */
+  readonly coalesceMs?: number;
 }
 
 export interface SimEndpointOptions {
@@ -39,6 +46,7 @@ export interface SimEndpointOptions {
 
 type DataListener = (chunk: Uint8Array) => void;
 type DisconnectListener = (reason: string) => void;
+type ReconnectListener = () => void;
 
 const XOFF = 0x13;
 const XON = 0x11;
@@ -51,6 +59,7 @@ export class SimEndpoint {
   readonly #origin: number;
   readonly #byteMs: number;
   readonly #latencyMs: number;
+  readonly #coalesceMs: number;
   readonly #toDevice: ByteFaults;
   readonly #toHost: ByteFaults;
   #connected = true;
@@ -62,6 +71,7 @@ export class SimEndpoint {
   #toHostFlushTimer: number | undefined;
   readonly #dataListeners = new Set<DataListener>();
   readonly #disconnectListeners = new Set<DisconnectListener>();
+  readonly #reconnectListeners = new Set<ReconnectListener>();
 
   constructor(options: SimEndpointOptions) {
     this.clock = options.clock;
@@ -76,6 +86,7 @@ export class SimEndpoint {
     const latency = options.link?.latencyMs ?? 1;
     if (!(Number.isFinite(latency) && latency >= 0)) throw new RangeError(`latency must be >= 0, got ${latency}`);
     this.#latencyMs = latency;
+    this.#coalesceMs = options.link?.coalesceMs ?? 0;
     this.#hostBaud = options.device.baudRate;
     this.#origin = this.clock.now();
     this.device.attach({
@@ -101,6 +112,15 @@ export class SimEndpoint {
     const now = this.clock.now();
     this.transcript.record({ t: this.#rel(), kind: 'host-write', data: data.slice() });
     let wire = Math.max(now, this.#toDeviceWireFree);
+    let batch: { at: number; bytes: { b: number; overrun: boolean }[] } | null = null;
+    const flushBatch = (): void => {
+      if (batch === null) return;
+      const { at, bytes } = batch;
+      batch = null;
+      this.#schedule(at - now, () => {
+        for (const x of bytes) if (this.#connected) this.device.receive(x.b, x.overrun);
+      });
+    };
     for (const raw of data) {
       wire += this.#byteMs;
       const fate = this.#toDevice.next(this.#garble(raw));
@@ -108,9 +128,19 @@ export class SimEndpoint {
       const arrival = Math.max(wire + this.#latencyMs + this.#toDevice.latencyAt(now - this.#origin), this.#toDeviceLastArrival);
       this.#toDeviceLastArrival = arrival;
       if (fate.disconnect) {
+        flushBatch();
         // The cable goes when this byte would have arrived: everything before it got through.
         this.#schedule(arrival - now, () => this.disconnect('fault plan: disconnect'));
         break;
+      }
+      if (this.#coalesceMs > 0) {
+        const open = batch as { at: number; bytes: { b: number; overrun: boolean }[] } | null;
+        if (open !== null && arrival - open.at > this.#coalesceMs) flushBatch();
+        const current: { at: number; bytes: { b: number; overrun: boolean }[] } = batch ?? { at: arrival, bytes: [] };
+        batch = current;
+        current.at = Math.max(current.at, arrival);
+        for (const b of fate.deliver) current.bytes.push({ b, overrun: fate.overrun });
+        continue;
       }
       for (const b of fate.deliver) {
         this.#schedule(arrival - now, () => {
@@ -118,6 +148,7 @@ export class SimEndpoint {
         });
       }
     }
+    flushBatch();
     this.#toDeviceWireFree = wire;
   }
 
@@ -141,6 +172,26 @@ export class SimEndpoint {
     this.#toHostFlushTimer = undefined;
     this.transcript.record({ t: this.#rel(), kind: 'link', note: `disconnected: ${reason}` });
     for (const l of [...this.#disconnectListeners]) l(reason);
+  }
+
+  onReconnect(listener: ReconnectListener): () => void {
+    this.#reconnectListeners.add(listener);
+    return () => this.#reconnectListeners.delete(listener);
+  }
+
+  /**
+   * Plug the cable back in (the flasher's recovery: unplug and replug USB). The device is not touched here; a
+   * USB-powered bench board is power-cycled by its own test control.
+   */
+  reconnect(): void {
+    if (this.#connected) return;
+    this.#connected = true;
+    const now = this.clock.now();
+    this.#toDeviceWireFree = now;
+    this.#toDeviceLastArrival = now;
+    this.#toHostWireFree = now;
+    this.transcript.record({ t: this.#rel(), kind: 'link', note: 'reconnected' });
+    for (const l of [...this.#reconnectListeners]) l();
   }
 
   #rel(): number {

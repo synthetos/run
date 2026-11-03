@@ -1142,6 +1142,7 @@ function finishProbe(t: Tx): void {
       detail: c.detail,
       upgradeOffer: c.upgradeOffer,
       ...(c.buildIdentity === undefined ? {} : { buildIdentity: c.buildIdentity }),
+      ...(c.approvalSource === undefined ? {} : { approvalSource: c.approvalSource }),
     },
   });
   if (c.mode === 'readOnly') t.addOverlay('READ_ONLY');

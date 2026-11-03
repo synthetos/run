@@ -265,6 +265,8 @@ export interface ClassificationInfo {
   readonly detail: string;
   readonly upgradeOffer: boolean;
   readonly buildIdentity?: 'fbs' | 'fbOnly';
+  /** Where a full session's approval came from (absent: the signed manifest; SAFETY H87). */
+  readonly approvalSource?: 'release-list' | 'trusted';
 }
 
 export interface Identity {
