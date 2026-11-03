@@ -235,7 +235,13 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   }
 
   async function runBackup(): Promise<void> {
-    if (backup.running || readout.phase.kind === 'reading') return;
+    if (backup.running) return;
+    if (readout.phase.kind === 'reading') {
+      // The Board's settings read owns the read path right now; say so rather than do nothing.
+      backupStatus = { kind: 'failed', message: "the board's settings are still being read; try again when that finishes" };
+      publish();
+      return;
+    }
     backupStatus = { kind: 'reading', done: 0, of: 1, token: '' };
     publish();
     try {

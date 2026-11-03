@@ -355,13 +355,11 @@ export function RestorePanel({ view }: { readonly view: LiveView | null }): Comp
   const thisBoard = view?.message?.snapshot.identity?.id ?? null;
   return h(
     'section',
-    { class: 'insp', 'data-region': 'restore' },
-    h('header', null, h('h2', null, 'Restore'), h('span', { class: 'tag' }, 'From a backup file')),
-    h('p', { class: 'fine' }, 'Choose a backup file. Its values become pending changes, matched by setting name; identity, read-only and never-written settings are skipped. Review them in Pending changes, then Apply: Run backs up the board first and writes one setting at a time.'),
+    { class: 'hub-restore', 'data-region': 'restore' },
     h(
       'label',
-      { class: `button wide file-pick${blocked === null ? '' : ' disabled'}` },
-      'Restore a backup…',
+      { class: `button small file-pick${blocked === null ? '' : ' disabled'}`, title: blocked ?? 'Its values become pending changes, matched by setting name; identity and read-only settings are skipped. Review them, then Apply.' },
+      'Restore from a file…',
       h('input', {
         type: 'file',
         disabled: blocked !== null,
