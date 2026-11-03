@@ -135,6 +135,7 @@ describe('Phase 1 control allowlist', () => {
   const CONNECT = new Set(['connect', 'disconnect', 'confirm', 'cancel', 'dismiss']);
   /** Controls that never reach the machine: views, tabs, the preview, and the local libraries. */
   const UI: readonly RegExp[] = [
+    /^action:advisor-(open|engine|input)$/,
     /^view:(run|setup|tools|materials|board|machines|projects|analyze|settings|safety)$/,
     /^tab:(gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,

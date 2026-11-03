@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@preact/signals": "2.11.3",
+    "@synthetos/advisor": "workspace:*",
     "@synthetos/contracts": "workspace:*",
     "@synthetos/gcode": "workspace:*",
     "@synthetos/gcode-view": "workspace:*",

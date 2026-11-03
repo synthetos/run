@@ -55,6 +55,9 @@ importers:
       '@preact/signals':
         specifier: 2.11.3
         version: 2.11.3(preact@11.0.1)
+      '@synthetos/advisor':
+        specifier: workspace:*
+        version: link:../../packages/advisor
       '@synthetos/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

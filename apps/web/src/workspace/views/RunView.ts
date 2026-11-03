@@ -82,7 +82,7 @@ function RunBridge({ parts }: { readonly parts: PreviewParts }): ComponentChild 
   const { state, actions } = parts;
   const result = state.status === 'ready' ? state.result : null;
   useEffect(() => {
-    currentFile.value = result === null || state.fileName === null ? null : { name: state.fileName, bytes: result.bytes };
+    currentFile.value = result === null || state.fileName === null ? null : { name: state.fileName, bytes: result.bytes, preview: result };
   }, [result, state.fileName]);
   const pending = pendingOpen.value;
   const onFile = actions.onFile;
@@ -908,7 +908,7 @@ function JobDetails({ result, facts }: { readonly result: PreviewResult; readonl
 }
 
 /** The job: a card at the top of the Run view with the file, its checks, and the Check → Set zero → Start steps. */
-function JobCard({ parts, model, stops }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly stops: StopHooks }): ComponentChild {
+function JobCard({ parts, model, stops, onView }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly stops: StopHooks; readonly onView: (view: string) => void }): ComponentChild {
   const { state, actions } = parts;
   const loading = state.status === 'loading';
   const disabled = !state.ready || loading;
@@ -955,7 +955,7 @@ function JobCard({ parts, model, stops }: { readonly parts: PreviewParts; readon
         result === null ? 'Open a file' : 'Open another',
       ),
     ),
-    h(JobSteps, { parts, model }),
+    h(JobSteps, { parts, model, onAnalyze: () => onView('analyze') }),
     h(JobStatus, { model, ...stops }),
     result === null || facts === null
       ? null
@@ -1213,7 +1213,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
     'div',
     { class: 'run-view', 'data-region': 'preview' },
     h(RunBridge, { parts }),
-    h(JobCard, { parts, model, stops }),
+    h(JobCard, { parts, model, stops, onView }),
     h(
       'div',
       { class: 'workspace-grid run-grid' },

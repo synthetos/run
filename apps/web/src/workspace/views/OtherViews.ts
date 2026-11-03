@@ -15,24 +15,7 @@ function head(title: string, sub: string): ComponentChild {
   return h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, title), h('p', null, sub)));
 }
 
-export function AnalyzeView(): ComponentChild {
-  return h(
-    'div',
-    { class: 'analyze-view' },
-    head('Analyze', 'Feeds and speeds, time estimates and toolpath optimisation.'),
-    h(
-      'div',
-      { tabindex: 0, class: 'scroll-region' },
-      h(
-        'div',
-        { class: 'panel empty-panel' },
-        h('h2', null, 'The machining assistant arrives in a later stage'),
-        h('p', null, 'It will check each operation’s chip load, depth and coolant against your stock, tool and machine, and suggest a revised copy of the file for you to review. An optimised file is always your choice, shown before and after, and re-checked by the sanitiser.'),
-        h('p', { class: 'fine' }, 'Today the Run view checks every line of a file with the safety sanitiser and shows the findings.'),
-      ),
-    ),
-  );
-}
+export { AnalyzeView } from './AnalyzeView.ts';
 
 export function PreferencesView({ build }: { readonly build: BuildInfo }): ComponentChild {
   const saved = toolStore.saved.value && setupStore.saved.value;

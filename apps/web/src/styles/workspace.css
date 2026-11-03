@@ -1447,3 +1447,13 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .live-feedlimit ul { margin: 3px 0 0; padding-left: 16px; }
 .live-stream li.ev-error span { color: var(--danger); }
 .live-stream li.ev-warn span, .live-stream li.ev-toolchange span { color: var(--warn); }
+
+/* Advisor inputs and results scroll inside Analyze, never the document. */
+.advisor-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 12px 0; }
+.advisor-fields label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.advisor-fields input, .advisor-fields select { min-width: 0; width: 100%; }
+.advisor-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.advisor-table caption { text-align: left; font-weight: 600; }
+.advisor-table th, .advisor-table td { padding: 8px; text-align: left; }
+.advisor-operation li { overflow-wrap: anywhere; }
+.advisor-job-check { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }

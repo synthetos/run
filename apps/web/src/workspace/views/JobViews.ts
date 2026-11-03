@@ -18,6 +18,7 @@ import { STOP_TEXT, c30, c31, c32, c33, c34, c35, c36, w17, w37, w5, w2Label } f
 import type { PreviewParts } from '../../preview/PreviewPanel.ts';
 import { fileKey, loadBreakpoints } from '../../preview/gcodeList.ts';
 import { signalText } from '../../shell/signal.ts';
+import { advisorSummary } from '../advisorState.ts';
 import { toolStore } from '../library.ts';
 import type { WorkspaceModel } from '../model.ts';
 import { ConfirmCard } from '../ui.ts';
@@ -31,7 +32,7 @@ function speedsText(job: JobSnapshot | null): string {
 }
 
 /** The Check → Set zero → Start stepper (H73). */
-export function JobSteps({ parts, model }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null }): ComponentChild {
+export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly onAnalyze?: () => void }): ComponentChild {
   const { state } = parts;
   const result = state.status === 'ready' ? state.result : null;
   const view = model?.live.value ?? null;
@@ -72,6 +73,7 @@ export function JobSteps({ parts, model }: { readonly parts: PreviewParts; reado
   return h(
     'div',
     { class: 'job-steps', 'data-job': 'steps' },
+    h('div', { class: 'advisor-job-check', 'data-job': 'advisor' }, h('span', null, advisorSummary.value), h('button', { type: 'button', class: 'small', 'data-action': 'advisor-open', onClick: onAnalyze }, 'Analyze')),
     h(
       'ol',
       { class: 'flow', 'aria-label': 'Before you start' },
