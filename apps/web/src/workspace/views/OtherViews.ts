@@ -1,7 +1,5 @@
 /**
- * The Analyze, Settings and Safety views. The feeds and speeds advisor
- * arrives with the advisor package; until then Analyze says so plainly
- * instead of showing invented data. Projects is projects/ProjectsView.ts.
+ * Settings and Safety views, plus the Analyze view export.
  */
 import { h, type ComponentChild } from 'preact';
 import { CANNOT_GUARANTEE, w1 } from '@synthetos/safety';
@@ -30,7 +28,7 @@ export function PreferencesView({ build }: { readonly build: BuildInfo }): Compo
         'div',
         { class: 'panel' },
         h('div', { class: 'panel-head' }, h('h2', null, 'Theme')),
-        h('p', { class: 'fine' }, 'Light or dark, following your computer until you choose. The safety colours never change with the theme.'),
+        h('p', { class: 'fine' }, 'Follows your system until you choose.'),
         h('button', { type: 'button', class: 'small', 'data-theme-toggle': '', 'aria-label': 'Toggle day/night mode' }, 'Switch light or dark'),
       ),
       h(
@@ -45,7 +43,7 @@ export function PreferencesView({ build }: { readonly build: BuildInfo }): Compo
           h('div', null, h('dt', null, 'My materials'), h('dd', null, String(myMaterialStore.value.value.length))),
           h('div', null, h('dt', null, 'Storage'), h('dd', null, saved ? 'Available' : 'Blocked: changes last for this page only')),
         ),
-        h('p', { class: 'fine' }, 'Account sync comes later. Safety records (the settings reference, confirmations and the session marker) stay on this device and are never synced.'),
+        h('p', { class: 'fine' }, 'Stored on this device. Safety records are never synced.'),
       ),
       h('div', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h2', null, 'Version')), h('p', { class: 'mono' }, versionLabel(build))),
     ),

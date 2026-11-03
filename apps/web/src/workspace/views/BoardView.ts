@@ -86,7 +86,7 @@ function cell(key: string, settings: Settings, dialect: string | null, edit: Liv
   return h(
     'td',
     { key, class: v === null ? 'muted' : undefined, title: settingMeta(key, dialect).description },
-    h(Keyed, { value: v ?? 'Not read', raw: key }),
+    h(Keyed, { value: v ?? 'Unknown', raw: key }),
     d === 'changed' || d === 'unread' ? h('span', { class: 'draft-badge', title: `Pending: ${String(draftStore.value.value[key])}` }, 'pending') : null,
     edit === null ? null : h('div', { class: 'cell-edit' }, h(SettingEditor, { k: key, view: edit, compact: true })),
   );
@@ -99,12 +99,12 @@ function EditToggle({ view, editing, onToggle }: { readonly view: LiveView | nul
     'div',
     { class: 'edit-bar' },
     h('button', { type: 'button', class: `small${editing ? ' primary' : ''}`, 'data-action': 'toggle-edit', 'aria-pressed': editing ? 'true' : 'false', disabled: blocked !== null, title: blocked ?? 'Edit values; changes collect in Pending changes', onClick: onToggle }, editing ? 'Done editing' : 'Edit values'),
-    h('span', { class: 'fine' }, blocked ?? (editing ? 'Changes collect in Pending changes above. Nothing is written until you apply them.' : 'Values as read from the board.')),
+    h('span', { class: 'fine' }, blocked ?? (editing ? 'Review pending changes before applying.' : 'Reported by the board.')),
   );
 }
 
 function Empty({ view }: { readonly view: LiveView | null }): ComponentChild {
-  return h('p', { class: 'board-empty' }, view !== null && connected(view) ? 'The settings have not been read yet.' : NOT_CONNECTED_TEXT);
+  return h('p', { class: 'board-empty' }, view !== null && connected(view) ? 'Waiting for board settings.' : NOT_CONNECTED_TEXT);
 }
 
 // ---------------------------------------------------------------- overview
@@ -249,7 +249,7 @@ export function MotorDraft({ motor, view }: { readonly motor: number; readonly v
   return h(
     'section',
     { class: 'insp motor-draft', 'data-motor': String(motor), 'aria-labelledby': `motor-${motor}-title` },
-    h('header', null, h('h2', { id: `motor-${motor}-title` }, `Motor ${motor}`), h('span', { class: 'tag' }, motorAxis(settings, motor) === null ? 'Axis not read' : `Drives ${motorAxis(settings, motor) as string}`)),
+    h('header', null, h('h2', { id: `motor-${motor}-title` }, `Motor ${motor}`), h('span', { class: 'tag' }, motorAxis(settings, motor) === null ? 'Axis unknown' : `Drives ${motorAxis(settings, motor) as string}`)),
     h(
       'table',
       { class: 'draft-table' },
@@ -266,7 +266,7 @@ export function MotorDraft({ motor, view }: { readonly motor: number; readonly v
             { key: k, class: d === 'changed' || d === 'unread' ? 'drafted' : undefined },
             h('th', { scope: 'row', title: m.description }, m.label.replace(`Motor ${motor} `, '').replace(/^./, (c) => c.toUpperCase()), h('small', { class: 'raw-key' }, k)),
             h('td', null, plainValue(k, settings[k], dialect) ?? 'Not read'),
-            h('td', null, input(f), d === 'changed' ? h('span', { class: 'draft-badge' }, 'changed') : d === 'unread' ? h('span', { class: 'draft-badge' }, 'board not read') : null),
+            h('td', null, input(f), d === 'changed' ? h('span', { class: 'draft-badge' }, 'changed') : d === 'unread' ? h('span', { class: 'draft-badge' }, 'unknown') : null),
           );
         }),
         h('tr', { class: 'derived' }, h('th', { scope: 'row' }, 'Steps per unit', h('small', { class: 'raw-key' }, '360 ÷ sa × mi ÷ tr')), h('td', null, boardSteps === null ? 'Not read' : num(boardSteps, 3)), h('td', null, draftSteps === null ? '' : num(draftSteps, 3))),
@@ -424,7 +424,7 @@ function OverviewTab({ view }: { readonly view: LiveView | null }): ComponentChi
         TabPane,
         { prefix: 'bside', id: 'pin', current: side, class: 'tpane insp-scroll' },
         pin === null
-          ? h('section', { class: 'insp' }, h('p', { class: 'fine' }, 'Choose a screw terminal or pin on the drawing: its name, what it does and its current setting appear here.'))
+          ? h('section', { class: 'insp' }, h('p', { class: 'fine' }, 'Select a pin to see its wiring and settings.'))
           : pin.role === 'motor'
             ? [h(PinCard, { key: 'card', pin, view, onClose: () => setSelected(null) }), h(MotorDraft, { key: 'draft', motor: Number(pin.connector.slice(1)), view })]
             : h(PinCard, { pin, view, onClose: () => setSelected(null) }),
@@ -466,7 +466,7 @@ function MotorsTab({ view }: { readonly view: LiveView | null }): ComponentChild
                     { key: m, 'aria-selected': motor === m ? 'true' : 'false', onClick: () => setMotor(m), 'data-motor-row': String(m) },
                     h('th', { scope: 'row' }, h('button', { type: 'button', class: 'row-link', onClick: () => setMotor(m) }, `Motor ${m}`)),
                     ...MOTOR_FIELDS.map((f) => cell(`${m}${f}`, settings, dialect)),
-                    h('td', { class: 'num' }, spu === null ? '—' : num(spu, 3)),
+                    h('td', { class: 'num' }, spu === null ? 'Unknown' : num(spu, 3)),
                   );
                 }),
               ),
@@ -493,7 +493,7 @@ function axisTable(title: string, head: readonly string[], fields: readonly stri
       'table',
       { class: 'cfg-table' },
       h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Axis'), ...head.map((t) => h('th', { scope: 'col', key: t }, t)))),
-      h('tbody', null, axes.map((a) => h('tr', { key: a }, h('th', { scope: 'row' }, a.toUpperCase()), ...fields.map((f) => (settings[`${a}${f}`] === undefined ? h('td', { key: f, class: 'muted' }, '—') : cell(`${a}${f}`, settings, dialect, edit)))))),
+      h('tbody', null, axes.map((a) => h('tr', { key: a }, h('th', { scope: 'row' }, a.toUpperCase()), ...fields.map((f) => (settings[`${a}${f}`] === undefined ? h('td', { key: f, class: 'muted' }, 'Unknown') : cell(`${a}${f}`, settings, dialect, edit)))))),
     ),
   );
 }
@@ -546,12 +546,12 @@ function InputsTab({ view }: { readonly view: LiveView | null }): ComponentChild
               h('td', null, p.function),
               cell(p.keys[0] as string, settings, dialect, edit),
               h('td', null, h(Keyed, { value: st ?? 'Not read', raw: 'st' })),
-              h('td', { class: 'mono' }, p.mcu ?? '—'),
+              h('td', { class: 'mono' }, p.mcu ?? 'Not applicable'),
             ),
           ),
         ),
       ),
-      h('p', { class: 'fine' }, 'On this firmware one switch type (st) applies to every input. Each input has a 2.7 kΩ pull-up to 3.3 V on the board.'),
+      h('p', { class: 'fine' }, 'One switch type applies to all inputs. Inputs have 2.7 kΩ pull-ups to 3.3 V.'),
       edit === null ? null : h('dl', { class: 'facts inline-facts' }, h('div', null, h('dt', null, settingMeta('st', dialect).label, h('small', { class: 'raw-key' }, 'st')), h('dd', null, st ?? 'Not read', h('div', { class: 'cell-edit' }, h(SettingEditor, { k: 'st', view: edit, compact: true }))))),
     ),
   );
@@ -590,8 +590,8 @@ function OutputsTab({ view }: { readonly view: LiveView | null }): ComponentChil
               h('th', { scope: 'row' }, h('span', { class: 'pin-ref' }, p.ref)),
               h('td', null, h('strong', null, p.label)),
               h('td', null, p.function),
-              p.signal === 'out.spindleEnable' ? cell('spep', settings, dialect, edit) : p.signal === 'out.spindleDirection' ? cell('spdp', settings, dialect, edit) : p.signal === 'out.spindlePwm' ? cell('spph', settings, dialect) : p.signal === 'out.coolant' ? cell('coph', settings, dialect) : h('td', { class: 'muted' }, '—'),
-              h('td', { class: 'mono' }, p.mcu ?? '—'),
+              p.signal === 'out.spindleEnable' ? cell('spep', settings, dialect, edit) : p.signal === 'out.spindleDirection' ? cell('spdp', settings, dialect, edit) : p.signal === 'out.spindlePwm' ? cell('spph', settings, dialect) : p.signal === 'out.coolant' ? cell('coph', settings, dialect) : h('td', { class: 'muted' }, 'Not applicable'),
+              h('td', { class: 'mono' }, p.mcu ?? 'Not applicable'),
             ),
           ),
         ),
@@ -634,14 +634,14 @@ function CommsTab({ view }: { readonly view: LiveView | null }): ComponentChild 
       { class: 'cfg-section' },
       h('h3', { class: 'tan-label' }, 'Serial link'),
       h('dl', { class: 'facts inline-facts' }, ...['baud', 'ex', 'ec', 'ee', 'ej', 'jv', 'js', 'tv', 'qv', 'sv', 'si', 'rxm'].filter((k) => settings[k] !== undefined).map((k) => h('div', { key: k }, h('dt', null, settingMeta(k, dialect).label, h('small', { class: 'raw-key' }, k)), h('dd', null, `${plainValue(k, settings[k], dialect) ?? 'Not read'}${k === 'si' ? ' ms' : ''}`)))),
-      h('p', { class: 'fine' }, 'Values as the board reports them. Run does not change these: they decide how the board answers, and a wrong value would stop Run (and other senders) from understanding it. Change them with your usual sender if you must.'),
+      h('p', { class: 'fine' }, 'Read-only communication settings. Changing them can prevent senders from connecting.'),
     ),
     h(
       'section',
       { class: 'cfg-section' },
       h('h3', { class: 'tan-label' }, 'Status report list'),
-      srList === undefined ? h('p', { class: 'fine' }, 'Read when the board answers the first status request.') : h('ul', { class: 'key-chips', 'aria-label': 'Fields in the status report' }, srList.map((k) => h('li', { key: k }, h('code', null, k)))),
-      h('p', { class: 'fine' }, 'What the board sends in each status report (its answer to {sr:null}). Run reads it and never changes it.'),
+      srList === undefined ? h('p', { class: 'fine' }, 'Read when the board answers the first status request.') : h('ul', { class: 'key-chips', 'aria-label': 'Fields in the status report' }, srList.map((k) => h('li', { key: k }, settingMeta(k, dialect).label, h('code', { class: 'raw-key' }, k)))),
+      h('p', { class: 'fine' }, 'Fields reported by this board. Read only.'),
     ),
   );
 }
@@ -721,10 +721,10 @@ export function FirmwareTab({ view }: { readonly view: LiveView | null }): Compo
         'div',
         { class: 'fw-current' },
         h('div', { class: 'fw-chip' }, Icon('chip', 26)),
-        h('div', { class: 'grow' }, h('span', { class: 'kicker' }, 'On this board'), h('h2', null, on && typeof id?.fb === 'number' ? `Firmware ${id.fb.toFixed(2)}` : 'Firmware not read'), h('p', null, on ? `Hardware version ${id?.hv === undefined ? UNKNOWN : boardText(String(id.hv))} · read when connected` : 'Connect a board to read its firmware version.')),
+        h('div', { class: 'grow' }, h('span', { class: 'kicker' }, 'On this board'), h('h2', null, on && typeof id?.fb === 'number' ? `Firmware ${id.fb.toFixed(2)}` : 'Firmware unknown'), h('p', null, on ? `Hardware version ${id?.hv === undefined ? UNKNOWN : boardText(String(id.hv))} · read when connected` : 'Connect a board to read its firmware version.')),
       ),
       h('div', { class: 'section-heading tight' }, h('h2', null, 'Releases'), h('span', { class: 'fine' }, 'Signed builds only, for this board’s hardware')),
-      h('p', { class: 'fine pad' }, 'The signed release list arrives with firmware updates. No release is offered by this page.'),
+      h('p', { class: 'fine pad' }, 'No firmware releases available here.'),
     ),
     h(
       'aside',
@@ -735,7 +735,7 @@ export function FirmwareTab({ view }: { readonly view: LiveView | null }): Compo
         h('header', null, h('h2', null, 'Update'), h('span', { class: 'tag' }, 'Own safety-reviewed phase')),
         h('ol', { class: 'fw-plan' }, ['Back up every setting', 'Restart into update mode', 'Write and verify the signed build', 'Reconnect and check the version', 'Restore your settings'].map((s, i) => h('li', { key: s }, h('span', null, String(i + 1)), s))),
         h('button', { type: 'button', class: 'primary wide', disabled: true, 'data-machine-control': 'firmware' }, 'Review the update'),
-        h('p', { class: 'fine' }, 'Firmware updates are a separate phase with their own safety review. Nothing is written to the board from here.'),
+        h('p', { class: 'fine' }, 'Firmware updates are unavailable in this build.'),
       ),
     ),
   );

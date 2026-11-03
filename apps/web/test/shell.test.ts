@@ -69,7 +69,8 @@ describe('workspace AppShell (prerendered)', () => {
     expect(/<input[^>]*data-preview="file"[^>]*>/.exec(html)?.[0]).toContain('disabled');
     expect(/<select[^>]*data-preview="mode"[^>]*>/.exec(html)?.[0]).toContain('disabled');
     expect(/<button[^>]*data-action="start-job"[^>]*>/.exec(html)?.[0]).toContain('disabled');
-    expect(html).toContain('Running jobs arrives in a later phase.');
+    expect(html).toContain('Connect to see live job data.');
+    expect(html).not.toContain('Phase 1 · no motion');
     expect(html).toContain('Connect a machine to use these controls.');
     expect(html).toContain('Needs firmware support');
   });

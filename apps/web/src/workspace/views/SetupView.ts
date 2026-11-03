@@ -113,7 +113,7 @@ export function SetupView(): ComponentChild {
   return h(
     'div',
     { class: 'setup-view' },
-    h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, 'Workholding and stock'), h('p', null, 'What sits on the bed, how high, and where work zero is.'))),
+    h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, 'Workholding and stock'), h('p', null, 'Stock, fixture and work zero.'))),
     h(
       'div',
       { class: 'workspace-grid' },
@@ -245,7 +245,7 @@ export function SetupView(): ComponentChild {
           { class: 'insp' },
           h('header', null, h('h2', null, 'Bed'), h('span', { class: 'tag' }, 'Spoilboard')),
           h('div', { class: 'field-grid three' }, field('Width', setup.bed.width, (width) => set({ bed: { ...setup.bed, width } }), 'mm', 1, 1), field('Depth', setup.bed.depth, (depth) => set({ bed: { ...setup.bed, depth } }), 'mm', 1, 1), field('Thickness', setup.bed.thickness, (thickness) => set({ bed: { ...setup.bed, thickness } }))),
-          h('p', { class: 'fine' }, setupStore.saved.value ? 'Saved in this browser. Account sync comes later.' : 'Not saved: this browser blocks storage. Changes last for this page only.'),
+          h('p', { class: 'fine' }, setupStore.saved.value ? 'Saved in this browser.' : 'Storage blocked: changes last for this page only.'),
         ),
         ),
       ),

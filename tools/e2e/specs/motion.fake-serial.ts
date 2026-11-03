@@ -177,7 +177,7 @@ test('spindle on asks C24 and sends M3 S; Off sends M5; coolant mist M7 and off 
   const worker = await connected(page);
   await tab(page, 'spindle');
   const from = (await writes(worker)).length;
-  await page.getByRole('button', { name: 'On · CW' }).click();
+  await page.getByRole('button', { name: 'CW', exact: true }).click();
   await expect(page.locator('[data-safety="C24"]')).toContainText('Spindle will start (CW, S10000). Hands clear?');
   if (SHOTS !== undefined) await shot(page, '.sec-spindle', 'spindle-card');
   await page.locator('[data-action="motion-confirm"]').click();

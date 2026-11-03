@@ -82,7 +82,7 @@ export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewP
       h('li', { 'data-step': 'start' }, h('span', null, '3'), 'Start'),
     ),
     !ui.enabled || !ui.connected
-      ? h('p', { class: 'fine', 'data-job': 'later', id: 'start-later' }, ui.connected ? 'Running jobs is not enabled in this build: positions and settings are read only.' : 'Connect a machine to run this file. Run checks it again with the board’s own limits and offsets before anything is sent.')
+      ? h('p', { class: 'fine', 'data-job': 'later', id: 'start-later' }, ui.connected ? 'Job running is unavailable in this build.' : 'Connect to check this file against the board and run it.')
       : h(
           'div',
           { class: 'job-prep' },
@@ -106,7 +106,7 @@ export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewP
             h('strong', null, 'Work zero'),
             h('span', null, zero.text),
             board !== null && key !== null
-              ? h('button', { type: 'button', class: 'small', 'data-action': 'record-plan', onClick: () => { savePlan(key, board); setPlanTick(planTick + 1); } }, plan === null ? 'Record this as the file’s plan' : 'Update the plan to this')
+              ? h('button', { type: 'button', class: 'small', 'data-action': 'record-plan', onClick: () => { savePlan(key, board); setPlanTick(planTick + 1); } }, plan === null ? 'Save work zero for this file' : 'Update saved work zero')
               : null,
           ),
           zero.state === 'differs'
@@ -177,9 +177,9 @@ export function JobStatus({ model, onPause, onStopJob }: { readonly model: Works
       'dl',
       { class: 'job-facts' },
       h('div', null, h('dt', null, 'Line'), h('dd', { 'data-job': 'line' }, job.executing === null ? `${job.acked} of ${job.total} answered` : `file line ${job.executing.line} (${job.executing.n} of ${job.total})`)),
-      h('div', null, h('dt', null, 'Elapsed'), h('dd', { 'data-job': 'elapsed' }, ui.elapsedMs === null ? '—' : duration(ui.elapsedMs / 1000))),
-      h('div', null, h('dt', null, 'Remaining'), h('dd', { 'data-job': 'remaining' }, ACTIVE(job) ? `about ${duration(job.remainingSeconds)} (estimate)` : '—')),
-      h('div', null, h('dt', null, 'Feed, actual / programmed'), h('dd', { 'data-job': 'feed' }, `${typeof vel === 'number' ? Math.round(vel) : '—'} / ${typeof feed === 'number' ? Math.round(feed) : '—'} mm/min`)),
+      h('div', null, h('dt', null, 'Elapsed'), h('dd', { 'data-job': 'elapsed' }, ui.elapsedMs === null ? 'Not started' : duration(ui.elapsedMs / 1000))),
+      h('div', null, h('dt', null, 'Remaining'), h('dd', { 'data-job': 'remaining' }, ACTIVE(job) ? `about ${duration(job.remainingSeconds)} (estimate)` : 'Not running')),
+      h('div', null, h('dt', null, 'Feed, actual / programmed'), h('dd', { 'data-job': 'feed' }, `${typeof vel === 'number' ? Math.round(vel) : 'unknown'} / ${typeof feed === 'number' ? Math.round(feed) : 'unknown'} mm/min`)),
     ),
     job.message === null ? null : h('p', { class: `job-message${job.phase === 'failed' ? ' danger' : ''}`, 'data-job': 'message', role: job.phase === 'failed' ? 'alert' : 'status' }, ...signalText(job.message)),
     ACTIVE(job)

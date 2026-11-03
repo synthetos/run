@@ -1457,3 +1457,10 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .advisor-table th, .advisor-table td { padding: 8px; text-align: left; }
 .advisor-operation li { overflow-wrap: anywhere; }
 .advisor-job-check { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+
+/* Compact spindle controls; pin details remain in Board. */
+.spindle-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.spindle-controls > .inline-field, .spindle-controls > .motion-confirm { grid-column: 1 / -1; }
+.spindle-controls > .inline-field { margin-top: 0; }
+.spindle-speed { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+.spindle-speed input { width: 70px; min-height: 30px; text-align: right; }
