@@ -19,7 +19,7 @@ export interface JobTx {
 }
 
 /** Phases in which a job owns the machine: no other motion, no settings write, no disconnect. */
-export const ACTIVE_PHASES: ReadonlySet<JobPhase> = new Set(['preparing', 'running', 'draining', 'ending', 'pausing', 'paused', 'refused', 'toolChange', 'breakpoint', 'programStop', 'resuming']);
+export const ACTIVE_PHASES: ReadonlySet<JobPhase> = new Set(['checking', 'preparing', 'running', 'draining', 'ending', 'pausing', 'paused', 'refused', 'outputsOff', 'toolChange', 'breakpoint', 'programStop', 'resuming']);
 
 /** Most events a job keeps (the Live job tab shows them). */
 export const MAX_JOB_EVENTS = 60;

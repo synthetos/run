@@ -132,17 +132,26 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
     if (!context.settingWritable(token, value)) return { ok: false, reason: `"${token}" = ${setting[2]} is not the settings write the session is making now` };
     return { ok: true, kind: 'setting', token };
   }
-  if (bytes.length > MAX_GET_LINE_BYTES) return { ok: false, reason: `a ${bytes.length}-byte write is not a GET line` };
-  if (text === `${SPLICE_GUARD_LINE}\n`) {
-    return context.readable('sr') ? { ok: true, kind: 'get', token: 'sr' } : { ok: false, reason: '"sr" is not readable now (not on the probe list or the dialect\'s read allowlist)' };
+  // The GET kind, within its own cap. (The motion kind has its own, larger cap below: a three-axis jog piece is
+  // longer than a GET; independent review 2026-11-03, R8.)
+  let getToken: string | undefined;
+  if (bytes.length <= MAX_GET_LINE_BYTES) {
+    if (text === `${SPLICE_GUARD_LINE}\n`) {
+      return context.readable('sr') ? { ok: true, kind: 'get', token: 'sr' } : { ok: false, reason: '"sr" is not readable now (not on the probe list or the dialect\'s read allowlist)' };
+    }
+    const match = GET_LINE.exec(text);
+    if (match !== null) {
+      getToken = match[1] as string;
+      if (context.readable(getToken)) return { ok: true, kind: 'get', token: getToken };
+    }
   }
-  const match = GET_LINE.exec(text);
-  if (match !== null && context.readable(match[1] as string)) return { ok: true, kind: 'get', token: match[1] as string };
-  // The motion command kind: exactly one line of the closed grammar, and only with a motion release.
-  const lineKind = context.motion === true && text.endsWith('\n') ? motionLineKind(text.slice(0, -1)) : undefined;
+  // The motion command kind: exactly one line of the closed grammar, within the motion cap, and only with a motion
+  // release (`{"clear":null}` has a GET's shape but is the motion grammar's own line).
+  const lineKind = context.motion === true && bytes.length <= MAX_MOTION_LINE_BYTES && text.endsWith('\n') ? motionLineKind(text.slice(0, -1)) : undefined;
   if (lineKind !== undefined) return { ok: true, kind: 'motion', lineKind };
-  if (match === null) return { ok: false, reason: `not a single-token GET: ${JSON.stringify(text.slice(0, 32))}` };
-  return { ok: false, reason: `"${match[1] as string}" is not readable now (not on the probe list or the dialect's read allowlist)` };
+  if (getToken !== undefined) return { ok: false, reason: `"${getToken}" is not readable now (not on the probe list or the dialect's read allowlist)` };
+  if (bytes.length > MAX_GET_LINE_BYTES) return { ok: false, reason: `a ${bytes.length}-byte write is not a GET line${context.motion === true ? ' or a motion line' : ''}` };
+  return { ok: false, reason: `not a single-token GET: ${JSON.stringify(text.slice(0, 32))}` };
 }
 
 /**

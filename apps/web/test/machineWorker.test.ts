@@ -974,7 +974,8 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
     const reply = await host.handle({ v: 3, kind: 'motion', command: { op: 'jog', axes: { x: 1 }, distanceMm: 0.1, feed: 600 } });
     expect(reply).toMatchObject({ ok: true, kind: 'motion' });
     await settle();
-    expect(t.writes).toContain('G21 G91 G1 X0.1 F600\n');
+    // The jog's units line goes first, on its own answered line (independent review 2026-11-03, R2); the piece follows its answer.
+    expect(t.writes).toContain('G21\n');
     const posted: SnapshotMessage[] = [];
     await host.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => posted.push(m) });
     expect(posted.at(-1)?.motion).toBe(true);

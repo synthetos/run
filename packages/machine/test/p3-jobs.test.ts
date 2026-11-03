@@ -74,7 +74,8 @@ describe('T-S109: streaming by the line buffer free slots (H76)', () => {
     const s = h.session.snapshot;
     expect(s.job?.phase).toBe('done');
     const w = writes(h).slice(before);
-    expect(w.slice(0, 3)).toEqual(['{"rxm":null}', '{"rxm":1}', '{"rxm":null}']);
+    // Start reads the board again first, rxm among its prep reads (R3); then the line mode is read, set and read back.
+    expect(w.filter((x) => x.startsWith('{"rxm":')).slice(0, 4)).toEqual(['{"rxm":null}', '{"rxm":null}', '{"rxm":1}', '{"rxm":null}']);
     expect(jobLines(h, before)).toHaveLength(8);
     expect(w.indexOf('{"rxm":0}')).toBeGreaterThan(w.indexOf('N8 M30'));
     expect(s.footerRev).toBe(2);
@@ -280,8 +281,10 @@ describe('T-S112: manual tool change (H74)', () => {
     expect(h.session.request({ intent: 'resume', spindleRestart: true })).toEqual({ allowed: true });
     await runUntil(h, () => h.session.snapshot.job?.phase === 'done', 60_000);
     const after = writes(h).slice(at).filter((x) => !x.startsWith('{"') && x !== '\\x05');
-    expect(after[0]).toMatch(/^G53 G0 Z[45](\.\d+)?$/);
-    expect(after.slice(1, 4)).toEqual(['G53 G0 X0 Y0', 'M3 S12000', 'N5 T2 M6']);
+    // Explicit absolute millimetres first, the job's modes put back after the return (independent review 2026-11-03, R1).
+    expect(after[0]).toBe('G90 G21');
+    expect(after[1]).toMatch(/^G53 G0 Z[45](\.\d+)?$/);
+    expect(after.slice(2, 6)).toEqual(['G53 G0 X0 Y0', 'G90', 'M3 S12000', 'N5 T2 M6']);
     expect(h.session.snapshot.job?.phase).toBe('done');
   });
 

@@ -49,7 +49,7 @@ describe('reducer edges of the job layer', () => {
 
   it('a prep read or a line-mode read that times out ends the load or the step', async () => {
     const s = await readyState();
-    const prep: SessionState = { ...withJob(s, { phase: 'loading', pending: { text: 'G0', c22: false } }), expected: [{ token: 'x', purpose: 'jobPrep', late: false }], timers: { answer: 7 } };
+    const prep: SessionState = { ...withJob(s, { phase: 'loading', source: { text: 'G0', c22: false } }), expected: [{ token: 'x', purpose: 'jobPrep', late: false }], timers: { answer: 7 } };
     expect(reduce(CONFIG, prep, { type: 'timer', id: 'answer', seq: 7, at: 1 }).state.job?.phase).toBe('blocked');
     const mode: SessionState = { ...s, rxm: { ...s.rxm, step: { kind: 'write', purpose: 'restore', value: 0 } }, expected: [{ token: 'rxm', purpose: 'lineMode', late: false, value: 0 }], timers: { answer: 7 } };
     expect(reduce(CONFIG, mode, { type: 'timer', id: 'answer', seq: 7, at: 1 }).state.rxm.step).toBeNull();
@@ -60,7 +60,7 @@ describe('reducer edges of the job layer', () => {
     const garbled: Inbound = { kind: 'Garbled', reason: 'invalid-json', line: '{"r":' } as never;
     const jobOwed: SessionState = { ...withJob(s, { phase: 'running' }), base: 'RUNNING', expected: [{ token: 'job', purpose: 'job', index: 0, late: false }] };
     expect(reduce(CONFIG, jobOwed, inbound(s, garbled)).state.overlays).toContain('FAULT');
-    const prep: SessionState = { ...withJob(s, { phase: 'loading', pending: { text: 'G21\nM30', c22: false } }), expected: [{ token: 'x', purpose: 'jobPrep', late: false }] };
+    const prep: SessionState = { ...withJob(s, { phase: 'loading', source: { text: 'G21\nM30', c22: false } }), expected: [{ token: 'x', purpose: 'jobPrep', late: false }] };
     expect(reduce(CONFIG, prep, inbound(s, garbled)).state.job?.phase).toBe('ready');
     const mode: SessionState = { ...s, rxm: { ...s.rxm, step: { kind: 'readback', purpose: 'restore', value: 0 } }, expected: [{ token: 'rxm', purpose: 'lineMode', late: false }] };
     expect(reduce(CONFIG, mode, inbound(s, garbled)).state.rxm.step).toBeNull();

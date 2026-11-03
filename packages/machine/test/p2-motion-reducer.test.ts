@@ -18,7 +18,7 @@ import {
   type SessionEffect,
   type SessionIntent,
 } from '../src/index.ts';
-import { jogLine, mm, restoreLine, setZeroLine, toZeroLine } from '../src/session/motionLines.ts';
+import { ABSOLUTE_MM_LINE, UNITS_LINE, jogLine, mm, restoreLine, returnXYLine, setZeroLine, toZeroLine } from '../src/session/motionLines.ts';
 import { Driver, EN_ANSWERS } from './sessionDriver.ts';
 
 const EN_APPROVED: ApprovedBuilds = {
@@ -137,9 +137,9 @@ describe('T-S92: request validation', () => {
     expect(req(d, { intent: 'goToZero', axes: ['y'], safeZ: MAX_MOTION_MM * 10 })).toMatchObject({ allowed: false, reason: 'The safe height is out of range.' });
     const from = d.effects.length;
     expect(req(d, { intent: 'goToZero', axes: ['z'], safeZ: 0 }).allowed).toBe(true);
-    d.answer(answers({ stat: num('stat', 3) }));
-    d.answer(answers({ stat: num('stat', 3) }));
-    expect(motionLines(d, from)).toEqual(['G90 G0 Z0']);
+    // `G90 G21` first and the modes put back after (R1): each line after two polled reads at rest.
+    for (let i = 0; i < 5; i++) d.answer(answers({ stat: num('stat', 3) }));
+    expect(motionLines(d, from)).toEqual(['G90 G21', 'G90 G0 Z0', 'G90']);
     expect(d.state.base).toBe('IDLE_UNHOMED');
   });
 
@@ -147,8 +147,8 @@ describe('T-S92: request validation', () => {
     const d = connected();
     d.line('{"sr":{"mpoz":-1}}');
     expect(req(d, { intent: 'goToZero', axes: ['x'], safeZ: -4 }).allowed).toBe(true);
-    d.answer(answers());
-    expect(motionLines(d)[0]).toBe('G53 G0 Z-1');
+    for (let i = 0; i < 3; i++) d.answer(answers());
+    expect(motionLines(d).slice(0, 2)).toEqual(['G90 G21', 'G53 G0 Z-1']);
     const c = connected();
     req(c, { intent: 'spindleOn', output: 'mist' });
     req(c, { intent: 'spindleOn', output: 'flood' });
@@ -213,7 +213,9 @@ describe('refusals, timeouts and damaged answers', () => {
     const p = connected();
     req(p, { intent: 'jog', axes: { x: 1 }, distanceMm: 0.1, feed: 600 });
     p.written();
-    p.line(OK);
+    p.line(OK); // G21
+    p.written();
+    p.line(OK); // the piece
     p.written();
     p.line('{"r":{"stat":3},"f":[3,0');
     expect(p.state.overlays).not.toContain('FAULT');
@@ -363,11 +365,17 @@ describe('T-S94: the motion command kind of the write gate and the line grammar'
 
   it('admits each shape with a motion release, and nothing without one', () => {
     const lines = [
+      'G21',
       'G21 G91 G1 X0.1 F600',
       'G21 G91 G1 X-1 Y2 Z0.5 A3 F5000',
       'G90',
       'G90 G20',
+      'G90 G21',
+      'G91',
+      'G91 G20',
+      'G91 G21',
       'G53 G0 Z-1.5',
+      'G53 G0 X1.5 Y-2',
       'G90 G0 X0 Y0',
       'G10 L20 P1 Z0',
       'G10 L20 P6 X0 Y0',
@@ -423,6 +431,9 @@ describe('T-S94: the motion command kind of the write gate and the line grammar'
       'G92.3',
       'G53',
       'G60',
+      'G20',
+      'G21 G90',
+      'G90 G21 G53 G0 Z1',
       `M3 S${MAX_RPM + 1}`,
       'M3',
       'M6',
@@ -454,6 +465,11 @@ describe('T-S94: the motion command kind of the write gate and the line grammar'
     expect(jogLine({ X: 0, Y: 2 }, 600)).toBe('G21 G91 G1 Y2 F600');
     expect(restoreLine(0)).toBe('G90 G20');
     expect(restoreLine(1)).toBe('G90');
+    expect(restoreLine(0, 1)).toBe('G91 G20');
+    expect(restoreLine(undefined, 1)).toBe('G91');
+    expect(returnXYLine(1.5, -2)).toBe('G53 G0 X1.5 Y-2');
+    expect(motionLineKind(UNITS_LINE)).toBe('units');
+    expect(motionLineKind(ABSOLUTE_MM_LINE)).toBe('restore');
     expect(toZeroLine(['Y', 'X'])).toBe('G90 G0 X0 Y0');
     expect(setZeroLine(['Z', 'A'])).toBe('G10 L20 P1 Z0 A0');
     expect(setZeroLine(['X'], 3)).toBe('G10 L20 P3 X0');

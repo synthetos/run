@@ -57,6 +57,9 @@ export class SimEndpoint {
   #hostBaud: number;
   #toDeviceWireFree = 0;
   #toDeviceLastArrival = 0;
+  /** Bytes on their way to the device, in wire order, each with its arrival time (delivered by one timer at a time). */
+  #toDevicePending: { byte: number; arrival: number; overrun: boolean; disconnect: boolean }[] = [];
+  #toDeviceTimer: number | undefined;
   #toHostWireFree = 0;
   #toHostPending: { byte: number; readyAt: number }[] = [];
   #toHostFlushTimer: number | undefined;
@@ -109,16 +112,48 @@ export class SimEndpoint {
       this.#toDeviceLastArrival = arrival;
       if (fate.disconnect) {
         // The cable goes when this byte would have arrived: everything before it got through.
-        this.#schedule(arrival - now, () => this.disconnect('fault plan: disconnect'));
+        this.#toDevicePending.push({ byte: raw, arrival, overrun: false, disconnect: true });
         break;
       }
-      for (const b of fate.deliver) {
-        this.#schedule(arrival - now, () => {
-          if (this.#connected) this.device.receive(b, fate.overrun);
-        });
-      }
+      for (const b of fate.deliver) this.#toDevicePending.push({ byte: b, arrival, overrun: fate.overrun, disconnect: false });
     }
     this.#toDeviceWireFree = wire;
+    // One timer for the oldest byte, then the next: never a timer per byte. A host clock that truncates a timer's
+    // delay to whole milliseconds (Node and Chromium both do; VirtualClock does not) would otherwise fire a byte of
+    // a later write before a byte of an earlier one whose arrival is under 1 ms ahead, and the device would read
+    // the two lines shuffled together (seen as refused job lines in the fake-serial suite under load,
+    // independent review 2026-11-03, R9).
+    if (this.#toDeviceTimer === undefined) this.#armToDevice();
+  }
+
+  /**
+   * Arms the timer for the oldest byte on its way to the device. `firedEarly`: the timer that just ran found
+   * nothing due yet, because the clock rounds its delays down (whole milliseconds on the host's timers): wait at
+   * least one, so that it cannot spin.
+   */
+  #armToDevice(firedEarly = false): void {
+    const first = this.#toDevicePending[0];
+    if (first === undefined) return;
+    const wait = Math.max(0, first.arrival - this.clock.now());
+    this.#toDeviceTimer = this.clock.setTimeout(() => this.#flushToDevice(), firedEarly && wait < 1 ? 1 : wait);
+  }
+
+  /** Delivers every byte whose arrival time has come, in wire order, then waits for the next one. */
+  #flushToDevice(): void {
+    this.#toDeviceTimer = undefined;
+    const now = this.clock.now();
+    let delivered = 0;
+    while (this.#toDevicePending.length > 0 && (this.#toDevicePending[0] as { arrival: number }).arrival <= now) {
+      const next = this.#toDevicePending.shift() as { byte: number; overrun: boolean; disconnect: boolean };
+      delivered++;
+      if (next.disconnect) {
+        this.#toDevicePending = [];
+        this.disconnect('fault plan: disconnect');
+        return;
+      }
+      if (this.#connected) this.device.receive(next.byte, next.overrun);
+    }
+    if (this.#toDevicePending.length > 0) this.#armToDevice(delivered === 0);
   }
 
   /** Subscribe to bytes delivered to the host. Returns an unsubscribe function. */
@@ -139,6 +174,9 @@ export class SimEndpoint {
     this.#toHostPending = [];
     if (this.#toHostFlushTimer !== undefined) this.clock.clearTimeout(this.#toHostFlushTimer);
     this.#toHostFlushTimer = undefined;
+    this.#toDevicePending = [];
+    if (this.#toDeviceTimer !== undefined) this.clock.clearTimeout(this.#toDeviceTimer);
+    this.#toDeviceTimer = undefined;
     this.transcript.record({ t: this.#rel(), kind: 'link', note: `disconnected: ${reason}` });
     for (const l of [...this.#disconnectListeners]) l(reason);
   }
@@ -173,11 +211,13 @@ export class SimEndpoint {
     if (this.#toHostFlushTimer === undefined) this.#armFlush();
   }
 
-  #armFlush(): void {
+  /** As `#armToDevice`: one timer for the oldest byte on its way to the host; at least a millisecond after an early fire. */
+  #armFlush(firedEarly = false): void {
     const first = this.#toHostPending[0];
     if (first === undefined) return;
     const at = first.readyAt + this.#latencyMs;
-    this.#toHostFlushTimer = this.clock.setTimeout(() => this.#flushToHost(), Math.max(0, at - this.clock.now()));
+    const wait = Math.max(0, at - this.clock.now());
+    this.#toHostFlushTimer = this.clock.setTimeout(() => this.#flushToHost(), firedEarly && wait < 1 ? 1 : wait);
   }
 
   #flushToHost(): void {
@@ -197,7 +237,7 @@ export class SimEndpoint {
       out.push(...fate.deliver);
     }
     this.#deliver(out);
-    if (this.#toHostPending.length > 0) this.#armFlush();
+    if (this.#toHostPending.length > 0) this.#armFlush(out.length === 0);
   }
 
   #deliver(out: number[]): void {

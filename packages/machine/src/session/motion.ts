@@ -29,17 +29,30 @@
  *
  * Every decision about the machine uses polled `stat`, `hold`, `vel`, `qr`
  * (SAFETY §4.2), never the last status report and never the spindle and
- * coolant readouts.
+ * coolant readouts. A decision reads the values of the poll cycle that
+ * just completed (`SessionState.polled`), and only when every one of its
+ * four reads was answered with status 0: a rejected, missing or damaged
+ * answer makes the cycle count for nothing (independent review 2026-11-03,
+ * R5; H56, H69). The shared live view (also fed by pushed reports) is for
+ * display.
+ *
+ * Modes (independent review 2026-11-03, R1 and R2): a jog writes `G21` on
+ * its own answered line before its first piece, because the firmware reads
+ * F before it changes units in the same block; go to zero writes `G90 G21`
+ * on its own answered line before its `G53 G0` move, because G53 keeps
+ * G91 and G20, and puts the distance mode and units back at the end.
  */
 import { STOP_TEXT, type Decision, type Intent } from '@synthetos/safety';
 import { mapStat, type Dialect, type MachineClass } from '@synthetos/protocol';
 import { restingStat } from './resting.ts';
 import { homingAxes, isReadAllowed } from '@synthetos/schema';
 import {
+  ABSOLUTE_MM_LINE,
   CLEAR_LINE,
   CLEAR_TEMP_OFFSET_LINE,
   MAX_JOG_FEED,
   MAX_RPM,
+  UNITS_LINE,
   homeLine,
   jogLine,
   motionLineKind,
@@ -55,7 +68,7 @@ import {
 } from './motionLines.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './jobState.ts';
-import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
+import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, PolledValues, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
 
 /** Timing and bounds of the motion layer (SAFETY §4.5b). Milliseconds unless named otherwise. */
 export const MOTION_LIMITS = Object.freeze({
@@ -150,14 +163,25 @@ function planner(s: SessionState): number {
   return dialect(s).limits.plannerBlocks;
 }
 
-/** At rest by polled values: idle or ended, not moving, nothing held, planner empty. */
-function atRest(s: SessionState): boolean {
-  // The same rule as READING (resting.ts, SAFETY H14 as amended 2026-11-02), plus hold 0 on every dialect.
-  return s.live.stat !== undefined && restingStat(dialect(s), s.live.stat, s.live.hold) && s.live.vel === 0 && s.live.hold === 0 && s.live.qr === planner(s);
+/**
+ * The values of the poll cycle that just completed, or null when any of its four reads was rejected (a non-zero
+ * status, or no number), damaged or missing (independent review 2026-11-03, R5). Shared with the job layer.
+ */
+export function completedPoll(s: SessionState): PolledValues | null {
+  const p = s.polled;
+  if (p === null || p.failed || p.stat === undefined || p.hold === undefined || p.vel === undefined || p.qr === undefined) return null;
+  return { stat: p.stat, hold: p.hold, vel: p.vel, qr: p.qr };
 }
 
-function heldNow(s: SessionState): boolean {
-  return s.live.hold !== undefined && dialect(s).hold[s.live.hold] === 'HOLD';
+/** At rest by this cycle's polled values: idle or ended, not moving, nothing held, planner empty. Shared with the job layer. */
+export function atRestPolled(s: SessionState, p: PolledValues): boolean {
+  // The same rule as READING (resting.ts, SAFETY H14 as amended 2026-11-02), plus hold 0 on every dialect.
+  return restingStat(dialect(s), p.stat, p.hold) && p.vel === 0 && p.hold === 0 && p.qr === planner(s);
+}
+
+/** The hold is complete by this cycle's polled `hold`. Shared with the job layer. */
+export function heldPolled(s: SessionState, p: PolledValues): boolean {
+  return dialect(s).hold[p.hold] === 'HOLD';
 }
 
 /**
@@ -293,6 +317,9 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       const pieceMm = Math.max(0.001, (feed / 60) * (MOTION_LIMITS.pieceMs / 1000));
       const jog: JogFeed = { axes: { ...axes }, remainingMm: distanceMm, feed, pieceMm, renewedAt: at };
       t.set({ motion: { ...newCtx(s, 'jog'), jog }, base: 'JOGGING' });
+      // Millimetres first, on a line of its own that is answered before the first piece goes out (R2): the
+      // board may be in inches (a job, another sender), and the firmware reads a piece's F before its G21.
+      queueLine(t, UNITS_LINE, 'jog');
       sendPiece(t);
       requestPoll(t);
       tick(t);
@@ -305,7 +332,9 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       if (!validAxisList(axes)) return deny('Go to zero names one or more of X, Y, Z and A.', 'Choose an axis.');
       const letters = axes.map((a) => LETTER[a]);
       const planar = letters.filter((l) => l !== 'Z');
-      const steps: string[] = [];
+      // Explicit absolute millimetres first, on a line of its own, answered before any move (R1): `G53 G0 Z`
+      // under G91 would go DOWN by the safe height, under G20 25.4 times too far. The modes are put back at the end.
+      const steps: string[] = [ABSOLUTE_MM_LINE];
       if (planar.length > 0) {
         const z = machineZ(s);
         if (z === undefined || typeof safeZ !== 'number' || !Number.isFinite(safeZ)) return deny('The machine Z position is not known yet.', 'Wait for the position to be read.');
@@ -516,16 +545,23 @@ export function onPollDone(t: MotionTx, at: number): void {
   const ctx = t.s.motion;
   if (ctx === null || !checkAlarm(t, at)) return;
   const s = t.s;
+  const p = completedPoll(s);
+  if (p === null) {
+    // A read of this cycle was rejected, damaged or missing: it confirms nothing, whatever the live view says (R5;
+    // H56, H69). Count from zero again; the hold and flush deadlines still run (W12 and FAULT on a silent board).
+    setMotion(t, { confirmed: 0 });
+    if (ctx.phase !== 'homing') requestPoll(t); // homing polls again from its own check timer
+    return;
+  }
   const confirm = (ok: boolean): number => (ok ? ctx.confirmed + 1 : 0);
   switch (ctx.phase) {
     case 'feed': {
       const jog = ctx.jog as JogFeed;
-      // `qr` is always known here: READING required it, or the board would be ORPHANED_MOTION. Every piece
-      // written before this poll's `qr` is counted in it (lines are answered in order).
+      // Every piece written before this poll's `qr` is counted in it (lines are answered in order).
       // Pieces still waiting are not in `qr` yet: count them too. (Nothing is being written: this runs as `qr`
       // is answered, before the next line goes out.)
       const unwritten = s.queue.filter((q) => q.purpose === 'motion').length;
-      setMotion(t, { queued: planner(s) - (s.live.qr as number) + unwritten });
+      setMotion(t, { queued: planner(s) - p.qr + unwritten });
       if (moreToFeed(jog)) {
         feedMore(t);
       } else {
@@ -537,7 +573,7 @@ export function onPollDone(t: MotionTx, at: number): void {
     case 'drain': {
       if (s.base === 'HELD') t.set({ base: 'JOGGING' });
       // An offset write waiting to be written again (status 13) is not settled yet.
-      const confirmed = confirm(atRest(s) && motionLinesSettled(s) && (ctx.retryAt ?? null) === null);
+      const confirmed = confirm(atRestPolled(s, p) && motionLinesSettled(s) && (ctx.retryAt ?? null) === null);
       if (confirmed < MOTION_LIMITS.confirmations) {
         setMotion(t, { confirmed });
         requestPoll(t);
@@ -554,13 +590,13 @@ export function onPollDone(t: MotionTx, at: number): void {
       return;
     }
     case 'hold': {
-      const held = heldNow(s);
+      const held = heldPolled(s, p);
       // `!` is ignored while nothing moves (a line still being parsed, the planner's start-up): if the board is
       // moving with no hold in progress, send it again (SAFETY §4.4 Pause step 6).
       // The first cycle may have been asked before the `!` was written, so only later cycles count.
-      if (ctx.holdPolls > 0 && s.live.hold === 0 && s.live.vel !== undefined && s.live.vel !== 0) writeRealtime(t, 'feedhold', ctx.reason === 'stopJob' ? 'stopJob' : 'feedhold');
+      if (ctx.holdPolls > 0 && p.hold === 0 && p.vel !== 0) writeRealtime(t, 'feedhold', ctx.reason === 'stopJob' ? 'stopJob' : 'feedhold');
       setMotion(t, { holdPolls: ctx.holdPolls + 1 });
-      const confirmed = confirm((held || atRest(s)) && motionLinesSettled(s));
+      const confirmed = confirm((held || atRestPolled(s, p)) && motionLinesSettled(s));
       if (confirmed < MOTION_LIMITS.confirmations) {
         setMotion(t, { confirmed });
         requestPoll(t);
@@ -578,7 +614,7 @@ export function onPollDone(t: MotionTx, at: number): void {
         }
         return;
       }
-      if (held || s.live.qr !== planner(s)) {
+      if (held || p.qr !== planner(s)) {
         writeRealtime(t, 'flush', ctx.reason === 'stopJob' ? 'stopJob' : 'feedhold');
         // `%` drops the board's line buffers: job lines still owed may never be answered (Phase 3).
         forgetJobLines(t);
@@ -590,9 +626,9 @@ export function onPollDone(t: MotionTx, at: number): void {
       return;
     }
     case 'homing': {
-      const resting = atRest(s) && motionLinesSettled(s);
-      const cls = machineClass(s);
-      const seen = ctx.seen === true || cls === 'homing' || (s.live.vel !== undefined && s.live.vel !== 0);
+      const resting = atRestPolled(s, p) && motionLinesSettled(s);
+      const cls = mapStat(dialect(s), p.stat);
+      const seen = ctx.seen === true || cls === 'homing' || p.vel !== 0;
       const confirmed = confirm(resting);
       // Done after two polled reads at rest, once the cycle was seen running (or three in a row: it ended unseen).
       if (confirmed < MOTION_LIMITS.confirmations || (!seen && confirmed < MOTION_LIMITS.confirmations + 1)) {
@@ -606,7 +642,7 @@ export function onPollDone(t: MotionTx, at: number): void {
       return;
     }
     case 'flush': {
-      const confirmed = confirm(s.live.hold === 0 && s.live.qr === planner(s) && motionLinesSettled(s));
+      const confirmed = confirm(p.hold === 0 && p.qr === planner(s) && motionLinesSettled(s));
       if (confirmed < MOTION_LIMITS.confirmations) {
         setMotion(t, { confirmed });
         requestPoll(t);
@@ -626,14 +662,14 @@ function finish(t: MotionTx, at: number): void {
   const ctx = t.s.motion as MotionCtx;
   const stop = ctx.reason === 'stopJob';
   const lines = stop ? ['M5', 'M9'] : [];
-  // A jog used G21 G91: put the modes back. Go to zero used G90 and the non-modal G53 only. A Stop job ends with
-  // absolute distance; a jog during a job's tool change puts back the job's own distance mode (Phase 3, H74).
-  if (ctx.op === 'jog' || stop) lines.push(restoreLine(ctx.units, stop ? 0 : ctx.dist));
+  // A jog used G21 G91 and go to zero G90 G21 (R1, R2): put the modes back. A Stop job ends with absolute
+  // distance; a jog during a job's tool change puts back the job's own distance mode (Phase 3, H74).
+  if (ctx.op === 'jog' || ctx.op === 'goToZero' || stop) lines.push(restoreLine(ctx.units, stop ? 0 : ctx.dist));
   setMotion(t, { phase: 'finish', confirmed: 0, deadline: null });
   // Phase 3: the hold and the flush are confirmed, so every job line the board still had is gone (`%` dropped its
   // line buffers) and every one it ran has been answered: none is owed any more, and M5's answer is M5's.
   if (stop) t.set({ expected: t.s.expected.filter((e) => e.purpose !== 'job') });
-  for (const line of lines) queueLine(t, line, stop ? 'stopJob' : 'jog');
+  for (const line of lines) queueLine(t, line, stop ? 'stopJob' : ctx.op === 'goToZero' ? 'goToZero' : 'jog');
   t.cancel('motion');
   if (lines.length === 0) complete(t, at);
 }

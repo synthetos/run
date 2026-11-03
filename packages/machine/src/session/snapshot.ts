@@ -205,7 +205,7 @@ function jobView(state: SessionState, job: JobState): JobView {
   const mpo = state.live.mpo;
   const moved = tc !== null && (['x', 'y', 'z'] as const).some((a) => tc.at[a] !== undefined && (mpo[a] === undefined || Math.abs((mpo[a] as number) - (tc.at[a] as number)) > 0.01));
   const queuedLines = new Set(job.lines.slice(execIndex, job.next).map((l) => l.sourceLine));
-  const active = ['running', 'draining', 'ending', 'pausing', 'paused', 'refused', 'toolChange', 'breakpoint', 'programStop', 'resuming'].includes(job.phase);
+  const active = ['running', 'draining', 'ending', 'pausing', 'paused', 'refused', 'outputsOff', 'toolChange', 'breakpoint', 'programStop', 'resuming'].includes(job.phase);
   return {
     id: job.id,
     name: cap(job.name),

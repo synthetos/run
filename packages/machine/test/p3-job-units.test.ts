@@ -319,7 +319,7 @@ describe('the guards of the job decisions', () => {
   it('resume after a tool change: the position must be known, the speed must be known, the way back in range', async () => {
     const s = await ready();
     const tcState = (at: object, live: object, tc: object = {}) =>
-      withJob({ ...s, live: { ...s.live, mpo: live as never } }, { phase: 'toolChange', toolChange: { index: 1, tool: 1, spindle: 'off', speed: null, mist: false, flood: false, restartsSpindle: true, at: at as never, ...tc } });
+      withJob({ ...s, live: { ...s.live, mpo: live as never } }, { phase: 'toolChange', toolChange: { index: 1, tool: 1, spindle: 'off', speed: null, mist: false, flood: false, restartsSpindle: true, at: at as never, units: 1, dist: 0, ...tc } });
     expect(why(onJobResume(tx(tcState({ x: 0, y: 0, z: 0 }, { x: 5 })).t, { intent: 'resume' }, 0))).toBe('The machine position is not known.');
     expect(why(onJobResume(tx(tcState({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { spindle: 'ccw', restartsSpindle: false })).t, { intent: 'resume', spindleRestart: true }, 0))).toBe('The spindle was on, but its speed is not known.');
     expect(why(onJobResume(tx(tcState({ x: 9999, y: 0, z: 0 }, { x: 0, y: 0, z: 0 })).t, { intent: 'resume' }, 0))).toBe('The way back is out of range.');
@@ -336,15 +336,17 @@ describe('the guards of the job decisions', () => {
   it('polls: a pause at rest, a pause with no answer, a resume step at rest', async () => {
     const s = await ready();
     const rest = { stat: 4, hold: 0, vel: 0, qr: 32 } as const;
-    const atRest = tx({ ...withJob(s, { phase: 'pausing', confirmed: 1, acked: 2, next: 2, pauseAt: 0 }), live: { ...s.live, ...rest, spe: 1 } });
+    // Every decision reads the completed poll cycle, never the live view (independent review 2026-11-03, R5).
+    const polled = { ...rest, failed: false };
+    const atRest = tx({ ...withJob(s, { phase: 'pausing', confirmed: 1, acked: 2, next: 2, pauseAt: 0 }), live: { ...s.live, ...rest, spe: 1 }, polled });
     onJobPoll(atRest.t, 10);
     expect(atRest.t.s.job?.phase).toBe('paused');
     expect(atRest.t.s.job?.message).toBe('Paused · spindle still on');
-    const moving = tx({ ...withJob(s, { phase: 'pausing', confirmed: 0, pauseAt: 0 }), live: { ...s.live, stat: 5, hold: 0, vel: 300, qr: 20 } });
+    const moving = tx({ ...withJob(s, { phase: 'pausing', confirmed: 0, pauseAt: 0 }), live: { ...s.live, stat: 5, hold: 0, vel: 300, qr: 20 }, polled: { stat: 5, hold: 0, vel: 300, qr: 20, failed: false } });
     onJobPoll(moving.t, 5000);
     expect(moving.fx.some((e) => e.kind === 'writeRealtime' && e.name === 'feedhold')).toBe(true);
     expect(moving.t.s.notices.motion?.text).toMatch(/^No answer from the board yet/);
-    const resuming = tx({ ...withJob(s, { phase: 'resuming', confirmed: 1, resumeSteps: [] }), live: { ...s.live, ...rest } });
+    const resuming = tx({ ...withJob(s, { phase: 'resuming', confirmed: 1, resumeSteps: [] }), live: { ...s.live, ...rest }, polled });
     onJobPoll(resuming.t, 10);
     expect(resuming.t.s.job?.phase).toBe('running');
     const running = tx(withJob(s, { phase: 'running' }));
@@ -352,16 +354,16 @@ describe('the guards of the job decisions', () => {
     expect(running.t.s.job?.phase).toBe('running');
     onJobPoll(tx({ ...withJob(s, { phase: 'running' }), motion: {} as never }).t, 0);
     const done = tx(withJob(s, { phase: 'ending', stop: { kind: 'end', index: 3 }, confirmed: 1, acked: 4, next: 4, report: { ...(s.job as JobState).report, endState: { spindle: 'cw', mist: false, flood: true } } as never }));
-    done.t.s = { ...done.t.s, live: { ...s.live, ...rest } };
+    done.t.s = { ...done.t.s, live: { ...s.live, ...rest }, polled };
     onJobPoll(done.t, 10);
     expect(done.t.s.job?.message).toBe('Job finished: 4 lines, spindle ON, coolant ON (commanded).');
-    const coolant = tx({ ...withJob(s, { phase: 'ending', stop: { kind: 'end', index: 3 }, confirmed: 1, acked: 4, next: 4, report: { ...(s.job as JobState).report, endState: { spindle: 'off', mist: true, flood: false } } as never }), live: { ...s.live, ...rest } });
+    const coolant = tx({ ...withJob(s, { phase: 'ending', stop: { kind: 'end', index: 3 }, confirmed: 1, acked: 4, next: 4, report: { ...(s.job as JobState).report, endState: { spindle: 'off', mist: true, flood: false } } as never }), live: { ...s.live, ...rest }, polled });
     onJobPoll(coolant.t, 10);
     expect(coolant.t.s.job?.message).toBe('Job finished: 4 lines, spindle off, coolant ON (commanded).');
-    const flood = tx({ ...withJob(s, { phase: 'ending', stop: { kind: 'end', index: 3 }, confirmed: 1, acked: 4, next: 4, report: { ...(s.job as JobState).report, endState: { spindle: 'off', mist: false, flood: true } } as never }), live: { ...s.live, ...rest } });
+    const flood = tx({ ...withJob(s, { phase: 'ending', stop: { kind: 'end', index: 3 }, confirmed: 1, acked: 4, next: 4, report: { ...(s.job as JobState).report, endState: { spindle: 'off', mist: false, flood: true } } as never }), live: { ...s.live, ...rest }, polled });
     onJobPoll(flood.t, 10);
     expect(flood.t.s.job?.message).toBe('Job finished: 4 lines, spindle off, coolant ON (commanded).');
-    const spindle = tx({ ...withJob(s, { phase: 'ending', stop: { kind: 'end', index: 3 }, confirmed: 1, acked: 4, next: 4, report: { ...(s.job as JobState).report, endState: { spindle: 'ccw', mist: false, flood: false } } as never }), live: { ...s.live, ...rest } });
+    const spindle = tx({ ...withJob(s, { phase: 'ending', stop: { kind: 'end', index: 3 }, confirmed: 1, acked: 4, next: 4, report: { ...(s.job as JobState).report, endState: { spindle: 'ccw', mist: false, flood: false } } as never }), live: { ...s.live, ...rest }, polled });
     onJobPoll(spindle.t, 10);
     expect(spindle.t.s.job?.message).toBe('Job finished: 4 lines, spindle ON, coolant off (commanded).');
   });
@@ -440,7 +442,7 @@ describe('the guards of the job decisions', () => {
 describe('more of the job layer, through its edges', () => {
   it('prep answers that are damaged or empty, scalars read as null, a spindle line without S', async () => {
     const s = await ready();
-    const loading = withJob({ ...s, queue: [{ token: 'unit', purpose: 'jobPrep' }] }, { phase: 'loading', pending: { text: 'G21\nM3\nG1 X1 F600\nM5\nM30', c22: false } });
+    const loading = withJob({ ...s, queue: [{ token: 'unit', purpose: 'jobPrep' }] }, { phase: 'loading', source: { text: 'G21\nM3\nG1 X1 F600\nM5\nM30', c22: false } });
     const r = tx(loading);
     onJobPrepAnswer(r.t, { token: 'x', purpose: 'jobPrep' }, null, 0);
     expect(r.t.s.values['x']).toMatchObject({ value: null, status: -1 });
@@ -529,12 +531,12 @@ describe('more of the job layer, through its edges', () => {
       expect(onJobResume(r.t, { intent: 'resume', skip: true }, 0).allowed).toBe(true);
       expect(r.fx.some((e) => e.kind === 'writeRealtime')).toBe(false);
     }
-    const tcState = withJob({ ...s, live: { ...s.live, mpo: {} } }, { phase: 'toolChange', toolChange: { index: 1, tool: null, spindle: 'off', speed: null, mist: false, flood: false, restartsSpindle: false, at: {} } });
+    const tcState = withJob({ ...s, live: { ...s.live, mpo: {} } }, { phase: 'toolChange', toolChange: { index: 1, tool: null, spindle: 'off', speed: null, mist: false, flood: false, restartsSpindle: false, at: {}, units: 1, dist: 0 } });
     const r = tx(tcState);
     expect(onJobResume(r.t, { intent: 'resume' }, 0).allowed).toBe(true);
     expect(r.t.s.job?.phase).toBe('running');
     expect(r.t.s.job?.events.at(-2)?.text).toBe('Resuming after the tool change.');
-    const ccw = tx(withJob({ ...s, live: { ...s.live, mpo: {} } }, { phase: 'toolChange', toolChange: { index: 1, tool: 1, spindle: 'ccw', speed: 500, mist: false, flood: false, restartsSpindle: false, at: {} } }));
+    const ccw = tx(withJob({ ...s, live: { ...s.live, mpo: {} } }, { phase: 'toolChange', toolChange: { index: 1, tool: 1, spindle: 'ccw', speed: 500, mist: false, flood: false, restartsSpindle: false, at: {}, units: 1, dist: 0 } }));
     expect(why(onJobResume(ccw.t, { intent: 'resume' }, 0))).toMatch(/Run starts it \(M4 S500\)/);
   });
 
@@ -543,17 +545,21 @@ describe('more of the job layer, through its edges', () => {
     const barrier = tx({ ...withJob(s, { phase: 'draining', stop: { kind: 'barrier', index: 1 }, confirmed: 0, acked: 2, next: 2 }), live: { ...s.live, stat: undefined } as never });
     onJobPoll(barrier.t, 0);
     expect(barrier.t.s.job?.confirmed).toBe(0);
-    const owed = tx({ ...withJob(s, { phase: 'resuming', confirmed: 0 }), live: { ...s.live, stat: 4, hold: 0, vel: 0, qr: 32 }, queue: [{ token: 'stat', purpose: 'poll' }], expected: [{ token: 'gc', purpose: 'motion', late: false }] });
+    const rest = { stat: 4, hold: 0, vel: 0, qr: 32 } as const;
+    const polled = { ...rest, failed: false };
+    const owed = tx({ ...withJob(s, { phase: 'resuming', confirmed: 0 }), live: { ...s.live, ...rest }, polled, queue: [{ token: 'stat', purpose: 'poll' }], expected: [{ token: 'gc', purpose: 'motion', late: false }] });
     onJobPoll(owed.t, 0);
     expect(owed.t.s.job?.confirmed).toBe(0);
-    const writingMotion = tx({ ...withJob(s, { phase: 'resuming', confirmed: 0 }), live: { ...s.live, stat: 4, hold: 0, vel: 0, qr: 32 }, writing: { token: 'gc', purpose: 'motion', seq: 1 } });
+    const writingMotion = tx({ ...withJob(s, { phase: 'resuming', confirmed: 0 }), live: { ...s.live, ...rest }, polled, writing: { token: 'gc', purpose: 'motion', seq: 1 } });
     onJobPoll(writingMotion.t, 0);
     expect(writingMotion.t.s.job?.confirmed).toBe(0);
     const tcJob = await ready('G21 G90\nG1 X1 F600\nM6\nG1 X0\nM30');
-    const tc = tx({ ...withJob(tcJob, { phase: 'draining', stop: { kind: 'toolChange', index: 2 }, confirmed: 1, acked: 2, next: 2 }), live: { ...tcJob.live, stat: 4, hold: 0, vel: 0, qr: 32 } });
+    const tc = tx({ ...withJob(tcJob, { phase: 'draining', stop: { kind: 'toolChange', index: 2 }, confirmed: 1, acked: 2, next: 2 }), live: { ...tcJob.live, ...rest }, polled });
     onJobPoll(tc.t, 0);
-    expect(tc.t.s.job?.events.at(-1)?.text).toBe('Tool change at line 3. Spindle and coolant off.');
-    const bp = tx({ ...withJob(s, { phase: 'draining', stop: { kind: 'breakpoint', index: 1 }, confirmed: 1, acked: 1, next: 1 }), live: { ...s.live, stat: 4, hold: 0, vel: 0, qr: 32, spe: 1 } });
+    // The outputs are not announced off until M5 and M9 are answered (independent review 2026-11-03, R6).
+    expect(tc.t.s.job?.phase).toBe('outputsOff');
+    expect(tc.t.s.job?.events.at(-1)?.text).toBe('Tool change at line 3: sending M5 and M9.');
+    const bp = tx({ ...withJob(s, { phase: 'draining', stop: { kind: 'breakpoint', index: 1 }, confirmed: 1, acked: 1, next: 1 }), live: { ...s.live, ...rest, spe: 1 }, polled });
     onJobPoll(bp.t, 0);
     expect(bp.t.s.job?.message).toBe('Stopped at breakpoint · line 2 · spindle still on');
   });
