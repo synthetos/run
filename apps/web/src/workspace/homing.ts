@@ -75,20 +75,20 @@ function homeBody({ model }: HomeProps, hk: Hooks): ComponentChild {
   const homed = view?.message?.dro.axes ?? [];
   const homedText = (a: MotionAxis): string => {
     const v = homed.find((d) => d.axis === a)?.homed ?? null;
-    return v === null ? 'not read' : v ? 'homed' : 'not homed';
+    return v === null ? '—' : v ? 'yes' : 'no';
   };
-  const button = (label: string, aria: string, onClick: () => void, ok: boolean, cls = 'small'): ComponentChild =>
-    h('button', { type: 'button', class: cls, 'aria-label': aria, 'data-machine-control': 'home', ...(enabled && ok ? { onClick } : { disabled: true }) }, label);
-  const none = hv.read && hv.configured.length === 0;
+  // Disabled controls carry the reason as their title; the pane says it once, on the Position pill (OD-13 §5).
+  const button = (label: string, aria: string, onClick: () => void, ok: boolean, cls = 'small', why: string | null = null): ComponentChild =>
+    h('button', { type: 'button', class: cls, 'aria-label': aria, 'data-machine-control': 'home', ...(enabled && ok ? { onClick } : { disabled: true, title: (enabled ? why : hv.reason) ?? undefined }) }, label);
+  const change = view?.message?.snapshot.notices.change?.text ?? null;
   return h(
     'section',
     { class: 'insp sec-home', 'aria-labelledby': 'home-title' },
-    h('header', null, h('h2', { id: 'home-title' }, 'Home'), h('span', { class: 'tag' }, 'G28.2')),
-    h('p', { class: 'fine' }, 'Homing moves each axis toward its homing switch until it triggers, then sets machine position from it. Keep a hand on the E-stop.'),
+    h('header', null, h('h2', { id: 'home-title' }, 'Home'), hv.read ? null : h('span', { class: 'tag', 'data-home': 'unread' }, 'Settings not read yet')),
     h(
       'table',
       { class: 'zero-table' },
-      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Axis'), h('th', { scope: 'col' }, 'Homing'), h('th', { scope: 'col' }, 'Now'), h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Actions')))),
+      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Axis'), h('th', { scope: 'col' }, 'Switch'), h('th', { scope: 'col' }, 'Homed'), h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Actions')))),
       h(
         'tbody',
         null,
@@ -97,9 +97,9 @@ function homeBody({ model }: HomeProps, hk: Hooks): ComponentChild {
             'tr',
             { key: a, 'data-home-axis': a },
             h('th', { scope: 'row' }, a.toUpperCase()),
-            h('td', { class: 'fine', 'data-home-config': a }, hv.axes[a].configured ? `to the ${hv.axes[a].end === 'min' ? 'minimum' : 'maximum'} switch` : (hv.axes[a].reason ?? '')),
+            h('td', { 'data-home-config': a, title: hv.axes[a].configured ? undefined : (hv.axes[a].reason ?? undefined) }, hv.axes[a].configured ? (hv.axes[a].end === 'min' ? 'min' : 'max') : 'none'),
             h('td', { 'data-home-state': a }, homedText(a)),
-            h('td', { class: 'zero-actions' }, button('Home', `Home ${a.toUpperCase()}`, () => setAsking({ kind: 'home', axes: [a] }), hv.axes[a].configured)),
+            h('td', { class: 'zero-actions' }, button('Home', `Home ${a.toUpperCase()}`, () => setAsking({ kind: 'home', axes: [a] }), hv.axes[a].configured, 'small', hv.axes[a].reason)),
           ),
         ),
       ),
@@ -107,18 +107,12 @@ function homeBody({ model }: HomeProps, hk: Hooks): ComponentChild {
     h(
       'div',
       { class: 'motion-recovery' },
-      button(hv.configured.length > 0 ? `Home all (${axesText(hv.configured)})` : 'Home all', 'Home all configured axes', () => setAsking({ kind: 'home', axes: hv.configured }), hv.configured.length > 0, 'small primary'),
+      button('Home all', `Home all configured axes${hv.configured.length > 0 ? ` (${axesText(hv.configured)})` : ''}`, () => setAsking({ kind: 'home', axes: hv.configured }), hv.configured.length > 0, 'small primary', 'No axis has a homing switch and search speed set.'),
+      // For a machine without switches, or before its homing settings are read: offered whenever the machine is at rest (OD-13 §4).
+      button('Set machine zero here…', 'Set the machine zero here without homing (G28.3)', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true),
     ),
-    none
-      ? h(
-          'div',
-          { class: 'motion-note', 'data-home': 'not-configured' },
-          h('p', null, 'Homing is not configured on this board: no axis has a homing switch with a search speed. Configure the switches in the Board view, or, on a machine without switches, set the machine position here.'),
-          h('button', { type: 'button', class: 'small', 'data-machine-control': 'home', ...(enabled ? { onClick: () => setAsking({ kind: 'position', axes: POSITION_AXES }) } : { disabled: true }) }, 'Set machine position here (G28.3)…'),
-        )
-      : null,
     enabled ? confirmFor(asking, hv, run, () => setAsking(null)) : null,
-    h('p', { class: hv.enabled && note === null ? 'motion-note' : 'unavailable', role: 'status', 'data-home': 'note' }, note ?? hv.reason ?? view?.message?.snapshot.notices.change?.text ?? (hv.read ? null : 'The homing settings are read when a board connects.')),
+    note === null && change === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-home': 'note' }, note ?? change),
   );
 }
 
@@ -156,7 +150,8 @@ export function UnknownExits({ model }: { readonly model: WorkspaceModel | null 
     void send?.(command).then(setNote);
   };
   const canHome = hv.enabled && hv.configured.length > 0;
-  const canPosition = hv.enabled && hv.read && hv.configured.length === 0;
+  // A machine without switches, or one whose homing settings are not read yet, sets its zero here (OD-13 §4).
+  const canPosition = hv.enabled;
   return h(
     'div',
     { class: 'overlay-banner overlay-banner-warn unknown-exits', 'data-region': 'unknown-exits', role: 'alert' },
@@ -166,18 +161,7 @@ export function UnknownExits({ model }: { readonly model: WorkspaceModel | null 
       { class: 'notice-actions' },
       h('button', { type: 'button', class: 'small primary', 'data-action': 'unknown-verify', onClick: () => setAsking({ kind: 'verify' }) }, 'I’ve checked the machine'),
       canHome ? h('button', { type: 'button', class: 'small primary', 'data-action': 'unknown-home', onClick: () => setAsking({ kind: 'home', axes: hv.configured }) }, 'Home machine') : null,
-      canPosition ? h('button', { type: 'button', class: 'small', 'data-action': 'unknown-position', onClick: () => setAsking({ kind: 'position', axes: POSITION_AXES }) }, 'Set machine position here (G28.3)') : null,
-    ),
-    h(
-      'p',
-      { class: 'fine' },
-      canHome
-        ? `Home machine moves ${axesText(hv.configured)} to their switches and sets the position from them.`
-        : canPosition
-          ? 'Homing is not configured on this board. On a machine without switches, set the position here instead.'
-          : hv.reason !== null && hv.reason !== 'Connect a machine to home it.'
-            ? `Homing is not available: ${hv.reason}`
-            : 'Homing is offered once the board’s homing settings have been read.',
+      canPosition ? h('button', { type: 'button', class: 'small', 'data-action': 'unknown-position', title: 'Without homing: the machine zero is set where the axes are now (G28.3)', onClick: () => setAsking({ kind: 'position', axes: POSITION_AXES }) }, 'Set machine zero here') : null,
     ),
     send === undefined ? null : confirmFor(asking, hv, run, () => setAsking(null)),
     note === null ? null : h('p', { class: 'unavailable', role: 'status' }, note),

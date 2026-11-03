@@ -140,7 +140,7 @@ export type MachineRequest =
   | { readonly v: typeof RPC_VERSION; readonly kind: 'intent'; readonly intent: WindowIntent }
   | { readonly v: typeof RPC_VERSION; readonly kind: 'read'; readonly tokens: readonly string[] }
   /** P1-07: the window's settings drift check found a difference on link `epoch` (NEEDS_REVIEW; it can only add the overlay). */
-  | { readonly v: typeof RPC_VERSION; readonly kind: 'drift'; readonly epoch: number }
+  | { readonly v: typeof RPC_VERSION; readonly kind: 'drift'; readonly epoch: number; readonly resolved?: true }
   /**
    * One settings write (SAFETY §4.6, amendment 2026-11-02; additive). The session decides it (the settings
    * release, the allow-matrix, the schema, the idle gate) and reports the result in `snapshot.settingWrite`
@@ -314,9 +314,12 @@ export function parseRequest(data: unknown): MachineRequest | null {
       const parsed = parseFlashCommand(command);
       return parsed === null ? null : Object.freeze({ v: RPC_VERSION, kind, command: parsed });
     }
-    case 'drift':
-      if (keys !== 'epoch,kind,v' || typeof epoch !== 'number' || !Number.isSafeInteger(epoch) || epoch < 0) return null;
-      return Object.freeze({ v: RPC_VERSION, kind, epoch });
+    case 'drift': {
+      // `resolved: true` is "Keep the board's settings" (C23): the review is done for this link (OD-13 §5).
+      const resolved = (data as Record<string, unknown>)['resolved'];
+      if ((keys !== 'epoch,kind,v' && (keys !== 'epoch,kind,resolved,v' || resolved !== true)) || typeof epoch !== 'number' || !Number.isSafeInteger(epoch) || epoch < 0) return null;
+      return Object.freeze({ v: RPC_VERSION, kind, epoch, ...(resolved === true ? { resolved: true as const } : {}) });
+    }
     default:
       if (keys !== 'kind,v') return null;
       return Object.freeze({ v: RPC_VERSION, kind });

@@ -865,6 +865,8 @@ export type SessionEvent =
   | { readonly type: 'timer'; readonly id: TimerId; readonly seq: number; readonly at: number }
   /** A settings drift check found a difference to the profile (NEEDS_REVIEW; its producer arrives with the drift check). */
   | { readonly type: 'driftDetected'; readonly epoch: number }
+  /** The user kept the board's settings as this computer's reference (C23, writes nothing): NEEDS_REVIEW is resolved (OD-13 §5). */
+  | { readonly type: 'driftResolved'; readonly epoch: number }
   /** Phase 3 (H77): the page's remembered line mode for this board (0 or 1), or null when it remembers none. */
   | { readonly type: 'lineModeMemory'; readonly epoch: number; readonly remembered: number | null };
 

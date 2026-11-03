@@ -42,6 +42,7 @@ import { eventNotice } from '../report/notice.ts';
 import { ReportDialog } from '../report/ReportDialog.ts';
 import { openReport } from '../report/state.ts';
 import { UnknownExits } from './homing.ts';
+import { ReviewExits } from './reviewExits.ts';
 
 export type ViewId = 'job' | 'library' | 'board' | 'projects' | 'analyze' | 'settings' | 'safety';
 
@@ -68,6 +69,8 @@ export interface AppShellProps {
   readonly liveTab?: ReadonlySignal<boolean>;
   readonly onPauseRequest?: () => void;
   readonly onStopJobRequest?: () => void;
+  /** NEEDS_REVIEW's "Review": opens the Board view's settings compare (OD-13 §5). Set by the shell itself. */
+  readonly onReview?: () => void;
   readonly onDismissReleased?: () => void;
   /** Starts `gcode.worker` for the preview; null in the prerendered page. */
   readonly spawn?: (() => WorkerLike) | null;
@@ -147,8 +150,9 @@ function Banners(props: AppShellProps): ComponentChild {
     'div',
     { class: 'banners', 'data-region': 'overlay-banners' },
     h(OverlayBanners, { snapshot, staleElapsedMs: view?.staleSince === null || view?.staleSince === undefined ? 0 : Date.now() - view.staleSince }),
-    // Never a trap (amendment 2026-11-02): UNKNOWN comes with its ways out.
+    // Never a trap (amendment 2026-11-02): UNKNOWN comes with its ways out; so does NEEDS_REVIEW (OD-13 §5).
     h(UnknownExits, { model: props.model ?? null }),
+    h(ReviewExits, { model: props.model ?? null, onReview: props.onReview ?? (() => undefined) }),
     notice === null
       ? null
       : h(
@@ -239,7 +243,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
         h(
           'main',
           { class: 'view-area', id: 'main', 'data-region': 'centre' },
-          h(Banners, props),
+          h(Banners, { ...props, onReview: () => onView('board') }),
           pane('job', h(JobView, { model, spawn: props.spawn ?? null, ...(props.marker === undefined ? {} : { marker: props.marker }), onView, ...(props.onPause === undefined ? {} : { onPause: props.onPause }), ...(props.onStopJob === undefined ? {} : { onStopJob: props.onStopJob }) })),
           pane('library', h(LibraryView, { model, onView })),
           pane('board', h(BoardView, { model })),

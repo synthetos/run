@@ -250,7 +250,8 @@ export class MachineWorkerHost {
         return reply.ok ? Object.freeze({ v: RPC_VERSION, ok: true, kind: 'flash' }) : refusal('flash', 'denied', reply.message);
       }
       case 'drift':
-        this.#session.reportDrift(request.epoch);
+        if (request.resolved === true) this.#session.resolveDrift(request.epoch);
+        else this.#session.reportDrift(request.epoch);
         return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'drift' });
       case 'subscribe':
         if (port === undefined) return refusal('subscribe', 'invalid-request', 'subscribe needs a reply port');

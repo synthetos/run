@@ -378,6 +378,14 @@ export function reduce(config: SessionConfig, state: SessionState, event: Sessio
     case 'driftDetected':
       if (event.epoch === t.s.epoch && linkUp(t.s)) t.addOverlay('NEEDS_REVIEW');
       break;
+    case 'driftResolved':
+      // "Keep the board's settings" (C23): the read became the reference and nothing on the board changed, so the
+      // review is done for this link (OD-13 §5: a gate's way out is beside it). Only for the current link.
+      if (event.epoch === t.s.epoch && linkUp(t.s) && t.s.overlays.includes('NEEDS_REVIEW')) {
+        t.removeOverlay('NEEDS_REVIEW');
+        t.emit({ kind: 'log', text: "settings: the board's settings were kept as this computer's reference (C23, nothing written): review resolved" });
+      }
+      break;
     case 'lineModeMemory':
       // The page's remembered line mode for this board (H77). It writes nothing; only a jobs release uses it.
       if (event.epoch === t.s.epoch && linkUp(t.s) && t.config.release.jobs === true) onLineModeMemory(t, event.remembered);

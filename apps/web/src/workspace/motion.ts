@@ -233,6 +233,15 @@ export function jogKey(key: string): Readonly<Partial<Record<MotionAxis, 1 | -1>
 /** The axes the page offers for homing and offsets. */
 export const HOME_AXES: readonly MotionAxis[] = Object.freeze(['x', 'y', 'z', 'a']);
 
+/**
+ * The axes this machine has: X, Y and Z, plus A when the board's A axis mode is on (`aam`, read at connect).
+ * B and C are never shown for a TinyG (OD-13).
+ */
+export function machineAxes(settings: Readonly<Record<string, SettingValue>>): readonly MotionAxis[] {
+  const aam = settings['aam'];
+  return typeof aam === 'number' && aam > 0 ? ['x', 'y', 'z', 'a'] : ['x', 'y', 'z'];
+}
+
 export interface HomingView {
   /** Home (and Set machine position) may be sent now: idle, or connected with UNKNOWN as the only overlay. */
   readonly enabled: boolean;

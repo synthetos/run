@@ -255,6 +255,11 @@ export class MachineSession {
     this.#dispatch({ type: 'driftDetected', epoch });
   }
 
+  /** The user kept the board's settings as the reference (C23): NEEDS_REVIEW for the link `epoch` is resolved (OD-13 §5). */
+  resolveDrift(epoch: number): void {
+    this.#dispatch({ type: 'driftResolved', epoch });
+  }
+
   /**
    * One settings write (SAFETY §4.6, amendment 2026-11-02): decided by the allow-matrix (the settings
    * kind, idle, approved board), screened against the schema, then the idle gate reads, the write and a

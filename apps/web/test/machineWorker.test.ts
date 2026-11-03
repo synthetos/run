@@ -567,6 +567,8 @@ describe('MachineWorkerHost', () => {
 describe('P1-07: the position from the connect-time read and pushed reports, and the drift report', () => {
   it('parses exactly { v: 3, kind: drift, epoch } with a whole, non-negative epoch', () => {
     expect(parseRequest({ v: 3, kind: 'drift', epoch: 2 })).toEqual({ v: 3, kind: 'drift', epoch: 2 });
+    expect(parseRequest({ v: 3, kind: 'drift', epoch: 2, resolved: true })).toEqual({ v: 3, kind: 'drift', epoch: 2, resolved: true });
+    expect(parseRequest({ v: 3, kind: 'drift', epoch: 2, resolved: false })).toBeNull();
     for (const bad of [{ v: 3, kind: 'drift' }, { v: 3, kind: 'drift', epoch: -1 }, { v: 3, kind: 'drift', epoch: 1.5 }, { v: 3, kind: 'drift', epoch: '1' }, { v: 3, kind: 'drift', epoch: 1, extra: 1 }]) {
       expect(parseRequest(bad)).toBeNull();
     }
@@ -596,6 +598,11 @@ describe('P1-07: the position from the connect-time read and pushed reports, and
     expect(host.session.snapshot.overlays).not.toContain('NEEDS_REVIEW');
     expect(await host.handle({ v: 3, kind: 'drift', epoch })).toEqual({ v: 3, ok: true, kind: 'drift' });
     expect(host.session.snapshot.overlays).toContain('NEEDS_REVIEW');
+    // Kept as the reference (C23): resolved for this link only (OD-13 §5).
+    expect(await host.handle({ v: 3, kind: 'drift', epoch: epoch + 1, resolved: true })).toEqual({ v: 3, ok: true, kind: 'drift' });
+    expect(host.session.snapshot.overlays).toContain('NEEDS_REVIEW');
+    expect(await host.handle({ v: 3, kind: 'drift', epoch, resolved: true })).toEqual({ v: 3, ok: true, kind: 'drift' });
+    expect(host.session.snapshot.overlays).not.toContain('NEEDS_REVIEW');
   });
 
   it('every posted snapshot carries its DRO view, computed on the worker clock, and the lag thresholds of its silence window', async () => {

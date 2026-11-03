@@ -44,7 +44,7 @@ function allGroups(xvm = 16000, status = 0): Record<string, { value: unknown; st
   return out;
 }
 
-function deps(over: Partial<ReadoutDeps> = {}): ReadoutDeps & { reads: string[][]; drifts: number[]; changes: number } {
+function deps(over: Partial<ReadoutDeps> = {}): ReadoutDeps & { reads: string[][]; drifts: number[]; resolved: number[]; changes: number } {
   const d = {
     reads: [] as string[][],
     drifts: [] as number[],
@@ -55,6 +55,11 @@ function deps(over: Partial<ReadoutDeps> = {}): ReadoutDeps & { reads: string[][
     },
     drift: (epoch: number) => {
       d.drifts.push(epoch);
+      return Promise.resolve();
+    },
+    resolved: [] as number[],
+    resolveDrift: (epoch: number) => {
+      d.resolved.push(epoch);
       return Promise.resolve();
     },
     store: memoryDeviceSafety(),
@@ -123,8 +128,13 @@ describe('LiveReadout: the connect-time read and the drift check', () => {
 
     await r.keepBoardSettings();
     expect(r.phase).toMatchObject({ kind: 'drift', accepted: true });
-    expect(((await d.store.get(referenceKey('tinyg-en', 'SIM-EN-0001'))) as { deviceHash: string }).deviceHash).toBe(phase.hash);
+    const kept = (await d.store.get(referenceKey('tinyg-en', 'SIM-EN-0001'))) as { deviceHash: string; revision?: number };
+    expect(kept.deviceHash).toBe(phase.hash);
+    // The next revision of this computer's reference, and the session told so the review is resolved for this link (OD-13 §5).
+    expect(kept.revision).toBe(2);
+    expect(d.resolved).toEqual([3]);
     await r.keepBoardSettings(); // already accepted: nothing more
+    expect(d.resolved).toEqual([3]);
   });
 
   it('an errored group makes the read incomplete (no hash, no drift); a refused read says why', async () => {

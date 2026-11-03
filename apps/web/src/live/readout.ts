@@ -32,6 +32,8 @@ export interface SettingsReference {
   readonly settings: BoardSettings;
   /** ISO time the reference was taken. */
   readonly at: string;
+  /** How many times this computer's reference for the board has been (re)taken; 1 for the first read. Absent in older records. */
+  readonly revision?: number;
 }
 
 export type ReadoutPhase =
@@ -48,6 +50,8 @@ export type ReadoutPhase =
 export interface ReadoutDeps {
   readonly read: (tokens: readonly string[]) => Promise<{ readonly ok: boolean; readonly message?: string }>;
   readonly drift: (epoch: number) => Promise<unknown>;
+  /** Tells the session the drift for `epoch` was kept as the reference (C23): NEEDS_REVIEW resolved (OD-13 §5). */
+  readonly resolveDrift: (epoch: number) => Promise<unknown>;
   readonly store: DeviceSafetyStore;
   readonly now: () => Date;
   readonly onChange: () => void;
@@ -75,6 +79,8 @@ export class LiveReadout {
   #epoch = -1;
   #dialectId: string | null = null;
   #boardId: string | null = null;
+  /** The link whose drift is being reviewed, for the resolution. */
+  #driftEpoch: number | null = null;
   #settings: BoardSettings = {};
   #checking = false;
   /** Set by `reread`: the group answers seen before it (a fresh read must differ), and that the result becomes the reference. */
@@ -186,6 +192,7 @@ export class LiveReadout {
       return;
     }
     await this.#deps.drift(epoch).catch(() => undefined);
+    this.#driftEpoch = epoch;
     this.#set({ kind: 'drift', hash, reference: stored, result, accepted: false });
   }
 
@@ -205,14 +212,15 @@ export class LiveReadout {
   }
 
   /**
-   * "Keep the board's settings": the read becomes this computer's reference.
-   * Writes nothing to the machine. NEEDS_REVIEW stays until the next connect.
+   * "Keep the board's settings" (C23): the read becomes this computer's reference, as the next revision. Writes
+   * nothing to the machine; the session is told, so NEEDS_REVIEW is resolved for this link (OD-13 §5).
    */
   async keepBoardSettings(): Promise<void> {
     const phase = this.#phase;
     if (phase.kind !== 'drift' || phase.accepted || this.#dialectId === null || this.#boardId === null) return;
-    const reference: SettingsReference = { deviceHash: phase.hash, settings: this.#settings, at: this.#deps.now().toISOString() };
+    const reference: SettingsReference = { deviceHash: phase.hash, settings: this.#settings, at: this.#deps.now().toISOString(), revision: (phase.reference.revision ?? 1) + 1 };
     await this.#deps.store.set(referenceKey(this.#dialectId, this.#boardId), reference);
     this.#set({ ...phase, accepted: true });
+    if (this.#driftEpoch !== null) await this.#deps.resolveDrift(this.#driftEpoch).catch(() => undefined);
   }
 }

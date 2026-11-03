@@ -11,7 +11,7 @@ import { STOP_TEXT, w34 } from '@synthetos/safety';
 import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveActions, type LiveView } from '../src/workspace/model.ts';
 import { JogController, RENEW_MS, activeSystem, axesText, goToZeroPath, homingView, jogKey, machineZ, motionUi, offsetsView, workOffsets } from '../src/workspace/motion.ts';
 import { HomeSection, UnknownExits, unknownApplies } from '../src/workspace/homing.ts';
-import { ConnectNotice, JogSection, SpindleSection, ZeroSection, resetSpindleConfirm } from '../src/workspace/views/RunView.ts';
+import { ConnectNotice, JogSection, PositionPanel, SpindleSection, ZeroSection, resetSpindleConfirm } from '../src/workspace/views/RunView.ts';
 import { MachineStrip, outcomeText, STOP_JOB_PHASE2 } from '../src/workspace/MachineStrip.ts';
 import { stripStatus } from '../src/workspace/status.ts';
 import type { MotionCommand } from '../src/machine-worker/rpc.ts';
@@ -185,7 +185,11 @@ describe('T-S92: control allowlist with a LIVE motion session', () => {
       expect(list.length, cls).toBeGreaterThan(0);
       expect(list.every((b) => !b.disabled), cls).toBe(true);
     }
-    expect(html).toContain(w34().slice(w34().indexOf(' — ') + 3, w34().indexOf(' — ') + 30));
+    // W34 is the Position readout's Not-homed tag help, not a box in the jog panel (OD-13, H51 as amended).
+    expect(html).not.toContain(w34().slice(w34().indexOf(' — ') + 3, w34().indexOf(' — ') + 30));
+    const position = renderToString(h(PositionPanel, { model: model(snap()) }));
+    expect(position).toContain('data-position="homing"');
+    expect(position).toContain(w34().slice(w34().indexOf(' — ') + 3, w34().indexOf(' — ') + 30));
   });
 
   it('disabled with the flag off, a read-only board, an overlay, an alarm or a job; spindle off stays enabled while connected with the flag', () => {
@@ -272,14 +276,15 @@ describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S
     expect(offsetsView(view(snap({ values: { g92: { value: [1], status: 0, at: 1 } } })))).toMatchObject({ system: null, saved: null, temporary: null, temporaryInForce: false });
   });
 
-  it('the Home tab: Home per configured axis and Home all; G28.3 offered only when nothing is configured', () => {
+  it('the Home tab: Home per configured axis and Home all; Set machine zero here (G28.3) offered whenever the machine is at rest (OD-13 §4)', () => {
     const live = renderToString(h(HomeSection, { model: model(withSettings(snap(), HOMING)) }));
     const buttons = machineButtons(live, 'home');
-    expect(buttons.filter((b) => !b.disabled).map((b) => b.text)).toEqual(['Home', 'Home', 'Home all (X and Y)']);
-    expect(live).not.toContain('G28.3');
+    expect(buttons.filter((b) => !b.disabled).map((b) => b.text)).toEqual(['Home', 'Home', 'Home all', 'Set machine zero here…']);
+    // The switch column says min, max or none; the reason sits on the cell's title, not in the table (OD-13).
+    expect(live).toContain('data-home-config="z" title="no switch is set for homing">none<');
+    expect(live).not.toContain('Keep a hand');
     const none = renderToString(h(HomeSection, { model: model(withSettings(snap(), { xam: 1, xsn: 0, xsx: 0, xsv: 0, yam: 1, ysn: 0, ysx: 0, ysv: 0, zam: 1, zsn: 0, zsx: 0, zsv: 0, aam: 0, asn: 0, asx: 0, asv: 0 })) }));
-    expect(none).toContain('Homing is not configured on this board');
-    expect(machineButtons(none, 'home').find((b) => b.text.includes('G28.3'))?.disabled).toBe(false);
+    expect(machineButtons(none, 'home').filter((b) => !b.disabled).map((b) => b.text)).toEqual(['Set machine zero here…']);
     // Prerendered and without the flag: every control disabled.
     for (const html of [renderToString(h(HomeSection, { model: null })), renderToString(h(HomeSection, { model: model(withSettings(snap(), HOMING, false)) }))]) {
       expect(machineButtons(html, 'home').every((b) => b.disabled)).toBe(true);
@@ -289,12 +294,13 @@ describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S
   it('the Offsets tab: G54–G59, Set work zero saved in the active system, the temporary offset apart, all disabled without motion', () => {
     const v = view(snap({ live: { coor: 1, pos: {}, mpo: {} }, values: { g54: { value: { x: 1, y: 2, z: 3 }, status: 0, at: 1 }, g92: { value: { x: 0, y: 0, z: 0 }, status: 0, at: 1 } } }));
     const html = renderToString(h(ZeroSection, { model: model(v) }));
-    expect(html).toContain('Set work zero (G10 L20, saved in G54)');
-    expect(html).toContain('Temporary offset (G92)');
+    expect(html).toContain('Work zero');
+    expect(html).toContain('G10 L20, saved on the controller');
+    expect(html).toContain('Temporary offset');
     const offset = machineButtons(html, 'offset');
-    expect(offset.map((b) => b.text)).toEqual(['G54', 'G55', 'G56', 'G57', 'G58', 'G59', 'X = 0', 'Y = 0', 'Z = 0', 'All = 0', 'Clear (G92.1)']);
+    expect(offset.map((b) => b.text)).toEqual(['G54', 'G55', 'G56', 'G57', 'G58', 'G59', 'X = 0', 'Y = 0', 'Z = 0', 'All = 0', 'Clear']);
     // The active system is selected (not offered again); Clear is offered only while a temporary offset is in force.
-    expect(offset.filter((b) => b.disabled).map((b) => b.text)).toEqual(['G54', 'Clear (G92.1)']);
+    expect(offset.filter((b) => b.disabled).map((b) => b.text)).toEqual(['G54', 'Clear']);
     expect(machineButtons(renderToString(h(ZeroSection, { model: null })), 'offset').every((b) => b.disabled)).toBe(true);
     expect(machineButtons(renderToString(h(ZeroSection, { model: model(v) })), 'zero').length).toBeGreaterThan(0);
   });
@@ -305,13 +311,15 @@ describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S
     const html = renderToString(h(UnknownExits, { model: model(unknown) }));
     expect(html).toContain('data-action="unknown-verify"');
     expect(html).toContain('data-action="unknown-home"');
-    expect(html).not.toContain('data-action="unknown-position"');
+    // Set machine zero here is offered whenever the machine is at rest, switches or not (OD-13 §4).
+    expect(html).toContain('data-action="unknown-position"');
     const noSwitches = withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'], primaryOverlay: 'UNKNOWN' }), { xam: 1, xsn: 0, xsx: 0, xsv: 0 });
     expect(renderToString(h(UnknownExits, { model: model(noSwitches) }))).toContain('data-action="unknown-position"');
     // Without motion the verify exit is still there: UNKNOWN never traps.
     const p1 = renderToString(h(UnknownExits, { model: model(withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'], primaryOverlay: 'UNKNOWN' }), HOMING, false)) }));
     expect(p1).toContain('data-action="unknown-verify"');
-    expect(p1).toContain('Homing is not available');
+    expect(p1).not.toContain('data-action="unknown-home"');
+    expect(p1).not.toContain('data-action="unknown-position"');
     expect(renderToString(h(UnknownExits, { model: model(withSettings(snap(), HOMING)) }))).toBe('');
     expect(stripStatus(view(snap({ base: 'HOMING' })), null).title).toBe('Homing');
     expect(stripStatus(view(snap({ overlays: ['STALE'] })), null).title).toBe('No reports from the board');

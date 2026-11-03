@@ -1067,6 +1067,20 @@ describe('LOST, STALE, NEEDS_REVIEW', () => {
     expect(d.state.overlays).toEqual(['READ_ONLY', 'NEEDS_REVIEW']);
   });
 
+  it('driftResolved (C23, the board\'s settings kept as the reference) clears NEEDS_REVIEW for the current link only, and writes nothing (OD-13 §5)', () => {
+    const d = connected();
+    d.feed({ type: 'driftDetected', epoch: d.state.epoch });
+    const before = d.effects.length;
+    d.feed({ type: 'driftResolved', epoch: d.state.epoch + 1 });
+    expect(d.state.overlays).toEqual(['READ_ONLY', 'NEEDS_REVIEW']);
+    d.feed({ type: 'driftResolved', epoch: d.state.epoch });
+    expect(d.state.overlays).toEqual(['READ_ONLY']);
+    expect(d.effects.slice(before).some((e) => e.kind === 'writeLine')).toBe(false);
+    expect(d.effects.slice(before).filter((e) => e.kind === 'log').map((e) => (e as Extract<SessionEffect, { kind: 'log' }>).text)).toEqual(["settings: the board's settings were kept as this computer's reference (C23, nothing written): review resolved"]);
+    d.feed({ type: 'driftResolved', epoch: d.state.epoch }); // nothing to resolve: nothing happens
+    expect(d.state.overlays).toEqual(['READ_ONLY']);
+  });
+
   it('overlays are always kept in precedence order', () => {
     const d = connected();
     d.feed({ type: 'driftDetected', epoch: d.state.epoch });

@@ -60,7 +60,8 @@ async function connected(page: Page): Promise<Worker> {
   await expect.poll(async () => (await status(worker)).base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
   // The connect-time report configuration (amendment 2026-11-02) has finished: only motion is written from here.
   await expect.poll(async () => (await status(worker)).reports.phase, { timeout: 10_000 }).toBe('done');
-  await expect(page.locator('[data-jog="homing"]')).toHaveText('Not homed', { timeout: 10_000 });
+  // The tag carries W34 behind its (?) help, so its text is more than the label (OD-13).
+  await expect(page.locator('[data-position="homing"]')).toContainText('Not homed', { timeout: 10_000 });
   return worker;
 }
 
@@ -84,7 +85,8 @@ async function idle(worker: Worker): Promise<void> {
 test('a jog step from the panel, with the unhomed warning; a hold jog stops on release with ! then %', async ({ page }) => {
   const worker = await connected(page);
   await tab(page, 'jog');
-  await expect(page.locator('[data-safety="W34"]')).toBeVisible();
+  // W34 is the Not-homed tag's help (OD-13): registered text present, shown on hover or focus, not a box.
+  await expect(page.locator('[data-safety="W34"]')).toHaveCount(1);
   const from = (await writes(worker)).length;
   await page.locator('.sec-jog [aria-label="Step size"] button', { hasText: /^1$/ }).click();
   await page.getByRole('button', { name: 'X+', exact: true }).click();
@@ -153,7 +155,8 @@ test('Set zero (G10 L20 P1) and Go to zero (Z first, then X and Y, then Z), each
   await idle(worker);
   await tab(page, 'zero');
   const from = (await writes(worker)).length;
-  await page.getByRole('button', { name: 'Set work zero for X, Y and Z here, saved in G54' }).click();
+  // Zero all lives on the Position readout (OD-13); the Offsets tab keeps the per-axis rows.
+  await page.getByRole('button', { name: 'Set X, Y and Z work zero here' }).click();
   await expect(page.locator('[data-safety="C16"]')).toContainText('This offset is saved on the controller.');
   await expect(page.locator('[data-action="motion-cancel"]')).toBeFocused();
   await page.locator('[data-action="motion-confirm"]').click();

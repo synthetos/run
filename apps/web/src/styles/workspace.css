@@ -291,11 +291,19 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .insp h3 { margin: 4px 0 2px; font-size: 14px; }
 .source { font-size: 11.5px; color: var(--muted); text-decoration: underline dotted; text-underline-offset: 3px; }
 .dro-grid { display: grid; gap: 2px; }
-.dro-head, .dro-row { display: grid; grid-template-columns: 20px 1fr 1fr; gap: 10px; align-items: baseline; }
+.dro-head, .dro-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
+/* The hobbyist's two actions per axis sit on the row (OD-13): natural width, never stretched. */
+.dro-actions { display: inline-flex; gap: 4px; justify-content: flex-end; align-self: center; }
+.dro-actions button, .pos-all button { min-height: 26px; padding: 0 8px; font-size: 11.5px; }
+.pos-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
+.pos-status .pos-all { margin-left: auto; display: inline-flex; gap: 4px; }
+.pos-head-right { display: inline-flex; align-items: center; gap: 8px; }
+.tag .context-help { margin-left: 2px; }
+.tag .help-trigger { width: 16px; height: 16px; font-size: 10px; }
 .dro-head { font-size: 11px; color: var(--muted); text-align: right; }
 .dro-row { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .dro-row .axis { font-family: var(--sans); font-weight: 600; color: var(--muted); }
-.dro-row strong { font-weight: 500; font-size: 22px; text-align: right; letter-spacing: -.5px; }
+.dro-row strong { font-weight: 500; font-size: 20px; text-align: right; letter-spacing: -.5px; }
 .dro-row span:last-child { text-align: right; color: var(--muted); font-size: 13px; }
 .facts { display: grid; gap: 6px; margin-top: 12px; }
 .facts div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12.5px; }
@@ -726,7 +734,7 @@ table { border-collapse: collapse; }
   .view-head { padding: 18px 28px 14px; }
   .scenario-notice { margin: 0 28px 14px; }
   .scroll-region { padding: 0 28px 24px; }
-  .dro-row strong { font-size: 26px; }
+  .dro-row strong { font-size: 22px; }
   .library-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .machine-art { height: 240px; }
   .dock-panel { height: 230px; }

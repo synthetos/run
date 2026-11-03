@@ -144,6 +144,8 @@ describe('Phase 1 control allowlist', () => {
   const UI: readonly RegExp[] = [
     /^action:advisor-(open|engine|input)$/,
     /^action:context-help$/,
+    // NEEDS_REVIEW's ways out, in its banner (OD-13 §5): keep the board's settings (C23, writes nothing) or open the review.
+    /^action:review-(keep|open|cancel)$/,
     /^action:job-(step-(machine|stock|place|check|run|back|next)|files|files-close|projects|close|library-machines|use-machine)$/,
     /^view:(job|library|board|projects|analyze|settings|safety)$/,
     /^tab:(machines|tools|materials|gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,

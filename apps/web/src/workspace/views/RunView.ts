@@ -27,7 +27,7 @@ import { Icon } from '../icons.ts';
 import { readStored, writeStored } from '../storage.ts';
 import { CheckRow, ConfirmCard, TabBar, TabPane } from '../ui.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
-import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
+import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
 import { HomeSection } from '../homing.ts';
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
 import { ContextHelp } from '../../shell/ContextHelp.ts';
@@ -207,18 +207,51 @@ function ageText(view: LiveView): { readonly text: string; readonly lag: string 
   return { text: `${lag === 'fresh' ? 'Live' : lag === 'amber' ? 'Lagging' : 'Stale'} · ${(age / 1000).toFixed(2)} s`, lag };
 }
 
-export function PositionPanel({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
+/**
+ * The Position readout with the hobbyist's two actions on each axis row (OD-13): Zero here (G10 L20 in the active
+ * system, C16) and Go to zero (Z rises first, C25), plus Zero all and Go to zero for X, Y and Z. Only the machine's
+ * axes are shown. When the controls are gated, one pill in the header says why; nothing else repeats it.
+ */
+function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
   const view = model?.live.value ?? null;
   const m = view !== null && connected(view) ? view.message : null;
-  if (m === null) return h('section', { class: 'insp sec-position', 'data-region': 'position', 'aria-labelledby': 'position-title' }, h('header', null, h('h2', { id: 'position-title' }, 'Position'), h('span', { class: 'source' }, 'Not connected')));
-  const axes = m === null ? (['x', 'y', 'z'] as const).map((axis) => ({ axis, work: null, machine: null, homed: null })) : m.dro.axes.filter((a) => a.work !== null || ['x', 'y', 'z'].includes(a.axis));
+  const ui = motionUi(view);
+  const send = model?.actions.value?.motion;
+  const enabled = ui.enabled && send !== undefined;
+  const settings = settingsOf(view);
+  const axes = machineAxes(settings);
+  const dro = m?.dro.axes ?? [];
+  const row = (a: MotionAxis): { readonly work: number | null; readonly machine: number | null; readonly homed: boolean | null } => dro.find((d) => d.axis === a) ?? { work: null, machine: null, homed: null };
   const age = view === null ? { text: 'Not connected', lag: 'none' } : ageText(view);
   const wcs = m?.dro.wcs ?? null;
-  const homed = m === null ? null : m.dro.axes.filter((a) => ['x', 'y', 'z'].includes(a.axis));
-  const homingText =
-    homed === null || homed.every((a) => a.homed === null) ? 'Unknown' : homed.every((a) => a.homed === true) ? 'Homed (reported)' : `Not homed: ${homed.filter((a) => a.homed !== true).map((a) => a.axis.toUpperCase()).join(' ')}`;
+  // `home` as read at connect (the jog gate's view of it), else what the per-axis reports say.
+  const homedRows = axes.map(row).filter((d) => d.homed !== null);
+  const homed: boolean | null = ui.homed ?? (homedRows.length === 0 ? null : homedRows.every((d) => d.homed === true));
   const tool = m?.snapshot.live.tool;
   const units = m?.dro.units ?? null;
+  const system = offsetsView(view).system ?? 'G54';
+  const zNow = machineZ(view);
+  const ztm = typeof settings['ztm'] === 'number' ? (settings['ztm'] as number) : null;
+  const safe = ztm !== null && ui.homed === true ? Math.round((ztm - 1) * 1000) / 1000 : (zNow ?? 0);
+  type Confirm = { readonly kind: 'set' | 'go'; readonly axes: readonly MotionAxis[] } | null;
+  const [confirm, setConfirm] = hk.state<Confirm>(null);
+  const [note, setNote] = hk.state<string | null>(null);
+  const run = (command: MotionCommand): void => {
+    setConfirm(null);
+    setNote(null);
+    void send?.(command).then(setNote);
+  };
+  const act = (label: string, aria: string, onClick: () => void): ComponentChild =>
+    h('button', { type: 'button', class: 'small', 'aria-label': aria, 'data-machine-control': 'zero', ...(enabled ? { onClick } : { disabled: true, title: ui.reason ?? undefined }) }, label);
+  const card =
+    confirm === null || !enabled
+      ? null
+      : confirm.kind === 'set'
+        ? h(ConfirmCard, { text: confirm.axes.map((a) => c16({ wcs: system, axis: a.toUpperCase(), machinePositionMm: row(a).machine ?? 0, newOffsetMm: row(a).machine ?? 0 })).join(' '), confirm: 'Set work zero', safety: 'C16', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) })
+        : h(ConfirmCard, { text: c25({ axes: axesText(confirm.axes), path: goToZeroPath(confirm.axes, safe, zNow) }), confirm: 'Go to zero', safety: 'C25', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });
+  const xyz: readonly MotionAxis[] = ['x', 'y', 'z'];
+  // The gate, once: a pill in the header with the reason behind (?) (OD-13 §5); a move in progress is not a gate.
+  const gate = m !== null && !ui.enabled && !ui.busy ? ui.reason : null;
   return h(
     'section',
     { class: 'insp sec-position', 'data-region': 'position', 'aria-labelledby': 'position-title' },
@@ -226,27 +259,55 @@ export function PositionPanel({ model }: { readonly model: WorkspaceModel | null
       'header',
       null,
       h('h2', { id: 'position-title' }, 'Position'),
-      h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: 'Machine and work position come from the controller’s status reports, which it sends when they change. The age is the time since the controller last said anything.' }, age.text),
+      h(
+        'span',
+        { class: 'pos-head-right' },
+        gate === null ? null : h('span', { class: 'tag warn', 'data-position': 'gate' }, /approved/.test(gate) ? 'Read only' : 'Controls off', h(ContextHelp, { id: 'position-gate-help', label: 'Why the controls are off', below: true, end: true }, gate)),
+        h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: 'The age is the time since the controller last said anything.' }, age.text),
+      ),
     ),
     h(
       'div',
       { class: 'dro-grid', role: 'table', 'aria-label': 'Position' },
-      h('div', { class: 'dro-head', role: 'row' }, h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Axis')), h('span', { role: 'columnheader' }, units === null ? 'Work' : `Work, ${units}`), h('span', { role: 'columnheader' }, 'Machine, mm')),
-      axes.map((a) =>
-        h('div', { class: 'dro-row', role: 'row', key: a.axis, 'data-position-axis': a.axis }, h('span', { class: 'axis', role: 'rowheader' }, a.axis.toUpperCase()), h('strong', { role: 'cell', 'data-position': 'work' }, coord(a.work)), h('span', { role: 'cell', 'data-position': 'machine' }, coord(a.machine))),
-      ),
+      h('div', { class: 'dro-head', role: 'row' }, h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Axis')), h('span', { role: 'columnheader' }, units === null ? 'Work' : `Work, ${units}`), h('span', { role: 'columnheader' }, 'Machine, mm'), h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Actions'))),
+      axes.map((a) => {
+        const d = row(a);
+        return h(
+          'div',
+          { class: 'dro-row', role: 'row', key: a, 'data-position-axis': a },
+          h('span', { class: 'axis', role: 'rowheader' }, a.toUpperCase()),
+          h('strong', { role: 'cell', 'data-position': 'work' }, coord(d.work)),
+          h('span', { role: 'cell', 'data-position': 'machine' }, coord(d.machine)),
+          h('span', { class: 'dro-actions', role: 'cell' }, act('Zero', `Set ${a.toUpperCase()} work zero here`, () => setConfirm({ kind: 'set', axes: [a] })), act('Go', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }))),
+        );
+      }),
     ),
     h(
-      'dl',
-      { class: 'facts' },
-      h('div', null, h('dt', null, 'Work offset'), h('dd', { 'data-position': 'wcs' }, wcs?.code ?? 'Unknown')),
-      h('div', null, h('dt', null, 'Homing'), h('dd', { 'data-position': 'homing' }, m === null ? 'Unknown' : homingText)),
-      h('div', null, h('dt', null, 'Active tool'), h('dd', { 'data-position': 'tool' }, typeof tool === 'number' ? `T${tool}, reported` : m === null ? 'Unknown' : 'Not reported')),
+      'div',
+      { class: 'pos-status' },
+      h('span', { class: 'tag', 'data-position': 'wcs' }, wcs?.code ?? '—'),
+      homed === null
+        ? h('span', { class: 'tag', 'data-position': 'homing' }, m === null ? 'Not connected' : 'Homing unknown')
+        : homed
+          ? h('span', { class: 'tag ok', 'data-position': 'homing' }, 'Homed')
+          : h('span', { class: 'tag warn', 'data-position': 'homing' }, 'Not homed', h(ContextHelp, { id: 'w34-help', label: 'About moving before homing', safety: 'W34', below: true }, ...signalText(w34()))),
+      typeof tool === 'number' ? h('span', { class: 'tag', 'data-position': 'tool' }, `T${tool}`) : null,
+      h('span', { class: 'pos-all' }, act('Zero all', `Set ${axesText(xyz)} work zero here`, () => setConfirm({ kind: 'set', axes: xyz })), act('Go to zero', `Go to ${axesText(xyz)} zero`, () => setConfirm({ kind: 'go', axes: xyz }))),
     ),
-    m === null
-      ? h('p', { class: 'fine' }, 'Connect to show position.')
-      : h('details', { class: 'more' }, h('summary', null, 'Where these numbers come from'), h(Dro, { message: m, elapsedMs: (view as LiveView).now - (view as LiveView).receivedAt })),
+    card,
+    note === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-position': 'note' }, note),
+    m === null ? null : h('details', { class: 'more' }, h('summary', null, 'Where these numbers come from'), h(Dro, { message: m, elapsedMs: (view as LiveView).now - (view as LiveView).receivedAt })),
   );
+}
+
+type PositionProps = { readonly model?: WorkspaceModel | null };
+
+function PositionLive(props: PositionProps): ComponentChild {
+  return positionBody(props, LIVE_HOOKS);
+}
+
+export function PositionPanel(props: PositionProps = {}): ComponentChild {
+  return isLive(props.model) ? h(PositionLive, props) : positionBody(props, STATIC_HOOKS);
 }
 
 // ---------------------------------------------------------------- inspector: motion (Phase 2)
@@ -283,9 +344,10 @@ function isLive(model: WorkspaceModel | null | undefined): boolean {
 type Send = (command: MotionCommand) => Promise<string | null>;
 
 function motionNote(ui: MotionUi, note: string | null): ComponentChild {
-  const text = note ?? ui.reason ?? ui.notice;
+  // Only what an action answered: the gate's reason is the Position pill and each disabled control's title (OD-13).
+  const text = note ?? ui.notice;
   if (text === null) return null;
-  return h('p', { class: ui.enabled && note === null ? 'motion-note' : 'unavailable', 'data-jog': 'note', role: 'status' }, text);
+  return h('p', { class: 'motion-note', 'data-jog': 'note', role: 'status' }, text);
 }
 
 /** "I've checked the machine" after a reconnect, and Clear alarm with its meaning (C13). */
@@ -417,15 +479,7 @@ function jogBody({ model, onGoToZero }: JogProps, hk: Hooks): ComponentChild {
   return h(
     'section',
     { class: 'insp sec-jog', 'aria-labelledby': 'jog-title' },
-    h(
-      'header',
-      null,
-      h('h2', { id: 'jog-title' }, 'Jog'),
-      h('span', { class: `tag${ui.homed === false ? ' warn' : ''}`, 'data-jog': 'homed' }, ui.homed === null ? 'Motion control' : ui.homed ? 'Homed' : 'Not homed'),
-    ),
-    // The section header is hidden inside the inspector tabs: the homing state gets its own visible line.
-    ui.connected && ui.flag ? h('p', { class: 'jog-status' }, h('span', { class: `tag${ui.homed === false ? ' warn' : ' ok'}`, 'data-jog': 'homing' }, ui.homed === true ? 'Homed' : ui.homed === false ? 'Not homed' : 'Homing unknown'), ui.homed === true ? 'Soft limits apply when enabled.' : null) : null,
-    ui.flag && ui.connected && ui.homed === false ? h('p', { class: 'motion-warning', 'data-safety': 'W34', role: 'note' }, ...signalText(w34())) : null,
+    h('header', null, h('h2', { id: 'jog-title' }, 'Jog')),
     MotionRecovery({ ui, send, view, hk }),
     h(
       'div',
@@ -435,6 +489,7 @@ function jogBody({ model, onGoToZero }: JogProps, hk: Hooks): ComponentChild {
         tabindex: live ? 0 : -1,
         'data-jog': 'panel',
         'aria-label': 'Jog pad. Arrow keys jog X and Y, Page Up and Page Down jog Z, while this panel has focus.',
+        ...(live ? {} : { title: ui.reason ?? undefined }),
         ...(live
           ? {
               onKeyDown,
@@ -504,8 +559,6 @@ export function JogSection(props: JogProps = {}): ComponentChild {
   return isLive(props.model) ? h(JogLive, props) : jogBody(props, STATIC_HOOKS);
 }
 
-const AXIS_ROWS: readonly MotionAxis[] = ['x', 'y', 'z'];
-
 /**
  * Offsets (amendment 2026-11-02; SAFETY §4.5b, H53, H68, C16, C25, C27-C29): the work coordinate system (G54..G59),
  * Set work zero per axis and for all (G10 L20 in the active system, saved on the controller), Go to zero (Z rises in
@@ -559,7 +612,7 @@ function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
     }
   };
   const offsetLine = (o: Readonly<Partial<Record<MotionAxis, number>>> | null): string =>
-    o === null ? UNKNOWN : AXIS_ROWS.map((a) => `${a.toUpperCase()} ${coord(o[a])}`).join(', ');
+    o === null ? UNKNOWN : machineAxes(settings).map((a) => `${a.toUpperCase()} ${coord(o[a])}`).join(', ');
   return h(
     'section',
     { class: 'insp sec-zero', 'aria-labelledby': 'zero-title' },
@@ -575,7 +628,7 @@ function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
         ),
       ),
     ),
-    h('h3', { class: 'tan-label' }, `Set work zero (G10 L20, saved in ${system})`),
+    h('h3', { class: 'tan-label' }, 'Work zero', h(ContextHelp, { id: 'work-zero-help', label: 'About work zero', below: true }, `Zero sets the ${system} offset so the axis reads 0 here (G10 L20, saved on the controller). Go moves there, Z rising to Safe Z first.`)),
     h(
       'table',
       { class: 'zero-table' },
@@ -583,22 +636,15 @@ function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
       h(
         'tbody',
         null,
-        AXIS_ROWS.map((a) =>
+        machineAxes(settings).map((a) =>
           h(
             'tr',
             { key: a, 'data-zero-axis': a },
             h('th', { scope: 'row' }, a.toUpperCase()),
             h('td', { class: 'num' }, coord(work(a))),
             h('td', { class: 'num', 'data-zero-offset': a }, coord(off.saved?.[a])),
-            h('td', { class: 'zero-actions' }, button('Set 0', `Set work zero for ${a.toUpperCase()} here, saved in ${system}`, () => setConfirm({ kind: 'set', axes: [a] })), button('Go to 0', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }))),
+            h('td', { class: 'zero-actions' }, button('Zero', `Set work zero for ${a.toUpperCase()} here, saved in ${system}`, () => setConfirm({ kind: 'set', axes: [a] })), button('Go', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }))),
           ),
-        ),
-        h(
-          'tr',
-          { 'data-zero-axis': 'all' },
-          h('th', { scope: 'row' }, 'All'),
-          h('td', { colSpan: 2, class: 'fine' }, 'X, Y and Z'),
-          h('td', { class: 'zero-actions' }, button('Set 0', `Set work zero for X, Y and Z here, saved in ${system}`, () => setConfirm({ kind: 'set', axes: ['x', 'y', 'z'] })), button('Go to 0', 'Go to X, Y and Z zero', () => setConfirm({ kind: 'go', axes: ['x', 'y', 'z'] }))),
         ),
       ),
     ),
@@ -613,25 +659,19 @@ function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
         ...(enabled ? { onInput: (e: Event) => setSafeZ(Number((e.currentTarget as HTMLInputElement).value)) } : { disabled: true }),
         'aria-label': 'Safe Z height in machine coordinates, mm',
         'data-machine-control': 'zero',
+        title: 'Machine Z that Go rises to before X and Y move; never lower than Z is now.',
       }),
-      h('small', null, 'mm, machine. Z never goes lower than it is.'),
+      h('small', null, 'mm'),
     ),
-    h('h3', { class: 'tan-label' }, 'Temporary offset (G92)'),
-    h('p', { class: 'fine' }, `Shifts work positions so the axes read 0 here, without changing the saved ${system} offset. It is not saved: a reset or a program end clears it. Clear it with G92.1.`),
+    h('h3', { class: 'tan-label' }, 'Temporary offset', h(ContextHelp, { id: 'g92-help', label: 'About the temporary offset', below: true }, `G92 shifts work positions so the axes read 0 here without changing the saved ${system} offset. It is not saved: a reset or a program end clears it; Clear sends G92.1.`)),
     h(
       'div',
       { class: 'zero-actions temp-offset' },
-      AXIS_ROWS.map((a) => button(`${a.toUpperCase()} = 0`, `Temporary offset: ${a.toUpperCase()} reads 0 here`, () => setConfirm({ kind: 'temp', axes: [a] }), 'offset')),
+      machineAxes(settings).map((a) => button(`${a.toUpperCase()} = 0`, `Temporary offset: ${a.toUpperCase()} reads 0 here`, () => setConfirm({ kind: 'temp', axes: [a] }), 'offset')),
       button('All = 0', 'Temporary offset: X, Y and Z read 0 here', () => setConfirm({ kind: 'temp', axes: ['x', 'y', 'z'] }), 'offset'),
-      button('Clear (G92.1)', 'Clear the temporary offset (G92.1)', () => setConfirm({ kind: 'clear' }), 'offset', off.temporaryInForce),
+      button('Clear', 'Clear the temporary offset (G92.1)', () => setConfirm({ kind: 'clear' }), 'offset', off.temporaryInForce),
     ),
-    h(
-      'dl',
-      { class: 'facts', 'data-offsets': 'active' },
-      h('div', null, h('dt', null, `Saved (${system})`), h('dd', { 'data-offsets': 'saved' }, offsetLine(off.saved))),
-      h('div', null, h('dt', null, 'Temporary (G92)'), h('dd', { 'data-offsets': 'temporary' }, off.temporary === null ? UNKNOWN : off.temporaryInForce ? `${offsetLine(off.temporary)} · in force, not saved` : 'none')),
-      h('div', null, h('dt', null, 'Total'), h('dd', { 'data-offsets': 'total' }, offsetLine(off.total))),
-    ),
+    off.temporaryInForce ? h('p', { class: 'fine', 'data-offsets': 'temporary' }, `G92 ${offsetLine(off.temporary)} · in force, not saved`) : null,
     confirmCard(),
     motionNote(ui, note ?? (enabled ? (view?.message?.snapshot.notices.change?.text ?? null) : null)),
   );
@@ -818,7 +858,7 @@ function RunInspector({ model, onView, stops }: { readonly model: WorkspaceModel
           { id: 'jog', label: 'Jog' },
           { id: 'home', label: 'Home' },
           { id: 'zero', label: 'Offsets' },
-          { id: 'spindle', label: 'Spindle and coolant' },
+          { id: 'spindle', label: 'Spindle' },
           { id: 'overrides', label: 'Overrides' },
         ],
       }),

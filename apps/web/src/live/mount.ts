@@ -161,6 +161,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   const readout = new LiveReadout({
     read,
     drift: (epoch) => (worker === null ? Promise.resolve() : callMachineWorker(worker, { v: RPC_VERSION, kind: 'drift', epoch })),
+    resolveDrift: (epoch) => (worker === null ? Promise.resolve() : callMachineWorker(worker, { v: RPC_VERSION, kind: 'drift', epoch, resolved: true })),
     store,
     now: () => new Date(),
     onChange: () => publish(),

@@ -91,15 +91,16 @@ test('connect reads the state once, sets the status report list (W35) and the he
 test('Home all from the Home tab: C4 names the configured axes, one G28.2, then IDLE_HOMED', async ({ page }) => {
   const worker = await connect(page, { board: { eeprom: HOMING_EEPROM } });
   await tab(page, 'home');
-  const homeAll = page.locator('.sec-home button', { hasText: /^Home all \(X and Z\)$/ });
+  const homeAll = page.locator('.sec-home button', { hasText: /^Home all$/ });
   await expect(homeAll).toBeEnabled({ timeout: 10_000 });
-  await expect(page.locator('[data-home-config="y"]')).toHaveText('no switch is set for homing');
+  await expect(page.locator('[data-home-config="y"]')).toHaveText('none');
+  await expect(page.locator('[data-home-config="y"]')).toHaveAttribute('title', 'no switch is set for homing');
   const from = (await writes(worker)).length;
   await homeAll.click();
   await expect(page.locator('.motion-confirm[data-safety="C4"]')).toContainText('Home X and Z? The machine will move each axis toward its homing switch');
   await confirm(page, 'C4');
-  await expect(page.locator('[data-home-state="x"]')).toHaveText('homed', { timeout: 15_000 });
-  await expect(page.locator('[data-home-state="z"]')).toHaveText('homed');
+  await expect(page.locator('[data-home-state="x"]')).toHaveText('yes', { timeout: 15_000 });
+  await expect(page.locator('[data-home-state="z"]')).toHaveText('yes');
   // Y has no switch, so the machine is not homed as a whole: IDLE_UNHOMED.
   await expect.poll(async () => (await session(worker)).base, { timeout: 5_000 }).toBe('IDLE_UNHOMED');
   const g = (await writes(worker)).slice(from).filter((x) => x.startsWith('G'));
@@ -133,7 +134,8 @@ test('offsets: G55, Set work zero saved in G55, a temporary offset and its clear
   await page.locator('.sec-zero [data-machine-control="offset"]', { hasText: /^G55$/ }).click();
   await confirm(page, 'C29');
   await expect.poll(async () => (await session(worker)).live.coor).toBe(2);
-  await expect(page.locator('.sec-zero')).toContainText('Set work zero (G10 L20, saved in G55)');
+  await expect(page.locator('.sec-zero')).toContainText('G10 L20, saved on the controller');
+  await expect(page.locator('.sec-zero [data-offsets="system"]')).toHaveText('G55');
   await page.getByRole('button', { name: 'Set work zero for X here, saved in G55' }).click();
   await confirm(page, 'C16');
   await expect.poll(async () => (await writes(worker)).includes('G10 L20 P2 X0\n')).toBe(true);
