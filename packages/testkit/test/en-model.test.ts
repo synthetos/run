@@ -545,12 +545,13 @@ describe('TinyGEdgeNextModel: planner and states', () => {
     expect(last?.f[1]).toBe(204);
   });
 
-  it('[EN-SR] filtered status reports send only changed values, at most every si ms', () => {
+  it('[EN-SR] filtered status reports send only changed values, si ms after the first request, sampled when printed', () => {
     const sim = enSim();
     sim.host.sendLine('G1 X10 F600');
     sim.clock.advance(1300);
     const sr = reports(sim.host.lines());
-    expect(sr[0]).toEqual({ feed: 600, momo: 1, stat: 5 });
+    // The first change (the G1 parsed) requests a report; it prints si = 250 ms later with the values then.
+    expect(sr[0]).toEqual({ posx: 2, feed: 600, vel: 600, momo: 1, stat: 5 });
     expect(sr.at(-1)).toEqual({ posx: 10, vel: 0, stat: 3 });
     const times = sim.host.timedLines().filter((l) => l.text.startsWith('{"sr"')).map((l) => l.t);
     // si is enforced at the board; arrival times at the host also carry the line's serialisation time.

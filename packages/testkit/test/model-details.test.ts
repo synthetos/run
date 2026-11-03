@@ -125,7 +125,7 @@ describe('edge-next G-code word rules', () => {
   });
 
   it('throws ModelGapError for firmware features the model does not implement', () => {
-    for (const line of ['G28.2 X0', 'G38.2 Z-1 F10', 'M114', 'G2 X1 R1 F100']) {
+    for (const line of ['G28.1', 'G38.2 Z-1 F10', 'M114', 'G2 X1 R1 F100']) {
       const sim = enSim();
       sim.host.sendLine(line);
       expect(() => sim.clock.advance(20), line).toThrow(ModelGapError);
@@ -227,7 +227,7 @@ describe('edge-next JSON, verbosity and reports', () => {
   });
 
   it('a group SET and the dangerous SETs (baud, boot, defaults) are model gaps, never silently accepted', () => {
-    for (const line of ['{"sr":{"line":true}}', '{"baud":5}', '{"boot":1}', '{"defa":1}']) {
+    for (const line of ['{"x":{"vm":100}}', '{"baud":5}', '{"boot":1}', '{"defa":1}']) {
       const sim = enSim();
       sim.host.sendLine(line);
       expect(() => sim.clock.advance(20), line).toThrow(ModelGapError);

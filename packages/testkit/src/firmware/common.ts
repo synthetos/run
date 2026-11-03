@@ -34,6 +34,19 @@ export interface TinyGModelOptions {
    * lost"). The duration is not a measured firmware fact.
    */
   readonly eepromWriteMs?: number;
+  /**
+   * Edge-next model: the status report list on a fresh EEPROM (default: the firmware default list). Kept in
+   * the EEPROM image afterwards, so a `{"sr":{...}}` write survives reset and boot.
+   */
+  readonly srList?: readonly string[];
+  /** Edge-next model: the build has the rt family (`{"rt":...}`, the heartbeat). Default true; false answers 100. */
+  readonly rt?: boolean;
+  /**
+   * Edge-next model: the proposed RAM-only write capability (not in any firmware yet). Default false. When true,
+   * `{"rt":{"unsaved":null}}` answers `{"rt":{"unsaved":0}}`, and a line whose first pair is `ram:1` applies the
+   * rest of the line in RAM without persisting (echoing `"ram":1` first). When false any `ram` key answers 100.
+   */
+  readonly ramWrites?: boolean;
 }
 
 /** What a test can inspect without going through the wire. */
@@ -65,6 +78,8 @@ export interface ModelSnapshot {
   /** Velocity, mm/min. */
   readonly velocity: number;
   readonly booted: boolean;
+  /** Edge-next model: the status report list in force (tokens, in order). Absent on 440.21. */
+  readonly srList?: readonly string[];
 }
 
 /**

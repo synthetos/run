@@ -28,7 +28,7 @@ import {
   type TinyGModelOptions,
 } from './common.ts';
 import { normalizeBlock, readWords, type GcodeSyntax, type Word } from './gcode.ts';
-import { parseHostJson, type HostValue } from './hostJson.ts';
+import { parseHostJson, type HostPairs, type HostValue } from './hostJson.ts';
 import { enComputeArc } from './arcs.ts';
 import { AXIS_INHIBITED, axisModeTooLarge, modelTarget, softLimitEnds, softLimitExceeded } from './canonical.ts';
 import { fpZERO } from './float32.ts';
@@ -272,7 +272,19 @@ export class TinyGEdgeNextModel implements SimDevice {
   #motion: Motion;
   #reportsSuppressed = false;
   #lastSr: Record<string, string> = {};
-  #lastSrAt = -Infinity;
+  /** A timed status report request is pending since this time (first request wins), or null. */
+  #srRequestAt: number | null = null;
+  /** The status report list (`sr_set`), EEPROM-backed: kept across reset and boot. */
+  #srList: string[] = [...SR_DEFAULTS];
+  /** Writes of the status report list (`{"sr":{...}}`) that changed it. */
+  srListWrites = 0;
+  /** rt heartbeat interval, ms (RAM only, 0 = off). */
+  #hbMs = 0;
+  #hbTimer: number | undefined;
+  #lastPrintAt = -Infinity;
+  #bootAt = 0;
+  /** A G28.2 homing cycle is queued or running (stat 9). */
+  #homingCycle = false;
   #lastQr = PLANNER_POOL;
 
   constructor(options: TinyGModelOptions = {}) {
@@ -422,6 +434,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       motors: this.#motion.motorPosition(now),
       velocity: this.#motion.velocity(now),
       booted: this.#booted,
+      srList: [...this.#srList],
     };
   }
 
@@ -454,9 +467,12 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (this.#bootTimer !== undefined) clock.clearTimeout(this.#bootTimer);
     if (this.#tickTimer !== undefined) clock.clearTimeout(this.#tickTimer);
     if (this.#motorOffTimer !== undefined) clock.clearTimeout(this.#motorOffTimer);
+    if (this.#hbTimer !== undefined) clock.clearTimeout(this.#hbTimer);
     this.#bootTimer = undefined;
     this.#tickTimer = undefined;
     this.#motorOffTimer = undefined;
+    this.#hbTimer = undefined;
+    this.#bootAt = this.#now();
     this.#resetRam();
     // EEPROM: a record-0 layout marker other than layout 2 means "not set up": write the defaults
     // (@behaviour EN-EEPROM; @cite EN config.c:213-220, :263-281).
@@ -464,8 +480,10 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (fresh) {
       this.settings.resetToDefaults();
       this.settings.eeprom['__layout'] = 10002;
+      this.#storeSrList(this.#options.srList ?? SR_DEFAULTS);
     } else {
       this.settings.load();
+      this.#loadSrList();
     }
     if (!printBanners) {
       this.#booted = true;
@@ -494,6 +512,9 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#booted = false;
     if (this.#tickTimer !== undefined) clock.clearTimeout(this.#tickTimer);
     this.#tickTimer = undefined;
+    if (this.#hbTimer !== undefined) clock.clearTimeout(this.#hbTimer);
+    this.#hbTimer = undefined;
+    this.#hbMs = 0;
     if (this.#bootTimer !== undefined) clock.clearTimeout(this.#bootTimer);
     this.#bootTimer = clock.setTimeout(() => this.#powerUp(true), WATCHDOG_RESET_MS);
   }
@@ -538,7 +559,9 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#motorsEnergized = false;
     this.#startupPending = false;
     this.#motion = this.#newMotion();
-    this.#lastSrAt = -Infinity;
+    this.#srRequestAt = null;
+    this.#hbMs = 0;
+    this.#homingCycle = false;
     this.#lastQr = PLANNER_POOL;
   }
 
@@ -563,6 +586,19 @@ export class TinyGEdgeNextModel implements SimDevice {
       if (!this.#pass()) break;
     }
     if (this.#busy()) this.#tickTimer = this.#clock().setTimeout(() => this.#tick(), TICK_MS);
+    else this.#scheduleHeartbeat();
+  }
+
+  /** While idle with a heartbeat on, wake the loop when the next `{"hb":...}` line is due. */
+  #scheduleHeartbeat(): void {
+    if (this.#hbMs <= 0) return;
+    const clock = this.#clock();
+    if (this.#hbTimer !== undefined) clock.clearTimeout(this.#hbTimer);
+    const due = Math.max(0, this.#lastPrintAt + this.#hbMs - this.#now());
+    this.#hbTimer = clock.setTimeout(() => {
+      this.#hbTimer = undefined;
+      this.#wake();
+    }, due);
   }
 
   /** Anything that needs the loop to keep running. */
@@ -584,6 +620,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       this.#limitAsserted !== 0 ||
       this.#motionSync !== null ||
       this.#startupPending ||
+      this.#srRequestAt !== null ||
       this.#srDiffers()
     );
   }
@@ -601,6 +638,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#limitSwitchHandler();
     this.#startupCallback(now);
     this.#dispatchControl();
+    this.#heartbeatCallback(now);
     this.#statusReportCallback(now);
     this.#queueReportCallback();
     this.#feedholdSequencing(now);
@@ -924,7 +962,8 @@ export class TinyGEdgeNextModel implements SimDevice {
       case 'panic':
         return 13;
       case 'cycle':
-        return this.#motionState === 'hold' ? 6 : 5;
+        // COMBINED_HOMING while a homing cycle runs (model limit LIM-EN-HOMING)
+        return this.#motionState === 'hold' ? 6 : this.#homingCycle ? 9 : 5;
     }
   }
 
@@ -946,6 +985,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   #alarm(status: number, msg: string): void {
     if (this.#machine === 'alarm' || this.#machine === 'panic' || this.#machine === 'shutdown') return;
     this.#machine = 'alarm';
+    this.#homingCycle = false;
     const now = this.#now();
     this.#motion.advance(now);
     const idle = this.#motionState === 'stop' && this.#hold === HOLD.OFF;
@@ -1010,6 +1050,7 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   /** `cm_halt_motion()` (@cite EN canonical_machine.c:770-777). */
   #haltMotion(): void {
+    this.#homingCycle = false;
     this.#motion.halt(this.#now());
     this.#cycle = 'off';
     this.#motionState = 'stop';
@@ -1101,6 +1142,8 @@ export class TinyGEdgeNextModel implements SimDevice {
   #queueFlush(now = this.#now()): void {
     if (!this.#motion.runtimeIdle()) return;
     this.#motion.flush(now);
+    // A flushed homing cycle ends: axes not yet homed stay unhomed (model limit LIM-EN-HOMING).
+    this.#homingCycle = false;
     this.#startupPending = false; // mp_init_buffers() (@cite EN planner.c:399-400)
     this.#motionState = 'stop'; // mp_flush_planner() (@cite EN planner.c:153-159)
     this.#gm.position = this.#motion.position(now);
@@ -1358,7 +1401,10 @@ export class TinyGEdgeNextModel implements SimDevice {
             // G10 L2 / L20 Pn: set a coordinate system's offset (model limit LIM-EN-G10)
             if (g.nextAction !== undefined) return ST('GCODE_MODAL_GROUP_VIOLATION');
             g.nextAction = 'setCoord';
-          } else if (['28', '28.1', '28.2', '28.3', '28.4', '30', '30.1', '38.2', '43.1', '92.2', '92.3', '93'].includes(code)) {
+          } else if (code === '28.2' || code === '28.3') {
+            if (g.nextAction !== undefined) return ST('GCODE_MODAL_GROUP_VIOLATION');
+            g.nextAction = code === '28.2' ? 'homing' : 'setAbsoluteOrigin';
+          } else if (['28', '28.1', '28.4', '30', '30.1', '38.2', '43.1', '92.2', '92.3', '93'].includes(code)) {
             throw new ModelGapError(`edge-next G${code}`);
           } else {
             return ST('GCODE_COMMAND_UNSUPPORTED');
@@ -1507,6 +1553,12 @@ export class TinyGEdgeNextModel implements SimDevice {
       case 'resetOrigin':
         gm.g92 = zeroVec();
         gm.g92Enabled = false;
+        break;
+      case 'homing':
+        status = this.#homing(g);
+        break;
+      case 'setAbsoluteOrigin':
+        this.#setAbsoluteOrigin(g);
         break;
       case 'setCoord': {
         // Model limit LIM-EN-G10 (uncited): L2 sets the offset to the value given; L20 so that the current position reads
@@ -1751,8 +1803,30 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
     const body: Record<string, OutValue> = {};
     let status = 0;
+    if (parsed.pairs.some(([k]) => k === 'rt')) {
+      status = this.#runtime(parsed.pairs.filter(([k]) => k !== 'tid'), body);
+      this.#currentTid = undefined;
+      this.#respond(status, body, tid);
+      return;
+    }
+    let first = true;
+    this.#ramLine = false;
     for (const [key, value] of parsed.pairs) {
       if (key === 'tid') continue;
+      const isFirst = first;
+      first = false;
+      if (key === 'ram') {
+        // RAM-only writes (proposed firmware capability, option `ramWrites`; model limit LIM-EN-RAM-WRITES):
+        // `ram:1` as the FIRST pair applies the rest of the line without persisting. Anywhere else, or on a
+        // build without it, 100; pairs before it have already run.
+        if (this.#options.ramWrites === true && isFirst && value === 1) {
+          this.#ramLine = true;
+          body['ram'] = 1;
+          continue;
+        }
+        status = ST('UNRECOGNIZED_NAME');
+        break;
+      }
       const r = value === null ? this.#jsonGet(key, body) : this.#jsonSet(key, value, body);
       if (r !== 0) {
         status = r;
@@ -1760,6 +1834,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       }
     }
     this.#currentTid = undefined;
+    this.#ramLine = false;
     if (this.#motionSyncRequested !== null) {
       // {"gc":"M400"}: an accepted request answers when drained; a failed one now (@cite EN controller.c:574-583)
       if (status === 0) return;
@@ -1767,6 +1842,38 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
     this.#respond(status, body, tid);
   }
+
+  /**
+   * The rt family (model limit LIM-EN-RT-HB): only as the single pair of a line (a pure envelope).
+   * `{"rt":null}` reads hb, qt and up; `{"rt":{"hb":N}}` sets the RAM heartbeat interval (0..60000 ms).
+   * A build without it (option `rt: false`) answers 100 (UNRECOGNIZED_NAME).
+   */
+  #runtime(pairs: readonly (readonly [string, HostValue])[], body: Record<string, OutValue>): number {
+    if (this.#options.rt === false || pairs.length !== 1) return ST('UNRECOGNIZED_NAME');
+    const value = (pairs[0] as readonly [string, HostValue])[1];
+    if (value === null) {
+      body['rt'] = { hb: this.#hbMs, qt: '', up: this.#uptime() };
+      return 0;
+    }
+    if (typeof value !== 'object') return ST('VALUE_TYPE_ERROR');
+    const set: Record<string, OutValue> = {};
+    for (const [k, v] of value.pairs) {
+      // `unsaved`: the RAM-write capability probe (option `ramWrites`); 100 on a build without it.
+      if (k === 'unsaved' && v === null && this.#options.ramWrites === true) {
+        set[k] = 0;
+        continue;
+      }
+      if (k !== 'hb') return ST('UNRECOGNIZED_NAME');
+      if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 60000) return ST('INPUT_VALUE_RANGE_ERROR');
+      this.#hbMs = v;
+      set[k] = v;
+    }
+    body['rt'] = set;
+    return 0;
+  }
+
+  /** The line being parsed started with `ram:1` (RAM-only writes). */
+  #ramLine = false;
 
   #jsonGet(key: string, body: Record<string, OutValue>): number {
     const info = token(T, key);
@@ -1846,6 +1953,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       if (this.settings.num('jv') >= 5) body[key] = value;
       return status;
     }
+    if (key === 'sr' && typeof value === 'object' && value !== null) return this.#setSrList(value, body);
     if (typeof value === 'object' && value !== null) throw new ModelGapError(`edge-next group SET ${key}`);
     switch (info.set) {
       case 'set_nul':
@@ -1917,7 +2025,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     body[key] = fixed(stored, info.precision);
     // @behaviour EN-SETTINGS-GATE: the RAM value is set, then persisting refuses while a cycle runs: 106 plus an `er`
     // (@cite EN json_parser.c:334-337; persistence.c:88-92)
-    if (info.persist) {
+    if (info.persist && !this.#ramLine) {
       if (this.#cycle !== 'off') return this.#exception(ST('COMMAND_NOT_ACCEPTED'), "Can't save when moving");
       if (this.settings.persist(key)) this.#eepromStall(key);
     }
@@ -2005,6 +2113,8 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (key === 'hp') return HW_PLATFORM;
     if (key === 'hv') return fixed(HW_VERSION, p);
     if (info.group === 'hom' && axis >= 0) return this.#homed[axis] ? 1 : 0;
+    // The active G92 offset, mm (0 while G92 is off); g28/g30 read their (unset, 0) stored positions below.
+    if (info.group === 'g92' && axis >= 0) return fixed(this.#gm.g92Enabled ? (this.#gm.g92[axis] as number) : 0, p);
     if (['get_flt', 'get_ui8', 'get_int', 'get_u32', 'get_data', 'cm_get_am'].includes(info.get)) {
       const v = this.settings.get(key);
       if (typeof v === 'number') return fixed(v, p);
@@ -2030,7 +2140,7 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   #srValues(all: boolean): OutObject {
     const out: Record<string, OutValue> = {};
-    for (const key of SR_DEFAULTS) {
+    for (const key of this.#srList) {
       const v = this.#value(key);
       if (v === undefined) continue;
       const rendered = serialize(v);
@@ -2041,7 +2151,7 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   #snapshotSr(): void {
     this.#lastSr = {};
-    for (const key of SR_DEFAULTS) {
+    for (const key of this.#srList) {
       const v = this.#value(key);
       if (v !== undefined) this.#lastSr[key] = serialize(v);
     }
@@ -2052,17 +2162,155 @@ export class TinyGEdgeNextModel implements SimDevice {
     return Object.keys(this.#srValues(false)).length > 0;
   }
 
-  /** @behaviour EN-SR: filtered status reports at most every `si` ms (@cite EN settings/settings_default.h:79-84) */
+  /**
+   * @behaviour EN-SR: filtered status reports (@cite EN settings/settings_default.h:79-84). A change against
+   * the values last SENT records one timed request (first request wins: later changes do not move it); the
+   * report prints `si` ms after that request and samples the values when it prints, so a state that comes and
+   * goes in between never appears (report.c facts, firmware maintainer 2026-11-02; model limit LIM-EN-SR-TIMING).
+   */
   #statusReportCallback(now: number): void {
     const sv = this.settings.num('sv');
-    if (sv === 0 || this.#reportsSuppressed) return;
-    if (now - this.#lastSrAt < this.settings.num('si')) return;
+    if (sv === 0 || this.#reportsSuppressed) {
+      this.#srRequestAt = null;
+      return;
+    }
+    if (this.#srRequestAt === null) {
+      if (!this.#srDiffers()) return;
+      this.#srRequestAt = now;
+    }
+    if (now < this.#srRequestAt + this.settings.num('si')) return;
+    this.#srRequestAt = null;
     const changed = this.#srValues(sv === 2);
     if (Object.keys(changed).length === 0) return;
     for (const [k, v] of Object.entries(changed)) this.#lastSr[k] = serialize(v);
-    this.#lastSrAt = now;
     this.#println(serialize({ sr: changed }, this.#relaxed()));
     this.#progress++;
+  }
+
+  /** `{"hb":{...}}` while the rt heartbeat is on and nothing else was printed for `hb` ms (model limit LIM-EN-RT-HB). */
+  #heartbeatCallback(now: number): void {
+    // A small tolerance: the wake timer is due exactly at lastPrintAt + hb, and float rounding must not make the
+    // pass see it a hair early and reschedule forever.
+    if (this.#hbMs <= 0 || now - this.#lastPrintAt < this.#hbMs - 1e-6) return;
+    this.#println(serialize({ hb: { stat: this.#stat(), hold: this.#hold, up: this.#uptime(), qt: '' } }, false));
+  }
+
+  #uptime(): number {
+    return Math.max(0, Math.round(this.#now() - this.#bootAt));
+  }
+
+  // ---- status report list (EEPROM)
+
+  static readonly #TOKEN_NAMES: readonly string[] = Object.keys(T.tokens);
+
+  #storeSrList(list: readonly string[]): void {
+    this.#srList = [...list];
+    const ee = this.settings.eeprom;
+    for (const k of Object.keys(ee)) if (k.startsWith('__sr')) delete ee[k];
+    ee['__srn'] = list.length;
+    list.forEach((name, i) => {
+      ee[`__sr${i}`] = TinyGEdgeNextModel.#TOKEN_NAMES.indexOf(name);
+    });
+  }
+
+  #loadSrList(): void {
+    const ee = this.settings.eeprom;
+    const n = ee['__srn'];
+    if (n === undefined) {
+      this.#storeSrList(this.#options.srList ?? SR_DEFAULTS);
+      return;
+    }
+    const list: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const name = TinyGEdgeNextModel.#TOKEN_NAMES[ee[`__sr${i}`] ?? -1];
+      if (name !== undefined) list.push(name);
+    }
+    this.#srList = list;
+  }
+
+  /** `sr_set()`: the list is replaced by the keys whose value is true, in order, and persisted (TinyG report.c sr_set; LIM-EN-SR-LIST). */
+  #setSrList(value: HostPairs, body: Record<string, OutValue>): number {
+    // More than NV_STATUS_REPORT_LEN (30) entries: the closest EN status is INPUT_EXCEEDS_MAX_LENGTH.
+    if (value.pairs.length > 30) return ST('INPUT_EXCEEDS_MAX_LENGTH');
+    const list: string[] = [];
+    for (const [k, v] of value.pairs) {
+      if (v !== true || token(T, k) === undefined) return ST('UNRECOGNIZED_NAME');
+      list.push(k);
+    }
+    if (list.length === 0) return ST('INVALID_OR_MALFORMED_COMMAND');
+    this.srListWrites++;
+    if (this.#ramLine) {
+      this.#srList = list; // RAM only: the next reset loads the persisted list again
+    } else {
+      this.#storeSrList(list);
+      this.#eepromStall('sr');
+    }
+    body['sr'] = this.#srValues(true);
+    return 0;
+  }
+
+  // ---- homing (model limit LIM-EN-HOMING)
+
+  /**
+   * G28.2: every named axis must have exactly one homing switch (mode 1 or 3), a search velocity and a mode
+   * other than disabled, else the block fails with HOMING_ERROR_HOMING_INPUT_MISCONFIGURED (246) and nothing
+   * moves. No axis named: HOMING_ERROR_BAD_OR_NO_AXIS. Axes home in the firmware order Z, X, Y, A.
+   */
+  #homing(g: GcodeInput): number {
+    const named = [2, 0, 1, 3].filter((i) => g.target[i] !== undefined);
+    if (named.length === 0) return ST('HOMING_ERROR_BAD_OR_NO_AXIS');
+    const homingBit = (m: number): boolean => (m & 1) === 1 && m !== 4;
+    for (const i of named) {
+      const a = AXES[i] as string;
+      const sn = homingBit(this.settings.num(`${a}sn`));
+      const sx = homingBit(this.settings.num(`${a}sx`));
+      if (this.settings.num(`${a}am`) === 0 || sn === sx || !(this.settings.num(`${a}sv`) > 0)) return ST('HOMING_ERROR_HOMING_INPUT_MISCONFIGURED');
+    }
+    this.#homingCycle = true;
+    let cur: Vec = [...this.#gm.position];
+    for (const i of named) {
+      const a = AXES[i] as string;
+      const toMin = homingBit(this.settings.num(`${a}sn`));
+      const tn = this.settings.num(`${a}tn`);
+      const tm = this.settings.num(`${a}tm`);
+      const end = toMin ? tn : tm;
+      const sign = toMin ? -1 : 1;
+      const bound = Math.abs(tm - tn) + Math.max(0, this.settings.num(`${a}lb`));
+      const search = Math.min(bound, Math.max(0, sign * (end - (cur[i] as number))));
+      if (search > 0) {
+        const to = [...cur] as Vec;
+        to[i] = (cur[i] as number) + sign * search;
+        this.#queueMove({ kind: 'line', from: cur, to, length: search }, this.settings.num(`${a}sv`));
+      }
+      const homedAt = [...cur] as Vec;
+      homedAt[i] = end;
+      const last = i === named[named.length - 1];
+      this.#queueCommand(`homing ${a}`, () => {
+        this.#motion.setPosition(homedAt);
+        this.#homed[i] = true;
+        if (last) this.#homingCycle = false;
+      });
+      cur = homedAt;
+    }
+    this.#gm.position = [...cur];
+    return 0;
+  }
+
+  /** G28.3: the named axes' machine position is set to the given values and they are marked homed; no motion. */
+  #setAbsoluteOrigin(g: GcodeInput): void {
+    const values: (number | undefined)[] = g.target.map((t, i) => (t === undefined ? undefined : t * this.#unitFactor(undefined, i)));
+    values.forEach((v, i) => {
+      if (v !== undefined) this.#gm.position[i] = v;
+    });
+    this.#queueCommand('set absolute origin', () => {
+      const pos = this.#motion.position(this.#now());
+      values.forEach((v, i) => {
+        if (v === undefined) return;
+        pos[i] = v;
+        this.#homed[i] = true;
+      });
+      this.#motion.setPosition(pos);
+    });
   }
 
   #queueReportCallback(): void {
@@ -2150,6 +2398,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   #println(s: string): void {
+    this.#lastPrintAt = this.#now();
     this.#transmit(Array.from(s + '\n', (ch) => ch.charCodeAt(0)));
     this.#progress++;
   }
@@ -2216,7 +2465,7 @@ export class TinyGEdgeNextModel implements SimDevice {
 interface GcodeInput {
   motion?: MotionMode;
   cancel?: boolean;
-  nextAction?: 'dwell' | 'motionSync' | 'setOrigin' | 'resetOrigin' | 'setCoord';
+  nextAction?: 'dwell' | 'motionSync' | 'setOrigin' | 'resetOrigin' | 'setCoord' | 'homing' | 'setAbsoluteOrigin';
   l?: number;
   plane?: 17 | 18 | 19;
   units?: 'mm' | 'in';

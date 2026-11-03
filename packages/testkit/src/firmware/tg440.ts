@@ -1038,6 +1038,14 @@ export class TinyG440Model implements SimDevice {
         return this.#gm.distance === 'abs' ? 0 : 1;
       case 'cm_get_frmo':
         return 1;
+      // Model limit (uncited, LIM-TG-STATE-READS): `home` reads 1 when X, Y and Z are homed, the tool is the model's,
+      // and `ofs` is the active G54..G59 offset (the 440.21 model has no G92).
+      case 'cm_get_home':
+        return this.#homed.slice(0, 3).every(Boolean) ? 1 : 0;
+      case 'cm_get_toolv':
+        return 0;
+      case 'cm_get_ofs':
+        return fixed(this.settings.num(`g${this.#gm.coord}${AXES[axis] as string}`), p);
       case 'cm_get_momo':
         return ['g0', 'g1', 'g2', 'g3', 'cancel'].indexOf(this.#gm.motionMode);
       case 'qr_get':
