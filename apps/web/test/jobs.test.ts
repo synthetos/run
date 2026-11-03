@@ -13,7 +13,9 @@ import {
   duration,
   feedLimitLines,
   jobUi,
+  lineModeRecord,
   loadPlan,
+  pendingLineMode,
   plannerRanges,
   savePlan,
   startBlockers,
@@ -80,7 +82,7 @@ function snap(extra: Record<string, unknown> = {}): Snapshot {
     notices: { adviseEstop: false },
     motion: null,
     reports: { phase: 'done', heartbeatMs: 1000, changes: [], detail: null },
-    rxm: { restore: 0, memoryKnown: true, current: 0, changed: null, detail: null, busy: false },
+    rxm: { restore: 0, memoryKnown: true, pending: false, leftAsFound: false, current: 0, changed: null, detail: null, busy: false },
     rtLeaves: [],
     job: job(),
     ...extra,
@@ -225,5 +227,20 @@ describe('T-S117: the Phase 3 controls', () => {
     expect(renderToString(h(JobStopCard, { model: none }))).toBe('');
     const bp = live(snap({ base: 'PROGRAM_PAUSED', job: job({ phase: 'breakpoint', startedAt: 0, message: 'Stopped at breakpoint · line 8' }) })).model;
     expect(renderToString(h(JobStopCard, { model: bp }))).toContain('data-safety="W43"');
+  });
+});
+
+describe('H77: this browser\'s record of a board\'s line mode', () => {
+  it('only a pending record is acted on at connect; anything else is no record', () => {
+    expect(pendingLineMode({ from: 0, pending: true })).toBe(0);
+    expect(pendingLineMode({ from: 1, pending: true })).toBe(1);
+    for (const v of [undefined, null, 0, 1, 'x', { from: 0, pending: false }, { from: 2, pending: true }, { pending: true }]) expect(pendingLineMode(v), JSON.stringify(v)).toBeNull();
+  });
+
+  it('the record follows the session: the value found, and whether Run has put it back', () => {
+    expect(lineModeRecord({ restore: null, pending: false })).toBeNull();
+    expect(lineModeRecord({ restore: 0, pending: true })).toEqual({ from: 0, pending: true });
+    expect(lineModeRecord({ restore: 0, pending: false })).toEqual({ from: 0, pending: false });
+    expect(pendingLineMode(lineModeRecord({ restore: 0, pending: false }))).toBeNull();
   });
 });

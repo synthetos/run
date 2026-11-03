@@ -244,3 +244,26 @@ export function feedLimitLines(fl: JobSnapshot['feedLimit']): readonly { readonl
   const labels = ['an axis feed limit', 'a corner', 'an exact stop', 'moves too short to reach feed', 'single-segment moves', 'something else'];
   return c.slice(0, 6).map((v, i) => ({ label: labels[i] as string, seconds: typeof v === 'number' ? v / 1000 : 0 }));
 }
+
+/**
+ * H77: this browser's record of a board's line mode (device-safety `rxm/<board id>`). A record exists only while Run
+ * has changed the board's rxm and not put it back: `{ from, pending: true }`, where `from` is the board's own value.
+ * Anything else (no record, a cleared record, an older plain number) means "no record": the board is left as found.
+ */
+export interface LineModeRecord {
+  readonly from: 0 | 1;
+  readonly pending: boolean;
+}
+
+/** The value to put back at connect, from a stored record, or null when there is no pending record. */
+export function pendingLineMode(stored: unknown): 0 | 1 | null {
+  if (stored === null || typeof stored !== 'object') return null;
+  const r = stored as Partial<LineModeRecord>;
+  return r.pending === true && (r.from === 0 || r.from === 1) ? r.from : null;
+}
+
+/** The record to store for the session's line-mode state, or null when there is nothing to record yet. */
+export function lineModeRecord(rxm: { readonly restore: number | null; readonly pending: boolean }): LineModeRecord | null {
+  if (rxm.restore !== 0 && rxm.restore !== 1) return null;
+  return { from: rxm.restore, pending: rxm.pending };
+}

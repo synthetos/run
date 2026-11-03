@@ -180,7 +180,7 @@ export function snapshotOf(state: SessionState): SessionSnapshot {
     reports: { phase: state.reports.phase, heartbeatMs: state.reports.heartbeatMs, changes: state.reports.changes, detail: state.reports.detail === null ? null : cap(state.reports.detail) },
     link: state.link,
     job: state.job === null ? null : jobView(state, state.job),
-    rxm: { restore: state.rxm.restore, memoryKnown: state.rxm.memoryKnown, current: state.rxm.current, changed: state.rxm.changed, detail: state.rxm.detail, busy: state.rxm.step !== null },
+    rxm: { restore: state.rxm.restore, memoryKnown: state.rxm.memoryKnown, pending: state.rxm.pending, leftAsFound: state.rxm.leftAsFound, current: state.rxm.current, changed: state.rxm.changed, detail: state.rxm.detail, busy: state.rxm.step !== null },
     rtLeaves: state.rtLeaves,
   });
 }

@@ -33,12 +33,16 @@ interface Session {
   readonly footerRev: number | null;
   readonly fault: { readonly cause: string } | null;
   readonly reports: { readonly phase: string };
-  readonly rxm: { readonly busy: boolean; readonly current: number | null };
+  readonly rxm: { readonly busy: boolean; readonly current: number | null; readonly pending: boolean; readonly leftAsFound: boolean; readonly memoryKnown: boolean };
   readonly job: Job | null;
 }
 
 async function session(worker: Worker): Promise<Session> {
   return ((await request(worker, { v: 3, kind: 'status' })) as { status: { session: Session } }).status.session;
+}
+
+async function epochOf(worker: Worker): Promise<number> {
+  return ((await request(worker, { v: 3, kind: 'status' })) as { status: { session: { epoch: number } } }).status.session.epoch;
 }
 
 async function phase(worker: Worker): Promise<string | undefined> {
@@ -64,9 +68,16 @@ function board(worker: Worker): Promise<{ position: number[]; hold: number; spin
   });
 }
 
-async function connect(page: Page): Promise<Worker> {
+async function connect(page: Page, board?: Record<string, unknown>): Promise<Worker> {
   await page.setViewportSize({ width: 1440, height: 900 });
   const worker = await machineWorker(page);
+  if (board !== undefined) {
+    await worker.evaluate((o) => {
+      const scope = globalThis as unknown as { __RUN_FAKE_SERIAL__?: { ports: unknown[]; next?: unknown } };
+      scope.__RUN_FAKE_SERIAL__ ??= { ports: [] };
+      scope.__RUN_FAKE_SERIAL__.next = o;
+    }, board);
+  }
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
   await expect.poll(async () => (await session(worker)).reports.phase, { timeout: 10_000 }).toBe('done');
   await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
@@ -242,4 +253,28 @@ test('a reset mid-job is a FAULT with W40; nothing more is written', async ({ pa
   expect((await writes(worker)).slice(at).some((w) => w.startsWith('N'))).toBe(false);
   expect(await phase(worker)).toBe('failed');
   await expect(page.locator('[data-job="message"]')).toContainText('The controller reset during the job at line');
+});
+
+test('at connect, a board in line mode (the edge-next factory default) is left as found without a record; a pending record puts it back', async ({ page }) => {
+  test.setTimeout(60_000);
+  // No record in this browser: rxm stays 1, nothing is written, the session logs it.
+  let worker = await connect(page, { rxm: 1 });
+  expect((await session(worker)).footerRev).toBe(3);
+  let from = (await writes(worker)).length;
+  expect(await request(worker, { v: 3, kind: 'job', command: { op: 'lineModeMemory', epoch: await epochOf(worker), remembered: null } })).toMatchObject({ ok: true });
+  await expect.poll(async () => (await session(worker)).rxm.leftAsFound, { timeout: 10_000 }).toBe(true);
+  await page.waitForTimeout(1000);
+  expect((await writes(worker)).slice(from).some((w) => w.startsWith('{"rxm":') && w !== '{"rxm":null}\n')).toBe(false);
+  expect((await session(worker)).footerRev).toBe(3);
+  await expect(page.locator('[data-safety="W44"]')).toHaveCount(0);
+  expect(await request(worker, { v: 3, kind: 'close' })).toMatchObject({ ok: true });
+
+  // A pending record (Run set line mode on an earlier link and never put it back): rxm 0 is written and read back.
+  worker = await connect(page, { rxm: 1 });
+  from = (await writes(worker)).length;
+  expect(await request(worker, { v: 3, kind: 'job', command: { op: 'lineModeMemory', epoch: await epochOf(worker), remembered: 0 } })).toMatchObject({ ok: true });
+  await expect.poll(async () => (await session(worker)).footerRev, { timeout: 10_000 }).toBe(2);
+  expect((await writes(worker)).slice(from)).toContain('{"rxm":0}\n');
+  expect((await session(worker)).rxm.pending).toBe(false);
+  await expect(page.locator('[data-safety="W44"]')).toContainText('Run put it back to rxm 0');
 });

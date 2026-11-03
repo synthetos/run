@@ -538,8 +538,18 @@ export interface JobState {
  * session, nothing is restored.
  */
 export interface RxmState {
+  /** The board's own value before Run changed it, which is what Run puts back. */
   readonly restore: number | null;
+  /** The page has said what this browser remembers of the board (H77); until then nothing is decided at connect. */
   readonly memoryKnown: boolean;
+  /**
+   * Run changed this board's rxm and has not put it back yet: set when the job's `{"rxm":1}` is queued (or from
+   * this browser's record of an earlier link), cleared once `restore` reads back. The page keeps it per board, and
+   * only a pending record is ever acted on at connect.
+   */
+  readonly pending: boolean;
+  /** A board found in line mode outside a job, with no record that Run changed it, was logged and left as found. */
+  readonly leftAsFound: boolean;
   readonly step: { readonly kind: 'read' | 'write' | 'readback'; readonly purpose: 'job' | 'restore'; readonly value: 0 | 1 } | null;
   /** The footer revision the answer to the write is expected to carry (it changes with the mode). */
   readonly footerExpect: FooterRev | null;

@@ -162,24 +162,31 @@ describe('plain words and lines', () => {
 });
 
 describe('line mode (H77)', () => {
-  it('the target outside a job: the job value, then the page memory, else 0, else nothing', async () => {
+  it('the target outside a job: only a value Run changed and has not put back (pending), else nothing', async () => {
     const s = await ready();
-    const rxm = (restore: number | null, memoryKnown: boolean): SessionState => ({ ...s, rxm: { ...s.rxm, restore, memoryKnown } });
-    expect(rxmTarget(rxm(1, false))).toBe(1);
-    expect(rxmTarget(rxm(0, false))).toBe(0);
-    expect(rxmTarget(rxm(null, true))).toBe(0);
-    expect(rxmTarget(rxm(null, false))).toBeNull();
+    const rxm = (restore: number | null, pending: boolean): SessionState => ({ ...s, rxm: { ...s.rxm, restore, pending, memoryKnown: true } });
+    expect(rxmTarget(rxm(0, true))).toBe(0);
+    expect(rxmTarget(rxm(1, true))).toBe(1);
+    expect(rxmTarget(rxm(0, false))).toBeNull();
+    expect(rxmTarget(rxm(null, true))).toBeNull();
     const r = tx(s);
     expect(onLineModeMemory(r.t, 3).allowed).toBe(false);
-    expect(onLineModeMemory(r.t, 1).allowed).toBe(true);
-    expect(r.t.s.rxm).toMatchObject({ restore: 1, memoryKnown: true });
+    expect(onLineModeMemory(r.t, null).allowed).toBe(true);
+    expect(r.t.s.rxm).toMatchObject({ restore: null, pending: false, memoryKnown: true });
+    expect(onLineModeMemory(r.t, 0).allowed).toBe(true);
+    expect(r.t.s.rxm).toMatchObject({ restore: 0, pending: true, memoryKnown: true });
+    // A value this session already found wins over the record.
+    const known = tx({ ...s, rxm: { ...s.rxm, restore: 1 } });
+    onLineModeMemory(known.t, 0);
+    expect(known.t.s.rxm).toMatchObject({ restore: 1, pending: false, memoryKnown: true });
   });
 
   it('nothing is put back unless the board is quiet, idle, in line mode and the target is 0', async () => {
     const s0 = await ready();
-    const s: SessionState = { ...s0, footerRev: 3, rxm: { ...s0.rxm, restore: 0, memoryKnown: true } };
+    const s: SessionState = { ...s0, footerRev: 3, rxm: { ...s0.rxm, restore: 0, memoryKnown: true, pending: true } };
     const blocked: SessionState[] = [
       { ...s, footerRev: 2 },
+      { ...s, footerRev: undefined },
       { ...s, rxm: { ...s.rxm, step: { kind: 'read', purpose: 'job', value: 1 } } },
       withJob(s, { phase: 'running' }),
       { ...s, motion: {} as never },
@@ -191,6 +198,7 @@ describe('line mode (H77)', () => {
       withJob(s, { phase: 'loading' }),
       { ...s, rxm: { ...s.rxm, restore: 1 } },
       { ...s, rxm: { ...s.rxm, restore: null, memoryKnown: false } },
+      { ...s, rxm: { ...s.rxm, pending: false } },
     ];
     for (const b of blocked) {
       const r = tx(b);
@@ -207,6 +215,27 @@ describe('line mode (H77)', () => {
     maybeRestoreLineMode(yes.t, true);
     expect(yes.t.s.queue).toEqual([{ token: 'rxm', purpose: 'lineMode', value: 0 }]);
     expect(yes.t.s.rxm.footerExpect).toBe(2);
+  });
+
+  it('with no pending record a board in line mode is logged once and left as found; a record on a board in character mode is cleared', async () => {
+    const s0 = await ready();
+    const found = tx({ ...s0, footerRev: 3, rxm: { ...s0.rxm, memoryKnown: true } });
+    maybeRestoreLineMode(found.t, true);
+    maybeRestoreLineMode(found.t, true);
+    expect(found.t.s.queue).toEqual([]);
+    expect(found.t.s.rxm.leftAsFound).toBe(true);
+    expect(found.fx.filter((e) => e.kind === 'log' && e.text.includes('left as found'))).toHaveLength(1);
+    const early = tx({ ...s0, footerRev: 3, rxm: { ...s0.rxm, memoryKnown: false } });
+    maybeRestoreLineMode(early.t, true);
+    expect(early.t.s.rxm.leftAsFound).toBe(false);
+    const settled = tx({ ...s0, footerRev: 2, rxm: { ...s0.rxm, memoryKnown: true, restore: 0, pending: true } });
+    maybeRestoreLineMode(settled.t, true);
+    expect(settled.t.s.queue).toEqual([]);
+    expect(settled.t.s.rxm.pending).toBe(false);
+    expect(settled.fx.some((e) => e.kind === 'log' && e.text.includes('record that Run changed it is cleared'))).toBe(true);
+    const nothing = tx({ ...s0, footerRev: 2 });
+    maybeRestoreLineMode(nothing.t, true);
+    expect(nothing.t.s.rxm).toEqual(s0.rxm);
   });
 
   it('a refused write, a failed read and a read-back that differs end the step; a job that was preparing fails', async () => {
@@ -233,6 +262,10 @@ describe('line mode (H77)', () => {
     const rev2 = tx({ ...s, footerRev: 2, rxm: { ...s.rxm, step: { kind: 'read', purpose: 'job', value: 1 } } });
     onLineModeAnswer(rev2.t, answer({ rxm: 1 }), 1);
     expect(rev2.t.s.job?.message).toMatch(/footer is revision 2, not 3/);
+    // A pending record (Run changed this board earlier and never put it back) keeps its value over the job's read.
+    const pending = tx({ ...s, rxm: { ...s.rxm, restore: 0, pending: true, step: { kind: 'read', purpose: 'job', value: 1 } } });
+    onLineModeAnswer(pending.t, answer({ rxm: 1 }), 1);
+    expect(pending.t.s.rxm).toMatchObject({ restore: 0, pending: true, current: 1 });
   });
 });
 

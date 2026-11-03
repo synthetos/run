@@ -12,7 +12,7 @@
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { c13, c16, c24, c25, c27, c28, c29, w13, w34, w35, w36 } from '@synthetos/safety';
+import { c13, c16, c24, c25, c27, c28, c29, w13, w34, w35, w36, w44 } from '@synthetos/safety';
 import { DIALECTS, type DialectId } from '@synthetos/protocol';
 import { LITE_THRESHOLD_LINES, PREVIEW_DIALECTS, type PreviewMode } from '../../gcode-worker/pipeline.ts';
 import type { WorkerLike } from '../../gcode-worker/client.ts';
@@ -157,6 +157,9 @@ function reportsNotice(view: LiveView | null): ComponentChild {
     else if (c.from !== undefined && c.to !== undefined) lines.push(h('p', { key: c.setting, class: 'fine', 'data-safety': 'W36', 'data-reports': c.setting }, ...signalText(w36({ setting: c.setting, from: c.from, to: c.to }))));
   }
   if (r.detail !== null) lines.push(h('p', { key: 'detail', class: 'fine', 'data-reports': 'detail' }, `Status reports: ${r.detail}.`));
+  // H77: the line mode Run had changed for a job that did not end here, put back at connect (only with this browser's record).
+  const rxm = view?.message?.snapshot.rxm;
+  if (rxm !== undefined && rxm.changed?.kind === 'restore' && view?.message?.snapshot.job === null) lines.push(h('p', { key: 'rxm', class: 'fine', 'data-safety': 'W44' }, ...signalText(w44({ to: rxm.changed.to }))));
   if (r.phase === 'done' && r.heartbeatMs === null) lines.push(h('p', { key: 'hb', class: 'fine', 'data-reports': 'no-heartbeat' }, 'This firmware has no heartbeat: Run checks the link only after a few seconds of silence.'));
   return lines.length === 0 ? null : h('div', { class: 'reports-notice' }, lines);
 }

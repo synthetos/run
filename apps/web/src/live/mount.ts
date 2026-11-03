@@ -34,6 +34,7 @@ import { backupFileName, SettingsBackup, type BackupFile } from './backup.ts';
 import { SettingsApplier, type ApplyState } from './settingsApply.ts';
 import type { PlannedChange } from '@synthetos/schema';
 import { clearDraft } from '../workspace/boardFacts.ts';
+import { lineModeRecord, pendingLineMode } from '../workspace/jobUi.ts';
 import { ConsoleReader } from './consoleRead.ts';
 import type { BackupStatus, LiveSample, WorkspaceModel } from '../workspace/model.ts';
 import { cleanDisconnect, installLiveLifecycle, previousSessionEnded } from './liveMarker.ts';
@@ -273,8 +274,9 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     samples = [...samples.filter((x) => at - x.t <= SAMPLE_WINDOW_MS), next];
   }
 
-  // Phase 3 (H77): what this computer remembers of each board's line mode. The worker is told once per link, as soon
-  // as the board is identified, and every value a job finds is remembered here (device-safety, never synced).
+  // Phase 3 (H77): this browser's record that Run changed a board's line mode and has not put it back. The worker is
+  // told once per link, as soon as the board is identified; the session's own state is recorded as it changes
+  // (device-safety, never synced). With no pending record the board's rxm is left exactly as found.
   let rxmEpoch = -1;
   let rxmSaved: string | null = null;
   function syncLineMode(message: SnapshotMessage): void {
@@ -284,18 +286,21 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     const key = `rxm/${id}`;
     if (s.epoch !== rxmEpoch) {
       rxmEpoch = s.epoch;
+      rxmSaved = null;
       void store.get(key).then(
         (v) => {
-          const remembered = v === 0 || v === 1 ? v : null;
-          void callMachineWorker(worker, { v: RPC_VERSION, kind: 'job', command: { op: 'lineModeMemory', epoch: s.epoch, remembered } });
+          void callMachineWorker(worker, { v: RPC_VERSION, kind: 'job', command: { op: 'lineModeMemory', epoch: s.epoch, remembered: pendingLineMode(v) } });
         },
         () => undefined,
       );
     }
-    const restore = s.rxm.restore;
-    if ((restore === 0 || restore === 1) && rxmSaved !== `${key}=${restore}`) {
-      rxmSaved = `${key}=${restore}`;
-      void store.set(key, restore).catch(() => undefined);
+    // Only once the worker has the record: an early snapshot (nothing decided yet) must not overwrite it.
+    if (!s.rxm.memoryKnown) return;
+    const record = lineModeRecord(s.rxm);
+    const text = record === null ? null : `${key}=${record.from}/${record.pending}`;
+    if (record !== null && rxmSaved !== text) {
+      rxmSaved = text;
+      void store.set(key, record).catch(() => undefined);
     }
   }
 

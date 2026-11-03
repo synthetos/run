@@ -75,7 +75,7 @@ item 20 covers 0x18 and 0x04). Items 22–40 are SAFETY §8 verbatim.
 - [ ] 46. (Phase 3, 2026-11-03) Jobs stay behind the jobs switch (`JOBS`, production off) and the motion release; the job is sanitised in the worker with live values; Start needs its confirmations (homed or C36, C31, C32).
 - [ ] 47. (Phase 3) Job lines go out only in line mode (footer revision 3), never beyond `f[2]` less the owed lines less the reserve; only `r` answers are counted; every job line passes the gate as exactly its sanitised line.
 - [ ] 48. (Phase 3) A refused line holds the job (W38, C33); a reset is a FAULT (W40); a tool change stops before the M6 with the spindle and coolant off (W37, C34, C35); breakpoints stop before their line and say when they cannot (W41).
-- [ ] 49. (Phase 3) `rxm` is written only by the `lineMode` intent: only if it differs, read back, and put back after the job and at connect (H77); the job flag is sent only where the capability probe finds it.
+- [ ] 49. (Phase 3) `rxm` is written only by the `lineMode` intent: only if it differs, read back, and put back after the job, and at connect only with this browser's pending record (H77); the job flag is sent only where the capability probe finds it.
 
 ### Notes for the safety reviewer
 

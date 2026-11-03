@@ -406,7 +406,7 @@ export function w38(p: { readonly line: number; readonly status: number; readonl
 export function w39(p: { readonly from: number }): string {
   return (
     `NOTICE — Run switched this board to line mode (rxm 1, saved on the board) for the job. It puts it back to rxm ${count('from', p.from)} ` +
-    'when the job ends. If this page closes during the job, the next connect puts it back. Programs that count characters need character mode (rxm 0).'
+    'when the job ends. If this page closes during the job, the next connect from this browser puts it back. Programs that count characters need character mode (rxm 0).'
   );
 }
 
@@ -435,7 +435,7 @@ export function w43(p: { readonly line: number }): string {
 
 /** W44: run put the board's line-mode setting back at connect, outside a job (Phase 3, H77). */
 export function w44(p: { readonly to: number }): string {
-  return `NOTICE — This board was left in line mode (rxm 1) outside a job. Run put it back to rxm ${count('to', p.to)} (saved on the board).`;
+  return `NOTICE — Run had switched this board to line mode (rxm 1) for a job that did not end here. Run put it back to rxm ${count('to', p.to)} (saved on the board).`;
 }
 
 // ------------------------------------------------------------ §6 confirmations

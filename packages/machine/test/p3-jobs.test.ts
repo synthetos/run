@@ -422,11 +422,10 @@ describe('the job flag and the feed-limit window (capability seams)', () => {
 });
 
 describe('the line mode at connect (H77)', () => {
-  it('a board left in line mode outside a job is put back to the remembered value, else to 0', async () => {
+  it('a board left in line mode is put back only where this browser has a pending record; with none it is left as found', async () => {
     for (const [remembered, expected] of [
       [0, '{"rxm":0}'],
-      [null, '{"rxm":0}'],
-      [1, undefined],
+      [null, undefined],
     ] as const) {
       const h = await jobHarness({ rxm: 1 });
       const before = writes(h).length;
@@ -436,9 +435,32 @@ describe('the line mode at connect (H77)', () => {
       expect(w.find((x) => x.startsWith('{"rxm":') && x !== '{"rxm":null}'), String(remembered)).toBe(expected);
       if (expected !== undefined) {
         expect(h.session.snapshot.footerRev).toBe(2);
-        expect(h.session.snapshot.rxm.changed).toEqual({ kind: 'restore', from: 1, to: 0 });
+        expect(h.session.snapshot.rxm).toMatchObject({ changed: { kind: 'restore', from: 1, to: 0 }, pending: false });
+      } else {
+        expect(h.session.snapshot.footerRev).toBe(3);
+        expect(h.session.snapshot.rxm).toMatchObject({ leftAsFound: true, pending: false });
+        expect(h.session.log().some((l) => l.text.includes('left as found'))).toBe(true);
       }
     }
+  });
+
+  it('a pending record on a board already in character mode is cleared without a write', async () => {
+    const h = await jobHarness({ rxm: 0 });
+    const before = writes(h).length;
+    h.session.rememberLineMode(h.session.snapshot.epoch, 0);
+    await h.run(1000);
+    expect(writes(h).slice(before).some((w) => w.startsWith('{"rxm":'))).toBe(false);
+    expect(h.session.snapshot.rxm).toMatchObject({ pending: false, restore: 0 });
+  });
+
+  it('the job marks the change pending from its write until the end-of-job restore reads back', async () => {
+    const h = await jobHarness({ rxm: 0 });
+    h.session.rememberLineMode(h.session.snapshot.epoch, null);
+    await start(h, zigzag(4));
+    await runUntil(h, () => h.session.snapshot.job?.phase === 'running');
+    expect(h.session.snapshot.rxm).toMatchObject({ pending: true, restore: 0 });
+    await runUntil(h, () => h.session.snapshot.job?.phase === 'done' && h.session.snapshot.footerRev === 2 && !h.session.snapshot.rxm.busy);
+    expect(h.session.snapshot.rxm).toMatchObject({ pending: false, restore: 0 });
   });
 
   it('without the page memory, or without the jobs release, nothing is written', async () => {

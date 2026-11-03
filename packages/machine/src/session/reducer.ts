@@ -166,7 +166,7 @@ const EMPTY_LIVE: LiveState = Object.freeze({ pos: Object.freeze({}), mpo: Objec
 
 const REPORTS_IDLE: ReportsState = Object.freeze({ phase: 'idle', step: null, remaining: Object.freeze([]), heartbeatMs: null, changes: Object.freeze([]), detail: null });
 
-const RXM_IDLE: RxmState = Object.freeze({ restore: null, memoryKnown: false, step: null, footerExpect: null, current: null, changed: null, detail: null });
+const RXM_IDLE: RxmState = Object.freeze({ restore: null, memoryKnown: false, pending: false, leftAsFound: false, step: null, footerExpect: null, current: null, changed: null, detail: null });
 
 export function initialState(): SessionState {
   return Object.freeze({

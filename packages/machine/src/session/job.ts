@@ -498,18 +498,24 @@ export function queuedLine(j: JobState, line: number): boolean {
 // --- Line mode (H77) ----------------------------------------------------------------------------------------
 
 /** The page told the session what it remembers of this board's line mode (null: nothing). */
+/**
+ * What this browser remembers of the board (H77): `remembered` is the value Run found before it changed the
+ * board's rxm and has not put back yet (a pending record), or null when there is no such record. With no record,
+ * the board's rxm is left exactly as found (edge-next's factory default is rxm 1).
+ */
 export function onLineModeMemory(t: JobLayerTx, remembered: unknown): Decision {
   if (remembered !== null && remembered !== 0 && remembered !== 1) return deny('The remembered line mode must be 0, 1 or nothing.', 'Nothing to do.');
   const rxm = t.s.rxm;
   // A job prepared in this session already knows the board's own value: it wins over the page's memory.
-  t.set({ rxm: { ...rxm, memoryKnown: true, restore: rxm.restore ?? remembered } });
+  if (remembered === null || rxm.restore !== null) t.set({ rxm: { ...rxm, memoryKnown: true } });
+  else t.set({ rxm: { ...rxm, memoryKnown: true, restore: remembered, pending: true } });
   return ALLOWED;
 }
 
-/** The value to put back when no job runs, or null when nothing should be written. */
+/** The value to put back when no job runs, or null when nothing should be written: only what Run itself changed. */
 export function rxmTarget(s: SessionState): 0 | 1 | null {
-  if (s.rxm.restore !== null) return s.rxm.restore === 1 ? 1 : 0;
-  return s.rxm.memoryKnown ? 0 : null;
+  if (!s.rxm.pending || s.rxm.restore === null) return null;
+  return s.rxm.restore === 1 ? 1 : 0;
 }
 
 /**
@@ -519,15 +525,38 @@ export function rxmTarget(s: SessionState): 0 | 1 | null {
  */
 export function maybeRestoreLineMode(t: JobLayerTx, allowedNow: boolean): void {
   const s = t.s;
-  if (!allowedNow || s.rxm.step !== null || s.footerRev !== 3 || !jobsCapable(s, t.config) || jobActive(s) || s.motion !== null) return;
+  if (!allowedNow || s.rxm.step !== null || !jobsCapable(s, t.config) || jobActive(s) || s.motion !== null) return;
   if (s.reports.phase === 'seeding' || s.reports.phase === 'pending' || s.reports.phase === 'configuring') return;
   if (s.queue.length > 0 || s.writing !== null || s.expected.some((e) => !e.late) || s.settingWrite?.phase === 'gate' || s.settingWrite?.phase === 'writing' || s.settingWrite?.phase === 'readback') return;
   if (s.job?.phase === 'loading') return;
+  if (s.footerRev === 2) {
+    settleLineModeRecord(t);
+    return;
+  }
+  if (s.footerRev !== 3) return;
   const target = rxmTarget(s);
-  if (target === null || target === 1) return;
+  if (target === null || target === 1) {
+    if (s.rxm.memoryKnown && !s.rxm.leftAsFound) {
+      // No record in this browser that Run changed this board: its line mode is its owner's choice.
+      t.set({ rxm: { ...s.rxm, leftAsFound: true } });
+      t.emit({ kind: 'log', text: 'line mode: the board is in line mode (rxm 1, footer revision 3) outside a job; no record here that Run changed it, so it is left as found' });
+    }
+    return;
+  }
   t.set({ rxm: { ...s.rxm, step: { kind: 'write', purpose: 'restore', value: 0 }, footerExpect: 2, detail: null } });
   queue(t, { token: 'rxm', purpose: 'lineMode', value: 0 });
-  t.emit({ kind: 'log', text: 'line mode: the board is in line mode (rxm 1, footer revision 3) outside a job; putting back rxm 0 (saved on the board)' });
+  t.emit({ kind: 'log', text: 'line mode: Run set this board to line mode and has not put it back yet; putting back rxm 0 (saved on the board)' });
+}
+
+/**
+ * A pending record on a board that is already in character mode (footer revision 2) outside a job: someone put it
+ * back, or the job's write never took. Nothing is written; the record is cleared.
+ */
+function settleLineModeRecord(t: JobLayerTx): void {
+  const s = t.s;
+  if (!s.rxm.pending) return;
+  t.set({ rxm: { ...s.rxm, pending: false } });
+  t.emit({ kind: 'log', text: 'line mode: the board is already in character mode (rxm 0); the record that Run changed it is cleared' });
 }
 
 /** The line-mode read, write or read-back was answered. */
@@ -553,7 +582,8 @@ export function onLineModeAnswer(t: JobLayerTx, r: Response | null, at: number):
       lineModeFailed(t, at, `the rxm read failed (status ${status})`);
       return;
     }
-    t.set({ rxm: { ...s.rxm, current: value, restore: value === 1 ? 1 : 0, memoryKnown: true } });
+    // A pending record (Run changed this board on an earlier link and never put it back) keeps its own value.
+    t.set({ rxm: { ...s.rxm, current: value, restore: s.rxm.pending ? s.rxm.restore : value === 1 ? 1 : 0, memoryKnown: true } });
     patchJob(t, { rxmFrom: value });
     if (value === 1) {
       lineModeReady(t, at);
@@ -561,7 +591,8 @@ export function onLineModeAnswer(t: JobLayerTx, r: Response | null, at: number):
     }
     // Stopped while the rxm read was answered: nothing more is written for the job.
     if (!preparing(t.s)) return;
-    t.set({ rxm: { ...t.s.rxm, step: { kind: 'write', purpose: 'job', value: 1 }, footerExpect: 3 } });
+    // Pending from here: if this tab goes away mid-job, the next connect from this browser puts the value back.
+    t.set({ rxm: { ...t.s.rxm, step: { kind: 'write', purpose: 'job', value: 1 }, footerExpect: 3, pending: true } });
     queue(t, { token: 'rxm', purpose: 'lineMode', value: 1 });
     return;
   }
@@ -574,6 +605,7 @@ export function onLineModeAnswer(t: JobLayerTx, r: Response | null, at: number):
   t.set({ rxm: { ...t.s.rxm, step: null, current: value, changed: { kind: step.purpose, from, to: step.value } } });
   t.emit({ kind: 'log', text: `line mode: rxm ${from} → ${step.value}, read back (saved on the board)` });
   if (step.purpose === 'restore') {
+    t.set({ rxm: { ...t.s.rxm, pending: false, leftAsFound: false } });
     if (t.s.job !== null) jobEvent(t, at, 'info', `Line mode put back: rxm ${step.value} (saved on the board).`);
     return;
   }
