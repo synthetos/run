@@ -28,7 +28,7 @@ import { readStored, writeStored } from '../storage.ts';
 import { CheckRow, ConfirmCard, TabBar, TabPane } from '../ui.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
-import { HomeSection } from '../homing.ts';
+import { HomeSection, HomeQuick } from '../homing.ts';
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
 import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { signalText } from '../../shell/signal.ts';
@@ -49,7 +49,7 @@ import { duration as durationText, feedLimitLines, jobUi, PHASE_TEXT, plannerRan
 
 const PHASE_LABEL = (phase: string): string => PHASE_TEXT[phase] ?? phase;
 import { JobStatus, JobSteps, JobStopCard, type StopHooks } from './JobViews.ts';
-import { JOB_STEPS, jobStep } from '../jobWorkflow.ts';
+import { JOB_STEPS, jobStep, uiLevel, type UiLevel } from '../jobWorkflow.ts';
 import { JobSetupPanel } from './SetupView.ts';
 import { JobFiles } from '../../projects/ProjectsView.ts';
 
@@ -263,13 +263,14 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
         'span',
         { class: 'pos-head-right' },
         gate === null ? null : h('span', { class: 'tag warn', 'data-position': 'gate' }, /approved/.test(gate) ? 'Read only' : 'Controls off', h(ContextHelp, { id: 'position-gate-help', label: 'Why the controls are off', below: true, end: true }, gate)),
-        h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: 'The age is the time since the controller last said anything.' }, age.text),
+        h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: `${age.text}. The age is the time since the controller last said anything.` }, age.lag === 'none' ? age.text : age.text.slice(age.text.indexOf('·') + 2)),
+        h(LevelSwitch, null),
       ),
     ),
     h(
       'div',
       { class: 'dro-grid', role: 'table', 'aria-label': 'Position' },
-      h('div', { class: 'dro-head', role: 'row' }, h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Axis')), h('span', { role: 'columnheader' }, units === null ? 'Work' : `Work, ${units}`), h('span', { role: 'columnheader' }, 'Machine, mm'), h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Actions'))),
+      h('div', { class: `dro-head${uiLevel.value.value === 'advanced' ? '' : ' sr-only'}`, role: 'row' }, h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Axis')), h('span', { role: 'columnheader' }, units === null ? 'Work' : `Work, ${units}`), h('span', { role: 'columnheader' }, 'Machine, mm'), h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Actions'))),
       axes.map((a) => {
         const d = row(a);
         return h(
@@ -285,19 +286,28 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
     h(
       'div',
       { class: 'pos-status' },
+      uiLevel.value.value === 'advanced' || units === null ? null : h('span', { class: 'tag', 'data-position': 'units' }, `work in ${units}`),
       h('span', { class: 'tag', 'data-position': 'wcs' }, wcs?.code ?? '—'),
       homed === null
         ? h('span', { class: 'tag', 'data-position': 'homing' }, m === null ? 'Not connected' : 'Homing unknown')
         : homed
           ? h('span', { class: 'tag ok', 'data-position': 'homing' }, 'Homed')
           : h('span', { class: 'tag warn', 'data-position': 'homing' }, 'Not homed', h(ContextHelp, { id: 'w34-help', label: 'About moving before homing', safety: 'W34', below: true }, ...signalText(w34()))),
-      typeof tool === 'number' ? h('span', { class: 'tag', 'data-position': 'tool' }, `T${tool}`) : null,
+      typeof tool === 'number' && uiLevel.value.value === 'advanced' ? h('span', { class: 'tag', 'data-position': 'tool' }, `T${tool}`) : null,
       h('span', { class: 'pos-all' }, act('Zero all', `Set ${axesText(xyz)} work zero here`, () => setConfirm({ kind: 'set', axes: xyz })), act('Go to zero', `Go to ${axesText(xyz)} zero`, () => setConfirm({ kind: 'go', axes: xyz }))),
     ),
     card,
     note === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-position': 'note' }, note),
-    m === null ? null : h('details', { class: 'more' }, h('summary', null, 'Where these numbers come from'), h(Dro, { message: m, elapsedMs: (view as LiveView).now - (view as LiveView).receivedAt })),
+    m === null || uiLevel.value.value !== 'advanced' ? null : h('details', { class: 'more' }, h('summary', null, 'Where these numbers come from'), h(Dro, { message: m, elapsedMs: (view as LiveView).now - (view as LiveView).receivedAt })),
   );
+}
+
+/** Simple | Advanced (OD-13): presentation only, kept per browser. Pause, Stop job, Spindle off and W1 are the same at both. */
+function LevelSwitch(): ComponentChild {
+  const level = uiLevel.value.value;
+  const option = (id: UiLevel, label: string): ComponentChild =>
+    h('button', { type: 'button', key: id, class: level === id ? 'selected' : undefined, 'aria-pressed': level === id ? 'true' : 'false', 'data-action': `ui-level-${id}`, onClick: () => uiLevel.set(id) }, label);
+  return h('span', { class: 'seg level-switch', role: 'group', 'aria-label': 'Interface level', 'data-ui-level': level }, option('simple', 'Simple'), option('advanced', 'Advanced'));
 }
 
 type PositionProps = { readonly model?: WorkspaceModel | null };
@@ -527,7 +537,7 @@ function jogBody({ model, onGoToZero }: JogProps, hk: Hooks): ComponentChild {
         'div',
         { class: 'jog-settings' },
         h('div', { class: 'seg', role: 'group', 'aria-label': 'Step units' }, (['mm', 'in'] as const).map((u) => h('button', { type: 'button', key: u, class: units === u ? 'selected' : undefined, 'aria-pressed': units === u ? 'true' : 'false', 'data-machine-control': 'jog', ...(enabled ? { onClick: () => setUnits(u) } : { disabled: true }) }, u))),
-        h(
+        uiLevel.value.value !== 'advanced' ? null : h(
           'label',
           { class: 'jog-feed' },
           h('span', null, 'Jog speed'),
@@ -565,7 +575,7 @@ export function JogSection(props: JogProps = {}): ComponentChild {
  * machine coordinates first), the temporary offset (G92, not saved; cleared with G92.1), and the active offsets as the
  * board reported them. Every change is read back by the session.
  */
-function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
+function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): ComponentChild {
   const view = model?.live.value ?? null;
   const ui = motionUi(view);
   const send = model?.actions.value?.motion;
@@ -613,6 +623,8 @@ function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
   };
   const offsetLine = (o: Readonly<Partial<Record<MotionAxis, number>>> | null): string =>
     o === null ? UNKNOWN : machineAxes(settings).map((a) => `${a.toUpperCase()} ${coord(o[a])}`).join(', ');
+  // Simple: only the Go-to-zero confirmation the jog pad asked for (C25), in place; nothing else of the Offsets tab.
+  if (goOnly) return confirm === null ? null : h('div', { class: 'insp sec-zero go-only' }, confirmCard(), motionNote(ui, note));
   return h(
     'section',
     { class: 'insp sec-zero', 'aria-labelledby': 'zero-title' },
@@ -677,7 +689,7 @@ function zeroBody({ model, ask }: ZeroProps, hk: Hooks): ComponentChild {
   );
 }
 
-type ZeroProps = { readonly model?: WorkspaceModel | null; readonly ask?: { readonly axes: readonly MotionAxis[]; readonly at: number } | null };
+type ZeroProps = { readonly model?: WorkspaceModel | null; readonly ask?: { readonly axes: readonly MotionAxis[]; readonly at: number } | null; readonly goOnly?: boolean };
 
 function ZeroLive(props: ZeroProps): ComponentChild {
   return zeroBody(props, LIVE_HOOKS);
@@ -693,7 +705,7 @@ export function ZeroSection(props: ZeroProps = {}): ComponentChild {
  * commanded: TinyG measures nothing. Nothing that pauses or stops reads them. In a motion session the controls
  * send M3/M4 with S, M5, M7, M8 and M9; Spindle on asks C24 first unless the user turned that off for this page.
  */
-function spindleBody({ model }: SpindleProps, hk: Hooks): ComponentChild {
+function spindleBody({ model, compact = false }: SpindleProps, hk: Hooks): ComponentChild {
   const view = model?.live.value ?? null;
   const snapshot = view !== null && connected(view) ? view.message?.snapshot : undefined;
   const r = displayReadouts(snapshot);
@@ -731,9 +743,9 @@ function spindleBody({ model }: SpindleProps, hk: Hooks): ComponentChild {
   };
   return h(
     'section',
-    { class: 'insp sec-spindle', 'aria-labelledby': 'spindle-title' },
+    { class: `insp sec-spindle${compact ? ' compact' : ''}`, 'aria-labelledby': 'spindle-title' },
     h('header', null, h('h2', { id: 'spindle-title' }, 'Spindle and coolant'), h('span', { class: 'tag' }, 'Commanded')),
-    h(
+    compact ? null : h(
       'div',
       { class: 'spindle-state' },
       h('span', { class: `spindle-mark${spindle.startsWith('On') ? ' on' : ''}`, 'aria-hidden': 'true' }, Icon('spindle', 26)),
@@ -800,12 +812,12 @@ function spindleBody({ model }: SpindleProps, hk: Hooks): ComponentChild {
         ),
       ),
     ),
-    note === null ? null : h('p', { class: 'unavailable', role: 'status' }, note),
-    h('div', { class: 'spindle-help', 'data-spindle': 'note' }, h(ContextHelp, { id: 'spindle-help', label: 'About spindle and coolant readouts', end: true }, SPINDLE_TITLE, ' ', COOLANT_TITLE)),
+    note === null ? null : h('p', { class: 'motion-note', role: 'status' }, note),
+    compact ? null : h('div', { class: 'spindle-help', 'data-spindle': 'note' }, h(ContextHelp, { id: 'spindle-help', label: 'About spindle and coolant readouts', end: true }, SPINDLE_TITLE, ' ', COOLANT_TITLE)),
   );
 }
 
-type SpindleProps = { readonly model?: WorkspaceModel | null };
+type SpindleProps = { readonly model?: WorkspaceModel | null; readonly compact?: boolean };
 
 function SpindleLive(props: SpindleProps): ComponentChild {
   return spindleBody(props, LIVE_HOOKS);
@@ -839,9 +851,23 @@ type InspTab = 'jog' | 'home' | 'zero' | 'spindle' | 'overrides';
 function RunInspector({ model, onView, stops }: { readonly model: WorkspaceModel | null; readonly onView: (view: string) => void; readonly stops: StopHooks }): ComponentChild {
   const [tab, setTab] = useState<InspTab>('jog');
   const [ask, setAsk] = useState<{ readonly axes: readonly MotionAxis[]; readonly at: number } | null>(null);
+  const simple = uiLevel.value.value !== 'advanced';
+  if (simple) {
+    // Simple (OD-13): one screen, no tabs. Position with Zero/Go, the jog pad, Home all / Set machine zero here, the spindle row.
+    return h(
+      'aside',
+      { class: 'inspector run-inspector simple', 'aria-label': 'Machine', 'data-ui-level': 'simple' },
+      h(JobStopCard, { model, ...stops }),
+      // Connected, the machine strip says so and carries Disconnect; the card is for connecting (OD-13 §3: no scrolling).
+      model?.live.value !== undefined && connected(model.live.value) ? null : h(ConnectNotice, { model, onView }),
+      h(PositionPanel, { model }),
+      h('div', { class: 'simple-pane' }, h(JogSection, { model, onGoToZero: (axes) => setAsk({ axes, at: Date.now() }) }), h(HomeQuick, { model }), h(SpindleSection, { model, compact: true })),
+      ask === null ? null : h(ZeroSection, { model, ask, goOnly: true }),
+    );
+  }
   return h(
     'aside',
-    { class: 'inspector run-inspector', 'aria-label': 'Machine' },
+    { class: 'inspector run-inspector', 'aria-label': 'Machine', 'data-ui-level': 'advanced' },
     h(JobStopCard, { model, ...stops, onZeroZ: () => setTab('zero') }),
     h(ConnectNotice, { model, onView }),
     h(PositionPanel, { model }),
@@ -1261,7 +1287,7 @@ function Dock({ parts, model }: { readonly parts: PreviewParts; readonly model: 
   const live = model?.live.value ?? null;
   const tabs: readonly ['gcode' | 'console' | 'live', string][] = [
     ['gcode', 'G-code'],
-    ['console', 'Console'],
+    ...(uiLevel.value.value === 'advanced' ? ([['console', 'Console']] as ['console', string][]) : []),
     ['live', 'Live job'],
   ];
   return h(
@@ -1349,6 +1375,10 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
     'div',
     { class: 'run-view job-view', 'data-region': 'preview', 'data-job-stage': step },
     h(RunBridge, { parts }),
+    // The machine pane is a rail beside everything (OD-13 §3): it gets the view's full height, so it fits 720 px without scrolling.
+    h(
+      'div',
+      { class: 'job-main' },
     h(JobCard, { parts, model, onView, onFiles: () => setFiles(!files) }),
     h('nav', { class: 'job-step-bar', 'aria-label': 'Job steps' }, JOB_STEPS.map((item, i) => h('button', { type: 'button', key: item.id, 'data-action': `job-step-${item.id}`, 'data-job-step': item.id, 'aria-current': step === item.id ? 'step' : undefined, 'aria-controls': 'job-work-panel', onClick: () => { jobStep.value = item.id; } }, h('span', { class: 'step-number' }, String(i + 1)), h('span', null, h('strong', null, item.label), h('small', null, stepStatus(item.id, parts, model)))))),
     h('div', { class: 'job-files-drawer', hidden: !files, 'aria-label': 'Job files' }, files ? h(JobFiles, { onView: (view) => { if (view === 'job') setFiles(false); onView(view); } }) : null, h('button', { type: 'button', class: 'small', 'data-action': 'job-files-close', onClick: () => setFiles(false) }, 'Close files')),
@@ -1451,7 +1481,8 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
         ),
         h(Dock, { parts, model }),
       ),
-      h(RunInspector, { model, onView, stops }),
     ),
+    ),
+    h(RunInspector, { model, onView, stops }),
   );
 }

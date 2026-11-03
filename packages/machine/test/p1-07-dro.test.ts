@@ -130,5 +130,12 @@ describe('reportDrift: NEEDS_REVIEW', () => {
     expect(h.session.snapshot.overlays).not.toContain('NEEDS_REVIEW');
     h.session.reportDrift(epoch);
     expect(h.session.snapshot.overlays).toContain('NEEDS_REVIEW');
+    // Kept as the reference (C23): resolved for the current link only, nothing written (OD-13 §5).
+    const writes = (h.transports.at(-1) as { writes: unknown[] }).writes.length;
+    h.session.resolveDrift(epoch - 1);
+    expect(h.session.snapshot.overlays).toContain('NEEDS_REVIEW');
+    h.session.resolveDrift(epoch);
+    expect(h.session.snapshot.overlays).not.toContain('NEEDS_REVIEW');
+    expect((h.transports.at(-1) as { writes: unknown[] }).writes.length).toBe(writes);
   });
 });

@@ -14,6 +14,7 @@ import { createWorkspaceModel, INITIAL_LIVE_VIEW, portOpen, type LiveView } from
 import { MachineStrip } from '../src/workspace/MachineStrip.ts';
 import { stripStatus } from '../src/workspace/status.ts';
 import { JogSection, OverridesSection, SpindleSection, ZeroSection } from '../src/workspace/views/RunView.ts';
+import { uiLevel } from '../src/workspace/jobWorkflow.ts';
 import { FirmwareTab } from '../src/workspace/views/BoardView.ts';
 import { SafetyBar, STOP_UNAVAILABLE } from '../src/shell/SafetyBar.ts';
 import { versionLabel } from '../src/build-info/buildInfo.ts';
@@ -72,7 +73,9 @@ describe('workspace AppShell (prerendered)', () => {
     expect(html).toContain('Connect to see live job data.');
     expect(html).not.toContain('Phase 1 · no motion');
     expect(html).toContain('Connect a machine to use these controls.');
-    expect(html).toContain('Needs firmware support');
+    // Overrides live on the Advanced pane; the prerendered page is Simple (OD-13).
+    expect(html).not.toContain('Needs firmware support');
+    expect(renderToString(h(OverridesSection, null))).toContain('Needs firmware support');
   });
 
   it('carries no inline style attribute (CSP style-src self) and no link to another origin', () => {
@@ -113,7 +116,10 @@ describe('SafetyBar', () => {
  * it is classified here.
  */
 describe('Phase 1 control allowlist', () => {
+  // Every machine control class must render: the Advanced pane has the tabs (Offsets, Overrides) that Simple hides (OD-13).
+  uiLevel.set('advanced');
   const html = renderToString(h(Fragment, null, h(AppShell, { build })));
+  uiLevel.set('simple');
   /** Must exist, and be disabled with no handler: they would move the machine or write to the board. */
   /**
    * Amendment 2026-11-02: `home` (G28.2, and G28.3 where homing is not configured) and `offset` (G54..G59, G92,
@@ -146,6 +152,8 @@ describe('Phase 1 control allowlist', () => {
     /^action:context-help$/,
     // NEEDS_REVIEW's ways out, in its banner (OD-13 §5): keep the board's settings (C23, writes nothing) or open the review.
     /^action:review-(keep|open|cancel)$/,
+    // The interface level (OD-13): presentation only.
+    /^action:ui-level-(simple|advanced)$/,
     /^action:job-(step-(machine|stock|place|check|run|back|next)|files|files-close|projects|close|library-machines|use-machine)$/,
     /^view:(job|library|board|projects|analyze|settings|safety)$/,
     /^tab:(machines|tools|materials|gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,

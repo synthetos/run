@@ -32,6 +32,8 @@ interface Status {
 async function connectedTab(page: Page): Promise<Worker> {
   const worker = await machineWorker(page);
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
+  // This spec drives the Advanced pane (tabs, the DRO sources); Simple is the default (OD-13).
+  await page.locator('[data-action="ui-level-advanced"]').click();
   await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as Status).status.session.base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
   await expect(page.locator('[data-region="machine-strip"] [data-strip="state"]')).toHaveText('Machine idle', { timeout: 10_000 });
   const w29 = page.locator('[data-action="dismiss-w29"]');

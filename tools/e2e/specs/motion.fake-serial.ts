@@ -57,6 +57,8 @@ async function connected(page: Page): Promise<Worker> {
   await page.setViewportSize({ width: 1440, height: 900 });
   const worker = await machineWorker(page);
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
+  // These specs drive the Advanced pane (tabs); Simple is the default (OD-13).
+  await page.locator('[data-action="ui-level-advanced"]').click();
   await expect.poll(async () => (await status(worker)).base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
   // The connect-time report configuration (amendment 2026-11-02) has finished: only motion is written from here.
   await expect.poll(async () => (await status(worker)).reports.phase, { timeout: 10_000 }).toBe('done');

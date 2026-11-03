@@ -297,7 +297,8 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .dro-actions button, .pos-all button { min-height: 26px; padding: 0 8px; font-size: 11.5px; }
 .pos-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
 .pos-status .pos-all { margin-left: auto; display: inline-flex; gap: 4px; }
-.pos-head-right { display: inline-flex; align-items: center; gap: 8px; }
+.pos-head-right { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.sec-position .source { font-variant-numeric: tabular-nums; }
 .tag .context-help { margin-left: 2px; }
 .tag .help-trigger { width: 16px; height: 16px; font-size: 10px; }
 .dro-head { font-size: 11px; color: var(--muted); text-align: right; }
@@ -1528,7 +1529,11 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .job-step-bar small { display: block; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }
 .job-step-bar button[aria-current="step"] { background: var(--blue-wash); box-shadow: inset 0 -3px var(--blue); color: var(--blue); }
 .step-number { display: grid; place-items: center; width: 25px; height: 25px; flex: none; border: 1px solid currentColor; border-radius: 50%; font: 600 12px var(--mono); }
-.job-grid { grid-template-columns: 280px minmax(260px, 1fr) 290px; gap: 10px; }
+.job-grid { grid-template-columns: 280px minmax(260px, 1fr); gap: 10px; padding-right: 0; }
+/* The machine pane as a full-height rail (OD-13 §3). */
+.run-view.job-view { display: grid; grid-template-columns: minmax(0, 1fr) 290px; grid-template-rows: minmax(0, 1fr); gap: 10px; padding-right: 20px; }
+.job-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.job-view > .run-inspector { margin: 12px 0 14px; min-height: 0; }
 .job-work-panel { min-height: 0; min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--rule); border-top: 3px solid var(--tan); border-radius: var(--r); background: var(--sheet); }
 .job-panel-scroll { flex: 1; min-height: 0; overflow: auto; padding: 14px; }
 .job-panel-scroll h2 { font-size: 18px; margin: 0 0 14px; }
@@ -1570,14 +1575,16 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .library-view > .tpane > div { flex: 1; min-height: 0; }
 .library-view > .tpane > div > .view-head h1 { font-size: 18px; }
 @media (max-width: 1350px) {
-  .job-grid { grid-template-columns: 250px minmax(220px, 1fr) 260px; gap: 8px; padding-left: 12px; padding-right: 12px; }
+  .job-grid { grid-template-columns: 250px minmax(220px, 1fr); gap: 8px; padding-left: 12px; padding-right: 0; }
+  .run-view.job-view { grid-template-columns: minmax(0, 1fr) 260px; gap: 8px; padding-right: 12px; }
   .job-step-bar { margin-left: 12px; margin-right: 12px; }
   .job-step-bar small { max-width: 125px; }
   .job-step-bar strong { font-size: 12px; }
 }
 @media (max-width: 1050px) {
   .job-grid { grid-template-columns: 250px minmax(240px, 1fr); overflow: auto; }
-  .job-grid .run-inspector { grid-column: 1 / -1; max-height: 320px; }
+  .run-view.job-view { display: flex; flex-direction: column; padding-right: 0; }
+  .job-view > .run-inspector { margin: 0 20px 14px; max-height: 320px; }
   .job-grid .canvas-column, .job-work-panel { min-height: 420px; }
   .job-step-bar button { min-width: 130px; }
   .job-view .job-card { flex-wrap: wrap; }
@@ -1604,3 +1611,44 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
   .job-view .job-card .job-actions { width: 100%; justify-content: flex-end; }
   .job-view .job-card .job-name { min-width: 0; }
 }
+
+/* Simple level (OD-13): one screen, no tabs; the pane fits 1280x720 without scrolling. */
+.level-switch { margin-left: 4px; }
+.level-switch button { min-height: 22px; padding: 0 8px; font-size: 11px; }
+.run-inspector.simple .simple-pane { display: flex; flex-direction: column; }
+.run-inspector.simple .simple-pane > .insp { padding-top: 10px; padding-bottom: 10px; }
+.run-inspector.simple .simple-pane > .insp > header { display: none; }
+.run-inspector.simple .sec-position { padding-bottom: 8px; }
+.run-inspector.simple .sec-position > header { margin-bottom: 4px; }
+.run-inspector.simple .dro-grid { gap: 0; }
+.run-inspector.simple .dro-row strong { font-size: 18px; }
+.run-inspector.simple .dro-actions button, .run-inspector.simple .pos-all button { min-height: 24px; }
+.run-inspector.simple .pos-status { margin-top: 6px; padding-top: 4px; }
+.run-inspector.simple .jog { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.run-inspector.simple .jog-pads { flex-basis: 100%; margin-bottom: 0; gap: 8px; }
+.run-inspector.simple .jog-pad { gap: 4px; }
+.run-inspector.simple .jog-z { gap: 4px; }
+.run-inspector.simple .jog .j { min-height: 30px; font-size: 12px; }
+.run-inspector.simple .jog .seg.full { display: inline-flex; width: auto; flex: 1 1 0; min-width: 0; }
+.run-inspector.simple .jog .seg.full button { flex: 1; min-height: 26px; padding: 0 3px; font-size: 11.5px; }
+.run-inspector.simple .jog .j { min-height: 28px; }
+.run-inspector.simple .insp { padding: 6px 14px; }
+.run-inspector.simple .home-quick .motion-recovery { flex-wrap: nowrap; }
+.run-inspector.simple .home-quick button { font-size: 11.5px; padding: 0 8px; white-space: nowrap; }
+.run-inspector.simple .pos-status .pos-all { margin-left: 0; }
+.run-inspector.simple .jog-settings { margin-top: 0; flex: none; }
+.run-inspector.simple .jog-settings .seg button { min-height: 26px; padding: 0 8px; }
+.run-inspector.simple .motion-note { margin-top: 6px; }
+.run-inspector.simple .home-quick { padding: 6px 14px 2px; }
+.run-inspector.simple .sec-spindle.compact .spindle-controls .seg.full button, .run-inspector.simple .sec-spindle.compact .toggle { min-height: 26px; }
+.run-inspector.simple .sec-spindle.compact .spindle-speed input { min-height: 26px; width: 70px; }
+.home-quick { padding: 8px 16px 4px; }
+.home-quick .motion-recovery { margin: 0; }
+.sec-spindle.compact .spindle-controls { margin-top: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sec-spindle.compact .spindle-controls .seg.full { width: auto; margin: 0; }
+.sec-spindle.compact .spindle-speed { margin: 0; }
+.sec-spindle.compact .inline-field { margin: 0 0 0 auto; }
+.sec-zero.go-only { padding-top: 0; }
+/* Connected: the connect card is one line (the Connect button is gone, Disconnect and Open the board stay). */
+.connect-notice.is-connected { padding-top: 6px; padding-bottom: 6px; margin-bottom: 8px; }
+

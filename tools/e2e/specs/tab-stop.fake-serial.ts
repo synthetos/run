@@ -108,7 +108,8 @@ test('a blocked worker leaves the request unacknowledged: STOP NOT DELIVERED (T-
 test('Escape from any focus pauses through the worker; Space never does (T-S18)', async ({ page }) => {
   const worker = await connectedTab(page);
   const before = bangs(await writes(worker));
-  await page.locator('[data-action="connect"]').focus();
+  // Any focused control: at Simple the connect card is gone once connected (OD-13), so the pane's level switch stands in.
+  await page.locator('[data-action="ui-level-simple"]').focus();
   await page.keyboard.press('Space');
   await page.waitForTimeout(300);
   expect(bangs(await writes(worker))).toBe(before);

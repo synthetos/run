@@ -82,6 +82,8 @@ async function connect(page: Page, board?: Record<string, unknown>): Promise<Wor
     }, board);
   }
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
+  // This spec drives the Advanced pane (tabs, the DRO sources); Simple is the default (OD-13).
+  await page.locator('[data-action="ui-level-advanced"]').click();
   await expect.poll(async () => (await session(worker)).reports.phase, { timeout: 10_000 }).toBe('done');
   await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
   return worker;

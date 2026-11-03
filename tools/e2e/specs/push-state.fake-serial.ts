@@ -55,6 +55,8 @@ async function connect(page: Page, options: { readonly board?: Record<string, un
   const worker = await machineWorker(page);
   if (options.board !== undefined) await nextBoard(worker, options.board);
   expect(await request(worker, { v: 3, kind: 'open', port: PORT, ...(options.unknown === true ? { previousSessionEnded: true } : {}) })).toMatchObject({ ok: true });
+  // These specs drive the Advanced pane (tabs); Simple is the default (OD-13).
+  await page.locator('[data-action="ui-level-advanced"]').click();
   await expect.poll(async () => (await session(worker)).reports.phase, { timeout: 10_000 }).toBe('done');
   return worker;
 }

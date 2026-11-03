@@ -118,6 +118,43 @@ function homeBody({ model }: HomeProps, hk: Hooks): ComponentChild {
 
 type HomeProps = { readonly model?: WorkspaceModel | null };
 
+/** Simple (OD-13): Home all and Set machine zero here on one row, with their confirmations in place. */
+function homeQuickBody({ model }: HomeProps, hk: Hooks): ComponentChild {
+  const view = model?.live.value ?? null;
+  const send: Send | undefined = model?.actions.value?.motion;
+  const hv = homingView(view, settingsOf(view));
+  const [asking, setAsking] = hk.state<Asking>(null);
+  const [note, setNote] = hk.state<string | null>(null);
+  const enabled = hv.enabled && send !== undefined;
+  const run = (command: MotionCommand): void => {
+    setAsking(null);
+    setNote(null);
+    void send?.(command).then(setNote);
+  };
+  const button = (label: string, aria: string, onClick: () => void, ok: boolean, cls: string, why: string | null): ComponentChild =>
+    h('button', { type: 'button', class: cls, 'aria-label': aria, 'data-machine-control': 'home', ...(enabled && ok ? { onClick } : { disabled: true, title: (enabled ? why : hv.reason) ?? undefined }) }, label);
+  return h(
+    'div',
+    { class: 'home-quick', 'data-region': 'home-quick' },
+    h(
+      'div',
+      { class: 'motion-recovery' },
+      button('Home all', `Home all configured axes${hv.configured.length > 0 ? ` (${axesText(hv.configured)})` : ''}`, () => setAsking({ kind: 'home', axes: hv.configured }), hv.configured.length > 0, 'small primary', 'No axis has a homing switch and search speed set.'),
+      button('Set machine zero here…', 'Set the machine zero here without homing (G28.3)', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true, 'small', null),
+    ),
+    enabled ? confirmFor(asking, hv, run, () => setAsking(null)) : null,
+    note === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-home': 'note' }, note),
+  );
+}
+
+function HomeQuickLive(props: HomeProps): ComponentChild {
+  return homeQuickBody(props, LIVE);
+}
+
+export function HomeQuick(props: HomeProps = {}): ComponentChild {
+  return isLive(props.model) ? h(HomeQuickLive, props) : homeQuickBody(props, STATIC);
+}
+
 function HomeLive(props: HomeProps): ComponentChild {
   return homeBody(props, LIVE);
 }
