@@ -1,29 +1,18 @@
 /**
- * ROADMAP P1-07: polled machine position, the DRO view, the live marker and
- * the drift report.
+ * ROADMAP P1-07, push-driven (amendment 2026-11-02): the DRO view, the live
+ * marker and the drift report.
  *
- * - The marker and the machine DRO move only on polled `{"mpo":null}`
- *   reads, never on a status report that carries `mpo*` (SAFETY §4.2).
- * - The poller sends at most one `mpo` GET at a time, every 500 ms, only on
- *   a classified, connected link, and only through `session.read`.
- * - The lag badge is amber at 1 s and red at 2 s or STALE.
+ * - Machine and work position come from the connect-time read and then from
+ *   pushed status reports (`live.mpo`, `live.pos`); nothing polls.
+ * - Their age is the time since the board last said anything; the badge is
+ *   amber at 80 % and red at 100 % of the silence window, or at STALE.
  * - A drift report raises NEEDS_REVIEW for its own link only.
  */
 import { describe, expect, it } from 'vitest';
-import type { TinyGEdgeNextModel } from '@synthetos/testkit';
-import { LAG_AMBER_MS, LAG_RED_MS, MPO_POLL_ANSWER_MS, MPO_POLL_MS, PositionPoller, READOUT_POLL_ANSWER_MS, READOUT_POLL_MS, ReadoutPoller, droView, lagOf, positionPollable, readoutsToPoll, snapshotOf, type PollTarget, type SessionSnapshot } from '../src/index.ts';
+import { LAG_AMBER_MS, LAG_RED_MS, droView, lagOf, lagThresholds, snapshotOf, type SessionSnapshot } from '../src/index.ts';
 import { Driver, EN_ANSWERS } from './sessionDriver.ts';
 import { harness, type Harness } from './sessionHarness.ts';
 import { PORT } from './simTransport.ts';
-
-const decoder = new TextDecoder();
-
-function lines(h: Harness): string[] {
-  return h.endpoint.transcript
-    .entries()
-    .filter((e) => e.kind === 'host-write')
-    .map((e) => decoder.decode(e.data));
-}
 
 async function connectedEn(): Promise<Harness> {
   const h = harness('en', { device: { start: 'ready' } });
@@ -34,65 +23,6 @@ async function connectedEn(): Promise<Harness> {
   return h;
 }
 
-describe('PositionPoller on the simulated edge-next board', () => {
-  it('polls {"mpo":null} every 500 ms, and the polled position follows the board', async () => {
-    const h = await connectedEn();
-    const poller = new PositionPoller(h.session, h.clock);
-    poller.start();
-    poller.start(); // idempotent
-    const before = lines(h).length;
-    await h.run(MPO_POLL_MS * 4 + 10);
-    const polls = lines(h).slice(before).filter((l) => l === '{"mpo":null}\n');
-    expect(polls.length).toBe(4);
-    expect(poller.polls).toBe(4);
-    expect(h.session.snapshot.values['mpo']?.value).toEqual({ x: 0, y: 0, z: 0, a: 0, b: 0, c: 0 });
-
-    // Another program moved the machine: the polled position follows on the next poll.
-    (h.device as TinyGEdgeNextModel).setMachinePosition({ x: 12.5, y: -3 });
-    await h.run(MPO_POLL_MS + 10);
-    expect(h.session.snapshot.values['mpo']?.value).toMatchObject({ x: 12.5, y: -3 });
-
-    // Only GETs and the watchdog's ENQ reached the board.
-    for (const l of lines(h)) expect(/^\{"?[a-z0-9]+"?:null\}\n$/.test(l) || l === '\u0005', JSON.stringify(l)).toBe(true);
-
-    poller.stop();
-    const stopped = lines(h).length;
-    await h.run(MPO_POLL_MS * 4);
-    expect(lines(h).slice(stopped).filter((l) => l === '{"mpo":null}\n')).toEqual([]);
-  });
-
-  it('does not poll before a board is classified, or after disconnect', async () => {
-    const h = harness('en', { device: { start: 'ready' } });
-    const poller = new PositionPoller(h.session, h.clock);
-    poller.start();
-    await h.run(MPO_POLL_MS * 3);
-    expect(lines(h)).toEqual([]);
-    void h.session.connect(PORT);
-    await h.run(3000);
-    expect(poller.polls).toBeGreaterThan(0);
-    await h.session.disconnect();
-    const n = poller.polls;
-    await h.run(MPO_POLL_MS * 4);
-    expect(poller.polls).toBe(n);
-  });
-});
-
-/** A scripted target: the snapshot and the decision are set by the test. */
-function target(snapshot: SessionSnapshot, allowed = true): PollTarget & { reads: string[][]; snap: SessionSnapshot; allowed: boolean } {
-  const t = {
-    reads: [] as string[][],
-    snap: snapshot,
-    allowed,
-    get snapshot(): SessionSnapshot {
-      return t.snap;
-    },
-    read(tokens: readonly string[]) {
-      t.reads.push([...tokens]);
-      return t.allowed ? { allowed: true as const } : { allowed: false as const, reason: 'no', remedy: 'no', citation: 'test' };
-    },
-  };
-  return t;
-}
 
 function connectedDriver(): Driver {
   const d = new Driver();
@@ -102,192 +32,28 @@ function connectedDriver(): Driver {
   return d;
 }
 
-class FakeClock {
-  t = 0;
-  now(): number {
-    return this.t;
-  }
-  #timers = new Map<number, { at: number; fn: () => void }>();
-  #id = 1;
-  setTimeout(fn: () => void, ms: number): number {
-    const id = this.#id++;
-    this.#timers.set(id, { at: this.t + ms, fn });
-    return id;
-  }
-  clearTimeout(id: number): void {
-    this.#timers.delete(id);
-  }
-  advance(ms: number): void {
-    const end = this.t + ms;
-    for (;;) {
-      const next = [...this.#timers.entries()].sort((a, b) => a[1].at - b[1].at)[0];
-      if (next === undefined || next[1].at > end) break;
-      this.#timers.delete(next[0]);
-      this.t = next[1].at;
-      next[1].fn();
-    }
-    this.t = end;
-  }
-}
-
-describe('PositionPoller: one poll owed at a time', () => {
-  it('skips ticks while a poll is unanswered, and gives it up after answerMs', () => {
-    const d = connectedDriver();
-    const t = target(snapshotOf(d.state));
-    const clock = new FakeClock();
-    const p = new PositionPoller(t, clock);
-    p.start();
-    clock.advance(MPO_POLL_MS);
-    expect(t.reads).toEqual([['mpo']]);
-    // Unanswered: the next ticks are skipped (flow budget).
-    clock.advance(MPO_POLL_MS * 2);
-    expect(t.reads).toHaveLength(1);
-    // Answered: the next tick polls again.
-    t.snap = { ...t.snap, values: { mpo: { value: { x: 1 }, status: 0, at: clock.t } } };
-    clock.advance(MPO_POLL_MS);
-    expect(t.reads).toHaveLength(2);
-    // Unanswered for answerMs: given up, polled again.
-    clock.advance(MPO_POLL_ANSWER_MS - MPO_POLL_MS);
-    expect(t.reads).toHaveLength(2);
-    clock.advance(MPO_POLL_MS);
-    expect(t.reads).toHaveLength(3);
-  });
-
-  it('a new link does not wait for the old link\'s poll', () => {
-    const d = connectedDriver();
-    const t = target(snapshotOf(d.state));
-    const clock = new FakeClock();
-    const p = new PositionPoller(t, clock);
-    p.start();
-    clock.advance(MPO_POLL_MS);
-    t.snap = { ...t.snap, epoch: t.snap.epoch + 1 };
-    clock.advance(MPO_POLL_MS);
-    expect(t.reads).toHaveLength(2);
-  });
-
-  it('a denied read is not counted and does not block the next tick', () => {
-    const d = connectedDriver();
-    const t = target(snapshotOf(d.state), false);
-    const clock = new FakeClock();
-    const p = new PositionPoller(t, clock);
-    p.start();
-    clock.advance(MPO_POLL_MS * 2);
-    expect(t.reads).toHaveLength(2);
-    expect(p.polls).toBe(0);
-    t.allowed = true;
-    clock.advance(MPO_POLL_MS);
-    expect(p.polls).toBe(1);
-    p.stop();
-    p.stop();
-    clock.advance(MPO_POLL_MS * 4);
-    expect(t.reads).toHaveLength(3);
-  });
-
-  it('polls only on a classified, connected link that is not LOST or in FAULT', () => {
-    const s = snapshotOf(connectedDriver().state);
-    expect(positionPollable(s)).toBe(true);
-    expect(positionPollable({ ...s, base: 'READING' })).toBe(false);
-    expect(positionPollable({ ...s, classification: null })).toBe(false);
-    expect(positionPollable({ ...s, classification: { ...(s.classification as NonNullable<SessionSnapshot['classification']>), dialectId: null } })).toBe(false);
-    expect(positionPollable({ ...s, overlays: ['LOST'] })).toBe(false);
-    expect(positionPollable({ ...s, overlays: ['FAULT'] })).toBe(false);
-    expect(positionPollable({ ...s, overlays: ['READ_ONLY', 'NEEDS_REVIEW'] })).toBe(true);
-  });
-});
-
-describe('ReadoutPoller: spindle and coolant readouts the status list lacks (display only)', () => {
-  it('on the simulated board, GETs spe, spc, sps, cof and com about once a second, and the answers land in values', async () => {
-    const h = await connectedEn();
-    const poller = new ReadoutPoller(h.session, h.clock);
-    poller.start();
-    const before = lines(h).length;
-    await h.run(READOUT_POLL_MS * 3 + 50);
-    const sent = lines(h).slice(before);
-    for (const t of ['spe', 'spc', 'sps', 'cof', 'com']) expect(sent.filter((l) => l === `{"${t}":null}\n`).length, t).toBe(3);
-    expect(sent.filter((l) => l === '{"spd":null}\n')).toEqual([]);
-    expect(poller.polls).toBe(3);
-    for (const t of ['spe', 'spc', 'sps', 'cof', 'com']) expect(h.session.snapshot.values[t], t).toMatchObject({ value: 0, status: 0 });
-    for (const l of lines(h)) expect(/^\{"?[a-z0-9]+"?:null\}\n$/.test(l) || l === '\u0005', JSON.stringify(l)).toBe(true);
-    poller.stop();
-  });
-
-  it('polls only the readouts missing from the status list, waits for the list, and polls nothing when it carries them all', () => {
-    const s = snapshotOf(connectedDriver().state);
-    expect(readoutsToPoll(s)).toEqual(['spe', 'spc', 'sps', 'cof', 'com']);
-    expect(readoutsToPoll({ ...s, live: { ...s.live, srList: [...(s.live.srList ?? []), 'spe', 'cof'] } })).toEqual(['spc', 'sps', 'com']);
-    expect(readoutsToPoll({ ...s, live: { ...s.live, srList: ['spe', 'spc', 'sps', 'cof', 'com'] } })).toEqual([]);
-    const { srList: _list, ...noList } = s.live;
-    expect(readoutsToPoll({ ...s, live: noList })).toEqual([]);
-    expect(readoutsToPoll({ ...s, overlays: ['LOST'] })).toEqual([]);
-    expect(readoutsToPoll({ ...s, base: 'READING' })).toEqual([]);
-  });
-
-  it('one poll owed at a time: skipped while unanswered, given up after answerMs; a denied read is not counted', () => {
-    const d = connectedDriver();
-    const t = target(snapshotOf(d.state));
-    const clock = new FakeClock();
-    const p = new ReadoutPoller(t, clock);
-    p.start();
-    p.start();
-    clock.advance(READOUT_POLL_MS);
-    expect(t.reads).toEqual([['spe', 'spc', 'sps', 'cof', 'com']]);
-    clock.advance(READOUT_POLL_MS);
-    expect(t.reads).toHaveLength(1);
-    const answered = Object.fromEntries(['spe', 'spc', 'sps', 'cof', 'com'].map((k) => [k, { value: 0, status: 0, at: clock.t }]));
-    t.snap = { ...t.snap, values: answered };
-    clock.advance(READOUT_POLL_MS);
-    expect(t.reads).toHaveLength(2);
-    clock.advance(READOUT_POLL_ANSWER_MS);
-    expect(t.reads).toHaveLength(3);
-    t.allowed = false;
-    clock.advance(READOUT_POLL_MS * 2);
-    expect(p.polls).toBe(3);
-    p.stop();
-    clock.advance(READOUT_POLL_MS * 3);
-    expect(t.reads).toHaveLength(4); // the last tick before stop was a denied read
-  });
-});
-
-describe('ReadoutPoller: nothing to poll, and a new link', () => {
-  it('reads nothing while the status list carries every readout, and a new link does not wait for the old poll', () => {
-    const d = connectedDriver();
-    const s = snapshotOf(d.state);
-    const t = target({ ...s, live: { ...s.live, srList: ['spe', 'spc', 'sps', 'cof', 'com'] } });
-    const clock = new FakeClock();
-    const p = new ReadoutPoller(t, clock, { intervalMs: 100, answerMs: 1000 });
-    p.start();
-    clock.advance(300);
-    expect(t.reads).toEqual([]);
-    t.snap = s;
-    clock.advance(100);
-    expect(t.reads).toHaveLength(1);
-    t.snap = { ...s, epoch: s.epoch + 1 };
-    clock.advance(100);
-    expect(t.reads).toHaveLength(2);
-    p.stop();
-    p.stop(); // idempotent
-  });
-});
-
-describe('droView: the marker moves only on polled reads', () => {
-  it('a status report with mpo* changes neither the machine DRO nor the marker', () => {
+describe('droView: position from the connect-time read and pushed reports', () => {
+  it('a pushed status report with mpo* moves the machine DRO, aged from the last line received', () => {
     const d = connectedDriver();
     d.at = 1000;
     d.line('{"sr":{"mpox":9,"mpoy":9,"mpoz":9,"posx":4}}');
     const s = snapshotOf(d.state);
-    expect(s.live.mpo).toMatchObject({ x: 9 });
-    const v = droView(s, 1000);
-    expect(v.axes.find((a) => a.axis === 'x')).toEqual({ axis: 'x', machine: null, work: 4, homed: null });
-    expect(v.machineSource).toEqual({ label: 'polled mpo', at: null, ageMs: null, lag: 'none' });
-    expect(v.marker).toBeNull();
+    const v = droView(s, 1200);
+    expect(v.axes.find((a) => a.axis === 'x')).toMatchObject({ axis: 'x', machine: 9, work: 4 });
+    expect(v.machineSource).toEqual({ label: 'status report', at: 1000, ageMs: 200, lag: 'fresh' });
+    // Nothing known yet: no source, no age.
+    const empty = droView({ ...s, live: { ...s.live, mpo: {} } }, 1200);
+    expect(empty.machineSource).toEqual({ label: 'status report', at: null, ageMs: null, lag: 'none' });
+    expect(empty.marker).toBeNull();
   });
 
-  it('a polled mpo with read offsets places the marker in work coordinates, with source and age', () => {
+  it('mpo with read offsets places the marker in work coordinates, with source and age', () => {
     const base = snapshotOf(connectedDriver().state);
+    const { coor: _coor, ...live } = base.live;
     const s: SessionSnapshot = {
       ...base,
+      live: { ...live, mpo: { x: 110, y: 52, z: -5, a: 0 }, lastRxAt: 1000 },
       values: {
-        mpo: { value: { x: 110, y: 52, z: -5, a: 0 }, status: 0, at: 1000 },
         ofs: { value: { x: 100, y: 50, z: -10, a: 0 }, status: 0, at: 900 },
         coor: { value: 1, status: 0, at: 900 },
         g54: { value: { x: 100, y: 50, z: -10 }, status: 0, at: 900 },
@@ -296,7 +62,7 @@ describe('droView: the marker moves only on polled reads', () => {
     };
     const v = droView(s, 1300);
     expect(v.marker).toEqual({ x: 10, y: 2, z: 5, ageMs: 300, lag: 'fresh' });
-    expect(v.machineSource).toEqual({ label: 'polled mpo', at: 1000, ageMs: 300, lag: 'fresh' });
+    expect(v.machineSource).toEqual({ label: 'status report', at: 1000, ageMs: 300, lag: 'fresh' });
     expect(v.workSource).toEqual({ label: 'status report' });
     expect(v.wcs).toEqual({ code: 'G54', offsets: { x: 100, y: 50, z: -10 }, total: { x: 100, y: 50, z: -10, a: 0 } });
     expect(v.axes.slice(0, 3).map((a) => [a.axis, a.machine, a.homed])).toEqual([
@@ -305,28 +71,31 @@ describe('droView: the marker moves only on polled reads', () => {
       ['z', -5, true],
     ]);
     expect(v.units).toBe('mm');
-    // Older polls age the badge; STALE turns it red at once.
-    expect(droView(s, 1000 + LAG_AMBER_MS).machineSource.lag).toBe('amber');
-    expect(droView(s, 1000 + LAG_RED_MS).machineSource.lag).toBe('red');
+    // Silence ages the badge against the snapshot's window; STALE turns it red at once.
+    const { amberMs, redMs } = lagThresholds(s);
+    expect(droView(s, 1000 + amberMs).machineSource.lag).toBe('amber');
+    expect(droView(s, 1000 + redMs).machineSource.lag).toBe('red');
+    const hb: SessionSnapshot = { ...s, link: { heartbeatMs: 1000, silenceMs: LAG_RED_MS } };
+    expect(droView(hb, 1000 + LAG_AMBER_MS).machineSource.lag).toBe('amber');
     expect(droView({ ...s, overlays: ['STALE'] }, 1100).marker?.lag).toBe('red');
     // A clock behind the receive time never shows a negative age.
     expect(droView(s, 900).machineSource.ageMs).toBe(0);
   });
 
-  it('shows no marker without read offsets, a full x/y/z, or a good answer', () => {
+  it('shows no marker without read offsets or a full x/y/z', () => {
     const base = snapshotOf(connectedDriver().state);
-    const mpo = { value: { x: 1, y: 2, z: 3 }, status: 0, at: 10 };
-    expect(droView({ ...base, values: { mpo } }, 20).marker).toBeNull();
-    expect(droView({ ...base, values: { mpo, ofs: { value: { x: 0, y: 0 }, status: 0, at: 1 } } }, 20).marker).toBeNull();
-    expect(droView({ ...base, values: { mpo: { ...mpo, value: { x: 1, y: 2 } }, ofs: { value: { x: 0, y: 0, z: 0 }, status: 0, at: 1 } } }, 20).marker).toBeNull();
-    expect(droView({ ...base, values: { mpo: { ...mpo, status: -1 }, ofs: { value: { x: 0, y: 0, z: 0 }, status: 0, at: 1 } } }, 20).marker).toBeNull();
-    expect(droView({ ...base, values: { mpo: { ...mpo, value: [1, 2, 3] }, ofs: { value: { x: 0, y: 0, z: 0 }, status: 0, at: 1 } } }, 20).marker).toBeNull();
-    expect(droView({ ...base, values: { mpo: { ...mpo, value: { x: Number.NaN, y: 2, z: 3 } }, ofs: { value: { x: 0, y: 0, z: 0 }, status: 0, at: 1 } } }, 20).marker).toBeNull();
+    const live = { ...base.live, mpo: { x: 1, y: 2, z: 3 }, lastRxAt: 10 };
+    const zero = { value: { x: 0, y: 0, z: 0 }, status: 0, at: 1 };
+    expect(droView({ ...base, live, values: {} }, 20).marker).toBeNull();
+    expect(droView({ ...base, live, values: { ofs: { value: { x: 0, y: 0 }, status: 0, at: 1 } } }, 20).marker).toBeNull();
+    expect(droView({ ...base, live: { ...live, mpo: { x: 1, y: 2 } }, values: { ofs: zero } }, 20).marker).toBeNull();
+    expect(droView({ ...base, live, values: { ofs: { ...zero, status: -1 } } }, 20).marker).toBeNull();
+    expect(droView({ ...base, live, values: { ofs: zero } }, 20).marker).toMatchObject({ x: 1, y: 2, z: 3 });
   });
 
   it('WCS: G53, an unknown coor, an errored read, inches', () => {
     const base = snapshotOf(connectedDriver().state);
-    const { unit: _unit, ...live } = base.live;
+    const { unit: _unit, coor: _c, ...live } = base.live;
     const at = (coor: unknown, status = 0): SessionSnapshot => ({ ...base, live, values: { coor: { value: coor as number, status, at: 1 } } });
     expect(droView(at(0), 0).wcs).toEqual({ code: 'G53', offsets: null, total: null });
     expect(droView(at(6), 0).wcs.code).toBe('G59');
@@ -339,6 +108,8 @@ describe('droView: the marker moves only on polled reads', () => {
     expect(droView(at(1), 0).units).toBeNull();
     expect(droView({ ...base, live: { ...base.live, unit: 0 } }, 0).units).toBe('in');
     expect(droView({ ...base, live, values: { unit: { value: 1, status: 0, at: 1 } } }, 0).units).toBe('mm');
+    // A reported coor (pushed, or the connect-time read) wins over a request value.
+    expect(droView({ ...base, live: { ...live, coor: 2 }, values: { coor: { value: 1, status: 0, at: 1 } } }, 0).wcs.code).toBe('G55');
   });
 
   it('lagOf', () => {

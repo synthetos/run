@@ -678,6 +678,60 @@ In every row the reply to the connect line is a G-code reply `{"r":{},"f":[...]}
 | **Residual** | Low. |
 | **Verification** | U: T-S100. |
 
+### H64. Run rewrites the board's status reporting (NEW, amendment 2026-11-02, push-driven state)
+| Field | Content |
+|---|---|
+| **Cause** | So that the page is driven by pushed status reports instead of polling, run writes the board's status report list (`{sr:{...}}`) and, where needed, `sv` (filtered reports) and an absurd `si` (above 1000 ms). The list, `sv` and `si` are saved in EEPROM, so other senders (CNCjs, ChiliPeppr, scripts) see the change, and a persisted write stalls the board while EEPROM is written (H57). A list that does not carry what run needs leaves the page without position or spindle and coolant updates. |
+| **Rating** | S1–S2, L3 |
+| **Mitigations** | 1. The owner decided that run may set the list (2026-11-02). It is written **only when the board's list differs** from what run needs (stat, hold, line, vel, feed, unit, coor, dist, work and machine position X, Y, Z, A, and the spindle and coolant readouts), `sv` only when it is not 1, `si` only when absurd; the firmware also compares before it writes EEPROM. 2. One line at a time, each answered before the next (no line is sent during the EEPROM stall), each followed by a read-back GET; a refusal or a read-back that differs is recorded and shown, never assumed. 3. Its own command kind in the write gate (`report`): only the exact shapes, only the step in progress, only run's fields, never a `ram` key, and its own matrix kind (`reports`, `configureReports`) that is on only with the Phase 2 release (bench and staging), never in a read-only release, never to a READ_ONLY (unapproved) board, never under ORPHANED_MOTION, STALE or FAULT, and never in ALARM (the firmware refuses SETs while alarmed; the session configures after Clear alarm). 4. The change is said in plain words in the Run view and the session log (W35; W36 for `sv` and `si`). 5. The heartbeat (`{"rt":{"hb":N}}`) is RAM only and off at every reset; it is turned on only when `{"rt":null}` answers. 6. A RAM-only write mode was designed with the firmware maintainer and is parked; the seam is the one function that builds the steps. |
+| **Residual** | Low: another sender sees a longer list and `sv` 1. Nothing moves. |
+| **Verification** | U/M: T-S101 (written only when it differs, read back, never `ram`, the gate shapes), T-S107 (the test-kit report model). H: HIL-1.13. |
+
+### H65. Homing with a wrong switch configuration (NEW, amendment 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | G28.2 drives each axis toward the switch its settings name. A switch set on the wrong end, the wrong switch type (`st`), a switch that is not wired, a reversed motor or a wrong motor map (H59) sends the axis the wrong way or past its switch. |
+| **Rating** | S2–S3, L2 |
+| **Mitigations** | 1. Run offers homing only for an axis whose settings, as read this session, have exactly one homing switch (mode 1 or 3), a search velocity above 0 and an enabled axis; any other axis is refused with the reason, and nothing is sent. 2. C4 names the axes and says that the machine moves each toward its switch, with the search distance from the controller's settings. 3. Pause and Stop job work during homing: Pause ends the homing (`!`, then `%` once held), Stop job runs the flush sequence; afterwards the axes read not homed. 4. The end of homing is confirmed by two polled reads, then `hom`, `home`, `mpo` and `pos` are read back; IDLE_HOMED only when the board reports X, Y and Z homed. 5. After a switch write, W20 and the switch test (H58). |
+| **Residual** | Medium: run cannot see the wiring. The hardwired E-stop and the hard limits are the controls. |
+| **Verification** | U/M: T-S104. H: HIL-2.15. |
+
+### H66. Homing crashes into a hard stop (NEW, amendment 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | The search travels up to `|tm − tn| + lb`. A switch that does not trigger (broken wire, wrong polarity) or travel larger than the machine lets the axis reach its mechanical end at the search velocity. |
+| **Rating** | S2–S3, L2 |
+| **Mitigations** | 1. C4 states the search distance computed from live values. 2. Pause and Stop job stay in their fixed place, prominent while homing. 3. The bench motors are unloaded on a fixture (§9.1); the temporary search cap is Phase 4 (§4.5a). 4. Homing is never started on its own: only from the confirmation. |
+| **Residual** | Medium until the Phase 4 temporary cap ships. |
+| **Verification** | U: T-S104 (confirmation text and refusals). H: HIL-2.15. |
+
+### H67. Set machine position (G28.3) puts the wrong position in place (NEW, amendment 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | G28.3 sets the machine position here without moving and marks the axes homed, so soft limits and every later move trust it. Used on a machine that has switches, or with the tool somewhere else than where the user believes, every machine-coordinate move (go to zero's safe Z, soft limits) is wrong by the error. |
+| **Rating** | S2–S3, L2 |
+| **Mitigations** | 1. Offered as the alternative when homing is not configured, behind C26, which says to use it only on a machine without switches and that a wrong position makes soft limits and every later move wrong. 2. Its own matrix intent (`setMachinePosition`), allowed from idle and from UNKNOWN (it is a way out of UNKNOWN), never under any other overlay. 3. The new position and homing state are read back; UNKNOWN clears only when the board reports X, Y and Z homed. |
+| **Residual** | Medium: the user decides where zero is. |
+| **Verification** | U/M: T-S105. H: HIL-2.16. |
+
+### H68. A temporary offset (G92) is mistaken for a saved one, or forgotten (NEW, amendment 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | G92 shifts the work coordinates without saving anything: a reset or a program end clears it, and while it is in force the saved work offset (G54..G59) is not what positions are measured from. A user who forgets it, or expects it after a reset, sends the tool to the wrong place. |
+| **Rating** | S2, L3 |
+| **Mitigations** | 1. Shown apart from Set work zero, labelled temporary, with C27 saying it is not saved, that a reset or program end clears it, and that Clear temporary offset (G92.1, C28) removes it. 2. The active offsets are shown: the active system with its saved offset, the temporary offset when non-zero, and the total. 3. Each change is read back (`g92`, `ofs`, `pos`). 4. Set work zero is G10 L20 in the active system (saved, C16) and never G92. |
+| **Residual** | Low-Medium. |
+| **Verification** | U/M: T-S106. E: the offsets panel. H: HIL-2.17. |
+
+### H69. Push-driven state: a short state missed, or a quiet link taken for a live one (NEW, amendment 2026-11-02)
+| Field | Content |
+|---|---|
+| **Cause** | Pushed status reports are change-filtered and sampled when they print, and only one is pending at a time, so a state that comes and goes between two reports never appears (firmware maintainer, report.c). An idle board says nothing, so silence alone cannot tell a quiet board from a dead link. |
+| **Rating** | S2–S3, L3 |
+| **Mitigations** | 1. Pushed values drive the display only; every decision (the release and stop sequences, the idle gate before a settings write, the end of homing, the hold check before `%`) keeps its confirming polled reads (§4.2, item 35). 2. A persistent state always appears within about `si` ms, and a pushed report never reflects a write before that write's answer. 3. The heartbeat gives a line every `hb` ms while nothing else prints: no report, heartbeat or answer for the silence window (3 s) is STALE, shown as "No reports from the board" (W4), which blocks every new intent but the stop class. Without the heartbeat the watchdog asks once after 5 s of silence (§4.2). 4. The full state is read once at every connect and reconnect, and every value run changes is read back once. |
+| **Residual** | Low. |
+| **Verification** | U/M: T-S102, T-S103. H: HIL-1.13. |
+
 ---
 
 ## 3. Connection and motion state machine
@@ -735,6 +789,8 @@ Overlay precedence: **FAULT > LOST > ORPHANED_MOTION > UNKNOWN > STALE > READ_ON
   FAULT triggers ──► FAULT overlay (latched; ackFault with cause shown)
   NOT_CONNECTED is re-entered only by an explicit Disconnect or after LOST is acknowledged.
 ```
+
+*Amended 2026-11-02 (push-driven state, homing).* After READING the session reads the machine's full state once (homing per axis, units, coordinate system, distance mode, tool, machine and work position, every offset, the spindle and coolant readouts, `sv` and `si`; the window's settings read takes the saved g54..g59 and the settings) and then configures status reports (H64, §4.2). HOMING is a base of motion sessions: G28.2 sent, ended by two polled reads at rest, then a read-back; it returns to IDLE_HOMED when the board reports X, Y and Z homed. **UNKNOWN has three exits, offered as primary actions in the banner:** "I've checked the machine" (`positionVerify`, which also clears UNKNOWN in a session without motion: it moves nothing), Home machine, and, where homing is not configured, Set machine position here (G28.3, C26). UNKNOWN never traps the user.
 
 **FAULT triggers.** Everything in OLD-S §3:
 - an unexpected alarm, shutdown or panic class;
@@ -813,6 +869,8 @@ Added:
 
 *Amended 2026-11-02 (Phase 2, owner).* In a Phase 2 session (`PHASE_2_RELEASE`, motion flag on): **Jog** and **Go to zero** are allowed from IDLE_* (and JOGGING for the next piece of the jog already running), with no overlay, an approved build (no READ_ONLY), no ORPHANED_MOTION, no alarm and no job; the `dir.<axis>` fact and the unhomed caps are replaced by W34 while not homed (H51). **Set work zero** is `G10 L20 P1` (persisted on the controller, said in C16) and is a motion-kind intent of this phase, not a settings write. **Manual spindle/coolant on** needs C24 unless turned off for the session. **Clear alarm** (`{"clear":null}`, C13 with the alarm's meaning) is allowed only from ALARM. **Resume** (`~`) only from a hold of motion this session sent. Pause, Stop job and Spindle off stay never gated, in the same place, always enabled.
 
+*Amended 2026-11-02 (push-driven state, homing, offsets).* **Home** (G28.2) is allowed from IDLE_* and from CONNECTED_UNKNOWN under UNKNOWN (and HOMING only for the line being written), for axes whose homing is configured (H65), after C4. **Set machine position** (`setMachinePosition`, G28.3) has the same states and overlays, after C26 (H67). **Temporary offset** (`tempOffset`, G92 and G92.1, C27 and C28) and **Work coordinate system** (`selectCoordSystem`, G54..G59, C29) are allowed from IDLE_* with no overlay. **Set work zero** is G10 L20 in the active system (P1..P6), not always P1. **Report configuration** (`configureReports`, kind `reports`) is the session's own: idle or CONNECTED_UNKNOWN, under UNKNOWN or NEEDS_REVIEW only, never in ALARM, and only with a release that has `reports` (Phase 2) (H64). Each is a separate intent with its own confirmation and read-back.
+
 **UI rules that protect the stop path while LIVE** (OLD-S §4.1, extended):
 - No fullscreen while LIVE.
 - No native file pickers or selects while RUNNING or HELD.
@@ -831,6 +889,8 @@ Liveness comes from receive timestamps (OLD-S §4.2).
 - M400 waits are expected silence until their reply.
 
 **TG:** the host-side inference from the last acknowledged host N plus the modelled queue (OLD-S §4.2). No probe while the planner is full.
+
+*Amended 2026-11-02 (push-driven state; owner, from the bench: "on connecting we should get the machine state totally, then the rest is driven by motion sr reports").* Nothing polls while idle. The once-a-second spindle and coolant poll and the `mpo` poll are removed. At connect the session reads the full state once (§3 amendment), sets the status report list run needs where it differs, `sv` 1 and an absurd `si` back to 250 ms, each read back (H64), and turns on the heartbeat (`{"rt":{"hb":1000}}`) when `{"rt":null}` answers (status 100 means the firmware has none). From then on the page follows pushed reports and heartbeat lines; machine position comes from `mpox`.. in the reports. **Liveness with the heartbeat:** no report, heartbeat or answer for 3 s is STALE ("No reports from the board", W4), and nothing is sent to ask. **Without the heartbeat:** after 5 s of received silence the session asks once (ENQ on edge-next, else a `stat` GET); no byte within 2 s is STALE. **Confirming reads that stay:** the polled reads of the stop and release sequences and of a running jog or go-to-zero (§4.4, §4.5b), the idle gate before each settings write (§4.6), the end of homing (two polled reads; a pushed report says when to look, and a check at most once a second covers a missed one), the `ackFault` verification, and the single read-back after every value run changes (a settings write, set work zero, G92, G92.1, G28.3, a coordinate system, homing). The full read runs again after every reconnect.
 
 **Thresholds:** STALE after 2 s of unexpected silence (blocks new intents except stop-class); FAULT after 5 s while RUNNING; LOST on a transport error. Bench validation is B-WD-1, before Phase 3 ships.
 
@@ -967,7 +1027,13 @@ As OLD-S §4.5:
 
 **Spindle and coolant.** `M3 S<rpm>` (CW), `M4 S<rpm>` (CCW), `M5`; `M7` mist, `M8` flood, `M9` both off (TinyG has one off command for both). Readouts (`spe`, `spc`, `spd`, `sps`, `cof`, `com`) are labelled commanded, never measured. Spindle on needs C24 unless the user turns it off for the browser session.
 
-**Write gate.** Motion lines are their own command kind in the session's write gate (writePolicy.ts). A line is written only if it matches the closed grammar above exactly (numbers bounded, LF-terminated, no other words), the session release allows motion, and the allow-matrix allows the intent that issued it in the current state. `%` is written only by the stop and release sequences, `~` only by Resume, `{"clear":null}` only by Clear alarm. ^D and ^X are still never written in Phase 2.
+**Homing** (*amended 2026-11-02*). `G28.2 X0 [Y0] [Z0] [A0]` for the axes asked for, each configured (H65); C4 first. HOMING until two polled reads show the machine at rest after the cycle was seen running (or three in a row), then `hom`, `mpo`, `pos`, `ofs` and `home` are read back. Pause ends the homing (`!`, then `%` once held: a homing cycle is not resumed); Stop job runs the Phase 2 flush sequence. A G28.2 the board refuses ends at once, without a hold, and the homing state is read back.
+
+**Set machine position** (*amended 2026-11-02*). `G28.3 X0 [Y0] [Z0] [A0]`, after C26, for machines without homing switches (H67). Then polled idle and the read-back of `mpo`, `pos`, `hom`, `ofs` and `home`; UNKNOWN clears when X, Y and Z read homed.
+
+**Offsets** (*amended 2026-11-02*). Set work zero is `G10 L20 P<n>` in the active system (`coor` 1..6; refused when it is not known or G53), saved on the controller (C16); its offsets are read back. **Temporary offset:** `G92 X0 [Y0] [Z0] [A0]` (C27) and `G92.1` (C28), not saved; `g92`, `ofs` and `pos` are read back. **Work coordinate system:** `G54`..`G59` (C29); `coor`, `ofs`, `pos` and g54..g59 are read back. Each change waits for polled idle before its read-back; a refused line ends it without a hold.
+
+**Write gate.** Motion lines are their own command kind in the session's write gate (writePolicy.ts). A line is written only if it matches the closed grammar above exactly (numbers bounded, LF-terminated, no other words), the session release allows motion, and the allow-matrix allows the intent that issued it in the current state. `%` is written only by the stop and release sequences, `~` only by Resume, `{"clear":null}` only by Clear alarm. ^D and ^X are still never written in Phase 2. *Amended 2026-11-02:* the grammar adds `G28.2`, `G28.3`, `G92`, `G92.1`, `G54`..`G59` and `G10 L20 P1..P6` (axis words `X0`..`A0` only), and each line kind is admitted only from the intents that may send it (no G28.2 issued as a jog). The status-report configuration lines are a separate kind (`report`, H64).
 
 ### 4.5a Temporary homing search cap (TinyG, Phase 4)
 
@@ -1176,6 +1242,8 @@ Signal words follow ANSI Z535 and ISO 3864-2 (OLD-S §5). **Single source:** eve
 - **W32 (ORPHANED_MOTION):** "WARNING — This controller is paused, holding or still has queued moves from a previous session. This page did not send them and cannot resume them. Use \"Stop job\" to end them with the spindle off, or reset the controller."
 - **W34 (jog panel while not homed; Phase 2, 2026-11-02):** "WARNING — The machine is not homed, so soft limits may not protect it. A jog can drive an axis into its end. Use small steps and keep a hand on the E-stop."
 - **W33 (liveness FAULT countdown, `role="alert"`, tone):** "DANGER — This page lost track of the machine (<cause>). The machine is paused and the spindle may be running. The job will be stopped with the spindle off in N s. Check the machine now."
+- **W35 (status report list set at connect; amendment 2026-11-02, H64):** "NOTICE — Run set this board's status report list to include machine position and spindle/coolant. The list is saved on the board, so other programs that read its status reports see the change too."
+- **W36 (another saved reporting setting changed at connect; H64):** "NOTICE — Run changed a reporting setting saved on this board: <setting> from <old> to <new>. Other programs that read its status reports see the change too."
 
 ---
 
@@ -1197,7 +1265,7 @@ An identity or chip mismatch on a flash, a bound-device mismatch on a profile, a
 | C1 | At the start of every LIVE session. The full list is shown the first time, when the text version changes, and when the last full acceptance in **this browser** was on an earlier calendar day; otherwise the short form. Stored in `device-safety` as `ack.safety@<version>@<date>`. The account copy is display-only. | Full: "Before connecting, confirm: ☐ A hardwired E-stop that removes motor and spindle power is installed and I tested it today. ☐ Limit switches or soft limits are configured, or I will keep moves small. ☐ The work area is clear of people, tools and loose items. ☐ I am wearing eye and ear protection. ☐ I will not leave the machine unattended while it is powered." Short: "☐ My E-stop is within reach and I tested it today." | All boxes |
 | C2 | **Retired** (there is no simulator). The ID is not reused. | — | — |
 | C3 | First jog move per axis | As OLD-S C3, generated from `0.25 × (360/sa) × mi / tr` | Single |
-| C4 | Homing | Phase 2–3: "Home Z, then X, then Y. Each axis moves toward its switch until it triggers. The search can travel up to <N> mm (|tm − tn| + lb from the controller's settings). Hand on E-stop?" From Phase 4: the OLD-S C4 text with the temporary cap. | Single |
+| C4 | Homing (amended 2026-11-02: names the axes) | Phase 2–3: "Home <axes>? The machine will move each axis toward its homing switch until it triggers (the controller homes Z first). The search can travel up to <N> mm (|tm − tn| + lb from the controller's settings). Hand on E-stop?" From Phase 4: the OLD-S C4 text with the temporary cap. | Single |
 | C5 | Settings write | "Write N settings to <machine name> (<board id>)? Changes: <table>. High-risk changes: <list>." | Single; typed "WRITE" if high-risk |
 | C6 | Flash | As OLD-S C6 (ordered checkboxes), **plus the box "☐ Spindle and VFD mains are switched off and will stay off until my settings are restored and confirmed"** (H47), then: "Flash TinyG <id> from build <old> to <new> (sha256 <short>)?" | All boxes in order, then single |
 | C7 | Arm | "Arm job <file> (sha256 <short>, <state SAME/NEW/CHANGED>): N lines, units mm, WCS G54 (read from machine), X <min..max>, Y …, Z min <z>, spindle ON S<rpm>, estimated <t>, may continue up to <mm> mm (about <s> s, estimate) if the connection is lost; no single line queues more than <c> s (<k> long moves were split). Wake lock <ON>. ☐ E-stop in reach, work clamped, area clear, screen lock off." | Checkbox |
@@ -1219,6 +1287,10 @@ An identity or chip mismatch on a flash, a bound-device mismatch on a profile, a
 | C23 | Resolve NEEDS_REVIEW by updating the profile from the board (the default action) | "Keep the settings on <machine name> (<board id>) and save them as profile revision <n+1>? Nothing is written to the controller." | Single |
 | C24 | Manual spindle on (Phase 2, 2026-11-02), unless the user turned it off for this browser session | "Spindle will start (<direction>, S<rpm>). Hands clear?" | Single |
 | C25 | Go to work zero (Phase 2, 2026-11-02) | "Go to work zero on <axes>? The machine will move: <path>. Keep a hand on the E-stop." | Single |
+| C26 | Set machine position here, G28.3 (amendment 2026-11-02, H67) | "Set the machine position of <axes> to 0 here, without moving (G28.3)? Use this only on a machine without homing switches, with each axis where you want machine zero. A wrong position makes soft limits and every later move wrong." | Single |
+| C27 | Temporary offset, G92 (amendment 2026-11-02, H68) | "Set a temporary offset so that <axes> read 0 here (G92)? It is not saved on the controller: a reset or a program end clears it, and Clear temporary offset (G92.1) removes it. The saved <system> offset does not change." | Single |
+| C28 | Clear the temporary offset, G92.1 (amendment 2026-11-02, H68) | "Clear the temporary offset (G92.1)? Work positions go back to the saved <system> offsets." | Single |
+| C29 | Select the work coordinate system, G54 to G59 (amendment 2026-11-02) | "Use <system> for work coordinates? Work positions, Set work zero and Go to zero then use its saved offsets." | Single |
 
 Stop job and Spindle off now are never behind a confirmation: they are direct actions in every connected state and every overlay (§4.1 normative rule).
 
@@ -1282,6 +1354,9 @@ OLD-S §8 items 1–21 all apply. Read "sim" as `testkit`, and read item 20 as c
 40. ☐ Console (MDI) motion and spindle-on lines go through preflight, the ceiling and the target confirmation; no console path writes to the Transport except through `MachineSession` and `safety.allowed`.
 41. ☐ Phase 2: every motion line matches the closed grammar of the motion command kind (§4.5b); no jog ever queues more than the lookahead; `%`, `~` and `{"clear":null}` come only from their named sequences; the motion flag stays off for the production host (T-S93).
 42. ☐ Settings writes stay behind the phase switch (`SETTINGS_WRITES`, production off), the approval gate and the idle gate; one token per line with its answer awaited and a read-back; a backup before every apply; no forbidden, identity or communication key is writable.
+43. ☐ (amendment 2026-11-02) Nothing polls while idle: no periodic GET, only the confirming reads §4.2 lists and one read-back per change; the full state is read at every connect; liveness comes from reports and the heartbeat (STALE after the silence window).
+44. ☐ (amendment 2026-11-02) The status report list, `sv` and `si` are written only where they differ, one line at a time with a read-back, through the `report` kind and the `reports` release gate; never a `ram` key; the change is shown (W35, W36) and logged.
+45. ☐ (amendment 2026-11-02) Homing, G28.3, G92/G92.1 and G54..G59 are separate intents with their confirmations (C4, C26–C29) and read-backs; each motion line kind comes only from its intents; UNKNOWN always offers its exits.
 
 ---
 
@@ -1311,6 +1386,7 @@ Manual, and never in CI. Signed in `RELEASES.md` in the run repo, with the evide
 - **HIL-1.9** Feedhold during a slow move started from the EN-HIL harness: the hold is confirmed by a report; latency is recorded.
 - **HIL-1.10** Orphaned motion (H14): start a slow job with M3 from the EN-HIL harness, hold it with a full planner and an RX backlog, kill the browser tab, reconnect. Expect ORPHANED_MOTION with W32; only Stop job and Reset controller offered; `~` never written; Stop job ends with the LED off.
 - **HIL-1.11** Tabs and port exclusivity (B-EXCL-1): with the port open in Chrome, try Edge, a second Chrome profile and CNCjs, on Windows, macOS and Linux, and record whether each open is refused. Kill the controlling tab: the observer shows W29. Block the worker: an unacknowledged stop request shows STOP NOT DELIVERED.
+- **HIL-1.13** (*amendment 2026-11-02*, push-driven state) Connect run to a board whose status report list is the firmware default: the transcript shows the full state read, then `{sr:{...}}` once, its read-back, `{"rt":null}` and `{"rt":{"hb":1000}}`; W35 is shown. Reconnect: no list write. Then leave the board idle for 10 minutes: the transcript holds no line from run, only heartbeat lines and reports. Move the machine from the EN-HIL harness: the position follows from reports. Pull the USB data line or stop the board's output: "No reports from the board" within 3 s. Afterwards CNCjs still works with the longer list.
 - **HIL-1.12** Partial-line splice (B-SPLICE-1, H49): with a second program, leave `G0 X1` (of `G0 X100`) and, separately, a partial `$xvm=1` in the RX ring, close that program, then connect run. The transcript starts with `{"sr":null}`; the board reports an error for the spliced line; no motion (Saleae on the step lines) and no setting changed.
 
 ### 9.3 Phase 2: bench motion (jog, home, zero, stop job)
@@ -1327,6 +1403,9 @@ Manual, and never in CI. Signed in `RELEASES.md` in the run repo, with the evide
 - **HIL-2.11** Outputs test with the relay module: record the relay state at power-up, reset and flash entry (B-IO-1, PN §13.1 boot float).
 - **HIL-2.12** Hold timeout: hold with M3 on; the W31 countdown runs; at zero ^D is written (EN) and the LED goes off; "Keep paused" restarts the countdown.
 - **HIL-2.14** (*Phase 2, 2026-11-02*) Press-and-hold jog on each axis, then release; repeat ending with a window switch, a hidden tab and a frozen page (no renewals): each ends with `!` then `%` within the H50 bound, and `hold` reads 0 afterwards. Stop job during a jog with M3 on: `!`, `%`, `M5`, `M9`, the spindle LED off, "Stopped: queue cleared, spindle and coolant off". Go to zero from below the safe height: Z rises first.
+- **HIL-2.15** (*amendment 2026-11-02*) Homing from the Home tab and from the UNKNOWN banner: C4 names the axes and the search distance; only configured axes are offered; G28.2 once; IDLE_HOMED with `hom` read back. Repeat with Pause and with Stop job mid-homing: the axes read not homed. Repeat with a switch unplugged, hand on the E-stop, and record where the axis stopped (H65, H66).
+- **HIL-2.16** (*amendment 2026-11-02*) On a board with homing off: the explanation and Set machine position here (C26); G28.3; UNKNOWN cleared; the position read back (H67).
+- **HIL-2.17** (*amendment 2026-11-02*) Offsets: select G55, Set work zero (G10 L20 P2), read back; G92 on X and Y, the temporary offset shown apart; reset the board: the temporary offset is gone and the page shows it after the reconnect read; G92.1 clears it (H68).
 - **HIL-2.13** Hardwired E-stop (Vmot cut; TinyG logic is powered from Vmot, so the board stops): press it during a slow jog and during a held job. The app goes STALE then FAULT (or LOST if USB drops, B-PWR-1), never resends a line, and shows the recovery card. When Vmot returns, the banner after Ready gives FAULT then UNKNOWN; homing is required; record the J6 relay state during power-up (boot float, PN §13.1).
 
 ### 9.4 Phase 3: bench streaming (first real job)
@@ -1475,4 +1554,11 @@ New tests:
 | T-S97 | Idle gate: a board that is running, holding, moving, has moves queued, is in inches, or does not answer a gate read is not written (`refused`, with the reason in plain words). An `er` 106 during a write is a refusal, not a FAULT. A FAULT or a lost link interrupts a write in progress. An unanswered write is `unconfirmed`. | U, M |
 | T-S98 | EEPROM stall: against the test-kit edge-next model with the stall modelled, writes with reads queued behind them lose zero bytes, persist, and read back verified. | M |
 | T-S99 | Apply and revert: a backup is taken (and downloaded) before the first write, and none is written if it fails. Writes go one at a time, each after the previous result. The run stops at the first failure, marks the rest not written, and offers revert. Revert writes the backed-up values back through the same path. Fake-serial: edit a setting, apply, backup downloaded, read-back verified, persisted, revert. | U, E |
+| T-S101 | (amendment 2026-11-02) Connect sequence: after READING the full state is read once; the status report list is written only when it differs from run's and read back; `sv` and an absurd `si` likewise; the heartbeat only when `{"rt":null}` answers; refusals, read-backs that differ, damaged and missing answers are recorded and never assumed; never a `ram` key; configured only after an alarm at connect is cleared. | U, M |
+| T-S102 | (amendment 2026-11-02) No periodic polls: a configured session idle for a minute writes nothing; a move made by another program reaches the page by a pushed report. | M |
+| T-S103 | (amendment 2026-11-02) Liveness: with the heartbeat on, no line for the silence window is STALE and nothing is sent; any line clears it; without the heartbeat the fallback asks once per idle window. | U, M |
+| T-S104 | (amendment 2026-11-02) Homing: only configured axes, one G28.2, two polled reads at rest (three if the cycle was never seen), the read-back, IDLE_HOMED only when homed; Pause ends it (`!`, `%`), Stop job runs the flush sequence; a refused G28.2 ends without a hold. | U, M, E |
+| T-S105 | (amendment 2026-11-02) UNKNOWN exits: "I've checked the machine" clears it (also without motion), homing X, Y and Z clears it, G28.3 clears it when X, Y and Z read homed; the banner offers the actions. | U, M, E |
+| T-S106 | (amendment 2026-11-02) Offsets: G54..G59, G10 L20 in the active system, G92 and G92.1, each through its own intent, confirmation and read-back; a refused line says so; the grammar and the per-intent line kinds. | U, M, E |
+| T-S107 | (amendment 2026-11-02) Test-kit edge-next reports: change-filtered, the first request wins and values are sampled at print, a short state is missed, a persistent one appears within `si`; the sr list GET and SET; rt and heartbeat lines; G28.2, G28.3, G92 and G92.1. | M |
 | T-S100 | Phase switch and controls: `SETTINGS_WRITES` is pinned (staging on, production off). The worker turns the `settings` kind on only for the staging and loopback origins. The settings controls are disabled in the prerendered page, and enabled only when the switch is on and the board is approved, identified, read and idle. | U, E |

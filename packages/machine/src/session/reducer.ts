@@ -75,7 +75,8 @@ import { getLineFor, isReadAllowed } from '@synthetos/schema';
 import { writeLineCapFor } from '../writeShape.ts';
 import { gateTokens, judgeGate, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
 import { restingStat, restingUsesHold } from './resting.ts';
-import { abandonMotion, checkAlarm, idleBase, motionCapable, onMotionAnswer, onMotionIntent, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
+import { abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
+import { HEARTBEAT_MS, REPORT_DIALECTS, SEED_TOKENS, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
 import {
   MAX_PROBE_RESTARTS,
   MAX_QUEUED_READS,
@@ -89,6 +90,8 @@ import {
   type PendingRead,
   type ProbeProgress,
   type ReadPurpose,
+  type ReportChange,
+  type ReportsState,
   type SessionConfig,
   type SessionEffect,
   type SessionEvent,
@@ -131,6 +134,8 @@ const ALARM_CLASSES: ReadonlySet<MachineClass> = new Set(['alarm', 'softAlarm', 
 
 const EMPTY_LIVE: LiveState = Object.freeze({ pos: Object.freeze({}), mpo: Object.freeze({}) });
 
+const REPORTS_IDLE: ReportsState = Object.freeze({ phase: 'idle', step: null, remaining: Object.freeze([]), heartbeatMs: null, changes: Object.freeze([]), detail: null });
+
 export function initialState(): SessionState {
   return Object.freeze({
     base: 'NOT_CONNECTED',
@@ -164,8 +169,13 @@ export function initialState(): SessionState {
     sent: Object.freeze({ lines: 0, realtime: 0 }),
     motion: null,
     settingWrite: null,
+    reports: REPORTS_IDLE,
+    link: Object.freeze({ heartbeatMs: null, silenceMs: DEFAULT_SILENCE_MS }),
   });
 }
+
+/** The fallback silence window (no heartbeat) with the default timings. */
+const DEFAULT_SILENCE_MS = 7000;
 
 /** The classified dialect, or null (unclassified, or not yet probed). */
 export function dialectOf(state: SessionState): Dialect | null {
@@ -328,6 +338,7 @@ export function reduce(config: SessionConfig, state: SessionState, event: Sessio
       if (event.epoch === t.s.epoch && linkUp(t.s)) t.addOverlay('NEEDS_REVIEW');
       break;
   }
+  maybeConfigure(t);
   pump(t);
   syncWatchdog(t);
   return t.done();
@@ -409,6 +420,10 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
     case 'jog':
     case 'goToZero':
     case 'setWorkZero':
+    case 'home':
+    case 'setMachinePosition':
+    case 'tempOffset':
+    case 'selectCoordSystem':
     case 'spindleOn':
     case 'clearAlarm':
     case 'resume':
@@ -638,7 +653,8 @@ function resetToNotConnected(t: Tx, unknownOnNextConnect: boolean): void {
 // --- Link events ----------------------------------------------------------
 
 function onOpened(t: Tx): void {
-  t.set({ base: 'IDENTIFYING' });
+  const timings = t.config.timings;
+  t.set({ base: 'IDENTIFYING', link: { heartbeatMs: null, silenceMs: timings.livenessIdleMs + timings.staleAfterMs } });
   if (t.s.unknownOnNextConnect) {
     t.addOverlay('UNKNOWN');
     t.set({ unknownOnNextConnect: false });
@@ -656,6 +672,8 @@ function startProbe(t: Tx, restarts: number, banner: Banner | undefined): void {
     ready: false,
     footerRev: undefined,
     queue: [{ token: 'sr', purpose: 'splice' }],
+    reports: REPORTS_IDLE,
+    link: { heartbeatMs: null, silenceMs: t.config.timings.livenessIdleMs + t.config.timings.staleAfterMs },
   });
 }
 
@@ -722,6 +740,9 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
   if (missed.purpose === 'gate') finishSettingWrite(t, 'refused', `Not written: the board did not answer the ${missed.token} read in time.`);
   if (missed.purpose === 'setting') finishSettingWrite(t, 'unconfirmed', 'The board did not answer the write in time. It may or may not hold the new value; read it back before trusting it.');
   if (missed.purpose === 'readback') finishSettingWrite(t, 'mismatch', 'Written (status 0), but the read-back was not answered in time.');
+  if (missed.purpose === 'seed' || missed.purpose === 'report' || t.s.reports.phase === 'seeding' || t.s.reports.phase === 'configuring') {
+    failReports(t, `the board did not answer the ${missed.token} read in time`);
+  }
   enterStale(t, at);
   const pendingReading = t.s.queue.some((q) => q.purpose === 'reading') || missed.purpose === 'reading';
   t.set({ queue: [] });
@@ -741,7 +762,7 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
   // Receive-timestamp liveness (SAFETY §4.2): any line is proof of life.
   t.set({ live: { ...t.s.live, lastRxAt: at }, liveness: null, stale: null });
   t.removeOverlay('STALE');
-  if (t.s.timers.watchdog !== undefined) t.arm('watchdog', t.config.timings.livenessIdleMs);
+  if (t.s.timers.watchdog !== undefined) t.arm('watchdog', watchdogMs(t));
   const dialect = dialectOf(t.s);
   const event: ClassifiedLine = dialect === null ? raw : checkFooterForDialect(dialect, raw);
   switch (event.kind) {
@@ -752,7 +773,11 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
       onResponse(t, event, at);
       return;
     case 'StatusReport':
-      onStatusReport(t, event);
+      onStatusReport(t, event, at);
+      return;
+    case 'Heartbeat':
+      // Proof of life (recorded above). Its stat and hold are what the board reported: kept for display.
+      mergeLive(t, Object.fromEntries(Object.entries(event.hb).filter(([k]) => k === 'stat' || k === 'hold')));
       return;
     case 'QueueReport':
       t.set({ live: { ...t.s.live, qr: event.qr } });
@@ -927,6 +952,12 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
     case 'readback':
       onReadBackAnswer(t, r, at);
       return;
+    case 'seed':
+      onSeedAnswer(t, e, r, at);
+      return;
+    case 'report':
+      onReportAnswer(t, r, at);
+      return;
   }
 }
 
@@ -982,7 +1013,7 @@ function finishProbe(t: Tx): void {
   const tokens = t.config.release.motion ? [...READING_TOKENS, ...MOTION_READING_TOKENS] : READING_TOKENS;
   const reads = dialect === null ? [] : tokens.filter((tok) => isReadAllowed(dialect.id, tok));
   if (reads.length === 0 || t.s.overlays.includes('ORPHANED_MOTION')) {
-    t.set({ base: 'CONNECTED_UNKNOWN' });
+    t.set({ base: 'CONNECTED_UNKNOWN', reports: { ...REPORTS_IDLE, phase: 'off' } });
     if (dialect === null) checkUnclassifiedResting(t);
     return;
   }
@@ -1046,6 +1077,7 @@ function finishReading(t: Tx): void {
   // A motion session with nothing in the way goes to idle (or ALARM). UNKNOWN (after a reconnect) waits
   // for "I've checked the machine" (positionVerify); any other overlay keeps CONNECTED_UNKNOWN.
   if (motionCapable(t.s, t.config) && t.s.overlays.length === 0) t.set({ base: alarmed ? 'ALARM' : idleBase(t.s) });
+  startSeed(t);
 }
 
 function onVerifyAnswer(t: Tx, token: string, value: number | undefined): void {
@@ -1082,8 +1114,10 @@ function refuseAck(t: Tx, why: string): void {
   t.set({ ackVerify: null, queue: t.s.queue.filter((q) => q.purpose !== 'verify'), notices: { ...t.s.notices, ackFaultRefused: why } });
 }
 
-function onStatusReport(t: Tx, report: StatusReport): void {
+function onStatusReport(t: Tx, report: StatusReport, at: number): void {
   mergeLive(t, report.sr);
+  // Homing (amendment 2026-11-02): a pushed report says when the cycle may have ended; polled reads confirm it.
+  onMotionReport(t, report.sr, at);
   if (t.s.base !== 'IDENTIFYING' && t.s.base !== 'READING') return;
   const live = t.s.live;
   const moving = (typeof report.sr['vel'] === 'number' && report.sr['vel'] !== 0) || (live.machineClass !== undefined && MOTION_CLASSES.has(live.machineClass) && 'stat' in report.sr);
@@ -1150,6 +1184,13 @@ function onGarbled(t: Tx, at: number): void {
     case 'readback':
       finishSettingWrite(t, 'mismatch', 'Written (status 0), but the read-back arrived damaged.');
       return;
+    case 'seed':
+      t.set({ values: { ...t.s.values, [entry.token]: { value: null, status: -1, at } } });
+      seedAnswered(t, entry, at);
+      return;
+    case 'report':
+      failReports(t, `the answer to ${reportStepText(t.s.reports.step as ReportStep)} arrived damaged`);
+      return;
   }
 }
 
@@ -1189,6 +1230,8 @@ function withNumber(t: Tx, live: LiveState, key: string, v: number): LiveState {
     case 'cof':
     case 'com':
     case 'home':
+    case 'coor':
+    case 'dist':
       return { ...live, [key]: v };
   }
   for (const axis of AXES) {
@@ -1196,6 +1239,167 @@ function withNumber(t: Tx, live: LiveState, key: string, v: number): LiveState {
     if (key === `mpo${axis}`) return { ...live, mpo: { ...live.mpo, [axis]: v } };
   }
   return live;
+}
+
+// --- Push-driven state: the full read at connect and the report configuration (amendment 2026-11-02) ---
+
+/**
+ * After READING: read the machine's full state once (SEED_TOKENS through the read allowlist). Nothing polls
+ * afterwards: pushed status reports and the heartbeat keep the page current (SAFETY §4.2 as amended).
+ */
+function startSeed(t: Tx): void {
+  const dialect = dialectOf(t.s);
+  if (dialect === null || t.s.overlays.includes('ORPHANED_MOTION')) {
+    t.set({ reports: { ...REPORTS_IDLE, phase: 'off' } });
+    return;
+  }
+  const reads = SEED_TOKENS.filter((tok) => isReadAllowed(dialect.id, tok));
+  t.set({ reports: { ...REPORTS_IDLE, phase: 'seeding' }, queue: [...t.s.queue, ...reads.map((token) => ({ token, purpose: 'seed' as const }))] });
+  seedAnswered(t, null, 0);
+}
+
+/** A seed read is still to be written. (One line is in flight at a time: when a seed is answered, the next is still queued.) */
+function isSeedOwed(s: SessionState): boolean {
+  return s.queue.some((q) => q.purpose === 'seed');
+}
+
+/** Merges one state read into the live values (scalars, and the `mpo`/`pos` groups). */
+function mergeStateValue(t: Tx, token: string, value: JsonValue | undefined): void {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    t.set({ live: withNumber(t, t.s.live, token, value) });
+    return;
+  }
+  if ((token === 'mpo' || token === 'pos') && isObject(value)) {
+    const fields: Record<string, JsonValue> = {};
+    for (const [axis, v] of Object.entries(value)) fields[`${token}${axis}`] = v;
+    mergeLive(t, fields);
+  }
+}
+
+function onSeedAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
+  const value = r.r[e.token];
+  t.set({ values: { ...t.s.values, [e.token]: { value: value ?? null, status: r.footer.status, at } } });
+  if (r.footer.status === 0) mergeStateValue(t, e.token, value);
+  // A read-back of `home` after a change keeps the idle base honest (homed or not).
+  if (e.token === 'home' && (t.s.base === 'IDLE_HOMED' || t.s.base === 'IDLE_UNHOMED')) t.set({ base: idleBase(t.s) });
+  seedAnswered(t, e, at);
+}
+
+/** One seed read is answered (or `null` after queueing them): runs its follow-up, and ends the connect-time read. */
+function seedAnswered(t: Tx, e: PendingRead | null, at: number): void {
+  if (e?.then !== undefined) onFollowUp(t, e.then, at);
+  if (t.s.reports.phase !== 'seeding' || isSeedOwed(t.s)) return;
+  const dialect = dialectOf(t.s);
+  const applies = dialect !== null && t.config.release.reports === true && REPORT_DIALECTS.has(dialect.id) && motionCapable(t.s, t.config) && !t.s.overlays.includes('ORPHANED_MOTION');
+  t.set({ reports: { ...t.s.reports, phase: applies ? 'pending' : 'off' } });
+  t.emit({ kind: 'log', text: `connect: full state read${applies ? '; status reports are configured next' : '; status reports are not configured on this board in this release'}` });
+}
+
+/** Starts the configuration when it is pending and the state allows it (idle, never in alarm, nothing else in progress). */
+function maybeConfigure(t: Tx): void {
+  const s = t.s;
+  if (s.reports.phase !== 'pending' || s.motion !== null || settingWriteActive(s) || isSeedOwed(s)) return;
+  if (!linkUp(s) || !allowed(matrixSnapshot(s), 'configureReports', t.config.release).allowed) return;
+  const steps = reportSteps({ srList: s.live.srList, sv: numberValue(s.values['sv']), si: numberValue(s.values['si']) });
+  t.set({ reports: { ...s.reports, phase: 'configuring', step: null, remaining: steps } });
+  t.emit({ kind: 'log', text: `reports: the status report list ${srListMatches(s.live.srList) ? 'already holds what run needs: not written' : 'differs from what run needs: it is written (and saved on the board) and read back'}` });
+  nextReportStep(t, null);
+}
+
+function reportStepText(step: ReportStep): string {
+  return step.line ?? `{"${step.token}":null}`;
+}
+
+/** The configuration ends unfinished. What was already changed stays recorded (W35, W36). */
+function failReports(t: Tx, why: string): void {
+  const r = t.s.reports;
+  if (r.phase === 'done' || r.phase === 'failed' || r.phase === 'off' || r.phase === 'idle') return;
+  t.set({ reports: { ...r, phase: 'failed', step: null, remaining: [], detail: why }, queue: t.s.queue.filter((q) => q.purpose !== 'report' && q.purpose !== 'seed') });
+  t.emit({ kind: 'log', text: `reports: not configured (${why}); the page shows what the board pushes, and the watchdog asks for proof of life on its own` });
+}
+
+function nextReportStep(t: Tx, detail: string | null, skipReadback = false): void {
+  const r = t.s.reports;
+  let remaining = r.remaining;
+  if (skipReadback && remaining[0]?.kind.endsWith('Readback') === true) remaining = remaining.slice(1);
+  const [next, ...rest] = remaining;
+  const merged = detail === null ? r.detail : r.detail === null ? detail : `${r.detail}; ${detail}`;
+  if (next === undefined) {
+    t.set({ reports: { ...r, phase: 'done', step: null, remaining: [], detail: merged } });
+    t.emit({ kind: 'log', text: `reports: configured (heartbeat ${r.heartbeatMs === null ? 'not available' : `${r.heartbeatMs} ms`})${merged === null ? '' : `: ${merged}`}` });
+    return;
+  }
+  t.set({ reports: { ...r, step: next, remaining: rest, detail: merged }, queue: [...t.s.queue, { token: next.token, purpose: 'report' }] });
+}
+
+function numberValue(v: ReadValueLike): number | undefined {
+  return v !== undefined && v.status === 0 && typeof v.value === 'number' ? v.value : undefined;
+}
+type ReadValueLike = { readonly value: JsonValue | null; readonly status: number } | undefined;
+
+function addChange(t: Tx, change: ReportChange): void {
+  t.set({ reports: { ...t.s.reports, changes: [...t.s.reports.changes, change] } });
+}
+
+function onReportAnswer(t: Tx, r: Response, at: number): void {
+  const reports = t.s.reports;
+  const step = reports.step;
+  /* c8 ignore next -- a report line is queued only with its step in progress, and dropped when it ends */
+  if (step === null || reports.phase !== 'configuring') return;
+  const status = r.footer.status;
+  switch (step.kind) {
+    case 'srList':
+    case 'sv':
+    case 'si': {
+      if (status !== 0) {
+        nextReportStep(t, `the board refused ${step.line as string} (status ${status})`, true);
+        return;
+      }
+      const change: ReportChange = { setting: step.kind === 'srList' ? 'sr' : step.kind, ...(step.from === undefined ? {} : { from: step.from }), ...(step.kind === 'sv' ? { to: 1 } : step.kind === 'si' ? { to: 250 } : {}) };
+      addChange(t, change);
+      t.emit({ kind: 'log', text: `reports: ${step.kind === 'srList' ? "Run set this board's status report list to include machine position and spindle/coolant" : `Run changed ${step.kind} from ${step.from as number} to ${change.to as number}`} (saved on the board)` });
+      nextReportStep(t, null);
+      return;
+    }
+    case 'srReadback': {
+      const sr = r.r['sr'];
+      if (status === 0 && isObject(sr)) {
+        mergeLive(t, sr);
+        t.set({ live: { ...t.s.live, srList: Object.freeze(Object.keys(sr)) } });
+      }
+      nextReportStep(t, status === 0 && isObject(sr) && srListMatches(Object.keys(sr)) ? null : 'the status report list read back is not the one run set');
+      return;
+    }
+    case 'svReadback':
+    case 'siReadback': {
+      const value = r.r[step.token];
+      t.set({ values: { ...t.s.values, [step.token]: { value: value ?? null, status, at } } });
+      const want = step.token === 'sv' ? 1 : 250;
+      nextReportStep(t, status === 0 && value === want ? null : `${step.token} reads back ${JSON.stringify(value ?? null)}, not ${want}`);
+      return;
+    }
+    case 'rtProbe': {
+      const rt = r.r['rt'];
+      if (status === 0 && isObject(rt)) {
+        nextReportStep(t, null);
+        return;
+      }
+      t.set({ reports: { ...t.s.reports, remaining: t.s.reports.remaining.filter((x) => x.kind !== 'heartbeat') } });
+      t.emit({ kind: 'log', text: `reports: no heartbeat on this firmware ({"rt":null} answered status ${status}); the watchdog asks for proof of life after ${t.config.timings.livenessIdleMs} ms of silence` });
+      nextReportStep(t, null);
+      return;
+    }
+    case 'heartbeat': {
+      if (status !== 0) {
+        nextReportStep(t, `the board refused the heartbeat (status ${status})`);
+        return;
+      }
+      t.set({ reports: { ...t.s.reports, heartbeatMs: HEARTBEAT_MS }, link: { heartbeatMs: HEARTBEAT_MS, silenceMs: t.config.timings.reportSilenceMs }, liveness: null });
+      t.arm('watchdog', t.config.timings.reportSilenceMs);
+      nextReportStep(t, null);
+      return;
+    }
+  }
 }
 
 // --- Watchdog (SAFETY §4.2) -------------------------------------------------
@@ -1209,9 +1413,17 @@ function watchdogActive(s: SessionState): boolean {
 }
 
 /** Arms the watchdog when it should run and is not armed; stops it when it should not run. */
+/**
+ * How long received silence may last before the watchdog acts: with the heartbeat on, the report silence
+ * window (then STALE, nothing sent); otherwise the fallback idle time before one proof-of-life ask.
+ */
+function watchdogMs(t: Tx): number {
+  return t.s.reports.heartbeatMs !== null ? t.config.timings.reportSilenceMs : t.config.timings.livenessIdleMs;
+}
+
 function syncWatchdog(t: Tx): void {
   if (watchdogActive(t.s)) {
-    if (t.s.timers.watchdog === undefined) t.arm('watchdog', t.config.timings.livenessIdleMs);
+    if (t.s.timers.watchdog === undefined) t.arm('watchdog', watchdogMs(t));
     return;
   }
   t.cancel('watchdog');
@@ -1227,6 +1439,13 @@ function enterStale(t: Tx, at: number): void {
 
 function onWatchdog(t: Tx, at: number): void {
   // Armed only while the watchdog is active: syncWatchdog cancels it in the transition that ends that.
+  if (t.s.reports.heartbeatMs !== null) {
+    // Neither a report, a heartbeat nor an answer for the whole window: "No reports from the board". The link
+    // is suspect (STALE: only reads and stops), and nothing is sent to ask: the heartbeat is the proof of life.
+    enterStale(t, at);
+    t.arm('watchdog', t.config.timings.reportSilenceMs);
+    return;
+  }
   if (t.s.liveness !== null) {
     // Asked for proof of life `staleAfterMs` ago and nothing came back: unexpected silence.
     enterStale(t, at);
@@ -1258,6 +1477,7 @@ function askForLife(t: Tx): 'enq' | 'get' {
 
 function enterFault(t: Tx, cause: FaultCause, kind: FaultKind, detail: string, at: number): void {
   interruptSettingWrite(t, 'a fault latched');
+  if (t.s.reports.phase === 'seeding' || t.s.reports.phase === 'configuring' || t.s.reports.phase === 'pending') failReports(t, 'a fault latched');
   if (t.s.fault === null) t.set({ fault: { cause, kind, detail, at } });
   const wasMoving = t.s.motion !== null && t.s.motion.phase !== 'held';
   abandonMotion(t);
@@ -1279,13 +1499,16 @@ function pump(t: Tx): void {
   if (s.writing !== null || s.queue.length === 0 || !linkUp(s)) return;
   if (s.expected.some((e) => !e.late)) return;
   const next = s.queue[0] as PendingRead;
-  const intent: Intent = next.purpose === 'motion' ? (next.intent as Intent) : next.purpose === 'setting' ? 'settingsWrite' : 'read';
+  const reportWrite = next.purpose === 'report' && s.reports.step?.line !== undefined;
+  const intent: Intent = next.purpose === 'motion' ? (next.intent as Intent) : next.purpose === 'setting' ? 'settingsWrite' : reportWrite ? 'configureReports' : 'read';
   if (!allowed(matrixSnapshot(s), intent, t.config.release).allowed) {
     // A motion line or a settings write the matrix no longer allows (the state changed since it was queued) is dropped, never held.
     /* c8 ignore next -- a safety net: every state change that ends motion (STALE, FAULT, LOST, ALARM) empties the motion queue first */
     if (next.purpose === 'motion') t.set({ queue: s.queue.slice(1) });
     /* c8 ignore next -- a setting line is queued in the same transition the matrix allowed it */
     if (next.purpose === 'setting') finishSettingWrite(t, 'refused', 'Not written: the machine is no longer in a state that allows settings writes.');
+    /* c8 ignore next -- a report step is queued in the transition maybeConfigure checked the matrix, and an overlay that denies it also fails the configuration first */
+    if (reportWrite) failReports(t, 'the machine is no longer in a state that allows report configuration');
     return;
   }
   const line = lineFor(s, next);
@@ -1296,7 +1519,14 @@ function pump(t: Tx): void {
   }
   const seq = s.sent.lines + 1;
   t.set({ queue: s.queue.slice(1), writing: { ...next, seq }, sent: { ...s.sent, lines: seq } });
-  t.emit({ kind: 'writeLine', epoch: s.epoch, seq, token: next.token, line, ...(next.purpose === 'motion' ? { motion: { intent } } : next.purpose === 'setting' ? { intent: 'settingsWrite' as const } : {}) });
+  t.emit({
+    kind: 'writeLine',
+    epoch: s.epoch,
+    seq,
+    token: next.token,
+    line,
+    ...(next.purpose === 'motion' ? { motion: { intent } } : next.purpose === 'setting' ? { intent: 'settingsWrite' as const } : reportWrite ? { intent: 'configureReports' as const } : {}),
+  });
 }
 
 function lineFor(s: SessionState, read: PendingRead): string | undefined {
@@ -1310,6 +1540,11 @@ function lineFor(s: SessionState, read: PendingRead): string | undefined {
     return settingLine(w.key, w.value) ?? undefined;
   }
   /* c8 ignore stop */
+  if (read.purpose === 'report' && s.reports.step?.line !== undefined) {
+    const line = s.reports.step.line;
+    /* c8 ignore next -- the steps are built from the shapes the gate admits; a mismatch is a bug and becomes a writeRefused FAULT */
+    return reportLineShape(line) ? line : undefined;
+  }
   if (!readableNow(s, read.token)) return undefined;
   const dialect = dialectOf(s);
   if (dialect === null) return PROBE_STEPS.find((step) => step.key === read.token)?.line;

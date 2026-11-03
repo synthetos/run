@@ -18,6 +18,7 @@
  * | exactly `rx`, an unsigned integer up to 255 | `RxReport` (440.21, after every `%`) |
  * | exactly `er` | `Exception` |
  * | exactly `ack` with value `true` | `Ack` |
+ * | exactly `hb`, an object | `Heartbeat` (edge-next runtime heartbeat, `{"rt":{"hb":N}}`) |
  * | anything else | `Garbled{unrecognized-shape}` |
  *
  * Non-JSON lines: a line that does not start with `{` is `Text`, unless it
@@ -66,6 +67,10 @@ export function classifyLine(line: string): ClassifiedLine {
   if (sameKeys(keys, ['er'])) return classifyException(line, value);
   if (sameKeys(keys, ['ack'])) {
     return value['ack'] === true ? Object.freeze({ kind: 'Ack', line }) : garbled('bad-value', line, value);
+  }
+  if (sameKeys(keys, ['hb'])) {
+    const hb = value['hb'];
+    return isObject(hb) ? Object.freeze({ kind: 'Heartbeat', line, hb }) : garbled('bad-value', line, value);
   }
   return garbled('unrecognized-shape', line, value);
 }

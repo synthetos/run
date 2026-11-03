@@ -370,6 +370,22 @@ export function w34(): string {
   return 'WARNING — The machine is not homed, so soft limits may not protect it. A jog can drive an axis into its end. Use small steps and keep a hand on the E-stop.';
 }
 
+/**
+ * W35: the session set the board's persisted status report list at connect (amendment 2026-11-02, H64). Shown in
+ * the Run view and written to the session log.
+ */
+export function w35(): string {
+  return "NOTICE — Run set this board's status report list to include machine position and spindle/coolant. The list is saved on the board, so other programs that read its status reports see the change too.";
+}
+
+/** W36: the session changed another persisted reporting setting (`sv`, or an absurd `si`) at connect (H64). */
+export function w36(p: { readonly setting: string; readonly from: number; readonly to: number }): string {
+  return (
+    `NOTICE — Run changed a reporting setting saved on this board: ${text('setting', p.setting)} from ${num('from', p.from)} to ` +
+    `${num('to', p.to)}. Other programs that read its status reports see the change too.`
+  );
+}
+
 // ------------------------------------------------------------ §6 confirmations
 
 /** C1, full form: the first time, on a text-version change, and once per calendar day in this browser. */
@@ -404,10 +420,10 @@ export function c3(p: { readonly axis: string; readonly distanceMm: number; read
 }
 
 /** C4, Phases 2–3: homing, with the search bound `|tm − tn| + lb` read from the controller. */
-export function c4(p: { readonly searchMm: number }): string {
+export function c4(p: { readonly axes: string; readonly searchMm: number }): string {
   return (
-    'Home Z, then X, then Y. Each axis moves toward its switch until it triggers. The search can travel up to ' +
-    `${num('searchMm', p.searchMm)} mm (|tm − tn| + lb from the controller's settings). Hand on E-stop?`
+    `Home ${text('axes', p.axes)}? The machine will move each axis toward its homing switch until it triggers (the controller ` +
+    `homes Z first). The search can travel up to ${num('searchMm', p.searchMm)} mm (|tm − tn| + lb from the controller's settings). Hand on E-stop?`
   );
 }
 
@@ -651,4 +667,30 @@ export function c24(p: { readonly direction: 'CW' | 'CCW'; readonly rpm: number 
 /** C25: go to work zero (Phase 2, §4.5b), with the path the session will send. */
 export function c25(p: { readonly axes: string; readonly path: string }): string {
   return `Go to work zero on ${text('axes', p.axes)}? The machine will move: ${text('path', p.path)}. Keep a hand on the E-stop.`;
+}
+
+/** C26: set the machine position here without moving, `G28.3` (amendment 2026-11-02, H67). For machines without homing switches. */
+export function c26(p: { readonly axes: string }): string {
+  return (
+    `Set the machine position of ${text('axes', p.axes)} to 0 here, without moving (G28.3)? Use this only on a machine without ` +
+    'homing switches, with each axis where you want machine zero. A wrong position makes soft limits and every later move wrong.'
+  );
+}
+
+/** C27: a temporary offset, `G92` (amendment 2026-11-02, H68). */
+export function c27(p: { readonly axes: string; readonly system: string }): string {
+  return (
+    `Set a temporary offset so that ${text('axes', p.axes)} read 0 here (G92)? It is not saved on the controller: a reset or a ` +
+    `program end clears it, and Clear temporary offset (G92.1) removes it. The saved ${text('system', p.system)} offset does not change.`
+  );
+}
+
+/** C28: clear the temporary offset, `G92.1` (amendment 2026-11-02, H68). */
+export function c28(p: { readonly system: string }): string {
+  return `Clear the temporary offset (G92.1)? Work positions go back to the saved ${text('system', p.system)} offsets.`;
+}
+
+/** C29: select the work coordinate system, `G54`..`G59` (amendment 2026-11-02). */
+export function c29(p: { readonly system: string }): string {
+  return `Use ${text('system', p.system)} for work coordinates? Work positions, Set work zero and Go to zero then use its saved offsets.`;
 }

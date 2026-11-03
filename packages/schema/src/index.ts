@@ -56,6 +56,8 @@ export type { SettingDef, SettingsSchema } from './settingsSchema.ts';
 export { boardSettingsFrom, canonicalSettings, deviceHash, settingsDrift, settingsReadGroups } from './settingsRead.ts';
 export type { BoardSettings, BoardSettingsRead, DriftResult, ExpectedSettings, GroupAnswer, SettingDiff, SettingValue, SettingsGroup } from './settingsRead.ts';
 export { SWITCH_KEYS, validate } from './validate.ts';
+export { HOMING_AXES, homingAxes, homingAxis } from './homing.ts';
+export type { HomingAxis, HomingAxisConfig } from './homing.ts';
 export type { Issue, IssueCode, ValidateContext } from './validate.ts';
 export { TRAVEL_AXES, TRAVEL_SEMANTICS, confirmSoftLimits, firmwareTravelEqual, travelSemanticsFor, travelWriteProblem } from './travel.ts';
 export type { AxisSoftLimit, SoftLimitConfirmation, SoftLimitReadBack, TravelAxis, TravelSemantics, TravelWriteProblem } from './travel.ts';

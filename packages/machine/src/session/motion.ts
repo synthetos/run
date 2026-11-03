@@ -34,8 +34,27 @@
 import { STOP_TEXT, type Decision, type Intent } from '@synthetos/safety';
 import { mapStat, type Dialect, type MachineClass } from '@synthetos/protocol';
 import { restingStat } from './resting.ts';
-import { CLEAR_LINE, MAX_JOG_FEED, MAX_RPM, jogLine, motionLineKind, restoreLine, safeZLine, setZeroLine, spindleLine, toZeroLine, type MotionAxisLetter } from './motionLines.ts';
-import type { FaultCause, FaultKind, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
+import { homingAxes, isReadAllowed } from '@synthetos/schema';
+import {
+  CLEAR_LINE,
+  CLEAR_TEMP_OFFSET_LINE,
+  MAX_JOG_FEED,
+  MAX_RPM,
+  homeLine,
+  jogLine,
+  motionLineKind,
+  restoreLine,
+  safeZLine,
+  selectCoordLine,
+  setPositionLine,
+  setZeroLine,
+  spindleLine,
+  tempOffsetLine,
+  toZeroLine,
+  type MotionAxisLetter,
+} from './motionLines.ts';
+import { sessionSettings } from './settingWrite.ts';
+import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
 
 /** Timing and bounds of the motion layer (SAFETY §4.5b). Milliseconds unless named otherwise. */
 export const MOTION_LIMITS = Object.freeze({
@@ -55,6 +74,11 @@ export const MOTION_LIMITS = Object.freeze({
   maxStepMm: 102,
   maxFeed: MAX_JOG_FEED,
   maxRpm: MAX_RPM,
+  /**
+   * Homing (amendment 2026-11-02): pushed reports say when the cycle may have ended; a check poll runs at most
+   * this often in case a report was missed. Two polled reads confirm the end.
+   */
+  homingCheckMs: 1000,
 });
 
 /** The polled reads of the motion layer, in order; the cycle is complete when the last one is answered. */
@@ -63,11 +87,13 @@ export const POLL_TOKENS: readonly string[] = Object.freeze(['stat', 'hold', 've
 const LETTER: Readonly<Record<JogAxis, MotionAxisLetter>> = { x: 'X', y: 'Y', z: 'Z', a: 'A' };
 const JOG_AXES: readonly JogAxis[] = ['x', 'y', 'z', 'a'];
 
+/** Bases a homing or G28.3 read-back settles into idle (or CONNECTED_UNKNOWN). */
+const SETTLE_BASES: ReadonlySet<SessionBase> = new Set(['HOMING', 'CONNECTED_UNKNOWN', 'IDLE_UNHOMED', 'IDLE_HOMED']);
 const ALARMED: ReadonlySet<MachineClass> = new Set(['alarm', 'softAlarm', 'shutdown', 'panic']);
 /** Bases an alarm report moves to ALARM. */
-const ALARMABLE: ReadonlySet<SessionBase> = new Set(['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HELD', 'STOPPING_JOB']);
+const ALARMABLE: ReadonlySet<SessionBase> = new Set(['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HOMING', 'HELD', 'STOPPING_JOB']);
 /** Bases a Stop job in a motion session may start from (anything else keeps the Phase 1 `!` only). */
-const STOPPABLE: ReadonlySet<SessionBase> = new Set(['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HELD', 'STOPPING_JOB', 'CONNECTED_UNKNOWN']);
+const STOPPABLE: ReadonlySet<SessionBase> = new Set(['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HOMING', 'HELD', 'STOPPING_JOB', 'CONNECTED_UNKNOWN']);
 
 /** The reducer's transition, as this module uses it. */
 export interface MotionTx {
@@ -152,6 +178,27 @@ function message(t: MotionTx, kind: NonNullable<SessionState['notices']['motion'
   t.set({ notices: { ...t.s.notices, motion: { kind, text, at } } });
 }
 
+/** The single read-back after run changed a value (amendment 2026-11-02), through the read allowlist. */
+function readBack(t: MotionTx, tokens: readonly string[], then?: FollowUp): void {
+  const d = dialect(t.s);
+  const reads: PendingRead[] = tokens.filter((tok) => isReadAllowed(d.id, tok)).map((token) => ({ token, purpose: 'seed' as const }));
+  const last = reads.at(-1);
+  if (then !== undefined && last !== undefined) reads[reads.length - 1] = { ...last, then };
+  t.set({ queue: [...t.s.queue, ...reads] });
+}
+
+/** `G5x` of the active system (`coor` 1..6), or null when it is not known or G53. */
+export function activeSystem(s: SessionState): number | null {
+  const coor = s.live.coor;
+  return coor !== undefined && Number.isInteger(coor) && coor >= 1 && coor <= 6 ? coor : null;
+}
+
+/** Plain names: "X, Y and Z". */
+function axisNames(axes: readonly JogAxis[]): string {
+  const n = axes.map((a) => LETTER[a]);
+  return n.length <= 1 ? (n[0] ?? '') : `${n.slice(0, -1).join(', ')} and ${n.at(-1) as string}`;
+}
+
 /** Asks for one poll cycle unless one is already waiting or owed. */
 export function requestPoll(t: MotionTx): void {
   const s = t.s;
@@ -173,9 +220,21 @@ function newCtx(s: SessionState, op: MotionCtx['op']): MotionCtx {
   return { op, phase: 'feed', jog: null, steps: [], reason: null, confirmed: 0, deadline: null, units: s.live.unit, returnTo: s.base === 'CONNECTED_UNKNOWN' ? s.base : 'IDLE_UNHOMED', refusal: null, holdPolls: 0, queued: 0 };
 }
 
+/**
+ * A change that moves nothing (G10 L20, G92, G92.1, G28.3, G54..G59): the line, then polled idle (two reads), then
+ * its single read-back. The base stays where it is; the motion context only keeps other motion out meanwhile.
+ */
+function startChange(t: MotionTx, change: ChangeKind, line: string, intent: Intent, axes: readonly JogAxis[] = []): Decision {
+  t.set({ motion: { ...newCtx(t.s, 'change'), phase: 'drain', change, axes: [...axes], returnTo: t.s.base } });
+  queueLine(t, line, intent);
+  requestPoll(t);
+  tick(t);
+  return ALLOWED;
+}
+
 /** Where a motion returns: CONNECTED_UNKNOWN if it started there, else the idle base for the homing state. */
 function returnBase(ctx: MotionCtx, s: SessionState): SessionBase {
-  return ctx.returnTo === 'CONNECTED_UNKNOWN' ? 'CONNECTED_UNKNOWN' : idleBase(s);
+  return ctx.returnTo === 'CONNECTED_UNKNOWN' && s.overlays.length > 0 ? 'CONNECTED_UNKNOWN' : idleBase(s);
 }
 
 // --- Intents ------------------------------------------------------------------
@@ -250,10 +309,57 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       return ALLOWED;
     }
     case 'setWorkZero': {
-      // The matrix allows this only from idle, and an idle base never has a motion running.
+      const pre = precondition(s);
+      if (pre !== undefined) return pre;
       if (!validAxisList(request.axes)) return deny('Set zero names one or more of X, Y, Z and A.', 'Choose an axis.');
-      queueLine(t, setZeroLine(request.axes.map((a) => LETTER[a])), 'setWorkZero');
+      const system = activeSystem(s);
+      if (system === null) return deny('The active work coordinate system is not known (or is G53).', 'Select G54 to G59 first.');
+      // G10 L20 in the ACTIVE system, saved on the controller (C16); then its offsets are read back.
+      return startChange(t, 'setZero', setZeroLine(request.axes.map((a) => LETTER[a]), system), 'setWorkZero', request.axes);
+    }
+    case 'home': {
+      const pre = precondition(s);
+      if (pre !== undefined) return pre;
+      // Defence in depth: the matrix allows home only in these bases (HOMING always has a motion, refused above), and a
+      // board that is not motion-capable carries READ_ONLY, which the matrix denies.
+      /* c8 ignore start */
+      if (!motionCapable(s, t.config)) return deny('This board is not approved for motion in this session.', 'Use an approved firmware build.');
+      if (s.base !== 'IDLE_UNHOMED' && s.base !== 'IDLE_HOMED' && s.base !== 'CONNECTED_UNKNOWN') return deny('Homing starts only while the machine is idle.', 'Wait until the machine is idle.');
+      /* c8 ignore stop */
+      if (!validAxisList(request.axes)) return deny('Home names one or more of X, Y, Z and A.', 'Choose an axis.');
+      const config = homingAxes(sessionSettings(dialect(s).id, s.values));
+      const missing = request.axes.filter((a) => !config[a].configured);
+      if (missing.length > 0) {
+        const why = missing.map((a) => `${LETTER[a]}: ${config[a].reason as string}`).join('; ');
+        return deny(`Homing is not configured for ${axisNames(missing)} (${why}).`, 'Configure the homing switch and search speed in the Board view, or set the machine position here (G28.3) on a machine without switches.');
+      }
+      t.set({ motion: { ...newCtx(s, 'home'), phase: 'homing', axes: [...request.axes], seen: false }, base: 'HOMING' });
+      queueLine(t, homeLine(request.axes.map((a) => LETTER[a])), 'home');
+      requestPoll(t);
+      t.arm('motion', MOTION_LIMITS.homingCheckMs);
       return ALLOWED;
+    }
+    case 'setMachinePosition': {
+      const pre = precondition(s);
+      if (pre !== undefined) return pre;
+      /* c8 ignore next -- defence in depth, as for home */
+      if (!motionCapable(s, t.config)) return deny('This board is not approved for motion in this session.', 'Use an approved firmware build.');
+      if (!validAxisList(request.axes)) return deny('Set machine position names one or more of X, Y, Z and A.', 'Choose an axis.');
+      return startChange(t, 'setPosition', setPositionLine(request.axes.map((a) => LETTER[a])), 'setMachinePosition', request.axes);
+    }
+    case 'tempOffset': {
+      const pre = precondition(s);
+      if (pre !== undefined) return pre;
+      if ('clear' in request) return startChange(t, 'clearTempOffset', CLEAR_TEMP_OFFSET_LINE, 'tempOffset');
+      if (!validAxisList(request.axes)) return deny('A temporary offset names one or more of X, Y, Z and A.', 'Choose an axis.');
+      return startChange(t, 'tempOffset', tempOffsetLine(request.axes.map((a) => LETTER[a])), 'tempOffset', request.axes);
+    }
+    case 'selectCoordSystem': {
+      const pre = precondition(s);
+      if (pre !== undefined) return pre;
+      const system = request.system;
+      if (typeof system !== 'number' || !Number.isInteger(system) || system < 1 || system > 6) return deny('Choose G54 to G59.', 'Choose G54 to G59.');
+      return startChange(t, 'selectCoord', selectCoordLine(system), 'selectCoordSystem');
     }
     case 'spindleOn': {
       // As setWorkZero: idle only, so nothing else is moving.
@@ -290,22 +396,18 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       return ALLOWED;
     }
     default: {
-      // positionVerify (the reducer passes nothing else here).
-      if (!motionCapable(s, t.config)) return deny('This board is not approved for motion in this session.', 'Use an approved firmware build.');
+      // positionVerify (the reducer passes nothing else here). The user has checked the machine: UNKNOWN clears.
+      // Without motion (a read-only release or board) the base stays CONNECTED_UNKNOWN; nothing moves either way.
       const overlays = s.overlays.filter((o) => o !== 'UNKNOWN');
-      t.set({ overlays, base: idleBase(s) });
+      t.set({ overlays, base: motionCapable(s, t.config) && overlays.length === 0 ? idleBase(s) : s.base });
       return ALLOWED;
     }
   }
 }
 
-/** Machine Z, mm: from a status report's `mpoz`, else from the polled `mpo` group (SAFETY §4.2). */
+/** Machine Z, mm: from the connect-time read of `mpo`, then from pushed reports (amendment 2026-11-02). */
 function machineZ(s: SessionState): number | undefined {
-  if (s.live.mpo.z !== undefined) return s.live.mpo.z;
-  const group = s.values['mpo'];
-  const value = group?.status === 0 ? group.value : null;
-  const z = typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>)['z'] : undefined;
-  return typeof z === 'number' && Number.isFinite(z) ? z : undefined;
+  return s.live.mpo.z;
 }
 
 /** Sends the next jog piece when fewer than the lookahead are believed queued and nothing is being written. */
@@ -365,6 +467,11 @@ export function onMotionStop(t: MotionTx, request: SessionIntent, at: number): b
   if (request.intent === 'feedhold') {
     if ('release' in request) {
       if (ctx !== null && ctx.jog !== null && ctx.jog.remainingMm === null && ctx.phase === 'feed') beginHold(t, 'release', at); // a hold jog is fed until released
+      return true;
+    }
+    if (ctx !== null && ctx.phase === 'homing') {
+      // Pause during homing ends it (hold, then flush): a homing cycle is not resumed (amendment 2026-11-02).
+      beginHold(t, 'homeAbort', at);
       return true;
     }
     if (ctx !== null && (ctx.phase === 'feed' || ctx.phase === 'drain')) {
@@ -467,6 +574,22 @@ export function onPollDone(t: MotionTx, at: number): void {
       finish(t, at);
       return;
     }
+    case 'homing': {
+      const resting = atRest(s) && motionLinesSettled(s);
+      const cls = machineClass(s);
+      const seen = ctx.seen === true || cls === 'homing' || (s.live.vel !== undefined && s.live.vel !== 0);
+      const confirmed = confirm(resting);
+      // Done after two polled reads at rest, once the cycle was seen running (or three in a row: it ended unseen).
+      if (confirmed < MOTION_LIMITS.confirmations || (!seen && confirmed < MOTION_LIMITS.confirmations + 1)) {
+        setMotion(t, { confirmed, seen });
+        if (confirmed > 0) requestPoll(t);
+        return;
+      }
+      setMotion(t, { phase: 'readback', confirmed: 0, seen });
+      t.cancel('motion');
+      readBack(t, ['hom', 'mpo', 'pos', 'ofs', 'home'], 'homed');
+      return;
+    }
     case 'flush': {
       const confirmed = confirm(s.live.hold === 0 && s.live.qr === planner(s) && motionLinesSettled(s));
       if (confirmed < MOTION_LIMITS.confirmations) {
@@ -496,13 +619,72 @@ function finish(t: MotionTx, at: number): void {
   if (lines.length === 0) complete(t, at);
 }
 
+/** The read-back of each change (amendment 2026-11-02): what it changed, read once. */
+const CHANGE_READBACK: Readonly<Record<ChangeKind, (s: SessionState) => readonly string[]>> = {
+  setZero: (s) => [`g${53 + (activeSystem(s) as number)}`, 'ofs', 'pos'],
+  setPosition: () => ['mpo', 'pos', 'hom', 'ofs', 'home'],
+  tempOffset: () => ['g92', 'ofs', 'pos'],
+  clearTempOffset: () => ['g92', 'ofs', 'pos'],
+  selectCoord: () => ['coor', 'ofs', 'pos', 'g54', 'g55', 'g56', 'g57', 'g58', 'g59'],
+};
+
+const CHANGE_DONE: Readonly<Record<ChangeKind, (axes: string) => string>> = {
+  setZero: (axes) => `Work zero set for ${axes} (saved on the controller); offsets read back.`,
+  setPosition: (axes) => `Machine position set to 0 here for ${axes} (G28.3); position read back.`,
+  tempOffset: (axes) => `Temporary offset set: ${axes} read 0 here (G92, not saved).`,
+  clearTempOffset: () => 'Temporary offset cleared (G92.1).',
+  selectCoord: () => 'Work coordinate system changed; offsets read back.',
+};
+
 function complete(t: MotionTx, at: number): void {
   const ctx = t.s.motion as MotionCtx;
   t.set({ motion: null, base: returnBase(ctx, t.s) });
   t.cancel('motion');
+  if (ctx.op === 'change' && ctx.reason === null && ctx.refusal === null) {
+    const change = ctx.change as ChangeKind;
+    readBack(t, CHANGE_READBACK[change](t.s), change === 'setPosition' ? 'positionSet' : undefined);
+    changeNotice(t, 'done', CHANGE_DONE[change](axisNames(ctx.axes as readonly JogAxis[])), at);
+  }
+  if (ctx.op === 'home') {
+    // Homing ended by Pause, Stop job or a refusal: the machine is not homed. Read the homing state back.
+    readBack(t, ['hom', 'mpo', 'pos', 'home']);
+    if (ctx.reason === 'homeAbort') changeNotice(t, 'failed', 'Homing stopped by Pause. The machine is not homed: home again before relying on positions.', at);
+  }
   if (ctx.reason === 'stopJob') message(t, 'stopped', STOP_TEXT.stopped, at);
   else if (ctx.reason === 'keepalive') message(t, 'failed', 'Jog stopped: the page stopped holding the button.', at);
   else if (ctx.refusal !== null) message(t, 'refused', ctx.refusal, at);
+}
+
+function changeNotice(t: MotionTx, kind: 'done' | 'refused' | 'failed', text: string, at: number): void {
+  t.set({ notices: { ...t.s.notices, change: { kind, text, at } } });
+}
+
+/**
+ * A follow-up after the last read-back of a homing (`homed`) or a G28.3 (`positionSet`): with all of X, Y and Z
+ * homed (`home` 1) the position is trusted, so UNKNOWN clears and the base is IDLE_HOMED.
+ */
+export function onFollowUp(t: MotionTx, then: FollowUp, at: number): void {
+  const s = t.s;
+  const homed = s.live.home === 1;
+  if (homed && s.overlays.includes('UNKNOWN')) t.set({ overlays: s.overlays.filter((o) => o !== 'UNKNOWN') });
+  const ctx = s.motion;
+  if (then === 'homed' && ctx !== null && ctx.op === 'home' && ctx.phase === 'readback') {
+    const axes = axisNames(ctx.axes as readonly JogAxis[]);
+    t.set({ motion: null });
+    changeNotice(t, homed ? 'done' : 'failed', homed ? `Homed ${axes}. Machine position is set from the switches.` : `Homing of ${axes} ended, but the board does not report X, Y and Z all homed.`, at);
+  }
+  // Nothing else of ours runs and the base is idle-class (an alarm meanwhile has moved it to ALARM): follow the homing state.
+  if (t.s.motion !== null || !SETTLE_BASES.has(t.s.base)) return;
+  t.set({ base: t.s.overlays.length === 0 ? idleBase(t.s) : 'CONNECTED_UNKNOWN' });
+}
+
+/** A pushed status report during homing: a resting or alarmed state asks for confirming polls (pushed stat is never proof). */
+export function onMotionReport(t: MotionTx, sr: Readonly<Record<string, unknown>>, _at: number): void {
+  const ctx = t.s.motion;
+  if (ctx === null || ctx.phase !== 'homing' || !('stat' in sr) || t.s.dialect === null) return;
+  const cls = machineClass(t.s);
+  if (cls === 'homing') setMotion(t, { seen: true });
+  else requestPoll(t);
 }
 
 /** A motion line was answered. A non-zero status ends the motion (the board refused it). */
@@ -510,6 +692,14 @@ export function onMotionAnswer(t: MotionTx, line: string | undefined, status: nu
   const ctx = t.s.motion;
   if (status !== 0) {
     const text = `The controller refused ${String(line)} (status ${status}).`;
+    if (ctx !== null && (ctx.op === 'change' || (ctx.op === 'home' && ctx.phase === 'homing'))) {
+      // Nothing was started: end without a hold, and say why.
+      t.set({ motion: null, base: returnBase(ctx, t.s), queue: t.s.queue.filter((q) => q.purpose !== 'motion' && q.purpose !== 'poll') });
+      t.cancel('motion');
+      changeNotice(t, 'refused', text, at);
+      if (ctx.op === 'home') readBack(t, ['hom', 'home']);
+      return;
+    }
     if (ctx === null) {
       message(t, 'refused', text, at);
     } else {
@@ -532,6 +722,12 @@ export function onMotionTimer(t: MotionTx, deps: MotionDeps, at: number): void {
     t.set({ motion: null, base: returnBase(ctx, t.s), queue: t.s.queue.filter((q) => q.purpose !== 'motion' && q.purpose !== 'poll') });
     message(t, 'failed', 'Stop not confirmed: use your E-stop.', at);
     deps.fault(t, 'stopNotConfirmed', 'integrity', `the controller ${what} within ${MOTION_LIMITS.stopStepMs / 1000} s`, at);
+    return;
+  }
+  if (ctx.phase === 'homing') {
+    // The fallback check: a pushed report may have been missed (only one is pending at a time).
+    requestPoll(t);
+    t.arm('motion', MOTION_LIMITS.homingCheckMs);
     return;
   }
   const jog = ctx.jog;

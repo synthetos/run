@@ -216,17 +216,20 @@ describe('T-S8 (read-only subset): LOST, nothing written afterwards, UNKNOWN on 
 describe('T-S11 (idle subset) against the firmware models', () => {
   it('edge-next: an idle board answering ENQ stays fresh for a minute; 2 s of silence after an ENQ is STALE; recovery clears it', async () => {
     const silentFrom = 20_000;
-    const h = harness('en', { faults: { faults: [{ kind: 'latency', direction: 'toHost', fromMs: silentFrom, toMs: silentFrom + 6000, extraMs: 8000 }] } });
+    const h = harness('en', { faults: { faults: [{ kind: 'latency', direction: 'toHost', fromMs: silentFrom, toMs: silentFrom + 12_000, extraMs: 14_000 }] } });
     void h.session.connect(PORT);
     await h.run(silentFrom - 1);
     expect(h.session.snapshot.base).toBe('CONNECTED_UNKNOWN');
     expect(h.session.snapshot.overlays).not.toContain('STALE');
+    // Without the heartbeat (a Phase 1 session configures nothing) the fallback asks once per livenessIdleMs of
+    // silence (amendment 2026-11-02: not every second).
     const rt = h.session.snapshot.sent.realtime;
-    expect(rt).toBeGreaterThan(5);
+    expect(rt).toBeGreaterThanOrEqual(Math.floor((silentFrom - 5000) / livenessIdleMs) - 1);
+    expect(rt).toBeLessThanOrEqual(Math.ceil(silentFrom / livenessIdleMs));
     await h.run(livenessIdleMs + staleAfterMs + 1500);
     expect(h.session.snapshot.overlays).toContain('STALE');
     expect(h.session.snapshot.stale?.silentForMs).toBeGreaterThanOrEqual(staleAfterMs);
-    await h.run(10_000);
+    await h.run(30_000);
     expect(h.session.snapshot.overlays).not.toContain('STALE');
   });
 
@@ -237,7 +240,9 @@ describe('T-S11 (idle subset) against the firmware models', () => {
     expect(h.session.snapshot.base).toBe('CONNECTED_UNKNOWN');
     expect(h.session.snapshot.overlays).not.toContain('STALE');
     const writes = (h.transports[0]?.writes ?? []).map((w) => new TextDecoder().decode(w));
-    expect(writes.filter((w) => w === `{"${LIVENESS_TOKEN}":null}\n`).length).toBeGreaterThan(20);
+    const asks = writes.filter((w) => w === `{"${LIVENESS_TOKEN}":null}\n`).length;
+    expect(asks).toBeGreaterThan(5);
+    expect(asks).toBeLessThanOrEqual(Math.ceil(60_000 / livenessIdleMs) + 2);
     expect(writes.some((w) => w.includes('\u0005'))).toBe(false);
   });
 });

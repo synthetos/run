@@ -21,7 +21,8 @@
  */
 import { BYTE, SPLICE_GUARD_LINE } from '@synthetos/protocol';
 import { allowed, type Intent, type Release } from '@synthetos/safety';
-import { motionLineKind } from './motionLines.ts';
+import { LINE_INTENTS, motionLineKind, type MotionLineKind } from './motionLines.ts';
+import { reportLineShape } from './reports.ts';
 import { enqAllowedNow, matrixSnapshot, readableNow } from './reducer.ts';
 import { SETTING_LINE, settingRefusal } from './settingWrite.ts';
 import type { SessionState } from './types.ts';
@@ -41,10 +42,18 @@ export interface WriteContext {
    * write the session is making now. Absent: no settings line is ever accepted.
    */
   readonly settingWritable?: (token: string, value: number) => boolean;
+  /**
+   * Report configuration (amendment 2026-11-02, H64): true when exactly this line is the configuration step the
+   * session is making now. Absent: no configuration line is ever accepted.
+   */
+  readonly reportWritable?: (line: string) => boolean;
 }
 
 /** `motion`, `flush`, `resume`: Phase 2. `setting`: one single-token settings write, its own command kind (SAFETY §4.6, amendment 2026-11-02). */
-export type WriteVerdict = { readonly ok: true; readonly kind: 'get' | 'feedhold' | 'enq' | 'flush' | 'resume' | 'motion' | 'setting'; readonly token?: string } | { readonly ok: false; readonly reason: string };
+/** `report`: one line of the session's status-report configuration (amendment 2026-11-02). */
+export type WriteVerdict =
+  | { readonly ok: true; readonly kind: 'get' | 'feedhold' | 'enq' | 'flush' | 'resume' | 'motion' | 'setting' | 'report'; readonly token?: string; readonly lineKind?: MotionLineKind }
+  | { readonly ok: false; readonly reason: string };
 
 const MAX_MOTION_LINE_BYTES = 64;
 
@@ -60,6 +69,9 @@ const MAX_GET_LINE_BYTES = 32;
 /** Longest settings write line: `{"` + 8-byte key + `":` + a 21-byte number + `}` + LF. */
 const MAX_SETTING_LINE_BYTES = 40;
 
+/** Longest report-configuration line (the status report list), LF included: under the 254-byte JSON line. */
+const MAX_REPORT_LINE_BYTES = 255;
+
 /** Decide one write. Pure; never throws. */
 export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): WriteVerdict {
   if (bytes.length === 1) {
@@ -70,11 +82,18 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
     if (context.motion === true && b === BYTE.RESUME) return { ok: true, kind: 'resume' };
     return { ok: false, reason: `realtime byte 0x${(b as number).toString(16).padStart(2, '0')} is never written in this release` };
   }
-  if (bytes.length === 0 || bytes.length > Math.max(MAX_SETTING_LINE_BYTES, context.motion === true ? MAX_MOTION_LINE_BYTES : MAX_GET_LINE_BYTES)) return { ok: false, reason: `a ${bytes.length}-byte write is not a GET, settings or motion line` };
+  const longest = Math.max(MAX_SETTING_LINE_BYTES, context.motion === true ? MAX_MOTION_LINE_BYTES : MAX_GET_LINE_BYTES, context.reportWritable === undefined ? 0 : MAX_REPORT_LINE_BYTES);
+  if (bytes.length === 0 || bytes.length > longest) return { ok: false, reason: `a ${bytes.length}-byte write is not a GET, settings, report or motion line` };
   let text = '';
   for (const b of bytes) {
     if (b > 0x7e || (b < 0x20 && b !== 0x0a)) return { ok: false, reason: 'a GET line is printable ASCII ending in LF' };
     text += String.fromCharCode(b);
+  }
+  // The report-configuration kind: one of its exact shapes, and exactly the step in progress.
+  if (text.endsWith('\n') && reportLineShape(text.slice(0, -1))) {
+    if (context.reportWritable === undefined) return { ok: false, reason: 'report configuration is not allowed in this release' };
+    if (!context.reportWritable(text.slice(0, -1))) return { ok: false, reason: `${JSON.stringify(text.slice(0, 32))} is not the report configuration step the session is making now` };
+    return { ok: true, kind: 'report' };
   }
   const setting = SETTING_LINE.exec(text);
   if (setting !== null) {
@@ -91,7 +110,8 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
   const match = GET_LINE.exec(text);
   if (match !== null && context.readable(match[1] as string)) return { ok: true, kind: 'get', token: match[1] as string };
   // The motion command kind: exactly one line of the closed grammar, and only with a motion release.
-  if (context.motion === true && text.endsWith('\n') && motionLineKind(text.slice(0, -1)) !== undefined) return { ok: true, kind: 'motion' };
+  const lineKind = context.motion === true && text.endsWith('\n') ? motionLineKind(text.slice(0, -1)) : undefined;
+  if (lineKind !== undefined) return { ok: true, kind: 'motion', lineKind };
   if (match === null) return { ok: false, reason: `not a single-token GET: ${JSON.stringify(text.slice(0, 32))}` };
   return { ok: false, reason: `"${match[1] as string}" is not readable now (not on the probe list or the dialect's read allowlist)` };
 }
@@ -101,9 +121,23 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
  * `motion` (a motion line), `flush` (`%`) and `resume` (`~`) against the intent that issued them;
  * `settingsWrite` (a settings line) against `settingsWrite`.
  */
-export type WriteIntent = 'read' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'settingsWrite';
+export type WriteIntent = 'read' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'settingsWrite' | 'configureReports';
 
-const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'setting'>> = { read: 'get', feedhold: 'feedhold', enq: 'enq', motion: 'motion', flush: 'flush', resume: 'resume', settingsWrite: 'setting' };
+const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'setting' | 'report'>> = {
+  read: 'get',
+  feedhold: 'feedhold',
+  enq: 'enq',
+  motion: 'motion',
+  flush: 'flush',
+  resume: 'resume',
+  settingsWrite: 'setting',
+  configureReports: 'report',
+};
+
+/** True when `line` is exactly the report-configuration step `state` is making. */
+export function reportWritableIn(state: SessionState, line: string): boolean {
+  return state.reports.phase === 'configuring' && state.reports.step?.line === line;
+}
 
 /** True when `token` = `value` is exactly the settings write `state` is making (phase writing, same key and value, still allowed by the schema). */
 export function settingWritableIn(state: SessionState, token: string, value: number): boolean {
@@ -132,7 +166,7 @@ export function checkWrite(
   intent: WriteIntent,
   issuedBy?: Intent,
 ): { readonly kind: 'denied' | 'refused'; readonly reason: string } | undefined {
-  const matrixIntent: Intent | undefined = intent === 'read' || intent === 'feedhold' || intent === 'enq' || intent === 'settingsWrite' ? intent : issuedBy;
+  const matrixIntent: Intent | undefined = intent === 'read' || intent === 'feedhold' || intent === 'enq' || intent === 'settingsWrite' || intent === 'configureReports' ? intent : issuedBy;
   if (matrixIntent === undefined) return { kind: 'refused', reason: `a ${intent} write names no issuing intent` };
   const decision = allowed(matrixSnapshot(current), matrixIntent, release);
   if (!decision.allowed) return { kind: 'denied', reason: `not written: the allow-matrix denies ${matrixIntent} now (${decision.reason})` };
@@ -141,8 +175,11 @@ export function checkWrite(
     enqAllowed: enqAllowedNow(current),
     motion: release.motion,
     ...(release.settings === true ? { settingWritable: (token: string, value: number) => settingWritableIn(current, token, value) } : {}),
+    ...(release.reports === true ? { reportWritable: (line: string) => reportWritableIn(current, line) } : {}),
   });
   if (!verdict.ok) return { kind: 'refused', reason: verdict.reason };
   if (verdict.kind !== VERDICT_FOR[intent]) return { kind: 'refused', reason: `a ${verdict.kind} write was issued as ${intent}` };
+  // A motion line only from an intent that may send its kind (amendment 2026-11-02, T-S94).
+  if (verdict.lineKind !== undefined && !LINE_INTENTS[verdict.lineKind].includes(matrixIntent)) return { kind: 'refused', reason: `a ${verdict.lineKind} line was issued by ${matrixIntent}` };
   return undefined;
 }

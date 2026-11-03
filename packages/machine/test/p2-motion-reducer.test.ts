@@ -75,15 +75,18 @@ describe('connect in a motion session', () => {
     expect(d.state.base).toBe('IDLE_HOMED');
   });
 
-  it('after a reconnect (UNKNOWN) motion waits for "I\'ve checked the machine"; Phase 1 refuses that', () => {
+  it('after a reconnect (UNKNOWN) motion waits for "I\'ve checked the machine"; in Phase 1 it only clears UNKNOWN', () => {
     const d = connected({}, { unknown: true });
     expect(d.state.base).toBe('CONNECTED_UNKNOWN');
     expect(d.state.overlays).toEqual(['UNKNOWN']);
     expect(req(d, { intent: 'positionVerify' }).allowed).toBe(true);
     expect(d.state.base).toBe('IDLE_UNHOMED');
     expect(d.state.overlays).toEqual([]);
+    // Never a trap (amendment 2026-11-02): without motion the acknowledgement clears UNKNOWN and nothing moves.
     const p1 = connected({}, { release: PHASE_1_RELEASE, unknown: true });
-    expect(req(p1, { intent: 'positionVerify' })).toMatchObject({ allowed: false });
+    expect(req(p1, { intent: 'positionVerify' })).toMatchObject({ allowed: true });
+    expect(p1.state.overlays).not.toContain('UNKNOWN');
+    expect(p1.state.base).toBe('CONNECTED_UNKNOWN');
   });
 
   it('an alarm report while idle or jogging ends the motion and moves to ALARM', () => {
@@ -167,8 +170,9 @@ describe('refusals, timeouts and damaged answers', () => {
     const z = connected();
     req(z, { intent: 'setWorkZero', axes: ['x'] });
     z.answer(answers({ gc: '{"r":{},"f":[3,130,10]}' }));
-    expect(z.state.notices.motion).toMatchObject({ kind: 'refused' });
-    expect(z.state.notices.motion?.text).toContain('G10 L20 P1 X0');
+    expect(z.state.notices.change).toMatchObject({ kind: 'refused' });
+    expect(z.state.notices.change?.text).toContain('G10 L20 P1 X0');
+    expect(z.state.motion).toBeNull();
   });
 
   it('a hold that is never reported is W12: FAULT stopNotConfirmed after the stop step time', () => {
@@ -358,10 +362,33 @@ describe('T-S94: the motion command kind of the write gate and the line grammar'
   const enc = (t: string) => new TextEncoder().encode(t);
 
   it('admits each shape with a motion release, and nothing without one', () => {
-    const lines = ['G21 G91 G1 X0.1 F600', 'G21 G91 G1 X-1 Y2 Z0.5 A3 F5000', 'G90', 'G90 G20', 'G53 G0 Z-1.5', 'G90 G0 X0 Y0', 'G10 L20 P1 Z0', 'M3 S12000', 'M4 S1', 'M5', 'M7', 'M8', 'M9', '{"clear":null}'];
+    const lines = [
+      'G21 G91 G1 X0.1 F600',
+      'G21 G91 G1 X-1 Y2 Z0.5 A3 F5000',
+      'G90',
+      'G90 G20',
+      'G53 G0 Z-1.5',
+      'G90 G0 X0 Y0',
+      'G10 L20 P1 Z0',
+      'G10 L20 P6 X0 Y0',
+      'G28.2 X0 Y0 Z0',
+      'G28.2 Z0',
+      'G28.3 X0 Y0 Z0 A0',
+      'G92 X0 Y0',
+      'G92.1',
+      'G54',
+      'G59',
+      'M3 S12000',
+      'M4 S1',
+      'M5',
+      'M7',
+      'M8',
+      'M9',
+      '{"clear":null}',
+    ];
     for (const l of lines) {
       expect(motionLineKind(l), l).toBeDefined();
-      expect(phase1WriteVerdict(enc(`${l}\n`), { ...ctx, motion: true }), l).toEqual({ ok: true, kind: 'motion' });
+      expect(phase1WriteVerdict(enc(`${l}\n`), { ...ctx, motion: true }), l).toEqual({ ok: true, kind: 'motion', lineKind: motionLineKind(l) });
       expect(phase1WriteVerdict(enc(`${l}\n`), ctx).ok, l).toBe(false);
     }
     expect(phase1WriteVerdict(Uint8Array.of(BYTE.FLUSH), { ...ctx, motion: true })).toEqual({ ok: true, kind: 'flush' });
@@ -384,11 +411,21 @@ describe('T-S94: the motion command kind of the write gate and the line grammar'
       'G90 G0 X1',
       'G10 L20 P1',
       'G10 L2 P1 X0',
-      'G10 L20 P2 X0',
+      'G10 L20 P7 X0',
+      'G10 L20 P0 X0',
+      'G28.2',
+      'G28.2 X1',
+      'G28.3 Z5',
+      'G28.1',
+      'G92 X1',
+      'G92',
+      'G92.2',
+      'G92.3',
+      'G53',
+      'G60',
       `M3 S${MAX_RPM + 1}`,
       'M3',
       'M6',
-      'G92 X0',
       'G0 X10',
       'G28',
       'M3 S1000 (x',
@@ -419,6 +456,7 @@ describe('T-S94: the motion command kind of the write gate and the line grammar'
     expect(restoreLine(1)).toBe('G90');
     expect(toZeroLine(['Y', 'X'])).toBe('G90 G0 X0 Y0');
     expect(setZeroLine(['Z', 'A'])).toBe('G10 L20 P1 Z0 A0');
+    expect(setZeroLine(['X'], 3)).toBe('G10 L20 P3 X0');
   });
 
   it('checkWrite: a motion write must name its issuing intent; under Phase 1 it is denied by the matrix', () => {
@@ -427,5 +465,9 @@ describe('T-S94: the motion command kind of the write gate and the line grammar'
     expect(checkWrite(d.state, d.state, PHASE_2_RELEASE, enc('M5\n'), 'motion', 'spindleOffNow')).toBeUndefined();
     expect(checkWrite(d.state, d.state, PHASE_1_RELEASE, enc('G90\n'), 'motion', 'jog')).toMatchObject({ kind: 'denied' });
     expect(checkWrite(d.state, d.state, PHASE_2_RELEASE, enc('G0 X1\n'), 'motion', 'jog')).toMatchObject({ kind: 'refused' });
+    // A line only from an intent that may send its kind (amendment 2026-11-02): no G28.2 as a jog, no M3 as a stop.
+    expect(checkWrite(d.state, d.state, PHASE_2_RELEASE, enc('G28.2 X0\n'), 'motion', 'jog')).toMatchObject({ kind: 'refused', reason: 'a home line was issued by jog' });
+    expect(checkWrite(d.state, d.state, PHASE_2_RELEASE, enc('M3 S100\n'), 'motion', 'stopJob')).toMatchObject({ kind: 'refused' });
+    expect(checkWrite(d.state, d.state, PHASE_2_RELEASE, enc('G92.1\n'), 'motion', 'tempOffset')).toBeUndefined();
   });
 });

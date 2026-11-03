@@ -11,7 +11,7 @@
 import { OVERLAYS, type Overlay } from '@synthetos/safety';
 import { PROBE_STEPS, type FooterRev } from '@synthetos/protocol';
 import type { TransportInfo } from '../transport.ts';
-import type { ClassificationInfo, FaultInfo, Identity, LiveState, ReadValue, SessionBase, SessionNotices, SessionState, SettingWriteState } from './types.ts';
+import type { ClassificationInfo, FaultInfo, Identity, LinkWindow, LiveState, ReadValue, ReportChange, SessionBase, SessionNotices, SessionState, SettingWriteState } from './types.ts';
 
 /** Longest string from the board a snapshot carries. */
 export const SNAPSHOT_STRING_MAX = 200;
@@ -49,7 +49,14 @@ export interface SessionSnapshot {
    * Phase 2 (SAFETY §4.5b): the motion in progress, or null. `hold` is true for a press-and-hold jog;
    * `held` once a Pause of it is confirmed by polled reads (Resume is offered then).
    */
-  readonly motion: { readonly op: 'jog' | 'goToZero' | 'stop'; readonly phase: string; readonly hold: boolean; readonly held: boolean; readonly stopping: boolean } | null;
+  readonly motion: { readonly op: 'jog' | 'goToZero' | 'home' | 'change' | 'stop'; readonly phase: string; readonly hold: boolean; readonly held: boolean; readonly stopping: boolean } | null;
+  /**
+   * The connect-time read and status-report configuration (amendment 2026-11-02, H64): its phase, the heartbeat in
+   * force, and every reporting setting run changed (and saved) on this board (W35, W36).
+   */
+  readonly reports: { readonly phase: string; readonly heartbeatMs: number | null; readonly changes: readonly ReportChange[]; readonly detail: string | null };
+  /** The liveness window: the page shows freshness, and "No reports from the board", against it. */
+  readonly link: LinkWindow;
 }
 
 function cap(s: string): string {
@@ -104,6 +111,8 @@ export function snapshotOf(state: SessionState): SessionSnapshot {
             held: state.motion.phase === 'held',
             stopping: state.motion.phase === 'hold' || state.motion.phase === 'flush' || state.motion.reason === 'stopJob',
           },
+    reports: { phase: state.reports.phase, heartbeatMs: state.reports.heartbeatMs, changes: state.reports.changes, detail: state.reports.detail === null ? null : cap(state.reports.detail) },
+    link: state.link,
   });
 }
 

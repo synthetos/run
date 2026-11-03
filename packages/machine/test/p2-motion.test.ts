@@ -6,7 +6,7 @@
 import type { ApprovedBuilds } from '@synthetos/protocol';
 import { PHASE_1_RELEASE, PHASE_2_RELEASE, STOP_TEXT } from '@synthetos/safety';
 import { describe, expect, it } from 'vitest';
-import { MOTION_LIMITS, PositionPoller, type SessionIntent } from '../src/index.ts';
+import { MOTION_LIMITS, type SessionIntent } from '../src/index.ts';
 import { harness, type Harness } from './sessionHarness.ts';
 import { PORT, shown } from './simTransport.ts';
 
@@ -236,8 +236,8 @@ describe('T-S90: stop sequence, Pause and Resume', () => {
 describe('T-S91: go to zero, set zero', () => {
   it('raises Z first in machine coordinates (never lower), then X and Y, then Z, each after idle', async () => {
     const h = await connected();
-    expect(req(h, { intent: 'goToZero', axes: ['x'], safeZ: 0 })).toMatchObject({ allowed: false, reason: 'The machine Z position is not known yet.' });
-    new PositionPoller(h.session, h.clock).start();
+    // Machine position is known from the connect-time read and then from pushed reports (no poller).
+    expect(h.session.snapshot.live.mpo.z).toBe(0);
     req(h, { intent: 'jog', axes: { x: 1, y: 1 }, distanceMm: 5, feed: 3000 });
     await h.run(3000);
     req(h, { intent: 'setWorkZero', axes: ['x', 'y', 'z'] });
@@ -249,7 +249,7 @@ describe('T-S91: go to zero, set zero', () => {
     expect(req(h, { intent: 'goToZero', axes: ['x', 'y', 'z'], safeZ: -5 }).allowed).toBe(true);
     await h.run(5000);
     // safeZ -5 is below the current machine Z (-2): Z is not lowered, it stays at -2 first.
-    expect(motionWrites(h, from).filter((w) => w !== '{"mpo":null}\\n')).toEqual(['G53 G0 Z-2\\n', 'G90 G0 X0 Y0\\n', 'G90 G0 Z0\\n']);
+    expect(motionWrites(h, from)).toEqual(['G53 G0 Z-2\\n', 'G90 G0 X0 Y0\\n', 'G90 G0 Z0\\n']);
     expect(h.session.snapshot.live.pos).toMatchObject({ x: 0, y: 0, z: 0 });
     expect(h.session.snapshot.base).toBe('IDLE_UNHOMED');
   });

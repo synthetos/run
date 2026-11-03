@@ -191,6 +191,13 @@ describe('classify: StatusReport, QueueReport, Exception, Ack', () => {
     expect(garbledReason('{"er":{"st":1},"f":[3,0,11]}')).toBe('unrecognized-shape');
   });
 
+  it('Heartbeat only for exactly {"hb":{...}} (edge-next runtime heartbeat)', () => {
+    const line = '{"hb":{"stat":1,"hold":0,"up":1234,"qt":""}}';
+    expect(classifyLine(line)).toMatchObject({ kind: 'Heartbeat', line, hb: { stat: 1, hold: 0, up: 1234, qt: '' } });
+    expect(garbledReason('{"hb":1}')).toBe('bad-value');
+    expect(garbledReason('{"hb":{"stat":1},"x":1}')).toBe('unrecognized-shape');
+  });
+
   it('Ack only for {"ack":true}', () => {
     expect(classifyLine('{"ack":true}')).toEqual({ kind: 'Ack', line: '{"ack":true}' });
     expect(classifyLine('{ack:t}')).toMatchObject({ kind: 'Ack' });

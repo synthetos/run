@@ -31,7 +31,7 @@ import {
 } from '../src/index.ts';
 import { runs } from './sanitizeHelpers.ts';
 
-const OPEN: Release = { name: 'all gates open', motion: true, write: true, port: true, settings: true };
+const OPEN: Release = { name: 'all gates open', motion: true, write: true, port: true, settings: true, reports: true };
 
 /** Every subset of the overlays (2^7 = 128). */
 const OVERLAY_SETS: readonly (readonly Overlay[])[] = Array.from({ length: 1 << OVERLAYS.length }, (_, mask) =>
@@ -145,7 +145,7 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
     expect(allowed(snap('CONNECTED_UNKNOWN', ['UNKNOWN']), 'home', OPEN).allowed).toBe(true);
   });
 
-  it('under FAULT, ORPHANED_MOTION, LOST and UNKNOWN only reads, stops, recovery and (UNKNOWN only) home and position-verify', () => {
+  it('under FAULT, ORPHANED_MOTION, LOST and UNKNOWN only reads, stops, recovery and (UNKNOWN only) home, position-verify, set machine position and report configuration', () => {
     const allowedUnder = (o: Overlay): Set<Intent> => {
       const out = new Set<Intent>();
       for (const base of BASE_STATES) for (const i of INTENTS) if (allowed(snap(base, [o]), i, OPEN).allowed) out.add(i);
@@ -154,8 +154,11 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
     expect([...allowedUnder('FAULT')].sort()).toEqual(['ackFault', 'cloudSync', 'disconnect', 'enq', 'feedhold', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
     expect([...allowedUnder('ORPHANED_MOTION')].sort()).toEqual(['cloudSync', 'enq', 'feedhold', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
     expect([...allowedUnder('LOST')].sort()).toEqual(['acknowledgeLost', 'cloudSync']);
+    // Amendment 2026-11-02: the ways out of UNKNOWN are home, position-verify and, for a machine without homing
+    // switches, set machine position (G28.3); the session's status-report configuration moves nothing.
     expect([...allowedUnder('UNKNOWN')].sort()).toEqual([
       'cloudSync',
+      'configureReports',
       'disconnect',
       'enq',
       'feedhold',
@@ -163,6 +166,7 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
       'positionVerify',
       'read',
       'resetController',
+      'setMachinePosition',
       'spindleOffNow',
       'stopJob',
     ]);
@@ -171,6 +175,7 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
     expect([...allowedUnder('NEEDS_REVIEW')].sort()).toEqual([
       'applyProfile',
       'cloudSync',
+      'configureReports',
       'disconnect',
       'enq',
       'feedhold',
@@ -227,7 +232,7 @@ describe('Phase 0 release gate', () => {
     let gated = 0;
     for (const { s, intent } of cells()) {
       const kind = intentKind(intent);
-      if (kind !== 'motion' && kind !== 'write' && kind !== 'settings' && kind !== 'port') continue;
+      if (kind !== 'motion' && kind !== 'write' && kind !== 'settings' && kind !== 'reports' && kind !== 'port') continue;
       gated++;
       const d = allowed(s, intent);
       if (d.allowed || d.reason !== 'Not available in this release.' || !d.citation.includes('Phase 0')) {
@@ -241,7 +246,9 @@ describe('Phase 0 release gate', () => {
 
   it('every motion and write intent is classified as such', () => {
     const kinds = Object.fromEntries(INTENTS.map((i) => [i, intentKind(i)]));
-    for (const i of ['jog', 'home', 'start', 'resume', 'arm', 'consoleLine', 'spindleOn', 'setWorkZero', 'goToZero', 'clearAlarm']) expect(kinds[i], i).toBe('motion');
+    for (const i of ['jog', 'home', 'start', 'resume', 'arm', 'consoleLine', 'spindleOn', 'setWorkZero', 'goToZero', 'clearAlarm', 'setMachinePosition', 'tempOffset', 'selectCoordSystem']) expect(kinds[i], i).toBe('motion');
+    // The status-report configuration has its own gate (amendment 2026-11-02, H64).
+    expect(kinds['configureReports']).toBe('reports');
     for (const i of ['applyProfile', 'optionalStop', 'flash', 'resetController']) expect(kinds[i], i).toBe('write');
     // Settings writes have their own gate (amendment 2026-11-02).
     expect(kinds['settingsWrite']).toBe('settings');
@@ -260,7 +267,7 @@ describe('Phase 0 release gate', () => {
 
 describe('Phase 1 release gate (ROADMAP P1-02: read-only bench)', () => {
   /** Intents that can put bytes on the wire. */
-  const MACHINE = INTENTS.filter((i) => ['stop', 'read', 'recovery', 'motion', 'write', 'settings'].includes(intentKind(i)));
+  const MACHINE = INTENTS.filter((i) => ['stop', 'read', 'recovery', 'motion', 'write', 'settings', 'reports'].includes(intentKind(i)));
 
   it('of the intents that reach the machine, allows only read, enq (classified EN), ackFault (under FAULT) and the stop class', () => {
     const wrong: string[] = [];
@@ -284,7 +291,7 @@ describe('Phase 1 release gate (ROADMAP P1-02: read-only bench)', () => {
     const wrong: string[] = [];
     for (const { s, intent } of cells()) {
       const kind = intentKind(intent);
-      if (kind !== 'motion' && kind !== 'write' && kind !== 'settings') continue;
+      if (kind !== 'motion' && kind !== 'write' && kind !== 'settings' && kind !== 'reports') continue;
       const d = allowed(s, intent, PHASE_1_RELEASE);
       if (d.allowed || d.reason !== 'Not available in this release.' || !d.citation.includes('Phase 1')) wrong.push(`${s.base} ${intent}`);
     }
@@ -305,7 +312,7 @@ describe('Phase 1 release gate (ROADMAP P1-02: read-only bench)', () => {
 });
 
 describe('Phase 2 release gate (owner 2026-11-02: bench motion; SAFETY §4.5b, T-S92)', () => {
-  const MOTION_P2: readonly Intent[] = ['jog', 'goToZero', 'setWorkZero', 'spindleOn', 'clearAlarm', 'resume'];
+  const MOTION_P2: readonly Intent[] = ['jog', 'goToZero', 'setWorkZero', 'spindleOn', 'clearAlarm', 'resume', 'tempOffset', 'selectCoordSystem'];
 
   it('allows the Phase 2 motion intents only in their states with no overlay at all, and never a settings write', () => {
     const wrong: string[] = [];
@@ -321,6 +328,8 @@ describe('Phase 2 release gate (owner 2026-11-02: bench motion; SAFETY §4.5b, T
         spindleOn: ['IDLE_UNHOMED', 'IDLE_HOMED'],
         clearAlarm: ['ALARM'],
         resume: ['HELD', 'PROGRAM_PAUSED'],
+        tempOffset: ['IDLE_UNHOMED', 'IDLE_HOMED'],
+        selectCoordSystem: ['IDLE_UNHOMED', 'IDLE_HOMED'],
       };
       if (!(states[intent] as readonly string[]).includes(s.base)) wrong.push(`state ${s.base} ${intent}`);
     }
@@ -334,8 +343,35 @@ describe('Phase 2 release gate (owner 2026-11-02: bench motion; SAFETY §4.5b, T
     for (const base of ['RUNNING', 'HELD', 'STOPPING_JOB', 'CONNECTED_UNKNOWN'] as const) expect(allowed(snap(base), 'jog', PHASE_2_RELEASE).allowed, base).toBe(false);
     for (const o of ['ORPHANED_MOTION', 'READ_ONLY', 'STALE', 'UNKNOWN', 'FAULT'] as const) expect(allowed(snap('IDLE_HOMED', [o]), 'jog', PHASE_2_RELEASE).allowed, o).toBe(false);
     expect(allowed(snap('IDLE_HOMED'), 'jog', PHASE_2_RELEASE).allowed).toBe(true);
-    expect(PHASE_2_RELEASE).toEqual({ name: 'Phase 2', motion: true, write: false, port: true });
+    expect(PHASE_2_RELEASE).toEqual({ name: 'Phase 2', motion: true, write: false, port: true, reports: true });
     expect(Object.isFrozen(PHASE_2_RELEASE)).toBe(true);
+  });
+
+  it('homing and set machine position: idle or CONNECTED_UNKNOWN, UNKNOWN the only overlay; HOMING only for the G28.2 line being written (amendment 2026-11-02)', () => {
+    for (const { s, intent } of cells()) {
+      if (intent !== 'home' && intent !== 'setMachinePosition') continue;
+      const d = allowed(s, intent, PHASE_2_RELEASE);
+      if (!d.allowed) continue;
+      expect(s.overlays.every((o) => o === 'UNKNOWN'), `${s.base} [${s.overlays.join('+')}] ${intent}`).toBe(true);
+      const states = intent === 'home' ? ['IDLE_UNHOMED', 'IDLE_HOMED', 'CONNECTED_UNKNOWN', 'HOMING'] : ['IDLE_UNHOMED', 'IDLE_HOMED', 'CONNECTED_UNKNOWN'];
+      expect(states, `${s.base} ${intent}`).toContain(s.base);
+    }
+    expect(allowed(snap('CONNECTED_UNKNOWN', ['UNKNOWN']), 'setMachinePosition', PHASE_2_RELEASE).allowed).toBe(true);
+    expect(allowed(snap('IDLE_HOMED'), 'home', PHASE_1_RELEASE).allowed).toBe(false);
+  });
+
+  it('report configuration (H64): its own gate, idle or CONNECTED_UNKNOWN, never READ_ONLY, ORPHANED_MOTION, STALE, FAULT or ALARM', () => {
+    for (const { s, intent } of cells()) {
+      if (intent !== 'configureReports') continue;
+      const d = allowed(s, intent, PHASE_2_RELEASE);
+      if (!d.allowed) continue;
+      expect(['IDLE_UNHOMED', 'IDLE_HOMED', 'CONNECTED_UNKNOWN']).toContain(s.base);
+      expect(s.overlays.every((o) => o === 'UNKNOWN' || o === 'NEEDS_REVIEW'), `[${s.overlays.join('+')}]`).toBe(true);
+    }
+    expect(allowed(snap('ALARM'), 'configureReports', PHASE_2_RELEASE).allowed).toBe(false);
+    expect(allowed(snap('IDLE_UNHOMED'), 'configureReports', PHASE_1_RELEASE)).toMatchObject({ allowed: false, reason: 'Not available in this release.' });
+    expect(allowed(snap('IDLE_UNHOMED'), 'configureReports', { ...PHASE_2_RELEASE, reports: false })).toMatchObject({ allowed: false, reason: 'Not available in this release.' });
+    expect(allowed(snap('CONNECTED_UNKNOWN', ['UNKNOWN', 'NEEDS_REVIEW']), 'configureReports', PHASE_2_RELEASE).allowed).toBe(true);
   });
 });
 

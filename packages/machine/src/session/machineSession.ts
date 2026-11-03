@@ -95,6 +95,8 @@ interface QueuedLine {
   readonly motion?: Intent;
   /** A settings write line (SAFETY §4.6, amendment 2026-11-02). */
   readonly setting?: true;
+  /** A report-configuration line (amendment 2026-11-02, H64). */
+  readonly report?: true;
 }
 
 const encoder = new TextEncoder();
@@ -326,7 +328,7 @@ export class MachineSession {
         void this.#open(effect.epoch);
         return;
       case 'writeLine': {
-        this.#lines.push({ epoch: effect.epoch, seq: effect.seq, bytes: encoder.encode(`${effect.line}\n`), emitted: this.#state, ...(effect.motion === undefined ? {} : { motion: effect.motion.intent }), ...(effect.intent === 'settingsWrite' ? { setting: true as const } : {}) });
+        this.#lines.push({ epoch: effect.epoch, seq: effect.seq, bytes: encoder.encode(`${effect.line}\n`), emitted: this.#state, ...(effect.motion === undefined ? {} : { motion: effect.motion.intent }), ...(effect.intent === 'settingsWrite' ? { setting: true as const } : {}), ...(effect.intent === 'configureReports' ? { report: true as const } : {}) });
         void this.#drainLines();
         return;
       }
@@ -489,7 +491,7 @@ export class MachineSession {
         const check =
           item.motion !== undefined
             ? checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, 'motion', item.motion)
-            : checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, item.setting === true ? 'settingsWrite' : 'read');
+            : checkWrite(this.#state, item.emitted, this.#config.release, item.bytes, item.setting === true ? 'settingsWrite' : item.report === true ? 'configureReports' : 'read');
         if (check !== undefined) {
           this.#note(check.reason);
           /* c8 ignore next -- the reducer only asks for GETs readable when it asks, so 'refused' needs a bug there; checkWrite's tests cover it */

@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { BYTE, PROBE_STEPS, TINYG_EN, classifyLine, type ApprovedBuilds, type Inbound } from '@synthetos/protocol';
 import { CURRENT_RELEASE, INTENTS, OVERLAYS, type Intent } from '@synthetos/safety';
 import { isReadAllowed } from '@synthetos/schema';
-import { DEFAULT_TIMINGS, MAX_PROBE_RESTARTS, MAX_QUEUED_READS, READING_TOKENS, enqAllowedNow, matrixSnapshot, readableNow, type SessionEffect, type SessionIntent } from '../src/index.ts';
+import { DEFAULT_TIMINGS, MAX_PROBE_RESTARTS, MAX_QUEUED_READS, READING_TOKENS, SEED_TOKENS, enqAllowedNow, matrixSnapshot, readableNow, type SessionEffect, type SessionIntent } from '../src/index.ts';
 import { Driver, EN_ANSWERS, EN_BOOT_BANNER, EN_READY_BANNER, SIM_INFO, TG_ANSWERS, TG_READY_BANNER, tg } from './sessionDriver.ts';
 import { PORT } from './simTransport.ts';
 
@@ -22,6 +22,11 @@ const EN_APPROVED: ApprovedBuilds = {
 
 const PROBE_LINES = PROBE_STEPS.map((s) => s.line);
 const READING_LINES = READING_TOKENS.map((t) => `{"${t}":null}`);
+/** The connect-time state read after READING (amendment 2026-11-02), through each dialect's allowlist. */
+const seedLines = (dialect: string): string[] => SEED_TOKENS.filter((t) => isReadAllowed(dialect, t)).map((t) => `{"${t}":null}`);
+const EN_CONNECT = [...PROBE_LINES, ...READING_LINES, ...seedLines('tinyg-en')];
+/** Values the connect-time read left in state.values. */
+const seedValues = (d: Driver): Record<string, unknown> => Object.fromEntries(Object.entries(d.state.values).filter(([k]) => !SEED_TOKENS.includes(k)));
 
 function connected(answers = EN_ANSWERS, options: ConstructorParameters<typeof Driver>[0] = {}, expected: string | null = null): Driver {
   const d = new Driver(options);
@@ -51,7 +56,9 @@ describe('the connection path', () => {
     expect(d.last).toContainEqual({ kind: 'tightenLineCap', epoch: 1, maxLineBytes: 255 });
     d.answer(EN_ANSWERS);
     expect(d.state.base).toBe('CONNECTED_UNKNOWN');
-    expect(d.lines()).toEqual([...PROBE_LINES, ...READING_LINES]);
+    // Then the full state is read once (amendment 2026-11-02); a read-only board is not configured.
+    expect(d.lines()).toEqual(EN_CONNECT);
+    expect(d.state.reports.phase).toBe('off');
     expect(d.realtime()).toEqual([]);
     expect(d.state.classification).toMatchObject({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'en-not-approved' });
     expect(d.state.overlays).toEqual(['READ_ONLY']);
@@ -66,7 +73,7 @@ describe('the connection path', () => {
     const d = connected(TG_ANSWERS);
     expect(d.state.base).toBe('CONNECTED_UNKNOWN');
     expect(d.state.classification).toMatchObject({ dialectId: 'tinyg-440', mode: 'readOnly', upgradeOffer: true });
-    expect(d.lines()).toEqual([...PROBE_LINES, ...READING_LINES]);
+    expect(d.lines()).toEqual([...PROBE_LINES, ...READING_LINES, ...seedLines('tinyg-440')]);
     expect(d.state.footerRev).toBe(1);
   });
 
@@ -443,7 +450,8 @@ describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
   it('a report carries the spindle and coolant readouts as reported, for display only; the {sr:null} answer records the status list', () => {
     const d = connected();
     expect(d.state.live.srList).toEqual(['line', 'posx', 'posy', 'posz', 'vel', 'unit', 'stat']);
-    expect(d.state.live.spe).toBeUndefined();
+    // The connect-time read seeded the readouts (spe 0 on the scripted board).
+    expect(d.state.live.spe).toBe(0);
     const before = d.effects.length;
     d.line('{"sr":{"spe":1,"spc":1,"spd":0,"sps":18000,"cof":1,"com":0}}');
     expect(d.state.live).toMatchObject({ spe: 1, spc: 1, spd: 0, sps: 18000, cof: 1, com: 0 });
@@ -673,7 +681,7 @@ describe('flow control: ex = 2 (RTS/CTS) is READ_ONLY on both dialects (ROADMAP 
     expect(d.state.classification?.detail).toContain('ex) is 2 (RTS/CTS)');
     expect(d.state.overlays).toEqual(['READ_ONLY']);
     expect(d.state.live.ex).toBe(2);
-    expect(logs(d).at(-1)).toBe('classification: read-only, flow control (ex) is 2 (RTS/CTS)');
+    expect(logs(d)).toContain('classification: read-only, flow control (ex) is 2 (RTS/CTS)');
   });
 
   it('an ex that cannot be read is treated the same (fail closed)', () => {
@@ -705,7 +713,7 @@ describe('the probe result is recorded in the session log (ROADMAP P1-03)', () =
   it('one line with the identity, the capability answers, the footers and the verdict', () => {
     const d = connected(EN_ANSWERS);
     const [line, ...rest] = logs(d);
-    expect(rest).toEqual([]);
+    expect(rest).toEqual(['connect: full state read; status reports are not configured on this board in this release']);
     expect(line).toMatch(/^probe: \{/);
     const json = JSON.parse((line as string).slice('probe: '.length, line!.indexOf(' → '))) as Record<string, unknown>;
     expect(json).toMatchObject({ banner: 'none', footerRev: 3, fb: 450.01, fv: 0.97, hp: 1, hv: 8, id: 'EN-1', spph: 'stubbed', conflicts: [] });
@@ -954,7 +962,7 @@ describe('LOST, STALE, NEEDS_REVIEW', () => {
     expect(d.state.queue).toEqual([]);
     d.line(EN_ANSWERS.posx as string);
     expect(d.state.overlays).not.toContain('STALE');
-    expect(d.state.values).toEqual({});
+    expect(seedValues(d)).toEqual({});
   });
 
   it('a READING read that goes unanswered: STALE, and the board is not trusted as resting', () => {
@@ -1029,7 +1037,7 @@ describe('intents through the allow-matrix (T-S3) and the Phase 1 session', () =
     d.intent({ intent: 'feedhold' });
     expect(d.realtime()).toEqual([BYTE.FEEDHOLD, BYTE.FEEDHOLD, BYTE.FEEDHOLD, BYTE.FEEDHOLD]);
     expect(d.state.notices.adviseEstop).toBe(true);
-    expect(d.state.sent).toEqual({ lines: 17, realtime: 4 });
+    expect(d.state.sent).toEqual({ lines: EN_CONNECT.length, realtime: 4 });
   });
 
   it('feedhold is the unclassified ! while identifying, and denied before the port opens', () => {
@@ -1081,7 +1089,7 @@ describe('intents through the allow-matrix (T-S3) and the Phase 1 session', () =
     expect(d.intent({ intent: 'read', tokens: ['mpox'] })).toEqual({ allowed: true });
     d.answer(EN_ANSWERS);
     expect(d.lines().slice(-2)).toEqual(['{"posx":null}', '{"mpox":null}']);
-    expect(d.state.values).toEqual({ posx: { value: 1.5, status: 0, at: 0 }, mpox: { value: 2.5, status: 0, at: 0 } });
+    expect(seedValues(d)).toEqual({ posx: { value: 1.5, status: 0, at: 0 }, mpox: { value: 2.5, status: 0, at: 0 } });
     const many = Array.from({ length: MAX_QUEUED_READS + 1 }, (_, i) => ['posx', 'posy', 'posz', 'mpox', 'mpoy', 'mpoz'][i % 6] as string);
     expect(d.intent({ intent: 'read', tokens: many })).toEqual({ allowed: true });
     const allowlisted = ['xvm', 'yvm', 'zvm', 'avm', 'bvm', 'cvm', 'xfr', 'yfr', 'zfr', 'afr', 'bfr', 'cfr'].filter((t) => isReadAllowed('tinyg-en', t));
@@ -1425,7 +1433,7 @@ describe('guards that only a broken invariant reaches (fabricated states)', () =
     d.state = { ...d.state, overlays: ['ORPHANED_MOTION'], dialect: null, classification: null, queue: [{ token: 'sr', purpose: 'splice' }] };
     d.feed({ type: 'driftDetected', epoch: d.state.epoch });
     expect(d.state.writing).toBeNull();
-    expect(d.lines()).toEqual([...PROBE_LINES, ...READING_LINES]);
+    expect(d.lines()).toEqual(EN_CONNECT);
   });
 
   it('a queued token that is not readable in this state is never written: FAULT (writeRefused)', () => {

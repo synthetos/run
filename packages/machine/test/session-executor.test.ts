@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { PHASE_1_RELEASE, CURRENT_RELEASE } from '@synthetos/safety';
 import { BYTE } from '@synthetos/protocol';
-import { MachineSession, checkWrite, escape, initialState, type SessionIntent, type PortSelector, type SessionClock, type Transport, type TransportInfo, type TransportOpenOptions, type TransportSource } from '../src/index.ts';
+import { MachineSession, checkWrite, escape, initialState, type SessionIntent, type PortSelector, type SessionClock, type Transport, type TransportInfo, type TransportOpenOptions, type TransportSource, SEED_TOKENS } from '../src/index.ts';
 import { Driver, EN_ANSWERS, EN_READY_BANNER, TG_ANSWERS } from './sessionDriver.ts';
 import { PORT } from './simTransport.ts';
 
@@ -158,7 +158,8 @@ describe('MachineSession: connecting', () => {
     expect(t.opened).toEqual([{ baudRate: 115200, flowControl: 'none', bufferSize: 256 }]);
     expect(t.writes[0]).toBe('{sr:null}\n');
     expect(session.snapshot.base).toBe('CONNECTED_UNKNOWN');
-    expect(t.writes).toHaveLength(17);
+    // The probe and READING (17 lines), then the full state read once (amendment 2026-11-02).
+    expect(t.writes).toHaveLength(17 + SEED_TOKENS.length);
     expect([...new Set(seen)]).toEqual(['PORT_REQUEST', 'OPENING', 'IDENTIFYING', 'READING', 'CONNECTED_UNKNOWN']);
     expect(session.state.classification?.dialectId).toBe('tinyg-en');
     const log = session.log();
@@ -345,7 +346,7 @@ describe('T-S5 (XOFF part): realtime bytes bypass the XOFF gate', () => {
     expect(session.snapshot.xoff).toBe(true);
     expect(session.read(['posx'])).toEqual({ allowed: true });
     await settle();
-    expect(t.writes.at(-1)).toBe('{"ex":null}\n');
+    expect(t.writes.at(-1)).toBe('{"si":null}\n');
     expect(session.feedhold()).toEqual({ allowed: true });
     await settle();
     expect(t.writes.at(-1)).toBe('!');
@@ -517,7 +518,7 @@ describe('MachineSession: failures', () => {
     void session.connect(PORT);
     await settle();
     expect(session.log()).toHaveLength(5);
-    expect(session.log().at(-1)?.text).toContain('"ex":1');
+    expect(session.log().at(-1)?.text).toContain('connect: full state read');
   });
 
   it('the session defaults to the Phase 1 release and NO_APPROVED_BUILDS', async () => {

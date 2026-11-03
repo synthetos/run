@@ -7,6 +7,32 @@ import { PHASE_1_RELEASE, type Decision, type Release } from '@synthetos/safety'
 import { DEFAULT_TIMINGS, initialState, reduce, type SessionConfig, type SessionEffect, type SessionEvent, type SessionIntent, type SessionState, type TimerId } from '../src/index.ts';
 import { PORT } from './simTransport.ts';
 
+/** The connect-time state read on edge-next (SEED_TOKENS), as the EN model prints them. */
+export const SEED_EN: Readonly<Record<string, string>> = Object.freeze({
+  home: '{"r":{"home":0},"f":[3,0,10]}',
+  hom: '{"r":{"hom":{"x":0,"y":0,"z":0,"a":0,"e":0}},"f":[3,0,10]}',
+  unit: '{"r":{"unit":1},"f":[3,0,10]}',
+  coor: '{"r":{"coor":1},"f":[3,0,10]}',
+  dist: '{"r":{"dist":0},"f":[3,0,10]}',
+  tool: '{"r":{"tool":0},"f":[3,0,10]}',
+  mpo: '{"r":{"mpo":{"x":2.5,"y":0,"z":0,"a":0,"b":0,"c":0}},"f":[3,0,10]}',
+  pos: '{"r":{"pos":{"x":1.5,"y":0,"z":0,"a":0,"b":0,"c":0}},"f":[3,0,10]}',
+  ofs: '{"r":{"ofs":{"x":1,"y":0,"z":0,"a":0,"b":0,"c":0}},"f":[3,0,10]}',
+  g92: '{"r":{"g92":{"x":0,"y":0,"z":0,"a":0,"b":0,"c":0}},"f":[3,0,10]}',
+  g28: '{"r":{"g28":{"x":0,"y":0,"z":0,"a":0,"b":0,"c":0}},"f":[3,0,10]}',
+  g30: '{"r":{"g30":{"x":0,"y":0,"z":0,"a":0,"b":0,"c":0}},"f":[3,0,10]}',
+  spe: '{"r":{"spe":0},"f":[3,0,10]}',
+  spc: '{"r":{"spc":0},"f":[3,0,10]}',
+  spd: '{"r":{"spd":0},"f":[3,0,10]}',
+  sps: '{"r":{"sps":0},"f":[3,0,10]}',
+  cof: '{"r":{"cof":0},"f":[3,0,10]}',
+  com: '{"r":{"com":0},"f":[3,0,10]}',
+  sv: '{"r":{"sv":1},"f":[3,0,10]}',
+  si: '{"r":{"si":250},"f":[3,0,10]}',
+  // No heartbeat on this scripted board: {"rt":null} answers 100.
+  rt: '{"r":{},"f":[3,100,10]}',
+});
+
 /** Edge-next answers (footer rev 3), as the EN model prints them. */
 export const EN_ANSWERS: Readonly<Record<string, string>> = Object.freeze({
   sr: '{"r":{"sr":{"line":0,"posx":1.5,"posy":0,"posz":0,"vel":0,"unit":1,"stat":1}},"f":[3,0,10]}',
@@ -28,6 +54,8 @@ export const EN_ANSWERS: Readonly<Record<string, string>> = Object.freeze({
   ex: '{"r":{"ex":1},"f":[3,0,10]}',
   posx: '{"r":{"posx":1.5},"f":[3,0,10]}',
   mpox: '{"r":{"mpox":2.5},"f":[3,0,10]}',
+  // The connect-time state read (amendment 2026-11-02).
+  ...SEED_EN,
 });
 
 /** A 440.21 response line with its checksum (rev 1, four fields). */
@@ -54,6 +82,20 @@ export const TG_ANSWERS: Readonly<Record<string, string>> = Object.freeze({
   vel: tg('{"vel":0}'),
   qr: tg('{"qr":32}'),
   ex: tg('{"ex":1}'),
+  home: tg('{"home":0}'),
+  hom: tg('{"hom":{"x":0,"y":0,"z":0,"a":0}}'),
+  unit: tg('{"unit":1}'),
+  coor: tg('{"coor":1}'),
+  dist: tg('{"dist":0}'),
+  tool: tg('{"tool":0}'),
+  mpo: tg('{"mpo":{"x":0,"y":0,"z":0}}'),
+  pos: tg('{"pos":{"x":0,"y":0,"z":0}}'),
+  ofs: tg('{"ofs":{"x":0,"y":0,"z":0}}'),
+  g92: tg('{"g92":{"x":0,"y":0,"z":0}}'),
+  g28: tg('{"g28":{"x":0,"y":0,"z":0}}'),
+  g30: tg('{"g30":{"x":0,"y":0,"z":0}}'),
+  sv: tg('{"sv":1}'),
+  si: tg('{"si":250}'),
 });
 
 export const EN_READY_BANNER = '{"sr":{"fv":0.970,"fb":450.01,"hp":1,"hv":8,"id":"EN-1","msg":"SYSTEM READY"}}';

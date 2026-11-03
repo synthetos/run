@@ -127,6 +127,17 @@ export interface Banner {
   readonly footer?: Footer;
 }
 
+/**
+ * `{"hb":{"stat":..,"hold":..,"up":..,"qt":..}}`: an edge-next runtime heartbeat line (EN runtime.c), printed every
+ * `hb` ms after `{"rt":{"hb":N}}` while nothing else is printed. It has no `r` and no footer and answers nothing:
+ * it is proof of life only. `stat` and `hold` are what the board reported, kept for display.
+ */
+export interface Heartbeat {
+  readonly kind: 'Heartbeat';
+  readonly line: string;
+  readonly hb: JsonObject;
+}
+
 /** `{"ack":true}`: the answer to ENQ (PN §5.6). */
 export interface Ack {
   readonly kind: 'Ack';
@@ -187,7 +198,7 @@ export interface FlowSignal {
 }
 
 /** A classified line (everything except flow signals). */
-export type ClassifiedLine = Response | StatusReport | QueueReport | RxReport | Exception | Banner | Ack | Text | Garbled;
+export type ClassifiedLine = Response | StatusReport | QueueReport | RxReport | Exception | Banner | Ack | Heartbeat | Text | Garbled;
 
 /** Everything the inbound decoder emits, in stream order. */
 export type Inbound = ClassifiedLine | FlowSignal;

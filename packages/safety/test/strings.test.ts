@@ -186,6 +186,13 @@ c({
   subs: (e) => [['<cause>', e.cause], ['N', String(e.seconds)]],
 });
 fixed('W34', 'w34', S.w34);
+fixed('W35', 'w35', S.w35);
+c({
+  doc: 'S', id: 'W36', segment: 0, exports: ['w36'],
+  examples: [{ setting: 'sv', from: 0, to: 1 }, { setting: 'si', from: 5000, to: 250 }],
+  render: S.w36,
+  subs: (e) => [['<setting>', e.setting], ['<old>', String(e.from)], ['<new>', String(e.to)]],
+});
 
 // ---------------------------------------------------------------- §6
 
@@ -207,9 +214,9 @@ c({
 fixedC('OLD-S', 'C3', 'c3', () => S.c3({ axis: 'X', distanceMm: 0.25, feedMmPerMin: 100, expectedSteps: (0.25 * (360 / 1.8) * 8) / 1.25 }), 1);
 c({
   doc: 'S', id: 'C4', segment: 0, exports: ['c4'],
-  examples: [{ searchMm: 312 }, { searchMm: 45.5 }],
+  examples: [{ axes: 'X, Y and Z', searchMm: 312 }, { axes: 'Z', searchMm: 45.5 }],
   render: S.c4,
-  subs: (e) => [['<N>', String(e.searchMm)]],
+  subs: (e) => [['<axes>', e.axes], ['<N>', String(e.searchMm)]],
 });
 c({
   doc: 'OLD-S', id: 'C4', segment: 0, exports: ['c4TemporaryCap'],
@@ -394,6 +401,30 @@ c({
   ],
   render: S.c25,
   subs: (e) => [['<axes>', e.axes], ['<path>', e.path]],
+});
+c({
+  doc: 'S', id: 'C26', segment: 0, exports: ['c26'],
+  examples: [{ axes: 'X, Y and Z' }, { axes: 'Z' }],
+  render: S.c26,
+  subs: (e) => [['<axes>', e.axes]],
+});
+c({
+  doc: 'S', id: 'C27', segment: 0, exports: ['c27'],
+  examples: [{ axes: 'X and Y', system: 'G54' }, { axes: 'Z', system: 'G57' }],
+  render: S.c27,
+  subs: (e) => [['<axes>', e.axes], ['<system>', e.system]],
+});
+c({
+  doc: 'S', id: 'C28', segment: 0, exports: ['c28'],
+  examples: [{ system: 'G54' }, { system: 'G59' }],
+  render: S.c28,
+  subs: (e) => [['<system>', e.system]],
+});
+c({
+  doc: 'S', id: 'C29', segment: 0, exports: ['c29'],
+  examples: [{ system: 'G55' }, { system: 'G58' }],
+  render: S.c29,
+  subs: (e) => [['<system>', e.system]],
 });
 
 /**

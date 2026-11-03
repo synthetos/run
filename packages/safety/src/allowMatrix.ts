@@ -87,6 +87,18 @@ export const INTENTS = Object.freeze([
   'goToZero',
   /** Phase 2: `{"clear":null}` after the user read why the controller alarmed (C13). */
   'clearAlarm',
+  /** Phase 2 (amendment 2026-11-02): `G28.3` sets the machine position here without moving, for machines without homing switches (C26). */
+  'setMachinePosition',
+  /** Phase 2 (amendment 2026-11-02): a temporary offset, `G92` (C27), and clearing it, `G92.1` (C28). Not saved on the controller. */
+  'tempOffset',
+  /** Phase 2 (amendment 2026-11-02): select the work coordinate system, `G54`..`G59` (C29). */
+  'selectCoordSystem',
+  /**
+   * The session's own status-report configuration at connect (amendment 2026-11-02, H64): the persisted
+   * status report list (`{sr:{...}}`), `sv`, an absurd `si`, and the RAM-only heartbeat (`{"rt":{"hb":N}}`).
+   * Never a user request: the session issues it once per link and reads every value back.
+   */
+  'configureReports',
   'optionalStop',
   'settingsWrite',
   'applyProfile',
@@ -110,12 +122,14 @@ export type Intent = (typeof INTENTS)[number];
 
 /**
  * What kind of intent this is. `stop` is the normative stop class.
- * `motion`, `write`, `settings` and `port` are the kinds a release can hold back.
+ * `motion`, `write`, `settings`, `reports` and `port` are the kinds a release can hold back.
+ * `reports` (the session's status-report configuration, amendment 2026-11-02) is on only where the
+ * release says so: it writes the persisted status report list, so it is never on in a read-only release.
  * `settings` (settings writes, SAFETY §4.6, amendment 2026-11-02) has a gate of
  * its own, so turning on other writes (work zero) never turns on settings
  * writes, and the reverse.
  */
-export type IntentKind = 'stop' | 'read' | 'recovery' | 'session' | 'motion' | 'write' | 'settings' | 'port' | 'job' | 'cloud';
+export type IntentKind = 'stop' | 'read' | 'recovery' | 'session' | 'motion' | 'write' | 'settings' | 'reports' | 'port' | 'job' | 'cloud';
 
 /** The stop-class intents of the normative rule (SAFETY §4.1). */
 export const STOP_CLASS: readonly Intent[] = Object.freeze(['feedhold', 'stopJob', 'spindleOffNow']);
@@ -146,6 +160,12 @@ export interface Release {
    * staging environments.
    */
   readonly settings?: boolean;
+  /**
+   * The session's status-report configuration (kind `reports`, amendment 2026-11-02, H64): it may set the
+   * board's persisted status report list, `sv` and an absurd `si`, and turn on the RAM-only heartbeat.
+   * Absent means false. On with the Phase 2 motion release (bench and staging only).
+   */
+  readonly reports?: boolean;
 }
 
 /** This release: Phase 0, no serial (ROADMAP P0-10, RUN_PLAN §11). */
@@ -174,7 +194,7 @@ export const PHASE_1_RELEASE: Release = Object.freeze({ name: 'Phase 1', motion:
  * the motion capability flag is on (bench and staging origins; never
  * production, apps/web/src/machine-worker/motionFlag.ts).
  */
-export const PHASE_2_RELEASE: Release = Object.freeze({ name: 'Phase 2', motion: true, write: false, port: true });
+export const PHASE_2_RELEASE: Release = Object.freeze({ name: 'Phase 2', motion: true, write: false, port: true, reports: true });
 
 /**
  * Phase 1 plus settings writes (SAFETY §4.6, amendment 2026-11-02): as
@@ -309,12 +329,34 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
     denied: { reason: 'There is no alarm to clear.', remedy: 'Nothing to do.' },
     citation: 'SAFETY §3 From ALARM (C13); §4.5b',
   },
+  // HOMING: the G28.2 line of the homing just started is written after the base moved to HOMING (as JOGGING
+  // for the jog row). The session itself refuses to START homing unless idle or CONNECTED_UNKNOWN.
   home: {
+    kind: 'motion',
+    states: [...IDLE, 'CONNECTED_UNKNOWN', 'HOMING'],
+    overlays: ['UNKNOWN'],
+    denied: NOT_IDLE,
+    citation: 'SAFETY §4.1 Home row; normative rule (denied under FAULT, STALE and ORPHANED_MOTION); amendment 2026-11-02',
+  },
+  // G28.3 is a way out of UNKNOWN for a machine without homing switches (amendment 2026-11-02, H67), so UNKNOWN allows it.
+  setMachinePosition: {
     kind: 'motion',
     states: [...IDLE, 'CONNECTED_UNKNOWN'],
     overlays: ['UNKNOWN'],
     denied: NOT_IDLE,
-    citation: 'SAFETY §4.1 Home row; normative rule (denied under FAULT, STALE and ORPHANED_MOTION)',
+    citation: 'SAFETY §4.5b Set machine position (amendment 2026-11-02); H67; C26',
+  },
+  tempOffset: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.5b Temporary offset (amendment 2026-11-02); H68; C27, C28' },
+  selectCoordSystem: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.5b Work coordinate system (amendment 2026-11-02); C29' },
+  // Moves nothing: allowed with an untrusted position (UNKNOWN) and a settings drift (NEEDS_REVIEW). Never under
+  // READ_ONLY (an unapproved build is never written to), ORPHANED_MOTION, STALE or FAULT, and never in ALARM (the
+  // firmware refuses SETs while alarmed; the session configures after the alarm is cleared).
+  configureReports: {
+    kind: 'reports',
+    states: [...IDLE, 'CONNECTED_UNKNOWN'],
+    overlays: ['UNKNOWN', 'NEEDS_REVIEW'],
+    denied: { reason: 'Status reports are configured only while the machine is idle.', remedy: 'Wait until the machine is idle.' },
+    citation: 'SAFETY §4.2 (amendment 2026-11-02, push-driven state); H64',
   },
   consoleLine: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Console line row' },
   spindleOn: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Manual spindle/coolant on row' },
@@ -448,7 +490,13 @@ export function allowed(snapshot: MatrixSnapshot, intent: Intent, release: Relea
     return deny('Unknown request.', 'Reload the page.', 'SAFETY §4.1 (fail closed)');
   }
   const overlays = new Set(snapshot.overlays);
-  if ((row.kind === 'motion' && !release.motion) || (row.kind === 'write' && !release.write) || (row.kind === 'settings' && release.settings !== true) || (row.kind === 'port' && !release.port)) {
+  if (
+    (row.kind === 'motion' && !release.motion) ||
+    (row.kind === 'write' && !release.write) ||
+    (row.kind === 'settings' && release.settings !== true) ||
+    (row.kind === 'reports' && release.reports !== true) ||
+    (row.kind === 'port' && !release.port)
+  ) {
     return deny(NOT_IN_RELEASE.reason, NOT_IN_RELEASE.remedy, `ROADMAP P0-10 (${release.name})`);
   }
   // The normative rule: stop-class depends on nothing but an open port.

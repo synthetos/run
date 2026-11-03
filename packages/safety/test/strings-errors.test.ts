@@ -33,8 +33,9 @@ const VALID: Record<string, Params> = {
   w25: { fb: '449.01', reason: 'no capability tokens', advice: 'upgrade' },
   w31: { seconds: 30 },
   w33: { cause: 'tab frozen', seconds: 5 },
+  w36: { setting: 'sv', from: 0, to: 1 },
   c3: { axis: 'Y', distanceMm: 0.25, feedMmPerMin: 600, expectedSteps: 200 },
-  c4: { searchMm: 310 },
+  c4: { axes: 'X, Y and Z', searchMm: 310 },
   c4TemporaryCap: { searchMm: 40, travelMin: 0, travelMax: 300 },
   c5: { settings: 2, machineName: 'Shop router', boardId: '2U29', changes: '1sa 1.8 → 0.9', highRisk: ['1sa'] },
   c6Question: { boardId: '2U29', fromBuild: '440.21', toBuild: '450.01', sha256Short: 'ab12cd34' },
@@ -73,6 +74,10 @@ const VALID: Record<string, Params> = {
   c23: { machineName: 'Shop router', boardId: '2U29', revision: 6 },
   c24: { direction: 'CW', rpm: 12000 },
   c25: { axes: 'X and Y', path: 'X and Y to 0' },
+  c26: { axes: 'X, Y and Z' },
+  c27: { axes: 'X', system: 'G54' },
+  c28: { system: 'G54' },
+  c29: { system: 'G55' },
 };
 
 type Fn = (p: Params) => unknown;
