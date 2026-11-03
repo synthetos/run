@@ -341,3 +341,9 @@ software is not an emergency stop. "Stop job" no longer says "spindle off".
 ## OD-9. W1 stays visible; other explanations go behind help (owner, 2026-11-03)
 
 **Decision.** The W1 warning line stays permanently visible, as SAFETY.md requires. Every other explanatory paragraph in the workspace (Connect, setup, W13, W7 and similar) moves behind compact (?) help reachable by hover, focus or tap, or is removed. Registered strings stay byte-exact wherever they are shown.
+
+## OD-10. Firmware images come from GitHub Releases (owner, 2026-11-03)
+
+**Decision.** Official firmware `.hex` files are published by CI to GitHub Releases. run's signed release list points at those release assets (repository, tag, asset name, size, SHA-256), and run never flashes a file whose hash differs from the list.
+
+**How run fetches them.** The browser cannot fetch GitHub release assets directly (strict CSP `connect-src 'self'`, and network code lives only in the cloud chunk), so run's Worker proxies them: `GET /firmware/<repo>/<tag>/<asset>` fetches the asset from GitHub server-side, verifies its SHA-256 against the signed list, caches it, and serves it same-origin. On the bench, the user may also pick a local copy, which must match the listed hash. Signing the production list with the release key stays an owner step.
