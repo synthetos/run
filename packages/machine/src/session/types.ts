@@ -428,11 +428,16 @@ export interface LinkWindow {
 /**
  * Phase 3 (SAFETY §4.4a): what a job is doing.
  * - `loading`: the prep reads are being taken; `ready` / `blocked`: sanitised with the live board's values;
+ * - `checking` (base PREAMBLE): Start was allowed; the prep reads are taken again and the file is sanitised again
+ *   with the board's current position, offsets, modes and limits before anything is sent (independent review
+ *   2026-11-03, R3);
  * - `preparing` (base PREAMBLE): the line mode is checked and set (H77), the job's `rt` lines are sent;
  * - `running`: lines are streamed by the line buffer's free slots; `draining`: feeding stopped before a stop
  *   point (a tool change, a breakpoint, after a program stop line) and the queue is draining; `ending`: every line
  *   is sent and the queue is draining to the end;
  * - `pausing` / `paused`: a Pause (`!`) and its confirmed hold; `refused`: a line was refused and the job is held;
+ * - `outputsOff` (base PROGRAM_PAUSED): drained at a tool change; `M5` and `M9` are being answered (independent
+ *   review 2026-11-03, R6: the change-ready state is shown only once both are answered with status 0);
  * - `toolChange`, `breakpoint`, `programStop` (base PROGRAM_PAUSED): drained and stopped at the stop point;
  * - `resuming`: the lines that put the machine back after a tool change;
  * - `done`, `stopped`, `failed`: ended.
@@ -441,6 +446,7 @@ export type JobPhase =
   | 'loading'
   | 'ready'
   | 'blocked'
+  | 'checking'
   | 'preparing'
   | 'running'
   | 'draining'
@@ -448,6 +454,7 @@ export type JobPhase =
   | 'pausing'
   | 'paused'
   | 'refused'
+  | 'outputsOff'
   | 'toolChange'
   | 'breakpoint'
   | 'programStop'
@@ -496,8 +503,11 @@ export interface JobState {
   readonly hash: string;
   readonly bytes: number;
   readonly phase: JobPhase;
-  /** The file text while the prep reads are taken (dropped once sanitised). */
-  readonly pending: { readonly text: string; readonly c22: boolean } | null;
+  /**
+   * The file text and the C22 answer, kept for the job's life: Start sanitises it again with the board's current
+   * values (independent review 2026-11-03, R3). Never posted to the page (the snapshot carries a summary).
+   */
+  readonly source: { readonly text: string; readonly c22: boolean };
   /** The sanitised lines, frozen (SAFETY §4.7 single source of truth). Empty until sanitised. */
   readonly lines: readonly SentLine[];
   /** Modelled seconds still to run from each line to the end (suffix sums), for the remaining-time estimate. */
@@ -527,6 +537,13 @@ export interface JobState {
     readonly restartsSpindle: boolean;
     /** Machine position where the job stopped (from reports), to return to at a safe height. */
     readonly at: Readonly<Partial<Record<Axis, number>>>;
+    /**
+     * The job's units (`unit`, 0 inches) and distance mode (`dist`, 1 incremental) when it stopped: the return
+     * moves run in explicit absolute millimetres, then these are put back before the job goes on (independent
+     * review 2026-11-03, R1).
+     */
+    readonly units: number | undefined;
+    readonly dist: number | undefined;
   } | null;
   /** Lines still to send to put the machine back before the job continues (after a tool change). */
   readonly resumeSteps: readonly { readonly line: string; readonly intent: Intent }[];
@@ -577,6 +594,24 @@ export interface RxmState {
   readonly changed: { readonly kind: 'job' | 'restore'; readonly from: number; readonly to: number } | null;
   readonly detail: string | null;
 }
+
+/**
+ * One polled read cycle (`stat`, `hold`, `vel`, `qr`; SAFETY §4.2, §4.5b) as it is being answered: only values
+ * the board answered with status 0 IN THIS CYCLE, never the shared live view (which pushed reports also change).
+ * The motion and job layers confirm a hold, a flush or a drain only from a complete, successful cycle; a rejected,
+ * missing or damaged answer marks the cycle `failed` and it proves nothing (independent review 2026-11-03, R5;
+ * H56, H69). Null between cycles.
+ */
+export interface PollCycle {
+  readonly stat?: number;
+  readonly hold?: number;
+  readonly vel?: number;
+  readonly qr?: number;
+  readonly failed: boolean;
+}
+
+/** A complete poll cycle: every value answered with status 0. */
+export type PolledValues = Readonly<Required<Pick<PollCycle, 'stat' | 'hold' | 'vel' | 'qr'>>>;
 
 /** The reducer's whole state. Plain, frozen data. */
 export interface SessionState {
@@ -633,6 +668,8 @@ export interface SessionState {
   readonly sent: { readonly lines: number; readonly realtime: number };
   /** Phase 2: the motion in progress, or null (SAFETY §4.5b). */
   readonly motion: MotionCtx | null;
+  /** The poll cycle being answered (independent review 2026-11-03, R5), or null. */
+  readonly polled: PollCycle | null;
   /** The current or last settings write, or null (SAFETY §4.6, amendment 2026-11-02). */
   readonly settingWrite: SettingWriteState | null;
   /** The firmware update's entry into the bootloader in progress, or null (SAFETY §4.8 as amended 2026-11-03). */

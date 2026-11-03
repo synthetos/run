@@ -89,7 +89,8 @@ test('a jog step from the panel, with the unhomed warning; a hold jog stops on r
   await page.locator('.sec-jog [aria-label="Step size"] button', { hasText: /^1$/ }).click();
   await page.getByRole('button', { name: 'X+', exact: true }).click();
   await idle(worker);
-  expect(await motionWrites(worker, from)).toEqual(['G21 G91 G1 X1 F1000\n', 'G90\n']);
+  // G21 on its own answered line before the first piece (independent review 2026-11-03, R2).
+  expect(await motionWrites(worker, from)).toEqual(['G21\n', 'G21 G91 G1 X1 F1000\n', 'G90\n']);
   expect((await board(worker)).position[0]).toBeCloseTo(1, 3);
 
   const hold = (await writes(worker)).length;
@@ -105,7 +106,8 @@ test('a jog step from the panel, with the unhomed warning; a hold jog stops on r
   await expect.poll(async () => (await motionWrites(worker, hold)).at(-1), { timeout: 15_000 }).toBe('G90\n');
   await idle(worker);
   const w = await motionWrites(worker, hold);
-  expect(w[0]).toMatch(/^G21 G91 G1 Y\d/);
+  expect(w[0]).toBe('G21\n');
+  expect(w[1]).toMatch(/^G21 G91 G1 Y\d/);
   expect(w.slice(w.indexOf('!'))).toEqual(['!', '%', 'G90\n']);
   expect((await board(worker)).hold).toBe(0);
   const y = (await board(worker)).position[1] as number;
@@ -124,18 +126,21 @@ test('keyboard jog only while the panel has focus; a held key is released when t
   await page.locator('[data-jog="panel"]').focus();
   await page.keyboard.press('ArrowRight');
   await idle(worker);
-  expect((await motionWrites(worker, from))[0]).toBe('G21 G91 G1 X1 F1000\n');
+  expect((await motionWrites(worker, from)).slice(0, 2)).toEqual(['G21\n', 'G21 G91 G1 X1 F1000\n']);
 
   await page.locator('.sec-jog [aria-label="Step size"] button', { hasText: 'Hold' }).click();
   await page.locator('[data-jog="panel"]').focus();
   const held = (await writes(worker)).length;
   await page.keyboard.down('PageUp');
   await expect.poll(async () => (await status(worker)).motion !== null).toBe(true);
+  // The units line goes first (R2); wait for the first piece so that the release ends a jog that was moving.
+  await expect.poll(async () => (await motionWrites(worker, held)).some((x) => /^G21 G91 G1 Z\d/.test(x)), { timeout: 10_000 }).toBe(true);
   await page.evaluate(() => dispatchEvent(new Event('blur')));
   await idle(worker);
   await page.keyboard.up('PageUp');
   const w = await motionWrites(worker, held);
-  expect(w[0]).toMatch(/^G21 G91 G1 Z\d/);
+  expect(w[0]).toBe('G21\n');
+  expect(w[1]).toMatch(/^G21 G91 G1 Z\d/);
   expect(w).toContain('!');
   expect(w).toContain('%');
 });
@@ -166,8 +171,10 @@ test('Set zero (G10 L20 P1) and Go to zero (Z first, then X and Y, then Z), each
   await page.locator('[data-action="motion-confirm"]').click();
   await idle(worker);
   const lines = await motionWrites(worker, go);
-  expect(lines[0]).toMatch(/^G53 G0 Z-?\d/);
-  expect(lines.slice(1)).toEqual(['G90 G0 X0 Y0\n', 'G90 G0 Z0\n']);
+  // Explicit absolute millimetres on their own line before the G53 move, the modes put back at the end (R1).
+  expect(lines[0]).toBe('G90 G21\n');
+  expect(lines[1]).toMatch(/^G53 G0 Z-?\d/);
+  expect(lines.slice(2)).toEqual(['G90 G0 X0 Y0\n', 'G90 G0 Z0\n', 'G90\n']);
   const p = (await board(worker)).position;
   expect(p[0]).toBeCloseTo(10, 3);
   expect(p[1]).toBeCloseTo(10, 3);

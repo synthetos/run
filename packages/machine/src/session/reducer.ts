@@ -79,7 +79,7 @@ import { writeLineCapFor } from '../writeShape.ts';
 import type { PortSelector } from '../transport.ts';
 import { gateTokens, judgeGate, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
 import { restingStat, restingUsesHold } from './resting.ts';
-import { abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
+import { POLL_TOKENS, abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
 import { HEARTBEAT_INTERVAL_MS, REPORT_DIALECTS, SEED_TOKENS, heartbeatCoversHold, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
 import {
   abandonLoad,
@@ -90,6 +90,7 @@ import {
   onJobFault,
   onJobLinkLost,
   onJobMotionAnswer,
+  onJobMotionTimeout,
   onJobPause,
   onJobPoll,
   onJobPrepAnswer,
@@ -201,6 +202,7 @@ export function initialState(): SessionState {
     timerSeq: 0,
     sent: Object.freeze({ lines: 0, realtime: 0 }),
     motion: null,
+    polled: null,
     settingWrite: null,
     bootEntry: null,
     reports: REPORTS_IDLE,
@@ -930,6 +932,8 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
   if (missed.purpose === 'readback') finishSettingWrite(t, 'mismatch', 'Written (status 0), but the read-back was not answered in time.');
   if (missed.purpose === 'jobPrep') abandonLoad(t, at, `the controller did not answer the ${missed.token} read in time`);
   if (missed.purpose === 'lineMode') onLineModeAnswer(t, null, at);
+  // A tool change's M5/M9 or a resume step unanswered: the job layer fails closed (independent review 2026-11-03, R6).
+  if (missed.purpose === 'motion') onJobMotionTimeout(t, missed.line, at);
   if (missed.purpose === 'seed' || missed.purpose === 'report' || t.s.reports.phase === 'seeding' || t.s.reports.phase === 'configuring') {
     failReports(t, `the board did not answer the ${missed.token} read in time`);
   }
@@ -1055,7 +1059,9 @@ function onResponse(t: Tx, r: Response, at: number): void {
   // the rest the oldest control line. Late (timed-out) entries ahead of the match in its queue are lost. The line
   // being written comes last: its answer can arrive before the transport reports the write complete.
   const owed = owedAnswers(t.s);
-  const data = Object.keys(r.r).every((k) => k === 'gc') && owed.some(isDataEntry);
+  // A data answer: `r` empty, or the firmware's echo of the line (`gc` at jv 5, and `n` for an N-numbered line at jv 4
+  // or more), which run accepts as it comes (independent review 2026-11-03, R7).
+  const data = Object.keys(r.r).every((k) => k === 'gc' || k === 'n') && owed.some(isDataEntry);
   let index = -1;
   for (let i = 0; i < owed.length; i++) {
     const e = owed[i] as Expected;
@@ -1105,6 +1111,9 @@ function answers(e: Expected, r: Response): boolean {
   const keys = Object.keys(r.r);
   // A motion line is answered with an empty `r`, or with the line echoed as `gc` (jv ≥ 5), or `clear`.
   if (e.purpose === 'motion') return keys.every((k) => k === 'gc' || k === e.token);
+  // A job line is G-code too: the same echo shape (`{"r":{"gc":"N1 G21 G90","n":1}}`: `gc` when another sender
+  // left jv at 5, `n` for its N word from jv 4); run does not normalise jv (independent review 2026-11-03, R7).
+  if (e.purpose === 'job') return keys.every((k) => k === 'gc' || k === 'n');
   return keys.length === 0 || (keys.length === 1 && keys[0] === e.token);
 }
 
@@ -1159,14 +1168,24 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
       // The answer itself is the proof of life (already recorded on receipt); keep the value it carries.
       if (r.footer.status === 0 && typeof value === 'number') t.set({ live: withNumber(t, t.s.live, e.token, value) });
       return;
-    case 'poll':
-      if (r.footer.status === 0 && typeof value === 'number' && Number.isFinite(value)) t.set({ live: withNumber(t, t.s.live, e.token, value) });
+    case 'poll': {
+      const ok = r.footer.status === 0 && typeof value === 'number' && Number.isFinite(value);
+      if (ok) t.set({ live: withNumber(t, t.s.live, e.token, value) });
+      // The cycle's own record (independent review 2026-11-03, R5): a new one at its first read, each later read
+      // added only when answered with status 0; a rejected answer fails the whole cycle. The motion and job layers
+      // confirm from this record, never from the live view, and it is dropped once the cycle has been judged.
+      if (POLL_TOKENS.includes(e.token)) {
+        const cycle = e.token === POLL_TOKENS[0] || t.s.polled === null ? { failed: false } : t.s.polled;
+        t.set({ polled: ok ? { ...cycle, [e.token]: value as number } : { ...cycle, failed: true } });
+      }
       if (e.token === 'home' && (t.s.base === 'IDLE_HOMED' || t.s.base === 'IDLE_UNHOMED')) t.set({ base: idleBase(t.s) });
       if (e.token === 'qr' && checkAlarm(t, at)) {
         onPollDone(t, at);
         onJobPoll(t, at);
       }
+      if (e.token === 'qr') t.set({ polled: null }); // the cycle has been judged: the next starts its own record
       return;
+    }
     case 'motion':
       if (!onJobMotionAnswer(t, e.line, r.footer.status, at)) onMotionAnswer(t, e.line, r.footer.status, at);
       return;

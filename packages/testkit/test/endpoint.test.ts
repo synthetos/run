@@ -151,3 +151,47 @@ describe('SimEndpoint', () => {
     expect(() => new SimEndpoint({ clock, device: new Probe(), link: { latencyMs: -1 } })).toThrow(RangeError);
   });
 });
+
+/**
+ * A clock whose timers fire by whole milliseconds, as Node and Chromium do with a fractional `setTimeout` delay
+ * (the fake-serial build runs the endpoint on the host's real timers): the delay is truncated, the order of two
+ * timers whose due times are under a millisecond apart is then the order of their truncated due times.
+ */
+class TruncatingClock extends VirtualClock {
+  override setTimeout(callback: () => void, delayMs: number): number {
+    return super.setTimeout(callback, Math.trunc(delayMs));
+  }
+}
+
+describe('SimEndpoint: host bytes reach the device in wire order on a clock with whole-millisecond timers (independent review 2026-11-03, R9)', () => {
+  it('two writes under a millisecond apart arrive as written, not shuffled into each other', () => {
+    const clock = new TruncatingClock();
+    const probe = new Probe();
+    const ep = new SimEndpoint({ clock, device: probe });
+    // One burst of job lines, as the streamer writes them when the board has free line slots.
+    const a = 'N13 G1 X0 Y4.5 F800\n';
+    const b = 'N14 G1 X5 Y5.0 F800\n';
+    ep.hostWrite(bytes(a));
+    clock.advance(0.9);
+    ep.hostWrite(bytes(b));
+    clock.advance(20);
+    expect(text(probe.received.map((r) => r.byte))).toBe(a + b);
+    const times = probe.received.map((r) => r.t);
+    expect([...times].sort((x, y) => x - y)).toEqual(times);
+  });
+
+  it('a toDevice disconnect fault still cuts the cable at its byte, and a disconnect drops the bytes still on the wire', () => {
+    const clock = new TruncatingClock();
+    const probe = new Probe();
+    const ep = new SimEndpoint({ clock, device: probe, faults: { faults: [{ kind: 'disconnect', direction: 'toDevice', atByte: 3 }] } });
+    ep.hostWrite(bytes('abcdef'));
+    clock.advance(10);
+    expect(text(probe.received.map((r) => r.byte))).toBe('abc');
+    expect(ep.connected).toBe(false);
+    const again = link();
+    again.ep.hostWrite(bytes('xyz'));
+    again.ep.disconnect('pulled');
+    again.clock.advance(10);
+    expect(again.probe.received).toEqual([]);
+  });
+});

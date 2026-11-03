@@ -92,7 +92,8 @@ describe('T-S89: jog state machine', () => {
     expect(req(h, { intent: 'jog', axes: { x: 1, y: -1 }, distanceMm: 0.1, feed: 600 }).allowed).toBe(true);
     expect(h.session.snapshot.base).toBe('JOGGING');
     await h.run(2000);
-    expect(motionWrites(h, from)).toEqual(['G21 G91 G1 X0.1 Y-0.1 F600\\n', 'G90\\n']);
+    // Millimetres on an answered line of its own before the first piece (independent review 2026-11-03, R2).
+    expect(motionWrites(h, from)).toEqual(['G21\\n', 'G21 G91 G1 X0.1 Y-0.1 F600\\n', 'G90\\n']);
     expect(h.session.snapshot.base).toBe('IDLE_UNHOMED');
     expect(h.session.snapshot.motion).toBeNull();
     expect(h.device.snapshot().position[0]).toBeCloseTo(0.1, 3);
@@ -109,7 +110,7 @@ describe('T-S89: jog state machine', () => {
       if (qr !== undefined) maxQueued = Math.max(maxQueued, 32 - qr);
     }
     await h.run(3000);
-    const pieces = motionWrites(h, from).filter((w) => w.startsWith('G21'));
+    const pieces = motionWrites(h, from).filter((w) => w.startsWith('G21 G91'));
     expect(pieces).toEqual(['G21 G91 G1 X3 F1200\\n', 'G21 G91 G1 X3 F1200\\n', 'G21 G91 G1 X3 F1200\\n', 'G21 G91 G1 X1 F1200\\n']);
     expect(maxQueued).toBeLessThanOrEqual(MOTION_LIMITS.lookahead);
     expect(h.device.snapshot().position[0]).toBeCloseTo(10, 3);
@@ -249,7 +250,8 @@ describe('T-S91: go to zero, set zero', () => {
     expect(req(h, { intent: 'goToZero', axes: ['x', 'y', 'z'], safeZ: -5 }).allowed).toBe(true);
     await h.run(5000);
     // safeZ -5 is below the current machine Z (-2): Z is not lowered, it stays at -2 first.
-    expect(motionWrites(h, from)).toEqual(['G53 G0 Z-2\\n', 'G90 G0 X0 Y0\\n', 'G90 G0 Z0\\n']);
+    // Explicit absolute millimetres first, the modes put back at the end (independent review 2026-11-03, R1).
+    expect(motionWrites(h, from)).toEqual(['G90 G21\\n', 'G53 G0 Z-2\\n', 'G90 G0 X0 Y0\\n', 'G90 G0 Z0\\n', 'G90\\n']);
     expect(h.session.snapshot.live.pos).toMatchObject({ x: 0, y: 0, z: 0 });
     expect(h.session.snapshot.base).toBe('IDLE_UNHOMED');
   });

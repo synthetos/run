@@ -20,7 +20,7 @@ type Snapshot = SnapshotMessage['snapshot'];
 export type JobSnapshot = NonNullable<Snapshot['job']>;
 
 /** Phases in which a job owns the machine. */
-export const ACTIVE_JOB_PHASES: ReadonlySet<string> = new Set(['preparing', 'running', 'draining', 'ending', 'pausing', 'paused', 'refused', 'toolChange', 'breakpoint', 'programStop', 'resuming']);
+export const ACTIVE_JOB_PHASES: ReadonlySet<string> = new Set(['checking', 'preparing', 'running', 'draining', 'ending', 'pausing', 'paused', 'refused', 'outputsOff', 'toolChange', 'breakpoint', 'programStop', 'resuming']);
 
 /** FNV-1a (32 bit) of the text, as the worker computes it (packages/machine job.ts `textHash`). */
 export function textHash(text: string): string {
@@ -176,6 +176,7 @@ export const PHASE_TEXT: Readonly<Record<string, string>> = {
   loading: 'Checking with this board',
   ready: 'Ready',
   blocked: 'Blocked',
+  checking: 'Checking again with this board',
   preparing: 'Preparing (line mode)',
   running: 'Job running',
   draining: 'Job running · stopping at the next stop point',
@@ -183,6 +184,7 @@ export const PHASE_TEXT: Readonly<Record<string, string>> = {
   pausing: 'Pausing…',
   paused: 'Paused',
   refused: 'Paused · a line was refused',
+  outputsOff: 'Tool change · turning the spindle and coolant off',
   toolChange: 'Tool change',
   breakpoint: 'Stopped at a breakpoint',
   programStop: 'Program stop',
@@ -218,7 +220,7 @@ function lowerBound(sourceLines: Uint32Array, line: number): number {
 
 /** The planner view of a running job, from file lines, in the preview's line indices; null when nothing runs. */
 export function plannerRanges(job: JobSnapshot | null, sourceLines: Uint32Array, starving: boolean): PlannerRanges | null {
-  if (job === null || job.startedAt === null || !ACTIVE_JOB_PHASES.has(job.phase) || job.phase === 'preparing') return null;
+  if (job === null || job.startedAt === null || !ACTIVE_JOB_PHASES.has(job.phase) || job.phase === 'checking' || job.phase === 'preparing') return null;
   const exec = job.executing?.line ?? job.ackedThrough ?? 0;
   const cutEnd = lowerBound(sourceLines, exec);
   const execEnd = Math.max(cutEnd, lowerBound(sourceLines, exec + 1));

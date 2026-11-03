@@ -12,19 +12,30 @@
  *   modes read for it (`jobPrep` reads), never the preview's offline model (SAFETY §4.7). The lines never leave
  *   the worker; the page sees a summary.
  * - **Start**: the page's confirmations are checked again (homed or C36, the work zero C31, the spindle C32),
- *   then PREAMBLE: the line mode is read and set to 1 if it is not (`{"rxm":1}`, its own reviewed intent, read
- *   back), the footer must then be revision 3 (line mode, `f[2]` the free line slots), the feed-limit window and
- *   the job flag are sent where the board has them, and the job runs.
+ *   then PREAMBLE: the prep reads are taken again and the file is sanitised again with the board's current
+ *   position, offsets, modes and limits (`checking`; a jog, an offset, a settings write or a mode change since the
+ *   load would otherwise leave the checked lines stale: independent review 2026-11-03, R3), then the line mode is
+ *   read and set to 1 if it is not (`{"rxm":1}`, its own reviewed intent, read back), the footer must then be
+ *   revision 3 (line mode, `f[2]` the free line slots), the feed-limit window and the job flag are sent where the
+ *   board has them, and the job runs.
  * - **Streaming** (H76): a line is written only while the last footer's free slots, less every job line still
  *   owed an answer, leave more than `reserve` slots for control lines (`!`, `~`, `%` and `{...}` lines are served
  *   first by the board). The answers to data lines come in order; a refused line (non-zero status) holds the job
- *   at that line (H70). Feeding stops before a tool change (H74) and a breakpoint (H75), after a program stop
- *   line (H36), and the final M2/M30 is held back until every earlier line is answered (H35).
+ *   at that line (H70), whether it was running or already pausing or paused: only Stop job or "Skip line" (C33)
+ *   resumes it (independent review 2026-11-03, R4). Feeding stops before a tool change (H74) and a breakpoint
+ *   (H75), after a program stop line (H36), and the final M2/M30 is held back until every earlier line is
+ *   answered (H35).
+ * - **Tool change** (H74): drained, then `M5` and `M9` are written and must each be answered with status 0
+ *   (`outputsOff`) before the card says the outputs are off (W37) and the change-ready state is offered; a refusal
+ *   or a missing answer ends the job with "use your E-stop" (independent review 2026-11-03, R6). The return after
+ *   the change runs in explicit absolute millimetres (`G90 G21` on its own answered line) and puts the job's
+ *   distance mode and units back before the job goes on (R1).
  * - **Pause** is `!`, **Resume** is `~` and streaming goes on from where it was; **Stop job** is the motion
  *   layer's flush sequence (`!`, `%` once held, `M5`, `M9`), then "Stopped at line N" (W42).
  *
- * Every decision about the machine uses polled `stat`, `hold`, `vel`, `qr` (SAFETY §4.2), never the last status
- * report; the reported `line` drives progress and the planner view only.
+ * Every decision about the machine uses polled `stat`, `hold`, `vel`, `qr` (SAFETY §4.2) of the poll cycle that
+ * just completed, and only when all four were answered with status 0 (independent review 2026-11-03, R5), never
+ * the last status report; the reported `line` drives progress and the planner view only.
  */
 import {
   CEILING_SECONDS,
@@ -47,12 +58,11 @@ import {
 } from '@synthetos/safety';
 import { mapStat, type Dialect, type JsonObject, type JsonValue, type Response } from '@synthetos/protocol';
 import { isReadAllowed } from '@synthetos/schema';
-import { MOTION_LIMITS, beginHold, idleBase, motionCapable, requestPoll } from './motion.ts';
-import { restingStat } from './resting.ts';
+import { MOTION_LIMITS, atRestPolled, beginHold, completedPoll, heldPolled, idleBase, motionCapable, requestPoll } from './motion.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { ACTIVE_PHASES, failJob, jobActive, jobEvent, lastFileLine, patchJob, type JobTx } from './jobState.ts';
-import { mm, motionLineKind, spindleLine } from './motionLines.ts';
-import type { Axis, Expected, JobReportSummary, JobState, PendingRead, SessionConfig, SessionIntent, SessionState } from './types.ts';
+import { ABSOLUTE_MM_LINE, motionLineKind, restoreLine, returnXYLine, safeZLine, spindleLine } from './motionLines.ts';
+import type { Axis, Expected, JobReportSummary, JobState, PendingRead, PolledValues, SessionConfig, SessionIntent, SessionState } from './types.ts';
 
 /** Timing and bounds of the job layer (SAFETY §4.4a). Milliseconds unless named otherwise. */
 export const JOB_LIMITS = Object.freeze({
@@ -197,10 +207,14 @@ export function onLoadJob(t: JobLayerTx, request: Extract<SessionIntent, { inten
   if (typeof text !== 'string' || text.length === 0) return deny('The file is empty.', 'Open another file.');
   if (text.length > JOB_LIMITS.maxBytes) return deny(`The file is larger than ${JOB_LIMITS.maxBytes / 1024 / 1024} MB.`, 'Split the job.');
   const id = (s.job?.id ?? 0) + 1;
-  const reads = JOB_PREP_TOKENS.filter((tok) => isReadAllowed(dialect(s).id, tok)).map((token) => ({ token, purpose: 'jobPrep' as const }));
-  t.set({ job: emptyJob(id, name, text, c22 === true), queue: [...s.queue, ...reads] });
+  t.set({ job: emptyJob(id, name, text, c22 === true), queue: [...s.queue, ...prepReads(s)] });
   jobEvent(t, at, 'info', `Loaded ${name}: checking every line with this board's limits and offsets.`);
   return ALLOWED;
+}
+
+/** The prep reads (JOB_PREP_TOKENS through the read allowlist): taken at load, and again at Start (R3). */
+function prepReads(s: SessionState): PendingRead[] {
+  return JOB_PREP_TOKENS.filter((tok) => isReadAllowed(dialect(s).id, tok)).map((token) => ({ token, purpose: 'jobPrep' as const }));
 }
 
 function emptyJob(id: number, name: string, text: string, c22: boolean): JobState {
@@ -210,7 +224,7 @@ function emptyJob(id: number, name: string, text: string, c22: boolean): JobStat
     hash: textHash(text),
     bytes: text.length,
     phase: 'loading',
-    pending: { text, c22 },
+    source: { text, c22 },
     lines: [],
     secondsFrom: [],
     report: null,
@@ -241,16 +255,27 @@ function emptyJob(id: number, name: string, text: string, c22: boolean): JobStat
 export function onJobPrepAnswer(t: JobLayerTx, e: PendingRead, r: Response | null, at: number): void {
   const value = r === null ? null : (r.r[e.token] ?? null);
   t.set({ values: { ...t.s.values, [e.token]: { value, status: r === null ? -1 : r.footer.status, at } } });
-  if (t.s.queue.some((q) => q.purpose === 'jobPrep') || t.s.job?.phase !== 'loading') return;
-  finishLoad(t, at);
+  if (t.s.queue.some((q) => q.purpose === 'jobPrep')) return;
+  if (t.s.job?.phase === 'loading') finishLoad(t, at);
+  else if (t.s.job?.phase === 'checking') finishCheck(t, at);
 }
 
-/** The prep reads were dropped (a timeout, a fault): the load fails, nothing was sanitised. */
+/**
+ * The prep reads were dropped (a timeout, a fault, a lost link): a load fails with nothing sanitised; a Start's
+ * re-check (R3) ends the job before anything was sent.
+ */
 export function abandonLoad(t: JobLayerTx, at: number, why: string): void {
   const j = t.s.job;
-  if (j === null || j.phase !== 'loading') return;
+  if (j === null || (j.phase !== 'loading' && j.phase !== 'checking')) return;
   t.set({ queue: t.s.queue.filter((q) => q.purpose !== 'jobPrep') });
-  patchJob(t, { phase: 'blocked', pending: null, message: `The file could not be checked: ${why}.` });
+  if (j.phase === 'checking') {
+    t.cancel('job');
+    t.set({ base: idleBase(t.s) });
+    patchJob(t, { phase: 'failed', message: `The job did not start: the file could not be checked again (${why}).`, endedAt: at });
+    jobEvent(t, at, 'error', `The job did not start: the file could not be checked again (${why}).`);
+    return;
+  }
+  patchJob(t, { phase: 'blocked', message: `The file could not be checked: ${why}.` });
   jobEvent(t, at, 'error', `The file could not be checked: ${why}.`);
 }
 
@@ -397,22 +422,47 @@ function summary(result: SanitizeResult): JobReportSummary {
   };
 }
 
-function finishLoad(t: JobLayerTx, at: number): void {
+/** Sanitises the job's source with the values just read and stores the lines, the report and the time estimates. */
+function sanitizeInto(t: JobLayerTx): { readonly result: SanitizeResult; readonly report: JobReportSummary } {
   const j = job(t.s);
-  const pending = j.pending as { readonly text: string; readonly c22: boolean };
-  const result = sanitizeLive(t.s, pending.text, pending.c22);
+  const result = sanitizeLive(t.s, j.source.text, j.source.c22);
   const report = summary(result);
   const secondsFrom: number[] = new Array<number>(result.lines.length + 1).fill(0);
   for (let i = result.lines.length - 1; i >= 0; i--) secondsFrom[i] = (secondsFrom[i + 1] as number) + ((result.lines[i] as SentLine).motion?.seconds ?? 0);
-  patchJob(t, { phase: report.blocked ? 'blocked' : 'ready', pending: null, lines: freezeDeep([...result.lines]), secondsFrom: Object.freeze(secondsFrom), report });
-  jobEvent(
-    t,
-    at,
-    report.blocked ? 'error' : 'info',
-    report.blocked
-      ? `Checked with this board's values: ${report.counts.block} ${report.counts.block === 1 ? 'finding stops' : 'findings stop'} this file.`
-      : `Checked with this board's values: ${result.lines.length} lines to send${report.toolChanges.length > 0 ? `, ${report.toolChanges.length} tool ${report.toolChanges.length === 1 ? 'change' : 'changes'}` : ''}.`,
-  );
+  patchJob(t, { lines: freezeDeep([...result.lines]), secondsFrom: Object.freeze(secondsFrom), report });
+  return { result, report };
+}
+
+function checkedText(result: SanitizeResult, report: JobReportSummary): string {
+  return report.blocked
+    ? `Checked with this board's values: ${report.counts.block} ${report.counts.block === 1 ? 'finding stops' : 'findings stop'} this file.`
+    : `Checked with this board's values: ${result.lines.length} lines to send${report.toolChanges.length > 0 ? `, ${report.toolChanges.length} tool ${report.toolChanges.length === 1 ? 'change' : 'changes'}` : ''}.`;
+}
+
+function finishLoad(t: JobLayerTx, at: number): void {
+  const { result, report } = sanitizeInto(t);
+  patchJob(t, { phase: report.blocked ? 'blocked' : 'ready' });
+  jobEvent(t, at, report.blocked ? 'error' : 'info', checkedText(result, report));
+}
+
+/**
+ * The prep reads taken at Start are in (R3): the file is sanitised again with the board's values as they are now.
+ * What the check found stops the start; otherwise the line mode is checked next (PREAMBLE goes on).
+ */
+function finishCheck(t: JobLayerTx, at: number): void {
+  const { result, report } = sanitizeInto(t);
+  if (report.blocked) {
+    t.cancel('job');
+    t.set({ base: idleBase(t.s) });
+    patchJob(t, { phase: 'blocked', startedAt: null, message: `The job did not start. ${checkedText(result, report)}` });
+    jobEvent(t, at, 'error', `The job did not start. ${checkedText(result, report)}`);
+    return;
+  }
+  jobEvent(t, at, 'info', `${checkedText(result, report)} Checking the line mode.`);
+  t.set({ rxm: { ...t.s.rxm, step: { kind: 'read', purpose: 'job', value: 1 }, detail: null } });
+  patchJob(t, { phase: 'preparing' });
+  queue(t, { token: 'rxm', purpose: 'lineMode' });
+  t.arm('job', JOB_LIMITS.drainPollMs);
 }
 
 // --- Start --------------------------------------------------------------------------------------------------
@@ -434,12 +484,15 @@ export function onStartJob(t: JobLayerTx, request: Extract<SessionIntent, { inte
   if (j.report?.startsSpindle === true && confirm.spindle !== true) return deny('This job starts the spindle.', 'Confirm the spindle start (C32).');
   const breakpoints = cleanBreakpoints(request.breakpoints);
   if (breakpoints === null) return deny('The breakpoints are not valid.', 'Set them again.');
-  // A fresh run of the same checked lines.
+  // A fresh run (the first, or again after done, stopped or failed): the board's values are read again and the
+  // file is checked again with them before anything is sent (R3): the lines checked at load may be stale after a
+  // jog, an offset, a settings write or a mode change, and the earlier run itself changed the modal state.
   t.set({
     base: 'PREAMBLE',
+    queue: [...s.queue, ...prepReads(s)],
     job: {
       ...j,
-      phase: 'preparing',
+      phase: 'checking',
       next: 0,
       acked: 0,
       free: null,
@@ -461,10 +514,8 @@ export function onStartJob(t: JobLayerTx, request: Extract<SessionIntent, { inte
       stopping: false,
       events: j.events,
     },
-    rxm: { ...s.rxm, step: { kind: 'read', purpose: 'job', value: 1 }, detail: null },
   });
-  jobEvent(t, at, 'info', `Started ${j.name}: checking the line mode.`);
-  queue(t, { token: 'rxm', purpose: 'lineMode' });
+  jobEvent(t, at, 'info', `Started ${j.name}: checking every line again with this board's current position, offsets, modes and limits.`);
   t.arm('job', JOB_LIMITS.drainPollMs);
   return ALLOWED;
 }
@@ -528,7 +579,7 @@ export function maybeRestoreLineMode(t: JobLayerTx, allowedNow: boolean): void {
   if (!allowedNow || s.rxm.step !== null || !jobsCapable(s, t.config) || jobActive(s) || s.motion !== null) return;
   if (s.reports.phase === 'seeding' || s.reports.phase === 'pending' || s.reports.phase === 'configuring') return;
   if (s.queue.length > 0 || s.writing !== null || s.expected.some((e) => !e.late) || s.settingWrite?.phase === 'gate' || s.settingWrite?.phase === 'writing' || s.settingWrite?.phase === 'readback') return;
-  if (s.job?.phase === 'loading') return;
+  if (s.job?.phase === 'loading' || s.job?.phase === 'checking') return;
   if (s.footerRev === 2) {
     settleLineModeRecord(t);
     return;
@@ -767,7 +818,14 @@ export function onJobAnswer(t: JobLayerTx, e: PendingRead, r: Response, at: numb
   jobEvent(t, at, 'error', text, line.sourceLine);
   if (j.refused !== null) return;
   patchJob(t, { refused: { index, status, text: line.body }, message: text });
-  if (j.phase === 'pausing' || j.phase === 'paused' || j.stopping) return;
+  if (j.stopping) return;
+  if (j.phase === 'pausing' || j.phase === 'paused') {
+    // The refusal arrived during a Pause (R4): the hold already asked for (or confirmed) is the refusal's hold,
+    // and the job is `refused` from here, so a plain Resume is denied until the line is skipped (C33) or the job
+    // is stopped, and the page keeps the refusal card.
+    patchJob(t, { phase: 'refused' });
+    return;
+  }
   pauseJob(t, at, 'refused');
 }
 
@@ -871,7 +929,14 @@ function resumeToolChange(t: JobLayerTx, request: Extract<SessionIntent, { inten
   const moved = (['x', 'y', 'z'] as const).some((a) => back[a] !== undefined && (here[a] === undefined || Math.abs((here[a] as number) - (back[a] as number)) > JOB_LIMITS.returnToleranceMm));
   if (moved) {
     if (here.z === undefined || back.x === undefined || back.y === undefined || back.z === undefined) return deny('The machine position is not known.', 'Wait for the position to be reported.');
-    steps.push({ line: `G53 G0 Z${mm(Math.max(here.z, back.z))}`, intent: 'resume' }, { line: `G53 G0 X${mm(back.x)} Y${mm(back.y)}`, intent: 'resume' });
+    // Explicit absolute millimetres on their own answered line first (R1): G53 keeps G91 and G20, under which the
+    // "safe" Z would be a distance (down) or inches. Then the job's own modes are put back before it goes on.
+    steps.push(
+      { line: ABSOLUTE_MM_LINE, intent: 'resume' },
+      { line: safeZLine(Math.max(here.z, back.z)), intent: 'resume' },
+      { line: returnXYLine(back.x, back.y), intent: 'resume' },
+      { line: restoreLine(tc.units, tc.dist), intent: 'resume' },
+    );
   }
   const restart = tc.spindle !== 'off' && !tc.restartsSpindle;
   if (restart) {
@@ -883,6 +948,7 @@ function resumeToolChange(t: JobLayerTx, request: Extract<SessionIntent, { inten
   if (tc.mist) steps.push({ line: 'M7', intent: 'resume' });
   if (tc.flood) steps.push({ line: 'M8', intent: 'resume' });
   if (steps.some((x) => motionLineKind(x.line) === undefined)) return deny('The way back is out of range.', 'Stop the job.');
+  if (moved && (tc.dist === undefined || tc.units === undefined)) return deny("The job's distance mode or units are not known, so they cannot be put back after the return.", 'Stop the job.');
   patchJob(t, { phase: 'resuming', resumeSteps: steps, passed: tc.index, confirmed: 0 });
   jobEvent(t, at, 'toolchange', `Resuming after the tool change${steps.length > 0 ? `: ${steps.map((x) => x.line).join(', ')}` : ''}.`, (s.job as JobState).lines[tc.index]?.sourceLine);
   nextResumeStep(t, at);
@@ -902,10 +968,24 @@ function nextResumeStep(t: JobLayerTx, at: number): void {
   t.arm('job', JOB_LIMITS.drainPollMs);
 }
 
-/** A motion line of a resume step was answered: a refusal ends the resume (the job stays at the tool change). */
+/**
+ * A motion line of the job layer was answered: a tool change's `M5` or `M9` (`outputsOff`, R6), or a resume step.
+ * A refused shutdown line fails the job closed (the outputs may still be on); a refused resume step ends the
+ * resume (the job stays at the tool change). Returns false when the answer is not the job layer's.
+ */
 export function onJobMotionAnswer(t: JobLayerTx, line: string | undefined, status: number, at: number): boolean {
   const j = t.s.job;
-  if (j === null || j.phase !== 'resuming') return false;
+  if (j === null) return false;
+  if (j.phase === 'outputsOff') {
+    if (status !== 0) {
+      outputsOffFailed(t, at, `the controller refused ${String(line)} (status ${status})`);
+      return true;
+    }
+    // Both M5 and M9 answered with status 0 (one line at a time, in order): now the card may say they are off.
+    if (dataSettled(t.s)) changeReady(t, at);
+    return true;
+  }
+  if (j.phase !== 'resuming') return false;
   if (status !== 0) {
     patchJob(t, { phase: 'toolChange', resumeSteps: [], passed: null });
     jobEvent(t, at, 'error', `The controller refused ${String(line)} (status ${status}); the job is still at the tool change.`);
@@ -913,20 +993,46 @@ export function onJobMotionAnswer(t: JobLayerTx, line: string | undefined, statu
   return true;
 }
 
+/** A motion line of the job layer went unanswered (the answer timer, `readAnswerMs`): fail closed (R6). */
+export function onJobMotionTimeout(t: JobLayerTx, line: string | undefined, at: number): void {
+  const j = t.s.job;
+  if (j === null) return;
+  if (j.phase === 'outputsOff') {
+    outputsOffFailed(t, at, `the controller did not answer ${String(line)} in time`);
+    return;
+  }
+  if (j.phase === 'resuming') {
+    t.set({ queue: t.s.queue.filter((q) => q.purpose !== 'motion') });
+    patchJob(t, { phase: 'toolChange', resumeSteps: [], passed: null });
+    jobEvent(t, at, 'error', `The controller did not answer ${String(line)} in time; the job is still at the tool change.`);
+  }
+}
+
+/** The spindle or coolant could not be confirmed off at a tool change (R6): the job ends, the outputs may be on. */
+function outputsOffFailed(t: JobLayerTx, at: number, why: string): void {
+  const j = job(t.s);
+  const line = j.lines[(j.toolChange as NonNullable<JobState['toolChange']>).index]?.sourceLine ?? 0;
+  const text = `The job ended at the tool change at line ${line}: ${why}. The spindle and coolant may still be on: use your E-stop or the controller's own stop.`;
+  t.cancel('job');
+  t.set({ queue: t.s.queue.filter((q) => q.purpose !== 'motion'), base: idleBase(t.s), notices: { ...t.s.notices, adviseEstop: true } });
+  patchJob(t, { phase: 'failed', message: text, endedAt: at, toolChange: null, stop: null });
+  jobEvent(t, at, 'error', text);
+}
+
+/** `M5` and `M9` are answered (R6): the tool-change card (W37) and its Resume, jog and Z re-zero are offered. */
+function changeReady(t: JobLayerTx, at: number): void {
+  const j = job(t.s);
+  const tc = j.toolChange as NonNullable<JobState['toolChange']>;
+  patchJob(t, { phase: 'toolChange', message: w37() });
+  jobEvent(t, at, 'toolchange', `Spindle and coolant off (M5 and M9 answered). Tool change at line ${j.lines[tc.index]?.sourceLine ?? 0}${tc.tool === null ? '' : `: T${tc.tool}`}.`, j.lines[tc.index]?.sourceLine);
+}
+
 // --- Polls and timer ----------------------------------------------------------------------------------------
 
-function atRest(s: SessionState): boolean {
-  return s.live.stat !== undefined && restingStat(dialect(s), s.live.stat, s.live.hold) && s.live.vel === 0 && s.live.hold === 0 && s.live.qr === planner(s);
-}
-
 /** At rest at a program stop: stat 3 or 4 (EN M0 holds with `hold` 6), nothing moving, planner empty (H36). */
-function drainedAtBarrier(s: SessionState): boolean {
-  const cls = s.live.stat === undefined ? undefined : mapStat(dialect(s), s.live.stat);
-  return (cls === 'programStop' || cls === 'end' || cls === 'idle') && s.live.vel === 0 && s.live.qr === planner(s);
-}
-
-function heldNow(s: SessionState): boolean {
-  return s.live.hold !== undefined && dialect(s).hold[s.live.hold] === 'HOLD';
+function drainedAtBarrier(s: SessionState, p: PolledValues): boolean {
+  const cls = mapStat(dialect(s), p.stat);
+  return (cls === 'programStop' || cls === 'end' || cls === 'idle') && p.vel === 0 && p.qr === planner(s);
 }
 
 function dataSettled(s: SessionState): boolean {
@@ -938,13 +1044,22 @@ export function onJobPoll(t: JobLayerTx, at: number): void {
   const s = t.s;
   const j = s.job;
   if (j === null || !ACTIVE_PHASES.has(j.phase) || s.motion !== null) return;
+  const p = completedPoll(s);
+  if (p === null) {
+    // A read of this cycle was rejected, damaged or missing: it confirms nothing, whatever the live view says (R5).
+    if (j.phase === 'draining' || j.phase === 'ending' || j.phase === 'pausing' || j.phase === 'refused' || j.phase === 'resuming') {
+      patchJob(t, { confirmed: 0 });
+      requestPoll(t);
+    }
+    return;
+  }
   const confirm = (ok: boolean): number => (ok ? j.confirmed + 1 : 0);
   switch (j.phase) {
     case 'draining':
     case 'ending': {
       const stop = j.stop as NonNullable<JobState['stop']>;
       const answered = j.acked >= j.next;
-      const rest = stop.kind === 'barrier' ? drainedAtBarrier(s) : atRest(s);
+      const rest = stop.kind === 'barrier' ? drainedAtBarrier(s, p) : atRestPolled(s, p);
       const confirmed = confirm(answered && rest);
       patchJob(t, { confirmed });
       if (confirmed < MOTION_LIMITS.confirmations) {
@@ -957,11 +1072,11 @@ export function onJobPoll(t: JobLayerTx, at: number): void {
     case 'pausing':
     case 'refused': {
       // The hold is complete, or the machine is at rest (nothing was moving): the job is paused at this line.
-      const confirmed = confirm(heldNow(s) || (s.live.vel === 0 && s.live.hold === 0 && j.acked >= j.next));
+      const confirmed = confirm(heldPolled(s, p) || (p.vel === 0 && p.hold === 0 && j.acked >= j.next));
       patchJob(t, { confirmed });
       if (confirmed < MOTION_LIMITS.confirmations) {
         // `!` is ignored while nothing moves yet (a line still parsing, a dwell): send it again once motion starts.
-        if (s.live.hold === 0 && s.live.vel !== undefined && s.live.vel !== 0) writeRealtime(t, 'feedhold', 'feedhold');
+        if (p.hold === 0 && p.vel !== 0) writeRealtime(t, 'feedhold', 'feedhold');
         if (j.pauseAt !== null && at - j.pauseAt > JOB_LIMITS.pauseNoAnswerMs && s.notices.motion?.kind !== 'failed') {
           t.set({ notices: { ...t.s.notices, motion: { kind: 'failed', text: "No answer from the board yet: use your E-stop if it's still moving", at } } });
         }
@@ -977,7 +1092,7 @@ export function onJobPoll(t: JobLayerTx, at: number): void {
       return;
     }
     case 'resuming': {
-      const confirmed = confirm(atRest(s) && dataSettled(s));
+      const confirmed = confirm(atRestPolled(s, p) && dataSettled(s));
       patchJob(t, { confirmed });
       if (confirmed < MOTION_LIMITS.confirmations) {
         requestPoll(t);
@@ -1011,11 +1126,16 @@ function stopReached(t: JobLayerTx, at: number, stop: NonNullable<JobState['stop
   t.set({ base: 'PROGRAM_PAUSED' });
   if (stop.kind === 'toolChange') {
     const tc = (j.lines[stop.index] as SentLine).toolChange as NonNullable<SentLine['toolChange']>;
-    // H74: the spindle and coolant go off before anyone reaches in; the card says so (W37).
+    // H74: the spindle and coolant go off before anyone reaches in. The card says so (W37) only once M5 and M9
+    // are each answered with status 0 (`outputsOff`, R6); a refusal or a missing answer ends the job closed.
     queue(t, { token: 'gc', purpose: 'motion', line: 'M5', intent: 'spindleOffNow' });
     queue(t, { token: 'gc', purpose: 'motion', line: 'M9', intent: 'spindleOffNow' });
-    patchJob(t, { phase: 'toolChange', message: w37(), toolChange: { index: stop.index, ...tc, at: { ...s.live.mpo } } });
-    jobEvent(t, at, 'toolchange', `Tool change at line ${line}${tc.tool === null ? '' : `: T${tc.tool}`}. Spindle and coolant off.`, line);
+    patchJob(t, {
+      phase: 'outputsOff',
+      message: `Tool change at line ${line}: turning the spindle and coolant off (M5, M9). Wait for the card.`,
+      toolChange: { index: stop.index, ...tc, at: { ...s.live.mpo }, units: s.live.unit, dist: s.live.dist },
+    });
+    jobEvent(t, at, 'toolchange', `Tool change at line ${line}${tc.tool === null ? '' : `: T${tc.tool}`}: sending M5 and M9.`, line);
     return;
   }
   if (stop.kind === 'breakpoint') {
@@ -1054,8 +1174,8 @@ export function onJobTimer(t: JobLayerTx, deps: JobDeps, at: number): void {
     t.arm('job', JOB_LIMITS.runPollMs);
     return;
   }
-  if (j.phase === 'toolChange' || j.phase === 'breakpoint' || j.phase === 'programStop' || j.phase === 'paused' || j.phase === 'preparing') {
-    if (j.phase === 'preparing') t.arm('job', JOB_LIMITS.drainPollMs);
+  if (j.phase === 'outputsOff' || j.phase === 'toolChange' || j.phase === 'breakpoint' || j.phase === 'programStop' || j.phase === 'paused' || j.phase === 'checking' || j.phase === 'preparing') {
+    if (j.phase === 'checking' || j.phase === 'preparing') t.arm('job', JOB_LIMITS.drainPollMs);
     return;
   }
   requestPoll(t);
@@ -1068,8 +1188,10 @@ export function onJobTimer(t: JobLayerTx, deps: JobDeps, at: number): void {
 export function onJobStop(t: JobLayerTx, at: number): boolean {
   const j = t.s.job;
   if (j === null || !ACTIVE_PHASES.has(j.phase) || !jobsCapable(t.s, t.config)) return false;
-  if (j.phase === 'preparing' && t.s.rxm.step?.kind === 'write') {
-    // The line-mode write is being answered (the EEPROM stall): let it finish; the job will not start.
+  if (j.phase === 'checking' || (j.phase === 'preparing' && t.s.rxm.step?.kind === 'write')) {
+    // Nothing was sent: the re-check's reads are dropped (R3), or the line-mode write is being answered (the EEPROM
+    // stall) and is let finish; the job will not start.
+    if (j.phase === 'checking') t.set({ queue: t.s.queue.filter((q) => q.purpose !== 'jobPrep') });
     patchJob(t, { phase: 'stopped', message: 'Stopped before the first line: nothing was sent.', endedAt: at });
     t.set({ base: idleBase(t.s) });
     t.cancel('job');

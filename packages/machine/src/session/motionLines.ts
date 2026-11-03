@@ -9,8 +9,10 @@
  *
  * | Shape | Use |
  * |---|---|
+ * | `G21` | millimetres, on its own answered line before the first jog piece: the firmware reads F before G20/G21 in the same block (independent review 2026-11-03, R2) |
  * | `G21 G91 G1 X<d> [Y<d>] [Z<d>] [A<d>] F<f>` | one jog piece (axes in XYZA order) |
- * | `G90` / `G90 G20` / `G91` / `G91 G20` | restore the distance mode (and inches) after a jog |
+ * | `G90 G21` | explicit absolute millimetres, on its own answered line before a `G53` move: G53 zeroes offsets but keeps G91 and G20 (independent review 2026-11-03, R1) |
+ * | `G90` / `G91`, with `G20` or `G21` | restore the distance mode and the units after a jog, go to zero or a tool-change return |
  * | `G53 G0 X<d> Y<d>` | back to where a job stopped for a tool change, at a safe height (Phase 3) |
  * | `G53 G0 Z<d>` | go to zero: raise Z in machine coordinates first |
  * | `G90 G0 X0 [Y0] [Z0] [A0]` | go to zero: rapid to work zero |
@@ -46,8 +48,9 @@ const NUM = '-?\\d{1,5}(?:\\.\\d{1,4})?';
 
 /** Each admitted shape, anchored. Axis words appear at most once each, in XYZA order. */
 const SHAPES: readonly { readonly name: MotionLineKind; readonly re: RegExp }[] = [
+  { name: 'units', re: /^G21$/ },
   { name: 'jog', re: new RegExp(`^G21 G91 G1(?: X(${NUM}))?(?: Y(${NUM}))?(?: Z(${NUM}))?(?: A(${NUM}))? F(\\d{1,5})$`) },
-  { name: 'restore', re: /^G9[01](?: G20)?$/ },
+  { name: 'restore', re: /^G9[01](?: G2[01])?$/ },
   { name: 'safeZ', re: new RegExp(`^G53 G0 Z(${NUM})$`) },
   { name: 'returnXY', re: new RegExp(`^G53 G0 X(${NUM}) Y(${NUM})$`) },
   { name: 'toZero', re: /^G90 G0(?: X0)?(?: Y0)?(?: Z0)?(?: A0)?$/ },
@@ -65,6 +68,7 @@ const SHAPES: readonly { readonly name: MotionLineKind; readonly re: RegExp }[] 
 ];
 
 export type MotionLineKind =
+  | 'units'
   | 'jog'
   | 'restore'
   | 'safeZ'
@@ -87,8 +91,10 @@ export type MotionLineKind =
  * refuses a motion line issued by any other intent, so a bug cannot, say, send G28.2 as a jog.
  */
 export const LINE_INTENTS: Readonly<Record<MotionLineKind, readonly string[]>> = Object.freeze({
+  units: ['jog'],
   jog: ['jog'],
-  restore: ['jog', 'stopJob'],
+  // Go to zero and a tool-change return establish `G90 G21` first and put the modes back after (R1).
+  restore: ['jog', 'stopJob', 'goToZero', 'resume'],
   safeZ: ['goToZero', 'resume'],
   returnXY: ['resume'],
   toZero: ['goToZero'],
@@ -138,13 +144,36 @@ export function jogLine(move: Readonly<Partial<Record<MotionAxisLetter, number>>
   return `G21 G91 G1 ${words.join(' ')} F${Math.round(feed)}`;
 }
 
-/** `G90` (or `G91` when the board was incremental, `dist` 1), plus `G20` when it was in inches (`unit` 0). */
+/**
+ * `G90` (or `G91` when the board was incremental, `dist` 1), plus `G20` when it was in inches (`unit` 0). The
+ * units word is left out when they were millimetres or are not known: every sequence this restores has already
+ * put the board in millimetres (`G21`, or `G90 G21`).
+ */
 export function restoreLine(units: number | undefined, dist?: number): string {
   return `${dist === 1 ? 'G91' : 'G90'}${units === 0 ? ' G20' : ''}`;
 }
 
+/**
+ * Millimetres, written on its own and answered before the first jog piece (independent review 2026-11-03, R2):
+ * the firmware sets F before it changes units in the same block (gcode_parser.c order, firmware-semantics
+ * EN-FEED-UNITS-ORDER), so a piece sent while the board is in inches would run at 25.4 times the feed.
+ */
+export const UNITS_LINE = 'G21';
+
+/**
+ * Explicit absolute millimetres, written on its own and answered before any `G53 G0` move (independent review
+ * 2026-11-03, R1): G53 only zeroes the offsets; under G91 the Z word is still a distance and under G20 it is
+ * inches (firmware-semantics EN-AXIS-MODES), so a "safe" Z could go down or 25.4 times too far.
+ */
+export const ABSOLUTE_MM_LINE = 'G90 G21';
+
 export function safeZLine(machineZ: number): string {
   return `G53 G0 Z${mm(machineZ)}`;
+}
+
+/** `G53 G0 X<x> Y<y>`: back to where a job stopped for a tool change (Phase 3, H74), after `ABSOLUTE_MM_LINE`. */
+export function returnXYLine(x: number, y: number): string {
+  return `G53 G0 X${mm(x)} Y${mm(y)}`;
 }
 
 function zeroWords(axes: readonly MotionAxisLetter[]): string {

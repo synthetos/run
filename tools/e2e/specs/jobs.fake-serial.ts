@@ -5,7 +5,10 @@
  * - a file streamed to completion from the Check → Set zero → Start stepper, with the line mode set and put back;
  * - Pause and Resume; Stop job mid-job ("Stopped at line N");
  * - the manual tool-change flow (W37, C34, C35);
- * - a breakpoint (W43); a refused line (W38, Skip behind C33); a reset mid-job (FAULT, W40).
+ * - a breakpoint (W43); a refused line (W38, Skip behind C33); a reset mid-job (FAULT, W40);
+ * - independent review 2026-11-03: Start checks the file again first (R3); a line refused while paused keeps the job
+ *   refused until Skip or Stop (R4); the tool-change card comes only after M5 and M9 are answered and the return
+ *   runs in explicit absolute millimetres (R1, R6); a jog from a board left in inches writes G21 first (R2).
  *
  * The page is not LIVE here (the worker is opened directly, as in the other fake-serial specs), so Pause and Stop job
  * go to the worker as requests; the stepper, the cards and the G-code list are driven in the page. With
@@ -140,7 +143,8 @@ test('a file streams to completion from the stepper; Start is enabled only when 
   await expect.poll(() => phase(worker), { timeout: 60_000 }).toBe('done');
   await expect.poll(async () => (await session(worker)).footerRev, { timeout: 10_000 }).toBe(2);
   const w = (await writes(worker)).slice(from);
-  expect(w.slice(0, 3)).toEqual(['{"rxm":null}\n', '{"rxm":1}\n', '{"rxm":null}\n']);
+  // Start reads the board again first (R3: rxm is among its prep reads), then the line mode is read, set and read back.
+  expect(w.filter((x) => x.startsWith('{"rxm":')).slice(0, 4)).toEqual(['{"rxm":null}\n', '{"rxm":null}\n', '{"rxm":1}\n', '{"rxm":null}\n']);
   expect(w.filter((x) => x.startsWith('N'))).toHaveLength((await session(worker)).job?.total as number);
   expect(w).toContain('{"rxm":0}\n');
   await expect(page.locator('[data-job="message"]')).toContainText('Job finished');
@@ -175,12 +179,17 @@ test('a manual tool change: stop before M6, spindle off, the card, jog away, Res
   const text = ['G21 G90', 'M3 S12000', 'G1 X3 F800', 'G1 X0', 'T2 M6', 'G1 X3 F800', 'G1 X0', 'M5', 'M30'].join('\n');
   await open(page, `${text}\n`, 'tool-change.nc');
   await start(page);
-  await expect.poll(() => phase(worker), { timeout: 20_000 }).toBe('toolChange');
   const card = page.locator('[data-job="tool-change"]');
+  // Drained at the M6: the outputs are being turned off first; the card comes only once M5 and M9 are answered (R6).
+  await expect.poll(() => phase(worker), { timeout: 20_000 }).toMatch(/^(outputsOff|toolChange)$/);
+  if ((await phase(worker)) === 'outputsOff') await expect(card).toHaveCount(0);
+  await expect.poll(() => phase(worker), { timeout: 10_000 }).toBe('toolChange');
+  expect((await board(worker)).spindle).toBe('off');
+  const written = await writes(worker);
+  expect(written.indexOf('M9\n')).toBeGreaterThan(written.indexOf('M5\n'));
   await expect(card).toBeVisible();
   await expect(card.locator('[data-safety="W37"]')).toBeVisible();
   await expect(card.locator('[data-job="tool-next"]')).toContainText('T2');
-  await expect.poll(async () => (await board(worker)).spindle, { timeout: 5000 }).toBe('off');
   expect((await writes(worker)).some((w) => w.includes('M6'))).toBe(false);
   await shot(page, 'tool-change-card', '.run-inspector');
   await shot(page, 'tool-change');
@@ -197,8 +206,62 @@ test('a manual tool change: stop before M6, spindle off, the card, jog away, Res
   await page.locator('[data-safety="C34"] [data-action="motion-confirm"]').click();
   await expect.poll(() => phase(worker), { timeout: 30_000 }).toBe('done');
   const after = (await writes(worker)).slice(from).filter((x) => !x.startsWith('{') && x !== '\x05');
-  expect(after[0]).toMatch(/^G53 G0 Z/);
-  expect(after.slice(1, 4)).toEqual(['G53 G0 X0 Y0\n', 'M3 S12000\n', 'N5 T2 M6\n']);
+  // Explicit absolute millimetres on their own line first, the job's modes put back after the return (R1).
+  expect(after[0]).toBe('G90 G21\n');
+  expect(after[1]).toMatch(/^G53 G0 Z/);
+  expect(after.slice(2, 6)).toEqual(['G53 G0 X0 Y0\n', 'G90\n', 'M3 S12000\n', 'N5 T2 M6\n']);
+});
+
+test('a line refused while the job is paused keeps it refused: no plain Resume, Skip line continues behind C33 (R4)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const worker = await connect(page);
+  await open(page, zigzag(12), 'refused-paused.nc');
+  await worker.evaluate(() => {
+    const registry = (globalThis as unknown as { __RUN_FAKE_SERIAL__?: { ports: { endpoint: { device: { injectRefusal(m: RegExp, s: number): void } } }[] } }).__RUN_FAKE_SERIAL__;
+    registry?.ports.at(-1)?.endpoint.device.injectRefusal(/^N3 /, 220);
+  });
+  await start(page);
+  await expect.poll(() => phase(worker), { timeout: 20_000 }).toMatch(/^(running|refused)$/);
+  // Pause at once: the board holds, and refuses N3 (queued before the hold) while the job is pausing or paused. (On
+  // a fast run the refusal may land first; the job is refused and held either way, and Resume is governed the same.)
+  expect(await request(worker, { v: 3, kind: 'intent', intent: 'feedhold' })).toMatchObject({ ok: true });
+  await expect.poll(() => phase(worker), { timeout: 20_000 }).toBe('refused');
+  await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('HELD');
+  const card = page.locator('[data-job="refused"]');
+  await expect(card.locator('[data-safety="W38"]')).toContainText('The controller refused line 3 (status 220: outside the soft limits)');
+  const before = (await writes(worker)).length;
+  expect(await request(worker, { v: 3, kind: 'motion', command: { op: 'resume' } })).toMatchObject({ ok: false });
+  await page.waitForTimeout(800);
+  expect(await phase(worker)).toBe('refused');
+  expect((await writes(worker)).slice(before)).not.toContain('~');
+  await expect(card).toBeVisible();
+  await card.locator('[data-action="skip-line"]').click();
+  await page.locator('[data-safety="C33"] [data-action="motion-confirm"]').click();
+  await expect.poll(() => phase(worker), { timeout: 30_000 }).toBe('done');
+});
+
+test('a jog from a board a stopped job left in inches: G21 on its own line first, the piece, then G90 G20 (R2)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const worker = await connect(page);
+  // A job in inches, stopped mid-move: Stop job puts back absolute distance and the inches it found (G90 G20).
+  await open(page, 'G21 G90\nG20\nG1 X0.5 F10\nM30\n', 'inches.nc');
+  await start(page);
+  await expect.poll(async () => (await session(worker)).job?.acked ?? 0, { timeout: 20_000 }).toBeGreaterThanOrEqual(3);
+  await page.waitForTimeout(500);
+  expect(await request(worker, { v: 3, kind: 'intent', intent: 'stopJob' })).toMatchObject({ ok: true });
+  await expect.poll(() => phase(worker), { timeout: 15_000 }).toBe('stopped');
+  expect((await writes(worker)).filter((x) => !x.startsWith('{') && x !== '\x05').at(-1)).toBe('G90 G20\n');
+  await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
+  const x0 = (await board(worker)).position[0] as number;
+  await page.locator('[data-tab="jog"]').click();
+  await page.locator('.sec-jog [aria-label="Step size"] button', { hasText: /^1$/ }).click();
+  const from = (await writes(worker)).length;
+  await page.getByRole('button', { name: 'X+', exact: true }).click();
+  await expect.poll(async () => (await writes(worker)).slice(from).filter((w) => !w.startsWith('{') && w !== '\x05').at(-1), { timeout: 15_000 }).toBe('G90 G20\n');
+  const w = (await writes(worker)).slice(from).filter((x) => !x.startsWith('{') && x !== '\x05');
+  expect(w).toEqual(['G21\n', 'G21 G91 G1 X1 F1000\n', 'G90 G20\n']);
+  // One millimetre, not one inch; the feed was read in millimetres (a piece at 25.4 times the feed would have been clamped and still moved 1 mm, so the modes are the proof here).
+  await expect.poll(async () => ((await board(worker)).position[0] as number) - x0, { timeout: 5000 }).toBeCloseTo(1, 2);
 });
 
 test('a breakpoint stops the job before its line with the queue drained; Resume goes on', async ({ page }) => {
