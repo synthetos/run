@@ -95,6 +95,15 @@ Warning text is never accepted in place of a design measure that would have been
 - New hazards H70-H78; new W37-W44 and C30-C36; new tests T-S108-T-S119; checklist items 46-49; HIL-3.18-HIL-3.23.
 - Offset writes and status 13 (firmware bug hunt, 2026-11-02): back-to-back `G10 L2/L20` can be refused with status 13 (buffer full) although each reply is awaited; the cause is not known yet. Until it is, Set work zero and G54..G59 write the line again after about 0.5 s, at most 3 attempts in all, and log each refusal (§4.5b Offsets, T-S119).
 
+**Firmware update (amendment 2026-11-03; the owner approved the browser flasher, the Firmware & Backups hub and "Trust this build on this board"):**
+- run updates TinyG firmware on the **bench and staging builds only**. One switch (`packages/safety/src/flasherPhase.ts`, `FLASHER = { staging: true, production: false }`, pinned by a test) adds the `flash` intent kind there. Production stays off, and its signed release list has no entry until the owner signs one with the release key.
+- The flasher speaks AVR109 block mode to TinyG's xboot (pinned as `XB`, tg-xboot 29d08013). **Chip erase (`e`) is unrepresentable** in the client's closed command set, and a frame guard in front of the port refuses it, lock bits, EEPROM writes and any page at or above the boot section (H83, H84). Pages are erase-written one by one; the stub page 0 (`jmp 0x30000`) is written first and the real page 0 last, so an interrupted flash leaves a board that stays in its bootloader (H80).
+- Entry: the session's own idle gate (polled `stat`, `hold`, `vel`, `qr`), then exactly `{"boot":1}`; the session closes its link and the flasher opens **the same port** (the selector confirmed at Connect, never a new choice) in bootloader role, which needs the `BootloaderCapability` only the flasher's authorization mints.
+- Order: settings backup (token by token) → raw EEPROM read and the whole application section read as the firmware image backup (stored before anything is written) → write → read-back verify → CRC → exit → reconnect → version check → compare the live settings with the backup → a **required restore** with read-back when anything differs → the **switch check** when switch or homing settings changed. Jobs, jog and settings writes stay locked by the worker until then (H81, H82).
+- A signed **firmware release list** (`firmware/releases.json`, per hardware version: build, SHA-256 and size of the `.hex`, changelog, date, recommended, minimum build) is verified like the approved-builds manifest; on staging a listed release also counts as an approved build for its hardware version. A board below the minimum is identified, viewable and backed up, and opens on the Update panel; jobs, jog and settings writes stay locked until it is updated (the old-firmware gate).
+- **Custom firmware** (an unsigned `.hex` the user chooses) is allowed with C37 and W47, backups first; the board stays READ_ONLY afterwards unless the user trusts that exact image on that board (C38, W48), which is stored on this computer only and never applies to another board or image (H85, H87).
+- New hazards H79-H89; new W45-W50 and C37-C38; new tests T-S120-T-S127; checklist items 50-53; HIL-5.8-HIL-5.12.
+
 ---
 
 ## 1. Scope and intended use
@@ -261,6 +270,8 @@ Residual Low.
 ### H11. Firmware flashing
 As OLD-S H11 and §4.8. The EN boot ordering leaves the spindle and coolant pins high-impedance while settings load (PN §13.1). That is a firmware statement of the float hazard, so mains isolation in C6 stays mandatory. **Mains stay isolated until the restore read-back confirms `spep`/`spdp`** (§4.8, H47). The factory default is `spep=1` (EN settings_default.h:52), and `_exec_spindle_control` drives the enable pin low for OFF when the polarity is 1 (EN spindle.c:202-203), which an active-low relay or VFD enable reads as ON. B-FL-1 and B-FL-2 are re-run on EN. Residual Low once they pass; the flasher does not ship before then.
 
+*Amended 2026-11-03 (firmware update).* The flasher ships on the bench and staging builds behind its switch; B-FL-1 and B-FL-2 are its bench tasks before the owner turns anything on for production (HIL-5.1, HIL-5.2, HIL-5.8-HIL-5.12). Hazards H79-H89.
+
 ### H12. Malicious or compromised code drives the machine (XSS, supply chain)
 | Field | Content |
 |---|---|
@@ -335,6 +346,8 @@ As OLD-S H22:
 - no local-file flashing in v1.
 
 The edge-next image must be published as a reviewed GitHub release first (D6). Residual Low.
+
+*Amended 2026-11-03 (firmware update, owner).* "No local-file flashing in v1" is replaced: a user may flash a local `.hex` as unsigned custom firmware (C37, W47, H85), and a signed release's `.hex` may be a local copy, which must match the signed SHA-256 and size. A custom build stays READ_ONLY unless trusted on that board (H87).
 
 ### H23. Tool change or program stop with the spindle live
 | Field | Content |
@@ -831,6 +844,105 @@ In every row the reply to the connect line is a G-code reply `{"r":{},"f":[...]}
 | **Residual** | Low. |
 | **Verification** | U/M: T-S114 (the window). E: the Live job tab. |
 
+### H79. Wrong image or wrong part flashed (NEW, firmware update, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | A `.hex` for another board or part, a damaged or truncated download, an HTML page saved as `.hex`, a bootloader image, or a release for another hardware version. A board that runs code built for another part or pinout can switch outputs and drive motors unpredictably. |
+| **Rating** | S2–S4, L2 |
+| **Mitigations** | 1. A signed release's `.hex` must match the SHA-256 and size the verified release list names, checked in the page and again in the machine worker before anything is parsed. 2. Strict Intel HEX (record checksums, known record types, exactly one end record, no overlaps, a reset vector at address 0, no xboot install marker). 3. The release must name this board's hardware version and the part `x192a3`; the bootloader's signature (`s`), program id and block size must match the part before anything is read or written. 4. An image for the test kit's simulated board (`simulatorOnly`, hardware version 99) is refused unless the port is the simulated one. 5. The version check after the reconnect. |
+| **Residual** | Low for signed releases. Custom firmware: see H85. |
+| **Verification** | U: T-S120, T-S122. M: T-S121 (wrong signature). H: HIL-5.8. |
+
+### H80. Interrupted flash: the board has no complete application (NEW, firmware update, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | USB pulled, the tab closed or crashed, the computer slept, a lost byte or a write refused mid-flash. Without care the board would start a half-old, half-new image. |
+| **Rating** | S2–S3, L2 |
+| **Mitigations** | 1. **Stub page 0 first**: page 0 is written as `jmp 0x30000` before any other page, and the real page 0 only after every other page read back right; until then any reset or window timeout jumps straight back into xboot, which survives every failed flash. 2. Lost or damaged replies are retried after a resync through xboot's watchdog reset and its entry window, at most 3 times per step and 8 per run. 3. **Recovery**: "Unplug the USB cable and plug it back in now" (W49) with a countdown while run sends ESC; the same image is flashed again. 4. W11 and W28 stay shown from the start of the flash until the restore. 5. The pending-restore record is written before the flash starts (H81). |
+| **Residual** | Low-Medium: an interruption while the real page 0 is being erase-written (a few milliseconds) can leave a board that needs a programmer (W11). The xboot watchdog period and the window timings are xboot's configured values, not measured (B-FL-WDT). |
+| **Verification** | M: T-S121 (interrupted write, recovery). E: T-S127. H: HIL-5.1, HIL-5.9. |
+
+### H81. Settings lost, or the new firmware's defaults used, after an update (NEW, firmware update, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | A firmware with another EEPROM layout loads its defaults on first boot (bench: 450 to 440.21 and back); `e` would erase every setting (never sent, H83). The machine then runs on factory travel, homing, switch and polarity settings. |
+| **Rating** | S3–S4, L3 |
+| **Mitigations** | 1. A settings backup, token by token, is taken and stored before the bootloader is entered, plus a raw EEPROM read in the bootloader. 2. After the reconnect the worker compares the live settings with that backup; if anything differs the restore is **required** (W45) and goes through the settings write path with read-backs, writing only the backup's values for the keys that differ. 3. Until it reads back right, the worker refuses jobs, jog and every other settings write for that board. 4. The pending-restore record (`flashRestorePending/<board>`, device-safety) forces the check again after a reload. 5. Mains isolation (C6, W28) as before. |
+| **Residual** | Low. A browser whose site data was cleared mid-update loses the pending record; the downloaded and stored backups remain. |
+| **Verification** | U/E: T-S126, T-S127. H: HIL-5.10. |
+
+### H82. Switch settings changed by an update (NEW, firmware update, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | The switch type (`st`) and the per-axis switch modes are among the defaults a new layout loads (bench: the Z-min switch changed). A limit switch that reads inverted no longer stops the machine, and homing runs into the end. |
+| **Rating** | S3–S4, L2 |
+| **Mitigations** | After a restore, or with no difference but switch or homing keys among what had changed, the **switch check** is required: "Check your limit switches. The update changed the switch settings." (W46). Run reads the input states while the user presses and releases each configured limit switch, and the worker unlocks jobs and jog only after its own reads saw every one open and closed. |
+| **Residual** | Medium: run cannot see which physical switch the user pressed. |
+| **Verification** | U/E: T-S126, T-S127. H: HIL-5.10. |
+
+### H83. Chip erase (`e`) sent by mistake (NEW, firmware update, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | xboot's `e` erases the whole application section and all of EEPROM: every setting is gone. A bug, a copied avrdude habit or a stray byte could send it. |
+| **Rating** | S3, L2 |
+| **Mitigations** | 1. The client's command set is closed and has no erase: `e` is unrepresentable (no `Command` variant; the encoder refuses anything else). 2. `FrameGuard` in the bootloader link refuses any write whose command byte is `e`, `l` (lock bits), `D`, `c`, `C`, `m` or `A`, and any frame that is not exactly one allowed command. 3. Pages are erase-written by block writes, so no erase is ever needed. 4. The test kit's xboot models `e` honestly and counts it; every flash test asserts the count stays 0. |
+| **Residual** | Very low. |
+| **Verification** | U: T-S121 (property test over arbitrary bytes). M: T-S121. |
+
+### H84. The bootloader overwritten (NEW, firmware update, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | An image that reaches 0x30000 or above, or a page address computed wrong. Without xboot the board can only be recovered with a programmer. |
+| **Rating** | S2–S3, L1 |
+| **Mitigations** | The HEX parser refuses any byte at or above 0x30000; the page plan covers 0x00000-0x2FFFF only; the client refuses a page write that would reach the boot section; the frame guard tracks xboot's address register and refuses a block write at or above it. Code, EEPROM and bootloader protection are off in this xboot build (XB conf/x192a3.mk), so run's guards are the protection. |
+| **Residual** | Very low. |
+| **Verification** | U: T-S121, T-S122. |
+
+### H85. Unsigned custom firmware flashed (NEW, firmware update, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | The user flashes their own build. Nobody reviewed it; it may mis-handle outputs, limits or stops. |
+| **Rating** | S3–S4, L2 |
+| **Mitigations** | Labelled "unsigned custom firmware" with W47 and the explicit C37 (and C6); the same strict HEX and part checks (H79, H84); backups always first; after the update the board is READ_ONLY (not on any approved list) unless the user trusts it (H87). |
+| **Residual** | Medium: a trusted custom build is the user's responsibility. |
+| **Verification** | U: T-S120, T-S123. E: T-S127. |
+
+### H86. Unsigned or forged release list (NEW, firmware update, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | A release list edited on the server, a list signed for staging served on production, a stale list, or test images offered for real boards. |
+| **Rating** | S3–S4, L1 |
+| **Mitigations** | The list is Ed25519-signed per environment under a compiled-in release key authorised for that environment, with its own signing prefix, an issue and an expiry time; the machine worker verifies its own bundled copy, never the page's. Production has no entry until the owner signs one with the release key. Simulator images are marked and refused on real ports; they are listed for hardware version 99 only. |
+| **Residual** | Low (the release key itself: H46). |
+| **Verification** | U: T-S120. |
+
+### H87. A custom build trusted by mistake, or trust applied to the wrong board or image (NEW, firmware update, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | "Trust this build on this board" makes a custom build count as approved, so motion, jobs and settings writes become possible on it. Applied to another board, another image, or a build reflashed by another program, it would approve something nobody chose. |
+| **Rating** | S3–S4, L2 |
+| **Mitigations** | 1. Offered only for custom firmware this browser flashed onto this board, behind C38 naming the board and the image's SHA-256. 2. The record is per board id and per image SHA-256, stored in device-safety on this computer only (never synced), and sent to the worker at Connect only while this browser's installed-image record for that board is that same image. 3. The worker adds it as an approval restricted to that one board id, only where the flasher switch is on (never production). 4. The machine strip shows W48 for as long as it is in use. 5. Revocable in Firmware & Backups. |
+| **Residual** | Medium: a later reflash by another program of a build reporting the same `fb` cannot be told apart (the same limit as `fbs`-less manifest entries). |
+| **Verification** | U: T-S123. E: T-S127. |
+
+### H88. Two tabs flash, or a tab drives the board while another flashes (NEW, firmware update, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | A second tab sends commands to a board in its bootloader, or starts a second flash. |
+| **Rating** | S2–S3, L1 |
+| **Mitigations** | Only the tab whose worker holds the port (the machine Web Lock, H55) can flash; the worker refuses a second flash, a Connect and a Disconnect while one runs; other tabs only send stop requests, which reach a session that has no link during the flash. |
+| **Residual** | Low. |
+| **Verification** | U: T-S126. |
+
+### H89. Another board flashed by mistake (NEW, firmware update, 2026-11-03)
+| Field | Content |
+|---|---|
+| **Cause** | Two boards on one computer, a re-plugged cable, or the wrong port chosen. |
+| **Rating** | S2–S3, L2 |
+| **Mitigations** | The flasher reopens exactly the port the session used (the selector confirmed at Connect, with its full grant snapshot); C6 names the board id and the builds; a firmware backup goes back only on the board it was read from; a signed release only on its hardware version; the post-flash lock is keyed by board id and the version check reads the board after the reconnect. |
+| **Residual** | Low-Medium: two boards with the same id and hardware version (H38) rely on the user. |
+| **Verification** | U: T-S123, T-S126. |
+
 ---
 
 ## 3. Connection and motion state machine
@@ -971,6 +1083,8 @@ Added:
 *Amended 2026-11-02 (push-driven state, homing, offsets).* **Home** (G28.2) is allowed from IDLE_* and from CONNECTED_UNKNOWN under UNKNOWN (and HOMING only for the line being written), for axes whose homing is configured (H65), after C4. **Set machine position** (`setMachinePosition`, G28.3) has the same states and overlays, after C26 (H67). **Temporary offset** (`tempOffset`, G92 and G92.1, C27 and C28) and **Work coordinate system** (`selectCoordSystem`, G54..G59, C29) are allowed from IDLE_* with no overlay. **Set work zero** is G10 L20 in the active system (P1..P6), not always P1. **Report configuration** (`configureReports`, kind `reports`) is the session's own: idle or CONNECTED_UNKNOWN, under UNKNOWN or NEEDS_REVIEW only, never in ALARM, and only with a release that has `reports` (Phase 2) (H64). Each is a separate intent with its own confirmation and read-back.
 
 *Amended 2026-11-03 (Phase 3, jobs).* New kind `jobs`, on only with the jobs release (bench and staging, `jobsPhase.ts`). **Start** (`startJob`) is from IDLE_* with no overlay; the session also needs a checked job with no block, line mode available, and the page's confirmations (homed or C36, C31, C32 when the job starts the spindle); there is no separate ARMED state on the bench: the stepper's confirmations are the arm. **Job lines** (`jobLine`) only while RUNNING with no overlay (STALE stops them). **Line mode** (`lineMode`, the `rxm` write and its restore) only from IDLE_*, CONNECTED_UNKNOWN or PREAMBLE, under UNKNOWN or NEEDS_REVIEW at most. **Job rt lines** (`jobRuntime`) around a job, no overlay. **Resume** from HELD or PROGRAM_PAUSED as before. **Jog** and **Set work zero** are also allowed in PROGRAM_PAUSED; the session allows them only at a manual tool change. Disconnect stays denied while a job owns the machine. Pause, Stop job and Spindle off stay never gated.
+
+*Amended 2026-11-03 (firmware update).* New kind `flash`, on only with the flasher switch (bench and staging, `flasherPhase.ts`). **Flash** (`flash`, the session's entry into the bootloader) is allowed from IDLE_* and CONNECTED_UNKNOWN, under READ_ONLY (an old or unapproved build is what an update replaces), UNKNOWN and NEEDS_REVIEW; never under FAULT, LOST, ORPHANED_MOTION or STALE. The session also proves the board at rest with polled reads right before `{"boot":1}` and refuses during a job, a move or a settings write. While a flash runs the worker refuses Connect, Disconnect and a second flash. After a flash, and for a board below the release list's minimum, the worker refuses jobs, jog and settings writes (H81, H82, the old-firmware gate); stops are never refused.
 
 **UI rules that protect the stop path while LIVE** (OLD-S §4.1, extended):
 - No fullscreen while LIVE.
@@ -1250,6 +1364,8 @@ EN-specific steps:
 - **`flashRestorePending`:** written to `device-safety` before the first page is sent (board id, machine id, snapshot hash, time) and cleared only after a confirmed restore. On the next connect to that board it forces the restore before anything else, as H26 does.
 - A downgrade across config layout 2 needs a reviewed manifest flag and a full typed review of the mapped restore.
 
+*Amended 2026-11-03 (firmware update, owner).* The flash gate as built, on the bench and staging only: identity (a classified TinyG dialect; an unclassified board only through recovery) → the session's idle gate → C6 (and C37 for custom firmware) → the settings backup stored → `{"boot":1}` → the same port reopened in bootloader role with the flasher's capability → ESC and `S` (the 60 s window) → `S`, `V`, `s`, `b`, `a` checked against the part → the raw EEPROM read and the application section read, stored by the page before anything is written → the stub page 0, pages N..1 (pages that already hold the right bytes are skipped), read-back of every page, the real page 0, xboot's CRC of the section, `E` → the reconnect, the version check, the settings compare, the required restore, the switch check. **`e` is never sent**; the earlier flow's step 7.4 (`e`) is withdrawn, and pages are erase-written by block writes (XB src/xboot.c:1173-1178). Wake Lock and the `beforeunload` guard are not yet wired to the flasher (B-FL-UX); W11 and W28 are shown instead.
+
 ### 4.9 Failure-mode table
 
 OLD-S §4.9 rows still apply, with SIM read as NOT CONNECTED. Rows added or changed:
@@ -1371,6 +1487,12 @@ Signal words follow ANSI Z535 and ISO 3864-2 (OLD-S §5). **Single source:** eve
 - **W42 (Stop job result in a job; Phase 3, §4.4a):** "Stopped at line <line>: queue cleared, spindle and coolant off"
 - **W43 (stopped at a breakpoint; Phase 3, H75):** "Stopped at breakpoint · line <line>"
 - **W44 (line mode put back at connect; Phase 3, H77):** "NOTICE — Run had switched this board to line mode (rxm 1) for a job that did not end here. Run put it back to rxm <to> (saved on the board)."
+- **W45 (after an update that changed settings; firmware update, H81):** "WARNING — The update changed this board's settings (<count> differ from your backup taken before the update). Restore them before you use the machine. Jobs, jogging and settings changes stay locked until the restore is read back and the switch check is done."
+- **W46 (the switch check after an update; H82):** "WARNING — Check your limit switches. The update changed the switch settings. Press and release each limit switch: Run unlocks jobs and jogging only after it has seen every one change."
+- **W47 (unsigned custom firmware; H85):** "WARNING — This is unsigned custom firmware. Run has not checked what it does. Run backs up the board's settings and its current firmware first, and the board stays read-only after the update unless you trust this build on this board."
+- **W48 (machine strip, a trusted custom build; H87):** "Custom firmware (trusted by you)"
+- **W49 (recovery countdown; H80):** "Unplug the USB cable and plug it back in now. Run is waiting for the bootloader: N s."
+- **W50 (old-firmware gate):** "This board runs firmware <fb>, older than the minimum <minimum> for its hardware. You can view it and back it up; update it to use jobs, jogging and settings changes."
 
 ---
 
@@ -1425,6 +1547,8 @@ An identity or chip mismatch on a flash, a bound-device mismatch on a profile, a
 | C34 | Resume after a manual tool change (Phase 3, H74) | "Resume with <tool>? Run sends the tool change line <line>, returns to where the job stopped at a safe height if you moved the machine, and continues the job." | Single |
 | C35 | Start the spindle again after a tool change the file does not restart it after (Phase 3, H74) | "The spindle was on before the tool change and the file does not start it again. Run starts it (<direction> S<rpm>) before the job continues. Hands clear?" | Single |
 | C36 | Start a job on a machine that is not homed (Phase 3, H73; replaces the typed C10 on the bench) | "The machine is not homed, so soft limits may not protect it. Start only if you have checked where every axis is and that the job fits. I've checked the machine." | Single |
+| C37 | Flash unsigned custom firmware (firmware update, H85), after the C6 boxes | "Flash unsigned custom firmware <name> (sha256 <short>) to <board id>? Run has not checked what it does. Your settings and the current firmware are backed up first." | Single |
+| C38 | Trust one custom build on one board (firmware update, H87) | "Trust <name> (sha256 <short>) on board <board id>? Run will let this exact build control this board as if it were approved. It never applies to another board or another build, and you can revoke it in Firmware & Backups." | Single |
 
 Stop job and Spindle off now are never behind a confirmation: they are direct actions in every connected state and every overlay (§4.1 normative rule).
 
@@ -1495,6 +1619,10 @@ OLD-S §8 items 1–21 all apply. Read "sim" as `testkit`, and read item 20 as c
 47. ☐ (Phase 3) Job lines go out only in line mode (footer revision 3), never beyond `f[2]` less the owed lines less the reserve; only `r` answers are counted; every job line passes the gate as exactly its sanitised line.
 48. ☐ (Phase 3) A refused line holds the job (W38, C33); a reset is a FAULT (W40); a tool change stops before the M6 with the spindle and coolant off (W37, C34, C35); breakpoints stop before their line and say when they cannot (W41).
 49. ☐ (Phase 3) `rxm` is written only by the `lineMode` intent: only if it differs, read back, and put back after the job, and at connect only with this browser's pending record (H77); the job flag is sent only where the capability probe finds it.
+50. ☐ (firmware update, 2026-11-03) The flasher stays behind its switch (`FLASHER`, production off); the capability is minted only by the flasher's authorization and consumed by the bootloader-role open; the port reopened is the session's own selector.
+51. ☐ (firmware update) No path can send `e`, `l`, an EEPROM write or a page at or above 0x30000: the closed command set, the frame guard and their tests are intact; every flash test asserts the fake xboot's erase count is 0.
+52. ☐ (firmware update) Backups (settings token by token, raw EEPROM, the application section) are stored before the first page; after the reconnect the settings compare, the required restore and the switch check gate jobs, jog and settings writes in the worker.
+53. ☐ (firmware update) The release list is verified per environment in the worker; simulator images never reach a real port; a trusted custom build is per board and per image SHA-256, local only, and never applies on production.
 
 ---
 
@@ -1590,6 +1718,11 @@ Manual, and never in CI. Signed in `RELEASES.md` in the run repo, with the evide
 - **HIL-5.5** Restore from a cloud-saved backup chosen explicitly (not the default): machine, board id, `fb`, date and provenance shown; diff against the local baseline; mapper and C5; read-back matches.
 - **HIL-5.6** Flash 440.21 → EN, then EN → 440.21 if the downgrade is approved; the mapper output is reviewed.
 - **HIL-5.7** Flash a board whose snapshot has `spep=0`, with the active-low relay on J6: record the relay state from flash start to restore read-back (expected ON during defaults, which is why W28 isolation exists); kill the tab after the flash and reconnect: the restore is forced first (`flashRestorePending`); C18 is a hard stop.
+- **HIL-5.8** (*firmware update, 2026-11-03*) Flash the edge-next release from the signed staging list: the transcript shows ESC, `S`, `V`, `s`, `b`, `a`, the EEPROM and application reads, the stub page 0 first and the real page 0 last, never `e`; the version check passes; a `.hex` with one byte changed is refused before the bootloader is entered.
+- **HIL-5.9** Pull USB mid-flash and close the tab mid-flash: the board stays in its bootloader (LED blinking); recovery (unplug, replug within the countdown) flashes it; record the xboot watchdog period (B-FL-WDT) and the 4.8 s and 60 s windows.
+- **HIL-5.10** Flash across an EEPROM layout change (450 to 440.21 and back): the compare lists `st` and the switch modes; the restore is required and reads back; jobs and jog stay locked until the switch check has seen each wired switch open and closed.
+- **HIL-5.11** Put a firmware backup back, and flash a custom build: READ_ONLY afterwards; trust it (C38): full, W48 shown; revoke: READ_ONLY again; another board with the same build stays READ_ONLY.
+- **HIL-5.12** A board on 440.21 (below the minimum): identified, viewable, backed up; opens on the Update panel; jog, jobs and settings writes refused until it is updated.
 
 ### 9.7 Phase 6: public beta and 440.21 fallback
 - **HIL-6.1** Repeat HIL-1.x to HIL-3.x on stock 440.21 with the TG dialect: byte window with the rev-1 cross-check; no 0x04, 0x05, 0x11 or 0x13 in the transcript; the M0 barrier stops the machine; G18 arcs blocked; Stop job flush sequence; E128 reset caveat shown.
@@ -1719,3 +1852,11 @@ New tests:
 | T-S117 | (Phase 3) The jobs switch is pinned (staging on, production off); the `jobs` kind is denied without it in every cell; the job intents' states; the worker release; the control allowlist: Start is enabled only when every precondition passes, Pause and Stop job always. | U, E |
 | T-S118 | (Phase 3) Fake-serial end to end: a sample to completion, pause and resume, Stop job mid-job, the tool-change flow, a breakpoint, a refused line, a reset mid-job. | E |
 | T-S119 | (2026-11-03, firmware bug hunt) An offset write answered with status 13 is written again after about 0.5 s, at most 3 attempts, each refusal logged; another status is refused at once. | M |
+| T-S120 | (firmware update, 2026-11-03) The signed release list: per environment, its own signing prefix, strict fields, sorted per hardware; production rejects a staging entry and the committed file has no production entry; the `.hex` must match its SHA-256 and size; simulator images only for hardware version 99 and only on a simulated port. | U |
+| T-S121 | (firmware update) The AVR109 client and the flash run against the test kit's xboot (modelled from tg-xboot 29d08013): every command, the entry windows, the watchdog, a dropped byte, a timeout, a wrong signature, a failed write, an interrupted write that leaves no application, recovery; `e` is unrepresentable and refused by the frame guard for any bytes (property test); the fake xboot's erase count is 0 after every run. | U, M |
+| T-S122 | (firmware update) Intel HEX: checksums, record types, one end record, overlaps, the application section only, a reset vector, no install marker; the page plan covers the whole section, stub page 0 first and real page 0 last. | U |
+| T-S123 | (firmware update) Trust: a trusted build approves only its board id (and a release only its hardware version); the classification names the source; the page sends a trust only while its installed record is that image; revoking it makes the board READ_ONLY again. | U, E |
+| T-S124 | (firmware update) The flasher switch is pinned (staging on, production off); without it the `flash` intent is denied in every state; `{"boot":1}` is written only after the idle gate and only by `flash`. | U, M |
+| T-S125 | (firmware update) The old-firmware gate: a board below the minimum connects, is identified and backed up, opens on the Update panel, and the worker refuses jog, jobs and settings writes. | U, E |
+| T-S126 | (firmware update) The post-flash lock: the compare, the required restore (only the backup's values for the keys that differ), the switch check unlocking only after each configured input was seen open and closed; a second flash, Connect and Disconnect are refused while one runs. | U, E |
+| T-S127 | (firmware update) Fake-serial end to end: a full update; recovery after an interrupted flash; the restore and the switch-check lock; putting a firmware backup back; custom firmware with and without trust. | E |

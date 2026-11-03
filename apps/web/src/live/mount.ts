@@ -13,6 +13,9 @@
 import type { Signal } from '@preact/signals';
 import { environmentForOrigin } from '@synthetos/protocol';
 import { fetchIdentity, fetchSafetyAdvisory } from '../cloud/live.ts';
+import { mountFirmware } from './firmwareHub.ts';
+import { activeTrust } from '../firmware/store.ts';
+import type { FlashBackupsPost } from '../machine-worker/rpc.ts';
 import type { BuildChannel } from '../channel/channel.ts';
 import { AlarmTone } from '../machine-ui/alarm.ts';
 import { axisModeView } from '../machine-ui/AxisModes.ts';
@@ -22,7 +25,7 @@ import { transcriptFileName, type TranscriptStatus } from '../machine-ui/Transcr
 import { downloadTranscript } from './transcriptDownload.ts';
 import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { callMachineWorker } from '../machine-worker/client.ts';
-import { RPC_VERSION, type JobCommand, type MachineReply, type MachineRequest, type MotionCommand, type SnapshotMessage } from '../machine-worker/rpc.ts';
+import { RPC_VERSION, type FlashCommand, type JobCommand, type MachineReply, type MachineRequest, type MotionCommand, type SnapshotMessage } from '../machine-worker/rpc.ts';
 import { AdvisoryPoller, checkAdvisory, type AdvisoryCheck, type AdvisoryDeps } from './advisoryGate.ts';
 import { accessProvider, AuthGate, providersFor } from './authGate.ts';
 import { memoryDeviceSafety, openDeviceSafety, type DeviceSafetyStore } from './deviceSafety.ts';
@@ -44,8 +47,14 @@ import type { StopControls } from './stopControls.ts';
  * The `open` request for the port the window chose. `previousSessionEnded` is the W6 state (a reload
  * or discard ended a LIVE session), so the worker starts this connect in UNKNOWN (SAFETY §3).
  */
-export function openRequest(port: Extract<MachineRequest, { kind: 'open' }>['port'], previousSessionEnded: boolean): Extract<MachineRequest, { kind: 'open' }> {
-  return { v: RPC_VERSION, kind: 'open', port, boardId: null, previousSessionEnded };
+export function openRequest(
+  port: Extract<MachineRequest, { kind: 'open' }>['port'],
+  previousSessionEnded: boolean,
+  trusted: Extract<MachineRequest, { kind: 'open' }>['trusted'] = [],
+): Extract<MachineRequest, { kind: 'open' }> {
+  // SAFETY H87: the custom builds the user trusted, each for one board, only while this browser's record says the
+  // board still runs that image (firmware/store.ts activeTrust). The worker restricts each to its board id.
+  return { v: RPC_VERSION, kind: 'open', port, boardId: null, previousSessionEnded, ...(trusted === undefined || trusted.length === 0 ? {} : { trusted }) };
 }
 
 /**
@@ -58,13 +67,14 @@ export async function openConfirmedPort(
   port: Extract<MachineRequest, { kind: 'open' }>['port'],
   confirm: (() => Promise<boolean>) | undefined,
   previousSessionEnded: boolean,
+  trusted: Extract<MachineRequest, { kind: 'open' }>['trusted'] = [],
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   if (confirm === undefined) return { ok: false, message: 'Choose the port again to confirm its selection.' };
   try {
     const prepared = await call({ v: RPC_VERSION, kind: 'prepare', port });
     if (!prepared.ok) return { ok: false, message: prepared.message };
     if (prepared.kind !== 'prepare' || !(await confirm())) return { ok: false, message: 'The granted ports changed. Choose the port again.' };
-    const reply = await call({ ...openRequest(port, previousSessionEnded), preparation: prepared.preparation });
+    const reply = await call({ ...openRequest(port, previousSessionEnded, trusted), preparation: prepared.preparation });
     return reply.ok ? { ok: true } : { ok: false, message: reply.message };
   } catch {
     return { ok: false, message: 'The port selection could not be confirmed. Choose the port again.' };
@@ -125,7 +135,8 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     choosePort: () => windowChooser(),
     open: async (port, confirm) => {
       if (worker === null) return { ok: false, message: 'The machine worker is not running in this browser.' };
-      return openConfirmedPort((request) => callMachineWorker(worker, request), port, confirm, options.previousSession.value);
+      const trusted = (await activeTrust(store).catch(() => [])).map((t) => ({ boardId: t.boardId, sha256: t.sha256, dialect: t.dialect, fb: t.fb, fbs: t.fbs, name: t.name }));
+      return openConfirmedPort((request) => callMachineWorker(worker, request), port, confirm, options.previousSession.value, trusted);
     },
     leaveFullscreen: () => leaveFullscreen(document),
     unlockAlarm: () => alarm.unlock(),
@@ -143,6 +154,8 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   let samples: LiveSample[] = [];
   let sampleEpoch = -1;
   const unavailable = { ok: false as const, message: 'The machine worker is not running in this browser.' };
+  // Firmware & Backups, set up below once the records are open (null until then, and when IndexedDB fails).
+  let firmwareHub: Awaited<ReturnType<typeof mountFirmware>> | null = null;
   const read = (tokens: readonly string[]) => (worker === null ? Promise.resolve(unavailable) : callMachineWorker(worker, { v: RPC_VERSION, kind: 'read', tokens }));
   // P1-07: the connect-time settings read and the drift check. Reads go through the worker's `read`; nothing here writes.
   const readout = new LiveReadout({
@@ -181,6 +194,8 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       const name = backupFileName(file.board.id, new Date(file.takenAt)).replace(/\.json$/, `-before-write-${file.takenAt.slice(11, 19).replace(/:/g, '')}.json`);
       // Kept on this computer (device-safety) and offered as a download: the revert source and the user's copy.
       await store.set(`settings-backup/${file.board.dialect}/${file.board.id ?? 'no-board-id'}/${file.takenAt}`, file).catch(() => undefined);
+      // Firmware & Backups: every automatic backup before an apply is listed with its trigger.
+      await firmwareHub?.record(file, 'before-apply').catch(() => undefined);
       downloadTranscript(document, `${JSON.stringify(file, null, 2)}\n`, name, 'application/json');
       return name;
     },
@@ -236,12 +251,46 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       });
       const name = backupFileName(file.board.id, new Date(file.takenAt));
       downloadTranscript(document, `${JSON.stringify(file, null, 2)}\n`, name, 'application/json');
+      await firmwareHub?.record(file, 'manual').catch(() => undefined);
       backupStatus = { kind: 'saved', name, answered: Object.keys(file.groups).length, unanswered: file.unanswered.length };
     } catch (e) {
       backupStatus = { kind: 'failed', message: e instanceof Error ? e.message : String(e) };
     }
     publish();
   }
+
+  // Firmware & Backups (SAFETY §4.8 as amended 2026-11-03): the records, the update's page side, the release list.
+  const callFlash = async (command: FlashCommand): Promise<string | null> => {
+    if (worker === null) return unavailable.message;
+    const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'flash', command }).catch(() => null);
+    if (reply === null) return 'The machine worker did not answer.';
+    return reply.ok ? null : reply.message;
+  };
+  let readoutSeq = 0;
+  let readoutKind = '';
+  firmwareHub = await mountFirmware({
+    store,
+    flash: callFlash,
+    read,
+    runBackup: () =>
+      backup.run({
+        read,
+        now: () => new Date(),
+        setTimeout: (fn, ms) => setTimeout(fn, ms),
+        clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+        onProgress: (p) => {
+          backupStatus = { kind: 'reading', ...p };
+          publish();
+        },
+      }).then((file) => {
+        backupStatus = { kind: 'idle' };
+        return file;
+      }),
+    boardSettings: () => readout.settings,
+    applyRestore: (changes) => void applier.apply(changes),
+    reread: () => readout.reread(),
+    onChange: () => publish(),
+  }).catch(() => null);
 
   setInterval(() => {
     if (droMessage !== null && droMessage.dro.machineSource.ageMs !== null) {
@@ -307,7 +356,11 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   if (worker !== null) {
     const channel = new MessageChannel();
     channel.port1.onmessage = (event: MessageEvent) => {
-      const message = event.data as SnapshotMessage | { kind?: unknown };
+      const message = event.data as SnapshotMessage | FlashBackupsPost | { kind?: unknown };
+      if (message.kind === 'flashBackups') {
+        firmwareHub?.onBackups(message as FlashBackupsPost);
+        return;
+      }
       if (message.kind !== 'snapshot') return;
       droMessage = message as SnapshotMessage;
       droReceivedAt = performance.now();
@@ -323,6 +376,12 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       if (snapshot.base === 'NOT_CONNECTED') disconnectRefused = null;
       alarm.sync(snapshot);
       options.stopControls.setSnapshot(snapshot);
+      const kind = readout.phase.kind;
+      if (kind !== readoutKind) {
+        readoutKind = kind;
+        if (kind !== 'reading' && kind !== 'idle') readoutSeq++;
+      }
+      firmwareHub?.onSnapshot(droMessage, kind !== 'reading' && kind !== 'idle', readoutSeq);
       publish();
     };
     worker.postMessage({ v: RPC_VERSION, kind: 'subscribe' }, [channel.port2]);
@@ -385,6 +444,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       samples,
       apply: applyState,
       disconnectRefused,
+      ...(firmwareHub === null ? {} : { firmware: firmwareHub.view() }),
     });
   }
 
@@ -412,6 +472,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       if (reply === null) return 'The machine worker did not answer.';
       return reply.ok ? null : reply.message;
     },
+    ...(firmwareHub === null || worker === null ? {} : { firmware: firmwareHub.actions }),
     consoleRead: (token: string) =>
       consoleReader.read(token, {
         snapshot: () => droMessage?.snapshot ?? null,

@@ -17,6 +17,7 @@
   "dependencies": {
     "@preact/signals": "2.11.3",
     "@synthetos/contracts": "workspace:*",
+    "@synthetos/flasher": "workspace:*",
     "@synthetos/gcode": "workspace:*",
     "@synthetos/gcode-view": "workspace:*",
     "@synthetos/library": "workspace:*",
@@ -28,6 +29,7 @@
     "preact": "11.0.1"
   },
   "devDependencies": {
+    "@synthetos/testkit": "workspace:*",
     "preact-render-to-string": "6.8.1",
     "vite": "8.3.4"
   }

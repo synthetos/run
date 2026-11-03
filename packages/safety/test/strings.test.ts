@@ -207,6 +207,12 @@ c({ doc: 'S', id: 'W41', segment: 0, exports: ['w41'], examples: [{ line: 40 }, 
 c({ doc: 'S', id: 'W42', segment: 0, exports: ['w42'], examples: [{ line: 40 }, { line: 7 }], render: S.w42, subs: (e) => [['<line>', String(e.line)]] });
 c({ doc: 'S', id: 'W43', segment: 0, exports: ['w43'], examples: [{ line: 40 }, { line: 7 }], render: S.w43, subs: (e) => [['<line>', String(e.line)]] });
 c({ doc: 'S', id: 'W44', segment: 0, exports: ['w44'], examples: [{ to: 0 }, { to: 1 }], render: S.w44, subs: (e) => [['<to>', String(e.to)]] });
+c({ doc: 'S', id: 'W45', segment: 0, exports: ['w45'], examples: [{ count: 3 }, { count: 12 }], render: S.w45, subs: (e) => [['<count>', String(e.count)]] });
+c({ doc: 'S', id: 'W46', segment: 0, exports: ['w46'], examples: noExamples, render: S.w46, subs: none });
+c({ doc: 'S', id: 'W47', segment: 0, exports: ['w47'], examples: noExamples, render: S.w47, subs: none });
+c({ doc: 'S', id: 'W48', segment: 0, exports: ['w48'], examples: noExamples, render: S.w48, subs: none });
+c({ doc: 'S', id: 'W49', segment: 0, exports: ['w49'], examples: [{ seconds: 30 }, { seconds: 7 }], render: S.w49, subs: (e) => [['N', String(e.seconds)]] });
+c({ doc: 'S', id: 'W50', segment: 0, exports: ['w50'], examples: [{ fb: '440.21', minimum: '450.01' }, { fb: '449.01', minimum: '451.00' }], render: S.w50, subs: (e) => [['<fb>', e.fb], ['<minimum>', e.minimum]] });
 
 // ---------------------------------------------------------------- §6
 
@@ -476,6 +482,18 @@ c({
   subs: (e) => [['<direction>', e.direction], ['<rpm>', String(e.rpm)]],
 });
 fixedC('S', 'C36', 'c36', S.c36, 0);
+c({
+  doc: 'S', id: 'C37', segment: 0, exports: ['c37'],
+  examples: [{ name: 'tinyg-mine.hex', sha256Short: '3f2a…9c01', boardId: '0084-ab' }, { name: 'x.hex', sha256Short: 'aa11…bb22', boardId: 'SIM-1' }],
+  render: S.c37,
+  subs: (e) => [['<name>', e.name], ['<short>', e.sha256Short], ['<board id>', e.boardId]],
+});
+c({
+  doc: 'S', id: 'C38', segment: 0, exports: ['c38'],
+  examples: [{ name: 'tinyg-mine.hex', sha256Short: '3f2a…9c01', boardId: '0084-ab' }, { name: 'x.hex', sha256Short: 'aa11…bb22', boardId: 'SIM-1' }],
+  render: S.c38,
+  subs: (e) => [['<name>', e.name], ['<short>', e.sha256Short], ['<board id>', e.boardId]],
+});
 
 /**
  * Quoted strings in the document that are not user-facing text: an ARIA

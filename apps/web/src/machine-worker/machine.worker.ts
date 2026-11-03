@@ -20,6 +20,7 @@
  * Playwright test drives the worker that way (docs/testing/fake-serial.md).
  */
 import approvedBuilds from '../../../../firmware/approved-builds.json';
+import firmwareReleases from '../../../../firmware/releases.json';
 import { MachineWorkerHost, realClock, workerPlatform } from './host.ts';
 import { releaseFor } from './motionFlag.ts';
 import { browserLocks, openStopChannel } from './stopChannel.ts';
@@ -35,7 +36,7 @@ interface WorkerScope {
 const origin = (globalThis as unknown as { location: { origin: string } }).location.origin;
 // The motion capability flag comes from the worker's own origin (motionFlag.ts): Phase 2 on the bench and
 // staging origins only, Phase 1 (read-only) everywhere else, production included.
-const host = new MachineWorkerHost(createTransportSource(), realClock(), workerPlatform(), { file: approvedBuilds as unknown, origin }, releaseFor(origin));
+const host = new MachineWorkerHost(createTransportSource(), realClock(), workerPlatform(), { file: approvedBuilds as unknown, origin, releasesFile: firmwareReleases as unknown }, releaseFor(origin));
 new MachineStopService({ session: host.session, channel: openStopChannel(), locks: browserLocks(), instance: crypto.randomUUID() });
 
 (globalThis as unknown as WorkerScope).addEventListener('message', (event) => {

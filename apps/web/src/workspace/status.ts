@@ -5,6 +5,7 @@
  *
  * Pure: the same view gives the same words.
  */
+import { w48, w50 } from '@synthetos/safety';
 import { boardText } from '@synthetos/safety';
 import type { LiveView } from './model.ts';
 
@@ -165,6 +166,12 @@ export function stripStatus(view: LiveView, machineName: string | null): StripSt
   const s = view.message?.snapshot ?? null;
   const name = `${machineName ?? 'No machine profile'} · ${boardLabel(view)}`;
   const entry = view.entry.step;
+  // The firmware update (SAFETY §4.8 as amended 2026-11-03): the session has no link while the board is in its bootloader.
+  const flash = view.message?.flash ?? null;
+  if (flash !== null && flash.phase !== 'done' && flash.phase !== 'failed' && (s === null || s.base === 'NOT_CONNECTED')) {
+    const recovering = flash.phase === 'recovery';
+    return { connected: false, title: recovering ? 'Recovering the firmware' : 'Updating the firmware', name: machineName ?? 'Board in its bootloader', tone: 'warn', pill: { text: 'Bootloader', tone: 'warn' }, text: 'Do not unplug the board or close this tab until the update finishes.', readouts: [], spindleOn: false };
+  }
   if (s === null || s.base === 'NOT_CONNECTED') {
     const title = entry === 'checking' ? 'Checking before connect' : entry === 'opening' ? 'Choosing the port' : entry === 'c1' ? 'Confirm to connect' : 'Not connected';
     return { connected: false, title, name: machineName ?? 'No board connected', tone: 'off', pill: null, text: null, readouts: [], spindleOn: false };
@@ -186,8 +193,18 @@ export function stripStatus(view: LiveView, machineName: string | null): StripSt
   if (cls !== undefined && MOVING.has(cls)) return { ...base, title: 'Moving', tone: 'run', pill: null, text: null };
   if (cls !== undefined && ALARM.has(cls)) return { ...base, title: 'Alarm', tone: 'alarm', pill: { text: 'Alarm', tone: 'danger' }, text: 'The controller reports an alarm. Check the machine.' };
   if (o.includes('UNKNOWN')) return { ...base, title: 'Connected · state unknown', tone: 'warn', pill: { text: 'Unknown', tone: 'warn' }, text: 'The previous session ended while connected. Check the machine, then confirm it or home it (below).' };
+  // The post-flash lock and the old-firmware gate, decided by the worker (it refuses jobs, jog and settings writes).
+  const post = view.message?.postFlash ?? null;
+  if (post !== null && post.phase !== 'clear' && post.boardId === s.identity?.id) {
+    const text = post.phase === 'switchCheck' ? 'Check your limit switches. The update changed the switch settings.' : post.phase === 'restoreRequired' ? 'Restore your settings: the update changed them. Jobs, jog and settings changes are locked.' : 'Reading the settings after the update.';
+    return { ...base, title: 'Updated · checks pending', tone: 'warn', pill: { text: 'Locked', tone: 'warn' }, text };
+  }
+  const old = view.message?.oldFirmware ?? null;
+  if (old !== null) return { ...base, title: 'Firmware update needed', tone: 'warn', pill: { text: 'Update needed', tone: 'warn' }, text: w50({ fb: old.fb.toFixed(2), minimum: old.minimumFb.toFixed(2) }) };
   if (o.includes('NEEDS_REVIEW')) return { ...base, title: 'Connected · read only', tone: 'live', pill: { text: 'Needs review', tone: 'warn' }, text: 'The board’s settings differ from this computer’s reference.' };
   if (o.includes('READ_ONLY')) return { ...base, title: 'Connected · read only', tone: 'live', pill: { text: 'Read only', tone: 'live' }, text: 'Phase 1: positions and settings are read, nothing is written.' };
+  // A custom build the user trusted on this board (SAFETY H87): a persistent banner while it is in use (W48).
+  if (s.classification?.approvalSource === 'trusted') return { ...base, title: 'Machine idle', tone: 'live', pill: { text: w48(), tone: 'warn' }, text: s.notices.motion?.text ?? 'This board runs custom firmware you trusted on it. It is not a signed build.' };
   // Phase 2: the last motion result in plain words ("Stopped: queue cleared, spindle and coolant off"), from polled state.
   return { ...base, title: 'Machine idle', tone: 'live', pill: null, text: s.notices.motion?.text ?? null };
 }

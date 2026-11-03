@@ -11,6 +11,7 @@
 import { OVERLAYS, type Overlay } from '@synthetos/safety';
 import { PROBE_STEPS, type FooterRev } from '@synthetos/protocol';
 import type { TransportInfo } from '../transport.ts';
+import type { PortSelector } from '../transport.ts';
 import type { ClassificationInfo, FaultInfo, Identity, JobEvent, JobPhase, JobReportSummary, JobState, LinkWindow, LiveState, ReadValue, ReportChange, RxmState, SessionBase, SessionNotices, SessionState, SettingWriteState, BootEntryState } from './types.ts';
 
 /** What the page sees of a job (SAFETY §4.4a). The sanitised lines never leave the worker. */
@@ -78,6 +79,8 @@ export interface SessionSnapshot {
   readonly epoch: number;
   /** The open port's identity (USB vendor and product id), or null. */
   readonly port: TransportInfo | null;
+  /** The port the window chose (the flasher reopens exactly this one, SAFETY §4.8 as amended 2026-11-03). */
+  readonly portSelector: PortSelector | null;
   /** Probe progress while IDENTIFYING: answered GETs out of all, and the banner shape seen. */
   readonly probe: { readonly answered: number; readonly of: number; readonly banner: 'r-footer' | 'bare-sr' | 'none'; readonly restarts: number } | null;
   readonly identity: Identity | null;
@@ -151,6 +154,7 @@ export function snapshotOf(state: SessionState): SessionSnapshot {
     primaryOverlay: overlays[0] ?? null,
     epoch: state.epoch,
     port: state.portInfo,
+    portSelector: state.port,
     probe:
       probe === null || state.base !== 'IDENTIFYING'
         ? null

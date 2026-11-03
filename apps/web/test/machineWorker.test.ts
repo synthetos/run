@@ -957,8 +957,8 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
   it('the motion flag is on for loopback and staging only; production and every other origin keep Phase 1', () => {
     for (const o of [BENCH_ORIGIN, 'http://127.0.0.1:4173', 'http://localhost', STAGING_ORIGIN]) {
       expect(motionEnabledFor(o), o).toBe(true);
-      // Phase 2 composed with the settings-write switch: both on in the staging environment.
-      expect(releaseFor(o)).toMatchObject({ ...PHASE_2_RELEASE, name: 'Phase 2 + settings writes + jobs', settings: true, jobs: true });
+      // Phase 2 composed with the settings-write, jobs and flasher switches: all on in the staging environment.
+      expect(releaseFor(o)).toMatchObject({ ...PHASE_2_RELEASE, name: 'Phase 2 + settings writes + jobs + flasher', settings: true, jobs: true, flash: true });
     }
     for (const o of [PRODUCTION_ORIGIN, 'http://run.synthetos.com', 'https://localhost:8793', 'https://run-abc.workers.dev', 'http://10.0.0.2:8793', 'null', '']) {
       expect(motionEnabledFor(o), o).toBe(false);
