@@ -50,8 +50,16 @@ The fonts stay under the OFL-1.1; run's AGPL-3.0 licence does not apply to them.
 
 TinyG is © Alden S. Hart, Jr. / Synthetos, licensed under the GNU General
 Public License version 2 (https://github.com/synthetos/TinyG). run does not
-include the firmware itself; these parts of run are derived from its source
+include the firmware in what it deploys; the Worker serves release images
+from GitHub Releases. These parts of run are copied or derived from its source
 or its repository:
+
+- **A release image, for the tests.** `firmware/tinyg-440.21.hex` is the
+  asset `tinyg-440.21.hex` of synthetos/TinyG release `440.21` (334,978
+  bytes, SHA-256 `c2c1693e82f0ed88…`, the hash in `firmware/releases.json`),
+  kept so the hash gate, the bench and the fake-serial suite can run without
+  GitHub. It is TinyG firmware under GPL-2.0, unmodified; the deployed site
+  never serves this copy (`docs/ops/firmware-releases.md`).
 
 - **Vendored tables.** `vendor/tinyg-hil-tables/` (token and status-code
   tables, with their message text) and `vendor/tinyg-board-facts/` (board
