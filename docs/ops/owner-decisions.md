@@ -347,3 +347,7 @@ software is not an emergency stop. "Stop job" no longer says "spindle off".
 **Decision.** Official firmware `.hex` files are published by CI to GitHub Releases. run's signed release list points at those release assets (repository, tag, asset name, size, SHA-256), and run never flashes a file whose hash differs from the list.
 
 **How run fetches them.** The browser cannot fetch GitHub release assets directly (strict CSP `connect-src 'self'`, and network code lives only in the cloud chunk), so run's Worker proxies them: `GET /firmware/<repo>/<tag>/<asset>` fetches the asset from GitHub server-side, verifies its SHA-256 against the signed list, caches it, and serves it same-origin. On the bench, the user may also pick a local copy, which must match the listed hash. Signing the production list with the release key stays an owner step.
+
+## OD-11. Three staging-only approvals from the firmware-update phase (owner, 2026-11-03)
+
+**Decision.** Approved as built: (1) a signed release on the staging release list counts as an approved build for its hardware version, so a board updated to a listed release is not read-only when its settings restore must be written; (2) the simulated board's test images are listed under hardware version 99 and refused on any real port; (3) `positionVerify` is allowed under NEEDS_REVIEW, so the post-update restore can be written. All three are staging-only; production is unchanged.
