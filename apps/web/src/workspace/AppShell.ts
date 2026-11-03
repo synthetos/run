@@ -5,7 +5,7 @@
  * - Top: W1 (the safety bar, safety tokens only), the top bar (brand,
  *   breadcrumb, theme toggle, account menu with its sync badge), and the
  *   machine strip (state, readouts, Pause and Stop job in a fixed place).
- * - Left rail: Run, Setup, Tools, Materials, Board, Machines, Projects,
+ * - Left rail: Job, Library, Board, Projects,
  *   Analyze, Settings, Safety. Switching views only toggles `hidden`: every
  *   view stays mounted, so the worker, the connection, the preview and the
  *   reads are never torn down, and nothing navigates.
@@ -33,26 +33,22 @@ import { MachineStrip } from './MachineStrip.ts';
 import { INITIAL_LIVE_VIEW, portOpen, type WorkspaceModel } from './model.ts';
 import { stripStatus } from './status.ts';
 import { BoardView } from './views/BoardView.ts';
-import { MaterialsView, ToolsView } from './views/LibraryViews.ts';
-import { MachinesView } from './views/MachinesView.ts';
+import { LibraryView } from './views/LibraryView.ts';
+import { jobStep, librarySection, type LibrarySection } from './jobWorkflow.ts';
 import { AnalyzeView, PreferencesView, SafetyView } from './views/OtherViews.ts';
 import { ProjectsView } from '../projects/ProjectsView.ts';
-import { RunView } from './views/RunView.ts';
+import { JobView } from './views/JobView.ts';
 import { eventNotice } from '../report/notice.ts';
 import { ReportDialog } from '../report/ReportDialog.ts';
 import { openReport } from '../report/state.ts';
-import { SetupView } from './views/SetupView.ts';
 import { UnknownExits } from './homing.ts';
 
-export type ViewId = 'run' | 'setup' | 'tools' | 'materials' | 'board' | 'machines' | 'projects' | 'analyze' | 'settings' | 'safety';
+export type ViewId = 'job' | 'library' | 'board' | 'projects' | 'analyze' | 'settings' | 'safety';
 
 export const VIEWS: readonly { readonly id: ViewId; readonly label: string; readonly icon: IconName; readonly bottom?: boolean }[] = [
-  { id: 'run', label: 'Run', icon: 'run' },
-  { id: 'setup', label: 'Setup', icon: 'setup' },
-  { id: 'tools', label: 'Tools', icon: 'tools' },
-  { id: 'materials', label: 'Materials', icon: 'materials' },
+  { id: 'job', label: 'Job', icon: 'setup' },
+  { id: 'library', label: 'Library', icon: 'materials' },
   { id: 'board', label: 'Board', icon: 'board' },
-  { id: 'machines', label: 'Machines', icon: 'machines' },
   { id: 'projects', label: 'Projects', icon: 'projects' },
   { id: 'analyze', label: 'Analyze', icon: 'analyze' },
   { id: 'settings', label: 'Settings', icon: 'settings', bottom: true },
@@ -118,7 +114,7 @@ function AccountMenu(): ComponentChild {
           'div',
           { class: 'account-menu', id: 'account-menu', role: 'menu' },
           h('div', { class: 'account-id' }, h('span', { class: 'avatar large', 'aria-hidden': 'true' }, Icon('cloud', 18)), h('div', null, h('strong', null, 'Not signed in'), h('small', null, 'Synthetos accounts arrive soon'))),
-          h('div', { class: 'sync-row', 'data-sync': 'local' }, h('div', null, h('strong', null, 'Kept in this browser'), h('small', null, 'Machines, tools, materials and setup are saved here. Account sync comes later.'))),
+          h('div', { class: 'sync-row', 'data-sync': 'local' }, h('div', null, h('strong', null, 'Kept in this browser'), h('small', null, 'Machines, tools, materials and setup are saved on this device.'))),
           h('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: true }, 'Sign in with GitHub'),
           h(
             'button',
@@ -190,16 +186,18 @@ function Banners(props: AppShellProps): ComponentChild {
 }
 
 export function AppShell(props: AppShellProps): ComponentChild {
-  const [current, setCurrent] = useState<ViewId>('run');
+  const [current, setCurrent] = useState<ViewId>('job');
   const onView = (v: string): void => {
-    if (VIEWS.some((x) => x.id === v)) setCurrent(v as ViewId);
+    if (v === 'run' || v === 'setup') { jobStep.value = v === 'setup' ? 'stock' : 'run'; setCurrent('job'); }
+    else if (v === 'machines' || v === 'tools' || v === 'materials') { librarySection.value = v as LibrarySection; setCurrent('library'); }
+    else if (VIEWS.some((x) => x.id === v)) setCurrent(v as ViewId);
   };
   useEffect(() => {
     document.documentElement.dataset['view'] = current;
   }, [current]);
   const model = props.model ?? null;
   const machine = selectedMachine.value;
-  const label = VIEWS.find((v) => v.id === current)?.label ?? 'Run';
+  const label = VIEWS.find((v) => v.id === current)?.label ?? 'Job';
   const rail = (v: (typeof VIEWS)[number]): ComponentChild =>
     h(
       'button',
@@ -219,7 +217,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
       h(
         'nav',
         { class: 'context', 'aria-label': 'Breadcrumb' },
-        h('button', { type: 'button', class: 'crumb', onClick: () => setCurrent('machines') }, machine?.name ?? 'Workshop'),
+        h('button', { type: 'button', class: 'crumb', onClick: () => onView('machines') }, machine?.name ?? 'Workshop'),
         h('span', { class: 'sep', 'aria-hidden': 'true' }, '/'),
         h('span', { class: 'crumb current', 'aria-current': 'page' }, label),
       ),
@@ -242,12 +240,9 @@ export function AppShell(props: AppShellProps): ComponentChild {
           'main',
           { class: 'view-area', id: 'main', 'data-region': 'centre' },
           h(Banners, props),
-          pane('run', h(RunView, { model, spawn: props.spawn ?? null, ...(props.marker === undefined ? {} : { marker: props.marker }), onView, ...(props.onPause === undefined ? {} : { onPause: props.onPause }), ...(props.onStopJob === undefined ? {} : { onStopJob: props.onStopJob }) })),
-          pane('setup', h(SetupView, null)),
-          pane('tools', h(ToolsView, null)),
-          pane('materials', h(MaterialsView, null)),
+          pane('job', h(JobView, { model, spawn: props.spawn ?? null, ...(props.marker === undefined ? {} : { marker: props.marker }), onView, ...(props.onPause === undefined ? {} : { onPause: props.onPause }), ...(props.onStopJob === undefined ? {} : { onStopJob: props.onStopJob }) })),
+          pane('library', h(LibraryView, { model, onView })),
           pane('board', h(BoardView, { model })),
-          pane('machines', h(MachinesView, { model, onView })),
           pane('projects', h(ProjectsView, { onView })),
           pane('analyze', h(AnalyzeView, null)),
           pane('settings', h(PreferencesView, { build: props.build })),
@@ -259,8 +254,8 @@ export function AppShell(props: AppShellProps): ComponentChild {
     h(
       'footer',
       { class: 'footer' },
-      h('span', null, 'Phase 1 · no motion: settings are written only after review, where turned on'),
-      h('span', { class: 'footer-secondary' }, 'Machines, tools and setup are kept in this browser'),
+      h('span', null, 'Review settings before applying'),
+      h('span', { class: 'footer-secondary' }, 'Libraries saved in this browser'),
       h('span', { class: 'mono', 'data-version': '', title: `Version ${props.build.version}, commit ${props.build.sha}` }, versionLabel(props.build)),
     ),
   );

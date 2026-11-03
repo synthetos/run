@@ -1,0 +1,74 @@
+import { expect, test } from './fixtures.ts';
+
+test('one Job keeps its scene and setup across steps, Library and project reopen', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+  const rail = page.locator('[data-region="rail"]');
+  await expect(rail.locator('[data-view]')).toHaveText(['Job', 'Library', 'Board', 'Projects', 'Analyze', 'Settings', 'Safety']);
+  await expect(page.locator('[data-job-step]')).toHaveCount(5);
+  await rail.locator('[data-view="library"]').click();
+  await page.locator('[data-tab="catalogue"]').click();
+  await page.locator('[data-template="xcarve"] [data-action="copy-machine"]').click();
+  await page.locator('[data-action="job-use-machine"]').click();
+  await expect(page.locator('[data-screen="job"]')).toBeVisible();
+  await expect(page.locator('[data-setup="machine"]')).toHaveValue(/.+/);
+  await page.locator('[data-sample="test-square"]').click();
+  await expect(page.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
+  const canvas = page.locator('[data-screen="job"] [data-preview="canvas"], [data-screen="job"] [data-preview="svg"]');
+  await expect(canvas).toHaveCount(1);
+  await canvas.evaluate((el) => { el.setAttribute('data-retained', 'yes'); });
+  await page.locator('[data-preview="view-top"]').click();
+  await page.locator('[data-job-step="stock"]').click();
+  const stock = page.locator('[data-job-panel="stock"]');
+  await stock.getByLabel('Width X').fill('240');
+  await stock.getByLabel('Width X').press('Tab');
+  await page.locator('[data-job-step="place"]').click();
+  await page.getByRole('radio', { name: 'front left', exact: true }).click();
+  await expect(page.locator('[data-job="planned-zero"]')).toContainText('X');
+  await page.locator('[data-job-step="check"]').click();
+  await expect(page.locator('[data-preview="summary"]')).toBeVisible();
+  await page.locator('[data-job-step="run"]').click();
+  await expect(page.locator('[data-action="start-job"]')).toBeVisible();
+  await expect(page.locator('[data-action="start-job"]')).toBeDisabled();
+  await expect(canvas).toHaveAttribute('data-retained', 'yes');
+  await expect(page.locator('[data-preview="view-top"]')).toHaveAttribute('aria-pressed', 'true');
+  const stopBox = await page.locator('[data-region="stop-controls"]').boundingBox();
+  await rail.locator('[data-view="projects"]').click();
+  await page.locator('[data-action="project-new"]').click();
+  await rail.locator('[data-view="job"]').click();
+  await page.locator('[data-job="save-target"]').selectOption({ index: 1 });
+  await page.locator('[data-action="job-save-to-project"]').click();
+  await expect(page.locator('[data-job="project"]')).not.toHaveText('local draft');
+  await page.locator('[data-action="job-files"]').click();
+  await expect(page.locator('.job-files-drawer')).toBeVisible();
+  await expect(page.locator('.job-files-drawer [data-project-file="test-square.nc"]')).toBeVisible();
+  await rail.locator('[data-view="projects"]').click();
+  await page.locator('[data-action="project-new"]').click();
+  await expect(page.locator('[data-project-row="Project 2"]')).toHaveAttribute('aria-current', 'true');
+  await rail.locator('[data-view="job"]').click();
+  await page.locator('.job-files-drawer [data-action="job-projects"]').click();
+  await expect(page.locator('[data-project-row="Project 1"]')).toHaveAttribute('aria-current', 'true');
+  await rail.locator('[data-view="job"]').click();
+  await page.locator('[data-action="job-files-close"]').click();
+  await expect(canvas).toHaveAttribute('data-retained', 'yes');
+  expect(await page.locator('[data-region="stop-controls"]').boundingBox()).toEqual(stopBox);
+  await page.locator('[data-job-step="stock"]').click();
+  await expect(stock.getByLabel('Width X')).toHaveValue('240');
+  for (const theme of ['dark', 'light']) {
+    await page.evaluate((value) => { document.documentElement.dataset['theme'] = value; }, theme);
+    await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`job-${theme}.png`) });
+  }
+  await page.reload();
+  await expect(page.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
+  await page.locator('[data-job-step="stock"]').click();
+  await expect(stock.getByLabel('Width X')).toHaveValue('240');
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 720 });
+    const size = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight, iw: innerWidth, ih: innerHeight }));
+    expect(size.w).toBeLessThanOrEqual(size.iw);
+    expect(size.h).toBeLessThanOrEqual(size.ih);
+    await expect(page.locator('[data-region="stop-controls"]')).toBeVisible();
+    await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`job-${width}.png`) });
+  }
+});

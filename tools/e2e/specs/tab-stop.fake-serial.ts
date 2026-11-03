@@ -114,6 +114,10 @@ test('Escape from any focus pauses through the worker; Space never does (T-S18)'
   expect(bangs(await writes(worker))).toBe(before);
   await page.keyboard.press('Escape');
   await expect.poll(async () => bangs(await writes(worker))).toBe(before + 1);
+  await page.getByRole('button', { name: 'About the preview', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => bangs(await writes(worker))).toBe(before + 2);
+  await expect(page.locator('[data-safety="W13"]')).toBeHidden();
   // The stop button stays visible and focusable.
   await expect(page.locator('.stop-button')).toBeVisible();
 });
@@ -136,6 +140,7 @@ test('Escape reaches the wire as `!` in under 100 ms with a 1M-segment preview l
   await sheet.locator('[data-preview="mode"]').selectOption('full');
   const million = Buffer.from('G21 G90 G17\n' + 'G1 X10 Y5 F800\nG1 X0 Y0\n'.repeat(500_000));
   await sheet.locator('[data-preview="file"]').setInputFiles({ name: 'million.nc', mimeType: 'text/plain', buffer: million });
+  await sheet.locator('[data-job-step="check"]').click();
   await expect(sheet.locator('[data-preview="summary"]')).toBeVisible({ timeout: 180_000 });
   await expect(sheet.locator('[data-lite="false"]')).toHaveCount(1);
   await expect(sheet.locator('[data-preview="canvas"], [data-preview="svg"]')).toHaveCount(1);

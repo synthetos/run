@@ -247,7 +247,7 @@ function ToolInspector({ entry }: { readonly entry: ToolEntry }): ComponentChild
           : h(
               'table',
               { class: 'slot-table' },
-              h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Material'), h('th', { scope: 'col' }, 'vc'), h('th', { scope: 'col' }, 'fz'), h('th', { scope: 'col' }, 'Source'))),
+              h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Material'), h('th', { scope: 'col' }, 'Surface speed (m/min)'), h('th', { scope: 'col' }, 'Chipload (mm/tooth)'), h('th', { scope: 'col' }, 'Source'))),
               h('tbody', null, tool.cuttingData.map((c, i) => h('tr', { key: String(i) }, h('td', null, material(c.materialRef.id)?.name ?? c.materialRef.id), h('td', null, String(c.vc)), h('td', null, String(c.fz)), h('td', null, SOURCE_LABELS[c.source] ?? c.source)))),
             ),
         h('p', { class: 'fine' }, PLACEHOLDER_NOTE),
@@ -268,7 +268,7 @@ export function ToolsView(): ComponentChild {
     h(
       'div',
       { class: 'view-head' },
-      h('div', { class: 'title-block' }, h('h1', null, 'Tool library'), h('p', null, 'Your cutters, kept in this browser.')),
+      h('div', { class: 'title-block' }, h('h1', null, 'Tool library')),
       h('div', { class: 'view-actions' }, h('button', { type: 'button', class: 'primary', 'data-action': 'add-tool', onClick: () => setSelected(addTool()) }, Icon('plus', 15), 'Add a tool')),
     ),
     h(
@@ -311,7 +311,7 @@ export function ToolsView(): ComponentChild {
                   h('td', { class: 'num' }, `${e.tool.geometry.diameter} mm`),
                   h('td', { class: 'num' }, String(e.tool.geometry.flutes)),
                   h('td', null, `${e.tool.toolMaterial}${e.tool.coating === 'uncoated' ? '' : ` · ${e.tool.coating}`}`),
-                  h('td', { class: 'used' }, e.tool.notes === '' ? '—' : e.tool.notes),
+                  h('td', { class: 'used' }, e.tool.notes === '' ? 'No notes' : e.tool.notes),
                 ),
               ),
             ),
@@ -452,8 +452,8 @@ function MaterialInspector({ view, onSelect, onEdit }: { readonly view: Material
                   'dl',
                   { class: 'facts' },
                   h('div', null, h('dt', null, 'Surface speed'), h('dd', null, sourced(row.vc, (v) => `${v.min}–${v.max} m/min`))),
-                  h('div', null, h('dt', null, 'Chip load'), h('dd', null, sourced(row.chipload, (v) => (v.kind === 'factor' ? `${v.min}–${v.max} × D` : `${v.points.length}-point curve`)))),
-                  h('div', null, h('dt', null, 'Hobby frame'), h('dd', null, sourced(row.engagement, (v) => `${v.hobby.ap} × D deep, ${v.hobby.ae} × D wide`))),
+                  h('div', null, h('dt', null, 'Chip load'), h('dd', null, sourced(row.chipload, (v) => (v.kind === 'factor' ? `${v.min}–${v.max} × diameter` : `${v.points.length}-point curve`)))),
+                  h('div', null, h('dt', null, 'Hobby frame'), h('dd', null, sourced(row.engagement, (v) => `${v.hobby.ap} × diameter deep, ${v.hobby.ae} × diameter wide`))),
                 ),
               ),
             ),
@@ -466,7 +466,7 @@ function MaterialInspector({ view, onSelect, onEdit }: { readonly view: Material
       h(
         'section',
         { class: 'insp' },
-        m.purchase.length === 0 ? (mine ? null : h('p', { class: 'fine' }, 'No links. Make your own copy to add some.')) : h('ul', { class: 'purchases' }, m.purchase.map((p, i) => h(PurchaseLine, { p, key: String(i), ...(mine ? { onRemove: () => setError(updateMaterial(m.id, { ...fieldsOf(m), purchase: m.purchase.filter((_, j) => j !== i) })) } : {}) }))),
+        m.purchase.length === 0 ? (mine ? null : h('p', { class: 'fine' }, 'Copy this material to add links.')) : h('ul', { class: 'purchases' }, m.purchase.map((p, i) => h(PurchaseLine, { p, key: String(i), ...(mine ? { onRemove: () => setError(updateMaterial(m.id, { ...fieldsOf(m), purchase: m.purchase.filter((_, j) => j !== i) })) } : {}) }))),
         mine ? h(AddLink, { onAdd: (p) => updateMaterial(m.id, { ...fieldsOf(m), purchase: [...m.purchase, p] }) }) : null,
       ),
     ),
@@ -493,7 +493,7 @@ export function MaterialsView(): ComponentChild {
     h(
       'div',
       { class: 'view-head' },
-      h('div', { class: 'title-block' }, h('h1', null, 'Materials'), h('p', null, 'What you cut, with its safety notes.')),
+      h('div', { class: 'title-block' }, h('h1', null, 'Materials')),
       h('div', { class: 'view-actions' }, h('button', { type: 'button', class: 'primary', 'data-action': 'new-material', onClick: () => setForm({ mode: 'new' }) }, Icon('plus', 15), 'New material')),
     ),
     h(
@@ -809,11 +809,11 @@ function MaterialForm({ initial, onClose, onSave }: { readonly initial: Material
                       { class: 'field-grid four' },
                       numIn('Surface speed from', c.vcMin, (vcMin) => setCut(t, { vcMin }), 'm/min'),
                       numIn('to', c.vcMax, (vcMax) => setCut(t, { vcMax }), 'm/min'),
-                      numIn('Chip load from', c.fzMin, (fzMin) => setCut(t, { fzMin }), '× D'),
-                      numIn('to', c.fzMax, (fzMax) => setCut(t, { fzMax }), '× D'),
+                      numIn('Chip load from', c.fzMin, (fzMin) => setCut(t, { fzMin }), '× diameter'),
+                      numIn('to', c.fzMax, (fzMax) => setCut(t, { fzMax }), '× diameter'),
                       ...FRAMES.flatMap((fr, i) => [
-                        numIn(`Depth, ${fr} frame`, c.ap[i] ?? '', (v) => setCut(t, { ap: c.ap.map((x, j) => (j === i ? v : x)) }), '× D'),
-                        numIn(`Width, ${fr} frame`, c.ae[i] ?? '', (v) => setCut(t, { ae: c.ae.map((x, j) => (j === i ? v : x)) }), '× D'),
+                        numIn(`Depth, ${fr} frame`, c.ap[i] ?? '', (v) => setCut(t, { ap: c.ap.map((x, j) => (j === i ? v : x)) }), '× diameter'),
+                        numIn(`Width, ${fr} frame`, c.ae[i] ?? '', (v) => setCut(t, { ae: c.ae.map((x, j) => (j === i ? v : x)) }), '× diameter'),
                       ]),
                     )
                   : null,

@@ -54,19 +54,19 @@ describe('machine strip status', () => {
     expect(s).toMatchObject({ connected: false, title: 'Not connected', tone: 'off', readouts: [] });
   });
 
-  it('connected read-only: plain words, and unknown readouts are dashes, never zero', () => {
+  it('connected read-only: plain words, unknown values never become zero', () => {
     const s = stripStatus(view(snap()), 'Workshop router');
     expect(s.title).toBe('Connected · read only');
     expect(s.pill?.text).toBe('Read only');
     expect(s.name).toContain('Workshop router');
     expect(s.name).toContain('TinyG v8');
     expect(s.name).toContain('450.01');
-    for (const r of s.readouts) expect(r.value).toBe(UNKNOWN);
+    for (const r of s.readouts) expect(r.value).toBe(r.label === 'Job' ? 'No line reported' : 'Unknown');
     const withFeed = stripStatus(view(snap({ live: { machineClass: 'running', vel: 1112, feed: 1500, line: 135, pos: {}, mpo: {} } } as Partial<Snapshot>)), null);
     expect(withFeed.title).toBe('Moving');
     expect(withFeed.readouts[0]?.value).toBe('1 112 / 1 500');
-    expect(withFeed.readouts.find((r) => r.label === 'Spindle')?.value).toBe(UNKNOWN);
-    expect(withFeed.readouts.find((r) => r.label === 'Coolant')?.value).toBe(UNKNOWN);
+    expect(withFeed.readouts.find((r) => r.label === 'Spindle')?.value).toBe('Unknown');
+    expect(withFeed.readouts.find((r) => r.label === 'Coolant')?.value).toBe('Unknown');
     expect(withFeed.readouts.find((r) => r.label === 'Job')?.value).toBe('line 135');
   });
 
@@ -87,10 +87,10 @@ describe('machine strip status', () => {
     const absent = strip({ srList: ['line', 'posx', 'stat'] });
     expect(value(absent, 'Spindle')).toBe(NOT_REPORTED);
     expect(value(absent, 'Coolant')).toBe(NOT_REPORTED);
-    expect(NOT_REPORTED).toBe('Not reported by this board’s status list');
+    expect(NOT_REPORTED).toBe('Not reported');
     expect(absent.spindleOn).toBe(false);
-    expect(value(strip({}), 'Spindle')).toBe(UNKNOWN);
-    expect(value(strip({}), 'Coolant')).toBe(UNKNOWN);
+    expect(value(strip({}), 'Spindle')).toBe('Unknown');
+    expect(value(strip({}), 'Coolant')).toBe('Unknown');
   });
 
   it('polled readouts (the worker’s read-only GETs) fill in what the status list lacks; the status report wins; failed answers are ignored', () => {
@@ -110,7 +110,7 @@ describe('machine strip status', () => {
     expect(displayReadouts(null)).toBeUndefined();
   });
 
-  it('the Run spindle card shows the reported readouts, "Off", "not reported", or the dash', () => {
+  it('the Run spindle card shows plain commanded readouts without pin wiring', () => {
     const card = (liveExtra: Record<string, unknown> | null) => {
       const model = createWorkspaceModel();
       if (liveExtra !== null) model.live.value = view(snap({ live: { pos: {}, mpo: {}, ...liveExtra } } as Partial<Snapshot>));
@@ -118,14 +118,16 @@ describe('machine strip status', () => {
       return { spindle: text(one(el, (e) => e.props['data-spindle'] === 'spindle')), coolant: text(one(el, (e) => e.props['data-spindle'] === 'coolant')), el };
     };
     const on = card({ spe: 1, spc: 1, spd: 0, sps: 18000, cof: 0, com: 1 });
-    expect(on.spindle).toBe('Spindle on · CW · 18 000 rpm commanded');
+    expect(on.spindle).toBe('On · CW · 18 000 rpm commanded');
     expect(on.coolant).toBe('Coolant: Mist');
+    expect(text(on.el)).not.toMatch(/J6\.|polarity|share it/);
+    expect(text(on.el)).toContain('never a measured one');
     expect(card({ spe: 0, spc: 0, sps: 0, cof: 0, com: 0 })).toMatchObject({ spindle: 'Off', coolant: 'Coolant: off' });
     expect(card({ srList: ['stat'] })).toMatchObject({ spindle: NOT_REPORTED, coolant: `Coolant: ${NOT_REPORTED}` });
-    expect(card(null)).toMatchObject({ spindle: UNKNOWN, coolant: `Coolant: ${UNKNOWN}` });
+    expect(card(null)).toMatchObject({ spindle: 'Not connected', coolant: 'Coolant: not connected' });
     // Display only: every spindle and coolant control stays disabled whatever the board reports.
     const buttons = (function walk(e: typeof on.el): (typeof on.el)[] {
-      return [...(e.tag === 'button' ? [e] : []), ...e.children.flatMap((c) => (typeof c === 'string' ? [] : walk(c)))];
+      return [...(e.tag === 'button' && e.props['data-machine-control'] !== undefined ? [e] : []), ...e.children.flatMap((c) => (typeof c === 'string' ? [] : walk(c)))];
     })(on.el);
     expect(buttons.length).toBeGreaterThan(0);
     for (const b of buttons) expect(b.props['disabled']).toBe(true);

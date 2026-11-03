@@ -35,15 +35,15 @@ describe('workspace AppShell (prerendered)', () => {
     expect(html).toContain(escaped(w1().slice(w1().indexOf(' — ') + 3)));
   });
 
-  it('the rail lists the ten views in order, and only Run is shown', () => {
-    expect(VIEWS.map((v) => v.label)).toEqual(['Run', 'Setup', 'Tools', 'Materials', 'Board', 'Machines', 'Projects', 'Analyze', 'Settings', 'Safety']);
+  it('the rail groups Job and Library, and only Job is shown', () => {
+    expect(VIEWS.map((v) => v.label)).toEqual(['Job', 'Library', 'Board', 'Projects', 'Analyze', 'Settings', 'Safety']);
     for (const v of VIEWS) {
       const at = html.indexOf(`data-screen="${v.id}"`);
       expect(at, v.id).toBeGreaterThan(0);
       const tag = html.slice(html.lastIndexOf('<section', at), html.indexOf('>', at));
-      expect(tag.includes('hidden'), v.id).toBe(v.id !== 'run');
+      expect(tag.includes('hidden'), v.id).toBe(v.id !== 'job');
     }
-    expect(html).toMatch(/data-view="run" aria-current="page"/);
+    expect(html).toMatch(/data-view="job" aria-current="page"/);
   });
 
   it('the machine strip shows W7 NOT CONNECTED, and Pause and Stop job disabled with the reason', () => {
@@ -69,7 +69,8 @@ describe('workspace AppShell (prerendered)', () => {
     expect(/<input[^>]*data-preview="file"[^>]*>/.exec(html)?.[0]).toContain('disabled');
     expect(/<select[^>]*data-preview="mode"[^>]*>/.exec(html)?.[0]).toContain('disabled');
     expect(/<button[^>]*data-action="start-job"[^>]*>/.exec(html)?.[0]).toContain('disabled');
-    expect(html).toContain('Running jobs arrives in a later phase.');
+    expect(html).toContain('Connect to see live job data.');
+    expect(html).not.toContain('Phase 1 · no motion');
     expect(html).toContain('Connect a machine to use these controls.');
     expect(html).toContain('Needs firmware support');
   });
@@ -92,7 +93,7 @@ describe('SafetyBar', () => {
     expect(text(one(bar, byAttr('data-safety', 'W1')))).toBe(w1());
     expect(text(one(bar, byAttr('data-version')))).toBe(versionLabel(build));
     expect(all(bar, byAttr('data-safety', 'W7'))).toEqual([]);
-    expect(all(bar, (e) => e.tag === 'button')).toEqual([]);
+    expect(all(bar, (e) => e.tag === 'button').every((e) => e.props['data-action'] === 'context-help')).toBe(true);
   });
 
   it('workspace variant: W1 only, as a labelled region', () => {
@@ -101,7 +102,7 @@ describe('SafetyBar', () => {
     expect(bar.props['aria-label']).toBe('Safety');
     expect(text(one(bar, byAttr('data-safety', 'W1')))).toBe(w1());
     expect(all(bar, byAttr('data-version'))).toEqual([]);
-    expect(all(bar, (e) => e.tag === 'button')).toEqual([]);
+    expect(all(bar, (e) => e.tag === 'button').every((e) => e.props['data-action'] === 'context-help')).toBe(true);
   });
 });
 
@@ -141,16 +142,23 @@ describe('Phase 1 control allowlist', () => {
   const CONNECT = new Set(['connect', 'disconnect', 'confirm', 'cancel', 'dismiss']);
   /** Controls that never reach the machine: views, tabs, the preview, and the local libraries. */
   const UI: readonly RegExp[] = [
-    /^view:(run|setup|tools|materials|board|machines|projects|analyze|settings|safety)$/,
-    /^tab:(gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
+    /^action:advisor-(open|engine|input)$/,
+    /^action:context-help$/,
+    /^action:job-(step-(machine|stock|place|check|run|back|next)|files|files-close|projects|library-machines|use-machine)$/,
+    /^view:(job|library|board|projects|analyze|settings|safety)$/,
+    /^tab:(machines|tools|materials|gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
     /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
     // Firmware & Backups: records on this computer (export, import, compare, delete, download) and dialog controls.
     /^action:(backup-compare|backup-export|backup-delete|backup-import|firmware-download|firmware-delete|trust-revoke|trust-cancel|cancel-flash|flash-cancel|flash-dismiss|flash-reconnect|switch-test-start)$/,
-    /^preview:(file|rapids|mode|scrubber|fit|cancel)$/,
+    /^preview:(file|rapids|mode|scrubber|fit|cancel|view-iso|view-top|view-front)$/,
     /^sample:(mounting-plate|test-square)$/,
     /^action:(add-tool|fork-material|new-material|edit-material|ask-delete|delete-material|cancel-delete|save-material|cancel-material|close-material|add-safety|add-behaviour|remove-row|add-link|more-link|remove-link|clear-draft|clear-pin|fill-from-board|copy-machine|fixture-file|save-transcript|dismiss-w29|pause-request|stop-job-request)$/,
     /^label:(Toggle day\/night mode|Account: .*|Dialect|Find a machine|back left|back right|center|front left|front right|Link|Shop|Price in US dollars|Close|TinyG v8 board drawing\..*|J\d\.\d .+|M\d\.\d .+|.+, draft|.+, your profile|Search settings|Only pending changes)$/,
+    // The Job model (FLOW_ANALYSIS §4 steps 1-4): the job's machine and bed, Save to project, Projects' "Use in Job"
+    // and the drawing import, the camera views. Records in this browser and the drawing only; never a board command.
+    /^label:(Machine for this job|Project to save the draft to|Drawing units|(Width|Depth|Thickness|Bed top, machine Z), bed)$/,
+    /^action:(job-take-bed|bed-save-machine|stock-outline-remove|job-save-to-project|project-use-in-job|project-open-job|project-remove-job|import-cancel|import-accept)$/,
     /^button:(Workshop|Stock|Whole bed|3D|Top|Front|Block|Round|Sheet|Stock top|Stock bottom|\d+ clamps|No clamps|Remove the fixture|Use the sample plate|All|End mills|Ball nose|V-bits|Drills|O-flutes|Built-in|Mine \(\d+\)|Belt driven|Screw driven|Go to Run|T\d+ · .+|Motor \d|X|Y|Z|A)$/,
     /^(input|select|textarea):/,
     // Report a problem (REPORT_A_PROBLEM): opens the dialog and builds links, files and Markdown from data run

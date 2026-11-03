@@ -27,6 +27,7 @@ test('a file loads into the preview: W13 pinned, drawing, scrubber, list, and no
   await expectNoPlay(page);
 
   await sheet.locator('[data-preview="file"]').setInputFiles(CLEAN);
+  await sheet.locator('[data-job-step="check"]').click();
   await expect(sheet.locator('[data-preview="summary"]')).toBeVisible();
   await expect(sheet.locator('[data-preview="canvas"], [data-preview="svg"]')).toHaveCount(1);
   await expect(sheet.locator('[data-preview="list"] [role="listitem"]').first()).toBeVisible();

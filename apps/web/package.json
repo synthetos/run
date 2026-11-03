@@ -1,6 +1,6 @@
 {
   "name": "@synthetos/web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "The run.synthetos.com workspace UI (Preact, Vite MPA).",
   "license": "AGPL-3.0-or-later",
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@preact/signals": "2.11.3",
+    "@synthetos/advisor": "workspace:*",
     "@synthetos/contracts": "workspace:*",
     "@synthetos/flasher": "workspace:*",
     "@synthetos/gcode": "workspace:*",

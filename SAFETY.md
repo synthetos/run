@@ -1451,6 +1451,8 @@ OLD-S §4.9 rows still apply, with SIM read as NOT CONNECTED. Rows added or chan
 
 Signal words follow ANSI Z535 and ISO 3864-2 (OLD-S §5). **Single source:** every W and C string lives in `packages/safety/src/strings.ts`. A CI test parses §5–§6 of this document and fails unless every string matches byte for byte (T-S32). The synthetos.com landing page carries W1, checked by a cross-repo test at a pinned ref.
 
+Presentation amendment (owner, 2026-11-03): routine explanatory text, including W7 and W13, is available through compact `?` help on hover, keyboard focus or tap rather than permanent paragraphs. The exact text below is unchanged. The short connection state and the existing W1 warning remain visible. Active fault notices, confirmations and Pause/Stop behavior are unchanged. Help must work before hydration and without JavaScript through hover/focus, and must not obscure or disable stop controls.
+
 - **W1 (persistent bar on every page of run.synthetos.com):** "WARNING — This software is not an emergency stop. Your machine must have a hardwired E-stop that removes motor and spindle power. Keep it within reach whenever the machine is powered."
 - **W2 (pause button label, every TinyG dialect; amended 2026-11-02, OD-6):** "Pause". Tooltip: "Decelerates and pauses motion. The spindle and coolant keep running. Use \"Stop job\" to stop with the spindle off, and your E-stop in an emergency."
   Amended 2026-11-02 (OD-6, owner): the label is the single word Pause. The words 'spindle stays on' and 'not an E-stop' are no longer on the button: W1 stays at the top of every page and says the software is not an emergency stop, the tooltip above is unchanged, and the spindle-stays-on fact is shown with the paused state (§4.4 step 5). The Stop job button reads Stop job, without 'spindle off'. Pause and Stop job are still never gated.
@@ -1459,13 +1461,13 @@ Signal words follow ANSI Z535 and ISO 3864-2 (OLD-S §5). **Single source:** eve
 - **W5 (before Start, and while RUNNING):** "WARNING — If this browser tab closes, crashes, sleeps or loses USB, the machine will continue the queued moves (up to N mm, about T s — an estimate) and the spindle will stay in its last state indefinitely, even after motion stops. A spindle left running against the work is a fire risk. Disable screen lock and sleep, keep this tab visible, and stay at the machine."
 - **W5-HB (replaces W5 only on an image whose D8 heartbeat passed HB-1..HB-13 and with `hbt` read back as armed):** "WARNING — If this tab stops responding, the controller is set to stop motion and turn the spindle off within about T s. This is not an E-stop and can fail. Keep this tab visible and stay at the machine."
 - **W6 (previous session; overrides NOT CONNECTED):** "WARNING — The previous session ended while connected to a live machine. The machine may have kept moving after this page stopped. Check the machine before doing anything. Machine state is UNKNOWN until you reconnect and re-home."
-- **W7 (NOT CONNECTED band; replaces the retired SIM band):** "NOT CONNECTED — no machine. Preview and setup only; nothing on this page is moving a machine."
+- **W7 (help beside the Not connected status; replaces the retired SIM band):** "NOT CONNECTED — no machine. Preview and setup only; nothing on this page is moving a machine."
 - **W8 (LIVE band):** "LIVE — connected to <machine name> (<board id>, <firmware>) on <port>. Commands move the real machine."
 - **W9 (unhomed envelope):** "Soft limits are inactive: axis <X> is not homed. The machine can travel past its limits."
 - **W10 (feedhold spindle note; every TinyG dialect):** "On TinyG a feedhold does not stop the spindle or coolant. Use \"Stop job\" to end the job with the spindle off."
 - **W11 (flash banner):** "DANGER — Flashing resets the controller. Motors lose holding torque and outputs may switch on or toggle. Do not unplug the board or close this tab until flashing finishes. An interruption in the last seconds can leave the board needing a programmer."
 - **W12 (stop not confirmed, `role="alert"`, tone):** "DANGER — STOP NOT CONFIRMED. The machine did not report that it stopped. USE YOUR E-STOP."
-- **W13 (preview disclaimer):** "NOTICE — This preview uses our interpreter, not your firmware. It can miss problems. Configure homing and firmware soft limits ($sl=1)."
+- **W13 (preview help):** "NOTICE — This preview uses our interpreter, not your firmware. It can miss problems. Configure homing and firmware soft limits ($sl=1)."
 - **W14 (wiring export without E-stop):** watermark "INCOMPLETE — NO E-STOP SHOWN". Footer: "This diagram does not replace a qualified electrician. Emergency stop circuits must remove motor and spindle power in hardware."
 - **W15 (laser or plasma on TinyG; per build):**
   - TG: "Laser and plasma control on TinyG is not supported by this tool. This firmware has no output polarity setting and a feedhold leaves the output on."

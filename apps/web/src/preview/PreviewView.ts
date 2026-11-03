@@ -12,9 +12,11 @@
  * scrubber highlights lines and segments and nothing moves.
  */
 import { h, type ComponentChild } from 'preact';
+import { ContextHelp } from '../shell/ContextHelp.ts';
 import { w13 } from '@synthetos/safety';
 import type { Finding } from '@synthetos/gcode';
 import type { DialectId } from '@synthetos/protocol';
+import type { ViewPreset } from '@synthetos/gcode-view';
 import { LITE_THRESHOLD_LINES, PREVIEW_DIALECTS, type PreviewMode, type PreviewProgress, type PreviewResult } from '../gcode-worker/pipeline.ts';
 
 export type PreviewStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -44,6 +46,8 @@ export interface PreviewViewActions {
   readonly onRapids?: (show: boolean) => void;
   readonly onScrub?: (sentLines: number) => void;
   readonly onFit?: () => void;
+  /** Turns the 3D drawing to a named view (3D, top, front). */
+  readonly onView?: (preset: ViewPreset) => void;
 }
 
 export interface PreviewSlots {
@@ -139,7 +143,7 @@ export function PreviewView({ state, actions = {}, slots = {} }: { readonly stat
       h('span', { class: 'label' }, 'File'),
       h('span', { class: 'value', 'data-preview': 'file-name' }, state.fileName ?? 'none'),
     ),
-    h('p', { class: 'preview-w13', role: 'note', 'data-safety': 'W13' }, w13()),
+    h('div', { class: 'preview-help' }, h(ContextHelp, { id: 'preview-sheet-help', label: 'About the preview', safety: 'W13', below: true }, w13())),
     slots.marker ?? null,
     h(
       'div',

@@ -1,19 +1,25 @@
 /**
- * The Setup view: bed, stock and fixture (WORKSPACE_FEATURES "Workholding and
- * bed", "Stock and material"). A fixture outline can come from a DXF or SVG
- * file, parsed in this browser (workspace/outline.ts); the file never leaves
- * the computer. Kept in this browser through the library adapter.
+ * The Setup view: the active job's machine, stock, fixture, clamps and bed
+ * (WORKSPACE_FEATURES "Workholding and bed", "Stock and material";
+ * FLOW_ANALYSIS §4). It edits the one Job record (workspace/jobModel.ts) the
+ * Run view shows, and draws the one scene (preview/sceneModel.ts) with the
+ * open file's path on it, through the same renderer as Run. A fixture
+ * outline can come from a DXF or SVG file, parsed in this browser
+ * (workspace/outline.ts); the file never leaves the computer.
  */
+import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { h, type ComponentChild } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
-import { allMaterials, doNotMachine, material, materialColor, sampleFixture, setupStore, type SetupState } from '../library.ts';
+import { useState } from 'preact/hooks';
+import { allMaterials, bedIsPlaceholder, bedOf, doNotMachine, machineStore, material, SAMPLE_HASH, sampleFixture, saveMachineBed, selectedMachineStore, type MachineBed } from '../library.ts';
 import { SafetyNotes } from './LibraryViews.ts';
 import { Icon } from '../icons.ts';
 import { OutlineError, parseOutline, MAX_OUTLINE_BYTES } from '../outline.ts';
-import { SetupScene, type SetupCamera } from '../setupScene.ts';
-import { TabBar, TabPane } from '../ui.ts';
+import { activeJob, bedBehind, plannedZero, fixtureTop, clampsAreIllustrative, illustrativeClamps, jobSaved, reviseJob, SEED_JOB, updateActiveJob, withDatum, withMachine, withSetup, type Job } from '../jobModel.ts';
+import { executionLock } from '../fileBridge.ts';
+import { sha256Hex } from '../../projects/image.ts';
+import { formatBytes } from '../../projects/limits.ts';
 
-type Stock = SetupState['stock'];
+type Stock = Job['setup']['stock'];
 
 function field(label: string, value: number, onChange: (n: number) => void, unit = 'mm', step = 0.5, min = 0): ComponentChild {
   return h(
@@ -40,215 +46,232 @@ function field(label: string, value: number, onChange: (n: number) => void, unit
 
 const ZEROS = ['back-left', null, 'back-right', null, 'center', null, 'front-left', null, 'front-right'] as const;
 
-/** A short, stable hash of a file's text (FNV-1a), recorded with the fixture so a changed file is noticed. */
-function textHash(text: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return `fnv1a-${h.toString(16).padStart(8, '0')}`;
+import type { JobStep } from '../jobWorkflow.ts';
+export function FixtureThumb({ outline, holes }: { readonly outline: readonly (readonly [number, number])[]; readonly holes: readonly (readonly [number, number, number])[] }): ComponentChild {
+  const w = Math.max(...outline.map((p) => p[0]), 1);
+  const d = Math.max(...outline.map((p) => p[1]), 1);
+  const path = outline.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)} ${(d - p[1]).toFixed(1)}`).join('') + 'Z';
+  return h('svg', { class: 'fixture-thumb', viewBox: `-6 -6 ${w + 12} ${d + 12}`, 'aria-hidden': 'true' }, h('path', { d: path, class: 'ol' }), ...holes.slice(0, 200).map(([x, y, r], i) => h('circle', { cx: x, cy: d - y, r: Math.max(r, w / 120), key: String(i) })));
 }
 
-function Viewer({ setup }: { readonly setup: SetupState }): ComponentChild {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const scene = useRef<SetupScene | null>(null);
-  const [cam, setCam] = useState<SetupCamera>('iso');
-  const [fit, setFit] = useState<'stock' | 'bed'>('stock');
-  useEffect(() => {
-    if (canvas.current === null) return;
-    scene.current = new SetupScene(canvas.current);
-    return () => {
-      scene.current?.dispose();
-      scene.current = null;
-    };
-  }, []);
-  useEffect(() => {
-    scene.current?.update(setup, materialColor(setup.stock.materialRef.id));
-  }, [setup]);
-  const fixtureTop = setup.fixture?.height ?? 0;
-  const stockTop = fixtureTop + setup.stock.thickness;
-  const bedTop = setup.bed.thickness;
-  return h(
-    'div',
-    { class: 'viewer setup-viewer' },
-    h('canvas', { ref: canvas, role: 'img', 'aria-label': 'Bed, fixture, clamps and stock. Drag to orbit, scroll to zoom.' }),
-    h(
-      'div',
-      { class: 'viewer-top' },
-      h('div', { class: 'seg', role: 'group', 'aria-label': 'Frame the view' }, (['stock', 'bed'] as const).map((f) => h('button', { type: 'button', key: f, class: fit === f ? 'selected' : undefined, onClick: () => { setFit(f); scene.current?.setFit(f); } }, f === 'stock' ? 'Stock' : 'Whole bed'))),
-      h('div', { class: 'seg', role: 'group', 'aria-label': 'Camera' }, (['iso', 'top', 'front'] as const).map((c) => h('button', { type: 'button', key: c, class: cam === c ? 'selected' : undefined, onClick: () => { setCam(c); scene.current?.setView(c); } }, c === 'iso' ? '3D' : c === 'top' ? 'Top' : 'Front'))),
-    ),
-    h(
-      'div',
-      { class: 'stack-diagram', 'aria-label': 'Heights above the machine table' },
-      h('div', { class: 'stack-row s-stock' }, h('i', null), h('span', null, 'Stock top'), h('strong', null, (bedTop + stockTop).toFixed(2))),
-      h('div', { class: 'stack-row s-fixture' }, h('i', null), h('span', null, 'Fixture top'), h('strong', null, (bedTop + fixtureTop).toFixed(2))),
-      h('div', { class: 'stack-row s-bed' }, h('i', null), h('span', null, 'Bed top'), h('strong', null, bedTop.toFixed(2))),
-      h('small', null, 'mm above the machine table'),
-    ),
-    h('p', { class: 'viewer-notice' }, 'An illustration of your setup, not a collision check.'),
-  );
+function bedSourceText(bed: MachineBed): string {
+  const s = bed.source;
+  if (s.kind === 'placeholder') return `Placeholder: ${s.note}`;
+  if (s.kind === 'measured') return `Measured: ${s.note}`;
+  return `From ${s.file} (${s.units}${s.scale === 1 ? '' : `, scale ${s.scale}`}).`;
 }
 
-function FixtureThumb({ fixture }: { readonly fixture: NonNullable<SetupState['fixture']> }): ComponentChild {
-  const w = Math.max(...fixture.outline.map((p) => p[0]), 1);
-  const d = Math.max(...fixture.outline.map((p) => p[1]), 1);
-  const path = fixture.outline.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)} ${(d - p[1]).toFixed(1)}`).join('') + 'Z';
-  return h('svg', { class: 'fixture-thumb', viewBox: `-6 -6 ${w + 12} ${d + 12}`, 'aria-hidden': 'true' }, h('path', { d: path, class: 'ol' }), ...fixture.holes.slice(0, 200).map(([x, y, r], i) => h('circle', { cx: x, cy: d - y, r: Math.max(r, w / 120), key: String(i) })));
-}
-
-type SetupTab = 'stock' | 'fixture' | 'bed';
-
-export function SetupView(): ComponentChild {
-  const setup = setupStore.value.value;
-  const [tab, setTab] = useState<SetupTab>('stock');
-  const [status, setStatus] = useState('Reads lines, polylines, circles and rectangles. The file stays on this computer. Units are taken as millimetres.');
-  const set = (patch: Partial<SetupState>): void => setupStore.set({ ...setup, ...patch });
-  const setStock = (patch: Partial<Stock>): void => set({ stock: { ...setup.stock, ...patch } });
-  const st = setup.stock;
-  const fx = setup.fixture;
+/** Setup controls live beside the single Job scene; they never create another renderer. */
+export function JobSetupPanel({ step, locked, onView }: { readonly step: JobStep; readonly locked: boolean; readonly onView: (view: string) => void }): ComponentChild {
+  const job = activeJob.value ?? SEED_JOB;
+  const [status, setStatus] = useState('');
+  const [bedNote, setBedNote] = useState<string | null>(null);
+  const edit = (change: (job: Job) => Job): void => {
+    if (executionLock.value !== null || activeJob.value?.id !== job.id) return;
+    updateActiveJob(change);
+  };
+  const setup = (patch: Partial<Job['setup']>): void => edit((j) => withSetup(j, patch));
+  const setStock = (patch: Partial<Stock>): void => setup({ stock: { ...job.setup.stock, ...patch } });
+  const st = job.setup.stock;
+  const fx = job.setup.fixture;
   const fits = fx === null || (st.shape === 'round' ? (st.diameter ?? st.width) : st.width) <= Math.max(...fx.outline.map((p) => p[0])) + 0.01;
   const mat = material(st.materialRef.id);
-  return h(
-    'div',
-    { class: 'setup-view' },
-    h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, 'Workholding and stock'), h('p', null, 'What sits on the bed, how high, and where work zero is.'))),
-    h(
-      'div',
-      { class: 'workspace-grid' },
-      h('div', { class: 'canvas-column' }, h(Viewer, { setup })),
-      h(
-        'aside',
-        { class: 'inspector tabbed', 'aria-label': 'Setup details' },
-        h(TabBar<SetupTab>, { label: 'Setup', prefix: 'setup', variant: 'underline', current: tab, onSelect: setTab, tabs: [{ id: 'stock', label: 'Stock' }, { id: 'fixture', label: 'Fixture' }, { id: 'bed', label: 'Bed' }] }),
-        h(
-          TabPane,
-          { prefix: 'setup', id: 'stock', current: tab, class: 'tpane insp-scroll' },
-        h(
-          'section',
-          { class: 'insp' },
-          h('header', null, h('h2', null, 'Stock'), h('span', { class: `tag${fits ? ' ok' : ' warn'}` }, fx === null ? 'On the bed' : fits ? 'Sits on the fixture' : 'Wider than the fixture')),
-          h(
-            'div',
-            { class: 'shape-picker', role: 'group', 'aria-label': 'Stock shape' },
-            (['block', 'round', 'sheet'] as const).map((shape) => h('button', { type: 'button', key: shape, class: st.shape === shape ? 'selected' : undefined, 'aria-pressed': st.shape === shape ? 'true' : 'false', onClick: () => setStock({ shape }) }, shape === 'block' ? 'Block' : shape === 'round' ? 'Round' : 'Sheet')),
-          ),
-          h('div', { class: 'field-grid' }, ...(st.shape === 'round' ? [field('Diameter', st.diameter ?? st.width, (diameter) => setStock({ diameter }))] : [field('Width X', st.width, (width) => setStock({ width })), field('Depth Y', st.depth, (depth) => setStock({ depth }))]), field('Thickness', st.thickness, (thickness) => setStock({ thickness }), 'mm', 0.05, 0.1)),
-          h(
-            'label',
-            { class: 'field' },
-            h('span', null, 'Material'),
-            h(
-              'span',
-              { class: 'select-wrap' },
+  const machines = machineStore.value.value;
+  const machine = job.machine === null ? null : (machines.find((m) => m.id === job.machine?.id) ?? null);
+  const behind = bedBehind(job, machine);
+  const bed = job.setup.bed;
+  const setBed = (patch: Partial<Pick<MachineBed, 'width' | 'depth' | 'thickness'>> & { readonly z?: number }): void => {
+    const { z, ...dims } = patch;
+    const at = new Date().toISOString();
+    setup({ bed: { ...bed, ...dims, toMachine: z === undefined ? bed.toMachine : { ...bed.toMachine, z }, source: { kind: 'measured', note: 'Entered in Setup.', at } } });
+  };
+
+  const zero = plannedZero(job);
+  const top = job.setup.bed.toMachine.z + fixtureTop(job);
+  return h('div', { class: 'job-setup-panels' },
+    locked ? h('p', { class: 'fine', role: 'status' }, 'Setup is locked while this job owns the machine.') : null,
+    h('fieldset', { class: 'job-edit-fields', disabled: locked },
+      h('div', { hidden: step !== 'machine', 'data-job-panel': 'machine' },
+        h('h2', null, 'Machine & bed'),
               h(
-                'select',
-                {
-                  value: st.materialRef.id,
-                  onChange: (e: Event) => {
-                    const m = material((e.currentTarget as HTMLSelectElement).value);
-                    if (m !== null) setStock({ materialRef: { id: m.id, version: m.version } });
-                  },
-                },
-                allMaterials.value.filter((v) => !doNotMachine(v.material)).map((v) => h('option', { value: v.material.id, key: v.material.id }, v.material.name)),
-              ),
-            ),
-          ),
-          mat === null ? null : h(SafetyNotes, { m: mat, compact: true }),
-          h('div', { class: 'field-grid' }, field('Position X', st.position.x, (x) => setStock({ position: { ...st.position, x } }), 'mm', 1, -10000), field('Position Y', st.position.y, (y) => setStock({ position: { ...st.position, y } }), 'mm', 1, -10000)),
+        'div',
+        { class: 'view-actions' },
+        h(
+          'label',
+          { class: 'field inline' },
+          h('span', null, 'Machine'),
           h(
-            'div',
-            { class: 'field' },
-            h('span', null, 'Work zero'),
+            'span',
+            { class: 'select-wrap' },
             h(
-              'div',
-              { class: 'zero-pick' },
-              h('div', { class: 'zero-grid', role: 'radiogroup', 'aria-label': 'Work zero point on the stock' }, ZEROS.map((z, i) => (z === null ? h('span', { key: String(i), 'aria-hidden': 'true' }) : h('button', { type: 'button', role: 'radio', key: z, 'aria-checked': st.zero.corner === z ? 'true' : 'false', 'aria-label': z.replace('-', ' '), onClick: () => setStock({ zero: { ...st.zero, corner: z } }) })))),
-              h('div', { class: 'seg vertical', role: 'group', 'aria-label': 'Zero height' }, (['top', 'bottom'] as const).map((zh) => h('button', { type: 'button', key: zh, class: st.zero.height === zh ? 'selected' : undefined, onClick: () => setStock({ zero: { ...st.zero, height: zh } }) }, zh === 'top' ? 'Stock top' : 'Stock bottom'))),
+              'select',
+              {
+                'aria-label': 'Machine for this job',
+                'data-setup': 'machine',
+                value: job.machine?.id ?? '',
+                onChange: (e: Event) => {
+                  const id = (e.currentTarget as HTMLSelectElement).value;
+                  const m = machines.find((x) => x.id === id) ?? null;
+                  edit((j) => withMachine(j, m));
+                  if (m !== null) selectedMachineStore.set(m.id);
+                },
+              },
+              h('option', { value: '' }, machines.length === 0 ? 'Choose from Library' : 'No machine: the draft’s own bed'),
+              machines.map((m) => h('option', { key: m.id, value: m.id }, m.name)),
             ),
           ),
-        ),
-        ),
-        h(
-          TabPane,
-          { prefix: 'setup', id: 'fixture', current: tab, class: 'tpane insp-scroll' },
-        h(
-          'section',
-          { class: 'insp' },
-          h('header', null, h('h2', null, 'Fixture'), h('span', { class: 'tag' }, fx === null ? 'None' : fx.source.hash === 'sample' ? 'Sample' : fx.source.kind.toUpperCase())),
-          fx === null
-            ? h('p', { class: 'fine' }, 'The stock sits straight on the bed.')
-            : [
-                h('div', { class: 'fixture-item', key: 'item' }, h(FixtureThumb, { fixture: fx }), h('div', null, h('strong', null, fx.name), h('small', null, `${fx.source.hash === 'sample' ? 'built in' : fx.source.file} · ${Math.round(Math.max(...fx.outline.map((p) => p[0])))} × ${Math.round(Math.max(...fx.outline.map((p) => p[1])))} mm · ${fx.holes.length} holes`))),
-                h('div', { class: 'field-grid three', key: 'dims' }, field('Height', fx.height, (height) => set({ fixture: { ...fx, height } })), field('X', fx.position.x, (x) => set({ fixture: { ...fx, position: { ...fx.position, x } } }), 'mm', 1, -10000), field('Y', fx.position.y, (y) => set({ fixture: { ...fx, position: { ...fx.position, y } } }), 'mm', 1, -10000)),
-              ],
-          h(
-            'label',
-            { class: 'upload' },
-            h('input', {
-              type: 'file',
-              accept: '.dxf,.svg,image/svg+xml',
-              'data-action': 'fixture-file',
-              onChange: (e: Event) => {
-                const input = e.currentTarget as HTMLInputElement;
-                const file = input.files?.[0];
-                if (file === undefined) return;
-                if (file.size > MAX_OUTLINE_BYTES) {
-                  setStatus('That file is too large to read here (4 MB at most).');
-                  return;
-                }
-                void file.text().then(
-                  (text) => {
-                    try {
-                      const parsed = parseOutline(file.name, text);
-                      set({
-                        fixture: {
-                          id: `fixture.${textHash(text).slice(6)}`,
-                          name: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Fixture',
-                          source: { file: file.name.slice(0, 120), kind: /\.dxf$/i.test(file.name) ? 'dxf' : 'svg', hash: textHash(text) },
-                          outline: parsed.outline.map(([x, y]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000] as const),
-                          holes: parsed.holes.map(([x, y, r]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000, Math.round(r * 1000) / 1000] as const),
-                          height: fx?.height ?? 12,
-                          position: fx?.position ?? { x: 160, y: 120 },
-                          material: fx?.material ?? 'Not recorded',
-                        },
-                      });
-                      setStatus(`Read ${file.name}: ${Math.round(parsed.width)} × ${Math.round(parsed.depth)} mm, ${parsed.holes.length} holes.`);
-                    } catch (error) {
-                      setStatus(error instanceof OutlineError ? error.message : 'The file could not be read.');
-                    }
-                  },
-                  () => setStatus('The file could not be read.'),
-                );
-                input.value = '';
-              },
-            }),
-            Icon('upload', 22),
-            h('span', null, h('strong', null, 'Add a fixture from DXF or SVG'), h('small', null, 'Outlines and holes become a solid at the height you set')),
-          ),
-          h('p', { class: 'fine', 'aria-live': 'polite', 'data-setup': 'upload-status' }, status),
-          h(
-            'div',
-            { class: 'switch-row' },
-            h('span', null, 'Toe clamps on the stock edges'),
-            h('button', { type: 'button', class: 'toggle', 'aria-pressed': setup.clamps ? 'true' : 'false', onClick: () => set({ clamps: !setup.clamps }) }, setup.clamps ? '4 clamps' : 'No clamps'),
-          ),
-          h('div', { class: 'switch-row' }, h('span', null, 'Fixture'), h('button', { type: 'button', class: 'small', onClick: () => set({ fixture: fx === null ? sampleFixture() : null }) }, fx === null ? 'Use the sample plate' : 'Remove the fixture')),
-        ),
-        ),
-        h(
-          TabPane,
-          { prefix: 'setup', id: 'bed', current: tab, class: 'tpane insp-scroll' },
-        h(
-          'section',
-          { class: 'insp' },
-          h('header', null, h('h2', null, 'Bed'), h('span', { class: 'tag' }, 'Spoilboard')),
-          h('div', { class: 'field-grid three' }, field('Width', setup.bed.width, (width) => set({ bed: { ...setup.bed, width } }), 'mm', 1, 1), field('Depth', setup.bed.depth, (depth) => set({ bed: { ...setup.bed, depth } }), 'mm', 1, 1), field('Thickness', setup.bed.thickness, (thickness) => set({ bed: { ...setup.bed, thickness } }))),
-          h('p', { class: 'fine' }, setupStore.saved.value ? 'Saved in this browser. Account sync comes later.' : 'Not saved: this browser blocks storage. Changes last for this page only.'),
-        ),
         ),
       ),
-    ),
-  );
+        h('button', { type: 'button', class: 'small', 'data-action': 'job-library-machines', onClick: () => onView('machines') }, 'Choose or create a machine'),
+        h(
+            'section',
+            { class: 'insp', 'data-setup': 'bed' },
+            h('header', null, h('h2', null, 'Bed'), h('span', { class: `tag${bedIsPlaceholder(bed) ? ' warn' : ' ok'}`, 'data-bed': bedIsPlaceholder(bed) ? 'placeholder' : bed.source.kind }, bedIsPlaceholder(bed) ? 'Placeholder' : bed.source.kind === 'measured' ? 'Measured' : 'From a drawing')),
+            h('p', { class: 'fine', 'data-bed': 'owner' }, job.machine === null || job.setup.bedFrom === 'own' ? 'The draft’s own bed: no machine is chosen. Choose a machine above to plan on its bed.' : `Pinned from ${job.machine.name}, bed revision ${bed.revision}${behind ? ` (the machine now has revision ${machine === null ? '?' : bedOf(machine).revision})` : ''}.`),
+            behind && machine !== null ? h('button', { type: 'button', class: 'small', 'data-action': 'job-take-bed', onClick: () => edit((j) => withMachine(j, machine)) }, `Use the machine’s bed revision ${bedOf(machine).revision}`) : null,
+            h(ContextHelp, { id: 'bed-source-help', label: 'About this bed' }, bedSourceText(bed)),
+            h('div', { class: 'field-grid three' }, field('Width', bed.width, (width) => setBed({ width }), 'mm', 1, 1), field('Depth', bed.depth, (depth) => setBed({ depth }), 'mm', 1, 1), field('Thickness', bed.thickness, (thickness) => setBed({ thickness }))),
+            h('div', { class: 'field-grid' }, field('Bed top, machine Z', bed.toMachine.z, (z) => setBed({ z }), 'mm', 0.1, -100000)),
+            h(ContextHelp, { id: 'bed-frame-help', label: 'About bed coordinates' }, 'Bed coordinates start at the front-left corner of the bed’s top. Enter its height in machine coordinates.'),
+            bed.outline === null ? null : h('p', { class: 'fine' }, `Outline from a drawing: ${bed.outline.length} points, ${bed.holes.length} holes.`),
+            job.machine !== null && machine !== null
+              ? h('button', { type: 'button', class: 'small', 'data-action': 'bed-save-machine', onClick: () => {
+                  if (executionLock.value !== null || activeJob.value?.id !== job.id) return;
+                  const saved = saveMachineBed(machine.id, { width: bed.width, depth: bed.depth, thickness: bed.thickness, outline: bed.outline, holes: bed.holes, toMachine: bed.toMachine, source: bed.source });
+                  if (saved === null) setBedNote('The machine no longer exists.');
+                  else {
+                    const m = machineStore.value.value.find((x) => x.id === machine.id) ?? null;
+                    edit((j) => reviseJob(withMachine(j, m), {}));
+                    setBedNote(`Saved to ${machine.name} as bed revision ${saved.revision}. Other jobs keep the revision they were planned on.`);
+                  }
+                } }, `Save to ${machine.name} as bed revision ${bedOf(machine).revision + 1}`)
+              : null,
+            bedNote === null ? null : h('p', { class: 'fine', role: 'status', 'data-bed': 'note' }, bedNote),
+            h('p', { class: 'fine' }, jobSaved.value ? 'Saved in this browser.' : 'Not saved: this browser blocks storage. Changes last for this page only.'),
+          )),
+      h('div', { hidden: step !== 'stock', 'data-job-panel': 'stock' },
+        h('h2', null, 'Stock & workholding'),
+        h(
+            'section',
+            { class: 'insp' },
+            h('header', null, h('h2', null, 'Stock'), h('span', { class: `tag${fits ? '' : ' warn'}` }, fx === null ? 'On the bed' : fits ? 'On fixture' : 'Wider than fixture')),
+            job.setup.stockOutline === null
+              ? h(
+                  'div',
+                  { class: 'shape-picker', role: 'group', 'aria-label': 'Stock shape' },
+                  (['block', 'round', 'sheet'] as const).map((shape) => h('button', { type: 'button', key: shape, class: st.shape === shape ? 'selected' : undefined, 'aria-pressed': st.shape === shape ? 'true' : 'false', onClick: () => setStock({ shape }) }, shape === 'block' ? 'Block' : shape === 'round' ? 'Round' : 'Sheet')),
+                )
+              : h('div', { class: 'fixture-item', 'data-setup': 'stock-outline' }, h(FixtureThumb, { outline: job.setup.stockOutline.outline, holes: job.setup.stockOutline.holes }), h('div', null, h('strong', null, 'Outline from a drawing'), h('small', null, `${job.setup.stockOutline.source.file} · ${Math.round(st.width)} × ${Math.round(st.depth)} mm`), h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'stock-outline-remove', onClick: () => setup({ stockOutline: null }) }, 'Use a plain shape instead'))),
+            h('div', { class: 'field-grid' }, ...(st.shape === 'round' ? [field('Diameter', st.diameter ?? st.width, (diameter) => setStock({ diameter }))] : [field('Width X', st.width, (width) => setStock({ width })), field('Depth Y', st.depth, (depth) => setStock({ depth }))]), field('Thickness', st.thickness, (thickness) => setStock({ thickness }), 'mm', 0.05, 0.1)),
+            h(
+              'label',
+              { class: 'field' },
+              h('span', null, 'Material'),
+              h(
+                'span',
+                { class: 'select-wrap' },
+                h(
+                  'select',
+                  {
+                    value: st.materialRef.id,
+                    onChange: (e: Event) => {
+                      const m = material((e.currentTarget as HTMLSelectElement).value);
+                      if (m !== null) setStock({ materialRef: { id: m.id, version: m.version } });
+                    },
+                  },
+                  allMaterials.value.filter((v) => !doNotMachine(v.material)).map((v) => h('option', { value: v.material.id, key: v.material.id }, v.material.name)),
+                ),
+              ),
+            ),
+            mat === null ? null : h(SafetyNotes, { m: mat, compact: true }),
+            h('div', { class: 'field-grid' }, field('Centre X', st.position.x, (x) => setStock({ position: { ...st.position, x } }), 'mm', 1, -10000), field('Centre Y', st.position.y, (y) => setStock({ position: { ...st.position, y } }), 'mm', 1, -10000)),
+            h(ContextHelp, { id: 'stock-position-help', label: 'About stock position' }, 'Positions are the centre of the footprint, from the bed’s front-left corner, in bed coordinates.'),
+
+          ),
+        h('details', { class: 'job-fixture', open: true }, h('summary', null, 'Workholding'), h(
+            'section',
+            { class: 'insp' },
+            h('header', null, h('h2', null, 'Fixture'), h('span', { class: 'tag' }, fx === null ? 'None' : fx.source.hash === SAMPLE_HASH ? 'Sample' : fx.source.kind.toUpperCase())),
+            fx === null
+              ? h('p', { class: 'fine' }, 'The stock sits straight on the bed.')
+              : [
+                  h('div', { class: 'fixture-item', key: 'item' }, h(FixtureThumb, { outline: fx.outline, holes: fx.holes }), h('div', null, h('strong', null, fx.name), h('small', null, `${fx.source.hash === SAMPLE_HASH ? 'built in' : fx.source.file} · ${Math.round(Math.max(...fx.outline.map((p) => p[0])))} × ${Math.round(Math.max(...fx.outline.map((p) => p[1])))} mm · ${fx.holes.length} holes`))),
+                  h('div', { class: 'field-grid three', key: 'dims' }, field('Height', fx.height, (height) => setup({ fixture: { ...fx, height } })), field('Centre X', fx.position.x, (x) => setup({ fixture: { ...fx, position: { ...fx.position, x } } }), 'mm', 1, -10000), field('Centre Y', fx.position.y, (y) => setup({ fixture: { ...fx, position: { ...fx.position, y } } }), 'mm', 1, -10000)),
+                ],
+            h(
+              'label',
+              { class: 'upload' },
+              h('input', {
+                type: 'file',
+                accept: '.dxf,.svg,image/svg+xml',
+                'data-action': 'fixture-file',
+                onChange: (e: Event) => {
+                  const input = e.currentTarget as HTMLInputElement;
+                  const file = input.files?.[0];
+                  if (file === undefined) return;
+                  if (file.size > MAX_OUTLINE_BYTES) {
+                    setStatus(`That file is too large to read here (${formatBytes(MAX_OUTLINE_BYTES)} at most).`);
+                    return;
+                  }
+                  void file.arrayBuffer().then(
+                    async (bytes) => {
+                      try {
+                        const text = new TextDecoder().decode(bytes);
+                        const parsed = parseOutline(file.name, text);
+                        const hash = await sha256Hex(bytes);
+                        setup({
+                          fixture: {
+                            id: `fixture.${hash.slice(0, 16)}`,
+                            name: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Fixture',
+                            source: { file: file.name.slice(0, 120), kind: /\.dxf$/i.test(file.name) ? 'dxf' : 'svg', hash },
+                            outline: parsed.outline.map(([x, y]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000] as const),
+                            holes: parsed.holes.map(([x, y, r]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000, Math.round(r * 1000) / 1000] as const),
+                            height: fx?.height ?? 12,
+                            position: fx?.position ?? { x: 160, y: 120 },
+                            material: fx?.material ?? 'Not recorded',
+                          },
+                        });
+                        const skipped = Object.entries(parsed.skipped);
+                        setStatus(`Read ${file.name}: ${Math.round(parsed.width)} × ${Math.round(parsed.depth)} mm, ${parsed.holes.length} holes.${skipped.length === 0 ? '' : ` Not read: ${skipped.map(([k, n]) => `${n} ${k}`).join(', ')}.`}`);
+                      } catch (error) {
+                        setStatus(error instanceof OutlineError ? error.message : 'The file could not be read.');
+                      }
+                    },
+                    () => setStatus('The file could not be read.'),
+                  );
+                  input.value = '';
+                },
+              }),
+              Icon('upload', 22),
+              h('span', null, h('strong', null, 'Add a fixture from DXF or SVG'), h('small', null, 'Outlines and holes become a solid at the height you set. A drawing in a project: Projects → Use in Job.')),
+            ),
+            status === '' ? null : h('p', { class: 'fine', 'aria-live': 'polite', 'data-setup': 'upload-status' }, status),
+            h(
+              'div',
+              { class: 'switch-row' },
+              h('span', null, 'Toe clamps on the stock edges (illustrative)'),
+              h('button', { type: 'button', class: 'toggle', 'aria-pressed': job.setup.clamps.length > 0 ? 'true' : 'false', onClick: () => setup({ clamps: job.setup.clamps.length > 0 ? [] : illustrativeClamps(st) }) }, job.setup.clamps.length > 0 ? `${job.setup.clamps.length} clamps${clampsAreIllustrative(job.setup.clamps) ? '' : ' (placed)'}` : 'No clamps'),
+            ),
+            h('div', { class: 'switch-row' }, h('span', null, 'Fixture'), h('button', { type: 'button', class: 'small', onClick: () => setup({ fixture: fx === null ? sampleFixture() : null }) }, fx === null ? 'Use the sample plate' : 'Remove the fixture')),
+          ))),
+      h('div', { hidden: step !== 'place', 'data-job-panel': 'place' },
+        h('h2', null, 'Place job'),
+        h(
+              'div',
+              { class: 'field' },
+              h('span', null, 'Work zero (the file’s datum)'),
+              h(
+                'div',
+                { class: 'zero-pick' },
+                h('div', { class: 'zero-grid', role: 'radiogroup', 'aria-label': 'Work zero point on the stock' }, ZEROS.map((z, i) => (z === null ? h('span', { key: String(i), 'aria-hidden': 'true' }) : h('button', { type: 'button', role: 'radio', key: z, 'aria-checked': job.placement.datum.corner === z ? 'true' : 'false', 'aria-label': z.replace('-', ' '), onClick: () => edit((j) => withDatum(j, { ...j.placement.datum, corner: z })) })))),
+                h('div', { class: 'seg vertical', role: 'group', 'aria-label': 'Zero height' }, (['top', 'bottom'] as const).map((zh) => h('button', { type: 'button', key: zh, class: job.placement.datum.height === zh ? 'selected' : undefined, onClick: () => edit((j) => withDatum(j, { ...j.placement.datum, height: zh })) }, zh === 'top' ? 'Stock top' : 'Stock bottom'))),
+              ),
+            ),
+        h('dl', { class: 'job-zero-facts' }, h('dt', null, 'Planned zero · machine mm'), h('dd', { 'data-job': 'planned-zero' }, `X ${zero.x.toFixed(2)} · Y ${zero.y.toFixed(2)} · Z ${zero.z.toFixed(2)}`)),
+        h('dl', { class: 'job-zero-facts', 'aria-label': 'Setup heights in machine coordinates' },
+          h('dt', null, 'Stock top · machine Z'), h('dd', { 'data-height': 'stock' }, (top + st.thickness).toFixed(2)),
+          h('dt', null, 'Fixture top · machine Z'), h('dd', { 'data-height': 'fixture' }, top.toFixed(2)),
+          h('dt', null, 'Bed top · machine Z'), h('dd', { 'data-height': 'bed' }, bed.toMachine.z.toFixed(2))),
+        h(ContextHelp, { id: 'job-datum-help', label: 'About planned work zero' }, 'Choose the datum used by your CAM file. This places the preview on the stock; it does not set the controller’s work offset. Use the machine Offsets controls to set and verify the physical zero.'),
+        h('p', { class: 'fine' }, 'Travel fit and clamp clearance: not checked.'))));
 }

@@ -253,8 +253,8 @@ export function LineList({ data, highlightLine, revealLine, fetchFindings, fileK
         'Follow',
       ),
       breakpoints.length === 0
-        ? h('span', { class: 'gcode-bp-note' }, 'Click a line’s margin to set a breakpoint: a job stops before that line, with the queue drained.')
-        : h('span', { class: 'gcode-bp-note', 'data-gcode': 'breakpoints' }, h('span', { class: 'bp-dot', 'aria-hidden': 'true' }), `${String(breakpoints.length)} breakpoint${breakpoints.length === 1 ? '' : 's'}. A job stops before each one.`),
+        ? h('span', { class: 'gcode-bp-note', title: 'A job stops before a breakpoint, with the queue drained.' }, 'Click the margin to add a breakpoint.')
+        : h('span', { class: 'gcode-bp-note', 'data-gcode': 'breakpoints' }, h('span', { class: 'bp-dot', 'aria-hidden': 'true' }), `${String(breakpoints.length)} breakpoint${breakpoints.length === 1 ? '' : 's'}`),
       queued.length === 0 ? null : h('span', { class: 'gcode-bp-note warn', role: 'status', 'data-safety': 'W41' }, queued.map((line) => w41({ line })).join(' ')),
     ),
     h(

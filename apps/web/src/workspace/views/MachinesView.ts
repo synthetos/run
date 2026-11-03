@@ -11,11 +11,12 @@
  * written from here; SAFETY §4.10 rule 4: a profile is never applied
  * automatically, and applying goes through C5 and the write path).
  */
+import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
 import { CATALOGUE, machineDrawing, type MachineTemplate } from '../machineDrawings.ts';
 import type { SettingValue } from '@synthetos/schema';
-import { machineStore, selectedMachine, selectedMachineStore, type AxisProfile, type MachineProfile } from '../library.ts';
+import { bedIsPlaceholder, bedOf, machineStore, saveMachineBed, selectedMachine, selectedMachineStore, updateMachine, type AxisProfile, type MachineProfile } from '../library.ts';
 import { dialectOf, motorFor, plainValue, setDraft, settingMeta, settingsOf, stepsPerUnit, tinygV8 } from '../boardFacts.ts';
 import { editBlocked } from '../settings/SettingsUi.ts';
 import { writableKey } from '../settings/pending.ts';
@@ -42,7 +43,41 @@ function copyOf(t: MachineTemplate, n: number): MachineProfile {
     travel: t.travel,
     spindle: 'Trim router',
     createdAt: new Date().toISOString(),
+    revision: 1,
+    homeFrame: 'front-left-top',
   };
+}
+
+/**
+ * The machine's bed (FLOW_ANALYSIS §4 step 3): its revision, where its dimensions came from, and the fields.
+ * A change is saved as the next bed revision; jobs keep the revision they were planned on until asked.
+ */
+function BedSection({ machine }: { readonly machine: MachineProfile }): ComponentChild {
+  const bed = bedOf(machine);
+  const [note, setNote] = useState<string | null>(null);
+  const save = (patch: Partial<Pick<typeof bed, 'width' | 'depth' | 'thickness'>> & { readonly z?: number }): void => {
+    const { z, ...dims } = patch;
+    const saved = saveMachineBed(machine.id, { ...bed, ...dims, toMachine: z === undefined ? bed.toMachine : { ...bed.toMachine, z }, source: { kind: 'measured', note: 'Entered in Machines.', at: new Date().toISOString() } });
+    if (saved !== null) setNote(`Saved as bed revision ${saved.revision}. Jobs planned on an earlier revision keep it until they take this one.`);
+  };
+  const numField = (label: string, value: number, onChange: (n: number) => void, min: number, step = 1): ComponentChild =>
+    h('label', { class: 'field', key: label }, h('span', null, label), h('span', { class: 'unit-input' }, h('input', { type: 'number', min, step, value, 'aria-label': `${label}, bed`, onChange: (e: Event) => { const n = Number.parseFloat((e.currentTarget as HTMLInputElement).value); if (Number.isFinite(n) && n >= min) onChange(n); } }), h('i', null, 'mm')));
+  const placeholder = bedIsPlaceholder(bed);
+  return h(
+    'div',
+    { class: 'machine-bed', 'data-machine': 'bed', 'data-bed': placeholder ? 'placeholder' : bed.source.kind, 'data-bed-revision': String(bed.revision) },
+    h('div', { class: 'bed-head' }, h('h3', null, 'Bed'), h('span', { class: `tag${placeholder ? ' warn' : ' ok'}` }, placeholder ? 'Placeholder' : bed.source.kind === 'measured' ? 'Measured' : 'From a drawing'), h('span', { class: 'fine' }, bed.revision === 0 ? 'no revision saved yet' : `revision ${bed.revision}`)),
+    h('p', { class: 'fine' }, bed.source.kind === 'placeholder' ? bed.source.note : bed.source.kind === 'measured' ? `${bed.source.note} ${dateText(bed.source.at)}` : `From ${bed.source.file}, ${bed.source.units}${bed.source.scale === 1 ? '' : ` × ${bed.source.scale}`}, ${dateText(bed.source.at)}; ${bed.outline?.length ?? 0} outline points, ${bed.holes.length} holes.`),
+    h('div', { class: 'field-grid three' }, numField('Width', bed.width, (width) => save({ width }), 1), numField('Depth', bed.depth, (depth) => save({ depth }), 1), numField('Thickness', bed.thickness, (thickness) => save({ thickness }), 0.1, 0.5)),
+    h('div', { class: 'field-grid' }, numField('Bed top, machine Z', bed.toMachine.z, (z) => save({ z }), -100000, 0.1)),
+    h('p', { class: 'fine' }, 'Bed coordinates start at the front-left corner of the bed’s top; the Z above says where that corner sits in machine coordinates. A spoilboard drawing comes in from Projects → Use in Job → Bed drawing.'),
+    note === null ? null : h('p', { class: 'fine', role: 'status', 'data-machine': 'bed-note' }, note),
+  );
+}
+
+function dateText(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function MyMachine({ model, onView }: { readonly model: WorkspaceModel | null; readonly onView: (v: string) => void }): ComponentChild {
@@ -55,13 +90,13 @@ function MyMachine({ model, onView }: { readonly model: WorkspaceModel | null; r
       'div',
       { class: 'my-machine empty' },
       h(MachineArt, { id: 'custom' }),
-      h('div', { class: 'grow' }, h('span', { class: 'kicker' }, 'Your machine'), h('h2', null, 'No machine yet'), h('p', null, 'Pick the machine closest to yours below and make a copy. You can change every detail.')),
+      h('div', { class: 'grow' }, h('span', { class: 'kicker' }, 'Your machine'), h('h2', null, 'No machine yet'), h('p', null, 'Copy a template below, then adjust it to your machine.')),
       h('span', { class: `pill${isOn ? ' connected' : ''}` }, isOn ? 'Board connected' : 'Not connected'),
       h('span', null),
     );
   }
   const update = (patch: Partial<MachineProfile>): void => {
-    machineStore.set(machineStore.value.value.map((m) => (m.id === mine.id ? { ...m, ...patch } : m)));
+    updateMachine(mine.id, patch);
   };
   const num = (v: string, fallback: number): number => {
     const n = Number.parseFloat(v);
@@ -85,10 +120,11 @@ function MyMachine({ model, onView }: { readonly model: WorkspaceModel | null; r
             ),
             h('label', { class: 'field' }, h('span', null, 'Spindle'), h('span', { class: 'unit-input' }, h('input', { value: mine.spindle, maxLength: 40, onChange: (e: Event) => update({ spindle: (e.currentTarget as HTMLInputElement).value.slice(0, 40) }) }))),
           )
-        : [h('h2', { key: 'n' }, mine.name), h('p', { key: 'p' }, `${CATALOGUE.find((t) => t.id === mine.templateId)?.name ?? 'Custom'} · ${mine.drive === 'any' ? 'any drive' : `${mine.drive} drive`} · ${mine.travel.x} × ${mine.travel.y} × ${mine.travel.z} mm travel · ${mine.spindle}`), isOn && view !== null ? h('p', { key: 'b', class: 'fine' }, `Connected: ${boardLabel(view)}`) : null],
+        : [h('h2', { key: 'n' }, mine.name), h('p', { key: 'p' }, `${CATALOGUE.find((t) => t.id === mine.templateId)?.name ?? 'Custom'} · ${mine.drive === 'any' ? 'any drive' : `${mine.drive} drive`} · ${mine.travel.x} × ${mine.travel.y} × ${mine.travel.z} mm travel · ${mine.spindle} · revision ${mine.revision ?? 1}`), isOn && view !== null ? h('p', { key: 'b', class: 'fine' }, `Connected: ${boardLabel(view)}`) : null],
     ),
     h('span', { class: `pill${isOn ? ' connected' : ''}` }, isOn ? 'Connected' : 'Not connected'),
     h('div', { class: 'card-actions' }, h('button', { type: 'button', class: 'small', onClick: () => setEditing(!editing) }, editing ? 'Done' : 'Edit'), h('button', { type: 'button', class: 'small', onClick: () => onView('board') }, 'Open board')),
+    h(BedSection, { machine: mine }),
   );
 }
 
@@ -157,18 +193,18 @@ export function rowDiff(r: MappingRow): Diff {
   return Math.abs(r.profile - r.board) <= Math.max(1e-6, Math.abs(r.board) * 1e-6) ? 'same' : 'differs';
 }
 
-const DIFF_TEXT: Readonly<Record<Diff, string>> = { same: 'Same', differs: 'Differs', unset: 'Not set', unread: 'Board not read' };
+const DIFF_TEXT: Readonly<Record<Diff, string>> = { same: 'Same', differs: 'Differs', unset: 'Not set', unread: 'Unknown' };
 
 function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const mine = selectedMachine.value;
   const view: LiveView | null = model?.live.value ?? null;
   const [axis, setAxis] = useState<AxisId>('x');
   const [stagedCount, setStagedCount] = useState<number | null>(null);
-  if (mine === null) return h('div', { class: 'scroll-region' }, h('p', { class: 'board-empty' }, 'Make a machine first (Start from a machine), then its TinyG settings appear here.'));
+  if (mine === null) return h('div', { class: 'scroll-region' }, h('p', { class: 'board-empty' }, 'Create a machine profile to compare settings.'));
   const settings = settingsOf(view);
   const dialect = dialectOf(view);
   const rows = mappingRows(mine, axis, settings, dialect);
-  const update = (patch: Partial<MachineProfile>): void => machineStore.set(machineStore.value.value.map((m) => (m.id === mine.id ? { ...m, ...patch } : m)));
+  const update = (patch: Partial<MachineProfile>): void => void updateMachine(mine.id, patch);
   const setField = (r: MappingRow, v: number | undefined): void => {
     if (r.field === null) return;
     if (r.field === 'travel') {
@@ -219,7 +255,7 @@ function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): Com
         h(
           'table',
           { class: 'cfg-table map-table', 'data-region': 'tinyg-mapping' },
-          h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Profile field'), h('th', { scope: 'col' }, 'Your profile'), h('th', { scope: 'col' }, 'TinyG key'), h('th', { scope: 'col' }, 'On the board'), h('th', { scope: 'col' }, 'Difference'))),
+          h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Profile field'), h('th', { scope: 'col' }, 'Your profile'), h('th', { scope: 'col' }, 'On the board'), h('th', { scope: 'col' }, 'Difference'))),
           h(
             'tbody',
             null,
@@ -233,12 +269,11 @@ function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): Com
                   'td',
                   null,
                   r.derived === true
-                    ? h('span', { class: 'mono' }, r.profile === undefined ? '—' : num(r.profile, 3))
+                    ? h('span', { class: 'mono' }, r.profile === undefined ? 'Not set' : num(r.profile, 3))
                     : r.options !== undefined
                       ? h('span', { class: 'select-wrap' }, h('select', { 'aria-label': `${r.label}, your profile`, value: r.profile === undefined ? '' : String(r.profile), onChange: (e: Event) => { const v = (e.currentTarget as HTMLSelectElement).value; setField(r, v === '' ? undefined : Number(v)); } }, h('option', { value: '' }, 'Not set'), r.options.map((o) => h('option', { value: String(o.value), key: o.value }, o.label))))
                       : h('span', { class: 'unit-input' }, h('input', { type: 'number', step: 'any', min: 0, 'aria-label': `${r.label}, your profile`, placeholder: 'Not set', value: r.profile ?? '', onChange: (e: Event) => { const v = Number.parseFloat((e.currentTarget as HTMLInputElement).value); setField(r, Number.isFinite(v) && v >= 0 ? v : undefined); } }), r.unit === '' ? null : h('i', null, r.unit)),
                 ),
-                h('td', null, h('code', { class: 'tinyg-key' }, r.keyText)),
                 h('td', { class: r.board === undefined ? 'muted' : undefined }, r.boardText),
                 h('td', null, h('span', { class: `diff-badge diff-${d}` }, d === 'same' ? Icon('check', 12) : d === 'differs' ? Icon('warning', 12) : null, DIFF_TEXT[d])),
               );
@@ -247,7 +282,7 @@ function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): Com
               'tr',
               { class: 'global', 'data-map': 'st' },
               h('th', { scope: 'row' }, 'Switch type (all inputs)'),
-              h('td', null, h('span', { class: 'select-wrap' }, h('select', { 'aria-label': 'Switch type, your profile', value: mine.switchType === undefined ? '' : String(mine.switchType), onChange: (e: Event) => { const v = (e.currentTarget as HTMLSelectElement).value; const { switchType: _drop, ...rest } = mine; machineStore.set(machineStore.value.value.map((m) => (m.id === mine.id ? (v === '' ? rest : { ...rest, switchType: Number(v) }) : m))); } }, h('option', { value: '' }, 'Not set'), h('option', { value: '0' }, 'normally open'), h('option', { value: '1' }, 'normally closed')))),
+              h('td', null, h('span', { class: 'select-wrap' }, h('select', { 'aria-label': 'Switch type, your profile', value: mine.switchType === undefined ? '' : String(mine.switchType), onChange: (e: Event) => { const v = (e.currentTarget as HTMLSelectElement).value; const { switchType: _drop, ...rest } = mine; machineStore.set(machineStore.value.value.map((m) => (m.id === mine.id ? { ...(v === '' ? rest : { ...rest, switchType: Number(v) }), revision: (m.revision ?? 1) + 1 } : m))); } }, h('option', { value: '' }, 'Not set'), h('option', { value: '0' }, 'normally open'), h('option', { value: '1' }, 'normally closed')))),
               h('td', null, h('code', { class: 'tinyg-key' }, 'st')),
               h('td', { class: st === undefined ? 'muted' : undefined }, plainValue('st', st, dialect) ?? 'Not read'),
               h('td', null, h('span', { class: `diff-badge diff-${stDiff}` }, DIFF_TEXT[stDiff])),
@@ -265,7 +300,7 @@ function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): Com
         h('header', null, h('h2', null, 'Proposed draft'), h('span', { class: 'tag' }, `${proposals.length} ${proposals.length === 1 ? 'change' : 'changes'}`)),
         proposals.length === 0
           ? h('p', { class: 'fine' }, on ? 'Your profile and the board agree wherever both are set.' : 'Connect a board to compare it with your profile.')
-          : h('ul', { class: 'draft-list' }, proposals.map(({ r }) => h('li', { key: r.keyText }, h('code', { class: 'tinyg-key' }, r.key ?? r.keyText), h('span', { class: 'old' }, r.board === undefined ? '—' : String(Number(r.board.toFixed(4)))), Icon('chevron', 12), h('strong', { class: 'new' }, String(Number((r.profile as number).toFixed(4))))))),
+          : h('ul', { class: 'draft-list' }, proposals.map(({ r }) => h('li', { key: r.keyText }, h('span', null, r.label), h('span', { class: 'old' }, r.board === undefined ? 'Unknown' : String(Number(r.board.toFixed(4)))), Icon('chevron', 12), h('strong', { class: 'new' }, String(Number((r.profile as number).toFixed(4))))))),
         h(
           'button',
           {
@@ -281,7 +316,7 @@ function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): Com
           },
           'Add to pending changes',
         ),
-        h('p', { class: 'fine', 'data-staged': stagedCount === null ? '' : String(stagedCount) }, stagedCount !== null ? `${stagedCount} ${stagedCount === 1 ? 'change was' : 'changes were'} added. Review and apply them in Board → Pending changes.` : (blocked ?? 'Nothing is written from here: the values go to Pending changes in the Board view, where you review and apply them.')),
+        h('p', { class: 'fine', 'data-staged': stagedCount === null ? '' : String(stagedCount) }, stagedCount !== null ? `${stagedCount} ${stagedCount === 1 ? 'change was' : 'changes were'} added. Review and apply them in Board → Pending changes.` : (blocked ?? 'Review and apply these changes in Board → Pending changes.')),
       ),
       h(
         'section',
@@ -290,7 +325,7 @@ function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): Com
         h('p', { class: 'fine' }, (() => {
           const { motor, assumed } = motorFor(settings, axis);
           const board = tinygV8();
-          return motor === null ? `No motor drives ${axis.toUpperCase()} on this board.` : `${axis.toUpperCase()} is driven by motor ${motor}${assumed ? ' (the factory order, until the board is read)' : ' (its ma setting)'}. Steps per mm = 360 ÷ step angle × microsteps ÷ travel per revolution.${board === null ? '' : ` This board supports ${board.motors.microsteps.value.join(', ')} microsteps.`}`;
+          return motor === null ? `No motor drives ${axis.toUpperCase()} on this board.` : `${axis.toUpperCase()} is driven by motor ${motor}${assumed ? ' (the factory order, until the board is read)' : ' (reported by the board)'}. Steps per mm = 360 ÷ step angle × microsteps ÷ travel per revolution.${board === null ? '' : ` This board supports ${board.motors.microsteps.value.join(', ')} microsteps.`}`;
         })()),
       ),
     ),
@@ -328,7 +363,7 @@ export function MachinesView({ model, onView }: { readonly model: WorkspaceModel
               mine.map((m) => h('button', { type: 'button', class: `chip${selectedMachineStore.value.value === m.id ? ' selected' : ''}`, key: m.id, onClick: () => selectedMachineStore.set(m.id) }, m.name)),
             )
           : null,
-        h('p', { class: 'fine catalogue-note' }, 'Copying a template never copies board settings, homing or safety facts. The TinyG settings tab shows how each field of your machine maps to the board.'),
+        h('div', { class: 'catalogue-help' }, h(ContextHelp, { id: 'machine-copy-help', label: 'About machine templates', below: true, end: true }, 'Templates do not copy board settings or homing. Compare settings in the TinyG tab.')),
       ),
     ),
     h(TabPane, { prefix: 'mach', id: 'tinyg', current: tab, class: 'cpane' }, h(TinygMapping, { model })),
@@ -392,7 +427,7 @@ export function MachinesView({ model, onView }: { readonly model: WorkspaceModel
             ),
           ),
         ),
-        h('p', { class: 'fine catalogue-note' }, 'Templates are examples until each has a sourced revision and a controller compatibility review. Your machines are kept in this browser.'),
+        h('div', { class: 'catalogue-help' }, h(ContextHelp, { id: 'machine-catalogue-help', label: 'About template specifications', end: true }, 'Example templates: verify specifications and controller compatibility.')),
       ),
     ),
   );

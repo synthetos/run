@@ -72,6 +72,35 @@ function mix(a: Rgba, b: Rgba, t: number): Rgba {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t];
 }
 
+/** The scene solids' tones, from the design tokens: the bed in the drafting accent softened toward the sheet, as the Setup view drew it. */
+export interface SceneColors {
+  readonly bed: Rgba;
+  readonly fixture: Rgba;
+  readonly clamp: Rgba;
+  /** The stock when its material has no family colour. */
+  readonly stock: Rgba;
+}
+
+const SCENE_FALLBACK: SceneColors = { bed: [0.72, 0.63, 0.47, 1], fixture: [0.49, 0.58, 0.66, 1], clamp: [0.43, 0.48, 0.53, 1], stock: [0.77, 0.8, 0.83, 1] };
+
+export function sceneColors(read: (token: string) => string): SceneColors {
+  const tan = parseColor(read('--tan'));
+  const sheet = parseColor(read('--sheet'));
+  return {
+    bed: tan === null || sheet === null ? SCENE_FALLBACK.bed : mix(tan, sheet, 0.38),
+    fixture: SCENE_FALLBACK.fixture,
+    clamp: SCENE_FALLBACK.clamp,
+    stock: SCENE_FALLBACK.stock,
+  };
+}
+
+/** A token reader on the document's root (the design tokens), or one that reads nothing where there is no document (prerender). */
+export function tokenReader(): (token: string) => string {
+  if (typeof document === 'undefined') return () => '';
+  const style = getComputedStyle(document.documentElement);
+  return (token) => style.getPropertyValue(token);
+}
+
 export function previewColors(read: (token: string) => string): PreviewColors {
   const out: Record<string, Rgba> = {};
   for (const key of Object.keys(TOKENS) as (keyof PreviewColors)[]) out[key] = parseColor(read(TOKENS[key])) ?? (FALLBACK[key] as Rgba);
