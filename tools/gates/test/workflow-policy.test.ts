@@ -183,7 +183,7 @@ describe('bundle scan targets (P1-00)', () => {
 describe('the localhost bench build never appears in a workflow (P1-00)', () => {
   it.each([
     ['a bench build in verify', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: pnpm build:bench\n'],
-    ['a bench vite build in the build job', '        run: pnpm --dir a --filter @synthetos/web build\n', '        run: pnpm --dir a --filter @synthetos/web exec vite build --mode bench\n'],
+    ['a bench vite build in the build job', '        run: pnpm --filter @synthetos/web build\n', '        run: pnpm --filter @synthetos/web exec vite build --mode bench\n'],
     ['packaging dist-bench', '            -cf artifact/run-web.tar -C a/apps/web/dist .\n', '            -cf artifact/run-web.tar -C a/apps/web/dist-bench .\n'],
     ['serving it', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: node tools/gates/src/bench/cli.ts\n'],
     ['the bench Playwright suite (root script)', '        run: pnpm -r test\n', '        run: pnpm -r test\n      - run: pnpm e2e:bench\n'],
