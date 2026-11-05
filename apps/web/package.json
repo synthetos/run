@@ -1,6 +1,6 @@
 {
   "name": "@synthetos/web",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "description": "The run.synthetos.com workspace UI (Preact, Vite MPA).",
   "license": "AGPL-3.0-or-later",
