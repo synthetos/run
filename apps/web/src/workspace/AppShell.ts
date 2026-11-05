@@ -42,7 +42,6 @@ import { JobView } from './views/JobView.ts';
 import { eventNotice } from '../report/notice.ts';
 import { ReportDialog } from '../report/ReportDialog.ts';
 import { openReport } from '../report/state.ts';
-import { UnknownExits } from './homing.ts';
 import { ReviewExits } from './reviewExits.ts';
 import { belowStrip } from './ui.ts';
 import { LevelSwitch } from './LevelSwitch.ts';
@@ -172,7 +171,7 @@ function Banners(props: AppShellProps): ComponentChild {
       { class: 'dialog banner-stack', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': 'Machine message' },
       h(OverlayBanners, { snapshot, staleElapsedMs: view?.staleSince === null || view?.staleSince === undefined ? 0 : Date.now() - view.staleSince }),
       // Never a trap (amendment 2026-11-02): UNKNOWN comes with its ways out; so does NEEDS_REVIEW (OD-13 §5).
-      h(UnknownExits, { model: props.model ?? null }),
+      // UNKNOWN's ways out live in the Position panel (owner, 2026-11-04): jog first, then set zero; nothing blocks.
       h(ReviewExits, { model: props.model ?? null, onReview: props.onReview ?? (() => undefined) }),
       notice === null || noticeKey === seen || hidden.includes(notice.kind)
         ? null

@@ -200,7 +200,7 @@ export function UnknownExits({ model }: { readonly model: WorkspaceModel | null 
   return h(
     'div',
     { class: 'overlay-banner overlay-banner-warn unknown-exits', 'data-region': 'unknown-exits', role: 'alert' },
-    h('p', null, h('strong', null, 'Connected · state unknown. '), 'The previous session ended while connected, so the machine may have moved. Check the machine, then choose one:'),
+    h('p', null, h('strong', null, 'Position not verified. '), 'The last session ended while connected.'),
     h(
       'div',
       { class: 'notice-actions' },

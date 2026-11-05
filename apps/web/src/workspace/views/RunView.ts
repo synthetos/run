@@ -28,7 +28,7 @@ import { readStored, writeStored } from '../storage.ts';
 import { belowStrip, CheckRow, ConfirmCard, TabBar, TabPane } from '../ui.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
-import { HomeSection, HomeQuick } from '../homing.ts';
+import { HomeSection, HomeQuick, UnknownExits } from '../homing.ts';
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
 import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { signalText } from '../../shell/signal.ts';
@@ -294,6 +294,7 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
         m === null ? null : h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: `${age.text}. The age is the time since the controller last said anything.` }, age.lag === 'none' ? age.text : age.text.slice(age.text.indexOf('·') + 2)),
       ),
     ),
+    h(UnknownExits, { model: model ?? null }),
     h(
       'div',
       { class: 'dro-grid', role: 'table', 'aria-label': 'Position' },
