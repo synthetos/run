@@ -67,7 +67,8 @@ jobs:
   verify:
     name: verify
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    # The safety package's mutation testing alone ran past 50 minutes on GitHub's runners (2026-11-05).
+    timeout-minutes: 120
     permissions:
       contents: read
     steps:
