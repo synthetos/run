@@ -43,6 +43,11 @@ const PATHS = {
   image: 'M3 5h18v14H3ZM3 16l5-5 4 4 3-3 6 6M15.5 8.5a1.5 1.5 0 1 0 0 .01',
   link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
   pin: 'M12 3a5 5 0 0 1 5 5c0 4-5 9-5 9s-5-5-5-9a5 5 0 0 1 5-5Zm0 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z',
+  // Machine position icons (owner, 2026-11-05): the long text buttons became these, each with its tooltip.
+  home: 'M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5M10 20v-5.5h4V20',
+  zeroHere: 'M12 2v5m0 10v5M2 12h5m10 0h5M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 3.2a.8.8 0 1 0 0 1.6.8.8 0 0 0 0-1.6Z',
+  goZero: 'M15 3v4m0 10v4m3-9h3M15 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM3 21l8.5-8.5M7 12.5h4.5V17',
+  machineZero: 'M5 3v14m2 2h14M5 16.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM3 5.5 5 3l2 2.5M18.5 17l2.5 2-2.5 2',
 } as const;
 
 export type IconName = keyof typeof PATHS;

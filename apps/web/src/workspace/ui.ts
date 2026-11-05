@@ -116,3 +116,25 @@ export function belowStrip(el: HTMLElement | null): void {
   const bottom = el?.ownerDocument.querySelector('[data-region="machine-strip"]')?.getBoundingClientRect().bottom;
   if (el !== null && bottom !== undefined) el.style.setProperty('--strip-bottom', `${Math.round(bottom)}px`);
 }
+
+/**
+ * A square icon button whose name is its tooltip (owner, 2026-11-05: icons with hover tips instead of long text
+ * buttons). The label is the accessible name and the tip; a disabled button's tip adds why it is off.
+ */
+export function IconButton(props: {
+  readonly icon: IconName;
+  readonly label: string;
+  readonly onClick?: () => void;
+  readonly disabled?: boolean;
+  readonly why?: string | null;
+  readonly primary?: boolean;
+  readonly attrs?: Readonly<Record<string, string>>;
+}): ComponentChild {
+  const off = props.disabled === true || props.onClick === undefined;
+  const tip = off && props.why !== undefined && props.why !== null ? `${props.label}. ${props.why}` : props.label;
+  return h(
+    'button',
+    { type: 'button', class: `icon-btn${props.primary === true ? ' primary' : ''}`, 'aria-label': props.label, 'data-tip': tip, ...(props.attrs ?? {}), ...(off ? { disabled: true } : { onClick: props.onClick }) },
+    Icon(props.icon, 18),
+  );
+}

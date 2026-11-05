@@ -17,7 +17,7 @@ import { Preview3D } from './Preview3D.ts';
 import { PreviewSvg } from './PreviewSvg.ts';
 import { IDLE_STATE, PreviewView, type PreviewSlots, type PreviewViewActions, type PreviewViewState } from './PreviewView.ts';
 import type { JobScene } from './sceneModel.ts';
-import type { ViewPreset } from '@synthetos/gcode-view';
+import type { Vec3, ViewPreset } from '@synthetos/gcode-view';
 
 /** What a layout gets to arrange: the state, the actions and the rendered pieces. */
 export interface PreviewParts {
@@ -35,6 +35,11 @@ export interface PreviewPanelProps {
   readonly spawn: (() => WorkerLike) | null;
   /** P1-07: the live position marker (reported machine position), drawn on the 2D view and read out under both views. */
   readonly marker?: ReadonlySignal<LiveMarkerView | null>;
+  /**
+   * The tool tip in machine coordinates (the reported `mpo`), or null. When given it is drawn always, not only
+   * during a job, at the scene's path offset, so it stays right after the work zero moves.
+   */
+  readonly tool?: Vec3 | null;
   /**
    * Arranges the pieces (the workspace Run view). Without it the panel is the TB-03 preview sheet
    * (PreviewView). Either way the state, the worker client and the drawing are the same.
@@ -97,7 +102,7 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -140,6 +145,9 @@ export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onRep
   const executingLine = result === null ? null : job !== null ? job.executing : executingFileLine(reportedLine, result.sourceLines);
   const plannerView = result === null || planner === undefined ? null : planner(result.sourceLines);
 
+  const offset = scene?.pathOffset ?? [0, 0, 0];
+  const toolInPath: Vec3 | null = tool === null ? null : [tool[0] - offset[0], tool[1] - offset[1], tool[2] - offset[2]];
+  const svgMarker = toolInPath === null ? live : { x: toolInPath[0], y: toolInPath[1], lag: live?.lag ?? 'fresh' };
   const drawing =
     (segments === null || result === null) && scene === null
       ? undefined
@@ -154,12 +162,12 @@ export function PreviewPanel({ spawn, marker, layout, reportedLine = null, onRep
             fitRequest,
             view,
             planner: plannerView,
-            toolMarker: plannerView !== null && live !== null ? [live.x, live.y, live.z] : null,
+            toolMarker: toolInPath ?? (plannerView !== null && live !== null ? [live.x, live.y, live.z] : null),
             scene: scene?.layers ?? null,
             pathOffset: scene?.pathOffset ?? [0, 0, 0],
             onUnavailable: () => { setState((s) => ({ ...s, drawing: 'svg' })); },
           })
-        : h(PreviewSvg, { segments, showRapids: state.showRapids, highlight, envelope: result?.summary.envelope ?? null, marker: live, scene: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? [0, 0, 0], ...(scene === null ? {} : { zero: scene.zero }) });
+        : h(PreviewSvg, { segments, showRapids: state.showRapids, highlight, envelope: result?.summary.envelope ?? null, marker: svgMarker, scene: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? [0, 0, 0], ...(scene === null ? {} : { zero: scene.zero }) });
   const readout = live === null ? undefined : h('p', { class: `pv-marker-readout lag-${live.lag}`, 'data-preview': 'marker-readout', role: 'status' }, markerText(live));
 
   const actions: PreviewViewActions = {

@@ -1708,3 +1708,25 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .sec-position .unknown-exits .notice-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .sec-position .unknown-exits button { min-height: 26px; font-size: 11.5px; padding: 0 8px; }
 
+
+/* Icon buttons with a hover tip (owner, 2026-11-05): the position actions are icons; the tip names what each does. */
+button.icon-btn { position: relative; display: inline-grid; place-items: center; width: 32px; height: 32px; min-height: 32px; padding: 0; flex: none; }
+button.icon-btn svg { display: block; }
+.dro-actions button.icon-btn, .pos-all button.icon-btn, .run-inspector.simple .dro-actions button.icon-btn, .run-inspector.simple .pos-all button.icon-btn { width: 28px; height: 28px; min-height: 28px; padding: 0; }
+.run-inspector.simple .home-quick button.icon-btn { padding: 0; }
+button.icon-btn[data-tip]:hover::after, button.icon-btn[data-tip]:focus-visible::after {
+  content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 0; z-index: 70;
+  width: max-content; max-width: 240px; padding: 5px 8px; border-radius: 6px;
+  background: var(--ink); color: var(--sheet); font: 500 12px/1.35 var(--sans); text-align: left; white-space: normal; pointer-events: none;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 25%, transparent);
+}
+/* Right-hand buttons open their tip leftwards so it stays on screen. */
+.dro-actions button.icon-btn[data-tip]:hover::after, .pos-all button.icon-btn[data-tip]:hover::after,
+.dro-actions button.icon-btn[data-tip]:focus-visible::after, .pos-all button.icon-btn[data-tip]:focus-visible::after { left: auto; right: 0; }
+.unknown-exits .notice-actions { align-items: center; }
+/* The icon actions are narrower than the old text buttons; the machine column right-aligns with a gap, so
+   three-digit positions never run into each other. */
+.dro-head, .dro-row { grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1fr) 60px; column-gap: 12px; }
+.dro-row [data-position="machine"] { text-align: right; color: var(--muted); font-size: 13px; }
+/* In Simple the all-axes pair sits on the left: its tips open rightwards. */
+.run-inspector.simple .pos-all button.icon-btn[data-tip]:hover::after, .run-inspector.simple .pos-all button.icon-btn[data-tip]:focus-visible::after { left: 0; right: auto; }

@@ -23,9 +23,9 @@ import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
 import { routineChanges, shownCounts } from '../../preview/gcodeList.ts';
 import { ConnectPanel } from '../../live/ConnectPanel.ts';
 import { settingsOf } from '../boardFacts.ts';
-import { Icon } from '../icons.ts';
+import { Icon, type IconName } from '../icons.ts';
 import { readStored, writeStored } from '../storage.ts';
-import { belowStrip, CheckRow, ConfirmCard, TabBar, TabPane } from '../ui.ts';
+import { belowStrip, CheckRow, ConfirmCard, IconButton, TabBar, TabPane } from '../ui.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
 import { HomeSection, HomeQuick, UnknownExits } from '../homing.ts';
@@ -40,7 +40,7 @@ import { activeJob, type Job } from '../jobModel.ts';
 import { materialColor } from '../library.ts';
 import { projectsState } from '../../projects/store.ts';
 import { projectStore } from '../../projects/browserStore.ts';
-import { jobScene } from '../../preview/sceneModel.ts';
+import { jobScene, liveFrame, placeJobAt } from '../../preview/sceneModel.ts';
 import { sceneColors, tokenReader } from '../../preview/colors.ts';
 import { ViewButtons } from '../../preview/SceneView.ts';
 import type { ViewPreset } from '@synthetos/gcode-view';
@@ -77,10 +77,15 @@ export function RunView({ model, spawn, marker, onView, onPause, onStopJob }: Ru
     executionLock.value = ui.active ? `${PHASE_LABEL(ui.job?.phase ?? 'running')}: the job owns the preview.` : null;
   }, [ui.active, ui.job?.phase]);
   const active = activeJob.value;
-  const scene = useMemo(() => (active === null ? null : jobScene(active, sceneColors(tokenReader()), materialColor(active.setup.stock.materialRef.id))), [active]);
+  const planned = useMemo(() => (active === null ? null : jobScene(active, sceneColors(tokenReader()), materialColor(active.setup.stock.materialRef.id))), [active]);
+  // The live machine: the tool where the board reports it, and the job placed at the work zero the board uses now.
+  const frame = live !== null && connected(live) && live.message !== null && live.message !== undefined ? liveFrame(live.message.snapshot.live) : null;
+  const z0 = frame?.zero ?? null;
+  const scene = useMemo(() => (planned === null || z0 === null ? planned : placeJobAt(planned, z0)), [planned, z0?.[0], z0?.[1], z0?.[2]]);
   return h(PreviewPanel, {
     spawn,
     ...(marker === undefined ? {} : { marker }),
+    tool: frame?.tool ?? null,
     reportedLine,
     job: job === null ? null : { executing: job.executing?.line ?? null, sentThrough: job.sentThrough },
     planner: (sourceLines: Uint32Array) => plannerRanges(job, sourceLines, starve),
@@ -269,8 +274,8 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
     setNote(null);
     void send?.(command).then(setNote);
   };
-  const act = (label: string, aria: string, onClick: () => void): ComponentChild =>
-    h('button', { type: 'button', class: 'small', 'aria-label': aria, 'data-machine-control': 'zero', ...(enabled ? { onClick } : { disabled: true, title: ui.reason ?? undefined }) }, label);
+  const act = (icon: IconName, label: string, onClick: () => void): ComponentChild =>
+    h(IconButton, { icon, label, why: ui.reason ?? null, attrs: { 'data-machine-control': 'zero' }, ...(enabled ? { onClick } : { disabled: true }) });
   const card =
     confirm === null || !enabled
       ? null
@@ -307,7 +312,7 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
           h('span', { class: 'axis', role: 'rowheader' }, a.toUpperCase()),
           h('strong', { role: 'cell', 'data-position': 'work' }, coord(d.work)),
           h('span', { role: 'cell', 'data-position': 'machine' }, coord(d.machine)),
-          h('span', { class: 'dro-actions', role: 'cell' }, act('Zero', `Set ${a.toUpperCase()} work zero here`, () => setConfirm({ kind: 'set', axes: [a] })), act('Go', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }))),
+          h('span', { class: 'dro-actions', role: 'cell' }, act('zeroHere', `Set ${a.toUpperCase()} work zero here`, () => setConfirm({ kind: 'set', axes: [a] })), act('goZero', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }))),
         );
       }),
     ),
@@ -324,7 +329,7 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
           ? h('span', { class: 'tag ok', 'data-position': 'homing' }, 'Homed')
           : h('span', { class: 'tag warn', 'data-position': 'homing' }, 'Not homed', h(ContextHelp, { id: 'w34-help', label: 'About moving before homing', safety: 'W34', below: true }, ...signalText(w34()))),
       typeof tool === 'number' && uiLevel.value.value === 'advanced' ? h('span', { class: 'tag', 'data-position': 'tool' }, `T${tool}`) : null,
-      h('span', { class: 'pos-all' }, act('Zero all', `Set ${axesText(xyz)} work zero here`, () => setConfirm({ kind: 'set', axes: xyz })), act('Go to zero', `Go to ${axesText(xyz)} zero`, () => setConfirm({ kind: 'go', axes: xyz }))),
+      h('span', { class: 'pos-all' }, act('zeroHere', `Set ${axesText(xyz)} work zero here`, () => setConfirm({ kind: 'set', axes: xyz })), act('goZero', `Go to ${axesText(xyz)} zero`, () => setConfirm({ kind: 'go', axes: xyz }))),
     ),
     card,
     note === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-position': 'note' }, note),

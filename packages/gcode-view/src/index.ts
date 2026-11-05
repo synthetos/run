@@ -18,7 +18,7 @@ export { DEFAULT_SLICE_BUDGET_MS, runSliced } from './slicer.ts';
 export type { SliceOptions } from './slicer.ts';
 export { VIEW_ANGLES, eye, fitOrbit, lookAt, multiply, pan, perspective, project, rotate, viewProjection, zoom } from './camera.ts';
 export type { Mat4, Orbit, ViewAngles, ViewPreset } from './camera.ts';
-export { createRenderer } from './renderer.ts';
+export { createRenderer, toolGlyph } from './renderer.ts';
 export type { LoadOptions, PlannerOverlay, PreviewColors, PreviewRenderer, RendererOptions, Rgba } from './renderer.ts';
 export { attachViewControls } from './controls.ts';
 export { svgEnvelope, svgGrid, svgPaths, svgScene, svgViewBox } from './svg.ts';

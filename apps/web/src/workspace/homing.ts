@@ -20,7 +20,8 @@ import type { MotionAxis, MotionCommand } from '../machine-worker/rpc.ts';
 import { settingsOf } from './boardFacts.ts';
 import { connected, type LiveView, type WorkspaceModel } from './model.ts';
 import { HOME_AXES, axesText, homingView, type HomingView } from './motion.ts';
-import { ConfirmCard } from './ui.ts';
+import { ConfirmCard, IconButton } from './ui.ts';
+import type { IconName } from './icons.ts';
 
 type Send = (command: MotionCommand) => Promise<string | null>;
 
@@ -131,16 +132,16 @@ function homeQuickBody({ model }: HomeProps, hk: Hooks): ComponentChild {
     setNote(null);
     void send?.(command).then(setNote);
   };
-  const button = (label: string, aria: string, onClick: () => void, ok: boolean, cls: string, why: string | null): ComponentChild =>
-    h('button', { type: 'button', class: cls, 'aria-label': aria, 'data-machine-control': 'home', ...(enabled && ok ? { onClick } : { disabled: true, title: (enabled ? why : hv.reason) ?? undefined }) }, label);
+  const quick = (icon: IconName, label: string, onClick: () => void, ok: boolean, why: string | null, primary: boolean): ComponentChild =>
+    h(IconButton, { icon, label, primary, why: (enabled ? why : hv.reason) ?? null, attrs: { 'data-machine-control': 'home' }, ...(enabled && ok ? { onClick } : { disabled: true }) });
   return h(
     'div',
     { class: 'home-quick', 'data-region': 'home-quick' },
     h(
       'div',
       { class: 'motion-recovery' },
-      button('Home all', `Home all configured axes${hv.configured.length > 0 ? ` (${axesText(hv.configured)})` : ''}`, () => setAsking({ kind: 'home', axes: hv.configured }), hv.configured.length > 0, 'small primary', 'No axis has a homing switch and search speed set.'),
-      button('Set machine zero here…', 'Set the machine zero here without homing (G28.3)', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true, 'small', null),
+      quick('home', `Home all configured axes${hv.configured.length > 0 ? ` (${axesText(hv.configured)})` : ''}`, () => setAsking({ kind: 'home', axes: hv.configured }), hv.configured.length > 0, 'No axis has a homing switch and search speed set.', true),
+      quick('machineZero', 'Set the machine zero here, without homing (G28.3)', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true, null, false),
     ),
     enabled ? confirmFor(asking, hv, run, () => setAsking(null)) : null,
     note === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-home': 'note' }, note),
@@ -205,9 +206,9 @@ export function UnknownExits({ model }: { readonly model: WorkspaceModel | null 
       'div',
       { class: 'notice-actions' },
       // One click (owner, 2026-11-04): the message above is the confirmation; no second card.
-      h('button', { type: 'button', class: 'small primary', 'data-action': 'unknown-verify', onClick: () => run({ op: 'positionVerify' }) }, 'I’ve checked the machine'),
-      canHome ? h('button', { type: 'button', class: 'small primary', 'data-action': 'unknown-home', onClick: () => setAsking({ kind: 'home', axes: hv.configured }) }, 'Home machine') : null,
-      canPosition ? h('button', { type: 'button', class: 'small', 'data-action': 'unknown-position', title: 'Without homing: the machine zero is set where the axes are now (G28.3)', onClick: () => setAsking({ kind: 'position', axes: POSITION_AXES }) }, 'Set machine zero here') : null,
+      h(IconButton, { icon: 'check', label: 'I’ve checked the machine: its position is right', primary: true, attrs: { 'data-action': 'unknown-verify' }, onClick: () => run({ op: 'positionVerify' }) }),
+      canHome ? h(IconButton, { icon: 'home', label: 'Home the machine', attrs: { 'data-action': 'unknown-home' }, onClick: () => setAsking({ kind: 'home', axes: hv.configured }) }) : null,
+      canPosition ? h(IconButton, { icon: 'machineZero', label: 'Set the machine zero here, without homing (G28.3)', attrs: { 'data-action': 'unknown-position' }, onClick: () => setAsking({ kind: 'position', axes: POSITION_AXES }) }) : null,
     ),
     send === undefined ? null : confirmFor(asking, hv, run, () => setAsking(null)),
     note === null ? null : h('p', { class: 'unavailable', role: 'status' }, note),

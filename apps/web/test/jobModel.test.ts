@@ -14,7 +14,7 @@ import { all, byAttr, one, root } from './tree.ts';
 import { loadStoredLibraries, memoryRecordStore, type StorageLike } from '../src/workspace/storage.ts';
 import { legacySetupStore, machineStore, placeholderBed, SAMPLE_HASH, sampleFixture, saveMachineBed, SEED_SETUP, type MachineProfile } from '../src/workspace/library.ts';
 import { activeJobStore, bedBehind, clampsAreIllustrative, datumPoint, draftJobStore, illustrativeClamps, isJob, jobFromSetup, MIGRATED_DRAFT_NAME, newDraftJob, plannedZero, reviseJob, SEED_JOB, withDatum, withMachine, withSetup, type Job, type JobClock } from '../src/workspace/jobModel.ts';
-import { jobScene } from '../src/preview/sceneModel.ts';
+import { jobScene, liveFrame, placeJobAt } from '../src/preview/sceneModel.ts';
 import { PreviewSvg } from '../src/preview/PreviewSvg.ts';
 import { ProjectStore, readProject, type ProjectDeps } from '../src/projects/store.ts';
 import { closeJob, currentFile, currentPreview, DRAFT_FILE_KEY, executionLock, openJob, openProjectFile, openProjectJob, pendingOpen, reopenActiveJob, resetReopen, type OpenDeps } from '../src/workspace/fileBridge.ts';
@@ -201,6 +201,35 @@ describe('the planned zero and the scene in machine coordinates', () => {
     expect(draft.bedPlaceholder).toBe(true);
     expect(draft.layers.solids[0]).toMatchObject({ tag: 'bed', min: [0, 0, -19], max: [790, 790, 0] });
     expect(draft.bedLabel).toBe('Bed · 790 × 790 mm · placeholder');
+  });
+
+  it('the live frame: the tool at the reported machine position, the work zero from machine minus work (inches converted)', () => {
+    expect(liveFrame({ mpo: { x: 10, y: 20, z: -5 }, pos: { x: 4, y: 5, z: 1 }, unit: 1 })).toEqual({ tool: [10, 20, -5], zero: [6, 15, -6] });
+    // `mpo` is always millimetres; `pos` follows the board's units.
+    expect(liveFrame({ mpo: { x: 25.4, y: 0, z: 0 }, pos: { x: 1, y: 0, z: 0 }, unit: 0 })).toEqual({ tool: [25.4, 0, 0], zero: [0, 0, 0] });
+    // Unhomed at power-up: machine 0, 0, 0 with no offset, so the tool sits at the bed's front-left corner.
+    expect(liveFrame({ mpo: { x: 0, y: 0, z: 0 }, pos: { x: 0, y: 0, z: 0 } })).toEqual({ tool: [0, 0, 0], zero: [0, 0, 0] });
+    expect(liveFrame({ mpo: { x: 1, y: 2 }, pos: { x: 1, y: 2, z: 3 } })).toBeNull();
+    expect(liveFrame({ mpo: { x: 1, y: 2, z: 3 }, pos: { x: 1, y: Number.NaN, z: 3 } })).toBeNull();
+  });
+
+  it('the job follows the live work zero: stock, clamps and path move; the bed and fixture stay', () => {
+    const scene = jobScene(planned(), SCENE_COLORS, null);
+    expect(placeJobAt(scene, scene.zero)).toBe(scene);
+    const moved = placeJobAt(scene, [100, 200, -40]);
+    const d = [100 - scene.zero[0], 200 - scene.zero[1], -40 - scene.zero[2]];
+    expect(moved.pathOffset).toEqual([100, 200, -40]);
+    expect(moved.zero).toEqual([100, 200, -40]);
+    expect(moved.layers.solids.find((s) => s.tag === 'stock')).toMatchObject({ kind: 'box', min: [0 + d[0], -20 + d[1], -53 + d[2]], max: [180 + d[0], 100 + d[1], -46.65 + d[2]] });
+    expect(moved.layers.solids.find((s) => s.tag === 'bed')).toEqual(scene.layers.solids.find((s) => s.tag === 'bed'));
+    expect(moved.layers.solids.find((s) => s.tag === 'fixture')).toEqual(scene.layers.solids.find((s) => s.tag === 'fixture'));
+    const clamp0 = scene.layers.solids.filter((s) => s.tag === 'clamp')[0];
+    const clamp1 = moved.layers.solids.filter((s) => s.tag === 'clamp')[0];
+    expect(clamp0?.kind === 'box' && clamp1?.kind === 'box' ? clamp1.min[0] - clamp0.min[0] : null).toBeCloseTo(d[0] as number);
+    expect(moved.layers.rings).toBe(scene.layers.rings);
+    // An outlined stock (a prism) moves the same way.
+    const prism = { ...scene, layers: { solids: [{ kind: 'prism' as const, outline: [[0, 0], [10, 0], [10, 10]] as const, z0: 0, z1: 5, color: SCENE_COLORS.stock, tag: 'stock' }], rings: [] } };
+    expect(placeJobAt(prism, [scene.zero[0] + 1, scene.zero[1] + 2, scene.zero[2] + 3]).layers.solids[0]).toMatchObject({ outline: [[1, 2], [11, 2], [11, 12]], z0: 3, z1: 8 });
   });
 
   it('the SVG fallback draws the solids under a translated path group and the zero', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SEGMENT, chunks, createRenderer } from '../src/index.ts';
+import { SEGMENT, chunks, createRenderer, toolGlyph } from '../src/index.ts';
 import { COLORS, bigList, fakeGl, frameQueue, listOf } from './helpers.ts';
 
 const instant = { yieldToHost: async () => {} };
@@ -115,5 +115,17 @@ describe('WebGL renderer', () => {
     r.setPlanner(null);
     expect(frames.flush()).toBe(1);
     expect(frames.flush()).toBe(0);
+  });
+});
+
+describe('toolGlyph', () => {
+  it('draws the bit, collet nut and spindle above the tip, true size on a bed and smaller on a small drawing', () => {
+    const big = toolGlyph([10, 20, 0], { min: [0, 0, 0], max: [800, 800, 10] });
+    const zs = big.flatMap(([a, b]) => [a[2], b[2]]);
+    expect(Math.min(...zs)).toBe(0);
+    expect(Math.max(...zs)).toBeCloseTo(25 + 12 + 80);
+    const small = toolGlyph([0, 0, 0], { min: [0, 0, 0], max: [20, 20, 1] });
+    expect(Math.max(...small.flatMap(([a, b]) => [a[2], b[2]]))).toBeCloseTo((25 + 12 + 80) * 0.2);
+    expect(toolGlyph([0, 0, 0], null).length).toBe(big.length);
   });
 });
