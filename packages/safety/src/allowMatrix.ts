@@ -544,6 +544,8 @@ const OVERLAY_DENIAL: Readonly<Record<Overlay, { readonly reason: string; readon
   NEEDS_REVIEW: { reason: "The board's settings differ from the profile.", remedy: 'Review the difference first.' },
 });
 
+const UNIDENTIFIED = { reason: 'Run could not identify this board: its replies carried no values (on TinyG, set $jv to 4), so only reads and stops are allowed.', remedy: 'Disconnect, fix the board setting, then connect again.' };
+
 const NOT_IN_RELEASE = {
   reason: 'Not available in this release.',
   remedy: 'This version of run.synthetos.com does not connect to machines yet.',
@@ -582,7 +584,8 @@ export function allowed(snapshot: MatrixSnapshot, intent: Intent, release: Relea
   if (!row.states.includes(snapshot.base)) return deny(row.denied.reason, row.denied.remedy, row.citation);
   for (const overlay of OVERLAYS) {
     if (overlays.has(overlay) && !row.overlays.includes(overlay)) {
-      const d = OVERLAY_DENIAL[overlay];
+      // Read-only because the board could not be identified, not because its firmware is refused (bench 3, 2026-11-04).
+      const d = overlay === 'READ_ONLY' && !snapshot.classified ? UNIDENTIFIED : OVERLAY_DENIAL[overlay];
       return deny(d.reason, d.remedy, `SAFETY §3 ${overlay}; §4.1 Anything else row`);
     }
   }

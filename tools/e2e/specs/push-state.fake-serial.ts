@@ -113,8 +113,8 @@ test('after a reconnect the UNKNOWN banner offers its exits: "I\'ve checked the 
   const worker = await connect(page, { unknown: true });
   const banner = page.locator('[data-region="unknown-exits"]');
   await expect(banner).toContainText('Connected · state unknown.');
+  // One click (owner, 2026-11-04): the banner's own text is the W6 confirmation.
   await banner.locator('[data-action="unknown-verify"]').click();
-  await confirm(page, 'W6');
   await expect.poll(async () => (await session(worker)).overlays).toEqual([]);
   await expect(banner).toHaveCount(0);
 });

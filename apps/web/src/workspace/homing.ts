@@ -179,6 +179,14 @@ export function UnknownExits({ model }: { readonly model: WorkspaceModel | null 
   const [note, setNote] = useState<string | null>(null);
   const view = model?.live.value ?? null;
   if (!unknownApplies(view)) return null;
+  // A board run could not identify cannot be confirmed or homed: say why instead of offering buttons that are refused.
+  if (view?.message?.snapshot.classification?.dialectId === null) {
+    return h(
+      'div',
+      { class: 'overlay-banner overlay-banner-warn unknown-exits', 'data-region': 'unknown-exits', 'data-unknown': 'unidentified', role: 'alert' },
+      h('p', null, h('strong', null, 'Run could not identify this board. '), 'Its replies carried no values (on TinyG, set $jv to 4). Disconnect, fix the setting, then connect again.'),
+    );
+  }
   const send = model?.actions.value?.motion;
   const hv = homingView(view, settingsOf(view));
   const run = (command: MotionCommand): void => {
@@ -196,7 +204,8 @@ export function UnknownExits({ model }: { readonly model: WorkspaceModel | null 
     h(
       'div',
       { class: 'notice-actions' },
-      h('button', { type: 'button', class: 'small primary', 'data-action': 'unknown-verify', onClick: () => setAsking({ kind: 'verify' }) }, 'I’ve checked the machine'),
+      // One click (owner, 2026-11-04): the message above is the confirmation; no second card.
+      h('button', { type: 'button', class: 'small primary', 'data-action': 'unknown-verify', onClick: () => run({ op: 'positionVerify' }) }, 'I’ve checked the machine'),
       canHome ? h('button', { type: 'button', class: 'small primary', 'data-action': 'unknown-home', onClick: () => setAsking({ kind: 'home', axes: hv.configured }) }, 'Home machine') : null,
       canPosition ? h('button', { type: 'button', class: 'small', 'data-action': 'unknown-position', title: 'Without homing: the machine zero is set where the axes are now (G28.3)', onClick: () => setAsking({ kind: 'position', axes: POSITION_AXES }) }, 'Set machine zero here') : null,
     ),

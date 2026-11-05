@@ -1701,4 +1701,4 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .banner-stack .overlay-banner p, .banner-stack .event-notice p { color: var(--ink); font-size: 13.5px; line-height: 1.55; margin: 0 0 10px; max-width: none; }
 .banner-stack .notice-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .banner-stack > * + * { border-top: 1px solid var(--rule); padding-top: 14px; }
-
+.banner-stack .notice-hide { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }

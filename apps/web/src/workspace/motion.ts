@@ -68,6 +68,7 @@ function why(s: Snapshot | null, flag: boolean): string | null {
   if (o.includes('FAULT')) return 'A fault is latched. Use Stop job if needed, then acknowledge the fault.';
   if (o.includes('ORPHANED_MOTION')) return 'The controller has motion this page did not send. Use Stop job first.';
   if (s.classification === null || s.base === 'IDENTIFYING' || s.base === 'READING' || s.base === 'OPENING' || s.base === 'PORT_REQUEST') return 'Identifying the board.';
+  if (s.classification.dialectId === null) return 'Run could not identify this board (its replies carried no values; on TinyG set $jv to 4), so the controls are off.';
   if (o.includes('READ_ONLY') || s.classification.mode !== 'full') return 'This firmware is not approved for motion control.';
   if (o.includes('STALE')) return 'No status from the machine. Wait for it to answer.';
   if (o.includes('UNKNOWN')) return 'The previous session ended while connected. Check the machine, then confirm below.';

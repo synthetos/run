@@ -164,7 +164,7 @@ describe('Phase 1 control allowlist', () => {
     /^action:(backup-compare|backup-export|backup-delete|backup-import|firmware-download|firmware-delete|trust-revoke|trust-cancel|cancel-flash|flash-cancel|flash-dismiss|flash-reconnect|switch-test-start)$/,
     /^preview:(file|rapids|mode|scrubber|fit|cancel|view-iso|view-top|view-front)$/,
     /^sample:(mounting-plate|test-square)$/,
-    /^action:(add-tool|fork-material|new-material|edit-material|ask-delete|delete-material|cancel-delete|save-material|cancel-material|close-material|add-safety|add-behaviour|remove-row|add-link|more-link|remove-link|clear-draft|clear-pin|fill-from-board|copy-machine|fixture-file|save-transcript|dismiss-w29|dismiss-notice|pause-request|stop-job-request)$/,
+    /^action:(add-tool|fork-material|new-material|edit-material|ask-delete|delete-material|cancel-delete|save-material|cancel-material|close-material|add-safety|add-behaviour|remove-row|add-link|more-link|remove-link|clear-draft|clear-pin|fill-from-board|copy-machine|fixture-file|save-transcript|dismiss-w29|dismiss-notice|hide-notice|pause-request|stop-job-request)$/,
     /^label:(Toggle day\/night mode|Account: .*|Dialect|Find a machine|back left|back right|center|front left|front right|Link|Shop|Price in US dollars|Close|TinyG v8 board drawing\..*|J\d\.\d .+|M\d\.\d .+|.+, draft|.+, your profile|Search settings|Only pending changes)$/,
     // The Job model (FLOW_ANALYSIS §4 steps 1-4): the job's machine and bed, Save to project, Projects' "Use in Job"
     // and the drawing import, the camera views. Records in this browser and the drawing only; never a board command.

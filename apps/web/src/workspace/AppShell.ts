@@ -46,6 +46,7 @@ import { UnknownExits } from './homing.ts';
 import { ReviewExits } from './reviewExits.ts';
 import { belowStrip } from './ui.ts';
 import { LevelSwitch } from './LevelSwitch.ts';
+import { readStored, writeStored } from './storage.ts';
 import { ConnectNotice } from './views/RunView.ts';
 
 export type ViewId = 'job' | 'library' | 'board' | 'projects' | 'analyze' | 'settings' | 'safety';
@@ -153,6 +154,13 @@ function Banners(props: AppShellProps): ComponentChild {
   const live = props.liveTab?.value === true;
   const notice = eventNotice(snapshot);
   const [seen, setSeen] = useState<string | null>(null);
+  // "Don't show this again" for an informational notice, per kind, in this browser (owner, 2026-11-04).
+  const [hidden, setHidden] = useState<readonly string[]>(() => readStored('notice-hidden', (v): v is string[] => Array.isArray(v) && v.every((x) => typeof x === 'string')) ?? []);
+  const hide = (kind: string): void => {
+    const next = [...new Set([...hidden, kind])];
+    setHidden(next);
+    writeStored('notice-hidden', next);
+  };
   const noticeKey = notice === null ? null : `${notice.kind}:${notice.title}:${notice.detail}`;
   // Owner, 2026-11-04 (OD-16): messages that ask for action are one modal below the strip, not full-width bars.
   // W1, the strip and Pause and Stop job stay uncovered; the modal hides itself when it has nothing to say.
@@ -166,14 +174,14 @@ function Banners(props: AppShellProps): ComponentChild {
       // Never a trap (amendment 2026-11-02): UNKNOWN comes with its ways out; so does NEEDS_REVIEW (OD-13 §5).
       h(UnknownExits, { model: props.model ?? null }),
       h(ReviewExits, { model: props.model ?? null, onReview: props.onReview ?? (() => undefined) }),
-      notice === null || noticeKey === seen
+      notice === null || noticeKey === seen || hidden.includes(notice.kind)
         ? null
         : h(
             'div',
             { class: 'event-notice', role: 'status', 'data-event-notice': notice.kind },
             h('span', { class: 'event-icon', 'aria-hidden': 'true' }, Icon('hazard', 16)),
             h('p', null, h('strong', null, notice.title), ' ', notice.detail),
-            h('div', { class: 'notice-actions' }, h('button', { type: 'button', class: 'small', 'data-action': 'report-event', onClick: () => openReport({ origin: 'notice', event: notice.event }) }, Icon('flag', 14), 'Report this'), h('button', { type: 'button', class: 'small primary', 'data-action': 'dismiss-notice', onClick: () => setSeen(noticeKey) }, 'OK')),
+            h('div', { class: 'notice-actions' }, h('button', { type: 'button', class: 'small', 'data-action': 'report-event', onClick: () => openReport({ origin: 'notice', event: notice.event }) }, Icon('flag', 14), 'Report this'), h('label', { class: 'check notice-hide' }, h('input', { type: 'checkbox', 'data-action': 'hide-notice', onChange: (e: Event) => { if ((e.currentTarget as HTMLInputElement).checked) hide(notice.kind); } }), ' Don’t show this again'), h('button', { type: 'button', class: 'small primary', 'data-action': 'dismiss-notice', onClick: () => setSeen(noticeKey) }, 'OK')),
           ),
       role !== null && !live && role.released.length > 0
         ? h(
