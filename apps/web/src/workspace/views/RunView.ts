@@ -418,7 +418,8 @@ function MotionRecovery({ ui, send, view, hk }: { readonly ui: MotionUi; readonl
     'div',
     { class: 'motion-recovery' },
     ui.alarm ? h('button', { type: 'button', class: 'small', 'data-machine-control': 'clear-alarm', onClick: () => setAsking('clear') }, 'Clear alarm…') : null,
-    ui.unknown ? h('button', { type: 'button', class: 'small', 'data-machine-control': 'verify', onClick: () => setAsking('verify') }, 'I’ve checked the machine…') : null,
+    // "I've checked the machine" lives once, in the Position panel's line (owner, 2026-11-05).
+
   );
 }
 
