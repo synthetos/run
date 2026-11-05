@@ -6,7 +6,7 @@
  * - flash 0x00000-0x31FFF: the application section 0x00000-0x2FFFF (192 KB)
  *   and the 8 KB boot section 0x30000-0x31FFF, where xboot lives;
  * - flash page 512 bytes (`b` answers `Y 0x02 0x00`, XB src/xboot.c:402-409);
- * - EEPROM 2 KB (addresses at or above 0x800 mirror; XB CLAUDE.md "EEPROM is
+ * - EEPROM 2 KB (addresses at or above 0x800 mirror; the XB repository notes "EEPROM is
  *   2 KB"), page 32 bytes;
  * - signature 1E 97 44, which `s` sends last byte first: 44 97 1E
  *   (XB src/xboot.c:584-589; scripts/avr109_probe.py).

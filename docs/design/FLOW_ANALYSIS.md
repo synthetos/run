@@ -1,6 +1,6 @@
 # One Job view, with project files and a persistent setup
 
-Analysis for the owner and Claude, 2026-11-03. Source baseline: Run main `4f75f95f27c60f8c8c766fea124d7f650020ed48`; design baseline: `JOB_WORKFLOW.md`, `PROJECTS.md`, `WORKSPACE_FEATURES.md`, and `redesign-plan:docs/design/REDESIGN.md` plus its Job/Library mock-up sources. Analysis only: no application edits, no serial ports, no live machine actions. File references below are relative to `/Volumes/External/projects/run`.
+Analysis for the owner, 2026-11-03. Source baseline: Run main `4f75f95f27c60f8c8c766fea124d7f650020ed48`; design baseline: `JOB_WORKFLOW.md`, `PROJECTS.md`, `WORKSPACE_FEATURES.md`, and `redesign-plan:docs/design/REDESIGN.md` plus its Job/Library mock-up sources. Analysis only: no application edits, no serial ports, no live machine actions. File references below are relative to `/Volumes/External/projects/run`.
 
 **Recommendation: merge Setup and Run into Job, keep one scene visible throughout, and make a saved Job the link between a project's files, a machine, and its setup.** Projects is the cabinet; Library holds reusable equipment and material definitions; Job is the bench; Board is controller configuration. The existing redesign has the right screen arrangement. It needs the missing data ownership and file-to-geometry flow before cosmetic work can make it coherent.
 

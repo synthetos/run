@@ -354,7 +354,7 @@ software is not an emergency stop. "Stop job" no longer says "spindle off".
 
 ## 2026-11-03: routine explanations on demand
 
-The owner explicitly requested that routine explanatory paragraphs become `?` help instead of always-visible copy, citing the spindle readouts, Connect card, preview disclaimer W13, disconnected explanation W7, setup and machine-template copy. The implementation preserves the registered wording and makes help available by hover, keyboard focus and tap; CSS hover/focus works without JavaScript. W1 retains its existing visible presentation. This changes routine presentation, not active faults, confirmations, or Pause/Stop behavior. SAFETY §5 records the presentation amendment. Claude independently reviews the implementation before merging.
+The owner explicitly requested that routine explanatory paragraphs become `?` help instead of always-visible copy, citing the spindle readouts, Connect card, preview disclaimer W13, disconnected explanation W7, setup and machine-template copy. The implementation preserves the registered wording and makes help available by hover, keyboard focus and tap; CSS hover/focus works without JavaScript. W1 retains its existing visible presentation. This changes routine presentation, not active faults, confirmations, or Pause/Stop behavior. SAFETY §5 records the presentation amendment. The implementation is reviewed independently before it merges.
 
 ## OD-12. Disconnect is never refused for ORPHANED_MOTION (owner, 2026-11-03)
 
