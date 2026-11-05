@@ -90,8 +90,8 @@ the same account.
 **As implemented here.** `workers/run/wrangler.jsonc`,
 `tools/gates/src/deploy/wranglerConfig.ts`, `docs/ops/account.md`,
 and `docs/ops/branch-protection.md` describe the
-current account with the D39 lockdown; the account id placeholder is
-`RUN_ACCOUNT_ID_PLACEHOLDER` (still refused by every deploy). `pnpm
+current account with the D39 lockdown; the account id placeholder was
+`RUN_ACCOUNT_ID_PLACEHOLDER` (refused by every deploy) until the owner set the account id on 2026-11-04. `pnpm
 ci-policy` refuses any wrangler configuration other than run's that binds
 `accounts` (`tools/gates/src/bindings/check.ts`), and `docs/ops/account.md`
 §1 records the matching requirement for the accounts and site

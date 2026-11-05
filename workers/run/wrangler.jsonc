@@ -43,7 +43,7 @@
   // settings. They do not affect `wrangler dev`, which bundles src/*.ts.
   "find_additional_modules": true,
   "rules": [{ "type": "ESModule", "globs": ["**/*.mjs"] }],
-  "account_id": "RUN_ACCOUNT_ID_PLACEHOLDER",
+  "account_id": "79866c4d48cb424b8cb3ac3b9955d46b",
   "workers_dev": false,
   "preview_urls": false,
   "assets": {
