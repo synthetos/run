@@ -22,7 +22,7 @@
  * A pure function of its props.
  */
 import { h, type ComponentChild } from 'preact';
-import { STOP_TEXT, w10, w2Label, w2Tooltip, w30, w6, w7 } from '@synthetos/safety';
+import { STOP_TEXT, w10, w2Label, w2Tooltip, w30, w7 } from '@synthetos/safety';
 import { machineLabel, STOP_UNAVAILABLE, type StopBarView } from '../shell/SafetyBar.ts';
 import { ContextHelp } from '../shell/ContextHelp.ts';
 import { signalText } from '../shell/signal.ts';
@@ -69,9 +69,8 @@ function band(status: StripStatus, view: StopBarView | null, previousSession: bo
     return h('div', { class: 'state-meta state-band', 'data-state': 'paused-idle', role: 'status' }, h('span', { class: 'band-text' }, h('strong', null, STOP_TEXT.pausedIdle)));
   }
   if (!status.connected) {
-    return previousSession
-      ? h('div', { class: 'state-meta state-band warn', 'data-state': 'previous-session', 'data-safety': 'W6', role: 'alert' }, h('span', { class: 'band-text' }, ...signalText(w6())))
-      : h('div', { class: 'state-meta', 'data-state': 'not-connected' }, h(ContextHelp, { id: 'connection-help', label: 'About the disconnected state', safety: 'W7', below: true }, ...signalText(w7())));
+    // Owner, 2026-11-04: W6 is asked once, after connecting (the "state unknown" choice), not printed here first.
+    return h('div', { class: 'state-meta', 'data-state': previousSession ? 'previous-session' : 'not-connected' }, h(ContextHelp, { id: 'connection-help', label: 'About the disconnected state', safety: 'W7', below: true }, ...signalText(w7())));
   }
   return h(
     'div',
