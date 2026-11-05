@@ -204,7 +204,7 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
   it('ORPHANED_MOTION on an unclassified board allows only the stop class and Reset controller (T-S86)', () => {
     const s = snap('IDENTIFYING', ['ORPHANED_MOTION'], false, false);
     const ok = INTENTS.filter((i) => allowed(s, i, OPEN).allowed && intentKind(i) !== 'cloud');
-    expect(ok.sort()).toEqual(['feedhold', 'resetController', 'spindleOffNow', 'stopJob']);
+    expect(ok.sort()).toEqual(['disconnect', 'feedhold', 'resetController', 'spindleOffNow', 'stopJob']);
   });
 
   it('ENQ only to a classified board whose dialect answers it (T-S24b)', () => {

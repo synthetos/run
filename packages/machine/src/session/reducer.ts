@@ -1036,6 +1036,8 @@ function onBanner(t: Tx, banner: Banner, at: number): void {
   t.set({ xoff: false, enqOutstanding: false });
   if (t.s.ready) {
     // SAFETY H19, T-S10: any banner after Ready means the board reset. FAULT, then UNKNOWN. A job is over (H72).
+    // The reset also ended whatever motion was queued or held: ORPHANED_MOTION is over (its documented exit, §3).
+    t.removeOverlay('ORPHANED_MOTION');
     onJobReset(t, at);
     abandonLoad(t, at, 'the controller reset');
     enterFault(t, 'bannerAfterReady', 'integrity', `the board printed a boot banner (${banner.shape}) after it was ready: it reset`, at);

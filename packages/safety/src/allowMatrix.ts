@@ -537,7 +537,7 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
 const OVERLAY_DENIAL: Readonly<Record<Overlay, { readonly reason: string; readonly remedy: string }>> = Object.freeze({
   FAULT: { reason: 'A fault is latched: only reads, stops, reset and acknowledging the fault are allowed.', remedy: 'Use Stop job or Reset controller, then acknowledge the fault.' },
   LOST: { reason: 'The connection is lost: nothing can be sent.', remedy: 'Use your E-stop, then acknowledge and reconnect.' },
-  ORPHANED_MOTION: { reason: 'The machine has motion left from a previous session: it can only be stopped.', remedy: 'Use Stop job or Reset controller.' },
+  ORPHANED_MOTION: { reason: 'The machine has motion left from a previous session: it can only be stopped.', remedy: "Use Stop job, or press the controller's reset button, then disconnect and connect again." },
   UNKNOWN: { reason: 'The machine position is not trusted.', remedy: 'Home the machine or verify the position.' },
   STALE: { reason: 'The controller has stopped answering: only reads and stops are allowed.', remedy: 'Wait for the controller to answer, or use Stop job.' },
   READ_ONLY: { reason: 'This firmware is not approved for control: only reads and stops are allowed.', remedy: 'Update the firmware, or use your usual sender.' },
@@ -587,8 +587,9 @@ export function allowed(snapshot: MatrixSnapshot, intent: Intent, release: Relea
     }
   }
   // ORPHANED_MOTION on an unclassified board: only `!` and Reset controller (SAFETY §3, T-S86).
-  if (overlays.has('ORPHANED_MOTION') && !snapshot.classified && (row.kind === 'read' || row.kind === 'session')) {
-    return deny('The board is not classified yet: only Pause and Reset controller can be sent.', 'Use Stop job or Reset controller.', 'SAFETY §3 ORPHANED_MOTION; T-S86');
+  // Disconnect writes nothing and changes nothing on the board (OD-12): never refused here.
+  if (overlays.has('ORPHANED_MOTION') && !snapshot.classified && (row.kind === 'read' || row.kind === 'session') && intent !== 'disconnect') {
+    return deny('The board is not identified yet: only Pause can be sent.', "Press the controller's reset button or power-cycle it, then disconnect and connect again.", 'SAFETY §3 ORPHANED_MOTION; T-S86');
   }
   if (intent === 'enq' && !(snapshot.classified && snapshot.enqCapable)) {
     return deny('This controller does not answer the liveness probe.', 'Nothing to do.', 'SAFETY §4.1 Liveness probe row; T-S24b');

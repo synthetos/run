@@ -571,7 +571,7 @@ exports[`allow-matrix denials > are pinned for every intent and overlay 1`] = `
     "allowed": false,
     "citation": "SAFETY §3 ORPHANED_MOTION; §4.1 Anything else row",
     "reason": "The machine has motion left from a previous session: it can only be stopped.",
-    "remedy": "Use Stop job or Reset controller.",
+    "remedy": "Use Stop job, or press the controller's reset button, then disconnect and connect again.",
   },
   "overlay READ_ONLY": {
     "allowed": false,

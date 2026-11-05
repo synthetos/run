@@ -8,7 +8,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { BYTE, PROBE_STEPS, TINYG_EN, classifyLine, type ApprovedBuilds, type Inbound } from '@synthetos/protocol';
-import { CURRENT_RELEASE, INTENTS, OVERLAYS, type Intent } from '@synthetos/safety';
+import { CURRENT_RELEASE, INTENTS, OVERLAYS, allowed, type Intent } from '@synthetos/safety';
 import { isReadAllowed } from '@synthetos/schema';
 import { DEFAULT_TIMINGS, MAX_PROBE_RESTARTS, MAX_QUEUED_READS, READING_TOKENS, SEED_TOKENS, enqAllowedNow, matrixSnapshot, readableNow, type SessionEffect, type SessionIntent } from '../src/index.ts';
 import { Driver, EN_ANSWERS, EN_BOOT_BANNER, EN_READY_BANNER, SIM_INFO, TG_ANSWERS, TG_READY_BANNER, tg } from './sessionDriver.ts';
@@ -423,7 +423,8 @@ describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)', () => {
     expect(d.state.overlays).toEqual(['ORPHANED_MOTION']);
     expect(d.state.writing).toBeNull();
     expect(d.intent({ intent: 'read', tokens: ['stat'] }).allowed).toBe(false);
-    expect(d.intent({ intent: 'disconnect' }).allowed).toBe(false);
+    // OD-12: Disconnect writes nothing on the board and is allowed (asked of the matrix: d.intent would carry it out).
+    expect(allowed(matrixSnapshot(d.state), 'disconnect').allowed).toBe(true);
     expect(d.intent({ intent: 'resetController' })).toMatchObject({ allowed: false });
     expect(d.intent({ intent: 'stopJob' })).toEqual({ allowed: true });
     expect(d.realtime()).toEqual([BYTE.FEEDHOLD]);
@@ -1523,5 +1524,32 @@ describe('guards that only a broken invariant reaches (fabricated states)', () =
   it('identity carries fbs when the board reports one', () => {
     const d = connected({ ...EN_ANSWERS, fbs: '{"r":{"fbs":"ead63997"},"f":[3,0,10]}' });
     expect(d.state.identity).toMatchObject({ fbs: 'ead63997' });
+  });
+});
+
+describe('bench 3, 2026-11-04: an unidentified board in ORPHANED_MOTION, then a hardware reset', () => {
+  it('Disconnect is allowed throughout, and the reset banner ends ORPHANED_MOTION (FAULT and UNKNOWN as for any reset)', () => {
+    const d = new Driver();
+    d.open();
+    d.written();
+    // footer-only replies (jv 2): stat 3 with nothing readable, every probe GET answered empty
+    d.line('{"r":{"sr":{"posx":0.000,"stat":3}},"f":[3,0,10]}');
+    for (let i = 0; i < 20 && d.writing !== undefined; i++) {
+      d.written();
+      d.line('{"r":{},"f":[3,0,10]}');
+    }
+    expect(d.state.overlays).toContain('ORPHANED_MOTION');
+    expect(d.intent({ intent: 'disconnect' })).toEqual({ allowed: true });
+    d.open();
+    d.written();
+    d.line('{"r":{"sr":{"posx":0.000,"stat":3}},"f":[3,0,10]}');
+    for (let i = 0; i < 20 && d.writing !== undefined; i++) {
+      d.written();
+      d.line('{"r":{},"f":[3,0,10]}');
+    }
+    d.line(EN_BOOT_BANNER);
+    expect(d.state.overlays).not.toContain('ORPHANED_MOTION');
+    expect(d.state.overlays).toEqual(expect.arrayContaining(['FAULT', 'UNKNOWN']));
+    expect(d.intent({ intent: 'disconnect' })).toEqual({ allowed: true });
   });
 });

@@ -1675,3 +1675,15 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 /* The strip lays its Connect flow out in a row; inside the dialog C1 stacks as it always did. */
 .statebar .strip-dialog .live-entry, .statebar .strip-dialog .dialog .live-entry.c1 { display: block; }
 .statebar .strip-dialog .live-entry > p { max-width: none; font-size: 13px; margin: 0 0 10px; }
+
+/* Owner, 2026-11-04: one gutter for the Job view, so the job card, the step bar and the two panels start and end on the same edges as each other; nothing scrolls sideways. */
+.run-view.job-view { padding-right: 20px; }
+.job-main { padding-left: 20px; }
+.job-main > .job-card, .job-main > .job-step-bar { margin-left: 0; margin-right: 0; }
+.job-main > .job-grid { padding-left: 0; padding-right: 0; }
+.job-view > .run-inspector { margin-top: 12px; }
+.job-work-panel, .job-panel-scroll { overflow-x: hidden; }
+.job-work-panel button { max-width: 100%; white-space: normal; text-align: left; height: auto; }
+.job-main > .job-card { margin-top: 12px; }
+.job-main > .job-grid { padding-bottom: 14px; }
+.job-view > .run-inspector { margin-bottom: 14px; }
