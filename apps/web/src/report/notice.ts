@@ -68,7 +68,7 @@ export function eventNotice(s: (Pick<SessionSnapshot, 'base' | 'overlays' | 'fau
     return {
       kind: 'settings-defaulted',
       title: 'Some saved settings were reset to their defaults.',
-      detail: `The board could not load them at start-up: ${defaulted.text}. Check them in Board, All settings, before you run a job.`,
+      detail: `The board could not load them at start-up: ${defaulted.text.replace(/^Settings restored to defaults - /i, '')}. Check them in Board, All settings, before you run a job.`,
       event: { code: 'STATUS 118', message: `The board reset stored settings to their defaults: ${defaulted.text}`, ...context },
     };
   }

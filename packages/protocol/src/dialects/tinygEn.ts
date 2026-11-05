@@ -42,11 +42,6 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     [106, 'COMMAND_NOT_ACCEPTED', 'notAccepted'], // settings write in a cycle, refused jog, misused M400
     [107, 'INPUT_EXCEEDS_MAX_LENGTH', 'overlong'], // E087, no alarm
     [108, 'INPUT_LESS_THAN_MIN_VALUE', 'belowMinimum'], // E158
-    // 450.02 and later (firmware maintainer 2026-11-05, TinyG error.h at tag 450.02): a persisted setting written
-    // while a job runs or has queued work is refused and nothing changes (N60); stored settings that would not load
-    // run on their defaults and are reported once after start-up as an `er` (N61).
-    [117, 'SETTING_REFUSED_IN_CYCLE', 'settingRefusedInCycle'],
-    [118, 'SETTINGS_RESTORED_TO_DEFAULTS', 'settingsDefaulted'],
     [132, 'MCODE_COMMAND_UNSUPPORTED', 'mcodeUnsupported'],
     [172, 'L_WORD_IS_MISSING', 'lWordMissing'],
     [173, 'L_WORD_IS_INVALID', 'lWordInvalid'],

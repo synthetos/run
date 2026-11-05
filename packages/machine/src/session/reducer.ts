@@ -249,6 +249,15 @@ export function enqAllowedNow(state: SessionState): boolean {
 }
 
 /** The ENQ byte when `enqAllowedNow` holds (dialect data: present exactly where `caps.enq`), else undefined. */
+
+/**
+ * TinyG 450.02 statuses (firmware maintainer 2026-11-05; error.h at tag 450.02, a7489b79). The vendored EN table is
+ * still pinned at 450.01, where both numbers are unused, so they are keyed here by number for tinyg-en until the
+ * EN pin moves to 450.02: a persisted setting written while a job runs or has queued work is refused and nothing
+ * changes (N60); stored settings that would not load run on their defaults, reported once after the banner (N61).
+ */
+const TINYG_SETTING_REFUSED_IN_CYCLE = 117;
+const TINYG_SETTINGS_DEFAULTED = 118;
 function enqByte(state: SessionState): number | undefined {
   if (state.footerRev !== 2 && state.footerRev !== 3) return undefined;
   return dialectOf(state)?.realtime.enq?.byte;
@@ -689,7 +698,7 @@ function onSettingAnswer(t: Tx, r: Response): void {
     return;
   }
   if (r.footer.status !== 0) {
-    const inJob = t.s.dialect?.status.get(r.footer.status)?.statusClass === 'settingRefusedInCycle';
+    const inJob = r.footer.status === TINYG_SETTING_REFUSED_IN_CYCLE && t.s.dialect?.id === 'tinyg-en';
     const text = inJob ? 'The board refused the write: a job is running or has moves queued (status 117). Nothing changed; set it when the machine is idle.' : `The board refused the write (status ${r.footer.status}); the setting was not stored.`;
     finishSettingWrite(t, 'rejected', text, { answer: { status: r.footer.status, value: echoed } });
     return;
@@ -979,7 +988,10 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
   // it is counted and discarded, never merged into the live view and never taken for a damaged answer (H49
   // amendment 2026-11-03). A banner still means the board reset.
   const probe = t.s.probe;
-  if (probe !== null && probe.settling === 'none' && probe.next === 0 && !probe.spliceRetried && !t.s.ready && event.kind !== 'Banner' && event.kind !== 'Response') {
+  // A status 118 (TinyG 450.02, settings run on their defaults) follows the banner, so it is in that output after a
+  // reset; it is true whenever it was printed, so it is kept, not discarded (handled under Exception).
+  const defaulted = event.kind === 'Exception' && event.st === TINYG_SETTINGS_DEFAULTED;
+  if (probe !== null && probe.settling === 'none' && probe.next === 0 && !probe.spliceRetried && !t.s.ready && event.kind !== 'Banner' && event.kind !== 'Response' && !defaulted) {
     // A torn frame of that output can run straight into the answer (bench 3, 2026-11-04: half a heartbeat, then
     // the reply to {sr:null} on the same line). The answer is a complete frame at the line's end: take it.
     const from = event.kind === 'Garbled' ? event.line.lastIndexOf('{"r":') : -1;
@@ -1016,6 +1028,14 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
       t.set({ live: { ...t.s.live, qr: event.qr } });
       return;
     case 'Exception':
+      // TinyG 450.02+ (N61): settings that would not load run on their defaults, reported once right after the
+      // banner, so it can arrive while the board is identified again: checked first. The board is working and the
+      // user is told which settings changed. Status 90 (a setting with no valid value) and any other `er` stay FAULT.
+      if (event.st === TINYG_SETTINGS_DEFAULTED && (t.s.dialect === null || t.s.dialect.id === 'tinyg-en')) {
+        t.set({ notices: { ...t.s.notices, settingsDefaulted: { text: event.msg.slice(0, 200), at } } });
+        t.emit({ kind: 'log', text: `the board reset stored settings to their defaults (status 118): ${event.msg.slice(0, 120)}` });
+        return;
+      }
       // An `er` answering the first line is the spliced fragment being rejected (PN §2.3 step 0): recorded only.
       if (t.s.probe !== null && t.s.probe.next === 0 && !t.s.ready) return;
       // A settings write refused because a cycle is active: EN prints an `er` with 106, TG answers 9
@@ -1023,13 +1043,6 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
       if (t.s.settingWrite?.phase === 'writing' && (event.st === 106 || event.st === 9)) {
         t.set({ settingWrite: { ...t.s.settingWrite, exception: event.st } });
         t.emit({ kind: 'log', text: `settings write #${t.s.settingWrite.id}: the board reported ${event.st} (a cycle was active): refused` });
-        return;
-      }
-      // TinyG 450.02+ (N61): settings that would not load run on their defaults, reported once after start-up. The
-      // board is working; the user is told which settings changed. Any other exception is still a FAULT.
-      if (event.st === 118 && (t.s.dialect === null || t.s.dialect.status.get(118)?.statusClass === 'settingsDefaulted')) {
-        t.set({ notices: { ...t.s.notices, settingsDefaulted: { text: event.msg.slice(0, 200), at } } });
-        t.emit({ kind: 'log', text: `the board reset stored settings to their defaults (status 118): ${event.msg.slice(0, 120)}` });
         return;
       }
       enterFault(t, 'exceptionReport', 'integrity', `the board reported an exception (status ${event.st}): ${event.msg.slice(0, 80)}`, at);

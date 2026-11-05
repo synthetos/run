@@ -173,13 +173,21 @@ describe('settings writes: one at a time, the answer awaited, the read-back comp
     expect(j.state.settingWrite?.detail).toMatch(/a job is running or has moves queued \(status 117\)\. Nothing changed/);
 
     const n = ready();
-    n.line('{"er":{"fb":450.02,"st":118,"msg":"SETTINGS_RESTORED_TO_DEFAULTS - xvm, yvm"}}');
+    // The firmware's own text (config.c, 450.02): "Settings restored to defaults - " and up to 8 tokens.
+    n.line('{"er":{"fb":450.02,"st":118,"msg":"Settings restored to defaults - 1mi,xvm (+2 more)"}}');
     expect(n.state.overlays).not.toContain('FAULT');
-    expect(n.state.notices.settingsDefaulted).toMatchObject({ text: 'SETTINGS_RESTORED_TO_DEFAULTS - xvm, yvm' });
+    expect(n.state.notices.settingsDefaulted).toMatchObject({ text: 'Settings restored to defaults - 1mi,xvm (+2 more)' });
 
-    // Any other exception is still a FAULT.
+    // Right after a reset the board is not identified yet (no dialect, the probe at its first line): still a notice.
+    const early = new Driver({ release: PHASE_1_SETTINGS_RELEASE, manifest: EN_APPROVED });
+    early.open();
+    early.line('{"er":{"fb":450.02,"st":118,"msg":"Settings restored to defaults - xvm"}}');
+    expect(early.state.overlays).not.toContain('FAULT');
+    expect(early.state.notices.settingsDefaulted?.text).toBe('Settings restored to defaults - xvm');
+
+    // 90 (a setting with no valid value, sent right after 118) and any other exception are still a FAULT.
     const f = ready();
-    f.line('{"er":{"fb":450.02,"st":119,"msg":"x"}}');
+    f.line('{"er":{"fb":450.02,"st":90,"msg":"Config assertion failure - xvm"}}');
     expect(f.state.overlays).toContain('FAULT');
   });
 
