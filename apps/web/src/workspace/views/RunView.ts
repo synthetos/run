@@ -160,7 +160,20 @@ export function ConnectNotice({ model, onView, compact = false }: { readonly mod
       { class: 'connect-notice compact', 'data-region': 'connect' },
       step === 'c1' ? null : panel,
       step === 'c1'
-        ? h('div', { class: 'dialog-wrap', role: 'presentation' }, h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'c1-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'c1-title' }, 'Before you connect')), panel))
+        ? h(
+            'div',
+            {
+              class: 'dialog-wrap strip-dialog',
+              role: 'presentation',
+              // In the strip the dialog would be cut to the strip's height: it covers the page below the strip instead,
+              // never the stop controls (SAFETY §4.1 UI rules).
+              ref: (el: HTMLElement | null) => {
+                const bottom = el?.closest('.statebar')?.getBoundingClientRect().bottom;
+                if (el !== null && bottom !== undefined) el.style.setProperty('--strip-bottom', `${Math.round(bottom)}px`);
+              },
+            },
+            h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'c1-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'c1-title' }, 'Before you connect')), panel),
+          )
         : null,
     );
   }

@@ -1669,3 +1669,9 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .feed-summary p { margin: 6px 0 0; font-size: 12.5px; }
 .feed-notes { margin: 6px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.45; color: var(--ink); }
 .feed-notes li + li { margin-top: 4px; }
+
+/* C1 from the strip: fixed below the strip (the safety bar, the strip and Pause/Stop stay visible and usable). */
+.statebar .dialog-wrap.strip-dialog { position: fixed; inset: var(--strip-bottom, 142px) 0 0 0; }
+/* The strip lays its Connect flow out in a row; inside the dialog C1 stacks as it always did. */
+.statebar .strip-dialog .live-entry, .statebar .strip-dialog .dialog .live-entry.c1 { display: block; }
+.statebar .strip-dialog .live-entry > p { max-width: none; font-size: 13px; margin: 0 0 10px; }
