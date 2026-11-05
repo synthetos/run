@@ -378,3 +378,11 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 5. A gate that greys the pane out says how to clear it where the user is: NEEDS_REVIEW (the board's settings differ from the reference) offers "Keep the board's settings" and "Review" in the same banner, on every view; nothing is greyed out without its way out beside it.
 6. Safety behaviour is unchanged: the confirmations (C4, C16, C25, C26), the motion preconditions and the never-gated Pause, Stop job and Spindle off stay as SAFETY states them.
 
+## OD-14. Run sets the settings it needs at connect (owner, 2026-11-04)
+
+**Owner's words.** "if this is needed we need a way to do this in the UI to set the settings we need … there is a setting delay we need to write to the eeprom … but yes on connect we should set settings for sure."
+
+**Context.** Bench 3 answered every GET with an empty reply (footer-only JSON verbosity, `jv` 1, left by a test harness); run never writes `jv` (SAFETY H24: the default plan normalises nothing), so it could not identify the board and parked in ORPHANED_MOTION with a message that named the wrong cause.
+
+**Decision.** At connect, run sets the communication and reporting settings it requires (starting with `jv`) when they differ, shows what it changed in plain words (as W35 does for the status report list), and offers to restore the previous values on disconnect. Every persisted write follows the firmware's EEPROM rule (the reply, then the settle delay before the next line, N35). The list, target values and timing come from the firmware maintainer's answer and are cited in SAFETY when the amendment to H24 is written; until then this decision is recorded, not built.
+
