@@ -63,8 +63,7 @@ function board(worker: Worker): Promise<{ eeprom: Record<string, unknown>; ram: 
 async function openBoard(page: Page): Promise<void> {
   await page.locator('[data-region="rail"] [data-view="board"]').click();
   await expect(page.locator('[data-screen="board"]')).toBeVisible();
-  const w29 = page.locator('[data-action="dismiss-w29"]');
-  if ((await w29.count()) > 0) await w29.click();
+  // W29 is dismissed by the page fixture's handler (specs/fixtures.ts).
 }
 
 test('edit a setting, apply: backup downloaded first, written once and read back, persisted; then revert from the backup', async ({ page }) => {
