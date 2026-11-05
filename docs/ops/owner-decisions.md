@@ -400,3 +400,9 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 
 **Decision.** Every confirmation card (C4, C13, C16, C23, C24, C25, C26 and the rest, and "I've checked the machine") opens as a centred modal over the page below the machine strip: readable on any background, the same everywhere it is asked from. W1, the machine strip and Pause and Stop job are never covered and stay usable, so the SAFETY §4.1 rule ("never a modal over the stop controls") holds; Cancel still has the focus. The owner added: "modals not full width messages": the messages that ask for action (the fault and stale banners, "state unknown" with its ways out, the settings review, event notices, W29, a refused connect) are one modal below the strip too, hiding itself when it has nothing to say; the observer's Pause request and Stop job request stay a row, since they are controls.
 
+## OD-17. No settings confirmations at connect (owner, 2026-11-04)
+
+**Owner's words.** "no stop all of this shit, if the ui needs a setting set it then connect this is a requirement stop click hell and modals and revisions etc."
+
+**Decision.** Connecting never stops on a settings difference. When the board's settings differ from this computer's last reference, the board's settings become the reference at once (the next revision, recorded), the difference stays visible in Board, and no NEEDS_REVIEW, banner or confirmation is raised. Settings run needs are set by run at connect (OD-14). Supersedes the NEEDS_REVIEW default resolution (C23) on the connect path; SAFETY H24/H59's drift rows are amended to "recorded and shown, not blocking".
+

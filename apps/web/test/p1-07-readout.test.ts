@@ -109,7 +109,7 @@ describe('LiveReadout: the connect-time read and the drift check', () => {
     expect(d.drifts).toEqual([]);
   });
 
-  it('a changed setting is drift: the worker is told (NEEDS_REVIEW) and the diff is shown; Keep writes only the reference', async () => {
+  it('a changed setting is drift: shown, and the board becomes the reference at once; the worker is not told (OD-17: no NEEDS_REVIEW, no confirmation)', async () => {
     const d = deps();
     const r = new LiveReadout(d);
     r.onSnapshot(snap({}));
@@ -118,60 +118,19 @@ describe('LiveReadout: the connect-time read and the drift check', () => {
     r.onSnapshot(snap({}, { epoch: 3 }));
     r.onSnapshot(snap(allGroups(9000), { epoch: 3 }));
     await done(r);
-    expect(d.drifts).toEqual([3]);
+    expect(d.drifts).toEqual([]);
     const phase = r.phase;
-    expect(phase.kind).toBe('drift');
+    expect(phase).toMatchObject({ kind: 'drift', accepted: true });
     if (phase.kind !== 'drift') throw new Error('unreachable');
     expect(phase.result.diffs).toEqual([{ key: 'xvm', expected: 16000, board: 9000, source: 'previous' }]);
-    // The read sent nothing but the DRO and group GETs.
     for (const tokens of d.reads) for (const t of tokens) expect(GROUPS.map((g) => g.token)).toContain(t);
-
-    await r.keepBoardSettings();
-    expect(r.phase).toMatchObject({ kind: 'drift', accepted: true });
     const kept = (await d.store.get(referenceKey('tinyg-en', 'SIM-EN-0001'))) as { deviceHash: string; revision?: number };
     expect(kept.deviceHash).toBe(phase.hash);
-    // The next revision of this computer's reference, and the session told so the review is resolved for this link (OD-13 §5).
     expect(kept.revision).toBe(2);
-    expect(d.resolved).toEqual([3]);
     await r.keepBoardSettings(); // already accepted: nothing more
-    expect(d.resolved).toEqual([3]);
+    expect(d.resolved).toEqual([]);
   });
 
-  it('a link that changes while Keep is writing the reference keeps the reference but resolves nothing: the new link reviews its own drift', async () => {
-    const memory = memoryDeviceSafety();
-    let release: () => void = () => undefined;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let slow = false; // only Keep's write waits; the reads' own reference writes land at once
-    const d = deps({
-      store: {
-        ...memory,
-        set: async (k, v) => {
-          if (slow) await gate;
-          await memory.set(k, v);
-        },
-      },
-    });
-    const r = new LiveReadout(d);
-    r.onSnapshot(snap({}));
-    r.onSnapshot(snap(allGroups(16000)));
-    await done(r);
-    r.onSnapshot(snap({}, { epoch: 3 }));
-    r.onSnapshot(snap(allGroups(9000), { epoch: 3 }));
-    await done(r);
-    expect(r.phase.kind).toBe('drift');
-    slow = true;
-    const keep = r.keepBoardSettings();
-    // The port reopens before the write lands: a new link, a new read.
-    r.onSnapshot(snap({}, { epoch: 4 }));
-    release();
-    await keep;
-    expect(d.resolved).toEqual([]);
-    // The new link's read is in progress; the old drift was neither marked accepted nor resolved.
-    expect(r.phase).toMatchObject({ kind: 'reading' });
-    expect(((await memory.get(referenceKey('tinyg-en', 'SIM-EN-0001'))) as { revision?: number }).revision).toBe(2);
-  });
 
   it('an errored group makes the read incomplete (no hash, no drift); a refused read says why', async () => {
     const d = deps();

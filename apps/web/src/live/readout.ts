@@ -191,9 +191,13 @@ export class LiveReadout {
       this.#set({ kind: 'match', hash, reference: stored });
       return;
     }
-    await this.#deps.drift(epoch).catch(() => undefined);
+    // OD-17 (owner, 2026-11-04): run never stops a connect over a settings difference. The board's settings become
+    // this computer's reference at once (the next revision), the difference stays visible in Board, and nothing is
+    // raised in the session (no NEEDS_REVIEW, no confirmation).
     this.#driftEpoch = epoch;
-    this.#set({ kind: 'drift', hash, reference: stored, result, accepted: false });
+    await this.#deps.store.set(key, { deviceHash: hash, settings, at: this.#deps.now().toISOString(), revision: (stored.revision ?? 1) + 1 } satisfies SettingsReference).catch(() => undefined);
+    if (epoch !== this.#epoch) return;
+    this.#set({ kind: 'drift', hash, reference: stored, result, accepted: true });
   }
 
   /**
