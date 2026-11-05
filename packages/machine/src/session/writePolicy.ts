@@ -22,7 +22,7 @@
 import { BYTE, SPLICE_GUARD_LINE } from '@synthetos/protocol';
 import { allowed, type Intent, type Release } from '@synthetos/safety';
 import { LINE_INTENTS, motionLineKind, type MotionLineKind } from './motionLines.ts';
-import { reportLineShape } from './reports.ts';
+import { JV_LINE, reportLineShape } from './reports.ts';
 import { enqAllowedNow, matrixSnapshot, readableNow } from './reducer.ts';
 import { SETTING_LINE, settingRefusal } from './settingWrite.ts';
 import type { SessionState } from './types.ts';
@@ -211,6 +211,7 @@ export function jobRuntimeWritableIn(state: SessionState, line: string): boolean
 
 /** True when `line` is exactly the report-configuration step `state` is making. */
 export function reportWritableIn(state: SessionState, line: string): boolean {
+  if (line === JV_LINE) return state.probe?.normalizing === true;
   return state.reports.phase === 'configuring' && state.reports.step?.line === line;
 }
 

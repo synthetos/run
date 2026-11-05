@@ -80,7 +80,10 @@ import type { PortSelector } from '../transport.ts';
 import { gateTokens, judgeGate, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
 import { restingStat, restingUsesHold } from './resting.ts';
 import { POLL_TOKENS, abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
-import { HEARTBEAT_INTERVAL_MS, REPORT_DIALECTS, SEED_TOKENS, heartbeatCoversHold, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
+import { HEARTBEAT_INTERVAL_MS, JV_LINE, REPORT_DIALECTS, SEED_TOKENS, heartbeatCoversHold, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
+
+/** OD-14: the margin after a persisted SET's own reply before the next line (TinyG maintainer, N35). */
+const NORMALIZE_SETTLE_MS = 50;
 import {
   abandonLoad,
   maybeRestoreLineMode,
@@ -849,9 +852,9 @@ function onOpened(t: Tx): void {
 }
 
 /** (Re)starts the probe from `{sr:null}`: the first line written on every connect path (T-S86, H49). */
-function startProbe(t: Tx, restarts: number, banner: Banner | undefined): void {
+function startProbe(t: Tx, restarts: number, banner: Banner | undefined, normalized = false): void {
   t.set({
-    probe: { next: 0, answers: [], banner, spliceRetried: false, settling: 'none', restarts, backlog: 0 },
+    probe: { next: 0, answers: [], banner, spliceRetried: false, settling: 'none', restarts, backlog: 0, normalized, normalizing: false },
     classification: null,
     dialect: null,
     identity: null,
@@ -903,7 +906,7 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
       enterFault(t, 'resetLoop', 'integrity', `the board reset ${probe.restarts + 1} times while it was being identified`, at);
       return;
     }
-    startProbe(t, probe.restarts + 1, probe.banner);
+    startProbe(t, probe.restarts + 1, probe.banner, probe.normalized);
     return;
   }
   if (id === 'watchdog') {
@@ -1174,7 +1177,28 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
     }
     case 'probe': {
       const probe = t.s.probe as ProbeProgress;
+      // OD-14: the first identity GET answered with no value at all (JSON verbosity below 3): the board can be read
+      // only after its jv is raised. Write {jv:4} once (persisted; its own reply means the write is done), wait the
+      // firmware's 50 ms EEPROM margin, then identify again from the top (TinyG maintainer, 2026-11-04).
+      if (e.token === 'fb' && r.footer.status === 0 && Object.keys(r.r).length === 0 && !probe.normalized && t.config.release.reports === true && [1, 3, 4].includes(t.s.live.stat ?? -1)) {
+        t.set({ probe: { ...probe, normalized: true, normalizing: true }, queue: [{ token: 'jv', purpose: 'normalize', line: JV_LINE }] });
+        t.emit({ kind: 'log', text: 'probe: the board answered with no values (JSON verbosity below 3): Run sets jv to 4 (saved on the board) and identifies it again' });
+        return;
+      }
       advanceProbe(t, { ...probe, next: probe.next + 1, answers: [...probe.answers, [e.token as ProbeKey, r]] });
+      return;
+    }
+    case 'normalize': {
+      const probe = t.s.probe as ProbeProgress;
+      if (r.footer.status !== 0) {
+        t.emit({ kind: 'log', text: `probe: the board refused {jv:4} (status ${r.footer.status}): it stays unidentified` });
+        t.set({ probe: { ...probe, normalizing: false } });
+        advanceProbe(t, { ...probe, normalizing: false, next: PROBE_STEPS.length, answers: probe.answers });
+        return;
+      }
+      t.emit({ kind: 'log', text: 'probe: jv is 4 (saved on the board); identifying the board again' });
+      t.set({ probe: { ...probe, normalizing: false, settling: 'ready' } });
+      t.arm('settle', NORMALIZE_SETTLE_MS);
       return;
     }
     case 'reading':
@@ -1901,7 +1925,7 @@ function pump(t: Tx): void {
       ? { motion: { intent } }
       : next.purpose === 'setting'
         ? { intent: 'settingsWrite' as const }
-        : reportWrite
+        : reportWrite || next.purpose === 'normalize'
           ? { intent: 'configureReports' as const }
           : lineModeWrite
             ? { intent: 'lineMode' as const }
@@ -1926,6 +1950,9 @@ function lineFor(s: SessionState, read: PendingRead): string | undefined {
   /* c8 ignore stop */
   if (read.purpose === 'lineMode' && read.value !== undefined) return rxmLine(read.value === 1 ? 1 : 0);
   if (read.purpose === 'jobRuntime') return read.line;
+  // OD-14: identification needs it, so it goes out under the probe's own gate; the write policy admits exactly this line, only while it is in flight.
+  /* c8 ignore next -- the jv line is queued in the same transition that sets normalizing */
+  if (read.purpose === 'normalize') return s.probe?.normalizing === true ? JV_LINE : undefined;
   /* c8 ignore next -- the boot line is queued only when the entry passes its gate, in the same transition */
   if (read.purpose === 'boot') return s.bootEntry?.phase === 'writing' ? BOOT_LINE : undefined;
   if (read.purpose === 'report' && s.reports.step?.line !== undefined) {

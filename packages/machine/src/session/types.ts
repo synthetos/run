@@ -164,7 +164,9 @@ export type ReadPurpose =
   | 'jobRuntime'
   /** The firmware update (SAFETY §4.8 as amended 2026-11-03): the idle gate before `{"boot":1}`, and that line. */
   | 'bootGate'
-  | 'boot';
+  | 'boot'
+  /** OD-14: a setting the session needs to read the board at all (`{jv:4}` when GETs answer empty), written once at connect. */
+  | 'normalize';
 
 /** What runs when the last read-back of a change has been answered. */
 export type FollowUp = 'homed' | 'positionSet';
@@ -294,6 +296,9 @@ export interface ProbeProgress {
   readonly restarts: number;
   /** Lines read before the first answer on this link: a previous program's unread output, discarded (H49 amendment 2026-11-03). */
   readonly backlog: number;
+  /** OD-14: `{jv:4}` was written on this link because GETs answered empty (once per link), and whether it is in flight. */
+  readonly normalized: boolean;
+  readonly normalizing: boolean;
 }
 
 /** Live values from status reports and reads (the DRO and state band source). */

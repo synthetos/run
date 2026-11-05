@@ -376,12 +376,12 @@ describe('Phase 2 release gate (owner 2026-11-02: bench motion; SAFETY §4.5b, T
     expect(allowed(snap('IDLE_HOMED'), 'home', PHASE_1_RELEASE).allowed).toBe(false);
   });
 
-  it('report configuration (H64): its own gate, idle or CONNECTED_UNKNOWN, never READ_ONLY, ORPHANED_MOTION, STALE, FAULT or ALARM', () => {
+  it('report configuration (H64): its own gate, idle, CONNECTED_UNKNOWN or IDENTIFYING (OD-14: jv only), never READ_ONLY, ORPHANED_MOTION, STALE, FAULT or ALARM', () => {
     for (const { s, intent } of cells()) {
       if (intent !== 'configureReports') continue;
       const d = allowed(s, intent, PHASE_2_RELEASE);
       if (!d.allowed) continue;
-      expect(['IDLE_UNHOMED', 'IDLE_HOMED', 'CONNECTED_UNKNOWN']).toContain(s.base);
+      expect(['IDLE_UNHOMED', 'IDLE_HOMED', 'CONNECTED_UNKNOWN', 'IDENTIFYING']).toContain(s.base);
       expect(s.overlays.every((o) => o === 'UNKNOWN' || o === 'NEEDS_REVIEW'), `[${s.overlays.join('+')}]`).toBe(true);
     }
     expect(allowed(snap('ALARM'), 'configureReports', PHASE_2_RELEASE).allowed).toBe(false);

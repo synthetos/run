@@ -101,6 +101,9 @@ export function srListLine(): string {
   return `{sr:{${RUN_SR_FIELDS.map((f) => `${f}:true`).join(',')}}}`;
 }
 
+/** OD-14: the JSON verbosity run needs (values in GET answers, line numbers), written when GETs answer empty. */
+export const JV_LINE = '{jv:4}';
+
 /** `{"rt":{"hb":N}}`, N whole seconds (1..60). */
 export function heartbeatLine(seconds: number): string {
   return `{"rt":{"hb":${Math.round(seconds)}}}`;
@@ -142,6 +145,8 @@ const REPORT_LINES: readonly RegExp[] = [
   /^\{sv:1\}$/,
   new RegExp(`^\\{si:${SI_DEFAULT}\\}$`),
   /^\{"rt":null\}$/,
+  // OD-14: JSON verbosity 4 when the board's GETs answer empty (jv below 3), so the probe can read anything at all.
+  /^\{jv:4\}$/,
   /^\{"rt":\{"hb":([1-9]|[1-5]\d|60)\}\}$/,
 ];
 

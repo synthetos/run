@@ -384,7 +384,9 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
   // firmware refuses SETs while alarmed; the session configures after the alarm is cleared).
   configureReports: {
     kind: 'reports',
-    states: [...IDLE, 'CONNECTED_UNKNOWN'],
+    // IDENTIFYING (OD-14): only `{jv:4}`, when GETs answer empty and the board reported itself at rest; the write
+    // policy admits exactly that line, once, while the session is writing it.
+    states: [...IDLE, 'CONNECTED_UNKNOWN', 'IDENTIFYING'],
     overlays: ['UNKNOWN', 'NEEDS_REVIEW'],
     denied: { reason: 'Status reports are configured only while the machine is idle.', remedy: 'Wait until the machine is idle.' },
     citation: 'SAFETY §4.2 (amendment 2026-11-02, push-driven state); H64',
