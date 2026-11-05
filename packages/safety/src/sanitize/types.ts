@@ -251,6 +251,8 @@ export type SanitizeRule =
   | 'control-byte'
   | 'unclosed-comment'
   | 'comment-stripped'
+  /** A removed comment held `!`, `~` or `%`, which TinyG acts on anywhere in the stream (never sent; the user is told). */
+  | 'realtime-in-comment'
   | 'dropped-empty'
   | 'dropped-tape-marker'
   | 'first-character'

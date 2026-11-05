@@ -130,6 +130,13 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
       return;
     }
     if (comment.stripped) add(lineNo, { severity: 'change', rule: 'comment-stripped', message: 'comment removed' });
+    // TinyG acts on these anywhere in the stream, even inside a comment (firmware maintainer, 2026-11-05: a file
+    // with "!" and "~" in comments paused a job and could resume one the user paused). The comment is never sent;
+    // the user is told the file carries them.
+    const inComment = comment.stripped && !/[!~%]/.test(comment.code) ? /[!~%]/.exec(raw) : null;
+    if (inComment !== null) {
+      add(lineNo, { severity: 'warn', rule: 'realtime-in-comment', message: `a comment holds "${inComment[0]}", which the controller would act on as a command; Run removes the comment, so it is never sent` });
+    }
     const code = trimLine(comment.code);
     if (code === '') {
       add(lineNo, { severity: 'change', rule: 'dropped-empty', message: 'empty line not sent' });

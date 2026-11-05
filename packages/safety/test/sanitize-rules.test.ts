@@ -48,6 +48,19 @@ describe('steps 1-5: text', () => {
     expect(r.report.entries.find((e) => e.rule === 'dropped-empty')?.line).toBe(4);
   });
 
+  it('a comment holding "!", "~" or "%" is removed and the user is warned; the same byte in code still blocks', () => {
+    const r = run('G0 X1 (pause! then ~ resume)\nG0 X2 ; 50%\n(only ~)\nG0 X3 (ok)\n', EN);
+    expect(bodies(r)).toEqual(['G0 X1', 'G0 X2', 'G0 X3']);
+    expect(r.report.entries.filter((e) => e.rule === 'realtime-in-comment').map((e) => [e.line, e.severity])).toEqual([
+      [1, 'warn'],
+      [2, 'warn'],
+      [3, 'warn'],
+    ]);
+    const code = run('G0 X1 ! (note ~)\n', EN);
+    expect(code.report.entries.map((e) => e.rule)).toContain('realtime-character');
+    expect(code.report.entries.map((e) => e.rule)).not.toContain('realtime-in-comment');
+  });
+
   it('reports comments stripped and blank or number-only lines dropped', () => {
     const r = run('G0 X1 ;c\n\n   \nN20\nN30 G0 X2\n', EN);
     expect(bodies(r)).toEqual(['G0 X1', 'G0 X2']);
