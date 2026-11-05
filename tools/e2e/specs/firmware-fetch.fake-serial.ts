@@ -110,6 +110,8 @@ test('440.21 is listed as an older build from GitHub Releases; Update fetches it
   await expect(release).toBeVisible({ timeout: 20_000 });
   await expect(release).toHaveAttribute('data-release-age', 'older');
   await expect(release).toHaveAttribute('data-release-source', 'github');
+  // N66: every shipped build carries the known-issue note until the fixed build is named.
+  await expect(page.locator('[data-known-issue="n66"]')).toContainText('a step or two off');
   await expect(release.locator('.rel-ver')).toContainText('Older');
   await expect(release.locator('.rel-ver')).not.toContainText('Recommended');
   await expect(release.locator('.installed')).toContainText('GitHub Releases: synthetos/TinyG 440.21');

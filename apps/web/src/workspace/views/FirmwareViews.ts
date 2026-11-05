@@ -47,6 +47,9 @@ const PHASE_WORDS: Readonly<Record<string, string>> = {
 };
 
 /** Why flashing is not possible right now, or null. */
+
+/** The first firmware build with the N66 fix, once the firmware maintainer names it; null until then (every build has it). */
+const N66_FIXED_FB: number | null = null;
 export function flashBlocked(view: LiveView | null): string | null {
   const m = view?.message ?? null;
   if (view === null || m === null) return 'Connect a board first.';
@@ -337,6 +340,10 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
         ),
         trusted ? h('span', { class: 'tag warn', 'data-safety': 'W48' }, w48()) : null,
       ),
+      // N66 (firmware maintainer, 2026-11-05): every shipped TinyG build; an accuracy limit, not a block (SAFETY H78).
+      on && typeof id?.fb === 'number' && (N66_FIXED_FB === null || id.fb < N66_FIXED_FB)
+        ? h('p', { class: 'fine pad', 'data-known-issue': 'n66' }, 'Known issue in this firmware: after long jobs, especially with pauses, the position may end a step or two off. Check it before a job that needs it exact. The fix is coming in a later release.')
+        : null,
       old === null ? null : h('p', { class: 'flash-warn pad', role: 'alert', 'data-safety': 'W50', 'data-old-firmware': 'true' }, w50({ fb: fbText(old.fb), minimum: fbText(old.minimumFb) })),
       h('div', { class: 'section-heading tight' }, h('h2', null, 'Releases'), h('span', { class: 'fine' }, 'Signed builds for this board’s hardware')),
       hub === null || !hub.releases.ok
