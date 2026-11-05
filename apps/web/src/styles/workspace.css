@@ -1687,3 +1687,10 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .job-main > .job-card { margin-top: 12px; }
 .job-main > .job-grid { padding-bottom: 14px; }
 .job-view > .run-inspector { margin-bottom: 14px; }
+
+/* Every confirmation is a modal below the machine strip (OD-16): readable on any background, never over Pause and Stop job. */
+.dialog-wrap.confirm-modal { position: fixed; inset: var(--strip-bottom, 142px) 0 0 0; }
+.confirm-modal .motion-confirm { margin: 0; width: 480px; padding: 18px 20px; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); font-size: 13.5px; line-height: 1.55; }
+.confirm-modal .motion-confirm p { margin: 0 0 14px; color: var(--ink); }
+.confirm-modal .motion-confirm .check { color: var(--muted); }
+

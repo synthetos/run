@@ -91,16 +91,28 @@ export function ConfirmCard(props: {
   readonly safety: string;
   readonly children?: ComponentChild;
 }): ComponentChild {
+  // A modal centred over the page below the machine strip (owner, 2026-11-04, OD-16): readable wherever it is asked
+  // from, and never over W1, the strip or Pause and Stop job (SAFETY §4.1 UI rules).
   return h(
     'div',
-    { class: 'motion-confirm', role: 'alertdialog', 'aria-label': props.confirm, 'data-safety': props.safety },
-    h('p', null, props.text),
-    props.children ?? null,
+    { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip },
     h(
       'div',
-      { class: 'motion-confirm-actions' },
-      h('button', { type: 'button', class: 'small', 'data-action': 'motion-cancel', ref: focusOnMount, onClick: props.onCancel }, 'Cancel'),
-      h('button', { type: 'button', class: 'small primary', 'data-action': 'motion-confirm', onClick: props.onConfirm }, props.confirm),
+      { class: 'dialog motion-confirm', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': props.confirm, 'data-safety': props.safety },
+      h('p', null, props.text),
+      props.children ?? null,
+      h(
+        'div',
+        { class: 'motion-confirm-actions' },
+        h('button', { type: 'button', class: 'small', 'data-action': 'motion-cancel', ref: focusOnMount, onClick: props.onCancel }, 'Cancel'),
+        h('button', { type: 'button', class: 'small primary', 'data-action': 'motion-confirm', onClick: props.onConfirm }, props.confirm),
+      ),
     ),
   );
+}
+
+/** Starts a fixed overlay at the machine strip's bottom edge, so W1, the strip and the stop controls stay uncovered. */
+function belowStrip(el: HTMLElement | null): void {
+  const bottom = el?.ownerDocument.querySelector('[data-region="machine-strip"]')?.getBoundingClientRect().bottom;
+  if (el !== null && bottom !== undefined) el.style.setProperty('--strip-bottom', `${Math.round(bottom)}px`);
 }

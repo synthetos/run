@@ -394,3 +394,9 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 
 **Decision.** While a cycle or hold is active, a configuration SET is refused before it is applied (RAM and EEPROM unchanged), the reply carries a distinct status meaning "stop the job first", and the job continues: no alarm, no pause. Stop-class bytes, GETs and runtime `rt` leaves are exempt. Requested of the firmware for 450.02. On run's side a never-send list (`baud`, `$defa`, `jv` 0, `ee` 1, `js` 0, `ex` outside a chosen flow-control change, motor and axis settings during normalisation) is added to the write grammar, and run words the firmware's refusal plainly.
 
+## OD-16. Confirmations are modals below the strip (owner, 2026-11-04)
+
+**Owner's words.** "wth is this looks terrible cant see text lets do modals vs fullwidth screen messages inline this is terrible."
+
+**Decision.** Every confirmation card (C4, C13, C16, C23, C24, C25, C26 and the rest, and "I've checked the machine") opens as a centred modal over the page below the machine strip: readable on any background, the same everywhere it is asked from. W1, the machine strip and Pause and Stop job are never covered and stay usable, so the SAFETY §4.1 rule ("never a modal over the stop controls") holds; Cancel still has the focus.
+
