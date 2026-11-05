@@ -133,6 +133,8 @@ Record in those repositories' own lead-actions lists that this is done.
      Cloudflare issues from, for example
      `0 issue "pki.goog"`, `0 issue "letsencrypt.org"`, `0 issue "ssl.com"`,
      the same three as `issuewild`, and `0 iodef "mailto:<owner address>"`.
+     (2026-11-05: with Universal SSL on, Cloudflare also adds `digicert.com` and `comodoca.com` itself; both are
+     in the allowed lists.)
      Then compare the list with Cloudflare's current CA list and with
      `ALLOWED_CAA_ISSUERS` and `ALLOWED_ISSUER_ORGS` in
      `tools/gates/src/smoke/checks.ts`; change both in the same PR if they

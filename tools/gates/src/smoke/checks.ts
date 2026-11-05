@@ -20,10 +20,13 @@ export interface SmokeFinding {
  * Cloudflare uses for custom-domain and edge certificates. The owner confirms
  * this list when setting the CAA record (docs/ops/account.md).
  */
-export const ALLOWED_CAA_ISSUERS: readonly string[] = ['pki.goog', 'letsencrypt.org', 'ssl.com'];
+// Cloudflare's Universal SSL set (2026-11-05, read from the live synthetos.com CAA records): Cloudflare adds
+// digicert.com and comodoca.com (Sectigo) itself alongside the owner's three, and they cannot be removed while
+// Universal SSL is on.
+export const ALLOWED_CAA_ISSUERS: readonly string[] = ['pki.goog', 'letsencrypt.org', 'ssl.com', 'digicert.com', 'comodoca.com'];
 
 /** Organisation names of those CAs as they appear in a certificate's issuer. */
-export const ALLOWED_ISSUER_ORGS: readonly string[] = ['Google Trust Services', "Let's Encrypt", 'SSL Corporation'];
+export const ALLOWED_ISSUER_ORGS: readonly string[] = ['Google Trust Services', "Let's Encrypt", 'SSL Corporation', 'DigiCert Inc', 'Sectigo Limited'];
 
 /** Minimal view of a fetched response. */
 export interface Observed {

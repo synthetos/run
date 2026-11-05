@@ -160,6 +160,8 @@ describe('DNSSEC, CAA and the certificate issuer (H46)', () => {
 
   it('needs a CAA set that names only the allowed CAs', () => {
     expect(checkCaa('synthetos.com', [{ critical: 0, issue: 'pki.goog' }, { critical: 0, issue: 'letsencrypt.org; validationmethods=dns-01' }, { critical: 0, iodef: 'mailto:x' }])).toEqual([]);
+    // The live synthetos.com set: the owner's three plus the two Cloudflare adds itself, with parameters.
+    expect(checkCaa('synthetos.com', [{ critical: 0, issue: 'digicert.com; cansignhttpexchanges=yes' }, { critical: 0, issuewild: 'comodoca.com' }, { critical: 0, issue: 'pki.goog; cansignhttpexchanges=yes' }])).toEqual([]);
     expect(checkCaa('synthetos.com', [])).toHaveLength(1);
     expect(checkCaa('synthetos.com', [{ critical: 0, issue: 'pki.goog' }, { critical: 0, issuewild: 'cheap-ca.example' }])).toHaveLength(1);
     expect(checkCaa('synthetos.com', [{ critical: 0, iodef: 'mailto:x' }])).toHaveLength(1);
@@ -168,6 +170,7 @@ describe('DNSSEC, CAA and the certificate issuer (H46)', () => {
   it('needs an expected issuer organisation', () => {
     expect(checkIssuer('h', 'Google Trust Services')).toEqual([]);
     expect(checkIssuer('h', "Let's Encrypt")).toEqual([]);
+    expect(checkIssuer('h', 'Sectigo Limited')).toEqual([]);
     expect(checkIssuer('h', 'Some Other CA')).toHaveLength(1);
     expect(checkIssuer('h', undefined)).toHaveLength(1);
   });
