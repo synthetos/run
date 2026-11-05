@@ -4,6 +4,8 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+pnpmfileChecksum: sha256-pxV1WVUxxDWotNkta8hNtMtaDF7AhMMIsBaIxjQ2u9A=
+
 importers:
 
   .:
@@ -115,7 +117,7 @@ importers:
     dependencies:
       valibot:
         specifier: 1.5.0
-        version: 1.5.0(typescript@6.0.3)
+        version: 1.5.0
 
   packages/flasher:
     dependencies:
@@ -2241,11 +2243,6 @@ packages:
 
   valibot@1.5.0:
     resolution: {integrity: sha512-nil6AkP2TChWL43Z5uJ6GTxX01CUA+g8LWUM+N/rB9NBbkUMaUsi9PUNzlUPgoKASgmx9f7eGOYpJ04/fSa6FQ==}
-    peerDependencies:
-      typescript: '>=5'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
 
   verkit@0.5.0:
     resolution: {integrity: sha512-u4J1hr6Y+C/hit34GwL3eIcUf3wngT8TlYUjK7tk0jxydKLAq3sYvifjdTDA6U3KCKRcQCQDGf/srjxfZF3l7g==}
@@ -4266,9 +4263,7 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  valibot@1.5.0(typescript@6.0.3):
-    optionalDependencies:
-      typescript: 6.0.3
+  valibot@1.5.0: {}
 
   verkit@0.5.0: {}
 
