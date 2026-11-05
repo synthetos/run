@@ -12,7 +12,9 @@ export const EN_APPROVED: ApprovedBuilds = {
   builds: [{ channel: 'bench', dialect: 'tinyg-en', fb: 450.01, fbs: null, commit: 'e'.repeat(40), note: 'test' }],
 };
 
-export const JOBS_RELEASE = withJobs(PHASE_2_RELEASE, 'staging');
+// Feed accounting is off in every shipped release (firmware bug N66); these tests exercise it with the flag on.
+export const JOBS_RELEASE = { ...withJobs(PHASE_2_RELEASE, 'staging'), feedAccounting: true };
+export const JOBS_RELEASE_NO_FI = withJobs(PHASE_2_RELEASE, 'staging');
 
 export async function jobHarness(options: { readonly rxm?: 0 | 1; readonly device?: TinyGModelOptions; readonly session?: Partial<MachineSessionOptions> } = {}): Promise<Harness> {
   const h = harness('en', {

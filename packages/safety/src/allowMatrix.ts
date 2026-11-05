@@ -189,6 +189,13 @@ export interface Release {
    */
   readonly jobs?: boolean;
   /**
+   * The job's feed accounting (`{"rt":{"fi":N}}`, H78). Absent means false, and no release sets it today: the
+   * firmware maintainer reported bug N66 (2026-11-05, edge-next 5f0e84cf): with `fi` on, feedholds can leave the
+   * motors two steps from the reported position with no error, and run's Pause is a feedhold. It is turned on
+   * again only for a firmware build with the fix.
+   */
+  readonly feedAccounting?: boolean;
+  /**
    * The firmware update (kind `flash`, owner 2026-11-03, SAFETY §4.8 as amended): the session's `{"boot":1}` into
    * the bootloader, after its own idle gate. Absent means false. Turned on only by the flasher phase switch
    * (flasherPhase.ts) for the bench and staging environments.

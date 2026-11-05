@@ -6,7 +6,7 @@ import { PHASE_2_RELEASE, w42 } from '@synthetos/safety';
 import type { TinyGEdgeNextModel } from '@synthetos/testkit';
 import { describe, expect, it } from 'vitest';
 import { JOB_LIMITS, jobInFlight } from '../src/index.ts';
-import { CONFIRM, jobHarness, jobLines, load, runUntil, start, writes, zigzag } from './jobHarness.ts';
+import { CONFIRM, JOBS_RELEASE_NO_FI, jobHarness, jobLines, load, runUntil, start, writes, zigzag } from './jobHarness.ts';
 
 const SMALL = ['G21 G90', 'G0 X1 Y1', 'G1 X5 F600', 'G1 Y5', 'G1 X1', 'G1 Y1', 'G0 X0 Y0', 'M30'].join('\n');
 
@@ -422,6 +422,15 @@ describe('the job flag and the feed-limit window (capability seams)', () => {
     expect(w).toContain(`{"rt":{"fi":${JOB_LIMITS.feedLimitS}}}`);
     expect(w).toContain('{"rt":{"fi":0}}');
     expect(h.session.snapshot.job?.feedLimit?.last).toMatchObject({ e: expect.any(Number), q: expect.any(Number) });
+  });
+
+  it('a board with fi gets no fi line unless the release turns feed accounting on (firmware bug N66)', async () => {
+    const h = await jobHarness({ device: { start: 'ready', rxm: 0, feedLimit: true }, session: { release: JOBS_RELEASE_NO_FI } });
+    const before = await start(h, zigzag(12));
+    await runUntil(h, () => h.session.snapshot.job?.phase === 'done', 60_000);
+    await h.run(500);
+    expect(writes(h).slice(before).filter((w) => w.includes('"fi"'))).toEqual([]);
+    expect(h.session.snapshot.job?.feedLimit ?? null).toBeNull();
   });
 });
 
