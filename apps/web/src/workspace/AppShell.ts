@@ -44,6 +44,7 @@ import { ReportDialog } from '../report/ReportDialog.ts';
 import { openReport } from '../report/state.ts';
 import { UnknownExits } from './homing.ts';
 import { ReviewExits } from './reviewExits.ts';
+import { belowStrip } from './ui.ts';
 import { LevelSwitch } from './LevelSwitch.ts';
 import { ConnectNotice } from './views/RunView.ts';
 
@@ -151,36 +152,49 @@ function Banners(props: AppShellProps): ComponentChild {
   const role = props.role?.value ?? null;
   const live = props.liveTab?.value === true;
   const notice = eventNotice(snapshot);
+  const [seen, setSeen] = useState<string | null>(null);
+  const noticeKey = notice === null ? null : `${notice.kind}:${notice.title}:${notice.detail}`;
+  // Owner, 2026-11-04 (OD-16): messages that ask for action are one modal below the strip, not full-width bars.
+  // W1, the strip and Pause and Stop job stay uncovered; the modal hides itself when it has nothing to say.
+  const modal = h(
+    'div',
+    { class: 'dialog-wrap confirm-modal banner-modal', role: 'presentation', ref: belowStrip },
+    h(
+      'div',
+      { class: 'dialog banner-stack', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': 'Machine message' },
+      h(OverlayBanners, { snapshot, staleElapsedMs: view?.staleSince === null || view?.staleSince === undefined ? 0 : Date.now() - view.staleSince }),
+      // Never a trap (amendment 2026-11-02): UNKNOWN comes with its ways out; so does NEEDS_REVIEW (OD-13 §5).
+      h(UnknownExits, { model: props.model ?? null }),
+      h(ReviewExits, { model: props.model ?? null, onReview: props.onReview ?? (() => undefined) }),
+      notice === null || noticeKey === seen
+        ? null
+        : h(
+            'div',
+            { class: 'event-notice', role: 'status', 'data-event-notice': notice.kind },
+            h('span', { class: 'event-icon', 'aria-hidden': 'true' }, Icon('hazard', 16)),
+            h('p', null, h('strong', null, notice.title), ' ', notice.detail),
+            h('div', { class: 'notice-actions' }, h('button', { type: 'button', class: 'small', 'data-action': 'report-event', onClick: () => openReport({ origin: 'notice', event: notice.event }) }, Icon('flag', 14), 'Report this'), h('button', { type: 'button', class: 'small primary', 'data-action': 'dismiss-notice', onClick: () => setSeen(noticeKey) }, 'OK')),
+          ),
+      role !== null && !live && role.released.length > 0
+        ? h(
+            'div',
+            { class: 'overlay-banner overlay-banner-warn', 'data-safety': 'W29', role: 'alert' },
+            h('p', null, ...signalText(w29())),
+            h('p', { 'data-machines': '' }, role.released.map(machineLabel).join(', ')),
+            h('button', { type: 'button', class: 'small primary', 'data-action': 'dismiss-w29', onClick: props.onDismissReleased }, 'OK'),
+          )
+        : null,
+    ),
+  );
   return h(
     'div',
     { class: 'banners', 'data-region': 'overlay-banners' },
-    h(OverlayBanners, { snapshot, staleElapsedMs: view?.staleSince === null || view?.staleSince === undefined ? 0 : Date.now() - view.staleSince }),
-    // Never a trap (amendment 2026-11-02): UNKNOWN comes with its ways out; so does NEEDS_REVIEW (OD-13 §5).
-    h(UnknownExits, { model: props.model ?? null }),
-    h(ReviewExits, { model: props.model ?? null, onReview: props.onReview ?? (() => undefined) }),
-    notice === null
-      ? null
-      : h(
-          'div',
-          { class: 'event-notice', role: 'status', 'data-event-notice': notice.kind },
-          h('span', { class: 'event-icon', 'aria-hidden': 'true' }, Icon('hazard', 16)),
-          h('p', null, h('strong', null, notice.title), ' ', notice.detail),
-          h('button', { type: 'button', class: 'small', 'data-action': 'report-event', onClick: () => openReport({ origin: 'notice', event: notice.event }) }, Icon('flag', 14), 'Report this'),
-        ),
+    modal,
     role === null || live || (!role.observing && role.released.length === 0)
       ? null
       : h(
           'div',
           { class: 'observer', 'data-region': 'observer' },
-          role.released.length > 0
-            ? h(
-                'div',
-                { class: 'overlay-banner overlay-banner-warn', 'data-safety': 'W29', role: 'alert' },
-                h('p', null, ...signalText(w29())),
-                h('p', { 'data-machines': '' }, role.released.map(machineLabel).join(', ')),
-                h('button', { type: 'button', class: 'small', 'data-action': 'dismiss-w29', onClick: props.onDismissReleased }, 'OK'),
-              )
-            : null,
           role.observing
             ? h(
                 'div',

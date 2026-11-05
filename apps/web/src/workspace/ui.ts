@@ -112,7 +112,7 @@ export function ConfirmCard(props: {
 }
 
 /** Starts a fixed overlay at the machine strip's bottom edge, so W1, the strip and the stop controls stay uncovered. */
-function belowStrip(el: HTMLElement | null): void {
+export function belowStrip(el: HTMLElement | null): void {
   const bottom = el?.ownerDocument.querySelector('[data-region="machine-strip"]')?.getBoundingClientRect().bottom;
   if (el !== null && bottom !== undefined) el.style.setProperty('--strip-bottom', `${Math.round(bottom)}px`);
 }

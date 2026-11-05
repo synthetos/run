@@ -1694,3 +1694,11 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .confirm-modal .motion-confirm p { margin: 0 0 14px; color: var(--ink); }
 .confirm-modal .motion-confirm .check { color: var(--muted); }
 
+/* The banner modal (OD-16): hidden when it holds nothing; its messages read as plain cards, not coloured bars. */
+.banner-modal:not(:has(.banner-stack > *)) { display: none; }
+.banner-stack { width: 560px; display: grid; gap: 14px; }
+.banner-stack .overlay-banner, .banner-stack .event-notice, .banner-stack .review-exits, .banner-stack .unknown-exits { position: static; margin: 0; padding: 0; background: none; color: var(--ink); border: 0; box-shadow: none; display: block; }
+.banner-stack .overlay-banner p, .banner-stack .event-notice p { color: var(--ink); font-size: 13.5px; line-height: 1.55; margin: 0 0 10px; max-width: none; }
+.banner-stack .notice-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.banner-stack > * + * { border-top: 1px solid var(--rule); padding-top: 14px; }
+

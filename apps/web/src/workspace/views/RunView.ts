@@ -25,7 +25,7 @@ import { ConnectPanel } from '../../live/ConnectPanel.ts';
 import { settingsOf } from '../boardFacts.ts';
 import { Icon } from '../icons.ts';
 import { readStored, writeStored } from '../storage.ts';
-import { CheckRow, ConfirmCard, TabBar, TabPane } from '../ui.ts';
+import { belowStrip, CheckRow, ConfirmCard, TabBar, TabPane } from '../ui.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
 import { HomeSection, HomeQuick } from '../homing.ts';
@@ -158,7 +158,11 @@ export function ConnectNotice({ model, onView, compact = false }: { readonly mod
     return h(
       'div',
       { class: 'connect-notice compact', 'data-region': 'connect' },
-      step === 'c1' ? null : panel,
+      step === 'c1' || step === 'refused' ? (step === 'refused' ? h(ConnectPanel, { state: { step: 'idle' }, advisoryBlocked: view?.advisoryBlocked ?? null, onConnect: () => actions?.connect(), onConfirm: () => undefined, onCancel: () => undefined, onDisconnect: () => undefined }) : null) : panel,
+      // A refusal is a modal below the strip (OD-16), not text squeezed into it.
+      step === 'refused'
+        ? h('div', { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip }, h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'refused-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'refused-title' }, 'Not connected')), panel))
+        : null,
       step === 'c1'
         ? h(
             'div',
