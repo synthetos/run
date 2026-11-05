@@ -12,7 +12,7 @@ export const EN_APPROVED: ApprovedBuilds = {
   builds: [{ channel: 'bench', dialect: 'tinyg-en', fb: 450.01, fbs: null, commit: 'e'.repeat(40), note: 'test' }],
 };
 
-// Feed accounting is off in every shipped release (firmware bug N66); these tests exercise it with the flag on.
+// Feed accounting is off in every shipped release until the N66 fix; these tests exercise it with the flag on.
 export const JOBS_RELEASE = { ...withJobs(PHASE_2_RELEASE, 'staging'), feedAccounting: true };
 export const JOBS_RELEASE_NO_FI = withJobs(PHASE_2_RELEASE, 'staging');
 

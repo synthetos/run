@@ -692,7 +692,7 @@ function lineModeReady(t: JobLayerTx, at: number): void {
   // Stopped while the line mode was being set: the job does not start (a changed rxm is put back afterwards).
   if (!preparing(t.s)) return;
   // The feed-limit window (accepted only at quiescence: the machine is idle now) and the job flag, where the board has them.
-  // Off unless the release says so: firmware bug N66 (holds with `fi` on can lose steps, Release.feedAccounting).
+  // Off unless the release says so (Release.feedAccounting): kept off until the firmware build that fixes N66.
   if (t.config.release.feedAccounting === true && feedLimitSupported(t.s)) {
     queue(t, { token: 'rt', purpose: 'jobRuntime', line: feedLimitLine(JOB_LIMITS.feedLimitS) });
     patchJob(t, { feedLimit: feedLimitWindow(JOB_LIMITS.feedLimitS) });

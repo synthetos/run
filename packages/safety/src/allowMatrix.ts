@@ -189,10 +189,10 @@ export interface Release {
    */
   readonly jobs?: boolean;
   /**
-   * The job's feed accounting (`{"rt":{"fi":N}}`, H78). Absent means false, and no release sets it today: the
-   * firmware maintainer reported bug N66 (2026-11-05, edge-next 5f0e84cf): with `fi` on, feedholds can leave the
-   * motors two steps from the reported position with no error, and run's Pause is a feedhold. It is turned on
-   * again only for a firmware build with the fix.
+   * The job's feed accounting (`{"rt":{"fi":N}}`, H78). Absent means false, and no release sets it today: bug N66
+   * (firmware maintainer, 2026-11-05) leaves the motors a step or two from the reported position after holds. Its
+   * cause is in every shipped TinyG, with or without `fi`, but `fi` changes the timing; it stays off until the
+   * fixed build (the N66 merge, 450.02) is approved, then is turned on for that build only.
    */
   readonly feedAccounting?: boolean;
   /**
