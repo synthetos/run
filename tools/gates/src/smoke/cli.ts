@@ -191,6 +191,23 @@ function issuer(host: string): Promise<SmokeFinding[]> {
   });
 }
 
+/**
+ * A first deploy creates the custom domain's DNS record and certificate, which take a few minutes to answer.
+ * Polls the host until it answers at all (any HTTP status) or the wait runs out; the checks then run as before,
+ * so a host that never answers still fails them. Nothing passes because of the wait.
+ */
+const SETTLE_MS = 300_000;
+const SETTLE_STEP_MS = 10_000;
+async function settle(host: string): Promise<void> {
+  const until = Date.now() + SETTLE_MS;
+  for (;;) {
+    if ((await probe(`https://${host}/`)) !== 'unreachable') return;
+    if (Date.now() >= until) return;
+    process.stdout.write(`smoke: ${host} does not answer yet; waiting for the custom domain\n`);
+    await new Promise((r) => setTimeout(r, SETTLE_STEP_MS));
+  }
+}
+
 /** Runs one group of checks; an exception (DNS failure, timeout, refused connection) is a finding, never a pass. */
 async function guard(check: string, fn: () => Promise<SmokeFinding[]>): Promise<SmokeFinding[]> {
   try {
@@ -226,6 +243,7 @@ async function run(argv: readonly string[]): Promise<SmokeFinding[]> {
     const api = await guard('access', () => accessApi(host));
     return [...api, ...checkAccessGate(`https://${host}/`, await probe(`https://${host}/`), api.length === 0)];
   }
+  await settle(host);
   const findings: SmokeFinding[] = [];
   if (env === 'production') findings.push(...(await guard('http', () => httpChecks(`https://${host}`, env))));
   else {
