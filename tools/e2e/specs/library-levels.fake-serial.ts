@@ -101,7 +101,7 @@ test('machine and settings share a centred page with a compact bed in both inter
   expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
 });
 
-test('the NEEDS_REVIEW banner opens the settings comparison even after a different Board tab', async ({ page }) => {
+test('settings that differ from the reference raise no banner at connect (OD-17); the difference is shown in Board', async ({ page }) => {
   const worker = await machineWorker(page);
   await page.evaluate(() => new Promise<void>((resolve, reject) => {
     const open = indexedDB.open('device-safety', 1);
@@ -116,11 +116,10 @@ test('the NEEDS_REVIEW banner opens the settings comparison even after a differe
     };
   }));
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
-  await expect(page.locator('[data-region="review-exits"]')).toBeVisible();
+  await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as { status: { session: { reports: { phase: string } } } }).status.session.reports.phase, { timeout: 10_000 }).toBe('done');
+  await expect(page.locator('[data-region="review-exits"]')).toHaveCount(0);
+  await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as { status: { session: { overlays: readonly string[] } } }).status.session.overlays).not.toContain('NEEDS_REVIEW');
   await page.locator('[data-region="rail"] [data-view="board"]').click();
-  await page.locator('[data-board-tab="motors"]').click();
-  await page.locator('[data-region="rail"] [data-view="library"]').click();
-  await page.locator('[data-action="review-open"]').click();
-  await expect(page.locator('#board-pane-settings')).toBeVisible();
+  await page.locator('[data-board-tab="settings"]').click();
   await expect(page.locator('[data-settings="drift"]')).toBeVisible();
 });

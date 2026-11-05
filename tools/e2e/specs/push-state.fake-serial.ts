@@ -112,7 +112,7 @@ test('Home all from the Home tab: C4 names the configured axes, one G28.2, then 
 test('after a reconnect the UNKNOWN banner offers its exits: "I\'ve checked the machine" clears it', async ({ page }) => {
   const worker = await connect(page, { unknown: true });
   const banner = page.locator('[data-region="unknown-exits"]');
-  await expect(banner).toContainText('Connected · state unknown.');
+  await expect(banner).toContainText('Position not verified.');
   // One click (owner, 2026-11-04): the banner's own text is the W6 confirmation.
   await banner.locator('[data-action="unknown-verify"]').click();
   await expect.poll(async () => (await session(worker)).overlays).toEqual([]);

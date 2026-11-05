@@ -1603,7 +1603,7 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
   .job-step-bar small { display: none; }
   .job-step-bar button { min-width: 115px; min-height: 42px; padding: 5px; }
   .job-view .job-card .job-name > p:not(.job-identity) { display: none; }
-  .job-view .job-identity { max-height: 36px; overflow: auto; }
+  /* Wraps rather than scrolling: a scrolling box here is unreachable by keyboard (axe scrollable-region-focusable). */
   .job-view .viewer-options select { max-width: 130px; }
   .library-view > .view-head { flex-wrap: wrap; }
 }

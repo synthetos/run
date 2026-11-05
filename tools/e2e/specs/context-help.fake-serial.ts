@@ -23,6 +23,8 @@ test('routine explanations stay in help, available by hover, focus and tap', asy
   await expect(page.locator('[data-safety="W13"]')).toHaveText(w13());
   await expect(page.locator('[data-safety="W13"]')).toBeVisible();
   await expect(safety).toBeVisible();
+  // The spindle tab is in Advanced; Simple (the default, OD-13) shows one screen without tabs.
+  await page.locator('[data-action="ui-level-advanced"]').click();
   await page.locator('.run-view [data-tab="spindle"]').click();
   await expect(page.locator('.sec-spindle .help-copy')).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath('workspace.png') });

@@ -43,6 +43,16 @@ export const test = base.extend<Fixtures>({
   request: async ({ request, baseURL }, use) => {
     await use(guardRequestContext(request, originOf(baseURL)));
   },
+  // OD-16 made W29 (an observer tab after the controlling tab is gone) a modal. Specs that open the port from
+  // the worker leave the page an observer, so W29 would cover every control: dismiss it on the spec's own page
+  // whenever it appears. A spec that asserts W29 does so on a second page of its own (tab-stop), which this
+  // handler does not touch.
+  page: async ({ page }, use) => {
+    await page.addLocatorHandler(page.locator('[data-action="dismiss-w29"]'), async (ok) => {
+      await ok.click();
+    });
+    await use(page);
+  },
   // Playwright requires an object pattern here; an empty one trips no-empty-pattern.
   served: async ({ baseURL: _baseURL }, use) => {
     await use(servedMode(process.env, process.cwd()));

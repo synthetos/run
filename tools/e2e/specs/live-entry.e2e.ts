@@ -7,7 +7,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from './fixtures.ts';
 import { ready } from './helpers.ts';
-import { w6 } from '../../../packages/safety/src/strings.ts';
 
 test('signed out: Connect is refused with the sign-in text, before the advisory or C1', async ({ page }) => {
   const advisory: string[] = [];
@@ -24,7 +23,7 @@ test('signed out: Connect is refused with the sign-in text, before the advisory 
   expect(advisory).toEqual([]);
 });
 
-test('T-S17: a liveSession marker from a previous session shows W6 instead of NOT CONNECTED', async ({ page }) => {
+test('T-S17 (OD-18): a liveSession marker from a previous session marks the strip; W6 waits for the connect', async ({ page }) => {
   await page.goto('/');
   await ready(page);
   await page.evaluate(
@@ -42,9 +41,9 @@ test('T-S17: a liveSession marker from a previous session shows W6 instead of NO
   );
   await page.reload();
   await ready(page);
-  const band = page.locator('[data-region="machine-strip"] [data-safety="W6"]');
-  await expect(band).toHaveText(w6());
-  await expect(page.locator('[data-region="machine-strip"] [data-safety="W7"]')).toHaveCount(0);
+  await expect(page.locator('[data-region="machine-strip"] [data-state="previous-session"]')).toHaveCount(1);
+  await expect(page.locator('[data-region="machine-strip"] [data-safety="W6"]')).toHaveCount(0);
+  await expect(page.locator('[data-region="machine-strip"] [data-safety="W7"]')).toHaveCount(1);
   const axe = await new AxeBuilder({ page }).include('[data-region="safety-bar"]').include('[data-region="machine-strip"]').withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(axe.violations.map((v) => v.id)).toEqual([]);
 });

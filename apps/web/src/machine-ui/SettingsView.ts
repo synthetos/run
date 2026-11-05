@@ -55,7 +55,9 @@ function status(phase: ReadoutPhase, onKeep: () => void): ComponentChild {
       return h(
         'div',
         { class: 'overlay-banner overlay-banner-warn', role: 'alert', 'data-settings': 'drift' },
-        h('p', null, `The board's settings changed since the reference taken ${phase.reference.at} (changed by another program, or on another computer). Review the differences before you use this machine.`),
+        h('p', null, phase.accepted
+          ? `The board's settings changed since the reference taken ${phase.reference.at} (changed by another program, or on another computer). Run kept the board's settings as the new reference; the differences are below.`
+          : `The board's settings changed since the reference taken ${phase.reference.at} (changed by another program, or on another computer). Review the differences before you use this machine.`),
         h(
           'table',
           { class: 'settings-diff' },
