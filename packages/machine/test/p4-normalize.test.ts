@@ -96,3 +96,16 @@ describe('OD-14 at the transport guard', () => {
     expect(d.lines()).not.toContain('{jv:4}');
   });
 });
+
+describe('bench 3, 2026-11-04 23:20: a torn heartbeat runs into the first answer', () => {
+  it('the answer at the end of the torn line is taken; identification goes on, no ORPHANED_MOTION', () => {
+    const d = new Driver({ release: PHASE_2_RELEASE, manifest: EN_APPROVED });
+    d.open();
+    d.written();
+    d.line('{"hb":{"stat":1,"hold":0,"up":6866,"qt":null}}');
+    d.line('{"hb":{"stat":1{"r":{"sr":{"stat":1,"hold":0,"line":0,"vel":0.00,"feed":0.00,"unit":1,"coor":1,"dist":0,"posx":0.000}},"f":[3,0,10]}');
+    expect(d.state.overlays).not.toContain('ORPHANED_MOTION');
+    expect(d.writing).toBe('fb');
+    expect(d.state.probe).toMatchObject({ next: 1 });
+  });
+});

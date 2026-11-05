@@ -72,6 +72,7 @@ import {
   type ProbeResult,
   type Response,
   type StatusReport,
+  classifyLine,
 } from '@synthetos/protocol';
 import { OVERLAYS, allowed, type Decision, type Intent, type MatrixSnapshot, type Overlay } from '@synthetos/safety';
 import { getLineFor, isReadAllowed } from '@synthetos/schema';
@@ -977,7 +978,12 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
   // amendment 2026-11-03). A banner still means the board reset.
   const probe = t.s.probe;
   if (probe !== null && probe.settling === 'none' && probe.next === 0 && !probe.spliceRetried && !t.s.ready && event.kind !== 'Banner' && event.kind !== 'Response') {
+    // A torn frame of that output can run straight into the answer (bench 3, 2026-11-04: half a heartbeat, then
+    // the reply to {sr:null} on the same line). The answer is a complete frame at the line's end: take it.
+    const from = event.kind === 'Garbled' ? event.line.lastIndexOf('{"r":') : -1;
+    const answer = from > 0 ? classifyLine(event.line.slice(from)) : null;
     t.set({ probe: { ...probe, backlog: probe.backlog + 1 } });
+    if (answer !== null && answer.kind === 'Response') onResponse(t, answer, at);
     return;
   }
   switch (event.kind) {
