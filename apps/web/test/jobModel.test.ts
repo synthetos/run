@@ -217,7 +217,7 @@ describe('the planned zero and the scene in machine coordinates', () => {
     const scene = jobScene(planned(), SCENE_COLORS, null);
     expect(placeJobAt(scene, scene.zero)).toBe(scene);
     const moved = placeJobAt(scene, [100, 200, -40]);
-    const d = [100 - scene.zero[0], 200 - scene.zero[1], -40 - scene.zero[2]];
+    const d: readonly [number, number, number] = [100 - scene.zero[0], 200 - scene.zero[1], -40 - scene.zero[2]];
     expect(moved.pathOffset).toEqual([100, 200, -40]);
     expect(moved.zero).toEqual([100, 200, -40]);
     expect(moved.layers.solids.find((s) => s.tag === 'stock')).toMatchObject({ kind: 'box', min: [0 + d[0], -20 + d[1], -53 + d[2]], max: [180 + d[0], 100 + d[1], -46.65 + d[2]] });
@@ -225,7 +225,7 @@ describe('the planned zero and the scene in machine coordinates', () => {
     expect(moved.layers.solids.find((s) => s.tag === 'fixture')).toEqual(scene.layers.solids.find((s) => s.tag === 'fixture'));
     const clamp0 = scene.layers.solids.filter((s) => s.tag === 'clamp')[0];
     const clamp1 = moved.layers.solids.filter((s) => s.tag === 'clamp')[0];
-    expect(clamp0?.kind === 'box' && clamp1?.kind === 'box' ? clamp1.min[0] - clamp0.min[0] : null).toBeCloseTo(d[0] as number);
+    expect(clamp0?.kind === 'box' && clamp1?.kind === 'box' ? clamp1.min[0] - clamp0.min[0] : null).toBeCloseTo(d[0]);
     expect(moved.layers.rings).toBe(scene.layers.rings);
     // An outlined stock (a prism) moves the same way.
     const prism = { ...scene, layers: { solids: [{ kind: 'prism' as const, outline: [[0, 0], [10, 0], [10, 10]] as const, z0: 0, z1: 5, color: SCENE_COLORS.stock, tag: 'stock' }], rings: [] } };
