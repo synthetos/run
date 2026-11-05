@@ -63,10 +63,12 @@ describe('committed firmware release files', () => {
     expect(checked).toBeGreaterThan(0);
   });
 
-  it('the two real TinyG releases from GitHub Releases, 450.01 (edge-next pre-release) and 440.21, are listed for hardware version 8, neither recommended yet (OD-10)', () => {
+  it('the real TinyG releases from GitHub Releases, 450.02 and 450.01 (edge-next pre-releases) and 440.21, are listed for hardware version 8, none recommended yet (OD-10)', () => {
     const staging = unsigned.manifests.find((m) => m['env'] === 'staging') as { boards: { hv: number; minimumFb: number | null; releases: ReleaseEntry[] }[] };
     const hv8 = staging.boards.find((b) => b.hv === 8);
     expect(hv8?.releases).toEqual([
+      // 450.02 (2026-11-05): the published SHA256SUMS and asset size, checked against the downloaded asset.
+      expect.objectContaining({ file: 'tinyg-450.02.hex', dialect: 'tinyg-en', fb: 450.02, fv: 0.97, repo: 'synthetos/TinyG', tag: '450.02', sha256: '687f9d76497bb30e133efacf0e392dbd4552ffee809264668629669f0c93ea9b', size: 456335, recommended: false }),
       // The published SHA256SUMS and asset size, verbatim (docs/ops/firmware-releases.md).
       expect.objectContaining({ file: 'tinyg-450.01.hex', dialect: 'tinyg-en', fb: 450.01, fv: 0.97, repo: 'synthetos/TinyG', tag: '450.01', sha256: 'b83763af4ecfe283d0c009fce3e6aa8df491b7f5b2a101693bccf534bb893811', size: 434318, recommended: false }),
       expect.objectContaining({ file: 'tinyg-440.21.hex', repo: 'synthetos/TinyG', tag: '440.21', sha256: 'c2c1693e82f0ed88ec8dec4338a0bc799059c10b3323acb1189564f6a2265e92', size: 334978, recommended: false }),
@@ -84,7 +86,7 @@ describe('committed firmware release files', () => {
     expect(FIRMWARE_REPOSITORIES).toEqual(FIRMWARE_RELEASE_REPOSITORIES);
     for (const a of FIRMWARE_ASSETS) expect(FIRMWARE_REPOSITORIES, a.repo).toContain(a.repo);
     // Only GitHub-released entries are rendered; simulator and bundled images are not the Worker's to serve.
-    expect(FIRMWARE_ASSETS.map((a) => a.asset)).toEqual(['tinyg-440.21.hex', 'tinyg-450.01.hex']);
+    expect(FIRMWARE_ASSETS.map((a) => a.asset)).toEqual(['tinyg-440.21.hex', 'tinyg-450.01.hex', 'tinyg-450.02.hex']);
     expect(workerFirmwareAssets({ format: signed.format, manifests: [{ env: 'staging', kid: 'k', sig: 's', payload: JSON.stringify({ boards: [{ hv: 8, releases: [{ file: 'a.hex', sha256: 'x', size: 1 }] }] }) }] })).toEqual([]);
     expect(() => workerFirmwareAssets({ format: signed.format, manifests: [{ env: 'staging', kid: 'k', sig: 's', payload: JSON.stringify({ boards: [{ hv: 8, releases: [{ file: 'a.hex', sha256: 'x', size: 1, repo: 'synthetos/TinyG' }] }] }) }] })).toThrow(/repo, tag/);
   });

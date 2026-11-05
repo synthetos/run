@@ -227,6 +227,14 @@ describe('collected items and the G-code consent', () => {
 describe('notices that start a report', () => {
   const s = (extra: Record<string, unknown>) => ({ base: 'CONNECTED_UNKNOWN', overlays: [], fault: null, live: {}, ...extra }) as never;
 
+  it('settings reset to defaults at start-up (status 118) is a notice that names them, below a fault', () => {
+    const n = eventNotice(s({ notices: { adviseEstop: false, settingsDefaulted: { text: 'restored to defaults: xvm, yvm', at: 1 } } }));
+    expect(n).toMatchObject({ kind: 'settings-defaulted', title: 'Some saved settings were reset to their defaults.', event: { code: 'STATUS 118' } });
+    expect(n?.detail).toContain('xvm, yvm');
+    expect(n?.detail).toContain('Board, All settings');
+    expect(eventNotice(s({ overlays: ['FAULT'], fault: { cause: 'writeFailed', kind: 'integrity', detail: 'x', at: 1 }, notices: { adviseEstop: false, settingsDefaulted: { text: 't', at: 1 } } }))?.kind).toBe('fault');
+  });
+
   it('fault, unexpected response, ORPHANED_MOTION and an alarm each have a notice with the event context', () => {
     expect(eventNotice(s({}))).toBeNull();
     expect(eventNotice(null)).toBeNull();

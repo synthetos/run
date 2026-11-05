@@ -57,8 +57,9 @@ function fakeGithub(overrides: Record<string, () => Response> = {}): { calls: st
 const releasesFile = (): unknown => JSON.parse(readFileSync(join(REPO, 'firmware/releases.json'), 'utf8'));
 
 describe('benchFirmwareAssets: the signed staging list’s GitHub-released images', () => {
-  it('lists 450.01 and 440.21 from the committed file, verified with the compiled-in keys', async () => {
+  it('lists 450.02, 450.01 and 440.21 from the committed file, verified with the compiled-in keys', async () => {
     expect(await benchFirmwareAssets(releasesFile(), new Date('2026-11-03T12:00:00Z'))).toEqual([
+      { env: 'staging', repo: 'synthetos/TinyG', tag: '450.02', asset: 'tinyg-450.02.hex', sha256: '687f9d76497bb30e133efacf0e392dbd4552ffee809264668629669f0c93ea9b', size: 456335 },
       { env: 'staging', repo: 'synthetos/TinyG', tag: '450.01', asset: 'tinyg-450.01.hex', sha256: 'b83763af4ecfe283d0c009fce3e6aa8df491b7f5b2a101693bccf534bb893811', size: 434318 },
       { env: 'staging', repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex', sha256: IMAGE_SHA, size: IMAGE.length },
     ]);

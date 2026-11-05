@@ -384,6 +384,11 @@ export interface SessionNotices {
   readonly bootloaderEntered?: { readonly at: number; readonly port: PortSelector; readonly boardId: string | null };
   /** Why the last request to enter the bootloader was not carried out (the idle gate, a lost link). */
   readonly bootRefused?: string;
+  /**
+   * TinyG 450.02+ (N61): stored settings that would not load were replaced by their defaults at start-up; `text` is
+   * the board's own list of them. A notice, never a FAULT: the board runs, on settings the user should check.
+   */
+  readonly settingsDefaulted?: { readonly text: string; readonly at: number };
 }
 
 /** The firmware update's entry into the bootloader, while it is in progress (SAFETY §4.8 as amended). */

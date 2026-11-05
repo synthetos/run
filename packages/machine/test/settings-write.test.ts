@@ -163,6 +163,26 @@ describe('settings writes: one at a time, the answer awaited, the read-back comp
     expect(d.state.settingWrite).toMatchObject({ outcome: 'rejected', exception: 106 });
   });
 
+  it('TinyG 450.02: a write refused with 117 during a job says so; an er 118 after start-up is a notice, never a FAULT', () => {
+    const j = ready();
+    j.intent({ intent: 'settingsWrite', key: 'xvm', value: 1234 });
+    passGate(j);
+    j.written();
+    j.line('{"r":{},"f":[3,117,10]}');
+    expect(j.state.settingWrite).toMatchObject({ outcome: 'rejected', answer: { status: 117 } });
+    expect(j.state.settingWrite?.detail).toMatch(/a job is running or has moves queued \(status 117\)\. Nothing changed/);
+
+    const n = ready();
+    n.line('{"er":{"fb":450.02,"st":118,"msg":"SETTINGS_RESTORED_TO_DEFAULTS - xvm, yvm"}}');
+    expect(n.state.overlays).not.toContain('FAULT');
+    expect(n.state.notices.settingsDefaulted).toMatchObject({ text: 'SETTINGS_RESTORED_TO_DEFAULTS - xvm, yvm' });
+
+    // Any other exception is still a FAULT.
+    const f = ready();
+    f.line('{"er":{"fb":450.02,"st":119,"msg":"x"}}');
+    expect(f.state.overlays).toContain('FAULT');
+  });
+
   it('an unanswered write is unconfirmed (STALE), and a FAULT or a lost link interrupts a write in progress', () => {
     const t = ready();
     t.intent({ intent: 'settingsWrite', key: 'xvm', value: 1234 });

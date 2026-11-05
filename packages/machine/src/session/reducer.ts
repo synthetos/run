@@ -689,7 +689,9 @@ function onSettingAnswer(t: Tx, r: Response): void {
     return;
   }
   if (r.footer.status !== 0) {
-    finishSettingWrite(t, 'rejected', `The board refused the write (status ${r.footer.status}); the setting was not stored.`, { answer: { status: r.footer.status, value: echoed } });
+    const inJob = t.s.dialect?.status.get(r.footer.status)?.statusClass === 'settingRefusedInCycle';
+    const text = inJob ? 'The board refused the write: a job is running or has moves queued (status 117). Nothing changed; set it when the machine is idle.' : `The board refused the write (status ${r.footer.status}); the setting was not stored.`;
+    finishSettingWrite(t, 'rejected', text, { answer: { status: r.footer.status, value: echoed } });
     return;
   }
   t.set({ settingWrite: { ...w, phase: 'readback', answer: { status: 0, value: echoed } }, queue: [{ token: w.key, purpose: 'readback' }, ...t.s.queue] });
@@ -1021,6 +1023,13 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
       if (t.s.settingWrite?.phase === 'writing' && (event.st === 106 || event.st === 9)) {
         t.set({ settingWrite: { ...t.s.settingWrite, exception: event.st } });
         t.emit({ kind: 'log', text: `settings write #${t.s.settingWrite.id}: the board reported ${event.st} (a cycle was active): refused` });
+        return;
+      }
+      // TinyG 450.02+ (N61): settings that would not load run on their defaults, reported once after start-up. The
+      // board is working; the user is told which settings changed. Any other exception is still a FAULT.
+      if (event.st === 118 && (t.s.dialect === null || t.s.dialect.status.get(118)?.statusClass === 'settingsDefaulted')) {
+        t.set({ notices: { ...t.s.notices, settingsDefaulted: { text: event.msg.slice(0, 200), at } } });
+        t.emit({ kind: 'log', text: `the board reset stored settings to their defaults (status 118): ${event.msg.slice(0, 120)}` });
         return;
       }
       enterFault(t, 'exceptionReport', 'integrity', `the board reported an exception (status ${event.st}): ${event.msg.slice(0, 80)}`, at);

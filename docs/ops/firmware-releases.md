@@ -100,7 +100,7 @@ its **own origin**, at the path `releasePath` in `packages/protocol` derives:
 The Firmware tab downloads first (with progress), checks the image, then
 asks C6 about the checked image; the flash path itself is unchanged.
 
-The staging list names two builds for hardware version 8: **450.01**
+The staging list names three builds for hardware version 8. **450.02** (tag `450.02`, `tinyg-450.02.hex`, 456,335 bytes, SHA-256 `687f9d76…`, published 2026-11-05 as an edge-next pre-release built from `a7489b79`; hash and size checked against the downloaded asset and its `SHA256SUMS`) is the first build with the N66 fix: run turns feed accounting on from fb 450.02 and stops showing the N66 note there. Then **450.01**
 (`synthetos/TinyG`, tag `450.01`, `tinyg-450.01.hex`, 434,318 bytes, SHA-256
 `b83763af…`, published 2026-11-03 as an edge-next pre-release built from
 `425fa92e`; the hash and size are the published `SHA256SUMS` and asset size,

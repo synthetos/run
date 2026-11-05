@@ -47,8 +47,8 @@ async function benchRoute(body: Uint8Array<ArrayBuffer>): Promise<{ proxy: Bench
     return Promise.resolve(new Response('no', { status: 404 }));
   };
   const assets = await benchFirmwareAssets(JSON.parse(readFileSync(join(REPO, 'firmware/releases.json'), 'utf8')) as unknown);
-  // 450.01 is listed too (not recommended); these specs fetch 440.21.
-  expect(assets.map((a) => a.asset)).toEqual(['tinyg-450.01.hex', 'tinyg-440.21.hex']);
+  // 450.02 and 450.01 are listed too (not recommended); these specs fetch 440.21.
+  expect(assets.map((a) => a.asset)).toEqual(['tinyg-450.02.hex', 'tinyg-450.01.hex', 'tinyg-440.21.hex']);
   const proxy = benchFirmware(assets, fetchFn);
   const state = {
     proxy,

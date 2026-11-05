@@ -103,6 +103,10 @@ export type StatusClass =
   | 'lWordMissing'
   | 'lWordInvalid'
   | 'mcodeUnsupported'
+  /** TinyG 450.02+: a persisted setting written during a job was refused; nothing changed (status 117, N60). */
+  | 'settingRefusedInCycle'
+  /** TinyG 450.02+: stored settings that would not load run on their defaults, reported after start-up (status 118, N61). */
+  | 'settingsDefaulted'
   /** g2core: input from a muted channel was ignored (status 117, S H25). */
   | 'mutedChannel'
   /** g2core: line checksum mismatch (status 118). */

@@ -118,6 +118,15 @@ export function jobFlagSupported(s: SessionState): boolean {
   return s.rtLeaves.includes('job');
 }
 
+/** The first firmware build with the N66 fix (firmware maintainer, 2026-11-05: tag 450.02, edge-next a7489b79). */
+export const FEED_ACCOUNTING_MIN_FB = 450.02;
+
+/** True when the board's build has the N66 fix (fb 450.02 or later, compared in hundredths). */
+export function feedAccountingSafe(s: SessionState): boolean {
+  const fb = s.identity?.fb;
+  return typeof fb === 'number' && Math.round(fb * 100) >= Math.round(FEED_ACCOUNTING_MIN_FB * 100);
+}
+
 /** The feed-limit window is offered where `{"rt":null}` names an `fi` leaf (edge-next 93a723b8 has it). */
 export function feedLimitSupported(s: SessionState): boolean {
   return s.rtLeaves.includes('fi');
@@ -692,8 +701,9 @@ function lineModeReady(t: JobLayerTx, at: number): void {
   // Stopped while the line mode was being set: the job does not start (a changed rxm is put back afterwards).
   if (!preparing(t.s)) return;
   // The feed-limit window (accepted only at quiescence: the machine is idle now) and the job flag, where the board has them.
-  // Off unless the release says so (Release.feedAccounting): kept off until the firmware build that fixes N66.
-  if (t.config.release.feedAccounting === true && feedLimitSupported(t.s)) {
+  // N66 (holds could leave the motors a step off) is fixed from fb 450.02: feed accounting is on there, and on
+  // earlier builds only where a release turns it on (Release.feedAccounting, set by no shipped release).
+  if ((t.config.release.feedAccounting === true || feedAccountingSafe(t.s)) && feedLimitSupported(t.s)) {
     queue(t, { token: 'rt', purpose: 'jobRuntime', line: feedLimitLine(JOB_LIMITS.feedLimitS) });
     patchJob(t, { feedLimit: feedLimitWindow(JOB_LIMITS.feedLimitS) });
   }

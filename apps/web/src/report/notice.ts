@@ -11,7 +11,7 @@ import type { ReportEvent } from './collect.ts';
 type SessionSnapshot = WorkerStatus['session'];
 
 export interface EventNotice {
-  readonly kind: 'fault' | 'unexpected-response' | 'orphaned-motion' | 'alarm';
+  readonly kind: 'fault' | 'unexpected-response' | 'orphaned-motion' | 'alarm' | 'settings-defaulted';
   readonly title: string;
   readonly detail: string;
   readonly event: ReportEvent;
@@ -30,7 +30,7 @@ const CAUSE_TEXT: Readonly<Record<string, string>> = {
 };
 
 /** The notice to show for this snapshot, or null. FAULT first, then ORPHANED_MOTION, then an alarm. */
-export function eventNotice(s: Pick<SessionSnapshot, 'base' | 'overlays' | 'fault' | 'live'> | null): EventNotice | null {
+export function eventNotice(s: (Pick<SessionSnapshot, 'base' | 'overlays' | 'fault' | 'live'> & Partial<Pick<SessionSnapshot, 'notices'>>) | null): EventNotice | null {
   if (s === null || s.base === 'NOT_CONNECTED') return null;
   const context = { state: s.base, overlays: [...s.overlays], line: typeof s.live.line === 'number' ? s.live.line : null, stat: typeof s.live.stat === 'number' ? s.live.stat : null };
   if (s.overlays.includes('FAULT')) {
@@ -60,6 +60,16 @@ export function eventNotice(s: Pick<SessionSnapshot, 'base' | 'overlays' | 'faul
       title: 'The controller reports an alarm.',
       detail: `Machine state: ${cls}.`,
       event: { code: `ALARM ${cls}`, message: `The controller reported machine state ${cls}.`, ...context },
+    };
+  }
+  // TinyG 450.02+ (N61): stored settings that would not load now run on their defaults.
+  const defaulted = s.notices?.settingsDefaulted;
+  if (defaulted !== undefined) {
+    return {
+      kind: 'settings-defaulted',
+      title: 'Some saved settings were reset to their defaults.',
+      detail: `The board could not load them at start-up: ${defaulted.text}. Check them in Board, All settings, before you run a job.`,
+      event: { code: 'STATUS 118', message: `The board reset stored settings to their defaults: ${defaulted.text}`, ...context },
     };
   }
   return null;

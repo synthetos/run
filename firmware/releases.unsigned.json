@@ -12,6 +12,20 @@
           "minimumFb": 440.21,
           "releases": [
             {
+              "fb": 450.02,
+              "fv": 0.97,
+              "dialect": "tinyg-en",
+              "part": "x192a3",
+              "file": "tinyg-450.02.hex",
+              "sha256": "687f9d76497bb30e133efacf0e392dbd4552ffee809264668629669f0c93ea9b",
+              "size": 456335,
+              "date": "2026-11-05",
+              "changelog": "TinyG 450.02 (edge-next pre-release, built from edge-next a7489b79): fixes the step or two of position drift after long jobs with pauses (N66); a saved setting sent while a job runs is refused with status 117 and nothing changes; saved settings that will not load run on their defaults and are reported after start-up with status 118; G10 offsets sent during a dwell take effect at once and are saved when the board is idle. Settings carry over from 450.01 (same layout).",
+              "recommended": false,
+              "repo": "synthetos/TinyG",
+              "tag": "450.02"
+            },
+            {
               "fb": 450.01,
               "fv": 0.97,
               "dialect": "tinyg-en",
