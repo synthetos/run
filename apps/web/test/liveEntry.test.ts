@@ -10,7 +10,7 @@
 import type { webcrypto } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
-import { c1Full, c1Short, w6, w7 } from '@synthetos/safety';
+import { c1Full, c1Short, w7 } from '@synthetos/safety';
 import { ADVISORY_PAYLOAD_FORMAT, ADVISORY_SIGNING_PREFIX, SAFETY_ADVISORY_FORMAT, type ReleaseKey } from '@synthetos/protocol';
 import { fetchFirmwareImage, fetchIdentity, fetchSafetyAdvisory, type AdvisoryFetch, type FirmwareImageProgress } from '../src/cloud/live.ts';
 import { ADVISORY_CACHE_KEY, ADVISORY_MAX_CACHE_AGE_MS, ADVISORY_POLL_MS, AdvisoryPoller, checkAdvisory, type AdvisoryDeps } from '../src/live/advisoryGate.ts';
@@ -496,13 +496,12 @@ describe('W6 and the liveSession marker (T-S17)', () => {
     expect(unload()).toBe(true);
   });
 
-  it('T-S17: the previous-session banner overrides NOT CONNECTED in the machine strip', () => {
+  it('T-S17 (OD-18): before connecting, a previous session marks the strip but prints no W6 band; it is given after connecting', () => {
     const status = stripStatus(INITIAL_LIVE_VIEW, null);
     const bar = root(h(MachineStrip, { status, stop: null, previousSession: true }));
-    expect(all(bar, byAttr('data-safety', 'W7'))).toHaveLength(0);
-    const band = all(bar, byAttr('data-safety', 'W6'));
-    expect(band).toHaveLength(1);
-    expect(text(band[0] as never)).toContain(w6().slice(-60));
+    expect(all(bar, byAttr('data-safety', 'W6'))).toHaveLength(0);
+    expect(all(bar, byAttr('data-state', 'previous-session'))).toHaveLength(1);
+    expect(all(bar, byAttr('data-safety', 'W7'))).toHaveLength(1);
     const again = root(h(MachineStrip, { status, stop: null, previousSession: false }));
     expect(all(again, byAttr('data-safety', 'W6'))).toHaveLength(0);
     expect(text(all(again, byAttr('data-safety', 'W7'))[0] as never)).toContain(w7().slice(0, 13));

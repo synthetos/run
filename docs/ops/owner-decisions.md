@@ -406,3 +406,9 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 
 **Decision.** Connecting never stops on a settings difference. When the board's settings differ from this computer's last reference, the board's settings become the reference at once (the next revision, recorded), the difference stays visible in Board, and no NEEDS_REVIEW, banner or confirmation is raised. Settings run needs are set by run at connect (OD-14). Supersedes the NEEDS_REVIEW default resolution (C23) on the connect path; SAFETY H24/H59's drift rows are amended to "recorded and shown, not blocking".
 
+## OD-18. W6 is not printed in the strip before connecting (owner, 2026-11-04)
+
+**Owner's words.** "get rid of this message useless" (the W6 previous-session band in the machine strip), and later "WARNING — … still this is there stop this is dumb".
+
+**Decision.** After a session that ended while connected, the strip before connecting shows the ordinary not-connected state (W7 behind its help) with `data-state="previous-session"`, not the W6 band. The previous session still counts: the next connect still lands in UNKNOWN, and the Position panel then says "Position not verified. The last session ended while connected." with its exits (I've checked the machine, Home, Set machine zero here), so the warning is given once, where the user can act on it. The `liveSession` marker, its lifecycle and the UNKNOWN overlay are unchanged. SAFETY §4.6 "On load", H13 mitigation and T-S17 are amended accordingly.
+

@@ -310,7 +310,7 @@ As OLD-S H13. The rules engine, export watermark, meter checklist and outputs te
 |---|---|
 | **Cause** | A 3D preview that looks like a running machine. A library or project page showing "last run" data. A second tab. A forum user ran a file whose "simulation ran ok" while the firmware ignored G40/G41/G43 (forum topic `tiny-g-not-doing-what-chilipeppr-simulation-do`). |
 | **Rating** | S4, L2 |
-| **Mitigations** | There is **no simulator and no Play or Simulate button.** The preview scrubber highlights lines only. The NOT CONNECTED band (W7) shows whenever no port is open. Live position is drawn only from `mpo` values **polled from the board**, labelled with their source and age. EN does not put `mpo*` in its default `sr` (EN settings_default.h:84), and run does not change the `sr` list (D24), so the position cannot come from status reports (§4.2). Nothing animates from a model. W13 is pinned to the preview. Other tabs show "Machine is controlled in another tab". `runs` history is labelled "history, not machine state". The W6 previous-session banner overrides NOT CONNECTED. Preflight flags codes unsupported by the dialect. The production bundle cannot contain the test kit (T-S40). |
+| **Mitigations** | There is **no simulator and no Play or Simulate button.** The preview scrubber highlights lines only. The NOT CONNECTED band (W7) shows whenever no port is open. Live position is drawn only from `mpo` values **polled from the board**, labelled with their source and age. EN does not put `mpo*` in its default `sr` (EN settings_default.h:84), and run does not change the `sr` list (D24), so the position cannot come from status reports (§4.2). Nothing animates from a model. W13 is pinned to the preview. Other tabs show "Machine is controlled in another tab". `runs` history is labelled "history, not machine state". The W6 previous-session banner overrides NOT CONNECTED. **(Amended 2026-11-04, owner, OD-18:** the warning is given after connecting, in the Position panel while UNKNOWN holds, not as a strip band before.) Preflight flags codes unsupported by the dialect. The production bundle cannot contain the test kit (T-S40). |
 | **Residual** | Low. |
 | **Verification** | E: T-S17, T-S41. R. |
 
@@ -1146,7 +1146,7 @@ As OLD-S §4.3.
 
 **`pagehide`, `freeze`, `beforeunload`:** record the `liveSession` marker in `device-safety` and send nothing. `beforeunload` shows a prompt while LIVE.
 
-**On load,** if the marker exists or `document.wasDiscarded` is true, show W6, which overrides NOT CONNECTED. The next connect goes to UNKNOWN.
+**On load,** if the marker exists or `document.wasDiscarded` is true, show W6, which overrides NOT CONNECTED. The next connect goes to UNKNOWN. **(Amended 2026-11-04, owner, OD-18.)** W6 is no longer printed in the strip before connecting: the strip shows NOT CONNECTED (W7) marked as a previous session, and the warning is given once after connecting, as the Position panel's "Position not verified" line with its exits, while UNKNOWN holds.
 
 **Overrun display** (both dialects):
 - **Distance, a true upper bound:** the sum of queued segment lengths, plus lines in the RX window, plus arc lengths. Labelled "machine may continue up to N mm".
@@ -1774,7 +1774,7 @@ OLD-S T-S1 to T-S37 remain, adjusted as follows:
 - **T-S4:** three TinyG tables. EN 12 → shutdown, 13 → panic, 203 → limit, 207 → job kill.
 - **T-S9:** per dialect. TG `!` + `%`; EN stop feeding + FAULT.
 - **T-S10:** both banner shapes.
-- **T-S17:** "previous-session banner overrides NOT CONNECTED".
+- **T-S17:** "previous-session banner overrides NOT CONNECTED". **(Amended 2026-11-04, OD-18:** before connecting the strip is marked previous-session and shows no W6 band; after connecting, UNKNOWN and the Position panel's "Position not verified" line carry it.)
 - **T-S23:** per dialect. EN ^D → 207 → C13 → E114 verification; TG flush sequence.
 - **T-S24a:** 0x04 is never sent to `tinyg-440`, `tinyg-449-stock` or unclassified boards, and is sent on EN only by `stopJob`/`spindleOffNow` and their derived policies `faultStop`, `holdTimeout` and `dwellStop`.
 - **T-S24b:** 0x05 is never sent to TG; during the probe it is never sent before a footer revision 2/3 has been seen; after classification it is sent only on `tinyg-en`.
