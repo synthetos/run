@@ -386,3 +386,11 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 
 **Decision.** At connect, run sets the communication and reporting settings it requires (starting with `jv`) when they differ, shows what it changed in plain words (as W35 does for the status report list), and offers to restore the previous values on disconnect. Every persisted write follows the firmware's EEPROM rule (the reply, then the settle delay before the next line, N35). The list, target values and timing come from the firmware maintainer's answer and are cited in SAFETY when the amendment to H24 is written; until then this decision is recorded, not built.
 
+## OD-15. Configuration sent during a job is refused and reported (owner, 2026-11-04)
+
+**Owner's words.** "refuse and report i think is the best."
+
+**Context.** On edge-next 450.01 a persisted configuration SET sent while a cycle runs is applied in RAM and only its EEPROM save fails (status 106), so a stray SET from any sender changes machine behaviour mid-cut (firmware maintainer, 2026-11-04).
+
+**Decision.** While a cycle or hold is active, a configuration SET is refused before it is applied (RAM and EEPROM unchanged), the reply carries a distinct status meaning "stop the job first", and the job continues: no alarm, no pause. Stop-class bytes, GETs and runtime `rt` leaves are exempt. Requested of the firmware for 450.02. On run's side a never-send list (`baud`, `$defa`, `jv` 0, `ee` 1, `js` 0, `ex` outside a chosen flow-control change, motor and axis settings during normalisation) is added to the write grammar, and run words the firmware's refusal plainly.
+
