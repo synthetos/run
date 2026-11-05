@@ -138,9 +138,13 @@ jobs:
       - name: Install the build toolchain only (second checkout)
         run: node b/tools/gates/src/build/cli.ts install b
       - name: Build (first checkout)
-        run: pnpm --dir a --filter @synthetos/web build
+        # Inside the checkout: Corepack reads packageManager from the working directory's package.json.
+        working-directory: a
+        run: pnpm --filter @synthetos/web build
       - name: Build (second checkout)
-        run: pnpm --dir b --filter @synthetos/web build
+        # Inside the checkout: Corepack reads packageManager from the working directory's package.json.
+        working-directory: b
+        run: pnpm --filter @synthetos/web build
       - name: Build the Worker script (first checkout)
         run: node a/tools/gates/src/build/worker-cli.ts a/workers/run/src a/dist-worker
       - name: Build the Worker script (second checkout)
