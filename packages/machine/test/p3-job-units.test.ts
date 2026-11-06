@@ -347,6 +347,17 @@ describe('the guards of the job decisions', () => {
     onJobPoll(moving.t, 5000);
     expect(moving.fx.some((e) => e.kind === 'writeRealtime' && e.name === 'feedhold')).toBe(true);
     expect(moving.t.s.notices.motion?.text).toMatch(/^No answer from the board yet/);
+    // A dwell after a lost `!` (stat 5, vel 0, hold 0) is not a pause: `!` goes again, and the job is not called paused.
+    const dwell = { stat: 5, hold: 0, vel: 0, qr: 31 } as const;
+    const dwelling = tx({ ...withJob(s, { phase: 'pausing', confirmed: 1, acked: 2, next: 2, pauseAt: 0 }), live: { ...s.live, ...dwell }, polled: { ...dwell, failed: false } });
+    onJobPoll(dwelling.t, 10);
+    expect(dwelling.t.s.job?.phase).toBe('pausing');
+    expect(dwelling.fx.some((e) => e.kind === 'writeRealtime' && e.name === 'feedhold')).toBe(true);
+    // A hold in a dwell can report a stale vel: the hold decides.
+    const hold = { stat: 6, hold: 6, vel: 12.5, qr: 31 } as const;
+    const inDwell = tx({ ...withJob(s, { phase: 'pausing', confirmed: 1, acked: 2, next: 2, pauseAt: 0 }), live: { ...s.live, ...hold }, polled: { ...hold, failed: false } });
+    onJobPoll(inDwell.t, 10);
+    expect(inDwell.t.s.job?.phase).toBe('paused');
     const resuming = tx({ ...withJob(s, { phase: 'resuming', confirmed: 1, resumeSteps: [] }), live: { ...s.live, ...rest }, polled });
     onJobPoll(resuming.t, 10);
     expect(resuming.t.s.job?.phase).toBe('running');

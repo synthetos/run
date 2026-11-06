@@ -1123,11 +1123,12 @@ export function onJobPoll(t: JobLayerTx, at: number): void {
     case 'pausing':
     case 'refused': {
       // The hold is complete, or the machine is at rest (nothing was moving): the job is paused at this line.
-      const confirmed = confirm(heldPolled(s, p) || (p.vel === 0 && p.hold === 0 && j.acked >= j.next));
+      // A `!` that landed before the cycle started is dropped, and a dwell reads vel 0: only a resting machine is at rest.
+      const confirmed = confirm(heldPolled(s, p) || (atRestPolled(s, p) && j.acked >= j.next));
       patchJob(t, { confirmed });
       if (confirmed < MOTION_LIMITS.confirmations) {
-        // `!` is ignored while nothing moves yet (a line still parsing, a dwell): send it again once motion starts.
-        if (p.hold === 0 && p.vel !== 0) writeRealtime(t, 'feedhold', 'feedhold');
+        // `!` is dropped while no cycle runs yet (a line still parsing): send it again once a cycle has started.
+        if (p.hold === 0 && !atRestPolled(s, p)) writeRealtime(t, 'feedhold', 'feedhold');
         if (j.pauseAt !== null && at - j.pauseAt > JOB_LIMITS.pauseNoAnswerMs && s.notices.motion?.kind !== 'failed') {
           t.set({ notices: { ...t.s.notices, motion: { kind: 'failed', text: "No answer from the board yet: use your E-stop if it's still moving", at } } });
         }

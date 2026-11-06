@@ -36,6 +36,25 @@ describe('TinyGEdgeNextModel: P0-11 acceptance', () => {
     expect(sim.device.snapshot().hold).toBe(0);
   });
 
+  it('[EN-RT-FEEDHOLD] from 450.02 ! during a G4 holds at once; the timer keeps running and its end does not end the hold', () => {
+    const sim = enSim({ build: { fb: 450.02, fv: 0.97, hv: 8, layout: 10002 } });
+    sim.host.sendLine('G4 P1');
+    sim.host.sendLine('G1 X1 F600');
+    sim.clock.advance(200);
+    sim.host.send('!');
+    sim.clock.advance(100);
+    expect(sim.device.snapshot().hold).toBe(6);
+    expect(sim.device.snapshot().motionState).toBe('hold');
+    sim.clock.advance(1500);
+    expect(sim.device.snapshot().hold).toBe(6);
+    expect(sim.device.snapshot().position[0]).toBe(0); // the move behind the dwell has not started
+    sim.host.send('~');
+    sim.clock.advance(100);
+    expect(sim.device.snapshot().hold).toBe(0);
+    sim.clock.advance(1000);
+    expect(sim.device.snapshot().position[0]).toBeGreaterThan(0);
+  });
+
   it('[EN-RT-FEEDHOLD] ! during a move holds it (the contrast case)', () => {
     const sim = enSim();
     sim.host.sendLine('G1 X50 F600');

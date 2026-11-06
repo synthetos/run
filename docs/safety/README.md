@@ -21,6 +21,6 @@ Later in-repo changes to `/SAFETY.md`, also to carry upstream: the
 2026-11-02 re-pins to edge-next `97321391`, then `6ec70652` and then `93a723b8` the EN
 `file:line` citations that moved (the text they cite is unchanged); on the
 2026-11-06 re-pin to `a7489b79` (450.02) the EN citations that moved (where the cited code
-changed, the new range was checked by hand) and the H43 note that 450.02 holds during a dwell.
+changed, the new range was checked by hand) and the H43 amendment (with §4.4 step 7, HIL-2.7 and T-S54): on 450.02 and later Pause during a dwell is a plain hold, with no automatic ^D and no W26.
 
 Both files are read by tests. A change to either needs safety-path review.

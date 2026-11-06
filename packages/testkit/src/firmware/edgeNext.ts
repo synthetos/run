@@ -260,6 +260,8 @@ export class TinyGEdgeNextModel implements SimDevice {
   #queueFlushInput = false;
   #queueFlushInputDue = false;
   #endHoldRequested = false;
+  /** A hold entered during a dwell: the dwell ending does not end the cycle or the hold. */
+  #dwellHeld = false;
   #homed = ALL_AXES_UNHOMED();
   #gm: GcodeModel = EN_FRESH_GCODE();
   #spindle: 'off' | 'cw' | 'ccw' = 'off';
@@ -1095,11 +1097,19 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
-   * @behaviour EN-RT-FEEDHOLD: `cm_request_feedhold()` honours `!` only while
-   * moving; during the 50 ms startup delay it holds at once
-   * (@cite EN canonical_machine.c:1869-1900; planner.c:456-472).
+   * @behaviour EN-RT-FEEDHOLD: `cm_request_feedhold()` honours `!` while moving;
+   * during the 50 ms startup delay it holds at once
+   * (@cite EN canonical_machine.c:1869-1900; planner.c:456-472). A running
+   * dwell holds at once from 450.02, and its timer keeps running.
    */
   #requestFeedhold(): void {
+    if (this.#hold === HOLD.OFF && (this.#options.build?.fb ?? FW_BUILD) >= 450.02 && this.#motion.executingDwell()) {
+      this.#dwellHeld = true;
+      this.#motionState = 'hold';
+      this.#hold = HOLD.HOLD;
+      this.#progress++;
+      return;
+    }
     if (this.#startupPending) {
       this.#startupPending = false;
       this.#motionState = 'hold';
@@ -1232,6 +1242,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   /** `mp_exit_hold_state()` (@cite EN plan_exec.c:401-411). */
   #exitHoldState(): void {
     this.#hold = HOLD.OFF;
+    this.#dwellHeld = false;
     this.#motionState = this.#motion.queue.length > 0 ? 'run' : 'stop';
   }
 
@@ -1259,6 +1270,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#motionState = 'stop';
     if (this.#cycle === 'machining') this.#cycle = 'off';
     this.#hold = HOLD.OFF;
+    this.#dwellHeld = false;
     this.#endHoldRequested = false;
     this.#scheduleMotorTimeout();
   }
@@ -1337,7 +1349,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       onFree: (_block, empty) => {
         // Every block type frees its buffer and ends the cycle when the planner is empty
         // (@cite EN planner.c:252-259, :283-290)
-        if (empty) this.#cycleEnd();
+        if (empty && !this.#dwellHeld) this.#cycleEnd();
         this.#progress++;
       },
       onHoldReached: () => {

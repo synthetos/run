@@ -27,7 +27,7 @@ Warning text is never accepted in place of a design measure that would have been
 **Firmware (edge-next):**
 - **Stop job on edge-next is ^D** (ALARM 207: the spindle and coolant go off immediately, also during a dwell or a hold), followed by a confirmed `{clear}`. TG keeps `! → % → M5 → M9`.
 - **On edge-next, alarms already stop the spindle and inhibit outputs** (E019, E044). H7 and H16 get weaker residuals on EN. **A feedhold still leaves the spindle on** (E060 is unmerged), so W10 stays on every TinyG dialect.
-- **On EN, `!` is ignored during a dwell** (PN §8). There is a new hazard, H43, and the stop UI changes during dwells.
+- **On EN before 450.02, `!` is ignored during a dwell** (PN §8). There is a new hazard, H43, and the stop UI changes during dwells on those builds. From 450.02 Pause holds during a dwell (H43, amended 2026-11-06).
 
 **Corrections to OLD-S:**
 - **M0/M1/M60 do not pause on stock 440.21** (PN §9.2). OLD-S C14 and H23 assumed they did. Every TinyG dialect now treats program stops as a **host barrier** (H36).
@@ -534,7 +534,15 @@ Facts are device-local and never synced (H34). They are **bound to (machine id, 
 | **Residual** | EN Low. TG Medium (no immediate dwell abort exists on TG). |
 | **Verification** | M: T-S54. H: HIL-2.7 (B-FH-1). |
 
-*Amended 2026-11-06 (EN re-pin to 450.02, a7489b79):* from 450.02 the EN firmware no longer ignores `!` during a dwell: a feedhold during a G4 or spin-up dwell, or while a cycle is stopped between moves, enters HOLD at once (EN canonical_machine.c:1869-1900), and a `%` or ^D also ends a running dwell (:1966-1981). The cause above describes 450.01 and earlier. The mitigations stay as written (^D still stops at once, and the pause logic accepts a hold) until the owner decides whether W26, the automatic ^D and HIL-2.7 should change for 450.02 and later.
+*Amended 2026-11-06 (owner, EN re-pin to 450.02, a7489b79):* from 450.02 the hazard no longer applies to EN, and the cause and mitigations above apply only to EN builds before 450.02 and to TG. On EN 450.02 and later:
+
+- `!` during a G4, or while a cycle is stopped between moves, enters HOLD at once (EN canonical_machine.c:1869-1900). Pause is a plain hold: the session sends `!` and shows Paused once `hold` reports it. There is no automatic ^D, because ^D would turn Pause into a job kill, and no W26.
+- Stop job stays ^D: ALARM 207, the dwell ends, spindle and coolant off at once.
+- **Pause does not freeze a dwell.** The timer keeps running through the hold, so a hold neither extends, restarts nor shortens it. After `~` the next move waits for any time left, and a dwell that ended during the hold leaves the machine held until `~`. A G4 still queued behind a move when `!` lands runs its full time after resume. Feedhold never changes the spindle or coolant, and the firmware has no spin-up dwell of its own: a programmed G4 is the only spin-up wait, and `~` cannot shorten it.
+- `vel` is not 0 in such a hold (it keeps the last move's final segment velocity, EN canonical_machine.c:2597-2610), and `line` names the last move, not the G4. The session decides by `hold` and never by `vel`.
+- `!` is dropped, not latched, while no cycle runs (for example while the first line is still parsing). The session keeps re-sending it until the board reports a hold or rest, and it never calls a running dwell "Paused".
+
+The firmware facts above are from the source; bench confirmation is HIL-2.7. The `dwellStop` policy and the W26 display are not implemented. No build they apply to is approved for control; they must be implemented before one is.
 
 ### H44. Stock edge-0.97 misclassified as edge-next (NEW)
 | Field | Content |
@@ -1179,7 +1187,7 @@ As OLD-S §4.3.
 4. Show "PAUSE REQUESTED". *Amended 2026-11-02 (owner, bench 1; tenet 3):* the word "requested" is never shown. Until a report shows the held class the machine strip shows "Pausing…"; it resolves to "Paused" or "Paused · spindle still on" (step 5) once the hold is reported, to "Paused: the machine was idle, nothing changed" when the machine was or comes to rest, or, after 2 s without a hold, to "No answer from the board yet: use your E-stop if it's still moving". Pause and Stop job stay prominent while a hold is wanted.
 5. When a report shows the held class, the state band shows **"PAUSED — SPINDLE MAY BE RUNNING"** (W30) with the spindle state (reported, or UNCONFIRMED) plus W10. The word "STOPPED" is never used for a hold. *Amended 2026-11-02 (OD-6):* the machine strip names the state in plain words: "Paused · spindle still on" when the spindle was commanded on, otherwise "Paused", always with W30 and W10 beside it. A Pause pressed while the machine was idle is reported as "Paused: the machine was idle, nothing changed".
 6. If motion resumes while the user wants a hold, re-send `!`.
-7. **Dwell case (H43):** if the executing line is a dwell, the firmware ignores `!`. On EN the session **sends ^D automatically** (`dwellStop`), because the operator asked to stop and the only immediate stop is to end the job; W26 explains what happened. On TG (no immediate dwell abort exists), show W26, highlight Stop job, keep `!` requested and re-send it at the first motion.
+7. **Dwell case (H43):** if the executing line is a dwell, the firmware ignores `!`. On EN the session **sends ^D automatically** (`dwellStop`), because the operator asked to stop and the only immediate stop is to end the job; W26 explains what happened. On TG (no immediate dwell abort exists), show W26, highlight Stop job, keep `!` requested and re-send it at the first motion. *Amended 2026-11-06 (owner):* this step applies only to EN builds before 450.02 and to TG, and is not yet implemented (H43). On EN 450.02 and later the dwell needs no special case: steps 1–6 apply and the hold is reported at once; Stop job is still ^D.
 8. **Hold timeout** (default on, 60 s, configurable 15–600 s per machine; turning it off needs expert mode). While HELD or PROGRAM_PAUSED with the spindle or coolant commanded on, a visible countdown runs (W31). "Keep paused" restarts it and needs a visible document. At zero, EN sends ^D (`holdTimeout`) and TG runs the flush sequence (`%`, `M5`, `M9`).
 
 **Stop job, `tinyg-en`** (ends with spindle and coolant off immediately):
@@ -1400,7 +1408,7 @@ OLD-S §4.9 rows still apply, with SIM read as NOT CONNECTED. Rows added or chan
 | E114 check fails after stop (`hold` ≠ 0 or `qr` short) | post-stop verify | FAULT, W12, guidance to use the reset button and re-home |
 | Buffered M30 would clear an alarm | holdback rule | final line never sent while alarmed (H35) |
 | Read of a non-allowlisted token attempted | read path guard | throw in code; FAULT if it happens while connected (a bug), never sent |
-| Feedhold during a dwell | `line`/model | W26; Stop job highlighted |
+| Feedhold during a dwell | `line`/model | EN before 450.02 and TG: W26; Stop job highlighted. EN 450.02 and later: a normal hold |
 | Logout attempted while LIVE | allow-matrix | denied with reason |
 | Revoked app version calls the API | `X-App-Build` | API refuses mutations; LIVE refused at next entry (H27) |
 | Preview URL or `workers.dev` serves the app | deploy config | disabled; smoke test fails the deploy |
@@ -1679,7 +1687,7 @@ Manual, and never in CI. Signed in `RELEASES.md` in the run repo, with the evide
 - **HIL-2.4** Homing on every axis with the existing travel; C4 states the computed search distance. Switch re-test required before the first homing of the session.
 - **HIL-2.5** Set work zero (G10 L2 and, on EN, L20): offsets read back; preflight invalidated.
 - **HIL-2.6** **Stop job (EN ^D)** during RUN, HOLD, a G4 P10 dwell and an M3 spin-up: Saleae shows the spindle/coolant pins off within the measured time; alarm 207; position kept; the clear and E114 verification pass (B-KILL-1). Repeat 50 times during motion (B-E114-1). Repeat once with the host not reading (reader paused until the TX buffer is full) and record the ^D latency, which depends on the main loop (PN §9.1).
-- **HIL-2.7** Pause during a G4 dwell: `!` has no effect (B-FH-1); on EN the session sends ^D automatically (`dwellStop`) and the LED goes off; W26 shown.
+- **HIL-2.7** Pause during a G4 dwell. *EN before 450.02 and TG:* `!` has no effect (B-FH-1); on EN the session sends ^D automatically (`dwellStop`) and the LED goes off; W26 shown. *EN 450.02 and later (amended 2026-11-06):* no ^D and no W26; stat 6 and hold 6 are reported at once and the app shows Paused. Then: `~` before the timer ends (the next move waits for it); `~` after it ended (the next move starts at once); the timer ending during the hold (stays held, nothing steps); ^D (ALARM 207, outputs off); hold then `%` (the rest of the dwell is discarded).
 - **HIL-2.8** Spindle off now: EN idle `M5`; EN running → ^D path.
 - **HIL-2.9** Limit switch hit during a jog (switch pressed by hand): ALARM 203, axes un-homed, recovery card, re-home required.
 - **HIL-2.10** Reset controller: W18 and C15, `^X` written exactly once, UNKNOWN.
@@ -1802,7 +1810,7 @@ New tests:
 | T-S51 | Download integrity: a single flipped byte gives a hard stop with no confirm path. Name sanitiser strips bidi overrides and zero-width characters; names render inside `<bdi>` via `textContent`. | U, E |
 | T-S52 | Deep links (`/p/<id>`, `/m/<id>`, any query string) never load, select or arm a job, apply a profile, or open a port. | E |
 | T-S53 | Concurrent profile edits: the second save gets 409 and a diff; no silent overwrite. | S, E |
-| T-S54 | Dwell: with the executing line a G4 (EN `line`), Stop shows W26 and highlights Stop job; `!` is re-sent at the first motion. | M, E |
+| T-S54 | Dwell: EN before 450.02 and TG: with the executing line a G4 (EN `line`), Stop shows W26 and highlights Stop job; `!` is re-sent at the first motion. EN 450.02 and later (amended 2026-11-06): Pause in a dwell is confirmed by `hold` whatever `vel` reports, a running dwell with no hold is never shown as Paused and `!` is re-sent, and no ^D is written. | M, E |
 | T-S55 | Classifier fixtures: EN probe answers → `tinyg-en`; the same `fb` without capability tokens → `tinyg-449-stock` READ_ONLY; 440.21 rev-1 → `tinyg-440`; conflicts → READ_ONLY; an unapproved EN `fb` → READ_ONLY. | U |
 | T-S56 | E114 verification: after a test-kit stop where `hold` stays non-zero or `qr` stays short, the session stays in FAULT with W12; no motion intent is allowed. | M |
 | T-S57 | No network identifiers in `protocol`, `safety`, `machine`, `flasher` (lint), and `workers/run` imports no safety-path package. | U (lint, dependency rule) |

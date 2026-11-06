@@ -1811,10 +1811,13 @@ function enterStale(t: Tx, at: number): void {
  * runtime.c:37-52, :62-71), and a finished feedhold or a long G4 dwell pushes no report either. That is a hold
  * (`hold` ≠ 0, or a held `stat`), or a cycle that is not stepping: a dwell, or moves queued but not moving
  * (a running, homing, jogging or probing `stat`, or planner buffers in use), with `vel` 0. Never while steps may
- * be moving (`vel` not 0, or unknown): pushed position reports cover liveness then, and nothing is sent.
+ * be moving (`vel` not 0, or unknown): pushed position reports cover liveness then, and nothing is sent. A finished
+ * hold is the exception: nothing steps whatever `vel` says, and from 450.02 a hold entered during a dwell keeps
+ * reporting the last move's final segment velocity (EN canonical_machine.c:2597-2610).
  */
 function silentWhileBusy(s: SessionState): boolean {
   const live = s.live;
+  if (live.hold !== undefined && dialectOf(s)?.hold[live.hold] === 'HOLD') return true;
   if (live.vel !== 0) return false;
   if ((live.hold !== undefined && live.hold !== 0) || live.machineClass === 'held') return true;
   if (live.machineClass !== undefined && MOTION_CLASSES.has(live.machineClass)) return true;
