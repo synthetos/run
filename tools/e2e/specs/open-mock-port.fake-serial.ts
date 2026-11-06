@@ -80,10 +80,10 @@ test('machine.worker runs the read-only session on the mock board: {sr:null} fir
   const status = (await request(worker, { v: 3, kind: 'status' })) as StatusView;
   // P1-03: the worker verifies the bundled signed manifest for its own origin. The test server is plain-HTTP
   // loopback, which the worker treats as the bench (staging) environment, so the owner-signed bench channel
-  // approves edge-next 450.01 (no fbs) and the simulated board classifies full. Loopback also has the Phase 2
+  // approves edge-next 450.02 (no fbs) and the simulated board classifies full. Loopback also has the Phase 2
   // motion flag (motionFlag.ts), so the session is idle (not homed); nothing here moves, so only GETs and `!` are written.
   expect(status).toMatchObject({
-    status: { state: 'open', session: { overlays: [], classification: { dialectId: 'tinyg-en', mode: 'full', reason: 'en-approved' }, identity: { fb: 450.01, id: 'SIM-EN-0001' } } },
+    status: { state: 'open', session: { overlays: [], classification: { dialectId: 'tinyg-en', mode: 'full', reason: 'en-approved' }, identity: { fb: 450.02, id: 'SIM-EN-0001' } } },
   });
 
   // Pause writes `!`; a read of an allowlisted token is answered; a side-effect token is refused.

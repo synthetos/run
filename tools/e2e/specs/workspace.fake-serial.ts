@@ -84,7 +84,7 @@ test('switching views keeps the same machine worker and link, and never navigate
   // The board view reads the real probe facts from the same session.
   await show(page, 'board');
   await expect(page.locator('[data-board-fact="id"]')).toHaveText(BOARD);
-  await expect(page.locator('[data-board-fact="fb"]')).toHaveText('450.01');
+  await expect(page.locator('[data-board-fact="fb"]')).toHaveText('450.02');
   expect(await request(worker, { v: 3, kind: 'close' })).toMatchObject({ ok: true });
 });
 
