@@ -5,7 +5,7 @@
  * A feed move's modelled duration is its path length over
  * `v_eff = min(F, fr) × k`; a rapid's is over `vm × k`. TinyG limits feed
  * moves by the axis feed rate maximum `fr` and only rapids by the velocity
- * maximum `vm` (@cite EN plan_line.c:396-400 `_calc_move_times`; TG the
+ * maximum `vm` (@cite EN plan_line.c:432-436 `_calc_move_times`; TG the
  * same). `fr` and `vm` are the smallest board value among the axes that
  * move, so the model never assumes a move faster than its slowest axis
  * allows (the firmware takes the longest per-axis time, which is never
@@ -14,15 +14,15 @@
  * splitting.
  *
  * Arcs follow the firmware arc code where it decides geometry: the centre
- * from I/J/K or R (@cite EN plan_arc.c:454-493), the angular travel with
- * rotations and full circles (@cite EN plan_arc.c:300-345), and the plane
- * axis order, including G18 as (Z, X) (@cite EN plan_arc.c:158-172).
+ * from I/J/K or R (@cite EN plan_arc.c:475-514), the angular travel with
+ * rotations and full circles (@cite EN plan_arc.c:321-366), and the plane
+ * axis order, including G18 as (Z, X) (@cite EN plan_arc.c:176-190).
  *
  * The firmware decides an arc's travel in float32 with fp_EQ (`fabs(a-b) <
- * (float)0.00001`, @cite EN util.h:134-139; TG util.h:113-125), and the two
+ * (float)0.00001`, @cite EN util.h:183-188; TG util.h:113-125), and the two
  * dialects test different things (`DialectJobGcode.arcCoincidence`): EN
  * compares the end POSITION with the start on both plane axes and runs a full
- * circle when they are equal (@cite EN plan_arc.c:320-341); TG compares the
+ * circle when they are equal (@cite EN plan_arc.c:341-362); TG compares the
  * end ANGLE with the start angle and treats equal angles as zero travel plus
  * P turns (@cite TG plan_arc.c:276-303). Double precision cannot reproduce
  * either test near its boundary, so every such decision is made with an error
@@ -51,7 +51,7 @@ export const MAX_SEGMENTS = 10_000;
 /**
  * Shortest sub-segment (mm, chord in the arc plane for arcs). Far above the
  * rounding step, so a sub-arc can never round to coincident endpoints, which
- * EN would run as a full circle (@cite EN plan_arc.c:322-329).
+ * EN would run as a full circle (@cite EN plan_arc.c:343-350).
  */
 export const MIN_SEGMENT_MM = 0.01;
 
@@ -314,7 +314,7 @@ export type ArcModelResult =
   /** The firmware's float32 decision cannot be predicted: it lies within the rounding band. */
   | { readonly kind: 'ambiguous'; readonly detail: string };
 
-/** fp_EQ's EPSILON, `(float)0.00001` (@cite EN util.h:134-139; TG util.h:113-125). */
+/** fp_EQ's EPSILON, `(float)0.00001` (@cite EN util.h:183-188; TG util.h:113-125). */
 export const FP_EPSILON = Math.fround(0.00001);
 
 /**
@@ -341,7 +341,7 @@ export const R_CHORD_ERRORS = 100;
  * (one rounding), its unit conversion (one) and its sum with the position or
  * the offset (one), each at most 2^-24 of the value; 2^-22 is four roundings.
  * The firmware keeps the target as its new position (@cite EN
- * canonical_machine.c:503-524 `cm_set_model_target`, :426-427 `cm_finalize_move`), so
+ * canonical_machine.c:524-546 `cm_set_model_target`, :426-427 `cm_finalize_move`), so
  * over a run of incremental moves these add up.
  */
 export const F32_STEP_ERROR = 2 ** -22;
@@ -408,15 +408,15 @@ export interface TravelInput {
  * float32 code decides it, or why it cannot be predicted.
  *
  * - EN, centre format: both plane end points fp_EQ to the start is a full
- *   circle in the arc's direction (@cite EN plan_arc.c:324-329); otherwise
+ *   circle in the arc's direction (@cite EN plan_arc.c:345-350); otherwise
  *   the atan2 travel, and a travel that is fp_ZERO alarms (@cite EN
- *   plan_arc.c:347-350).
+ *   plan_arc.c:368-371).
  * - TG: start and end angles fp_EQ (compared as atan2 returns them, not
  *   modulo 2π) is zero travel (@cite TG plan_arc.c:285-286); otherwise the
  *   atan2 travel. P turns are then added by direction (@cite TG
  *   plan_arc.c:298-303).
  * - R format on both: the radius path skips EN's position test (@cite EN
- *   plan_arc.c:325), and end points equal on the plane axes give the radius
+ *   plan_arc.c:346), and end points equal on the plane axes give the radius
  *   code a zero divisor (@cite EN `_compute_arc_offsets_from_radius`), so an
  *   R arc must have clearly separate plane end points.
  */
@@ -502,7 +502,7 @@ export function modelArc(input: ArcInput): ArcModelResult {
   const positionError = positionErrorMm(input.magnitudeMm, input.d0, input.d1) + input.startUncertaintyMm;
   let travel: number;
   if (fullCircle) {
-    // No plane end point: P turns, one by default (@cite EN plan_arc.c:200-212, :340-344; TG plan_arc.c:276-280).
+    // No plane end point: P turns, one by default (@cite EN plan_arc.c:218-230, :361-365; TG plan_arc.c:276-280).
     const rotations = input.rotations ?? 1;
     travel = 2 * Math.PI * rotations * (input.clockwise ? 1 : -1);
   } else {

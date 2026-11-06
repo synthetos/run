@@ -42,7 +42,7 @@ describe('moveSeconds: length over v_eff = min(F, fr) × k, or vm × k for a rap
     expect(noVelocityMessage({ kind: 'noVelocity', axis: 'X', limit: 'fr' })).toContain('feed rate maximum (fr)');
   });
 
-  it('limits a feed move by fr, not vm, and a rapid by vm, not fr (EN plan_line.c:396-400)', () => {
+  it('limits a feed move by fr, not vm, and a rapid by vm, not fr (EN plan_line.c:432-436)', () => {
     // xvm 16000, xfr 1000, G1 X300 F10000: the firmware runs at 1000 mm/min, so 300 / (1000 × 0.5) min = 36 s.
     const model: MotionModel = { ...MODEL, maxVelocity: { X: 16000 }, feedrateMax: { X: 1000 } };
     expect(moveSeconds(['X'], 300, 10000, model)).toEqual({ kind: 'ok', seconds: 36 });

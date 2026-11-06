@@ -8,7 +8,7 @@
  * - edge-next compares the end point with the start POSITION by position
  *   (fp_EQ on each plane axis) and runs a full circle when they coincide; it
  *   alarms when the resulting angular travel is fp_ZERO
- *   (@cite EN plan_arc.c:320-350).
+ *   (@cite EN plan_arc.c:341-371).
  * - 440.21 compares the end ANGLE with the start angle (fp_EQ) and treats
  *   equal angles as zero angular travel (@cite TG plan_arc.c:276-303); the
  *   caller then refuses a zero-length arc with 201 (@cite TG plan_arc.c:165-167).
@@ -84,7 +84,7 @@ function build(a: ArcInput, c: Common, sweep: number): ArcPath {
     axis0: 0,
     axis1: 1,
     linearAxis: 2,
-    // center = position - sin/cos(theta) * radius (@cite EN plan_arc.c:373-374; TG plan_arc.c:326-327)
+    // center = position - sin/cos(theta) * radius (@cite EN plan_arc.c:394-395; TG plan_arc.c:326-327)
     center0: (a.from[0] as number) - Math.sin(c.theta) * c.radius,
     center1: (a.from[1] as number) - Math.cos(c.theta) * c.radius,
     radius: c.radius,
@@ -95,7 +95,7 @@ function build(a: ArcInput, c: Common, sweep: number): ArcPath {
 }
 
 /**
- * edge-next `_compute_arc()` for a center-format arc (@cite EN plan_arc.c:291-377).
+ * edge-next `_compute_arc()` for a center-format arc (@cite EN plan_arc.c:309-398).
  * Both failures are alarms in the firmware (`cm_alarm_P`).
  */
 export function enComputeArc(a: ArcInput): ArcResult {
@@ -106,7 +106,7 @@ export function enComputeArc(a: ArcInput): ArcResult {
   let travel: number;
   if (!a.fullCircle) {
     travel = f32(f32(Math.atan2(c.end0, c.end1)) - c.theta);
-    // Coincident center-format end points: compare positions, not angles (@cite EN plan_arc.c:324-329)
+    // Coincident center-format end points: compare positions, not angles (@cite EN plan_arc.c:345-350)
     if (fpEQ(a.to[0] as number, c.p0) && fpEQ(a.to[1] as number, c.p1)) travel = a.clockwise ? TWO_PI_F : -TWO_PI_F;
     else if (a.clockwise) {
       if (travel <= 0) travel = f32(travel + TWO_PI_F);
@@ -116,7 +116,7 @@ export function enComputeArc(a: ArcInput): ArcResult {
     const rotations = a.clockwise ? a.rotations : -a.rotations;
     travel = f32(TWO_PI_F * rotations);
   }
-  // Trap zero movement arcs (@cite EN plan_arc.c:347-350)
+  // Trap zero movement arcs (@cite EN plan_arc.c:368-371)
   if (fpZERO(travel)) return { ok: false, status: 'ARC_ENDPOINT_IS_STARTING_POINT' };
   return { ok: true, path: build(a, c, travel) };
 }

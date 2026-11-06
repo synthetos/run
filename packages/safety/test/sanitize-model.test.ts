@@ -378,7 +378,7 @@ describe('offset arithmetic with non-zero values (signs matter)', () => {
 });
 
 
-describe('feed moves are limited by fr, rapids by vm (EN plan_line.c:396-400)', () => {
+describe('feed moves are limited by fr, rapids by vm (EN plan_line.c:432-436)', () => {
   const frSlow = { ...MOTION, maxVelocity: { ...MOTION.maxVelocity, X: 16000 }, feedrateMax: { ...MOTION.feedrateMax, X: 1000 } };
 
   it('a G1 faster than fr is modelled at fr and split', () => {
@@ -406,7 +406,7 @@ describe('feed moves are limited by fr, rapids by vm (EN plan_line.c:396-400)', 
   });
 });
 
-describe('rotary axis modes (EN canonical_machine.c:497-500 _calc_ABC)', () => {
+describe('rotary axis modes (EN canonical_machine.c:517-521 _calc_ABC)', () => {
   const radius = (radiusMm?: number) => ({ ...MOTION, rotary: { ...MOTION.rotary, A: radiusMm === undefined ? { mode: 3 as const } : { mode: 3 as const, radiusMm } } });
   const DEG_PER_MM = 360 / (2 * Math.PI);
 
@@ -490,7 +490,7 @@ describe('rotary offsets under G20 follow the dialect (TG canonical_machine.c:66
   });
 });
 
-describe('the tool length offset is applied to X, Y and Z only (EN canonical_machine.c:515-518 vs :530-536)', () => {
+describe('the tool length offset is applied to X, Y and Z only (EN canonical_machine.c:536-539 vs :556-563)', () => {
   const zero = { X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 };
 
   it('G43.1 A does not move the A target', () => {

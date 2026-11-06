@@ -4,8 +4,8 @@
 repository. The P0 review found facts PN is missing or states wrongly. The
 code already follows the facts below; each needs the owner's update in PN.
 Citations use the PN §1 tags at the pins in `vendor/firmware-pins.json`
-(EN = edge-next 93a723b8 since the third 2026-11-02 re-pin, before it
-6ec70652, 97321391 and ead63997;
+(EN = edge-next a7489b79, tag 450.02, since the 2026-11-06 re-pin, before it
+93a723b8, 6ec70652, 97321391 and ead63997;
 TG = master d0418390).
 
 ## §2.2 Banners: a 440.21 reset can be invisible or msg-less
@@ -28,7 +28,7 @@ TG = master d0418390).
   is loaded (TG config.c:134, json_parser.c:485). Only a fresh EEPROM prints
   "Initializing configs to default settings".
 - Edge-next is not affected: its banner uses `json_print_object` and ignores
-  `jv` (EN report.c:68-81).
+  `jv` (EN report.c:70-83).
 
 ## §2.3 / D4 Probe and approval: `fbs` is read by GET, and `fb` alone approves nothing in production
 
@@ -39,10 +39,11 @@ TG = master d0418390).
   answers 100 (the only answer that means "reports none"); a banner `fbs`
   that disagrees with the GET is a conflict (READ_ONLY).
 - An entry with `fbs: null` matches **every** build that reports that `fb`.
-  The current bench entry (fb 450.01, commit 93a723b8, signed with the
-  owner's bench key) therefore approves any edge-next build that still defines
-  TINYG_FIRMWARE_BUILD 450.01 (EN tinyg.h:52), including d254eb0b, 222a45c0
-  and any build of an uncommitted working tree.
+  The current bench entry (fb 450.02, commit a7489b79, signed with the
+  owner's bench key) therefore approves any edge-next build that defines
+  TINYG_FIRMWARE_BUILD 450.02 (EN tinyg.h:52), including any build of an
+  uncommitted working tree at that number. 450.01 builds (d254eb0b, 222a45c0,
+  93a723b8) are no longer approved.
   The classifier no longer prints the manifest commit for such an entry
   ("commit not verifiable: the build reports no fbs ... (bench only)") and
   returns `buildIdentity: 'fbOnly'` for the UI.
@@ -77,9 +78,9 @@ buffer; after a 0.5 s gap the connect line and LF arrive and join it.
   9.77 ms) is taken as left by a host that went away, and a `{` after it
   starts a fresh line. The RX interrupt puts a mark (0x1A) in the ring ahead
   of that `{`, and the reader drops the stale start when it reaches the mark
-  (EN xio/xio_usb.c:44-49, :248, :258-275; xio/xio_usart.c:343-346;
+  (EN xio/xio_usb.c:44-49, :250, :260-277; xio/xio_usart.c:343-346;
   EN-HIL tests/bugs/test_e195_stale_partial_line_runs.py). A 0x1A byte from
-  the host is discarded (EN xio/xio_usb.c:245-247). It is a framing
+  the host is discarded (EN xio/xio_usb.c:247-249). It is a framing
   heuristic: it needs the quiet gap and a `{` next, and any host pause that
   long just before a `{` inside a line has the same effect. The diagnostic
   now also runs every case with a 1.5 s gap; no 1.5 s result is recorded
@@ -92,7 +93,7 @@ buffer; after a 0.5 s gap the connect line and LF arrive and join it.
 
 ## §5 Status 13 on edge-next has two sources
 
-- E162 (EN controller.c:256-269): a line that lost bytes in an RX overrun
+- E162 (EN controller.c:257-270): a line that lost bytes in an RX overrun
   never runs. The first raises ALARM 13 and prints `er` 13; later ones arrive
   while that alarm stands (no new `er`).
 - E102 (EN json_parser.c:973-979): a reply too big for the 512-byte output
@@ -133,7 +134,7 @@ buffer; after a 0.5 s gap the connect line and LF arrive and join it.
 ## SAFETY §4.4 EN Stop job when already alarmed (design change)
 
 - `cm_alarm()` returns without printing when the machine is already ALARM,
-  PANIC or SHUTDOWN (EN canonical_machine.c:810-816), so `^D` on an alarmed
+  PANIC or SHUTDOWN (EN canonical_machine.c:842-848), so `^D` on an alarmed
   board raises no `er` 207. The EN sequence now (a) ends early with E-stop
   advice and the reset path when the last `stat` is 12 or 13 (`haltIfStat`),
   and (b) treats an existing ALARM (stat 2) as the stop in `awaitAlarm`

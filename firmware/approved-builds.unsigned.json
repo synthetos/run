@@ -5,15 +5,15 @@
       "format": "synthetos-run/approved-builds-channel@1",
       "channel": "bench",
       "env": "staging",
-      "issued": "2026-11-01T00:00:00Z",
+      "issued": "2026-11-05T00:00:00Z",
       "expires": "2027-05-01T00:00:00Z",
       "builds": [
         {
           "dialect": "tinyg-en",
-          "fb": 450.01,
+          "fb": 450.02,
           "fbs": null,
-          "commit": "93a723b813d3eb2cf6cf2b90e919a2affef557d1",
-          "note": "TinyG edge-next 450.01 (D4 done) for bench use on staging only. It reports no fbs, so every 450.01 build matches; no image has passed D5. Signed with the owner's staging-only bench key, not the release key."
+          "commit": "a7489b79b2d886d872e019ff1e414f716de6638b",
+          "note": "TinyG edge-next 450.02 (tag 450.02 at the EN pin a7489b79) for bench use on staging only, approved by the owner 2026-11-05. It reports no fbs, so every 450.02 build matches; no image has passed D5. Signed with the owner's staging-only bench key, not the release key."
         }
       ]
     },

@@ -77,7 +77,7 @@ preview, analyser and preflight interpret exactly those lines.
     data keeps `programEndStopsOutputs: false`.
 14. **G53 under G91 is blocked on every dialect** (P0-10 verify). TinyG
     implements G53 only by dropping the work offset; under G91 the values
-    are still distances (EN canonical_machine.c:514-520, TG
+    are still distances (EN canonical_machine.c:535-541, TG
     canonical_machine.c:448-451), not machine coordinates. Modelling them as
     machine coordinates would mis-size the move and, when split, write
     absolute endpoints that the firmware would run as cumulative distances.
@@ -85,7 +85,7 @@ preview, analyser and preflight interpret exactly those lines.
 15. **G28/G30 intermediate point frame is dialect data**
     (`job.storedMoveIntermediate`, P0-10 verify). EN reads the axis words as
     work coordinates (it clears the absolute override for that leg, EN
-    canonical_machine.c:1320-1335); 440.21 sets the absolute override first,
+    canonical_machine.c:1390-1405); 440.21 sets the absolute override first,
     so they are machine coordinates (TG canonical_machine.c:907-914).
 16. **TG E088 counts more than PN §9.3 lists** (P0-10 verify). PN lists S,
     T, M3-M9, G4 and G54-G59. The 440.21 source also queues one planner
@@ -104,12 +104,12 @@ preview, analyser and preflight interpret exactly those lines.
 18. **F is converted with the units in force before the line's G20/G21**
     (P0 review). Both firmwares run `cm_set_feed_rate` before
     `cm_set_units_mode` (EN gcode_parser.c:627-633 vs :659,
-    canonical_machine.c:1376; TG gcode_parser.c:455 vs :474), so on a G21
+    canonical_machine.c:1447; TG gcode_parser.c:455 vs :474), so on a G21
     board `G20 G1 X4 F2` runs at 2 mm/min, not 50.8. With the prior units
     unknown, F on the line is unknown (`unknown-state` on a feed move).
 19. **Rotary axis modes** (P0 review). In radius mode (`am`=3) the word is
     linear units turned into degrees, `v × units × 360 / (2π ra)` (EN
-    canonical_machine.c:497-500); the sanitiser models that from the live
+    canonical_machine.c:517-521); the sanitiser models that from the live
     `am`/`ra`. Unknown `am`, or radius mode with unknown `ra` or units, blocks
     the move. G28/G30 are blocked while any rotary axis is in radius mode or
     of unknown mode: 440.21 passes the stored position through `_calc_ABC`
@@ -119,7 +119,7 @@ preview, analyser and preflight interpret exactly those lines.
     canonical_machine.c:669, :788-789); EN does not (EN :993, :1131).
 21. **The EN tool length offset applies to X, Y and Z targets only** (P0
     review). `cm_set_model_target` adds it in the XYZ loop only (EN
-    canonical_machine.c:515-518 vs :530-536), while G43.1 still stores A/B/C
+    canonical_machine.c:536-539 vs :556-563), while G43.1 still stores A/B/C
     values that G92 and G10 L20 subtract. A rotary axis therefore reads
     value + stored tool offset after G92/G10 L20.
 
@@ -128,7 +128,7 @@ preview, analyser and preflight interpret exactly those lines.
 - The modelled duration of a feed move is length / (`min(F, fr) × k`), with
   `fr` the smallest feed rate maximum among the moving axes; a rapid uses
   `vm × k`. TinyG limits feed moves by `fr`, never `vm` (EN
-  plan_line.c:396-400). A smaller `v_eff` only means more, shorter segments.
+  plan_line.c:432-436). A smaller `v_eff` only means more, shorter segments.
 - Sub-segments are sized against 99.9% of the ceiling, so re-sanitising the
   output never splits again (T-S1 idempotence), and each sub-segment's
   duration is recomputed from the rounded numbers actually written.
@@ -146,7 +146,7 @@ preview, analyser and preflight interpret exactly those lines.
 - Coincidence and direction are decided with each dialect's own float32 rule
   (`arcCoincidence`, independent review P0-10 #1): EN runs a centre-format arc whose end
   point is fp_EQ (`|a-b| < (float)0.00001`) to the start on both plane axes
-  as a full circle in its direction, plus P turns (EN plan_arc.c:320-341);
+  as a full circle in its direction, plus P turns (EN plan_arc.c:341-362);
   TG treats fp_EQ start and end ANGLES as zero travel plus P turns, and
   refuses the arc when that leaves nothing (TG plan_arc.c:276-303,
   :165-167). The rounding of the firmware's machine coordinates is bounded

@@ -4,10 +4,10 @@
  * rule, and absolute arc endpoints never invented.
  *
  * Source, read with `git show` only:
- * - EN 93a723b8 plan_arc.c:320-350: a centre-format arc whose end point is
+ * - EN a7489b79 plan_arc.c:341-371: a centre-format arc whose end point is
  *   fp_EQ to the start on BOTH plane axes (machine coordinates, float32) is a
  *   full circle in its direction; otherwise the atan2 travel decides, and a
- *   travel that is fp_ZERO alarms 159. util.h:134-139: fp_EQ(a,b) is
+ *   travel that is fp_ZERO alarms 159. util.h:183-188: fp_EQ(a,b) is
  *   fabs(a-b) < (float)0.00001.
  * - TG d041839 plan_arc.c:276-303: equal ANGLES (fp_EQ) are zero angular
  *   travel, plus P turns by direction; :165-167 refuses a zero-length arc.
@@ -228,7 +228,7 @@ describe('P0-10 #2: full circles and split arcs never invent absolute coordinate
 /**
  * Arc uncertainty (found by the verification of the P0-10#1 fix): the board
  * reports its machine position, offsets and stored positions to three
- * decimals (EN 93a723b8 config_app.c:166-178 `mpo` precision 3, :388-450
+ * decimals (EN a7489b79 config_app.c:166-178 `mpo` precision 3, :388-450
  * `g54x`..`g30c` precision 3; TG d041839 config_app.c:131-143, :392-454), so
  * a start that reads 0.000 may really be 0.0004 mm away, fifty times fp_EQ's
  * EPSILON, and incremental moves add float32 rounding. Every coincidence and
@@ -344,7 +344,7 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
     const segments = split.lines.filter((l) => l.sourceLine === 3);
     expect(segments.length).toBeGreaterThan(700);
     // The firmware's target is its float32 position plus the float32 word, stored as the next position
-    // (@cite EN canonical_machine.c:503-524 `cm_set_model_target`, :426-427 `cm_finalize_move`).
+    // (@cite EN canonical_machine.c:524-546 `cm_set_model_target`, :426-427 `cm_finalize_move`).
     let y = Math.fround(600);
     for (const l of segments) y = Math.fround(y + Math.fround(words(l.body).get('Y') as number));
     expect(Math.abs(y - 630)).toBeGreaterThan(0.005);

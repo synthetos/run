@@ -66,7 +66,7 @@ const PINS: Readonly<Record<string, { readonly branch: string; readonly table: G
 
 const DIALECT_NAME: Readonly<Record<string, string>> = { 'tinyg-en': 'TinyG edge-next', 'tinyg-440': 'TinyG 440', 'tinyg-449-stock': 'TinyG 449 (stock)' };
 
-/** "fb 450.01, matches run's edge-next pin 93a723b8", or why it does not. */
+/** "fb 450.02, matches run's edge-next pin a7489b79", or why it does not. */
 export function pinText(dialectId: string | null | undefined, fb: number | undefined): string {
   const pin = typeof dialectId === 'string' ? PINS[dialectId] : undefined;
   const reported = typeof fb === 'number' && Number.isFinite(fb) ? `fb ${fb.toFixed(2)}` : 'fb not reported';

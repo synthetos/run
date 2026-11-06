@@ -3,12 +3,12 @@
  * and the 89e2b5f fix verification). Each case is derived from the pinned
  * firmware source, read with `git show` only:
  *
- * - arcs: EN 93a723b8 plan_arc.c:324-341 compares the center-format end point
- *   with the start point position by position (fp_EQ, util.h:134-139) and runs
+ * - arcs: EN a7489b79 plan_arc.c:345-362 compares the center-format end point
+ *   with the start point position by position (fp_EQ, util.h:183-188) and runs
  *   a full circle; :348-350 alarms on fp_ZERO angular travel. TG d0418390
  *   plan_arc.c:276-295 compares ANGLES with fp_EQ and treats equal angles as
  *   zero angular travel; :165-167 refuses a zero-length arc with 201.
- * - rotary axis modes: EN canonical_machine.c:495-536, TG :430-465; defaults
+ * - rotary axis modes: EN canonical_machine.c:515-563, TG :430-465; defaults
  *   from settings/settings_default.h (A is AXIS_RADIUS, B and C disabled).
  * - F before G20/G21 in one block: EN gcode_parser.c:634-636 before :656,
  *   TG gcode_parser.c:455 before :473; `_to_millimeters` reads the model's
@@ -17,7 +17,7 @@
  *   to 0; plan_exec.c (EN :707-716, TG :718-727) moves each motor by the
  *   difference between step targets; a step resync (planner.c, EN :187-201,
  *   TG :160-170) rewrites the targets and moves nothing.
- * - soft limits: EN canonical_machine.c:549-567, TG :480-498: fp_EQ(min,max)
+ * - soft limits: EN canonical_machine.c:580-598, TG :480-498: fp_EQ(min,max)
  *   skips the axis, each end below DISABLE_SOFT_LIMIT (-1000000) is skipped,
  *   and every homed axis (X..C) is checked.
  *
@@ -52,7 +52,7 @@ const MODELS = [
 
 // ---------------------------------------------------------------- arcs, edge-next
 
-describe('edge-next arcs: center-format coincident end points (plan_arc.c:324-350)', () => {
+describe('edge-next arcs: center-format coincident end points (plan_arc.c:345-371)', () => {
   it('[EN-ARC-COINCIDENT] an end point 0.000001 mm from the start is a full circle (~62.83 mm), not a 0.000001 mm arc', () => {
     const sim = enSim();
     expect(send(sim, 'G3 X0.000001 Y0 I0 J10 F100')).toEqual([0]);
@@ -114,10 +114,10 @@ describe('edge-next arcs: center-format coincident end points (plan_arc.c:324-35
     const sim = enSim();
     expect(send(sim, 'G2 X0 Y20 I0 J10 F600', 5000)).toEqual([0]);
     expect(sim.device.snapshot().position[1]).toBeCloseTo(20, 4);
-    // plan_arc.c:127-131: no G2/G3 word, no offsets, no radius: STAT_OK and no motion.
+    // plan_arc.c:145-149: no G2/G3 word, no offsets, no radius: STAT_OK and no motion.
     expect(send(sim, 'X5', 2000)).toEqual([0]);
     expect(sim.device.snapshot().position[0]).toBeCloseTo(0, 4);
-    // Offsets with no plane end point: a full circle (plan_arc.c:166-174).
+    // Offsets with no plane end point: a full circle (plan_arc.c:184-192).
     expect(send(sim, 'I0 J-10', 100)).toEqual([0]);
     expect(sim.device.snapshot().motionState).toBe('run');
     sim.clock.advance(3092); // half of 62.83 mm at 600 mm/min after the 50 ms startup delay
@@ -293,7 +293,7 @@ describe('rotary axis modes and radius (cm_set_model_target)', () => {
 /**
  * Finding: inhibited axis. Each executed segment sets the step target to the
  * joint of the segment's ABSOLUTE target and moves the motor by the
- * difference from the previous step target (EN plan_exec.c:712-721, TG
+ * difference from the previous step target (EN plan_exec.c:742-751, TG
  * plan_exec.c:718-727); the joint of an inhibited axis is 0 (EN
  * kinematics.c:59, TG kinematics.c:63). So the reported position and the
  * motor part ways, and the next move of ANY axis moves the motor.
@@ -437,7 +437,7 @@ describe('inhibited axes: the rotary verifier reproduction as written', () => {
 });
 
 describe('edge-next G53 under G91 (cm_set_model_target)', () => {
-  it('[EN-AXIS-MODES] G53 only zeroes the offset; in G91 the word is still a distance (canonical_machine.c:314-324, :512-521)', () => {
+  it('[EN-AXIS-MODES] G53 only zeroes the offset; in G91 the word is still a distance (canonical_machine.c:314-324, :533-542)', () => {
     const sim = enSim();
     expect(send(sim, 'G90 G0 X10', 2000)).toEqual([0]);
     expect(send(sim, 'G91 G53 G0 X5', 2000)).toEqual([0]);

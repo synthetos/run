@@ -2,7 +2,7 @@
  * The vendored firmware tables, as the models read them (RUN_PLAN §8.2: one
  * source of truth for firmware tables).
  *
- * `vendor/tinyg-hil-tables/den.json` (edge-next 93a723b8) and `d440.json`
+ * `vendor/tinyg-hil-tables/den.json` (edge-next a7489b79) and `d440.json`
  * (master d0418390, build 440.21) were generated from the firmware sources by
  * EN-HIL's `tests/hil/tools/gen_tables.py` (P0-09, D32). The models take
  * every status code and every token's getter, setter, group, persistence and

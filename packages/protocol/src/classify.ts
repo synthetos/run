@@ -34,13 +34,13 @@ import type { ClassifiedLine, Footer, Garbled, GarbledReason, JsonObject, JsonVa
 /** Largest transaction id the board can echo: EN parses and prints it as uint32 (@cite EN json_parser.c:140-146, :953). */
 export const MAX_TID = 0xffff_ffff;
 
-/** Keys a banner carries besides `msg` (@cite EN report.c:68-81; TG report.c:88-101). */
+/** Keys a banner carries besides `msg` (@cite EN report.c:70-83; TG report.c:88-101). */
 const BANNER_IDENTITY_KEYS = ['fv', 'fb', 'hp', 'hv', 'id'] as const;
 
 /** Largest value an `{"rx":n}` report can carry: the free bytes of a receive buffer smaller than 256 (@cite TG xio/xio_usart.h:54). */
 export const MAX_RX_REPORT = 255;
 
-/** The message of the last boot banner (@cite EN report.c:94-96). */
+/** The message of the last boot banner (@cite EN report.c:96-98). */
 export const READY_MESSAGE = 'SYSTEM READY';
 
 /** Classify one framed line. Never throws. */
@@ -172,7 +172,7 @@ function classifyException(line: string, o: JsonObject): ClassifiedLine {
  * integer. Revision 1 has three fields on g2core (@cite OLD-PN §5, G2
  * json_parser.cpp:611-618) and four on TG, the fourth being a checksum
  * (@cite TG json_parser.c:529, :550). Revisions 2 and 3 have exactly three
- * (@cite EN json_parser.c:962, :965; controller.c:608-614).
+ * (@cite EN json_parser.c:962, :965; controller.c:609-615).
  */
 export function parseFooter(f: JsonValue | undefined): Footer | undefined {
   if (!Array.isArray(f)) return undefined;

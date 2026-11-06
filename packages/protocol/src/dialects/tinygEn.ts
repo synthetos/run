@@ -1,9 +1,9 @@
 /**
  * `tinyg-en`: TinyG edge-next, the primary TinyG target (PN §2.1).
  *
- * Every `@cite EN` is `firmware/tinyg/<file>:<line>` at edge-next 93a723b8
- * (`vendor/firmware-pins.json`, PIN-1), the commit that reports `fb` 450.01.
- * D4 is done: 450.01 is edge-next's build number (EN tinyg.h:52). It reports
+ * Every `@cite EN` is `firmware/tinyg/<file>:<line>` at edge-next a7489b79
+ * (`vendor/firmware-pins.json`, PIN-1), the commit tagged 450.02, which reports
+ * `fb` 450.02 (EN tinyg.h:52; D4 is done). It reports
  * no `fbs` or `cap` token yet, no image has passed D5, and `make FW_BUILD=x.y`
  * overrides the number, so a board is never classified by `fb` alone: the
  * capability probe plus the signed approved-builds manifest decide (PN §2.3,
@@ -18,7 +18,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
   label: 'TinyG edge-next',
   mode: 'manifest',
   upgradeOffer: false,
-  // Always strict JSON, no footer (@cite EN report.c:68-81).
+  // Always strict JSON, no footer (@cite EN report.c:70-83).
   bannerShape: 'bare-sr',
 
   // @cite EN canonical_machine.h:60-73 (cmCombinedState).
@@ -31,9 +31,9 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
   // @cite EN canonical_machine.h:104-110 (cmFeedholdState).
   hold: ['OFF', 'REQUESTED', 'SYNC', 'DECEL_CONTINUE', 'DECEL_TO_ZERO', 'PENDING', 'HOLD'],
 
-  // @cite EN error.h:88, :92, :192, :198-200, :231, :275-276, :313-317, :333-347, :356-363, :367-371.
+  // @cite EN error.h:88, :92, :192, :198-200, :211, :231, :275-276, :313-317, :333-347, :356-363, :367-371.
   status: statusTable([
-    // Two sources: E162, a damaged line that never ran (with er 13 and ALARM 13, @cite EN controller.c:256-269),
+    // Two sources: E162, a damaged line that never ran (with er 13 and ALARM 13, @cite EN controller.c:257-270),
     // and E102, a line that ran but whose reply overflowed the output buffer (`{"r":{},...}`, no er, no alarm,
     // @cite EN json_parser.c:974-979). `resolveBufferFull` tells them apart; nothing acts on 13 alone.
     [13, 'BUFFER_FULL', 'bufferFull'],
@@ -42,6 +42,9 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     [106, 'COMMAND_NOT_ACCEPTED', 'notAccepted'], // settings write in a cycle, refused jog, misused M400
     [107, 'INPUT_EXCEEDS_MAX_LENGTH', 'overlong'], // E087, no alarm
     [108, 'INPUT_LESS_THAN_MIN_VALUE', 'belowMinimum'], // E158
+    // A persisted setting written while a cycle runs or moves are queued: nothing changes (N60, @cite EN config.c:182-187).
+    // 118 (stored settings run on their defaults, N61) is not listed: the session handles it as a start-up notice.
+    [117, 'SETTING_REFUSED_IN_CYCLE', 'notAccepted'],
     [132, 'MCODE_COMMAND_UNSUPPORTED', 'mcodeUnsupported'],
     [172, 'L_WORD_IS_MISSING', 'lWordMissing'],
     [173, 'L_WORD_IS_INVALID', 'lWordInvalid'],
@@ -79,19 +82,21 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     [254, 'PROBE_SWITCH_ON_ABC_AXIS', 'probeFailed'],
   ]),
 
-  // Realtime bytes are trapped in the RX ISR before the ring-full test (@cite EN xio/xio_usb.c:193-232, :268).
+  // Realtime bytes are trapped in the RX ISR before the ring-full test (@cite EN xio/xio_usb.c:195-234, :270).
   realtime: {
-    // Ignored unless the machine is moving: a feedhold during a dwell does nothing (@cite EN canonical_machine.c:1789-1795).
-    feedhold: { byte: BYTE.FEEDHOLD, scope: 'anywhere' }, // @cite EN xio/xio_usb.c:208-211
-    resume: { byte: BYTE.RESUME, scope: 'lineBoundary' }, // E021 (@cite EN xio/xio_usb.c:225-228)
-    flush: { byte: BYTE.FLUSH, scope: 'lineBoundary' }, // E146 (@cite EN xio/xio_usb.c:216-224)
-    reset: { byte: BYTE.RESET, scope: 'anywhere' }, // hw_hard_reset() from the ISR (@cite EN xio/xio_usb.c:204-206)
+    // From 450.02 a feedhold during a dwell, or while a cycle is stopped between moves, enters HOLD at once; while
+    // moving it decelerates as before; otherwise it is ignored (@cite EN canonical_machine.c:1869-1900). Up to 450.01
+    // a feedhold during a dwell did nothing.
+    feedhold: { byte: BYTE.FEEDHOLD, scope: 'anywhere' }, // @cite EN xio/xio_usb.c:210-213
+    resume: { byte: BYTE.RESUME, scope: 'lineBoundary' }, // E021 (@cite EN xio/xio_usb.c:227-230)
+    flush: { byte: BYTE.FLUSH, scope: 'lineBoundary' }, // E146 (@cite EN xio/xio_usb.c:218-226)
+    reset: { byte: BYTE.RESET, scope: 'anywhere' }, // hw_hard_reset() from the ISR (@cite EN xio/xio_usb.c:206-208)
     // ALARM 207: feedhold, flush, spindle and coolant off at once, even in a dwell or a hold
-    // (@cite EN xio/xio_usb.c:212-215; canonical_machine.c:1783-1787, :1881).
+    // (@cite EN xio/xio_usb.c:214-217; canonical_machine.c:1863-1867, :2003).
     kill: { byte: BYTE.KILL, scope: 'anywhere' },
-    // Answered {"ack":true} from the main loop ahead of the planner gates (@cite EN xio/xio_usb.c:229-232; controller.c:170).
+    // Answered {"ack":true} from the main loop ahead of the planner gates (@cite EN xio/xio_usb.c:231-234; controller.c:170).
     enq: { byte: BYTE.ENQ, scope: 'anywhere' },
-    // Honoured only while a hold or an alarm flush exists, otherwise ignored (@cite EN canonical_machine.c:1804-1819).
+    // Honoured only while a hold or an alarm flush exists, otherwise ignored (@cite EN canonical_machine.c:1909-1924).
     flushHonoured: 'holdOrAlarmFlush',
     resetLosesPort: false,
     resetDeferredByMainLoop: false,
@@ -101,15 +106,15 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     jobKill: true,
     enq: true,
     tid: true, // echoed at the top level, on errors too (@cite EN json_parser.c:93-157, :239-242, :947-956; E049)
-    m400: true, // reply deferred until drained (@cite EN controller.c:199, :586)
-    programStopPauses: true, // M0/M60 → stat 3, hold 6, spindle stays on (@cite EN canonical_machine.c:2133-2145; E020)
+    m400: true, // reply deferred until drained (@cite EN controller.c:200, :587)
+    programStopPauses: true, // M0/M60 → stat 3, hold 6, spindle stays on (@cite EN canonical_machine.c:2273-2285; E020)
     m2ClearsAlarm: true, // a standalone M2/M30 clears ALARM (@cite EN gcode_parser.c:78-80, :188-207; E135)
-    arcSoftLimits: true, // @cite EN plan_arc.c:256-265, :590-601 (E041)
-    alarmStopsSpindle: true, // spindle_reset() in cm_alarm (@cite EN canonical_machine.c:810, :848; E019)
+    arcSoftLimits: true, // @cite EN plan_arc.c:274-283, :611-622 (E041)
+    alarmStopsSpindle: true, // spindle_reset() in cm_alarm (@cite EN canonical_machine.c:842, :880; E019)
     // `spph` answers 17 today (E060 not merged); a future build that answers a value may pause the spindle.
     spindlePauseOnHold: 'probe',
     // `coph` is reserved with `spph` and answers 17 (@cite EN config_app.c:65-69, :655); the hold
-    // code that would pause coolant is commented out (@cite EN canonical_machine.c:850-851). A
+    // code that would pause coolant is commented out (@cite EN canonical_machine.c:882-883). A
     // future build that answers a value may pause coolant on hold, so it is read, never assumed.
     coolantPauseOnHold: 'probe',
     lineInSr: true, // default sr list starts with `line` (@cite EN settings/settings_default.h:84)
@@ -153,7 +158,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
 
   gcode: {
     // L2 and L20 (L20 accounts for G92 and the tool length offset, E023); other L → 173, none → 172
-    // (@cite EN canonical_machine.c:969-996).
+    // (@cite EN canonical_machine.c:1007-1047).
     lWords: [2, 20],
     blocked: [
       {
@@ -165,7 +170,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
         id: 'm201.3',
         kind: 'code',
         code: 'M201.3',
-        reason: 'Changes jerk in RAM at parse time, not in queue order (PN §9.3; @cite EN canonical_machine.c:2659-2660).',
+        reason: 'Changes jerk in RAM at parse time, not in queue order (PN §9.3; @cite EN canonical_machine.c:2800-2801).',
       },
       {
         id: 'g93',
@@ -192,11 +197,11 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
       words: ['T', 'F', 'P', 'S', 'X', 'Y', 'Z', 'A', 'B', 'C', 'I', 'J', 'K', 'L', 'R'],
       maxTool: 31, // TOOL_SELECT_MAX with __BITFIELDS (@cite EN canonical_machine.h:326-330; tinyg.h:62; E154)
       midFileProgramEnd: 'block', // a buffered M2/M30 clears an alarm (E135, H35)
-      optionalStopOff: 'send', // M1 is skipped unless `os`=1 (@cite EN canonical_machine.c:2143-2146)
-      programEndStopsOutputs: true, // spindle and coolant off at program end (@cite EN canonical_machine.c:2034-2074)
-      storedMoveIntermediate: 'work', // the intermediate point uses work coordinates (@cite EN canonical_machine.c:1320-1335)
-      rotaryOffsetsUseUnits: false, // rotary offsets are degrees as written (@cite EN canonical_machine.c:1002, :1140)
-      arcCoincidence: 'position', // end points fp_EQ on both plane axes are a full circle (@cite EN plan_arc.c:320-329)
+      optionalStopOff: 'send', // M1 is skipped unless `os`=1 (@cite EN canonical_machine.c:2283-2286)
+      programEndStopsOutputs: true, // spindle and coolant off at program end (@cite EN canonical_machine.c:2174-2214)
+      storedMoveIntermediate: 'work', // the intermediate point uses work coordinates (@cite EN canonical_machine.c:1390-1405)
+      rotaryOffsetsUseUnits: false, // rotary offsets are degrees as written (@cite EN canonical_machine.c:1054, :1206)
+      arcCoincidence: 'position', // end points fp_EQ on both plane axes are a full circle (@cite EN plan_arc.c:341-350)
     },
   },
 
@@ -206,7 +211,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
       { kind: 'awaitInFlightWrite' },
       { kind: 'stopFeeding' },
       // SHUTDOWN (12) or PANIC (13): {clear} cannot leave them, and ^D would raise nothing (cm_alarm returns
-      // early, @cite EN canonical_machine.c:810-816). Advise the E-stop and offer the reset path instead.
+      // early, @cite EN canonical_machine.c:842-848). Advise the E-stop and offer the reset path instead.
       { kind: 'haltIfStat', stat: [12, 13], spindle: 'unknown' },
       { kind: 'writeRealtime', byte: BYTE.KILL },
       // Already in ALARM (stat 2: a limit 203, lost input 13, ...): ^D raises no 207, the existing alarm is the

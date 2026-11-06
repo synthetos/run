@@ -1,10 +1,10 @@
 /**
  * Documentation and data drift (P0 review, docs group).
  *
- * DECISIONS D4 is done: edge-next reports `fb` 450.01 (EN tinyg.h:52), at
- * ead63997 when D4 was decided, at 97321391 after the first 2026-11-02
- * re-pin, at 6ec70652 after the second, and still at 93a723b8, the commit
- * pinned in `vendor/firmware-pins.json` since the third 2026-11-02 re-pin. Nothing in this
+ * DECISIONS D4 is done: edge-next reported `fb` 450.01 (EN tinyg.h:52) at
+ * ead63997 when D4 was decided and through the 2026-11-02 re-pins (97321391,
+ * 6ec70652, 93a723b8); the commit tagged 450.02, a7489b79, reports 450.02 and
+ * is pinned in `vendor/firmware-pins.json` since the 2026-11-06 re-pin. Nothing in this
  * repository may still say the build number is "not final" or that D4 is
  * pending. The `fbs`/`cap` tokens D4 recommended, D5 image approval and the
  * D6 published release stay open and stay distinct from the build number.
@@ -73,16 +73,16 @@ describe('D4 is done: no stale build-number claim', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('the EN pin is 450.01 at 93a723b8 and its note records D4 as done, with fbs/cap and D5 still open', () => {
+  it('the EN pin is 450.02 at a7489b79 and its note records D4 as done, with fbs/cap and D5 still open', () => {
     const pins = JSON.parse(read('vendor/firmware-pins.json')) as {
       pins: Record<string, { commit: string; fb: number; note: string }>;
     };
     const en = pins.pins['EN'];
-    expect(en?.commit).toBe('93a723b813d3eb2cf6cf2b90e919a2affef557d1');
-    expect(en?.fb).toBe(450.01);
+    expect(en?.commit).toBe('a7489b79b2d886d872e019ff1e414f716de6638b');
+    expect(en?.fb).toBe(450.02);
     const note = en?.note ?? '';
     expect(note).toMatch(/D4 (is )?done/);
-    expect(note).toContain('450.01');
+    expect(note).toContain('450.02');
     expect(note).toMatch(/fbs/);
     expect(note).toMatch(/\bD5\b/);
     expect(note).toMatch(/fb alone/);
@@ -91,7 +91,7 @@ describe('D4 is done: no stale build-number claim', () => {
   it('the tinyg-en dialect header records D4 as done and still forbids classifying by fb alone', () => {
     const header = read('packages/protocol/src/dialects/tinygEn.ts').split('*/')[0] ?? '';
     expect(header).toMatch(/D4 (is )?done/);
-    expect(header).toContain('450.01');
+    expect(header).toContain('450.02');
     expect(header).toMatch(/never classified\s+\*?\s*by `fb` alone/);
   });
 

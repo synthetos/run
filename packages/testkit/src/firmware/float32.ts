@@ -3,7 +3,7 @@
  *
  * TinyG runs on an AVR (xmega) where avr-gcc's `double` is 32 bits, so every
  * `float` and `double` in canonical_machine.c and plan_arc.c is an IEEE
- * single. The comparison macros are (@cite EN util.h:134-148, the same in TG):
+ * single. The comparison macros are (@cite EN util.h:183-197, the same in TG):
  *
  *   #define EPSILON    ((float)0.00001)
  *   #define fp_EQ(a,b) (fabs(a-b) < EPSILON)

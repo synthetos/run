@@ -225,7 +225,7 @@ describe('split details', () => {
     const arcs = r.lines.filter((l) => /G[23]/.test(l.body));
     expect(arcs.some((l) => /R/.test(l.body))).toBe(false);
     expect(arcs.filter((l) => l.sourceLine === 1).length).toBeGreaterThanOrEqual(2);
-    // A centre-format full circle runs P turns (@cite EN plan_arc.c:200-212): two turns of r = 10 are at
+    // A centre-format full circle runs P turns (@cite EN plan_arc.c:218-230): two turns of r = 10 are at
     // least 8 quarter-turn sub-arcs, none with a P word.
     const circle = arcs.filter((l) => l.sourceLine === 2);
     expect(circle.length).toBeGreaterThanOrEqual(8);

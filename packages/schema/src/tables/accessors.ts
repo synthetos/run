@@ -9,14 +9,14 @@
  * a vendored table, and the allowlist tests hold the allowlists to them:
  * - an allowlisted token's getter must be `value`, `stub` or `group` (and a
  *   group only when every member is allowlisted too, because a group GET runs
- *   every member's getter: EN config.c:544-572);
+ *   every member's getter: EN config.c:624-652);
  * - an overlay key's setter must be `value`.
  *
  * A function that is not in these maps fails the tests, so a firmware bump
  * that adds one cannot pass CI until somebody has read it and classified it.
  * Changing a class needs the owner's review (CODEOWNERS).
  *
- * Citations are to EN (`edge-next` @ 93a723b8) unless tagged TG (master @
+ * Citations are to EN (`edge-next` @ a7489b79) unless tagged TG (master @
  * d0418390) or S449 (edge-0.97 @ c5024186).
  */
 
@@ -27,9 +27,9 @@ export type GetterClass =
   | 'stub'
   /** Returns nothing (null) or a constant; not a reading of anything. */
   | 'constant'
-  /** A group: runs every member's getter (config.c:544-572). */
+  /** A group: runs every member's getter (config.c:624-652). */
   | 'group'
-  /** An uber-group: prints several groups as several responses to one request (config_app.c:895-923). */
+  /** An uber-group: prints several groups as several responses to one request (config_app.c:909-937). */
   | 'uberGroup'
   /** Prints help or a debug dump as text. */
   | 'text'
@@ -43,7 +43,7 @@ export type GetterClass =
   | 'session';
 
 export const GETTER_CLASS: Readonly<Record<string, GetterClass>> = Object.freeze({
-  // Plain value getters (config.c, canonical_machine.c:2425-2435, report.c).
+  // Plain value getters (config.c, canonical_machine.c:2565-2575, report.c).
   get_data: 'value',
   get_flt: 'value',
   get_int: 'value',
@@ -78,19 +78,19 @@ export const GETTER_CLASS: Readonly<Record<string, GetterClass>> = Object.freeze
   hw_get_id: 'value',
   /** Stack watermark (stack_report.c:47-60): updates only its own watermark. */
   hw_get_fstk: 'value',
-  /** Motor enabled flag (stepper.c:1437-1446). */
+  /** Motor enabled flag (stepper.c:1580-1589). */
   st_get_pwr: 'value',
-  /** RX bytes or line buffers free (config_app.c:999-1015). */
+  /** RX bytes or line buffers free (config_app.c:1013-1029). */
   get_rx: 'value',
-  /** Planner buffers free (report.c:786-791). */
+  /** Planner buffers free (report.c:842-847). */
   qr_get: 'value',
-  /** A status report (report.c:611-614, :621-624). */
+  /** A status report (report.c:654-657, :664-667). */
   sr_get: 'value',
   srs_get: 'value',
-  /** One status-report field selector (report.c:631-637). */
+  /** One status-report field selector (report.c:674-680). */
   sr_get_se: 'value',
   /**
-   * Spindle and coolant readouts (spindle.c:87-128, canonical_machine.c:1560-1565):
+   * Spindle and coolant readouts (spindle.c:87-128, canonical_machine.c:1640-1645):
    * the outputs as last driven by the executors, each field sampled on its own.
    * Read-only (set_nul); display only, never an interlock input.
    */
@@ -132,14 +132,14 @@ export const GETTER_CLASS: Readonly<Record<string, GetterClass>> = Object.freeze
   /** GET clears an alarm (config_app.c:491-492; TG cm_clear, canonical_machine.c:590-598). */
   cm_clr: 'sideEffect',
   cm_clear: 'sideEffect',
-  /** GET of `me` energizes, of `md` de-energizes every motor (stepper.c:1466-1489): Z can fall. */
+  /** GET of `me` energizes, of `md` de-energizes every motor (stepper.c:1609-1632): Z can fall. */
   st_set_me: 'sideEffect',
   st_set_md: 'sideEffect',
-  /** GET fakes an exception report (report.c:162-165). */
+  /** GET fakes an exception report (report.c:164-167). */
   rpt_er: 'sideEffect',
   /** GET starts an ADC conversion on the J13/SPI2 pin (config_app.c:660). */
   hw_get_adc3: 'sideEffect',
-  /** GET resets the queue-report counter it returns (report.c:793-807). */
+  /** GET resets the queue-report counter it returns (report.c:849-863). */
   qi_get: 'sideEffect',
   qo_get: 'sideEffect',
 
@@ -186,10 +186,22 @@ export const SETTER_CLASS: Readonly<Record<string, SetterClass>> = Object.freeze
   set_nul: 'readOnly',
 
   cm_set_am: 'value',
+  /**
+   * 450.02 range-checked stores (EN canonical_machine.c:2821-2892, :1018-1029; pwm.c:160-167): each refuses a
+   * non-finite or out-of-range value with a status and otherwise stores it with set_flu or set_flt as before, with
+   * the same unit conversion. A persisted write during a cycle is refused with status 117 (config.c:182-187).
+   */
+  cm_set_axis_rate: 'value',
+  cm_set_coord_value: 'value',
+  cm_set_ct: 'value',
+  cm_set_ja: 'value',
+  cm_set_jd: 'value',
+  cm_set_radius: 'value',
   cm_set_xjh: 'value',
   cm_set_xjm: 'value',
   hw_set_hv: 'value',
   json_set_jv: 'value',
+  pwm_set_frq: 'value',
   set_01: 'value',
   set_012: 'value',
   set_0123: 'value',

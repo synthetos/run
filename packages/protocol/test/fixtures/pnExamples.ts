@@ -56,7 +56,7 @@ export const PN_CONCRETE: readonly PnExample[] = [
     kind: 'Banner',
   },
   {
-    where: 'PN §2.2 EN bare-sr banner, strict (constructed from EN report.c:68-81)',
+    where: 'PN §2.2 EN bare-sr banner, strict (constructed from EN report.c:70-83)',
     line: '{"sr":{"fv":0.97,"fb":449.01,"hp":1,"hv":8,"id":"0BENCH-TWO","msg":"SYSTEM READY"}}',
     kind: 'Banner',
   },
@@ -97,7 +97,7 @@ export const PN_CONCRETE: readonly PnExample[] = [
   },
   // §6 reports.
   { where: 'PN §6.1 filtered status report (EN-HIL E031 transcript)', line: '{"sr":{"posx":-0.037}}', kind: 'StatusReport' },
-  { where: 'PN §6.2 queue report qv=1 (EN report.c:769)', line: '{"qr":32}', kind: 'QueueReport' },
+  { where: 'PN §6.2 queue report qv=1 (EN report.c:825)', line: '{"qr":32}', kind: 'QueueReport' },
   { where: 'PN §6.2 queue report qv=2 (forum fixture error-st_prep_line-move-time-is-nan)', line: '{"qr":28,"qi":1,"qo":1}', kind: 'QueueReport' },
   // OLD-PN, still relied on.
   {

@@ -1,8 +1,8 @@
 {
- "commit": "93a723b8",
- "fb": 450.01,
+ "commit": "a7489b79",
+ "fb": 450.02,
  "name": "den",
- "ref": "93a723b813d3eb2cf6cf2b90e919a2affef557d1",
+ "ref": "a7489b79b2d886d872e019ff1e414f716de6638b",
  "status": {
   "ALARM": 18,
   "ALARMED": 27,
@@ -37,8 +37,6 @@
   "EOF": 8,
   "EOL": 7,
   "ERROR": 1,
-  "ERROR_117": 117,
-  "ERROR_118": 118,
   "ERROR_119": 119,
   "ERROR_120": 120,
   "ERROR_121": 121,
@@ -229,6 +227,8 @@
   "REQUESTED_VELOCITY_EXCEEDS_LIMITS": 146,
   "R_WORD_IS_INVALID": 177,
   "R_WORD_IS_MISSING": 176,
+  "SETTINGS_RESTORED_TO_DEFAULTS": 118,
+  "SETTING_REFUSED_IN_CYCLE": 117,
   "SHUTDOWN": 5,
   "SOFT_LIMIT_EXCEEDED": 220,
   "SOFT_LIMIT_EXCEEDED_AMAX": 228,
@@ -882,7 +882,7 @@
    "group": "a",
    "persist": true,
    "precision": 0,
-   "set": "set_flt",
+   "set": "cm_set_axis_rate",
    "type": "float"
   },
   "ajd": {
@@ -890,7 +890,7 @@
    "group": "a",
    "persist": true,
    "precision": 4,
-   "set": "set_flt",
+   "set": "cm_set_jd",
    "type": "float"
   },
   "ajh": {
@@ -938,7 +938,7 @@
    "group": "a",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_radius",
    "type": "float"
   },
   "asn": {
@@ -986,7 +986,7 @@
    "group": "a",
    "persist": true,
    "precision": 0,
-   "set": "set_flt",
+   "set": "cm_set_axis_rate",
    "type": "float"
   },
   "azb": {
@@ -1026,7 +1026,7 @@
    "group": "b",
    "persist": true,
    "precision": 0,
-   "set": "set_flt",
+   "set": "cm_set_axis_rate",
    "type": "float"
   },
   "bjd": {
@@ -1034,7 +1034,7 @@
    "group": "b",
    "persist": true,
    "precision": 4,
-   "set": "set_flt",
+   "set": "cm_set_jd",
    "type": "float"
   },
   "bjm": {
@@ -1058,7 +1058,7 @@
    "group": "b",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_radius",
    "type": "float"
   },
   "btm": {
@@ -1082,7 +1082,7 @@
    "group": "b",
    "persist": true,
    "precision": 0,
-   "set": "set_flt",
+   "set": "cm_set_axis_rate",
    "type": "float"
   },
   "c": {
@@ -1106,7 +1106,7 @@
    "group": "c",
    "persist": true,
    "precision": 0,
-   "set": "set_flt",
+   "set": "cm_set_axis_rate",
    "type": "float"
   },
   "cjd": {
@@ -1114,7 +1114,7 @@
    "group": "c",
    "persist": true,
    "precision": 4,
-   "set": "set_flt",
+   "set": "cm_set_jd",
    "type": "float"
   },
   "cjm": {
@@ -1178,7 +1178,7 @@
    "group": "c",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_radius",
    "type": "float"
   },
   "ct": {
@@ -1186,7 +1186,7 @@
    "group": "sys",
    "persist": true,
    "precision": 4,
-   "set": "set_flu",
+   "set": "cm_set_ct",
    "type": "float"
   },
   "ctm": {
@@ -1210,7 +1210,7 @@
    "group": "c",
    "persist": true,
    "precision": 0,
-   "set": "set_flt",
+   "set": "cm_set_axis_rate",
    "type": "float"
   },
   "cycs": {
@@ -1450,7 +1450,7 @@
    "group": "g54",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g54b": {
@@ -1458,7 +1458,7 @@
    "group": "g54",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g54c": {
@@ -1466,7 +1466,7 @@
    "group": "g54",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g54x": {
@@ -1474,7 +1474,7 @@
    "group": "g54",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g54y": {
@@ -1482,7 +1482,7 @@
    "group": "g54",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g54z": {
@@ -1490,7 +1490,7 @@
    "group": "g54",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g55": {
@@ -1506,7 +1506,7 @@
    "group": "g55",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g55b": {
@@ -1514,7 +1514,7 @@
    "group": "g55",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g55c": {
@@ -1522,7 +1522,7 @@
    "group": "g55",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g55x": {
@@ -1530,7 +1530,7 @@
    "group": "g55",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g55y": {
@@ -1538,7 +1538,7 @@
    "group": "g55",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g55z": {
@@ -1546,7 +1546,7 @@
    "group": "g55",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g56": {
@@ -1562,7 +1562,7 @@
    "group": "g56",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g56b": {
@@ -1570,7 +1570,7 @@
    "group": "g56",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g56c": {
@@ -1578,7 +1578,7 @@
    "group": "g56",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g56x": {
@@ -1586,7 +1586,7 @@
    "group": "g56",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g56y": {
@@ -1594,7 +1594,7 @@
    "group": "g56",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g56z": {
@@ -1602,7 +1602,7 @@
    "group": "g56",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g57": {
@@ -1618,7 +1618,7 @@
    "group": "g57",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g57b": {
@@ -1626,7 +1626,7 @@
    "group": "g57",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g57c": {
@@ -1634,7 +1634,7 @@
    "group": "g57",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g57x": {
@@ -1642,7 +1642,7 @@
    "group": "g57",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g57y": {
@@ -1650,7 +1650,7 @@
    "group": "g57",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g57z": {
@@ -1658,7 +1658,7 @@
    "group": "g57",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g58": {
@@ -1674,7 +1674,7 @@
    "group": "g58",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g58b": {
@@ -1682,7 +1682,7 @@
    "group": "g58",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g58c": {
@@ -1690,7 +1690,7 @@
    "group": "g58",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g58x": {
@@ -1698,7 +1698,7 @@
    "group": "g58",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g58y": {
@@ -1706,7 +1706,7 @@
    "group": "g58",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g58z": {
@@ -1714,7 +1714,7 @@
    "group": "g58",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g59": {
@@ -1730,7 +1730,7 @@
    "group": "g59",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g59b": {
@@ -1738,7 +1738,7 @@
    "group": "g59",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g59c": {
@@ -1746,7 +1746,7 @@
    "group": "g59",
    "persist": true,
    "precision": 3,
-   "set": "set_flt",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g59x": {
@@ -1754,7 +1754,7 @@
    "group": "g59",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g59y": {
@@ -1762,7 +1762,7 @@
    "group": "g59",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g59z": {
@@ -1770,7 +1770,7 @@
    "group": "g59",
    "persist": true,
    "precision": 3,
-   "set": "set_flu",
+   "set": "cm_set_coord_value",
    "type": "float"
   },
   "g92": {
@@ -2066,7 +2066,7 @@
    "group": "sys",
    "persist": true,
    "precision": 0,
-   "set": "set_flu",
+   "set": "cm_set_ja",
    "type": "float"
   },
   "jid": {
@@ -2434,7 +2434,7 @@
    "group": "p1",
    "persist": true,
    "precision": 0,
-   "set": "set_flt",
+   "set": "pwm_set_frq",
    "type": "float"
   },
   "p1pof": {
@@ -3082,7 +3082,7 @@
    "group": "sys",
    "persist": true,
    "precision": 0,
-   "set": "set_ui8",
+   "set": "set_01",
    "type": "integer"
   },
   "spc": {
@@ -3434,7 +3434,7 @@
    "group": "x",
    "persist": true,
    "precision": 0,
-   "set": "set_flu",
+   "set": "cm_set_axis_rate",
    "type": "float"
   },
   "xjd": {
@@ -3442,7 +3442,7 @@
    "group": "x",
    "persist": true,
    "precision": 4,
-   "set": "set_flu",
+   "set": "cm_set_jd",
    "type": "float"
   },
   "xjh": {
@@ -3522,7 +3522,7 @@
    "group": "x",
    "persist": true,
    "precision": 0,
-   "set": "set_flu",
+   "set": "cm_set_axis_rate",
    "type": "float"
   },
   "xzb": {
@@ -3554,7 +3554,7 @@
    "group": "y",
    "persist": true,
    "precision": 0,
-   "set": "set_flu",
+   "set": "cm_set_axis_rate",
    "type": "float"
   },
   "yjd": {
@@ -3562,7 +3562,7 @@
    "group": "y",
    "persist": true,
    "precision": 4,
-   "set": "set_flu",
+   "set": "cm_set_jd",
    "type": "float"
   },
   "yjh": {
@@ -3642,7 +3642,7 @@
    "group": "y",
    "persist": true,
    "precision": 0,
-   "set": "set_flu",
+   "set": "cm_set_axis_rate",
    "type": "float"
   },
   "yzb": {
@@ -3674,7 +3674,7 @@
    "group": "z",
    "persist": true,
    "precision": 0,
-   "set": "set_flu",
+   "set": "cm_set_axis_rate",
    "type": "float"
   },
   "zjd": {
@@ -3682,7 +3682,7 @@
    "group": "z",
    "persist": true,
    "precision": 4,
-   "set": "set_flu",
+   "set": "cm_set_jd",
    "type": "float"
   },
   "zjh": {
@@ -3762,7 +3762,7 @@
    "group": "z",
    "persist": true,
    "precision": 0,
-   "set": "set_flu",
+   "set": "cm_set_axis_rate",
    "type": "float"
   },
   "zzb": {

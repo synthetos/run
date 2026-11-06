@@ -54,7 +54,7 @@ export interface TinyGModelOptions {
   readonly rxm?: 0 | 1;
   /**
    * Edge-next model: the feed-limit push (`{"rt":{"fi":N}}`, pushed `fs` lines; @cite EN runtime.c:296-563). Default
-   * false, so existing transcripts are unchanged; edge-next 93a723b8 has it. The model's summary counters are a
+   * false, so existing transcripts are unchanged; edge-next a7489b79 has it. The model's summary counters are a
    * model limit (LIM-EN-FEED-LIMIT): cutting time and distance are modelled, the per-cause counters stay 0.
    */
   readonly feedLimit?: boolean;
@@ -67,7 +67,7 @@ export interface TinyGModelOptions {
    * Edge-next model, test kit flasher (SAFETY §4.8 amendment 2026-11-03): the build this board runs, as the
    * flashable board reads it from the flashed image (simFirmware.ts). `fb` and `fv` are what the board reports,
    * `hv` its hardware version, and `layout` the EEPROM layout marker: a board whose EEPROM holds another layout
-   * loads the defaults on boot (@cite EN config.c:214-221, :264-282). Default: edge-next 450.01, hv 8, layout 10002.
+   * loads the defaults on boot (@cite EN config.c:292-299, :342-360). Default: edge-next 450.01, hv 8, layout 10002.
    */
   readonly build?: { readonly fb: number; readonly fv: number; readonly hv: number; readonly layout: number };
   /**

@@ -7,7 +7,7 @@ the box of the whole path, with what EN-HIL's reference path simulator
 `tests/hil/tinyg_hil/gsim.py` says (`gsim-expected.json`).
 
 - `corpus/` holds small files from TinyG `gcode_samples/` at edge-next
-  `93a723b8` (unchanged since `ead63997`, where they were taken; spaces in names replaced by `_`, `_untested/` dropped) and
+  `a7489b79` (unchanged since `ead63997`, where they were taken; spaces in names replaced by `_`, `_untested/` dropped) and
   three files from `test-fixtures/cam/` (`cam-*`). Bytes are exact
   (`.gitattributes` marks the directory `-text`).
 - `gsim-expected.json` is generated, never edited. gsim.py itself is not
@@ -15,7 +15,7 @@ the box of the whole path, with what EN-HIL's reference path simulator
 
   ```sh
   mkdir -p /tmp/gsim
-  git -C <TinyG> show 93a723b8:tests/hil/tinyg_hil/gsim.py > /tmp/gsim/gsim.py
+  git -C <TinyG> show a7489b79:tests/hil/tinyg_hil/gsim.py > /tmp/gsim/gsim.py
   python3 -I gsim_expected.py /tmp/gsim > gsim-expected.json
   ```
 

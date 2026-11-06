@@ -12,7 +12,7 @@
  * #1 A capability answer proves the edge-next contract only when its value
  *    is one the firmware can print: `spep`, `prbp` and `os` are uint8
  *    settings whose setters refuse anything above 1 (@cite EN
- *    config_app.c:650, :657, :668; spindle.c:64; switch.c:329; config.c:456-461);
+ *    config_app.c:650, :657, :668; spindle.c:64; switch.c:336; config.c:536-541);
  *    `fstk` is the unused-stack watermark, an unsigned count of bytes between
  *    `__heap_start` and SP on the atxmega192a3's 16 KB SRAM, so 0..16383
  *    (@cite EN stack_report.c:47-58; Makefile:14).
@@ -39,14 +39,14 @@ import {
   verifyApprovedBuilds,
 } from '../src/index.ts';
 import type { ApprovedBuilds, Footer, ProbeKey, ProbeObservations, ProbeResult, ReleaseKey, Response } from '../src/index.ts';
-import { EN_450, G2_EDGE, STOCK_449, TG_440, toBanner } from './fixtures/probeFixtures.ts';
+import { EN_450, EN_PIN, G2_EDGE, STOCK_449, TG_440, toBanner } from './fixtures/probeFixtures.ts';
 
 const REPO = resolve(import.meta.dirname, '../../..');
 const STAGING = 'https://staging.run.synthetos.com';
 const COMMITTED = JSON.parse(readFileSync(join(REPO, 'firmware/approved-builds.json'), 'utf8')) as unknown;
 const TG_COMMIT = 'd04183905470714254c24d299f6aad75f6bcbb7a';
 
-async function committedStaging(now = new Date('2026-11-02T00:00:00Z')): Promise<ApprovedBuilds> {
+async function committedStaging(now = new Date('2026-11-06T00:00:00Z')): Promise<ApprovedBuilds> {
   return (await verifyApprovedBuilds(COMMITTED, { origin: STAGING, now })).approved;
 }
 
@@ -145,7 +145,7 @@ describe('P0-08 #2: the dialect footer contract is enforced before full mode', (
   });
 
   it('a hand-built probe result with no footer evidence never reaches full', async () => {
-    const p = probe(EN_450());
+    const p = probe(EN_PIN());
     const manifest = await committedStaging();
     expect(classify(p, manifest).mode).toBe('full');
     expect(classify({ ...p, footers: [] }, manifest)).toMatchObject({ mode: 'readOnly', dialect: null });
@@ -185,12 +185,12 @@ describe('P0-08 #1: malformed capability values never prove the edge-next contra
     const manifest = await committedStaging();
     for (const token of ['spep', 'prbp', 'os'] as const) {
       for (const v of ['0', '1']) {
-        const c = classify(probe(withAnswer(EN_450(), token, `{"r":{"${token}":${v}},"f":[3,0,11]}`)), manifest);
+        const c = classify(probe(withAnswer(EN_PIN(), token, `{"r":{"${token}":${v}},"f":[3,0,11]}`)), manifest);
         expect(c, `${token}=${v}`).toMatchObject({ dialect: TINYG_EN, mode: 'full' });
       }
     }
     for (const v of ['0', '1180', '16383']) {
-      const c = classify(probe(withAnswer(EN_450(), 'fstk', `{"r":{"fstk":${v}},"f":[3,0,11]}`)), manifest);
+      const c = classify(probe(withAnswer(EN_PIN(), 'fstk', `{"r":{"fstk":${v}},"f":[3,0,11]}`)), manifest);
       expect(c, `fstk=${v}`).toMatchObject({ dialect: TINYG_EN, mode: 'full' });
     }
   });
@@ -206,7 +206,7 @@ describe('P0-08 #3: the manifest verifier rejects an invalid clock and malformed
   const b64 = (bytes: ArrayBuffer) => Buffer.from(new Uint8Array(bytes)).toString('base64');
   const pair = (await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as webcrypto.CryptoKeyPair;
   const key: ReleaseKey = { kid: 'test-1', publicKey: b64(await subtle.exportKey('raw', pair.publicKey)), environments: ['staging'], placeholder: false };
-  const enBuild = { dialect: 'tinyg-en', fb: 450.01, fbs: null, commit: '93a723b813d3eb2cf6cf2b90e919a2affef557d1', note: 'bench' };
+  const enBuild = { dialect: 'tinyg-en', fb: 450.02, fbs: null, commit: 'a7489b79b2d886d872e019ff1e414f716de6638b', note: 'bench' };
   const signedFile = async (overrides: Record<string, unknown> = {}, builds: unknown[] = [enBuild]) => {
     const payload = JSON.stringify({
       format: CHANNEL_PAYLOAD_FORMAT,

@@ -111,7 +111,7 @@ export function feedLimitLine(seconds: number): string {
 
 /**
  * The capability probe of the job flag: true only when the board's `{"rt":null}` answer at connect names a `job`
- * leaf. Edge-next 93a723b8 has no such leaf (the flag is designed, feed-limit step 3), so this is false today and
+ * leaf. Edge-next a7489b79 has no such leaf (the flag is designed, feed-limit step 3), so this is false today and
  * no job flag is ever sent. Nothing else may change when a build has it.
  */
 export function jobFlagSupported(s: SessionState): boolean {
@@ -127,7 +127,7 @@ export function feedAccountingSafe(s: SessionState): boolean {
   return typeof fb === 'number' && Math.round(fb * 100) >= Math.round(FEED_ACCOUNTING_MIN_FB * 100);
 }
 
-/** The feed-limit window is offered where `{"rt":null}` names an `fi` leaf (edge-next 93a723b8 has it). */
+/** The feed-limit window is offered where `{"rt":null}` names an `fi` leaf (edge-next a7489b79 has it). */
 export function feedLimitSupported(s: SessionState): boolean {
   return s.rtLeaves.includes('fi');
 }

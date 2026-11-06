@@ -19,9 +19,9 @@ import {
   verifyApprovedBuilds,
 } from '../src/index.ts';
 import type { ApprovedBuild, ApprovedBuilds, Footer, ProbeObservations, ProbeResult } from '../src/index.ts';
-import { EN_CAPABILITIES, EN_450, G2_EDGE, NO_CAPABILITIES, STOCK_449, TG_440, observations, tinygIdentity } from './fixtures/probeFixtures.ts';
+import { EN_CAPABILITIES, EN_450, EN_PIN, G2_EDGE, NO_CAPABILITIES, STOCK_449, TG_440, observations, tinygIdentity } from './fixtures/probeFixtures.ts';
 
-const EN_COMMIT = '93a723b813d3eb2cf6cf2b90e919a2affef557d1';
+const EN_COMMIT = 'a7489b79b2d886d872e019ff1e414f716de6638b';
 const TG_COMMIT = 'd04183905470714254c24d299f6aad75f6bcbb7a';
 
 const approval = (dialect: ApprovedBuild['dialect'], fb: number, commit = EN_COMMIT): ApprovedBuild => ({
@@ -47,7 +47,7 @@ describe('T-S55: classifier fixtures', () => {
     expect(c.approval).toEqual(BENCH.builds[0]);
     expect(c.detail).toContain('450.01');
     // The probe cannot verify the commit, and with no fbs every 450.01 build matches: never claim it.
-    expect(c.detail).not.toContain('93a723b8');
+    expect(c.detail).not.toContain('a7489b79');
     expect(c.detail).toContain('commit not verifiable');
     expect(c.buildIdentity).toBe('fbOnly');
   });
@@ -59,7 +59,7 @@ describe('T-S55: classifier fixtures', () => {
     const c = classify(probe(reporting), named);
     expect(c).toMatchObject({ mode: 'full', buildIdentity: 'fbs' });
     expect(c.detail).toContain('identified by fbs');
-    expect(c.detail).toContain('93a723b8');
+    expect(c.detail).toContain('a7489b79');
     // And the fbs-less board does not match the named entry.
     expect(classify(probe(EN_450()), named).mode).toBe('readOnly');
   });
@@ -163,21 +163,21 @@ describe('T-S55: classifier fixtures', () => {
 describe('end to end: probe transcript + the committed signed manifest', () => {
   const REPO = resolve(import.meta.dirname, '../../..');
   const committed = JSON.parse(readFileSync(join(REPO, 'firmware/approved-builds.json'), 'utf8')) as unknown;
-  const NOW = new Date('2026-11-01T12:00:00Z');
+  const NOW = new Date('2026-11-06T12:00:00Z');
 
   it('staging: the pinned edge-next candidate is full', async () => {
     const { approved } = await verifyApprovedBuilds(committed, { origin: 'https://staging.run.synthetos.com', now: NOW });
-    expect(classify(probe(EN_450()), approved)).toMatchObject({ dialect: TINYG_EN, mode: 'full' });
+    expect(classify(probe(EN_PIN()), approved)).toMatchObject({ dialect: TINYG_EN, mode: 'full' });
   });
 
   it('production: the same board is READ_ONLY (bench approvals never reach production)', async () => {
     const { approved } = await verifyApprovedBuilds(committed, { origin: 'https://run.synthetos.com', now: NOW });
-    expect(classify(probe(EN_450()), approved)).toMatchObject({ dialect: TINYG_EN, mode: 'readOnly', reason: 'en-not-approved' });
+    expect(classify(probe(EN_PIN()), approved)).toMatchObject({ dialect: TINYG_EN, mode: 'readOnly', reason: 'en-not-approved' });
   });
 
   it('a local dev origin: READ_ONLY', async () => {
     const { approved } = await verifyApprovedBuilds(committed, { origin: 'http://localhost:5173', now: NOW });
-    expect(classify(probe(EN_450()), approved).mode).toBe('readOnly');
+    expect(classify(probe(EN_PIN()), approved).mode).toBe('readOnly');
   });
 });
 

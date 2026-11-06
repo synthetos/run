@@ -5,12 +5,12 @@
  * head == tail means empty, so it holds `RX_BUFFER_SIZE - 2` bytes ("Must
  * reserve 2 bytes for buffer management", @cite EN xio/xio_usart.h:53-54;
  * @cite TG xio/xio_usart.h:53-54). When it is full the ISR tosses the
- * incoming byte (@cite EN xio/xio_usb.c:268-274; @cite TG xio/xio_usb.c:186-191).
+ * incoming byte (@cite EN xio/xio_usb.c:270-276; @cite TG xio/xio_usb.c:186-191).
  *
  * Bytes carry a sequence number so the edge-next model can mark where input
  * was lost exactly as EN does (E162): `lostFirst` / `lostLast` are the
  * sequence numbers of the last byte kept before the first and the latest
- * loss (@cite EN xio/xio_usb.c:178-182).
+ * loss (@cite EN xio/xio_usb.c:180-184).
  */
 
 import '../marker.ts';

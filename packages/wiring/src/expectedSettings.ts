@@ -33,9 +33,9 @@ export function confirmWord(cls: KeyClass): string | undefined {
   return cls === 'polarity' ? 'POLARITY' : cls === 'switch' ? 'SWITCH' : undefined;
 }
 
-const SRC_SN = (d: Dialect): string => (d === 'tinyg-440' ? 'TG canonical_machine.c:1976 ([0=off,1=homing,2=limit,3=limit+homing])' : 'EN canonical_machine.c:2940-2941 ([0=off,1=homing,2=limit,3=limit+homing,4=probe])');
-const SRC_ST = (d: Dialect): string => (d === 'tinyg-440' ? 'TG switch.c:256 ([0=NO,1=NC])' : 'EN switch.c:367 ([0=NO,1=NC])');
-const SRC_SPEP = 'EN config_app.c:1101 ([0=active_low,1=active_high])';
+const SRC_SN = (d: Dialect): string => (d === 'tinyg-440' ? 'TG canonical_machine.c:1976 ([0=off,1=homing,2=limit,3=limit+homing])' : 'EN canonical_machine.c:3174-3175 ([0=off,1=homing,2=limit,3=limit+homing,4=probe])');
+const SRC_ST = (d: Dialect): string => (d === 'tinyg-440' ? 'TG switch.c:256 ([0=NO,1=NC])' : 'EN switch.c:387 ([0=NO,1=NC])');
+const SRC_SPEP = 'EN config_app.c:1117 ([0=active_low,1=active_high])';
 
 /** Expected settings for a TinyG board; other families get none until their key tables are wired in. */
 export function expectedSettings(diagram: Diagram, board: WiringBoard, dialect: Dialect): readonly ExpectedSetting[] {

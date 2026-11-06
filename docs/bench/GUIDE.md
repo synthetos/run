@@ -67,11 +67,16 @@ E191, E193); footers, `sr` keys and GETs are unchanged. **Re-pinned
 plus the E195 fix (a partial line that has been quiet for about 1 s is
 dropped when a `{` arrives; section 5.2), then `6ec70652`, which adds
 the read-only spindle and coolant readouts (`spe`, `spc`, `spd`, `sps`,
-`cof`, `com`) and the `rt` heartbeat family (phase A), and now pins
-`93a723b8`, which adds the feed-limit report (`rt` `flk`, `flm`, `flp`,
-`flf`), the feed-limit push (`rt` `fi`, pushed `fs` and `fl` lines, `rt`
-`fs`) and the planner fixes E196 and E197. run does not turn the push on.
-Flash `93a723b8` for the bench checks.
+`cof`, `com`) and the `rt` heartbeat family (phase A), then `93a723b8`,
+which adds the feed-limit report (`rt` `flk`, `flm`, `flp`, `flf`), the
+feed-limit push (`rt` `fi`, pushed `fs` and `fl` lines, `rt` `fs`) and the
+planner fixes E196 and E197. run does not turn the push on. **Re-pinned
+2026-11-06** to `a7489b79`, the commit tagged `450.02` (fb 450.02): the N66
+hold endpoint fix, status 117 for a saved setting written during a cycle,
+status 118 after the banner for stored settings that would not load, and a
+feedhold during a dwell that now holds. Flash the 450.02 release for the
+bench checks: the bench channel approves 450.02 only, so a 450.01 board
+connects READ_ONLY.
 
 ## 1. Before you power anything: the hardwired E-stop
 
@@ -104,7 +109,7 @@ Bench rig for the Phase 1 checks (ROADMAP Phase 1 gate, D10):
 - a Saleae (or similar) on the board's RX line and the step lines, to see
   exactly what bytes arrive and that no step pulses happen;
 - a switched USB hub or power switch, for the pull-USB and power-up checks;
-- edge-next on the bench board (fb 450.01, commit `93a723b8`), plus a stock
+- edge-next on the bench board (fb 450.02, commit `a7489b79`), plus a stock
   440.21 board (and stock 449.01 if you have one) for the read-only checks;
 - the EN-HIL harness from your own edge-next checkout (`tests/hil`), for the
   items that need a second program on the board.
@@ -259,12 +264,12 @@ line. It then probes the board and classifies it. Expect:
 
 | Board | Classification | Mode |
 |---|---|---|
-| edge-next fb 450.01 (`93a723b8`) | `tinyg-en` | **Full**, reason `en-approved`: the machine worker verifies the bundled, owner-signed bench channel of `firmware/approved-builds.json` for its own origin (loopback over plain HTTP and staging are `staging`; P1-03, added 2026-11-02). Before that it was READ_ONLY `en-not-approved` (seen on the bench 2026-11-02). Any other fb, a reported `fbs`, an expired or tampered manifest, or the production origin stays READ_ONLY. |
+| edge-next fb 450.02 (`a7489b79`) | `tinyg-en` | **Full**, reason `en-approved`: the machine worker verifies the bundled, owner-signed bench channel of `firmware/approved-builds.json` for its own origin (loopback over plain HTTP and staging are `staging`; P1-03, added 2026-11-02). Before that it was READ_ONLY `en-not-approved` (seen on the bench 2026-11-02). Any other fb, a reported `fbs`, an expired or tampered manifest, or the production origin stays READ_ONLY. |
 | stock 440.21 | `tinyg-440` | READ_ONLY, with W25 and the upgrade offer |
 | stock 449.01 | `tinyg-449-stock` | READ_ONLY |
 | EN with `$ex=2` | `tinyg-en` | READ_ONLY, reason flow control |
 | board moving, held, with a short queue, or silent for 3 s | **ORPHANED_MOTION** (W32) | only Pause offered |
-| a partial line left in the board's buffer by another program (the reply to `{sr:null}` has no `sr`) | **ORPHANED_MOTION** (W32) | only Pause offered. A fragment ending in a comment may already have RUN (measured 2026-11-02 with a 0.5 s gap); check the machine, unplug, power-cycle the board. On edge-next since `97321391` (the pin is `93a723b8`), a fragment that has been quiet for more than about 1 s is dropped when `{sr:null}` arrives (E195), so the reply carries `sr` and the probe goes on; 440.21 and shorter gaps still end here |
+| a partial line left in the board's buffer by another program (the reply to `{sr:null}` has no `sr`) | **ORPHANED_MOTION** (W32) | only Pause offered. A fragment ending in a comment may already have RUN (measured 2026-11-02 with a 0.5 s gap); check the machine, unplug, power-cycle the board. On edge-next since `97321391` (the pin is `a7489b79`), a fragment that has been quiet for more than about 1 s is dropped when `{sr:null}` arrives (E195), so the reply carries `sr` and the probe goes on; 440.21 and shorter gaps still end here |
 
 The board id, firmware build and the other identity strings show as plain
 text. Control and bidi characters are replaced (T-S85). While the board is
@@ -460,7 +465,7 @@ The refusal paths were checked at `42c24a2`: `CI=1` refuses, and
 Tick each one, and write the date, the board and the firmware (`fb`,
 commit) next to it.
 
-- [ ] **HIL-1.1 Connect and identify EN.** Idle EN board (fb 450.01). Pass:
+- [ ] **HIL-1.1 Connect and identify EN.** Idle EN board (fb 450.02). Pass:
   the transcript is `{sr:null}`, the probe GETs, `stat hold vel qr ex`,
   then only allowlisted GETs, ENQ and `!` (from Pause); classification
   `tinyg-en`, full (`en-approved` on the bench channel, P1-03); the

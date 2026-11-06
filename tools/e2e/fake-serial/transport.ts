@@ -24,6 +24,9 @@ import { FlashableBoard, MockSerialPort, SimEndpoint, TinyGEdgeNextModel, type C
 import type { PortSelector, TransportSource } from '@synthetos/machine';
 import { MockTransport } from './mockTransport.ts';
 
+/** The EN pin's build (vendor/firmware-pins.json): what the plain fake board reports. */
+const PIN_BUILD = Object.freeze({ fb: 450.02, fv: 0.97, hv: 8, layout: 10002 });
+
 /** Where the ports this source created are listed, in the worker's global scope. */
 export const FAKE_SERIAL_GLOBAL = '__RUN_FAKE_SERIAL__';
 
@@ -114,7 +117,9 @@ export function createTransportSource(): TransportSource {
       const next = reg.next ?? {};
       reg.next = undefined;
       // In character mode (rxm 0), as a board another sender used: a job then switches it to line mode and back (H77).
-      const device = new TinyGEdgeNextModel({ start: 'boot', bootMs: BOOT_MS, eepromWriteMs: EEPROM_WRITE_MS, rxm: 0, ...next });
+      // It reports the EN pin's build (450.02), the one the committed bench manifest approves; the model's behaviour
+      // stays the 450.01 model's (testkit LIM-EN-REPIN).
+      const device = new TinyGEdgeNextModel({ start: 'boot', bootMs: BOOT_MS, eepromWriteMs: EEPROM_WRITE_MS, rxm: 0, build: PIN_BUILD, ...next });
       const endpoint = new SimEndpoint({ clock: realTimeClock(), device });
       const port = new MockSerialPort(endpoint);
       registry().ports.push(port);

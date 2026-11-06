@@ -1,7 +1,7 @@
 {
  "format": "synthetos-run/tinyg-board-facts@1",
- "firmware": "EN@93a723b8",
- "commit": "93a723b813d3eb2cf6cf2b90e919a2affef557d1",
+ "firmware": "EN@a7489b79",
+ "commit": "a7489b79b2d886d872e019ff1e414f716de6638b",
  "platform": {
   "value": 1,
   "src": "EN hardware.h:56; EN tinyg.h:56"
@@ -128,7 +128,7 @@
    4,
    8
   ],
-  "src": "EN stepper.c:1383 (other values warn as non-standard)"
+  "src": "EN stepper.c:1526 (other values are refused from 450.02)"
  },
  "polarityTokens": {
   "value": {

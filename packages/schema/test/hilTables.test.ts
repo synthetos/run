@@ -72,7 +72,7 @@ describe('vendored tables and their sources (D32)', () => {
 
   it('den.json is generated from the edge-next pin, not the stock edge-0.97 d449.json', () => {
     expect(DEN.commit).toBe(pins['EN']?.commit);
-    expect(DEN.fb).toBe(450.01);
+    expect(DEN.fb).toBe(450.02);
     expect(D449.commit).toBe(pins['S449']?.commit);
     expect(sources['d449']?.use).toBe('readOnly');
     expect(sources['den']?.use).toBe('full');

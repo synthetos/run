@@ -266,7 +266,7 @@ function tokenAnswer(r: Response, key: CapabilityToken, conflicts: string[]): To
   return 'other';
 }
 
-/** A uint8 setting whose setter refuses anything above 1 (@cite EN config.c:456-461 `set_01`). */
+/** A uint8 setting whose setter refuses anything above 1 (@cite EN config.c:536-541 `set_01`). */
 const isZeroOrOne = (v: JsonValue): boolean => Object.is(v, 0) || v === 1;
 
 /**
@@ -280,7 +280,7 @@ export const FSTK_MAX = 0x5fff - 0x2000;
 
 /**
  * The values edge-next can print for each capability token (@cite EN
- * config_app.c:650-668): `spep` (spindle.c:64), `prbp` (switch.c:329) and
+ * config_app.c:650-668): `spep` (spindle.c:64), `prbp` (switch.c:336) and
  * `os` (`set_01`) are 0 or 1; `fstk` is an integer 0..FSTK_MAX.
  */
 const CAPABILITY_VALUE_VALID: Readonly<Record<CapabilityToken, (v: JsonValue) => boolean>> = Object.freeze({

@@ -13,7 +13,7 @@
 import '../marker.ts';
 export type BehaviourStatus = 'verified-source' | 'verified-bench' | 'UNVERIFIED';
 
-/** Pinned sources (vendor/firmware-pins.json): EN = edge-next 93a723b8, TG = master d0418390 (440.21). */
+/** Pinned sources (vendor/firmware-pins.json): EN = edge-next a7489b79, TG = master d0418390 (440.21). */
 export type CitationSource = 'EN' | 'TG' | 'EN-HIL';
 
 export interface Citation {

@@ -206,11 +206,11 @@ describe('collected items and the G-code consent', () => {
   });
 
   it('board facts name the pin match and redact the id', () => {
-    const snapshot = { identity: { fb: 450.01, fv: 0.97, hp: 1, hv: 8, id: 'SIM-EN-0001' }, classification: { dialectId: 'tinyg-en', mode: 'readOnly', reason: 'en-not-approved', detail: '', upgradeOffer: false } } as never;
+    const snapshot = { identity: { fb: 450.02, fv: 0.97, hp: 1, hv: 8, id: 'SIM-EN-0001' }, classification: { dialectId: 'tinyg-en', mode: 'readOnly', reason: 'en-not-approved', detail: '', upgradeOffer: false } } as never;
     const board = reportItems(input({ snapshot })).find((i) => i.id === 'board');
     expect(board?.available).toBe(true);
     expect(board?.text).toContain('board id: 0X0000-XXX');
-    expect(board?.text).toContain("fb 450.01, matches run's edge-next pin 93a723b8");
+    expect(board?.text).toContain("fb 450.02, matches run's edge-next pin a7489b79");
     expect(board?.text).not.toContain('SIM-EN');
     expect(pinText('tinyg-440', 440.2)).toContain("differs from run's master 440.xx pin");
   });

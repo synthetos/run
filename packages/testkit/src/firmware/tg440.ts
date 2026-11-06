@@ -898,7 +898,7 @@ export class TinyG440Model implements SimDevice {
   /**
    * `_json_parser_kernal()` (@cite TG json_parser.c:97-145).
    * @behaviour TG-JSON-FIRST-PAIR: only the first pair executes (EN-HIL
-   * test_identity.py:44-47); there is no `tid` token.
+   * test_identity.py:45-48); there is no `tid` token.
    */
   #jsonParser(line: string): void {
     const parsed = parseHostJson(line);
@@ -918,7 +918,7 @@ export class TinyG440Model implements SimDevice {
     if (value === null) status = this.#get(key, body);
     else if (this.#machine === 'alarm') status = ST('MACHINE_ALARMED');
     else status = this.#set(key, value, body);
-    // The rest are serialized as parsed: a GET pair echoes null (EN-HIL test_identity.py:44-47)
+    // The rest are serialized as parsed: a GET pair echoes null (EN-HIL test_identity.py:45-48)
     for (const [k, v] of parsed.pairs.slice(1)) body[k] = v === null ? null : typeof v === 'object' ? null : v;
     this.#respond(status, body);
   }

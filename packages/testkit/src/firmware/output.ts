@@ -4,7 +4,7 @@
  * Numbers use the token's print precision from the vendored table (`%0.Nf`);
  * strings are double-quoted with `"` and `\` escaped. `js=0` (relaxed) drops
  * the quotes around keys, as TinyG's `json_relax` does; the startup banners
- * are always strict (@cite EN report.c:65-80). Key order is insertion order,
+ * are always strict (@cite EN report.c:67-82). Key order is insertion order,
  * which is the order the firmware builds its nv list.
  */
 

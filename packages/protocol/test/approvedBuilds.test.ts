@@ -23,8 +23,8 @@ import type { ApprovedBuilds, ReleaseKey } from '../src/index.ts';
 const REPO = resolve(import.meta.dirname, '../../..');
 const PRODUCTION = 'https://run.synthetos.com';
 const STAGING = 'https://staging.run.synthetos.com';
-const NOW = new Date('2026-11-01T12:00:00Z');
-const EN_COMMIT = '93a723b813d3eb2cf6cf2b90e919a2affef557d1';
+const NOW = new Date('2026-11-06T12:00:00Z');
+const EN_COMMIT = 'a7489b79b2d886d872e019ff1e414f716de6638b';
 /** The bench entry the committed signed file names until the owner re-signs after the 2026-11-02 re-pin (tools/gates/test/approved-builds.test.ts holds the difference to this). */
 const SIGNED_BEFORE_RESIGN = 'ead639978c77601b150be7ef12774f47eed4c824';
 
@@ -292,7 +292,7 @@ describe('the committed firmware/approved-builds.json', () => {
       { channel: 'bench', accepted: true },
       { channel: 'release', accepted: false, rejection: 'wrong-environment-for-channel' },
     ]);
-    expect(out.approved.builds).toEqual([expect.objectContaining({ channel: 'bench', dialect: 'tinyg-en', fb: 450.01, fbs: null })]);
+    expect(out.approved.builds).toEqual([expect.objectContaining({ channel: 'bench', dialect: 'tinyg-en', fb: 450.02, fbs: null })]);
     const pins = JSON.parse(readFileSync(join(REPO, 'vendor/firmware-pins.json'), 'utf8')) as { pins: { EN: { commit: string; fb: number } } };
     expect([pins.pins.EN.commit, SIGNED_BEFORE_RESIGN]).toContain(out.approved.builds[0]?.commit);
     expect(out.approved.builds[0]?.fb).toBe(pins.pins.EN.fb);
@@ -321,7 +321,7 @@ describe('the environment option (P1-03: the worker decides it for loopback)', (
     const committed = JSON.parse(readFileSync(join(REPO, 'firmware/approved-builds.json'), 'utf8')) as unknown;
     const bench = await verifyApprovedBuilds(committed, { origin: 'http://localhost:8793', now: NOW, environment: 'staging' });
     expect(bench.approved.environment).toBe('staging');
-    expect(bench.approved.builds.map((b) => b.fb)).toEqual([450.01]);
+    expect(bench.approved.builds.map((b) => b.fb)).toEqual([450.02]);
     const none = await verifyApprovedBuilds(committed, { origin: STAGING, now: NOW, environment: null });
     expect(none.approved.builds).toEqual([]);
     const derived = await verifyApprovedBuilds(committed, { origin: 'http://localhost:8793', now: NOW });

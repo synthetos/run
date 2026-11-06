@@ -28,7 +28,7 @@ export const TINYG_EN_READ: ReadAllowlist = defineReadAllowlist({
     /** Input states in1..in8 (EN config_app.c, `get_int`, read-only). */
     'in',
     ...cross(['in'], ['1', '2', '3', '4', '5', '6', '7', '8']),
-    /** Motor enabled flags (EN stepper.c:1437-1446). */
+    /** Motor enabled flags (EN stepper.c:1580-1589). */
     ...cross(['pwr'], MOTORS),
     ...commonGroupedTokens(),
     ...COMMON_SYS_TOKENS,
@@ -43,14 +43,14 @@ export const TINYG_EN_READ: ReadAllowlist = defineReadAllowlist({
     'spph',
     ...LIVE_STATE_TOKENS,
     'admo',
-    /** Short status report (EN report.c:621-624). */
+    /** Short status report (EN report.c:664-667). */
     'srs',
     /** Stack watermark diagnostic (EN stack_report.c:47-60); one of the capability-probe tokens (PN §2.3). */
     'fstk',
     ...SR_FIELD_TOKENS,
     /**
      * Spindle and coolant readouts (EN config_app.c:692-698; spindle.c:87-128,
-     * canonical_machine.c:1560-1565): read-only (`set_nul`), pure getters of the
+     * canonical_machine.c:1640-1645): read-only (`set_nul`), pure getters of the
      * outputs as last driven. Display only: each is sampled on its own and a
      * queued M5/M9/M30 reads "on" until it runs, so nothing may gate on them.
      */

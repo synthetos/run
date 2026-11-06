@@ -2,15 +2,15 @@
  * Finding: inhibited axis (rotary verifier, round 2). An inhibited axis
  * (am=2) is "computed but not activated": its position follows the program,
  * but the kinematics force its joint to 0 on every segment of every move
- * (@cite EN 93a723b8 kinematics.c:59; TG d041839 kinematics.c:63), and each
+ * (@cite EN a7489b79 kinematics.c:59; TG d041839 kinematics.c:63), and each
  * segment moves the motor by the difference of ABSOLUTE step targets
- * (@cite EN plan_exec.c:712-721; TG plan_exec.c:718-727). So an axis switched
+ * (@cite EN plan_exec.c:742-751; TG plan_exec.c:718-727). So an axis switched
  * to inhibited while its motor sits away from step 0 is driven back to step
  * 0 by the next move of ANY axis, while the overrun bound of that move
  * reported only the axes it names.
  *
- * Firmware facts for linear axes (@cite EN canonical_machine.c:510-523,
- * :2616-2629; TG canonical_machine.c:444-454, :1723-1732): a disabled X/Y/Z
+ * Firmware facts for linear axes (@cite EN canonical_machine.c:531-545,
+ * :2756-2770; TG canonical_machine.c:444-454, :1723-1732): a disabled X/Y/Z
  * ignores its word; INHIBITED is computed like STANDARD; radius mode is
  * refused by `cm_set_am` on a linear axis and, if present, its word is
  * ignored too.

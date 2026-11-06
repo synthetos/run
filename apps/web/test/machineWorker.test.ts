@@ -27,7 +27,7 @@ vi.stubGlobal('navigator', DESKTOP_NAVIGATOR);
 /** Edge-next answers (footer rev 3) for the probe and READING, keyed by token. */
 const EN: Readonly<Record<string, string>> = {
   sr: '{"r":{"sr":{"posx":0,"vel":0,"stat":1}},"f":[3,0,10]}',
-  fb: '{"r":{"fb":450.01},"f":[3,0,10]}',
+  fb: '{"r":{"fb":450.02},"f":[3,0,10]}',
   fv: '{"r":{"fv":0.97},"f":[3,0,10]}',
   hp: '{"r":{"hp":1},"f":[3,0,10]}',
   id: '{"r":{"id":"EN-1"},"f":[3,0,10]}',
@@ -754,14 +754,14 @@ const COMMITTED_MANIFEST = JSON.parse(readFileSync(resolve(import.meta.dirname, 
 const BENCH_ORIGIN = 'http://localhost:8793';
 const STAGING_ORIGIN = 'https://staging.run.synthetos.com';
 const PRODUCTION_ORIGIN = 'https://run.synthetos.com';
-const VALID_NOW = new Date('2026-11-02T12:00:00Z');
+const VALID_NOW = new Date('2026-11-06T12:00:00Z');
 
 /** The committed file with the bench channel's payload replaced (signature kept). */
 function tampered(): unknown {
   const copy = structuredClone(COMMITTED_MANIFEST);
   const bench = copy.channels.find((c) => c.channel === 'bench');
   if (bench === undefined) throw new Error('no bench channel');
-  bench.payload = bench.payload.replace('450.01', '450.02');
+  bench.payload = bench.payload.replace('450.02', '450.03');
   return copy;
 }
 
@@ -811,10 +811,10 @@ describe('P1-03: the worker classifies against the bundled, signed approved-buil
     for (const o of ['https://localhost:8793', 'http://run.synthetos.com', 'http://localhost.evil.example', 'http://10.0.0.2:8793', 'https://run-abc.workers.dev', 'null', '']) expect(approvalEnvironment(o)).toBeNull();
   });
 
-  it('valid: the committed bench channel (owner bench key, staging) approves edge-next 450.01 on the bench and staging origins', async () => {
+  it('valid: the committed bench channel (owner bench key, staging) approves edge-next 450.02 on the bench and staging origins', async () => {
     const out = await approvedBuildsFor(COMMITTED_MANIFEST, { origin: BENCH_ORIGIN, now: VALID_NOW });
     expect(out.approved.environment).toBe('staging');
-    expect(out.approved.builds).toEqual([expect.objectContaining({ channel: 'bench', dialect: 'tinyg-en', fb: 450.01, fbs: null })]);
+    expect(out.approved.builds).toEqual([expect.objectContaining({ channel: 'bench', dialect: 'tinyg-en', fb: 450.02, fbs: null })]);
     expect(out.channels).toEqual([{ channel: 'bench', accepted: true }, { channel: 'release', accepted: false, rejection: 'wrong-environment-for-channel' }]);
     for (const origin of [BENCH_ORIGIN, STAGING_ORIGIN]) {
       const t = new BoardTransport();
@@ -822,7 +822,7 @@ describe('P1-03: the worker classifies against the bundled, signed approved-buil
     }
   });
 
-  it('the real worker path (no test verifier) uses the release keys and the clock: the committed file approves 450.01 on loopback', async () => {
+  it('the real worker path (no test verifier) uses the release keys and the clock: the committed file approves 450.02 on loopback', async () => {
     const t = new BoardTransport();
     const host = new MachineWorkerHost(source('fake', () => t), new TestClock(), undefined, { file: COMMITTED_MANIFEST, origin: BENCH_ORIGIN });
     expect((await classifyWith(t, host)).mode).toBe(new Date() < new Date('2027-05-01T00:00:00Z') ? 'full' : 'readOnly');
@@ -869,7 +869,7 @@ describe('P1-03: the worker classifies against the bundled, signed approved-buil
   });
 
   it('no match: an edge-next board reporting another fb, or an fbs the entry does not name, stays READ_ONLY', async () => {
-    const other = new BoardTransport(undefined, { ...EN, fb: '{"r":{"fb":450.02},"f":[3,0,10]}' });
+    const other = new BoardTransport(undefined, { ...EN, fb: '{"r":{"fb":450.01},"f":[3,0,10]}' });
     expect(await classifyWith(other, approvingHost(other, COMMITTED_MANIFEST, BENCH_ORIGIN))).toMatchObject({ mode: 'readOnly', reason: 'en-not-approved', dialectId: 'tinyg-en' });
     const hashed = new BoardTransport(undefined, { ...EN, fbs: '{"r":{"fbs":"450.01-9-gdeadbee"},"f":[3,0,10]}' });
     expect(await classifyWith(hashed, approvingHost(hashed, COMMITTED_MANIFEST, BENCH_ORIGIN))).toMatchObject({ mode: 'readOnly', reason: 'en-not-approved' });
@@ -943,7 +943,7 @@ describe('settingWrite: the phase switch and the worker request', () => {
     const after = t.writes.slice(t.writes.indexOf('{"stat":null}\n', t.writes.length - 8));
     expect(after).toEqual(['{"stat":null}\n', '{"hold":null}\n', '{"vel":null}\n', '{"qr":null}\n', '{"unit":null}\n', '{"xvm":1234}\n', '{"xvm":null}\n']);
     // An unapproved board (READ_ONLY) on the bench is not written.
-    const ro = new BoardTransport(undefined, { ...EN, fb: '{"r":{"fb":450.02},"f":[3,0,10]}' });
+    const ro = new BoardTransport(undefined, { ...EN, fb: '{"r":{"fb":450.01},"f":[3,0,10]}' });
     const roHost = approvingHost(ro, COMMITTED_MANIFEST, BENCH_ORIGIN, VALID_NOW, undefined, releaseFor(BENCH_ORIGIN));
     await classifyWith(ro, roHost);
     expect(await roHost.handle({ v: 3, kind: 'settingWrite', key: 'xvm', value: 1234 })).toMatchObject({ ok: false, code: 'denied' });

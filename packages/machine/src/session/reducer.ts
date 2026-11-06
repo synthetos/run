@@ -251,10 +251,10 @@ export function enqAllowedNow(state: SessionState): boolean {
 /** The ENQ byte when `enqAllowedNow` holds (dialect data: present exactly where `caps.enq`), else undefined. */
 
 /**
- * TinyG 450.02 statuses (firmware maintainer 2026-11-05; error.h at tag 450.02, a7489b79). The vendored EN table is
- * still pinned at 450.01, where both numbers are unused, so they are keyed here by number for tinyg-en until the
- * EN pin moves to 450.02: a persisted setting written while a job runs or has queued work is refused and nothing
- * changes (N60); stored settings that would not load run on their defaults, reported once after the banner (N61).
+ * TinyG 450.02 statuses (EN error.h:211-212): a persisted setting written while a job runs or has queued work is
+ * refused and nothing changes (117, N60; listed in the tinyg-en status table as notAccepted); stored settings that
+ * would not load run on their defaults, reported once after the banner (118, N61), which the session turns into a
+ * start-up notice instead of a FAULT.
  */
 const TINYG_SETTING_REFUSED_IN_CYCLE = 117;
 const TINYG_SETTINGS_DEFAULTED = 118;

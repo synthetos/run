@@ -3,7 +3,7 @@
  *
  * The arc itself comes from the sanitiser's firmware model (`modelArc` in
  * @synthetos/safety), so the preview draws the arc preflight checked
- * (T-S1). EN parameterisation (@cite EN plan_arc.c:91-92, :305): a point at
+ * (T-S1). EN parameterisation (@cite EN plan_arc.c:95-96, :326): a point at
  * angle φ is `centre + (r·sin φ, r·cos φ)` on (plane axis 0, plane axis 1),
  * with φ running from `theta` by `travel` (clockwise positive).
  */

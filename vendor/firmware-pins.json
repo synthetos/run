@@ -5,13 +5,13 @@
     "EN": {
       "repo": "https://github.com/synthetos/TinyG",
       "ref": "edge-next",
-      "commit": "93a723b813d3eb2cf6cf2b90e919a2affef557d1",
-      "committed": "2026-11-02T22:49:27-05:00",
-      "fb": 450.01,
+      "commit": "a7489b79b2d886d872e019ff1e414f716de6638b",
+      "committed": "2026-11-05T10:09:50-05:00",
+      "fb": 450.02,
       "fv": 0.97,
       "paths": "firmware/tinyg/ (EN), tests/hil/ (EN-HIL)",
       "status": "candidate",
-      "note": "Re-pinned 2026-11-02 from 6ec70652 to 93a723b8 (edge-next merge of feat/feed-limit-counters; it also carries feat/feed-limit-reasons and the E196 and E197 planner fixes). It adds the feed-limit report of the running move (rt flk, flm, flp, flf), the feed-limit push interval rt fi with the pushed fs and fl lines, and the rt fs summary request. The re-pin before (97321391 to 6ec70652) added the rt runtime session family, phase A (rthb, rtqt, rtup), and the read-only spindle and coolant readouts spe, spc, spd, sps, cof and com. The earlier re-pin (ead63997 to 97321391) brought the E195 fix and d254eb0b's stricter input errors E168-E177, E191, E193. fb is still 450.01 (tinyg.h:52). D4 is done (owner, 2026-11-01). Still open and separate: the fbs and cap identity tokens D4 recommends (not in this build), D5 image approval (no image has passed it) and the D6 published release (edge-next is not pushed publicly). The bench manifest approves this commit only, and classification never relies on fb alone (PN §2.3): make FW_BUILD overrides the number."
+      "note": "Re-pinned 2026-11-06 from 93a723b8 to a7489b79, the commit tagged 450.02 on edge-next (owner approved 450.02 for bench control, 2026-11-05). fb is 450.02 (tinyg.h:52). It fixes the feed-hold endpoint drift (N66), refuses a persisted setting written during a cycle with status 117 (N60), reports stored settings that would not load with status 118 after the banner (N61), applies G10 offsets sent during a dwell at once, and range-checks the axis rate, junction deviation, radius, chordal tolerance, ja, work offset and PWM frequency setters. No token is added or removed. The re-pin before (6ec70652 to 93a723b8) added the feed-limit report and push (rt flk, flm, flp, flf, fi, fs). D4 is done (owner, 2026-11-01). Still open and separate: the fbs and cap identity tokens D4 recommends (not in this build), D5 image approval (no image has passed it) and the D6 published release. The bench manifest approves this commit only, and classification never relies on fb alone (PN §2.3): make FW_BUILD overrides the number."
     },
     "TG": {
       "repo": "https://github.com/synthetos/TinyG",

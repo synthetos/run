@@ -42,7 +42,7 @@ export type OutputSignal = 'spindleEnable' | 'spindleDirection' | 'spindlePwm' |
 
 export interface TinyGFacts {
   readonly format: typeof TINYG_FACTS_FORMAT;
-  /** e.g. EN@93a723b8 */
+  /** e.g. EN@a7489b79 */
   readonly firmware: string;
   readonly commit: string;
   readonly platform: Cited<number>;
@@ -258,7 +258,7 @@ export function extractTinyG(read: (path: TinyGSourceFile) => string, tag: strin
   if (switches.value.length !== 8) throw new Error(`gen-boards: expected 8 switches in swNums, found ${switches.value.length}`);
 
   const ms = one('firmware/tinyg/stepper.c', /if \(\(mi != (\d+)\) && \(mi != (\d+)\) && \(mi != (\d+)\) && \(mi != (\d+)\)\)/);
-  const microsteps = { value: [1, 2, 3, 4].map((n) => Number(group(ms, n))), src: `${cite('firmware/tinyg/stepper.c', ms.line)} (other values warn as non-standard)` };
+  const microsteps = { value: [1, 2, 3, 4].map((n) => Number(group(ms, n))), src: `${cite('firmware/tinyg/stepper.c', ms.line)} (other values are refused from 450.02)` };
 
   const token = (key: string): Hit => one('firmware/tinyg/config_app.c', new RegExp(`\\{\\s*"sys",\\s*"${key}",`));
   const spep = token('spep');

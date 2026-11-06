@@ -2,7 +2,7 @@
  * Settings in RAM and EEPROM, keyed by the vendored token table.
  *
  * A SET changes the RAM value; a token whose table entry says `persist`
- * is also written to the EEPROM image (`nv_persist`, @cite EN config.c:142-148).
+ * is also written to the EEPROM image (`nv_persist`, @cite EN config.c:220-226).
  * A reset reloads RAM from EEPROM for persisted tokens and from the model's
  * defaults for the rest. The EEPROM image is a plain object so a test can
  * keep it across a "power cycle" or hand a model the image another build

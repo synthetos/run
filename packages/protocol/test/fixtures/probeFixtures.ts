@@ -80,8 +80,10 @@ export const NO_CAPABILITIES: ProbeAnswers = {
   spph: unrecognized('spph'),
 };
 
-/** Edge-next at 93a723b8 (fb 450.01), rxm=1. */
+/** Edge-next fb 450.01, rxm=1: an EN build for self-contained manifests. */
 export const EN_450 = (): ProbeObservations => observations({ ...tinygIdentity('450.01'), ...EN_CAPABILITIES }, 3);
+/** Edge-next at the EN pin a7489b79 (fb 450.02), rxm=1: the build the committed bench manifest approves. */
+export const EN_PIN = (): ProbeObservations => observations({ ...tinygIdentity('450.02'), ...EN_CAPABILITIES }, 3);
 /** Stock 440.21. */
 export const TG_440 = (): ProbeObservations => observations({ ...tinygIdentity('440.21'), ...NO_CAPABILITIES }, 1);
 /** Stock edge-0.97 449.01. */

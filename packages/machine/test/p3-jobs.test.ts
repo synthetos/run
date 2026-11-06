@@ -389,7 +389,7 @@ describe('T-S114: a reset, a lost link or an alarm during a job (H71, H72)', () 
 });
 
 describe('the job flag and the feed-limit window (capability seams)', () => {
-  it('no job flag is ever sent without the capability (edge-next 93a723b8 has none)', async () => {
+  it('no job flag is ever sent without the capability (edge-next a7489b79 has none)', async () => {
     const h = await jobHarness();
     const before = await start(h, zigzag(8), [5]);
     await runUntil(h, () => h.session.snapshot.job?.phase === 'breakpoint');

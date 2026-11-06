@@ -1,5 +1,5 @@
 /**
- * Hand overlay for `tinyg-en` (TinyG edge-next @ 93a723b8): the
+ * Hand overlay for `tinyg-en` (TinyG edge-next @ a7489b79): the
  * motion-relevant settings, the EN polarity keys and the session key `os`
  * (ROADMAP P0-09, old P0-10 subset; RUN_PLAN §7.2; SAFETY §4.6).
  *
@@ -15,7 +15,7 @@
  */
 import type { EnumValue, OverlayEntry, Range, TypedConfirm, Unit } from './types.ts';
 
-/** cfgArray row of each key in EN config_app.c @ 93a723b8. */
+/** cfgArray row of each key in EN config_app.c @ a7489b79. */
 const ROW: Readonly<Record<string, number>> = Object.freeze({
   '1ma': 211, '1sa': 212, '1tr': 213, '1mi': 214, '1po': 215, '1pm': 216,
   '2ma': 221, '2sa': 222, '2tr': 223, '2mi': 224, '2po': 225, '2pm': 226,
@@ -35,13 +35,13 @@ const NEVER: TypedConfirm = { kind: 'never' };
 const DOUBLED: TypedConfirm = { kind: 'increaseFactor', factor: 2 };
 
 const VELOCITY_RANGE: Range = { min: 0, max: 200_000, minExclusive: true };
-const VELOCITY_SOURCE = 'host: greater than 0; 200 000 per minute is far above any TinyG machine';
+const VELOCITY_SOURCE = 'host: greater than 0 (450.02 refuses 0 and below too, EN canonical_machine.c:2821-2840); 200 000 per minute is far above any TinyG machine';
 const TRAVEL_RANGE: Range = { min: -100_000, max: 100_000 };
 const TRAVEL_SOURCE = 'host: a finite position within ±100 m (or ±100 000°); across keys tn < tm, at least 0.01 apart, and a range the firmware soft-limit test sees as one (float32, not fp_EQ, both ends above DISABLE_SOFT_LIMIT; travel.ts)';
 const JERK_RANGE: Range = { min: 0, max: 100_000, minExclusive: true };
 const JERK_SOURCE =
-  'EN canonical_machine.c:2681 (E158: 0 or less refused with 108); host: at most 100 000 (millions), so the firmware never applies its ' +
-  'divide-by-a-million path for values above 1 000 000 (canonical_machine.c:2684-2686), which would change the meaning of the number';
+  'EN canonical_machine.c:2897 (E158: 0 or less refused with 108); host: at most 100 000 (millions), so the firmware never applies its ' +
+  'divide-by-a-million path for values above 1 000 000 (canonical_machine.c:2900-2902), which would change the meaning of the number';
 const BACKOFF_RANGE: Range = { min: 0, max: 1000 };
 const BACKOFF_SOURCE = 'host: 0 to 1000; a negative latch backoff fails homing with 245 (EN error.h:361)';
 
@@ -86,7 +86,7 @@ function motor(m: string): OverlayEntry[] {
       valueType: 'integer',
       values: AXIS_INDEX,
       range: enumRange(AXIS_INDEX),
-      rangeSource: 'EN config_app.c:1073-1079 (set_ma refuses an axis index of 6 or more, E112)',
+      rangeSource: 'EN config_app.c:1087-1095 (set_ma refuses an axis index of 6 or more, E112)',
       convert: false,
       scope: 'persisted',
       risk: 'high',
@@ -101,7 +101,7 @@ function motor(m: string): OverlayEntry[] {
       unit: 'deg/step',
       valueType: 'number',
       range: { min: 0, max: 360, minExclusive: true },
-      rangeSource: 'EN stepper.c:1350 (E158: 0 or less refused with 108); host: at most one revolution',
+      rangeSource: 'EN stepper.c:1481 (E158: 0 or less refused with 108); host: at most one revolution',
       e158: true,
       convert: false,
       scope: 'persisted',
@@ -117,7 +117,7 @@ function motor(m: string): OverlayEntry[] {
       unit: 'mm/rev',
       valueType: 'number',
       range: { min: 0, max: 1000, minExclusive: true },
-      rangeSource: 'EN stepper.c:1364 (E158: 0 or less refused with 108); host: at most 1000 per revolution',
+      rangeSource: 'EN stepper.c:1499 (E158: 0 or less refused with 108); host: at most 1000 per revolution',
       e158: true,
       convert: true,
       scope: 'persisted',
@@ -133,7 +133,7 @@ function motor(m: string): OverlayEntry[] {
       unit: 'microsteps',
       valueType: 'integer',
       range: { min: 1, max: 8 },
-      rangeSource: 'EN stepper.c:1380-1385 (0 refused with 108, E158; other values than 1, 2, 4, 8 accepted with a warning)',
+      rangeSource: 'EN stepper.c:1511-1530 (0 refused with 108, E158; from 450.02 any value other than 1, 2, 4, 8 is refused with a range error and nothing changes)',
       hwAllowed: [1, 2, 4, 8],
       e158: true,
       convert: false,
@@ -142,7 +142,7 @@ function motor(m: string): OverlayEntry[] {
       typedConfirm: NEVER,
       afterWrite: 'W20',
       invalidates: ['scale.*', 'homing.*', 'softlimits'],
-      whatGoesWrong: 'The TinyG v8 drivers support only 1, 2, 4 and 8 microsteps. Any other value is stored anyway, so the scale no longer matches what the driver does.',
+      whatGoesWrong: 'The TinyG v8 drivers support only 1, 2, 4 and 8 microsteps. Older builds stored any other value anyway, so the scale no longer matched what the driver did; 450.02 refuses it.',
     }),
     entry(`${m}po`, {
       label: `Motor ${m} polarity`,
@@ -154,7 +154,7 @@ function motor(m: string): OverlayEntry[] {
         { value: 1, label: 'reversed' },
       ],
       range: { min: 0, max: 1 },
-      rangeSource: 'EN stepper.c:1511 [0=normal,1=reverse] (set_01)',
+      rangeSource: 'EN stepper.c:1654 [0=normal,1=reverse] (set_01)',
       convert: false,
       scope: 'persisted',
       risk: 'high',
@@ -175,7 +175,7 @@ function motor(m: string): OverlayEntry[] {
         { value: 3, label: 'on when moving' },
       ],
       range: { min: 0, max: 3 },
-      rangeSource: 'EN stepper.c:1392-1398 (st_set_pm refuses MOTOR_POWER_MODE_MAX_VALUE = 4 or more, stepper.h:266-272)',
+      rangeSource: 'EN stepper.c:1535-1541 (st_set_pm refuses MOTOR_POWER_MODE_MAX_VALUE = 4 or more, stepper.h:266-272)',
       convert: false,
       scope: 'persisted',
       risk: 'medium',
@@ -225,12 +225,12 @@ function axisCore(a: string, kind: AxisKind): OverlayEntry[] {
       valueType: 'integer',
       values: modes,
       range: enumRange(modes),
-      rangeSource: 'EN canonical_machine.c:2616-2629 (linear axes up to 2, rotary up to 3; canonical_machine.h:287-293)',
+      rangeSource: 'EN canonical_machine.c:2756-2770 (linear axes up to 2, rotary up to 3; canonical_machine.h:287-293)',
       convert: false,
       scope: 'persisted',
       risk: 'high',
       // Radius mode (rotary only) reads the ${A} word in linear units and turns it into degrees
-      // (@cite EN canonical_machine.c:497-500 `_calc_ABC`): one setting multiplies every ${A} move by
+      // (@cite EN canonical_machine.c:517-521 `_calc_ABC`): one setting multiplies every ${A} move by
       // 360 / (2π × ra). The sanitiser models it from the live `am`/`ra`, and the change is typed (C5).
       typedConfirm: kind === 'rotary' ? ALWAYS : NEVER,
       afterWrite: null,
@@ -324,7 +324,7 @@ function axisCore(a: string, kind: AxisKind): OverlayEntry[] {
       unit: u.pos,
       valueType: 'number',
       range: { min: 0, max: 5, minExclusive: true },
-      rangeSource: 'host: greater than 0 and at most 5 (typical values are hundredths of a millimetre)',
+      rangeSource: 'host: greater than 0 and at most 5 (typical values are hundredths of a millimetre); 450.02 refuses below 0.00001 (EN canonical_machine.c:2881-2892)',
       convert: CONVERTS(kind),
       scope: 'persisted',
       risk: 'medium',
@@ -347,7 +347,7 @@ function axisHoming(a: string, kind: AxisKind): OverlayEntry[] {
       valueType: 'integer',
       values: SWITCH_MODES,
       range: enumRange(SWITCH_MODES),
-      rangeSource: 'EN switch.c:350-358 (sw_set_sw refuses more than SW_MODE_MAX_VALUE = 4, switch.h:42-47)',
+      rangeSource: 'EN switch.c:365-378 (sw_set_sw refuses more than SW_MODE_MAX_VALUE = 4, switch.h:42-47)',
       convert: false,
       scope: 'persisted',
       risk: 'high',
@@ -475,7 +475,7 @@ const SYSTEM: readonly OverlayEntry[] = [
     valueType: 'integer',
     values: onOff('normally open', 'normally closed'),
     range: { min: 0, max: 1 },
-    rangeSource: 'EN switch.c:343-348 (set_01; E106); switch.h:50-51',
+    rangeSource: 'EN switch.c:350-363 (set_01; E106); switch.h:50-51',
     convert: false,
     scope: 'persisted',
     risk: 'high',
@@ -507,7 +507,7 @@ const SYSTEM: readonly OverlayEntry[] = [
     valueType: 'integer',
     values: onOff('inches (G20)', 'millimetres (G21)'),
     range: { min: 0, max: 1 },
-    rangeSource: 'EN canonical_machine.c:2865 [0=G20,1=G21] (set_01)',
+    rangeSource: 'EN canonical_machine.c:3099 [0=G20,1=G21] (set_01)',
     convert: false,
     scope: 'persisted',
     risk: 'medium',
@@ -523,7 +523,7 @@ const SYSTEM: readonly OverlayEntry[] = [
     valueType: 'integer',
     values: onOff('absolute (G90)', 'incremental (G91)'),
     range: { min: 0, max: 1 },
-    rangeSource: 'EN canonical_machine.c:2868 [0=G90,1=G91] (set_01)',
+    rangeSource: 'EN canonical_machine.c:3102 [0=G90,1=G91] (set_01)',
     convert: false,
     scope: 'persisted',
     risk: 'medium',
@@ -538,7 +538,7 @@ const SYSTEM: readonly OverlayEntry[] = [
     unit: 's',
     valueType: 'number',
     range: { min: 0.1, max: 4_294_967 },
-    rangeSource: 'EN stepper.c:1459-1464 and stepper.h:281-282 (the firmware clamps to this range; the host refuses instead of letting it clamp)',
+    rangeSource: 'EN stepper.c:1602-1607 and stepper.h:281-282 (the firmware clamps to this range; the host refuses instead of letting it clamp)',
     convert: false,
     scope: 'persisted',
     risk: 'medium',
@@ -554,7 +554,7 @@ const SYSTEM: readonly OverlayEntry[] = [
     valueType: 'integer',
     values: onOff('active low', 'active high'),
     range: { min: 0, max: 1 },
-    rangeSource: 'EN spindle.c:62-81 (more than 1 refused; refused while the spindle is on or the planner is busy); config_app.c:1101',
+    rangeSource: 'EN spindle.c:62-81 (more than 1 refused; refused while the spindle is on or the planner is busy); config_app.c:1117',
     convert: false,
     scope: 'persisted',
     risk: 'polarity',
@@ -571,7 +571,7 @@ const SYSTEM: readonly OverlayEntry[] = [
     valueType: 'integer',
     values: onOff('CW low', 'CW high'),
     range: { min: 0, max: 1 },
-    rangeSource: 'EN spindle.c:62-81 (more than 1 refused; refused while the spindle is on or the planner is busy); config_app.c:1102',
+    rangeSource: 'EN spindle.c:62-81 (more than 1 refused; refused while the spindle is on or the planner is busy); config_app.c:1118',
     convert: false,
     scope: 'persisted',
     risk: 'polarity',
@@ -587,7 +587,7 @@ const SYSTEM: readonly OverlayEntry[] = [
     valueType: 'integer',
     values: onOff('normally open', 'normally closed'),
     range: { min: 0, max: 1 },
-    rangeSource: 'EN switch.c:327-341 (more than 1 refused; refused while a cycle runs); config_app.c:1103',
+    rangeSource: 'EN switch.c:334-348 (more than 1 refused; refused while a cycle runs); config_app.c:1119',
     convert: false,
     scope: 'persisted',
     risk: 'polarity',
@@ -603,7 +603,7 @@ const SYSTEM: readonly OverlayEntry[] = [
     valueType: 'integer',
     values: onOff('off', 'on'),
     range: { min: 0, max: 1 },
-    rangeSource: 'EN config_app.c:668 (set_01); config_app.c:1104',
+    rangeSource: 'EN config_app.c:668 (set_01); config_app.c:1120',
     convert: false,
     scope: 'session',
     risk: 'low',

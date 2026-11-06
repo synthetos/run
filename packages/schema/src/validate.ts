@@ -181,10 +181,10 @@ function checkCrossKey(schema: SettingsSchema, valid: ReadonlyMap<string, number
       }
       const probes = ['xsn', 'xsx', 'ysn', 'ysx', 'zsn', 'zsx'].filter((k) => modes.get(k) === SW_MODE_PROBE);
       if (probes.length > 1) {
-        issues.push(issue(probes[1] as string, 'multipleProbeInputs', `only one probe input is allowed; ${probes.join(' and ')} are both set to probe (EN switch.c:302-316, status 253)`));
+        issues.push(issue(probes[1] as string, 'multipleProbeInputs', `only one probe input is allowed; ${probes.join(' and ')} are both set to probe (EN switch.c:309-323, status 253)`));
       }
       for (const k of ['asn', 'asx']) {
-        if (modes.get(k) === SW_MODE_PROBE) issues.push(issue(k, 'probeOnRotary', `the probe input cannot be on the A axis (EN switch.c:296-299, status 254)`));
+        if (modes.get(k) === SW_MODE_PROBE) issues.push(issue(k, 'probeOnRotary', `the probe input cannot be on the A axis (EN switch.c:303-306, status 254)`));
       }
     }
   }
