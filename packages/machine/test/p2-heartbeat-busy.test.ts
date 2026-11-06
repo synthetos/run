@@ -135,6 +135,19 @@ describe('T-S103: heartbeat silence during hold and dwell', () => {
     expect(d.state.overlays).not.toContain('STALE');
   });
 
+  it('a hold still on its way to a stop, with vel already 0, asks too; with vel not 0 it sends nothing', () => {
+    const d = connected();
+    d.line('{"sr":{"stat":5,"hold":4,"vel":0}}');
+    const start = d.at;
+    expect(silence(d, 4_000)).toEqual([start + W]);
+    expect(d.state.overlays).not.toContain('STALE');
+    d.line('{"sr":{"hold":4,"vel":300}}');
+    const from = d.effects.length;
+    d.at += W;
+    expect(enqs(d.fire('watchdog'))).toBe(0);
+    expect(writes(d.effects.slice(from)).length).toBe(0);
+  });
+
   it('moves queued but not stepping (planner buffers in use, vel 0) ask too', () => {
     const d = connected();
     d.line('{"qr":28}');
