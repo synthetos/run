@@ -412,6 +412,16 @@ export function parseMotionCommand(value: unknown): MotionCommand | null {
     case 'coolantOn':
       if (keys !== 'op,which' || (c['which'] !== 'mist' && c['which'] !== 'flood')) return null;
       return Object.freeze({ op: 'coolantOn', which: c['which'] });
+    // Probe Z (SAFETY §4.5c): the plan is mm and mm/min; the session checks every limit.
+    case 'probeTouch':
+      if (keys !== 'depthMm,feed,op,thicknessMm' || !finite(c['thicknessMm']) || !finite(c['depthMm']) || !finite(c['feed'])) return null;
+      return Object.freeze({ op: 'probeTouch', thicknessMm: c['thicknessMm'], depthMm: c['depthMm'], feed: c['feed'] });
+    case 'probeStart':
+      return keys === 'confirm,op' && c['confirm'] === true ? Object.freeze({ op: 'probeStart', confirm: true }) : null;
+    case 'probeRetest':
+    case 'probeCancel':
+    case 'probePlateOff':
+      return keys === 'op' ? Object.freeze({ op: c['op'] }) : null;
     default:
       return null;
   }

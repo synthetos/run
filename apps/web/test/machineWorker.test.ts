@@ -86,7 +86,9 @@ class BoardTransport implements Transport {
 
   constructor(info: TransportInfo = { kind: 'sim', usbVendorId: 0x0403, usbProductId: 0x6015 }, answers: Readonly<Record<string, string>> = EN) {
     this.#info = info;
-    this.#answers = { unit: '{"r":{"unit":1},"f":[3,0,10]}', xvm: '{"r":{"xvm":16000},"f":[3,0,10]}', ...answers };
+    // Probe Z reads its settings once at connect on a 450.02+ board (SAFETY §4.5c): a Z-min probe input, as stock.
+    const probe = Object.fromEntries(['xsn', 'xsx', 'ysn', 'ysx', 'zsn', 'zsx', 'asn', 'asx', 'prbp', 'zjh'].map((k) => [k, `{"r":{"${k}":${k === 'zsn' ? 4 : k === 'zjh' ? 40 : 0}},"f":[3,0,10]}`]));
+    this.#answers = { unit: '{"r":{"unit":1},"f":[3,0,10]}', xvm: '{"r":{"xvm":16000},"f":[3,0,10]}', g92: '{"r":{"g92":{"x":0,"y":0,"z":0,"a":0}},"f":[3,0,10]}', ...probe, ...answers };
   }
   info(): TransportInfo {
     return this.#info;
@@ -1089,6 +1091,41 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
     ];
     for (const command of bad) expect(parseRequest({ v: 3, kind: 'motion', command }), JSON.stringify(command)).toBeNull();
     expect(parseRequest({ v: 3, kind: 'motion', command: { op: 'resume' }, extra: 1 })).toBeNull();
+  });
+
+  it('Probe Z commands parse with exact keys and reach the session, which decides each (SAFETY §4.5c)', async () => {
+    for (const command of [{ op: 'probeTouch', thicknessMm: 12.7, depthMm: 5, feed: 25 }, { op: 'probeStart', confirm: true }, { op: 'probeRetest' }, { op: 'probeCancel' }, { op: 'probePlateOff' }]) {
+      expect(parseRequest({ v: 3, kind: 'motion', command }), JSON.stringify(command)).not.toBeNull();
+    }
+    const bad: unknown[] = [
+      { op: 'probeTouch', thicknessMm: 12.7, depthMm: 5 },
+      { op: 'probeTouch', thicknessMm: '12.7', depthMm: 5, feed: 25 },
+      { op: 'probeTouch', thicknessMm: 12.7, depthMm: Number.NaN, feed: 25 },
+      { op: 'probeTouch', thicknessMm: 12.7, depthMm: 5, feed: 25, extra: 1 },
+      { op: 'probeStart' },
+      { op: 'probeStart', confirm: 'yes' },
+      { op: 'probeStart', confirm: false },
+      { op: 'probeRetest', now: true },
+      { op: 'probeCancel', step: 'x' },
+      { op: 'probePlateOff', plate: true },
+    ];
+    for (const command of bad) expect(parseRequest({ v: 3, kind: 'motion', command }), JSON.stringify(command)).toBeNull();
+    const t = new BoardTransport(undefined, EN_MOTION);
+    const host = phase2Host(t, BENCH_ORIGIN);
+    await classifyWith(t, host);
+    const reply = async (command: unknown): Promise<unknown> => host.handle({ v: 3, kind: 'motion', command } as never);
+    // The session decides: a plan over the limits is refused with its reason (never a placeholder); a good one starts the touch test.
+    expect(await reply({ op: 'probeTouch', thicknessMm: 12.7, depthMm: 50, feed: 25 })).toMatchObject({ ok: false, code: 'denied', decision: { reason: 'Depth limit can be 1 to 15 mm.' } });
+    expect(await reply({ op: 'probeStart', confirm: true })).toMatchObject({ ok: false, decision: { reason: 'The touch test has not passed.' } });
+    expect(await reply({ op: 'probeRetest' })).toMatchObject({ ok: false, decision: { reason: 'There is no touch test to repeat.' } });
+    expect(await reply({ op: 'probeCancel' })).toMatchObject({ ok: false, decision: { reason: 'There is nothing to cancel.' } });
+    expect(await reply({ op: 'probePlateOff' })).toMatchObject({ ok: true });
+    expect(await reply({ op: 'probeTouch', thicknessMm: 12.7, depthMm: 5, feed: 25 })).toMatchObject({ ok: true });
+    expect(await reply({ op: 'probeCancel' })).toMatchObject({ ok: true });
+    const posted: SnapshotMessage[] = [];
+    await host.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => posted.push(m) });
+    expect(posted.at(-1)?.snapshot.probeZ).toMatchObject({ block: null, step: 'result', outcome: { kind: 'cancelled' }, plateOut: true });
+    expect(await reply({ op: 'probePlateOff' })).toMatchObject({ ok: true });
   });
 });
 
