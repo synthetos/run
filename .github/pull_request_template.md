@@ -80,6 +80,7 @@ item 20 covers 0x18 and 0x04). Items 22–40 are SAFETY §8 verbatim.
 - [ ] 51. (firmware update) No path can send `e`, `l`, an EEPROM write or a page at or above 0x30000: the closed command set, the frame guard and their tests are intact; every flash test asserts the fake xboot's erase count is 0.
 - [ ] 52. (firmware update) Backups (settings token by token, raw EEPROM, the application section) are stored before the first page; after the reconnect the settings compare, the required restore and the switch check gate jobs, jog and settings writes in the worker.
 - [ ] 53. (firmware update) The release list is verified per environment in the worker; simulator images never reach a real port; a trusted custom build is per board and per image SHA-256, local only, and never applies on production.
+- [ ] 54. (Probe Z) Probing runs only on approved EN builds of 450.02 or later and only with a fresh touch test and C39; the zero is set only from `e`=1 with `G10 L20` corrected for the stop distance; Start job and Spindle on are refused while the plate is out; `G38.x` stays blocked in jobs and the console (H90, §4.5c).
 
 ### Notes for the safety reviewer
 
