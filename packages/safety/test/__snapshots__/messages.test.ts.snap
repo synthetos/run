@@ -609,6 +609,33 @@ exports[`allow-matrix denials > are pinned for every intent and overlay 1`] = `
     "reason": "Position verification is only offered while the position is untrusted.",
     "remedy": "Nothing to do.",
   },
+  "probeZ BOOTLOADER_MODE": {
+    "allowed": false,
+    "citation": "SAFETY §4.5c Probe Z (owner 2026-11-07); H90",
+    "reason": "Only allowed while the machine is idle.",
+    "remedy": "Wait until the machine is idle.",
+  },
+  "probeZ NOT_CONNECTED": {
+    "allowed": false,
+    "citation": "SAFETY §4.5c Probe Z (owner 2026-11-07); H90",
+    "reason": "Only allowed while the machine is idle.",
+    "remedy": "Wait until the machine is idle.",
+  },
+  "probeZ phase 0": {
+    "allowed": false,
+    "citation": "ROADMAP P0-10 (Phase 0)",
+    "reason": "Not available in this release.",
+    "remedy": "This version of run.synthetos.com does not connect to machines yet.",
+  },
+  "probeZClose BOOTLOADER_MODE": {
+    "allowed": true,
+  },
+  "probeZClose NOT_CONNECTED": {
+    "allowed": true,
+  },
+  "probeZClose phase 0": {
+    "allowed": true,
+  },
   "read BOOTLOADER_MODE": {
     "allowed": false,
     "citation": "SAFETY §4.1 Read row",

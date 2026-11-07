@@ -213,6 +213,8 @@ c({ doc: 'S', id: 'W47', segment: 0, exports: ['w47'], examples: noExamples, ren
 c({ doc: 'S', id: 'W48', segment: 0, exports: ['w48'], examples: noExamples, render: S.w48, subs: none });
 c({ doc: 'S', id: 'W49', segment: 0, exports: ['w49'], examples: [{ seconds: 30 }, { seconds: 7 }], render: S.w49, subs: (e) => [['N', String(e.seconds)]] });
 c({ doc: 'S', id: 'W50', segment: 0, exports: ['w50'], examples: [{ fb: '440.21', minimum: '450.01' }, { fb: '449.01', minimum: '451.00' }], render: S.w50, subs: (e) => [['<fb>', e.fb], ['<minimum>', e.minimum]] });
+c({ doc: 'S', id: 'W51', segment: 0, exports: ['w51'], examples: noExamples, render: S.w51, subs: none });
+c({ doc: 'S', id: 'W52', segment: 0, exports: ['w52'], examples: noExamples, render: S.w52, subs: none });
 
 // ---------------------------------------------------------------- §6
 
@@ -493,6 +495,16 @@ c({
   examples: [{ name: 'tinyg-mine.hex', sha256Short: '3f2a…9c01', boardId: '0084-ab' }, { name: 'x.hex', sha256Short: 'aa11…bb22', boardId: 'SIM-1' }],
   render: S.c38,
   subs: (e) => [['<name>', e.name], ['<short>', e.sha256Short], ['<board id>', e.boardId]],
+});
+c({
+  doc: 'S', id: 'C39', segment: 0, exports: ['c39'],
+  examples: [
+    { feed: '25', depth: '5', system: 'G54', zero: '12.68', thickness: '12.70', stop: '0.02' },
+    { feed: '50', depth: '10', system: 'G57', zero: '3.14', thickness: '3.2', stop: '0.06' },
+  ],
+  render: S.c39,
+  // The zero first: its placeholder contains the thickness's.
+  subs: (e) => [['<thickness − L>', e.zero], ['<feed>', e.feed], ['<depth>', e.depth], ['<system>', e.system], ['<thickness>', e.thickness], ['<L>', e.stop]],
 });
 
 /**

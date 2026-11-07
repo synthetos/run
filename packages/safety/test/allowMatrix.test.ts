@@ -153,10 +153,11 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
       return out;
     };
     // jobBreakpoints (Phase 3) is the page's list of breakpoints for a loaded job: it writes nothing to the controller.
-    expect([...allowedUnder('FAULT')].sort()).toEqual(['ackFault', 'cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
+    // probeZClose (Probe Z, §4.5c) is Cancel before the probe and "The plate is off": it writes nothing either.
+    expect([...allowedUnder('FAULT')].sort()).toEqual(['ackFault', 'cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'probeZClose', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
     // Amendment 2026-11-03 (OD-12): Disconnect closes the port and changes nothing on the board.
-    expect([...allowedUnder('ORPHANED_MOTION')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
-    expect([...allowedUnder('LOST')].sort()).toEqual(['acknowledgeLost', 'cloudSync']);
+    expect([...allowedUnder('ORPHANED_MOTION')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'probeZClose', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
+    expect([...allowedUnder('LOST')].sort()).toEqual(['acknowledgeLost', 'cloudSync', 'probeZClose']);
     // Amendment 2026-11-02: the ways out of UNKNOWN are home, position-verify and, for a machine without homing
     // switches, set machine position (G28.3); the session's status-report configuration moves nothing.
     expect([...allowedUnder('UNKNOWN')].sort()).toEqual([
@@ -171,15 +172,16 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
       'jobBreakpoints',
       'lineMode',
       'positionVerify',
+      'probeZClose',
       'read',
       'resetController',
       'setMachinePosition',
       'spindleOffNow',
       'stopJob',
     ]);
-    expect([...allowedUnder('STALE')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
+    expect([...allowedUnder('STALE')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'jobBreakpoints', 'probeZClose', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
     // Amendment 2026-11-03: under READ_ONLY the firmware update too (the old-firmware gate opens the Update panel).
-    expect([...allowedUnder('READ_ONLY')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'flash', 'jobBreakpoints', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
+    expect([...allowedUnder('READ_ONLY')].sort()).toEqual(['cloudSync', 'disconnect', 'enq', 'feedhold', 'flash', 'jobBreakpoints', 'probeZClose', 'read', 'resetController', 'spindleOffNow', 'stopJob']);
     expect([...allowedUnder('NEEDS_REVIEW')].sort()).toEqual([
       'applyProfile',
       'cloudSync',
@@ -193,6 +195,7 @@ describe('T-S62 and the normative rule (SAFETY §4.1)', () => {
       'lineMode',
       // Amendment 2026-11-03: confirming the machine after a firmware update moves nothing.
       'positionVerify',
+      'probeZClose',
       'read',
       'resetController',
       'settingsWrite',
@@ -361,6 +364,15 @@ describe('Phase 2 release gate (owner 2026-11-02: bench motion; SAFETY §4.5b, T
     expect(allowed(snap('IDLE_HOMED'), 'jog', PHASE_2_RELEASE).allowed).toBe(true);
     expect(PHASE_2_RELEASE).toEqual({ name: 'Phase 2', motion: true, write: false, port: true, reports: true });
     expect(Object.isFrozen(PHASE_2_RELEASE)).toBe(true);
+  });
+
+  it('Probe Z (SAFETY §4.5c, H90): probeZ only from idle, or JOGGING for its own lines, with no overlay; probeZClose writes nothing and is never refused', () => {
+    for (const { s, intent } of cells()) {
+      if (intent === 'probeZ') expect(allowed(s, intent, PHASE_2_RELEASE).allowed, `${s.base} [${s.overlays.join('+')}]`).toBe(['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING'].includes(s.base) && s.overlays.length === 0);
+      if (intent === 'probeZClose' && s.classified) expect(allowed(s, intent, PHASE_1_RELEASE).allowed, `${s.base} [${s.overlays.join('+')}]`).toBe(true);
+    }
+    expect(intentKind('probeZ')).toBe('motion');
+    expect(allowed(snap('IDLE_HOMED'), 'probeZ', PHASE_1_RELEASE)).toMatchObject({ allowed: false, reason: 'Not available in this release.' });
   });
 
   it('homing and set machine position: idle or CONNECTED_UNKNOWN, UNKNOWN the only overlay; HOMING only for the G28.2 line being written (amendment 2026-11-02)', () => {
