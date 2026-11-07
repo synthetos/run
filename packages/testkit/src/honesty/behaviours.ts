@@ -570,6 +570,106 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     bench: 'B-POLL-1',
   },
 
+  // ------------------------------------------------------------------ edge-next: G38.2 probing (probing.ts)
+  {
+    id: 'EN-PROBE-SWITCH',
+    model: EN,
+    summary: 'G38.2 finds its input as the one X/Y/Z min or max switch in mode 4: none is 252, several 253, one on A 254 (A is tested first). Reply-only: no alarm, no motion.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'switch.c', lines: [296, 325], quote: 'multiple probe switches were found' },
+      { src: 'EN', file: 'cycle_probing.c', lines: [92, 97], quote: 'STAT_PROBE_SWITCH_ON_ABC_AXIS' },
+      { src: 'EN', file: 'switch.h', lines: [46, 46], quote: 'SW_MODE_PROBE           4' },
+    ],
+  },
+  {
+    id: 'EN-PROBE-INPUT',
+    model: EN,
+    summary:
+      'in1..in8 read the switch state (1 active, 0 inactive) of X min, X max, Y min, ... A max; the probe input takes its polarity from prbp (0 normally open, the default; 1 normally closed). Model: a simulated plate (contact while machine Z is at or below its top, or while touched) and lead (off: inactive on prbp 0, active on prbp 1).',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'config_app.c', lines: [510, 517], quote: '"in5"' },
+      { src: 'EN', file: 'switch.c', lines: [133, 134], quote: 'sw.s[i].type = sw.probe_type' },
+      { src: 'EN', file: 'config_app.c', lines: [657, 657], quote: 'SW_ACTIVE_LO' },
+      { src: 'EN', file: 'switch.h', lines: [69, 80], quote: 'SW_MIN_Z' },
+    ],
+  },
+  {
+    id: 'EN-PROBE-COMMAND',
+    model: EN,
+    summary:
+      'cm_straight_probe: zero F is 142 (a modal F is fine), an A/B/C word 135, no X/Y/Z word 134, the switch checks, then travel under 0.254 mm (converted to mm under G20) is 251; all reply-only. A G91 target becomes here plus the distance at command time; the distance mode is saved. Accepted, the line is answered 0 at once and the cycle waits for the planner to empty.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'cycle_probing.c', lines: [75, 90], quote: 'STAT_GCODE_AXIS_IS_MISSING' },
+      { src: 'EN', file: 'cycle_probing.c', lines: [102, 115], quote: 'here + target[axis]' },
+      { src: 'EN', file: 'cycle_probing.c', lines: [126, 137], quote: 'STAT_PROBE_TRAVEL_TOO_SMALL' },
+      { src: 'EN', file: 'cycle_probing.c', lines: [45, 45], quote: 'MINIMUM_PROBE_TRAVEL 0.254' },
+    ],
+  },
+  {
+    id: 'EN-PROBE-CYCLE',
+    model: EN,
+    summary:
+      'cm_probe_callback runs after feedhold sequencing and returns EAGAIN while the planner is busy and after each stage, so data lines wait and control lines (GETs) are still read; a completed probe hold is not busy. An alarm ends the cycle with no report (^D 207, a limit input 203). A soft limit on the probe move is ALARM 220 from cm_straight_feed, no report, no motion. `!` holds the move and the cycle finishes from the hold (no contact: e=0 and ALARM 250); `~` has nothing to resume.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'cycle_probing.c', lines: [157, 187], quote: 'an alarm ends the probe' },
+      { src: 'EN', file: 'controller.c', lines: [191, 194], quote: 'cm_probe_callback' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1522, 1527], quote: 'return (cm_alarm(status, cs.saved_buf))' },
+      { src: 'EN', file: 'cycle_probing.c', lines: [326, 337], quote: 'Probe move failed' },
+    ],
+  },
+  {
+    id: 'EN-PROBE-CONTACT-HOLD',
+    model: EN,
+    summary: 'A leading edge on the probe input during the probe cycle requests a normal feedhold (no fast stop); any edge counts, whatever caused it. The machine stays where the hold stops it, past the trip by the stop distance.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'switch.c', lines: [228, 231], quote: 'the probe contact ends the probe move' },
+      { src: 'EN', file: 'cycle_probing.c', lines: [241, 245], quote: 'cm_request_feedhold' },
+    ],
+  },
+  {
+    id: 'EN-PROBE-ALREADY-TRIPPED',
+    model: EN,
+    summary: 'An input already active when the move would start (the tool on the plate, a short, a broken lead on a normally closed input) fails the cycle: no motion, report e=0, then ALARM 250 "Probe already tripped".',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'cycle_probing.c', lines: [232, 236], quote: 'pb.already_tripped = (read_switch(pb.probe_switch) != SW_INACTIVE)' },
+      { src: 'EN', file: 'cycle_probing.c', lines: [316, 317], quote: 'Probe already tripped' },
+    ],
+  },
+  {
+    id: 'EN-PROBE-REPORT',
+    model: EN,
+    summary:
+      'After the stop, e = input active and not already tripped (read then, not latched at the trip); one unsolicited top-level {"prb":{"e":N,"x".."c"}} line (%0.3f) with the work position in current units (450.02; the model prints machine mm for fb 450.03 and later, per the firmware maintainer). Then the planner is flushed, the saved distance mode put back, the motion mode cancelled and the cycle ended (stat 3).',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'cycle_probing.c', lines: [261, 276], quote: 'static void _probe_report()' },
+      { src: 'EN', file: 'cycle_probing.c', lines: [278, 290], quote: 'cm.probe_results[axis] = cm_get_work_position(ACTIVE_MODEL, axis)' },
+      { src: 'EN', file: 'cycle_probing.c', lines: [296, 313], quote: 'cm_set_motion_mode(MODEL, MOTION_MODE_CANCEL)' },
+    ],
+  },
+  {
+    id: 'EN-PROBE-MISS-ALARM',
+    model: EN,
+    summary: 'A probe that ends without contact (target reached, a lead off on a normally open input, a Pause) reports e=0 and then raises ALARM 250 "Probe did not trip": spindle and coolant off, input rejected until {clear}.',
+    status: 'verified-source',
+    cites: [{ src: 'EN', file: 'cycle_probing.c', lines: [315, 320], quote: 'Probe did not trip' }],
+  },
+  {
+    id: 'EN-PROBE-STAT',
+    model: EN,
+    summary: 'stat is 7 (COMBINED_PROBE) while the machine is in a cycle and the cycle state is PROBE, the hold after contact included; cycs reads 3.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'canonical_machine.c', lines: [194, 196], quote: 'CYCLE_PROBE:   { return (COMBINED_PROBE); }' },
+      { src: 'EN', file: 'canonical_machine.h', lines: [93, 93], quote: 'CYCLE_PROBE' },
+    ],
+  },
   // ------------------------------------------------------------------ 440.21
   {
     id: 'TG-RX-RING',
@@ -950,12 +1050,13 @@ export const MODEL_LIMITS: readonly ModelLimit[] = Object.freeze([
   { id: 'LIM-KINEMATICS', scope: 'both', summary: 'Moves run at cruise speed with no acceleration ramps; a feedhold decelerates linearly over a fixed time (holdDecelMs, default 100 ms). Positions and durations are coarse.' },
   { id: 'LIM-ARCS', scope: 'both', summary: 'Arcs only in G17 with incremental I/J; one planner block per arc (EN queues arc segments from a callback); the end position is the commanded target, not the last computed segment. R-format, G18/G19, G90.1 and (440.21) K-word arcs, and zero-radius helices, throw ModelGapError. atan2/sin/hypot are double rounded once to float32, so a case exactly on a libm ulp boundary may differ.' },
   { id: 'LIM-HOLD-DWELL', scope: 'both', summary: 'Before EN 450.02, and on TG, a feedhold requested while a dwell runs in a moving cycle takes effect when the dwell ends (B-FH-1).' },
-  { id: 'LIM-UNMODELLED', scope: 'both', summary: 'On 440.21 homing (G28.x); on edge-next G28.1/G28.4 (edge-next G28.2 and G28.3: LIM-EN-HOMING). Probing (G38.2), G10 (except edge-next L2/L20, LIM-EN-G10), G28/G30, G43.1, G92.2/G92.3, G93, M105/M114/M115, M201.3, group SETs (except the edge-next sr list, LIM-EN-SR-LIST), baud/boot/defaults/test SETs throw ModelGapError. Use setHomed() for a homed machine.' },
+  { id: 'LIM-UNMODELLED', scope: 'both', summary: 'On 440.21 homing (G28.x); on edge-next G28.1/G28.4 (edge-next G28.2 and G28.3: LIM-EN-HOMING). G10 (except edge-next L2/L20, LIM-EN-G10), G28/G30, G43.1, G92.2/G92.3, G93, M105/M114/M115, M201.3, group SETs (except the edge-next sr list, LIM-EN-SR-LIST), baud/boot/defaults/test SETs throw ModelGapError. Use setHomed() for a homed machine.' },
   { id: 'LIM-EN-G10', scope: 'tinyg-en', summary: 'Edge-next G10 L2 and L20 with P1..P6 set the G54..G59 offset and persist it, uncited (added for the Phase 2 fake board: set work zero). L20 uses the end of the last queued move as the current position; other L values are refused with status 130 as an unsupported command, other P values with P_WORD_IS_INVALID. 440.21 G10 still throws ModelGapError.' },
   { id: 'LIM-EN-SR-LIST', scope: 'tinyg-en', summary: 'Edge-next {"sr":{...}} replaces the status report list with the keys set to true, in order (TinyG report.c sr_set as remembered, uncited at the pin): a non-true value or unknown token is 100, an empty list 101, more than 30 entries 107 (INPUT_EXCEEDS_MAX_LENGTH, the closest status); it is persisted (one EEPROM write) and answered with the values of the new list. Kept in the EEPROM image as token indexes.' },
   { id: 'LIM-EN-SR-TIMING', scope: 'tinyg-en', summary: 'Status report requests are modelled as one timed request recorded at the first change against the values last sent; the report prints si ms later sampling the values then (report.c facts from the firmware maintainer, 2026-11-02, not cited at the pin). Which firmware events request a report is not modelled: any change of a listed value does.' },
   { id: 'LIM-EN-RT-HB', scope: 'tinyg-en', summary: 'The rt family as the single pair of a line: {"rt":null} reads hb, qt and up (whole seconds since power-up, runtime.c:179-185); {"rt":{"hb":N}} sets the RAM heartbeat in whole seconds, 0 off, 1..60 (RT_HB_MAX, runtime.h:6, :15); an integer above 60 or a negative is 110 and changes nothing, never clamped (runtime.c:107-118; util.c:224); a non-integer (1.5, a string) is 110 as the firmware maintainer stated (2026-11-02), though the typesafe parser read at 93a723b8 looks to answer 116 for those (json_parser.c:678-684; util.c:270), unverified on hardware (a JSON true is converted to 1 by that parser, json_parser.c:679-681; the model refuses it with 110); any other member 100; option rt:false answers 100. While hb > 0 a {"hb":{"stat","hold","up","qt"}} line prints every hb seconds while the link and the machine are quiet (JSON mode, no byte in or out, nothing unread; nothing moving, held, flushing or queued, runtime.c:33-93); any activity restarts the interval. hb is 0 after boot and ^X. Not modelled: qt (always ""), a beat skipped when it cannot go out whole, and the full planner-and-stepper quiet test (the model uses its motion queue).' },
   { id: 'LIM-EN-HOMING', scope: 'tinyg-en', summary: 'G28.2: each named axis needs exactly one homing switch (sn or sx mode 1 or 3), sv > 0 and am != 0, else the block fails with 246 (241 with no axis) and nothing moves. Axes home Z, X, Y, A as straight moves toward the switch end at sv mm/min (at most |tm-tn|+lb), then the axis position is set to tn or tm and marked homed; no latch, backoff or switch input is modelled. stat 9 while the cycle runs; a flush, an alarm, ^D or a reset ends it with the remaining axes unhomed. G28.3 queues a set of the named axes positions (unit-converted) and marks them homed. Uncited.' },
+  { id: 'LIM-EN-PROBE', scope: 'tinyg-en', summary: 'Edge-next G38.2: the probe input has no 50 ms lockout and is sampled once per main-loop pass (1 ms); the stop after contact is the model hold (LIM-KINEMATICS), not a jerk-limited stop at zjh, so the overshoot is not the firmware stop distance; jerk and inverse-time mode are not modelled; the plate and lead are test controls (setProbePlate, setProbeTouch, setProbeLead); no status report is requested on a switch edge.' },
   { id: 'LIM-EN-RAM-WRITES', scope: 'tinyg-en', summary: 'Option ramWrites (default off) models a proposed firmware capability, not in any build: {"rt":{"unsaved":null}} answers unsaved 0, and a line whose first pair is ram:1 applies the rest in RAM without persisting. Without it any ram key answers 100 after the pairs before it have run.' },
   { id: 'LIM-TEXT', scope: 'both', summary: 'Text mode replies only with a prompt line; text-mode commands are not executed.' },
   { id: 'LIM-MESSAGES', scope: 'both', summary: 'Exception "msg" texts are the status names, not the firmware strings; (MSG ...) comments are ignored.' },

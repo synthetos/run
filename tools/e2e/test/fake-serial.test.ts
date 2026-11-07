@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GuardedTransport } from '@synthetos/machine';
 import { MockSerialPort, SimEndpoint, TinyGEdgeNextModel, VirtualClock, settle } from '@synthetos/testkit';
 import { MockTransport } from '../fake-serial/mockTransport.ts';
-import { FAKE_GRANTED_PORT, FAKE_SERIAL_GLOBAL, createTransportSource, realTimeClock, type FakeSerialRegistry } from '../fake-serial/transport.ts';
+import { FAKE_GRANTED_PORT, FAKE_PLATE_Z, FAKE_SERIAL_GLOBAL, createTransportSource, realTimeClock, type FakeSerialRegistry } from '../fake-serial/transport.ts';
 import * as fakeSeam from '../fake-serial/transport.ts';
 import * as productionSeam from '../../../apps/web/src/machine-worker/transport.ts';
 import { SESSION_OPEN_OPTIONS } from '@synthetos/machine';
@@ -114,6 +114,22 @@ describe('the fake-serial transport source', () => {
     expect(registry.ports).toHaveLength(2);
     expect(registry.ports.every((p) => p.openLog.length === 0)).toBe(true);
     expect(a?.info()).toEqual({ kind: 'sim', usbVendorId: 0x0403, usbProductId: 0x6015 });
+  });
+
+  it('the plain board has a Z-min probe input, a probe jerk and a plate a spec can drive (Probe Z, T-S132); a spec\'s EEPROM wins', async () => {
+    const source = createTransportSource();
+    await source.request(FAKE_GRANTED_PORT);
+    const registry = (globalThis as Record<string, unknown>)[FAKE_SERIAL_GLOBAL] as FakeSerialRegistry;
+    const device = registry.devices?.at(-1) as TinyGEdgeNextModel;
+    expect(device.settings.get('zsn')).toBe(4);
+    expect(device.settings.get('zjh')).toBe(40);
+    expect(device.settings.get('prbp')).toBe(0);
+    expect(device.eepromWrites).toBe(0);
+    expect(FAKE_PLATE_Z).toBeLessThan(0);
+    registry.next = { eeprom: { __layout: 10002, zsn: 1 } };
+    await source.request(FAKE_GRANTED_PORT);
+    expect(registry.devices?.at(-1)?.settings.get('zsn')).toBe(1);
+    expect(registry.devices).toHaveLength(2);
   });
 
   it('refuses, never guesses: a selector for any other port resolves null and lists no port', async () => {

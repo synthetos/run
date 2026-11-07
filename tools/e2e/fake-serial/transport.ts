@@ -30,6 +30,15 @@ const PIN_BUILD = Object.freeze({ fb: 450.02, fv: 0.97, hv: 8, layout: 10002 });
 /** Where the ports this source created are listed, in the worker's global scope. */
 export const FAKE_SERIAL_GLOBAL = '__RUN_FAKE_SERIAL__';
 
+/**
+ * Probe Z (SAFETY §4.5c, T-S132): the plain fake board has a Z-min probe input (`zsn` 4, the firmware's stock
+ * default), a probe jerk and a normally open plate, as if configured before; a spec's own EEPROM values win.
+ */
+const PROBE_SETTINGS: Readonly<Record<string, number>> = Object.freeze({ zsn: 4, zjh: 40, prbp: 0 });
+
+/** Where the plain fake board's simulated touch plate sits: its top 3 mm below the start Z (machine mm). */
+export const FAKE_PLATE_Z = -3;
+
 /** The simulated board's boot time before its first banner, ms. */
 const BOOT_MS = 50;
 
@@ -41,6 +50,11 @@ const EEPROM_WRITE_MS = 25;
 
 export interface FakeSerialRegistry {
   readonly ports: MockSerialPort[];
+  /**
+   * The plain simulated boards, in creation order (the last is the one in use): a spec drives the probe input
+   * through them with `worker.evaluate`, e.g. `devices.at(-1).setProbeTouch(true)` or `setProbePlate(z)`.
+   */
+  readonly devices?: TinyGEdgeNextModel[];
   /**
    * Options for the next simulated board only (then cleared): a spec sets, for example, an EEPROM image with
    * homing switches before it opens the port (amendment 2026-11-02 specs).
@@ -86,7 +100,7 @@ function registry(): FakeSerialRegistry {
   const scope = globalThis as unknown as Record<string, FakeSerialRegistry | undefined>;
   const existing = scope[FAKE_SERIAL_GLOBAL];
   if (existing !== undefined) return existing;
-  const created: FakeSerialRegistry = { ports: [] };
+  const created: FakeSerialRegistry = { ports: [], devices: [] };
   scope[FAKE_SERIAL_GLOBAL] = created;
   return created;
 }
@@ -121,9 +135,21 @@ export function createTransportSource(): TransportSource {
       // stays the 450.01 model's (testkit LIM-EN-REPIN).
       const device = new TinyGEdgeNextModel({ start: 'boot', bootMs: BOOT_MS, eepromWriteMs: EEPROM_WRITE_MS, rxm: 0, build: PIN_BUILD, ...next });
       const endpoint = new SimEndpoint({ clock: realTimeClock(), device });
+      enableProbeInput(device);
       const port = new MockSerialPort(endpoint);
       registry().ports.push(port);
+      registry().devices?.push(device);
       return Promise.resolve(new MockTransport(port));
     },
   });
+}
+
+/** The probe settings the plain board was configured with (persisted, so no EEPROM write is counted), and the plate. */
+function enableProbeInput(device: TinyGEdgeNextModel): void {
+  for (const [key, value] of Object.entries(PROBE_SETTINGS)) {
+    if (device.settings.eeprom[key] !== undefined) continue;
+    device.settings.setRam(key, value);
+    device.settings.persist(key);
+  }
+  device.setProbePlate(FAKE_PLATE_Z);
 }

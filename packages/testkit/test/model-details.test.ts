@@ -125,7 +125,7 @@ describe('edge-next G-code word rules', () => {
   });
 
   it('throws ModelGapError for firmware features the model does not implement', () => {
-    for (const line of ['G28.1', 'G38.2 Z-1 F10', 'M114', 'G2 X1 R1 F100']) {
+    for (const line of ['G28.1', 'G28', 'M114', 'G2 X1 R1 F100']) {
       const sim = enSim();
       sim.host.sendLine(line);
       expect(() => sim.clock.advance(20), line).toThrow(ModelGapError);
