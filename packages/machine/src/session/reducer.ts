@@ -114,7 +114,7 @@ import {
 import { jobActive, patchJob } from './jobState.ts';
 import { PROBE_CLOSED } from './probe/state.ts';
 import { onProbeIntent, probeRefusal } from './probe/intents.ts';
-import { abandonProbe, onProbeAlarm, onProbeAnswer, onProbeGarbled, onProbeMissed, onProbePoll, onProbeReport, onProbeStop, onProbeTimer } from './probe/run.ts';
+import { abandonProbe, onProbeAlarm, onProbeLineDropped, onProbeAnswer, onProbeGarbled, onProbeMissed, onProbePoll, onProbeReport, onProbeStop, onProbeTimer } from './probe/run.ts';
 import { probeCarried, probeSeedReads, syncProbe } from './probe/sync.ts';
 import {
   MAX_PROBE_RESTARTS,
@@ -1973,6 +1973,8 @@ function pump(t: Tx): void {
     if (next.purpose === 'setting') finishSettingWrite(t, 'refused', 'Not written: the machine is no longer in a state that allows settings writes.');
     /* c8 ignore next -- a report step is queued in the transition maybeConfigure checked the matrix, and an overlay that denies it also fails the configuration first */
     if (reportWrite) failReports(t, 'the machine is no longer in a state that allows report configuration');
+    // Probe Z: its line is dropped, never held; the probe says what that means (an alarm, STALE).
+    if (next.purpose === 'probeZ' && ownLine) onProbeLineDropped(t, next.line as string, s.live.lastRxAt as number);
     return;
   }
   const line = lineFor(s, next);

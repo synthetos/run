@@ -116,7 +116,8 @@ function onRead(t: ProbeTx, token: string, value: JsonValue | undefined, at: num
     if (token !== READBACK_TOKENS.at(-1)) return;
     const plan = p.plan as ProbePlan;
     const system = activeSystem(t.s);
-    const confirmed = system !== null && zeroConfirmed(run(t).readback, system, plan);
+    // Pause or Stop job pressed while the zero was in flight: the zero may or may not be set, so none is claimed.
+    const confirmed = r.stopped === null && system !== null && zeroConfirmed(run(t).readback, system, plan);
     restoreThen(t, confirmed ? { kind: 'contactZeroSet', zeroZ: plan.zeroZ, travelMm: travelMm(t, (r.report as NonNullable<ProbeRun['report']>).z) ?? 0, stopMm: plan.stopMm } : { kind: 'zeroUnconfirmed' });
     return;
   }
@@ -204,7 +205,8 @@ export function onProbeAlarm(t: ProbeTx, event: Exception, at: number): boolean 
   setProbe(t, { alarmExpected: false });
   const r = p.run;
   t.emit({ kind: 'log', text: `probe Z: the board alarmed with status ${event.st}: ${event.msg.slice(0, 80)}` });
-  // After the zero went out, a Stop job's alarm does not change the zero's result: the read-back says what is set.
+  // After the zero went out, a Stop job's alarm does not end the sequence: the read-back and the restore still run,
+  // and the result never claims the zero (see onRead).
   if (r === null || zeroWritten(t.s)) return true;
   const outcome: ProbeOutcome =
     stopOutcome(r) ??
@@ -269,7 +271,7 @@ export function onProbeStop(t: ProbeTx, request: SessionIntent, at: number): boo
   const realtime = t.s.dialect?.realtime;
   /* c8 ignore next -- a probe runs only on edge-next, which has both bytes */
   if (realtime === undefined || realtime.kill === undefined) return false;
-  // Once the zero has gone to the transport it may be set: its read-back, not the stop, says what is (H90 mitigation 3).
+  // Once the zero has gone to the transport it may be set: its read-back still runs, but no zero is claimed (H90 mitigation 3).
   const zeroOut = zeroWritten(t.s);
   const moved = probeWritten(t.s);
   if (!zeroOut) dropQueuedLines(t);
@@ -290,6 +292,20 @@ export function abandonProbe(t: ProbeTx, why: 'lost' | 'fault', at: number): voi
   const zeroing = p.step === 'zeroing' && p.run?.zero !== null;
   const outcome: ProbeOutcome = why === 'lost' ? { kind: 'lost', during: zeroing ? 'zero' : 'probe' } : zeroing ? { kind: 'zeroUnconfirmed' } : { kind: 'noReport' };
   finish(t, outcome, at);
+}
+
+/**
+ * One of the probe's lines can no longer be written (the matrix refuses it: an alarm, STALE): it is dropped. Putting
+ * the modes back is skipped (a board in alarm refuses lines anyway); a probe or zero line not sent is said plainly.
+ */
+export function onProbeLineDropped(t: ProbeTx, line: string, at: number): void {
+  t.set({ queue: t.s.queue.filter((q) => !(q.purpose === 'probeZ' && q.line === line)) });
+  const r = t.s.probeZ.run;
+  if (r === null) return;
+  const text = 'Not sent: the machine left the state that allows it.';
+  if (r.zero === 'restore') finish(t, r.pending as ProbeOutcome, at);
+  else if (r.zero === 'line') finish(t, { kind: 'zeroRefused', status: 0, text }, at);
+  else finish(t, { kind: 'refused', status: 0, text }, at);
 }
 
 /** One of the probe's answers timed out (the link goes STALE). */

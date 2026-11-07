@@ -233,7 +233,38 @@ describe('Probe Z through the reducer', () => {
     r.answer({ x: 0, y: 0, z: 12.678 }).answer({ x: 0, y: 0, z: -15.7 }).answer(1);
     expect(r.writing).toBe('G90');
     r.answer();
-    expect(r.s.probeZ.outcome).toMatchObject({ kind: 'contactZeroSet' });
+    // The read-back agrees, but Stop job was pressed while the zero was in flight: no zero is claimed.
+    expect(r.s.probeZ.outcome).toEqual({ kind: 'zeroUnconfirmed' });
+  });
+
+  it('Stop job is allowed in every step of a running probe and writes ^D; Pause is allowed and writes `!`, never `~`', async () => {
+    const steps: readonly [string, () => Promise<R>][] = [
+      ['starting, before G21', async () => (await ready()).intent(START)],
+      ['starting, G21 out', async () => {
+        const r = (await ready()).intent(START);
+        r.poll(1);
+        return r;
+      }],
+      ['probing', probing],
+      ['zeroing, before the zero', async () => {
+        const r = await probing();
+        return r.line('{"prb":{"e":1,"x":0,"y":0,"z":-1,"a":0,"b":0,"c":0}}');
+      }],
+      ['zeroing, the zero in flight', zeroLine],
+    ];
+    for (const [name, make] of steps) {
+      const k = await make();
+      k.intent({ intent: 'stopJob' });
+      expect(k.fx.find((e) => e.kind === 'decision'), name).toMatchObject({ decision: { allowed: true } });
+      expect(k.fx.find((e) => e.kind === 'writeRealtime'), name).toMatchObject({ name: 'kill', byte: 4 });
+      const p = await make();
+      p.intent({ intent: 'feedhold' });
+      expect(p.fx.find((e) => e.kind === 'decision'), name).toMatchObject({ decision: { allowed: true } });
+      expect(p.fx.filter((e) => e.kind === 'writeRealtime').map((e) => (e as { name: string }).name), name).toEqual(['feedhold']);
+      // Resume is refused (no hold of this session's motion), so `~` is never written.
+      p.intent({ intent: 'resume' });
+      expect(p.fx.some((e) => e.kind === 'writeRealtime' && e.name === 'resume'), name).toBe(false);
+    }
   });
 
   it('a stop before the zero went out (machine at rest): the stop is the result', async () => {
@@ -391,6 +422,23 @@ describe('Probe Z through the reducer', () => {
     n.timer('probe');
     n.answer({ z: 12.678 }).answer({ z: -15.7 }).answer(1).answer();
     expect(n.s.probeZ.outcome).toMatchObject({ kind: 'contactZeroSet', travelMm: 0 });
+  });
+
+  it('a probe line the matrix no longer allows is dropped, never held, and the probe says it was not sent', async () => {
+    const z = await zeroLine();
+    z.s = { ...z.s, queue: [z.s.writing as SessionState['queue'][number]], writing: null, overlays: ['STALE'] };
+    z.ev({ type: 'intent', at: z.at, request: { intent: 'read', tokens: ['vel'] } });
+    expect(z.s.probeZ.outcome).toEqual({ kind: 'zeroRefused', status: 0, text: 'Not sent: the machine left the state that allows it.' });
+    const g = (await ready()).intent(START);
+    g.poll(1);
+    g.s = { ...g.s, queue: [g.s.writing as SessionState['queue'][number]], writing: null, base: 'ALARM' };
+    g.ev({ type: 'intent', at: g.at, request: { intent: 'read', tokens: ['vel'] } });
+    expect(g.s.probeZ.outcome).toEqual({ kind: 'refused', status: 0, text: 'Not sent: the machine left the state that allows it.' });
+    // A leftover probe line with no run is only dropped.
+    const n = await ready();
+    n.s = { ...n.s, queue: [{ token: 'gc', purpose: 'probeZ', line: 'G21', intent: 'probeZ' }], base: 'ALARM' };
+    n.ev({ type: 'intent', at: n.at, request: { intent: 'read', tokens: ['vel'] } });
+    expect(n.s.queue.some((e) => e.line === 'G21')).toBe(false);
   });
 
   it('the G21 answer after a stop queues nothing more; a refused G21 is the result', async () => {

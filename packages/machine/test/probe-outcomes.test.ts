@@ -197,6 +197,50 @@ describe('T-S131: outcomes', () => {
     expect(u.session.snapshot.probeZ.outcome).toEqual({ kind: 'zeroUnconfirmed' });
   });
 
+  it('Stop job pressed while the G10 zero is in flight: ^D, and no zero is claimed', async () => {
+    const h = await probeHarness();
+    await passTouch(h);
+    const from = startProbe(h);
+    // The zero has left the queue: it is being written or owed its answer.
+    await runUntil(h, () => h.session.state.probeZ.run?.zero === 'line' && !h.session.state.queue.some((q) => q.line?.startsWith('G10') === true), 30_000, 1);
+    expect(h.session.state.probeZ.step).toBe('zeroing');
+    expect(h.session.stopJob()).toEqual({ allowed: true });
+    await untilResult(h);
+    expect(writes(h).slice(from)).toContain('\\x04');
+    expect(h.session.snapshot.probeZ.outcome).toEqual({ kind: 'zeroUnconfirmed' });
+    expect(h.session.snapshot.fault).toBeNull();
+  });
+
+  it('Pause is allowed in every step from the touch test to the result, and `~` is never written', async () => {
+    const h = await probeHarness();
+    const from = writes(h).length;
+    h.session.request(TOUCH);
+    await h.run(300);
+    expect(h.session.feedhold()).toEqual({ allowed: true });
+    await passTouch(h);
+    expect(h.session.feedhold()).toEqual({ allowed: true });
+    await h.run(300);
+    startProbe(h);
+    expect(h.session.feedhold()).toEqual({ allowed: true });
+    await untilResult(h);
+    expect(h.session.snapshot.probeZ.outcome).toEqual({ kind: 'paused' });
+    for (const step of ['probing', 'zeroing'] as const) {
+      const p = await probeHarness();
+      await passTouch(p);
+      startProbe(p);
+      await runUntil(p, () => p.session.snapshot.probeZ.step === step, 30_000, 1);
+      expect(p.session.feedhold(), step).toEqual({ allowed: true });
+      await untilResult(p);
+      expect(p.session.request({ intent: 'resume' }), step).toMatchObject({ allowed: false });
+      await p.run(2000);
+      expect(writes(p).includes('~'), step).toBe(false);
+      expect(p.session.snapshot.probeZ.outcome, step).not.toMatchObject({ kind: 'contactZeroSet' });
+    }
+    expect(h.session.feedhold()).toEqual({ allowed: true });
+    await h.run(1000);
+    expect(writes(h).slice(from).includes('~')).toBe(false);
+  });
+
   it('while the plate is out Start job and Spindle on are refused; Pause, Stop job and Spindle off never are', async () => {
     const h = await probeHarness();
     await probed(h);
