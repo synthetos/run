@@ -15,7 +15,7 @@ import { focusOnMount } from '../src/workspace/ui.ts';
 import type { MotionCommand } from '../src/machine-worker/rpc.ts';
 import { InputReading } from '../src/workspace/probe/InputReading.ts';
 import { ProbeBlocked } from '../src/workspace/probe/ProbeBlocked.ts';
-import { ProbeSetup, type ProbeSetupProps } from '../src/workspace/probe/ProbeSetup.ts';
+import { ProbeSetup, type ProbeSetupPlan, type ProbeSetupProps } from '../src/workspace/probe/ProbeSetup.ts';
 import { ProbeTouch, touchPassed, type ProbeTouchProps } from '../src/workspace/probe/ProbeTouch.ts';
 import { ProbeReady, systemNumber, type ProbeReadyProps } from '../src/workspace/probe/ProbeReady.ts';
 import { ProbeRunning } from '../src/workspace/probe/ProbeRunning.ts';
@@ -69,10 +69,10 @@ describe('ProbeBlocked', () => {
 });
 
 describe('ProbeSetup', () => {
-  function setup(extra: Partial<ProbeSetupProps> = {}): { el: El; changes: ProbeForm[]; next: number[] } {
+  function setup(extra: Partial<ProbeSetupProps> = {}): { el: El; changes: ProbeForm[]; next: ProbeSetupPlan[] } {
     const changes: ProbeForm[] = [];
-    const next: number[] = [];
-    const el = root(h(ProbeSetup, { form: initialForm(null), zjh: 40, system: 'G54', remembered: false, advanced: false, onChange: (f) => changes.push(f), onNext: () => next.push(1), onCancel: noop, ...extra }));
+    const next: ProbeSetupPlan[] = [];
+    const el = root(h(ProbeSetup, { form: initialForm(null), zjh: 40, system: 'G54', remembered: false, advanced: false, onChange: (f) => changes.push(f), onNext: (plan) => next.push(plan), onCancel: noop, ...extra }));
     return { el, changes, next };
   }
 
@@ -85,7 +85,7 @@ describe('ProbeSetup', () => {
     expect(text(filled.el)).toContain('Last used. Check it matches this plate.');
     
     click(button(filled.el, 'probe-touch'));
-    expect(filled.next).toHaveLength(1);
+    expect(filled.next).toEqual([{ thicknessMm: 12.7, depthMm: 5, feed: 25 }]);
     expect(text(button(filled.el, 'probe-touch'))).toBe('Test the plate');
     expect(text(button(filled.el, 'probe-cancel'))).toBe('Cancel');
     expect(enabled(button(setup({ form: initialForm(12.7) }).el, 'probe-touch'))).toBe(false);
@@ -315,6 +315,30 @@ describe('ProbeZ: the mount under Position', () => {
     expect(text(el)).toContain('The spindle is on.Turn it off, then open Probe Z again.');
     click(button(el, 'probe-close'));
     expect(buttons(t.render(), 'probe-open')).toHaveLength(1);
+  });
+
+  it('prerendered, a press does nothing; Setup’s Cancel closes it; the last thickness on this board is offered', () => {
+    const still = root(h(ProbeZ, { model: null }) as never);
+    click(button(still, 'probe-open'));
+    expect(buttons(root(h(ProbeZ, { model: null }) as never), 'probe-open')).toHaveLength(1);
+
+    const data = new Map<string, string>([['run.ws.probe-thickness', JSON.stringify({ v: 1, value: { 'SIM-PROBE-1': 12.7 } })]]);
+    const g = globalThis as { localStorage?: unknown };
+    g.localStorage = { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v) };
+    try {
+      const t = harness(liveModel(probeSnap()).model);
+      click(button(t.render(), 'probe-open'));
+      let el = t.render();
+      expect(one(el, byAttr('id', 'probe-thickness')).props['value']).toBe('12.7');
+      expect(text(el)).toContain('Last used. Check it matches this plate.');
+      (one(el, byAttr('id', 'probe-thickness')).props['onInput'] as (e: unknown) => void)({ currentTarget: { value: '3' } });
+      expect(text(t.render())).toContain('Measure it; Run can’t check this.');
+      click(button(t.render(), 'probe-cancel'));
+      el = t.render();
+      expect(buttons(el, 'probe-open')).toHaveLength(1);
+    } finally {
+      delete g.localStorage;
+    }
   });
 
   it('the whole flow: Setup, touch test, Ready, probing, result, plate off', async () => {

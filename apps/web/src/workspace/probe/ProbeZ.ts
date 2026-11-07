@@ -18,12 +18,12 @@ import { ConfirmCard } from '../ui.ts';
 import { ProbeBlocked } from './ProbeBlocked.ts';
 import { ProbeCard } from './ProbeCard.ts';
 import { alarmMeaning, BLOCK_COPY } from './probeCopy.ts';
-import { checkForm, initialForm, type ProbeForm } from './probeForm.ts';
+import { initialForm, type ProbeForm } from './probeForm.ts';
 import { lastThickness, rememberThickness } from './probeMemory.ts';
 import { ProbeReady } from './ProbeReady.ts';
 import { ProbeResult } from './ProbeResult.ts';
 import { ProbeRunning } from './ProbeRunning.ts';
-import { ProbeSetup } from './ProbeSetup.ts';
+import { ProbeSetup, type ProbeSetupPlan } from './ProbeSetup.ts';
 import { ProbeTouch, touchPassed } from './ProbeTouch.ts';
 import { LIFT_MM, probeView } from './probeView.ts';
 
@@ -53,7 +53,8 @@ export function probeZBody({ model }: ProbeZProps, hk: Hooks): ComponentChild {
   const [form, setForm] = hk.state<ProbeForm | null>(null);
   const [continued, setContinued] = hk.state(false);
   const [plateOn, setPlateOn] = hk.state(false);
-  const [asking, setAsking] = hk.state(false);
+  /** The C13 meaning while Clear alarm is being asked, or null. */
+  const [asking, setAsking] = hk.state<string | null>(null);
   const [note, setNote] = hk.state<string | null>(null);
   const [done, setDone] = hk.state<string | null>(null);
   const remembered = lastThickness(pv.boardId);
@@ -70,13 +71,11 @@ export function probeZBody({ model }: ProbeZProps, hk: Hooks): ComponentChild {
     setForm(initialForm(remembered));
     setOpen(true);
   };
-  const touch = (): void => {
-    const checked = checkForm(current, probe?.zjh ?? null);
-    if (!checked.ok) return;
-    rememberThickness(pv.boardId, checked.thicknessMm);
+  const touch = (plan: ProbeSetupPlan): void => {
+    rememberThickness(pv.boardId, plan.thicknessMm);
     setContinued(false);
     setPlateOn(false);
-    run({ op: 'probeTouch', thicknessMm: checked.thicknessMm, depthMm: checked.depthMm, feed: checked.feed });
+    run({ op: 'probeTouch', ...plan });
   };
   const cancel = (): void => run({ op: 'probeCancel' });
   const plateOff = (): void => {
@@ -88,8 +87,11 @@ export function probeZBody({ model }: ProbeZProps, hk: Hooks): ComponentChild {
 
   let card: ComponentChild = null;
   if (probe === null || step === 'closed') {
-    if (open && pv.block !== null) card = h(ProbeBlocked, { block: pv.block, label: 'Close', onClose: () => setOpen(false) });
-    else if (open) card = h(ProbeSetup, { form: current, zjh: probe?.zjh ?? null, system, remembered: remembered !== null && current.thickness === String(remembered), advanced, onChange: setForm, onNext: touch, onCancel: () => setOpen(false) });
+    if (open)
+      card =
+        pv.block !== null
+          ? h(ProbeBlocked, { block: pv.block, label: 'Close', onClose: () => setOpen(false) })
+          : h(ProbeSetup, { form: current, zjh: pv.probe.zjh, system, remembered: remembered !== null && current.thickness === String(remembered), advanced, onChange: setForm, onNext: touch, onCancel: () => setOpen(false) });
   } else if ((step === 'touch' || step === 'ready') && pv.block !== null) {
     card = h(ProbeBlocked, { block: pv.block, label: 'Cancel', onClose: cancel });
   } else if (step === 'touch' && !(continued && touchPassed(probe.touch))) {
@@ -100,7 +102,7 @@ export function probeZBody({ model }: ProbeZProps, hk: Hooks): ComponentChild {
     card =
       probe.outcome === null
         ? h(ProbeCard, { title: 'Probe Z', stage: null, step: 'result' }, h('p', { role: 'status' }, 'Waiting for the board.'))
-        : h(ProbeResult, { outcome: probe.outcome, system, alarm: ui.alarm, liftBlocked: ui.enabled ? null : ui.reason, advanced, onLift: () => run({ op: 'jog', axes: { z: 1 }, distanceMm: LIFT_MM, feed: JOG_FEED.default }), onClear: () => setAsking(true), onPlateOff: plateOff });
+        : h(ProbeResult, { outcome: probe.outcome, system, alarm: ui.alarm, liftBlocked: ui.enabled ? null : ui.reason, advanced, onLift: () => run({ op: 'jog', axes: { z: 1 }, distanceMm: LIFT_MM, feed: JOG_FEED.default }), onClear: () => setAsking(alarmMeaning(probe.outcome, view?.message?.snapshot.live.stat)), onPlateOff: plateOff });
   } else {
     card = h(ProbeRunning, { step, plan: probe.plan, input: probe.input, advanced });
   }
@@ -121,8 +123,8 @@ export function probeZBody({ model }: ProbeZProps, hk: Hooks): ComponentChild {
               ? null
               : h('span', { class: 'fine', 'data-probe': 'done' }, done),
         ),
-    asking && ui.alarm ? h(ConfirmCard, { text: c13({ meaning: alarmMeaning(probe?.outcome ?? null, view?.message?.snapshot.live.stat) }), confirm: 'Clear alarm', safety: 'C13', onCancel: () => setAsking(false), onConfirm: () => {
-          setAsking(false);
+    asking !== null && ui.alarm ? h(ConfirmCard, { text: c13({ meaning: asking }), confirm: 'Clear alarm', safety: 'C13', onCancel: () => setAsking(null), onConfirm: () => {
+          setAsking(null);
           run({ op: 'clearAlarm' });
         } }) : null,
     note === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-probe': 'note' }, note),

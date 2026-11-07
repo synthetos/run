@@ -9,14 +9,15 @@ import type { LiveView } from '../model.ts';
 /** How far `Lift Z` raises the tool after a probe, mm (the ordinary jog, on the owner's press only). */
 export const LIFT_MM = 5;
 
-export interface ProbeView {
-  /** Why Probe Z cannot run now, or null. */
-  readonly block: ProbeBlock | null;
-  /** The session's probe view, or null before it publishes one. */
-  readonly probe: ProbeSnapshot | null;
+interface ProbeViewBase {
   /** The board's id, for the last plate thickness used on it. */
   readonly boardId: string | null;
 }
+
+/** Nothing blocks Probe Z: the session's probe view is there. Or why it can't run, with the view when there is one. */
+export type ProbeView =
+  | (ProbeViewBase & { readonly block: null; readonly probe: ProbeSnapshot })
+  | (ProbeViewBase & { readonly block: ProbeBlock; readonly probe: ProbeSnapshot | null });
 
 function isProbeSnapshot(v: unknown): v is ProbeSnapshot {
   if (typeof v !== 'object' || v === null) return false;
@@ -40,5 +41,5 @@ export function probeView(view: LiveView | null): ProbeView {
   const probe = probeSnapshotOf(s);
   // Until the session publishes its probe view, or without the motion release, nothing can probe.
   if (probe === null || message.motion !== true) return Object.freeze({ block: 'motionOff', probe, boardId });
-  return Object.freeze({ block: probe.block, probe, boardId });
+  return Object.freeze(probe.block === null ? { block: null, probe, boardId } : { block: probe.block, probe, boardId });
 }

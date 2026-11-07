@@ -9,6 +9,13 @@ import { mm } from './probeStrings.ts';
 import { ProbeCard } from './ProbeCard.ts';
 import { focusOnMount } from '../ui.ts';
 
+/** What Test the plate sends: the checked values, mm and mm/min. */
+export interface ProbeSetupPlan {
+  readonly thicknessMm: number;
+  readonly depthMm: number;
+  readonly feed: number;
+}
+
 export interface ProbeSetupProps {
   readonly form: ProbeForm;
   readonly zjh: number | null;
@@ -17,7 +24,8 @@ export interface ProbeSetupProps {
   readonly remembered: boolean;
   readonly advanced: boolean;
   readonly onChange: (form: ProbeForm) => void;
-  readonly onNext: () => void;
+  /** Called only with a valid plan and the spindle box ticked. */
+  readonly onNext: (plan: ProbeSetupPlan) => void;
   readonly onCancel: () => void;
 }
 
@@ -55,7 +63,6 @@ export function ProbeSetup(props: ProbeSetupProps): ComponentChild {
   const L = PROBE_LIMITS;
   const result = checkForm(form, props.zjh);
   const errors = result.ok ? {} : result.errors;
-  const ready = result.ok && form.spindleStopped;
   const set = (patch: Partial<ProbeForm>): void => onChange({ ...form, ...patch });
   return h(
     ProbeCard,
@@ -79,7 +86,7 @@ export function ProbeSetup(props: ProbeSetupProps): ComponentChild {
       'div',
       { class: 'probe-actions' },
       h('button', { type: 'button', class: 'small', 'data-action': 'probe-cancel', onClick: props.onCancel }, 'Cancel'),
-      h('button', { type: 'button', class: 'small primary', 'data-action': 'probe-touch', ...(ready ? { onClick: props.onNext } : { disabled: true }) }, 'Test the plate'),
+      h('button', { type: 'button', class: 'small primary', 'data-action': 'probe-touch', ...(result.ok && form.spindleStopped ? { onClick: () => props.onNext({ thicknessMm: result.thicknessMm, depthMm: result.depthMm, feed: result.feed }) } : { disabled: true }) }, 'Test the plate'),
     ),
   );
 }
