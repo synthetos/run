@@ -29,6 +29,7 @@ import { belowStrip, CheckRow, ConfirmCard, IconButton, TabBar, TabPane } from '
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
 import { HomeSection, HomeQuick, UnknownExits } from '../homing.ts';
+import { ProbeZ } from '../probe/ProbeZ.ts';
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
 import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { signalText } from '../../shell/signal.ts';
@@ -331,6 +332,7 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
       typeof tool === 'number' && uiLevel.value.value === 'advanced' ? h('span', { class: 'tag', 'data-position': 'tool' }, `T${tool}`) : null,
       h('span', { class: 'pos-all' }, act('zeroHere', `Set ${axesText(xyz)} work zero here`, () => setConfirm({ kind: 'set', axes: xyz })), act('goZero', `Go to ${axesText(xyz)} zero`, () => setConfirm({ kind: 'go', axes: xyz }))),
     ),
+    h(ProbeZ, { model: model ?? null }),
     card,
     note === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-position': 'note' }, note),
     // Advanced: the DRO sources and what Run changed in the board's reporting (W35, W36), behind one disclosure.
