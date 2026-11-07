@@ -112,6 +112,10 @@ import {
   type JobDeps,
 } from './job.ts';
 import { jobActive, patchJob } from './jobState.ts';
+import { PROBE_CLOSED } from './probe/state.ts';
+import { onProbeIntent, probeRefusal } from './probe/intents.ts';
+import { abandonProbe, onProbeAlarm, onProbeAnswer, onProbeGarbled, onProbeMissed, onProbePoll, onProbeReport, onProbeStop, onProbeTimer } from './probe/run.ts';
+import { probeCarried, probeSeedReads, syncProbe } from './probe/sync.ts';
 import {
   MAX_PROBE_RESTARTS,
   MAX_QUEUED_READS,
@@ -214,6 +218,7 @@ export function initialState(): SessionState {
     job: null,
     rxm: RXM_IDLE,
     rtLeaves: Object.freeze([]),
+    probeZ: PROBE_CLOSED,
   });
 }
 
@@ -408,6 +413,7 @@ export function reduce(config: SessionConfig, state: SessionState, event: Sessio
   maybeRestoreLineMode(t, linkUp(t.s) && allowed(matrixSnapshot(t.s), 'lineMode', t.config.release).allowed);
   pump(t);
   pumpJob(t, linkUp(t.s) && allowed(matrixSnapshot(t.s), 'jobLine', t.config.release).allowed);
+  syncProbe(t);
   syncWatchdog(t);
   return t.done();
 }
@@ -442,10 +448,16 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
     t.decide(intent, matrix);
     return;
   }
+  // Probe Z (SAFETY §4.5c): nothing else moves the machine while it is open; no Start job or Spindle on with the plate out.
+  const probeHeld = probeRefusal(t.s, request);
+  if (probeHeld !== undefined) {
+    t.decide(intent, probeHeld);
+    return;
+  }
   switch (request.intent) {
     case 'connect': {
       const epoch = t.s.epoch + 1;
-      t.s = { ...initialState(), epoch, unknownOnNextConnect: t.s.unknownOnNextConnect || request.unknown === true, timerSeq: t.s.timerSeq };
+      t.s = { ...initialState(), epoch, unknownOnNextConnect: t.s.unknownOnNextConnect || request.unknown === true, timerSeq: t.s.timerSeq, probeZ: probeCarried(t.s.probeZ) };
       t.set({ base: 'PORT_REQUEST', port: request.port, expectedDeviceId: request.expectedDeviceId });
       t.emit({ kind: 'acquireTransport', epoch, port: request.port });
       t.decide(intent, matrix);
@@ -473,9 +485,10 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
         t.decide(intent, matrix);
         return;
       }
+      // Probe Z (SAFETY §4.5c): Pause is `!` (it ends the probe), Stop job and Spindle off are ^D.
       // A motion session (Phase 2, SAFETY §4.4): Pause holds this session's motion, Stop job runs the
       // flush sequence, Spindle off sends M5/M9 when idle. A hold jog's release lands here too.
-      if (onMotionStop(t, request, at)) {
+      if (onProbeStop(t, request, at) || onMotionStop(t, request, at)) {
         t.decide(intent, matrix);
         return;
       }
@@ -551,6 +564,10 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
       return;
     case 'flash':
       onFlash(t, matrix);
+      return;
+    case 'probeZ':
+    case 'probeZClose':
+      t.decide(intent, onProbeIntent(t, request, at));
       return;
     default:
       t.decide(intent, deny(PHASE_1_NOT_HANDLED.reason, PHASE_1_NOT_HANDLED.remedy, `ROADMAP P1-02 (${t.config.release.name})`));
@@ -848,7 +865,7 @@ function writeFeedhold(t: Tx): void {
 /** Back to NOT_CONNECTED on a new epoch (late events of the old link are ignored). */
 function resetToNotConnected(t: Tx, unknownOnNextConnect: boolean): void {
   t.cancelAll();
-  t.s = { ...initialState(), epoch: t.s.epoch + 1, unknownOnNextConnect, timerSeq: t.s.timerSeq, notices: { adviseEstop: false } };
+  t.s = { ...initialState(), epoch: t.s.epoch + 1, unknownOnNextConnect, timerSeq: t.s.timerSeq, notices: { adviseEstop: false }, probeZ: probeCarried(t.s.probeZ) };
 }
 
 // --- Link events ----------------------------------------------------------
@@ -903,6 +920,7 @@ function onLinkLost(t: Tx, at: number): void {
   onJobLinkLost(t, at);
   abandonLoad(t, at, 'the connection was lost');
   abandonMotion(t);
+  abandonProbe(t, 'lost', at);
   t.cancelAll();
   t.addOverlay('LOST');
   t.set({ queue: [], expected: [], writing: null, ackVerify: null, xoff: false, enqOutstanding: false, liveness: null, unknownOnNextConnect: true });
@@ -933,6 +951,10 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
     onJobTimer(t, JOB_DEPS, at);
     return;
   }
+  if (id === 'probe') {
+    onProbeTimer(t, at);
+    return;
+  }
   if (id === 'verify') {
     if (t.s.ackVerify?.round === 1) t.set({ queue: [...VERIFY_TOKENS.map((token) => ({ token, purpose: 'verify' as const })), ...t.s.queue] });
     return;
@@ -957,6 +979,7 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
   if (missed.purpose === 'lineMode') onLineModeAnswer(t, null, at);
   // A tool change's M5/M9 or a resume step unanswered: the job layer fails closed (independent review 2026-11-03, R6).
   if (missed.purpose === 'motion') onJobMotionTimeout(t, missed.line, at);
+  if (missed.purpose === 'probeZ') onProbeMissed(t, missed, at);
   if (missed.purpose === 'seed' || missed.purpose === 'report' || t.s.reports.phase === 'seeding' || t.s.reports.phase === 'configuring') {
     failReports(t, `the board did not answer the ${missed.token} read in time`);
   }
@@ -1045,7 +1068,12 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
         t.emit({ kind: 'log', text: `settings write #${t.s.settingWrite.id}: the board reported ${event.st} (a cycle was active): refused` });
         return;
       }
+      // Probe Z: the alarm a probe ends in (250, 220, 203, 207) is its outcome; the owner clears it (C13).
+      if (onProbeAlarm(t, event, at)) return;
       enterFault(t, 'exceptionReport', 'integrity', `the board reported an exception (status ${event.st}): ${event.msg.slice(0, 80)}`, at);
+      return;
+    case 'ProbeReport':
+      onProbeReport(t, event, at);
       return;
     case 'Ack':
       t.set({ enqOutstanding: false, lastAckAt: at });
@@ -1137,7 +1165,7 @@ function onResponse(t: Tx, r: Response, at: number): void {
 
 /** A data line (G-code): a job line or a motion line. Control lines are JSON (`{...}`). */
 function isDataEntry(e: Expected): boolean {
-  return e.purpose === 'job' || (e.purpose === 'motion' && e.token === 'gc');
+  return e.purpose === 'job' || ((e.purpose === 'motion' || e.purpose === 'probeZ') && e.token === 'gc');
 }
 
 /** Answers the board owes, oldest first: the written lines, then the line being written. */
@@ -1161,7 +1189,7 @@ function answers(e: Expected, r: Response): boolean {
   if (e.purpose === 'splice') return true;
   const keys = Object.keys(r.r);
   // A motion line is answered with an empty `r`, or with the line echoed as `gc` (jv ≥ 5), or `clear`.
-  if (e.purpose === 'motion') return keys.every((k) => k === 'gc' || k === e.token);
+  if (e.purpose === 'motion' || (e.purpose === 'probeZ' && e.line !== undefined)) return keys.every((k) => k === 'gc' || k === e.token);
   // A job line is G-code too: the same echo shape (`{"r":{"gc":"N1 G21 G90","n":1}}`: `gc` when another sender
   // left jv at 5, `n` for its N word from jv 4); run does not normalise jv (independent review 2026-11-03, R7).
   if (e.purpose === 'job') return keys.every((k) => k === 'gc' || k === 'n');
@@ -1259,6 +1287,7 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
       if (e.token === 'qr' && checkAlarm(t, at)) {
         onPollDone(t, at);
         onJobPoll(t, at);
+        onProbePoll(t, at);
       }
       if (e.token === 'qr') t.set({ polled: null }); // the cycle has been judged: the next starts its own record
       return;
@@ -1298,6 +1327,9 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
       return;
     case 'report':
       onReportAnswer(t, r, at);
+      return;
+    case 'probeZ':
+      onProbeAnswer(t, e, r, at);
       return;
   }
 }
@@ -1556,6 +1588,9 @@ function onGarbled(t: Tx, at: number): void {
     case 'jobRuntime':
       onJobRuntimeAnswer(t, entry, null, at);
       return;
+    case 'probeZ':
+      onProbeGarbled(t, MOTION_DEPS, entry, at);
+      return;
   }
 }
 
@@ -1619,7 +1654,7 @@ function startSeed(t: Tx): void {
     return;
   }
   const reads = SEED_TOKENS.filter((tok) => isReadAllowed(dialect.id, tok));
-  t.set({ reports: { ...REPORTS_IDLE, phase: 'seeding' }, queue: [...t.s.queue, ...reads.map((token) => ({ token, purpose: 'seed' as const }))] });
+  t.set({ reports: { ...REPORTS_IDLE, phase: 'seeding' }, queue: [...t.s.queue, ...reads.map((token) => ({ token, purpose: 'seed' as const })), ...probeSeedReads(t.s, t.config)] });
   seedAnswered(t, null, 0);
 }
 
@@ -1890,6 +1925,7 @@ function enterFault(t: Tx, cause: FaultCause, kind: FaultKind, detail: string, a
   if (t.s.rxm.step !== null) t.set({ rxm: { ...t.s.rxm, step: null, footerExpect: null, detail: 'a fault latched' } });
   const wasMoving = (t.s.motion !== null && t.s.motion.phase !== 'held') || t.s.base === 'RUNNING';
   abandonMotion(t);
+  abandonProbe(t, 'fault', at);
   t.addOverlay('FAULT');
   t.cancel('verify');
   // Stop feeding (SAFETY §3 FAULT entry effect 1). Lines already written may still be answered.
@@ -1914,8 +1950,9 @@ function pump(t: Tx): void {
   const next = s.queue[0] as PendingRead;
   const reportWrite = next.purpose === 'report' && s.reports.step?.line !== undefined;
   const lineModeWrite = next.purpose === 'lineMode' && next.value !== undefined;
+  const ownLine = next.purpose === 'motion' || (next.purpose === 'probeZ' && next.line !== undefined);
   const intent: Intent =
-    next.purpose === 'motion'
+    ownLine
       ? (next.intent as Intent)
       : next.purpose === 'setting'
         ? 'settingsWrite'
@@ -1952,7 +1989,7 @@ function pump(t: Tx): void {
     seq,
     token: next.token,
     line,
-    ...(next.purpose === 'motion'
+    ...(ownLine
       ? { motion: { intent } }
       : next.purpose === 'setting'
         ? { intent: 'settingsWrite' as const }
@@ -1969,7 +2006,7 @@ function pump(t: Tx): void {
 }
 
 function lineFor(s: SessionState, read: PendingRead): string | undefined {
-  if (read.purpose === 'motion') return read.line;
+  if (read.purpose === 'motion' || (read.purpose === 'probeZ' && read.line !== undefined)) return read.line;
   /* c8 ignore start -- the queued setting line always matches the write in progress; any mismatch is a bug and becomes a writeRefused FAULT */
   if (read.purpose === 'setting') {
     const w = s.settingWrite;

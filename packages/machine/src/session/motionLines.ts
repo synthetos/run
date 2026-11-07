@@ -25,6 +25,8 @@
  * | `M7`, `M8` | mist, flood |
  * | `M9` | coolant off |
  * | `{"clear":null}` | clear an alarm (C13) |
+ * | `G91 G38.2 Z-<n> F<f>` | Probe Z: the one probe move, n ≤ 15 mm, f ≤ 100 mm/min (SAFETY §4.5c, H90) |
+ * | `G10 L20 P<1-6> Z<n>` | Probe Z: the zero it sets, |n| ≤ 50 mm, always written with 4 decimals (never `Z0`, set zero's shape) |
  *
  * Numbers: a distance is at most 5 integer and 4 decimal digits with an
  * optional minus, and |d| ≤ `MAX_MOTION_MM`; a feed is 1..`MAX_JOG_FEED`
@@ -40,6 +42,10 @@ export const MAX_MOTION_MM = 2000;
 export const MAX_JOG_FEED = 5000;
 /** Highest spindle speed a line may name. */
 export const MAX_RPM = 100000;
+/** Probe Z (SAFETY §4.5c): the deepest probe move, mm, the fastest probe feed, mm/min, and the largest zero, mm. */
+export const MAX_PROBE_DEPTH_MM = 15;
+export const MAX_PROBE_FEED = 100;
+export const MAX_PROBE_ZERO_MM = 50;
 
 export type MotionAxisLetter = 'X' | 'Y' | 'Z' | 'A';
 const ORDER: readonly MotionAxisLetter[] = ['X', 'Y', 'Z', 'A'];
@@ -65,6 +71,9 @@ const SHAPES: readonly { readonly name: MotionLineKind; readonly re: RegExp }[] 
   { name: 'coolant', re: /^M[78]$/ },
   { name: 'coolantOff', re: /^M9$/ },
   { name: 'clear', re: /^\{"clear":null\}$/ },
+  // After setZero, so `G10 L20 P1 Z0` stays a set-zero line; the probe's zero always carries decimals.
+  { name: 'probe', re: new RegExp(`^G91 G38\\.2 Z-(${NUM}) F(\\d{1,3})$`) },
+  { name: 'probeZero', re: new RegExp(`^G10 L20 P[1-6] Z(${NUM})$`) },
 ];
 
 export type MotionLineKind =
@@ -84,17 +93,20 @@ export type MotionLineKind =
   | 'spindleOff'
   | 'coolant'
   | 'coolantOff'
-  | 'clear';
+  | 'clear'
+  | 'probe'
+  | 'probeZero';
 
 /**
  * The allow-matrix intents that may issue each kind of line (amendment 2026-11-02, T-S94): the write gate
  * refuses a motion line issued by any other intent, so a bug cannot, say, send G28.2 as a jog.
  */
 export const LINE_INTENTS: Readonly<Record<MotionLineKind, readonly string[]>> = Object.freeze({
-  units: ['jog'],
+  // Probe Z writes `G21` on its own answered line before its probe move, and puts the modes back after its zero.
+  units: ['jog', 'probeZ'],
   jog: ['jog'],
   // Go to zero and a tool-change return establish `G90 G21` first and put the modes back after (R1).
-  restore: ['jog', 'stopJob', 'goToZero', 'resume'],
+  restore: ['jog', 'stopJob', 'goToZero', 'resume', 'probeZ'],
   safeZ: ['goToZero', 'resume'],
   returnXY: ['resume'],
   toZero: ['goToZero'],
@@ -109,6 +121,8 @@ export const LINE_INTENTS: Readonly<Record<MotionLineKind, readonly string[]>> =
   coolant: ['spindleOn', 'resume'],
   coolantOff: ['spindleOffNow', 'stopJob'],
   clear: ['clearAlarm'],
+  probe: ['probeZ'],
+  probeZero: ['probeZ'],
 });
 
 /** The kind of a motion line, or undefined when it is not exactly one of the admitted shapes. */
@@ -127,6 +141,8 @@ export function motionLineKind(line: string): MotionLineKind | undefined {
     if (name === 'returnXY' && (Math.abs(Number(m[1])) > MAX_MOTION_MM || Math.abs(Number(m[2])) > MAX_MOTION_MM)) return undefined;
     if ((name === 'toZero' || name === 'setZero' || name === 'home' || name === 'setPosition' || name === 'tempOffset') && !/ [XYZA]0/.test(line)) return undefined;
     if (name === 'spindle' && Number(m[1]) > MAX_RPM) return undefined;
+    if (name === 'probe' && !(Number(m[1]) > 0 && Number(m[1]) <= MAX_PROBE_DEPTH_MM && Number(m[2]) >= 1 && Number(m[2]) <= MAX_PROBE_FEED)) return undefined;
+    if (name === 'probeZero' && Math.abs(Number(m[1])) > MAX_PROBE_ZERO_MM) return undefined;
     return name;
   }
   return undefined;
@@ -215,3 +231,13 @@ export function spindleLine(direction: 'cw' | 'ccw', rpm: number): string {
 }
 
 export const CLEAR_LINE = '{"clear":null}';
+
+/** Probe Z: `G91 G38.2 Z-<depth> F<feed>`, the one probe move (SAFETY §4.5c). `feed` is a whole number. */
+export function probeLine(depthMm: number, feed: number): string {
+  return `G91 G38.2 Z-${mm(depthMm)} F${Math.round(feed)}`;
+}
+
+/** Probe Z: `G10 L20 P<system> Z<z>` with exactly 4 decimals, so it is never set zero's `Z0` (SAFETY §4.5c). */
+export function probeZeroLine(system: number, z: number): string {
+  return `G10 L20 P${system} Z${(Math.round(z * 10000) / 10000 + 0).toFixed(4)}`;
+}

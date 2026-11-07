@@ -12,6 +12,8 @@ import { OVERLAYS, type Overlay } from '@synthetos/safety';
 import { PROBE_STEPS, type FooterRev } from '@synthetos/protocol';
 import type { TransportInfo } from '../transport.ts';
 import type { PortSelector } from '../transport.ts';
+import { probeView } from './probe/view.ts';
+import type { ProbeSnapshot } from './probe/types.ts';
 import type { ClassificationInfo, FaultInfo, Identity, JobEvent, JobPhase, JobReportSummary, JobState, LinkWindow, LiveState, ReadValue, ReportChange, RxmState, SessionBase, SessionNotices, SessionState, SettingWriteState, BootEntryState } from './types.ts';
 
 /** What the page sees of a job (SAFETY §4.4a). The sanitised lines never leave the worker. */
@@ -121,6 +123,8 @@ export interface SessionSnapshot {
   readonly rxm: Omit<RxmState, 'step' | 'footerExpect'> & { readonly busy: boolean };
   /** `rt` leaves the board answered `{"rt":null}` with (the job flag and feed-limit capabilities). */
   readonly rtLeaves: readonly string[];
+  /** Probe Z (SAFETY §4.5c, H90). (`probe` above is the capability probe's progress while identifying.) */
+  readonly probeZ: ProbeSnapshot;
 }
 
 /** Longest job message or event text a snapshot carries (the warnings they quote are longer than a board string). */
@@ -189,6 +193,7 @@ export function snapshotOf(state: SessionState): SessionSnapshot {
     job: state.job === null ? null : jobView(state, state.job),
     rxm: { restore: state.rxm.restore, memoryKnown: state.rxm.memoryKnown, pending: state.rxm.pending, leftAsFound: state.rxm.leftAsFound, current: state.rxm.current, changed: state.rxm.changed, detail: state.rxm.detail, busy: state.rxm.step !== null },
     rtLeaves: state.rtLeaves,
+    probeZ: probeView(state),
   });
 }
 

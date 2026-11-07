@@ -25,6 +25,7 @@ import { LINE_INTENTS, motionLineKind, type MotionLineKind } from './motionLines
 import { JV_LINE, reportLineShape } from './reports.ts';
 import { enqAllowedNow, matrixSnapshot, readableNow } from './reducer.ts';
 import { SETTING_LINE, settingRefusal } from './settingWrite.ts';
+import { probeKillWritable, probeLineWritable } from './probe/sync.ts';
 import type { SessionState } from './types.ts';
 
 export interface WriteContext {
@@ -62,12 +63,19 @@ export interface WriteContext {
    * flasher, H10).
    */
   readonly bootWritable?: () => boolean;
+  /**
+   * Probe Z (SAFETY §4.5c): true when this probe or probe-zero line is exactly the probe's own line in the step that
+   * sends it. Absent: neither shape is ever accepted.
+   */
+  readonly probeLine?: (line: string) => boolean;
+  /** Probe Z: ^D may be written now (Stop job or Spindle off during a probe). Absent or false: never. */
+  readonly kill?: boolean;
 }
 
 /** `motion`, `flush`, `resume`: Phase 2. `setting`: one single-token settings write, its own command kind (SAFETY §4.6, amendment 2026-11-02). */
 /** `report`: one line of the session's status-report configuration (amendment 2026-11-02). */
 export type WriteVerdict =
-  | { readonly ok: true; readonly kind: 'get' | 'feedhold' | 'enq' | 'flush' | 'resume' | 'motion' | 'setting' | 'report' | 'job' | 'lineMode' | 'jobRuntime' | 'boot'; readonly token?: string; readonly lineKind?: MotionLineKind }
+  | { readonly ok: true; readonly kind: 'get' | 'feedhold' | 'enq' | 'flush' | 'resume' | 'kill' | 'motion' | 'setting' | 'report' | 'job' | 'lineMode' | 'jobRuntime' | 'boot'; readonly token?: string; readonly lineKind?: MotionLineKind }
   | { readonly ok: false; readonly reason: string };
 
 const MAX_MOTION_LINE_BYTES = 64;
@@ -102,6 +110,7 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
     if (b === BYTE.ENQ) return context.enqAllowed ? { ok: true, kind: 'enq' } : { ok: false, reason: 'ENQ is not allowed now (classified edge-next after a rev-2/3 footer only)' };
     if (context.motion === true && b === BYTE.FLUSH) return { ok: true, kind: 'flush' };
     if (context.motion === true && b === BYTE.RESUME) return { ok: true, kind: 'resume' };
+    if (context.motion === true && context.kill === true && b === BYTE.KILL) return { ok: true, kind: 'kill' };
     return { ok: false, reason: `realtime byte 0x${(b as number).toString(16).padStart(2, '0')} is never written in this release` };
   }
   const longest = Math.max(MAX_SETTING_LINE_BYTES, context.motion === true ? MAX_MOTION_LINE_BYTES : MAX_GET_LINE_BYTES, context.reportWritable === undefined ? 0 : MAX_REPORT_LINE_BYTES, context.jobLine === undefined ? 0 : MAX_JOB_LINE_BYTES);
@@ -159,6 +168,9 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
   // The motion command kind: exactly one line of the closed grammar, within the motion cap, and only with a motion
   // release (`{"clear":null}` has a GET's shape but is the motion grammar's own line).
   const lineKind = context.motion === true && bytes.length <= MAX_MOTION_LINE_BYTES && text.endsWith('\n') ? motionLineKind(text.slice(0, -1)) : undefined;
+  if ((lineKind === 'probe' || lineKind === 'probeZero') && (context.probeLine === undefined || !context.probeLine(text.slice(0, -1)))) {
+    return { ok: false, reason: `${JSON.stringify(text.slice(0, -1))} is not the probe's own line in the step that sends it` };
+  }
   if (lineKind !== undefined) return { ok: true, kind: 'motion', lineKind };
   if (getToken !== undefined) return { ok: false, reason: `"${getToken}" is not readable now (not on the probe list or the dialect's read allowlist)` };
   if (bytes.length > MAX_GET_LINE_BYTES) return { ok: false, reason: `a ${bytes.length}-byte write is not a GET line${context.motion === true ? ' or a motion line' : ''}` };
@@ -170,15 +182,16 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
  * `motion` (a motion line), `flush` (`%`) and `resume` (`~`) against the intent that issued them;
  * `settingsWrite` (a settings line) against `settingsWrite`.
  */
-export type WriteIntent = 'read' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'settingsWrite' | 'configureReports' | 'jobLine' | 'lineMode' | 'jobRuntime' | 'flash';
+export type WriteIntent = 'read' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'kill' | 'settingsWrite' | 'configureReports' | 'jobLine' | 'lineMode' | 'jobRuntime' | 'flash';
 
-const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'setting' | 'report' | 'job' | 'lineMode' | 'jobRuntime' | 'boot'>> = {
+const VERDICT_FOR: Readonly<Record<WriteIntent, 'get' | 'feedhold' | 'enq' | 'motion' | 'flush' | 'resume' | 'kill' | 'setting' | 'report' | 'job' | 'lineMode' | 'jobRuntime' | 'boot'>> = {
   read: 'get',
   feedhold: 'feedhold',
   enq: 'enq',
   motion: 'motion',
   flush: 'flush',
   resume: 'resume',
+  kill: 'kill',
   settingsWrite: 'setting',
   configureReports: 'report',
   jobLine: 'job',
@@ -257,6 +270,7 @@ export function checkWrite(
     ...(release.jobs === true && intent === 'jobLine' ? { jobLine: (text: string) => jobLineWritableIn(current, index, text) } : {}),
     ...(release.jobs === true ? { lineModeWritable: (line: string) => lineModeWritableIn(current, line), jobRuntimeWritable: (line: string) => jobRuntimeWritableIn(emitted, line) } : {}),
     ...(release.flash === true ? { bootWritable: () => current.bootEntry?.phase === 'writing' } : {}),
+    ...(release.motion ? { probeLine: (line: string) => probeLineWritable(current, line), kill: probeKillWritable(current) } : {}),
   });
   if (!verdict.ok) return { kind: 'refused', reason: verdict.reason };
   if (verdict.kind !== VERDICT_FOR[intent]) return { kind: 'refused', reason: `a ${verdict.kind} write was issued as ${intent}` };
