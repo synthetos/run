@@ -169,6 +169,20 @@ export interface FeedLimitEvent {
   readonly fl: JsonObject;
 }
 
+/**
+ * `{"prb":{"e":N,"x":..,"y":..,"z":..,"a":..,"b":..,"c":..}}`: the edge-next G38.2 completion report, printed once
+ * as an unsolicited top-level line when the cycle finishes, on contact and on no contact (@cite EN
+ * cycle_probing.c:261-276, :278-290). It answers nothing. `e` is 1 for contact, 0 for none; the coordinates are the
+ * position after the stop (450.02: work coordinates in current units; 450.03+: machine mm). A coordinate that is not
+ * finite is null.
+ */
+export interface ProbeReport {
+  readonly kind: 'ProbeReport';
+  readonly line: string;
+  readonly e: 0 | 1;
+  readonly prb: JsonObject;
+}
+
 /** `{"ack":true}`: the answer to ENQ (PN §5.6). */
 export interface Ack {
   readonly kind: 'Ack';
@@ -194,7 +208,7 @@ export type GarbledReason =
   | 'too-large'
   /** Does not start with `{` but contains `{` or `}`: a damaged or spliced JSON line. */
   | 'json-fragment'
-  /** A JSON object of no known shape (including the `prb`, `jog` and `job` reports, not classified yet). */
+  /** A JSON object of no known shape (including the `jog` and `job` reports, not classified yet). */
   | 'unrecognized-shape'
   /**
    * A response with no footer, or a footer that is not a valid revision 1, 2
@@ -240,6 +254,7 @@ export type ClassifiedLine =
   | Heartbeat
   | FeedLimitSummary
   | FeedLimitEvent
+  | ProbeReport
   | Text
   | Garbled;
 

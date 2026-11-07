@@ -21,6 +21,7 @@
  * | exactly `hb`, an object | `Heartbeat` (edge-next runtime heartbeat, `{"rt":{"hb":N}}`) |
  * | exactly `fs`, an object | `FeedLimitSummary` (edge-next feed-limit push, `{"rt":{"fi":N}}`; `"x":1` marks short totals) |
  * | exactly `fl`, an object | `FeedLimitEvent` (edge-next feed-limit push: the running move's limit changed) |
+ * | exactly `prb`, an object whose `e` is 0 or 1 | `ProbeReport` (edge-next G38.2 completion) |
  * | anything else | `Garbled{unrecognized-shape}` |
  *
  * Non-JSON lines: a line that does not start with `{` is `Text`, unless it
@@ -83,6 +84,11 @@ export function classifyLine(line: string): ClassifiedLine {
   if (sameKeys(keys, ['fl'])) {
     const fl = value['fl'];
     return isObject(fl) ? Object.freeze({ kind: 'FeedLimitEvent', line, fl }) : garbled('bad-value', line, value);
+  }
+  // The G38.2 completion report (@cite EN cycle_probing.c:261-276): decided on `e` alone, so `e` must be exactly 0 or 1.
+  if (sameKeys(keys, ['prb'])) {
+    const prb = value['prb'];
+    return isObject(prb) && (prb['e'] === 0 || prb['e'] === 1) ? Object.freeze({ kind: 'ProbeReport', line, e: prb['e'], prb }) : garbled('bad-value', line, value);
   }
   return garbled('unrecognized-shape', line, value);
 }

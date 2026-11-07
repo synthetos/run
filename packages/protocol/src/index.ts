@@ -34,6 +34,7 @@ export type {
   Heartbeat,
   FeedLimitSummary,
   FeedLimitEvent,
+  ProbeReport,
   Banner,
   ClassifiedLine,
   Exception,

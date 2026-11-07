@@ -213,6 +213,18 @@ describe('classify: StatusReport, QueueReport, Exception, Ack', () => {
     expect(garbledReason('{"fs":{"v":1},"fl":{"k":0}}')).toBe('unrecognized-shape');
   });
 
+  it('ProbeReport for exactly {"prb":{...}} with e 0 or 1 (edge-next G38.2 completion, strict or relaxed)', () => {
+    const contact = '{"prb":{"e":1,"x":0.000,"y":0.000,"z":-4.217,"a":0.000,"b":0.000,"c":0.000}}';
+    expect(classifyLine(contact)).toMatchObject({ kind: 'ProbeReport', line: contact, e: 1, prb: { z: -4.217 } });
+    expect(classifyLine('{prb:{e:0,x:1,y:2,z:null,a:0,b:0,c:0}}')).toMatchObject({ kind: 'ProbeReport', e: 0, prb: { z: null } });
+    // Decided on e alone, so anything but 0 or 1 is never taken for a result.
+    expect(garbledReason('{"prb":{"e":2,"z":1}}')).toBe('bad-value');
+    expect(garbledReason('{"prb":{"z":1}}')).toBe('bad-value');
+    expect(garbledReason('{"prb":{"e":true}}')).toBe('bad-value');
+    expect(garbledReason('{"prb":1}')).toBe('bad-value');
+    expect(garbledReason('{"prb":{"e":1},"f":[3,0,10]}')).toBe('unrecognized-shape');
+  });
+
   it('Ack only for {"ack":true}', () => {
     expect(classifyLine('{"ack":true}')).toEqual({ kind: 'Ack', line: '{"ack":true}' });
     expect(classifyLine('{ack:t}')).toMatchObject({ kind: 'Ack' });
@@ -233,8 +245,8 @@ describe('classify: StatusReport, QueueReport, Exception, Ack', () => {
   });
 
   it('refuses objects of no known shape, keeping the parsed value', () => {
-    const c = classifyLine('{"prb":{"e":1}}');
-    expect(c).toEqual({ kind: 'Garbled', reason: 'unrecognized-shape', line: '{"prb":{"e":1}}', value: { prb: { e: 1 } } });
+    const c = classifyLine('{"jog":{"x":1}}');
+    expect(c).toEqual({ kind: 'Garbled', reason: 'unrecognized-shape', line: '{"jog":{"x":1}}', value: { jog: { x: 1 } } });
     expect(garbledReason('{}')).toBe('unrecognized-shape');
     expect(garbledReason('{"f":[3,0,11]}')).toBe('unrecognized-shape');
   });
