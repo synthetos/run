@@ -474,6 +474,16 @@ export function w50(p: { readonly fb: string; readonly minimum: string }): strin
   );
 }
 
+/** W51: Pause during a probe (Probe Z, H90): a hold ends the G38.2 cycle, in ALARM 250 with no contact. */
+export function w51(): string {
+  return "Pause won't pause a probe: it ends it in an alarm. To stop, use Stop job. In an emergency, use your E-stop.";
+}
+
+/** W52: a dropped lead (Probe Z, H90): with a normally open plate the board cannot tell. */
+export function w52(): string {
+  return "If the lead comes off now, the board can't tell. Z keeps going to the depth limit. Keep your E-stop in reach.";
+}
+
 // ------------------------------------------------------------ §6 confirmations
 
 /** C1, full form: the first time, on a text-version change, and once per calendar day in this browser. */
@@ -846,5 +856,17 @@ export function c38(p: { readonly name: string; readonly sha256Short: string; re
   return (
     `Trust ${text('name', p.name)} (sha256 ${text('sha256Short', p.sha256Short)}) on board ${text('boardId', p.boardId)}? ` +
     'Run will let this exact build control this board as if it were approved. It never applies to another board or another build, and you can revoke it in Firmware & Backups.'
+  );
+}
+
+/**
+ * C39: start a touch plate probe and set Z zero (Probe Z, H90). The page formats the numbers in its display units;
+ * `zero` is the thickness less the stop distance, `stop` the calculated stop distance.
+ */
+export function c39(p: { readonly feed: string; readonly depth: string; readonly system: string; readonly zero: string; readonly thickness: string; readonly stop: string }): string {
+  return (
+    `Probe Z? Z will move down at ${text('feed', p.feed)} mm/min until the board reports contact, up to ${text('depth', p.depth)} mm. ` +
+    `On contact Run sets ${text('system', p.system)} Z so the tool reads ${text('zero', p.zero)} mm above the work (plate ${text('thickness', p.thickness)} mm, less ${text('stop', p.stop)} mm calculated stop distance). ` +
+    'This is saved on the controller.'
   );
 }

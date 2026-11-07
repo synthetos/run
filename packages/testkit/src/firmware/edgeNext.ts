@@ -34,6 +34,7 @@ import { AXIS_INHIBITED, axisModeTooLarge, modelTarget, softLimitEnds, softLimit
 import { fpZERO } from './float32.ts';
 import { AXES, Motion, distance, zeroVec, type ArcPath, type Block, type Path, type Vec } from './motion.ts';
 import { fixed, serialize, type OutObject, type OutValue } from './output.ts';
+import { ProbeCycle } from './probing.ts';
 import { RxRing } from './rxRing.ts';
 import { Settings, type SettingValue } from './settings.ts';
 import { EN_TABLE, groupMembers, statusCode, token } from './table.ts';
@@ -168,7 +169,7 @@ const EN_DEFAULTS: Readonly<Record<string, SettingValue>> = Object.freeze({
 const SR_DEFAULTS = ['line', 'posx', 'posy', 'posz', 'posa', 'feed', 'vel', 'unit', 'coor', 'dist', 'admo', 'frmo', 'momo', 'stat'] as const;
 
 type MachineState = 'initializing' | 'ready' | 'alarm' | 'programStop' | 'programEnd' | 'cycle' | 'shutdown' | 'panic';
-type CycleState = 'off' | 'machining';
+type CycleState = 'off' | 'machining' | 'probe';
 type MotionState = 'stop' | 'run' | 'hold';
 type MotionMode = 'g0' | 'g1' | 'g2' | 'g3' | 'cancel';
 
@@ -291,11 +292,14 @@ export class TinyGEdgeNextModel implements SimDevice {
   /** A G28.2 homing cycle is queued or running (stat 9). */
   #homingCycle = false;
   #lastQr = PLANNER_POOL;
+  /** The G38.2 cycle and the simulated plate (probing.ts). */
+  readonly #probe: ProbeCycle;
 
   constructor(options: TinyGModelOptions = {}) {
     this.#options = options;
     this.settings = new Settings(T, EN_DEFAULTS, options.eeprom ?? {});
     this.#motion = this.#newMotion();
+    this.#probe = this.#newProbe();
   }
 
   // =====================================================================
@@ -423,6 +427,24 @@ export class TinyGEdgeNextModel implements SimDevice {
   resetBoard(): void {
     this.#event('board reset');
     this.#powerUp(true);
+  }
+
+  /** Test control: the touch plate's top at machine Z `z` (mm), or no plate. Contact while machine Z ≤ `z`. */
+  setProbePlate(z: number | null): void {
+    this.#probe.setPlate(z);
+    this.#wake();
+  }
+
+  /** Test control: the owner holds the plate to the tool (contact whatever Z), or lets go. */
+  setProbeTouch(touching: boolean): void {
+    this.#probe.setTouch(touching);
+    this.#wake();
+  }
+
+  /** Test control: the probe lead is connected (default) or off. */
+  setProbeLead(connected: boolean): void {
+    this.#probe.setLead(connected);
+    this.#wake();
   }
 
   setBannerDelay(extraMs: number): void {
@@ -589,6 +611,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.jobFlag = 0;
     this.#homingCycle = false;
     this.#lastQr = PLANNER_POOL;
+    this.#probe.reset();
   }
 
   // =====================================================================
@@ -646,6 +669,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       this.#limitAsserted !== 0 ||
       this.#motionSync !== null ||
       this.#startupPending ||
+      this.#probe.busy() ||
       this.#srRequestAt !== null ||
       this.#srDiffers()
     );
@@ -660,6 +684,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     const before = this.#progress;
     const now = this.#now();
     this.#motion.advance(now);
+    this.#probe.sense();
     this.#enquiryHandler();
     this.#limitSwitchHandler();
     this.#startupCallback(now);
@@ -670,6 +695,9 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#queueReportCallback();
     this.#feedholdSequencing(now);
     this.#motion.advance(now);
+    const probe = this.#probe.callback(); // cm_probe_callback(), EAGAIN while busy or after a stage (@cite EN controller.c:194)
+    if (probe === 'stepped') return true;
+    if (probe === 'busy') return this.#progress !== before;
     if (!this.#syncToMotion()) return this.#progress !== before;
     // @behaviour EN-PLANNER: a line is read only with 12 free buffers (@cite EN controller.c:620-626)
     if (this.#motion.available() < PLANNER_HEADROOM) return this.#progress !== before;
@@ -1001,6 +1029,8 @@ export class TinyGEdgeNextModel implements SimDevice {
       case 'panic':
         return 13;
       case 'cycle':
+        // @behaviour EN-PROBE-STAT: COMBINED_PROBE while the probe cycle runs, the hold included (@cite EN canonical_machine.c:194-196)
+        if (this.#cycle === 'probe') return 7;
         // COMBINED_HOMING while a homing cycle runs (model limit LIM-EN-HOMING)
         return this.#motionState === 'hold' ? 6 : this.#homingCycle ? 9 : 5;
     }
@@ -1319,6 +1349,56 @@ export class TinyGEdgeNextModel implements SimDevice {
     }, this.settings.num('mt') * 1000);
   }
 
+  #newProbe(): ProbeCycle {
+    return new ProbeCycle({
+      setting: (key) => this.settings.num(key),
+      machinePosition: () => this.#motion.position(this.#now()),
+      busy: (heldProbe) => !this.#motion.runtimeIdle() || (!heldProbe && this.#motion.queue.length > 0),
+      held: () => this.#hold === HOLD.HOLD,
+      alarmed: () => this.#isAlarmed() !== 0,
+      enterCycle: () => {
+        this.#cycle = 'probe';
+        this.#gm.distance = 'abs';
+      },
+      feed: (target) => {
+        const soft = this.#testSoftLimits(target);
+        if (soft !== 0) {
+          this.#alarm(soft, 'soft limit');
+          return soft;
+        }
+        const from = this.#gm.position;
+        this.#gm.motionMode = 'g1';
+        this.#queueMove({ kind: 'line', from, to: target, length: distance(from, target) }, this.#moveFeed(from, target, false));
+        return 0;
+      },
+      requestFeedhold: () => this.#requestFeedhold(),
+      finalize: (incremental) => {
+        const now = this.#now();
+        this.#motion.flush(now); // mp_flush_planner() (@cite EN cycle_probing.c:298)
+        this.#gm.position = this.#motion.position(now);
+        this.#motionState = 'stop';
+        this.#gm.distance = incremental ? 'inc' : 'abs';
+        this.#gm.motionMode = 'cancel';
+        if (this.#isAlarmed() === 0) this.#cycleEnd();
+        this.#cycle = 'off';
+        this.#progress++;
+      },
+      resultPosition: () => {
+        const pos = this.#motion.position(this.#now());
+        if ((this.#options.build?.fb ?? FW_BUILD) >= 450.03) return pos;
+        const ofs = this.#workOffset();
+        return pos.map((v, i) => (v - (ofs[i] as number)) / this.#unitFactor(undefined, i)) as Vec;
+      },
+      print: ({ e, position }) => {
+        const prb: Record<string, OutValue> = { e };
+        AXES.forEach((a, i) => (prb[a] = fixed(position[i] as number, 3)));
+        this.#println(serialize({ prb }, this.#relaxed()));
+      },
+      alarm: (status, msg) => this.#alarm(status, msg),
+      status: (name) => ST(name),
+    });
+  }
+
   #newMotion(): Motion {
     return new Motion(PLANNER_POOL, {
       earliestStart: (block, t) => {
@@ -1453,7 +1533,10 @@ export class TinyGEdgeNextModel implements SimDevice {
           } else if (code === '28.2' || code === '28.3') {
             if (g.nextAction !== undefined) return ST('GCODE_MODAL_GROUP_VIOLATION');
             g.nextAction = code === '28.2' ? 'homing' : 'setAbsoluteOrigin';
-          } else if (['28', '28.1', '28.4', '30', '30.1', '38.2', '43.1', '92.2', '92.3', '93'].includes(code)) {
+          } else if (code === '38.2') {
+            if (g.nextAction !== undefined) return ST('GCODE_MODAL_GROUP_VIOLATION');
+            g.nextAction = 'probe';
+          } else if (['28', '28.1', '28.4', '30', '30.1', '43.1', '92.2', '92.3', '93'].includes(code)) {
             throw new ModelGapError(`edge-next G${code}`);
           } else {
             return ST('GCODE_COMMAND_UNSUPPORTED');
@@ -1609,6 +1692,13 @@ export class TinyGEdgeNextModel implements SimDevice {
       case 'setAbsoluteOrigin':
         this.#setAbsoluteOrigin(g);
         break;
+      case 'probe': {
+        const target = this.#resolveTarget(g);
+        const from = gm.position;
+        const travelMm = Math.hypot(...[0, 1, 2].map((i) => (target[i] as number) - (from[i] as number)));
+        status = this.#probe.command({ feed: gm.feed, flags: g.target.map((t) => t !== undefined), target, travelMm, incremental: gm.distance === 'inc' });
+        break;
+      }
       case 'setCoord': {
         // Model limit LIM-EN-G10 (uncited): L2 sets the offset to the value given; L20 so that the current position reads
         // the value given (EN allows L2 and L20 only, SAFETY §4.7). P1..P6 select G54..G59. Persisted.
@@ -2133,7 +2223,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       case 'cm_get_macs':
         return ['initializing', 'ready', 'alarm', 'programStop', 'programEnd', 'cycle', 'interlock', 'shutdown', 'panic'].indexOf(this.#machine);
       case 'cm_get_cycs':
-        return this.#cycle === 'off' ? 0 : 1;
+        return this.#cycle === 'off' ? 0 : this.#cycle === 'probe' ? 3 : 1;
       case 'cm_get_mots':
         return ['stop', 'run', 'hold'].indexOf(this.#motionState);
       case 'cm_get_vel':
@@ -2202,7 +2292,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (key === 'hv') return fixed(this.#options.build?.hv ?? HW_VERSION, p);
     // Input states (`get_int`, read-only): what the test drives, 0 otherwise.
     const input = /^in([1-8])$/.exec(key);
-    if (input !== null) return this.#options.inputs?.(Number(input[1])) ?? 0;
+    if (input !== null) return this.#probe.read(Number(input[1])) ?? this.#options.inputs?.(Number(input[1])) ?? 0;
     if (info.group === 'hom' && axis >= 0) return this.#homed[axis] ? 1 : 0;
     // The active G92 offset, mm (0 while G92 is off); g28/g30 read their (unset, 0) stored positions below.
     if (info.group === 'g92' && axis >= 0) return fixed(this.#gm.g92Enabled ? (this.#gm.g92[axis] as number) : 0, p);
@@ -2624,7 +2714,7 @@ export class TinyGEdgeNextModel implements SimDevice {
 interface GcodeInput {
   motion?: MotionMode;
   cancel?: boolean;
-  nextAction?: 'dwell' | 'motionSync' | 'setOrigin' | 'resetOrigin' | 'setCoord' | 'homing' | 'setAbsoluteOrigin';
+  nextAction?: 'dwell' | 'motionSync' | 'setOrigin' | 'resetOrigin' | 'setCoord' | 'homing' | 'setAbsoluteOrigin' | 'probe';
   l?: number;
   plane?: 17 | 18 | 19;
   units?: 'mm' | 'in';

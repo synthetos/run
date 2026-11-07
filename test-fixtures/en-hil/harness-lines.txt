@@ -25,10 +25,10 @@ Garbled	{"r":{"fb":
 # The rx report the harness names (test_harness_offline.py:38): 440.21 prints it unsolicited after
 # every '%' flush (TG canonical_machine.c:1302-1303, report.c:541-548), so run classifies it.
 RxReport	{"rx":254}
-# Shapes the harness names but run does not classify yet (probe report):
-# refused as unrecognized, never guessed (test_harness_offline.py:40).
-Garbled	{"prb":{"e":1,"x":0.000,"z":-1.000}}
-Garbled	{prb:{e:0,z:-1.000}}
+# The probe report the harness names (test_harness_offline.py:40), strict and relaxed: edge-next prints it
+# unsolicited when a G38.2 cycle finishes (cycle_probing.c:261-276), so run classifies it (Probe Z, SAFETY §4.5c).
+ProbeReport	{"prb":{"e":1,"x":0.000,"z":-1.000}}
+ProbeReport	{prb:{e:0,z:-1.000}}
 # Leading NUL: the harness salvages the JSON after it; run refuses it (test_harness_offline.py:84-85).
 # (The NUL is written as \0 here and expanded by the test.)
 Garbled	\0{"r":{"1ma":0},"f":[3,0,10]}

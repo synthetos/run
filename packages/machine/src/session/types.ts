@@ -21,6 +21,7 @@ import type { ApprovedBuilds, Banner, ClassifyReason, Dialect, DialectId, Footer
 import type { BaseState, Decision, Intent, Overlay, Release, SentLine } from '@synthetos/safety';
 import type { PortSelector, TransportInfo } from '../transport.ts';
 import type { ReportStep } from './reports.ts';
+import type { ProbeZState } from './probe/state.ts';
 
 /**
  * The base states the session can be in (a subset of the allow-matrix's `BASE_STATES`). The last six are
@@ -166,7 +167,9 @@ export type ReadPurpose =
   | 'bootGate'
   | 'boot'
   /** OD-14: a setting the session needs to read the board at all (`{jv:4}` when GETs answer empty), written once at connect. */
-  | 'normalize';
+  | 'normalize'
+  /** Probe Z (SAFETY §4.5c): its settings reads, the input poll, its own lines (with `line`) and the zero's read-back. */
+  | 'probeZ';
 
 /** What runs when the last read-back of a change has been answered. */
 export type FollowUp = 'homed' | 'positionSet';
@@ -700,6 +703,8 @@ export interface SessionState {
   readonly rxm: RxmState;
   /** The `rt` leaves `{"rt":null}` answered with at connect: the job flag and the feed-limit window need theirs. */
   readonly rtLeaves: readonly string[];
+  /** Probe Z (SAFETY §4.5c, H90): the guided probe, from the touch test to "The plate is off". */
+  readonly probeZ: ProbeZState;
 }
 
 export type JogAxis = 'x' | 'y' | 'z' | 'a';
@@ -781,7 +786,8 @@ export interface MotionCtx {
 
 /** `watchdog`: the receive-silence watchdog (SAFETY §4.2). `motion`: the motion layer's poll and keep-alive tick. */
 /** `job`: the job layer's poll tick (drain, pause, the planner gauge) and its deadlines. */
-export type TimerId = 'answer' | 'settle' | 'verify' | 'watchdog' | 'motion' | 'job';
+/** `probe`: Probe Z's input poll (every 150 ms in its steps) and its time limits. */
+export type TimerId = 'answer' | 'settle' | 'verify' | 'watchdog' | 'motion' | 'job' | 'probe';
 
 /** Intents the session handles. Everything else is denied (not in Phase 1). */
 export type SessionIntent =
@@ -830,6 +836,14 @@ export type SessionIntent =
   /** Resume a paused or stopped job. `skip`: continue past a refused line (C33). `spindleRestart`: C35 accepted. */
   | { readonly intent: 'resume'; readonly skip?: boolean; readonly spindleRestart?: boolean }
   | { readonly intent: 'jobBreakpoints'; readonly lines: readonly number[] }
+  // --- Probe Z (SAFETY §4.5c, H90). Decided again by the session every time.
+  /** Start (or restart) the touch test with the owner's plan, mm and mm/min. */
+  | { readonly intent: 'probeZ'; readonly step: 'touch'; readonly thicknessMm: number; readonly depthMm: number; readonly feed: number }
+  /** Start the probe after C39, with the plan the touch test holds. */
+  | { readonly intent: 'probeZ'; readonly step: 'start'; readonly confirm: true }
+  | { readonly intent: 'probeZ'; readonly step: 'retest' }
+  /** Cancel before the probe, and "The plate is off". Neither writes anything. */
+  | { readonly intent: 'probeZClose'; readonly step: 'cancel' | 'plateOff' }
   /** Any other allow-matrix intent: always denied (decided, never silently dropped). */
   | {
       readonly intent: Exclude<
@@ -859,6 +873,8 @@ export type SessionIntent =
         | 'loadJob'
         | 'startJob'
         | 'jobBreakpoints'
+        | 'probeZ'
+        | 'probeZClose'
       >;
     };
 
@@ -885,8 +901,11 @@ export type SessionEvent =
   /** Phase 3 (H77): the page's remembered line mode for this board (0 or 1), or null when it remembers none. */
   | { readonly type: 'lineModeMemory'; readonly epoch: number; readonly remembered: number | null };
 
-/** The realtime bytes a session may write: `!` and ENQ, and with a motion release `%` and `~`. Never ^D or ^X. */
-export type RealtimeName = 'feedhold' | 'enq' | 'flush' | 'resume';
+/**
+ * The realtime bytes a session may write: `!` and ENQ, and with a motion release `%` and `~`; ^D (`kill`) only for
+ * Stop job or Spindle off while a probe runs (SAFETY §4.5c "Stops"). Never ^X.
+ */
+export type RealtimeName = 'feedhold' | 'enq' | 'flush' | 'resume' | 'kill';
 
 /** The command kinds of the job layer's lines in the write gate (SAFETY §4.4a). */
 export type JobLineKind = 'job' | 'lineMode' | 'jobRuntime';

@@ -76,6 +76,8 @@ describe('intent kinds (which release gate and which rule applies)', () => {
       setMachinePosition: 'motion',
       tempOffset: 'motion',
       selectCoordSystem: 'motion',
+      probeZ: 'motion',
+      probeZClose: 'session',
       configureReports: 'reports',
       optionalStop: 'write',
       startJob: 'jobs',

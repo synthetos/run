@@ -74,7 +74,7 @@ describe('the PR template', () => {
   });
 
   it('fails when SAFETY.md §8 gains an item the check does not read', () => {
-    const grown = SAFETY.replace('54. ☐ (Probe Z)', '55. ☐ A new rule.\n54. ☐ (Probe Z)');
+    const grown = SAFETY.replace('54. ☐ (Probe Z) Probing runs', '55. ☐ A new rule.\n54. ☐ (Probe Z) Probing runs');
     expect(checkTemplate(TEMPLATE, grown)).toContain('SAFETY.md §8 item 55 is not in the checklist the safety-review check reads');
   });
 });

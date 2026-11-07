@@ -94,6 +94,13 @@ export const INTENTS = Object.freeze([
   /** Phase 2 (amendment 2026-11-02): select the work coordinate system, `G54`..`G59` (C29). */
   'selectCoordSystem',
   /**
+   * Probe Z (owner 2026-11-07; SAFETY §4.5c, H90): the touch test, the probe after C39 (`G21`, then one `G91 G38.2`)
+   * and the zero it sets (`G10 L20`). The session decides every command again (approved edge-next 450.02+ only).
+   */
+  'probeZ',
+  /** Probe Z: Cancel before the probe and "The plate is off". They write nothing to the controller. */
+  'probeZClose',
+  /**
    * The session's own status-report configuration at connect (amendment 2026-11-02, H64): the persisted
    * status report list (`{sr:{...}}`), `sv`, an absurd `si`, and the RAM-only heartbeat (`{"rt":{"hb":N}}`).
    * Never a user request: the session issues it once per link and reads every value back.
@@ -386,6 +393,17 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
   },
   tempOffset: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.5b Temporary offset (amendment 2026-11-02); H68; C27, C28' },
   selectCoordSystem: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.5b Work coordinate system (amendment 2026-11-02); C29' },
+  // JOGGING: the probe's own lines and reads, written after its start moved the base to JOGGING (as for the jog row).
+  // The session itself starts the touch test and the probe only from idle, with the §4.5c preconditions.
+  probeZ: { kind: 'motion', states: [...IDLE, 'JOGGING'], overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.5c Probe Z (owner 2026-11-07); H90' },
+  // Writes nothing: "The plate is off" must work whatever the connection is doing, or Start job and Spindle on stay refused.
+  probeZClose: {
+    kind: 'session',
+    states: ALL_STATES,
+    overlays: [...OVERLAYS],
+    denied: { reason: 'There is no probe to close.', remedy: 'Nothing to do.' },
+    citation: 'SAFETY §4.5c After (Probe Z, H90)',
+  },
   // Moves nothing: allowed with an untrusted position (UNKNOWN) and a settings drift (NEEDS_REVIEW). Never under
   // READ_ONLY (an unapproved build is never written to), ORPHANED_MOTION, STALE or FAULT, and never in ALARM (the
   // firmware refuses SETs while alarmed; the session configures after the alarm is cleared).
