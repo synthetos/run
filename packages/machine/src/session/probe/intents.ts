@@ -7,6 +7,7 @@ import { requestPoll } from '../motion.ts';
 import type { SessionIntent, SessionState } from '../types.ts';
 import { finish, setProbe, tick, queueRead, type ProbeTx } from './common.ts';
 import { probeBlock } from './gate.ts';
+import { PROBE_LIMITS } from './limits.ts';
 import { makePlan } from './plan.ts';
 import { SETTING_TOKENS, TOUCH_NONE, probeOpen, probeRunning } from './state.ts';
 import { anchorOf } from './sync.ts';
@@ -115,13 +116,37 @@ function start(t: ProbeTx, confirm: unknown, at: number): Decision {
   if (typeof plan === 'string' || plan.stopMm !== p.plan.stopMm) return deny("The board's probe settings changed.", 'Run the touch test again.');
   setProbe(t, {
     step: 'starting',
-    run: { fromPos: s.live.pos.z ?? null, fromMpo: s.live.mpo.z ?? null, units: s.live.unit, dist: s.live.dist, checked: false, sent: false, deadline: null, stopped: null, report: null, confirmed: 0, zero: null, settleUntil: null, readback: {}, pending: null },
+    run: {
+      fromPos: workZMm(s),
+      fromMpo: s.live.mpo.z ?? null,
+      units: s.live.unit,
+      dist: s.live.dist,
+      checked: false,
+      sent: false,
+      // The start (the check at rest, G21, the probe move's reply) has its own limit; the move gets its own on its reply.
+      deadline: at + PROBE_LIMITS.reportMarginMs,
+      stopped: null,
+      report: null,
+      confirmed: 0,
+      zero: null,
+      system: null,
+      settleUntil: null,
+      readback: {},
+      pending: null,
+    },
   });
   // A move in progress: Disconnect is refused and Pause and Stop job are prominent. First, one polled cycle at rest.
   t.set({ base: 'JOGGING' });
   requestPoll(t);
   tick(t);
   return ALLOWED;
+}
+
+/** Work Z in mm (`pos` is in the board's units: G20 inches), or null when the position or the units are not known. */
+function workZMm(s: SessionState): number | null {
+  const z = s.live.pos.z;
+  if (z === undefined || (s.live.unit !== 0 && s.live.unit !== 1)) return null;
+  return s.live.unit === 0 ? z * 25.4 : z;
 }
 
 const HELD_WHILE_OPEN: ReadonlySet<string> = new Set(['jog', 'goToZero', 'setWorkZero', 'home', 'setMachinePosition', 'tempOffset', 'selectCoordSystem', 'spindleOn', 'settingsWrite', 'flash', 'startJob', 'resume']);

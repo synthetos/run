@@ -24,5 +24,6 @@ export { makePlan } from './probe/plan.ts';
 export { TOUCH_IDLE_MS, touchPassed, touchStep } from './probe/touch.ts';
 export { ZERO_TOLERANCE_MM, zeroConfirmed } from './probe/zero.ts';
 export { probeKillWritable, probeLineWritable } from './probe/sync.ts';
+export { probeLineAllowed } from './probe/common.ts';
 export type { ProbeRun, ProbeSettings, ProbeZState } from './probe/state.ts';
 export type { ProbeBlock, ProbeInputReading, ProbeOutcome, ProbePlan, ProbeSnapshot, ProbeStep, ProbeTouch } from './probe/types.ts';

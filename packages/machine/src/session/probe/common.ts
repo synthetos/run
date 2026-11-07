@@ -64,11 +64,37 @@ export function dropQueuedLines(t: ProbeTx): void {
   t.set({ queue: t.s.queue.filter((q) => !(q.purpose === 'probeZ' && q.line !== undefined)) });
 }
 
-/** Puts back the units and distance mode the board had, then shows `outcome` once that is answered. */
-export function restoreThen(t: ProbeTx, outcome: ProbeOutcome): void {
+/**
+ * Puts back the units and distance mode the board had, then shows `outcome` once that is answered. Only when that
+ * can be sent: never after Pause or Stop job (nothing follows a stop) and never into an alarm (the board refuses
+ * lines); then the outcome is shown at once, and the next probe's own `G21` and `G91` line set the modes again.
+ */
+export function restoreThen(t: ProbeTx, outcome: ProbeOutcome, at: number): void {
   const run = t.s.probeZ.run as ProbeRun;
+  if (run.stopped !== null || t.s.base === 'ALARM') {
+    finish(t, outcome, at);
+    return;
+  }
   setRun(t, { pending: outcome, zero: 'restore' });
   queueLine(t, restoreLine(run.units, run.dist));
+}
+
+/** The outcome after Pause or Stop job, which always wins: nothing is zeroed after either (H90 mitigation 3). */
+export function stopOutcome(r: ProbeRun): ProbeOutcome | null {
+  if (r.stopped === 'stopJob') return { kind: 'stopJob', status: 207 };
+  if (r.stopped === 'pause') return { kind: 'paused' };
+  return null;
+}
+
+/** Writes `!` (Pause) or ^D (Stop job, Spindle off) for the probe; checked again by the write gate. */
+export function writeStop(t: ProbeTx, which: 'feedhold' | 'kill', intent: Intent, byte: number): void {
+  t.set({ sent: { ...t.s.sent, realtime: t.s.sent.realtime + 1 } });
+  t.emit({ kind: 'writeRealtime', epoch: t.s.epoch, name: which, byte, intent });
+}
+
+/** The write gate: a probe line goes out only while its run is in progress and no Pause or Stop job was pressed. */
+export function probeLineAllowed(s: SessionState): boolean {
+  return s.probeZ.run !== null && s.probeZ.run.stopped === null && probeRunning(s.probeZ.step);
 }
 
 /**
@@ -79,7 +105,8 @@ export function restoreThen(t: ProbeTx, outcome: ProbeOutcome): void {
 export function finish(t: ProbeTx, outcome: ProbeOutcome, at: number, alarmed = false): void {
   const wasRunning = probeRunning(t.s.probeZ.step);
   t.set({ queue: t.s.queue.filter((q) => q.purpose !== 'probeZ') });
-  setProbe(t, { step: 'result', outcome, run: null, touchAt: null, passedAt: null, anchor: null });
+  // A later alarm (203, 250, 220, 207) is no longer this probe's: it is handled as any other.
+  setProbe(t, { step: 'result', outcome, run: null, touchAt: null, passedAt: null, anchor: null, alarmExpected: false });
   t.cancel('probe');
   if (wasRunning && t.s.base === 'JOGGING') t.set({ base: alarmed ? 'ALARM' : idleBase(t.s) });
   t.emit({ kind: 'log', text: `probe Z: ${outcome.kind} at ${Math.round(at)} ms` });

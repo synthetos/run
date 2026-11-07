@@ -3,93 +3,10 @@
  * reach on its own: answers that time out or arrive damaged, a FAULT or a lost link at each step, a stop after the
  * zero went out, the start's own refusals, and the report frame of later builds.
  */
-import { classifyLine } from '@synthetos/protocol';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TIMINGS, reduce, snapshotOf, type SessionConfig, type SessionEffect, type SessionEvent, type SessionIntent, type SessionState, type TimerId } from '../src/index.ts';
-import { JOBS_RELEASE_NO_FI } from './jobHarness.ts';
-import { EN_450_02_APPROVED, START, TOUCH, passTouch, probeHarness } from './probeHarness.ts';
-
-const CONFIG: SessionConfig = { release: JOBS_RELEASE_NO_FI, manifest: EN_450_02_APPROVED, timings: DEFAULT_TIMINGS };
-
-/** Feeds the reducer by hand. `at` moves only when told. */
-class R {
-  s: SessionState;
-  fx: readonly SessionEffect[] = [];
-  at = 1_000_000;
-  constructor(s: SessionState) {
-    this.s = s;
-  }
-  ev(e: SessionEvent): this {
-    const t = reduce(CONFIG, this.s, e);
-    this.s = t.state;
-    this.fx = t.effects;
-    return this;
-  }
-  intent(request: SessionIntent): this {
-    return this.ev({ type: 'intent', at: this.at, request });
-  }
-  line(text: string): this {
-    return this.ev({ type: 'inbound', epoch: this.s.epoch, at: this.at, event: classifyLine(text) });
-  }
-  timer(id: TimerId): this {
-    return this.ev({ type: 'timer', id, seq: this.s.timers[id] as number, at: this.at });
-  }
-  /** Completes the write in progress and answers it: a value for a GET, a status for a G-code line. */
-  answer(value: unknown = 0, status = 0): this {
-    const w = this.s.writing;
-    if (w === null) throw new Error('nothing is being written');
-    this.ev({ type: 'lineWritten', epoch: this.s.epoch, seq: w.seq, at: this.at });
-    const rev = this.s.footerRev ?? 2;
-    return this.line(w.line !== undefined ? `{"r":{},"f":[${rev},${status},8]}` : `{"r":{"${w.token}":${JSON.stringify(value)}},"f":[${rev},${status},8]}`);
-  }
-  /** Answers the poll cycle in progress (stat, hold, vel, qr) as at rest, or with `stat`. */
-  poll(stat = 3): this {
-    const values: Record<string, number> = { stat, hold: 0, vel: 0, qr: 32 };
-    for (const token of ['stat', 'hold', 'vel', 'qr']) {
-      if (this.s.writing?.token !== token) throw new Error(`expected ${token}, writing ${JSON.stringify(this.s.writing)}`);
-      this.answer(values[token]);
-    }
-    return this;
-  }
-  /** Answers every probe input read in the way. */
-  inputs(value = 0): this {
-    while (this.s.writing?.token === 'in5') this.answer(value);
-    return this;
-  }
-  get writing(): string | undefined {
-    return this.s.writing?.line ?? this.s.writing?.token;
-  }
-}
-
-/** A session with the touch test passed and nothing in flight. */
-async function ready(): Promise<R> {
-  const h = await probeHarness();
-  await passTouch(h);
-  const s = h.session.state;
-  return new R({ ...s, queue: [], expected: [], writing: null, timers: {}, probeZ: { ...s.probeZ, readingAt: 1_000_000 } });
-}
-
-/** From ready to the probe running (the G38.2 answered). */
-async function probing(): Promise<R> {
-  const r = (await ready()).intent(START);
-  r.poll(1);
-  expect(r.writing).toBe('G21');
-  r.answer();
-  expect(r.writing).toBe('G91 G38.2 Z-5 F25');
-  r.answer();
-  expect(r.s.probeZ.step).toBe('probing');
-  return r;
-}
-
-/** From probing to the zero's line being written. */
-async function zeroLine(): Promise<R> {
-  const r = await probing();
-  r.line('{"prb":{"e":1,"x":0,"y":0,"z":-3.02,"a":0,"b":0,"c":0}}');
-  expect(r.s.probeZ.step).toBe('zeroing');
-  r.poll().timer('probe').poll();
-  expect(r.writing).toBe('G10 L20 P1 Z12.6782');
-  return r;
-}
+import { snapshotOf, type SessionState } from '../src/index.ts';
+import { START, TOUCH } from './probeHarness.ts';
+import { R, probing, ready, zeroLine } from './probeDriver.ts';
 
 describe('Probe Z through the reducer', () => {
   it('the start refuses a stale reading, a block and changed settings; a moving machine at the check is refused, a damaged check asks again', async () => {
@@ -183,10 +100,11 @@ describe('Probe Z through the reducer', () => {
     // A Pause after the Stop job keeps the Stop job.
     k.intent({ intent: 'feedhold' });
     k.line('{"prb":{"e":1,"x":0,"y":0,"z":-1,"a":0,"b":0,"c":0}}');
-    expect(k.s.probeZ).toMatchObject({ outcome: { kind: 'stopJob', status: 207 }, alarmExpected: true });
+    // No zero, and no result yet: the ^D's ALARM 207 is the result.
+    expect(k.s.probeZ).toMatchObject({ step: 'probing', outcome: null, alarmExpected: true });
     k.line('{"er":{"fb":450.02,"st":207,"msg":"job kill"}}');
     expect(k.s.fault).toBeNull();
-    expect(k.s.probeZ.alarmExpected).toBe(false);
+    expect(k.s.probeZ).toMatchObject({ outcome: { kind: 'stopJob', status: 207 }, alarmExpected: false });
   });
 
   it('a ^D from another stop: an alarm 207 with no stop pressed is still a Stop job; 250 says already tripped or not', async () => {
@@ -211,7 +129,7 @@ describe('Probe Z through the reducer', () => {
     r.line('{"er":{"fb":450.03,"st":250,"msg":"Probe did not trip"}}');
     expect(r.s.probeZ.outcome).toEqual({ kind: 'noContact', travelMm: 4, status: 250 });
     r.line('{"prb":{"e":1,"x":0,"y":0,"z":6,"a":0,"b":0,"c":0}}');
-    expect(r.fx.find((e) => e.kind === 'log')).toMatchObject({ text: expect.stringContaining('a probe report arrived with no probe running') });
+    expect(r.fx.find((e) => e.kind === 'log')).toMatchObject({ text: expect.stringContaining('a probe report arrived with no probe move of ours out') });
     const u = await probing();
     u.s = { ...u.s, probeZ: { ...u.s.probeZ, run: { ...(u.s.probeZ.run as NonNullable<SessionState['probeZ']['run']>), fromPos: null } } };
     u.line('{"er":{"fb":450.02,"st":250,"msg":"Probe did not trip"}}');
@@ -230,11 +148,11 @@ describe('Probe Z through the reducer', () => {
     expect(r.s.probeZ.run?.zero).toBe('settle');
     r.at += 300;
     r.timer('probe');
-    r.answer({ x: 0, y: 0, z: 12.678 }).answer({ x: 0, y: 0, z: -15.7 }).answer(1);
-    expect(r.writing).toBe('G90');
-    r.answer();
-    // The read-back agrees, but Stop job was pressed while the zero was in flight: no zero is claimed.
+    r.answer({ x: 0, y: 0, z: -15.7 }).answer({ x: 0, y: 0, z: 12.678 }).answer({ x: 0, y: 0, z: -15.7 }).answer(1);
+    // The read-back agrees, but Stop job was pressed while the zero was in flight: no zero is claimed, and nothing
+    // more is sent after the stop (no restore line).
     expect(r.s.probeZ.outcome).toEqual({ kind: 'zeroUnconfirmed' });
+    expect(r.s.queue.some((e) => e.line !== undefined)).toBe(false);
   });
 
   it('Stop job is allowed in every step of a running probe and writes ^D; Pause is allowed and writes `!`, never `~`', async () => {
@@ -285,7 +203,7 @@ describe('Probe Z through the reducer', () => {
       r.answer();
       r.at += 300;
       r.timer('probe');
-      r.answer(pos).answer(ofs).answer(coor);
+      r.answer({ x: 0, y: 0, z: -15.7 }).answer(pos).answer(ofs).answer(coor);
       r.answer();
       expect(r.s.probeZ.outcome, JSON.stringify([pos, ofs, coor])).toEqual({ kind: 'zeroUnconfirmed' });
     }
@@ -304,23 +222,25 @@ describe('Probe Z through the reducer', () => {
     a.ev({ type: 'intent', at: a.at, request: { intent: 'read', tokens: ['stat'] } });
     a.ev({ type: 'lineWritten', epoch: a.s.epoch, seq: (a.s.writing as { seq: number }).seq, at: a.at });
     a.timer('answer');
-    expect(a.s.probeZ.outcome).toEqual({ kind: 'noReport' });
+    // STALE ends the run: the link is lost during the probe.
+    expect(a.s.probeZ.outcome).toEqual({ kind: 'lost', during: 'probe' });
+    expect(a.s.overlays).toContain('STALE');
     const z = await zeroLine();
     z.ev({ type: 'lineWritten', epoch: z.s.epoch, seq: (z.s.writing as { seq: number }).seq, at: z.at });
     z.timer('answer');
-    expect(z.s.probeZ.outcome).toEqual({ kind: 'zeroUnconfirmed' });
+    expect(z.s.probeZ.outcome).toEqual({ kind: 'lost', during: 'zero' });
     const rb = await zeroLine();
     rb.answer();
     rb.at += 300;
     rb.timer('probe');
     rb.ev({ type: 'lineWritten', epoch: rb.s.epoch, seq: (rb.s.writing as { seq: number }).seq, at: rb.at });
     rb.timer('answer');
-    expect(rb.s.probeZ.outcome).toEqual({ kind: 'zeroUnconfirmed' });
+    expect(rb.s.probeZ.outcome).toEqual({ kind: 'lost', during: 'zero' });
     const re = await zeroLine();
     re.answer();
     re.at += 300;
     re.timer('probe');
-    re.answer({ z: 12.678 }).answer({ z: -15.7 }).answer(1);
+    re.answer({ x: 0, y: 0, z: -15.7 }).answer({ z: 12.678 }).answer({ z: -15.7 }).answer(1);
     re.ev({ type: 'lineWritten', epoch: re.s.epoch, seq: (re.s.writing as { seq: number }).seq, at: re.at });
     re.timer('answer');
     expect(re.s.probeZ.outcome).toMatchObject({ kind: 'contactZeroSet' });
@@ -375,14 +295,15 @@ describe('Probe Z through the reducer', () => {
     expect(r.s.queue.filter((e) => e.token === 'in5')).toHaveLength(1);
   });
 
-  it('a probe input read that times out while the probe runs changes nothing of the probe', async () => {
+  it('a probe input read that times out while the probe runs: the link goes STALE, which ends the run', async () => {
     const r = await probing();
     r.timer('probe');
     expect(r.writing).toBe('in5');
     r.ev({ type: 'lineWritten', epoch: r.s.epoch, seq: (r.s.writing as { seq: number }).seq, at: r.at });
     r.timer('answer');
-    expect(r.s.probeZ.step).toBe('probing');
+    expect(r.s.probeZ.outcome).toEqual({ kind: 'lost', during: 'probe' });
     expect(r.s.overlays).toContain('STALE');
+    expect(r.s.base).toBe('IDLE_UNHOMED');
   });
 
   it('a start with no position known, and a touch test anchored with no state or position known', async () => {
@@ -420,7 +341,7 @@ describe('Probe Z through the reducer', () => {
     n.answer();
     n.at += 300;
     n.timer('probe');
-    n.answer({ z: 12.678 }).answer({ z: -15.7 }).answer(1).answer();
+    n.answer({ x: 0, y: 0, z: -15.7 }).answer({ z: 12.678 }).answer({ z: -15.7 }).answer(1).answer();
     expect(n.s.probeZ.outcome).toMatchObject({ kind: 'contactZeroSet', travelMm: 0 });
   });
 
@@ -428,7 +349,7 @@ describe('Probe Z through the reducer', () => {
     const z = await zeroLine();
     z.s = { ...z.s, queue: [z.s.writing as SessionState['queue'][number]], writing: null, overlays: ['STALE'] };
     z.ev({ type: 'intent', at: z.at, request: { intent: 'read', tokens: ['vel'] } });
-    expect(z.s.probeZ.outcome).toEqual({ kind: 'zeroRefused', status: 0, text: 'Not sent: the machine left the state that allows it.' });
+    expect(z.s.probeZ.outcome).toEqual({ kind: 'zeroUnconfirmed' });
     const g = (await ready()).intent(START);
     g.poll(1);
     g.s = { ...g.s, queue: [g.s.writing as SessionState['queue'][number]], writing: null, base: 'ALARM' };

@@ -11,8 +11,20 @@ import type { ProbePlan } from './types.ts';
 /** The read-back must agree with the zero within this, mm (§4.5c). */
 export const ZERO_TOLERANCE_MM = 0.002;
 
-/** What is read back after the EEPROM wait: work position, work offset, active system. */
-export const READBACK_TOKENS: readonly string[] = Object.freeze(['pos', 'ofs', 'coor']);
+/**
+ * What is read back after the EEPROM wait: the system's own offsets (`g54`..`g59`), work position, work offset,
+ * active system (last). They are also the session's values, as any set zero's read-back is (motion.ts readBack).
+ */
+export function readbackTokens(system: number): readonly string[] {
+  return [`g${53 + system}`, 'pos', 'ofs', 'coor'];
+}
+
+/** The last read-back: the zero is judged when it is answered. */
+export const LAST_READBACK = 'coor';
+
+export function isReadback(token: string): boolean {
+  return token === 'pos' || token === 'ofs' || token === 'coor' || /^g5[4-9]$/.test(token);
+}
 
 export function zeroLine(system: number, plan: ProbePlan): string {
   return probeZeroLine(system, plan.zeroZ);
@@ -34,7 +46,7 @@ export function takeReadback(readback: ProbeRun['readback'], token: string, valu
     const z = zOf(value);
     return z === undefined ? readback : { ...readback, ofsZ: z };
   }
-  return typeof value === 'number' ? { ...readback, coor: value } : readback;
+  return token === 'coor' && typeof value === 'number' ? { ...readback, coor: value } : readback;
 }
 
 /** The zero is confirmed: the system is the one written, Z reads the zero within the tolerance, and an offset came back. */

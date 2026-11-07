@@ -32,7 +32,7 @@ export type ZeroPhase = 'line' | 'settle' | 'readback' | 'restore';
 
 /** One probe from the owner's Start to its result. */
 export interface ProbeRun {
-  /** Z when the probe started: work position (450.02 report frame) and machine position (450.03+), mm. */
+  /** Z when the probe started, mm: work position (450.02 report frame, converted from inches) and machine position (450.03+). */
   readonly fromPos: number | null;
   readonly fromMpo: number | null;
   /** `unit` and `dist` when it started (0 inches, 1 incremental): put back after the zero. */
@@ -42,8 +42,8 @@ export interface ProbeRun {
   readonly checked: boolean;
   /** The `G38.2` was queued (once it has left the queue it may run, even if Pause comes before its answer). */
   readonly sent: boolean;
-  /** The time limit for the report, from the `G38.2`'s answer; null until then. */
-  readonly deadline: number | null;
+  /** The run's time limit: the start's from Start, then the report's from the `G38.2`'s answer. */
+  readonly deadline: number;
   /** Pause or Stop job was pressed since the start: nothing is zeroed from here on. */
   readonly stopped: 'pause' | 'stopJob' | null;
   /** The `{"prb":...}` report: `e` and Z in the report's frame. */
@@ -51,6 +51,8 @@ export interface ProbeRun {
   /** Polled reads in a row at rest after a contact report. */
   readonly confirmed: number;
   readonly zero: ZeroPhase | null;
+  /** The system the zero was written to (`coor` 1..6), read back and checked against it. */
+  readonly system: number | null;
   readonly settleUntil: number | null;
   /** The read-back of the zero, as answered (status 0 only). */
   readonly readback: { readonly posZ?: number; readonly ofsZ?: number; readonly coor?: number };

@@ -26,6 +26,7 @@ import { JV_LINE, reportLineShape } from './reports.ts';
 import { enqAllowedNow, matrixSnapshot, readableNow } from './reducer.ts';
 import { SETTING_LINE, settingRefusal } from './settingWrite.ts';
 import { probeKillWritable, probeLineWritable } from './probe/sync.ts';
+import { probeLineAllowed } from './probe/common.ts';
 import type { SessionState } from './types.ts';
 
 export interface WriteContext {
@@ -259,6 +260,8 @@ export function checkWrite(
   const own = intent === 'read' || intent === 'feedhold' || intent === 'enq' || intent === 'settingsWrite' || intent === 'configureReports' || intent === 'jobLine' || intent === 'lineMode' || intent === 'jobRuntime' || intent === 'flash';
   const matrixIntent: Intent | undefined = own ? intent : issuedBy;
   if (matrixIntent === undefined) return { kind: 'refused', reason: `a ${intent} write names no issuing intent` };
+  // Probe Z: after Pause or Stop job, or once its run has ended, no probe line goes out (held back, never a FAULT).
+  if (matrixIntent === 'probeZ' && intent === 'motion' && !probeLineAllowed(current)) return { kind: 'denied', reason: 'not written: the probe was stopped or has ended' };
   const decision = allowed(matrixSnapshot(current), matrixIntent, release);
   if (!decision.allowed) return { kind: 'denied', reason: `not written: the allow-matrix denies ${matrixIntent} now (${decision.reason})` };
   const verdict = phase1WriteVerdict(bytes, {

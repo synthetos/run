@@ -51,10 +51,11 @@ describe('T-S130 (U): the two new line shapes and their builders', () => {
     // On an idle session nothing of the probe is writable: refused (a bug), never written.
     expect(probeLineWritable(s, 'G91 G38.2 Z-5 F25')).toBe(false);
     expect(probeKillWritable(s)).toBe(false);
-    expect(checkWrite(s, s, JOBS_RELEASE_NO_FI, enc('G91 G38.2 Z-5 F25\n'), 'motion', 'probeZ')).toMatchObject({ kind: 'refused' });
+    // With no probe running a probe line is held back (denied, dropped), never written.
+    expect(checkWrite(s, s, JOBS_RELEASE_NO_FI, enc('G91 G38.2 Z-5 F25\n'), 'motion', 'probeZ')).toEqual({ kind: 'denied', reason: 'not written: the probe was stopped or has ended' });
     expect(checkWrite(s, s, JOBS_RELEASE_NO_FI, Uint8Array.of(0x04), 'kill', 'stopJob')).toMatchObject({ kind: 'refused' });
     // A probe line issued by another intent, and a jog line issued by the probe, are refused by kind.
-    const starting: SessionState = { ...s, base: 'JOGGING', probeZ: { ...s.probeZ, step: 'starting', plan: { thicknessMm: 12.7, depthMm: 5, feed: 25, stopMm: 0.02, zeroZ: 12.68, maxSeconds: 17 }, run: { fromPos: 0, fromMpo: 0, units: 1, dist: 0, checked: true, sent: true, deadline: null, stopped: null, report: null, confirmed: 0, zero: null, settleUntil: null, readback: {}, pending: null } }, queue: [{ token: 'gc', purpose: 'probeZ', line: 'G91 G38.2 Z-5 F25', intent: 'probeZ' }] };
+    const starting: SessionState = { ...s, base: 'JOGGING', probeZ: { ...s.probeZ, step: 'starting', plan: { thicknessMm: 12.7, depthMm: 5, feed: 25, stopMm: 0.02, zeroZ: 12.68, maxSeconds: 17 }, run: { fromPos: 0, fromMpo: 0, units: 1, dist: 0, checked: true, sent: true, deadline: 0, stopped: null, report: null, confirmed: 0, zero: null, system: null, settleUntil: null, readback: {}, pending: null } }, queue: [{ token: 'gc', purpose: 'probeZ', line: 'G91 G38.2 Z-5 F25', intent: 'probeZ' }] };
     expect(probeLineWritable(starting, 'G91 G38.2 Z-5 F25')).toBe(true);
     expect(probeLineWritable(starting, 'G91 G38.2 Z-15 F25')).toBe(false);
     expect(probeLineWritable({ ...starting, queue: [] }, 'G91 G38.2 Z-5 F25')).toBe(false);
@@ -83,7 +84,10 @@ describe('T-S130 (M): the lines on the model', () => {
     const w = writes(h).slice(from);
     const zero = w.indexOf('G10 L20 P1 Z12.6782');
     expect(w.slice(0, zero).filter((x) => x === '{"qr":null}').length).toBeGreaterThanOrEqual(3);
-    expect(w.slice(zero + 1, zero + 4)).toEqual(['{"pos":null}', '{"ofs":null}', '{"coor":null}']);
+    expect(w.slice(zero + 1, zero + 5)).toEqual(['{"g54":null}', '{"pos":null}', '{"ofs":null}', '{"coor":null}']);
+    // The read-back is the session's own read of the new zero too (job checks and C31 read it).
+    expect(h.session.snapshot.values['g54']?.value).toMatchObject({ z: expect.closeTo(-15.7, 1) });
+    expect(h.session.snapshot.values['ofs']?.status).toBe(0);
     expect(h.session.snapshot.base).toBe('IDLE_UNHOMED');
     expect(h.session.snapshot.fault).toBeNull();
   });

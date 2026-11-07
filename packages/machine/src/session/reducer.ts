@@ -114,7 +114,8 @@ import {
 import { jobActive, patchJob } from './jobState.ts';
 import { PROBE_CLOSED } from './probe/state.ts';
 import { onProbeIntent, probeRefusal } from './probe/intents.ts';
-import { abandonProbe, onProbeAlarm, onProbeLineDropped, onProbeAnswer, onProbeGarbled, onProbeMissed, onProbePoll, onProbeReport, onProbeStop, onProbeTimer } from './probe/run.ts';
+import { onProbeAlarm, onProbeAnswer, onProbePoll, onProbeReport, onProbeTimer } from './probe/run.ts';
+import { abandonProbe, onProbeGarbled, onProbeLineDropped, onProbeMissed, onProbeStop } from './probe/stops.ts';
 import { probeCarried, probeSeedReads, syncProbe } from './probe/sync.ts';
 import {
   MAX_PROBE_RESTARTS,
@@ -368,7 +369,12 @@ export function reduce(config: SessionConfig, state: SessionState, event: Sessio
       break;
     case 'lineDropped':
       if (event.epoch === t.s.epoch && event.index !== undefined) onJobLineDropped(t, event.index);
-      else if (event.epoch === t.s.epoch && t.s.writing?.seq === event.seq) t.set({ writing: null });
+      else if (event.epoch === t.s.epoch && t.s.writing?.seq === event.seq) {
+        const dropped = t.s.writing;
+        t.set({ writing: null });
+        // Probe Z: a line the write gate held back (after Pause or Stop job) is the probe's to account for.
+        if (dropped.purpose === 'probeZ' && dropped.line !== undefined) onProbeLineDropped(t, dropped.line, t.s.live.lastRxAt as number);
+      }
       break;
     case 'writeFailed':
       if (event.epoch === t.s.epoch && linkUp(t.s)) {
@@ -979,7 +985,7 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
   if (missed.purpose === 'lineMode') onLineModeAnswer(t, null, at);
   // A tool change's M5/M9 or a resume step unanswered: the job layer fails closed (independent review 2026-11-03, R6).
   if (missed.purpose === 'motion') onJobMotionTimeout(t, missed.line, at);
-  if (missed.purpose === 'probeZ') onProbeMissed(t, missed, at);
+  if (missed.purpose === 'probeZ') onProbeMissed(t, missed);
   if (missed.purpose === 'seed' || missed.purpose === 'report' || t.s.reports.phase === 'seeding' || t.s.reports.phase === 'configuring') {
     failReports(t, `the board did not answer the ${missed.token} read in time`);
   }
@@ -1837,6 +1843,7 @@ function enterStale(t: Tx, at: number): void {
   t.addOverlay('STALE');
   // The watchdog and the read timeouts run only after the board has answered, so a receive time exists.
   t.set({ stale: { at, silentForMs: Math.max(0, at - (t.s.live.lastRxAt as number)) } });
+  abandonProbe(t, 'stale', at);
 }
 
 /**

@@ -170,15 +170,16 @@ describe('T-S131: outcomes', () => {
     expect(h.session.snapshot.probeZ.plateOut).toBe(false);
   });
 
-  it('no report in time: Z slower than the feed (the axis maximum) runs past the time limit; the late alarm is still the probe\'s', async () => {
+  it('no report in time: Z slower than the feed (the axis maximum) runs past the time limit; a later alarm is handled as any other', async () => {
     const h = await probeHarness({ plate: null, eeprom: { zfr: 10 } });
     await passTouch(h, { intent: 'probeZ', step: 'touch', thicknessMm: 5, depthMm: 5, feed: 25 });
     startProbe(h);
     await untilResult(h, 40_000);
     expect(h.session.snapshot.probeZ.outcome).toEqual({ kind: 'noReport' });
+    expect(h.session.state.probeZ.alarmExpected).toBe(false);
     await h.run(30_000);
     expect(h.session.snapshot.base).toBe('ALARM');
-    expect(h.session.snapshot.fault).toBeNull();
+    expect(h.session.snapshot.fault?.cause).toBe('exceptionReport');
   });
 
   it('a refused zero, and an unconfirmed one', async () => {
