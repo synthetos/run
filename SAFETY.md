@@ -116,6 +116,11 @@ Warning text is never accepted in place of a design measure that would have been
 - **Custom firmware** (an unsigned `.hex` the user chooses) is allowed with C37 and W47, backups first; the board stays READ_ONLY afterwards unless the user trusts that exact image on that board (C38, W48), which is stored on this computer only and never applies to another board or image (H85, H87).
 - New hazards H79-H89; new W45-W50 and C37-C38; new tests T-S120-T-S127; checklist items 50-53; HIL-5.8-HIL-5.12.
 
+**Probe Z (amendment 2026-11-07; the owner approved a guided Z touch plate probe):**
+- One owner-started, single-stage, Z-only touch plate probe (`G38.2`), on approved edge-next builds of 450.02 or later only, on the bench and staging builds only until HIL-7.1 to HIL-7.4 pass (§4.5c). Never on TG, stock 449 or READ_ONLY. `G38.x` stays blocked in jobs and the console (§4.7).
+- Each probe needs a live touch test read from the probe input, and one confirmation (C39) that covers the move and the new Z zero. The zero is set only from a reported contact, with `G10 L20` corrected for the calculated stop distance.
+- New hazard H90; new W51-W52 and C39; new tests T-S128-T-S132; checklist item 54; HIL-7.1-HIL-7.4.
+
 ---
 
 ## 1. Scope and intended use
@@ -966,6 +971,15 @@ In every row the reply to the connect line is a G-code reply `{"r":{},"f":[...]}
 | **Residual** | Low-Medium: two boards with the same id and hardware version (H38) rely on the user. |
 | **Verification** | U: T-S123, T-S126. |
 
+### H90. Touch plate probe: a missed contact, a wrong zero, or a plate left under the tool (NEW, Probe Z, 2026-11-07)
+| Field | Content |
+|---|---|
+| **Cause** | 1. With a normally open plate (`prbp` 0) a lead that falls off reads as an open plate: the board cannot tell, and Z drives to the depth limit into the plate or the work. 2. The board stops with a normal hold after contact and reports the position after the stop, not at the trip, so a zero taken from the report is low by the stop distance. 3. The report's frame changed (450.02: work coordinates in current units; 450.03: machine mm), so a zero computed from it can be wrong by an offset or a unit factor. 4. Any edge on the input counts as contact, whatever caused it. 5. The spindle is left alone by the probe cycle, and a hand is at the tool for the touch test. 6. A plate left on the work after the probe is under the tool when the job or the spindle starts. 7. Pause cannot pause a probe: a hold ends the cycle, and with no contact that is ALARM 250. |
+| **Rating** | S2–S3, L3 |
+| **Mitigations** | 1. A depth limit chosen from presets with a custom value up to a hard maximum, and a probe feed chosen from presets with a custom value up to a hard maximum; the calculated stop distance at the board's `zjh` must not exceed its limit (§4.5c). The Ready text (C39) says that a lead that comes off is not detected. 2. A live touch test before every probe: the input must read inactive, then active while the owner touches the plate to the tool, then inactive again; the pass lapses after 2 minutes, on any position change and on any state change. 3. Zero only from `e`=1 at rest, with `G10 L20 P<n> Z<thickness − stop distance>` in G21, which does not depend on the report's frame; never from the reported position, never with G92, never after Pause or Stop job was pressed. 4. Probing is refused with the spindle commanded on, and the owner confirms the spindle or router is stopped. 5. While the plate is out, Start job and Spindle on are refused until the owner confirms "The plate is off"; Pause, Stop job and Spindle off are never refused. 6. Pause and Stop job stay in place throughout; Resume is never offered during a probe; W51 says Pause ends a probe in an alarm. 7. One `G38.2` per owner action and no automatic retry after an alarm. |
+| **Residual** | Medium: a dropped lead on a normally open plate is undetectable and is limited only by the depth limit and the owner starting close (W52). |
+| **Verification** | U: T-S128-T-S131. E: T-S132. H: HIL-7.1-HIL-7.4. |
+
 ---
 
 ## 3. Connection and motion state machine
@@ -1082,7 +1096,7 @@ Added:
 | Console line (advanced, MDI) | No earlier than Phase 4. IDLE_* and fresh, no overlay, controlling tab, visible document. G-code only, through the sanitiser and the dialect blocks (no JSON, `$`, realtime bytes or non-allowlisted tokens). A line with motion (G0–G3, G28/G30, G53 motion) or spindle/coolant on is a **one-line generated job**: preflight against the live envelope and WCS (homed axes required, or the unhomed jog caps of §4.5), first feed needs F, the queued-motion ceiling (split per §4.7 step 6a), and a single confirmation naming the end point in machine coordinates and the spindle state. G10, G92 and work-offset changes need C16. A line that would change settings or offsets invalidates preflight and disarms. Never while a job is loaded and armed. |
 | Stop job | Every connected state and overlay (normative rule above). EN: ^D. TG: the flush sequence (§4.4). READ_ONLY: `!` only, with "Use your E-stop". |
 | Spindle/coolant off now | Any connected state without LOST. EN: ^D when a job is active or the machine is moving; `M5`/`M9` when idle. TG: `M5`/`M9` (queued; the UI says so and offers Stop job). Never gated by facts. |
-| Set work zero | IDLE_* and fresh, no overlay, controlling tab, no job RUNNING or HELD; C16. TG: G10 L2 from a post-idle `mpo`. EN: an M400 barrier first; L2 or L20 allowed. Invalidates `job.*.preflight` and disarms. Persisted on the board, which C16 says. |
+| Set work zero | IDLE_* and fresh, no overlay, controlling tab, no job RUNNING or HELD; C16. *Amended 2026-11-07 (owner, H90):* a zero set by Probe Z is confirmed by C39 before the probe, not by C16 after it (§4.5c). TG: G10 L2 from a post-idle `mpo`. EN: an M400 barrier first; L2 or L20 allowed. Invalidates `job.*.preflight` and disarms. Persisted on the board, which C16 says. |
 | Manual spindle/coolant on | IDLE_* and fresh, no overlay, controlling tab, `outputs.spindle` fact, single confirmation naming the speed. Refused while alarmed on EN (outputs inhibited). |
 | Optional stop (`os`) | EN: IDLE_*; session-only write; the preview follows it. TG: host-side only. |
 | Reset controller (`^X`) | Any connected state except BOOTLOADER_MODE; explicit action after W16, W18 and C15. TG also shows "may not work if the controller is stalled; use the reset button" (E128). |
@@ -1290,6 +1304,26 @@ As OLD-S §4.5:
 **Offsets** (*amended 2026-11-02*). Set work zero is `G10 L20 P<n>` in the active system (`coor` 1..6; refused when it is not known or G53), saved on the controller (C16); its offsets are read back. **Temporary offset:** `G92 X0 [Y0] [Z0] [A0]` (C27) and `G92.1` (C28), not saved; `g92`, `ofs` and `pos` are read back. **Work coordinate system:** `G54`..`G59` (C29); `coor`, `ofs`, `pos` and g54..g59 are read back. Each change waits for polled idle before its read-back; a refused line ends it without a hold. *Amended 2026-11-03 (firmware bug hunt):* a `G10 L20` or `G54`..`G59` answered with status 13 (buffer full) is written again after about 0.5 s, at most 3 attempts in all, each refusal logged; after the third the change ends with a plain message and nothing changed.
 
 **Write gate.** Motion lines are their own command kind in the session's write gate (writePolicy.ts). A line is written only if it matches the closed grammar above exactly (numbers bounded, LF-terminated, no other words), the session release allows motion, and the allow-matrix allows the intent that issued it in the current state. `%` is written only by the stop and release sequences, `~` only by Resume, `{"clear":null}` only by Clear alarm. ^D and ^X are still never written in Phase 2. *Amended 2026-11-02:* the grammar adds `G28.2`, `G28.3`, `G92`, `G92.1`, `G54`..`G59` and `G10 L20 P1..P6` (axis words `X0`..`A0` only), and each line kind is admitted only from the intents that may send it (no G28.2 issued as a jog). The status-report configuration lines are a separate kind (`report`, H64). *Amended 2026-11-03 (independent review 2026-11-03, R1, R2, R8):* the grammar adds `G21` alone (a jog's units line, from `jog` only) and `G90 G21`/`G91 G21` to the restore shapes (from `jog`, `stopJob`, `goToZero` and `resume`); the gate's GET cap (32 bytes) applies to GET shapes only, so a motion line up to its own cap (64 bytes, a three-axis jog piece) is judged by the grammar, not refused as an overlong GET.
+
+### 4.5c Probe Z (owner, 2026-11-07; H90)
+
+**Where it runs.** On `tinyg-en` approved builds of fb 450.02 or later, full classification, the motion release, and the bench and staging builds only (the same switch as Phase 2 motion) until HIL-7.1 to HIL-7.4 are signed. Never on TG (it has no `prbp`, no `in1`-`in8`, no ALARM on a miss and no `G10 L20`), stock 449 or READ_ONLY. Never inside a job, at a manual tool change, or from the console: `G38.x` stays blocked by the sanitiser (§4.7).
+
+**Preconditions** (the session decides them again for every command): the Phase 2 motion preconditions (§4.5b); IDLE_* at rest by polled values; no job; spindle not commanded on; the active work system is G54-G59; no temporary offset (G92) in force; exactly one X/Y/Z min or max input in mode 4 and it is a Z input, read from the board at connect; `prbp` and `zjh` read; the probe input's reading is 0 or 1 (not -1, not unread).
+
+**Limits.** Plate thickness 0.1–50 mm, entered by the owner every time or prefilled from this browser with "Last used. Check it matches this plate." Depth limit: presets 3, 5 and 10 mm (default 5), or a custom value of 1–15 mm. Probe feed: presets 25 and 50 mm/min (default 25), or a custom value of 10–100 mm/min. Stop distance `L = F·√(F / (zjh·10⁶)) + F/60 × 0.005` mm, from the board's `zjh`; refused if `L` > 0.25 mm. These are the board-independent hard maximums; no setting raises them.
+
+**Touch test.** While the touch test, Ready and the probe run, the session reads only the probe input token (`in1`..`in8`) every 150 ms (an exception to the no-poll-while-idle rule, limited to these steps). The pass needs the readings inactive → active → inactive in that order. It lapses after 2 minutes, on any change in position, base state, overlay or the input's configuration, and after the probe. Jog is refused from the touch test until the result.
+
+**The probe.** After C39, in this order, each line answered before the next: `G21`, then `G91 G38.2 Z-<depth> F<feed>`, then nothing more until the outcome. The `G38.2` reply (status 0) is not completion. The outcome is the unsolicited `{"prb":{"e":..}}` report and the polled `stat`; stat 7 is PROBE. `e`=1 is contact; `e`=0 or any ALARM is not. A time limit of the depth at the feed plus 5 s ends the step as "no report".
+
+**Setting Z.** Only after `e`=1, `stat` at rest, and no Pause or Stop job pressed since the probe started: `G10 L20 P<n> Z<thickness − L>` (`<n>` the active system), answered, then a 250 ms wait (EEPROM, firmware issue #298), then the read-back of `pos`, `ofs` and `coor`. The read-back must agree within 0.002 mm; otherwise the result says the zero is not confirmed. Then the units mode and G90/G91 are put back. It invalidates any job check like any Set work zero.
+
+**After.** Lifting Z is the ordinary jog, on the owner's press only; nothing retracts by itself. While the plate is out (from the touch test until "The plate is off"), Start job and Spindle on are refused with "Take the touch plate and lead off first, then confirm it under Position." Pause, Stop job and Spindle off are never refused.
+
+**Stops.** Pause writes `!` as always; during a probe it ends the cycle (ALARM 250 with no contact), so Resume is never offered and the result says Pause ended the probe. Stop job is ^D (ALARM 207). An ALARM is cleared only by the owner through C13; nothing is retried.
+
+**Write gate.** Two new line shapes, `G91 G38.2 Z-<n> F<f>` (n ≤ 15, f ≤ 100) and `G10 L20 P[1-6] Z<n>` (|n| ≤ 50), each only as the probe's own line in the step that sends it.
 
 ### 4.5a Temporary homing search cap (TinyG, Phase 4)
 
@@ -1518,6 +1552,8 @@ Presentation amendment (owner, 2026-11-03): routine explanatory text, including 
 - **W48 (machine strip, a trusted custom build; H87):** "Custom firmware (trusted by you)"
 - **W49 (recovery countdown; H80):** "Unplug the USB cable and plug it back in now. Run is waiting for the bootloader: N s."
 - **W50 (old-firmware gate):** "This board runs firmware <fb>, older than the minimum <minimum> for its hardware. You can view it and back it up; update it to use jobs, jogging and settings changes."
+- **W51 (Pause during a probe; Probe Z, H90):** "Pause won't pause a probe: it ends it in an alarm. To stop, use Stop job. In an emergency, use your E-stop."
+- **W52 (a dropped lead; Probe Z, H90):** "If the lead comes off now, the board can't tell. Z keeps going to the depth limit. Keep your E-stop in reach."
 
 ---
 
@@ -1574,6 +1610,7 @@ An identity or chip mismatch on a flash, a bound-device mismatch on a profile, a
 | C36 | Start a job on a machine that is not homed (Phase 3, H73; replaces the typed C10 on the bench) | "The machine is not homed, so soft limits may not protect it. Start only if you have checked where every axis is and that the job fits. I've checked the machine." | Single |
 | C37 | Flash unsigned custom firmware (firmware update, H85), after the C6 boxes | "Flash unsigned custom firmware <name> (sha256 <short>) to <board id>? Run has not checked what it does. Your settings and the current firmware are backed up first." | Single |
 | C38 | Trust one custom build on one board (firmware update, H87) | "Trust <name> (sha256 <short>) on board <board id>? Run will let this exact build control this board as if it were approved. It never applies to another board or another build, and you can revoke it in Firmware & Backups." | Single |
+| C39 | Start a touch plate probe and set Z zero (Probe Z, H90) | "Probe Z? Z will move down at <feed> mm/min until the board reports contact, up to <depth> mm. On contact Run sets <system> Z so the tool reads <thickness − L> mm above the work (plate <thickness> mm, less <L> mm calculated stop distance). This is saved on the controller." with W51 and W52 beside it; the plate checkbox; Cancel has the focus. |
 
 Stop job and Spindle off now are never behind a confirmation: they are direct actions in every connected state and every overlay (§4.1 normative rule).
 
@@ -1648,6 +1685,7 @@ OLD-S §8 items 1–21 all apply. Read "sim" as `testkit`, and read item 20 as c
 51. ☐ (firmware update) No path can send `e`, `l`, an EEPROM write or a page at or above 0x30000: the closed command set, the frame guard and their tests are intact; every flash test asserts the fake xboot's erase count is 0.
 52. ☐ (firmware update) Backups (settings token by token, raw EEPROM, the application section) are stored before the first page; after the reconnect the settings compare, the required restore and the switch check gate jobs, jog and settings writes in the worker.
 53. ☐ (firmware update) The release list is verified per environment in the worker; simulator images never reach a real port; a trusted custom build is per board and per image SHA-256, local only, and never applies on production.
+54. ☐ (Probe Z) Probing runs only on approved EN builds of 450.02 or later and only with a fresh touch test and C39; the zero is set only from `e`=1 with `G10 L20` corrected for the stop distance; Start job and Spindle on are refused while the plate is out; `G38.x` stays blocked in jobs and the console (H90, §4.5c).
 
 ---
 
@@ -1755,6 +1793,13 @@ Manual, and never in CI. Signed in `RELEASES.md` in the run repo, with the evide
 - **HIL-6.3** Shared-computer flow: user A logs out, user B logs in; facts and pending restores survive; the cloud cache is cleared.
 - **HIL-6.4** The production deployment equals the staging artifact (code hash). The HIL record identity is (code hash, manifest hash). Production rejects bench-channel manifest entries by their signed environment field. Headers verified.
 - **HIL-6.5** **Real loaded machine** (the bench fixture has no cutter and no mass): on a real machine with a real spindle or VFD, a Z axis that can drop and a tested hardwired E-stop, on staging with the release-candidate artifact: HIL-2.4, 2.6, 2.13, 3.4, 3.5, 3.6 and 3.15, plus a real cut from a library file. Record spindle run-down time after ^D and after the TG flush, the measured overrun against the displayed bound with real mass (re-tune k, B-WD-1), and whether Z holds after alarm 207 and after an E-stop. Repeat on 440.21 if D22 enables it.
+
+### 9.7a Probe Z (owner, 2026-11-07; H90)
+
+- **HIL-7.1** Touch test with a real plate and lead on the Z min input: inactive, active, inactive; a dropped lead, a shorted lead and the 2-minute lapse each give their copy; nothing moves.
+- **HIL-7.2** Probe at F25 and F50 onto a plate of measured thickness: contact, the zero set, the read-back agrees; compare the reported overshoot with the calculated stop distance (Saleae on the Z step line).
+- **HIL-7.3** No contact (lead off on purpose, plate absent): Z stops at the depth limit, ALARM 250, zero unchanged; Pause during a probe: ALARM 250, no Resume offered; Stop job during a probe: ALARM 207, no zero.
+- **HIL-7.4** Plate out: Start job and Spindle on refused until "The plate is off"; Pause, Stop job and Spindle off still work.
 
 ### 9.8 D8 heartbeat (only for an image that advertises the `cap` bit)
 HB-1..HB-14 as listed in PN §14 and the research record:
@@ -1885,3 +1930,8 @@ New tests:
 | T-S125 | (firmware update) The old-firmware gate: a board below the minimum connects, is identified and backed up, opens on the Update panel, and the worker refuses jog, jobs and settings writes. | U, E |
 | T-S126 | (firmware update) The post-flash lock: the compare, the required restore (only the backup's values for the keys that differ), the switch check unlocking only after each configured input was seen open and closed; a second flash, Connect and Disconnect are refused while one runs. | U, E |
 | T-S127 | (firmware update) Fake-serial end to end: a full update; recovery after an interrupted flash; the restore and the switch-check lock; putting a firmware backup back; custom firmware with and without trust. | E |
+| T-S128 | (Probe Z) Gate: refused on TG, stock 449, READ_ONLY, an EN build below 450.02, production, a job, a tool change, ALARM, spindle on, no single Z probe input, `zjh` unread, a G92 offset, no G54-G59, and a stop distance over 0.25 mm; each with its reason. | U, M |
+| T-S129 | (Probe Z) Touch test: only inactive → active → inactive passes; it lapses after 2 minutes and on a position, state or input change; jog is refused from the touch test to the result; the input is polled only in those steps. | M |
+| T-S130 | (Probe Z) Lines: exactly `G21`, `G91 G38.2 Z-<d> F<f>` and, only after `e`=1 at rest with no Pause or Stop job since the start, `G10 L20 P<n> Z<thickness − L>`; the write gate refuses every other probe or zero shape and any value over its limit; no line is sent after an ALARM; nothing is retried. | U, M |
+| T-S131 | (Probe Z) Outcomes from the EN model: contact, no contact, already tripped, soft limit, limit, a refused reply, Pause, Stop job, a lost link, no report, a refused or unconfirmed zero; Start job and Spindle on refused while the plate is out, Pause, Stop job and Spindle off never. | M |
+| T-S132 | (Probe Z) Fake-serial end to end: the card's steps, the touch test from the simulated input, a probe to contact with the zero read back, and a miss to ALARM 250; Pause and Stop job visible and enabled throughout. | E |

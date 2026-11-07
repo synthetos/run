@@ -17,3 +17,5 @@ export { CLEAR_LINE, LINE_INTENTS, MAX_JOG_FEED, MAX_MOTION_MM, MAX_RPM, motionL
 export type { MotionLineKind } from './motionLines.ts';
 export type { AckVerify, Axis, ChangeKind, ClassificationInfo, Expected, FaultCause, FaultInfo, FaultKind, FeedLimitState, FeedMove, FeedSummary, FollowUp, HoldReason, Identity, JobEvent, JobPhase, JobReportSummary, JobState, JobStopPoint, JogAxis, JogFeed, LinkWindow, LiveState, MotionCtx, MotionOp, MotionPhase, PendingRead, ProbeProgress, ReadPurpose, ReadValue, RealtimeName, ReportChange, ReportsState, RxmState, SessionBase, SessionConfig, SessionEffect, SessionEvent, SessionIntent, SessionNotices, SessionState, SessionTimings, SettingWriteOutcome, SettingWriteState, TimerId, Transition } from './types.ts';
 export { readOnlyNotice } from './notices.ts';
+export { PROBE_LIMITS, probeMaxSeconds, probeStopMm } from './probe/limits.ts';
+export type { ProbeBlock, ProbeInputReading, ProbeOutcome, ProbePlan, ProbeSnapshot, ProbeStep, ProbeTouch } from './probe/types.ts';

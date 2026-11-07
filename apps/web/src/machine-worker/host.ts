@@ -393,6 +393,13 @@ export class MachineWorkerHost {
         return s.request({ intent: 'spindleOn', output: 'spindle', direction: c.direction, rpm: c.rpm });
       case 'coolantOn':
         return s.request({ intent: 'spindleOn', output: c.which });
+      case 'probeTouch':
+      case 'probeStart':
+      case 'probeRetest':
+      case 'probeCancel':
+      case 'probePlateOff':
+        // Probe Z (SAFETY §4.5c): wired to the session's probe intents when they land.
+        return { allowed: false, reason: 'Probe Z is not available in this build yet.', remedy: 'Zero Z by hand.', citation: 'SAFETY §4.5c' };
       case 'spindleOff':
         return s.request({ intent: 'spindleOffNow', outputs: 'spindle' });
       case 'coolantOff':

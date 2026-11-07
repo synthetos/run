@@ -65,7 +65,11 @@ export type MotionCommand =
   | { readonly op: 'clearTempOffset' }
   | { readonly op: 'selectCoord'; readonly system: number }
   | { readonly op: 'spindleOn'; readonly direction: 'cw' | 'ccw'; readonly rpm: number }
-  | { readonly op: 'coolantOn'; readonly which: 'mist' | 'flood' };
+  | { readonly op: 'coolantOn'; readonly which: 'mist' | 'flood' }
+  /** Probe Z (SAFETY §4.5c, H90): start the touch test with the owner's plan; start the probe after C39 (the session uses the plan it holds); and the steps around it. */
+  | { readonly op: 'probeTouch'; readonly thicknessMm: number; readonly depthMm: number; readonly feed: number }
+  | { readonly op: 'probeStart'; readonly confirm: true }
+  | { readonly op: 'probeRetest' | 'probeCancel' | 'probePlateOff' };
 
 /**
  * Phase 3 job commands (additive; owner 2026-11-02, SAFETY §4.4a). The worker hands each to the session, which
