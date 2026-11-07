@@ -1,7 +1,7 @@
 /**
  * Probe Z's plain words (SAFETY §4.5c, H90): why it can't run and what to do next, and what each outcome means.
  * "Contact" is the board's word; nothing here says the tool touched the plate or that zero is set unless the
- * session reported it. The safety strings (W51, W52, C39) live in probeStrings.ts. Pure.
+ * session reported it. The safety strings (W51, W52, C39) come from @synthetos/safety via probeStrings.ts. Pure.
  */
 import type { ProbeBlock, ProbeOutcome } from '../../machine-worker/probeShared.ts';
 import { mm } from './probeStrings.ts';
