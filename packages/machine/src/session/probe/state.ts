@@ -84,6 +84,11 @@ export interface ProbeZState {
    * probe's outcome, not a FAULT. Cleared when one is taken, on a contact without a stop, and when the plate is off.
    */
   readonly alarmExpected: boolean;
+  /**
+   * ^D was written for this probe: its ALARM 207 is still expected until then (ms), even when the run has ended
+   * meanwhile (a time limit, a dropped line), so it never becomes a FAULT. Null when none is owed.
+   */
+  readonly killUntil: number | null;
 }
 
 export const PROBE_CLOSED: ProbeZState = Object.freeze({
@@ -102,6 +107,7 @@ export const PROBE_CLOSED: ProbeZState = Object.freeze({
   outcome: null,
   plateOut: false,
   alarmExpected: false,
+  killUntil: null,
 });
 
 /** Steps in which the probe owns the machine: the touch test to the zero. */

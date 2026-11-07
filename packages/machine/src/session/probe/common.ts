@@ -12,6 +12,14 @@ import type { ProbeOutcome, ProbePlan } from './types.ts';
 
 export type ProbeTx = MotionTx;
 
+/** The session's own time limits around the probe (besides the shared PROBE_LIMITS), ms. */
+export const RUN_LIMITS = Object.freeze({
+  /** The zero, its EEPROM wait, its read-back and putting the modes back must finish within this. */
+  zeroStepsMs: 5_000,
+  /** After ^D, its ALARM 207 is the probe's for this long (it normally comes within milliseconds). */
+  killGraceMs: 2_000,
+});
+
 const PROBE_INTENT: Intent = 'probeZ';
 
 export function setProbe(t: ProbeTx, patch: Partial<ProbeZState>): void {

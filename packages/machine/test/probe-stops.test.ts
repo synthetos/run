@@ -249,4 +249,86 @@ describe('after a stop, an alarm, a STALE link', () => {
     expect(r.s.probeZ).toMatchObject({ outcome: { kind: 'noReport' }, alarmExpected: false });
     expect(CONFIG.release).toBe(JOBS_RELEASE_NO_FI);
   });
+
+  it('A: Stop job with the zero or the restore line being written: held back, the run ends, its 207 is no FAULT', async () => {
+    const z = await zeroLine();
+    z.intent({ intent: 'stopJob' });
+    expect(realtime(z)).toEqual(['kill']);
+    expect(checkWrite(z.s, z.s, JOBS_RELEASE_NO_FI, enc('G10 L20 P1 Z12.6782'), 'motion', 'probeZ')).toMatchObject({ kind: 'denied' });
+    z.ev({ type: 'lineDropped', epoch: z.s.epoch, seq: (z.s.writing as { seq: number }).seq });
+    expect(z.s.probeZ.outcome).toEqual({ kind: 'zeroUnconfirmed' });
+    z.line('{"er":{"fb":450.02,"st":207,"msg":"job kill"}}');
+    expect(z.s.fault).toBeNull();
+    const r = await restoreWriting();
+    r.intent({ intent: 'stopJob' });
+    r.ev({ type: 'lineDropped', epoch: r.s.epoch, seq: (r.s.writing as { seq: number }).seq });
+    expect(r.s.probeZ.outcome).toMatchObject({ kind: 'contactZeroSet' });
+  });
+
+  it('A: every phase of the zero has a time limit, so nothing waits forever', async () => {
+    const z = await zeroLine();
+    z.ev({ type: 'lineWritten', epoch: z.s.epoch, seq: (z.s.writing as { seq: number }).seq, at: z.at });
+    z.at += 6000;
+    z.timer('probe');
+    expect(z.s.probeZ.outcome).toEqual({ kind: 'zeroUnconfirmed' });
+    const r = await restoreWriting();
+    r.at += 6000;
+    r.timer('probe');
+    expect(r.s.probeZ.outcome).toMatchObject({ kind: 'contactZeroSet' });
+  });
+
+  it('B: Pause with the restore line being written after an agreeing read-back: the zero that was set is said', async () => {
+    const r = await restoreWriting();
+    r.intent({ intent: 'feedhold' });
+    expect(r.s.probeZ.outcome).toBeNull();
+    r.ev({ type: 'lineDropped', epoch: r.s.epoch, seq: (r.s.writing as { seq: number }).seq });
+    expect(r.s.probeZ.outcome).toMatchObject({ kind: 'contactZeroSet' });
+  });
+
+  it('C: Stop job just before the start limit: the run ends on the limit and the 207 that follows is still no FAULT', async () => {
+    const k = await probeQueued();
+    k.s = { ...k.s, probeZ: { ...k.s.probeZ, run: { ...(k.s.probeZ.run as NonNullable<SessionState['probeZ']['run']>), deadline: k.at + 100 } } };
+    k.intent({ intent: 'stopJob' });
+    k.at += 200;
+    k.timer('probe');
+    expect(k.s.probeZ).toMatchObject({ outcome: { kind: 'stopJob', status: 207 }, alarmExpected: false });
+    k.at += 100;
+    k.line('{"er":{"fb":450.02,"st":207,"msg":"job kill"}}');
+    expect(k.s.fault).toBeNull();
+    expect(k.s.probeZ.killUntil).toBeNull();
+    // Past the grace period a 207 is a FAULT as any other.
+    const g = await probeQueued();
+    g.intent({ intent: 'stopJob' });
+    g.at += 6000;
+    g.timer('probe');
+    g.at += 1;
+    g.line('{"er":{"fb":450.02,"st":207,"msg":"job kill"}}');
+    expect(g.s.fault?.cause).toBe('exceptionReport');
+  });
+
+  it('D: STALE while the probe may be moving writes `!`; STALE while zeroing (at rest) writes nothing', async () => {
+    const r = await probing();
+    r.timer('probe');
+    r.ev({ type: 'lineWritten', epoch: r.s.epoch, seq: (r.s.writing as { seq: number }).seq, at: r.at });
+    r.timer('answer');
+    expect(r.s.probeZ.outcome).toEqual({ kind: 'lost', during: 'probe' });
+    expect(realtime(r)).toEqual(['feedhold']);
+    const z = await zeroLine();
+    z.ev({ type: 'lineWritten', epoch: z.s.epoch, seq: (z.s.writing as { seq: number }).seq, at: z.at });
+    z.timer('answer');
+    expect(z.s.probeZ.outcome).toEqual({ kind: 'lost', during: 'zero' });
+    expect(realtime(z)).toEqual([]);
+  });
 });
+
+/** The zero answered, its read-back agreeing, and the restore line being written. */
+async function restoreWriting(): Promise<R> {
+  const r = await zeroLine();
+  r.answer();
+  r.at += 300;
+  r.timer('probe');
+  r.inputs();
+  r.answer({ x: 0, y: 0, z: -15.7 }).answer({ x: 0, y: 0, z: 12.678 }).answer({ x: 0, y: 0, z: -15.7 }).answer(1);
+  expect(r.writing).toBe('G90');
+  return r;
+}

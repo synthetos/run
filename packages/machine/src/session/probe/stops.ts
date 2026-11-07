@@ -5,7 +5,7 @@
  */
 import type { MotionDeps } from '../motion.ts';
 import type { Expected, SessionIntent } from '../types.ts';
-import { dropQueuedLines, finish, probeWritten, setProbe, setRun, writeStop, zeroWritten, type ProbeTx } from './common.ts';
+import { RUN_LIMITS, dropQueuedLines, finish, probeWritten, setProbe, setRun, writeStop, zeroWritten, type ProbeTx } from './common.ts';
 import { onRead } from './run.ts';
 import { SETTING_TOKENS, probeRunning } from './state.ts';
 import type { ProbeOutcome } from './types.ts';
@@ -34,16 +34,21 @@ export function onProbeStop(t: ProbeTx, request: SessionIntent, at: number): boo
   t.set({ notices: { ...t.s.notices, pauseRequestedAt: at } });
   writeStop(t, kill ? 'kill' : 'feedhold', request.intent, kill ? realtime.kill.byte : realtime.feedhold.byte);
   if (r.stopped !== 'stopJob') setRun(t, { stopped: kill ? 'stopJob' : 'pause' });
-  if (kill) setProbe(t, { alarmExpected: true });
+  if (kill) setProbe(t, { alarmExpected: true, killUntil: at + RUN_LIMITS.killGraceMs });
   else if (!zeroOut && (!moved || p.step === 'zeroing')) finish(t, { kind: 'paused' }, at);
   return true;
 }
 
-/** A lost or STALE link, or a FAULT, while the probe ran: what is known is said, nothing more is sent. */
+/**
+ * A lost or STALE link, or a FAULT, while the probe ran: what is known is said. With the link STALE the probe move
+ * may still be running, so `!` goes out (Pause is always allowed); with it LOST nothing can be written (FAULT, W3).
+ */
 export function abandonProbe(t: ProbeTx, why: 'lost' | 'stale' | 'fault', at: number): void {
   const p = t.s.probeZ;
   if (!probeRunning(p.step)) return;
   const r = p.run;
+  const realtime = t.s.dialect?.realtime;
+  if (why === 'stale' && p.step !== 'zeroing' && probeWritten(t.s) && realtime !== undefined) writeStop(t, 'feedhold', 'feedhold', realtime.feedhold.byte);
   if (r?.zero === 'restore') {
     finish(t, r.pending as ProbeOutcome, at); // the outcome was decided; only putting the modes back is lost
     return;
@@ -55,17 +60,18 @@ export function abandonProbe(t: ProbeTx, why: 'lost' | 'stale' | 'fault', at: nu
 
 /**
  * One of the probe's lines was not written (the write gate refused it after a stop, or the matrix after an alarm or
- * an overlay): it is dropped, never held. After Pause that is the result; after Stop job the ^D's alarm is.
+ * an overlay): it is dropped, never held, and the run ends. A held-back restore shows the outcome it was putting
+ * the modes back for (a zero that was set and read back stays said); a held-back zero is not confirmed; a probe
+ * move held back after Pause is the Pause, after Stop job its ALARM 207 is the result.
  */
 export function onProbeLineDropped(t: ProbeTx, line: string, at: number): void {
   t.set({ queue: t.s.queue.filter((q) => !(q.purpose === 'probeZ' && q.line === line)) });
   const r = t.s.probeZ.run;
-  if (r === null || r.stopped === 'stopJob') return;
-  const text = 'Not sent: the machine left the state that allows it.';
-  if (r.stopped === 'pause') finish(t, { kind: 'paused' }, at);
-  else if (r.zero === 'restore') finish(t, r.pending as ProbeOutcome, at);
+  if (r === null) return;
+  if (r.zero === 'restore') finish(t, r.pending as ProbeOutcome, at);
   else if (r.zero === 'line') finish(t, { kind: 'zeroUnconfirmed' }, at);
-  else finish(t, { kind: 'refused', status: 0, text }, at);
+  else if (r.stopped === 'pause') finish(t, { kind: 'paused' }, at);
+  else if (r.stopped === null) finish(t, { kind: 'refused', status: 0, text: 'Not sent: the machine left the state that allows it.' }, at);
 }
 
 /** One of the probe's answers timed out: the link goes STALE next, which ends the run (abandonProbe). */

@@ -331,10 +331,11 @@ describe('Probe Z through the reducer', () => {
     b.s = { ...b.s, timers: { ...b.s.timers, probe: 99 } };
     b.timer('probe');
     expect(b.s.timers.probe).toBeUndefined();
+    // While the zero's steps run the timer keeps ticking: their time limit is checked on it.
     const z = await zeroLine();
     z.s = { ...z.s, timers: { ...z.s.timers, probe: 99 } };
     z.timer('probe');
-    expect(z.s.timers.probe).toBeUndefined();
+    expect(z.s.timers.probe).toBeDefined();
     // A contact with no start position known still sets the zero (the travel is not known: 0).
     const n = await zeroLine();
     n.s = { ...n.s, probeZ: { ...n.s.probeZ, run: { ...(n.s.probeZ.run as NonNullable<SessionState['probeZ']['run']>), fromPos: null } } };

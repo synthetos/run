@@ -8,7 +8,7 @@ import type { Exception, JsonValue, ProbeReport, Response } from '@synthetos/pro
 import { activeSystem, atRestPolled, completedPoll, requestPoll } from '../motion.ts';
 import { UNITS_LINE } from '../motionLines.ts';
 import type { Identity, PendingRead } from '../types.ts';
-import { finish, probePending, probeWritten, queueLine, queueRead, restoreThen, runProbeLine, setProbe, setRun, stopOutcome, tick, writeStop, zeroWritten, type ProbeTx } from './common.ts';
+import { RUN_LIMITS, finish, probePending, probeWritten, queueLine, queueRead, restoreThen, runProbeLine, setProbe, setRun, stopOutcome, tick, writeStop, zeroWritten, type ProbeTx } from './common.ts';
 import { probeInput } from './gate.ts';
 import { PROBE_LIMITS } from './limits.ts';
 import { SETTING_TOKENS, SWITCH_TOKENS, type ProbeRun, type ProbeSettings } from './state.ts';
@@ -181,7 +181,7 @@ export function onProbePoll(t: ProbeTx, at: number): void {
     setRun(t, { confirmed });
     const system = activeSystem(t.s);
     if (confirmed < 2 || system === null) return;
-    setRun(t, { zero: 'line', system });
+    setRun(t, { zero: 'line', system, deadline: at + RUN_LIMITS.zeroStepsMs });
     queueLine(t, zeroLine(system, p.plan as ProbePlan));
   }
 }
@@ -213,11 +213,13 @@ export function onProbeReport(t: ProbeTx, report: ProbeReport, at: number): void
 export function onProbeAlarm(t: ProbeTx, event: Exception, at: number): boolean {
   const p = t.s.probeZ;
   const r = p.run;
-  if (!p.alarmExpected || r === null || !PROBE_ALARMS.has(event.st)) return false;
-  setProbe(t, { alarmExpected: false });
+  // The 207 of our own ^D, within its grace period, whether or not the run is still in progress.
+  const kill = event.st === 207 && p.killUntil !== null && at <= p.killUntil;
+  if (!kill && (!p.alarmExpected || r === null || !PROBE_ALARMS.has(event.st))) return false;
+  setProbe(t, { alarmExpected: false, killUntil: kill ? null : p.killUntil });
   t.emit({ kind: 'log', text: `probe Z: the board alarmed with status ${event.st}: ${event.msg.slice(0, 80)}` });
-  // After the zero went out, a Stop job's alarm does not end the read-back; no zero is claimed (see onRead).
-  if (zeroWritten(t.s)) return true;
+  // After the run ended, or after the zero went out (no zero is claimed then, see onRead), the alarm ends nothing.
+  if (r === null || zeroWritten(t.s)) return true;
   const outcome: ProbeOutcome =
     stopOutcome(r) ??
     (event.st === 250
@@ -235,8 +237,11 @@ export function onProbeAlarm(t: ProbeTx, event: Exception, at: number): boolean 
 
 /** A run out of time: the stop when one was pressed, no report once the probe move may have run, else not sent. */
 function timeUp(t: ProbeTx, at: number): void {
-  const stopped = stopOutcome(run(t));
-  if (stopped !== null) finish(t, stopped, at);
+  const r = run(t);
+  const stopped = stopOutcome(r);
+  if (r.zero === 'restore') finish(t, r.pending as ProbeOutcome, at);
+  else if (r.zero !== null) finish(t, { kind: 'zeroUnconfirmed' }, at);
+  else if (stopped !== null) finish(t, stopped, at);
   else if (probeWritten(t.s)) finish(t, { kind: 'noReport' }, at);
   else finish(t, { kind: 'refused', status: 0, text: 'The board did not answer in time, so the probe move was not sent.' }, at);
 }
@@ -256,8 +261,8 @@ export function onProbeTimer(t: ProbeTx, at: number): void {
     if (p.touchAt === null) setProbe(t, { touchAt: at });
   }
   const r = p.run;
-  // The time limit covers the start, the move and, after a contact, the wait for the machine at rest before the zero.
-  if (r !== null && (p.step !== 'zeroing' || r.zero === null) && r.deadline < at) {
+  // Every phase has a time limit: the start, the move, the wait for rest after a contact, and the zero's steps.
+  if (r !== null && r.deadline < at) {
     timeUp(t, at);
     return;
   }
@@ -266,9 +271,8 @@ export function onProbeTimer(t: ProbeTx, at: number): void {
     if (r.zero === 'settle' && at >= (r.settleUntil as number)) {
       setRun(t, { zero: 'readback', readback: {} });
       for (const token of readbackTokens(r.system as number)) queueRead(t, token);
-      return;
     }
-    if (r.zero === null || r.zero === 'settle') tick(t);
+    tick(t);
     return;
   }
   // After Pause: a polled cycle every tick shows whether the cycle took the hold (onProbePoll sends `!` again).
