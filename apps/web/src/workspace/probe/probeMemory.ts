@@ -2,7 +2,7 @@
  * The last plate thickness used on each board, in this browser only (SAFETY §4.5c: "prefilled from this browser").
  * A convenience: Setup says to check it matches the plate, and nothing safety-related depends on it.
  */
-import { PROBE_LIMITS } from '@synthetos/machine';
+import { PROBE_LIMITS } from '../../machine-worker/probeShared.ts';
 import { readStored, writeStored, type StorageLike } from '../storage.ts';
 
 const NAME = 'probe-thickness';

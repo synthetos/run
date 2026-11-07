@@ -1,6 +1,6 @@
 /** The probe input's live reading, in words (never colour alone). Advanced adds the raw token and polarity. */
 import { h, type ComponentChild } from 'preact';
-import type { ProbeSnapshot } from '@synthetos/machine';
+import type { ProbeSnapshot } from '../../machine-worker/probeShared.ts';
 
 type Input = NonNullable<ProbeSnapshot['input']>;
 

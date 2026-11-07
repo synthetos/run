@@ -2,7 +2,7 @@
  * Probe Z's Setup form (SAFETY §4.5c): the owner's text in, millimetres and plain messages out, against the limits
  * the session enforces again. Presets plus a custom value for the depth limit and the feed. Pure.
  */
-import { PROBE_LIMITS, probeStopMm } from '@synthetos/machine';
+import { PROBE_LIMITS, probeStopMm } from '../../machine-worker/probeShared.ts';
 
 export interface ProbeForm {
   /** Plate thickness as typed, mm. */

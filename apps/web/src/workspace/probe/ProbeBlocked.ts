@@ -1,6 +1,6 @@
 /** Why Probe Z can't run now and what to do next (SAFETY §4.5c). The flow only reads settings; it never says to change them. */
 import { h, type ComponentChild } from 'preact';
-import type { ProbeBlock } from '@synthetos/machine';
+import type { ProbeBlock } from '../../machine-worker/probeShared.ts';
 import { BLOCK_COPY } from './probeCopy.ts';
 import { ProbeCard } from './ProbeCard.ts';
 

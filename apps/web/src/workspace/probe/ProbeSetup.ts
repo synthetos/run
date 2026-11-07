@@ -3,7 +3,7 @@
  * the spindle check. Moves nothing; the jog pad stays usable for positioning.
  */
 import { h, type ComponentChild } from 'preact';
-import { PROBE_LIMITS } from '@synthetos/machine';
+import { PROBE_LIMITS } from '../../machine-worker/probeShared.ts';
 import { checkForm, type ProbeForm } from './probeForm.ts';
 import { mm } from './probeStrings.ts';
 import { ProbeCard } from './ProbeCard.ts';

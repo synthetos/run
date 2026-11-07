@@ -4,7 +4,7 @@
  * lead at that moment only. Reads only; the session refuses jog from here until the result.
  */
 import { h, type ComponentChild } from 'preact';
-import type { ProbeSnapshot } from '@synthetos/machine';
+import type { ProbeSnapshot } from '../../machine-worker/probeShared.ts';
 import { Icon } from '../icons.ts';
 import { focusOnMount } from '../ui.ts';
 import { InputReading } from './InputReading.ts';

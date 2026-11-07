@@ -3,7 +3,7 @@
  * "Contact" is the board's word; nothing here says the tool touched the plate or that zero is set unless the
  * session reported it. The safety strings (W51, W52, C39) live in probeStrings.ts. Pure.
  */
-import type { ProbeBlock, ProbeOutcome } from '@synthetos/machine';
+import type { ProbeBlock, ProbeOutcome } from '../../machine-worker/probeShared.ts';
 import { mm } from './probeStrings.ts';
 
 export interface BlockCopy {

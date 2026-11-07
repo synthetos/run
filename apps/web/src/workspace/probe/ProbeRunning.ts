@@ -4,7 +4,7 @@
  * or a zero until the board reports it.
  */
 import { h, type ComponentChild } from 'preact';
-import type { ProbePlan, ProbeSnapshot } from '@synthetos/machine';
+import type { ProbePlan, ProbeSnapshot } from '../../machine-worker/probeShared.ts';
 import { InputReading } from './InputReading.ts';
 import { ProbeCard } from './ProbeCard.ts';
 import { probeSeconds } from './probeForm.ts';

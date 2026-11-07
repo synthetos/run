@@ -4,7 +4,7 @@
  * cleared only through C13. Nothing retries.
  */
 import { h, type ComponentChild } from 'preact';
-import type { ProbeOutcome } from '@synthetos/machine';
+import type { ProbeOutcome } from '../../machine-worker/probeShared.ts';
 import { outcomeCopy, outcomeStatus } from './probeCopy.ts';
 import { mm } from './probeStrings.ts';
 import { LIFT_MM } from './probeView.ts';

@@ -3,7 +3,7 @@
  * `ProbeSnapshot` on the snapshot, so a renamed field is a one-line change. The session decides every command
  * again; this only keeps the card honest about what it will allow.
  */
-import type { ProbeBlock, ProbeSnapshot } from '@synthetos/machine';
+import type { ProbeBlock, ProbeSnapshot } from '../../machine-worker/probeShared.ts';
 import type { LiveView } from '../model.ts';
 
 /** How far `Lift Z` raises the tool after a probe, mm (the ordinary jog, on the owner's press only). */

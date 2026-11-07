@@ -4,7 +4,7 @@
  * Enter starts nothing. One press sends one probe.
  */
 import { h, type ComponentChild } from 'preact';
-import type { ProbePlan, ProbeSnapshot } from '@synthetos/machine';
+import type { ProbePlan, ProbeSnapshot } from '../../machine-worker/probeShared.ts';
 import { focusOnMount } from '../ui.ts';
 import { InputReading } from './InputReading.ts';
 import { ProbeCard } from './ProbeCard.ts';
