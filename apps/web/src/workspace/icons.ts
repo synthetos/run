@@ -48,6 +48,8 @@ const PATHS = {
   zeroHere: 'M12 2v5m0 10v5M2 12h5m10 0h5M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 3.2a.8.8 0 1 0 0 1.6.8.8 0 0 0 0-1.6Z',
   goZero: 'M15 3v4m0 10v4m3-9h3M15 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM3 21l8.5-8.5M7 12.5h4.5V17',
   machineZero: 'M5 3v14m2 2h14M5 16.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM3 5.5 5 3l2 2.5M18.5 17l2.5 2-2.5 2',
+  // Probe Z (2026-11-07): a tool over a touch plate.
+  probe: 'M10 2h4v8l-2 4-2-4ZM3 17h18v4H3ZM12 15.5v.5',
 } as const;
 
 export type IconName = keyof typeof PATHS;
