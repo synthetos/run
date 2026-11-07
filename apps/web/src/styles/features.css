@@ -365,3 +365,41 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .rel-notes .changelog { font-size: 12.5px; margin: 2px 0 4px; white-space: pre-line; }
 .releases li { grid-template-columns: 150px 1fr; }
 .rel-ver .tag { display: inline-flex; }
+
+/* ---------------------------------------------------------------- Probe Z (SAFETY §4.5c) */
+/* In the Position panel's flow: never fixed, never over the strip, W1 or the stop controls; buttons keep their content width. */
+.probe-z { margin: 10px 0 0; }
+.probe-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.probe-open { display: inline-flex; align-items: center; gap: 6px; }
+.probe-open.muted { color: var(--muted); }
+.probe-plate-out { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--ink); border-left: 3px solid var(--warn); padding-left: 8px; }
+.probe-card { border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--sheet); padding: 12px 14px; font-size: 12.5px; line-height: 1.5; color: var(--ink); }
+.probe-card p { margin: 0 0 8px; }
+.probe-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin: 0 0 8px; }
+.probe-head h3 { margin: 0; font-size: 13.5px; }
+.probe-head h3:focus { outline: none; }
+.probe-head h3:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.probe-stages { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 11.5px; color: var(--muted); }
+.probe-stages li + li::before { content: '·'; margin-right: 6px; }
+.probe-stages li.current { color: var(--ink); font-weight: 600; }
+.probe-field { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 10px; }
+.probe-label { min-width: 110px; font-weight: 500; }
+.probe-input { width: 80px; }
+.probe-field .fine, .probe-field .probe-error { flex-basis: 100%; margin: 0; }
+.probe-error { color: var(--danger); }
+.probe-ok { color: var(--ok); }
+.probe-warn { border-left: 3px solid var(--warn); padding-left: 8px; }
+.probe-raw { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.probe-check { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0 10px; }
+.probe-check input { margin: 3px 0 0; accent-color: var(--blue); }
+.probe-reading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--paper); }
+.probe-reading strong { font-size: 15px; letter-spacing: .02em; }
+.probe-reading small { flex-basis: 100%; }
+.probe-marks { margin: 0 0 10px; padding: 0; list-style: none; display: grid; gap: 4px; }
+.probe-marks li { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.probe-marks li.done { color: var(--ink); }
+.probe-mark { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 1px solid var(--rule); border-radius: 50%; color: var(--ok); }
+.probe-plate { font-weight: 500; }
+.probe-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; }
+.probe-actions button { flex: none; }
+@media (max-width: 650px) { .probe-label { min-width: 0; flex-basis: 100%; } }
