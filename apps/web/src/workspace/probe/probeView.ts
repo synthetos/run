@@ -1,7 +1,7 @@
 /**
- * Probe Z (SAFETY §4.5c, H90): what the page reads of the session's probe view. The one place that finds
- * `ProbeSnapshot` on the snapshot, so a renamed field is a one-line change. The session decides every command
- * again; this only keeps the card honest about what it will allow.
+ * Probe Z (SAFETY §4.5c, H90): what the page reads of the session's probe view (`SessionSnapshot.probeZ`; `probe` is
+ * the identification progress). The session decides every command again; this only keeps the card honest about
+ * what it will allow.
  */
 import type { ProbeBlock, ProbeSnapshot } from '../../machine-worker/probeShared.ts';
 import type { LiveView } from '../model.ts';
@@ -24,12 +24,12 @@ function isProbeSnapshot(v: unknown): v is ProbeSnapshot {
   return typeof o['step'] === 'string' && typeof o['touch'] === 'object' && o['touch'] !== null && typeof o['plateOut'] === 'boolean';
 }
 
-/** The probe view on the snapshot, or null. `probe` is also the identification progress, told apart by shape. */
+/** The probe view on the snapshot (`probeZ`), or null until the session publishes one. */
 export function probeSnapshotOf(snapshot: unknown): ProbeSnapshot | null {
   if (typeof snapshot !== 'object' || snapshot === null) return null;
   const o = snapshot as Record<string, unknown>;
-  for (const key of ['probeZ', 'probe']) if (isProbeSnapshot(o[key])) return o[key];
-  return null;
+  const probeZ = o['probeZ'];
+  return isProbeSnapshot(probeZ) ? probeZ : null;
 }
 
 export function probeView(view: LiveView | null): ProbeView {

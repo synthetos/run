@@ -337,7 +337,7 @@ describe('ProbeZ: the mount under Position', () => {
     click(button(t.render(), 'probe-start'));
     expect(sent.at(-1)).toEqual({ op: 'probeStart', confirm: true });
 
-    set(probeSnap({ step: 'probing', plateOut: true, plan: PLAN }), { base: 'PROBING' });
+    set(probeSnap({ step: 'probing', plateOut: true, plan: PLAN }), { base: 'JOGGING' });
     el = t.render();
     expect(all(el, (e) => e.tag === 'button')).toHaveLength(0);
 

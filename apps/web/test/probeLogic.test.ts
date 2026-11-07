@@ -35,9 +35,10 @@ describe('probeView: the probe view off the snapshot', () => {
     expect(probeView(view({ identity: null, probeZ: probeSnap() })).boardId).toBeNull();
   });
 
-  it('the session’s own block, from probeZ or probe', () => {
+  it('the session’s own block, from probeZ only', () => {
     expect(probeView(view({ probeZ: probeSnap() }))).toMatchObject({ block: null, boardId: 'SIM-1' });
-    expect(probeView(view({ probe: probeSnap({ block: 'alarm' }) })).block).toBe('alarm');
+    expect(probeView(view({ probeZ: probeSnap({ block: 'alarm' }) })).block).toBe('alarm');
+    expect(probeView(view({ probe: probeSnap({ block: 'alarm' }) })).block).toBe('motionOff');
     expect(probeSnapshotOf(null)).toBeNull();
     expect(probeSnapshotOf({ probeZ: { step: 'closed', touch: null, plateOut: false } })).toBeNull();
   });
