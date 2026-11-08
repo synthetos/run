@@ -76,13 +76,17 @@ describe('the preview draws exactly the interpretation of the sanitised lines', 
 });
 
 describe('lite mode', () => {
-  it('on request keeps no 3D geometry but still gives verdicts and the line list', () => {
-    const { result } = analyseBytes(bytesOf('G21 G90\nG1 X10 F100\nM30\n'), { dialect: 'tinyg-en', mode: 'lite' });
+  it('on request keeps no 3D geometry but still gives verdicts, the line list and the frame table', () => {
+    const { result } = analyseBytes(bytesOf('G21 G90\nG92 X5\nG1 X10 F100\nM30\n'), { dialect: 'tinyg-en', mode: 'lite' });
     expect(result.lite).toBe(true);
     expect(result.liteBySize).toBe(false);
     expect(result.segments).toBeNull();
-    expect(result.verdicts.length).toBe(3);
-    expect(transferablesOf(result)).toHaveLength(4);
+    expect(result.verdicts.length).toBe(4);
+    // The program-to-path offsets (gcode frames.ts): -5 in X from line 2, none after M30.
+    expect(Array.from(result.frameTable.lines)).toEqual([0, 2, 4]);
+    expect(Array.from(result.frameTable.offsets)).toEqual([0, 0, 0, -5, 0, 0, 0, 0, 0]);
+    expect(Array.from(result.frameTable.g92Lines)).toEqual([2]);
+    expect(transferablesOf(result)).toHaveLength(7);
   });
 });
 
@@ -112,7 +116,7 @@ describe('worker handler', () => {
     const result = posted.at(-1);
     expect(result?.m.type).toBe('result');
     expect(posted.slice(0, -1).every((p) => p.m.type === 'progress')).toBe(true);
-    expect(result?.t?.length).toBe(8);
+    expect(result?.t?.length).toBe(11);
     await handle({ type: 'findings', id: 2, from: 3, to: 3 });
     const f = posted.at(-1)?.m;
     expect(f?.type === 'findings' && f.findings.length > 0 && f.findings.every((x) => x.line === 3)).toBe(true);

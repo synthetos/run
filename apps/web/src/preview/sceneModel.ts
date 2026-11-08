@@ -14,7 +14,10 @@
  * The toolpath is interpreted in work coordinates and drawn offset by the
  * planned work zero (`pathOffset`): for a G54-only file with no internal
  * offset changes, planned machine position is work position plus that zero.
- * Other cases are drawn the same way for now and are not a placement check.
+ * A file's own offsets (a G92 above all) are drawn applied, as if the tool
+ * stood at the work zero when the file starts; the live placement maps the
+ * board's work position into that frame at the line it reports (gcode
+ * frames.ts, pathFrame.ts). This is not a placement check.
  *
  * Pure: the same job and colours give the same scene.
  */

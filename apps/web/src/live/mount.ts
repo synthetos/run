@@ -90,7 +90,7 @@ export interface MountOptions {
   readonly previousSession: Signal<boolean>;
   /** P1-06: told when this tab enters or leaves LIVE, and given each snapshot (W30, PAUSE REQUESTED). */
   readonly stopControls: StopControls;
-  /** P1-07: the live position marker the G-code preview draws (machine position from reports, minus the read offsets). */
+  /** P1-07: the live position readout (the board's reported work position, G92 included). */
   readonly marker: Signal<LiveMarkerView | null>;
 }
 
@@ -315,7 +315,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       return;
     }
     const ageMs = m.ageMs + (performance.now() - droReceivedAt);
-    options.marker.value = { x: m.x, y: m.y, z: m.z, ageMs, lag: lagAt(ageMs, droMessage.snapshot.overlays.includes('STALE'), droMessage.lag) };
+    options.marker.value = { x: m.x, y: m.y, z: m.z, units: m.units, g92: m.g92, ageMs, lag: lagAt(ageMs, droMessage.snapshot.overlays.includes('STALE'), droMessage.lag) };
   }
 
   function sample(message: SnapshotMessage, at: number): void {

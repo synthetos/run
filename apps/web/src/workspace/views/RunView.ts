@@ -42,7 +42,7 @@ import { materialColor } from '../library.ts';
 import { projectsState } from '../../projects/store.ts';
 import { projectStore } from '../../projects/browserStore.ts';
 import { jobScene } from '../../preview/sceneModel.ts';
-import { useLivePlacement } from '../../preview/useLivePlacement.ts';
+import { useLivePathFrame, useLivePlacement } from '../../preview/useLivePlacement.ts';
 import { SceneKey } from '../../preview/SceneKey.ts';
 import { openSceneSettings, type ScenePart } from '../../preview/sceneSettings.ts';
 import { sceneColors, tokenReader } from '../../preview/colors.ts';
@@ -82,9 +82,9 @@ export function RunView({ model, spawn, marker, onView, onPause, onStopJob }: Ru
   }, [ui.active, ui.job?.phase]);
   const active = activeJob.value;
   const planned = useMemo(() => (active === null ? null : jobScene(active, sceneColors(tokenReader()), materialColor(active.setup.stock.materialRef.id))), [active]);
-  // The live machine (preview/livePlacement.ts): the job placed at the board's work zero once its position is established.
+  // The live machine (preview/livePlacement.ts): the job placed where the board is once its position is established, its work position mapped into the path's frame at the line it reports (pathFrame.ts).
   const snap = live !== null && connected(live) ? (live.message?.snapshot ?? null) : null;
-  const { scene, tool } = useLivePlacement(planned, snap === null ? null : { ...snap.live, overlays: snap.overlays });
+  const { scene, tool } = useLivePlacement(planned, snap === null ? null : { ...snap.live, overlays: snap.overlays }, useLivePathFrame(currentFile.value?.preview ?? null, ui.job));
   return h(PreviewPanel, {
     spawn,
     ...(marker === undefined ? {} : { marker }),
@@ -1439,7 +1439,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
         h(
           'div',
           { class: 'viewer', ...(result === null ? {} : { 'data-lite': result.lite ? 'true' : 'false' }) },
-          (scene !== null || result !== null) && !result?.lite ? h('div', { class: 'preview-drawing', 'data-preview': 'drawing', 'data-drawing': state.drawing }, slots.drawing ?? null) : null,
+          (scene !== null || result !== null) && !result?.lite ? h('div', { class: 'preview-drawing', 'data-preview': 'drawing', 'data-drawing': state.drawing, 'data-tool': parts.toolInPath?.map((v) => v.toFixed(3)).join(' ') }, slots.drawing ?? null) : null,
           h(
             'div',
             { class: 'viewer-top' },

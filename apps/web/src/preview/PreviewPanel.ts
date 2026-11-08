@@ -29,16 +29,18 @@ export interface PreviewParts {
   readonly live: LiveMarkerView | null;
   /** The job's scene drawn under the path, or null. */
   readonly scene: JobScene | null;
+  /** The tool as handed to the drawing, in the path's frame (mm), or null: the layout exposes it as `data-tool`. */
+  readonly toolInPath: Vec3 | null;
 }
 
 export interface PreviewPanelProps {
   /** Starts `gcode.worker`; null without Trusted Types (the panel stays disabled). */
   readonly spawn: (() => WorkerLike) | null;
-  /** P1-07: the live position marker (reported machine position), drawn on the 2D view and read out under both views. */
+  /** P1-07: the live position readout (the reported work position), read out under both views. */
   readonly marker?: ReadonlySignal<LiveMarkerView | null>;
   /**
-   * The tool tip in machine coordinates (the reported `mpo`), or null. When given it is drawn always, not only
-   * during a job, at the scene's path offset, so it stays right after the work zero moves.
+   * The tool tip in the scene's machine coordinates (useLivePlacement), or in the path's own frame when there is
+   * no scene; null draws no tool. It is drawn always, not only during a job, relative to the scene's path offset.
    */
   readonly tool?: Vec3 | null;
   /**
@@ -77,11 +79,19 @@ export interface PlannerView {
   readonly starving: boolean;
 }
 
-/** The live position in the preview's frame (work coordinates, mm), with where it came from. */
+/**
+ * The live work position as the board reports it (`posx`..: the coordinates the G-code is written in, a G92
+ * offset included, in the board's units), with where it came from. Read out only: the drawing places the tool
+ * from `tool`, mapped into the path's frame at the line the board reports (pathFrame.ts).
+ */
 export interface LiveMarkerView {
   readonly x: number;
   readonly y: number;
   readonly z: number;
+  /** The board's units; null or absent when not known (shown without a unit, as millimetres are). */
+  readonly units?: 'mm' | 'in' | null;
+  /** The position includes a G92 offset now. */
+  readonly g92?: boolean;
   /** Age of the reported position when the window received it, ms. */
   readonly ageMs: number;
   readonly lag: 'none' | 'fresh' | 'amber' | 'red';
@@ -94,11 +104,12 @@ function c3(n: number): string {
 
 /**
  * The live tool position in plain words (WORKSPACE_TENETS 4): "Tool at X 1.000 Y 2.000 Z 3.000 · live",
- * or "· 1.5 s old" once the position is late. Work coordinates in mm, as drawn.
+ * or "· 1.5 s old" once the position is late. The work position the board reports, so it matches the G-code
+ * line it runs; " in" after it in inches, and "· G92 offset active" while a temporary offset is part of it.
  */
 export function markerText(m: LiveMarkerView): string {
   const age = m.lag === 'fresh' ? 'live' : `${(m.ageMs / 1000).toFixed(1)} s old`;
-  return `Tool at X ${c3(m.x)} Y ${c3(m.y)} Z ${c3(m.z)} · ${age}`;
+  return `Tool at X ${c3(m.x)} Y ${c3(m.y)} Z ${c3(m.z)}${m.units === 'in' ? ' in' : ''}${m.g92 === true ? ' · G92 offset active' : ''} · ${age}`;
 }
 
 function message(e: unknown): string {
@@ -148,9 +159,11 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
   const executingLine = result === null ? null : job !== null ? job.executing : executingFileLine(reportedLine, result.sourceLines);
   const plannerView = result === null || planner === undefined ? null : planner(result.sourceLines);
 
+  // The tool is drawn only from `tool` (machine coordinates, or the path's frame without a scene): never from the
+  // readout, whose work position is in the program's frame and units, not the drawing's.
   const offset = scene?.pathOffset ?? [0, 0, 0];
   const toolInPath: Vec3 | null = tool === null ? null : [tool[0] - offset[0], tool[1] - offset[1], tool[2] - offset[2]];
-  const svgMarker = toolInPath === null ? live : { x: toolInPath[0], y: toolInPath[1], lag: live?.lag ?? 'fresh' };
+  const svgMarker = toolInPath === null ? null : { x: toolInPath[0], y: toolInPath[1], lag: live?.lag ?? 'fresh' };
   const pick = onScenePick === undefined ? {} : {
     onPick: (tag: string) => { const part = scenePart(tag); if (part !== null) onScenePick(part); },
     pickLabel: (tag: string) => { const part = scenePart(tag); return part === null ? null : pickLabel(part); },
@@ -169,7 +182,7 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
             fitRequest,
             view,
             planner: plannerView,
-            toolMarker: toolInPath ?? (plannerView !== null && live !== null ? [live.x, live.y, live.z] : null),
+            toolMarker: toolInPath,
             scene: scene?.layers ?? null,
             pathOffset: scene?.pathOffset ?? [0, 0, 0],
             ...pick,
@@ -203,5 +216,5 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
     ...(readout === undefined ? {} : { marker: readout }),
     ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine, sentThrough: job?.sentThrough ?? null, ...(onReportLine === undefined ? {} : { onReportLine }), ...(onBreakpoints === undefined ? {} : { onBreakpoints }) }) }),
   };
-  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene });
+  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath });
 }

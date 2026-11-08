@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { LAG_AMBER_MS, LAG_RED_MS, droView, lagOf, lagThresholds, snapshotOf, type SessionSnapshot } from '../src/index.ts';
+import { temporaryOffsetNow } from '../src/temporaryOffset.ts';
 import { Driver, EN_ANSWERS } from './sessionDriver.ts';
 import { harness, type Harness } from './sessionHarness.ts';
 import { PORT } from './simTransport.ts';
@@ -44,24 +45,27 @@ describe('droView: position from the connect-time read and pushed reports', () =
     // Nothing known yet: no source, no age.
     const empty = droView({ ...s, live: { ...s.live, mpo: {} } }, 1200);
     expect(empty.machineSource).toEqual({ label: 'status report', at: null, ageMs: null, lag: 'none' });
-    expect(empty.marker).toBeNull();
+    // The marker is the reported work position: it needs no machine position.
+    expect(empty.marker).toMatchObject({ x: 4 });
+    expect(droView({ ...s, live: { ...s.live, pos: {} } }, 1200).marker).toBeNull();
   });
 
-  it('mpo with read offsets places the marker in work coordinates, with source and age', () => {
+  it('the marker is the reported work position, with source and age (amended 2026-11-07: no longer mpo minus the read ofs)', () => {
     const base = snapshotOf(connectedDriver().state);
     const { coor: _coor, ...live } = base.live;
     const s: SessionSnapshot = {
       ...base,
-      live: { ...live, mpo: { x: 110, y: 52, z: -5, a: 0 }, lastRxAt: 1000 },
+      live: { ...live, mpo: { x: 110, y: 52, z: -5, a: 0 }, pos: { x: 10, y: 2, z: 5, a: 0 }, unit: 1, lastRxAt: 1000 },
       values: {
         ofs: { value: { x: 100, y: 50, z: -10, a: 0 }, status: 0, at: 900 },
+        g92: { value: { x: 0, y: 0, z: 0, a: 0 }, status: 0, at: 900 },
         coor: { value: 1, status: 0, at: 900 },
         g54: { value: { x: 100, y: 50, z: -10 }, status: 0, at: 900 },
         hom: { value: { x: 1, y: 0, z: 1, e: 0 }, status: 0, at: 900 },
       },
     };
     const v = droView(s, 1300);
-    expect(v.marker).toEqual({ x: 10, y: 2, z: 5, ageMs: 300, lag: 'fresh' });
+    expect(v.marker).toEqual({ x: 10, y: 2, z: 5, units: 'mm', g92: false, ageMs: 300, lag: 'fresh' });
     expect(v.machineSource).toEqual({ label: 'status report', at: 1000, ageMs: 300, lag: 'fresh' });
     expect(v.workSource).toEqual({ label: 'status report' });
     expect(v.wcs).toEqual({ code: 'G54', offsets: { x: 100, y: 50, z: -10 }, total: { x: 100, y: 50, z: -10, a: 0 } });
@@ -82,15 +86,49 @@ describe('droView: position from the connect-time read and pushed reports', () =
     expect(droView(s, 900).machineSource.ageMs).toBe(0);
   });
 
-  it('shows no marker without read offsets or a full x/y/z', () => {
+  it('shows no marker without a reported x, y and z; offsets only decide the G92 hint', () => {
     const base = snapshotOf(connectedDriver().state);
-    const live = { ...base.live, mpo: { x: 1, y: 2, z: 3 }, lastRxAt: 10 };
-    const zero = { value: { x: 0, y: 0, z: 0 }, status: 0, at: 1 };
-    expect(droView({ ...base, live, values: {} }, 20).marker).toBeNull();
-    expect(droView({ ...base, live, values: { ofs: { value: { x: 0, y: 0 }, status: 0, at: 1 } } }, 20).marker).toBeNull();
-    expect(droView({ ...base, live: { ...live, mpo: { x: 1, y: 2 } }, values: { ofs: zero } }, 20).marker).toBeNull();
-    expect(droView({ ...base, live, values: { ofs: { ...zero, status: -1 } } }, 20).marker).toBeNull();
-    expect(droView({ ...base, live, values: { ofs: zero } }, 20).marker).toMatchObject({ x: 1, y: 2, z: 3 });
+    const live = { ...base.live, mpo: { x: 1, y: 2, z: 3 }, pos: { x: 1, y: 2, z: 3 }, lastRxAt: 10 };
+    expect(droView({ ...base, live: { ...live, pos: { x: 1, y: 2 } }, values: {} }, 20).marker).toBeNull();
+    expect(droView({ ...base, live: { ...live, pos: { x: 1, y: 2, z: Number.NaN } }, values: {} }, 20).marker).toBeNull();
+    const { lastRxAt: _never, ...silent } = live;
+    expect(droView({ ...base, live: silent, values: {} }, 20).marker).toBeNull();
+    // Without the offsets read the hint cannot be told, so it is not shown.
+    expect(droView({ ...base, live, values: {} }, 20).marker).toMatchObject({ x: 1, y: 2, z: 3, g92: false });
+  });
+
+  it('the G92 hint: a job’s own G92 changes pos without a read, a read-back G92, a program end, inches, a coordinate system the job selected', () => {
+    const base = snapshotOf(connectedDriver().state);
+    const { coor: _coor, ...rest } = base.live;
+    const read = (over: Record<string, unknown> = {}): SessionSnapshot['values'] => ({
+      ofs: { value: { x: 0, y: 0, z: 0 }, status: 0, at: 1 },
+      g92: { value: { x: 0, y: 0, z: 0 }, status: 0, at: 1 },
+      unit: { value: 1, status: 0, at: 1 },
+      coor: { value: 1, status: 0, at: 1 },
+      g54: { value: { x: 0, y: 0, z: 0 }, status: 0, at: 1 },
+      g55: { value: { x: 40, y: 0, z: 0 }, status: 0, at: 1 },
+      ...over,
+    }) as SessionSnapshot['values'];
+    const at = (pos: Record<string, number>, mpo: Record<string, number>, values = read(), extra: Record<string, unknown> = {}): SessionSnapshot => ({ ...base, live: { ...rest, pos, mpo, unit: 1, lastRxAt: 10, ...extra }, values });
+    const g92 = (s: SessionSnapshot): boolean | undefined => droView(s, 20).marker?.g92;
+    // The braid bench run: work zero set at machine 0, then the file's G92 X0.327 Y-33.521 Z-1; ofs was read before it.
+    const running = at({ x: -3.198, y: -50.068, z: -1 }, { x: -3.525, y: -16.547, z: 0 });
+    expect(droView(running, 20).marker).toMatchObject({ x: -3.198, y: -50.068, z: -1, g92: true });
+    expect(temporaryOffsetNow(running)).toEqual({ x: expect.closeTo(-0.327, 6), y: expect.closeTo(33.521, 6), z: expect.closeTo(1, 6) });
+    // After M30 the board drops it: pos is machine minus the saved offset again.
+    expect(g92(at({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }))).toBe(false);
+    // A G92 run sets and reads back (Temporary offset): ofs then includes it; still shown.
+    expect(g92(at({ x: 0, y: 0, z: 0 }, { x: 5, y: 0, z: 0 }, read({ g92: { value: { x: 5, y: 0, z: 0 }, status: 0, at: 1 }, ofs: { value: { x: 5, y: 0, z: 0 }, status: 0, at: 1 } })))).toBe(true);
+    // … and a job's M30 clearing that one: pos is back on the saved offset.
+    expect(g92(at({ x: 5, y: 0, z: 0 }, { x: 5, y: 0, z: 0 }, read({ g92: { value: { x: 5, y: 0, z: 0 }, status: 0, at: 1 }, ofs: { value: { x: 5, y: 0, z: 0 }, status: 0, at: 1 } })))).toBe(false);
+    // Inches: pos in inches, g92 read in inches (the board converts it), ofs always mm.
+    const inch = at({ x: 1, y: 0, z: 0 }, { x: 25.4, y: 0, z: 0 }, read({ unit: { value: 0, status: 0, at: 1 } }), { unit: 0 });
+    expect(droView(inch, 20).marker).toMatchObject({ x: 1, units: 'in', g92: false });
+    expect(g92(at({ x: 0, y: 0, z: 0 }, { x: 25.4, y: 0, z: 0 }, read({ unit: { value: 0, status: 0, at: 1 }, g92: { value: { x: 1, y: 0, z: 0 }, status: 0, at: 1 }, ofs: { value: { x: 25.4, y: 0, z: 0 }, status: 0, at: 1 } }), { unit: 0 }))).toBe(true);
+    // Report rounding is not an offset.
+    expect(g92(at({ x: 10.0004, y: 0, z: 0 }, { x: 10, y: 0, z: 0 }))).toBe(false);
+    // The job selected G55 (reported coor 2): its saved offset is not a G92.
+    expect(g92(at({ x: 0, y: 0, z: 0 }, { x: 40, y: 0, z: 0 }, read(), { coor: 2 }))).toBe(false);
   });
 
   it('WCS: G53, an unknown coor, an errored read, inches', () => {

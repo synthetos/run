@@ -20,6 +20,7 @@ import {
   type FindingSeverity,
   type JobStats,
   type PreviewSegments,
+  type ProgramFrames,
 } from '@synthetos/gcode';
 import { latin1, lineSpans } from './lines.ts';
 
@@ -140,6 +141,11 @@ export interface PreviewResult {
   readonly routine: Readonly<Record<string, number>>;
   /** File line of each sent line (the scrubber steps over sent lines). */
   readonly sourceLines: Uint32Array;
+  /**
+   * Where the program frame (the board's reported work position) meets the path frame, by file line
+   * (gcode frames.ts): one entry per offset change. Kept in lite mode too; it is a few numbers.
+   */
+  readonly frameTable: ProgramFrames;
   /** The file, and [start, end) spans per line, for the virtualised list. */
   readonly bytes: Uint8Array;
   readonly spans: Uint32Array;
@@ -205,6 +211,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
       renumbered: shown.renumbered,
       routine: shown.routine,
       sourceLines: sentSourceLines(sanitized),
+      frameTable: analysis.frameTable,
       bytes,
       spans,
       summary: {
@@ -224,7 +231,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
 
 /** The buffers moved (not copied) to the page. */
 export function transferablesOf(result: PreviewResult): ArrayBuffer[] {
-  const views: ArrayBufferView[] = [result.verdicts, result.sourceLines, result.bytes, result.spans];
+  const views: ArrayBufferView[] = [result.verdicts, result.sourceLines, result.bytes, result.spans, result.frameTable.lines, result.frameTable.offsets, result.frameTable.g92Lines];
   if (result.segments !== null) views.push(result.segments.vertices, result.segments.kinds, result.segments.lineToVertex, result.segments.lineMarks);
   const seen = new Set<ArrayBuffer>();
   for (const v of views) if (v.buffer instanceof ArrayBuffer) seen.add(v.buffer);

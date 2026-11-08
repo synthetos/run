@@ -6,17 +6,25 @@
  * (both read back as `home` 1, all of X, Y and Z), and not since lost (the session's UNKNOWN overlay). A
  * board that powered up unhomed calls wherever it stopped 0, 0, 0, so until then the job is drawn as
  * planned and the tool at the planned zero plus the reported work position, the one frame that means
- * something before the machine knows where it is.
+ * something before the machine knows where it is (mapped into the toolpath's frame, below).
  *
  * Once established, the stock and clamps move in X and Y only (they rest on the fixture or bed, never in
  * it) and the toolpath moves by the full offset, Z included, because that is where the cut will go. The
  * notes say in words what the drawing cannot: a Z zero away from the plan, a stock moved off the bed or
  * over the fixture's edge.
  *
- * Pure: the same scene and reports give the same placement.
+ * The reported work position is in the program's frame, the toolpath in its own (gcode frames.ts): they
+ * differ by the file's offsets at the line the board is on, a G92 above all (pathFrame.ts). So the tool in
+ * the path's frame is the work position plus that offset, and once established the path's origin is the
+ * machine position minus it: the path sits where the board really is cutting. *Amended 2026-11-07 (G92
+ * frame fix):* the work position was taken as the path position, so a file with a G92 drew the tool off its
+ * path by the G92 offset.
+ *
+ * Pure: the same scene, reports and frame give the same placement.
  */
 import type { Pt2, SceneLayers, SceneSolid, Vec3 } from '@synthetos/gcode-view';
 import { sceneBounds } from '@synthetos/gcode-view';
+import { PLANNED_FRAME, type LivePathFrame } from './pathFrame.ts';
 import { liveFrame, type JobScene, type LiveFrame } from './sceneModel.ts';
 
 type AxisValues = Readonly<Partial<Record<'x' | 'y' | 'z' | 'a' | 'b' | 'c', number>>>;
@@ -52,31 +60,48 @@ export function positionEstablished(live: LiveReport): boolean {
   return live.home === 1 && live.overlays?.includes('UNKNOWN') !== true;
 }
 
-/** The scene placed by a live report; the planned scene unchanged without one. */
-export function placeLive(planned: JobScene, live: LiveReport | null): LivePlacement {
+/** The key's note while a line that sets a G92 is still to run: the drawing cannot know where the tool will be then. */
+export function g92Note(line: number): string {
+  return `Line ${String(line)} sets a temporary offset (G92): what follows it is cut from wherever the tool is when that line runs, so the drawing may move then.`;
+}
+
+/** The scene placed by a live report; the planned scene unchanged without one. `path` maps the work position into the path's frame. */
+export function placeLive(planned: JobScene, live: LiveReport | null, path: LivePathFrame = PLANNED_FRAME): LivePlacement {
   const frame = live === null ? null : liveFrame(live);
   if (live === null || frame === null) return { scene: planned, tool: null, established: false };
+  const g92 = path.nextG92 === null ? [] : [g92Note(path.nextG92)];
   if (!positionEstablished(live)) {
     const note = live.home === 1 ? UNTRUSTED_NOTE : UNSET_NOTE;
-    return { scene: { ...planned, notes: [note] }, tool: workTool(planned, frame), established: false };
+    return { scene: { ...planned, notes: [note, ...g92] }, tool: workTool(planned, frame, path.toPath), established: false };
   }
-  const placed = placeJobAt(planned, frame.zero);
-  return { scene: { ...placed, notes: placementNotes(planned, placed) }, tool: frame.tool, established: true };
+  const placed = placeJobAt(planned, pathZero(frame, path.toPath));
+  return { scene: { ...placed, notes: [...placementNotes(planned, placed), ...g92] }, tool: frame.tool, established: true };
 }
 
 /**
  * The tool tip in the scene's frame: the reported machine position once established, else the planned zero plus
- * the reported work position (machine minus live zero, in mm). Null until both positions are known.
+ * the tool in the path's frame. Null until both positions are known.
  */
-export function liveTool(planned: JobScene, live: LiveReport): Vec3 | null {
+export function liveTool(planned: JobScene, live: LiveReport, toPath: Vec3 = PLANNED_FRAME.toPath): Vec3 | null {
   const frame = liveFrame(live);
   if (frame === null) return null;
-  return positionEstablished(live) ? frame.tool : workTool(planned, frame);
+  return positionEstablished(live) ? frame.tool : workTool(planned, frame, toPath);
 }
 
-function workTool(planned: JobScene, frame: LiveFrame): Vec3 {
+/** The tool tip in the path's own frame: the reported work position (mm) plus the program-to-path offset. */
+export function toolInPath(frame: LiveFrame, toPath: Vec3): Vec3 {
+  return [frame.tool[0] - frame.zero[0] + toPath[0], frame.tool[1] - frame.zero[1] + toPath[1], frame.tool[2] - frame.zero[2] + toPath[2]];
+}
+
+/** Where the path's origin is in machine coordinates once established: the machine position less the tool in the path's frame. */
+export function pathZero(frame: LiveFrame, toPath: Vec3): Vec3 {
+  return [frame.zero[0] - toPath[0], frame.zero[1] - toPath[1], frame.zero[2] - toPath[2]];
+}
+
+function workTool(planned: JobScene, frame: LiveFrame, toPath: Vec3): Vec3 {
   const z = planned.zero;
-  return [z[0] + frame.tool[0] - frame.zero[0], z[1] + frame.tool[1] - frame.zero[1], z[2] + frame.tool[2] - frame.zero[2]];
+  const t = toolInPath(frame, toPath);
+  return [z[0] + t[0], z[1] + t[1], z[2] + t[2]];
 }
 
 /** The job's solids that follow the work zero (in X and Y): the stock and what clamps it. The bed and fixture stay put. */

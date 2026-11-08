@@ -198,7 +198,7 @@ function message(over: Partial<SnapshotMessage['dro']> = {}, snapOver: Record<st
       workSource: { label: 'status report' },
       units: 'mm',
       wcs: { code: 'G54', offsets: { x: 100, y: 50 }, total: { x: 100, y: 50, z: 0 } },
-      marker: { x: 10, y: 2, z: 0, ageMs: 200, lag: 'fresh' },
+      marker: { x: 10, y: 2, z: 0, units: 'mm', g92: false, ageMs: 200, lag: 'fresh' },
       ...over,
     },
   };
@@ -333,5 +333,12 @@ describe('the preview marker', () => {
     expect(markerText({ x: -1, y: 0, z: 0.5, ageMs: 200, lag: 'fresh' })).toBe('Tool at X −1.000 Y 0.000 Z 0.500 · live');
     // Plain words only (WORKSPACE_TENETS 4): no firmware token names in the chip.
     expect(markerText({ x: 1, y: 2, z: 3, ageMs: 200, lag: 'fresh' })).not.toMatch(/mpo|polled|offsets/);
+  });
+
+  it('reads out the work position the board reports, so it matches the G-code line: G92 says so, inches are labelled', () => {
+    // The braid bench run, line N146 X-3.198Y-50.068 under the file's G92: the readout is that line's own numbers.
+    expect(markerText({ x: -3.198, y: -50.068, z: -1, units: 'mm', g92: true, ageMs: 100, lag: 'fresh' })).toBe('Tool at X −3.198 Y −50.068 Z −1.000 · G92 offset active · live');
+    expect(markerText({ x: 1, y: 0.25, z: 0.1, units: 'in', g92: false, ageMs: 1500, lag: 'amber' })).toBe('Tool at X 1.000 Y 0.250 Z 0.100 in · 1.5 s old');
+    expect(markerText({ x: 1, y: 2, z: 3, units: null, ageMs: 100, lag: 'fresh' })).toBe('Tool at X 1.000 Y 2.000 Z 3.000 · live');
   });
 });

@@ -12,14 +12,22 @@
  *   the time since the board last said anything (a report, a heartbeat or
  *   an answer), and the badge is amber at 80 % and red at 100 % of the
  *   session's silence window (STALE). Nothing polls.
- * - The marker is in work coordinates (`mpo` minus the read `ofs`),
- *   the frame the G-code preview draws in; without a read `ofs` there is
- *   no marker rather than one in the wrong place.
+ * - The marker is the work position as the board reports it (`posx`..,
+ *   in its units): the coordinates the G-code is written in, a G92 offset
+ *   included (@cite EN canonical_machine.c:389-407). *Amended 2026-11-07
+ *   (G92 frame fix):* it was `mpo` minus the `ofs` read before the job,
+ *   which a job's own G92 leaves stale, so it disagreed with the G-code by
+ *   the G92 offset. Without a reported X, Y and Z there is no marker. Where
+ *   the tool sits in the drawing is the preview's to work out from the file
+ *   line the board reports (gcode frames.ts), not this view's.
+ * - `g92` says the position includes a temporary offset now
+ *   (temporaryOffset.ts); false when that cannot be told.
  *
  * Pure: the same snapshot and `now` always give the same view.
  */
 import { DEFAULT_TIMINGS, type Axis } from './session/types.ts';
 import type { SessionSnapshot } from './session/snapshot.ts';
+import { temporaryOffsetActive } from './temporaryOffset.ts';
 
 export const DRO_AXES: readonly Axis[] = Object.freeze(['x', 'y', 'z', 'a', 'b', 'c']);
 /** Red at the silence window with the heartbeat on (the default timings). */
@@ -54,9 +62,13 @@ export interface DroWcs {
 }
 
 export interface DroMarker {
+  /** Work position as reported, in the board's units. */
   readonly x: number;
   readonly y: number;
   readonly z: number;
+  readonly units: 'mm' | 'in' | null;
+  /** A G92 offset is part of the position now (temporaryOffset.ts). */
+  readonly g92: boolean;
   readonly ageMs: number;
   readonly lag: Lag;
 }
@@ -116,10 +128,10 @@ export function droView(s: SessionSnapshot, now: number): DroView {
     }),
   );
   let marker: DroMarker | null = null;
-  const xyz = ['x', 'y', 'z'] as const;
-  if (mpo !== null && total !== null && ageMs !== null && xyz.every((a) => mpo[a] !== undefined && total[a] !== undefined)) {
-    const work = (axis: Axis): number => (mpo[axis] as number) - (total[axis] as number);
-    marker = Object.freeze({ x: work('x'), y: work('y'), z: work('z'), ageMs, lag });
+  const pos = s.live.pos;
+  const rxAge = s.live.lastRxAt === undefined ? null : Math.max(0, now - s.live.lastRxAt);
+  if (rxAge !== null && (['x', 'y', 'z'] as const).every((a) => typeof pos[a] === 'number' && Number.isFinite(pos[a]))) {
+    marker = Object.freeze({ x: pos.x as number, y: pos.y as number, z: pos.z as number, units, g92: temporaryOffsetActive(s) === true, ageMs: rxAge, lag: lagOf(rxAge, s.overlays.includes('STALE'), lagThresholds(s)) });
   }
   return Object.freeze({
     axes: Object.freeze(axes),
