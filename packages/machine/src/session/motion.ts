@@ -69,7 +69,7 @@ import {
   type MotionAxisLetter,
 } from './motionLines.ts';
 import { queueModeReads } from './modes.ts';
-import { noteAlarmEnded, onClearAnswered } from './alarmRestore.ts';
+import { noteAlarmEnded, onAlarmEntered, onClearAnswered } from './alarmRestore.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './jobState.ts';
 import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, PolledValues, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
@@ -848,6 +848,7 @@ export function checkAlarm(t: MotionTx, at: number): boolean {
     const moving = s.motion !== null;
     // OD-19: a jog or go to zero ended here left G91 (and G21): Clear alarm puts G90 back (alarmRestore.ts).
     if (s.motion !== null && (s.motion.op === 'jog' || s.motion.op === 'goToZero')) noteAlarmEnded(t, s.motion.units);
+    else onAlarmEntered(t);
     t.set({ motion: null, base: 'ALARM', queue: s.queue.filter((q) => q.purpose !== 'motion') });
     t.cancel('motion');
     if (moving) message(t, 'failed', 'The controller alarmed and stopped the move. Read the alarm, then clear it.', at);

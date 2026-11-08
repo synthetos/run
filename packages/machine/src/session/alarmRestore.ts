@@ -31,6 +31,15 @@ export function noteAlarmEnded(t: RestoreTx, units: number | undefined): void {
 }
 
 /**
+ * The base entered ALARM again with a note set (the reviewer's last note on OD-19): a clear answered before this alarm
+ * no longer counts, so the gate waits for the next clear answered with status 0.
+ */
+export function onAlarmEntered(t: RestoreTx): void {
+  const note = t.s.alarmRestore;
+  if (note !== null && note.cleared) t.set({ alarmRestore: { ...note, cleared: false } });
+}
+
+/**
  * A Clear alarm line was answered: with status 0 and an alarm noted, the clear is marked done (the gate requires it,
  * S2) and the restore goes out next, ahead of the polls.
  */

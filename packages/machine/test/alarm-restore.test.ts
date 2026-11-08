@@ -122,6 +122,21 @@ describe('Clear alarm after an alarm ended a jog', () => {
     expect(d.state.overlays).toContain('STALE');
   });
 
+  it('a new alarm after the clear but before the G90 went out: the clear no longer counts, the gate waits for the next one', () => {
+    const d = alarmedJog();
+    d.intent({ intent: 'clearAlarm' });
+    d.written();
+    d.line(BASE['clear'] as string);
+    expect(d.state.alarmRestore).toEqual({ units: 1, cleared: true });
+    // The G90 is being written when a report says the controller alarmed again (no motion of ours runs).
+    d.line('{"sr":{"stat":1}}');
+    d.line('{"sr":{"stat":2}}');
+    expect(d.state.base).toBe('ALARM');
+    expect(d.state.alarmRestore).toEqual({ units: 1, cleared: false });
+    const s = d.state;
+    expect(checkWrite(s, s, PHASE_2_RELEASE, new TextEncoder().encode('G90\n'), 'motion', 'alarmRestore')?.kind).toBe('refused');
+  });
+
   it('an alarm that ends go to zero is noted too', () => {
     const d = connected();
     d.intent({ intent: 'goToZero', axes: ['z'], safeZ: 0 });

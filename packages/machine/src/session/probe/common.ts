@@ -5,7 +5,7 @@
 import type { Intent } from '@synthetos/safety';
 import { idleBase, type MotionTx } from '../motion.ts';
 import { probeLine, restoreLine } from '../motionLines.ts';
-import { noteAlarmEnded } from '../alarmRestore.ts';
+import { noteAlarmEnded, onAlarmEntered } from '../alarmRestore.ts';
 import type { PendingRead, SessionState } from '../types.ts';
 import { PROBE_LIMITS } from './limits.ts';
 import { probeRunning, type ProbeRun, type ProbeZState } from './state.ts';
@@ -116,6 +116,7 @@ export function finish(t: ProbeTx, outcome: ProbeOutcome, at: number, alarmed = 
   // OD-19: an alarm that ended a probe whose G21 went out left G91 G21: Clear alarm puts G90 back (alarmRestore.ts).
   const run = t.s.probeZ.run;
   if (run !== null && run.checked && (alarmed || t.s.base === 'ALARM')) noteAlarmEnded(t, run.units);
+  else if (alarmed) onAlarmEntered(t);
   t.set({ queue: t.s.queue.filter((q) => q.purpose !== 'probeZ') });
   // A later alarm (203, 250, 220, 207) is no longer this probe's: it is handled as any other.
   setProbe(t, { step: 'result', outcome, run: null, touchAt: null, passedAt: null, anchor: null, alarmExpected: false });
