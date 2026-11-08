@@ -449,6 +449,11 @@ describe('R5: a poll cycle confirms nothing unless every read was answered with 
     return d;
   }
 
+  /** Answers the `unit` and `dist` reads ahead of the stop's polls. */
+  function modes(d: Driver): void {
+    d.answer(BASE, (t) => t !== 'unit' && t !== 'dist');
+  }
+
   /** Answers the line being written with `reply(token)`, through "the line being written comes last". */
   function answerWriting(d: Driver, reply: (token: string) => string): string {
     const token = d.writing as string;
@@ -460,6 +465,7 @@ describe('R5: a poll cycle confirms nothing unless every read was answered with 
     const d = connected();
     d.state = { ...d.state, live: { ...d.state.live, ...AT_REST } }; // the live view says idle
     expect(d.intent({ intent: 'stopJob' })).toEqual({ allowed: true });
+    modes(d); // the unit and dist reads a stop sends before its polls (modes.ts)
     const from = d.effects.length;
     const answered: string[] = [];
     for (let i = 0; i < 8; i++) answered.push(answerWriting(d, rejected));
@@ -478,6 +484,7 @@ describe('R5: a poll cycle confirms nothing unless every read was answered with 
     const d = connected();
     d.state = { ...d.state, live: { ...d.state.live, ...AT_REST } };
     d.intent({ intent: 'stopJob' });
+    modes(d); // the unit and dist reads a stop sends before its polls (modes.ts)
     // stat ok, hold rejected, vel ok, qr ok: not a confirmation.
     answerWriting(d, (t) => ok(t, 1));
     answerWriting(d, rejected);
@@ -508,6 +515,7 @@ describe('R5: a poll cycle confirms nothing unless every read was answered with 
   it('a damaged stat answer leaves the cycle without a record until the next read; the cycle is then incomplete', () => {
     const d = connected();
     d.intent({ intent: 'stopJob' });
+    modes(d); // the unit and dist reads a stop sends before its polls (modes.ts)
     expect(d.writing).toBe('stat');
     d.inbound({ kind: 'Garbled', reason: 'invalid-json', line: '{"r":' } as never);
     expect(d.state.polled).toBeNull();

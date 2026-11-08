@@ -11,6 +11,9 @@
  * answered. A second jog that took that `dist` as the board's mode ended with `G91` and left the board relative
  * (fake-serial suite, 2026-11-08).
  *
+ * A Stop job with no motion of run's in progress (a job's, or from idle) reads the units the same way, right after
+ * its `!` and ahead of the polls that confirm the hold, for the `G20` it puts back with its `G90` (§4.4 step 5).
+ *
  * Each read is stored on the owner that asked for it. A read that is refused, damaged or not 0 or 1 leaves the
  * value unknown: then nothing restores it (the closing line is `G90` alone, units unchanged) and a tool-change
  * return that needs it is refused (H74).

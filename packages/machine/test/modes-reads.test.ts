@@ -65,6 +65,17 @@ describe('modes read before a motion', () => {
     expect(motionLines(d, from)).toEqual(['G90 G21', 'G90 G0 Z0', 'G91 G20']);
   });
 
+  it('a Stop job with no motion of ours reads the units too: M5, M9, then G90 with the G20 the board has', () => {
+    const d = connected();
+    staleLive(d, { unit: 1 });
+    const from = d.effects.length;
+    expect(d.intent({ intent: 'stopJob' }).allowed).toBe(true);
+    expect([d.state.writing, ...d.state.queue].slice(0, 2).map((q) => `${q?.purpose}:${q?.token}`)).toEqual(['modes:unit', 'modes:dist']);
+    d.answer({ ...BASE, unit: num('unit', 0), dist: num('dist', 1) });
+    expect(motionLines(d, from)).toEqual(['M5', 'M9', 'G90 G20']);
+    expect(d.state.motion).toBeNull();
+  });
+
   it('a refused read leaves the mode unknown: the jog ends with G90 alone and the units are not touched', () => {
     const d = connected();
     staleLive(d, { unit: 0, dist: 1 });

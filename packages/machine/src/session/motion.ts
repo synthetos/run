@@ -254,7 +254,7 @@ function newCtx(s: SessionState, op: MotionCtx['op']): MotionCtx {
   // A Stop job from CONNECTED_UNKNOWN (UNKNOWN overlay, or a FAULT) returns there; a jog or Z re-zero during a
   // job's tool change (Phase 3) returns to PROGRAM_PAUSED; everything else to idle.
   const returnTo: SessionBase = s.base === 'CONNECTED_UNKNOWN' || s.base === 'PROGRAM_PAUSED' ? s.base : 'IDLE_UNHOMED';
-  // The modes are never taken from the live view (pushed reports lag): a jog and go to zero read them (modes.ts).
+  // The modes are never taken from the live view (pushed reports lag): a jog, go to zero and a stop read them (modes.ts).
   return { op, phase: 'feed', jog: null, steps: [], reason: null, confirmed: 0, deadline: null, units: undefined, dist: undefined, returnTo, refusal: null, holdPolls: 0, queued: 0 };
 }
 
@@ -501,6 +501,9 @@ export function beginHold(t: MotionTx, reason: HoldReason, at: number): void {
     motion: { ...ctx, phase: 'hold', reason, jog: null, steps: [], confirmed: 0, deadline: at + MOTION_LIMITS.stopStepMs, holdPolls: 0 },
     ...(stop ? { base: 'STOPPING_JOB' as const } : {}),
   });
+  // A stop with no motion of ours (a job's Stop job, a Stop job from idle) reads the units it puts back with its
+  // closing G90 (§4.4 step 5), answered ahead of the polls that confirm the hold, so before any `%` (modes.ts).
+  if (s.motion === null) queueModeReads(t, 'motion');
   requestPoll(t);
   tick(t);
 }

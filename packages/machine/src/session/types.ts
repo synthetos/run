@@ -173,7 +173,7 @@ export type ReadPurpose =
   /** `unit` and `dist` read before run changes them, so the modes put back are the board's own (modes.ts). */
   | 'modes';
 
-/** Who a `modes` read is for: a jog or go to zero, the probe, or a job's tool change. */
+/** Who a `modes` read is for: a jog, go to zero or Stop job (`motion`), the probe, or a job's tool change. */
 export type ModesOwner = 'motion' | 'probe' | 'toolChange';
 
 /** What runs when the last read-back of a change has been answered. */
