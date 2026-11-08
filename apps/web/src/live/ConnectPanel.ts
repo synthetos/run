@@ -7,6 +7,7 @@
 import { h, type ComponentChild } from 'preact';
 import { BOX } from '@synthetos/safety';
 import type { AdvisoryCheck } from './advisoryGate.ts';
+import { ACCOUNT_TITLE, AccountNotice } from './accountNotice.ts';
 import { c1Checklist } from './c1.ts';
 import type { EntryRefusal, EntryState } from './liveEntry.ts';
 
@@ -47,6 +48,11 @@ export function refusalText(refusal: EntryRefusal): string {
   }
 }
 
+/** The refusal dialog's title: the account notice names itself; every other refusal is "Not connected". */
+export function refusedTitle(entry: EntryState | null): string {
+  return entry?.step === 'refused' && entry.refusal.kind === 'signed-out' && !entry.refusal.signIn ? ACCOUNT_TITLE : 'Not connected';
+}
+
 function readTicks(form: HTMLFormElement): boolean[] {
   return [...form.querySelectorAll('input[type="checkbox"]')].map((el) => (el as HTMLInputElement).checked);
 }
@@ -61,13 +67,16 @@ export function ConnectPanel(props: ConnectPanelProps): ComponentChild {
       return h('div', { class: 'live-entry', 'data-entry': 'checking', role: 'status' }, h('p', null, 'Checking sign-in and the safety advisory…'));
     case 'opening':
       return h('div', { class: 'live-entry', 'data-entry': 'opening', role: 'status' }, h('p', null, 'Choose the port, then wait while the board is identified…'));
-    case 'refused':
+    case 'refused': {
+      // Where no one can sign in yet (production): say so and what works meanwhile, with a Close (B1).
+      const comingSoon = state.refusal.kind === 'signed-out' && !state.refusal.signIn;
       return h(
         'div',
-        { class: 'live-entry', 'data-entry': 'refused', 'data-refusal': state.refusal.kind },
-        h('p', { role: 'alert' }, refusalText(state.refusal)),
-        h('button', { type: 'button', class: 'button', 'data-action': 'dismiss', onClick: props.onCancel }, 'OK'),
+        { class: 'live-entry', 'data-entry': 'refused', 'data-refusal': state.refusal.kind, ...(comingSoon ? { 'data-accounts': 'coming-soon' } : {}) },
+        comingSoon ? h(AccountNotice, null) : h('p', { role: 'alert' }, refusalText(state.refusal)),
+        h('button', { type: 'button', class: 'button', 'data-action': 'dismiss', onClick: props.onCancel }, comingSoon ? 'Close' : 'OK'),
       );
+    }
     case 'c1': {
       const list = c1Checklist(state.form);
       return h(

@@ -21,7 +21,7 @@ import { PreviewPanel, markerText, type LiveMarkerView, type PreviewParts } from
 import { DIALECT_LABEL, fileLevel, on, progressText } from '../../preview/PreviewView.ts';
 import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
 import { routineChanges, shownCounts } from '../../preview/gcodeList.ts';
-import { ConnectPanel } from '../../live/ConnectPanel.ts';
+import { ConnectPanel, refusedTitle } from '../../live/ConnectPanel.ts';
 import { settingsOf } from '../boardFacts.ts';
 import { Icon, type IconName } from '../icons.ts';
 import { readStored, writeStored } from '../storage.ts';
@@ -180,7 +180,7 @@ export function ConnectNotice({ model, onView, compact = false }: { readonly mod
       step === 'c1' || step === 'refused' ? (step === 'refused' ? h(ConnectPanel, { state: { step: 'idle' }, advisoryBlocked: view?.advisoryBlocked ?? null, onConnect: () => actions?.connect(), onConfirm: () => undefined, onCancel: () => undefined, onDisconnect: () => undefined }) : null) : panel,
       // A refusal is a modal below the strip (OD-16), not text squeezed into it.
       step === 'refused'
-        ? h('div', { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip }, h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'refused-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'refused-title' }, 'Not connected')), panel))
+        ? h('div', { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip }, h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'refused-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'refused-title' }, refusedTitle(view?.entry ?? null))), panel))
         : null,
       step === 'c1'
         ? h(

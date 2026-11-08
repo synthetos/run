@@ -86,6 +86,15 @@ export const RUN_SESSION_PROVIDER: IdentityProvider = Object.freeze({
   current: () => Promise.resolve(null),
 });
 
+/**
+ * True when a page can ever be signed in with these providers: the run session once A1-07 ships (not yet), the
+ * staging Access identity, or the bench identity. Production today has the run session only, so its Connect
+ * refusal says accounts are coming soon instead of asking the user to sign in (owner, 2026-11-08).
+ */
+export function signInAvailable(providers: readonly IdentityProvider[]): boolean {
+  return providers.some((p) => p.kind !== 'run-session');
+}
+
 /** The Access provider over the cloud client's identity read. */
 export function accessProvider(fetchIdentity: () => Promise<{ provider: string; subject: string } | null>): IdentityProvider {
   return {

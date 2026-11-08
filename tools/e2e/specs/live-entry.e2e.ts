@@ -1,6 +1,6 @@
 /**
  * ROADMAP P1-05 in the built release app (served like production, no
- * Access): signed out, Connect is refused with the sign-in text and nothing
+ * Access): signed out, Connect is refused with the account notice (B1) and nothing
  * is opened (D1); a `liveSession` marker left in `device-safety` shows W6 in
  * place of NOT CONNECTED (T-S17), and the W6 band passes axe.
  */
@@ -8,7 +8,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from './fixtures.ts';
 import { ready } from './helpers.ts';
 
-test('signed out: Connect is refused with the sign-in text, before the advisory or C1', async ({ page }) => {
+test('signed out on a release origin: Connect says accounts are coming soon and what works meanwhile, before the advisory or C1', async ({ page }) => {
   const advisory: string[] = [];
   page.on('request', (r) => {
     if (r.url().endsWith('/safety-advisory.json')) advisory.push(r.url());
@@ -18,9 +18,18 @@ test('signed out: Connect is refused with the sign-in text, before the advisory 
   await page.locator('[data-action="connect"]').click();
   const refused = page.locator('[data-entry="refused"][data-refusal="signed-out"]');
   await expect(refused).toBeVisible();
-  await expect(refused.getByRole('alert')).toContainText('Sign in to connect.');
+  // No one can sign in on a release origin yet (B1, owner 2026-11-08): it says so and what works meanwhile, with Close.
+  await expect(refused).toHaveAttribute('data-accounts', 'coming-soon');
+  await expect(page.locator('#refused-title')).toHaveText('Connecting needs a Synthetos account');
+  await expect(refused.getByRole('alert')).toContainText('Synthetos accounts are coming soon.');
+  await expect(refused.locator('[data-account="works"] li')).toHaveCount(5);
+  await expect(refused.locator('[data-account="wiring"]')).toHaveAttribute('href', '/wiring/');
+  await expect(refused.locator('[data-action="dismiss"]')).toHaveText('Close');
   await expect(page.locator('[data-safety="C1"]')).toHaveCount(0);
   expect(advisory).toEqual([]);
+  await refused.locator('[data-action="dismiss"]').click();
+  await expect(refused).toHaveCount(0);
+  await expect(page.locator('[data-region="strip-connection"] [data-action="connect"]')).toBeVisible();
 });
 
 test('T-S17 (OD-18): a liveSession marker from a previous session marks the strip; W6 waits for the connect', async ({ page }) => {

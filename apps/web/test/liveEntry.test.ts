@@ -342,7 +342,7 @@ describe('LiveEntry', () => {
     const t = harness();
     t.identity = null;
     await t.entry.begin();
-    expect(t.entry.state).toEqual({ step: 'refused', refusal: { kind: 'signed-out' } });
+    expect(t.entry.state).toEqual({ step: 'refused', refusal: { kind: 'signed-out', signIn: true } });
     expect(t.calls).toEqual(['unlockAlarm', 'auth']);
   });
 
@@ -525,8 +525,8 @@ describe('ConnectPanel and fullscreen', () => {
   });
 
   it('signed out shows the sign-in refusal; LIVE with a revocation shows the advisory banner and Disconnect stays', () => {
-    const refused = root(h(ConnectPanel, { ...props, state: { step: 'refused', refusal: { kind: 'signed-out' } } }));
-    expect(text(refused)).toContain(refusalText({ kind: 'signed-out' }));
+    const refused = root(h(ConnectPanel, { ...props, state: { step: 'refused', refusal: { kind: 'signed-out', signIn: true } } }));
+    expect(text(refused)).toContain(refusalText({ kind: 'signed-out', signIn: true }));
     const live = root(
       h(ConnectPanel, { ...props, state: { step: 'live' }, advisoryBlocked: { ok: false, reason: 'revoked', revocation: { sha: SHA, reason: 'bug' } } }),
     );

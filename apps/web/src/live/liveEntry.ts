@@ -19,7 +19,7 @@
  * the worker anything but `open`: a refusal only means no session starts.
  */
 import type { AdvisoryCheck } from './advisoryGate.ts';
-import type { AuthGate } from './authGate.ts';
+import { signInAvailable, type AuthGate } from './authGate.ts';
 import { c1Checklist, c1FormFor, recordC1, type C1Form } from './c1.ts';
 import type { DeviceSafetyStore } from './deviceSafety.ts';
 import { markLive } from './liveMarker.ts';
@@ -28,7 +28,8 @@ import type { MachineRequest } from '../machine-worker/rpc.ts';
 export type PortChoice = Extract<MachineRequest, { kind: 'open' }>['port'];
 
 export type EntryRefusal =
-  | { readonly kind: 'signed-out' }
+  /** `signIn`: false where no provider can ever sign in (production until accounts ship): the panel says so plainly. */
+  | { readonly kind: 'signed-out'; readonly signIn: boolean }
   | { readonly kind: 'advisory'; readonly check: Exclude<AdvisoryCheck, { ok: true }> }
   | { readonly kind: 'c1-incomplete' }
   | { readonly kind: 'no-port'; readonly message: string }
@@ -95,7 +96,7 @@ export class LiveEntry {
     this.deps.unlockAlarm();
     this.#set({ step: 'checking' });
     const auth = await this.deps.auth.check('connect');
-    if (!auth.allowed) return this.#refuse({ kind: 'signed-out' });
+    if (!auth.allowed) return this.#refuse({ kind: 'signed-out', signIn: signInAvailable(this.deps.auth.providers) });
     const advisory = await this.deps.checkAdvisory();
     if (!advisory.ok) return this.#refuse({ kind: 'advisory', check: advisory });
     const form = await c1FormFor(this.deps.store, this.deps.now());
