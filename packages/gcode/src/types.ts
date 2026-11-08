@@ -1,6 +1,7 @@
 /** Types of the interpreter and analyser (ROADMAP TB-02; TOOLS_PLAN §6.2). */
 import type { DialectId } from '@synthetos/protocol';
 import type { Axis, AxisValues, Envelope, StartState, Wcs } from '@synthetos/safety';
+import type { ProgramFrames } from './frames.ts';
 
 /**
  * What the segment ending at a vertex is. Vertex 0 (the start) and a jump the
@@ -109,6 +110,8 @@ export interface JobAnalysis {
   readonly findings: readonly Finding[];
   /** Host line numbers (`SentLine.n`) after which feeding stops. */
   readonly pausePoints: readonly number[];
+  /** Where the program frame meets the path frame, by file line (frames.ts): `vertices` = program position + offset. */
+  readonly frameTable: ProgramFrames;
   readonly stats: JobStats;
   readonly end: EndModal;
 }

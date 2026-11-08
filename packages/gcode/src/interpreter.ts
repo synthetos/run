@@ -31,6 +31,7 @@ import {
   type Wcs,
 } from '@synthetos/safety';
 import { DEFAULT_CHORD_MM, arcBox, arcSegments, tessellateArc } from './arcs.ts';
+import { FrameRecorder, emptyFrames } from './frames.ts';
 import { codeOf, parseLine } from './parser.ts';
 import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis, type TimingModel } from './types.ts';
 
@@ -66,6 +67,8 @@ class Interpreter {
   readonly pieces: Piece[] = [];
   readonly flags: Uint8Array;
   readonly pausePoints: number[] = [];
+  /** The program-to-path offset table (frames.ts), filled as the lines are stepped. */
+  readonly frameTable: FrameRecorder;
   machine: Pos;
   units: 'G20' | 'G21';
   distance: 'G90' | 'G91';
@@ -127,6 +130,7 @@ class Interpreter {
     this.g92 = { offsets: g.pos, active: s.g92?.active ?? false };
     const t = fill(s.toolOffset);
     this.tool = t.pos;
+    this.frameTable = new FrameRecorder([this.offset('X'), this.offset('Y'), this.offset('Z')]);
     this.g28 = s.g28 === undefined ? null : fill(s.g28).pos;
     this.g30 = s.g30 === undefined ? null : fill(s.g30).pos;
     this.spindle = s.spindle ?? 'off';
@@ -314,6 +318,7 @@ class Interpreter {
         this.g92.offsets[a] = this.machine[a] - this.wcsOffsets[this.wcs][a] - (ROTARY.has(a) ? 0 : this.tool[a]) - this.offsetMm(a, v);
       }
       this.g92.active = true;
+      if (axisWords.size > 0) this.frameTable.g92(src);
     } else if (has('G92.1')) {
       this.g92 = { offsets: zero(), active: false };
     } else if (has('G92.2')) {
@@ -622,6 +627,7 @@ export function interpretJob(result: SanitizeResult, dialect: Dialect, options: 
       it.add(line.sourceLine, line.n, 'info', 'after-rejected-line', `Line ${String(firstRejected)} is blocked, so it isn't sent: positions after it may not match what the file intends.`);
     }
     it.step(line, i, i === lastIndex);
+    it.frameTable.note(line.sourceLine, it.offset('X'), it.offset('Y'), it.offset('Z'));
   });
 
   // File-level findings.
@@ -652,6 +658,7 @@ export function interpretJob(result: SanitizeResult, dialect: Dialect, options: 
     bounds: emitted.bounds,
     findings,
     pausePoints: it.pausePoints,
+    frameTable: it.frameTable.finish(),
     stats: { lines: lines.length, rapidMm: it.rapidMm, feedMm: it.feedMm, arcs: it.arcs, estimatedSeconds: it.seconds, chordMm: emitted.chordMm },
     end: {
       machine: { ...it.machine },
@@ -817,6 +824,7 @@ function emptyAnalysis(dialect: Dialect, findings: Finding[], lineCount: number,
     bounds: null,
     findings,
     pausePoints: [],
+    frameTable: emptyFrames(),
     stats: { lines: lineCount, rapidMm: 0, feedMm: 0, arcs: 0, estimatedSeconds: null, chordMm: options.chordMm ?? DEFAULT_CHORD_MM },
     end: {
       machine,
