@@ -43,6 +43,7 @@ import '../styles/strip-fit.css';
 import '../styles/job-status.css';
 import '../styles/gcode-list.css';
 import '../styles/features.css';
+import '../styles/job-layout.css';
 
 const trustedTypes = installTrustedTypes();
 

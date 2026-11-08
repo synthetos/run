@@ -1,0 +1,37 @@
+/*
+ * The Job view's layout fixes from the first-time walk (2026-11-08). Loaded after workspace.css.
+ *
+ * B4, C18: what sits over the 3D drawing is one stack (preview/ViewerOverlay.ts) in its lower left: the key's
+ * notes, the key line and the live readout, each wrapping in its own box. The stack never grows over the
+ * toolbar; it scrolls instead. The key can be hidden.
+ * B4: Expand gives the drawing the whole Job area (preview/expandPreview.ts); the machine pane and the strip stay.
+ * B4, P4: at laptop heights (800 px and less) the job card and the steps are compact, the G-code list gives way
+ * first, and nothing pushes the page into scrolling: the drawing keeps at least 280 px.
+ */
+
+/* ---------- The overlay stack ---------- */
+.viewer-overlay { position: absolute; left: 12px; right: 48px; bottom: 10px; max-height: calc(100% - 64px); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; overflow-y: auto; overscroll-behavior: contain; pointer-events: none; z-index: var(--z-raised); }
+.viewer-overlay > * { pointer-events: auto; }
+.viewer-overlay .scene-key { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 100%; }
+.viewer-overlay .viewer-key,
+.viewer-overlay .viewer-key.scene-notes,
+.viewer-overlay .viewer-key.scene-key-line { position: static; inset: auto; top: auto; right: auto; bottom: auto; left: auto; max-width: min(560px, 100%); box-sizing: border-box; overflow-wrap: anywhere; }
+.viewer-overlay .viewer-key.scene-notes { width: max-content; max-width: min(560px, 100%); }
+.viewer-overlay .pv-marker-readout { margin: 0; white-space: normal; }
+.viewer-overlay-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.viewer-overlay-bar .key-toggle { min-height: 26px; padding: 0 9px; font-size: 11.5px; background: color-mix(in srgb, var(--sheet) 92%, transparent); }
+.viewer-overlay-bar .key-notes-count { min-height: 26px; padding: 0 9px; font-size: 11.5px; color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--sheet) 92%, transparent); font-weight: 600; }
+/* With no file open, the prompt to open one leads the stack (in the flow, not placed on its own). */
+.viewer-overlay .empty-prompt, .job-view .viewer-overlay .scene-empty-prompt { position: static; inset: auto; transform: none; width: auto; max-width: min(560px, 100%); margin: 0; box-sizing: border-box; }
+
+/* ---------- Expand ---------- */
+.viewer-tools .expand-preview { min-height: 32px; padding: 0 11px; font-size: 12.5px; background: color-mix(in srgb, var(--sheet) 92%, transparent); pointer-events: auto; }
+.viewer-tools .expand-preview[aria-pressed="true"] { background: var(--blue-wash); color: var(--blue); border-color: var(--blue); }
+.job-view[data-preview-expanded="true"] .job-card,
+.job-view[data-preview-expanded="true"] .job-step-bar,
+.job-view[data-preview-expanded="true"] .job-files-drawer,
+.job-view[data-preview-expanded="true"] .job-work-panel,
+.job-view[data-preview-expanded="true"] .dock { display: none; }
+.job-view[data-preview-expanded="true"] .job-main { padding-top: 8px; }
+.job-view[data-preview-expanded="true"] .job-grid { grid-template-columns: minmax(0, 1fr); flex: 1 1 auto; }
+.job-view[data-preview-expanded="true"] .viewer { border-radius: var(--r) var(--r) 0 0; }

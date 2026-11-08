@@ -12,13 +12,13 @@ import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { c13, c16, c24, c25, c25HandSet, c27, c28, c29, w13, w34, w35, w36, w44 } from '@synthetos/safety';
-import { DIALECTS, type DialectId } from '@synthetos/protocol';
-import { LITE_THRESHOLD_LINES, PREVIEW_DIALECTS, type PreviewMode } from '../../gcode-worker/pipeline.ts';
+import { DIALECTS } from '@synthetos/protocol';
+import { LITE_THRESHOLD_LINES } from '../../gcode-worker/pipeline.ts';
 import type { WorkerLike } from '../../gcode-worker/client.ts';
 import { Dro } from '../../machine-ui/Dro.ts';
 import { TranscriptSave } from '../../machine-ui/TranscriptSave.ts';
 import { PreviewPanel, markerText, type LiveMarkerView, type PreviewParts } from '../../preview/PreviewPanel.ts';
-import { DIALECT_LABEL, fileLevel, on, progressText } from '../../preview/PreviewView.ts';
+import { fileLevel, on, progressText } from '../../preview/PreviewView.ts';
 import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
 import { routineChanges, shownCounts } from '../../preview/gcodeList.ts';
 import { ConnectPanel, refusedTitle } from '../../live/ConnectPanel.ts';
@@ -47,7 +47,9 @@ import { projectStore } from '../../projects/browserStore.ts';
 import { jobScene } from '../../preview/sceneModel.ts';
 import { spindleToolChoice } from '../advisorState.ts';
 import { useLivePathFrame, useLivePlacement } from '../../preview/useLivePlacement.ts';
-import { SceneKey } from '../../preview/SceneKey.ts';
+import { ViewerOverlay } from '../../preview/ViewerOverlay.ts';
+import { ViewerOptions } from '../../preview/ViewerOptions.ts';
+import { ExpandButton, previewExpanded } from '../../preview/expandPreview.ts';
 import { openSceneSettings, type ScenePart } from '../../preview/sceneSettings.ts';
 import { sceneColors, tokenReader } from '../../preview/colors.ts';
 import { ViewButtons } from '../../preview/SceneView.ts';
@@ -1417,10 +1419,6 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
   return h(RunLayout, { parts, model, onView, stops });
 }
 
-/** The Run view's preview options, in plain words (the TB-03 sheet keeps PreviewView's own). */
-const RUN_DIALECT_LABEL: Readonly<Record<string, string>> = { 'tinyg-en': 'TinyG edge-next', 'tinyg-440': 'TinyG 440.xx' };
-const RUN_MODE_LABEL: Readonly<Record<PreviewMode, string>> = { auto: 'Auto (simpler above 300,000 lines)', lite: 'Simpler: list and summary, no drawing', full: 'Full: always draw' };
-
 function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly onView: (view: string) => void; readonly stops: StopHooks }): ComponentChild {
   const { state, actions, slots, live, scene } = parts;
   const simple = uiLevel.value.value !== 'advanced';
@@ -1436,7 +1434,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
   const scrubLine = state.scrub > 0 && result !== null ? (result.sourceLines[state.scrub - 1] ?? 0) : 0;
   return h(
     'div',
-    { class: 'run-view job-view', 'data-region': 'preview', 'data-job-stage': step },
+    { class: 'run-view job-view', 'data-region': 'preview', 'data-job-stage': step, 'data-preview-expanded': previewExpanded.value ? 'true' : 'false' },
     h(RunBridge, { parts }),
     // The machine pane is a rail beside everything (OD-13 §3): it gets the view's full height, so it fits 720 px without scrolling.
     h(
@@ -1460,59 +1458,32 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
             'div',
             { class: 'viewer-top' },
             // How the file is read and drawn: Advanced only (Simple keeps the defaults, Auto included), in plain words.
-            simple
-              ? null
-              : h(
-                  'div',
-                  { class: 'seg viewer-options', role: 'group', 'aria-label': 'Preview options' },
-                  h(
-                    'label',
-                    { class: 'viewer-option' },
-                    h('span', { class: 'viewer-option-label' }, 'Read as:'),
-                    h(
-                      'span',
-                      { class: 'select-wrap compact' },
-                      h(
-                        'select',
-                        { 'aria-label': 'Read as', value: state.dialect, disabled, 'data-preview': 'dialect', ...on('onChange', actions.onDialect, (f) => (e: Event) => { f((e.currentTarget as HTMLSelectElement).value as DialectId); }) },
-                        PREVIEW_DIALECTS.map((d) => h('option', { value: d, key: d }, RUN_DIALECT_LABEL[d] ?? DIALECT_LABEL[d] ?? d)),
-                      ),
-                    ),
-                  ),
-                  h(
-                    'label',
-                    { class: 'viewer-option' },
-                    h('span', { class: 'viewer-option-label' }, 'Detail:'),
-                    h(
-                      'span',
-                      { class: 'select-wrap compact' },
-                      h(
-                        'select',
-                        { 'aria-label': 'Detail', value: state.mode, disabled, 'data-preview': 'mode', ...on('onChange', actions.onMode, (f) => (e: Event) => { f((e.currentTarget as HTMLSelectElement).value as PreviewMode); }) },
-                        (['auto', 'lite', 'full'] as const).map((m) => h('option', { value: m, key: m }, RUN_MODE_LABEL[m])),
-                      ),
-                    ),
-                  ),
-                ),
+            simple ? null : h(ViewerOptions, { parts, disabled }),
             h(
               'div',
               { class: 'viewer-tools', role: 'group', 'aria-label': 'View' },
               h(TraverseToggle, { parts }),
+              h(ExpandButton, null),
               (scene !== null || result !== null) && !result?.lite && state.drawing === 'webgl' ? h(ViewButtons, { current: preset, ...(actions.onView === undefined ? {} : { onView: (p: ViewPreset) => { setPreset(p); actions.onView?.(p); } }), ...(actions.onFit === undefined ? {} : { onFit: () => actions.onFit?.() }) }) : null,
             ),
           ),
-          (scene === null && parts.tool === null) || result?.lite ? null : h(SceneKey, { scene, tool: parts.tool, markerPreview: parts.markerPreview, carve: parts.carve, simple, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) }),
-          result === null && !loading
-            ? h(
-                'div',
-                { class: `empty-prompt${scene === null ? '' : ' scene-empty-prompt'}` },
-                h('h2', null, state.status === 'error' ? 'The file could not be checked' : 'Open a file to check and preview it'),
-                state.status === 'error'
-                  ? h('p', { class: 'preview-error', role: 'alert', 'data-preview': 'error' }, state.error ?? 'The preview failed.')
-                  : null,
-                h('div', { class: 'sample-row' }, SAMPLES.map((s) => h('button', { type: 'button', class: 'small', key: s.id, disabled, 'data-sample': s.id, ...on('onClick', actions.onFile, () => () => { openFrom(sampleFile(s), { kind: 'sample' }, () => undefined); }) }, `Open the ${s.title.toLowerCase()} sample`))),
-              )
-            : null,
+          // The key and the live readout, stacked in one overlay that never runs over itself (B4, C18).
+          h(ViewerOverlay, {
+            sceneKey: (scene === null && parts.tool === null) || result?.lite ? null : { scene, tool: parts.tool, markerPreview: parts.markerPreview, carve: parts.carve, simple, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) },
+            // With no file open, the prompt to open one leads the stack, so the key never covers its buttons.
+            prompt: result === null && !loading
+              ? h(
+                  'div',
+                  { class: `empty-prompt${scene === null ? '' : ' scene-empty-prompt'}` },
+                  h('h2', null, state.status === 'error' ? 'The file could not be checked' : 'Open a file to check and preview it'),
+                  state.status === 'error'
+                    ? h('p', { class: 'preview-error', role: 'alert', 'data-preview': 'error' }, state.error ?? 'The preview failed.')
+                    : null,
+                  h('div', { class: 'sample-row' }, SAMPLES.map((s) => h('button', { type: 'button', class: 'small', key: s.id, disabled, 'data-sample': s.id, ...on('onClick', actions.onFile, () => () => { openFrom(sampleFile(s), { kind: 'sample' }, () => undefined); }) }, `Open the ${s.title.toLowerCase()} sample`))),
+                )
+              : null,
+            readout: live === null ? null : h('p', { class: `viewer-key pv-marker-readout lag-${live.lag}`, 'data-preview': 'marker-readout', role: 'status' }, markerText(live)),
+          }),
           loading
             ? h(
                 'div',
@@ -1530,7 +1501,6 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
                   : 'Lite mode: the list and summary only, no drawing.',
               )
             : null,
-          live === null ? null : h('p', { class: `viewer-key pv-marker-readout lag-${live.lag}`, 'data-preview': 'marker-readout', role: 'status' }, markerText(live)),
           h('div', { class: 'viewer-notice viewer-help' }, h(ContextHelp, { id: 'run-preview-help', label: 'About the preview', safety: 'W13', end: true }, w13())),
         ),
         h(
