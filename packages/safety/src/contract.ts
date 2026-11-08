@@ -10,7 +10,7 @@ export const CANNOT_GUARANTEE: readonly string[] = Object.freeze([
   'It cannot stop your machine in an emergency. Only a hardwired E-stop can.',
   'It cannot guarantee that a stop command arrives or how quickly it arrives. The command passes through the browser, the operating system, USB and the firmware.',
   'It cannot stop the machine if the browser tab closes, crashes, is discarded or sleeps, or if USB is lost. The controller keeps running its queued moves.',
-  'It cannot turn off a spindle, laser or coolant if the controller does not obey or the link is lost. On TinyG a feedhold, a program stop (M0/M1) or a tool change (M6) leaves the spindle running.',
+  'It cannot turn off a spindle, laser or coolant if the controller does not obey or the link is lost. On TinyG a feedhold or a program stop (M0/M1) leaves the spindle running. At a tool change (M6) Run sends M5 and M9 itself before it shows the tool-change card, and the controller has to obey them.',
   'It cannot see your wiring, your switches, your workpiece or the people around the machine.',
   'Its preview and bounds checks use its own interpreter and can disagree with the firmware.',
   'It cannot detect mechanical faults: lost steps, loose couplers, broken switch wires.',

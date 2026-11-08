@@ -422,3 +422,29 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 **Context.** The preview draws a file from `G21 G90 G17 G91.1` (the offline start state, apps/web gcode-worker `OFFLINE_START`), but the board may hold other modes when a job starts. An alarm, a lost link or a FAULT in the middle of a jog, or a probe ended by Pause, Stop job or an alarm, leaves the board in `G91` (and `G21`), and clearing the alarm does not reset its modes; a file that ends in `G91` without M2/M30 does the same, and an earlier file or another program can leave inches, another plane or absolute arc centres. Job preparation read those modes and checked the file under them, but nothing set them: a file that moves before it sets `G90` ran relative while the preview showed it absolute, with no warning. (Typed G-code is never sent in this release, so the Console was not a way in.)
 
 **Decision (option 1 of three).** Before a job's first line, for each mode the preview assumes that the file relies on (a line that depends on it comes before the file sets it) and that the board, as read, does not hold, run writes it (`G90`, `G21`, `G17`, `G91.1`, one line in that order), takes every prep read again (an independent second review found that offsets and axis settings read before a `G21` were inches), confirms the modes, and checks the file again from those values, so the modes the file relies on are the preview's on the board and in the check. A file that sets its own modes before it moves gets nothing extra. The check says so in one plain line only when run writes something ("Run sets absolute mode and millimetres before the first line, as the preview shows."), and the job card shows the board's distance mode and units near Start, from read values ("Absolute, mm"). The work coordinate system and the motion mode are not written: the preview's G54 with zero offsets matches no board (Set zero and C31 match the work zero), and G0 and G1 move along the same line. With it, three related changes the lead asked for in the same branch: after an alarm that ended a jog, go to zero or probe of run's, a Clear alarm answered with status 0 is followed by `G90` (with `G20` when the board was in inches before that motion; a refused `G90` is said and tried again after the next successful clear); go to zero ends in `G90`, like a jog outside a tool change; and the probe's stop distance converts `zjh` with the units read with it. Known and accepted, in the safe direction: in an inch file whose `F` sits on the line that sets `G20`, that `F` relies on the start units (the firmware reads `F` first), so on a board in inches run writes `G21` first and that `F` is read as mm/min, 25.4 times slower than meant. SAFETY §4.4a Start, §4.5b (Go to zero, Clear alarm), §4.5c, §4.1 and the test rows are amended (2026-11-08).
+
+**Addendum (owner, 2026-11-08).** The owner approved the two session-issued intents this decision added to the allow-matrix (`packages/safety/src/allowMatrix.ts`): `alarmRestore` (motion kind; ALARM and IDLE_*, no overlay) and `jobModes` (jobs kind; PREAMBLE only), as the owner review SAFETY §8 asks for a change to the matrix and the motion grammar.
+
+## OD-20. Resume is one click after a pause the user made (owner, 2026-11-08)
+
+**Owner's words.** "One click, fix the doc"
+
+**Context.** SAFETY §4.1's Resume row asked for "a named confirmation" (C9, with a spindle-restart second step), but the built app never shows C9. As built: Resume is allowed from HELD or PROGRAM_PAUSED with no overlay, only for a job (or a jog's hold) of this session, and only while the controller owes no answer but job lines. After a pause, a breakpoint or a program stop it is one click (`~` when the board reports a hold); after a refused line it is C33; after a manual tool change it is C34, with C35 when the spindle must start again. The row's "fresh report" and "unchanged offsets" conditions are not checked by the code.
+
+**Decision.** Keep one click; the documents follow the code. SAFETY §4.1's Resume row and §6 C9 are amended (2026-11-08): C9 is not shown, its strings stay defined, and C33, C34 and C35 stay where the code asks them.
+
+## OD-21. Run's zero check skips C31 when the zero matches the plan (owner, 2026-11-08)
+
+**Owner's words.** "Skip when they match"
+
+**Context.** The Run step compares the board's work zero with the plan (`runZeroCheck`, apps/web workspace/zeroPlan.ts): the zero Place job planned, or the work zero saved for this file. C31 asked the user to accept the board's work zero whenever they differed.
+
+**Decision.** C31 is not asked when the board's work zero is within 0.05 mm on each of X, Y and Z of Place job's planned zero and the machine position is established (homed or set, no UNKNOWN), as built; the same holds for a saved work zero. When the position is not established the two cannot be compared, and C31 is asked. SAFETY §6 C31 is amended (2026-11-08).
+
+## OD-22. Connect: bench and staging as now, production locked until accounts ship (owner, 2026-11-08)
+
+**Owner's words.** "Allow on bench/staging only"
+
+**Context.** Connecting is identity-gated (D1, OD-3; apps/web live/authGate.ts): the bench build connects as "whoever sits at this computer" on loopback (`bench` provider), staging behind Cloudflare Access (`access` provider), and production accepts only the accounts.synthetos.com session (`run-session`), which has not shipped, so production cannot connect.
+
+**Decision.** Bench and staging connect as now; production stays locked until accounts ship, with a plain message saying so. The message itself is being reworded separately (another change, not part of this record).
