@@ -27,6 +27,8 @@
 .job-pct { font: 500 12px/1 var(--mono); color: var(--muted); }
 .job-status .job-progress { grid-area: bar; margin: 0; height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; }
 .job-status .job-progress i { display: block; height: 100%; background: var(--state-run); }
+/* A job that ended early: the bar holds where it stopped, striped in the hold colour (S7). */
+.job-status .job-progress.stopped i { background: repeating-linear-gradient(135deg, var(--state-hold) 0 6px, color-mix(in srgb, var(--state-hold) 55%, transparent) 6px 12px); }
 
 /* Narrow: one fact per row, label left, value right; a long value drops under its label rather than squeezing. */
 .job-status .job-status-grid .job-facts { grid-area: facts; display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; margin: 0; min-width: 0; }

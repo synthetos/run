@@ -38,11 +38,19 @@ export function jobEvent(t: JobTx, at: number, kind: JobEvent['kind'], text: str
   patchJob(t, { events: [...job.events, event].slice(-MAX_JOB_EVENTS) });
 }
 
+/**
+ * The last line the board took: its number among the lines sent (`n`, 0 before any) and its file line (or the
+ * first line before any), for "Stopped at line N" and the job card's frozen progress after a stop.
+ */
+export function lastTaken(job: JobState, executing: number | undefined): { readonly n: number; readonly line: number } {
+  if (executing !== undefined && executing >= 1 && executing <= job.lines.length) return { n: executing, line: (job.lines[executing - 1] as SentLine).sourceLine };
+  const byAnswer = job.acked > 0 ? job.lines[job.acked - 1]?.sourceLine : job.lines[0]?.sourceLine;
+  return { n: job.acked, line: byAnswer ?? 0 };
+}
+
 /** The file line of the last line the board took (or the first line before any), for "Stopped at line N". */
 export function lastFileLine(job: JobState, executing: number | undefined): number {
-  const byReport = executing !== undefined && executing >= 1 && executing <= job.lines.length ? (job.lines[executing - 1] as SentLine).sourceLine : undefined;
-  const byAnswer = job.acked > 0 ? job.lines[job.acked - 1]?.sourceLine : job.lines[0]?.sourceLine;
-  return byReport ?? byAnswer ?? 0;
+  return lastTaken(job, executing).line;
 }
 
 /**
@@ -59,13 +67,14 @@ export function forgetJobLines(t: JobTx): void {
 export function jobStopped(t: JobTx, at: number): void {
   const job = t.s.job;
   if (job === null || !(ACTIVE_PHASES.has(job.phase) || job.stopping)) return;
-  const line = lastFileLine(job, t.s.live.line);
+  const taken = job.stoppedAt ?? lastTaken(job, t.s.live.line);
+  const line = taken.line;
   const text = w42({ line });
   t.cancel('job');
   if (job.phase === 'failed') {
-    patchJob(t, { stopping: false, message: `${job.message ?? 'The job ended.'} ${text}.`, endedAt: job.endedAt ?? at, faultStopAt: null });
+    patchJob(t, { stopping: false, message: `${job.message ?? 'The job ended.'} ${text}.`, endedAt: job.endedAt ?? at, faultStopAt: null, stoppedAt: taken });
   } else {
-    patchJob(t, { phase: 'stopped', stopping: false, message: text, endedAt: at, faultStopAt: null });
+    patchJob(t, { phase: 'stopped', stopping: false, message: text, endedAt: at, faultStopAt: null, stoppedAt: taken });
   }
   jobEvent(t, at, 'warn', text, line);
 }
@@ -74,9 +83,10 @@ export function jobStopped(t: JobTx, at: number): void {
 export function failJob(t: JobTx, at: number, text: string): void {
   const job = t.s.job;
   if (job === null || !ACTIVE_PHASES.has(job.phase)) return;
-  const line = lastFileLine(job, t.s.live.line);
+  const taken = lastTaken(job, t.s.live.line);
+  const line = taken.line;
   t.cancel('job');
-  patchJob(t, { phase: 'failed', message: text, endedAt: at, resumeSteps: [] });
+  patchJob(t, { phase: 'failed', message: text, endedAt: at, resumeSteps: [], stoppedAt: taken });
   forgetJobLines(t);
   jobEvent(t, at, 'error', text, line);
 }

@@ -40,6 +40,7 @@ export function job(extra: Partial<JobSnapshot> = {}): JobSnapshot {
     faultStopAt: null,
     stopping: false,
     startModes: null,
+    stoppedAt: null,
     ...extra,
   };
 }

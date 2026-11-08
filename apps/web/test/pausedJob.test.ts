@@ -3,6 +3,7 @@
  * - the strip never calls a held machine "Machine idle": "Paused · spindle still on" (or "Paused"), in the hold tone;
  * - the Run card puts Resume at the top, under the phase, with the spindle's state, and it sends the same
  *   session request as the strip's Resume; there is one Resume in the card.
+ * A stopped job (S7): the card holds the line and progress where the job stopped, and the bar says Stopped.
  */
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
@@ -57,5 +58,28 @@ describe('Resume at the top of the paused job card (B2)', () => {
     const tree = root(h(JobStatus, { model }));
     expect(all(tree, byAttr('data-job', 'resume-row'))).toHaveLength(0);
     expect(all(tree, byAttr('data-machine-control', 'resume'))).toHaveLength(0);
+  });
+});
+
+describe('a stopped job holds where it stopped (S7)', () => {
+  it('shows the stop line and its progress, not the board’s later line, and marks the bar Stopped', () => {
+    const stopped = snap({
+      base: 'IDLE_HOMED',
+      job: job({ phase: 'stopped', total: 34, startedAt: 0, endedAt: 1, acked: 29, executing: { n: 29, line: 23 }, stoppedAt: { n: 12, line: 10 }, message: 'Stopped at line 10: queue cleared, spindle and coolant off' }),
+    });
+    const { model } = liveModel(stopped);
+    const tree = root(h(JobStatus, { model }));
+    expect(text(one(tree, byAttr('data-job', 'line')))).toBe('stopped at file line 10 (12 of 34)');
+    expect(text(one(tree, byAttr('data-job', 'pct')))).toBe('stopped at 35%');
+    const bar = one(tree, byAttr('role', 'progressbar'));
+    expect(bar.props['aria-valuenow']).toBe(35);
+    expect(bar.props['aria-valuetext']).toBe('Stopped at 35%');
+    expect(String(bar.props['class'])).toContain('stopped');
+  });
+  it('a job that finished is not marked stopped', () => {
+    const { model } = liveModel(snap({ job: job({ phase: 'done', total: 2, startedAt: 0, endedAt: 1, acked: 2, executing: { n: 2, line: 2 } }) }));
+    const tree = root(h(JobStatus, { model }));
+    expect(text(one(tree, byAttr('data-job', 'pct')))).toBe('100%');
+    expect(String(one(tree, byAttr('role', 'progressbar')).props['class'])).not.toContain('stopped');
   });
 });

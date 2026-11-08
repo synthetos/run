@@ -598,6 +598,11 @@ export interface JobState {
   readonly feedLimit: FeedLimitState | null;
   /** A liveness FAULT stops the job with the spindle off at this time unless it is stopped first (W33). */
   readonly faultStopAt: number | null;
+  /**
+   * Where the job ended early (Stop job, Spindle off, a fault): the last line the board took, as it was when the
+   * job ended, so the card's progress holds there (first-time walk 2026-11-08, S7). Absent until then.
+   */
+  readonly stoppedAt?: { readonly n: number; readonly line: number };
   /** Set when a stop sequence for this job is under way (Stop job, a fault). */
   readonly stopping: boolean;
   /** The offsets were queued to be read again after the job ended (jobOffsets.ts). */

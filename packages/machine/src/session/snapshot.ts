@@ -75,6 +75,8 @@ export interface JobView {
    * now (Start decides again from its own reads), or null when it will write none.
    */
   readonly startModes: string | null;
+  /** Where a stopped or failed job ended: the last line the board took then (`n` of `total`, and its file line). */
+  readonly stoppedAt: { readonly n: number; readonly line: number } | null;
 }
 
 /** Longest string from the board a snapshot carries. */
@@ -264,6 +266,7 @@ function jobView(state: SessionState, job: JobState): JobView {
     jobFlag: job.jobFlag,
     feedLimit: job.feedLimit,
     faultStopAt: job.faultStopAt,
+    stoppedAt: job.stoppedAt ?? null,
     stopping: job.stopping,
     startModes: startModesText(forecastStartModes(state, job.startModes?.needs ?? [])),
   };

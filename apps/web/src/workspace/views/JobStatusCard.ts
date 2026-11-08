@@ -6,6 +6,10 @@
  * While the job is paused, Resume sits at the top of the card, under the phase, with the spindle's state in
  * words (first-time walk 2026-11-08, B2): at the bottom of the narrow card it was below the fold. It sends the
  * same session request as the machine strip's Resume; the session decides it again.
+ *
+ * A job that ended early (Stop job, Spindle off, a fault) holds its progress and line where the board was when it
+ * ended, and the bar says Stopped (first-time walk 2026-11-08, S7): the board's later reports used to move it on
+ * to the last line queued, so a stopped job read "100 %" and "34 of 34".
  */
 import { h, type ComponentChild } from 'preact';
 import { STOP_TEXT, w2Label } from '@synthetos/safety';
@@ -42,7 +46,10 @@ export function JobStatus({ model, onPause, onStopJob }: { readonly model: Works
   const actions = model?.actions.value ?? null;
   if (job === null || job.startedAt === null) return null;
   const s = ui.snapshot;
-  const done = job.executing === null ? job.acked : job.executing.n;
+  // A job that ended early holds where it ended: the board's later reports never move the card (S7).
+  const stopped = (job.phase === 'stopped' || job.phase === 'failed') && job.stoppedAt !== null ? job.stoppedAt : null;
+  const at = stopped ?? job.executing;
+  const done = at === null ? job.acked : at.n;
   const pct = job.total === 0 ? 0 : Math.min(100, Math.round((done / job.total) * 100));
   const feed = s?.live.feed;
   const vel = s?.live.vel;
@@ -54,13 +61,13 @@ export function JobStatus({ model, onPause, onStopJob }: { readonly model: Works
     h(
       'div',
       { class: 'job-status-grid' },
-      h('div', { class: 'job-status-head' }, h('strong', { 'data-job': 'phase' }, PHASE_TEXT[job.phase] ?? job.phase), h('span', { class: 'job-pct' }, `${pct}%`)),
+      h('div', { class: 'job-status-head' }, h('strong', { 'data-job': 'phase' }, PHASE_TEXT[job.phase] ?? job.phase), h('span', { class: 'job-pct', 'data-job': 'pct' }, stopped === null ? `${pct}%` : `stopped at ${pct}%`)),
       resume === null ? null : resumeRow(s?.live.spe === 1, resume),
-      h('div', { class: 'job-progress', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct }, h('i', { style: { width: `${pct}%` } })),
+      h('div', { class: `job-progress${stopped === null ? '' : ' stopped'}`, role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, ...(stopped === null ? {} : { 'aria-valuetext': `Stopped at ${pct}%`, 'data-stopped': 'true' }) }, h('i', { style: { width: `${pct}%` } })),
       h(
         'dl',
         { class: 'job-facts' },
-        h('div', null, h('dt', null, 'Line'), h('dd', { 'data-job': 'line' }, job.executing === null ? `${job.acked} of ${job.total} answered` : `file line ${job.executing.line} (${job.executing.n} of ${job.total})`)),
+        h('div', null, h('dt', null, 'Line'), h('dd', { 'data-job': 'line' }, stopped !== null ? `stopped at file line ${stopped.line} (${stopped.n} of ${job.total})` : at === null ? `${job.acked} of ${job.total} answered` : `file line ${at.line} (${at.n} of ${job.total})`)),
         h('div', null, h('dt', null, 'Elapsed'), h('dd', { 'data-job': 'elapsed' }, ui.elapsedMs === null ? 'Not started' : duration(ui.elapsedMs / 1000))),
         h('div', null, h('dt', null, 'Remaining'), h('dd', { 'data-job': 'remaining' }, jobActive(job) ? `about ${duration(job.remainingSeconds)} (estimate)` : 'Not running')),
         h('div', null, h('dt', null, 'Feed, actual / programmed'), h('dd', { 'data-job': 'feed' }, `${typeof vel === 'number' ? Math.round(vel) : 'unknown'} / ${typeof feed === 'number' ? Math.round(feed) : 'unknown'} mm/min`)),
