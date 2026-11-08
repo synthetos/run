@@ -29,6 +29,8 @@ export interface Preview3DProps {
   readonly planner?: PlannerOverlay | null;
   /** Phase 3: the tool position the board reports during a job (work coordinates, as drawn), or null. */
   readonly toolMarker?: Vec3 | null;
+  /** With no `toolMarker`: the planned tool position (previewMarker.ts), drawn dimmed as a preview, or null. */
+  readonly previewMarker?: Vec3 | null;
   /** The marker's tool at true size (preview/activeTool.ts), or null for the generic glyph. */
   readonly toolShape?: ToolShape | null;
   /** The scene solids under the path (machine coordinates), or null. */
@@ -121,8 +123,10 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
   useEffect(() => { if (view !== undefined && view.seq > 0) renderer.current?.setView(view.preset); }, [view?.seq]);
   const plan = props.planner ?? null;
   useEffect(() => { renderer.current?.setPlanner(plan); }, [plan?.cutEnd, plan?.execEnd, plan?.queuedEnd, plan?.starving, plan === null]);
-  const tool = props.toolMarker ?? null;
-  useEffect(() => { renderer.current?.setToolMarker(tool); }, [tool?.[0], tool?.[1], tool?.[2], tool === null]);
+  const live = props.toolMarker ?? null;
+  const tool = live ?? props.previewMarker ?? null;
+  const preview = live === null && tool !== null;
+  useEffect(() => { renderer.current?.setToolMarker(tool, preview); }, [tool?.[0], tool?.[1], tool?.[2], tool === null, preview]);
   const shape = props.toolShape ?? null;
   useEffect(() => { renderer.current?.setToolShape(shape); }, [shape]);
 

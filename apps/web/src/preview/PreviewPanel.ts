@@ -20,6 +20,7 @@ import type { JobScene } from './sceneModel.ts';
 import { pickLabel, scenePart, type ScenePart } from './sceneSettings.ts';
 import type { ActiveTool } from './activeTool.ts';
 import { useActiveTool, type ActiveToolJob } from './useActiveTool.ts';
+import { scrubbedToolAt } from './previewMarker.ts';
 import type { Vec3, ViewPreset } from '@synthetos/gcode-view';
 
 /** What a layout gets to arrange: the state, the actions and the rendered pieces. */
@@ -35,6 +36,8 @@ export interface PreviewParts {
   readonly toolInPath: Vec3 | null;
   /** The tool the 3D marker shows (activeTool.ts), or null before a file is open. */
   readonly tool: ActiveTool | null;
+  /** True when the marker is the planned position at the scrubbed line (no board), not a reported one. */
+  readonly markerPreview: boolean;
 }
 
 export interface PreviewPanelProps {
@@ -73,6 +76,8 @@ export interface PreviewPanelProps {
   readonly scene?: JobScene | null;
   /** A click on the bed, fixture, stock or a clamp in the drawing (sceneSettings.ts); without it nothing is pickable. */
   readonly onScenePick?: (part: ScenePart) => void;
+  /** The tool number the board reports (`tool` in a status report), or null: the marker's tool when no job runs. */
+  readonly boardTool?: number | null;
 }
 
 /** The planner view the 3D drawing shows during a job (gcode-view `PlannerOverlay`). */
@@ -120,7 +125,7 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -162,7 +167,9 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
   const listKey = useMemo(() => (result === null || state.fileName === null ? null : fileKey(state.fileName, result.bytes)), [result, state.fileName]);
   const executingLine = result === null ? null : job !== null ? job.executing : executingFileLine(reportedLine, result.sourceLines);
   const plannerView = result === null || planner === undefined ? null : planner(result.sourceLines);
-  const activeTool = useActiveTool(result, state.scrub, job);
+  const activeTool = useActiveTool(result, state.scrub, job, boardTool);
+  // No board position at all: the tool is drawn as a preview at the end of the scrubbed line.
+  const previewMarker = tool === null && live === null ? scrubbedToolAt(segments, state.scrub) : null;
 
   // The tool is drawn only from `tool` (machine coordinates, or the path's frame without a scene): never from the
   // readout, whose work position is in the program's frame and units, not the drawing's.
@@ -186,6 +193,7 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
             envelope: result?.summary.envelope ?? null,
             fitRequest,
             toolShape: activeTool?.shape ?? null,
+            previewMarker,
             view,
             planner: plannerView,
             toolMarker: toolInPath,
@@ -222,5 +230,5 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
     ...(readout === undefined ? {} : { marker: readout }),
     ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine, sentThrough: job?.sentThrough ?? null, ...(onReportLine === undefined ? {} : { onReportLine }), ...(onBreakpoints === undefined ? {} : { onBreakpoints }) }) }),
   };
-  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, tool: activeTool });
+  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, tool: activeTool, markerPreview: previewMarker !== null && state.drawing === 'webgl' });
 }

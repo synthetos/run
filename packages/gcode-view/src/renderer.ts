@@ -20,6 +20,9 @@
  * origin and moved by the offset uniform, so those frames upload nothing.
  * Its shape is the active tool's at true size when the page gives one
  * (toolProfile.ts, `setToolShape`), else a generic glyph sized to the drawing.
+ * Without a board the page may place it at the end of the scrubbed line: that
+ * marker is drawn dimmed and jumps with the scrubber, never easing, so it
+ * cannot read as a machine moving.
  */
 import { VIEW_ANGLES, fitOrbit, pan, rotate, viewProjection, zoom, type Orbit, type ViewAngles, type ViewPreset } from './camera.ts';
 import { DEFAULT_SEGMENTS_PER_CHUNK, STYLE, chunks } from './geometry.ts';
@@ -70,8 +73,8 @@ export interface PlannerOverlay {
 }
 
 /** Overlay styles follow the segment styles in the colour table. */
-const OVERLAY = Object.freeze({ ENVELOPE: 5, AXIS_X: 6, AXIS_Y: 7, AXIS_Z: 8, GRID: 9, GRID_MAJOR: 10, MARKER: 11, RING: 12 });
-const STYLE_COUNT = 13;
+const OVERLAY = Object.freeze({ ENVELOPE: 5, AXIS_X: 6, AXIS_Y: 7, AXIS_Z: 8, GRID: 9, GRID_MAJOR: 10, MARKER: 11, RING: 12, MARKER_PREVIEW: 13 });
+const STYLE_COUNT = 14;
 
 export interface LoadOptions extends Pick<SliceOptions, 'signal' | 'budgetMs' | 'now' | 'yieldToHost'> {
   readonly segmentsPerChunk?: number;
@@ -100,8 +103,12 @@ export interface PreviewRenderer {
   setWcsOrigin(origin: Vec3 | null, size?: number): void;
   /** The planner view of a running job (lines cut, executing, queued), or null for none. */
   setPlanner(planner: PlannerOverlay | null): void;
-  /** The tool position the board reports (in the path's frame), drawn as a small marker, or null to hide it. */
-  setToolMarker(position: Vec3 | null): void;
+  /**
+   * The tool position the board reports (in the path's frame), drawn as a small marker, or null to hide it.
+   * `preview` marks a planned position (the end of the scrubbed line, no board): drawn dimmed, and it jumps
+   * to each position, so it never reads as a machine moving.
+   */
+  setToolMarker(position: Vec3 | null, preview?: boolean): void;
   /** The marker's tool, drawn at true size; null for the generic glyph. The geometry is rebuilt only when this changes. */
   setToolShape(shape: ToolShape | null): void;
   /** The scene solids under the path (bed, stock, fixture, clamps), in the drawing's frame, or null for none. */
@@ -290,6 +297,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   let planner: PlannerOverlay | null = null;
   let marker: Vec3 | null = null;
   let toolShape: ToolShape | null = null;
+  let markerPreview = false;
   let motion: MarkerMotion | null = null;
   let angles: ViewAngles = VIEW_ANGLES.iso;
   let view: Orbit = fitOrbit(null);
@@ -405,7 +413,8 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     const sty: number[] = [];
     for (const [a, b] of lines) {
       pos.push(...a, ...b);
-      sty.push(OVERLAY.MARKER, OVERLAY.MARKER);
+      const style = markerPreview ? OVERLAY.MARKER_PREVIEW : OVERLAY.MARKER;
+      sty.push(style, style);
     }
     markerOverlay = linesChunk(pos, sty);
   }
@@ -422,7 +431,8 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
 
   function colorTable(): Float32Array {
     const ring = colors.envelope;
-    const table = [colors.rapid, colors.feed, colors.arc, colors.outOfBounds, colors.uncertain, colors.envelope, colors.axisX, colors.axisY, colors.axisZ, colors.grid, colors.gridMajor, plannerColors().exec, ring];
+    const exec = plannerColors().exec;
+    const table = [colors.rapid, colors.feed, colors.arc, colors.outOfBounds, colors.uncertain, colors.envelope, colors.axisX, colors.axisY, colors.axisZ, colors.grid, colors.gridMajor, exec, ring, mix(exec, colors.background, 0.55)];
     return new Float32Array(table.flat());
   }
 
@@ -653,12 +663,13 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       planner = next;
       requestRender();
     },
-    setToolMarker(position) {
-      // The glyph is rebuilt only when the marker appears or goes; a new position is a new motion target.
-      const shownChanged = (marker === null) !== (position === null);
+    setToolMarker(position, preview = false) {
+      // The glyph is rebuilt only when the marker appears, goes or changes kind; a new position is a new motion target.
+      const rebuild = (marker === null) !== (position === null) || preview !== markerPreview;
       marker = position;
-      motion = nextMotion(motion, position, now(), reducedMotion());
-      if (shownChanged) rebuildMarker();
+      markerPreview = preview;
+      motion = nextMotion(motion, position, now(), preview || reducedMotion());
+      if (rebuild) rebuildMarker();
       requestRender();
     },
     setToolShape(shape) {
@@ -725,6 +736,11 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       gl.deleteProgram(solidProgram);
     },
   };
+}
+
+/** `a` mixed a fraction `t` of the way to `b`, opaque. */
+function mix(a: Rgba, b: Rgba, t: number): Rgba {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, 1];
 }
 
 /** True when two tool shapes draw the same wireframe. */

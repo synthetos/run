@@ -15,7 +15,7 @@
  * shape for that, unused here.)
  */
 import { h, type ComponentChild } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { isPlaceholder, userValue, MATERIAL_FAMILIES, TOOL_MATERIALS, type CoolantNeed, type HardnessScale, type MaterialCutting, type SafetySeverity, type BehaviourKind, type Sourced } from '@synthetos/library';
 import {
   addTool,
@@ -49,6 +49,8 @@ import {
 import { Icon } from '../icons.ts';
 import { num } from '../status.ts';
 import { TabBar, TabPane } from '../ui.ts';
+import { toolFocus } from '../toolNumbers.ts';
+import { ToolNumberField } from './ToolNumberField.ts';
 
 export const PLACEHOLDER_NOTE = 'Placeholder values: not yet sourced. They show the shape of the data, not machining advice.';
 
@@ -203,6 +205,7 @@ function ToolInspector({ entry }: { readonly entry: ToolEntry }): ComponentChild
         h(
           'div',
           { class: 'field-grid' },
+          h(ToolNumberField, { id: tool.id, number: entry.number }),
           numberField('Diameter', tool.geometry.diameter, 'mm', (n) => geo('diameter', n)),
           numberField('Flutes', tool.geometry.flutes, '', (n) => geo('flutes', Math.max(1, Math.round(n))), 1),
           numberField('Flute length', tool.geometry.fluteLength, 'mm', (n) => geo('fluteLength', n), 0.5),
@@ -260,6 +263,14 @@ export function ToolsView(): ComponentChild {
   const tools = toolStore.value.value;
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState<string | null>(null);
+  // "Add T1 to your tool table" from the 3D view's key selects that tool (toolNumbers.ts).
+  const focus = toolFocus.value;
+  useEffect(() => {
+    if (focus === null) return;
+    setFilter('all');
+    setSelected(focus);
+    toolFocus.value = null;
+  }, [focus]);
   const shown = tools.filter((t) => filter === 'all' || t.tool.type === filter);
   const current = tools.find((t) => t.tool.id === selected) ?? shown[0] ?? tools[0] ?? null;
   return h(

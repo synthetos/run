@@ -364,9 +364,10 @@ export function updateTool(id: string, patch: Readonly<Record<string, unknown>>)
   return null;
 }
 
-export function addTool(): string {
+/** Adds a new tool numbered `number` (default: one above the highest T number) and returns its id. */
+export function addTool(number?: number): string {
   const list = toolStore.value.value;
-  const number = Math.max(0, ...list.map((t) => t.number)) + 1;
+  number ??= Math.max(0, ...list.map((t) => t.number)) + 1;
   const tool: Tool = {
     id: `mine.t${number}-${Date.now().toString(36)}`,
     version: 1,

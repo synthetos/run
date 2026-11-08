@@ -8,6 +8,7 @@ import type { ActiveTool } from './activeTool.ts';
 import type { JobScene } from './sceneModel.ts';
 import { SCENE_PARTS, type ScenePart } from './sceneSettings.ts';
 import { ToolLabel, ToolNote } from './ToolKey.ts';
+import { PREVIEW_MARKER_NOTE } from './previewMarker.ts';
 
 export interface SceneKeyProps {
   readonly scene: JobScene | null;
@@ -17,9 +18,11 @@ export interface SceneKeyProps {
   readonly tool?: ActiveTool | null;
   /** Opens the tool table for a missing T number; without it there is no link. */
   readonly onAddTool?: (number: number) => void;
+  /** The marker is the planned position at the scrubbed line, not the machine: the key says so. */
+  readonly markerPreview?: boolean;
 }
 
-export function SceneKey({ scene, onOpen, tool = null, onAddTool }: SceneKeyProps): ComponentChild {
+export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview = false }: SceneKeyProps): ComponentChild {
   const parts: ScenePart[] = scene === null ? [] : ['bed', ...(scene.layers.solids.some((s) => s.tag === 'fixture') ? (['fixture'] as const) : []), 'stock'];
   const notes = scene?.notes ?? [];
   const toolNote = tool?.note == null ? null : h(ToolNote, { tool, ...(onAddTool === undefined ? {} : { onAddTool }) });
@@ -34,6 +37,7 @@ export function SceneKey({ scene, onOpen, tool = null, onAddTool }: SceneKeyProp
       { class: 'viewer-key scene-key-line' },
       scene === null ? null : h('span', { 'data-scene': 'bed' }, scene.bedLabel),
       tool === null ? null : [scene === null ? null : h('span', { 'aria-hidden': 'true' }, '·'), h(ToolLabel, { tool })],
+      markerPreview ? [h('span', { 'aria-hidden': 'true' }, '·'), h('span', { 'data-scene': 'tool-preview' }, PREVIEW_MARKER_NOTE)] : null,
       onOpen === undefined || parts.length === 0
         ? null
         : h(

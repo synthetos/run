@@ -181,6 +181,26 @@ describe('tool shape', () => {
     expect(uploads.length).toBeGreaterThan(before);
   });
 
+  it('a preview marker (no board) is dimmed and jumps: one frame per position, a rebuild only when its kind changes', async () => {
+    const { gl, uploads } = fakeGl();
+    const frames = frameQueue();
+    let clock = 0;
+    const r = createRenderer(gl, { colors: COLORS, requestFrame: frames.request, now: () => clock, reducedMotion: () => false });
+    r.setToolShape(flat);
+    r.setToolMarker([0, 0, 0], true);
+    frames.flush();
+    const styles = uploads.find((u) => u instanceof Uint8Array && u.length > 0) as Uint8Array;
+    expect(new Set(styles)).toEqual(new Set([13]));
+    const before = uploads.length;
+    clock = 250;
+    r.setToolMarker([10, 0, 0], true);
+    expect(frames.flush()).toBe(1);
+    expect(frames.flush()).toBe(0);
+    expect(uploads.length).toBe(before);
+    r.setToolMarker([10, 0, 0]);
+    expect(uploads.length).toBeGreaterThan(before);
+  });
+
   it('null brings back the generic glyph; a shape set while the marker is hidden draws when it appears', async () => {
     const { gl, uploads } = fakeGl();
     const frames = frameQueue();

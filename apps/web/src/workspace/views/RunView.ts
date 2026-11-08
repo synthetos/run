@@ -39,6 +39,7 @@ import { openReport } from '../../report/state.ts';
 import { closeJob, currentFile, currentPreview, executionLock, openJob, pendingOpen, reopenActiveJob, saveDraftToProject, type OpenSource } from '../fileBridge.ts';
 import { activeJob, type Job } from '../jobModel.ts';
 import { materialColor } from '../library.ts';
+import { openToolNumber } from '../toolNumbers.ts';
 import { projectsState } from '../../projects/store.ts';
 import { projectStore } from '../../projects/browserStore.ts';
 import { jobScene } from '../../preview/sceneModel.ts';
@@ -95,6 +96,7 @@ export function RunView({ model, spawn, marker, onView, onPause, onStopJob }: Ru
     ...(sendJob === undefined ? {} : { onBreakpoints: (lines: readonly number[]) => void sendJob({ op: 'breakpoints', lines: [...lines] }) }),
     onReportLine: (line: number) => openReport({ origin: 'line', line }),
     scene,
+    boardTool: snap?.live.tool ?? null,
     // Opening a part's settings is navigation only; not while a job owns the machine.
     ...(ui.active ? {} : { onScenePick: (part: ScenePart) => openSceneSettings(part, onView) }),
     layout: (parts: PreviewParts) => runLayout(parts, model, onView, stops),
@@ -1472,7 +1474,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
               (scene !== null || result !== null) && !result?.lite && state.drawing === 'webgl' ? h(ViewButtons, { current: preset, ...(actions.onView === undefined ? {} : { onView: (p: ViewPreset) => { setPreset(p); actions.onView?.(p); } }), ...(actions.onFit === undefined ? {} : { onFit: () => actions.onFit?.() }) }) : null,
             ),
           ),
-          (scene === null && parts.tool === null) || result?.lite ? null : h(SceneKey, { scene, tool: parts.tool, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: () => onView('tools') }) }),
+          (scene === null && parts.tool === null) || result?.lite ? null : h(SceneKey, { scene, tool: parts.tool, markerPreview: parts.markerPreview, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) }),
           result === null && !loading
             ? h(
                 'div',

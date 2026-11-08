@@ -93,14 +93,17 @@ export function withJobChange(changes: ToolChanges, job: { readonly line: number
   return { ...changes, tools };
 }
 
+/** A T number looked up in the tool table: its shape, or the generic glyph and a note offering to add it. */
+export function toolNumbered(number: number, table: readonly ToolTableEntry[]): ActiveTool {
+  const entry = table.find((e) => e.number === number);
+  if (entry !== undefined) return { number, shape: toolShapeOf(entry.tool), name: entry.tool.name, note: null, missing: null };
+  return { number, shape: null, name: null, note: notInTable(number), missing: number >= 1 ? number : null };
+}
+
 /** The tool active at a file line, looked up in the tool table. */
 export function activeTool(changes: ToolChanges, fileLine: number, table: readonly ToolTableEntry[]): ActiveTool {
   const number = activeToolAt(changes, fileLine);
-  if (number !== null) {
-    const entry = table.find((e) => e.number === number);
-    if (entry !== undefined) return { number, shape: toolShapeOf(entry.tool), name: entry.tool.name, note: null, missing: null };
-    return { number, shape: null, name: null, note: notInTable(number), missing: number };
-  }
+  if (number !== null) return toolNumbered(number, table);
   const i = changeAt(changes, fileLine);
   if (i >= 0) return { number: null, shape: null, name: null, note: noToolNamed(changes.lines[i] as number), missing: null };
   const first = changes.lines[0];
