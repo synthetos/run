@@ -767,6 +767,14 @@ export function c25(p: { readonly axes: string; readonly path: string }): string
   return `Go to work zero on ${text('axes', p.axes)}? The machine will move: ${text('path', p.path)}. Keep a hand on the E-stop.`;
 }
 
+/**
+ * C25's added sentence (OD-23, 2026-11-08) when the machine position is set but not by a homing cycle seen in this
+ * connection: Z is not lifted, because the top of Z travel is not known.
+ */
+export function c25HandSet(): string {
+  return 'The machine position was set by hand, so Run does not know the top of Z travel: raise Z first if the tool is near the work or a clamp.';
+}
+
 /** C26: set the machine position here without moving, `G28.3` (amendment 2026-11-02, H67). For machines without homing switches. */
 export function c26(p: { readonly axes: string }): string {
   return (

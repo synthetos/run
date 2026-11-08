@@ -448,3 +448,11 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 **Context.** Connecting is identity-gated (D1, OD-3; apps/web live/authGate.ts): the bench build connects as "whoever sits at this computer" on loopback (`bench` provider), staging behind Cloudflare Access (`access` provider), and production accepts only the accounts.synthetos.com session (`run-session`), which has not shipped, so production cannot connect.
 
 **Decision.** Bench and staging connect as now; production stays locked until accounts ship, with a plain message saying so. The message itself is being reworded separately (another change, not part of this record).
+
+## OD-23. Go to zero lifts Z to the top of travel only after a homing this connection saw (owner, 2026-11-08)
+
+**Owner's words.** "A: no lift unless homed"
+
+**Context.** Go to zero (and its C25) raised Z first to `ztm − 1`, just under the top of Z travel, whenever the board reported homed. "Set machine zero here" (G28.3) also makes the board report homed, but then machine Z 0 is wherever the tool was when it was set, so `ztm − 1` can lie above the real top of travel: the Z move stalls and the position is lost. A position set before this connection cannot be told apart from one set by hand.
+
+**Decision (option A of two).** The safe Z is `ztm − 1` only when this connection saw a homing cycle complete (the session's position note says homing). In every other case it is the current machine Z, so Z is not lifted (the session never lowers it), and C25 adds: "The machine position was set by hand, so Run does not know the top of Z travel: raise Z first if the tool is near the work or a clamp." (owner-approved wording, in the safety strings as `c25HandSet`). Not chosen: asking for a clearance height in C25 (option B). SAFETY H53, §4.5b Go to zero and §6 C25 are amended (2026-11-08).

@@ -424,6 +424,7 @@ c({
   render: S.c25,
   subs: (e) => [['<axes>', e.axes], ['<path>', e.path]],
 });
+c({ doc: 'S', id: 'C25', segment: 1, exports: ['c25HandSet'], examples: noExamples, render: S.c25HandSet, subs: none });
 c({
   doc: 'S', id: 'C26', segment: 0, exports: ['c26'],
   examples: [{ axes: 'X, Y and Z' }, { axes: 'Z' }],

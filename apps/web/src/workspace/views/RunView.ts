@@ -11,7 +11,7 @@
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { c13, c16, c24, c25, c27, c28, c29, w13, w34, w35, w36, w44 } from '@synthetos/safety';
+import { c13, c16, c24, c25, c25HandSet, c27, c28, c29, w13, w34, w35, w36, w44 } from '@synthetos/safety';
 import { DIALECTS, type DialectId } from '@synthetos/protocol';
 import { LITE_THRESHOLD_LINES, PREVIEW_DIALECTS, type PreviewMode } from '../../gcode-worker/pipeline.ts';
 import type { WorkerLike } from '../../gcode-worker/client.ts';
@@ -27,6 +27,7 @@ import { Icon, type IconName } from '../icons.ts';
 import { readStored, writeStored } from '../storage.ts';
 import { belowStrip, CheckRow, ConfirmCard, IconButton, TabBar, TabPane } from '../ui.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
+import { goToZeroSafeZ } from '../safeZ.ts';
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
 import { HomeSection, HomeQuick, UnknownExits } from '../homing.ts';
 import { ProbeZ } from '../probe/ProbeZ.ts';
@@ -278,7 +279,8 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
   const system = offsetsView(view).system ?? 'G54';
   const zNow = machineZ(view);
   const ztm = typeof settings['ztm'] === 'number' ? (settings['ztm'] as number) : null;
-  const safe = ztm !== null && ui.homed === true ? Math.round((ztm - 1) * 1000) / 1000 : (zNow ?? 0);
+  // OD-23: lift to ztm − 1 only after a homing seen in this connection (safeZ.ts).
+  const { safe, handSet } = goToZeroSafeZ({ homed: ui.homed, positionBy: m?.snapshot.notices.position?.by, ztm, zNow });
   type Confirm = { readonly kind: 'set' | 'go'; readonly axes: readonly MotionAxis[] } | null;
   const [confirm, setConfirm] = hk.state<Confirm>(null);
   const [note, setNote] = hk.state<string | null>(null);
@@ -294,7 +296,7 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
       ? null
       : confirm.kind === 'set'
         ? h(ConfirmCard, { text: confirm.axes.map((a) => c16({ wcs: system, axis: a.toUpperCase(), machinePositionMm: row(a).machine ?? 0, newOffsetMm: row(a).machine ?? 0 })).join(' '), confirm: 'Set work zero', safety: 'C16', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) })
-        : h(ConfirmCard, { text: c25({ axes: axesText(confirm.axes), path: goToZeroPath(confirm.axes, safe, zNow) }), confirm: 'Go to zero', safety: 'C25', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });
+        : h(ConfirmCard, { text: `${c25({ axes: axesText(confirm.axes), path: goToZeroPath(confirm.axes, safe, zNow) })}${handSet ? ` ${c25HandSet()}` : ''}`, confirm: 'Go to zero', safety: 'C25', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });
   const xyz: readonly MotionAxis[] = ['x', 'y', 'z'];
   // The gate, once: a pill in the header with the reason behind (?) (OD-13 §5); a move in progress is not a gate.
   const gate = m !== null && !ui.enabled && !ui.busy ? ui.reason : null;
@@ -626,7 +628,10 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
   const zNow = machineZ(view);
   const ztm = typeof settings['ztm'] === 'number' ? (settings['ztm'] as number) : null;
   const [safeZ, setSafeZ] = hk.state<number | null>(null);
-  const safe = safeZ ?? (ztm !== null && ui.homed === true ? Math.round((ztm - 1) * 1000) / 1000 : (zNow ?? 0));
+  // OD-23: lift to ztm − 1 only after a homing seen in this connection (safeZ.ts).
+  const planned = goToZeroSafeZ({ homed: ui.homed, positionBy: view?.message?.snapshot.notices.position?.by, ztm, zNow });
+  const safe = safeZ ?? planned.safe;
+  const handSet = safeZ === null && planned.handSet;
   type Confirm = { readonly kind: 'set' | 'go' | 'temp'; readonly axes: readonly MotionAxis[] } | { readonly kind: 'clear' } | { readonly kind: 'system'; readonly n: number } | null;
   const [confirm, setConfirm] = hk.state<Confirm>(null);
   const [note, setNote] = hk.state<string | null>(null);
@@ -655,7 +660,7 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
         return h(ConfirmCard, { text, confirm: 'Set work zero', safety: 'C16', onCancel: cancel, onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) });
       }
       case 'go':
-        return h(ConfirmCard, { text: c25({ axes: axesText(confirm.axes), path: goToZeroPath(confirm.axes, safe, zNow) }), confirm: 'Go to zero', safety: 'C25', onCancel: cancel, onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });
+        return h(ConfirmCard, { text: `${c25({ axes: axesText(confirm.axes), path: goToZeroPath(confirm.axes, safe, zNow) })}${handSet ? ` ${c25HandSet()}` : ''}`, confirm: 'Go to zero', safety: 'C25', onCancel: cancel, onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });
       case 'temp':
         return h(ConfirmCard, { text: c27({ axes: axesText(confirm.axes), system }), confirm: 'Set temporary offset', safety: 'C27', onCancel: cancel, onConfirm: () => run({ op: 'tempOffset', axes: confirm.axes }) });
       case 'clear':
