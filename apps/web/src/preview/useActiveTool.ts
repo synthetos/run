@@ -1,7 +1,8 @@
 /**
  * The tool the 3D marker shows (activeTool.ts), from the open file, the line it is shown at and the tool table
  * in this browser (`toolStore`). While a job runs: the tool at the line the board reports executing, with the
- * job's own tool change reconciled in. Otherwise the tool the board reports in its spindle (`tool` in a status
+ * job's own tool change reconciled in. Before the first tool change, the tool the user chose as already in the
+ * spindle, when there is one (activeTool.ts), so the marker and the carve agree. Otherwise the tool the board reports in its spindle (`tool` in a status
  * report; 0 or none is unknown), else the tool at the scrubbed line.
  */
 import { useMemo } from 'preact/hooks';
@@ -16,7 +17,7 @@ export interface ActiveToolJob {
   readonly toolChange?: { readonly line: number; readonly tool: number | null } | null;
 }
 
-export function useActiveTool(result: PreviewResult | null, scrub: number, job: ActiveToolJob | null, boardTool: number | null = null): ActiveTool | null {
+export function useActiveTool(result: PreviewResult | null, scrub: number, job: ActiveToolJob | null, boardTool: number | null = null, spindleTool: number | null = null): ActiveTool | null {
   const table = toolStore.value.value;
   const scrubLine = scrub > 0 && result !== null ? (result.sourceLines[scrub - 1] ?? 0) : 0;
   const change = job?.toolChange ?? null;
@@ -25,6 +26,6 @@ export function useActiveTool(result: PreviewResult | null, scrub: number, job: 
     if (result === null) return null;
     const changes = withJobChange(result.tools, change);
     if (executing === null && boardTool !== null && Number.isInteger(boardTool) && boardTool > 0) return toolNumbered(boardTool, table);
-    return activeTool(changes, executing ?? previewToolLine(scrubLine, changes), table);
-  }, [result, scrubLine, executing, change?.line, change?.tool, boardTool, table]);
+    return activeTool(changes, executing ?? previewToolLine(scrubLine, changes), table, spindleTool);
+  }, [result, scrubLine, executing, change?.line, change?.tool, boardTool, table, spindleTool]);
 }

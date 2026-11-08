@@ -87,3 +87,18 @@ test('a file with no tool change is carved once the user chooses the tool alread
   await expect(sheet.locator('[data-scene="carve-note"]')).toHaveCount(0);
 });
 
+test('a cut below the stock is named in the key as a preview of the planned setup', async ({ page }) => {
+  await page.goto('/');
+  await ready(page);
+  const sheet = page.locator('[data-region="preview"]');
+  // The sample stock is 6.35 mm thick with its zero on top: line 5 cuts to Z -6.95, 0.6 mm under its bottom.
+  await open(page, 'through.nc', ['G21 G90', 'T1 M6', 'G0 Z5', 'G0 X20 Y20', 'G1 Z-6.95 F300', 'G1 X60', 'G0 Z5', 'M30'].join('\n'));
+  const note = sheet.locator('[data-scene="below-stock-note"]');
+  await expect(note).toHaveText('The tool goes 0.6 mm below the stock at line 5 (preview, from the planned setup)');
+  await expect(note).toHaveAttribute('data-below-line', '5');
+  // Scrubbed back before that line, the note goes with the carve.
+  await sheet.locator('[data-preview="scrubber"]').fill('4');
+  await expect(sheet.locator('[data-scene="carve"]')).toHaveAttribute('data-carved-through', '4');
+  await expect(note).toHaveCount(0);
+});
+

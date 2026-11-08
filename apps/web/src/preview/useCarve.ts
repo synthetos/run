@@ -12,8 +12,8 @@
  * the key re-renders while the carve runs, not the whole view). Display
  * only: nothing here changes or gates anything sent to the machine.
  *
- * Live carving during a job (slice 3) sets `target` from the last finished
- * line instead of the scrubber; that is the one input it needs.
+ * During a job the page sets `target` from the board's last finished line
+ * (liveCarve.ts) instead of the scrubber.
  */
 import { signal, type ReadonlySignal } from '@preact/signals';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -32,6 +32,8 @@ export interface CarveStatus {
   readonly lowest: number;
   /** Why carving stopped, when the worker failed. */
   readonly failed: string | null;
+  /** Where the lines carved so far go below the stock (file lines, mm below its bottom), or null. */
+  readonly below: { readonly firstLine: number; readonly firstDepth: number; readonly deepestLine: number; readonly deepestDepth: number } | null;
 }
 
 export interface CarveInfo {
@@ -61,7 +63,7 @@ export interface CarveInput {
   readonly spindleTool?: number | null;
 }
 
-const IDLE: CarveStatus = Object.freeze({ through: 0, done: false, lowest: 0, failed: null });
+const IDLE: CarveStatus = Object.freeze({ through: 0, done: false, lowest: 0, failed: null, below: null });
 
 export function useCarve({ spawn, result, layers, pathOffset, target, enabled, spindleTool = null }: CarveInput): CarveView {
   const [client, setClient] = useState<CarveClient | null>(null);
@@ -76,7 +78,9 @@ export function useCarve({ spawn, result, layers, pathOffset, target, enabled, s
     const off = c.subscribe({
       progress: (p) => {
         const lines = sourceLines.current;
-        status.value = { through: p.through > 0 && lines !== null ? (lines[p.through - 1] ?? 0) : 0, done: p.done, lowest: p.lowest, failed: p.error ?? null };
+        const fileLine = (i: number): number => (lines === null ? 0 : (lines[i] ?? 0));
+        const below = p.below === null ? null : { firstLine: fileLine(p.below.firstLine), firstDepth: p.below.firstDepth, deepestLine: fileLine(p.below.deepestLine), deepestDepth: p.below.deepestDepth };
+        status.value = { through: p.through > 0 ? fileLine(p.through - 1) : 0, done: p.done, lowest: p.lowest, failed: p.error ?? null, below };
       },
     });
     return () => {

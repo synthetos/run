@@ -96,7 +96,7 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
     ...(marker === undefined ? {} : { marker }),
     tool,
     reportedLine,
-    job: job === null ? null : { executing: job.executing?.line ?? null, sentThrough: job.sentThrough, toolChange: job.toolChange },
+    job: job === null ? null : { executing: job.executing?.line ?? null, sentThrough: job.sentThrough, toolChange: job.toolChange, carve: { id: job.id, hash: job.hash, startedAt: job.startedAt, executing: job.executing?.line ?? null, active: ui.active } },
     planner: (sourceLines: Uint32Array) => plannerRanges(job, sourceLines, starve),
     ...(sendJob === undefined ? {} : { onBreakpoints: (lines: readonly number[]) => void sendJob({ op: 'breakpoints', lines: [...lines] }) }),
     onReportLine: (line: number) => openReport({ origin: 'line', line }),

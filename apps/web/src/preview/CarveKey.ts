@@ -1,7 +1,7 @@
 /**
- * The carving part of the scene's key (docs/design/tool-sim.md, slice 2): one line saying the stock is carved
- * and at what cell size ("Carving at 0.25 mm"), and the notes naming lines that are not carved because their
- * tool is unknown. It never says the job is safe. `data-carved-through`, `data-carve-cell` and
+ * The carving part of the scene's key (docs/design/tool-sim.md, slices 2 and 3): one line saying the stock is
+ * carved and at what cell size ("Carving at 0.25 mm"), the notes naming lines that are not carved because their
+ * tool is unknown, and the note where the cut goes below the stock. It never says the job is safe. `data-carved-through`, `data-carve-cell` and
  * `data-carve-done` say how far the carve has got, for tests.
  */
 import { h, type ComponentChild } from 'preact';
@@ -20,6 +20,27 @@ export function CarveLabel({ carve }: { readonly carve: CarveInfo }): ComponentC
     { 'data-scene': 'carve', 'data-carve-cell': String(carve.cell), 'data-carved-through': String(s.through), 'data-carve-done': s.done ? 'true' : 'false', 'data-carve-lowest': s.lowest.toFixed(3) },
     s.failed === null ? `Carving at ${cellText(carve.cell)}` : 'Carving stopped',
   );
+}
+
+/** A depth below the stock in plain millimetres: 0.6, 1.2, or 0.05 for a small one. */
+export function depthText(mm: number): string {
+  return `${mm >= 0.1 ? mm.toFixed(1) : mm.toFixed(2)} mm`;
+}
+
+/**
+ * The below-stock note: where the carve first goes below the stock and how far, and the deepest point when it
+ * is elsewhere. It reads the planned setup, so it says so; it never says safe or verified, and it gates nothing.
+ */
+export function belowText(below: NonNullable<CarveInfo['status']['value']['below']>): string {
+  const first = `The tool goes ${depthText(below.firstDepth)} below the stock at line ${String(below.firstLine)}`;
+  const deeper = below.deepestLine !== below.firstLine ? `, and ${depthText(below.deepestDepth)} below at line ${String(below.deepestLine)}` : '';
+  return `${first}${deeper} (preview, from the planned setup)`;
+}
+
+/** The below-stock note for the key line, or null. Reads the progress signal. */
+export function BelowNote({ carve }: { readonly carve: CarveInfo }): ComponentChild {
+  const below = carve.status.value.below;
+  return below === null ? null : [h('span', { 'aria-hidden': 'true' }, '·'), h('span', { class: 'scene-carve-note', 'data-scene': 'below-stock-note', 'data-below-line': String(below.firstLine) }, belowText(below))];
 }
 
 /**

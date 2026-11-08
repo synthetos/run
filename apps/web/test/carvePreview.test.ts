@@ -11,7 +11,7 @@ import { SEGMENT, type SceneLayers } from '@synthetos/gcode-view';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 import { MAX_UNCARVED_NOTES, NO_CHANGE_REASON, NO_T_REASON, carvePlan } from '../src/preview/carveTools.ts';
 import { carveGrid } from '../src/preview/carveStock.ts';
-import { CarveLabel, carveNotes, cellText } from '../src/preview/CarveKey.ts';
+import { BelowNote, CarveLabel, belowText, carveNotes, cellText, depthText } from '../src/preview/CarveKey.ts';
 import { SceneKey } from '../src/preview/SceneKey.ts';
 import type { CarveStatus } from '../src/preview/useCarve.ts';
 
@@ -91,7 +91,7 @@ describe('carveGrid', () => {
 });
 
 describe('the key', () => {
-  const info = (s: Partial<CarveStatus> = {}) => ({ cell: 0.25, uncarved: ['Lines 12–340 not carved: T3 is not in your tool table'], status: signal<CarveStatus>({ through: 40, done: true, lowest: -1, failed: null, ...s }) });
+  const info = (s: Partial<CarveStatus> = {}) => ({ cell: 0.25, uncarved: ['Lines 12–340 not carved: T3 is not in your tool table'], status: signal<CarveStatus>({ through: 40, done: true, lowest: -1, failed: null, below: null, ...s }) });
   it('says the carve cell size in plain words, with test hooks', () => {
     expect(cellText(0.25)).toBe('0.25 mm');
     expect(cellText(1.25)).toBe('1.25 mm');
@@ -109,4 +109,15 @@ describe('the key', () => {
     expect(html).toContain('Carving at 0.25 mm');
     expect(html).not.toMatch(/safe/i);
   });
+  it('names where the cut goes below the stock, as a preview of the planned setup', () => {
+    expect(depthText(0.6)).toBe('0.6 mm');
+    expect(depthText(0.04)).toBe('0.04 mm');
+    expect(belowText({ firstLine: 812, firstDepth: 0.6, deepestLine: 812, deepestDepth: 0.6 })).toBe('The tool goes 0.6 mm below the stock at line 812 (preview, from the planned setup)');
+    expect(belowText({ firstLine: 812, firstDepth: 0.6, deepestLine: 900, deepestDepth: 1.2 })).toBe('The tool goes 0.6 mm below the stock at line 812, and 1.2 mm below at line 900 (preview, from the planned setup)');
+    const html = renderToString(h(SceneKey, { scene: null, carve: info({ below: { firstLine: 812, firstDepth: 0.6, deepestLine: 812, deepestDepth: 0.6 } }) }));
+    expect(html).toContain('data-scene="below-stock-note"');
+    expect(html).not.toMatch(/safe|verified/i);
+    expect(renderToString(h(BelowNote, { carve: info() }))).toBe('');
+  });
 });
+

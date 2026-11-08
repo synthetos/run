@@ -10,7 +10,7 @@ import type { JobScene } from './sceneModel.ts';
 import { SCENE_PARTS, type ScenePart } from './sceneSettings.ts';
 import { ToolLabel, ToolNote } from './ToolKey.ts';
 import { PREVIEW_MARKER_NOTE } from './previewMarker.ts';
-import { CarveLabel, carveNotes } from './CarveKey.ts';
+import { BelowNote, CarveLabel, carveNotes } from './CarveKey.ts';
 import type { CarveInfo } from './useCarve.ts';
 
 export interface SceneKeyProps {
@@ -43,7 +43,7 @@ export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview 
       scene === null ? null : h('span', { 'data-scene': 'bed' }, scene.bedLabel),
       tool === null ? null : [scene === null ? null : h('span', { 'aria-hidden': 'true' }, '·'), h(ToolLabel, { tool })],
       markerPreview ? [h('span', { 'aria-hidden': 'true' }, '·'), h('span', { 'data-scene': 'tool-preview' }, PREVIEW_MARKER_NOTE)] : null,
-      carve === null ? null : [h('span', { 'aria-hidden': 'true' }, '·'), h(CarveLabel, { carve }), carveNotes(carve).map((n) => [h('span', { 'aria-hidden': 'true' }, '·'), n])],
+      carve === null ? null : [h('span', { 'aria-hidden': 'true' }, '·'), h(CarveLabel, { carve }), h(BelowNote, { carve }), carveNotes(carve).map((n) => [h('span', { 'aria-hidden': 'true' }, '·'), n])],
       onOpen === undefined || parts.length === 0
         ? null
         : h(

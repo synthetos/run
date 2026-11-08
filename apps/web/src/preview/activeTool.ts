@@ -7,6 +7,9 @@
  *
  * A T number not in the table, an M6 with no T, or no tool change before the
  * first cut draws the generic glyph with a note; a size is never guessed.
+ * Before the first tool change, the tool the user chose in Analyze as
+ * already in the spindle is shown (the same one the carve uses,
+ * carveTools.ts): their statement, not a guess.
  */
 import { activeToolAt, changeAt, type ToolChanges } from '@synthetos/gcode';
 import type { ToolShape, ToolTip } from '@synthetos/gcode-view';
@@ -100,12 +103,16 @@ export function toolNumbered(number: number, table: readonly ToolTableEntry[]): 
   return { number, shape: null, name: null, note: notInTable(number), missing: number >= 1 ? number : null };
 }
 
-/** The tool active at a file line, looked up in the tool table. */
-export function activeTool(changes: ToolChanges, fileLine: number, table: readonly ToolTableEntry[]): ActiveTool {
+/**
+ * The tool active at a file line, looked up in the tool table. Before the first tool change, `spindleTool` (the T
+ * number the user chose as already in the spindle), when there is one.
+ */
+export function activeTool(changes: ToolChanges, fileLine: number, table: readonly ToolTableEntry[], spindleTool: number | null = null): ActiveTool {
   const number = activeToolAt(changes, fileLine);
   if (number !== null) return toolNumbered(number, table);
   const i = changeAt(changes, fileLine);
   if (i >= 0) return { number: null, shape: null, name: null, note: noToolNamed(changes.lines[i] as number), missing: null };
+  if (spindleTool !== null) return toolNumbered(spindleTool, table);
   const first = changes.lines[0];
   const cutsFirst = changes.firstCut > 0 && (first === undefined || changes.firstCut < first);
   return { number: null, shape: null, name: null, note: cutsFirst ? PLACEHOLDER_NOTE : null, missing: null };

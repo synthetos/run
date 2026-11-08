@@ -22,6 +22,7 @@ import type { ActiveTool } from './activeTool.ts';
 import { useActiveTool, type ActiveToolJob } from './useActiveTool.ts';
 import { scrubbedToolAt } from './previewMarker.ts';
 import { useCarve, type CarveInfo } from './useCarve.ts';
+import { carveTarget, useLiveCarve, type LiveCarveJob } from './liveCarve.ts';
 import type { CarveWorkerLike, Vec3, ViewPreset } from '@synthetos/gcode-view';
 
 /** What a layout gets to arrange: the state, the actions and the rendered pieces. */
@@ -74,7 +75,7 @@ export interface PreviewPanelProps {
    * Phase 3 (SAFETY §4.4a): the running job's file lines, from the worker (which maps the reported line through its
    * own sanitised lines): the line executing and the last line sent. They take precedence over `reportedLine`.
    */
-  readonly job?: (ActiveToolJob & { readonly sentThrough: number | null }) | null;
+  readonly job?: (ActiveToolJob & { readonly sentThrough: number | null; readonly carve?: LiveCarveJob }) | null;
   /** Phase 3: the planner view for the 3D drawing, from the preview's line indices (jobUi.plannerRanges). */
   readonly planner?: (sourceLines: Uint32Array) => PlannerView | null;
   /** Phase 3: the G-code list's breakpoints changed (the job gets them at once). */
@@ -176,11 +177,13 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
   const listKey = useMemo(() => (result === null || state.fileName === null ? null : fileKey(state.fileName, result.bytes)), [result, state.fileName]);
   const executingLine = result === null ? null : job !== null ? job.executing : executingFileLine(reportedLine, result.sourceLines);
   const plannerView = result === null || planner === undefined ? null : planner(result.sourceLines);
-  const activeTool = useActiveTool(result, state.scrub, job, boardTool);
+  const activeTool = useActiveTool(result, state.scrub, job, boardTool, spindleTool);
   // No board position at all: the tool is drawn as a preview at the end of the scrubbed line.
   const previewMarker = tool === null && live === null ? scrubbedToolAt(segments, state.scrub) : null;
-  // The stock carved to the scrubbed line; with nothing scrubbed, the whole job.
-  const carve = useCarve({ spawn: spawnCarve, result, layers: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? NO_OFFSET, target: state.scrub > 0 ? state.scrub : null, enabled: state.drawing === 'webgl' && result?.lite !== true, spindleTool });
+  // The stock carved to the line before the one the board is executing while a job of this file runs (and held
+  // there after it); otherwise to the scrubbed line, or with nothing scrubbed the whole file.
+  const liveCarve = useLiveCarve(job?.carve ?? null, result?.bytes ?? null, result?.sourceLines ?? null);
+  const carve = useCarve({ spawn: spawnCarve, result, layers: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? NO_OFFSET, target: carveTarget(liveCarve, state.scrub), enabled: state.drawing === 'webgl' && result?.lite !== true, spindleTool });
 
   // The tool is drawn only from `tool` (machine coordinates, or the path's frame without a scene): never from the
   // readout, whose work position is in the program's frame and units, not the drawing's.
