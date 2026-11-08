@@ -25,7 +25,7 @@ export interface CarvePlan {
 /** Most uncarved runs named in the key; the rest are counted. */
 export const MAX_UNCARVED_NOTES = 3;
 
-export const NO_CHANGE_REASON = 'no tool change before them. Choose the tool already in the spindle in Analyze to carve them';
+export const NO_CHANGE_REASON = 'no tool chosen. Choose the tool in the spindle in Analyze';
 export const NO_T_REASON = 'the tool change names no tool';
 
 /** The first sent-line index whose file line is at or after `fileLine` (sent lines are in file order). */

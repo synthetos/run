@@ -77,7 +77,7 @@ test('a file with no tool change is carved once the user chooses the tool alread
   const carve = sheet.locator('[data-scene="carve"]');
   await expect(carve).toHaveAttribute('data-carve-done', 'true');
   await expect(carve).toHaveAttribute('data-carve-lowest', '0.000');
-  await expect(sheet.locator('[data-scene="carve-note"]')).toHaveText('Lines 5–9 not carved: no tool change before them. Choose the tool already in the spindle in Analyze to carve them');
+  await expect(sheet.locator('[data-scene="carve-note"]')).toHaveText('Lines 5–9 not carved: no tool chosen. Choose the tool in the spindle in Analyze');
 
   await page.locator('[data-region="rail"] [data-view="analyze"]').click();
   const view = page.locator('[data-screen="analyze"]');

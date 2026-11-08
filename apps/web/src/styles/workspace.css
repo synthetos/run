@@ -1559,7 +1559,7 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .job-view .scene-empty-prompt h2 { font-size: 16px; }
 .job-view .viewer-top { flex-wrap: wrap; align-items: flex-start; }
 .job-view .viewer-options { max-width: 100%; }
-.job-view .viewer-options select { max-width: 200px; }
+.job-view .viewer-options select { max-width: 260px; }
 .job-files-drawer { position: absolute; top: 74px; right: 20px; bottom: 16px; width: min(620px, calc(100% - 40px)); overflow: auto; background: var(--sheet); border: 1px solid var(--field); border-radius: var(--r); box-shadow: var(--pop); z-index: var(--z-panel); padding: 16px; }
 .job-files-content .file-row { grid-template-columns: 24px minmax(0, 1fr); }
 .job-files-content .row-actions { grid-column: 2; flex-wrap: wrap; }
@@ -1732,7 +1732,9 @@ button.icon-btn[data-tip]:hover::after, button.icon-btn[data-tip]:focus-visible:
 .scene-pick-hint { color: var(--muted); font-size: 11px; }
 /* The Run view's preview options in Advanced, each with a plain label. */
 .viewer-option { display: inline-flex; align-items: center; gap: 6px; padding-left: 6px; font-size: 12px; color: var(--muted); }
-.viewer-option .select-wrap.compact select { max-width: 260px; color: var(--ink); }
+.viewer-option .select-wrap.compact select { color: var(--ink); }
+.job-view .viewer-options { flex-wrap: wrap; }
+.job-view .viewer-option { min-width: 0; }
 /* The key's rows: what is drawn, then the notes that matter (each row wraps on its own). */
 .scene-key-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; width: 100%; }
 .viewer-key.scene-key-line { flex-direction: column; align-items: flex-start; gap: 2px; }
