@@ -21,7 +21,8 @@ import { pickLabel, scenePart, type ScenePart } from './sceneSettings.ts';
 import type { ActiveTool } from './activeTool.ts';
 import { useActiveTool, type ActiveToolJob } from './useActiveTool.ts';
 import { scrubbedToolAt } from './previewMarker.ts';
-import type { Vec3, ViewPreset } from '@synthetos/gcode-view';
+import { useCarve, type CarveInfo } from './useCarve.ts';
+import type { CarveWorkerLike, Vec3, ViewPreset } from '@synthetos/gcode-view';
 
 /** What a layout gets to arrange: the state, the actions and the rendered pieces. */
 export interface PreviewParts {
@@ -38,11 +39,15 @@ export interface PreviewParts {
   readonly tool: ActiveTool | null;
   /** True when the marker is the planned position at the scrubbed line (no board), not a reported one. */
   readonly markerPreview: boolean;
+  /** The stock carving for the key (cell size, uncarved lines, progress), or null when nothing is carved. */
+  readonly carve: CarveInfo | null;
 }
 
 export interface PreviewPanelProps {
   /** Starts `gcode.worker`; null without Trusted Types (the panel stays disabled). */
   readonly spawn: (() => WorkerLike) | null;
+  /** Starts the carve worker (useCarve.ts); null or absent for no stock carving. */
+  readonly spawnCarve?: (() => CarveWorkerLike) | null;
   /** P1-07: the live position readout (the reported work position), read out under both views. */
   readonly marker?: ReadonlySignal<LiveMarkerView | null>;
   /**
@@ -121,11 +126,13 @@ export function markerText(m: LiveMarkerView): string {
   return `Tool at X ${c3(m.x)} Y ${c3(m.y)} Z ${c3(m.z)}${m.units === 'in' ? ' in' : ''}${m.g92 === true ? ' · G92 offset active' : ''} · ${age}`;
 }
 
+const NO_OFFSET: Vec3 = [0, 0, 0];
+
 function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, spawnCarve = null, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -170,6 +177,8 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
   const activeTool = useActiveTool(result, state.scrub, job, boardTool);
   // No board position at all: the tool is drawn as a preview at the end of the scrubbed line.
   const previewMarker = tool === null && live === null ? scrubbedToolAt(segments, state.scrub) : null;
+  // The stock carved to the scrubbed line; with nothing scrubbed, the whole job.
+  const carve = useCarve({ spawn: spawnCarve, result, layers: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? NO_OFFSET, target: state.scrub > 0 ? state.scrub : null, enabled: state.drawing === 'webgl' && result?.lite !== true });
 
   // The tool is drawn only from `tool` (machine coordinates, or the path's frame without a scene): never from the
   // readout, whose work position is in the program's frame and units, not the drawing's.
@@ -199,6 +208,7 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
             toolMarker: toolInPath,
             scene: scene?.layers ?? null,
             pathOffset: scene?.pathOffset ?? [0, 0, 0],
+            carve: carve.feed,
             ...pick,
             onUnavailable: () => { setState((s) => ({ ...s, drawing: 'svg' })); },
           })
@@ -230,5 +240,5 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
     ...(readout === undefined ? {} : { marker: readout }),
     ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine, sentThrough: job?.sentThrough ?? null, ...(onReportLine === undefined ? {} : { onReportLine }), ...(onBreakpoints === undefined ? {} : { onBreakpoints }) }) }),
   };
-  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, tool: activeTool, markerPreview: previewMarker !== null && state.drawing === 'webgl' });
+  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, tool: activeTool, markerPreview: previewMarker !== null && state.drawing === 'webgl', carve: carve.info });
 }

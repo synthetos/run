@@ -48,7 +48,7 @@ import { SceneKey } from '../../preview/SceneKey.ts';
 import { openSceneSettings, type ScenePart } from '../../preview/sceneSettings.ts';
 import { sceneColors, tokenReader } from '../../preview/colors.ts';
 import { ViewButtons } from '../../preview/SceneView.ts';
-import type { ViewPreset } from '@synthetos/gcode-view';
+import type { CarveWorkerLike, ViewPreset } from '@synthetos/gcode-view';
 import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
 import { duration as durationText, feedReport, feedShareLine, jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
 
@@ -61,6 +61,8 @@ import { JobFiles } from '../../projects/ProjectsView.ts';
 export interface RunViewProps {
   readonly model: WorkspaceModel | null;
   readonly spawn: (() => WorkerLike) | null;
+  /** Starts the carve worker for the stock carving; null or absent for none. */
+  readonly spawnCarve?: (() => CarveWorkerLike) | null;
   readonly marker?: ReadonlySignal<LiveMarkerView | null>;
   readonly onView: (view: string) => void;
   /** Pause and Stop job: the machine strip's own calls (never gated; absent in the prerendered page). */
@@ -68,7 +70,7 @@ export interface RunViewProps {
   readonly onStopJob?: () => void;
 }
 
-export function RunView({ model, spawn, marker, onView, onPause, onStopJob }: RunViewProps): ComponentChild {
+export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPause, onStopJob }: RunViewProps): ComponentChild {
   const live = model?.live.value ?? null;
   const reportedLine = live !== null && connected(live) ? (live.message?.snapshot.live.line ?? null) : null;
   const ui = jobUi(live);
@@ -88,6 +90,7 @@ export function RunView({ model, spawn, marker, onView, onPause, onStopJob }: Ru
   const { scene, tool } = useLivePlacement(planned, snap === null ? null : { ...snap.live, overlays: snap.overlays }, useLivePathFrame(currentFile.value?.preview ?? null, ui.job));
   return h(PreviewPanel, {
     spawn,
+    spawnCarve,
     ...(marker === undefined ? {} : { marker }),
     tool,
     reportedLine,
@@ -1474,7 +1477,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
               (scene !== null || result !== null) && !result?.lite && state.drawing === 'webgl' ? h(ViewButtons, { current: preset, ...(actions.onView === undefined ? {} : { onView: (p: ViewPreset) => { setPreset(p); actions.onView?.(p); } }), ...(actions.onFit === undefined ? {} : { onFit: () => actions.onFit?.() }) }) : null,
             ),
           ),
-          (scene === null && parts.tool === null) || result?.lite ? null : h(SceneKey, { scene, tool: parts.tool, markerPreview: parts.markerPreview, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) }),
+          (scene === null && parts.tool === null) || result?.lite ? null : h(SceneKey, { scene, tool: parts.tool, markerPreview: parts.markerPreview, carve: parts.carve, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) }),
           result === null && !loading
             ? h(
                 'div',

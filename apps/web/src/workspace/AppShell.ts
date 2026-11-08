@@ -21,6 +21,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { STOP_TEXT, w29 } from '@synthetos/safety';
 import { type BuildInfo, versionLabel } from '../build-info/buildInfo.ts';
 import type { WorkerLike } from '../gcode-worker/client.ts';
+import type { CarveWorkerLike } from '@synthetos/gcode-view';
 import { OverlayBanners } from '../machine-ui/OverlayBanners.ts';
 import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { machineLabel, SafetyBar, type StopBarView } from '../shell/SafetyBar.ts';
@@ -78,6 +79,8 @@ export interface AppShellProps {
   readonly onDismissReleased?: () => void;
   /** Starts `gcode.worker` for the preview; null in the prerendered page. */
   readonly spawn?: (() => WorkerLike) | null;
+  /** Starts the carve worker for the 3D preview's stock carving (carve-worker/spawn.ts); null or absent for none. */
+  readonly spawnCarve?: (() => CarveWorkerLike) | null;
   readonly marker?: ReadonlySignal<LiveMarkerView | null>;
 }
 
@@ -271,7 +274,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
           'main',
           { class: 'view-area', id: 'main', 'data-region': 'centre' },
           h(Banners, { ...props, onReview: () => { boardTab.value = 'settings'; onView('board'); } }),
-          pane('job', h(JobView, { model, spawn: props.spawn ?? null, ...(props.marker === undefined ? {} : { marker: props.marker }), onView, ...(props.onPause === undefined ? {} : { onPause: props.onPause }), ...(props.onStopJob === undefined ? {} : { onStopJob: props.onStopJob }) })),
+          pane('job', h(JobView, { model, spawn: props.spawn ?? null, spawnCarve: props.spawnCarve ?? null, ...(props.marker === undefined ? {} : { marker: props.marker }), onView, ...(props.onPause === undefined ? {} : { onPause: props.onPause }), ...(props.onStopJob === undefined ? {} : { onStopJob: props.onStopJob }) })),
           pane('library', h(LibraryView, { model, onView })),
           pane('board', h(BoardView, { model })),
           pane('projects', h(ProjectsView, { onView })),

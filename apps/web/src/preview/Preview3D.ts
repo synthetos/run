@@ -5,11 +5,12 @@
  *
  * With a scene (preview/sceneModel.ts) the bed, stock, fixture and clamps
  * are drawn under the path, in machine coordinates, and the path is moved
- * to the planned work zero by the renderer's offset uniform.
+ * to the planned work zero by the renderer's offset uniform. With a carve
+ * feed (useCarve.ts) the stock is drawn carved, uploaded as it changes.
  */
 import { Fragment, h, type ComponentChild } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { attachPicking, attachViewControls, createRenderer, type Box3, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type ToolShape, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
+import { attachPicking, attachViewControls, createRenderer, type Box3, type CarveFeed, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type ToolShape, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
 import { previewColors } from './colors.ts';
 
 export interface Preview3DProps {
@@ -44,6 +45,8 @@ export interface Preview3DProps {
   readonly onPick?: (tag: string) => void;
   /** The hover label of a tag ("Fixture: open settings"), or null for a solid that opens nothing. */
   readonly pickLabel?: (tag: string) => string | null;
+  /** The carved stock (useCarve.ts), drawn in place of the flat stock; null or absent for none. */
+  readonly carve?: CarveFeed | null;
 }
 
 export function Preview3D(props: Preview3DProps): ComponentChild {
@@ -129,6 +132,16 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
   useEffect(() => { renderer.current?.setToolMarker(tool, preview); }, [tool?.[0], tool?.[1], tool?.[2], tool === null, preview]);
   const shape = props.toolShape ?? null;
   useEffect(() => { renderer.current?.setToolShape(shape); }, [shape]);
+  const carve = props.carve ?? null;
+  useEffect(() => {
+    const r = renderer.current;
+    if (r === null || carve === null) return;
+    const off = carve.subscribe({ surface: (s) => { r.setCarve(s); }, patch: (rect) => { r.updateCarve(rect); } });
+    return () => {
+      off();
+      r.setCarve(null);
+    };
+  }, [carve]);
 
   return h(Fragment, null, h('canvas', {
     ref: canvas,

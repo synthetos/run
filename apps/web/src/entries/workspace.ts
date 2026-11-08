@@ -25,6 +25,7 @@ import { startBuildChannel } from '../channel/channel.ts';
 import { fetchIndexHtml, postConsole } from '../cloud/benchIndex.ts';
 import { watchConsoleFeed } from '../channel/consoleFeed.ts';
 import { gcodeWorkerSpawner } from '../gcode-worker/spawn.ts';
+import { carveWorkerSpawner } from '../carve-worker/spawn.ts';
 import { callMachineWorker, startMachineWorker } from '../machine-worker/client.ts';
 import { RPC_VERSION } from '../machine-worker/rpc.ts';
 import { browserLocks, openStopChannel } from '../machine-worker/stopChannel.ts';
@@ -88,6 +89,7 @@ renderGuarded(
         onStopJobRequest: () => stopControls.request('stopJob'),
         onDismissReleased: () => watcher.dismissReleased(),
         spawn: gcodeWorkerSpawner(trustedTypes),
+        spawnCarve: carveWorkerSpawner(trustedTypes),
         marker,
       }),
       root,

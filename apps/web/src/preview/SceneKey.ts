@@ -1,7 +1,8 @@
 /**
  * The scene's key, over the drawing: what the bed is, with links to the bed, fixture and stock settings (so
- * opening them from the scene is not mouse-only), the live placement's notes (livePlacement.ts), and the
- * tool the marker shows (ToolKey.ts). Without a job's scene it shows the tool alone.
+ * opening them from the scene is not mouse-only), the live placement's notes (livePlacement.ts), the
+ * tool the marker shows (ToolKey.ts), and the stock carving's cell size and uncarved lines (CarveKey.ts).
+ * Without a job's scene it shows the tool alone.
  */
 import { h, type ComponentChild } from 'preact';
 import type { ActiveTool } from './activeTool.ts';
@@ -9,6 +10,8 @@ import type { JobScene } from './sceneModel.ts';
 import { SCENE_PARTS, type ScenePart } from './sceneSettings.ts';
 import { ToolLabel, ToolNote } from './ToolKey.ts';
 import { PREVIEW_MARKER_NOTE } from './previewMarker.ts';
+import { CarveLabel, carveNotes } from './CarveKey.ts';
+import type { CarveInfo } from './useCarve.ts';
 
 export interface SceneKeyProps {
   readonly scene: JobScene | null;
@@ -20,24 +23,28 @@ export interface SceneKeyProps {
   readonly onAddTool?: (number: number) => void;
   /** The marker is the planned position at the scrubbed line, not the machine: the key says so. */
   readonly markerPreview?: boolean;
+  /** The stock carving (useCarve.ts), or null when nothing is carved. */
+  readonly carve?: CarveInfo | null;
 }
 
-export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview = false }: SceneKeyProps): ComponentChild {
+export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview = false, carve = null }: SceneKeyProps): ComponentChild {
   const parts: ScenePart[] = scene === null ? [] : ['bed', ...(scene.layers.solids.some((s) => s.tag === 'fixture') ? (['fixture'] as const) : []), 'stock'];
   const notes = scene?.notes ?? [];
   const toolNote = tool?.note == null ? null : h(ToolNote, { tool, ...(onAddTool === undefined ? {} : { onAddTool }) });
+  const uncarved = carveNotes(carve);
   return h(
     'div',
     { class: 'scene-key' },
-    notes.length === 0 && toolNote === null
+    notes.length === 0 && toolNote === null && uncarved.length === 0
       ? null
-      : h('div', { class: 'viewer-key scene-notes', role: 'status', 'data-scene': 'notes' }, notes.map((n, i) => h('p', { key: String(i), 'data-scene': 'note' }, n)), toolNote),
+      : h('div', { class: 'viewer-key scene-notes', role: 'status', 'data-scene': 'notes' }, notes.map((n, i) => h('p', { key: String(i), 'data-scene': 'note' }, n)), toolNote, uncarved),
     h(
       'div',
       { class: 'viewer-key scene-key-line' },
       scene === null ? null : h('span', { 'data-scene': 'bed' }, scene.bedLabel),
       tool === null ? null : [scene === null ? null : h('span', { 'aria-hidden': 'true' }, '·'), h(ToolLabel, { tool })],
       markerPreview ? [h('span', { 'aria-hidden': 'true' }, '·'), h('span', { 'data-scene': 'tool-preview' }, PREVIEW_MARKER_NOTE)] : null,
+      carve === null ? null : [h('span', { 'aria-hidden': 'true' }, '·'), h(CarveLabel, { carve })],
       onOpen === undefined || parts.length === 0
         ? null
         : h(
