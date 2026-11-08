@@ -63,7 +63,7 @@ describe('createCarveHandler', () => {
     h.send({ type: 'setup', session: 2, spec: SPEC, tools: TOOLS });
     h.send({ type: 'seek', session: 2, target: 0 });
     h.run();
-    expect(progress(h.out)).toEqual([{ type: 'progress', session: 2, rect: null, data: null, through: 0, target: 0, done: true, lowest: 0 }]);
+    expect(progress(h.out)).toEqual([{ type: 'progress', session: 2, rect: null, data: null, through: 0, target: 0, done: true, lowest: 0, below: null }]);
   });
 
   it('carves nothing without a grid or a file', () => {
@@ -98,7 +98,7 @@ describe('createCarveClient', () => {
 
   it('keeps a copy of the heightmap equal to the worker carve, and tells its listeners', () => {
     const w = inline();
-    const client = createCarveClient(w.spawn);
+    const client = createCarveClient(w.spawn, { seekIntervalMs: 0 });
     const seen = { surfaces: 0, patches: 0, last: null as null | { through: number; done: boolean } };
     client.subscribe({ surface: () => { seen.surfaces++; }, patch: () => { seen.patches++; }, progress: (p) => { seen.last = p; } });
     expect(seen.surfaces).toBe(1);
@@ -139,6 +139,36 @@ describe('createCarveClient', () => {
     // The second session's tool is unknown: nothing carved, whatever the first had posted.
     expect(client.surface?.z.every((v) => v === 0)).toBe(true);
     expect(client.progress).toMatchObject({ session: 2, through: 50, done: true });
+  });
+
+  it('coalesces targets: at most one seek per interval, the latest wins', () => {
+    const posted: ToCarveWorker[] = [];
+    let t = 0;
+    const timers: { fn: () => void; at: number }[] = [];
+    const client = createCarveClient(() => ({ onmessage: null, onerror: null, postMessage: (m) => { posted.push(m); }, terminate: () => undefined }), {
+      seekIntervalMs: 50,
+      now: () => t,
+      setTimer: (fn, ms) => { const timer = { fn, at: t + ms }; timers.push(timer); return timer; },
+      clearTimer: (h) => { timers.splice(timers.indexOf(h as { fn: () => void; at: number }), 1); },
+    });
+    client.setup(SPEC, TOOLS);
+    const seeks = (): number[] => posted.filter((m) => m.type === 'seek').map((m) => (m as { target: number }).target);
+    client.seek(1);
+    expect(seeks()).toEqual([1]);
+    // A fast job: a thousand line updates within one interval send one more seek, the last.
+    for (let line = 2; line <= 1000; line++) client.seek(line);
+    expect(seeks()).toEqual([1]);
+    expect(timers).toHaveLength(1);
+    t = 50;
+    timers.shift()?.fn();
+    expect(seeks()).toEqual([1, 1000]);
+    // A new session drops a waiting target.
+    t = 60;
+    client.seek(1001);
+    client.setup(SPEC, TOOLS);
+    expect(timers).toHaveLength(0);
+    client.seek(3);
+    expect(seeks()).toEqual([1, 1000, 3]);
   });
 
   it('starts no worker until there is something to carve', () => {

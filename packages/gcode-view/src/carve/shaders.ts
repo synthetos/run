@@ -68,6 +68,8 @@ uniform ivec2 u_size;
 uniform vec3 u_grid;
 uniform vec2 u_z;
 uniform vec4 u_color;
+uniform vec4 u_below;
+uniform float u_belowEps;
 in vec2 v_cell;
 in float v_z;
 out vec4 o_color;
@@ -88,8 +90,10 @@ vec3 slopeAt(int x, int y) {
 void main() {
   ivec2 t = clamp(ivec2(floor(v_cell)), ivec2(0), u_size - 1);
   float h = texelFetch(u_height, t, 0).r;
-  // No stock here, or cut through to the bottom: what is under it shows.
-  if (h < NO_STOCK || h <= u_z.y + 1e-4) discard;
+  // No stock here, or cut through to the bottom (and no further): what is under it shows. A cut below the
+  // bottom is drawn in the warning colour, at the bottom.
+  bool below = h >= NO_STOCK && h < u_z.y - u_belowEps;
+  if (h < NO_STOCK || (!below && h <= u_z.y + 1e-4)) discard;
   // The slope blended between the four nearest texel centres, so a round trough or a curved wall shades smoothly
   // instead of in cell-sized facets.
   vec2 c = v_cell - 0.5;
@@ -106,7 +110,7 @@ void main() {
   float shade = clamp(0.3 + 0.7 * (0.5 + 0.5 * dot(n, light)) / (0.5 + 0.5 * light.z), 0.3, 1.1);
   float depth = clamp((u_z.x - v_z) / max(1e-6, u_z.x - u_z.y), 0.0, 1.0);
   // Opaque whatever the stock colour's alpha: a see-through cut would wash out against the page.
-  o_color = vec4(u_color.rgb * shade * (1.0 - 0.15 * depth), 1.0);
+  o_color = below ? vec4(u_below.rgb * (0.75 + 0.25 * shade), 1.0) : vec4(u_color.rgb * shade * (1.0 - 0.15 * depth), 1.0);
 }`;
 
 export const WALL_VERTEX = `${COMMON}

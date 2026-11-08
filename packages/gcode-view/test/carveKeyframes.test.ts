@@ -17,10 +17,10 @@ describe('createKeyframes', () => {
   it('finds the snapshot at or before a line, as a copy', () => {
     const k = createKeyframes(10);
     const z = new Float32Array([1, 2]);
-    k.put(10, z);
+    k.put(10, z, undefined);
     z[0] = 9;
-    k.put(30, z);
-    k.put(20, new Float32Array([5, 5]));
+    k.put(30, z, undefined);
+    k.put(20, new Float32Array([5, 5]), undefined);
     expect(k.atOrBefore(5)).toBeNull();
     expect(k.atOrBefore(10)?.z[0]).toBe(1);
     expect(k.atOrBefore(29)?.line).toBe(20);
@@ -30,14 +30,14 @@ describe('createKeyframes', () => {
   });
   it('keeps the first snapshot of a line', () => {
     const k = createKeyframes(10);
-    k.put(10, new Float32Array([1]));
-    k.put(10, new Float32Array([2]));
+    k.put(10, new Float32Array([1]), undefined);
+    k.put(10, new Float32Array([2]), undefined);
     expect(k.atOrBefore(10)?.z[0]).toBe(1);
     expect(k.count).toBe(1);
   });
   it('thins out to every other snapshot over the cap', () => {
     const k = createKeyframes(1, 16);
-    for (let line = 1; line <= 5; line++) k.put(line, new Float32Array([line]));
+    for (let line = 1; line <= 5; line++) k.put(line, new Float32Array([line]), undefined);
     expect(k.bytes).toBeLessThanOrEqual(16);
     expect(k.atOrBefore(5)?.line).toBe(5);
     expect(k.count).toBeLessThanOrEqual(4);
@@ -47,7 +47,7 @@ describe('createKeyframes', () => {
   });
   it('skips a snapshot bigger than the cap', () => {
     const k = createKeyframes(1, 4);
-    k.put(1, new Float32Array(2));
+    k.put(1, new Float32Array(2), undefined);
     expect(k.count).toBe(0);
   });
 });

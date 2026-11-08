@@ -4,12 +4,17 @@
  * pastes each patch the worker sends into it, and tells its listeners: a new
  * surface (a new session), a changed rectangle, progress.
  *
+ * Targets are coalesced: at most one seek goes to the worker every
+ * `seekIntervalMs` (the latest wins), so a fast job's line updates or a
+ * dragged scrubber never queue up behind the carve.
+ *
  * It does not decide what to carve (the page gives the segments, grid,
  * tools and target) and it does not draw.
  */
 import type { SegmentList } from '../segments.ts';
 import { createHeightmap, pasteRect, type CellRect, type GridSpec } from './heightmap.ts';
 import type { CarveToolTable, FromCarveWorker, ToCarveWorker } from './protocol.ts';
+import type { BelowStock } from './belowStock.ts';
 
 /** The subset of `Worker` the client uses. */
 export interface CarveWorkerLike {
@@ -34,6 +39,8 @@ export interface CarveProgress {
   readonly done: boolean;
   /** The lowest top Z carved so far (path frame), or the stock top when nothing is cut. */
   readonly lowest: number;
+  /** Where the lines carved so far go below the stock (list lines), or null. */
+  readonly below: BelowStock | null;
   /** Set when the worker failed; the carve stops. */
   readonly error?: string;
 }
@@ -60,12 +67,29 @@ export interface CarveClient extends CarveFeed {
   dispose(): void;
 }
 
-export function createCarveClient(spawn: () => CarveWorkerLike): CarveClient {
+export interface CarveClientOptions {
+  /** Least time between two seeks sent to the worker, ms (default 50). */
+  readonly seekIntervalMs?: number;
+  /** The clock and timer (default performance.now and setTimeout). */
+  readonly now?: () => number;
+  readonly setTimer?: (fn: () => void, ms: number) => unknown;
+  readonly clearTimer?: (handle: unknown) => void;
+}
+
+export function createCarveClient(spawn: () => CarveWorkerLike, options: CarveClientOptions = {}): CarveClient {
+  const interval = options.seekIntervalMs ?? 50;
+  const now = options.now ?? (() => performance.now());
+  const setTimer = options.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
+  const clearTimer = options.clearTimer ?? ((h: unknown) => { clearTimeout(h as ReturnType<typeof setTimeout>); });
   let worker: CarveWorkerLike | null = null;
   let session = 0;
   let surface: CarveSurface | null = null;
   let progress: CarveProgress | null = null;
   let lastTarget = -1;
+  /** The target waiting for the next send, and when the last one went. */
+  let queued: number | null = null;
+  let sentAt = -Infinity;
+  let timer: unknown = null;
   const listeners = new Set<CarveListener>();
 
   const tell = (f: (l: CarveListener) => void): void => {
@@ -75,7 +99,7 @@ export function createCarveClient(spawn: () => CarveWorkerLike): CarveClient {
   function onMessage(m: FromCarveWorker): void {
     if (m.session !== session || surface === null) return;
     if (m.type === 'error') {
-      progress = { session, through: progress?.through ?? 0, target: progress?.target ?? 0, done: true, lowest: progress?.lowest ?? surface.spec.top, error: m.message };
+      progress = { session, through: progress?.through ?? 0, target: progress?.target ?? 0, done: true, lowest: progress?.lowest ?? surface.spec.top, below: progress?.below ?? null, error: m.message };
       tell((l) => l.progress?.(progress as CarveProgress));
       return;
     }
@@ -84,8 +108,23 @@ export function createCarveClient(spawn: () => CarveWorkerLike): CarveClient {
       const rect = m.rect;
       tell((l) => l.patch?.(rect));
     }
-    progress = { session, through: m.through, target: m.target, done: m.done, lowest: m.lowest };
+    progress = { session, through: m.through, target: m.target, done: m.done, lowest: m.lowest, below: m.below };
     tell((l) => l.progress?.(progress as CarveProgress));
+  }
+
+  function flush(): void {
+    timer = null;
+    if (queued === null || surface === null) return;
+    const target = queued;
+    queued = null;
+    sentAt = now();
+    ensure().postMessage({ type: 'seek', session, target });
+  }
+
+  function cancelQueued(): void {
+    if (timer !== null) clearTimer(timer);
+    timer = null;
+    queued = null;
   }
 
   function ensure(): CarveWorkerLike {
@@ -112,6 +151,8 @@ export function createCarveClient(spawn: () => CarveWorkerLike): CarveClient {
     setup(spec, tools) {
       session++;
       lastTarget = -1;
+      cancelQueued();
+      sentAt = -Infinity;
       surface = spec === null ? null : { session, spec, z: createHeightmap(spec).z };
       progress = null;
       const s = surface;
@@ -122,7 +163,12 @@ export function createCarveClient(spawn: () => CarveWorkerLike): CarveClient {
     seek(target) {
       if (surface === null || target === lastTarget) return;
       lastTarget = target;
-      ensure().postMessage({ type: 'seek', session, target });
+      queued = target;
+      const wait = sentAt + interval - now();
+      if (wait <= 0) {
+        if (timer !== null) clearTimer(timer);
+        flush();
+      } else if (timer === null) timer = setTimer(flush, wait);
     },
     get surface() {
       return surface;
@@ -136,6 +182,7 @@ export function createCarveClient(spawn: () => CarveWorkerLike): CarveClient {
       return () => { listeners.delete(listener); };
     },
     dispose() {
+      cancelQueued();
       worker?.terminate();
       worker = null;
       listeners.clear();

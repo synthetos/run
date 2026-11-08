@@ -51,6 +51,8 @@ describe('createCarveLayer', () => {
     // The top, a strip per row; the walls.
     expect(calls.get('drawArraysInstanced')).toBe(1);
     expect(calls.get('drawArrays')).toBe(1);
+    // The top is pulled toward the eye, so a cut to the bottom shows over the fixture's top face.
+    expect(calls.get('polygonOffset')).toBe(1);
     layer.update({ x: 1, y: 1, w: 2, h: 2 });
     layer.update({ x: 5, y: 1, w: 2, h: 2 });
     layer.draw(MVP, [0, 0, 0]);

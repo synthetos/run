@@ -17,19 +17,21 @@ export const KEYFRAME_CAP_BYTES = 128 * 1024 * 1024;
 /** Never snapshot more often than every this many lines. */
 export const MIN_KEYFRAME_INTERVAL = 50;
 
-export interface Keyframe {
+export interface Keyframe<M = undefined> {
   /** Lines 0..line-1 are carved into it. */
   readonly line: number;
   readonly z: Float32Array;
+  /** What the caller kept with it (the carver: what it had found by then). */
+  readonly meta: M;
 }
 
-export interface Keyframes {
+export interface Keyframes<M = undefined> {
   /** Lines between snapshots. */
   readonly interval: number;
-  /** Stores a copy of `z` as carved through `line` (a line already held is kept as it is). */
-  put(line: number, z: Float32Array): void;
+  /** Stores a copy of `z` as carved through `line`, with `meta` (a line already held is kept as it is). */
+  put(line: number, z: Float32Array, meta: M): void;
   /** The snapshot with the greatest line at or before `line`, or null. */
-  atOrBefore(line: number): Keyframe | null;
+  atOrBefore(line: number): Keyframe<M> | null;
   clear(): void;
   readonly count: number;
   readonly bytes: number;
@@ -41,8 +43,8 @@ export function keyframeInterval(lines: number, cells: number, cap = KEYFRAME_CA
   return Math.max(min, Math.ceil(Math.max(1, lines) / most));
 }
 
-export function createKeyframes(interval: number, cap = KEYFRAME_CAP_BYTES): Keyframes {
-  let frames: Keyframe[] = [];
+export function createKeyframes<M = undefined>(interval: number, cap = KEYFRAME_CAP_BYTES): Keyframes<M> {
+  let frames: Keyframe<M>[] = [];
   let bytes = 0;
   /** The index of the last frame at or before `line`, or -1. */
   const find = (line: number): number => {
@@ -50,16 +52,16 @@ export function createKeyframes(interval: number, cap = KEYFRAME_CAP_BYTES): Key
     let hi = frames.length;
     while (lo < hi) {
       const mid = (lo + hi) >>> 1;
-      if ((frames[mid] as Keyframe).line <= line) lo = mid + 1;
+      if ((frames[mid] as Keyframe<M>).line <= line) lo = mid + 1;
       else hi = mid;
     }
     return lo - 1;
   };
   return {
     interval,
-    put(line, z) {
+    put(line, z, meta) {
       const at = find(line);
-      if (at >= 0 && (frames[at] as Keyframe).line === line) return;
+      if (at >= 0 && (frames[at] as Keyframe<M>).line === line) return;
       while (frames.length > 0 && bytes + z.byteLength > cap) {
         // Thin out: keep every other snapshot, so the ones left still span the file.
         const kept = frames.filter((_, i) => i % 2 === 1);
@@ -67,12 +69,12 @@ export function createKeyframes(interval: number, cap = KEYFRAME_CAP_BYTES): Key
         frames = kept;
       }
       if (z.byteLength > cap) return;
-      frames.splice(find(line) + 1, 0, { line, z: z.slice() });
+      frames.splice(find(line) + 1, 0, { line, z: z.slice(), meta });
       bytes += z.byteLength;
     },
     atOrBefore(line) {
       const at = find(line);
-      return at < 0 ? null : (frames[at] as Keyframe);
+      return at < 0 ? null : (frames[at] as Keyframe<M>);
     },
     clear() {
       frames = [];

@@ -67,7 +67,7 @@ export function createCarveHandler(post: CarvePost, options: CarveHandlerOptions
         rect = unionRect(rect, step.dirty);
       }
       const data = rect === null ? null : copyRect(c.heightmap.z, c.heightmap.spec.nx, rect);
-      post({ type: 'progress', session, rect, data, through: step.through, target: c.target, done: step.done, lowest: c.lowest }, data === null ? [] : [data.buffer]);
+      post({ type: 'progress', session, rect, data, through: step.through, target: c.target, done: step.done, lowest: c.lowest, below: c.below }, data === null ? [] : [data.buffer]);
       if (!step.done) schedule();
     } catch (e) {
       fail(e);

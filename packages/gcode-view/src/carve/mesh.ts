@@ -28,8 +28,12 @@
  * nearest texel centres per fragment, so a round trough or a curved wall
  * shades smoothly rather than in cell-sized facets.
  *
+ * Cells cut below the stock's bottom (belowStock.ts) are drawn in the
+ * warning colour at the bottom, pulled slightly toward the eye so they show
+ * over the fixture's top face.
+ *
  * Frames: the surface is in the path frame, drawn with the path's offset.
- * It does not carve, and it draws no below-stock warning (slice 3).
+ * It does not carve.
  */
 import type { Rgba } from '../scene.ts';
 import type { Vec3 } from '../segments.ts';
@@ -38,6 +42,7 @@ import type { CarveSurface } from './client.ts';
 import { unionRect, type CellRect, type GridSpec } from './heightmap.ts';
 import { MESH_MAX, SOFTWARE_MESH_MAX, meshLayout, wallVertices } from './meshGeometry.ts';
 import { TOP_FRAGMENT, TOP_VERTEX, WALL_FRAGMENT, WALL_VERTEX } from './shaders.ts';
+import { BELOW_STOCK_EPS } from './belowStock.ts';
 
 /** More pending rectangles than this are uploaded as one. */
 const MAX_UPLOADS = 16;
@@ -48,6 +53,8 @@ export interface CarveLayer {
   /** A rectangle of the surface changed: uploaded before the next frame. */
   update(rect: CellRect): void;
   setColor(color: Rgba): void;
+  /** The colour of cells cut below the stock's bottom (the renderer's out-of-bounds colour). */
+  setBelowColor(color: Rgba): void;
   readonly active: boolean;
   /** The surface's footprint in the path frame as [x0, y0, x1, y1], or null with none. */
   readonly footprint: readonly [number, number, number, number] | null;
@@ -82,7 +89,7 @@ export function createCarveLayer(gl: WebGL2RenderingContext, options: CarveLayer
   const wall = link(gl, WALL_VERTEX, WALL_FRAGMENT, ['a_wall', 'a_shade']);
   const loc = (p: WebGLProgram, names: readonly string[]): Record<string, WebGLUniformLocation | null> => Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(p, `u_${n}`)]));
   const shared = ['height', 'mvp', 'offset', 'grid', 'size', 'z', 'color'];
-  const tu = loc(top, [...shared, 'mesh', 'stride']);
+  const tu = loc(top, [...shared, 'mesh', 'stride', 'below', 'belowEps']);
   const wu = loc(wall, shared);
   const gridVao = gl.createVertexArray();
   let texture: WebGLTexture | null = null;
@@ -92,6 +99,7 @@ export function createCarveLayer(gl: WebGL2RenderingContext, options: CarveLayer
   let surface: CarveSurface | null = null;
   let pending: CellRect[] = [];
   let color: Rgba = [0.75, 0.75, 0.75, 1];
+  let belowColor: Rgba = [0.8, 0.1, 0.1, 1];
 
   function releaseSurface(): void {
     if (texture !== null) gl.deleteTexture(texture);
@@ -161,6 +169,9 @@ export function createCarveLayer(gl: WebGL2RenderingContext, options: CarveLayer
     setColor(next) {
       color = next;
     },
+    setBelowColor(next) {
+      belowColor = next;
+    },
     get active() {
       return surface !== null;
     },
@@ -181,8 +192,14 @@ export function createCarveLayer(gl: WebGL2RenderingContext, options: CarveLayer
       uniforms(tu, spec, mvp, offset);
       gl.uniform2i(tu['mesh'] ?? null, m.mx, m.my);
       gl.uniform1i(tu['stride'] ?? null, m.stride);
+      gl.uniform4f(tu['below'] ?? null, belowColor[0], belowColor[1], belowColor[2], belowColor[3]);
+      gl.uniform1f(tu['belowEps'] ?? null, BELOW_STOCK_EPS);
       gl.bindVertexArray(gridVao);
+      // Pulled toward the eye a little: a cut to (or below) the stock's bottom lies on the fixture's top face.
+      gl.enable(gl.POLYGON_OFFSET_FILL);
+      gl.polygonOffset(-1, -4);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 2 * m.mx, m.my - 1);
+      gl.disable(gl.POLYGON_OFFSET_FILL);
       if (wallVao !== null && wallCount > 0) {
         gl.useProgram(wall);
         uniforms(wu, spec, mvp, offset);

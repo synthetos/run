@@ -276,6 +276,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   const solidProgram = link(gl, SOLID_VERTEX, SOLID_FRAGMENT, ['a_pos', 'a_color']);
   const su = { mvp: gl.getUniformLocation(solidProgram, 'u_mvp') };
   const carve = createCarveLayer(gl, options.carveMeshMax === undefined ? {} : { meshMax: options.carveMeshMax });
+  carve.setBelowColor(options.colors.outOfBounds);
 
   let colors = options.colors;
   let path: GpuChunk[] = [];
@@ -689,6 +690,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     },
     setColors(next) {
       colors = next;
+      carve.setBelowColor(next.outOfBounds);
       requestRender();
     },
     setPlanner(next) {

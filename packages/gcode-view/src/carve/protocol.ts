@@ -11,6 +11,7 @@
  */
 import type { ToolShape } from '../toolProfile.ts';
 import type { CellRect, GridSpec } from './heightmap.ts';
+import type { BelowStock } from './belowStock.ts';
 
 export interface CarveSegments {
   readonly vertices: Float32Array;
@@ -39,6 +40,8 @@ export interface CarveProgressMessage {
   readonly target: number;
   readonly done: boolean;
   readonly lowest: number;
+  /** Where the lines carved so far go below the stock (list lines), or null. */
+  readonly below: BelowStock | null;
 }
 
 export type FromCarveWorker = CarveProgressMessage | { readonly type: 'error'; readonly session: number; readonly message: string };

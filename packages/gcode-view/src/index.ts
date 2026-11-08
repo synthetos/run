@@ -48,8 +48,10 @@ export type { CarveStep, CarveTools, Carver, CarverOptions } from './carve/carve
 export { createCarveHandler } from './carve/worker.ts';
 export type { CarveHandlerOptions, CarvePost } from './carve/worker.ts';
 export { createCarveClient } from './carve/client.ts';
-export type { CarveClient, CarveFeed, CarveListener, CarveProgress, CarveSurface, CarveWorkerLike } from './carve/client.ts';
+export type { CarveClientOptions, CarveClient, CarveFeed, CarveListener, CarveProgress, CarveSurface, CarveWorkerLike } from './carve/client.ts';
 export type { CarveProgressMessage, CarveSegments, CarveToolTable, FromCarveWorker, ToCarveWorker } from './carve/protocol.ts';
 export { createCarveLayer, defaultMeshMax } from './carve/mesh.ts';
 export { MESH_MAX, SOFTWARE_MESH_MAX, meshLayout, wallVertices } from './carve/meshGeometry.ts';
 export type { CarveLayer, CarveLayerOptions } from './carve/mesh.ts';
+export { BELOW_STOCK_EPS, noteBelow } from './carve/belowStock.ts';
+export type { BelowStock } from './carve/belowStock.ts';
