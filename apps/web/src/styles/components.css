@@ -489,7 +489,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .account-notice { max-width: 52ch; font-size: 13px; line-height: 1.45; }
 .account-notice p { margin: 0 0 8px; }
 .account-notice .account-meanwhile { font-weight: 600; margin-bottom: 4px; }
-.account-notice .account-works { margin: 0 0 10px; padding-left: 18px; }
+.account-notice .account-works { margin: 0 0 10px; padding-left: 18px; list-style: disc; }
+.live-entry[data-accounts="coming-soon"] { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .account-notice .account-works li { margin: 2px 0; }
 .button {
   display: inline-flex;
