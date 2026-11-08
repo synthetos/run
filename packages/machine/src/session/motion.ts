@@ -738,6 +738,8 @@ export function onFollowUp(t: MotionTx, then: FollowUp, at: number): void {
   const s = t.s;
   const homed = s.live.home === 1;
   if (homed && s.overlays.includes('UNKNOWN')) t.set({ overlays: s.overlays.filter((o) => o !== 'UNKNOWN') });
+  // Words only (S2): a G28.3 also reads back `home` 1, so say which of the two set the position.
+  if (homed) t.set({ notices: { ...t.s.notices, position: { by: then === 'homed' ? 'homing' : 'hand', at } } });
   const ctx = s.motion;
   if (then === 'homed' && ctx !== null && ctx.op === 'home' && ctx.phase === 'readback') {
     const axes = axisNames(ctx.axes as readonly JogAxis[]);

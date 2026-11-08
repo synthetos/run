@@ -30,6 +30,7 @@ import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
 import { HomeSection, HomeQuick, UnknownExits } from '../homing.ts';
 import { ProbeZ } from '../probe/ProbeZ.ts';
+import { HomingTag } from '../positionTag.ts';
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
 import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { signalText } from '../../shell/signal.ts';
@@ -335,11 +336,9 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
       m === null ? null : h('span', { class: 'tag', 'data-position': 'wcs' }, wcs?.code ?? '—'),
       m === null
         ? null
-        : homed === null
-        ? h('span', { class: 'tag', 'data-position': 'homing' }, 'Homing unknown')
-        : homed
-          ? h('span', { class: 'tag ok', 'data-position': 'homing' }, 'Homed')
-          : h('span', { class: 'tag warn', 'data-position': 'homing' }, 'Not homed', h(ContextHelp, { id: 'w34-help', label: 'About moving before homing', safety: 'W34', below: true }, ...signalText(w34()))),
+        : homed === false
+          ? h('span', { class: 'tag warn', 'data-position': 'homing' }, 'Not homed', h(ContextHelp, { id: 'w34-help', label: 'About moving before homing', safety: 'W34', below: true }, ...signalText(w34())))
+          : HomingTag(homed, m.snapshot.notices.position?.by),
       typeof tool === 'number' && uiLevel.value.value === 'advanced' ? h('span', { class: 'tag', 'data-position': 'tool' }, `T${tool}`) : null,
       h('span', { class: 'pos-all' }, act('zeroHere', `Set ${axesText(xyz)} work zero here`, () => setConfirm({ kind: 'set', axes: xyz })), act('goZero', `Go to ${axesText(xyz)} zero`, () => setConfirm({ kind: 'go', axes: xyz }))),
     ),

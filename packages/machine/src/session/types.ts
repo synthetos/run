@@ -384,6 +384,14 @@ export interface SessionNotices {
    * ("Paused", "Stopped: queue cleared, spindle and coolant off", "Resumed", or why a move ended).
    */
   readonly motion?: { readonly kind: 'paused' | 'stopped' | 'resumed' | 'done' | 'refused' | 'failed'; readonly text: string; readonly at: number };
+  /**
+   * How this link's machine position was last established, for the words only (first-time walk 2026-11-08, S2):
+   * `homing` after a homing cycle read back with X, Y and Z homed, `hand` after a G28.3 (set machine position)
+   * read back the same way. The board reports `home` 1 after either, so only the session that sent it can tell
+   * them apart. Nothing decides on it: placement, the allow-matrix and the unhomed confirmation still read `home`.
+   * Reset with the other notices when the link ends.
+   */
+  readonly position?: { readonly by: 'homing' | 'hand'; readonly at: number };
   /** Homing, set machine position and offsets (amendment 2026-11-02): the last result in plain words. */
   readonly change?: { readonly kind: 'done' | 'refused' | 'failed'; readonly text: string; readonly at: number };
   /** The last connect attempt failed before the port opened. */
