@@ -2,7 +2,8 @@
  * The stock carving in the preview (docs/design/tool-sim.md, slice 2) as a
  * hook: it owns the carve worker's client, sends it the open file's
  * segments, the stock's grid (carveStock.ts) and the tools per change point
- * (carveTools.ts), and the target: the scrubbed line, or with nothing
+ * (carveTools.ts; the lines before the first tool change with the tool the
+ * user chose as already in the spindle, if any), and the target: the scrubbed line, or with nothing
  * scrubbed the whole job. A new file, tool table or stock starts a new
  * carve; the scrubber only moves the target.
  *
@@ -56,11 +57,13 @@ export interface CarveInput {
   readonly target: number | null;
   /** False where nothing is drawn in 3D (the SVG fallback, lite mode). */
   readonly enabled: boolean;
+  /** The T number the user chose as already in the spindle, for the lines before the first tool change, or null. */
+  readonly spindleTool?: number | null;
 }
 
 const IDLE: CarveStatus = Object.freeze({ through: 0, done: false, lowest: 0, failed: null });
 
-export function useCarve({ spawn, result, layers, pathOffset, target, enabled }: CarveInput): CarveView {
+export function useCarve({ spawn, result, layers, pathOffset, target, enabled, spindleTool = null }: CarveInput): CarveView {
   const [client, setClient] = useState<CarveClient | null>(null);
   const status = useMemo(() => signal<CarveStatus>(IDLE), []);
   const sourceLines = useRef<Uint32Array | null>(null);
@@ -90,7 +93,7 @@ export function useCarve({ spawn, result, layers, pathOffset, target, enabled }:
   if (!sameSpec(held.current, next)) held.current = next;
   const grid = held.current;
   const table = toolStore.value.value;
-  const plan = useMemo(() => (result === null || segments === null ? null : carvePlan(result.tools, result.sourceLines, segments, table)), [result, segments, table]);
+  const plan = useMemo(() => (result === null || segments === null ? null : carvePlan(result.tools, result.sourceLines, segments, table, spindleTool)), [result, segments, table, spindleTool]);
   const lines = segments === null ? 0 : segments.lineToVertex.length - 1;
   const goal = target === null ? lines : Math.min(lines, Math.max(0, target));
   const goalRef = useRef(goal);

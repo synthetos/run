@@ -7,7 +7,9 @@
  *
  * A line whose tool is unknown (no tool change before it, an M6 with no T,
  * a T number not in the tool table) carves nothing: a size is never
- * guessed. Only feeds and arcs count for the note; a rapid alone is not
+ * guessed. Lines before the first tool change use the tool the user chose
+ * as already in the spindle (Analyze), when they chose one: their
+ * statement, not a guess. Only feeds and arcs count for the note; a rapid alone is not
  * called an uncarved cut.
  */
 import { NO_TOOL, type ToolChanges } from '@synthetos/gcode';
@@ -23,7 +25,7 @@ export interface CarvePlan {
 /** Most uncarved runs named in the key; the rest are counted. */
 export const MAX_UNCARVED_NOTES = 3;
 
-export const NO_CHANGE_REASON = 'no tool change before them';
+export const NO_CHANGE_REASON = 'no tool change before them. Choose the tool already in the spindle in Analyze to carve them';
 export const NO_T_REASON = 'the tool change names no tool';
 
 /** The first sent-line index whose file line is at or after `fileLine` (sent lines are in file order). */
@@ -51,11 +53,15 @@ function cuts(segments: Pick<SegmentList, 'kinds' | 'lineToVertex'>, i: number):
 
 const range = (a: number, b: number): string => (a === b ? `Line ${String(a)}` : `Lines ${String(a)}–${String(b)}`);
 
-/** The carve worker's tools and the key's uncarved notes, for a file's tool changes and the tool table. */
-export function carvePlan(changes: Pick<ToolChanges, 'lines' | 'tools'>, sourceLines: Uint32Array, segments: Pick<SegmentList, 'kinds' | 'lineToVertex'>, table: readonly ToolTableEntry[]): CarvePlan {
+/**
+ * The carve worker's tools and the key's uncarved notes, for a file's tool changes, the tool table, and the T
+ * number the user chose as already in the spindle (for the lines before the first tool change), or null.
+ */
+export function carvePlan(changes: Pick<ToolChanges, 'lines' | 'tools'>, sourceLines: Uint32Array, segments: Pick<SegmentList, 'kinds' | 'lineToVertex'>, table: readonly ToolTableEntry[], spindleTool: number | null = null): CarvePlan {
+  const first = spindleTool === null ? null : toolNumbered(spindleTool, table).shape;
   const starts: number[] = [0];
-  const shapes: (ToolShape | null)[] = [null];
-  const reasons: (string | null)[] = [NO_CHANGE_REASON];
+  const shapes: (ToolShape | null)[] = [first];
+  const reasons: (string | null)[] = [spindleTool === null ? NO_CHANGE_REASON : first === null ? notInTable(spindleTool) : null];
   for (let k = 0; k < changes.lines.length; k++) {
     const start = firstSentAt(sourceLines, changes.lines[k] as number);
     const t = changes.tools[k] as number;

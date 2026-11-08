@@ -36,3 +36,23 @@ export const advisorRows = computed(() => {
   return file.operations.map((o) => advisorRow(o, operationFields(o.id), input.machine, advisorStock.value, toolStore.value.value, file.problem, input.problem));
 });
 export const advisorSummary = computed(() => advisorOperations.value.problem === null ? advisorCheck(advisorRows.value) : 'Feeds: resolve the file findings in Job');
+
+/**
+ * The tool the user said is already in the spindle (Analyze, "Tool already in the spindle") for the open file's
+ * cuts before its first tool change, or null: one T number when every such choice agrees, null when none is made
+ * or two disagree. The 3D preview carves the lines before the first tool change with it (preview/carveTools.ts):
+ * the user's own statement, never a guess. Display only.
+ */
+export const spindleToolChoice = computed<number | null>(() => {
+  const preview = currentFile.value?.preview;
+  if (preview === undefined) return null;
+  const firstChange = preview.tools.lines[0] ?? Infinity;
+  const picks = new Set<number>();
+  for (const o of advisorOperations.value.operations) {
+    if (o.tool !== null || o.line >= firstChange) continue;
+    const t = Number(operationFields(o.id)['tool']);
+    if (Number.isInteger(t) && t > 0) picks.add(t);
+  }
+  return picks.size === 1 ? ([...picks][0] ?? null) : null;
+});
+

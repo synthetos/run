@@ -3,7 +3,8 @@
  * tool table (seed: T4, 12.7 mm, 90°) carves the stock in the carve worker. With nothing scrubbed the whole
  * job is carved; scrubbing moves the carve back and forward. The key's carve line carries what the carve has
  * reached (`data-carved-through`, the file line; `data-carve-lowest`, the lowest top in the path frame), so
- * nothing here reads pixels. A T number not in the table carves nothing and the key names the lines.
+ * nothing here reads pixels. A T number not in the table carves nothing and the key names the lines. A file
+ * with no tool change carves nothing until the user chooses the tool already in the spindle in Analyze.
  */
 import { expect, test } from './fixtures.ts';
 import { ready } from './helpers.ts';
@@ -65,3 +66,24 @@ test('a tool that is not in the tool table carves nothing, and the key names the
   await expect(carve).toHaveAttribute('data-carve-lowest', '0.000');
   await expect(sheet.locator('[data-scene="carve-note"]')).toHaveText('Lines 5–9 not carved: T9 is not in your tool table');
 });
+
+test('a file with no tool change is carved once the user chooses the tool already in the spindle', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await ready(page);
+  const sheet = page.locator('[data-region="preview"]');
+  await open(page, 'no-m6.nc', V_FILE.replace('T4 M6', '(the tool is already in the spindle)'));
+  const carve = sheet.locator('[data-scene="carve"]');
+  await expect(carve).toHaveAttribute('data-carve-done', 'true');
+  await expect(carve).toHaveAttribute('data-carve-lowest', '0.000');
+  await expect(sheet.locator('[data-scene="carve-note"]')).toHaveText('Lines 5–9 not carved: no tool change before them. Choose the tool already in the spindle in Analyze to carve them');
+
+  await page.locator('[data-region="rail"] [data-view="analyze"]').click();
+  const view = page.locator('[data-screen="analyze"]');
+  for (const op of await view.locator('[data-advisor-operation]').all()) await op.locator('[data-advisor-field="tool"]').selectOption('4');
+  await page.locator('[data-region="rail"] [data-view="job"]').click();
+  await expect(carve).toHaveAttribute('data-carve-done', 'true');
+  await expect(carve).toHaveAttribute('data-carve-lowest', CUT);
+  await expect(sheet.locator('[data-scene="carve-note"]')).toHaveCount(0);
+});
+

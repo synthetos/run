@@ -41,6 +41,15 @@ describe('carvePlan', () => {
     expect(plan.uncarved).toEqual([`Line 1 not carved: ${NO_CHANGE_REASON}`, 'Lines 3–4 not carved: T9 is not in your tool table', `Line 6 not carved: ${NO_T_REASON}`]);
   });
 
+  it('carves the lines before the first tool change with the tool the user chose as already in the spindle', () => {
+    const lines = Uint32Array.from([1, 2, 3, 4]);
+    const plan = carvePlan(changes([3], [4]), lines, segs([FEED, FEED, 0, FEED]), SEED_TOOLS, 1);
+    expect(plan.tools.shapes.map((s) => s?.tip ?? null)).toEqual(['flat', 'v']);
+    expect(plan.uncarved).toEqual([]);
+    // A chosen T number the table does not have is named, never guessed.
+    expect(carvePlan(changes([], []), lines, segs([FEED, FEED, 0, FEED]), SEED_TOOLS, 9).uncarved).toEqual(['Lines 1–4 not carved: T9 is not in your tool table']);
+  });
+
   it('does not call a rapid alone an uncarved cut', () => {
     expect(carvePlan(changes([3], [1]), Uint32Array.from([1, 2, 3, 4]), segs([RAPID, RAPID, 0, FEED]), SEED_TOOLS).uncarved).toEqual([]);
   });

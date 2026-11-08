@@ -48,6 +48,8 @@ export interface PreviewPanelProps {
   readonly spawn: (() => WorkerLike) | null;
   /** Starts the carve worker (useCarve.ts); null or absent for no stock carving. */
   readonly spawnCarve?: (() => CarveWorkerLike) | null;
+  /** The T number the user chose as already in the spindle (Analyze), carving the lines before the first tool change; null for none. */
+  readonly spindleTool?: number | null;
   /** P1-07: the live position readout (the reported work position), read out under both views. */
   readonly marker?: ReadonlySignal<LiveMarkerView | null>;
   /**
@@ -132,7 +134,7 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, spawnCarve = null, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -178,7 +180,7 @@ export function PreviewPanel({ spawn, spawnCarve = null, marker, tool = null, la
   // No board position at all: the tool is drawn as a preview at the end of the scrubbed line.
   const previewMarker = tool === null && live === null ? scrubbedToolAt(segments, state.scrub) : null;
   // The stock carved to the scrubbed line; with nothing scrubbed, the whole job.
-  const carve = useCarve({ spawn: spawnCarve, result, layers: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? NO_OFFSET, target: state.scrub > 0 ? state.scrub : null, enabled: state.drawing === 'webgl' && result?.lite !== true });
+  const carve = useCarve({ spawn: spawnCarve, result, layers: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? NO_OFFSET, target: state.scrub > 0 ? state.scrub : null, enabled: state.drawing === 'webgl' && result?.lite !== true, spindleTool });
 
   // The tool is drawn only from `tool` (machine coordinates, or the path's frame without a scene): never from the
   // readout, whose work position is in the program's frame and units, not the drawing's.

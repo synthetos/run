@@ -43,6 +43,7 @@ import { openToolNumber } from '../toolNumbers.ts';
 import { projectsState } from '../../projects/store.ts';
 import { projectStore } from '../../projects/browserStore.ts';
 import { jobScene } from '../../preview/sceneModel.ts';
+import { spindleToolChoice } from '../advisorState.ts';
 import { useLivePathFrame, useLivePlacement } from '../../preview/useLivePlacement.ts';
 import { SceneKey } from '../../preview/SceneKey.ts';
 import { openSceneSettings, type ScenePart } from '../../preview/sceneSettings.ts';
@@ -91,6 +92,7 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
   return h(PreviewPanel, {
     spawn,
     spawnCarve,
+    spindleTool: spindleToolChoice.value,
     ...(marker === undefined ? {} : { marker }),
     tool,
     reportedLine,
