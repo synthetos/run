@@ -19,3 +19,5 @@ export { KIND, LINE_FLAG } from './types.ts';
 export type { Box, EndModal, Finding, FindingSeverity, InterpretOptions, JobAnalysis, JobStats, TimingModel } from './types.ts';
 export { PREVIEW_MARK, VERDICT, indexFindings, lineVerdicts, previewSegments, sentSourceLines } from './preview.ts';
 export type { FindingIndex, PreviewSegments, VerdictCode } from './preview.ts';
+export { NO_TOOL, activeToolAt, changeAt, toolChanges } from './tools.ts';
+export type { ToolChanges } from './tools.ts';

@@ -18,6 +18,8 @@ import { PreviewSvg } from './PreviewSvg.ts';
 import { IDLE_STATE, PreviewView, type PreviewSlots, type PreviewViewActions, type PreviewViewState } from './PreviewView.ts';
 import type { JobScene } from './sceneModel.ts';
 import { pickLabel, scenePart, type ScenePart } from './sceneSettings.ts';
+import type { ActiveTool } from './activeTool.ts';
+import { useActiveTool, type ActiveToolJob } from './useActiveTool.ts';
 import type { Vec3, ViewPreset } from '@synthetos/gcode-view';
 
 /** What a layout gets to arrange: the state, the actions and the rendered pieces. */
@@ -31,6 +33,8 @@ export interface PreviewParts {
   readonly scene: JobScene | null;
   /** The tool as handed to the drawing, in the path's frame (mm), or null: the layout exposes it as `data-tool`. */
   readonly toolInPath: Vec3 | null;
+  /** The tool the 3D marker shows (activeTool.ts), or null before a file is open. */
+  readonly tool: ActiveTool | null;
 }
 
 export interface PreviewPanelProps {
@@ -60,7 +64,7 @@ export interface PreviewPanelProps {
    * Phase 3 (SAFETY §4.4a): the running job's file lines, from the worker (which maps the reported line through its
    * own sanitised lines): the line executing and the last line sent. They take precedence over `reportedLine`.
    */
-  readonly job?: { readonly executing: number | null; readonly sentThrough: number | null } | null;
+  readonly job?: (ActiveToolJob & { readonly sentThrough: number | null }) | null;
   /** Phase 3: the planner view for the 3D drawing, from the preview's line indices (jobUi.plannerRanges). */
   readonly planner?: (sourceLines: Uint32Array) => PlannerView | null;
   /** Phase 3: the G-code list's breakpoints changed (the job gets them at once). */
@@ -158,6 +162,7 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
   const listKey = useMemo(() => (result === null || state.fileName === null ? null : fileKey(state.fileName, result.bytes)), [result, state.fileName]);
   const executingLine = result === null ? null : job !== null ? job.executing : executingFileLine(reportedLine, result.sourceLines);
   const plannerView = result === null || planner === undefined ? null : planner(result.sourceLines);
+  const activeTool = useActiveTool(result, state.scrub, job);
 
   // The tool is drawn only from `tool` (machine coordinates, or the path's frame without a scene): never from the
   // readout, whose work position is in the program's frame and units, not the drawing's.
@@ -180,6 +185,7 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
             wcsOrigin: scene === null ? result?.summary.wcsOrigin ?? [0, 0, 0] : scene.zero,
             envelope: result?.summary.envelope ?? null,
             fitRequest,
+            toolShape: activeTool?.shape ?? null,
             view,
             planner: plannerView,
             toolMarker: toolInPath,
@@ -216,5 +222,5 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
     ...(readout === undefined ? {} : { marker: readout }),
     ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine, sentThrough: job?.sentThrough ?? null, ...(onReportLine === undefined ? {} : { onReportLine }), ...(onBreakpoints === undefined ? {} : { onBreakpoints }) }) }),
   };
-  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath });
+  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, tool: activeTool });
 }

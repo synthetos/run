@@ -18,6 +18,8 @@
  * easing from one reported position to the next (markerMotion.ts), which
  * never runs past the latest report; its geometry is built once at the
  * origin and moved by the offset uniform, so those frames upload nothing.
+ * Its shape is the active tool's at true size when the page gives one
+ * (toolProfile.ts, `setToolShape`), else a generic glyph sized to the drawing.
  */
 import { VIEW_ANGLES, fitOrbit, pan, rotate, viewProjection, zoom, type Orbit, type ViewAngles, type ViewPreset } from './camera.ts';
 import { DEFAULT_SEGMENTS_PER_CHUNK, STYLE, chunks } from './geometry.ts';
@@ -27,6 +29,7 @@ import { gridLayout, gridLines } from './grid.ts';
 import { pickSolid, rayThrough } from './pick.ts';
 import { nextMotion, positionAt, settled, type MarkerMotion } from './markerMotion.ts';
 import { offsetBox, ringSegments, sceneBounds, solidTriangles, unionBox, type Rgba, type SceneLayers } from './scene.ts';
+import { toolWireframe, type ToolShape } from './toolProfile.ts';
 
 export type { Rgba };
 
@@ -99,6 +102,8 @@ export interface PreviewRenderer {
   setPlanner(planner: PlannerOverlay | null): void;
   /** The tool position the board reports (in the path's frame), drawn as a small marker, or null to hide it. */
   setToolMarker(position: Vec3 | null): void;
+  /** The marker's tool, drawn at true size; null for the generic glyph. The geometry is rebuilt only when this changes. */
+  setToolShape(shape: ToolShape | null): void;
   /** The scene solids under the path (bed, stock, fixture, clamps), in the drawing's frame, or null for none. */
   setScene(scene: SceneLayers | null): void;
   /** Where the path's origin sits in the drawing's frame (the planned work zero); [0, 0, 0] by default. */
@@ -284,6 +289,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   let highlightLine = -1;
   let planner: PlannerOverlay | null = null;
   let marker: Vec3 | null = null;
+  let toolShape: ToolShape | null = null;
   let motion: MarkerMotion | null = null;
   let angles: ViewAngles = VIEW_ANGLES.iso;
   let view: Orbit = fitOrbit(null);
@@ -350,8 +356,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   function rebuildOverlay(): void {
     if (gridChunk !== null) release(gridChunk);
     if (frameOverlay !== null) release(frameOverlay);
-    if (markerOverlay !== null) release(markerOverlay);
-    gridChunk = frameOverlay = markerOverlay = null;
+    gridChunk = frameOverlay = null;
     const pos: number[] = [];
     const sty: number[] = [];
     const seg = (a: Vec3, b: Vec3, s: number): void => {
@@ -386,12 +391,23 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       seg([x, y, z], [x, y, z + s], OVERLAY.AXIS_Z);
     }
     frameOverlay = linesChunk(pos, sty);
-    pos.length = 0;
-    sty.length = 0;
-    if (marker !== null) {
-      for (const [a, b] of toolGlyph(NO_OFFSET, fitBox())) seg(a, b, OVERLAY.MARKER);
-      markerOverlay = linesChunk(pos, sty);
+    // The generic glyph is sized to the drawing, so it follows the drawn extent; a true-size tool does not.
+    if (toolShape === null) rebuildMarker();
+  }
+
+  /** The marker's geometry, tip at the origin: the tool's wireframe at true size, or the generic glyph. */
+  function rebuildMarker(): void {
+    if (markerOverlay !== null) release(markerOverlay);
+    markerOverlay = null;
+    if (marker === null) return;
+    const lines = toolShape === null ? toolGlyph(NO_OFFSET, fitBox()) : toolWireframe(toolShape);
+    const pos: number[] = [];
+    const sty: number[] = [];
+    for (const [a, b] of lines) {
+      pos.push(...a, ...b);
+      sty.push(OVERLAY.MARKER, OVERLAY.MARKER);
     }
+    markerOverlay = linesChunk(pos, sty);
   }
 
   function rebuildSolids(): void {
@@ -642,7 +658,13 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       const shownChanged = (marker === null) !== (position === null);
       marker = position;
       motion = nextMotion(motion, position, now(), reducedMotion());
-      if (shownChanged) rebuildOverlay();
+      if (shownChanged) rebuildMarker();
+      requestRender();
+    },
+    setToolShape(shape) {
+      if (sameShape(shape, toolShape)) return;
+      toolShape = shape;
+      rebuildMarker();
       requestRender();
     },
     resize(w, h, pixelRatio = 1) {
@@ -703,6 +725,12 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       gl.deleteProgram(solidProgram);
     },
   };
+}
+
+/** True when two tool shapes draw the same wireframe. */
+function sameShape(a: ToolShape | null, b: ToolShape | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.tip === b.tip && a.diameter === b.diameter && a.fluteLength === b.fluteLength && a.shank === b.shank && a.length === b.length && a.cornerRadius === b.cornerRadius && a.vAngle === b.vAngle && a.tipWidth === b.tipWidth && a.pointAngle === b.pointAngle;
 }
 
 /**

@@ -9,7 +9,7 @@
  */
 import { Fragment, h, type ComponentChild } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { attachPicking, attachViewControls, createRenderer, type Box3, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
+import { attachPicking, attachViewControls, createRenderer, type Box3, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type ToolShape, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
 import { previewColors } from './colors.ts';
 
 export interface Preview3DProps {
@@ -29,6 +29,8 @@ export interface Preview3DProps {
   readonly planner?: PlannerOverlay | null;
   /** Phase 3: the tool position the board reports during a job (work coordinates, as drawn), or null. */
   readonly toolMarker?: Vec3 | null;
+  /** The marker's tool at true size (preview/activeTool.ts), or null for the generic glyph. */
+  readonly toolShape?: ToolShape | null;
   /** The scene solids under the path (machine coordinates), or null. */
   readonly scene?: SceneLayers | null;
   /** Where the path's origin sits in the scene (the planned work zero); [0, 0, 0] without a scene. */
@@ -121,6 +123,8 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
   useEffect(() => { renderer.current?.setPlanner(plan); }, [plan?.cutEnd, plan?.execEnd, plan?.queuedEnd, plan?.starving, plan === null]);
   const tool = props.toolMarker ?? null;
   useEffect(() => { renderer.current?.setToolMarker(tool); }, [tool?.[0], tool?.[1], tool?.[2], tool === null]);
+  const shape = props.toolShape ?? null;
+  useEffect(() => { renderer.current?.setToolShape(shape); }, [shape]);
 
   return h(Fragment, null, h('canvas', {
     ref: canvas,

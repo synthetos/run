@@ -20,6 +20,8 @@ export { VIEW_ANGLES, eye, fitOrbit, lookAt, multiply, pan, perspective, project
 export type { Mat4, Orbit, ViewAngles, ViewPreset } from './camera.ts';
 export { createRenderer, toolGlyph } from './renderer.ts';
 export type { LoadOptions, PlannerOverlay, PreviewColors, PreviewRenderer, RendererOptions, Rgba } from './renderer.ts';
+export { profileHeight, tipHeight, toolOutline, toolWireframe } from './toolProfile.ts';
+export type { ToolShape, ToolTip } from './toolProfile.ts';
 export { attachViewControls } from './controls.ts';
 export { CLICK_SLOP_PX, hitSolid, pickSolid, rayThrough } from './pick.ts';
 export type { Ray } from './pick.ts';

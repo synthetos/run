@@ -14,6 +14,7 @@ import {
   interpretJob,
   previewSegments,
   sentSourceLines,
+  toolChanges,
   type Box,
   type Finding,
   type FindingIndex,
@@ -21,6 +22,7 @@ import {
   type JobStats,
   type PreviewSegments,
   type ProgramFrames,
+  type ToolChanges,
 } from '@synthetos/gcode';
 import { latin1, lineSpans } from './lines.ts';
 
@@ -146,6 +148,8 @@ export interface PreviewResult {
    * (gcode frames.ts): one entry per offset change. Kept in lite mode too; it is a few numbers.
    */
   readonly frameTable: ProgramFrames;
+  /** The tool changes by file line and the first cut (gcode `toolChanges`): which tool the 3D marker shows. Display only. */
+  readonly tools: ToolChanges;
   /** The file, and [start, end) spans per line, for the virtualised list. */
   readonly bytes: Uint8Array;
   readonly spans: Uint32Array;
@@ -212,6 +216,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
       routine: shown.routine,
       sourceLines: sentSourceLines(sanitized),
       frameTable: analysis.frameTable,
+      tools: toolChanges(sanitized.lines, analysis),
       bytes,
       spans,
       summary: {
@@ -231,7 +236,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
 
 /** The buffers moved (not copied) to the page. */
 export function transferablesOf(result: PreviewResult): ArrayBuffer[] {
-  const views: ArrayBufferView[] = [result.verdicts, result.sourceLines, result.bytes, result.spans, result.frameTable.lines, result.frameTable.offsets, result.frameTable.g92Lines];
+  const views: ArrayBufferView[] = [result.verdicts, result.sourceLines, result.bytes, result.spans, result.frameTable.lines, result.frameTable.offsets, result.frameTable.g92Lines, result.tools.lines, result.tools.tools];
   if (result.segments !== null) views.push(result.segments.vertices, result.segments.kinds, result.segments.lineToVertex, result.segments.lineMarks);
   const seen = new Set<ArrayBuffer>();
   for (const v of views) if (v.buffer instanceof ArrayBuffer) seen.add(v.buffer);

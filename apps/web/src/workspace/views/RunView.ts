@@ -90,7 +90,7 @@ export function RunView({ model, spawn, marker, onView, onPause, onStopJob }: Ru
     ...(marker === undefined ? {} : { marker }),
     tool,
     reportedLine,
-    job: job === null ? null : { executing: job.executing?.line ?? null, sentThrough: job.sentThrough },
+    job: job === null ? null : { executing: job.executing?.line ?? null, sentThrough: job.sentThrough, toolChange: job.toolChange },
     planner: (sourceLines: Uint32Array) => plannerRanges(job, sourceLines, starve),
     ...(sendJob === undefined ? {} : { onBreakpoints: (lines: readonly number[]) => void sendJob({ op: 'breakpoints', lines: [...lines] }) }),
     onReportLine: (line: number) => openReport({ origin: 'line', line }),
@@ -1472,7 +1472,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
               (scene !== null || result !== null) && !result?.lite && state.drawing === 'webgl' ? h(ViewButtons, { current: preset, ...(actions.onView === undefined ? {} : { onView: (p: ViewPreset) => { setPreset(p); actions.onView?.(p); } }), ...(actions.onFit === undefined ? {} : { onFit: () => actions.onFit?.() }) }) : null,
             ),
           ),
-          scene === null || result?.lite ? null : h(SceneKey, { scene, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView) }) }),
+          (scene === null && parts.tool === null) || result?.lite ? null : h(SceneKey, { scene, tool: parts.tool, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: () => onView('tools') }) }),
           result === null && !loading
             ? h(
                 'div',

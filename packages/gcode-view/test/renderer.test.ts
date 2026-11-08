@@ -152,6 +152,52 @@ describe('WebGL renderer', () => {
   });
 });
 
+describe('tool shape', () => {
+  const flat = { tip: 'flat', diameter: 6, fluteLength: 18, shank: 6, length: 26 } as const;
+
+  it('builds the true-size wireframe once per shape: a new position or the same shape uploads nothing', async () => {
+    const { gl, uploads } = fakeGl();
+    const frames = frameQueue();
+    let clock = 0;
+    const r = createRenderer(gl, { colors: COLORS, requestFrame: frames.request, now: () => clock, reducedMotion: () => false });
+    await r.load(listOf([[[SEGMENT.FEED, 100, 100, 0]]]), instant);
+    r.setToolMarker([0, 0, 0]);
+    frames.flush();
+    let before = uploads.length;
+    r.setToolShape(flat);
+    expect(uploads.length).toBeGreaterThan(before);
+    // The wireframe sits at true size: its z runs from the tip (0) to the drawn length.
+    const zs = Array.from(uploads[before] as Float32Array).filter((_, i) => i % 3 === 2);
+    expect(Math.min(...zs)).toBe(0);
+    expect(Math.max(...zs)).toBeCloseTo(26, 5);
+    expect(frames.flush()).toBe(1);
+    before = uploads.length;
+    r.setToolShape({ ...flat });
+    clock = 250;
+    r.setToolMarker([10, 0, 0]);
+    for (; clock <= 700 && frames.pending > 0; clock += 16) frames.flush();
+    expect(uploads.length).toBe(before);
+    r.setToolShape({ ...flat, tip: 'ball' });
+    expect(uploads.length).toBeGreaterThan(before);
+  });
+
+  it('null brings back the generic glyph; a shape set while the marker is hidden draws when it appears', async () => {
+    const { gl, uploads } = fakeGl();
+    const frames = frameQueue();
+    const r = createRenderer(gl, { colors: COLORS, requestFrame: frames.request, now: () => 0, reducedMotion: () => true });
+    const before = uploads.length;
+    r.setToolShape(flat);
+    expect(uploads.length).toBe(before);
+    r.setToolMarker([1, 1, 1]);
+    const zs = Array.from(uploads[before] as Float32Array).filter((_, i) => i % 3 === 2);
+    expect(Math.max(...zs)).toBeCloseTo(26, 5);
+    const mid = uploads.length;
+    r.setToolShape(null);
+    const glyph = Array.from(uploads[mid] as Float32Array).filter((_, i) => i % 3 === 2);
+    expect(Math.max(...glyph)).toBeCloseTo((25 + 12 + 80) * 0.2, 5);
+  });
+});
+
 describe('toolGlyph', () => {
   it('draws the bit, collet nut and spindle above the tip, true size on a bed and smaller on a small drawing', () => {
     const big = toolGlyph([10, 20, 0], { min: [0, 0, 0], max: [800, 800, 10] });
