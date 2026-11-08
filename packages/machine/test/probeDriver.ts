@@ -47,6 +47,14 @@ export class R {
     }
     return this;
   }
+  /** Answers the `unit` and `dist` reads the probe sends before its `G21` (modes.ts): mm, absolute by default. */
+  modes(unit = 1, dist = 0): this {
+    for (const [token, value] of [['unit', unit], ['dist', dist]] as const) {
+      if (this.writing !== token) throw new Error(`expected the ${token} read, writing ${JSON.stringify(this.s.writing)}`);
+      this.answer(value);
+    }
+    return this;
+  }
   /** Answers every probe input read in the way. */
   inputs(value = 0): this {
     while (this.s.writing?.token === 'in5') this.answer(value);
@@ -68,7 +76,7 @@ export async function ready(): Promise<R> {
 /** From ready to the probe running (the G38.2 answered). */
 export async function probing(): Promise<R> {
   const r = (await ready()).intent(START);
-  r.poll(1);
+  r.poll(1).modes();
   expect(r.writing).toBe('G21');
   r.answer();
   expect(r.writing).toBe('G91 G38.2 Z-5 F25');

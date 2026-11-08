@@ -169,7 +169,12 @@ export type ReadPurpose =
   /** OD-14: a setting the session needs to read the board at all (`{jv:4}` when GETs answer empty), written once at connect. */
   | 'normalize'
   /** Probe Z (SAFETY §4.5c): its settings reads, the input poll, its own lines (with `line`) and the zero's read-back. */
-  | 'probeZ';
+  | 'probeZ'
+  /** `unit` and `dist` read before run changes them, so the modes put back are the board's own (modes.ts). */
+  | 'modes';
+
+/** Who a `modes` read is for: a jog or go to zero, the probe, or a job's tool change. */
+export type ModesOwner = 'motion' | 'probe' | 'toolChange';
 
 /** What runs when the last read-back of a change has been answered. */
 export type FollowUp = 'homed' | 'positionSet';
@@ -187,6 +192,8 @@ export interface PendingRead {
   readonly then?: FollowUp;
   /** `job` only: the index of the job line. */
   readonly index?: number;
+  /** `modes` only: where the answer is kept. */
+  readonly modesFor?: ModesOwner;
 }
 
 /** How a settings write ended. */
@@ -553,9 +560,9 @@ export interface JobState {
     /** Machine position where the job stopped (from reports), to return to at a safe height. */
     readonly at: Readonly<Partial<Record<Axis, number>>>;
     /**
-     * The job's units (`unit`, 0 inches) and distance mode (`dist`, 1 incremental) when it stopped: the return
-     * moves run in explicit absolute millimetres, then these are put back before the job goes on (independent
-     * review 2026-11-03, R1).
+     * The job's units (`unit`, 0 inches) and distance mode (`dist`, 1 incremental) when it stopped, read at rest
+     * after M5 and M9 (modes.ts): the return moves run in explicit absolute millimetres, then these are put back
+     * before the job goes on (independent review 2026-11-03, R1). Unknown: a return is refused.
      */
     readonly units: number | undefined;
     readonly dist: number | undefined;
@@ -756,9 +763,9 @@ export interface MotionCtx {
   readonly confirmed: number;
   /** The current hold or flush phase must complete by then (W12 and FAULT otherwise). */
   readonly deadline: number | null;
-  /** `unit` when the motion started (0 inches): restored at the end. */
+  /** `unit` read before a jog or go to zero changed it (0 inches; modes.ts): restored at the end. Unknown: not restored. */
   readonly units: number | undefined;
-  /** `dist` when the motion started (1 incremental): a jog during a job's tool change restores it (Phase 3). */
+  /** `dist` read the same way (1 incremental): go to zero and a jog during a job's tool change restore it (Phase 3). */
   readonly dist?: number | undefined;
   /** The base to return to when the motion ends. */
   readonly returnTo: SessionBase;

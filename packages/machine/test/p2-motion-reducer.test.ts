@@ -43,6 +43,11 @@ function connected(patch: Record<string, string> = {}, options: { readonly relea
   return d;
 }
 
+/** Answers the `unit` and `dist` reads a jog or go to zero sends before its first line (modes.ts). */
+function modes(d: Driver): void {
+  d.answer(answers(), (t) => t !== 'unit' && t !== 'dist');
+}
+
 function req(d: Driver, r: SessionIntent) {
   return d.intent(r);
 }
@@ -205,6 +210,7 @@ describe('refusals, timeouts and damaged answers', () => {
   it('a damaged answer to a motion line is a FAULT (and a FAULT while moving holds); a damaged poll is asked again', () => {
     const d = connected();
     req(d, { intent: 'jog', axes: { x: 1 }, distanceMm: 10, feed: 600 });
+    modes(d);
     d.written();
     const from = d.effects.length;
     d.line('{"r":{"gc":"G1"},"f":[3,0');
@@ -212,6 +218,7 @@ describe('refusals, timeouts and damaged answers', () => {
     expect(realtimeNames(d, from)).toEqual(['feedhold']);
     const p = connected();
     req(p, { intent: 'jog', axes: { x: 1 }, distanceMm: 0.1, feed: 600 });
+    modes(p);
     p.written();
     p.line(OK); // G21
     p.written();

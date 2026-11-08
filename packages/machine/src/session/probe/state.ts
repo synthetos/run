@@ -35,7 +35,7 @@ export interface ProbeRun {
   /** Z when the probe started, mm: work position (450.02 report frame, converted from inches) and machine position (450.03+). */
   readonly fromPos: number | null;
   readonly fromMpo: number | null;
-  /** `unit` and `dist` when it started (0 inches, 1 incremental): put back after the zero. */
+  /** `unit` and `dist` read before its `G21` (0 inches, 1 incremental; modes.ts): put back after the zero. Unknown: not put back. */
   readonly units: number | undefined;
   readonly dist: number | undefined;
   /** The check at rest passed and `G21` was queued. */

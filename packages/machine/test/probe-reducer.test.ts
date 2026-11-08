@@ -160,7 +160,7 @@ describe('Probe Z through the reducer', () => {
       ['starting, before G21', async () => (await ready()).intent(START)],
       ['starting, G21 out', async () => {
         const r = (await ready()).intent(START);
-        r.poll(1);
+        r.poll(1).modes();
         return r;
       }],
       ['probing', probing],
@@ -352,7 +352,7 @@ describe('Probe Z through the reducer', () => {
     z.ev({ type: 'intent', at: z.at, request: { intent: 'read', tokens: ['vel'] } });
     expect(z.s.probeZ.outcome).toEqual({ kind: 'zeroUnconfirmed' });
     const g = (await ready()).intent(START);
-    g.poll(1);
+    g.poll(1).modes();
     g.s = { ...g.s, queue: [g.s.writing as SessionState['queue'][number]], writing: null, base: 'ALARM' };
     g.ev({ type: 'intent', at: g.at, request: { intent: 'read', tokens: ['vel'] } });
     expect(g.s.probeZ.outcome).toEqual({ kind: 'refused', status: 0, text: 'Not sent: the machine left the state that allows it.' });
@@ -365,7 +365,7 @@ describe('Probe Z through the reducer', () => {
 
   it('the G21 answer after a stop queues nothing more; a refused G21 is the result', async () => {
     const r = (await ready()).intent(START);
-    r.poll(1);
+    r.poll(1).modes();
     r.ev({ type: 'lineWritten', epoch: r.s.epoch, seq: (r.s.writing as { seq: number }).seq, at: r.at });
     r.s = { ...r.s, probeZ: { ...r.s.probeZ, run: { ...(r.s.probeZ.run as NonNullable<SessionState['probeZ']['run']>), stopped: 'pause' } } };
     r.line(`{"r":{},"f":[${r.s.footerRev ?? 2},0,8]}`);

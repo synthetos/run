@@ -80,6 +80,7 @@ import { writeLineCapFor } from '../writeShape.ts';
 import type { PortSelector } from '../transport.ts';
 import { gateTokens, judgeGate, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
 import { restingStat, restingUsesHold } from './resting.ts';
+import { onModesAnswer } from './modes.ts';
 import { POLL_TOKENS, abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
 import { HEARTBEAT_INTERVAL_MS, JV_LINE, REPORT_DIALECTS, SEED_TOKENS, heartbeatCoversHold, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
 
@@ -1339,6 +1340,9 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
     case 'probeZ':
       onProbeAnswer(t, e, r, at);
       return;
+    case 'modes':
+      onModesAnswer(t, e, r.footer.status === 0 ? r.r[e.token] : undefined);
+      return;
   }
 }
 
@@ -1595,6 +1599,9 @@ function onGarbled(t: Tx, at: number): void {
       return;
     case 'jobRuntime':
       onJobRuntimeAnswer(t, entry, null, at);
+      return;
+    case 'modes':
+      onModesAnswer(t, entry, undefined);
       return;
     case 'probeZ':
       onProbeGarbled(t, MOTION_DEPS, entry, at);

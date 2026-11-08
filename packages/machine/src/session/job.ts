@@ -62,6 +62,7 @@ import { MOTION_LIMITS, atRestPolled, beginHold, completedPoll, heldPolled, idle
 import { sessionSettings } from './settingWrite.ts';
 import { ACTIVE_PHASES, failJob, jobActive, jobEvent, lastFileLine, patchJob, type JobTx } from './jobState.ts';
 import { ABSOLUTE_MM_LINE, motionLineKind, restoreLine, returnXYLine, safeZLine, spindleLine } from './motionLines.ts';
+import { queueModeReads } from './modes.ts';
 import type { Axis, Expected, FeedLimitState, FeedMove, FeedSummary, JobReportSummary, JobState, PendingRead, PolledValues, SessionConfig, SessionIntent, SessionState } from './types.ts';
 
 /** Timing and bounds of the job layer (SAFETY §4.4a). Milliseconds unless named otherwise. */
@@ -1199,12 +1200,15 @@ function stopReached(t: JobLayerTx, at: number, stop: NonNullable<JobState['stop
     const tc = (j.lines[stop.index] as SentLine).toolChange as NonNullable<SentLine['toolChange']>;
     // H74: the spindle and coolant go off before anyone reaches in. The card says so (W37) only once M5 and M9
     // are each answered with status 0 (`outputsOff`, R6); a refusal or a missing answer ends the job closed.
+    // The job's units and distance mode, read at rest after every line of the job was answered and before M5, so
+    // they are known when the card comes (modes.ts): the last pushed report may predate the job's last mode change.
+    queueModeReads(t, 'toolChange');
     queue(t, { token: 'gc', purpose: 'motion', line: 'M5', intent: 'spindleOffNow' });
     queue(t, { token: 'gc', purpose: 'motion', line: 'M9', intent: 'spindleOffNow' });
     patchJob(t, {
       phase: 'outputsOff',
       message: `Tool change at line ${line}: turning the spindle and coolant off (M5, M9). Wait for the card.`,
-      toolChange: { index: stop.index, ...tc, at: { ...s.live.mpo }, units: s.live.unit, dist: s.live.dist },
+      toolChange: { index: stop.index, ...tc, at: { ...s.live.mpo }, units: undefined, dist: undefined },
     });
     jobEvent(t, at, 'toolchange', `Tool change at line ${line}${tc.tool === null ? '' : `: T${tc.tool}`}: sending M5 and M9.`, line);
     return;

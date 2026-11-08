@@ -119,8 +119,9 @@ function start(t: ProbeTx, confirm: unknown, at: number): Decision {
     run: {
       fromPos: workZMm(s),
       fromMpo: s.live.mpo.z ?? null,
-      units: s.live.unit,
-      dist: s.live.dist,
+      // Read before its `G21` (modes.ts), never taken from the live view: pushed reports lag.
+      units: undefined,
+      dist: undefined,
       checked: false,
       sent: false,
       // The start (the check at rest, G21, the probe move's reply) has its own limit; the move gets its own on its reply.

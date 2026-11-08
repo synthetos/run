@@ -16,7 +16,7 @@ const realtime = (r: R): string[] => r.fx.filter((e) => e.kind === 'writeRealtim
 /** G21 answered with a read ahead of the probe move, so the G38.2 waits in the queue. */
 async function probeQueued(): Promise<R> {
   const r = (await ready()).intent(START);
-  r.poll(1);
+  r.poll(1).modes();
   expect(r.writing).toBe('G21');
   r.s = { ...r.s, queue: [{ token: 'stat', purpose: 'request' }, ...r.s.queue] };
   r.answer();
@@ -27,7 +27,7 @@ async function probeQueued(): Promise<R> {
 /** The G38.2 handed to the transport, not yet written (it may sit behind XOFF). */
 async function probeWriting(): Promise<R> {
   const r = (await ready()).intent(START);
-  r.poll(1).answer();
+  r.poll(1).modes().answer();
   expect(r.writing).toBe(PROBE_LINE);
   return r;
 }
@@ -224,7 +224,7 @@ describe('after a stop, an alarm, a STALE link', () => {
     expect(z.s.probeZ.outcome).toMatchObject({ kind: 'contactZeroSet' });
     // Pause with the G21 out: the result at once; the G21's late answer belongs to no run.
     const g = (await ready()).intent(START);
-    g.poll(1);
+    g.poll(1).modes();
     g.ev({ type: 'lineWritten', epoch: g.s.epoch, seq: (g.s.writing as { seq: number }).seq, at: g.at });
     g.intent({ intent: 'feedhold' });
     expect(g.s.probeZ.outcome).toEqual({ kind: 'paused' });

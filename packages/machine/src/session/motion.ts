@@ -40,7 +40,9 @@
  * its own answered line before its first piece, because the firmware reads
  * F before it changes units in the same block; go to zero writes `G90 G21`
  * on its own answered line before its `G53 G0` move, because G53 keeps
- * G91 and G20, and puts the distance mode and units back at the end.
+ * G91 and G20, and puts the distance mode and units back at the end. What "back" means is read, never taken
+ * from the live view: `unit` and `dist` GETs go out before the first line of either (modes.ts), because the
+ * last pushed report can still show the previous jog's `G91` after its closing `G90` was answered.
  */
 import { STOP_TEXT, type Decision, type Intent } from '@synthetos/safety';
 import { mapStat, type Dialect, type MachineClass } from '@synthetos/protocol';
@@ -66,6 +68,7 @@ import {
   toZeroLine,
   type MotionAxisLetter,
 } from './motionLines.ts';
+import { queueModeReads } from './modes.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './jobState.ts';
 import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, PolledValues, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
@@ -251,7 +254,8 @@ function newCtx(s: SessionState, op: MotionCtx['op']): MotionCtx {
   // A Stop job from CONNECTED_UNKNOWN (UNKNOWN overlay, or a FAULT) returns there; a jog or Z re-zero during a
   // job's tool change (Phase 3) returns to PROGRAM_PAUSED; everything else to idle.
   const returnTo: SessionBase = s.base === 'CONNECTED_UNKNOWN' || s.base === 'PROGRAM_PAUSED' ? s.base : 'IDLE_UNHOMED';
-  return { op, phase: 'feed', jog: null, steps: [], reason: null, confirmed: 0, deadline: null, units: s.live.unit, dist: s.live.dist, returnTo, refusal: null, holdPolls: 0, queued: 0 };
+  // The modes are never taken from the live view (pushed reports lag): a jog and go to zero read them (modes.ts).
+  return { op, phase: 'feed', jog: null, steps: [], reason: null, confirmed: 0, deadline: null, units: undefined, dist: undefined, returnTo, refusal: null, holdPolls: 0, queued: 0 };
 }
 
 /**
@@ -317,6 +321,8 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       const pieceMm = Math.max(0.001, (feed / 60) * (MOTION_LIMITS.pieceMs / 1000));
       const jog: JogFeed = { axes: { ...axes }, remainingMm: distanceMm, feed, pieceMm, renewedAt: at };
       t.set({ motion: { ...newCtx(s, 'jog'), jog }, base: 'JOGGING' });
+      // The board's own units and distance mode, answered before anything of the jog changes them (modes.ts).
+      queueModeReads(t, 'motion');
       // Millimetres first, on a line of its own that is answered before the first piece goes out (R2): the
       // board may be in inches (a job, another sender), and the firmware reads a piece's F before its G21.
       queueLine(t, UNITS_LINE, 'jog');
@@ -344,6 +350,7 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       if (letters.includes('Z')) steps.push(toZeroLine(['Z']));
       if (steps.some((l) => motionLineKind(l) === undefined)) return deny('The safe height is out of range.', 'Choose another safe height.');
       t.set({ motion: { ...newCtx(s, 'goToZero'), phase: 'drain', steps: steps.slice(1) }, base: 'JOGGING' });
+      queueModeReads(t, 'motion');
       queueLine(t, steps[0] as string, 'goToZero');
       requestPoll(t);
       tick(t);
@@ -662,9 +669,11 @@ function finish(t: MotionTx, at: number): void {
   const ctx = t.s.motion as MotionCtx;
   const stop = ctx.reason === 'stopJob';
   const lines = stop ? ['M5', 'M9'] : [];
-  // A jog used G21 G91 and go to zero G90 G21 (R1, R2): put the modes back. A Stop job ends with absolute
-  // distance; a jog during a job's tool change puts back the job's own distance mode (Phase 3, H74).
-  if (ctx.op === 'jog' || ctx.op === 'goToZero' || stop) lines.push(restoreLine(ctx.units, stop ? 0 : ctx.dist));
+  // A jog used G21 G91 and go to zero G90 G21 (R1, R2): put back the modes read before them (modes.ts). A jog and
+  // a Stop job end in absolute distance (§4.4, §4.5b); a jog during a job's tool change puts back the job's own
+  // distance mode (Phase 3, H74), and go to zero the board's. A mode that was not read is not put back.
+  const dist = stop || (ctx.op === 'jog' && ctx.returnTo !== 'PROGRAM_PAUSED') ? 0 : ctx.dist;
+  if (ctx.op === 'jog' || ctx.op === 'goToZero' || stop) lines.push(restoreLine(ctx.units, dist));
   setMotion(t, { phase: 'finish', confirmed: 0, deadline: null });
   // Phase 3: the hold and the flush are confirmed, so every job line the board still had is gone (`%` dropped its
   // line buffers) and every one it ran has been answered: none is owed any more, and M5's answer is M5's.

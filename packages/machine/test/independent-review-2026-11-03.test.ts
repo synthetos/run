@@ -80,10 +80,10 @@ async function finished(h: Harness, text: string): Promise<void> {
   expect(h.session.snapshot.job?.phase).toBe('done');
 }
 
-async function leftIn(lines: readonly string[]): Promise<Harness> {
+async function leftIn(lines: readonly string[], settleMs = 500): Promise<Harness> {
   const h = harness('en', { device: { start: 'ready', rxm: 1 }, session: { manifest: EN_APPROVED, release: JOBS_RELEASE } });
   for (const line of lines) for (const b of new TextEncoder().encode(`${line}\n`)) h.device.receive(b, false);
-  await h.run(500);
+  await h.run(settleMs);
   void h.session.connect(PORT);
   await h.run(3000);
   expect(h.session.snapshot.base).toBe('IDLE_UNHOMED');
@@ -177,11 +177,9 @@ describe('R2 (model): a jog piece after an answered `G21` runs at the requested 
 
 describe('R1 (session): go to zero and the tool-change return establish G90 G21 first and put the modes back', () => {
   it('go to zero from a board a job left in G91: Z rises to the safe height, and G91 is put back', async () => {
-    const h = await leftIn(['G21 G91']);
+    // The other program lowers Z itself and leaves G91 (a jog of run's own ends in G90, §4.5b).
+    const h = await leftIn(['G21 G91', 'G1 Z-10 F3000'], 3000);
     expect(h.session.state.live.dist).toBe(1);
-    expect(h.session.request({ intent: 'jog', axes: { z: -1 }, distanceMm: 10, feed: 3000 })).toEqual({ allowed: true });
-    await runUntil(h, () => h.session.snapshot.motion === null, 15_000);
-    await h.run(600); // the pushed report of the modes the jog put back (G91) arrives within `si`
     expect(h.device.snapshot().position[2]).toBeCloseTo(-10, 3);
     const from = writes(h).length;
     expect(h.session.request({ intent: 'goToZero', axes: ['x'], safeZ: -5 })).toEqual({ allowed: true });
@@ -197,7 +195,7 @@ describe('R1 (session): go to zero and the tool-change return establish G90 G21 
     expect(h.session.state.live.unit).toBe(0);
     expect(h.session.request({ intent: 'jog', axes: { z: -1 }, distanceMm: 10, feed: 3000 })).toEqual({ allowed: true });
     await runUntil(h, () => h.session.snapshot.motion === null, 15_000);
-    await h.run(600); // the pushed report of the modes the jog put back (G90 G20) arrives within `si`
+    // No wait for the pushed report of the modes the jog put back: go to zero reads them itself (modes.ts).
     const from = writes(h).length;
     expect(h.session.request({ intent: 'goToZero', axes: ['x', 'y'], safeZ: -5 })).toEqual({ allowed: true });
     await runUntil(h, () => h.session.snapshot.motion === null, 15_000);
@@ -573,16 +571,17 @@ describe('R6: the tool-change card comes only after M5 and M9 are answered', () 
     const r = tx({ ...s, base: 'RUNNING', live: { ...s.live, ...AT_REST, spe: 1 }, polled: POLLED_REST, job: { ...(s.job as JobState), phase: 'draining', next: i, acked: i, confirmed: 1, stop: { kind: 'toolChange', index: i } } });
     onJobPoll(r.t, 10_000);
     expect(r.t.s.job?.phase).toBe('outputsOff');
-    expect(r.t.s.queue.map((q) => q.line)).toEqual(['M5', 'M9']);
+    // The job's modes are read first, at rest (modes.ts), then M5 and M9.
+    expect(r.t.s.queue.map((q) => q.line ?? `${q.purpose}:${q.token}`)).toEqual(['modes:unit', 'modes:dist', 'M5', 'M9']);
     expect(r.t.s.job?.message).not.toContain('turned the spindle and coolant off');
     expect(r.t.s.job?.message).toBe('Tool change at line 4: turning the spindle and coolant off (M5, M9). Wait for the card.');
-    expect(r.t.s.job?.toolChange).toMatchObject({ index: i, tool: 2, units: s.live.unit, dist: s.live.dist });
+    expect(r.t.s.job?.toolChange).toMatchObject({ index: i, tool: 2, units: undefined, dist: undefined });
     expect(r.t.s.base).toBe('PROGRAM_PAUSED');
     // Resume and a jog are not offered yet: the phase is not toolChange.
     expect(onJobResume(r.t, { intent: 'resume' }, 10_001)).toMatchObject({ allowed: false, reason: 'The job is not paused.' });
     expect(reduce(CONFIG, r.t.s, { type: 'intent', at: 10_002, request: { intent: 'jog', axes: { z: 1 }, distanceMm: 1, feed: 600 } }).effects.find((e) => e.kind === 'decision')).toMatchObject({ decision: { allowed: false } });
     // M5 answered: still waiting for M9. M9 answered: the card (W37).
-    r.t.s = { ...r.t.s, queue: r.t.s.queue.slice(1), expected: [] };
+    r.t.s = { ...r.t.s, queue: r.t.s.queue.slice(3), expected: [] };
     expect(onJobMotionAnswer(r.t, 'M5', 0, 10_003)).toBe(true);
     expect(r.t.s.job?.phase).toBe('outputsOff');
     r.t.s = { ...r.t.s, queue: [] };

@@ -7,6 +7,7 @@
 import type { Exception, JsonValue, ProbeReport, Response } from '@synthetos/protocol';
 import { activeSystem, atRestPolled, completedPoll, requestPoll } from '../motion.ts';
 import { UNITS_LINE } from '../motionLines.ts';
+import { queueModeReads } from '../modes.ts';
 import type { Identity, PendingRead } from '../types.ts';
 import { RUN_LIMITS, finish, probePending, probeWritten, queueLine, queueRead, restoreThen, runProbeLine, setProbe, setRun, stopOutcome, tick, writeStop, zeroWritten, type ProbeTx } from './common.ts';
 import { probeInput } from './gate.ts';
@@ -173,6 +174,8 @@ export function onProbePoll(t: ProbeTx, at: number): void {
     // §4.5c preconditions: IDLE at rest by polled values, right before the first line.
     if (resting) {
       setRun(t, { checked: true });
+      // The units and distance mode the board has, answered before the `G21` changes them: put back after the zero.
+      queueModeReads(t, 'probe');
       queueLine(t, UNITS_LINE);
     } else if (polled !== null) finish(t, { kind: 'refused', status: 0, text: 'The machine was not at rest, so nothing was sent.' }, at);
     else requestPoll(t);

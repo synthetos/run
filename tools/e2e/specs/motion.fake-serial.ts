@@ -21,7 +21,7 @@ const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as con
 const SHOTS = process.env['RUN_SCREENSHOTS_DIR'];
 
 interface Status {
-  readonly status: { readonly session: { readonly base: string; readonly reports: { readonly phase: string }; readonly notices: { readonly motion?: { readonly text: string } }; readonly motion: { readonly held: boolean } | null } };
+  readonly status: { readonly session: { readonly base: string; readonly live: { readonly dist?: number }; readonly reports: { readonly phase: string }; readonly notices: { readonly motion?: { readonly text: string } }; readonly motion: { readonly held: boolean } | null } };
 }
 
 async function status(worker: Worker): Promise<Status['status']['session']> {
@@ -113,7 +113,11 @@ test('a jog step from the panel, with the unhomed warning; a hold jog stops on r
   expect(w[0]).toBe('G21\n');
   expect(w[1]).toMatch(/^G21 G91 G1 Y\d/);
   expect(w.slice(w.indexOf('!'))).toEqual(['!', '%', 'G90\n']);
+  expect(w).not.toContain('G91\n');
   expect((await board(worker)).hold).toBe(0);
+  // The board itself reports absolute distance once its next report prints (the hold jog started inside the
+  // window where the step's last report still showed G91: SAFETY §4.5b as amended 2026-11-08).
+  await expect.poll(async () => (await status(worker)).live.dist, { timeout: 5000 }).toBe(0);
   const y = (await board(worker)).position[1] as number;
   expect(y).toBeGreaterThan(0);
   expect(y).toBeLessThan(30);
