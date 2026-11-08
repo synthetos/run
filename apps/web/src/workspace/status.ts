@@ -5,7 +5,7 @@
  *
  * Pure: the same view gives the same words.
  */
-import { w48, w50 } from '@synthetos/safety';
+import { STOP_TEXT, w48, w50 } from '@synthetos/safety';
 import { boardText } from '@synthetos/safety';
 import type { LiveView } from './model.ts';
 
@@ -191,6 +191,9 @@ export function stripStatus(view: LiveView, machineName: string | null): StripSt
   if (s.base === 'HOMING') return { ...base, title: 'Homing', tone: 'run', pill: null, text: 'Each axis moves to its switch. Pause or Stop job ends it.' };
   const cls = s.live.machineClass;
   if (cls !== undefined && MOVING.has(cls)) return { ...base, title: 'Moving', tone: 'run', pill: null, text: null };
+  // A hold reported by the board is never "Machine idle" (first-time walk 2026-11-08, S3). A LIVE tab's own Pause
+  // band says the same (MachineStrip); this covers any view of a held machine without that band.
+  if (cls === 'held') return { ...base, title: base.spindleOn ? STOP_TEXT.pausedSpindleOn : STOP_TEXT.paused, tone: 'hold', pill: null, text: s.notices.motion?.text ?? null };
   if (cls !== undefined && ALARM.has(cls)) return { ...base, title: 'Alarm', tone: 'alarm', pill: { text: 'Alarm', tone: 'danger' }, text: 'The controller reports an alarm. Check the machine.' };
   if (o.includes('UNKNOWN')) return { ...base, title: 'Connected · state unknown', tone: 'warn', pill: { text: 'Unknown', tone: 'warn' }, text: 'The previous session ended while connected. Check the machine, then confirm it or home it (below).' };
   // The post-flash lock and the old-firmware gate, decided by the worker (it refuses jobs, jog and settings writes).

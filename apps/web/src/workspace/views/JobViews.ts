@@ -4,8 +4,7 @@
  * - `JobSteps`: the Check → Set zero → Start stepper on the job card. The open file goes to the worker, which
  *   checks it with the live board; plan versus board work zero (C31), homed or C36, the spindle (C32), the W5
  *   attestation; Start is enabled only when every blocker is gone, each named in plain words, then C30.
- * - `JobStatus`: while a job runs or after it ended: progress, elapsed and remaining time (estimates), the line
- *   executing, actual against programmed feed, and Pause, Resume and Stop job, which are never gated.
+ * - `JobStatus` (JobStatusCard.ts, re-exported here): the job card while a job runs or after it ended.
  * - `JobStopCard`: what to do at a stop: the tool-change card (W37, C34, C35), a refused line (W38, C33), a
  *   breakpoint (W43), a program stop (W17), a reset (W40).
  *
@@ -14,7 +13,7 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { STOP_TEXT, c30, c31, c32, c33, c34, c35, c36, w17, w37, w5, w2Label } from '@synthetos/safety';
+import { STOP_TEXT, c30, c31, c32, c33, c34, c35, c36, w17, w37, w5 } from '@synthetos/safety';
 import type { PreviewParts } from '../../preview/PreviewPanel.ts';
 import { fileKey, loadBreakpoints } from '../../preview/gcodeList.ts';
 import { signalText } from '../../shell/signal.ts';
@@ -22,7 +21,10 @@ import { advisorSummary } from '../advisorState.ts';
 import { toolStore } from '../library.ts';
 import type { WorkspaceModel } from '../model.ts';
 import { ConfirmCard } from '../ui.ts';
-import { boardZero, bytesText, duration, jobUi, loadPlan, PHASE_TEXT, savePlan, startBlockers, textHash, zeroCheck, zeroText, type JobSnapshot, type StartChoices } from '../jobUi.ts';
+import { boardZero, bytesText, duration, jobUi, loadPlan, savePlan, startBlockers, textHash, zeroCheck, zeroText, type JobSnapshot, type StartChoices } from '../jobUi.ts';
+import type { StopHooks } from './JobStatusCard.ts';
+
+export { JobStatus, type StopHooks } from './JobStatusCard.ts';
 
 const NO_CHOICES: StartChoices = Object.freeze({ unhomed: false, workZero: false, spindle: false, attended: false });
 
@@ -158,60 +160,6 @@ export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewP
     ),
   );
 }
-
-/** Pause and Stop job: the same calls as the machine strip's buttons (never gated; absent in the prerendered page). */
-export interface StopHooks {
-  readonly onPause?: () => void;
-  readonly onStopJob?: () => void;
-}
-
-/** Progress, time, the line, the feed, and Pause / Resume / Stop job (never gated). */
-export function JobStatus({ model, onPause, onStopJob }: { readonly model: WorkspaceModel | null } & StopHooks): ComponentChild {
-  const view = model?.live.value ?? null;
-  const ui = jobUi(view);
-  const job = ui.job;
-  const actions = model?.actions.value ?? null;
-  if (job === null || job.startedAt === null) return null;
-  const s = ui.snapshot;
-  const done = job.executing === null ? job.acked : job.executing.n;
-  const pct = job.total === 0 ? 0 : Math.min(100, Math.round((done / job.total) * 100));
-  const feed = s?.live.feed;
-  const vel = s?.live.vel;
-  return h(
-    'section',
-    { class: `job-status phase-${job.phase}`, 'data-job': 'status', 'data-phase': job.phase, 'aria-label': 'Job' },
-    // The section is the size container (job-status.css); this grid inside it is what the width rearranges.
-    h(
-      'div',
-      { class: 'job-status-grid' },
-      h('div', { class: 'job-status-head' }, h('strong', { 'data-job': 'phase' }, PHASE_TEXT[job.phase] ?? job.phase), h('span', { class: 'job-pct' }, `${pct}%`)),
-      h('div', { class: 'job-progress', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct }, h('i', { style: { width: `${pct}%` } })),
-      h(
-        'dl',
-        { class: 'job-facts' },
-        h('div', null, h('dt', null, 'Line'), h('dd', { 'data-job': 'line' }, job.executing === null ? `${job.acked} of ${job.total} answered` : `file line ${job.executing.line} (${job.executing.n} of ${job.total})`)),
-        h('div', null, h('dt', null, 'Elapsed'), h('dd', { 'data-job': 'elapsed' }, ui.elapsedMs === null ? 'Not started' : duration(ui.elapsedMs / 1000))),
-        h('div', null, h('dt', null, 'Remaining'), h('dd', { 'data-job': 'remaining' }, ACTIVE(job) ? `about ${duration(job.remainingSeconds)} (estimate)` : 'Not running')),
-        h('div', null, h('dt', null, 'Feed, actual / programmed'), h('dd', { 'data-job': 'feed' }, `${typeof vel === 'number' ? Math.round(vel) : 'unknown'} / ${typeof feed === 'number' ? Math.round(feed) : 'unknown'} mm/min`)),
-      ),
-      job.message === null ? null : h('p', { class: `job-message${job.phase === 'failed' ? ' danger' : ''}`, 'data-job': 'message', role: job.phase === 'failed' ? 'alert' : 'status' }, ...signalText(job.message)),
-      ACTIVE(job)
-        ? h(
-            'div',
-            { class: 'job-controls' },
-            h('button', { type: 'button', class: 'small', 'data-machine-control': 'job-pause', title: 'Feedhold: decelerates and pauses motion', ...(onPause === undefined ? { disabled: true } : { onClick: onPause }) }, w2Label()),
-            job.phase === 'paused' && actions?.job !== undefined ? h('button', { type: 'button', class: 'small', 'data-machine-control': 'resume', onClick: () => void actions.job?.({ op: 'resume', skip: false, spindleRestart: false }) }, 'Resume') : null,
-            h('button', { type: 'button', class: 'small danger', 'data-machine-control': 'job-stop', ...(onStopJob === undefined ? { disabled: true } : { onClick: onStopJob }) }, STOP_TEXT.stopJob),
-          )
-        : null,
-    ),
-  );
-}
-
-function ACTIVE(job: JobSnapshot): boolean {
-  return !['ready', 'blocked', 'loading', 'done', 'stopped', 'failed'].includes(job.phase);
-}
-
 
 function toolName(n: number | null): string {
   if (n === null) return 'the next tool';

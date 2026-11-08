@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { w38 } from '@synthetos/safety';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
-import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveActions, type LiveView } from '../src/workspace/model.ts';
+import { createWorkspaceModel, type LiveActions, type LiveView } from '../src/workspace/model.ts';
 import {
   bytesText,
   duration,
@@ -22,78 +22,14 @@ import {
   starving,
   textHash,
   zeroCheck,
-  type JobSnapshot,
   type StartChoices,
 } from '../src/workspace/jobUi.ts';
 import { JobStatus, JobStopCard } from '../src/workspace/views/JobViews.ts';
 import { motionUi } from '../src/workspace/motion.ts';
 import { byAttr, one, root, text } from './tree.ts';
+import { job, snap, view } from './jobFixtures.ts';
 
 type Snapshot = NonNullable<LiveView['message']>['snapshot'];
-
-function job(extra: Partial<JobSnapshot> = {}): JobSnapshot {
-  return {
-    id: 1,
-    name: 'part.nc',
-    hash: textHash('G0 X1\nM30'),
-    bytes: 9,
-    phase: 'ready',
-    total: 2,
-    sent: 0,
-    acked: 0,
-    free: null,
-    inFlight: 0,
-    executing: null,
-    sentThrough: null,
-    ackedThrough: null,
-    startedAt: null,
-    endedAt: null,
-    totalSeconds: 3,
-    remainingSeconds: 3,
-    queuedSeconds: 0,
-    queuedBoundMm: 0,
-    stop: null,
-    refused: null,
-    toolChange: null,
-    message: null,
-    events: [],
-    breakpoints: [],
-    queuedBreakpoints: [],
-    report: { blocked: false, counts: { block: 0, warn: 0, change: 0, info: 0 }, blocks: [], splits: 0, longestMoveSeconds: 1, endState: { spindle: 'off', mist: false, flood: false }, toolChanges: [], startsSpindle: false, speeds: [], seconds: 3 },
-    rxmFrom: null,
-    jobFlag: null,
-    feedLimit: null,
-    faultStopAt: null,
-    stopping: false,
-    startModes: null,
-    ...extra,
-  };
-}
-
-function snap(extra: Record<string, unknown> = {}): Snapshot {
-  return {
-    base: 'IDLE_HOMED',
-    overlays: [],
-    epoch: 1,
-    identity: { id: 'SIM-EN-0001' },
-    classification: { dialectId: 'tinyg-en', mode: 'full', reason: 'en-approved', detail: '', upgradeOffer: false },
-    footerRev: 3,
-    live: { stat: 1, hold: 0, vel: 0, qr: 32, home: 1, pos: {}, mpo: {} },
-    values: { ofs: { value: { x: 10, y: 20, z: -5 }, status: 0, at: 0 } },
-    notices: { adviseEstop: false },
-    motion: null,
-    reports: { phase: 'done', heartbeatMs: 1000, changes: [], detail: null },
-    rxm: { restore: 0, memoryKnown: true, pending: false, leftAsFound: false, current: 0, changed: null, detail: null, busy: false },
-    rtLeaves: [],
-    job: job(),
-    ...extra,
-  } as unknown as Snapshot;
-}
-
-function view(s: Snapshot | null, jobs = true): LiveView {
-  if (s === null) return INITIAL_LIVE_VIEW;
-  return { ...INITIAL_LIVE_VIEW, message: { v: 3, kind: 'snapshot', snapshot: s, motion: true, jobs, jobElapsedMs: 4000 } as unknown as LiveView['message'] };
-}
 
 const ALL: StartChoices = { unhomed: true, workZero: true, spindle: true, attended: true };
 const FILE = { name: 'part.nc', hash: textHash('G0 X1\nM30') };
