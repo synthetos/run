@@ -99,7 +99,7 @@ function MyMachine({ model, onView }: { readonly model: WorkspaceModel | null; r
       { class: 'my-machine empty' },
       h(MachineArt, { id: 'custom' }),
       h('div', { class: 'grow' }, h('span', { class: 'kicker' }, 'Your machine'), h('h2', null, 'No machine yet'), h('p', null, 'Choose Start from a machine to make a profile.')),
-      h('span', { class: `pill${isOn ? ' connected' : ''}` }, isOn ? 'Board connected' : 'Not connected'),
+      h('span', { class: isOn ? 'pill connected' : undefined }, isOn ? 'Board connected' : null),
       h('span', null),
     );
   }
@@ -130,7 +130,7 @@ function MyMachine({ model, onView }: { readonly model: WorkspaceModel | null; r
           )
         : [h('h2', { key: 'n' }, mine.name), h('p', { key: 'p' }, `${CATALOGUE.find((t) => t.id === mine.templateId)?.name ?? 'Custom'} · ${mine.drive === 'any' ? 'any drive' : `${mine.drive} drive`} · ${mine.travel.x} × ${mine.travel.y} × ${mine.travel.z} mm travel · ${mine.spindle}${uiLevel.value.value === 'advanced' ? ` · revision ${mine.revision ?? 1}` : ''}`), isOn && view !== null ? h('p', { key: 'b', class: 'fine' }, `Connected: ${boardLabel(view)}`) : null],
     ),
-    h('span', { class: `pill${isOn ? ' connected' : ''}` }, isOn ? 'Connected' : 'Not connected'),
+    h('span', { class: isOn ? 'pill connected' : undefined }, isOn ? 'Connected' : null),
     h('div', { class: 'card-actions' }, h('button', { type: 'button', class: 'small', onClick: () => setEditing(!editing) }, editing ? 'Done' : 'Edit'), h('button', { type: 'button', class: 'small', onClick: () => onView('board') }, 'Open board')),
     h(BedSection, { machine: mine }),
   );
