@@ -17,6 +17,7 @@ import { Preview3D } from './Preview3D.ts';
 import { PreviewSvg } from './PreviewSvg.ts';
 import { IDLE_STATE, PreviewView, type PreviewSlots, type PreviewViewActions, type PreviewViewState } from './PreviewView.ts';
 import type { JobScene } from './sceneModel.ts';
+import { pickLabel, scenePart, type ScenePart } from './sceneSettings.ts';
 import type { Vec3, ViewPreset } from '@synthetos/gcode-view';
 
 /** What a layout gets to arrange: the state, the actions and the rendered pieces. */
@@ -64,6 +65,8 @@ export interface PreviewPanelProps {
   readonly onBreakpoints?: (lines: readonly number[]) => void;
   /** The job's scene (bed, stock, fixture, clamps and the planned zero), drawn under the path; null for the path alone. */
   readonly scene?: JobScene | null;
+  /** A click on the bed, fixture, stock or a clamp in the drawing (sceneSettings.ts); without it nothing is pickable. */
+  readonly onScenePick?: (part: ScenePart) => void;
 }
 
 /** The planner view the 3D drawing shows during a job (gcode-view `PlannerOverlay`). */
@@ -102,7 +105,7 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -148,6 +151,10 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
   const offset = scene?.pathOffset ?? [0, 0, 0];
   const toolInPath: Vec3 | null = tool === null ? null : [tool[0] - offset[0], tool[1] - offset[1], tool[2] - offset[2]];
   const svgMarker = toolInPath === null ? live : { x: toolInPath[0], y: toolInPath[1], lag: live?.lag ?? 'fresh' };
+  const pick = onScenePick === undefined ? {} : {
+    onPick: (tag: string) => { const part = scenePart(tag); if (part !== null) onScenePick(part); },
+    pickLabel: (tag: string) => { const part = scenePart(tag); return part === null ? null : pickLabel(part); },
+  };
   const drawing =
     (segments === null || result === null) && scene === null
       ? undefined
@@ -165,9 +172,10 @@ export function PreviewPanel({ spawn, marker, tool = null, layout, reportedLine 
             toolMarker: toolInPath ?? (plannerView !== null && live !== null ? [live.x, live.y, live.z] : null),
             scene: scene?.layers ?? null,
             pathOffset: scene?.pathOffset ?? [0, 0, 0],
+            ...pick,
             onUnavailable: () => { setState((s) => ({ ...s, drawing: 'svg' })); },
           })
-        : h(PreviewSvg, { segments, showRapids: state.showRapids, highlight, envelope: result?.summary.envelope ?? null, marker: svgMarker, scene: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? [0, 0, 0], ...(scene === null ? {} : { zero: scene.zero }) });
+        : h(PreviewSvg, { segments, showRapids: state.showRapids, highlight, envelope: result?.summary.envelope ?? null, marker: svgMarker, scene: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? [0, 0, 0], ...(scene === null ? {} : { zero: scene.zero }), ...pick });
   const readout = live === null ? undefined : h('p', { class: `pv-marker-readout lag-${live.lag}`, 'data-preview': 'marker-readout', role: 'status' }, markerText(live));
 
   const actions: PreviewViewActions = {

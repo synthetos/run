@@ -41,7 +41,10 @@ import { activeJob, type Job } from '../jobModel.ts';
 import { materialColor } from '../library.ts';
 import { projectsState } from '../../projects/store.ts';
 import { projectStore } from '../../projects/browserStore.ts';
-import { jobScene, liveFrame, placeJobAt } from '../../preview/sceneModel.ts';
+import { jobScene } from '../../preview/sceneModel.ts';
+import { useLivePlacement } from '../../preview/useLivePlacement.ts';
+import { SceneKey } from '../../preview/SceneKey.ts';
+import { openSceneSettings, type ScenePart } from '../../preview/sceneSettings.ts';
 import { sceneColors, tokenReader } from '../../preview/colors.ts';
 import { ViewButtons } from '../../preview/SceneView.ts';
 import type { ViewPreset } from '@synthetos/gcode-view';
@@ -79,20 +82,21 @@ export function RunView({ model, spawn, marker, onView, onPause, onStopJob }: Ru
   }, [ui.active, ui.job?.phase]);
   const active = activeJob.value;
   const planned = useMemo(() => (active === null ? null : jobScene(active, sceneColors(tokenReader()), materialColor(active.setup.stock.materialRef.id))), [active]);
-  // The live machine: the tool where the board reports it, and the job placed at the work zero the board uses now.
-  const frame = live !== null && connected(live) && live.message !== null && live.message !== undefined ? liveFrame(live.message.snapshot.live) : null;
-  const z0 = frame?.zero ?? null;
-  const scene = useMemo(() => (planned === null || z0 === null ? planned : placeJobAt(planned, z0)), [planned, z0?.[0], z0?.[1], z0?.[2]]);
+  // The live machine (preview/livePlacement.ts): the job placed at the board's work zero once its position is established.
+  const snap = live !== null && connected(live) ? (live.message?.snapshot ?? null) : null;
+  const { scene, tool } = useLivePlacement(planned, snap === null ? null : { ...snap.live, overlays: snap.overlays });
   return h(PreviewPanel, {
     spawn,
     ...(marker === undefined ? {} : { marker }),
-    tool: frame?.tool ?? null,
+    tool,
     reportedLine,
     job: job === null ? null : { executing: job.executing?.line ?? null, sentThrough: job.sentThrough },
     planner: (sourceLines: Uint32Array) => plannerRanges(job, sourceLines, starve),
     ...(sendJob === undefined ? {} : { onBreakpoints: (lines: readonly number[]) => void sendJob({ op: 'breakpoints', lines: [...lines] }) }),
     onReportLine: (line: number) => openReport({ origin: 'line', line }),
     scene,
+    // Opening a part's settings is navigation only; not while a job owns the machine.
+    ...(ui.active ? {} : { onScenePick: (part: ScenePart) => openSceneSettings(part, onView) }),
     layout: (parts: PreviewParts) => runLayout(parts, model, onView, stops),
   });
 }
@@ -1468,7 +1472,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
               (scene !== null || result !== null) && !result?.lite && state.drawing === 'webgl' ? h(ViewButtons, { current: preset, ...(actions.onView === undefined ? {} : { onView: (p: ViewPreset) => { setPreset(p); actions.onView?.(p); } }), ...(actions.onFit === undefined ? {} : { onFit: () => actions.onFit?.() }) }) : null,
             ),
           ),
-          scene === null || result?.lite ? null : h('p', { class: 'viewer-key', 'data-scene': 'bed' }, scene.bedLabel),
+          scene === null || result?.lite ? null : h(SceneKey, { scene, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView) }) }),
           result === null && !loading
             ? h(
                 'div',

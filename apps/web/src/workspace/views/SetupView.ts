@@ -125,7 +125,7 @@ export function JobSetupPanel({ step, locked, onView }: { readonly step: JobStep
         h('button', { type: 'button', class: 'small', 'data-action': 'job-library-machines', onClick: () => onView('machines') }, 'Choose or create a machine'),
         h(
             'section',
-            { class: 'insp', 'data-setup': 'bed' },
+            { class: 'insp', 'data-setup': 'bed', 'data-setup-section': 'bed' },
             h('header', null, h('h2', null, 'Bed'), h('span', { class: `tag${bedIsPlaceholder(bed) ? ' warn' : ' ok'}`, 'data-bed': bedIsPlaceholder(bed) ? 'placeholder' : bed.source.kind }, bedIsPlaceholder(bed) ? 'Placeholder' : bed.source.kind === 'measured' ? 'Measured' : 'From a drawing')),
             h('p', { class: 'fine', 'data-bed': 'owner' }, job.machine === null || job.setup.bedFrom === 'own' ? 'The draft’s own bed: no machine is chosen. Choose a machine above to plan on its bed.' : `Pinned from ${job.machine.name}, bed revision ${bed.revision}${behind ? ` (the machine now has revision ${machine === null ? '?' : bedOf(machine).revision})` : ''}.`),
             behind && machine !== null ? h('button', { type: 'button', class: 'small', 'data-action': 'job-take-bed', onClick: () => edit((j) => withMachine(j, machine)) }, `Use the machine’s bed revision ${bedOf(machine).revision}`) : null,
@@ -153,7 +153,7 @@ export function JobSetupPanel({ step, locked, onView }: { readonly step: JobStep
         h('h2', null, 'Stock & workholding'),
         h(
             'section',
-            { class: 'insp' },
+            { class: 'insp', 'data-setup-section': 'stock' },
             h('header', null, h('h2', null, 'Stock'), h('span', { class: `tag${fits ? '' : ' warn'}` }, fx === null ? 'On the bed' : fits ? 'On fixture' : 'Wider than fixture')),
             job.setup.stockOutline === null
               ? h(
@@ -190,7 +190,7 @@ export function JobSetupPanel({ step, locked, onView }: { readonly step: JobStep
           ),
         h('details', { class: 'job-fixture', open: true }, h('summary', null, 'Workholding'), h(
             'section',
-            { class: 'insp' },
+            { class: 'insp', 'data-setup-section': 'fixture' },
             h('header', null, h('h2', null, 'Fixture'), h('span', { class: 'tag' }, fx === null ? 'None' : fx.source.hash === SAMPLE_HASH ? 'Sample' : fx.source.kind.toUpperCase())),
             fx === null
               ? h('p', { class: 'fine' }, 'The stock sits straight on the bed.')

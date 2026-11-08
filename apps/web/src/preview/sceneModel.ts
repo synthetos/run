@@ -46,6 +46,8 @@ export interface JobScene {
   readonly bedPlaceholder: boolean;
   /** What the bed is, in words, for the viewer's key. */
   readonly bedLabel: string;
+  /** Plain notes on how the live machine placed the job (livePlacement.ts), for the viewer's key; none when planned. */
+  readonly notes?: readonly string[];
 }
 
 type Pt = readonly [number, number];
@@ -142,25 +144,4 @@ export function liveFrame(live: { readonly mpo: AxisValues; readonly pos: AxisVa
   const mm = m as number[];
   const pm = (p as number[]).map((v) => v * k);
   return { tool: [mm[0] as number, mm[1] as number, mm[2] as number], zero: [(mm[0] as number) - (pm[0] as number), (mm[1] as number) - (pm[1] as number), (mm[2] as number) - (pm[2] as number)] };
-}
-
-/** The job's solids that move with the work zero: the stock and what clamps it. The bed and fixture stay put. */
-const MOVES_WITH_ZERO = new Set(['stock', 'clamp']);
-
-/**
- * The scene with the job placed at a live work zero: the stock, its clamps and the toolpath move by
- * (live zero minus planned zero), so the job's own zero point (a corner or the centre, as set up) sits
- * where the machine will cut it. Unchanged when the zeros already agree.
- */
-export function placeJobAt(scene: JobScene, zero: Vec3): JobScene {
-  const d: Vec3 = [zero[0] - scene.zero[0], zero[1] - scene.zero[1], zero[2] - scene.zero[2]];
-  if (d[0] === 0 && d[1] === 0 && d[2] === 0) return scene;
-  const solids = scene.layers.solids.map((s): SceneSolid => {
-    if (s.tag === undefined || !MOVES_WITH_ZERO.has(s.tag)) return s;
-    return s.kind === 'box'
-      ? { ...s, min: [s.min[0] + d[0], s.min[1] + d[1], s.min[2] + d[2]], max: [s.max[0] + d[0], s.max[1] + d[1], s.max[2] + d[2]] }
-      : { ...s, outline: s.outline.map(([x, y]) => [x + d[0], y + d[1]] as const), z0: s.z0 + d[2], z1: s.z1 + d[2] };
-  });
-  const layers: SceneLayers = { solids, rings: scene.layers.rings };
-  return { ...scene, layers, pathOffset: zero, zero, bounds: sceneBounds(layers) };
 }

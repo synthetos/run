@@ -21,6 +21,7 @@ import { DEFAULT_SEGMENTS_PER_CHUNK, STYLE, chunks } from './geometry.ts';
 import { checkSegmentList, lineCount, type Box3, type SegmentList, type Vec3 } from './segments.ts';
 import { runSliced, type SliceOptions } from './slicer.ts';
 import { gridLayout, gridLines } from './grid.ts';
+import { pickSolid, rayThrough } from './pick.ts';
 import { offsetBox, ringSegments, sceneBounds, solidTriangles, unionBox, type Rgba, type SceneLayers } from './scene.ts';
 
 export type { Rgba };
@@ -108,6 +109,8 @@ export interface PreviewRenderer {
   orbit(dAzimuth: number, dElevation: number): void;
   zoomBy(factor: number): void;
   panBy(dx: number, dy: number): void;
+  /** The tag of the nearest scene solid under a canvas point (CSS pixels from its top-left), or null. */
+  pick(x: number, y: number): string | null;
   /** Schedules one frame; several calls before it runs draw once. */
   requestRender(): void;
   /** Number of frames drawn (for tests and diagnostics). */
@@ -647,6 +650,11 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       autoFit = false;
       view = pan(view, dx, dy);
       requestRender();
+    },
+    pick(x, y) {
+      if (scene === null) return null;
+      const ray = rayThrough(view, width / height, (2 * x) / width - 1, 1 - (2 * y) / height);
+      return pickSolid(ray, scene.solids)?.tag ?? null;
     },
     requestRender,
     get frames() {

@@ -7,9 +7,9 @@
  * are drawn under the path, in machine coordinates, and the path is moved
  * to the planned work zero by the renderer's offset uniform.
  */
-import { h, type ComponentChild } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
-import { attachViewControls, createRenderer, type Box3, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
+import { Fragment, h, type ComponentChild } from 'preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { attachPicking, attachViewControls, createRenderer, type Box3, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
 import { previewColors } from './colors.ts';
 
 export interface Preview3DProps {
@@ -36,11 +36,19 @@ export interface Preview3DProps {
   /** A named view asked for: changes when the user picks one. */
   readonly view?: { readonly preset: ViewPreset; readonly seq: number };
   readonly label?: string;
+  /** A click on a scene solid, with its tag; without it nothing is pickable. */
+  readonly onPick?: (tag: string) => void;
+  /** The hover label of a tag ("Fixture: open settings"), or null for a solid that opens nothing. */
+  readonly pickLabel?: (tag: string) => string | null;
 }
 
 export function Preview3D(props: Preview3DProps): ComponentChild {
   const canvas = useRef<HTMLCanvasElement>(null);
   const renderer = useRef<PreviewRenderer | null>(null);
+  const [hover, setHover] = useState<{ readonly text: string; readonly x: number; readonly y: number } | null>(null);
+  // The latest handlers, read by the listeners attached once.
+  const pickRef = useRef({ onPick: props.onPick, pickLabel: props.pickLabel });
+  pickRef.current = { onPick: props.onPick, pickLabel: props.pickLabel };
 
   useEffect(() => {
     const el = canvas.current;
@@ -55,6 +63,17 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
     const r = createRenderer(gl, { colors: previewColors((t) => style.getPropertyValue(t)), grid: true });
     renderer.current = r;
     const detach = attachViewControls(el, r);
+    const detachPick = attachPicking(el, r, {
+      onPick: (tag) => {
+        const { onPick, pickLabel } = pickRef.current;
+        if (onPick !== undefined && pickLabel?.(tag) != null) onPick(tag);
+      },
+      onHover: (hit) => {
+        const { onPick, pickLabel } = pickRef.current;
+        const text = hit === null || onPick === undefined ? null : (pickLabel?.(hit.tag) ?? null);
+        setHover(text === null || hit === null ? null : { text, x: hit.x, y: hit.y });
+      },
+    });
     const size = (): void => { r.resize(el.clientWidth, el.clientHeight, devicePixelRatio); };
     size();
     const observer = new ResizeObserver(size);
@@ -65,6 +84,7 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
       observer.disconnect();
       theme.disconnect();
       detach();
+      detachPick();
       r.dispose();
       renderer.current = null;
     };
@@ -102,12 +122,13 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
   const tool = props.toolMarker ?? null;
   useEffect(() => { renderer.current?.setToolMarker(tool); }, [tool?.[0], tool?.[1], tool?.[2], tool === null]);
 
-  return h('canvas', {
+  return h(Fragment, null, h('canvas', {
     ref: canvas,
     class: 'preview-canvas',
+    style: hover === null ? undefined : { cursor: 'pointer' },
     tabIndex: 0,
     role: 'img',
     'aria-label': props.label ?? 'Toolpath preview, 3D. Drag or use the arrow keys to turn it, shift to pan, plus and minus to zoom, 0 to fit.',
     'data-preview': 'canvas',
-  });
+  }), hover === null ? null : h('span', { class: 'scene-pick-label', 'data-preview': 'pick-label', 'aria-hidden': 'true', style: { left: `${hover.x + 14}px`, top: `${hover.y + 14}px` } }, hover.text));
 }
