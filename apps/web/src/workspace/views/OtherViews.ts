@@ -9,6 +9,8 @@ import { machineStore, myMaterialStore, toolStore } from '../library.ts';
 import { jobSaved } from '../jobModel.ts';
 import { Icon } from '../icons.ts';
 import { openReport } from '../../report/state.ts';
+import { connected, type WorkspaceModel } from '../model.ts';
+import { stopJobSafetyText } from '../stopJobText.ts';
 
 function head(title: string, sub: string): ComponentChild {
   return h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, title), sub === '' ? null : h('p', null, sub)));
@@ -51,7 +53,9 @@ export function PreferencesView({ build }: { readonly build: BuildInfo }): Compo
   );
 }
 
-export function SafetyView(): ComponentChild {
+/** The Safety view. `model` says what Stop job does on the connection there is now (S4); absent when prerendered. */
+export function SafetyView({ model = null }: { readonly model?: WorkspaceModel | null } = {}): ComponentChild {
+  const view = model?.live.value ?? null;
   return h(
     'div',
     { class: 'safety-view' },
@@ -65,7 +69,7 @@ export function SafetyView(): ComponentChild {
         { class: 'panel' },
         h('div', { class: 'panel-head' }, h('h2', null, 'Pause and Stop job')),
         h('p', null, 'Pause and Stop job sit in the same place in every view and are never blocked by sign-in or by a mode. Escape pauses from anywhere. They are controlled stops sent over a channel that is not safety rated, and they may be delayed or never delivered.'),
-        h('p', null, 'In this release Stop job sends a feedhold, like Pause. On TinyG a feedhold does not stop the spindle or coolant: use your E-stop to remove power.'),
+        h('p', { 'data-safety-view': 'stop-job' }, stopJobSafetyText(view !== null && connected(view), view?.message?.motion === true)),
       ),
       h(
         'div',

@@ -27,6 +27,7 @@ import { machineLabel, STOP_UNAVAILABLE, type StopBarView } from '../shell/Safet
 import { ContextHelp } from '../shell/ContextHelp.ts';
 import { signalText } from '../shell/signal.ts';
 import type { StripStatus } from './status.ts';
+import { STOP_JOB_PHASE1, STOP_JOB_PHASE2 } from './stopJobText.ts';
 
 export interface MachineStripProps {
   readonly status: StripStatus;
@@ -44,11 +45,8 @@ export interface MachineStripProps {
   readonly connect?: ComponentChild;
 }
 
-/** What Stop job does in this release, said plainly next to the button. */
-export const STOP_JOB_PHASE1 = 'In this release Stop job sends a feedhold, like Pause, and leaves the spindle as it is. Use your E-stop to remove power.';
-
-/** What Stop job does with motion control (SAFETY §4.4, Phase 2 amendment). */
-export const STOP_JOB_PHASE2 = 'Stops motion, clears the queue, and turns the spindle and coolant off. Not an emergency stop: use your E-stop to remove power.';
+// What Stop job does (stopJobText.ts, shared with the Safety view so the two never disagree).
+export { STOP_JOB_PHASE1, STOP_JOB_PHASE2 };
 
 function band(status: StripStatus, view: StopBarView | null, previousSession: boolean, onResume?: () => void): ComponentChild {
   if (view?.band === 'held') {
