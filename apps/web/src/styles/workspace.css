@@ -1553,7 +1553,12 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .job-work-panel .job-prep-row { display: flex; flex-direction: column; align-items: flex-start; }
 .job-work-panel .job-prep { display: flex; flex-direction: column; }
 .job-work-panel .job-tick { font-size: 12px; }
-.job-work-panel .job-steps > [data-action="start-job"] { position: sticky; bottom: 0; justify-self: end; }
+/* Start sits after the checks it waits for, never floating over them (first-time walk 2026-11-08, S5): it is not
+   sticky, and the checks are not squeezed into a short scroll box of their own above it (the short-screen rule
+   for the Run card): the Job panel scrolls as a whole, so every check, W5 and the attestation read in full. */
+.job-work-panel .job-prep { max-height: none; overflow: visible; padding-right: 0; }
+.job-work-panel .job-steps, .job-work-panel .job-steps > *, .job-work-panel .job-prep > * { flex-shrink: 0; }
+.job-work-panel .job-steps > [data-action="start-job"] { align-self: flex-start; }
 .job-work-panel .advisor-job-check { flex-wrap: wrap; }
 .job-work-panel .job-facts { grid-template-columns: 1fr 1fr; }
 .job-view .scene-empty-prompt { top: auto; left: 12px; right: 12px; bottom: 34px; transform: none; width: auto; padding: 12px; }
