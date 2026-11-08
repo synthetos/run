@@ -4,7 +4,7 @@ Toolpath preview for the browser: chunked WebGL2 line rendering on demand, a 2D 
 
 Its input is a plain `SegmentList`, never G-code text. Whatever interprets the program (for run.synthetos.com, the `@synthetos/gcode` interpreter after the safety sanitiser) builds the list; this package only draws it. It imports no machine, safety, protocol or G-code code and has no runtime dependencies.
 
-There is deliberately **no play, simulate or animate API**: a preview must never look like a machine that is moving. The scrubber highlights lines; it does not move a tool.
+There is deliberately **no play, simulate or animate API**: a preview must never look like a machine that is moving. The scrubber highlights lines; it does not move a tool. The only motion is the live tool marker (`setToolMarker`, fed from machine reports): it eases from its drawn position to each newly reported one over about the report interval and never past it, so it lags the machine by at most one report and never runs ahead (`src/markerMotion.ts`). It snaps on a long jump, when it first appears, and under `prefers-reduced-motion`.
 
 ## Input
 

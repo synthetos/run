@@ -12,9 +12,12 @@
  * a re-upload.
  *
  * It renders on demand only: a frame is drawn when something changed (data,
- * view, toggles, highlight, size) and never otherwise. There is no animation,
- * no playback and no simulated tool position in this package, by design: a
- * preview must never look like a machine that is moving.
+ * view, toggles, highlight, size) and never otherwise. There is no playback
+ * and no simulated tool position in this package, by design: a preview must
+ * never look like a machine that is moving. The one motion is the tool marker
+ * easing from one reported position to the next (markerMotion.ts), which
+ * never runs past the latest report; its geometry is built once at the
+ * origin and moved by the offset uniform, so those frames upload nothing.
  */
 import { VIEW_ANGLES, fitOrbit, pan, rotate, viewProjection, zoom, type Orbit, type ViewAngles, type ViewPreset } from './camera.ts';
 import { DEFAULT_SEGMENTS_PER_CHUNK, STYLE, chunks } from './geometry.ts';
@@ -22,6 +25,7 @@ import { checkSegmentList, lineCount, type Box3, type SegmentList, type Vec3 } f
 import { runSliced, type SliceOptions } from './slicer.ts';
 import { gridLayout, gridLines } from './grid.ts';
 import { pickSolid, rayThrough } from './pick.ts';
+import { nextMotion, positionAt, settled, type MarkerMotion } from './markerMotion.ts';
 import { offsetBox, ringSegments, sceneBounds, solidTriangles, unionBox, type Rgba, type SceneLayers } from './scene.ts';
 
 export type { Rgba };
@@ -130,6 +134,10 @@ export interface RendererOptions {
    * (machine travel) when known or else the padded path extent (default false).
    */
   readonly grid?: boolean;
+  /** The clock for the tool marker's motion, ms (default `performance.now`). */
+  readonly now?: () => number;
+  /** True to draw each tool position at once (default: the `prefers-reduced-motion` media query). */
+  readonly reducedMotion?: () => boolean;
 }
 
 const VERTEX = `#version 300 es
@@ -236,6 +244,8 @@ const NO_OFFSET: Vec3 = [0, 0, 0];
 
 export function createRenderer(gl: WebGL2RenderingContext, options: RendererOptions): PreviewRenderer {
   const requestFrame = options.requestFrame ?? ((draw: () => void) => { requestAnimationFrame(draw); });
+  const now = options.now ?? (() => performance.now());
+  const reducedMotion = options.reducedMotion ?? (() => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const program = link(gl, VERTEX, FRAGMENT, ['a_pos', 'a_style', 'a_line', 'a_dist']);
   const u = {
     mvp: gl.getUniformLocation(program, 'u_mvp'),
@@ -259,7 +269,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   let gridChunk: GpuChunk | null = null;
   /** Envelope, triad and hole rings, in the drawing's frame. */
   let frameOverlay: GpuChunk | null = null;
-  /** The tool marker, in the path's frame. */
+  /** The tool marker, built with its tip at the origin and drawn at `motion`'s position in the path's frame. */
   let markerOverlay: GpuChunk | null = null;
   let solids: GpuChunk[] = [];
   let list: SegmentList | null = null;
@@ -274,6 +284,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   let highlightLine = -1;
   let planner: PlannerOverlay | null = null;
   let marker: Vec3 | null = null;
+  let motion: MarkerMotion | null = null;
   let angles: ViewAngles = VIEW_ANGLES.iso;
   let view: Orbit = fitOrbit(null);
   /** True until the person turns, zooms or pans the view: a resize then refits it. */
@@ -378,7 +389,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     pos.length = 0;
     sty.length = 0;
     if (marker !== null) {
-      for (const [a, b] of toolGlyph(marker, fitBox())) seg(a, b, OVERLAY.MARKER);
+      for (const [a, b] of toolGlyph(NO_OFFSET, fitBox())) seg(a, b, OVERLAY.MARKER);
       markerOverlay = linesChunk(pos, sty);
     }
   }
@@ -455,9 +466,18 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       gl.drawArrays(gl.LINES, 0, frameOverlay.vertexCount);
     }
     gl.uniform3f(u.offset, pathOffset[0], pathOffset[1], pathOffset[2]);
-    for (const c of markerOverlay === null ? path : [...path, markerOverlay]) {
+    for (const c of path) {
       gl.bindVertexArray(c.vao);
       gl.drawArrays(gl.LINES, 0, c.vertexCount);
+    }
+    if (markerOverlay !== null && motion !== null) {
+      const t = now();
+      const at = positionAt(motion, t);
+      gl.uniform3f(u.offset, pathOffset[0] + at[0], pathOffset[1] + at[1], pathOffset[2] + at[2]);
+      gl.bindVertexArray(markerOverlay.vao);
+      gl.drawArrays(gl.LINES, 0, markerOverlay.vertexCount);
+      // Frames only while the marker is still on its way to the latest report; then it rests.
+      if (!settled(motion, t)) requestRender();
     }
     gl.bindVertexArray(null);
   }
@@ -618,8 +638,11 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       requestRender();
     },
     setToolMarker(position) {
+      // The glyph is rebuilt only when the marker appears or goes; a new position is a new motion target.
+      const shownChanged = (marker === null) !== (position === null);
       marker = position;
-      rebuildOverlay();
+      motion = nextMotion(motion, position, now(), reducedMotion());
+      if (shownChanged) rebuildOverlay();
       requestRender();
     },
     resize(w, h, pixelRatio = 1) {

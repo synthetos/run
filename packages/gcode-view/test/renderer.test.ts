@@ -96,10 +96,10 @@ describe('WebGL renderer', () => {
     expect(calls.get('uniform1f')).toBeGreaterThanOrEqual(3);
   });
 
-  it('the planner view and the tool marker are drawn on demand from what the page gives, and never animate', async () => {
+  it('the planner view and the tool marker are drawn on demand from what the page gives; a first marker does not animate', async () => {
     const { gl, calls, uploads } = fakeGl();
     const frames = frameQueue();
-    const r = createRenderer(gl, { colors: { ...COLORS, plannerStarving: [1, 0.6, 0, 1] }, requestFrame: frames.request });
+    const r = createRenderer(gl, { colors: { ...COLORS, plannerStarving: [1, 0.6, 0, 1] }, requestFrame: frames.request, now: () => 0, reducedMotion: () => false });
     await r.load(listOf([[[SEGMENT.FEED, 1, 1, 0]], [[SEGMENT.FEED, 2, 2, 0]], [[SEGMENT.FEED, 3, 3, 0]]]), instant);
     frames.flush();
     const before = calls.get('uniform4fv') ?? 0;
@@ -113,6 +113,40 @@ describe('WebGL renderer', () => {
     expect(uploads.length).toBeGreaterThan(overlays);
     r.setToolMarker(null);
     r.setPlanner(null);
+    expect(frames.flush()).toBe(1);
+    expect(frames.flush()).toBe(0);
+  });
+
+  it('the tool marker eases to each new report over the report interval, uploads nothing while it moves, then rests', async () => {
+    const { gl, calls, uploads } = fakeGl();
+    const frames = frameQueue();
+    let clock = 0;
+    const r = createRenderer(gl, { colors: COLORS, requestFrame: frames.request, now: () => clock, reducedMotion: () => false });
+    await r.load(listOf([[[SEGMENT.FEED, 100, 100, 0]]]), instant);
+    r.setToolMarker([0, 0, 0]);
+    expect(frames.flush()).toBe(1);
+    expect(frames.flush()).toBe(0);
+    const overlays = uploads.length;
+    clock = 250;
+    r.setToolMarker([10, 0, 0]);
+    let drawn = 0;
+    for (; clock <= 600 && frames.pending > 0; clock += 16) drawn += frames.flush();
+    expect(drawn).toBeGreaterThan(10);
+    expect(drawn).toBeLessThan(20);
+    expect(frames.pending).toBe(0);
+    expect(uploads.length).toBe(overlays);
+    expect(calls.get('uniform3f')).toBeGreaterThan(drawn * 3 - 1);
+  });
+
+  it('the tool marker snaps under reduced motion: one frame per report', async () => {
+    const { gl } = fakeGl();
+    const frames = frameQueue();
+    let clock = 0;
+    const r = createRenderer(gl, { colors: COLORS, requestFrame: frames.request, now: () => clock, reducedMotion: () => true });
+    r.setToolMarker([0, 0, 0]);
+    frames.flush();
+    clock = 250;
+    r.setToolMarker([10, 0, 0]);
     expect(frames.flush()).toBe(1);
     expect(frames.flush()).toBe(0);
   });
