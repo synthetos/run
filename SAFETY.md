@@ -389,7 +389,7 @@ The edge-next image must be published as a reviewed GitHub release first (D6). R
 *Amended 2026-11-03 (Phase 3, H74).* On edge-next, M6 without C14 is no longer a block: the sanitiser marks the line as a manual tool-change stop (INFO), and the streamer stops feeding **before** the M6 line, waits for every answer and two polled reads at rest, then writes `M5` and `M9` itself before the card is shown. The M6 line is sent only on Resume (C34), so the reported `tool` stays truthful. C14 (and its M0 barrier) remains for 440.21, where run streams no jobs.
 
 ### H24. Session normalisation breaks another sender
-As OLD-S H24. Persisted reporting keys on EN are `ej, jv, js, tv, qv, sv, si, ex, rxm` and `se00..se29` (PN §12.2). **The default plan on EN normalises nothing.** **(Amended 2026-11-04, owner, OD-14.)** One exception at connect: when the identity probe's first GET answers with no value (JSON verbosity below 3, so nothing can be read) and the board's first status answer shows it at rest (`stat` 1, 3 or 4), the session writes `{jv:4}` once per link, waits for that SET's own reply plus 50 ms (the firmware maintainer's EEPROM rule, N35), says so in the session log and identifies the board again. Only while identifying, only that line (the write policy admits it while it is in flight), never on a moving board; a refusal leaves the board unidentified and read-only. The wider normalisation (`js`, `ee`, `ej`, `sv`, restore on disconnect) follows under the same rules. *(Amended 2026-11-07, to match H64:* this said "The default `sr` already contains `line`, and run does not write `jv`, `qv`, `rxm` or the `sr` list". The persisted reporting settings run needs, the `sr` list, `sv` and `si`, are set at connect when they differ (H64, the push-driven amendment of 2026-11-02), without a confirmation (OD-17), and shown (W35, W36). They are not restored yet: the restore offer of OD-14 awaits an owner decision. `jv` is written only as the OD-14 exception above, `rxm` only for a job (H77, below), and `qv` never.) Any future normalisation is consented, uses W19, and is restored on disconnect, with C17 recovery. `os` (and the proposed `hbt`) are session-only, so this hazard does not apply to them. Residual Low.
+As OLD-S H24. Persisted reporting keys on EN are `ej, jv, js, tv, qv, sv, si, ex, rxm` and `se00..se29` (PN §12.2). **On EN, run writes only the reporting settings it needs, at connect, and leaves them set (below).** **(Amended 2026-11-04, owner, OD-14.)** One exception at connect: when the identity probe's first GET answers with no value (JSON verbosity below 3, so nothing can be read) and the board's first status answer shows it at rest (`stat` 1, 3 or 4), the session writes `{jv:4}` once per link, waits for that SET's own reply plus 50 ms (the firmware maintainer's EEPROM rule, N35), says so in the session log and identifies the board again. Only while identifying, only that line (the write policy admits it while it is in flight), never on a moving board; a refusal leaves the board unidentified and read-only. Any other persisted setting (`js`, `ee`, `ej`) needs an owner decision first. *(Amended 2026-11-07, to match H64:* this said "The default `sr` already contains `line`, and run does not write `jv`, `qv`, `rxm` or the `sr` list". The persisted reporting settings run needs, the `sr` list, `sv` and `si`, are set at connect when they differ (H64, the push-driven amendment of 2026-11-02), without a confirmation (OD-17), and shown (W35, W36). They are left set on disconnect, with no restore offer (owner, 2026-11-08, OD-14 as amended: "we control the hardware, so setting sr is fine in settings"). `jv` is written only as the OD-14 exception above, `rxm` only for a job (H77, below), and `qv` never.) On TG, where a normalisation is needed (`qv` for queue reports), it is consented, uses W19, and is restored on disconnect, with C17 recovery. `os` (and the proposed `hbt`) are session-only, so this hazard does not apply to them. Residual Low.
 
 *Amended 2026-11-03 (Phase 3, H77).* run now writes `rxm` for a job: `{"rxm":1}` only when the board is in character mode, read back, and the value it found written back when the job ends. That is not a normalisation and needs no W19 consent: it is part of job preparation, through its own reviewed intent (`lineMode`), and it is undone by run itself (H77).
 
@@ -1201,7 +1201,7 @@ As OLD-S §4.3.
 
 **Audible alarms:** W3, W12 and FAULT during a job. The AudioContext is unlocked in the Connect gesture. Sound is never counted as a mitigation on its own.
 
-**Normal disconnect** restores any pending temporary settings (H26) and any consented normalisation (H24) before closing.
+**Normal disconnect** restores any pending temporary settings (H26) and any consented normalisation (H24) before closing. The reporting settings run sets at connect on EN (the `sr` list, `sv`, `si`; H24, H64) are left set.
 
 ### 4.4 Stop semantics (exact sequences)
 
@@ -1365,7 +1365,7 @@ Typed C5 for:
 
 Forbidden keys: PN §12.4.
 
-**Session normalisation:** not performed on EN by default (H24). Where it is needed (TG `qv` for queue reports), it follows OLD-S §4.6 with W19 and restore.
+**Session normalisation:** on EN, only the reporting settings run needs, set at connect and left set (H24, H64, OD-14). Where it is needed (TG `qv` for queue reports), it follows OLD-S §4.6 with W19 and restore.
 
 **Amendment 2026-11-02 (settings writes on the bench and staging; H57-H63).** The pipeline as built:
 1. **Gate:** the phase switch is on, the board is approved (not READ_ONLY), the allow-matrix allows `settingsWrite`, and the session refuses a second write while one is in progress.
@@ -1780,7 +1780,7 @@ Manual, and never in CI. Signed in `RELEASES.md` in the run repo, with the evide
 - **HIL-4.4** Apply a stored profile with C19: only the diffed keys are written; a connect with a newer cloud revision writes nothing until confirmed (T-S42 on hardware).
 - **HIL-4.5** Temporary homing cap: pull USB mid-homing, reconnect, NEEDS_REVIEW, C17 restore; values read back equal to the snapshot (B-HOME-1).
 - **HIL-4.6** After a polarity write: W20; `dir.*` cleared; the direction test is required.
-- **HIL-4.7** After a session, CNCjs connects and streams correctly (no normalisation was written on EN).
+- **HIL-4.7** After a session, CNCjs connects and streams correctly with the reporting settings run left set on EN (the `sr` list, `sv`, `si`; H24).
 - **HIL-4.8** (amendment 2026-11-02, B-EEPROM-1) EEPROM stall: time a persisted write, and send a GET during it from the EN-HIL harness: record how long the board stalls and which bytes are lost. With run, apply 10 changes with the `mpo` and readout pollers running: the transcript shows each write's answer before the next line, and every read-back matches.
 - **HIL-4.9** (amendment 2026-11-02) High-risk changes on the bench: change `st` and one `xsn` with the switches wired. The confirmation names the consequence and needs the ticks and WRITE. After applying, the switch test shows the inverted reading. Revert from the backup restores it, read back.
 

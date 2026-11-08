@@ -386,6 +386,8 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 
 **Decision.** At connect, run sets the communication and reporting settings it requires (starting with `jv`) when they differ, shows what it changed in plain words (as W35 does for the status report list), and offers to restore the previous values on disconnect. Every persisted write follows the firmware's EEPROM rule (the reply, then the settle delay before the next line, N35). The list, target values and timing come from the firmware maintainer's answer and are cited in SAFETY when the amendment to H24 is written; until then this decision is recorded, not built.
 
+**Amended (owner, 2026-11-08).** "we control the hardware so i think settings a sr is fine in settings." Run sets the reporting settings it needs at connect (the `sr` list, `sv`, `si`; H64) and leaves them set. There is no offer to restore the previous values on disconnect. Supersedes the restore offer above, and run decision D24 (synthetos.com docs/run/DECISIONS.md).
+
 ## OD-15. Configuration sent during a job is refused and reported (owner, 2026-11-04)
 
 **Owner's words.** "refuse and report i think is the best."
