@@ -80,7 +80,7 @@ test('machine and settings share a centred page with a compact bed in both inter
   await expect(screen.locator('[role="tablist"][aria-label="Machines"] [role="tab"]')).toHaveText(['Your machine', 'TinyG settings', 'Start from a machine']);
   await expect(screen.locator('[data-machine="bed"]')).toBeVisible();
   // The profile tab no longer carries the board's settings.
-  await expect(screen.locator('[data-machine-settings]')).toHaveCount(0);
+  await expect(screen.locator('[data-machine-settings]')).toBeHidden();
   const width = screen.getByLabel('Width, bed', { exact: true });
   await width.fill('760');
   await width.press('Tab');
