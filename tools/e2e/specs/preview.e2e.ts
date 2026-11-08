@@ -36,7 +36,8 @@ test('a file loads into the preview: W13 pinned, drawing, scrubber, list, and no
   await expect(sheet.locator('[data-preview="scrub-line"]')).toHaveText(/^file line \d+$/);
   await expect(sheet.locator('[data-preview="list"] [data-highlight="true"]').first()).toBeVisible();
   await expectNoPlay(page);
-  expect(page.workers().map((w) => new URL(w.url()).pathname.split('/').pop()?.split('-')[0]).sort()).toEqual(['gcode.worker', 'machine.worker']);
+  // The page's workers: the preview's, the machine's, and the stock carving's (tool-sim slice 2), none other.
+  expect(page.workers().map((w) => new URL(w.url()).pathname.split('/').pop()?.split('-')[0]).sort()).toEqual(['carve.worker', 'gcode.worker', 'machine.worker']);
 
   const axe = await new AxeBuilder({ page }).include('[data-region="preview"]').analyze();
   expect(axe.violations.map((v) => v.id)).toEqual([]);
