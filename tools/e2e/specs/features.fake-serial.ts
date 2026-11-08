@@ -26,7 +26,7 @@ const BOARD = 'SIM-EN-0001';
 const SHOTS = process.env['RUN_SCREENSHOTS_DIR'];
 
 interface Status {
-  readonly status: { readonly session: { readonly base: string; readonly overlays: readonly string[] } };
+  readonly status: { readonly session: { readonly base: string; readonly overlays: readonly string[]; readonly reports: { readonly phase: string } } };
 }
 
 async function connectedTab(page: Page): Promise<Worker> {
@@ -36,6 +36,9 @@ async function connectedTab(page: Page): Promise<Worker> {
   await page.locator('[data-action="ui-level-advanced"]').click();
   await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as Status).status.session.base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
   await expect(page.locator('[data-region="machine-strip"] [data-strip="state"]')).toHaveText('Machine idle', { timeout: 10_000 });
+  // The connect-time read and report configuration (the status report list, then the heartbeat `{"rt":{"hb":N}}`)
+  // go on after the base is idle; wait for them, so what a test writes afterwards is only its own.
+  await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as Status).status.session.reports.phase, { timeout: 15_000 }).toBe('done');
   const w29 = page.locator('[data-action="dismiss-w29"]');
   if ((await w29.count()) > 0) await w29.click();
   return worker;
