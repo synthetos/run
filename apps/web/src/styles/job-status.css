@@ -1,0 +1,55 @@
+/*
+ * The Run job card (JobStatus in workspace/views/JobViews.ts): phase and %, the progress bar, four facts
+ * and Pause / Resume / Stop job. It lives in the narrow Job panel (about 250 px) and in wider places, so
+ * the section is a size container and the grid inside it is laid out by the card's own width:
+ *
+ * - narrow (the default): stacked; each fact a label / value row; the controls on their own row;
+ * - 400 px and up: the facts as a 2 x 2 grid, label above value;
+ * - 760 px and up: one tidy strip, head | facts | controls, the bar underneath.
+ *
+ * Safety (SAFETY §4.1): Pause and Stop job are never overlapped or clipped. The controls always have a
+ * grid area of their own and size to their labels, at least 36 px tall; they never stretch.
+ * Loaded after workspace.css; the facts rules carry an extra class so `.job-work-panel .job-facts` never wins.
+ */
+.job-status { container: job-status / inline-size; grid-column: 1 / -1; min-width: 0; border-top: 1px solid var(--line-soft); padding-top: 9px; }
+.job-status-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "head" "bar" "facts" "msg" "controls";
+  gap: 10px;
+}
+.job-status-head { grid-area: head; display: flex; justify-content: space-between; gap: 10px; align-items: baseline; min-width: 0; }
+.job-status-head strong { font: 600 14px/1.2 var(--cond); color: var(--state-run); }
+.job-status.phase-paused .job-status-head strong, .job-status.phase-refused .job-status-head strong, .job-status.phase-toolChange .job-status-head strong, .job-status.phase-breakpoint .job-status-head strong { color: var(--state-hold); }
+.job-status.phase-failed .job-status-head strong { color: var(--state-alarm); }
+.job-status.phase-done .job-status-head strong, .job-status.phase-stopped .job-status-head strong { color: var(--ink); }
+.job-pct { font: 500 12px/1 var(--mono); color: var(--muted); }
+.job-status .job-progress { grid-area: bar; margin: 0; height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; }
+.job-status .job-progress i { display: block; height: 100%; background: var(--state-run); }
+
+/* Narrow: one fact per row, label left, value right; a long value drops under its label rather than squeezing. */
+.job-status .job-status-grid .job-facts { grid-area: facts; display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; margin: 0; min-width: 0; }
+.job-status .job-facts > div { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 10px; min-width: 0; }
+.job-status .job-facts dt { color: var(--muted); }
+.job-status .job-facts dd { margin: 0 0 0 auto; font: 500 12px/1.35 var(--mono); text-align: right; overflow-wrap: anywhere; }
+.job-status .job-message { grid-area: msg; }
+
+.job-status .job-controls { grid-area: controls; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; align-items: center; }
+.job-status .job-controls button.small { flex: none; width: auto; min-height: 36px; padding: 0 16px; font-size: 13px; white-space: nowrap; text-align: center; }
+
+@container job-status (min-width: 400px) {
+  .job-status .job-status-grid .job-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+  .job-status .job-facts > div { display: grid; gap: 1px; align-content: start; }
+  .job-status .job-facts dd { margin: 0; text-align: left; }
+}
+
+@container job-status (min-width: 760px) {
+  .job-status-grid {
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    grid-template-areas: "head facts controls" "bar bar bar" "msg msg msg";
+    gap: 8px 20px;
+    align-items: center;
+  }
+  .job-status-head { justify-content: flex-start; }
+  .job-status .job-status-grid .job-facts { grid-template-columns: repeat(4, minmax(0, max-content)); gap: 2px 20px; }
+}

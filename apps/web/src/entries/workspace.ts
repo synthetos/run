@@ -38,6 +38,7 @@ import { createWorkspaceModel } from '../workspace/model.ts';
 import { loadStoredLibraries } from '../workspace/storage.ts';
 import '../styles/base.css';
 import '../styles/workspace.css';
+import '../styles/job-status.css';
 import '../styles/gcode-list.css';
 import '../styles/features.css';
 

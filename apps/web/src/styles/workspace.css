@@ -1431,22 +1431,10 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
   .run-view { overflow-y: auto; }
   .run-view > .run-grid { min-height: 430px; }
 }
-.job-status { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(150px, auto) minmax(0, 1fr) auto; gap: 6px 18px; align-items: center; border-top: 1px solid var(--line-soft); padding-top: 9px; }
-.job-status-head { display: flex; gap: 10px; align-items: baseline; }
-.job-status-head strong { font: 600 14px/1.2 var(--cond); color: var(--state-run); }
-.job-status.phase-paused .job-status-head strong, .job-status.phase-refused .job-status-head strong, .job-status.phase-toolChange .job-status-head strong, .job-status.phase-breakpoint .job-status-head strong { color: var(--state-hold); }
-.job-status.phase-failed .job-status-head strong { color: var(--state-alarm); }
-.job-status.phase-done .job-status-head strong, .job-status.phase-stopped .job-status-head strong { color: var(--ink); }
-.job-pct { font: 500 12px/1 var(--mono); color: var(--muted); }
-.job-status .job-progress { grid-column: 1 / -1; grid-row: 2; margin: 0; height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; }
-.job-status .job-progress i { display: block; height: 100%; background: var(--state-run); }
-.job-status .job-facts { grid-template-columns: repeat(4, auto); gap: 2px 16px; }
-.job-status .job-facts > div { display: grid; gap: 1px; }
-.job-status .job-facts dd { font: 500 12px/1.3 var(--mono); }
+/* The Run job card (JobStatus) has its own container-query layout: job-status.css. */
 .job-message { grid-column: 1 / -1; font-size: 12px; line-height: 1.45; margin: 0; }
 .job-message.danger { color: var(--danger); }
 .job-controls { display: flex; gap: 8px; flex-wrap: wrap; }
-.job-controls button.small { min-height: 30px; }
 .job-stop { flex: none; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--rule); border-left: 3px solid var(--state-hold); border-radius: var(--r-sm); background: var(--sheet); font-size: 12.5px; }
 .job-stop h2 { font: 600 14px/1.3 var(--cond); margin: 0 0 8px; }
 .job-stop .job-facts { margin: 0 0 8px; }

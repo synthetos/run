@@ -171,26 +171,31 @@ export function JobStatus({ model, onPause, onStopJob }: { readonly model: Works
   return h(
     'section',
     { class: `job-status phase-${job.phase}`, 'data-job': 'status', 'data-phase': job.phase, 'aria-label': 'Job' },
-    h('div', { class: 'job-status-head' }, h('strong', { 'data-job': 'phase' }, PHASE_TEXT[job.phase] ?? job.phase), h('span', { class: 'job-pct' }, `${pct}%`)),
-    h('div', { class: 'job-progress', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct }, h('i', { style: { width: `${pct}%` } })),
+    // The section is the size container (job-status.css); this grid inside it is what the width rearranges.
     h(
-      'dl',
-      { class: 'job-facts' },
-      h('div', null, h('dt', null, 'Line'), h('dd', { 'data-job': 'line' }, job.executing === null ? `${job.acked} of ${job.total} answered` : `file line ${job.executing.line} (${job.executing.n} of ${job.total})`)),
-      h('div', null, h('dt', null, 'Elapsed'), h('dd', { 'data-job': 'elapsed' }, ui.elapsedMs === null ? 'Not started' : duration(ui.elapsedMs / 1000))),
-      h('div', null, h('dt', null, 'Remaining'), h('dd', { 'data-job': 'remaining' }, ACTIVE(job) ? `about ${duration(job.remainingSeconds)} (estimate)` : 'Not running')),
-      h('div', null, h('dt', null, 'Feed, actual / programmed'), h('dd', { 'data-job': 'feed' }, `${typeof vel === 'number' ? Math.round(vel) : 'unknown'} / ${typeof feed === 'number' ? Math.round(feed) : 'unknown'} mm/min`)),
+      'div',
+      { class: 'job-status-grid' },
+      h('div', { class: 'job-status-head' }, h('strong', { 'data-job': 'phase' }, PHASE_TEXT[job.phase] ?? job.phase), h('span', { class: 'job-pct' }, `${pct}%`)),
+      h('div', { class: 'job-progress', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct }, h('i', { style: { width: `${pct}%` } })),
+      h(
+        'dl',
+        { class: 'job-facts' },
+        h('div', null, h('dt', null, 'Line'), h('dd', { 'data-job': 'line' }, job.executing === null ? `${job.acked} of ${job.total} answered` : `file line ${job.executing.line} (${job.executing.n} of ${job.total})`)),
+        h('div', null, h('dt', null, 'Elapsed'), h('dd', { 'data-job': 'elapsed' }, ui.elapsedMs === null ? 'Not started' : duration(ui.elapsedMs / 1000))),
+        h('div', null, h('dt', null, 'Remaining'), h('dd', { 'data-job': 'remaining' }, ACTIVE(job) ? `about ${duration(job.remainingSeconds)} (estimate)` : 'Not running')),
+        h('div', null, h('dt', null, 'Feed, actual / programmed'), h('dd', { 'data-job': 'feed' }, `${typeof vel === 'number' ? Math.round(vel) : 'unknown'} / ${typeof feed === 'number' ? Math.round(feed) : 'unknown'} mm/min`)),
+      ),
+      job.message === null ? null : h('p', { class: `job-message${job.phase === 'failed' ? ' danger' : ''}`, 'data-job': 'message', role: job.phase === 'failed' ? 'alert' : 'status' }, ...signalText(job.message)),
+      ACTIVE(job)
+        ? h(
+            'div',
+            { class: 'job-controls' },
+            h('button', { type: 'button', class: 'small', 'data-machine-control': 'job-pause', title: 'Feedhold: decelerates and pauses motion', ...(onPause === undefined ? { disabled: true } : { onClick: onPause }) }, w2Label()),
+            job.phase === 'paused' && actions?.job !== undefined ? h('button', { type: 'button', class: 'small', 'data-machine-control': 'resume', onClick: () => void actions.job?.({ op: 'resume', skip: false, spindleRestart: false }) }, 'Resume') : null,
+            h('button', { type: 'button', class: 'small danger', 'data-machine-control': 'job-stop', ...(onStopJob === undefined ? { disabled: true } : { onClick: onStopJob }) }, STOP_TEXT.stopJob),
+          )
+        : null,
     ),
-    job.message === null ? null : h('p', { class: `job-message${job.phase === 'failed' ? ' danger' : ''}`, 'data-job': 'message', role: job.phase === 'failed' ? 'alert' : 'status' }, ...signalText(job.message)),
-    ACTIVE(job)
-      ? h(
-          'div',
-          { class: 'job-controls' },
-          h('button', { type: 'button', class: 'small', 'data-machine-control': 'job-pause', title: 'Feedhold: decelerates and pauses motion', ...(onPause === undefined ? { disabled: true } : { onClick: onPause }) }, w2Label()),
-          job.phase === 'paused' && actions?.job !== undefined ? h('button', { type: 'button', class: 'small', 'data-machine-control': 'resume', onClick: () => void actions.job?.({ op: 'resume', skip: false, spindleRestart: false }) }, 'Resume') : null,
-          h('button', { type: 'button', class: 'small danger', 'data-machine-control': 'job-stop', ...(onStopJob === undefined ? { disabled: true } : { onClick: onStopJob }) }, STOP_TEXT.stopJob),
-        )
-      : null,
   );
 }
 
