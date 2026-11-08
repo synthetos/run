@@ -2319,14 +2319,23 @@ export class TinyGEdgeNextModel implements SimDevice {
     const input = /^in([1-8])$/.exec(key);
     if (input !== null) return this.#probe.read(Number(input[1])) ?? this.#options.inputs?.(Number(input[1])) ?? 0;
     if (info.group === 'hom' && axis >= 0) return this.#homed[axis] ? 1 : 0;
-    // The active G92 offset, mm (0 while G92 is off); g28/g30 read their (unset, 0) stored positions below.
-    if (info.group === 'g92' && axis >= 0) return fixed(this.#gm.g92Enabled ? (this.#gm.g92[axis] as number) : 0, p);
+    // The active G92 offset (0 while G92 is off); g28/g30 read their (unset, 0) stored positions below.
+    if (info.group === 'g92' && axis >= 0) return fixed(this.#printedUnits(key, this.#gm.g92Enabled ? (this.#gm.g92[axis] as number) : 0), p);
     if (['get_flt', 'get_ui8', 'get_int', 'get_u32', 'get_data', 'cm_get_am'].includes(info.get)) {
       const v = this.settings.get(key);
-      if (typeof v === 'number') return fixed(v, p);
+      if (typeof v === 'number') return fixed(this.#printedUnits(key, v), p);
       return fixed(0, p);
     }
     return undefined;
+  }
+
+  /**
+   * A value as the serializer prints it: the coordinate offsets and stored positions on X, Y and Z (`F_CONVERT`)
+   * in inches while the model is in G20 (@cite EN json_parser.c:828; config_app.c:858-871, :388-450). The other
+   * `F_CONVERT` tokens still print in mm here (LIM-EN-PRINT-UNITS).
+   */
+  #printedUnits(key: string, mm: number): number {
+    return this.#gm.units === 'in' && /^(g5[4-9]|g92|g28|g30)[xyz]$/.test(key) ? mm / 25.4 : mm;
   }
 
   #groupValues(group: string): OutObject {

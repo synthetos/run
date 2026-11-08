@@ -304,6 +304,25 @@ function groupOf(s: SessionState, token: string): AxisValues | undefined {
   return out;
 }
 
+/**
+ * A group printed in the board's units (`F_CONVERT`: g54..g59, g92, g28 and g30 on X, Y and Z, never A, B or C),
+ * in mm. The JSON serializer divides those by 25.4 while the model is in G20 (@cite EN json_parser.c:828,
+ * config_app.c:858-871 prep_float, :388-450 the `_fipc`/`_fic` rows; config.h:242, :275-276); `mpo` and `ofs` are
+ * always mm (config_app.c:166, :180). The board is at rest when the job reads it, so the `unit` it reports is the
+ * model's. Without the units read, such a group is unknown, never guessed.
+ */
+function groupMm(s: SessionState, token: string, units: number | undefined): AxisValues | undefined {
+  const g = groupOf(s, token);
+  if (g === undefined || (units !== 0 && units !== 1)) return undefined;
+  if (units === 1) return g;
+  const out: Partial<Record<'X' | 'Y' | 'Z' | 'A' | 'B' | 'C', number>> = { ...g };
+  for (const a of ['X', 'Y', 'Z'] as const) {
+    const v = g[a];
+    if (v !== undefined) out[a] = v * 25.4;
+  }
+  return out;
+}
+
 function scalar(s: SessionState, token: string): number | undefined {
   const v = s.values[token];
   return v !== undefined && v.status === 0 ? numberOf(v.value ?? undefined) : undefined;
@@ -320,13 +339,13 @@ export function liveStart(s: SessionState): StartState {
   const coor = scalar(s, 'coor');
   const offsets: Partial<Record<Wcs, AxisValues>> = {};
   WCS_OF.forEach((w, i) => {
-    const g = groupOf(s, `g${54 + i}`);
+    const g = groupMm(s, `g${54 + i}`, units);
     if (g !== undefined) offsets[w] = g;
   });
-  const g92 = groupOf(s, 'g92');
+  const g92 = groupMm(s, 'g92', units);
   const machine = groupOf(s, 'mpo');
-  const g28 = groupOf(s, 'g28');
-  const g30 = groupOf(s, 'g30');
+  const g28 = groupMm(s, 'g28', units);
+  const g30 = groupMm(s, 'g30', units);
   // The tool length offset (G43.1) is not readable on its own: the board's work offset `ofs` is the active
   // coordinate offset (with G92 when applied) plus it (@cite EN canonical_machine.c:348-353), so it is the rest.
   const ofs = groupOf(s, 'ofs');
