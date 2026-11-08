@@ -112,6 +112,7 @@ import {
   type JobDeps,
 } from './job.ts';
 import { jobActive, patchJob } from './jobState.ts';
+import { maybeRereadOffsets } from './jobOffsets.ts';
 import { PROBE_CLOSED } from './probe/state.ts';
 import { onProbeIntent, probeRefusal } from './probe/intents.ts';
 import { onProbeAlarm, onProbeAnswer, onProbePoll, onProbeReport, onProbeTimer } from './probe/run.ts';
@@ -417,6 +418,7 @@ export function reduce(config: SessionConfig, state: SessionState, event: Sessio
   }
   maybeConfigure(t);
   maybeRestoreLineMode(t, linkUp(t.s) && allowed(matrixSnapshot(t.s), 'lineMode', t.config.release).allowed);
+  maybeRereadOffsets(t, linkUp(t.s) && allowed(matrixSnapshot(t.s), 'read', t.config.release).allowed);
   pump(t);
   pumpJob(t, linkUp(t.s) && allowed(matrixSnapshot(t.s), 'jobLine', t.config.release).allowed);
   syncProbe(t);

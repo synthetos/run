@@ -75,7 +75,8 @@ async function read(h: Harness, token: string): Promise<unknown> {
  */
 async function finished(h: Harness, text: string): Promise<void> {
   await start(h, text);
-  await runUntil(h, () => h.session.snapshot.job?.phase === 'done' && h.session.snapshot.rxm.busy === false, 30_000);
+  // Done, the line mode put back and the offsets the job may have changed read again (jobOffsets.ts).
+  await runUntil(h, () => h.session.snapshot.job?.phase === 'done' && h.session.snapshot.rxm.busy === false && h.session.state.queue.length === 0 && !h.session.state.expected.some((e) => !e.late), 30_000);
   expect(h.session.snapshot.job?.phase).toBe('done');
 }
 

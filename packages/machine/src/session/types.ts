@@ -584,6 +584,8 @@ export interface JobState {
   readonly faultStopAt: number | null;
   /** Set when a stop sequence for this job is under way (Stop job, a fault). */
   readonly stopping: boolean;
+  /** The offsets were queued to be read again after the job ended (jobOffsets.ts). */
+  readonly offsetsReread?: true;
 }
 
 /**
