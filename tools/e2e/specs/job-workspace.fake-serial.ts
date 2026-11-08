@@ -5,7 +5,7 @@ test('one Job keeps its scene and setup across steps, Library and project reopen
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
   const rail = page.locator('[data-region="rail"]');
-  await expect(rail.locator('[data-view]')).toHaveText(['Job', 'Library', 'Board', 'Projects', 'Analyze', 'Settings', 'Safety']);
+  await expect(rail.locator('[data-view]')).toHaveText(['Job', 'Library', 'Board', 'Projects', 'Analyze', 'Preferences', 'Safety']);
   await expect(page.locator('[data-job-step]')).toHaveCount(5);
   await rail.locator('[data-view="library"]').click();
   await page.locator('[data-tab="catalogue"]').click();

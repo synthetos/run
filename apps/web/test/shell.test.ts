@@ -37,7 +37,7 @@ describe('workspace AppShell (prerendered)', () => {
   });
 
   it('the rail groups Job and Library, and only Job is shown', () => {
-    expect(VIEWS.map((v) => v.label)).toEqual(['Job', 'Library', 'Board', 'Projects', 'Analyze', 'Settings', 'Safety']);
+    expect(VIEWS.map((v) => v.label)).toEqual(['Job', 'Library', 'Board', 'Projects', 'Analyze', 'Preferences', 'Safety']);
     for (const v of VIEWS) {
       const at = html.indexOf(`data-screen="${v.id}"`);
       expect(at, v.id).toBeGreaterThan(0);
@@ -159,7 +159,7 @@ describe('Phase 1 control allowlist', () => {
     /^action:machine-(review-settings|backups)$/,
     /^action:job-(step-(machine|stock|place|check|run|back|next)|files|files-close|projects|close|library-machines|use-machine)$/,
     /^view:(job|library|board|projects|analyze|settings|safety)$/,
-    /^tab:(machines|tools|materials|gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|catalogue)$/,
+    /^tab:(machines|tools|materials|gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|settings|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
     /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
     // Firmware & Backups: records on this computer (export, import, compare, delete, download) and dialog controls.

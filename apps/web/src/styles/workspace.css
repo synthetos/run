@@ -1564,6 +1564,10 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .job-files-content .file-row { grid-template-columns: 24px minmax(0, 1fr); }
 .job-files-content .row-actions { grid-column: 2; flex-wrap: wrap; }
 .library-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* Library's own sections are the first thing on the page: a clear row of tabs under the heading, not a corner control. */
+.library-view > .library-head { flex-direction: column; align-items: stretch; gap: 4px; padding-bottom: 0; }
+.library-view > .library-head .utabs { padding: 0; }
+.library-view > .library-head .utabs [role="tab"] { font-size: 15px; min-height: 42px; padding: 0 16px; font-weight: 600; }
 .library-view > .tpane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .library-view > .tpane > div { flex: 1; min-height: 0; }
 .library-view > .tpane > div > .view-head h1 { font-size: 18px; }
@@ -1596,7 +1600,6 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
   .library-view > .view-head { flex-wrap: wrap; }
 }
 
-.library-job-action { flex: none !important; padding: 0 20px 8px; display: flex; justify-content: flex-end; }
 
 @media (max-width: 650px) {
   .job-step-bar button { flex: none; min-width: max-content; padding: 6px 10px; }

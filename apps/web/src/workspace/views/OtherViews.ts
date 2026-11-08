@@ -21,7 +21,7 @@ export function PreferencesView({ build }: { readonly build: BuildInfo }): Compo
   return h(
     'div',
     { class: 'settings-view' },
-    head('Settings', ''),
+    head('Preferences', ''),
     h(
       'div',
       { tabindex: 0, class: 'scroll-region' },

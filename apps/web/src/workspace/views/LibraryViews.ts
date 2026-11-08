@@ -51,6 +51,7 @@ import { num } from '../status.ts';
 import { TabBar, TabPane } from '../ui.ts';
 import { toolFocus } from '../toolNumbers.ts';
 import { ToolNumberField } from './ToolNumberField.ts';
+import { ToolShapeFields } from './ToolShapeFields.ts';
 
 export const PLACEHOLDER_NOTE = 'Placeholder values: not yet sourced. They show the shape of the data, not machining advice.';
 
@@ -207,6 +208,7 @@ function ToolInspector({ entry }: { readonly entry: ToolEntry }): ComponentChild
           { class: 'field-grid' },
           h(ToolNumberField, { id: tool.id, number: entry.number }),
           numberField('Diameter', tool.geometry.diameter, 'mm', (n) => geo('diameter', n)),
+          h(ToolShapeFields, { tool, set }),
           numberField('Flutes', tool.geometry.flutes, '', (n) => geo('flutes', Math.max(1, Math.round(n))), 1),
           numberField('Flute length', tool.geometry.fluteLength, 'mm', (n) => geo('fluteLength', n), 0.5),
           numberField('Overall length', tool.geometry.overallLength, 'mm', (n) => geo('overallLength', n), 0.5),

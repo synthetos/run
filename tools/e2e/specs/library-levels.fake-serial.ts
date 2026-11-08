@@ -24,6 +24,8 @@ test('guided settings stage only, survive level changes, and reach the existing 
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
   await library(page);
   const screen = page.locator('[data-screen="library"]');
+  // The board's settings are their own tab beside the machine profile.
+  await screen.locator('[data-tab="settings"]').click();
   const guided = screen.locator('[data-region="guided-settings"]');
   const feed = guided.locator('[data-setting-edit="xfr"]');
   await expect(feed).toBeEnabled();
@@ -75,9 +77,10 @@ test('machine and settings share a centred page with a compact bed in both inter
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
   await library(page);
   const screen = page.locator('[data-screen="library"]');
-  await expect(screen.locator('[role="tablist"][aria-label="Machines"] [role="tab"]')).toHaveText(['Your machine', 'Start from a machine']);
+  await expect(screen.locator('[role="tablist"][aria-label="Machines"] [role="tab"]')).toHaveText(['Your machine', 'TinyG settings', 'Start from a machine']);
   await expect(screen.locator('[data-machine="bed"]')).toBeVisible();
-  await expect(screen.locator('[data-machine-settings="simple"]')).toBeVisible();
+  // The profile tab no longer carries the board's settings.
+  await expect(screen.locator('[data-machine-settings]')).toHaveCount(0);
   const width = screen.getByLabel('Width, bed', { exact: true });
   await width.fill('760');
   await width.press('Tab');
@@ -94,6 +97,8 @@ test('machine and settings share a centred page with a compact bed in both inter
     }
   }
   await page.locator('[data-action="ui-level-simple"]').click();
+  await screen.locator('[data-tab="settings"]').click();
+  await expect(screen.locator('[data-machine-settings="simple"]')).toBeVisible();
   await screen.locator('[data-region="guided-settings"] input').first().scrollIntoViewIfNeeded();
   await expect(screen.locator('[data-region="guided-settings"] input').first()).toBeDisabled();
   await expect(screen.locator('[data-region="guided-settings"] input').first()).toHaveAttribute('title', /Connect/);

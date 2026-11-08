@@ -57,7 +57,7 @@ export const VIEWS: readonly { readonly id: ViewId; readonly label: string; read
   { id: 'board', label: 'Board', icon: 'board' },
   { id: 'projects', label: 'Projects', icon: 'projects' },
   { id: 'analyze', label: 'Analyze', icon: 'analyze' },
-  { id: 'settings', label: 'Settings', icon: 'settings', bottom: true },
+  { id: 'settings', label: 'Preferences', icon: 'settings', bottom: true },
   { id: 'safety', label: 'Safety', icon: 'safety' },
 ];
 

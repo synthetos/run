@@ -21,7 +21,9 @@ import { dialectOf, draftStore, motorFor, plainValue, setDraft, settingMeta, set
 import { editBlocked, SettingsTable } from '../settings/SettingsUi.ts';
 import { GuidedSettings, guidedAxes } from '../settings/GuidedSettings.ts';
 import { boardTab, type BoardTab } from '../boardNavigation.ts';
-import { uiLevel } from '../jobWorkflow.ts';
+import { jobStep, machinesTab, uiLevel, type MachinesTab } from '../jobWorkflow.ts';
+import { executionLock } from '../fileBridge.ts';
+import { updateActiveJob, withMachine } from '../jobModel.ts';
 import { writableKey } from '../settings/pending.ts';
 import { Icon } from '../icons.ts';
 import { boardLabel, num } from '../status.ts';
@@ -352,13 +354,17 @@ function MachineSettings({ model, onView }: { readonly model: WorkspaceModel | n
     ] : h(GuidedSettings, { view, prefix: 'machine' }));
 }
 
-type MachinesTab = 'mine' | 'catalogue';
+/** Puts the selected machine into the current job and opens the Job view. Refused while a job holds the machine. */
+function UseInJob({ onView }: { readonly onView: (v: string) => void }): ComponentChild {
+  return h('button', { type: 'button', class: 'small primary', 'data-action': 'job-use-machine', disabled: selectedMachine.value === null || executionLock.value !== null, onClick: () => { if (executionLock.value !== null) return; updateActiveJob((j) => withMachine(j, selectedMachine.value)); jobStep.value = 'machine'; onView('job'); } }, 'Use this machine in Job');
+}
 
 export function MachinesView({ model, onView }: { readonly model: WorkspaceModel | null; readonly onView: (v: string) => void }): ComponentChild {
   const [filter, setFilter] = useState<'all' | 'belt' | 'screw'>('all');
   const [query, setQuery] = useState('');
   const mine = machineStore.value.value;
-  const [tab, setTab] = useState<MachinesTab>('mine');
+  const tab = machinesTab.value;
+  const setTab = (id: MachinesTab): void => { machinesTab.value = id; };
   const list = CATALOGUE.filter((t) => (filter === 'all' || t.drive === filter || t.drive === 'any') && `${t.name} ${t.blurb}`.toLowerCase().includes(query.trim().toLowerCase()));
   return h(
     'div',
@@ -367,7 +373,7 @@ export function MachinesView({ model, onView }: { readonly model: WorkspaceModel
       'div',
       { class: 'view-head' },
       h('div', { class: 'title-block' }, h('h1', null, 'Machines')),
-      h('div', { class: 'view-actions' }, h(TabBar<MachinesTab>, { label: 'Machines', prefix: 'mach', current: tab, onSelect: setTab, tabs: [{ id: 'mine', label: 'Your machine' }, { id: 'catalogue', label: 'Start from a machine' }] })),
+      h('div', { class: 'view-actions' }, h(UseInJob, { onView }), h(TabBar<MachinesTab>, { label: 'Machines', prefix: 'mach', current: tab, onSelect: setTab, tabs: [{ id: 'mine', label: 'Your machine' }, { id: 'settings', label: 'TinyG settings' }, { id: 'catalogue', label: 'Start from a machine' }] })),
     ),
     h(
       TabPane,
@@ -383,9 +389,13 @@ export function MachinesView({ model, onView }: { readonly model: WorkspaceModel
               mine.map((m) => h('button', { type: 'button', class: `chip${selectedMachineStore.value.value === m.id ? ' selected' : ''}`, key: m.id, onClick: () => selectedMachineStore.set(m.id) }, m.name)),
             )
           : null,
-        h(MachineSettings, { model, onView }),
         h('div', { class: 'catalogue-help' }, h(ContextHelp, { id: 'machine-copy-help', label: 'About machine templates', below: true, end: true }, 'Templates do not copy board settings or homing. Compare settings in Advanced.')),
       ),
+    ),
+    h(
+      TabPane,
+      { prefix: 'mach', id: 'settings', current: tab, class: 'cpane' },
+      h('div', { tabindex: 0, class: 'scroll-region' }, h(MachineSettings, { model, onView })),
     ),
     h(
       TabPane,

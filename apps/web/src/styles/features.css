@@ -206,7 +206,6 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 
 /* Machine profiles and controller settings share one centred page. */
 .machines-view { width: 100%; max-width: 1000px; margin-inline: auto; }
-.library-job-action { width: 100%; max-width: 1000px; margin-inline: auto; }
 .machines-view .my-machine { grid-template-columns: 120px minmax(0, 1fr) auto; gap: 12px; }
 .machines-view .my-machine > svg { width: 120px; height: 90px; }
 .machines-view .my-machine .card-actions { grid-column: 2 / -1; flex-wrap: wrap; }

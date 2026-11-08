@@ -13,6 +13,9 @@ export type JobStep = typeof JOB_STEPS[number]['id'];
 export const jobStep = signal<JobStep>('machine');
 export type LibrarySection = 'machines' | 'tools' | 'materials';
 export const librarySection = signal<LibrarySection>('machines');
+/** Library → Machines: your machine, its board's settings, or the catalogue. Kept while you move around the app. */
+export type MachinesTab = 'mine' | 'settings' | 'catalogue';
+export const machinesTab = signal<MachinesTab>('mine');
 
 /** Interface level (OD-13): Simple is the hobbyist's one-screen pane; Advanced adds the tabs. Per browser, presentation only. */
 export type UiLevel = 'simple' | 'advanced';
