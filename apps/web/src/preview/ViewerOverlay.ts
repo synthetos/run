@@ -43,16 +43,21 @@ export function ViewerOverlay({ sceneKey, readout, prompt = null }: ViewerOverla
   return h(
     'div',
     { class: 'viewer-overlay', 'data-preview': 'overlay', 'data-key-open': open ? 'true' : 'false' },
-    prompt,
-    sceneKey === null
-      ? null
-      : h(
-          'div',
-          { class: 'viewer-overlay-bar' },
-          h('button', { type: 'button', class: 'small key-toggle', 'data-action': 'key-toggle', 'aria-expanded': open ? 'true' : 'false', onClick: () => keyOpen.set(!open) }, open ? 'Hide key' : 'Show key'),
-          !open && notes > 0 ? h('button', { type: 'button', class: 'small key-notes-count', 'data-preview': 'key-notes-count', onClick: () => keyOpen.set(true) }, notesCount(notes)) : null,
-        ),
-    sceneKey !== null && open ? h(SceneKey, sceneKey) : null,
+    // The prompt and the key scroll when the drawing is short; the readout under them always shows.
+    h(
+      'div',
+      { class: 'viewer-overlay-scroll' },
+      prompt,
+      sceneKey === null
+        ? null
+        : h(
+            'div',
+            { class: 'viewer-overlay-bar' },
+            h('button', { type: 'button', class: 'small key-toggle', 'data-action': 'key-toggle', 'aria-expanded': open ? 'true' : 'false', onClick: () => keyOpen.set(!open) }, open ? 'Hide key' : 'Show key'),
+            !open && notes > 0 ? h('button', { type: 'button', class: 'small key-notes-count', 'data-preview': 'key-notes-count', onClick: () => keyOpen.set(true) }, notesCount(notes)) : null,
+          ),
+      sceneKey !== null && open ? h(SceneKey, sceneKey) : null,
+    ),
     readout,
   );
 }

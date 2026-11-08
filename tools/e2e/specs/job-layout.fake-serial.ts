@@ -1,7 +1,7 @@
 /**
  * The Job view's layout (first-time walk 2026-11-08: B3, B4, C18, P4), in the built app (fake-serial TEST build).
  *
- * - 1280 × 720, Simple and Advanced: the page never scrolls, the job card is never under the strip, the 3D view
+ * - 1280 × 720 and 1440 × 900, Simple and Advanced: the page never scrolls, the job card is never under the strip, the 3D view
  *   keeps at least 270 px, and what sits over the drawing (the key's notes, the key line, the live readout) is one
  *   stack in which nothing overlaps anything else or the view's toolbar;
  * - the key hides and shows (remembered across a reload), and when hidden a count of its notes stays in view;
@@ -26,7 +26,12 @@ async function rect(page: Page, selector: string): Promise<Rect | null> {
     const el = document.querySelector(s);
     if (el === null) return null;
     const r = el.getBoundingClientRect();
-    return r.width === 0 && r.height === 0 ? null : { x: r.left, y: r.top, w: r.width, h: r.height };
+    if (r.width === 0 && r.height === 0) return null;
+    // What shows: inside the key's scrolling part, only the part in view.
+    const clip = el.closest('.viewer-overlay-scroll')?.getBoundingClientRect();
+    const top = clip === undefined ? r.top : Math.max(r.top, clip.top);
+    const bottom = clip === undefined ? r.bottom : Math.min(r.bottom, clip.bottom);
+    return bottom <= top ? null : { x: r.left, y: top, w: r.width, h: bottom - top };
   }, selector);
 }
 
@@ -45,9 +50,9 @@ async function openSample(page: Page, width: number, height: number): Promise<Wo
   return worker;
 }
 
-for (const level of ['simple', 'advanced'] as const) {
-  test(`1280 × 720 (${level}): no page scroll, the 3D view keeps its height, the overlay never overlaps`, async ({ page }) => {
-    await openSample(page, 1280, 720);
+for (const [level, width, height] of [['simple', 1280, 720], ['advanced', 1280, 720], ['simple', 1440, 900], ['advanced', 1440, 900]] as const) {
+  test(`${String(width)} × ${String(height)} (${level}): no page scroll, the 3D view keeps its height, the overlay never overlaps`, async ({ page }) => {
+    await openSample(page, width, height);
     await page.locator(`[data-action="ui-level-${level}"]`).click();
     await page.waitForTimeout(200);
     const doc = await page.evaluate(() => ({ scroll: document.scrollingElement?.scrollHeight ?? 0, inner: innerHeight, top: document.scrollingElement?.scrollTop ?? 0 }));
