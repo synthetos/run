@@ -67,3 +67,28 @@
   .job-view .dock-panel { height: 96px; }
   .job-view .timeline { height: 32px; }
 }
+
+/* ---------- Phone (B3): one column that scrolls, nothing on top of anything ---------- */
+@media (max-width: 650px) {
+  /* The Job view is the scroll container; each part takes its own height, in order: the job card, the steps, the
+     3D view and its list, the job panel, then Position and the jog controls. */
+  .run-view.job-view { display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; gap: 0; }
+  .job-view .job-main { flex: none; min-height: auto; overflow: visible; }
+  .job-view .job-grid { display: flex; flex-direction: column; flex: none; overflow: visible; gap: 10px; padding: 0 12px; }
+  .job-view .job-grid .canvas-column { order: 0; flex: none; min-height: 0; }
+  /* The drawing keeps its 320 px clear: the key and the readout sit under it, in the flow, not over it. */
+  .job-view .job-grid .viewer { flex: none; height: auto; min-height: 0; padding-top: 320px; }
+  .job-view .viewer .preview-drawing { inset: 0 0 auto 0; height: 320px; }
+  .job-view .viewer-overlay { position: static; max-height: none; overflow: visible; padding: 8px 12px 34px; }
+  .job-view .viewer-tools { flex-wrap: wrap; }
+  .job-view .job-work-panel { order: 1; flex: none; }
+  .job-view .job-panel-scroll { max-height: none; overflow: visible; }
+  .job-view > .run-inspector { flex: none; position: static; max-height: none; margin: 12px; overflow: visible; }
+  .job-view .job-card { margin: 10px 12px 8px; }
+  /* All five steps in view: a row of five, each its number over its name, the name wrapping; never cut off. */
+  .job-view .job-step-bar { margin: 0 12px 10px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; overflow: visible; }
+  .job-view .job-step-bar button { min-width: 0; min-height: 52px; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; padding: 5px 2px; text-align: center; }
+  .job-view .job-step-bar button > span:last-child { min-width: 0; width: 100%; }
+  .job-view .job-step-bar strong { white-space: normal; font-size: 10.5px; line-height: 1.2; overflow-wrap: break-word; }
+  .job-view .job-step-bar small { display: none; }
+}

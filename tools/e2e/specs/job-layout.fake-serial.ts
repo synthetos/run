@@ -101,3 +101,29 @@ test('Expand gives the 3D view the Job area; Shrink puts the panels back', async
   await expect(page.locator('.job-work-panel')).toBeVisible();
   await expect.poll(async () => (await rect(page, '[data-preview="drawing"]'))?.h ?? 0).toBeLessThan(before.h + 5);
 });
+
+for (const level of ['simple', 'advanced'] as const) {
+  test(`390 × 844 (${level}): the Job view stacks with no overlap, every step in view, the key under the drawing`, async ({ page }) => {
+    await openSample(page, 390, 844);
+    await page.locator(`[data-action="ui-level-${level}"]`).click();
+    await page.waitForTimeout(200);
+    const parts = ['.job-view .job-card', '.job-view .job-step-bar', '.job-view .canvas-column', '.job-view .job-work-panel', '.job-view > .run-inspector'];
+    const boxes = (await Promise.all(parts.map((s) => rect(page, s)))) as (Rect | null)[];
+    for (let i = 0; i < parts.length; i++) {
+      expect(boxes[i], `${parts[i] as string} is shown`).not.toBeNull();
+      for (let j = i + 1; j < parts.length; j++) expect(overlap(boxes[i] as Rect, boxes[j] as Rect), `${parts[i] as string} and ${parts[j] as string} do not overlap`).toBe(false);
+    }
+    const bar = (await rect(page, '.job-view .job-step-bar')) as Rect;
+    const steps = await page.locator('.job-view .job-step-bar button').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { x: r.left, w: r.width }; }));
+    expect(steps).toHaveLength(5);
+    for (const s of steps) {
+      expect(s.x).toBeGreaterThanOrEqual(bar.x - 0.5);
+      expect(s.x + s.w).toBeLessThanOrEqual(bar.x + bar.w + 0.5);
+    }
+    const drawing = (await rect(page, '[data-preview="drawing"]')) as Rect;
+    for (const s of ['[data-scene="notes"]', '.scene-key-line', '[data-preview="marker-readout"]']) {
+      const r = await rect(page, s);
+      if (r !== null) expect(overlap(r, drawing), `${s} is under the drawing, not on it`).toBe(false);
+    }
+  });
+}

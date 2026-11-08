@@ -29,8 +29,7 @@ for (const [width, height] of [[1280, 720], [390, 844]] as const) {
     await page.locator('[data-action="ui-level-simple"]').click();
     await open(page, zigzag(10, [], ['M3 S12000']).replace('M30', 'M5\nM30'));
     await page.setViewportSize({ width, height });
-    // On a phone the Position panel overlaps the step bar (walk finding B3, not this fix): click the step directly.
-    await page.locator('[data-job-step="run"]').dispatchEvent('click');
+    await page.locator('[data-job-step="run"]').click();
     await expect(page.locator('[data-job="confirm-attended"]')).toHaveCount(1);
     for (const at of ['top', 'middle', 'bottom'] as const) {
       await page.locator('[data-job="steps"]').evaluate((el, where) => {
