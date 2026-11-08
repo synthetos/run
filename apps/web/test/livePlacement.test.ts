@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
-import type { SceneSolid } from '@synthetos/gcode-view';
+import type { SceneSolid, Vec3 } from '@synthetos/gcode-view';
 import { sampleFixture, type MachineProfile } from '../src/workspace/library.ts';
 import { newDraftJob, withMachine, withSetup, type Job, type JobClock } from '../src/workspace/jobModel.ts';
 import { jobScene, type JobScene } from '../src/preview/sceneModel.ts';
@@ -16,7 +16,7 @@ import { g92Note, liveTool, placeJobAt, placeLive, positionEstablished, UNSET_NO
 import { analyseBytes } from '../src/gcode-worker/pipeline.ts';
 import { frameLine, livePathFrame, PLANNED_FRAME, type FrameJob } from '../src/preview/pathFrame.ts';
 import { bytesHash } from '../src/preview/gcodeList.ts';
-import { useLivePlacement } from '../src/preview/useLivePlacement.ts';
+import { steadyZero, useLivePlacement, ZERO_STEADY_MM } from '../src/preview/useLivePlacement.ts';
 
 const SCENE_COLORS = { bed: [0.7, 0.6, 0.5, 1], fixture: [0.5, 0.6, 0.7, 1], clamp: [0.4, 0.4, 0.4, 1], stock: [0.8, 0.8, 0.8, 1] } as const;
 
@@ -247,6 +247,22 @@ describe('which line the board’s work position belongs to', () => {
     expect(frameLine(job({ executing: { line: 11 }, ackedThrough: 11 }), hash)).toBe(11);
     expect(frameLine(job({ executing: null, ackedThrough: 8 }), hash)).toBe(8);
     expect(frameLine(job({ executing: null, ackedThrough: null }), hash)).toBe(0);
+  });
+});
+
+describe('the scene zero through report rounding (useLivePlacement)', () => {
+  it('holds the zero while machine minus work position wanders by report rounding; follows a real move at once', () => {
+    const z: Vec3 = [10, 20, -5];
+    // mm reports: 3 decimals each, so the difference moves by a micrometre.
+    expect(steadyZero(z, [10.001, 19.999, -5.001])).toBe(z);
+    // Inches: 0.001 in steps in pos, 25.4 µm each.
+    expect(steadyZero(z, [10.0254, 20, -5])).toBe(z);
+    // A real change (Set work zero, a G92 line) is followed.
+    expect(steadyZero(z, [10, 20.5, -5])).toEqual([10, 20.5, -5]);
+    const past: Vec3 = [10 + ZERO_STEADY_MM + 0.001, 20, -5];
+    expect(steadyZero(z, past)).toBe(past);
+    expect(steadyZero(null, z)).toBe(z);
+    expect(steadyZero(z, null)).toBeNull();
   });
 });
 
