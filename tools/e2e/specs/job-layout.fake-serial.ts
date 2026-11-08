@@ -45,6 +45,29 @@ async function openSample(page: Page, width: number, height: number): Promise<Wo
   return worker;
 }
 
+for (const level of ['simple', 'advanced'] as const) {
+  test(`1280 × 720 (${level}): no page scroll, the 3D view keeps its height, the overlay never overlaps`, async ({ page }) => {
+    await openSample(page, 1280, 720);
+    await page.locator(`[data-action="ui-level-${level}"]`).click();
+    await page.waitForTimeout(200);
+    const doc = await page.evaluate(() => ({ scroll: document.scrollingElement?.scrollHeight ?? 0, inner: innerHeight, top: document.scrollingElement?.scrollTop ?? 0 }));
+    expect(doc.scroll, 'the page does not scroll').toBeLessThanOrEqual(doc.inner);
+    const strip = await rect(page, '[data-region="machine-strip"]');
+    const card = await rect(page, '.job-view .job-card');
+    expect(card?.y ?? 0, 'the job card starts below the strip').toBeGreaterThanOrEqual((strip?.y ?? 0) + (strip?.h ?? 0) - 0.5);
+    const canvas = await rect(page, '[data-preview="drawing"]');
+    expect(canvas?.h ?? 0, 'the 3D view keeps a usable height').toBeGreaterThanOrEqual(270);
+    const top = await rect(page, '.job-view .viewer-top');
+    const pieces = (await Promise.all(['[data-scene="notes"]', '.scene-key-line', '[data-preview="marker-readout"]', '.viewer-overlay-bar'].map(async (s) => [s, await rect(page, s)] as const))).filter((p): p is readonly [string, Rect] => p[1] !== null);
+    expect(pieces.length).toBeGreaterThanOrEqual(3);
+    for (const [s, r] of pieces) {
+      expect(overlap(r, top as Rect), `${s} is clear of the toolbar`).toBe(false);
+      expect(r.x + r.w, `${s} stays inside the drawing`).toBeLessThanOrEqual((canvas?.x ?? 0) + (canvas?.w ?? 0) + 0.5);
+      for (const [t, q] of pieces) if (s < t) expect(overlap(r, q), `${s} and ${t} do not overlap`).toBe(false);
+    }
+  });
+}
+
 test('the key hides and shows, remembered across a reload; hidden, its notes are still counted in view', async ({ page }) => {
   await openSample(page, 1280, 720);
   await expect(page.locator('[data-scene="notes"]')).toBeVisible();
