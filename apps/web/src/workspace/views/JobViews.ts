@@ -21,7 +21,10 @@ import { advisorSummary } from '../advisorState.ts';
 import { toolStore } from '../library.ts';
 import type { WorkspaceModel } from '../model.ts';
 import { ConfirmCard } from '../ui.ts';
-import { boardZero, bytesText, duration, jobUi, loadPlan, savePlan, startBlockers, textHash, zeroCheck, zeroText, type JobSnapshot, type StartChoices } from '../jobUi.ts';
+import { boardZero, bytesText, duration, jobUi, loadPlan, savePlan, startBlockers, textHash, zeroText, type JobSnapshot, type StartChoices } from '../jobUi.ts';
+import { activeJob } from '../jobModel.ts';
+import { positionEstablished } from '../../preview/livePlacement.ts';
+import { runZeroCheck, setupPlan } from '../zeroPlan.ts';
 import type { StopHooks } from './JobStatusCard.ts';
 
 export { JobStatus, type StopHooks } from './JobStatusCard.ts';
@@ -63,7 +66,9 @@ export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewP
 
   const plan = useMemo(() => (key === null ? null : loadPlan(key)), [key, planTick]);
   const board = boardZero(s);
-  const zero = zeroCheck(board, plan);
+  // A saved plan first, else the setup's planned zero from Place job (S6); it compares only once the position is set.
+  const setup = activeJob.value;
+  const zero = runZeroCheck(board, plan, setup === null ? null : setupPlan(setup), s !== null && positionEstablished({ mpo: {}, pos: {}, home: s.live.home ?? 0, overlays: s.overlays }));
   const blockers = startBlockers(ui, { name: state.fileName, hash }, zero, choices);
   const checked = job !== null && job.hash === hash && (job.phase !== 'loading' && job.report !== null && !job.report.blocked);
   const zeroDone = zero.state === 'match' || (zero.state === 'differs' && choices.workZero);
@@ -112,7 +117,7 @@ export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewP
               : null,
           ),
           zero.state === 'differs'
-            ? h('label', { class: 'job-tick', 'data-safety': 'C31' }, h('input', { type: 'checkbox', checked: choices.workZero, 'data-job': 'confirm-zero', onChange: tick('workZero') }), c31({ board: zeroText(zero.board), plan: zero.plan === null ? 'none recorded' : zeroText(zero.plan) }))
+            ? h('label', { class: 'job-tick', 'data-safety': 'C31' }, h('input', { type: 'checkbox', checked: choices.workZero, 'data-job': 'confirm-zero', onChange: tick('workZero') }), c31({ board: zeroText(zero.board), plan: zero.planText }))
             : null,
           s?.live.home !== 1
             ? h('label', { class: 'job-tick', 'data-safety': 'C36' }, h('input', { type: 'checkbox', checked: choices.unhomed, 'data-job': 'confirm-unhomed', onChange: tick('unhomed') }), c36())
