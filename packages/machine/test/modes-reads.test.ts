@@ -101,6 +101,19 @@ describe('modes read before a motion', () => {
   });
 });
 
+describe('N5: what a FAULT left is not shown as known', () => {
+  it('a FAULT forgets the board modes', () => {
+    const d = connected();
+    expect(d.state.boardModes).toEqual({ units: 1, dist: 0 });
+    d.intent(STEP);
+    d.answer(BASE, (t) => t === 'gc');
+    d.written();
+    d.line('{"r":{"gc":"G21"},"f":[3,0');
+    expect(d.state.overlays).toContain('FAULT');
+    expect(d.state.boardModes).toEqual({ units: undefined, dist: undefined });
+  });
+});
+
 describe('modes.ts on its own', () => {
   const s0 = connected().state;
   const tx = (s: SessionState) => ({

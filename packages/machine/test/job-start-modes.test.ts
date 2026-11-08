@@ -8,8 +8,9 @@ import type { Response } from '@synthetos/protocol';
 import type { SentLine } from '@synthetos/safety';
 import { describe, expect, it } from 'vitest';
 import { fileStartNeeds } from '../src/session/fileModes.ts';
-import { jobModesWritableIn, planStartModes, startModesLine, startModesText } from '../src/session/jobModes.ts';
-import { onJobMotionAnswer, onJobMotionTimeout, onJobPrepAnswer, type JobLayerTx } from '../src/session/job.ts';
+import { forecastStartModes, jobModesWritableIn, planStartModes, startModesLine, startModesStep, startModesText, startNeeds } from '../src/session/jobModes.ts';
+import { liveStart, onJobMotionAnswer, onJobMotionTimeout, onJobPrepAnswer, onJobStop, type JobLayerTx } from '../src/session/job.ts';
+import { checkAlarm, type MotionTx } from '../src/session/motion.ts';
 import { DEFAULT_TIMINGS, type SessionState } from '../src/session/types.ts';
 import { EN_APPROVED, JOBS_RELEASE, CONFIRM, jobLines, load, runUntil, writes } from './jobHarness.ts';
 import { harness, type Harness } from './sessionHarness.ts';
@@ -26,6 +27,11 @@ async function leftIn(lines: readonly string[]): Promise<Harness> {
   await h.run(3000);
   expect(h.session.snapshot.base).toBe('IDLE_UNHOMED');
   return h;
+}
+
+function tx(s: SessionState): JobLayerTx {
+  const t: JobLayerTx = { s, config: CONFIG, set: (patch) => (t.s = { ...t.s, ...patch }), emit: () => {}, arm: () => {}, cancel: () => {} };
+  return t;
 }
 
 /** Motion lines and job lines written from `from` (no GETs, no rt lines). */
@@ -130,10 +136,6 @@ describe('the start-modes step when the board does not take them', () => {
     return h;
   }
 
-  function tx(s: SessionState): JobLayerTx {
-    const t: JobLayerTx = { s, config: CONFIG, set: (patch) => (t.s = { ...t.s, ...patch }), emit: () => {}, arm: () => {}, cancel: () => {} };
-    return t;
-  }
 
   it('a refused line or no answer ends the start with nothing of the job sent', async () => {
     const h = await writingG90();
@@ -158,6 +160,90 @@ describe('the start-modes step when the board does not take them', () => {
     onJobPrepAnswer(t, { token: 'dist', purpose: 'jobPrep' }, { r: { dist: 1 }, footer: { rev: 2, status: 0, rx: 8 } } as unknown as Response, 2);
     expect(t.s.job?.phase).toBe('failed');
     expect(t.s.job?.message).toBe('The board did not confirm G90 after run wrote G90: nothing of the job was sent.');
+  });
+});
+
+describe('N5: the board modes while a job runs', () => {
+  it('unknown again when a job resumes after a tool change (the jog set them meanwhile)', async () => {
+    const h = await leftIn([]);
+    await load(h, 'G21 G90\nG1 X2 F600\nT1 M6\nG1 X0\nM30');
+    h.session.startJob([], CONFIRM);
+    await runUntil(h, () => h.session.snapshot.job?.phase === 'toolChange', 20_000);
+    h.session.request({ intent: 'jog', axes: { z: 1 }, distanceMm: 1, feed: 600 });
+    await runUntil(h, () => h.session.state.motion === null && h.session.snapshot.base === 'PROGRAM_PAUSED', 10_000);
+    expect(h.session.snapshot.boardModes.dist).toBe(0); // the jog's own closing G90 (the job's G90 here)
+    expect(h.session.request({ intent: 'resume' })).toEqual({ allowed: true });
+    await runUntil(h, () => h.session.snapshot.job?.phase === 'running', 10_000, 1);
+    expect(h.session.snapshot.boardModes).toMatchObject({ units: undefined, dist: undefined, text: 'Not read yet' });
+  });
+});
+
+describe('M1: every value the check uses is read again after the start modes', () => {
+  it('a board in G20 with G54 and G55 offsets: after G21 the check uses them in mm, with no false tool offset', async () => {
+    const h = await leftIn(['G20', 'G10 L2 P1 X2', 'G10 L2 P2 Y1']);
+    await load(h, 'G90\nG1 X5 F600\nG55\nG1 X1 Y1\nM30');
+    h.session.startJob([], CONFIRM);
+    await runUntil(h, () => ['running', 'done', 'failed', 'blocked'].includes(h.session.state.job?.phase ?? ''), 10_000, 1);
+    const start = liveStart(h.session.state);
+    expect(start.units).toBe('G21');
+    expect(start.wcsOffsets?.G54?.X).toBeCloseTo(50.8, 3);
+    expect(start.wcsOffsets?.G55?.Y).toBeCloseTo(25.4, 3);
+    for (const a of ['X', 'Y', 'Z'] as const) expect(start.toolOffset?.[a] ?? 0).toBeCloseTo(0, 3);
+    // And the axis settings the motion model uses came back in mm too (the x group, read again).
+    expect(h.session.state.values['x']?.at).toBeGreaterThan(h.session.state.job?.startedAt as number);
+    await runUntil(h, () => h.session.snapshot.job?.phase === 'done', 30_000);
+    // G55 X1 Y1 in mm from the G55 zero (X0, Y 1 in): machine X 1, Y 25.4 + 1.
+    expect(h.device.snapshot().position[0]).toBeCloseTo(1, 2);
+    expect(h.device.snapshot().position[1]).toBeCloseTo(26.4, 2);
+  });
+});
+
+describe('a Stop or an alarm while the start modes are written', () => {
+  /** A Start on a board in G91 at the moment the start-modes line and the prep reads are queued. */
+  async function queuedG90(): Promise<JobLayerTx & MotionTx> {
+    const h = await leftIn(['G21 G91']);
+    await load(h, 'G1 X5 F600\nM30');
+    const s = h.session.state;
+    const t = tx({ ...s, base: 'PREAMBLE', job: { ...(s.job as NonNullable<SessionState['job']>), phase: 'checking', startedAt: 1 } }) as JobLayerTx & MotionTx;
+    const reads = ['dist', 'unit'].map((token) => ({ token, purpose: 'jobPrep' as const }));
+    expect(startModesStep(t, 1, reads)).toEqual({ kind: 'wait' });
+    expect(t.s.queue.map((q) => q.line ?? q.token)).toEqual(['G90', 'dist', 'unit']);
+    return t;
+  }
+
+  it('Stop job with the line queued drops it and the reads; with it in flight, its answer starts nothing', async () => {
+    const queued = await queuedG90();
+    expect(onJobStop(queued, 2)).toBe(true);
+    expect(queued.s.queue).toEqual([]);
+    expect(queued.s.job?.phase).toBe('stopped');
+    expect(queued.s.base).toBe('IDLE_UNHOMED');
+    const inFlight = await queuedG90();
+    inFlight.s = { ...inFlight.s, writing: { ...(inFlight.s.queue[0] as SessionState['queue'][number]), seq: 1 }, queue: inFlight.s.queue.slice(1) };
+    onJobStop(inFlight, 2);
+    expect(onJobMotionAnswer(inFlight, 'G90', 0, 3)).toBe(false); // no longer the job's: nothing follows from it
+    expect(inFlight.s.job?.phase).toBe('stopped');
+    expect(inFlight.s.queue).toEqual([]);
+  });
+
+  it('an alarm with the line queued drops it and fails the start (nothing of the job sent)', async () => {
+    const t = await queuedG90();
+    t.s = { ...t.s, live: { ...t.s.live, stat: 2 } };
+    expect(checkAlarm(t, 2)).toBe(false);
+    expect(t.s.base).toBe('ALARM');
+    expect(t.s.queue.some((q) => q.line === 'G90')).toBe(false);
+    expect(t.s.job?.phase).toBe('failed');
+    // The prep reads still answered afterwards start nothing.
+    onJobPrepAnswer(t, { token: 'dist', purpose: 'jobPrep' }, { r: { dist: 0 }, footer: { rev: 2, status: 0, rx: 8 } } as unknown as Response, 3);
+    expect(t.s.job?.phase).toBe('failed');
+  });
+
+  it('N6: a mode that this board cannot read back is never written; the start ends', async () => {
+    const h = await leftIn(['G21 G91']);
+    await load(h, 'G1 X5 F600\nM30');
+    const t = tx({ ...h.session.state, base: 'PREAMBLE', job: { ...(h.session.state.job as NonNullable<SessionState['job']>), phase: 'checking' } });
+    const step = startModesStep(t, 1, []);
+    expect(step).toEqual({ kind: 'refused', text: 'The job did not start: this board cannot read back G90, which the file relies on.' });
+    expect(t.s.queue.some((q) => q.line === 'G90')).toBe(false);
   });
 });
 
@@ -191,10 +277,14 @@ describe('planStartModes and the write gate check', () => {
     const s = h.session.state;
     const arc = [{ body: 'G2 X1 Y0 I1 J0', origin: 'file', motion: { plannerLength: 1, boundMm: 1, seconds: 1 } }] as unknown as SentLine[];
     const held = { unit: { value: 1, status: 0, at: 0 }, dist: { value: 0, status: 0, at: 0 }, plan: { value: 0, status: 0, at: 0 } };
-    expect(planStartModes({ ...s, values: { ...s.values, ...held, admo: { value: 0, status: 0, at: 0 } } }, arc)).toEqual(['arcDistance']);
-    expect(planStartModes({ ...s, values: { ...s.values, ...held, dist: { value: null, status: 100, at: 0 } } }, [{ ...arc[0], body: 'G1 X1' } as SentLine])).toEqual(['distance']);
+    const plan = (state: SessionState, lines: readonly SentLine[]) => planStartModes(state, startNeeds(state, lines));
+    expect(plan({ ...s, values: { ...s.values, ...held, admo: { value: 0, status: 0, at: 0 } } }, arc)).toEqual(['arcDistance']);
+    expect(plan({ ...s, values: { ...s.values, ...held, dist: { value: null, status: 100, at: 0 } } }, [{ ...arc[0], body: 'G1 X1' } as SentLine])).toEqual(['distance']);
     const noArcs = { ...s, dialect: { ...(s.dialect as NonNullable<typeof s.dialect>), gcode: { ...(s.dialect as NonNullable<typeof s.dialect>).gcode, job: null } } };
-    expect(planStartModes({ ...noArcs, values: { ...s.values, ...held, admo: { value: 0, status: 0, at: 0 } } }, arc)).toEqual([]);
+    expect(plan({ ...noArcs, values: { ...s.values, ...held, admo: { value: 0, status: 0, at: 0 } } }, arc)).toEqual([]);
+    // The card's forecast follows the board's modes as run knows them now (N4).
+    expect(forecastStartModes({ ...s, boardModes: { units: 1, dist: 0 } }, ['distance', 'units', 'plane'])).toEqual(s.values['plan']?.value === 0 ? [] : ['plane']);
+    expect(forecastStartModes({ ...s, boardModes: { units: 0, dist: undefined } }, ['distance', 'units'])).toEqual(['distance', 'units']);
     expect(jobModesWritableIn(s, 'G90')).toBe(false);
   });
 });

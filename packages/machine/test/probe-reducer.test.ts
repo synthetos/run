@@ -119,7 +119,7 @@ describe('Probe Z through the reducer', () => {
     expect(r.s.probeZ.outcome).toEqual({ kind: 'stopJob', status: 207 });
     expect(r.s.base).toBe('ALARM');
     // OD-19: its G21 and G91 went out, so Clear alarm will put G90 back (with the units it read, mm here).
-    expect(r.s.alarmRestore).toEqual({ units: 1 });
+    expect(r.s.alarmRestore).toEqual({ units: 1, cleared: false });
     const n = await probing();
     n.line('{"prb":{"e":0,"x":0,"y":0,"z":"x","a":0,"b":0,"c":0}}');
     n.line('{"er":{"fb":450.02,"st":250,"msg":"Probe did not trip"}}');

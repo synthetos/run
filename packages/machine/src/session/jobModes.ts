@@ -4,18 +4,21 @@
  * The preview draws a file from `G21 G90 G17 G91.1`. The board may hold other modes: an alarm, a lost link, a FAULT
  * or a stopped probe can leave it in `G91`, and an earlier file or another program can leave inches, another plane
  * or absolute arc centres. For each of those modes that the file relies on (fileModes.ts) and that the board, as
- * read, does not hold, run writes it on one line before the job's first line and reads it back; the check that
- * follows sanitises the file from the modes read back, so the sanitiser, the preview and the board agree. A file
- * that sets its own modes before it moves gets nothing. The plan is shown at the check and decided again at Start
- * with the values read then.
+ * read at Start, does not hold, run writes it on one line before the job's first line. Then it takes every prep read
+ * again (independent second review 2026-11-08, M1: the offsets, the stored positions and the axis settings are
+ * printed in the board's units, so values read before a `G21` are inches), confirms the modes it wrote, and checks
+ * the file from those values: the modes the file relies on are then the preview's, and so is the unit of every
+ * value the check uses. A file that sets its own modes before it moves gets nothing.
+ *
+ * The card's line is a forecast from what run knows now (the board's modes as read or set by its own lines,
+ * boardModes.ts; the plane and arc mode as last read); Start decides again from the values it reads then.
  *
  * Pure functions over the reducer's transition; nothing here touches a port or a clock.
  */
-import { isReadAllowed } from '@synthetos/schema';
 import type { SentLine } from '@synthetos/safety';
 import { fileStartNeeds, type StartMode } from './fileModes.ts';
 import { jobEvent, patchJob, type JobTx } from './jobState.ts';
-import type { SessionState } from './types.ts';
+import type { PendingRead, SessionState } from './types.ts';
 
 interface Target {
   readonly code: string;
@@ -37,10 +40,24 @@ function readValue(s: SessionState, token: string): number | undefined {
   return v !== undefined && v.status === 0 && typeof v.value === 'number' ? v.value : undefined;
 }
 
-/** The modes run must write before `lines`, from the values read last: relied on by the file and not held (or not known). */
-export function planStartModes(s: SessionState, lines: readonly SentLine[]): readonly StartMode[] {
+/** The modes the file relies on that this dialect has (no arc distance mode where the dialect has none). */
+export function startNeeds(s: SessionState, lines: readonly SentLine[]): readonly StartMode[] {
   const arcDistance = s.dialect?.gcode.job?.codes.includes('G90.1') === true;
-  return fileStartNeeds(lines).filter((m) => (m !== 'arcDistance' || arcDistance) && readValue(s, TARGET[m].token) !== TARGET[m].value);
+  return fileStartNeeds(lines).filter((m) => m !== 'arcDistance' || arcDistance);
+}
+
+/** What Start will write, from the values read last: relied on and not held (or not known). */
+export function planStartModes(s: SessionState, needs: readonly StartMode[]): readonly StartMode[] {
+  return needs.filter((m) => readValue(s, TARGET[m].token) !== TARGET[m].value);
+}
+
+/**
+ * The card's forecast (N4): the units and the distance mode as the board holds them now (reads and run's own answered
+ * lines, boardModes.ts), so it follows a jog or a job that changed them; the plane and arc mode as last read.
+ */
+export function forecastStartModes(s: SessionState, needs: readonly StartMode[]): readonly StartMode[] {
+  const now = (m: StartMode): number | undefined => (m === 'units' ? s.boardModes.units : m === 'distance' ? s.boardModes.dist : readValue(s, TARGET[m].token));
+  return needs.filter((m) => now(m) !== TARGET[m].value);
 }
 
 /** The one line that sets them, in a fixed order (`G90 G21 G17 G91.1`, a shape of the motion grammar). */
@@ -65,23 +82,25 @@ export function jobModesWritableIn(s: SessionState, line: string): boolean {
 export type StartModesStep = { readonly kind: 'go' } | { readonly kind: 'wait' } | { readonly kind: 'refused'; readonly text: string };
 
 /**
- * At Start, each time the prep reads are in: `wait` after queueing the start-modes line and the reads of those modes,
- * `refused` when a mode read back is not the one written, else `go` (sanitise and run).
+ * At Start, each time the prep reads are in: `wait` after queueing the start-modes line and every prep read again
+ * (`prepReads`), `refused` when a mode cannot be read back (N6) or reads back other than written, else `go`.
  */
-export function startModesStep(t: JobTx, at: number): StartModesStep {
+export function startModesStep(t: JobTx, at: number, prepReads: readonly PendingRead[]): StartModesStep {
   const s = t.s;
   const j = s.job;
   /* c8 ignore next -- called only while a job is checking */
   if (j === null) return { kind: 'go' };
   const plan = j.startModes;
   if (plan === undefined || !plan.written) {
-    const modes = planStartModes(s, j.lines);
-    patchJob(t, { startModes: { modes, written: modes.length > 0 } });
+    const needs = startNeeds(s, j.lines);
+    const modes = planStartModes(s, needs);
+    const unreadable = modes.filter((m) => !prepReads.some((r) => r.token === TARGET[m].token));
+    patchJob(t, { startModes: { needs, modes, written: modes.length > 0 && unreadable.length === 0 } });
     if (modes.length === 0) return { kind: 'go' };
-    const dialect = s.dialect?.id;
-    const reads = modes.map((m) => TARGET[m].token).filter((token) => dialect !== undefined && isReadAllowed(dialect, token));
-    t.set({ queue: [...t.s.queue, { token: 'gc', purpose: 'motion', line: startModesLine(modes), intent: 'jobModes' }, ...reads.map((token) => ({ token, purpose: 'jobPrep' as const }))] });
-    jobEvent(t, at, 'info', `${startModesText(modes) as string} Writing ${startModesLine(modes)}, then reading it back.`);
+    // Fail closed (N6): a mode that cannot be read back is never written blind.
+    if (unreadable.length > 0) return { kind: 'refused', text: `The job did not start: this board cannot read back ${unreadable.map((m) => TARGET[m].code).join(' ')}, which the file relies on.` };
+    t.set({ queue: [...t.s.queue, { token: 'gc', purpose: 'motion', line: startModesLine(modes), intent: 'jobModes' }, ...prepReads] });
+    jobEvent(t, at, 'info', `${startModesText(modes) as string} Writing ${startModesLine(modes)}, then reading the board again.`);
     return { kind: 'wait' };
   }
   const unmet = plan.modes.filter((m) => readValue(s, TARGET[m].token) !== TARGET[m].value);

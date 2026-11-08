@@ -69,7 +69,7 @@ import {
   type MotionAxisLetter,
 } from './motionLines.ts';
 import { queueModeReads } from './modes.ts';
-import { noteAlarmEnded, onAlarmRestoreAnswer, onClearAnswered } from './alarmRestore.ts';
+import { noteAlarmEnded, onClearAnswered } from './alarmRestore.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './jobState.ts';
 import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, PolledValues, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
@@ -761,12 +761,8 @@ export function onMotionReport(t: MotionTx, sr: Readonly<Record<string, unknown>
 /** A motion line was answered. A non-zero status ends the motion (the board refused it). */
 export function onMotionAnswer(t: MotionTx, line: string | undefined, status: number, at: number): void {
   const ctx = t.s.motion;
-  // OD-19: the G90 after a Clear alarm (nothing of ours runs then), and the clear itself.
-  const restored = ctx === null ? onAlarmRestoreAnswer(t, line, status) : undefined;
-  if (restored !== undefined) {
-    if (restored !== null) message(t, 'refused', restored, at);
-    return;
-  }
+  // OD-19: a Clear alarm answered with status 0 sends the G90 a noted alarm asks for (its answer is routed on its own
+  // intent in the reducer, alarmRestore.ts).
   onClearAnswered(t, line, status);
   if (status === 13 && ctx !== null && ctx.op === 'change' && ctx.line === line && ctx.attempts !== undefined) {
     if (ctx.attempts < MOTION_LIMITS.offsetAttempts) {

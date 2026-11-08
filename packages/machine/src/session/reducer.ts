@@ -81,7 +81,8 @@ import type { PortSelector } from '../transport.ts';
 import { gateTokens, judgeGate, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
 import { restingStat, restingUsesHold } from './resting.ts';
 import { onModesAnswer } from './modes.ts';
-import { BOARD_MODES_UNKNOWN, noteModeLine, noteModeRead } from './boardModes.ts';
+import { onAlarmRestoreAnswered, onAlarmRestoreMissed } from './alarmRestore.ts';
+import { BOARD_MODES_UNKNOWN, forgetBoardModes, noteModeLine, noteModeRead } from './boardModes.ts';
 import { POLL_TOKENS, abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
 import { HEARTBEAT_INTERVAL_MS, JV_LINE, REPORT_DIALECTS, SEED_TOKENS, heartbeatCoversHold, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
 
@@ -991,6 +992,7 @@ function onTimer(t: Tx, id: TimerId, at: number): void {
   if (missed.purpose === 'lineMode') onLineModeAnswer(t, null, at);
   // A tool change's M5/M9 or a resume step unanswered: the job layer fails closed (independent review 2026-11-03, R6).
   if (missed.purpose === 'motion') onJobMotionTimeout(t, missed.line, at);
+  if (missed.intent === 'alarmRestore') onAlarmRestoreMissed(t);
   if (missed.purpose === 'probeZ') onProbeMissed(t, missed);
   if (missed.purpose === 'seed' || missed.purpose === 'report' || t.s.reports.phase === 'seeding' || t.s.reports.phase === 'configuring') {
     failReports(t, `the board did not answer the ${missed.token} read in time`);
@@ -1306,6 +1308,11 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
     }
     case 'motion':
       noteModeLine(t, e.line, r.footer.status);
+      // OD-19 (S1): the G90 after a Clear alarm, on its own intent, whatever motion started meanwhile.
+      if (e.intent === 'alarmRestore') {
+        onAlarmRestoreAnswered(t, e.line, r.footer.status, at);
+        return;
+      }
       if (!onJobMotionAnswer(t, e.line, r.footer.status, at)) onMotionAnswer(t, e.line, r.footer.status, at);
       return;
     case 'job':
@@ -1938,6 +1945,7 @@ function askForLife(t: Tx): 'enq' | 'get' {
 function enterFault(t: Tx, cause: FaultCause, kind: FaultKind, detail: string, at: number): void {
   interruptSettingWrite(t, 'a fault latched');
   abandonLoad(t, at, 'a fault latched');
+  forgetBoardModes(t); // N5: what a FAULT (or a reset) left is not known until read again
   if (t.s.reports.phase === 'seeding' || t.s.reports.phase === 'configuring' || t.s.reports.phase === 'pending') failReports(t, 'a fault latched');
   if (t.s.fault === null) t.set({ fault: { cause, kind, detail, at } });
   // A stop sequence of this session is what failed, or the board reset: no new stop is started for the job.

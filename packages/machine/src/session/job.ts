@@ -63,7 +63,7 @@ import { sessionSettings } from './settingWrite.ts';
 import { ACTIVE_PHASES, failJob, jobActive, jobEvent, lastFileLine, patchJob, type JobTx } from './jobState.ts';
 import { ABSOLUTE_MM_LINE, motionLineKind, restoreLine, returnXYLine, safeZLine, spindleLine } from './motionLines.ts';
 import { queueModeReads } from './modes.ts';
-import { planStartModes, startModesStep } from './jobModes.ts';
+import { startModesStep, startNeeds } from './jobModes.ts';
 import { forgetBoardModes, noteModeRead } from './boardModes.ts';
 import type { Axis, Expected, FeedLimitState, FeedMove, FeedSummary, JobReportSummary, JobState, PendingRead, PolledValues, SessionConfig, SessionIntent, SessionState } from './types.ts';
 
@@ -479,7 +479,7 @@ function checkedText(result: SanitizeResult, report: JobReportSummary): string {
 function finishLoad(t: JobLayerTx, at: number): void {
   const { result, report } = sanitizeInto(t);
   // OD-19: what Start will write for the modes the preview assumes, shown at the check (decided again at Start).
-  patchJob(t, { phase: report.blocked ? 'blocked' : 'ready', startModes: { modes: planStartModes(t.s, result.lines), written: false } });
+  patchJob(t, { phase: report.blocked ? 'blocked' : 'ready', startModes: { needs: startNeeds(t.s, result.lines), modes: [], written: false } });
   jobEvent(t, at, report.blocked ? 'error' : 'info', checkedText(result, report));
 }
 
@@ -489,7 +489,7 @@ function finishLoad(t: JobLayerTx, at: number): void {
  */
 function finishCheck(t: JobLayerTx, at: number): void {
   // OD-19: the modes the preview assumes, written and read back first when the file relies on them (jobModes.ts).
-  const modes = startModesStep(t, at);
+  const modes = startModesStep(t, at, prepReads(t.s));
   if (modes.kind === 'wait') return;
   if (modes.kind === 'refused') {
     startFailed(t, at, modes.text);
@@ -557,7 +557,7 @@ export function onStartJob(t: JobLayerTx, request: Extract<SessionIntent, { inte
       feedLimit: null,
       faultStopAt: null,
       stopping: false,
-      startModes: { modes: [], written: false }, // decided again with the values read now (jobModes.ts)
+      startModes: { needs: [], modes: [], written: false }, // decided again with the values read now (jobModes.ts)
       events: j.events,
     },
   });
@@ -1000,6 +1000,7 @@ export function onJobResume(t: JobLayerTx, request: Extract<SessionIntent, { int
 function continueJob(t: JobLayerTx, at: number, text: string): void {
   sendJobFlag(t, 1);
   t.set({ base: 'RUNNING', notices: { ...t.s.notices, motion: { kind: 'resumed', text: 'Resumed', at } } });
+  forgetBoardModes(t); // N5: the job's own lines run again (after a tool change the jog and the return set them meanwhile)
   patchJob(t, { phase: 'running', stop: null, confirmed: 0, pauseAt: null, message: null });
   jobEvent(t, at, 'info', text);
   t.arm('job', JOB_LIMITS.runPollMs);
@@ -1293,7 +1294,8 @@ export function onJobStop(t: JobLayerTx, at: number): boolean {
   if (j.phase === 'checking' || (j.phase === 'preparing' && t.s.rxm.step?.kind === 'write')) {
     // Nothing was sent: the re-check's reads are dropped (R3), or the line-mode write is being answered (the EEPROM
     // stall) and is let finish; the job will not start.
-    if (j.phase === 'checking') t.set({ queue: t.s.queue.filter((q) => q.purpose !== 'jobPrep') });
+    // OD-19: and the start-modes line, if it has not gone out yet.
+    if (j.phase === 'checking') t.set({ queue: t.s.queue.filter((q) => q.purpose !== 'jobPrep' && q.intent !== 'jobModes') });
     patchJob(t, { phase: 'stopped', message: 'Stopped before the first line: nothing was sent.', endedAt: at });
     t.set({ base: idleBase(t.s) });
     t.cancel('job');

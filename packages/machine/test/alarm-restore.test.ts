@@ -50,7 +50,7 @@ function alarmedJog(unit = 1): Driver {
 describe('Clear alarm after an alarm ended a jog', () => {
   it('G90 G20 goes out right after the clear is answered, ahead of the polls, and the note is done once answered', () => {
     const d = alarmedJog(0);
-    expect(d.state.alarmRestore).toEqual({ units: 0 });
+    expect(d.state.alarmRestore).toEqual({ units: 0, cleared: false });
     const from = d.effects.length;
     expect(d.intent({ intent: 'clearAlarm' }).allowed).toBe(true);
     d.written();
@@ -67,22 +67,68 @@ describe('Clear alarm after an alarm ended a jog', () => {
     const d = alarmedJog();
     d.intent({ intent: 'clearAlarm' });
     d.answer({ ...BASE, clear: '{"r":{},"f":[3,9,10]}', stat: num('stat', 2) });
-    expect(d.state.alarmRestore).toEqual({ units: 1 });
+    expect(d.state.alarmRestore).toEqual({ units: 1, cleared: false });
     const from = d.effects.length;
     d.intent({ intent: 'clearAlarm' });
     d.answer({ ...BASE, stat: num('stat', 1) });
     expect(motionLines(d, from)).toEqual(['{"clear":null}', 'G90']);
   });
 
-  it('a refused G90 says the board may still be relative', () => {
+  it('a refused G90 says the board may still be relative and keeps the note: the next successful clear writes it (S3)', () => {
     const d = alarmedJog();
     d.intent({ intent: 'clearAlarm' });
     d.written();
     d.line(BASE['clear'] as string);
     d.written();
     d.line('{"r":{},"f":[3,30,10]}');
-    expect(d.state.alarmRestore).toBeNull();
+    expect(d.state.alarmRestore).toEqual({ units: 1, cleared: false });
     expect(d.state.notices.motion?.text).toBe('The controller refused G90 after the alarm was cleared (status 30): it may still be in relative mode. Jog once (a jog ends in G90) before you run anything.');
+    d.answer({ ...BASE, stat: num('stat', 2) });
+    d.state = { ...d.state, base: 'ALARM' };
+    const from = d.effects.length;
+    d.intent({ intent: 'clearAlarm' });
+    d.answer({ ...BASE, stat: num('stat', 1) });
+    expect(motionLines(d, from)).toEqual(['{"clear":null}', 'G90']);
+    expect(d.state.alarmRestore).toBeNull();
+  });
+
+  it('S1: a jog started before the G90 is answered does not take its answer; a refused G90 is said and the jog runs on', () => {
+    for (const status of [0, 30]) {
+      const d = alarmedJog();
+      d.intent({ intent: 'clearAlarm' });
+      d.written();
+      d.line(BASE['clear'] as string);
+      expect(d.state.writing?.line).toBe('G90');
+      // A pushed report says the board is idle before the G90's answer: the base is idle, a jog is allowed.
+      d.line('{"sr":{"stat":1}}');
+      expect(d.state.base).toBe('IDLE_UNHOMED');
+      expect(d.intent({ intent: 'jog', axes: { y: 1 }, distanceMm: 1, feed: 600 }).allowed).toBe(true);
+      d.written();
+      d.line(`{"r":{},"f":[3,${status},10]}`);
+      expect(d.state.motion).toMatchObject({ op: 'jog', phase: 'feed' });
+      expect(d.state.alarmRestore).toEqual(status === 0 ? null : { units: 1, cleared: false });
+      if (status !== 0) expect(d.state.notices.motion?.text).toContain('it may still be in relative mode');
+    }
+  });
+
+  it('an unanswered G90 drops the note (the link goes STALE)', () => {
+    const d = alarmedJog();
+    d.intent({ intent: 'clearAlarm' });
+    d.written();
+    d.line(BASE['clear'] as string);
+    d.written();
+    d.fire('answer');
+    expect(d.state.alarmRestore).toBeNull();
+    expect(d.state.overlays).toContain('STALE');
+  });
+
+  it('an alarm that ends go to zero is noted too', () => {
+    const d = connected();
+    d.intent({ intent: 'goToZero', axes: ['z'], safeZ: 0 });
+    d.answer({ ...BASE, unit: num('unit', 0) }, (t) => t === 'stat');
+    d.answer({ ...BASE, stat: num('stat', 2) }, (t) => d.state.base === 'ALARM' || t === 'gc');
+    expect(d.state.base).toBe('ALARM');
+    expect(d.state.alarmRestore).toEqual({ units: 0, cleared: false });
   });
 
   it('an alarm with nothing of ours moving: Clear alarm writes only the clear', () => {
@@ -101,9 +147,12 @@ describe('the write gate for the two session mode lines', () => {
     const d = alarmedJog(0);
     const s = d.state;
     const enc = (t: string) => new TextEncoder().encode(t);
-    expect(checkWrite(s, s, PHASE_2_RELEASE, enc('G90 G20\n'), 'motion', 'alarmRestore')).toBeUndefined();
-    expect(checkWrite(s, s, PHASE_2_RELEASE, enc('G90\n'), 'motion', 'alarmRestore')).toMatchObject({ kind: 'refused', reason: '"G90" is not the restore a cleared alarm asks for' });
-    expect(checkWrite(s, s, PHASE_2_RELEASE, enc('G91 G20\n'), 'motion', 'alarmRestore')?.kind).toBe('refused');
+    // Not before a clear answered with status 0 (S2).
+    expect(checkWrite(s, s, PHASE_2_RELEASE, enc('G90 G20\n'), 'motion', 'alarmRestore')?.kind).toBe('refused');
+    const cleared = { ...s, alarmRestore: { units: 0, cleared: true } };
+    expect(checkWrite(cleared, cleared, PHASE_2_RELEASE, enc('G90 G20\n'), 'motion', 'alarmRestore')).toBeUndefined();
+    expect(checkWrite(cleared, cleared, PHASE_2_RELEASE, enc('G90\n'), 'motion', 'alarmRestore')).toMatchObject({ kind: 'refused', reason: '"G90" is not the restore a cleared alarm asks for' });
+    expect(checkWrite(cleared, cleared, PHASE_2_RELEASE, enc('G91 G20\n'), 'motion', 'alarmRestore')?.kind).toBe('refused');
     expect(alarmRestoreWritableIn({ ...s, alarmRestore: null }, 'G90')).toBe(false);
     expect(alarmRestoreLine(undefined)).toBe('G90');
     // The job's start modes: only the planned line of a job checking now.

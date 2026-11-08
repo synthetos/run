@@ -9,7 +9,7 @@
  * here so a misbehaving board cannot post megabytes.
  */
 import { boardModesText } from './boardModes.ts';
-import { startModesText } from './jobModes.ts';
+import { forecastStartModes, startModesText } from './jobModes.ts';
 import { OVERLAYS, type Overlay } from '@synthetos/safety';
 import { PROBE_STEPS, type FooterRev } from '@synthetos/protocol';
 import type { TransportInfo } from '../transport.ts';
@@ -70,8 +70,9 @@ export interface JobView {
   readonly faultStopAt: number | null;
   readonly stopping: boolean;
   /**
-   * OD-19: the check's plain line when run writes modes the preview assumes before the first line ("Run sets
-   * absolute mode and millimetres before the first line, as the preview shows."), or null when it writes none.
+   * OD-19: the check's plain line when Start will write modes the preview assumes ("Run sets absolute mode and
+   * millimetres before the first line, as the preview shows."), forecast from the board's modes as run knows them
+   * now (Start decides again from its own reads), or null when it will write none.
    */
   readonly startModes: string | null;
 }
@@ -264,7 +265,7 @@ function jobView(state: SessionState, job: JobState): JobView {
     feedLimit: job.feedLimit,
     faultStopAt: job.faultStopAt,
     stopping: job.stopping,
-    startModes: startModesText(job.startModes?.modes ?? []),
+    startModes: startModesText(forecastStartModes(state, job.startModes?.needs ?? [])),
   };
 }
 

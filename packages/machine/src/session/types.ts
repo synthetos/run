@@ -595,11 +595,10 @@ export interface JobState {
   /** The offsets were queued to be read again after the job ended (jobOffsets.ts). */
   readonly offsetsReread?: true;
   /**
-   * OD-19: the modes the preview assumes that run writes before the first line, because the file moves before
-   * setting them and the board holds another (jobModes.ts). Planned at the check, decided again at Start;
-   * `written` once the line went into the queue at Start.
+   * OD-19: the modes the preview assumes that the file relies on (`needs`, found at the check), what Start decided
+   * to write from the values it read (`modes`), and `written` once that line went into the queue (jobModes.ts).
    */
-  readonly startModes?: { readonly modes: readonly StartMode[]; readonly written: boolean };
+  readonly startModes?: { readonly needs: readonly StartMode[]; readonly modes: readonly StartMode[]; readonly written: boolean };
 }
 
 /**
@@ -731,7 +730,7 @@ export interface SessionState {
    * OD-19: an alarm ended a jog, go to zero or probe of run's, which had left `G91` (and `G21`): after a Clear alarm
    * answered with status 0, `G90` (and `G20` when the units read before it were inches) goes out (alarmRestore.ts).
    */
-  readonly alarmRestore: { readonly units: number | undefined } | null;
+  readonly alarmRestore: { readonly units: number | undefined; readonly cleared: boolean } | null;
 }
 
 export type JogAxis = 'x' | 'y' | 'z' | 'a';
