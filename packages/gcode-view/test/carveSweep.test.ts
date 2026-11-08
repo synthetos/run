@@ -123,4 +123,26 @@ describe('sweepSegment', () => {
     expect(reachRadius(tool('flat'), 0.1)).toBe(3);
     expect(reachRadius(tool('flat'), 0)).toBe(0);
   });
+
+  it('leaves a smooth trough when a ball follows a curved path in short segments', () => {
+    // A 3.175 mm ball at Z -1.5 along a sine wave of 0.5 mm chords, as CAM writes a curve.
+    const ball: ToolShape = { tip: 'ball', diameter: 3.175, fluteLength: 10, shank: 3.175, length: 30 };
+    const hm = createHeightmap(SPEC);
+    const pts = Array.from({ length: 33 }, (_, k) => [2 + k * 0.5, 10 + 2 * Math.sin((2 + k * 0.5) / 2)] as const);
+    for (let k = 0; k + 1 < pts.length; k++) {
+      const a = pts[k] as readonly [number, number];
+      const b = pts[k + 1] as readonly [number, number];
+      sweepSegment(hm, a[0], a[1], -1.5, b[0], b[1], -1.5, ball, emptyDirty());
+    }
+    // Along the channel, the deepest cell of each column is within the cell sampling of the ball (centre cells sit
+    // up to 0.18 mm off the path: at most 0.01 mm shallower), with no bumps at the chord joints.
+    const R = 3.175 / 2;
+    for (let i = 20; i <= 64; i++) {
+      let lowest = 0;
+      for (let j = 0; j < SPEC.ny; j++) lowest = Math.min(lowest, hm.z[j * SPEC.nx + i] as number);
+      expect(lowest).toBeGreaterThanOrEqual(-1.5 - 1e-6);
+      expect(lowest).toBeLessThan(-1.5 + (R - Math.sqrt(R * R - 0.18 * 0.18)) + 1e-6);
+    }
+  });
 });
+

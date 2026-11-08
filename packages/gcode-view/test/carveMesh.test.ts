@@ -1,6 +1,6 @@
 /** The carved stock's WebGL layer (carve/mesh.ts) and its hook in the renderer, on a recording context. */
 import { describe, expect, it } from 'vitest';
-import { MESH_MAX, createCarveLayer, createHeightmap, createRenderer, gridIndexes, meshLayout, wallVertices, type CarveSurface, type GridSpec, type SceneLayers } from '../src/index.ts';
+import { MESH_MAX, PATH_OVER_CARVE_ALPHA, SOFTWARE_MESH_MAX, createCarveLayer, createHeightmap, createRenderer, defaultMeshMax, meshLayout, wallVertices, type CarveSurface, type GridSpec, type SceneLayers } from '../src/index.ts';
 import { COLORS, fakeGl, frameQueue } from './helpers.ts';
 
 const SPEC: GridSpec = { x0: 0, y0: 0, cell: 0.5, nx: 40, ny: 20, top: 0, bottom: -6, outline: null };
@@ -11,12 +11,14 @@ describe('meshLayout', () => {
   it('puts a vertex at each cell centre plus the edges', () => {
     expect(meshLayout({ nx: 40, ny: 20 })).toEqual({ mx: 42, my: 22, stride: 1 });
   });
-  it('samples every few cells on a large grid', () => {
-    expect(MESH_MAX).toBe(512);
-    expect(meshLayout({ nx: 4000, ny: 500 })).toEqual({ mx: 2 + 500, my: 2 + 63, stride: 8 });
+  it('keeps a vertex per cell up to 2048 a side, and thins a larger grid', () => {
+    expect(MESH_MAX).toBe(2048);
+    expect(meshLayout({ nx: 2048, ny: 500 })).toEqual({ mx: 2050, my: 502, stride: 1 });
+    expect(meshLayout({ nx: 4000, ny: 500 })).toEqual({ mx: 2 + 2000, my: 2 + 250, stride: 2 });
   });
-  it('indexes two triangles per quad of the row-major vertex grid', () => {
-    expect([...gridIndexes(3, 2)]).toEqual([0, 1, 3, 3, 1, 4, 1, 2, 4, 4, 2, 5]);
+  it('thins to the software renderer cap when asked, never below 256 a side', () => {
+    expect(meshLayout({ nx: 720, ny: 480 }, SOFTWARE_MESH_MAX)).toEqual({ mx: 2 + 360, my: 2 + 240, stride: 2 });
+    expect(meshLayout({ nx: 4096, ny: 10 }, 16)).toMatchObject({ stride: 16 });
   });
 });
 
@@ -46,8 +48,8 @@ describe('createCarveLayer', () => {
     expect(calls.get('texStorage2D')).toBe(1);
     layer.draw(MVP, [0, 0, 0]);
     expect(calls.get('texSubImage2D')).toBe(1);
-    // The top, indexed; the walls.
-    expect(calls.get('drawElements')).toBe(1);
+    // The top, a strip per row; the walls.
+    expect(calls.get('drawArraysInstanced')).toBe(1);
     expect(calls.get('drawArrays')).toBe(1);
     layer.update({ x: 1, y: 1, w: 2, h: 2 });
     layer.update({ x: 5, y: 1, w: 2, h: 2 });
@@ -83,9 +85,9 @@ describe('the renderer with a carved surface', () => {
     expect(flat).toBe(2);
     r.setCarve(surface());
     frames.flush();
-    // Bed, then the carved top (indexed) and its walls; the stock solid is skipped.
+    // Bed, then the carved top (instanced strips) and its walls; the stock solid is skipped.
     expect((calls.get('drawArrays') ?? 0) - flat).toBe(2);
-    expect(calls.get('drawElements')).toBe(1);
+    expect(calls.get('drawArraysInstanced')).toBe(1);
     r.updateCarve({ x: 0, y: 0, w: 1, h: 1 });
     expect(frames.pending).toBe(1);
     frames.flush();
@@ -94,3 +96,34 @@ describe('the renderer with a carved surface', () => {
     r.dispose();
   });
 });
+
+describe('defaultMeshMax', () => {
+  const named = (name: string | null, info = true): WebGL2RenderingContext => ({
+    RENDERER: 0x1f01,
+    getExtension: () => (info ? { UNMASKED_RENDERER_WEBGL: 0x9246 } : null),
+    getParameter: (p: number) => (p === 0x9246 || p === 0x1f01 ? name : null),
+  }) as unknown as WebGL2RenderingContext;
+  it('caps the mesh on a software renderer only', () => {
+    expect(defaultMeshMax(named('ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0)), SwiftShader driver)'))).toBe(SOFTWARE_MESH_MAX);
+    expect(defaultMeshMax(named('llvmpipe (LLVM 15.0.7, 256 bits)', false))).toBe(SOFTWARE_MESH_MAX);
+    expect(defaultMeshMax(named('ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)'))).toBe(MESH_MAX);
+    expect(defaultMeshMax(named(null))).toBe(MESH_MAX);
+  });
+});
+
+describe('the path over a carved stock', () => {
+  it('is drawn faint and blended while a carved surface is drawn', () => {
+    const { gl, calls } = fakeGl();
+    const frames = frameQueue();
+    const r = createRenderer(gl, { colors: COLORS, requestFrame: frames.request, carveMeshMax: 512 });
+    r.setCarve(surface());
+    frames.flush();
+    expect(PATH_OVER_CARVE_ALPHA).toBeCloseTo(0.35, 5);
+    expect(calls.get('blendFuncSeparate')).toBe(1);
+    r.setCarve(null);
+    frames.flush();
+    expect(calls.get('blendFuncSeparate')).toBe(1);
+    r.dispose();
+  });
+});
+

@@ -5,8 +5,15 @@
  */
 import type { GridSpec } from './heightmap.ts';
 
-/** Most mesh vertices per side; a larger grid is sampled every few cells. */
-export const MESH_MAX = 512;
+/**
+ * Most mesh vertices per side by default: one per cell on any grid up to 2048 cells a side (the 0.25 mm grid of a
+ * 512 mm stock). A larger grid is thinned, each vertex taking the lowest of the cells it stands for.
+ */
+export const MESH_MAX = 2048;
+/** The cap on a software renderer (SwiftShader, llvmpipe), where a vertex per cell makes each frame slow. */
+export const SOFTWARE_MESH_MAX = 512;
+/** No cap below this: a thinned vertex reads at most (4096 / 256)² cells. */
+const MIN_MESH_MAX = 256;
 /** Most wall pieces around the outline. */
 const MAX_WALL_PIECES = 16384;
 
@@ -43,24 +50,6 @@ export function wallVertices(spec: GridSpec): Float32Array {
 
 /** Mesh vertices per side and the cell stride for a grid. */
 export function meshLayout(spec: Pick<GridSpec, 'nx' | 'ny'>, max = MESH_MAX): { readonly mx: number; readonly my: number; readonly stride: number } {
-  const stride = Math.max(1, Math.ceil(Math.max(spec.nx, spec.ny) / max));
+  const stride = Math.max(1, Math.ceil(Math.max(spec.nx, spec.ny) / Math.max(MIN_MESH_MAX, max)));
   return { mx: 2 + Math.ceil(spec.nx / stride), my: 2 + Math.ceil(spec.ny / stride), stride };
-}
-
-/** Two triangles per mesh quad, as indexes into the row-major grid of mx · my vertices. */
-export function gridIndexes(mx: number, my: number): Uint32Array {
-  const out = new Uint32Array(6 * (mx - 1) * (my - 1));
-  let n = 0;
-  for (let y = 0; y + 1 < my; y++) {
-    for (let x = 0; x + 1 < mx; x++) {
-      const a = y * mx + x;
-      out[n++] = a;
-      out[n++] = a + 1;
-      out[n++] = a + mx;
-      out[n++] = a + mx;
-      out[n++] = a + 1;
-      out[n++] = a + mx + 1;
-    }
-  }
-  return out;
 }

@@ -159,7 +159,12 @@ export interface RendererOptions {
   readonly now?: () => number;
   /** True to draw each tool position at once (default: the `prefers-reduced-motion` media query). */
   readonly reducedMotion?: () => boolean;
+  /** Most vertices per side of the carved stock's mesh (carve/mesh.ts; default: one per cell, fewer on a software renderer). */
+  readonly carveMeshMax?: number;
 }
+
+/** How opaque the toolpath is over a carved stock, so the carve reads through it. */
+export const PATH_OVER_CARVE_ALPHA = 0.35;
 
 const VERTEX = `#version 300 es
 precision highp float;
@@ -177,6 +182,8 @@ uniform vec4 u_plan;
 uniform vec4 u_cut;
 uniform vec4 u_exec;
 uniform vec4 u_queued;
+uniform vec4 u_dimRect;
+uniform float u_dimAlpha;
 out vec4 v_color;
 out float v_hidden;
 out float v_dist;
@@ -195,6 +202,8 @@ void main() {
     else if (a_line < u_plan.y) v_color = u_exec;
     else if (a_line < u_plan.z) v_color = u_queued;
   }
+  // Over a carved stock the path is drawn faint, so the carve reads through it.
+  if (u_dimAlpha < 1.0 && a_pos.x >= u_dimRect.x && a_pos.x <= u_dimRect.z && a_pos.y >= u_dimRect.y && a_pos.y <= u_dimRect.w) v_color.a *= u_dimAlpha;
   gl_Position = u_mvp * vec4(a_pos + u_offset, 1.0);
 }`;
 
@@ -261,10 +270,12 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     cut: gl.getUniformLocation(program, 'u_cut'),
     exec: gl.getUniformLocation(program, 'u_exec'),
     queued: gl.getUniformLocation(program, 'u_queued'),
+    dimRect: gl.getUniformLocation(program, 'u_dimRect'),
+    dimAlpha: gl.getUniformLocation(program, 'u_dimAlpha'),
   };
   const solidProgram = link(gl, SOLID_VERTEX, SOLID_FRAGMENT, ['a_pos', 'a_color']);
   const su = { mvp: gl.getUniformLocation(solidProgram, 'u_mvp') };
-  const carve = createCarveLayer(gl);
+  const carve = createCarveLayer(gl, options.carveMeshMax === undefined ? {} : { meshMax: options.carveMeshMax });
 
   let colors = options.colors;
   let path: GpuChunk[] = [];
@@ -479,6 +490,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     gl.uniform4fv(u.cut, new Float32Array(pc.cut));
     gl.uniform4fv(u.exec, new Float32Array(pc.exec));
     gl.uniform4fv(u.queued, new Float32Array(pc.queued));
+    gl.uniform1f(u.dimAlpha, 1);
     // 2. The grid, in the drawing's frame, hidden where a solid stands on it.
     gl.uniform3f(u.offset, 0, 0, 0);
     if (gridChunk !== null) {
@@ -494,10 +506,20 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       gl.drawArrays(gl.LINES, 0, frameOverlay.vertexCount);
     }
     gl.uniform3f(u.offset, pathOffset[0], pathOffset[1], pathOffset[2]);
+    const dim = carve.footprint;
+    if (dim !== null) {
+      gl.uniform4f(u.dimRect, dim[0], dim[1], dim[2], dim[3]);
+      gl.uniform1f(u.dimAlpha, PATH_OVER_CARVE_ALPHA);
+      gl.enable(gl.BLEND);
+      // Blend the colour only; the canvas stays opaque.
+      gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE);
+    }
     for (const c of path) {
       gl.bindVertexArray(c.vao);
       gl.drawArrays(gl.LINES, 0, c.vertexCount);
     }
+    gl.disable(gl.BLEND);
+    gl.uniform1f(u.dimAlpha, 1);
     if (markerOverlay !== null && motion !== null) {
       const t = now();
       const at = positionAt(motion, t);

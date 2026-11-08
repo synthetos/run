@@ -10,19 +10,23 @@
  * nothing has to be packed. Changed rectangles are uploaded with
  * texSubImage2D just before the next frame.
  *
- * Mesh: a vertex per cell centre plus the stock's edges, thinned to at most
- * `MESH_MAX` per side (every second cell on the 180 × 120 mm sample stock at
- * 0.25 mm), drawn indexed with positions from gl_VertexID (no vertex
- * buffer). The cap keeps a frame cheap on a software renderer (a full-size
- * mesh of 350,000 vertices took about 170 ms a frame under SwiftShader; this
- * one about 30 ms). Cells with no stock (outside a round or imported
- * outline) and cells cut through to the bottom are not drawn, decided per
- * texel, so the fixture or bed shows through.
+ * Mesh: a vertex per cell centre plus the stock's edges, drawn as one
+ * triangle strip per row (instanced; positions from gl_VertexID and
+ * gl_InstanceID, so no vertex or index buffer). On a real GPU that is one
+ * vertex per cell up to `MESH_MAX` (2048) a side. A software renderer gets
+ * `SOFTWARE_MESH_MAX` (512) a side, where a vertex per cell made each frame
+ * take about 170 ms; a thinned mesh's vertex takes the lowest of the cells
+ * it stands for, so a cut never disappears and a wall never zig-zags between
+ * its top and its floor (the spikes a nearest-cell sample gave). Cells with
+ * no stock (outside a round or imported outline) and cells cut through to
+ * the bottom are not drawn, decided per texel, so the fixture or bed shows
+ * through.
  *
- * Normals: the drawn triangle's own slope (screen-space derivatives, so a
- * steep wall shades as one face); on a thinned mesh's gentler slopes, the
- * neighbouring texels' slope across one mesh step, so detail finer than the
- * mesh (a narrow V-groove on a large stock) still shades.
+ * Normals: each texel centre's slope from a Sobel kernel over its 3 × 3
+ * neighbours (a wall stepped cell by cell around a curve gets one steady
+ * direction instead of alternating X and Y faces), blended between the four
+ * nearest texel centres per fragment, so a round trough or a curved wall
+ * shades smoothly rather than in cell-sized facets.
  *
  * Frames: the surface is in the path frame, drawn with the path's offset.
  * It does not carve, and it draws no below-stock warning (slice 3).
@@ -32,9 +36,8 @@ import type { Vec3 } from '../segments.ts';
 import { link } from '../glProgram.ts';
 import type { CarveSurface } from './client.ts';
 import { unionRect, type CellRect, type GridSpec } from './heightmap.ts';
-import { gridIndexes, meshLayout, wallVertices } from './meshGeometry.ts';
+import { MESH_MAX, SOFTWARE_MESH_MAX, meshLayout, wallVertices } from './meshGeometry.ts';
 import { TOP_FRAGMENT, TOP_VERTEX, WALL_FRAGMENT, WALL_VERTEX } from './shaders.ts';
-
 
 /** More pending rectangles than this are uploaded as one. */
 const MAX_UPLOADS = 16;
@@ -46,11 +49,35 @@ export interface CarveLayer {
   update(rect: CellRect): void;
   setColor(color: Rgba): void;
   readonly active: boolean;
+  /** The surface's footprint in the path frame as [x0, y0, x1, y1], or null with none. */
+  readonly footprint: readonly [number, number, number, number] | null;
   draw(mvp: Float32Array, offset: Vec3): void;
   dispose(): void;
 }
 
-export function createCarveLayer(gl: WebGL2RenderingContext): CarveLayer {
+export interface CarveLayerOptions {
+  /** Most mesh vertices per side (default `defaultMeshMax`: one per cell on real GPUs, fewer on a software renderer). */
+  readonly meshMax?: number;
+}
+
+const SOFTWARE_RENDERER = /swiftshader|llvmpipe|softpipe|software|basic render/i;
+
+/**
+ * The mesh cap for this context: `SOFTWARE_MESH_MAX` when the context says it renders in software (the browser
+ * tests' headless Chromium runs SwiftShader), else `MESH_MAX`. Without the renderer's name, `MESH_MAX`.
+ */
+export function defaultMeshMax(gl: WebGL2RenderingContext): number {
+  try {
+    const info = gl.getExtension('WEBGL_debug_renderer_info') as { readonly UNMASKED_RENDERER_WEBGL: number } | null;
+    const name: unknown = gl.getParameter(info === null ? gl.RENDERER : info.UNMASKED_RENDERER_WEBGL);
+    return typeof name === 'string' && SOFTWARE_RENDERER.test(name) ? SOFTWARE_MESH_MAX : MESH_MAX;
+  } catch {
+    return MESH_MAX;
+  }
+}
+
+export function createCarveLayer(gl: WebGL2RenderingContext, options: CarveLayerOptions = {}): CarveLayer {
+  const meshMax = options.meshMax ?? defaultMeshMax(gl);
   const top = link(gl, TOP_VERTEX, TOP_FRAGMENT, []);
   const wall = link(gl, WALL_VERTEX, WALL_FRAGMENT, ['a_wall', 'a_shade']);
   const loc = (p: WebGLProgram, names: readonly string[]): Record<string, WebGLUniformLocation | null> => Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(p, `u_${n}`)]));
@@ -58,9 +85,6 @@ export function createCarveLayer(gl: WebGL2RenderingContext): CarveLayer {
   const tu = loc(top, [...shared, 'mesh', 'stride']);
   const wu = loc(wall, shared);
   const gridVao = gl.createVertexArray();
-  let gridIndices: WebGLBuffer | null = null;
-  let gridLayout = '';
-  let gridCount = 0;
   let texture: WebGLTexture | null = null;
   let wallVao: WebGLVertexArrayObject | null = null;
   let wallBuffer: WebGLBuffer | null = null;
@@ -76,21 +100,6 @@ export function createCarveLayer(gl: WebGL2RenderingContext): CarveLayer {
     texture = wallVao = wallBuffer = null;
     wallCount = 0;
     pending = [];
-  }
-
-  /** The grid's index buffer, rebuilt only when the mesh size changes. */
-  function ensureIndices(mx: number, my: number): void {
-    const key = `${String(mx)}x${String(my)}`;
-    if (key === gridLayout) return;
-    if (gridIndices !== null) gl.deleteBuffer(gridIndices);
-    const idx = gridIndexes(mx, my);
-    gl.bindVertexArray(gridVao);
-    gridIndices = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gridIndices);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
-    gl.bindVertexArray(null);
-    gridLayout = key;
-    gridCount = idx.length;
   }
 
   function upload(r: CellRect): void {
@@ -155,6 +164,11 @@ export function createCarveLayer(gl: WebGL2RenderingContext): CarveLayer {
     get active() {
       return surface !== null;
     },
+    get footprint() {
+      if (surface === null) return null;
+      const g = surface.spec;
+      return [g.x0, g.y0, g.x0 + g.nx * g.cell, g.y0 + g.ny * g.cell] as const;
+    },
     draw(mvp, offset) {
       if (surface === null || texture === null) return;
       const spec = surface.spec;
@@ -162,14 +176,13 @@ export function createCarveLayer(gl: WebGL2RenderingContext): CarveLayer {
       flush();
       gl.bindTexture(gl.TEXTURE_2D, texture);
       gl.enable(gl.DEPTH_TEST);
-      const m = meshLayout(spec);
+      const m = meshLayout(spec, meshMax);
       gl.useProgram(top);
       uniforms(tu, spec, mvp, offset);
       gl.uniform2i(tu['mesh'] ?? null, m.mx, m.my);
       gl.uniform1i(tu['stride'] ?? null, m.stride);
-      ensureIndices(m.mx, m.my);
       gl.bindVertexArray(gridVao);
-      gl.drawElements(gl.TRIANGLES, gridCount, gl.UNSIGNED_INT, 0);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 2 * m.mx, m.my - 1);
       if (wallVao !== null && wallCount > 0) {
         gl.useProgram(wall);
         uniforms(wu, spec, mvp, offset);
@@ -181,7 +194,6 @@ export function createCarveLayer(gl: WebGL2RenderingContext): CarveLayer {
     dispose() {
       releaseSurface();
       surface = null;
-      if (gridIndices !== null) gl.deleteBuffer(gridIndices);
       gl.deleteVertexArray(gridVao);
       gl.deleteProgram(top);
       gl.deleteProgram(wall);
