@@ -8,7 +8,7 @@ export { checkWrite, jobLineWritableIn, jobRuntimeWritableIn, lineModeWritableIn
 export { SETTING_LINE, gateTokens, judgeGate, sessionSettings, settingLine, settingRefusal, wireNumber } from './settingWrite.ts';
 export type { WriteContext, WriteIntent, WriteVerdict } from './writePolicy.ts';
 export { DEFAULT_TIMINGS, MAX_PROBE_RESTARTS, MAX_QUEUED_READS, READY_BASES, SESSION_BASES } from './types.ts';
-export { MOTION_LIMITS, POLL_TOKENS, activeSystem, motionCapable } from './motion.ts';
+export { MOTION_LIMITS, POLL_TOKENS, TOOL_CHANGE_ZERO, activeSystem, motionCapable } from './motion.ts';
 export { FEED_ACCOUNTING_MIN_FB, JOB_DIALECTS, JOB_LIMITS, JOB_PREP_TOKENS, feedAccountingSafe, feedLimitLine, feedLimitSupported, feedLimitWindow, foldFeedLimit, jobFlagLine, jobFlagSupported, jobInFlight, jobsCapable, liveMotion, liveStart, queuedLine, rxmLine, rxmTarget, sanitizeLive, slotRoom, statusMeaning, textHash } from './job.ts';
 export { ACTIVE_PHASES, jobActive } from './jobState.ts';
 export { HEARTBEAT_INTERVAL_MS, HEARTBEAT_S, REPORT_DIALECTS, RT_PROBE_LINE, RUN_SR_FIELDS, SEED_TOKENS, SI_DEFAULT, SI_MAX_SENSIBLE, heartbeatCoversHold, heartbeatLine, reportLineShape, reportSteps, srListLine, srListMatches } from './reports.ts';

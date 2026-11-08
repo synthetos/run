@@ -28,6 +28,7 @@ import { readStored, writeStored } from '../storage.ts';
 import { belowStrip, CheckRow, ConfirmCard, IconButton, TabBar, TabPane } from '../ui.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { goToZeroSafeZ } from '../safeZ.ts';
+import { TC_GO_REASON, TC_OFFSET_REASON, atToolChange, zeroBlocked } from '../toolChangeControls.ts';
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
 import { HomeSection, HomeQuick, UnknownExits } from '../homing.ts';
 import { ProbeZ } from '../probe/ProbeZ.ts';
@@ -295,8 +296,10 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
     setNote(null);
     void send?.(command).then(setNote);
   };
-  const act = (icon: IconName, label: string, onClick: () => void): ComponentChild =>
-    h(IconButton, { icon, label, why: ui.reason ?? null, attrs: { 'data-machine-control': 'zero' }, ...(enabled ? { onClick } : { disabled: true }) });
+  // H74 (2026-11-08): at a tool change only the Z re-zero (toolChangeControls.ts).
+  const snap = m?.snapshot ?? null;
+  const act = (icon: IconName, label: string, onClick: () => void, blocked: string | null = null): ComponentChild =>
+    h(IconButton, { icon, label, why: blocked ?? ui.reason ?? null, attrs: { 'data-machine-control': 'zero' }, ...(enabled && blocked === null ? { onClick } : { disabled: true }) });
   const card =
     confirm === null || !enabled
       ? null
@@ -333,7 +336,7 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
           h('span', { class: 'axis', role: 'rowheader' }, a.toUpperCase()),
           h('strong', { role: 'cell', 'data-position': 'work' }, coord(d.work)),
           h('span', { role: 'cell', 'data-position': 'machine' }, coord(d.machine)),
-          h('span', { class: 'dro-actions', role: 'cell' }, act('zeroHere', `Set ${a.toUpperCase()} work zero here`, () => setConfirm({ kind: 'set', axes: [a] })), act('goZero', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }))),
+          h('span', { class: 'dro-actions', role: 'cell' }, act('zeroHere', `Set ${a.toUpperCase()} work zero here`, () => setConfirm({ kind: 'set', axes: [a] }), zeroBlocked(snap, [a])), act('goZero', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }), atToolChange(snap) ? TC_GO_REASON : null)),
         );
       }),
     ),
@@ -348,7 +351,7 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
           ? h('span', { class: 'tag warn', 'data-position': 'homing' }, 'Not homed', h(ContextHelp, { id: 'w34-help', label: 'About moving before homing', safety: 'W34', below: true }, ...signalText(w34())))
           : HomingTag(homed, m.snapshot.notices.position?.by),
       typeof tool === 'number' && uiLevel.value.value === 'advanced' ? h('span', { class: 'tag', 'data-position': 'tool' }, `T${tool}`) : null,
-      h('span', { class: 'pos-all' }, act('zeroHere', `Set ${axesText(xyz)} work zero here`, () => setConfirm({ kind: 'set', axes: xyz })), act('goZero', `Go to ${axesText(xyz)} zero`, () => setConfirm({ kind: 'go', axes: xyz }))),
+      h('span', { class: 'pos-all' }, act('zeroHere', `Set ${axesText(xyz)} work zero here`, () => setConfirm({ kind: 'set', axes: xyz }), zeroBlocked(snap, xyz)), act('goZero', `Go to ${axesText(xyz)} zero`, () => setConfirm({ kind: 'go', axes: xyz }), atToolChange(snap) ? TC_GO_REASON : null)),
     ),
     h(ProbeZ, { model: model ?? null }),
     card,
@@ -655,8 +658,11 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
     setNote(null);
     void send?.(command).then(setNote);
   };
-  const button = (label: string, aria: string, onClick: () => void, control = 'zero', ok = true): ComponentChild =>
-    h('button', { type: 'button', class: 'small', 'aria-label': aria, 'data-machine-control': control, ...(enabled && ok ? { onClick } : { disabled: true }) }, label);
+  // H74 (2026-11-08): at a tool change only the Z re-zero (toolChangeControls.ts); a blocked button says why.
+  const snap = view?.message?.snapshot ?? null;
+  const tc = atToolChange(snap);
+  const button = (label: string, aria: string, onClick: () => void, control = 'zero', ok = true, blocked: string | null = null): ComponentChild =>
+    h('button', { type: 'button', class: 'small', 'aria-label': aria, 'data-machine-control': control, ...(blocked === null ? {} : { title: blocked, 'data-blocked': 'tool-change' }), ...(enabled && ok && blocked === null ? { onClick } : { disabled: true }) }, label);
   const confirmCard = (): ComponentChild => {
     if (confirm === null || !enabled) return null;
     const cancel = (): void => setConfirm(null);
@@ -688,7 +694,7 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
       [1, 2, 3, 4, 5, 6].map((n) =>
         h(
           'button',
-          { type: 'button', key: n, class: off.system === `G${53 + n}` ? 'selected' : undefined, 'aria-pressed': off.system === `G${53 + n}` ? 'true' : 'false', 'data-machine-control': 'offset', ...(enabled && off.system !== `G${53 + n}` ? { onClick: () => setConfirm({ kind: 'system', n }) } : { disabled: true }) },
+          { type: 'button', key: n, class: off.system === `G${53 + n}` ? 'selected' : undefined, 'aria-pressed': off.system === `G${53 + n}` ? 'true' : 'false', 'data-machine-control': 'offset', ...(tc ? { title: TC_OFFSET_REASON } : {}), ...(enabled && !tc && off.system !== `G${53 + n}` ? { onClick: () => setConfirm({ kind: 'system', n }) } : { disabled: true }) },
           `G${53 + n}`,
         ),
       ),
@@ -708,7 +714,7 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
             h('th', { scope: 'row' }, a.toUpperCase()),
             h('td', { class: 'num' }, coord(work(a))),
             h('td', { class: 'num', 'data-zero-offset': a }, coord(off.saved?.[a])),
-            h('td', { class: 'zero-actions' }, button('Zero', `Set work zero for ${a.toUpperCase()} here, saved in ${system}`, () => setConfirm({ kind: 'set', axes: [a] })), button('Go', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }))),
+            h('td', { class: 'zero-actions' }, button('Zero', `Set work zero for ${a.toUpperCase()} here, saved in ${system}`, () => setConfirm({ kind: 'set', axes: [a] }), 'zero', true, zeroBlocked(snap, [a])), button('Go', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }), 'zero', true, tc ? TC_GO_REASON : null)),
           ),
         ),
       ),
@@ -732,9 +738,9 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
     h(
       'div',
       { class: 'zero-actions temp-offset' },
-      machineAxes(settings).map((a) => button(`${a.toUpperCase()} = 0`, `Temporary offset: ${a.toUpperCase()} reads 0 here`, () => setConfirm({ kind: 'temp', axes: [a] }), 'offset')),
-      button('All = 0', 'Temporary offset: X, Y and Z read 0 here', () => setConfirm({ kind: 'temp', axes: ['x', 'y', 'z'] }), 'offset'),
-      button('Clear', 'Clear the temporary offset (G92.1)', () => setConfirm({ kind: 'clear' }), 'offset', off.temporaryInForce),
+      machineAxes(settings).map((a) => button(`${a.toUpperCase()} = 0`, `Temporary offset: ${a.toUpperCase()} reads 0 here`, () => setConfirm({ kind: 'temp', axes: [a] }), 'offset', true, tc ? TC_OFFSET_REASON : null)),
+      button('All = 0', 'Temporary offset: X, Y and Z read 0 here', () => setConfirm({ kind: 'temp', axes: ['x', 'y', 'z'] }), 'offset', true, tc ? TC_OFFSET_REASON : null),
+      button('Clear', 'Clear the temporary offset (G92.1)', () => setConfirm({ kind: 'clear' }), 'offset', off.temporaryInForce, tc ? TC_OFFSET_REASON : null),
     ),
     off.temporaryInForce ? h('p', { class: 'fine', 'data-offsets': 'temporary' }, `G92 ${offsetLine(off.temporary)} · in force, not saved`) : null,
     confirmCard(),

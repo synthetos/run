@@ -137,6 +137,9 @@ export interface MotionDeps {
 
 const ALLOWED: Decision = Object.freeze({ allowed: true });
 
+/** Why only Z may be zeroed at a manual tool change (H74); the page shows the same words. */
+export const TOOL_CHANGE_ZERO = "At a tool change only Z can be re-zeroed, for the new tool's length.";
+
 function deny(reason: string, remedy: string): Decision {
   return { allowed: false, reason, remedy, citation: 'SAFETY §4.5b' };
 }
@@ -374,6 +377,9 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       const pre = precondition(s);
       if (pre !== undefined) return pre;
       if (!validAxisList(request.axes)) return deny('Set zero names one or more of X, Y, Z and A.', 'Choose an axis.');
+      // H74 (2026-11-08): at a manual tool change only Z is re-zeroed, for the new tool's length. An X, Y or A zero
+      // there would shift the rest of the job, which was checked at Start against the old offsets.
+      if (s.job?.phase === 'toolChange' && !(request.axes.length === 1 && request.axes[0] === 'z')) return deny(TOOL_CHANGE_ZERO, 'Re-zero Z only, or stop the job.');
       const system = activeSystem(s);
       if (system === null) return deny('The active work coordinate system is not known (or is G53).', 'Select G54 to G59 first.');
       // G10 L20 in the ACTIVE system, saved on the controller (C16); then its offsets are read back.
