@@ -25,7 +25,8 @@
  * marker is drawn dimmed and jumps with the scrubber, never easing, so it
  * cannot read as a machine moving.
  */
-import { VIEW_ANGLES, fitOrbit, pan, rotate, viewProjection, zoom, type Orbit, type ViewAngles, type ViewPreset } from './camera.ts';
+import { VIEW_ANGLES, fitOrbit, pan, rotate, viewProjection, zoom, zoomToward, type Orbit, type ViewAngles, type ViewPreset } from './camera.ts';
+import { framedBox } from './framing.ts';
 import { DEFAULT_SEGMENTS_PER_CHUNK, STYLE, chunks } from './geometry.ts';
 import { checkSegmentList, lineCount, type Box3, type SegmentList, type Vec3 } from './segments.ts';
 import { runSliced, type SliceOptions } from './slicer.ts';
@@ -129,10 +130,12 @@ export interface PreviewRenderer {
   setColors(colors: PreviewColors): void;
   /** Canvas size in CSS pixels and the device pixel ratio. */
   resize(width: number, height: number, pixelRatio?: number): void;
-  /** Fits the view to the drawn path (and envelope and scene). */
+  /** Fits the view to the job: the drawn path with the stock, fixture and clamps (framing.ts). */
   fit(): void;
   orbit(dAzimuth: number, dElevation: number): void;
   zoomBy(factor: number): void;
+  /** Zooms toward a canvas point (CSS pixels from its top-left): what is under it stays under it. */
+  zoomAt(factor: number, x: number, y: number): void;
   panBy(dx: number, dy: number): void;
   /** The tag of the nearest scene solid under a canvas point (CSS pixels from its top-left), or null. */
   pick(x: number, y: number): string | null;
@@ -554,9 +557,9 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     bounds = null;
   }
 
-  /** The path (and envelope and scene) framed to fill about 80% of the canvas, for its current shape. */
+  /** The job (the path with the stock, fixture and clamps; framing.ts) framed to fill about 80% of the canvas. */
   function fitView(): Orbit {
-    return fitOrbit(fitBox(), undefined, width / height, 0.8, angles);
+    return fitOrbit(framedBox(offsetBox(bounds, pathOffset), scene, fitBox()), undefined, width / height, 0.8, angles);
   }
 
   /** The box of everything drawn: the path moved by its offset, the envelope and the scene. */
@@ -734,6 +737,11 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     zoomBy(factor) {
       autoFit = false;
       view = zoom(view, factor);
+      requestRender();
+    },
+    zoomAt(factor, x, y) {
+      autoFit = false;
+      view = zoomToward(view, factor, (2 * x) / width - 1, 1 - (2 * y) / height, width / height);
       requestRender();
     },
     panBy(dx, dy) {

@@ -9,6 +9,8 @@ const fixture: SceneSolid = { kind: 'prism', outline: [[100, 100], [400, 100], [
 const stock: SceneSolid = { kind: 'box', min: [150, 150, 12], max: [300, 250, 18], color: GREY, tag: 'stock' };
 const scene = [bed, fixture, stock];
 const BOX = { min: [0, 0, -19], max: [800, 600, 18] } as const;
+/** What the view frames with no path: the fixture and the stock, not the bed. */
+const JOB_BOX = { min: [100, 100, 0], max: [400, 300, 18] } as const;
 
 describe('picking scene solids', () => {
   it('the ray through a projected point passes through that point (property)', () => {
@@ -56,12 +58,12 @@ describe('picking scene solids', () => {
     expect(r.pick(200, 150)).toBeNull();
     r.setScene({ solids: scene, rings: [] });
     r.setView('top');
-    // The top view, fitted: the canvas centre is the scene's centre (on the bed); the stock projects where it is.
-    expect(r.pick(200, 150)).toBe('bed');
-    const o = fitOrbit(BOX, undefined, 400 / 300, 0.8, VIEW_ANGLES.top);
-    const p = project(viewProjection(o, 400 / 300), [225, 200, 18]);
-    expect(r.pick(((p[0] + 1) / 2) * 400, ((1 - p[1]) / 2) * 300)).toBe('stock');
-    expect(r.pick(0, 0)).toBeNull();
+    // The top view frames the job (framing.ts): the canvas centre is the fixture and stock's centre, on the stock;
+    // the fixture projects where it is.
+    expect(r.pick(200, 150)).toBe('stock');
+    const o = fitOrbit(JOB_BOX, undefined, 400 / 300, 0.8, VIEW_ANGLES.top);
+    const p = project(viewProjection(o, 400 / 300), [120, 120, 12]);
+    expect(r.pick(((p[0] + 1) / 2) * 400, ((1 - p[1]) / 2) * 300)).toBe('fixture');
   });
 });
 

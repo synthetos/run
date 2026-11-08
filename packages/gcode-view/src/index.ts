@@ -18,7 +18,8 @@ export { DEFAULT_SEGMENTS_PER_CHUNK, STYLE, chunks, styleOf } from './geometry.t
 export type { Chunk } from './geometry.ts';
 export { DEFAULT_SLICE_BUDGET_MS, runSliced } from './slicer.ts';
 export type { SliceOptions } from './slicer.ts';
-export { VIEW_ANGLES, eye, fitOrbit, lookAt, multiply, pan, perspective, project, rotate, viewProjection, zoom } from './camera.ts';
+export { VIEW_ANGLES, eye, fitOrbit, lookAt, multiply, pan, perspective, project, rotate, viewProjection, zoom, zoomToward } from './camera.ts';
+export { FRAMED_TAGS, framedBox, jobSolidsBox } from './framing.ts';
 export type { Mat4, Orbit, ViewAngles, ViewPreset } from './camera.ts';
 export { PATH_OVER_CARVE_ALPHA, createRenderer, toolGlyph } from './renderer.ts';
 export type { LoadOptions, PlannerOverlay, PreviewColors, PreviewRenderer, RendererOptions, Rgba } from './renderer.ts';

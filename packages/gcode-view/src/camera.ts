@@ -89,6 +89,22 @@ export function zoom(o: Orbit, factor: number): Orbit {
   return { ...o, distance: Math.max(1e-3, o.distance * factor) };
 }
 
+/**
+ * Zooms by `factor` toward a point of the view (C19): `ndcX`, `ndcY` in -1..1 (right and up positive), so the
+ * drawing under the cursor stays under it. The target moves in the plane through it facing the camera.
+ */
+export function zoomToward(o: Orbit, factor: number, ndcX: number, ndcY: number, aspect: number, fovY: number = Math.PI / 4): Orbit {
+  if (!(factor > 0) || !Number.isFinite(ndcX) || !Number.isFinite(ndcY) || !(aspect > 0)) return zoom(o, factor);
+  const halfH = o.distance * Math.tan(fovY / 2);
+  const halfW = halfH * aspect;
+  const right: Vec3 = [-Math.sin(o.azimuth), Math.cos(o.azimuth), 0];
+  const up: Vec3 = [-Math.sin(o.elevation) * Math.cos(o.azimuth), -Math.sin(o.elevation) * Math.sin(o.azimuth), Math.cos(o.elevation)];
+  const k = 1 - factor;
+  const off = (i: 0 | 1 | 2): number => (right[i] * ndcX * halfW + up[i] * ndcY * halfH) * k;
+  const z = zoom(o, factor);
+  return { ...z, target: [o.target[0] + off(0), o.target[1] + off(1), o.target[2] + off(2)] };
+}
+
 /** Moves the target in the view plane by (dx, dy) fractions of the view height. */
 export function pan(o: Orbit, dx: number, dy: number, fovY: number = Math.PI / 4): Orbit {
   const h = 2 * o.distance * Math.tan(fovY / 2);

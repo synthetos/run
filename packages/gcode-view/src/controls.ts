@@ -1,7 +1,7 @@
 /**
  * Pointer, wheel and keyboard view controls for a renderer canvas: drag to
  * orbit, shift-drag or right-drag to pan, wheel to zoom; arrow keys orbit,
- * shift+arrows pan, + and - zoom, 0 fits. They change the view only.
+ * shift+arrows pan, + and - zoom, 0 fits. The wheel zooms toward the cursor. They change the view only.
  */
 import type { PreviewRenderer } from './renderer.ts';
 
@@ -26,7 +26,9 @@ export function attachViewControls(canvas: HTMLCanvasElement, renderer: PreviewR
   };
   const wheel = (e: WheelEvent): void => {
     e.preventDefault();
-    renderer.zoomBy(Math.exp(e.deltaY * 0.001));
+    // Toward the cursor (C19): what is under it stays under it.
+    const r = canvas.getBoundingClientRect();
+    renderer.zoomAt(Math.exp(e.deltaY * 0.001), e.clientX - r.left, e.clientY - r.top);
   };
   const key = (e: KeyboardEvent): void => {
     const step = Math.PI / 24;
