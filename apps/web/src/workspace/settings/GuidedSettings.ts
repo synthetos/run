@@ -27,7 +27,7 @@ export function GuidedSettings({ view, prefix = 'guided' }: { readonly view: Liv
   const field = (key: string, label: string): ComponentChild => h('label', { class: 'field', key, 'data-guided-setting': key },
     h('span', null, label),
     dialect === null
-      ? h('input', { disabled: true, 'aria-label': `${label}, draft`, placeholder: 'Not connected', title: blocked ?? 'Read the board settings first.' })
+      ? h('input', { disabled: true, 'aria-label': `${label}, draft`, placeholder: '—', title: blocked ?? 'Read the board settings first.' })
       : !writableKey(key, dialect)
         ? h('output', { class: 'guided-readonly', title: 'This firmware’s settings are read only.' }, plainValue(key, settings[key], dialect) ?? 'Not read')
         : h(SettingEditor, { k: key, view }));
