@@ -12,9 +12,13 @@ export interface ToolKeyProps {
   readonly onAddTool?: (number: number) => void;
 }
 
-/** The marker's tool on the key line: "T1 · 3.175 mm 2-flute up-cut", or "Tool unknown". */
-export function ToolLabel({ tool }: { readonly tool: ActiveTool }): ComponentChild {
-  const text = tool.number === null ? 'Tool unknown' : tool.name === null ? `T${String(tool.number)}` : `T${String(tool.number)} · ${tool.name}`;
+/**
+ * The marker's tool on the key line: "T1 · 3.175 mm 2-flute up-cut" (its name), or in Simple the plain words
+ * ("T1 · 3.175 mm flat end mill", or the user's own name for a tool they named), or "Tool unknown".
+ */
+export function ToolLabel({ tool, simple = false }: { readonly tool: ActiveTool; readonly simple?: boolean }): ComponentChild {
+  const name = simple ? (tool.plain ?? tool.name) : tool.name;
+  const text = tool.number === null ? 'Tool unknown' : name === null ? `T${String(tool.number)}` : `T${String(tool.number)} · ${name}`;
   return h('span', { 'data-scene': 'tool', 'data-active-tool': tool.number === null ? 'unknown' : `T${String(tool.number)}`, 'data-tool-shape': tool.shape?.tip ?? 'generic' }, text);
 }
 

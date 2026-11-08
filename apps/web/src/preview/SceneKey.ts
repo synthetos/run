@@ -1,8 +1,11 @@
 /**
- * The scene's key, over the drawing: what the bed is, with links to the bed, fixture and stock settings (so
- * opening them from the scene is not mouse-only), the live placement's notes (livePlacement.ts), the
- * tool the marker shows (ToolKey.ts), and the stock carving's cell size and uncarved lines (CarveKey.ts).
- * Without a job's scene it shows the tool alone.
+ * The scene's key, over the drawing. Simple (the default level) shows what a hobbyist needs: the tool the
+ * marker shows in plain words (ToolKey.ts), "Bed size not set" when the bed is a placeholder (a link to its
+ * settings), the notes that matter (lines not carved and why, a cut below the stock, a tool missing from the
+ * tool table) and a quiet hint that clicking the bed, fixture or stock opens its settings. Advanced adds what
+ * the bed is, the carving detail and links to the bed, fixture and stock settings (so opening them is not
+ * mouse-only there). The live placement's notes (livePlacement.ts) show at both levels. Without a job's scene
+ * it shows the tool alone.
  */
 import { h, type ComponentChild } from 'preact';
 import type { ActiveTool } from './activeTool.ts';
@@ -25,32 +28,68 @@ export interface SceneKeyProps {
   readonly markerPreview?: boolean;
   /** The stock carving (useCarve.ts), or null when nothing is carved. */
   readonly carve?: CarveInfo | null;
+  /** The Simple level: the tool in plain words and the notes that matter, no bed name, carving detail or links. */
+  readonly simple?: boolean;
 }
 
-export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview = false, carve = null }: SceneKeyProps): ComponentChild {
+export const BED_NOT_SET = 'Bed size not set';
+
+/** Items joined by a quiet middle dot. */
+function joined(items: readonly ComponentChild[]): ComponentChild[] {
+  return items.filter((i) => i !== null && i !== false).flatMap((item, k) => (k === 0 ? [item] : [h('span', { 'aria-hidden': 'true' }, '·'), item]));
+}
+
+/** One row of the key, or nothing when it is empty. */
+function row(items: ComponentChild[]): ComponentChild {
+  return items.length === 0 ? null : h('span', { class: 'scene-key-row' }, items);
+}
+
+/** "Click the bed, fixture or stock to change it", naming the parts the scene has. */
+export function pickHint(parts: readonly ScenePart[]): string {
+  const names = parts.map((p) => (p === 'bed' ? 'the bed' : p));
+  const list = names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1] as string}`;
+  return `Click ${list} to change it`;
+}
+
+export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview = false, carve = null, simple = false }: SceneKeyProps): ComponentChild {
   const parts: ScenePart[] = scene === null ? [] : ['bed', ...(scene.layers.solids.some((s) => s.tag === 'fixture') ? (['fixture'] as const) : []), 'stock'];
   const notes = scene?.notes ?? [];
   const toolNote = tool?.note == null ? null : h(ToolNote, { tool, ...(onAddTool === undefined ? {} : { onAddTool }) });
+  const bed = scene === null
+    ? null
+    : !simple
+      ? h('span', { 'data-scene': 'bed' }, scene.bedLabel)
+      : !scene.bedPlaceholder
+        ? null
+        : onOpen === undefined
+          ? h('span', { 'data-scene': 'bed' }, BED_NOT_SET)
+          : h('button', { type: 'button', class: 'link', 'data-scene': 'bed', 'data-scene-link': 'bed', onClick: () => onOpen('bed') }, BED_NOT_SET);
+  const links = simple || onOpen === undefined || parts.length === 0
+    ? null
+    : h('nav', { class: 'scene-links', 'aria-label': 'Scene settings' }, joined(parts.map((p) => h('button', { type: 'button', key: p, class: 'link', 'data-scene-link': p, onClick: () => onOpen(p) }, SCENE_PARTS[p].settings))));
+  const failed = carve !== null && carve.status.value.failed !== null;
+  const hint = simple && onOpen !== undefined && parts.length > 0 ? h('span', { class: 'scene-pick-hint', 'data-scene': 'pick-hint' }, pickHint(parts)) : null;
   return h(
     'div',
-    { class: 'scene-key' },
+    { class: 'scene-key', 'data-key-level': simple ? 'simple' : 'advanced' },
     notes.length === 0 && toolNote === null
       ? null
       : h('div', { class: 'viewer-key scene-notes', role: 'status', 'data-scene': 'notes' }, notes.map((n, i) => h('p', { key: String(i), 'data-scene': 'note' }, n)), toolNote),
     h(
       'div',
       { class: 'viewer-key scene-key-line' },
-      scene === null ? null : h('span', { 'data-scene': 'bed' }, scene.bedLabel),
-      tool === null ? null : [scene === null ? null : h('span', { 'aria-hidden': 'true' }, '·'), h(ToolLabel, { tool })],
-      markerPreview ? [h('span', { 'aria-hidden': 'true' }, '·'), h('span', { 'data-scene': 'tool-preview' }, PREVIEW_MARKER_NOTE)] : null,
-      carve === null ? null : [h('span', { 'aria-hidden': 'true' }, '·'), h(CarveLabel, { carve }), h(BelowNote, { carve }), carveNotes(carve).map((n) => [h('span', { 'aria-hidden': 'true' }, '·'), n])],
-      onOpen === undefined || parts.length === 0
-        ? null
-        : h(
-            'nav',
-            { class: 'scene-links', 'aria-label': 'Scene settings' },
-            parts.map((p, i) => [i === 0 ? null : h('span', { key: `s${p}`, 'aria-hidden': 'true' }, '·'), h('button', { type: 'button', key: p, class: 'link', 'data-scene-link': p, onClick: () => onOpen(p) }, SCENE_PARTS[p].settings)]),
-          ),
+      // The carve line carries the test hooks at both levels; in Simple it shows nothing unless the carve stopped.
+      carve !== null && simple && !failed ? h(CarveLabel, { carve, simple }) : null,
+      row(joined([
+        simple ? null : bed,
+        tool === null ? null : h(ToolLabel, { tool, simple }),
+        markerPreview ? h('span', { 'data-scene': 'tool-preview' }, PREVIEW_MARKER_NOTE) : null,
+        carve !== null && (!simple || failed) ? h(CarveLabel, { carve, simple }) : null,
+        simple ? bed : null,
+      ])),
+      // Reading the progress signal here re-renders this small key, not the view, when the note appears.
+      row(joined([carve !== null && carve.status.value.below !== null ? h(BelowNote, { carve }) : null, ...carveNotes(carve)])),
+      row(joined([links, hint])),
     ),
   );
 }

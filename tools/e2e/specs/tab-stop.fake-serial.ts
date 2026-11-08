@@ -138,6 +138,8 @@ test('Escape reaches the wire as `!` in under 100 ms with a 1M-segment preview l
   const worker = await connectedTab(page);
   // T-S19's load: a 1M-segment program drawn in the full 3D preview (TB-03), in this same tab.
   const sheet = page.locator('[data-region="preview"]');
+  // The preview options are an Advanced setting.
+  await page.locator('[data-action="ui-level-advanced"]').click();
   await sheet.locator('[data-preview="mode"]').selectOption('full');
   const million = Buffer.from('G21 G90 G17\n' + 'G1 X10 Y5 F800\nG1 X0 Y0\n'.repeat(500_000));
   await sheet.locator('[data-preview="file"]').setInputFiles({ name: 'million.nc', mimeType: 'text/plain', buffer: million });

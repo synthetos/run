@@ -192,7 +192,7 @@ describe('the planned zero and the scene in machine coordinates', () => {
     expect(scene.zero).toEqual(scene.pathOffset);
     expect(scene.heights).toEqual({ bedTop: -65, fixtureTop: -53, stockTop: -46.65, aboveTable: { bedTop: 19, fixtureTop: 31, stockTop: 37.35 } });
     expect(scene.bedPlaceholder).toBe(false);
-    expect(scene.bedLabel).toBe('Bed of Shop X-Carve, revision 0 · 750 × 750 mm · measured');
+    expect(scene.bedLabel).toBe('Bed of Shop X-Carve · 750 × 750 mm · measured');
     // Fixture holes under the stock are hidden; the rest are rings on the fixture top.
     expect(scene.layers.rings.every((r) => r.center[2] === -53)).toBe(true);
     expect(scene.layers.rings.length).toBeLessThan(sampleFixture().holes.length);

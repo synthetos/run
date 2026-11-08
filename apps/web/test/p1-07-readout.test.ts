@@ -337,7 +337,7 @@ describe('the preview marker', () => {
 
   it('reads out the work position the board reports, so it matches the G-code line: G92 says so, inches are labelled', () => {
     // The braid bench run, line N146 X-3.198Y-50.068 under the file's G92: the readout is that line's own numbers.
-    expect(markerText({ x: -3.198, y: -50.068, z: -1, units: 'mm', g92: true, ageMs: 100, lag: 'fresh' })).toBe('Tool at X −3.198 Y −50.068 Z −1.000 · G92 offset active · live');
+    expect(markerText({ x: -3.198, y: -50.068, z: -1, units: 'mm', g92: true, ageMs: 100, lag: 'fresh' })).toBe('Tool at X −3.198 Y −50.068 Z −1.000 · Temporary offset on (G92) · live');
     expect(markerText({ x: 1, y: 0.25, z: 0.1, units: 'in', g92: false, ageMs: 1500, lag: 'amber' })).toBe('Tool at X 1.000 Y 0.250 Z 0.100 in · 1.5 s old');
     expect(markerText({ x: 1, y: 2, z: 3, units: null, ageMs: 100, lag: 'fresh' })).toBe('Tool at X 1.000 Y 2.000 Z 3.000 · live');
   });

@@ -2,7 +2,7 @@
  * The G92 frame in the built app (fake-serial TEST build): a job whose file sets its own G92 before it moves,
  * as braid_500mm.gcode does, run on the simulated edge-next board from machine 0, 0, 0. While a line runs:
  * - the "Tool at" readout is that line's programmed X, Y and Z (the board's work position, G92 included), with
- *   "G92 offset active";
+ *   "Temporary offset on (G92)";
  * - the tool handed to the drawing (`data-tool` on the drawing, in the toolpath's frame) lies on that line's
  *   segment as the preview drew it.
  * Before the fix the readout was the machine position minus the offsets read before the job, and the drawn tool
@@ -70,7 +70,7 @@ test('a file with its own G92: the readout is the executing line’s coordinates
   // Line 5, G1 X25 Y-20: the readout is Y -20 and Z -1, as written; the tool is on the drawn segment (0, 0, 0)-(20, 0, 0).
   const a = await midSegment(page, 5, 0, 7, 23);
   const pa = readoutXyz(a.readout) as number[];
-  expect(a.readout).toMatch(/^Tool at X \S+ Y −20\.000 Z −1\.000 · G92 offset active · /);
+  expect(a.readout).toMatch(/^Tool at X \S+ Y −20\.000 Z −1\.000 · Temporary offset on \(G92\) · /);
   const ta = a.tool as number[];
   expect(ta[0]).toBeCloseTo((pa[0] as number) + SHIFT[0], 2);
   expect(Math.abs(ta[1] as number)).toBeLessThan(0.01);
@@ -81,7 +81,7 @@ test('a file with its own G92: the readout is the executing line’s coordinates
   // Line 6, G1 X25 Y-40: X 25 as written; the tool on (20, 0, 0)-(20, -20, 0).
   const b = await midSegment(page, 6, 1, -38, -22);
   const pb = readoutXyz(b.readout) as number[];
-  expect(b.readout).toMatch(/^Tool at X 25\.000 Y \S+ Z −1\.000 · G92 offset active · /);
+  expect(b.readout).toMatch(/^Tool at X 25\.000 Y \S+ Z −1\.000 · Temporary offset on \(G92\) · /);
   const tb = b.tool as number[];
   expect(tb[0]).toBeCloseTo(20, 2);
   expect(tb[1]).toBeCloseTo((pb[1] as number) + SHIFT[1], 2);

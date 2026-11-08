@@ -12,7 +12,9 @@ import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 import { MAX_UNCARVED_NOTES, NO_CHANGE_REASON, NO_T_REASON, carvePlan } from '../src/preview/carveTools.ts';
 import { carveGrid } from '../src/preview/carveStock.ts';
 import { BelowNote, CarveLabel, belowText, carveNotes, cellText, depthText } from '../src/preview/CarveKey.ts';
-import { SceneKey } from '../src/preview/SceneKey.ts';
+import { BED_NOT_SET, SceneKey, pickHint } from '../src/preview/SceneKey.ts';
+import { plainToolWords, simpleToolName, toolNumbered } from '../src/preview/activeTool.ts';
+import type { JobScene } from '../src/preview/sceneModel.ts';
 import type { CarveStatus } from '../src/preview/useCarve.ts';
 
 const changes = (lines: number[], tools: number[]): Pick<ToolChanges, 'lines' | 'tools'> => ({ lines: Uint32Array.from(lines), tools: Int32Array.from(tools) });
@@ -96,8 +98,12 @@ describe('the key', () => {
     expect(cellText(0.25)).toBe('0.25 mm');
     expect(cellText(1.25)).toBe('1.25 mm');
     const html = renderToString(h(CarveLabel, { carve: info() }));
-    expect(html).toContain('Carving at 0.25 mm');
+    expect(html).toContain('Carving detail 0.25 mm');
     expect(html).toContain('data-carved-through="40"');
+    // Simple: the hooks, no words.
+    const simple = renderToString(h(CarveLabel, { carve: info(), simple: true }));
+    expect(simple).toContain('data-carved-through="40"');
+    expect(simple).not.toContain('Carving');
     expect(html).toContain('data-carve-cell="0.25"');
     expect(html).toContain('data-carve-done="true"');
     expect(renderToString(h(CarveLabel, { carve: info({ failed: 'boom' }) }))).toContain('Carving stopped');
@@ -106,7 +112,7 @@ describe('the key', () => {
     expect(carveNotes(null)).toEqual([]);
     const html = renderToString(h(SceneKey, { scene: null, carve: info() }));
     expect(html).toContain('Lines 12–340 not carved: T3 is not in your tool table');
-    expect(html).toContain('Carving at 0.25 mm');
+    expect(html).toContain('Carving detail 0.25 mm');
     expect(html).not.toMatch(/safe/i);
   });
   it('names where the cut goes below the stock, as a preview of the planned setup', () => {
@@ -118,6 +124,45 @@ describe('the key', () => {
     expect(html).toContain('data-scene="below-stock-note"');
     expect(html).not.toMatch(/safe|verified/i);
     expect(renderToString(h(BelowNote, { carve: info() }))).toBe('');
+  });
+});
+
+describe('the key at each level', () => {
+  const scene = (placeholder: boolean, fixture = true): JobScene => ({
+    layers: { solids: [{ kind: 'box', min: [0, 0, 0], max: [1, 1, 1], color: [1, 1, 1, 1], tag: 'bed' }, ...(fixture ? [{ kind: 'box' as const, min: [0, 0, 1] as const, max: [1, 1, 2] as const, color: [1, 1, 1, 1] as const, tag: 'fixture' }] : [])], rings: [] },
+    pathOffset: [0, 0, 0], zero: [0, 0, 0], bounds: null,
+    heights: { bedTop: 0, fixtureTop: 0, stockTop: 0, aboveTable: { bedTop: 0, fixtureTop: 0, stockTop: 0 } },
+    bedPlaceholder: placeholder, bedLabel: 'Bed of My X-Carve · 750 × 750 mm · placeholder',
+  });
+  const t1 = toolNumbered(1, SEED_TOOLS);
+  const info = () => ({ cell: 0.25, uncarved: ['Lines 12–340 not carved: T3 is not in your tool table'], status: signal<CarveStatus>({ through: 40, done: true, lowest: -1, failed: null, below: null }) });
+
+  it('names a seed tool in plain words, and a tool the user named by its own name', () => {
+    expect(t1.plain).toBe('3.175 mm flat end mill');
+    expect(toolNumbered(4, SEED_TOOLS).plain).toBe('12.7 mm 90° V-bit');
+    expect(plainToolWords({ type: 'o-flute', geometry: { diameter: 6.35, shank: 6.35, flutes: 1, fluteLength: 22, overallLength: 63 } })).toBe('6.35 mm single-flute end mill');
+    expect(simpleToolName({ id: 'seed.t1', name: 'My favourite end mill', type: 'flat', geometry: { diameter: 3.175, shank: 3.175, flutes: 2, fluteLength: 12, overallLength: 38 } })).toBe('My favourite end mill');
+    expect(simpleToolName({ id: 'mine.1', name: '1/8 in downcut', type: 'flat', geometry: { diameter: 3.175, shank: 3.175, flutes: 2, fluteLength: 12, overallLength: 38 } })).toBe('1/8 in downcut');
+  });
+
+  it('Simple: the tool, "Bed size not set" for a placeholder bed, the hint, no bed name, detail or links', () => {
+    const html = renderToString(h(SceneKey, { scene: scene(true), tool: t1, carve: info(), simple: true, onOpen: () => undefined }));
+    expect(html).toContain('T1 · 3.175 mm flat end mill');
+    expect(html).toContain(BED_NOT_SET);
+    expect(html).toContain('Click the bed, fixture or stock to change it');
+    expect(html).toContain('Lines 12–340 not carved');
+    expect(html).not.toMatch(/My X-Carve|revision|Carving detail|Bed settings/);
+    expect(renderToString(h(SceneKey, { scene: scene(false), tool: t1, simple: true, onOpen: () => undefined }))).not.toContain(BED_NOT_SET);
+    expect(pickHint(['bed', 'stock'])).toBe('Click the bed or stock to change it');
+  });
+
+  it('Advanced: the bed name and size, the carving detail and the links', () => {
+    const html = renderToString(h(SceneKey, { scene: scene(true), tool: t1, carve: info(), onOpen: () => undefined }));
+    expect(html).toContain('Bed of My X-Carve · 750 × 750 mm · placeholder');
+    expect(html).toContain('T1 · 3.175 mm 2-flute up-cut');
+    expect(html).toContain('Carving detail 0.25 mm');
+    expect(html).toContain('Bed settings');
+    expect(html).not.toContain('Click the bed');
   });
 });
 

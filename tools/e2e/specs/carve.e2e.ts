@@ -30,7 +30,8 @@ test('the stock is carved with the V-bit from the tool table, and the carve foll
   const sheet = page.locator('[data-region="preview"]');
   await open(page, 'v-rect.nc', V_FILE);
   const carve = sheet.locator('[data-scene="carve"]');
-  await expect(carve).toHaveText('Carving at 0.25 mm');
+  // Simple (the default level) does not show the carving detail; the hooks are there at both levels.
+  await expect(carve).toBeHidden();
   await expect(carve).toHaveAttribute('data-carve-cell', '0.25');
   // Nothing scrubbed: the whole job, down near the V-bit's tip 1 mm below the stock top (cell centres are
   // 0.125 mm off the path, so the deepest cell is 0.875 mm deep under a 90° V).
@@ -100,5 +101,33 @@ test('a cut below the stock is named in the key as a preview of the planned setu
   await sheet.locator('[data-preview="scrubber"]').fill('4');
   await expect(sheet.locator('[data-scene="carve"]')).toHaveAttribute('data-carved-through', '4');
   await expect(note).toHaveCount(0);
+});
+
+test('the key: Simple shows the tool in plain words and the notes that matter; Advanced adds the bed, detail and links', async ({ page }) => {
+  await page.goto('/');
+  await ready(page);
+  const sheet = page.locator('[data-region="preview"]');
+  await open(page, 'v-rect.nc', V_FILE);
+  const key = sheet.locator('.scene-key-line');
+  await expect(sheet.locator('[data-scene="carve"]')).toHaveAttribute('data-carve-done', 'true');
+  // Simple (the default level).
+  await expect(key.locator('[data-scene="tool"]')).toHaveText('T4 · 12.7 mm 90° V-bit');
+  await expect(key.locator('[data-scene="bed"]')).toHaveText('Bed size not set');
+  await expect(key.locator('[data-scene="pick-hint"]')).toHaveText('Click the bed, fixture or stock to change it');
+  await expect(key.locator('nav.scene-links')).toHaveCount(0);
+  await expect(key).not.toContainText('Carving');
+  await expect(key).not.toContainText('revision');
+  await expect(sheet.locator('[data-preview="mode"]')).toHaveCount(0);
+  await expect(sheet.locator('[data-preview="dialect"]')).toHaveCount(0);
+  // Advanced.
+  await page.locator('[data-action="ui-level-advanced"]').click();
+  await expect(key.locator('[data-scene="bed"]')).toHaveText('Bed · 790 × 790 mm · placeholder');
+  await expect(key.locator('[data-scene="tool"]')).toHaveText('T4 · 90° V-bit');
+  await expect(key.locator('[data-scene="carve"]')).toHaveText('Carving detail 0.25 mm');
+  await expect(key.locator('[data-scene-link]')).toHaveCount(3);
+  await expect(key.locator('[data-scene="pick-hint"]')).toHaveCount(0);
+  await expect(sheet.locator('.viewer-options')).toContainText('Read as:');
+  await expect(sheet.locator('[data-preview="dialect"] option:checked')).toHaveText('TinyG edge-next');
+  await expect(sheet.locator('[data-preview="mode"] option:checked')).toHaveText('Auto (simpler above 300,000 lines)');
 });
 

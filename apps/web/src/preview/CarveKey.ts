@@ -12,13 +12,18 @@ export function cellText(cell: number): string {
   return `${String(Number(cell.toFixed(3)))} mm`;
 }
 
-/** The key line. Reads the progress signal, so only this re-renders while the carve runs. */
-export function CarveLabel({ carve }: { readonly carve: CarveInfo }): ComponentChild {
+/**
+ * The key line's carving part: "Carving detail 0.25 mm" in Advanced; nothing visible in Simple unless the carve
+ * stopped. It carries the test hooks at both levels. Reads the progress signal, so only this re-renders while the
+ * carve runs.
+ */
+export function CarveLabel({ carve, simple = false }: { readonly carve: CarveInfo; readonly simple?: boolean }): ComponentChild {
   const s = carve.status.value;
+  const text = s.failed !== null ? 'Carving stopped' : simple ? '' : `Carving detail ${cellText(carve.cell)}`;
   return h(
     'span',
-    { 'data-scene': 'carve', 'data-carve-cell': String(carve.cell), 'data-carved-through': String(s.through), 'data-carve-done': s.done ? 'true' : 'false', 'data-carve-lowest': s.lowest.toFixed(3) },
-    s.failed === null ? `Carving at ${cellText(carve.cell)}` : 'Carving stopped',
+    { 'data-scene': 'carve', 'data-carve-cell': String(carve.cell), 'data-carved-through': String(s.through), 'data-carve-done': s.done ? 'true' : 'false', 'data-carve-lowest': s.lowest.toFixed(3), ...(text === '' ? { hidden: true } : {}) },
+    text,
   );
 }
 
@@ -40,7 +45,7 @@ export function belowText(below: NonNullable<CarveInfo['status']['value']['below
 /** The below-stock note for the key line, or null. Reads the progress signal. */
 export function BelowNote({ carve }: { readonly carve: CarveInfo }): ComponentChild {
   const below = carve.status.value.below;
-  return below === null ? null : [h('span', { 'aria-hidden': 'true' }, '·'), h('span', { class: 'scene-carve-note', 'data-scene': 'below-stock-note', 'data-below-line': String(below.firstLine) }, belowText(below))];
+  return below === null ? null : h('span', { class: 'scene-carve-note', 'data-scene': 'below-stock-note', 'data-below-line': String(below.firstLine) }, belowText(below));
 }
 
 /**

@@ -68,7 +68,8 @@ describe('workspace AppShell (prerendered)', () => {
 
   it('prerendered, the preview controls are disabled and Start job is disabled with its reason', () => {
     expect(/<input[^>]*data-preview="file"[^>]*>/.exec(html)?.[0]).toContain('disabled');
-    expect(/<select[^>]*data-preview="mode"[^>]*>/.exec(html)?.[0]).toContain('disabled');
+    // The preview options (how the file is read, the detail) are an Advanced setting: not on the Simple page.
+    expect(html).not.toContain('data-preview="mode"');
     expect(/<button[^>]*data-action="start-job"[^>]*>/.exec(html)?.[0]).toContain('disabled');
     expect(html).toContain('Connect to see live job data.');
     expect(html).not.toContain('Phase 1 · no motion');
@@ -164,7 +165,7 @@ describe('Phase 1 control allowlist', () => {
     /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
     // Firmware & Backups: records on this computer (export, import, compare, delete, download) and dialog controls.
     /^action:(backup-compare|backup-export|backup-delete|backup-import|firmware-download|firmware-delete|trust-revoke|trust-cancel|cancel-flash|flash-cancel|flash-dismiss|flash-reconnect|switch-test-start)$/,
-    /^preview:(file|rapids|mode|scrubber|fit|cancel|view-iso|view-top|view-front)$/,
+    /^preview:(file|rapids|dialect|mode|scrubber|fit|cancel|view-iso|view-top|view-front)$/,
     /^sample:(mounting-plate|test-square)$/,
     /^action:(add-tool|fork-material|new-material|edit-material|ask-delete|delete-material|cancel-delete|save-material|cancel-material|close-material|add-safety|add-behaviour|remove-row|add-link|more-link|remove-link|clear-draft|clear-pin|fill-from-board|copy-machine|fixture-file|save-transcript|dismiss-w29|dismiss-notice|hide-notice|pause-request|stop-job-request)$/,
     /^label:(Toggle day\/night mode|Account: .*|Dialect|Find a machine|back left|back right|center|front left|front right|Link|Shop|Price in US dollars|Close|TinyG v8 board drawing\..*|J\d\.\d .+|M\d\.\d .+|.+, draft|.+, your profile|Search settings|Only pending changes)$/,

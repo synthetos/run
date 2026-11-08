@@ -73,7 +73,8 @@ test('a project file opens as the project’s job on a machine bed; the scene, U
   await expect(identity.locator('[data-job="project"]')).toHaveText('Mounting plate');
   await expect(identity.locator('[data-job="machine"]')).toContainText('My X-Carve');
   await expect(identity.locator('[data-job="bed"]')).toHaveAttribute('data-bed', 'placeholder');
-  await expect(page.locator('[data-screen="job"] [data-scene="bed"]')).toContainText('placeholder');
+  // Simple (the default level) says only that the bed's size is not set.
+  await expect(page.locator('[data-screen="job"] [data-scene="bed"]')).toHaveText('Bed size not set');
   await expect(page.locator('[data-screen="job"] [data-preview="canvas"], [data-screen="job"] [data-preview="svg"]')).toHaveCount(1);
   await shot('run-scene-3d');
   await page.locator('[data-screen="job"] [data-preview="view-top"]').click();
@@ -82,7 +83,9 @@ test('a project file opens as the project’s job on a machine bed; the scene, U
   // Setup edits the same job and shows the same scene with the path on it.
   await show(page, 'setup');
   await expect(page.locator('[data-job="name"]')).toHaveText('plate');
-  await expect(page.locator('[data-screen="job"] [data-scene="bed"]')).toContainText('My X-Carve');
+  // Simple names the job's machine on the job card, and the scene's key says the bed size is still not set.
+  await expect(page.locator('[data-job="identity"] [data-job="machine"]')).toContainText('My X-Carve');
+  await expect(page.locator('[data-screen="job"] [data-scene="bed"]')).toHaveText('Bed size not set');
   await expect(page.locator('[data-screen="job"] [data-preview="canvas"], [data-screen="job"] [data-preview="svg"]')).toHaveCount(1);
   await page.locator('[data-job-step="place"]').click();
   await expect(page.locator('[data-height="fixture"]')).toHaveText('-50.00');

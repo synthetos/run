@@ -114,6 +114,9 @@ export interface LiveMarkerView {
   readonly lag: 'none' | 'fresh' | 'amber' | 'red';
 }
 
+/** The readout's words while a G92 offset is part of the position. */
+export const G92_ON = 'Temporary offset on (G92)';
+
 /** A coordinate with three decimals and a true minus sign. */
 function c3(n: number): string {
   return `${n < 0 ? '−' : ''}${Math.abs(n).toFixed(3)}`;
@@ -122,11 +125,12 @@ function c3(n: number): string {
 /**
  * The live tool position in plain words (WORKSPACE_TENETS 4): "Tool at X 1.000 Y 2.000 Z 3.000 · live",
  * or "· 1.5 s old" once the position is late. The work position the board reports, so it matches the G-code
- * line it runs; " in" after it in inches, and "· G92 offset active" while a temporary offset is part of it.
+ * line it runs; " in" after it in inches, and "· Temporary offset on (G92)" while a temporary offset is part of it
+ * (safety-relevant, so it shows at both levels).
  */
 export function markerText(m: LiveMarkerView): string {
   const age = m.lag === 'fresh' ? 'live' : `${(m.ageMs / 1000).toFixed(1)} s old`;
-  return `Tool at X ${c3(m.x)} Y ${c3(m.y)} Z ${c3(m.z)}${m.units === 'in' ? ' in' : ''}${m.g92 === true ? ' · G92 offset active' : ''} · ${age}`;
+  return `Tool at X ${c3(m.x)} Y ${c3(m.y)} Z ${c3(m.z)}${m.units === 'in' ? ' in' : ''}${m.g92 === true ? ` · ${G92_ON}` : ''} · ${age}`;
 }
 
 const NO_OFFSET: Vec3 = [0, 0, 0];

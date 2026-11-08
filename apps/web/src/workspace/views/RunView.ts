@@ -18,7 +18,7 @@ import type { WorkerLike } from '../../gcode-worker/client.ts';
 import { Dro } from '../../machine-ui/Dro.ts';
 import { TranscriptSave } from '../../machine-ui/TranscriptSave.ts';
 import { PreviewPanel, markerText, type LiveMarkerView, type PreviewParts } from '../../preview/PreviewPanel.ts';
-import { DIALECT_LABEL, MODE_LABEL, fileLevel, on, progressText } from '../../preview/PreviewView.ts';
+import { DIALECT_LABEL, fileLevel, on, progressText } from '../../preview/PreviewView.ts';
 import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
 import { routineChanges, shownCounts } from '../../preview/gcodeList.ts';
 import { ConnectPanel } from '../../live/ConnectPanel.ts';
@@ -1413,8 +1413,13 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
   return h(RunLayout, { parts, model, onView, stops });
 }
 
+/** The Run view's preview options, in plain words (the TB-03 sheet keeps PreviewView's own). */
+const RUN_DIALECT_LABEL: Readonly<Record<string, string>> = { 'tinyg-en': 'TinyG edge-next', 'tinyg-440': 'TinyG 440.xx' };
+const RUN_MODE_LABEL: Readonly<Record<PreviewMode, string>> = { auto: 'Auto (simpler above 300,000 lines)', lite: 'Simpler: list and summary, no drawing', full: 'Full: always draw' };
+
 function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly onView: (view: string) => void; readonly stops: StopHooks }): ComponentChild {
   const { state, actions, slots, live, scene } = parts;
+  const simple = uiLevel.value.value !== 'advanced';
   const [preset, setPreset] = useState<ViewPreset>('iso');
   const [files, setFiles] = useState(false);
   const step = jobStep.value;
@@ -1450,28 +1455,41 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
           h(
             'div',
             { class: 'viewer-top' },
-            h(
-              'div',
-              { class: 'seg viewer-options', role: 'group', 'aria-label': 'Preview options' },
-              h(
-                'span',
-                { class: 'select-wrap compact' },
-                h(
-                  'select',
-                  { 'aria-label': 'Dialect', value: state.dialect, disabled, ...on('onChange', actions.onDialect, (f) => (e: Event) => { f((e.currentTarget as HTMLSelectElement).value as DialectId); }) },
-                  PREVIEW_DIALECTS.map((d) => h('option', { value: d, key: d }, DIALECT_LABEL[d] ?? d)),
+            // How the file is read and drawn: Advanced only (Simple keeps the defaults, Auto included), in plain words.
+            simple
+              ? null
+              : h(
+                  'div',
+                  { class: 'seg viewer-options', role: 'group', 'aria-label': 'Preview options' },
+                  h(
+                    'label',
+                    { class: 'viewer-option' },
+                    h('span', { class: 'viewer-option-label' }, 'Read as:'),
+                    h(
+                      'span',
+                      { class: 'select-wrap compact' },
+                      h(
+                        'select',
+                        { 'aria-label': 'Read as', value: state.dialect, disabled, 'data-preview': 'dialect', ...on('onChange', actions.onDialect, (f) => (e: Event) => { f((e.currentTarget as HTMLSelectElement).value as DialectId); }) },
+                        PREVIEW_DIALECTS.map((d) => h('option', { value: d, key: d }, RUN_DIALECT_LABEL[d] ?? DIALECT_LABEL[d] ?? d)),
+                      ),
+                    ),
+                  ),
+                  h(
+                    'label',
+                    { class: 'viewer-option' },
+                    h('span', { class: 'viewer-option-label' }, 'Detail:'),
+                    h(
+                      'span',
+                      { class: 'select-wrap compact' },
+                      h(
+                        'select',
+                        { 'aria-label': 'Detail', value: state.mode, disabled, 'data-preview': 'mode', ...on('onChange', actions.onMode, (f) => (e: Event) => { f((e.currentTarget as HTMLSelectElement).value as PreviewMode); }) },
+                        (['auto', 'lite', 'full'] as const).map((m) => h('option', { value: m, key: m }, RUN_MODE_LABEL[m])),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              h(
-                'span',
-                { class: 'select-wrap compact' },
-                h(
-                  'select',
-                  { 'aria-label': 'Preview mode', value: state.mode, disabled, 'data-preview': 'mode', ...on('onChange', actions.onMode, (f) => (e: Event) => { f((e.currentTarget as HTMLSelectElement).value as PreviewMode); }) },
-                  (['auto', 'lite', 'full'] as const).map((m) => h('option', { value: m, key: m }, MODE_LABEL[m])),
-                ),
-              ),
-            ),
             h(
               'div',
               { class: 'viewer-tools', role: 'group', 'aria-label': 'View' },
@@ -1479,7 +1497,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
               (scene !== null || result !== null) && !result?.lite && state.drawing === 'webgl' ? h(ViewButtons, { current: preset, ...(actions.onView === undefined ? {} : { onView: (p: ViewPreset) => { setPreset(p); actions.onView?.(p); } }), ...(actions.onFit === undefined ? {} : { onFit: () => actions.onFit?.() }) }) : null,
             ),
           ),
-          (scene === null && parts.tool === null) || result?.lite ? null : h(SceneKey, { scene, tool: parts.tool, markerPreview: parts.markerPreview, carve: parts.carve, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) }),
+          (scene === null && parts.tool === null) || result?.lite ? null : h(SceneKey, { scene, tool: parts.tool, markerPreview: parts.markerPreview, carve: parts.carve, simple, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) }),
           result === null && !loading
             ? h(
                 'div',

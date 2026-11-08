@@ -47,6 +47,8 @@ test('lite mode lists and summarises without drawing', async ({ page }) => {
   await page.goto('/');
   await ready(page);
   const sheet = page.locator('[data-region="preview"]');
+  // The preview options are an Advanced setting.
+  await page.locator('[data-action="ui-level-advanced"]').click();
   await sheet.locator('[data-preview="mode"]').selectOption('lite');
   await sheet.locator('[data-preview="file"]').setInputFiles(CLEAN);
   await expect(sheet.locator('[data-preview="lite"]')).toBeVisible();

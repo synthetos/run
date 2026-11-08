@@ -114,10 +114,10 @@ export function jobScene(job: Job, colors: SceneColors, stockColor: readonly num
   };
 }
 
-/** "Bed 790 × 790 mm, placeholder" / "Bed of Shop X-Carve, revision 2, measured". */
+/** "Bed · 790 × 790 mm · placeholder" / "Bed of Shop X-Carve · 750 × 750 mm · measured". The bed's revision is bookkeeping, not shown here. */
 export function bedLabel(job: Job): string {
   const bed = job.setup.bed;
-  const who = job.machine === null || job.setup.bedFrom === 'own' ? 'Bed' : `Bed of ${job.machine.name}, revision ${bed.revision}`;
+  const who = job.machine === null || job.setup.bedFrom === 'own' ? 'Bed' : `Bed of ${job.machine.name}`;
   const how = bed.source.kind === 'placeholder' ? 'placeholder' : bed.source.kind === 'measured' ? 'measured' : `from ${bed.source.file}`;
   return `${who} · ${Math.round(bed.width)} × ${Math.round(bed.depth)} mm · ${how}`;
 }
