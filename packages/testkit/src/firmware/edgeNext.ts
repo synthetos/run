@@ -255,6 +255,13 @@ export class TinyGEdgeNextModel implements SimDevice {
   #machine: MachineState = 'ready';
   #cycle: CycleState = 'off';
   #motionState: MotionState = 'stop';
+  /**
+   * The runtime's work offset (`mr.gm.work_offset`): the one the running block was queued with, since the
+   * runtime takes a block's offsets with its line (@cite EN plan_exec.c:216; the move captured them when it was
+   * queued, canonical_machine.c:1311, :1529). Null until the first move of a cycle starts.
+   */
+  #runtimeOffset: Vec | null = null;
+  readonly #queuedOffset = new WeakMap<Block, Vec>();
   #hold: number = HOLD.OFF;
   #programPaused = false;
   #queueFlushRequested = false;
@@ -1280,7 +1287,10 @@ export class TinyGEdgeNextModel implements SimDevice {
   #cycleStart(): void {
     if (this.#programPaused) return;
     this.#machine = 'cycle';
-    if (this.#cycle === 'off') this.#cycle = 'machining';
+    if (this.#cycle === 'off') {
+      this.#cycle = 'machining';
+      this.#runtimeOffset = null;
+    }
     this.#energizeMotors();
   }
 
@@ -1421,6 +1431,7 @@ export class TinyGEdgeNextModel implements SimDevice {
         return t;
       },
       onStart: (block, t) => {
+        this.#runtimeOffset = this.#queuedOffset.get(block) ?? this.#runtimeOffset;
         if (block.kind === 'move' && this.#startupPending && t >= this.#startupStarted + PLANNER_STARTUP_MS) this.#startupPending = false;
         // Only ALINE blocks set MOTION_RUN (@cite EN plan_exec.c:77-81)
         if (block.kind === 'move' && this.#motionState !== 'run' && this.#motionState !== 'hold') this.#motionState = 'run';
@@ -1749,6 +1760,18 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   /**
+   * The work offset a position report uses (`_position_model()`, @cite EN canonical_machine.c:2630-2636,
+   * :2665-2674): the runtime's while a cycle runs or motion is running or held, the model's once both have
+   * stopped. So a G92, G10, G54..G59 or M2/M30 parsed ahead of moves still running does not shift the work
+   * position those moves report, as on the board. Model limit (uncited): an offset change queued between two
+   * moves reaches the runtime with the next move, not when the planner reaches its command.
+   */
+  #reportOffset(): Vec {
+    const runtime = this.#cycle !== 'off' || this.#motionState !== 'stop';
+    return runtime && this.#runtimeOffset !== null ? this.#runtimeOffset : this.#workOffset();
+  }
+
+  /**
    * `cm_set_model_target()` (@cite EN canonical_machine.c:515-563) with axis modes and rotary radius mode
    * (@behaviour EN-AXIS-MODES). G53 only zeroes the offset (cm_get_active_coord_offset, :314-324);
    * the distance mode still applies, as on the board.
@@ -1787,7 +1810,8 @@ export class TinyGEdgeNextModel implements SimDevice {
     const length = distance(from, target);
     if (length === 0) return 0;
     const path: Path = { kind: 'line', from, to: target, length };
-    this.#queueMove(path, this.#moveFeed(from, target, rapid));
+    // G53 zeroes the coordinate offsets the move is queued with (@cite EN canonical_machine.c:314-324).
+    this.#queueMove(path, this.#moveFeed(from, target, rapid), g.absoluteOverride === true ? zeroVec() : this.#workOffset());
     return 0;
   }
 
@@ -1878,10 +1902,11 @@ export class TinyGEdgeNextModel implements SimDevice {
     return Number.isFinite(v) ? v : 1;
   }
 
-  #queueMove(path: Path, feed: number): void {
+  #queueMove(path: Path, feed: number, offset: Vec = this.#workOffset()): void {
     // _queue_line(): the cycle starts before the move is queued (@cite EN canonical_machine.c:1258-1278)
     this.#cycleStart();
     const block: Block = { kind: 'move', path, feed, line: this.#gm.linenum };
+    this.#queuedOffset.set(block, offset);
     // The startup gate opens when the first ALINE meets an empty, idle planner (@cite EN planner.c:497-504)
     if (this.#motion.queue.length === 0 && this.#motion.runtimeIdle() && this.#hold === HOLD.OFF && this.#cycle === 'machining') {
       this.#startupPending = true;
@@ -2234,12 +2259,12 @@ export class TinyGEdgeNextModel implements SimDevice {
         return this.#motion.line();
       case 'cm_get_pos': {
         const pos = this.#motion.position(now);
-        return fixed(((pos[axis] as number) - (this.#workOffset()[axis] as number)) / this.#unitFactor(undefined, axis), p);
+        return fixed(((pos[axis] as number) - (this.#reportOffset()[axis] as number)) / this.#unitFactor(undefined, axis), p);
       }
       case 'cm_get_mpo':
         return fixed(this.#motion.position(now)[axis] as number, p);
       case 'cm_get_ofs':
-        return fixed(this.#workOffset()[axis] as number, p);
+        return fixed(this.#reportOffset()[axis] as number, p);
       case 'cm_get_unit':
         return this.#gm.units === 'in' ? 0 : 1;
       case 'cm_get_coor':

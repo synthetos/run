@@ -308,6 +308,32 @@ describe('offsets readable', () => {
     expect(get(sim, 'g92')).toMatchObject({ x: 0 });
     for (const key of ['g28', 'g30', 'g54', 'g59', 'pos', 'mpo', 'ofs', 'hom', 'coor', 'dist', 'tool']) expect(get(sim, key), key).toBeDefined();
   });
+
+  it('a G92 parsed while an earlier move runs does not shift the work position that move reports; it applies from the next move (runtime offsets, plan_exec.c:216)', () => {
+    const sim = enSim();
+    sim.host.sendLine('G1 X10 F600'); // 1 s
+    sim.host.sendLine('G92 X0');
+    sim.host.sendLine('G1 X5 F600'); // work X5 = machine X15
+    sim.clock.advance(500);
+    sim.host.take();
+    // Mid first move (machine X about 5): the runtime's offset is still none, so work X is machine X.
+    expect(get(sim, 'ofs')).toMatchObject({ x: 0 });
+    expect(get(sim, 'posx') as number).toBeLessThan(10);
+    sim.clock.advance(800);
+    sim.host.take();
+    // In the second move: the G92 it was queued with applies.
+    expect(get(sim, 'mpox') as number).toBeGreaterThan(10);
+    expect(get(sim, 'ofs')).toMatchObject({ x: 10 });
+    expect(get(sim, 'posx') as number).toBeLessThan(5);
+    sim.clock.advance(1000);
+    sim.host.take();
+    // At rest the model's offsets apply (the G92 still in force).
+    expect(get(sim, 'posx')).toBe(5);
+    sim.host.sendLine('M30');
+    sim.clock.advance(400);
+    sim.host.take();
+    expect(get(sim, 'posx')).toBe(15);
+  });
 });
 
 describe('RAM-only writes (proposed capability, option ramWrites)', () => {
