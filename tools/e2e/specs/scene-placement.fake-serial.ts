@@ -41,7 +41,10 @@ test('unhomed at 0, 0, 0: the job is shown as planned with a note; scene parts o
   await job.locator('[data-scene-link="bed"]').click();
   await expect(page.locator('[data-setup-section="bed"] h2')).toBeFocused();
 
-  // The pointer path: a drag orbits and opens nothing; a click on the middle of the scene opens a part's settings.
+  // The pointer path, with a file open (no prompt over the drawing): a drag orbits and opens nothing; a click on the middle of the scene opens a part's settings.
+  await page.locator('[data-job-step="run"]').click();
+  await page.locator('[data-sample="test-square"]').click();
+  await expect(page.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
   await page.locator('[data-job-step="run"]').click();
   const drawing = job.locator('[data-preview="canvas"], [data-preview="svg"] svg');
   const box = await drawing.boundingBox();
