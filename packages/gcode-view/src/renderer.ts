@@ -3,7 +3,8 @@
  * the work envelope as a box, the work-coordinate origin as an axis triad,
  * when asked the bed/work grid (grid.ts) under the drawing, and the scene
  * solids the caller gives it (scene.ts: bed, stock, fixture, clamps) as
- * flat-shaded triangles under the path.
+ * flat-shaded triangles under the path. Given a carved surface
+ * (`setCarve`, carve/mesh.ts) it draws that in place of the flat stock.
  *
  * Frames: the solids, the grid, the envelope and the triad are in the
  * drawing's own (machine) frame. The path and the tool marker are in the
@@ -33,6 +34,10 @@ import { pickSolid, rayThrough } from './pick.ts';
 import { nextMotion, positionAt, settled, type MarkerMotion } from './markerMotion.ts';
 import { offsetBox, ringSegments, sceneBounds, solidTriangles, unionBox, type Rgba, type SceneLayers } from './scene.ts';
 import { toolWireframe, type ToolShape } from './toolProfile.ts';
+import { link } from './glProgram.ts';
+import { createCarveLayer } from './carve/mesh.ts';
+import type { CarveSurface } from './carve/client.ts';
+import type { CellRect } from './carve/heightmap.ts';
 
 export type { Rgba };
 
@@ -115,6 +120,10 @@ export interface PreviewRenderer {
   setScene(scene: SceneLayers | null): void;
   /** Where the path's origin sits in the drawing's frame (the planned work zero); [0, 0, 0] by default. */
   setPathOffset(offset: Vec3): void;
+  /** The carved stock (carve/mesh.ts, in the path's frame), drawn in place of the flat stock solid; null for none. */
+  setCarve(surface: CarveSurface | null): void;
+  /** A rectangle of the carved surface changed. */
+  updateCarve(rect: CellRect): void;
   /** Turns the view to a named direction and refits it. */
   setView(preset: ViewPreset): void;
   setColors(colors: PreviewColors): void;
@@ -229,25 +238,6 @@ interface GpuChunk {
   readonly vertexCount: number;
 }
 
-function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
-  const shader = gl.createShader(type);
-  if (shader === null) throw new Error('gcode-view: could not create a shader');
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) !== true) throw new Error(`gcode-view: shader did not compile: ${gl.getShaderInfoLog(shader) ?? ''}`);
-  return shader;
-}
-
-function link(gl: WebGL2RenderingContext, vertex: string, fragment: string, attributes: readonly string[]): WebGLProgram {
-  const program = gl.createProgram();
-  gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, vertex));
-  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fragment));
-  attributes.forEach((name, i) => { gl.bindAttribLocation(program, i, name); });
-  gl.linkProgram(program);
-  if (gl.getProgramParameter(program, gl.LINK_STATUS) !== true) throw new Error(`gcode-view: program did not link: ${gl.getProgramInfoLog(program) ?? ''}`);
-  return program;
-}
-
 function abortError(): DOMException {
   return new DOMException('the preview load was cancelled', 'AbortError');
 }
@@ -274,6 +264,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   };
   const solidProgram = link(gl, SOLID_VERTEX, SOLID_FRAGMENT, ['a_pos', 'a_color']);
   const su = { mvp: gl.getUniformLocation(solidProgram, 'u_mvp') };
+  const carve = createCarveLayer(gl);
 
   let colors = options.colors;
   let path: GpuChunk[] = [];
@@ -284,6 +275,8 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   /** The tool marker, built with its tip at the origin and drawn at `motion`'s position in the path's frame. */
   let markerOverlay: GpuChunk | null = null;
   let solids: GpuChunk[] = [];
+  /** The index in `solids` of the stock, hidden while a carved surface stands in for it; -1 for none. */
+  let stockSolid = -1;
   let list: SegmentList | null = null;
   let bounds: Box3 | null = null;
   let envelope: Box3 | null = null;
@@ -422,10 +415,16 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   function rebuildSolids(): void {
     for (const s of solids) release(s);
     solids = [];
+    stockSolid = -1;
     if (scene === null) return;
     for (const solid of scene.solids) {
       const t = solidTriangles(solid);
-      if (t.positions.length > 0) solids.push(uploadSolid(t.positions, t.colors));
+      if (t.positions.length === 0) continue;
+      if (solid.tag === 'stock') {
+        stockSolid = solids.length;
+        carve.setColor(solid.color);
+      }
+      solids.push(uploadSolid(t.positions, t.colors));
     }
   }
 
@@ -460,11 +459,14 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       gl.enable(gl.DEPTH_TEST);
       gl.useProgram(solidProgram);
       gl.uniformMatrix4fv(su.mvp, false, mvp);
-      for (const s of solids) {
+      solids.forEach((s, i) => {
+        if (i === stockSolid && carve.active) return;
         gl.bindVertexArray(s.vao);
         gl.drawArrays(gl.TRIANGLES, 0, s.vertexCount);
-      }
+      });
     }
+    // 1b. The carved stock, in the path's frame, in place of the flat stock.
+    carve.draw(mvp, pathOffset);
     gl.useProgram(program);
     gl.uniformMatrix4fv(u.mvp, false, mvp);
     gl.uniform1f(u.showRapids, showRapids ? 1 : 0);
@@ -649,6 +651,14 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       rebuildOverlay();
       requestRender();
     },
+    setCarve(surface) {
+      carve.set(surface);
+      requestRender();
+    },
+    updateCarve(rect) {
+      carve.update(rect);
+      requestRender();
+    },
     setView(preset) {
       angles = VIEW_ANGLES[preset];
       autoFit = true;
@@ -734,6 +744,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       gridChunk = frameOverlay = markerOverlay = null;
       gl.deleteProgram(program);
       gl.deleteProgram(solidProgram);
+      carve.dispose();
     },
   };
 }

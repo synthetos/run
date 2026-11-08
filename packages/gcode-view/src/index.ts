@@ -3,8 +3,10 @@
  *
  * Toolpath preview for a plain segment list. Its input is never G-code text,
  * and it never imports machine, safety or protocol code: it draws what it is
- * given. It has no runtime npm dependencies and no animation, playback or
- * simulation API.
+ * given. It has no runtime npm dependencies and no animation or playback
+ * API. The stock carving (carve/) computes the shape a toolpath leaves in the
+ * stock up to a line the caller names; it is display only and nothing in it
+ * moves by itself.
  */
 
 /** Package version. Kept equal to package.json `version` by the smoke test. */
@@ -35,3 +37,19 @@ export type { GridLayout, GridLine } from './grid.ts';
 export type { SvgOptions, SvgPaths, SvgScene, SvgSolid } from './svg.ts';
 export { MAX_SCROLL_HEIGHT, listWindow, scrollTopFor } from './virtualList.ts';
 export type { ListWindow, ListWindowInput } from './virtualList.ts';
+export { BASE_CELL_MM, MAX_CELLS, MAX_GRID_SIDE, NO_STOCK, cellSizeFor, copyRect, createHeightmap, fullRect, gridSpec, pasteRect, sameSpec, unionRect } from './carve/heightmap.ts';
+export type { CellRect, GridSpec, Heightmap, StockFootprint } from './carve/heightmap.ts';
+export { emptyDirty, isDirty, reachRadius, sweepSegment } from './carve/sweep.ts';
+export type { Dirty } from './carve/sweep.ts';
+export { KEYFRAME_CAP_BYTES, MIN_KEYFRAME_INTERVAL, createKeyframes, keyframeInterval } from './carve/keyframes.ts';
+export type { Keyframe, Keyframes } from './carve/keyframes.ts';
+export { createCarver } from './carve/carver.ts';
+export type { CarveStep, CarveTools, Carver, CarverOptions } from './carve/carver.ts';
+export { createCarveHandler } from './carve/worker.ts';
+export type { CarveHandlerOptions, CarvePost } from './carve/worker.ts';
+export { createCarveClient } from './carve/client.ts';
+export type { CarveClient, CarveFeed, CarveListener, CarveProgress, CarveSurface, CarveWorkerLike } from './carve/client.ts';
+export type { CarveProgressMessage, CarveSegments, CarveToolTable, FromCarveWorker, ToCarveWorker } from './carve/protocol.ts';
+export { createCarveLayer } from './carve/mesh.ts';
+export { MESH_MAX, gridIndexes, meshLayout, wallVertices } from './carve/meshGeometry.ts';
+export type { CarveLayer } from './carve/mesh.ts';

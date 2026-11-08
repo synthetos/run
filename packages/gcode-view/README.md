@@ -6,6 +6,8 @@ Its input is a plain `SegmentList`, never G-code text. Whatever interprets the p
 
 There is deliberately **no play, simulate or animate API**: a preview must never look like a machine that is moving. The scrubber highlights lines; it does not move a tool. The only motion is the live tool marker (`setToolMarker`, fed from machine reports): it eases from its drawn position to each newly reported one over about the report interval and never past it, so it lags the machine by at most one report and never runs ahead (`src/markerMotion.ts`). It snaps on a long jump, when it first appears, and under `prefers-reduced-motion`.
 
+Stock carving (`src/carve/`) works out the shape a toolpath leaves in the stock, as a heightmap, up to a line the caller names (the scrubbed line, for example), in a worker, and draws it in place of the flat stock (`setCarve`). It follows the line it is given and moves nothing by itself; it is display only and never says a job is safe.
+
 ## Input
 
 ```ts

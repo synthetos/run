@@ -6,6 +6,11 @@ import * as mod from '../src/index.ts';
 
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 
+/** Every source file, relative to src/, folders included. */
+function sourceFiles(): string[] {
+  return readdirSync(SRC, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => `${e.parentPath.slice(SRC.length)}${e.parentPath.length > SRC.length ? '/' : ''}${e.name}`.replace(/^\//, ''));
+}
+
 describe('@synthetos/gcode-view', () => {
   it('exports VERSION equal to the package.json version', () => {
     expect(mod.VERSION).toBe(pkg.version);
@@ -22,11 +27,12 @@ describe('@synthetos/gcode-view', () => {
   });
 
   it('imports nothing but its own modules (never machine, safety, protocol or gcode)', () => {
-    for (const file of readdirSync(SRC)) {
+    for (const file of sourceFiles()) {
       const text = readFileSync(SRC + file, 'utf8');
       for (const m of text.matchAll(/\bfrom\s+'([^']+)'|\bimport\s*\(\s*'([^']+)'/g)) {
         const spec = m[1] ?? m[2] ?? '';
-        expect(spec, `${file} imports ${spec}`).toMatch(/^\.\/[a-zA-Z]+\.ts$/);
+        // Its own modules: siblings, the carve/ folder, or (from carve/) the modules above it.
+        expect(spec, `${file} imports ${spec}`).toMatch(/^(\.\/(carve\/)?|\.\.\/)[a-zA-Z]+\.ts$/);
       }
     }
   });
@@ -35,5 +41,6 @@ describe('@synthetos/gcode-view', () => {
     for (const name of Object.keys(mod)) expect(name).not.toMatch(/play|simulat|animat/i);
     const renderer = mod.createRenderer.toString() + readFileSync(SRC + 'renderer.ts', 'utf8');
     expect(renderer).not.toMatch(/\b(play|simulate|animate)\w*\s*\(/i);
+    for (const file of sourceFiles().filter((f) => f.startsWith('carve/'))) expect(readFileSync(SRC + file, 'utf8'), file).not.toMatch(/\b(play|simulate|animate)\w*\s*\(/i);
   });
 });
