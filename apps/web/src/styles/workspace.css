@@ -1725,6 +1725,8 @@ button.icon-btn[data-tip]:hover::after, button.icon-btn[data-tip]:focus-visible:
 .job-view .scene-empty-prompt { bottom: 60px; }
 .viewer-key.scene-notes { top: 50px; bottom: auto; left: auto; right: 12px; max-width: min(460px, calc(100% - 300px)); flex-direction: column; align-items: flex-start; gap: 2px; color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
 .scene-notes p { margin: 0; }
+/* Lines the stock carving skipped (preview/CarveKey.ts): on the key line, in the warning colour of the notes. */
+.scene-carve-note { color: var(--warn); }
 .scene-links { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .scene-links button.link { font-size: 12px; text-align: left; }
 .scene-pick-label { position: absolute; pointer-events: none; font-size: 12px; padding: 3px 7px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--sheet) 92%, transparent); border: 1px solid var(--rule); white-space: nowrap; z-index: var(--z-raised); }

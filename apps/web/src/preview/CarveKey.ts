@@ -22,7 +22,10 @@ export function CarveLabel({ carve }: { readonly carve: CarveInfo }): ComponentC
   );
 }
 
-/** The uncarved-lines notes, one paragraph each. */
+/**
+ * The uncarved-lines notes, for the key line beside the carve line. On the key line (at the drawing's foot), not
+ * in the notes box at the top, so they never grow over the middle of a small drawing, where a click picks a part.
+ */
 export function carveNotes(carve: CarveInfo | null): ComponentChild[] {
-  return (carve?.uncarved ?? []).map((n, i) => h('p', { key: `carve${String(i)}`, 'data-scene': 'carve-note' }, n));
+  return (carve?.uncarved ?? []).map((n, i) => h('span', { key: `carve${String(i)}`, class: 'scene-carve-note', 'data-scene': 'carve-note' }, n));
 }

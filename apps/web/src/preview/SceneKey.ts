@@ -31,20 +31,19 @@ export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview 
   const parts: ScenePart[] = scene === null ? [] : ['bed', ...(scene.layers.solids.some((s) => s.tag === 'fixture') ? (['fixture'] as const) : []), 'stock'];
   const notes = scene?.notes ?? [];
   const toolNote = tool?.note == null ? null : h(ToolNote, { tool, ...(onAddTool === undefined ? {} : { onAddTool }) });
-  const uncarved = carveNotes(carve);
   return h(
     'div',
     { class: 'scene-key' },
-    notes.length === 0 && toolNote === null && uncarved.length === 0
+    notes.length === 0 && toolNote === null
       ? null
-      : h('div', { class: 'viewer-key scene-notes', role: 'status', 'data-scene': 'notes' }, notes.map((n, i) => h('p', { key: String(i), 'data-scene': 'note' }, n)), toolNote, uncarved),
+      : h('div', { class: 'viewer-key scene-notes', role: 'status', 'data-scene': 'notes' }, notes.map((n, i) => h('p', { key: String(i), 'data-scene': 'note' }, n)), toolNote),
     h(
       'div',
       { class: 'viewer-key scene-key-line' },
       scene === null ? null : h('span', { 'data-scene': 'bed' }, scene.bedLabel),
       tool === null ? null : [scene === null ? null : h('span', { 'aria-hidden': 'true' }, '·'), h(ToolLabel, { tool })],
       markerPreview ? [h('span', { 'aria-hidden': 'true' }, '·'), h('span', { 'data-scene': 'tool-preview' }, PREVIEW_MARKER_NOTE)] : null,
-      carve === null ? null : [h('span', { 'aria-hidden': 'true' }, '·'), h(CarveLabel, { carve })],
+      carve === null ? null : [h('span', { 'aria-hidden': 'true' }, '·'), h(CarveLabel, { carve }), carveNotes(carve).map((n) => [h('span', { 'aria-hidden': 'true' }, '·'), n])],
       onOpen === undefined || parts.length === 0
         ? null
         : h(
