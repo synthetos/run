@@ -10,6 +10,8 @@
 @media (min-width: 651px) {
   .statebar { min-width: 0; }
   .statebar .state-title { flex: 0 1 auto; min-width: 120px; }
+  /* The state text gives way before the readouts do (it keeps its words in a title too). */
+  .statebar .state-meta { flex: 1 1 0; min-width: 0; }
   .statebar .readouts { flex: 0 1 auto; min-width: 0; overflow: hidden; }
   .statebar .readout { flex: 0 1 auto; min-width: 0; }
   .statebar .readout span, .statebar .readout strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
