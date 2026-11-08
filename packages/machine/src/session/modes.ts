@@ -21,6 +21,7 @@
  * Pure functions over the reducer's transition; nothing here touches a port or a clock.
  */
 import { isReadAllowed } from '@synthetos/schema';
+import { noteModeRead } from './boardModes.ts';
 import type { ModesOwner, PendingRead, SessionState } from './types.ts';
 
 /** The reads, in order: units, then distance mode. */
@@ -42,7 +43,7 @@ export function queueModeReads(t: ModesTx, owner: ModesOwner): void {
 /** A mode read was answered: `value` is the answer when its status was 0, else undefined (refused or damaged). */
 export function onModesAnswer(t: ModesTx, entry: PendingRead, value: unknown): void {
   const known = value === 0 || value === 1 ? value : undefined;
-  if (known !== undefined) t.set({ live: { ...t.s.live, [entry.token]: known } });
+  noteModeRead(t, entry.token, known === undefined ? -1 : 0, known);
   const key = entry.token === 'unit' ? 'units' : 'dist';
   const s = t.s;
   switch (entry.modesFor) {

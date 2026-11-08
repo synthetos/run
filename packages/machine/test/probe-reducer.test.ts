@@ -47,16 +47,21 @@ describe('Probe Z through the reducer', () => {
     expect(t.s.overlays).toContain('STALE');
   });
 
-  it('settings answers: zjh read in inches is converted back to mm, unknown units leave it unread, a refused read is unread', async () => {
+  it('settings answers: zjh read in inches is converted back to mm with the units read with it (never the live view), unknown units leave it unread, a refused read is unread', async () => {
     const r = await ready();
-    r.s = { ...r.s, live: { ...r.s.live, unit: 0 } };
+    // The live view says mm (a late report); the board reads inches: the read wins (OD-19).
+    r.s = { ...r.s, live: { ...r.s.live, unit: 1 } };
     r.intent(TOUCH);
     for (let i = 0; i < 9; i++) r.answer(r.s.writing?.token === 'zsn' ? 4 : 0);
+    expect(r.writing).toBe('unit');
+    r.answer(0);
+    expect(r.writing).toBe('zjh');
     r.answer(1.5748);
+    expect(r.s.probeZ.settings).toMatchObject({ unit: 0 });
     expect(r.s.probeZ.settings.zjh).toBeCloseTo(40, 3);
-    r.s = { ...r.s, live: { ...r.s.live, unit: undefined } as unknown as SessionState['live'] };
     r.intent(TOUCH);
     for (let i = 0; i < 9; i++) r.answer(r.s.writing?.token === 'zsn' ? 4 : 0);
+    r.answer(null, 100); // the units read refused
     r.answer(40);
     expect(r.s.probeZ.settings.zjh).toBeNull();
     r.intent({ intent: 'probeZClose', step: 'cancel' });
@@ -113,6 +118,8 @@ describe('Probe Z through the reducer', () => {
     r.line('{"er":{"fb":450.02,"st":207,"msg":"job kill"}}');
     expect(r.s.probeZ.outcome).toEqual({ kind: 'stopJob', status: 207 });
     expect(r.s.base).toBe('ALARM');
+    // OD-19: its G21 and G91 went out, so Clear alarm will put G90 back (with the units it read, mm here).
+    expect(r.s.alarmRestore).toEqual({ units: 1 });
     const n = await probing();
     n.line('{"prb":{"e":0,"x":0,"y":0,"z":"x","a":0,"b":0,"c":0}}');
     n.line('{"er":{"fb":450.02,"st":250,"msg":"Probe did not trip"}}');

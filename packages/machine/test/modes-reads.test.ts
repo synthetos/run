@@ -2,7 +2,7 @@
  * The units and distance mode a motion puts back are read before it changes them (modes.ts; SAFETY §4.2, §4.5b,
  * §4.5c, H50, H74), on the pure reducer with scripted answers: the read wins over whatever the live view says,
  * a refused or damaged read leaves the mode unknown (and then nothing is put back), and a read whose owner has
- * gone changes nothing but the live view.
+ * gone changes nothing but the board's modes as known (boardModes.ts; OD-19).
  */
 import type { ApprovedBuilds } from '@synthetos/protocol';
 import { PHASE_2_RELEASE } from '@synthetos/safety';
@@ -53,16 +53,17 @@ describe('modes read before a motion', () => {
     d.answer({ ...BASE, unit: num('unit', 0), dist: num('dist', 1) });
     expect(motionLines(d, from)).toEqual(['G21', 'G21 G91 G1 X0.1 F600', 'G90 G20']);
     expect(d.state.motion).toBeNull();
-    expect(d.state.live.unit).toBe(0); // the read refreshed the live view too
+    expect(d.state.boardModes.units).toBe(0); // the board's modes as known, never the live view (OD-19)
+    expect(d.state.live.unit).toBe(1);
   });
 
-  it('go to zero puts back the distance mode and units it read, not the live view', () => {
+  it('T-S135: go to zero puts back the units it read, not the live view, and ends in G90 (OD-19)', () => {
     const d = connected();
     staleLive(d, { unit: 1, dist: 0 });
     const from = d.effects.length;
     expect(d.intent({ intent: 'goToZero', axes: ['z'], safeZ: 0 }).allowed).toBe(true);
     d.answer({ ...BASE, unit: num('unit', 0), dist: num('dist', 1) });
-    expect(motionLines(d, from)).toEqual(['G90 G21', 'G90 G0 Z0', 'G91 G20']);
+    expect(motionLines(d, from)).toEqual(['G90 G21', 'G90 G0 Z0', 'G90 G20']);
   });
 
   it('a Stop job with no motion of ours reads the units too: M5, M9, then G90 with the G20 the board has', () => {
@@ -83,7 +84,9 @@ describe('modes read before a motion', () => {
     d.intent(STEP);
     d.answer({ ...BASE, unit: '{"r":{},"f":[3,100,10]}', dist: '{"r":{"dist":7},"f":[3,0,10]}' });
     expect(motionLines(d, from)).toEqual(['G21', 'G21 G91 G1 X0.1 F600', 'G90']);
-    expect(d.state.live.unit).toBe(0); // nothing known was read: the live view keeps what it had
+    expect(d.state.live.unit).toBe(0); // the live view is the reports', untouched by reads
+    // The reads told nothing; the jog's own answered lines did: its G21 (mm), then its closing G90 (absolute).
+    expect(d.state.boardModes).toEqual({ units: 1, dist: 0 });
   });
 
   it('a damaged answer to a mode read is no FAULT: the mode is unknown and the jog goes on', () => {
@@ -114,11 +117,11 @@ describe('modes.ts on its own', () => {
     expect(MODE_TOKENS).toEqual(['unit', 'dist']);
   });
 
-  it('a read whose owner has gone changes only the live view', () => {
+  it('a read whose owner has gone changes only the board\'s modes as known', () => {
     for (const modesFor of ['motion', 'probe', 'toolChange'] as const) {
       const t = tx({ ...s0, motion: null, job: null, probeZ: { ...s0.probeZ, run: null } });
       onModesAnswer(t, { token: 'dist', purpose: 'modes', modesFor }, 1);
-      expect(t.s.live.dist).toBe(1);
+      expect(t.s.boardModes.dist).toBe(1);
       expect(t.s.motion).toBeNull();
       expect(t.s.job).toBeNull();
       expect(t.s.probeZ.run).toBeNull();

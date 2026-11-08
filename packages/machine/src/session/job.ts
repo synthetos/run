@@ -63,6 +63,8 @@ import { sessionSettings } from './settingWrite.ts';
 import { ACTIVE_PHASES, failJob, jobActive, jobEvent, lastFileLine, patchJob, type JobTx } from './jobState.ts';
 import { ABSOLUTE_MM_LINE, motionLineKind, restoreLine, returnXYLine, safeZLine, spindleLine } from './motionLines.ts';
 import { queueModeReads } from './modes.ts';
+import { planStartModes, startModesStep } from './jobModes.ts';
+import { forgetBoardModes, noteModeRead } from './boardModes.ts';
 import type { Axis, Expected, FeedLimitState, FeedMove, FeedSummary, JobReportSummary, JobState, PendingRead, PolledValues, SessionConfig, SessionIntent, SessionState } from './types.ts';
 
 /** Timing and bounds of the job layer (SAFETY §4.4a). Milliseconds unless named otherwise. */
@@ -265,6 +267,7 @@ function emptyJob(id: number, name: string, text: string, c22: boolean): JobStat
 export function onJobPrepAnswer(t: JobLayerTx, e: PendingRead, r: Response | null, at: number): void {
   const value = r === null ? null : (r.r[e.token] ?? null);
   t.set({ values: { ...t.s.values, [e.token]: { value, status: r === null ? -1 : r.footer.status, at } } });
+  noteModeRead(t, e.token, r === null ? -1 : r.footer.status, value);
   if (t.s.queue.some((q) => q.purpose === 'jobPrep')) return;
   if (t.s.job?.phase === 'loading') finishLoad(t, at);
   else if (t.s.job?.phase === 'checking') finishCheck(t, at);
@@ -279,14 +282,19 @@ export function abandonLoad(t: JobLayerTx, at: number, why: string): void {
   if (j === null || (j.phase !== 'loading' && j.phase !== 'checking')) return;
   t.set({ queue: t.s.queue.filter((q) => q.purpose !== 'jobPrep') });
   if (j.phase === 'checking') {
-    t.cancel('job');
-    t.set({ base: idleBase(t.s) });
-    patchJob(t, { phase: 'failed', message: `The job did not start: the file could not be checked again (${why}).`, endedAt: at });
-    jobEvent(t, at, 'error', `The job did not start: the file could not be checked again (${why}).`);
+    startFailed(t, at, `The job did not start: the file could not be checked again (${why}).`);
     return;
   }
   patchJob(t, { phase: 'blocked', message: `The file could not be checked: ${why}.` });
   jobEvent(t, at, 'error', `The file could not be checked: ${why}.`);
+}
+
+/** A Start that ends before anything of the job was sent: back to idle, the reason said. */
+function startFailed(t: JobLayerTx, at: number, text: string): void {
+  t.cancel('job');
+  t.set({ base: idleBase(t.s), queue: t.s.queue.filter((q) => q.purpose !== 'jobPrep') });
+  patchJob(t, { phase: 'failed', message: text, endedAt: at });
+  jobEvent(t, at, 'error', text);
 }
 
 function numberOf(v: JsonValue | undefined): number | undefined {
@@ -470,7 +478,8 @@ function checkedText(result: SanitizeResult, report: JobReportSummary): string {
 
 function finishLoad(t: JobLayerTx, at: number): void {
   const { result, report } = sanitizeInto(t);
-  patchJob(t, { phase: report.blocked ? 'blocked' : 'ready' });
+  // OD-19: what Start will write for the modes the preview assumes, shown at the check (decided again at Start).
+  patchJob(t, { phase: report.blocked ? 'blocked' : 'ready', startModes: { modes: planStartModes(t.s, result.lines), written: false } });
   jobEvent(t, at, report.blocked ? 'error' : 'info', checkedText(result, report));
 }
 
@@ -479,6 +488,13 @@ function finishLoad(t: JobLayerTx, at: number): void {
  * What the check found stops the start; otherwise the line mode is checked next (PREAMBLE goes on).
  */
 function finishCheck(t: JobLayerTx, at: number): void {
+  // OD-19: the modes the preview assumes, written and read back first when the file relies on them (jobModes.ts).
+  const modes = startModesStep(t, at);
+  if (modes.kind === 'wait') return;
+  if (modes.kind === 'refused') {
+    startFailed(t, at, modes.text);
+    return;
+  }
   const { result, report } = sanitizeInto(t);
   if (report.blocked) {
     t.cancel('job');
@@ -541,6 +557,7 @@ export function onStartJob(t: JobLayerTx, request: Extract<SessionIntent, { inte
       feedLimit: null,
       faultStopAt: null,
       stopping: false,
+      startModes: { modes: [], written: false }, // decided again with the values read now (jobModes.ts)
       events: j.events,
     },
   });
@@ -729,6 +746,7 @@ function lineModeReady(t: JobLayerTx, at: number): void {
   }
   sendJobFlag(t, 1);
   t.set({ base: 'RUNNING' });
+  forgetBoardModes(t); // OD-19: the job's own lines and its M2/M30 set them; read again after the job (jobOffsets.ts)
   patchJob(t, { phase: 'running' });
   jobEvent(t, at, 'info', 'Streaming in line mode.');
   t.arm('job', JOB_LIMITS.runPollMs);
@@ -1047,6 +1065,11 @@ function nextResumeStep(t: JobLayerTx, at: number): void {
 export function onJobMotionAnswer(t: JobLayerTx, line: string | undefined, status: number, at: number): boolean {
   const j = t.s.job;
   if (j === null) return false;
+  // OD-19: the start-modes line; its read-back decides, a refusal ends the start at once.
+  if (j.phase === 'checking') {
+    if (status !== 0) startFailed(t, at, `The job did not start: the controller refused ${String(line)} (status ${status}).`);
+    return true;
+  }
   if (j.phase === 'outputsOff') {
     if (status !== 0) {
       outputsOffFailed(t, at, `the controller refused ${String(line)} (status ${status})`);
@@ -1068,6 +1091,10 @@ export function onJobMotionAnswer(t: JobLayerTx, line: string | undefined, statu
 export function onJobMotionTimeout(t: JobLayerTx, line: string | undefined, at: number): void {
   const j = t.s.job;
   if (j === null) return;
+  if (j.phase === 'checking') {
+    startFailed(t, at, `The job did not start: the controller did not answer ${String(line)} in time.`);
+    return;
+  }
   if (j.phase === 'outputsOff') {
     outputsOffFailed(t, at, `the controller did not answer ${String(line)} in time`);
     return;

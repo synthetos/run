@@ -117,6 +117,8 @@ export function droView(s: SessionSnapshot, now: number): DroView {
   const code = typeof coor === 'number' && Number.isInteger(coor) && coor >= 0 && coor <= 6 ? `G${53 + coor}` : null;
   const offsets = code !== null && code !== 'G53' ? numbers(readOk(s, code.toLowerCase())) : null;
   const total = numbers(readOk(s, 'ofs'));
+  // Display only (OD-19): the reported positions are in the units of the reports that carried them, so the label
+  // follows the live view; nothing written depends on it.
   const unitValue = s.live.unit ?? readOk(s, 'unit');
   const units = unitValue === 1 ? 'mm' : unitValue === 0 ? 'in' : null;
   const axes = DRO_AXES.map((axis) =>

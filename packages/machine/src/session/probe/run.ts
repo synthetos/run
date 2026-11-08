@@ -114,7 +114,7 @@ function onLineAnswer(t: ProbeTx, line: string, status: number, at: number): voi
 export function onRead(t: ProbeTx, token: string, value: JsonValue | undefined, at: number): void {
   const p = t.s.probeZ;
   if (SETTING_TOKENS.includes(token)) {
-    const settings = takeSetting(p.settings, token, value, t.s.live.unit);
+    const settings = takeSetting(p.settings, token, value);
     setProbe(t, { settings, ...(p.refreshing && token === SETTING_TOKENS.at(-1) ? { refreshing: false } : {}) });
     return;
   }
@@ -132,13 +132,16 @@ export function onRead(t: ProbeTx, token: string, value: JsonValue | undefined, 
   onInput(t, readingOf(value), at);
 }
 
-function takeSetting(settings: ProbeSettings, token: string, value: JsonValue | undefined, unit: number | undefined): ProbeSettings {
+function takeSetting(settings: ProbeSettings, token: string, value: JsonValue | undefined): ProbeSettings {
   const n = typeof value === 'number' && Number.isFinite(value) ? value : null;
   const switchIndex = SWITCH_TOKENS.indexOf(token);
   if (switchIndex >= 0) return { ...settings, modes: settings.modes.map((m, i) => (i === switchIndex ? n : m)) };
   if (token === 'prbp') return { ...settings, prbp: n };
-  // `zjh` is converted to inches in G20 (EN config_app.c:313, _fipc): back to mm, or unread when the units are not known.
-  return { ...settings, zjh: n === null || (unit !== 0 && unit !== 1) ? null : unit === 0 ? n * 25.4 : n };
+  if (token === 'unit') return { ...settings, unit: n === 0 || n === 1 ? n : null };
+  // `zjh` is converted to inches in G20 (EN config_app.c:313, _fipc): back to mm with the units read just before it
+  // (OD-19: never the live view's, which a late report can leave behind), or unread when they are not known.
+  const unit = settings.unit;
+  return { ...settings, zjh: n === null || unit === null ? null : unit === 0 ? n * 25.4 : n };
 }
 
 /** One reading of the probe input: the live words, and the touch test's marks. */

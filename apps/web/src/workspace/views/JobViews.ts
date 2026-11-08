@@ -116,6 +116,15 @@ export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewP
             ? h('label', { class: 'job-tick', 'data-safety': 'C36' }, h('input', { type: 'checkbox', checked: choices.unhomed, 'data-job': 'confirm-unhomed', onChange: tick('unhomed') }), c36())
             : null,
           startsSpindle ? h('label', { class: 'job-tick', 'data-safety': 'C32' }, h('input', { type: 'checkbox', checked: choices.spindle, 'data-job': 'confirm-spindle', onChange: tick('spindle') }), c32({ speeds: speedsText(job) })) : null,
+          // The board's modes as read (OD-19), and what Start writes so the job runs as the preview shows.
+          s === null
+            ? null
+            : h(
+                'div',
+                { class: 'job-prep-row', 'data-job': 'modes' },
+                h('strong', null, 'Board modes'),
+                h('span', null, h('span', { 'data-job': 'board-modes' }, s.boardModes.text), checked && job?.startModes !== null && job?.startModes !== undefined ? h('span', { class: 'job-start-modes', 'data-job': 'start-modes' }, job.startModes) : null),
+              ),
           // 3 Start: W5 and the attestation
           h('p', { class: 'job-w5', 'data-safety': 'W5' }, ...signalText(w5({ distanceMm: Math.round(job?.queuedBoundMm ?? 0) || 50, seconds: 5 }))),
           h('label', { class: 'job-tick', 'data-job': 'attest' }, h('input', { type: 'checkbox', checked: choices.attended, 'data-job': 'confirm-attended', onChange: tick('attended') }), 'Screen lock and sleep are disabled; I will stay at the machine.'),

@@ -25,6 +25,7 @@
  * | `M7`, `M8` | mist, flood |
  * | `M9` | coolant off |
  * | `{"clear":null}` | clear an alarm (C13) |
+ * | `[G90] [G21] G17 [G91.1]`, `[G90] [G21] G91.1` | a job's start modes, the ones the preview assumes, before its first line (OD-19); `G21`, `G90` and `G90 G21` alone are the `units` and `restore` shapes, admitted for the same use |
  * | `G91 G38.2 Z-<n> F<f>` | Probe Z: the one probe move, n ≤ 15 mm, f ≤ 100 mm/min (SAFETY §4.5c, H90) |
  * | `G10 L20 P<1-6> Z<n>` | Probe Z: the zero it sets, |n| ≤ 50 mm, always written with 4 decimals (never `Z0`, set zero's shape) |
  *
@@ -71,6 +72,8 @@ const SHAPES: readonly { readonly name: MotionLineKind; readonly re: RegExp }[] 
   { name: 'coolant', re: /^M[78]$/ },
   { name: 'coolantOff', re: /^M9$/ },
   { name: 'clear', re: /^\{"clear":null\}$/ },
+  // OD-19: a job's start modes with the plane or the arc distance mode (the subsets without them are units and restore).
+  { name: 'jobModes', re: /^(?:G90 )?(?:G21 )?(?:G17|G91\.1|G17 G91\.1)$/ },
   // After setZero, so `G10 L20 P1 Z0` stays a set-zero line; the probe's zero always carries decimals.
   { name: 'probe', re: new RegExp(`^G91 G38\\.2 Z-(${NUM}) F(\\d{1,3})$`) },
   { name: 'probeZero', re: new RegExp(`^G10 L20 P[1-6] Z(${NUM})$`) },
@@ -94,6 +97,7 @@ export type MotionLineKind =
   | 'coolant'
   | 'coolantOff'
   | 'clear'
+  | 'jobModes'
   | 'probe'
   | 'probeZero';
 
@@ -103,10 +107,11 @@ export type MotionLineKind =
  */
 export const LINE_INTENTS: Readonly<Record<MotionLineKind, readonly string[]>> = Object.freeze({
   // Probe Z writes `G21` on its own answered line before its probe move, and puts the modes back after its zero.
-  units: ['jog', 'probeZ'],
+  units: ['jog', 'probeZ', 'jobModes'],
   jog: ['jog'],
   // Go to zero and a tool-change return establish `G90 G21` first and put the modes back after (R1).
-  restore: ['jog', 'stopJob', 'goToZero', 'resume', 'probeZ'],
+  // OD-19: a job's start modes (`G90`, `G90 G21`) and the G90 after a Clear alarm that ended a motion of run's.
+  restore: ['jog', 'stopJob', 'goToZero', 'resume', 'probeZ', 'jobModes', 'alarmRestore'],
   safeZ: ['goToZero', 'resume'],
   returnXY: ['resume'],
   toZero: ['goToZero'],
@@ -121,6 +126,7 @@ export const LINE_INTENTS: Readonly<Record<MotionLineKind, readonly string[]>> =
   coolant: ['spindleOn', 'resume'],
   coolantOff: ['spindleOffNow', 'stopJob'],
   clear: ['clearAlarm'],
+  jobModes: ['jobModes'],
   probe: ['probeZ'],
   probeZero: ['probeZ'],
 });

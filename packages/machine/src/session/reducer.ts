@@ -81,6 +81,7 @@ import type { PortSelector } from '../transport.ts';
 import { gateTokens, judgeGate, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
 import { restingStat, restingUsesHold } from './resting.ts';
 import { onModesAnswer } from './modes.ts';
+import { BOARD_MODES_UNKNOWN, noteModeLine, noteModeRead } from './boardModes.ts';
 import { POLL_TOKENS, abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
 import { HEARTBEAT_INTERVAL_MS, JV_LINE, REPORT_DIALECTS, SEED_TOKENS, heartbeatCoversHold, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
 
@@ -222,6 +223,8 @@ export function initialState(): SessionState {
     rxm: RXM_IDLE,
     rtLeaves: Object.freeze([]),
     probeZ: PROBE_CLOSED,
+    boardModes: BOARD_MODES_UNKNOWN,
+    alarmRestore: null,
   });
 }
 
@@ -1302,6 +1305,7 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
       return;
     }
     case 'motion':
+      noteModeLine(t, e.line, r.footer.status);
       if (!onJobMotionAnswer(t, e.line, r.footer.status, at)) onMotionAnswer(t, e.line, r.footer.status, at);
       return;
     case 'job':
@@ -1338,6 +1342,7 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
       onReportAnswer(t, r, at);
       return;
     case 'probeZ':
+      noteModeLine(t, e.line, r.footer.status);
       onProbeAnswer(t, e, r, at);
       return;
     case 'modes':
@@ -1694,6 +1699,7 @@ function mergeStateValue(t: Tx, token: string, value: JsonValue | undefined): vo
 function onSeedAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
   const value = r.r[e.token];
   t.set({ values: { ...t.s.values, [e.token]: { value: value ?? null, status: r.footer.status, at } } });
+  noteModeRead(t, e.token, r.footer.status, value);
   if (r.footer.status === 0) mergeStateValue(t, e.token, value);
   // A read-back of `home` after a change keeps the idle base honest (homed or not).
   if (e.token === 'home' && (t.s.base === 'IDLE_HOMED' || t.s.base === 'IDLE_UNHOMED')) t.set({ base: idleBase(t.s) });

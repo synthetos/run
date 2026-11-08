@@ -87,6 +87,11 @@ export const INTENTS = Object.freeze([
   'goToZero',
   /** Phase 2: `{"clear":null}` after the user read why the controller alarmed (C13). */
   'clearAlarm',
+  /**
+   * The `G90` (with `G20` when the board was in inches) that follows a successful Clear alarm when the alarm ended a
+   * jog, go to zero or probe of run's (OD-19, 2026-11-08). Never a user request: the session issues it once.
+   */
+  'alarmRestore',
   /** Phase 2 (amendment 2026-11-02): `G28.3` sets the machine position here without moving, for machines without homing switches (C26). */
   'setMachinePosition',
   /** Phase 2 (amendment 2026-11-02): a temporary offset, `G92` (C27), and clearing it, `G92.1` (C28). Not saved on the controller. */
@@ -114,6 +119,11 @@ export const INTENTS = Object.freeze([
   'startJob',
   /** Phase 3: one line of the running job, written only while RUNNING (the streamer's own lines). */
   'jobLine',
+  /**
+   * The modes the preview assumes (`G90`, `G21`, `G17`, `G91.1`), written before the first line when the file moves
+   * before setting them and the board holds another (OD-19, 2026-11-08). Never a user request; PREAMBLE only.
+   */
+  'jobModes',
   /**
    * Phase 3: the line-mode switch `{"rxm":1}` for a job and the write that puts the board's own value back
    * (SAFETY H77): its own reviewed intent, never a settings write. Only while nothing moves.
@@ -374,6 +384,14 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
     denied: { reason: 'There is no alarm to clear.', remedy: 'Nothing to do.' },
     citation: 'SAFETY §3 From ALARM (C13); §4.5b',
   },
+  // OD-19: written right after the clear was answered with status 0, before or after the polls move the base to idle.
+  alarmRestore: {
+    kind: 'motion',
+    states: ['ALARM', ...IDLE],
+    overlays: [],
+    denied: { reason: 'Only after a Clear alarm.', remedy: 'Nothing to do.' },
+    citation: 'SAFETY §4.5b Clear alarm (OD-19, 2026-11-08)',
+  },
   // HOMING: the G28.2 line of the homing just started is written after the base moved to HOMING (as JOGGING
   // for the jog row). The session itself refuses to START homing unless idle or CONNECTED_UNKNOWN.
   home: {
@@ -434,6 +452,13 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
     overlays: [],
     denied: { reason: 'Job lines are sent only while the job runs.', remedy: 'Resume the job, or stop it.' },
     citation: 'SAFETY §4.4a streaming (Phase 3); H70, H76',
+  },
+  jobModes: {
+    kind: 'jobs',
+    states: ['PREAMBLE'],
+    overlays: [],
+    denied: { reason: 'The start modes are written only while a job starts.', remedy: 'Nothing to do.' },
+    citation: 'SAFETY §4.4a Start: the modes the preview assumes (OD-19, 2026-11-08)',
   },
   lineMode: {
     kind: 'jobs',

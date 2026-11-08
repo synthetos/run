@@ -65,6 +65,7 @@ function job(extra: Partial<JobSnapshot> = {}): JobSnapshot {
     feedLimit: null,
     faultStopAt: null,
     stopping: false,
+    startModes: null,
     ...extra,
   };
 }

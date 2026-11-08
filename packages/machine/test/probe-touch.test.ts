@@ -40,7 +40,8 @@ describe('T-S129 (M): the touch test on the model', () => {
     expect(h.session.snapshot.probeZ).toMatchObject({ step: 'touch', plateOut: true, plan: { depthMm: 5, feed: 25 } });
     await h.run(600);
     // The probe settings are read again first; then the input every 150 ms.
-    expect(writes(h).slice(from, from + 10)).toEqual(['{"xsn":null}', '{"xsx":null}', '{"ysn":null}', '{"ysx":null}', '{"zsn":null}', '{"zsx":null}', '{"asn":null}', '{"asx":null}', '{"prbp":null}', '{"zjh":null}']);
+    // `unit` just before `zjh`, which the board prints in it (OD-19).
+    expect(writes(h).slice(from, from + 11)).toEqual(['{"xsn":null}', '{"xsx":null}', '{"ysn":null}', '{"ysx":null}', '{"zsn":null}', '{"zsx":null}', '{"asn":null}', '{"asx":null}', '{"prbp":null}', '{"unit":null}', '{"zjh":null}']);
     expect(h.session.snapshot.probeZ.touch).toEqual({ ...NONE, sawClear: true });
     expect(h.session.snapshot.probeZ.input?.reading).toBe('clear');
     const polled = inputReads(h, from);

@@ -150,6 +150,24 @@ exports[`allow-matrix denials > are pinned for every intent and overlay 1`] = `
     "reason": "The connection is not lost.",
     "remedy": "Nothing to do.",
   },
+  "alarmRestore BOOTLOADER_MODE": {
+    "allowed": false,
+    "citation": "SAFETY §4.5b Clear alarm (OD-19, 2026-11-08)",
+    "reason": "Only after a Clear alarm.",
+    "remedy": "Nothing to do.",
+  },
+  "alarmRestore NOT_CONNECTED": {
+    "allowed": false,
+    "citation": "SAFETY §4.5b Clear alarm (OD-19, 2026-11-08)",
+    "reason": "Only after a Clear alarm.",
+    "remedy": "Nothing to do.",
+  },
+  "alarmRestore phase 0": {
+    "allowed": false,
+    "citation": "ROADMAP P0-10 (Phase 0)",
+    "reason": "Not available in this release.",
+    "remedy": "This version of run.synthetos.com does not connect to machines yet.",
+  },
   "applyProfile BOOTLOADER_MODE": {
     "allowed": false,
     "citation": "SAFETY §4.1 Apply stored profile row",
@@ -430,6 +448,24 @@ exports[`allow-matrix denials > are pinned for every intent and overlay 1`] = `
     "remedy": "This version of run.synthetos.com does not connect to machines yet.",
   },
   "jobLine phase 0": {
+    "allowed": false,
+    "citation": "ROADMAP P0-10 (Phase 0)",
+    "reason": "Not available in this release.",
+    "remedy": "This version of run.synthetos.com does not connect to machines yet.",
+  },
+  "jobModes BOOTLOADER_MODE": {
+    "allowed": false,
+    "citation": "ROADMAP P0-10 (all gates open)",
+    "reason": "Not available in this release.",
+    "remedy": "This version of run.synthetos.com does not connect to machines yet.",
+  },
+  "jobModes NOT_CONNECTED": {
+    "allowed": false,
+    "citation": "ROADMAP P0-10 (all gates open)",
+    "reason": "Not available in this release.",
+    "remedy": "This version of run.synthetos.com does not connect to machines yet.",
+  },
+  "jobModes phase 0": {
     "allowed": false,
     "citation": "ROADMAP P0-10 (Phase 0)",
     "reason": "Not available in this release.",

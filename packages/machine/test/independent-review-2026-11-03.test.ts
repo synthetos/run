@@ -176,7 +176,7 @@ describe('R2 (model): a jog piece after an answered `G21` runs at the requested 
 // --- The session against the model -----------------------------------------------------------------------------
 
 describe('R1 (session): go to zero and the tool-change return establish G90 G21 first and put the modes back', () => {
-  it('go to zero from a board a job left in G91: Z rises to the safe height, and G91 is put back', async () => {
+  it('go to zero from a board a job left in G91: Z rises to the safe height, and it ends in G90 (OD-19)', async () => {
     // The other program lowers Z itself and leaves G91 (a jog of run's own ends in G90, §4.5b).
     const h = await leftIn(['G21 G91', 'G1 Z-10 F3000'], 3000);
     expect(h.session.state.live.dist).toBe(1);
@@ -184,10 +184,10 @@ describe('R1 (session): go to zero and the tool-change return establish G90 G21 
     const from = writes(h).length;
     expect(h.session.request({ intent: 'goToZero', axes: ['x'], safeZ: -5 })).toEqual({ allowed: true });
     await runUntil(h, () => h.session.snapshot.motion === null, 15_000);
-    expect(motionWrites(h, from)).toEqual(['G90 G21', 'G53 G0 Z-5', 'G90 G0 X0', 'G91']);
+    expect(motionWrites(h, from)).toEqual(['G90 G21', 'G53 G0 Z-5', 'G90 G0 X0', 'G90']);
     expect(h.device.snapshot().position[2]).toBeCloseTo(-5, 3); // not -15
     expect(h.device.snapshot().position[0]).toBeCloseTo(0, 3);
-    expect(await read(h, 'dist')).toBe(1);
+    expect(await read(h, 'dist')).toBe(0);
   });
 
   it('go to zero from a board a job left in G20: Z rises 5 mm, not 5 in, and G20 is put back', async () => {

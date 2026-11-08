@@ -463,7 +463,7 @@ describe('rows', () => {
 
 describe('Phase 3 release gate (owner 2026-11-02: jobs; SAFETY §4.4a)', () => {
   const JOBS = withJobs(PHASE_2_RELEASE, 'staging');
-  const JOB_INTENTS: readonly Intent[] = ['startJob', 'jobLine', 'lineMode', 'jobRuntime'];
+  const JOB_INTENTS: readonly Intent[] = ['startJob', 'jobLine', 'jobModes', 'lineMode', 'jobRuntime'];
 
   it('the job intents are kind jobs and denied in every cell without the jobs release, with every other gate open', () => {
     const noJobs: Release = { ...OPEN, jobs: false };
@@ -479,6 +479,8 @@ describe('Phase 3 release gate (owner 2026-11-02: jobs; SAFETY §4.4a)', () => {
     const states: Record<string, readonly string[]> = {
       startJob: ['IDLE_UNHOMED', 'IDLE_HOMED'],
       jobLine: ['RUNNING'],
+      // OD-19: the start modes, only while the job starts.
+      jobModes: ['PREAMBLE'],
       lineMode: ['IDLE_UNHOMED', 'IDLE_HOMED', 'CONNECTED_UNKNOWN', 'PREAMBLE'],
       jobRuntime: ['IDLE_UNHOMED', 'IDLE_HOMED', 'PREAMBLE', 'RUNNING', 'HELD', 'PROGRAM_PAUSED'],
     };

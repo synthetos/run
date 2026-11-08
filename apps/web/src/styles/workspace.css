@@ -1418,6 +1418,7 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .job-prep-row button.small { min-height: 26px; padding: 0 9px; font-size: 11.5px; }
 .job-prep-row.zero-differs > span, .warn-text { color: var(--warn); }
 .job-prep-row.zero-match > span { color: var(--ok); }
+.job-start-modes { display: block; }
 .job-tick { display: flex; gap: 7px; align-items: flex-start; font-size: 12px; line-height: 1.4; }
 .job-tick input { margin-top: 2px; flex: none; }
 .job-w5 { font-size: 11.5px; line-height: 1.45; color: var(--muted); margin: 2px 0 0; }

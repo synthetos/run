@@ -27,6 +27,7 @@ import { enqAllowedNow, matrixSnapshot, readableNow } from './reducer.ts';
 import { SETTING_LINE, settingRefusal } from './settingWrite.ts';
 import { probeKillWritable, probeLineWritable } from './probe/sync.ts';
 import { probeLineAllowed } from './probe/common.ts';
+import { ownModeLineRefusal } from './modeWrites.ts';
 import type { SessionState } from './types.ts';
 
 export interface WriteContext {
@@ -257,8 +258,8 @@ export function checkWrite(
   issuedBy?: Intent,
   index?: number,
 ): { readonly kind: 'denied' | 'refused'; readonly reason: string } | undefined {
-  const own = intent === 'read' || intent === 'feedhold' || intent === 'enq' || intent === 'settingsWrite' || intent === 'configureReports' || intent === 'jobLine' || intent === 'lineMode' || intent === 'jobRuntime' || intent === 'flash';
-  const matrixIntent: Intent | undefined = own ? intent : issuedBy;
+  const ownKind = intent === 'read' || intent === 'feedhold' || intent === 'enq' || intent === 'settingsWrite' || intent === 'configureReports' || intent === 'jobLine' || intent === 'lineMode' || intent === 'jobRuntime' || intent === 'flash';
+  const matrixIntent: Intent | undefined = ownKind ? intent : issuedBy;
   if (matrixIntent === undefined) return { kind: 'refused', reason: `a ${intent} write names no issuing intent` };
   // Probe Z: after Pause or Stop job, or once its run has ended, no probe line goes out (held back, never a FAULT).
   if (matrixIntent === 'probeZ' && intent === 'motion' && !probeLineAllowed(current)) return { kind: 'denied', reason: 'not written: the probe was stopped or has ended' };
@@ -279,5 +280,8 @@ export function checkWrite(
   if (verdict.kind !== VERDICT_FOR[intent]) return { kind: 'refused', reason: `a ${verdict.kind} write was issued as ${intent}` };
   // A motion line only from an intent that may send its kind (amendment 2026-11-02, T-S94).
   if (verdict.lineKind !== undefined && !LINE_INTENTS[verdict.lineKind].includes(matrixIntent)) return { kind: 'refused', reason: `a ${verdict.lineKind} line was issued by ${matrixIntent}` };
+  // OD-19: the two session-issued mode lines, each only as the exact line the session planned.
+  const own = ownModeLineRefusal(current, matrixIntent, bytes);
+  if (own !== undefined) return { kind: 'refused', reason: own };
   return undefined;
 }

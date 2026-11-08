@@ -20,7 +20,7 @@ describe('the work offsets after a job', () => {
     const after = writes(h).slice(before);
     const end = after.indexOf('N4 M30');
     expect(after.slice(end).filter((w) => w === '{"ofs":null}')).toHaveLength(1);
-    expect(after.slice(end).filter((w) => /^\{"(unit|coor|g92|g5[4-9])":null\}$/.test(w))).toEqual(['{"unit":null}', '{"coor":null}', '{"g92":null}', '{"g54":null}', '{"g55":null}', '{"g56":null}', '{"g57":null}', '{"g58":null}', '{"g59":null}']);
+    expect(after.slice(end).filter((w) => /^\{"(unit|dist|coor|g92|g5[4-9])":null\}$/.test(w))).toEqual(['{"unit":null}', '{"dist":null}', '{"coor":null}', '{"g92":null}', '{"g54":null}', '{"g55":null}', '{"g56":null}', '{"g57":null}', '{"g58":null}', '{"g59":null}']);
     // Nothing more once read.
     const count = writes(h).length;
     await h.run(2000);

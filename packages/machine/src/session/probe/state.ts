@@ -11,7 +11,9 @@ export const SWITCH_TOKENS: readonly string[] = Object.freeze(['xsn', 'xsx', 'ys
  * What the probe reads from the board, at connect and again when each touch test starts. (The G92 offsets come from
  * the session's own reads: the connect-time state read and the read-back after every G92 or G92.1.)
  */
-export const SETTING_TOKENS: readonly string[] = Object.freeze([...SWITCH_TOKENS, 'prbp', 'zjh']);
+// `unit` just before `zjh`: the board prints `zjh` in its units, and the stop distance (C39) is a decision, so it is
+// converted with the units read here, never the live view's (OD-19, 2026-11-08).
+export const SETTING_TOKENS: readonly string[] = Object.freeze([...SWITCH_TOKENS, 'prbp', 'unit', 'zjh']);
 
 /** The probe settings as read: null until read (or when the answer was refused or damaged). */
 export interface ProbeSettings {
@@ -19,11 +21,13 @@ export interface ProbeSettings {
   readonly modes: readonly (number | null)[];
   /** Probe polarity: 0 active low (normally open, the default), 1 active high. */
   readonly prbp: number | null;
+  /** The board's units as read with these settings (0 inches): what `zjh` was printed in. */
+  readonly unit: number | null;
   /** The Z homing jerk the probe runs at, in mm units (the board converts it in inches mode). */
   readonly zjh: number | null;
 }
 
-export const SETTINGS_UNREAD: ProbeSettings = Object.freeze({ modes: Object.freeze(SWITCH_TOKENS.map(() => null)), prbp: null, zjh: null });
+export const SETTINGS_UNREAD: ProbeSettings = Object.freeze({ modes: Object.freeze(SWITCH_TOKENS.map(() => null)), prbp: null, unit: null, zjh: null });
 
 export const TOUCH_NONE: ProbeTouch = Object.freeze({ sawClear: false, sawTouching: false, sawReleased: false, problem: null });
 

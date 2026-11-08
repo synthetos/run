@@ -60,6 +60,7 @@ function estimate(s: SessionSnapshot): { readonly g92: Xyz; readonly unit: numbe
   const ofs = readXyz(s, 'ofs');
   const g92 = readXyz(s, 'g92');
   const unitRead = readNumber(s, 'unit');
+  // Display only (OD-19): the reported `pos` is in the reports' units; this estimate marks the readout, it writes nothing.
   const unit = s.live.unit ?? unitRead;
   if (mpo === null || pos === null || ofs === null || g92 === null || unit === undefined) return null;
   const k = unit === 0 ? MM_PER_INCH : 1;

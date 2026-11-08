@@ -17,6 +17,7 @@
  * Everything here is controller-neutral: dialects are looked up by id and
  * every TinyG fact comes from dialect data (RUN_PLAN §5.1 rules 4 and 5).
  */
+import type { StartMode } from './fileModes.ts';
 import type { ApprovedBuilds, Banner, ClassifyReason, Dialect, DialectId, FooterRev, Inbound, JsonValue, MachineClass, ProbeKey, Response } from '@synthetos/protocol';
 import type { BaseState, Decision, Intent, Overlay, Release, SentLine } from '@synthetos/safety';
 import type { PortSelector, TransportInfo } from '../transport.ts';
@@ -593,6 +594,12 @@ export interface JobState {
   readonly stopping: boolean;
   /** The offsets were queued to be read again after the job ended (jobOffsets.ts). */
   readonly offsetsReread?: true;
+  /**
+   * OD-19: the modes the preview assumes that run writes before the first line, because the file moves before
+   * setting them and the board holds another (jobModes.ts). Planned at the check, decided again at Start;
+   * `written` once the line went into the queue at Start.
+   */
+  readonly startModes?: { readonly modes: readonly StartMode[]; readonly written: boolean };
 }
 
 /**
@@ -714,6 +721,17 @@ export interface SessionState {
   readonly rtLeaves: readonly string[];
   /** Probe Z (SAFETY §4.5c, H90): the guided probe, from the touch test to "The plate is off". */
   readonly probeZ: ProbeZState;
+  /**
+   * OD-19: the board's units (`unit`, 0 inches) and distance mode (`dist`, 1 relative) as last read, or as set by a
+   * line of run's own that the board answered with status 0; unknown while a job's lines run (boardModes.ts). Never
+   * taken from a pushed report.
+   */
+  readonly boardModes: { readonly units: number | undefined; readonly dist: number | undefined };
+  /**
+   * OD-19: an alarm ended a jog, go to zero or probe of run's, which had left `G91` (and `G21`): after a Clear alarm
+   * answered with status 0, `G90` (and `G20` when the units read before it were inches) goes out (alarmRestore.ts).
+   */
+  readonly alarmRestore: { readonly units: number | undefined } | null;
 }
 
 export type JogAxis = 'x' | 'y' | 'z' | 'a';

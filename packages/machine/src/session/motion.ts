@@ -69,6 +69,7 @@ import {
   type MotionAxisLetter,
 } from './motionLines.ts';
 import { queueModeReads } from './modes.ts';
+import { noteAlarmEnded, onAlarmRestoreAnswer, onClearAnswered } from './alarmRestore.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './jobState.ts';
 import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, PolledValues, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
@@ -672,10 +673,10 @@ function finish(t: MotionTx, at: number): void {
   const ctx = t.s.motion as MotionCtx;
   const stop = ctx.reason === 'stopJob';
   const lines = stop ? ['M5', 'M9'] : [];
-  // A jog used G21 G91 and go to zero G90 G21 (R1, R2): put back the modes read before them (modes.ts). A jog and
-  // a Stop job end in absolute distance (§4.4, §4.5b); a jog during a job's tool change puts back the job's own
-  // distance mode (Phase 3, H74), and go to zero the board's. A mode that was not read is not put back.
-  const dist = stop || (ctx.op === 'jog' && ctx.returnTo !== 'PROGRAM_PAUSED') ? 0 : ctx.dist;
+  // A jog used G21 G91 and go to zero G90 G21 (R1, R2): put back the units read before them (modes.ts). A jog, go to
+  // zero and a Stop job end in absolute distance (§4.4, §4.5b; go to zero since OD-19, 2026-11-08); only a jog during
+  // a job's tool change puts back the job's own distance mode (Phase 3, H74). A mode that was not read is not put back.
+  const dist = ctx.op === 'jog' && ctx.returnTo === 'PROGRAM_PAUSED' && !stop ? ctx.dist : 0;
   if (ctx.op === 'jog' || ctx.op === 'goToZero' || stop) lines.push(restoreLine(ctx.units, dist));
   setMotion(t, { phase: 'finish', confirmed: 0, deadline: null });
   // Phase 3: the hold and the flush are confirmed, so every job line the board still had is gone (`%` dropped its
@@ -760,6 +761,13 @@ export function onMotionReport(t: MotionTx, sr: Readonly<Record<string, unknown>
 /** A motion line was answered. A non-zero status ends the motion (the board refused it). */
 export function onMotionAnswer(t: MotionTx, line: string | undefined, status: number, at: number): void {
   const ctx = t.s.motion;
+  // OD-19: the G90 after a Clear alarm (nothing of ours runs then), and the clear itself.
+  const restored = ctx === null ? onAlarmRestoreAnswer(t, line, status) : undefined;
+  if (restored !== undefined) {
+    if (restored !== null) message(t, 'refused', restored, at);
+    return;
+  }
+  onClearAnswered(t, line, status);
   if (status === 13 && ctx !== null && ctx.op === 'change' && ctx.line === line && ctx.attempts !== undefined) {
     if (ctx.attempts < MOTION_LIMITS.offsetAttempts) {
       // Status 13 (buffer full) on an offset write: wait, then write the same line again (bug hunt 2026-11-02).
@@ -840,6 +848,8 @@ export function checkAlarm(t: MotionTx, at: number): boolean {
   if (cls === undefined) return true;
   if (ALARMED.has(cls) && ALARMABLE.has(s.base)) {
     const moving = s.motion !== null;
+    // OD-19: a jog or go to zero ended here left G91 (and G21): Clear alarm puts G90 back (alarmRestore.ts).
+    if (s.motion !== null && (s.motion.op === 'jog' || s.motion.op === 'goToZero')) noteAlarmEnded(t, s.motion.units);
     t.set({ motion: null, base: 'ALARM', queue: s.queue.filter((q) => q.purpose !== 'motion') });
     t.cancel('motion');
     if (moving) message(t, 'failed', 'The controller alarmed and stopped the move. Read the alarm, then clear it.', at);

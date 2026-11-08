@@ -143,7 +143,11 @@ function start(t: ProbeTx, confirm: unknown, at: number): Decision {
   return ALLOWED;
 }
 
-/** Work Z in mm (`pos` is in the board's units: G20 inches), or null when the position or the units are not known. */
+/**
+ * Work Z in mm (`pos` is in the board's units: G20 inches), or null when the position or the units are not known.
+ * Display only (OD-19): the start of the travel the result shows (before 450.03), a reported position in the reports'
+ * units; no line the probe writes depends on it.
+ */
 function workZMm(s: SessionState): number | null {
   const z = s.live.pos.z;
   if (z === undefined || (s.live.unit !== 0 && s.live.unit !== 1)) return null;

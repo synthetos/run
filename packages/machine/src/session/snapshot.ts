@@ -8,6 +8,8 @@
  * `textContent` after bidi sanitising (SAFETY T-S85). They are also capped
  * here so a misbehaving board cannot post megabytes.
  */
+import { boardModesText } from './boardModes.ts';
+import { startModesText } from './jobModes.ts';
 import { OVERLAYS, type Overlay } from '@synthetos/safety';
 import { PROBE_STEPS, type FooterRev } from '@synthetos/protocol';
 import type { TransportInfo } from '../transport.ts';
@@ -67,6 +69,11 @@ export interface JobView {
   readonly feedLimit: JobState['feedLimit'];
   readonly faultStopAt: number | null;
   readonly stopping: boolean;
+  /**
+   * OD-19: the check's plain line when run writes modes the preview assumes before the first line ("Run sets
+   * absolute mode and millimetres before the first line, as the preview shows."), or null when it writes none.
+   */
+  readonly startModes: string | null;
 }
 
 /** Longest string from the board a snapshot carries. */
@@ -125,6 +132,11 @@ export interface SessionSnapshot {
   readonly rtLeaves: readonly string[];
   /** Probe Z (SAFETY §4.5c, H90). (`probe` above is the capability probe's progress while identifying.) */
   readonly probeZ: ProbeSnapshot;
+  /**
+   * OD-19: the board's units and distance mode as last read or set by run's own answered lines, never from reports
+   * (boardModes.ts), and in plain words for the job card ("Absolute, mm").
+   */
+  readonly boardModes: SessionState['boardModes'] & { readonly text: string };
 }
 
 /** Longest job message or event text a snapshot carries (the warnings they quote are longer than a board string). */
@@ -194,6 +206,7 @@ export function snapshotOf(state: SessionState): SessionSnapshot {
     rxm: { restore: state.rxm.restore, memoryKnown: state.rxm.memoryKnown, pending: state.rxm.pending, leftAsFound: state.rxm.leftAsFound, current: state.rxm.current, changed: state.rxm.changed, detail: state.rxm.detail, busy: state.rxm.step !== null },
     rtLeaves: state.rtLeaves,
     probeZ: probeView(state),
+    boardModes: { ...state.boardModes, text: boardModesText(state.boardModes) },
   });
 }
 
@@ -251,6 +264,7 @@ function jobView(state: SessionState, job: JobState): JobView {
     feedLimit: job.feedLimit,
     faultStopAt: job.faultStopAt,
     stopping: job.stopping,
+    startModes: startModesText(job.startModes?.modes ?? []),
   };
 }
 
