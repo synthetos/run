@@ -125,7 +125,7 @@ describe("the bench build's Connect against the fake serial (OD-3)", () => {
     const host = new MachineWorkerHost(createTransportSource(), realClock(), DESKTOP);
     const entry = entryFor(host, new AuthGate(providersFor(channel, 'staging', RUN_SESSION_PROVIDER)), calls);
     await entry.begin();
-    expect(entry.state).toEqual({ step: 'refused', refusal: { kind: 'signed-out' } });
+    expect(entry.state).toEqual({ step: 'refused', refusal: { kind: 'signed-out', signIn: true } });
     expect(calls).toEqual(['alarm']);
     vi.unstubAllGlobals();
   });
