@@ -1173,7 +1173,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en first char": [
     {
       "line": 1,
-      "message": "a line starting with "$" is a controller command, not G-code",
+      "message": ""$H" is a GRBL homing command; this file was made for a GRBL machine. Remove the line, or export the file with a TinyG post-processor.",
       "rule": "first-character",
       "severity": "block",
     },

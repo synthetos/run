@@ -20,6 +20,7 @@
  * Pure and deterministic: the same input, dialect and options always give
  * the same result, and sanitising the output again changes nothing.
  */
+import { controllerLineMessage } from './controllerLine.ts';
 import type { Dialect } from '@synthetos/protocol';
 import { JobModel, type Finding } from './analyze.ts';
 import type { Segment } from './geometry.ts';
@@ -148,7 +149,7 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
     }
     const first = code.charAt(0);
     if (FIRST_CHARACTER_REJECTS.has(first)) {
-      add(lineNo, { severity: 'block', rule: 'first-character', message: `a line starting with "${first}" is a controller command, not G-code` });
+      add(lineNo, { severity: 'block', rule: 'first-character', message: controllerLineMessage(code) });
       return;
     }
     const realtime = /[!~%]/.exec(code);
