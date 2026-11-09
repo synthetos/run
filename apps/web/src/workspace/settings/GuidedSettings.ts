@@ -15,7 +15,7 @@ export const GUIDED_AXIS_FIELDS = [
 ] as const;
 
 export function guidedAxes(machine: MachineProfile | null, settings: Readonly<Record<string, SettingValue>>): readonly ('x' | 'y' | 'z' | 'a')[] {
-  return machine === null ? machineAxes(settings) : machine.axes?.a === undefined ? ['x', 'y', 'z'] : ['x', 'y', 'z', 'a'];
+  return machineAxes(settings, machine);
 }
 
 /** The same board keys and pending editor as Advanced; no direct writes. */

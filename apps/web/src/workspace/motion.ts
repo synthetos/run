@@ -16,6 +16,7 @@
 import { homingAxes, type HomingAxisConfig, type SettingValue } from '@synthetos/schema';
 import type { MotionAxis, MotionCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
 import type { LiveView } from './model.ts';
+import { selectedMachine } from './library.ts';
 
 type Snapshot = SnapshotMessage['snapshot'];
 
@@ -234,11 +235,18 @@ export function jogKey(key: string): Readonly<Partial<Record<MotionAxis, 1 | -1>
 /** The axes the page offers for homing and offsets. */
 export const HOME_AXES: readonly MotionAxis[] = Object.freeze(['x', 'y', 'z', 'a']);
 
+/** The part of a machine profile that says whether it has an A axis. */
+export interface AxisProfileLike {
+  readonly axes?: { readonly a?: unknown } | undefined;
+}
+
 /**
- * The axes this machine has: X, Y and Z, plus A when the board's A axis mode is on (`aam`, read at connect).
- * B and C are never shown for a TinyG (OD-13).
+ * The axes this machine has: X, Y and Z, plus A when the machine's profile has an A axis or, with no profile chosen,
+ * when the board's A axis mode is on (`aam`, read at connect). A TinyG turns its A axis on by default, so with a
+ * profile (an X-Carve has none) the profile decides (first-time walk C24). B and C are never shown for a TinyG (OD-13).
  */
-export function machineAxes(settings: Readonly<Record<string, SettingValue>>): readonly MotionAxis[] {
+export function machineAxes(settings: Readonly<Record<string, SettingValue>>, machine: AxisProfileLike | null = selectedMachine.value): readonly MotionAxis[] {
+  if (machine !== null) return machine.axes?.a === undefined ? ['x', 'y', 'z'] : ['x', 'y', 'z', 'a'];
   const aam = settings['aam'];
   return typeof aam === 'number' && aam > 0 ? ['x', 'y', 'z', 'a'] : ['x', 'y', 'z'];
 }
