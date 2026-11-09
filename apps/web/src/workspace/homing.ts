@@ -57,7 +57,7 @@ function confirmFor(asking: Asking, hv: HomingView, run: (c: MotionCommand) => v
     });
   }
   if (asking.kind === 'home') return h(ConfirmCard, { text: homeText(hv, asking.axes), confirm: 'Home', safety: 'C4', onCancel: cancel, onConfirm: () => run({ op: 'home', axes: asking.axes }) });
-  return h(ConfirmCard, { text: c26({ axes: axesText(asking.axes) }), confirm: 'Set machine position', safety: 'C26', onCancel: cancel, onConfirm: () => run({ op: 'setPosition', axes: asking.axes }) });
+  return h(ConfirmCard, { text: c26(), confirm: 'Set machine position', safety: 'C26', onCancel: cancel, onConfirm: () => run({ op: 'setPosition', axes: asking.axes }) });
 }
 
 const POSITION_AXES: readonly MotionAxis[] = ['x', 'y', 'z'];

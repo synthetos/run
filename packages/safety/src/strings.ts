@@ -402,11 +402,12 @@ export function w38(p: { readonly line: number; readonly status: number; readonl
   );
 }
 
-/** W39: run switched the board to line mode for a job (Phase 3, H77). Saved on the board; put back when the job ends. */
-export function w39(p: { readonly from: number }): string {
+/** W39: run changed the board's line setting for a job (Phase 3, H77; plain wording, owner 2026-11-09). Saved on the board; put back when the job ends. */
+export function w39(): string {
   return (
-    `NOTICE — Run switched this board to line mode (rxm 1, saved on the board) for the job. It puts it back to rxm ${count('from', p.from)} ` +
-    'when the job ends. If this page closes during the job, the next connect from this browser puts it back. Programs that count characters need character mode (rxm 0).'
+    'NOTICE — Run changed a board setting for this job: it sends the job one line at a time (saved on the board). Run puts the ' +
+    'setting back when the job ends; if this page closes during the job, the next connect from this browser puts it back. ' +
+    'Programs that count characters need the old setting.'
   );
 }
 
@@ -670,12 +671,12 @@ export function c15(p: { readonly boardId: string; readonly dialect: 'TG' | 'EN'
     : base;
 }
 
-/** C16: set work zero. */
-export function c16(p: { readonly wcs: string; readonly axis: string; readonly machinePositionMm: number; readonly newOffsetMm: number }): string {
-  return (
-    `Set ${text('wcs', p.wcs)} ${text('axis', p.axis)} zero at the current position (machine ${num('machinePositionMm', p.machinePositionMm)} mm)? ` +
-    `New offset: ${num('newOffsetMm', p.newOffsetMm)} mm. This offset is saved on the controller.`
-  );
+/**
+ * C16: set work zero, one question for whichever axes are set (owner, 2026-11-09: "X, Y and Z", "Z"). The machine
+ * positions and the new offsets are shown apart from it, in Advanced only.
+ */
+export function c16(p: { readonly wcs: string; readonly axes: string }): string {
+  return `Set ${text('axes', p.axes)} zero at the tool's current position? The board saves it (as ${text('wcs', p.wcs)}), so it stays until you set zero again.`;
 }
 
 /** C17: restore after an abnormal end (OLD-S C17). */
@@ -775,11 +776,14 @@ export function c25HandSet(): string {
   return 'The machine position was set by hand, so Run does not know the top of Z travel: raise Z first if the tool is near the work or a clamp.';
 }
 
-/** C26: set the machine position here without moving, `G28.3` (amendment 2026-11-02, H67). For machines without homing switches. */
-export function c26(p: { readonly axes: string }): string {
+/**
+ * C26: set the machine position here without moving, `G28.3` (amendment 2026-11-02, H67). For machines without homing
+ * switches. Plain wording, owner 2026-11-09.
+ */
+export function c26(): string {
   return (
-    `Set the machine position of ${text('axes', p.axes)} to 0 here, without moving (G28.3)? Use this only on a machine without ` +
-    'homing switches, with each axis where you want machine zero. A wrong position makes soft limits and every later move wrong.'
+    "Set the machine's position to 0 here, without moving? Use this only on a machine without homing switches, with each " +
+    'axis where you want machine zero. If this spot is wrong, the travel limits and every move after it are wrong too.'
   );
 }
 

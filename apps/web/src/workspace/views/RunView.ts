@@ -11,7 +11,7 @@
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { c13, c16, c24, c25, c25HandSet, c27, c28, c29, w13, w34, w35, w36, w44 } from '@synthetos/safety';
+import { c13, c24, c25, c25HandSet, c27, c28, c29, w13, w34, w35, w36, w44 } from '@synthetos/safety';
 import { DIALECTS } from '@synthetos/protocol';
 import { LITE_THRESHOLD_LINES } from '../../gcode-worker/pipeline.ts';
 import type { WorkerLike } from '../../gcode-worker/client.ts';
@@ -32,6 +32,7 @@ import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZ
 import { HomeSection, HomeQuick, UnknownExits } from '../homing.ts';
 import { ProbeZ } from '../probe/ProbeZ.ts';
 import { HomingTag } from '../positionTag.ts';
+import { WorkZeroConfirm } from '../workZeroConfirm.ts';
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
 import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { signalText } from '../../shell/signal.ts';
@@ -300,7 +301,7 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
     confirm === null || !enabled
       ? null
       : confirm.kind === 'set'
-        ? h(ConfirmCard, { text: confirm.axes.map((a) => c16({ wcs: system, axis: a.toUpperCase(), machinePositionMm: row(a).machine ?? 0, newOffsetMm: row(a).machine ?? 0 })).join(' '), confirm: 'Set work zero', safety: 'C16', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) })
+        ? h(WorkZeroConfirm, { axes: confirm.axes, system, machine: (a: MotionAxis) => row(a).machine, advanced: uiLevel.value.value === 'advanced', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) })
         : h(ConfirmCard, { text: `${c25({ axes: axesText(confirm.axes), path: goToZeroPath(confirm.axes, safe, zNow) })}${handSet ? ` ${c25HandSet()}` : ''}`, confirm: 'Go to zero', safety: 'C25', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });
   const xyz: readonly MotionAxis[] = ['x', 'y', 'z'];
   // The gate, once: a pill in the header with the reason behind (?) (OD-13 §5); a move in progress is not a gate.
@@ -661,8 +662,7 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
     const cancel = (): void => setConfirm(null);
     switch (confirm.kind) {
       case 'set': {
-        const text = confirm.axes.map((a) => c16({ wcs: system, axis: a.toUpperCase(), machinePositionMm: machine(a) ?? 0, newOffsetMm: machine(a) ?? 0 })).join(' ');
-        return h(ConfirmCard, { text, confirm: 'Set work zero', safety: 'C16', onCancel: cancel, onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) });
+        return h(WorkZeroConfirm, { axes: confirm.axes, system, machine: (a: MotionAxis) => machine(a) ?? null, advanced: uiLevel.value.value === 'advanced', onCancel: cancel, onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) });
       }
       case 'go':
         return h(ConfirmCard, { text: `${c25({ axes: axesText(confirm.axes), path: goToZeroPath(confirm.axes, safe, zNow) })}${handSet ? ` ${c25HandSet()}` : ''}`, confirm: 'Go to zero', safety: 'C25', onCancel: cancel, onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });

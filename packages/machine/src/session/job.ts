@@ -707,7 +707,7 @@ export function onLineModeAnswer(t: JobLayerTx, r: Response | null, at: number):
     if (t.s.job !== null) jobEvent(t, at, 'info', `Line mode put back: rxm ${step.value} (saved on the board).`);
     return;
   }
-  jobEvent(t, at, 'info', w39({ from }));
+  jobEvent(t, at, 'info', w39());
   lineModeReady(t, at);
 }
 

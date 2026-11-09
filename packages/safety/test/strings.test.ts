@@ -201,7 +201,7 @@ c({
   render: S.w38,
   subs: (e) => [['<line>', String(e.line)], ['<status>', String(e.status)], ['<meaning>', e.meaning]],
 });
-c({ doc: 'S', id: 'W39', segment: 0, exports: ['w39'], examples: [{ from: 0 }, { from: 1 }], render: S.w39, subs: (e) => [['<from>', String(e.from)]] });
+fixed('W39', 'w39', S.w39);
 c({ doc: 'S', id: 'W40', segment: 1, exports: ['w40'], examples: [{ line: 40 }, { line: 7 }], render: S.w40, subs: (e) => [['<line>', String(e.line)]] });
 c({ doc: 'S', id: 'W41', segment: 0, exports: ['w41'], examples: [{ line: 40 }, { line: 7 }], render: S.w41, subs: (e) => [['<line>', String(e.line)]] });
 c({ doc: 'S', id: 'W42', segment: 0, exports: ['w42'], examples: [{ line: 40 }, { line: 7 }], render: S.w42, subs: (e) => [['<line>', String(e.line)]] });
@@ -347,11 +347,11 @@ c({
 c({
   doc: 'S', id: 'C16', segment: 0, exports: ['c16'],
   examples: [
-    { wcs: 'G54', axis: 'X', machinePositionMm: 112.402, newOffsetMm: 112.402 },
-    { wcs: 'G55', axis: 'Z', machinePositionMm: -3, newOffsetMm: -3.5 },
+    { wcs: 'G54', axes: 'X, Y and Z' },
+    { wcs: 'G55', axes: 'Z' },
   ],
   render: S.c16,
-  subs: (e) => [['<G54>', e.wcs], ['<X>', e.axis], ['<mpo>', String(e.machinePositionMm)], ['<value>', String(e.newOffsetMm)]],
+  subs: (e) => [['<axes>', e.axes], ['<G54>', e.wcs]],
 });
 c({
   doc: 'OLD-S', id: 'C17', segment: 0, exports: ['c17'],
@@ -425,12 +425,7 @@ c({
   subs: (e) => [['<axes>', e.axes], ['<path>', e.path]],
 });
 c({ doc: 'S', id: 'C25', segment: 1, exports: ['c25HandSet'], examples: noExamples, render: S.c25HandSet, subs: none });
-c({
-  doc: 'S', id: 'C26', segment: 0, exports: ['c26'],
-  examples: [{ axes: 'X, Y and Z' }, { axes: 'Z' }],
-  render: S.c26,
-  subs: (e) => [['<axes>', e.axes]],
-});
+c({ doc: 'S', id: 'C26', segment: 0, exports: ['c26'], examples: noExamples, render: S.c26, subs: none });
 c({
   doc: 'S', id: 'C27', segment: 0, exports: ['c27'],
   examples: [{ axes: 'X and Y', system: 'G54' }, { axes: 'Z', system: 'G57' }],

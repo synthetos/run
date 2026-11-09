@@ -163,7 +163,9 @@ test('Set zero (G10 L20 P1) and Go to zero (Z first, then X and Y, then Z), each
   const from = (await writes(worker)).length;
   // Zero all lives on the Position readout (OD-13); the Offsets tab keeps the per-axis rows.
   await page.getByRole('button', { name: 'Set X, Y and Z work zero here' }).click();
-  await expect(page.locator('[data-safety="C16"]')).toContainText('This offset is saved on the controller.');
+  // C16 (owner, 2026-11-09): one question for the axes set; Advanced lists each axis's machine position and new offset.
+  await expect(page.locator('[data-safety="C16"]')).toContainText("Set X, Y and Z zero at the tool's current position? The board saves it (as G54), so it stays until you set zero again.");
+  await expect(page.locator('[data-safety="C16"] [data-confirm="work-zero-details"] li')).toHaveCount(3);
   await expect(page.locator('[data-action="motion-cancel"]')).toBeFocused();
   await page.locator('[data-action="motion-confirm"]').click();
   await expect.poll(async () => motionWrites(worker, from)).toEqual(['G10 L20 P1 X0 Y0 Z0\n']);
