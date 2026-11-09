@@ -26,11 +26,14 @@ describe('@synthetos/advisor', () => {
   });
 
   it('imports only its own modules, library and the JSON Schema validator (no network, no machine, no clock)', () => {
-    for (const file of readdirSync(SRC)) {
+    // Top-level modules, and the analysis/ folder (which imports only its own modules).
+    const files = [...readdirSync(SRC).filter((f) => f.endsWith('.ts')), ...readdirSync(`${SRC}analysis`).map((f) => `analysis/${f}`)];
+    for (const file of files) {
       const text = readFileSync(SRC + file, 'utf8');
       for (const m of text.matchAll(/\bfrom\s+'([^']+)'|\bimport\s*\(\s*'([^']+)'/g)) {
         const spec = m[1] ?? m[2] ?? '';
-        expect(spec, `${file} imports ${spec}`).toMatch(/^(\.\/[a-zA-Z]+\.ts|@synthetos\/library|@synthetos\/schema\/json-schema)$/);
+        const allowed = file.startsWith('analysis/') ? /^\.\/[a-zA-Z]+\.ts$/ : /^(\.\/[a-zA-Z]+\.ts|\.\/analysis\/index\.ts|@synthetos\/library|@synthetos\/schema\/json-schema)$/;
+        expect(spec, `${file} imports ${spec}`).toMatch(allowed);
       }
       expect(text, file).not.toMatch(/\bDate\.now\b|\bMath\.random\b|\bperformance\.now\b|\bsetTimeout\b|\bsetInterval\b/);
     }

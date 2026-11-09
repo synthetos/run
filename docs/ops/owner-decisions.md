@@ -414,7 +414,6 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 
 **Decision.** After a session that ended while connected, the strip before connecting shows the ordinary not-connected state (W7 behind its help) with `data-state="previous-session"`, not the W6 band. The previous session still counts: the next connect still lands in UNKNOWN, and the Position panel then says "Position not verified. The last session ended while connected." with its exits (I've checked the machine, Home, Set machine zero here), so the warning is given once, where the user can act on it. The `liveSession` marker, its lifecycle and the UNKNOWN overlay are unchanged. SAFETY §4.6 "On load", H13 mitigation and T-S17 are amended accordingly.
 
-
 ## OD-19. Job start matches the preview; the board is never left relative after an alarm (owner, 2026-11-08)
 
 **Owner's words.** "option 1 for job start"
@@ -483,6 +482,21 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 - **Play preview.** Play moves a preview tool along the file's moves at the programmed speeds (F for feeds and arcs; rapids at the machine profile's rapid rate, else a stated 5,000 mm/min), at 1×, 2×, 5× or 10×, starting at 1×. Pause and the scrubber work any time. While a session is on, the drawing says "Preview at programmed speeds: not timed like the machine". The preview tool is its own marker in the highlight colour, never the live marker's; the live marker still moves only on reported positions. It is never offered while a job of this tab runs or the board is in motion (it stops at once if that changes), and under reduced motion it steps one move at a time ("Next move"). The NOT CONNECTED band and W7's rules stand. A timing provider is the seam for Analyze's predicted speeds later; not built. SAFETY H15 and T-S41 are amended; T-S141 to T-S143 added.
 - **Colour by tool.** Each tool the file uses gets a colour in the order it first appears (never cycled; a ninth and later share the eighth), from a colour-blind-safe palette shaded for light and dark; a tool not known is neutral and named as such. Arcs are a lighter tint and rapids a fainter dashed one, so the move type still shows. The key lists the tools when there are two or more; clicking one makes its lines stand out.
 - **Carving detail.** The carve's base cell is 0.125 mm, coarsened only past the cap (2 million cells, 4096 a side); no toggle. Advanced's key shows the size used.
+
+## OD-27. Analyze: explain the job first; the planner model pinned to the firmware (owner, 2026-11-09)
+
+**Owner's words.**
+- On the planner model: "we need to make sure the tg motion profiles doesn't change or this preview will too".
+- Slice 1 of the Analyze design approved to start (the owner calls Analyze "the crown jewel" for users).
+
+**Context.** Analyze asked a machine and cutting questionnaire before it showed anything, and its feed estimate stopped above 10,000 drawn vertices. The design in docs/design/ANALYZE.md (reviewed against run c3ce4fd and the edge-next planner) recommends one job analysis report with three independent parts: motion, delivery and cutting advice, in five slices.
+
+**Decision.**
+- **Slice 1, "Useful analysis without a questionnaire", is built.** Opening a file shows what it does: the time at programmed speeds (acceleration not included), distances, lines, dwells and operator stops; the dense and slow sections, each linked to the toolpath and its lines in Job; and one card per CAM operation with its plunge and cut regimes. Cutting advice asks only the next question it needs. The AI picker moved to Advanced as a demonstration.
+- **The planner model is pinned to the firmware build.** When slice 2 models the TinyG planner, the model is tied to the approved firmware build whose planner it reproduces. A new firmware build that changes the motion profiles is a new model to validate, not a silent change in the preview: until it is validated, the estimate falls back to slice 1's facts.
+- Never in these slices: new serial commands, file changes, live tuning, or a promise of a firmware-accurate ETA.
+
+SAFETY is unchanged: Analyze is advisory, cannot authorize motion, clear Job findings, write configuration or delay Pause and Stop.
 
 ## OD-28. CAM owns the file's zero; run places it on the stock (owner, 2026-11-09)
 

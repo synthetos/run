@@ -43,6 +43,7 @@ import '../styles/strip-fit.css';
 import '../styles/job-status.css';
 import '../styles/gcode-list.css';
 import '../styles/features.css';
+import '../styles/analyze.css';
 import '../styles/job-layout.css';
 import '../styles/position.css';
 import '../styles/run-panel.css';

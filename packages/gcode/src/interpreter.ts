@@ -31,6 +31,7 @@ import {
   type Wcs,
 } from '@synthetos/safety';
 import { DEFAULT_CHORD_MM, arcBox, arcSegments, tessellateArc } from './arcs.ts';
+import { EventRecorder, emptyTape } from './events.ts';
 import { FrameRecorder, emptyFrames } from './frames.ts';
 import { codeOf, parseLine } from './parser.ts';
 import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis, type TimingModel } from './types.ts';
@@ -67,6 +68,8 @@ class Interpreter {
   readonly pieces: Piece[] = [];
   readonly flags: Uint8Array;
   readonly pausePoints: number[] = [];
+  /** The analytic event tape (events.ts), recorded as the lines are stepped. */
+  readonly events: EventRecorder;
   /** The program-to-path offset table (frames.ts), filled as the lines are stepped. */
   readonly frameTable: FrameRecorder;
   machine: Pos;
@@ -108,6 +111,7 @@ class Interpreter {
     this.lines = lines;
     this.options = options;
     this.flags = new Uint8Array(lines.length);
+    this.events = new EventRecorder(lines);
     const s = options.start ?? {};
     const m = fill(s.machine);
     this.machine = m.pos;
@@ -271,6 +275,7 @@ class Interpreter {
     if (has('G4')) {
       const p = params.get('P');
       if (p !== undefined && this.seconds !== null) this.seconds += p;
+      if (p !== undefined) this.events.dwell(p);
     }
 
     // Modal state.
@@ -297,6 +302,7 @@ class Interpreter {
     // F is read in the units in force for this line.
     const f = params.get('F');
     if (f !== undefined) this.feed = f * this.scale;
+    this.events.words(params.get('S'), params.get('T'), has('M6'));
 
     // The dialect's block rules, with this line's modes (TG: G28/G30 under G20 or G91).
     const rules = this.ruleBlocks(codes, letters);
@@ -343,6 +349,7 @@ class Interpreter {
         : 'the stream stops feeding after this line, but nothing on it pauses this dialect');
     }
     if (pause) {
+      this.events.barrier();
       this.flags[i] = (this.flags[i] as number) | LINE_FLAG.PAUSE;
       this.pausePoints.push(n);
       if (this.spindle !== 'off' || this.mist || this.flood) {
@@ -419,6 +426,7 @@ class Interpreter {
     const stored = code === 'G28' ? this.g28 : this.g30;
     if (stored === null) {
       this.uncertain = true;
+      this.events.unmodelled(this.machine, this.machine);
       this.add(src, n, 'warn', 'stored-position-unknown', `the stored ${code} position was not read from the board: the preview cannot draw this move and every later position is uncertain`);
       return;
     }
@@ -509,6 +517,7 @@ class Interpreter {
       return;
     }
     this.flags[i] = (this.flags[i] as number) | LINE_FLAG.ARC;
+    this.events.arc(this.machine, to, result.arc.lengthMm, this.uncertain, this.feed);
     this.arcs++;
     this.feedMm += result.arc.lengthMm;
     this.time(result.arc.lengthMm, to, false);
@@ -527,6 +536,7 @@ class Interpreter {
     const len = Math.sqrt(sq);
     if (motion === 'G0') this.rapidMm += len;
     else this.feedMm += len;
+    this.events.line(this.machine, to, motion === 'G0', this.uncertain, this.feed);
     this.time(len, to, motion === 'G0');
     this.pieces.push({ kind: 'line', line: i, to, k: this.kindBits(motion === 'G0' ? KIND.RAPID : KIND.FEED) });
     this.machine = to;
@@ -534,6 +544,7 @@ class Interpreter {
   }
 
   jump(to: Pos, i: number): void {
+    this.events.unmodelled(this.machine, to);
     this.pieces.push({ kind: 'jump', line: i, to, k: this.kindBits(KIND.BREAK) });
     this.machine = to;
     this.movedYet = true;
@@ -627,7 +638,9 @@ export function interpretJob(result: SanitizeResult, dialect: Dialect, options: 
       it.uncertain = true;
       it.add(line.sourceLine, line.n, 'info', 'after-rejected-line', `Line ${String(firstRejected)} is blocked, so it isn't sent: positions after it may not match what the file intends.`);
     }
+    it.events.begin(i);
     it.step(line, i, i === lastIndex);
+    it.events.end(((it.flags[i] as number) & LINE_FLAG.NOT_DRAWN) !== 0);
     // The feed after the line's own words: an F on the line applies to its move.
     lineFeeds[i] = it.feed ?? Number.NaN;
     it.frameTable.note(line.sourceLine, it.offset('X'), it.offset('Y'), it.offset('Z'));
@@ -663,6 +676,7 @@ export function interpretJob(result: SanitizeResult, dialect: Dialect, options: 
     findings,
     pausePoints: it.pausePoints,
     frameTable: it.frameTable.finish(),
+    events: it.events.finish(),
     stats: { lines: lines.length, rapidMm: it.rapidMm, feedMm: it.feedMm, arcs: it.arcs, estimatedSeconds: it.seconds, chordMm: emitted.chordMm },
     end: {
       machine: { ...it.machine },
@@ -830,6 +844,7 @@ function emptyAnalysis(dialect: Dialect, findings: Finding[], lineCount: number,
     findings,
     pausePoints: [],
     frameTable: emptyFrames(),
+    events: emptyTape(),
     stats: { lines: lineCount, rapidMm: 0, feedMm: 0, arcs: 0, estimatedSeconds: null, chordMm: options.chordMm ?? DEFAULT_CHORD_MM },
     end: {
       machine,

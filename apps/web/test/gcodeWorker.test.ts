@@ -86,7 +86,7 @@ describe('lite mode', () => {
     expect(Array.from(result.frameTable.lines)).toEqual([0, 2, 4]);
     expect(Array.from(result.frameTable.offsets)).toEqual([0, 0, 0, -5, 0, 0, 0, 0, 0]);
     expect(Array.from(result.frameTable.g92Lines)).toEqual([2]);
-    expect(transferablesOf(result)).toHaveLength(10);
+    expect(transferablesOf(result)).toHaveLength(11); // ...and the analysis' rapid deltas (docs/design/ANALYZE.md)
   });
 });
 
@@ -116,7 +116,7 @@ describe('worker handler', () => {
     const result = posted.at(-1);
     expect(result?.m.type).toBe('result');
     expect(posted.slice(0, -1).every((p) => p.m.type === 'progress')).toBe(true);
-    expect(result?.t?.length).toBe(14);
+    expect(result?.t?.length).toBe(15);
     await handle({ type: 'findings', id: 2, from: 3, to: 3 });
     const f = posted.at(-1)?.m;
     expect(f?.type === 'findings' && f.findings.length > 0 && f.findings.every((x) => x.line === 3)).toBe(true);

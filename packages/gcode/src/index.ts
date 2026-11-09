@@ -13,6 +13,8 @@ export { codeOf, parseLine, parseLines, parseStream } from './parser.ts';
 export type { ParseError, ParsedLine, Word } from './parser.ts';
 export { DEFAULT_CHORD_MM, arcBox, arcPoint, arcSegments, tessellateArc } from './arcs.ts';
 export { DEFAULT_VERTEX_CAP, interpretJob } from './interpreter.ts';
+export { EVENT, EVENT_FLAG, NO_EVENT_TOOL, EventRecorder, emptyTape, tapeBuffers } from './events.ts';
+export type { EventTape } from './events.ts';
 export { emptyFrames, nextG92Line, programToPath } from './frames.ts';
 export type { ProgramFrames } from './frames.ts';
 export { KIND, LINE_FLAG } from './types.ts';

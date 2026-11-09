@@ -1,6 +1,7 @@
 /** Types of the interpreter and analyser (ROADMAP TB-02; TOOLS_PLAN §6.2). */
 import type { DialectId } from '@synthetos/protocol';
 import type { Axis, AxisValues, Envelope, StartState, Wcs } from '@synthetos/safety';
+import type { EventTape } from './events.ts';
 import type { ProgramFrames } from './frames.ts';
 
 /**
@@ -114,6 +115,8 @@ export interface JobAnalysis {
   readonly pausePoints: readonly number[];
   /** Where the program frame meets the path frame, by file line (frames.ts): `vertices` = program position + offset. */
   readonly frameTable: ProgramFrames;
+  /** The analytic event tape (events.ts): what each sent line does, in order, for the job analysis. */
+  readonly events: EventTape;
   readonly stats: JobStats;
   readonly end: EndModal;
 }

@@ -24,6 +24,8 @@ import {
   type ProgramFrames,
   type ToolChanges,
 } from '@synthetos/gcode';
+import { analyzeProgram, type ProgramReport } from '@synthetos/advisor';
+import { operationHeadings } from './headings.ts';
 import { latin1, lineSpans } from './lines.ts';
 
 /** RUN_PLAN §4: a G-code file is at most 50 MB. */
@@ -156,6 +158,11 @@ export interface PreviewResult {
   readonly bytes: Uint8Array;
   readonly spans: Uint32Array;
   readonly summary: PreviewSummary;
+  /**
+   * The motion part of the job analysis (docs/design/ANALYZE.md slice 1), from the interpreter's event tape: kept in
+   * lite mode too, since it needs no 3D scene. Part of this result, so it can never belong to another file.
+   */
+  readonly analysis: ProgramReport;
 }
 
 export type PreviewProgress = { readonly phase: 'read'; readonly fraction: number } | { readonly phase: 'sanitise' | 'interpret' | 'pack' };
@@ -204,6 +211,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
   onProgress?.({ phase: 'interpret' });
   const analysis = interpretJob(sanitized, dialect, { start: OFFLINE_START });
   onProgress?.({ phase: 'pack' });
+  const report = analyzeProgram(analysis.events, { headings: operationHeadings(bytes, spans) });
   const findings = indexFindings(analysis.findings);
   const shown = listVerdictsOf(analysis.findings, fileLines);
   return {
@@ -234,13 +242,14 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
         envelope: null,
         wcsOrigin: [ZERO.X, ZERO.Y, ZERO.Z],
       },
+      analysis: report,
     },
   };
 }
 
 /** The buffers moved (not copied) to the page. */
 export function transferablesOf(result: PreviewResult): ArrayBuffer[] {
-  const views: ArrayBufferView[] = [result.verdicts, result.sourceLines, result.bytes, result.spans, result.frameTable.lines, result.frameTable.offsets, result.frameTable.g92Lines, result.tools.lines, result.tools.tools, result.feeds];
+  const views: ArrayBufferView[] = [result.verdicts, result.sourceLines, result.bytes, result.spans, result.frameTable.lines, result.frameTable.offsets, result.frameTable.g92Lines, result.tools.lines, result.tools.tools, result.feeds, result.analysis.rapidDeltas];
   if (result.segments !== null) views.push(result.segments.vertices, result.segments.kinds, result.segments.lineToVertex, result.segments.lineMarks);
   const seen = new Set<ArrayBuffer>();
   for (const v of views) if (v.buffer instanceof ArrayBuffer) seen.add(v.buffer);

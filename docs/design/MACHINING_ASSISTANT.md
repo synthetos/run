@@ -142,13 +142,11 @@ Every engine returns structured data validated against a schema. The envelope (�
 ### 6.2 Live chipload and its causes
 
 - **Live chipload:** `fz_live = vel / (n·z)`. This is measured over a rolling window of 2-5 s while cutting. Rapids, ramps near corners and holds are excluded.
-- **Two causes, told apart by `qr`:**
-  1. **Planner starving:** qr is high while cutting. Lines arrive slower than they execute, so the segments are too short or the stream is slow.
-     - Fix now: slow the spindle to hold the chipload.
-     - Fix next time: smoothing (TB-07) or streaming changes.
-  2. **Machine-limited:** qr is low or full, and velocity is capped by acceleration and jerk at corners and short moves.
-     - Fix: slow the spindle in proportion.
-     - Once the firmware's planned feed-limit advisor reports the cause and a percentage, that replaces the guesswork.
+- **What `qr` can and cannot say** *(amended 2026-11-09, docs/design/ANALYZE.md §7):* `qr` is observational, as the appendix says. A high `qr` while cutting means the planner had little motion queued; it does not say why. It does not tell "the host or link is slow" apart from "the segments are short", and a low or full `qr` does not prove the motion is limited by acceleration or jerk. Two situations are worth telling the user about, without claiming the cause:
+  1. **Little motion queued while cutting** (high `qr`). Possible reasons: very short segments, a slow stream, or a deliberate wait. Next time, look at the dense sections in Analyze (smoothing, TB-07, or CAM settings).
+  2. **A full queue while velocity stays below the programmed feed.** Possible reasons: corners and short moves where acceleration and jerk cap the speed.
+  - Neither one is reported as proven until a capability-gated firmware report (the feed-limit `fs` summaries, a later `fg` with "input pending" and "no input") says more, and even then those describe what the board observed, never a slow cable, host or CPU. `fs` cause totals overlap: they are time carrying a flag, not seconds a particular change will save.
+  - **Spindle-only advice is not the envelope.** The idea of slowing only the spindle to hold chipload is not what `envelope.ts` does: the deterministic envelope (§6.4) scales programmed F and S together, never S alone. Spindle-only advice stays a written suggestion for the user; it is never an allowed live action. Equal commanded ratios do not guarantee equal actual chipload when motion is capped or rpm is not measured, and resetting the advisor's scale to 100 % on Pause or a fault is not permission to send a live speed increase. Every output stays read-only and manual.
 - **Unsafe direction:** live chipload above target, for example after a feed increase. Not possible today: run never raises the feed.
 - **Later ideas:**
   - spindle load from a VFD;

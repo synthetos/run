@@ -1,9 +1,11 @@
-/** Display-only advisor mapping. No machine commands or Start decisions live here. */
-import { KIND, parseLine } from '@synthetos/gcode';
-import { planOperation, predictAchievableFeed, type AdvisorContext, type MachineCaps, type OperationKind, type OperationPlan, type Point3 } from '@synthetos/advisor';
+/**
+ * Display-only cutting-advice mapping (docs/design/ANALYZE.md slice 1). No machine commands or Start decisions live
+ * here. The operations come from the job analysis report (the interpreter's event tape): this module never reads the
+ * file's modal state itself, so there is one interpretation of the program, not two.
+ */
+import { planOperation, type AdvisorContext, type FeedRegime, type MachineCaps, type OperationKind, type OperationPlan, type OperationSummary } from '@synthetos/advisor';
 import type { Material } from '@synthetos/library';
 import type { PreviewResult } from '../gcode-worker/pipeline.ts';
-import { latin1 } from '../gcode-worker/lines.ts';
 import type { MachineProfile, ToolEntry } from './library.ts';
 
 export type AdvisorFields = Readonly<Record<string, string>>;
@@ -11,87 +13,35 @@ export interface FileOperation {
   readonly id: string;
   readonly name: string;
   readonly tool: number | null;
+  /** The cutting regime's programmed feed and speed: what the advice compares. */
   readonly feed: number | null;
   readonly rpm: number | null;
   readonly line: number;
-  readonly paths: readonly (readonly Point3[])[];
+  /** The whole operation, with its plunge, ramp and cut regimes. */
+  readonly summary: OperationSummary;
 }
 export interface AdvisorFile {
   readonly operations: readonly FileOperation[];
   readonly problem: string | null;
 }
 
-/** Only lines accepted by the preview contribute. Geometry is the sanitised interpreter's output.
- * Each distinct feed/speed within an operation gets its own comparison, including plunges.
- * Rapids, uncertain geometry, changes of feed and operation boundaries break the estimate's path.
- */
-export function advisorFile(result: PreviewResult): AdvisorFile {
-  if (result.bytes.length > 16 * 1024 * 1024 || result.fileLines > 400_000) return { operations: [], problem: 'Advisor analysis is limited to 16 MB and 400,000 lines.' };
-  const lines = Array.from({ length: result.fileLines }, (_, i) => latin1(result.bytes.subarray(result.spans[2 * i], result.spans[2 * i + 1])));
-  const accepted = new Set(result.sourceLines);
-  // Never describe a partial/uncertain path as the whole operation's estimate.
-  const estimateGeometry = result.segments !== null && result.segments.kinds.length <= 10_000 && !result.segments.lineMarks.some((mark) => (mark & 2) !== 0) && !result.segments.kinds.some((kind) => (kind & KIND.UNCERTAIN) !== 0);
-  type Mutable = Omit<FileOperation, 'paths'> & { paths: Point3[][] };
-  const groups = new Map<string, Mutable>();
-  let unit = 1;
-  let feed: number | null = null;
-  let rpm: number | null = null;
-  let tool: number | null = null;
-  let pendingTool: number | null = null;
-  let name = 'Whole file';
-  let operation = 0;
-  let sent = 0;
-  let previous: Mutable | null = null;
-  let lastVertex = -1;
-  let motion = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const line = i + 1;
-    const heading = /^\s*\(\d{1,3}\s+([^()-]+?)(?:\s*-[^)]*)?\)\s*$/.exec(lines[i] ?? '');
-    if (heading !== null) { name = (heading[1] ?? 'Operation').trim(); operation++; previous = null; }
-    if (!accepted.has(line)) continue;
-    const parsed = parseLine(lines[i] ?? '', line);
-    if (parsed.errors.length > 0) { previous = null; continue; }
-    const words = parsed.words;
-    if (words.some((w) => w.letter === 'G' && w.value === 20)) unit = 25.4;
-    if (words.some((w) => w.letter === 'G' && w.value === 21)) unit = 1;
-    for (const w of words) {
-      if (w.letter === 'F') feed = w.value * unit;
-      if (w.letter === 'S') rpm = w.value;
-      if (w.letter === 'T') pendingTool = w.value;
-      if (w.letter === 'G' && [0, 1, 2, 3].includes(w.value)) motion = w.value;
-    }
-    if (words.some((w) => w.letter === 'M' && w.value === 6)) { tool = pendingTool; operation++; previous = null; }
-    const consumesAxes = words.some((w) => w.letter === 'G' && [10, 28, 28.1, 28.2, 28.3, 30, 30.1, 92, 92.1, 92.2, 92.3].includes(w.value));
-    const cutting = !consumesAxes && motion !== 0 && words.some((w) => 'XYZIJKR'.includes(w.letter));
-    const key = `${operation}:${tool}:${feed}:${rpm}`;
-    let group = groups.get(key);
-    if (cutting && group === undefined) {
-      group = { id: key, name, tool, feed, rpm, line, paths: [] };
-      groups.set(key, group);
-      if (groups.size > 200) return { operations: [], problem: 'This file has more than 200 distinct operation/feed/speed combinations. Analyze a smaller section.' };
-    }
-    const geo = result.segments;
-    while (sent < result.sourceLines.length && (result.sourceLines[sent] ?? 0) < line) sent++;
-    while (sent < result.sourceLines.length && result.sourceLines[sent] === line) {
-      if (geo !== null && estimateGeometry) {
-        const from = geo.lineToVertex[sent] ?? 0;
-        const to = geo.lineToVertex[sent + 1] ?? from;
-        for (let v = from; v < to; v++) {
-          const kind = geo.kinds[v];
-          if (!cutting || group === undefined || v === 0 || (kind !== KIND.FEED && kind !== KIND.ARC)) { previous = null; continue; }
-          const point = (j: number): Point3 => [geo.vertices[j * 3] ?? 0, geo.vertices[j * 3 + 1] ?? 0, geo.vertices[j * 3 + 2] ?? 0];
-          if (previous !== group || lastVertex !== v - 1) group.paths.push([point(v - 1)]);
-          group.paths[group.paths.length - 1]?.push(point(v));
-          previous = group;
-          lastVertex = v;
-        }
-      }
-      sent++;
-    }
-    if (!cutting) previous = null;
-    if (words.some((w) => w.letter === 'M' && (w.value === 2 || w.value === 30))) break;
+/** The regime the advice compares: the cut with the most distance, else the longest regime. */
+export function cuttingRegime(op: OperationSummary): FeedRegime | null {
+  let best: FeedRegime | null = null;
+  for (const r of op.regimes) {
+    const better = best === null || (r.kind === 'cut' && best.kind !== 'cut') || ((r.kind === 'cut') === (best.kind === 'cut') && r.mm > best.mm);
+    if (better) best = r;
   }
-  return { operations: [...groups.values()], problem: result.summary.blocked ? 'The file has blocking findings. Resolve them in Run before using advisor results.' : null };
+  return best;
+}
+
+/** One entry per CAM operation of the report: never one per feed (a plunge is a regime of its operation). */
+export function advisorFile(result: PreviewResult): AdvisorFile {
+  const operations = result.analysis.operations.map((op) => {
+    const main = cuttingRegime(op);
+    return { id: op.id, name: op.name, tool: op.tool, feed: main?.feed ?? null, rpm: main?.spindle ?? null, line: op.fromLine, summary: op };
+  });
+  return { operations, problem: result.summary.blocked ? 'The file has blocking findings. Resolve them in Job before using cutting advice.' : null };
 }
 
 const positive = (s: string | undefined): number | null => s !== undefined && s.trim() !== '' && Number.isFinite(Number(s)) && Number(s) > 0 ? Number(s) : null;
@@ -135,14 +85,13 @@ export interface AdvisorRow {
   readonly context: AdvisorContext | null;
   readonly plan: OperationPlan | null;
   readonly problem: string | null;
-  readonly achievable: number | null;
 }
 
 export function advisorRow(operation: FileOperation, fields: AdvisorFields, machine: MachineCaps | null, stock: Material | null, tools: readonly ToolEntry[], fileProblem: string | null, machineProblem: string | null): AdvisorRow {
-  const empty = (problem: string): AdvisorRow => ({ operation, context: null, plan: null, problem, achievable: null });
+  const empty = (problem: string): AdvisorRow => ({ operation, context: null, plan: null, problem });
   if (fileProblem !== null) return empty(fileProblem);
-  if (machine === null) return empty(machineProblem ?? 'Complete the machine inputs.');
   if (stock === null) return empty('Choose a stock material in Setup.');
+  if (machine === null) return empty(machineProblem ?? 'Complete the machine inputs.');
   const tool = tools.find((t) => t.number === (operation.tool ?? positive(fields['tool'])));
   if (tool === undefined) return empty(operation.tool === null ? 'Select the tool already in the spindle.' : `Add T${operation.tool} to the tool library.`);
   const kind = fields['kind'];
@@ -155,13 +104,7 @@ export function advisorRow(operation: FileOperation, fields: AdvisorFields, mach
   if (operation.feed === null || operation.rpm === null || operation.feed <= 0 || operation.rpm <= 0) return empty('The file needs explicit positive feed and spindle speed for comparison.');
   const context: AdvisorContext = { machine, tool: tool.tool, material: stock, coolant, operation: { id: operation.id, kind: kind as OperationKind, ap, ae, programmed: { feed: operation.feed, rpm: operation.rpm } } };
   const plan = planOperation(context);
-  let length = 0;
-  let seconds = 0;
-  if (plan.ok && machine.motion !== undefined) for (const path of operation.paths) {
-    const estimate = predictAchievableFeed(path, operation.feed, machine.motion);
-    if (estimate.ok) { length += estimate.value.lengthMm; seconds += estimate.value.seconds; }
-  }
-  return { operation, context: plan.ok ? context : null, plan, problem: plan.ok ? null : plan.message, achievable: seconds > 0 ? length / seconds * 60 : null };
+  return { operation, context: plan.ok ? context : null, plan, problem: plan.ok ? null : plan.message };
 }
 
 export function advisorCheck(rows: readonly AdvisorRow[]): string {

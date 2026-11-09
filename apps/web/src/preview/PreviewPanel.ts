@@ -99,6 +99,11 @@ export interface PreviewPanelProps {
   readonly playAllowed?: boolean;
   /** The machine's rapid rate for Play at programmed speeds, mm/min, or undefined for the stated default. */
   readonly playRapid?: number;
+  /**
+   * A request to show a sent line (1-based), from Analyze's region links. Applied only while the panel still shows
+   * the `preview` the request was made for: a link for another file is ignored.
+   */
+  readonly scrubTo?: ReadonlySignal<{ readonly preview: PreviewResult; readonly sent: number; readonly seq: number } | null>;
 }
 
 /** The planner view the 3D drawing shows during a job (gcode-view `PlannerOverlay`). */
@@ -152,7 +157,7 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null, playAllowed = false, playRapid }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null, playAllowed = false, playRapid, scrubTo }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -188,6 +193,12 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
 
   const result = state.status === 'ready' ? state.result : null;
   const segments = result?.segments ?? null;
+  // Analyze's region link: scrub to its line, but only for the file it was made for.
+  const scrubRequest = scrubTo?.value ?? null;
+  useEffect(() => {
+    if (scrubRequest === null || result === null || scrubRequest.preview !== result) return;
+    setState((s) => ({ ...s, scrub: Math.min(scrubRequest.sent, result.sourceLines.length) }));
+  }, [scrubRequest, result]);
   const highlight = state.scrub - 1;
   const highlightLine = state.scrub > 0 && result !== null ? (result.sourceLines[state.scrub - 1] ?? 0) : 0;
   const listData = useMemo(() => (result === null ? null : { bytes: result.bytes, spans: result.spans, verdicts: result.verdicts }), [result]);

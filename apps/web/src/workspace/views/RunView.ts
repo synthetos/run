@@ -17,6 +17,7 @@ import { c24, c25, c25HandSet, c27, c28, c29, w13 } from '@synthetos/safety';
 import { DIALECTS } from '@synthetos/protocol';
 import { LITE_THRESHOLD_LINES } from '../../gcode-worker/pipeline.ts';
 import type { WorkerLike } from '../../gcode-worker/client.ts';
+import { scrubRequest } from '../analysisState.ts';
 import { PreviewPanel, type LiveMarkerView, type PreviewParts } from '../../preview/PreviewPanel.ts';
 import { fileLevel, on, progressText } from '../../preview/PreviewView.ts';
 import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
@@ -131,6 +132,7 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
     // Opening a part's settings is navigation only; not while a job owns the machine.
     ...(ui.active ? {} : { onScenePick: (part: ScenePart) => openSceneSettings(part, onView) }),
     layout: (parts: PreviewParts) => runLayout(parts, model, onView, stops),
+    scrubTo: scrubRequest,
   });
 }
 
