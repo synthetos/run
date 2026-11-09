@@ -1760,3 +1760,13 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
 .preview-svg .pv-pickable { cursor: pointer; }
 .preview-svg .pv-pickable:hover { stroke: var(--blue); stroke-width: 2; }
 @media (max-width: 1100px) { .viewer-key.scene-notes { left: 12px; right: 12px; top: 84px; max-width: none; } }
+/* Play preview (OD-25): its controls at the start of the line scrubber, and while a session is on, a plain notice
+   at the top of the drawing that this is a preview at programmed speeds (preview/PlayControls.ts). */
+.play-controls { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.play-controls .play-toggle { min-width: 64px; }
+.play-controls .play-speeds button { min-height: 24px; padding: 0 7px; }
+.play-notice { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); margin: 0; max-width: calc(100% - 24px); padding: 4px 10px; border-radius: var(--r-sm); font-size: 12px; color: var(--ink); background: color-mix(in srgb, var(--warn) 18%, var(--sheet)); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); z-index: var(--z-raised); text-align: center; pointer-events: none; }
+@media (max-width: 640px) {
+  .play-controls .play-speeds button { padding: 0 5px; }
+  .play-notice { top: 46px; font-size: 11px; }
+}

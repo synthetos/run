@@ -32,15 +32,23 @@ describe('@synthetos/gcode-view', () => {
       for (const m of text.matchAll(/\bfrom\s+'([^']+)'|\bimport\s*\(\s*'([^']+)'/g)) {
         const spec = m[1] ?? m[2] ?? '';
         // Its own modules: siblings, the carve/ folder, or (from carve/) the modules above it.
-        expect(spec, `${file} imports ${spec}`).toMatch(/^(\.\/(carve\/)?|\.\.\/)[a-zA-Z]+\.ts$/);
+        expect(spec, `${file} imports ${spec}`).toMatch(/^(\.\/((carve|play)\/)?|\.\.\/)[a-zA-Z]+\.ts$/);
       }
     }
   });
 
-  it('T-S41: offers no play, simulate or animate API', () => {
-    for (const name of Object.keys(mod)) expect(name).not.toMatch(/play|simulat|animat/i);
+  it('T-S41 (amended 2026-11-09, owner): Play lives only in play/, the renderer runs no clock, and nothing simulates', () => {
+    // Play preview: the owner asked for it ("play preview should just play the gcode and the movements"). Its API
+    // comes only from play/ (timing, timeline, player); nothing is named simulate or animate.
+    const playExports = new Set(['PLAY_SPEEDS', 'createPlayer']);
+    for (const name of Object.keys(mod)) {
+      expect(name).not.toMatch(/simulat|animat/i);
+      if (/play/i.test(name)) expect(playExports.has(name), name).toBe(true);
+    }
     const renderer = mod.createRenderer.toString() + readFileSync(SRC + 'renderer.ts', 'utf8');
     expect(renderer).not.toMatch(/\b(play|simulate|animate)\w*\s*\(/i);
+    // The renderer moves the play marker only when told (setPlayMarker); its one clock is the live marker's easing.
+    expect(renderer).not.toMatch(/setInterval/);
     for (const file of sourceFiles().filter((f) => f.startsWith('carve/'))) expect(readFileSync(SRC + file, 'utf8'), file).not.toMatch(/\b(play|simulate|animate)\w*\s*\(/i);
   });
 });

@@ -24,6 +24,7 @@ import { scrubbedToolAt } from './previewMarker.ts';
 import { useCarve, type CarveInfo } from './useCarve.ts';
 import { carveTarget, useLiveCarve, type LiveCarveJob } from './liveCarve.ts';
 import { useToolColors, type ToolColorView } from './useToolColors.ts';
+import { usePlay, type PlayView } from './usePlay.ts';
 import type { CarveWorkerLike, Vec3, ViewPreset } from '@synthetos/gcode-view';
 
 /** What a layout gets to arrange: the state, the actions and the rendered pieces. */
@@ -45,6 +46,8 @@ export interface PreviewParts {
   readonly carve: CarveInfo | null;
   /** Colour by tool: the legend for the key. */
   readonly tools: ToolColorView;
+  /** Play preview (OD-25): its controls and notice read this. */
+  readonly play: PlayView;
 }
 
 export interface PreviewPanelProps {
@@ -89,6 +92,13 @@ export interface PreviewPanelProps {
   readonly onScenePick?: (part: ScenePart) => void;
   /** The tool number the board reports (`tool` in a status report), or null: the marker's tool when no job runs. */
   readonly boardTool?: number | null;
+  /**
+   * Play preview may be offered (OD-25): the workspace says so only when no job of this tab runs and the board is
+   * not moving. Absent or false: no Play (the TB-03 sheet never has it).
+   */
+  readonly playAllowed?: boolean;
+  /** The machine's rapid rate for Play at programmed speeds, mm/min, or undefined for the stated default. */
+  readonly playRapid?: number;
 }
 
 /** The planner view the 3D drawing shows during a job (gcode-view `PlannerOverlay`). */
@@ -142,7 +152,7 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null, playAllowed = false, playRapid }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -186,12 +196,15 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
   const plannerView = result === null || planner === undefined ? null : planner(result.sourceLines);
   const activeTool = useActiveTool(result, state.scrub, job, boardTool, spindleTool);
   // No board position at all: the tool is drawn as a preview at the end of the scrubbed line.
-  const previewMarker = tool === null && live === null ? scrubbedToolAt(segments, state.scrub) : null;
+  // Play preview (OD-25): the tool along the moves at programmed speeds; the scrubber follows the lines done.
+  const play = usePlay({ segments: state.drawing === 'webgl' ? segments : null, feeds: result?.feeds ?? null, allowed: playAllowed && result?.lite !== true, ...(playRapid === undefined ? {} : { rapidMmPerMin: playRapid }), onLines: (done) => { setState((s) => ({ ...s, scrub: done })); } });
+  // While Play runs its own tool shows the place; the scrubbed preview marker steps aside.
+  const previewMarker = tool === null && live === null && !play.active ? scrubbedToolAt(segments, state.scrub) : null;
   // The stock carved to the line before the one the board is executing while a job of this file runs (and held
   // there after it); otherwise to the scrubbed line, or with nothing scrubbed the whole file.
   const toolColors = useToolColors(state.drawing === 'webgl' ? result : null, spindleTool);
   const liveCarve = useLiveCarve(job?.carve ?? null, result?.bytes ?? null, result?.sourceLines ?? null);
-  const carve = useCarve({ spawn: spawnCarve, result, layers: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? NO_OFFSET, target: carveTarget(liveCarve, state.scrub), enabled: state.drawing === 'webgl' && result?.lite !== true, spindleTool });
+  const carve = useCarve({ spawn: spawnCarve, result, layers: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? NO_OFFSET, target: play.active ? play.completed : carveTarget(liveCarve, state.scrub), enabled: state.drawing === 'webgl' && result?.lite !== true, spindleTool });
 
   // The tool is drawn only from `tool` (machine coordinates, or the path's frame without a scene): never from the
   // readout, whose work position is in the program's frame and units, not the drawing's.
@@ -223,6 +236,7 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
             pathOffset: scene?.pathOffset ?? [0, 0, 0],
             carve: carve.feed,
             toolColors: toolColors.colors,
+            play: play.feed,
             toolFocus: toolColors.focus,
             ...pick,
             onUnavailable: () => { setState((s) => ({ ...s, drawing: 'svg' })); },
@@ -246,7 +260,10 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
         setState((s) => ({ ...s, status: 'idle', progress: null, fileName: null, result: null, error: null, scrub: 0 }));
       },
       onRapids: (showRapids) => { setState((s) => ({ ...s, showRapids })); },
-      onScrub: (scrub) => { setState((s) => ({ ...s, scrub })); },
+      onScrub: (scrub) => {
+        setState((s) => ({ ...s, scrub }));
+        if (play.active) play.seekLine(scrub);
+      },
       onFit: () => { setFitRequest((n) => n + 1); },
       onView: (preset) => { setView((v) => ({ preset, seq: v.seq + 1 })); },
   };
@@ -255,5 +272,5 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
     ...(readout === undefined ? {} : { marker: readout }),
     ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine, sentThrough: job?.sentThrough ?? null, ...(onReportLine === undefined ? {} : { onReportLine }), ...(onBreakpoints === undefined ? {} : { onBreakpoints }) }) }),
   };
-  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, tool: activeTool, markerPreview: previewMarker !== null && state.drawing === 'webgl', carve: carve.info, tools: toolColors });
+  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, tool: activeTool, markerPreview: previewMarker !== null && state.drawing === 'webgl', carve: carve.info, tools: toolColors, play });
 }

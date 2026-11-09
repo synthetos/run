@@ -13,10 +13,12 @@
  * a re-upload.
  *
  * It renders on demand only: a frame is drawn when something changed (data,
- * view, toggles, highlight, size) and never otherwise. There is no playback
- * and no simulated tool position in this package, by design: a preview must
- * never look like a machine that is moving. The one motion is the tool marker
- * easing from one reported position to the next (markerMotion.ts), which
+ * view, toggles, highlight, size) and never otherwise. The renderer runs no
+ * clock of its own: a preview must never look like a machine that is moving.
+ * Play preview (owner, 2026-11-09; SAFETY H15 and T-S41 amended) is driven
+ * by the page (play/), which moves a separate play marker (`setPlayMarker`)
+ * drawn in the highlight colour, never in the live marker's. The live tool marker
+ * eases from one reported position to the next (markerMotion.ts) and
  * never runs past the latest report; its geometry is built once at the
  * origin and moved by the offset uniform, so those frames upload nothing.
  * Its shape is the active tool's at true size when the page gives one
@@ -81,8 +83,8 @@ export interface PlannerOverlay {
 }
 
 /** Overlay styles follow the segment styles in the colour table. */
-const OVERLAY = Object.freeze({ ENVELOPE: 5, AXIS_X: 6, AXIS_Y: 7, AXIS_Z: 8, GRID: 9, GRID_MAJOR: 10, MARKER: 11, RING: 12, MARKER_PREVIEW: 13 });
-const STYLE_COUNT = 14;
+const OVERLAY = Object.freeze({ ENVELOPE: 5, AXIS_X: 6, AXIS_Y: 7, AXIS_Z: 8, GRID: 9, GRID_MAJOR: 10, MARKER: 11, RING: 12, MARKER_PREVIEW: 13, PLAY: 14 });
+const STYLE_COUNT = 15;
 
 export interface LoadOptions extends Pick<SliceOptions, 'signal' | 'budgetMs' | 'now' | 'yieldToHost'> {
   readonly segmentsPerChunk?: number;
@@ -117,6 +119,11 @@ export interface PreviewRenderer {
    * to each position, so it never reads as a machine moving.
    */
   setToolMarker(position: Vec3 | null, preview?: boolean): void;
+  /**
+   * Play preview's tool (play/), in the highlight colour so it is never taken for the live machine's marker, which
+   * may show at the same time; null to hide it. The geometry is built once; a new position moves it, nothing more.
+   */
+  setPlayMarker(position: Vec3 | null): void;
   /** The marker's tool, drawn at true size; null for the generic glyph. The geometry is rebuilt only when this changes. */
   setToolShape(shape: ToolShape | null): void;
   /** The scene solids under the path (bed, stock, fixture, clamps), in the drawing's frame, or null for none. */
@@ -227,6 +234,9 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   let frameOverlay: GpuChunk | null = null;
   /** The tool marker, built with its tip at the origin and drawn at `motion`'s position in the path's frame. */
   let markerOverlay: GpuChunk | null = null;
+  /** Play preview's tool (play/), in its own colour so it never looks like the live machine; null when not playing. */
+  let playOverlay: GpuChunk | null = null;
+  let playAt: Vec3 | null = null;
   let solids: GpuChunk[] = [];
   /** The index in `solids` of the stock, hidden while a carved surface stands in for it; -1 for none. */
   let stockSolid = -1;
@@ -349,20 +359,23 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     if (toolShape === null) rebuildMarker();
   }
 
-  /** The marker's geometry, tip at the origin: the tool's wireframe at true size, or the generic glyph. */
-  function rebuildMarker(): void {
-    if (markerOverlay !== null) release(markerOverlay);
-    markerOverlay = null;
-    if (marker === null) return;
+  /** A marker's geometry in one style, tip at the origin: the tool's wireframe at true size, or the generic glyph. */
+  function markerChunk(style: number): GpuChunk | null {
     const lines = toolShape === null ? toolGlyph(NO_OFFSET, fitBox()) : toolWireframe(toolShape);
     const pos: number[] = [];
     const sty: number[] = [];
     for (const [a, b] of lines) {
       pos.push(...a, ...b);
-      const style = markerPreview ? OVERLAY.MARKER_PREVIEW : OVERLAY.MARKER;
       sty.push(style, style);
     }
-    markerOverlay = linesChunk(pos, sty);
+    return linesChunk(pos, sty);
+  }
+
+  function rebuildMarker(): void {
+    if (markerOverlay !== null) release(markerOverlay);
+    markerOverlay = marker === null ? null : markerChunk(markerPreview ? OVERLAY.MARKER_PREVIEW : OVERLAY.MARKER);
+    if (playOverlay !== null) release(playOverlay);
+    playOverlay = playAt === null ? null : markerChunk(OVERLAY.PLAY);
   }
 
   function rebuildSolids(): void {
@@ -384,7 +397,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   function colorTable(): Float32Array {
     const ring = colors.envelope;
     const exec = plannerColors().exec;
-    const table = [colors.rapid, colors.feed, colors.arc, colors.outOfBounds, colors.uncertain, colors.envelope, colors.axisX, colors.axisY, colors.axisZ, colors.grid, colors.gridMajor, exec, ring, mix(exec, colors.background, 0.55)];
+    const table = [colors.rapid, colors.feed, colors.arc, colors.outOfBounds, colors.uncertain, colors.envelope, colors.axisX, colors.axisY, colors.axisZ, colors.grid, colors.gridMajor, exec, ring, mix(exec, colors.background, 0.55), colors.highlight];
     return new Float32Array(table.flat());
   }
 
@@ -474,6 +487,11 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       gl.drawArrays(gl.LINES, 0, markerOverlay.vertexCount);
       // Frames only while the marker is still on its way to the latest report; then it rests.
       if (!settled(motion, t)) requestRender();
+    }
+    if (playOverlay !== null && playAt !== null) {
+      gl.uniform3f(u.offset, pathOffset[0] + playAt[0], pathOffset[1] + playAt[1], pathOffset[2] + playAt[2]);
+      gl.bindVertexArray(playOverlay.vao);
+      gl.drawArrays(gl.LINES, 0, playOverlay.vertexCount);
     }
     gl.bindVertexArray(null);
   }
@@ -659,6 +677,12 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       if (rebuild) rebuildMarker();
       requestRender();
     },
+    setPlayMarker(position) {
+      const rebuild = (playAt === null) !== (position === null);
+      playAt = position;
+      if (rebuild) rebuildMarker();
+      requestRender();
+    },
     setToolShape(shape) {
       if (sameShape(shape, toolShape)) return;
       toolShape = shape;
@@ -723,7 +747,8 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       if (gridChunk !== null) release(gridChunk);
       if (frameOverlay !== null) release(frameOverlay);
       if (markerOverlay !== null) release(markerOverlay);
-      gridChunk = frameOverlay = markerOverlay = null;
+      if (playOverlay !== null) release(playOverlay);
+      gridChunk = frameOverlay = markerOverlay = playOverlay = null;
       gl.deleteProgram(program);
       gl.deleteProgram(solidProgram);
       carve.dispose();

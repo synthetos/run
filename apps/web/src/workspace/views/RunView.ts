@@ -4,9 +4,11 @@
  * gates stay mounted as the user moves between preparation steps.
  *
  * The preview is the TB-03 PreviewPanel (gcode.worker, Preview3D, LineList)
- * arranged by `runLayout`. There is no Play, Simulate or Animate control
- * (SAFETY H15, T-S41): the timeline scrubs and highlights lines, nothing
- * moves.
+ * arranged by `runLayout`. The timeline scrubs and highlights lines. Play
+ * preview (owner, 2026-11-09; SAFETY H15 and T-S41 amended, OD-25) moves a
+ * labelled preview tool along the moves at programmed speeds, offered only
+ * when no job of this tab runs and the board is not moving
+ * (preview/playAllowed.ts). There is no Simulate or Animate control.
  */
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
@@ -45,7 +47,9 @@ import { activeJob, jobSaved, type Job } from '../jobModel.ts';
 import { bedSizeText, jobStateText, machineText } from '../revisionWords.ts';
 import { fileSummary } from '../lineWords.ts';
 import { emptyQueueText, liveEventText, liveLineLabel } from '../liveWords.ts';
-import { materialColor } from '../library.ts';
+import { materialColor, selectedMachine } from '../library.ts';
+import { PlayControls, PlayNotice } from '../../preview/PlayControls.ts';
+import { playAllowedFor, playRapidOf } from '../../preview/playAllowed.ts';
 import { openToolNumber } from '../toolNumbers.ts';
 import { projectsState } from '../../projects/store.ts';
 import { projectStore } from '../../projects/browserStore.ts';
@@ -111,6 +115,9 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
     onReportLine: (line: number) => openReport({ origin: 'line', line }),
     scene,
     boardTool: snap?.live.tool ?? null,
+    // Play preview (OD-25): never while this tab's job runs or the board moves.
+    playAllowed: playAllowedFor(ui.active, snap === null ? null : { base: snap.base, overlays: snap.overlays }),
+    ...(playRapidOf(selectedMachine.value) === undefined ? {} : { playRapid: playRapidOf(selectedMachine.value) as number }),
     // Opening a part's settings is navigation only; not while a job owns the machine.
     ...(ui.active ? {} : { onScenePick: (part: ScenePart) => openSceneSettings(part, onView) }),
     layout: (parts: PreviewParts) => runLayout(parts, model, onView, stops),
@@ -1518,11 +1525,13 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
                   : 'Lite mode: the list and summary only, no drawing.',
               )
             : null,
+          h(PlayNotice, { play: parts.play }),
           h('div', { class: 'viewer-notice viewer-help' }, h(ContextHelp, { id: 'run-preview-help', label: 'About the preview', safety: 'W13', end: true }, w13())),
         ),
         h(
           'div',
           { class: 'timeline', 'aria-label': 'Line scrubber' },
+          h(PlayControls, { play: parts.play }),
           h(
             'div',
             { class: 'track-wrap' },

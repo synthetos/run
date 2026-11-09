@@ -59,3 +59,9 @@ export { MESH_MAX, SOFTWARE_MESH_MAX, meshLayout, wallVertices } from './carve/m
 export type { CarveLayer, CarveLayerOptions } from './carve/mesh.ts';
 export { BELOW_STOCK_EPS, noteBelow } from './carve/belowStock.ts';
 export type { BelowStock } from './carve/belowStock.ts';
+export { DEFAULT_FEED_MM_MIN, DEFAULT_RAPID_MM_MIN, programmedTiming } from './play/timing.ts';
+export type { TimingProvider } from './play/timing.ts';
+export { buildTimeline, lineStartTime, pointAt } from './play/timeline.ts';
+export type { PlayPoint, Timeline } from './play/timeline.ts';
+export { PLAY_SPEEDS, createPlayer } from './play/player.ts';
+export type { PlaySpeed, Player } from './play/player.ts';

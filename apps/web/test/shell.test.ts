@@ -84,7 +84,9 @@ describe('workspace AppShell (prerendered)', () => {
     expect(html).not.toMatch(/:\/\//);
   });
 
-  it('has no Play, Simulate or Animate control in the preview (SAFETY H15, T-S41)', () => {
+  // SAFETY H15 and T-S41, amended 2026-11-09 (owner, OD-25): Play preview exists, offered only with a file open, so the
+  // prerendered page (no file) has none; nothing is ever called Simulate or Animate.
+  it('has no Play, Simulate or Animate control in the prerendered preview (SAFETY H15, T-S41 as amended)', () => {
     const start = html.indexOf('data-region="preview"');
     const region = html.slice(start, html.indexOf('data-screen="setup"'));
     expect(region.replace(/<[^>]*>/g, ' ')).not.toMatch(/\b(play|simulat|animat)/i);

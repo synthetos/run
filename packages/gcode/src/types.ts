@@ -105,6 +105,8 @@ export interface JobAnalysis {
   readonly lineToVertex: Uint32Array;
   /** `LINE_FLAG` bits per sent line. */
   readonly lineFlags: Uint8Array;
+  /** The programmed feed rate in force for each sent line's moves, mm/min (NaN before any F). Display only: Play preview uses it. */
+  readonly lineFeeds: Float32Array;
   /** Exact box of the drawn path in machine coordinates (arcs by quadrant crossings), or null. */
   readonly bounds: Box | null;
   readonly findings: readonly Finding[];

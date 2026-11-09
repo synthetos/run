@@ -621,12 +621,15 @@ export function interpretJob(result: SanitizeResult, dialect: Dialect, options: 
     if (e.severity === 'block' && e.line > 0 && e.line < firstRejected && !sentSources.has(e.line)) firstRejected = e.line;
   }
   const lastIndex = lines.length - 1;
+  const lineFeeds = new Float32Array(lines.length);
   lines.forEach((line, i) => {
     if (!it.uncertain && line.sourceLine > firstRejected) {
       it.uncertain = true;
       it.add(line.sourceLine, line.n, 'info', 'after-rejected-line', `Line ${String(firstRejected)} is blocked, so it isn't sent: positions after it may not match what the file intends.`);
     }
     it.step(line, i, i === lastIndex);
+    // The feed after the line's own words: an F on the line applies to its move.
+    lineFeeds[i] = it.feed ?? Number.NaN;
     it.frameTable.note(line.sourceLine, it.offset('X'), it.offset('Y'), it.offset('Z'));
   });
 
@@ -655,6 +658,7 @@ export function interpretJob(result: SanitizeResult, dialect: Dialect, options: 
     kinds: emitted.kinds,
     lineToVertex: emitted.lineToVertex,
     lineFlags: it.flags,
+    lineFeeds,
     bounds: emitted.bounds,
     findings,
     pausePoints: it.pausePoints,
@@ -821,6 +825,7 @@ function emptyAnalysis(dialect: Dialect, findings: Finding[], lineCount: number,
     kinds: new Uint8Array(0),
     lineToVertex: new Uint32Array(lineCount + 1),
     lineFlags: new Uint8Array(lineCount).fill(LINE_FLAG.NOT_DRAWN),
+    lineFeeds: new Float32Array(lineCount).fill(Number.NaN),
     bounds: null,
     findings,
     pausePoints: [],

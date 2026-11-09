@@ -12,6 +12,7 @@ import { Fragment, h, type ComponentChild } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { attachPicking, attachViewControls, createRenderer, type Box3, type CarveFeed, type ToolColors, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type ToolShape, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
 import { previewColors } from './colors.ts';
+import type { PlayFeed } from './usePlay.ts';
 
 export interface Preview3DProps {
   /** The path, or null for a scene alone (the Setup view before a file is open). */
@@ -51,6 +52,8 @@ export interface Preview3DProps {
   readonly toolColors?: ToolColors | null;
   /** The legend's pick: that tool's lines stand out; null for all. */
   readonly toolFocus?: number | null;
+  /** Play preview's tool position (usePlay.ts), drawn as its own marker in the highlight colour; null or absent for none. */
+  readonly play?: PlayFeed | null;
 }
 
 export function Preview3D(props: Preview3DProps): ComponentChild {
@@ -140,6 +143,16 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
   useEffect(() => { renderer.current?.setToolColors(toolColors); }, [toolColors]);
   const toolFocus = props.toolFocus ?? null;
   useEffect(() => { renderer.current?.setToolFocus(toolFocus); }, [toolFocus]);
+  const play = props.play ?? null;
+  useEffect(() => {
+    const r = renderer.current;
+    if (r === null || play === null) return;
+    const off = play.subscribe((pos) => { r.setPlayMarker(pos); });
+    return () => {
+      off();
+      r.setPlayMarker(null);
+    };
+  }, [play]);
   const carve = props.carve ?? null;
   useEffect(() => {
     const r = renderer.current;

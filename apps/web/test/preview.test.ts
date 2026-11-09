@@ -41,7 +41,9 @@ function view(state: PreviewViewState): El {
   return root(h(PreviewView, { state, actions: ACTIONS, slots }));
 }
 
-describe('T-S41: no element offers Play or Simulate', () => {
+// The TB-03 sheet (PreviewView) has no Play at all. Play preview lives in the workspace Run view, offered only with a
+// file open and no job or board motion (T-S41 amended 2026-11-09, OD-25; play.e2e.ts, play.test.ts).
+describe('T-S41: the TB-03 sheet offers no Play or Simulate', () => {
   it.each(Object.keys(STATES))('%s', (name) => {
     const state = STATES[name] as PreviewViewState;
     const el = view(state);

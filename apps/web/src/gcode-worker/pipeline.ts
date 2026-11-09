@@ -150,6 +150,8 @@ export interface PreviewResult {
   readonly frameTable: ProgramFrames;
   /** The tool changes by file line and the first cut (gcode `toolChanges`): which tool the 3D marker shows. Display only. */
   readonly tools: ToolChanges;
+  /** The programmed feed per sent line, mm/min (NaN before any F): what Play preview times feeds by; empty in lite mode. Display only. */
+  readonly feeds: Float32Array;
   /** The file, and [start, end) spans per line, for the virtualised list. */
   readonly bytes: Uint8Array;
   readonly spans: Uint32Array;
@@ -217,6 +219,8 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
       sourceLines: sentSourceLines(sanitized),
       frameTable: analysis.frameTable,
       tools: toolChanges(sanitized.lines, analysis),
+      // Play preview needs them only where the file is drawn.
+      feeds: lite ? new Float32Array(0) : analysis.lineFeeds,
       bytes,
       spans,
       summary: {
@@ -236,7 +240,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
 
 /** The buffers moved (not copied) to the page. */
 export function transferablesOf(result: PreviewResult): ArrayBuffer[] {
-  const views: ArrayBufferView[] = [result.verdicts, result.sourceLines, result.bytes, result.spans, result.frameTable.lines, result.frameTable.offsets, result.frameTable.g92Lines, result.tools.lines, result.tools.tools];
+  const views: ArrayBufferView[] = [result.verdicts, result.sourceLines, result.bytes, result.spans, result.frameTable.lines, result.frameTable.offsets, result.frameTable.g92Lines, result.tools.lines, result.tools.tools, result.feeds];
   if (result.segments !== null) views.push(result.segments.vertices, result.segments.kinds, result.segments.lineToVertex, result.segments.lineMarks);
   const seen = new Set<ArrayBuffer>();
   for (const v of views) if (v.buffer instanceof ArrayBuffer) seen.add(v.buffer);
