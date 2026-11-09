@@ -58,7 +58,7 @@ import {
 } from '@synthetos/safety';
 import { mapStat, type Dialect, type JsonObject, type JsonValue, type Response } from '@synthetos/protocol';
 import { isReadAllowed } from '@synthetos/schema';
-import { MOTION_LIMITS, atRestPolled, beginHold, completedPoll, heldPolled, idleBase, motionCapable, requestPoll } from './motion.ts';
+import { MOTION_LIMITS, atRestPolled, beginHold, clearMotionNotice, completedPoll, heldPolled, idleBase, motionCapable, requestPoll } from './motion.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { ACTIVE_PHASES, failJob, jobActive, jobEvent, lastFileLine, patchJob, type JobTx } from './jobState.ts';
 import { ABSOLUTE_MM_LINE, motionLineKind, restoreLine, returnXYLine, safeZLine, spindleLine } from './motionLines.ts';
@@ -506,6 +506,7 @@ function finishCheck(t: JobLayerTx, at: number): void {
   jobEvent(t, at, 'info', `${checkedText(result, report)} Checking the line mode.`);
   t.set({ rxm: { ...t.s.rxm, step: { kind: 'read', purpose: 'job', value: 1 }, detail: null } });
   patchJob(t, { phase: 'preparing' });
+  clearMotionNotice(t);
   queue(t, { token: 'rxm', purpose: 'lineMode' });
   t.arm('job', JOB_LIMITS.drainPollMs);
 }

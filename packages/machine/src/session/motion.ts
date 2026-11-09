@@ -251,6 +251,16 @@ function setMotion(t: MotionTx, patch: Partial<MotionCtx>): void {
   t.set({ motion: { ...(t.s.motion as MotionCtx), ...patch } });
 }
 
+/**
+ * The last motion result ("Stopped: queue cleared…", "Jog stopped…") goes when the next action starts (first-time
+ * walk C25): a jog, a go to zero, a homing, a change or a job. Words only.
+ */
+export function clearMotionNotice(t: { s: SessionState; set(patch: Partial<SessionState>): void }): void {
+  if (t.s.notices.motion === undefined) return;
+  const { motion: _done, ...rest } = t.s.notices;
+  t.set({ notices: rest });
+}
+
 function newCtx(s: SessionState, op: MotionCtx['op']): MotionCtx {
   // A Stop job from CONNECTED_UNKNOWN (UNKNOWN overlay, or a FAULT) returns there; a jog or Z re-zero during a
   // job's tool change (Phase 3) returns to PROGRAM_PAUSED; everything else to idle.
@@ -266,6 +276,7 @@ function newCtx(s: SessionState, op: MotionCtx['op']): MotionCtx {
 function startChange(t: MotionTx, change: ChangeKind, line: string, intent: Intent, axes: readonly JogAxis[] = []): Decision {
   const retried = change === 'setZero' || change === 'selectCoord' ? { line, attempts: 1, retryAt: null } : {};
   t.set({ motion: { ...newCtx(t.s, 'change'), phase: 'drain', change, axes: [...axes], returnTo: t.s.base, ...retried } });
+  clearMotionNotice(t);
   queueLine(t, line, intent);
   requestPoll(t);
   tick(t);
@@ -322,6 +333,7 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       const pieceMm = Math.max(0.001, (feed / 60) * (MOTION_LIMITS.pieceMs / 1000));
       const jog: JogFeed = { axes: { ...axes }, remainingMm: distanceMm, feed, pieceMm, renewedAt: at };
       t.set({ motion: { ...newCtx(s, 'jog'), jog }, base: 'JOGGING' });
+      clearMotionNotice(t);
       // The board's own units and distance mode, answered before anything of the jog changes them (modes.ts).
       queueModeReads(t, 'motion');
       // Millimetres first, on a line of its own that is answered before the first piece goes out (R2): the
@@ -351,6 +363,7 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       if (letters.includes('Z')) steps.push(toZeroLine(['Z']));
       if (steps.some((l) => motionLineKind(l) === undefined)) return deny('The safe height is out of range.', 'Choose another safe height.');
       t.set({ motion: { ...newCtx(s, 'goToZero'), phase: 'drain', steps: steps.slice(1) }, base: 'JOGGING' });
+      clearMotionNotice(t);
       queueModeReads(t, 'motion');
       queueLine(t, steps[0] as string, 'goToZero');
       requestPoll(t);
@@ -383,6 +396,7 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
         return deny(`Homing is not configured for ${axisNames(missing)} (${why}).`, 'Configure the homing switch and search speed in the Board view, or set the machine position here (G28.3) on a machine without switches.');
       }
       t.set({ motion: { ...newCtx(s, 'home'), phase: 'homing', axes: [...request.axes], seen: false }, base: 'HOMING' });
+      clearMotionNotice(t);
       queueLine(t, homeLine(request.axes.map((a) => LETTER[a])), 'home');
       requestPoll(t);
       t.arm('motion', MOTION_LIMITS.homingCheckMs);
@@ -722,7 +736,7 @@ function complete(t: MotionTx, at: number): void {
     message(t, 'stopped', STOP_TEXT.stopped, at);
     jobStopped(t, at);
   }
-  else if (ctx.reason === 'keepalive') message(t, 'failed', 'Jog stopped: the page stopped holding the button.', at);
+  else if (ctx.reason === 'keepalive') message(t, 'failed', 'Jog stopped: the button was let go, or the page lost touch with it.', at);
   else if (ctx.refusal !== null) message(t, 'refused', ctx.refusal, at);
 }
 
