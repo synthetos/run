@@ -34,7 +34,7 @@ import { MachineStrip } from './MachineStrip.ts';
 import { INITIAL_LIVE_VIEW, portOpen, type WorkspaceModel } from './model.ts';
 import { stripStatus } from './status.ts';
 import { BoardView } from './views/BoardView.ts';
-import { boardTab } from './boardNavigation.ts';
+import { boardTab, viewRequest } from './boardNavigation.ts';
 import { LibraryView } from './views/LibraryView.ts';
 import { jobStep, librarySection, uiLevel, type LibrarySection } from './jobWorkflow.ts';
 import { AnalyzeView, PreferencesView, SafetyView } from './views/OtherViews.ts';
@@ -228,6 +228,13 @@ export function AppShell(props: AppShellProps): ComponentChild {
   useEffect(() => {
     document.documentElement.dataset['view'] = current;
   }, [current]);
+  // A view asked for from elsewhere in the page (C17's "Set up homing").
+  const requested = viewRequest.value;
+  useEffect(() => {
+    if (requested === null) return;
+    viewRequest.value = null;
+    onView(requested);
+  }, [requested]);
   const model = props.model ?? null;
   const machine = selectedMachine.value;
   const label = VIEWS.find((v) => v.id === current)?.label ?? 'Job';

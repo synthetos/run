@@ -22,6 +22,7 @@ import { connected, type LiveView, type WorkspaceModel } from './model.ts';
 import { HOME_AXES, axesText, homingView, type HomingView } from './motion.ts';
 import { ConfirmCard, IconButton } from './ui.ts';
 import type { IconName } from './icons.ts';
+import { HomingOffNote } from './homingNote.ts';
 
 type Send = (command: MotionCommand) => Promise<string | null>;
 
@@ -112,6 +113,7 @@ function homeBody({ model }: HomeProps, hk: Hooks): ComponentChild {
       // For a machine without switches, or before its homing settings are read: offered whenever the machine is at rest (OD-13 §4).
       button('Set machine zero here…', 'Set the machine zero here, without homing', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true),
     ),
+    enabled && hv.read && hv.configured.length === 0 ? h(HomingOffNote, null) : null,
     enabled ? confirmFor(asking, hv, run, () => setAsking(null)) : null,
     note === null && change === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-home': 'note' }, note ?? change),
   );
@@ -143,6 +145,8 @@ function homeQuickBody({ model }: HomeProps, hk: Hooks): ComponentChild {
       quick('home', `Home all configured axes${hv.configured.length > 0 ? ` (${axesText(hv.configured)})` : ''}`, () => setAsking({ kind: 'home', axes: hv.configured }), hv.configured.length > 0, 'No axis has a homing switch and search speed set.', true),
       quick('machineZero', 'Set the machine zero here, without homing', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true, null, false),
     ),
+    // C17: the reason Home is off, as text with the way to set it up, not only the button's hover tip.
+    enabled && hv.read && hv.configured.length === 0 ? h(HomingOffNote, null) : null,
     enabled ? confirmFor(asking, hv, run, () => setAsking(null)) : null,
     note === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-home': 'note' }, note),
   );
