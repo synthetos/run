@@ -7,15 +7,39 @@ import { h, type ComponentChild } from 'preact';
 import type { MotionView } from '../../analysisState.ts';
 import { mm, plural, time, whole } from './format.ts';
 
+/**
+ * The cutting time at programmed feeds. A feed move never runs faster than its feed, so this is a true lower bound,
+ * and so is the known part when some moves have no feed.
+ */
 export function headline(view: MotionView): string {
-  const s = view.time.feedSeconds.value;
-  return s === null ? 'Cutting time not known' : `At least ${time(s)} of cutting`;
+  const s = view.time.feedSeconds.value ?? view.report.knownFeedSeconds;
+  return s > 0 ? `At least ${time(s)} of cutting` : 'Cutting time not known yet';
+}
+
+/** "a", "a and b", "a, b and c". */
+function joined(parts: readonly string[]): string {
+  return parts.length <= 1 ? (parts[0] ?? '') : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1] as string}`;
 }
 
 export function stopsLine(changes: number, pauses: number): string | null {
   if (changes === 0 && pauses === 0) return null;
   const parts = [changes > 0 ? plural(changes, 'tool change', 'tool changes') : null, pauses > 0 ? plural(pauses, 'pause', 'pauses') : null].filter((p): p is string => p !== null);
-  return `Plus ${parts.join(' and ')}.`;
+  return `${joined(parts)} ${changes + pauses === 1 ? 'waits' : 'wait'} for you`;
+}
+
+/** Why real time is longer, in one short line: what is not counted, honestly, with no total. */
+export function longerLine(view: MotionView): string {
+  const r = view.report;
+  const parts: string[] = [];
+  if (r.untimedMoves > 0) parts.push(`${plural(r.untimedMoves, 'feed move has', 'feed moves have')} no feed rate`);
+  const rapids = r.rapidDeltas.length > 0 || r.untimedRapids > 0;
+  if (rapids && view.time.rapidSeconds.value === null) parts.push('rapids aren’t timed yet');
+  else if (rapids) parts.push(`rapids add about ${time(view.time.rapidSeconds.value as number)}`);
+  parts.push('the machine slows for short moves');
+  if (r.dwells > 0) parts.push(`${plural(r.dwells, 'dwell adds', 'dwells add')} ${time(r.dwellSeconds.value ?? 0)}`);
+  const stops = stopsLine(r.toolChangeLines.length, r.stopLines.length);
+  if (stops !== null) parts.push(stops);
+  return `Real time will be longer: ${joined(parts)}.`;
 }
 
 export function rapidsLine(view: MotionView): string {
@@ -27,13 +51,11 @@ export function rapidsLine(view: MotionView): string {
 
 export function HeadlineStrip({ view, connected }: { readonly view: MotionView; readonly connected: boolean }): ComponentChild {
   const r = view.report;
-  const stops = stopsLine(r.toolChangeLines.length, r.stopLines.length);
-  const untimed = view.time.feedSeconds.value === null;
   return h(
     'section',
     { class: 'panel analyze-strip', 'data-analyze': 'summary', 'aria-labelledby': 'analyze-time' },
     h('h2', { id: 'analyze-time', class: 'analyze-headline', 'data-analyze': 'time' }, headline(view)),
-    h('p', { class: 'analyze-strip-sub' }, untimed ? `${plural(r.untimedMoves, 'feed move has', 'feed moves have')} no feed rate.` : 'Real time will be longer.', stops === null ? '' : ` ${stops}`, r.dwells === 0 ? '' : ` ${plural(r.dwells, 'dwell adds', 'dwells add')} ${time(r.dwellSeconds.value ?? 0)}.`),
+    h('p', { class: 'analyze-strip-sub', 'data-analyze': 'longer' }, longerLine(view)),
     h(
       'ul',
       { class: 'analyze-chips' },

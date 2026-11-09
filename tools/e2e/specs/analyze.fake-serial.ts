@@ -76,7 +76,7 @@ test('disconnected, no inputs: a lower bound, what to fix with links, one operat
   const summary = view.locator('[data-analyze="summary"]');
   await expect(summary).toBeVisible({ timeout: 15_000 });
   await expect(summary.locator('[data-analyze="time"]')).toHaveText(/^At least \d+ s of cutting$/);
-  await expect(summary).toContainText('Real time will be longer.');
+  await expect(summary.locator('[data-analyze="longer"]')).toHaveText('Real time will be longer: rapids aren’t timed yet, the machine slows for short moves and 1 dwell adds 1 s.');
   await expect(summary.locator('[data-fact="rapid-time"]')).toContainText('not timed yet');
   await expect(summary.locator('[data-analyze="missing"]')).toHaveText("Connect to read your machine's speeds. The time estimate will improve.");
   await expect(view).not.toContainText('Unavailable');
@@ -166,7 +166,10 @@ test('a local file: Analyze in Simple and Advanced, light and dark, 1280x720 and
       for (const [w, hgt] of [[1280, 720], [390, 844]] as const) {
         await page.setViewportSize({ width: w, height: hgt });
         await page.waitForTimeout(300);
+        // Back to the top: the scroll region, and the page itself (a phone scrolls the page).
         await page.locator('[data-screen="analyze"] .scroll-region').evaluate((el) => { el.scrollTop = 0; });
+        await page.locator('[data-screen="analyze"] .view-head').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+        await expect(page.locator('[data-screen="analyze"] [data-analyze="time"]')).toBeInViewport();
         await page.screenshot({ path: `${SHOTS as string}/local-${level}-${scheme}-${w}x${hgt}.png` });
         // Further down: the findings' links, then the operations.
         for (const part of ['links', 'advice', 'details'] as const) {

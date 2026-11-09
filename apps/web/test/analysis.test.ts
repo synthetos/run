@@ -16,7 +16,7 @@ import type { FromGcodeWorker, ToGcodeWorker } from '../src/gcode-worker/protoco
 import { axisSettings, boardReading, lastReadLabel, motionInputs, type BoardReading } from '../src/workspace/analysisInputs.ts';
 import { motionView } from '../src/workspace/analysisState.ts';
 import { camTip, fixesFor } from '../src/workspace/views/analyze/findings.ts';
-import { headline, rapidsLine, stopsLine } from '../src/workspace/views/analyze/HeadlineStrip.ts';
+import { headline, longerLine, rapidsLine, stopsLine } from '../src/workspace/views/analyze/HeadlineStrip.ts';
 import { toolLabel } from '../src/workspace/views/analyze/OperationsCard.ts';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 import { shortMm } from '../src/workspace/views/analyze/format.ts';
@@ -153,10 +153,15 @@ describe('the headline and labels', () => {
   it('a lower bound for the cutting, stops and rapids in short words, tools from the tool table', () => {
     const view = motionView(preview(JOB).analysis, NO_SOURCES);
     expect(headline(view)).toMatch(/^At least \d+ s of cutting$/);
-    expect(headline({ ...view, time: { ...view.time, feedSeconds: { ...view.time.feedSeconds, value: null } } })).toBe('Cutting time not known');
+    // With some moves untimed, the known part is still a lower bound.
+    const partial = { ...view, time: { ...view.time, feedSeconds: { ...view.time.feedSeconds, value: null } } };
+    expect(headline(partial)).toBe(headline(view));
+    expect(headline({ ...partial, report: { ...view.report, knownFeedSeconds: 0 } })).toBe('Cutting time not known yet');
+    expect(longerLine(view)).toBe('Real time will be longer: rapids aren’t timed yet, the machine slows for short moves and 1 dwell adds 2 s.');
+    expect(longerLine(motionView(preview('G21 G90\nT1 M6\nM0\nG1 X1 F100\nM30\n').analysis, NO_SOURCES))).toBe('Real time will be longer: the machine slows for short moves and 1 tool change and 1 pause wait for you.');
     expect(stopsLine(0, 0)).toBeNull();
-    expect(stopsLine(2, 1)).toBe('Plus 2 tool changes and 1 pause.');
-    expect(stopsLine(0, 3)).toBe('Plus 3 pauses.');
+    expect(stopsLine(5, 5)).toBe('5 tool changes and 5 pauses wait for you');
+    expect(stopsLine(0, 1)).toBe('1 pause waits for you');
     expect(rapidsLine(view)).toBe('Rapids: 11 mm, not timed yet.'); // up 5 from the start, then up 6 from Z-1
     expect(rapidsLine(motionView(preview('G21 G90\nG1 X1 F100\nM30\n').analysis, NO_SOURCES))).toBe('No rapids.');
     const tool = SEED_TOOLS[0];
