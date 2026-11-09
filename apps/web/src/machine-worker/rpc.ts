@@ -186,8 +186,11 @@ export type MachineReply =
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'status'; readonly status: WorkerStatus }
   /** The settings write was accepted; its result appears in `snapshot.settingWrite` with this id. */
   | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'settingWrite'; readonly id: number }
-  /** The wire transcript of the last link that opened, as `{t, dir, hex}` JSONL (P1-08). */
-  | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'transcript'; readonly jsonl: string; readonly events: number }
+  /**
+   * The wire transcript of the last link that opened, as `{t, dir, hex}` JSONL (P1-08). `flash`, after a firmware
+   * update ran: the bootloader link's bytes in the same format, `t` in ms since that run asked for the bootloader.
+   */
+  | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'transcript'; readonly jsonl: string; readonly events: number; readonly flash?: { readonly jsonl: string; readonly events: number } }
   | {
       readonly v: typeof RPC_VERSION;
       readonly ok: false;

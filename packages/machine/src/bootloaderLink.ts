@@ -21,11 +21,16 @@
  *   abort, as everywhere on the machine path). After a failed write nothing
  *   more is written.
  * - Reads are exact byte counts with deadlines (`ByteBuffer`).
+ * - Every frame written and every chunk received can be recorded, whole and
+ *   timestamped, in an `EventLog` (the bench transcript's `{t, dir, hex}`
+ *   format): the flash transcript, the only record of what crossed the link
+ *   in bootloader role (the machine transcript ends at `{"boot":1}`).
  *
  * The machine session never sees this link, and this link never carries a
  * machine-session line: the two roles of the port are never open at once.
  */
 import { ByteBuffer, FrameGuard, LinkClosed, consumeBootloaderCapability, type BootloaderCapability, type ByteLink, type FlasherClock, type Part } from '@synthetos/flasher';
+import type { EventLog } from './eventLog.ts';
 import { TRANSPORT_BUFFER_SIZE, decideOpen } from './openPolicy.ts';
 import type { Transport, TransportOpenOptions } from './transport.ts';
 
@@ -53,14 +58,17 @@ export class BootloaderLink implements ByteLink {
   readonly #guard: FrameGuard;
   readonly #part: Part;
   readonly #buffer: ByteBuffer;
+  readonly #log: EventLog | null;
   #state: 'new' | 'open' | 'closed' = 'new';
   #writeFailed = false;
   #tail: Promise<void> = Promise.resolve();
   /** A short transcript (bounded). */
   readonly wire: FlashWireEvent[] = [];
 
-  constructor(inner: Transport, clock: FlasherClock, part: Part) {
+  /** `log`, when given, records every frame written and every chunk received, whole (the flash transcript). */
+  constructor(inner: Transport, clock: FlasherClock, part: Part, log: EventLog | null = null) {
     this.#inner = inner;
+    this.#log = log;
     this.#clock = clock;
     this.#part = part;
     this.#guard = new FrameGuard(part);
@@ -138,6 +146,8 @@ export class BootloaderLink implements ByteLink {
   }
 
   #record(dir: 'tx' | 'rx', bytes: Uint8Array): void {
+    if (dir === 'tx') this.#log?.tx(this.#clock.now(), bytes);
+    else this.#log?.rx(this.#clock.now(), bytes);
     if (this.wire.length >= 20_000) this.wire.splice(0, 1000);
     const head = [...bytes.subarray(0, dir === 'tx' ? 1 : 8)].map((b) => b.toString(16).padStart(2, '0')).join(' ');
     this.wire.push({ t: this.#clock.now(), dir, bytes: bytes.length, head });

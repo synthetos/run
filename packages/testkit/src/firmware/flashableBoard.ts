@@ -21,6 +21,8 @@
  *   empties it; xboot reads it as raw bytes (the model's image as JSON).
  * - `inputs` are the eight switch inputs; a test closes and opens them
  *   (`setInput`), and the firmware reads them (`in1`..`in8`).
+ * - `line` models what a real bench may do between the host and xboot, which
+ *   the ideal link above never shows (`BoardLineFaults`).
  */
 import '../marker.ts';
 import type { DeviceIo, SimDevice } from '../device.ts';
@@ -29,6 +31,20 @@ import type { TinyGModelOptions } from './common.ts';
 import type { EepromImage } from './settings.ts';
 import { SIM_APP_BYTES, readSimBuild, simImage, type SimBuild } from './simFirmware.ts';
 import { XB_BOOT_BYTES, XB_EEPROM_BYTES, XbootModel, type XbootFaults, type XbootTimings } from './xboot.ts';
+
+/**
+ * Bench conditions on the way into xboot. Both make the bootloader never answer; they differ in what the host sees.
+ */
+export interface BoardLineFaults {
+  /**
+   * The USB bridge holds every byte from the host while xboot runs; xboot's replies would still reach the host. On
+   * TinyG v8 the FT230X's CTS# input is wired to PC0, the firmware's RTS output, which the firmware drives and
+   * xboot leaves undriven: a bridge that honours CTS# then stops sending as soon as the board resets into xboot.
+   */
+  readonly bridgeHoldsHostBytesInBootloader?: boolean;
+  /** `{"boot":1}` restarts the application (banners and all) instead of entering xboot. */
+  readonly softwareResetRunsApplication?: boolean;
+}
 
 export interface FlashableBoardOptions {
   /** The application section the board starts with (default: the simulated edge-next 450.01). */
@@ -47,6 +63,7 @@ export interface FlashableBoardOptions {
    * fake-serial board runs its link faster so a whole flash takes seconds, not a minute.
    */
   readonly linkBaud?: number;
+  readonly line?: BoardLineFaults;
 }
 
 export type BoardState = 'app' | 'bootloader' | 'dead';
@@ -107,7 +124,7 @@ export class FlashableBoard implements SimDevice {
 
   receive(byte: number, overrun: boolean): void {
     if (this.#state === 'app') this.#app?.receive(byte, overrun);
-    else if (this.#state === 'bootloader') this.xboot.receive(byte);
+    else if (this.#state === 'bootloader' && this.#options.line?.bridgeHoldsHostBytesInBootloader !== true) this.xboot.receive(byte);
   }
 
   // --- FaultTarget ------------------------------------------------------------
@@ -199,7 +216,13 @@ export class FlashableBoard implements SimDevice {
       build,
       start: printBanners ? 'boot' : 'ready',
       onBootRequest: () => {
-        if (this.#app === model) this.#enterBootloader(true);
+        if (this.#app !== model) return;
+        if (this.#options.line?.softwareResetRunsApplication === true) {
+          this.#note('software reset: the application starts again (no bootloader answered)');
+          this.#startApplication(true);
+        } else {
+          this.#enterBootloader(true);
+        }
       },
       inputs: (n) => this.inputs[n] ?? 0,
     });

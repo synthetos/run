@@ -21,7 +21,7 @@ import { AlarmTone } from '../machine-ui/alarm.ts';
 import { axisModeView } from '../machine-ui/AxisModes.ts';
 import { EMPTY_AXIS_MODE_SESSION, type AxisModeSession } from '@synthetos/safety';
 import { lagAt } from '../machine-ui/Dro.ts';
-import { transcriptFileName, type TranscriptStatus } from '../machine-ui/TranscriptSave.ts';
+import { flashTranscriptFileName, transcriptFileName, type TranscriptStatus } from '../machine-ui/TranscriptSave.ts';
 import { downloadTranscript } from './transcriptDownload.ts';
 import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { callMachineWorker } from '../machine-worker/client.ts';
@@ -222,8 +222,10 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     if (!reply.ok || reply.kind !== 'transcript') {
       transcriptStatus = { kind: 'failed', message: reply.ok ? 'unexpected reply' : reply.message };
     } else {
-      const name = transcriptFileName(new Date());
+      const now = new Date();
+      const name = transcriptFileName(now);
       downloadTranscript(document, reply.jsonl, name);
+      if (reply.flash !== undefined) downloadTranscript(document, reply.flash.jsonl, flashTranscriptFileName(now));
       transcriptStatus = { kind: 'saved', name, events: reply.events };
     }
     publish();

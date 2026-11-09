@@ -261,7 +261,8 @@ export class MachineWorkerHost {
       case 'transcript': {
         const out = this.#session.exportTranscript();
         if (!out.ok) return refusal('transcript', 'unavailable', out.reason);
-        return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'transcript', jsonl: out.jsonl, events: out.events });
+        const flash = this.#flash.flashTranscript();
+        return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'transcript', jsonl: out.jsonl, events: out.events, ...(flash === null ? {} : { flash }) });
       }
       case 'status':
         return Object.freeze({

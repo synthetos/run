@@ -2,7 +2,8 @@
  * "Save transcript" (P1-08; docs/bench/GUIDE.md section 7): downloads the
  * machine worker's wire transcript of the last connection (`transcript`
  * request, `{t, dir, hex}` JSONL, one object per line) as a file whose name
- * carries the date and time.
+ * carries the date and time. After a firmware update, the bootloader link's
+ * bytes (the flash transcript, same format) are saved next to it.
  *
  * The transcript holds every byte the board sent, so it holds the board's
  * unique per-chip hardware id (its answer to the `id` read, as hex). The
@@ -23,6 +24,11 @@ export type TranscriptStatus =
 /** `run-transcript-2026-11-02T07-15-26Z.jsonl`: UTC, no colons (they are not allowed in Windows file names). */
 export function transcriptFileName(now: Date): string {
   return `run-transcript-${now.toISOString().replace(/\.\d+Z$/, 'Z').replace(/:/g, '-')}.jsonl`;
+}
+
+/** `run-flash-transcript-…jsonl`: the bootloader link's bytes from the last firmware update, saved alongside. */
+export function flashTranscriptFileName(now: Date): string {
+  return transcriptFileName(now).replace(/^run-transcript-/, 'run-flash-transcript-');
 }
 
 export const TRANSCRIPT_PRIVACY =

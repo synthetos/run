@@ -47,6 +47,6 @@ export type { Behaviour, BehaviourStatus, Citation, ModelLimit } from './honesty
 export { XBOOT_TIMINGS, XB_APP_BYTES, XB_BOOT_BYTES, XB_EEPROM_BYTES, XB_PAGE, XB_SIGNATURE, XbootModel } from './firmware/xboot.ts';
 export type { XbootFaults, XbootHost, XbootTimings } from './firmware/xboot.ts';
 export { FlashableBoard } from './firmware/flashableBoard.ts';
-export type { BoardState, FlashableBoardOptions } from './firmware/flashableBoard.ts';
+export type { BoardLineFaults, BoardState, FlashableBoardOptions } from './firmware/flashableBoard.ts';
 export { SIM_APP_BYTES, SIM_IMAGES, readSimBuild, simCrc16, simFirmwareImage, simHex, simImage } from './firmware/simFirmware.ts';
 export type { SimBuild, SimImageName } from './firmware/simFirmware.ts';

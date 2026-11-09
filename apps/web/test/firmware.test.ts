@@ -24,16 +24,28 @@ import type { FlashBackupsPost, MachineReply, SnapshotMessage } from '../src/mac
 const PORT: PortSelector = Object.freeze({ usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 });
 const ORIGIN = 'http://localhost:4173';
 
+/** How many links hold the simulated port, and the most that ever did at once (a real port opens only once). */
+interface PortHolders {
+  open: number;
+  most: number;
+}
+
 class SimTransport implements Transport {
   readonly #endpoint: SimEndpoint;
+  readonly #clock: VirtualClock;
+  readonly #holders: PortHolders;
+  readonly #closeMs: number;
   #open = false;
   #closed = false;
   #synced = false;
   #queue: Uint8Array[] = [];
   #wake: (() => void) | undefined;
   #error: Error | undefined;
-  constructor(endpoint: SimEndpoint) {
+  constructor(endpoint: SimEndpoint, clock: VirtualClock, holders: PortHolders, closeMs: number) {
     this.#endpoint = endpoint;
+    this.#clock = clock;
+    this.#holders = holders;
+    this.#closeMs = closeMs;
     endpoint.onHostData((c) => {
       if (!this.#open || this.#closed) return;
       // Test rig: a port opened while the board was half-way through a heartbeat line would hand the session the
@@ -61,6 +73,8 @@ class SimTransport implements Transport {
     if (!this.#endpoint.connected) throw new Error('NetworkError: no device');
     this.#endpoint.setHostBaud(options.baudRate);
     this.#open = true;
+    this.#holders.open++;
+    this.#holders.most = Math.max(this.#holders.most, this.#holders.open);
   }
   async writeLine(line: Uint8Array): Promise<void> {
     if (!this.#endpoint.connected) throw new Error('NetworkError');
@@ -82,8 +96,12 @@ class SimTransport implements Transport {
     return { [Symbol.asyncIterator]: () => ({ next }) };
   }
   async close(): Promise<void> {
+    if (this.#closed) return;
     this.#closed = true;
     this.#wake?.();
+    // A real port takes a while to close (drain, cancel the reader, close): it holds the port until then.
+    if (this.#closeMs > 0) await new Promise<void>((resolve) => this.#clock.setTimeout(resolve, this.#closeMs));
+    if (this.#open) this.#holders.open--;
   }
   onDisconnect(cb: () => void): void {
     this.#endpoint.onDisconnect(() => cb());
@@ -104,11 +122,12 @@ async function releaseList(minimumFb: number): Promise<FirmwareReleases> {
   return { env: 'staging', issuedMs: 0, expiresMs: Number.MAX_SAFE_INTEGER, boards: [{ hv: 99, minimumFb, releases: [await rel('newLayout', true), await rel('update', false), await rel('current', false)] }] };
 }
 
-function rig(options: { readonly minimumFb?: number; readonly board?: ConstructorParameters<typeof FlashableBoard>[0] } = {}) {
+function rig(options: { readonly minimumFb?: number; readonly board?: ConstructorParameters<typeof FlashableBoard>[0]; readonly closeMs?: number } = {}) {
   const clock = new VirtualClock();
+  const holders: PortHolders = { open: 0, most: 0 };
   const board = new FlashableBoard({ model: { bootMs: 50, eepromWriteMs: 0 }, linkBaud: 2_000_000, eeprom: { __layout: 10002, st: 1, zsn: 1 }, ...options.board });
   const endpoint = new SimEndpoint({ clock, device: board, link: { baudRate: 2_000_000, latencyMs: 0.2, coalesceMs: 2 } });
-  const source: TransportSource = { kind: 'fake', request: async (p) => (p.grantIndex === 0 && endpoint.connected ? new SimTransport(endpoint) : null) };
+  const source: TransportSource = { kind: 'fake', request: async (p) => (p.grantIndex === 0 && endpoint.connected ? new SimTransport(endpoint, clock, holders, options.closeMs ?? 0) : null) };
   const host = new MachineWorkerHost(source, clock, { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130' }, {
     file: null,
     origin: ORIGIN,
@@ -158,7 +177,7 @@ function rig(options: { readonly minimumFb?: number; readonly board?: Constructo
     await until(() => host.session.snapshot.classification !== null && host.session.snapshot.base !== 'READING' && host.session.snapshot.base !== 'IDENTIFYING', 30_000);
     await until(() => false, 3000);
   };
-  return { clock, board, endpoint, host, posted, until, call, backupsPost, readAll, connect };
+  return { clock, board, endpoint, host, posted, until, call, backupsPost, readAll, connect, holders };
 }
 
 type Rig = ReturnType<typeof rig>;
@@ -329,6 +348,81 @@ describe('the firmware update in the worker', () => {
     await r.until(() => false, 1000);
     await r.connect([{ ...trust, boardId: 'ANOTHER-BOARD' }]);
     expect(r.host.session.snapshot.overlays).toContain('READ_ONLY');
+  }, 120_000);
+});
+
+/** One line of a `{t, dir, hex}` transcript. */
+interface WireLine {
+  readonly t: number;
+  readonly dir: 'tx' | 'rx';
+  readonly hex: string;
+}
+
+async function beginUpdate(r: Rig): Promise<void> {
+  const x = await sim('update');
+  const begin = await r.call({ v: 3, kind: 'flash', command: { op: 'begin', source: { kind: 'release', hv: 99, fb: x.fb, file: x.file }, hex: x.hex, sha256: x.sha256, settingsBackup: 'saved', baseline: { st: 1 }, recovery: false } });
+  expect(begin).toMatchObject({ ok: true });
+}
+
+async function flashLines(r: Rig): Promise<WireLine[]> {
+  const reply = await r.call({ v: 3, kind: 'transcript' });
+  if (!reply.ok || reply.kind !== 'transcript' || reply.flash === undefined) throw new Error('no flash transcript');
+  return reply.flash.jsonl
+    .trim()
+    .split('\n')
+    .map((l) => JSON.parse(l) as WireLine);
+}
+
+describe('when the bootloader does not answer (bench 2, 2026-11-09)', () => {
+  it('the bridge holds run\'s bytes while xboot runs: 10 s of ESC and S, nothing back; the transcript and the message say so', async () => {
+    const r = rig({ board: { line: { bridgeHoldsHostBytesInBootloader: true } } });
+    await r.connect();
+    await beginUpdate(r);
+    expect(await r.until(() => r.host.flash.view?.phase === 'failed', 60_000)).toBe(true);
+    const view = r.host.flash.view;
+    // What the owner saw, and now what came back.
+    expect(view?.message).toContain('did not answer within 10 s');
+    expect(view?.message).toContain('Nothing came back');
+    expect(view).toMatchObject({ wrote: false, recoveryOffered: false });
+    expect(r.backupsPost()).toBeUndefined();
+    // The board did reset into xboot (60 s window) and goes back to its firmware only when the window ends.
+    expect(r.board.state).toBe('bootloader');
+    await r.until(() => r.board.state === 'app', 70_000);
+    expect(r.board.build?.fb).toBe(450.01);
+    // The flash transcript: ESC and S alternately for 10 s, starting after the session's port closed; no byte back.
+    const lines = await flashLines(r);
+    const tx = lines.filter((l) => l.dir === 'tx');
+    expect(lines.filter((l) => l.dir === 'rx')).toEqual([]);
+    expect(tx[0]).toMatchObject({ hex: '1b' });
+    expect(tx[1]).toMatchObject({ hex: '53' });
+    expect((tx[0] as WireLine).t).toBeGreaterThanOrEqual(300);
+    expect(new Set(tx.map((l) => l.hex))).toEqual(new Set(['1b', '53']));
+    expect((tx.at(-1) as WireLine).t - (tx[0] as WireLine).t).toBeGreaterThanOrEqual(9_500);
+  }, 120_000);
+
+  it('the reset comes back in the firmware: its banner arrives on the bootloader link; the message says what it sent', async () => {
+    // A banner that comes after the port reopened (300 ms). One that comes sooner is lost with the closed port, and
+    // the firmware answers neither ESC nor S: then this case also reads "Nothing came back".
+    const r = rig({ board: { model: { bootMs: 800, eepromWriteMs: 0 }, line: { softwareResetRunsApplication: true } } });
+    await r.connect();
+    await beginUpdate(r);
+    expect(await r.until(() => r.host.flash.view?.phase === 'failed', 60_000)).toBe(true);
+    const message = r.host.flash.view?.message ?? '';
+    expect(message).toContain('did not answer within 10 s');
+    expect(message).toMatch(/The board sent \d+ bytes, none of them the bootloader's answer/);
+    expect(message).toContain('the firmware may still be running');
+    expect(r.board.state).toBe('app');
+    const lines = await flashLines(r);
+    expect(lines.some((l) => l.dir === 'rx')).toBe(true);
+  }, 120_000);
+
+  it('opens the port in bootloader role only after the session closed it, however long the close takes', async () => {
+    const r = rig({ closeMs: 1500 });
+    await r.connect();
+    await flash(r, 'update', { st: 1 });
+    expect(r.host.flash.view?.phase).toBe('done');
+    expect(r.board.build?.fb).toBe(450.02);
+    expect(r.holders.most).toBe(1);
   }, 120_000);
 });
 

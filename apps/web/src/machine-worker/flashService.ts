@@ -15,10 +15,12 @@
  *    the idle gate, `{"boot":1}`, the session closes its link.
  *    Recovery (a board with no application) skips this: the user unplugs and
  *    replugs USB while run sends ESC (a countdown).
- * 3. **Open the same port in bootloader role**: the transport source is asked
- *    for the port the user confirmed at Connect (the same selector; never a
- *    new choice) and `BootloaderLink` opens it with a capability from the
- *    authorization.
+ * 3. **Open the same port in bootloader role**, once the session's link has
+ *    closed: the transport source is asked for the port the user confirmed at
+ *    Connect (the same selector; never a new choice) and `BootloaderLink`
+ *    opens it with a capability from the authorization. Everything that link
+ *    writes and receives goes into the flash transcript (`flashTranscript`),
+ *    and a bootloader that never answers is reported with what came back.
  * 4. **Flash** (packages/flasher flashRun.ts): backups (raw EEPROM, the whole
  *    application section) are posted to the page, and nothing is written
  *    until the page answers that it stored them (`backupsSaved`, with the
@@ -36,7 +38,7 @@
  * Two tabs cannot flash at once: only the tab whose worker holds the port
  * can, and a flash in progress refuses a second (H88).
  */
-import { BootloaderLink, sessionSettings, type MachineSession, type PortSelector, type SessionClock, type SessionSnapshot, type Transport, type TransportSource } from '@synthetos/machine';
+import { BootloaderLink, EventLog, sessionSettings, type MachineSession, type PortSelector, type SessionClock, type SessionSnapshot, type Transport, type TransportSource } from '@synthetos/machine';
 import {
   X192A3,
   XbootClient,
@@ -54,6 +56,7 @@ import {
 } from '@synthetos/flasher';
 import { releasesForHardware, type FirmwareReleases } from '@synthetos/protocol';
 import { categoryOf, restoreChanges, type SettingValue } from '@synthetos/schema';
+import { entryDiagnosis } from './flashDiagnosis.ts';
 
 /** How long the page has to store the backups before the run gives up (nothing written). */
 export const BACKUP_SAVE_MS = 60_000;
@@ -187,6 +190,8 @@ export class FlashService {
   #post: (PostFlashView & { readonly baseline: Readonly<Record<string, number | string>> }) | null = null;
   #seen = new Map<number, { open: boolean; closed: boolean }>();
   #installed = new Map<string, { sha256: string; fb: number | null }>();
+  /** The bootloader link's bytes for the last run, from the moment it asked for the bootloader. */
+  #transcript: EventLog | null = null;
 
   constructor(deps: FlashServiceDeps) {
     this.#d = deps;
@@ -206,6 +211,16 @@ export class FlashService {
     if (this.#post === null) return null;
     const { baseline: _b, ...view } = this.#post;
     return view;
+  }
+
+  /**
+   * The last run's flash transcript (`{t, dir, hex}` JSONL, `t` in ms since the run asked for the bootloader): every
+   * byte the bootloader link wrote and received. Null before the first run or when it passed its bound.
+   */
+  flashTranscript(): { readonly jsonl: string; readonly events: number } | null {
+    const log = this.#transcript;
+    if (log === null || log.truncated) return null;
+    return Object.freeze({ jsonl: log.toJsonl(), events: log.events().length });
   }
 
   /** The image this worker last flashed onto each board (the trust check reads it). */
@@ -452,6 +467,7 @@ export class FlashService {
     const begin = this.#begin as FlashBegin;
     const port = this.#port as PortSelector;
     let link: BootloaderLink | null = null;
+    this.#transcript = new EventLog(this.#d.clock.now());
     try {
       if (!recovery) {
         const entered = await this.#enterBootloader();
@@ -462,7 +478,7 @@ export class FlashService {
       }
       link = recovery ? await this.#recoveryLink(id, auth, port) : await this.#openLink(auth, port);
       if (link === null) {
-        this.#finish(id, { phase: 'failed', message: recovery ? 'The bootloader did not answer. Unplug the USB cable, plug it back in and try recovery again.' : 'The port could not be opened in bootloader role.', recoveryOffered: true });
+        this.#finish(id, { phase: 'failed', message: recovery ? `The bootloader did not answer. Unplug the USB cable, plug it back in and try recovery again. ${this.#diagnosis()}` : 'The port could not be opened in bootloader role.', recoveryOffered: true });
         return;
       }
       const client = new XbootClient(link, this.#d.clock, X192A3);
@@ -481,7 +497,8 @@ export class FlashService {
       await link.close();
       link = null;
       if (!outcome.ok) {
-        this.#finish(id, { phase: 'failed', message: outcome.message, recoveryOffered: outcome.wrote, wrote: outcome.wrote });
+        const message = outcome.code === 'no-entry' ? `${outcome.message}. ${this.#diagnosis()}` : outcome.message;
+        this.#finish(id, { phase: 'failed', message, recoveryOffered: outcome.wrote, wrote: outcome.wrote });
         return;
       }
       auth.finish();
@@ -498,6 +515,11 @@ export class FlashService {
       await link?.close().catch(() => undefined);
       this.#finish(id, { phase: 'failed', message: error instanceof Error ? error.message : String(error) });
     }
+  }
+
+  /** What came back on the bootloader link (flashDiagnosis.ts). */
+  #diagnosis(): string {
+    return entryDiagnosis(this.#transcript?.events() ?? []);
   }
 
   #finish(id: number, patch: Partial<FlashView>): void {
@@ -536,11 +558,13 @@ export class FlashService {
   }
 
   async #openLink(auth: FlashAuthorization, port: PortSelector): Promise<BootloaderLink | null> {
-    // The FTDI bridge stays on the bus while the board resets: the same port, asked for by the same selector.
+    // The FTDI bridge stays on the bus while the board resets: the same port, asked for by the same selector, once the
+    // session's link has closed it (a port that is still closing cannot be opened again).
+    await this.#d.session.portReleased();
     await sleep(this.#d.clock, 300);
     const inner = await this.#d.source.request(port).catch(() => null);
     if (inner === null) return null;
-    const link = new BootloaderLink(inner, this.#d.clock, X192A3);
+    const link = new BootloaderLink(inner, this.#d.clock, X192A3, this.#transcript);
     const token = auth.capability();
     if (token === null) return null;
     await link.open(token);

@@ -17,7 +17,7 @@ import { PHASE_1_RELEASE, PHASE_2_RELEASE, withFlasher, withSettingsWrites } fro
 import { X192A3, XbootClient, authorizeFlash, parseIntelHex, planFlash, runFlash, sha256Hex, type BootloaderCapability } from '@synthetos/flasher';
 import { mintBootloaderCapability } from '../../flasher/src/bootloaderCapability.ts';
 import { FlashableBoard, SimEndpoint, VirtualClock, simHex, simImage } from '@synthetos/testkit';
-import { BOOT_LINE, BootloaderLink, MachineSession, bootloaderOpenOptions, checkWrite, decideOpen, initialState, phase1WriteVerdict, type SessionEffect } from '../src/index.ts';
+import { BOOT_LINE, BootloaderLink, EventLog, MachineSession, bootloaderOpenOptions, toHex, checkWrite, decideOpen, initialState, phase1WriteVerdict, type SessionEffect } from '../src/index.ts';
 import { Driver, EN_ANSWERS } from './sessionDriver.ts';
 import { FakeTransport, enc, flush } from './fakeTransport.ts';
 import { PORT, SimTransport, microtasks, simSource } from './simTransport.ts';
@@ -233,6 +233,35 @@ describe('BootloaderLink', () => {
     expect(link.wire.at(-1)?.dir).toBe('tx');
   });
 
+  it('records every frame and every chunk received, whole and timestamped, in the flash transcript', async () => {
+    const clockV = new VirtualClock();
+    const board = new FlashableBoard({ start: 'bootloader' });
+    const endpoint = new SimEndpoint({ clock: clockV, device: board });
+    const log = new EventLog(clockV.now());
+    const link = new BootloaderLink(new SimTransport(endpoint), clockV, X192A3, log);
+    await link.open(mintBootloaderCapability());
+    clockV.advanceTo(clockV.now() + 300);
+    await link.write(Uint8Array.of(0x1b));
+    await link.write(Uint8Array.of(0x53));
+    const reply = link.read(7, 1000);
+    for (let i = 0; i < 40 && clockV.nextAt() !== undefined; i++) {
+      clockV.advanceTo(clockV.nextAt() as number);
+      await microtasks();
+    }
+    await reply;
+    const events = log.events();
+    expect(events.filter((e) => e.dir === 'tx').map((e) => [e.t, toHex(e.bytes)])).toEqual([
+      [300, '1b'],
+      [300, '53'],
+    ]);
+    const rx = events.filter((e) => e.dir === 'rx');
+    // The answer first (the loop above runs the clock on past xboot's watchdog, so the firmware's banners follow).
+    expect(new TextDecoder().decode(Uint8Array.from(rx.flatMap((e) => [...e.bytes]))).slice(0, 7)).toBe('XBoot++');
+    expect((rx[0] as { t: number }).t).toBeGreaterThan(300);
+    expect(log.toJsonl().split('\n')[0]).toBe('{"t":300,"dir":"tx","hex":"1b"}');
+    await link.close();
+  });
+
   it('reads exact counts from the port, ends reads on a disconnect, closes once', async () => {
     const clockV = new VirtualClock();
     const board = new FlashableBoard({ start: 'bootloader' });
@@ -309,14 +338,20 @@ describe('end to end on the flashable board: session → bootloader → flash �
       }
       return value as T;
     };
+    // No link yet: nothing holds the port.
+    await expect(session.portReleased()).resolves.toBeUndefined();
     const connected = session.connect(PORT);
     await run(3000);
     expect((await connected).ok).toBe(true);
     await run(3000);
     expect(session.snapshot.identity?.fb).toBe(450.01);
+    // Open and not closing: nothing to wait for.
+    await expect(session.portReleased()).resolves.toBeUndefined();
     expect(session.request({ intent: 'flash' }).allowed).toBe(true);
     await run(500);
     expect(session.snapshot.base).toBe('NOT_CONNECTED');
+    // The link closed after {"boot":1}: the flasher waits for this before it opens the port in bootloader role.
+    await expect(until(session.portReleased())).resolves.toBeUndefined();
     expect(session.snapshot.notices.bootloaderEntered?.port).toEqual(PORT);
     expect(board.state).toBe('bootloader');
 

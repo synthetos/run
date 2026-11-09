@@ -159,6 +159,15 @@ export class MachineSession {
   }
 
   /**
+   * Settles once the last link's port is closed (at once when no link is closing). The flasher waits for it before
+   * it opens the same port in bootloader role: a port that is still closing cannot be opened again.
+   */
+  portReleased(): Promise<void> {
+    const link = this.#link;
+    return link !== null && link.closing && link.closed !== null ? link.closed : Promise.resolve();
+  }
+
+  /**
    * The wire transcript (`{t, dir, hex}` JSONL) of the most recent link that
    * opened, including one that has since disconnected. Refused when no port
    * has opened yet, or when the transcript passed its bound (a partial one
