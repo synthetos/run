@@ -16,11 +16,12 @@
 .job-view .viewer > .viewer-top { position: relative; inset: auto; flex: none; }
 .viewer-overlay { position: absolute; left: 12px; right: 48px; bottom: 10px; max-height: calc(100% - 64px); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; overflow: hidden; pointer-events: none; z-index: var(--z-raised); }
 .job-view .viewer > .viewer-overlay { position: relative; inset: auto; flex: 0 1 auto; min-height: 0; max-height: none; margin: auto 36px 0 0; padding-top: 6px; }
-.viewer-overlay > * { pointer-events: auto; }
+/* Clicks and drags on the key's text go through to the drawing (a click on the stock under a note still opens
+   the stock's settings); only its buttons and links take the pointer. */
 .viewer-overlay-scroll { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; flex: 0 1 auto; min-height: 0; max-width: 100%; overflow-y: auto; overscroll-behavior: contain; pointer-events: none; }
-.viewer-overlay-scroll > * { pointer-events: auto; }
+.viewer-overlay :is(button, a, select, input, summary) { pointer-events: auto; }
 .viewer-overlay > .pv-marker-readout { flex: none; }
-.viewer-overlay .scene-key { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 100%; }
+.viewer-overlay .scene-key { pointer-events: none; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 100%; }
 .viewer-overlay .viewer-key,
 .viewer-overlay .viewer-key.scene-notes,
 .viewer-overlay .viewer-key.scene-key-line { position: static; inset: auto; top: auto; right: auto; bottom: auto; left: auto; max-width: min(560px, 100%); box-sizing: border-box; overflow-wrap: anywhere; }
