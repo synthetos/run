@@ -524,3 +524,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 @media (max-width: 600px) {
   .context-help .help-copy, .context-help.help-below .help-copy, .context-help.help-end .help-copy { position: fixed; left: 16px; right: 16px; top: auto; bottom: 16px; width: auto; max-height: 40vh; overflow: auto; }
 }
+/* An inline confirmation inside a panel (tool delete, C1): the question, then Cancel and the action. */
+.inline-confirm { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--danger); border-radius: var(--r-sm); background: var(--danger-soft); }
+.inline-confirm p { margin: 0 0 8px; font-size: 12.5px; }
+.inline-confirm-actions { display: flex; gap: 8px; }
+button.danger-quiet { margin-top: 10px; color: var(--danger); }

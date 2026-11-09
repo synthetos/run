@@ -19,6 +19,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { isPlaceholder, userValue, MATERIAL_FAMILIES, TOOL_MATERIALS, type CoolantNeed, type HardnessScale, type MaterialCutting, type SafetySeverity, type BehaviourKind, type Sourced } from '@synthetos/library';
 import {
   addTool,
+  toolsByNumber,
   allMaterials,
   createMaterial,
   deleteMaterial,
@@ -51,6 +52,8 @@ import { num } from '../status.ts';
 import { TabBar, TabPane } from '../ui.ts';
 import { toolFocus } from '../toolNumbers.ts';
 import { ToolNumberField } from './ToolNumberField.ts';
+import { ToolNameField } from './ToolNameField.ts';
+import { ToolDelete } from './ToolDelete.ts';
 import { ToolShapeFields } from './ToolShapeFields.ts';
 
 export const PLACEHOLDER_NOTE = 'Placeholder values: not yet sourced. They show the shape of the data, not machining advice.';
@@ -185,7 +188,7 @@ function textArea(label: string, value: string, onChange: (s: string) => void, m
 
 type ToolTab = 'details' | 'buy' | 'cutting';
 
-function ToolInspector({ entry }: { readonly entry: ToolEntry }): ComponentChild {
+function ToolInspector({ entry, onDeleted }: { readonly entry: ToolEntry; readonly onDeleted: () => void }): ComponentChild {
   const tool = entry.tool;
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<ToolTab>('details');
@@ -206,6 +209,7 @@ function ToolInspector({ entry }: { readonly entry: ToolEntry }): ComponentChild
         h(
           'div',
           { class: 'field-grid' },
+          h(ToolNameField, { id: tool.id, name: tool.name }),
           h(ToolNumberField, { id: tool.id, number: entry.number }),
           numberField('Diameter', tool.geometry.diameter, 'mm', (n) => geo('diameter', n)),
           h(ToolShapeFields, { tool, set }),
@@ -224,6 +228,7 @@ function ToolInspector({ entry }: { readonly entry: ToolEntry }): ComponentChild
           h('div', null, h('dt', null, 'Cut so far'), h('dd', null, `${num(tool.life.minutes)} min`)),
           h('div', null, h('dt', null, 'Version'), h('dd', null, String(tool.version))),
         ),
+        h(ToolDelete, { id: tool.id, label: `T${entry.number} · ${tool.name}`, onDeleted }),
       ),
     ),
     h(
@@ -265,6 +270,8 @@ export function ToolsView(): ComponentChild {
   const tools = toolStore.value.value;
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState<string | null>(null);
+  // A new tool is scrolled into view once, in its T-number place (C16).
+  const [reveal, setReveal] = useState<string | null>(null);
   // "Add T1 to your tool table" from the 3D view's key selects that tool (toolNumbers.ts).
   const focus = toolFocus.value;
   useEffect(() => {
@@ -273,7 +280,7 @@ export function ToolsView(): ComponentChild {
     setSelected(focus);
     toolFocus.value = null;
   }, [focus]);
-  const shown = tools.filter((t) => filter === 'all' || t.tool.type === filter);
+  const shown = toolsByNumber(tools.filter((t) => filter === 'all' || t.tool.type === filter));
   const current = tools.find((t) => t.tool.id === selected) ?? shown[0] ?? tools[0] ?? null;
   return h(
     'div',
@@ -282,7 +289,7 @@ export function ToolsView(): ComponentChild {
       'div',
       { class: 'view-head' },
       h('div', { class: 'title-block' }, h('h1', null, 'Tool library')),
-      h('div', { class: 'view-actions' }, h('button', { type: 'button', class: 'primary', 'data-action': 'add-tool', onClick: () => setSelected(addTool()) }, Icon('plus', 15), 'Add a tool')),
+      h('div', { class: 'view-actions' }, h('button', { type: 'button', class: 'primary', 'data-action': 'add-tool', onClick: () => { const id = addTool(); setFilter('all'); setSelected(id); setReveal(id); } }, Icon('plus', 15), 'Add a tool')),
     ),
     h(
       'div',
@@ -318,7 +325,7 @@ export function ToolsView(): ComponentChild {
               shown.map((e) =>
                 h(
                   'tr',
-                  { key: e.tool.id, 'aria-selected': current?.tool.id === e.tool.id ? 'true' : 'false', onClick: () => setSelected(e.tool.id) },
+                  { key: e.tool.id, 'aria-selected': current?.tool.id === e.tool.id ? 'true' : 'false', 'data-tool-row': e.number, onClick: () => setSelected(e.tool.id), ...(reveal === e.tool.id ? { ref: (el: HTMLElement | null) => { if (el !== null) { el.scrollIntoView({ block: 'nearest' }); setReveal(null); } } } : {}) },
                   h('td', { class: 't-art' }, h(ToolArt, { tool: e.tool })),
                   h('td', null, h('button', { type: 'button', class: 'row-link', onClick: () => setSelected(e.tool.id) }, h('strong', null, `T${e.number} · ${e.tool.name}`)), h('small', null, TOOL_KINDS[e.tool.type] ?? e.tool.type)),
                   h('td', { class: 'num' }, `${e.tool.geometry.diameter} mm`),
@@ -331,7 +338,7 @@ export function ToolsView(): ComponentChild {
           ),
         ),
       ),
-      current === null ? h('aside', { class: 'inspector' }, h('section', { class: 'insp' }, h('p', null, 'No tools yet. Add one to begin.'))) : h(ToolInspector, { entry: current, key: current.tool.id }),
+      current === null ? h('aside', { class: 'inspector' }, h('section', { class: 'insp' }, h('p', null, 'No tools yet. Add one to begin.'))) : h(ToolInspector, { entry: current, key: current.tool.id, onDeleted: () => setSelected(null) }),
     ),
   );
 }

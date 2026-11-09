@@ -167,6 +167,8 @@ describe('Phase 1 control allowlist', () => {
     /^action:(backup-compare|backup-export|backup-delete|backup-import|firmware-download|firmware-delete|trust-revoke|trust-cancel|cancel-flash|flash-cancel|flash-dismiss|flash-reconnect|switch-test-start)$/,
     /^preview:(file|rapids|dialect|mode|scrubber|fit|cancel|view-iso|view-top|view-front)$/,
     /^sample:(mounting-plate|test-square)$/,
+    // The tool library's records in this browser (first-time walk C1): delete a tool, behind an in-page confirm.
+    /^action:tool-delete(-cancel|-confirm)?$/,
     // The 3D view's own presentation (first-time walk B4): Expand the drawing, hide or show its key. Never a board command.
     /^action:(preview-expand|key-toggle)$/,
     /^preview:key-notes-count$/,

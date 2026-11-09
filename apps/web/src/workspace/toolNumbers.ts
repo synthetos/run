@@ -20,7 +20,8 @@ export function setToolNumber(id: string, value: number): string | null {
   if (!list.some((t) => t.tool.id === id)) return 'No such tool.';
   const issue = toolNumberIssue(list, id, value);
   if (issue !== null) return issue;
-  toolStore.set(list.map((t) => (t.tool.id === id ? { ...t, number: value } : t)));
+  // A tool still called by its default name ("T7 tool", C1) follows its new number; a name the user chose stays.
+  toolStore.set(list.map((t) => (t.tool.id !== id ? t : { ...t, number: value, tool: t.tool.name === `T${t.number} tool` ? { ...t.tool, name: `T${value} tool` } : t.tool })));
   return null;
 }
 

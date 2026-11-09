@@ -364,14 +364,27 @@ export function updateTool(id: string, patch: Readonly<Record<string, unknown>>)
   return null;
 }
 
-/** Adds a new tool numbered `number` (default: one above the highest T number) and returns its id. */
+/** Deletes a tool from the library (C1). Returns false when there is no such tool. */
+export function deleteTool(id: string): boolean {
+  const list = toolStore.value.value;
+  if (!list.some((t) => t.tool.id === id)) return false;
+  toolStore.set(list.filter((t) => t.tool.id !== id));
+  return true;
+}
+
+/** The tools in T-number order (C16): the list, the pickers and the key read them this way. */
+export function toolsByNumber(list: readonly ToolEntry[]): readonly ToolEntry[] {
+  return [...list].sort((a, b) => a.number - b.number);
+}
+
+/** Adds a new tool numbered `number` (default: one above the highest T number), named "T<n> tool" (C1), and returns its id. */
 export function addTool(number?: number): string {
   const list = toolStore.value.value;
   number ??= Math.max(0, ...list.map((t) => t.number)) + 1;
   const tool: Tool = {
     id: `mine.t${number}-${Date.now().toString(36)}`,
     version: 1,
-    name: `New tool ${number}`,
+    name: `T${number} tool`,
     type: 'flat',
     geometry: { diameter: 3.175, shank: 3.175, flutes: 2, fluteLength: 12, overallLength: 38 },
     toolMaterial: 'carbide',
