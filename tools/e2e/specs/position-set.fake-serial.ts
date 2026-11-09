@@ -36,7 +36,7 @@ test('Set machine zero here (G28.3) is "Position set by hand" in amber, never "H
   const worker = await connectSimple(page);
   const tag = page.locator(TAG).first();
   await expect(tag).toContainText('Not homed');
-  await page.getByRole('button', { name: 'Set the machine zero here, without homing (G28.3)' }).click();
+  await page.getByRole('button', { name: 'Set the machine zero here, without homing' }).click();
   await page.locator('[data-region="home-quick"] button', { hasText: 'Set machine position' }).click();
   await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_HOMED');
   await expect(tag).toContainText('Position set by hand');

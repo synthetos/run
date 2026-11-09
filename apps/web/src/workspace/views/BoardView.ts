@@ -415,7 +415,7 @@ function OverviewTab({ view }: { readonly view: LiveView | null }): ComponentChi
       { class: 'viewer board-canvas' },
       h('div', { class: 'viewer-top' }, h('span', { class: 'viewer-label' }, 'TinyG v8 · choose any terminal')),
       h(BoardIllustration, { selected, onSelect: select, settings }),
-      h('div', { class: 'viewer-foot' }, 'Public-board drawing (OD-5) · pin names from the board definition · exact revision must be verified'),
+      h('div', { class: 'viewer-foot' }, 'Drawn from public information about the board · pin names from the board definition · check your board’s revision'),
     ),
     h(
       'aside',

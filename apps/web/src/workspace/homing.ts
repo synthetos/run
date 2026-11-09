@@ -110,7 +110,7 @@ function homeBody({ model }: HomeProps, hk: Hooks): ComponentChild {
       { class: 'motion-recovery' },
       button('Home all', `Home all configured axes${hv.configured.length > 0 ? ` (${axesText(hv.configured)})` : ''}`, () => setAsking({ kind: 'home', axes: hv.configured }), hv.configured.length > 0, 'small primary', 'No axis has a homing switch and search speed set.'),
       // For a machine without switches, or before its homing settings are read: offered whenever the machine is at rest (OD-13 §4).
-      button('Set machine zero here…', 'Set the machine zero here without homing (G28.3)', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true),
+      button('Set machine zero here…', 'Set the machine zero here, without homing', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true),
     ),
     enabled ? confirmFor(asking, hv, run, () => setAsking(null)) : null,
     note === null && change === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-home': 'note' }, note ?? change),
@@ -141,7 +141,7 @@ function homeQuickBody({ model }: HomeProps, hk: Hooks): ComponentChild {
       'div',
       { class: 'motion-recovery' },
       quick('home', `Home all configured axes${hv.configured.length > 0 ? ` (${axesText(hv.configured)})` : ''}`, () => setAsking({ kind: 'home', axes: hv.configured }), hv.configured.length > 0, 'No axis has a homing switch and search speed set.', true),
-      quick('machineZero', 'Set the machine zero here, without homing (G28.3)', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true, null, false),
+      quick('machineZero', 'Set the machine zero here, without homing', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true, null, false),
     ),
     enabled ? confirmFor(asking, hv, run, () => setAsking(null)) : null,
     note === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-home': 'note' }, note),
@@ -208,7 +208,7 @@ export function UnknownExits({ model }: { readonly model: WorkspaceModel | null 
       // One click (owner, 2026-11-04): the message above is the confirmation; no second card.
       h(IconButton, { icon: 'check', label: 'I’ve checked the machine: its position is right', primary: true, attrs: { 'data-action': 'unknown-verify' }, onClick: () => run({ op: 'positionVerify' }) }),
       canHome ? h(IconButton, { icon: 'home', label: 'Home the machine', attrs: { 'data-action': 'unknown-home' }, onClick: () => setAsking({ kind: 'home', axes: hv.configured }) }) : null,
-      canPosition ? h(IconButton, { icon: 'machineZero', label: 'Set the machine zero here, without homing (G28.3)', attrs: { 'data-action': 'unknown-position' }, onClick: () => setAsking({ kind: 'position', axes: POSITION_AXES }) }) : null,
+      canPosition ? h(IconButton, { icon: 'machineZero', label: 'Set the machine zero here, without homing', attrs: { 'data-action': 'unknown-position' }, onClick: () => setAsking({ kind: 'position', axes: POSITION_AXES }) }) : null,
     ),
     send === undefined ? null : confirmFor(asking, hv, run, () => setAsking(null)),
     note === null ? null : h('p', { class: 'unavailable', role: 'status' }, note),

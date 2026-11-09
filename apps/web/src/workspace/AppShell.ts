@@ -36,7 +36,7 @@ import { stripStatus } from './status.ts';
 import { BoardView } from './views/BoardView.ts';
 import { boardTab } from './boardNavigation.ts';
 import { LibraryView } from './views/LibraryView.ts';
-import { jobStep, librarySection, type LibrarySection } from './jobWorkflow.ts';
+import { jobStep, librarySection, uiLevel, type LibrarySection } from './jobWorkflow.ts';
 import { AnalyzeView, PreferencesView, SafetyView } from './views/OtherViews.ts';
 import { ProjectsView } from '../projects/ProjectsView.ts';
 import { JobView } from './views/JobView.ts';
@@ -241,7 +241,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
   const pane = (id: ViewId, child: ComponentChild): ComponentChild => h('section', { class: 'view', 'data-screen': id, hidden: current !== id, 'aria-label': VIEWS.find((v) => v.id === id)?.label, key: id }, child);
   return h(
     'div',
-    { class: 'app', 'data-shell': 'workspace' },
+    { class: 'app', 'data-shell': 'workspace', 'data-level': uiLevel.value.value },
     h(SafetyBar, { build: props.build, variant: 'workspace' }),
     h(
       'header',

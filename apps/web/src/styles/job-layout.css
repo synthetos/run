@@ -107,3 +107,7 @@
   .job-view .job-step-bar strong { white-space: normal; font-size: 10.5px; line-height: 1.2; overflow-wrap: break-word; }
   .job-view .job-step-bar small { display: none; }
 }
+
+/* ---------- Simple hides firmware keys and internal codes (first-time walk C10) ---------- */
+.app[data-level="simple"] .raw-key,
+.app[data-level="simple"] [data-advanced-only] { display: none !important; }

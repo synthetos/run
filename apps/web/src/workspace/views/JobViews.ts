@@ -34,7 +34,8 @@ const NO_CHOICES: StartChoices = Object.freeze({ unhomed: false, workZero: false
 
 function speedsText(job: JobSnapshot | null): string {
   const speeds = job?.report?.speeds ?? [];
-  return speeds.length === 0 ? 'speed set by the machine' : speeds.map((s) => `S${s}`).join(', ');
+  // In plain words (C12): "16,000 rpm", not the G-code word "S16000".
+  return speeds.length === 0 ? 'speed set by the machine' : speeds.map((s) => `${s.toLocaleString('en-US')} rpm`).join(', ');
 }
 
 /** The Check → Set zero → Start stepper (H73). */

@@ -42,6 +42,7 @@ import { closeJob, currentFile, currentPreview, executionLock, openJob, pendingO
 import { activeJob, jobSaved, type Job } from '../jobModel.ts';
 import { bedSizeText, jobStateText, machineText } from '../revisionWords.ts';
 import { fileSummary } from '../lineWords.ts';
+import { emptyQueueText, liveEventText, liveLineLabel } from '../liveWords.ts';
 import { materialColor } from '../library.ts';
 import { openToolNumber } from '../toolNumbers.ts';
 import { projectsState } from '../../projects/store.ts';
@@ -1266,6 +1267,7 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
   if (view === null || !connected(view) || view.message === null) {
     return h('div', { class: 'live-empty', 'data-live': 'empty' }, h('strong', null, 'Connect to see live job data.'), h('p', null, 'State, feed and progress reported by the controller.'));
   }
+  const advanced = uiLevel.value.value === 'advanced';
   const s = view.message.snapshot;
   const live = s.live;
   const dialect = DIALECTS.find((d) => d.id === s.classification?.dialectId);
@@ -1338,9 +1340,9 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
     h(
       'ol',
       { class: 'live-stream', 'aria-live': 'polite', 'data-live': 'events' },
-      ...(job === null ? [] : [...job.events].reverse().slice(0, 30).map((e, i) => h('li', { key: `e${i}`, class: `ev-${e.kind}`, 'data-event': e.kind }, h('time', null, e.line === undefined ? '' : `L${e.line}`), h('span', null, e.text)))),
+      ...(job === null ? [] : [...job.events].reverse().slice(0, 30).map((e, i) => h('li', { key: `e${i}`, class: `ev-${e.kind}`, 'data-event': e.kind }, h('time', null, liveLineLabel(e.line, advanced)), h('span', null, liveEventText(e.text, advanced))))),
       h('li', null, h('time', null, 'now'), h('span', null, s.overlays.includes('READ_ONLY') ? 'Read only: Run watches the status reports and writes nothing.' : 'Watching the status reports.')),
-      typeof live.qr === 'number' && blocks !== null && live.qr === blocks ? h('li', null, h('time', null, 'now'), h('span', null, 'The planner queue is empty.')) : null,
+      typeof live.qr === 'number' && blocks !== null && live.qr === blocks ? h('li', null, h('time', null, 'now'), h('span', null, emptyQueueText(advanced))) : null,
     ),
   );
 }
