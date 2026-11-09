@@ -22,7 +22,12 @@ interface Rect {
 }
 
 async function rect(page: Page, selector: string): Promise<Rect | null> {
-  return page.evaluate((s) => {
+  return (await rects(page, [selector]))[0] ?? null;
+}
+
+/** Every selector's box from one frame, so a reflow between two reads can never pair boxes from different layouts. */
+async function rects(page: Page, selectors: readonly string[]): Promise<(Rect | null)[]> {
+  return page.evaluate((list) => list.map((s) => {
     const el = document.querySelector(s);
     if (el === null) return null;
     const r = el.getBoundingClientRect();
@@ -32,7 +37,26 @@ async function rect(page: Page, selector: string): Promise<Rect | null> {
     const top = clip === undefined ? r.top : Math.max(r.top, clip.top);
     const bottom = clip === undefined ? r.bottom : Math.min(r.bottom, clip.bottom);
     return bottom <= top ? null : { x: r.left, y: top, w: r.width, h: bottom - top };
-  }, selector);
+  }), selectors);
+}
+
+/**
+ * Waits until what sits over the drawing has settled: with the key open, the stock carve is done (its note joins the
+ * key line when it finishes, and the stack reflows), and the overlay's pieces keep the same boxes over two frames.
+ */
+async function overlaySettled(page: Page): Promise<void> {
+  if (await page.locator('[data-action="key-toggle"][aria-expanded="true"]').count() > 0) {
+    await expect(page.locator('[data-preview="overlay"] [data-scene="carve"]')).toHaveAttribute('data-carve-done', 'true', { timeout: 30_000 });
+  }
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __overlayBoxes?: string; __overlaySame?: number };
+    const boxes = ['[data-preview="overlay"]', '[data-scene="notes"]', '.scene-key-line', '[data-preview="marker-readout"]', '.viewer-overlay-bar', '[data-preview="drawing"]']
+      .map((s) => { const r = document.querySelector(s)?.getBoundingClientRect(); return r === undefined ? '-' : [r.left, r.top, r.width, r.height].map((n) => n.toFixed(1)).join(','); })
+      .join('|');
+    w.__overlaySame = boxes === w.__overlayBoxes ? (w.__overlaySame ?? 0) + 1 : 0;
+    w.__overlayBoxes = boxes;
+    return w.__overlaySame >= 2;
+  }, undefined, { polling: 'raf', timeout: 15_000 });
 }
 
 function overlap(a: Rect, b: Rect): boolean {
@@ -54,16 +78,14 @@ for (const [level, width, height] of [['simple', 1280, 720], ['advanced', 1280, 
   test(`${String(width)} × ${String(height)} (${level}): no page scroll, the 3D view keeps its height, the overlay never overlaps`, async ({ page }) => {
     await openSample(page, width, height);
     await page.locator(`[data-action="ui-level-${level}"]`).click();
-    await page.waitForTimeout(200);
+    await overlaySettled(page);
     const doc = await page.evaluate(() => ({ scroll: document.scrollingElement?.scrollHeight ?? 0, inner: innerHeight, top: document.scrollingElement?.scrollTop ?? 0 }));
     expect(doc.scroll, 'the page does not scroll').toBeLessThanOrEqual(doc.inner);
-    const strip = await rect(page, '[data-region="machine-strip"]');
-    const card = await rect(page, '.job-view .job-card');
+    const overlaid = ['[data-scene="notes"]', '.scene-key-line', '[data-preview="marker-readout"]', '.viewer-overlay-bar'];
+    const [strip, card, canvas, top, ...over] = await rects(page, ['[data-region="machine-strip"]', '.job-view .job-card', '[data-preview="drawing"]', '.job-view .viewer-top', ...overlaid]);
     expect(card?.y ?? 0, 'the job card starts below the strip').toBeGreaterThanOrEqual((strip?.y ?? 0) + (strip?.h ?? 0) - 0.5);
-    const canvas = await rect(page, '[data-preview="drawing"]');
     expect(canvas?.h ?? 0, 'the 3D view keeps a usable height').toBeGreaterThanOrEqual(270);
-    const top = await rect(page, '.job-view .viewer-top');
-    const pieces = (await Promise.all(['[data-scene="notes"]', '.scene-key-line', '[data-preview="marker-readout"]', '.viewer-overlay-bar'].map(async (s) => [s, await rect(page, s)] as const))).filter((p): p is readonly [string, Rect] => p[1] !== null);
+    const pieces = overlaid.map((s, i) => [s, over[i] ?? null] as const).filter((p): p is readonly [string, Rect] => p[1] !== null);
     expect(pieces.length).toBeGreaterThanOrEqual(3);
     for (const [s, r] of pieces) {
       expect(overlap(r, top as Rect), `${s} is clear of the toolbar`).toBe(false);
@@ -76,6 +98,7 @@ for (const [level, width, height] of [['simple', 1280, 720], ['advanced', 1280, 
 test('the key hides and shows, remembered across a reload; hidden, its notes are still counted in view', async ({ page }) => {
   await openSample(page, 1280, 720);
   await expect(page.locator('[data-scene="notes"]')).toBeVisible();
+  await overlaySettled(page);
   await page.locator('[data-action="key-toggle"]').click();
   await expect(page.locator('[data-scene="notes"]')).toHaveCount(0);
   await expect(page.locator('.scene-key-line')).toHaveCount(0);
@@ -87,6 +110,7 @@ test('the key hides and shows, remembered across a reload; hidden, its notes are
   if ((await page.locator('[data-sample]').count()) > 0) await page.locator('[data-sample]').first().click();
   await expect(page.locator('[data-action="key-toggle"]')).toHaveText('Show key', { timeout: 15_000 });
   await expect(page.locator('[data-scene="notes"]')).toHaveCount(0);
+  await overlaySettled(page);
   await page.locator('[data-action="key-toggle"]').click();
   await expect(page.locator('.scene-key-line')).toBeVisible();
   await expect(page.locator('[data-action="key-toggle"]')).toHaveText('Hide key');
@@ -94,6 +118,7 @@ test('the key hides and shows, remembered across a reload; hidden, its notes are
 
 test('Expand gives the 3D view the Job area; Shrink puts the panels back', async ({ page }) => {
   await openSample(page, 1280, 720);
+  await overlaySettled(page);
   const before = (await rect(page, '[data-preview="drawing"]')) as Rect;
   await page.locator('[data-action="preview-expand"]').click();
   await expect(page.locator('.job-work-panel')).toBeHidden();
@@ -101,7 +126,8 @@ test('Expand gives the 3D view the Job area; Shrink puts the panels back', async
   await expect.poll(async () => (await rect(page, '[data-preview="drawing"]'))?.h ?? 0).toBeGreaterThan(before.h + 150);
   await expect(page.locator('[data-region="machine-strip"] [data-action="stop-job"]')).toBeVisible();
   // Expanded, the drawing stays below the strip and its stop controls.
-  expect(overlap((await rect(page, '[data-preview="drawing"]')) as Rect, (await rect(page, '[data-region="machine-strip"]')) as Rect)).toBe(false);
+  const [drawing, strip] = await rects(page, ['[data-preview="drawing"]', '[data-region="machine-strip"]']);
+  expect(overlap(drawing as Rect, strip as Rect)).toBe(false);
   await page.locator('[data-action="preview-expand"]').click();
   await expect(page.locator('.job-work-panel')).toBeVisible();
   await expect.poll(async () => (await rect(page, '[data-preview="drawing"]'))?.h ?? 0).toBeLessThan(before.h + 5);
@@ -111,9 +137,9 @@ for (const level of ['simple', 'advanced'] as const) {
   test(`390 × 844 (${level}): the Job view stacks with no overlap, every step in view, the key under the drawing`, async ({ page }) => {
     await openSample(page, 390, 844);
     await page.locator(`[data-action="ui-level-${level}"]`).click();
-    await page.waitForTimeout(200);
+    await overlaySettled(page);
     const parts = ['.job-view .job-card', '.job-view .job-step-bar', '.job-view .canvas-column', '.job-view .job-work-panel', '.job-view > .run-inspector'];
-    const boxes = (await Promise.all(parts.map((s) => rect(page, s)))) as (Rect | null)[];
+    const boxes = await rects(page, parts);
     for (let i = 0; i < parts.length; i++) {
       expect(boxes[i], `${parts[i] as string} is shown`).not.toBeNull();
       for (let j = i + 1; j < parts.length; j++) expect(overlap(boxes[i] as Rect, boxes[j] as Rect), `${parts[i] as string} and ${parts[j] as string} do not overlap`).toBe(false);
@@ -125,10 +151,11 @@ for (const level of ['simple', 'advanced'] as const) {
       expect(s.x).toBeGreaterThanOrEqual(bar.x - 0.5);
       expect(s.x + s.w).toBeLessThanOrEqual(bar.x + bar.w + 0.5);
     }
-    const drawing = (await rect(page, '[data-preview="drawing"]')) as Rect;
-    for (const s of ['[data-scene="notes"]', '.scene-key-line', '[data-preview="marker-readout"]']) {
-      const r = await rect(page, s);
-      if (r !== null) expect(overlap(r, drawing), `${s} is under the drawing, not on it`).toBe(false);
-    }
+    const under = ['[data-scene="notes"]', '.scene-key-line', '[data-preview="marker-readout"]'];
+    const [drawing, ...below] = await rects(page, ['[data-preview="drawing"]', ...under]);
+    under.forEach((s, i) => {
+      const r = below[i] ?? null;
+      if (r !== null) expect(overlap(r, drawing as Rect), `${s} is under the drawing, not on it`).toBe(false);
+    });
   });
 }
