@@ -341,7 +341,15 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
     h(
       'div',
       { class: `dro-grid${actions ? '' : ' no-actions'}`, role: 'table', 'aria-label': 'Position' },
-      h('div', { class: `dro-head${advanced ? '' : ' sr-only'}`, role: 'row' }, h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Axis')), h('span', { role: 'columnheader' }, units === null ? 'Work' : `Work, ${units}`), h('span', { role: 'columnheader' }, 'Machine, mm'), actions ? h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Actions')) : null),
+      // The actions' column heads name the icons (Zero, Go) at both levels; Simple hides the other heads.
+      h(
+        'div',
+        { class: `dro-head${advanced || actions ? '' : ' sr-only'}`, role: 'row' },
+        h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Axis')),
+        h('span', { role: 'columnheader' }, h('span', { class: advanced ? undefined : 'sr-only' }, units === null ? 'Work' : `Work, ${units}`)),
+        h('span', { role: 'columnheader' }, h('span', { class: advanced ? undefined : 'sr-only' }, 'Machine, mm')),
+        actions ? h('span', { role: 'columnheader', class: 'dro-act-heads' }, h('span', { 'aria-hidden': 'true' }, 'Zero'), h('span', { 'aria-hidden': 'true' }, 'Go'), h('span', { class: 'sr-only' }, 'Actions')) : null,
+      ),
       axes.map((a) => {
         const d = row(a);
         return h(
@@ -658,7 +666,7 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
     h('header', null, h('h2', { id: 'zero-title' }, 'Offsets'), h('span', { class: 'tag', 'data-offsets': 'system' }, off.system ?? 'G54–G59')),
     h(
       'div',
-      { class: 'seg full', role: 'group', 'aria-label': 'Work coordinate system' },
+      { class: 'seg full wcs-seg', role: 'group', 'aria-label': 'Work coordinate system' },
       [1, 2, 3, 4, 5, 6].map((n) =>
         h(
           'button',
@@ -667,7 +675,8 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
         ),
       ),
     ),
-    h('h3', { class: 'tan-label' }, 'Work zero', h(ContextHelp, { id: 'work-zero-help', label: 'About work zero', below: true }, `Zero sets the ${system} offset so the axis reads 0 here (G10 L20, saved on the controller). Go moves there, Z rising to Safe Z first.`)),
+    // Plain headings (owner, 2026-11-09): the heading word itself opens its help, no round "?".
+    h('h3', { class: 'tan-label' }, h(ContextHelp, { id: 'work-zero-help', label: 'Work zero: what Zero and Go do', trigger: 'Work zero', below: true }, `Zero sets the ${system} offset so the axis reads 0 here (G10 L20, saved on the controller). Go moves there, Z rising to Safe Z first.`)),
     h(
       'table',
       { class: 'zero-table' },
@@ -702,13 +711,18 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
       }),
       h('small', null, 'mm'),
     ),
-    h('h3', { class: 'tan-label' }, 'Temporary offset', h(ContextHelp, { id: 'g92-help', label: 'About the temporary offset', below: true }, `G92 shifts work positions so the axes read 0 here without changing the saved ${system} offset. It is not saved: a reset or a program end clears it; Clear sends G92.1.`)),
+    h('h3', { class: 'tan-label' }, h(ContextHelp, { id: 'g92-help', label: 'Temporary offset: what it does', trigger: 'Temporary offset', below: true }, `G92 shifts work positions so the axes read 0 here without changing the saved ${system} offset. It is not saved: a reset or a program end clears it; Clear sends G92.1.`)),
+    // One row per kind, in even columns: each axis, then All and Clear.
     h(
       'div',
-      { class: 'zero-actions temp-offset' },
-      machineAxes(settings).map((a) => button(`${a.toUpperCase()} = 0`, `Temporary offset: ${a.toUpperCase()} reads 0 here`, () => setConfirm({ kind: 'temp', axes: [a] }), 'offset', true, tc ? TC_OFFSET_REASON : null)),
-      button('All = 0', 'Temporary offset: X, Y and Z read 0 here', () => setConfirm({ kind: 'temp', axes: ['x', 'y', 'z'] }), 'offset', true, tc ? TC_OFFSET_REASON : null),
-      button('Clear', 'Clear the temporary offset (G92.1)', () => setConfirm({ kind: 'clear' }), 'offset', off.temporaryInForce, tc ? TC_OFFSET_REASON : null),
+      { class: 'temp-offset' },
+      h('div', { class: 'temp-axes' }, machineAxes(settings).map((a) => button(`${a.toUpperCase()} = 0`, `Temporary offset: ${a.toUpperCase()} reads 0 here`, () => setConfirm({ kind: 'temp', axes: [a] }), 'offset', true, tc ? TC_OFFSET_REASON : null))),
+      h(
+        'div',
+        { class: 'temp-all' },
+        button('All = 0', 'Temporary offset: X, Y and Z read 0 here', () => setConfirm({ kind: 'temp', axes: ['x', 'y', 'z'] }), 'offset', true, tc ? TC_OFFSET_REASON : null),
+        button('Clear', 'Clear the temporary offset (G92.1)', () => setConfirm({ kind: 'clear' }), 'offset', off.temporaryInForce, tc ? TC_OFFSET_REASON : null),
+      ),
     ),
     off.temporaryInForce ? h('p', { class: 'fine', 'data-offsets': 'temporary' }, `G92 ${offsetLine(off.temporary)} · in force, not saved`) : null,
     confirmCard(),

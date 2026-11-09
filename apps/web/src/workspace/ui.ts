@@ -129,12 +129,15 @@ export function IconButton(props: {
   readonly why?: string | null;
   readonly primary?: boolean;
   readonly attrs?: Readonly<Record<string, string>>;
+  /** Short words shown beside the icon where there is room (owner, 2026-11-09: an icon alone is a guess). */
+  readonly text?: string;
 }): ComponentChild {
   const off = props.disabled === true || props.onClick === undefined;
   const tip = off && props.why !== undefined && props.why !== null ? `${props.label}. ${props.why}` : props.label;
   return h(
     'button',
-    { type: 'button', class: `icon-btn${props.primary === true ? ' primary' : ''}`, 'aria-label': props.label, 'data-tip': tip, ...(props.attrs ?? {}), ...(off ? { disabled: true } : { onClick: props.onClick }) },
+    { type: 'button', class: `icon-btn${props.text === undefined ? '' : ' with-text'}${props.primary === true ? ' primary' : ''}`, 'aria-label': props.label, 'data-tip': tip, ...(props.attrs ?? {}), ...(off ? { disabled: true } : { onClick: props.onClick }) },
     Icon(props.icon, 18),
+    props.text === undefined ? null : h('span', { 'aria-hidden': 'true' }, props.text),
   );
 }

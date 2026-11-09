@@ -45,6 +45,7 @@ import '../styles/gcode-list.css';
 import '../styles/features.css';
 import '../styles/job-layout.css';
 import '../styles/position.css';
+import { installTipPlacement } from '../workspace/tipPlacement.ts';
 
 const trustedTypes = installTrustedTypes();
 
@@ -102,6 +103,7 @@ renderGuarded(
 // After hydration, so the bench marking of the version chip is not reconciled away; before the worker starts.
 const channel = startBuildChannel(document);
 startTheme();
+installTipPlacement(document);
 loadStoredLibraries();
 // Bench only: the owner rebuilds often, so an open tab learns when the server has a newer build (it never reloads itself).
 if (channel.kind === 'bench') {

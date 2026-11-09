@@ -11,6 +11,9 @@
 import type { LiveView } from './model.ts';
 import type { SnapshotMessage } from '../machine-worker/rpc.ts';
 import { coolantText, displayReadouts, spindleText } from './status.ts';
+import { buildText, readOnlyWhy } from './readOnlyWhy.ts';
+
+export { buildText, readOnlyWhy };
 
 type Snapshot = SnapshotMessage['snapshot'];
 
@@ -43,6 +46,10 @@ export interface ControlBlock {
   /** The rest, one short sentence each. */
   readonly lines: readonly string[];
   readonly actions: readonly BlockAction[];
+  /** The classification reason behind a read-only block (for tests and the card's data attribute). */
+  readonly reason?: string;
+  /** The session's own detail, shown small in Advanced. */
+  readonly detail?: string | null;
 }
 
 /** What the card needs beyond the snapshot. */
@@ -53,34 +60,27 @@ export interface BlockContext {
   readonly trustOffered: boolean;
 }
 
-/** The board's build in plain words: "450.02, no build id", or "450.02, build 1a2b3c4d". */
-export function buildText(s: Snapshot): string {
-  const fb = s.identity?.fb;
-  const fbs = s.identity?.fbs;
-  const build = typeof fb === 'number' ? fb.toFixed(2) : 'unknown build';
-  return `${build}, ${typeof fbs === 'string' && fbs.length > 0 ? `build ${fbs.slice(0, 8)}` : 'no build id'}`;
-}
+const CANT = 'Run can’t control this board yet.';
 
 function notApproved(s: Snapshot, flasher: boolean, ctx: BlockContext): ControlBlock {
   const c = s.classification;
-  const update: BlockAction[] = flasher ? [{ id: 'update', label: 'Update firmware', primary: !ctx.trustOffered }] : [];
-  const trust: BlockAction[] = ctx.trustOffered ? [{ id: 'trust', label: 'Trust this firmware on this board', primary: true }] : [];
-  const noUpdate = flasher ? [] : ['Firmware updates are not available on this site.'];
+  const detail = c?.detail ?? null;
+  const why = readOnlyWhy(s);
+  const disconnect: BlockAction = { id: 'disconnect', label: 'Disconnect', primary: true };
   if (c?.reason === 'flowControl') {
-    return { kind: 'not-approved', title: 'Run can’t control this board yet.', lines: ['It uses hardware flow control (RTS/CTS), which Run doesn’t support.', 'Set flow control to XON/XOFF ($ex=1) with another program, then connect again.'], actions: [{ id: 'disconnect', label: 'Disconnect' }] };
+    // The fix is a write of ex = 1, which SAFETY H61 forbids today; until the owner decides, say how to do it by hand.
+    return { kind: 'not-approved', reason: 'flowControl', title: CANT, lines: [why, 'Set ex to 1 (XON/XOFF) with another program, then connect again.'], actions: [disconnect], detail };
   }
-  if (c?.reason === 'stock-449') {
-    return { kind: 'not-approved', title: 'Run can’t control this board yet.', lines: [`It runs stock TinyG firmware (${buildText(s)}), which Run only reads.`, ...noUpdate], actions: update };
+  if (c?.dialectId === null || c?.dialectId === undefined) {
+    // Unidentified: nothing was read that names the firmware. Replies with no values usually mean $jv is below 4.
+    const noValues = s.identity?.fb === undefined;
+    return { kind: 'unidentified', reason: c?.reason ?? 'unknown', title: CANT, lines: [why, ...(noValues ? ['If its replies carry no values, set $jv to 4 on TinyG.'] : []), 'Then connect again.'], actions: [disconnect], detail };
   }
-  if (c?.dialectId?.startsWith('g2core') === true) {
-    return { kind: 'not-approved', title: 'Run can’t control this board yet.', lines: ['Run reads g2core boards but does not control them yet.'], actions: [] };
-  }
-  return {
-    kind: 'not-approved',
-    title: 'Run can’t control this board yet.',
-    lines: [`Its firmware build isn’t on Run’s approved list (${buildText(s)}).`, ...noUpdate],
-    actions: [...trust, ...update],
-  };
+  if (c.reason === 'g2core-read-only') return { kind: 'not-approved', reason: c.reason, title: CANT, lines: [why], actions: [], detail };
+  const update: BlockAction[] = flasher ? [{ id: 'update', label: 'Update firmware', primary: !ctx.trustOffered }] : [];
+  const trust: BlockAction[] = ctx.trustOffered && c.reason !== 'stock-449' ? [{ id: 'trust', label: 'Trust this firmware on this board', primary: true }] : [];
+  const noUpdate = flasher ? [] : ['Firmware updates are not available on this site.'];
+  return { kind: 'not-approved', reason: c.reason, title: CANT, lines: [why, ...noUpdate], actions: [...trust, ...update], detail };
 }
 
 /**
@@ -93,16 +93,14 @@ export function controlBlock(view: LiveView | null, ctx: BlockContext): ControlB
     return ctx.observing ? { kind: 'observer', title: 'Another tab controls the machine.', lines: ['Use that tab, or close it and connect here.'], actions: [] } : null;
   }
   if (view?.message?.motion !== true) {
-    return { kind: 'flag-off', title: 'Run doesn’t move machines on this site yet.', lines: ['Positions and settings are read only.'], actions: [] };
+    const readOnly = s.overlays.includes('READ_ONLY') && s.classification !== null ? [readOnlyWhy(s)] : [];
+    return { kind: 'flag-off', title: 'Run doesn’t move machines on this site yet.', lines: [...readOnly, 'Positions and settings are read only.'], actions: [] };
   }
   const o = s.overlays;
   if (o.includes('LOST')) return { kind: 'lost', title: 'The connection to the board is lost.', lines: ['Check the cable and the power, then connect again.'], actions: [{ id: 'disconnect', label: 'Disconnect', primary: true }] };
   if (o.includes('FAULT')) return { kind: 'fault', title: 'Run stopped on a fault.', lines: ['Check the machine, then disconnect and connect again.'], actions: [{ id: 'disconnect', label: 'Disconnect', primary: true }] };
   if (o.includes('ORPHANED_MOTION')) return { kind: 'orphaned', title: 'The machine is moving and this page didn’t start it.', lines: ['Use Stop job at the top first.'], actions: [] };
   if (s.classification === null || s.base === 'IDENTIFYING' || s.base === 'READING' || s.base === 'OPENING' || s.base === 'PORT_REQUEST') return null;
-  if (s.classification.dialectId === null) {
-    return { kind: 'unidentified', title: 'Run couldn’t identify this board.', lines: ['Its replies carried no values.', 'On TinyG, set $jv to 4, then connect again.'], actions: [{ id: 'disconnect', label: 'Disconnect', primary: true }] };
-  }
   if (o.includes('READ_ONLY') || s.classification.mode !== 'full') return notApproved(s, view?.message?.flasher === true, ctx);
   if (o.includes('STALE')) return null;
   // UNKNOWN's card is the Position panel's existing exits (homing.ts UnknownExits): verify, home, or set machine zero.

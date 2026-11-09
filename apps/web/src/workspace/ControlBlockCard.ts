@@ -8,6 +8,7 @@ import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
 import { c13 } from '@synthetos/safety';
 import { boardTab, viewRequest } from './boardNavigation.ts';
+import { uiLevel } from './jobWorkflow.ts';
 import { controlBlock, type BlockActionId, type ControlBlock } from './controlBlock.ts';
 import type { WorkspaceModel } from './model.ts';
 import { observingElsewhere } from './tabControl.ts';
@@ -49,8 +50,10 @@ export function ControlBlockCard({ block, model }: { readonly block: ControlBloc
   const usable = block.actions.filter((a) => (a.id === 'clear-alarm' ? actions?.motion !== undefined : a.id === 'disconnect' ? actions !== null : true));
   return h(
     'div',
-    { class: 'control-block', 'data-region': 'control-block', 'data-block': block.kind, role: 'status' },
+    { class: 'control-block', 'data-region': 'control-block', 'data-block': block.kind, ...(block.reason === undefined ? {} : { 'data-reason': block.reason }), role: 'status' },
     h('p', null, h('strong', null, block.title), ...block.lines.map((l) => ` ${l}`)),
+    // Advanced: the session's own words, for whoever reads the log or asks for help.
+    block.detail === null || block.detail === undefined || uiLevel.value.value !== 'advanced' ? null : h('p', { class: 'fine control-block-detail', 'data-block-detail': '' }, block.detail),
     usable.length === 0
       ? null
       : h(

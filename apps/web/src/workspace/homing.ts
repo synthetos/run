@@ -134,16 +134,16 @@ function homeQuickBody({ model }: HomeProps, hk: Hooks): ComponentChild {
     setNote(null);
     void send?.(command).then(setNote);
   };
-  const quick = (icon: IconName, label: string, onClick: () => void, ok: boolean, why: string | null, primary: boolean): ComponentChild =>
-    h(IconButton, { icon, label, primary, why: (enabled ? why : hv.reason) ?? null, attrs: { 'data-machine-control': 'home' }, ...(enabled && ok ? { onClick } : { disabled: true }) });
+  const quick = (icon: IconName, label: string, text: string, onClick: () => void, ok: boolean, why: string | null, primary: boolean): ComponentChild =>
+    h(IconButton, { icon, label, text, primary, why: (enabled ? why : hv.reason) ?? null, attrs: { 'data-machine-control': 'home' }, ...(enabled && ok ? { onClick } : { disabled: true }) });
   return h(
     'div',
     { class: 'home-quick', 'data-region': 'home-quick' },
     h(
       'div',
       { class: 'motion-recovery' },
-      quick('home', `Home all configured axes${hv.configured.length > 0 ? ` (${axesText(hv.configured)})` : ''}`, () => setAsking({ kind: 'home', axes: hv.configured }), hv.configured.length > 0, 'No axis has a homing switch and search speed set.', true),
-      quick('machineZero', 'Set the machine zero here, without homing', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true, null, false),
+      quick('home', `Home all configured axes${hv.configured.length > 0 ? ` (${axesText(hv.configured)})` : ''}`, 'Home', () => setAsking({ kind: 'home', axes: hv.configured }), hv.configured.length > 0, 'No axis has a homing switch and search speed set.', true),
+      quick('machineZero', 'Set the machine zero here, without homing', 'Set machine zero', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true, null, false),
     ),
     // C17: the reason Home is off, as text with the way to set it up, not only the button's hover tip.
     enabled && hv.read && hv.configured.length === 0 ? h(HomingOffNote, null) : null,
