@@ -13,7 +13,7 @@
  * - **Jog** (H50): the session feeds short `G21 G91 G1` pieces, each at most
  *   `pieceMs` of travel at the jog feed, and only while the planner holds
  *   fewer than `lookahead` blocks (`qr`, polled after every piece). A step
- *   longer than one piece is fed the same way. A hold jog (no distance)
+ *   is one move of its whole distance (owner, 2026-11-09). A hold jog (no distance)
  *   needs a renewal from the page every `keepAliveMs`; without one it is
  *   released by the session itself.
  * - **Go to zero** (H53): `G53 G0 Z<safe>` first when X or Y move, then
@@ -81,8 +81,8 @@ export const MOTION_LIMITS = Object.freeze({
   pollMs: 100,
   /** Longest travel time of one jog piece at the jog feed. */
   pieceMs: 150,
-  /** Most jog pieces queued in the planner at once. */
-  lookahead: 2,
+  /** Most hold-jog pieces queued in the planner at once (enough that the planner never brakes between them). */
+  lookahead: 4,
   /** A hold jog ends when the page has not renewed it for this long. */
   keepAliveMs: 500,
   /** Each stop step (hold, flush) must complete within this. */
@@ -338,7 +338,9 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       if (distanceMm !== null && (typeof distanceMm !== 'number' || !Number.isFinite(distanceMm) || distanceMm < 0.001 || distanceMm > MOTION_LIMITS.maxStepMm)) {
         return deny(`A jog step is 0.001 to ${MOTION_LIMITS.maxStepMm} mm.`, 'Choose another step.');
       }
-      const pieceMm = Math.max(0.001, (feed / 60) * (MOTION_LIMITS.pieceMs / 1000));
+      // OD (owner, 2026-11-09): a step is one move, so it runs smoothly instead of braking between pieces. A hold
+      // jog keeps short pieces, so a lost release or link is bounded by the lookahead (H50, H54).
+      const pieceMm = distanceMm !== null ? distanceMm : Math.max(0.001, (feed / 60) * (MOTION_LIMITS.pieceMs / 1000));
       const jog: JogFeed = { axes: { ...axes }, remainingMm: distanceMm, feed, pieceMm, renewedAt: at };
       t.set({ motion: { ...newCtx(s, 'jog'), jog }, base: 'JOGGING' });
       clearMotionNotice(t);

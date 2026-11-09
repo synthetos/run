@@ -99,22 +99,30 @@ describe('T-S89: jog state machine', () => {
     expect(h.device.snapshot().position[0]).toBeCloseTo(0.1, 3);
   });
 
-  it('a long step is fed in pieces, never more than the lookahead queued', async () => {
+  it('a long step is one move, not pieces (owner, 2026-11-09: no braking between pieces)', async () => {
     const h = await connected();
     const from = writes(h).length;
-    req(h, JOG_X(10, 1200)); // 20 mm/s: 3 mm pieces
-    let maxQueued = 0;
-    for (let i = 0; i < 100; i++) {
-      await h.run(20);
-      const qr = h.session.snapshot.live.qr;
-      if (qr !== undefined) maxQueued = Math.max(maxQueued, 32 - qr);
-    }
-    await h.run(3000);
+    req(h, JOG_X(10, 1200));
+    await h.run(5000);
     const pieces = motionWrites(h, from).filter((w) => w.startsWith('G21 G91'));
-    expect(pieces).toEqual(['G21 G91 G1 X3 F1200\\n', 'G21 G91 G1 X3 F1200\\n', 'G21 G91 G1 X3 F1200\\n', 'G21 G91 G1 X1 F1200\\n']);
-    expect(maxQueued).toBeLessThanOrEqual(MOTION_LIMITS.lookahead);
+    expect(pieces).toEqual(['G21 G91 G1 X10 F1200\\n']);
     expect(h.device.snapshot().position[0]).toBeCloseTo(10, 3);
     expect(h.session.snapshot.base).toBe('IDLE_UNHOMED');
+  });
+
+  it('Stop job during a long step stops it short and clears the queue: ! then %', async () => {
+    const h = await connected();
+    const from = writes(h).length;
+    req(h, JOG_X(100, 600)); // 10 mm/s: 10 s for the whole step
+    await h.run(1000);
+    expect(req(h, { intent: 'stopJob' }).allowed).toBe(true);
+    await h.run(4000);
+    const w = motionWrites(h, from);
+    const bang = w.indexOf('!');
+    expect(bang).toBeGreaterThan(0);
+    expect(w.slice(bang, bang + 2)).toEqual(['!', '%']);
+    expect(h.device.snapshot().position[0] as number).toBeLessThan(20);
+    expect(h.device.snapshot().hold).toBe(0);
   });
 
   it('a hold jog runs while renewed and stops on release: ! then % once held, never left held', async () => {

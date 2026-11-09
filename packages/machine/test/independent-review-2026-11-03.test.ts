@@ -256,7 +256,7 @@ describe('R2 (session): the first jog from a board in inches', () => {
     expect(await read(h, 'unit')).toBe(0);
   });
 
-  it('a hold jog and a multi-piece step send G21 once, before the first piece', async () => {
+  it('a step sends G21 once, on its own line before the move (a step is one move, owner 2026-11-09)', async () => {
     const h = await jobHarness({ rxm: 1 });
     const from = writes(h).length;
     expect(h.session.request({ intent: 'jog', axes: { y: 1 }, distanceMm: 10, feed: 1200 })).toEqual({ allowed: true });
@@ -264,7 +264,7 @@ describe('R2 (session): the first jog from a board in inches', () => {
     const w = motionWrites(h, from);
     expect(w[0]).toBe('G21');
     expect(w.filter((x) => x === 'G21')).toHaveLength(1);
-    expect(w.filter((x) => x.startsWith('G21 G91'))).toHaveLength(4);
+    expect(w.filter((x) => x.startsWith('G21 G91'))).toEqual(['G21 G91 G1 Y10 F1200']);
     expect(w.at(-1)).toBe('G90');
   });
 });
@@ -717,7 +717,8 @@ describe('R8: the GET cap does not refuse a longer motion line', () => {
   it('(reviewer\'s case) a three-axis jog at F1234 (41-byte pieces) runs; no writeRefused FAULT', async () => {
     const h = await jobHarness({ rxm: 1 });
     const from = writes(h).length;
-    expect(h.session.request({ intent: 'jog', axes: { x: -1, y: -1, z: -1 }, distanceMm: 10, feed: 1234 })).toEqual({ allowed: true });
+    // A step is one move (owner 2026-11-09), so the reviewer's 41-byte line is a 3.085 mm step.
+    expect(h.session.request({ intent: 'jog', axes: { x: -1, y: -1, z: -1 }, distanceMm: 3.085, feed: 1234 })).toEqual({ allowed: true });
     await runUntil(h, () => h.session.snapshot.motion === null, 20_000);
     expect(h.session.snapshot.fault).toBeNull();
     expect(h.session.snapshot.overlays).toEqual([]);
@@ -725,9 +726,9 @@ describe('R8: the GET cap does not refuse a longer motion line', () => {
     expect(pieces[0]).toBe('G21 G91 G1 X-3.085 Y-3.085 Z-3.085 F1234');
     expect(`${pieces[0] as string}\n`).toHaveLength(41);
     const p = h.device.snapshot().position;
-    expect(p[0]).toBeCloseTo(-10, 3);
-    expect(p[1]).toBeCloseTo(-10, 3);
-    expect(p[2]).toBeCloseTo(-10, 3);
+    expect(p[0]).toBeCloseTo(-3.085, 3);
+    expect(p[1]).toBeCloseTo(-3.085, 3);
+    expect(p[2]).toBeCloseTo(-3.085, 3);
   });
 
   it('the gate: the GET cap applies to GETs, the motion cap to motion lines; a GET shape is still judged by the allowlist', () => {

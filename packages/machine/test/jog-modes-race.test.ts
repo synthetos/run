@@ -81,6 +81,6 @@ describe('the modes a jog puts back', () => {
     expect(h.session.request(STEP_X).allowed).toBe(true);
     await untilIdle(h);
     await h.run(500);
-    expect(motionWrites(h, from)).toEqual(['G21\\n', 'G21 G91 G1 X2.5 F1000\\n', 'G21 G91 G1 X2.5 F1000\\n', 'G90\\n']);
+    expect(motionWrites(h, from)).toEqual(['G21\\n', 'G21 G91 G1 X5 F1000\\n', 'G90\\n']);
   });
 });
