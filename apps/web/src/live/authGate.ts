@@ -10,8 +10,8 @@
  * not accepted by `check`).
  *
  * It is pluggable, with exactly three identity providers:
- * - `run-session`: the accounts.synthetos.com session (A1-07). Not shipped
- *   yet, so it never yields an identity. Production accepts only this one.
+ * - `run-session`: the accounts.synthetos.com session the run Worker
+ *   validated (A1-06, A1-07). Production accepts only this one.
  * - `access`: the Cloudflare Access identity the run Worker verified
  *   (`GET /api/identity`), on staging only, until A1-07.
  * - `bench`: "whoever sits at this computer", supplied only by the bench
@@ -80,16 +80,32 @@ export class AuthGate {
   }
 }
 
-/** The run session provider: A1-07 has not shipped, so there is never a session. */
+/**
+ * The run session provider (A1-06, A1-07): the accounts.synthetos.com session the run Worker validated
+ * (`GET /api/identity`, provider `run-session`). Asked again at every gated request, never cached here, so a
+ * revoked or expired session refuses the next request from G and nothing else.
+ */
+export function runSessionProvider(fetchIdentity: () => Promise<{ provider: string; subject: string } | null>): IdentityProvider {
+  return {
+    kind: 'run-session',
+    async current() {
+      const id = await fetchIdentity().catch(() => null);
+      return id !== null && id.provider === 'run-session' ? { provider: 'run-session', subject: id.subject } : null;
+    },
+  };
+}
+
+/** A run session provider that never yields an identity (tests, and any page without the Worker's identity read). */
 export const RUN_SESSION_PROVIDER: IdentityProvider = Object.freeze({
   kind: 'run-session',
   current: () => Promise.resolve(null),
 });
 
 /**
- * True when a page can ever be signed in with these providers: the run session once A1-07 ships (not yet), the
- * staging Access identity, or the bench identity. Production today has the run session only, so its Connect
- * refusal says accounts are coming soon instead of asking the user to sign in (owner, 2026-11-08).
+ * True when the refusal should ask the user to sign in rather than say accounts are coming soon. Production has the
+ * run session only: sign-in there is open to the D37 allowlist alone (owner, 2026-11-09), so production keeps the
+ * "accounts are coming soon" notice for signed-out and non-allowlisted visitors, with a small sign-in link for
+ * beta testers (accountNotice.ts). The staging Access identity and the bench identity count.
  */
 export function signInAvailable(providers: readonly IdentityProvider[]): boolean {
   return providers.some((p) => p.kind !== 'run-session');
@@ -110,10 +126,11 @@ export function accessProvider(fetchIdentity: () => Promise<{ provider: string; 
  * The providers a page uses. Production: the run session only. Staging:
  * the run session, then the Access identity. The bench channel: its own
  * bench identity only. Any other origin (localhost release builds,
- * previews): the run session only, which today means "refused".
+ * previews): the run session only, which the Worker answers only on run's
+ * own hosts.
  */
-export function providersFor(channel: BuildChannel, environment: AdvisoryEnvironment | null, access: IdentityProvider): readonly IdentityProvider[] {
+export function providersFor(channel: BuildChannel, environment: AdvisoryEnvironment | null, access: IdentityProvider, runSession: IdentityProvider = RUN_SESSION_PROVIDER): readonly IdentityProvider[] {
   if (channel.kind === 'bench') return channel.benchIdentity === null ? [] : [channel.benchIdentity];
-  if (environment === 'staging') return [RUN_SESSION_PROVIDER, access];
-  return [RUN_SESSION_PROVIDER];
+  if (environment === 'staging') return [runSession, access];
+  return [runSession];
 }

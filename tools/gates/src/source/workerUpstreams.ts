@@ -37,6 +37,26 @@ export const WORKER_UPSTREAMS: readonly WorkerUpstream[] = Object.freeze([
     why: 'The Access JWT issuer, compared, never fetched (P1-05).',
   },
   {
+    file: 'authConfig.ts',
+    text: 'https://run.synthetos.com',
+    why: 'run’s own production origin: the request must match it, and it is the redirect URI accounts registers (A1-06). Never fetched.',
+  },
+  {
+    file: 'authConfig.ts',
+    text: 'https://accounts.synthetos.com',
+    why: 'Production accounts: the browser is redirected to its /authorize (A1-06). The Worker never fetches it; it calls accounts over the ACCOUNTS service binding.',
+  },
+  {
+    file: 'authConfig.ts',
+    text: 'https://staging.run.synthetos.com',
+    why: 'run’s staging origin (A1-06), as above. Never fetched.',
+  },
+  {
+    file: 'authConfig.ts',
+    text: 'https://staging.accounts.synthetos.com',
+    why: 'Staging accounts, behind Access (D31): the browser is redirected to its /authorize. Never fetched.',
+  },
+  {
     file: 'firmwareProxy.ts',
     text: 'https://github.com',
     why: 'GitHub release downloads of the allowlisted synthetos repositories, fetched server-side and verified against the signed release list (OD-10).',

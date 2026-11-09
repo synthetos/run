@@ -17,6 +17,8 @@
  * - the configuration fails checkWorkerConfig (workers_dev or preview_urls
  *   not false, wrong routes, wrong assets settings, ...);
  * - account_id is still the placeholder or not a Cloudflare account id;
+ * - the RUN_AUTH D1 database id of the environment being deployed is still
+ *   its placeholder (A1-07; the other environment's may be);
  * - account_id differs from the CLOUDFLARE_ACCOUNT_ID the job was given (the
  *   repository variable the owner sets): the reviewed file and the
  *   environment must name the same account (the current one, D39).
@@ -34,7 +36,7 @@ function main(argv: readonly string[]): number {
   }
   try {
     const config = parseJsonc(readFileSync(file, 'utf8'));
-    const findings = checkWorkerConfig(config, { requireRealAccount: true });
+    const findings = checkWorkerConfig(config, { requireRealAccount: true, deploying: env });
     const fromEnv = process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '';
     const fromFile = (config as { account_id?: unknown }).account_id;
     if (fromEnv === '') findings.push({ where: 'CLOUDFLARE_ACCOUNT_ID', message: 'is not set for this job' });
@@ -51,7 +53,7 @@ function main(argv: readonly string[]): number {
       return 1;
     }
     // 'wx': never overwrite. A deployment configuration already in the checkout was not written by this check.
-    writeFileSync(out, `${JSON.stringify(deployConfig(config, { requireRealAccount: true }), null, 2)}\n`, { flag: 'wx' });
+    writeFileSync(out, `${JSON.stringify(deployConfig(config, { requireRealAccount: true, deploying: env }), null, 2)}\n`, { flag: 'wx' });
     process.stdout.write(`deploy preflight (${env}): configuration accepted; deployment configuration written to ${out}\n`);
     return 0;
   } catch (error) {

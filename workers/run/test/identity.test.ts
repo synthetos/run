@@ -44,7 +44,7 @@ describe('GET /api/identity', () => {
     const req = new Request(STAGING, { headers: { 'cf-access-jwt-assertion': await k.sign(claims()) } });
     const res = await route(req, staging, () => Promise.resolve([k.jwk]));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ identity: { provider: 'access', subject: 'owner@example.com' } });
+    expect(await res.json()).toEqual({ identity: { provider: 'access', subject: 'owner@example.com' }, signIn: false });
     expect(res.headers.get('cache-control')).toMatch(/no-store/);
   });
 
@@ -58,17 +58,17 @@ describe('GET /api/identity', () => {
     ] as const) {
       const res = await route(new Request(url, { headers: { 'cf-access-jwt-assertion': token } }), env, () => Promise.resolve([k.jwk]));
       expect(res.status).toBe(401);
-      expect(await res.json()).toEqual({ identity: null, reason: 'not-available-here' });
+      expect(await res.json()).toEqual({ identity: null, reason: 'not-available-here', signIn: false });
     }
   });
 
   it('unconfigured Access on staging: no identity', async () => {
     const res = await route(new Request(STAGING), { ...staging, ACCESS_AUD: 'ACCESS_AUD_PLACEHOLDER' }, () => Promise.resolve([]));
-    expect(await res.json()).toEqual({ identity: null, reason: 'not-configured' });
+    expect(await res.json()).toEqual({ identity: null, reason: 'not-configured', signIn: false });
   });
 
   it('a missing header is not signed in; POST is 405', async () => {
-    expect(await (await route(new Request(STAGING), staging, () => Promise.resolve([]))).json()).toEqual({ identity: null, reason: 'not-signed-in' });
+    expect(await (await route(new Request(STAGING), staging, () => Promise.resolve([]))).json()).toEqual({ identity: null, reason: 'not-signed-in', signIn: false });
     expect((await route(new Request(STAGING, { method: 'POST' }), staging)).status).toBe(405);
   });
 });

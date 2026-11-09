@@ -5,6 +5,10 @@
  * succeed. "Sign in to connect" with only an OK was a dead end: the sign-in it asked for was greyed out. This says
  * plainly that connecting needs a Synthetos account, that accounts are coming soon, and what works meanwhile, with
  * a Close. Plain words, no signal word: it is not a SAFETY §5 warning. Bench and staging keep the sign-in text.
+ *
+ * A1-07 (owner, 2026-11-09: "staging first, just my github account for now"): where the host offers sign-in, the
+ * notice keeps its words and adds one small link for beta testers. accounts admits only the D37 allowlist; anyone
+ * else who follows it is told "Sign-in opens with the public beta" there and comes back to this same notice.
  */
 import { h, type ComponentChild } from 'preact';
 
@@ -21,13 +25,19 @@ export const WITHOUT_ACCOUNT: readonly string[] = Object.freeze([
 ]);
 
 export const ACCOUNT_STOPS = 'Pause and Stop job never need an account.';
+export const BETA_SIGN_IN = 'Beta testers can ';
+export const BETA_SIGN_IN_LINK = 'sign in';
 
-/** The notice's body: the plain reason, what works meanwhile, and the wiring guide (it opens in a new tab). */
-export function AccountNotice(): ComponentChild {
+/**
+ * The notice's body: the plain reason, what works meanwhile, and the wiring guide (it opens in a new tab). With
+ * `signInHref` (the host offers sign-in), a small link for beta testers.
+ */
+export function AccountNotice({ signInHref = null }: { readonly signInHref?: string | null } = {}): ComponentChild {
   return h(
     'div',
     { class: 'account-notice', 'data-account': 'coming-soon' },
     h('p', { role: 'alert' }, ACCOUNT_TEXT),
+    signInHref === null ? null : h('p', { class: 'fine', 'data-account': 'beta-sign-in' }, BETA_SIGN_IN, h('a', { href: signInHref, 'data-action': 'sign-in' }, BETA_SIGN_IN_LINK), '.'),
     h('p', { class: 'account-meanwhile' }, ACCOUNT_MEANWHILE),
     h(
       'ul',

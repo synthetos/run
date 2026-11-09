@@ -6,9 +6,10 @@
  * Worker in it could declare a binding to accounts' `RunEntrypoint` and call
  * it as if it were run. The platform does not stop that; review and this
  * check do. In this repository, `workers/run/wrangler.jsonc` is the ONLY
- * Worker configuration allowed to bind accounts (and run's own key
- * allowlist, deploy/wranglerConfig.ts, does not allow any binding yet: Phase
- * 1 adds exactly that one). Every other wrangler configuration in the tree
+ * Worker configuration allowed to bind accounts, and run's own key
+ * allowlist (deploy/wranglerConfig.ts `EXPECTED_SERVICES`, A1-06) allows
+ * exactly that one binding to accounts' `RunEntrypoint` per environment.
+ * Every other wrangler configuration in the tree
  * that binds accounts in any way is refused. The accounts and site
  * repositories carry the matching rule (docs/ops/account.md §1).
  *

@@ -22,6 +22,7 @@ import { fileLevel, on, progressText } from '../../preview/PreviewView.ts';
 import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
 import { routineChanges, shownCounts } from '../../preview/gcodeList.ts';
 import { ConnectPanel, refusedTitle } from '../../live/ConnectPanel.ts';
+import { accountState, signInHref } from '../../live/account.ts';
 import { settingsOf } from '../boardFacts.ts';
 import { Icon, type IconName } from '../icons.ts';
 import { readStored, writeStored } from '../storage.ts';
@@ -185,6 +186,7 @@ export function ConnectNotice({ model, onView, compact = false }: { readonly mod
   const actions = model?.actions.value ?? null;
   const step = view?.entry.step ?? 'idle';
   const isConnected = view !== null && connected(view);
+  const account = accountState.value;
   const panel = h(ConnectPanel, {
     state: view?.entry ?? { step: 'idle' },
     advisoryBlocked: view?.advisoryBlocked ?? null,
@@ -192,6 +194,7 @@ export function ConnectNotice({ model, onView, compact = false }: { readonly mod
     onConfirm: (ticked) => actions?.confirm(ticked),
     onCancel: () => actions?.cancel(),
     onDisconnect: () => actions?.disconnect(),
+    signInHref: account.signIn ? signInHref(typeof location === 'undefined' ? '/' : location.pathname) : null,
   });
   const heading = isConnected
     ? 'Connected'

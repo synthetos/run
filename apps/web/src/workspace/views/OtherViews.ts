@@ -12,6 +12,8 @@ import { openReport } from '../../report/state.ts';
 import { connected, type WorkspaceModel } from '../model.ts';
 import { stopJobSafetyText } from '../stopJobText.ts';
 import { Dismissable } from '../notes/Dismissable.ts';
+import { AccountPanel } from '../../live/AccountPanel.ts';
+import { accountState, signOut } from '../../live/account.ts';
 
 function head(title: string, sub: string): ComponentChild {
   return h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, title), sub === '' ? null : h('p', null, sub)));
@@ -19,8 +21,16 @@ function head(title: string, sub: string): ComponentChild {
 
 export { AnalyzeView } from './AnalyzeView.ts';
 
-export function PreferencesView({ build }: { readonly build: BuildInfo }): ComponentChild {
+/** True while a machine is connected or connecting (any LIVE step): sign-out is refused then (T-S58). */
+function liveNow(model: WorkspaceModel | null): boolean {
+  const view = model?.live.value ?? null;
+  if (view === null) return false;
+  return connected(view) || view.entry.step === 'live' || view.entry.step === 'opening';
+}
+
+export function PreferencesView({ build, model = null }: { readonly build: BuildInfo; readonly model?: WorkspaceModel | null }): ComponentChild {
   const saved = toolStore.saved.value && jobSaved.value;
+  const live = liveNow(model);
   return h(
     'div',
     { class: 'settings-view' },
@@ -28,6 +38,7 @@ export function PreferencesView({ build }: { readonly build: BuildInfo }): Compo
     h(
       'div',
       { tabindex: 0, class: 'scroll-region' },
+      h(AccountPanel, { state: accountState.value, live, onSignOut: () => void signOut(() => liveNow(model)) }),
       h(
         'div',
         { class: 'panel' },

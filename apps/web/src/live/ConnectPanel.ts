@@ -19,6 +19,8 @@ export interface ConnectPanelProps {
   readonly onConfirm: (ticked: readonly boolean[]) => void;
   readonly onCancel: () => void;
   readonly onDisconnect: () => void;
+  /** A1-07: the sign-in link when this host offers sign-in (accounts decides who is admitted), else null. */
+  readonly signInHref?: string | null;
 }
 
 export function advisoryText(check: Exclude<AdvisoryCheck, { ok: true }>): string {
@@ -73,7 +75,12 @@ export function ConnectPanel(props: ConnectPanelProps): ComponentChild {
       return h(
         'div',
         { class: 'live-entry', 'data-entry': 'refused', 'data-refusal': state.refusal.kind, ...(comingSoon ? { 'data-accounts': 'coming-soon' } : {}) },
-        comingSoon ? h(AccountNotice, null) : h('p', { role: 'alert' }, refusalText(state.refusal)),
+        comingSoon
+          ? h(AccountNotice, { signInHref: props.signInHref ?? null })
+          : h('p', { role: 'alert' }, refusalText(state.refusal)),
+        !comingSoon && state.refusal.kind === 'signed-out' && (props.signInHref ?? null) !== null
+          ? h('p', null, h('a', { class: 'button', href: props.signInHref ?? '/auth/login', 'data-action': 'sign-in' }, 'Sign in'))
+          : null,
         h('button', { type: 'button', class: 'button', 'data-action': 'dismiss', onClick: props.onCancel }, comingSoon ? 'Close' : 'OK'),
       );
     }

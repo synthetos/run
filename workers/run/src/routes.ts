@@ -4,9 +4,11 @@
  * as an entrypoint.
  *
  * The API is `GET /api/health` and, from P1-05, `GET /api/identity` (the
- * D1 sign-in gate's identity: the verified Cloudflare Access identity on
- * staging, none in production until A1-07). Every other `/api/*` and
- * `/auth/*` path is a 404 until A1 adds sign-in.
+ * D1 sign-in gate's identity: the run session where sign-in is on, A1-06,
+ * then the verified Cloudflare Access identity on staging), and `GET
+ * /api/session` (the account panel's read, always 200). `/auth/*` is the
+ * sign-in handoff with accounts (authRoutes.ts), a 404 where sign-in is off.
+ * Every other `/api/*` path is a 404.
  *
  * `GET /firmware/<owner>/<name>/<tag>/<asset>` (OD-10) serves a listed
  * GitHub release asset through the firmware proxy (firmwareProxy.ts). In
@@ -14,9 +16,12 @@
  * (wrangler.jsonc), so there the path reaches the asset layer and is a 404:
  * production lists no firmware and its flasher is off.
  */
-import type { IdentityBody } from '@synthetos/contracts';
+import type { IdentityBody, SessionBody } from '@synthetos/contracts';
 import { accessConfig, type CertsFetcher, fetchAccessCerts, verifyAccessJwt } from './accessIdentity.ts';
 import { firmwareAssetPath, firmwareHeaders, NO_CACHE, proxyFirmwareAsset, type FirmwareCache, type FirmwareProxyDeps } from './firmwareProxy.ts';
+import { authConfig, type AuthEnv } from './authConfig.ts';
+import { authRoute } from './authRoutes.ts';
+import { runSessionIdentity } from './authSession.ts';
 import { API_CACHE_CONTROL, grantsSerial, HASHED_ASSET_CACHE_CONTROL } from './headers.ts';
 
 export const VERSION = '0.0.0';
@@ -31,7 +36,7 @@ export interface AssetsBinding {
   fetch(request: Request): Promise<Response>;
 }
 
-export interface Env {
+export interface Env extends AuthEnv {
   readonly ASSETS: AssetsBinding;
   readonly RUN_ENV?: string;
   /** Staging only: the Access team domain (`<team>.cloudflareaccess.com`). */
@@ -85,18 +90,33 @@ function health(env: Env): Response {
 }
 
 /**
- * `GET /api/identity`. Only the staging Worker on the staging host verifies
- * an Access identity; everywhere else (production until A1-07) the answer
- * is no identity, so Connect stays refused there.
+ * `GET /api/identity`. First the run session, where sign-in is on (authConfig.ts: production and staging with the
+ * accounts binding, database and secrets). Then, on the staging Worker on the staging host only, the verified
+ * Access identity. Otherwise no identity, so Connect stays refused. `signIn` says whether this host offers
+ * sign-in; accounts decides who is admitted (D37).
  */
 async function identity(request: Request, env: Env, fetchCerts: CertsFetcher): Promise<Response> {
-  const none = (reason: NonNullable<IdentityBody['reason']>): Response => json(401, { identity: null, reason } satisfies IdentityBody);
-  if (!grantsSerial(env.RUN_ENV, new URL(request.url))) return none('not-available-here');
+  const auth = authConfig(env, new URL(request.url));
+  const signIn = auth !== null;
+  const none = (reason: NonNullable<IdentityBody['reason']>): Response => json(401, { identity: null, reason, signIn } satisfies IdentityBody);
+  if (auth !== null) {
+    const session = await runSessionIdentity(request, auth);
+    if (session !== null) return json(200, { identity: session, signIn } satisfies IdentityBody);
+  }
+  if (!grantsSerial(env.RUN_ENV, new URL(request.url))) return none(signIn ? 'not-signed-in' : 'not-available-here');
   const config = accessConfig(env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
-  if (config === null) return none('not-configured');
+  if (config === null) return none(signIn ? 'not-signed-in' : 'not-configured');
   const verified = await verifyAccessJwt(request.headers.get('cf-access-jwt-assertion'), config, Date.now(), fetchCerts);
   if (verified === null) return none('not-signed-in');
-  return json(200, { identity: { provider: 'access', subject: verified.subject } } satisfies IdentityBody);
+  return json(200, { identity: { provider: 'access', subject: verified.subject }, signIn } satisfies IdentityBody);
+}
+
+/** `GET /api/session`: the account panel's read. Always 200; never the D1 gate (that is `/api/identity`). */
+async function session(request: Request, env: Env): Promise<Response> {
+  const auth = authConfig(env, new URL(request.url));
+  const found = auth === null ? null : await runSessionIdentity(request, auth);
+  const body: SessionBody = { account: found === null ? null : { subject: found.subject, display: found.display }, signIn: auth !== null };
+  return json(200, body);
 }
 
 function notFound(): Response {
@@ -141,7 +161,13 @@ async function firmware(request: Request, env: Env, pathname: string, deps: Firm
 }
 
 /** Routes one request. Exported for the tests; production goes through `fetch` below. */
-export async function route(request: Request, env: Env, fetchCerts: CertsFetcher = fetchAccessCerts, firmwareDeps?: FirmwareProxyDeps): Promise<Response> {
+export async function route(
+  request: Request,
+  env: Env,
+  fetchCerts: CertsFetcher = fetchAccessCerts,
+  firmwareDeps?: FirmwareProxyDeps,
+  now: () => number = () => Math.floor(Date.now() / 1000),
+): Promise<Response> {
   const url = new URL(request.url);
   const { pathname } = url;
   if (under(pathname, '/api')) {
@@ -149,16 +175,16 @@ export async function route(request: Request, env: Env, fetchCerts: CertsFetcher
       if (request.method === 'GET') return identity(request, env, fetchCerts);
       return json(405, { error: 'method_not_allowed' }, { allow: 'GET' });
     }
+    if (pathname === '/api/session') {
+      if (request.method === 'GET') return session(request, env);
+      return json(405, { error: 'method_not_allowed' }, { allow: 'GET' });
+    }
     if (pathname !== '/api/health') return notFound();
     if (request.method === 'GET') return health(env);
     if (request.method === 'HEAD') return withoutBody(health(env));
     return json(405, { error: 'method_not_allowed' }, { allow: 'GET, HEAD' });
   }
-  if (under(pathname, '/auth')) {
-    // Sign-in arrives with A1 (accounts.synthetos.com). Until then there is
-    // no auth route at all.
-    return notFound();
-  }
+  if (under(pathname, '/auth')) return authRoute(request, env, now());
   if (firmwareAssetPath(pathname) !== null) return firmware(request, env, pathname, firmwareDeps ?? liveFirmwareDeps(url.origin));
   // Production: not normally reached (only /api/* and /auth/* run the Worker
   // first). Staging: every other request (the Worker runs first for all of

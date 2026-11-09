@@ -26,6 +26,7 @@ import {
   DEPLOY_CONFIG_PATH,
   deployConfig,
   parseJsonc,
+  RUN_AUTH_DATABASES,
   STAGING_KEYS,
   TOP_LEVEL_KEYS,
 } from '../src/deploy/wranglerConfig.ts';
@@ -34,7 +35,11 @@ import { REPO_ROOT } from './scratch.ts';
 
 const COMMITTED = readFileSync(join(REPO_ROOT, 'workers/run/wrangler.jsonc'), 'utf8');
 const REAL_ACCOUNT = '0123456789abcdef0123456789abcdef';
-const TEXT = COMMITTED.replace(/"account_id": "[^"]*"/, `"account_id": "${ACCOUNT_ID_PLACEHOLDER}"`);
+// The RUN_AUTH database ids are real here (A1-07: the preflight refuses the placeholder of the environment it deploys;
+// worker-config.test.ts covers that refusal), so these tests keep testing the deployment configuration itself.
+const TEXT = COMMITTED.replace(/"account_id": "[^"]*"/, `"account_id": "${ACCOUNT_ID_PLACEHOLDER}"`)
+  .replace(RUN_AUTH_DATABASES.production.placeholder, '11111111-2222-4333-8444-555555555555')
+  .replace(RUN_AUTH_DATABASES.staging.placeholder, '66666666-7777-4888-9999-aaaaaaaaaaaa');
 type Config = Record<string, unknown> & { env: { staging: Record<string, unknown> } };
 const load = (): Config => parseJsonc(TEXT) as Config;
 const OPTIONS = { requireRealAccount: false };

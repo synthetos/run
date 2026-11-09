@@ -295,7 +295,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
           pane('board', h(BoardView, { model })),
           pane('projects', h(ProjectsView, { onView })),
           pane('analyze', h(AnalyzeView, { model })),
-          pane('settings', h(PreferencesView, { build: props.build })),
+          pane('settings', h(PreferencesView, { build: props.build, model: props.model ?? null })),
           pane('safety', h(SafetyView, { model: props.model ?? null })),
         ),
       ),

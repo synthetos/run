@@ -92,6 +92,27 @@ export const EXPECTED_ASSETS = {
  */
 export const EXPECTED_STAGING_ASSETS = { ...EXPECTED_ASSETS, run_worker_first: true } as const;
 
+/**
+ * A1-06/A1-07: the one service binding run may hold, per environment: accounts' named `RunEntrypoint` (the
+ * entrypoint field pins the client in accounts' code; accounts docs/RP_CONTRACT.md "Run binding"). D39 and
+ * tools/gates/src/bindings/check.ts: no other configuration in this repository may bind accounts.
+ */
+export const EXPECTED_SERVICES: Readonly<Record<DeployEnvironment, readonly { binding: string; service: string; entrypoint: string }[]>> = {
+  production: [{ binding: 'ACCOUNTS', service: 'accounts', entrypoint: 'RunEntrypoint' }],
+  staging: [{ binding: 'ACCOUNTS', service: 'accounts-staging', entrypoint: 'RunEntrypoint' }],
+};
+
+/**
+ * A1-06: run's own D1 database for the sign-in handoff (pending sign-ins, device rows, the sign-in rate counter;
+ * workers/run/migrations). Separate per environment. The id is a placeholder until the owner creates the database
+ * (docs/ops/go-live-staging.md); the deploy preflight refuses a placeholder.
+ */
+export const RUN_AUTH_DATABASES: Readonly<Record<DeployEnvironment, { readonly name: string; readonly placeholder: string }>> = {
+  production: { name: 'run-auth', placeholder: 'RUN_AUTH_DATABASE_ID_PLACEHOLDER' },
+  staging: { name: 'run-auth-staging', placeholder: 'RUN_AUTH_STAGING_DATABASE_ID_PLACEHOLDER' },
+};
+const DATABASE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 /** Keys that would add a second origin, a gradual rollout or code from elsewhere. Never allowed. */
 const FORBIDDEN_KEYS = ['unsafe', 'routes_preview', 'route', 'tail_consumers', 'dispatch_namespaces', 'legacy_env', 'site'];
 
@@ -115,10 +136,12 @@ export const TOP_LEVEL_KEYS: readonly string[] = [
   'assets',
   'routes',
   'vars',
+  'services',
+  'd1_databases',
   'env',
 ];
 /** The only keys env.staging may hold (each one required); everything else is inherited from the top level. */
-export const STAGING_KEYS: readonly string[] = ['workers_dev', 'preview_urls', 'routes', 'vars', 'assets'];
+export const STAGING_KEYS: readonly string[] = ['workers_dev', 'preview_urls', 'routes', 'vars', 'assets', 'services', 'd1_databases'];
 
 /** Pinned values of the module settings the attested --no-bundle deploy depends on. */
 export const EXPECTED_MAIN = 'src/index.ts';
@@ -142,7 +165,24 @@ export interface ConfigFinding {
   readonly message: string;
 }
 
-function checkScope(scope: Json, where: string, env: DeployEnvironment, findings: ConfigFinding[]): void {
+/** The sign-in bindings of one scope: exactly accounts' RunEntrypoint and the environment's RUN_AUTH database. */
+function checkAuthBindings(scope: Json, env: DeployEnvironment, requireReal: boolean, add: (message: string) => void): void {
+  if (!same(scope['services'], EXPECTED_SERVICES[env])) add(`services must be exactly ${JSON.stringify(EXPECTED_SERVICES[env])} (A1-06; D39: only accounts' RunEntrypoint)`);
+  const db = RUN_AUTH_DATABASES[env];
+  const list = scope['d1_databases'];
+  const entry = Array.isArray(list) && list.length === 1 && isObject(list[0]) ? list[0] : null;
+  const keys = entry === null ? [] : Object.keys(entry).sort();
+  if (entry === null || !same(keys, ['binding', 'database_id', 'database_name', 'migrations_dir']) || entry['binding'] !== 'RUN_AUTH' || entry['database_name'] !== db.name || entry['migrations_dir'] !== 'migrations') {
+    add(`d1_databases must be exactly one RUN_AUTH database named '${db.name}' with migrations_dir 'migrations' (A1-06)`);
+    return;
+  }
+  const id = entry['database_id'];
+  if (id === db.placeholder) {
+    if (requireReal) add(`d1_databases[0].database_id is still the placeholder: create the ${db.name} database and put in its id (docs/ops/go-live-staging.md)`);
+  } else if (typeof id !== 'string' || !DATABASE_ID_RE.test(id)) add('d1_databases[0].database_id must be a D1 database id (a lower-case UUID)');
+}
+
+function checkScope(scope: Json, where: string, env: DeployEnvironment, findings: ConfigFinding[], requireReal = false): void {
   const add = (message: string): void => {
     findings.push({ where, message });
   };
@@ -167,10 +207,19 @@ function checkScope(scope: Json, where: string, env: DeployEnvironment, findings
   if (isObject(vars) && Object.keys(vars).some((k) => k !== 'RUN_ENV')) {
     findings.push({ where: where === '.' ? 'vars' : `${where}.vars`, message: 'vars may hold RUN_ENV only' });
   }
+  checkAuthBindings(scope, env, requireReal, add);
 }
 
-/** Checks the whole configuration. `requireRealAccount` is set by the deploy preflight. */
-export function checkWorkerConfig(config: unknown, options: { requireRealAccount: boolean }): ConfigFinding[] {
+/** What the deploy preflight requires on top of the repository check. */
+export interface CheckOptions {
+  /** The account id must be real (not the placeholder). */
+  readonly requireRealAccount: boolean;
+  /** The environment being deployed: its RUN_AUTH database id must be real (A1-07). The other may stay a placeholder. */
+  readonly deploying?: DeployEnvironment;
+}
+
+/** Checks the whole configuration. The deploy preflight sets both options. */
+export function checkWorkerConfig(config: unknown, options: CheckOptions): ConfigFinding[] {
   const findings: ConfigFinding[] = [];
   if (!isObject(config)) return [{ where: '.', message: 'not a JSON object' }];
   const add = (where: string, message: string): void => {
@@ -189,7 +238,7 @@ export function checkWorkerConfig(config: unknown, options: { requireRealAccount
   if (config['find_additional_modules'] !== true) add('find_additional_modules', 'must be true (the artifact Worker is several modules)');
   if (!same(config['rules'], EXPECTED_RULES)) add('rules', `must be exactly ${JSON.stringify(EXPECTED_RULES)}`);
   if ('$schema' in config && typeof config['$schema'] !== 'string') add('$schema', 'must be a string');
-  checkScope(config, '.', 'production', findings);
+  checkScope(config, '.', 'production', findings, options.deploying === 'production');
   const envs = config['env'];
   if (!isObject(envs)) {
     add('env', 'must define the staging environment');
@@ -200,7 +249,7 @@ export function checkWorkerConfig(config: unknown, options: { requireRealAccount
     const staging = envs['staging'];
     if (!isObject(staging)) add('env.staging', 'missing');
     else {
-      checkScope(staging, 'env.staging', 'staging', findings);
+      checkScope(staging, 'env.staging', 'staging', findings, options.deploying === 'staging');
       for (const key of ['account_id', 'name', 'main']) {
         if (key in staging) add(`env.staging.${key}`, 'must be inherited from the top level, never overridden');
       }
@@ -217,7 +266,7 @@ export function checkWorkerConfig(config: unknown, options: { requireRealAccount
  * key wrangler adds later) cannot reach it. Throws when the configuration has
  * findings, so a refused file never yields a deployment configuration.
  */
-export function deployConfig(config: unknown, options: { requireRealAccount: boolean }): Record<string, unknown> {
+export function deployConfig(config: unknown, options: CheckOptions): Record<string, unknown> {
   const findings = checkWorkerConfig(config, options);
   if (findings.length > 0 || !isObject(config)) {
     throw new Error(`refused: ${findings.map((f) => `${f.where}: ${f.message}`).join('; ')}`);

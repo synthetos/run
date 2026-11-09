@@ -56,12 +56,17 @@ describe('which configurations bind accounts', () => {
 });
 
 describe("run's own configuration", () => {
-  it('binds nothing today: its key allowlist refuses services until Phase 1 adds the accounts binding', () => {
+  it('A1-06: binds exactly accounts\' RunEntrypoint per environment, and its key allowlist refuses any other binding', () => {
     const text = readFileSync(join(REPO_ROOT, 'workers/run/wrangler.jsonc'), 'utf8');
     const config = parseJsonc(text) as Record<string, unknown>;
-    expect(bindingsToAccounts(config)).toEqual([]);
-    const withBinding = { ...config, services: [{ binding: 'ACCOUNTS', service: 'accounts' }] };
-    expect(checkWorkerConfig(withBinding, { requireRealAccount: false }).map((f) => f.where)).toContain('services');
+    expect(bindingsToAccounts(config)).toEqual([
+      'services[0].service = "accounts"',
+      'services[0].entrypoint = "RunEntrypoint"',
+      'env.staging.services[0].service = "accounts-staging"',
+      'env.staging.services[0].entrypoint = "RunEntrypoint"',
+    ]);
+    const withoutEntrypoint = { ...config, services: [{ binding: 'ACCOUNTS', service: 'accounts' }] };
+    expect(checkWorkerConfig(withoutEntrypoint, { requireRealAccount: false }).map((f) => f.where)).toContain('.');
   });
 });
 

@@ -516,6 +516,13 @@ jobs:
           node tools/gates/src/deploy/retention-cli.ts merge --env "$DEPLOY_ENV" --commit "$GITHUB_SHA" \
             --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --site site $(cat retention-args) --out deploy-site --state-out deployed-state
           node tools/gates/src/bundle/cli.ts --target staging deploy-site
+      # A1-07: run's RUN_AUTH database (pending sign-ins and device rows) gets the reviewed migrations
+      # in workers/run/migrations before the code that uses them (expand only).
+      - name: Apply the reviewed RUN_AUTH migrations before the code (A1-07)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: ci/deploy-toolchain/node_modules/.bin/wrangler d1 migrations apply RUN_AUTH --remote --config workers/run/wrangler.deploy.json --env staging
       - name: Deploy the attested artifact to staging
         id: deploy
         env:
@@ -679,6 +686,13 @@ jobs:
           node tools/gates/src/deploy/retention-cli.ts merge --env "$DEPLOY_ENV" --commit "$GITHUB_SHA" \
             --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --site site $(cat retention-args) --out deploy-site --state-out deployed-state
           node tools/gates/src/bundle/cli.ts --target production deploy-site
+      # A1-07: run's RUN_AUTH database (pending sign-ins and device rows) gets the reviewed migrations
+      # in workers/run/migrations before the code that uses them (expand only).
+      - name: Apply the reviewed RUN_AUTH migrations before the code (A1-07)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: ci/deploy-toolchain/node_modules/.bin/wrangler d1 migrations apply RUN_AUTH --remote --config workers/run/wrangler.deploy.json
       - name: Deploy the attested artifact to production
         id: deploy
         env:

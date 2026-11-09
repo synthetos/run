@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ACCOUNT_ID_PLACEHOLDER, checkWorkerConfig, parseJsonc, stripJsonc } from '../src/deploy/wranglerConfig.ts';
+import { ACCOUNT_ID_PLACEHOLDER, checkWorkerConfig, EXPECTED_SERVICES, parseJsonc, RUN_AUTH_DATABASES, stripJsonc } from '../src/deploy/wranglerConfig.ts';
 import { REPO_ROOT } from './scratch.ts';
 
 const CONFIG_PATH = join(REPO_ROOT, 'workers/run/wrangler.jsonc');
@@ -35,6 +35,30 @@ describe('stripJsonc', () => {
   it('throws on an unterminated comment or string', () => {
     expect(() => stripJsonc('{ /* x ')).toThrow(/unterminated/);
     expect(() => stripJsonc('{ "x ')).toThrow(/unterminated/);
+  });
+});
+
+describe('A1-06: the sign-in bindings', () => {
+  it('binds exactly accounts\' RunEntrypoint and the RUN_AUTH database per environment', () => {
+    const c = load();
+    expect(c['services']).toEqual(EXPECTED_SERVICES.production);
+    expect(c.env.staging['services']).toEqual(EXPECTED_SERVICES.staging);
+    expect((c['d1_databases'] as { database_name: string }[])[0]?.database_name).toBe('run-auth');
+    expect((c.env.staging['d1_databases'] as { database_name: string }[])[0]?.database_name).toBe('run-auth-staging');
+  });
+
+  it('refuses another service, another entrypoint, a second database, a missing binding or a bad id', () => {
+    const mutate = (fn: (c: Config) => void): string[] => {
+      const c = load();
+      fn(c);
+      return checkWorkerConfig(c, { requireRealAccount: false }).map((f) => `${f.where}: ${f.message}`);
+    };
+    expect(mutate((c) => (c['services'] = [{ binding: 'ACCOUNTS', service: 'accounts', entrypoint: 'Default' }])).join()).toContain('services');
+    expect(mutate((c) => (c.env.staging['services'] = EXPECTED_SERVICES.production)).join()).toContain('env.staging');
+    expect(mutate((c) => (c['services'] = [...EXPECTED_SERVICES.production, { binding: 'FORUM', service: 'forumbot' }])).join()).toContain('services');
+    expect(mutate((c) => delete c['d1_databases']).join()).toContain('RUN_AUTH');
+    expect(mutate((c) => ((c['d1_databases'] as Record<string, unknown>[])[0] = { binding: 'RUN_AUTH', database_name: 'run-auth', database_id: 'nope', migrations_dir: 'migrations' })).join()).toContain('lower-case UUID');
+    expect(mutate((c) => (c['d1_databases'] = [...(c['d1_databases'] as unknown[]), { binding: 'OTHER' }])).join()).toContain('exactly one');
   });
 });
 
@@ -132,7 +156,21 @@ describe('preflight CLI', () => {
     const r = spawnSync(process.execPath, [join(REPO_ROOT, 'tools/gates/src/deploy/preflight.ts'), file, env, '--write', join(dir, 'wrangler.deploy.json')], { encoding: 'utf8', env: childEnv });
     return { status: r.status, output: `${r.stdout}${r.stderr}` };
   }
-  const withAccount = TEXT.replace(ACCOUNT_ID_PLACEHOLDER, REAL_ACCOUNT);
+  const PROD_DB = '11111111-2222-4333-8444-555555555555';
+  const STAGING_DB = '66666666-7777-4888-9999-aaaaaaaaaaaa';
+  const accountOnly = TEXT.replace(ACCOUNT_ID_PLACEHOLDER, REAL_ACCOUNT);
+  const withAccount = accountOnly.replace(RUN_AUTH_DATABASES.production.placeholder, PROD_DB).replace(RUN_AUTH_DATABASES.staging.placeholder, STAGING_DB);
+
+  it('A1-07: refuses the RUN_AUTH database placeholder of the environment it deploys, and only that one', () => {
+    const staging = preflight(accountOnly.replace(RUN_AUTH_DATABASES.staging.placeholder, STAGING_DB), 'staging', REAL_ACCOUNT);
+    expect(staging.status).toBe(0);
+    const production = preflight(accountOnly.replace(RUN_AUTH_DATABASES.staging.placeholder, STAGING_DB), 'production', REAL_ACCOUNT);
+    expect(production.status).toBe(1);
+    expect(production.output).toContain('run-auth database');
+    const neither = preflight(accountOnly, 'staging', REAL_ACCOUNT);
+    expect(neither.status).toBe(1);
+    expect(neither.output).toContain('run-auth-staging');
+  });
 
   it('refuses the config while it carries the placeholder', () => {
     const r = preflight(TEXT, 'production', REAL_ACCOUNT);

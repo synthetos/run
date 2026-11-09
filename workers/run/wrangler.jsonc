@@ -26,7 +26,8 @@
 //   - run is the only Worker configuration allowed to bind `accounts`
 //     (D39: service bindings work inside one account). `pnpm ci-policy`
 //     refuses any other wrangler configuration that does
-//     (tools/gates/src/bindings/check.ts).
+//     (tools/gates/src/bindings/check.ts), and run may bind only accounts'
+//     RunEntrypoint (tools/gates/src/deploy/wranglerConfig.ts).
 //   - Deploys are always 100% (`wrangler deploy`), never gradual
 //     (`wrangler versions deploy` with percentages is not used).
 //
@@ -55,6 +56,16 @@
   },
   "routes": [{ "pattern": "run.synthetos.com", "custom_domain": true }],
   "vars": { "RUN_ENV": "production" },
+  // A1-06/A1-07: sign-in with accounts.synthetos.com. The one service binding run may hold is accounts' named
+  // RunEntrypoint (the entrypoint pins the client in accounts' code; D39, tools/gates/src/bindings/check.ts).
+  // RUN_AUTH is run's own D1 database for pending sign-ins and device rows (workers/run/migrations). Its id is a
+  // placeholder until the owner creates the database (docs/ops/go-live-staging.md); the deploy preflight refuses
+  // the placeholder of the environment it deploys. Two Worker secrets are set by the owner, never in this file:
+  // RUN_STATE_KEY and RUN_RATE_KEY. Without all of these, sign-in stays off and /auth/* is a 404.
+  "services": [{ "binding": "ACCOUNTS", "service": "accounts", "entrypoint": "RunEntrypoint" }],
+  "d1_databases": [
+    { "binding": "RUN_AUTH", "database_name": "run-auth", "database_id": "RUN_AUTH_DATABASE_ID_PLACEHOLDER", "migrations_dir": "migrations" }
+  ],
   "env": {
     // staging.run.synthetos.com, behind Cloudflare Access (D31,
     // docs/ops/access.md). Deployed as the Worker `run-staging`.
@@ -63,6 +74,11 @@
       "preview_urls": false,
       "routes": [{ "pattern": "staging.run.synthetos.com", "custom_domain": true }],
       "vars": { "RUN_ENV": "staging" },
+      // Staging binds staging accounts and its own database (separate from production).
+      "services": [{ "binding": "ACCOUNTS", "service": "accounts-staging", "entrypoint": "RunEntrypoint" }],
+      "d1_databases": [
+        { "binding": "RUN_AUTH", "database_name": "run-auth-staging", "database_id": "RUN_AUTH_STAGING_DATABASE_ID_PLACEHOLDER", "migrations_dir": "migrations" }
+      ],
       // The top-level assets settings with run_worker_first for every path
       // (see the rule above). tools/gates/src/deploy/wranglerConfig.ts pins
       // both objects exactly.

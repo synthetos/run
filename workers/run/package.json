@@ -2,7 +2,7 @@
   "name": "@synthetos/run-worker",
   "version": "0.0.0",
   "private": true,
-  "description": "The run Cloudflare Worker: static shell, security headers, /api/health (ROADMAP P0-04). /auth/* arrives in A1.",
+  "description": "The run Cloudflare Worker: static shell, security headers, /api/health, /api/identity and the /auth/* sign-in handoff with accounts (ROADMAP P0-04, A1-06).",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
@@ -10,7 +10,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "test": "vitest run",
     "dev": "wrangler dev"
   },
