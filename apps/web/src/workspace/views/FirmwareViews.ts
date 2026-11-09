@@ -22,6 +22,7 @@ import { uiLevel } from '../jobWorkflow.ts';
 import { RestorePanel } from '../settings/SettingsUi.ts';
 import { backupBlocked } from '../../live/backup.ts';
 import { Icon } from '../icons.ts';
+import { trustOffered } from '../trustOffer.ts';
 import { connected, type FirmwareActions, type FirmwareDownload, type FirmwareHubView, type LiveView, type ReleaseImage, type WorkspaceModel } from '../model.ts';
 import type { FlashView } from '../../machine-worker/flashService.ts';
 import { shownBoard } from './firmwareBoard.ts';
@@ -262,10 +263,8 @@ function TrustOffer({ view, hub }: { readonly view: LiveView; readonly hub: Firm
   const [open, setOpen] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const installed = hub.installed;
-  const s = view.message?.snapshot;
-  const id = s?.identity?.id;
-  if (installed === null || installed.source !== 'custom' || typeof id !== 'string' || installed.boardId !== id) return null;
-  if (hub.trust.some((t) => t.boardId === id && t.sha256 === installed.sha256)) return null;
+  const id = view.message?.snapshot.identity?.id;
+  if (!trustOffered(view, hub) || installed === null || typeof id !== 'string') return null;
   return h(
     'section',
     { class: 'insp', 'data-region': 'trust-offer' },

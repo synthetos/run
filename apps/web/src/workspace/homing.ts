@@ -79,7 +79,7 @@ function homeBody({ model }: HomeProps, hk: Hooks): ComponentChild {
     const v = homed.find((d) => d.axis === a)?.homed ?? null;
     return v === null ? '—' : v ? 'yes' : 'no';
   };
-  // Disabled controls carry the reason as their title; the pane says it once, on the Position pill (OD-13 §5).
+  // Disabled controls carry the reason as their title; a block is said once, in the Position panel's card (controlBlock.ts).
   const button = (label: string, aria: string, onClick: () => void, ok: boolean, cls = 'small', why: string | null = null): ComponentChild =>
     h('button', { type: 'button', class: cls, 'aria-label': aria, 'data-machine-control': 'home', ...(enabled && ok ? { onClick } : { disabled: true, title: (enabled ? why : hv.reason) ?? undefined }) }, label);
   const change = view?.message?.snapshot.notices.change?.text ?? null;
@@ -175,23 +175,17 @@ export function unknownApplies(view: LiveView | null): boolean {
 }
 
 /**
- * The UNKNOWN banner with its primary actions (SAFETY §3 as amended). "I've checked the machine" is always offered
- * (it moves nothing); "Home machine" when homing is configured and motion is on, otherwise "Set machine position
- * here (G28.3)" where motion is on.
+ * The UNKNOWN card with its ways out (SAFETY §3 as amended; W6 is given here once after connecting, OD-18): a sentence
+ * and real buttons (owner, 2026-11-09). "I've checked the machine" is always offered (it moves nothing; one click, the
+ * sentence is the confirmation, owner 2026-11-04); "Home the machine…" when homing is configured and motion is on;
+ * "Set machine zero here…" (G28.3, C26) where motion is on. A board Run could not identify is the control card's
+ * (controlBlock.ts), not this one.
  */
 export function UnknownExits({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const [asking, setAsking] = useState<Asking>(null);
   const [note, setNote] = useState<string | null>(null);
   const view = model?.live.value ?? null;
-  if (!unknownApplies(view)) return null;
-  // A board run could not identify cannot be confirmed or homed: say why instead of offering buttons that are refused.
-  if (view?.message?.snapshot.classification?.dialectId === null) {
-    return h(
-      'div',
-      { class: 'overlay-banner overlay-banner-warn unknown-exits', 'data-region': 'unknown-exits', 'data-unknown': 'unidentified', role: 'alert' },
-      h('p', null, h('strong', null, 'Run could not identify this board. '), 'Its replies carried no values (on TinyG, set $jv to 4). Disconnect, fix the setting, then connect again.'),
-    );
-  }
+  if (!unknownApplies(view) || view?.message?.snapshot.classification?.dialectId === null) return null;
   const send = model?.actions.value?.motion;
   const hv = homingView(view, settingsOf(view));
   const run = (command: MotionCommand): void => {
@@ -204,15 +198,14 @@ export function UnknownExits({ model }: { readonly model: WorkspaceModel | null 
   const canPosition = hv.enabled;
   return h(
     'div',
-    { class: 'overlay-banner overlay-banner-warn unknown-exits', 'data-region': 'unknown-exits', role: 'alert' },
-    h('p', null, h('strong', null, 'Position not verified. '), 'The last session ended while connected.'),
+    { class: 'control-block unknown-exits', 'data-region': 'unknown-exits', 'data-block': 'unknown', role: 'alert' },
+    h('p', null, h('strong', null, 'Position not verified.'), ' The last session ended while connected, so the machine may have moved. Check it, then confirm.'),
     h(
       'div',
-      { class: 'notice-actions' },
-      // One click (owner, 2026-11-04): the message above is the confirmation; no second card.
-      h(IconButton, { icon: 'check', label: 'I’ve checked the machine: its position is right', primary: true, attrs: { 'data-action': 'unknown-verify' }, onClick: () => run({ op: 'positionVerify' }) }),
-      canHome ? h(IconButton, { icon: 'home', label: 'Home the machine', attrs: { 'data-action': 'unknown-home' }, onClick: () => setAsking({ kind: 'home', axes: hv.configured }) }) : null,
-      canPosition ? h(IconButton, { icon: 'machineZero', label: 'Set the machine zero here, without homing', attrs: { 'data-action': 'unknown-position' }, onClick: () => setAsking({ kind: 'position', axes: POSITION_AXES }) }) : null,
+      { class: 'control-block-actions' },
+      h('button', { type: 'button', class: 'small primary', 'data-action': 'unknown-verify', onClick: () => run({ op: 'positionVerify' }) }, 'I’ve checked the machine'),
+      canHome ? h('button', { type: 'button', class: 'small', 'data-action': 'unknown-home', onClick: () => setAsking({ kind: 'home', axes: hv.configured }) }, 'Home the machine…') : null,
+      canPosition ? h('button', { type: 'button', class: 'small', 'data-action': 'unknown-position', onClick: () => setAsking({ kind: 'position', axes: POSITION_AXES }) }, 'Set machine zero here…') : null,
     ),
     send === undefined ? null : confirmFor(asking, hv, run, () => setAsking(null)),
     note === null ? null : h('p', { class: 'unavailable', role: 'status' }, note),

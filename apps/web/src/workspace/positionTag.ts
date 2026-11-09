@@ -32,11 +32,17 @@ export function positionTag(homed: boolean | null, by: 'homing' | 'hand' | undef
   return { text: 'Position set before connecting', tone: 'warn', help: SET_BEFORE_HELP };
 }
 
-/** The tag element for a known `homed` (the caller shows "Not homed" with W34 itself). */
+/**
+ * The homing word for a known `homed`, as plain text in the Position status line (owner, 2026-11-09: no pill, no
+ * round "?"); where it has help, the word itself opens it. The caller shows "Not homed" with W34 itself.
+ */
 export function HomingTag(homed: boolean | null, by: 'homing' | 'hand' | undefined): ComponentChild {
   const tag = positionTag(homed, by);
   if (tag === null) return null;
-  const cls = tag.tone === 'ok' ? 'tag ok' : tag.tone === 'warn' ? 'tag warn' : 'tag';
-  const help = tag.help === null ? null : h(ContextHelp, { id: 'position-set-help', label: 'About how the position was set', below: true }, tag.help);
-  return h('span', { class: cls, 'data-position': 'homing', 'data-homed-by': by ?? 'unknown' }, tag.text, help);
+  const cls = tag.tone === 'ok' ? 'pos-word ok' : tag.tone === 'warn' ? 'pos-word warn' : 'pos-word';
+  return h(
+    'span',
+    { class: cls, 'data-position': 'homing', 'data-homed-by': by ?? 'unknown' },
+    tag.help === null ? tag.text : h(ContextHelp, { id: 'position-set-help', label: `${tag.text}: about how the position was set`, trigger: tag.text, below: true }, tag.help),
+  );
 }

@@ -4,7 +4,7 @@
  * resolution, SAFETY §4.1: the read becomes this computer's reference, nothing
  * is written, and the session clears the overlay for this link); "Review"
  * opens the Board view's settings compare. Until one is chosen the motion
- * controls stay gated, and the Position pill says so.
+ * controls stay gated, and the Position panel's control card says so (controlBlock.ts).
  */
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';

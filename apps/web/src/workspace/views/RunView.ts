@@ -13,7 +13,7 @@
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { c13, c24, c25, c25HandSet, c27, c28, c29, w13, w34, w35, w36, w44 } from '@synthetos/safety';
+import { c24, c25, c25HandSet, c27, c28, c29, w13, w35, w36, w44 } from '@synthetos/safety';
 import { DIALECTS } from '@synthetos/protocol';
 import { LITE_THRESHOLD_LINES } from '../../gcode-worker/pipeline.ts';
 import type { WorkerLike } from '../../gcode-worker/client.ts';
@@ -34,7 +34,9 @@ import { TC_GO_REASON, TC_OFFSET_REASON, atToolChange, jogBlocked, zeroBlocked }
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
 import { HomeSection, HomeQuick, UnknownExits } from '../homing.ts';
 import { ProbeZ } from '../probe/ProbeZ.ts';
-import { HomingTag } from '../positionTag.ts';
+import { PositionStatus } from '../positionStatus.ts';
+import { ControlBlockCard, currentBlock } from '../ControlBlockCard.ts';
+import { outputsOff } from '../controlBlock.ts';
 import { WorkZeroConfirm } from '../workZeroConfirm.ts';
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
 import { ContextHelp } from '../../shell/ContextHelp.ts';
@@ -271,8 +273,10 @@ function ageText(view: LiveView): { readonly text: string; readonly lag: string 
 
 /**
  * The Position readout with the hobbyist's two actions on each axis row (OD-13): Zero here (G10 L20 in the active
- * system, C16) and Go to zero (Z rises first, C25), plus Zero all and Go to zero for X, Y and Z. Only the machine's
- * axes are shown. When the controls are gated, one pill in the header says why; nothing else repeats it.
+ * system, C16) and Go to zero (Z rises first, C25), plus Zero all and Go to zero for X, Y and Z in the same column,
+ * on the status line's row. Only the machine's axes are shown. While a block holds (controlBlock.ts: read only,
+ * UNKNOWN, alarm, another tab, ...) one card at the top says why and offers the way out, and the actions are not
+ * drawn at all (owner, 2026-11-09); a passing gate (a move or a job running) leaves them in place, disabled.
  */
 function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
   const view = model?.live.value ?? null;
@@ -315,8 +319,9 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
         ? h(WorkZeroConfirm, { axes: confirm.axes, system, machine: (a: MotionAxis) => row(a).machine, advanced: uiLevel.value.value === 'advanced', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) })
         : h(ConfirmCard, { text: `${c25({ axes: axesText(confirm.axes), path: goToZeroPath(confirm.axes, safe, zNow) })}${handSet ? ` ${c25HandSet()}` : ''}`, confirm: 'Go to zero', safety: 'C25', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });
   const xyz: readonly MotionAxis[] = ['x', 'y', 'z'];
-  // The gate, once: a pill in the header with the reason behind (?) (OD-13 §5); a move in progress is not a gate.
-  const gate = m !== null && !ui.enabled && !ui.busy ? ui.reason : null;
+  const block = currentBlock(model);
+  const actions = block === null;
+  const advanced = uiLevel.value.value === 'advanced';
   return h(
     'section',
     { class: 'insp sec-position', 'data-region': 'position', 'aria-labelledby': 'position-title' },
@@ -327,15 +332,16 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
       h(
         'span',
         { class: 'pos-head-right' },
-        gate === null ? null : h('span', { class: 'tag warn', 'data-position': 'gate' }, /approved/.test(gate) ? 'Read only' : 'Controls off', h(ContextHelp, { id: 'position-gate-help', label: 'Why the controls are off', below: true, end: true }, gate)),
         m === null ? null : h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: `${age.text}. The age is the time since the controller last said anything.` }, age.lag === 'none' ? age.text : age.text.slice(age.text.indexOf('·') + 2)),
       ),
     ),
-    h(UnknownExits, { model: model ?? null }),
+    // UNKNOWN's exits also under another card: "I've checked the machine" clears it without motion (T-S105).
+    block === null || block.kind === 'unknown' ? null : h(ControlBlockCard, { block, model: model ?? null }),
+    block === null ? null : h(UnknownExits, { model: model ?? null }),
     h(
       'div',
-      { class: 'dro-grid', role: 'table', 'aria-label': 'Position' },
-      h('div', { class: `dro-head${uiLevel.value.value === 'advanced' ? '' : ' sr-only'}`, role: 'row' }, h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Axis')), h('span', { role: 'columnheader' }, units === null ? 'Work' : `Work, ${units}`), h('span', { role: 'columnheader' }, 'Machine, mm'), h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Actions'))),
+      { class: `dro-grid${actions ? '' : ' no-actions'}`, role: 'table', 'aria-label': 'Position' },
+      h('div', { class: `dro-head${advanced ? '' : ' sr-only'}`, role: 'row' }, h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Axis')), h('span', { role: 'columnheader' }, units === null ? 'Work' : `Work, ${units}`), h('span', { role: 'columnheader' }, 'Machine, mm'), actions ? h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Actions')) : null),
       axes.map((a) => {
         const d = row(a);
         return h(
@@ -344,28 +350,22 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
           h('span', { class: 'axis', role: 'rowheader' }, a.toUpperCase()),
           h('strong', { role: 'cell', 'data-position': 'work' }, coord(d.work)),
           h('span', { role: 'cell', 'data-position': 'machine' }, coord(d.machine)),
-          h('span', { class: 'dro-actions', role: 'cell' }, act('zeroHere', `Set ${a.toUpperCase()} work zero here`, () => setConfirm({ kind: 'set', axes: [a] }), zeroBlocked(snap, [a])), act('goZero', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }), atToolChange(snap) ? TC_GO_REASON : null)),
+          actions ? h('span', { class: 'dro-actions', role: 'cell' }, act('zeroHere', `Set ${a.toUpperCase()} work zero here`, () => setConfirm({ kind: 'set', axes: [a] }), zeroBlocked(snap, [a])), act('goZero', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }), atToolChange(snap) ? TC_GO_REASON : null)) : null,
         );
       }),
-    ),
-    h(
-      'div',
-      { class: 'pos-status' },
-      uiLevel.value.value === 'advanced' || units === null ? null : h('span', { class: 'tag', 'data-position': 'units' }, `work in ${units}`),
-      m === null ? null : h('span', { class: 'tag', 'data-position': 'wcs' }, wcs?.code ?? '—'),
-      m === null
+      // The status line on the grid's last row, with the X, Y and Z actions in the per-axis actions' column.
+      m === null && !actions
         ? null
-        : homed === false
-          ? h('span', { class: 'tag warn', 'data-position': 'homing' }, 'Not homed', h(ContextHelp, { id: 'w34-help', label: 'About moving before homing', safety: 'W34', below: true }, ...signalText(w34())))
-          : HomingTag(homed, m.snapshot.notices.position?.by),
-      typeof tool === 'number' && uiLevel.value.value === 'advanced' ? h('span', { class: 'tag', 'data-position': 'tool' }, `T${tool}`) : null,
-      h('span', { class: 'pos-all' }, act('zeroHere', `Set ${axesText(xyz)} work zero here`, () => setConfirm({ kind: 'set', axes: xyz }), zeroBlocked(snap, xyz)), act('goZero', `Go to ${axesText(xyz)} zero`, () => setConfirm({ kind: 'go', axes: xyz }), atToolChange(snap) ? TC_GO_REASON : null)),
+        : h(
+            'div',
+            { class: 'dro-row pos-status-row', role: 'row' },
+            h('span', { class: 'pos-status-cell', role: 'cell' }, m === null ? null : h(PositionStatus, { wcs: wcs?.code ?? null, homed, by: m.snapshot.notices.position?.by, tool: typeof tool === 'number' ? tool : null, units: advanced || units === null ? null : `Work in ${units}` })),
+            actions ? h('span', { class: 'dro-actions pos-all', role: 'cell' }, act('zeroHere', `Set ${axesText(xyz)} work zero here`, () => setConfirm({ kind: 'set', axes: xyz }), zeroBlocked(snap, xyz)), act('goZero', `Go to ${axesText(xyz)} zero`, () => setConfirm({ kind: 'go', axes: xyz }), atToolChange(snap) ? TC_GO_REASON : null)) : null,
+          ),
     ),
-    h(ProbeZ, { model: model ?? null }),
+    actions ? h(ProbeZ, { model: model ?? null }) : null,
     card,
     note === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-position': 'note' }, note),
-    // Advanced: the DRO sources and what Run changed in the board's reporting (W35, W36), behind one disclosure.
-    m === null || uiLevel.value.value !== 'advanced' ? null : h('details', { class: 'more' }, h('summary', null, 'Where these numbers come from'), reportsNotice(view), h(Dro, { message: m, elapsedMs: (view as LiveView).now - (view as LiveView).receivedAt })),
   );
 }
 
@@ -412,51 +412,11 @@ function isLive(model: WorkspaceModel | null | undefined): boolean {
   return model?.actions.value?.motion !== undefined;
 }
 
-type Send = (command: MotionCommand) => Promise<string | null>;
-
 function motionNote(ui: MotionUi, note: string | null): ComponentChild {
-  // Only what an action answered: the gate's reason is the Position pill and each disabled control's title (OD-13).
+  // Only what an action answered: a block is the Position panel's card, a passing gate each disabled control's title.
   const text = note ?? ui.notice;
   if (text === null) return null;
   return h('p', { class: 'motion-note', 'data-jog': 'note', role: 'status' }, text);
-}
-
-/** "I've checked the machine" after a reconnect, and Clear alarm with its meaning (C13). */
-function MotionRecovery({ ui, send, view, hk }: { readonly ui: MotionUi; readonly send: Send | undefined; readonly view: LiveView | null; readonly hk: Hooks }): ComponentChild {
-  const [asking, setAsking] = hk.state<'verify' | 'clear' | null>(null);
-  if (send === undefined || (!ui.unknown && !ui.alarm)) return null;
-  if (asking === 'clear') {
-    const stat = view?.message?.snapshot.live.stat;
-    return h(ConfirmCard, {
-      text: c13({ meaning: `The controller reports an alarm (state ${stat ?? 'unknown'}) and stopped any motion` }),
-      confirm: 'Clear alarm',
-      safety: 'C13',
-      onCancel: () => setAsking(null),
-      onConfirm: () => {
-        setAsking(null);
-        void send({ op: 'clearAlarm' });
-      },
-    });
-  }
-  if (asking === 'verify') {
-    return h(ConfirmCard, {
-      text: 'The previous session ended while connected. Check that nothing is moving and that the machine is where you expect. Position is not verified by this page.',
-      confirm: 'I’ve checked the machine',
-      safety: 'W6',
-      onCancel: () => setAsking(null),
-      onConfirm: () => {
-        setAsking(null);
-        void send({ op: 'positionVerify' });
-      },
-    });
-  }
-  return h(
-    'div',
-    { class: 'motion-recovery' },
-    ui.alarm ? h('button', { type: 'button', class: 'small', 'data-machine-control': 'clear-alarm', onClick: () => setAsking('clear') }, 'Clear alarm…') : null,
-    // "I've checked the machine" lives once, in the Position panel's line (owner, 2026-11-05).
-
-  );
 }
 
 const PAD: readonly { readonly label: string; readonly text: string; readonly axes: Readonly<Partial<Record<MotionAxis, 1 | -1>>> | null }[] = [
@@ -553,7 +513,6 @@ function jogBody({ model, onGoToZero }: JogProps, hk: Hooks): ComponentChild {
     'section',
     { class: 'insp sec-jog', 'aria-labelledby': 'jog-title' },
     h('header', null, h('h2', { id: 'jog-title' }, 'Jog')),
-    MotionRecovery({ ui, send, view, hk }),
     h(
       'div',
       {
@@ -920,6 +879,17 @@ function RunInspector({ model, stops }: { readonly model: WorkspaceModel | null;
   const [tab, setTab] = useState<InspTab>('jog');
   const [ask, setAsk] = useState<{ readonly axes: readonly MotionAxis[]; readonly at: number } | null>(null);
   const simple = uiLevel.value.value !== 'advanced';
+  // While a block holds, the Position panel's card says why and nothing that cannot work is drawn (owner, 2026-11-09):
+  // no jog, home or offsets. The spindle shows only while it or the coolant may be on, for its Off (never gated).
+  if (currentBlock(model) !== null) {
+    return h(
+      'aside',
+      { class: `inspector run-inspector blocked${simple ? ' simple' : ''}`, 'aria-label': 'Machine', 'data-ui-level': simple ? 'simple' : 'advanced', 'data-blocked': 'true' },
+      h(JobStopCard, { model, ...stops }),
+      h(PositionPanel, { model }),
+      outputsOff(model?.live.value ?? null) ? null : h('div', { class: simple ? 'simple-pane' : 'insp-pane' }, h(SpindleSection, { model, compact: simple })),
+    );
+  }
   if (simple) {
     // Simple (OD-13): one screen, no tabs. Position with Zero/Go, the jog pad, Home all / Set machine zero here, the spindle row.
     return h(
@@ -1359,6 +1329,9 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
       h('li', null, h('time', null, 'now'), h('span', null, s.overlays.includes('READ_ONLY') ? 'Read only: Run watches the status reports and writes nothing.' : 'Watching the status reports.')),
       typeof live.qr === 'number' && blocks !== null && live.qr === blocks ? h('li', null, h('time', null, 'now'), h('span', null, emptyQueueText(advanced))) : null,
     ),
+    // Advanced: what Run changed in the board's reporting at connect (W35, W36, W44) and where the Position numbers
+    // come from (moved here from the Position panel, owner 2026-11-09).
+    advanced ? h('div', { class: 'live-dro' }, reportsNotice(view), h(Dro, { message: view.message, elapsedMs: view.now - view.receivedAt })) : null,
   );
 }
 

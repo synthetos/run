@@ -17,11 +17,13 @@ describe('positionTag (S2)', () => {
     expect(positionTag(false, 'hand')).toBeNull();
     expect(positionTag(null, undefined)?.text).toBe('Homing unknown');
   });
-  it('renders the amber tag with its help and no green class', () => {
+  it('renders the amber word with its help on the word itself, no pill and no green class', () => {
     const html = renderToString(HomingTag(true, 'hand') as never);
-    expect(html).toContain('class="tag warn"');
+    expect(html).toContain('class="pos-word warn"');
+    expect(html).toContain('help-trigger help-words');
+    expect(html).not.toContain('class="tag');
     expect(html).toContain('Position set by hand');
     expect(html).toContain('data-homed-by="hand"');
-    expect(html).not.toContain('tag ok');
+    expect(html).not.toContain('pos-word ok');
   });
 });

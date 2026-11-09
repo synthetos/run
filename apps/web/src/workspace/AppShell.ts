@@ -35,6 +35,7 @@ import { INITIAL_LIVE_VIEW, portOpen, type WorkspaceModel } from './model.ts';
 import { stripStatus } from './status.ts';
 import { BoardView } from './views/BoardView.ts';
 import { boardTab, viewRequest } from './boardNavigation.ts';
+import { observingElsewhere } from './tabControl.ts';
 import { LibraryView } from './views/LibraryView.ts';
 import { jobStep, librarySection, uiLevel, type LibrarySection } from './jobWorkflow.ts';
 import { AnalyzeView, PreferencesView, SafetyView } from './views/OtherViews.ts';
@@ -228,6 +229,11 @@ export function AppShell(props: AppShellProps): ComponentChild {
   useEffect(() => {
     document.documentElement.dataset['view'] = current;
   }, [current]);
+  // The Position panel says when another tab of this browser controls the machine (controlBlock.ts).
+  const observing = props.role?.value.observing === true && props.liveTab?.value !== true;
+  useEffect(() => {
+    observingElsewhere.value = observing;
+  }, [observing]);
   // A view asked for from elsewhere in the page (C17's "Set up homing").
   const requested = viewRequest.value;
   useEffect(() => {
