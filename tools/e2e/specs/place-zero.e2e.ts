@@ -6,7 +6,8 @@
  * pre-selected at its corner; an unclear file says so and keeps the pick. "Use the machine's work zero" is not
  * offered without a board.
  */
-import { expect, test, type Locator, type Page } from './fixtures.ts';
+import type { Locator, Page } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import { ready } from './helpers.ts';
 
 const rect = (x0: number, x1: number, y0: number, y1: number, header: readonly string[] = []): string =>
