@@ -23,6 +23,7 @@ import { useActiveTool, type ActiveToolJob } from './useActiveTool.ts';
 import { scrubbedToolAt } from './previewMarker.ts';
 import { useCarve, type CarveInfo } from './useCarve.ts';
 import { carveTarget, useLiveCarve, type LiveCarveJob } from './liveCarve.ts';
+import { useToolColors, type ToolColorView } from './useToolColors.ts';
 import type { CarveWorkerLike, Vec3, ViewPreset } from '@synthetos/gcode-view';
 
 /** What a layout gets to arrange: the state, the actions and the rendered pieces. */
@@ -42,6 +43,8 @@ export interface PreviewParts {
   readonly markerPreview: boolean;
   /** The stock carving for the key (cell size, uncarved lines, progress), or null when nothing is carved. */
   readonly carve: CarveInfo | null;
+  /** Colour by tool: the legend for the key. */
+  readonly tools: ToolColorView;
 }
 
 export interface PreviewPanelProps {
@@ -186,6 +189,7 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
   const previewMarker = tool === null && live === null ? scrubbedToolAt(segments, state.scrub) : null;
   // The stock carved to the line before the one the board is executing while a job of this file runs (and held
   // there after it); otherwise to the scrubbed line, or with nothing scrubbed the whole file.
+  const toolColors = useToolColors(state.drawing === 'webgl' ? result : null, spindleTool);
   const liveCarve = useLiveCarve(job?.carve ?? null, result?.bytes ?? null, result?.sourceLines ?? null);
   const carve = useCarve({ spawn: spawnCarve, result, layers: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? NO_OFFSET, target: carveTarget(liveCarve, state.scrub), enabled: state.drawing === 'webgl' && result?.lite !== true, spindleTool });
 
@@ -218,6 +222,8 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
             scene: scene?.layers ?? null,
             pathOffset: scene?.pathOffset ?? [0, 0, 0],
             carve: carve.feed,
+            toolColors: toolColors.colors,
+            toolFocus: toolColors.focus,
             ...pick,
             onUnavailable: () => { setState((s) => ({ ...s, drawing: 'svg' })); },
           })
@@ -249,5 +255,5 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
     ...(readout === undefined ? {} : { marker: readout }),
     ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine, sentThrough: job?.sentThrough ?? null, ...(onReportLine === undefined ? {} : { onReportLine }), ...(onBreakpoints === undefined ? {} : { onBreakpoints }) }) }),
   };
-  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, tool: activeTool, markerPreview: previewMarker !== null && state.drawing === 'webgl', carve: carve.info });
+  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, tool: activeTool, markerPreview: previewMarker !== null && state.drawing === 'webgl', carve: carve.info, tools: toolColors });
 }

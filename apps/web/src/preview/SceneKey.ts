@@ -15,6 +15,8 @@ import { ToolLabel, ToolNote } from './ToolKey.ts';
 import { PREVIEW_MARKER_NOTE } from './previewMarker.ts';
 import { BelowNote, CarveLabel, carveNotes } from './CarveKey.ts';
 import type { CarveInfo } from './useCarve.ts';
+import { ToolLegend } from './ToolLegend.ts';
+import type { ToolColorView } from './useToolColors.ts';
 
 export interface SceneKeyProps {
   readonly scene: JobScene | null;
@@ -30,6 +32,8 @@ export interface SceneKeyProps {
   readonly carve?: CarveInfo | null;
   /** The Simple level: the tool in plain words and the notes that matter, no bed name, carving detail or links. */
   readonly simple?: boolean;
+  /** Colour by tool: the legend's entries, colours and pick (useToolColors.ts), or null. */
+  readonly tools?: ToolColorView | null;
 }
 
 /** Simple's bed words for a placeholder bed (C2): its size and that it is not measured yet, never "not set". */
@@ -54,7 +58,7 @@ export function pickHint(parts: readonly ScenePart[]): string {
   return `Click ${list} to change it`;
 }
 
-export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview = false, carve = null, simple = false }: SceneKeyProps): ComponentChild {
+export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview = false, carve = null, simple = false, tools = null }: SceneKeyProps): ComponentChild {
   const parts: ScenePart[] = scene === null ? [] : ['bed', ...(scene.layers.solids.some((s) => s.tag === 'fixture') ? (['fixture'] as const) : []), 'stock'];
   const notes = scene?.notes ?? [];
   const toolNote = tool?.note == null ? null : h(ToolNote, { tool, ...(onAddTool === undefined ? {} : { onAddTool }) });
@@ -90,6 +94,7 @@ export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview 
         carve !== null && (!simple || failed) ? h(CarveLabel, { carve, simple }) : null,
         simple ? bed : null,
       ])),
+      tools === null || tools.entries.length < 2 ? null : row([h(ToolLegend, { entries: tools.entries, palette: tools.palette, focus: tools.focus, onFocus: tools.setFocus })]),
       // Reading the progress signal here re-renders this small key, not the view, when the note appears.
       row(joined([carve !== null && carve.status.value.below !== null ? h(BelowNote, { carve }) : null, ...carveNotes(carve)])),
       row(joined([links, hint])),

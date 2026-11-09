@@ -1482,7 +1482,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
           ),
           // The key and the live readout, stacked in one overlay that never runs over itself (B4, C18).
           h(ViewerOverlay, {
-            sceneKey: (scene === null && parts.tool === null) || result?.lite ? null : { scene, tool: parts.tool, markerPreview: parts.markerPreview, carve: parts.carve, simple, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) },
+            sceneKey: (scene === null && parts.tool === null) || result?.lite ? null : { scene, tool: parts.tool, markerPreview: parts.markerPreview, carve: parts.carve, simple, tools: parts.tools, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) },
             // With no file open, the prompt to open one leads the stack, so the key never covers its buttons. While the
             // job's file is being reopened after a reload (or a chosen file waits for the preview), it says so instead of
             // offering the samples for a moment.

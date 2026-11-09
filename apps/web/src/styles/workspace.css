@@ -1736,6 +1736,14 @@ button.icon-btn[data-tip]:hover::after, button.icon-btn[data-tip]:focus-visible:
 .scene-notes p { margin: 0; }
 /* The Simple key's hint that a click on the bed, fixture or stock opens its settings: quiet. */
 .scene-pick-hint { color: var(--muted); font-size: 11px; }
+/* Colour by tool: the legend's entries, each a stroke in the tool's colour and its name (preview/ToolLegend.ts). */
+.tool-legend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+.tool-legend-entry { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink); background: transparent; border: 0; padding: 1px 2px; border-radius: 3px; }
+button.tool-legend-entry { cursor: pointer; }
+button.tool-legend-entry:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule); background: var(--sheet); }
+.tool-legend-entry.unknown { color: var(--muted); }
+.tool-swatch { width: 16px; height: 8px; flex: none; }
 /* The Run view's preview options in Advanced, each with a plain label. */
 .viewer-option { display: inline-flex; align-items: center; gap: 6px; padding-left: 6px; font-size: 12px; color: var(--muted); }
 .viewer-option .select-wrap.compact select { color: var(--ink); }

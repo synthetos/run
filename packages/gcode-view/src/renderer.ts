@@ -36,6 +36,8 @@ import { nextMotion, positionAt, settled, type MarkerMotion } from './markerMoti
 import { offsetBox, ringSegments, sceneBounds, solidTriangles, unionBox, type Rgba, type SceneLayers } from './scene.ts';
 import { toolWireframe, type ToolShape } from './toolProfile.ts';
 import { link } from './glProgram.ts';
+import { PATH_FRAGMENT, SOLID_FRAGMENT, SOLID_VERTEX, pathVertex } from './pathShaders.ts';
+import { createLineTools, type ToolColors } from './lineTools.ts';
 import { createCarveLayer } from './carve/mesh.ts';
 import type { CarveSurface } from './carve/client.ts';
 import type { CellRect } from './carve/heightmap.ts';
@@ -123,6 +125,10 @@ export interface PreviewRenderer {
   setPathOffset(offset: Vec3): void;
   /** The carved stock (carve/mesh.ts, in the path's frame), drawn in place of the flat stock solid; null for none. */
   setCarve(surface: CarveSurface | null): void;
+  /** Colour by tool (lineTools.ts): a slot per list line and the slots' colours; null for colour by move type only. */
+  setToolColors(colors: ToolColors | null): void;
+  /** Fades every tool but the one in this slot (the legend's pick); null for none. */
+  setToolFocus(slot: number | null): void;
   /** A rectangle of the carved surface changed. */
   updateCarve(rect: CellRect): void;
   /** Turns the view to a named direction and refits it. */
@@ -169,81 +175,6 @@ export interface RendererOptions {
 /** How opaque the toolpath is over a carved stock, so the carve reads through it. */
 export const PATH_OVER_CARVE_ALPHA = 0.35;
 
-const VERTEX = `#version 300 es
-precision highp float;
-in vec3 a_pos;
-in float a_style;
-in float a_line;
-in float a_dist;
-uniform mat4 u_mvp;
-uniform vec3 u_offset;
-uniform float u_showRapids;
-uniform float u_highlightEnd;
-uniform vec4 u_colors[${String(STYLE_COUNT)}];
-uniform vec4 u_highlight;
-uniform vec4 u_plan;
-uniform vec4 u_cut;
-uniform vec4 u_exec;
-uniform vec4 u_queued;
-uniform vec4 u_dimRect;
-uniform float u_dimAlpha;
-out vec4 v_color;
-out float v_hidden;
-out float v_dist;
-out float v_dash;
-void main() {
-  int s = int(a_style + 0.5);
-  bool rapid = s == ${String(STYLE.RAPID)};
-  v_hidden = (rapid && u_showRapids < 0.5) ? 1.0 : 0.0;
-  v_dash = rapid ? 1.0 : 0.0;
-  v_dist = a_dist;
-  // The scrubber tints cutting moves; traverses stay muted and dashed so the cut stays dominant.
-  v_color = (!rapid && a_line >= 0.0 && a_line < u_highlightEnd) ? u_highlight : u_colors[s];
-  // The planner view of a running job: cut lines dimmed, the executing line highlighted, the queued band.
-  if (u_plan.w > 0.5 && a_line >= 0.0) {
-    if (a_line < u_plan.x) v_color = u_cut;
-    else if (a_line < u_plan.y) v_color = u_exec;
-    else if (a_line < u_plan.z) v_color = u_queued;
-  }
-  // Over a carved stock the path is drawn faint, so the carve reads through it.
-  if (u_dimAlpha < 1.0 && a_pos.x >= u_dimRect.x && a_pos.x <= u_dimRect.z && a_pos.y >= u_dimRect.y && a_pos.y <= u_dimRect.w) v_color.a *= u_dimAlpha;
-  gl_Position = u_mvp * vec4(a_pos + u_offset, 1.0);
-}`;
-
-const FRAGMENT = `#version 300 es
-precision mediump float;
-in vec4 v_color;
-in float v_hidden;
-in float v_dist;
-in float v_dash;
-uniform float u_dash;
-out vec4 o_color;
-void main() {
-  if (v_hidden > 0.5) discard;
-  if (v_dash > 0.5 && u_dash > 0.0 && fract(v_dist / u_dash) > 0.55) discard;
-  o_color = v_color;
-}`;
-
-/** The scene solids: flat triangles with a baked colour per vertex. */
-const SOLID_VERTEX = `#version 300 es
-precision highp float;
-in vec3 a_pos;
-in vec4 a_color;
-uniform mat4 u_mvp;
-out vec4 v_color;
-void main() {
-  v_color = a_color;
-  gl_Position = u_mvp * vec4(a_pos, 1.0);
-}`;
-
-const SOLID_FRAGMENT = `#version 300 es
-precision mediump float;
-in vec4 v_color;
-out vec4 o_color;
-void main() {
-  o_color = v_color;
-}`;
-
 interface GpuChunk {
   readonly vao: WebGLVertexArrayObject;
   readonly buffers: readonly WebGLBuffer[];
@@ -260,7 +191,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   const requestFrame = options.requestFrame ?? ((draw: () => void) => { requestAnimationFrame(draw); });
   const now = options.now ?? (() => performance.now());
   const reducedMotion = options.reducedMotion ?? (() => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const program = link(gl, VERTEX, FRAGMENT, ['a_pos', 'a_style', 'a_line', 'a_dist']);
+  const program = link(gl, pathVertex(STYLE_COUNT), PATH_FRAGMENT, ['a_pos', 'a_style', 'a_line', 'a_dist']);
   const u = {
     mvp: gl.getUniformLocation(program, 'u_mvp'),
     offset: gl.getUniformLocation(program, 'u_offset'),
@@ -275,10 +206,17 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     queued: gl.getUniformLocation(program, 'u_queued'),
     dimRect: gl.getUniformLocation(program, 'u_dimRect'),
     dimAlpha: gl.getUniformLocation(program, 'u_dimAlpha'),
+    toolOn: gl.getUniformLocation(program, 'u_toolOn'),
+    toolColors: gl.getUniformLocation(program, 'u_toolColors'),
+    lineTools: gl.getUniformLocation(program, 'u_lineTools'),
+    focus: gl.getUniformLocation(program, 'u_focus'),
+    bg: gl.getUniformLocation(program, 'u_bg'),
   };
   const solidProgram = link(gl, SOLID_VERTEX, SOLID_FRAGMENT, ['a_pos', 'a_color']);
   const su = { mvp: gl.getUniformLocation(solidProgram, 'u_mvp') };
   const carve = createCarveLayer(gl, options.carveMeshMax === undefined ? {} : { meshMax: options.carveMeshMax });
+  const lineTools = createLineTools(gl);
+  let toolFocus = -1;
   carve.setBelowColor(options.colors.outOfBounds);
 
   let colors = options.colors;
@@ -495,6 +433,10 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     gl.uniform4fv(u.exec, new Float32Array(pc.exec));
     gl.uniform4fv(u.queued, new Float32Array(pc.queued));
     gl.uniform1f(u.dimAlpha, 1);
+    // Colour by tool reads its texture on unit 1 (the carved stock uses unit 0).
+    lineTools.bind(1, u.lineTools, u.toolOn, u.toolColors);
+    gl.uniform1f(u.focus, toolFocus);
+    gl.uniform4fv(u.bg, new Float32Array(colors.background));
     // 2. The grid, in the drawing's frame, hidden where a solid stands on it.
     gl.uniform3f(u.offset, 0, 0, 0);
     if (gridChunk !== null) {
@@ -677,6 +619,14 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       rebuildOverlay();
       requestRender();
     },
+    setToolColors(next) {
+      lineTools.set(next);
+      requestRender();
+    },
+    setToolFocus(slot) {
+      toolFocus = slot === null ? -1 : slot;
+      requestRender();
+    },
     setCarve(surface) {
       carve.set(surface);
       requestRender();
@@ -777,6 +727,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       gl.deleteProgram(program);
       gl.deleteProgram(solidProgram);
       carve.dispose();
+      lineTools.dispose();
     },
   };
 }

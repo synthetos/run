@@ -10,7 +10,7 @@
  */
 import { Fragment, h, type ComponentChild } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { attachPicking, attachViewControls, createRenderer, type Box3, type CarveFeed, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type ToolShape, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
+import { attachPicking, attachViewControls, createRenderer, type Box3, type CarveFeed, type ToolColors, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type ToolShape, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
 import { previewColors } from './colors.ts';
 
 export interface Preview3DProps {
@@ -47,6 +47,10 @@ export interface Preview3DProps {
   readonly pickLabel?: (tag: string) => string | null;
   /** The carved stock (useCarve.ts), drawn in place of the flat stock; null or absent for none. */
   readonly carve?: CarveFeed | null;
+  /** Colour by tool (useToolColors.ts): a slot per line and the colours; null or absent for colour by move type. */
+  readonly toolColors?: ToolColors | null;
+  /** The legend's pick: that tool's lines stand out; null for all. */
+  readonly toolFocus?: number | null;
 }
 
 export function Preview3D(props: Preview3DProps): ComponentChild {
@@ -132,6 +136,10 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
   useEffect(() => { renderer.current?.setToolMarker(tool, preview); }, [tool?.[0], tool?.[1], tool?.[2], tool === null, preview]);
   const shape = props.toolShape ?? null;
   useEffect(() => { renderer.current?.setToolShape(shape); }, [shape]);
+  const toolColors = props.toolColors ?? null;
+  useEffect(() => { renderer.current?.setToolColors(toolColors); }, [toolColors]);
+  const toolFocus = props.toolFocus ?? null;
+  useEffect(() => { renderer.current?.setToolFocus(toolFocus); }, [toolFocus]);
   const carve = props.carve ?? null;
   useEffect(() => {
     const r = renderer.current;

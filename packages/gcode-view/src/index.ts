@@ -22,6 +22,9 @@ export { VIEW_ANGLES, eye, fitOrbit, lookAt, multiply, pan, perspective, project
 export { FRAMED_TAGS, framedBox, jobSolidsBox } from './framing.ts';
 export type { Mat4, Orbit, ViewAngles, ViewPreset } from './camera.ts';
 export { PATH_OVER_CARVE_ALPHA, createRenderer, toolGlyph } from './renderer.ts';
+export { TOOL_COLOR_SLOTS, createLineTools, lineToolsLayout } from './lineTools.ts';
+export type { LineTools, ToolColors } from './lineTools.ts';
+export { LINE_TOOLS_WIDTH, pathShaderSource } from './pathShaders.ts';
 export type { LoadOptions, PlannerOverlay, PreviewColors, PreviewRenderer, RendererOptions, Rgba } from './renderer.ts';
 export { profileHeight, tipHeight, toolOutline, toolWireframe } from './toolProfile.ts';
 export type { ToolShape, ToolTip } from './toolProfile.ts';
