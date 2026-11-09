@@ -5,6 +5,7 @@
  * Pure functions; the job layer (job.ts) calls them.
  */
 import type { SanitizeResult } from '@synthetos/safety';
+import { WORD } from './fileModes.ts';
 import { checkTravel, type TravelCheck } from './travelCheck.ts';
 import type { JobReportSummary, JobState, SessionState } from './types.ts';
 
@@ -55,6 +56,32 @@ function withZ(values: Values, token: string, z: number): Values {
  * taken from its read-back, and the total offset moved by the same amount when that system was the one active at
  * Start, so the tool offset and G92 stay as at Start. Null with the reason when that cannot be done exactly.
  */
+/**
+ * The first file line before the tool change that sets `system`'s offset (G10 L2 or L20 with P of that system, or
+ * P0 while it is the active one), or null (re-review 2026-11-09, M1). The replay applies the file from the Start
+ * values, so such a line would write over the re-zeroed offset and the re-check would model the wrong Z. The
+ * sanitiser refuses P0 before a job runs; it is still read here as the active system, tracked through G54..G59.
+ */
+function fileWritesOffset(j: JobState, system: number, startCoor: unknown): number | null {
+  const tc = j.toolChange as NonNullable<JobState['toolChange']>;
+  let active = startCoor;
+  for (const line of j.lines.slice(0, tc.index)) {
+    let g10 = false;
+    let l: number | null = null;
+    let p: number | null = null;
+    for (const m of line.body.matchAll(WORD)) {
+      const letter = (m[1] as string).toUpperCase();
+      const v = Number(m[2]);
+      if (letter === 'G' && v >= 54 && v <= 59 && Number.isInteger(v)) active = v - 53;
+      if (letter === 'G' && v === 10) g10 = true;
+      if (letter === 'L') l = v;
+      if (letter === 'P') p = v;
+    }
+    if (g10 && (l === 2 || l === 20) && (p === system || (p === 0 && active === system))) return line.sourceLine;
+  }
+  return null;
+}
+
 function replayValues(s: SessionState, j: JobState, system: number | null): { readonly values: Values } | { readonly refusal: string } {
   const start = j.startValues;
   const tc = j.toolChange as NonNullable<JobState['toolChange']>;
@@ -67,6 +94,8 @@ function replayValues(s: SessionState, j: JobState, system: number | null): { re
   const oldZ = zOf(start, token);
   if (newZ === null || oldZ === null) return cannot(`the ${token.toUpperCase()} Z offset was not read`);
   if (tc.units !== start['unit']?.value) return cannot('the board is in other units than when the job was checked');
+  const written = fileWritesOffset(j, system, start['coor']?.value);
+  if (written !== null) return cannot(`line ${written} of the file sets the ${token.toUpperCase()} offset before the tool change`);
   // Which axes are homed is a fact of now, not of Start (homedAxes.ts).
   let values: Values = { ...withZ(start, token, newZ), ...(s.values['hom'] === undefined ? {} : { hom: s.values['hom'] }) };
   if (start['coor']?.value === system) {

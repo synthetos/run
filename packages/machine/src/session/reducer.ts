@@ -83,6 +83,7 @@ import { restingStat, restingUsesHold } from './resting.ts';
 import { onModesAnswer } from './modes.ts';
 import { onAlarmRestoreAnswered, onAlarmRestoreMissed } from './alarmRestore.ts';
 import { BOARD_MODES_UNKNOWN, forgetBoardModes, noteModeLine, noteModeRead } from './boardModes.ts';
+import { forgetHomed, noteHomingRead } from './homedAxes.ts';
 import { POLL_TOKENS, abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
 import { HEARTBEAT_INTERVAL_MS, JV_LINE, REPORT_DIALECTS, SEED_TOKENS, heartbeatCoversHold, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
 
@@ -1279,6 +1280,7 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
       return;
     case 'request':
       t.set({ values: { ...t.s.values, [e.token]: { value: value ?? null, status: r.footer.status, at } } });
+      noteHomingRead(t, e.token, r.footer.status, value); // S1
       return;
     case 'verify':
       onVerifyAnswer(t, e.token, r.footer.status === 0 && typeof value === 'number' ? value : undefined);
@@ -1297,6 +1299,7 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
         const cycle = e.token === POLL_TOKENS[0] || t.s.polled === null ? { failed: false } : t.s.polled;
         t.set({ polled: ok ? { ...cycle, [e.token]: value as number } : { ...cycle, failed: true } });
       }
+      noteHomingRead(t, e.token, r.footer.status, value); // S1: a home of 0 forgets the axes homed here
       if (e.token === 'home' && (t.s.base === 'IDLE_HOMED' || t.s.base === 'IDLE_UNHOMED')) t.set({ base: idleBase(t.s) });
       if (e.token === 'qr' && checkAlarm(t, at)) {
         onPollDone(t, at);
@@ -1707,6 +1710,7 @@ function onSeedAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
   const value = r.r[e.token];
   t.set({ values: { ...t.s.values, [e.token]: { value: value ?? null, status: r.footer.status, at } } });
   noteModeRead(t, e.token, r.footer.status, value);
+  noteHomingRead(t, e.token, r.footer.status, value); // S1: a home or hom of 0 forgets what was homed here
   if (r.footer.status === 0) mergeStateValue(t, e.token, value);
   // A read-back of `home` after a change keeps the idle base honest (homed or not).
   if (e.token === 'home' && (t.s.base === 'IDLE_HOMED' || t.s.base === 'IDLE_UNHOMED')) t.set({ base: idleBase(t.s) });
@@ -1946,6 +1950,7 @@ function enterFault(t: Tx, cause: FaultCause, kind: FaultKind, detail: string, a
   interruptSettingWrite(t, 'a fault latched');
   abandonLoad(t, at, 'a fault latched');
   forgetBoardModes(t); // N5: what a FAULT (or a reset) left is not known until read again
+  forgetHomed(t); // S1: a reset behind the FAULT may have unhomed the board
   if (t.s.reports.phase === 'seeding' || t.s.reports.phase === 'configuring' || t.s.reports.phase === 'pending') failReports(t, 'a fault latched');
   if (t.s.fault === null) t.set({ fault: { cause, kind, detail, at } });
   // A stop sequence of this session is what failed, or the board reset: no new stop is started for the job.

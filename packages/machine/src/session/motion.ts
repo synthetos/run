@@ -70,7 +70,7 @@ import {
 } from './motionLines.ts';
 import { queueModeReads } from './modes.ts';
 import { noteAlarmEnded, onAlarmEntered, onClearAnswered } from './alarmRestore.ts';
-import { noteHomed, noteSetByHand } from './homedAxes.ts';
+import { forgetHomed, noteHomed, noteSetByHand } from './homedAxes.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './jobState.ts';
 import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, PolledValues, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
@@ -871,6 +871,7 @@ export function checkAlarm(t: MotionTx, at: number): boolean {
   if (!t.config.release.motion || s.dialect === null) return true;
   const cls = machineClass(s);
   if (cls === undefined) return true;
+  if (cls === 'shutdown' || cls === 'panic') forgetHomed(t); // S1: edge-next's cm_shutdown unhomes every axis
   if (ALARMED.has(cls) && ALARMABLE.has(s.base)) {
     const moving = s.motion !== null;
     // OD-19: a jog or go to zero ended here left G91 (and G21): Clear alarm puts G90 back (alarmRestore.ts).

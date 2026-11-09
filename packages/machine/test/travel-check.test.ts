@@ -111,7 +111,7 @@ describe('S2: known per axis, from the homing cycles this connection saw', () =>
     expect(axisHomedHere(zOnly, 'X')).toBe(false);
     expect(check(zOnly, PAST_X)).toMatchObject({ block: null, confirm: { kind: 'outside', line: 2 } });
     // The cycles and the hand-set position through the session's own notes.
-    const start: SessionState = { ...s, values: { ...s.values, hom: { value: { x: 1, y: 0, z: 1, a: 0, b: 0, c: 0 }, status: 0, at: 1 } } };
+    const start: SessionState = { ...s, live: { ...s.live, home: 1 }, values: { ...s.values, hom: { value: { x: 1, y: 0, z: 1, a: 0, b: 0, c: 0 }, status: 0, at: 1 } } };
     const t: { s: SessionState; set(patch: Partial<SessionState>): void } = { s: start, set(patch) { t.s = { ...t.s, ...patch }; } };
     noteHomed(t, ['x', 'y', 'z']);
     expect(t.s.notices.homedAxes).toEqual(['x', 'z']); // Y did not read back homed
@@ -297,6 +297,25 @@ describe('M1: the Resume re-check replays from the values read at Start', () => 
     const t = rezeroOn(s, 'g55', -5);
     expect(onJobResume(t, { intent: 'resume' }, 99_999)).toMatchObject({ allowed: false, reason: 'With the new Z zero, line 5: Z would reach machine -4 mm, beyond its travel limit of 0 mm. Re-zero Z again, or stop the job.' });
     expect(onJobResume(rezeroOn(s, 'g55', 2), { intent: 'resume' }, 99_999)).toEqual({ allowed: true });
+  });
+
+  it('a file that sets the re-zeroed system\'s offset before the change: the re-check cannot replay it, refused', async () => {
+    for (const set of ['G10 L2 P1 Z5', 'G10 L20 P1 Z5']) {
+      const s = await leftIn([], `G21 G90\n${set}\nG1 Z10 F600\nT1 M6\nG1 Z1\nM30`);
+      expect(onJobResume(rezeroOn(s, 'g54', -5), { intent: 'resume' }, 99_999)).toMatchObject({ allowed: false, reason: 'The work offsets changed at the tool change and the rest of the job cannot be checked again: line 2 of the file sets the G54 offset before the tool change.' });
+    }
+    // Another system's offset does not touch G54.
+    const other = await leftIn([], 'G21 G90\nG10 L2 P2 Z5\nG1 Z10 F600\nT1 M6\nG1 Z1\nM30');
+    expect(onJobResume(rezeroOn(other, 'g54', 2), { intent: 'resume' }, 99_999)).toEqual({ allowed: true });
+    // P0 (the active system) is refused by the sanitiser before a job runs; the replay still reads it as the active
+    // system, tracked through G54..G59, if it ever got there.
+    const t = rezeroOn(other, 'g54', 2);
+    const job = t.s.job as NonNullable<SessionState['job']>;
+    const withBody = (bodies: readonly string[]) => ({ ...t.s, job: { ...job, lines: [...bodies.map((body, i) => ({ ...(job.lines[0] as (typeof job.lines)[number]), body, sourceLine: i + 2 })), ...job.lines.slice(job.toolChange?.index ?? 0)], toolChange: { ...(job.toolChange as NonNullable<typeof job.toolChange>), index: bodies.length } } });
+    const p0 = { ...t, s: withBody(['G10 L2 P0 Z5']) };
+    expect(onJobResume(p0, { intent: 'resume' }, 99_999)).toMatchObject({ allowed: false, reason: expect.stringContaining('line 2 of the file sets the G54 offset') });
+    const p0g55 = { ...t, s: withBody(['G55', 'G10 L2 P0 Z5', 'G54']) };
+    expect(onJobResume(p0g55, { intent: 'resume' }, 99_999)).toEqual({ allowed: true });
   });
 
   it('a file with a G92 before the change keeps its G92 in the re-check', async () => {

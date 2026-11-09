@@ -29,7 +29,8 @@ const SETS: Readonly<Record<StartMode, readonly string[]>> = {
   arcDistance: ['G90.1', 'G91.1'],
 };
 
-const WORD = /([A-Za-z])\s*([+-]?(?:\d+\.?\d*|\.\d+))/g;
+/** One G-code word (a letter and its number); shared with jobTravel.ts. */
+export const WORD = /([A-Za-z])\s*([+-]?(?:\d+\.?\d*|\.\d+))/g;
 const AXIS = new Set(['X', 'Y', 'Z', 'A', 'B', 'C']);
 const ARC_WORD = new Set(['I', 'J', 'K', 'R']);
 const MOTION_MODES = new Set(['G0', 'G1', 'G2', 'G3', 'G38.2', 'G38.3', 'G38.4', 'G38.5', 'G80']);
