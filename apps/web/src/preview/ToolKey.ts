@@ -13,11 +13,11 @@ export interface ToolKeyProps {
 }
 
 /**
- * The marker's tool on the key line: "T1 · 3.175 mm 2-flute up-cut" (its name), or in Simple the plain words
- * ("T1 · 3.175 mm flat end mill", or the user's own name for a tool they named), or "Tool unknown".
+ * The marker's tool on the key line, by its library name at every level (first-time walk C4: one name per tool,
+ * the one the library and Advanced show): "T1 · 3.175 mm 2-flute up-cut", or "Tool unknown".
  */
-export function ToolLabel({ tool, simple = false }: { readonly tool: ActiveTool; readonly simple?: boolean }): ComponentChild {
-  const name = simple ? (tool.plain ?? tool.name) : tool.name;
+export function ToolLabel({ tool }: { readonly tool: ActiveTool; readonly simple?: boolean }): ComponentChild {
+  const name = tool.name;
   const text = tool.number === null ? 'Tool unknown' : name === null ? `T${String(tool.number)}` : `T${String(tool.number)} · ${name}`;
   return h('span', { 'data-scene': 'tool', 'data-active-tool': tool.number === null ? 'unknown' : `T${String(tool.number)}`, 'data-tool-shape': tool.shape?.tip ?? 'generic' }, text);
 }

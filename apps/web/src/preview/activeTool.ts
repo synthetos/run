@@ -14,7 +14,6 @@
 import { activeToolAt, changeAt, type ToolChanges } from '@synthetos/gcode';
 import type { ToolShape, ToolTip } from '@synthetos/gcode-view';
 import type { Tool, ToolType } from '@synthetos/library';
-import { SEED_TOOLS } from '../workspace/librarySeed.ts';
 
 /** What the marker and the key show. */
 export interface ActiveTool {
@@ -24,11 +23,6 @@ export interface ActiveTool {
   readonly shape: ToolShape | null;
   /** The tool table entry's name, when found. */
   readonly name: string | null;
-  /**
-   * The tool in plain words for the Simple key: the user's own name for a tool they made or renamed, else its
-   * diameter and type ("3.175 mm flat end mill"); null when the tool is unknown.
-   */
-  readonly plain?: string | null;
   /** A short note for the key, or null. */
   readonly note: string | null;
   /** The T number to offer adding to the tool table, or null. */
@@ -102,42 +96,10 @@ export function withJobChange(changes: ToolChanges, job: { readonly line: number
   return { ...changes, tools };
 }
 
-const TYPE_WORDS: Readonly<Record<ToolType, string>> = {
-  flat: 'flat end mill',
-  surfacing: 'surfacing bit',
-  'thread-mill': 'thread mill',
-  'o-flute': 'single-flute end mill',
-  ball: 'ball end mill',
-  'bull-nose': 'bull-nose end mill',
-  'v-bit': 'V-bit',
-  engraver: 'engraving bit',
-  chamfer: 'chamfer bit',
-  drill: 'drill',
-};
-
-const mm = (n: number): string => `${String(Number(n.toFixed(3)))} mm`;
-
-/** A tool in plain words: its diameter and type ("3.175 mm flat end mill", "12.7 mm 90° V-bit"). */
-export function plainToolWords(tool: Pick<Tool, 'type' | 'geometry'>): string {
-  const angle = tool.type === 'v-bit' && tool.geometry.vAngle !== undefined ? `${String(tool.geometry.vAngle)}° ` : '';
-  return `${mm(tool.geometry.diameter)} ${angle}${TYPE_WORDS[tool.type]}`;
-}
-
-/**
- * The name the Simple key shows: the user's own name for a tool they added or renamed; for a seed tool (id
- * `seed.…`) still under its seed name, plain words, since a seed name is catalogue wording ("2-flute up-cut").
- */
-export function simpleToolName(tool: ToolTableEntry['tool']): string {
-  const seed = tool.id === undefined ? undefined : SEED_NAMES.get(tool.id);
-  return seed !== undefined && seed === tool.name ? plainToolWords(tool) : tool.name;
-}
-
-const SEED_NAMES: ReadonlyMap<string, string> = new Map(SEED_TOOLS.map((t) => [t.tool.id, t.tool.name]));
-
 /** A T number looked up in the tool table: its shape, or the generic glyph and a note offering to add it. */
 export function toolNumbered(number: number, table: readonly ToolTableEntry[]): ActiveTool {
   const entry = table.find((e) => e.number === number);
-  if (entry !== undefined) return { number, shape: toolShapeOf(entry.tool), name: entry.tool.name, plain: simpleToolName(entry.tool), note: null, missing: null };
+  if (entry !== undefined) return { number, shape: toolShapeOf(entry.tool), name: entry.tool.name, note: null, missing: null };
   return { number, shape: null, name: null, note: notInTable(number), missing: number >= 1 ? number : null };
 }
 

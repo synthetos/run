@@ -13,7 +13,7 @@ import { MAX_UNCARVED_NOTES, NO_CHANGE_REASON, NO_T_REASON, carvePlan } from '..
 import { carveGrid } from '../src/preview/carveStock.ts';
 import { BelowNote, CarveLabel, belowText, carveNotes, cellText, depthText } from '../src/preview/CarveKey.ts';
 import { BED_NOT_SET, SceneKey, pickHint } from '../src/preview/SceneKey.ts';
-import { plainToolWords, simpleToolName, toolNumbered } from '../src/preview/activeTool.ts';
+import { toolNumbered } from '../src/preview/activeTool.ts';
 import type { JobScene } from '../src/preview/sceneModel.ts';
 import type { CarveStatus } from '../src/preview/useCarve.ts';
 
@@ -137,17 +137,15 @@ describe('the key at each level', () => {
   const t1 = toolNumbered(1, SEED_TOOLS);
   const info = () => ({ cell: 0.25, uncarved: ['Lines 12–340 not carved: T3 is not in your tool table'], status: signal<CarveStatus>({ through: 40, done: true, lowest: -1, failed: null, below: null }) });
 
-  it('names a seed tool in plain words, and a tool the user named by its own name', () => {
-    expect(t1.plain).toBe('3.175 mm flat end mill');
-    expect(toolNumbered(4, SEED_TOOLS).plain).toBe('12.7 mm 90° V-bit');
-    expect(plainToolWords({ type: 'o-flute', geometry: { diameter: 6.35, shank: 6.35, flutes: 1, fluteLength: 22, overallLength: 63 } })).toBe('6.35 mm single-flute end mill');
-    expect(simpleToolName({ id: 'seed.t1', name: 'My favourite end mill', type: 'flat', geometry: { diameter: 3.175, shank: 3.175, flutes: 2, fluteLength: 12, overallLength: 38 } })).toBe('My favourite end mill');
-    expect(simpleToolName({ id: 'mine.1', name: '1/8 in downcut', type: 'flat', geometry: { diameter: 3.175, shank: 3.175, flutes: 2, fluteLength: 12, overallLength: 38 } })).toBe('1/8 in downcut');
+  it('names a tool by its library name at every level (C4)', () => {
+    expect(t1.name).toBe('3.175 mm 2-flute up-cut');
+    expect(renderToString(h(SceneKey, { scene: scene(true), tool: t1, simple: true }))).toContain('T1 · 3.175 mm 2-flute up-cut');
+    expect(renderToString(h(SceneKey, { scene: scene(true), tool: t1, simple: false }))).toContain('T1 · 3.175 mm 2-flute up-cut');
   });
 
   it('Simple: the tool, "Bed size not set" for a placeholder bed, the hint, no bed name, detail or links', () => {
     const html = renderToString(h(SceneKey, { scene: scene(true), tool: t1, carve: info(), simple: true, onOpen: () => undefined }));
-    expect(html).toContain('T1 · 3.175 mm flat end mill');
+    expect(html).toContain('T1 · 3.175 mm 2-flute up-cut');
     expect(html).toContain(BED_NOT_SET);
     expect(html).toContain('Click the bed, fixture or stock to change it');
     expect(html).toContain('Lines 12–340 not carved');

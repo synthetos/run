@@ -36,8 +36,11 @@ test('the key follows the active tool at the scrubbed line; an unknown T number 
   await at(5, 'T1', 'flat');
   await expect(sheet.locator('[data-scene="tool-preview"]')).toHaveText('Tool at the scrubbed line (preview)');
   await expect(sheet.locator('[data-preview="marker-readout"]')).toHaveCount(0);
-  // Simple (the default level) names the tool in plain words, not its catalogue name.
-  await expect(tool).toHaveText('T1 · 3.175 mm flat end mill');
+  // One name per tool (C4): the key says the library's name in Simple and in Advanced alike.
+  await expect(tool).toHaveText('T1 · 3.175 mm 2-flute up-cut');
+  await page.locator('[data-action="ui-level-advanced"]').click();
+  await expect(tool).toHaveText('T1 · 3.175 mm 2-flute up-cut');
+  await page.locator('[data-action="ui-level-simple"]').click();
   await expect(sheet.locator('[data-scene="tool-note"]')).toHaveCount(0);
   // T3 alone selects; the M6 on the next line changes.
   await at(6, 'T1', 'flat');
