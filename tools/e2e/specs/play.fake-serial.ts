@@ -23,12 +23,15 @@ test('Play is offered with the board idle, stops and goes when the job starts, a
   await expect(sheet.locator('[data-preview="play-notice"]')).toBeVisible();
   await start(page);
   await expect.poll(() => phase(worker), { timeout: 10_000 }).toMatch(/^(running|draining|ending)$/);
-  await expect(sheet.locator('[data-preview="play"]')).toHaveCount(0);
-  await expect(sheet.locator('[data-preview="play-notice"]')).toHaveCount(0);
+  // Hidden while the job runs. A short job can finish inside the wait, and Play then rightly returns,
+  // so the check only holds while the job is still active.
+  const hiddenWhileActive = async (): Promise<boolean> =>
+    (await phase(worker)) === 'done' || ((await sheet.locator('[data-preview="play"]').count()) === 0 && (await sheet.locator('[data-preview="play-notice"]').count()) === 0);
+  await expect.poll(hiddenWhileActive, { timeout: 5_000 }).toBe(true);
   // It stays away for the whole job.
   const deadline = Date.now() + 60_000;
   while ((await phase(worker)) !== 'done' && Date.now() < deadline) {
-    await expect(sheet.locator('[data-preview="play"]')).toHaveCount(0);
+    expect(await hiddenWhileActive()).toBe(true);
     await page.waitForTimeout(500);
   }
   expect(await phase(worker)).toBe('done');

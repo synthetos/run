@@ -200,6 +200,13 @@ export async function installOriginGuard(context: BrowserContext, origin: string
   context.on('request', (r: Request) => {
     if (external(r.url())) add({ kind: 'request', url: r.url(), detail: `${r.resourceType()} from ${requester(r)}` });
   });
+  // A page or context that closed while a request was in flight (the end of a test) disposes the fetched
+  // response; fulfilling it then throws. That is teardown, not a leak, so only that case is ignored.
+  const ignoreTeardown = (p: Promise<void>): Promise<void> =>
+    p.catch((e: unknown) => {
+      if (/disposed|has been closed|Target closed/i.test(String((e as Error)?.message ?? e))) return;
+      throw e;
+    });
   // And never let one reach the network, directly or through a redirect hop.
   await context.route(
     () => true,
@@ -218,7 +225,7 @@ export async function installOriginGuard(context: BrowserContext, origin: string
         }
         const status = response.status();
         const target = redirectTarget(status, response.headers()['location'], url);
-        if (target === undefined) return route.fulfill({ response });
+        if (target === undefined) return ignoreTeardown(route.fulfill({ response }));
         if (external(target)) {
           add({ kind: 'redirect', url: target, detail: `${status} from ${url}` });
           return route.abort('blockedbyclient');

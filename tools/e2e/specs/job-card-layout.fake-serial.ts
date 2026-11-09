@@ -75,7 +75,8 @@ async function checkCard(page: Page, label: string): Promise<number> {
 test('Pause and Stop job never overlap the job facts and stay inside the card, at every width', async ({ page }) => {
   test.setTimeout(120_000);
   const worker = await connect(page);
-  await open(page, zigzag(120));
+  // Long enough that a slow CI runner is still cutting when the wide layout is measured.
+  await open(page, zigzag(600));
   await start(page);
   await expect.poll(() => phase(worker), { timeout: 10_000 }).toBe('running');
   await expect(page.locator('[data-job="status"] [data-machine-control="job-stop"]')).toBeVisible();
