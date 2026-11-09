@@ -67,7 +67,7 @@ export function JobStatus({ model, onPause, onStopJob }: { readonly model: Works
       h(
         'dl',
         { class: 'job-facts' },
-        h('div', null, h('dt', null, 'Line'), h('dd', { 'data-job': 'line' }, stopped !== null ? `stopped at file line ${stopped.line} (${stopped.n} of ${job.total})` : at === null ? `${job.acked} of ${job.total} answered` : `file line ${at.line} (${at.n} of ${job.total})`)),
+        h('div', null, h('dt', null, 'Line'), h('dd', { 'data-job': 'line' }, stopped !== null ? `stopped at file line ${stopped.line}` : at === null ? (job.acked === 0 ? 'Starting' : 'Waiting for the board’s report') : `file line ${at.line}`)),
         h('div', null, h('dt', null, 'Elapsed'), h('dd', { 'data-job': 'elapsed' }, ui.elapsedMs === null ? 'Not started' : duration(ui.elapsedMs / 1000))),
         h('div', null, h('dt', null, 'Remaining'), h('dd', { 'data-job': 'remaining' }, jobActive(job) ? `about ${duration(job.remainingSeconds)} (estimate)` : 'Not running')),
         h('div', null, h('dt', null, 'Feed, actual / programmed'), h('dd', { 'data-job': 'feed' }, `${typeof vel === 'number' ? Math.round(vel) : 'unknown'} / ${typeof feed === 'number' ? Math.round(feed) : 'unknown'} mm/min`)),

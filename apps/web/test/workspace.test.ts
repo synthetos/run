@@ -61,13 +61,13 @@ describe('machine strip status', () => {
     expect(s.name).toContain('Workshop router');
     expect(s.name).toContain('TinyG v8');
     expect(s.name).toContain('450.01');
-    for (const r of s.readouts) expect(r.value).toBe(r.label === 'Job' ? 'No line reported' : 'Unknown');
+    for (const r of s.readouts) expect(r.value).toBe(r.label === 'Job' ? 'No job running' : 'Unknown');
     const withFeed = stripStatus(view(snap({ live: { machineClass: 'running', vel: 1112, feed: 1500, line: 135, pos: {}, mpo: {} } } as Partial<Snapshot>)), null);
     expect(withFeed.title).toBe('Moving');
     expect(withFeed.readouts[0]?.value).toBe('1 112 / 1 500');
     expect(withFeed.readouts.find((r) => r.label === 'Spindle')?.value).toBe('Unknown');
     expect(withFeed.readouts.find((r) => r.label === 'Coolant')?.value).toBe('Unknown');
-    expect(withFeed.readouts.find((r) => r.label === 'Job')?.value).toBe('line 135');
+    expect(withFeed.readouts.find((r) => r.label === 'Job')?.value).toBe('board line 135');
   });
 
   it('spindle and coolant readouts: shown only when the board reports them, in plain words', () => {

@@ -41,6 +41,7 @@ import { openReport } from '../../report/state.ts';
 import { closeJob, currentFile, currentPreview, executionLock, openJob, pendingOpen, reopenActiveJob, saveDraftToProject, type OpenSource } from '../fileBridge.ts';
 import { activeJob, jobSaved, type Job } from '../jobModel.ts';
 import { bedSizeText, jobStateText, machineText } from '../revisionWords.ts';
+import { fileSummary } from '../lineWords.ts';
 import { materialColor } from '../library.ts';
 import { openToolNumber } from '../toolNumbers.ts';
 import { projectsState } from '../../projects/store.ts';
@@ -1367,7 +1368,7 @@ function Dock({ parts, model }: { readonly parts: PreviewParts; readonly model: 
           id === 'live' ? h('span', { class: `live-dot${live !== null && connected(live) ? ' on' : ''}`, 'aria-hidden': 'true' }) : null,
         ),
       ),
-      h('span', { class: 'dock-summary' }, result === null ? 'No file open' : `${num(result.fileLines)} lines · ${num(result.sourceLines.length)} to send`),
+      h('span', { class: 'dock-summary' }, result === null ? 'No file open' : fileSummary(result.fileLines, result.sourceLines.length)),
     ),
     h(
       'div',

@@ -158,8 +158,26 @@ function readouts(view: LiveView): readonly Readout[] {
     },
     { label: 'Spindle', value: spindleText(live), title: SPINDLE_TITLE },
     { label: 'Coolant', value: coolantText(live), title: COOLANT_TITLE },
-    { label: 'Job', value: line === null ? 'No line reported' : `line ${num(line)}`, title: line === null ? 'The controller has not reported an active line.' : 'The line the controller reports executing.' },
+    jobReadout(view, line),
   ];
+}
+
+const JOB_ACTIVE = new Set(['running', 'draining', 'ending', 'pausing', 'paused', 'refused', 'outputsOff', 'toolChange', 'breakpoint', 'programStop', 'resuming']);
+
+/**
+ * The strip's Job readout (C5): the FILE line the board is on while a job runs, as the job card and the G-code list
+ * count them, never the board's own line count (which includes the lines Run adds); "No job running" otherwise.
+ */
+function jobReadout(view: LiveView, boardLine: number | null): Readout {
+  const job = view.message?.snapshot.job ?? null;
+  if (job === null || !JOB_ACTIVE.has(job.phase)) {
+    // Moves this page did not send (another program): the board's own line count, said as such.
+    const moving = view.message?.snapshot.live.machineClass === 'running';
+    if (moving && boardLine !== null) return { label: 'Job', value: `board line ${num(boardLine)}`, title: 'The board is running moves this page did not send; this is its own line count, not a file line.' };
+    return { label: 'Job', value: 'No job running', title: 'No job is running.' };
+  }
+  const at = job.executing;
+  return at === null ? { label: 'Job', value: 'Starting', title: 'The board has not reported a job line yet.' } : { label: 'Job', value: `file line ${num(at.line)}`, title: 'The file line the board reports executing.' };
 }
 
 export function stripStatus(view: LiveView, machineName: string | null): StripStatus {

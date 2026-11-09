@@ -26,6 +26,7 @@ import { activeJob } from '../jobModel.ts';
 import { positionEstablished } from '../../preview/livePlacement.ts';
 import { runZeroCheck, setupPlan } from '../zeroPlan.ts';
 import type { StopHooks } from './JobStatusCard.ts';
+import { checkedText } from '../lineWords.ts';
 
 export { JobStatus, type StopHooks } from './JobStatusCard.ts';
 
@@ -104,7 +105,7 @@ export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewP
                 ? h('span', null, 'Checking with this board…')
                 : job.report?.blocked === true
                   ? h('span', { class: 'warn-text' }, `Blocked with this board’s values: ${job.report.blocks.map((b) => `line ${b.line}: ${b.message}`).slice(0, 2).join('; ')}`)
-                  : h('span', null, `Checked with this board: ${job.total} lines to send${(job.report?.toolChanges.length ?? 0) > 0 ? `, ${job.report?.toolChanges.length} tool ${(job.report?.toolChanges.length ?? 0) === 1 ? 'change' : 'changes'} (Run stops for each)` : ''}${job.report !== null && job.report !== undefined ? `, about ${duration(job.report.seconds)} (estimate)` : ''}.`),
+                  : h('span', null, `${checkedText(job.total, result === null ? null : result.sourceLines.length, job.report?.splits ?? 0)}${(job.report?.toolChanges.length ?? 0) > 0 ? `, ${job.report?.toolChanges.length} tool ${(job.report?.toolChanges.length ?? 0) === 1 ? 'change' : 'changes'} (Run stops for each)` : ''}${job.report !== null && job.report !== undefined ? `, about ${duration(job.report.seconds)} (estimate)` : ''}.`),
           ),
           // 2 Set zero: plan versus board
           h(

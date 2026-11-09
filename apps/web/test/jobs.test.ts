@@ -135,7 +135,7 @@ describe('T-S117: the Phase 3 controls', () => {
     (one(tree, byAttr('data-machine-control', 'job-stop')).props['onClick'] as () => void)();
     expect(pause).toHaveBeenCalledTimes(1);
     expect(stop).toHaveBeenCalledTimes(1);
-    expect(text(one(tree, byAttr('data-job', 'line')))).toBe('file line 1 (1 of 2)');
+    expect(text(one(tree, byAttr('data-job', 'line')))).toBe('file line 1');
     // Without the strip's calls (the prerendered page), they are shown and disabled.
     const bare = root(h(JobStatus, { model }));
     expect(one(bare, byAttr('data-machine-control', 'job-pause')).props['disabled']).toBe(true);

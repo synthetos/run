@@ -69,7 +69,7 @@ describe('a stopped job holds where it stopped (S7)', () => {
     });
     const { model } = liveModel(stopped);
     const tree = root(h(JobStatus, { model }));
-    expect(text(one(tree, byAttr('data-job', 'line')))).toBe('stopped at file line 10 (12 of 34)');
+    expect(text(one(tree, byAttr('data-job', 'line')))).toBe('stopped at file line 10');
     expect(text(one(tree, byAttr('data-job', 'pct')))).toBe('stopped at 35%');
     const bar = one(tree, byAttr('role', 'progressbar'));
     expect(bar.props['aria-valuenow']).toBe(35);

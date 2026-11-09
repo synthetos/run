@@ -43,7 +43,7 @@ test('after Stop job the card holds the stop line and its progress, and the bar 
   const line = /^Stopped at line (\d+):/.exec(message ?? '')?.[1];
   expect(line).toBeDefined();
   const facts = page.locator('[data-job="line"]');
-  await expect(facts).toContainText(`stopped at file line ${String(line)} (`);
+  await expect(facts).toHaveText(`stopped at file line ${String(line)}`);
   const bar = page.locator('[data-job="status"] [role="progressbar"]');
   await expect(bar).toHaveAttribute('data-stopped', 'true');
   await expect(bar).toHaveAttribute('aria-valuetext', /^Stopped at \d+%$/);
