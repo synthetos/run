@@ -24,6 +24,7 @@ import { backupBlocked } from '../../live/backup.ts';
 import { Icon } from '../icons.ts';
 import { connected, type FirmwareActions, type FirmwareDownload, type FirmwareHubView, type LiveView, type ReleaseImage, type WorkspaceModel } from '../model.ts';
 import type { FlashView } from '../../machine-worker/flashService.ts';
+import { shownBoard } from './firmwareBoard.ts';
 import type { MotionCommand } from '../../machine-worker/rpc.ts';
 
 /** Next to an older release's button (first-time walk C8): what a downgrade does to the board's settings. */
@@ -299,9 +300,11 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
   const s = m?.snapshot ?? null;
   const on = view !== null && connected(view);
   const id = s?.identity ?? null;
-  const hv = typeof id?.hv === 'number' ? id.hv : null;
   const blocked = flashBlocked(view);
   const flash = m?.flash ?? null;
+  // During an update the session is closed: the board as last read, from the flash view (firmwareBoard.ts).
+  const shown = shownBoard(on, id, flash, boardText);
+  const hv = shown.hv;
   const running = flash !== null && flash.phase !== 'done' && flash.phase !== 'failed';
   const advanced = uiLevel.value.value === 'advanced';
   const hw = hub !== null && hub.releases.ok ? releasesForHardware(hub.releases.list, hv) : null;
@@ -344,8 +347,8 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
           'div',
           { class: 'grow' },
           h('span', { class: 'kicker' }, 'On this board'),
-          h('h2', { 'data-board-firmware': on && typeof id?.fb === 'number' ? fbText(id.fb) : '' }, on && typeof id?.fb === 'number' ? `Firmware ${fbText(id.fb)}` : 'Firmware not read'),
-          h('p', null, on ? `Hardware version ${id?.hv === undefined ? 'unknown' : boardText(String(id.hv))}${typeof id?.id === 'string' ? ` · board ${boardText(id.id)}` : ''}` : 'Connect a board to read its firmware version.'),
+          h('h2', { 'data-board-firmware': shown.kind === 'live' && shown.fb !== null ? fbText(shown.fb) : '', 'data-board-shown': shown.kind }, shown.heading),
+          h('p', null, shown.detail),
         ),
         trusted ? h('span', { class: 'tag warn', 'data-safety': 'W48' }, w48()) : null,
       ),
@@ -358,14 +361,14 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
       hub === null || !hub.releases.ok
         ? h('p', { class: 'fine pad', 'data-releases': 'none' }, hub === null || hub.releases.ok ? 'Loading the signed release list…' : `No signed release list for this site: ${hub.releases.reason}.`)
         : hw === null || hw.releases.length === 0
-          ? h('p', { class: 'fine pad', 'data-releases': 'empty' }, on ? `No signed release for hardware version ${hv ?? 'unknown'} yet.` : 'Connect a board to see the releases for its hardware.')
+          ? h('p', { class: 'fine pad', 'data-releases': 'empty' }, shown.kind !== 'none' ? `No signed release for hardware version ${hv ?? 'unknown'} yet.` : 'Connect a board to see the releases for its hardware.')
           : h(
               'ul',
               { class: 'releases' },
               hw.releases.map((r) => {
-                const installed = typeof id?.fb === 'number' && Math.round(id.fb * 100) === Math.round(r.fb * 100);
+                const installed = shown.fb !== null && Math.round(shown.fb * 100) === Math.round(r.fb * 100);
                 // Older than what the board runs: offered, never recommended (the owner's minimum filter comes later, docs/ops/firmware-releases.md).
-                const older = typeof id?.fb === 'number' && Math.round(r.fb * 100) < Math.round(id.fb * 100);
+                const older = shown.fb !== null && Math.round(r.fb * 100) < Math.round(shown.fb * 100);
                 const source = r.repo !== null && r.tag !== null ? `GitHub Releases: ${r.repo} ${r.tag}` : r.simulatorOnly ? 'simulated image' : 'bundled with this site';
                 return h(
                   'li',

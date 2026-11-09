@@ -110,6 +110,11 @@ export interface FlashView {
   readonly source: FlashSourceRequest['kind'];
   readonly target: { readonly fb: number | null; readonly label: string; readonly sha256: string };
   readonly boardId: string | null;
+  /**
+   * The board as the session last read it before the update (id, hardware version, firmware build and version). The
+   * session closes for the bootloader, so the page shows this while the update runs, not "not connected".
+   */
+  readonly board: { readonly id: string | null; readonly hv: number | null; readonly fb: number | null; readonly fv: number | null } | null;
   /** Seconds left in the recovery countdown. */
   readonly countdown: number | null;
   /** Set once any page was written: the board may hold no complete application until the run completes. */
@@ -313,6 +318,7 @@ export class FlashService {
       source: source.kind,
       target: { fb, label, sha256: auth.authorization.sha256 },
       boardId: board.id,
+      board: Object.freeze({ ...board }),
       countdown: null,
       wrote: false,
       message: null,

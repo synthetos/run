@@ -384,6 +384,8 @@ describe('when the bootloader does not answer (bench 2, 2026-11-09)', () => {
     expect(view?.message).toContain('did not answer within 10 s');
     expect(view?.message).toContain('Nothing came back');
     expect(view).toMatchObject({ wrote: false, recoveryOffered: false });
+    // The board as the session read it before the update, for the page while the session is closed.
+    expect(view?.board).toEqual({ id: 'SIM-EN-0001', hv: 99, fb: 450.01, fv: 0.97 });
     expect(r.backupsPost()).toBeUndefined();
     // The board did reset into xboot (60 s window) and goes back to its firmware only when the window ends.
     expect(r.board.state).toBe('bootloader');
