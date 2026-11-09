@@ -95,6 +95,10 @@ Record in those repositories' own lead-actions lists that this is done.
      (if Cloudflare cannot limit it to those scripts, it can edit every
      Worker in the account, the site and forumbot included: say so here, and
      rely on the audit alerts in step 8 to catch any use against them);
+   - plus **Account → D1 → Edit** (A1-07, OD-26): the deploy jobs apply the
+     reviewed D1 migrations (run's `run-auth`, accounts' `identity`) and
+     register run's relying party before the code (docs/ops/go-live-staging.md
+     §2.1);
    - plus **Account → Access: Apps and Policies → Read** (read only): the
      staging deploy confirms through the API that Access protects staging
      before it deploys (docs/ops/access.md §2, P0 review). No Access edit;
@@ -169,7 +173,7 @@ Record in those repositories' own lead-actions lists that this is done.
 
 Record the answers in the release PR.
 
-- [ ] run has exactly one API token: Workers Scripts:Edit and Access: Apps and Policies:Read, scoped as recorded in §2 step 4, nothing else; no other token in the account can deploy run or accounts, or that is recorded with the reason.
+- [ ] run has exactly one API token: Workers Scripts:Edit, D1:Edit (A1-07) and Access: Apps and Policies:Read, scoped as recorded in §2 step 4, nothing else; no other token in the account can deploy run or accounts, or that is recorded with the reason.
 - [ ] The token is only in the `staging` and `production` environment secrets.
 - [ ] Members: the minimum (the owner, plus the recorded exceptions), hardware key on.
 - [ ] No local wrangler login or laptop token was used to deploy run or accounts.

@@ -483,6 +483,33 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 - **Colour by tool.** Each tool the file uses gets a colour in the order it first appears (never cycled; a ninth and later share the eighth), from a colour-blind-safe palette shaded for light and dark; a tool not known is neutral and named as such. Arcs are a lighter tint and rapids a fainter dashed one, so the move type still shows. The key lists the tools when there are two or more; clicking one makes its lines stand out.
 - **Carving detail.** The carve's base cell is 0.125 mm, coarsened only past the cap (2 million cells, 4096 a side); no toggle. Advanced's key shows the size used.
 
+## OD-26. Accounts, API keys, OAuth and a hosted MCP: the design approved; slice 1 staging first (owner, 2026-11-09)
+
+**Owner's words.**
+- The request: "mcp doesnt control jobs though no real machine work just setup and gathering details".
+- On keys: "users are going to let mcp setup jobs for them upload gcode fixtures read tool tables".
+- MCP clients: "OAuth from the start".
+- The design: "yes approve the doc and use the shorter wording".
+- Slice 1: "yes staging first, just my github account for now".
+
+**Context.** Users want to generate an API key in Preferences and let an AI client set up work for them through a hosted MCP: projects, job setups, G-code and fixture uploads, tool tables and materials, and reads of machine profiles, job history and saved board settings. That needs accounts and per-user cloud storage first. Production Connect has been locked until accounts ship (OD-22).
+
+**Decision.** The design in docs/design/ACCOUNTS_API_MCP.md is approved, with the shorter consent wording in its §4.1. Its §11 lists every answer:
+- OAuth from the start, with accounts.synthetos.com as the authorization server for the MCP. Pasted keys stay too.
+- Keys and apps may archive (a soft delete, in History, undoable). They may read job history and saved board settings.
+- MCP access only for D37-allowlisted users until public beta.
+- The recommendations taken as proposed: a separate run-data Worker and a separate CI token for mcp and run-data; every machine-profile change is a proposal; "sign out everywhere" revokes keys and grants; a fixed 90 days; free for now; 10 keys and 10 app grants per user; the doc's rate limits; the `synk_`, `syna_` and `synr_` prefixes with GitHub secret scanning.
+- No machine action is ever exposed through the API or the MCP.
+
+**Slice 1 (accounts live), as built.**
+- Staging first: run-staging and accounts-staging, behind Cloudflare Access (D31).
+- Sign-in is open to one GitHub account: `ril3y`, numeric id `231731` (D37 admission is by numeric id, enforced by accounts before any user or session exists).
+- The run Worker gets the A1-06 handoff (`/auth/login`, `/auth/callback`, `/auth/logout`), the `ACCOUNTS` binding to accounts' `RunEntrypoint`, and its own D1 database `run-auth` for pending sign-ins and device rows.
+- The production Connect notice stays for signed-out and non-allowlisted visitors, with one small "Beta testers can sign in" link.
+- No deploy, DNS or Cloudflare change was made by the build. The owner's steps are in docs/ops/go-live-staging.md.
+
+SAFETY H42 (as built), T-S144 and T-S145 record the slice 1 rows.
+
 ## OD-27. Analyze: explain the job first; the planner model pinned to the firmware (owner, 2026-11-09)
 
 **Owner's words.**

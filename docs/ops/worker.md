@@ -49,6 +49,16 @@ issuer, expiry) and answers 200 `{"identity":{"provider":"access","subject":…}
 otherwise 401 `{"identity":null,"reason":…}` (`not-available-here` in
 production until A1-07, `not-configured` while the two vars are unset,
 `not-signed-in`). `no-store`, like every API response.
+From A1-06 (OD-26), `/auth/login`, `/auth/callback` and `/auth/logout` are
+the sign-in handoff with accounts (`workers/run/src/auth*.ts`; SAFETY H42 as
+built), and `/api/identity` names the run session first (`provider:
+"run-session"`, with a display-only `display`) and says whether the host
+offers sign-in (`signIn`). Sign-in is on only on run's own host with the
+`ACCOUNTS` binding (accounts' `RunEntrypoint`), the `RUN_AUTH` D1 database and
+the secrets `RUN_STATE_KEY` and `RUN_RATE_KEY`; otherwise `/auth/*` stays a
+JSON 404, as in local `wrangler dev` and the e2e suites. The deploy jobs apply
+`workers/run/migrations` to `RUN_AUTH` before the code. The owner's go-live
+steps are in docs/ops/go-live-staging.md.
 Every other `/api/*` and `/auth/*` path is a JSON 404. An uncaught error is a
 500 that still carries the headers.
 
