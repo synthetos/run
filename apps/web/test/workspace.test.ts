@@ -242,7 +242,8 @@ describe('storage and library adapter', () => {
 
   it('seed tools and setup are valid library records; links are http(s) only', () => {
     expect(toolStore.value.value.length).toBe(6);
-    expect(SEED_SETUP.stock.materialRef.id).toBe('builtin.al-6061');
+    // C14: a new job's stock is MDF, not aluminium.
+    expect(SEED_SETUP.stock.materialRef.id).toBe('builtin.mdf');
     expect(safeExternalLink('javascript:alert(1)')).toBeNull();
     expect(safeExternalLink('https://example.com/x')?.rel).toBe('noopener noreferrer nofollow');
   });

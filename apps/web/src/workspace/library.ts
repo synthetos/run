@@ -216,11 +216,12 @@ export function sampleFixture(width = 300, depth = 200): Fixture {
 /** The fixture schema wants a SHA-256; a built-in or unverified source carries this all-zero one and says so. */
 export const SAMPLE_HASH = '0'.repeat(64);
 
-const AL = BUILTIN_MATERIALS[0] as Material;
+/** A new job's stock is MDF (first-time walk C14): what a hobby router cuts first, not aluminium. */
+const MDF = (BUILTIN_MATERIALS.find((m) => m.id === 'builtin.mdf') ?? BUILTIN_MATERIALS[0]) as Material;
 
 export const SEED_SETUP: SetupState = {
   bed: { width: 790, depth: 790, thickness: 19 },
-  stock: { shape: 'block', width: 180, depth: 120, thickness: 6.35, materialRef: { id: AL.id, version: AL.version }, position: { x: 160, y: 120 }, zero: { corner: 'front-left', height: 'top' } },
+  stock: { shape: 'block', width: 180, depth: 120, thickness: 6.35, materialRef: { id: MDF.id, version: MDF.version }, position: { x: 160, y: 120 }, zero: { corner: 'front-left', height: 'top' } },
   fixture: sampleFixture(),
   clamps: true,
 };
