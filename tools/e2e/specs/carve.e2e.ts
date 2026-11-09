@@ -13,11 +13,11 @@ import { ready } from './helpers.ts';
 const V_FILE = ['G21 G90', 'T4 M6', 'G0 Z5', 'G0 X10 Y10', 'G1 Z-1 F300', 'G1 X40', 'G1 Y30', 'G1 X10', 'G1 Y10', 'G0 Z5', 'M30'].join('\n');
 
 /**
- * The lowest top a 90° V at Z -1 leaves on the 0.25 mm grid, whose cell centres sit 0.125 mm off whole
- * millimetres: a cut along a line leaves −1 + 0.125, the plunge alone −1 + 0.125·√2.
+ * The lowest top a 90° V at Z -1 leaves on the 0.125 mm grid, whose cell centres sit 0.0625 mm off whole
+ * millimetres: a cut along a line leaves −1 + 0.0625, the plunge alone −1 + 0.0625·√2.
  */
-const CUT = '-0.875';
-const PLUNGE = (-1 + 0.125 * Math.SQRT2).toFixed(3);
+const CUT = (-1 + 0.0625).toFixed(3);
+const PLUNGE = (-1 + 0.0625 * Math.SQRT2).toFixed(3);
 
 async function open(page: import('@playwright/test').Page, name: string, text: string): Promise<void> {
   await page.locator('[data-region="preview"] [data-preview="file"]').setInputFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
@@ -32,9 +32,9 @@ test('the stock is carved with the V-bit from the tool table, and the carve foll
   const carve = sheet.locator('[data-scene="carve"]');
   // Simple (the default level) does not show the carving detail; the hooks are there at both levels.
   await expect(carve).toBeHidden();
-  await expect(carve).toHaveAttribute('data-carve-cell', '0.25');
+  await expect(carve).toHaveAttribute('data-carve-cell', '0.125');
   // Nothing scrubbed: the whole job, down near the V-bit's tip 1 mm below the stock top (cell centres are
-  // 0.125 mm off the path, so the deepest cell is 0.875 mm deep under a 90° V).
+  // 0.0625 mm off the path, so the deepest cell is 0.9375 mm deep under a 90° V).
   await expect(carve).toHaveAttribute('data-carve-done', 'true');
   await expect(carve).toHaveAttribute('data-carve-lowest', CUT);
   const whole = Number(await carve.getAttribute('data-carved-through'));
@@ -125,7 +125,7 @@ test('the key: Simple shows the tool by its library name and the notes that matt
   await page.locator('[data-action="ui-level-advanced"]').click();
   await expect(key.locator('[data-scene="bed"]')).toHaveText('Bed · 790 × 790 mm · not measured yet');
   await expect(key.locator('[data-scene="tool"]')).toHaveText('T4 · 90° V-bit');
-  await expect(key.locator('[data-scene="carve"]')).toHaveText('Carving detail 0.25 mm');
+  await expect(key.locator('[data-scene="carve"]')).toHaveText('Carving detail 0.125 mm');
   await expect(key.locator('[data-scene-link]')).toHaveCount(3);
   await expect(key.locator('[data-scene="pick-hint"]')).toHaveCount(0);
   await expect(sheet.locator('.viewer-options')).toContainText('Read as:');

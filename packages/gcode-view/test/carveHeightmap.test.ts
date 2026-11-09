@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { NO_STOCK, cellSizeFor, copyRect, createHeightmap, fullRect, gridSpec, pasteRect, sameSpec, unionRect } from '../src/index.ts';
 
 describe('cellSizeFor', () => {
-  it('keeps 0.25 mm when the grid is small enough', () => {
-    expect(cellSizeFor(180, 120)).toBe(0.25);
+  it('keeps 0.125 mm when the grid is small enough', () => {
+    // The sample stock: 1440 × 960 = 1.38 M cells.
+    expect(cellSizeFor(180, 120)).toBe(0.125);
+    expect(cellSizeFor(300, 200)).toBe(0.2);
   });
   it('coarsens to the next round size that stays under 2 million cells', () => {
     // 0.6 mm: 2000 × 1334 = 2.67 M cells, too many; 0.8 mm: 1500 × 1000.
@@ -21,7 +23,7 @@ describe('cellSizeFor', () => {
 describe('gridSpec', () => {
   it('lays a grid over the footprint', () => {
     const s = gridSpec({ min: [-5, 2], max: [175, 122], top: 0, bottom: -6.35, outline: null });
-    expect(s).toEqual({ x0: -5, y0: 2, cell: 0.25, nx: 720, ny: 480, top: 0, bottom: -6.35, outline: null });
+    expect(s).toEqual({ x0: -5, y0: 2, cell: 0.125, nx: 1440, ny: 960, top: 0, bottom: -6.35, outline: null });
   });
   it('refuses an empty or upside-down stock', () => {
     expect(gridSpec({ min: [0, 0], max: [0, 10], top: 0, bottom: -1, outline: null })).toBeNull();

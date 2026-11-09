@@ -79,13 +79,13 @@ describe('carveGrid', () => {
   const stock = (s: SceneLayers['solids'][number]): SceneLayers => ({ solids: [{ kind: 'box', min: [0, 0, 0], max: [800, 800, 19], color: [1, 1, 1, 1], tag: 'bed' }, s], rings: [] });
   it('takes the stock box into the path frame', () => {
     const g = carveGrid(stock({ kind: 'box', min: [70, 60, 31], max: [250, 180, 37.35], color: [1, 1, 1, 1], tag: 'stock' }), [70, 60, 37.35]);
-    expect(g).toMatchObject({ x0: 0, y0: 0, cell: 0.25, nx: 720, ny: 480, outline: null });
+    expect(g).toMatchObject({ x0: 0, y0: 0, cell: 0.125, nx: 1440, ny: 960, outline: null });
     expect(g?.top).toBeCloseTo(0, 9);
     expect(g?.bottom).toBeCloseTo(-6.35, 9);
   });
   it('keeps a round or imported outline', () => {
     const g = carveGrid(stock({ kind: 'prism', outline: [[10, 10], [30, 10], [20, 30]], z0: 0, z1: 5, color: [1, 1, 1, 1], tag: 'stock' }), [10, 10, 5]);
-    expect(g).toMatchObject({ x0: 0, y0: 0, nx: 80, ny: 80, top: 0, bottom: -5 });
+    expect(g).toMatchObject({ x0: 0, y0: 0, nx: 160, ny: 160, top: 0, bottom: -5 });
     expect(g?.outline).toEqual([[0, 0], [20, 0], [10, 20]]);
   });
   it('carves nothing without a stock', () => {

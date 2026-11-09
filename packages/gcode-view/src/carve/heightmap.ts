@@ -4,7 +4,7 @@
  * frame the toolpath is drawn in), so the renderer places it with the same
  * path offset as the path. Pure.
  *
- * It does: choose the cell size (0.25 mm, coarsened so the grid stays under
+ * It does: choose the cell size (0.125 mm, coarsened so the grid stays under
  * about 2 million cells and fits a texture), lay out the grid, fill the
  * stock's top and mark cells outside a non-rectangular outline, and copy
  * rectangles in and out. It does not carve (sweep.ts), keep history
@@ -12,8 +12,8 @@
  */
 import type { Pt2 } from '../scene.ts';
 
-/** The finest cell, mm. */
-export const BASE_CELL_MM = 0.25;
+/** The finest cell, mm (owner, 2026-11-09: "fine"; it was 0.25 mm). */
+export const BASE_CELL_MM = 0.125;
 /** The grid is coarsened until it has at most this many cells. */
 export const MAX_CELLS = 2_000_000;
 /** And at most this many cells along a side (a texture side every WebGL2 GPU in use supports). */
@@ -61,7 +61,7 @@ export interface StockFootprint {
 
 const MANTISSAS = [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 8] as const;
 
-/** Round cell sizes from `base` up: 0.25, 0.3, 0.4, 0.5, 0.6, 0.8, 1, 1.25, … */
+/** Round cell sizes from `base` up: 0.125, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.8, 1, 1.25, … */
 function* cellSizes(base: number): Generator<number> {
   for (let e = -3; e < 6; e++) {
     for (const m of MANTISSAS) {
