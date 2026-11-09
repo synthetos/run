@@ -171,7 +171,7 @@ export function MachineStrip({ status, stop, previousSession, onPause, onStopJob
           'div',
           { class: 'readouts', 'aria-label': 'Live readouts' },
           status.readouts.map((r) =>
-            h('div', { class: `readout ro-${r.label.toLowerCase()}`, title: r.title, key: r.label }, h('span', null, r.label), h('strong', { 'data-readout': r.label, title: r.unit === undefined || r.unit === '' ? r.value : `${r.value} ${r.unit}` }, r.value, r.unit === undefined || r.unit === '' ? null : h('small', null, ` ${r.unit}`))),
+            h('div', { class: `readout ro-${r.label.toLowerCase()}${r.label === 'Coolant' && r.value === 'Off' ? ' is-off' : ''}`, title: r.title, key: r.label }, h('span', null, r.label), h('strong', { 'data-readout': r.label, title: r.unit === undefined || r.unit === '' ? r.value : `${r.value} ${r.unit}` }, r.value, r.unit === undefined || r.unit === '' ? null : h('small', null, ` ${r.unit}`))),
           ),
         )
       : null,

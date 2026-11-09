@@ -33,3 +33,12 @@ describe('strip readouts (S1)', () => {
     expect(html).toContain('title="On · CW · 16 000 rpm commanded"');
   });
 });
+
+describe('the Coolant readout (owner 2026-11-08)', () => {
+  it('is marked off only when the board reports it off', () => {
+    const off = renderToString(h(MachineStrip, { status: STATUS, stop: null, previousSession: false }));
+    expect(off).toContain('readout ro-coolant is-off');
+    const on = renderToString(h(MachineStrip, { status: { ...STATUS, readouts: STATUS.readouts.map((r) => (r.label === 'Coolant' ? { ...r, value: 'Flood' } : r)) }, stop: null, previousSession: false }));
+    expect(on).toContain('class="readout ro-coolant"');
+  });
+});

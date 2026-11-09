@@ -1,8 +1,8 @@
 /*
  * The machine strip at every width (SAFETY §4.1, §4.4 as amended by OD-6): Pause and Stop job keep their
  * full size and are never clipped or pushed out of the window. Everything else in the strip gives way to
- * them: the readouts shrink and end in an ellipsis (each keeps its words in a title), the Coolant readout
- * goes at 1300 px and narrower (workspace.css) and the Job line at 1200 px and narrower (the Run card has
+ * them: the readouts shrink and end in an ellipsis (each keeps its words in a title), Coolant shows only
+ * while it is on or unknown (below), the Job line goes at 1200 px and narrower (the Run card has
  * it), the state title and the state text shrink, and Disconnect stays its own size. On a phone (650 px
  * and narrower) the strip wraps and the stop controls get a row of their own (workspace.css).
  * Loaded after workspace.css.
@@ -22,3 +22,7 @@
 @media (min-width: 651px) and (max-width: 1200px) {
   .statebar .ro-job { display: none; }
 }
+/* Coolant (owner, 2026-11-08): shown whenever it is on (or unknown), at every width, phones included; hidden only
+   when the board reports it off. This replaces hiding it at 1300 px and narrower. */
+.statebar .ro-coolant { display: flex !important; }
+.statebar .ro-coolant.is-off { display: none !important; }
