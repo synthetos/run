@@ -34,12 +34,14 @@ export interface ViewerOverlayProps {
   readonly readout: ComponentChild;
   /** The prompt to open a file, or null: with no file open it leads the stack, so nothing covers its buttons. */
   readonly prompt?: ComponentChild;
+  /** A notice that must stay in view (Play preview's, OD-25), above the readout, outside the part that scrolls. */
+  readonly notice?: ComponentChild;
 }
 
-export function ViewerOverlay({ sceneKey, readout, prompt = null }: ViewerOverlayProps): ComponentChild {
+export function ViewerOverlay({ sceneKey, readout, prompt = null, notice = null }: ViewerOverlayProps): ComponentChild {
   const open = keyOpen.value.value;
   const notes = keyNotes(sceneKey);
-  if (sceneKey === null && readout === null && prompt === null) return null;
+  if (sceneKey === null && readout === null && prompt === null && notice === null) return null;
   return h(
     'div',
     { class: 'viewer-overlay', 'data-preview': 'overlay', 'data-key-open': open ? 'true' : 'false' },
@@ -58,6 +60,7 @@ export function ViewerOverlay({ sceneKey, readout, prompt = null }: ViewerOverla
           ),
       sceneKey !== null && open ? h(SceneKey, sceneKey) : null,
     ),
+    notice,
     readout,
   );
 }

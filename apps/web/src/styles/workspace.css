@@ -1765,8 +1765,13 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
 .play-controls { display: inline-flex; align-items: center; gap: 6px; flex: none; }
 .play-controls .play-toggle { min-width: 64px; }
 .play-controls .play-speeds button { min-height: 24px; padding: 0 7px; }
-.play-notice { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); margin: 0; max-width: calc(100% - 24px); padding: 4px 10px; border-radius: var(--r-sm); font-size: 12px; color: var(--ink); background: color-mix(in srgb, var(--warn) 18%, var(--sheet)); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); z-index: var(--z-raised); text-align: center; pointer-events: none; }
+.play-notice { flex: none; margin: 0; max-width: min(560px, 100%); padding: 4px 10px; border-radius: var(--r-sm); font-size: 12px; color: var(--ink); background: color-mix(in srgb, var(--warn) 18%, var(--sheet)); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); pointer-events: none; }
+@media (max-width: 760px) {
+  /* With Play's controls the scrubber gets its own row on a narrow screen. */
+  .job-view .timeline:has(.play-controls) { height: auto; flex-wrap: wrap; row-gap: 4px; padding-top: 5px; padding-bottom: 5px; }
+  .job-view .timeline:has(.play-controls) .track-wrap { flex: 1 1 55%; min-width: 0; }
+}
 @media (max-width: 640px) {
   .play-controls .play-speeds button { padding: 0 5px; }
-  .play-notice { top: 46px; font-size: 11px; }
+  .play-notice { font-size: 11px; }
 }
