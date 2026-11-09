@@ -28,7 +28,7 @@ import { JobStatus, JobStopCard } from '../src/workspace/views/JobViews.ts';
 import { motionUi } from '../src/workspace/motion.ts';
 import { byAttr, one, root, text } from './tree.ts';
 import { job, snap, view } from './jobFixtures.ts';
-import { startTicks } from '../src/workspace/startTicks.ts';
+import { c41Text, startTicks } from '../src/workspace/startTicks.ts';
 
 type Snapshot = NonNullable<LiveView['message']>['snapshot'];
 
@@ -49,10 +49,12 @@ describe('T-S117: Start is enabled only when every precondition passes, each blo
     expect(startBlockers(ui, FILE, zero, ALL)).toEqual([]);
   });
 
-  it('C36 and C40 are one box when both apply (owner, 2026-11-08); apart when the travel was not read', () => {
-    const outside = { kind: 'outside', line: 2, text: 'line 2: X would reach machine 200 mm, beyond its travel limit of 150 mm, and the X position was not set by a homing cycle in this connection' };
+  it('C36 and C40 are one box, C41, when both apply (owner, 2026-11-08; shorter words 2026-11-09); apart when the travel was not read', () => {
+    const outside = { kind: 'outside', line: 2, text: 'line 2: X would reach machine 200 mm, beyond its travel limit of 150 mm, and the X position was not set by a homing cycle in this connection', past: { axis: 'X', reach: 200, limit: 150, unit: 'mm', more: 0 } };
     const unhomed = (confirm: unknown) => jobUi(view(snap({ live: { ...snap().live, home: 0 }, job: job({ report: { ...job().report, travel: { block: null, confirm } } as never }) })));
-    expect(startTicks(false, outside as never)).toEqual(['c40c36']);
+    expect(startTicks(false, outside as never)).toEqual(['c41']);
+    expect(c41Text(outside as never)).toBe("X isn't homed, so Run can't check its travel and soft limits may not protect it. Line 2: X would reach 200 mm, past its 150 mm limit. I've checked where every axis is and that every move fits.");
+    expect(c41Text({ ...outside, past: { ...outside.past, more: 2 } } as never)).toContain('past its 150 mm limit, and 2 more. ');
     expect(startTicks(false, { kind: 'unchecked' })).toEqual(['c36', 'c40']);
     expect(startTicks(false, null)).toEqual(['c36']);
     expect(startTicks(true, outside as never)).toEqual(['c40']);

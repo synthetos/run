@@ -884,6 +884,21 @@ export function c40(p: { readonly why: string }): string {
   return `Run cannot check this job against the machine's travel: ${text('why', p.why)}. Start only if you have checked that every move fits the machine.`;
 }
 
+/**
+ * C41: start a job on a machine that is not homed when a move leaves an axis's travel (owner, 2026-11-09: one box
+ * for C36 and C40, "yes use shorter words"). Names the first such move; `more` counts the moves past travel after it.
+ */
+export function c41(p: { readonly axis: 'X' | 'Y' | 'Z' | 'A' | 'B' | 'C'; readonly line: number; readonly reach: number; readonly limit: number; readonly unit: 'mm' | '°'; readonly more: number }): string {
+  const axis = oneOf('axis', p.axis, ['X', 'Y', 'Z', 'A', 'B', 'C']);
+  const unit = oneOf('unit', p.unit, ['mm', '°']);
+  const more = count('more', p.more);
+  return (
+    `${axis} isn't homed, so Run can't check its travel and soft limits may not protect it. ` +
+    `Line ${count('line', p.line)}: ${axis} would reach ${num('reach', p.reach)} ${unit}, past its ${num('limit', p.limit)} ${unit} limit${more === '0' ? '' : `, and ${more} more`}. ` +
+    "I've checked where every axis is and that every move fits."
+  );
+}
+
 export function c39(p: { readonly feed: string; readonly depth: string; readonly system: string; readonly zero: string; readonly thickness: string; readonly stop: string }): string {
   return (
     `Probe Z? Z will move down at ${text('feed', p.feed)} mm/min until the board reports contact, up to ${text('depth', p.depth)} mm. ` +

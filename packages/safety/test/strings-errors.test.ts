@@ -90,6 +90,7 @@ const VALID: Record<string, Params> = {
   c38: { name: 'mine.hex', sha256Short: '3f2a…9c01', boardId: '0084-ab' },
   c39: { feed: '25', depth: '5', system: 'G54', zero: '12.68', thickness: '12.70', stop: '0.02' },
   c40: { why: 'the travel limits of Z were not read' },
+  c41: { axis: 'X', line: 2, reach: 200, limit: 150, unit: 'mm', more: 0 },
   c30: { file: 'part.nc', lines: 10, workZero: 'G54', spindle: 'not used' },
   c31: { board: 'X 0', plan: 'X 1' },
   c32: { speeds: 'S12000' },

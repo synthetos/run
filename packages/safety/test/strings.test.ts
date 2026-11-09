@@ -499,6 +499,15 @@ c({
   subs: (e) => [['<why>', e.why]],
 });
 c({
+  doc: 'S', id: 'C41', segment: 0, exports: ['c41'],
+  examples: [
+    { axis: 'X' as const, line: 2, reach: 200, limit: 150, unit: 'mm' as const, more: 0 },
+    { axis: 'A' as const, line: 31, reach: -12.5, limit: 0, unit: '°' as const, more: 3 },
+  ],
+  render: S.c41,
+  subs: (e) => [['<Axis>', e.axis], ['<n>', String(e.line)], ['<value>', String(e.reach)], ['<limit>', String(e.limit)], ['<unit>', e.unit], ['[, and <N> more]', e.more === 0 ? '' : `, and ${e.more} more`]],
+});
+c({
   doc: 'S', id: 'C39', segment: 0, exports: ['c39'],
   examples: [
     { feed: '25', depth: '5', system: 'G54', zero: '12.68', thickness: '12.70', stop: '0.02' },

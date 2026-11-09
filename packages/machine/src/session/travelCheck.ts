@@ -19,10 +19,10 @@ import type { LineExtent } from '@synthetos/safety';
 import { isReadAllowed } from '@synthetos/schema';
 import { axisHomedHere } from './homedAxes.ts';
 import { sessionSettings } from './settingWrite.ts';
-import type { TravelCheck, TravelFinding } from './travelTypes.ts';
+import type { TravelCheck, TravelFinding, TravelPast } from './travelTypes.ts';
 import type { SessionState } from './types.ts';
 
-export type { TravelCheck, TravelFinding } from './travelTypes.ts';
+export type { TravelCheck, TravelFinding, TravelPast } from './travelTypes.ts';
 
 const AXES = ['X', 'Y', 'Z', 'A', 'B', 'C'] as const;
 type Axis = (typeof AXES)[number];
@@ -71,8 +71,12 @@ export function travelLimits(s: SessionState): Readonly<Record<Axis, Limits>> {
   return out;
 }
 
+function round(v: number): number {
+  return Math.round(v * 1000) / 1000;
+}
+
 function fmt(v: number): string {
-  return String(Math.round(v * 1000) / 1000);
+  return String(round(v));
 }
 
 /** The axes the lines from `fromLine` on move (or whose position is not known): limits not read matter only for these (review N4). */
@@ -98,6 +102,7 @@ export function checkTravel(s: SessionState, extents: readonly LineExtent[], fro
   const moved = movedAxes(extents, fromLine);
   let block: TravelFinding | null = null;
   let outside: TravelFinding | null = null;
+  let more = 0;
   let unknown: TravelFinding | null = null;
   const unread = AXES.filter((A) => limits[A].kind === 'unread' && moved.has(A));
   if (unread.length > 0) unknown = { kind: 'unchecked', line: null, text: `the travel limits of ${unread.join(', ')} were not read` };
@@ -116,10 +121,13 @@ export function checkTravel(s: SessionState, extents: readonly LineExtent[], fro
       if (past === null) continue;
       const text = `line ${line}: ${A} would reach machine ${fmt(past.at)} ${unitWord}, beyond its travel limit of ${fmt(past.limit)} ${unitWord}`;
       if (axisHomedHere(s, A)) block ??= { kind: 'outside', line, text };
-      else outside ??= { kind: 'outside', line, text: `${text}, and the ${A} position was not set by a homing cycle in this connection` };
+      else if (outside !== null) more += 1;
+      else outside = { kind: 'outside', line, text: `${text}, and the ${A} position was not set by a homing cycle in this connection`, past: { axis: A, reach: round(past.at), limit: round(past.limit), unit: unitWord, more: 0 } };
     }
     if (block !== null) break;
   }
   if (block !== null) return { block, confirm: null };
-  return { block: null, confirm: outside ?? unknown };
+  // C41 names the first move past travel and counts the rest (owner, 2026-11-09: shorter words).
+  if (outside !== null) return { block: null, confirm: { ...outside, past: { ...(outside.past as TravelPast), more } } };
+  return { block: null, confirm: unknown };
 }

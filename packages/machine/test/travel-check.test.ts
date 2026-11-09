@@ -49,8 +49,16 @@ describe('the travel check at Start', () => {
     const s = await loaded(PAST_X);
     const hand = { ...s, live: { ...s.live, home: 1 }, notices: { ...s.notices, position: { by: 'hand' as const, at: 1 } } };
     for (const state of [hand, { ...hand, notices: { ...hand.notices, position: undefined } } as unknown as SessionState]) {
-      expect(check(state, PAST_X)).toEqual({ block: null, confirm: { kind: 'outside', line: 2, text: 'line 2: X would reach machine 200 mm, beyond its travel limit of 150 mm, and the X position was not set by a homing cycle in this connection' } });
+      expect(check(state, PAST_X)).toEqual({ block: null, confirm: { kind: 'outside', line: 2, text: 'line 2: X would reach machine 200 mm, beyond its travel limit of 150 mm, and the X position was not set by a homing cycle in this connection', past: { axis: 'X', reach: 200, limit: 150, unit: 'mm', more: 0 } } });
     }
+  });
+
+  it('C41 (owner, 2026-11-09): the first move past travel is named and the moves past travel after it are counted, on any axis', async () => {
+    const text = 'G21 G90\nG1 X200 F600\nG1 Y-3.3333\nG1 X210 Y160\nM30';
+    const s = await loaded(text);
+    const hand = { ...s, live: { ...s.live, home: 1 }, notices: { ...s.notices, position: { by: 'hand' as const, at: 1 } } };
+    // Line 3 still sits at X 200 and goes below Y 0; line 4 passes X and Y: four more.
+    expect(check(hand, text).confirm).toMatchObject({ line: 2, past: { axis: 'X', reach: 200, limit: 150, unit: 'mm', more: 4 } });
   });
 
   it('on the session: Start is refused until C40 is confirmed, then goes', async () => {

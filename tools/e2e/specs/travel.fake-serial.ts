@@ -1,8 +1,8 @@
 /**
  * T-S137 (E). The travel check at the job card (OD-24, owner 2026-11-08: "Block when homed, warn when not"): the
- * simulated board is not homed by a cycle, so a file past its X travel (0..150 mm) asks C40 before Start, and Start
- * stays unavailable until it is ticked. With TRAVEL_SHOTS set to a directory, the start check is captured in Simple
- * and Advanced at 1280x720 and 390x844.
+ * simulated board is not homed by a cycle, so a file past its X travel (0..150 mm) asks to confirm before Start, and
+ * Start stays unavailable until it is ticked. Not homed as well, C40 and C36 are one box, C41 (owner, 2026-11-09).
+ * With TRAVEL_SHOTS set to a directory, the start check is captured in Simple and Advanced at 1280x720 and 390x844.
  */
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
@@ -17,7 +17,7 @@ async function shots(page: Page): Promise<void> {
     for (const [w, h] of [[1280, 720], [390, 844]] as const) {
       await page.setViewportSize({ width: w, height: h });
       await page.waitForTimeout(300);
-      await page.locator('[data-safety~="C40"]').first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await page.locator('[data-safety~="C40"], [data-safety~="C41"]').first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
       await page.screenshot({ path: `${SHOTS}/travel-${level}-${w}x${h}.png` });
     }
   }
@@ -25,19 +25,18 @@ async function shots(page: Page): Promise<void> {
   await page.locator('[data-action="ui-level-advanced"]').click();
 }
 
-test('a file past the X travel on a board not homed by a cycle asks C40 before Start', async ({ page }) => {
+test('a file past the X travel on a board not homed asks C41 (C40 and C36 in one box) before Start', async ({ page }) => {
   await connect(page);
   await open(page, 'G21 G90\nG1 X200 F600\nM30\n', 'past-x.nc');
-  const c40 = page.locator('[data-safety~="C40"]');
-  await expect(c40).toContainText("Run cannot check this job against the machine's travel: line 2: X would reach machine 200 mm, beyond its travel limit of 150 mm, and the X position was not set by a homing cycle in this connection. Start only if you have checked that every move fits the machine.");
+  const c41 = page.locator('[data-safety="C41"]');
+  await expect(c41).toHaveText("X isn't homed, so Run can't check its travel and soft limits may not protect it. Line 2: X would reach 200 mm, past its 150 mm limit. I've checked where every axis is and that every move fits.");
   for (const box of ['confirm-unhomed', 'confirm-zero', 'confirm-attended']) {
     const el = page.locator(`[data-job="${box}"]`);
     if ((await el.count()) > 0) await el.check();
   }
-  // Not homed as well: C40 and C36 are one box (owner, 2026-11-08), so one blocker and no separate C36.
-  await expect(page.locator('[data-safety~="C40"]')).toHaveAttribute('data-safety', 'C40 C36');
-  await expect(page.locator('[data-safety~="C40"]')).toContainText('The machine is not homed, so soft limits may not protect it.');
+  // One box (owner, 2026-11-08; shorter words 2026-11-09): one blocker, no separate C36 or C40.
   await expect(page.locator('[data-safety="C36"]')).toHaveCount(0);
+  await expect(page.locator('[data-safety="C40"]')).toHaveCount(0);
   await expect(page.locator('[data-job="blockers"] [data-blocker]')).toHaveAttribute('data-blocker', 'travel');
   await expect(page.locator('[data-action="start-job"]')).toBeDisabled();
   await shots(page);
