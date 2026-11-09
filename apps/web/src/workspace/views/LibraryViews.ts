@@ -55,6 +55,7 @@ import { ToolNumberField } from './ToolNumberField.ts';
 import { ToolNameField } from './ToolNameField.ts';
 import { ToolDelete } from './ToolDelete.ts';
 import { ToolShapeFields } from './ToolShapeFields.ts';
+import { uiLevel } from '../jobWorkflow.ts';
 
 export const PLACEHOLDER_NOTE = 'Placeholder values: not yet sourced. They show the shape of the data, not machining advice.';
 
@@ -226,7 +227,7 @@ function ToolInspector({ entry, onDeleted }: { readonly entry: ToolEntry; readon
           h('div', null, h('dt', null, 'Maker'), h('dd', null, [tool.manufacturer, tool.partNumber].filter((x) => x !== undefined && x !== '').join(' · ') || 'Not recorded')),
           h('div', null, h('dt', null, 'Material'), h('dd', null, `${tool.toolMaterial} · ${tool.coating}`)),
           h('div', null, h('dt', null, 'Cut so far'), h('dd', null, `${num(tool.life.minutes)} min`)),
-          h('div', null, h('dt', null, 'Version'), h('dd', null, String(tool.version))),
+          uiLevel.value.value === 'advanced' ? h('div', null, h('dt', null, 'Version'), h('dd', null, String(tool.version))) : null,
         ),
         h(ToolDelete, { id: tool.id, label: `T${entry.number} · ${tool.name}`, onDeleted }),
       ),

@@ -39,7 +39,8 @@ import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
 import { ConsoleLine } from '../../console/ConsoleLine.ts';
 import { openReport } from '../../report/state.ts';
 import { closeJob, currentFile, currentPreview, executionLock, openJob, pendingOpen, reopenActiveJob, saveDraftToProject, type OpenSource } from '../fileBridge.ts';
-import { activeJob, type Job } from '../jobModel.ts';
+import { activeJob, jobSaved, type Job } from '../jobModel.ts';
+import { bedSizeText, jobStateText, machineText } from '../revisionWords.ts';
 import { materialColor } from '../library.ts';
 import { openToolNumber } from '../toolNumbers.ts';
 import { projectsState } from '../../projects/store.ts';
@@ -1032,6 +1033,7 @@ function JobIdentity({ job, fileOpen, onNote }: { readonly job: Job | null; read
   if (job === null) return null;
   const project = job.projectId === null ? null : (projects.list.find((p) => p.id === job.projectId) ?? null);
   const bed = job.setup.bed;
+  const advanced = uiLevel.value.value === 'advanced';
   return h(
     'p',
     { class: 'job-identity', 'data-job': 'identity' },
@@ -1039,10 +1041,11 @@ function JobIdentity({ job, fileOpen, onNote }: { readonly job: Job | null; read
     ' · ',
     job.projectId === null ? h('span', { 'data-job': 'project' }, 'local draft') : h('span', { 'data-job': 'project' }, project === null ? 'project' : project.name),
     ' · ',
-    h('span', { 'data-job': 'machine' }, job.machine === null ? 'no machine' : `${job.machine.name} (rev ${job.machine.revision})`),
+    h('span', { 'data-job': 'machine' }, job.machine === null ? 'no machine' : machineText(job.machine.name, job.machine.revision, advanced)),
     ' · ',
-    h('span', { 'data-job': 'bed', 'data-bed': bed.source.kind }, `bed ${Math.round(bed.width)} × ${Math.round(bed.depth)} mm${bed.source.kind === 'placeholder' ? ', placeholder' : job.setup.bedFrom === 'machine' ? `, revision ${bed.revision}` : ''}`),
-    ` · revision ${job.revision}`,
+    h('span', { 'data-job': 'bed', 'data-bed': bed.source.kind }, `bed ${bedSizeText(bed)}${advanced && bed.source.kind !== 'placeholder' && job.setup.bedFrom === 'machine' ? `, revision ${bed.revision}` : ''}`),
+    ' · ',
+    h('span', { 'data-job': 'state' }, jobStateText(job.revision, jobSaved.value, advanced)),
     job.projectId !== null || !fileOpen
       ? null
       : h(

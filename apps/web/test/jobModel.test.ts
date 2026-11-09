@@ -200,7 +200,8 @@ describe('the planned zero and the scene in machine coordinates', () => {
     const draft = jobScene(newDraftJob(clock()), SCENE_COLORS, null);
     expect(draft.bedPlaceholder).toBe(true);
     expect(draft.layers.solids[0]).toMatchObject({ tag: 'bed', min: [0, 0, -19], max: [790, 790, 0] });
-    expect(draft.bedLabel).toBe('Bed · 790 × 790 mm · placeholder');
+    expect(draft.bedLabel).toBe('Bed · 790 × 790 mm · not measured yet');
+    expect(draft.bedSize).toBe('790 × 790 mm (not measured yet)');
   });
 
   it('the live frame: the tool at the reported machine position, the work zero from machine minus work (inches converted)', () => {

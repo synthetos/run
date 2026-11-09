@@ -46,7 +46,8 @@ function field(label: string, value: number, onChange: (n: number) => void, unit
 
 const ZEROS = ['back-left', null, 'back-right', null, 'center', null, 'front-left', null, 'front-right'] as const;
 
-import type { JobStep } from '../jobWorkflow.ts';
+import { uiLevel, type JobStep } from '../jobWorkflow.ts';
+import { bedTag, sameBed } from '../revisionWords.ts';
 export function FixtureThumb({ outline, holes }: { readonly outline: readonly (readonly [number, number])[]; readonly holes: readonly (readonly [number, number, number])[] }): ComponentChild {
   const w = Math.max(...outline.map((p) => p[0]), 1);
   const d = Math.max(...outline.map((p) => p[1]), 1);
@@ -79,6 +80,7 @@ export function JobSetupPanel({ step, locked, onView }: { readonly step: JobStep
   const machines = machineStore.value.value;
   const machine = job.machine === null ? null : (machines.find((m) => m.id === job.machine?.id) ?? null);
   const behind = bedBehind(job, machine);
+  const advanced = uiLevel.value.value === 'advanced';
   const bed = job.setup.bed;
   const setBed = (patch: Partial<Pick<MachineBed, 'width' | 'depth' | 'thickness'>> & { readonly z?: number }): void => {
     const { z, ...dims } = patch;
@@ -126,9 +128,9 @@ export function JobSetupPanel({ step, locked, onView }: { readonly step: JobStep
         h(
             'section',
             { class: 'insp', 'data-setup': 'bed', 'data-setup-section': 'bed' },
-            h('header', null, h('h2', null, 'Bed'), h('span', { class: `tag${bedIsPlaceholder(bed) ? ' warn' : ' ok'}`, 'data-bed': bedIsPlaceholder(bed) ? 'placeholder' : bed.source.kind }, bedIsPlaceholder(bed) ? 'Placeholder' : bed.source.kind === 'measured' ? 'Measured' : 'From a drawing')),
-            h('p', { class: 'fine', 'data-bed': 'owner' }, job.machine === null || job.setup.bedFrom === 'own' ? 'The draft’s own bed: no machine is chosen. Choose a machine above to plan on its bed.' : `Pinned from ${job.machine.name}, bed revision ${bed.revision}${behind ? ` (the machine now has revision ${machine === null ? '?' : bedOf(machine).revision})` : ''}.`),
-            behind && machine !== null ? h('button', { type: 'button', class: 'small', 'data-action': 'job-take-bed', onClick: () => edit((j) => withMachine(j, machine)) }, `Use the machine’s bed revision ${bedOf(machine).revision}`) : null,
+            h('header', null, h('h2', null, 'Bed'), h('span', { class: `tag${bedIsPlaceholder(bed) ? ' warn' : ' ok'}`, 'data-bed': bedIsPlaceholder(bed) ? 'placeholder' : bed.source.kind }, bedTag(bed))),
+            h('p', { class: 'fine', 'data-bed': 'owner' }, job.machine === null || job.setup.bedFrom === 'own' ? 'The draft’s own bed: no machine is chosen. Choose a machine above to plan on its bed.' : advanced ? `Pinned from ${job.machine.name}, bed revision ${bed.revision}${behind ? ` (the machine now has revision ${machine === null ? '?' : bedOf(machine).revision})` : ''}.` : behind ? `${job.machine.name}’s bed has changed since this job was planned.` : machine !== null && !sameBed(bed, bedOf(machine)) ? `Unsaved changes: this job’s bed differs from ${job.machine.name}’s.` : `Saved: the same bed as ${job.machine.name}’s.`),
+            behind && machine !== null ? h('button', { type: 'button', class: 'small', 'data-action': 'job-take-bed', onClick: () => edit((j) => withMachine(j, machine)) }, advanced ? `Use the machine’s bed revision ${bedOf(machine).revision}` : 'Use the machine’s new bed') : null,
             h(ContextHelp, { id: 'bed-source-help', label: 'About this bed' }, bedSourceText(bed)),
             h('div', { class: 'field-grid three' }, field('Width', bed.width, (width) => setBed({ width }), 'mm', 1, 1), field('Depth', bed.depth, (depth) => setBed({ depth }), 'mm', 1, 1), field('Thickness', bed.thickness, (thickness) => setBed({ thickness }))),
             h('div', { class: 'field-grid' }, field('Bed top, machine Z', bed.toMachine.z, (z) => setBed({ z }), 'mm', 0.1, -100000)),
@@ -142,9 +144,9 @@ export function JobSetupPanel({ step, locked, onView }: { readonly step: JobStep
                   else {
                     const m = machineStore.value.value.find((x) => x.id === machine.id) ?? null;
                     edit((j) => reviseJob(withMachine(j, m), {}));
-                    setBedNote(`Saved to ${machine.name} as bed revision ${saved.revision}. Other jobs keep the revision they were planned on.`);
+                    setBedNote(advanced ? `Saved to ${machine.name} as bed revision ${saved.revision}. Other jobs keep the revision they were planned on.` : `Saved to ${machine.name}. Other jobs keep the bed they were planned on.`);
                   }
-                } }, `Save to ${machine.name} as bed revision ${bedOf(machine).revision + 1}`)
+                } }, advanced ? `Save to ${machine.name} as bed revision ${bedOf(machine).revision + 1}` : `Save this bed to ${machine.name}`)
               : null,
             bedNote === null ? null : h('p', { class: 'fine', role: 'status', 'data-bed': 'note' }, bedNote),
             h('p', { class: 'fine' }, jobSaved.value ? 'Saved in this browser.' : 'Not saved: this browser blocks storage. Changes last for this page only.'),

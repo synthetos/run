@@ -12,7 +12,9 @@ import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 import { MAX_UNCARVED_NOTES, NO_CHANGE_REASON, NO_T_REASON, carvePlan } from '../src/preview/carveTools.ts';
 import { carveGrid } from '../src/preview/carveStock.ts';
 import { BelowNote, CarveLabel, belowText, carveNotes, cellText, depthText } from '../src/preview/CarveKey.ts';
-import { BED_NOT_SET, SceneKey, pickHint } from '../src/preview/SceneKey.ts';
+import { SceneKey, pickHint } from '../src/preview/SceneKey.ts';
+
+const NOT_MEASURED_BED = 'Bed 750 × 750 mm (not measured yet)';
 import { toolNumbered } from '../src/preview/activeTool.ts';
 import type { JobScene } from '../src/preview/sceneModel.ts';
 import type { CarveStatus } from '../src/preview/useCarve.ts';
@@ -132,7 +134,7 @@ describe('the key at each level', () => {
     layers: { solids: [{ kind: 'box', min: [0, 0, 0], max: [1, 1, 1], color: [1, 1, 1, 1], tag: 'bed' }, ...(fixture ? [{ kind: 'box' as const, min: [0, 0, 1] as const, max: [1, 1, 2] as const, color: [1, 1, 1, 1] as const, tag: 'fixture' }] : [])], rings: [] },
     pathOffset: [0, 0, 0], zero: [0, 0, 0], bounds: null,
     heights: { bedTop: 0, fixtureTop: 0, stockTop: 0, aboveTable: { bedTop: 0, fixtureTop: 0, stockTop: 0 } },
-    bedPlaceholder: placeholder, bedLabel: 'Bed of My X-Carve · 750 × 750 mm · placeholder',
+    bedPlaceholder: placeholder, bedLabel: `Bed of My X-Carve · 750 × 750 mm · ${placeholder ? 'not measured yet' : 'measured'}`, bedSize: placeholder ? '750 × 750 mm (not measured yet)' : '750 × 750 mm',
   });
   const t1 = toolNumbered(1, SEED_TOOLS);
   const info = () => ({ cell: 0.25, uncarved: ['Lines 12–340 not carved: T3 is not in your tool table'], status: signal<CarveStatus>({ through: 40, done: true, lowest: -1, failed: null, below: null }) });
@@ -143,20 +145,21 @@ describe('the key at each level', () => {
     expect(renderToString(h(SceneKey, { scene: scene(true), tool: t1, simple: false }))).toContain('T1 · 3.175 mm 2-flute up-cut');
   });
 
-  it('Simple: the tool, "Bed size not set" for a placeholder bed, the hint, no bed name, detail or links', () => {
+  it('Simple: the tool, the bed\'s size "(not measured yet)" for a placeholder bed, the hint, no bed name, detail or links', () => {
     const html = renderToString(h(SceneKey, { scene: scene(true), tool: t1, carve: info(), simple: true, onOpen: () => undefined }));
     expect(html).toContain('T1 · 3.175 mm 2-flute up-cut');
-    expect(html).toContain(BED_NOT_SET);
+    expect(html).toContain(NOT_MEASURED_BED);
+    expect(html).not.toContain('Bed size not set');
     expect(html).toContain('Click the bed, fixture or stock to change it');
     expect(html).toContain('Lines 12–340 not carved');
     expect(html).not.toMatch(/My X-Carve|revision|Carving detail|Bed settings/);
-    expect(renderToString(h(SceneKey, { scene: scene(false), tool: t1, simple: true, onOpen: () => undefined }))).not.toContain(BED_NOT_SET);
+    expect(renderToString(h(SceneKey, { scene: scene(false), tool: t1, simple: true, onOpen: () => undefined }))).not.toContain(NOT_MEASURED_BED);
     expect(pickHint(['bed', 'stock'])).toBe('Click the bed or stock to change it');
   });
 
   it('Advanced: the bed name and size, the carving detail and the links', () => {
     const html = renderToString(h(SceneKey, { scene: scene(true), tool: t1, carve: info(), onOpen: () => undefined }));
-    expect(html).toContain('Bed of My X-Carve · 750 × 750 mm · placeholder');
+    expect(html).toContain('Bed of My X-Carve · 750 × 750 mm · not measured yet');
     expect(html).toContain('T1 · 3.175 mm 2-flute up-cut');
     expect(html).toContain('Carving detail 0.25 mm');
     expect(html).toContain('Bed settings');

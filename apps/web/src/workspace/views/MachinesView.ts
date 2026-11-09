@@ -22,6 +22,7 @@ import { editBlocked, SettingsTable } from '../settings/SettingsUi.ts';
 import { GuidedSettings, guidedAxes } from '../settings/GuidedSettings.ts';
 import { boardTab, type BoardTab } from '../boardNavigation.ts';
 import { jobStep, machinesTab, uiLevel, type MachinesTab } from '../jobWorkflow.ts';
+import { bedTag } from '../revisionWords.ts';
 import { executionLock } from '../fileBridge.ts';
 import { updateActiveJob, withMachine } from '../jobModel.ts';
 import { writableKey } from '../settings/pending.ts';
@@ -63,7 +64,7 @@ function BedSection({ machine }: { readonly machine: MachineProfile }): Componen
   const save = (patch: Partial<Pick<typeof bed, 'width' | 'depth' | 'thickness'>> & { readonly z?: number }): void => {
     const { z, ...dims } = patch;
     const saved = saveMachineBed(machine.id, { ...bed, ...dims, toMachine: z === undefined ? bed.toMachine : { ...bed.toMachine, z }, source: { kind: 'measured', note: 'Entered in Machines.', at: new Date().toISOString() } });
-    if (saved !== null) setNote(`Saved · bed revision ${saved.revision}`);
+    if (saved !== null) setNote(uiLevel.value.value === 'advanced' ? `Saved · bed revision ${saved.revision}` : 'Saved');
   };
   const numField = (label: string, value: number, onChange: (n: number) => void, min: number, step = 1): ComponentChild =>
     h('label', { class: 'field', key: label }, h('span', null, label), h('span', { class: 'unit-input' }, h('input', { type: 'number', min, step, value, 'aria-label': `${label}, bed`, onChange: (e: Event) => { const n = Number.parseFloat((e.currentTarget as HTMLInputElement).value); if (Number.isFinite(n) && n >= min) onChange(n); } }), h('i', null, 'mm')));
@@ -71,7 +72,7 @@ function BedSection({ machine }: { readonly machine: MachineProfile }): Componen
   return h(
     'div',
     { class: 'machine-bed', 'data-machine': 'bed', 'data-bed': placeholder ? 'placeholder' : bed.source.kind, 'data-bed-revision': String(bed.revision) },
-    h('div', { class: 'bed-head' }, h('h3', null, 'Bed'), h('span', { class: `tag${placeholder ? ' warn' : ' ok'}` }, placeholder ? 'Placeholder' : bed.source.kind === 'measured' ? 'Measured' : 'From a drawing'), h('span', { class: 'fine' }, bed.revision === 0 ? 'no revision saved yet' : `revision ${bed.revision}`)),
+    h('div', { class: 'bed-head' }, h('h3', null, 'Bed'), h('span', { class: `tag${placeholder ? ' warn' : ' ok'}` }, bedTag(bed)), uiLevel.value.value === 'advanced' ? h('span', { class: 'fine' }, bed.revision === 0 ? 'no revision saved yet' : `revision ${bed.revision}`) : null),
     h('div', { class: 'machine-bed-fields' }, numField('Width', bed.width, (width) => save({ width }), 1), numField('Depth', bed.depth, (depth) => save({ depth }), 1), numField('Thickness', bed.thickness, (thickness) => save({ thickness }), 0.1, 0.5), numField('Bed top, machine Z', bed.toMachine.z, (z) => save({ z }), -100000, 0.1)),
     h(ContextHelp, { id: 'machine-bed-help', label: 'About this bed' },
       bed.source.kind === 'placeholder' ? bed.source.note : bed.source.kind === 'measured' ? `${bed.source.note} ${dateText(bed.source.at)}` : `From ${bed.source.file}, ${bed.source.units}, ${dateText(bed.source.at)}.`,
@@ -125,7 +126,7 @@ function MyMachine({ model, onView }: { readonly model: WorkspaceModel | null; r
             ),
             h('label', { class: 'field' }, h('span', null, 'Spindle'), h('span', { class: 'unit-input' }, h('input', { value: mine.spindle, maxLength: 40, onChange: (e: Event) => update({ spindle: (e.currentTarget as HTMLInputElement).value.slice(0, 40) }) }))),
           )
-        : [h('h2', { key: 'n' }, mine.name), h('p', { key: 'p' }, `${CATALOGUE.find((t) => t.id === mine.templateId)?.name ?? 'Custom'} · ${mine.drive === 'any' ? 'any drive' : `${mine.drive} drive`} · ${mine.travel.x} × ${mine.travel.y} × ${mine.travel.z} mm travel · ${mine.spindle} · revision ${mine.revision ?? 1}`), isOn && view !== null ? h('p', { key: 'b', class: 'fine' }, `Connected: ${boardLabel(view)}`) : null],
+        : [h('h2', { key: 'n' }, mine.name), h('p', { key: 'p' }, `${CATALOGUE.find((t) => t.id === mine.templateId)?.name ?? 'Custom'} · ${mine.drive === 'any' ? 'any drive' : `${mine.drive} drive`} · ${mine.travel.x} × ${mine.travel.y} × ${mine.travel.z} mm travel · ${mine.spindle}${uiLevel.value.value === 'advanced' ? ` · revision ${mine.revision ?? 1}` : ''}`), isOn && view !== null ? h('p', { key: 'b', class: 'fine' }, `Connected: ${boardLabel(view)}`) : null],
     ),
     h('span', { class: `pill${isOn ? ' connected' : ''}` }, isOn ? 'Connected' : 'Not connected'),
     h('div', { class: 'card-actions' }, h('button', { type: 'button', class: 'small', onClick: () => setEditing(!editing) }, editing ? 'Done' : 'Edit'), h('button', { type: 'button', class: 'small', onClick: () => onView('board') }, 'Open board')),

@@ -1,6 +1,6 @@
 /**
  * The scene's key, over the drawing. Simple (the default level) shows what a hobbyist needs: the tool the
- * marker shows in plain words (ToolKey.ts), "Bed size not set" when the bed is a placeholder (a link to its
+ * marker shows by its library name (ToolKey.ts), "Bed 750 × 750 mm (not measured yet)" for a placeholder bed (a link to its
  * settings), the notes that matter (lines not carved and why, a cut below the stock, a tool missing from the
  * tool table) and a quiet hint that clicking the bed, fixture or stock opens its settings. Advanced adds what
  * the bed is, the carving detail and links to the bed, fixture and stock settings (so opening them is not
@@ -32,7 +32,10 @@ export interface SceneKeyProps {
   readonly simple?: boolean;
 }
 
-export const BED_NOT_SET = 'Bed size not set';
+/** Simple's bed words for a placeholder bed (C2): its size and that it is not measured yet, never "not set". */
+export function bedNotMeasured(scene: JobScene): string {
+  return `Bed ${scene.bedSize ?? ''}`.trim();
+}
 
 /** Items joined by a quiet middle dot. */
 function joined(items: readonly ComponentChild[]): ComponentChild[] {
@@ -62,8 +65,8 @@ export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview 
       : !scene.bedPlaceholder
         ? null
         : onOpen === undefined
-          ? h('span', { 'data-scene': 'bed' }, BED_NOT_SET)
-          : h('button', { type: 'button', class: 'link', 'data-scene': 'bed', 'data-scene-link': 'bed', onClick: () => onOpen('bed') }, BED_NOT_SET);
+          ? h('span', { 'data-scene': 'bed' }, bedNotMeasured(scene))
+          : h('button', { type: 'button', class: 'link', 'data-scene': 'bed', 'data-scene-link': 'bed', onClick: () => onOpen('bed') }, bedNotMeasured(scene));
   const links = simple || onOpen === undefined || parts.length === 0
     ? null
     : h('nav', { class: 'scene-links', 'aria-label': 'Scene settings' }, joined(parts.map((p) => h('button', { type: 'button', key: p, class: 'link', 'data-scene-link': p, onClick: () => onOpen(p) }, SCENE_PARTS[p].settings))));

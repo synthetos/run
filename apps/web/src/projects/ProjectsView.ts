@@ -25,6 +25,8 @@ import { Description } from './description.ts';
 import { formatBytes, isGcodeFile, LIMITS, ROLE_LABEL, type FileRole } from './limits.ts';
 import { projectsState, projectUsage, type Project, type ProjectFile, type ProjectSetup } from './store.ts';
 import { applyImport, checkDrawing, JOB_ROLE_LABEL, rolesFor, scaled, skippedText, type ImportCheck, type JobRole, type Units } from './useInJob.ts';
+import { uiLevel } from '../workspace/jobWorkflow.ts';
+import { bedSizeText } from '../workspace/revisionWords.ts';
 
 export { projectStore };
 
@@ -528,7 +530,7 @@ function JobRow({ project, job, onView }: { readonly project: Project; readonly 
       'div',
       { class: 'file-name' },
       h('strong', null, job.name, current ? h('span', { class: 'tag ok' }, 'Open') : null),
-      h('small', null, `${file === undefined ? (job.file === null ? 'no file' : `${job.file.name} (file removed)`) : file.name} · ${job.machine === null ? 'no machine' : `${job.machine.name}, bed revision ${job.setup.bed.revision}${job.setup.bed.source.kind === 'placeholder' ? ' (placeholder)' : ''}`} · revision ${job.revision} · changed ${dateText(job.updatedAt)}`),
+      h('small', null, `${file === undefined ? (job.file === null ? 'no file' : `${job.file.name} (file removed)`) : file.name} · ${job.machine === null ? 'no machine' : uiLevel.value.value === 'advanced' ? `${job.machine.name}, bed revision ${job.setup.bed.revision}${job.setup.bed.source.kind === 'placeholder' ? ' (placeholder)' : ''}` : `${job.machine.name}, bed ${bedSizeText(job.setup.bed)}`}${uiLevel.value.value === 'advanced' ? ` · revision ${job.revision}` : ''} · changed ${dateText(job.updatedAt)}`),
       error === null ? null : h('small', { class: 'tone-warn', role: 'alert' }, error),
     ),
     h(

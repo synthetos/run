@@ -34,7 +34,7 @@ test('unhomed at 0, 0, 0: the job is shown as planned with a note; scene parts o
   const before = (await writes(worker)).length;
 
   // The keyboard path: the key's link opens the stock settings and focuses their heading (the links are Advanced;
-  // Simple keeps "Bed size not set" and the hint that a click on a part opens it).
+  // Simple keeps the bed's size "(not measured yet)" and the hint that a click on a part opens it).
   await page.locator('[data-job-step="run"]').click();
   await expect(job.locator('[data-scene="pick-hint"]')).toHaveText('Click the bed, fixture or stock to change it');
   await expect(job.locator('[data-scene-link="stock"]')).toHaveCount(0);

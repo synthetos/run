@@ -24,6 +24,7 @@
 import type { Box3, Rgba, SceneLayers, SceneRing, SceneSolid, Vec3 } from '@synthetos/gcode-view';
 import { sceneBounds } from '@synthetos/gcode-view';
 import { bedIsPlaceholder } from '../workspace/library.ts';
+import { bedSizeText, NOT_MEASURED } from '../workspace/revisionWords.ts';
 import { fixtureTop, plannedZero, stockFootprint, type Job } from '../workspace/jobModel.ts';
 import type { SceneColors } from './colors.ts';
 
@@ -47,6 +48,8 @@ export interface JobScene {
   readonly heights: SceneHeights;
   /** The bed's dimensions are unverified (shown as Placeholder; never a fit certainty). */
   readonly bedPlaceholder: boolean;
+  /** The bed's size in words, "(not measured yet)" for a placeholder (C2): what Simple's key says. */
+  readonly bedSize?: string;
   /** What the bed is, in words, for the viewer's key. */
   readonly bedLabel: string;
   /** Plain notes on how the live machine placed the job (livePlacement.ts), for the viewer's key; none when planned. */
@@ -111,14 +114,15 @@ export function jobScene(job: Job, colors: SceneColors, stockColor: readonly num
     heights: { bedTop, fixtureTop: fTop, stockTop: sTop, aboveTable: { bedTop: bed.thickness, fixtureTop: bed.thickness + fixtureTop(job), stockTop: bed.thickness + fixtureTop(job) + st.thickness } },
     bedPlaceholder: bedIsPlaceholder(bed),
     bedLabel: bedLabel(job),
+    bedSize: bedSizeText(job.setup.bed),
   };
 }
 
-/** "Bed · 790 × 790 mm · placeholder" / "Bed of Shop X-Carve · 750 × 750 mm · measured". The bed's revision is bookkeeping, not shown here. */
+/** "Bed · 790 × 790 mm · not measured yet" / "Bed of Shop X-Carve · 750 × 750 mm · measured". The bed's revision is bookkeeping, not shown here. */
 export function bedLabel(job: Job): string {
   const bed = job.setup.bed;
   const who = job.machine === null || job.setup.bedFrom === 'own' ? 'Bed' : `Bed of ${job.machine.name}`;
-  const how = bed.source.kind === 'placeholder' ? 'placeholder' : bed.source.kind === 'measured' ? 'measured' : `from ${bed.source.file}`;
+  const how = bed.source.kind === 'placeholder' ? NOT_MEASURED : bed.source.kind === 'measured' ? 'measured' : `from ${bed.source.file}`;
   return `${who} · ${Math.round(bed.width)} × ${Math.round(bed.depth)} mm · ${how}`;
 }
 

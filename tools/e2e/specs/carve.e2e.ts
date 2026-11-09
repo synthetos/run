@@ -112,7 +112,8 @@ test('the key: Simple shows the tool in plain words and the notes that matter; A
   await expect(sheet.locator('[data-scene="carve"]')).toHaveAttribute('data-carve-done', 'true');
   // Simple (the default level).
   await expect(key.locator('[data-scene="tool"]')).toHaveText('T4 · 12.7 mm 90° V-bit');
-  await expect(key.locator('[data-scene="bed"]')).toHaveText('Bed size not set');
+  // C2: the bed's size, and that it is not measured yet; never "not set" while a size shows.
+  await expect(key.locator('[data-scene="bed"]')).toHaveText('Bed 790 × 790 mm (not measured yet)');
   await expect(key.locator('[data-scene="pick-hint"]')).toHaveText('Click the bed, fixture or stock to change it');
   await expect(key.locator('nav.scene-links')).toHaveCount(0);
   await expect(key).not.toContainText('Carving');
@@ -121,7 +122,7 @@ test('the key: Simple shows the tool in plain words and the notes that matter; A
   await expect(sheet.locator('[data-preview="dialect"]')).toHaveCount(0);
   // Advanced.
   await page.locator('[data-action="ui-level-advanced"]').click();
-  await expect(key.locator('[data-scene="bed"]')).toHaveText('Bed · 790 × 790 mm · placeholder');
+  await expect(key.locator('[data-scene="bed"]')).toHaveText('Bed · 790 × 790 mm · not measured yet');
   await expect(key.locator('[data-scene="tool"]')).toHaveText('T4 · 90° V-bit');
   await expect(key.locator('[data-scene="carve"]')).toHaveText('Carving detail 0.25 mm');
   await expect(key.locator('[data-scene-link]')).toHaveCount(3);
