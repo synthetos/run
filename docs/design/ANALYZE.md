@@ -7,8 +7,9 @@
 - `packages/advisor/src/analysis/` (`types`, `moves`, `density`, `operations`, `report`): the motion report from the tape. Each shown value carries its evidence. Feed time only for known feeds; rapids timed only from known rapid speeds; unknown stays unknown, never zero.
 - `apps/web/src/gcode-worker/headings.ts` and the pipeline: the report is computed in the G-code worker and travels inside the preview result (lite mode too), so it can never belong to another file. advisorModel no longer reads the file's modes itself.
 - `apps/web/src/workspace/analysisInputs.ts`: board values are "Board settings", a reading saved in this browser is "Last read …", the machine profile comes last. Read only; pending drafts are never used.
-- Analyze: Summary, Where it slows (each region opens Job at its first line), Cutting advice (one card per operation with its regimes; one question at a time). Advanced adds the motion settings with sources, every region, the line-density histogram, speed comparisons and the AI demonstration.
-- Time is always "at programmed speeds, acceleration not included". No new serial commands, no file changes, no live tuning, no ETA.
+- Analyze (reworked after the owner's walk on a real 30,000-line file): a headline, "At least 1 h 46 min of cutting" (programmed feeds are maxima, so this is a lower bound; real time is longer), with the stops and rapids; "What to fix", at most three ranked findings in Simple, each saying what it means, what to do in CAM and where, with "Show on toolpath" (Job, the lines highlighted with the planner overlay's band) and "Go to line"; then one card per operation, named as the file names it, with its tool from the tool table and its plunge and cut feeds, and the cutting check asking one question at a time. The dense sections are one "tiny moves" finding with real numbers; the list of sections is in Advanced, collapsed. Slow plunges and slow stretches are findings too.
+- Advanced adds every finding, the machine speeds with their source (one line to connect when none are read), the move-rate histogram and the rules' speed comparison. The AI demonstration and the engine picker are gone from the page.
+- No new serial commands, no file changes, no live tuning, no ETA.
 
 The proposal follows as written, apart from this status.
 

@@ -1,7 +1,8 @@
 /**
  * Analyze slice 1 (docs/design/ANALYZE.md): with no board, profile, material inputs or tool, an opened file already
- * shows what it does. Connecting adds the board's rapid speeds, labelled "Board settings". A newer file replaces the
- * older one's report. One operation card holds the plunge and the cut. A region opens Job at its line, by keyboard.
+ * shows what it does and what to fix. Connecting adds the board's rapid speeds, labelled "Board settings". A newer
+ * file replaces the older one's report. One operation card holds the plunge and the cut. A finding opens Job at its
+ * line, by keyboard.
  * Visiting Analyze writes nothing to the board. With ANALYZE_SHOTS set to a directory, Analyze is captured in Simple
  * and Advanced, light and dark, at 1280x720 and 390x844.
  */
@@ -63,7 +64,7 @@ async function shots(page: Page): Promise<void> {
   await page.locator('[data-action="ui-level-simple"]').click();
 }
 
-test('disconnected, no inputs: a useful summary, one operation with its regimes, regions linked to Job by keyboard', async ({ page }) => {
+test('disconnected, no inputs: a lower bound, what to fix with links, one operation with its regimes', async ({ page }) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
@@ -72,44 +73,48 @@ test('disconnected, no inputs: a useful summary, one operation with its regimes,
   await page.locator('[data-job-step="run"]').click();
   await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name: 'pocket.nc', mimeType: 'text/plain', buffer: Buffer.from(job()) });
   const view = await analyze(page);
-  await expect(view.locator('[data-analyze="summary"]')).toBeVisible({ timeout: 15_000 });
   const summary = view.locator('[data-analyze="summary"]');
-  await expect(summary.locator('[data-analyze="time"]')).toHaveText('Time not known yet');
-  await expect(summary).toContainText('At programmed speeds. Acceleration not included.');
-  await expect(summary.locator('[data-fact="feed-time"]')).toContainText('From the file');
-  await expect(summary.locator('[data-fact="feed-mm"]')).not.toContainText('0 mm');
-  await expect(summary.locator('[data-analyze="missing"]')).toContainText('Connect your machine to improve the time estimate.');
+  await expect(summary).toBeVisible({ timeout: 15_000 });
+  await expect(summary.locator('[data-analyze="time"]')).toHaveText(/^At least \d+ s of cutting$/);
+  await expect(summary).toContainText('Real time will be longer.');
+  await expect(summary.locator('[data-fact="rapid-time"]')).toContainText('not timed yet');
+  await expect(summary.locator('[data-analyze="missing"]')).toHaveText("Connect to read your machine's speeds. The time estimate will improve.");
   await expect(view).not.toContainText('Unavailable');
-  // One operation card, with the plunge and the cuts under it.
+  await expect(view).not.toContainText('Not known');
+  // What to fix: the tiny moves first, then the slow pass; each says what to do and links to Job.
+  const fixes = view.locator('[data-fix]');
+  await expect(fixes).toHaveCount(2);
+  const tiny = view.locator('[data-fix="tiny"]');
+  await expect(tiny.locator('h3')).toHaveText('Most of this file is short moves'); // about 0.3 mm each
+  await expect(tiny).toContainText('Half the moves are under');
+  await expect(tiny).toContainText('turn on arc output (G2/G3) and smoothing');
+  await expect(tiny).toContainText('A smoother copy (merge tiny moves, fit arcs) is coming.');
+  // One operation card, with the plunge and the cuts under it; questions one at a time.
   const ops = view.locator('[data-advisor-operation]');
   await expect(ops).toHaveCount(1);
-  await expect(ops.first().locator('h3')).toContainText('Pocket');
+  await expect(ops.first().locator('h3')).toHaveText('Pocket');
   await expect(ops.first().locator('[data-regime="plunge"]')).toHaveCount(1);
   await expect(ops.first().locator('[data-regime="cut"]')).toHaveCount(2);
-  // Cutting advice asks one question at a time; the motion summary never waits for it.
-  await expect(view.locator('[data-analyze="advice"] [data-advisor="question"]')).toHaveCount(2); // the machine question, and the spindle tool
-  // The AI picker is not in Simple.
+  await expect(view.locator('[data-analyze="advice"] [data-advisor="question"]')).toHaveCount(2); // the machine, and the spindle tool
   await expect(view.locator('[data-action="advisor-engine"]')).toHaveCount(0);
   await contained(page);
-  // Regions: the dense run and the slow pass, each a button. Keyboard: focus, Enter, and Job shows that line.
-  const regions = view.locator('[data-action="show-region"]');
-  await expect(regions).toHaveCount(2);
-  const dense = view.locator('[data-region-kind="dense"]');
-  await expect(dense).toContainText('The machine may not reach the feed here, and the stream may not keep up.');
-  await expect(dense).not.toContainText(' 0 mm each');
-  await expect(dense).toContainText('In your CAM, allow longer moves');
-  await expect(dense).toContainText('Show in Job');
-  const line = await dense.getAttribute('data-from-line');
-  await dense.focus();
+  // Keyboard: "Go to line" opens Job with the G-code list at that line.
+  const go = tiny.locator('[data-action="go-to-line"]');
+  const line = await go.getAttribute('data-line');
+  await go.focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('[data-screen="job"]')).toBeVisible();
   await expect(page.locator('[data-preview="scrub-line"]')).toHaveText(`file line ${line ?? ''}`);
-  // Advanced: the histogram, the motion settings with sources, and the AI demonstration.
+  // "Show on toolpath" opens Job too.
+  await analyze(page);
+  await view.locator('[data-fix="slow"] [data-action="show-on-toolpath"]').click();
+  await expect(page.locator('[data-screen="job"]')).toBeVisible();
+  // Advanced: the dense sections, the move-rate table and one line instead of a table of unknowns; still no engine picker.
   await page.locator('[data-action="ui-level-advanced"]').click();
   const adv = await analyze(page);
   await expect(adv.locator('[data-analyze="histogram"]')).toBeVisible();
-  await expect(adv.locator('[data-analyze="axis-settings"]')).toContainText('Not known');
-  await expect(adv.locator('[data-action="advisor-engine"] option[value="mock-ai"]')).toHaveText('AI (demonstration only)');
+  await expect(adv.locator('[data-analyze="axis-settings"]')).toHaveText("Connect to read your machine's speeds. The time estimate will improve.");
+  await expect(adv.locator('[data-action="advisor-engine"]')).toHaveCount(0);
   await page.locator('[data-action="ui-level-simple"]').click();
 });
 
@@ -123,26 +128,26 @@ test('connected: "Board settings" times the rapids; a newer file replaces the re
   const view = await analyze(page);
   const summary = view.locator('[data-analyze="summary"]');
   await expect(summary.locator('[data-fact="rapid-time"]')).toContainText('Board settings');
-  await expect(summary.locator('[data-analyze="time"]')).toContainText('About ');
+  await expect(summary.locator('[data-analyze="missing"]')).toHaveCount(0);
   await page.locator('[data-action="ui-level-advanced"]').click();
   await expect(view.locator('[data-analyze="axis-settings"]')).toContainText('Board settings');
   await page.locator('[data-action="ui-level-simple"]').click();
   await contained(page);
   await shots(page);
-  // Visiting Analyze (and every level and theme) sent nothing new except the status polls the session always makes.
+  // Visiting Analyze (and every level and theme) sent nothing but the status reads the session always makes.
   const after = (await writes(worker)).slice(before).filter((w) => !/^\{"?[a-z0-9]+"?:null\}\n?$/.test(w) && w !== '\x05');
   expect(after).toEqual([]);
   // A newer file: its report replaces the older one's.
   await page.locator('[data-region="rail"] [data-view="job"]').click();
   await open(page, '(01 Facing)\nG21 G90\nS10000 M3\nG0 X0 Y0 Z2\nG1 Z0 F300\nG1 X50 F900\nM5\nM30\n', 'facing.nc');
   const fresh = await analyze(page);
-  await expect(fresh.locator('[data-advisor-operation] h3')).toHaveText([/Facing/]);
-  await expect(fresh.locator('[data-region-kind="dense"]')).toHaveCount(0);
+  await expect(fresh.locator('[data-advisor-operation] h3')).toHaveText(['Facing']);
+  await expect(fresh.locator('[data-fix="tiny"]')).toHaveCount(0);
 });
 
-// A local file (ANALYZE_FILE, never committed) captured in Simple at 1280x720 into ANALYZE_SHOTS.
+// A local file (ANALYZE_FILE, never committed) captured into ANALYZE_SHOTS.
 const LOCAL_FILE = process.env['ANALYZE_FILE'];
-test('a local file: Analyze in Simple at 1280x720', async ({ page }) => {
+test('a local file: Analyze in Simple and Advanced, light and dark, 1280x720 and 390x844', async ({ page }) => {
   test.skip(LOCAL_FILE === undefined || SHOTS === undefined, 'set ANALYZE_FILE and ANALYZE_SHOTS');
   test.setTimeout(120_000);
   const { readFileSync } = await import('node:fs');
@@ -153,8 +158,37 @@ test('a local file: Analyze in Simple at 1280x720', async ({ page }) => {
   await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name: 'local.nc', mimeType: 'text/plain', buffer: readFileSync(LOCAL_FILE as string) });
   const view = await analyze(page);
   await expect(view.locator('[data-analyze="summary"]')).toBeVisible({ timeout: 60_000 });
-  await page.screenshot({ path: `${SHOTS as string}/local-simple-light-1280x720.png` });
-  await page.locator('[data-action="ui-level-advanced"]').click();
-  await page.screenshot({ path: `${SHOTS as string}/local-advanced-light-1280x720.png` });
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.evaluate((c) => { document.documentElement.dataset['theme'] = c; }, scheme);
+    for (const level of ['simple', 'advanced'] as const) {
+      await page.locator(`[data-action="ui-level-${level}"]`).click();
+      for (const [w, hgt] of [[1280, 720], [390, 844]] as const) {
+        await page.setViewportSize({ width: w, height: hgt });
+        await page.waitForTimeout(300);
+        await page.locator('[data-screen="analyze"] .scroll-region').evaluate((el) => { el.scrollTop = 0; });
+        await page.screenshot({ path: `${SHOTS as string}/local-${level}-${scheme}-${w}x${hgt}.png` });
+        // Further down: the findings' links, then the operations.
+        for (const part of ['links', 'advice', 'details'] as const) {
+          const target = part === 'links' ? page.locator('[data-screen="analyze"] [data-fix] [data-action="go-to-line"]').first() : page.locator(`[data-screen="analyze"] [data-analyze="${part}"]`);
+          if ((await target.count()) === 0) continue;
+          await target.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+          await page.screenshot({ path: `${SHOTS as string}/local-${level}-${scheme}-${w}x${hgt}-${part}.png` });
+        }
+      }
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.evaluate(() => { document.documentElement.dataset['theme'] = 'light'; });
+  await page.locator('[data-action="ui-level-simple"]').click();
+  // "Show on toolpath": Job with the lines highlighted on the toolpath. The phone width lays Job out again and the
+  // preview reloads the file; wait for that to settle first.
+  await page.waitForTimeout(3000);
+  await expect(page.locator('[data-screen="analyze"] [data-fix="tiny"]')).toBeVisible({ timeout: 30_000 });
+  await page.locator('[data-screen="analyze"] [data-fix="tiny"] [data-action="show-on-toolpath"]').click();
+  await expect(page.locator('[data-screen="job"]')).toBeVisible();
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${SHOTS as string}/local-job-toolpath-1280x720.png` });
   await page.locator('[data-action="ui-level-simple"]').click();
 });

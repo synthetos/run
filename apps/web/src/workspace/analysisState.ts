@@ -7,7 +7,7 @@
  * file. A region link carries that result too, and the Job preview ignores a link made for a file it no longer shows.
  */
 import { computed, signal } from '@preact/signals';
-import { motionTime, type MotionTime, type ProgramReport, type Region } from '@synthetos/advisor';
+import { motionTime, type MotionTime, type ProgramReport } from '@synthetos/advisor';
 import type { PreviewResult } from '../gcode-worker/pipeline.ts';
 import { axisSettings, boardReading, motionInputs, savedReading, type AxisSetting, type BoardReading, type InputSources } from './analysisInputs.ts';
 import { viewRequest } from './boardNavigation.ts';
@@ -39,25 +39,34 @@ export function motionView(report: ProgramReport, sources: InputSources): Motion
   return { report, time: motionTime(report, motionInputs(sources)), settings: axisSettings(sources) };
 }
 
-/** A request from Analyze to show a region in Job: the preview scrubs to `sent` (1-based) when it still shows `preview`. */
+/**
+ * A request from Analyze to show something in Job: the preview scrubs to `sent` (1-based) and, with `range`, draws
+ * those sent lines highlighted on the toolpath. Applied only while the preview still shows `preview`.
+ */
 export interface ScrubRequest {
   readonly preview: PreviewResult;
   readonly sent: number;
+  /** Sent-line indexes, inclusive, to highlight on the toolpath; null to show a line only. */
+  readonly range: { readonly from: number; readonly to: number } | null;
   readonly seq: number;
 }
 
 export const scrubRequest = signal<ScrubRequest | null>(null);
 let seq = 0;
 
-/** Opens Job at a sent line (0-based index), in the toolpath and in the line list. */
-export function showSent(sent: number): void {
+function request(sent: number, range: ScrubRequest['range']): void {
   const preview = currentFile.value?.preview;
   if (preview === undefined) return;
-  scrubRequest.value = { preview, sent: sent + 1, seq: ++seq };
+  scrubRequest.value = { preview, sent: sent + 1, range, seq: ++seq };
   viewRequest.value = 'run';
 }
 
-/** Opens Job at the region's first line. */
-export function showRegion(region: Region): void {
-  showSent(region.fromSent);
+/** "Show on toolpath": Job, with sent lines `from`..`to` highlighted in 3D and the list at the first. */
+export function showOnToolpath(from: number, to: number): void {
+  request(from, { from, to });
+}
+
+/** "Go to line …": Job, with the G-code list at that line (`sent` is its sent-line index). */
+export function goToLine(sent: number): void {
+  request(sent, null);
 }

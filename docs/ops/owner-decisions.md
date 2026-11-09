@@ -486,13 +486,14 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 ## OD-27. Analyze: explain the job first; the planner model pinned to the firmware (owner, 2026-11-09)
 
 **Owner's words.**
+- On the first build, walked on a real file: "not aligned… no links to anything, no real way of knowing what to do about it… advice engine local wtf is that". The page was reworked so every finding says what it means, what to do and where.
 - On the planner model: "we need to make sure the tg motion profiles doesn't change or this preview will too".
 - Slice 1 of the Analyze design approved to start (the owner calls Analyze "the crown jewel" for users).
 
 **Context.** Analyze asked a machine and cutting questionnaire before it showed anything, and its feed estimate stopped above 10,000 drawn vertices. The design in docs/design/ANALYZE.md (reviewed against run c3ce4fd and the edge-next planner) recommends one job analysis report with three independent parts: motion, delivery and cutting advice, in five slices.
 
 **Decision.**
-- **Slice 1, "Useful analysis without a questionnaire", is built.** Opening a file shows what it does: the time at programmed speeds (acceleration not included), distances, lines, dwells and operator stops; the dense and slow sections, each linked to the toolpath and its lines in Job; and one card per CAM operation with its plunge and cut regimes. Cutting advice asks only the next question it needs. The AI picker moved to Advanced as a demonstration.
+- **Slice 1, "Useful analysis without a questionnaire", is built.** Opening a file shows what it does: at least how long the cutting takes (programmed feeds are maxima, so real time is longer), the stops and rapids; "What to fix", each finding with what it means, what to do and links to the toolpath and the line in Job; and one card per CAM operation with its tool and its plunge and cut feeds. Cutting advice asks only the next question it needs. The AI picker is gone from the page (owner, on the first walk: "advice engine local wtf is that").
 - **The planner model is pinned to the firmware build.** When slice 2 models the TinyG planner, the model is tied to the approved firmware build whose planner it reproduces. A new firmware build that changes the motion profiles is a new model to validate, not a silent change in the preview: until it is validated, the estimate falls back to slice 1's facts.
 - Never in these slices: new serial commands, file changes, live tuning, or a promise of a firmware-accurate ETA.
 

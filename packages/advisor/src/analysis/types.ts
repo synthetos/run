@@ -138,6 +138,17 @@ export interface ProgramReport {
   readonly density: { readonly threshold: Evidence<number>; readonly buckets: readonly DensityBucket[]; readonly regions: readonly Region[] };
   readonly slow: readonly Region[];
   readonly operations: readonly OperationSummary[];
+  /** The lengths of the feed moves that move X, Y or Z (rotary moves left out), for "half the moves are under …". */
+  readonly moveLengths: MoveLengths;
+}
+
+export interface MoveLengths {
+  readonly moves: number;
+  /** Moves shorter than 0.1 mm. */
+  readonly under01: number;
+  /** The median and the first quartile, mm, or null with no moves. */
+  readonly median: number | null;
+  readonly quarter: number | null;
 }
 
 export type XyzAxis = 'X' | 'Y' | 'Z';

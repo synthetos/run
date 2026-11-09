@@ -56,3 +56,26 @@ export function operationHeadings(bytes: Uint8Array, spans: Uint32Array): Operat
   }
   return out;
 }
+
+/** CAM programs a file's header comments may name, and the name Analyze uses for each. */
+const CAMS: readonly (readonly [RegExp, string])[] = [
+  [/\bfusion\b|autodesk/i, 'Fusion'],
+  [/vcarve|aspire|vectric/i, 'Vectric'],
+  [/carbide\s*create/i, 'Carbide Create'],
+  [/estlcam/i, 'Estlcam'],
+  [/freecad/i, 'FreeCAD'],
+  [/easel/i, 'Easel'],
+];
+/** Only this many first lines are read for the CAM's name. */
+const HEADER_LINES = 30;
+
+/** The CAM program the file's header comments name, or null. */
+export function camName(bytes: Uint8Array, spans: Uint32Array): string | null {
+  const lines = Math.min(HEADER_LINES, spans.length / 2);
+  for (let i = 0; i < lines; i++) {
+    const text = lineText(bytes, spans, i);
+    if (!text.includes('(') && !text.includes(';')) continue;
+    for (const [re, name] of CAMS) if (re.test(text)) return name;
+  }
+  return null;
+}

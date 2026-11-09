@@ -103,7 +103,7 @@ export interface PreviewPanelProps {
    * A request to show a sent line (1-based), from Analyze's region links. Applied only while the panel still shows
    * the `preview` the request was made for: a link for another file is ignored.
    */
-  readonly scrubTo?: ReadonlySignal<{ readonly preview: PreviewResult; readonly sent: number; readonly seq: number } | null>;
+  readonly scrubTo?: ReadonlySignal<{ readonly preview: PreviewResult; readonly sent: number; readonly range: { readonly from: number; readonly to: number } | null; readonly seq: number } | null>;
 }
 
 /** The planner view the 3D drawing shows during a job (gcode-view `PlannerOverlay`). */
@@ -199,12 +199,15 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
     if (scrubRequest === null || result === null || scrubRequest.preview !== result) return;
     setState((s) => ({ ...s, scrub: Math.min(scrubRequest.sent, result.sourceLines.length) }));
   }, [scrubRequest, result]);
+  // The highlighted range, drawn with the planner overlay's band (amber) while no job owns that overlay.
+  const range = scrubRequest !== null && scrubRequest.preview === result ? scrubRequest.range : null;
   const highlight = state.scrub - 1;
   const highlightLine = state.scrub > 0 && result !== null ? (result.sourceLines[state.scrub - 1] ?? 0) : 0;
   const listData = useMemo(() => (result === null ? null : { bytes: result.bytes, spans: result.spans, verdicts: result.verdicts }), [result]);
   const listKey = useMemo(() => (result === null || state.fileName === null ? null : fileKey(state.fileName, result.bytes)), [result, state.fileName]);
   const executingLine = result === null ? null : job !== null ? job.executing : executingFileLine(reportedLine, result.sourceLines);
-  const plannerView = result === null || planner === undefined ? null : planner(result.sourceLines);
+  const jobPlanner = result === null || planner === undefined ? null : planner(result.sourceLines);
+  const plannerView = jobPlanner ?? (range === null ? null : { cutEnd: range.from, execEnd: range.from, queuedEnd: range.to + 1, starving: true });
   const activeTool = useActiveTool(result, state.scrub, job, boardTool, spindleTool);
   // No board position at all: the tool is drawn as a preview at the end of the scrubbed line.
   // Play preview (OD-25): the tool along the moves at programmed speeds; the scrubber follows the lines done.

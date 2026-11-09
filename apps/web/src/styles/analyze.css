@@ -1,41 +1,50 @@
-/* Analyze (docs/design/ANALYZE.md slice 1): Summary, Where it slows, Cutting advice, and Details in Advanced. */
+/* Analyze (docs/design/ANALYZE.md slice 1): the headline, What to fix, Operations, and Details in Advanced.
+   One column of full-width panels; the cards inside each panel sit on one grid with equal heights. */
 .analyze-scroll { padding: 14px 16px 24px; }
-.analyze-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 14px; align-items: start; }
-.analyze-card { min-width: 0; }
-.analyze-card h2 { font-size: 15px; margin-bottom: 6px; }
-.analyze-card h3 { font-size: 13.5px; margin: 0 0 4px; overflow-wrap: anywhere; }
-.analyze-headline { font-size: 22px; font-weight: 600; margin: 2px 0; }
-.analyze-facts dd { display: flex; flex-direction: column; align-items: flex-end; }
+.analyze-page { display: grid; gap: 14px; max-width: 1180px; }
+.analyze-page > .panel { margin: 0; min-width: 0; }
+.analyze-page h2 { font-size: 15px; margin: 0 0 8px; }
+.analyze-page h3 { font-size: 14px; margin: 0 0 6px; overflow-wrap: anywhere; }
+.analyze-page p { margin: 0 0 6px; font-size: 13px; line-height: 1.45; }
+.analyze-page .fine { font-size: 12px; }
+
+/* The headline strip. */
+.analyze-strip .analyze-headline { font-size: 24px; font-weight: 600; margin: 0 0 2px; }
+.analyze-strip-sub { color: var(--muted); }
+.analyze-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 8px 0 6px; padding: 0; }
+.analyze-chips li { border: 1px solid var(--rule); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; background: var(--paper); }
 .analyze-source { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
-.analyze-missing, .analyze-coverage { margin: 10px 0 0; padding-left: 18px; font-size: 12.5px; }
-.analyze-missing { color: var(--muted); }
-.analyze-regions { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.analyze-region { display: grid; justify-content: stretch; justify-items: start; align-items: start; font-weight: 400; gap: 2px; width: 100%; min-width: 0; height: auto; white-space: normal; overflow-wrap: anywhere; text-align: left; padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--sheet); color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer; }
-.analyze-region > * { min-width: 0; max-width: 100%; text-align: left; }
-.analyze-region:hover { background: var(--blue-wash); }
-.analyze-region:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-.analyze-region[data-region-kind="dense"] strong { color: var(--warn); }
-.analyze-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
-.analyze-table caption { text-align: left; margin-bottom: 4px; }
-.analyze-table th, .analyze-table td { padding: 5px 6px; text-align: left; border-bottom: 1px solid var(--grid); vertical-align: top; }
-.analyze-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.analyze-bar-cell { width: 40%; }
-.analyze-bar { display: block; height: 8px; border-radius: 4px; background: var(--blue); min-width: 1px; }
-.analyze-histogram h3 { margin-top: 14px; }
-.analyze-op { border-top: 1px solid var(--grid); padding-top: 10px; margin-top: 10px; }
-.analyze-regimes { margin: 6px 0; padding-left: 18px; font-size: 12.5px; }
-.analyze-question { display: grid; gap: 4px; margin: 8px 0; font-size: 12.5px; max-width: 420px; }
+
+/* What to fix: equal cards on one grid. */
+.analyze-fix-list, .analyze-op-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); align-items: stretch; }
+.analyze-fix, .analyze-op { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--rule); border-radius: var(--r); padding: 12px 14px; background: var(--sheet); }
+.analyze-fix { border-left: 4px solid var(--warn); }
+.analyze-todo { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--grid); }
+.analyze-todo strong { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 4px; }
+.analyze-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 10px; }
+.analyze-sections { margin-top: 8px; font-size: 12px; }
+.analyze-sections ul { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 4px; }
+.analyze-sections .linklike { min-height: 0; padding: 0; border: 0; background: none; color: var(--blue); font: inherit; text-decoration: underline; cursor: pointer; }
+
+/* Operations. */
+.analyze-ops-head { margin-bottom: 10px; }
+.analyze-op-tool { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); }
+.analyze-regimes { margin: 4px 0 8px; padding-left: 18px; font-size: 13px; }
+.analyze-question { display: grid; gap: 4px; margin: 8px 0; font-size: 13px; max-width: 420px; }
 .analyze-question input, .analyze-question select { min-width: 0; width: 100%; }
 p.analyze-question { display: block; }
 .analyze-advice p { margin: 4px 0; }
 .analyze-levels { margin-top: 6px; }
-.analyze-engine { display: grid; gap: 4px; margin-top: 12px; font-size: 12.5px; max-width: 420px; }
+
+/* Details (Advanced). */
+.analyze-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 4px 0 10px; }
+.analyze-table caption { text-align: left; margin-bottom: 4px; }
+.analyze-table th, .analyze-table td { padding: 5px 6px; text-align: left; border-bottom: 1px solid var(--grid); vertical-align: top; }
+.analyze-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.analyze-bar-cell { width: 45%; }
+.analyze-bar { display: block; height: 8px; border-radius: 4px; background: var(--blue); min-width: 1px; }
+
 @media (max-width: 560px) {
   .analyze-scroll { padding: 10px 12px 20px; }
-  .analyze-headline { font-size: 19px; }
+  .analyze-strip .analyze-headline { font-size: 20px; }
 }
-.analyze-region-advice { color: var(--muted); }
-.analyze-link { color: var(--blue); font-weight: 500; }
-.analyze-link::after { content: " →"; }
-.analyze-region[data-region-kind="plunge"] strong { color: var(--warn); }
-.analyze-grid > .panel { margin: 0; }

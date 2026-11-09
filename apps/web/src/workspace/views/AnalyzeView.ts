@@ -1,8 +1,9 @@
 /**
- * Analyze (docs/design/ANALYZE.md slice 1): explain the open job before asking anything. Summary (time at
- * programmed speeds, distances, lines, stops), where it slows (linked to the toolpath and lines in Job), and cutting
- * advice that asks only the next question it needs. Advanced adds the motion settings with their sources, every
- * region, the line-density histogram, speed comparisons and the AI demonstration.
+ * Analyze (docs/design/ANALYZE.md slice 1): explain the open job before asking anything. A headline (at least
+ * how long the cutting takes at programmed speeds, the stops, the rapids), "What to fix" (each finding with what it
+ * means, what to do, and links to the toolpath and the line in Job), then the operations with the cutting check, one
+ * question at a time. Advanced adds every finding, the dense sections, the machine speeds with their source, the
+ * move-rate histogram and the speed comparison.
  *
  * Review only: nothing here changes the file, the machine or the Job checks, and Pause and Stop never wait on it.
  */
@@ -13,11 +14,11 @@ import { boardReading } from '../analysisInputs.ts';
 import { inputSources, motionView, programReport, rememberReading } from '../analysisState.ts';
 import { currentFile } from '../fileBridge.ts';
 import { uiLevel } from '../jobWorkflow.ts';
-import type { WorkspaceModel } from '../model.ts';
-import { AdviceCard } from './analyze/AdviceCard.ts';
+import { connected, type WorkspaceModel } from '../model.ts';
 import { DetailsCard } from './analyze/DetailsCard.ts';
-import { RegionsCard } from './analyze/RegionsCard.ts';
-import { SummaryCard } from './analyze/SummaryCard.ts';
+import { FixList } from './analyze/FixList.ts';
+import { HeadlineStrip } from './analyze/HeadlineStrip.ts';
+import { OperationsCard } from './analyze/OperationsCard.ts';
 
 export function AnalyzeView({ model = null }: { readonly model?: WorkspaceModel | null }): ComponentChild {
   const live = model?.live.value ?? null;
@@ -38,10 +39,10 @@ export function AnalyzeView({ model = null }: { readonly model?: WorkspaceModel 
         ? h('div', { class: 'panel', 'data-analyze': 'empty' }, h('p', null, 'Open a file in Job to see what it does.'), h('p', { class: 'fine' }, `Stock: ${advisorStock.value?.name ?? 'not chosen'}.`))
         : h(
             'div',
-            { class: 'analyze-grid' },
-            h(SummaryCard, { view }),
-            h(RegionsCard, { report: view.report, advanced }),
-            h(AdviceCard, { rows: advisorRows.value, stock: advisorStock.value, problem: advisorOperations.value.problem, advanced }),
+            { class: 'analyze-page' },
+            h(HeadlineStrip, { view, connected: live !== null && connected(live) }),
+            h(FixList, { report: view.report, cam: file?.preview?.cam ?? null, advanced }),
+            h(OperationsCard, { rows: advisorRows.value, stock: advisorStock.value, problem: advisorOperations.value.problem, advanced }),
             advanced ? h(DetailsCard, { view }) : null,
           ),
     ),

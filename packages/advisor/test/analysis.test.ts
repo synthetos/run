@@ -68,6 +68,9 @@ describe('the motion report', () => {
     expect(r.toolChangeLines).toEqual([8]);
     expect(r.coverage).toEqual({ events: 8, supported: 8, reasons: [] });
     expect(Array.from(r.rapidDeltas)).toEqual([0, 0, 5]);
+    expect(r.moveLengths).toEqual({ moves: 3, under01: 0, median: 31.4, quarter: 6 });
+    expect(analyzeProgram(tape([cut(1, [0.05, 0, 0], 100), cut(2, [0, 0, 0], 100), cut(3, [1, 0, 0], 100, { f: TAPE_FLAG.ROTARY })])).moveLengths).toEqual({ moves: 1, under01: 1, median: 0.05, quarter: 0.05 });
+    expect(analyzeProgram(tape([])).moveLengths).toEqual({ moves: 0, under01: 0, median: null, quarter: null });
   });
 
   it('keeps an unknown feed unknown, never zero, and says why', () => {

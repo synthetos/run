@@ -8,7 +8,6 @@ import { isObject, stored } from './storage.ts';
 const validFields = (v: unknown): v is Record<string, AdvisorFields> => isObject(v) && Object.values(v).every((f) => isObject(f) && Object.values(f).every((s) => typeof s === 'string'));
 /** Supplements only: existing profile axis limits always take precedence. */
 export const advisorProfiles = stored<Record<string, AdvisorFields>>('advisor.profiles.v1', {}, validFields);
-export const advisorEngine = signal<'rules' | 'mock-ai'>('rules');
 const operationInputs = signal<{ file: OpenFile | null; fields: Record<string, AdvisorFields> }>({ file: null, fields: {} });
 export const advisorOperations = computed(() => {
   const preview = currentFile.value?.preview;

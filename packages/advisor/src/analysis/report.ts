@@ -11,7 +11,7 @@
 import { DENSE_LINES_PER_SECOND, SLOW_RULES, denseRegions, densityBuckets, runsOf } from './density.ts';
 import { feedSeconds, isFeedMove, isRapid, isRotary } from './moves.ts';
 import { operations } from './operations.ts';
-import { TAPE_FLAG, TAPE_KIND, type Evidence, type MotionInputs, type MotionTime, type ProgramReport, type ProgramTape, type Region, type ReportOptions, type XyzAxis } from './types.ts';
+import { TAPE_FLAG, TAPE_KIND, type Evidence, type MoveLengths, type MotionInputs, type MotionTime, type ProgramReport, type ProgramTape, type Region, type ReportOptions, type XyzAxis } from './types.ts';
 
 const FROM_FILE = 'From the file';
 /** A slow section runs below this share of the file's main cutting feed. */
@@ -37,6 +37,17 @@ function mainFeed(t: ProgramTape): number | null {
 
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
+}
+
+/** The feed moves' lengths: how many are tiny, and the median and first quartile. */
+function moveLengths(t: ProgramTape): MoveLengths {
+  const lengths: number[] = [];
+  for (let e = 0; e < t.count; e++) if (isFeedMove(t, e) && !isRotary(t, e) && (t.lengthMm[e] as number) > 0) lengths.push(t.lengthMm[e] as number);
+  const sorted = Float64Array.from(lengths).sort();
+  const at = (q: number): number | null => (sorted.length === 0 ? null : (sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] as number));
+  let under01 = 0;
+  while (under01 < sorted.length && (sorted[under01] as number) < 0.1) under01++;
+  return { moves: sorted.length, under01, median: at(0.5), quarter: at(0.25) };
 }
 
 export function analyzeProgram(t: ProgramTape, options: ReportOptions = {}): ProgramReport {
@@ -109,6 +120,7 @@ export function analyzeProgram(t: ProgramTape, options: ReportOptions = {}): Pro
     },
     slow,
     operations: operations(t, options.headings ?? []),
+    moveLengths: moveLengths(t),
   };
 }
 
