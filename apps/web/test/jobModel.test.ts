@@ -75,7 +75,7 @@ describe('Job records and the migration of the global setup', () => {
     expect(readFixture(job.setup.fixture).ok).toBe(true);
     expect(job.setup.clamps).toHaveLength(4);
     expect(clampsAreIllustrative(job.setup.clamps)).toBe(true);
-    expect(job.placement).toEqual({ wcs: 'G54', datum: { corner: 'back-right', height: 'bottom' }, plannedZero: null, frame: 'bed' });
+    expect(job.placement).toEqual({ wcs: 'G54', datum: { corner: 'back-right', height: 'bottom' }, plannedZero: null, frame: 'bed', datumFrom: { kind: 'file', hash: null } });
     // A fixture the schema still refuses after the hash repair is dropped, never kept half-read.
     const bad = jobFromSetup({ ...SEED_SETUP, fixture: { ...sampleFixture(), outline: [[0, 0]] } }, 'x', clock());
     expect(bad.setup.fixture).toBeNull();

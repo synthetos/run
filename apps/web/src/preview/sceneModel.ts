@@ -63,7 +63,12 @@ type Pt = readonly [number, number];
 const alpha = (c: Rgba, a: number): Rgba => [c[0], c[1], c[2], a];
 
 /** Builds the scene of a job. `stockColor` is the material's family colour (0..255), or null for the default. */
-export function jobScene(job: Job, colors: SceneColors, stockColor: readonly number[] | null): JobScene {
+/**
+ * Builds the scene of a job. `stockColor` is the material's family colour (0..255), or null for the default; `zero`
+ * is where the job's zero goes (Place job's `effectiveZero`: the board's work zero when the job uses it), by
+ * default its planned zero.
+ */
+export function jobScene(job: Job, colors: SceneColors, stockColor: readonly number[] | null, zeroAt: { readonly x: number; readonly y: number; readonly z: number } = plannedZero(job)): JobScene {
   const bed = job.setup.bed;
   const t = bed.toMachine;
   const mx = (p: Pt): Pt => [p[0] + t.x, p[1] + t.y];
@@ -105,7 +110,7 @@ export function jobScene(job: Job, colors: SceneColors, stockColor: readonly num
   // Clamps: records in bed-local coordinates, sitting on the stock top (the illustrative toe clamps) or where placed.
   for (const c of job.setup.clamps) solids.push({ kind: 'box', min: [c.x + t.x, c.y + t.y, sTop - 2], max: [c.x + c.w + t.x, c.y + c.d + t.y, sTop - 2 + c.h], color: alpha(colors.clamp, 1), tag: 'clamp' });
   const layers: SceneLayers = { solids, rings };
-  const z = plannedZero(job);
+  const z = zeroAt;
   const zero: Vec3 = [z.x, z.y, z.z];
   return {
     layers,

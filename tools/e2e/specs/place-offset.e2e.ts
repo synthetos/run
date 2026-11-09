@@ -1,5 +1,5 @@
 /**
- * Place job's offset (owner, 2026-11-09): after picking a corner, "Move in from the corner" X and Y move the job
+ * Place job's offset (owner, 2026-11-09): after picking a corner, "Move it on the stock" X and Y move the job
  * inward; the margins to each stock edge and (in Advanced) the planned zero follow at once, and the offset comes back
  * with the job after a reload.
  */
@@ -18,7 +18,8 @@ test('an offset from the corner moves the job in: the margins and the planned ze
   const place = page.locator('[data-job-panel="place"]');
   await place.getByRole('radio', { name: 'front left', exact: true }).click();
   const offset = place.locator('[data-setup="place-offset"]');
-  await expect(offset).toContainText('Move in from the corner');
+  await expect(offset).toContainText('Move it on the stock');
+  await expect(offset).toContainText('Positive moves the job in, toward the middle of the stock.');
   const margins = place.locator('[data-place="margins"]');
   // At the corner the cut's edge, less the 1.6 mm radius, runs past the stock.
   await expect(margins).toHaveText('Left −1.6 mm · Front −1.6 mm · Right 158.4 mm · Back 108.4 mm');
@@ -46,7 +47,7 @@ test('an offset from the corner moves the job in: the margins and the planned ze
   await expect(page.locator('[data-job-panel="place"] [data-job="planned-zero"]')).toHaveText(zeroAfter);
   // The centre moves in machine directions.
   await page.locator('[data-job-panel="place"]').getByRole('radio', { name: 'center', exact: true }).click();
-  await expect(page.locator('[data-job-panel="place"] [data-setup="place-offset"]')).toContainText('Move from centre');
+  await expect(page.locator('[data-job-panel="place"] [data-setup="place-offset"]')).toContainText('X and Y move it in the machine’s directions.');
   await expect(page.locator('[data-job-panel="place"] [data-place="clamps"]')).toHaveText('Clamp clearance is not checked. Look before you start.');
   await expect(page.locator('[data-job-panel="place"] [data-place="travel"]')).toHaveText('Travel is checked when a machine is connected and homed.');
 });

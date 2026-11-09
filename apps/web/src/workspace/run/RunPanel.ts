@@ -32,6 +32,7 @@ import { ConfirmCard } from '../ui.ts';
 import { jobStep } from '../jobWorkflow.ts';
 import { signalText } from '../../shell/signal.ts';
 import { runZeroCheck, setupPlan } from '../zeroPlan.ts';
+import { liveWorkZero } from '../liveZero.ts';
 import { Details } from './ChoiceModal.ts';
 import { ReadyList } from './ReadyList.ts';
 import { readyModel, type ReadyActionId, type ReadyInput, type TravelAsk } from './readyModel.ts';
@@ -113,7 +114,7 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
   const board = boardZero(s);
   const setup = activeJob.value;
   const established = s !== null && positionEstablished({ mpo: {}, pos: {}, home: s.live.home ?? 0, overlays: s.overlays });
-  const zero = runZeroCheck(board, plan, setup === null ? null : setupPlan(setup), established);
+  const zero = runZeroCheck(board, plan, setup === null ? null : setupPlan(setup, liveWorkZero.value), established);
   const mine = job !== null && job.hash === hash;
   const report = mine && job.phase !== 'loading' ? job.report : null;
   const hv = homingView(view, settingsOf(view));

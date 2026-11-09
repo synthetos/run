@@ -105,7 +105,18 @@ export interface JobPlacement {
    * toward the stock's middle, whichever corner it is; for the centre, X and Y are machine directions. Absent
    * (jobs saved before) is no offset.
    */
-  readonly offset?: { readonly x: number; readonly y: number };
+  readonly offset?: { readonly x: number; readonly y: number; readonly z?: number };
+  /**
+   * Who chose the datum, for the file with this hash (owner, 2026-11-09, OD-28): `file` when run pre-selected the
+   * point the file's own bounds show (fileZero.ts), `user` when the user picked it. A pick the user made is never
+   * changed for them. Absent (jobs saved before) counts as the user's pick.
+   */
+  readonly datumFrom?: { readonly kind: 'user' | 'file'; readonly hash: string | null };
+  /**
+   * `machine`: place the job at the board's work zero while the machine is connected and its position is
+   * established (OD-28). Only the choice is kept here, never the board's numbers: they are live.
+   */
+  readonly zeroFrom?: 'machine';
   /** The frame the setup is described in: bed-local, moved into machine coordinates by the bed's transform. */
   readonly frame: 'bed';
 }
@@ -166,7 +177,10 @@ export function isJob(v: unknown): v is Job {
   const d = p['datum'];
   if (!isObject(d) || !CORNERS.includes(d['corner'] as StockCorner) || !(d['height'] === 'top' || d['height'] === 'bottom')) return false;
   const o = p['offset'];
-  if (!(o === undefined || (isObject(o) && isNum(o['x']) && isNum(o['y'])))) return false;
+  if (!(o === undefined || (isObject(o) && isNum(o['x']) && isNum(o['y']) && (o['z'] === undefined || isNum(o['z']))))) return false;
+  const from = p['datumFrom'];
+  if (!(from === undefined || (isObject(from) && (from['kind'] === 'user' || from['kind'] === 'file') && (from['hash'] === null || typeof from['hash'] === 'string')))) return false;
+  if (!(p['zeroFrom'] === undefined || p['zeroFrom'] === 'machine')) return false;
   const z = p['plannedZero'];
   return z === null || (isObject(z) && isNum(z['x']) && isNum(z['y']) && isNum(z['z']));
 }
@@ -243,7 +257,7 @@ export function jobFromSetup(setup: SetupState, name: string, clock: JobClock): 
     file: null,
     machine: null,
     setup: { bed: ownBed(setup.bed, at), bedFrom: 'own', stock, stockOutline: null, fixture, clamps: setup.clamps ? illustrativeClamps(stock) : [], tools: [], references: [] },
-    placement: { wcs: 'G54', datum: { corner: stock.zero.corner, height: stock.zero.height }, plannedZero: null, frame: 'bed' },
+    placement: { wcs: 'G54', datum: { corner: stock.zero.corner, height: stock.zero.height }, plannedZero: null, frame: 'bed', datumFrom: { kind: 'file', hash: null } },
     createdAt: at,
     updatedAt: at,
   };
@@ -277,9 +291,31 @@ export function withSetup(job: Job, patch: Partial<JobSetup>, clock: JobClock = 
   return reviseJob(job, { setup: { ...setup, clamps }, placement: { ...job.placement, datum } }, clock);
 }
 
-/** The job with its datum changed (the stock record mirrors it, as the Setup view's zero picker always did). */
-export function withDatum(job: Job, datum: JobDatum, clock: JobClock = BROWSER_CLOCK): Job {
-  return reviseJob(job, { setup: { ...job.setup, stock: { ...job.setup.stock, zero: datum } }, placement: { ...job.placement, datum } }, clock);
+/**
+ * The job with its datum changed (the stock record mirrors it, as the Setup view's zero picker always did), and who
+ * chose it for which file (`from`; by default the user, for the job's file). Picking a stock point leaves "use the
+ * machine's work zero".
+ */
+export function withDatum(job: Job, datum: JobDatum, clock: JobClock = BROWSER_CLOCK, from: 'user' | 'file' = 'user'): Job {
+  const { zeroFrom: _z, ...rest } = job.placement;
+  void _z;
+  const placement: JobPlacement = { ...rest, datum: { corner: datum.corner, height: datum.height }, datumFrom: { kind: from, hash: job.file?.hash ?? null } };
+  return reviseJob(job, { setup: { ...job.setup, stock: { ...job.setup.stock, zero: { corner: datum.corner, height: datum.height } } }, placement }, clock);
+}
+
+/** The job placed at the board's work zero (`on`), or back at its stock point. Never writes to the board. */
+export function withMachineZero(job: Job, on: boolean, clock: JobClock = BROWSER_CLOCK): Job {
+  const { zeroFrom: _z, ...rest } = job.placement;
+  void _z;
+  const from = { kind: 'user' as const, hash: job.file?.hash ?? null };
+  return reviseJob(job, { placement: on ? { ...rest, zeroFrom: 'machine', datumFrom: from } : { ...rest, datumFrom: from } }, clock);
+}
+
+/** True when the user chose this job's datum for its current file (or the job predates the record): run never changes it. */
+export function datumPickedByUser(job: Job): boolean {
+  const from = job.placement.datumFrom;
+  if (from === undefined) return true;
+  return from.kind === 'user' && from.hash === (job.file?.hash ?? null);
 }
 
 /** The job planned on a machine: its id, revision and a pinned copy of the machine's bed revision. */
@@ -306,9 +342,13 @@ export function stockFootprint(stock: Stock): { readonly x0: number; readonly y0
   return { x0: stock.position.x - w / 2, y0: stock.position.y - d / 2, w, d };
 }
 
-/** The job's offset from its datum corner (`JobPlacement.offset`), 0, 0 when none. */
-export function placementOffset(job: Job): { readonly x: number; readonly y: number } {
-  return job.placement.offset ?? { x: 0, y: 0 };
+/**
+ * The job's offset from its datum (`JobPlacement.offset`), zeros when none: X and Y on the stock, and Z, how far
+ * zero is below the stock top (datum at the top) or above the stock bottom (datum at the bottom).
+ */
+export function placementOffset(job: Job): { readonly x: number; readonly y: number; readonly z: number } {
+  const o = job.placement.offset;
+  return { x: o?.x ?? 0, y: o?.y ?? 0, z: o?.z ?? 0 };
 }
 
 /** The machine directions a positive offset moves the zero at a corner: inward, toward the stock's middle; machine X and Y at the centre. */
@@ -325,15 +365,26 @@ export function datumPoint(job: Job): { readonly x: number; readonly y: number; 
   const s = inwardSigns(c);
   const x = (c.includes('right') ? x0 + w : c.includes('left') ? x0 : x0 + w / 2) + s.x * o.x;
   const y = (c.includes('back') ? y0 + d : c.includes('front') ? y0 : y0 + d / 2) + s.y * o.y;
-  const z = fixtureTop(job) + (job.placement.datum.height === 'top' ? st.thickness : 0);
+  // Z: positive is down from the top, or up from the bottom (CAM set to the model's top inside a thicker blank).
+  const z = fixtureTop(job) + (job.placement.datum.height === 'top' ? st.thickness - o.z : o.z);
   return { x, y, z };
 }
 
-/** The job with its zero moved from the datum corner (`JobPlacement.offset`); 0, 0 removes the field. */
-export function withOffset(job: Job, offset: { readonly x: number; readonly y: number }, clock: JobClock = BROWSER_CLOCK): Job {
+/** The job with its zero moved from the datum (`JobPlacement.offset`); all zeros removes the field. */
+export function withOffset(job: Job, offset: { readonly x: number; readonly y: number; readonly z?: number }, clock: JobClock = BROWSER_CLOCK): Job {
   const { offset: _old, ...rest } = job.placement;
   void _old;
-  return reviseJob(job, { placement: offset.x === 0 && offset.y === 0 ? rest : { ...rest, offset: { x: offset.x, y: offset.y } } }, clock);
+  const z = offset.z ?? 0;
+  const none = offset.x === 0 && offset.y === 0 && z === 0;
+  return reviseJob(job, { placement: none ? rest : { ...rest, offset: { x: offset.x, y: offset.y, ...(z === 0 ? {} : { z }) } } }, clock);
+}
+
+/**
+ * Where the job's zero goes in machine coordinates now: the board's work zero (`liveZero`, while connected and the
+ * position is established) when the job uses it, else the planned zero from the stock point.
+ */
+export function effectiveZero(job: Job, liveZero: { readonly x: number; readonly y: number; readonly z: number } | null): { readonly x: number; readonly y: number; readonly z: number } {
+  return job.placement.zeroFrom === 'machine' && liveZero !== null ? liveZero : plannedZero(job);
 }
 
 /** The planned work zero in machine coordinates: the explicit one, or the datum moved by the bed's transform. */

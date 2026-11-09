@@ -52,13 +52,13 @@ describe('the offset from the datum corner', () => {
     const j = at('back-right', 7.5, 2);
     const back = JSON.parse(JSON.stringify(j)) as unknown;
     expect(isJob(back)).toBe(true);
-    expect(placementOffset(back as Job)).toEqual({ x: 7.5, y: 2 });
+    expect(placementOffset(back as Job)).toEqual({ x: 7.5, y: 2, z: 0 });
     // Changing the corner keeps the offset; clearing it removes the field.
-    expect(placementOffset(withDatum(j, { corner: 'front-left', height: 'top' }, clock))).toEqual({ x: 7.5, y: 2 });
+    expect(placementOffset(withDatum(j, { corner: 'front-left', height: 'top' }, clock))).toEqual({ x: 7.5, y: 2, z: 0 });
     const cleared = withOffset(j, { x: 0, y: 0 }, clock);
     expect('offset' in cleared.placement).toBe(false);
     expect(isJob(base())).toBe(true);
-    expect(placementOffset(base())).toEqual({ x: 0, y: 0 });
+    expect(placementOffset(base())).toEqual({ x: 0, y: 0, z: 0 });
     expect(isJob({ ...j, placement: { ...j.placement, offset: { x: 'a', y: 1 } } })).toBe(false);
     // The stock's own zero record never carries it.
     expect(Object.keys(j.setup.stock.zero).sort()).toEqual(['corner', 'height']);
@@ -73,7 +73,7 @@ describe('the margins', () => {
     lineToVertex: Uint32Array.from([0, 6]),
   };
   it('take the cutting moves only', () => {
-    expect(cutBounds(list)).toEqual({ minX: 0, minY: 0, maxX: 20, maxY: 10 });
+    expect(cutBounds(list)).toEqual({ minX: 0, minY: 0, maxX: 20, maxY: 10, minZ: -1, maxZ: -1 });
   });
   it('measure from the cut, widened by the tool radius, to each stock edge (the sample stock is 180 × 120 mm)', () => {
     const cut = cutBounds(list);

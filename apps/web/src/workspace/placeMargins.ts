@@ -12,6 +12,8 @@ export interface CutBounds {
   readonly minY: number;
   readonly maxX: number;
   readonly maxY: number;
+  readonly minZ: number;
+  readonly maxZ: number;
 }
 
 export interface Margins {
@@ -23,17 +25,20 @@ export interface Margins {
   readonly radius: number | null;
 }
 
-/** The XY box of the cutting moves (feeds and arcs, not uncertain ones), in the path frame; null when nothing cuts. */
+/** The box of the cutting moves (feeds and arcs, not uncertain ones), in the path frame; null when nothing cuts. */
 export function cutBounds(list: Pick<SegmentList, 'vertices' | 'kinds'>): CutBounds | null {
   const { vertices: v, kinds } = list;
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
   const take = (i: number): void => {
     const x = v[i * 3] as number;
     const y = v[i * 3 + 1] as number;
+    const z = v[i * 3 + 2] as number;
     if (x < minX) minX = x;
     if (x > maxX) maxX = x;
     if (y < minY) minY = y;
     if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z;
+    if (z > maxZ) maxZ = z;
   };
   for (let k = 1; k < kinds.length; k++) {
     const kind = kinds[k] as number;
@@ -42,12 +47,15 @@ export function cutBounds(list: Pick<SegmentList, 'vertices' | 'kinds'>): CutBou
     take(k - 1);
     take(k);
   }
-  return minX === Infinity ? null : { minX, minY, maxX, maxY };
+  return minX === Infinity ? null : { minX, minY, maxX, maxY, minZ, maxZ };
 }
 
-/** The margins at the job's planned zero, with `radius` (mm) added to the cut, or null for an unknown tool. */
-export function placeMargins(job: Job, cut: CutBounds, radius: number | null): Margins {
-  const z = plannedZero(job);
+/**
+ * The margins with the job's zero at `zero` (machine mm; default its planned zero), with `radius` (mm) added to the
+ * cut, or null for an unknown tool.
+ */
+export function placeMargins(job: Job, cut: Pick<CutBounds, 'minX' | 'minY' | 'maxX' | 'maxY'>, radius: number | null, zero: { readonly x: number; readonly y: number } = plannedZero(job)): Margins {
+  const z = zero;
   const t = job.setup.bed.toMachine;
   const f = stockFootprint(job.setup.stock);
   const r = radius ?? 0;

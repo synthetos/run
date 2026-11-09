@@ -484,6 +484,21 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 - **Colour by tool.** Each tool the file uses gets a colour in the order it first appears (never cycled; a ninth and later share the eighth), from a colour-blind-safe palette shaded for light and dark; a tool not known is neutral and named as such. Arcs are a lighter tint and rapids a fainter dashed one, so the move type still shows. The key lists the tools when there are two or more; clicking one makes its lines stand out.
 - **Carving detail.** The carve's base cell is 0.125 mm, coarsened only past the cap (2 million cells, 4096 a side); no toggle. Advanced's key shows the size used.
 
+## OD-28. CAM owns the file's zero; run places it on the stock (owner, 2026-11-09)
+
+**Owner's words.** Looking at a real file (solidcraft_docklight_housing_top, zero at the part centre), with "front left" picked the toolpath hung off the stock's corner, and the owner thought the picker moved the model: "this is a job sender not a cam tool… should this be in the run or cad tool?"
+
+**Context.** Place job's 5-dot picker said "Work zero (the file’s datum)". It never moved the model: it told run which point of the stock the file's zero is. But nothing said what the file itself used, and nothing said when the pick and the file disagreed.
+
+**Decision.** CAM owns the toolpath and the file's zero. Run owns where that zero goes on the real stock, and never rewrites coordinates. In run:
+- **The file's zero.** Read from the cutting moves' bounds (and plain CAM header notes, when present). X/Y: a corner by the signs of the cut, or the centre when the cut is about symmetric around 0. Z: the top when the cuts go below 0, the bottom when they stay at 0 and above. Pre-selected for a new file, with a note ("Zero in this file looks like the centre of the part (X −90…+90, Y −40…+40)."), "may be" when only roughly so, and "not clear … Keep your pick." when it is not one of the five points or the notes disagree. A pick the user made for this file is never changed.
+- **Hangs off the stock.** When the toolpath falls off the stock at the chosen point and another point fits: "The toolpath hangs off the stock. Zero in this file looks like the centre." with a "Use centre" button. Never applied by itself.
+- **Wording.** "Your CAM program chose where zero is. Pick the same point on your stock." X/Y offsets sit under it as "Move it on the stock" (inward from a corner, machine directions from the centre).
+- **Zero depth.** "Zero is [ ] mm below the stock top" (or "above the stock bottom"), for CAM set to the model top inside a thicker blank. Saved with the job; the planned zero, the carve, the below-stock note, the margins and Run's zero check follow it. The travel check runs at the board's actual work zero, as before (OD-24), so it follows wherever the user sets that zero.
+- **The machine's work zero.** Offered only while connected with the machine position set. The job is drawn where the board's work zero is, the margins come from it, and Run's zero check compares against it. Display and plan only: nothing is written to the board, and the job keeps only the choice, never the board's numbers.
+
+See docs/design/place-job.md.
+
 ## OD-30. C1 is shown once per browser, never again (owner, 2026-11-09)
 
 **Owner's words.** "never show this to anyone after the first set of check boxes".

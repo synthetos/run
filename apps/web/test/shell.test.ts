@@ -183,6 +183,11 @@ describe('Phase 1 control allowlist', () => {
     // and the drawing import, the camera views. Records in this browser and the drawing only; never a board command.
     /^label:(Machine for this job|Project to save the draft to|Drawing units|(Width|Depth|Thickness|Bed top, machine Z), bed)$/,
     /^action:(job-take-bed|bed-save-machine|stock-outline-remove|job-save-to-project|project-use-in-job|project-open-job|project-remove-job|import-cancel|import-accept)$/,
+    // Place job (OD-28): the zero depth, "Use …" for a point that fits, and where zero goes. The plan and the
+    // drawing only: "Use the machine's work zero" reads the board's zero and never writes it.
+    /^label:(Zero depth below the stock top|Zero height above the stock bottom)$/,
+    /^action:(place-use-fit|place-machine-zero)$/,
+    /^button:A point on the stock$/,
     /^button:(Workshop|Stock|Whole bed|3D|Top|Front|Block|Round|Sheet|Stock top|Stock bottom|\d+ clamps|No clamps|Remove the fixture|Use the sample plate|All|End mills|Ball nose|V-bits|Drills|O-flutes|Built-in|Mine \(\d+\)|Belt driven|Screw driven|Go to Run|T\d+ · .+|Motor \d|X|Y|Z|A)$/,
     /^(input|select|textarea):/,
     // Report a problem (REPORT_A_PROBLEM): opens the dialog and builds links, files and Markdown from data run

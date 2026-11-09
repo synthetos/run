@@ -1772,3 +1772,11 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
 .place-offset { display: grid; gap: 4px; margin: 8px 0; }
 .place-offset-label { font-size: 12px; color: var(--muted); }
 .place-margins { margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+/* Place job: the file's zero, where zero goes, the mismatch warning and the zero depth (owner, 2026-11-09, OD-28). */
+.place-lead { margin: 4px 0 8px; font-size: 14px; }
+.place-source { display: grid; gap: 6px; margin: 8px 0; }
+.place-source .seg { flex-wrap: wrap; }
+.place-fit { display: grid; gap: 6px; justify-items: start; margin: 10px 0; padding: 8px 10px; border-left: 3px solid var(--warn, #b7791f); background: var(--raise); }
+.place-fit p { margin: 0; }
+.place-z { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+.place-z .unit-input { width: 7.5em; }

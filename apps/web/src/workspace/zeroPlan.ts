@@ -13,15 +13,20 @@
  */
 import type { StockCorner } from '@synthetos/library';
 import { ZERO_TOLERANCE_MM, zeroCheck, zeroText, type ZeroCheck, type ZeroPoint } from './jobUi.ts';
-import { placementOffset, plannedZero, type Job } from './jobModel.ts';
+import { effectiveZero, placementOffset, type Job } from './jobModel.ts';
 
 /** The setup's planned zero and where it is on the stock. */
 export interface SetupPlan {
   readonly zero: ZeroPoint;
   readonly corner: StockCorner;
   readonly height: 'top' | 'bottom';
-  /** How far the zero is moved from the corner (Place job's offset, owner 2026-11-09): inward at a corner, machine X and Y at the centre. */
-  readonly offset?: { readonly x: number; readonly y: number };
+  /**
+   * How far the zero is moved from the corner (Place job's offset, owner 2026-11-09): inward at a corner, machine X
+   * and Y at the centre; Z down from the top (or up from the bottom).
+   */
+  readonly offset?: { readonly x: number; readonly y: number; readonly z?: number };
+  /** The job uses the machine's work zero (OD-28): the plan is the board's own zero. */
+  readonly machine?: boolean;
 }
 
 export type PlanSource = 'saved' | 'setup' | 'none';
@@ -40,20 +45,31 @@ const CORNER_WORDS: Readonly<Record<StockCorner, string>> = {
   center: 'centre',
 };
 
-/** The job's planned zero from Place job: the datum corner of the stock, at its top or bottom, moved by the offset, in machine mm. */
-export function setupPlan(job: Job): SetupPlan {
+/**
+ * The job's zero from Place job, in machine mm: the datum point of the stock, at its top or bottom, moved by the
+ * offset; or the board's work zero (`liveZero`) when the job uses it and it is known.
+ */
+export function setupPlan(job: Job, liveZero: ZeroPoint | null = null): SetupPlan {
   const offset = placementOffset(job);
-  return { zero: plannedZero(job), corner: job.placement.datum.corner, height: job.placement.datum.height, ...(offset.x === 0 && offset.y === 0 ? {} : { offset }) };
+  const machine = job.placement.zeroFrom === 'machine' && liveZero !== null;
+  const moved = offset.x !== 0 || offset.y !== 0 || offset.z !== 0;
+  return { zero: effectiveZero(job, liveZero), corner: job.placement.datum.corner, height: job.placement.datum.height, ...(moved && !machine ? { offset } : {}), ...(machine ? { machine: true } : {}) };
 }
 
 const signed = (n: number): string => `${n < 0 ? '−' : ''}${String(Math.abs(Number(n.toFixed(2))))}`;
 
-/** "the front-left corner of the top of the stock", with ", moved in 5 mm in X and 3 mm in Y" when the zero is offset. */
+/**
+ * "the front-left corner of the top of the stock", with ", moved in 5 mm in X and 3 mm in Y" and ", 2 mm below
+ * the top" when the zero is offset; "the machine’s work zero" when the job uses it.
+ */
 export function placeWords(plan: SetupPlan): string {
+  if (plan.machine === true) return 'the machine’s work zero';
   const where = `the ${CORNER_WORDS[plan.corner]} of the ${plan.height} of the stock`;
   const o = plan.offset;
-  if (o === undefined || (o.x === 0 && o.y === 0)) return where;
-  return plan.corner === 'center' ? `${where}, moved X ${signed(o.x)} mm and Y ${signed(o.y)} mm` : `${where}, moved in ${signed(o.x)} mm in X and ${signed(o.y)} mm in Y`;
+  if (o === undefined) return where;
+  const xy = o.x === 0 && o.y === 0 ? '' : plan.corner === 'center' ? `, moved X ${signed(o.x)} mm and Y ${signed(o.y)} mm` : `, moved in ${signed(o.x)} mm in X and ${signed(o.y)} mm in Y`;
+  const z = o.z === undefined || o.z === 0 ? '' : `, ${signed(o.z)} mm ${plan.height === 'top' ? 'below the top' : 'above the bottom'}`;
+  return `${where}${xy}${z}`;
 }
 
 const mm = (n: number): string => Math.abs(n).toFixed(1);

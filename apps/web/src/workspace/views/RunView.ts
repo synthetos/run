@@ -44,7 +44,9 @@ import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
 import { openReport } from '../../report/state.ts';
 import { closeJob, currentFile, currentPreview, executionLock, openJob, pendingOpen, reopenActiveJob, reopening, saveDraftToProject, type OpenSource } from '../fileBridge.ts';
-import { activeJob, jobSaved, type Job } from '../jobModel.ts';
+import { activeJob, effectiveZero, jobSaved, type Job } from '../jobModel.ts';
+import { useLiveWorkZero } from '../liveZero.ts';
+import { useAutoZero } from '../useAutoZero.ts';
 import { bedSizeText, jobStateText, machineText } from '../revisionWords.ts';
 import { materialColor, selectedMachine } from '../library.ts';
 import { PlayControls, PlayNotice } from '../../preview/PlayControls.ts';
@@ -102,9 +104,13 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
     executionLock.value = ui.active ? `${PHASE_LABEL(ui.job?.phase ?? 'running')}: the job owns the preview.` : null;
   }, [ui.active, ui.job?.phase]);
   const active = activeJob.value;
-  const planned = useMemo(() => (active === null ? null : jobScene(active, sceneColors(tokenReader()), materialColor(active.setup.stock.materialRef.id))), [active]);
   // The live machine (preview/livePlacement.ts): the job placed where the board is once its position is established, its work position mapped into the path's frame at the line it reports (pathFrame.ts).
   const snap = live !== null && connected(live) ? (live.message?.snapshot ?? null) : null;
+  // The board's work zero while the position is established (OD-28): a job that uses it is planned there.
+  const liveZero = useLiveWorkZero(snap === null ? null : { ...snap.live, overlays: snap.overlays });
+  const zeroAt = active === null ? null : effectiveZero(active, liveZero);
+  const planned = useMemo(() => (active === null || zeroAt === null ? null : jobScene(active, sceneColors(tokenReader()), materialColor(active.setup.stock.materialRef.id), zeroAt)), [active, zeroAt?.x, zeroAt?.y, zeroAt?.z]);
+  useAutoZero(active);
   const { scene, tool } = useLivePlacement(planned, snap === null ? null : { ...snap.live, overlays: snap.overlays }, useLivePathFrame(currentFile.value?.preview ?? null, ui.job));
   return h(PreviewPanel, {
     spawn,
