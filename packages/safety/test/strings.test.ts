@@ -493,6 +493,12 @@ c({
   subs: (e) => [['<name>', e.name], ['<short>', e.sha256Short], ['<board id>', e.boardId]],
 });
 c({
+  doc: 'S', id: 'C40', segment: 0, exports: ['c40'],
+  examples: [{ why: 'line 12: X would reach machine 812 mm, beyond its travel limit of 800 mm' }, { why: 'the travel limits of Z were not read' }],
+  render: S.c40,
+  subs: (e) => [['<why>', e.why]],
+});
+c({
   doc: 'S', id: 'C39', segment: 0, exports: ['c39'],
   examples: [
     { feed: '25', depth: '5', system: 'G54', zero: '12.68', thickness: '12.70', stop: '0.02' },

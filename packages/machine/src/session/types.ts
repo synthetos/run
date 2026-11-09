@@ -18,6 +18,7 @@
  * every TinyG fact comes from dialect data (RUN_PLAN §5.1 rules 4 and 5).
  */
 import type { StartMode } from './fileModes.ts';
+import type { TravelCheck } from './travelTypes.ts';
 import type { ApprovedBuilds, Banner, ClassifyReason, Dialect, DialectId, FooterRev, Inbound, JsonValue, MachineClass, ProbeKey, Response } from '@synthetos/protocol';
 import type { BaseState, Decision, Intent, Overlay, Release, SentLine } from '@synthetos/safety';
 import type { PortSelector, TransportInfo } from '../transport.ts';
@@ -525,6 +526,8 @@ export interface JobReportSummary {
   readonly speeds: readonly number[];
   /** Modelled seconds of the whole job (an estimate, SAFETY §4.3). */
   readonly seconds: number;
+  /** OD-24: the travel check against the board's soft limits (travelCheck.ts). */
+  readonly travel?: TravelCheck;
 }
 
 export interface JobState {
@@ -560,6 +563,8 @@ export interface JobState {
   readonly refused: { readonly index: number; readonly status: number; readonly text: string } | null;
   readonly toolChange: {
     readonly index: number;
+    /** When the job stopped at it: offsets read after this were changed at the change (the Z re-zero, OD-24). */
+    readonly stoppedAt?: number;
     readonly tool: number | null;
     readonly spindle: 'off' | 'cw' | 'ccw';
     readonly speed: number | null;
@@ -611,6 +616,8 @@ export interface JobState {
    * OD-19: the modes the preview assumes that the file relies on (`needs`, found at the check), what Start decided
    * to write from the values it read (`modes`), and `written` once that line went into the queue (jobModes.ts).
    */
+  /** OD-24: the user confirmed C40 (the travel could not be confirmed) for this Start. */
+  readonly travelConfirmed?: boolean;
   readonly startModes?: { readonly needs: readonly StartMode[]; readonly modes: readonly StartMode[]; readonly written: boolean };
 }
 
@@ -871,7 +878,7 @@ export type SessionIntent =
   /** Load a job (the file text, sanitised here with the live board's values), or unload it (`job: null`). */
   | { readonly intent: 'loadJob'; readonly job: { readonly name: string; readonly text: string; readonly c22: boolean } | null }
   /** Start the loaded job. `confirm`: the page's confirmations (C36 unhomed, C31 work zero, C32 spindle). */
-  | { readonly intent: 'startJob'; readonly breakpoints: readonly number[]; readonly confirm: { readonly unhomed: boolean; readonly workZero: boolean; readonly spindle: boolean } }
+  | { readonly intent: 'startJob'; readonly breakpoints: readonly number[]; readonly confirm: { readonly unhomed: boolean; readonly workZero: boolean; readonly spindle: boolean; readonly travel?: boolean } }
   /** Resume a paused or stopped job. `skip`: continue past a refused line (C33). `spindleRestart`: C35 accepted. */
   | { readonly intent: 'resume'; readonly skip?: boolean; readonly spindleRestart?: boolean }
   | { readonly intent: 'jobBreakpoints'; readonly lines: readonly number[] }

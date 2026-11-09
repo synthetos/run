@@ -875,6 +875,15 @@ export function c38(p: { readonly name: string; readonly sha256Short: string; re
  * C39: start a touch plate probe and set Z zero (Probe Z, H90). The page formats the numbers in its display units;
  * `zero` is the thickness less the stop distance, `stop` the calculated stop distance.
  */
+/**
+ * C40: the job could not be checked against the machine's travel (OD-24, 2026-11-08; wording proposed, owner review
+ * pending). `why` is the finding in plain words, e.g. "line 12: X would reach machine 812 mm, beyond its travel limit
+ * of 800 mm, and the machine position was not set by a homing cycle in this connection".
+ */
+export function c40(p: { readonly why: string }): string {
+  return `Run cannot check this job against the machine's travel: ${text('why', p.why)}. Start only if you have checked that every move fits the machine.`;
+}
+
 export function c39(p: { readonly feed: string; readonly depth: string; readonly system: string; readonly zero: string; readonly thickness: string; readonly stop: string }): string {
   return (
     `Probe Z? Z will move down at ${text('feed', p.feed)} mm/min until the board reports contact, up to ${text('depth', p.depth)} mm. ` +

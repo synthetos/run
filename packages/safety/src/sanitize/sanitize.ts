@@ -27,6 +27,7 @@ import type { Segment } from './geometry.ts';
 import { canonicalCode, lexLine, removeWords, type Word } from './lex.ts';
 import { applyCommentRule, findControlByte, isTapeMarker, splitLines, trimLine } from './text.ts';
 import type {
+  LineExtent,
   LineMotion,
   LineOrigin,
   ReportEntry,
@@ -95,6 +96,7 @@ function checkOptions(options: SanitizeOptions): void {
 export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, options: SanitizeOptions): SanitizeResult {
   checkOptions(options);
   const entries: ReportEntry[] = [];
+  const extents: LineExtent[] = [];
   const add = (line: number, f: Finding): void => {
     entries.push({ line, severity: f.severity, rule: f.rule, message: f.message });
   };
@@ -103,6 +105,7 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
     add(0, { severity: 'block', rule: 'read-only-dialect', message: `${dialect.label} is read-only in this version: no job is ever sent to it` });
     return {
       lines: [],
+      extents: [],
       report: { dialect: dialect.id, blocked: true, entries, splits: [], longestMoveSeconds: 0, endState: { spindle: 'off', mist: false, flood: false } },
     };
   }
@@ -182,6 +185,7 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
     const analysis = model.analyze(words);
     for (const f of analysis.findings) add(lineNo, spacedCode(f, code, words, lineNo));
     if (!analysis.ok) return;
+    if (analysis.extent !== null) extents.push({ line: lineNo, extent: analysis.extent });
 
     const removals: Word[] = [...nWords];
     const m1 = analysis.optionalStop;
@@ -316,6 +320,7 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
   const longestMoveSeconds = sent.reduce((m, l) => Math.max(m, l.motion?.seconds ?? 0), 0);
   return {
     lines: sent,
+    extents,
     report: {
       dialect: dialect.id,
       blocked: entries.some((e) => e.severity === 'block'),

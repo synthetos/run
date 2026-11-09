@@ -16,6 +16,7 @@ export type {
   SanitizeOptions,
   SanitizeReport,
   SanitizeResult,
+  LineExtent,
   SanitizeRule,
   SentLine,
   Severity,

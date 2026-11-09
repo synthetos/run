@@ -38,7 +38,8 @@ export function jobLines(h: Harness, from = 0): string[] {
     .filter((w) => w.startsWith('N'));
 }
 
-export const CONFIRM = Object.freeze({ unhomed: true, workZero: true, spindle: true });
+// `travel`: C40 (OD-24); the model boards are not homed by a cycle, so a file near or past the travel asks for it.
+export const CONFIRM = Object.freeze({ unhomed: true, workZero: true, spindle: true, travel: true });
 
 export async function load(h: Harness, text: string, name = 'part.nc'): Promise<void> {
   expect(h.session.loadJob({ name, text })).toEqual({ allowed: true });

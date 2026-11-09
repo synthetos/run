@@ -69,6 +69,7 @@ export function unchecked(bodies: readonly string[], dialect: Dialect, barriers:
   }));
   return {
     lines,
+    extents: [],
     report: { dialect: dialect.id, blocked: false, entries: [], splits: [], longestMoveSeconds: 0, endState: { spindle: 'off', mist: false, flood: false } },
   };
 }

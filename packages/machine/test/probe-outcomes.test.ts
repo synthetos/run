@@ -260,7 +260,8 @@ describe('T-S131: outcomes', () => {
     await h.run(3000);
     expect(h.session.request({ intent: 'probeZClose', step: 'plateOff' })).toEqual({ allowed: true });
     expect(h.session.snapshot.probeZ).toMatchObject({ step: 'closed', plateOut: false, outcome: { kind: 'contactZeroSet' } });
-    expect(h.session.startJob([], { unhomed: true, workZero: true, spindle: true })).toEqual({ allowed: true });
+    // The probe's new Z zero puts the file below Z travel on this unhomed board: C40 (OD-24) is confirmed with the rest.
+    expect(h.session.startJob([], { unhomed: true, workZero: true, spindle: true, travel: true })).toEqual({ allowed: true });
   });
 
   it('cancel, plate off and retest are refused where they do not apply', async () => {

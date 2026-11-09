@@ -129,6 +129,8 @@ export interface StartChoices {
   readonly spindle: boolean;
   /** W5: "Screen lock and sleep are disabled; I will stay at the machine." */
   readonly attended: boolean;
+  /** C40 (OD-24): the job could not be checked against the machine's travel, and the user checked it fits. */
+  readonly travel: boolean;
 }
 
 export interface Blocker {
@@ -161,6 +163,7 @@ export function startBlockers(ui: JobUi, file: { readonly name: string | null; r
   if (zero.state === 'unknown') out.push({ id: 'zero', text: zero.text });
   else if (zero.state === 'differs' && !choices.workZero) out.push({ id: 'zero', text: 'Confirm the work zero (it is not your plan’s).' });
   if (job?.report?.startsSpindle === true && !choices.spindle) out.push({ id: 'spindle', text: 'Confirm the spindle start.' });
+  if ((job?.report?.travel?.confirm ?? null) !== null && !choices.travel) out.push({ id: 'travel', text: 'Confirm the job fits the machine’s travel (it could not be checked).' });
   if (!choices.attended) out.push({ id: 'attended', text: 'Confirm screen lock and sleep are off and you will stay at the machine.' });
   return out;
 }

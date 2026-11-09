@@ -37,6 +37,7 @@ import {
 } from './geometry.ts';
 import { canonicalCode, type Word } from './lex.ts';
 import type { Axis, MotionModel, ReportEntry, RotaryAxis, SanitizeOptions, SanitizeRule, StartState, Wcs } from './types.ts';
+import { extendByArc, extendTo, extentAt, type MoveExtent } from './extent.ts';
 import { AXES, AXIS_MODE_DISABLED, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, WCS_CODES, type AxisMode } from './types.ts';
 
 type Pos = Record<Axis, number | null>;
@@ -124,6 +125,8 @@ export interface LineAnalysis {
   readonly programEnd: boolean;
   /** M3, M4, M7 or M8 on this line. */
   readonly outputsOn: boolean;
+  /** OD-24: where the line takes the machine (machine coordinates), or null when it does not move (extent.ts). */
+  readonly extent: MoveExtent | null;
 }
 
 function emptyPos(): Pos {
@@ -188,6 +191,8 @@ export class JobModel {
   feed: number | null;
   wcs: Wcs | null;
   machine: Pos;
+  /** OD-24: the box of the line being analysed, in machine coordinates (extent.ts). */
+  #extent: MoveExtent = extentAt(emptyPos());
   work: Pos;
   wcsOffsets: Record<Wcs, Pos>;
   g92: Pos;
@@ -592,6 +597,7 @@ export class JobModel {
       this.machine[a] = m === null ? null : m + d;
       this.work[a] = w === null ? null : w + d;
     }
+    this.#extent = extendTo(this.#extent, this.machine);
   }
 
   /** Forgets the positions of the axes these words name. */
@@ -660,6 +666,7 @@ export class JobModel {
   /** Analyses one line (comments and N words already removed) and advances the model. */
   analyze(words: readonly Word[]): LineAnalysis {
     const findings: Finding[] = [];
+    this.#extent = extentAt(this.machine);
     const codes: { word: Word; code: string }[] = [];
     const params = new Map<string, Word>();
     const job = this.#job;
@@ -821,7 +828,7 @@ export class JobModel {
     if (findings.some((f) => f.severity === 'block')) {
       // A rejected line is never sent, so it changes nothing: the rest of the file is analysed as it would
       // run without it, and its findings are not buried under consequences of this one.
-      return { findings, ok: false, motion: null, toolChange, programStop, optionalStop, programEnd, outputsOn };
+      return { findings, ok: false, motion: null, toolChange, programStop, optionalStop, programEnd, outputsOn, extent: null };
     }
 
     // --- Modal updates (they apply before the block's action, EN execution order). ---
@@ -879,7 +886,7 @@ export class JobModel {
     if (programEnd) this.#programEnd();
 
     const ok = !findings.some((f) => f.severity === 'block');
-    return { findings, ok, motion: ok ? this.#chargeJointResidual(motion) : null, toolChange, programStop, optionalStop, programEnd, outputsOn };
+    return { findings, ok, motion: ok ? this.#chargeJointResidual(motion) : null, toolChange, programStop, optionalStop, programEnd, outputsOn, extent: ok && motion !== null ? this.#extent : null };
   }
 
   /** null when the code may be sent; otherwise the finding that blocks (or warns about) it. */
@@ -1297,6 +1304,7 @@ export class JobModel {
     const feed = this.feed as number;
     const d = moveSeconds(moving, model.arc.lengthMm, feed, this.#motion);
     const start = { ...this.work };
+    this.#extent = extendByArc(this.#extent, this.machine, plane as Plane, model.arc);
     this.#moveBy({ [p.a0]: input.d0, [p.a1]: input.d1, [p.lin]: input.dLin });
     // An omitted axis ends exactly where it was (the firmware's target starts as its position).
     for (const [a, delta] of [[p.a0, input.d0], [p.a1, input.d1], [p.lin, input.dLin]] as const) {

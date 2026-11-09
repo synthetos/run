@@ -332,4 +332,12 @@ export interface SanitizeReport {
 export interface SanitizeResult {
   readonly lines: readonly SentLine[];
   readonly report: SanitizeReport;
+  /** OD-24: where each moving line of the file takes the machine (machine coordinates), in file order (extent.ts). */
+  readonly extents: readonly LineExtent[];
+}
+
+/** One moving file line's box in machine coordinates (mm on X/Y/Z, degrees on A/B/C); null axes are not known. */
+export interface LineExtent {
+  readonly line: number;
+  readonly extent: Readonly<Record<Axis, { readonly min: number; readonly max: number } | null>>;
 }

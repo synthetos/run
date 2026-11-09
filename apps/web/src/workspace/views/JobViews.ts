@@ -13,7 +13,7 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { STOP_TEXT, c30, c31, c32, c33, c34, c35, c36, w17, w37, w5 } from '@synthetos/safety';
+import { STOP_TEXT, c30, c31, c32, c33, c34, c35, c36, c40, w17, w37, w5 } from '@synthetos/safety';
 import type { PreviewParts } from '../../preview/PreviewPanel.ts';
 import { fileKey, loadBreakpoints } from '../../preview/gcodeList.ts';
 import { signalText } from '../../shell/signal.ts';
@@ -30,7 +30,7 @@ import { checkedText } from '../lineWords.ts';
 
 export { JobStatus, type StopHooks } from './JobStatusCard.ts';
 
-const NO_CHOICES: StartChoices = Object.freeze({ unhomed: false, workZero: false, spindle: false, attended: false });
+const NO_CHOICES: StartChoices = Object.freeze({ unhomed: false, workZero: false, spindle: false, attended: false, travel: false });
 
 function speedsText(job: JobSnapshot | null): string {
   const speeds = job?.report?.speeds ?? [];
@@ -124,6 +124,10 @@ export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewP
           s?.live.home !== 1
             ? h('label', { class: 'job-tick', 'data-safety': 'C36' }, h('input', { type: 'checkbox', checked: choices.unhomed, 'data-job': 'confirm-unhomed', onChange: tick('unhomed') }), c36())
             : null,
+          // OD-24: the travel could not be confirmed (position not set by a homing, or a limit not read): C40 before Start.
+          job?.report?.travel?.confirm !== null && job?.report?.travel?.confirm !== undefined && checked
+            ? h('label', { class: 'job-tick', 'data-safety': 'C40' }, h('input', { type: 'checkbox', checked: choices.travel, 'data-job': 'confirm-travel', onChange: tick('travel') }), c40({ why: job.report.travel.confirm.text }))
+            : null,
           startsSpindle ? h('label', { class: 'job-tick', 'data-safety': 'C32' }, h('input', { type: 'checkbox', checked: choices.spindle, 'data-job': 'confirm-spindle', onChange: tick('spindle') }), c32({ speeds: speedsText(job) })) : null,
           // The board's modes as read (OD-19), and what Start writes so the job runs as the preview shows.
           s === null
@@ -149,7 +153,7 @@ export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewP
           onConfirm: () => {
             setAsking(false);
             const breakpoints = key === null ? [] : [...loadBreakpoints(key)];
-            void send({ op: 'start', breakpoints, confirm: { unhomed: choices.unhomed || s?.live.home === 1, workZero: zeroDone, spindle: !startsSpindle || choices.spindle } }).then(setNote);
+            void send({ op: 'start', breakpoints, confirm: { unhomed: choices.unhomed || s?.live.home === 1, workZero: zeroDone, spindle: !startsSpindle || choices.spindle, travel: choices.travel } }).then(setNote);
           },
         })
       : null,

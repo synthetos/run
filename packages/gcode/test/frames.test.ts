@@ -95,7 +95,7 @@ describe('the program-to-path table', () => {
   });
 
   it('a blocked analysis has the empty table; lookups clamp before the first line', () => {
-    const a = interpretJob({ lines: [], report: { dialect: 'tinyg-440', blocked: false, entries: [], splits: [], longestMoveSeconds: 0, endState: { spindle: 'off', mist: false, flood: false } } }, TINYG_EN, { start: start() });
+    const a = interpretJob({ lines: [], extents: [], report: { dialect: 'tinyg-440', blocked: false, entries: [], splits: [], longestMoveSeconds: 0, endState: { spindle: 'off', mist: false, flood: false } } }, TINYG_EN, { start: start() });
     expect(rows(a.frameTable)).toEqual([[0, 0, 0, 0]]);
     const f = emptyFrames([1, 2, 3]);
     expect(programToPath(f, -5)).toEqual([1, 2, 3]);

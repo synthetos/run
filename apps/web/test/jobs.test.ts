@@ -31,7 +31,7 @@ import { job, snap, view } from './jobFixtures.ts';
 
 type Snapshot = NonNullable<LiveView['message']>['snapshot'];
 
-const ALL: StartChoices = { unhomed: true, workZero: true, spindle: true, attended: true };
+const ALL: StartChoices = { unhomed: true, workZero: true, spindle: true, attended: true, travel: true };
 const FILE = { name: 'part.nc', hash: textHash('G0 X1\nM30') };
 
 describe('T-S117: Start is enabled only when every precondition passes, each blocker in plain words', () => {
@@ -39,6 +39,13 @@ describe('T-S117: Start is enabled only when every precondition passes, each blo
 
   it('no blocker on an idle, approved, homed board with the file checked and the attestation ticked', () => {
     expect(startBlockers(jobUi(view(snap())), FILE, zero, ALL)).toEqual([]);
+  });
+
+  it('C40 (OD-24): a travel finding to confirm blocks Start until it is ticked', () => {
+    const report = { ...job().report, travel: { block: null, confirm: { kind: 'outside', line: 2, text: 'line 2: X would reach machine 200 mm, beyond its travel limit of 150 mm, and the machine position was not set by a homing cycle in this connection' } } };
+    const ui = jobUi(view(snap({ job: job({ report: report as never }) })));
+    expect(startBlockers(ui, FILE, zero, { ...ALL, travel: false }).map((b) => b.id)).toEqual(['travel']);
+    expect(startBlockers(ui, FILE, zero, ALL)).toEqual([]);
   });
 
   it('names each blocker', () => {

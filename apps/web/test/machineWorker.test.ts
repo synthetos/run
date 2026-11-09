@@ -1152,7 +1152,7 @@ describe('Phase 3: job commands through the worker (SAFETY §4.4a, T-S117)', () 
     const before = p.writes.length;
     for (const command of [
       { op: 'load', name: 'a.nc', text: 'G0 X1\nM30', c22: false },
-      { op: 'start', breakpoints: [], confirm: { unhomed: true, workZero: true, spindle: true } },
+      { op: 'start', breakpoints: [], confirm: { unhomed: true, workZero: true, spindle: true, travel: false } },
       { op: 'resume', skip: false, spindleRestart: false },
       { op: 'breakpoints', lines: [3] },
       { op: 'unload' },
@@ -1173,14 +1173,14 @@ describe('Phase 3: job commands through the worker (SAFETY §4.4a, T-S117)', () 
     await bench.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => benchPosted.push(m) });
     expect(benchPosted.at(-1)?.jobs).toBe(true);
     // Start with nothing loaded is refused by the session, with its reason.
-    expect(await bench.handle({ v: 3, kind: 'job', command: { op: 'start', breakpoints: [], confirm: { unhomed: true, workZero: true, spindle: true } } })).toMatchObject({ ok: false, code: 'denied', message: 'No job is loaded and checked.' });
+    expect(await bench.handle({ v: 3, kind: 'job', command: { op: 'start', breakpoints: [], confirm: { unhomed: true, workZero: true, spindle: true, travel: false } } })).toMatchObject({ ok: false, code: 'denied', message: 'No job is loaded and checked.' });
   });
 
   it('parses job commands strictly', () => {
     const good = [
       { op: 'load', name: 'a.nc', text: 'G0', c22: true },
       { op: 'unload' },
-      { op: 'start', breakpoints: [1, 2], confirm: { unhomed: false, workZero: true, spindle: false } },
+      { op: 'start', breakpoints: [1, 2], confirm: { unhomed: false, workZero: true, spindle: false, travel: true } },
       { op: 'resume', skip: true, spindleRestart: false },
       { op: 'breakpoints', lines: [] },
       { op: 'lineModeMemory', epoch: 3, remembered: null },
@@ -1194,10 +1194,12 @@ describe('Phase 3: job commands through the worker (SAFETY §4.4a, T-S117)', () 
       { op: 'load', name: 'a'.repeat(201), text: 'G0', c22: false },
       { op: 'load', name: 'a', text: 'G0' },
       { op: 'unload', now: true },
-      { op: 'start', breakpoints: [0], confirm: { unhomed: false, workZero: true, spindle: false } },
-      { op: 'start', breakpoints: [1.5], confirm: { unhomed: false, workZero: true, spindle: false } },
-      { op: 'start', breakpoints: 'x', confirm: { unhomed: false, workZero: true, spindle: false } },
-      { op: 'start', breakpoints: [], confirm: { unhomed: 'yes', workZero: true, spindle: false } },
+      { op: 'start', breakpoints: [0], confirm: { unhomed: false, workZero: true, spindle: false, travel: false } },
+      { op: 'start', breakpoints: [1.5], confirm: { unhomed: false, workZero: true, spindle: false, travel: false } },
+      { op: 'start', breakpoints: 'x', confirm: { unhomed: false, workZero: true, spindle: false, travel: false } },
+      { op: 'start', breakpoints: [], confirm: { unhomed: 'yes', workZero: true, spindle: false, travel: false } },
+      { op: 'start', breakpoints: [], confirm: { unhomed: false, workZero: true, spindle: false, travel: 'yes' } },
+      { op: 'start', breakpoints: [], confirm: { unhomed: false, workZero: true, spindle: false } },
       { op: 'start', breakpoints: [], confirm: { unhomed: false, workZero: true } },
       { op: 'start', breakpoints: [] },
       { op: 'resume', skip: 1, spindleRestart: false },

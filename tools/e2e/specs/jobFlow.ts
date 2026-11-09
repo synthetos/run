@@ -69,7 +69,7 @@ export async function open(page: Page, text: string, name = 'job.nc'): Promise<v
 
 /** Ticks what the stepper asks for (unhomed C36, work zero C31, spindle C32, the attestation), then Start and C30. */
 export async function start(page: Page): Promise<void> {
-  for (const box of ['confirm-unhomed', 'confirm-zero', 'confirm-spindle', 'confirm-attended']) {
+  for (const box of ['confirm-unhomed', 'confirm-zero', 'confirm-spindle', 'confirm-travel', 'confirm-attended']) {
     const el = page.locator(`[data-job="${box}"]`);
     if ((await el.count()) > 0) await el.check();
   }

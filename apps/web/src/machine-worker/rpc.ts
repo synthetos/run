@@ -84,7 +84,7 @@ export type MotionCommand =
 export type JobCommand =
   | { readonly op: 'load'; readonly name: string; readonly text: string; readonly c22: boolean }
   | { readonly op: 'unload' }
-  | { readonly op: 'start'; readonly breakpoints: readonly number[]; readonly confirm: { readonly unhomed: boolean; readonly workZero: boolean; readonly spindle: boolean } }
+  | { readonly op: 'start'; readonly breakpoints: readonly number[]; readonly confirm: { readonly unhomed: boolean; readonly workZero: boolean; readonly spindle: boolean; readonly travel: boolean } }
   | { readonly op: 'resume'; readonly skip: boolean; readonly spindleRestart: boolean }
   | { readonly op: 'breakpoints'; readonly lines: readonly number[] }
   | { readonly op: 'lineModeMemory'; readonly epoch: number; readonly remembered: 0 | 1 | null };
@@ -451,10 +451,10 @@ export function parseJobCommand(value: unknown): JobCommand | null {
     case 'start': {
       const breakpoints = lineList(c['breakpoints']);
       const confirm = c['confirm'];
-      if (keys !== 'breakpoints,confirm,op' || breakpoints === null || plainKeys(confirm) !== 'spindle,unhomed,workZero') return null;
+      if (keys !== 'breakpoints,confirm,op' || breakpoints === null || plainKeys(confirm) !== 'spindle,travel,unhomed,workZero') return null;
       const f = confirm as Record<string, unknown>;
-      if (typeof f['unhomed'] !== 'boolean' || typeof f['workZero'] !== 'boolean' || typeof f['spindle'] !== 'boolean') return null;
-      return Object.freeze({ op: 'start', breakpoints, confirm: Object.freeze({ unhomed: f['unhomed'], workZero: f['workZero'], spindle: f['spindle'] }) });
+      if (typeof f['unhomed'] !== 'boolean' || typeof f['workZero'] !== 'boolean' || typeof f['spindle'] !== 'boolean' || typeof f['travel'] !== 'boolean') return null;
+      return Object.freeze({ op: 'start', breakpoints, confirm: Object.freeze({ unhomed: f['unhomed'], workZero: f['workZero'], spindle: f['spindle'], travel: f['travel'] }) });
     }
     case 'resume':
       if (keys !== 'op,skip,spindleRestart' || typeof c['skip'] !== 'boolean' || typeof c['spindleRestart'] !== 'boolean') return null;
