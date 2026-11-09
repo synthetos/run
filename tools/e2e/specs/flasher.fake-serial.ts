@@ -172,11 +172,13 @@ test('a full update across an EEPROM layout change: backups, progress, version c
   await shot(page, 'switch-check');
   await page.locator('[data-action="switch-test-done"]').click();
   await expect(page.locator('[data-region="post-flash"]')).toHaveCount(0, { timeout: 10_000 });
-  // The Firmware & Backups hub lists the automatic backups of this update.
+  // The Backups tab lists the settings backup taken before this update; the Firmware tab its firmware image backup
+  // (owner, 2026-11-09: one Firmware tab and one Backups tab).
   await page.locator('[data-board-tab="backups"]').click();
   await expect(page.locator('[data-backup-trigger="before-update"]').first()).toBeVisible();
-  await expect(page.locator('[data-firmware-backups="1"]')).toBeVisible();
   await shot(page, 'backups-hub');
+  await page.locator('[data-board-tab="firmware"]').click();
+  await expect(page.locator('[data-firmware-backups="1"]')).toBeVisible();
 });
 
 test('recovery: USB pulled mid-flash leaves no application; unplug and replug during the countdown, and the same image is flashed', async ({ page }) => {
@@ -218,7 +220,7 @@ test('put a firmware backup back: the image read before the update returns the b
   await confirmFlash(page);
   await waitDone(page);
   expect((await status(worker)).session.identity?.fb).toBe(450.02);
-  await page.locator('[data-board-tab="backups"]').click();
+  await page.locator('[data-board-tab="firmware"]').click();
   const putBack = page.locator('[data-action="firmware-put-back"]').first();
   await expect(putBack).toBeEnabled({ timeout: 30_000 });
   await putBack.click();
@@ -236,7 +238,7 @@ test('custom firmware: labelled unsigned, read-only after the update; trusted on
   const worker = await machineWorker(page);
   await flashableBoard(worker, { __layout: 10002 });
   await connect(page, worker);
-  await openFirmware(page, 'backups');
+  await openFirmware(page, 'firmware');
   // W47 is shown where the decision is made (the confirmation), not as a permanent banner (OD-9).
   await expect(page.locator('[data-safety="W47"]')).toHaveCount(0);
   const input = page.locator('[data-action="custom-file"]');
@@ -254,10 +256,13 @@ test('custom firmware: labelled unsigned, read-only after the update; trusted on
   await expect(page.locator('[data-region="trust-offer"]')).toBeVisible({ timeout: 30_000 });
   await page.locator('[data-action="trust-open"]').click();
   await expect(page.locator('[data-safety="C38"]')).toBeVisible();
+  await expect(page.locator('[data-safety="C38"]')).toContainText('you can revoke it in Board → Firmware.');
   await shot(page, 'custom-firmware-trust');
   await page.locator('[data-action="trust-confirm"]').click();
-  await page.locator('[data-board-tab="backups"]').click();
+  // C38 names where it is revoked: the Firmware tab lists the trusted build with Revoke.
+  await page.locator('[data-board-tab="firmware"]').click();
   await expect(page.locator('[data-trusted="1"]')).toBeVisible();
+  await expect(page.locator('[data-trusted="1"] [data-action="trust-revoke"]')).toBeVisible();
   // The page sends the trust at Connect; here the spec reconnects the way the page does.
   const trustRecord = await page.evaluate(async () => {
     const open = indexedDB.open('device-safety', 1);

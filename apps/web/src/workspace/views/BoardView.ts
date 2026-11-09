@@ -658,8 +658,9 @@ function SettingsTab({ model }: { readonly model: WorkspaceModel | null }): Comp
   );
 }
 
-// Backups and Firmware (SAFETY §4.8 as amended 2026-11-03): the Firmware & Backups hub and the Update panel.
-export { BackupsHub as BackupsTab, FirmwareTab } from './FirmwareViews.ts';
+// Firmware and Backups (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09): the Firmware tab (the Update panel, then
+// the firmware image backups, custom firmware and trusted builds) and the Backups tab (settings backups).
+export { FirmwareTab } from './FirmwareViews.ts';
 
 export function BoardView({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
@@ -682,8 +683,8 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     { id: 'io', label: 'Spindle and coolant' },
     { id: 'comms', label: 'Communications' },
     { id: 'settings', label: 'All settings' },
-    { id: 'backups', label: 'Firmware & Backups' },
     { id: 'firmware', label: 'Firmware', ...(old === null ? {} : { badge: 'Update' }) },
+    { id: 'backups', label: 'Backups' },
   ];
   const pane = (id: Tab, child: ComponentChild): ComponentChild => h(TabPane, { prefix: 'board', id, current: tab, class: 'cpane' }, child);
   return h(
@@ -698,7 +699,7 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     pane('io', h(OutputsTab, { view })),
     pane('comms', h(CommsTab, { view })),
     pane('settings', h(SettingsTab, { model })),
-    pane('backups', h(BackupsHub, { model })),
-    pane('firmware', h(FirmwareTab, { model })),
+    pane('firmware', h('div', { class: 'firmware-tab' }, h(FirmwareTab, { model }), h(BackupsHub, { model, part: 'firmware' }))),
+    pane('backups', h(BackupsHub, { model, part: 'settings' })),
   );
 }

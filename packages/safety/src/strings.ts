@@ -867,7 +867,7 @@ export function c37(p: { readonly name: string; readonly sha256Short: string; re
 export function c38(p: { readonly name: string; readonly sha256Short: string; readonly boardId: string }): string {
   return (
     `Trust ${text('name', p.name)} (sha256 ${text('sha256Short', p.sha256Short)}) on board ${text('boardId', p.boardId)}? ` +
-    'Run will let this exact build control this board as if it were approved. It never applies to another board or another build, and you can revoke it in Firmware & Backups.'
+    'Run will let this exact build control this board as if it were approved. It never applies to another board or another build, and you can revoke it in Board → Firmware.'
   );
 }
 

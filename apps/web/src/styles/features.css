@@ -310,7 +310,7 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
   .project-cover { width: 100%; }
 }
 
-/* Firmware update and Firmware & Backups (SAFETY §4.8 as amended 2026-11-03) */
+/* Firmware update, the Firmware and Backups tabs (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09) */
 .flash-confirm { display: grid; gap: 10px; padding: 14px 16px; margin: 0 0 12px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--sheet); }
 .flash-danger, .flash-warn { margin: 0; padding: 8px 12px; font-size: 12.5px; line-height: 1.45; border-radius: 0 var(--r-sm) var(--r-sm) 0; }
 .flash-danger { border-left: 3px solid var(--danger); background: var(--danger-soft); }
@@ -335,7 +335,12 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .switch-list li::before { content: ''; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--warn); background: var(--warn-soft); }
 .switch-list li.ok::before { border-color: var(--ok); background: var(--ok); }
 .post-flash-unknown { display: grid; gap: 6px; margin: 8px 0; }
-/* Firmware & Backups hub: one left-aligned column; every action at its natural width beside its section title. */
+/* The Firmware tab (owner, 2026-11-09): the releases and the Update panel, then the firmware image backups, custom
+   firmware and trusted builds, scrolling as one column. The Backups tab is the settings part of the hub. */
+.firmware-tab { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; scrollbar-width: thin; }
+.firmware-tab > * { flex: none; }
+.firmware-tab > .hub { overflow: visible; }
+/* The hub (Backups, and the lower part of Firmware): one left-aligned column; every action at its natural width beside its section title. */
 .hub { min-height: 0; overflow: auto; width: 100%; max-width: 860px; padding: 0 20px 24px; scrollbar-width: thin; }
 .hub > .flash-confirm, .hub > .backup-progress { margin: 14px 0 0; }
 .hub-section { padding: 18px 0 6px; border-bottom: 1px solid var(--line-soft); }

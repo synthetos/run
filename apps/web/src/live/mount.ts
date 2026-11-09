@@ -154,7 +154,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   let samples: LiveSample[] = [];
   let sampleEpoch = -1;
   const unavailable = { ok: false as const, message: 'The machine worker is not running in this browser.' };
-  // Firmware & Backups, set up below once the records are open (null until then, and when IndexedDB fails).
+  // The Firmware and Backups tabs, set up below once the records are open (null until then, and when IndexedDB fails).
   let firmwareHub: Awaited<ReturnType<typeof mountFirmware>> | null = null;
   const read = (tokens: readonly string[]) => (worker === null ? Promise.resolve(unavailable) : callMachineWorker(worker, { v: RPC_VERSION, kind: 'read', tokens }));
   // P1-07: the connect-time settings read and the drift check. Reads go through the worker's `read`; nothing here writes.
@@ -195,7 +195,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
       const name = backupFileName(file.board.id, new Date(file.takenAt)).replace(/\.json$/, `-before-write-${file.takenAt.slice(11, 19).replace(/:/g, '')}.json`);
       // Kept on this computer (device-safety) and offered as a download: the revert source and the user's copy.
       await store.set(`settings-backup/${file.board.dialect}/${file.board.id ?? 'no-board-id'}/${file.takenAt}`, file).catch(() => undefined);
-      // Firmware & Backups: every automatic backup before an apply is listed with its trigger.
+      // The Backups tab: every automatic backup before an apply is listed with its trigger.
       await firmwareHub?.record(file, 'before-apply').catch(() => undefined);
       downloadTranscript(document, `${JSON.stringify(file, null, 2)}\n`, name, 'application/json');
       return name;
@@ -266,7 +266,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     publish();
   }
 
-  // Firmware & Backups (SAFETY §4.8 as amended 2026-11-03): the records, the update's page side, the release list.
+  // The Firmware and Backups tabs (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09): the records, the update's page side, the release list.
   const callFlash = async (command: FlashCommand): Promise<string | null> => {
     if (worker === null) return unavailable.message;
     const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'flash', command }).catch(() => null);

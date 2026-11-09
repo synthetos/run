@@ -310,9 +310,10 @@ bootloader capability); the worker's flash service (the session's idle-gated
 `{"boot":1}`, the same port reopened in bootloader role, backups stored before
 any write, verify, CRC, reconnect, version check, the post-flash lock); the
 Firmware tab (signed releases with changelog, C6, progress, recovery with a
-countdown, the required restore, the switch check) and the Firmware & Backups
-hub (settings and firmware image backups on this computer, compare, restore,
-export, import, put a firmware back, custom firmware, trusted builds). The
+countdown, the required restore, the switch check, and below it the firmware image backups to put back, custom
+firmware and trusted builds) and the Backups tab (settings backups on this
+computer, compare, restore, export, import); until 2026-11-09 the backups and
+custom builds were one Firmware & Backups hub. The
 signed release list and its hosting: docs/ops/firmware-releases.md.
 
 ## Firmware dependencies

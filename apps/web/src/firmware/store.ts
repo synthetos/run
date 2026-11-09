@@ -1,5 +1,5 @@
 /**
- * Firmware & Backups, stored on this computer (WORKSPACE_FEATURES "Settings
+ * The Firmware and Backups tabs' records, stored on this computer (WORKSPACE_FEATURES "Settings
  * backup", "Firmware update"; SAFETY §4.8 as amended 2026-11-03, H81, H87).
  *
  * - Settings backups (token by token, live/backup.ts), each with the board

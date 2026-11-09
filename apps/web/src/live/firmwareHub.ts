@@ -1,5 +1,5 @@
 /**
- * Firmware & Backups on the page (SAFETY §4.8 as amended 2026-11-03): wires
+ * The Firmware and Backups tabs on the page (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09): wires
  * the records (firmware/store.ts), the page side of an update
  * (firmware/updater.ts) and the signed release list into the workspace model.
  * Everything that reaches the board goes through the machine worker

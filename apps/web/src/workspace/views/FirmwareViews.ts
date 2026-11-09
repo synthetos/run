@@ -1,6 +1,7 @@
 /**
- * The Board view's Firmware tab (the Update panel) and its Firmware & Backups
- * tab (SAFETY §4.8 as amended 2026-11-03, H79-H89; WORKSPACE_FEATURES
+ * The Board view's Firmware tab (the Update panel, then the firmware image backups, custom firmware and trusted
+ * builds) and its Backups tab (settings backups); until 2026-11-09 these were the Firmware and Firmware & Backups
+ * tabs (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09, H79-H89; WORKSPACE_FEATURES
  * "Firmware gate, update and backups").
  *
  * Every control that can lead to a flash carries `data-machine-control`
@@ -453,7 +454,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
             { class: 'insp', 'data-region': 'firmware-plan' },
             h('header', null, h('h2', null, 'Update'), h('span', { class: 'tag' }, m?.flasher === true ? 'Bench and staging' : 'Not on this site')),
             h('ol', { class: 'fw-plan' }, ['Back up every setting', 'Restart into the bootloader; back up the current firmware', 'Write, then read back to verify', 'Reconnect and check the version', 'Compare and restore your settings; check the switches'].map((t, i) => h('li', { key: t }, h('span', null, String(i + 1)), t))),
-            h('p', { class: 'fine', 'data-flash-blocked': blocked === null ? 'no' : 'yes' }, blocked ?? 'Choose a release on the left, put a firmware backup back, or flash your own in Firmware & Backups.'),
+            h('p', { class: 'fine', 'data-flash-blocked': blocked === null ? 'no' : 'yes' }, blocked ?? 'Choose a release on the left, or below: put a firmware backup back, or flash your own build.'),
           )
         : null,
       msg === null ? null : h('p', { class: 'backup-progress danger', role: 'alert', 'data-flash-message': 'true' }, msg),
@@ -461,7 +462,13 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
   );
 }
 
-export function BackupsHub({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
+/**
+ * The Board's Backups tab and the lower part of its Firmware tab (owner, 2026-11-09: one Firmware tab, one Backups
+ * tab, in place of Firmware and Firmware & Backups). `part` picks what is drawn: `settings` the settings backups
+ * (back up, import, compare, restore); `firmware` the firmware image backups, custom firmware and the trusted custom
+ * builds (where C38 says a trust is revoked).
+ */
+export function BackupsHub({ model, part }: { readonly model: WorkspaceModel | null; readonly part: 'settings' | 'firmware' }): ComponentChild {
   const view = model?.live.value ?? null;
   const actions = model?.actions.value ?? null;
   const fw = actions?.firmware;
@@ -500,7 +507,7 @@ export function BackupsHub({ model }: { readonly model: WorkspaceModel | null })
   );
   return h(
     'div',
-    { tabindex: 0, class: 'hub', 'data-region': 'backups-hub' },
+    { tabindex: 0, class: 'hub', 'data-region': part === 'settings' ? 'backups-hub' : 'firmware-hub' },
     view !== null && target !== null
       ? h(ConfirmFlash, {
           view,
@@ -516,7 +523,7 @@ export function BackupsHub({ model }: { readonly model: WorkspaceModel | null })
       : null,
     msg === null ? null : h('p', { class: 'backup-progress', role: 'status', 'data-hub-message': 'true' }, msg),
     hub?.notice === null || hub?.notice === undefined ? null : h('p', { class: `backup-progress ${hub.notice.kind === 'ok' ? 'ok' : 'danger'}`, role: 'status' }, hub.notice.text),
-    h(
+    part !== 'settings' ? null : h(
       'section',
       { class: 'hub-section', 'aria-labelledby': 'hub-settings' },
       h(
@@ -559,7 +566,7 @@ export function BackupsHub({ model }: { readonly model: WorkspaceModel | null })
       hub !== null && hub.settings.length > 0 ? h('div', { class: 'hub-foot' }, importPick) : null,
       h(RestorePanel, { view }),
     ),
-    h(
+    part !== 'firmware' ? null : h(
       'section',
       { class: 'hub-section', 'aria-labelledby': 'hub-images' },
       h('header', { class: 'hub-head' }, h('h2', { id: 'hub-images' }, 'Firmware image backups'), h('span', { class: 'fine' }, 'Read from the board before each update')),
@@ -588,7 +595,7 @@ export function BackupsHub({ model }: { readonly model: WorkspaceModel | null })
             ),
           ),
     ),
-    h(
+    part !== 'firmware' ? null : h(
       'section',
       { class: 'hub-section', 'aria-labelledby': 'hub-custom' },
       h(
@@ -617,7 +624,7 @@ export function BackupsHub({ model }: { readonly model: WorkspaceModel | null })
       ),
       h('p', { class: 'fine' }, 'Unsigned builds are flashed after a backup and stay read-only until you trust them on this board. The full warning is shown before you confirm.'),
     ),
-    h(
+    part !== 'firmware' ? null : h(
       'section',
       { class: 'hub-section', 'aria-labelledby': 'hub-trust' },
       h('header', { class: 'hub-head' }, h('h2', { id: 'hub-trust' }, 'Trusted custom builds'), h('span', { class: 'fine' }, 'On this computer only')),

@@ -163,7 +163,7 @@ describe('Phase 1 control allowlist', () => {
     /^tab:(machines|tools|materials|gcode|console|live|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|settings|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
     /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
-    // Firmware & Backups: records on this computer (export, import, compare, delete, download) and dialog controls.
+    // The Firmware and Backups tabs: records on this computer (export, import, compare, delete, download) and dialog controls.
     /^action:(backup-compare|backup-export|backup-delete|backup-import|firmware-download|firmware-delete|trust-revoke|trust-cancel|cancel-flash|flash-cancel|flash-dismiss|flash-reconnect|switch-test-start)$/,
     /^preview:(file|rapids|dialect|mode|scrubber|fit|cancel|view-iso|view-top|view-front)$/,
     /^sample:(mounting-plate|test-square)$/,
@@ -268,7 +268,7 @@ describe('Phase 1 control allowlist', () => {
   });
 
   it('the machine-acting controls carry no handler at all: they dispatch nothing', () => {
-    // BackupsTab is not here: its Restore control is a settings-write control with a handler, gated by the settings tests (settingsWrite.test.ts).
+    // BackupsHub is not here: its Restore control is a settings-write control with a handler, gated by the settings tests (settingsWrite.test.ts).
     // FirmwareTab is not here: its flash controls carry handlers and are gated by the flasher switch (firmware.test.ts).
     const trees = [h(JogSection, null), h(ZeroSection, null), h(SpindleSection, null), h(OverridesSection, null)].map((n) => root(n));
     void FirmwareTab;

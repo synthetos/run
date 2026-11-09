@@ -66,11 +66,11 @@ export interface LiveView {
   readonly apply: ApplyState;
   /** Why the last Disconnect was refused (the worker's allow-matrix words), or null. */
   readonly disconnectRefused: string | null;
-  /** Firmware & Backups (SAFETY §4.8 as amended 2026-11-03): absent before the page loads its records. */
+  /** The Firmware and Backups tabs (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09): absent before the page loads its records. */
   readonly firmware?: FirmwareHubView;
 }
 
-/** What the Firmware and Firmware & Backups tabs show (firmware/hub.ts builds it). */
+/** What the Firmware and Backups tabs show (firmware/hub.ts builds it). */
 export interface FirmwareHubView {
   /** The release list this page verified for its own environment. */
   readonly releases: { readonly ok: true; readonly list: FirmwareReleases } | { readonly ok: false; readonly reason: string };
@@ -169,7 +169,7 @@ export interface LiveActions {
   readonly job?: (command: JobCommand) => Promise<string | null>;
   /** The Console command line's one read: an allowlisted GET through the worker's read path (live/consoleRead.ts). */
   readonly consoleRead: (token: string) => Promise<ConsoleAnswer>;
-  /** Firmware & Backups (SAFETY §4.8 as amended 2026-11-03). Absent without a worker. */
+  /** The Firmware and Backups tabs (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09). Absent without a worker. */
   readonly firmware?: FirmwareActions;
 }
 
