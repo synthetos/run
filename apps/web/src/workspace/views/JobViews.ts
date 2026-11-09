@@ -65,6 +65,9 @@ export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewP
   }, [send, ui.enabled, idle, hash, state.fileName, job?.hash, job?.phase, ui.active, s?.epoch]);
   // A new file starts with no confirmations.
   useEffect(() => setChoices(NO_CHOICES), [hash]);
+  // C40 is ticked for one finding (review S3): a new finding needs a new tick.
+  const travelText = job?.report?.travel?.confirm?.text ?? null;
+  useEffect(() => setChoices((c) => (c.travel ? { ...c, travel: false } : c)), [travelText]);
 
   const plan = useMemo(() => (key === null ? null : loadPlan(key)), [key, planTick]);
   const board = boardZero(s);
@@ -153,7 +156,7 @@ export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewP
           onConfirm: () => {
             setAsking(false);
             const breakpoints = key === null ? [] : [...loadBreakpoints(key)];
-            void send({ op: 'start', breakpoints, confirm: { unhomed: choices.unhomed || s?.live.home === 1, workZero: zeroDone, spindle: !startsSpindle || choices.spindle, travel: choices.travel } }).then(setNote);
+            void send({ op: 'start', breakpoints, confirm: { unhomed: choices.unhomed || s?.live.home === 1, workZero: zeroDone, spindle: !startsSpindle || choices.spindle, travel: choices.travel ? (job.report?.travel?.confirm?.text ?? null) : null } }).then(setNote);
           },
         })
       : null,

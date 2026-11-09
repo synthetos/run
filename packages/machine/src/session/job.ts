@@ -58,16 +58,13 @@ import {
 } from '@synthetos/safety';
 import { mapStat, type Dialect, type JsonObject, type JsonValue, type Response } from '@synthetos/protocol';
 import { isReadAllowed } from '@synthetos/schema';
-import { MOTION_LIMITS, atRestPolled, beginHold, clearMotionNotice, completedPoll, heldPolled, idleBase, motionCapable, requestPoll } from './motion.ts';
+import { MOTION_LIMITS, activeSystem, atRestPolled, beginHold, clearMotionNotice, completedPoll, heldPolled, idleBase, motionCapable, requestPoll } from './motion.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { ACTIVE_PHASES, failJob, jobActive, jobEvent, lastFileLine, patchJob, type JobTx } from './jobState.ts';
 import { ABSOLUTE_MM_LINE, motionLineKind, restoreLine, returnXYLine, safeZLine, spindleLine } from './motionLines.ts';
 import { queueModeReads } from './modes.ts';
 import { startModesStep, startNeeds } from './jobModes.ts';
 import { resumeTravel, travelOf, travelStartRefusal, withTravel } from './jobTravel.ts';
-
-/** The work offsets a re-zero changes; read again after a set zero (motion.ts read-back). */
-const OFFSET_TOKENS: readonly string[] = Object.freeze(['g54', 'g55', 'g56', 'g57', 'g58', 'g59', 'g92', 'ofs']);
 import { forgetBoardModes, noteModeRead } from './boardModes.ts';
 import type { Axis, Expected, FeedLimitState, FeedMove, FeedSummary, JobReportSummary, JobState, PendingRead, PolledValues, SessionConfig, SessionIntent, SessionState } from './types.ts';
 
@@ -500,6 +497,8 @@ function finishCheck(t: JobLayerTx, at: number): void {
     startFailed(t, at, modes.text);
     return;
   }
+  // OD-24 (review M1): the values this check uses, kept for the Resume re-check after a Z re-zero.
+  patchJob(t, { startValues: t.s.values });
   const { result, report } = sanitizeInto(t);
   if (report.blocked) {
     t.cancel('job');
@@ -509,7 +508,7 @@ function finishCheck(t: JobLayerTx, at: number): void {
     return;
   }
   // OD-24: a travel finding that appears only now (the board as read at Start) needs the C40 the Start did not carry.
-  const travel = travelStartRefusal(report, t.s.job?.travelConfirmed === true);
+  const travel = travelStartRefusal(report, t.s.job?.travelConfirmed);
   if (travel !== null) {
     startFailed(t, at, `The job did not start. ${travel}`);
     return;
@@ -539,7 +538,7 @@ export function onStartJob(t: JobLayerTx, request: Extract<SessionIntent, { inte
   if (s.live.home !== 1 && confirm.unhomed !== true) return deny('The machine is not homed.', 'Home the machine, or confirm that you have checked it (C36).');
   if (confirm.workZero !== true) return deny("The job's work zero is not confirmed.", 'Check the work zero against your plan (C31).');
   if (j.report?.startsSpindle === true && confirm.spindle !== true) return deny('This job starts the spindle.', 'Confirm the spindle start (C32).');
-  const travel = travelStartRefusal(j.report, confirm.travel === true);
+  const travel = travelStartRefusal(j.report, confirm.travel);
   if (travel !== null) return deny(travel, 'Check that the job fits the machine, then confirm C40.');
   const breakpoints = cleanBreakpoints(request.breakpoints);
   if (breakpoints === null) return deny('The breakpoints are not valid.', 'Set them again.');
@@ -572,7 +571,7 @@ export function onStartJob(t: JobLayerTx, request: Extract<SessionIntent, { inte
       faultStopAt: null,
       stopping: false,
       startModes: { needs: [], modes: [], written: false }, // decided again with the values read now (jobModes.ts)
-      travelConfirmed: confirm.travel === true,
+      ...(typeof confirm.travel === 'string' ? { travelConfirmed: confirm.travel } : {}),
       events: j.events,
     },
   });
@@ -1029,9 +1028,9 @@ function resumeToolChange(t: JobLayerTx, request: Extract<SessionIntent, { inten
   const s = t.s;
   const j = s.job as JobState;
   const tc = j.toolChange as NonNullable<JobState['toolChange']>;
-  // OD-24: offsets read again since the stop (the Z re-zero): the rest of the job is checked against the travel again.
-  const changed = OFFSET_TOKENS.some((k) => (s.values[k]?.at ?? -Infinity) > (tc.stoppedAt as number));
-  const travel = resumeTravel(s, j, changed, () => sanitizeLive(s, j.source.text, j.source.c22));
+  // OD-24: offsets read again since the stop (the Z re-zero): the rest of the job is checked against the travel again,
+  // from the values read at Start with only the re-zeroed Z offset changed (jobTravel.ts).
+  const travel = resumeTravel(s, j, activeSystem(s), (state) => sanitizeLive(state, j.source.text, j.source.c22));
   if (travel.refusal !== null) return deny(travel.refusal, 'Use Stop job to end the job.');
   if (travel.note !== null) jobEvent(t, at, 'warn', travel.note);
   const steps: { line: string; intent: Intent }[] = [];

@@ -393,6 +393,8 @@ export interface SessionNotices {
    * Reset with the other notices when the link ends.
    */
   readonly position?: { readonly by: 'homing' | 'hand'; readonly at: number };
+  /** Axes a homing cycle this connection sent homed, as read back, less those a G28.3 set by hand since (homedAxes.ts). */
+  readonly homedAxes?: readonly JogAxis[];
   /** Homing, set machine position and offsets (amendment 2026-11-02): the last result in plain words. */
   readonly change?: { readonly kind: 'done' | 'refused' | 'failed'; readonly text: string; readonly at: number };
   /** The last connect attempt failed before the port opened. */
@@ -616,8 +618,10 @@ export interface JobState {
    * OD-19: the modes the preview assumes that the file relies on (`needs`, found at the check), what Start decided
    * to write from the values it read (`modes`), and `written` once that line went into the queue (jobModes.ts).
    */
-  /** OD-24: the user confirmed C40 (the travel could not be confirmed) for this Start. */
-  readonly travelConfirmed?: boolean;
+  /** OD-24: the C40 finding the user confirmed for this Start, exactly as shown (review S3). */
+  readonly travelConfirmed?: string;
+  /** OD-24 (review M1): every value as read at Start, which the Resume re-check after a Z re-zero replays from. */
+  readonly startValues?: Readonly<Record<string, ReadValue>>;
   readonly startModes?: { readonly needs: readonly StartMode[]; readonly modes: readonly StartMode[]; readonly written: boolean };
 }
 
@@ -878,7 +882,7 @@ export type SessionIntent =
   /** Load a job (the file text, sanitised here with the live board's values), or unload it (`job: null`). */
   | { readonly intent: 'loadJob'; readonly job: { readonly name: string; readonly text: string; readonly c22: boolean } | null }
   /** Start the loaded job. `confirm`: the page's confirmations (C36 unhomed, C31 work zero, C32 spindle). */
-  | { readonly intent: 'startJob'; readonly breakpoints: readonly number[]; readonly confirm: { readonly unhomed: boolean; readonly workZero: boolean; readonly spindle: boolean; readonly travel?: boolean } }
+  | { readonly intent: 'startJob'; readonly breakpoints: readonly number[]; readonly confirm: { readonly unhomed: boolean; readonly workZero: boolean; readonly spindle: boolean; readonly travel?: string | null } }
   /** Resume a paused or stopped job. `skip`: continue past a refused line (C33). `spindleRestart`: C35 accepted. */
   | { readonly intent: 'resume'; readonly skip?: boolean; readonly spindleRestart?: boolean }
   | { readonly intent: 'jobBreakpoints'; readonly lines: readonly number[] }

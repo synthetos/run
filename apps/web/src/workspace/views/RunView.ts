@@ -28,7 +28,7 @@ import { readStored, writeStored } from '../storage.ts';
 import { belowStrip, CheckRow, ConfirmCard, IconButton, TabBar, TabPane } from '../ui.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { goToZeroSafeZ } from '../safeZ.ts';
-import { TC_GO_REASON, TC_OFFSET_REASON, atToolChange, zeroBlocked } from '../toolChangeControls.ts';
+import { TC_GO_REASON, TC_OFFSET_REASON, atToolChange, jogBlocked, zeroBlocked } from '../toolChangeControls.ts';
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
 import { HomeSection, HomeQuick, UnknownExits } from '../homing.ts';
 import { ProbeZ } from '../probe/ProbeZ.ts';
@@ -287,7 +287,7 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
   const zNow = machineZ(view);
   const ztm = typeof settings['ztm'] === 'number' ? (settings['ztm'] as number) : null;
   // OD-23: lift to ztm − 1 only after a homing seen in this connection (safeZ.ts).
-  const { safe, handSet } = goToZeroSafeZ({ homed: ui.homed, positionBy: m?.snapshot.notices.position?.by, ztm, zNow });
+  const { safe, handSet } = goToZeroSafeZ({ homed: ui.homed, zHomedHere: (m?.snapshot.notices.homedAxes ?? []).includes('z'), ztm, zNow });
   type Confirm = { readonly kind: 'set' | 'go'; readonly axes: readonly MotionAxis[] } | null;
   const [confirm, setConfirm] = hk.state<Confirm>(null);
   const [note, setNote] = hk.state<string | null>(null);
@@ -525,7 +525,8 @@ function jogBody({ model, onGoToZero }: JogProps, hk: Hooks): ComponentChild {
         'aria-label': label,
         key: label,
         'data-machine-control': 'jog',
-        ...(live ? { onPointerDown: press(axes), onPointerUp: () => controller.release(), onLostPointerCapture: () => controller.release() } : { disabled: true }),
+        ...(jogBlocked(view?.message?.snapshot, axes) === null ? {} : { title: jogBlocked(view?.message?.snapshot, axes) as string }),
+        ...(live && jogBlocked(view?.message?.snapshot, axes) === null ? { onPointerDown: press(axes), onPointerUp: () => controller.release(), onLostPointerCapture: () => controller.release() } : { disabled: true }),
       },
       text,
     );
@@ -638,7 +639,7 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
   const ztm = typeof settings['ztm'] === 'number' ? (settings['ztm'] as number) : null;
   const [safeZ, setSafeZ] = hk.state<number | null>(null);
   // OD-23: lift to ztm − 1 only after a homing seen in this connection (safeZ.ts).
-  const planned = goToZeroSafeZ({ homed: ui.homed, positionBy: view?.message?.snapshot.notices.position?.by, ztm, zNow });
+  const planned = goToZeroSafeZ({ homed: ui.homed, zHomedHere: (view?.message?.snapshot.notices.homedAxes ?? []).includes('z'), ztm, zNow });
   const safe = safeZ ?? planned.safe;
   const handSet = safeZ === null && planned.handSet;
   type Confirm = { readonly kind: 'set' | 'go' | 'temp'; readonly axes: readonly MotionAxis[] } | { readonly kind: 'clear' } | { readonly kind: 'system'; readonly n: number } | null;

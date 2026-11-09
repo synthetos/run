@@ -70,6 +70,7 @@ import {
 } from './motionLines.ts';
 import { queueModeReads } from './modes.ts';
 import { noteAlarmEnded, onAlarmEntered, onClearAnswered } from './alarmRestore.ts';
+import { noteHomed, noteSetByHand } from './homedAxes.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './jobState.ts';
 import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, PolledValues, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
@@ -139,6 +140,8 @@ const ALLOWED: Decision = Object.freeze({ allowed: true });
 
 /** Why only Z may be zeroed at a manual tool change (H74); the page shows the same words. */
 export const TOOL_CHANGE_ZERO = "At a tool change only Z can be re-zeroed, for the new tool's length.";
+/** Why A is not jogged at a manual tool change: Resume returns X, Y and Z only. */
+export const TOOL_CHANGE_JOG_A = 'At a tool change A is not jogged: Resume returns X, Y and Z to where the job stopped, not A.';
 
 function deny(reason: string, remedy: string): Decision {
   return { allowed: false, reason, remedy, citation: 'SAFETY §4.5b' };
@@ -329,6 +332,8 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       if (pre !== undefined) return pre;
       const { axes, distanceMm, feed } = request;
       if (!validAxes(axes)) return deny('A jog names one or more of X, Y, Z and A, each + or −.', 'Choose an axis.');
+      // Review N2 (2026-11-08): Resume returns X, Y and Z to where the job stopped, never A.
+      if (s.job?.phase === 'toolChange' && axes.a !== undefined) return deny(TOOL_CHANGE_JOG_A, 'Jog X, Y or Z, or stop the job.');
       if (typeof feed !== 'number' || !Number.isFinite(feed) || feed < 1 || feed > MOTION_LIMITS.maxFeed) return deny(`Jog speed must be 1 to ${MOTION_LIMITS.maxFeed} mm/min.`, 'Choose another jog speed.');
       if (distanceMm !== null && (typeof distanceMm !== 'number' || !Number.isFinite(distanceMm) || distanceMm < 0.001 || distanceMm > MOTION_LIMITS.maxStepMm)) {
         return deny(`A jog step is 0.001 to ${MOTION_LIMITS.maxStepMm} mm.`, 'Choose another step.');
@@ -730,6 +735,7 @@ function complete(t: MotionTx, at: number): void {
   t.cancel('motion');
   if (ctx.op === 'change' && ctx.reason === null && ctx.refusal === null) {
     const change = ctx.change as ChangeKind;
+    if (change === 'setPosition') noteSetByHand(t, ctx.axes as readonly JogAxis[]);
     readBack(t, CHANGE_READBACK[change](t.s), change === 'setPosition' ? 'positionSet' : undefined);
     changeNotice(t, 'done', CHANGE_DONE[change](axisNames(ctx.axes as readonly JogAxis[])), at);
   }
@@ -762,6 +768,7 @@ export function onFollowUp(t: MotionTx, then: FollowUp, at: number): void {
   if (homed) t.set({ notices: { ...t.s.notices, position: { by: then === 'homed' ? 'homing' : 'hand', at } } });
   const ctx = s.motion;
   if (then === 'homed' && ctx !== null && ctx.op === 'home' && ctx.phase === 'readback') {
+    noteHomed(t, ctx.axes as readonly JogAxis[]); // S2: known per axis, from the read-back (homedAxes.ts)
     const axes = axisNames(ctx.axes as readonly JogAxis[]);
     t.set({ motion: null });
     changeNotice(t, homed ? 'done' : 'failed', homed ? `Homed ${axes}. Machine position is set from the switches.` : `Homing of ${axes} ended, but the board does not report X, Y and Z all homed.`, at);

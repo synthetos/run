@@ -20,6 +20,13 @@ export function atToolChange(s: Snapshot | null | undefined): boolean {
   return s !== null && s !== undefined && s.base === 'PROGRAM_PAUSED' && s.job?.phase === 'toolChange';
 }
 
+export const TC_JOG_A_REASON = 'At a tool change A is not jogged: Resume returns X, Y and Z to where the job stopped, not A.';
+
+/** Why a jog of `axes` is not offered now, or null (review N2). */
+export function jogBlocked(s: Snapshot | null | undefined, axes: Readonly<Partial<Record<MotionAxis, 1 | -1>>>): string | null {
+  return atToolChange(s) && axes.a !== undefined ? TC_JOG_A_REASON : null;
+}
+
 /** Why Set zero on `axes` is not offered now, or null. */
 export function zeroBlocked(s: Snapshot | null | undefined, axes: readonly MotionAxis[]): string | null {
   return atToolChange(s) && !(axes.length === 1 && axes[0] === 'z') ? TC_ZERO_REASON : null;

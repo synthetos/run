@@ -6,7 +6,7 @@ import { PHASE_2_RELEASE, w42 } from '@synthetos/safety';
 import type { TinyGEdgeNextModel } from '@synthetos/testkit';
 import { describe, expect, it } from 'vitest';
 import { JOB_LIMITS, feedAccountingSafe, jobInFlight } from '../src/index.ts';
-import { CONFIRM, JOBS_RELEASE_NO_FI, jobHarness, jobLines, load, runUntil, start, writes, zigzag } from './jobHarness.ts';
+import { confirmFor, JOBS_RELEASE_NO_FI, jobHarness, jobLines, load, runUntil, start, writes, zigzag } from './jobHarness.ts';
 
 const SMALL = ['G21 G90', 'G0 X1 Y1', 'G1 X5 F600', 'G1 Y5', 'G1 X1', 'G1 Y1', 'G0 X0 Y0', 'M30'].join('\n');
 
@@ -35,7 +35,7 @@ describe('T-S108: loading a job sanitises it in the worker with the live board',
     const job = h.session.snapshot.job;
     expect(job?.phase).toBe('blocked');
     expect(job?.report?.blocks[0]?.line).toBe(2);
-    expect(h.session.startJob([], CONFIRM)).toMatchObject({ allowed: false, reason: 'The check found something that stops this file.' });
+    expect(h.session.startJob([], confirmFor(h))).toMatchObject({ allowed: false, reason: 'The check found something that stops this file.' });
   });
 
   it('M6 is a manual tool-change stop on edge-next (INFO), not a block', async () => {

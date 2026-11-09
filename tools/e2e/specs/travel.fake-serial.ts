@@ -29,7 +29,7 @@ test('a file past the X travel on a board not homed by a cycle asks C40 before S
   await connect(page);
   await open(page, 'G21 G90\nG1 X200 F600\nM30\n', 'past-x.nc');
   const c40 = page.locator('[data-safety="C40"]');
-  await expect(c40).toContainText("Run cannot check this job against the machine's travel: line 2: X would reach machine 200 mm, beyond its travel limit of 150 mm, and the machine position was not set by a homing cycle in this connection. Start only if you have checked that every move fits the machine.");
+  await expect(c40).toContainText("Run cannot check this job against the machine's travel: line 2: X would reach machine 200 mm, beyond its travel limit of 150 mm, and the X position was not set by a homing cycle in this connection. Start only if you have checked that every move fits the machine.");
   for (const box of ['confirm-unhomed', 'confirm-zero', 'confirm-attended']) {
     const el = page.locator(`[data-job="${box}"]`);
     if ((await el.count()) > 0) await el.check();

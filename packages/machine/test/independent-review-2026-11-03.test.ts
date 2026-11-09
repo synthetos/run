@@ -22,7 +22,7 @@ import { onJobAnswer, onJobMotionAnswer, onJobMotionTimeout, onJobPoll, onJobPre
 import { ABSOLUTE_MM_LINE, UNITS_LINE, jogLine, safeZLine } from '../src/session/motionLines.ts';
 import { completedPoll, onPollDone, type MotionTx } from '../src/session/motion.ts';
 import { DEFAULT_TIMINGS } from '../src/session/types.ts';
-import { CONFIRM, EN_APPROVED, JOBS_RELEASE, jobHarness, load, runUntil, start, writes, zigzag } from './jobHarness.ts';
+import { CONFIRM, confirmFor, EN_APPROVED, JOBS_RELEASE, jobHarness, load, runUntil, start, writes, zigzag } from './jobHarness.ts';
 import { Driver, EN_ANSWERS } from './sessionDriver.ts';
 import { harness, type Harness } from './sessionHarness.ts';
 import { PORT } from './simTransport.ts';
@@ -294,7 +294,7 @@ describe('R3: Start reads the board again and checks the file again before anyth
     expect(h.session.request({ intent: 'jog', axes: { x: 1 }, distanceMm: 100, feed: 5000 })).toEqual({ allowed: true });
     await runUntil(h, () => h.session.state.motion === null, 15_000);
     expect(h.device.snapshot().position[0]).toBeCloseTo(100);
-    expect(h.session.startJob([], CONFIRM)).toEqual({ allowed: true });
+    expect(h.session.startJob([], confirmFor(h))).toEqual({ allowed: true });
     expect(h.session.state.job?.phase).toBe('checking');
     await runUntil(h, () => h.session.state.job?.phase !== 'checking', 10_000);
     expect(h.session.state.job?.phase).toBe('preparing');
@@ -338,7 +338,7 @@ describe('R3: Start reads the board again and checks the file again before anyth
     expect(h.session.snapshot.job?.message).toBe('Stopped before the first line: nothing was sent.');
     // Start again (a stopped job): checked again, then run to the end.
     const again = writes(h).length;
-    expect(h.session.startJob([], CONFIRM)).toEqual({ allowed: true });
+    expect(h.session.startJob([], confirmFor(h))).toEqual({ allowed: true });
     expect(h.session.state.job?.phase).toBe('checking');
     await runUntil(h, () => h.session.snapshot.job?.phase === 'done', 30_000);
     expect(writes(h).slice(again).filter((w) => w.startsWith('N'))).toHaveLength(h.session.snapshot.job?.total as number);
@@ -360,7 +360,7 @@ describe('R3: Start reads the board again and checks the file again before anyth
   it('a finished job started again is checked again first; a prep read that times out while checking ends the start', async () => {
     const h = await jobHarness({ rxm: 1 });
     await finished(h, 'G21 G90\nG1 X1 F600\nG1 X0\nM30');
-    expect(h.session.startJob([], CONFIRM)).toEqual({ allowed: true });
+    expect(h.session.startJob([], confirmFor(h))).toEqual({ allowed: true });
     expect(h.session.state.job?.phase).toBe('checking');
     await runUntil(h, () => h.session.snapshot.job?.phase === 'done', 30_000);
     expect(h.session.snapshot.job?.phase).toBe('done');

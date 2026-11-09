@@ -3,12 +3,12 @@
  * zero, the temporary offsets and the coordinate system are disabled with their reasons. The session refuses them
  * again (packages/machine job-start-modes / tool-change tests).
  */
-import { TOOL_CHANGE_ZERO } from '@synthetos/machine';
+import { TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from '@synthetos/machine';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { describe, expect, it } from 'vitest';
 import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveActions, type LiveView } from '../src/workspace/model.ts';
-import { TC_GO_REASON, TC_OFFSET_REASON, TC_ZERO_REASON, atToolChange, zeroBlocked } from '../src/workspace/toolChangeControls.ts';
+import { TC_GO_REASON, TC_JOG_A_REASON, TC_OFFSET_REASON, TC_ZERO_REASON, atToolChange, jogBlocked, zeroBlocked } from '../src/workspace/toolChangeControls.ts';
 import { ZeroSection } from '../src/workspace/views/RunView.ts';
 
 type Snapshot = NonNullable<LiveView['message']>['snapshot'];
@@ -63,6 +63,10 @@ describe('the Zero panel at a manual tool change', () => {
 
   it('the rules and the session share the reason', () => {
     expect(TC_ZERO_REASON).toBe(TOOL_CHANGE_ZERO);
+    expect(TC_JOG_A_REASON).toBe(TOOL_CHANGE_JOG_A);
+    expect(jogBlocked(snap('PROGRAM_PAUSED', 'toolChange'), { a: 1 })).toBe(TC_JOG_A_REASON);
+    expect(jogBlocked(snap('PROGRAM_PAUSED', 'toolChange'), { z: 1 })).toBeNull();
+    expect(jogBlocked(snap('IDLE_HOMED', null), { a: 1 })).toBeNull();
     const tc = snap('PROGRAM_PAUSED', 'toolChange');
     expect(atToolChange(tc)).toBe(true);
     expect(atToolChange(snap('PROGRAM_PAUSED', 'breakpoint'))).toBe(false);

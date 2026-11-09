@@ -12,7 +12,7 @@ import { forecastStartModes, jobModesWritableIn, planStartModes, startModesLine,
 import { liveStart, onJobMotionAnswer, onJobMotionTimeout, onJobPrepAnswer, onJobStop, type JobLayerTx } from '../src/session/job.ts';
 import { checkAlarm, type MotionTx } from '../src/session/motion.ts';
 import { DEFAULT_TIMINGS, type SessionState } from '../src/session/types.ts';
-import { EN_APPROVED, JOBS_RELEASE, CONFIRM, jobLines, load, runUntil, writes } from './jobHarness.ts';
+import { EN_APPROVED, JOBS_RELEASE, confirmFor, jobLines, load, runUntil, writes } from './jobHarness.ts';
 import { harness, type Harness } from './sessionHarness.ts';
 import { PORT } from './simTransport.ts';
 
@@ -45,7 +45,7 @@ async function startAndRun(h: Harness, text: string): Promise<number> {
   await load(h, text);
   expect(h.session.snapshot.job?.report?.blocks).toEqual([]);
   const from = writes(h).length;
-  expect(h.session.startJob([], CONFIRM)).toEqual({ allowed: true });
+  expect(h.session.startJob([], confirmFor(h))).toEqual({ allowed: true });
   await runUntil(h, () => h.session.snapshot.job?.phase === 'done' || h.session.snapshot.job?.phase === 'failed', 30_000);
   return from;
 }
@@ -58,7 +58,7 @@ describe('job start: the modes the preview assumes', () => {
     // The check already says what Start will write.
     expect(h.session.snapshot.job?.startModes).toBe('Run sets absolute mode before the first line, as the preview shows.');
     const from = writes(h).length;
-    expect(h.session.startJob([], CONFIRM)).toEqual({ allowed: true });
+    expect(h.session.startJob([], confirmFor(h))).toEqual({ allowed: true });
     await runUntil(h, () => h.session.snapshot.job?.phase === 'done', 30_000);
     const w = lines(h, from);
     expect(w[0]).toBe('G90');
@@ -112,7 +112,7 @@ describe('job start: the modes the preview assumes', () => {
     await load(h, 'G0 X0 Y0\nG2 X10 Y0 I5 J0 F600\nM30');
     expect(h.session.snapshot.job?.startModes).toBe('Run sets absolute mode, millimetres and the XY plane before the first line, as the preview shows.');
     const from = writes(h).length;
-    h.session.startJob([], CONFIRM);
+    h.session.startJob([], confirmFor(h));
     await runUntil(h, () => h.session.snapshot.job?.phase === 'done', 30_000);
     expect(lines(h, from)[0]).toBe('G90 G21 G17');
     expect(h.device.snapshot().position[0]).toBeCloseTo(10, 2);
@@ -131,7 +131,7 @@ describe('the start-modes step when the board does not take them', () => {
   async function writingG90(): Promise<Harness> {
     const h = await leftIn(['G21 G91']);
     await load(h, 'G1 X5 F600\nM30');
-    h.session.startJob([], CONFIRM);
+    h.session.startJob([], confirmFor(h));
     expect(await runUntil(h, () => h.session.state.job?.startModes?.written === true, 5000, 1)).toBe(true);
     return h;
   }
@@ -167,7 +167,7 @@ describe('N5: the board modes while a job runs', () => {
   it('unknown again when a job resumes after a tool change (the jog set them meanwhile)', async () => {
     const h = await leftIn([]);
     await load(h, 'G21 G90\nG1 X2 F600\nT1 M6\nG1 X0\nM30');
-    h.session.startJob([], CONFIRM);
+    h.session.startJob([], confirmFor(h));
     await runUntil(h, () => h.session.snapshot.job?.phase === 'toolChange', 20_000);
     h.session.request({ intent: 'jog', axes: { z: 1 }, distanceMm: 1, feed: 600 });
     await runUntil(h, () => h.session.state.motion === null && h.session.snapshot.base === 'PROGRAM_PAUSED', 10_000);
@@ -182,7 +182,7 @@ describe('M1: every value the check uses is read again after the start modes', (
   it('a board in G20 with G54 and G55 offsets: after G21 the check uses them in mm, with no false tool offset', async () => {
     const h = await leftIn(['G20', 'G10 L2 P1 X2', 'G10 L2 P2 Y1']);
     await load(h, 'G90\nG1 X5 F600\nG55\nG1 X1 Y1\nM30');
-    h.session.startJob([], CONFIRM);
+    h.session.startJob([], confirmFor(h));
     await runUntil(h, () => ['running', 'done', 'failed', 'blocked'].includes(h.session.state.job?.phase ?? ''), 10_000, 1);
     const start = liveStart(h.session.state);
     expect(start.units).toBe('G21');

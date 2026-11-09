@@ -38,8 +38,15 @@ export function jobLines(h: Harness, from = 0): string[] {
     .filter((w) => w.startsWith('N'));
 }
 
-// `travel`: C40 (OD-24); the model boards are not homed by a cycle, so a file near or past the travel asks for it.
-export const CONFIRM = Object.freeze({ unhomed: true, workZero: true, spindle: true, travel: true });
+export const CONFIRM = Object.freeze({ unhomed: true, workZero: true, spindle: true, travel: null });
+
+/**
+ * CONFIRM with C40 given for the finding the loaded job shows, if any (OD-24, review S3: the tick names its finding).
+ * The model boards are never homed by a cycle, so a file near or past the travel asks for it.
+ */
+export function confirmFor(h: Harness): { readonly unhomed: true; readonly workZero: true; readonly spindle: true; readonly travel: string | null } {
+  return { ...CONFIRM, travel: h.session.snapshot.job?.report?.travel?.confirm?.text ?? null };
+}
 
 export async function load(h: Harness, text: string, name = 'part.nc'): Promise<void> {
   expect(h.session.loadJob({ name, text })).toEqual({ allowed: true });
@@ -50,7 +57,7 @@ export async function start(h: Harness, text: string, breakpoints: readonly numb
   await load(h, text);
   expect(h.session.snapshot.job?.report?.blocks).toEqual([]);
   const from = writes(h).length;
-  expect(h.session.startJob(breakpoints, CONFIRM)).toEqual({ allowed: true });
+  expect(h.session.startJob(breakpoints, confirmFor(h))).toEqual({ allowed: true });
   return from;
 }
 

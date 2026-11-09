@@ -292,7 +292,7 @@ export class MachineSession {
   }
 
   /** Phase 3: start the loaded job, with the page's breakpoints and confirmations. */
-  startJob(breakpoints: readonly number[], confirm: { readonly unhomed: boolean; readonly workZero: boolean; readonly spindle: boolean; readonly travel?: boolean }): Decision {
+  startJob(breakpoints: readonly number[], confirm: { readonly unhomed: boolean; readonly workZero: boolean; readonly spindle: boolean; readonly travel?: string | null }): Decision {
     return this.#intent({ intent: 'startJob', breakpoints: [...breakpoints], confirm: { ...confirm } });
   }
 

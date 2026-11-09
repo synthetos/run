@@ -22,29 +22,82 @@ export function travelOf(s: SessionState, result: SanitizeResult, fromLine = 1):
 }
 
 /** Why Start may not go on for the travel check: C40 not confirmed when the check asks for it, else null. */
-export function travelStartRefusal(report: JobReportSummary | null, confirmed: boolean): string | null {
+/**
+ * Why Start may not go on for the travel check, or null: C40 is asked and the page did not confirm exactly that
+ * finding (review S3: the tick names the finding it was given for; a finding that changed needs a new tick).
+ */
+export function travelStartRefusal(report: JobReportSummary | null, confirmed: string | null | undefined): string | null {
   const c = report?.travel?.confirm ?? null;
-  return c !== null && !confirmed ? `The job could not be checked against the machine's travel: ${c.text}. Confirm C40 to start.` : null;
+  if (c === null || confirmed === c.text) return null;
+  return `The job could not be checked against the machine's travel: ${c.text}. Confirm C40 to start.`;
+}
+
+/** The work offsets a re-zero changes; read again after a set zero (motion.ts read-back). */
+const OFFSET_TOKENS: readonly string[] = Object.freeze(['g54', 'g55', 'g56', 'g57', 'g58', 'g59', 'g92', 'ofs']);
+
+type Values = SessionState['values'];
+
+function zOf(values: Values, token: string): number | null {
+  const v = values[token];
+  if (v === undefined || v.status !== 0 || typeof v.value !== 'object' || v.value === null || Array.isArray(v.value)) return null;
+  const z = (v.value as Record<string, unknown>)['z'];
+  return typeof z === 'number' && Number.isFinite(z) ? z : null;
+}
+
+function withZ(values: Values, token: string, z: number): Values {
+  const v = values[token] as NonNullable<Values[string]>;
+  return { ...values, [token]: { ...v, value: { ...(v.value as Record<string, unknown>), z } as never } };
+}
+
+/**
+ * The values to check the rest of the job with after a Z re-zero at a tool change (independent review 2026-11-08,
+ * M1): every value as read at Start, but the Z offset of the system re-zeroed at the change (the one active then)
+ * taken from its read-back, and the total offset moved by the same amount when that system was the one active at
+ * Start, so the tool offset and G92 stay as at Start. Null with the reason when that cannot be done exactly.
+ */
+function replayValues(s: SessionState, j: JobState, system: number | null): { readonly values: Values } | { readonly refusal: string } {
+  const start = j.startValues;
+  const tc = j.toolChange as NonNullable<JobState['toolChange']>;
+  const cannot = (why: string): { readonly refusal: string } => ({ refusal: `The work offsets changed at the tool change and the rest of the job cannot be checked again: ${why}.` });
+  if (start === undefined || system === null) return cannot('the active coordinate system is not known');
+  const token = `g${53 + system}`;
+  const now = s.values[token];
+  if (now === undefined || now.at <= (tc.stoppedAt as number)) return cannot(`the ${token.toUpperCase()} offset was not read again after the change`);
+  const newZ = zOf(s.values, token);
+  const oldZ = zOf(start, token);
+  if (newZ === null || oldZ === null) return cannot(`the ${token.toUpperCase()} Z offset was not read`);
+  if (tc.units !== start['unit']?.value) return cannot('the board is in other units than when the job was checked');
+  // Which axes are homed is a fact of now, not of Start (homedAxes.ts).
+  let values: Values = { ...withZ(start, token, newZ), ...(s.values['hom'] === undefined ? {} : { hom: s.values['hom'] }) };
+  if (start['coor']?.value === system) {
+    const ofsZ = zOf(start, 'ofs');
+    if (ofsZ === null) return cannot('the total offset was not read at Start');
+    values = withZ(values, 'ofs', ofsZ + (newZ - oldZ));
+  }
+  return { values };
 }
 
 /**
  * Resume at a tool change after the work offsets were read again since the stop (the Z re-zero, H74): the lines from
- * the tool change on are checked again against the new offsets. Known position and a move past travel: refused (Stop
- * job is the way out). A limit or a position not read: refused. A move past travel with the position not known:
- * allowed, the finding said in the job's events (C40 was confirmed at Start).
- * Returns the refusal reason, the note to log, or neither.
+ * the tool change on are checked again (replayValues). Refused when the check cannot run exactly, when it blocks a
+ * line (M2), when a limit or position is not read, when a move leaves the travel with the position known, and when
+ * it leaves the travel with the position not known but C40 was not confirmed at Start (S1). Otherwise allowed, a
+ * move past travel with C40 confirmed said in the job's events. Returns the refusal reason, the note to log, or neither.
  */
-export function resumeTravel(s: SessionState, j: JobState, offsetsChanged: boolean, recheck: () => SanitizeResult): { readonly refusal: string | null; readonly note: string | null } {
-  if (!offsetsChanged) return { refusal: null, note: null };
-  // Called only at a tool change, whose line was sent up to.
+export function resumeTravel(s: SessionState, j: JobState, system: number | null, recheck: (state: SessionState) => SanitizeResult): { readonly refusal: string | null; readonly note: string | null } {
   const tc = j.toolChange as NonNullable<JobState['toolChange']>;
-  if (tc.units !== s.values['unit']?.value) {
-    return { refusal: 'The work offsets changed at the tool change and the board is in other units than when the job was checked, so the rest of the job cannot be checked again.', note: null };
-  }
+  if (!OFFSET_TOKENS.some((k) => (s.values[k]?.at ?? -Infinity) > (tc.stoppedAt as number))) return { refusal: null, note: null };
+  const replay = replayValues(s, j, system);
+  if ('refusal' in replay) return { refusal: replay.refusal, note: null };
+  const state = { ...s, values: replay.values };
+  const result = recheck(state);
+  const blocked = result.report.entries.find((e) => e.severity === 'block');
+  if (blocked !== undefined) return { refusal: `With the new Z zero the rest of the job cannot be checked again: line ${blocked.line}: ${blocked.message}.`, note: null };
   const fromLine = (j.lines[tc.index] as JobState['lines'][number]).sourceLine;
-  const travel = travelOf(s, recheck(), fromLine);
+  const travel = travelOf(state, result, fromLine);
   if (travel.block !== null) return { refusal: `With the new Z zero, ${travel.block.text}. Re-zero Z again, or stop the job.`, note: null };
   // Could not run (a limit or a position not read): refused, never guessed.
   if (travel.confirm !== null && travel.confirm.kind === 'unchecked') return { refusal: `With the new Z zero the rest of the job cannot be checked against the travel: ${travel.confirm.text}.`, note: null };
+  if (travel.confirm !== null && j.travelConfirmed === undefined) return { refusal: `With the new Z zero, ${travel.confirm.text}; C40 was not confirmed at Start. Re-zero Z again, or stop the job.`, note: null };
   return { refusal: null, note: travel.confirm === null ? null : `With the new Z zero, ${travel.confirm.text}; the travel was confirmed at Start (C40).` };
 }
