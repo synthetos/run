@@ -41,7 +41,7 @@ test('Set machine zero here (G28.3) is "Position set by hand" in amber, never "H
   await expect(page.locator('[data-safety="C16"]')).toContainText("Set X, Y and Z zero at the tool's current position?");
   await expect(page.locator('[data-safety="C16"] [data-confirm="work-zero-details"]')).toHaveCount(0);
   await page.locator('[data-safety="C16"] [data-action="motion-cancel"]').click();
-  await page.getByRole('button', { name: 'Set the machine zero here, without homing' }).click();
+  await page.getByRole('button', { name: 'Set machine zero here, without homing' }).click();
   // C26 (owner, 2026-11-09): plain wording.
   await expect(page.locator('[data-safety="C26"]')).toHaveText(/^Set the machine's position to 0 here, without moving\? Use this only on a machine without homing switches, with each axis where you want machine zero\. If this spot is wrong, the travel limits and every move after it are wrong too\./);
   await page.locator('[data-region="home-quick"] button', { hasText: 'Set machine position' }).click();

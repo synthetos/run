@@ -22,7 +22,7 @@ test('Run names Place job’s planned zero and the difference from the board’s
   await expect(zero).toContainText('The machine position is not set (not homed)');
   await expect(zero).not.toContainText('No plan is recorded');
   // Set the machine position here (G28.3): machine coordinates now relate to the bed, so the distance is known.
-  await page.getByRole('button', { name: 'Set the machine zero here, without homing' }).click();
+  await page.getByRole('button', { name: 'Set machine zero here, without homing' }).click();
   await page.locator('[data-region="home-quick"] button', { hasText: 'Set machine position' }).click();
   await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_HOMED');
   await expect(zero).toContainText(/Work zero Z is \d+\.\d mm (above|below) the top of the stock you planned\./);

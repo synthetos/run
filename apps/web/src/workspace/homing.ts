@@ -111,7 +111,7 @@ function homeBody({ model }: HomeProps, hk: Hooks): ComponentChild {
       { class: 'motion-recovery' },
       button('Home all', `Home all configured axes${hv.configured.length > 0 ? ` (${axesText(hv.configured)})` : ''}`, () => setAsking({ kind: 'home', axes: hv.configured }), hv.configured.length > 0, 'small primary', 'No axis has a homing switch and search speed set.'),
       // For a machine without switches, or before its homing settings are read: offered whenever the machine is at rest (OD-13 §4).
-      button('Set machine zero here…', 'Set the machine zero here, without homing', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true),
+      button('Set machine zero here…', 'Set machine zero here, without homing', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true),
     ),
     enabled && hv.read && hv.configured.length === 0 ? h(HomingOffNote, null) : null,
     enabled ? confirmFor(asking, hv, run, () => setAsking(null)) : null,
@@ -143,7 +143,7 @@ function homeQuickBody({ model }: HomeProps, hk: Hooks): ComponentChild {
       'div',
       { class: 'motion-recovery' },
       quick('home', `Home all configured axes${hv.configured.length > 0 ? ` (${axesText(hv.configured)})` : ''}`, 'Home', () => setAsking({ kind: 'home', axes: hv.configured }), hv.configured.length > 0, 'No axis has a homing switch and search speed set.', true),
-      quick('machineZero', 'Set the machine zero here, without homing', 'Set machine zero', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true, null, false),
+      quick('machineZero', 'Set machine zero here, without homing', 'Set machine zero', () => setAsking({ kind: 'position', axes: POSITION_AXES }), true, null, false),
     ),
     // C17: the reason Home is off, as text with the way to set it up, not only the button's hover tip.
     enabled && hv.read && hv.configured.length === 0 ? h(HomingOffNote, null) : null,
