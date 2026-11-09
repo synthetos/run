@@ -467,4 +467,6 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 
 **Review fixes (2026-11-08).** An independent review of the first build found that the Resume re-check mixed values read at Start with values read at the change and could pass a re-check it could not run; it now replays from the Start values with only the re-zeroed Z offset replaced, and refuses whatever it cannot check. "Position known" is decided per axis (an axis homed by a cycle this connection saw), the same rule OD-23's Z lift now uses (Z homed this connection).
 
+**C36 and C40 (owner, 2026-11-08).** "One box when both apply": when C40 is asked because a move leaves the travel of an axis whose position is not known and the board is not homed, the one box reads C40's sentence followed by C36's (both owner-approved, unchanged), so nothing C36 asserts is lost, and its tick confirms both. C36 stays alone when the job fits, and next to C40 when C40 is asked because a limit or a position was not read.
+
 **C40 wording (owner, 2026-11-08).** "Approve as written": "Run cannot check this job against the machine's travel: <why>. Start only if you have checked that every move fits the machine." 

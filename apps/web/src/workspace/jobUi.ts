@@ -14,6 +14,7 @@
  */
 import type { SnapshotMessage } from '../machine-worker/rpc.ts';
 import type { LiveView } from './model.ts';
+import { startTicks } from './startTicks.ts';
 import { readStored, writeStored, type StorageLike } from './storage.ts';
 
 type Snapshot = SnapshotMessage['snapshot'];
@@ -159,11 +160,13 @@ export function startBlockers(ui: JobUi, file: { readonly name: string | null; r
   if (file.name === null) out.push({ id: 'file', text: 'Open a G-code file.' });
   else if (job === null || job.hash !== file.hash || job.phase === 'loading') out.push({ id: 'check', text: 'The file is being checked with this board.' });
   else if (job.report?.blocked === true) out.push({ id: 'blocked', text: `The check found ${job.report.counts.block} ${job.report.counts.block === 1 ? 'finding that stops' : 'findings that stop'} this file.` });
-  if (s.live.home !== 1 && !choices.unhomed) out.push({ id: 'homed', text: 'The machine is not homed: home it, or confirm you have checked it.' });
+  const ticks = startTicks(s.live.home === 1, job?.report?.travel?.confirm ?? null);
+  if (ticks.includes('c36') && !choices.unhomed) out.push({ id: 'homed', text: 'The machine is not homed: home it, or confirm you have checked it.' });
+  if (ticks.includes('c40c36') && !(choices.travel && choices.unhomed)) out.push({ id: 'travel', text: 'Confirm the job fits the machine’s travel and that you have checked the machine (it is not homed).' });
   if (zero.state === 'unknown') out.push({ id: 'zero', text: zero.text });
   else if (zero.state === 'differs' && !choices.workZero) out.push({ id: 'zero', text: 'Confirm the work zero (it is not your plan’s).' });
   if (job?.report?.startsSpindle === true && !choices.spindle) out.push({ id: 'spindle', text: 'Confirm the spindle start.' });
-  if ((job?.report?.travel?.confirm ?? null) !== null && !choices.travel) out.push({ id: 'travel', text: 'Confirm the job fits the machine’s travel (it could not be checked).' });
+  if (ticks.includes('c40') && !choices.travel) out.push({ id: 'travel', text: 'Confirm the job fits the machine’s travel (it could not be checked).' });
   if (!choices.attended) out.push({ id: 'attended', text: 'Confirm screen lock and sleep are off and you will stay at the machine.' });
   return out;
 }

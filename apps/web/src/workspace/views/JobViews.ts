@@ -25,6 +25,7 @@ import { boardZero, bytesText, duration, jobUi, loadPlan, savePlan, startBlocker
 import { activeJob } from '../jobModel.ts';
 import { positionEstablished } from '../../preview/livePlacement.ts';
 import { runZeroCheck, setupPlan } from '../zeroPlan.ts';
+import { startTicks } from '../startTicks.ts';
 import type { StopHooks } from './JobStatusCard.ts';
 import { checkedText } from '../lineWords.ts';
 
@@ -124,13 +125,22 @@ export function JobSteps({ parts, model, onAnalyze }: { readonly parts: PreviewP
           zero.state === 'differs'
             ? h('label', { class: 'job-tick', 'data-safety': 'C31' }, h('input', { type: 'checkbox', checked: choices.workZero, 'data-job': 'confirm-zero', onChange: tick('workZero') }), c31({ board: zeroText(zero.board), plan: zero.planText }))
             : null,
-          s?.live.home !== 1
-            ? h('label', { class: 'job-tick', 'data-safety': 'C36' }, h('input', { type: 'checkbox', checked: choices.unhomed, 'data-job': 'confirm-unhomed', onChange: tick('unhomed') }), c36())
-            : null,
-          // OD-24: the travel could not be confirmed (position not set by a homing, or a limit not read): C40 before Start.
-          job?.report?.travel?.confirm !== null && job?.report?.travel?.confirm !== undefined && checked
-            ? h('label', { class: 'job-tick', 'data-safety': 'C40' }, h('input', { type: 'checkbox', checked: choices.travel, 'data-job': 'confirm-travel', onChange: tick('travel') }), c40({ why: job.report.travel.confirm.text }))
-            : null,
+          // C36 (not homed) and C40 (OD-24, the travel could not be confirmed); one box when both apply (startTicks.ts).
+          ...startTicks(s?.live.home === 1, checked ? (job?.report?.travel?.confirm ?? null) : null).map((t) =>
+            t === 'c36'
+              ? h('label', { key: t, class: 'job-tick', 'data-safety': 'C36' }, h('input', { type: 'checkbox', checked: choices.unhomed, 'data-job': 'confirm-unhomed', onChange: tick('unhomed') }), c36())
+              : h(
+                  'label',
+                  { key: t, class: 'job-tick', 'data-safety': t === 'c40' ? 'C40' : 'C40 C36' },
+                  h('input', {
+                    type: 'checkbox',
+                    checked: choices.travel,
+                    'data-job': 'confirm-travel',
+                    onChange: t === 'c40' ? tick('travel') : (e: Event) => { const on = (e.currentTarget as HTMLInputElement).checked; setChoices({ ...choices, travel: on, unhomed: on }); },
+                  }),
+                  t === 'c40' ? c40({ why: job?.report?.travel?.confirm?.text ?? '' }) : `${c40({ why: job?.report?.travel?.confirm?.text ?? '' })} ${c36()}`,
+                ),
+          ),
           startsSpindle ? h('label', { class: 'job-tick', 'data-safety': 'C32' }, h('input', { type: 'checkbox', checked: choices.spindle, 'data-job': 'confirm-spindle', onChange: tick('spindle') }), c32({ speeds: speedsText(job) })) : null,
           // The board's modes as read (OD-19), and what Start writes so the job runs as the preview shows.
           s === null

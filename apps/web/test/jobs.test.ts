@@ -28,6 +28,7 @@ import { JobStatus, JobStopCard } from '../src/workspace/views/JobViews.ts';
 import { motionUi } from '../src/workspace/motion.ts';
 import { byAttr, one, root, text } from './tree.ts';
 import { job, snap, view } from './jobFixtures.ts';
+import { startTicks } from '../src/workspace/startTicks.ts';
 
 type Snapshot = NonNullable<LiveView['message']>['snapshot'];
 
@@ -46,6 +47,20 @@ describe('T-S117: Start is enabled only when every precondition passes, each blo
     const ui = jobUi(view(snap({ job: job({ report: report as never }) })));
     expect(startBlockers(ui, FILE, zero, { ...ALL, travel: false }).map((b) => b.id)).toEqual(['travel']);
     expect(startBlockers(ui, FILE, zero, ALL)).toEqual([]);
+  });
+
+  it('C36 and C40 are one box when both apply (owner, 2026-11-08); apart when the travel was not read', () => {
+    const outside = { kind: 'outside', line: 2, text: 'line 2: X would reach machine 200 mm, beyond its travel limit of 150 mm, and the X position was not set by a homing cycle in this connection' };
+    const unhomed = (confirm: unknown) => jobUi(view(snap({ live: { ...snap().live, home: 0 }, job: job({ report: { ...job().report, travel: { block: null, confirm } } as never }) })));
+    expect(startTicks(false, outside as never)).toEqual(['c40c36']);
+    expect(startTicks(false, { kind: 'unchecked' })).toEqual(['c36', 'c40']);
+    expect(startTicks(false, null)).toEqual(['c36']);
+    expect(startTicks(true, outside as never)).toEqual(['c40']);
+    expect(startTicks(true, null)).toEqual([]);
+    expect(startBlockers(unhomed(outside), FILE, zero, { ...ALL, unhomed: false, travel: false }).map((b) => b.id)).toEqual(['travel']);
+    expect(startBlockers(unhomed(outside), FILE, zero, ALL)).toEqual([]);
+    const unread = { kind: 'unchecked', line: null, text: 'the travel limits of X were not read' };
+    expect(startBlockers(unhomed(unread), FILE, zero, { ...ALL, unhomed: false, travel: false }).map((b) => b.id)).toEqual(['homed', 'travel']);
   });
 
   it('names each blocker', () => {
