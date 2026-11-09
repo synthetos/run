@@ -73,7 +73,7 @@ async function checkCard(page: Page, label: string): Promise<number> {
 }
 
 test('Pause and Stop job never overlap the job facts and stay inside the card, at every width', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000); // The longer job (600 moves) and a slow shared CI runner need the room.
   const worker = await connect(page);
   // Long enough that a slow CI runner is still cutting when the wide layout is measured.
   await open(page, zigzag(600));
