@@ -103,7 +103,7 @@ test('a cut below the stock is named in the key as a preview of the planned setu
   await expect(note).toHaveCount(0);
 });
 
-test('the key: Simple shows the tool in plain words and the notes that matter; Advanced adds the bed, detail and links', async ({ page }) => {
+test('the key: Simple shows the tool by its library name and the notes that matter; Advanced adds the bed, detail and links', async ({ page }) => {
   await page.goto('/');
   await ready(page);
   const sheet = page.locator('[data-region="preview"]');
@@ -111,7 +111,8 @@ test('the key: Simple shows the tool in plain words and the notes that matter; A
   const key = sheet.locator('.scene-key-line');
   await expect(sheet.locator('[data-scene="carve"]')).toHaveAttribute('data-carve-done', 'true');
   // Simple (the default level).
-  await expect(key.locator('[data-scene="tool"]')).toHaveText('T4 · 12.7 mm 90° V-bit');
+  // C4: the library's name, as in Advanced and the tool table.
+  await expect(key.locator('[data-scene="tool"]')).toHaveText('T4 · 90° V-bit');
   // C2: the bed's size, and that it is not measured yet; never "not set" while a size shows.
   await expect(key.locator('[data-scene="bed"]')).toHaveText('Bed 790 × 790 mm (not measured yet)');
   await expect(key.locator('[data-scene="pick-hint"]')).toHaveText('Click the bed, fixture or stock to change it');
