@@ -876,8 +876,8 @@ export function c38(p: { readonly name: string; readonly sha256Short: string; re
  * `zero` is the thickness less the stop distance, `stop` the calculated stop distance.
  */
 /**
- * C40: the job could not be checked against the machine's travel (OD-24, 2026-11-08; wording proposed, owner review
- * pending). `why` is the finding in plain words, e.g. "line 12: X would reach machine 812 mm, beyond its travel limit
+ * C40: the job could not be checked against the machine's travel (OD-24, 2026-11-08; wording approved by the owner,
+ * 2026-11-08). `why` is the finding in plain words, e.g. "line 12: X would reach machine 812 mm, beyond its travel limit
  * of 800 mm, and the machine position was not set by a homing cycle in this connection".
  */
 export function c40(p: { readonly why: string }): string {
