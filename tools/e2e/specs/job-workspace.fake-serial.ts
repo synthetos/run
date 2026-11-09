@@ -25,7 +25,8 @@ test('one Job keeps its scene and setup across steps, Library and project reopen
   await stock.getByLabel('Width X').press('Tab');
   await page.locator('[data-job-step="place"]').click();
   await page.getByRole('radio', { name: 'front left', exact: true }).click();
-  await expect(page.locator('[data-job="planned-zero"]')).toContainText('X');
+  // Simple shows the margins; the planned zero in machine mm is Advanced.
+  await expect(page.locator('[data-place="margins"]')).toBeVisible();
   await page.locator('[data-job-step="check"]').click();
   await expect(page.locator('[data-preview="summary"]')).toBeVisible();
   await page.locator('[data-job-step="run"]').click();

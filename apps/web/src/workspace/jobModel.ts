@@ -100,6 +100,12 @@ export interface JobPlacement {
   readonly datum: JobDatum;
   /** An explicit planned work zero in machine coordinates (the Place step, later); null derives it from the datum. */
   readonly plannedZero: { readonly x: number; readonly y: number; readonly z: number } | null;
+  /**
+   * How far the zero sits from the datum corner, mm (owner, 2026-11-09). For a corner, positive moves it inward,
+   * toward the stock's middle, whichever corner it is; for the centre, X and Y are machine directions. Absent
+   * (jobs saved before) is no offset.
+   */
+  readonly offset?: { readonly x: number; readonly y: number };
   /** The frame the setup is described in: bed-local, moved into machine coordinates by the bed's transform. */
   readonly frame: 'bed';
 }
@@ -159,6 +165,8 @@ export function isJob(v: unknown): v is Job {
   if (!isObject(p) || p['wcs'] !== 'G54' || p['frame'] !== 'bed') return false;
   const d = p['datum'];
   if (!isObject(d) || !CORNERS.includes(d['corner'] as StockCorner) || !(d['height'] === 'top' || d['height'] === 'bottom')) return false;
+  const o = p['offset'];
+  if (!(o === undefined || (isObject(o) && isNum(o['x']) && isNum(o['y'])))) return false;
   const z = p['plannedZero'];
   return z === null || (isObject(z) && isNum(z['x']) && isNum(z['y']) && isNum(z['z']));
 }
@@ -298,15 +306,34 @@ export function stockFootprint(stock: Stock): { readonly x0: number; readonly y0
   return { x0: stock.position.x - w / 2, y0: stock.position.y - d / 2, w, d };
 }
 
-/** The planned work zero in bed-local coordinates: the datum corner of the stock, at its top or bottom. */
+/** The job's offset from its datum corner (`JobPlacement.offset`), 0, 0 when none. */
+export function placementOffset(job: Job): { readonly x: number; readonly y: number } {
+  return job.placement.offset ?? { x: 0, y: 0 };
+}
+
+/** The machine directions a positive offset moves the zero at a corner: inward, toward the stock's middle; machine X and Y at the centre. */
+export function inwardSigns(corner: StockCorner): { readonly x: 1 | -1; readonly y: 1 | -1 } {
+  return { x: corner.includes('right') ? -1 : 1, y: corner.includes('back') ? -1 : 1 };
+}
+
+/** The planned work zero in bed-local coordinates: the datum corner of the stock, at its top or bottom, moved by the offset. */
 export function datumPoint(job: Job): { readonly x: number; readonly y: number; readonly z: number } {
   const st = job.setup.stock;
   const { x0, y0, w, d } = stockFootprint(st);
   const c = job.placement.datum.corner;
-  const x = c.includes('right') ? x0 + w : c.includes('left') ? x0 : x0 + w / 2;
-  const y = c.includes('back') ? y0 + d : c.includes('front') ? y0 : y0 + d / 2;
+  const o = placementOffset(job);
+  const s = inwardSigns(c);
+  const x = (c.includes('right') ? x0 + w : c.includes('left') ? x0 : x0 + w / 2) + s.x * o.x;
+  const y = (c.includes('back') ? y0 + d : c.includes('front') ? y0 : y0 + d / 2) + s.y * o.y;
   const z = fixtureTop(job) + (job.placement.datum.height === 'top' ? st.thickness : 0);
   return { x, y, z };
+}
+
+/** The job with its zero moved from the datum corner (`JobPlacement.offset`); 0, 0 removes the field. */
+export function withOffset(job: Job, offset: { readonly x: number; readonly y: number }, clock: JobClock = BROWSER_CLOCK): Job {
+  const { offset: _old, ...rest } = job.placement;
+  void _old;
+  return reviseJob(job, { placement: offset.x === 0 && offset.y === 0 ? rest : { ...rest, offset: { x: offset.x, y: offset.y } } }, clock);
 }
 
 /** The planned work zero in machine coordinates: the explicit one, or the datum moved by the bed's transform. */

@@ -1775,3 +1775,7 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
   .play-controls .play-speeds button { padding: 0 5px; }
   .play-notice { font-size: 11px; }
 }
+/* Place job: move the zero in from the corner, and the job's margins to the stock's edges (owner, 2026-11-09). */
+.place-offset { display: grid; gap: 4px; margin: 8px 0; }
+.place-offset-label { font-size: 12px; color: var(--muted); }
+.place-margins { margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; }

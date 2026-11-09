@@ -14,8 +14,13 @@ import { allMaterials, bedIsPlaceholder, bedOf, doNotMachine, machineStore, mate
 import { SafetyNotes } from './LibraryViews.ts';
 import { Icon } from '../icons.ts';
 import { OutlineError, parseOutline, MAX_OUTLINE_BYTES } from '../outline.ts';
-import { activeJob, bedBehind, plannedZero, fixtureTop, clampsAreIllustrative, illustrativeClamps, jobSaved, reviseJob, SEED_JOB, updateActiveJob, withDatum, withMachine, withSetup, type Job } from '../jobModel.ts';
-import { executionLock } from '../fileBridge.ts';
+import { activeJob, bedBehind, plannedZero, fixtureTop, clampsAreIllustrative, illustrativeClamps, jobSaved, placementOffset, reviseJob, SEED_JOB, updateActiveJob, withDatum, withMachine, withOffset, withSetup, type Job } from '../jobModel.ts';
+import { currentFile, executionLock } from '../fileBridge.ts';
+import { toolStore } from '../library.ts';
+import { spindleToolChoice } from '../advisorState.ts';
+import { cutBounds, marginsText, pastEdgesText, placeMargins, radiusText } from '../placeMargins.ts';
+import { cutToolRadius } from '../placeTool.ts';
+import { CLAMPS_NOT_CHECKED } from '../placeTravel.ts';
 import { sha256Hex } from '../../projects/image.ts';
 import { formatBytes } from '../../projects/limits.ts';
 
@@ -63,7 +68,33 @@ function bedSourceText(bed: MachineBed): string {
 }
 
 /** Setup controls live beside the single Job scene; they never create another renderer. */
-export function JobSetupPanel({ step, locked, onView }: { readonly step: JobStep; readonly locked: boolean; readonly onView: (view: string) => void }): ComponentChild {
+/** The offset inputs and the margins under the work zero picker (owner, 2026-11-09): move the zero in from the corner. */
+function PlaceOffset({ job, edit }: { readonly job: Job; readonly edit: (change: (job: Job) => Job) => void }): ComponentChild {
+  const o = placementOffset(job);
+  const centre = job.placement.datum.corner === 'center';
+  const set = (patch: Partial<{ x: number; y: number }>): void => edit((j) => withOffset(j, { ...placementOffset(j), ...patch }));
+  const preview = currentFile.value?.preview ?? null;
+  const cut = preview?.segments == null ? null : cutBounds(preview.segments);
+  const radius = preview === null ? null : cutToolRadius(preview, toolStore.value.value, spindleToolChoice.value);
+  const margins = cut === null ? null : placeMargins(job, cut, radius);
+  const past = margins === null ? null : pastEdgesText(margins);
+  return h(
+    'div',
+    { class: 'place-offset', 'data-setup': 'place-offset' },
+    h('span', { class: 'place-offset-label' }, centre ? 'Move from centre' : 'Move in from the corner'),
+    h('div', { class: 'field-grid' }, field('X', o.x, (x) => set({ x }), 'mm', 0.5, -10000), field('Y', o.y, (y) => set({ y }), 'mm', 0.5, -10000)),
+    h('p', { class: 'fine' }, centre ? 'X and Y move the zero in the machine’s directions.' : 'Positive moves the job in, toward the middle of the stock.'),
+    margins === null
+      ? h('p', { class: 'fine', 'data-place': 'margins' }, preview === null ? 'Open a file to see its margins.' : 'Margins need the drawn file (not lite mode).')
+      : [
+          h('p', { class: 'place-margins', key: 'm', 'data-place': 'margins' }, marginsText(margins)),
+          h('p', { class: 'fine', key: 'r', 'data-place': 'margins-tool' }, radiusText(margins.radius)),
+          past === null ? null : h('p', { class: 'warn-text', key: 'p', role: 'status', 'data-place': 'past-edge' }, past),
+        ],
+  );
+}
+
+export function JobSetupPanel({ step, locked, onView, travel = null }: { readonly step: JobStep; readonly locked: boolean; readonly onView: (view: string) => void; readonly travel?: string | null }): ComponentChild {
   const job = activeJob.value ?? SEED_JOB;
   const [status, setStatus] = useState('');
   const [bedNote, setBedNote] = useState<string | null>(null);
@@ -269,11 +300,14 @@ export function JobSetupPanel({ step, locked, onView }: { readonly step: JobStep
                 h('div', { class: 'seg vertical', role: 'group', 'aria-label': 'Zero height' }, (['top', 'bottom'] as const).map((zh) => h('button', { type: 'button', key: zh, class: job.placement.datum.height === zh ? 'selected' : undefined, onClick: () => edit((j) => withDatum(j, { ...j.placement.datum, height: zh })) }, zh === 'top' ? 'Stock top' : 'Stock bottom'))),
               ),
             ),
-        h('dl', { class: 'job-zero-facts' }, h('dt', null, 'Planned zero · machine mm'), h('dd', { 'data-job': 'planned-zero' }, `X ${zero.x.toFixed(2)} · Y ${zero.y.toFixed(2)} · Z ${zero.z.toFixed(2)}`)),
+        h(PlaceOffset, { job, edit }),
+        // The resulting planned zero in machine mm: Advanced.
+        advanced ? h('dl', { class: 'job-zero-facts' }, h('dt', null, 'Planned zero · machine mm'), h('dd', { 'data-job': 'planned-zero' }, `X ${zero.x.toFixed(2)} · Y ${zero.y.toFixed(2)} · Z ${zero.z.toFixed(2)}`)) : null,
         h('dl', { class: 'job-zero-facts', 'aria-label': 'Setup heights in machine coordinates' },
           h('dt', null, 'Stock top · machine Z'), h('dd', { 'data-height': 'stock' }, (top + st.thickness).toFixed(2)),
           h('dt', null, 'Fixture top · machine Z'), h('dd', { 'data-height': 'fixture' }, top.toFixed(2)),
           h('dt', null, 'Bed top · machine Z'), h('dd', { 'data-height': 'bed' }, bed.toMachine.z.toFixed(2))),
         h(ContextHelp, { id: 'job-datum-help', label: 'About planned work zero' }, 'Choose the datum used by your CAM file. This places the preview on the stock; it does not set the controller’s work offset. Use the machine Offsets controls to set and verify the physical zero.'),
-        h('p', { class: 'fine' }, 'Travel fit and clamp clearance: not checked.'))));
+        h('p', { class: 'fine', 'data-place': 'travel' }, travel ?? 'Travel is checked when a machine is connected and homed.'),
+        h('p', { class: 'fine', 'data-place': 'clamps' }, CLAMPS_NOT_CHECKED))));
 }

@@ -49,6 +49,7 @@ import { fileSummary } from '../lineWords.ts';
 import { emptyQueueText, liveEventText, liveLineLabel } from '../liveWords.ts';
 import { materialColor, selectedMachine } from '../library.ts';
 import { PlayControls, PlayNotice } from '../../preview/PlayControls.ts';
+import { placeTravelText } from '../placeTravel.ts';
 import { playAllowedFor, playRapidOf } from '../../preview/playAllowed.ts';
 import { openToolNumber } from '../toolNumbers.ts';
 import { projectsState } from '../../projects/store.ts';
@@ -1417,7 +1418,7 @@ function JobWorkPanel({ parts, model, stops, onView }: { readonly parts: Preview
   const index = JOB_STEPS.findIndex((s) => s.id === step);
   return h('aside', { class: 'job-work-panel', id: 'job-work-panel', 'aria-label': 'Job preparation' },
     h('div', { class: 'job-panel-scroll', tabindex: 0 },
-      h(JobSetupPanel, { step, locked: ui.active, onView }),
+      h(JobSetupPanel, { step, locked: ui.active, onView, travel: placeTravelText({ connected: ui.connected, homed: ui.snapshot?.live.home === 1, travel: ui.job?.report?.travel }) }),
       h('section', { hidden: step !== 'check', 'data-job-panel': 'check' }, h('h2', null, 'Check file'),
         result === null || facts === null ? h('p', null, 'Open G-code to check it.') : [
           h('ul', { class: 'job-checks', 'data-preview': 'summary', 'aria-label': 'The file check' }, jobChecks(result, facts)),

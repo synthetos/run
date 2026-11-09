@@ -13,13 +13,15 @@
  */
 import type { StockCorner } from '@synthetos/library';
 import { ZERO_TOLERANCE_MM, zeroCheck, zeroText, type ZeroCheck, type ZeroPoint } from './jobUi.ts';
-import { plannedZero, type Job } from './jobModel.ts';
+import { placementOffset, plannedZero, type Job } from './jobModel.ts';
 
 /** The setup's planned zero and where it is on the stock. */
 export interface SetupPlan {
   readonly zero: ZeroPoint;
   readonly corner: StockCorner;
   readonly height: 'top' | 'bottom';
+  /** How far the zero is moved from the corner (Place job's offset, owner 2026-11-09): inward at a corner, machine X and Y at the centre. */
+  readonly offset?: { readonly x: number; readonly y: number };
 }
 
 export type PlanSource = 'saved' | 'setup' | 'none';
@@ -38,14 +40,20 @@ const CORNER_WORDS: Readonly<Record<StockCorner, string>> = {
   center: 'centre',
 };
 
-/** The job's planned zero from Place job: the datum corner of the stock, at its top or bottom, in machine mm. */
+/** The job's planned zero from Place job: the datum corner of the stock, at its top or bottom, moved by the offset, in machine mm. */
 export function setupPlan(job: Job): SetupPlan {
-  return { zero: plannedZero(job), corner: job.placement.datum.corner, height: job.placement.datum.height };
+  const offset = placementOffset(job);
+  return { zero: plannedZero(job), corner: job.placement.datum.corner, height: job.placement.datum.height, ...(offset.x === 0 && offset.y === 0 ? {} : { offset }) };
 }
 
-/** "the front-left corner of the top of the stock" */
+const signed = (n: number): string => `${n < 0 ? '−' : ''}${String(Math.abs(Number(n.toFixed(2))))}`;
+
+/** "the front-left corner of the top of the stock", with ", moved in 5 mm in X and 3 mm in Y" when the zero is offset. */
 export function placeWords(plan: SetupPlan): string {
-  return `the ${CORNER_WORDS[plan.corner]} of the ${plan.height} of the stock`;
+  const where = `the ${CORNER_WORDS[plan.corner]} of the ${plan.height} of the stock`;
+  const o = plan.offset;
+  if (o === undefined || (o.x === 0 && o.y === 0)) return where;
+  return plan.corner === 'center' ? `${where}, moved X ${signed(o.x)} mm and Y ${signed(o.y)} mm` : `${where}, moved in ${signed(o.x)} mm in X and ${signed(o.y)} mm in Y`;
 }
 
 const mm = (n: number): string => Math.abs(n).toFixed(1);
