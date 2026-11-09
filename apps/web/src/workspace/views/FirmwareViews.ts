@@ -17,12 +17,16 @@ import { useState } from 'preact/hooks';
 import { boardText, c37, c38, c6Boxes, c6Question, w11, w28, w45, w46, w47, w48, w49, w50 } from '@synthetos/safety';
 import { releasesForHardware, type FirmwareRelease } from '@synthetos/protocol';
 import { signalText } from '../../shell/signal.ts';
+import { uiLevel } from '../jobWorkflow.ts';
 import { RestorePanel } from '../settings/SettingsUi.ts';
 import { backupBlocked } from '../../live/backup.ts';
 import { Icon } from '../icons.ts';
 import { connected, type FirmwareActions, type FirmwareDownload, type FirmwareHubView, type LiveView, type ReleaseImage, type WorkspaceModel } from '../model.ts';
 import type { FlashView } from '../../machine-worker/flashService.ts';
 import type { MotionCommand } from '../../machine-worker/rpc.ts';
+
+/** Next to an older release's button (first-time walk C8): what a downgrade does to the board's settings. */
+export const DOWNGRADE_NOTE = 'An older build starts with every setting at its default. Run backs your settings up first and puts them back afterwards; check them before you cut.';
 
 const fbText = (fb: number | null | undefined): string => (typeof fb === 'number' ? fb.toFixed(2) : 'unknown');
 const shortSha = (sha: string): string => `${sha.slice(0, 4)}…${sha.slice(-4)}`;
@@ -298,6 +302,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
   const blocked = flashBlocked(view);
   const flash = m?.flash ?? null;
   const running = flash !== null && flash.phase !== 'done' && flash.phase !== 'failed';
+  const advanced = uiLevel.value.value === 'advanced';
   const hw = hub !== null && hub.releases.ok ? releasesForHardware(hub.releases.list, hv) : null;
   const trusted = s?.classification?.approvalSource === 'trusted';
   const old = m?.oldFirmware ?? null;
@@ -376,13 +381,14 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
                   h(
                     'div',
                     { class: 'rel-notes' },
-                    h('h3', null, `TinyG ${r.dialect === 'tinyg-en' ? 'edge-next' : '440'} ${fbText(r.fb)} · fv ${r.fv}`),
-                    h('p', { class: 'changelog' }, r.changelog),
-                    h('p', { class: 'installed' }, `${r.file} · sha256 ${shortSha(r.sha256)} · ${Math.round(r.size / 1024)} KB · ${source}${installed ? ' · installed' : ''}`),
+                    h('h3', null, `TinyG ${r.dialect === 'tinyg-en' ? 'edge-next' : '440'} ${fbText(r.fb)}${advanced ? ` · fv ${r.fv}` : ''}`),
+                    // Simple (C10): the release notes are the maintainers' (issue codes, commits), so they fold away.
+                    advanced ? h('p', { class: 'changelog' }, r.changelog) : h('details', { class: 'changelog-more' }, h('summary', null, 'What changed (technical notes)'), h('p', { class: 'changelog' }, r.changelog)),
+                    advanced ? h('p', { class: 'installed' }, `${r.file} · sha256 ${shortSha(r.sha256)} · ${Math.round(r.size / 1024)} KB · ${source}${installed ? ' · installed' : ''}`) : installed ? h('p', { class: 'installed' }, 'Installed on this board') : null,
                     h(
                       'div',
                       { class: 'row-actions' },
-                      h('button', { type: 'button', class: r.recommended ? 'primary small' : 'small', 'data-machine-control': 'flash', 'data-action': 'update-release', disabled: blocked !== null || running || fetching || actions?.firmware === undefined, title: blocked ?? undefined, onClick: () => pick(r) }, installed ? 'Flash again' : `Update to ${fbText(r.fb)}`),
+                      h('button', { type: 'button', class: r.recommended ? 'primary small' : 'small', 'data-machine-control': 'flash', 'data-action': 'update-release', disabled: blocked !== null || running || fetching || actions?.firmware === undefined, title: blocked ?? undefined, onClick: () => pick(r) }, installed ? 'Flash again' : older ? `Install older version ${fbText(r.fb)} (downgrade)` : `Update to ${fbText(r.fb)}`),
                       h(
                         'label',
                         { class: `small file-pick${blocked === null ? '' : ' disabled'}` },
@@ -403,6 +409,8 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
                         }),
                       ),
                     ),
+                    // C8: the downgrade's consequence, next to its button.
+                    older ? h('p', { class: 'fine', 'data-release-note': 'downgrade' }, DOWNGRADE_NOTE) : null,
                   ),
                 );
               }),

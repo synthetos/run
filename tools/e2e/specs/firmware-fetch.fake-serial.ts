@@ -113,6 +113,12 @@ test('440.21 is listed as an older build from GitHub Releases; Update fetches it
   await expect(page.locator('[data-known-issue="n66"]')).toContainText('a step or two off');
   await expect(release.locator('.rel-ver')).toContainText('Older');
   await expect(release.locator('.rel-ver')).not.toContainText('Recommended');
+  // C8: an older build says it is a downgrade, with what that does to the settings beside it.
+  await expect(release.locator('[data-action="update-release"]')).toHaveText('Install older version 440.21 (downgrade)');
+  await expect(release.locator('[data-release-note="downgrade"]')).toContainText('starts with every setting at its default');
+  // C10: Simple folds the maintainers' notes and leaves out the file, hash and fv; Advanced shows them.
+  await expect(release.locator('.installed')).toHaveCount(0);
+  await page.locator('[data-action="ui-level-advanced"]').click();
   await expect(release.locator('.installed')).toContainText('GitHub Releases: synthetos/TinyG 440.21');
   await expect(release.locator('.installed')).toContainText('sha256 c2c1…5e92');
   // No old-firmware warning: 440.21 is listed, not below the minimum, and the board runs 450.01.
