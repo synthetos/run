@@ -22,6 +22,7 @@ import { sha256Hex } from '../projects/image.ts';
 import type { ProjectStore } from '../projects/store.ts';
 import { activeJobStore, BROWSER_CLOCK, cloneJob, DRAFT_NAME, draftJobStore, newDraftJob, reviseJob, setActiveJob, withMachine, type Job, type JobClock, type JobFile } from './jobModel.ts';
 import { selectedMachine, type MachineProfile } from './library.ts';
+import { afterLoad } from './storage.ts';
 
 export interface OpenFile {
   readonly name: string;
@@ -184,6 +185,21 @@ export async function openProjectJob(projectId: string, jobId: string, deps: Ope
 
 let reopened = false;
 
+/** Whether the page will reopen a file: the active job has one. */
+function hasFileToReopen(): boolean {
+  return activeJobStore.value.value?.file != null;
+}
+
+/**
+ * True from the moment the stored job loads while its file is still to be reopened (until `reopenActiveJob` has
+ * handed it to the preview or found nothing to open), so the Run view does not offer the samples for a moment and
+ * then swap them for the job. The stores load after hydration (storage.ts), so it is set then, not here.
+ */
+export const reopening = signal<boolean>(false);
+afterLoad(() => {
+  reopening.value = !reopened && hasFileToReopen();
+});
+
 /**
  * Once per page: reopens the active job's file after a reload (a project file version, or the draft's file
  * kept aside), so the job comes back intact. Nothing is reopened while an execution owns the preview.
@@ -191,19 +207,24 @@ let reopened = false;
 export async function reopenActiveJob(deps: OpenDeps = BROWSER_DEPS): Promise<OpenResult | null> {
   if (reopened) return null;
   reopened = true;
-  const job = activeJobStore.value.value;
-  if (job === null || job.file === null || executionLock.value !== null) return null;
-  if (job.projectId !== null) return openProjectJob(job.projectId, job.id, deps);
-  const request = ++openRequest;
-  const projects = await deps.projects();
-  const blob = await projects.aside(DRAFT_FILE_KEY);
-  if (blob === null) return null;
-  return resolveJob(new File([blob], job.file.name, { type: 'text/plain' }), { kind: 'reopen' }, deps, request);
+  try {
+    const job = activeJobStore.value.value;
+    if (job === null || job.file === null || executionLock.value !== null) return null;
+    if (job.projectId !== null) return await openProjectJob(job.projectId, job.id, deps);
+    const request = ++openRequest;
+    const projects = await deps.projects();
+    const blob = await projects.aside(DRAFT_FILE_KEY);
+    if (blob === null) return null;
+    return await resolveJob(new File([blob], job.file.name, { type: 'text/plain' }), { kind: 'reopen' }, deps, request);
+  } finally {
+    reopening.value = false;
+  }
 }
 
 /** Tests only: forget that the page reopened its job. */
 export function resetReopen(): void {
   reopened = false;
+  reopening.value = hasFileToReopen();
 }
 
 /**

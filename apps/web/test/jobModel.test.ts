@@ -17,7 +17,7 @@ import { activeJobStore, bedBehind, clampsAreIllustrative, datumPoint, draftJobS
 import { jobScene, liveFrame } from '../src/preview/sceneModel.ts';
 import { PreviewSvg } from '../src/preview/PreviewSvg.ts';
 import { ProjectStore, readProject, type ProjectDeps } from '../src/projects/store.ts';
-import { closeJob, currentFile, currentPreview, DRAFT_FILE_KEY, executionLock, openJob, openProjectFile, openProjectJob, pendingOpen, reopenActiveJob, resetReopen, type OpenDeps } from '../src/workspace/fileBridge.ts';
+import { closeJob, currentFile, currentPreview, DRAFT_FILE_KEY, executionLock, openJob, openProjectFile, openProjectJob, pendingOpen, reopenActiveJob, reopening, resetReopen, type OpenDeps } from '../src/workspace/fileBridge.ts';
 import { applyImport, checkDrawing, rolesFor, scaled, skippedText } from '../src/projects/useInJob.ts';
 import { parseDxfOutline, parseSvgOutline } from '../src/workspace/outline.ts';
 import { analyseBytes } from '../src/gcode-worker/pipeline.ts';
@@ -360,6 +360,28 @@ describe('the one job opener', () => {
     const reopened = await openProjectFile(p.id, file.id, d);
     expect(reopened.ok && reopened.job.id).toBe(opened.job.id);
     expect(store.find(p.id)?.jobs).toHaveLength(1);
+  });
+
+  it('reopening is set while the active job has a file still to reopen, and cleared once the reopen has run', async () => {
+    const { deps: d, store } = deps();
+    executionLock.value = null;
+    const p = await store.create('Reopen');
+    await store.add(p.id, [new File(['G0 X3\n'], 'r.nc')]);
+    const file = store.find(p.id)?.files[0];
+    if (file === undefined) throw new Error('no file');
+    const opened = await openProjectFile(p.id, file.id, d);
+    if (!opened.ok) throw new Error(opened.reason);
+    resetReopen();
+    expect(reopening.value).toBe(true);
+    const back = await reopenActiveJob(d);
+    expect(back?.ok).toBe(true);
+    expect(reopening.value).toBe(false);
+    // With no file to reopen, nothing is pending from the start.
+    closeJob(d);
+    resetReopen();
+    expect(reopening.value).toBe(false);
+    expect(await reopenActiveJob(d)).toBeNull();
+    expect(reopening.value).toBe(false);
   });
 
   it('closing cancels an opener that is still reading a file; a late result cannot reopen it', async () => {

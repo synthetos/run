@@ -104,11 +104,24 @@ test('the key hides and shows, remembered across a reload; hidden, its notes are
   await expect(page.locator('.scene-key-line')).toHaveCount(0);
   await expect(page.locator('[data-preview="key-notes-count"]')).toHaveText(/^\d+ notes?$/);
   await expect(page.locator('[data-preview="marker-readout"]')).toBeVisible();
+  // From the reload on, note whether a sample button is drawn once the page is ready: the job's file comes back
+  // with the page, and until it has, the prompt says the file is opening rather than offering the samples for a
+  // moment. (The prerendered page shows the samples until the stores load, before the page is ready.)
+  await page.addInitScript(() => {
+    const root = document.documentElement;
+    const frame = (): void => {
+      if (root.dataset['ready'] === 'true' && document.querySelector('[data-sample]') !== null) root.dataset['sampleSeen'] = 'true';
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
-  // The job's file comes back with the page; open the sample again only if it did not.
-  if ((await page.locator('[data-sample]').count()) > 0) await page.locator('[data-sample]').first().click();
+  await expect(page.locator('[data-preview="drawing"]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-action="key-toggle"]')).toHaveText('Show key', { timeout: 15_000 });
+  await expect(page.locator('[data-preview="reopening"]')).toHaveCount(0);
+  await expect(page.locator('[data-sample]')).toHaveCount(0);
+  expect(await page.locator('html').getAttribute('data-sample-seen'), 'no sample button flashes while the job reopens').toBeNull();
   await expect(page.locator('[data-scene="notes"]')).toHaveCount(0);
   await overlaySettled(page);
   await page.locator('[data-action="key-toggle"]').click();

@@ -40,7 +40,7 @@ import { signalText } from '../../shell/signal.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
 import { ConsoleLine } from '../../console/ConsoleLine.ts';
 import { openReport } from '../../report/state.ts';
-import { closeJob, currentFile, currentPreview, executionLock, openJob, pendingOpen, reopenActiveJob, saveDraftToProject, type OpenSource } from '../fileBridge.ts';
+import { closeJob, currentFile, currentPreview, executionLock, openJob, pendingOpen, reopenActiveJob, reopening, saveDraftToProject, type OpenSource } from '../fileBridge.ts';
 import { activeJob, jobSaved, type Job } from '../jobModel.ts';
 import { bedSizeText, jobStateText, machineText } from '../revisionWords.ts';
 import { fileSummary } from '../lineWords.ts';
@@ -1094,7 +1094,7 @@ function JobCard({ parts, model, onView, onFiles }: { readonly parts: PreviewPar
           'p',
           null,
           h('span', { class: state.fileName === null ? 'sr-only' : 'mono', 'data-preview': 'file-name' }, state.fileName ?? 'none'),
-          state.fileName === null ? (loading ? 'Checking the file…' : 'Open a G-code file or a sample to check it.') : result === null ? (loading ? ' · checking…' : '') : ` · ${num(result.fileLines)} lines`,
+          state.fileName === null ? (loading ? 'Checking the file…' : reopening.value || pendingOpen.value !== null ? 'Opening the file…' : 'Open a G-code file or a sample to check it.') : result === null ? (loading ? ' · checking…' : '') : ` · ${num(result.fileLines)} lines`,
         ),
         h(JobIdentity, { job: activeJob.value, fileOpen: result !== null, onNote: setNote }),
         note === null ? null : h('p', { class: 'fine tone-warn', role: 'status', 'data-job': 'note' }, note),
@@ -1483,8 +1483,12 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
           // The key and the live readout, stacked in one overlay that never runs over itself (B4, C18).
           h(ViewerOverlay, {
             sceneKey: (scene === null && parts.tool === null) || result?.lite ? null : { scene, tool: parts.tool, markerPreview: parts.markerPreview, carve: parts.carve, simple, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) },
-            // With no file open, the prompt to open one leads the stack, so the key never covers its buttons.
-            prompt: result === null && !loading
+            // With no file open, the prompt to open one leads the stack, so the key never covers its buttons. While the
+            // job's file is being reopened after a reload (or a chosen file waits for the preview), it says so instead of
+            // offering the samples for a moment.
+            prompt: result === null && !loading && (reopening.value || pendingOpen.value !== null)
+              ? h('div', { class: `empty-prompt${scene === null ? '' : ' scene-empty-prompt'}`, 'data-preview': 'reopening' }, h('h2', null, 'Opening the file…'))
+              : result === null && !loading
               ? h(
                   'div',
                   { class: `empty-prompt${scene === null ? '' : ' scene-empty-prompt'}` },
