@@ -52,10 +52,13 @@ async function shot(page: Page, name: string, selector?: string): Promise<void> 
 }
 
 test('a file streams to completion from the stepper; Start is enabled only when every blocker is gone; rxm set and put back', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   const worker = await connect(page);
   expect((await session(worker)).footerRev).toBe(2);
-  await open(page, zigzag(24, [], ['M3 S12000']).replace('M30', 'M5\nM30'));
+  // Long enough that the job still owns the machine while the setup lock is checked. Headless Chrome draws the 3D view
+  // in software, and each frame holds the page for about half a second while the job runs; a 24-move job (about 9 s)
+  // could end before the page had handled the clicks (CI run 42706629535).
+  await open(page, zigzag(120, [], ['M3 S12000']).replace('M30', 'M5\nM30'));
   // Every blocker named before the ticks; Start disabled.
   const blockers = page.locator('[data-job="blockers"] li');
   await expect(blockers.first()).toBeVisible();
@@ -69,13 +72,15 @@ test('a file streams to completion from the stepper; Start is enabled only when 
   await expect(page.locator('[data-job-panel="stock"] input').first()).toBeDisabled();
   await expect(page.locator('[data-region="job"] [data-preview="file"]')).toBeDisabled();
   await expect(page.locator('[data-action="job-close"]')).toBeDisabled();
+  // The lock above was seen while the job ran, not after it ended.
+  expect(await phase(worker)).not.toBe('done');
   await page.locator('[data-job-step="run"]').click();
   await expect.poll(async () => (await session(worker)).job?.acked ?? 0, { timeout: 20_000 }).toBeGreaterThan(8);
   await shot(page, 'job-running');
   await page.locator('[data-tab="live"]').click();
   await expect(page.locator('[data-live="events"]')).toContainText('Streaming in line mode.');
   await shot(page, 'job-running-live');
-  await expect.poll(() => phase(worker), { timeout: 60_000 }).toBe('done');
+  await expect.poll(() => phase(worker), { timeout: 120_000 }).toBe('done');
   await expect.poll(async () => (await session(worker)).footerRev, { timeout: 10_000 }).toBe(2);
   const w = (await writes(worker)).slice(from);
   // Start reads the board again first (R3: rxm is among its prep reads), then the line mode is read, set and read back.

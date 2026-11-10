@@ -52,9 +52,12 @@ async function expectStopsWhole(page: Page, width: number): Promise<void> {
 }
 
 test('while a job runs with the spindle on, Pause and Stop job are whole and uncovered at 1024, 1280, 1440 and 390 px', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(420_000); // eight widths, each measured while the software-drawn 3D view holds the page about half a second a frame
   const worker = await connect(page);
-  await open(page, zigzag(120, [], ['M3 S16000', 'M8']).replace('M30', 'M5\nM9\nM30'));
+  // Long enough (about 6 minutes of moves) that the job, and so the flood coolant, is still on at the last width: with
+  // 120 moves the job reached M9 before the phone width on a slow CI runner, and Coolant rightly read Off and hid (CI
+  // run 42706629535).
+  await open(page, zigzag(900, [], ['M3 S16000', 'M8']).replace('M30', 'M5\nM9\nM30'));
   await start(page);
   await expect.poll(() => phase(worker), { timeout: 10_000 }).toBe('running');
   // The board reports the spindle on: the Spindle readout is at its longest.
@@ -65,6 +68,7 @@ test('while a job runs with the spindle on, Pause and Stop job are whole and unc
       await page.setViewportSize({ width, height });
       await page.waitForTimeout(150);
       await expectStopsWhole(page, width);
+      expect((await session(worker)).job?.phase, `the job still runs at ${String(width)} px`).toBe('running');
       // Coolant is on: its readout shows at every width (owner, 2026-11-08), and still never pushes the stops out.
       await expect(page.locator('[data-region="machine-strip"] [data-readout="Coolant"]'), `Coolant at ${String(width)} px`).toBeVisible();
     }
