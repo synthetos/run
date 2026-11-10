@@ -52,7 +52,7 @@ function NotesPane({ ctx }: { readonly ctx: DockContext; readonly active: boolea
           g.notes.map((n) =>
             h(
               'li',
-              { key: `${n.source}:${n.id}`, class: `note${n.tone === 'warn' ? ' warn' : ''}`, 'data-note': n.id, ...(n.safety === undefined ? {} : { 'data-safety': n.safety }) },
+              { key: `${n.source}/${n.id}`, class: `note${n.tone === 'warn' ? ' warn' : ''}`, 'data-note': n.id, ...(n.safety === undefined ? {} : { 'data-safety': n.safety }) },
               h('strong', null, n.title),
               ' ',
               h('span', null, n.body),

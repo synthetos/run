@@ -24,7 +24,7 @@ export function previewNotes(key: SceneKeyProps | null): readonly Note[] {
   const out: Note[] = [];
   (key.scene?.notes ?? []).forEach((text) => {
     const { title, body } = splitNote(text);
-    out.push({ id: `scene:${title}`, topic: 'Preview', title, body, tone: 'warn' });
+    out.push({ id: `scene/${title}`, topic: 'Preview', title, body, tone: 'warn' });
   });
   const note = key.tool?.note ?? null;
   if (note !== null && note !== undefined) out.push({ id: 'tool-note', topic: 'Preview', title: key.tool?.missing == null ? 'The first tool is a placeholder.' : `T${String(key.tool.missing)} isn’t in your tool table.`, body: note, link: { kind: 'view', view: 'tools', label: 'Tools' } });
@@ -35,6 +35,6 @@ export function previewNotes(key: SceneKeyProps | null): readonly Note[] {
     // Only where it matters (owner, 2026-11-09): a cut below the stock on a bed whose top height nobody entered.
     if (key.scene?.bedPlaceholder === true) out.push({ id: 'bed-height', topic: 'Preview', title: 'Bed height not set.', body: 'Set it in Machines to check for cuts into the bed.', link: { kind: 'view', view: 'machines', label: 'Machines → Bed' } });
   }
-  (carve?.uncarved ?? []).forEach((text, i) => out.push({ id: `carve:${String(i)}`, topic: 'Preview', title: 'Lines not carved.', body: text, tone: 'warn' }));
+  (carve?.uncarved ?? []).forEach((text, i) => out.push({ id: `carve/${String(i)}`, topic: 'Preview', title: 'Lines not carved.', body: text, tone: 'warn' }));
   return out;
 }

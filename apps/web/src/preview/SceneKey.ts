@@ -45,7 +45,7 @@ export function SceneKey({ tool = null, onAddTool, markerPreview = false, carve 
     'div',
     { class: 'scene-key', 'data-key-level': 'simple' },
     // A missing tool keeps its link to the tool table, and can be hidden (its text is a note too).
-    toolNote === null ? null : h(Dismissable, { id: `tool-note:${tool?.missing ?? 'first'}`, label: 'the tool note', class: 'viewer-key scene-notes' }, h('div', { role: 'status', 'data-scene': 'notes' }, toolNote)),
+    toolNote === null ? null : h(Dismissable, { id: `tool-note/${tool?.missing ?? 'first'}`, label: 'the tool note', class: 'viewer-key scene-notes' }, h('div', { role: 'status', 'data-scene': 'notes' }, toolNote)),
     h(
       'div',
       { class: 'viewer-key scene-key-line' },
