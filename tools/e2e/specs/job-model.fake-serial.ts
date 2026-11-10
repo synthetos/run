@@ -73,9 +73,9 @@ test('a project file opens as the project’s job on a machine bed; the scene, U
   await expect(identity.locator('[data-job="project"]')).toHaveText('Mounting plate');
   await expect(identity.locator('[data-job="machine"]')).toContainText('My X-Carve');
   await expect(identity.locator('[data-job="bed"]')).toHaveAttribute('data-bed', 'placeholder');
-  // Simple (the default level) says the bed's size and that it is not measured yet (C2), and no revision numbers (C3).
+  // Simple (the default level) says the bed's size, with no "(not measured yet)" (owner, 2026-11-09), and no revision numbers (C3).
   await expect(page.locator('[data-screen="job"] [data-preview="viewer-menu"] [data-scene="bed"]')).toContainText('750 × 750 mm');
-  await expect(identity.locator('[data-job="bed"]')).toHaveText('bed 750 × 750 mm (not measured yet)');
+  await expect(identity.locator('[data-job="bed"]')).toHaveText('bed 750 × 750 mm');
   await expect(identity).not.toContainText('revision');
   await expect(identity.locator('[data-job="state"]')).toHaveText('Saved');
   await expect(page.locator('[data-screen="job"] [data-preview="canvas"], [data-screen="job"] [data-preview="svg"]')).toHaveCount(1);
@@ -86,7 +86,7 @@ test('a project file opens as the project’s job on a machine bed; the scene, U
   // Setup edits the same job and shows the same scene with the path on it.
   await show(page, 'setup');
   await expect(page.locator('[data-job="name"]')).toHaveText('plate');
-  // Simple names the job's machine on the job card, and the scene's key says the bed is not measured yet.
+  // Simple names the job's machine on the job card, and the viewer's menu gives the bed's size.
   await expect(page.locator('[data-job="identity"] [data-job="machine"]')).toHaveText('My X-Carve');
   await expect(page.locator('[data-screen="job"] [data-preview="viewer-menu"] [data-scene="bed"]')).toContainText('750 × 750 mm');
   await expect(page.locator('[data-screen="job"] [data-preview="canvas"], [data-screen="job"] [data-preview="svg"]')).toHaveCount(1);
@@ -97,7 +97,7 @@ test('a project file opens as the project’s job on a machine bed; the scene, U
   // Projects lists the job; it is the open one.
   await show(page, 'projects');
   await expect(page.locator('[data-project-job="plate"]')).toHaveAttribute('aria-current', 'true');
-  await expect(page.locator('[data-project-job="plate"]')).toContainText('bed 750 × 750 mm (not measured yet)');
+  await expect(page.locator('[data-project-job="plate"]')).toContainText('bed 750 × 750 mm');
   await expect(page.locator('[data-project-job="plate"]')).not.toContainText('revision');
 
   // After a reload the job comes back intact: same project, machine, bed and file, without any live fact.

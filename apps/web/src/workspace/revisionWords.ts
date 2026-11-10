@@ -5,24 +5,31 @@
  * - Simple hides revision numbers: a job says "Saved" (kept in this browser) or "Unsaved changes" (storage was
  *   refused), a pinned bed says whether it matches the machine's, and a save says "Saved". Advanced keeps the
  *   numbers, which are how jobs keep the bed they were planned on.
- * - A bed whose size has not been measured says so next to its size everywhere: "750 × 750 mm (not measured yet)",
- *   never "Bed size not set" while a size shows.
+ * - A bed nobody has entered yet comes from the machine's stock profile (owner, 2026-11-09): its size from the profile's
+ *   travel is fine, so the size reads "750 × 750 mm" with no suffix, and the tag says "From the X-Carve profile". Only
+ *   the bed top's height below home is unknown; a note says so where it matters (preview/previewNotes.ts).
  */
 import type { MachineBed } from './library.ts';
 
-/** The words after a placeholder bed's size. */
-export const NOT_MEASURED = 'not measured yet';
-
-/** "750 × 750 mm", with "(not measured yet)" for a placeholder bed. */
-export function bedSizeText(bed: Pick<MachineBed, 'width' | 'depth' | 'source'>): string {
-  const size = `${Math.round(bed.width)} × ${Math.round(bed.depth)} mm`;
-  return bed.source.kind === 'placeholder' ? `${size} (${NOT_MEASURED})` : size;
+/** "750 × 750 mm". */
+export function bedSizeText(bed: Pick<MachineBed, 'width' | 'depth'>): string {
+  return `${Math.round(bed.width)} × ${Math.round(bed.depth)} mm`;
 }
 
-/** The bed's tag: "Not measured yet", "Measured" or "From a drawing". */
-export function bedTag(bed: Pick<MachineBed, 'source'>): string {
-  return bed.source.kind === 'placeholder' ? 'Not measured yet' : bed.source.kind === 'measured' ? 'Measured' : 'From a drawing';
+/** Where the bed's numbers come from, in words: "from the X-Carve profile", "measured" or "from <file>". */
+export function bedFromText(bed: Pick<MachineBed, 'source'>, profile: string | null): string {
+  if (bed.source.kind === 'placeholder') return profile === null ? 'default size' : `from the ${profile} profile`;
+  return bed.source.kind === 'measured' ? 'measured' : `from ${bed.source.file}`;
 }
+
+/** The bed's tag: "From the X-Carve profile", "Measured" or "From a drawing". */
+export function bedTag(bed: Pick<MachineBed, 'source'>, profile: string | null = null): string {
+  if (bed.source.kind === 'placeholder') return profile === null ? 'Default size' : `From the ${profile} profile`;
+  return bed.source.kind === 'measured' ? 'Measured' : 'From a drawing';
+}
+
+/** Machines → Bed: what the bed top's height is for, in plain words. */
+export const BED_TOP_PURPOSE = 'Where the bed top sits below home. Run uses it to warn before the tool cuts into the bed.';
 
 /** The job card's last part: the job's revision in Advanced, else whether this browser kept it. */
 export function jobStateText(revision: number, saved: boolean, advanced: boolean): string {

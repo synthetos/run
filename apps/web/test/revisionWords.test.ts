@@ -1,15 +1,17 @@
 /** Revisions and the bed's size in words (first-time walk 2026-11-08, C2 and C3). */
 import { describe, expect, it } from 'vitest';
-import { bedSizeText, bedTag, jobStateText, machineText, sameBed } from '../src/workspace/revisionWords.ts';
+import { bedFromText, bedSizeText, bedTag, jobStateText, machineText, sameBed } from '../src/workspace/revisionWords.ts';
 
 const placeholder = { width: 750, depth: 750, thickness: 19, toMachine: { x: 0, y: 0, z: -65 }, source: { kind: 'placeholder' as const, note: '' } };
 const measured = { ...placeholder, source: { kind: 'measured' as const, note: '', at: '' } };
 
 describe('revision words', () => {
-  it('a placeholder bed shows its size with "(not measured yet)", never "not set"', () => {
-    expect(bedSizeText(placeholder)).toBe('750 × 750 mm (not measured yet)');
+  it('a bed nobody entered comes from the machine\'s profile: its size with no suffix, the tag names the profile (owner, 2026-11-09)', () => {
+    expect(bedSizeText(placeholder)).toBe('750 × 750 mm');
     expect(bedSizeText(measured)).toBe('750 × 750 mm');
-    expect(bedTag(placeholder)).toBe('Not measured yet');
+    expect(bedTag(placeholder, 'X-Carve')).toBe('From the X-Carve profile');
+    expect(bedTag(placeholder)).toBe('Default size');
+    expect(bedFromText(placeholder, 'X-Carve')).toBe('from the X-Carve profile');
     expect(bedTag(measured)).toBe('Measured');
   });
   it('Simple hides revision numbers; Advanced keeps them', () => {

@@ -22,7 +22,7 @@ import { editBlocked, SettingsTable } from '../settings/SettingsUi.ts';
 import { GuidedSettings, guidedAxes } from '../settings/GuidedSettings.ts';
 import { boardTab, type BoardTab } from '../boardNavigation.ts';
 import { jobStep, machinesTab, uiLevel, type MachinesTab } from '../jobWorkflow.ts';
-import { bedTag } from '../revisionWords.ts';
+import { BED_TOP_PURPOSE, bedTag } from '../revisionWords.ts';
 import { executionLock } from '../fileBridge.ts';
 import { updateActiveJob, withMachine } from '../jobModel.ts';
 import { writableKey } from '../settings/pending.ts';
@@ -72,7 +72,9 @@ function BedSection({ machine }: { readonly machine: MachineProfile }): Componen
   return h(
     'div',
     { class: 'machine-bed', 'data-machine': 'bed', 'data-bed': placeholder ? 'placeholder' : bed.source.kind, 'data-bed-revision': String(bed.revision) },
-    h('div', { class: 'bed-head' }, h('h3', null, 'Bed'), h('span', { class: `tag${placeholder ? ' warn' : ' ok'}` }, bedTag(bed)), uiLevel.value.value === 'advanced' ? h('span', { class: 'fine' }, bed.revision === 0 ? 'no revision saved yet' : `revision ${bed.revision}`) : null),
+    h('div', { class: 'bed-head' }, h('h3', null, 'Bed'), h('span', { class: `tag${placeholder ? '' : ' ok'}`, 'data-machine': 'bed-tag' }, bedTag(bed, CATALOGUE.find((t) => t.id === machine.templateId)?.name ?? machine.name)), uiLevel.value.value === 'advanced' ? h('span', { class: 'fine' }, bed.revision === 0 ? 'no revision saved yet' : `revision ${bed.revision}`) : null),
+    // What the bed top's height is for, said plainly (owner, 2026-11-09).
+    h('p', { class: 'fine', 'data-machine': 'bed-purpose' }, BED_TOP_PURPOSE),
     h('div', { class: 'machine-bed-fields' }, numField('Width', bed.width, (width) => save({ width }), 1), numField('Depth', bed.depth, (depth) => save({ depth }), 1), numField('Thickness', bed.thickness, (thickness) => save({ thickness }), 0.1, 0.5), numField('Bed top, machine Z', bed.toMachine.z, (z) => save({ z }), -100000, 0.1)),
     h(ContextHelp, { id: 'machine-bed-help', label: 'About this bed' },
       bed.source.kind === 'placeholder' ? bed.source.note : bed.source.kind === 'measured' ? `${bed.source.note} ${dateText(bed.source.at)}` : `From ${bed.source.file}, ${bed.source.units}, ${dateText(bed.source.at)}.`,

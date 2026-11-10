@@ -37,7 +37,7 @@ test('unhomed at 0, 0, 0: the job is shown as planned with a note; scene parts o
   const before = (await writes(worker)).length;
 
   // The keyboard path: the key's link opens the stock settings and focuses their heading (the links are Advanced;
-  // Simple keeps the bed's size "(not measured yet)" and the hint that a click on a part opens it).
+  // The viewer's settings menu keeps the bed's size and the hint that a click on a part opens it).
   await page.locator('[data-job-step="run"]').click();
   // The viewer's one settings menu (owner, 2026-11-09) holds the hint and the links at both levels.
   const menu = job.locator('[data-preview="viewer-menu"]');

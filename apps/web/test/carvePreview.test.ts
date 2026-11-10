@@ -127,6 +127,11 @@ describe('the key', () => {
     expect(below).toMatchObject({ title: 'The tool goes below the stock.', link: { kind: 'line', line: 812 } });
     expect(`${below?.title ?? ''} ${below?.body ?? ''}`).not.toMatch(/safe|verified/i);
     expect(previewNotes({ scene: null, carve: info() }).some((n) => n.id === 'below-stock')).toBe(false);
+    // The bed height only matters with a cut below the stock, and only on a bed whose top nobody entered.
+    const deep = info({ below: { firstLine: 812, firstDepth: 0.6, deepestLine: 812, deepestDepth: 0.6 } });
+    const placeholderScene = { bedPlaceholder: true, notes: [] } as unknown as JobScene;
+    expect(previewNotes({ scene: placeholderScene, carve: deep }).find((n) => n.id === 'bed-height')).toMatchObject({ title: 'Bed height not set.', body: 'Set it in Machines to check for cuts into the bed.', link: { kind: 'view', view: 'machines' } });
+    expect(previewNotes({ scene: placeholderScene, carve: info() }).some((n) => n.id === 'bed-height')).toBe(false);
   });
 });
 

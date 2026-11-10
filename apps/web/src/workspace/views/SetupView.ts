@@ -53,6 +53,7 @@ const ZEROS = ['back-left', null, 'back-right', null, 'center', null, 'front-lef
 
 import { uiLevel, type JobStep } from '../jobWorkflow.ts';
 import { bedTag, sameBed } from '../revisionWords.ts';
+import { profileName } from '../profileName.ts';
 export function FixtureThumb({ outline, holes }: { readonly outline: readonly (readonly [number, number])[]; readonly holes: readonly (readonly [number, number, number])[] }): ComponentChild {
   const w = Math.max(...outline.map((p) => p[0]), 1);
   const d = Math.max(...outline.map((p) => p[1]), 1);
@@ -159,7 +160,7 @@ export function JobSetupPanel({ step, locked, onView, travel = null }: { readonl
         h(
             'section',
             { class: 'insp', 'data-setup': 'bed', 'data-setup-section': 'bed' },
-            h('header', null, h('h2', null, 'Bed'), h('span', { class: `tag${bedIsPlaceholder(bed) ? ' warn' : ' ok'}`, 'data-bed': bedIsPlaceholder(bed) ? 'placeholder' : bed.source.kind }, bedTag(bed))),
+            h('header', null, h('h2', null, 'Bed'), h('span', { class: `tag${bedIsPlaceholder(bed) ? '' : ' ok'}`, 'data-bed': bedIsPlaceholder(bed) ? 'placeholder' : bed.source.kind }, bedTag(bed, job.setup.bedFrom === 'own' ? null : profileName(job.machine)))),
             h('p', { class: 'fine', 'data-bed': 'owner' }, job.machine === null || job.setup.bedFrom === 'own' ? 'The draft’s own bed: no machine is chosen. Choose a machine above to plan on its bed.' : advanced ? `Pinned from ${job.machine.name}, bed revision ${bed.revision}${behind ? ` (the machine now has revision ${machine === null ? '?' : bedOf(machine).revision})` : ''}.` : behind ? `${job.machine.name}’s bed has changed since this job was planned.` : machine !== null && !sameBed(bed, bedOf(machine)) ? `Unsaved changes: this job’s bed differs from ${job.machine.name}’s.` : `Saved: the same bed as ${job.machine.name}’s.`),
             behind && machine !== null ? h('button', { type: 'button', class: 'small', 'data-action': 'job-take-bed', onClick: () => edit((j) => withMachine(j, machine)) }, advanced ? `Use the machine’s bed revision ${bedOf(machine).revision}` : 'Use the machine’s new bed') : null,
             h(ContextHelp, { id: 'bed-source-help', label: 'About this bed' }, bedSourceText(bed)),
