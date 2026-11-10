@@ -29,7 +29,7 @@
  */
 import { VIEW_ANGLES, fitOrbit, pan, rotate, viewProjection, zoom, zoomToward, type Orbit, type ViewAngles, type ViewPreset } from './camera.ts';
 import { framedBox } from './framing.ts';
-import { DEFAULT_SEGMENTS_PER_CHUNK, STYLE, chunks } from './geometry.ts';
+import { DEFAULT_SEGMENTS_PER_CHUNK, chunks } from './geometry.ts';
 import { checkSegmentList, lineCount, type Box3, type SegmentList, type Vec3 } from './segments.ts';
 import { runSliced, type SliceOptions } from './slicer.ts';
 import { gridLayout, gridLines } from './grid.ts';
