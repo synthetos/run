@@ -28,6 +28,7 @@ import { SETTING_LINE, settingRefusal } from './settingWrite.ts';
 import { probeKillWritable, probeLineWritable } from './probe/sync.ts';
 import { probeLineAllowed } from './probe/common.ts';
 import { ownModeLineRefusal } from './modeWrites.ts';
+import { typedLineWritableIn, typedSendingIn } from './typedMove.ts';
 import type { SessionState } from './types.ts';
 
 export interface WriteContext {
@@ -72,6 +73,11 @@ export interface WriteContext {
   readonly probeLine?: (line: string) => boolean;
   /** Probe Z: ^D may be written now (Stop job or Spindle off during a probe). Absent or false: never. */
   readonly kill?: boolean;
+  /**
+   * Typed moves (H91): true when this text is exactly the typed line the session is sending now. Judged before the
+   * closed grammar, so a typed line that happens to have a grammar shape is still the typed kind. Absent: never.
+   */
+  readonly typedLine?: (line: string) => boolean;
 }
 
 /** `motion`, `flush`, `resume`: Phase 2. `setting`: one single-token settings write, its own command kind (SAFETY §4.6, amendment 2026-11-02). */
@@ -166,6 +172,10 @@ export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): Wr
       getToken = match[1] as string;
       if (context.readable(getToken)) return { ok: true, kind: 'get', token: getToken };
     }
+  }
+  // H91: a typed move is exactly the line the session is sending now, within the motion cap.
+  if (context.motion === true && context.typedLine !== undefined && bytes.length <= MAX_MOTION_LINE_BYTES && text.endsWith('\n') && context.typedLine(text.slice(0, -1))) {
+    return { ok: true, kind: 'motion', lineKind: 'typed' };
   }
   // The motion command kind: exactly one line of the closed grammar, within the motion cap, and only with a motion
   // release (`{"clear":null}` has a GET's shape but is the motion grammar's own line).
@@ -263,6 +273,8 @@ export function checkWrite(
   if (matrixIntent === undefined) return { kind: 'refused', reason: `a ${intent} write names no issuing intent` };
   // Probe Z: after Pause or Stop job, or once its run has ended, no probe line goes out (held back, never a FAULT).
   if (matrixIntent === 'probeZ' && intent === 'motion' && !probeLineAllowed(current)) return { kind: 'denied', reason: 'not written: the probe was stopped or has ended' };
+  // H91: after Pause or Stop job, or once the typed move has ended, its line does not go out (held back, never a FAULT).
+  if (matrixIntent === 'typedMove' && !typedSendingIn(current)) return { kind: 'denied', reason: 'not written: the typed move was stopped or has ended' };
   const decision = allowed(matrixSnapshot(current), matrixIntent, release);
   if (!decision.allowed) return { kind: 'denied', reason: `not written: the allow-matrix denies ${matrixIntent} now (${decision.reason})` };
   const verdict = phase1WriteVerdict(bytes, {
@@ -274,7 +286,7 @@ export function checkWrite(
     ...(release.jobs === true && intent === 'jobLine' ? { jobLine: (text: string) => jobLineWritableIn(current, index, text) } : {}),
     ...(release.jobs === true ? { lineModeWritable: (line: string) => lineModeWritableIn(current, line), jobRuntimeWritable: (line: string) => jobRuntimeWritableIn(emitted, line) } : {}),
     ...(release.flash === true ? { bootWritable: () => current.bootEntry?.phase === 'writing' } : {}),
-    ...(release.motion ? { probeLine: (line: string) => probeLineWritable(current, line), kill: probeKillWritable(current) } : {}),
+    ...(release.motion ? { probeLine: (line: string) => probeLineWritable(current, line), kill: probeKillWritable(current), typedLine: (line: string) => matrixIntent === 'typedMove' && typedLineWritableIn(current, line) } : {}),
   });
   if (!verdict.ok) return { kind: 'refused', reason: verdict.reason };
   if (verdict.kind !== VERDICT_FOR[intent]) return { kind: 'refused', reason: `a ${verdict.kind} write was issued as ${intent}` };

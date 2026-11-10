@@ -84,6 +84,7 @@ import { onModesAnswer } from './modes.ts';
 import { onAlarmRestoreAnswered, onAlarmRestoreMissed } from './alarmRestore.ts';
 import { BOARD_MODES_UNKNOWN, forgetBoardModes, noteModeLine, noteModeRead } from './boardModes.ts';
 import { forgetHomed, noteHomingRead } from './homedAxes.ts';
+import { onTypedReadsIn, startTypedMove } from './typedMove.ts';
 import { POLL_TOKENS, abandonMotion, checkAlarm, idleBase, motionCapable, onFollowUp, onMotionAnswer, onMotionIntent, onMotionReport, onMotionStop, onMotionTimer, onPollDone, type MotionDeps } from './motion.ts';
 import { HEARTBEAT_INTERVAL_MS, JV_LINE, REPORT_DIALECTS, SEED_TOKENS, heartbeatCoversHold, reportLineShape, reportSteps, srListMatches, type ReportStep } from './reports.ts';
 
@@ -541,6 +542,7 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
     case 'clearAlarm':
     case 'resume':
     case 'positionVerify':
+    case 'typedMove':
       // Reached only when the release allows motion (the matrix denied it above otherwise), except
       // positionVerify, a session intent: the motion layer refuses it without a motion release.
       // Never while a settings write is being made: its gate, write and read-back own the link until it ends.
@@ -562,7 +564,8 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
         t.decide(intent, deny('A job is running.', 'Pause or stop the job first.', 'SAFETY §4.4a'));
         return;
       }
-      t.decide(intent, onMotionIntent(t, request, at));
+      // H91: a typed move is a motion of the motion layer, started by its own module (typedMove.ts).
+      t.decide(intent, request.intent === 'typedMove' ? startTypedMove(t, request, at) : onMotionIntent(t, request, at));
       return;
     case 'loadJob':
       t.decide(intent, onLoadJob(t, request, at));
@@ -1719,7 +1722,8 @@ function onSeedAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
 
 /** One seed read is answered (or `null` after queueing them): runs its follow-up, and ends the connect-time read. */
 function seedAnswered(t: Tx, e: PendingRead | null, at: number): void {
-  if (e?.then !== undefined) onFollowUp(t, e.then, at);
+  if (e?.then === 'typedCheck') onTypedReadsIn(t, at);
+  else if (e?.then !== undefined) onFollowUp(t, e.then, at);
   if (t.s.reports.phase !== 'seeding' || isSeedOwed(t.s)) return;
   const dialect = dialectOf(t.s);
   const applies = dialect !== null && t.config.release.reports === true && REPORT_DIALECTS.has(dialect.id) && motionCapable(t.s, t.config) && !t.s.overlays.includes('ORPHANED_MOTION');

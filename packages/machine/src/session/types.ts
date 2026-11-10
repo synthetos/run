@@ -18,7 +18,7 @@
  * every TinyG fact comes from dialect data (RUN_PLAN §5.1 rules 4 and 5).
  */
 import type { StartMode } from './fileModes.ts';
-import type { TravelCheck } from './travelTypes.ts';
+import type { TravelCheck, TravelFinding } from './travelTypes.ts';
 import type { ApprovedBuilds, Banner, ClassifyReason, Dialect, DialectId, FooterRev, Inbound, JsonValue, MachineClass, ProbeKey, Response } from '@synthetos/protocol';
 import type { BaseState, Decision, Intent, Overlay, Release, SentLine } from '@synthetos/safety';
 import type { PortSelector, TransportInfo } from '../transport.ts';
@@ -178,8 +178,8 @@ export type ReadPurpose =
 /** Who a `modes` read is for: a jog, go to zero or Stop job (`motion`), the probe, or a job's tool change. */
 export type ModesOwner = 'motion' | 'probe' | 'toolChange';
 
-/** What runs when the last read-back of a change has been answered. */
-export type FollowUp = 'homed' | 'positionSet';
+/** What runs when the last read-back of a change has been answered. `typedCheck`: a typed move's check reads are in (H91). */
+export type FollowUp = 'homed' | 'positionSet' | 'typedCheck';
 
 export interface PendingRead {
   readonly token: string;
@@ -373,6 +373,19 @@ export interface ReadValue {
 }
 
 /** Things the UI must say that are not states (SAFETY §4.4 READ_ONLY row, §3 FAULT exits). */
+/**
+ * How a typed move ended (H91): `done` after two polled reads at rest; `refused` before anything was sent (or the board
+ * refused the line); `confirm` when its travel check needs "Move anyway" (C40/C41 data in `travel`); `stopped` by
+ * Pause, Stop job or an alarm.
+ */
+export interface TypedMoveNotice {
+  readonly kind: 'done' | 'refused' | 'confirm' | 'stopped';
+  readonly line: string;
+  readonly text: string;
+  readonly at: number;
+  readonly travel?: TravelFinding;
+}
+
 export interface SessionNotices {
   /** When the last `!` was written for a Pause, Stop job or Spindle off request. */
   readonly pauseRequestedAt?: number;
@@ -397,6 +410,8 @@ export interface SessionNotices {
   readonly homedAxes?: readonly JogAxis[];
   /** Homing, set machine position and offsets (amendment 2026-11-02): the last result in plain words. */
   readonly change?: { readonly kind: 'done' | 'refused' | 'failed'; readonly text: string; readonly at: number };
+  /** The last typed move's result (H91, typedMove.ts). Pause and Stop job keep their words in `motion`. */
+  readonly typed?: TypedMoveNotice;
   /** The last connect attempt failed before the port opened. */
   readonly connectFailed?: { readonly code: 'unavailable' | 'open-failed'; readonly reason: string };
   /**
@@ -771,8 +786,11 @@ export interface JogFeed {
   readonly renewedAt: number;
 }
 
-/** `home`: G28.2 (amendment 2026-11-02). `change`: one line that changes a value but moves nothing (G10 L20, G92, G92.1, G28.3, G54..G59). */
-export type MotionOp = 'jog' | 'goToZero' | 'home' | 'change';
+/**
+ * `home`: G28.2 (amendment 2026-11-02). `change`: one line that changes a value but moves nothing (G10 L20, G92, G92.1, G28.3, G54..G59).
+ * `typed`: one move typed in the terminal (H91, owner 2026-11-09; typedMove.ts).
+ */
+export type MotionOp = 'jog' | 'goToZero' | 'home' | 'change' | 'typed';
 
 /** What a `change` sets (decides its read-back). */
 export type ChangeKind = 'setZero' | 'setPosition' | 'tempOffset' | 'clearTempOffset' | 'selectCoord';
@@ -785,9 +803,10 @@ export type ChangeKind = 'setZero' | 'setPosition' | 'tempOffset' | 'clearTempOf
  * - `held`: a Pause of this session's motion is confirmed (base HELD);
  * - `finish`: the closing lines (`M5`, `M9`, `G90`) are being sent;
  * - `homing`: G28.2 sent; pushed reports say when it may have ended, two polled reads confirm it;
- * - `readback`: homing ended; its single read-back (hom, mpo, pos, home) is being answered.
+ * - `readback`: homing ended; its single read-back (hom, mpo, pos, home) is being answered;
+ * - `check`: a typed move's reads are being answered; nothing is sent until they are in and the line passes its check (H91).
  */
-export type MotionPhase = 'feed' | 'drain' | 'hold' | 'flush' | 'held' | 'finish' | 'homing' | 'readback';
+export type MotionPhase = 'feed' | 'drain' | 'hold' | 'flush' | 'held' | 'finish' | 'homing' | 'readback' | 'check';
 
 /** Why a hold was started: the user's Pause, a release or lost keep-alive of a hold jog, or Stop job / Spindle off. */
 /** `homeAbort`: Pause during homing ends the homing (hold, then flush); the machine is then not homed. */
@@ -832,6 +851,20 @@ export interface MotionCtx {
   readonly line?: string;
   readonly attempts?: number;
   readonly retryAt?: number | null;
+  /** `typed` (H91): the typed line, the travel finding the user confirmed for it, and when its check reads were asked. */
+  readonly typed?: TypedMoveCtx;
+}
+
+/** A typed move in progress (H91, typedMove.ts). */
+export interface TypedMoveCtx {
+  /** The line as it is written, checked by the typed grammar (safety typedLine.ts). */
+  readonly line: string;
+  /** The travel finding text the user confirmed with "Move anyway" (C40/C41 data), or null. */
+  readonly travel: string | null;
+  /** When the check reads were queued: an answer older than this is not this move's (typedMove.ts). */
+  readonly askedAt: number;
+  /** The line passed its check and was queued to the board. */
+  readonly sent: boolean;
 }
 
 /** `watchdog`: the receive-silence watchdog (SAFETY §4.2). `motion`: the motion layer's poll and keep-alive tick. */
@@ -870,6 +903,11 @@ export type SessionIntent =
   | { readonly intent: 'spindleOn'; readonly output: 'mist' | 'flood' }
   | { readonly intent: 'clearAlarm' }
   | { readonly intent: 'positionVerify' }
+  /**
+   * One typed G0/G1/G2/G3/G4 line (H91, owner 2026-11-09). `travel`: the travel finding the user confirmed with
+   * "Move anyway", matched exactly against the session's own check (as C40 at Start).
+   */
+  | { readonly intent: 'typedMove'; readonly line: string; readonly travel?: string | null }
   /** Release a hold jog (`!`, then `%` once held). Stop class: never gated. */
   | { readonly intent: 'feedhold'; readonly release: true }
   /** Spindle or coolant off alone, idle (Phase 2). Stop class. */
@@ -914,6 +952,7 @@ export type SessionIntent =
         | 'clearAlarm'
         | 'resume'
         | 'positionVerify'
+        | 'typedMove'
         | 'settingsWrite'
         | 'flash'
         | 'home'

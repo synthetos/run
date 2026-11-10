@@ -119,7 +119,7 @@ export interface SessionSnapshot {
    * Phase 2 (SAFETY §4.5b): the motion in progress, or null. `hold` is true for a press-and-hold jog;
    * `held` once a Pause of it is confirmed by polled reads (Resume is offered then).
    */
-  readonly motion: { readonly op: 'jog' | 'goToZero' | 'home' | 'change' | 'stop'; readonly phase: string; readonly hold: boolean; readonly held: boolean; readonly stopping: boolean } | null;
+  readonly motion: { readonly op: 'jog' | 'goToZero' | 'home' | 'change' | 'typed' | 'stop'; readonly phase: string; readonly hold: boolean; readonly held: boolean; readonly stopping: boolean } | null;
   /**
    * The connect-time read and status-report configuration (amendment 2026-11-02, H64): its phase, the heartbeat in
    * force, and every reporting setting run changed (and saved) on this board (W35, W36).

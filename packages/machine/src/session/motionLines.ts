@@ -28,6 +28,7 @@
  * | `[G90] [G21] G17 [G91.1]`, `[G90] [G21] G91.1` | a job's start modes, the ones the preview assumes, before its first line (OD-19); `G21`, `G90` and `G90 G21` alone are the `units` and `restore` shapes, admitted for the same use |
  * | `G91 G38.2 Z-<n> F<f>` | Probe Z: the one probe move, n ≤ 15 mm, f ≤ 100 mm/min (SAFETY §4.5c, H90) |
  * | `G10 L20 P<1-6> Z<n>` | Probe Z: the zero it sets, |n| ≤ 50 mm, always written with 4 decimals (never `Z0`, set zero's shape) |
+ * | a typed move | H91: one G0/G1/G2/G3/G4 line of the typed grammar (safety typedLine.ts), admitted only from `typedMove` and only as the exact line the session is sending now (no shape here) |
  *
  * Numbers: a distance is at most 5 integer and 4 decimal digits with an
  * optional minus, and |d| ≤ `MAX_MOTION_MM`; a feed is 1..`MAX_JOG_FEED`
@@ -99,7 +100,9 @@ export type MotionLineKind =
   | 'clear'
   | 'jobModes'
   | 'probe'
-  | 'probeZero';
+  | 'probeZero'
+  /** H91: a typed move. Never matched by a shape here: the write gate admits only the exact line being sent (typedMove.ts). */
+  | 'typed';
 
 /**
  * The allow-matrix intents that may issue each kind of line (amendment 2026-11-02, T-S94): the write gate
@@ -129,6 +132,7 @@ export const LINE_INTENTS: Readonly<Record<MotionLineKind, readonly string[]>> =
   jobModes: ['jobModes'],
   probe: ['probeZ'],
   probeZero: ['probeZ'],
+  typed: ['typedMove'],
 });
 
 /** The kind of a motion line, or undefined when it is not exactly one of the admitted shapes. */

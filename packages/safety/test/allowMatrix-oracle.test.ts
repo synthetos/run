@@ -72,6 +72,7 @@ describe('intent kinds (which release gate and which rule applies)', () => {
       spindleOn: 'motion',
       setWorkZero: 'motion',
       goToZero: 'motion',
+      typedMove: 'motion',
       clearAlarm: 'motion',
       alarmRestore: 'motion',
       setMachinePosition: 'motion',

@@ -33,6 +33,8 @@ export const SAFETY_REVIEW_PATHS: readonly string[] = [
   '/apps/web/src/panels/jog/',
   '/apps/web/src/panels/control/',
   '/apps/web/src/panels/firmware/',
+  // H91: the terminal decides which path a typed line takes to the board.
+  '/apps/web/src/terminal/',
   '/apps/web/src/workers/',
   '/apps/web/src/machine-worker/',
   // The build channel (P1-00): the bench seam, where the localhost bench

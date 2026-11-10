@@ -34,6 +34,8 @@ export type { SettingsEnvironment } from './settingsPhase.ts';
 export { JOBS, jobsEnabled, withJobs } from './jobsPhase.ts';
 export { FLASHER, flasherEnabled, withFlasher } from './flasherPhase.ts';
 export { overrunBound } from './overrun.ts';
+export { TYPED_MAX_CHARS, TYPED_MAX_DWELL_S, parseTypedLine } from './typedLine.ts';
+export type { TypedLetter, TypedLine, TypedMotion, TypedParse } from './typedLine.ts';
 export { EMPTY_AXIS_MODE_SESSION, INHIBITED_JOINT_BEHAVIOUR, axisModeFacts } from './axisModeFacts.ts';
 export type { AxisModeFact, AxisModeFactCode, AxisModeReading, AxisModeSession } from './axisModeFacts.ts';
 export type { OverrunBound, QueuedLine } from './overrun.ts';

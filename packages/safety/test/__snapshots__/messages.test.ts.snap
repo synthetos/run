@@ -934,6 +934,24 @@ exports[`allow-matrix denials > are pinned for every intent and overlay 1`] = `
     "reason": "Not available in this release.",
     "remedy": "This version of run.synthetos.com does not connect to machines yet.",
   },
+  "typedMove BOOTLOADER_MODE": {
+    "allowed": false,
+    "citation": "SAFETY H91 (owner 2026-11-09); docs/design/terminal-typed-moves.md",
+    "reason": "Typed moves run only while the machine is idle.",
+    "remedy": "Wait until the machine is idle. Pause and Stop job still work.",
+  },
+  "typedMove NOT_CONNECTED": {
+    "allowed": false,
+    "citation": "SAFETY H91 (owner 2026-11-09); docs/design/terminal-typed-moves.md",
+    "reason": "Typed moves run only while the machine is idle.",
+    "remedy": "Wait until the machine is idle. Pause and Stop job still work.",
+  },
+  "typedMove phase 0": {
+    "allowed": false,
+    "citation": "ROADMAP P0-10 (Phase 0)",
+    "reason": "Not available in this release.",
+    "remedy": "This version of run.synthetos.com does not connect to machines yet.",
+  },
   "unknown state": {
     "allowed": false,
     "citation": "SAFETY §4.1 (fail closed)",

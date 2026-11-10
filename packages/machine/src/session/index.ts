@@ -15,8 +15,13 @@ export { HEARTBEAT_INTERVAL_MS, HEARTBEAT_S, REPORT_DIALECTS, RT_PROBE_LINE, RUN
 export type { ReportCurrent, ReportStep, ReportStepKind } from './reports.ts';
 export { CLEAR_LINE, LINE_INTENTS, MAX_JOG_FEED, MAX_MOTION_MM, MAX_PROBE_DEPTH_MM, MAX_PROBE_FEED, MAX_PROBE_ZERO_MM, MAX_RPM, motionLineKind, probeLine, probeZeroLine } from './motionLines.ts';
 export type { MotionLineKind } from './motionLines.ts';
-export type { AckVerify, Axis, ChangeKind, ClassificationInfo, Expected, FaultCause, FaultInfo, FaultKind, FeedLimitState, FeedMove, FeedSummary, FollowUp, HoldReason, Identity, JobEvent, JobPhase, JobReportSummary, JobState, JobStopPoint, JogAxis, JogFeed, LinkWindow, LiveState, MotionCtx, MotionOp, MotionPhase, PendingRead, ProbeProgress, ReadPurpose, ReadValue, RealtimeName, ReportChange, ReportsState, RxmState, SessionBase, SessionConfig, SessionEffect, SessionEvent, SessionIntent, SessionNotices, SessionState, SessionTimings, SettingWriteOutcome, SettingWriteState, TimerId, Transition } from './types.ts';
+export type { AckVerify, Axis, ChangeKind, ClassificationInfo, Expected, FaultCause, FaultInfo, FaultKind, FeedLimitState, FeedMove, FeedSummary, FollowUp, HoldReason, Identity, JobEvent, JobPhase, JobReportSummary, JobState, JobStopPoint, JogAxis, JogFeed, LinkWindow, LiveState, MotionCtx, MotionOp, MotionPhase, PendingRead, ProbeProgress, ReadPurpose, ReadValue, RealtimeName, ReportChange, ReportsState, RxmState, SessionBase, SessionConfig, SessionEffect, SessionEvent, SessionIntent, SessionNotices, SessionState, SessionTimings, SettingWriteOutcome, SettingWriteState, TimerId, Transition, TypedMoveCtx, TypedMoveNotice } from './types.ts';
 export { readOnlyNotice } from './notices.ts';
+export { TYPED_NO_FEED, TYPED_TOO_LONG, feedInEffect, findingWords, typedCheck } from './typedTravel.ts';
+export type { TypedCheck } from './typedTravel.ts';
+export type { TravelCheck, TravelFinding, TravelPast } from './travelTypes.ts';
+export { TYPED_CHECK_TOKENS, TYPED_LIMITS, typedLineWritableIn, typedSendingIn } from './typedMove.ts';
+export { TYPED_TEXT } from './typedNotice.ts';
 export { PROBE_LIMITS, probeMaxSeconds, probeStopMm } from './probe/limits.ts';
 export { PROBE_MIN_FB, findProbeInput, probeBlock, probeCapable, probeInput } from './probe/gate.ts';
 export { PLATE_OUT_TEXT } from './probe/intents.ts';

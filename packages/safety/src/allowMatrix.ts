@@ -85,6 +85,11 @@ export const INTENTS = Object.freeze([
   'setWorkZero',
   /** Phase 2: rapid to work zero, Z raised first in machine coordinates (WORKSPACE_FEATURES Jog). */
   'goToZero',
+  /**
+   * One typed G0/G1/G2/G3/G4 line from the terminal (H91, owner 2026-11-09): idle only, one at a time, checked by the
+   * session like a one-line job (sanitiser, travel), then confirmed by polled idle like go to zero.
+   */
+  'typedMove',
   /** Phase 2: `{"clear":null}` after the user read why the controller alarmed (C13). */
   'clearAlarm',
   /**
@@ -435,6 +440,16 @@ const MATRIX: Readonly<Record<Intent, Row>> = Object.freeze({
     citation: 'SAFETY §4.2 (amendment 2026-11-02, push-driven state); H64',
   },
   consoleLine: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Console line row' },
+  // JOGGING: the typed line is written after its check moved the base to JOGGING (as for the go-to-zero row). The
+  // session itself starts a typed move only from idle, with nothing else in motion: never in a job, hold, homing,
+  // alarm, tool change (PROGRAM_PAUSED) or another move.
+  typedMove: {
+    kind: 'motion',
+    states: [...IDLE, 'JOGGING'],
+    overlays: [],
+    denied: { reason: 'Typed moves run only while the machine is idle.', remedy: 'Wait until the machine is idle. Pause and Stop job still work.' },
+    citation: 'SAFETY H91 (owner 2026-11-09); docs/design/terminal-typed-moves.md',
+  },
   spindleOn: { kind: 'motion', states: IDLE, overlays: [], denied: NOT_IDLE, citation: 'SAFETY §4.1 Manual spindle/coolant on row' },
   // Kind `motion`: setting work zero is part of motion control (P2 in WORKSPACE_FEATURES), not a settings write (§4.5b).
   // PROGRAM_PAUSED (Phase 3): the optional Z re-zero during a manual tool change; the session allows it only then.

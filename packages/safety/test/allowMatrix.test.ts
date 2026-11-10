@@ -262,7 +262,7 @@ describe('Phase 0 release gate', () => {
 
   it('every motion and write intent is classified as such', () => {
     const kinds = Object.fromEntries(INTENTS.map((i) => [i, intentKind(i)]));
-    for (const i of ['jog', 'home', 'start', 'resume', 'arm', 'consoleLine', 'spindleOn', 'setWorkZero', 'goToZero', 'clearAlarm', 'setMachinePosition', 'tempOffset', 'selectCoordSystem']) expect(kinds[i], i).toBe('motion');
+    for (const i of ['jog', 'home', 'start', 'resume', 'arm', 'consoleLine', 'spindleOn', 'setWorkZero', 'goToZero', 'typedMove', 'clearAlarm', 'setMachinePosition', 'tempOffset', 'selectCoordSystem']) expect(kinds[i], i).toBe('motion');
     // The status-report configuration has its own gate (amendment 2026-11-02, H64).
     expect(kinds['configureReports']).toBe('reports');
     for (const i of ['applyProfile', 'optionalStop', 'resetController']) expect(kinds[i], i).toBe('write');
@@ -330,7 +330,7 @@ describe('Phase 1 release gate (ROADMAP P1-02: read-only bench)', () => {
 });
 
 describe('Phase 2 release gate (owner 2026-11-02: bench motion; SAFETY §4.5b, T-S92)', () => {
-  const MOTION_P2: readonly Intent[] = ['jog', 'goToZero', 'setWorkZero', 'spindleOn', 'clearAlarm', 'resume', 'tempOffset', 'selectCoordSystem'];
+  const MOTION_P2: readonly Intent[] = ['jog', 'goToZero', 'typedMove', 'setWorkZero', 'spindleOn', 'clearAlarm', 'resume', 'tempOffset', 'selectCoordSystem'];
 
   it('allows the Phase 2 motion intents only in their states with no overlay at all, and never a settings write', () => {
     const wrong: string[] = [];
@@ -343,6 +343,8 @@ describe('Phase 2 release gate (owner 2026-11-02: bench motion; SAFETY §4.5b, T
         // PROGRAM_PAUSED (Phase 3): the jog and Z re-zero of a manual tool change; the session allows them only then.
         jog: ['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'PROGRAM_PAUSED'],
         goToZero: ['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING'],
+        // H91: the typed line is written after its check moved the base to JOGGING; never in a job, hold or tool change.
+        typedMove: ['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING'],
         setWorkZero: ['IDLE_UNHOMED', 'IDLE_HOMED', 'PROGRAM_PAUSED'],
         spindleOn: ['IDLE_UNHOMED', 'IDLE_HOMED'],
         clearAlarm: ['ALARM'],

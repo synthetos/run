@@ -154,7 +154,7 @@ function workZMm(s: SessionState): number | null {
   return s.live.unit === 0 ? z * 25.4 : z;
 }
 
-const HELD_WHILE_OPEN: ReadonlySet<string> = new Set(['jog', 'goToZero', 'setWorkZero', 'home', 'setMachinePosition', 'tempOffset', 'selectCoordSystem', 'spindleOn', 'settingsWrite', 'flash', 'startJob', 'resume']);
+const HELD_WHILE_OPEN: ReadonlySet<string> = new Set(['jog', 'goToZero', 'typedMove', 'setWorkZero', 'home', 'setMachinePosition', 'tempOffset', 'selectCoordSystem', 'spindleOn', 'settingsWrite', 'flash', 'startJob', 'resume']);
 
 /** What the probe refuses of other intents: anything that moves or changes the machine while it is open, and Start job and Spindle on while the plate is out. */
 export function probeRefusal(s: SessionState, request: SessionIntent): Decision | undefined {

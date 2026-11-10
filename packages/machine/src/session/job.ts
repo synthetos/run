@@ -430,9 +430,9 @@ export function liveMotion(s: SessionState): MotionModel {
   return { ceilingSeconds: CEILING_SECONDS.default, k: DEFAULT_K, maxVelocity, feedrateMax, rotary, linear };
 }
 
-/** Sanitises the pending text with the live board's values (SAFETY §4.7). Pure. */
-export function sanitizeLive(s: SessionState, text: string, c22: boolean): SanitizeResult {
-  return sanitizeJob(text, dialect(s), { motion: liveMotion(s), start: liveStart(s), c22 });
+/** Sanitises the pending text with the live board's values (SAFETY §4.7). `start`: a typed move's, with the feed in effect (typedTravel.ts). Pure. */
+export function sanitizeLive(s: SessionState, text: string, c22: boolean, start: StartState = liveStart(s)): SanitizeResult {
+  return sanitizeJob(text, dialect(s), { motion: liveMotion(s), start, c22 });
 }
 
 function summary(result: SanitizeResult): JobReportSummary {

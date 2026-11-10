@@ -73,6 +73,7 @@ import { noteAlarmEnded, onAlarmEntered, onClearAnswered } from './alarmRestore.
 import { forgetHomed, noteHomed, noteSetByHand } from './homedAxes.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './jobState.ts';
+import { typedAlarmed, typedCheckTimedOut, typedEnded } from './typedNotice.ts';
 import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, PolledValues, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
 
 /** Timing and bounds of the motion layer (SAFETY §4.5b). Milliseconds unless named otherwise. */
@@ -209,6 +210,11 @@ function queueLine(t: MotionTx, line: string, intent: Intent): void {
   t.set({ queue: [...t.s.queue, entry] });
 }
 
+/** A typed move's line (H91, typedMove.ts): queued like every motion line; the write gate admits only that exact line. */
+export function queueMotionLine(t: MotionTx, line: string, intent: Intent): void {
+  queueLine(t, line, intent);
+}
+
 function writeRealtime(t: MotionTx, name: 'feedhold' | 'flush' | 'resume', intent: Intent): void {
   const realtime = dialect(t.s).realtime;
   const byte = name === 'feedhold' ? realtime.feedhold.byte : name === 'flush' ? (realtime.flush as { readonly byte: number }).byte : realtime.resume.byte;
@@ -267,7 +273,7 @@ export function clearMotionNotice(t: { s: SessionState; set(patch: Partial<Sessi
   t.set({ notices: rest });
 }
 
-function newCtx(s: SessionState, op: MotionCtx['op']): MotionCtx {
+export function newCtx(s: SessionState, op: MotionCtx['op']): MotionCtx {
   // A Stop job from CONNECTED_UNKNOWN (UNKNOWN overlay, or a FAULT) returns there; a jog or Z re-zero during a
   // job's tool change (Phase 3) returns to PROGRAM_PAUSED; everything else to idle.
   const returnTo: SessionBase = s.base === 'CONNECTED_UNKNOWN' || s.base === 'PROGRAM_PAUSED' ? s.base : 'IDLE_UNHOMED';
@@ -290,7 +296,7 @@ function startChange(t: MotionTx, change: ChangeKind, line: string, intent: Inte
 }
 
 /** Where a motion returns: CONNECTED_UNKNOWN if it started there, else the idle base for the homing state. */
-function returnBase(ctx: MotionCtx, s: SessionState): SessionBase {
+export function returnBase(ctx: MotionCtx, s: SessionState): SessionBase {
   if (ctx.returnTo === 'PROGRAM_PAUSED' && ctx.reason !== 'stopJob' && jobActive(s)) return 'PROGRAM_PAUSED';
   return ctx.returnTo === 'CONNECTED_UNKNOWN' && s.overlays.length > 0 ? 'CONNECTED_UNKNOWN' : idleBase(s);
 }
@@ -553,7 +559,8 @@ export function onMotionStop(t: MotionTx, request: SessionIntent, at: number): b
       beginHold(t, 'homeAbort', at);
       return true;
     }
-    if (ctx !== null && (ctx.phase === 'feed' || ctx.phase === 'drain')) {
+    // A typed move still being checked (H91) ends here too, so its line never goes out after a Pause.
+    if (ctx !== null && (ctx.phase === 'feed' || ctx.phase === 'drain' || ctx.phase === 'check')) {
       beginHold(t, 'pause', at);
       return true;
     }
@@ -746,6 +753,7 @@ function complete(t: MotionTx, at: number): void {
     readBack(t, ['hom', 'mpo', 'pos', 'home']);
     if (ctx.reason === 'homeAbort') changeNotice(t, 'failed', 'Homing stopped by Pause. The machine is not homed: home again before relying on positions.', at);
   }
+  if (ctx.op === 'typed') typedEnded(t, ctx, at);
   if (ctx.reason === 'stopJob') {
     message(t, 'stopped', STOP_TEXT.stopped, at);
     jobStopped(t, at);
@@ -762,7 +770,7 @@ function changeNotice(t: MotionTx, kind: 'done' | 'refused' | 'failed', text: st
  * A follow-up after the last read-back of a homing (`homed`) or a G28.3 (`positionSet`): with all of X, Y and Z
  * homed (`home` 1) the position is trusted, so UNKNOWN clears and the base is IDLE_HOMED.
  */
-export function onFollowUp(t: MotionTx, then: FollowUp, at: number): void {
+export function onFollowUp(t: MotionTx, then: Exclude<FollowUp, 'typedCheck'>, at: number): void {
   const s = t.s;
   const homed = s.live.home === 1;
   if (homed && s.overlays.includes('UNKNOWN')) t.set({ overlays: s.overlays.filter((o) => o !== 'UNKNOWN') });
@@ -842,6 +850,12 @@ export function onMotionTimer(t: MotionTx, deps: MotionDeps, at: number): void {
     deps.fault(t, 'stopNotConfirmed', 'integrity', `the controller ${what} within ${MOTION_LIMITS.stopStepMs / 1000} s`, at);
     return;
   }
+  if (ctx.phase === 'check') {
+    // A typed move's check reads were not all answered in time (H91): nothing was sent.
+    t.set({ motion: null, base: returnBase(ctx, t.s) });
+    typedCheckTimedOut(t, ctx, at);
+    return;
+  }
   if (ctx.retryAt !== undefined && ctx.retryAt !== null && at >= ctx.retryAt && ctx.line !== undefined) {
     setMotion(t, { retryAt: null, attempts: (ctx.attempts as number) + 1, confirmed: 0 });
     queueLine(t, ctx.line, ctx.change === 'setZero' ? 'setWorkZero' : 'selectCoordSystem');
@@ -879,6 +893,7 @@ export function checkAlarm(t: MotionTx, at: number): boolean {
     // OD-19: a jog or go to zero ended here left G91 (and G21): Clear alarm puts G90 back (alarmRestore.ts).
     if (s.motion !== null && (s.motion.op === 'jog' || s.motion.op === 'goToZero')) noteAlarmEnded(t, s.motion.units);
     else onAlarmEntered(t);
+    if (s.motion !== null && s.motion.op === 'typed') typedAlarmed(t, s.motion, at);
     t.set({ motion: null, base: 'ALARM', queue: s.queue.filter((q) => q.purpose !== 'motion') });
     t.cancel('motion');
     if (moving) message(t, 'failed', 'The controller alarmed and stopped the move. Read the alarm, then clear it.', at);

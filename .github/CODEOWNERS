@@ -74,6 +74,10 @@
 /workers/run/src/routes.ts               @ril3y
 /tools/e2e/fake-serial/                  @ril3y
 
+# --- H91: typed commands (owner 2026-11-09) ------------------------------
+# The terminal decides which path a typed line takes to the board.
+/apps/web/src/terminal/                  @ril3y
+
 # --- Report a problem (REPORT_A_PROBLEM §6) -------------------------------
 # The fixed allowlist of report destinations. The bundle scan admits these
 # exact URLs in JavaScript chunks, so a change here changes what it allows.
