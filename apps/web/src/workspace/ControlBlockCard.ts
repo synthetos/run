@@ -71,7 +71,7 @@ export function ControlBlockCard({ block, model }: { readonly block: ControlBloc
     if (blockAction(id, model) === 'ask-clear-alarm') setAsking(true);
   };
   const detail = block.detail ?? null;
-  usePublishNotes('control-block', detail === null ? [] : [{ id: `block-${block.kind}`, topic: 'Connection', title: 'What the board said.', body: detail, link: { kind: 'board', tab: 'overview', label: 'Board' } }]);
+  usePublishNotes('control-block', detail === null ? [] : [{ id: `block-${block.kind}`, topic: 'Connection', title: 'What the board said.', body: 'Run’s own words about this board, for help.', detail, link: { kind: 'board', tab: 'overview', label: 'Board' }, tone: 'info' }]);
   // A button that needs the LIVE actions (Clear alarm, Disconnect) is left out without them, never shown dead.
   const usable = block.actions.filter((a) => (a.id === 'clear-alarm' ? actions?.motion !== undefined : a.id === 'disconnect' ? actions !== null : true));
   return h(

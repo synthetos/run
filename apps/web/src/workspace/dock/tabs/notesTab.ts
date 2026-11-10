@@ -1,11 +1,15 @@
 /**
- * The dock's Notes tab: every explanatory note that applies now (notes/notes.ts), grouped by topic, newest first,
- * each with a link to where it applies. The badge counts them.
+ * The dock's Notes tab (owner, 2026-11-09): one zebra row per note, Needs you first then Good to know, each with ⚠
+ * or ℹ, a short bold title, one plain sentence, its button, More for the detail and × to hide it for good. The badge
+ * counts the notes not hidden.
  */
 import { h, type ComponentChild } from 'preact';
+import { useState } from 'preact/hooks';
 import { boardTab, viewRequest } from '../../boardNavigation.ts';
 import { jobStep, type JobStep } from '../../jobWorkflow.ts';
-import { allNotes, notesByTopic, type NoteLink } from '../../notes/notes.ts';
+import { noteKey, notesByNeed, visibleNotes, type NoteLink, type ShownNote } from '../../notes/notes.ts';
+import { dismiss } from '../../notes/Dismissable.ts';
+import { noteAction } from '../../notes/noteActions.ts';
 import type { DockContext, DockTab } from '../dockTab.ts';
 import { openDockTab } from '../dockRequest.ts';
 
@@ -26,8 +30,11 @@ function follow(link: NoteLink, ctx: DockContext): void {
       boardTab.value = link.tab;
       viewRequest.value = 'board';
       return;
-    default:
+    case 'view':
       viewRequest.value = link.view;
+      return;
+    default:
+      noteAction(link.action)?.();
   }
 }
 
@@ -35,8 +42,43 @@ function linkLabel(link: NoteLink): string {
   return link.kind === 'line' ? `Line ${link.line.toLocaleString('en-US')}` : link.label;
 }
 
+const GROUP_TITLE = { needs: 'Needs you', know: 'Good to know' } as const;
+
+/** One note: ⚠ or ℹ, a bold title, one sentence, its button, More (the detail, in place) and × (hidden for good). */
+function NoteRow({ note, ctx }: { readonly note: ShownNote; readonly ctx: DockContext }): ComponentChild {
+  const link = note.link ?? null;
+  const action = link?.kind === 'action' ? noteAction(link.action) : null;
+  const showLink = link !== null && (link.kind !== 'action' || action !== null);
+  // More sits at the end of the sentence, so a closed row stays one line; the detail opens in place under it.
+  const [open, setOpen] = useState(false);
+  const moreId = `note-more-${note.source}-${note.id}`.replace(/[^A-Za-z0-9_-]/g, '-');
+  return h(
+    'li',
+    { class: `note${note.tone === 'warn' ? ' warn' : ''}`, 'data-note': note.id, ...(note.safety === undefined ? {} : { 'data-safety': note.safety }) },
+    h('span', { class: 'note-icon', 'aria-hidden': 'true' }, note.tone === 'warn' ? '⚠' : 'ℹ'),
+    h(
+      'div',
+      { class: 'note-main' },
+      h(
+        'p',
+        { class: 'note-line' },
+        h('strong', null, note.title),
+        note.body === '' ? null : ` ${note.body}`,
+        note.detail === undefined
+          ? null
+          : h('button', { type: 'button', class: 'link note-more-toggle', 'data-action': 'note-more', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': moreId, onClick: () => setOpen(!open) }, open ? 'Less' : 'More'),
+      ),
+      note.detail === undefined ? null : h('p', { id: moreId, class: 'note-more', hidden: !open }, note.detail),
+    ),
+    showLink && link !== null
+      ? h('button', { type: 'button', class: link.kind === 'action' ? 'small note-action' : 'link note-link', 'data-action': 'note-link', onClick: () => (link.kind === 'action' ? action?.() : follow(link, ctx)) }, linkLabel(link))
+      : null,
+    h('button', { type: 'button', class: 'note-dismiss', 'data-action': 'note-dismiss', 'aria-label': `Hide this note: ${note.title}`, title: 'Hide this note', onClick: () => dismiss(noteKey(note)) }, '×'),
+  );
+}
+
 function NotesPane({ ctx }: { readonly ctx: DockContext; readonly active: boolean }): ComponentChild {
-  const groups = notesByTopic();
+  const groups = notesByNeed();
   if (groups.length === 0) return h('p', { class: 'live-empty', 'data-notes': 'empty' }, 'No notes right now.');
   return h(
     'div',
@@ -44,22 +86,9 @@ function NotesPane({ ctx }: { readonly ctx: DockContext; readonly active: boolea
     groups.map((g) =>
       h(
         'section',
-        { key: g.topic, class: 'notes-group', 'data-notes-topic': g.topic },
-        h('h3', null, g.topic),
-        h(
-          'ul',
-          { class: 'rows' },
-          g.notes.map((n) =>
-            h(
-              'li',
-              { key: `${n.source}/${n.id}`, class: `note${n.tone === 'warn' ? ' warn' : ''}`, 'data-note': n.id, ...(n.safety === undefined ? {} : { 'data-safety': n.safety }) },
-              h('strong', null, n.title),
-              ' ',
-              h('span', null, n.body),
-              n.link === undefined ? null : h('button', { type: 'button', class: 'link note-link', 'data-action': 'note-link', onClick: () => follow(n.link as NoteLink, ctx) }, linkLabel(n.link)),
-            ),
-          ),
-        ),
+        { key: g.group, class: 'notes-group', 'data-notes-group': g.group },
+        h('h3', null, GROUP_TITLE[g.group]),
+        h('ul', { class: 'rows' }, g.notes.map((n) => h(NoteRow, { key: `${n.source}/${n.id}`, note: n, ctx }))),
       ),
     ),
   );
@@ -69,7 +98,7 @@ export const notesTab: DockTab = {
   id: 'notes',
   label: 'Notes',
   badge: () => {
-    const n = allNotes().length;
+    const n = visibleNotes().length;
     return n === 0 ? null : n;
   },
   available: () => true,

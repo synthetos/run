@@ -35,12 +35,12 @@ export function reportsNotes(view: LiveView | null): readonly Note[] {
   const board = { kind: 'board', tab: 'comms', label: 'Communications' } as const;
   const out: Note[] = [];
   for (const c of r.changes) {
-    if (c.setting === 'sr') out.push({ id: 'reports-sr', topic: 'Board', title: 'Status reports set.', body: w35(), safety: 'W35', link: board });
-    else if (c.from !== undefined && c.to !== undefined) out.push({ id: `reports-${c.setting}`, topic: 'Board', title: `${c.setting} changed.`, body: w36({ setting: c.setting, from: c.from, to: c.to }), safety: 'W36', link: board });
+    if (c.setting === 'sr') out.push({ id: 'reports-sr', topic: 'Board', title: 'Status reports set.', body: 'Run added what it needs to the board’s status reports.', detail: w35(), safety: 'W35', link: board, tone: 'info' });
+    else if (c.from !== undefined && c.to !== undefined) out.push({ id: `reports-${c.setting}`, topic: 'Board', title: `${c.setting} changed.`, body: `Run set ${c.setting} from ${String(c.from)} to ${String(c.to)}.`, detail: w36({ setting: c.setting, from: c.from, to: c.to }), safety: 'W36', link: board, tone: 'info' });
   }
   if (r.detail !== null) out.push({ id: 'reports-detail', topic: 'Board', title: 'Status reports.', body: `${r.detail.charAt(0).toUpperCase()}${r.detail.slice(1)}.`, tone: 'warn' });
   const rxm = view?.message?.snapshot.rxm;
-  if (rxm !== undefined && rxm.changed?.kind === 'restore' && view?.message?.snapshot.job === null) out.push({ id: 'reports-rxm', topic: 'Board', title: 'Line mode put back.', body: w44({ to: rxm.changed.to }), safety: 'W44' });
+  if (rxm !== undefined && rxm.changed?.kind === 'restore' && view?.message?.snapshot.job === null) out.push({ id: 'reports-rxm', topic: 'Board', title: 'Line mode put back.', body: `Run set rxm back to ${String(rxm.changed.to)}.`, detail: w44({ to: rxm.changed.to }), safety: 'W44', tone: 'info' });
   if (r.phase === 'done' && r.heartbeatMs === null) out.push({ id: 'reports-heartbeat', topic: 'Board', title: 'No heartbeat.', body: 'Run checks the link only after a few seconds of silence.' });
   return out;
 }

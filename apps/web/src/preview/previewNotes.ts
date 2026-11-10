@@ -6,6 +6,7 @@
  */
 import type { Note } from '../workspace/notes/notes.ts';
 import { belowText } from './CarveKey.ts';
+import { UNSET_NOTE, UNTRUSTED_NOTE } from './livePlacement.ts';
 import type { SceneKeyProps } from './SceneKey.ts';
 
 /** A sentence's first clause as a title, the rest as its body: "A: b." → { title: "A.", body: "B." }. */
@@ -23,6 +24,12 @@ export function previewNotes(key: SceneKeyProps | null): readonly Note[] {
   if (key === null) return [];
   const out: Note[] = [];
   (key.scene?.notes ?? []).forEach((text) => {
+    // The machine position not set (or not trusted): one sentence and Home, the full text behind More.
+    if (text === UNSET_NOTE || text === UNTRUSTED_NOTE) {
+      const title = text === UNSET_NOTE ? 'Machine position not set.' : 'Machine position not trusted.';
+      out.push({ id: `scene/${title}`, topic: 'Preview', title, body: 'The job is drawn as planned, not where the machine is.', detail: text, tone: 'warn', link: { kind: 'action', action: 'home', label: 'Home' } });
+      return;
+    }
     const { title, body } = splitNote(text);
     out.push({ id: `scene/${title}`, topic: 'Preview', title, body, tone: 'warn' });
   });
@@ -31,7 +38,7 @@ export function previewNotes(key: SceneKeyProps | null): readonly Note[] {
   const carve = key.carve ?? null;
   const below = carve === null ? null : carve.status.value.below;
   if (below !== null && below !== undefined) {
-    out.push({ id: 'below-stock', topic: 'Preview', title: 'The tool goes below the stock.', body: `${belowText(below)}.`, tone: 'warn', link: { kind: 'line', line: below.firstLine } });
+    out.push({ id: 'below-stock', topic: 'Preview', title: 'The tool goes below the stock.', body: `First at line ${below.firstLine.toLocaleString('en-US')}.`, detail: `${belowText(below)}.`, tone: 'warn', link: { kind: 'line', line: below.firstLine } });
     // Only where it matters (owner, 2026-11-09): a cut below the stock on a bed whose top height nobody entered.
     if (key.scene?.bedPlaceholder === true) out.push({ id: 'bed-height', topic: 'Preview', title: 'Bed height not set.', body: 'Set it in Machines to check for cuts into the bed.', link: { kind: 'view', view: 'machines', label: 'Machines → Bed' } });
   }

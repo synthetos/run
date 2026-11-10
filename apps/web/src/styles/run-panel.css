@@ -36,12 +36,22 @@
 .choice-details p { margin: 6px 0 0; }
 .motion-confirm .start-w5 { font-size: 12.5px; }
 
-/* The Notes tab: grouped by topic, newest first, each with a link. */
-.notes-list { display: grid; gap: 12px; padding: 8px 12px; }
-.notes-group h3 { margin: 0 0 4px; font: 600 11.5px/1.3 var(--cond); letter-spacing: .02em; color: var(--tan); }
-.notes-group .note { padding: 6px 8px; font-size: 12.5px; line-height: 1.45; }
-.notes-group .note.warn strong { color: var(--warn); }
-.notes-group .note .note-link { margin-left: 6px; font-size: 12px; }
+/* The Notes tab (owner, 2026-11-09): one zebra row per note, ⚠ or ℹ, a bold title and one sentence, its button,
+   More in place and ×; Needs you first, then Good to know. No coloured bars. */
+.notes-list { display: grid; gap: 10px; padding: 8px 12px; }
+.notes-group h3 { margin: 0 0 4px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.notes-list .note { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto; column-gap: 8px; align-items: start; padding: 6px 8px; border: 0; border-radius: 0; background-clip: padding-box; font-size: 12.5px; line-height: 1.45; }
+.notes-list .note-icon { line-height: 1.45; text-align: center; color: var(--muted); }
+.notes-list .note.warn .note-icon { color: var(--warn); }
+.notes-list .note-line { margin: 0; color: var(--ink); }
+.notes-list button.note-more-toggle { margin-left: 6px; min-height: 0; padding: 0; font-size: 12px; color: var(--muted); vertical-align: baseline; }
+.notes-list .note-more { margin: 4px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.notes-list .note-more[hidden] { display: none; }
+.notes-list .note-action, .notes-list .note-link { grid-column: 3; align-self: start; white-space: nowrap; }
+.notes-list button.note-action { min-height: 24px; padding: 0 9px; font-size: 12px; }
+.notes-list .note-link { font-size: 12px; }
+.notes-list button.note-dismiss { grid-column: 4; width: 22px; height: 22px; min-height: 22px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; }
+.notes-list button.note-dismiss:hover { color: var(--ink); }
 .dock-badge { color: var(--muted); font-weight: 500; }
 button.notes-pill { min-height: 26px; padding: 0 9px; font-size: 11.5px; color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--sheet) 92%, transparent); font-weight: 600; }
 

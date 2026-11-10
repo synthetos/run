@@ -9,7 +9,7 @@
  * (unhomed, work zero, spindle, travel); the session decides again (SAFETY §4.4a, H73).
  */
 import { h, type ComponentChild } from 'preact';
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import { c30, c31, c32, c36, w5 } from '@synthetos/safety';
 import type { PreviewParts } from '../../preview/PreviewPanel.ts';
 import { fileKey, loadBreakpoints } from '../../preview/gcodeList.ts';
@@ -19,12 +19,14 @@ import { settingsOf } from '../boardFacts.ts';
 import { ClearAlarmConfirm, blockAction, currentBlock } from '../ControlBlockCard.ts';
 import { confirmFor, type Asking } from '../homing.ts';
 import { activeJob } from '../jobModel.ts';
-import { boardZero, bytesText, jobUi, loadPlan, savePlan, textHash, zeroText, type JobSnapshot } from '../jobUi.ts';
+import { boardZero, bytesText, duration, jobUi, loadPlan, savePlan, textHash, zeroText, type JobSnapshot } from '../jobUi.ts';
 import { checkedText } from '../lineWords.ts';
 import type { WorkspaceModel } from '../model.ts';
 import { homingView } from '../motion.ts';
 import type { MotionAxis } from '../../machine-worker/rpc.ts';
 import { usePublishNotes } from '../notes/usePublishNotes.ts';
+import { useNoteAction } from '../notes/noteActions.ts';
+import { zeroNote } from './zeroNote.ts';
 import type { Note } from '../notes/notes.ts';
 import { ConfirmCard } from '../ui.ts';
 import { jobStep } from '../jobWorkflow.ts';
@@ -147,16 +149,28 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
   const live = send !== undefined && ui.connected && ui.enabled;
   const canStart = live && !ready.blocked && (ready.tick.length === 0 || ticked) && modal === null;
 
-  // The explanations, as notes (Notes tab): what the check found, plan versus board, the modes, the travel, W5.
+  // The explanations, as notes (Notes tab; owner, 2026-11-09): a short title, one plain sentence that says what it
+  // means (no coordinate dumps), the full detail behind More.
   const notes: Note[] = [];
   if (report !== null && mine) {
-    notes.push({ id: 'file-check', topic: 'File check', title: report.blocked ? 'The check stopped this file.' : 'Checked with this board.', body: report.blocked ? report.blocks.map((b) => `Line ${b.line}: ${b.message}`).join(' ') : `${checkedText(job.total, result === null ? null : result.sourceLines.length, report.splits).replace(/^Checked with this board: ./, (m) => m.slice(-1).toUpperCase())}.`, tone: report.blocked ? 'warn' : 'info', ...(report.blocks[0] === undefined ? {} : { link: { kind: 'line', line: report.blocks[0].line } }) });
+    const checked = checkedText(job.total, result === null ? null : result.sourceLines.length, report.splits);
+    const first = report.blocks[0];
+    notes.push(report.blocked
+      ? { id: 'file-check', topic: 'File', title: 'The check stopped this file.', body: first === undefined ? 'See the G-code list.' : `Line ${first.line.toLocaleString('en-US')}: ${first.message}.`, detail: report.blocks.map((b) => `Line ${b.line}: ${b.message}.`).join(' '), tone: 'warn', ...(first === undefined ? {} : { link: { kind: 'line', line: first.line } }) }
+      : { id: 'file-check', topic: 'File', title: 'File checked.', body: `${(result?.fileLines ?? job.total).toLocaleString('en-US')} lines, about ${duration(report.seconds)}.`, detail: `${checked}.`, tone: 'info' });
   }
-  if (s !== null && state.fileName !== null) notes.push({ id: 'zero', topic: 'Work zero', title: zero.state === 'match' ? 'Work zero matches your plan.' : 'Work zero and your plan.', body: zero.text, tone: zero.state === 'match' ? 'info' : 'warn', link: { kind: 'step', step: 'place', label: 'Place job' } });
-  if (s !== null && mine && job.startModes !== null && job.startModes !== undefined) notes.push({ id: 'modes', topic: 'Board', title: `Board modes: ${s.boardModes.text}.`, body: job.startModes });
+  if (s !== null && state.fileName !== null) notes.push(zeroNote(zero, established, canHome));
+  if (s !== null && mine && job.startModes !== null && job.startModes !== undefined) notes.push({ id: 'modes', topic: 'Board', title: `Board modes: ${s.boardModes.text}.`, body: job.startModes, tone: 'info' });
   const finding = report?.travel?.confirm ?? null;
-  if (finding !== null) notes.push({ id: 'travel', topic: 'Travel', title: 'Travel check.', body: `${finding.text.charAt(0).toUpperCase()}${finding.text.slice(1)}.`, tone: 'warn', ...(finding.line === null ? {} : { link: { kind: 'line', line: finding.line } }) });
-  if (state.fileName !== null && ui.connected) notes.push({ id: 'stay', topic: 'Running a job', title: 'If this tab closes or sleeps.', body: w5({ distanceMm: Math.round(job?.queuedBoundMm ?? 0) || 50, seconds: 5 }).replace(/^WARNING — /, ''), tone: 'warn' });
+  if (finding !== null) {
+    const past = finding.past;
+    notes.push({ id: 'travel', topic: 'Travel', title: 'A move goes past the travel.', body: past === undefined || finding.line === null ? 'Run could not check the travel.' : `Line ${finding.line.toLocaleString('en-US')} moves ${past.axis} past its limit.`, detail: `${finding.text.charAt(0).toUpperCase()}${finding.text.slice(1)}.`, tone: 'warn', ...(finding.line === null ? {} : { link: { kind: 'line', line: finding.line } }) });
+  }
+  // W5 once, the approved short text with its fire risk (OD-32); the start confirmation shows it again at Start.
+  if (state.fileName !== null && ui.connected) notes.push({ id: 'stay', topic: 'Running a job', title: 'Stay at the machine.', body: w5({ distanceMm: Math.round(job?.queuedBoundMm ?? 0) || 50, seconds: 5 }).replace(/^WARNING — /, ''), tone: 'warn', safety: 'W5' });
+  // A note's Home button opens Home's own confirmation (C4) here.
+  const homeAll = useCallback(() => setModal({ home: { kind: 'home', axes: hv.configured } }), [hv.configured.join(',')]);
+  useNoteAction('home', canHome ? homeAll : null);
   usePublishNotes('run-step', notes);
 
   const act = (id: ReadyActionId): void => {

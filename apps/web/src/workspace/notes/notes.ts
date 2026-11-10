@@ -7,13 +7,16 @@
  */
 import { signal } from '@preact/signals';
 import type { BoardTab } from '../boardNavigation.ts';
+import { dismissed } from './Dismissable.ts';
 
 /** Where a note applies: a line in the G-code list, a Job step, a Board tab, or another view. */
 export type NoteLink =
   | { readonly kind: 'line'; readonly line: number }
   | { readonly kind: 'step'; readonly step: string; readonly label: string }
   | { readonly kind: 'board'; readonly tab: BoardTab; readonly label: string }
-  | { readonly kind: 'view'; readonly view: string; readonly label: string };
+  | { readonly kind: 'view'; readonly view: string; readonly label: string }
+  /** A named action a view registers while it is mounted (noteActions.ts), such as Home with its confirmation. */
+  | { readonly kind: 'action'; readonly action: string; readonly label: string };
 
 export interface Note {
   /** Stable while the note says the same thing (it keeps its place in the list). */
@@ -21,10 +24,12 @@ export interface Note {
   /** The group it is listed under: "Preview", "Work zero", "Board", ... */
   readonly topic: string;
   readonly title: string;
-  /** One or two short sentences. */
+  /** One plain sentence: what it means, never a dump of coordinates. */
   readonly body: string;
+  /** The full detail, behind More (expands in place). */
+  readonly detail?: string;
   readonly link?: NoteLink;
-  /** `warn` draws it in the warning colour; it is still only a note. */
+  /** `warn`: listed under Needs you, with ⚠; `info`: Good to know, with ℹ. Still only a note either way. */
   readonly tone?: 'info' | 'warn';
   /** The registered string it carries in full (W35, W36, W44, ...), as `data-safety`. */
   readonly safety?: string;
@@ -56,7 +61,18 @@ export function publishNotes(source: string, notes: readonly Note[], now: () => 
 }
 
 function sameNote(a: ShownNote | undefined, b: Note): boolean {
-  return a !== undefined && a.id === b.id && a.title === b.title && a.body === b.body && a.topic === b.topic && JSON.stringify(a.link ?? null) === JSON.stringify(b.link ?? null) && (a.tone ?? 'info') === (b.tone ?? 'info') && a.safety === b.safety;
+  return a !== undefined && a.id === b.id && a.title === b.title && a.body === b.body && a.topic === b.topic && JSON.stringify(a.link ?? null) === JSON.stringify(b.link ?? null) && (a.tone ?? 'info') === (b.tone ?? 'info') && a.safety === b.safety && a.detail === b.detail;
+}
+
+/** The key a note is dismissed by (per source and id). */
+export function noteKey(n: Pick<ShownNote, 'source' | 'id'>): string {
+  return `note/${n.source}/${n.id}`;
+}
+
+/** The notes that apply now and were not dismissed (the badge and the pills count these). */
+export function visibleNotes(): readonly ShownNote[] {
+  const gone = dismissed.value;
+  return allNotes().filter((n) => !gone.has(noteKey(n)));
 }
 
 /** Every note that applies now, newest first. Reading it in a render subscribes to changes. */
@@ -64,11 +80,11 @@ export function allNotes(): readonly ShownNote[] {
   return [...bySource.value.values()].flat().sort((a, b) => b.at - a.at || a.id.localeCompare(b.id));
 }
 
-/** The notes grouped by topic: topics ordered by their newest note, notes newest first. */
-export function notesByTopic(notes: readonly ShownNote[] = allNotes()): readonly { readonly topic: string; readonly notes: readonly ShownNote[] }[] {
-  const groups = new Map<string, ShownNote[]>();
-  for (const n of notes) groups.set(n.topic, [...(groups.get(n.topic) ?? []), n]);
-  return [...groups.entries()].map(([topic, list]) => ({ topic, notes: list }));
+/** Needs you (warnings) first, then Good to know; newest first in each. Empty groups are left out. */
+export function notesByNeed(notes: readonly ShownNote[] = visibleNotes()): readonly { readonly group: 'needs' | 'know'; readonly notes: readonly ShownNote[] }[] {
+  const needs = notes.filter((n) => n.tone === 'warn');
+  const know = notes.filter((n) => n.tone !== 'warn');
+  return [...(needs.length === 0 ? [] : [{ group: 'needs' as const, notes: needs }]), ...(know.length === 0 ? [] : [{ group: 'know' as const, notes: know }])];
 }
 
 /** Tests only: forget every note. */

@@ -23,11 +23,17 @@ test('Run names Place job’s planned zero and the difference from the board’s
   await expect(zero).toContainText('Your plan puts work zero at the front-left corner of the top of the stock');
   await expect(zero).toContainText('The machine position is not set (not homed)');
   await expect(zero).not.toContainText('No plan is recorded');
+  // One plain sentence; no coordinates in the visible line (owner, 2026-11-09). This board has no homing set up, so
+  // the note says to set the position and offers no Home button.
+  await expect(zero.locator('.note-line')).toContainText('Can’t compare until the machine position is set.');
+  await expect(zero.locator('[data-action="note-link"]')).toHaveCount(0);
   // Set the machine position here (G28.3): machine coordinates now relate to the bed, so the distance is known.
   await page.getByRole('button', { name: 'Set machine zero here, without homing' }).click();
   await page.locator('[data-region="home-quick"] button', { hasText: 'Set machine position' }).click();
   await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_HOMED');
   await expect(zero).toContainText(/Work zero Z is \d+\.\d mm (above|below) the top of the stock you planned\./);
+  await expect(zero.locator('.note-line')).toContainText(/Your work zero is \d+ mm from where you planned it\./);
+  await expect(zero.locator('.note-line')).not.toContainText(/X -?\d/);
   await expect(zero).toContainText('You planned work zero at the front-left corner of the top of the stock');
   await expect(zero).not.toContainText('No plan is recorded');
   await expect(page.locator('[data-ready-summary="zero"]')).toHaveText('Not your plan’s.');
