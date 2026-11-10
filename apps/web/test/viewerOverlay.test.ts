@@ -22,7 +22,7 @@ describe('ViewerOverlay (owner, 2026-11-09: the viewer shows the picture)', () =
   it('the scene\'s notes become notes for the Notes tab: a title and a short body', () => {
     expect(previewNotes(key).map((n) => [n.topic, n.title, n.body])).toEqual([
       ['Preview', 'Machine position not set.', ''],
-      ['Preview', 'Work zero Z is 46.6 mm above the planned zero.', ''],
+      // The Z note is folded into the Run step's work zero note (owner, 2026-11-09).
     ]);
     expect(previewNotes(null)).toEqual([]);
     expect(splitNote('Machine position not set: the job is shown as planned. Home first.')).toEqual({ title: 'Machine position not set.', body: 'The job is shown as planned. Home first.' });

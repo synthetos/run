@@ -128,22 +128,29 @@ export function placeJobAt(scene: JobScene, zero: Vec3): JobScene {
 
 const fmt1 = (n: number): string => n.toFixed(1);
 
+/** The stock's footprint at the live work zero, short (owner, 2026-11-09); the Notes tab adds [Place job]. */
+export const STOCK_OFF_BED = 'The stock runs off the bed at this work zero.';
+export const STOCK_OFF_FIXTURE = 'The stock is off the fixture at this work zero.';
+export const STOCK_OVERHANGS = 'The stock overhangs the fixture at this work zero.';
+/** How the Z note starts: the Notes tab folds it into the work zero note (run/zeroNote.ts), which says the same. */
+export const Z_NOTE_START = 'Work zero Z is ';
+
 /** The notes of an established placement: the Z zero against the plan, then the stock's footprint. */
 export function placementNotes(planned: JobScene, placed: JobScene): string[] {
   const notes: string[] = [];
   const dz = placed.zero[2] - planned.zero[2];
   if (Math.abs(dz) > Z_NOTE_MM) {
-    notes.push(`Work zero Z is ${fmt1(Math.abs(dz))} mm ${dz < 0 ? 'below' : 'above'} the planned zero${zeroRef(planned)}. The toolpath is drawn where it will cut.`);
+    notes.push(`${Z_NOTE_START}${fmt1(Math.abs(dz))} mm ${dz < 0 ? 'below' : 'above'} the planned zero${zeroRef(planned)}. The toolpath is drawn where it will cut.`);
   }
   const stock = footprint(placed, 'stock');
   const bed = footprint(placed, 'bed');
-  if (stock !== null && bed !== null && !stock.every((p) => inside(p, bed))) notes.push('At this work zero the stock runs off the bed.');
+  if (stock !== null && bed !== null && !stock.every((p) => inside(p, bed))) notes.push(STOCK_OFF_BED);
   const fixture = footprint(placed, 'fixture');
   const before = footprint(planned, 'stock');
   if (stock !== null && fixture !== null && before !== null) {
     // Only a change from the plan: a stock planned wider than its fixture is the Setup view's to show.
     const now = supported(stock, fixture);
-    if (now < supported(before, fixture) - 0.01) notes.push(now === 0 ? 'At this work zero the stock is off the fixture.' : 'At this work zero the stock overhangs the fixture’s edge.');
+    if (now < supported(before, fixture) - 0.01) notes.push(now === 0 ? STOCK_OFF_FIXTURE : STOCK_OVERHANGS);
   }
   return notes;
 }

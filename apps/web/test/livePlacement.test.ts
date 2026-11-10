@@ -123,9 +123,9 @@ describe('the live placement of a job', () => {
   it('the stock moved off the bed or over the fixture’s edge is said, not hidden', () => {
     const planned = scene();
     const edge = placeLive(planned, report([0, 0, 0], [170, 0, -46.65], { home: 1 }));
-    expect(edge.scene.notes).toEqual(['At this work zero the stock overhangs the fixture’s edge.']);
+    expect(edge.scene.notes).toEqual(['The stock overhangs the fixture at this work zero.']);
     const off = placeLive(planned, report([0, 0, 0], [700, 0, -46.65], { home: 1 }));
-    expect(off.scene.notes).toEqual(['At this work zero the stock runs off the bed.', 'At this work zero the stock is off the fixture.']);
+    expect(off.scene.notes).toEqual(['The stock runs off the bed at this work zero.', 'The stock is off the fixture at this work zero.']);
   });
 
   it('placeJobAt keeps an outlined stock (a prism) at its heights', () => {

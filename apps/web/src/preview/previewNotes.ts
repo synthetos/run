@@ -6,7 +6,9 @@
  */
 import type { Note } from '../workspace/notes/notes.ts';
 import { belowText } from './CarveKey.ts';
-import { UNSET_NOTE, UNTRUSTED_NOTE } from './livePlacement.ts';
+import { STOCK_OFF_BED, STOCK_OFF_FIXTURE, STOCK_OVERHANGS, UNSET_NOTE, UNTRUSTED_NOTE, Z_NOTE_START } from './livePlacement.ts';
+
+const FOOTPRINT = new Set([STOCK_OFF_BED, STOCK_OFF_FIXTURE, STOCK_OVERHANGS]);
 import type { SceneKeyProps } from './SceneKey.ts';
 
 /** A sentence's first clause as a title, the rest as its body: "A: b." → { title: "A.", body: "B." }. */
@@ -28,6 +30,12 @@ export function previewNotes(key: SceneKeyProps | null): readonly Note[] {
     if (text === UNSET_NOTE || text === UNTRUSTED_NOTE) {
       const title = text === UNSET_NOTE ? 'Machine position not set.' : 'Machine position not trusted.';
       out.push({ id: `scene/${title}`, topic: 'Preview', title, body: 'The job is drawn as planned, not where the machine is.', detail: text, tone: 'warn', link: { kind: 'action', action: 'home', label: 'Home' } });
+      return;
+    }
+    // The Z difference is part of the work zero note (one note, owner 2026-11-09): "… from where you planned it (Z 18.4 mm lower)".
+    if (text.startsWith(Z_NOTE_START)) return;
+    if (FOOTPRINT.has(text)) {
+      out.push({ id: `scene/${text}`, topic: 'Preview', title: text, body: '', tone: 'warn', link: { kind: 'step', step: 'place', label: 'Place job' } });
       return;
     }
     const { title, body } = splitNote(text);

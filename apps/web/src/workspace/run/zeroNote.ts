@@ -6,6 +6,7 @@
  */
 import type { Note } from '../notes/notes.ts';
 import type { RunZeroCheck } from '../zeroPlan.ts';
+import { Z_NOTE_MM } from '../../preview/livePlacement.ts';
 
 export function zeroNote(zero: RunZeroCheck, established: boolean, canHome: boolean): Note {
   const detail = zero.text;
@@ -19,5 +20,8 @@ export function zeroNote(zero: RunZeroCheck, established: boolean, canHome: bool
   const plan = zero.plan;
   if (plan === null) return { id: 'zero', topic: 'Work zero', title: 'No plan for work zero.', body: 'Start cuts from the board’s work zero.', detail, tone: 'warn', link: { kind: 'step', step: 'place', label: 'Place job' } };
   const mm = Math.round(Math.hypot(zero.board.x - plan.x, zero.board.y - plan.y, zero.board.z - plan.z));
-  return { id: 'zero', topic: 'Work zero', title: 'Work zero isn’t where you planned it.', body: `Your work zero is ${mm.toLocaleString('en-US')} mm from where you planned it.`, detail, tone: 'warn', link: { kind: 'step', step: 'place', label: 'Place job' } };
+  // The Z part in a few words (the preview's separate Z note folds in here); the sentence with the stock top is behind More.
+  const dz = zero.board.z - plan.z;
+  const z = Math.abs(dz) > Z_NOTE_MM ? ` (Z ${Math.abs(dz).toFixed(1)} mm ${dz < 0 ? 'lower' : 'higher'})` : '';
+  return { id: 'zero', topic: 'Work zero', title: 'Work zero isn’t where you planned it.', body: `Your work zero is ${mm.toLocaleString('en-US')} mm from where you planned it${z}.`, detail, tone: 'warn', link: { kind: 'step', step: 'place', label: 'Place job' } };
 }

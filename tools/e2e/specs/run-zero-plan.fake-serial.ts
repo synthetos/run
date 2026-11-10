@@ -32,7 +32,7 @@ test('Run names Place job’s planned zero and the difference from the board’s
   await page.locator('[data-region="home-quick"] button', { hasText: 'Set machine position' }).click();
   await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_HOMED');
   await expect(zero).toContainText(/Work zero Z is \d+\.\d mm (above|below) the top of the stock you planned\./);
-  await expect(zero.locator('.note-line')).toContainText(/Your work zero is \d+ mm from where you planned it\./);
+  await expect(zero.locator('.note-line')).toContainText(/Your work zero is \d+ mm from where you planned it( \(Z \d+\.\d mm (lower|higher)\))?\./);
   await expect(zero.locator('.note-line')).not.toContainText(/X -?\d/);
   await expect(zero).toContainText('You planned work zero at the front-left corner of the top of the stock');
   await expect(zero).not.toContainText('No plan is recorded');

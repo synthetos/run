@@ -44,11 +44,21 @@ describe('the Notes tab', () => {
   });
 });
 
+describe('the preview notes in the tab', () => {
+  it('the Z note folds into the work zero note; the footprint notes are short with Place job', async () => {
+    const { previewNotes } = await import('../src/preview/previewNotes.ts');
+    const notes = previewNotes({ scene: { notes: ['Work zero Z is 18.4 mm below the planned zero (the stock top). The toolpath is drawn where it will cut.', 'The stock overhangs the fixture at this work zero.'] } } as never);
+    expect(notes).toEqual([{ id: 'scene/The stock overhangs the fixture at this work zero.', topic: 'Preview', title: 'The stock overhangs the fixture at this work zero.', body: '', tone: 'warn', link: { kind: 'step', step: 'place', label: 'Place job' } }]);
+  });
+});
+
 describe('the work zero note', () => {
   const base = { board: { x: 31, y: 0, z: 10 }, plan: { x: 160, y: 120, z: 37 }, planText: 'x', source: 'setup' as const };
   it('says how far, not the coordinates; Home when it can’t compare yet; matches say so', () => {
     const far = zeroNote({ ...base, state: 'differs', text: 'The board’s work zero (X 31.000 Y 0.000 Z 10.000 (machine)) …' } as RunZeroCheck, true, true);
-    expect(far.body).toBe('Your work zero is 178 mm from where you planned it.');
+    expect(far.body).toBe('Your work zero is 178 mm from where you planned it (Z 27.0 mm lower).');
+    const flat = zeroNote({ ...base, board: { x: 31, y: 0, z: 37.2 }, state: 'differs', text: 'x' } as RunZeroCheck, true, true);
+    expect(flat.body).toBe('Your work zero is 176 mm from where you planned it.');
     expect(far.body).not.toMatch(/X \d/);
     expect(far.detail).toContain('X 31.000');
     const unhomed = zeroNote({ ...base, state: 'differs', text: 'not comparable' } as RunZeroCheck, false, true);
