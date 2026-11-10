@@ -60,8 +60,10 @@ test('a file streams to completion from the stepper; Start is enabled only when 
   // could end before the page had handled the clicks (CI run 42706629535).
   await open(page, zigzag(120, [], ['M3 S12000']).replace('M30', 'M5\nM30'));
   // Ready to start? (owner, 2026-11-09): what needs you is marked !, one tick confirms it; Start waits for the tick.
-  expect(await page.locator('[data-ready-item][data-mark="needs"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-ready-item')))).toEqual(expect.arrayContaining(['zero', 'position', 'spindle', 'stay']));
-  await expect(page.locator('[data-job="confirm-start"]')).toContainText('cut from the board’s work zero · I checked where every axis is · hands clear when the spindle starts · I’ll stay at the machine, with sleep off');
+  expect(await page.locator('[data-ready-item][data-mark="needs"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-ready-item')))).toEqual(expect.arrayContaining(['zero', 'position', 'spindle']));
+  // What passed folds into one row (owner, 2026-11-09).
+  await expect(page.locator('[data-job="ready-passed"] summary')).toContainText('checks passed');
+  await expect(page.locator('[data-job="confirm-start"]')).toContainText('the board’s work zero · axes checked · hands clear · I’ll stay here, sleep off');
   await expect(page.locator('[data-job="confirm-start-box"]')).toHaveCount(1);
   await expect(page.locator('[data-job-panel="run"] input[type="checkbox"]')).toHaveCount(1);
   await expect(page.locator('[data-action="start-job"]')).toBeDisabled();

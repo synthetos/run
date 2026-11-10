@@ -9,7 +9,7 @@
 import type { BlockActionId, ControlBlock } from '../controlBlock.ts';
 import { MARK_TEXT, type Mark, type TickPart } from './runCopy.ts';
 
-export type ReadyItemId = 'machine' | 'file' | 'zero' | 'position' | 'travel' | 'modes' | 'feeds' | 'tool' | 'spindle' | 'stay';
+export type ReadyItemId = 'machine' | 'file' | 'zero' | 'position' | 'travel' | 'modes' | 'feeds' | 'tool' | 'spindle';
 
 /** What an item's button does. Block actions reuse the Position panel's (ControlBlockCard.ts). */
 export type ReadyActionId = BlockActionId | 'connect' | 'verify' | 'home' | 'analyze' | 'save-zero';
@@ -27,7 +27,7 @@ export interface ReadyItem {
 
 /** A move past the travel of an axis that is not homed (C41), or a travel that could not be checked (C40). */
 export type TravelAsk =
-  | { readonly kind: 'past'; readonly axis: 'X' | 'Y' | 'Z' | 'A' | 'B' | 'C'; readonly line: number; readonly reach: number; readonly limit: number; readonly unit: 'mm' | '°'; readonly more: number; readonly text: string; readonly homeable: boolean }
+  | { readonly kind: 'past'; readonly axis: 'X' | 'Y' | 'Z' | 'A' | 'B' | 'C'; readonly line: number; readonly reach: number; readonly limit: number; readonly unit: 'mm' | '°'; readonly more: number; readonly text: string; readonly homeable: boolean; readonly zeroFirst?: boolean }
   | { readonly kind: 'unchecked'; readonly why: string; readonly text: string };
 
 export interface ReadyInput {
@@ -79,7 +79,8 @@ function machineItem(input: ReadyInput): ReadyItem | null {
   const b = input.block;
   if (b !== null) {
     if (b.kind === 'unknown') return { id: 'machine', label: 'Machine', mark: 'blocked', summary: 'Position not verified.', actions: [{ id: 'verify', label: 'Check…' }] };
-    return { id: 'machine', label: 'Machine', mark: 'blocked', summary: [b.title, ...b.lines].join(' '), actions: b.actions.map((a) => ({ id: a.id, label: a.label })) };
+    // The title alone: the full reason is the Position panel's card, right beside the list.
+    return { id: 'machine', label: 'Machine', mark: 'blocked', summary: b.title, actions: b.actions.map((a) => ({ id: a.id, label: a.label })) };
   }
   if (input.wait !== null) return { id: 'machine', label: 'Machine', mark: 'waiting', summary: input.wait, actions: [] };
   return null;
@@ -104,7 +105,7 @@ function zeroItem(input: ReadyInput): ReadyItem {
   if (z === null) return { id: 'zero', label: 'Work zero', mark: 'needs', summary: 'Compared when you connect.', actions: [] };
   if (z.state === 'match') return { id: 'zero', label: 'Work zero', mark: 'done', summary: 'Matches your plan.', actions: [], note: 'zero' };
   if (z.state === 'unknown') return { id: 'zero', label: 'Work zero', mark: 'blocked', summary: 'Not read from the board yet.', actions: [], note: 'zero' };
-  return { id: 'zero', label: 'Work zero', mark: 'needs', summary: z.comparable ? 'Not your plan’s. Start cuts from the board’s.' : 'Can’t compare until the position is set.', actions: [{ id: 'save-zero', label: 'Save for this file' }], note: 'zero' };
+  return { id: 'zero', label: 'Work zero', mark: 'needs', summary: z.comparable ? 'Not your plan’s.' : 'Can’t compare.', actions: [{ id: 'save-zero', label: 'Save' }], note: 'zero' };
 }
 
 function positionItem(input: ReadyInput): ReadyItem {
@@ -117,8 +118,8 @@ function travelItem(input: ReadyInput): ReadyItem {
   const t = input.travel;
   if (t === null) return { id: 'travel', label: 'Travel', mark: input.connected && input.jobsOn && input.block === null && input.fileName !== null ? 'waiting' : 'needs', summary: 'Checked with the file.', actions: [] };
   if (t.kind === 'fits') return { id: 'travel', label: 'Travel', mark: 'done', summary: 'Every move fits.', actions: [] };
-  if (t.kind === 'past') return { id: 'travel', label: 'Travel', mark: 'needs', summary: `Line ${t.line.toLocaleString('en-US')} goes past the ${t.axis} limit. Start asks.`, actions: t.homeable ? [{ id: 'home', label: `Home ${t.axis}` }] : [], note: 'travel' };
-  return { id: 'travel', label: 'Travel', mark: 'needs', summary: 'Can’t be checked. Start asks.', actions: [], note: 'travel' };
+  if (t.kind === 'past') return { id: 'travel', label: 'Travel', mark: 'needs', summary: `Line ${t.line.toLocaleString('en-US')} goes past ${t.axis}.`, actions: t.homeable ? [{ id: 'home', label: `Home ${t.axis}` }] : [], note: 'travel' };
+  return { id: 'travel', label: 'Travel', mark: 'needs', summary: 'Can’t be checked.', actions: [], note: 'travel' };
 }
 
 /** The list and what Start needs, from what the page knows now. */
@@ -136,10 +137,9 @@ export function readyModel(input: ReadyInput): ReadyModel {
     positionItem(input),
     travelItem(input),
     ...(input.modes === null ? [] : [{ id: 'modes' as const, label: 'Board modes', mark: 'done' as const, summary: `${input.modes}.`, actions: [], note: 'modes' }]),
-    { id: 'feeds', label: 'Feeds', mark: /within range/.test(input.feeds) ? 'done' : 'needs', summary: input.feeds.replace(/^Feeds: /, '').replace(/^./, (c) => c.toUpperCase()), actions: /within range/.test(input.feeds) ? [] : [{ id: 'analyze', label: 'Analyze' }] },
+    { id: 'feeds', label: 'Feeds', mark: /within range/.test(input.feeds) ? 'done' : 'needs', summary: /needs review/.test(input.feeds) ? 'Review.' : input.feeds.replace(/^Feeds: /, '').replace(/^./, (c) => c.toUpperCase()), actions: /within range/.test(input.feeds) ? [] : [{ id: 'analyze', label: 'Analyze' }] },
     ...(input.check.state === 'done' && input.check.toolChanges > 0 ? [{ id: 'tool' as const, label: 'Tools', mark: 'done' as const, summary: `${input.check.toolChanges} tool ${input.check.toolChanges === 1 ? 'change' : 'changes'}. Run stops for each.`, actions: [] }] : []),
-    ...(spindle?.starts === true ? [{ id: 'spindle' as const, label: 'Spindle', mark: 'needs' as const, summary: `Starts on its own (${spindle.speeds}).`, actions: [] }] : []),
-    { id: 'stay', label: 'Stay here', mark: 'needs', summary: 'If this tab closes or sleeps, the machine keeps going.', actions: [], note: 'stay' },
+    ...(spindle?.starts === true ? [{ id: 'spindle' as const, label: 'Spindle', mark: 'needs' as const, summary: `${spindle.speeds}, on by itself.`, actions: [] }] : []),
   ];
   const tick: TickPart[] = !fileReady || machine !== null
     ? []

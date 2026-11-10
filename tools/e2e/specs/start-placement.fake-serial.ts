@@ -13,7 +13,8 @@ async function overlaps(page: Page): Promise<{ readonly what: string; readonly s
     const start = steps.querySelector('[data-action="start-job"]');
     if (start === null) return [];
     const s = start.getBoundingClientRect();
-    const checks = [...steps.querySelectorAll('.ready-list > li, .ready-tick')];
+    // What shows: the items that need attention, the folded passed row (and its items when opened), the tick.
+    const checks = [...steps.querySelectorAll('.ready-attention > li, .ready-passed > summary, .ready-passed[open] li, .ready-tick')];
     return checks.map((el) => {
       const r = el.getBoundingClientRect();
       const overlap = r.width > 0 && r.height > 0 && r.left < s.right && r.right > s.left && r.top < s.bottom && r.bottom > s.top;

@@ -1156,7 +1156,8 @@ function JobWorkPanel({ parts, model, stops, onView }: { readonly parts: Preview
   const ui = jobUi(model?.live.value ?? null);
   const index = JOB_STEPS.findIndex((s) => s.id === step);
   return h('aside', { class: 'job-work-panel', id: 'job-work-panel', 'aria-label': 'Job preparation' },
-    h('div', { class: 'job-panel-scroll', tabindex: 0 },
+    // The Run step is a column (owner, 2026-11-09): its list on top, the one tick and Start fixed under it, never scrolled away.
+    h('div', { class: `job-panel-scroll${step === 'run' && !ui.active ? ' run-mode' : ''}`, tabindex: 0 },
       h(JobSetupPanel, { step, locked: ui.active, onView, travel: placeTravelText({ connected: ui.connected, homed: ui.snapshot?.live.home === 1, travel: ui.job?.report?.travel }) }),
       h('section', { hidden: step !== 'check', 'data-job-panel': 'check' }, h('h2', null, 'Check file'),
         result === null || facts === null ? h('p', null, 'Open G-code to check it.') : [
@@ -1168,7 +1169,8 @@ function JobWorkPanel({ parts, model, stops, onView }: { readonly parts: Preview
       h('section', { hidden: step !== 'run', 'data-job-panel': 'run' }, h('h2', null, ui.active ? 'Run job' : 'Ready to start?'),
         h(RunPanel, { parts, model, onAnalyze: () => onView('analyze') }),
         h(JobStatus, { model, ...stops }))),
-    h('div', { class: 'job-step-actions' },
+    // On the Run step its own footer carries Back beside Start (RunPanel.ts), so nothing pushes Start out of view.
+    step === 'run' && !ui.active ? null : h('div', { class: 'job-step-actions' },
       index === 0 ? null : h('button', { type: 'button', class: 'small', 'data-action': 'job-step-back', onClick: () => { jobStep.value = JOB_STEPS[index - 1]?.id ?? 'machine'; } }, 'Back'),
       index === JOB_STEPS.length - 1 ? null : h('button', { type: 'button', class: 'small primary', 'data-action': 'job-step-next', onClick: () => { jobStep.value = JOB_STEPS[index + 1]?.id ?? 'run'; } }, `Next: ${JOB_STEPS[index + 1]?.label ?? 'Run'}`)));
 }

@@ -35,9 +35,9 @@ describe('readyModel', () => {
     expect(m.blocked).toBe(false);
     expect(m.tick).toEqual(['attended']);
     expect(m.travelAsk).toBeNull();
-    expect(marks(READY)).toEqual({ file: 'done', zero: 'done', position: 'done', travel: 'done', modes: 'done', feeds: 'done', tool: 'done', stay: 'needs' });
+    expect(marks(READY)).toEqual({ file: 'done', zero: 'done', position: 'done', travel: 'done', modes: 'done', feeds: 'done', tool: 'done' });
     expect(m.items.find((i) => i.id === 'file')?.summary).toBe('Checked. 29,710 lines, about 6 h 00 min.');
-    expect(tickText(m.tick)).toBe('I confirm: I’ll stay at the machine, with sleep off.');
+    expect(tickText(m.tick)).toBe('I confirm: I’ll stay here, sleep off.');
   });
 
   it('not homed: Position needs you with Home, and the one tick adds C36', () => {
@@ -51,9 +51,10 @@ describe('readyModel', () => {
     const m = readyModel({ ...READY, homed: false, travel: PAST });
     expect(m.travelAsk).toEqual(PAST);
     expect(m.tick).toEqual(['attended']);
-    expect(m.items.find((i) => i.id === 'travel')).toMatchObject({ mark: 'needs', summary: 'Line 34 goes past the Y limit. Start asks.', actions: [{ id: 'home', label: 'Home Y' }] });
+    expect(m.items.find((i) => i.id === 'travel')).toMatchObject({ mark: 'needs', summary: 'Line 34 goes past Y.', actions: [{ id: 'home', label: 'Home Y' }] });
     expect(travelPastText(PAST)).toEqual({ title: 'This job goes past the Y limit.', body: 'Line 34 moves Y to −1.6 mm. Y stops at 0 mm. Y isn’t homed, so its position may be off.' });
-    expect(travelPastText({ ...PAST, more: 2 }).body).toMatch(/ 2 more moves go past too\.$/);
+    // `more` counts moves (split long ones), not lines: no number, only that others go past too.
+    expect(travelPastText({ ...PAST, more: 59119 }).body).toMatch(/ Other lines go past too\.$/);
   });
 
   it('a travel that could not be checked: asked at Start (C40); not homed keeps C36 in the tick', () => {
@@ -66,12 +67,12 @@ describe('readyModel', () => {
 
   it('work zero not the plan’s adds C31; not read yet blocks; the spindle adds C32', () => {
     expect(readyModel({ ...READY, zero: { state: 'differs', comparable: true } }).tick).toEqual(['workZero', 'attended']);
-    expect(readyModel({ ...READY, zero: { state: 'differs', comparable: false } }).items.find((i) => i.id === 'zero')?.summary).toBe('Can’t compare until the position is set.');
+    expect(readyModel({ ...READY, zero: { state: 'differs', comparable: false } }).items.find((i) => i.id === 'zero')?.summary).toBe('Can’t compare.');
     expect(readyModel({ ...READY, zero: { state: 'unknown', comparable: false } }).blocked).toBe(true);
     const spindle = readyModel({ ...READY, spindle: { starts: true, speeds: '12,000 rpm' } });
     expect(spindle.tick).toEqual(['spindle', 'attended']);
-    expect(spindle.items.find((i) => i.id === 'spindle')?.summary).toBe('Starts on its own (12,000 rpm).');
-    expect(tickText(['workZero', 'unhomed', 'spindle', 'attended'])).toBe('I confirm: cut from the board’s work zero · I checked where every axis is · hands clear when the spindle starts · I’ll stay at the machine, with sleep off.');
+    expect(spindle.items.find((i) => i.id === 'spindle')?.summary).toBe('12,000 rpm, on by itself.');
+    expect(tickText(['workZero', 'unhomed', 'spindle', 'attended'])).toBe('I confirm: the board’s work zero · axes checked · hands clear · I’ll stay here, sleep off.');
   });
 
   it('blockers: each is ✕ with its real reason and the action that clears it; nothing to tick until it is gone', () => {
@@ -80,8 +81,8 @@ describe('readyModel', () => {
     expect(notConnected.tick).toEqual([]);
     expect(readyModel({ ...READY, jobsOn: false }).items[0]).toMatchObject({ mark: 'blocked', summary: 'Running jobs isn’t on in this build.' });
     const flow = readyModel({ ...READY, block: { kind: 'not-approved', reason: 'flowControl', title: 'Run can’t control this board yet.', lines: ['It’s set to hardware flow control (RTS/CTS, ex = 2), which Run hasn’t verified.'], actions: [{ id: 'disconnect', label: 'Disconnect' }] } });
-    expect(flow.items[0]?.summary).toBe('Run can’t control this board yet. It’s set to hardware flow control (RTS/CTS, ex = 2), which Run hasn’t verified.');
-    expect(flow.items[0]?.summary).not.toMatch(/approved/);
+    // The title in the list; the full, real reason is the Position panel's card beside it.
+    expect(flow.items[0]?.summary).toBe('Run can’t control this board yet.');
     expect(flow.items[0]?.actions).toEqual([{ id: 'disconnect', label: 'Disconnect' }]);
     expect(flow.blocked).toBe(true);
     expect(flow.tick).toEqual([]);
@@ -105,7 +106,23 @@ describe('readyModel', () => {
 
   it('feeds is advisory: needs review offers Analyze but never blocks Start', () => {
     const m = readyModel({ ...READY, feeds: 'Feeds: needs review in Analyze' });
-    expect(m.items.find((i) => i.id === 'feeds')).toMatchObject({ mark: 'needs', summary: 'Needs review in Analyze', actions: [{ id: 'analyze', label: 'Analyze' }] });
+    expect(m.items.find((i) => i.id === 'feeds')).toMatchObject({ mark: 'needs', summary: 'Review.', actions: [{ id: 'analyze', label: 'Analyze' }] });
     expect(m.blocked).toBe(false);
+  });
+});
+
+describe('the travel question when the work zero is not the plan\'s', () => {
+  it('leads with Set work zero first; Start anyway is no longer the main button', async () => {
+    const { renderToString } = await import('preact-render-to-string');
+    const { h } = await import('preact');
+    const { TravelModal } = await import('../src/workspace/run/TravelModal.ts');
+    const ask = { ...PAST, zeroFirst: true };
+    const html = renderToString(h(TravelModal, { ask, onZero: () => undefined, onStart: () => undefined, onCancel: () => undefined }));
+    expect(html).toMatch(/class="small primary" data-action="travel-zero"[^>]*>Set work zero first</);
+    expect(html).toMatch(/class="small" data-action="travel-start"[^>]*>Start anyway</);
+    expect(html).toContain('Your work zero isn’t where you planned it.');
+    const plain = renderToString(h(TravelModal, { ask: PAST, onStart: () => undefined, onCancel: () => undefined }));
+    expect(plain).not.toContain('travel-zero');
+    expect(plain).toMatch(/class="small primary" data-action="travel-start"/);
   });
 });

@@ -18,7 +18,7 @@ test('Run names Place job’s planned zero and the difference from the board’s
   await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name: 'job.nc', mimeType: 'text/plain', buffer: Buffer.from(zigzag(4)) });
   await expect(page.locator('[data-ready-item="file"]')).toHaveAttribute('data-mark', 'done', { timeout: 15_000 });
   // The list says it in a few words; the full comparison is the work zero note (Notes tab, owner 2026-11-09).
-  await expect(page.locator('[data-ready-summary="zero"]')).toHaveText('Can’t compare until the position is set.');
+  await expect(page.locator('[data-ready-summary="zero"]')).toHaveText('Can’t compare.');
   const zero = page.locator('[data-note="zero"]');
   await expect(zero).toContainText('Your plan puts work zero at the front-left corner of the top of the stock');
   await expect(zero).toContainText('The machine position is not set (not homed)');
@@ -30,8 +30,8 @@ test('Run names Place job’s planned zero and the difference from the board’s
   await expect(zero).toContainText(/Work zero Z is \d+\.\d mm (above|below) the top of the stock you planned\./);
   await expect(zero).toContainText('You planned work zero at the front-left corner of the top of the stock');
   await expect(zero).not.toContainText('No plan is recorded');
-  await expect(page.locator('[data-ready-summary="zero"]')).toHaveText('Not your plan’s. Start cuts from the board’s.');
-  await expect(page.locator('[data-job="confirm-start"]')).toContainText('cut from the board’s work zero');
+  await expect(page.locator('[data-ready-summary="zero"]')).toHaveText('Not your plan’s.');
+  await expect(page.locator('[data-job="confirm-start"]')).toContainText('the board’s work zero');
   // The registered C31, in full, is under Details in the start confirmation.
   await page.locator('[data-job="confirm-start-box"]').check();
   await page.locator('[data-action="start-job"]').click();

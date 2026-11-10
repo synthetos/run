@@ -30,9 +30,9 @@ test('a file past the X travel on a board not homed: Start asks it as one questi
   await connect(page);
   await open(page, 'G21 G90\nG1 X200 F600\nM30\n', 'past-x.nc');
   await expect(page.locator('[data-ready-item="travel"]')).toHaveAttribute('data-mark', 'needs');
-  await expect(page.locator('[data-ready-summary="travel"]')).toHaveText('Line 2 goes past the X limit. Start asks.');
+  await expect(page.locator('[data-ready-summary="travel"]')).toHaveText('Line 2 goes past X.');
   // The one tick leaves out C36: the travel answer covers it (owner, 2026-11-08: one box when both apply).
-  await expect(page.locator('[data-job="confirm-start"]')).not.toContainText('every axis');
+  await expect(page.locator('[data-job="confirm-start"]')).not.toContainText('axes checked');
   await page.locator('[data-job="confirm-start-box"]').check();
   await page.locator('[data-action="start-job"]').click();
   const modal = page.locator('[data-safety="C41"]');

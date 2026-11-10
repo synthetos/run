@@ -16,10 +16,10 @@ export const MARK_WORDS: Readonly<Record<Mark, string>> = { done: 'Done', needs:
 
 /** The phrases the one start tick confirms, one per confirmation that applies (proposed short C31, C36, C32, W5). */
 export const TICK_PHRASE = {
-  workZero: 'cut from the board’s work zero',
-  unhomed: 'I checked where every axis is',
-  spindle: 'hands clear when the spindle starts',
-  attended: 'I’ll stay at the machine, with sleep off',
+  workZero: 'the board’s work zero',
+  unhomed: 'axes checked',
+  spindle: 'hands clear',
+  attended: 'I’ll stay here, sleep off',
 } as const;
 
 export type TickPart = keyof typeof TICK_PHRASE;
@@ -45,7 +45,8 @@ export function travelPastText(p: { readonly axis: string; readonly line: number
   const n = (v: number): string => (Math.round(v * 1000) / 1000).toString().replace('-', '−');
   return {
     title: `This job goes past the ${p.axis} limit.`,
-    body: `Line ${p.line.toLocaleString('en-US')} moves ${p.axis} to ${n(p.reach)} ${p.unit}. ${p.axis} stops at ${n(p.limit)} ${p.unit}. ${p.axis} isn’t homed, so its position may be off.${p.more > 0 ? ` ${p.more.toLocaleString('en-US')} more ${p.more === 1 ? 'move goes' : 'moves go'} past too.` : ''}`,
+    // `more` counts moves (long ones are split), not file lines: say only that others go past too.
+    body: `Line ${p.line.toLocaleString('en-US')} moves ${p.axis} to ${n(p.reach)} ${p.unit}. ${p.axis} stops at ${n(p.limit)} ${p.unit}. ${p.axis} isn’t homed, so its position may be off.${p.more > 0 ? ' Other lines go past too.' : ''}`,
   };
 }
 

@@ -27,6 +27,7 @@ import type { MotionAxis } from '../../machine-worker/rpc.ts';
 import { usePublishNotes } from '../notes/usePublishNotes.ts';
 import type { Note } from '../notes/notes.ts';
 import { ConfirmCard } from '../ui.ts';
+import { jobStep } from '../jobWorkflow.ts';
 import { signalText } from '../../shell/signal.ts';
 import { runZeroCheck, setupPlan } from '../zeroPlan.ts';
 import { Details } from './ChoiceModal.ts';
@@ -36,6 +37,16 @@ import { SHORT_C30_APPROVED, refusedBody, startQuestion, tickText } from './runC
 import { ChoiceModal } from './ChoiceModal.ts';
 import { TravelModal } from './TravelModal.ts';
 import { askUnknownAgain } from '../unknownModal.ts';
+import { setWorkZeroFirst } from './zeroFirst.ts';
+
+/** The spindle's speeds in a few words for the list: "12,000 rpm" or "12,000–18,000 rpm". */
+function speedRange(job: JobSnapshot | null): string {
+  const speeds = job?.report?.speeds ?? [];
+  if (speeds.length === 0) return 'speed set by the machine';
+  const lo = Math.min(...speeds);
+  const hi = Math.max(...speeds);
+  return lo === hi ? `${lo.toLocaleString('en-US')} rpm` : `${lo.toLocaleString('en-US')}–${hi.toLocaleString('en-US')} rpm`;
+}
 
 function speedsText(job: JobSnapshot | null): string {
   const speeds = job?.report?.speeds ?? [];
@@ -44,12 +55,12 @@ function speedsText(job: JobSnapshot | null): string {
 }
 
 /** The travel question Start asks, from the check's finding: C41 for a move past travel (axis not homed), else C40. */
-function travelAskOf(job: JobSnapshot | null, homeable: (axis: string) => boolean): TravelAsk | null {
+function travelAskOf(job: JobSnapshot | null, homeable: (axis: string) => boolean, zeroFirst: boolean): TravelAsk | null {
   const f = job?.report?.travel?.confirm ?? null;
   if (f === null) return null;
   if (f.kind === 'outside' && f.past !== undefined && f.line !== null) {
     const p = f.past;
-    return { kind: 'past', axis: p.axis, line: f.line, reach: p.reach, limit: p.limit, unit: p.unit, more: p.more, text: f.text, homeable: homeable(p.axis) };
+    return { kind: 'past', axis: p.axis, line: f.line, reach: p.reach, limit: p.limit, unit: p.unit, more: p.more, text: f.text, homeable: homeable(p.axis), zeroFirst };
   }
   return { kind: 'unchecked', why: f.text, text: f.text };
 }
@@ -123,10 +134,12 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
     homed: s === null || s.live.home === undefined ? null : s.live.home === 1,
     homedBy: s?.notices.position?.by,
     canHome,
-    travel: report === null ? null : (travelAskOf(job, homeable) ?? { kind: 'fits' }),
+    // A move past travel while the board's work zero is not the plan's: the zero is the likely cause, so the modal
+    // leads with setting it (owner, 2026-11-09), Start anyway comes after.
+    travel: report === null ? null : (travelAskOf(job, homeable, zero.state !== 'match') ?? { kind: 'fits' }),
     modes: s?.boardModes.text ?? null,
     feeds: advisorSummary.value,
-    spindle: report === null ? null : { starts: report.startsSpindle, speeds: speedsText(job) },
+    spindle: report === null ? null : { starts: report.startsSpindle, speeds: speedRange(job) },
   };
   const ready = readyModel(input);
   const startsSpindle = report?.startsSpindle === true;
@@ -196,12 +209,20 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
   return h(
     'div',
     { class: 'job-steps run-panel', 'data-job': 'steps' },
-    h(ReadyList, { items: ready.items, onAction: act }),
-    ready.tick.length === 0
-      ? null
-      : h('label', { class: 'job-tick ready-tick', 'data-job': 'confirm-start' }, h('input', { type: 'checkbox', checked: ticked, 'data-job': 'confirm-start-box', onChange: (e: Event) => setTicked((e.currentTarget as HTMLInputElement).checked) }), ' ', tickText(ready.tick)),
-    note === null ? null : h('p', { class: 'unavailable', role: 'status' }, note),
+    h('div', { class: 'ready-scroll' }, h(ReadyList, { items: ready.items, onAction: act })),
+    // The tick and Start, right under the list (the list folds what passed, so they fit without scrolling).
     h(
+      'div',
+      { class: 'ready-footer' },
+      ready.tick.length === 0
+        ? null
+        : h('label', { class: 'job-tick ready-tick', 'data-job': 'confirm-start' }, h('input', { type: 'checkbox', checked: ticked, 'data-job': 'confirm-start-box', onChange: (e: Event) => setTicked((e.currentTarget as HTMLInputElement).checked) }), ' ', tickText(ready.tick)),
+      note === null ? null : h('p', { class: 'unavailable', role: 'status' }, note),
+      h(
+      'div',
+      { class: 'ready-buttons' },
+      h('button', { type: 'button', class: 'small', 'data-action': 'job-step-back', onClick: () => { jobStep.value = 'check'; } }, 'Back'),
+      h(
       'button',
       {
         type: 'button',
@@ -212,11 +233,17 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
         title: canStart ? 'Start the job' : ready.blocked ? 'Clear the items marked ✕ first.' : 'Tick the confirmation first.',
       },
       'Start job',
+      ),
+      ),
     ),
     modal === 'travel' && ready.travelAsk !== null
       ? h(TravelModal, {
           ask: ready.travelAsk,
           ...(ready.travelAsk.kind === 'past' && ready.travelAsk.homeable ? { onHome: () => act('home') } : {}),
+          onZero: () => {
+            setModal(null);
+            setWorkZeroFirst();
+          },
           onStart: () => {
             setTravelOk(travelText);
             setModal('start');
