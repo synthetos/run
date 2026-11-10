@@ -24,12 +24,21 @@ export function resetDismissed(): void {
   dismissed.value = new Set();
 }
 
-export function Dismissable({ id, label, children, class: cls = '' }: { readonly id: string; readonly label: string; readonly children?: ComponentChild; readonly class?: string }): ComponentChild {
+export interface DismissableProps {
+  readonly id: string;
+  readonly label: string;
+  readonly children?: ComponentChild;
+  readonly class?: string;
+  /** The notice is also published to the Notes tab (the default). An informational notice of a view that is not says only "Hide". */
+  readonly inNotes?: boolean;
+}
+
+export function Dismissable({ id, label, children, class: cls = '', inNotes = true }: DismissableProps): ComponentChild {
   if (dismissed.value.has(id)) return null;
   return h(
     'div',
     { class: `dismissable ${cls}`.trim(), 'data-notice': id },
     h('div', { class: 'dismissable-body' }, children),
-    h('button', { type: 'button', class: 'dismiss', 'data-action': 'dismiss-notice-x', 'aria-label': `Hide: ${label}. It stays in Notes.`, title: 'Hide (it stays in Notes)', onClick: () => dismiss(id) }, '×'),
+    h('button', { type: 'button', class: 'dismiss', 'data-action': 'dismiss-notice-x', 'aria-label': inNotes ? `Hide: ${label}. It stays in Notes.` : `Hide: ${label}.`, title: inNotes ? 'Hide (it stays in Notes)' : 'Hide', onClick: () => dismiss(id) }, '×'),
   );
 }

@@ -212,7 +212,7 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .project-list-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--rule); }
 .project-list { flex: 1; overflow: auto; }
 .project-row { width: 100%; display: grid; grid-template-columns: 44px 1fr; gap: 10px; align-items: center; justify-content: stretch; text-align: left; min-height: 60px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; background: none; font-weight: 400; white-space: normal; }
-.project-row:hover:not(:disabled) { background: var(--raise) !important; }
+.project-row:hover:not(:disabled) { background: var(--row-hover) !important; }
 .project-row[aria-current="true"] { background: var(--blue-wash) !important; box-shadow: inset 3px 0 var(--blue); }
 .project-thumb { width: 44px; height: 44px; border-radius: var(--r-sm); background: var(--tan-wash); color: var(--tan); display: grid; place-items: center; overflow: hidden; }
 .project-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }

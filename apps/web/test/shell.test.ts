@@ -155,6 +155,8 @@ describe('Phase 1 control allowlist', () => {
     // The Run step's list (owner, 2026-11-09): views and notes only; its machine buttons carry data-machine-control.
     /^action:ready-(analyze|save-zero|note|update|trust|review|machines)$/,
     /^action:(open-notes|note-link)$/,
+    // The × on an informational notice (workspace/notes/Dismissable.ts, owner polish 2026-11-10): presentation only.
+    /^action:dismiss-notice-x$/,
     /^action:context-help$/,
     // NEEDS_REVIEW's ways out, in its banner (OD-13 §5): keep the board's settings (C23, writes nothing) or open the review.
     /^action:review-(keep|open|cancel)$/,

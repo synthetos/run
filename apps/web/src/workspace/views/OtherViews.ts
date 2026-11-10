@@ -11,6 +11,7 @@ import { Icon } from '../icons.ts';
 import { openReport } from '../../report/state.ts';
 import { connected, type WorkspaceModel } from '../model.ts';
 import { stopJobSafetyText } from '../stopJobText.ts';
+import { Dismissable } from '../notes/Dismissable.ts';
 
 function head(title: string, sub: string): ComponentChild {
   return h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, title), sub === '' ? null : h('p', null, sub)));
@@ -31,7 +32,7 @@ export function PreferencesView({ build }: { readonly build: BuildInfo }): Compo
         'div',
         { class: 'panel' },
         h('div', { class: 'panel-head' }, h('h2', null, 'Theme')),
-        h('p', { class: 'fine' }, 'Follows your system until you choose.'),
+        h(Dismissable, { id: 'preferences/theme-hint', label: 'the theme note', inNotes: false }, h('p', { class: 'fine' }, 'Follows your system until you choose.')),
         h('button', { type: 'button', class: 'small', 'data-theme-toggle': '', 'aria-label': 'Toggle day/night mode' }, 'Switch light or dark'),
       ),
       h(
@@ -46,7 +47,7 @@ export function PreferencesView({ build }: { readonly build: BuildInfo }): Compo
           h('div', null, h('dt', null, 'My materials'), h('dd', null, String(myMaterialStore.value.value.length))),
           h('div', null, h('dt', null, 'Storage'), h('dd', null, saved ? 'Available' : 'Blocked: changes last for this page only')),
         ),
-        h('p', { class: 'fine' }, 'Stored on this device. Safety records are never synced.'),
+        h(Dismissable, { id: 'preferences/storage', label: 'the storage note', inNotes: false }, h('p', { class: 'fine' }, 'Stored on this device. Safety records are never synced.')),
       ),
       h('div', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h2', null, 'Version')), h('p', { class: 'mono' }, versionLabel(build))),
     ),

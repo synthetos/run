@@ -274,7 +274,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
   border-bottom: 0;
 }
 .spec-table tbody th { font-weight: 600; width: 24%; }
-.spec-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--grid) 35%, transparent); }
+.spec-table tbody tr:nth-child(even) { background: var(--row-stripe, color-mix(in srgb, var(--ink) 5%, transparent)); }
 
 /* ---------------------------------------------------------------- Workspace */
 .shell, .page { min-height: 100vh; display: flex; flex-direction: column; }

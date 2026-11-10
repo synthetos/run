@@ -26,6 +26,8 @@ import { trustOffered } from '../trustOffer.ts';
 import { connected, type FirmwareActions, type FirmwareDownload, type FirmwareHubView, type LiveView, type ReleaseImage, type WorkspaceModel } from '../model.ts';
 import type { FlashView } from '../../machine-worker/flashService.ts';
 import { shownBoard } from './firmwareBoard.ts';
+import { Dismissable } from '../notes/Dismissable.ts';
+import { releaseTitle } from '../../firmware/releaseTitle.ts';
 import type { MotionCommand } from '../../machine-worker/rpc.ts';
 
 /** Next to an older release's button (first-time walk C8): what a downgrade does to the board's settings. */
@@ -384,7 +386,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
                   h(
                     'div',
                     { class: 'rel-notes' },
-                    h('h3', null, `TinyG ${r.dialect === 'tinyg-en' ? 'edge-next' : '440'} ${fbText(r.fb)}${advanced ? ` · fv ${r.fv}` : ''}`),
+                    h('h3', { 'data-release-title': '' }, `${releaseTitle(r)}${advanced ? ` · fv ${r.fv}` : ''}`),
                     // Simple (C10): the release notes are the maintainers' (issue codes, commits), so they fold away.
                     advanced ? h('p', { class: 'changelog' }, r.changelog) : h('details', { class: 'changelog-more' }, h('summary', null, 'What changed (technical notes)'), h('p', { class: 'changelog' }, r.changelog)),
                     advanced ? h('p', { class: 'installed' }, `${r.file} · sha256 ${shortSha(r.sha256)} · ${Math.round(r.size / 1024)} KB · ${source}${installed ? ' · installed' : ''}`) : installed ? h('p', { class: 'installed' }, 'Installed on this board') : null,
@@ -456,7 +458,9 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
             { class: 'insp', 'data-region': 'firmware-plan' },
             h('header', null, h('h2', null, 'Update'), h('span', { class: 'tag' }, m?.flasher === true ? 'Bench and staging' : 'Not on this site')),
             h('ol', { class: 'fw-plan' }, ['Back up every setting', 'Restart into the bootloader; back up the current firmware', 'Write, then read back to verify', 'Reconnect and check the version', 'Compare and restore your settings; check the switches'].map((t, i) => h('li', { key: t }, h('span', null, String(i + 1)), t))),
-            h('p', { class: 'fine', 'data-flash-blocked': blocked === null ? 'no' : 'yes' }, blocked ?? 'Choose a release on the left, or below: put a firmware backup back, or flash your own build.'),
+            blocked === null
+              ? h(Dismissable, { id: 'firmware/update-hint', label: 'the update hint', inNotes: false }, h('p', { class: 'fine', 'data-flash-blocked': 'no' }, 'Choose a release on the left, or below: put a firmware backup back, or flash your own build.'))
+              : h('p', { class: 'fine', 'data-flash-blocked': 'yes' }, blocked),
           )
         : null,
       msg === null ? null : h('p', { class: 'backup-progress danger', role: 'alert', 'data-flash-message': 'true' }, msg),

@@ -2,10 +2,43 @@
  * Zebra rows (owner, 2026-11-09: "anytime we have stuff like this, almost table-like, we need to break up the colors
  * to alternating to make it easier on the human to read"). One stripe token, light and dark (it follows --ink), and
  * one rule per shared list class; hover and selected keep their own colours on top.
+ *
+ * App-wide (owner polish, 2026-11-10): every table-like list outside the Job view takes the same stripe. The stripe
+ * rules sit inside :where(), so any hover or selected rule (a class plus a state) beats them in both themes. Hover
+ * uses --row-hover, a step darker than the stripe, so a hovered striped row still changes; selected rows keep their
+ * wash and left bar. Multi-column fact grids (.inline-facts) are not striped: by item they would checkerboard, and
+ * each item already has its own rule line.
  */
-:root { --row-stripe: color-mix(in srgb, var(--ink) 5%, transparent); }
+:root {
+  --row-stripe: color-mix(in srgb, var(--ink) 5%, transparent);
+  --row-hover: color-mix(in srgb, var(--ink) 10%, transparent);
+}
 ul.rows, ol.rows { list-style: none; margin: 0; padding: 0; }
 .rows > li:nth-child(even),
 .zero-table tbody tr:nth-child(even),
 .analyze-table tbody tr:nth-child(even),
 .dro-grid > .dro-row:not(.pos-status-row):nth-child(odd) { background: var(--row-stripe); }
+
+/* Tables: Board (motors, axes, inputs, spindle, the motor draft), Library (tools, materials, cutting data), the
+   machine mapping, backups, the restore compare, Analyze. Materials restart per family, after its heading row. */
+:where(.cfg-table, .draft-table, .slot-table, .tool-table, .backup-table, .diff-table, .advisor-table, .spec-table) > tbody > tr:nth-child(even),
+:where(.mat-table) > tbody > tr:not(.family-row):nth-child(odd),
+/* Lists: firmware releases, the backup and trust lists, project files, jobs and links, setting drafts, projects. */
+:where(.releases, .hub-list, .file-list, .link-list, .draft-list) > li:nth-child(even),
+:where(.project-list) > .project-row:nth-child(even),
+/* Key and value lists (This board, Preferences, a material's facts). */
+:where(dl.facts:not(.inline-facts)) > div:nth-child(even) { background: var(--row-stripe); }
+
+/* Room for the stripe: rows whose text sat flush with the edge get a little side padding. */
+.cfg-section .cfg-table :is(th, td):first-child,
+.insp .draft-table :is(th, td):first-child,
+.slot-table :is(th, td):first-child { padding-left: 8px; }
+.slot-table :is(th, td):last-child { padding-right: 8px; }
+.releases { padding: 0 6px; }
+.releases li { padding: 14px 12px; }
+.hub-list li, .link-list li, .draft-list li { padding-left: 8px; padding-right: 8px; }
+dl.facts:not(.inline-facts) { gap: 0; }
+dl.facts:not(.inline-facts) > div { padding: 4px 8px; border-radius: var(--r-sm, 4px); }
+
+/* Hover above the stripe; selected rules elsewhere keep their wash and bar. */
+.cfg-table tbody tr[aria-selected]:not([aria-selected="true"]):hover { background: var(--row-hover); }

@@ -27,6 +27,8 @@ import { boardText } from '@synthetos/safety';
 import type { SettingValue } from '@synthetos/schema';
 import { AxisModes } from '../../machine-ui/AxisModes.ts';
 import { SettingsStatus } from '../../machine-ui/SettingsView.ts';
+import { Dismissable } from '../notes/Dismissable.ts';
+import type { ReadoutPhase } from '../../live/readout.ts';
 import { PendingTray, SettingEditor, SettingsTable } from '../settings/SettingsUi.ts';
 import { BackupsHub, FirmwareTab } from './FirmwareViews.ts';
 import { editBlocked } from '../settings/SettingsUi.ts';
@@ -415,7 +417,7 @@ function OverviewTab({ view }: { readonly view: LiveView | null }): ComponentChi
       { class: 'viewer board-canvas' },
       h('div', { class: 'viewer-top' }, h('span', { class: 'viewer-label' }, 'TinyG v8 · choose any terminal')),
       h(BoardIllustration, { selected, onSelect: select, settings }),
-      h('div', { class: 'viewer-foot' }, 'Drawn from public information about the board · pin names from the board definition · check your board’s revision'),
+      h('div', { class: 'viewer-foot' }, h(Dismissable, { id: 'board/drawing-source', label: 'where the drawing comes from', inNotes: false }, 'Drawn from public information about the board · pin names from the board definition · check your board’s revision')),
     ),
     h(
       'aside',
@@ -510,7 +512,12 @@ function AxesTab({ view }: { readonly view: LiveView | null }): ComponentChild {
     'div',
     { tabindex: 0, class: 'scroll-region cfg-scroll' },
     h(EditToggle, { view, editing, onToggle: () => setEditing((e) => !e) }),
-    view?.axisModes === null || view?.axisModes === undefined ? null : h(AxisModes, { view: view.axisModes }),
+    view?.axisModes === null || view?.axisModes === undefined
+      ? null
+      : // All clear is only information (a ×); a mode that would block motion stays.
+        view.axisModes.kind === 'facts' && view.axisModes.facts.length === 0
+        ? h(Dismissable, { id: 'board/axis-modes-clear', label: 'the axis modes note', inNotes: false, class: 'dismissable-card' }, h(AxisModes, { view: view.axisModes }))
+        : h(AxisModes, { view: view.axisModes }),
     axisTable('Motion', MOTION_HEAD, AXIS_MOTION, settings, dialect, edit),
     axisTable('Homing and switches', HOMING_HEAD, AXIS_HOMING, settings, dialect, edit),
     h('dl', { class: 'facts inline-facts' }, ...['st', 'sl', 'mt', 'ja', 'ct'].map((k) => h('div', { key: k }, h('dt', null, settingMeta(k, dialect).label, h('small', { class: 'raw-key' }, k)), h('dd', null, plainValue(k, settings[k], dialect) ?? 'Not read', edit === null ? null : h('div', { class: 'cell-edit' }, h(SettingEditor, { k, view: edit, compact: true })))))),
@@ -553,7 +560,7 @@ function InputsTab({ view }: { readonly view: LiveView | null }): ComponentChild
           ),
         ),
       ),
-      h('p', { class: 'fine' }, 'One switch type applies to all inputs. Inputs have 2.7 kΩ pull-ups to 3.3 V.'),
+      h(Dismissable, { id: 'board/inputs-pullups', label: 'the inputs note', inNotes: false }, h('p', { class: 'fine' }, 'One switch type applies to all inputs. Inputs have 2.7 kΩ pull-ups to 3.3 V.')),
       edit === null ? null : h('dl', { class: 'facts inline-facts' }, h('div', null, h('dt', null, settingMeta('st', dialect).label, h('small', { class: 'raw-key' }, 'st')), h('dd', null, st ?? 'Not read', h('div', { class: 'cell-edit' }, h(SettingEditor, { k: 'st', view: edit, compact: true }))))),
     ),
   );
@@ -598,7 +605,7 @@ function OutputsTab({ view }: { readonly view: LiveView | null }): ComponentChil
           ),
         ),
       ),
-      h('p', { class: 'fine' }, 'Mist and flood share the one coolant output on this board.'),
+      h(Dismissable, { id: 'board/coolant-shared', label: 'the coolant note', inNotes: false }, h('p', { class: 'fine' }, 'Mist and flood share the one coolant output on this board.')),
     ),
     h(
       'section',
@@ -636,14 +643,14 @@ function CommsTab({ view }: { readonly view: LiveView | null }): ComponentChild 
       { class: 'cfg-section' },
       h('h3', { class: 'tan-label' }, 'Serial link'),
       h('dl', { class: 'facts inline-facts' }, ...['baud', 'ex', 'ec', 'ee', 'ej', 'jv', 'js', 'tv', 'qv', 'sv', 'si', 'rxm'].filter((k) => settings[k] !== undefined).map((k) => h('div', { key: k }, h('dt', null, settingMeta(k, dialect).label, h('small', { class: 'raw-key' }, k)), h('dd', null, `${plainValue(k, settings[k], dialect) ?? 'Not read'}${k === 'si' ? ' ms' : ''}`)))),
-      h('p', { class: 'fine' }, 'Read-only communication settings. Changing them can prevent senders from connecting.'),
+      h(Dismissable, { id: 'board/comms-read-only', label: 'the communication settings note', inNotes: false }, h('p', { class: 'fine' }, 'Read-only communication settings. Changing them can prevent senders from connecting.')),
     ),
     h(
       'section',
       { class: 'cfg-section' },
       h('h3', { class: 'tan-label' }, 'Status report list'),
       srList === undefined ? h('p', { class: 'fine' }, 'Read when the board answers the first status request.') : h('ul', { class: 'key-chips', 'aria-label': 'Fields in the status report' }, srList.map((k) => h('li', { key: k }, settingMeta(k, dialect).label, h('code', { class: 'raw-key' }, k)))),
-      h('p', { class: 'fine' }, 'Fields reported by this board. Read only.'),
+      h(Dismissable, { id: 'board/sr-list', label: 'the status report list note', inNotes: false }, h('p', { class: 'fine' }, 'Fields reported by this board. Read only.')),
     ),
   );
 }
@@ -653,7 +660,7 @@ function SettingsTab({ model }: { readonly model: WorkspaceModel | null }): Comp
   return h(
     'div',
     { tabindex: 0, class: 'scroll-region settings-tab' },
-    h('div', { class: 'settings-read', 'data-region': 'settings' }, h(SettingsStatus, { phase: view?.readout.phase ?? { kind: 'idle' }, onKeep: () => model?.actions.value?.keepBoardSettings() })),
+    settingsRead(view?.readout.phase ?? { kind: 'idle' }, () => model?.actions.value?.keepBoardSettings()),
     uiLevel.value.value === 'simple' ? h(GuidedSettings, { view, prefix: 'board' }) : h(SettingsTable, { view }),
   );
 }
@@ -702,4 +709,15 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     pane('firmware', h('div', { class: 'firmware-tab' }, h(FirmwareTab, { model }), h(BackupsHub, { model, part: 'firmware' }))),
     pane('backups', h(BackupsHub, { model, part: 'settings' })),
   );
+}
+
+/**
+ * The settings read's outcome. "Recorded" and "match" are only information, so they get a × (remembered per notice,
+ * workspace/notes/Dismissable.ts); reading, incomplete and a drift (a review is needed) always show.
+ */
+function settingsRead(phase: ReadoutPhase, onKeep: () => void): ComponentChild {
+  const body = h('div', { 'data-region': 'settings' }, h(SettingsStatus, { phase, onKeep }));
+  return phase.kind === 'recorded' || phase.kind === 'match'
+    ? h(Dismissable, { id: `board/settings-${phase.kind}`, label: 'the settings read note', inNotes: false, class: 'settings-read dismissable-card' }, body)
+    : h('div', { class: 'settings-read' }, body);
 }

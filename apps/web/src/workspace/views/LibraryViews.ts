@@ -58,6 +58,7 @@ import { ToolShapeFields } from './ToolShapeFields.ts';
 import { ToolDrawing } from '../toolDrawing/ToolDrawing.ts';
 import { ToolDrawingEditor } from '../toolDrawing/ToolDrawingEditor.ts';
 import { uiLevel } from '../jobWorkflow.ts';
+import { Dismissable } from '../notes/Dismissable.ts';
 
 export const PLACEHOLDER_NOTE = 'Placeholder values: not yet sourced. They show the shape of the data, not machining advice.';
 
@@ -245,7 +246,7 @@ function ToolInspector({ entry, onDeleted }: { readonly entry: ToolEntry; readon
               h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Material'), h('th', { scope: 'col' }, 'Surface speed (m/min)'), h('th', { scope: 'col' }, 'Chipload (mm/tooth)'), h('th', { scope: 'col' }, 'Source'))),
               h('tbody', null, tool.cuttingData.map((c, i) => h('tr', { key: String(i) }, h('td', null, material(c.materialRef.id)?.name ?? c.materialRef.id), h('td', null, String(c.vc)), h('td', null, String(c.fz)), h('td', null, SOURCE_LABELS[c.source] ?? c.source)))),
             ),
-        h('p', { class: 'fine' }, PLACEHOLDER_NOTE),
+        h(Dismissable, { id: 'library/tool-placeholder', label: 'the placeholder values note', inNotes: false }, h('p', { class: 'fine' }, PLACEHOLDER_NOTE)),
       ),
     ),
   );
@@ -462,7 +463,7 @@ function MaterialInspector({ view, onSelect, onEdit }: { readonly view: Material
                 ),
               ),
             ),
-            h('p', { class: 'fine' }, PLACEHOLDER_NOTE),
+            h(Dismissable, { id: 'library/material-placeholder', label: 'the placeholder values note', inNotes: false }, h('p', { class: 'fine' }, PLACEHOLDER_NOTE)),
           ),
         ),
     h(

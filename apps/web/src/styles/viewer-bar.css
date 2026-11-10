@@ -18,6 +18,10 @@ button.viewer-chip { min-height: 26px; padding: 0 9px; font-size: 11.5px; font-w
 .dismissable-body { flex: 1; min-width: 0; }
 .dismissable > button.dismiss { flex: none; width: 22px; height: 22px; min-height: 22px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; }
 .dismissable > button.dismiss:hover { color: var(--ink); }
+/* A × on a bordered card (Board: the axis modes, the settings read): in the card's top corner, not beside it. */
+.dismissable.dismissable-card { display: block; }
+.dismissable.dismissable-card > button.dismiss { position: absolute; top: 8px; right: 8px; }
+.dismissable.dismissable-card h2, .dismissable.dismissable-card [data-region="settings"] { padding-right: 24px; }
 .unknown-chip { margin: 0 0 8px; font-size: 12.5px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 /* An open menu is never clipped by the overlay's own scrolling box. */
 .viewer-overlay:has(.viewer-menu[open]), .viewer-overlay:has(.viewer-menu[open]) .viewer-overlay-scroll { overflow: visible; }
