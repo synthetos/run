@@ -29,13 +29,13 @@ test('the machine’s work zero is offered once the position is set, and Run com
   await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
   await page.locator('[data-job-step="run"]').click();
   await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name: 'job.nc', mimeType: 'text/plain', buffer: Buffer.from(zigzag(4)) });
-  await expect(page.locator('[data-job="check"]')).toContainText('Checked with this board', { timeout: 15_000 });
+  await expect(page.locator('[data-ready-item="file"]')).toHaveAttribute('data-mark', 'done', { timeout: 15_000 });
   // Not homed: not offered.
   await page.locator('[data-job-step="place"]').click();
   const place = page.locator('[data-job-panel="place"]');
   await expect(place.locator('[data-place="zero-source"]')).toHaveCount(0);
   await page.locator('[data-job-step="run"]').click();
-  await page.getByRole('button', { name: 'Set the machine zero here, without homing' }).click();
+  await page.getByRole('button', { name: /Set (the )?machine zero here, without homing/ }).first().click();
   await page.locator('[data-region="home-quick"] button', { hasText: 'Set machine position' }).click();
   await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_HOMED');
   const from = (await writes(worker)).length;
@@ -49,9 +49,12 @@ test('the machine’s work zero is offered once the position is set, and Run com
   await expect(place.getByRole('radiogroup', { name: 'Zero point on the stock' })).toHaveCount(0);
   await expect(place.locator('[data-place="margins"]')).toBeVisible();
   await page.locator('[data-job-step="run"]').click();
-  const zero = page.locator('[data-job="zero"]');
-  await expect(zero).toContainText('The board’s work zero is where you planned it: the machine’s work zero');
-  // The plan is the board's zero, so there is no difference to confirm (C31 shows only when they differ).
+  // The Run step's list (0.5.14): the work zero matches the plan; the full comparison is the work zero note.
+  await expect(page.locator('[data-ready-summary="zero"]')).toHaveText('Matches your plan.');
+  await expect(page.locator('[data-note="zero"]')).toContainText('The board’s work zero is where you planned it: the machine’s work zero');
+  // The plan is the board's zero, so there is no difference to confirm: the one start tick carries no C31
+  // ("the board's work zero"), and the start confirmation's Details have no C31 (OD-28, confirmed).
+  await expect(page.locator('[data-job="confirm-start"]')).not.toContainText('the board\'s work zero');
   await expect(page.locator('[data-safety="C31"]')).toHaveCount(0);
   // Nothing that sets a zero was written.
   expect((await writes(worker)).slice(from).filter((w) => /G10|G92|G28\.3/.test(w))).toEqual([]);
