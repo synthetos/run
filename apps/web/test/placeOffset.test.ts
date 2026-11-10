@@ -104,6 +104,9 @@ describe('travel and clamps in Place job', () => {
     expect(placeTravelText({ connected: true, homed: true })).toBe('Travel is checked in the Check step.');
     expect(placeTravelText({ connected: true, homed: true, travel: { block: { text: 'Line 2: X would reach 200 mm, past its 150 mm limit.' }, confirm: null } })).toBe('Travel: Line 2: X would reach 200 mm, past its 150 mm limit.');
     expect(placeTravelText({ connected: true, homed: true, travel: { block: null, confirm: null } })).toBe('Travel: the job fits the machine at the board’s work zero now.');
+    const past = { text: 'line 9: X would reach machine -13 mm, beyond its travel limit of 0 mm, and the X position was not set by a homing cycle in this connection', line: 9, past: { axis: 'X' } };
+    expect(placeTravelText({ connected: true, homed: true, travel: { block: null, confirm: past } })).toBe('Travel: line 9 goes past X. Start asks about it.');
+    expect(placeTravelText({ connected: true, homed: true, travel: { block: null, confirm: { text: 'the Y limit was not read' } } })).toBe('Travel not fully checked: the Y limit was not read.');
     expect(CLAMPS_NOT_CHECKED).toBe('Clamp clearance is not checked. Look before you start.');
   });
 });

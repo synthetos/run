@@ -52,7 +52,7 @@ function ZeroSource({ job, edit, live }: { readonly job: Job; readonly edit: Edi
       ? null
       : live === null
         ? h('p', { class: 'warn-text', role: 'status', 'data-place': 'machine-zero' }, 'The machine’s work zero is not known now. The plan uses the point on the stock.')
-        : h('p', { class: 'fine', 'data-place': 'machine-zero' }, `Placed at the machine’s work zero (X ${mm(live.x)}, Y ${mm(live.y)}, Z ${mm(live.z)} machine mm). Nothing is sent to the board.`),
+        : h('p', { class: 'fine', 'data-place': 'machine-zero' }, 'Placed at the machine’s work zero. Nothing is sent to the board.'),
   );
 }
 
@@ -66,7 +66,8 @@ export function PlacePanel({ job, edit, advanced, travel }: { readonly job: Job;
   const radius = preview === null ? null : cutToolRadius(preview, toolStore.value.value, spindleToolChoice.value);
   const margins = cut === null ? null : placeMargins(job, cut, radius, zero);
   const guess = fileZeroOf(file);
-  const fit = cut === null ? null : fitSuggestion(job, cut, zero, guess?.corner ?? null);
+  // At the machine's work zero there is no point on the stock to pick, so no "Use …": the margins say where the cut goes.
+  const fit = cut === null || onMachine ? null : fitSuggestion(job, cut, zero, guess?.corner ?? null);
   const top = job.setup.bed.toMachine.z + fixtureTop(job);
   const st = job.setup.stock;
   return h(

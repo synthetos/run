@@ -43,8 +43,12 @@ test('the machine’s work zero is offered once the position is set, and Run com
   const source = place.locator('[data-place="zero-source"]');
   await expect(source).toBeVisible();
   await source.getByRole('button', { name: 'Use the machine’s work zero' }).click();
-  await expect(place.locator('[data-place="machine-zero"]')).toContainText('Placed at the machine’s work zero (X ');
-  await expect(place.locator('[data-place="machine-zero"]')).toContainText('Nothing is sent to the board.');
+  // One plain sentence; the numbers are Advanced's "Work zero · machine mm".
+  await expect(place.locator('[data-place="machine-zero"]')).toHaveText('Placed at the machine’s work zero. Nothing is sent to the board.');
+  // No point on the stock to pick here, so no "Use …" suggestion.
+  await expect(place.locator('[data-place="mismatch"]')).toHaveCount(0);
+  // The step says where zero is, not the stock point it no longer uses.
+  await expect(page.locator('[data-job-step="place"]')).toContainText('machine’s work zero');
   // The stock point and its offsets step aside; the margins come from the board's zero.
   await expect(place.getByRole('radiogroup', { name: 'Zero point on the stock' })).toHaveCount(0);
   await expect(place.locator('[data-place="margins"]')).toBeVisible();

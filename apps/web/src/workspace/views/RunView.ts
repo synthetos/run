@@ -1141,7 +1141,7 @@ function stepStatus(step: typeof JOB_STEPS[number]['id'], parts: PreviewParts, m
   switch (step) {
     case 'machine': return job?.machine?.name ?? 'Choose machine';
     case 'stock': return job === null ? 'Define stock' : `${job.setup.stock.width} × ${job.setup.stock.depth} × ${job.setup.stock.thickness} mm`;
-    case 'place': return job === null ? 'Choose datum' : `${job.placement.datum.corner.replaceAll('-', ' ')} · ${job.placement.datum.height}`;
+    case 'place': return job === null ? 'Choose datum' : job.placement.zeroFrom === 'machine' ? 'machine’s work zero' : `${job.placement.datum.corner.replaceAll('-', ' ')} · ${job.placement.datum.height}`;
     case 'check': return result === null ? 'Open a file' : result.summary.blocked ? 'Blocked' : result.summary.counts.warn > 0 ? 'Review findings' : 'File checked';
     case 'run': return ui.active ? PHASE_LABEL(ui.job?.phase ?? 'running') : ui.connected ? 'Review & start' : 'Connect machine';
   }
