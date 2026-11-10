@@ -14,6 +14,8 @@ import { PREVIEW_MARKER_NOTE } from './previewMarker.ts';
 import { CarveLabel, CarveLegend } from './CarveKey.ts';
 import type { CarveInfo } from './useCarve.ts';
 import { ToolLegend } from './ToolLegend.ts';
+import { PlannerLegend } from './PlannerLegend.ts';
+import type { SpinDirection } from '@synthetos/gcode-view';
 import type { ToolColorView } from './useToolColors.ts';
 
 export interface SceneKeyProps {
@@ -32,13 +34,19 @@ export interface SceneKeyProps {
   readonly simple?: boolean;
   /** Colour by tool: the legend's entries, colours and pick (useToolColors.ts), or null. */
   readonly tools?: ToolColorView | null;
+  /** A job runs and its lines are drawn by planner state: the legend says what each look means. */
+  readonly planner?: boolean;
+  /** The planner has starved for over half a second while the job runs: a chip on the viewer's bar. */
+  readonly starved?: boolean;
+  /** The spindle as the board reports it: under reduced motion the bar shows a badge, as the bit does not turn. */
+  readonly spin?: SpinDirection;
 }
 
 
 
 
 
-export function SceneKey({ scene = null, tool = null, onAddTool, markerPreview = false, carve = null, tools = null }: SceneKeyProps): ComponentChild {
+export function SceneKey({ scene = null, tool = null, onAddTool, markerPreview = false, carve = null, tools = null, planner = false }: SceneKeyProps): ComponentChild {
   const stock = scene?.layers.solids.find((s) => s.tag === 'stock')?.color ?? null;
   const toolNote = tool?.note == null ? null : h(ToolNote, { tool, ...(onAddTool === undefined ? {} : { onAddTool }) });
   const failed = carve !== null && carve.status.value.failed !== null;
@@ -52,6 +60,8 @@ export function SceneKey({ scene = null, tool = null, onAddTool, markerPreview =
       { class: 'viewer-key scene-key-line' },
       // The colour legend is the key (owner, 2026-11-09): compact, over the drawing.
       tools === null || tools.entries.length < 2 ? null : h(ToolLegend, { entries: tools.entries, palette: tools.palette, focus: tools.focus, onFocus: tools.setFocus }),
+      // While a job runs, what the lines' looks mean (done, executing, in the planner, waiting, not sent).
+      planner ? h(PlannerLegend, null) : null,
       // The carved stock's colours: stock, cut, and below the stock when it goes there.
       carve === null ? null : h(CarveLegend, { carve, stock }),
       // For screen readers and tests: the tool the marker shows, and that it is the planned position. Not drawn.

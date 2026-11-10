@@ -84,13 +84,13 @@ describe('WebGL renderer', () => {
     expect(frames.pending).toBe(0);
   });
 
-  it('traverses carry their distance along the segment for the dash; other moves carry none; still one draw per chunk', async () => {
+  it('every move carries its distance along the segment for the dashes (traverses, and lines waiting for their ack); still one draw per chunk', async () => {
     const { gl, calls, uploads } = fakeGl();
     const frames = frameQueue();
     const r = createRenderer(gl, { colors: COLORS, requestFrame: frames.request });
     await r.load(listOf([[[SEGMENT.RAPID, 3, 4, 0]], [[SEGMENT.FEED, 3, 10, 0]]]), instant);
     const dist = Array.from(uploads[3] as Float32Array);
-    expect(dist).toEqual([0, 5, 0, 0]);
+    expect(dist).toEqual([0, 5, 0, 6]);
     frames.flush();
     expect(calls.get('drawArrays')).toBe(1);
     expect(calls.get('uniform1f')).toBeGreaterThanOrEqual(3);

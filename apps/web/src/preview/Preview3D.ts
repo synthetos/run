@@ -12,7 +12,8 @@
  */
 import { Fragment, h, type ComponentChild } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { attachPicking, attachViewControls, createRenderer, unionRect, type Box3, type CarveFeed, type CellRect, type ToolColors, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type ToolShape, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
+import { bitTurns } from './bitTurns.ts';
+import { attachPicking, attachViewControls, createRenderer, unionRect, type Box3, type CarveFeed, type CellRect, type ToolColors, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type SpinDirection, type ToolShape, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
 import { previewColors } from './colors.ts';
 import { browserFrameClock, FrameBudget, type BudgetState } from './frameBudget.ts';
 import { isSoftwareRenderer, LIGHT_CARVE_MESH_MAX, probeRendererName } from './rendererKind.ts';
@@ -31,8 +32,10 @@ export interface Preview3DProps {
   readonly fitRequest: number;
   readonly onUnavailable: () => void;
   readonly onProgress?: (fraction: number) => void;
-  /** Phase 3: the planner view of a running job (cut, executing, queued), or null. */
+  /** Phase 3: the planner view of a running job (done, executing, in the planner, waiting for the ack), or null. */
   readonly planner?: PlannerOverlay | null;
+  /** The spindle as the board reports it: the live marker turns while it is on (gcode-view markerSpin.ts). */
+  readonly toolSpin?: SpinDirection;
   /** Phase 3: the tool position the board reports during a job (work coordinates, as drawn), or null. */
   readonly toolMarker?: Vec3 | null;
   /** With no `toolMarker`: the planned tool position (previewMarker.ts), drawn dimmed as a preview, or null. */
@@ -113,6 +116,7 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
     setBudgetState(frames.state);
     // The bed/work grid is always drawn, so the drawing keeps its floor and scale once a file is loaded.
     const r = createRenderer(gl, { colors: previewColors((t) => style.getPropertyValue(t)), grid: true, requestFrame: frames.requestFrame, ...(software ? { carveMeshMax: LIGHT_CARVE_MESH_MAX } : {}) });
+    bitTurns.value = r.turnsBit;
     renderer.current = r;
     const detach = attachViewControls(el, r);
     const detachPick = attachPicking(el, r, {
@@ -173,7 +177,9 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
   const view = props.view;
   useEffect(() => { if (view !== undefined && view.seq > 0) renderer.current?.setView(view.preset); }, [view?.seq]);
   useEffect(() => { budget.current?.setJobRunning(plan !== null); }, [plan === null]);
-  useEffect(() => { renderer.current?.setPlanner(plan); }, [plan?.cutEnd, plan?.execEnd, plan?.queuedEnd, plan?.starving, plan === null]);
+  useEffect(() => { renderer.current?.setPlanner(plan); }, [plan?.cutEnd, plan?.execEnd, plan?.queuedEnd, plan?.sentEnd, plan?.starving, plan === null]);
+  const spin = props.toolSpin ?? 0;
+  useEffect(() => { renderer.current?.setToolSpin(spin); }, [spin]);
   const live = props.toolMarker ?? null;
   const tool = live ?? props.previewMarker ?? null;
   const preview = live === null && tool !== null;

@@ -9,7 +9,10 @@
  *   second set of hues. Out-of-bounds and uncertain moves keep their warning colours. Lines past the
  *   scrubbed line are faded, and with one tool picked in the legend the others are faded more;
  * - without tool colours, the scrubbed lines are tinted with the highlight colour, as before;
- * - the planner view of a running job (cut, executing, queued) over either;
+ * - the planner view of a running job over either (owner, 2026-11-10): done lines faint, the executing line in
+ *   the live colour, the lines in the planner at full strength (amber while starving), lines sent and waiting
+ *   for their acknowledgement in fine dashes, lines not sent yet dimmed. Strength and pattern, not hue, so the
+ *   tool colours stay and the states read without colour vision;
  * - over a carved stock, the path is drawn faint (u_dimAlpha).
  */
 import { STYLE } from './geometry.ts';
@@ -33,7 +36,8 @@ uniform float u_highlightEnd;
 uniform vec4 u_colors[${String(styleCount)}];
 uniform vec4 u_highlight;
 uniform vec4 u_plan;
-uniform vec4 u_cut;
+uniform vec4 u_plan2;
+uniform vec2 u_rot;
 uniform vec4 u_exec;
 uniform vec4 u_queued;
 uniform vec4 u_dimRect;
@@ -66,15 +70,21 @@ void main() {
     if (u_focus >= 0.0 && float(slot) != u_focus) c = mix(c, u_bg, 0.8);
     v_color = vec4(c.rgb, 1.0);
   }
-  // The planner view of a running job: cut lines dimmed, the executing line highlighted, the queued band.
+  // The planner view of a running job (u_plan: done end, executing end, in-planner end, on; u_plan2: sent end,
+  // starving): done faint, executing in the live colour, in the planner at full strength (amber while starving),
+  // waiting for the acknowledgement in fine dashes, not sent dimmed.
   if (u_plan.w > 0.5 && a_line >= 0.0) {
-    if (a_line < u_plan.x) v_color = u_cut;
+    if (a_line < u_plan.x) v_color = vec4(mix(v_color.rgb, u_bg.rgb, 0.78), v_color.a);
     else if (a_line < u_plan.y) v_color = u_exec;
-    else if (a_line < u_plan.z) v_color = u_queued;
+    else if (a_line < u_plan.z) { if (u_plan2.y > 0.5) v_color = u_queued; }
+    else if (a_line < u_plan2.x) v_dash = 2.0;
+    else v_color = vec4(mix(v_color.rgb, u_bg.rgb, 0.55), v_color.a);
   }
   // Over a carved stock the path is drawn faint, so the carve reads through it.
   if (u_dimAlpha < 1.0 && a_pos.x >= u_dimRect.x && a_pos.x <= u_dimRect.z && a_pos.y >= u_dimRect.y && a_pos.y <= u_dimRect.w) v_color.a *= u_dimAlpha;
-  gl_Position = u_mvp * vec4(a_pos + u_offset, 1.0);
+  // The live marker turns about its axis while the spindle runs (markerSpin.ts); (1, 0) for everything else.
+  vec3 p = vec3(u_rot.x * a_pos.x - u_rot.y * a_pos.y, u_rot.y * a_pos.x + u_rot.x * a_pos.y, a_pos.z);
+  gl_Position = u_mvp * vec4(p + u_offset, 1.0);
 }`;
 }
 
@@ -88,7 +98,9 @@ uniform float u_dash;
 out vec4 o_color;
 void main() {
   if (v_hidden > 0.5) discard;
-  if (v_dash > 0.5 && u_dash > 0.0 && fract(v_dist / u_dash) > 0.55) discard;
+  // Traverses dashed; lines waiting for their acknowledgement in finer, even dashes.
+  if (v_dash > 1.5 && u_dash > 0.0) { if (fract(v_dist / (0.4 * u_dash)) > 0.5) discard; }
+  else if (v_dash > 0.5 && u_dash > 0.0 && fract(v_dist / u_dash) > 0.55) discard;
   o_color = v_color;
 }`;
 

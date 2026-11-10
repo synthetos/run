@@ -68,6 +68,7 @@ import { ViewButtons } from '../../preview/SceneView.ts';
 import type { CarveWorkerLike, ViewPreset } from '@synthetos/gcode-view';
 import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
 import { jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
+import { spinDirection } from '../../preview/spinDirection.ts';
 
 const PHASE_LABEL = (phase: string): string => PHASE_TEXT[phase] ?? phase;
 import { JobStatus, JobStopCard, type StopHooks } from './JobViews.ts';
@@ -131,6 +132,8 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
     onReportLine: (line: number) => openReport({ origin: 'line', line }),
     scene,
     boardTool: snap?.live.tool ?? null,
+    // The spindle spins the bit in the drawing (owner, 2026-11-10), the way the board reports it turning.
+    spin: spinDirection(snap?.live),
     // Play preview (OD-25): never while this tab's job runs or the board moves.
     playAllowed: playAllowedFor(ui.active, snap === null ? null : { base: snap.base, overlays: snap.overlays }),
     ...(playRapidOf(selectedMachine.value) === undefined ? {} : { playRapid: playRapidOf(selectedMachine.value) as number }),
@@ -1238,7 +1241,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
           h(ViewerOverlay, {
             // Play preview's notice stays in view for the whole session (OD-25).
             notice: h(PlayNotice, { play: parts.play }),
-            sceneKey: (scene === null && parts.tool === null) || result?.lite ? null : { scene, tool: parts.tool, markerPreview: parts.markerPreview, carve: parts.carve, simple, tools: parts.tools, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) },
+            sceneKey: (scene === null && parts.tool === null) || result?.lite ? null : { scene, tool: parts.tool, markerPreview: parts.markerPreview, carve: parts.carve, simple, tools: parts.tools, planner: parts.planner !== null, starved: parts.starved, spin: parts.spin, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) },
             // With no file open, the prompt to open one leads the stack, so the key never covers its buttons. While the
             // job's file is being reopened after a reload (or a chosen file waits for the preview), it says so instead of
             // offering the samples for a moment.

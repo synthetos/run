@@ -27,7 +27,8 @@ import { carveTarget, useLiveCarve, type LiveCarveJob } from './liveCarve.ts';
 import { useLiveFollower } from './useLiveFollower.ts';
 import { useToolColors, type ToolColorView } from './useToolColors.ts';
 import { usePlay, type PlayView } from './usePlay.ts';
-import type { CarveWorkerLike, Vec3, ViewPreset } from '@synthetos/gcode-view';
+import type { CarveWorkerLike, PlannerOverlay, SpinDirection, Vec3, ViewPreset } from '@synthetos/gcode-view';
+import { useSustained } from './useSustained.ts';
 
 /** What a layout gets to arrange: the state, the actions and the rendered pieces. */
 export interface PreviewParts {
@@ -52,6 +53,12 @@ export interface PreviewParts {
   readonly tools: ToolColorView;
   /** Play preview (OD-25): its controls and notice read this. */
   readonly play: PlayView;
+  /** The planner view of a running job, or null: its legend shows while it is on. */
+  readonly planner: PlannerOverlay | null;
+  /** The planner has starved for longer than half a second while the job runs (the "Planner starved" chip). */
+  readonly starved: boolean;
+  /** The spindle as the board reports it (the marker turns; under reduced motion a badge says so). */
+  readonly spin: SpinDirection;
 }
 
 export interface PreviewPanelProps {
@@ -103,6 +110,8 @@ export interface PreviewPanelProps {
   readonly playAllowed?: boolean;
   /** The machine's rapid rate for Play at programmed speeds, mm/min, or undefined for the stated default. */
   readonly playRapid?: number;
+  /** The spindle as the board reports it (spinDirection.ts): the live marker turns while it is on. */
+  readonly spin?: SpinDirection;
   /**
    * A request to show a sent line (1-based), from Analyze's region links. Applied only while the panel still shows
    * the `preview` the request was made for: a link for another file is ignored.
@@ -161,7 +170,7 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null, playAllowed = false, playRapid, scrubTo }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null, playAllowed = false, playRapid, scrubTo, spin = 0 }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -213,6 +222,8 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
   const executingLine = result === null ? null : job !== null ? job.executing : executingFileLine(reportedLine, result.sourceLines);
   const jobPlanner = result === null || planner === undefined ? null : planner(result.sourceLines);
   const plannerView = jobPlanner ?? (range === null ? null : { cutEnd: range.from, execEnd: range.from, queuedEnd: range.to + 1, starving: true });
+  // The "Planner starved" chip: starving for longer than half a second while the job runs (owner, 2026-11-10).
+  const starved = useSustained(jobPlanner?.starving === true, 500);
   const activeTool = useActiveTool(result, state.scrub, job, boardTool, spindleTool);
   // No board position at all: the tool is drawn as a preview at the end of the scrubbed line.
   // Play preview (OD-25): the tool along the moves at programmed speeds; the scrubber follows the lines done.
@@ -253,6 +264,7 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
             view,
             planner: plannerView,
             toolMarker: toolInPath,
+            toolSpin: toolInPath === null ? 0 : spin,
             scene: scene?.layers ?? null,
             pathOffset: scene?.pathOffset ?? [0, 0, 0],
             carve: carve.feed,
@@ -293,5 +305,5 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
     ...(readout === undefined ? {} : { marker: readout }),
     ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine, sentThrough: job?.sentThrough ?? null, ...(onReportLine === undefined ? {} : { onReportLine }), ...(onBreakpoints === undefined ? {} : { onBreakpoints }) }) }),
   };
-  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, estimate, tool: activeTool, markerPreview: previewMarker !== null && state.drawing === 'webgl', carve: carve.info, tools: toolColors, play });
+  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, estimate, tool: activeTool, markerPreview: previewMarker !== null && state.drawing === 'webgl', carve: carve.info, tools: toolColors, play, planner: jobPlanner, starved, spin: toolInPath === null ? 0 : spin });
 }

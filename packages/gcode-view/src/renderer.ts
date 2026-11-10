@@ -35,6 +35,7 @@ import { runSliced, type SliceOptions } from './slicer.ts';
 import { gridLayout, gridLines } from './grid.ts';
 import { pickSolid, rayThrough } from './pick.ts';
 import { nextMotion, positionAt, settled, type MarkerMotion } from './markerMotion.ts';
+import { SPIN_FRAME_MS, fluteHelix, isSoftwareRenderer, spinAngle, type SpinDirection } from './markerSpin.ts';
 import { offsetBox, ringSegments, sceneBounds, solidTriangles, unionBox, type Rgba, type SceneLayers } from './scene.ts';
 import { toolWireframe, type ToolShape } from './toolProfile.ts';
 import { link } from './glProgram.ts';
@@ -80,6 +81,8 @@ export interface PlannerOverlay {
   readonly cutEnd: number;
   readonly execEnd: number;
   readonly queuedEnd: number;
+  /** Lines in [queuedEnd, sentEnd) are sent and waiting for their acknowledgement (default: none). */
+  readonly sentEnd?: number;
   /** The queued band is nearly empty while cutting: drawn amber. */
   readonly starving: boolean;
 }
@@ -128,6 +131,10 @@ export interface PreviewRenderer {
   setPlayMarker(position: Vec3 | null): void;
   /** The marker's tool, drawn at true size; null for the generic glyph. The geometry is rebuilt only when this changes. */
   setToolShape(shape: ToolShape | null): void;
+  /** The spindle as the board reports it (markerSpin.ts): the live marker turns while it is on, unless motion is reduced. */
+  setToolSpin(direction: SpinDirection): void;
+  /** False on a software renderer, where the bit never turns (the page then shows a badge). */
+  readonly turnsBit: boolean;
   /** The scene solids under the path (bed, stock, fixture, clamps), in the drawing's frame, or null for none. */
   setScene(scene: SceneLayers | null): void;
   /** Where the path's origin sits in the drawing's frame (the planned work zero); [0, 0, 0] by default. */
@@ -213,7 +220,8 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     highlight: gl.getUniformLocation(program, 'u_highlight'),
     dash: gl.getUniformLocation(program, 'u_dash'),
     plan: gl.getUniformLocation(program, 'u_plan'),
-    cut: gl.getUniformLocation(program, 'u_cut'),
+    plan2: gl.getUniformLocation(program, 'u_plan2'),
+    rot: gl.getUniformLocation(program, 'u_rot'),
     exec: gl.getUniformLocation(program, 'u_exec'),
     queued: gl.getUniformLocation(program, 'u_queued'),
     dimRect: gl.getUniformLocation(program, 'u_dimRect'),
@@ -261,6 +269,12 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   let toolShape: ToolShape | null = null;
   let markerPreview = false;
   let motion: MarkerMotion | null = null;
+  let spin: SpinDirection = 0;
+  let spinSince = 0;
+  let spinTimer: ReturnType<typeof setTimeout> | null = null;
+  /** A software renderer never turns the bit: its frames are too slow to spend on it (markerSpin.ts). */
+  const canSpin = !isSoftwareRenderer(gl);
+  const spinFrameMs = SPIN_FRAME_MS;
   let angles: ViewAngles = VIEW_ANGLES.iso;
   let view: Orbit = fitOrbit(null);
   /** True until the person turns, zooms or pans the view: a resize then refits it. */
@@ -303,11 +317,13 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     return { vao, buffers, vertexCount: positions.length / 3 };
   }
 
-  /** Per vertex: distance along its traverse segment (0 at the start, the length at the end); 0 elsewhere. */
+  /**
+   * Per vertex: distance along its segment (0 at the start, the length at the end), for the dashes: traverses
+   * always, and any move while it waits for its acknowledgement in a running job's planner view.
+   */
   function dashDistances(positions: Float32Array, styles: Uint8Array): Float32Array {
     const out = new Float32Array(styles.length);
     for (let v = 0; v + 1 < styles.length; v += 2) {
-      if (styles[v] !== STYLE.RAPID) continue;
       const i = v * 3;
       out[v + 1] = Math.hypot((positions[i + 3] as number) - (positions[i] as number), (positions[i + 4] as number) - (positions[i + 1] as number), (positions[i + 5] as number) - (positions[i + 2] as number));
     }
@@ -368,6 +384,11 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   /** A marker's geometry in one style, tip at the origin: the tool's wireframe at true size, or the generic glyph. */
   function markerChunk(style: number): GpuChunk | null {
     const lines = toolShape === null ? toolGlyph(NO_OFFSET, fitBox()) : toolWireframe(toolShape);
+    // The live marker gets a flute helix, so the bit is seen to turn while the spindle runs.
+    if (style === OVERLAY.MARKER) {
+      const bit = toolShape === null ? glyphBit(fitBox()) : { radius: toolShape.diameter / 2, length: toolShape.fluteLength };
+      lines.push(...fluteHelix(bit.radius, bit.length));
+    }
     const pos: number[] = [];
     const sty: number[] = [];
     for (const [a, b] of lines) {
@@ -407,14 +428,11 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     return new Float32Array(table.flat());
   }
 
-  /** The planner view's colours: cut lines are the feed colour mixed most of the way to the background. */
-  function plannerColors(): { readonly cut: Rgba; readonly exec: Rgba; readonly queued: Rgba } {
-    const bg = colors.background;
-    const f = colors.feed;
-    const cut: Rgba = [f[0] + (bg[0] - f[0]) * 0.7, f[1] + (bg[1] - f[1]) * 0.7, f[2] + (bg[2] - f[2]) * 0.7, 1];
+  /** The planner view's colours: the executing line, and the band in the planner while it starves. */
+  function plannerColors(): { readonly exec: Rgba; readonly queued: Rgba } {
     const exec = colors.plannerExec ?? colors.highlight;
-    const queued = planner?.starving === true ? (colors.plannerStarving ?? colors.highlight) : (colors.plannerQueued ?? colors.arc);
-    return { cut, exec, queued };
+    const queued = colors.plannerStarving ?? colors.highlight;
+    return { exec, queued };
   }
 
   function draw(): void {
@@ -448,7 +466,8 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     gl.uniform1f(u.dash, dashPeriod());
     const pc = plannerColors();
     gl.uniform4fv(u.plan, new Float32Array(planner === null ? [0, 0, 0, 0] : [planner.cutEnd, planner.execEnd, planner.queuedEnd, 1]));
-    gl.uniform4fv(u.cut, new Float32Array(pc.cut));
+    gl.uniform4fv(u.plan2, new Float32Array(planner === null ? [0, 0, 0, 0] : [Math.max(planner.queuedEnd, planner.sentEnd ?? planner.queuedEnd), planner.starving ? 1 : 0, 0, 0]));
+    gl.uniform2f(u.rot, 1, 0);
     gl.uniform4fv(u.exec, new Float32Array(pc.exec));
     gl.uniform4fv(u.queued, new Float32Array(pc.queued));
     gl.uniform1f(u.dimAlpha, 1);
@@ -489,10 +508,16 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       const t = now();
       const at = positionAt(motion, t);
       gl.uniform3f(u.offset, pathOffset[0] + at[0], pathOffset[1] + at[1], pathOffset[2] + at[2]);
+      const turning = canSpin && spin !== 0 && !markerPreview && !reducedMotion();
+      const a = turning ? spinAngle(spin, spinSince, t, spinFrameMs) : 0;
+      gl.uniform2f(u.rot, Math.cos(a), Math.sin(a));
       gl.bindVertexArray(markerOverlay.vao);
       gl.drawArrays(gl.LINES, 0, markerOverlay.vertexCount);
+      gl.uniform2f(u.rot, 1, 0);
       // Frames only while the marker is still on its way to the latest report; then it rests.
       if (!settled(motion, t)) requestRender();
+      // A turning bit: the next step on a timer, a few times a second, not every frame.
+      else if (turning && spinTimer === null) spinTimer = setTimeout(() => { spinTimer = null; requestRender(); }, spinFrameMs);
     }
     if (playOverlay !== null && playAt !== null) {
       gl.uniform3f(u.offset, pathOffset[0] + playAt[0], pathOffset[1] + playAt[1], pathOffset[2] + playAt[2]);
@@ -675,6 +700,17 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
       planner = next;
       requestRender();
     },
+    get turnsBit() {
+      return canSpin;
+    },
+    setToolSpin(direction) {
+      if (direction === spin) return;
+      spin = direction;
+      spinSince = now();
+      if (spinTimer !== null) clearTimeout(spinTimer);
+      spinTimer = null;
+      requestRender();
+    },
     setToolMarker(position, preview = false) {
       // The glyph is rebuilt only when the marker appears, goes or changes kind; a new position is a new motion target.
       const rebuild = (marker === null) !== (position === null) || preview !== markerPreview;
@@ -748,6 +784,8 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     dispose() {
       disposed = true;
       generation++;
+      if (spinTimer !== null) clearTimeout(spinTimer);
+      spinTimer = null;
       clearPath();
       for (const s of solids) release(s);
       solids = [];
@@ -779,9 +817,20 @@ function sameShape(a: ToolShape | null, b: ToolShape | null): boolean {
  * The tool, drawn as lines with its tip at `tip`: a 1/8 in bit 25 mm long under a 52 mm spindle 80 mm tall,
  * at true size on a bed and scaled down (to a fifth at most) when the drawing is small, so it never hides a part.
  */
-export function toolGlyph(tip: Vec3, box: Box3 | null): Array<readonly [Vec3, Vec3]> {
+/** The generic glyph's scale for a framed extent: full size from 500 mm, down to a fifth for a small job. */
+function glyphScale(box: Box3 | null): number {
   const span = box === null ? 0 : Math.max(box.max[0] - box.min[0], box.max[1] - box.min[1]);
-  const k = Math.min(1, Math.max(0.2, span / 500));
+  return Math.min(1, Math.max(0.2, span / 500));
+}
+
+/** The generic glyph's bit: its radius and flute length (the helix of a turning bit follows them). */
+export function glyphBit(box: Box3 | null): { readonly radius: number; readonly length: number } {
+  const k = glyphScale(box);
+  return { radius: 1.6 * k, length: 25 * k };
+}
+
+export function toolGlyph(tip: Vec3, box: Box3 | null): Array<readonly [Vec3, Vec3]> {
+  const k = glyphScale(box);
   const [x, y, z] = tip;
   const bitR = 1.6 * k, bitL = 25 * k, nutR = 10 * k, nutH = 12 * k, bodyR = 26 * k, bodyH = 80 * k;
   const out: Array<readonly [Vec3, Vec3]> = [];

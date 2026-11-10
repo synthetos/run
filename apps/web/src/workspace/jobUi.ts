@@ -160,8 +160,10 @@ export interface PlannerRanges {
   readonly cutEnd: number;
   /** Lines in [cutEnd, execEnd) are executing now. */
   readonly execEnd: number;
-  /** Lines in [execEnd, queuedEnd) are sent and acknowledged, not yet executed. */
+  /** Lines in [execEnd, queuedEnd) are sent and acknowledged, not yet executed: in the planner. */
   readonly queuedEnd: number;
+  /** Lines in [queuedEnd, sentEnd) are sent and waiting for their acknowledgement; the rest are not sent. */
+  readonly sentEnd: number;
   /** The planner is starving (amber). */
   readonly starving: boolean;
 }
@@ -185,7 +187,8 @@ export function plannerRanges(job: JobSnapshot | null, sourceLines: Uint32Array,
   const cutEnd = lowerBound(sourceLines, exec);
   const execEnd = Math.max(cutEnd, lowerBound(sourceLines, exec + 1));
   const queuedEnd = Math.max(execEnd, lowerBound(sourceLines, (job.ackedThrough ?? 0) + 1));
-  return { cutEnd, execEnd, queuedEnd, starving };
+  const sentEnd = Math.max(queuedEnd, lowerBound(sourceLines, (job.sentThrough ?? 0) + 1));
+  return { cutEnd, execEnd, queuedEnd, sentEnd, starving };
 }
 
 /** The planner is starving: the job is cutting and the planner holds almost nothing (MACHINING_ASSISTANT §7). */

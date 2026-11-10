@@ -46,13 +46,15 @@ describe('plan versus board work zero', () => {
 });
 
 describe('the planner view and the live numbers', () => {
-  it('maps file lines to the preview’s own line indices: cut, executing, queued', () => {
+  it('maps file lines to the preview’s own line indices: done, executing, in the planner, waiting for the ack', () => {
     const sourceLines = Uint32Array.from([1, 2, 2, 3, 4, 5, 6]);
-    const j = job({ phase: 'running', startedAt: 0, executing: { n: 3, line: 2 }, ackedThrough: 4 });
-    expect(plannerRanges(j, sourceLines, false)).toEqual({ cutEnd: 1, execEnd: 3, queuedEnd: 5, starving: false });
+    const j = job({ phase: 'running', startedAt: 0, executing: { n: 3, line: 2 }, ackedThrough: 4, sentThrough: 5 });
+    expect(plannerRanges(j, sourceLines, false)).toEqual({ cutEnd: 1, execEnd: 3, queuedEnd: 5, sentEnd: 6, starving: false });
+    // Nothing sent past the acknowledged lines: no waiting band.
+    expect(plannerRanges(job({ phase: 'running', startedAt: 0, executing: { n: 3, line: 2 }, ackedThrough: 4, sentThrough: 4 }), sourceLines, false)?.sentEnd).toBe(5);
     expect(plannerRanges(job(), sourceLines, false)).toBeNull();
     expect(plannerRanges(job({ phase: 'preparing', startedAt: 0 }), sourceLines, false)).toBeNull();
-    expect(plannerRanges(job({ phase: 'paused', startedAt: 0, ackedThrough: 6 }), sourceLines, true)).toEqual({ cutEnd: 6, execEnd: 7, queuedEnd: 7, starving: true });
+    expect(plannerRanges(job({ phase: 'paused', startedAt: 0, ackedThrough: 6 }), sourceLines, true)).toEqual({ cutEnd: 6, execEnd: 7, queuedEnd: 7, sentEnd: 7, starving: true });
   });
 
   it('starving: cutting with the planner almost empty and lines still to send', () => {

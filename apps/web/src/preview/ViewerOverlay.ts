@@ -12,6 +12,7 @@ import { UNSET_NOTE, UNTRUSTED_NOTE } from './livePlacement.ts';
 import { openDockTab } from '../workspace/dock/dockRequest.ts';
 import { previewNotes } from './previewNotes.ts';
 import { NotesPill } from '../workspace/notes/NotesPill.ts';
+import { bitTurns } from './bitTurns.ts';
 import { usePublishNotes } from '../workspace/notes/usePublishNotes.ts';
 
 
@@ -30,6 +31,21 @@ export function positionChip(key: SceneKeyProps | null): string | null {
   if (notes.includes(UNSET_NOTE)) return 'Not homed';
   if (notes.includes(UNTRUSTED_NOTE)) return 'Not trusted';
   return null;
+}
+
+const reducedMotion = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * The bar's live chips (owner, 2026-11-10): "Planner starved" when the planner ran dry for over half a second
+ * while the job runs; where the bit does not turn (reduced motion, or a software renderer), "↻ Spindle on" (or ↺
+ * for M4).
+ */
+export function liveChips(key: SceneKeyProps | null, still: boolean): ComponentChild[] {
+  const out: ComponentChild[] = [];
+  if (key?.starved === true) out.push(h('span', { key: 'starved', class: 'viewer-chip', role: 'status', 'data-preview': 'starved-chip', title: 'The board ran short of lines to plan: it slows down. The job is still running.' }, 'Planner starved'));
+  const spin = key?.spin ?? 0;
+  if (still && spin !== 0) out.push(h('span', { key: 'spin', class: 'viewer-chip quiet', 'data-preview': 'spin-badge', title: spin === 1 ? 'The spindle is on, clockwise (M3)' : 'The spindle is on, counter-clockwise (M4)' }, `${spin === 1 ? '↻' : '↺'} Spindle on`));
+  return out;
 }
 
 export function ViewerOverlay({ sceneKey, prompt = null, notice = null }: ViewerOverlayProps): ComponentChild {
@@ -51,6 +67,7 @@ export function ViewerOverlay({ sceneKey, prompt = null, notice = null }: Viewer
             { class: 'viewer-overlay-bar' },
             h(ViewerMenu, { scene: sceneKey.scene, carve: sceneKey.carve ?? null, simple: sceneKey.simple === true, ...(sceneKey.onOpen === undefined ? {} : { onOpen: sceneKey.onOpen }) }),
             chip === null ? null : h('button', { type: 'button', class: 'small viewer-chip', 'data-preview': 'position-chip', title: 'Why: in Notes', onClick: () => openDockTab('notes') }, chip),
+            ...liveChips(sceneKey, reducedMotion() || !bitTurns.value),
             h(NotesPill, { topic: 'Preview' }),
           ),
       sceneKey === null ? null : h(SceneKey, sceneKey),
