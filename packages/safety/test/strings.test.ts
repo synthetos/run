@@ -640,6 +640,10 @@ describe('the T-S32 check itself', () => {
 });
 
 describe('STOP_TEXT (P1-06)', () => {
+  it('has every stop-path text, so the verbatim check below cannot pass on an empty table', () => {
+    expect(Object.keys(S.STOP_TEXT)).toEqual(['pausing', 'pauseNoAnswer', 'notDelivered', 'controlledElsewhere', 'stopJob', 'paused', 'pausedSpindleOn', 'pausedIdle', 'stopped', 'resumed']);
+  });
+
   it('each stop-path text is quoted verbatim in SAFETY.md', () => {
     for (const [key, value] of Object.entries(S.STOP_TEXT)) {
       expect(SAFETY_MD.includes(`"${value}"`), key).toBe(true);

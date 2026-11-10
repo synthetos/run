@@ -32,3 +32,15 @@ describe('the flasher phase switch', () => {
     expect(allowed(snap, 'flash', withFlasher(PHASE_2_RELEASE, 'staging')).allowed).toBe(true);
   });
 });
+
+describe('flasherEnabled: only the two named environments', () => {
+  it('fails closed for an unknown name even when Object.prototype carries it as true (the switch is never read for it)', () => {
+    const proto = Object.prototype as unknown as Record<string, unknown>;
+    proto['bench'] = true;
+    try {
+      expect(flasherEnabled('bench' as never)).toBe(false);
+    } finally {
+      delete proto['bench'];
+    }
+  });
+});

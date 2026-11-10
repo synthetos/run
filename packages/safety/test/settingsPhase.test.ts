@@ -45,3 +45,15 @@ describe('the settings-write phase switch', () => {
     }
   });
 });
+
+describe('settingsWritesEnabled: only the two named environments', () => {
+  it('fails closed for an unknown name even when Object.prototype carries it as true (the switch is never read for it)', () => {
+    const proto = Object.prototype as unknown as Record<string, unknown>;
+    proto['bench'] = true;
+    try {
+      expect(settingsWritesEnabled('bench' as never)).toBe(false);
+    } finally {
+      delete proto['bench'];
+    }
+  });
+});

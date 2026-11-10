@@ -313,6 +313,46 @@ describe('step 7: barriers and M1', () => {
   });
 });
 
+// After C14 the outputs are what the M6 line itself switches: off, unless the line turns one on again (then the end of
+// the file needs C22's M5 M9). Pinned per output code, so the rule cannot lose one code unnoticed (mutation testing,
+// 2026-11-09: sanitize.ts lines 207-208 survived for every single code).
+describe('C14: the outputs after the M6 line', () => {
+  it.each([
+    ['T1 M6', false],
+    ['T1 M6 M5', false],
+    ['T1 M6 M9', false],
+    ['T1 M6 M3', true],
+    ['T1 M6 M4', true],
+    ['T1 M6 M7', true],
+    ['T1 M6 M8', true],
+  ] as const)('%s after M3 and M8: C22 adds M5 M9 at the end only when the line turns an output on again (%s)', (m6, again) => {
+    for (const d of [EN, TG]) {
+      const r = run(`M3 S1000\nM8\n${m6}\n`, d, { c14: true, c22: true });
+      expect(bodies(r), d.id).toEqual(['M3 S1000', 'M8', 'M5', 'M9', 'M0', m6, ...(again ? ['M5', 'M9'] : [])]);
+      expect(r.report.endState).toEqual({ spindle: 'off', mist: false, flood: false });
+    }
+  });
+
+  it.each([
+    ['M5\nM9\nG4 P1\n', ['M5', 'M9', 'G4 P1']],
+    ['M9\nM0\n', ['M9', 'M0']],
+    ['G4 P1\nM9\nM0\n', ['G4 P1', 'M9', 'M0']],
+    ['M5\nG4 P1\nM0\n', ['M5', 'G4 P1', 'M0']],
+    ['M5\nM9\n', ['M5', 'M9']],
+  ] as const)('C14 is inserted unless the three lines before M6 are exactly M5, M9, M0 (%j)', (before, lines) => {
+    const r = run(`${before}T1 M6\n`, EN, { c14: true });
+    expect(bodies(r)).toEqual([...lines, 'M5', 'M9', 'M0', 'T1 M6']);
+    expect(r.report.entries.some((e) => e.rule === 'c14-inserted')).toBe(true);
+  });
+
+  it('an M6 line that turns on one coolant leaves the other off: C22 still ends the file with M9', () => {
+    for (const d of [EN, TG]) {
+      expect(bodies(run('M3 S1000\nM7 M8\nT1 M6 M8\n', d, { c14: true, c22: true })), d.id).toEqual(['M3 S1000', 'M7 M8', 'M5', 'M9', 'M0', 'T1 M6 M8', 'M5', 'M9']);
+      expect(bodies(run('M4 S1000\nM7\nT1 M6\n', d, { c14: true, c22: true })), d.id).toEqual(['M4 S1000', 'M7', 'M5', 'M9', 'M0', 'T1 M6']);
+    }
+  });
+});
+
 describe('step 8: holdback and mid-file program end', () => {
   it('holds back only a final M2/M30', () => {
     expect(run('G0 X1\nM2\n', EN).lines.map((l) => l.holdback)).toEqual([false, true]);
