@@ -1,15 +1,14 @@
 /**
- * The scene's key, over the drawing. Simple (the default level) shows what a hobbyist needs: the tool the
- * marker shows by its library name (ToolKey.ts), "Bed 750 × 750 mm (not measured yet)" for a placeholder bed (a link to its
- * settings), a tool missing from the tool table (the other notes are in the Notes tab, previewNotes.ts) and a quiet hint that clicking the bed, fixture or stock opens its settings. Advanced adds what
- * the bed is, the carving detail and links to the bed, fixture and stock settings (so opening them is not
- * mouse-only there). The live placement's notes (livePlacement.ts) show at both levels. Without a job's scene
- * it shows the tool alone.
+ * The scene's key over the drawing (owner, 2026-11-09: "the viewer shows the picture"): only the colour-by-tool
+ * legend, compact, and a missing tool's note with its link to the tool table (dismissable; it is a note too). The
+ * bed, the parts' settings links and the carving detail are in the viewer's settings menu (ViewerMenu.ts); every
+ * explanation is in the Notes tab (previewNotes.ts). The tool the marker shows stays for screen readers.
  */
 import { h, type ComponentChild } from 'preact';
 import type { ActiveTool } from './activeTool.ts';
 import type { JobScene } from './sceneModel.ts';
-import { SCENE_PARTS, type ScenePart } from './sceneSettings.ts';
+import type { ScenePart } from './sceneSettings.ts';
+import { Dismissable } from '../workspace/notes/Dismissable.ts';
 import { ToolLabel, ToolNote } from './ToolKey.ts';
 import { PREVIEW_MARKER_NOTE } from './previewMarker.ts';
 import { CarveLabel } from './CarveKey.ts';
@@ -35,65 +34,27 @@ export interface SceneKeyProps {
   readonly tools?: ToolColorView | null;
 }
 
-/** Simple's bed words for a placeholder bed (C2): its size and that it is not measured yet, never "not set". */
-export function bedNotMeasured(scene: JobScene): string {
-  return `Bed ${scene.bedSize ?? ''}`.trim();
-}
 
-/** Items joined by a quiet middle dot. */
-function joined(items: readonly ComponentChild[]): ComponentChild[] {
-  return items.filter((i) => i !== null && i !== false).flatMap((item, k) => (k === 0 ? [item] : [h('span', { 'aria-hidden': 'true' }, '·'), item]));
-}
 
-/** One row of the key, or nothing when it is empty. */
-function row(items: ComponentChild[]): ComponentChild {
-  return items.length === 0 ? null : h('span', { class: 'scene-key-row' }, items);
-}
 
-/** "Click the bed, fixture or stock to change it", naming the parts the scene has. */
-export function pickHint(parts: readonly ScenePart[]): string {
-  const names = parts.map((p) => (p === 'bed' ? 'the bed' : p));
-  const list = names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1] as string}`;
-  return `Click ${list} to change it`;
-}
 
-export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview = false, carve = null, simple = false, tools = null }: SceneKeyProps): ComponentChild {
-  const parts: ScenePart[] = scene === null ? [] : ['bed', ...(scene.layers.solids.some((s) => s.tag === 'fixture') ? (['fixture'] as const) : []), 'stock'];
+export function SceneKey({ tool = null, onAddTool, markerPreview = false, carve = null, tools = null }: SceneKeyProps): ComponentChild {
   const toolNote = tool?.note == null ? null : h(ToolNote, { tool, ...(onAddTool === undefined ? {} : { onAddTool }) });
-  const bed = scene === null
-    ? null
-    : !simple
-      ? h('span', { 'data-scene': 'bed' }, scene.bedLabel)
-      : !scene.bedPlaceholder
-        ? null
-        : onOpen === undefined
-          ? h('span', { 'data-scene': 'bed' }, bedNotMeasured(scene))
-          : h('button', { type: 'button', class: 'link', 'data-scene': 'bed', 'data-scene-link': 'bed', onClick: () => onOpen('bed') }, bedNotMeasured(scene));
-  const links = simple || onOpen === undefined || parts.length === 0
-    ? null
-    : h('nav', { class: 'scene-links', 'aria-label': 'Scene settings' }, joined(parts.map((p) => h('button', { type: 'button', key: p, class: 'link', 'data-scene-link': p, onClick: () => onOpen(p) }, SCENE_PARTS[p].settings))));
   const failed = carve !== null && carve.status.value.failed !== null;
-  const hint = simple && onOpen !== undefined && parts.length > 0 ? h('span', { class: 'scene-pick-hint', 'data-scene': 'pick-hint' }, pickHint(parts)) : null;
   return h(
     'div',
-    { class: 'scene-key', 'data-key-level': simple ? 'simple' : 'advanced' },
-    // The scene's notes, a cut below the stock and lines not carved are in the Notes tab (previewNotes.ts); the key
-    // keeps only a missing tool, with its link to the tool table.
-    toolNote === null ? null : h('div', { class: 'viewer-key scene-notes', role: 'status', 'data-scene': 'notes' }, toolNote),
+    { class: 'scene-key', 'data-key-level': 'simple' },
+    // A missing tool keeps its link to the tool table, and can be hidden (its text is a note too).
+    toolNote === null ? null : h(Dismissable, { id: `tool-note:${tool?.missing ?? 'first'}`, label: 'the tool note', class: 'viewer-key scene-notes' }, h('div', { role: 'status', 'data-scene': 'notes' }, toolNote)),
     h(
       'div',
       { class: 'viewer-key scene-key-line' },
-      // The carve line carries the test hooks at both levels; in Simple it shows nothing unless the carve stopped.
-      carve !== null && simple && !failed ? h(CarveLabel, { carve, simple }) : null,
-      row(joined([
-        simple ? null : bed,
-        tool === null ? null : h(ToolLabel, { tool, simple }),
-        markerPreview ? h('span', { 'data-scene': 'tool-preview' }, PREVIEW_MARKER_NOTE) : null,
-        carve !== null && (!simple || failed) ? h(CarveLabel, { carve, simple }) : null,
-        simple ? bed : null,
-      ])),
-      tools === null || tools.entries.length < 2 ? null : row([h(ToolLegend, { entries: tools.entries, palette: tools.palette, focus: tools.focus, onFocus: tools.setFocus })]),
-      row(joined([links, hint])),
+      // The colour legend is the key (owner, 2026-11-09): compact, over the drawing.
+      tools === null || tools.entries.length < 2 ? null : h(ToolLegend, { entries: tools.entries, palette: tools.palette, focus: tools.focus, onFocus: tools.setFocus }),
+      // For screen readers and tests: the tool the marker shows, and that it is the planned position. Not drawn.
+      h('span', { class: 'sr-only' }, tool === null ? null : h(ToolLabel, { tool }), markerPreview ? h('span', { 'data-scene': 'tool-preview' }, ` ${PREVIEW_MARKER_NOTE}`) : null),
+      // The carve's test hooks, hidden; a stopped carve says so.
+      carve !== null ? h(CarveLabel, { carve, simple: !failed }) : null,
     ),
   );
 }

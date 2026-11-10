@@ -1,44 +1,45 @@
 /**
- * What sits over the 3D drawing, in one stack (first-time walk 2026-11-08, B4 and C18): the scene's key (its notes,
- * the tool, the bed, the carving; SceneKey.ts) and the live position readout. They used to be placed one by one, so
- * at laptop size the notes ran over the readout and out of their box, and the key covered half the drawing.
- *
- * Now they stack in the drawing's lower left, each wrapping inside its own box, and the stack scrolls rather than
- * grow over the toolbar. The key can be hidden (remembered in this browser, `preview.key.open`). The drawing's notes
- * are in the Notes tab (previewNotes.ts, owner 2026-11-09); a small "N notes" pill in the bar opens it, whether the key
- * is shown or not, so a note is never silently out of sight. The readout always shows.
- * With no file open, the prompt to open one leads the stack.
+ * What sits over the 3D drawing (owner, 2026-11-09: "the viewer shows the picture, explanations go in Notes, and
+ * actions go in modals or one menu"): one small bar with the viewer's settings menu (ViewerMenu.ts), a "Not homed" (or
+ * "Not trusted") chip while the machine position is not established, and an "N notes" pill that opens the Notes tab;
+ * under it the compact colour legend (SceneKey.ts). The live position is in the Position panel, not here. With no
+ * file open, the prompt to open one leads the stack; Play preview's notice stays in view (OD-25).
  */
 import { h, type ComponentChild } from 'preact';
-import { stored } from '../workspace/storage.ts';
 import { SceneKey, type SceneKeyProps } from './SceneKey.ts';
+import { ViewerMenu } from './ViewerMenu.ts';
+import { UNSET_NOTE, UNTRUSTED_NOTE } from './livePlacement.ts';
+import { openDockTab } from '../workspace/dock/dockRequest.ts';
 import { previewNotes } from './previewNotes.ts';
 import { NotesPill } from '../workspace/notes/NotesPill.ts';
 import { usePublishNotes } from '../workspace/notes/usePublishNotes.ts';
 
-/** Whether the key is shown, per viewer (this browser). */
-export const keyOpen = stored<boolean>('preview.key.open', true, (v): v is boolean => typeof v === 'boolean');
 
 export interface ViewerOverlayProps {
   /** The scene key's props, or null when there is no key (a lite file, nothing to show). */
   readonly sceneKey: SceneKeyProps | null;
-  /** The live readout, or null when not connected. */
-  readonly readout: ComponentChild;
   /** The prompt to open a file, or null: with no file open it leads the stack, so nothing covers its buttons. */
   readonly prompt?: ComponentChild;
-  /** A notice that must stay in view (Play preview's, OD-25), above the readout, outside the part that scrolls. */
+  /** A notice that must stay in view (Play preview's, OD-25), outside the part that scrolls. */
   readonly notice?: ComponentChild;
 }
 
-export function ViewerOverlay({ sceneKey, readout, prompt = null, notice = null }: ViewerOverlayProps): ComponentChild {
-  const open = keyOpen.value.value;
+/** The chip's word while the machine position is not established: the drawing shows the plan, not the machine. */
+export function positionChip(key: SceneKeyProps | null): string | null {
+  const notes = key?.scene?.notes ?? [];
+  if (notes.includes(UNSET_NOTE)) return 'Not homed';
+  if (notes.includes(UNTRUSTED_NOTE)) return 'Not trusted';
+  return null;
+}
+
+export function ViewerOverlay({ sceneKey, prompt = null, notice = null }: ViewerOverlayProps): ComponentChild {
   // The drawing's notes go to the Notes tab; the bar keeps a small "N notes" pill that opens it.
   usePublishNotes('preview', previewNotes(sceneKey));
-  if (sceneKey === null && readout === null && prompt === null && notice === null) return null;
+  if (sceneKey === null && prompt === null && notice === null) return null;
+  const chip = positionChip(sceneKey);
   return h(
     'div',
-    { class: 'viewer-overlay', 'data-preview': 'overlay', 'data-key-open': open ? 'true' : 'false' },
-    // The prompt and the key scroll when the drawing is short; the readout under them always shows.
+    { class: 'viewer-overlay', 'data-preview': 'overlay' },
     h(
       'div',
       { class: 'viewer-overlay-scroll' },
@@ -48,12 +49,12 @@ export function ViewerOverlay({ sceneKey, readout, prompt = null, notice = null 
         : h(
             'div',
             { class: 'viewer-overlay-bar' },
-            h('button', { type: 'button', class: 'small key-toggle', 'data-action': 'key-toggle', 'aria-expanded': open ? 'true' : 'false', onClick: () => keyOpen.set(!open) }, open ? 'Hide key' : 'Show key'),
+            h(ViewerMenu, { scene: sceneKey.scene, carve: sceneKey.carve ?? null, simple: sceneKey.simple === true, ...(sceneKey.onOpen === undefined ? {} : { onOpen: sceneKey.onOpen }) }),
+            chip === null ? null : h('button', { type: 'button', class: 'small viewer-chip', 'data-preview': 'position-chip', title: 'Why: in Notes', onClick: () => openDockTab('notes') }, chip),
             h(NotesPill, { topic: 'Preview' }),
           ),
-      sceneKey !== null && open ? h(SceneKey, sceneKey) : null,
+      sceneKey === null ? null : h(SceneKey, sceneKey),
     ),
     notice,
-    readout,
   );
 }

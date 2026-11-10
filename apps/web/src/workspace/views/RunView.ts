@@ -17,7 +17,7 @@ import { c24, c25, c25HandSet, c27, c28, c29, w13 } from '@synthetos/safety';
 import { DIALECTS } from '@synthetos/protocol';
 import { LITE_THRESHOLD_LINES } from '../../gcode-worker/pipeline.ts';
 import type { WorkerLike } from '../../gcode-worker/client.ts';
-import { PreviewPanel, markerText, type LiveMarkerView, type PreviewParts } from '../../preview/PreviewPanel.ts';
+import { PreviewPanel, type LiveMarkerView, type PreviewParts } from '../../preview/PreviewPanel.ts';
 import { fileLevel, on, progressText } from '../../preview/PreviewView.ts';
 import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
 import { routineChanges, shownCounts } from '../../preview/gcodeList.ts';
@@ -30,7 +30,8 @@ import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { goToZeroSafeZ } from '../safeZ.ts';
 import { TC_GO_REASON, TC_OFFSET_REASON, atToolChange, jogBlocked, zeroBlocked } from '../toolChangeControls.ts';
 import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
-import { HomeSection, HomeQuick, UnknownExits } from '../homing.ts';
+import { HomeSection, HomeQuick } from '../homing.ts';
+import { UnknownChip } from '../unknownModal.ts';
 import { ProbeZ } from '../probe/ProbeZ.ts';
 import { PositionStatus } from '../positionStatus.ts';
 import { ControlBlockCard, currentBlock } from '../ControlBlockCard.ts';
@@ -314,7 +315,8 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
     ),
     // UNKNOWN's exits also under another card: "I've checked the machine" clears it without motion (T-S105).
     block === null || block.kind === 'unknown' ? null : h(ControlBlockCard, { block, model: model ?? null }),
-    block === null ? null : h(UnknownExits, { model: model ?? null }),
+    // UNKNOWN is one question on connect (unknownModal.ts); the panel keeps a small way back to it.
+    block === null ? null : h(UnknownChip, { model: model ?? null }),
     h(
       'div',
       { class: `dro-grid${actions ? '' : ' no-actions'}`, role: 'table', 'aria-label': 'Position' },
@@ -344,7 +346,7 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
         : h(
             'div',
             { class: 'dro-row pos-status-row', role: 'row' },
-            h('span', { class: 'pos-status-cell', role: 'cell' }, m === null ? null : h(PositionStatus, { wcs: wcs?.code ?? null, homed, by: m.snapshot.notices.position?.by, tool: typeof tool === 'number' ? tool : null, units: advanced || units === null ? null : `Work in ${units}` })),
+            h('span', { class: 'pos-status-cell', role: 'cell' }, m === null ? null : h(PositionStatus, { wcs: wcs?.code ?? null, homed, by: m.snapshot.notices.position?.by, tool: typeof tool === 'number' ? tool : null, units: advanced || units === null ? null : `Work in ${units}`, temporary: m.dro.marker?.g92 === true || offsetsView(view).temporaryInForce })),
             actions ? h('span', { class: 'dro-actions pos-all', role: 'cell' }, act('zeroHere', `Set ${axesText(xyz)} work zero here`, () => setConfirm({ kind: 'set', axes: xyz }), zeroBlocked(snap, xyz)), act('goZero', `Go to ${axesText(xyz)} zero`, () => setConfirm({ kind: 'go', axes: xyz }), atToolChange(snap) ? TC_GO_REASON : null)) : null,
           ),
     ),
@@ -1178,7 +1180,7 @@ function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (v
 }
 
 function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly onView: (view: string) => void; readonly stops: StopHooks }): ComponentChild {
-  const { state, actions, slots, live, scene } = parts;
+  const { state, actions, slots, scene } = parts;
   const simple = uiLevel.value.value !== 'advanced';
   const [preset, setPreset] = useState<ViewPreset>('iso');
   const [files, setFiles] = useState(false);
@@ -1225,7 +1227,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
               (scene !== null || result !== null) && !result?.lite && state.drawing === 'webgl' ? h(ViewButtons, { current: preset, ...(actions.onView === undefined ? {} : { onView: (p: ViewPreset) => { setPreset(p); actions.onView?.(p); } }), ...(actions.onFit === undefined ? {} : { onFit: () => actions.onFit?.() }) }) : null,
             ),
           ),
-          // The key and the live readout, stacked in one overlay that never runs over itself (B4, C18).
+          // The viewer's bar (settings menu, position chip, notes) and the legend; the live position is in the Position panel.
           h(ViewerOverlay, {
             // Play preview's notice stays in view for the whole session (OD-25).
             notice: h(PlayNotice, { play: parts.play }),
@@ -1246,7 +1248,6 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
                   h('div', { class: 'sample-row' }, SAMPLES.map((s) => h('button', { type: 'button', class: 'small', key: s.id, disabled, 'data-sample': s.id, ...on('onClick', actions.onFile, () => () => { openFrom(sampleFile(s), { kind: 'sample' }, () => undefined); }) }, `Open the ${s.title.toLowerCase()} sample`))),
                 )
               : null,
-            readout: live === null ? null : h('p', { class: `viewer-key pv-marker-readout lag-${live.lag}`, 'data-preview': 'marker-readout', role: 'status' }, markerText(live)),
           }),
           loading
             ? h(

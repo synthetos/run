@@ -13,9 +13,9 @@ import { MAX_UNCARVED_NOTES, NO_CHANGE_REASON, NO_T_REASON, carvePlan } from '..
 import { carveGrid } from '../src/preview/carveStock.ts';
 import { CarveLabel, belowText, cellText, depthText } from '../src/preview/CarveKey.ts';
 import { previewNotes } from '../src/preview/previewNotes.ts';
-import { SceneKey, pickHint } from '../src/preview/SceneKey.ts';
+import { SceneKey } from '../src/preview/SceneKey.ts';
+import { ViewerMenu, pickHint } from '../src/preview/ViewerMenu.ts';
 
-const NOT_MEASURED_BED = 'Bed 750 × 750 mm (not measured yet)';
 import { toolNumbered } from '../src/preview/activeTool.ts';
 import type { JobScene } from '../src/preview/sceneModel.ts';
 import type { CarveStatus } from '../src/preview/useCarve.ts';
@@ -116,9 +116,7 @@ describe('the key', () => {
     const notes = previewNotes({ scene: null, carve: info() });
     expect(notes.map((n) => n.body)).toContain('Lines 12–340 not carved: T3 is not in your tool table');
     expect(notes.every((n) => !/safe/i.test(`${n.title} ${n.body}`))).toBe(true);
-    const html = renderToString(h(SceneKey, { scene: null, carve: info() }));
-    expect(html).toContain('Carving detail 0.25 mm');
-    expect(html).not.toContain('not carved');
+    expect(renderToString(h(SceneKey, { scene: null, carve: info() }))).not.toContain('not carved');
   });
   it('names where the cut goes below the stock, as a preview of the planned setup', () => {
     expect(depthText(0.6)).toBe('0.6 mm');
@@ -148,25 +146,26 @@ describe('the key at each level', () => {
     expect(renderToString(h(SceneKey, { scene: scene(true), tool: t1, simple: false }))).toContain('T1 · 3.175 mm 2-flute up-cut');
   });
 
-  it('Simple: the tool, the bed\'s size "(not measured yet)" for a placeholder bed, the hint, no bed name, detail or links', () => {
+  it('the key over the drawing is only the legend: the tool the marker shows is for screen readers, no bed, links or detail', () => {
     const html = renderToString(h(SceneKey, { scene: scene(true), tool: t1, carve: info(), simple: true, onOpen: () => undefined }));
-    expect(html).toContain('T1 · 3.175 mm 2-flute up-cut');
-    expect(html).toContain(NOT_MEASURED_BED);
-    expect(html).not.toContain('Bed size not set');
-    expect(html).toContain('Click the bed, fixture or stock to change it');
-    expect(html).not.toContain('Lines 12–340 not carved'); // a note in the Notes tab now
-    expect(html).not.toMatch(/My X-Carve|revision|Carving detail|Bed settings/);
-    expect(renderToString(h(SceneKey, { scene: scene(false), tool: t1, simple: true, onOpen: () => undefined }))).not.toContain(NOT_MEASURED_BED);
-    expect(pickHint(['bed', 'stock'])).toBe('Click the bed or stock to change it');
+    expect(html).toMatch(/class="sr-only"><span data-scene="tool"[^>]*>T1 · 3.175 mm 2-flute up-cut</);
+    expect(html).not.toMatch(/My X-Carve|750 × 750|Carving detail|Bed settings|Click the bed/);
   });
 
-  it('Advanced: the bed name and size, the carving detail and the links', () => {
-    const html = renderToString(h(SceneKey, { scene: scene(true), tool: t1, carve: info(), onOpen: () => undefined }));
-    expect(html).toContain('Bed of My X-Carve · 750 × 750 mm · not measured yet');
-    expect(html).toContain('T1 · 3.175 mm 2-flute up-cut');
-    expect(html).toContain('Carving detail 0.25 mm');
-    expect(html).toContain('Bed settings');
-    expect(html).not.toContain('Click the bed');
+  it('the viewer\'s settings menu: the bed, the parts\' settings and the hint; Advanced adds the bed\'s name and the carving detail', () => {
+    const simple = renderToString(h(ViewerMenu, { scene: scene(true), carve: info(), simple: true, onOpen: () => undefined }));
+    expect(simple).toContain('aria-label="View settings"');
+    expect(simple).toContain('750 × 750 mm');
+    expect(simple).toMatch(/data-scene-link="bed"[^>]*>Bed settings</);
+    expect(simple).toContain('Fixture settings');
+    expect(simple).toContain('Click the bed, fixture or stock to change it');
+    expect(simple).not.toContain('Carving detail');
+    const advanced = renderToString(h(ViewerMenu, { scene: scene(true), carve: info(), simple: false, onOpen: () => undefined }));
+    expect(advanced).toContain('Bed of My X-Carve · 750 × 750 mm');
+    expect(advanced).toContain('Carving detail 0.25 mm');
+    // While a job owns the machine: no links.
+    expect(renderToString(h(ViewerMenu, { scene: scene(true), simple: true }))).not.toContain('data-scene-link');
+    expect(pickHint(['bed', 'stock'])).toBe('Click the bed or stock to change it');
   });
 });
 

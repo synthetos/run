@@ -78,7 +78,7 @@ function machineItem(input: ReadyInput): ReadyItem | null {
   if (!input.jobsOn) return { id: 'machine', label: 'Machine', mark: 'blocked', summary: 'Running jobs isn’t on in this build.', actions: [] };
   const b = input.block;
   if (b !== null) {
-    if (b.kind === 'unknown') return { id: 'machine', label: 'Machine', mark: 'blocked', summary: 'Position not verified.', actions: [{ id: 'verify', label: 'I’ve checked the machine' }], note: 'unknown' };
+    if (b.kind === 'unknown') return { id: 'machine', label: 'Machine', mark: 'blocked', summary: 'Position not verified.', actions: [{ id: 'verify', label: 'Check…' }] };
     return { id: 'machine', label: 'Machine', mark: 'blocked', summary: [b.title, ...b.lines].join(' '), actions: b.actions.map((a) => ({ id: a.id, label: a.label })) };
   }
   if (input.wait !== null) return { id: 'machine', label: 'Machine', mark: 'waiting', summary: input.wait, actions: [] };

@@ -105,31 +105,29 @@ test('a cut below the stock is named in a note as a preview of the planned setup
   await expect(note).toHaveCount(0);
 });
 
-test('the key: Simple shows the tool by its library name and the notes that matter; Advanced adds the bed, detail and links', async ({ page }) => {
+test('the key is the picture: the tool for screen readers; the bed, links, hint and detail in the viewer\'s settings menu', async ({ page }) => {
   await page.goto('/');
   await ready(page);
   const sheet = page.locator('[data-region="preview"]');
   await open(page, 'v-rect.nc', V_FILE);
   const key = sheet.locator('.scene-key-line');
+  const menu = sheet.locator('[data-preview="viewer-menu"]');
   await expect(sheet.locator('[data-scene="carve"]')).toHaveAttribute('data-carve-done', 'true');
-  // Simple (the default level).
-  // C4: the library's name, as in Advanced and the tool table.
+  // Simple (the default level). C4: the library's name, as in Advanced and the tool table.
   await expect(key.locator('[data-scene="tool"]')).toHaveText('T4 · 90° V-bit');
-  // C2: the bed's size, and that it is not measured yet; never "not set" while a size shows.
-  await expect(key.locator('[data-scene="bed"]')).toHaveText('Bed 790 × 790 mm (not measured yet)');
-  await expect(key.locator('[data-scene="pick-hint"]')).toHaveText('Click the bed, fixture or stock to change it');
-  await expect(key.locator('nav.scene-links')).toHaveCount(0);
+  await expect(key).not.toContainText('Bed');
   await expect(key).not.toContainText('Carving');
-  await expect(key).not.toContainText('revision');
+  await menu.locator('summary').click();
+  await expect(menu.locator('[data-scene="bed"]')).toContainText('790 × 790 mm');
+  await expect(menu.locator('[data-scene="pick-hint"]')).toHaveText('Click the bed, fixture or stock to change it');
+  await expect(menu.locator('[data-scene-link]')).toHaveCount(3);
+  await expect(menu).not.toContainText('Carving');
   await expect(sheet.locator('[data-preview="mode"]')).toHaveCount(0);
   await expect(sheet.locator('[data-preview="dialect"]')).toHaveCount(0);
-  // Advanced.
+  // Advanced: the bed's name and the carving detail join the menu.
   await page.locator('[data-action="ui-level-advanced"]').click();
-  await expect(key.locator('[data-scene="bed"]')).toHaveText('Bed · 790 × 790 mm · not measured yet');
-  await expect(key.locator('[data-scene="tool"]')).toHaveText('T4 · 90° V-bit');
-  await expect(key.locator('[data-scene="carve"]')).toHaveText('Carving detail 0.125 mm');
-  await expect(key.locator('[data-scene-link]')).toHaveCount(3);
-  await expect(key.locator('[data-scene="pick-hint"]')).toHaveCount(0);
+  await expect(menu.locator('[data-scene="bed"]')).toContainText('790 × 790 mm');
+  await expect(menu).toContainText('Carving detail 0.125 mm');
   await expect(sheet.locator('.viewer-options')).toContainText('Read as:');
   await expect(sheet.locator('[data-preview="dialect"] option:checked')).toHaveText('TinyG edge-next');
   await expect(sheet.locator('[data-preview="mode"] option:checked')).toHaveText('Auto (simpler above 300,000 lines)');

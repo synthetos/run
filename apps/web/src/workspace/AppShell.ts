@@ -36,6 +36,7 @@ import { stripStatus } from './status.ts';
 import { BoardView } from './views/BoardView.ts';
 import { boardTab, viewRequest } from './boardNavigation.ts';
 import { observingElsewhere } from './tabControl.ts';
+import { UnknownModal } from './unknownModal.ts';
 import { LibraryView } from './views/LibraryView.ts';
 import { jobStep, librarySection, uiLevel, type LibrarySection } from './jobWorkflow.ts';
 import { AnalyzeView, PreferencesView, SafetyView } from './views/OtherViews.ts';
@@ -175,8 +176,9 @@ function Banners(props: AppShellProps): ComponentChild {
       { class: 'dialog banner-stack', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': 'Machine message' },
       h(OverlayBanners, { snapshot, staleElapsedMs: view?.staleSince === null || view?.staleSince === undefined ? 0 : Date.now() - view.staleSince }),
       // Never a trap (amendment 2026-11-02): UNKNOWN comes with its ways out; so does NEEDS_REVIEW (OD-13 §5).
-      // UNKNOWN's ways out live in the Position panel (owner, 2026-11-04): jog first, then set zero; nothing blocks.
       h(ReviewExits, { model: props.model ?? null, onReview: props.onReview ?? (() => undefined) }),
+      // After a reconnect: one question, on connect, whatever view is open (unknownModal.ts).
+      h(UnknownModal, { model: props.model ?? null }),
       notice === null || noticeKey === seen || hidden.includes(notice.kind)
         ? null
         : h(

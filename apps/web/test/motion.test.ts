@@ -10,7 +10,8 @@ import { renderToString } from 'preact-render-to-string';
 import { STOP_TEXT, w34 } from '@synthetos/safety';
 import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveActions, type LiveView } from '../src/workspace/model.ts';
 import { JogController, RENEW_MS, activeSystem, axesText, goToZeroPath, homingView, jogKey, machineZ, motionUi, offsetsView, workOffsets } from '../src/workspace/motion.ts';
-import { HomeSection, UnknownExits, unknownApplies } from '../src/workspace/homing.ts';
+import { HomeSection, unknownApplies } from '../src/workspace/homing.ts';
+import { UnknownModal } from '../src/workspace/unknownModal.ts';
 import { ConnectNotice, JogSection, PositionPanel, SpindleSection, ZeroSection, resetSpindleConfirm } from '../src/workspace/views/RunView.ts';
 import { MachineStrip, outcomeText, STOP_JOB_PHASE2 } from '../src/workspace/MachineStrip.ts';
 import { stripStatus } from '../src/workspace/status.ts';
@@ -305,22 +306,22 @@ describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S
     expect(machineButtons(renderToString(h(ZeroSection, { model: model(v) })), 'zero').length).toBeGreaterThan(0);
   });
 
-  it('the UNKNOWN banner offers its exits; the strip says Homing and "No reports from the board"', () => {
+  it('the UNKNOWN question on connect offers its exits; the strip says Homing and "No reports from the board"', () => {
     const unknown = withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'], primaryOverlay: 'UNKNOWN' }), HOMING);
     expect(unknownApplies(unknown)).toBe(true);
-    const html = renderToString(h(UnknownExits, { model: model(unknown) }));
+    const html = renderToString(h(UnknownModal, { model: model(unknown) }));
     expect(html).toContain('data-action="unknown-verify"');
     expect(html).toContain('data-action="unknown-home"');
     // Set machine zero here is offered whenever the machine is at rest, switches or not (OD-13 §4).
     expect(html).toContain('data-action="unknown-position"');
     const noSwitches = withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'], primaryOverlay: 'UNKNOWN' }), { xam: 1, xsn: 0, xsx: 0, xsv: 0 });
-    expect(renderToString(h(UnknownExits, { model: model(noSwitches) }))).toContain('data-action="unknown-position"');
+    expect(renderToString(h(UnknownModal, { model: model(noSwitches) }))).toContain('data-action="unknown-position"');
     // Without motion the verify exit is still there: UNKNOWN never traps.
-    const p1 = renderToString(h(UnknownExits, { model: model(withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'], primaryOverlay: 'UNKNOWN' }), HOMING, false)) }));
+    const p1 = renderToString(h(UnknownModal, { model: model(withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'], primaryOverlay: 'UNKNOWN' }), HOMING, false)) }));
     expect(p1).toContain('data-action="unknown-verify"');
     expect(p1).not.toContain('data-action="unknown-home"');
     expect(p1).not.toContain('data-action="unknown-position"');
-    expect(renderToString(h(UnknownExits, { model: model(withSettings(snap(), HOMING)) }))).toBe('');
+    expect(renderToString(h(UnknownModal, { model: model(withSettings(snap(), HOMING)) }))).toBe('');
     expect(stripStatus(view(snap({ base: 'HOMING' })), null).title).toBe('Homing');
     expect(stripStatus(view(snap({ overlays: ['STALE'] })), null).title).toBe('No reports from the board');
   });

@@ -63,12 +63,16 @@ test('a board left on hardware flow control (ex = 2) says so, in the card and th
   await expect(card.locator('[data-action="block-disconnect"]')).toBeVisible();
 });
 
-test('after a reconnect: "I’ve checked the machine" is a real button, it clears UNKNOWN, and the controls come back', async ({ page }) => {
+test('after a reconnect: one question on connect, "It hasn’t moved" clears UNKNOWN, and the controls come back', async ({ page }) => {
   const worker = await connect(page, { unknown: true });
-  const card = page.locator('[data-region="position"] [data-region="unknown-exits"]');
-  await expect(card).toContainText('Position not verified.');
+  const card = page.locator('[data-region="unknown-exits"]');
+  await expect(card).toContainText('Has the machine moved since last time?');
   await expect(inspector(page).locator('[data-jog="panel"]')).toHaveCount(0);
-  await card.getByRole('button', { name: 'I’ve checked the machine' }).click();
+  // Later puts it off; the Position panel's Check… brings it back.
+  await card.locator('[data-action="unknown-later"]').click();
+  await expect(card).toHaveCount(0);
+  await page.locator('[data-region="position"] [data-action="unknown-ask"]').click();
+  await card.getByRole('button', { name: 'It hasn’t moved' }).click();
   await expect.poll(async () => (await session(worker)).overlays).toEqual([]);
   await expect(card).toHaveCount(0);
   await expect(inspector(page).locator('[data-jog="panel"]')).toHaveCount(1);

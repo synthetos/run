@@ -11,6 +11,7 @@ import { jobStep } from '../src/workspace/jobWorkflow.ts';
 import { jobScene } from '../src/preview/sceneModel.ts';
 import { previewNotes } from '../src/preview/previewNotes.ts';
 import { SceneKey } from '../src/preview/SceneKey.ts';
+import { ViewerMenu } from '../src/preview/ViewerMenu.ts';
 import { PreviewSvg } from '../src/preview/PreviewSvg.ts';
 import { openSceneSettings, pickLabel, scenePart } from '../src/preview/sceneSettings.ts';
 
@@ -53,21 +54,22 @@ describe('scene parts open their settings', () => {
     expect(jobStep.value).toBe('machine');
   });
 
-  it('the key: the bed and links to the parts that exist; the placement notes are notes (Notes tab), not on the key', () => {
+  it('the viewer\'s settings menu: the bed and links to the parts that exist; the placement notes are notes (Notes tab)', () => {
     const scene = { ...draft(), notes: ['Machine position not set.'] };
     const opened: string[] = [];
-    const el = root(h(SceneKey, { scene, onOpen: (p) => opened.push(p) }));
+    const el = root(h(ViewerMenu, { scene, simple: false, onOpen: (p) => opened.push(p) }));
     expect(text(one(el, byAttr('data-scene', 'bed')))).toBe(scene.bedLabel);
-    expect(all(el, byAttr('data-scene', 'note'))).toHaveLength(0);
+    expect(all(root(h(SceneKey, { scene })), byAttr('data-scene', 'note'))).toHaveLength(0);
     expect(previewNotes({ scene }).map((n) => n.title)).toEqual(['Machine position not set.']);
     const links = all(el, (e) => e.props['data-scene-link'] !== undefined);
     const hasFixture = scene.layers.solids.some((s) => s.tag === 'fixture');
     expect(links.map((l) => text(l))).toEqual(hasFixture ? ['Bed settings', 'Fixture settings', 'Stock settings'] : ['Bed settings', 'Stock settings']);
     (links[0]?.props['onClick'] as () => void)();
     expect(opened).toEqual(['bed']);
-    // While a job owns the machine: the key, no links.
-    expect(all(root(h(SceneKey, { scene })), (e) => e.props['data-scene-link'] !== undefined)).toHaveLength(0);
+    // While a job owns the machine: no links.
+    expect(all(root(h(ViewerMenu, { scene, simple: false })), (e) => e.props['data-scene-link'] !== undefined)).toHaveLength(0);
   });
+
 
   it('the SVG top view: solids are clickable with a title when picking is on, plain otherwise', () => {
     const scene = draft();

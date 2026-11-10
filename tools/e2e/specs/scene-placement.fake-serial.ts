@@ -39,13 +39,16 @@ test('unhomed at 0, 0, 0: the job is shown as planned with a note; scene parts o
   // The keyboard path: the key's link opens the stock settings and focuses their heading (the links are Advanced;
   // Simple keeps the bed's size "(not measured yet)" and the hint that a click on a part opens it).
   await page.locator('[data-job-step="run"]').click();
-  await expect(job.locator('[data-scene="pick-hint"]')).toHaveText('Click the bed, fixture or stock to change it');
-  await expect(job.locator('[data-scene-link="stock"]')).toHaveCount(0);
-  await page.locator('[data-action="ui-level-advanced"]').click();
-  await job.locator('[data-scene-link="stock"]').click();
+  // The viewer's one settings menu (owner, 2026-11-09) holds the hint and the links at both levels.
+  const menu = job.locator('[data-preview="viewer-menu"]');
+  await menu.locator('summary').click();
+  await expect(menu.locator('[data-scene="pick-hint"]')).toHaveText('Click the bed, fixture or stock to change it');
+  await menu.locator('[data-scene-link="stock"]').click();
   await expect(page.locator('[data-job-step="stock"]')).toHaveAttribute('aria-current', 'step');
   await expect(page.locator('[data-setup-section="stock"] h2')).toBeFocused();
-  await job.locator('[data-scene-link="bed"]').click();
+  await page.locator('[data-job-step="run"]').click();
+  await menu.locator('summary').click();
+  await menu.locator('[data-scene-link="bed"]').click();
   await expect(page.locator('[data-setup-section="bed"] h2')).toBeFocused();
 
   // The pointer path, with a file open (no prompt over the drawing): a drag orbits and opens nothing; a click on the middle of the scene opens a part's settings.

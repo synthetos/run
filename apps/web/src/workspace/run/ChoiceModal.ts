@@ -9,23 +9,25 @@ export interface Choice {
   readonly id: string;
   readonly label: string;
   readonly primary?: boolean;
+  /** A machine control's class (data-machine-control), for a choice that acts on the machine. */
+  readonly machine?: string;
   readonly onClick: () => void;
 }
 
-export function ChoiceModal({ title, body, choices, safety, details }: { readonly title: string; readonly body: string; readonly choices: readonly Choice[]; readonly safety?: string; readonly details?: ComponentChild }): ComponentChild {
+export function ChoiceModal({ title, body, choices, safety, details, region }: { readonly title: string; readonly body: string; readonly choices: readonly Choice[]; readonly safety?: string; readonly details?: ComponentChild; readonly region?: string }): ComponentChild {
   return h(
     'div',
     { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip },
     h(
       'div',
-      { class: 'dialog motion-confirm choice-modal', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': title, ...(safety === undefined ? {} : { 'data-safety': safety }) },
+      { class: 'dialog motion-confirm choice-modal', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': title, ...(safety === undefined ? {} : { 'data-safety': safety }), ...(region === undefined ? {} : { 'data-region': region }) },
       h('h2', { class: 'choice-title' }, title),
       h('p', null, body),
       details ?? null,
       h(
         'div',
         { class: 'motion-confirm-actions' },
-        choices.map((c, i) => h('button', { type: 'button', key: c.id, class: c.primary === true ? 'small primary' : 'small', 'data-action': c.id, ...(i === choices.length - 1 ? { ref: focusOnMount } : {}), onClick: c.onClick }, c.label)),
+        choices.map((c, i) => h('button', { type: 'button', key: c.id, class: c.primary === true ? 'small primary' : 'small', 'data-action': c.id, ...(c.machine === undefined ? {} : { 'data-machine-control': c.machine }), ...(i === choices.length - 1 ? { ref: focusOnMount } : {}), onClick: c.onClick }, c.label)),
       ),
     ),
   );

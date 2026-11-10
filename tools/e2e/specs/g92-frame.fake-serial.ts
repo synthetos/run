@@ -31,7 +31,14 @@ function sample(page: Page): Promise<Sample> {
     const tool = document.querySelector('[data-preview="drawing"]')?.getAttribute('data-tool') ?? null;
     return {
       line: row === null ? null : Number(row.getAttribute('data-line')),
-      readout: document.querySelector('[data-preview="marker-readout"]')?.textContent ?? null,
+      // The position as the Position panel shows it (the viewer no longer carries a readout, owner 2026-11-09).
+      readout: (() => {
+        const work = (a: string): string | null => document.querySelector(`[data-position-axis="${a}"] [data-position="work"]`)?.textContent ?? null;
+        const [x, y, z] = [work('x'), work('y'), work('z')];
+        if (x === null || y === null || z === null) return null;
+        const g92 = document.querySelector('[data-position="g92"]') !== null;
+        return `Tool at X ${x} Y ${y} Z ${z}${g92 ? ' · Temporary offset on (G92)' : ''} · live`;
+      })(),
       tool: tool === null ? null : tool.split(' ').map(Number),
     };
   });
@@ -61,7 +68,7 @@ test('a file with its own G92: the readout is the executing line’s coordinates
   await open(page, FILE, 'g92.nc');
 
   // Before the job: the offset before the first line, so the tool is at the path's origin; the key says line 2 re-anchors the cut.
-  await expect(page.locator('[data-preview="marker-readout"]')).toHaveText(/^Tool at X 0\.000 Y 0\.000 Z 0\.000 · /);
+  await expect.poll(async () => (await sample(page)).readout).toMatch(/^Tool at X 0\.000 Y 0\.000 Z 0\.000 · /);
   await expect(page.locator('[data-preview="drawing"]')).toHaveAttribute('data-tool', '0.000 0.000 0.000');
   await expect(page.locator('[data-note^="scene:"]').filter({ hasText: 'Line 2 sets a temporary offset (G92)' })).toHaveCount(1);
 
@@ -89,7 +96,7 @@ test('a file with its own G92: the readout is the executing line’s coordinates
 
   // After M30 the board has dropped the G92: the readout is the machine position less the saved offset (none), still the path's end.
   await expect.poll(() => phase(worker), { timeout: 30_000 }).toBe('done');
-  await expect(page.locator('[data-preview="marker-readout"]')).toHaveText(/^Tool at X 20\.000 Y −20\.000 Z 2\.000 · (live|[\d.]+ s old)$/, { timeout: 5000 });
+  await expect.poll(async () => (await sample(page)).readout, { timeout: 5000 }).toMatch(/^Tool at X 20\.000 Y −20\.000 Z 2\.000 · live$/);
   await expect(page.locator('[data-preview="drawing"]')).toHaveAttribute('data-tool', '20.000 -20.000 2.000');
   expect(await request(worker, { v: 3, kind: 'close' })).toMatchObject({ ok: true });
 });

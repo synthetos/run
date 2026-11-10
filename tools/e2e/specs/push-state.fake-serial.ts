@@ -109,17 +109,17 @@ test('Home all from the Home tab: C4 names the configured axes, one G28.2, then 
   expect(g).toEqual(['G28.2 X0 Z0\n']);
 });
 
-test('after a reconnect the UNKNOWN banner offers its exits: "I\'ve checked the machine" clears it', async ({ page }) => {
+test('after a reconnect one question offers its exits: "It hasn\'t moved" clears it', async ({ page }) => {
   const worker = await connect(page, { unknown: true });
   const banner = page.locator('[data-region="unknown-exits"]');
-  await expect(banner).toContainText('Position not verified.');
-  // One click (owner, 2026-11-04): the banner's own text is the W6 confirmation.
+  await expect(banner).toContainText('Has the machine moved since last time?');
+  // One click (owner, 2026-11-04): the question is the W6 confirmation.
   await banner.locator('[data-action="unknown-verify"]').click();
   await expect.poll(async () => (await session(worker)).overlays).toEqual([]);
   await expect(banner).toHaveCount(0);
 });
 
-test('the UNKNOWN banner\'s Home machine homes the configured axes and clears UNKNOWN only when X, Y and Z are homed', async ({ page }) => {
+test('the UNKNOWN question\'s Home homes the configured axes and clears UNKNOWN only when X, Y and Z are homed', async ({ page }) => {
   const worker = await connect(page, { unknown: true, board: { eeprom: { ...HOMING_EEPROM, ysx: 1, ysv: 1500, ytm: 20 } } });
   const banner = page.locator('[data-region="unknown-exits"]');
   await expect(banner.locator('[data-action="unknown-home"]')).toBeVisible({ timeout: 10_000 });

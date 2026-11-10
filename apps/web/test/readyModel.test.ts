@@ -90,7 +90,7 @@ describe('readyModel', () => {
     expect(behind.items.find((i) => i.id === 'file')).toMatchObject({ mark: 'needs', summary: 'Checked once the board can run jobs.' });
     expect(behind.items.find((i) => i.id === 'travel')?.mark).toBe('needs');
     const unknown = readyModel({ ...READY, block: { kind: 'unknown', title: 'Position not verified.', lines: [], actions: [] } });
-    expect(unknown.items[0]).toMatchObject({ summary: 'Position not verified.', actions: [{ id: 'verify', label: 'I’ve checked the machine' }] });
+    expect(unknown.items[0]).toMatchObject({ summary: 'Position not verified.', actions: [{ id: 'verify', label: 'Check…' }] });
     const alarm = readyModel({ ...READY, block: { kind: 'alarm', title: 'The controller is in alarm, so it stopped.', lines: ['Clear the alarm before moving.'], actions: [{ id: 'clear-alarm', label: 'Clear alarm…' }] } });
     expect(alarm.items[0]?.actions).toEqual([{ id: 'clear-alarm', label: 'Clear alarm…' }]);
   });

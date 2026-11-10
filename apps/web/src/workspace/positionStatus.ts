@@ -20,14 +20,17 @@ export interface PositionStatusProps {
   readonly tool: number | null;
   /** The work units, shown in Simple (Advanced has them in the column head). */
   readonly units: string | null;
+  /** A temporary offset (G92) is in force: the work positions are shifted by it. */
+  readonly temporary?: boolean;
 }
 
-export function PositionStatus({ wcs, homed, by, tool, units }: PositionStatusProps): ComponentChild {
+export function PositionStatus({ wcs, homed, by, tool, units, temporary = false }: PositionStatusProps): ComponentChild {
   const parts: ComponentChild[] = [
     h('span', { key: 'wcs', 'data-position': 'wcs' }, wcs ?? '—'),
     homed === false
       ? h('span', { key: 'homing', class: 'pos-word warn', 'data-position': 'homing' }, h(ContextHelp, { id: 'w34-help', label: 'Not homed: about moving before homing', safety: 'W34', trigger: 'Not homed', below: true }, ...signalText(w34())))
       : HomingTag(homed, by),
+    temporary ? h('span', { key: 'g92', class: 'pos-word warn', 'data-position': 'g92', title: 'A temporary offset (G92) is in force: work positions are shifted by it.' }, 'G92 on') : null,
     tool === null ? null : h('span', { key: 'tool', 'data-position': 'tool' }, `Tool T${tool}`),
     units === null ? null : h('span', { key: 'units', 'data-position': 'units' }, units),
   ].filter((p) => p !== null);

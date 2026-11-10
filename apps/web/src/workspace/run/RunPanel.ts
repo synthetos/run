@@ -35,6 +35,7 @@ import { readyModel, type ReadyActionId, type ReadyInput, type TravelAsk } from 
 import { SHORT_C30_APPROVED, refusedBody, startQuestion, tickText } from './runCopy.ts';
 import { ChoiceModal } from './ChoiceModal.ts';
 import { TravelModal } from './TravelModal.ts';
+import { askUnknownAgain } from '../unknownModal.ts';
 
 function speedsText(job: JobSnapshot | null): string {
   const speeds = job?.report?.speeds ?? [];
@@ -151,7 +152,7 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
         model?.actions.value?.connect();
         return;
       case 'verify':
-        void motion?.({ op: 'positionVerify' }).then(setNote);
+        askUnknownAgain();
         return;
       case 'home': {
         const axes = ready.travelAsk?.kind === 'past' && homeable(ready.travelAsk.axis) ? [ready.travelAsk.axis.toLowerCase() as MotionAxis] : hv.configured;

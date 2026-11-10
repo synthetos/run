@@ -4,7 +4,7 @@
  * - 1280 × 720 and 1440 × 900, Simple and Advanced: the page never scrolls, the job card is never under the strip, the 3D view
  *   keeps at least 270 px, and what sits over the drawing (the key's notes, the key line, the live readout) is one
  *   stack in which nothing overlaps anything else or the view's toolbar;
- * - the key hides and shows (remembered across a reload), and when hidden a count of its notes stays in view;
+ * - one small bar over the drawing (settings menu, Not homed chip, notes pill) and the legend; no readout or Hide key;
  * - Expand gives the drawing the Job area and Shrink puts it back;
  * - 390 × 844: the parts of the Job view stack in one scrolling column and none overlaps another; all five steps
  *   are wholly in view; the key and the readout sit under the drawing, not on it.
@@ -45,12 +45,12 @@ async function rects(page: Page, selectors: readonly string[]): Promise<(Rect | 
  * key line when it finishes, and the stack reflows), and the overlay's pieces keep the same boxes over two frames.
  */
 async function overlaySettled(page: Page): Promise<void> {
-  if (await page.locator('[data-action="key-toggle"][aria-expanded="true"]').count() > 0) {
+  if (await page.locator('[data-preview="overlay"] [data-scene="carve"]').count() > 0) {
     await expect(page.locator('[data-preview="overlay"] [data-scene="carve"]')).toHaveAttribute('data-carve-done', 'true', { timeout: 30_000 });
   }
   await page.waitForFunction(() => {
     const w = window as unknown as { __overlayBoxes?: string; __overlaySame?: number };
-    const boxes = ['[data-preview="overlay"]', '.viewer-overlay-bar [data-action="open-notes"]', '.scene-key-line', '[data-preview="marker-readout"]', '.viewer-overlay-bar', '[data-preview="drawing"]']
+    const boxes = ['[data-preview="overlay"]', '.viewer-overlay-bar [data-action="open-notes"]', '.scene-key-line', '.viewer-overlay-bar', '[data-preview="drawing"]']
       .map((s) => { const r = document.querySelector(s)?.getBoundingClientRect(); return r === undefined ? '-' : [r.left, r.top, r.width, r.height].map((n) => n.toFixed(1)).join(','); })
       .join('|');
     w.__overlaySame = boxes === w.__overlayBoxes ? (w.__overlaySame ?? 0) + 1 : 0;
@@ -70,7 +70,7 @@ async function openSample(page: Page, width: number, height: number): Promise<Wo
   await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
   await page.locator('[data-sample="mounting-plate"], [data-sample]').first().click();
   await expect(page.locator('[data-preview="drawing"]')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('[data-preview="marker-readout"]')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('.viewer-overlay-bar')).toBeVisible({ timeout: 10_000 });
   return worker;
 }
 
@@ -81,12 +81,12 @@ for (const [level, width, height] of [['simple', 1280, 720], ['advanced', 1280, 
     await overlaySettled(page);
     const doc = await page.evaluate(() => ({ scroll: document.scrollingElement?.scrollHeight ?? 0, inner: innerHeight, top: document.scrollingElement?.scrollTop ?? 0 }));
     expect(doc.scroll, 'the page does not scroll').toBeLessThanOrEqual(doc.inner);
-    const overlaid = ['.scene-key-line', '[data-preview="marker-readout"]', '.viewer-overlay-bar'];
+    const overlaid = ['.scene-key-line', '.viewer-overlay-bar'];
     const [strip, card, canvas, top, ...over] = await rects(page, ['[data-region="machine-strip"]', '.job-view .job-card', '[data-preview="drawing"]', '.job-view .viewer-top', ...overlaid]);
     expect(card?.y ?? 0, 'the job card starts below the strip').toBeGreaterThanOrEqual((strip?.y ?? 0) + (strip?.h ?? 0) - 0.5);
     expect(canvas?.h ?? 0, 'the 3D view keeps a usable height').toBeGreaterThanOrEqual(270);
     const pieces = overlaid.map((s, i) => [s, over[i] ?? null] as const).filter((p): p is readonly [string, Rect] => p[1] !== null);
-    expect(pieces.length).toBeGreaterThanOrEqual(3);
+    expect(pieces.length).toBeGreaterThanOrEqual(2);
     for (const [s, r] of pieces) {
       expect(overlap(r, top as Rect), `${s} is clear of the toolbar`).toBe(false);
       expect(r.x + r.w, `${s} stays inside the drawing`).toBeLessThanOrEqual((canvas?.x ?? 0) + (canvas?.w ?? 0) + 0.5);
@@ -95,15 +95,13 @@ for (const [level, width, height] of [['simple', 1280, 720], ['advanced', 1280, 
   });
 }
 
-test('the key hides and shows, remembered across a reload; its notes are in the Notes tab and counted in view either way', async ({ page }) => {
+test('the viewer carries one small bar and the legend; its notes are counted in view; the job comes back after a reload', async ({ page }) => {
   await openSample(page, 1280, 720);
   const pill = page.locator('.viewer-overlay-bar [data-action="open-notes"]');
   await expect(pill).toHaveText(/^\d+ notes?$/);
+  await expect(page.locator('.viewer-overlay-bar [data-preview="position-chip"]')).toHaveText('Not homed');
+  await expect(page.locator('[data-preview="marker-readout"], [data-action="key-toggle"]')).toHaveCount(0);
   await overlaySettled(page);
-  await page.locator('[data-action="key-toggle"]').click();
-  await expect(page.locator('.scene-key-line')).toHaveCount(0);
-  await expect(pill).toHaveText(/^\d+ notes?$/);
-  await expect(page.locator('[data-preview="marker-readout"]')).toBeVisible();
   // From the reload on, note whether a sample button is drawn once the page is ready: the job's file comes back
   // with the page, and until it has, the prompt says the file is opening rather than offering the samples for a
   // moment. (The prerendered page shows the samples until the stores load, before the page is ready.)
@@ -118,15 +116,12 @@ test('the key hides and shows, remembered across a reload; its notes are in the 
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
   await expect(page.locator('[data-preview="drawing"]')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('[data-action="key-toggle"]')).toHaveText('Show key', { timeout: 15_000 });
+  await expect(pill).toHaveText(/^\d+ notes?$/, { timeout: 15_000 });
   await expect(page.locator('[data-preview="reopening"]')).toHaveCount(0);
   await expect(page.locator('[data-sample]')).toHaveCount(0);
   expect(await page.locator('html').getAttribute('data-sample-seen'), 'no sample button flashes while the job reopens').toBeNull();
-  await expect(page.locator('.scene-key-line')).toHaveCount(0);
   await overlaySettled(page);
-  await page.locator('[data-action="key-toggle"]').click();
-  await expect(page.locator('.scene-key-line')).toBeVisible();
-  await expect(page.locator('[data-action="key-toggle"]')).toHaveText('Hide key');
+  await expect(page.locator('.scene-key-line')).toHaveCount(1);
 });
 
 test('Expand gives the 3D view the Job area; Shrink puts the panels back', async ({ page }) => {
@@ -164,7 +159,7 @@ for (const level of ['simple', 'advanced'] as const) {
       expect(s.x).toBeGreaterThanOrEqual(bar.x - 0.5);
       expect(s.x + s.w).toBeLessThanOrEqual(bar.x + bar.w + 0.5);
     }
-    const under = ['.viewer-overlay-bar [data-action="open-notes"]', '.scene-key-line', '[data-preview="marker-readout"]'];
+    const under = ['.viewer-overlay-bar [data-action="open-notes"]', '.scene-key-line'];
     const [drawing, ...below] = await rects(page, ['[data-preview="drawing"]', ...under]);
     under.forEach((s, i) => {
       const r = below[i] ?? null;

@@ -26,6 +26,8 @@ export function previewNotes(key: SceneKeyProps | null): readonly Note[] {
     const { title, body } = splitNote(text);
     out.push({ id: `scene:${title}`, topic: 'Preview', title, body, tone: 'warn' });
   });
+  const note = key.tool?.note ?? null;
+  if (note !== null && note !== undefined) out.push({ id: 'tool-note', topic: 'Preview', title: key.tool?.missing == null ? 'The first tool is a placeholder.' : `T${String(key.tool.missing)} isn’t in your tool table.`, body: note, link: { kind: 'view', view: 'tools', label: 'Tools' } });
   const carve = key.carve ?? null;
   const below = carve === null ? null : carve.status.value.below;
   if (below !== null && below !== undefined) out.push({ id: 'below-stock', topic: 'Preview', title: 'The tool goes below the stock.', body: `${belowText(below)}.`, tone: 'warn', link: { kind: 'line', line: below.firstLine } });

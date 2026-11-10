@@ -10,6 +10,7 @@ import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveActions, type LiveVie
 import { buildText, controlBlock, type BlockContext } from '../src/workspace/controlBlock.ts';
 import { PositionPanel } from '../src/workspace/views/RunView.ts';
 import { observingElsewhere } from '../src/workspace/tabControl.ts';
+import { UnknownModal } from '../src/workspace/unknownModal.ts';
 import { stripStatus } from '../src/workspace/status.ts';
 import { motionUi } from '../src/workspace/motion.ts';
 
@@ -138,18 +139,23 @@ describe('the Position panel', () => {
     expect(html).toContain('data-position="status"');
   });
 
-  it('UNKNOWN: a sentence and a real "I’ve checked the machine" button, and no zero actions', () => {
-    const html = renderToString(h(PositionPanel, { model: model(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'], primaryOverlay: 'UNKNOWN' })) }));
-    expect(html).toContain('data-region="unknown-exits"');
-    expect(html).toMatch(/data-action="unknown-verify"[^>]*>I’ve checked the machine</);
+  it('UNKNOWN: one question on connect with real buttons (no banner); the panel keeps a small way back to it, and no zero actions', () => {
+    const m = model(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'], primaryOverlay: 'UNKNOWN' }));
+    const html = renderToString(h(PositionPanel, { model: m }));
+    expect(html).toMatch(/data-position="unknown"[\s\S]*data-action="unknown-ask"[^>]*>Check…</);
     expect(html).not.toContain('data-machine-control="zero"');
+    const modal = renderToString(h(UnknownModal, { model: m }));
+    expect(modal).toContain('Has the machine moved since last time?');
+    expect(modal).toMatch(/data-action="unknown-verify"[^>]*>It hasn’t moved</);
+    expect(modal).toContain('data-action="unknown-later"');
   });
 
   it('read only and UNKNOWN together: the card, and "I’ve checked the machine" still clears UNKNOWN without motion', () => {
-    const html = renderToString(h(PositionPanel, { model: model(snap({ ...READ_ONLY, overlays: ['READ_ONLY', 'UNKNOWN'], primaryOverlay: 'UNKNOWN' })) }));
-    expect(html).toContain('data-block="not-approved"');
-    expect(html).toContain('data-action="unknown-verify"');
-    expect(html).not.toContain('data-action="unknown-home"');
+    const m = model(snap({ ...READ_ONLY, overlays: ['READ_ONLY', 'UNKNOWN'], primaryOverlay: 'UNKNOWN' }));
+    expect(renderToString(h(PositionPanel, { model: m }))).toContain('data-block="not-approved"');
+    const modal = renderToString(h(UnknownModal, { model: m }));
+    expect(modal).toContain('data-action="unknown-verify"');
+    expect(modal).not.toContain('data-action="unknown-home"');
   });
 
   it('another tab controls the machine: the card says so', () => {
