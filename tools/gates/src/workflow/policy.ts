@@ -7,7 +7,7 @@
  * - `secret-outside-deploy`: no job other than `deploy-staging` and
  *   `deploy-production` mentions `secrets` (or the Cloudflare token by name),
  *   and nothing outside a job does. The deploy jobs may use only
- *   `secrets.CLOUDFLARE_API_TOKEN`. `secrets: inherit`, `secrets[...]` and
+ *   `secrets.CLOUDFLARE_API_TOKEN` (or the separate D1 token in its pinned migration step). `secrets: inherit`, `secrets[...]` and
  *   `toJSON(secrets)` are refused everywhere.
  * - `deploy-gate`: each deploy job runs only on a push to `main` (its `if:`
  *   is a plain conjunction of equalities that requires both), needs `verify`, `build`, `e2e`,
@@ -67,8 +67,8 @@
  * - `bundle-scan-target` (ci.yml, P1-00): every bundle scan names its
  *   target, and the target is fixed per job (BUNDLE_SCAN_TARGETS): the
  *   build job and the staging deploy scan as `staging`, the production
- *   deploy as `production` (which refuses any Web Serial code: production
- *   gets the Phase 0 shell only until Phase 6). Each of those jobs must scan,
+ *   deploy as `production` (OD-29 admits only the confined serial chunks;
+ *   production motion switches remain off). Each of those jobs must scan,
  *   and no other job may.
  * - `bench-never-in-ci` (every workflow, P1-00, D41, accepted 2026-11-02): no line
  *   builds, checks, scans or serves the localhost bench build
@@ -83,12 +83,15 @@
  * these files use and fails closed on anything else. Dependency-free.
  */
 
+import { D1_SECRET, d1StepIsConfined } from './d1Credentials.ts';
+
 export const DEPLOY_JOBS: readonly string[] = ['deploy-staging', 'deploy-production'];
 export const DEPLOY_ENVIRONMENTS: Readonly<Record<string, string>> = {
   'deploy-staging': 'staging',
   'deploy-production': 'production',
 };
 export const DEPLOY_NEEDS: readonly string[] = ['verify', 'build', 'e2e', 'e2e-fake-serial', 'attest'];
+
 export const DEPLOY_SECRET = 'CLOUDFLARE_API_TOKEN';
 
 /** The e2e job's job-level env: the extracted artifact (tools/e2e/src/served.ts). */
@@ -183,6 +186,7 @@ export const WRITE_PERMISSIONS: Readonly<Record<string, Readonly<Record<string, 
 };
 
 export type PolicyRule =
+  | 'd1-credentials'
   | 'secret-outside-deploy'
   | 'deploy-gate'
   | 'environment-outside-deploy'
@@ -373,15 +377,20 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
       }
     }
 
-    // Secrets: only in the deploy jobs, and only the deploy token.
-    if (/\bsecrets\b/.test(content) || content.includes(DEPLOY_SECRET)) {
+    // Secrets: only in the deploy jobs, and only the deploy token or the confined D1 migration token.
+    if (/\bsecrets\b/.test(content) || (content.includes(DEPLOY_SECRET) || content.includes(D1_SECRET))) {
       if (!isDeploy) {
         add(line.no, 'secret-outside-deploy', `only ${DEPLOY_JOBS.join(' and ')} may reference secrets or ${DEPLOY_SECRET}`);
       } else {
         for (const m of content.matchAll(/\bsecrets\b(\s*\.\s*([A-Za-z0-9_]+))?/g)) {
-          if (m[2] !== DEPLOY_SECRET) add(line.no, 'secret-outside-deploy', `deploy jobs may use secrets.${DEPLOY_SECRET} only`);
+          if (m[2] !== DEPLOY_SECRET && !(m[2] === D1_SECRET && job !== undefined && d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? ''))) {
+            add(line.no, 'secret-outside-deploy', `deploy jobs may use secrets.${DEPLOY_SECRET}; the D1 credential is confined to the reviewed migration step`);
+          }
         }
       }
+    }
+    if (isDeploy && job !== undefined && /\bwrangler\s+d1\b/.test(content) && !d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '')) {
+      add(line.no, 'd1-credentials', 'D1 migrations must use only the separate D1 token in the pinned migration step');
     }
     if (/\bsecrets\s*:\s*inherit\b/.test(content) || /secrets\s*\[/.test(content) || /toJSON\(\s*secrets/.test(content)) {
       add(line.no, 'secret-outside-deploy', 'secrets: inherit, secrets[...] and toJSON(secrets) are not allowed');

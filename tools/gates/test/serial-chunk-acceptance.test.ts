@@ -2,8 +2,8 @@
  * P1-00 and P1-01 on the real builds: the Web Serial transport
  * (packages/machine/src/webSerialTransport.ts), wired into the machine
  * worker's transport seam by P1-01, lands in a chunk of its own under
- * assets/serial/; the bundle scan admits it there for the staging target
- * only, and nowhere else for any target. Each case builds a scratch copy of
+ * assets/serial/; the bundle scan admits it there for staging and production
+ * (OD-29), and nowhere else for any target. Each case builds a scratch copy of
  * the working tree with the repository's own Vite config.
  */
 import { afterEach, describe, expect, it } from 'vitest';
@@ -57,7 +57,7 @@ function filesUnder(root: string, dir: string): string[] {
 
 describe('P1-00, P1-01: the Web Serial chunk on the real build', () => {
   it(
-    'the transport gets its own chunk under assets/serial/, which passes the staging scan and fails the production scan',
+    'the transport gets its own chunk under assets/serial/, which passes the staging scan and (OD-29) the production scan',
     () => {
       const repo = fresh();
       const lint = repo.lint();
@@ -87,10 +87,9 @@ describe('P1-00, P1-01: the Web Serial chunk on the real build', () => {
 
       const staging = repo.scan('staging');
       expect(staging.status, staging.output).toBe(0);
+      // OD-29 (owner, 2026-11-09): production admits the serial chunk as staging does.
       const production = repo.scan('production');
-      expect(production.status, production.output).toBe(1);
-      expect(production.output).toMatch(/serial-chunk +assets\/serial\/web-serial-/);
-      expect(production.output).toMatch(/web-serial +assets\/serial\/web-serial-/);
+      expect(production.status, production.output).toBe(0);
     },
     TIMEOUT,
   );
@@ -114,7 +113,7 @@ describe('P1-00, P1-01: the Web Serial chunk on the real build', () => {
   );
 
   it(
-    'with the Phase 0 seam (no transport) only the chooser chunk is under assets/serial/: staging passes, and production refuses only the chooser',
+    'with the Phase 0 seam (no transport) only the chooser chunk is under assets/serial/: staging and (OD-29) production pass',
     () => {
       const repo = fresh();
       repo.write(SEAM, PHASE0_SEAM);
@@ -126,10 +125,7 @@ describe('P1-00, P1-01: the Web Serial chunk on the real build', () => {
       const staging = repo.scan('staging');
       expect(staging.status, staging.output).toBe(0);
       const production = repo.scan('production');
-      expect(production.status, production.output).toBe(1);
-      const lines = production.output.split('\n').filter((l) => /^\s+[a-z-]+\s+\S+:/.test(l));
-      expect(lines.length).toBeGreaterThan(0);
-      for (const line of lines) expect(line).toMatch(/assets\/serial\/web-serial-chooser-/);
+      expect(production.status, production.output).toBe(0);
     },
     TIMEOUT,
   );

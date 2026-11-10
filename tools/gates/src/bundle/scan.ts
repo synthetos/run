@@ -113,13 +113,13 @@
  *   the only artifact there is: staging and production run the same bytes,
  *   RUN_PLAN §5.2). Web Serial (`web-serial`, and `navigator.serial` for
  *   `capability-lookup`) is admitted in `assets/serial/*.js` only.
- * - `production`: what the production deploy job deploys. Production gets
- *   only the Phase 0 shell until Phase 6 (ROADMAP hard rules, P1-09), so Web
- *   Serial is refused everywhere, and so is any file under `assets/serial/`
- *   (`serial-chunk`). An artifact that carries the transport therefore stops
- *   the production deploy before anything is deployed. The production
- *   header `serial=()` (workers/run/src/headers.ts) is the browser's own
- *   backstop behind this.
+ * - `production`: what the production deploy job deploys. Until OD-29 it got
+ *   only the Phase 0 shell (P1-09) and refused Web Serial everywhere. OD-29
+ *   (owner, 2026-11-09: "yes we want run to be active for certain users we
+ *   allow asap the real site real storage real auth") lifts that: the same
+ *   rule as `staging`, Web Serial in `assets/serial/*.js` only. Who may
+ *   connect is the D1 sign-in gate's decision (accounts admits the D37
+ *   allowlist only).
  * - `bench`: the localhost bench build (apps/web/build/bench.ts,
  *   `dist-bench/`), served only by the loopback bench server. Web Serial as
  *   for staging, and the bench marker (apps/web/src/channel/benchMarker.ts)
@@ -152,9 +152,12 @@ export function isScanTarget(value: string): value is ScanTarget {
   return (SCAN_TARGETS as readonly string[]).includes(value);
 }
 
-/** True when the target admits Web Serial in the serial chunk. */
-function admitsWebSerial(target: ScanTarget): boolean {
-  return target !== 'production';
+/**
+ * True when the target admits Web Serial in the serial chunk. Every target does since OD-29 (owner, 2026-11-09:
+ * production connects for the users accounts admits); the rule still confines it to `assets/serial/`.
+ */
+function admitsWebSerial(_target: ScanTarget): boolean {
+  return true;
 }
 
 /** URL schemes the bundle may use besides relative URLs (ROADMAP P0-13). */

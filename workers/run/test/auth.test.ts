@@ -204,7 +204,7 @@ describe('GET /auth/callback', () => {
 
   it('a failed exchange, or a result that is not this sign-in, sets no session cookie and revokes what was issued', async () => {
     const h = authEnv('staging', clock);
-    for (const mode of ['throw', 'wrong-device', 'wrong-nonce', 'wrong-client'] as const) {
+    for (const mode of ['throw', 'wrong-device', 'wrong-nonce', 'wrong-client', 'malformed'] as const) {
       h.accounts.next = mode;
       const before = h.accounts.revoked.length;
       const { res } = await signIn(h);
@@ -213,6 +213,37 @@ describe('GET /auth/callback', () => {
       expect(h.accounts.revoked.length, mode).toBe(mode === 'throw' ? before : before + 1);
     }
     expect(h.sql.prepare('SELECT count(*) AS n FROM devices').get()).toEqual({ n: 0 });
+  });
+
+  it.each(['bad-token', 'expired', 'fractional-expiry', 'shared-mismatch'] as const)('refuses invalid exchange metadata (%s) and revokes the returned session', async (mode) => {
+    const h = authEnv('staging', clock);
+    const exchange = h.accounts.exchangeCode.bind(h.accounts);
+    h.accounts.exchangeCode = async (...args) => {
+      const result = await exchange(...args);
+      if (mode === 'bad-token') return { ...result, sessionToken: 'invalid;cookie=value' };
+      return { ...result, session: { ...result.session,
+        absoluteExpiresAt: mode === 'expired' ? now : mode === 'fractional-expiry' ? now + 0.5 : result.session.absoluteExpiresAt,
+        sharedComputer: mode === 'shared-mismatch' ? true : result.session.sharedComputer,
+      } };
+    };
+    const { res } = await signIn(h);
+    expect(res.status).toBe(400);
+    expect(setCookie(res, SESSION_COOKIE)).toBeUndefined();
+    expect(h.accounts.revoked).toHaveLength(1);
+    expect(h.sql.prepare('SELECT count(*) AS n FROM devices WHERE user_sub IS NOT NULL').get()).toEqual({ n: 0 });
+  });
+
+  it('revokes the session if constructing the final redirect fails after binding', async () => {
+    const h = authEnv('staging', clock);
+    const s = await start(h);
+    const state = new URL(s.location).searchParams.get('state') ?? '';
+    const code = h.accounts.authorize(s.location);
+    // Simulate a corrupt stored value that Headers cannot serialize.
+    h.sql.prepare('UPDATE auth_requests SET return_to=?').run('/bad\r\nheader');
+    const res = await go(callbackRequest(h, { code, state }, s.nonce), h.env);
+    expect(res.status).toBe(400);
+    expect(setCookie(res, SESSION_COOKIE)).toBeUndefined();
+    expect(h.accounts.revoked).toHaveLength(1);
   });
 
   it('RP contract: a device row that cannot be bound revokes the new session and sets no cookie', async () => {
@@ -226,6 +257,44 @@ describe('GET /auth/callback', () => {
     expect(h.accounts.revoked).toHaveLength(1);
     const id = await go(new Request(`${STAGING_ORIGIN}/api/identity`, { headers: { cookie: `${SESSION_COOKIE}=${h.accounts.revoked[0] ?? ''}` } }), h.env);
     expect(await id.json()).toMatchObject({ identity: null });
+  });
+
+  it('review S1: a database error while binding the device revokes the new session, sets no cookie and is no 500', async () => {
+    const h = authEnv('staging', clock);
+    h.accounts.onExchange = () => {
+      h.sql.exec('DROP TABLE devices');
+    };
+    const { res } = await signIn(h);
+    expect(res.status).toBe(400);
+    expect(setCookie(res, SESSION_COOKIE)).toBeUndefined();
+    expect(h.accounts.revoked).toHaveLength(1);
+  });
+
+  it('review N3: a new sign-in revokes the browser\'s previous run session', async () => {
+    const h = authEnv('staging', clock);
+    const first = await signIn(h);
+    const s = await start(h);
+    const state = new URL(s.location).searchParams.get('state') ?? '';
+    const code = h.accounts.authorize(s.location);
+    const req = callbackRequest(h, { code, state }, s.nonce);
+    req.headers.set('cookie', `${req.headers.get('cookie') ?? ''}; ${SESSION_COOKIE}=${first.session}`);
+    const res = await go(req, h.env);
+    expect(res.status).toBe(303);
+    expect(h.accounts.revoked).toEqual([first.session]);
+    expect(cookieValue(setCookie(res, SESSION_COOKIE))).not.toBe(first.session);
+  });
+
+  it('review N4: the pre-auth cookie is cleared only when it matched a pending sign-in', async () => {
+    const h = authEnv('staging', clock);
+    const a = await start(h);
+    const b = await start(h);
+    const state = new URL(a.location).searchParams.get('state') ?? '';
+    const foreign = await go(callbackRequest(h, { code: 'x', state }, b.nonce), h.env);
+    expect(foreign.status).toBe(400);
+    expect(setCookie(foreign, PREAUTH_COOKIE)).toBeUndefined();
+    const cancelled = await go(callbackRequest(h, { error: 'access_denied', state }, a.nonce), h.env);
+    expect(cancelled.status).toBe(400);
+    expect(setCookie(cancelled, PREAUTH_COOKIE)).toMatch(/Max-Age=0$/);
   });
 
   it('the page never echoes the code or the state', async () => {
@@ -309,5 +378,6 @@ describe('the Worker as deployed', () => {
     expect(idTokenNonce('a.b')).toBeNull();
     expect(idTokenNonce('a.%%%.c')).toBeNull();
     expect(idTokenNonce(`a.${Buffer.from('not json').toString('base64url')}.c`)).toBeNull();
+    expect(idTokenNonce(42)).toBeNull();
   });
 });

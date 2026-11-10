@@ -47,19 +47,22 @@ export const CSP_DIRECTIVES: readonly string[] = [
  * Permissions-Policy features: the wake lock for this origin only; everything
  * else off.
  *
- * PRODUCTION: `serial=()`. RUN_PLAN §6.4 grants `serial=(self)` "from the
- * Phase 1 bench app onward", but production serves only the Phase 0 shell
- * until Phase 6 (ROADMAP hard rules, P1-09), and the source and bundle gates
- * are pattern checks that cannot prove arbitrary JavaScript safe. With
- * `serial=()` the browser itself refuses Web Serial to every document on
- * this origin (and to the workers it creates), however a script reaches the
- * API. This is the set the static `_headers` file carries, so every response
- * the Worker does not build (assets served directly by the asset layer)
- * denies serial too: that path fails closed.
+ * THE FAIL-CLOSED SET: `serial=()`. With it the browser itself refuses Web
+ * Serial to every document (and to the workers it creates), however a
+ * script reaches the API. This is the set the static `_headers` file
+ * carries, so every response the Worker does not build (anything that ever
+ * bypassed it) denies serial: that path fails closed. Every host that is not
+ * one of run's own deployed hosts gets it too.
  *
  * P1-00 (owner-approved): staging and the localhost bench build get
  * `serial=(self)` (SERIAL_GRANTED_PERMISSIONS_POLICY_FEATURES), and only
- * through `grantsSerial` below or the bench server.
+ * through `grantsSerial` below or the bench server. OD-29 (owner,
+ * 2026-11-09: "yes we want run to be active for certain users we allow asap
+ * the real site real storage real auth"): production's own host
+ * `run.synthetos.com` gets it too, through the Worker (which runs first for
+ * every path there as on staging). Who may connect is decided by the D1
+ * sign-in gate (accounts admits the D37 allowlist only); before production's
+ * sign-in go-live nobody can sign in there, so nobody can connect.
  */
 export const PERMISSIONS_POLICY_FEATURES: readonly string[] = [
   'serial=()',
@@ -108,23 +111,27 @@ export const SECURITY_HEADERS: Readonly<Record<string, string>> = securityHeader
  */
 export const SERIAL_GRANTED_SECURITY_HEADERS: Readonly<Record<string, string>> = securityHeaders(SERIAL_GRANTED_PERMISSIONS_POLICY_FEATURES);
 
-/** The staging host (D31: behind Cloudflare Access). The only deployed host that may grant serial. */
+/** The staging host (D31: behind Cloudflare Access). */
 export const STAGING_HOST = 'staging.run.synthetos.com';
+/** The production host (OD-29: grants serial; the D1 gate decides who connects). */
+export const PRODUCTION_HOST = 'run.synthetos.com';
 
 /**
- * True only for a request to `https://staging.run.synthetos.com` handled by
- * the Worker deployed as staging (`RUN_ENV` exactly `staging`). Both must
- * hold: a production Worker never grants serial whatever the host, and a
- * staging Worker reached under any other name (there should be none:
- * workers_dev and preview_urls are off, H45) does not either. Anything
- * unexpected, a missing or odd RUN_ENV included, gets the production
- * headers.
+ * True only for a request to a deployed Worker's OWN host: the Worker
+ * deployed as staging (`RUN_ENV` exactly `staging`) on
+ * `https://staging.run.synthetos.com`, or the Worker deployed as production
+ * (`RUN_ENV` exactly `production`, OD-29) on `https://run.synthetos.com`.
+ * Both halves must match: a production Worker on the staging host, a
+ * staging Worker on the production host, any other host, port or scheme
+ * (there should be none: workers_dev and preview_urls are off, H45), and a
+ * missing or odd RUN_ENV all get the fail-closed set.
  */
 export function grantsSerial(runEnv: unknown, url: URL): boolean {
-  return runEnv === 'staging' && url.protocol === 'https:' && url.hostname === STAGING_HOST && url.port === '';
+  if (url.protocol !== 'https:' || url.port !== '') return false;
+  return (runEnv === 'staging' && url.hostname === STAGING_HOST) || (runEnv === 'production' && url.hostname === PRODUCTION_HOST);
 }
 
-/** The header set for a response: serial granted (staging, bench) or not (production, everything else). */
+/** The header set for a response: serial granted on the matching deployed host, denied everywhere else. */
 export function securityHeadersFor(serialGranted: boolean): Readonly<Record<string, string>> {
   return serialGranted ? SERIAL_GRANTED_SECURITY_HEADERS : SECURITY_HEADERS;
 }

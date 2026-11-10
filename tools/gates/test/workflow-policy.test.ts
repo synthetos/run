@@ -414,3 +414,22 @@ describe('the condition reader', () => {
     }
   });
 });
+
+
+describe('D1 migration credential isolation', () => {
+  const token = 'CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}';
+  it('accepts the separate D1 token only in the pinned migration step', () => {
+    expect(rules(CI)).toEqual([]);
+  });
+  it('refuses using the deploy token for a migration', () => {
+    expect(rules(mutate(CI, token, 'CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}'))).toContain('d1-credentials');
+  });
+  it('refuses exposing the D1 token to a deploy or an additional command', () => {
+    expect(rules(mutate(CI, 'CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}', token))).toContain('secret-outside-deploy');
+    expect(rules(mutate(CI, 'run: ci/deploy-toolchain/node_modules/.bin/wrangler d1 migrations apply RUN_AUTH', 'run: echo extra && ci/deploy-toolchain/node_modules/.bin/wrangler d1 migrations apply RUN_AUTH'))).toContain('d1-credentials');
+  });
+  it('refuses the D1 token in job-level env or an ordinary job', () => {
+    expect(rules(mutate(CI, '    environment:\n      name: staging', '    env:\n      DB: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}\n    environment:\n      name: staging'))).toContain('secret-outside-deploy');
+    expect(rules(mutate(CI, '      - name: Typecheck\n', '      - name: Typecheck\n        env:\n          DB: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}\n'))).toContain('secret-outside-deploy');
+  });
+});

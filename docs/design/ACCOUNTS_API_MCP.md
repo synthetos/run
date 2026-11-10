@@ -2,7 +2,7 @@
 
 Status: **approved by the owner, 2026-11-09** ("yes approve the doc and use the shorter wording"). Revised the same day with the owner's answers (§11).
 
-**Slice 1 as built (2026-11-09, OD-26).** Accounts live, staging first, sign-in open to the owner's GitHub account only. The run Worker binds accounts' `RunEntrypoint` and has its own small D1 database, `run-auth`, for pending sign-ins and device rows (the RP contract requires both on the relying party). That database belongs to the run Worker's sign-in handoff only; slice 2's `run-data` Worker still owns the user data. The owner's go-live steps are in docs/ops/go-live-staging.md.
+**Slice 1 as built (2026-11-09, OD-26).** Accounts live, staging first, sign-in open to the owner's GitHub account only. On staging, the run Worker binds accounts' `RunEntrypoint` (production gets the binding at its own go-live step) and has its own small D1 database, `run-auth`, for pending sign-ins and device rows (the RP contract requires both on the relying party). That database belongs to the run Worker's sign-in handoff only; slice 2's `run-data` Worker still owns the user data. The owner's go-live steps are in docs/ops/go-live-staging.md.
 Calls marked **(my call)** are mine. Those the owner accepted on 2026-11-09 are listed in §11.
 
 ## 1. Intent

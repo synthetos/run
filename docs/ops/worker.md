@@ -6,15 +6,14 @@ ROADMAP P0-04, RUN_PLAN §5.2, §6.3, §6.4, SAFETY H45, H46, T-S25.
 
 | Path | Served by | Headers from |
 |---|---|---|
-| production: `/`, `/404.html`, `/assets/*`, `/licenses/*` and every other static path | the Workers **asset layer**, without running the Worker (`html_handling: auto-trailing-slash`, `not_found_handling: 404-page`) | `apps/web/public/_headers`, copied into the build |
-| production: `/api/*`, `/auth/*` | the Worker first (`run_worker_first`) | `withSecurityHeaders()` in `workers/run/src/headers.ts` |
-| staging: every path (P1-00) | the Worker first (`env.staging.assets.run_worker_first: true`), which fetches static paths from the asset layer | `withSecurityHeaders()`, with `serial=(self)` when `grantsSerial` holds |
+| production and staging: every path (P1-00 staging; OD-29 production) | the Worker first (`run_worker_first: true`), which fetches static paths from the asset layer (`html_handling: auto-trailing-slash`, `not_found_handling: 404-page`) | `withSecurityHeaders()` in `workers/run/src/headers.ts`, with `serial=(self)` when `grantsSerial` holds |
+| anything that ever bypassed the Worker | the asset layer | `apps/web/public/_headers` (the fail-closed set, `serial=()`) |
 
 ### Permissions-Policy per environment (P1-00)
 
 | Where | `serial` | How |
 |---|---|---|
-| production (`run.synthetos.com`) | `serial=()` | `_headers` and the Worker; unchanged until Phase 6 (P1-09) |
+| production (`run.synthetos.com`) | `serial=(self)` | the Worker, only when `RUN_ENV` is exactly `production` AND the request is `https://run.synthetos.com` (`grantsSerial`; OD-29, owner 2026-11-09). Who may connect is the D1 sign-in gate's decision (accounts admits the D37 allowlist only) |
 | staging (`staging.run.synthetos.com`, behind Access) | `serial=(self)` | the Worker, only when `RUN_ENV` is exactly `staging` AND the request is `https://staging.run.synthetos.com` (`grantsSerial`); any other combination gets `serial=()` |
 | the localhost bench build | `serial=(self)` | the bench server (`pnpm bench:serve`), loopback only |
 | `wrangler dev` (e2e) | `serial=()`, or `serial=(self)` in the staging suite, which runs `--env staging` with the Worker seeing the staging URL | `tools/e2e/src/served.ts` |

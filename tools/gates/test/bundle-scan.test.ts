@@ -532,8 +532,8 @@ describe('P1-00: scan targets and the Web Serial chunk', () => {
     expect(targetRules('staging', serialChunk, transportCode)).toEqual([]);
   });
 
-  it('production refuses the same chunk', () => {
-    expect(new Set(targetRules('production', serialChunk, transportCode))).toEqual(new Set(['web-serial', 'capability-lookup']));
+  it('OD-29: production admits the same chunk, as staging does', () => {
+    expect(targetRules('production', serialChunk, transportCode)).toEqual([]);
   });
 
   it.each([
@@ -556,12 +556,11 @@ describe('P1-00: scan targets and the Web Serial chunk', () => {
     expect(targetRules('staging', serialChunk, `"${TESTKIT_MARKER}"`)).toEqual(['testkit-marker']);
   });
 
-  it('production refuses any file under assets/serial/, and staging accepts a clean tree that has one', () => {
+  it('OD-29: production and staging both accept a clean tree with the serial chunk, and refuse Web Serial outside it', () => {
     const tree = [page, headersFile, file(serialChunk, transportCode)];
     expect(scanBundleFor(tree, 'staging')).toEqual([]);
-    const production = scanBundleFor(tree, 'production').map((f) => f.rule);
-    expect(production).toContain('serial-chunk');
-    expect(production).toContain('web-serial');
+    expect(scanBundleFor(tree, 'production')).toEqual([]);
+    expect(targetRules('production', 'assets/machine.worker-abc12345.js', transportCode)).toContain('web-serial');
   });
 
   it('production passes a tree without the serial chunk (the Phase 0 shell)', () => {

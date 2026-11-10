@@ -60,6 +60,9 @@ export async function login(request: Request, config: AuthConfig, now: number): 
   const query = parseQuery(new URL(request.url), config.runOrigin);
   if (query === null) return authProblem(400, 'This sign-in link is not valid.');
   const store = new AuthStore(config.db);
+  // Cloudflare always sets CF-Connecting-IP on a request from the internet. Without it (only a request that did
+  // not come through Cloudflare's edge), every such request shares the one 'unknown' bucket: the limit then holds
+  // for all of them together, which fails closed (more refusals, never fewer).
   const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
   const bucket = `${(await keyedHash(config.rateKey, ip)).slice(0, 32)}:${Math.floor(now / LOGIN_WINDOW_SECONDS)}`;
   if ((await store.countLogin(bucket, now)) > LOGIN_LIMIT) {

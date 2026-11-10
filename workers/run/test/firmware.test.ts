@@ -275,13 +275,15 @@ describe('GET /firmware/... through the Worker', () => {
     expect((await route(new Request(`${STAGING}${PATH}`), env('staging'), undefined, mismatch.deps)).status).toBe(404);
   });
 
-  it('through the handler every answer carries the security headers (serial granted on staging, not in production)', async () => {
+  it('through the handler every answer carries the security headers (serial granted on each Worker\'s own host, P1-00 and OD-29)', async () => {
     const staging = await worker.fetch(new Request(`${STAGING}/firmware/synthetos/TinyG/440.20/tinyg-440.20.hex`), env('staging'));
     expect(staging.status).toBe(404);
     for (const [name, value] of Object.entries(SERIAL_GRANTED_SECURITY_HEADERS)) expect(staging.headers.get(name), name).toBe(value);
     const production = await worker.fetch(new Request(`https://run.synthetos.com${PATH}`), env('production'));
     expect(production.status).toBe(404);
-    for (const [name, value] of Object.entries(SECURITY_HEADERS)) expect(production.headers.get(name), name).toBe(value);
+    for (const [name, value] of Object.entries(SERIAL_GRANTED_SECURITY_HEADERS)) expect(production.headers.get(name), name).toBe(value);
+    const elsewhere = await worker.fetch(new Request(`https://run.example.workers.dev${PATH}`), env('production'));
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) expect(elsewhere.headers.get(name), name).toBe(value);
   });
 
   it('other /firmware paths still go to the asset layer', async () => {

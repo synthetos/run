@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   grantsSerial,
+  PRODUCTION_HOST,
   HEADERS_FILE_MAX_LINE,
   renderHeadersFile,
   securityHeadersFor,
@@ -86,17 +87,23 @@ describe('SERIAL_GRANTED_SECURITY_HEADERS (P1-00: staging and the bench build)',
   });
 });
 
-describe('grantsSerial and securityHeadersFor (P1-00)', () => {
+describe('grantsSerial and securityHeadersFor (P1-00, OD-29)', () => {
   const url = (u: string): URL => new URL(u);
 
-  it('grants serial only to the staging Worker on https://staging.run.synthetos.com', () => {
+  it('grants serial only to each deployed Worker on its own host: staging (P1-00) and, since OD-29, production', () => {
     expect(STAGING_HOST).toBe('staging.run.synthetos.com');
+    expect(PRODUCTION_HOST).toBe('run.synthetos.com');
     expect(grantsSerial('staging', url('https://staging.run.synthetos.com/'))).toBe(true);
     expect(grantsSerial('staging', url('https://staging.run.synthetos.com/safety/?x=1'))).toBe(true);
+    expect(grantsSerial('production', url('https://run.synthetos.com/'))).toBe(true);
+    expect(grantsSerial('production', url('https://run.synthetos.com/library'))).toBe(true);
   });
 
   it.each([
-    ['the production Worker on its own host', 'production', 'https://run.synthetos.com/'],
+    ['the production Worker on a workers.dev name', 'production', 'https://run.example.workers.dev/'],
+    ['the production Worker on a look-alike host', 'production', 'https://run.synthetos.com.evil.example/'],
+    ['the production Worker on another port', 'production', 'https://run.synthetos.com:8443/'],
+    ['the production Worker over plain http', 'production', 'http://run.synthetos.com/'],
     ['the production Worker on the staging host', 'production', 'https://staging.run.synthetos.com/'],
     ['the staging Worker on the production host', 'staging', 'https://run.synthetos.com/'],
     ['the staging Worker on a workers.dev name', 'staging', 'https://run-staging.example.workers.dev/'],

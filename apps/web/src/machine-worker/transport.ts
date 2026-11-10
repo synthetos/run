@@ -15,11 +15,12 @@
  *   through `GuardedTransport`, after the prepare/confirm handshake holds
  *   this exact port (docs/safety/PORT_SELECTION.md).
  *
- *   The same artifact runs on staging and production. Production serves
- *   `Permissions-Policy: serial=()`, so the browser refuses `getPorts()`
- *   there, and the production deploy's bundle scan refuses any artifact
- *   that carries the transport's chunk (`assets/serial/`), so production
- *   keeps the Phase 0 shell (P1-09). Staging and the localhost bench build
+ *   The same artifact runs on staging and production. Since OD-29 (owner,
+ *   2026-11-09) production grants `serial=(self)` to run.synthetos.com's
+ *   own documents and its deploy admits the transport's chunk, as staging
+ *   does; who may connect is the D1 sign-in gate's decision (accounts
+ *   admits the D37 allowlist only). Every other host gets `serial=()`, so
+ *   the browser refuses `getPorts()` there. Staging and the localhost bench build
  *   serve `serial=(self)`.
  * - The fake-serial TEST build (`vite build --mode fake-serial`) swaps this
  *   whole module for tools/e2e/fake-serial/transport.ts, which hands the

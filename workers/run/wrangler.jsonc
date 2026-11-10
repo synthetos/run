@@ -5,15 +5,13 @@
 //     workers.dev, preview or version URL is a separate origin with its own
 //     Web Serial grant (SAFETY H45). tools/gates/test/worker-config.test.ts fails
 //     otherwise.
-//   - In production only /api/* and /auth/* run the Worker first. Assets are
-//     served by the asset layer, which applies apps/web/public/_headers
-//     (generated from src/headers.ts, production headers, serial=()) to every
-//     asset response.
-//   - On staging the Worker runs first for EVERY path (P1-00, owner-approved):
-//     it is what grants Web Serial to staging documents, `serial=(self)`,
-//     and only when RUN_ENV is staging and the host is
-//     staging.run.synthetos.com (src/headers.ts grantsSerial). Anything that
-//     ever bypassed it would get the `_headers` production set: serial=().
+//   - The Worker runs first for EVERY path, on staging (P1-00) and in
+//     production (OD-29, owner 2026-11-09): it is what grants Web Serial to
+//     its own host's documents, `serial=(self)`, and only when RUN_ENV and the
+//     host match (src/headers.ts grantsSerial). Anything that ever bypassed it
+//     would get apps/web/public/_headers (generated from src/headers.ts, the
+//     fail-closed set): serial=(). Who may connect is the D1 sign-in gate's
+//     decision (accounts admits the D37 allowlist only).
 //   - account_id is the CURRENT Cloudflare account, which also holds the
 //     synthetos.com zone (D39, which supersedes D34: Workers custom domains
 //     need the zone in the same account). It is locked down:
@@ -52,20 +50,15 @@
     "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page",
-    "run_worker_first": ["/api/*", "/auth/*"]
+    "run_worker_first": true
   },
   "routes": [{ "pattern": "run.synthetos.com", "custom_domain": true }],
   "vars": { "RUN_ENV": "production" },
-  // A1-06/A1-07: sign-in with accounts.synthetos.com. The one service binding run may hold is accounts' named
-  // RunEntrypoint (the entrypoint pins the client in accounts' code; D39, tools/gates/src/bindings/check.ts).
-  // RUN_AUTH is run's own D1 database for pending sign-ins and device rows (workers/run/migrations). Its id is a
-  // placeholder until the owner creates the database (docs/ops/go-live-staging.md); the deploy preflight refuses
-  // the placeholder of the environment it deploys. Two Worker secrets are set by the owner, never in this file:
-  // RUN_STATE_KEY and RUN_RATE_KEY. Without all of these, sign-in stays off and /auth/* is a 404.
-  "services": [{ "binding": "ACCOUNTS", "service": "accounts", "entrypoint": "RunEntrypoint" }],
-  "d1_databases": [
-    { "binding": "RUN_AUTH", "database_name": "run-auth", "database_id": "RUN_AUTH_DATABASE_ID_PLACEHOLDER", "migrations_dir": "migrations" }
-  ],
+  // A1-06/A1-07: production has NO sign-in bindings yet, so sign-in is off there and production deploys as
+  // before. The owner's go-live step adds them (docs/ops/go-live-staging.md §7): exactly
+  //   "services": [{ "binding": "ACCOUNTS", "service": "accounts", "entrypoint": "RunEntrypoint" }],
+  //   "d1_databases": [{ "binding": "RUN_AUTH", "database_name": "run-auth", "database_id": "<id>", "migrations_dir": "migrations" }],
+  // together with the RUN_AUTH migration step in deploy-production (.github/workflows/ci.yml).
   "env": {
     // staging.run.synthetos.com, behind Cloudflare Access (D31,
     // docs/ops/access.md). Deployed as the Worker `run-staging`.
@@ -74,7 +67,12 @@
       "preview_urls": false,
       "routes": [{ "pattern": "staging.run.synthetos.com", "custom_domain": true }],
       "vars": { "RUN_ENV": "staging" },
-      // Staging binds staging accounts and its own database (separate from production).
+      // Sign-in (A1-06/A1-07): the one service binding run may hold is accounts' named RunEntrypoint (the
+      // entrypoint pins the client in accounts' code; D39, tools/gates/src/bindings/check.ts). RUN_AUTH is run's
+      // own D1 database for pending sign-ins and device rows (workers/run/migrations). Its id is a placeholder
+      // until the owner creates the database (docs/ops/go-live-staging.md); the deploy preflight refuses it. Two
+      // Worker secrets are set by the owner, never in this file: RUN_STATE_KEY and RUN_RATE_KEY. Without all of
+      // these, sign-in stays off and /auth/* is a 404.
       "services": [{ "binding": "ACCOUNTS", "service": "accounts-staging", "entrypoint": "RunEntrypoint" }],
       "d1_databases": [
         { "binding": "RUN_AUTH", "database_name": "run-auth-staging", "database_id": "RUN_AUTH_STAGING_DATABASE_ID_PLACEHOLDER", "migrations_dir": "migrations" }

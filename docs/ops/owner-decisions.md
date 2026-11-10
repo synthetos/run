@@ -504,7 +504,8 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 **Slice 1 (accounts live), as built.**
 - Staging first: run-staging and accounts-staging, behind Cloudflare Access (D31).
 - Sign-in is open to one GitHub account: `ril3y`, numeric id `231731` (D37 admission is by numeric id, enforced by accounts before any user or session exists).
-- The run Worker gets the A1-06 handoff (`/auth/login`, `/auth/callback`, `/auth/logout`), the `ACCOUNTS` binding to accounts' `RunEntrypoint`, and its own D1 database `run-auth` for pending sign-ins and device rows.
+- The run Worker gets the A1-06 handoff (`/auth/login`, `/auth/callback`, `/auth/logout`), the `ACCOUNTS` binding to accounts' `RunEntrypoint`, and its own D1 database `run-auth` for pending sign-ins and device rows. Staging only: production carries no sign-in bindings until the owner's go-live step (docs/ops/go-live-staging.md §7), so its deploys are unchanged and sign-in is off there.
+- Production Connect was initially deferred; OD-29 below supersedes that restriction with read-only Connect for admitted run sessions.
 - The production Connect notice stays for signed-out and non-allowlisted visitors, with one small "Beta testers can sign in" link.
 - No deploy, DNS or Cloudflare change was made by the build. The owner's steps are in docs/ops/go-live-staging.md.
 
@@ -542,6 +543,21 @@ SAFETY is unchanged: Analyze is advisory, cannot authorize motion, clear Job fin
 See docs/design/place-job.md.
 
 *Confirmed 2026-11-09 (owner):* with "Use the machine's work zero", the plan is the board's zero, so the start check never asks C31 ("the board's work zero is not your plan's"). Owner, verbatim: "yes that's right".
+
+## OD-29. run is active in production for the users we allow (owner, 2026-11-09)
+
+**Owner's words.** "yes we want run to be active for certain users we allow asap the real site real storage real auth"
+
+**Context.** Production served `serial=()` and its deploy refused any artifact carrying the Web Serial transport (P1-09), so production could never open a port, even for a signed-in user. OD-22 kept production Connect locked until accounts shipped, and slice 1 (OD-26) brings accounts.
+
+**Decision.**
+- Production grants `serial=(self)` to its own host, `https://run.synthetos.com`, through the Worker, which now runs first for every path there as on staging. Every other host keeps `serial=()`, and so does the static `_headers` file (fail closed).
+- The production bundle scan admits the transport's chunk, as staging's does.
+- The identity gate decides who can connect: production's only provider is the run session, and accounts admits only the D37 allowlist (`ril3y`). Signed-out and non-allowlisted visitors keep the "accounts are coming soon" notice and cannot connect.
+- Production opens only after the checks in docs/ops/go-live-staging.md §7: the D39/H46 deploy controls verified, the listed HIL items run on staging against a bench board, and the allowlist holding only `ril3y`. The public-launch items (D25 legal review, the privacy text) stay for the public opening.
+- Real storage (slice 2, the cloud library and sync) starts right after slice 1 merges.
+
+**Not changed here.** Production keeps PHASE_1_RELEASE: the motion, settings, jobs and flasher switches stay off for production (T-S93), so a production connect is read-only until the owner turns each on. SAFETY H45 (amended), H46 (residual) and T-S146 record it.
 
 ## OD-30. C1 is shown once per browser, never again (owner, 2026-11-09)
 

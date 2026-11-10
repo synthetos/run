@@ -56,15 +56,11 @@ describe('which configurations bind accounts', () => {
 });
 
 describe("run's own configuration", () => {
-  it('A1-06: binds exactly accounts\' RunEntrypoint per environment, and its key allowlist refuses any other binding', () => {
+  it('A1-06: binds exactly accounts\' RunEntrypoint on staging, and its key allowlist refuses any other binding', () => {
     const text = readFileSync(join(REPO_ROOT, 'workers/run/wrangler.jsonc'), 'utf8');
     const config = parseJsonc(text) as Record<string, unknown>;
-    expect(bindingsToAccounts(config)).toEqual([
-      'services[0].service = "accounts"',
-      'services[0].entrypoint = "RunEntrypoint"',
-      'env.staging.services[0].service = "accounts-staging"',
-      'env.staging.services[0].entrypoint = "RunEntrypoint"',
-    ]);
+    // Staging only until the owner's production go-live (docs/ops/go-live-staging.md §7).
+    expect(bindingsToAccounts(config)).toEqual(['env.staging.services[0].service = "accounts-staging"', 'env.staging.services[0].entrypoint = "RunEntrypoint"']);
     const withoutEntrypoint = { ...config, services: [{ binding: 'ACCOUNTS', service: 'accounts' }] };
     expect(checkWorkerConfig(withoutEntrypoint, { requireRealAccount: false }).map((f) => f.where)).toContain('.');
   });

@@ -45,7 +45,7 @@ export interface FakeAccounts extends AccountsBinding {
   readonly exchanges: number;
   readonly revoked: readonly string[];
   /** Makes the next exchange misbehave. */
-  next: 'ok' | 'throw' | 'wrong-device' | 'wrong-nonce' | 'wrong-client';
+  next: 'ok' | 'throw' | 'wrong-device' | 'wrong-nonce' | 'wrong-client' | 'malformed';
   /** Called during an exchange (for races). */
   onExchange: (deviceId: string) => void;
 }
@@ -103,7 +103,7 @@ export function fakeAccounts(clock: () => number, redirectUri: string): FakeAcco
       sessions.set(token, session);
       const claims = { iss: 'https://staging.accounts.synthetos.com', aud: 'run', sub: session.sub, nonce: mode === 'wrong-nonce' ? 'other' : issued.nonce };
       const idToken = `${b64url(Buffer.from('{"alg":"ES256","typ":"JWT"}'))}.${b64url(Buffer.from(JSON.stringify(claims)))}.sig`;
-      const result: ExchangeResult = { sessionToken: token, idToken, expiresIn: 7 * 86400, session };
+      const result: ExchangeResult = { sessionToken: token, idToken: mode === 'malformed' ? (42 as unknown as string) : idToken, expiresIn: 7 * 86400, session };
       return result;
     },
     async validateSession(token) {

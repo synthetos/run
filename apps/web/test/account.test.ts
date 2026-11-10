@@ -9,7 +9,9 @@ import { fetchAccount, postSignOut } from '../src/cloud/account.ts';
 import { accountState, CHECKING, refreshAccount, signInHref, signOut, SIGN_OUT_FAILED, SIGN_OUT_WHILE_LIVE, stateFrom } from '../src/live/account.ts';
 import { AccountPanel, NOT_OFFERED, SIGNED_OUT, UNAVAILABLE } from '../src/live/AccountPanel.ts';
 import { ACCOUNT_TEXT, BETA_SIGN_IN } from '../src/live/accountNotice.ts';
-import { AuthGate, runSessionProvider } from '../src/live/authGate.ts';
+import { accessProvider, AuthGate, providersFor, runSessionProvider, signInAvailable } from '../src/live/authGate.ts';
+import { LiveEntry } from '../src/live/liveEntry.ts';
+import { memoryDeviceSafety } from '../src/live/deviceSafety.ts';
 import { ConnectPanel } from '../src/live/ConnectPanel.ts';
 import { all, byAttr, root, text } from './tree.ts';
 
@@ -140,5 +142,48 @@ describe('production Connect for signed-out and non-allowlisted visitors', () =>
     const state = { step: 'refused' as const, refusal: { kind: 'signed-out' as const, signIn: true } };
     expect(all(root(h(ConnectPanel, { ...props, state, signInHref: '/auth/login' })), byAttr('data-action', 'sign-in'))).toHaveLength(1);
     expect(all(root(h(ConnectPanel, { ...props, state })), byAttr('data-action', 'sign-in'))).toHaveLength(0);
+  });
+});
+
+describe('OD-29: production Connect for the users accounts admits, and nobody else', () => {
+  const release = { kind: 'release' as const, benchIdentity: null };
+  const access = accessProvider(() => Promise.resolve({ provider: 'access', subject: 'never-in-production' }));
+
+  function production(identity: { provider: string; subject: string } | null) {
+    const calls: string[] = [];
+    const providers = providersFor(release, 'production', access, runSessionProvider(() => Promise.resolve(identity)));
+    const entry = new LiveEntry({
+      auth: new AuthGate(providers),
+      checkAdvisory: () => {
+        calls.push('advisory');
+        return Promise.resolve({ ok: true, source: 'fetched' });
+      },
+      store: memoryDeviceSafety(),
+      now: () => new Date('2026-11-09T12:00:00Z'),
+      choosePort: () => Promise.resolve({ ok: false, message: 'not in this test' }),
+      open: () => Promise.resolve({ ok: false, message: 'not in this test' }),
+      leaveFullscreen: () => Promise.resolve(),
+      unlockAlarm: () => undefined,
+      onLive: () => undefined,
+    });
+    return { entry, calls, providers };
+  }
+
+  it('a signed-in allowlisted user (a run session exists) goes on to the advisory and C1', async () => {
+    const t = production({ provider: 'run-session', subject: 'usr_01JTESTUSER0000000000000000' });
+    await t.entry.begin();
+    expect(t.calls).toEqual(['advisory']);
+    expect(t.entry.state.step).toBe('c1');
+  });
+
+  it('signed out, or not admitted by accounts (no run session), is refused with the accounts notice; an Access identity never counts there', async () => {
+    for (const identity of [null, { provider: 'access', subject: 'x' }]) {
+      const t = production(identity);
+      expect(t.providers.map((p) => p.kind)).toEqual(['run-session']);
+      expect(signInAvailable(t.providers)).toBe(false);
+      await t.entry.begin();
+      expect(t.calls).toEqual([]);
+      expect(t.entry.state).toEqual({ step: 'refused', refusal: { kind: 'signed-out', signIn: false } });
+    }
   });
 });

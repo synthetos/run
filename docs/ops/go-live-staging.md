@@ -5,7 +5,7 @@ ROADMAP A1-06, A1-07; OD-26 (owner, 2026-11-09: "yes staging first, just my gith
 This page is for the owner. Every step here is a deploy, a DNS or Cloudflare change, a GitHub setting or a secret, so nobody else does it. Do the steps in order. Each step says how to check it.
 
 **Rules for the whole page.**
-- Never paste a secret into a chat, an issue, a commit or a terminal that echoes it. The commands below copy each secret straight to the clipboard (`pbcopy`). Paste it into the one field it belongs in, then copy something else.
+- Never paste a secret into a chat, an issue, a commit or a terminal that echoes it. The commands below copy each secret straight to the clipboard (`pbcopy`). Paste it into the one field it belongs in, then clear the clipboard at once: `pbcopy < /dev/null`. If you use a clipboard manager that keeps history, pause it for these steps or delete those entries afterwards.
 - Never use `wrangler login` on a laptop for run or accounts (D39). Cloudflare changes are made in the dashboard, signed in with the hardware key.
 - Staging only. Production comes later (§7) and needs its own go-ahead.
 
@@ -21,7 +21,7 @@ This page is for the owner. Every step here is a deploy, a DNS or Cloudflare cha
 
 ### 1.1 Publish the accounts repository
 
-1. On github.com, create the repository `synthetos/accounts`. Public, no README, no licence (the repository already has its Apache-2.0 licence, D3).
+1. On github.com, create the repository `synthetos/accounts`. Private, no README, no licence (the repository already has its Apache-2.0 licence, D3).
 2. From your own terminal:
    ```sh
    cd /Volumes/External/projects/accounts
@@ -48,7 +48,7 @@ github.com → Settings → Developer settings → GitHub Apps → New GitHub Ap
 | GitHub App name | `Synthetos Staging` |
 | Homepage URL | `https://staging.run.synthetos.com` |
 | Callback URL | `https://staging.accounts.synthetos.com/auth/github/callback` |
-| Expire user authorization tokens | as the production app |
+| Expire user authorization tokens | **checked** (GitHub's default; accounts reads `/user` once and discards the token either way) |
 | Request user authorization (OAuth) during installation | off |
 | Enable Device Flow | off |
 | Webhook | **Active: off** (staging is behind Access, so GitHub could not reach it) |
@@ -64,16 +64,15 @@ Then:
 
 ## 2. Cloudflare (dashboard, hardware key)
 
-### 2.1 The CI token needs D1
+### 2.1 Separate deploy and database credentials
 
-The deploy jobs now apply D1 migrations and register run's client with `wrangler d1`. Edit the existing CI token (My Profile → API Tokens):
-- add **Account → D1 → Edit**, on this account only;
-- keep Workers Scripts → Edit and Access: Apps and Policies → Read;
-- if the token is narrowed to named scripts, add `accounts` and `accounts-staging`.
+Keep `CLOUDFLARE_API_TOKEN` for Workers Scripts → Edit and Access: Apps and Policies → Read only. Remove D1 Edit from it. Record the actual scope in docs/ops/account.md §2 step 4.
 
-Record the change in docs/ops/account.md §2 step 4 ("what it can actually reach").
+Create a second token with only Account → D1 → Edit on this account. Store it as `CLOUDFLARE_D1_API_TOKEN` in the `staging` and `production` GitHub environments of both repositories. Only the reviewed migration and client-registration steps receive it; deploy and Access checks use the deploy token. Merge the accounts companion workflow change before enabling its deploy jobs.
 
-**Check.** The token's summary lists exactly those three permissions on this account.
+D1 Edit may reach every database in the account. The separate credential limits exposure to the database steps; it does not make database access harmless or guarantee that individual writes appear in Cloudflare audit logs (SAFETY H46).
+
+**Check.** The deploy token has no D1 permission. The D1 token has no Worker, Access or DNS permission. Both repositories reference the D1 secret only in database steps. Keep both tokens out of repository secrets and local deploy tools.
 
 ### 2.2 Create the two staging D1 databases
 
@@ -93,14 +92,21 @@ Zero Trust → Access → Applications → Add → Self-hosted, exactly as docs/
 
 Same policies: allow the owner only, no Bypass, no Everyone. If `run-staging` (staging.run.synthetos.com) is not set up yet, do it now too (docs/ops/access.md).
 
-**Check.** In a private window, `https://staging.accounts.synthetos.com/` redirects to the Access login. (Before step 4 it may not resolve at all: that is fine.)
+**Check (stop if it fails).** In Zero Trust → Access → Applications, `accounts-staging` exists for the whole host with only your allow policy. Then, from your terminal:
+
+```sh
+curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' https://staging.accounts.synthetos.com/
+```
+
+- Before step 4 the name may not resolve yet (`curl` reports a DNS error). That is fine; the deploy job checks Access again through the API before anything else and refuses if the application is missing.
+- After step 4 it **must** print `302` and a `https://…cloudflareaccess.com/…` address. Anything else (a 200, a 503, another address) means staging accounts is public: stop, take the custom domain off the Worker in the dashboard, and fix Access before going on. The deploy job also checks this after the deploy and deletes the staging Worker if it fails.
 
 ### 2.4 DNS
 
 There are **no DNS records to add by hand**. Both hostnames are Workers custom domains: the deploy creates their records (docs/ops/account.md §2 step 6).
 
 Check that nothing else already holds the two names:
-- DNS → Records: there is no A, AAAA or CNAME record for `staging.accounts` or `staging.run` (a custom domain refuses an existing record).
+- DNS → Records: there is no A, AAAA or CNAME record for `staging.accounts` (a custom domain refuses an existing record). `staging.run` already has its record if run-staging has been deployed before: that one is expected, it belongs to the run-staging Worker.
 - The CAA records on `synthetos.com` stay as they are: they already cover these names.
 - Add `staging.accounts.synthetos.com` to your Certificate Transparency monitoring if it is not there yet (docs/ops/account.md §2 step 7).
 
@@ -133,10 +139,12 @@ run's staging Worker binds `accounts-staging`, so accounts must exist first.
 2. Merge the PR from step 3 to `main` (or push `main`).
 3. The `deploy-staging` job runs, in this order:
    - verify the artifact's attestation;
+   - the Cloudflare Access check (it refuses if no Access application covers staging accounts);
    - preflight;
    - apply the migrations to `identity-staging`;
    - register run's client (`clients/staging.sql`);
-   - deploy.
+   - deploy;
+   - the Access check again (an anonymous request must go to the Access login); if it fails, the job deletes the staging Worker.
 4. The `deploy-production` job then waits for your approval. **Do not approve it.** Reject it (its preflight would refuse the production placeholders anyway).
 
 **Check.** The `deploy-staging` job is green, and `staging.accounts.synthetos.com` shows in Workers & Pages → `accounts-staging` → Domains. Until step 4.2 the Worker answers every request with a 503: without its secrets it fails closed.
@@ -174,6 +182,8 @@ Merge the `accounts-live` branch (with the database id from step 3) to run's `ma
 - the deploy (it binds `accounts-staging`'s `RunEntrypoint`);
 - the smoke test.
 
+run's `deploy-production` is not affected: production carries no sign-in bindings yet (`workers/run/wrangler.jsonc`), so it deploys exactly as before, with sign-in off, until §7.
+
 **Check.** The job is green. Sign-in is still off until step 5.2: `/auth/login` is a 404, and the app's Preferences → Account says signing in is not available.
 
 ### 5.2 Set the run-staging secrets
@@ -207,12 +217,54 @@ If a check fails, nothing on the machine path depends on sign-in: Pause, Stop jo
 - In run's `RELEASES.md` (the next entry) and in accounts' README: the staging go-live date, the two `deploy-staging` run URLs, and that §5.3 passed.
 - docs/ops/account.md §3 audit: the token change (2.1) and the expected secret-change alerts (4.2, 5.2).
 
-## 7. Production, later (not now)
+## 7. Production: run active for the users we allow (OD-29)
 
-Production needs its own go-ahead. When you give it, the same order applies:
-1. Create the D1 databases `identity` and `run-auth`; put their ids in the two files (the `*_DATABASE_ID_PLACEHOLDER` values).
-2. accounts production uses the existing app `Synthetos` (5562809) and its callback `https://accounts.synthetos.com/auth/github/callback`. Its webhook can stay active: production is not behind Access.
-3. Approve accounts `deploy-production`, then set its six secrets with **new** values (the production app's client secret, and the production webhook secret).
-4. Merge and approve run's `deploy-production`, then set its two secrets with new values.
+The owner, 2026-11-09: "yes we want run to be active for certain users we allow asap the real site real storage real auth". Production grants Web Serial to `run.synthetos.com` itself (the Worker decides it, `grantsSerial`), and the sign-in gate decides who connects: only a run session counts there, and accounts admits only the allowlist. Until §7.4 is done nobody can sign in to production, so nobody can connect. Production stays read-only (Phase 1): motion, settings writes, jobs and the flasher are each a separate owner decision (T-S93).
 
-The allowlist stays `["231731"]` until public beta (D37). Production run still serves `serial=()` until Phase 6 (P1-09), so production can sign in but cannot open a serial port yet. That is a separate decision.
+### 7.1 Before production opens: three checks
+
+All three must be done and recorded in `RELEASES.md` before the production deploy of §7.3 is approved.
+
+**(a) The D39/H46 production deploy controls, verified** (docs/ops/account.md §2 and §3). Since OD-29 the production origin holds the serial grant for admitted users, so a deploy, DNS or account compromise is the S4 case of H46 there too.
+- [ ] Deploys only from CI: no local `wrangler login` used for run or accounts; the release audit (account.md §3) shows every change to `run`, `accounts` and their staging copies made by the CI token.
+- [ ] The CI token is scoped as recorded (Workers Scripts Edit, D1 Edit, Access Read), and lives only in the `staging` and `production` environment secrets of both repositories. The D1 residual has its chosen option (§2.1).
+- [ ] The audit-log alerts are active for `run`, `run-staging`, `accounts` and `accounts-staging` (and the D1 alert if you chose option A), and fire on a test.
+- [ ] Your Cloudflare login, registrar login and GitHub login use a hardware key, with no TOTP or SMS fallback; account members are the minimum.
+- [ ] DNSSEC, CAA, the registrar lock and CT monitoring are on (the smoke test checks the first three on each deploy).
+
+**(b) The §9 HIL items for connect, stop and pause/resume, run on staging against a bench board.** TG-Firmware runs the benches (SAFETY §9.1: the bench rig with the hardwired E-stop, staging running the exact attested artifact that production will run). Ask them for exactly these, signed in `RELEASES.md` with the evidence §9 names:
+
+| Area | HIL items (SAFETY §9) |
+|---|---|
+| Connect | HIL-1.1 (connect and identify edge-next), HIL-1.3 (C1 per session), HIL-1.5 (USB pull and board reset: UNKNOWN, FAULT), HIL-1.6 (connect while another tool runs a job: no writes), HIL-1.11 (port exclusivity across browsers and tools), HIL-1.12 (partial-line splice), HIL-1.13 (the status-report setup at connect) |
+| Stop | HIL-1.7 (stop request from a second tab with the controlling tab frozen), HIL-1.10 (orphaned motion: only Stop job and Reset offered), HIL-2.6 (Stop job, ^D, in RUN, HOLD, a dwell and a spin-up), HIL-2.8 (Spindle off now), HIL-2.12 (hold timeout), HIL-2.13 (hardwired E-stop), HIL-2.14 (jog release and Stop job during a jog), HIL-3.4 (Stop job mid-job) |
+| Pause and resume | HIL-1.9 (feedhold latency), HIL-2.7 (Pause during a dwell, then resume), HIL-3.2 (feedhold during streaming, under XOFF), HIL-3.3 (hold and resume mid-job) |
+| Sign-in (new with OD-26) | HIL-3.8 (session expiry, sign-out in another tab and a network loss during a job change nothing on the machine path) |
+| Production equals staging | HIL-6.4 (the production deployment is the staging artifact by code hash; production rejects bench manifest entries; headers verified) |
+
+Production itself is read-only (Phase 1), so on production only connect, Pause and the stop class apply today; the motion and job items above are what the owner will need when motion or jobs are turned on for production.
+
+**(c) The allowlist holds only `ril3y`.** In accounts' `workers/accounts/wrangler.json`, production `vars.GITHUB_ALLOWED_IDS` is exactly `["231731"]`. The deploy preflight refuses an empty or malformed list; check the value by eye too.
+
+**Not needed for this opening:** the public-launch items stay for the public opening: the D25 legal review (E-stop wording, privacy text, product liability) and the published privacy text (RUN_PLAN §9.1). The allowlist keeps production closed to the public until then (D37).
+
+### 7.2 Signed production data the page needs
+
+Connect needs a signed `safety-advisory.json` for production and a production entry in the approved-builds manifest for the board's firmware (RUN_PLAN §5.2: per-environment signed data files; production rejects bench entries). These are signed with the **release key**, which only you hold (docs/ops/release-key.md); never with the bench key. Without them Connect is refused ("The safety advisory could not be verified") or the board is READ_ONLY.
+
+### 7.3 Accounts production and run production, in order
+
+1. Create the D1 databases `identity` and `run-auth`. Put `identity`'s id in accounts' file (`IDENTITY_DATABASE_ID_PLACEHOLDER`).
+2. In run, one reviewed PR adds production's `services` and `d1_databases` to `workers/run/wrangler.jsonc` (the exact lines are in its comment, with `run-auth`'s id) and the `RUN_AUTH` migration step to `deploy-production` in `.github/workflows/ci.yml` (the same step as `deploy-staging`'s, without `--env staging`). The preflight then requires the real id.
+3. accounts production uses the existing app `Synthetos` (5562809) and its callback `https://accounts.synthetos.com/auth/github/callback`. Its webhook can stay active: production is not behind Access.
+4. Approve accounts' `deploy-production`, then set its six secrets with **new** values (the production app's client secret, and the production webhook secret).
+5. Merge and approve run's `deploy-production`, then set its two secrets with new values.
+
+Until step 2, run's production deploys keep working with sign-in off.
+
+### 7.4 Check production
+
+1. In a private window (signed out), `https://run.synthetos.com`: Connect shows "Connecting needs a Synthetos account" with "Synthetos accounts are coming soon", and a small "Beta testers can sign in" link.
+2. DevTools → Network → the document's response: `Permissions-Policy` starts with `serial=(self)`. Every other header matches docs/ops/worker.md.
+3. Sign in as `ril3y`: Preferences → Account says "Signed in as @ril3y". Connect goes on to C1 and the port chooser, and the board identifies, read-only.
+4. With a second GitHub account: accounts says "Sign-in opens with the public beta.", and Connect stays refused.

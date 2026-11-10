@@ -1,12 +1,11 @@
 /**
  * The run Worker (ROADMAP P0-04, RUN_PLAN §5.2, §6.3, §6.4).
  *
- * In production, Cloudflare serves the static shell directly from the asset
- * layer, and the Worker runs first only for `/api/*` and `/auth/*`
- * (wrangler.jsonc). On staging the Worker runs first for every path, so that
- * it can grant Web Serial to staging documents (P1-00): `serial=(self)` only
- * when `grantsSerial` holds (RUN_ENV `staging` AND the staging host), the
- * production headers in every other case. Every response the Worker returns
+ * The Worker runs first for every path, in production (OD-29) as on staging
+ * (P1-00), so that it can grant Web Serial to the documents of its own host:
+ * `serial=(self)` only when `grantsSerial` holds (RUN_ENV and host match:
+ * staging on staging.run.synthetos.com, production on run.synthetos.com),
+ * the fail-closed set in every other case. Every response the Worker returns
  * goes through `withSecurityHeaders`, including errors and any asset request
  * that reaches it.
  *

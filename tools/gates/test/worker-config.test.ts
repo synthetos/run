@@ -39,26 +39,38 @@ describe('stripJsonc', () => {
 });
 
 describe('A1-06: the sign-in bindings', () => {
-  it('binds exactly accounts\' RunEntrypoint and the RUN_AUTH database per environment', () => {
+  it('staging binds exactly accounts\' RunEntrypoint and its RUN_AUTH database; production binds nothing yet (sign-in off)', () => {
     const c = load();
-    expect(c['services']).toEqual(EXPECTED_SERVICES.production);
     expect(c.env.staging['services']).toEqual(EXPECTED_SERVICES.staging);
-    expect((c['d1_databases'] as { database_name: string }[])[0]?.database_name).toBe('run-auth');
     expect((c.env.staging['d1_databases'] as { database_name: string }[])[0]?.database_name).toBe('run-auth-staging');
+    expect('services' in c).toBe(false);
+    expect('d1_databases' in c).toBe(false);
   });
 
-  it('refuses another service, another entrypoint, a second database, a missing binding or a bad id', () => {
+  it('with either key present, both must be exact: another service or entrypoint, one key alone, a second database or a bad id is refused', () => {
     const mutate = (fn: (c: Config) => void): string[] => {
       const c = load();
       fn(c);
       return checkWorkerConfig(c, { requireRealAccount: false }).map((f) => `${f.where}: ${f.message}`);
     };
-    expect(mutate((c) => (c['services'] = [{ binding: 'ACCOUNTS', service: 'accounts', entrypoint: 'Default' }])).join()).toContain('services');
+    const prodDb = { binding: 'RUN_AUTH', database_name: 'run-auth', database_id: RUN_AUTH_DATABASES.production.placeholder, migrations_dir: 'migrations' };
+    expect(mutate((c) => {
+      c['services'] = EXPECTED_SERVICES.production;
+      c['d1_databases'] = [prodDb];
+    })).toEqual([]);
+    expect(mutate((c) => (c['services'] = EXPECTED_SERVICES.production)).join()).toContain('RUN_AUTH');
+    expect(mutate((c) => (c['d1_databases'] = [prodDb])).join()).toContain('services');
+    expect(mutate((c) => (c.env.staging['services'] = [{ binding: 'ACCOUNTS', service: 'accounts-staging', entrypoint: 'Default' }])).join()).toContain('services');
     expect(mutate((c) => (c.env.staging['services'] = EXPECTED_SERVICES.production)).join()).toContain('env.staging');
-    expect(mutate((c) => (c['services'] = [...EXPECTED_SERVICES.production, { binding: 'FORUM', service: 'forumbot' }])).join()).toContain('services');
-    expect(mutate((c) => delete c['d1_databases']).join()).toContain('RUN_AUTH');
-    expect(mutate((c) => ((c['d1_databases'] as Record<string, unknown>[])[0] = { binding: 'RUN_AUTH', database_name: 'run-auth', database_id: 'nope', migrations_dir: 'migrations' })).join()).toContain('lower-case UUID');
-    expect(mutate((c) => (c['d1_databases'] = [...(c['d1_databases'] as unknown[]), { binding: 'OTHER' }])).join()).toContain('exactly one');
+    expect(mutate((c) => (c.env.staging['services'] = [...EXPECTED_SERVICES.staging, { binding: 'FORUM', service: 'forumbot' }])).join()).toContain('services');
+    expect(mutate((c) => delete c.env.staging['d1_databases']).join()).toContain('RUN_AUTH');
+    expect(mutate((c) => ((c.env.staging['d1_databases'] as Record<string, unknown>[])[0] = { binding: 'RUN_AUTH', database_name: 'run-auth-staging', database_id: 'nope', migrations_dir: 'migrations' })).join()).toContain('lower-case UUID');
+    expect(mutate((c) => (c.env.staging['d1_databases'] = [...(c.env.staging['d1_databases'] as unknown[]), { binding: 'OTHER' }])).join()).toContain('exactly one');
+    // Neither key in staging either: sign-in off there, accepted.
+    expect(mutate((c) => {
+      delete c.env.staging['services'];
+      delete c.env.staging['d1_databases'];
+    })).toEqual([]);
   });
 });
 
@@ -77,7 +89,8 @@ describe('the committed wrangler.jsonc', () => {
       binding: 'ASSETS',
       html_handling: 'auto-trailing-slash',
       not_found_handling: '404-page',
-      run_worker_first: ['/api/*', '/auth/*'],
+      // OD-29: the Worker runs first for every path in production too (it grants serial on run.synthetos.com).
+      run_worker_first: true,
     });
     expect(c['routes']).toEqual([{ pattern: 'run.synthetos.com', custom_domain: true }]);
     expect(c.env.staging['routes']).toEqual([{ pattern: 'staging.run.synthetos.com', custom_domain: true }]);
@@ -85,7 +98,7 @@ describe('the committed wrangler.jsonc', () => {
     expect(c.env.staging['preview_urls']).toBe(false);
   });
 
-  it('P1-00: staging runs the Worker first for every path (it grants serial=(self)); production keeps only /api/* and /auth/*', () => {
+  it('P1-00, OD-29: staging (and production) run the Worker first for every path (it grants serial=(self) on its own host)', () => {
     expect(load().env.staging['assets']).toEqual({
       directory: '../../apps/web/dist',
       binding: 'ASSETS',
@@ -116,13 +129,13 @@ describe('checkWorkerConfig refuses each H45/D39 weakening', () => {
     ['preview_urls true', (c) => (c['preview_urls'] = true), '.'],
     ['staging workers_dev true', (c) => (c.env.staging['workers_dev'] = true), 'env.staging'],
     ['staging preview_urls omitted', (c) => delete c.env.staging['preview_urls'], 'env.staging'],
-    ['run_worker_first for everything', (c) => ((c['assets'] as Record<string, unknown>)['run_worker_first'] = true), 'assets'],
+    ['run_worker_first back to /api and /auth only (the Worker would not set the documents\' headers)', (c) => ((c['assets'] as Record<string, unknown>)['run_worker_first'] = ['/api/*', '/auth/*']), 'assets'],
     ['an SPA fallback instead of the 404 page', (c) => ((c['assets'] as Record<string, unknown>)['not_found_handling'] = 'single-page-application'), 'assets'],
     ['a second production route', (c) => (c['routes'] = [{ pattern: 'run.synthetos.com', custom_domain: true }, { pattern: 'x.synthetos.com/*', zone_name: 'synthetos.com' }]), '.'],
     ['a non-custom-domain route', (c) => (c['routes'] = [{ pattern: 'run.synthetos.com/*', zone_name: 'synthetos.com' }]), '.'],
     ['staging on the production host', (c) => (c.env.staging['routes'] = [{ pattern: 'run.synthetos.com', custom_domain: true }]), 'env.staging'],
     ['staging overriding the account', (c) => (c.env.staging['account_id'] = REAL_ACCOUNT), 'env.staging.account_id'],
-    ['staging with the production assets settings (the Worker would not grant serial on documents)', (c) => (c.env.staging['assets'] = c['assets']), 'env.staging.assets'],
+    ['staging with the Worker first for /api and /auth only (it would not grant serial on documents)', (c) => (c.env.staging['assets'] = { ...(c['assets'] as object), run_worker_first: ['/api/*', '/auth/*'] }), 'env.staging.assets'],
     ['staging without assets settings', (c) => delete c.env.staging['assets'], 'env.staging.assets'],
     ['staging assets on another directory', (c) => ((c.env.staging['assets'] as Record<string, unknown>)['directory'] = '../../apps/web/dist-bench'), 'env.staging.assets'],
     ['staging with an SPA fallback', (c) => ((c.env.staging['assets'] as Record<string, unknown>)['not_found_handling'] = 'single-page-application'), 'env.staging.assets'],
@@ -161,15 +174,24 @@ describe('preflight CLI', () => {
   const accountOnly = TEXT.replace(ACCOUNT_ID_PLACEHOLDER, REAL_ACCOUNT);
   const withAccount = accountOnly.replace(RUN_AUTH_DATABASES.production.placeholder, PROD_DB).replace(RUN_AUTH_DATABASES.staging.placeholder, STAGING_DB);
 
-  it('A1-07: refuses the RUN_AUTH database placeholder of the environment it deploys, and only that one', () => {
-    const staging = preflight(accountOnly.replace(RUN_AUTH_DATABASES.staging.placeholder, STAGING_DB), 'staging', REAL_ACCOUNT);
-    expect(staging.status).toBe(0);
-    const production = preflight(accountOnly.replace(RUN_AUTH_DATABASES.staging.placeholder, STAGING_DB), 'production', REAL_ACCOUNT);
-    expect(production.status).toBe(1);
-    expect(production.output).toContain('run-auth database');
-    const neither = preflight(accountOnly, 'staging', REAL_ACCOUNT);
-    expect(neither.status).toBe(1);
-    expect(neither.output).toContain('run-auth-staging');
+  it('A1-07 (review M1): production, with no sign-in bindings, deploys as before; staging refuses its database placeholder', () => {
+    expect(preflight(accountOnly, 'production', REAL_ACCOUNT).status).toBe(0);
+    const staging = preflight(accountOnly, 'staging', REAL_ACCOUNT);
+    expect(staging.status).toBe(1);
+    expect(staging.output).toContain('run-auth-staging');
+    expect(preflight(accountOnly.replace(RUN_AUTH_DATABASES.staging.placeholder, STAGING_DB), 'staging', REAL_ACCOUNT).status).toBe(0);
+  });
+
+  it('A1-07: once production carries the bindings, its deploy needs the real database id', () => {
+    const bound = accountOnly.replace(
+      '"routes": [{ "pattern": "run.synthetos.com", "custom_domain": true }],',
+      `"routes": [{ "pattern": "run.synthetos.com", "custom_domain": true }], "services": ${JSON.stringify(EXPECTED_SERVICES.production)}, "d1_databases": [{ "binding": "RUN_AUTH", "database_name": "run-auth", "database_id": "${RUN_AUTH_DATABASES.production.placeholder}", "migrations_dir": "migrations" }],`,
+    );
+    expect(bound).not.toBe(accountOnly);
+    const refused = preflight(bound, 'production', REAL_ACCOUNT);
+    expect(refused.status).toBe(1);
+    expect(refused.output).toContain('run-auth database');
+    expect(preflight(bound.replace(RUN_AUTH_DATABASES.production.placeholder, PROD_DB), 'production', REAL_ACCOUNT).status).toBe(0);
   });
 
   it('refuses the config while it carries the placeholder', () => {

@@ -75,12 +75,16 @@ export function isDeployEnvironment(value: string): value is DeployEnvironment {
   return value === 'production' || value === 'staging';
 }
 
+/**
+ * The assets settings. The Worker runs first for every path in production too (OD-29), so it can grant
+ * `serial=(self)` to run.synthetos.com's documents (workers/run/src/headers.ts grantsSerial).
+ */
 export const EXPECTED_ASSETS = {
   directory: '../../apps/web/dist',
   binding: 'ASSETS',
   html_handling: 'auto-trailing-slash',
   not_found_handling: '404-page',
-  run_worker_first: ['/api/*', '/auth/*'],
+  run_worker_first: true,
 } as const;
 
 /**
@@ -140,7 +144,10 @@ export const TOP_LEVEL_KEYS: readonly string[] = [
   'd1_databases',
   'env',
 ];
-/** The only keys env.staging may hold (each one required); everything else is inherited from the top level. */
+/**
+ * The only keys env.staging may hold; everything else is inherited from the top level. `services` and
+ * `d1_databases` (sign-in, A1-06) are optional in each scope, together or not at all (checkAuthBindings).
+ */
 export const STAGING_KEYS: readonly string[] = ['workers_dev', 'preview_urls', 'routes', 'vars', 'assets', 'services', 'd1_databases'];
 
 /** Pinned values of the module settings the attested --no-bundle deploy depends on. */
@@ -165,8 +172,13 @@ export interface ConfigFinding {
   readonly message: string;
 }
 
-/** The sign-in bindings of one scope: exactly accounts' RunEntrypoint and the environment's RUN_AUTH database. */
+/**
+ * The sign-in bindings of one scope. An environment without either key has sign-in off (production until the
+ * owner's go-live step, docs/ops/go-live-staging.md §7): that deploys as before. With either key present, both must
+ * be exactly accounts' RunEntrypoint and the environment's RUN_AUTH database, and the deploy needs a real id.
+ */
 function checkAuthBindings(scope: Json, env: DeployEnvironment, requireReal: boolean, add: (message: string) => void): void {
+  if (!('services' in scope) && !('d1_databases' in scope)) return;
   if (!same(scope['services'], EXPECTED_SERVICES[env])) add(`services must be exactly ${JSON.stringify(EXPECTED_SERVICES[env])} (A1-06; D39: only accounts' RunEntrypoint)`);
   const db = RUN_AUTH_DATABASES[env];
   const list = scope['d1_databases'];
@@ -275,11 +287,11 @@ export function deployConfig(config: unknown, options: CheckOptions): Record<str
   const copy = (value: unknown): unknown => JSON.parse(JSON.stringify(value)) as unknown;
   const out: Record<string, unknown> = {};
   for (const key of TOP_LEVEL_KEYS) {
-    if (key === '$schema' || key === 'env') continue;
+    if (key === '$schema' || key === 'env' || !(key in config)) continue;
     out[key] = copy(config[key]);
   }
   const env: Record<string, unknown> = {};
-  for (const key of STAGING_KEYS) env[key] = copy(staging[key]);
+  for (const key of STAGING_KEYS) if (key in staging) env[key] = copy(staging[key]);
   out['env'] = { staging: env };
   // The written file must pass the same check (it is what wrangler reads).
   const again = checkWorkerConfig(out, options);

@@ -88,17 +88,13 @@ Record in those repositories' own lead-actions lists that this is done.
    their job (never Super Administrator), and is recorded in this file with
    the reason. No member other than the owner may hold a role that can
    deploy Workers or edit DNS.
-4. **The CI token.** Create exactly one API token for run's CI:
+4. **The CI credentials.** Create a deploy token for run's CI:
    - permission **Account → Workers Scripts → Edit**, on this account only,
      narrowed to the run and accounts Workers as far as Cloudflare's token
      model allows. Record here what the created token can actually reach
      (if Cloudflare cannot limit it to those scripts, it can edit every
      Worker in the account, the site and forumbot included: say so here, and
      rely on the audit alerts in step 8 to catch any use against them);
-   - plus **Account → D1 → Edit** (A1-07, OD-26): the deploy jobs apply the
-     reviewed D1 migrations (run's `run-auth`, accounts' `identity`) and
-     register run's relying party before the code (docs/ops/go-live-staging.md
-     §2.1);
    - plus **Account → Access: Apps and Policies → Read** (read only): the
      staging deploy confirms through the API that Access protects staging
      before it deploys (docs/ops/access.md §2, P0 review). No Access edit;
@@ -109,6 +105,12 @@ Record in those repositories' own lead-actions lists that this is done.
      the GitHub environments `staging` and `production`
      (docs/ops/branch-protection.md §2), never as a repository secret and
      never on a laptop.
+   Create a separate D1-only token (`CLOUDFLARE_D1_API_TOKEN`) for the
+   reviewed migration and client-registration steps in both repositories.
+   The deploy token must have no D1 permission; the database token must
+   have no Worker, Access or DNS permission. D1 Edit can reach every
+   database in the account; record that residual scope here (H46).
+   See docs/ops/go-live-staging.md §2.1.
 
    The smoke test reads the Worker's workers.dev and preview settings with
    this same token (`GET /accounts/{id}/workers/scripts/{name}/subdomain`,
@@ -173,8 +175,8 @@ Record in those repositories' own lead-actions lists that this is done.
 
 Record the answers in the release PR.
 
-- [ ] run has exactly one API token: Workers Scripts:Edit, D1:Edit (A1-07) and Access: Apps and Policies:Read, scoped as recorded in §2 step 4, nothing else; no other token in the account can deploy run or accounts, or that is recorded with the reason.
-- [ ] The token is only in the `staging` and `production` environment secrets.
+- [ ] run has separate deploy (Workers Scripts:Edit and Access: Apps and Policies:Read) and database (D1:Edit) credentials, scoped as recorded in §2 step 4, nothing else; no other token in the account can deploy run or accounts, or that is recorded with the reason.
+- [ ] Both credentials are only in the `staging` and `production` environment secrets.
 - [ ] Members: the minimum (the owner, plus the recorded exceptions), hardware key on.
 - [ ] No local wrangler login or laptop token was used to deploy run or accounts.
 - [ ] Audit log since the last release: every change to the run and accounts

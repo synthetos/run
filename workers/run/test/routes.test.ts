@@ -1,13 +1,15 @@
 /**
  * The run Worker's routes and handler (ROADMAP P0-04): `/api/*` is 404
- * except `/api/health`; `/auth/*` is 404 until A1; every response, including
- * errors and proxied assets, carries the security headers.
+ * except `/api/health`, `/api/identity` and `/api/session`; `/auth/*` is 404
+ * where sign-in is off; every response, including errors and proxied assets,
+ * carries the security headers (serial granted only on a deployed Worker's own
+ * host, P1-00, OD-29).
  */
 import { describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
 import worker from '../src/index.ts';
 import { type Env, route, VERSION } from '../src/routes.ts';
-import { HASHED_ASSET_CACHE_CONTROL, SECURITY_HEADERS, SERIAL_GRANTED_SECURITY_HEADERS } from '../src/headers.ts';
+import { grantsSerial, HASHED_ASSET_CACHE_CONTROL, SECURITY_HEADERS, securityHeadersFor, SERIAL_GRANTED_SECURITY_HEADERS } from '../src/headers.ts';
 
 const ORIGIN = 'https://run.synthetos.com';
 
@@ -35,8 +37,10 @@ function env(runEnv: string | null = 'production'): Env & { ASSETS: RecordingAss
 
 const req = (path: string, method = 'GET'): Request => new Request(`${ORIGIN}${path}`, { method });
 
-function expectSecurityHeaders(res: Response): void {
-  for (const [name, value] of Object.entries(SECURITY_HEADERS)) expect(res.headers.get(name), name).toBe(value);
+/** The exact set the Worker must send for `runEnv` at `origin`: serial granted only on its own deployed host (P1-00, OD-29). */
+function expectSecurityHeaders(res: Response, runEnv: string | null = 'production', origin = ORIGIN): void {
+  const expected = securityHeadersFor(grantsSerial(runEnv ?? undefined, new URL(origin)));
+  for (const [name, value] of Object.entries(expected)) expect(res.headers.get(name), name).toBe(value);
 }
 
 describe('VERSION', () => {
@@ -52,7 +56,7 @@ describe('GET /api/health', () => {
     expect(res.headers.get('content-type')).toBe('application/json; charset=utf-8');
     expect(res.headers.get('cache-control')).toBe('no-store');
     expect(await res.json()).toEqual({ status: 'ok', service: 'run', env: runEnv, version: VERSION });
-    expectSecurityHeaders(res);
+    expectSecurityHeaders(res, runEnv);
   });
 
   it.each([null, '', 'prod', 'Production'])('reports misconfigured with 500 when RUN_ENV is %j', async (runEnv) => {
@@ -122,7 +126,7 @@ describe('errors', () => {
   });
 });
 
-describe('P1-00: serial=(self) on staging only, decided per request', () => {
+describe('P1-00, OD-29: serial=(self) on each deployed Worker\'s own host only, decided per request', () => {
   const STAGING = 'https://staging.run.synthetos.com';
   const at = (origin: string, path: string, method = 'GET'): Request => new Request(`${origin}${path}`, { method });
   const pp = (res: Response): string | null => res.headers.get('permissions-policy');
@@ -135,8 +139,15 @@ describe('P1-00: serial=(self) on staging only, decided per request', () => {
     },
   );
 
+  it.each(['/', '/safety/', '/no-such-page', '/assets/workspace-abc12345.js', '/api/health', '/api/nope', '/auth/login'])(
+    'OD-29: the production Worker on run.synthetos.com grants serial=(self) on %s, with every other header unchanged',
+    async (path) => {
+      const res = await worker.fetch(at(ORIGIN, path), env('production'));
+      for (const [name, value] of Object.entries(SERIAL_GRANTED_SECURITY_HEADERS)) expect(res.headers.get(name), name).toBe(value);
+    },
+  );
+
   it.each([
-    ['production Worker, production host', 'production', ORIGIN],
     ['production Worker, staging host', 'production', STAGING],
     ['staging Worker, production host', 'staging', ORIGIN],
     ['development Worker, staging host', 'development', STAGING],
@@ -145,7 +156,7 @@ describe('P1-00: serial=(self) on staging only, decided per request', () => {
     for (const path of ['/', '/api/health', '/assets/a-abc12345.js']) {
       const res = await worker.fetch(at(origin, path), env(runEnv));
       expect(pp(res), `${origin}${path}`).toBe(SECURITY_HEADERS['permissions-policy']);
-      expectSecurityHeaders(res);
+      expectSecurityHeaders(res, runEnv, origin);
     }
   });
 

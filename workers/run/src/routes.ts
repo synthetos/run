@@ -11,10 +11,10 @@
  * Every other `/api/*` path is a 404.
  *
  * `GET /firmware/<owner>/<name>/<tag>/<asset>` (OD-10) serves a listed
- * GitHub release asset through the firmware proxy (firmwareProxy.ts). In
- * production only `/api/*` and `/auth/*` run the Worker first
- * (wrangler.jsonc), so there the path reaches the asset layer and is a 404:
- * production lists no firmware and its flasher is off.
+ * GitHub release asset through the firmware proxy (firmwareProxy.ts). The
+ * Worker runs first for every path (OD-29); production lists no firmware
+ * (only `env: 'production'` entries count there), so it answers 404, and
+ * its flasher is off.
  */
 import type { IdentityBody, SessionBody } from '@synthetos/contracts';
 import { accessConfig, type CertsFetcher, fetchAccessCerts, verifyAccessJwt } from './accessIdentity.ts';
@@ -103,7 +103,9 @@ async function identity(request: Request, env: Env, fetchCerts: CertsFetcher): P
     const session = await runSessionIdentity(request, auth);
     if (session !== null) return json(200, { identity: session, signIn } satisfies IdentityBody);
   }
-  if (!grantsSerial(env.RUN_ENV, new URL(request.url))) return none(signIn ? 'not-signed-in' : 'not-available-here');
+  // The Access identity counts on the staging Worker on the staging host only (production grants serial too since
+  // OD-29, but its only identity is the run session).
+  if (env.RUN_ENV !== 'staging' || !grantsSerial(env.RUN_ENV, new URL(request.url))) return none(signIn ? 'not-signed-in' : 'not-available-here');
   const config = accessConfig(env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
   if (config === null) return none(signIn ? 'not-signed-in' : 'not-configured');
   const verified = await verifyAccessJwt(request.headers.get('cf-access-jwt-assertion'), config, Date.now(), fetchCerts);
@@ -186,9 +188,9 @@ export async function route(
   }
   if (under(pathname, '/auth')) return authRoute(request, env, now());
   if (firmwareAssetPath(pathname) !== null) return firmware(request, env, pathname, firmwareDeps ?? liveFirmwareDeps(url.origin));
-  // Production: not normally reached (only /api/* and /auth/* run the Worker
-  // first). Staging: every other request (the Worker runs first for all of
-  // them, P1-00). The asset layer answers; the caller applies the headers.
+  // Every other request (the Worker runs first for all of them: P1-00 on
+  // staging, OD-29 in production). The asset layer answers; the caller
+  // applies the headers.
   // `_headers` does not apply to responses the Worker returns, so the
   // immutable cache policy of hashed assets is set here.
   const asset = await env.ASSETS.fetch(request);

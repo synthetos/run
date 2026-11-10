@@ -11,8 +11,8 @@
  * here and nowhere else, dependency-cruiser lets only the machine worker's
  * transport seam (and this package's tests) import it, and the build files
  * it in a chunk of its own under `assets/serial/`, the only place the
- * bundle scan admits Web Serial (staging and bench targets; production
- * refuses it). It imports TYPES ONLY, so nothing else can join that chunk:
+ * bundle scan admits Web Serial (staging, bench and, since OD-29, production targets; production
+ * refused it before). It imports TYPES ONLY, so nothing else can join that chunk:
  * every constant below is a literal, and
  * packages/machine/test/web-serial-transport.test.ts proves each one equals
  * the open policy's (openPolicy.ts).
@@ -390,7 +390,7 @@ interface WebSerial {
 /**
  * `navigator.serial.getPorts()` in this context (machine.worker), or no
  * ports where the API does not exist. Where the Permissions-Policy denies
- * serial (production, `serial=()`), the browser rejects with SecurityError.
+ * serial (any host but run's own deployed ones, `serial=()`), the browser rejects with SecurityError.
  */
 function grantedPorts(): Promise<readonly SerialPortLike[]> {
   const serial = (navigator as unknown as { readonly serial?: WebSerial }).serial;
