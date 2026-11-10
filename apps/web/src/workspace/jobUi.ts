@@ -14,7 +14,6 @@
  */
 import type { SnapshotMessage } from '../machine-worker/rpc.ts';
 import type { LiveView } from './model.ts';
-import { startTicks } from './startTicks.ts';
 import { readStored, writeStored, type StorageLike } from './storage.ts';
 
 type Snapshot = SnapshotMessage['snapshot'];
@@ -123,53 +122,6 @@ export function zeroCheck(board: ZeroPoint | null, plan: ZeroPoint | null): Zero
   return { state: 'differs', text: `The board’s work zero is not your plan’s: it differs in ${parts.join(', ')}.`, board, plan };
 }
 
-/** The page's confirmations for a start. */
-export interface StartChoices {
-  readonly unhomed: boolean;
-  readonly workZero: boolean;
-  readonly spindle: boolean;
-  /** W5: "Screen lock and sleep are disabled; I will stay at the machine." */
-  readonly attended: boolean;
-  /** C40 (OD-24): the job could not be checked against the machine's travel, and the user checked it fits. */
-  readonly travel: boolean;
-}
-
-export interface Blocker {
-  readonly id: string;
-  readonly text: string;
-}
-
-/** Every reason Start is not allowed now, in plain words (empty: Start is enabled). */
-export function startBlockers(ui: JobUi, file: { readonly name: string | null; readonly hash: string | null }, zero: ZeroCheck, choices: StartChoices): readonly Blocker[] {
-  const out: Blocker[] = [];
-  const s = ui.snapshot;
-  if (!ui.connected || s === null) return [{ id: 'connect', text: 'Connect a machine.' }];
-  if (!ui.enabled) return [{ id: 'build', text: 'Running jobs is not enabled in this build.' }];
-  const o = s.overlays;
-  if (o.includes('LOST')) out.push({ id: 'lost', text: 'The connection is lost.' });
-  if (o.includes('FAULT')) out.push({ id: 'fault', text: 'A fault is latched: acknowledge it first.' });
-  if (o.includes('ORPHANED_MOTION')) out.push({ id: 'orphaned', text: 'The controller has motion this page did not send: use Stop job first.' });
-  if (o.includes('READ_ONLY') || s.classification?.mode !== 'full') out.push({ id: 'approved', text: 'This firmware is not approved for jobs.' });
-  if (o.includes('UNKNOWN')) out.push({ id: 'unknown', text: 'The position is not trusted: confirm “I’ve checked the machine” or home first.' });
-  if (o.includes('STALE')) out.push({ id: 'stale', text: 'No status from the machine.' });
-  if (o.includes('NEEDS_REVIEW')) out.push({ id: 'review', text: 'The board’s settings differ from the reference: review them first.' });
-  if (s.base === 'ALARM') out.push({ id: 'alarm', text: 'The controller is in alarm: clear it first.' });
-  else if (s.base !== 'IDLE_HOMED' && s.base !== 'IDLE_UNHOMED' && out.length === 0) out.push({ id: 'idle', text: ui.active ? 'A job is running.' : 'The machine is not idle.' });
-  if (s.rxm.busy || s.reports.phase === 'seeding' || s.reports.phase === 'configuring' || s.reports.phase === 'pending') out.push({ id: 'busy', text: 'The connection is still being set up.' });
-  const job = ui.job;
-  if (file.name === null) out.push({ id: 'file', text: 'Open a G-code file.' });
-  else if (job === null || job.hash !== file.hash || job.phase === 'loading') out.push({ id: 'check', text: 'The file is being checked with this board.' });
-  else if (job.report?.blocked === true) out.push({ id: 'blocked', text: `The check found ${job.report.counts.block} ${job.report.counts.block === 1 ? 'finding that stops' : 'findings that stop'} this file.` });
-  const ticks = startTicks(s.live.home === 1, job?.report?.travel?.confirm ?? null);
-  if (ticks.includes('c36') && !choices.unhomed) out.push({ id: 'homed', text: 'The machine is not homed: home it, or confirm you have checked it.' });
-  if (ticks.includes('c41') && !(choices.travel && choices.unhomed)) out.push({ id: 'travel', text: 'The machine isn’t homed and a move is past its travel. Confirm you checked it.' });
-  if (zero.state === 'unknown') out.push({ id: 'zero', text: zero.text });
-  else if (zero.state === 'differs' && !choices.workZero) out.push({ id: 'zero', text: 'Confirm the work zero (it is not your plan’s).' });
-  if (job?.report?.startsSpindle === true && !choices.spindle) out.push({ id: 'spindle', text: 'Confirm the spindle start.' });
-  if (ticks.includes('c40') && !choices.travel) out.push({ id: 'travel', text: 'Confirm the job fits the machine’s travel (it could not be checked).' });
-  if (!choices.attended) out.push({ id: 'attended', text: 'Confirm screen lock and sleep are off and you will stay at the machine.' });
-  return out;
-}
 
 /** Seconds as "1 h 02 min", "4 min 05 s" or "12 s". */
 export function duration(seconds: number): string {

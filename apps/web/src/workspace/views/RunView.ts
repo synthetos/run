@@ -64,7 +64,8 @@ import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE,
 import { jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
 
 const PHASE_LABEL = (phase: string): string => PHASE_TEXT[phase] ?? phase;
-import { JobStatus, JobSteps, JobStopCard, type StopHooks } from './JobViews.ts';
+import { JobStatus, JobStopCard, type StopHooks } from './JobViews.ts';
+import { RunPanel } from '../run/RunPanel.ts';
 import { JOB_STEPS, jobStep, uiLevel } from '../jobWorkflow.ts';
 import { JobSetupPanel } from './SetupView.ts';
 import { JobFiles } from '../../projects/ProjectsView.ts';
@@ -1162,8 +1163,8 @@ function JobWorkPanel({ parts, model, stops, onView }: { readonly parts: Preview
         ],
         h('button', { type: 'button', class: 'small', 'data-action': 'advisor-open', onClick: () => onView('analyze') }, 'Analyze feeds & speeds'),
         h('p', { class: 'fine' }, ui.connected ? 'Review the live board check in Run.' : 'Connect for the live board check.')),
-      h('section', { hidden: step !== 'run', 'data-job-panel': 'run' }, h('h2', null, 'Run job'),
-        h(JobSteps, { parts, model, onAnalyze: () => onView('analyze') }),
+      h('section', { hidden: step !== 'run', 'data-job-panel': 'run' }, h('h2', null, ui.active ? 'Run job' : 'Ready to start?'),
+        h(RunPanel, { parts, model, onAnalyze: () => onView('analyze') }),
         h(JobStatus, { model, ...stops }))),
     h('div', { class: 'job-step-actions' },
       index === 0 ? null : h('button', { type: 'button', class: 'small', 'data-action': 'job-step-back', onClick: () => { jobStep.value = JOB_STEPS[index - 1]?.id ?? 'machine'; } }, 'Back'),

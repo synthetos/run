@@ -42,16 +42,3 @@ export function belowText(below: NonNullable<CarveInfo['status']['value']['below
   return `${first}${deeper} (preview, from the planned setup)`;
 }
 
-/** The below-stock note for the key line, or null. Reads the progress signal. */
-export function BelowNote({ carve }: { readonly carve: CarveInfo }): ComponentChild {
-  const below = carve.status.value.below;
-  return below === null ? null : h('span', { class: 'scene-carve-note', 'data-scene': 'below-stock-note', 'data-below-line': String(below.firstLine) }, belowText(below));
-}
-
-/**
- * The uncarved-lines notes, for the key line beside the carve line. On the key line (at the drawing's foot), not
- * in the notes box at the top, so they never grow over the middle of a small drawing, where a click picks a part.
- */
-export function carveNotes(carve: CarveInfo | null): ComponentChild[] {
-  return (carve?.uncarved ?? []).map((n, i) => h('span', { key: `carve${String(i)}`, class: 'scene-carve-note', 'data-scene': 'carve-note' }, n));
-}

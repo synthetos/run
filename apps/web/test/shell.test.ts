@@ -148,10 +148,13 @@ describe('Phase 1 control allowlist', () => {
    */
   const READ_ONLY = new Set(['read']);
   /** The Connect flow (live/ConnectPanel.ts): Connect, the C1 confirm and cancel, dismiss, Disconnect. Disconnect also sits in the machine strip, enabled while a port is open or opening (absent otherwise). */
-  const CONNECT = new Set(['connect', 'disconnect', 'confirm', 'cancel', 'dismiss']);
+  const CONNECT = new Set(['connect', 'disconnect', 'confirm', 'cancel', 'dismiss', 'ready-connect', 'ready-disconnect']);
   /** Controls that never reach the machine: views, tabs, the preview, and the local libraries. */
   const UI: readonly RegExp[] = [
     /^action:advisor-(open|engine|input)$/,
+    // The Run step's list (owner, 2026-11-09): views and notes only; its machine buttons carry data-machine-control.
+    /^action:ready-(analyze|save-zero|note|update|trust|review|machines)$/,
+    /^action:(open-notes|note-link)$/,
     /^action:context-help$/,
     // NEEDS_REVIEW's ways out, in its banner (OD-13 §5): keep the board's settings (C23, writes nothing) or open the review.
     /^action:review-(keep|open|cancel)$/,

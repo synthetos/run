@@ -28,7 +28,10 @@ test('unhomed at 0, 0, 0: the job is shown as planned with a note; scene parts o
   await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as StatusView).status.session.base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
 
   const job = page.locator('[data-screen="job"]');
-  await expect(job.locator('[data-scene="note"]')).toHaveText('Machine position not set: the job is shown as planned, and the tool from its work position. Home or set the position to place it on the bed.', { timeout: 5000 });
+  // A note in the Notes tab (owner, 2026-11-09): a short title and its sentences.
+  const note = job.locator('[data-note="scene:Machine position not set."]');
+  await expect(note).toContainText('Machine position not set.', { timeout: 5000 });
+  await expect(note).toContainText('The job is shown as planned, and the tool from its work position. Home or set the position to place it on the bed.');
   // Let the connect-time reads finish, then count: nothing below may write to the board.
   await page.waitForTimeout(1500);
   const before = (await writes(worker)).length;

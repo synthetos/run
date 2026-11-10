@@ -63,7 +63,7 @@ test('a file with its own G92: the readout is the executing line’s coordinates
   // Before the job: the offset before the first line, so the tool is at the path's origin; the key says line 2 re-anchors the cut.
   await expect(page.locator('[data-preview="marker-readout"]')).toHaveText(/^Tool at X 0\.000 Y 0\.000 Z 0\.000 · /);
   await expect(page.locator('[data-preview="drawing"]')).toHaveAttribute('data-tool', '0.000 0.000 0.000');
-  await expect(page.locator('[data-scene="note"]').filter({ hasText: 'Line 2 sets a temporary offset (G92)' })).toHaveCount(1);
+  await expect(page.locator('[data-note^="scene:"]').filter({ hasText: 'Line 2 sets a temporary offset (G92)' })).toHaveCount(1);
 
   await start(page);
 

@@ -36,7 +36,7 @@ function isLive(model: WorkspaceModel | null | undefined): boolean {
   return model?.actions.value?.motion !== undefined;
 }
 
-type Asking = { readonly kind: 'home' | 'position'; readonly axes: readonly MotionAxis[] } | { readonly kind: 'verify' } | null;
+export type Asking = { readonly kind: 'home' | 'position'; readonly axes: readonly MotionAxis[] } | { readonly kind: 'verify' } | null;
 
 /** The C4 text for the axes asked (the search distance from the controller's settings). */
 function homeText(hv: HomingView, axes: readonly MotionAxis[]): string {
@@ -45,7 +45,8 @@ function homeText(hv: HomingView, axes: readonly MotionAxis[]): string {
 }
 
 /** The confirmation in progress, or null. */
-function confirmFor(asking: Asking, hv: HomingView, run: (c: MotionCommand) => void, cancel: () => void): ComponentChild {
+/** The confirmation for a homing action (C4, C26, W6); also asked from the Run step's list. */
+export function confirmFor(asking: Asking, hv: HomingView, run: (c: MotionCommand) => void, cancel: () => void): ComponentChild {
   if (asking === null) return null;
   if (asking.kind === 'verify') {
     return h(ConfirmCard, {

@@ -21,12 +21,13 @@ test('Simple hides firmware keys and internal codes; the log and the start confi
   await page.locator('[data-action="ui-level-simple"]').click();
   await showWorkspace(page, 'job');
   await open(page, zigzag(10, [], ['M3 S16000']).replace('M30', 'M5\nM30'));
-  await expect(page.locator('[data-safety="C32"]')).toContainText('16,000 rpm');
-  for (const box of ['confirm-unhomed', 'confirm-zero', 'confirm-spindle', 'confirm-attended']) {
-    const el = page.locator(`[data-job="${box}"]`);
-    if ((await el.count()) > 0) await el.check();
-  }
+  await expect(page.locator('[data-ready-summary="spindle"]')).toContainText('16,000 rpm');
+  await page.locator('[data-job="confirm-start-box"]').check();
   await page.locator('[data-action="start-job"]').click();
+  const travel = page.locator('[data-action="travel-start"]');
+  await expect(travel.or(page.locator('[data-safety="C30"]')).first()).toBeVisible();
+  if ((await travel.count()) > 0) await travel.click();
+  await expect(page.locator('[data-safety="C30"] [data-full="C32"]')).toContainText('16,000 rpm');
   await expect(page.locator('[data-safety="C30"]')).toContainText('starts with 16,000 rpm');
   await expect(page.locator('[data-safety="C30"]')).not.toContainText('S16000');
   await page.locator('[data-safety="C30"] [data-action="motion-confirm"]').click();

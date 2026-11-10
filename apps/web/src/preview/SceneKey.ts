@@ -1,8 +1,7 @@
 /**
  * The scene's key, over the drawing. Simple (the default level) shows what a hobbyist needs: the tool the
  * marker shows by its library name (ToolKey.ts), "Bed 750 × 750 mm (not measured yet)" for a placeholder bed (a link to its
- * settings), the notes that matter (lines not carved and why, a cut below the stock, a tool missing from the
- * tool table) and a quiet hint that clicking the bed, fixture or stock opens its settings. Advanced adds what
+ * settings), a tool missing from the tool table (the other notes are in the Notes tab, previewNotes.ts) and a quiet hint that clicking the bed, fixture or stock opens its settings. Advanced adds what
  * the bed is, the carving detail and links to the bed, fixture and stock settings (so opening them is not
  * mouse-only there). The live placement's notes (livePlacement.ts) show at both levels. Without a job's scene
  * it shows the tool alone.
@@ -13,7 +12,7 @@ import type { JobScene } from './sceneModel.ts';
 import { SCENE_PARTS, type ScenePart } from './sceneSettings.ts';
 import { ToolLabel, ToolNote } from './ToolKey.ts';
 import { PREVIEW_MARKER_NOTE } from './previewMarker.ts';
-import { BelowNote, CarveLabel, carveNotes } from './CarveKey.ts';
+import { CarveLabel } from './CarveKey.ts';
 import type { CarveInfo } from './useCarve.ts';
 import { ToolLegend } from './ToolLegend.ts';
 import type { ToolColorView } from './useToolColors.ts';
@@ -60,7 +59,6 @@ export function pickHint(parts: readonly ScenePart[]): string {
 
 export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview = false, carve = null, simple = false, tools = null }: SceneKeyProps): ComponentChild {
   const parts: ScenePart[] = scene === null ? [] : ['bed', ...(scene.layers.solids.some((s) => s.tag === 'fixture') ? (['fixture'] as const) : []), 'stock'];
-  const notes = scene?.notes ?? [];
   const toolNote = tool?.note == null ? null : h(ToolNote, { tool, ...(onAddTool === undefined ? {} : { onAddTool }) });
   const bed = scene === null
     ? null
@@ -79,9 +77,9 @@ export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview 
   return h(
     'div',
     { class: 'scene-key', 'data-key-level': simple ? 'simple' : 'advanced' },
-    notes.length === 0 && toolNote === null
-      ? null
-      : h('div', { class: 'viewer-key scene-notes', role: 'status', 'data-scene': 'notes' }, notes.map((n, i) => h('p', { key: String(i), 'data-scene': 'note' }, n)), toolNote),
+    // The scene's notes, a cut below the stock and lines not carved are in the Notes tab (previewNotes.ts); the key
+    // keeps only a missing tool, with its link to the tool table.
+    toolNote === null ? null : h('div', { class: 'viewer-key scene-notes', role: 'status', 'data-scene': 'notes' }, toolNote),
     h(
       'div',
       { class: 'viewer-key scene-key-line' },
@@ -95,8 +93,6 @@ export function SceneKey({ scene, onOpen, tool = null, onAddTool, markerPreview 
         simple ? bed : null,
       ])),
       tools === null || tools.entries.length < 2 ? null : row([h(ToolLegend, { entries: tools.entries, palette: tools.palette, focus: tools.focus, onFocus: tools.setFocus })]),
-      // Reading the progress signal here re-renders this small key, not the view, when the note appears.
-      row(joined([carve !== null && carve.status.value.below !== null ? h(BelowNote, { carve }) : null, ...carveNotes(carve)])),
       row(joined([links, hint])),
     ),
   );

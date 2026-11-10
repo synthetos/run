@@ -13,11 +13,11 @@ async function overlaps(page: Page): Promise<{ readonly what: string; readonly s
     const start = steps.querySelector('[data-action="start-job"]');
     if (start === null) return [];
     const s = start.getBoundingClientRect();
-    const checks = [...steps.querySelectorAll('.job-prep > *')];
+    const checks = [...steps.querySelectorAll('.ready-list > li, .ready-tick')];
     return checks.map((el) => {
       const r = el.getBoundingClientRect();
       const overlap = r.width > 0 && r.height > 0 && r.left < s.right && r.right > s.left && r.top < s.bottom && r.bottom > s.top;
-      return { what: (el.getAttribute('data-job') ?? el.getAttribute('data-safety') ?? el.tagName).slice(0, 40), startTop: s.top, bottom: r.bottom, overlap };
+      return { what: (el.getAttribute('data-ready-item') ?? el.getAttribute('data-job') ?? el.tagName).slice(0, 40), startTop: s.top, bottom: r.bottom, overlap };
     });
   });
 }
@@ -30,7 +30,7 @@ for (const [width, height] of [[1280, 720], [390, 844]] as const) {
     await open(page, zigzag(10, [], ['M3 S12000']).replace('M30', 'M5\nM30'));
     await page.setViewportSize({ width, height });
     await page.locator('[data-job-step="run"]').click();
-    await expect(page.locator('[data-job="confirm-attended"]')).toHaveCount(1);
+    await expect(page.locator('[data-job="confirm-start"]')).toHaveCount(1);
     for (const at of ['top', 'middle', 'bottom'] as const) {
       await page.locator('[data-job="steps"]').evaluate((el, where) => {
         const scroller = el.closest('.job-work-panel, .scroll-region, [data-job-panel]') ?? el.parentElement;

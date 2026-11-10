@@ -4,28 +4,20 @@
  * at laptop size the notes ran over the readout and out of their box, and the key covered half the drawing.
  *
  * Now they stack in the drawing's lower left, each wrapping inside its own box, and the stack scrolls rather than
- * grow over the toolbar. The key can be hidden (remembered in this browser, `preview.key.open`); hidden, a count of
- * its notes stays in view, in the warning colour, so a note is never silently out of sight. The readout always shows.
+ * grow over the toolbar. The key can be hidden (remembered in this browser, `preview.key.open`). The drawing's notes
+ * are in the Notes tab (previewNotes.ts, owner 2026-11-09); a small "N notes" pill in the bar opens it, whether the key
+ * is shown or not, so a note is never silently out of sight. The readout always shows.
  * With no file open, the prompt to open one leads the stack.
  */
 import { h, type ComponentChild } from 'preact';
 import { stored } from '../workspace/storage.ts';
 import { SceneKey, type SceneKeyProps } from './SceneKey.ts';
+import { previewNotes } from './previewNotes.ts';
+import { NotesPill } from '../workspace/notes/NotesPill.ts';
+import { usePublishNotes } from '../workspace/notes/usePublishNotes.ts';
 
 /** Whether the key is shown, per viewer (this browser). */
 export const keyOpen = stored<boolean>('preview.key.open', true, (v): v is boolean => typeof v === 'boolean');
-
-/** "1 note" / "2 notes". */
-export function notesCount(n: number): string {
-  return `${n} ${n === 1 ? 'note' : 'notes'}`;
-}
-
-/** Every note the key shows, in the warning colour: the scene's, the tool's, a cut below the stock, lines not carved. */
-export function keyNotes(key: SceneKeyProps | null): number {
-  if (key === null) return 0;
-  const carve = key.carve ?? null;
-  return (key.scene?.notes?.length ?? 0) + (key.tool?.note == null ? 0 : 1) + (carve !== null && carve.status.value.below !== null ? 1 : 0) + (carve?.uncarved.length ?? 0);
-}
 
 export interface ViewerOverlayProps {
   /** The scene key's props, or null when there is no key (a lite file, nothing to show). */
@@ -40,7 +32,8 @@ export interface ViewerOverlayProps {
 
 export function ViewerOverlay({ sceneKey, readout, prompt = null, notice = null }: ViewerOverlayProps): ComponentChild {
   const open = keyOpen.value.value;
-  const notes = keyNotes(sceneKey);
+  // The drawing's notes go to the Notes tab; the bar keeps a small "N notes" pill that opens it.
+  usePublishNotes('preview', previewNotes(sceneKey));
   if (sceneKey === null && readout === null && prompt === null && notice === null) return null;
   return h(
     'div',
@@ -56,7 +49,7 @@ export function ViewerOverlay({ sceneKey, readout, prompt = null, notice = null 
             'div',
             { class: 'viewer-overlay-bar' },
             h('button', { type: 'button', class: 'small key-toggle', 'data-action': 'key-toggle', 'aria-expanded': open ? 'true' : 'false', onClick: () => keyOpen.set(!open) }, open ? 'Hide key' : 'Show key'),
-            !open && notes > 0 ? h('button', { type: 'button', class: 'small key-notes-count', 'data-preview': 'key-notes-count', onClick: () => keyOpen.set(true) }, notesCount(notes)) : null,
+            h(NotesPill, { topic: 'Preview' }),
           ),
       sceneKey !== null && open ? h(SceneKey, sceneKey) : null,
     ),

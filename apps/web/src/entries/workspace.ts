@@ -45,6 +45,7 @@ import '../styles/gcode-list.css';
 import '../styles/features.css';
 import '../styles/job-layout.css';
 import '../styles/position.css';
+import '../styles/run-panel.css';
 import { installTipPlacement } from '../workspace/tipPlacement.ts';
 
 const trustedTypes = installTrustedTypes();

@@ -50,7 +50,7 @@ async function overlaySettled(page: Page): Promise<void> {
   }
   await page.waitForFunction(() => {
     const w = window as unknown as { __overlayBoxes?: string; __overlaySame?: number };
-    const boxes = ['[data-preview="overlay"]', '[data-scene="notes"]', '.scene-key-line', '[data-preview="marker-readout"]', '.viewer-overlay-bar', '[data-preview="drawing"]']
+    const boxes = ['[data-preview="overlay"]', '.viewer-overlay-bar [data-action="open-notes"]', '.scene-key-line', '[data-preview="marker-readout"]', '.viewer-overlay-bar', '[data-preview="drawing"]']
       .map((s) => { const r = document.querySelector(s)?.getBoundingClientRect(); return r === undefined ? '-' : [r.left, r.top, r.width, r.height].map((n) => n.toFixed(1)).join(','); })
       .join('|');
     w.__overlaySame = boxes === w.__overlayBoxes ? (w.__overlaySame ?? 0) + 1 : 0;
@@ -81,7 +81,7 @@ for (const [level, width, height] of [['simple', 1280, 720], ['advanced', 1280, 
     await overlaySettled(page);
     const doc = await page.evaluate(() => ({ scroll: document.scrollingElement?.scrollHeight ?? 0, inner: innerHeight, top: document.scrollingElement?.scrollTop ?? 0 }));
     expect(doc.scroll, 'the page does not scroll').toBeLessThanOrEqual(doc.inner);
-    const overlaid = ['[data-scene="notes"]', '.scene-key-line', '[data-preview="marker-readout"]', '.viewer-overlay-bar'];
+    const overlaid = ['.scene-key-line', '[data-preview="marker-readout"]', '.viewer-overlay-bar'];
     const [strip, card, canvas, top, ...over] = await rects(page, ['[data-region="machine-strip"]', '.job-view .job-card', '[data-preview="drawing"]', '.job-view .viewer-top', ...overlaid]);
     expect(card?.y ?? 0, 'the job card starts below the strip').toBeGreaterThanOrEqual((strip?.y ?? 0) + (strip?.h ?? 0) - 0.5);
     expect(canvas?.h ?? 0, 'the 3D view keeps a usable height').toBeGreaterThanOrEqual(270);
@@ -95,14 +95,14 @@ for (const [level, width, height] of [['simple', 1280, 720], ['advanced', 1280, 
   });
 }
 
-test('the key hides and shows, remembered across a reload; hidden, its notes are still counted in view', async ({ page }) => {
+test('the key hides and shows, remembered across a reload; its notes are in the Notes tab and counted in view either way', async ({ page }) => {
   await openSample(page, 1280, 720);
-  await expect(page.locator('[data-scene="notes"]')).toBeVisible();
+  const pill = page.locator('.viewer-overlay-bar [data-action="open-notes"]');
+  await expect(pill).toHaveText(/^\d+ notes?$/);
   await overlaySettled(page);
   await page.locator('[data-action="key-toggle"]').click();
-  await expect(page.locator('[data-scene="notes"]')).toHaveCount(0);
   await expect(page.locator('.scene-key-line')).toHaveCount(0);
-  await expect(page.locator('[data-preview="key-notes-count"]')).toHaveText(/^\d+ notes?$/);
+  await expect(pill).toHaveText(/^\d+ notes?$/);
   await expect(page.locator('[data-preview="marker-readout"]')).toBeVisible();
   // From the reload on, note whether a sample button is drawn once the page is ready: the job's file comes back
   // with the page, and until it has, the prompt says the file is opening rather than offering the samples for a
@@ -122,7 +122,7 @@ test('the key hides and shows, remembered across a reload; hidden, its notes are
   await expect(page.locator('[data-preview="reopening"]')).toHaveCount(0);
   await expect(page.locator('[data-sample]')).toHaveCount(0);
   expect(await page.locator('html').getAttribute('data-sample-seen'), 'no sample button flashes while the job reopens').toBeNull();
-  await expect(page.locator('[data-scene="notes"]')).toHaveCount(0);
+  await expect(page.locator('.scene-key-line')).toHaveCount(0);
   await overlaySettled(page);
   await page.locator('[data-action="key-toggle"]').click();
   await expect(page.locator('.scene-key-line')).toBeVisible();
@@ -164,7 +164,7 @@ for (const level of ['simple', 'advanced'] as const) {
       expect(s.x).toBeGreaterThanOrEqual(bar.x - 0.5);
       expect(s.x + s.w).toBeLessThanOrEqual(bar.x + bar.w + 0.5);
     }
-    const under = ['[data-scene="notes"]', '.scene-key-line', '[data-preview="marker-readout"]'];
+    const under = ['.viewer-overlay-bar [data-action="open-notes"]', '.scene-key-line', '[data-preview="marker-readout"]'];
     const [drawing, ...below] = await rects(page, ['[data-preview="drawing"]', ...under]);
     under.forEach((s, i) => {
       const r = below[i] ?? null;

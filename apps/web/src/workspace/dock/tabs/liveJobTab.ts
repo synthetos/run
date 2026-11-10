@@ -7,7 +7,8 @@ import { uiLevel } from '../../jobWorkflow.ts';
 import { num } from '../../status.ts';
 import { duration as durationText, feedReport, feedShareLine, jobUi, PHASE_TEXT, starving } from '../../jobUi.ts';
 import { emptyQueueText, liveEventText, liveLineLabel } from '../../liveWords.ts';
-import { reportsNotice } from '../../reportsNotice.ts';
+import { reportsNotes } from '../../reportsNotice.ts';
+import { usePublishNotes } from '../../notes/usePublishNotes.ts';
 import type { DockContext, DockTab } from '../dockTab.ts';
 
 const PHASE_LABEL = (phase: string): string => PHASE_TEXT[phase] ?? phase;
@@ -33,6 +34,8 @@ const STAT_TEXT: Readonly<Record<string, string>> = {
 /** The Live job tab: what the status reports say now, and the feed of the last 60 s. Honest when nothing runs. */
 function LivePane({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
+  // What Run changed in the board's reporting at connect (W35, W36, W44) is in the Notes tab.
+  usePublishNotes('reports', reportsNotes(view));
   if (view === null || !connected(view) || view.message === null) {
     return h('div', { class: 'live-empty', 'data-live': 'empty' }, h('strong', null, 'Connect to see live job data.'), h('p', null, 'State, feed and progress reported by the controller.'));
   }
@@ -115,7 +118,7 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
     ),
     // Advanced: what Run changed in the board's reporting at connect (W35, W36, W44) and where the Position numbers
     // come from (moved here from the Position panel, owner 2026-11-09).
-    advanced ? h('div', { class: 'live-dro' }, reportsNotice(view), h(Dro, { message: view.message, elapsedMs: view.now - view.receivedAt })) : null,
+    advanced ? h('div', { class: 'live-dro' }, h(Dro, { message: view.message, elapsedMs: view.now - view.receivedAt })) : null,
   );
 }
 

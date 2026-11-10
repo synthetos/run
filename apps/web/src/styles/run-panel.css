@@ -1,0 +1,44 @@
+/*
+ * The Run step's "Ready to start?" list (workspace/run/), the Notes tab (workspace/dock/tabs/notesTab.ts) and the
+ * blocker modals (owner, 2026-11-09). One shared zebra rule for table-like lists: `.rows`.
+ */
+:root { --row-stripe: color-mix(in srgb, var(--ink) 5%, transparent); }
+ul.rows, ol.rows { list-style: none; margin: 0; padding: 0; }
+.rows > li:nth-child(even) { background: var(--row-stripe); }
+
+/* The list: mark, label, a few words, the button that clears it. */
+.job-steps.run-panel { display: flex; flex-direction: column; gap: 10px; grid-template-columns: none; }
+.ready-list { border: 1px solid var(--line-soft); border-radius: var(--r-sm); overflow: hidden; }
+.ready-item { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; row-gap: 4px; align-items: baseline; padding: 7px 10px; font-size: 12.5px; line-height: 1.4; }
+.ready-mark { font-weight: 700; text-align: center; }
+.ready-label { font-weight: 600; color: var(--ink); margin-right: 6px; }
+.ready-text { min-width: 0; }
+.ready-summary { color: var(--ink); }
+.ready-actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ready-actions button.small { min-height: 26px; padding: 0 10px; font-size: 12px; }
+.ready-actions .ready-more { font-size: 12px; }
+.ready-item.mark-done .ready-mark { color: var(--ok); }
+.ready-item.mark-needs .ready-mark { color: var(--warn); }
+.ready-item.mark-blocked .ready-mark, .ready-item.mark-blocked .ready-summary { color: var(--danger); }
+.ready-item.mark-waiting .ready-mark, .ready-item.mark-waiting .ready-summary { color: var(--muted); }
+
+/* The one tick and Start, always under the list. */
+.ready-tick { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.4; }
+.ready-tick input { margin-top: 2px; flex: none; }
+.run-panel > button.start-job { align-self: stretch; min-height: 40px; font-size: 14px; }
+
+/* Modals: a plain title, short sentences, the registered text under Details. */
+.choice-modal .choice-title { margin: 0 0 6px; font-size: 16px; }
+.choice-details { margin: 6px 0 0; font-size: 12px; }
+.choice-details summary { cursor: pointer; color: var(--muted); }
+.choice-details p { margin: 6px 0 0; }
+.motion-confirm .start-w5 { font-size: 12.5px; }
+
+/* The Notes tab: grouped by topic, newest first, each with a link. */
+.notes-list { display: grid; gap: 12px; padding: 8px 12px; }
+.notes-group h3 { margin: 0 0 4px; font: 600 11.5px/1.3 var(--cond); letter-spacing: .02em; color: var(--tan); }
+.notes-group .note { padding: 6px 8px; font-size: 12.5px; line-height: 1.45; }
+.notes-group .note.warn strong { color: var(--warn); }
+.notes-group .note .note-link { margin-left: 6px; font-size: 12px; }
+.dock-badge { color: var(--muted); font-weight: 500; }
+button.notes-pill { min-height: 26px; padding: 0 9px; font-size: 11.5px; color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--sheet) 92%, transparent); font-weight: 600; }

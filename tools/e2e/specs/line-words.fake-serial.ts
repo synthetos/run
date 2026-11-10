@@ -21,10 +21,13 @@ test('the check, the G-code tab, the strip and the card all count file lines', a
   await open(page, text);
   const fileLines = text.trimEnd().split('\n').length;
   await expect(page.locator('.dock-summary')).toHaveText(new RegExp(`^${String(fileLines)} lines, \\d+ with commands$`));
-  const check = page.locator('[data-job="check"]');
-  await expect(check).toContainText('Checked with this board: the file’s');
+  // The full check is the File check note (Notes tab, owner 2026-11-09); the list counts the file's lines.
+  await expect(page.locator('[data-ready-summary="file"]')).toContainText(`${fileLines.toLocaleString('en-US')} lines`);
+  const check = page.locator('[data-note="file-check"]');
+  await expect(check).toContainText('Checked with this board.');
+  await expect(check).toContainText('The file’s');
   const total = (await session(worker)).job?.total ?? 0;
-  const toSend = Number(/the file’s (\d+) lines with commands/.exec((await check.textContent()) ?? '')?.[1]);
+  const toSend = Number(/the file’s (\d+) lines with commands/i.exec(((await check.textContent()) ?? '').replace(/,/g, ''))?.[1]);
   if (total > toSend) await expect(check).toContainText(`plus ${String(total - toSend)} line`);
   await start(page);
   await expect.poll(() => executing(worker), { timeout: 20_000 }).toBeGreaterThan(5);

@@ -39,7 +39,7 @@ test('the stock is carved with the V-bit from the tool table, and the carve foll
   await expect(carve).toHaveAttribute('data-carve-lowest', CUT);
   const whole = Number(await carve.getAttribute('data-carved-through'));
   expect(whole).toBeGreaterThanOrEqual(10);
-  await expect(sheet.locator('[data-scene="carve-note"]')).toHaveCount(0);
+  await expect(page.locator('[data-note^="carve:"]')).toHaveCount(0);
 
   const scrubber = sheet.locator('[data-preview="scrubber"]');
   const carvedAt = async (line: number, lowest: string): Promise<void> => {
@@ -57,7 +57,7 @@ test('the stock is carved with the V-bit from the tool table, and the carve foll
   await carvedAt(9, CUT);
 });
 
-test('a tool that is not in the tool table carves nothing, and the key names the lines', async ({ page }) => {
+test('a tool that is not in the tool table carves nothing, and a note names the lines', async ({ page }) => {
   await page.goto('/');
   await ready(page);
   const sheet = page.locator('[data-region="preview"]');
@@ -65,7 +65,8 @@ test('a tool that is not in the tool table carves nothing, and the key names the
   const carve = sheet.locator('[data-scene="carve"]');
   await expect(carve).toHaveAttribute('data-carve-done', 'true');
   await expect(carve).toHaveAttribute('data-carve-lowest', '0.000');
-  await expect(sheet.locator('[data-scene="carve-note"]')).toHaveText('Lines 5–9 not carved: T9 is not in your tool table');
+  // Lines not carved are a note in the Notes tab (owner, 2026-11-09), not over the drawing.
+  await expect(page.locator('[data-note^="carve:"]')).toContainText('Lines 5–9 not carved: T9 is not in your tool table');
 });
 
 test('a file with no tool change is carved once the user chooses the tool already in the spindle', async ({ page }) => {
@@ -77,7 +78,7 @@ test('a file with no tool change is carved once the user chooses the tool alread
   const carve = sheet.locator('[data-scene="carve"]');
   await expect(carve).toHaveAttribute('data-carve-done', 'true');
   await expect(carve).toHaveAttribute('data-carve-lowest', '0.000');
-  await expect(sheet.locator('[data-scene="carve-note"]')).toHaveText('Lines 5–9 not carved: no tool chosen. Choose the tool in the spindle in Analyze');
+  await expect(page.locator('[data-note^="carve:"]')).toContainText('Lines 5–9 not carved: no tool chosen. Choose the tool in the spindle in Analyze');
 
   await page.locator('[data-region="rail"] [data-view="analyze"]').click();
   const view = page.locator('[data-screen="analyze"]');
@@ -85,18 +86,19 @@ test('a file with no tool change is carved once the user chooses the tool alread
   await page.locator('[data-region="rail"] [data-view="job"]').click();
   await expect(carve).toHaveAttribute('data-carve-done', 'true');
   await expect(carve).toHaveAttribute('data-carve-lowest', CUT);
-  await expect(sheet.locator('[data-scene="carve-note"]')).toHaveCount(0);
+  await expect(page.locator('[data-note^="carve:"]')).toHaveCount(0);
 });
 
-test('a cut below the stock is named in the key as a preview of the planned setup', async ({ page }) => {
+test('a cut below the stock is named in a note as a preview of the planned setup', async ({ page }) => {
   await page.goto('/');
   await ready(page);
   const sheet = page.locator('[data-region="preview"]');
   // The sample stock is 6.35 mm thick with its zero on top: line 5 cuts to Z -6.95, 0.6 mm under its bottom.
   await open(page, 'through.nc', ['G21 G90', 'T1 M6', 'G0 Z5', 'G0 X20 Y20', 'G1 Z-6.95 F300', 'G1 X60', 'G0 Z5', 'M30'].join('\n'));
-  const note = sheet.locator('[data-scene="below-stock-note"]');
-  await expect(note).toHaveText('The tool goes 0.6 mm below the stock at line 5 (preview, from the planned setup)');
-  await expect(note).toHaveAttribute('data-below-line', '5');
+  // A note in the Notes tab (owner, 2026-11-09), with a link to its line.
+  const note = page.locator('[data-note="below-stock"]');
+  await expect(note).toContainText('The tool goes 0.6 mm below the stock at line 5 (preview, from the planned setup)');
+  await expect(note.locator('[data-action="note-link"]')).toHaveText('Line 5');
   // Scrubbed back before that line, the note goes with the carve.
   await sheet.locator('[data-preview="scrubber"]').fill('4');
   await expect(sheet.locator('[data-scene="carve"]')).toHaveAttribute('data-carved-through', '4');

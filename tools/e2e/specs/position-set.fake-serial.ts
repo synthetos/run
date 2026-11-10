@@ -68,8 +68,9 @@ test('a homing cycle with X, Y and Z switches is "Homed" in green', async ({ pag
 
 test('with no homing switch set, Home says why in words and "Set up homing" opens Board → Axes (C17)', async ({ page }) => {
   await connectSimple(page);
+  // Why is a note (Notes tab, owner 2026-11-09); "Set up homing" stays where Home is.
+  await expect(page.locator('[data-note="homing-off"]')).toContainText('Home is off. No axis has a homing switch and search speed set on this board.');
   const why = page.locator('[data-home="off-reason"]');
-  await expect(why).toContainText('Home is off: no axis has a homing switch and search speed set on this board.');
   await why.locator('[data-action="homing-setup"]').click();
   await expect(page.locator('[data-screen="board"]')).toBeVisible();
   await expect(page.locator('[data-board-tab="axes"]')).toHaveAttribute('aria-selected', 'true');

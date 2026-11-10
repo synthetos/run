@@ -26,6 +26,8 @@ export interface Note {
   readonly link?: NoteLink;
   /** `warn` draws it in the warning colour; it is still only a note. */
   readonly tone?: 'info' | 'warn';
+  /** The registered string it carries in full (W35, W36, W44, ...), as `data-safety`. */
+  readonly safety?: string;
 }
 
 /** A note with the time it first appeared (newest first in the tab). */
@@ -54,7 +56,7 @@ export function publishNotes(source: string, notes: readonly Note[], now: () => 
 }
 
 function sameNote(a: ShownNote | undefined, b: Note): boolean {
-  return a !== undefined && a.id === b.id && a.title === b.title && a.body === b.body && a.topic === b.topic && JSON.stringify(a.link ?? null) === JSON.stringify(b.link ?? null) && (a.tone ?? 'info') === (b.tone ?? 'info');
+  return a !== undefined && a.id === b.id && a.title === b.title && a.body === b.body && a.topic === b.topic && JSON.stringify(a.link ?? null) === JSON.stringify(b.link ?? null) && (a.tone ?? 'info') === (b.tone ?? 'info') && a.safety === b.safety;
 }
 
 /** Every note that applies now, newest first. Reading it in a render subscribes to changes. */

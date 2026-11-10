@@ -64,19 +64,23 @@ export function zigzag(n: number, tail: readonly string[] = [], head: readonly s
 export async function open(page: Page, text: string, name = 'job.nc'): Promise<void> {
   await page.locator('[data-job-step="run"]').click();
   await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
-  await expect(page.locator('[data-job="check"]')).toContainText('Checked with this board', { timeout: 15_000 });
+  await expect(page.locator('[data-ready-item="file"]')).toHaveAttribute('data-mark', 'done', { timeout: 15_000 });
 }
 
-/** Ticks what the stepper asks for (unhomed C36, work zero C31, spindle C32, the attestation), then Start and C30. */
+/**
+ * The Run step's one tick (owner, 2026-11-09: it confirms what applies, C31, C36, C32 and the attestation), then
+ * Start; the travel question (C40 or C41) answered with Start anyway when it is asked; then C30.
+ */
 export async function start(page: Page): Promise<void> {
-  for (const box of ['confirm-unhomed', 'confirm-zero', 'confirm-spindle', 'confirm-travel', 'confirm-attended']) {
-    const el = page.locator(`[data-job="${box}"]`);
-    if ((await el.count()) > 0) await el.check();
-  }
-  await expect(page.locator('[data-job="blockers"]')).toHaveCount(0);
+  const tick = page.locator('[data-job="confirm-start-box"]');
+  if ((await tick.count()) > 0) await tick.check();
+  await expect(page.locator('[data-ready-item][data-mark="blocked"], [data-ready-item][data-mark="waiting"]')).toHaveCount(0);
   const button = page.locator('[data-action="start-job"]');
   await expect(button).toBeEnabled();
   await button.click();
+  const travel = page.locator('[data-action="travel-start"]');
+  await expect(travel.or(page.locator('[data-safety="C30"]')).first()).toBeVisible();
+  if ((await travel.count()) > 0) await travel.click();
   await expect(page.locator('[data-safety="C30"]')).toBeVisible();
   await page.locator('[data-safety="C30"] [data-action="motion-confirm"]').click();
 }

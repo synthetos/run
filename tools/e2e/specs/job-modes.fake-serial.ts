@@ -31,7 +31,7 @@ async function shots(page: Page): Promise<void> {
     for (const [w, h] of [[1280, 720], [390, 844]] as const) {
       await page.setViewportSize({ width: w, height: h });
       await page.waitForTimeout(300);
-      const modes = page.locator('[data-job="modes"]');
+      const modes = page.locator('[data-ready-item="modes"]');
       if ((await modes.count()) > 0) await modes.first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
       await page.screenshot({ path: `${SHOTS}/job-modes-${level}-${w}x${h}.png` });
     }
@@ -44,15 +44,16 @@ test('a board a file left in G91: the card says Relative, mm, and the next file 
   test.setTimeout(120_000);
   const worker = await connect(page);
   await open(page, 'G21 G91\nG1 X1 F600\nG1 X1\n', 'leaves-g91.nc');
-  await expect(page.locator('[data-job="board-modes"]')).toHaveText('Absolute, mm');
-  await expect(page.locator('[data-job="start-modes"]')).toHaveCount(0); // the file sets its own modes
+  await expect(page.locator('[data-ready-summary="modes"]')).toHaveText('Absolute, mm.');
+  await expect(page.locator('[data-note="modes"]')).toHaveCount(0); // the file sets its own modes
   await start(page);
   await expect.poll(() => phase(worker), { timeout: 30_000 }).toBe('done');
   await page.locator('[data-action="job-close"]').click();
 
   await open(page, 'G1 X5 F600\nG1 X2\nM30\n', 'no-g90.nc');
-  await expect(page.locator('[data-job="board-modes"]')).toHaveText('Relative, mm', { timeout: 10_000 });
-  await expect(page.locator('[data-job="start-modes"]')).toHaveText('Run sets absolute mode before the first line, as the preview shows.');
+  await expect(page.locator('[data-ready-summary="modes"]')).toHaveText('Relative, mm.', { timeout: 10_000 });
+  // What Start writes is a note (Notes tab, owner 2026-11-09).
+  await expect(page.locator('[data-note="modes"]')).toContainText('Run sets absolute mode before the first line, as the preview shows.');
   await shots(page);
   const from = (await writes(worker)).length;
   await start(page);

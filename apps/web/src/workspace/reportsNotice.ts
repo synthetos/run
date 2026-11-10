@@ -1,8 +1,12 @@
-/** The status-reporting notice (W35, W36, W44), shared by the connect notice (views/RunView.ts) and the dock's Live job tab. */
+/**
+ * The status-reporting notices (W35, W36, W44): as paragraphs for the connect notice (views/RunView.ts), and as notes
+ * for the Notes tab (owner, 2026-11-09), where the Live job tab used to show them.
+ */
 import { h, type ComponentChild } from 'preact';
 import { w35, w36, w44 } from '@synthetos/safety';
 import { signalText } from '../shell/signal.ts';
 import { connected, type LiveView } from './model.ts';
+import type { Note } from './notes/notes.ts';
 
 /**
  * What the session changed in the board's status reporting at connect, in plain words (W35, W36; H64), and why
@@ -22,4 +26,21 @@ export function reportsNotice(view: LiveView | null): ComponentChild {
   if (rxm !== undefined && rxm.changed?.kind === 'restore' && view?.message?.snapshot.job === null) lines.push(h('p', { key: 'rxm', class: 'fine', 'data-safety': 'W44' }, ...signalText(w44({ to: rxm.changed.to }))));
   if (r.phase === 'done' && r.heartbeatMs === null) lines.push(h('p', { key: 'hb', class: 'fine', 'data-reports': 'no-heartbeat' }, 'This firmware has no heartbeat: Run checks the link only after a few seconds of silence.'));
   return lines.length === 0 ? null : h('div', { class: 'reports-notice' }, lines);
+}
+
+/** The same, as notes for the Notes tab: each registered text in full, with what it is about. */
+export function reportsNotes(view: LiveView | null): readonly Note[] {
+  const r = view !== null && connected(view) ? view.message?.snapshot.reports : undefined;
+  if (r === undefined) return [];
+  const board = { kind: 'board', tab: 'comms', label: 'Communications' } as const;
+  const out: Note[] = [];
+  for (const c of r.changes) {
+    if (c.setting === 'sr') out.push({ id: 'reports-sr', topic: 'Board', title: 'Status reports set.', body: w35(), safety: 'W35', link: board });
+    else if (c.from !== undefined && c.to !== undefined) out.push({ id: `reports-${c.setting}`, topic: 'Board', title: `${c.setting} changed.`, body: w36({ setting: c.setting, from: c.from, to: c.to }), safety: 'W36', link: board });
+  }
+  if (r.detail !== null) out.push({ id: 'reports-detail', topic: 'Board', title: 'Status reports.', body: `${r.detail.charAt(0).toUpperCase()}${r.detail.slice(1)}.`, tone: 'warn' });
+  const rxm = view?.message?.snapshot.rxm;
+  if (rxm !== undefined && rxm.changed?.kind === 'restore' && view?.message?.snapshot.job === null) out.push({ id: 'reports-rxm', topic: 'Board', title: 'Line mode put back.', body: w44({ to: rxm.changed.to }), safety: 'W44' });
+  if (r.phase === 'done' && r.heartbeatMs === null) out.push({ id: 'reports-heartbeat', topic: 'Board', title: 'No heartbeat.', body: 'Run checks the link only after a few seconds of silence.' });
+  return out;
 }

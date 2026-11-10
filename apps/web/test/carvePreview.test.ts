@@ -11,7 +11,8 @@ import { SEGMENT, type SceneLayers } from '@synthetos/gcode-view';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 import { MAX_UNCARVED_NOTES, NO_CHANGE_REASON, NO_T_REASON, carvePlan } from '../src/preview/carveTools.ts';
 import { carveGrid } from '../src/preview/carveStock.ts';
-import { BelowNote, CarveLabel, belowText, carveNotes, cellText, depthText } from '../src/preview/CarveKey.ts';
+import { CarveLabel, belowText, cellText, depthText } from '../src/preview/CarveKey.ts';
+import { previewNotes } from '../src/preview/previewNotes.ts';
 import { SceneKey, pickHint } from '../src/preview/SceneKey.ts';
 
 const NOT_MEASURED_BED = 'Bed 750 × 750 mm (not measured yet)';
@@ -110,22 +111,24 @@ describe('the key', () => {
     expect(html).toContain('data-carve-done="true"');
     expect(renderToString(h(CarveLabel, { carve: info({ failed: 'boom' }) }))).toContain('Carving stopped');
   });
-  it('lists the uncarved lines in the scene notes', () => {
-    expect(carveNotes(null)).toEqual([]);
+  it('lists the uncarved lines as notes for the Notes tab (owner, 2026-11-09), the carving detail stays on the key', () => {
+    expect(previewNotes({ scene: null, carve: null })).toEqual([]);
+    const notes = previewNotes({ scene: null, carve: info() });
+    expect(notes.map((n) => n.body)).toContain('Lines 12–340 not carved: T3 is not in your tool table');
+    expect(notes.every((n) => !/safe/i.test(`${n.title} ${n.body}`))).toBe(true);
     const html = renderToString(h(SceneKey, { scene: null, carve: info() }));
-    expect(html).toContain('Lines 12–340 not carved: T3 is not in your tool table');
     expect(html).toContain('Carving detail 0.25 mm');
-    expect(html).not.toMatch(/safe/i);
+    expect(html).not.toContain('not carved');
   });
   it('names where the cut goes below the stock, as a preview of the planned setup', () => {
     expect(depthText(0.6)).toBe('0.6 mm');
     expect(depthText(0.04)).toBe('0.04 mm');
     expect(belowText({ firstLine: 812, firstDepth: 0.6, deepestLine: 812, deepestDepth: 0.6 })).toBe('The tool goes 0.6 mm below the stock at line 812 (preview, from the planned setup)');
     expect(belowText({ firstLine: 812, firstDepth: 0.6, deepestLine: 900, deepestDepth: 1.2 })).toBe('The tool goes 0.6 mm below the stock at line 812, and 1.2 mm below at line 900 (preview, from the planned setup)');
-    const html = renderToString(h(SceneKey, { scene: null, carve: info({ below: { firstLine: 812, firstDepth: 0.6, deepestLine: 812, deepestDepth: 0.6 } }) }));
-    expect(html).toContain('data-scene="below-stock-note"');
-    expect(html).not.toMatch(/safe|verified/i);
-    expect(renderToString(h(BelowNote, { carve: info() }))).toBe('');
+    const below = previewNotes({ scene: null, carve: info({ below: { firstLine: 812, firstDepth: 0.6, deepestLine: 812, deepestDepth: 0.6 } }) }).find((n) => n.id === 'below-stock');
+    expect(below).toMatchObject({ title: 'The tool goes below the stock.', link: { kind: 'line', line: 812 } });
+    expect(`${below?.title ?? ''} ${below?.body ?? ''}`).not.toMatch(/safe|verified/i);
+    expect(previewNotes({ scene: null, carve: info() }).some((n) => n.id === 'below-stock')).toBe(false);
   });
 });
 
@@ -151,7 +154,7 @@ describe('the key at each level', () => {
     expect(html).toContain(NOT_MEASURED_BED);
     expect(html).not.toContain('Bed size not set');
     expect(html).toContain('Click the bed, fixture or stock to change it');
-    expect(html).toContain('Lines 12–340 not carved');
+    expect(html).not.toContain('Lines 12–340 not carved'); // a note in the Notes tab now
     expect(html).not.toMatch(/My X-Carve|revision|Carving detail|Bed settings/);
     expect(renderToString(h(SceneKey, { scene: scene(false), tool: t1, simple: true, onOpen: () => undefined }))).not.toContain(NOT_MEASURED_BED);
     expect(pickHint(['bed', 'stock'])).toBe('Click the bed or stock to change it');

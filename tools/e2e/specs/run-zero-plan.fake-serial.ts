@@ -16,8 +16,10 @@ test('Run names Place job’s planned zero and the difference from the board’s
   await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
   await page.locator('[data-job-step="run"]').click();
   await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name: 'job.nc', mimeType: 'text/plain', buffer: Buffer.from(zigzag(4)) });
-  await expect(page.locator('[data-job="check"]')).toContainText('Checked with this board', { timeout: 15_000 });
-  const zero = page.locator('[data-job="zero"]');
+  await expect(page.locator('[data-ready-item="file"]')).toHaveAttribute('data-mark', 'done', { timeout: 15_000 });
+  // The list says it in a few words; the full comparison is the work zero note (Notes tab, owner 2026-11-09).
+  await expect(page.locator('[data-ready-summary="zero"]')).toHaveText('Can’t compare until the position is set.');
+  const zero = page.locator('[data-note="zero"]');
   await expect(zero).toContainText('Your plan puts work zero at the front-left corner of the top of the stock');
   await expect(zero).toContainText('The machine position is not set (not homed)');
   await expect(zero).not.toContainText('No plan is recorded');
@@ -28,6 +30,15 @@ test('Run names Place job’s planned zero and the difference from the board’s
   await expect(zero).toContainText(/Work zero Z is \d+\.\d mm (above|below) the top of the stock you planned\./);
   await expect(zero).toContainText('You planned work zero at the front-left corner of the top of the stock');
   await expect(zero).not.toContainText('No plan is recorded');
-  await expect(page.locator('[data-safety="C31"]')).toContainText('at the front-left corner of the top of the stock');
-  await expect(page.locator('[data-safety="C31"]')).not.toContainText('none recorded');
+  await expect(page.locator('[data-ready-summary="zero"]')).toHaveText('Not your plan’s. Start cuts from the board’s.');
+  await expect(page.locator('[data-job="confirm-start"]')).toContainText('cut from the board’s work zero');
+  // The registered C31, in full, is under Details in the start confirmation.
+  await page.locator('[data-job="confirm-start-box"]').check();
+  await page.locator('[data-action="start-job"]').click();
+  const travel = page.locator('[data-action="travel-start"]');
+  await expect(travel.or(page.locator('[data-safety="C30"]')).first()).toBeVisible();
+  if ((await travel.count()) > 0) await travel.click();
+  await expect(page.locator('[data-safety="C30"] [data-full="C31"]')).toContainText('at the front-left corner of the top of the stock');
+  await expect(page.locator('[data-safety="C30"] [data-full="C31"]')).not.toContainText('none recorded');
+  await page.locator('[data-safety="C30"] [data-action="motion-cancel"]').click();
 });

@@ -9,6 +9,7 @@ import { all, byAttr, one, root, text } from './tree.ts';
 import { newDraftJob, type JobClock } from '../src/workspace/jobModel.ts';
 import { jobStep } from '../src/workspace/jobWorkflow.ts';
 import { jobScene } from '../src/preview/sceneModel.ts';
+import { previewNotes } from '../src/preview/previewNotes.ts';
 import { SceneKey } from '../src/preview/SceneKey.ts';
 import { PreviewSvg } from '../src/preview/PreviewSvg.ts';
 import { openSceneSettings, pickLabel, scenePart } from '../src/preview/sceneSettings.ts';
@@ -52,12 +53,13 @@ describe('scene parts open their settings', () => {
     expect(jobStep.value).toBe('machine');
   });
 
-  it('the key: the bed, the placement notes, and links to the parts that exist', () => {
+  it('the key: the bed and links to the parts that exist; the placement notes are notes (Notes tab), not on the key', () => {
     const scene = { ...draft(), notes: ['Machine position not set.'] };
     const opened: string[] = [];
     const el = root(h(SceneKey, { scene, onOpen: (p) => opened.push(p) }));
     expect(text(one(el, byAttr('data-scene', 'bed')))).toBe(scene.bedLabel);
-    expect(text(one(el, byAttr('data-scene', 'note')))).toBe('Machine position not set.');
+    expect(all(el, byAttr('data-scene', 'note'))).toHaveLength(0);
+    expect(previewNotes({ scene }).map((n) => n.title)).toEqual(['Machine position not set.']);
     const links = all(el, (e) => e.props['data-scene-link'] !== undefined);
     const hasFixture = scene.layers.solids.some((s) => s.tag === 'fixture');
     expect(links.map((l) => text(l))).toEqual(hasFixture ? ['Bed settings', 'Fixture settings', 'Stock settings'] : ['Bed settings', 'Stock settings']);
