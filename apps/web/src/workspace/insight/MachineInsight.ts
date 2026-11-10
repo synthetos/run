@@ -105,6 +105,7 @@ export function MachineInsight({ model, fileTool = null }: { readonly model: Wor
   const on = typeof live.spe === 'number' ? live.spe === 1 : typeof live.spc === 'number' ? live.spc !== 0 : null;
   const cutting = cuttingRows({
     toolNumber: typeof live.tool === 'number' ? live.tool : null,
+    toolLive: live.srList?.includes('tool') === true,
     fileTool: job !== null && job.startedAt !== null && job.endedAt === null ? fileTool : null,
     tools: toolStore.value.value,
     materialId: materialId === '' ? null : materialId,

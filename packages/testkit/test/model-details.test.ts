@@ -90,6 +90,19 @@ describe('edge-next G-code word rules', () => {
     expect(sim.device.settings.get('xtm')).toBeCloseTo(50.8, 9); // set_flu stores millimetres
   });
 
+  it('[EN-T-M6] T only selects; M6 sets the reported tool when it runs, behind the queued moves (450.02)', () => {
+    const sim = enSim();
+    sim.host.sendLine('T2');
+    sim.clock.advance(20);
+    expect(get(sim, 'tool')).toBe(0);
+    sim.host.sendLine('G1 X20 F600');
+    sim.host.sendLine('M6');
+    sim.clock.advance(50);
+    expect(get(sim, 'tool')).toBe(0); // the move is still running; M6 waits behind it
+    sim.clock.advance(4000);
+    expect(get(sim, 'tool')).toBe(2);
+  });
+
   it('M7/M8 and M9 drive the coolant outputs in queue order; M6 and T are accepted', () => {
     const sim = enSim();
     sim.host.sendLine('T3 M6');

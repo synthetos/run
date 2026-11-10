@@ -49,7 +49,7 @@ describe('chip load maths', () => {
 });
 
 describe('the cutting rows', () => {
-  const base: CuttingInput = { toolNumber: 1, fileTool: null, tools: SEED_TOOLS, materialId: 'builtin.mdf', material: mdf, vel: 1200, feed: 1000, sps: 12000, spindleOn: true, fileSpeed: null, inches: false };
+  const base: CuttingInput = { toolNumber: 1, toolLive: false, fileTool: null, tools: SEED_TOOLS, materialId: 'builtin.mdf', material: mdf, vel: 1200, feed: 1000, sps: 12000, spindleOn: true, fileSpeed: null, inches: false };
   it('live velocity while moving, the board’s speed, and a verdict with the range', () => {
     const r = cuttingRows(base);
     expect(r.tool).toMatchObject({ number: 1, diameter: 3.175, flutes: 2, from: 'board' });
@@ -83,8 +83,10 @@ describe('the cutting rows', () => {
     expect(r.missing[0]).toEqual({ text: 'T9 has no flute count.', fix: { kind: 'tool', number: 9, label: 'Edit T9' } });
     expect(cuttingRows({ ...base, materialId: 'pine', material: { id: 'pine', name: 'Pine', cutting: [] } as unknown as Material }).missing[0]?.text).toBe('No chip-load data for carbide in Pine.');
   });
-  it('while a job runs the file’s tool wins over a stale reported T0', () => {
+  it('while a job runs the file’s tool stands in only when the board does not report tool (OD-34)', () => {
     expect(cuttingRows({ ...base, toolNumber: 0, fileTool: 2 }).tool).toMatchObject({ number: 2, from: 'file' });
+    expect(cuttingRows({ ...base, toolLive: true, toolNumber: 1, fileTool: 2 }).tool).toMatchObject({ number: 1, from: 'board' });
+    expect(cuttingRows({ ...base, toolLive: true, toolNumber: 0, fileTool: 2 }).missing[0]?.text).toBe('No tool chosen (T0).');
   });
   it('a ball nose carries the full-diameter note', () => {
     const n = SEED_TOOLS.find((t) => t.tool === ball)?.number ?? 3;
@@ -111,11 +113,11 @@ describe('the rows as drawn', () => {
   it('draws every row with nothing known, and the verdict with its range', async () => {
     const { renderToString } = await import('preact-render-to-string');
     const { cuttingList, plannerList } = await import('../src/workspace/insight/MachineInsight.ts');
-    const empty = cuttingRows({ toolNumber: null, fileTool: null, tools: [], materialId: null, material: null, vel: null, feed: null, sps: null, spindleOn: null, fileSpeed: null, inches: false });
+    const empty = cuttingRows({ toolNumber: null, toolLive: false, fileTool: null, tools: [], materialId: null, material: null, vel: null, feed: null, sps: null, spindleOn: null, fileSpeed: null, inches: false });
     const html = renderToString(cuttingList(empty) as never);
     expect(html).toContain('Not known');
     expect(html).toContain('No material set for this job.');
-    const low = cuttingRows({ toolNumber: 1, fileTool: null, tools: SEED_TOOLS, materialId: 'builtin.mdf', material: mdf, vel: 300, feed: null, sps: 12000, spindleOn: true, fileSpeed: null, inches: false });
+    const low = cuttingRows({ toolNumber: 1, toolLive: false, fileTool: null, tools: SEED_TOOLS, materialId: 'builtin.mdf', material: mdf, vel: 300, feed: null, sps: 12000, spindleOn: true, fileSpeed: null, inches: false });
     expect(renderToString(cuttingList(low) as never)).toMatch(/data-verdict="low"[^>]*>⚠ low: rubbing, heat \(0\.028–0\.100\)/);
     const p = renderToString(plannerList(plannerRows({ qr: 30, plannerBlocks: 32, job: job({}) }), 'Live · 0.10 s') as never);
     expect(p).toContain('data-starving="true"');

@@ -272,6 +272,8 @@ export class TinyGEdgeNextModel implements SimDevice {
   #dwellHeld = false;
   #homed = ALL_AXES_UNHOMED();
   #gm: GcodeModel = EN_FRESH_GCODE();
+  /** `tool_select`: the last T word; M6 moves it to the reported `tool` when it runs. */
+  #toolSelect = 0;
   #spindle: 'off' | 'cw' | 'ccw' = 'off';
   /** Direction last driven (`spindle_out.ccw`): kept while the spindle is off. */
   #spindleCcw = false;
@@ -604,6 +606,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#endHoldRequested = false;
     this.#homed = ALL_AXES_UNHOMED();
     this.#gm = EN_FRESH_GCODE();
+    this.#toolSelect = 0;
     this.#spindle = 'off';
     this.#spindleCcw = false;
     this.#mist = false;
@@ -1644,8 +1647,13 @@ export class TinyGEdgeNextModel implements SimDevice {
     // (@cite EN gcode_parser.c:634-636, :656; canonical_machine.c:1438-1448; canonical_machine.h:42)
     if (g.feed !== undefined) gm.feed = g.feed * this.#unitFactor(undefined);
     if (g.s !== undefined) gm.spindleSpeed = g.s;
-    if (g.tool !== undefined) gm.tool = g.tool;
-    if (g.toolChange === true) this.#queueCommand('M6 tool change', () => undefined); // stores the tool only (PN §9.3)
+    // @behaviour EN-T-M6: T only selects (cm_select_tool sets tool_select now); M6 queues _exec_change_tool, which sets
+    // the reported `tool` when it runs, behind the queued moves (@cite EN canonical_machine.c:1540-1558, 450.02).
+    if (g.tool !== undefined) this.#toolSelect = g.tool;
+    if (g.toolChange === true) {
+      const next = this.#toolSelect;
+      this.#queueCommand('M6 tool change', () => { this.#gm.tool = next; }); // stores the tool only (PN §9.3)
+    }
     if (g.spindle !== undefined) {
       const mode = g.spindle;
       // Spindle M-codes are queued and run in order; outputs stay off while inhibited (@cite EN spindle.c:182-193)

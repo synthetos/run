@@ -2,7 +2,8 @@
  * The Advanced planner and cutting block in the Position panel (owner, 2026-11-09), in the built app (fake-serial
  * TEST build): hidden in Simple; during a job it shows the planner buffer as blocks in use of the board's planner
  * size, the queued motion, the lines and the report age, and the cutting numbers. It only reads live state.
- * After a pause and resume, no "Resumed" line floats under the jog controls (the status strip says it).
+ * The tool row follows the board's reported `tool` after the M6 (OD-34). After a pause and resume, no "Resumed"
+ * line floats under the jog controls (the status strip says it).
  */
 import { expect, test } from './fixtures.ts';
 import { request } from './machineWorker.ts';
@@ -18,14 +19,24 @@ test('Advanced shows the planner and cutting rows during a job, read only; Simpl
   await expect(block).toHaveCount(0);
   await page.locator('[data-action="ui-level-advanced"]').click();
 
-  await open(page, zigzag(80, [], ['T1', 'M3 S12000']).replace('M30', 'M5\nM30'));
+  await open(page, zigzag(80, [], ['T1 M6', 'M3 S12000']).replace('M30', 'M5\nM30'));
   await start(page);
+  // The tool change (H74): Resume behind C34 sends the M6, and the board then reports T1 in its status reports.
+  await expect.poll(() => phase(worker), { timeout: 20_000 }).toBe('toolChange');
+  await page.locator('[data-action="tool-resume"]').click();
+  const restart = page.locator('[data-job="confirm-restart"]');
+  if ((await restart.count()) > 0) await restart.check();
+  await page.locator('[data-safety="C34"] [data-action="motion-confirm"]').click();
   await expect.poll(async () => (await session(worker)).job?.acked ?? 0, { timeout: 20_000 }).toBeGreaterThan(5);
   await expect(block.locator('[data-insight-row="buffer"] [role="meter"]')).toHaveAttribute('aria-valuemax', /^\d+$/);
   await expect(block.locator('[data-insight-row="buffer"]')).toContainText(/\d+ of \d+/);
   await expect(block.locator('[data-insight-row="queued"]')).toContainText(/about .+ \/ \d+ mm|about /);
   await expect(block.locator('[data-insight-row="lines"]')).toContainText(/sent [\d,]+ · answered [\d,]+ · running N/);
   await expect(block.locator('[data-insight-row="spindle"]')).toContainText('12,000 rpm');
+  // OD-34: the board's status list carries `tool`, so the tool row follows the board, not the file.
+  expect((await session(worker)).live?.srList).toContain('tool');
+  await expect(block.locator('[data-insight-row="tool"]')).toContainText('T1 · ');
+  await expect(block.locator('[data-insight-row="tool"]')).not.toContainText('from the file');
   await expect(block.locator('[data-insight-row="feed"]')).toContainText(/\d+ mm\/min(moving|programmed F)/);
 
   // Pause and resume: the strip says it; nothing floats under the jog controls.

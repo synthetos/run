@@ -9,8 +9,13 @@ import { chipLoad, referenceFor, surfaceSpeedMpm, usesFullDiameterNote, verdict,
 export const MM_PER_IN = 25.4;
 
 export interface CuttingInput {
-  /** `tool` as the board reports it; null when not reported. Many status lists leave it out, so it can be stale. */
+  /** `tool` as the board reports it; null when not reported. */
   readonly toolNumber: number | null;
+  /**
+   * The board's status list carries `tool` (run adds it, OD-34), so `toolNumber` follows M6 live. When it does not,
+   * the value is the one read at connect and can be stale.
+   */
+  readonly toolLive: boolean;
   /** While a job runs: the T number in effect at the executing line, from the file (the 3D marker's tool). */
   readonly fileTool: number | null;
   readonly tools: readonly { readonly number: number | null; readonly tool: Tool }[];
@@ -56,7 +61,8 @@ export function cuttingRows(i: CuttingInput): CuttingRows {
   const spindle = i.spindleOn === false ? { rpm: 0, from: 'board' as const } : finite(i.sps) ? { rpm: i.sps, from: 'board' as const } : finite(i.fileSpeed) ? { rpm: i.fileSpeed, from: 'file' as const } : null;
   if (spindle === null) missing.push({ text: 'Spindle speed not known: the board does not report it.', fix: null });
 
-  const fromFile = i.fileTool !== null && i.fileTool > 0;
+  // The board's live tool wins; the file's only stands in, during a job, when the board does not report it.
+  const fromFile = !(i.toolLive && i.toolNumber !== null) && i.fileTool !== null && i.fileTool > 0;
   const n = fromFile ? i.fileTool : i.toolNumber;
   const entry = n === null || n <= 0 ? undefined : i.tools.find((t) => t.number === n);
   if (n === null) missing.push({ text: 'The board has not reported a tool.', fix: null });

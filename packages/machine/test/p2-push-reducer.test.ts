@@ -46,7 +46,12 @@ describe('T-S101: report configuration branches', () => {
     expect(reportSteps({ srList: undefined, sv: undefined, si: undefined }).map((s) => s.kind)).toEqual(['srList', 'srReadback', 'rtProbe', 'heartbeat']);
     expect(reportSteps({ srList: [...RUN_SR_FIELDS].reverse(), sv: 2, si: 1001 }).map((s) => s.kind)).toEqual(['sv', 'svReadback', 'si', 'siReadback', 'rtProbe', 'heartbeat']);
     expect(srListMatches(undefined)).toBe(false);
-    expect(srListMatches([...RUN_SR_FIELDS, 'tool'])).toBe(false);
+    expect(srListMatches([...RUN_SR_FIELDS, 'admo'])).toBe(false);
+    // OD-34: the active tool is in run's list, so a board with the previous list (no `tool`) is written once more.
+    expect(RUN_SR_FIELDS).toContain('tool');
+    expect(srListLine()).toContain('tool:true');
+    expect(srListMatches(RUN_SR_FIELDS.filter((f) => f !== 'tool'))).toBe(false);
+    expect(RUN_SR_FIELDS.length).toBeLessThanOrEqual(30); // NV_STATUS_REPORT_LEN
     expect(srListLine().length).toBeLessThan(254);
     expect(srListLine()).not.toContain('ram');
   });

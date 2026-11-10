@@ -16,8 +16,9 @@
  * if it ever lands (no such code exists here, and the session never sends a `ram` key).
  *
  * What run needs in the status report list: state, hold, line, velocity and feed, units, coordinate
- * system and distance mode, work and machine position (X, Y, Z, A), and the spindle and coolant
- * readouts. `sv` must be 1 (filtered: only changed fields). `si` is left alone unless it is absurd
+ * system and distance mode, work and machine position (X, Y, Z, A), the spindle and coolant
+ * readouts, and the active tool (`tool`, set by M6 when it runs; owner 2026-11-10, OD-34). `sv` must be 1
+ * (filtered: only changed fields). `si` is left alone unless it is absurd
  * (above 1000 ms: the page would lag by seconds and the silence window would not hold), when it is
  * set back to the firmware default 250 ms. The heartbeat (`{"rt":{"hb":N}}`, RAM only, off at reset)
  * is turned on when `{"rt":null}` answers (status 100 means the firmware has none).
@@ -45,6 +46,7 @@ export const RUN_SR_FIELDS: readonly string[] = Object.freeze([
   'sps',
   'cof',
   'com',
+  'tool',
 ]);
 
 /** Dialects whose status report list and heartbeat run configures. */

@@ -25,6 +25,7 @@ export interface Session {
   readonly reports: { readonly phase: string };
   readonly rxm: { readonly busy: boolean; readonly current: number | null; readonly pending: boolean; readonly leftAsFound: boolean; readonly memoryKnown: boolean };
   readonly job: Job | null;
+  readonly live?: { readonly srList?: readonly string[] };
 }
 
 export async function session(worker: Worker): Promise<Session> {
