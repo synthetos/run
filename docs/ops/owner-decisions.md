@@ -499,6 +499,8 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 
 See docs/design/place-job.md.
 
+*Confirmed 2026-11-09 (owner):* with "Use the machine's work zero", the plan is the board's zero, so the start check never asks C31 ("the board's work zero is not your plan's"). Owner, verbatim: "yes that's right".
+
 ## OD-30. C1 is shown once per browser, never again (owner, 2026-11-09)
 
 **Owner's words.** "never show this to anyone after the first set of check boxes".
