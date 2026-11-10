@@ -10,6 +10,7 @@ import { STOP_TEXT, w29 } from '@synthetos/safety';
 import { machineLabel } from '../shell/SafetyBar.ts';
 import { signalText } from '../shell/signal.ts';
 import type { TabRole } from './tabStop.ts';
+import { pressHandlers } from '../workspace/pressAction.ts';
 
 export interface ObserverPanelProps {
   readonly role: TabRole;
@@ -40,8 +41,8 @@ export function ObserverPanel(props: ObserverPanelProps): ComponentChild {
           'div',
           { class: 'observer-controls', 'data-observer': 'controlled' },
           h('p', { role: 'status' }, `${STOP_TEXT.controlledElsewhere}: ${role.held.map(machineLabel).join(', ')}`),
-          h('button', { type: 'button', class: 'button', 'data-action': 'pause-request', onClick: props.onPauseRequest }, 'Pause request'),
-          h('button', { type: 'button', class: 'button', 'data-action': 'stop-job-request', onClick: props.onStopJobRequest }, 'Stop job request'),
+          h('button', { type: 'button', class: 'button', 'data-action': 'pause-request', ...pressHandlers('observer-pause-request', props.onPauseRequest) }, 'Pause request'),
+          h('button', { type: 'button', class: 'button', 'data-action': 'stop-job-request', ...pressHandlers('observer-stop-job-request', props.onStopJobRequest) }, 'Stop job request'),
         )
       : null,
   );

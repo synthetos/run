@@ -1,6 +1,8 @@
 /**
  * The 3D drawing (ROADMAP TB-03): a canvas driven by gcode-view's WebGL2
- * renderer. It renders on demand only and never animates. Without WebGL2 it
+ * renderer. It renders on demand only, through the frame budget (frameBudget.ts): capped during a job, and light
+ * (2 fps, fewer pixels, the carve brought up to date every 2 s) on a software or slow renderer, so Pause and Stop
+ * job never wait behind a frame. Without WebGL2 it
  * reports `onUnavailable` and the panel shows the 2D SVG drawing instead.
  *
  * With a scene (preview/sceneModel.ts) the bed, stock, fixture and clamps
@@ -10,8 +12,10 @@
  */
 import { Fragment, h, type ComponentChild } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { attachPicking, attachViewControls, createRenderer, type Box3, type CarveFeed, type ToolColors, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type ToolShape, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
+import { attachPicking, attachViewControls, createRenderer, unionRect, type Box3, type CarveFeed, type CellRect, type ToolColors, type PlannerOverlay, type PreviewRenderer, type SceneLayers, type SegmentList, type ToolShape, type Vec3, type ViewPreset } from '@synthetos/gcode-view';
 import { previewColors } from './colors.ts';
+import { browserFrameClock, FrameBudget, type BudgetState } from './frameBudget.ts';
+import { isSoftwareRenderer, LIGHT_CARVE_MESH_MAX, probeRendererName } from './rendererKind.ts';
 import type { PlayFeed } from './usePlay.ts';
 
 export interface Preview3DProps {
@@ -56,25 +60,59 @@ export interface Preview3DProps {
   readonly play?: PlayFeed | null;
 }
 
+/** Light mode during a job: the carved stock is brought up to date at most this often (frameBudget.ts). */
+export const LIGHT_CARVE_MS = 2000;
+
+/** The chip shown in light mode. */
+export function lightText(state: BudgetState | null): string | null {
+  if (state === null || state.light === null) return null;
+  return state.light === 'software' ? 'Light preview: this computer has no 3D acceleration' : 'Light preview: 3D drawing is slow on this computer';
+}
+
 export function Preview3D(props: Preview3DProps): ComponentChild {
   const canvas = useRef<HTMLCanvasElement>(null);
   const renderer = useRef<PreviewRenderer | null>(null);
+  // The frame budget (frameBudget.ts): on demand, capped during a job, light on a software or slow renderer.
+  const budget = useRef<FrameBudget | null>(null);
+  const [budgetState, setBudgetState] = useState<BudgetState | null>(null);
+  const plan = props.planner ?? null;
+  // A job is running while the planner view is shown (Phase 3).
+  const jobRunning = useRef(false);
+  jobRunning.current = plan !== null;
   const [hover, setHover] = useState<{ readonly text: string; readonly x: number; readonly y: number } | null>(null);
   // The latest handlers, read by the listeners attached once.
   const pickRef = useRef({ onPick: props.onPick, pickLabel: props.pickLabel });
   pickRef.current = { onPick: props.onPick, pickLabel: props.pickLabel };
 
   useEffect(() => {
-    const el = canvas.current;
-    if (el === null) return;
-    const gl = el.getContext('webgl2', { antialias: true });
+    const found = canvas.current;
+    if (found === null) return;
+    const el: HTMLCanvasElement = found;
+    // A software renderer draws on this thread: no multisampling and the smallest carve mesh keep each frame short.
+    const software = isSoftwareRenderer(probeRendererName());
+    const gl = el.getContext('webgl2', { antialias: !software });
     if (gl === null) {
       props.onUnavailable();
       return;
     }
     const style = getComputedStyle(el);
+    const frames = new FrameBudget(browserFrameClock(), {
+      software,
+      onChange: (state) => {
+        size();
+        setBudgetState(state);
+      },
+      // Diagnostics on the canvas (no re-render): the last frame's cost and the drawing scale.
+      onFrame: (cost) => {
+        el.dataset['frameMs'] = cost.toFixed(1);
+        el.dataset['frameScale'] = String(frames.state.scale);
+      },
+    });
+    frames.setJobRunning(jobRunning.current);
+    budget.current = frames;
+    setBudgetState(frames.state);
     // The bed/work grid is always drawn, so the drawing keeps its floor and scale once a file is loaded.
-    const r = createRenderer(gl, { colors: previewColors((t) => style.getPropertyValue(t)), grid: true });
+    const r = createRenderer(gl, { colors: previewColors((t) => style.getPropertyValue(t)), grid: true, requestFrame: frames.requestFrame, ...(software ? { carveMeshMax: LIGHT_CARVE_MESH_MAX } : {}) });
     renderer.current = r;
     const detach = attachViewControls(el, r);
     const detachPick = attachPicking(el, r, {
@@ -88,7 +126,8 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
         setHover(text === null || hit === null ? null : { text, x: hit.x, y: hit.y });
       },
     });
-    const size = (): void => { r.resize(el.clientWidth, el.clientHeight, devicePixelRatio); };
+    // Light mode draws fewer pixels (the browser scales the canvas up): each frame then costs less.
+    function size(): void { r.resize(el.clientWidth, el.clientHeight, devicePixelRatio * frames.state.scale); }
     size();
     const observer = new ResizeObserver(size);
     observer.observe(el);
@@ -100,7 +139,9 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
       detach();
       detachPick();
       r.dispose();
+      frames.dispose();
       renderer.current = null;
+      budget.current = null;
     };
   }, []);
 
@@ -131,7 +172,7 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
   useEffect(() => { if (props.fitRequest > 0) renderer.current?.fit(); }, [props.fitRequest]);
   const view = props.view;
   useEffect(() => { if (view !== undefined && view.seq > 0) renderer.current?.setView(view.preset); }, [view?.seq]);
-  const plan = props.planner ?? null;
+  useEffect(() => { budget.current?.setJobRunning(plan !== null); }, [plan === null]);
   useEffect(() => { renderer.current?.setPlanner(plan); }, [plan?.cutEnd, plan?.execEnd, plan?.queuedEnd, plan?.starving, plan === null]);
   const live = props.toolMarker ?? null;
   const tool = live ?? props.previewMarker ?? null;
@@ -157,13 +198,37 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
   useEffect(() => {
     const r = renderer.current;
     if (r === null || carve === null) return;
-    const off = carve.subscribe({ surface: (s) => { r.setCarve(s); }, patch: (rect) => { r.updateCarve(rect); } });
+    // Light mode during a job: patches are gathered and the carve brought up to date every LIGHT_CARVE_MS.
+    let held: CellRect | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const flush = (): void => {
+      timer = null;
+      const rect = held;
+      held = null;
+      if (rect !== null) r.updateCarve(rect);
+    };
+    const off = carve.subscribe({
+      surface: (s) => {
+        held = null;
+        r.setCarve(s);
+      },
+      patch: (rect) => {
+        if (budget.current?.state.light == null || !jobRunning.current) {
+          r.updateCarve(rect);
+          return;
+        }
+        held = unionRect(held, rect);
+        timer ??= setTimeout(flush, LIGHT_CARVE_MS);
+      },
+    });
     return () => {
       off();
+      if (timer !== null) clearTimeout(timer);
       r.setCarve(null);
     };
   }, [carve]);
 
+  const light = lightText(budgetState);
   return h(Fragment, null, h('canvas', {
     ref: canvas,
     class: 'preview-canvas',
@@ -172,5 +237,5 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
     role: 'img',
     'aria-label': props.label ?? 'Toolpath preview, 3D. Drag or use the arrow keys to turn it, shift to pan, plus and minus to zoom, 0 to fit.',
     'data-preview': 'canvas',
-  }), hover === null ? null : h('span', { class: 'scene-pick-label', 'data-preview': 'pick-label', 'aria-hidden': 'true', style: { left: `${hover.x + 14}px`, top: `${hover.y + 14}px` } }, hover.text));
+  }), light === null ? null : h('span', { class: 'preview-light-chip', role: 'status', 'data-preview': 'light', 'data-light': budgetState?.light ?? '' }, light), hover === null ? null : h('span', { class: 'scene-pick-label', 'data-preview': 'pick-label', 'aria-hidden': 'true', style: { left: `${hover.x + 14}px`, top: `${hover.y + 14}px` } }, hover.text));
 }

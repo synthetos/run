@@ -28,6 +28,7 @@ import { ContextHelp } from '../shell/ContextHelp.ts';
 import { signalText } from '../shell/signal.ts';
 import type { StripStatus } from './status.ts';
 import { STOP_JOB_PHASE1, STOP_JOB_PHASE2 } from './stopJobText.ts';
+import { pressHandlers } from './pressAction.ts';
 
 export interface MachineStripProps {
   readonly status: StripStatus;
@@ -112,7 +113,8 @@ function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined
         'data-machine-control': 'stop',
         'data-prominent': prominent,
         title: pause ? w2Tooltip() : STOP_UNAVAILABLE,
-        ...(pause ? { onClick: onPause } : { disabled: true, 'aria-describedby': 'stop-unavailable' }),
+        // On the press, not the release (pressAction.ts): never behind a frame of the 3D view.
+        ...(pause ? pressHandlers('pause', onPause) : { disabled: true, 'aria-describedby': 'stop-unavailable' }),
       },
       h('svg', { viewBox: '0 0 16 16', 'aria-hidden': 'true', class: 'pause-icon' }, h('rect', { x: '3.5', y: '2.5', width: '3', height: '11', rx: '.5' }), h('rect', { x: '9.5', y: '2.5', width: '3', height: '11', rx: '.5' })),
       h('span', null, w2Label()),
@@ -126,7 +128,7 @@ function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined
         'data-machine-control': 'stop',
         'data-prominent': prominent,
         title: stop ? (motion ? STOP_JOB_PHASE2 : STOP_JOB_PHASE1) : STOP_UNAVAILABLE,
-        ...(stop ? { onClick: onStopJob } : { disabled: true, 'aria-describedby': 'stop-unavailable' }),
+        ...(stop ? pressHandlers('stop-job', onStopJob) : { disabled: true, 'aria-describedby': 'stop-unavailable' }),
       },
       h('span', { class: 'stop-mark', 'aria-hidden': 'true' }),
       h('span', null, STOP_TEXT.stopJob),

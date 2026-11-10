@@ -18,6 +18,7 @@ import type { WorkspaceModel } from '../model.ts';
 import { ConfirmCard } from '../ui.ts';
 import { jobUi } from '../jobUi.ts';
 import type { StopHooks } from './JobStatusCard.ts';
+import { pressHandlers } from '../pressAction.ts';
 
 export { JobStatus, type StopHooks } from './JobStatusCard.ts';
 
@@ -94,7 +95,7 @@ export function JobStopCard({ model, onZeroZ, onStopJob }: { readonly model: Wor
       h(
         'div',
         { class: 'job-controls' },
-        h('button', { type: 'button', class: 'small danger', 'data-machine-control': 'job-stop', ...(onStopJob === undefined ? { disabled: true } : { onClick: onStopJob }) }, STOP_TEXT.stopJob),
+        h('button', { type: 'button', class: 'small danger', 'data-machine-control': 'job-stop', ...(onStopJob === undefined ? { disabled: true } : pressHandlers('job-stop', onStopJob)) }, STOP_TEXT.stopJob),
         h('button', { type: 'button', class: 'small', 'data-machine-control': 'resume', 'data-action': 'skip-line', onClick: () => setAsking('skip') }, 'Skip line and continue…'),
       ),
       asking === 'skip' ? h(ConfirmCard, { text: c33({ line: r.line, text: r.text }), confirm: 'Skip line and continue', safety: 'C33', onCancel: () => setAsking(null), onConfirm: () => resume(true, false) }) : null,
@@ -110,7 +111,7 @@ export function JobStopCard({ model, onZeroZ, onStopJob }: { readonly model: Wor
         'div',
         { class: 'job-controls' },
         h('button', { type: 'button', class: 'small primary', 'data-machine-control': 'resume', 'data-action': 'job-resume', onClick: () => resume(false, false) }, 'Resume'),
-        h('button', { type: 'button', class: 'small danger', 'data-machine-control': 'job-stop', ...(onStopJob === undefined ? { disabled: true } : { onClick: onStopJob }) }, STOP_TEXT.stopJob),
+        h('button', { type: 'button', class: 'small danger', 'data-machine-control': 'job-stop', ...(onStopJob === undefined ? { disabled: true } : pressHandlers('job-stop', onStopJob)) }, STOP_TEXT.stopJob),
       ),
       note === null ? null : h('p', { class: 'unavailable', role: 'status' }, note),
     );

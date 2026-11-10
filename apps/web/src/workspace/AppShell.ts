@@ -52,6 +52,7 @@ import { belowStrip } from './ui.ts';
 import { LevelSwitch } from './LevelSwitch.ts';
 import { readStored, writeStored } from './storage.ts';
 import { ConnectNotice } from './views/RunView.ts';
+import { pressHandlers } from './pressAction.ts';
 
 export type ViewId = 'job' | 'library' | 'board' | 'projects' | 'analyze' | 'settings' | 'safety';
 
@@ -211,8 +212,8 @@ function Banners(props: AppShellProps & { readonly view: ViewId }): ComponentChi
                 'div',
                 { class: 'observer-controls', 'data-observer': 'controlled' },
                 h('p', { role: 'status' }, `${STOP_TEXT.controlledElsewhere}: ${role.held.map(machineLabel).join(', ')}`),
-                h('button', { type: 'button', class: 'small', 'data-action': 'pause-request', onClick: props.onPauseRequest }, 'Pause request'),
-                h('button', { type: 'button', class: 'small', 'data-action': 'stop-job-request', onClick: props.onStopJobRequest }, 'Stop job request'),
+                h('button', { type: 'button', class: 'small', 'data-action': 'pause-request', ...(props.onPauseRequest === undefined ? {} : pressHandlers('pause-request', props.onPauseRequest)) }, 'Pause request'),
+                h('button', { type: 'button', class: 'small', 'data-action': 'stop-job-request', ...(props.onStopJobRequest === undefined ? {} : pressHandlers('stop-job-request', props.onStopJobRequest)) }, 'Stop job request'),
               )
             : null,
         ),

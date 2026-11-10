@@ -592,6 +592,13 @@ describe('machine strip stop controls and observer panel', () => {
     expect(text(stop)).not.toMatch(/spindle/i);
     (stop.props['onClick'] as () => void)();
     expect(onStopJob).toHaveBeenCalledTimes(1);
+    // Render-budget (2026-11-10): both act on the press; the click that follows the press does not act again.
+    (pause.props['onPointerDown'] as (e: Partial<PointerEvent>) => void)({ button: 0, isPrimary: true });
+    (pause.props['onClick'] as (e: Partial<MouseEvent>) => void)({ detail: 1 });
+    expect(onPause).toHaveBeenCalledTimes(2);
+    (stop.props['onPointerDown'] as (e: Partial<PointerEvent>) => void)({ button: 0, isPrimary: true });
+    (stop.props['onClick'] as (e: Partial<MouseEvent>) => void)({ detail: 1 });
+    expect(onStopJob).toHaveBeenCalledTimes(2);
     const off = bar({ available: false, band: null, outcome: null });
     expect(one(off, (e) => e.tag === 'button' && e.props['data-safety'] === 'W2').props['disabled']).toBe(true);
     expect(one(off, (e) => e.tag === 'button' && e.props['data-action'] === 'stop-job').props['disabled']).toBe(true);

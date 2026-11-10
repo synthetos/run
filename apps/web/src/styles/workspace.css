@@ -1752,6 +1752,8 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
 .scene-carve-note { color: var(--warn); }
 .scene-links { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .scene-links button.link { font-size: 12px; text-align: left; }
+/* The 3D view's light mode (preview/frameBudget.ts): a small chip in the drawing's bottom-right corner, left of the help button. */
+.preview-light-chip { position: absolute; right: 44px; bottom: 12px; max-width: calc(100% - 60px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; font-size: 11.5px; padding: 3px 8px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--sheet) 92%, transparent); border: 1px solid var(--rule); color: var(--muted); }
 .scene-pick-label { position: absolute; pointer-events: none; font-size: 12px; padding: 3px 7px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--sheet) 92%, transparent); border: 1px solid var(--rule); white-space: nowrap; z-index: var(--z-raised); }
 .preview-svg .pv-pickable { cursor: pointer; }
 .preview-svg .pv-pickable:hover { stroke: var(--blue); stroke-width: 2; }

@@ -16,6 +16,7 @@ import { STOP_TEXT, w2Label } from '@synthetos/safety';
 import { signalText } from '../../shell/signal.ts';
 import type { WorkspaceModel } from '../model.ts';
 import { duration, jobUi, PHASE_TEXT, type JobSnapshot } from '../jobUi.ts';
+import { pressHandlers } from '../pressAction.ts';
 
 /** Pause and Stop job: the same calls as the machine strip's buttons (never gated; absent in the prerendered page). */
 export interface StopHooks {
@@ -77,8 +78,8 @@ export function JobStatus({ model, onPause, onStopJob }: { readonly model: Works
         ? h(
             'div',
             { class: 'job-controls' },
-            h('button', { type: 'button', class: 'small', 'data-machine-control': 'job-pause', title: 'Feedhold: decelerates and pauses motion', ...(onPause === undefined ? { disabled: true } : { onClick: onPause }) }, w2Label()),
-            h('button', { type: 'button', class: 'small danger', 'data-machine-control': 'job-stop', ...(onStopJob === undefined ? { disabled: true } : { onClick: onStopJob }) }, STOP_TEXT.stopJob),
+            h('button', { type: 'button', class: 'small', 'data-machine-control': 'job-pause', title: 'Feedhold: decelerates and pauses motion', ...(onPause === undefined ? { disabled: true } : pressHandlers('job-pause', onPause)) }, w2Label()),
+            h('button', { type: 'button', class: 'small danger', 'data-machine-control': 'job-stop', ...(onStopJob === undefined ? { disabled: true } : pressHandlers('job-stop', onStopJob)) }, STOP_TEXT.stopJob),
           )
         : null,
     ),
