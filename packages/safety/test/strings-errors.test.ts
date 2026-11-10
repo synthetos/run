@@ -148,4 +148,9 @@ describe('strings.ts names the parameter it refuses', () => {
     expect(() => S.c14({ toolChanges: 1.5 })).toThrow(/^toolChanges must be a whole number of 0 or more, got 1\.5$/);
     expect(() => S.c9({ line: -1, spindle: 'on' })).toThrow(/^line must be a whole number of 0 or more, got -1$/);
   });
+
+  it('the one start tick (OD-32) is refused with no phrases, or with phrases that are not a list', () => {
+    expect(() => S.startTick({ phrases: [] })).toThrow(/^phrases must be a non-empty list$/);
+    expect(() => S.startTick({ phrases: 'hands clear' as unknown as string[] })).toThrow(/^phrases must be a non-empty list$/);
+  });
 });
