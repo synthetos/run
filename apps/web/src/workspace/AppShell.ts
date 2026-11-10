@@ -126,8 +126,8 @@ function AccountMenu(): ComponentChild {
           'div',
           { class: 'account-menu', id: 'account-menu', role: 'menu' },
           h('div', { class: 'account-id' }, h('span', { class: 'avatar large', 'aria-hidden': 'true' }, Icon('cloud', 18)), h('div', null, h('strong', null, 'Not signed in'), h('small', null, 'Synthetos accounts arrive soon'))),
-          h('div', { class: 'sync-row', 'data-sync': 'local' }, h('div', null, h('strong', null, 'Kept in this browser'), h('small', null, 'Machines, tools, materials and setup are saved on this device.'))),
-          h('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: true }, 'Sign in with GitHub'),
+          h('div', { class: 'sync-row', 'data-sync': 'local' }, h('div', null, h('strong', null, 'Saved in this browser'), h('small', null, 'Machines, tools and materials stay on this computer.'))),
+          h('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: true }, 'Sign in (coming soon)'),
           h(
             'button',
             {

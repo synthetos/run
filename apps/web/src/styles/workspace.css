@@ -699,7 +699,7 @@ table { border-collapse: collapse; }
 .account-id { display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: center; padding: 10px; }
 .account-id strong { display: block; font-size: 14px; }
 .account-id small { color: var(--muted); font-size: 12px; }
-.sync-row { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: center; margin: 2px 4px 6px; padding: 10px; border-radius: var(--r-sm); background: var(--raise); border: 1px solid var(--line-soft); }
+.sync-row { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; margin: 2px 4px 6px; padding: 10px; border-radius: var(--r-sm); background: var(--raise); border: 1px solid var(--line-soft); }
 .sync-row svg { width: 20px; height: 20px; color: var(--ok); }
 .sync-row[data-sync="paused"] svg { color: var(--field); }
 .sync-row strong { display: block; font-size: 12.5px; }
