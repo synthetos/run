@@ -4,7 +4,7 @@
  * (Job, the G-code list at that line). Advanced lists the rest and, collapsed, every dense section.
  */
 import { h, type ComponentChild } from 'preact';
-import type { ProgramReport } from '@synthetos/advisor';
+import type { Estimate, ProgramReport } from '@synthetos/advisor';
 import { goToLine, showOnToolpath } from '../../analysisState.ts';
 import { fixesFor, type Fix } from './findings.ts';
 import { lineRange, plural, shortMm, time, whole } from './format.ts';
@@ -18,7 +18,7 @@ function FixCard({ fix, advanced }: { readonly fix: Fix; readonly advanced: bool
     h('h3', null, fix.title),
     fix.meaning.map((m) => h('p', { key: m }, m)),
     h('div', { class: 'analyze-todo' }, h('strong', null, 'What to do'), fix.todo.map((t) => h('p', { key: t }, t))),
-    h(
+    !fix.linked ? null : h(
       'div',
       { class: 'analyze-links' },
       h('button', { type: 'button', class: 'small', 'data-action': 'show-on-toolpath', 'data-from-line': String(fix.line), onClick: () => showOnToolpath(fix.fromSent, fix.toSent) }, 'Show on toolpath'),
@@ -35,8 +35,8 @@ function FixCard({ fix, advanced }: { readonly fix: Fix; readonly advanced: bool
   );
 }
 
-export function FixList({ report, cam, advanced }: { readonly report: ProgramReport; readonly cam: string | null; readonly advanced: boolean }): ComponentChild {
-  const fixes = fixesFor(report, cam);
+export function FixList({ report, cam, estimate, advanced }: { readonly report: ProgramReport; readonly cam: string | null; readonly estimate: Estimate | null; readonly advanced: boolean }): ComponentChild {
+  const fixes = fixesFor(report, cam, estimate);
   const shown = advanced ? fixes : fixes.slice(0, SIMPLE_COUNT);
   return h(
     'section',

@@ -27,7 +27,7 @@ export interface Evidence<T> {
 export const TAPE_KIND = Object.freeze({ LINE: 0, ARC: 1, DWELL: 2, COMMAND: 3, BARRIER: 4, TOOL_CHANGE: 5, UNMODELLED: 6 });
 
 /** Event flags, equal to `@synthetos/gcode` `EVENT_FLAG`. */
-export const TAPE_FLAG = Object.freeze({ RAPID: 1, UNCERTAIN: 2, ROTARY: 4, INSERTED: 8, SPLIT: 16 });
+export const TAPE_FLAG = Object.freeze({ RAPID: 1, UNCERTAIN: 2, ROTARY: 4, INSERTED: 8, SPLIT: 16, SYNC: 32, EXACT_STOP: 64 });
 
 /** The interpreter's event tape, as far as the analysis reads it (`@synthetos/gcode` `EventTape`). */
 export interface ProgramTape {
@@ -42,6 +42,10 @@ export interface ProgramTape {
   readonly spindle: Float64Array;
   readonly tool: Int32Array;
   readonly seconds: Float64Array;
+  /** Per event, the index of its arc in `arcs`, else -1. */
+  readonly arcIndex: Int32Array;
+  /** Five numbers per arc: plane (0 XY, 1 XZ, 2 YZ), radius, start angle, signed angular travel, linear travel. */
+  readonly arcs: Float64Array;
 }
 
 /** A CAM operation heading from the file's comments (descriptive only: it never makes a stop or a boundary in time). */

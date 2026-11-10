@@ -26,13 +26,13 @@ describe('@synthetos/advisor', () => {
   });
 
   it('imports only its own modules, library and the JSON Schema validator (no network, no machine, no clock)', () => {
-    // Top-level modules, and the analysis/ folder (which imports only its own modules).
-    const files = [...readdirSync(SRC).filter((f) => f.endsWith('.ts')), ...readdirSync(`${SRC}analysis`).map((f) => `analysis/${f}`)];
+    // Top-level modules, the analysis/ folder (only its own modules) and planner/ (its own and the tape's types).
+    const files = [...readdirSync(SRC).filter((f) => f.endsWith('.ts')), ...['analysis', 'planner'].flatMap((d) => readdirSync(`${SRC}${d}`).map((f) => `${d}/${f}`))];
     for (const file of files) {
       const text = readFileSync(SRC + file, 'utf8');
       for (const m of text.matchAll(/\bfrom\s+'([^']+)'|\bimport\s*\(\s*'([^']+)'/g)) {
         const spec = m[1] ?? m[2] ?? '';
-        const allowed = file.startsWith('analysis/') ? /^\.\/[a-zA-Z]+\.ts$/ : /^(\.\/[a-zA-Z]+\.ts|\.\/analysis\/index\.ts|@synthetos\/library|@synthetos\/schema\/json-schema)$/;
+        const allowed = file.startsWith('analysis/') ? /^\.\/[a-zA-Z]+\.ts$/ : file.startsWith('planner/') ? /^(\.\/[a-zA-Z]+\.ts|\.\.\/analysis\/types\.ts)$/ : /^(\.\/[a-zA-Z]+\.ts|\.\/(analysis|planner)\/index\.ts|@synthetos\/library|@synthetos\/schema\/json-schema)$/;
         expect(spec, `${file} imports ${spec}`).toMatch(allowed);
       }
       expect(text, file).not.toMatch(/\bDate\.now\b|\bMath\.random\b|\bperformance\.now\b|\bsetTimeout\b|\bsetInterval\b/);

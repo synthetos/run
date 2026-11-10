@@ -12,6 +12,60 @@
 - Advanced adds every finding, the machine speeds with their source (one line to connect when none are read), the move-rate histogram and the rules' speed comparison. The AI demonstration and the engine picker are gone from the page.
 - No new serial commands, no file changes, no live tuning, no ETA.
 
+**Slice 2 as built (2026-11-10): the firmware time model.**
+- `packages/advisor/src/planner/` ports the TinyG 450.02 planner (a7489b79, planner sources_sha256 cc87325c…abdf): the move time with axis rates and the motor pulse-rate limit, the jerk of the jerk-limiting axis and the planner's cached jerk terms, Sonny's junction speed with per-axis jd and ja, the backward and forward pass with the firmware's "optimally planned" pruning, the trapezoid with its degraded and single-segment cases, the exec's section times (never under one 2.5 ms segment), arc chords by chordal tolerance and the 10 ms minimum, moves dropped as too short in time (their travel joins the next), and the commands that stop motion (S, M3/M5, M6, M7/M9, G54..G59, G92, G10, G28.3, M0/M1/M2/M30). Geometry and junction speeds are computed in float32, as the firmware stores them: ties such as equal entry and exit decide which trapezoid case runs.
+- It streams the way TG's host replay does: 28 blocks queued before the oldest runs, 12 buffers free before each arc chord.
+- The headline reads "About N h M min" when the machine's planner settings are known (connected, or a saved reading): vm, fr, jm, jd per axis, ja, ct and the motors' steps per unit. Without them it keeps "At least …". "What to fix" adds how much of the time is speeding up or slowing down, and the firmware's tag for most of it.
+- Conformance against TG's ground truth (`packages/advisor/test/planner.test.ts`, fixtures and hashes in `test/fixtures/planner-timing/SOURCES.md`): every timed fixture within 0.05 % of the replay's total, exit limits at 99–100 % per line, head/body/tail split within 0.2 %. Fixture 21 (an excerpt of the owner's own design, not committed) matches to the millisecond on both profiles when run locally.
+
+| Fixture | Profile | TG s | Model s | Error % | Exit agree | Split err | Note |
+|---|---|---:|---:|---:|---:|---:|---|
+| 01_long_straight_x.nc | belt_xy_shapeoko2 | 12.135 | 12.135 | 0.00 | 100% | 0.0% |  |
+| 02_long_straight_z.nc | belt_xy_shapeoko2 | 6.031 | 6.031 | -0.00 | 100% | 0.0% |  |
+| 03_reversals.nc | belt_xy_shapeoko2 | 10.126 | 10.126 | 0.00 | 100% | 0.0% |  |
+| 04_diag_unequal.nc | belt_xy_shapeoko2 | 7.531 | 7.531 | 0.00 | 100% | 0.0% |  |
+| 05_tiny_collinear.nc | belt_xy_shapeoko2 | 2.208 | 2.208 | -0.00 | 100% | 0.0% |  |
+| 06_tiny_high_feed.nc | belt_xy_shapeoko2 | 6.441 | 6.444 | 0.04 | 100% | 0.2% |  |
+| 07_corners_90.nc | belt_xy_shapeoko2 | 10.291 | 10.291 | 0.00 | 100% | 0.0% |  |
+| 08_corners_45_135.nc | belt_xy_shapeoko2 | 5.394 | 5.394 | 0.00 | 100% | 0.0% |  |
+| 09_arcs.nc | belt_xy_shapeoko2 | 9.458 | — | — | — | — | run blocks it: arc-ambiguous, unknown-state |
+| 10_helix.nc | belt_xy_shapeoko2 | 8.001 | — | — | — | — | run blocks it: arc-ambiguous, unknown-state |
+| 11_short_arcs.nc | belt_xy_shapeoko2 | 3.182 | 3.182 | 0.00 | 99% | 0.0% | TG joins 2 equal blocks in its report |
+| 12_units_g20.nc | belt_xy_shapeoko2 | 12.223 | 12.223 | 0.00 | 100% | 0.0% |  |
+| 13_exact_stop.nc | belt_xy_shapeoko2 | 5.234 | 5.234 | -0.00 | 100% | 0.0% |  |
+| 14_feed_changes.nc | belt_xy_shapeoko2 | 3.246 | 3.246 | -0.00 | 100% | 0.0% |  |
+| 15_spindle_coolant.nc | belt_xy_shapeoko2 | 3.529 | 3.529 | -0.00 | 100% | 0.0% |  |
+| 16_dwell_midchain.nc | belt_xy_shapeoko2 | 2.554 | 2.554 | -0.00 | 100% | 0.0% |  |
+| 17_g0_vs_g1_cap.nc | belt_xy_shapeoko2 | 2.059 | 2.059 | 0.00 | 100% | 0.0% |  |
+| 18_z_ramps.nc | belt_xy_shapeoko2 | 4.974 | 4.974 | 0.00 | 100% | 0.0% |  |
+| 19_input_gaps.nc | belt_xy_shapeoko2 | 3.331 | 3.331 | -0.00 | 100% | 0.0% |  |
+| 20_hold_resume.nc | belt_xy_shapeoko2 | 6.118 | 6.118 | 0.00 | 100% | 0.0% |  |
+| 22_rapids_mix.nc | belt_xy_shapeoko2 | 6.376 | 6.376 | 0.00 | 100% | 0.0% |  |
+| 01_long_straight_x.nc | bench1 | 18.916 | 18.916 | 0.00 | 100% | 0.0% |  |
+| 02_long_straight_z.nc | bench1 | 6.724 | 6.724 | 0.00 | 100% | 0.0% |  |
+| 03_reversals.nc | bench1 | 24.072 | 24.072 | -0.00 | 100% | 0.0% |  |
+| 04_diag_unequal.nc | bench1 | 20.903 | 20.903 | -0.00 | 100% | 0.0% |  |
+| 05_tiny_collinear.nc | bench1 | 3.153 | 3.153 | -0.00 | 100% | 0.0% |  |
+| 06_tiny_high_feed.nc | bench1 | 14.849 | 14.849 | 0.00 | 100% | 0.0% |  |
+| 07_corners_90.nc | bench1 | 32.163 | 32.163 | -0.00 | 100% | 0.0% |  |
+| 08_corners_45_135.nc | bench1 | 21.452 | 21.452 | -0.00 | 100% | 0.0% |  |
+| 09_arcs.nc | bench1 | 24.248 | — | — | — | — | run blocks it: arc-ambiguous, unknown-state |
+| 10_helix.nc | bench1 | 11.892 | — | — | — | — | run blocks it: arc-ambiguous, unknown-state |
+| 11_short_arcs.nc | bench1 | 11.059 | 11.059 | 0.00 | 100% | 0.0% |  |
+| 12_units_g20.nc | bench1 | 19.228 | 19.228 | -0.00 | 100% | 0.0% |  |
+| 13_exact_stop.nc | bench1 | 15.988 | 15.988 | -0.00 | 100% | 0.0% |  |
+| 14_feed_changes.nc | bench1 | 4.816 | 4.816 | -0.00 | 100% | 0.0% |  |
+| 15_spindle_coolant.nc | bench1 | 9.807 | 9.807 | 0.00 | 100% | 0.0% |  |
+| 16_dwell_midchain.nc | bench1 | 7.440 | 7.440 | 0.00 | 100% | 0.0% |  |
+| 17_g0_vs_g1_cap.nc | bench1 | 27.036 | 27.036 | 0.00 | 100% | 0.0% |  |
+| 18_z_ramps.nc | bench1 | 13.518 | 13.518 | 0.00 | 100% | 0.0% |  |
+| 19_input_gaps.nc | bench1 | 7.518 | 7.518 | 0.00 | 100% | 0.0% |  |
+| 20_hold_resume.nc | bench1 | 10.518 | 10.518 | -0.00 | 100% | 0.0% |  |
+| 22_rapids_mix.nc | bench1 | 14.014 | 14.014 | 0.00 | 100% | 0.0% |  |
+
+- Not timed, and said so: full circles whose end is their start (09, 10: run refuses them as "arc-ambiguous" before a job runs, so the model never sees them), moves that turn A, B or C, and lines the interpreter could not model.
+- Not modelled: the host link itself (a slow or busy link starves the planner on dense files; slice 3), feedhold and resume, spindle spin-up and the E060 spindle pause, and the operator's tool changes and pauses (listed beside the time, never added to it).
+
 The proposal follows as written, apart from this status.
 
 

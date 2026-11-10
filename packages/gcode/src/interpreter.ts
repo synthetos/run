@@ -40,6 +40,8 @@ import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type Jo
 export const DEFAULT_VERTEX_CAP = 20_000_000;
 
 const ROTARY: ReadonlySet<Axis> = new Set<Axis>(['A', 'B', 'C']);
+/** The arc plane's index in the event tape (events.ts). */
+const PLANE_INDEX: Readonly<Record<Plane, number>> = { G17: 0, G18: 1, G19: 2 };
 const MM_PER_INCH = 25.4;
 
 type Pos = Record<Axis, number>;
@@ -302,7 +304,7 @@ class Interpreter {
     // F is read in the units in force for this line.
     const f = params.get('F');
     if (f !== undefined) this.feed = f * this.scale;
-    this.events.words(params.get('S'), params.get('T'), has('M6'));
+    this.events.words(codes, params.get('S'), params.get('T'));
 
     // The dialect's block rules, with this line's modes (TG: G28/G30 under G20 or G91).
     const rules = this.ruleBlocks(codes, letters);
@@ -517,7 +519,7 @@ class Interpreter {
       return;
     }
     this.flags[i] = (this.flags[i] as number) | LINE_FLAG.ARC;
-    this.events.arc(this.machine, to, result.arc.lengthMm, this.uncertain, this.feed);
+    this.events.arc(this.machine, to, result.arc.lengthMm, this.uncertain, this.feed, [PLANE_INDEX[plane], result.arc.radius, result.arc.theta, result.arc.travel, to[lin] - this.machine[lin]]);
     this.arcs++;
     this.feedMm += result.arc.lengthMm;
     this.time(result.arc.lengthMm, to, false);

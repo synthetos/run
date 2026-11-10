@@ -7,11 +7,11 @@
  * file. A region link carries that result too, and the Job preview ignores a link made for a file it no longer shows.
  */
 import { computed, signal } from '@preact/signals';
-import { motionTime, type MotionTime, type ProgramReport } from '@synthetos/advisor';
+import { motionTime, type Estimate, type MotionTime, type PlannerProfile, type ProgramReport } from '@synthetos/advisor';
 import type { PreviewResult } from '../gcode-worker/pipeline.ts';
 import { axisSettings, boardReading, motionInputs, savedReading, type AxisSetting, type BoardReading, type InputSources } from './analysisInputs.ts';
 import { viewRequest } from './boardNavigation.ts';
-import { currentFile } from './fileBridge.ts';
+import { currentFile, type OpenFile } from './fileBridge.ts';
 import { selectedMachine } from './library.ts';
 import type { LiveView } from './model.ts';
 
@@ -21,7 +21,7 @@ export const programReport = computed<ProgramReport | null>(() => currentFile.va
 export function rememberReading(r: BoardReading | null): void {
   if (r === null) return;
   const saved = savedReading.value.value;
-  const same = saved !== null && saved.boardId === r.boardId && saved.unit === r.unit && JSON.stringify([saved.vm, saved.fr, saved.jm]) === JSON.stringify([r.vm, r.fr, r.jm]);
+  const same = saved !== null && JSON.stringify({ ...saved, at: 0 }) === JSON.stringify({ ...r, at: 0 });
   if (!same) savedReading.set(r);
 }
 
@@ -70,3 +70,37 @@ export function showOnToolpath(from: number, to: number): void {
 export function goToLine(sent: number): void {
   request(sent, null);
 }
+
+/**
+ * The firmware time model's estimate for the open file on this machine (docs/design/ANALYZE.md slice 2), computed in
+ * the G-code worker. Kept with the preview and the settings it was made for: a late answer for another file, or for
+ * settings that changed since, is never shown.
+ */
+export interface PlanEstimate {
+  readonly preview: PreviewResult;
+  readonly key: string;
+  readonly estimate: Estimate | null;
+}
+
+export const planEstimate = signal<PlanEstimate | null>(null);
+
+/** Asks the worker for the estimate of the open file with `profile`, unless the one held already matches. */
+export function requestEstimate(file: OpenFile | null, profile: PlannerProfile | null): void {
+  const preview = file?.preview;
+  if (preview === undefined || profile === null || file?.estimate === undefined) return;
+  const key = JSON.stringify(profile);
+  const held = planEstimate.value;
+  if (held !== null && held.preview === preview && held.key === key) return;
+  planEstimate.value = { preview, key, estimate: null };
+  void file.estimate(profile).then((estimate) => {
+    const now = planEstimate.value;
+    if (now !== null && now.preview === preview && now.key === key) planEstimate.value = { preview, key, estimate };
+  });
+}
+
+/** The estimate for this file and these settings, or null (none asked, still running, or for something else). */
+export function estimateFor(preview: PreviewResult | undefined, profile: PlannerProfile | null): Estimate | null {
+  const held = planEstimate.value;
+  return preview === undefined || profile === null || held === null || held.preview !== preview || held.key !== JSON.stringify(profile) ? null : held.estimate;
+}
+

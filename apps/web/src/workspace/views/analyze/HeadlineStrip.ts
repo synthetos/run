@@ -4,6 +4,7 @@
  * the rapids and the size of the file, in short words, and one line on how to improve the estimate.
  */
 import { h, type ComponentChild } from 'preact';
+import type { Estimate } from '@synthetos/advisor';
 import type { MotionView } from '../../analysisState.ts';
 import { mm, plural, time, whole } from './format.ts';
 
@@ -11,9 +12,16 @@ import { mm, plural, time, whole } from './format.ts';
  * The cutting time at programmed feeds. A feed move never runs faster than its feed, so this is a true lower bound,
  * and so is the known part when some moves have no feed.
  */
-export function headline(view: MotionView): string {
+export function headline(view: MotionView, estimate: Estimate | null = null): string {
+  if (estimate?.ok === true) return `About ${time(estimate.seconds)}`;
   const s = view.time.feedSeconds.value ?? view.report.knownFeedSeconds;
   return s > 0 ? `At least ${time(s)} of cutting` : 'Cutting time not known yet';
+}
+
+/** Under an estimate: what it is from, and what it leaves out (the operator's own stops). */
+export function estimateLine(view: MotionView, label: string | null): string {
+  const stops = stopsLine(view.report.toolChangeLines.length, view.report.stopLines.length);
+  return `From ${label === null ? 'your machine’s settings' : `your machine’s settings (${label})`} and the firmware’s planner.${stops === null ? '' : ` Plus ${stops}.`}`;
 }
 
 /** "a", "a and b", "a, b and c". */
@@ -49,13 +57,26 @@ export function rapidsLine(view: MotionView): string {
   return t.value === null ? `Rapids: ${mm(r.rapidMm.value ?? 0)}, not timed yet.` : `Rapids: ${mm(r.rapidMm.value ?? 0)}, about ${time(t.value)} (${t.label}).`;
 }
 
-export function HeadlineStrip({ view, connected }: { readonly view: MotionView; readonly connected: boolean }): ComponentChild {
+export interface HeadlineProps {
+  readonly view: MotionView;
+  readonly connected: boolean;
+  /** The firmware time model's estimate, or null (settings not known, or still running). */
+  readonly estimate?: Estimate | null;
+  /** Where the settings come from ("Board settings", "Last read …"). */
+  readonly settingsLabel?: string | null;
+  /** True when the machine's planner settings are known (an estimate is coming or here). */
+  readonly modelled?: boolean;
+}
+
+export function HeadlineStrip({ view, connected, estimate = null, settingsLabel = null, modelled = false }: HeadlineProps): ComponentChild {
   const r = view.report;
+  const timed = estimate?.ok === true;
   return h(
     'section',
     { class: 'panel analyze-strip', 'data-analyze': 'summary', 'aria-labelledby': 'analyze-time' },
-    h('h2', { id: 'analyze-time', class: 'analyze-headline', 'data-analyze': 'time' }, headline(view)),
-    h('p', { class: 'analyze-strip-sub', 'data-analyze': 'longer' }, longerLine(view)),
+    h('h2', { id: 'analyze-time', class: 'analyze-headline', 'data-analyze': 'time' }, headline(view, estimate)),
+    h('p', { class: 'analyze-strip-sub', 'data-analyze': timed ? 'estimate' : 'longer' }, timed ? estimateLine(view, settingsLabel) : longerLine(view)),
+    estimate?.ok === false ? h('p', { class: 'fine', 'data-analyze': 'no-estimate' }, `The firmware time model can’t time this file: ${estimate.reason}.`) : null,
     h(
       'ul',
       { class: 'analyze-chips' },
@@ -63,7 +84,7 @@ export function HeadlineStrip({ view, connected }: { readonly view: MotionView; 
       h('li', { 'data-fact': 'rapid-time' }, rapidsLine(view)),
       h('li', { 'data-fact': 'lines' }, `${whole(r.lines)} lines`),
     ),
-    view.time.rapidSeconds.value === null && !connected && r.rapidDeltas.length > 0 ? h('p', { class: 'fine', 'data-analyze': 'missing' }, "Connect to read your machine's speeds. The time estimate will improve.") : null,
+    !modelled && view.time.rapidSeconds.value === null && !connected && r.rapidDeltas.length > 0 ? h('p', { class: 'fine', 'data-analyze': 'missing' }, "Connect to read your machine's speeds. The time estimate will improve.") : null,
     r.coverage.reasons.length === 0 ? null : h('p', { class: 'fine warn-text', 'data-analyze': 'coverage' }, r.coverage.reasons.join(' ')),
   );
 }

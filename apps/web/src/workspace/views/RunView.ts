@@ -153,7 +153,7 @@ function RunBridge({ parts }: { readonly parts: PreviewParts }): ComponentChild 
   const { state, actions } = parts;
   const result = state.status === 'ready' ? state.result : null;
   useEffect(() => {
-    currentFile.value = result === null || state.fileName === null ? null : { name: state.fileName, bytes: result.bytes, preview: result };
+    currentFile.value = result === null || state.fileName === null ? null : { name: state.fileName, bytes: result.bytes, preview: result, estimate: parts.estimate };
     currentPreview.value = result === null || state.fileName === null ? null : { name: state.fileName, segments: result.segments, bounds: result.summary.bounds };
   }, [result, state.fileName]);
   const pending = pendingOpen.value;

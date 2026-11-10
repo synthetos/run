@@ -145,6 +145,32 @@ test('connected: "Board settings" times the rapids; a newer file replaces the re
   await expect(fresh.locator('[data-fix="tiny"]')).toHaveCount(0);
 });
 
+/** A saved board reading (Analyze keeps the last one): the Shapeoko 2 defaults, with every planner setting. */
+const SAVED_READING = {
+  v: 1,
+  value: {
+    dialect: 'tinyg-en', boardId: 'EN-1', unit: 1,
+    vm: { X: 16000, Y: 16000, Z: 1000 }, fr: { X: 16000, Y: 16000, Z: 1000 }, jm: { X: 5000, Y: 5000, Z: 50 }, jd: { X: 0.01, Y: 0.01, Z: 0.01 },
+    ja: 2000000, ct: 0.01, spu: { X: 40, Y: 40, Z: 755.9293 }, at: Date.UTC(2026, 10, 9, 14, 2),
+  },
+};
+
+test('a saved board reading: the firmware model times the file, "About …", and says where the settings came from', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+  await page.evaluate((r) => { localStorage.setItem('run.ws.analysis.board-reading.v1', JSON.stringify(r)); }, SAVED_READING);
+  await page.reload();
+  await ready(page);
+  await page.locator('[data-job-step="run"]').click();
+  await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name: 'pocket.nc', mimeType: 'text/plain', buffer: Buffer.from(job()) });
+  const view = await analyze(page);
+  const summary = view.locator('[data-analyze="summary"]');
+  await expect(summary.locator('[data-analyze="time"]')).toHaveText(/^About \d+ s$/, { timeout: 15_000 });
+  await expect(summary.locator('[data-analyze="estimate"]')).toContainText('From your machine’s settings (Last read ');
+  await contained(page);
+});
+
 // A local file (ANALYZE_FILE, never committed) captured into ANALYZE_SHOTS.
 const LOCAL_FILE = process.env['ANALYZE_FILE'];
 test('a local file: Analyze in Simple and Advanced, light and dark, 1280x720 and 390x844', async ({ page }) => {
@@ -153,6 +179,10 @@ test('a local file: Analyze in Simple and Advanced, light and dark, 1280x720 and
   const { readFileSync } = await import('node:fs');
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
+  if (process.env['ANALYZE_SAVED_READING'] === '1') {
+    await page.evaluate((r) => { localStorage.setItem('run.ws.analysis.board-reading.v1', JSON.stringify(r)); }, SAVED_READING);
+    await page.reload();
+  }
   await ready(page);
   await page.locator('[data-job-step="run"]').click();
   await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name: 'local.nc', mimeType: 'text/plain', buffer: readFileSync(LOCAL_FILE as string) });
@@ -189,8 +219,12 @@ test('a local file: Analyze in Simple and Advanced, light and dark, 1280x720 and
   // preview reloads the file; wait for that to settle first.
   await page.waitForTimeout(3000);
   await expect(page.locator('[data-screen="analyze"] [data-fix="tiny"]')).toBeVisible({ timeout: 30_000 });
-  await page.locator('[data-screen="analyze"] [data-fix="tiny"] [data-action="show-on-toolpath"]').click();
-  await expect(page.locator('[data-screen="job"]')).toBeVisible();
+  // The preview may still be reloading after the phone layout: click until Job opens.
+  await expect(async () => {
+    await page.locator('[data-region="rail"] [data-view="analyze"]').click();
+    await page.locator('[data-screen="analyze"] [data-fix="tiny"] [data-action="show-on-toolpath"]').click();
+    await expect(page.locator('[data-screen="job"]')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 30_000 });
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${SHOTS as string}/local-job-toolpath-1280x720.png` });
   await page.locator('[data-action="ui-level-simple"]').click();

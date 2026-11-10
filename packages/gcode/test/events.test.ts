@@ -110,6 +110,39 @@ describe('the event tape', () => {
     const t = interpretJob(unchecked(['G21 G90', 'G1 X1 F100', 'G2 X20 Y0 R1'], TINYG_EN), TINYG_EN, { start: start() }).events;
     expect(kinds(t)).toContain(EVENT.UNMODELLED);
     expect(emptyTape().count).toBe(0);
-    expect(tapeBuffers(t).length).toBe(10);
+    expect(tapeBuffers(t).length).toBe(12);
+  });
+
+  it('marks the commands the firmware queues (they stop motion), exact stop, and each arc’s shape', () => {
+    const t = tape(['G21 G90 G17', 'G1 X10 F600', 'S12000 G1 X20', 'G1 X30', 'M3', 'G4 P0.2', 'G61.1', 'G1 X40', 'G61', 'G2 X50 Y10 I0 J10', 'M30'].join('\n'));
+    const syncLines = Array.from(t.kinds).map((k, i) => (k === EVENT.COMMAND && ((t.flags[i] as number) & EVENT_FLAG.SYNC) !== 0 ? t.source[i] : -1)).filter((l) => (l as number) >= 0);
+    expect(syncLines).toEqual([3, 5, 11]); // the S before line 3's move, M3, and M30 after the last move
+    const s3 = Array.from(t.source).indexOf(3);
+    expect(t.kinds[s3]).toBe(EVENT.COMMAND); // the S is queued before the move on its line
+    const moves = Array.from(t.kinds).map((k, i) => (k === EVENT.LINE || k === EVENT.ARC ? i : -1)).filter((i) => i >= 0);
+    const exact = moves.filter((i) => ((t.flags[i] as number) & EVENT_FLAG.EXACT_STOP) !== 0).map((i) => t.source[i]);
+    expect(exact).toEqual([8]);
+    const arc = moves.find((i) => t.kinds[i] === EVENT.ARC) as number;
+    const k = t.arcIndex[arc] as number;
+    expect(k).toBe(0);
+    expect(Array.from(t.arcs.subarray(k * 5, k * 5 + 5)).map((v) => Math.round(v * 1e6) / 1e6)).toEqual([0, 10, Math.round(-Math.PI * 1e6) / 1e6, Math.round(((3 * Math.PI) / 2) * 1e6) / 1e6, 0]); // from 6 o'clock, clockwise to 3 o'clock
+    expect(t.arcIndex[moves[0] as number]).toBe(-1);
+  });
+});
+
+describe('a tape that outgrows its first buffers', () => {
+  it('keeps every move’s three deltas when it grows past one event per line', () => {
+    // Each S line adds a command event before its move, so there are more events than lines.
+    const lines = ['G21 G90'];
+    for (let i = 1; i <= 40; i++) lines.push(`S${1000 + i} G1 X${i} Y${-i} Z${-i / 10} F600`);
+    lines.push('M30');
+    const t = tape(lines.join('\n'));
+    expect(t.count).toBeGreaterThan(lines.length);
+    const moves = Array.from(t.kinds).map((k, i) => (k === EVENT.LINE ? i : -1)).filter((i) => i >= 0);
+    expect(moves).toHaveLength(40);
+    for (const e of moves) {
+      expect(Array.from(t.delta.subarray(e * 3, e * 3 + 3)).map((v) => Math.round(v * 1000) / 1000)).toEqual([1, -1, -0.1]);
+      expect(t.lengthMm[e]).toBeCloseTo(Math.hypot(1, 1, 0.1), 9);
+    }
   });
 });

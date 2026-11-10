@@ -15,7 +15,7 @@ export function analysisNotes(fixes: readonly Fix[]): Note[] {
     title: f.title,
     body: f.meaning[0] ?? '',
     detail: [...f.meaning.slice(1), ...f.todo].join(' '),
-    link: { kind: 'line' as const, line: f.line },
+    ...(f.linked ? { link: { kind: 'line' as const, line: f.line } } : {}),
     tone: 'info' as const,
   }));
 }

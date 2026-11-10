@@ -20,6 +20,7 @@ export const VERSION = '0.0.0';
 
 export * from './types.ts';
 export * from './analysis/index.ts';
+export * from './planner/index.ts';
 export { DEFAULT_MODEL, THRESHOLDS } from './model.ts';
 export type { ModelData } from './model.ts';
 export { InputLog } from './provenance.ts';

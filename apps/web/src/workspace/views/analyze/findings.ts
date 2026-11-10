@@ -3,34 +3,15 @@
  * to do, and where (a sent-line range for the toolpath and a first line for the G-code list). The dense sections
  * become one finding with real numbers, never one card each. Pure.
  */
-import type { ProgramReport, Region } from '@synthetos/advisor';
+import type { Estimate, ProgramReport, Region } from '@synthetos/advisor';
 import { lineRange, plural, shortMm, time, whole } from './format.ts';
 import { plungeFindings } from './plunges.ts';
+import { speedFix } from './speedFix.ts';
+import { camTip } from './camTip.ts';
+import type { Fix } from './fix.ts';
 
-export interface Fix {
-  readonly id: string;
-  readonly kind: 'tiny' | 'plunge' | 'slow';
-  readonly title: string;
-  /** What it means, in short sentences. */
-  readonly meaning: readonly string[];
-  /** What to do, in short sentences. */
-  readonly todo: readonly string[];
-  /** Where: the sent-line range to show on the toolpath, and the first file line (with its sent index). */
-  readonly fromSent: number;
-  readonly toSent: number;
-  readonly line: number;
-  readonly lineSent: number;
-  /** The dense sections behind a tiny-moves finding (Advanced lists them). */
-  readonly regions: readonly Region[];
-  /** For ranking: the programmed seconds at stake (a tiny-moves finding that covers most of the file ranks first). */
-  readonly weight: number;
-}
-
-/** The CAM tip for tiny moves, in the named CAM's own words where Run knows them. */
-export function camTip(cam: string | null): string {
-  if (cam === 'Fusion') return 'In Fusion, turn on Smoothing in the operation’s Passes tab, with a tolerance around 0.01 mm, and use a post that outputs arcs (G2/G3).';
-  return `In your CAM${cam === null ? '' : ` (${cam})`}, turn on arc output (G2/G3) and smoothing, with a tolerance around 0.01 mm.`;
-}
+export type { Fix } from './fix.ts';
+export { camTip } from './camTip.ts';
 
 function tinyFix(report: ProgramReport, cam: string | null): Fix | null {
   const regions = report.density.regions;
@@ -58,13 +39,16 @@ function tinyFix(report: ProgramReport, cam: string | null): Fix | null {
     toSent: last.toSent,
     line: first.fromLine,
     lineSent: first.fromSent,
+    linked: true,
     regions,
     weight: most ? Infinity : regions.reduce((s, r) => s + r.seconds, 0),
   };
 }
 
-export function fixesFor(report: ProgramReport, cam: string | null): Fix[] {
+export function fixesFor(report: ProgramReport, cam: string | null, estimate: Estimate | null = null): Fix[] {
   const out: Fix[] = [];
+  const speed = estimate === null ? null : speedFix(estimate, report, cam);
+  if (speed !== null) out.push(speed);
   const tiny = tinyFix(report, cam);
   if (tiny !== null) out.push(tiny);
   for (const f of plungeFindings(report)) {
@@ -80,6 +64,7 @@ export function fixesFor(report: ProgramReport, cam: string | null): Fix[] {
       toSent: r.firstSent,
       line: r.firstLine,
       lineSent: r.firstSent,
+      linked: true,
       regions: [],
       weight: seconds,
     });
@@ -95,6 +80,7 @@ export function fixesFor(report: ProgramReport, cam: string | null): Fix[] {
       toSent: s.toSent,
       line: s.fromLine,
       lineSent: s.fromSent,
+      linked: true,
       regions: [],
       weight: s.seconds,
     });

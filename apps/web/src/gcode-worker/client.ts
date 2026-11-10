@@ -4,6 +4,7 @@
  * worker is (RUN_PLAN §7.6: stop latency under 100 ms), and a fresh worker
  * serves the next load.
  */
+import type { Estimate, PlannerProfile } from '@synthetos/advisor';
 import type { Finding } from '@synthetos/gcode';
 import type { PreviewProgress, PreviewRequest, PreviewResult } from './pipeline.ts';
 import type { FromGcodeWorker, ToGcodeWorker } from './protocol.ts';
@@ -22,6 +23,8 @@ export interface GcodePreviewClient {
   load(blob: Blob, request: PreviewRequest, onProgress?: (p: PreviewProgress) => void): Promise<PreviewResult>;
   /** Findings on file lines [from, to] of the loaded file. */
   findings(from: number, to: number): Promise<readonly Finding[]>;
+  /** The planner model's time for the loaded file on a machine with these settings. */
+  estimate(profile: PlannerProfile): Promise<Estimate>;
   /** Stops the current load now; its promise rejects with an AbortError. */
   cancel(): void;
   dispose(): void;
@@ -63,6 +66,7 @@ export function createGcodePreviewClient(spawn: () => WorkerLike): GcodePreviewC
       pending.delete(m.id);
       if (m.type === 'error') p.reject(new Error(m.message));
       else if (m.type === 'result') p.resolve(m.result as never);
+      else if (m.type === 'estimate') p.resolve(m.estimate as never);
       else p.resolve(m.findings as never);
     };
     w.onerror = (event) => {
@@ -93,6 +97,10 @@ export function createGcodePreviewClient(spawn: () => WorkerLike): GcodePreviewC
     findings(from, to) {
       if (worker === null) return Promise.resolve([]);
       return request<readonly Finding[]>((id) => ({ type: 'findings', id, from, to }));
+    },
+    estimate(profile) {
+      if (worker === null) return Promise.resolve({ ok: false, reason: 'No file is loaded.' });
+      return request<Estimate>((id) => ({ type: 'estimate', id, profile }));
     },
     cancel: stop,
     dispose: stop,

@@ -8,6 +8,7 @@
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import type { Estimate, PlannerProfile } from '@synthetos/advisor';
 import type { Finding } from '@synthetos/gcode';
 import { createGcodePreviewClient, type GcodePreviewClient, type WorkerLike } from '../gcode-worker/client.ts';
 import type { PreviewMode, PreviewResult } from '../gcode-worker/pipeline.ts';
@@ -38,6 +39,8 @@ export interface PreviewParts {
   readonly scene: JobScene | null;
   /** The tool as handed to the drawing, in the path's frame (mm), or null: the layout exposes it as `data-tool`. */
   readonly toolInPath: Vec3 | null;
+  /** The planner model's time for the open file on a machine with these settings (docs/design/ANALYZE.md slice 2). */
+  readonly estimate: (profile: PlannerProfile) => Promise<Estimate>;
   /** The tool the 3D marker shows (activeTool.ts), or null before a file is open. */
   readonly tool: ActiveTool | null;
   /** True when the marker is the planned position at the scrubbed line (no board), not a reported one. */
@@ -189,6 +192,7 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
     );
   }, []);
 
+  const estimate = useCallback((profile: PlannerProfile): Promise<Estimate> => client.current?.estimate(profile) ?? Promise.resolve({ ok: false, reason: 'No file is loaded.' }), []);
   const fetchFindings = useCallback((from: number, to: number): Promise<readonly Finding[]> => client.current?.findings(from, to) ?? Promise.resolve([]), []);
 
   const result = state.status === 'ready' ? state.result : null;
@@ -286,5 +290,5 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
     ...(readout === undefined ? {} : { marker: readout }),
     ...(listData === null ? {} : { list: h(LineList, { data: listData, highlightLine, revealLine: highlightLine, fetchFindings, fileKey: listKey, executingLine, sentThrough: job?.sentThrough ?? null, ...(onReportLine === undefined ? {} : { onReportLine }), ...(onBreakpoints === undefined ? {} : { onBreakpoints }) }) }),
   };
-  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, tool: activeTool, markerPreview: previewMarker !== null && state.drawing === 'webgl', carve: carve.info, tools: toolColors, play });
+  return layout === undefined ? h(PreviewView, { state, actions, slots }) : layout({ state, actions, slots, live, scene, toolInPath, estimate, tool: activeTool, markerPreview: previewMarker !== null && state.drawing === 'webgl', carve: carve.info, tools: toolColors, play });
 }

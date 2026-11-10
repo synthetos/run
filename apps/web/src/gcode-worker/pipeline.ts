@@ -16,6 +16,7 @@ import {
   sentSourceLines,
   toolChanges,
   type Box,
+  type EventTape,
   type Finding,
   type FindingIndex,
   type FindingSeverity,
@@ -199,6 +200,8 @@ export async function readBlob(blob: Blob, onProgress?: (p: PreviewProgress) => 
 export interface Analysed {
   readonly result: PreviewResult;
   readonly findings: FindingIndex;
+  /** The interpreter's event tape: kept in the worker for the planner time model (docs/design/ANALYZE.md slice 2). */
+  readonly events: EventTape;
 }
 
 /** Sanitises and interprets the file, then packs what the page needs. */
@@ -218,6 +221,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
   const shown = listVerdictsOf(analysis.findings, fileLines);
   return {
     findings,
+    events: analysis.events,
     result: {
       lite,
       liteBySize,

@@ -16,5 +16,10 @@
   "dependencies": {
     "@synthetos/library": "workspace:*",
     "@synthetos/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@synthetos/gcode": "workspace:*",
+    "@synthetos/protocol": "workspace:*",
+    "@synthetos/safety": "workspace:*"
   }
 }

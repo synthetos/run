@@ -15,6 +15,7 @@
  * views; nothing here reaches a machine.
  */
 import { signal } from '@preact/signals';
+import type { Estimate, PlannerProfile } from '@synthetos/advisor';
 import type { PreviewResult } from '../gcode-worker/pipeline.ts';
 import type { Box3, SegmentList } from '@synthetos/gcode-view';
 import { projectStore } from '../projects/browserStore.ts';
@@ -28,6 +29,8 @@ export interface OpenFile {
   readonly name: string;
   readonly bytes: Uint8Array;
   readonly preview?: PreviewResult;
+  /** The planner model's time for this file on a machine with these settings, from the G-code worker. */
+  readonly estimate?: (profile: PlannerProfile) => Promise<Estimate>;
 }
 
 /** The file the Run view has open and checked, or null. */

@@ -8,6 +8,7 @@
  */
 import type { Evidence, MotionInputs, XyzAxis } from '@synthetos/advisor';
 import type { SettingValue } from '@synthetos/schema';
+import { stepsPerUnit } from './boardFacts.ts';
 import type { MachineProfile } from './library.ts';
 import { connected, snapshotOf, type LiveView } from './model.ts';
 import { isObject, stored } from './storage.ts';
@@ -24,13 +25,20 @@ export interface BoardReading {
   readonly vm: Readonly<Partial<Record<XyzAxis, number>>>;
   readonly fr: Readonly<Partial<Record<XyzAxis, number>>>;
   readonly jm: Readonly<Partial<Record<XyzAxis, number>>>;
+  /** Junction deviation per axis (`jd`), the junction acceleration (`ja`) and chordal tolerance (`ct`), in the board's units. */
+  readonly jd?: Readonly<Partial<Record<XyzAxis, number>>>;
+  readonly ja?: number;
+  readonly ct?: number;
+  /** Steps per unit of the motor driving each axis (the largest when two share it), from `sa`, `mi`, `tr` and `ma`. */
+  readonly spu?: Readonly<Partial<Record<XyzAxis, number>>>;
   /** Epoch milliseconds. */
   readonly at: number;
 }
 
 const numberMap = (v: unknown): v is Record<string, number> => isObject(v) && Object.values(v).every((x) => typeof x === 'number' && Number.isFinite(x));
 const isReading = (v: unknown): v is BoardReading =>
-  isObject(v) && typeof v['dialect'] === 'string' && (v['boardId'] === null || typeof v['boardId'] === 'string') && (v['unit'] === null || typeof v['unit'] === 'number') && numberMap(v['vm']) && numberMap(v['fr']) && numberMap(v['jm']) && typeof v['at'] === 'number';
+  isObject(v) && typeof v['dialect'] === 'string' && (v['boardId'] === null || typeof v['boardId'] === 'string') && (v['unit'] === null || typeof v['unit'] === 'number') && numberMap(v['vm']) && numberMap(v['fr']) && numberMap(v['jm']) && typeof v['at'] === 'number' &&
+  (v['jd'] === undefined || numberMap(v['jd'])) && (v['spu'] === undefined || numberMap(v['spu'])) && (v['ja'] === undefined || typeof v['ja'] === 'number') && (v['ct'] === undefined || typeof v['ct'] === 'number');
 
 /** The last board reading this browser saw, kept for when no board is connected ("Last read …"). */
 export const savedReading = stored<BoardReading | null>('analysis.board-reading.v1', null, (v): v is BoardReading | null => v === null || isReading(v));
@@ -44,6 +52,17 @@ function axisValues(settings: Readonly<Record<string, SettingValue>>, field: str
   return out;
 }
 
+/** Steps per unit per axis from the motors' `ma`, `sa`, `mi` and `tr` (the largest motor on an axis). */
+export function motorSteps(settings: Readonly<Record<string, SettingValue>>): Partial<Record<XyzAxis, number>> {
+  const out: Partial<Record<XyzAxis, number>> = {};
+  for (const m of [1, 2, 3, 4]) {
+    const axis = AXES[settings[`${m}ma`] as number];
+    const spu = stepsPerUnit(settings[`${m}sa`] as number | undefined, settings[`${m}mi`] as number | undefined, settings[`${m}tr`] as number | undefined);
+    if (axis !== undefined && spu !== null) out[axis] = Math.max(out[axis] ?? 0, spu);
+  }
+  return out;
+}
+
 /** The connected board's motion settings, or null (not connected, or the settings read is not complete). */
 export function boardReading(view: LiveView | null, now: number): BoardReading | null {
   if (view === null || !connected(view)) return null;
@@ -53,7 +72,22 @@ export function boardReading(view: LiveView | null, now: number): BoardReading |
   const s = snapshotOf(view);
   const unit = s?.live.unit;
   const id = s?.identity?.id;
-  return { dialect: view.readout.dialectId ?? 'unknown', boardId: typeof id === 'string' && id.length > 0 ? id : null, unit: typeof unit === 'number' ? unit : null, vm, fr: axisValues(settings, 'fr'), jm: axisValues(settings, 'jm'), at: now };
+  const num = (k: string): number | undefined => (typeof settings[k] === 'number' && Number.isFinite(settings[k]) ? (settings[k] as number) : undefined);
+  const ja = num('ja');
+  const ct = num('ct');
+  return {
+    dialect: view.readout.dialectId ?? 'unknown',
+    boardId: typeof id === 'string' && id.length > 0 ? id : null,
+    unit: typeof unit === 'number' ? unit : null,
+    vm,
+    fr: axisValues(settings, 'fr'),
+    jm: axisValues(settings, 'jm'),
+    jd: axisValues(settings, 'jd'),
+    ...(ja === undefined ? {} : { ja }),
+    ...(ct === undefined ? {} : { ct }),
+    spu: motorSteps(settings),
+    at: now,
+  };
 }
 
 /** "Last read 9 Nov, 14:02" in the viewer's locale. */

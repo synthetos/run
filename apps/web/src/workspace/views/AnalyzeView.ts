@@ -10,8 +10,9 @@
 import { h, type ComponentChild } from 'preact';
 import { useEffect } from 'preact/hooks';
 import { advisorOperations, advisorRows, advisorStock } from '../advisorState.ts';
-import { boardReading } from '../analysisInputs.ts';
-import { inputSources, motionView, programReport, rememberReading } from '../analysisState.ts';
+import { boardReading, lastReadLabel } from '../analysisInputs.ts';
+import { estimateFor, inputSources, motionView, programReport, rememberReading, requestEstimate } from '../analysisState.ts';
+import { plannerProfile } from '../plannerInputs.ts';
 import { currentFile } from '../fileBridge.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 import { connected, type WorkspaceModel } from '../model.ts';
@@ -30,9 +31,16 @@ export function AnalyzeView({ model = null }: { readonly model?: WorkspaceModel 
   const file = currentFile.value;
   const report = programReport.value;
   const advanced = uiLevel.value.value === 'advanced';
-  const view = report === null ? null : motionView(report, inputSources(live, Date.now()));
+  const sources = inputSources(live, Date.now());
+  const view = report === null ? null : motionView(report, sources);
+  // The firmware time model, when the machine's planner settings are known (connected, or a saved reading).
+  const reading = sources.live ?? sources.saved;
+  const profile = plannerProfile(reading);
+  useEffect(() => requestEstimate(file, profile), [file?.preview, JSON.stringify(profile)]);
+  const estimate = estimateFor(file?.preview, profile);
+  const settingsLabel = sources.live !== null ? 'Board settings' : sources.saved !== null ? lastReadLabel(sources.saved.at) : null;
   // The findings also go to the Notes tab, so the Run step can point at them without inline text.
-  usePublishNotes('analyze', report === null ? [] : analysisNotes(fixesFor(report, file?.preview?.cam ?? null)));
+  usePublishNotes('analyze', report === null ? [] : analysisNotes(fixesFor(report, file?.preview?.cam ?? null, estimate)));
   return h(
     'div',
     { class: 'analyze-view' },
@@ -45,8 +53,8 @@ export function AnalyzeView({ model = null }: { readonly model?: WorkspaceModel 
         : h(
             'div',
             { class: 'analyze-page' },
-            h(HeadlineStrip, { view, connected: live !== null && connected(live) }),
-            h(FixList, { report: view.report, cam: file?.preview?.cam ?? null, advanced }),
+            h(HeadlineStrip, { view, connected: live !== null && connected(live), estimate, settingsLabel, modelled: profile !== null }),
+            h(FixList, { report: view.report, cam: file?.preview?.cam ?? null, estimate, advanced }),
             h(OperationsCard, { rows: advisorRows.value, stock: advisorStock.value, problem: advisorOperations.value.problem, advanced }),
             advanced ? h(DetailsCard, { view }) : null,
           ),

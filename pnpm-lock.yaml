@@ -112,6 +112,16 @@ importers:
       '@synthetos/schema':
         specifier: workspace:*
         version: link:../schema
+    devDependencies:
+      '@synthetos/gcode':
+        specifier: workspace:*
+        version: link:../gcode
+      '@synthetos/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@synthetos/safety':
+        specifier: workspace:*
+        version: link:../safety
 
   packages/contracts:
     dependencies:
