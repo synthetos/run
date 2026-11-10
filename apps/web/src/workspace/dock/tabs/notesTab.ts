@@ -44,11 +44,20 @@ function linkLabel(link: NoteLink): string {
 
 const GROUP_TITLE = { needs: 'Needs you', know: 'Good to know' } as const;
 
-/** One note: ⚠ or ℹ, a bold title, one sentence, its button, More (the detail, in place) and × (hidden for good). */
+/** A note's button: an action that is registered now, or a link to follow; null for an action nobody offers now. */
+function linkButton(link: NoteLink, ctx: DockContext): ComponentChild {
+  const action = link.kind === 'action' ? noteAction(link.action) : null;
+  if (link.kind === 'action' && action === null) return null;
+  return h(
+    'button',
+    { type: 'button', key: linkLabel(link), class: link.kind === 'action' ? 'small note-action' : 'link note-link', 'data-action': 'note-link', ...(link.kind === 'action' ? { 'data-note-action': link.action } : {}), onClick: () => (link.kind === 'action' ? action?.() : follow(link, ctx)) },
+    linkLabel(link),
+  );
+}
+
+/** One note: ⚠ or ℹ, a bold title, one sentence, its buttons, More (the detail, in place) and × (hidden for good). */
 function NoteRow({ note, ctx }: { readonly note: ShownNote; readonly ctx: DockContext }): ComponentChild {
-  const link = note.link ?? null;
-  const action = link?.kind === 'action' ? noteAction(link.action) : null;
-  const showLink = link !== null && (link.kind !== 'action' || action !== null);
+  const buttons = [note.link, ...(note.links ?? [])].filter((l): l is NoteLink => l !== undefined).map((l) => linkButton(l, ctx)).filter((b) => b !== null);
   // More sits at the end of the sentence, so a closed row stays one line; the detail opens in place under it.
   const [open, setOpen] = useState(false);
   const moreId = `note-more-${note.source}-${note.id}`.replace(/[^A-Za-z0-9_-]/g, '-');
@@ -70,9 +79,8 @@ function NoteRow({ note, ctx }: { readonly note: ShownNote; readonly ctx: DockCo
       ),
       note.detail === undefined ? null : h('p', { id: moreId, class: 'note-more', hidden: !open }, note.detail),
     ),
-    showLink && link !== null
-      ? h('button', { type: 'button', class: link.kind === 'action' ? 'small note-action' : 'link note-link', 'data-action': 'note-link', onClick: () => (link.kind === 'action' ? action?.() : follow(link, ctx)) }, linkLabel(link))
-      : null,
+    // One button sits in the row's button column; several share it, side by side.
+    buttons.length === 0 ? null : buttons.length === 1 ? buttons[0] : h('span', { class: 'note-actions' }, buttons),
     h('button', { type: 'button', class: 'note-dismiss', 'data-action': 'note-dismiss', 'aria-label': `Hide this note: ${note.title}`, title: 'Hide this note', onClick: () => dismiss(noteKey(note)) }, '×'),
   );
 }

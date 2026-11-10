@@ -78,6 +78,11 @@ import { JobFiles } from '../../projects/ProjectsView.ts';
 import { Dock } from '../dock/Dock.ts';
 import { reportsNotice } from '../reportsNotice.ts';
 import { MachineInsight } from '../insight/MachineInsight.ts';
+import { ToolMismatchNotes } from '../ToolMismatchNotes.ts';
+import type { FileTool } from '../../gcode-worker/camTools.ts';
+
+/** No file, no described tools (one array, so the note's memo holds). */
+const NO_FILE_TOOLS: readonly FileTool[] = Object.freeze([]);
 
 export interface RunViewProps {
   readonly model: WorkspaceModel | null;
@@ -1196,6 +1201,8 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
     'div',
     { class: 'run-view job-view', 'data-region': 'preview', 'data-job-stage': step, 'data-preview-expanded': previewExpanded.value ? 'true' : 'false' },
     h(RunBridge, { parts }),
+    // The file's tools against the tool table (tool-mismatch): a note, its actions and their confirmation.
+    h(ToolMismatchNotes, { fileTools: result?.fileTools ?? NO_FILE_TOOLS, onView }),
     // The machine pane is a rail beside everything (OD-13 §3): it gets the view's full height, so it fits 720 px without scrolling.
     h(
       'div',

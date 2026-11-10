@@ -25,7 +25,10 @@ import type { WorkspaceModel } from '../model.ts';
 import { homingView } from '../motion.ts';
 import type { MotionAxis } from '../../machine-worker/rpc.ts';
 import { usePublishNotes } from '../notes/usePublishNotes.ts';
-import { useNoteAction } from '../notes/noteActions.ts';
+import { noteAction, useNoteAction } from '../notes/noteActions.ts';
+import { toolStore } from '../library.ts';
+import { mismatchSummary, toolMismatches } from '../toolMismatch.ts';
+import { editToolAction, useFileToolAction } from '../ToolMismatchNotes.ts';
 import { zeroNote } from './zeroNote.ts';
 import type { Note } from '../notes/notes.ts';
 import { ConfirmCard } from '../ui.ts';
@@ -124,6 +127,9 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
   const homeable = (axis: string): boolean => canHome && hv.configured.includes(axis.toLowerCase() as MotionAxis);
   const block = currentBlock(model);
   const wait = s === null ? null : s.rxm.busy || s.reports.phase === 'seeding' || s.reports.phase === 'configuring' || s.reports.phase === 'pending' ? 'Setting up the connection…' : !idle && block === null ? (ui.active ? 'A job is running.' : 'Waiting for the machine to be idle.') : null;
+  // The file's tools against the tool table (ToolMismatchNotes.ts publishes the note and owns its two actions).
+  const mismatches = useMemo(() => toolMismatches(result?.fileTools ?? [], toolStore.value.value), [result, toolStore.value.value]);
+  const firstMismatch = mismatches[0];
   const input: ReadyInput = {
     connected: ui.connected,
     jobsOn: ui.enabled,
@@ -145,6 +151,7 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
     modes: s?.boardModes.text ?? null,
     feeds: advisorSummary.value,
     spindle: report === null ? null : { starts: report.startsSpindle, speeds: speedRange(job) },
+    toolMismatch: firstMismatch === undefined ? null : { number: firstMismatch.number, summary: mismatchSummary(mismatches) ?? '' },
   };
   const ready = readyModel(input);
   const startsSpindle = report?.startsSpindle === true;
@@ -191,6 +198,12 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
       }
       case 'analyze':
         onAnalyze?.();
+        return;
+      case 'edit-tool':
+        if (firstMismatch !== undefined) noteAction(editToolAction(firstMismatch.number))?.();
+        return;
+      case 'use-file-tool':
+        if (firstMismatch !== undefined) noteAction(useFileToolAction(firstMismatch.number))?.();
         return;
       case 'save-zero':
         if (board !== null && key !== null) {

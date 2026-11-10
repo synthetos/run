@@ -27,6 +27,7 @@ import {
 } from '@synthetos/gcode';
 import { analyzeProgram, type ProgramReport } from '@synthetos/advisor';
 import { camName, operationHeadings } from './headings.ts';
+import { fileTools, type FileTool } from './camTools.ts';
 import { latin1, lineSpans } from './lines.ts';
 
 /** RUN_PLAN §4: a G-code file is at most 50 MB. */
@@ -166,6 +167,8 @@ export interface PreviewResult {
   readonly analysis: ProgramReport;
   /** The CAM program the file's header names (Analyze words its CAM tip for it), or null. */
   readonly cam: string | null;
+  /** The tools the file's comments describe, by T number (camTools.ts): compared with the tool table. Display only. */
+  readonly fileTools: readonly FileTool[];
 }
 
 export type PreviewProgress = { readonly phase: 'read'; readonly fraction: number } | { readonly phase: 'sanitise' | 'interpret' | 'pack' };
@@ -250,6 +253,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
       },
       analysis: report,
       cam: camName(bytes, spans),
+      fileTools: fileTools(bytes, spans),
     },
   };
 }

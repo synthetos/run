@@ -24,3 +24,20 @@ export function useNoteAction(name: string, run: (() => void) | null): void {
     };
   }, [name, run]);
 }
+
+/**
+ * Registers several actions at once while the calling view is mounted (a list whose length changes, such as one Edit
+ * button per mismatched tool). `key` names the set: the actions are registered again when it changes.
+ */
+export function useNoteActions(actions: ReadonlyMap<string, () => void>, key: string): void {
+  useEffect(() => {
+    const next = new Map(handlers.value);
+    for (const [name, run] of actions) next.set(name, run);
+    handlers.value = next;
+    return () => {
+      const left = new Map(handlers.value);
+      for (const [name, run] of actions) if (left.get(name) === run) left.delete(name);
+      handlers.value = left;
+    };
+  }, [key]);
+}

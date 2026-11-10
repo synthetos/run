@@ -17,6 +17,9 @@
 .ready-summary { color: var(--ink); }
 .ready-actions { grid-column: 3; grid-row: 1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .ready-actions button.small { min-height: 24px; padding: 0 9px; font-size: 12px; }
+/* Two or more buttons (the Tools row's Edit T1 and Use the file’s tool) go on their own line under the words, so the
+   summary keeps the row's width in a narrow panel. */
+.ready-item:has(.ready-actions > :nth-child(2)) .ready-actions { grid-column: 2 / -1; grid-row: 2; margin-top: 4px; }
 .ready-actions .ready-more { font-size: 12px; }
 .ready-item.mark-done .ready-mark { color: var(--ok); }
 .ready-item.mark-needs .ready-mark { color: var(--warn); }
@@ -50,6 +53,7 @@
 .notes-list .note-action, .notes-list .note-link { grid-column: 3; align-self: start; white-space: nowrap; }
 .notes-list button.note-action { min-height: 24px; padding: 0 9px; font-size: 12px; }
 .notes-list .note-link { font-size: 12px; }
+.notes-list .note-actions { grid-column: 3; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 260px; }
 .notes-list button.note-dismiss { grid-column: 4; width: 22px; height: 22px; min-height: 22px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; }
 .notes-list button.note-dismiss:hover { color: var(--ink); }
 .dock-badge { color: var(--muted); font-weight: 500; }

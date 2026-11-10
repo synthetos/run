@@ -68,4 +68,12 @@ describe('the work zero note', () => {
     expect(noHoming.link).toBeUndefined();
     expect(zeroNote({ ...base, state: 'match', text: 'x' } as RunZeroCheck, true, true)).toMatchObject({ title: 'Work zero matches your plan.', tone: 'info' });
   });
+
+  it('a note with more than one button shows them side by side (tool-mismatch, 2026-11-10)', () => {
+    resetNotes();
+    resetDismissed();
+    publishNotes('t', [{ id: 'two', topic: 'Tools', title: 'Two ways.', body: '', tone: 'warn', link: { kind: 'step', step: 'machine', label: 'First' }, links: [{ kind: 'view', view: 'tools', label: 'Second' }] }]);
+    expect(render()).toMatch(/<span class="note-actions"><button[^>]*data-action="note-link"[^>]*>First<\/button><button[^>]*data-action="note-link"[^>]*>Second<\/button><\/span>/);
+  });
 });
+

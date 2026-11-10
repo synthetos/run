@@ -29,6 +29,8 @@ export interface Note {
   /** The full detail, behind More (expands in place). */
   readonly detail?: string;
   readonly link?: NoteLink;
+  /** More buttons after `link`, in order (tool-mismatch: [Edit T1] [Use the file's tool]). */
+  readonly links?: readonly NoteLink[];
   /** `warn`: listed under Needs you, with ⚠; `info`: Good to know, with ℹ. Still only a note either way. */
   readonly tone?: 'info' | 'warn';
   /** The registered string it carries in full (W35, W36, W44, ...), as `data-safety`. */
@@ -61,7 +63,7 @@ export function publishNotes(source: string, notes: readonly Note[], now: () => 
 }
 
 function sameNote(a: ShownNote | undefined, b: Note): boolean {
-  return a !== undefined && a.id === b.id && a.title === b.title && a.body === b.body && a.topic === b.topic && JSON.stringify(a.link ?? null) === JSON.stringify(b.link ?? null) && (a.tone ?? 'info') === (b.tone ?? 'info') && a.safety === b.safety && a.detail === b.detail;
+  return a !== undefined && a.id === b.id && a.title === b.title && a.body === b.body && a.topic === b.topic && JSON.stringify(a.link ?? null) === JSON.stringify(b.link ?? null) && JSON.stringify(a.links ?? []) === JSON.stringify(b.links ?? []) && (a.tone ?? 'info') === (b.tone ?? 'info') && a.safety === b.safety && a.detail === b.detail;
 }
 
 /** The key a note is dismissed by (per source and id). */

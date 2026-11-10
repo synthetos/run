@@ -491,3 +491,6 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .firmware-offer .motion-confirm-actions { flex-wrap: wrap; }
 .firmware-offer .quiet-link { margin-right: auto; }
 .releases > li.release-focus { margin-inline: -12px; padding-inline: 12px; border-radius: 6px; outline: 2px solid var(--blue); outline-offset: -2px; background: var(--blue-wash); }
+
+/* "Use the file’s tool for T1?" (workspace/ToolMismatchNotes.ts). */
+.tool-file-title { margin: 0 0 6px; font-size: 1.05rem; }

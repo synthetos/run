@@ -12,7 +12,7 @@ import { MARK_TEXT, type Mark, type TickPart } from './runCopy.ts';
 export type ReadyItemId = 'machine' | 'file' | 'zero' | 'position' | 'travel' | 'modes' | 'feeds' | 'tool' | 'spindle';
 
 /** What an item's button does. Block actions reuse the Position panel's (ControlBlockCard.ts). */
-export type ReadyActionId = BlockActionId | 'connect' | 'verify' | 'home' | 'analyze' | 'save-zero';
+export type ReadyActionId = BlockActionId | 'connect' | 'verify' | 'home' | 'analyze' | 'save-zero' | 'edit-tool' | 'use-file-tool';
 
 export interface ReadyItem {
   readonly id: ReadyItemId;
@@ -56,6 +56,11 @@ export interface ReadyInput {
   /** The Analyze summary ("Feeds: within range", "Feeds: needs review in Analyze"). */
   readonly feeds: string;
   readonly spindle: { readonly starts: boolean; readonly speeds: string } | null;
+  /**
+   * The file's tools against the tool table (workspace/toolMismatch.ts): the first mismatched T number and the row's
+   * words ("T1 doesn't match the file."), or null. Never blocking: the board runs what the file says.
+   */
+  readonly toolMismatch?: { readonly number: number; readonly summary: string } | null;
 }
 
 export interface ReadyModel {
@@ -122,6 +127,11 @@ function travelItem(input: ReadyInput): ReadyItem {
   return { id: 'travel', label: 'Travel', mark: 'needs', summary: 'Can’t be checked.', actions: [], note: 'travel' };
 }
 
+/** The Tools row when the file's tools differ from the table's: the note's two buttons, never blocking. */
+function toolMismatchItem(m: { readonly number: number; readonly summary: string }): ReadyItem {
+  return { id: 'tool', label: 'Tools', mark: 'needs', summary: m.summary, actions: [{ id: 'edit-tool', label: `Edit T${m.number}` }, { id: 'use-file-tool', label: 'Use the file’s tool' }], note: `tool-mismatch/${m.number}` };
+}
+
 /** The list and what Start needs, from what the page knows now. */
 export function readyModel(input: ReadyInput): ReadyModel {
   const machine = machineItem(input);
@@ -138,7 +148,7 @@ export function readyModel(input: ReadyInput): ReadyModel {
     travelItem(input),
     ...(input.modes === null ? [] : [{ id: 'modes' as const, label: 'Board modes', mark: 'done' as const, summary: `${input.modes}.`, actions: [], note: 'modes' }]),
     { id: 'feeds', label: 'Feeds', mark: /within range/.test(input.feeds) ? 'done' : 'needs', summary: /needs review/.test(input.feeds) ? 'Review.' : input.feeds.replace(/^Feeds: /, '').replace(/^./, (c) => c.toUpperCase()), actions: /within range/.test(input.feeds) ? [] : [{ id: 'analyze', label: 'Analyze' }] },
-    ...(input.check.state === 'done' && input.check.toolChanges > 0 ? [{ id: 'tool' as const, label: 'Tools', mark: 'done' as const, summary: `${input.check.toolChanges} tool ${input.check.toolChanges === 1 ? 'change' : 'changes'}. Run stops for each.`, actions: [] }] : []),
+    ...(input.toolMismatch != null ? [toolMismatchItem(input.toolMismatch)] : input.check.state === 'done' && input.check.toolChanges > 0 ? [{ id: 'tool' as const, label: 'Tools', mark: 'done' as const, summary: `${input.check.toolChanges} tool ${input.check.toolChanges === 1 ? 'change' : 'changes'}. Run stops for each.`, actions: [] }] : []),
     ...(spindle?.starts === true ? [{ id: 'spindle' as const, label: 'Spindle', mark: 'needs' as const, summary: `${spindle.speeds}, on by itself.`, actions: [] }] : []),
   ];
   const tick: TickPart[] = !fileReady || machine !== null
