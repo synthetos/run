@@ -6,9 +6,11 @@
  * 1. the D1 sign-in gate has an identity (AuthGate, `connect`);
  * 2. the signed safety advisory verifies and does not revoke this build
  *    (advisoryGate.ts: fetched now, or a cached copy younger than 7 days);
- * 3. C1 is accepted for THIS session, full or short (c1.ts).
- * Only then is the port chooser shown, from the C1 confirm click (the user
- * gesture `requestPort()` needs), fullscreen is left, and the worker is
+ * 3. C1 is accepted, once per browser (c1.ts; OD-30, owner 2026-11-09).
+ * Only then is the port opened. The port chooser needs a user gesture
+ * (`requestPort()`): the first time it is shown from the C1 confirm click;
+ * after that, when this browser has accepted C1 before, from the Connect
+ * click itself, before any await. Then fullscreen is left and the worker is
  * asked to open the port. A started session writes the `liveSession`
  * marker (W6) and starts the 15-minute advisory poll.
  *
@@ -64,11 +66,16 @@ export interface LiveEntryDeps {
 export class LiveEntry {
   #state: EntryState = { step: 'idle' };
   readonly #listeners = new Set<(s: EntryState) => void>();
+  /** Whether this browser accepted C1 before, read once at start (null until read). */
+  #c1Accepted: boolean | null = null;
 
   private readonly deps: LiveEntryDeps;
 
   constructor(deps: LiveEntryDeps) {
     this.deps = deps;
+    void c1FormFor(deps.store).then((form) => {
+      this.#c1Accepted = form === 'none';
+    });
   }
 
   get state(): EntryState {
@@ -94,12 +101,16 @@ export class LiveEntry {
     if (this.#state.step === 'checking' || this.#state.step === 'opening' || this.#state.step === 'live') return;
     // Synchronously, inside the gesture, before any await (T-S30).
     this.deps.unlockAlarm();
+    // C1 accepted before in this browser (OD-30): the chooser comes from this click, while it still has the gesture.
+    const early = this.#c1Accepted === true ? this.deps.choosePort() : null;
     this.#set({ step: 'checking' });
     const auth = await this.deps.auth.check('connect');
     if (!auth.allowed) return this.#refuse({ kind: 'signed-out', signIn: signInAvailable(this.deps.auth.providers) });
     const advisory = await this.deps.checkAdvisory();
     if (!advisory.ok) return this.#refuse({ kind: 'advisory', check: advisory });
-    const form = await c1FormFor(this.deps.store, this.deps.now());
+    if (early !== null) return this.#open(early, 'none');
+    const form = await c1FormFor(this.deps.store);
+    // `none` here means the record was read only now: one plain click gives the chooser its gesture (no checklist).
     this.#set({ step: 'c1', form, boxes: c1Checklist(form).boxes.length });
   }
 
@@ -110,12 +121,18 @@ export class LiveEntry {
     if (ticked.length !== state.boxes || !ticked.every((t) => t)) return this.#refuse({ kind: 'c1-incomplete' });
     // The chooser first and synchronously: it needs this click's user activation.
     const choice = this.deps.choosePort();
+    return this.#open(choice, state.form);
+  }
+
+  /** Opens the chosen port, after C1 (accepted now, or once before in this browser). */
+  async #open(choice: Promise<ChooseResult>, form: C1Form): Promise<void> {
     void this.deps.leaveFullscreen().catch(() => undefined);
     this.#set({ step: 'opening' });
     try {
-      await recordC1(this.deps.store, state.form, this.deps.now());
+      await recordC1(this.deps.store, form, this.deps.now());
+      if (form === 'full') this.#c1Accepted = true;
     } catch {
-      // Not recorded: the next session shows the full form again, which is the safe side.
+      // Not recorded: the next Connect shows the full list again, which is the safe side.
     }
     const chosen = await choice.catch((): ChooseResult => ({ ok: false, message: 'The port chooser failed.' }));
     if (!chosen.ok) return this.#refuse({ kind: 'no-port', message: chosen.message });

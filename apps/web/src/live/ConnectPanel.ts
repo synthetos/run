@@ -84,7 +84,8 @@ export function ConnectPanel(props: ConnectPanelProps): ComponentChild {
         {
           class: 'live-entry c1',
           'data-entry': 'c1',
-          'data-safety': 'C1',
+          // OD-30: after the first acceptance no checklist is shown; this form is then only the click the chooser needs.
+          ...(state.form === 'full' ? { 'data-safety': 'C1' } : {}),
           'data-c1-form': state.form,
           onSubmit: (event: Event) => {
             event.preventDefault();
@@ -98,7 +99,7 @@ export function ConnectPanel(props: ConnectPanelProps): ComponentChild {
         h(
           'div',
           { class: 'c1-actions' },
-          h('button', { type: 'submit', class: 'button', 'data-action': 'confirm' }, 'Confirm and choose port'),
+          h('button', { type: 'submit', class: 'button', 'data-action': 'confirm' }, state.form === 'full' ? 'Confirm and choose port' : 'Choose port'),
           h('button', { type: 'button', class: 'button', 'data-action': 'cancel', onClick: props.onCancel }, 'Cancel'),
         ),
       );

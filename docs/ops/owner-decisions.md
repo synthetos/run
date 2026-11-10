@@ -484,3 +484,10 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 - **Colour by tool.** Each tool the file uses gets a colour in the order it first appears (never cycled; a ninth and later share the eighth), from a colour-blind-safe palette shaded for light and dark; a tool not known is neutral and named as such. Arcs are a lighter tint and rapids a fainter dashed one, so the move type still shows. The key lists the tools when there are two or more; clicking one makes its lines stand out.
 - **Carving detail.** The carve's base cell is 0.125 mm, coarsened only past the cap (2 million cells, 4096 a side); no toggle. Advanced's key shows the size used.
 
+## OD-30. C1 is shown once per browser, never again (owner, 2026-11-09)
+
+**Owner's words.** "never show this to anyone after the first set of check boxes".
+
+**Context.** C1 (the E-stop and work-area checklist) was asked at the start of every LIVE session: in full the first time, after a wording change and on each new calendar day, otherwise as a one-box short form ("My E-stop is within reach and I tested it today"). The owner found the repeated boxes a reason the Run page felt like "check boxes everywhere".
+
+**Decision.** The full C1 list is shown at the first Connect in a browser. Once it has been accepted there, no form of C1 is shown again in that browser: not the short form, not after a text change, not on a later day. The acceptance stays device-local (`device-safety`, never synced, never cleared by sign-out); a browser whose record cannot be read shows the full list again. W1 (the E-stop banner) is unchanged and stays on every page. SAFETY §4.1 (Enter LIVE), §6 C1 and HIL-1.3 are amended; run apps/web/src/live/c1.ts and liveEntry.ts implement it.

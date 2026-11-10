@@ -4,13 +4,13 @@
  * expired cached advisory fails closed; a revocation while LIVE denies Arm,
  * Start and jog but never a running job or a stop), the D1 sign-in gate
  * (signed out: Connect refused; a mid-session identity loss changes nothing
- * in the machine path) and C1 per session (same day short, next day full;
- * HIL-1.3 simulated).
+ * in the machine path) and C1 once per browser (OD-30, owner 2026-11-09:
+ * the full list at the first Connect, then never again in this browser).
  */
 import type { webcrypto } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
-import { c1Full, c1Short, w7 } from '@synthetos/safety';
+import { c1Full, w7 } from '@synthetos/safety';
 import { ADVISORY_PAYLOAD_FORMAT, ADVISORY_SIGNING_PREFIX, SAFETY_ADVISORY_FORMAT, type ReleaseKey } from '@synthetos/protocol';
 import { fetchFirmwareImage, fetchIdentity, fetchSafetyAdvisory, type AdvisoryFetch, type FirmwareImageProgress } from '../src/cloud/live.ts';
 import { ADVISORY_CACHE_KEY, ADVISORY_MAX_CACHE_AGE_MS, ADVISORY_POLL_MS, AdvisoryPoller, checkAdvisory, type AdvisoryDeps } from '../src/live/advisoryGate.ts';
@@ -38,7 +38,6 @@ import { all, byAttr, root, text } from './tree.ts';
 
 const SHA = '0123456789abcdef0123456789abcdef01234567';
 const DAY1 = new Date(2026, 10, 1, 9, 0, 0);
-const DAY1_LATE = new Date(2026, 10, 1, 23, 59, 0);
 const DAY2 = new Date(2026, 10, 2, 0, 1, 0);
 const PORT: PortChoice = Object.freeze({ usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 });
 
@@ -264,23 +263,26 @@ describe('cloud reads', () => {
 
 // ------------------------------------------------------------------------ C1
 
-describe('C1 per LIVE session (SAFETY §6 C1, HIL-1.3 simulated)', () => {
-  it('first time full; same day short; next day full; a text change asks for full again; a short acceptance is never stored', async () => {
+describe('C1 once per browser (SAFETY §6 C1 as amended, OD-30)', () => {
+  it('the full list the first time; once accepted, nothing again: not later that day, not the next day, not after a text change', async () => {
     const store = memoryDeviceSafety();
-    expect(await c1FormFor(store, DAY1)).toBe('full');
+    expect(await c1FormFor(store)).toBe('full');
     await recordC1(store, 'full', DAY1);
     expect(store.data.has(c1Key(C1_TEXT_VERSION, DAY1))).toBe(true);
-    expect(await c1FormFor(store, DAY1_LATE)).toBe('short');
-    await recordC1(store, 'short', DAY1_LATE);
-    expect(await c1FormFor(store, DAY2)).toBe('full');
-    expect(await c1FormFor(store, DAY1, 'other-version')).toBe('full');
-    await recordC1(store, 'full', DAY2);
-    expect([...store.data.keys()]).toEqual([c1Key(C1_TEXT_VERSION, DAY2)]);
+    expect(await c1FormFor(store)).toBe('none');
+    // A record of an older wording still counts: the owner's "never show this to anyone after the first set".
+    const older = memoryDeviceSafety();
+    await recordC1(older, 'full', DAY1, 'older-wording');
+    expect(await c1FormFor(older)).toBe('none');
+    // Nothing is recorded when nothing was shown.
+    const none = memoryDeviceSafety();
+    await recordC1(none, 'none', DAY2);
+    expect(none.data.size).toBe(0);
   });
 
-  it('an unreadable store gives the full form', async () => {
+  it('an unreadable store gives the full list (the safe side)', async () => {
     const broken = { ...memoryDeviceSafety(), keys: () => Promise.reject(new Error('blocked')) };
-    expect(await c1FormFor(broken, DAY1)).toBe('full');
+    expect(await c1FormFor(broken)).toBe('full');
   });
 });
 
@@ -367,7 +369,7 @@ describe('LiveEntry', () => {
     await t.entry.confirm([true, true, true, true, false]);
     expect(t.entry.state).toEqual({ step: 'refused', refusal: { kind: 'c1-incomplete' } });
     expect(t.calls).not.toContain('choosePort');
-    expect(await c1FormFor(t.store, DAY1)).toBe('full');
+    expect(await c1FormFor(t.store)).toBe('full');
   });
 
   it('happy path: chooser called synchronously in the confirm click, fullscreen left, port opened, marker written, poll started', async () => {
@@ -382,21 +384,37 @@ describe('LiveEntry', () => {
     expect(t.store.data.get(LIVE_MARKER_KEY)).toEqual({ since: DAY1.toISOString() });
   });
 
-  it('E2E-equivalent: a same-day reconnect shows the short form, the next day the full form; C1 is asked for every session', async () => {
+  it('E2E-equivalent: after the first acceptance a reconnect asks nothing, that day or the next; the chooser comes from the Connect click', async () => {
     const store = memoryDeviceSafety();
     let now = DAY1;
     const t = harness({}, store, () => now);
     await t.entry.begin();
     await t.entry.confirm([true, true, true, true, true]);
     t.entry.reset();
-    now = DAY1_LATE;
-    await t.entry.begin();
-    expect(t.entry.state).toEqual({ step: 'c1', form: 'short', boxes: c1Short().boxes.length });
-    await t.entry.confirm([true]);
-    t.entry.reset();
     now = DAY2;
-    await t.entry.begin();
-    expect(t.entry.state).toMatchObject({ step: 'c1', form: 'full' });
+    const from = t.calls.length;
+    const done = t.entry.begin();
+    // Synchronously inside the Connect click, so requestPort() still has its user activation.
+    expect(t.calls.slice(from, from + 2)).toEqual(['unlockAlarm', 'choosePort']);
+    await done;
+    expect(t.entry.state).toEqual({ step: 'live' });
+    expect([...store.data.keys()].filter((k) => k.startsWith('ack.safety@'))).toEqual([c1Key(C1_TEXT_VERSION, DAY1)]);
+  });
+
+  it('a new page in a browser that accepted C1 before asks nothing; if the record is read only after the click, one plain click (no checklist) gives the chooser its gesture', async () => {
+    const store = memoryDeviceSafety();
+    await recordC1(store, 'full', DAY1);
+    const ready = harness({}, store);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await ready.entry.begin();
+    expect(ready.entry.state).toEqual({ step: 'live' });
+    expect(ready.calls).not.toContain('c1');
+    // Connect clicked before the record was read: no C1 list, one Choose port click.
+    const early = harness({}, store);
+    await early.entry.begin();
+    expect(early.entry.state).toEqual({ step: 'c1', form: 'none', boxes: 0 });
+    await early.entry.confirm([]);
+    expect(early.entry.state).toEqual({ step: 'live' });
   });
 
   it('a cancelled chooser or a failed open is a refusal, and no marker is written', async () => {
@@ -514,14 +532,17 @@ describe('ConnectPanel and fullscreen', () => {
   const noop = () => undefined;
   const props = { advisoryBlocked: null, onConnect: noop, onConfirm: noop, onCancel: noop, onDisconnect: noop };
 
-  it('renders C1 full (5 boxes) and short (1 box) from the safety strings', () => {
+  it('renders C1 in full (5 boxes) from the safety strings; after the first acceptance, no list at all, only Choose port', () => {
     const full = root(h(ConnectPanel, { ...props, state: { step: 'c1', form: 'full', boxes: 5 } }));
     expect(full.props['data-c1-form']).toBe('full');
+    expect(full.props['data-safety']).toBe('C1');
     expect(all(full, (e) => e.tag === 'input')).toHaveLength(5);
     expect(text(full)).toContain(c1Full().boxes[0] as string);
-    const short = root(h(ConnectPanel, { ...props, state: { step: 'c1', form: 'short', boxes: 1 } }));
-    expect(all(short, (e) => e.tag === 'input')).toHaveLength(1);
-    expect(text(short)).toContain(c1Short().boxes[0] as string);
+    const none = root(h(ConnectPanel, { ...props, state: { step: 'c1', form: 'none', boxes: 0 } }));
+    expect(none.props['data-safety']).toBeUndefined();
+    expect(all(none, (e) => e.tag === 'input')).toHaveLength(0);
+    expect(text(none)).toContain('Choose port');
+    expect(text(none)).not.toContain(c1Full().boxes[0] as string);
   });
 
   it('signed out shows the sign-in refusal; LIVE with a revocation shows the advisory banner and Disconnect stays', () => {
