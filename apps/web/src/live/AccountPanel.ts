@@ -21,6 +21,7 @@ export interface AccountPanelProps {
 export const ACCOUNT_HEAD = 'Account';
 export const NOT_OFFERED = 'Signing in is not available on this site yet.';
 export const UNAVAILABLE = 'Your account could not be checked. Check the connection.';
+export const SIGN_IN_WHILE_LIVE = 'Disconnect the machine before signing in.';
 export const SIGNED_OUT = 'Not signed in. Connecting a machine needs a Synthetos account; for now sign-in is open to beta testers only.';
 
 export function AccountPanel({ state, live, onSignOut }: AccountPanelProps): ComponentChild {
@@ -37,7 +38,12 @@ export function AccountPanel({ state, live, onSignOut }: AccountPanelProps): Com
       live ? h('p', { class: 'fine', 'data-account': 'sign-out-refused' }, SIGN_OUT_WHILE_LIVE) : null,
     ];
   } else if (state.signIn) {
-    body = [h('p', { 'data-account': 'signed-out' }, SIGNED_OUT), h('a', { class: 'button small', href: signInHref('/'), 'data-action': 'sign-in' }, 'Sign in')];
+    body = [
+      h('p', { 'data-account': 'signed-out' }, SIGNED_OUT),
+      live
+        ? h('button', { type: 'button', class: 'small', 'data-action': 'sign-in', disabled: true, title: SIGN_IN_WHILE_LIVE }, 'Sign in')
+        : h('a', { class: 'button small', href: signInHref('/'), 'data-action': 'sign-in' }, 'Sign in'),
+    ];
   } else body = h('p', { class: 'fine', 'data-account': state.status === 'unavailable' ? 'unavailable' : 'not-offered' }, state.status === 'unavailable' ? UNAVAILABLE : NOT_OFFERED);
   return h(
     'div',

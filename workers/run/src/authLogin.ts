@@ -89,4 +89,3 @@ export async function login(request: Request, config: AuthConfig, now: number): 
     headers: { location: authorizeUrl(config, state, nonce, await pkceChallenge(verifier)), 'set-cookie': preauthCookie(browserNonce), 'cache-control': 'no-store' },
   });
 }
-

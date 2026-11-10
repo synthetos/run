@@ -15,6 +15,7 @@ import { MachineStrip } from '../src/workspace/MachineStrip.ts';
 import { stripStatus } from '../src/workspace/status.ts';
 import { JogSection, OverridesSection, SpindleSection, ZeroSection } from '../src/workspace/views/RunView.ts';
 import { uiLevel } from '../src/workspace/jobWorkflow.ts';
+import { AccountPanel } from '../src/live/AccountPanel.ts';
 import { FirmwareTab } from '../src/workspace/views/BoardView.ts';
 import { SafetyBar, STOP_UNAVAILABLE } from '../src/shell/SafetyBar.ts';
 import { versionLabel } from '../src/build-info/buildInfo.ts';
@@ -121,7 +122,9 @@ describe('SafetyBar', () => {
 describe('Phase 1 control allowlist', () => {
   // Every machine control class must render: the Advanced pane has the tabs (Offsets, Overrides) that Simple hides (OD-13).
   uiLevel.set('advanced');
-  const html = renderToString(h(Fragment, null, h(AppShell, { build })));
+  const html = renderToString(h(Fragment, null, h(AppShell, { build }), h(AccountPanel, {
+    state: { status: 'signed-in', display: '@owner', signIn: true, message: null }, live: false, onSignOut: () => undefined,
+  })));
   uiLevel.set('simple');
   /** Must exist, and be disabled with no handler: they would move the machine or write to the board. */
   /**
@@ -151,6 +154,8 @@ describe('Phase 1 control allowlist', () => {
   const CONNECT = new Set(['connect', 'disconnect', 'confirm', 'cancel', 'dismiss', 'ready-connect', 'ready-disconnect']);
   /** Controls that never reach the machine: views, tabs, the preview, and the local libraries. */
   const UI: readonly RegExp[] = [
+    // Account actions change identity only, never the machine (T-S58 separately refuses them while connected).
+    /^action:sign-(in|out)$/,
     /^action:advisor-(open|engine|input)$/,
     // The Run step's list (owner, 2026-11-09): views and notes only; its machine buttons carry data-machine-control.
     /^action:ready-(analyze|save-zero|note|update|trust|review|machines)$/,

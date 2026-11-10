@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { fetchAccount, postSignOut } from '../src/cloud/account.ts';
 import { accountState, CHECKING, refreshAccount, signInHref, signOut, SIGN_OUT_FAILED, SIGN_OUT_WHILE_LIVE, stateFrom } from '../src/live/account.ts';
-import { AccountPanel, NOT_OFFERED, SIGNED_OUT, UNAVAILABLE } from '../src/live/AccountPanel.ts';
+import { AccountPanel, NOT_OFFERED, SIGNED_OUT, SIGN_IN_WHILE_LIVE, UNAVAILABLE } from '../src/live/AccountPanel.ts';
 import { ACCOUNT_TEXT, BETA_SIGN_IN } from '../src/live/accountNotice.ts';
 import { accessProvider, AuthGate, providersFor, runSessionProvider, signInAvailable } from '../src/live/authGate.ts';
 import { LiveEntry } from '../src/live/liveEntry.ts';
@@ -112,6 +112,14 @@ describe('the Account panel (Preferences)', () => {
     const live = panel(signedIn, true);
     expect(all(live, byAttr('data-action', 'sign-out'))[0]?.props['disabled']).toBe(true);
     expect(text(live)).toContain(SIGN_OUT_WHILE_LIVE);
+  });
+
+  it('T-S58: a connected signed-out page cannot navigate into sign-in', () => {
+    const live = panel({ status: 'signed-out', display: null, signIn: true, message: null }, true);
+    const control = all(live, byAttr('data-action', 'sign-in'))[0];
+    expect(control?.props['disabled']).toBe(true);
+    expect(control?.props['href']).toBeUndefined();
+    expect(control?.props['title']).toBe(SIGN_IN_WHILE_LIVE);
   });
 
   it('signed out where sign-in is offered: a Sign in link; elsewhere one plain line', () => {
