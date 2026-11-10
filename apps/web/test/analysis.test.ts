@@ -49,9 +49,9 @@ describe('the report in the preview', () => {
     expect(view.time.missing).toEqual(['Rapid speeds are not known. Connect your machine to improve the time estimate.']);
   });
 
-  it('is kept in lite mode, where there is no 3D scene', () => {
+  it('is unchanged by coarse drawing detail', () => {
     const lite = preview(JOB, 'lite');
-    expect(lite.segments).toBeNull();
+    expect(lite.segments).not.toBeNull();
     expect(lite.analysis.feedSeconds.value).toBe(preview(JOB).analysis.feedSeconds.value);
   });
 

@@ -52,3 +52,25 @@ describe('chunked geometry', () => {
     expect(() => [...chunks(listOf([]), 0)]).toThrow(RangeError);
   });
 });
+
+it('coarse geometry keeps original endpoints, rapid moves, warnings and tool boundaries', () => {
+  const list = listOf(Array.from({ length: 100 }, (_, i) => [[i === 7 ? SEGMENT.RAPID : SEGMENT.FEED, i, 0, 0]]));
+  const coarse = [...chunks(list, 16, { stride: 20, keepVertices: [list.lineToVertex[13] as number] })];
+  const lines = coarse.flatMap(c => Array.from(c.lines).filter((_, i) => i % 2 === 0));
+  expect(lines).toContain(7);
+  expect(lines).toContain(13);
+  expect(lines.length).toBeLessThan(15);
+  for (const c of coarse) for (let i = 0; i < c.segments; i++) {
+    const end = c.positions[i * 6 + 3] as number;
+    const start = c.positions[i * 6] as number;
+    expect(end - start).toBeLessThanOrEqual(1); // No joining across skipped moves.
+  }
+});
+
+it('coarse scans yield even when no segments are drawable', () => {
+  const count = 100_000;
+  const list = { vertices: new Float32Array(count * 3), kinds: new Uint8Array(count), lineToVertex: Uint32Array.from([0, count]) };
+  const steps = [...chunks(list, 8192, { stride: 10 })];
+  expect(steps.length).toBeGreaterThan(10);
+  expect(steps.every(c => c.segments === 0)).toBe(true);
+});

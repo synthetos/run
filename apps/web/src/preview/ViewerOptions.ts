@@ -10,7 +10,7 @@ import { DIALECT_LABEL, on } from './PreviewView.ts';
 
 /** The Run view's preview options, in plain words (the TB-03 sheet keeps PreviewView's own). */
 const RUN_DIALECT_LABEL: Readonly<Record<string, string>> = { 'tinyg-en': 'TinyG edge-next', 'tinyg-440': 'TinyG 440.xx' };
-const RUN_MODE_LABEL: Readonly<Record<PreviewMode, string>> = { auto: 'Auto (simpler above 300,000 lines)', lite: 'Simpler: list and summary, no drawing', full: 'Full: always draw' };
+const RUN_MODE_LABEL: Readonly<Record<PreviewMode, string>> = { auto: 'Auto', lite: 'Coarse', full: 'Full' };
 
 export function ViewerOptions({ parts, disabled }: { readonly parts: PreviewParts; readonly disabled: boolean }): ComponentChild {
   const { state, actions } = parts;

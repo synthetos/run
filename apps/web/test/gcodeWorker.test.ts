@@ -75,18 +75,18 @@ describe('the preview draws exactly the interpretation of the sanitised lines', 
   });
 });
 
-describe('lite mode', () => {
-  it('on request keeps no 3D geometry but still gives verdicts, the line list and the frame table', () => {
+describe('coarse detail', () => {
+  it('retains full geometry and feeds with verdicts and frames for any later detail change', () => {
     const { result } = analyseBytes(bytesOf('G21 G90\nG92 X5\nG1 X10 F100\nM30\n'), { dialect: 'tinyg-en', mode: 'lite' });
-    expect(result.lite).toBe(true);
+    expect(result.lite).toBe(false);
     expect(result.liteBySize).toBe(false);
-    expect(result.segments).toBeNull();
+    expect(result.segments).not.toBeNull();
     expect(result.verdicts.length).toBe(4);
     // The program-to-path offsets (gcode frames.ts): -5 in X from line 2, none after M30.
     expect(Array.from(result.frameTable.lines)).toEqual([0, 2, 4]);
     expect(Array.from(result.frameTable.offsets)).toEqual([0, 0, 0, -5, 0, 0, 0, 0, 0]);
     expect(Array.from(result.frameTable.g92Lines)).toEqual([2]);
-    expect(transferablesOf(result)).toHaveLength(11); // ...and the analysis' rapid deltas (docs/design/ANALYZE.md)
+    expect(transferablesOf(result)).toHaveLength(15); // ...and the analysis' rapid deltas (docs/design/ANALYZE.md)
   });
 });
 

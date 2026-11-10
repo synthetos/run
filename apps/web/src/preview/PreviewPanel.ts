@@ -227,7 +227,7 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
   const activeTool = useActiveTool(result, state.scrub, job, boardTool, spindleTool);
   // No board position at all: the tool is drawn as a preview at the end of the scrubbed line.
   // Play preview (OD-25): the tool along the moves at programmed speeds; the scrubber follows the lines done.
-  const play = usePlay({ segments: state.drawing === 'webgl' ? segments : null, feeds: result?.feeds ?? null, allowed: playAllowed && result?.lite !== true, ...(playRapid === undefined ? {} : { rapidMmPerMin: playRapid }), onLines: (done) => { setState((s) => ({ ...s, scrub: done })); } });
+  const play = usePlay({ segments: state.drawing === 'webgl' ? segments : null, feeds: result?.feeds ?? null, allowed: playAllowed, ...(playRapid === undefined ? {} : { rapidMmPerMin: playRapid }), onLines: (done) => { setState((s) => ({ ...s, scrub: done })); } });
   // While Play runs its own tool shows the place; the scrubbed preview marker steps aside.
   const previewMarker = tool === null && live === null && !play.active ? scrubbedToolAt(segments, state.scrub) : null;
   // The stock carved to the line before the one the board is executing while a job of this file runs (and held
@@ -240,7 +240,7 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
   const toolInPath: Vec3 | null = tool === null ? null : [tool[0] - offset[0], tool[1] - offset[1], tool[2] - offset[2]];
   // The carve follows the tool along its line: Play's tool, or the drawn tool during a job (carveFollow.ts).
   const liveTips = useLiveFollower(liveCarve, state.scrub, state.drawing === 'webgl' ? segments : null, toolInPath);
-  const carve = useCarve({ spawn: spawnCarve, result, layers: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? NO_OFFSET, target: play.active ? play.completed : carveTarget(liveCarve, state.scrub), enabled: state.drawing === 'webgl' && result?.lite !== true, spindleTool, tips: play.active ? play.tips : liveTips });
+  const carve = useCarve({ spawn: spawnCarve, result, layers: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? NO_OFFSET, target: play.active ? play.completed : carveTarget(liveCarve, state.scrub), enabled: state.drawing === 'webgl', spindleTool, tips: play.active ? play.tips : liveTips });
 
   const svgMarker = toolInPath === null ? null : { x: toolInPath[0], y: toolInPath[1], lag: live?.lag ?? 'fresh' };
   const pick = onScenePick === undefined ? {} : {
@@ -253,6 +253,10 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
       : state.drawing === 'webgl'
         ? h(Preview3D, {
             segments,
+            detail: state.mode,
+            coarseFirst: (result?.fileLines ?? 0) > 300_000,
+            toolChanges: result?.tools.lines,
+            sourceLines: result?.sourceLines,
             bounds: result?.summary.bounds ?? null,
             showRapids: state.showRapids,
             highlight,
@@ -283,10 +287,7 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
         if (lastFile.current !== null) load(lastFile.current, dialect, state.mode);
         else setState((s) => ({ ...s, dialect }));
       },
-      onMode: (mode) => {
-        if (lastFile.current !== null) load(lastFile.current, state.dialect, mode);
-        else setState((s) => ({ ...s, mode }));
-      },
+      onMode: (mode) => { setState((s) => ({ ...s, mode })); },
       onCancel: () => {
         client.current?.cancel();
         lastFile.current = null;

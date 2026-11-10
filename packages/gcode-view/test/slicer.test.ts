@@ -56,4 +56,22 @@ describe('time slicing', () => {
     expect(n).toBe(Math.ceil((1_000_000 - Math.ceil(1_000_000 / 97)) / DEFAULT_SEGMENTS_PER_CHUNK));
     expect(longest).toBeLessThan(50);
   });
+  it('coarse scanning of a million sparse vertices also yields within 50 ms', { retry: 2 }, async () => {
+    const list = bigList(1_000_000);
+    list.kinds.fill(0); // All BREAK: the input scan still has to yield, with no output geometry.
+    let longest = 0;
+    let start = performance.now();
+    const steps = await runSliced(chunks(list, 8192, { stride: 7 }), {
+      budgetMs: 8,
+      yieldToHost: async () => {
+        longest = Math.max(longest, performance.now() - start);
+        await new Promise(resolve => setTimeout(resolve, 0));
+        start = performance.now();
+      },
+    });
+    longest = Math.max(longest, performance.now() - start);
+    expect(steps).toBeGreaterThan(100);
+    expect(longest).toBeLessThan(50);
+  });
+
 });

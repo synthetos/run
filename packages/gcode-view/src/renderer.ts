@@ -93,6 +93,10 @@ const STYLE_COUNT = 15;
 
 export interface LoadOptions extends Pick<SliceOptions, 'signal' | 'budgetMs' | 'now' | 'yieldToHost'> {
   readonly segmentsPerChunk?: number;
+  /** Keep the current drawing until the replacement is complete; cancellation leaves it intact. */
+  readonly retainUntilReady?: boolean;
+  /** Display sampling only. Original segment endpoints and line indices are retained. */
+  readonly sampling?: { readonly stride: number; readonly keepVertices?: readonly number[] };
   /** Fraction of the list uploaded, 0..1. */
   readonly onProgress?: (fraction: number) => void;
   /**
@@ -562,24 +566,27 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     async load(next, loadOptions = {}) {
       checkSegmentList(next);
       const mine = ++generation;
-      clearPath();
-      list = next;
+      const retain = loadOptions.retainUntilReady === true;
+      const pending: typeof path = [];
+      if (!retain) { clearPath(); list = next; path = pending; }
       const given = loadOptions.bounds;
-      bounds = given === undefined ? null : given;
-      autoFit = true;
-      view = fitView();
-      rebuildOverlay();
+      if (!retain) {
+        bounds = given === undefined ? null : given;
+        autoFit = true;
+        view = fitView();
+        rebuildOverlay();
+      }
       const total = Math.max(1, next.kinds.length);
       const box = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
-      const source = chunks(next, loadOptions.segmentsPerChunk ?? DEFAULT_SEGMENTS_PER_CHUNK);
+      const source = chunks(next, loadOptions.segmentsPerChunk ?? DEFAULT_SEGMENTS_PER_CHUNK, loadOptions.sampling);
       const steps: Iterator<unknown> = {
         next: () => {
           if (mine !== generation || disposed) throw abortError();
           const r = source.next();
           if (r.done === true) return { done: true, value: undefined };
           const c = r.value;
-          path.push(upload(c.positions, c.styles, c.lines));
-          if (given === undefined) {
+          if (c.segments > 0) pending.push(upload(c.positions, c.styles, c.lines));
+          if (given === undefined && c.segments > 0) {
             const p = c.positions;
             for (let i = 0; i < c.segments * 6; i += 3) {
               for (let a = 0; a < 3; a++) {
@@ -588,15 +595,15 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
                 if (value > (box.max[a] as number)) box.max[a] = value;
               }
             }
-            const first = path.length === 1;
-            bounds = { min: [box.min[0] as number, box.min[1] as number, box.min[2] as number], max: [box.max[0] as number, box.max[1] as number, box.max[2] as number] };
-            if (first) {
+            const first = pending.length === 1;
+            if (!retain) bounds = { min: [box.min[0] as number, box.min[1] as number, box.min[2] as number], max: [box.max[0] as number, box.max[1] as number, box.max[2] as number] };
+            if (first && !retain) {
               view = fitView();
               rebuildOverlay();
             }
           }
           loadOptions.onProgress?.(c.vertexEnd / total);
-          requestRender();
+          if (!retain) requestRender();
           return { done: false, value: undefined };
         },
       };
@@ -607,15 +614,22 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
           ...(loadOptions.now === undefined ? {} : { now: loadOptions.now }),
           ...(loadOptions.yieldToHost === undefined ? {} : { yieldToHost: loadOptions.yieldToHost }),
         });
+        if (mine !== generation || disposed || loadOptions.signal?.aborted === true) throw abortError();
       } catch (e) {
-        if (mine === generation) {
+        if (retain) for (const c of pending) release(c);
+        if (!retain && mine === generation) {
           clearPath();
           rebuildOverlay();
         }
         requestRender();
         throw e;
       }
-      if (given === undefined) view = fitView();
+      if (retain) {
+        clearPath();
+        path = pending;
+        list = next;
+        bounds = given === undefined ? (box.min[0] === Infinity ? null : { min: box.min as [number, number, number], max: box.max as [number, number, number] }) : given;
+      } else if (given === undefined) view = fitView();
       rebuildOverlay();
       loadOptions.onProgress?.(1);
       requestRender();

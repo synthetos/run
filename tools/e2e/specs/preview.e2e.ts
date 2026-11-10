@@ -1,7 +1,7 @@
 /**
  * ROADMAP TB-03 in the browser: the offline G-code preview loads a file
  * through `gcode.worker`, shows W13 pinned, a drawing (3D, or the 2D
- * fallback), the scrubber and the list; lite mode draws nothing; Cancel stops
+ * fallback), the scrubber and the list; coarse detail keeps drawing; Cancel stops
  * a load; nothing offers Simulate or Animate, and Play is offered only as the play preview with a file open
  * (T-S41, amended 2026-11-09 by the owner, OD-25; play.e2e.ts covers Play itself).
  */
@@ -49,7 +49,7 @@ test('a file loads into the preview: W13 pinned, drawing, scrubber, list, and no
   expect(axe.violations.map((v) => v.id)).toEqual([]);
 });
 
-test('lite mode lists and summarises without drawing', async ({ page }) => {
+test('Detail changes reuse the parsed file and keep drawing', async ({ page }) => {
   await page.goto('/');
   await ready(page);
   const sheet = page.locator('[data-region="preview"]');
@@ -57,11 +57,21 @@ test('lite mode lists and summarises without drawing', async ({ page }) => {
   await page.locator('[data-action="ui-level-advanced"]').click();
   await sheet.locator('[data-preview="mode"]').selectOption('lite');
   await sheet.locator('[data-preview="file"]').setInputFiles(CLEAN);
-  await expect(sheet.locator('[data-preview="lite"]')).toBeVisible();
-  await expect(sheet.locator('[data-preview="drawing"]')).toHaveCount(0);
+  await sheet.locator('[data-job-step="check"]').click();
+  await expect(sheet.locator('[data-preview="summary"]')).toBeVisible();
+  await expect(sheet.locator('[data-preview="drawing"]')).toBeVisible();
+  const worker = page.workers().find(w => w.url().includes('gcode.worker'));
+  expect(worker).toBeDefined();
+  let newWorkers = 0;
+  page.on('worker', w => { if (w.url().includes('gcode.worker')) newWorkers++; });
+  for (const mode of ['full', 'auto', 'lite']) {
+    await sheet.locator('[data-preview="mode"]').selectOption(mode);
+    await expect(sheet.locator('[data-preview="drawing"]')).toBeVisible();
+    expect(page.workers().includes(worker!)).toBe(true);
+  }
+  expect(newWorkers).toBe(0);
   await expect(sheet.locator('[data-preview="list"]')).toBeVisible();
-  // Nothing is drawn in lite mode, so there is nothing to play.
-  await expectNoPlay(page, false);
+  await expectNoPlay(page, true);
 });
 
 test('Cancel stops a load at once', async ({ page }) => {

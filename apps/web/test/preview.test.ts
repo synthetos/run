@@ -88,10 +88,10 @@ describe('scrubber, lite mode and drawing', () => {
     expect(text(one(el, byAttr('data-preview', 'scrub-line')))).toBe(`file line ${String(full.sourceLines[2])}`);
   });
 
-  it('lite mode shows no drawing, only the list and summary', () => {
+  it('coarse detail keeps a drawing and summary', () => {
     const el = view(STATES['ready lite'] as PreviewViewState);
-    expect(all(el, byAttr('data-preview', 'drawing'))).toEqual([]);
-    expect(all(el, byAttr('data-preview', 'lite'))).toHaveLength(1);
+    expect(all(el, byAttr('data-preview', 'drawing'))).toHaveLength(1);
+    expect(all(el, byAttr('data-preview', 'lite'))).toHaveLength(0);
     expect(all(el, byAttr('data-preview', 'summary'))).toHaveLength(1);
   });
 

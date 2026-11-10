@@ -32,7 +32,7 @@ import { latin1, lineSpans } from './lines.ts';
 
 /** RUN_PLAN §4: a G-code file is at most 50 MB. */
 export const MAX_FILE_BYTES = 50 * 1024 * 1024;
-/** Above this many lines the preview opens in lite mode (no 3D). ChiliPeppr choked above 200,000. */
+/** Above this many lines the drawing starts coarse, then refines without another analysis. */
 export const LITE_THRESHOLD_LINES = 300_000;
 /** File-level findings carried in the summary; per-line findings are fetched for the rows in view. */
 export const MAX_SUMMARY_FINDINGS = 50;
@@ -104,7 +104,7 @@ export const OFFLINE_MOTION: MotionModel = {
   linear: { X: 1, Y: 1, Z: 1 },
 };
 
-/** `auto`: lite above `LITE_THRESHOLD_LINES`; `lite`: always; `full`: 3D whatever the size (on request). */
+/** `auto`: coarse first on large files; `lite`: coarse; `full`: refine. Display only. */
 export type PreviewMode = 'auto' | 'lite' | 'full';
 
 export interface PreviewRequest {
@@ -128,11 +128,12 @@ export interface PreviewSummary {
 }
 
 export interface PreviewResult {
+  /** Legacy result flags stay false: detail never removes the parsed geometry. */
   readonly lite: boolean;
-  /** True when `auto` chose lite mode because of the file size. */
+  /** Kept for consumers of older preview results; always false for new analyses. */
   readonly liteBySize: boolean;
   readonly fileLines: number;
-  /** Null in lite mode: no 3D geometry is kept or sent. */
+  /** Full geometry, retained for drawing, carving and Play at every detail level. */
   readonly segments: PreviewSegments | null;
   /**
    * Verdict per file line (gcode `VERDICT`), as the G-code list shows it: the routine findings
@@ -149,20 +150,20 @@ export interface PreviewResult {
   readonly sourceLines: Uint32Array;
   /**
    * Where the program frame (the board's reported work position) meets the path frame, by file line
-   * (gcode frames.ts): one entry per offset change. Kept in lite mode too; it is a few numbers.
+   * (gcode frames.ts): one entry per offset change. Independent of drawing detail.
    */
   readonly frameTable: ProgramFrames;
   /** The tool changes by file line and the first cut (gcode `toolChanges`): which tool the 3D marker shows. Display only. */
   readonly tools: ToolChanges;
-  /** The programmed feed per sent line, mm/min (NaN before any F): what Play preview times feeds by; empty in lite mode. Display only. */
+  /** The programmed feed per sent line, mm/min (NaN before any F): what Play preview times feeds by; retained at every detail level. Display only. */
   readonly feeds: Float32Array;
   /** The file, and [start, end) spans per line, for the virtualised list. */
   readonly bytes: Uint8Array;
   readonly spans: Uint32Array;
   readonly summary: PreviewSummary;
   /**
-   * The motion part of the job analysis (docs/design/ANALYZE.md slice 1), from the interpreter's event tape: kept in
-   * lite mode too, since it needs no 3D scene. Part of this result, so it can never belong to another file.
+   * The motion part of the job analysis (docs/design/ANALYZE.md slice 1), from the interpreter's event tape: independent of
+   * drawing detail. Part of this result, so it can never belong to another file.
    */
   readonly analysis: ProgramReport;
   /** The CAM program the file's header names (Analyze words its CAM tip for it), or null. */
@@ -212,8 +213,9 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
   const dialect = previewDialect(request.dialect);
   const spans = lineSpans(bytes);
   const fileLines = spans.length / 2;
-  const liteBySize = request.mode === 'auto' && fileLines > LITE_THRESHOLD_LINES;
-  const lite = request.mode === 'lite' || liteBySize;
+  // Detail is a renderer choice: always retain the one complete analysis.
+  const liteBySize = false;
+  const lite = false;
   onProgress?.({ phase: 'sanitise' });
   const sanitized = sanitizeJob(latin1(bytes), dialect, { motion: OFFLINE_MOTION, start: OFFLINE_START });
   onProgress?.({ phase: 'interpret' });
@@ -229,7 +231,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
       lite,
       liteBySize,
       fileLines,
-      segments: lite ? null : previewSegments(analysis),
+      segments: previewSegments(analysis),
       verdicts: shown.verdicts,
       renumbered: shown.renumbered,
       routine: shown.routine,
@@ -237,7 +239,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
       frameTable: analysis.frameTable,
       tools: toolChanges(sanitized.lines, analysis),
       // Play preview needs them only where the file is drawn.
-      feeds: lite ? new Float32Array(0) : analysis.lineFeeds,
+      feeds: analysis.lineFeeds,
       bytes,
       spans,
       summary: {

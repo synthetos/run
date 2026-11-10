@@ -17,7 +17,7 @@ import { w13 } from '@synthetos/safety';
 import type { Finding } from '@synthetos/gcode';
 import type { DialectId } from '@synthetos/protocol';
 import type { ViewPreset } from '@synthetos/gcode-view';
-import { LITE_THRESHOLD_LINES, PREVIEW_DIALECTS, type PreviewMode, type PreviewProgress, type PreviewResult } from '../gcode-worker/pipeline.ts';
+import { PREVIEW_DIALECTS, type PreviewMode, type PreviewProgress, type PreviewResult } from '../gcode-worker/pipeline.ts';
 
 export type PreviewStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -75,9 +75,9 @@ export const IDLE_STATE: PreviewViewState = Object.freeze({
 
 export const DIALECT_LABEL: Readonly<Record<string, string>> = { 'tinyg-en': 'TinyG edge-next (EN)', 'tinyg-440': 'TinyG 440.xx' };
 export const MODE_LABEL: Readonly<Record<PreviewMode, string>> = {
-  auto: `Auto (lite above ${LITE_THRESHOLD_LINES.toLocaleString('en-US')} lines)`,
-  lite: 'Lite: list and summary, no drawing',
-  full: 'Full: always draw',
+  auto: 'Auto',
+  lite: 'Coarse',
+  full: 'Full',
 };
 
 export function progressText(p: PreviewProgress | null): string {
@@ -210,15 +210,7 @@ export function PreviewView({ state, actions = {}, slots = {} }: { readonly stat
         : h(
             'div',
             { class: 'preview-result', 'data-lite': result.lite ? 'true' : 'false' },
-            result.lite
-              ? h(
-                  'p',
-                  { class: 'preview-lite', 'data-preview': 'lite' },
-                  result.liteBySize
-                    ? `Lite mode: this file has more than ${LITE_THRESHOLD_LINES.toLocaleString('en-US')} lines, so it is not drawn. Choose Full to draw it anyway.`
-                    : 'Lite mode: the list and summary only, no drawing.',
-                )
-              : h(
+            h(
                   'div',
                   { class: 'preview-drawing', 'data-preview': 'drawing', 'data-drawing': state.drawing },
                   slots.drawing ?? null,

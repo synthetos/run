@@ -15,7 +15,6 @@ import type { ReadonlySignal } from '@preact/signals';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { c24, c25, c25HandSet, c27, c28, c29, w13 } from '@synthetos/safety';
 import { DIALECTS } from '@synthetos/protocol';
-import { LITE_THRESHOLD_LINES } from '../../gcode-worker/pipeline.ts';
 import type { WorkerLike } from '../../gcode-worker/client.ts';
 import { scrubRequest } from '../analysisState.ts';
 import { PreviewPanel, type LiveMarkerView, type PreviewParts } from '../../preview/PreviewPanel.ts';
@@ -1265,15 +1264,6 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
                 { class: 'empty-prompt preview-progress', role: 'status', 'data-preview': 'progress' },
                 h('h2', null, progressText(state.progress)),
                 h('button', { type: 'button', class: 'small', 'data-preview': 'cancel', ...on('onClick', actions.onCancel, (f) => () => { f(); }) }, 'Cancel'),
-              )
-            : null,
-          result !== null && result.lite
-            ? h(
-                'p',
-                { class: 'empty-prompt preview-lite', 'data-preview': 'lite' },
-                result.liteBySize
-                  ? `Lite mode: this file has more than ${LITE_THRESHOLD_LINES.toLocaleString('en-US')} lines, so it is not drawn. Choose Full to draw it anyway.`
-                  : 'Lite mode: the list and summary only, no drawing.',
               )
             : null,
           h('div', { class: 'viewer-notice viewer-help' }, h(ContextHelp, { id: 'run-preview-help', label: 'About the preview', safety: 'W13', end: true }, w13())),

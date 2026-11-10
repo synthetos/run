@@ -57,16 +57,16 @@ describe('large files', () => {
     expect(performance.now() - t).toBeLessThan(50);
   });
 
-  it('750k lines open in lite mode: no 3D geometry is kept, and what the page holds is a small multiple of the file', { timeout: 240_000 }, () => {
+  it('750k lines retain geometry once, independent of initial drawing detail', { timeout: 240_000 }, () => {
     const bytes = job(750_000);
     const fileBytes = bytes.length;
     const { result } = analyseBytes(bytes, { dialect: 'tinyg-en', mode: 'auto' });
     expect(result.fileLines).toBeGreaterThan(LITE_THRESHOLD_LINES);
-    expect(result.lite).toBe(true);
-    expect(result.liteBySize).toBe(true);
-    expect(result.segments).toBeNull();
+    expect(result.lite).toBe(false);
+    expect(result.liteBySize).toBe(false);
+    expect(result.segments).not.toBeNull();
     const held = transferablesOf(result).reduce((a, b) => a + b.byteLength, 0);
-    // The file once, 8 bytes of spans, 1 byte of verdict and 4 bytes of source line per line.
-    expect(held).toBeLessThanOrEqual(fileBytes + result.fileLines * 13 + 64);
+    // One packed vertex list plus bounded per-line tables; no copy for each detail level.
+    expect(held).toBeLessThanOrEqual(fileBytes + (result.segments?.kinds.length ?? 0) * 13 + result.sourceLines.length * 32 + 1024);
   });
 });

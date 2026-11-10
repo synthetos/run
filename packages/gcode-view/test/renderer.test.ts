@@ -229,3 +229,27 @@ describe('toolGlyph', () => {
     expect(toolGlyph([0, 0, 0], null).length).toBe(big.length);
   });
 });
+
+it('background refinement keeps the coarse path until an atomic swap; abort preserves it', async () => {
+  const { gl, live } = fakeGl();
+  const frames = frameQueue();
+  const r = createRenderer(gl, { colors: COLORS, requestFrame: frames.request });
+  const list = bigList(1000);
+  await r.load(list, { ...instant, sampling: { stride: 20 } });
+  const coarseChunks = r.chunkCount;
+  const coarseResources = live();
+  const controller = new AbortController();
+  await expect(r.load(list, {
+    retainUntilReady: true, signal: controller.signal, segmentsPerChunk: 20, budgetMs: 0,
+    yieldToHost: async () => { expect(r.chunkCount).toBe(coarseChunks); controller.abort(); },
+  })).rejects.toMatchObject({ name: 'AbortError' });
+  expect(r.chunkCount).toBe(coarseChunks);
+  expect(live()).toBe(coarseResources);
+  await r.load(list, {
+    retainUntilReady: true, segmentsPerChunk: 20, budgetMs: 0,
+    yieldToHost: async () => { expect(r.chunkCount).toBe(coarseChunks); },
+  });
+  expect(r.chunkCount).toBeGreaterThan(coarseChunks);
+  r.dispose();
+  expect(live()).toBe(0);
+});

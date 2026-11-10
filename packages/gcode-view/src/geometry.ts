@@ -46,7 +46,7 @@ export function styleOf(list: SegmentList, v: number, line: number): number {
  * Yields the chunks of `list` one at a time. The caller decides when to ask
  * for the next one (see `slicer.ts`), so building never blocks for long.
  */
-export function* chunks(list: SegmentList, segmentsPerChunk: number = DEFAULT_SEGMENTS_PER_CHUNK): Generator<Chunk, void, undefined> {
+export function* chunks(list: SegmentList, segmentsPerChunk: number = DEFAULT_SEGMENTS_PER_CHUNK, sampling?: { readonly stride: number; readonly keepVertices?: readonly number[] }): Generator<Chunk, void, undefined> {
   if (!(segmentsPerChunk >= 1)) throw new RangeError('segmentsPerChunk must be at least 1');
   const v = list.vertices;
   const count = list.kinds.length;
@@ -56,10 +56,28 @@ export function* chunks(list: SegmentList, segmentsPerChunk: number = DEFAULT_SE
   let styles = new Uint8Array(segmentsPerChunk * 2);
   let lines = new Float32Array(segmentsPerChunk * 2);
   let n = 0;
+  let scanned = 0;
+  let keepIndex = 0;
+  const stride = Math.max(1, Math.floor(sampling?.stride ?? 1));
+  const keep = sampling?.keepVertices ?? [];
   for (let i = 1; i < count; i++) {
     while (line + 1 < ltv.length - 1 && (ltv[line + 1] as number) <= i) line++;
     const style = styleOf(list, i, line);
+    // Yield on scanned input too: a sparse drawing or long run of BREAKs must not monopolise a slice.
+    if (++scanned > 8192 && sampling !== undefined) {
+      yield { positions: positions.subarray(0, n * 6), styles: styles.subarray(0, n * 2), lines: lines.subarray(0, n * 2), segments: n, vertexEnd: i };
+      positions = new Float32Array(segmentsPerChunk * 6);
+      styles = new Uint8Array(segmentsPerChunk * 2);
+      lines = new Float32Array(segmentsPerChunk * 2);
+      n = 0;
+      scanned = 1;
+    }
     if (style < 0) continue;
+    let boundary = false;
+    while (keepIndex < keep.length && (keep[keepIndex] as number) <= i) { boundary = true; keepIndex++; }
+    // Keep original endpoints: skipping a segment never invents a joining line. Preserve rapid moves,
+    // warnings and the first drawn move after each tool change, even when that exceeds the target count.
+    if (stride > 1 && i !== 1 && i !== count - 1 && i % stride !== 0 && !boundary && style !== STYLE.RAPID && style !== STYLE.OUT_OF_BOUNDS && style !== STYLE.UNCERTAIN) continue;
     const o = n * 6;
     positions[o] = v[(i - 1) * 3] as number;
     positions[o + 1] = v[(i - 1) * 3 + 1] as number;

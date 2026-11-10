@@ -17,11 +17,16 @@ import { attachPicking, attachViewControls, createRenderer, unionRect, type Box3
 import { previewColors } from './colors.ts';
 import { browserFrameClock, FrameBudget, type BudgetState } from './frameBudget.ts';
 import { isSoftwareRenderer, LIGHT_CARVE_MESH_MAX, probeRendererName } from './rendererKind.ts';
+import { loadDetail, toolVertices, type DetailStage } from './detail.ts';
 import type { PlayFeed } from './usePlay.ts';
 
 export interface Preview3DProps {
   /** The path, or null for a scene alone (the Setup view before a file is open). */
   readonly segments: SegmentList | null;
+  readonly detail?: 'auto' | 'lite' | 'full';
+  readonly coarseFirst?: boolean;
+  readonly toolChanges?: Uint32Array | undefined;
+  readonly sourceLines?: Uint32Array | undefined;
   readonly bounds: Box3 | null;
   readonly showRapids: boolean;
   /** Highlight sent lines 0..this; -1 for none. */
@@ -78,6 +83,8 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
   // The frame budget (frameBudget.ts): on demand, capped during a job, light on a software or slow renderer.
   const budget = useRef<FrameBudget | null>(null);
   const [budgetState, setBudgetState] = useState<BudgetState | null>(null);
+  const [detailState, setDetailState] = useState<{ stage: DetailStage; fraction: number } | null>(null);
+  const drawnList = useRef<SegmentList | null>(null);
   const plan = props.planner ?? null;
   // A job is running while the planner view is shown (Phase 3).
   const jobRunning = useRef(false);
@@ -109,6 +116,10 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
       onFrame: (cost) => {
         el.dataset['frameMs'] = cost.toFixed(1);
         el.dataset['frameScale'] = String(frames.state.scale);
+        if (r.chunkCount > 0) {
+          el.dataset['firstDrawAt'] ??= String(performance.now());
+          if (el.dataset['detail'] === 'full') el.dataset['fullDrawAt'] ??= String(performance.now());
+        }
       },
     });
     frames.setJobRunning(jobRunning.current);
@@ -161,14 +172,39 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
     r.setEnvelope(props.envelope);
     if (props.segments === null) {
       r.clear();
+      drawnList.current = null;
+      setDetailState(null);
       r.setWcsOrigin(props.wcsOrigin);
       return;
     }
-    void r
-      .load(props.segments, { signal: controller.signal, bounds: props.bounds, ...(props.onProgress === undefined ? {} : { onProgress: props.onProgress }) })
-      .then(() => { r.setWcsOrigin(props.wcsOrigin); }, () => {});
+    const sameFile = drawnList.current === props.segments;
+    drawnList.current = props.segments;
+    if (canvas.current !== null) {
+      delete canvas.current.dataset['fullDrawAt'];
+      delete canvas.current.dataset['detail'];
+      if (!sameFile) delete canvas.current.dataset['firstDrawAt'];
+    }
+    setDetailState(null);
+    void loadDetail(r, props.segments, {
+      signal: controller.signal,
+      coarseFirst: props.coarseFirst === true || props.segments.kinds.length > 300_000,
+      stayCoarse: props.detail === 'lite' || budget.current?.state.light != null,
+      keepVertices: toolVertices(props.segments, props.toolChanges, props.sourceLines),
+      bounds: props.bounds,
+      retain: sameFile,
+      painted: () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+      onProgress: (stage, fraction) => {
+        if (controller.signal.aborted) return;
+        setDetailState({ stage, fraction });
+        props.onProgress?.(fraction);
+        if (canvas.current !== null) {
+          canvas.current.dataset['detail'] = stage;
+          canvas.current.dataset['detailAt'] = String(performance.now());
+        }
+      },
+    }).then(() => { if (!controller.signal.aborted) r.setWcsOrigin(props.wcsOrigin); }, () => {});
     return () => { controller.abort(); };
-  }, [props.segments]);
+  }, [props.segments, props.detail, budgetState?.light]);
 
   useEffect(() => { renderer.current?.setWcsOrigin(props.wcsOrigin); }, [props.wcsOrigin[0], props.wcsOrigin[1], props.wcsOrigin[2]]);
   useEffect(() => { renderer.current?.setRapidsVisible(props.showRapids); }, [props.showRapids]);
@@ -234,7 +270,10 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
     };
   }, [carve]);
 
-  const light = lightText(budgetState);
+  const lightBase = lightText(budgetState);
+  const coarse = detailState?.stage === 'coarse';
+  const light = lightBase === null ? null : `${lightBase}${coarse ? ' · Coarse detail' : ''}`;
+  const progress = detailState?.stage === 'refining' ? `Drawing full detail… ${Math.floor(detailState.fraction * 100)}%` : null;
   return h(Fragment, null, h('canvas', {
     ref: canvas,
     class: 'preview-canvas',
@@ -243,5 +282,5 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
     role: 'img',
     'aria-label': props.label ?? 'Toolpath preview, 3D. Drag or use the arrow keys to turn it, shift to pan, plus and minus to zoom, 0 to fit.',
     'data-preview': 'canvas',
-  }), light === null ? null : h('span', { class: 'preview-light-chip', role: 'status', 'data-preview': 'light', 'data-light': budgetState?.light ?? '' }, light), hover === null ? null : h('span', { class: 'scene-pick-label', 'data-preview': 'pick-label', 'aria-hidden': 'true', style: { left: `${hover.x + 14}px`, top: `${hover.y + 14}px` } }, hover.text));
+  }), progress === null ? null : h('span', { class: 'preview-light-chip', role: 'status', 'data-preview': 'detail-progress' }, progress), light === null ? null : h('span', { class: 'preview-light-chip', role: 'status', 'data-preview': 'light', 'data-light': budgetState?.light ?? '' }, light), hover === null ? null : h('span', { class: 'scene-pick-label', 'data-preview': 'pick-label', 'aria-hidden': 'true', style: { left: `${hover.x + 14}px`, top: `${hover.y + 14}px` } }, hover.text));
 }
