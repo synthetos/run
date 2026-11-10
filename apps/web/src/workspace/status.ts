@@ -214,7 +214,7 @@ export function stripStatus(view: LiveView, machineName: string | null): StripSt
   // band says the same (MachineStrip); this covers any view of a held machine without that band.
   if (cls === 'held') return { ...base, title: base.spindleOn ? STOP_TEXT.pausedSpindleOn : STOP_TEXT.paused, tone: 'hold', pill: null, text: s.notices.motion?.text ?? null };
   if (cls !== undefined && ALARM.has(cls)) return { ...base, title: 'Alarm', tone: 'alarm', pill: { text: 'Alarm', tone: 'danger' }, text: 'The controller reports an alarm. Check the machine.' };
-  if (o.includes('UNKNOWN')) return { ...base, title: 'Connected · state unknown', tone: 'warn', pill: { text: 'Unknown', tone: 'warn' }, text: 'The previous session ended while connected. Check the machine, then confirm it or home it (below).' };
+  if (o.includes('UNKNOWN')) return { ...base, title: 'Connected · state unknown', tone: 'warn', pill: { text: 'Unknown', tone: 'warn' }, text: 'Position not verified: the last session ended while connected.' };
   // The post-flash lock and the old-firmware gate, decided by the worker (it refuses jobs, jog and settings writes).
   const post = view.message?.postFlash ?? null;
   if (post !== null && post.phase !== 'clear' && post.boardId === s.identity?.id) {
