@@ -10,4 +10,6 @@
 import { defineConfig, mergeConfig } from 'vitest/config';
 import base from './vitest.config.ts';
 
-export default mergeConfig(base, defineConfig({ test: { env: { RUN_PROPERTY_RUNS: '40' }, testTimeout: 60_000 } }));
+// Killed mutants are expected test failures. An explicit reporter list prevents Vitest from
+// adding its GitHub Actions reporter and publishing the last mutant as a job-summary failure.
+export default mergeConfig(base, defineConfig({ test: { reporters: ['default'], env: { RUN_PROPERTY_RUNS: '40' }, testTimeout: 60_000 } }));
