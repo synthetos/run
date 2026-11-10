@@ -74,6 +74,7 @@ import { forgetHomed, noteHomed, noteSetByHand } from './homedAxes.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './jobState.ts';
 import { typedAlarmed, typedCheckTimedOut, typedEnded } from './typedNotice.ts';
+import { afterHold, piecesLeft, raiseDone, raiseRestore, takePiece } from './typedPieces.ts';
 import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, PolledValues, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
 
 /** Timing and bounds of the motion layer (SAFETY §4.5b). Milliseconds unless named otherwise. */
@@ -471,7 +472,8 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       writeRealtime(t, 'resume', 'resume');
       // The base stays HELD until the first poll after `~`: the write gate checks `~` against the resume row
       // (HELD only) when the byte is written, after this transition.
-      t.set({ motion: { ...ctx, phase: 'drain', jog: null, confirmed: 0, deadline: null } });
+      // OD-31: a typed move with pieces left goes on feeding them after the hold, as a job does.
+      t.set({ motion: { ...ctx, phase: piecesLeft(ctx) ? 'feed' : 'drain', jog: null, confirmed: 0, deadline: null } });
       message(t, 'resumed', STOP_TEXT.resumed, at);
       requestPoll(t);
       tick(t);
@@ -495,7 +497,23 @@ function machineZ(s: SessionState): number | undefined {
 /** Sends the next jog piece when fewer than the lookahead are believed queued and nothing is being written. */
 function feedMore(t: MotionTx): void {
   const ctx = t.s.motion as MotionCtx;
-  if (ctx.queued < MOTION_LIMITS.lookahead && motionLinesSettled(t.s)) sendPiece(t);
+  if (ctx.queued < MOTION_LIMITS.lookahead && motionLinesSettled(t.s)) {
+    if (ctx.op === 'typed') sendTypedPiece(t);
+    else sendPiece(t);
+  }
+}
+
+/** OD-31: queues the next piece of a typed move, counted in the planner like a jog piece. */
+export function sendTypedPiece(t: MotionTx): void {
+  const ctx = t.s.motion as MotionCtx;
+  const { line, typed } = takePiece(ctx);
+  queueLine(t, line, 'typedMove');
+  setMotion(t, { typed, queued: ctx.queued + 1 });
+}
+
+/** More to feed: a jog's distance (or a hold jog), or a typed move's pieces (OD-31). */
+function feeding(ctx: MotionCtx): boolean {
+  return ctx.op === 'typed' ? piecesLeft(ctx) : moreToFeed(ctx.jog as JogFeed);
 }
 
 function moreToFeed(jog: JogFeed): boolean {
@@ -529,7 +547,8 @@ export function beginHold(t: MotionTx, reason: HoldReason, at: number): void {
   writeRealtime(t, 'feedhold', stop ? 'stopJob' : 'feedhold');
   // Stop feeding: unsent pieces and steps never go out.
   const queue = t.s.queue.filter((q) => q.purpose !== 'motion');
-  const ctx = s.motion ?? newCtx(s, 'stop');
+  // OD-31: a typed move's pieces still waiting are counted back, so Resume queues them again.
+  const ctx = s.motion === null ? newCtx(s, 'stop') : afterHold(s.motion, t.s.queue);
   t.set({
     queue,
     motion: { ...ctx, phase: 'hold', reason, jog: null, steps: [], confirmed: 0, deadline: at + MOTION_LIMITS.stopStepMs, holdPolls: 0 },
@@ -601,13 +620,14 @@ export function onPollDone(t: MotionTx, at: number): void {
   const confirm = (ok: boolean): number => (ok ? ctx.confirmed + 1 : 0);
   switch (ctx.phase) {
     case 'feed': {
-      const jog = ctx.jog as JogFeed;
+      // OD-31: a typed move resumed after a Pause feeds again; the base leaves HELD at the first poll after `~`, as in drain.
+      if (s.base === 'HELD') t.set({ base: 'JOGGING' });
       // Every piece written before this poll's `qr` is counted in it (lines are answered in order).
       // Pieces still waiting are not in `qr` yet: count them too. (Nothing is being written: this runs as `qr`
       // is answered, before the next line goes out.)
       const unwritten = s.queue.filter((q) => q.purpose === 'motion').length;
       setMotion(t, { queued: planner(s) - p.qr + unwritten });
-      if (moreToFeed(jog)) {
+      if (feeding(ctx)) {
         feedMore(t);
       } else {
         setMotion(t, { phase: 'drain', confirmed: 0 });
@@ -627,7 +647,14 @@ export function onPollDone(t: MotionTx, at: number): void {
       const [next, ...rest] = ctx.steps;
       if (next !== undefined) {
         setMotion(t, { steps: rest, confirmed: 0 });
-        queueLine(t, next, 'goToZero'); // only go to zero has steps
+        queueLine(t, next, ctx.op === 'typed' ? 'typedMove' : 'goToZero'); // go to zero's steps, or a typed move's raise (OD-31)
+        requestPoll(t);
+        return;
+      }
+      // OD-31: a typed move's raise is confirmed at rest: its pieces go now.
+      if (ctx.op === 'typed' && !(ctx.typed as NonNullable<MotionCtx['typed']>).raised) {
+        t.set({ motion: { ...raiseDone(ctx), phase: 'feed', confirmed: 0, queued: 0 } });
+        sendTypedPiece(t);
         requestPoll(t);
         return;
       }
@@ -712,6 +739,8 @@ function finish(t: MotionTx, at: number): void {
   // a job's tool change puts back the job's own distance mode (Phase 3, H74). A mode that was not read is not put back.
   const dist = ctx.op === 'jog' && ctx.returnTo === 'PROGRAM_PAUSED' && !stop ? ctx.dist : 0;
   if (ctx.op === 'jog' || ctx.op === 'goToZero' || stop) lines.push(restoreLine(ctx.units, dist));
+  // OD-31: a typed move's raise that did not finish puts the board's own modes back (a typed G91 or G20 stays).
+  else lines.push(...raiseRestore(ctx));
   setMotion(t, { phase: 'finish', confirmed: 0, deadline: null });
   // Phase 3: the hold and the flush are confirmed, so every job line the board still had is gone (`%` dropped its
   // line buffers) and every one it ran has been answered: none is owed any more, and M5's answer is M5's.
@@ -835,7 +864,7 @@ export function onMotionAnswer(t: MotionTx, line: string | undefined, status: nu
   }
   const now = t.s.motion;
   // A piece was taken: top the planner up at once rather than waiting for the next poll (no stutter).
-  if (status === 0 && now !== null && now.phase === 'feed' && now.jog !== null && moreToFeed(now.jog)) feedMore(t);
+  if (status === 0 && now !== null && now.phase === 'feed' && (now.jog !== null || now.op === 'typed') && feeding(now)) feedMore(t);
   if (now !== null && now.phase === 'finish' && motionLinesSettled(t.s)) complete(t, at);
 }
 
@@ -891,7 +920,7 @@ export function checkAlarm(t: MotionTx, at: number): boolean {
   if (ALARMED.has(cls) && ALARMABLE.has(s.base)) {
     const moving = s.motion !== null;
     // OD-19: a jog or go to zero ended here left G91 (and G21): Clear alarm puts G90 back (alarmRestore.ts).
-    if (s.motion !== null && (s.motion.op === 'jog' || s.motion.op === 'goToZero')) noteAlarmEnded(t, s.motion.units);
+    if (s.motion !== null && (s.motion.op === 'jog' || s.motion.op === 'goToZero' || raiseRestore(s.motion).length > 0)) noteAlarmEnded(t, s.motion.units);
     else onAlarmEntered(t);
     if (s.motion !== null && s.motion.op === 'typed') typedAlarmed(t, s.motion, at);
     t.set({ motion: null, base: 'ALARM', queue: s.queue.filter((q) => q.purpose !== 'motion') });

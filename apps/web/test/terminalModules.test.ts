@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseTypedLine, type TypedLine } from '@synthetos/safety';
 import { CODES, applyCompletion, commonPrefix, completions, lastWord } from '../src/terminal/complete.ts';
-import { FIRST_MOVE_NOTICE, KIND_CLASS, SYMBOL, sentLine, statusWords, travelQuestion, typedResult, type TravelFinding, type TypedMoveNotice } from '../src/terminal/format.ts';
+import { FIRST_MOVE_NOTICE, KIND_CLASS, SYMBOL, lowZQuestion, sentLine, statusWords, travelQuestion, typedResult, type TravelFinding, type TypedMoveNotice } from '../src/terminal/format.ts';
 import { HISTORY_KEY_PREFIX, History } from '../src/terminal/history.ts';
 import { asProgram, pastedLines } from '../src/terminal/paste.ts';
 import { lineModes, modesLine, movePreview } from '../src/terminal/preview.ts';
@@ -194,6 +194,25 @@ describe('format', () => {
     expect(typedResult(notice('stopped', 'Stopped.'))).toEqual({ symbol: '⏸', cls: 'term-error', text: 'G0 X1: Stopped.' });
     expect(typedResult(notice('refused', 'No.'))).toEqual({ symbol: '✕', cls: 'term-error', text: 'G0 X1: No.' });
     expect(sentLine('G0 X1')).toEqual({ symbol: '▶', cls: 'term-sent', text: 'G0 X1' });
+  });
+
+  it('the low-Z question (OD-31): Raise only where offered, else why; nothing for another notice', () => {
+    const asked = (lowZ: NonNullable<TypedMoveNotice['lowZ']>): TypedMoveNotice => ({ kind: 'lowZ', line: 'G0 X5', text: 'Z is low. Raise Z first?', at: 0, lowZ });
+    expect(typedResult(asked({ raise: true, safeZ: 74, z: 1, why: null }))).toMatchObject({ symbol: '⚠', text: 'Z is low. Raise Z first?' });
+    expect(lowZQuestion(asked({ raise: true, safeZ: 74, z: 1, why: null }))).toEqual({
+      text: 'Z is low. Raise Z first?',
+      why: null,
+      choices: [
+        { choice: 'raise', label: 'Raise to 74 mm' },
+        { choice: 'asTyped', label: 'Move as typed' },
+        { choice: 'cancel', label: 'Cancel' },
+      ],
+    });
+    expect(lowZQuestion(asked({ raise: true, safeZ: null, z: 1, why: null }))?.choices[0]?.label).toBe('Raise');
+    const no = lowZQuestion(asked({ raise: false, safeZ: null, z: 1, why: "Z wasn't homed in this connection." }));
+    expect(no?.choices.map((c) => c.choice)).toEqual(['asTyped', 'cancel']);
+    expect(no?.why).toBe("Z wasn't homed in this connection.");
+    expect(lowZQuestion(notice('done'))).toBeNull();
   });
 
   it('the travel question: Home, Move anyway, Cancel, and the finding to send back', () => {

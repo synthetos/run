@@ -48,6 +48,7 @@ export function typedResult(notice: TypedMoveNotice): Shown {
     case 'done':
       return { symbol: SYMBOL.done, cls: KIND_CLASS.note, text: `${notice.line}: ${notice.text}` };
     case 'confirm':
+    case 'lowZ':
       return { symbol: SYMBOL.warn, cls: KIND_CLASS.note, text: notice.text };
     case 'stopped':
       return { symbol: SYMBOL.paused, cls: KIND_CLASS.error, text: `${notice.line}: ${notice.text}` };
@@ -86,5 +87,31 @@ export function travelQuestion(finding: TravelFinding): TravelQuestion {
       { choice: 'cancel', label: 'Cancel' },
     ],
     finding: finding.text,
+  };
+}
+
+export type LowZChoice = 'raise' | 'asTyped' | 'cancel';
+
+/** "Z is low. Raise Z first?" (OD-31): the session's question, and the answers to offer. */
+export interface LowZQuestion {
+  readonly text: string;
+  /** Why Raise is not offered, or null. */
+  readonly why: string | null;
+  readonly choices: readonly { readonly choice: LowZChoice; readonly label: string }[];
+}
+
+/**
+ * The low-Z question for a typed G0 (OD-31, owner 2026-11-09: "ask first"). Raise is offered only where the session
+ * says go to zero's safe Z is known (Z homed in this connection); otherwise Move as typed and Cancel, and why.
+ * The answer is sent back with the line as `lowZ` ('raise' or 'asTyped'); Cancel sends nothing.
+ */
+export function lowZQuestion(notice: TypedMoveNotice): LowZQuestion | null {
+  const q = notice.lowZ;
+  if (q === undefined) return null;
+  const raise = q.raise ? [{ choice: 'raise' as const, label: q.safeZ === null ? 'Raise' : `Raise to ${q.safeZ} mm` }] : [];
+  return {
+    text: notice.text,
+    why: q.why,
+    choices: [...raise, { choice: 'asTyped', label: 'Move as typed' }, { choice: 'cancel', label: 'Cancel' }],
   };
 }

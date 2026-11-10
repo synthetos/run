@@ -37,7 +37,8 @@ export function typedEnded(t: NoticeTx, ctx: MotionCtx, at: number): void {
   const line = typed.line;
   if (ctx.refusal !== null) return typedNotice(t, { kind: 'refused', line, text: ctx.refusal, at });
   if (!typed.sent) return typedNotice(t, { kind: 'stopped', line, text: TYPED_TEXT.notSent, at });
-  if (ctx.reason === null || ctx.reason === 'pause') return typedNotice(t, { kind: 'done', line, text: TYPED_TEXT.done, at });
+  // Done only when every piece was queued and the move came to rest (OD-31: a Pause at rest between pieces is not).
+  if ((ctx.reason === null || ctx.reason === 'pause') && typed.next >= typed.pieces.length) return typedNotice(t, { kind: 'done', line, text: TYPED_TEXT.done, at });
   typedNotice(t, { kind: 'stopped', line, text: TYPED_TEXT.stopped, at });
 }
 

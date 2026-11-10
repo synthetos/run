@@ -379,11 +379,27 @@ export interface ReadValue {
  * Pause, Stop job or an alarm.
  */
 export interface TypedMoveNotice {
-  readonly kind: 'done' | 'refused' | 'confirm' | 'stopped';
+  readonly kind: 'done' | 'refused' | 'confirm' | 'lowZ' | 'stopped';
   readonly line: string;
   readonly text: string;
   readonly at: number;
   readonly travel?: TravelFinding;
+  /** `lowZ` (OD-31): the "Raise Z first?" question's data. */
+  readonly lowZ?: TypedLowZ;
+}
+
+/**
+ * A G0 that moves X or Y while Z is low (OD-31, owner 2026-11-09: "ask first"). `raise`: Raise is offered (Z was
+ * homed in this connection, so go to zero's safe Z is known); otherwise only Move as typed and Cancel, with `why`.
+ */
+export interface TypedLowZ {
+  readonly raise: boolean;
+  /** Machine Z the raise goes to (go to zero's `ztm − 1`), or null when it is not known. */
+  readonly safeZ: number | null;
+  /** Machine Z now, mm, or null when it was not read. */
+  readonly z: number | null;
+  /** Why Raise is not offered, or null. */
+  readonly why: string | null;
 }
 
 export interface SessionNotices {
@@ -863,8 +879,20 @@ export interface TypedMoveCtx {
   readonly travel: string | null;
   /** When the check reads were queued: an answer older than this is not this move's (typedMove.ts). */
   readonly askedAt: number;
-  /** The line passed its check and was queued to the board. */
+  /** The line passed its check and its first line was queued to the board. */
   readonly sent: boolean;
+  /**
+   * OD-31: the pieces the line is sent as (the sanitiser's split, each short enough that `lookahead` of them stay
+   * within the queued-motion ceiling, SAFETY §4.3), and how many were queued. One piece when the line is short.
+   */
+  readonly pieces: readonly string[];
+  readonly next: number;
+  /** The user's answer to "Raise Z first?" (OD-31), or null when not asked yet. */
+  readonly lowZ: 'raise' | 'asTyped' | null;
+  /** OD-31: go to zero's safe-Z lines before the pieces (`G90 G21`, `G53 G0 Z<safe>`, the modes put back), or none. */
+  readonly raise: readonly string[];
+  /** Every raise line was answered and confirmed by polled idle: the pieces may go. True when there is no raise. */
+  readonly raised: boolean;
 }
 
 /** `watchdog`: the receive-silence watchdog (SAFETY §4.2). `motion`: the motion layer's poll and keep-alive tick. */
@@ -907,7 +935,7 @@ export type SessionIntent =
    * One typed G0/G1/G2/G3/G4 line (H91, owner 2026-11-09). `travel`: the travel finding the user confirmed with
    * "Move anyway", matched exactly against the session's own check (as C40 at Start).
    */
-  | { readonly intent: 'typedMove'; readonly line: string; readonly travel?: string | null }
+  | { readonly intent: 'typedMove'; readonly line: string; readonly travel?: string | null; readonly lowZ?: 'raise' | 'asTyped' | null }
   /** Release a hold jog (`!`, then `%` once held). Stop class: never gated. */
   | { readonly intent: 'feedhold'; readonly release: true }
   /** Spindle or coolant off alone, idle (Phase 2). Stop class. */
