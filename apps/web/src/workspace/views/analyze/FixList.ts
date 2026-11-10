@@ -29,7 +29,7 @@ function FixCard({ fix, advanced }: { readonly fix: Fix; readonly advanced: bool
           'details',
           { class: 'analyze-sections' },
           h('summary', null, `${plural(fix.regions.length, 'dense section', 'dense sections')}`),
-          h('ul', null, fix.regions.map((r) => h('li', { key: r.id }, h('button', { type: 'button', class: 'linklike', 'data-action': 'show-section', onClick: () => showOnToolpath(r.fromSent, r.toSent) }, lineRange(r.fromLine, r.toLine)), `: ${plural(r.lines, 'move', 'moves')}, about ${shortMm(r.meanMoveMm)} each, ${time(r.seconds)} at ${whole(r.feed)} mm/min. Needs about ${whole(r.linesPerSecond)} lines/s.`))),
+          h('ul', { class: 'rows' }, fix.regions.map((r) => h('li', { key: r.id }, h('button', { type: 'button', class: 'linklike', 'data-action': 'show-section', onClick: () => showOnToolpath(r.fromSent, r.toSent) }, lineRange(r.fromLine, r.toLine)), `: ${plural(r.lines, 'move', 'moves')}, about ${shortMm(r.meanMoveMm)} each, ${time(r.seconds)} at ${whole(r.feed)} mm/min. Needs about ${whole(r.linesPerSecond)} lines/s.`))),
         )
       : null,
   );

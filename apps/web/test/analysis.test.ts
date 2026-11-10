@@ -16,6 +16,7 @@ import type { FromGcodeWorker, ToGcodeWorker } from '../src/gcode-worker/protoco
 import { axisSettings, boardReading, lastReadLabel, motionInputs, type BoardReading } from '../src/workspace/analysisInputs.ts';
 import { motionView } from '../src/workspace/analysisState.ts';
 import { camTip, fixesFor } from '../src/workspace/views/analyze/findings.ts';
+import { analysisNotes } from '../src/workspace/views/analyze/analysisNotes.ts';
 import { headline, longerLine, rapidsLine, stopsLine } from '../src/workspace/views/analyze/HeadlineStrip.ts';
 import { toolLabel } from '../src/workspace/views/analyze/OperationsCard.ts';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
@@ -121,6 +122,11 @@ describe('a dense CAM file', () => {
     expect(camTip(null)).toBe('In your CAM, turn on arc output (G2/G3) and smoothing, with a tolerance around 0.01 mm.');
     expect(camTip('Vectric')).toContain('(Vectric)');
     expect(camTip('Fusion')).toContain('Smoothing in the operation’s Passes tab');
+    // The same finding is a note for the Notes tab: what it means, the rest behind More, a link to its line.
+    const [note] = analysisNotes(fixesFor(r, null));
+    expect(note).toMatchObject({ id: 'analyze-tiny', topic: 'Analyze', title: 'Most of this file is tiny moves', tone: 'info', link: { kind: 'line', line: d.fromLine } });
+    expect(note?.body).toBe(fix?.meaning[0]);
+    expect(note?.detail).toContain('A smoother copy (merge tiny moves, fit arcs) is coming.');
     expect(r.operations.map((o) => o.name)).toEqual(['Finish']);
     expect([shortMm(0.006), shortMm(0.085), shortMm(2.54), shortMm(12.3)]).toEqual(['0.006 mm', '0.09 mm', '2.5 mm', '12 mm']);
   });

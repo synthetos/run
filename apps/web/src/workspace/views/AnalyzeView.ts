@@ -15,7 +15,10 @@ import { inputSources, motionView, programReport, rememberReading } from '../ana
 import { currentFile } from '../fileBridge.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 import { connected, type WorkspaceModel } from '../model.ts';
+import { usePublishNotes } from '../notes/usePublishNotes.ts';
+import { analysisNotes } from './analyze/analysisNotes.ts';
 import { DetailsCard } from './analyze/DetailsCard.ts';
+import { fixesFor } from './analyze/findings.ts';
 import { FixList } from './analyze/FixList.ts';
 import { HeadlineStrip } from './analyze/HeadlineStrip.ts';
 import { OperationsCard } from './analyze/OperationsCard.ts';
@@ -28,6 +31,8 @@ export function AnalyzeView({ model = null }: { readonly model?: WorkspaceModel 
   const report = programReport.value;
   const advanced = uiLevel.value.value === 'advanced';
   const view = report === null ? null : motionView(report, inputSources(live, Date.now()));
+  // The findings also go to the Notes tab, so the Run step can point at them without inline text.
+  usePublishNotes('analyze', report === null ? [] : analysisNotes(fixesFor(report, file?.preview?.cam ?? null)));
   return h(
     'div',
     { class: 'analyze-view' },

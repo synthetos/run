@@ -7,4 +7,5 @@
 ul.rows, ol.rows { list-style: none; margin: 0; padding: 0; }
 .rows > li:nth-child(even),
 .zero-table tbody tr:nth-child(even),
+.analyze-table tbody tr:nth-child(even),
 .dro-grid > .dro-row:not(.pos-status-row):nth-child(odd) { background: var(--row-stripe); }

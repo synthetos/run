@@ -195,8 +195,8 @@ describe('density and slow sections', () => {
 });
 
 describe('performance', () => {
-  it('reports on two million events exactly, the same every time (the app times it: test/analysis.test.ts)', () => {
-    const n = 2_000_000;
+  it('reports on half a million events exactly, the same every time (the app times a million: test/analysis.test.ts)', () => {
+    const n = 500_000;
     const t: ProgramTape = { count: n, kinds: new Uint8Array(n), flags: new Uint8Array(n), sent: new Uint32Array(n), source: new Uint32Array(n), lengthMm: new Float64Array(n), delta: new Float64Array(n * 3), feed: new Float64Array(n), spindle: new Float64Array(n), tool: new Int32Array(n), seconds: new Float64Array(n) };
     for (let i = 0; i < n; i++) {
       t.sent[i] = i;

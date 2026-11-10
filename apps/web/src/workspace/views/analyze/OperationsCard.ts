@@ -91,7 +91,7 @@ function OperationCard({ row, gate, advanced }: { readonly row: AdvisorRow; read
     !derived && tool !== null ? h('p', { class: 'analyze-op-tool' }, tool, missingTool ? h('button', { type: 'button', class: 'small quiet', 'data-action': 'open-tools', onClick: () => { viewRequest.value = 'tools'; } }, 'Add it') : null) : null,
     derived && missingTool ? h('p', null, h('button', { type: 'button', class: 'small quiet', 'data-action': 'open-tools', onClick: () => { viewRequest.value = 'tools'; } }, 'Add it to the tool table')) : null,
     h('p', { class: 'fine', 'data-advisor': 'spans' }, `${s.spans.map((x) => lineRange(x.fromLine, x.toLine)).join(', then ').replace(/, then L/g, ', then l')}. ${s.seconds === null ? '' : `At least ${time(s.seconds)}.`}`),
-    h('ul', { class: 'analyze-regimes', 'data-advisor': 'regimes' }, s.regimes.map((r) => h('li', { key: `${r.kind}-${r.feed}`, 'data-regime': r.kind }, regimeText(r)))),
+    h('ul', { class: 'analyze-regimes rows', 'data-advisor': 'regimes' }, s.regimes.map((r) => h('li', { key: `${r.kind}-${r.feed}`, 'data-regime': r.kind }, regimeText(r)))),
     op.rpm === null ? null : h('p', { class: 'fine' }, `Spindle ${whole(op.rpm)} rpm.`),
     h(Check, { row, gate, advanced }),
   );
