@@ -72,7 +72,7 @@ describe('W25 for READ_ONLY sessions', () => {
     );
     expect(readOnlyNotice(ro('tg440-not-approved', true, 440.21))).toContain('(build 440.21, TinyG 440.21, not yet approved for control)');
     expect(readOnlyNotice(ro('tg440-not-approved', true, 440.21))).toMatch(/Upgrade to the approved TinyG firmware\.$/);
-    expect(readOnlyNotice(ro('flowControl', false, 450.01))).toContain('RTS/CTS flow control (ex=2)');
+    expect(readOnlyNotice(ro('flowControl', false, 450.01))).toContain('its flow control setting (ex) could not be read or is not known');
     expect(readOnlyNotice(ro('probeFailed', false))).toContain('(build unknown, its identity could not be read)');
   });
 

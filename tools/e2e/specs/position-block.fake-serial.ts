@@ -51,18 +51,6 @@ for (const level of ['simple', 'advanced'] as const) {
   });
 }
 
-test('a board left on hardware flow control (ex = 2) says so, in the card and the strip, not "not approved"', async ({ page }) => {
-  const worker = await connect(page, { board: { eeprom: { __layout: 10002, ex: 2 } } });
-  expect((await session(worker)).overlays).toContain('READ_ONLY');
-  const card = page.locator('[data-region="position"] [data-region="control-block"]');
-  await expect(card).toHaveAttribute('data-reason', 'flowControl');
-  await expect(card).toContainText('It’s set to hardware flow control (RTS/CTS, ex = 2), which Run hasn’t verified.');
-  await expect(card).toContainText('Set ex to 1 (XON/XOFF) with another program, then connect again.');
-  await expect(card).not.toContainText('approved');
-  await expect(page.locator('[data-region="machine-strip"]')).toContainText('hardware flow control (RTS/CTS, ex = 2)');
-  await expect(card.locator('[data-action="block-disconnect"]')).toBeVisible();
-});
-
 test('after a reconnect: one question on connect, "It hasn’t moved" clears UNKNOWN, and the controls come back', async ({ page }) => {
   const worker = await connect(page, { unknown: true });
   const card = page.locator('[data-region="unknown-exits"]');

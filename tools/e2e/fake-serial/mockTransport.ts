@@ -12,11 +12,12 @@
  * counterpart; see docs/testing/fake-serial.md for why the seam should move
  * below it then.
  */
-import type { Transport, TransportInfo, TransportOpenOptions } from '@synthetos/machine';
+import { openWithRts, type Transport, type TransportInfo, type TransportOpenOptions } from '@synthetos/machine';
 
 /** The parts of Web Serial's `SerialPort` this adapter uses (MockSerialPort has them all). */
 export interface SerialPortLike {
   open(options: { baudRate: number; flowControl: 'none' | 'hardware'; bufferSize: number }): Promise<void>;
+  setSignals(signals: { readonly requestToSend?: boolean }): Promise<void>;
   close(): Promise<void>;
   readonly readable: ReadableStream<Uint8Array> | null;
   readonly writable: WritableStream<Uint8Array> | null;
@@ -37,8 +38,9 @@ export class MockTransport implements Transport {
     return usbVendorId === undefined || usbProductId === undefined ? { kind: 'sim' } : { kind: 'sim', usbVendorId, usbProductId };
   }
 
+  /** Like `WebSerialTransport`: RTS on after the open, or the port is closed and the open refused (OD-33, rts.ts). */
   open(options: TransportOpenOptions): Promise<void> {
-    return this.#port.open({ baudRate: options.baudRate, flowControl: options.flowControl, bufferSize: options.bufferSize });
+    return openWithRts(this.#port, () => this.#port.open({ baudRate: options.baudRate, flowControl: options.flowControl, bufferSize: options.bufferSize }));
   }
 
   async writeLine(line: Uint8Array): Promise<void> {

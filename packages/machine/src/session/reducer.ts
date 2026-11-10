@@ -40,8 +40,9 @@
  *   machine is held, dwelling or queued without stepping (the heartbeat is
  *   silent then): one ask per window, STALE only if it goes unanswered.
  * - READ_ONLY: the classifier returned READ_ONLY, or READING found `ex`
- *   other than 0 or 1 (2 is RTS/CTS, READ_ONLY on both dialects, PN §5.3;
- *   an unread `ex` counts the same, fail closed).
+ *   other than 0, 1 or 2 (2 is RTS/CTS, accepted since OD-33 with RTS held
+ *   on after every open, rts.ts; an unread `ex` counts as unknown, fail
+ *   closed).
  * - NEEDS_REVIEW: a settings drift (the drift check that raises it arrives
  *   with the settings read; the overlay and its matrix rules exist now).
  *
@@ -154,12 +155,15 @@ import {
 export const READING_TOKENS: readonly string[] = Object.freeze(['stat', 'hold', 'vel', 'qr', 'ex']);
 
 /**
- * `ex` values a full session accepts: FLOW_CONTROL_OFF and FLOW_CONTROL_XON
- * (@cite EN config.h:204-206; TG config.h:206-208). FLOW_CONTROL_RTS (2)
- * makes the session READ_ONLY on both dialects until B-FC-1 (PN §5.3,
- * OLD-PN §7.1).
+ * `ex` values a full session accepts: FLOW_CONTROL_OFF, FLOW_CONTROL_XON and
+ * FLOW_CONTROL_RTS (@cite EN config.h:204-206; TG config.h:206-208).
+ * RTS (2) is accepted since OD-33 (2026-11-10): run holds RTS on after every
+ * open (rts.ts), and line mode keeps the unanswered bytes far below the
+ * board's RTS marks (TinyG B-FC-1, measured on 450.02 and edge-next). An ex
+ * that cannot be read, or any other value, still makes the session READ_ONLY
+ * (fail closed). Run never writes ex (SAFETY H61).
  */
-export const FULL_SESSION_FLOW_CONTROL: ReadonlySet<number> = new Set([0, 1]);
+export const FULL_SESSION_FLOW_CONTROL: ReadonlySet<number> = new Set([0, 1, 2]);
 
 /** READING's extra tokens in a motion session: the homing state (W34, IDLE_HOMED) and the units to restore after a jog. */
 export const MOTION_READING_TOKENS: readonly string[] = Object.freeze(['home', 'unit']);
@@ -1472,8 +1476,8 @@ function finishReading(t: Tx): void {
   if (!resting && !alarmed) t.addOverlay('ORPHANED_MOTION');
   const c = t.s.classification;
   if (c !== null && c.mode === 'full' && (live.ex === undefined || !FULL_SESSION_FLOW_CONTROL.has(live.ex))) {
-    const shown = live.ex === undefined ? 'could not be read' : `is ${live.ex}${live.ex === 2 ? ' (RTS/CTS)' : ''}`;
-    t.set({ classification: { ...c, mode: 'readOnly', reason: 'flowControl', detail: `${c.detail}; flow control (ex) ${shown}: read-only until RTS/CTS is verified on the bench (B-FC-1)` } });
+    const shown = live.ex === undefined ? 'could not be read' : `is ${live.ex}`;
+    t.set({ classification: { ...c, mode: 'readOnly', reason: 'flowControl', detail: `${c.detail}; flow control (ex) ${shown}: read-only, Run knows only ex 0, 1 and 2` } });
     t.addOverlay('READ_ONLY');
     t.emit({ kind: 'log', text: `classification: read-only, flow control (ex) ${shown}` });
   }

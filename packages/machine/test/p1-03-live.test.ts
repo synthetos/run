@@ -73,15 +73,16 @@ describe('T-S55 against live-shaped transcripts (the models answer the probe)', 
   });
 });
 
-describe('ex = 2 (RTS/CTS) → READ_ONLY (PN §5.3)', () => {
-  it('an approved edge-next whose flow control was set to RTS/CTS by another program is READ_ONLY', async () => {
+describe('ex = 2 (RTS/CTS) keeps the session full (OD-33; PN §5.3)', () => {
+  it('an approved edge-next whose flow control was set to RTS/CTS by another program is controlled as usual', async () => {
     const h = make('en', EN_APPROVED);
     previousSender(h, '{"ex":2}\n');
     await h.run(500);
     await connect(h);
-    expect(h.session.snapshot.classification).toMatchObject({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl' });
-    expect(h.session.snapshot.overlays).toContain('READ_ONLY');
-    expect(h.session.log().some((e) => e.dir === 'note' && e.text === 'classification: read-only, flow control (ex) is 2 (RTS/CTS)')).toBe(true);
+    expect(h.session.snapshot.classification).toMatchObject({ dialectId: 'tinyg-en', mode: 'full', reason: 'en-approved' });
+    expect(h.session.snapshot.overlays).not.toContain('READ_ONLY');
+    expect(h.session.snapshot.live.ex).toBe(2);
+    expect(h.session.log().some((e) => e.dir === 'note' && e.text.includes('flow control (ex)'))).toBe(false);
   });
 });
 

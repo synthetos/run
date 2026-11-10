@@ -277,7 +277,7 @@ export interface FaultInfo {
 export interface ClassificationInfo {
   readonly dialectId: DialectId | null;
   readonly mode: 'full' | 'readOnly';
-  /** `flowControl`: the classifier said full, but READING found `ex` not 0/1 (RTS/CTS, PN §5.3). */
+  /** `flowControl`: the classifier said full, but READING could not read `ex` or found a value other than 0, 1 or 2 (OD-33). */
   readonly reason: ClassifyReason | 'probeFailed' | 'flowControl';
   readonly detail: string;
   readonly upgradeOffer: boolean;

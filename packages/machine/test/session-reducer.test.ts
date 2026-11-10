@@ -723,33 +723,28 @@ describe('the resting check on 440.21 uses only stat and vel (SAFETY H14 mitigat
   });
 });
 
-describe('flow control: ex = 2 (RTS/CTS) is READ_ONLY on both dialects (ROADMAP P1-03; PN §5.3)', () => {
+describe('flow control: ex 0, 1 and 2 keep an approved session full; any other ex is READ_ONLY (OD-33; PN §5.3)', () => {
   const logs = (d: Driver): string[] => d.effects.filter((e) => e.kind === 'log').map((e) => (e as Extract<SessionEffect, { kind: 'log' }>).text);
 
-  it('an approved edge-next with ex = 2 ends READ_ONLY with reason flowControl, keeping its dialect', () => {
-    const d = connected({ ...EN_ANSWERS, ex: '{"r":{"ex":2},"f":[3,0,10]}' }, { manifest: EN_APPROVED });
-    expect(d.state.base).toBe('CONNECTED_UNKNOWN');
-    expect(d.state.classification).toMatchObject({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl', buildIdentity: 'fbOnly' });
-    expect(d.state.classification?.detail).toContain('ex) is 2 (RTS/CTS)');
-    expect(d.state.overlays).toEqual(['READ_ONLY']);
-    expect(d.state.live.ex).toBe(2);
-    expect(logs(d)).toContain('classification: read-only, flow control (ex) is 2 (RTS/CTS)');
+  it('ex = 0, 1 and 2 (RTS/CTS, with RTS held on, rts.ts) keep the approved session full', () => {
+    for (const v of [0, 1, 2]) {
+      const d = connected({ ...EN_ANSWERS, ex: `{"r":{"ex":${v}},"f":[3,0,10]}` }, { manifest: EN_APPROVED });
+      expect(d.state.classification, String(v)).toMatchObject({ dialectId: 'tinyg-en', mode: 'full', reason: 'en-approved' });
+      expect(d.state.overlays, String(v)).toEqual([]);
+      expect(d.state.live.ex).toBe(v);
+      expect(logs(d).some((l) => l.includes('flow control'))).toBe(false);
+    }
   });
 
-  it('an ex that cannot be read is treated the same (fail closed)', () => {
+  it('an ex that cannot be read, or one Run does not know, ends READ_ONLY with reason flowControl (fail closed)', () => {
     for (const ex of ['{"r":{},"f":[3,100,10]}', '{"r":{"ex":"2"},"f":[3,0,10]}', '{"r":{"ex":3},"f":[3,0,10]}']) {
       const d = connected({ ...EN_ANSWERS, ex }, { manifest: EN_APPROVED });
-      expect(d.state.classification, ex).toMatchObject({ mode: 'readOnly', reason: 'flowControl' });
+      expect(d.state.classification, ex).toMatchObject({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl', buildIdentity: 'fbOnly' });
       expect(d.state.overlays, ex).toEqual(['READ_ONLY']);
     }
-  });
-
-  it('ex = 0 and ex = 1 keep the approved session full', () => {
-    for (const v of [0, 1]) {
-      const d = connected({ ...EN_ANSWERS, ex: `{"r":{"ex":${v}},"f":[3,0,10]}` }, { manifest: EN_APPROVED });
-      expect(d.state.classification).toMatchObject({ mode: 'full', reason: 'en-approved' });
-      expect(d.state.overlays).toEqual([]);
-    }
+    const three = connected({ ...EN_ANSWERS, ex: '{"r":{"ex":3},"f":[3,0,10]}' }, { manifest: EN_APPROVED });
+    expect(three.state.classification?.detail).toContain('flow control (ex) is 3: read-only, Run knows only ex 0, 1 and 2');
+    expect(logs(three)).toContain('classification: read-only, flow control (ex) is 3');
   });
 
   it('a board already READ_ONLY keeps its classifier reason (440.21 at ex = 2)', () => {

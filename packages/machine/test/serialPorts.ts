@@ -40,6 +40,9 @@ export class ScriptedSerialPort implements SerialPortLike {
   readerCancelError: unknown = undefined;
   writerLocked = false;
   readerLocked = false;
+  /** Every setSignals call, apart from `log` so the call-order assertions stay as they were (OD-33, rts.ts). */
+  readonly signals: { readonly requestToSend?: boolean }[] = [];
+  signalsError: unknown = undefined;
   readonly #info: SerialPortInfoLike;
   readonly #listeners: (() => void)[] = [];
   readonly #heldWrites: Deferred[] = [];
@@ -62,6 +65,11 @@ export class ScriptedSerialPort implements SerialPortLike {
     this.opened.push(options);
     if (this.holdOpen) await new Promise<void>((resolve, reject) => (this.#heldOpen = { resolve, reject }));
     if (this.openError !== undefined) throw this.openError;
+  }
+
+  async setSignals(signals: { readonly requestToSend?: boolean }): Promise<void> {
+    this.signals.push({ ...signals });
+    if (this.signalsError !== undefined) throw this.signalsError;
   }
 
   releaseOpen(): void {
@@ -208,6 +216,11 @@ export class ReplaySerialPort implements SerialPortLike {
   open(options: WebSerialOpenOptions): Promise<void> {
     this.opened.push(options);
     return this.replay.open();
+  }
+
+  /** RTS is not part of a recording (rts.ts): accepted and ignored. */
+  setSignals(_signals: { readonly requestToSend?: boolean }): Promise<void> {
+    return Promise.resolve();
   }
 
   get writable(): SerialPortLike['writable'] {

@@ -26,7 +26,7 @@ export function readOnlyWhy(s: Snapshot): string {
     case 'flowControl':
       return ex === undefined
         ? 'Run couldn’t read its flow control setting (ex).'
-        : `It’s set to ${ex === 2 ? 'hardware flow control (RTS/CTS, ex = 2)' : `flow control ex = ${ex}`}, which Run hasn’t verified.`;
+        : `Its flow control setting is ex = ${ex}, which Run doesn’t know.`;
     case 'stock-449':
       return `It runs stock TinyG firmware (${buildText(s)}), which Run only reads.`;
     case 'g2core-read-only':

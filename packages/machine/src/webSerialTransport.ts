@@ -17,6 +17,13 @@
  * packages/machine/test/web-serial-transport.test.ts proves each one equals
  * the open policy's (openPolicy.ts).
  *
+ * After every open it turns RTS on (and never touches DTR), or closes the port
+ * and refuses the open: a TinyG on `$ex=2` sends nothing while RTS is off
+ * (OD-33). This covers the session's open, reconnects and the flasher's
+ * bootloader reopen, which all come through here. The rule is rts.ts's
+ * `openWithRts`, held here as literals because this module imports types
+ * only (dependency-cruiser); test/rts.test.ts pins the two equal.
+ *
  * The session always writes through `GuardedTransport`, which decides
  * whether a port may be opened (dialect data, the flasher's capability) and
  * validates every write. This transport does not rely on that: it refuses on
@@ -68,6 +75,12 @@ export const WEB_SERIAL_BUFFER_SIZE = 256;
 /** The SAM-BA touch rate, never opened here (openPolicy.ts BOOTLOADER_TOUCH_BAUD). */
 export const WEB_SERIAL_REFUSED_BAUD = 1200;
 
+/** RTS on, nothing else: DTR is never touched (rts.ts RTS_ON; this module imports types only, so it holds the literal). */
+export const WEB_SERIAL_RTS_ON: Readonly<{ requestToSend: true }> = Object.freeze({ requestToSend: true });
+
+/** The refusal when RTS cannot be set (rts.ts RTS_REFUSAL, the same words; pinned equal by test/rts.test.ts). */
+export const WEB_SERIAL_RTS_REFUSAL = 'Run couldn’t turn on the port’s RTS line, and the board may send nothing without it. Unplug the board, plug it back in, then connect again.';
+
 /** The Arduino Due programming port, never opened (openPolicy.ts DUE_PROGRAMMING_PORT). */
 export const WEB_SERIAL_REFUSED_PORT = Object.freeze({ vendorId: 0x2341, productId: 0x003d });
 
@@ -107,6 +120,8 @@ interface SerialWriterLike {
  */
 export interface SerialPortLike {
   open(options: WebSerialOpenOptions): Promise<void>;
+  /** Web Serial's output signals; run sets only `requestToSend` (rts.ts), never DTR. */
+  setSignals(signals: { readonly requestToSend?: boolean }): Promise<void>;
   close(): Promise<void>;
   readonly readable: { getReader(): SerialReaderLike } | null;
   readonly writable: { readonly locked: boolean; getWriter(): SerialWriterLike; close(): Promise<void> } | null;
@@ -212,7 +227,8 @@ export class WebSerialTransport implements Transport {
     }
     this.#state = 'opening';
     const serialOptions: WebSerialOpenOptions = Object.freeze({ baudRate, dataBits: 8, stopBits: 1, parity: 'none', flowControl: 'none', bufferSize });
-    this.#opening = this.#port.open(serialOptions);
+    // RTS on after the open, or the port is closed and the open refused (OD-33).
+    this.#opening = this.#openWithRts(serialOptions);
     try {
       await this.#opening;
     } catch (error) {
@@ -221,6 +237,19 @@ export class WebSerialTransport implements Transport {
     }
     // close() may have run while the port was opening; it wins.
     if (this.#state === 'opening') this.#state = 'open';
+  }
+
+  /** rts.ts `openWithRts`, held here as a literal: open, then RTS on; if RTS cannot be set, close and refuse. */
+  async #openWithRts(options: WebSerialOpenOptions): Promise<void> {
+    await this.#port.open(options);
+    try {
+      await this.#port.setSignals(WEB_SERIAL_RTS_ON);
+    } catch (error) {
+      await this.#port.close().catch(() => undefined);
+      const refused = new Error(WEB_SERIAL_RTS_REFUSAL, { cause: error });
+      refused.name = 'RtsRefusedError';
+      throw refused;
+    }
   }
 
   writeLine(line: Uint8Array): Promise<void> {

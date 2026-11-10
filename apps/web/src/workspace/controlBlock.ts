@@ -68,7 +68,7 @@ function notApproved(s: Snapshot, flasher: boolean, ctx: BlockContext): ControlB
   const why = readOnlyWhy(s);
   const disconnect: BlockAction = { id: 'disconnect', label: 'Disconnect', primary: true };
   if (c?.reason === 'flowControl') {
-    // The fix is a write of ex = 1, which SAFETY H61 forbids today; until the owner decides, say how to do it by hand.
+    // An ex Run could not read or does not know (0, 1 and 2 are fine, OD-33). Run never writes ex (SAFETY H61): say how to fix it by hand.
     return { kind: 'not-approved', reason: 'flowControl', title: CANT, lines: [why, 'Set ex to 1 (XON/XOFF) with another program, then connect again.'], actions: [disconnect], detail };
   }
   if (c?.dialectId === null || c?.dialectId === undefined) {

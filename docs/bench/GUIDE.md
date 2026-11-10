@@ -267,7 +267,7 @@ line. It then probes the board and classifies it. Expect:
 | edge-next fb 450.02 (`a7489b79`) | `tinyg-en` | **Full**, reason `en-approved`: the machine worker verifies the bundled, owner-signed bench channel of `firmware/approved-builds.json` for its own origin (loopback over plain HTTP and staging are `staging`; P1-03, added 2026-11-02). Before that it was READ_ONLY `en-not-approved` (seen on the bench 2026-11-02). Any other fb, a reported `fbs`, an expired or tampered manifest, or the production origin stays READ_ONLY. |
 | stock 440.21 | `tinyg-440` | READ_ONLY, with W25 and the upgrade offer |
 | stock 449.01 | `tinyg-449-stock` | READ_ONLY |
-| EN with `$ex=2` | `tinyg-en` | READ_ONLY, reason flow control |
+| EN with `$ex=2` | `tinyg-en` | **Full**, as any approved build: RTS is turned on after the open (OD-33, 2026-11-10). An `ex` that cannot be read, or a value other than 0, 1 or 2, is READ_ONLY, reason flow control |
 | board moving, held, with a short queue, or silent for 3 s | **ORPHANED_MOTION** (W32) | only Pause offered |
 | a partial line left in the board's buffer by another program (the reply to `{sr:null}` has no `sr`) | **ORPHANED_MOTION** (W32) | only Pause offered. A fragment ending in a comment may already have RUN (measured 2026-11-02 with a 0.5 s gap); check the machine, unplug, power-cycle the board. On edge-next since `97321391` (the pin is `a7489b79`), a fragment that has been quiet for more than about 1 s is dropped when `{sr:null}` arrives (E195), so the reply carries `sr` and the probe goes on; 440.21 and shorter gaps still end here |
 
@@ -478,7 +478,8 @@ commit) next to it.
 - [ ] **HIL-1.2 Stock 440.21 (and 449.01 if available).** Pass: 440.21 shows
   `tinyg-440` READ_ONLY with W25; 449.01 shows `tinyg-449-stock` READ_ONLY;
   no G-code and no `0x05` in either transcript; EN with `$ex=2` (set with
-  another sender) shows READ_ONLY, reason flow control. Fail: anything else.
+  another sender) connects full, with RTS on (OD-33; streaming on `$ex=2` is
+  HIL-3.24). Fail: anything else.
 - [ ] **HIL-1.3 C1 per session.** Pass: the first Connect of the day shows the
   full C1; Disconnect and Connect the same day shows the short form; the next
   calendar day shows the full form again. On staging, signed out of Access:

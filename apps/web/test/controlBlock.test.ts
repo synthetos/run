@@ -72,7 +72,7 @@ describe('controlBlock: the reason and the way out', () => {
   it('each read-only reason says its own cause in plain words, never the generic one (card, strip and control titles)', () => {
     const ro = (classification: Record<string, unknown>, extra: Record<string, unknown> = {}) => snap({ base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY'], classification: { upgradeOffer: false, detail: 'session detail', ...classification }, ...extra });
     const cases: [Snapshot, string, string, readonly string[]][] = [
-      [ro({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl' }, { live: { stat: 3, ex: 2 } }), 'flowControl', 'It’s set to hardware flow control (RTS/CTS, ex = 2), which Run hasn’t verified.', ['disconnect']],
+      [ro({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl' }, { live: { stat: 3, ex: 3 } }), 'flowControl', 'Its flow control setting is ex = 3, which Run doesn’t know.', ['disconnect']],
       [ro({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl' }, { live: { stat: 3 } }), 'flowControl', 'Run couldn’t read its flow control setting (ex).', ['disconnect']],
       [ro({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'en-not-approved' }), 'en-not-approved', 'Its firmware build isn’t on Run’s approved list (450.02, no build id).', ['update']],
       [ro({ dialectId: 'tinyg-440', mode: 'readOnly', reason: 'tg440-not-approved' }, { identity: { fb: 440.2 } }), 'tg440-not-approved', 'Its firmware build isn’t on Run’s approved list (440.20, no build id).', ['update']],

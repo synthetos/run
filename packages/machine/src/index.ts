@@ -12,6 +12,8 @@ export const VERSION = '0.0.0';
 
 export type { PortSelector, Transport, TransportInfo, TransportOpenOptions, TransportSource } from './transport.ts';
 export { isPortSelector } from './transport.ts';
+export { RTS_ON, RTS_REFUSAL, RtsRefusedError, openWithRts } from './rts.ts';
+export type { RtsPort } from './rts.ts';
 export { GuardedTransport, TransportRefusedError, TransportWriteError } from './guardedTransport.ts';
 export type { GuardedTransportOptions, GuardedTransportState, TransportRefusalCode } from './guardedTransport.ts';
 export { MAX_REALTIME_GROUP_BYTES, MAX_WRITE_LINE_BYTES, REALTIME_BYTES, classifyWrite, writeLineCapFor } from './writeShape.ts';

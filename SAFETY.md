@@ -729,7 +729,8 @@ In every row the reply to the connect line is a G-code reply `{"r":{},"f":[...]}
 | **Rating** | S2–S4, L2 |
 | **Mitigations** | 1. The forbidden-write list (PN §12.4: `hv baud ex ej js=0 jv qv fd rxm rt*`, `boot`, `defa`, `se00..se29`, `jog*`) is enforced by the schema, the session and the write gate. 2. Only keys with a reviewed overlay entry can be written. `js`, `ee` and `ec` have none, so no communication setting is writable today, and the Communications view stays read-only with the reason given. 3. A restore maps by token name and skips identity keys (`fb fbs fv hp hv id baud`), readouts (`spe spc spd sps cof com`), `rt*` and every forbidden or unreviewed key, listing each with its reason. 4. If a communication key ever becomes writable, it is written after every other key, and `jv` very last (schema `orderWrites`), with a high-risk confirmation. |
 | **Residual** | Low. |
-| **Verification** | U/M: T-S95 (forbidden and identity keys refused at the intent and at the gate), T-S96 (ordering). |
+| **Amended 2026-11-10 (OD-33, owner: "flow yes settle this… settle it on the bench, no button")** | Run still never writes `ex`, and no button offers to (mitigation 1 unchanged). What changes is how run lives with a board another program left on `ex=2` (RTS/CTS): it is no longer READ_ONLY. After every port open (the session's, every reconnect and the flasher's bootloader reopen) run turns RTS on with `setSignals({ requestToSend: true })` and never touches DTR; if RTS cannot be set, the port is closed and the link refused in plain words ("Run couldn’t turn on the port’s RTS line…"). The rule lives in one place, `openWithRts` (packages/machine/src/rts.ts), called by the Web Serial transport and by the fake-serial test transport. Line mode keeps the unanswered bytes far below the board's RTS marks. **Evidence (TG Firmware, B-FC-1, 450.02 on bench 3 and edge-next on bench 2):** with RTS asserted, a 296-segment circle streamed clean, 299/299 answered, ending at 0,0; with RTS released, the board held all its output (a `{stat}` GET got no answer within 2 s) and released it when RTS was asserted again. `ex` 0, 1 and 2 keep an approved session full; an `ex` that cannot be read, or any other value, stays READ_ONLY with reason flowControl (fail closed). |
+| **Verification** | U/M: T-S95 (forbidden and identity keys refused at the intent and at the gate), T-S96 (ordering). OD-33: packages/machine/test/rts.test.ts (RTS on after the open, a reconnect and the bootloader reopen; DTR untouched; refused when RTS cannot be set), the flow-control cases in session-reducer.test.ts and p1-03-live.test.ts; E: tools/e2e/specs/rts-ex2.fake-serial.ts. H: HIL-3.24. |
 
 ### H62. A partial apply leaves the board between two configurations (NEW, amendment 2026-11-02)
 | Field | Content |
@@ -1017,7 +1018,8 @@ Overlay precedence: **FAULT > LOST > ORPHANED_MOTION > UNKNOWN > STALE > READ_ON
         ▲  (W6 previous-session banner must be dismissed first;           │
         │   preview, library, profiles, wiring all usable here)            ▼
         │                                   OPENING (115200, flowControl 'none'; refuse 1200;
-        │                                    refuse 2341:003D before open)
+        │                                    refuse 2341:003D before open; RTS on after
+        │                                    every open, DTR untouched, OD-33)
         │                                                                  ▼
         │                                   IDENTIFYING (reads only; banner ≤3 s; capability
         │                                    probe PN §2.3; allowlisted GETs only)
@@ -1784,6 +1786,7 @@ Manual, and never in CI. Signed in `RELEASES.md` in the run repo, with the evide
 - **HIL-3.20** (*Phase 3*) Pull USB mid-job and close the tab mid-job: no line after; the next connect is UNKNOWN; from the same browser the board's `rxm` is put back (W44); from another browser it is left as found.
 - **HIL-3.21** (*Phase 3*) Press the board's reset mid-job: SYSTEM READY, FAULT with W40, nothing more written.
 - **HIL-3.22** (*Phase 3*) Start with the board's G54 different from the plan: the stepper warns and needs C31; not homed: C36.
+- **HIL-3.24** (*OD-33, 2026-11-10; B-FC-1*) A board on `$ex=2` (RTS/CTS) with run's `flowControl: 'none'`, line mode and RTS asserted: a 296-segment circle streams clean, every line answered (299/299), ending at 0,0. With RTS released the board holds all its output (a `{stat}` GET gets no answer within 2 s) and releases it when RTS is asserted again. **Passed** by TG Firmware on 450.02 (bench 3) and edge-next (bench 2): TinyG branch `test/bfc1-ex2-line-mode`, `tests/hil/tests/diagnostics/test_bfc1_ex2_line_mode.py`.
 - **HIL-3.23** (*Phase 3*) Start on a board in character mode (`rxm` 0): `{"rxm":1}`, its read-back, footer revision 3, the job, then `{"rxm":0}` and its read-back; CNCjs streams correctly afterwards. Record the free-slot counts (`f[2]`) during a 10k-line job.
 
 ### 9.5 Phase 4: settings write and configuration

@@ -71,7 +71,7 @@ const REASON_TEXT: Readonly<Record<string, string>> = {
   'g2core-unknown-build': 'A g2core build Run does not know.',
   conflict: 'The board’s answers did not agree with each other.',
   probeFailed: 'The board did not answer the identification questions.',
-  flowControl: 'The board uses hardware flow control, which this release does not drive.',
+  flowControl: 'The board’s flow control setting (ex) could not be read, or has a value Run doesn’t know.',
 };
 
 const NOT_CONNECTED_TEXT = 'Connect a board on the Run view. Its settings appear here, read with GETs only.';

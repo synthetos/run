@@ -80,7 +80,7 @@ describe('readyModel', () => {
     expect(notConnected.items[0]).toMatchObject({ id: 'machine', mark: 'blocked', summary: 'Not connected.', actions: [{ id: 'connect', label: 'Connect' }] });
     expect(notConnected.tick).toEqual([]);
     expect(readyModel({ ...READY, jobsOn: false }).items[0]).toMatchObject({ mark: 'blocked', summary: 'Running jobs isn’t on in this build.' });
-    const flow = readyModel({ ...READY, block: { kind: 'not-approved', reason: 'flowControl', title: 'Run can’t control this board yet.', lines: ['It’s set to hardware flow control (RTS/CTS, ex = 2), which Run hasn’t verified.'], actions: [{ id: 'disconnect', label: 'Disconnect' }] } });
+    const flow = readyModel({ ...READY, block: { kind: 'not-approved', reason: 'flowControl', title: 'Run can’t control this board yet.', lines: ['Its flow control setting is ex = 3, which Run doesn’t know.'], actions: [{ id: 'disconnect', label: 'Disconnect' }] } });
     // The title in the list; the full, real reason is the Position panel's card beside it.
     expect(flow.items[0]?.summary).toBe('Run can’t control this board yet.');
     expect(flow.items[0]?.actions).toEqual([{ id: 'disconnect', label: 'Disconnect' }]);
