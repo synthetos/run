@@ -54,9 +54,11 @@ export const test = base.extend<Fixtures>({
     // The firmware update offer (owner, 2026-11-09) opens after a connect when the signed list has a newer build for
     // the simulated board, as it always does: answer Not now whenever it appears. The offer's own spec
     // (firmware-offer.fake-serial.ts) removes this handler first.
+    // The offer steps aside when W29 comes up (it waits behind machine messages), so the click must not wait for it:
+    // a handler stuck on a vanished offer would block the W29 handler above and the test would hang.
     await page.addLocatorHandler(page.locator('[data-action="firmware-offer-later"]'), async (later) => {
-      await later.click();
-    });
+      await later.click({ timeout: 2_000 }).catch(() => undefined);
+    }, { noWaitAfter: true });
     await use(page);
   },
   // Playwright requires an object pattern here; an empty one trips no-empty-pattern.
