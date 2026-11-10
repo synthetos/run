@@ -55,6 +55,8 @@ import { ToolNumberField } from './ToolNumberField.ts';
 import { ToolNameField } from './ToolNameField.ts';
 import { ToolDelete } from './ToolDelete.ts';
 import { ToolShapeFields } from './ToolShapeFields.ts';
+import { ToolDrawing } from '../toolDrawing/ToolDrawing.ts';
+import { ToolDrawingEditor } from '../toolDrawing/ToolDrawingEditor.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 
 export const PLACEHOLDER_NOTE = 'Placeholder values: not yet sourced. They show the shape of the data, not machining advice.';
@@ -131,36 +133,12 @@ export function AddLink({ onAdd }: { readonly onAdd: (p: PurchaseLink) => string
 
 // ---------------------------------------------------------------- tools
 
-/** A side view of the tool, in proportion, from its type and geometry. */
-export function ToolArt({ tool, large = false }: { readonly tool: Tool; readonly large?: boolean }): ComponentChild {
-  const g = tool.geometry;
-  const H = 100;
-  const k = H / Math.max(g.overallLength, 1);
-  const d = Math.max(g.diameter * k * (large ? 1.6 : 2.2), 3);
-  const sd = Math.max(g.shank * k * (large ? 1.6 : 2.2), 3);
-  const flute = g.fluteLength * k;
-  const cx = 20;
-  const fluteTop = H - flute;
-  const l = cx - d / 2;
-  const r = cx + d / 2;
-  const angle = g.vAngle ?? g.pointAngle ?? 118;
-  const tipLen = Math.min(flute, d / 2 / Math.tan(((angle / 2) * Math.PI) / 180));
-  const body =
-    tool.type === 'ball'
-      ? `M${l} ${fluteTop}L${r} ${fluteTop}L${r} ${H - d / 2}A${d / 2} ${d / 2} 0 0 1 ${l} ${H - d / 2}Z`
-      : tool.type === 'v-bit' || tool.type === 'drill' || tool.type === 'chamfer' || tool.type === 'engraver'
-        ? `M${l} ${fluteTop}L${r} ${fluteTop}L${r} ${H - tipLen}L${cx} ${H}L${l} ${H - tipLen}Z`
-        : `M${l} ${fluteTop}L${r} ${fluteTop}L${r} ${H}L${l} ${H}Z`;
-  return h(
-    'svg',
-    { class: 'tool-art', viewBox: `0 -2 40 ${H + 4}`, preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true' },
-    h('rect', { class: 'shank', x: cx - sd / 2, y: 0, width: sd, height: Math.max(fluteTop, 1) }),
-    h('path', { class: 'body', d: body }),
-    h('path', { class: 'flute', d: `M${l} ${fluteTop + flute * 0.15}L${r} ${fluteTop + flute * 0.35}M${l} ${fluteTop + flute * 0.5}L${r} ${fluteTop + flute * 0.7}` }),
-  );
+/** The tool's side view at icon size: the same drawing code as the editor's (toolDrawing/ToolDrawing.ts). */
+export function ToolArt({ tool }: { readonly tool: Tool; readonly large?: boolean }): ComponentChild {
+  return h(ToolDrawing, { tool, thumb: true });
 }
 
-function numberField(label: string, value: number, unit: string, onChange: (n: number) => void, step = 0.001): ComponentChild {
+function numberField(label: string, value: number, unit: string, onChange: (n: number) => void, step = 0.001, field?: string): ComponentChild {
   return h(
     'label',
     { class: 'field', key: label },
@@ -173,6 +151,7 @@ function numberField(label: string, value: number, unit: string, onChange: (n: n
         step,
         min: 0,
         value,
+        ...(field === undefined ? {} : { 'data-tool-field': field }),
         onChange: (e: Event) => {
           const n = Number.parseFloat((e.currentTarget as HTMLInputElement).value);
           if (Number.isFinite(n) && n > 0) onChange(n);
@@ -207,16 +186,21 @@ function ToolInspector({ entry, onDeleted }: { readonly entry: ToolEntry; readon
       h(
         'section',
         { class: 'insp' },
+        // The drawing above the fields follows them as they are typed (toolDrawing/ToolDrawingEditor.ts).
         h(
-          'div',
-          { class: 'field-grid' },
-          h(ToolNameField, { id: tool.id, name: tool.name }),
-          h(ToolNumberField, { id: tool.id, number: entry.number }),
-          numberField('Diameter', tool.geometry.diameter, 'mm', (n) => geo('diameter', n)),
-          h(ToolShapeFields, { tool, set }),
-          numberField('Flutes', tool.geometry.flutes, '', (n) => geo('flutes', Math.max(1, Math.round(n))), 1),
-          numberField('Flute length', tool.geometry.fluteLength, 'mm', (n) => geo('fluteLength', n), 0.5),
-          numberField('Overall length', tool.geometry.overallLength, 'mm', (n) => geo('overallLength', n), 0.5),
+          ToolDrawingEditor,
+          { tool },
+          h(
+            'div',
+            { class: 'field-grid' },
+            h(ToolNameField, { id: tool.id, name: tool.name }),
+            h(ToolNumberField, { id: tool.id, number: entry.number }),
+            numberField('Diameter', tool.geometry.diameter, 'mm', (n) => geo('diameter', n), 0.001, 'diameter'),
+            h(ToolShapeFields, { tool, set }),
+            numberField('Flutes', tool.geometry.flutes, '', (n) => geo('flutes', Math.max(1, Math.round(n))), 1, 'flutes'),
+            numberField('Flute length', tool.geometry.fluteLength, 'mm', (n) => geo('fluteLength', n), 0.5, 'fluteLength'),
+            numberField('Overall length', tool.geometry.overallLength, 'mm', (n) => geo('overallLength', n), 0.5, 'overallLength'),
+          ),
         ),
         textArea('Description', tool.description, (description) => set({ description }), 2000, 2),
         textArea('Notes', tool.notes, (notes) => set({ notes }), 2000, 2),

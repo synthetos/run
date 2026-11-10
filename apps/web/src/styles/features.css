@@ -447,3 +447,42 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .probe-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; }
 .probe-actions button { flex: none; }
 @media (max-width: 650px) { .probe-label { min-width: 0; flex-basis: 100%; } }
+
+/* ---------------------------------------------------------------- the tool drawn to scale (Library → Tools → Details) */
+.tool-figure { margin: 0 0 12px; display: grid; gap: 6px; }
+.tool-figure-svg { display: block; width: 100%; max-width: 420px; height: auto; margin: 0 auto; font-family: var(--sans); }
+/* Beside the fields on a laptop: the drawing stays in view while the fields under it scroll. */
+@media (min-width: 651px) {
+  .tool-figure { position: sticky; top: 0; z-index: 1; background: var(--sheet); padding-bottom: 6px; }
+  .tool-figure-svg { max-height: 230px; }
+}
+.tf-bg { fill: var(--raise); stroke: var(--line-soft); }
+.tf-grid { stroke: color-mix(in srgb, var(--rule) 45%, transparent); stroke-width: .6; }
+.tf-body { fill: var(--blue-wash); }
+.tf-edge { fill: none; stroke: var(--blue); stroke-width: 1.4; stroke-linejoin: round; }
+.tf-flute { stroke: var(--blue); stroke-width: .9; opacity: .65; }
+.tf-tool.faint { opacity: .3; }
+.tf-holder-block { stroke: var(--muted); stroke-width: 1; }
+.tf-hatch { stroke: var(--muted); stroke-width: 1; }
+.tf-holder-face { stroke: var(--ink); stroke-width: 2.2; }
+.tf-holder.warn .tf-holder-face { stroke: var(--danger); }
+.tf-warn-zone { fill: color-mix(in srgb, var(--danger) 22%, transparent); stroke: var(--danger); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.tf-dim { cursor: pointer; outline: none; }
+.tf-dim text { fill: var(--muted); font-size: 10.5px; }
+.tf-dimline { stroke: var(--muted); stroke-width: 1; }
+.tf-ext { stroke: var(--muted); stroke-width: .7; stroke-dasharray: 2 2; }
+.tf-arrowhead { fill: var(--muted); }
+.tf-dim.active .tf-dimline, .tf-dim:hover .tf-dimline, .tf-dim:focus-visible .tf-dimline { stroke: var(--blue); stroke-width: 2; }
+.tf-dim.active text, .tf-dim:hover text, .tf-dim:focus-visible text { fill: var(--blue); font-weight: 700; }
+.tf-dim.active .tf-ext, .tf-dim:focus-visible .tf-ext { stroke: var(--blue); }
+.tf-dim.warn .tf-dimline, .tf-dim.warn .tf-ext { stroke: var(--danger); }
+.tf-dim.warn text { fill: var(--danger); }
+.tf-scale line { stroke: var(--ink); stroke-width: 1.4; }
+.tf-scale text { fill: var(--ink); font-size: 10.5px; }
+.tf-meaning { min-height: 2.6em; font-size: 12px; line-height: 1.4; color: var(--ink); }
+.tf-issues { list-style: none; margin: 0; padding: 6px 10px; display: grid; gap: 3px; font-size: 12px; color: var(--ink); background: color-mix(in srgb, var(--danger) 10%, transparent); border-left: 3px solid var(--danger); border-radius: var(--r-sm); }
+.tf-issues span { color: var(--danger); }
+.tool-editor input[aria-invalid="true"] { border-color: var(--danger); }
+/* The list icons and the header icon are the same drawing at thumbnail size. */
+.tool-thumb .body { fill: var(--blue-wash); stroke: var(--blue); stroke-width: 1.2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.tool-thumb .flute { stroke: var(--blue); stroke-width: .8; vector-effect: non-scaling-stroke; opacity: .7; }
