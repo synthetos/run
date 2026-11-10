@@ -47,12 +47,13 @@ function sideOf(min: number, max: number): { readonly side: Side; readonly loose
   return { side: null, loose: false };
 }
 
+/** X side / Y side to the stock point. (A slash, not a colon: "low:low" would read as a URL scheme to the bundle scan.) */
 const CORNER_OF: Readonly<Record<string, StockCorner>> = {
-  'low:low': 'front-left',
-  'high:low': 'front-right',
-  'low:high': 'back-left',
-  'high:high': 'back-right',
-  'middle:middle': 'center',
+  'low/low': 'front-left',
+  'high/low': 'front-right',
+  'low/high': 'back-left',
+  'high/high': 'back-right',
+  'middle/middle': 'center',
 };
 
 const WORDS: Readonly<Record<StockCorner, string>> = {
@@ -85,7 +86,7 @@ const n = (v: number): string => `${v < 0 ? '−' : v > 0 ? '+' : ''}${String(Ma
 export function guessFileZero(box: CutBox, header = ''): FileZero {
   const x = sideOf(box.minX, box.maxX);
   const y = sideOf(box.minY, box.maxY);
-  const corner = x.side === null || y.side === null ? null : (CORNER_OF[`${x.side}:${y.side}`] ?? null);
+  const corner = x.side === null || y.side === null ? null : (CORNER_OF[`${x.side}/${y.side}`] ?? null);
   const zSpan = box.maxZ - box.minZ;
   const zNear = Math.max(0.3, zSpan * 0.05);
   // A plunge from above the stock counts as cutting, so the top end of the cut can sit above 0: only the depth decides.
