@@ -486,3 +486,8 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 /* The list icons and the header icon are the same drawing at thumbnail size. */
 .tool-thumb .body { fill: var(--blue-wash); stroke: var(--blue); stroke-width: 1.2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .tool-thumb .flute { stroke: var(--blue); stroke-width: .8; vector-effect: non-scaling-stroke; opacity: .7; }
+/* ---------------------------------------------------------------- firmware update offer */
+.firmware-offer-title { margin: 0 0 6px; font: 600 16px/1.3 var(--cond); color: var(--ink); }
+.firmware-offer .motion-confirm-actions { flex-wrap: wrap; }
+.firmware-offer .quiet-link { margin-right: auto; }
+.releases > li.release-focus { margin-inline: -12px; padding-inline: 12px; border-radius: 6px; outline: 2px solid var(--blue); outline-offset: -2px; background: var(--blue-wash); }

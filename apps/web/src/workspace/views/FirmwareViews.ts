@@ -14,7 +14,8 @@
  * Everything from the board, a file name or a record renders as text.
  */
 import { h, type ComponentChild } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
+import { releaseRequest } from '../boardNavigation.ts';
 import { boardText, c37, c38, c6Boxes, c6Question, w11, w28, w45, w46, w47, w48, w49, w50 } from '@synthetos/safety';
 import { releasesForHardware, type FirmwareRelease } from '@synthetos/protocol';
 import { signalText } from '../../shell/signal.ts';
@@ -309,6 +310,14 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
   const running = flash !== null && flash.phase !== 'done' && flash.phase !== 'failed';
   const advanced = uiLevel.value.value === 'advanced';
   const hw = hub !== null && hub.releases.ok ? releasesForHardware(hub.releases.list, hv) : null;
+  // Asked for by the update offer (boardNavigation.ts): kept marked while this view is open.
+  const [focusRelease, setFocusRelease] = useState<string | null>(null);
+  const asked = releaseRequest.value;
+  useEffect(() => {
+    if (asked === null) return;
+    setFocusRelease(asked);
+    releaseRequest.value = null;
+  }, [asked]);
   const trusted = s?.classification?.approvalSource === 'trusted';
   const old = m?.oldFirmware ?? null;
   const start = (): void => {
@@ -373,7 +382,14 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
                 const source = r.repo !== null && r.tag !== null ? `GitHub Releases: ${r.repo} ${r.tag}` : r.simulatorOnly ? 'simulated image' : 'bundled with this site';
                 return h(
                   'li',
-                  { key: r.file, 'data-release': r.file, 'data-release-age': installed ? 'installed' : older ? 'older' : 'newer', 'data-release-source': r.repo === null ? 'site' : 'github' },
+                  {
+                    key: r.file,
+                    'data-release': r.file,
+                    'data-release-age': installed ? 'installed' : older ? 'older' : 'newer',
+                    'data-release-source': r.repo === null ? 'site' : 'github',
+                    // The update offer's "Go to update": this release is brought into view and marked.
+                    ...(focusRelease === r.file ? { class: 'release-focus', 'data-release-focus': '', ref: (el: HTMLElement | null) => el?.scrollIntoView({ block: 'center' }) } : {}),
+                  },
                   h(
                     'div',
                     { class: 'rel-ver' },

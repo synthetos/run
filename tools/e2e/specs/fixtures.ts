@@ -51,6 +51,12 @@ export const test = base.extend<Fixtures>({
     await page.addLocatorHandler(page.locator('[data-action="dismiss-w29"]'), async (ok) => {
       await ok.click();
     });
+    // The firmware update offer (owner, 2026-11-09) opens after a connect when the signed list has a newer build for
+    // the simulated board, as it always does: answer Not now whenever it appears. The offer's own spec
+    // (firmware-offer.fake-serial.ts) removes this handler first.
+    await page.addLocatorHandler(page.locator('[data-action="firmware-offer-later"]'), async (later) => {
+      await later.click();
+    });
     await use(page);
   },
   // Playwright requires an object pattern here; an empty one trips no-empty-pattern.

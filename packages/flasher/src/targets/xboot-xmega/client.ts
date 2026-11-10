@@ -34,7 +34,7 @@
  * - **Never `e`.** The client has no erase (avr109.ts).
  */
 import { CommandError, REPLY, encodeCommand, replyLength, type Command } from './avr109.ts';
-import { LinkClosed, LinkTimeout, type ByteLink, type FlasherClock } from './link.ts';
+import { LinkClosed, LinkTimeout, type ByteLink, type FlasherClock } from '../../core/link.ts';
 import type { Part } from './part.ts';
 
 export interface ClientTimings {

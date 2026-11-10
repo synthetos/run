@@ -34,6 +34,7 @@ import { MachineStrip } from './MachineStrip.ts';
 import { INITIAL_LIVE_VIEW, portOpen, type WorkspaceModel } from './model.ts';
 import { stripStatus } from './status.ts';
 import { resumeAction } from './resumeAction.ts';
+import { FirmwareOffer } from './FirmwareOffer.ts';
 import { BoardView } from './views/BoardView.ts';
 import { boardTab, viewRequest } from './boardNavigation.ts';
 import { observingElsewhere } from './tabControl.ts';
@@ -286,6 +287,8 @@ export function AppShell(props: AppShellProps): ComponentChild {
           'main',
           { class: 'view-area', id: 'main', 'data-region': 'centre' },
           h(Banners, { ...props, view: current, onReview: () => { boardTab.value = 'settings'; onView('board'); } }),
+          // After a connect: a newer signed release for this board (firmware/updateOffer.ts decides when).
+          h(FirmwareOffer, { model: props.model ?? null, role: props.role?.value ?? null, live: props.liveTab?.value === true }),
           pane('job', h(JobView, { model, spawn: props.spawn ?? null, spawnCarve: props.spawnCarve ?? null, ...(props.marker === undefined ? {} : { marker: props.marker }), onView, ...(props.onPause === undefined ? {} : { onPause: props.onPause }), ...(props.onStopJob === undefined ? {} : { onStopJob: props.onStopJob }) })),
           pane('library', h(LibraryView, { model, onView })),
           pane('board', h(BoardView, { model })),

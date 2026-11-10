@@ -26,9 +26,9 @@
  */
 import type { FirmwareRelease } from '@synthetos/protocol';
 import { mintBootloaderCapability, type BootloaderCapability } from './bootloaderCapability.ts';
-import { parseIntelHex, type HexImage } from './ihex.ts';
-import type { Part } from './part.ts';
-import { isSha256, sha256Hex } from './sha256.ts';
+import { parseIntelHex, type HexImage } from './targets/xboot-xmega/ihex.ts';
+import type { Part } from './targets/xboot-xmega/part.ts';
+import { isSha256, sha256Hex } from './core/sha256.ts';
 
 /** Port opens one authorization may cover (the first open plus recovery reopens). */
 export const MAX_OPENS = 32;

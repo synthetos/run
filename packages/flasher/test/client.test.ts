@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { ByteBuffer, LinkClosed, LinkTimeout, X192A3, XbootClient, XbootError, toXbootError, type ByteLink, type FlasherClock } from '../src/index.ts';
-import { CommandError } from '../src/avr109.ts';
+import { CommandError } from '../src/targets/xboot-xmega/avr109.ts';
 
 /** A manual clock: timers fire only when the test advances time. */
 export class ManualClock implements FlasherClock {
