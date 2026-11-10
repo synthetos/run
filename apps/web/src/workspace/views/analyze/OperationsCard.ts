@@ -69,7 +69,7 @@ function Check({ row, gate, advanced }: { readonly row: AdvisorRow; readonly gat
       'div',
       { class: 'analyze-advice', 'data-advisor': 'advice' },
       h('p', { 'data-advisor': 'verdict' }, `Cutting check: ${plan.comparison?.verdict.replaceAll('-', ' ') ?? 'not available'}.`),
-      plan.provenance.placeholder ? h('p', { class: 'warn-text', 'data-advisor': 'placeholder' }, 'From placeholder data. Not advice yet. ', h(ContextHelp, { id: `advisor-source-${op.id}`, label: 'About placeholder inputs' }, `Not advice until sourced. Placeholder inputs: ${plan.provenance.placeholderInputs.join(', ')}.`)) : null,
+      plan.provenance.placeholder ? h('p', { class: 'warn-text', 'data-advisor': 'placeholder' }, 'From placeholder data. Not advice yet. ', h(ContextHelp, { id: `advisor-source-${op.id}`, label: 'About placeholder inputs' }, `Placeholder inputs: ${plan.provenance.placeholderInputs.join(', ')}.`)) : null,
       advanced ? h('ul', { class: 'fine' }, plan.comparison?.reasons.map((reason) => h('li', { key: reason }, reason))) : null,
       advanced ? h(Levels, { row }) : null,
     );
@@ -120,9 +120,9 @@ export function OperationsCard({ rows, stock, problem, advanced }: OperationsPro
       h('p', { class: 'fine' }, stock === null ? 'No material chosen.' : `Material: ${stock.name}.`),
       stock?.safety.map((note) => h('p', { class: 'warn-text', key: note.text }, note.text)),
       problem === null ? null : h('p', { class: 'warn-text' }, problem),
-      shared === null ? null : h('p', { class: 'fine' }, 'To check the cutting speeds, Run needs a few facts. One at a time:'),
+      shared === null ? null : h('p', { class: 'fine' }, 'To check cutting speeds:'),
       shared === null ? null : h(QuestionField, { question: shared, value: machineFields.value[shared.key] ?? '', onChange: setMachineField }),
     ),
-    rows.length === 0 ? h('p', { class: 'fine' }, 'No cutting moves in this file.') : h('ul', { class: 'analyze-op-list' }, rows.map((row) => h(OperationCard, { row, gate: shared !== null || problem !== null, advanced, key: row.operation.id }))),
+    rows.length === 0 ? h('p', { class: 'fine' }, 'No cutting moves.') : h('ul', { class: 'analyze-op-list' }, rows.map((row) => h(OperationCard, { row, gate: shared !== null || problem !== null, advanced, key: row.operation.id }))),
   );
 }

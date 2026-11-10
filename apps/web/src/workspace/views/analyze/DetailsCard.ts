@@ -24,18 +24,18 @@ export function DetailsCard({ view }: { readonly view: MotionView }): ComponentC
       ? h(
           'table',
           { class: 'analyze-table', 'data-analyze': 'axis-settings' },
-          h('caption', { class: 'fine' }, 'Machine speeds used for the rapids. Read only.'),
+          h('caption', { class: 'fine' }, 'Speeds used for rapids. Read only.'),
           h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Axis'), h('th', { scope: 'col' }, 'Rapid speed'), h('th', { scope: 'col' }, 'Max feed'))),
           h('tbody', null, view.settings.map((s) => h('tr', { key: s.axis }, h('th', { scope: 'row' }, s.axis), cell(s.rapid), cell(s.feed)))),
         )
-      : h('p', { 'data-analyze': 'axis-settings' }, "Connect to read your machine's speeds. The time estimate will improve."),
+      : h('p', { 'data-analyze': 'axis-settings' }, 'Speeds not read yet.'),
     h('h3', null, 'Move rate'),
     h(
       'table',
       { class: 'analyze-table', 'data-analyze': 'histogram' },
-      h('caption', { class: 'fine' }, `How many lines per second each cutting move needs at its feed. Over ${whole(report.density.threshold.value ?? 0)} counts as dense (a guess until the connection is measured).`),
+      h('caption', { class: 'fine' }, `Lines per second each cut needs. Over ${whole(report.density.threshold.value ?? 0)} is dense (a guess for now).`),
       h('tbody', null, report.density.buckets.map((b) => h('tr', { key: b.label }, h('th', { scope: 'row' }, b.label), h('td', { class: 'num' }, whole(b.lines)), h('td', { class: 'analyze-bar-cell', 'aria-hidden': 'true' }, h('span', { class: 'analyze-bar', style: { width: `${(b.lines / most) * 100}%` } }))))),
     ),
-    h('p', { class: 'fine', 'data-analyze': 'model' }, `Times use programmed speeds, so they are lower bounds. ${plural(report.coverage.supported, 'line', 'lines')} of ${whole(report.coverage.events)} modelled. Arcs are measured exactly.`),
+    h('p', { class: 'fine', 'data-analyze': 'model' }, `${whole(report.coverage.supported)} of ${plural(report.coverage.events, 'line', 'lines')} modelled. Arcs measured exactly.`),
   );
 }

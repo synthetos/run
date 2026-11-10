@@ -17,7 +17,7 @@ import { axisSettings, boardReading, lastReadLabel, motionInputs, type BoardRead
 import { motionView } from '../src/workspace/analysisState.ts';
 import { camTip, fixesFor } from '../src/workspace/views/analyze/findings.ts';
 import { analysisNotes } from '../src/workspace/views/analyze/analysisNotes.ts';
-import { headline, longerLine, rapidsLine, stopsLine } from '../src/workspace/views/analyze/HeadlineStrip.ts';
+import { chips, headline, helpLines, subLine } from '../src/workspace/views/analyze/headlineText.ts';
 import { toolLabel } from '../src/workspace/views/analyze/OperationsCard.ts';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 import { shortMm } from '../src/workspace/views/analyze/format.ts';
@@ -116,17 +116,20 @@ describe('a dense CAM file', () => {
     const [fix] = fixesFor(r, null);
     expect(fix?.kind).toBe('tiny');
     expect(fix?.title).toBe('Most of this file is tiny moves');
-    expect(fix?.meaning.join(' ')).toMatch(/^[0-9,]+ of [0-9,]+ moves are under 0\.1 mm\. Most are in lines [0-9,]+–[0-9,]+\. Half the moves are under 0\.\d+ mm\. A quarter are under 0\.\d+ mm\. The machine can’t reach 500 mm\/min on moves this short, so real time will be much longer\.$/);
-    expect(fix?.todo).toEqual([camTip(null), 'Fewer, longer moves run faster and smoother.', 'A smoother copy (merge tiny moves, fit arcs) is coming.']);
+    expect(fix?.meaning).toHaveLength(2);
+    expect(fix?.meaning[0]).toMatch(/^[0-9,]+ of [0-9,]+ moves are under 0\.1 mm\.$/);
+    expect(fix?.meaning[1]).toMatch(/^Most are in lines [0-9,]+–[0-9,]+\.$/);
+    expect(fix?.todo).toEqual([camTip(null)]);
+    expect(fix?.details.join(' ')).toMatch(/^Half are under 0\.\d+ mm\. A quarter are under 0\.\d+ mm\. Smoothing tolerance: about 0\.01 mm\. A smoother copy is coming\.$/);
     expect([fix?.fromSent, fix?.toSent, fix?.line]).toEqual([d.fromSent, d.toSent, d.fromLine]);
-    expect(camTip(null)).toBe('In your CAM, turn on arc output (G2/G3) and smoothing, with a tolerance around 0.01 mm.');
-    expect(camTip('Vectric')).toContain('(Vectric)');
-    expect(camTip('Fusion')).toContain('Smoothing in the operation’s Passes tab');
+    expect(camTip(null)).toBe('Turn on arcs and smoothing in your CAM.');
+    expect(camTip('Vectric')).toBe('Turn on arcs and smoothing in Vectric.');
+    expect(camTip('Fusion')).toBe('In Fusion, turn on Smoothing (Passes tab) and arcs.');
     // The same finding is a note for the Notes tab: what it means, the rest behind More, a link to its line.
     const [note] = analysisNotes(fixesFor(r, null));
     expect(note).toMatchObject({ id: 'analyze-tiny', topic: 'Analyze', title: 'Most of this file is tiny moves', tone: 'info', link: { kind: 'line', line: d.fromLine } });
     expect(note?.body).toBe(fix?.meaning[0]);
-    expect(note?.detail).toContain('A smoother copy (merge tiny moves, fit arcs) is coming.');
+    expect(note?.detail).toBe(`${fix?.meaning[1] ?? ''} ${camTip(null)}`);
     expect(r.operations.map((o) => o.name)).toEqual(['Finish']);
     expect([shortMm(0.006), shortMm(0.085), shortMm(2.54), shortMm(12.3)]).toEqual(['0.006 mm', '0.09 mm', '2.5 mm', '12 mm']);
   });
@@ -144,12 +147,14 @@ describe('plunge-heavy operations', () => {
     expect(found[0]?.regime).toMatchObject({ kind: 'plunge', feed: 100, moves: 40, firstLine: 7 });
     expect(found[0]?.share).toBeGreaterThan(0.9);
     const [plunge] = fixesFor(r, null);
-    expect(plunge).toMatchObject({ kind: 'plunge', title: 'Slow plunges in Groove', line: 7 });
-    expect(plunge?.meaning[0]).toMatch(/^40 plunges at 100 mm\/min take /);
+    expect(plunge).toMatchObject({ kind: 'plunge', line: 7, todo: ['In your CAM, start plunges lower or ramp in.'] });
+    expect(plunge?.title).toMatch(/^Slow plunges: 9\d% of Groove$/);
+    expect(plunge?.meaning[0]).toMatch(/^40 plunges at 100 mm\/min: \d+ min \d\d s\.$/);
+    expect(plunge?.meaning[1]).toBe('Each starts 6 mm up.');
     expect(plungeFindings(preview(JOB).analysis)).toEqual([]);
     // A long stretch at a low feed is its own finding; a short file has nothing to fix.
     const slowFile = preview('G21 G90\nG1 X300 F1000\nG1 Y60 F100\nM30\n').analysis;
-    expect(fixesFor(slowFile, null).map((f) => [f.kind, f.title, f.line])).toEqual([['slow', 'A slow stretch: 36 s', 3]]);
+    expect(fixesFor(slowFile, null).map((f) => [f.kind, f.title, f.line])).toEqual([['slow', 'Slow stretch (36 s)', 3]]);
     expect(fixesFor(preview('G21 G90\nG1 X10 F600\nM30\n').analysis, null)).toEqual([]);
     expect(plungeFindings({ ...r, operations: r.operations.map((o) => ({ ...o, seconds: null })) })).toEqual([]);
   });
@@ -158,18 +163,22 @@ describe('plunge-heavy operations', () => {
 describe('the headline and labels', () => {
   it('a lower bound for the cutting, stops and rapids in short words, tools from the tool table', () => {
     const view = motionView(preview(JOB).analysis, NO_SOURCES);
-    expect(headline(view)).toMatch(/^At least \d+ s of cutting$/);
+    expect(headline(view)).toMatch(/^At least \d+ s$/);
     // With some moves untimed, the known part is still a lower bound.
     const partial = { ...view, time: { ...view.time, feedSeconds: { ...view.time.feedSeconds, value: null } } };
     expect(headline(partial)).toBe(headline(view));
-    expect(headline({ ...partial, report: { ...view.report, knownFeedSeconds: 0 } })).toBe('Cutting time not known yet');
-    expect(longerLine(view)).toBe('Real time will be longer: rapids aren’t timed yet, the machine slows for short moves and 1 dwell adds 2 s.');
-    expect(longerLine(motionView(preview('G21 G90\nT1 M6\nM0\nG1 X1 F100\nM30\n').analysis, NO_SOURCES))).toBe('Real time will be longer: the machine slows for short moves and 1 tool change and 1 pause wait for you.');
-    expect(stopsLine(0, 0)).toBeNull();
-    expect(stopsLine(5, 5)).toBe('5 tool changes and 5 pauses wait for you');
-    expect(stopsLine(0, 1)).toBe('1 pause waits for you');
-    expect(rapidsLine(view)).toBe('Rapids: 11 mm, not timed yet.'); // up 5 from the start, then up 6 from Z-1
-    expect(rapidsLine(motionView(preview('G21 G90\nG1 X1 F100\nM30\n').analysis, NO_SOURCES))).toBe('No rapids.');
+    expect(headline({ ...partial, report: { ...view.report, knownFeedSeconds: 0 } })).toBe('Time not known yet');
+    // One line under it; why real time is longer goes behind the (?), one sentence each.
+    const base = { estimate: null, modelled: false, connected: false, reading: false };
+    expect(subLine(base)).toEqual({ kind: 'connect', text: 'Connect to get a closer time.' });
+    expect(subLine({ ...base, connected: true })).toEqual({ kind: 'reading', text: 'Reading your machine’s settings…' });
+    expect(subLine({ ...base, connected: true, reading: true })).toEqual({ kind: 'settings', text: 'Some machine settings are missing.' });
+    expect(subLine({ ...base, modelled: true })).toEqual({ kind: 'pending', text: 'Working out a closer time…' });
+    expect(helpLines(view, null, null)).toEqual(['Real time is longer.', 'Rapids aren’t timed yet.', 'The machine slows for short moves and corners.', '1 dwell adds 2 s.']);
+    expect(helpLines(motionView(preview('G21 G90\nT1 M6\nM0\nG1 X1 F100\nM30\n').analysis, NO_SOURCES), null, null)).toEqual(['Real time is longer.', 'The machine slows for short moves and corners.', 'Tool changes and pauses aren’t counted.']);
+    // The facts as numbers; rapids, tool changes and pauses only when there are any.
+    expect(chips(view).map((c) => c.text)).toEqual([expect.stringMatching(/^\d+ mm cutting$/), '11 mm rapids', expect.stringMatching(/^\d+ lines$/)]); // up 5 from the start, then up 6 from Z-1
+    expect(chips(motionView(preview('G21 G90\nT1 M6\nM0\nG1 X1 F100\nM30\n').analysis, NO_SOURCES)).map((c) => c.fact)).toEqual(['feed-mm', 'lines', 'tool-changes', 'pauses']);
     const tool = SEED_TOOLS[0];
     if (tool === undefined) throw new Error('no seed tool');
     expect(toolLabel(tool.number, SEED_TOOLS)).toBe(`T${tool.number} · ${tool.tool.name}`);

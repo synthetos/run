@@ -13,8 +13,8 @@ import { motorSteps, type BoardReading } from '../src/workspace/analysisInputs.t
 import { estimateFor, motionView, planEstimate, requestEstimate } from '../src/workspace/analysisState.ts';
 import { plannerProfile } from '../src/workspace/plannerInputs.ts';
 import { fixesFor } from '../src/workspace/views/analyze/findings.ts';
-import { estimateLine, headline } from '../src/workspace/views/analyze/HeadlineStrip.ts';
-import { SPEED_SHARE, speedFix } from '../src/workspace/views/analyze/speedFix.ts';
+import { chips, headline, helpLines, subLine } from '../src/workspace/views/analyze/headlineText.ts';
+import { SPEED_SHARE, speedCause, speedFix } from '../src/workspace/views/analyze/speedFix.ts';
 
 const AXIS = { vm: 16000, fr: 16000, jm: 5000, jd: 0.01 };
 const PROFILE: PlannerProfile = { axes: { X: { ...AXIS, stepsPerUnit: 40 }, Y: { ...AXIS, stepsPerUnit: 40 }, Z: { vm: 1000, fr: 1000, jm: 50, jd: 0.01, stepsPerUnit: 755.9293 } }, ja: 2_000_000, ct: 0.01 };
@@ -95,27 +95,36 @@ describe('the headline and "What to fix" with the estimate', () => {
   const shares = (changing: number, by: Partial<Record<'axis_cap' | 'junction' | 'exact_stop' | 'short' | 'min_segment', number>>) => ({ motionS: 100, changingS: changing, cruisingS: 100 - changing, changingBy: { axis_cap: 0, junction: 0, exact_stop: 0, short: 0, min_segment: 0, ...by } });
   const est = (changing: number, by: Parameters<typeof shares>[1]): Estimate => ({ ok: true, seconds: 3725, motionS: 100, dwellS: 0, shares: shares(changing, by) });
 
-  it('"About" with the settings named; "At least" without them', () => {
-    const r = preview('G21 G90\nT1 M6\nM0\nG1 X100 F600\nM30\n');
+  it('"About" and one short line; how it was found behind the (?); "At least" without it', () => {
+    const r = preview('G21 G90\nT1 M6\nM0\nG0 X5\nG1 X100 F600\nM30\n');
     const view = motionView(r.analysis, NO_SOURCES);
     expect(headline(view, est(10, {}))).toBe('About 1 h 02 min');
     expect(headline(view, { ok: false, reason: 'x' })).toMatch(/^At least /);
-    expect(estimateLine(view, 'Board settings')).toBe('From your machine’s settings (Board settings) and the firmware’s planner. Plus 1 tool change and 1 pause wait for you.');
-    expect(estimateLine(motionView(preview('G21 G90\nG1 X1 F600\nM30\n').analysis, NO_SOURCES), null)).toBe('From your machine’s settings and the firmware’s planner.');
+    const base = { modelled: true, connected: false, reading: true };
+    expect(subLine({ ...base, estimate: est(10, {}) })).toEqual({ kind: 'estimate', text: 'From your machine’s settings.' });
+    expect(subLine({ ...base, estimate: { ok: false, reason: 'line 4 has no feed rate' } })).toEqual({ kind: 'no-estimate', text: 'No closer time: line 4 has no feed rate.' });
+    expect(helpLines(view, est(10, {}), 'Board settings')).toEqual(['Timed with the firmware’s planner (TinyG 450.02).', 'Settings: Board settings.', 'Tool changes and pauses aren’t counted.']);
+    expect(helpLines(motionView(preview('G21 G90\nG1 X1 F600\nM30\n').analysis, NO_SOURCES), est(10, {}), null)).toEqual(['Timed with the firmware’s planner (TinyG 450.02).']);
+    // A timed rapid shows its time in the chip, and its source behind the (?).
+    const timed = { ...view, time: { ...view.time, rapidSeconds: { ...view.time.rapidSeconds, value: 2, label: 'Board settings' } } };
+    expect(chips(timed).find((c) => c.fact === 'rapid-time')?.text).toBe('5 mm rapids (2 s)');
+    expect(helpLines(timed, null, null)).toContain('Rapids add about 2 s (Board settings).');
+    expect(chips(motionView(preview('G21 G90\nG0 X0\nG1 X1 F600\nM30\n').analysis, NO_SOURCES)).map((c) => c.fact)).toEqual(['feed-mm', 'lines']);
   });
 
-  it('a finding when speeding up and slowing down takes much of the time, named by the firmware’s tag', () => {
+  it('a finding when speeding up and slowing down takes much of the time; the firmware’s tags behind Details', () => {
     const r = preview('G21 G90\nG1 X100 F600\nM30\n').analysis;
     expect(speedFix(est(SPEED_SHARE * 100 - 1, { short: 30 }), r, null)).toBeNull();
     expect(speedFix({ ok: false, reason: 'x' }, r, null)).toBeNull();
     expect(speedFix({ ...est(0, {}), shares: { ...shares(0, {}), motionS: 0 } } as Estimate, r, null)).toBeNull();
     const short = speedFix(est(62, { short: 40, min_segment: 10, junction: 30 }), r, null);
-    expect(short).toMatchObject({ kind: 'speed', title: '62% of the time is speeding up or slowing down', linked: false });
-    expect(short?.meaning[0]).toBe('62% of the time the machine is accelerating or braking: moves too short to reach the feed.');
-    expect(speedFix(est(50, { junction: 40, short: 5 }), r, null)?.meaning[0]).toContain(': corners.');
-    expect(speedFix(est(50, { exact_stop: 40 }), r, null)?.todo[0]).toContain('G64');
-    expect(speedFix(est(50, { axis_cap: 40 }), r, null)?.meaning[0]).toContain('cannot run at the programmed feed');
-    expect(speedFix(est(50, {}), r, null)?.meaning[0]).toBe('50% of the time the machine is accelerating or braking.');
+    expect(short).toMatchObject({ kind: 'speed', title: 'Mostly speeding up and slowing down (62%)', meaning: ['Moves are too short to reach feed.'], todo: ['Turn on arcs and smoothing in your CAM.'], linked: false });
+    expect(short?.details).toEqual(['Short moves: 50% of the time.', 'Corners: 30% of the time.', 'A move can have more than one cause.', 'Smoothing tolerance: about 0.01 mm.']);
+    expect(speedFix(est(45, { junction: 40, short: 5 }), r, null)).toMatchObject({ title: 'Often speeding up and slowing down (45%)', meaning: ['Corners slow it down.'] });
+    expect(speedFix(est(50, { exact_stop: 40 }), r, null)?.todo).toEqual(['Use G64 where the part allows.']);
+    expect(speedFix(est(50, { axis_cap: 40 }), r, null)?.meaning).toEqual(['One axis can’t keep up with the feed.']);
+    expect(speedFix(est(50, {}), r, null)).toMatchObject({ meaning: ['Moves rarely reach feed.'], details: [] });
+    expect(speedCause(null)).toBeNull();
     expect(fixesFor(r, null, est(62, { short: 50 }))[0]?.kind).toBe('speed');
   });
 
@@ -127,5 +136,15 @@ describe('the headline and "What to fix" with the estimate', () => {
     const fix = speedFix(est(70, { short: 60 }), r, null);
     expect(fix?.linked).toBe(true);
     expect(fix?.line).toBe(r.density.regions[0]?.fromLine);
+    // With the tiny-moves card, one card: the speed title and fix, the tiny numbers, links and sections; no repeat.
+    const fixes = fixesFor(r, null, est(70, { short: 60 }));
+    expect(fixes.map((f) => f.kind)).toEqual(['speed']);
+    expect(fixes[0]?.meaning[0]).toBe('Moves are too short to reach feed.');
+    expect(fixes[0]?.meaning[1]).toMatch(/moves are under 0\.1 mm\.$|short moves in lines/);
+    expect(fixes[0]?.todo).toEqual(['Turn on arcs and smoothing in your CAM.']);
+    expect(fixes[0]?.details.filter((d) => d.startsWith('Smoothing tolerance'))).toHaveLength(1);
+    expect(fixes[0]?.regions).toEqual(r.density.regions);
+    // Corners as the cause: two cards, each with its own fix.
+    expect(fixesFor(r, null, est(70, { junction: 60 })).map((f) => f.kind)).toEqual(['tiny', 'speed']);
   });
 });

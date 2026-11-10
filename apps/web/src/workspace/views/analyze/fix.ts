@@ -9,6 +9,8 @@ export interface Fix {
   readonly meaning: readonly string[];
   /** What to do, in short sentences. */
   readonly todo: readonly string[];
+  /** The rest, behind Details: one short line each. */
+  readonly details: readonly string[];
   /** Where: the sent-line range to show on the toolpath, and the first file line (with its sent index). */
   readonly fromSent: number;
   readonly toSent: number;

@@ -1,6 +1,6 @@
 /**
- * Analyze (docs/design/ANALYZE.md slice 1): explain the open job before asking anything. A headline (at least
- * how long the cutting takes at programmed speeds, the stops, the rapids), "What to fix" (each finding with what it
+ * Analyze (docs/design/ANALYZE.md slice 1): explain the open job before asking anything. A headline (the time from
+ * the firmware model, or at least the cutting at programmed speeds; the facts as numbers), "What to fix" (each finding with what it
  * means, what to do, and links to the toolpath and the line in Job), then the operations with the cutting check, one
  * question at a time. Advanced adds every finding, the dense sections, the machine speeds with their source, the
  * move-rate histogram and the speed comparison.
@@ -49,11 +49,11 @@ export function AnalyzeView({ model = null }: { readonly model?: WorkspaceModel 
       'div',
       { class: 'scroll-region analyze-scroll', tabindex: 0 },
       view === null
-        ? h('div', { class: 'panel', 'data-analyze': 'empty' }, h('p', null, 'Open a file in Job to see what it does.'), h('p', { class: 'fine' }, `Stock: ${advisorStock.value?.name ?? 'not chosen'}.`))
+        ? h('div', { class: 'panel', 'data-analyze': 'empty' }, h('p', null, 'No file open.'), h('p', { class: 'fine' }, `Stock: ${advisorStock.value?.name ?? 'not chosen'}.`))
         : h(
             'div',
             { class: 'analyze-page' },
-            h(HeadlineStrip, { view, connected: live !== null && connected(live), estimate, settingsLabel, modelled: profile !== null }),
+            h(HeadlineStrip, { view, connected: live !== null && connected(live), estimate, settingsLabel, modelled: profile !== null, reading: reading !== null }),
             h(FixList, { report: view.report, cam: file?.preview?.cam ?? null, estimate, advanced }),
             h(OperationsCard, { rows: advisorRows.value, stock: advisorStock.value, problem: advisorOperations.value.problem, advanced }),
             advanced ? h(DetailsCard, { view }) : null,

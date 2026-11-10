@@ -11,6 +11,7 @@
 /* The headline strip. */
 .analyze-strip .analyze-headline { font-size: 24px; font-weight: 600; margin: 0 0 2px; }
 .analyze-strip-sub { color: var(--muted); }
+.analyze-strip-sub .help-line { display: block; }
 .analyze-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 8px 0 6px; padding: 0; }
 .analyze-chips li { border: 1px solid var(--rule); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; background: var(--paper); }
 .analyze-source { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }

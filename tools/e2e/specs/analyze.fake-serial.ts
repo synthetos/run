@@ -75,10 +75,10 @@ test('disconnected, no inputs: a lower bound, what to fix with links, one operat
   const view = await analyze(page);
   const summary = view.locator('[data-analyze="summary"]');
   await expect(summary).toBeVisible({ timeout: 15_000 });
-  await expect(summary.locator('[data-analyze="time"]')).toHaveText(/^At least \d+ s of cutting$/);
-  await expect(summary.locator('[data-analyze="longer"]')).toHaveText('Real time will be longer: rapids aren’t timed yet, the machine slows for short moves and 1 dwell adds 1 s.');
-  await expect(summary.locator('[data-fact="rapid-time"]')).toContainText('not timed yet');
-  await expect(summary.locator('[data-analyze="missing"]')).toHaveText("Connect to read your machine's speeds. The time estimate will improve.");
+  await expect(summary.locator('[data-analyze="time"]')).toHaveText(/^At least \d+ s$/);
+  await expect(summary.locator('[data-analyze="connect"]')).toHaveText('Connect to get a closer time.');
+  await expect(summary.locator('[data-analyze="help-line"]')).toHaveText(['Real time is longer.', 'Rapids aren’t timed yet.', 'The machine slows for short moves and corners.', '1 dwell adds 1 s.']);
+  await expect(summary.locator('[data-fact="rapid-time"]')).toHaveText(/^\d+ mm rapids$/);
   await expect(view).not.toContainText('Unavailable');
   await expect(view).not.toContainText('Not known');
   // What to fix: the tiny moves first, then the slow pass; each says what to do and links to Job.
@@ -86,9 +86,9 @@ test('disconnected, no inputs: a lower bound, what to fix with links, one operat
   await expect(fixes).toHaveCount(2);
   const tiny = view.locator('[data-fix="tiny"]');
   await expect(tiny.locator('h3')).toHaveText('Most of this file is short moves'); // about 0.3 mm each
-  await expect(tiny).toContainText('Half the moves are under');
-  await expect(tiny).toContainText('turn on arc output (G2/G3) and smoothing');
-  await expect(tiny).toContainText('A smoother copy (merge tiny moves, fit arcs) is coming.');
+  await expect(tiny.locator('.analyze-todo p')).toHaveText(['Turn on arcs and smoothing in your CAM.']);
+  await tiny.locator('[data-fix-details] summary').click();
+  await expect(tiny.locator('[data-fix-details] li').first()).toHaveText(/^Half are under /);
   // One operation card, with the plunge and the cuts under it; questions one at a time.
   const ops = view.locator('[data-advisor-operation]');
   await expect(ops).toHaveCount(1);
@@ -113,7 +113,7 @@ test('disconnected, no inputs: a lower bound, what to fix with links, one operat
   await page.locator('[data-action="ui-level-advanced"]').click();
   const adv = await analyze(page);
   await expect(adv.locator('[data-analyze="histogram"]')).toBeVisible();
-  await expect(adv.locator('[data-analyze="axis-settings"]')).toHaveText("Connect to read your machine's speeds. The time estimate will improve.");
+  await expect(adv.locator('[data-analyze="axis-settings"]')).toHaveText('Speeds not read yet.');
   await expect(adv.locator('[data-action="advisor-engine"]')).toHaveCount(0);
   await page.locator('[data-action="ui-level-simple"]').click();
 });
@@ -127,8 +127,9 @@ test('connected: "Board settings" times the rapids; a newer file replaces the re
   const before = (await writes(worker)).length;
   const view = await analyze(page);
   const summary = view.locator('[data-analyze="summary"]');
-  await expect(summary.locator('[data-fact="rapid-time"]')).toContainText('Board settings');
-  await expect(summary.locator('[data-analyze="missing"]')).toHaveCount(0);
+  await expect(summary.locator('[data-fact="rapid-time"]')).toHaveText(/^\d+ mm rapids \(\d+ s\)$/);
+  await expect(summary.locator('[data-analyze="help-line"]')).toContainText(['Board settings']);
+  await expect(summary.locator('[data-analyze="connect"]')).toHaveCount(0);
   await page.locator('[data-action="ui-level-advanced"]').click();
   await expect(view.locator('[data-analyze="axis-settings"]')).toContainText('Board settings');
   await page.locator('[data-action="ui-level-simple"]').click();
@@ -167,8 +168,27 @@ test('a saved board reading: the firmware model times the file, "About …", and
   const view = await analyze(page);
   const summary = view.locator('[data-analyze="summary"]');
   await expect(summary.locator('[data-analyze="time"]')).toHaveText(/^About \d+ s$/, { timeout: 15_000 });
-  await expect(summary.locator('[data-analyze="estimate"]')).toContainText('From your machine’s settings (Last read ');
+  await expect(summary.locator('[data-analyze="estimate"]')).toHaveText('From your machine’s settings.');
+  await expect(summary.locator('[data-analyze="help-line"]').nth(1)).toContainText('Settings: Last read ');
   await contained(page);
+  // A zigzag of 0.1 mm moves: the speed card takes in the tiny-moves numbers, one fix, the tags behind Details.
+  const zigzag = ['G21 G90 G17', 'G0 X0 Y0', 'G1 Z-1 F600', ...Array.from({ length: 1000 }, (_, i) => `G1 X${(i % 2) * 0.1} Y${(i * 0.05).toFixed(2)} F3000`), 'M30'].join('\n');
+  await page.locator('[data-region="rail"] [data-view="job"]').click();
+  await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name: 'zigzag.nc', mimeType: 'text/plain', buffer: Buffer.from(zigzag) });
+  const again = await analyze(page);
+  const speed = again.locator('[data-fix="speed"]');
+  await expect(speed.locator('h3')).toHaveText(/^(Mostly|Often) speeding up and slowing down \(\d+%\)$/, { timeout: 15_000 });
+  await expect(speed.locator('.analyze-todo p')).toHaveText(['Turn on arcs and smoothing in your CAM.']);
+  await expect(again.locator('[data-fix="tiny"]')).toHaveCount(0);
+  await expect(again.locator('[data-fact="rapid-time"]')).toHaveCount(0); // G0 to where it already is: no rapids chip
+  if (SHOTS !== undefined) {
+    await speed.locator('[data-fix-details] summary').click();
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.evaluate((c) => { document.documentElement.dataset['theme'] = c; }, scheme);
+      await page.screenshot({ path: `${SHOTS}/speed-${scheme}-1280x720.png` });
+    }
+  }
 });
 
 // A local file (ANALYZE_FILE, never committed) captured into ANALYZE_SHOTS.
@@ -211,6 +231,21 @@ test('a local file: Analyze in Simple and Advanced, light and dark, 1280x720 and
       }
     }
   }
+  // Behind the (?) and a card's Details, both themes.
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.locator('[data-action="ui-level-simple"]').click();
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.evaluate((c) => { document.documentElement.dataset['theme'] = c; }, scheme);
+    await page.locator('[data-screen="analyze"] .scroll-region').evaluate((el) => { el.scrollTop = 0; });
+    await page.locator('[data-screen="analyze"] [data-analyze="summary"] [data-action="context-help"]').hover();
+    await page.screenshot({ path: `${SHOTS as string}/local-simple-${scheme}-1280x720-help.png` });
+    const more = page.locator('[data-screen="analyze"] [data-fix-details]').first();
+    await more.locator('summary').click();
+    await more.evaluate((el) => el.closest('.analyze-fix')?.scrollIntoView({ block: 'start' }));
+    await page.screenshot({ path: `${SHOTS as string}/local-simple-${scheme}-1280x720-fix-details.png` });
+    await more.locator('summary').click();
+  }
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.emulateMedia({ colorScheme: 'light' });
   await page.evaluate(() => { document.documentElement.dataset['theme'] = 'light'; });
@@ -218,11 +253,13 @@ test('a local file: Analyze in Simple and Advanced, light and dark, 1280x720 and
   // "Show on toolpath": Job with the lines highlighted on the toolpath. The phone width lays Job out again and the
   // preview reloads the file; wait for that to settle first.
   await page.waitForTimeout(3000);
-  await expect(page.locator('[data-screen="analyze"] [data-fix="tiny"]')).toBeVisible({ timeout: 30_000 });
+  // The tiny-moves card, or the speed card that took it in.
+  const dense = page.locator('[data-screen="analyze"] :is([data-fix="tiny"], [data-fix="speed"]):has([data-action="show-on-toolpath"])').first();
+  await expect(dense).toBeVisible({ timeout: 30_000 });
   // The preview may still be reloading after the phone layout: click until Job opens.
   await expect(async () => {
     await page.locator('[data-region="rail"] [data-view="analyze"]').click();
-    await page.locator('[data-screen="analyze"] [data-fix="tiny"] [data-action="show-on-toolpath"]').click();
+    await dense.locator('[data-action="show-on-toolpath"]').click();
     await expect(page.locator('[data-screen="job"]')).toBeVisible({ timeout: 2000 });
   }).toPass({ timeout: 30_000 });
   await page.waitForTimeout(1500);
