@@ -60,6 +60,17 @@ test('the machine’s work zero is offered once the position is set, and Run com
   // ("the board's work zero"), and the start confirmation's Details have no C31 (OD-28, confirmed).
   await expect(page.locator('[data-job="confirm-start"]')).not.toContainText('the board\'s work zero');
   await expect(page.locator('[data-safety="C31"]')).toHaveCount(0);
+  // C30 names the zero in plain words; the board's numbers are under Details, and there is no C31 there.
+  await page.locator('[data-job="confirm-start-box"]').check();
+  await page.locator('[data-action="start-job"]').click();
+  const travel = page.locator('[data-action="travel-start"]');
+  const c30 = page.locator('[data-safety="C30"]');
+  await expect(travel.or(c30).first()).toBeVisible();
+  if ((await travel.count()) > 0) await travel.click();
+  await expect(c30).toContainText('Work zero: the machine’s work zero.');
+  await expect(c30.locator('[data-details]')).toContainText('Work zero on the board: X ');
+  await expect(c30.locator('[data-full="C31"]')).toHaveCount(0);
+  await c30.locator('[data-action="motion-cancel"]').click();
   // Nothing that sets a zero was written.
   expect((await writes(worker)).slice(from).filter((w) => /G10|G92|G28\.3/.test(w))).toEqual([]);
   // Back to a point on the stock.

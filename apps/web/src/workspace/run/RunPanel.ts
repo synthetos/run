@@ -33,6 +33,7 @@ import { jobStep } from '../jobWorkflow.ts';
 import { signalText } from '../../shell/signal.ts';
 import { runZeroCheck, setupPlan } from '../zeroPlan.ts';
 import { liveWorkZero } from '../liveZero.ts';
+import { c30ZeroNumbers, c30ZeroWords } from './c30Zero.ts';
 import { Details } from './ChoiceModal.ts';
 import { ReadyList } from './ReadyList.ts';
 import { readyModel, type ReadyActionId, type ReadyInput, type TravelAsk } from './readyModel.ts';
@@ -114,7 +115,8 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
   const board = boardZero(s);
   const setup = activeJob.value;
   const established = s !== null && positionEstablished({ mpo: {}, pos: {}, home: s.live.home ?? 0, overlays: s.overlays });
-  const zero = runZeroCheck(board, plan, setup === null ? null : setupPlan(setup, liveWorkZero.value), established);
+  const sp = setup === null ? null : setupPlan(setup, liveWorkZero.value);
+  const zero = runZeroCheck(board, plan, sp, established);
   const mine = job !== null && job.hash === hash;
   const report = mine && job.phase !== 'loading' ? job.report : null;
   const hv = homingView(view, settingsOf(view));
@@ -220,7 +222,9 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
 
   if (ui.active) return null;
   const spindleWords = startsSpindle ? `starts with ${speedsText(job)}` : 'not used';
-  const workZeroWords = board === null ? 'not read' : zeroText(board);
+  // Plain words in C30 (where the job cuts from); the board's numbers under Details.
+  const workZeroWords = c30ZeroWords(board, zero, sp, established);
+  const zeroNumbers = c30ZeroNumbers(board);
   return h(
     'div',
     { class: 'job-steps run-panel', 'data-job': 'steps' },
@@ -280,6 +284,7 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
           h('p', { class: 'start-w5', 'data-safety': 'W5' }, ...signalText(w5({ distanceMm: Math.round(job.queuedBoundMm ?? 0) || 50, seconds: 5 }))),
           h(Details, {
             texts: [
+              ...(zeroNumbers === null ? [] : [{ text: zeroNumbers }]),
               ...(ready.tick.includes('workZero') && board !== null ? [{ safety: 'C31', text: c31({ board: zeroText(board), plan: zero.planText }) }] : []),
               ...(ready.tick.includes('unhomed') ? [{ safety: 'C36', text: c36() }] : []),
               ...(startsSpindle ? [{ safety: 'C32', text: c32({ speeds: speedsText(job) }) }] : []),

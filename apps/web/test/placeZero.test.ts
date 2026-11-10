@@ -215,3 +215,23 @@ describe('the machine’s work zero as the placement', () => {
     expect(setupPlan(j, null).machine).toBeUndefined();
   });
 });
+
+describe('C30’s work zero in plain words (lead, 2026-11-10)', () => {
+  it('says where the job cuts from; the numbers go under Details', async () => {
+    const { c30ZeroNumbers, c30ZeroWords } = await import('../src/workspace/run/c30Zero.ts');
+    const board = { x: 140, y: 95, z: -20 };
+    const machine = { zero: board, corner: 'center', height: 'top', machine: true } as const;
+    const centre = { zero: board, corner: 'center', height: 'top', offset: { x: 0, y: 0, z: 2 } } as const;
+    const check = (state: 'match' | 'differs', source: 'setup' | 'saved' | 'none') => ({ state, source, text: '', planText: '', board, plan: board }) as never;
+    expect(c30ZeroWords(board, check('match', 'setup'), machine, true)).toBe('the machine’s work zero');
+    expect(c30ZeroWords(board, check('match', 'setup'), centre, true)).toBe('the centre of the top of the stock, 2 mm below the top');
+    expect(c30ZeroWords(board, check('match', 'saved'), null, true)).toBe('the work zero you saved');
+    expect(c30ZeroWords(board, check('differs', 'setup'), centre, true)).toBe('the board’s work zero, not your plan’s');
+    expect(c30ZeroWords(board, check('differs', 'setup'), centre, false)).toBe('the board’s work zero');
+    expect(c30ZeroWords(board, check('differs', 'none'), null, true)).toBe('the board’s work zero');
+    expect(c30ZeroWords(null, check('differs', 'none'), null, true)).toBe('not read');
+    expect(c30ZeroWords(board, check('match', 'setup'), machine, true)).not.toMatch(/\d/);
+    expect(c30ZeroNumbers(board)).toBe('Work zero on the board: X 140.000 Y 95.000 Z −20.000 (machine).');
+    expect(c30ZeroNumbers(null)).toBeNull();
+  });
+});

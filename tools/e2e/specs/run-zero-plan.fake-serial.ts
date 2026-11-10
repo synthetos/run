@@ -46,5 +46,7 @@ test('Run names Place job’s planned zero and the difference from the board’s
   if ((await travel.count()) > 0) await travel.click();
   await expect(page.locator('[data-safety="C30"] [data-full="C31"]')).toContainText('at the front-left corner of the top of the stock');
   await expect(page.locator('[data-safety="C30"] [data-full="C31"]')).not.toContainText('none recorded');
+  // C30's work zero in plain words: the job cuts from the board's zero, which is not the plan's.
+  await expect(page.locator('[data-safety="C30"]')).toContainText('Work zero: the board’s work zero, not your plan’s.');
   await page.locator('[data-safety="C30"] [data-action="motion-cancel"]').click();
 });
