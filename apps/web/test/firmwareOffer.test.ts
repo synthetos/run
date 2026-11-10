@@ -41,6 +41,10 @@ describe('updateOffer', () => {
     expect(updateOffer(input({ snapshot: snap({ motion: { op: 'jog' } }) }))).toBeNull();
     expect(updateOffer(input({ flashing: true }))).toBeNull();
     expect(updateOffer(input({ snapshot: snap({ overlays: ['UNKNOWN'] }) }))).toBeNull();
+    // A STALE overlay holds a new offer back, but does not take down one already showing (no flicker on a busy computer).
+    expect(updateOffer(input({ snapshot: snap({ overlays: ['STALE'] }) }))).toBeNull();
+    expect(updateOffer(input({ snapshot: snap({ overlays: ['STALE'] }), showing: true }))).not.toBeNull();
+    expect(updateOffer(input({ snapshot: snap({ overlays: ['STALE', 'UNKNOWN'] }), showing: true }))).toBeNull();
     expect(updateOffer(input({ messageUp: true }))).toBeNull();
     expect(updateOffer(input({ snapshot: snap({ job: { phase: 'running' } }) }))).toBeNull();
   });

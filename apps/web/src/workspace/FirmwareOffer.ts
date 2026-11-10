@@ -5,7 +5,7 @@
  * Centred below the machine strip like every confirmation (OD-16): Pause and Stop job stay uncovered.
  */
 import { h, type ComponentChild } from 'preact';
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import { offerText, fbText, updateOffer } from '../firmware/updateOffer.ts';
 import { dismissOffer, offerDismissed } from '../firmware/offerMemory.ts';
 import { boardTab, releaseRequest, viewRequest } from './boardNavigation.ts';
@@ -29,7 +29,10 @@ export function FirmwareOffer({ model, role, live }: FirmwareOfferProps): Compon
   const flash = message?.flash ?? null;
   const [later, setLater] = useState<readonly string[]>([]);
   const [, setDismissedNow] = useState(0);
+  // Once shown, a passing STALE overlay does not unmount it (it flickered on a loaded computer, and a press could miss it).
+  const showing = useRef(false);
   const offer = updateOffer({
+    showing: showing.current,
     snapshot: message?.snapshot ?? null,
     flashing: flash !== null && flash.phase !== 'done' && flash.phase !== 'failed',
     releases: hub !== null && hub.releases.ok ? hub.releases.list : null,
@@ -37,10 +40,17 @@ export function FirmwareOffer({ model, role, live }: FirmwareOfferProps): Compon
     fileOpen: currentFile.value !== null,
     messageUp: role !== null && !live && role.released.length > 0,
   });
-  if (offer === null) return null;
+  if (offer === null) {
+    showing.current = false;
+    return null;
+  }
   const version = fbText(offer.release.fb);
   const key = `${offer.boardId}:${version}`;
-  if (later.includes(key) || offerDismissed(offer.boardId, version)) return null;
+  if (later.includes(key) || offerDismissed(offer.boardId, version)) {
+    showing.current = false;
+    return null;
+  }
+  showing.current = true;
   const close = (): void => setLater((l) => [...l, key]);
   return h(
     'div',

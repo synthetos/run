@@ -25,6 +25,8 @@ export interface OfferInput {
   readonly fileOpen: boolean;
   /** Another machine message is up that is not an overlay (W29, a released lock): the offer waits behind it. */
   readonly messageUp: boolean;
+  /** The offer is already on screen: a passing STALE overlay (late status reports on a busy computer) does not take it down. */
+  readonly showing?: boolean;
 }
 
 export interface UpdateOffer {
@@ -54,7 +56,8 @@ function numberOf(v: unknown): number | null {
 export function updateOffer(input: OfferInput): UpdateOffer | null {
   const s = input.snapshot;
   if (s === null || input.releases === null || input.flashing || input.messageUp) return null;
-  if (!AT_REST.has(s.base) || s.motion !== null || s.overlays.length > 0) return null;
+  const overlays = input.showing === true ? s.overlays.filter((o) => o !== 'STALE') : s.overlays;
+  if (!AT_REST.has(s.base) || s.motion !== null || overlays.length > 0) return null;
   const jobOn = s.job !== null && !JOB_OVER.has(s.job.phase);
   // A job in progress waits; so does the Run step with a file open or a job loaded (a start may be under way).
   if ((jobOn && s.job?.phase !== 'ready') || (input.onRunStep && (input.fileOpen || jobOn))) return null;

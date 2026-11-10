@@ -74,6 +74,18 @@ describe('WebSerialTransport turns RTS on after every open', () => {
     expect(port.log).toEqual(['open', 'port-close']);
   });
 
+  it('a refused RTS whose port close also fails is still refused in plain words', async () => {
+    const port = new ScriptedSerialPort();
+    port.signalsError = new DOMException('The device has been lost.', 'NetworkError');
+    port.close = async () => {
+      port.log.push('port-close');
+      throw new Error('close failed');
+    };
+    const error = await new WebSerialTransport(port).open(SESSION_OPEN_OPTIONS).catch((e: unknown) => e);
+    expect(error).toMatchObject({ name: 'RtsRefusedError', message: RTS_REFUSAL, cause: port.signalsError });
+    expect(port.log).toEqual(['open', 'port-close']);
+  });
+
   it('a port that fails to open is never signalled', async () => {
     const port = new ScriptedSerialPort();
     port.openError = new DOMException('Failed to open serial port.', 'NetworkError');
