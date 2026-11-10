@@ -492,6 +492,14 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 
 **Decision.** The full C1 list is shown at the first Connect in a browser. Once it has been accepted there, no form of C1 is shown again in that browser: not the short form, not after a text change, not on a later day. The acceptance stays device-local (`device-safety`, never synced, never cleared by sign-out); a browser whose record cannot be read shows the full list again. W1 (the E-stop banner) is unchanged and stays on every page. SAFETY §4.1 (Enter LIVE), §6 C1 and HIL-1.3 are amended; run apps/web/src/live/c1.ts and liveEntry.ts implement it.
 
+## OD-31. Typed moves: design approved, long lines split, ask first on a low-Z G0 (owner, 2026-11-09)
+
+**Owner's words.** The typed-moves design approved; then "split, ask first".
+
+**Context.** The terminal lets a typed G0, G1, G2, G3 or G4 move the machine (SAFETY H91, docs/design/terminal-typed-moves.md). Each typed line goes through the same path as the button that does the same thing. As first built it refused any move the sanitiser would split under the §4.3 queued-motion ceiling (with k 0.5 that is about 21 mm at F500), and it sent a G0 as typed, with no safe-Z rule.
+
+**Decision.** A long typed line is sent as the sanitiser's own split, each piece at most ceiling ÷ lookahead of modelled time (1.25 s at the defaults), fed like a hold jog while fewer than 4 pieces are in the planner: the queue stays within the ceiling, and three pieces wait behind the one running so the planner does not brake between them (bench 2 showed every piece slowing to 0 with one waiting; bench confirmation is on the HIL list). The travel check runs on the whole line, the user sees one line in flight, and Pause, Resume and Stop job work as for a job. A G0 that moves X or Y while machine Z is below go to zero's safe Z asks "Z is low. Raise Z first?" with Raise / Move as typed / Cancel; Raise sends go to zero's own lines (`G90 G21`, `G53 G0 Z<safe>`, the modes read before the move put back) and is offered only when Z was homed in this connection (OD-23), the move has no Z word and the modes were read; otherwise only Move as typed and Cancel, with the reason. G1, G2 and G3 are never asked. SAFETY H91 records it; run packages/machine/src/session/typedMove.ts, typedTravel.ts, typedLowZ.ts and typedPieces.ts implement it.
+
 ## OD-32. Short safety wording for the Run step (owner, 2026-11-09)
 
 **Owner's words.** "approve with fire risk".
@@ -499,4 +507,3 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 **Context.** The Run step was redesigned (one "Ready to start?" list, one start tick, the travel question at Start). A strings table proposed short versions of the safety strings on that step.
 
 **Decision.** The table is approved, with W5 keeping the fire risk: "WARNING — If this tab closes or sleeps, the machine keeps moving (up to N mm, about T s) and the spindle stays on, a fire risk. Keep this tab open and stay at the machine." C30 is shorter (no line count). C31, C36 and C32 and the attestation are confirmed in one start tick ("I confirm: the board's work zero · axes checked · hands clear · I'll stay here, sleep off.", with what applies), their registered texts under Details in the start confirmation. C40 and C41 are answered at Start in the travel modal (Start anyway), with a plain title and short sentences, the registered texts under Details; when the board's work zero is not the plan's, the modal says so and leads with Set work zero first. SAFETY §5 (W5), §6 (C30, C31, C32, C36, C40, C41, including the mode column) and §4.4 are amended; packages/safety/src/strings.ts holds every string.
-
