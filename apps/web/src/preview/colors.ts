@@ -42,6 +42,7 @@ const FALLBACK: PreviewColors = {
   plannerExec: [0.56, 0.12, 0.56, 1],
   plannerQueued: [0.08, 0.42, 0.26, 1],
   plannerStarving: [0.58, 0.31, 0, 1],
+  carveCut: [0.42, 0.36, 0.59, 1],
 };
 
 /** Token per colour; a missing or unparsable token keeps the fallback. */
@@ -63,6 +64,8 @@ const TOKENS: Readonly<Record<keyof PreviewColors, string>> = {
   plannerExec: '--live',
   plannerQueued: '--state-run',
   plannerStarving: '--state-hold',
+  // The carved stock's cut surfaces (owner, 2026-11-09), apart from every stock family's colour.
+  carveCut: '--carve-cut',
 };
 
 /** How far traverses (rapids) are mixed from --muted toward the background, so cutting moves stay dominant. */

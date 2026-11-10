@@ -12,6 +12,10 @@
  * not be what the program intends) carve nothing either. Rapids carve: a
  * rapid into the stock cuts too.
  *
+ * A target may carry a tip (tip.ts): the line being cut is carved part way, up to the tool, so a long line shows
+ * as the tool goes instead of only once it ends. A later tip on the same line carries on from where the last
+ * one stopped; an earlier one restores, as scrubbing back does.
+ *
  * It also notes where the cut goes below the stock's bottom (belowStock.ts),
  * kept with each keyframe so a restore brings back what was found by then.
  *
@@ -24,6 +28,7 @@ import { createHeightmap, fullRect, unionRect, type CellRect, type GridSpec, typ
 import { createKeyframes, keyframeInterval, KEYFRAME_CAP_BYTES, type Keyframes } from './keyframes.ts';
 import { emptyDirty, isDirty, sweepSegment, type Dirty } from './sweep.ts';
 import { noteBelow, type BelowStock } from './belowStock.ts';
+import { tipInLine, tipProgress, type CarveTip } from './tip.ts';
 
 /** The tool at each change point, by list line: lines from `starts[k]` on use `shapes[k]`; before `starts[0]`, none. */
 export interface CarveTools {
@@ -49,8 +54,11 @@ export interface Carver {
   /** Where the lines carved so far go below the stock, or null. */
   readonly below: BelowStock | null;
   readonly keyframes: Keyframes<CarverMeta>;
-  /** Sets the target (lines 0..target-1 carved). When the carve is already past it, restores a keyframe: the whole grid is dirty. */
-  seek(target: number): CellRect | null;
+  /**
+   * Sets the target (lines 0..target-1 carved, and line `target` up to `tip` when given and on that line). When
+   * the carve is already past it, restores a keyframe: the whole grid is dirty.
+   */
+  seek(target: number, tip?: CarveTip | null): CellRect | null;
   /** Carves at most `budget` moves toward the target. */
   step(budget: number): CarveStep;
 }
@@ -82,6 +90,10 @@ export function createCarver(list: SegmentList, spec: GridSpec, tools: CarveTool
   let lowest = spec.top;
   let below: BelowStock | null = null;
   let pending: CellRect | null = null;
+  /** How far along segment `v` is already carved (a tip), 0..1. */
+  let partial = 0;
+  /** The tip on the target line, or null. */
+  let tip: CarveTip | null = null;
   const dirty: Dirty = emptyDirty();
   /** The cells the line being carved has changed so far: its lowest says how deep that line went. */
   const line: Dirty = emptyDirty();
@@ -131,8 +143,23 @@ export function createCarver(list: SegmentList, spec: GridSpec, tools: CarveTool
     lowest = lowestOf(z);
     below = kf === null ? null : kf.meta.below;
     Object.assign(line, emptyDirty());
+    partial = 0;
     pending = fullRect(spec);
   }
+
+  /** Sweeps segment `s` (from vertex s - 1 to s) between fractions t0 and t1 with `shape`. */
+  function sweepPart(s: number, t0: number, t1: number, shape: ToolShape): void {
+    const k = kinds[s] as number;
+    if ((k & KIND_MASK) === SEGMENT.BREAK || (k & SEGMENT.UNCERTAIN) !== 0 || t1 <= t0) return;
+    const a = (s - 1) * 3;
+    const b = s * 3;
+    const ax = vx[a] as number, ay = vx[a + 1] as number, az = vx[a + 2] as number;
+    const dx = (vx[b] as number) - ax, dy = (vx[b + 1] as number) - ay, dz = (vx[b + 2] as number) - az;
+    sweepSegment(heightmap, ax + t0 * dx, ay + t0 * dy, az + t0 * dz, ax + t1 * dx, ay + t1 * dy, az + t1 * dz, shape, line);
+  }
+
+  /** How far the carve has got along the line being carved, in tip units (tip.ts). */
+  const carvedProgress = (): number => v + partial;
 
   return {
     heightmap,
@@ -149,10 +176,12 @@ export function createCarver(list: SegmentList, spec: GridSpec, tools: CarveTool
     get below() {
       return below;
     },
-    seek(next) {
+    seek(next, nextTip = null) {
       target = Math.max(0, Math.min(lines, Math.floor(next)));
-      // Past the target: whole lines beyond it, or part of the target line itself.
-      if (through > target || (through === target && v > (ltv[through] as number))) restore(target);
+      tip = nextTip !== null && tipInLine(list, target, nextTip) ? nextTip : null;
+      // Past the target: whole lines beyond it, or further along the target line than the tip (or any of it, without one).
+      const want = tip === null ? (ltv[target] as number) : tipProgress(tip);
+      if (through > target || (through === target && carvedProgress() > want + 1e-9)) restore(target);
       return pending;
     },
     step(budget) {
@@ -167,12 +196,9 @@ export function createCarver(list: SegmentList, spec: GridSpec, tools: CarveTool
         }
         for (; v < end && n < budget; v++, n++) {
           if (v === 0) continue;
-          const k = kinds[v] as number;
-          const kind = k & KIND_MASK;
-          if (kind === SEGMENT.BREAK || (k & SEGMENT.UNCERTAIN) !== 0) continue;
-          const a = (v - 1) * 3;
-          const b = v * 3;
-          sweepSegment(heightmap, vx[a] as number, vx[a + 1] as number, vx[a + 2] as number, vx[b] as number, vx[b + 1] as number, vx[b + 2] as number, shape as ToolShape, line);
+          // The rest of a segment a tip carved part way.
+          sweepPart(v, partial, 1, shape as ToolShape);
+          partial = 0;
         }
         if (v >= end) {
           below = noteBelow(below, through, line.lowest, bottom);
@@ -180,6 +206,20 @@ export function createCarver(list: SegmentList, spec: GridSpec, tools: CarveTool
           Object.assign(line, emptyDirty());
           through++;
           if (through % keyframes.interval === 0) keyframes.put(through, z, { below });
+        }
+      }
+      // Then the target line up to the tip: the segments before it whole, the tip's segment part way.
+      if (through === target && tip !== null && shapeAt(through) !== null) {
+        const shape = shapeAt(through) as ToolShape;
+        for (; v < tip.vertex && n < budget; v++, n++) {
+          if (v === 0) continue;
+          sweepPart(v, partial, 1, shape);
+          partial = 0;
+        }
+        if (v === tip.vertex && tip.t > partial && n < budget) {
+          sweepPart(v, partial, tip.t, shape);
+          partial = tip.t;
+          n++;
         }
       }
       // A line part way through: its cells so far go out with this step; its depth is noted when it finishes.
@@ -190,7 +230,8 @@ export function createCarver(list: SegmentList, spec: GridSpec, tools: CarveTool
       const swept = isDirty(dirty) ? { x: dirty.x0, y: dirty.y0, w: dirty.x1 - dirty.x0 + 1, h: dirty.y1 - dirty.y0 + 1 } : null;
       const out = unionRect(pending, swept);
       pending = null;
-      return { dirty: out, through, done: through >= target };
+      const reached = tip === null || shapeAt(through) === null || carvedProgress() >= tipProgress(tip) - 1e-9;
+      return { dirty: out, through, done: through >= target && reached };
     },
   };
 }

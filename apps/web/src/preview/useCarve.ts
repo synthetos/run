@@ -13,7 +13,10 @@
  * only: nothing here changes or gates anything sent to the machine.
  *
  * During a job the page sets `target` from the board's last finished line
- * (liveCarve.ts) instead of the scrubber.
+ * (liveCarve.ts) instead of the scrubber. A tip source (carveFollow.ts:
+ * Play's tool, or the drawn tool during a job) takes over while it has a
+ * target: it seeks the carve part way along the line the tool is on, as the
+ * tool moves, without re-rendering the page.
  */
 import { signal, type ReadonlySignal } from '@preact/signals';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -22,6 +25,7 @@ import type { PreviewResult } from '../gcode-worker/pipeline.ts';
 import { toolStore } from '../workspace/library.ts';
 import { carveGrid } from './carveStock.ts';
 import { carvePlan } from './carveTools.ts';
+import type { CarveTarget, TipSource } from './carveFollow.ts';
 
 export interface CarveStatus {
   /** The file line carved through (0 for none). */
@@ -39,6 +43,8 @@ export interface CarveStatus {
 export interface CarveInfo {
   /** The heightmap's cell size, mm. */
   readonly cell: number;
+  /** The stock's top in the path frame: a carve lower than this has cut something. */
+  readonly top: number;
   readonly uncarved: readonly string[];
   readonly status: ReadonlySignal<CarveStatus>;
 }
@@ -61,11 +67,13 @@ export interface CarveInput {
   readonly enabled: boolean;
   /** The T number the user chose as already in the spindle, for the lines before the first tool change, or null. */
   readonly spindleTool?: number | null;
+  /** Targets that follow the tool (carveFollow.ts); while it has one, `target` is not used. */
+  readonly tips?: TipSource | null;
 }
 
 const IDLE: CarveStatus = Object.freeze({ through: 0, done: false, lowest: 0, failed: null, below: null });
 
-export function useCarve({ spawn, result, layers, pathOffset, target, enabled, spindleTool = null }: CarveInput): CarveView {
+export function useCarve({ spawn, result, layers, pathOffset, target, enabled, spindleTool = null, tips = null }: CarveInput): CarveView {
   const [client, setClient] = useState<CarveClient | null>(null);
   const status = useMemo(() => signal<CarveStatus>(IDLE), []);
   const sourceLines = useRef<Uint32Array | null>(null);
@@ -102,6 +110,16 @@ export function useCarve({ spawn, result, layers, pathOffset, target, enabled, s
   const goal = target === null ? lines : Math.min(lines, Math.max(0, target));
   const goalRef = useRef(goal);
   goalRef.current = goal;
+  /** The tip source's target, while it has one: it wins over `goal`. */
+  const follow = useRef<CarveTarget | null>(null);
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
+  const seekNow = (c: CarveClient): void => {
+    const f = follow.current;
+    const n = linesRef.current;
+    if (f !== null) c.seek(Math.min(n, f.target), f.target < n ? f.tip : null);
+    else c.seek(goalRef.current);
+  };
 
   // The file each client has, so a new client (or a new file) gets it once.
   const sent = useRef<{ readonly client: CarveClient; readonly segments: unknown } | null>(null);
@@ -113,11 +131,23 @@ export function useCarve({ spawn, result, layers, pathOffset, target, enabled, s
     }
     status.value = IDLE;
     client.setup(grid !== null && plan !== null ? grid : null, plan?.tools ?? { starts: new Uint32Array(0), shapes: [] });
-    client.seek(goalRef.current);
+    seekNow(client);
   }, [client, segments, grid, plan]);
-  useEffect(() => { client?.seek(goal); }, [client, goal]);
+  useEffect(() => { if (client !== null && follow.current === null) client.seek(goal); }, [client, goal]);
+  useEffect(() => {
+    if (client === null || tips === null) return;
+    const off = tips.subscribe((t) => {
+      follow.current = t;
+      seekNow(client);
+    });
+    return () => {
+      off();
+      follow.current = null;
+      seekNow(client);
+    };
+  }, [client, tips]);
 
   const active = client !== null && grid !== null && plan !== null;
-  const info = useMemo(() => (active && grid !== null && plan !== null ? { cell: grid.cell, uncarved: plan.uncarved, status } : null), [active, grid, plan, status]);
+  const info = useMemo(() => (active && grid !== null && plan !== null ? { cell: grid.cell, top: grid.top, uncarved: plan.uncarved, status } : null), [active, grid, plan, status]);
   return { feed: active ? client : null, info };
 }

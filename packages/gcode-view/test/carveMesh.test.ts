@@ -120,7 +120,7 @@ describe('the path over a carved stock', () => {
     const r = createRenderer(gl, { colors: COLORS, requestFrame: frames.request, carveMeshMax: 512 });
     r.setCarve(surface());
     frames.flush();
-    expect(PATH_OVER_CARVE_ALPHA).toBeCloseTo(0.35, 5);
+    expect(PATH_OVER_CARVE_ALPHA).toBeCloseTo(0.6, 5);
     expect(calls.get('blendFuncSeparate')).toBe(1);
     r.setCarve(null);
     frames.flush();

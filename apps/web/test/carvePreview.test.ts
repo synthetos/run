@@ -11,7 +11,7 @@ import { SEGMENT, type SceneLayers } from '@synthetos/gcode-view';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 import { MAX_UNCARVED_NOTES, NO_CHANGE_REASON, NO_T_REASON, carvePlan } from '../src/preview/carveTools.ts';
 import { carveGrid } from '../src/preview/carveStock.ts';
-import { CarveLabel, belowText, cellText, depthText } from '../src/preview/CarveKey.ts';
+import { CarveLabel, CarveLegend, belowText, cellText, depthText } from '../src/preview/CarveKey.ts';
 import { previewNotes } from '../src/preview/previewNotes.ts';
 import { SceneKey } from '../src/preview/SceneKey.ts';
 import { ViewerMenu, pickHint } from '../src/preview/ViewerMenu.ts';
@@ -96,7 +96,7 @@ describe('carveGrid', () => {
 });
 
 describe('the key', () => {
-  const info = (s: Partial<CarveStatus> = {}) => ({ cell: 0.25, uncarved: ['Lines 12–340 not carved: T3 is not in your tool table'], status: signal<CarveStatus>({ through: 40, done: true, lowest: -1, failed: null, below: null, ...s }) });
+  const info = (s: Partial<CarveStatus> = {}) => ({ cell: 0.25, top: 0, uncarved: ['Lines 12–340 not carved: T3 is not in your tool table'], status: signal<CarveStatus>({ through: 40, done: true, lowest: -1, failed: null, below: null, ...s }) });
   it('says the carve cell size in plain words, with test hooks', () => {
     expect(cellText(0.25)).toBe('0.25 mm');
     expect(cellText(1.25)).toBe('1.25 mm');
@@ -110,6 +110,24 @@ describe('the key', () => {
     expect(html).toContain('data-carve-cell="0.25"');
     expect(html).toContain('data-carve-done="true"');
     expect(renderToString(h(CarveLabel, { carve: info({ failed: 'boom' }) }))).toContain('Carving stopped');
+  });
+  it('shows the cut apart from the stock in the legend once something is cut (owner, 2026-11-09)', () => {
+    const legend = renderToString(h(CarveLegend, { carve: info(), stock: [0.84, 0.72, 0.55, 1] }));
+    expect(legend).toContain('data-carve-legend="stock"');
+    expect(legend).toContain('rgb(214,184,140)');
+    expect(legend).toContain('data-carve-legend="cut"');
+    expect(legend).toContain('var(--carve-cut)');
+    expect(legend).toContain('>Stock<');
+    expect(legend).toContain('>Cut<');
+    expect(legend).not.toContain('Below stock');
+    // Nothing cut yet, or a stopped carve: no legend.
+    expect(renderToString(h(CarveLegend, { carve: info({ lowest: 0 }), stock: null }))).toBe('');
+    expect(renderToString(h(CarveLegend, { carve: info({ failed: 'boom' }), stock: null }))).toBe('');
+    // Below the stock: its warning colour, named.
+    const below = renderToString(h(CarveLegend, { carve: info({ below: { firstLine: 3, firstDepth: 0.5, deepestLine: 3, deepestDepth: 0.5 } }), stock: null }));
+    expect(below).toContain('Below stock');
+    expect(below).toContain('var(--danger)');
+    expect(renderToString(h(SceneKey, { scene: null, carve: info() }))).toContain('data-scene="carve-legend"');
   });
   it('lists the uncarved lines as notes for the Notes tab (owner, 2026-11-09), the carving detail stays on the key', () => {
     expect(previewNotes({ scene: null, carve: null })).toEqual([]);
@@ -143,7 +161,7 @@ describe('the key at each level', () => {
     bedPlaceholder: placeholder, bedLabel: `Bed of My X-Carve · 750 × 750 mm · ${placeholder ? 'not measured yet' : 'measured'}`, bedSize: placeholder ? '750 × 750 mm (not measured yet)' : '750 × 750 mm',
   });
   const t1 = toolNumbered(1, SEED_TOOLS);
-  const info = () => ({ cell: 0.25, uncarved: ['Lines 12–340 not carved: T3 is not in your tool table'], status: signal<CarveStatus>({ through: 40, done: true, lowest: -1, failed: null, below: null }) });
+  const info = () => ({ cell: 0.25, top: 0, uncarved: ['Lines 12–340 not carved: T3 is not in your tool table'], status: signal<CarveStatus>({ through: 40, done: true, lowest: -1, failed: null, below: null }) });
 
   it('names a tool by its library name at every level (C4)', () => {
     expect(t1.name).toBe('3.175 mm 2-flute up-cut');

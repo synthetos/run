@@ -46,6 +46,10 @@ import { BELOW_STOCK_EPS } from './belowStock.ts';
 
 /** More pending rectangles than this are uploaded as one. */
 const MAX_UPLOADS = 16;
+/** Below the stock's top by more than this, a surface is drawn as cut, mm. */
+export const CUT_EPS_MM = 0.01;
+/** The cut colour until the page sets one (a slate violet no stock family uses). */
+export const DEFAULT_CUT_COLOR: Rgba = [0.42, 0.36, 0.59, 1];
 
 export interface CarveLayer {
   /** The surface to draw (the renderer then hides the flat stock), or null for none. Uploads it whole. */
@@ -55,6 +59,8 @@ export interface CarveLayer {
   setColor(color: Rgba): void;
   /** The colour of cells cut below the stock's bottom (the renderer's out-of-bounds colour). */
   setBelowColor(color: Rgba): void;
+  /** The colour of the cut surfaces (floors and walls below the stock's top), apart from the uncut stock. */
+  setCutColor(color: Rgba): void;
   readonly active: boolean;
   /** The surface's footprint in the path frame as [x0, y0, x1, y1], or null with none. */
   readonly footprint: readonly [number, number, number, number] | null;
@@ -89,7 +95,7 @@ export function createCarveLayer(gl: WebGL2RenderingContext, options: CarveLayer
   const wall = link(gl, WALL_VERTEX, WALL_FRAGMENT, ['a_wall', 'a_shade']);
   const loc = (p: WebGLProgram, names: readonly string[]): Record<string, WebGLUniformLocation | null> => Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(p, `u_${n}`)]));
   const shared = ['height', 'mvp', 'offset', 'grid', 'size', 'z', 'color'];
-  const tu = loc(top, [...shared, 'mesh', 'stride', 'below', 'belowEps']);
+  const tu = loc(top, [...shared, 'mesh', 'stride', 'below', 'belowEps', 'cut', 'cutEps']);
   const wu = loc(wall, shared);
   const gridVao = gl.createVertexArray();
   let texture: WebGLTexture | null = null;
@@ -100,6 +106,7 @@ export function createCarveLayer(gl: WebGL2RenderingContext, options: CarveLayer
   let pending: CellRect[] = [];
   let color: Rgba = [0.75, 0.75, 0.75, 1];
   let belowColor: Rgba = [0.8, 0.1, 0.1, 1];
+  let cutColor: Rgba = DEFAULT_CUT_COLOR;
 
   function releaseSurface(): void {
     if (texture !== null) gl.deleteTexture(texture);
@@ -172,6 +179,9 @@ export function createCarveLayer(gl: WebGL2RenderingContext, options: CarveLayer
     setBelowColor(next) {
       belowColor = next;
     },
+    setCutColor(next) {
+      cutColor = next;
+    },
     get active() {
       return surface !== null;
     },
@@ -194,6 +204,8 @@ export function createCarveLayer(gl: WebGL2RenderingContext, options: CarveLayer
       gl.uniform1i(tu['stride'] ?? null, m.stride);
       gl.uniform4f(tu['below'] ?? null, belowColor[0], belowColor[1], belowColor[2], belowColor[3]);
       gl.uniform1f(tu['belowEps'] ?? null, BELOW_STOCK_EPS);
+      gl.uniform4f(tu['cut'] ?? null, cutColor[0], cutColor[1], cutColor[2], cutColor[3]);
+      gl.uniform1f(tu['cutEps'] ?? null, CUT_EPS_MM);
       gl.bindVertexArray(gridVao);
       // Pulled toward the eye a little: a cut to (or below) the stock's bottom lies on the fixture's top face.
       gl.enable(gl.POLYGON_OFFSET_FILL);

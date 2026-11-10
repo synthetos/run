@@ -11,7 +11,7 @@ import type { ScenePart } from './sceneSettings.ts';
 import { Dismissable } from '../workspace/notes/Dismissable.ts';
 import { ToolLabel, ToolNote } from './ToolKey.ts';
 import { PREVIEW_MARKER_NOTE } from './previewMarker.ts';
-import { CarveLabel } from './CarveKey.ts';
+import { CarveLabel, CarveLegend } from './CarveKey.ts';
 import type { CarveInfo } from './useCarve.ts';
 import { ToolLegend } from './ToolLegend.ts';
 import type { ToolColorView } from './useToolColors.ts';
@@ -38,7 +38,8 @@ export interface SceneKeyProps {
 
 
 
-export function SceneKey({ tool = null, onAddTool, markerPreview = false, carve = null, tools = null }: SceneKeyProps): ComponentChild {
+export function SceneKey({ scene = null, tool = null, onAddTool, markerPreview = false, carve = null, tools = null }: SceneKeyProps): ComponentChild {
+  const stock = scene?.layers.solids.find((s) => s.tag === 'stock')?.color ?? null;
   const toolNote = tool?.note == null ? null : h(ToolNote, { tool, ...(onAddTool === undefined ? {} : { onAddTool }) });
   const failed = carve !== null && carve.status.value.failed !== null;
   return h(
@@ -51,6 +52,8 @@ export function SceneKey({ tool = null, onAddTool, markerPreview = false, carve 
       { class: 'viewer-key scene-key-line' },
       // The colour legend is the key (owner, 2026-11-09): compact, over the drawing.
       tools === null || tools.entries.length < 2 ? null : h(ToolLegend, { entries: tools.entries, palette: tools.palette, focus: tools.focus, onFocus: tools.setFocus }),
+      // The carved stock's colours: stock, cut, and below the stock when it goes there.
+      carve === null ? null : h(CarveLegend, { carve, stock }),
       // For screen readers and tests: the tool the marker shows, and that it is the planned position. Not drawn.
       h('span', { class: 'sr-only' }, tool === null ? null : h(ToolLabel, { tool }), markerPreview ? h('span', { 'data-scene': 'tool-preview' }, ` ${PREVIEW_MARKER_NOTE}`) : null),
       // The carve's test hooks, hidden; a stopped carve says so.

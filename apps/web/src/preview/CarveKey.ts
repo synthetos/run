@@ -5,6 +5,7 @@
  * `data-carve-done` say how far the carve has got, for tests.
  */
 import { h, type ComponentChild } from 'preact';
+import type { Rgba } from '@synthetos/gcode-view';
 import type { CarveInfo } from './useCarve.ts';
 
 /** A cell size in plain millimetres: 0.25, 0.3, 1.25. */
@@ -24,6 +25,31 @@ export function CarveLabel({ carve, simple = false }: { readonly carve: CarveInf
     'span',
     { 'data-scene': 'carve', 'data-carve-cell': String(carve.cell), 'data-carved-through': String(s.through), 'data-carve-done': s.done ? 'true' : 'false', 'data-carve-lowest': s.lowest.toFixed(3), ...(text === '' ? { hidden: true } : {}) },
     text,
+  );
+}
+
+const rgb = (c: Rgba): string => `rgb(${String(Math.round(c[0] * 255))},${String(Math.round(c[1] * 255))},${String(Math.round(c[2] * 255))})`;
+
+/** A small square in a surface's colour. */
+function Patch({ fill }: { readonly fill: string }): ComponentChild {
+  return h('svg', { class: 'carve-swatch', viewBox: '0 0 10 10', 'aria-hidden': 'true' }, h('rect', { x: 0.5, y: 0.5, width: 9, height: 9, rx: 2, style: { fill } }));
+}
+
+/**
+ * The carve's legend (owner, 2026-11-09: "show cut-out sections in a different colour than the stock"): "Stock"
+ * in the stock's colour and "Cut" in the cut colour, once something is cut; "Below stock" in the warning colour
+ * when the cut goes below it. Reads the progress signal, so only this re-renders while the carve runs.
+ */
+export function CarveLegend({ carve, stock }: { readonly carve: CarveInfo; readonly stock: Rgba | null }): ComponentChild {
+  const s = carve.status.value;
+  if (s.failed !== null || !(s.lowest < carve.top - 0.01)) return null;
+  const entry = (key: string, fill: string, text: string): ComponentChild => h('span', { key, class: 'tool-legend-entry', 'data-carve-legend': key }, h(Patch, { fill }), h('span', null, text));
+  return h(
+    'span',
+    { class: 'tool-legend carve-legend', role: 'group', 'aria-label': 'Carved stock colours', 'data-scene': 'carve-legend' },
+    stock === null ? null : entry('stock', rgb(stock), 'Stock'),
+    entry('cut', 'var(--carve-cut)', 'Cut'),
+    s.below === null ? null : entry('below', 'var(--danger)', 'Below stock'),
   );
 }
 

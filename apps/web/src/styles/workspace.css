@@ -1736,6 +1736,9 @@ button.tool-legend-entry { cursor: pointer; }
 button.tool-legend-entry:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
 button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule); background: var(--sheet); }
 .tool-legend-entry.unknown { color: var(--muted); }
+/* The carved stock's colours (owner, 2026-11-09): stock, cut and below stock, as small squares. */
+.carve-swatch { width: 10px; height: 10px; flex: none; }
+.carve-legend { margin-left: 4px; }
 .tool-swatch { width: 16px; height: 8px; flex: none; }
 /* The Run view's preview options in Advanced, each with a plain label. */
 .viewer-option { display: inline-flex; align-items: center; gap: 6px; padding-left: 6px; font-size: 12px; color: var(--muted); }

@@ -36,6 +36,7 @@ describe('the controls', () => {
   const view = (over: Partial<PlayView> = {}): PlayView => ({
     available: true, active: false, playing: false, speed: 1, completed: 0, reducedMotion: false,
     feed: { subscribe: () => () => undefined },
+    tips: { subscribe: () => () => undefined },
     play: () => undefined, pause: () => undefined, setSpeed: () => undefined, seekLine: () => undefined, stop: () => undefined, step: () => undefined,
     ...over,
   });

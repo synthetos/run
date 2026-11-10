@@ -20,6 +20,9 @@ export interface PlayPoint {
   readonly line: number;
   /** List lines completed before it. */
   readonly completed: number;
+  /** The segment under way (its end vertex) and how far along it, 0..1: the carve's tip (carve/tip.ts). */
+  readonly vertex: number;
+  readonly t: number;
 }
 
 export function buildTimeline(durations: Float32Array): Timeline {
@@ -78,5 +81,5 @@ export function pointAt(list: Pick<SegmentList, 'vertices' | 'lineToVertex'>, tl
   const line = lineOf(ltv, v);
   // A line is completed once the tool has reached its last vertex.
   const done = time >= tl.total ? ltv.length - 1 : line + (v === (ltv[line + 1] as number) - 1 && f >= 1 ? 1 : 0);
-  return { pos, line, completed: done };
+  return { pos, line, completed: done, vertex: v, t: f };
 }

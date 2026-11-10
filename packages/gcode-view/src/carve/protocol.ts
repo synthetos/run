@@ -12,6 +12,7 @@
 import type { ToolShape } from '../toolProfile.ts';
 import type { CellRect, GridSpec } from './heightmap.ts';
 import type { BelowStock } from './belowStock.ts';
+import type { CarveTip } from './tip.ts';
 
 export interface CarveSegments {
   readonly vertices: Float32Array;
@@ -27,8 +28,8 @@ export interface CarveToolTable {
 export type ToCarveWorker =
   | { readonly type: 'file'; readonly segments: CarveSegments | null }
   | { readonly type: 'setup'; readonly session: number; readonly spec: GridSpec | null; readonly tools: CarveToolTable }
-  /** Carve lines 0..target-1 of the file. */
-  | { readonly type: 'seek'; readonly session: number; readonly target: number };
+  /** Carve lines 0..target-1 of the file, and line `target` up to `tip` when given (tip.ts). */
+  | { readonly type: 'seek'; readonly session: number; readonly target: number; readonly tip?: CarveTip | null };
 
 export interface CarveProgressMessage {
   readonly type: 'progress';

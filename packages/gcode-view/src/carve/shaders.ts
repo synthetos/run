@@ -70,6 +70,8 @@ uniform vec2 u_z;
 uniform vec4 u_color;
 uniform vec4 u_below;
 uniform float u_belowEps;
+uniform vec4 u_cut;
+uniform float u_cutEps;
 in vec2 v_cell;
 in float v_z;
 out vec4 o_color;
@@ -104,13 +106,16 @@ void main() {
   }
   vec3 n = normalize(mix(mix(slopeAt(1, 1), slopeAt(2, 1), f.x), mix(slopeAt(1, 2), slopeAt(2, 2), f.x), f.y));
   vec3 light = normalize(vec3(-0.35, -0.5, 1.0));
-  // A flat surface, top or floor, is fully lit in the stock's own colour, as the scene solids' top faces are;
-  // walls turn darker facing away from the light. Wrapped lighting (half of the cosine term) keeps a wall's shade
+  // A flat surface, top or floor, is fully lit, as the scene solids' top faces are; the uncut top in the stock's
+  // own colour and every cut surface (floor or wall, anything below the top) in the cut colour, so a cut reads
+  // even straight from above. Walls turn darker facing away from the light. Wrapped lighting (half of the cosine term) keeps a wall's shade
   // steady where its direction wavers cell by cell. Deeper is a little darker, so depth reads from any angle.
   float shade = clamp(0.3 + 0.7 * (0.5 + 0.5 * dot(n, light)) / (0.5 + 0.5 * light.z), 0.3, 1.1);
   float depth = clamp((u_z.x - v_z) / max(1e-6, u_z.x - u_z.y), 0.0, 1.0);
   // Opaque whatever the stock colour's alpha: a see-through cut would wash out against the page.
-  o_color = below ? vec4(u_below.rgb * (0.75 + 0.25 * shade), 1.0) : vec4(u_color.rgb * shade * (1.0 - 0.15 * depth), 1.0);
+  bool cut = v_z < u_z.x - u_cutEps;
+  vec3 base = cut ? u_cut.rgb : u_color.rgb;
+  o_color = below ? vec4(u_below.rgb * (0.75 + 0.25 * shade), 1.0) : vec4(base * shade * (1.0 - 0.15 * depth), 1.0);
 }`;
 
 export const WALL_VERTEX = `${COMMON}

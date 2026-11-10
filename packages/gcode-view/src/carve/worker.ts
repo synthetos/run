@@ -93,7 +93,7 @@ export function createCarveHandler(post: CarvePost, options: CarveHandlerOptions
         return;
       }
       if (message.session !== session || carver === null) return;
-      carver.seek(message.target);
+      carver.seek(message.target, message.tip ?? null);
       // The next slice reports it: a restore, more to carve, or the target already reached.
       schedule();
     } catch (e) {

@@ -66,6 +66,8 @@ export interface PreviewColors {
   readonly plannerExec?: Rgba;
   readonly plannerQueued?: Rgba;
   readonly plannerStarving?: Rgba;
+  /** The carved stock's cut surfaces, floors and walls (owner, 2026-11-09: "show cut-out sections in a different colour"). */
+  readonly carveCut?: Rgba;
 }
 
 /**
@@ -179,8 +181,11 @@ export interface RendererOptions {
   readonly carveMeshMax?: number;
 }
 
-/** How opaque the toolpath is over a carved stock, so the carve reads through it. */
-export const PATH_OVER_CARVE_ALPHA = 0.35;
+/**
+ * How opaque the toolpath is over a carved stock, so the carve reads through it. 0.6 since the cut has its own
+ * colour (owner, 2026-11-09): the lines stay plain over the cut, so it shows they line up (it was 0.35).
+ */
+export const PATH_OVER_CARVE_ALPHA = 0.6;
 
 interface GpuChunk {
   readonly vao: WebGLVertexArrayObject;
@@ -225,6 +230,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
   const lineTools = createLineTools(gl);
   let toolFocus = -1;
   carve.setBelowColor(options.colors.outOfBounds);
+  if (options.colors.carveCut !== undefined) carve.setCutColor(options.colors.carveCut);
 
   let colors = options.colors;
   let path: GpuChunk[] = [];
@@ -662,6 +668,7 @@ export function createRenderer(gl: WebGL2RenderingContext, options: RendererOpti
     setColors(next) {
       colors = next;
       carve.setBelowColor(next.outOfBounds);
+      if (next.carveCut !== undefined) carve.setCutColor(next.carveCut);
       requestRender();
     },
     setPlanner(next) {

@@ -10,6 +10,7 @@
  * here reaches the machine.
  */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { createTipSource, type TipSource } from './carveFollow.ts';
 import { buildTimeline, createPlayer, lineStartTime, pointAt, programmedTiming, type PlaySpeed, type Player, type SegmentList, type Timeline, type TimingProvider, type Vec3 } from '@synthetos/gcode-view';
 
 export interface PlayFeed {
@@ -29,6 +30,8 @@ export interface PlayView {
   /** The page asks for reduced motion: Play steps instead of running. */
   readonly reducedMotion: boolean;
   readonly feed: PlayFeed;
+  /** Where the play tool is along the moves, every frame, for the carve to follow (carveFollow.ts); null when not playing. */
+  readonly tips: TipSource;
   play(): void;
   pause(): void;
   setSpeed(speed: PlaySpeed): void;
@@ -69,6 +72,7 @@ export function usePlay({ segments, feeds, allowed, timing = null, rapidMmPerMin
   const player = useRef<Player | null>(null);
   const listeners = useRef(new Set<(pos: Vec3 | null) => void>());
   const position = useRef<Vec3 | null>(null);
+  const tips = useMemo(createTipSource, []);
   const [active, setActive] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeedState] = useState<PlaySpeed>(1);
@@ -95,6 +99,8 @@ export function usePlay({ segments, feeds, allowed, timing = null, rapidMmPerMin
     if (segments === null || timeline === null) return;
     const p = pointAt(segments, timeline, seconds);
     tell(p?.pos ?? null);
+    // The carve follows the tool part way along its line (owner, 2026-11-09: it lagged a line behind).
+    tips.set(p === null ? null : p.completed > p.line ? { target: p.completed, tip: null } : { target: p.line, tip: { vertex: p.vertex, t: p.t } });
     if (p !== null) report(p.completed, force);
   };
   const ensure = (): Player | null => {
@@ -109,6 +115,7 @@ export function usePlay({ segments, feeds, allowed, timing = null, rapidMmPerMin
     setActive(false);
     setPlaying(false);
     tell(null);
+    tips.set(null);
   }
 
   // A new file (or timing) ends the session; so does losing permission (a job starting, the board moving).
@@ -151,6 +158,7 @@ export function usePlay({ segments, feeds, allowed, timing = null, rapidMmPerMin
     completed,
     reducedMotion,
     feed,
+    tips,
     play() {
       if (!available || reducedMotion) return;
       const p = ensure();

@@ -24,6 +24,7 @@ import { useActiveTool, type ActiveToolJob } from './useActiveTool.ts';
 import { scrubbedToolAt } from './previewMarker.ts';
 import { useCarve, type CarveInfo } from './useCarve.ts';
 import { carveTarget, useLiveCarve, type LiveCarveJob } from './liveCarve.ts';
+import { useLiveFollower } from './useLiveFollower.ts';
 import { useToolColors, type ToolColorView } from './useToolColors.ts';
 import { usePlay, type PlayView } from './usePlay.ts';
 import type { CarveWorkerLike, Vec3, ViewPreset } from '@synthetos/gcode-view';
@@ -222,12 +223,14 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
   // there after it); otherwise to the scrubbed line, or with nothing scrubbed the whole file.
   const toolColors = useToolColors(state.drawing === 'webgl' ? result : null, spindleTool);
   const liveCarve = useLiveCarve(job?.carve ?? null, result?.bytes ?? null, result?.sourceLines ?? null);
-  const carve = useCarve({ spawn: spawnCarve, result, layers: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? NO_OFFSET, target: play.active ? play.completed : carveTarget(liveCarve, state.scrub), enabled: state.drawing === 'webgl' && result?.lite !== true, spindleTool });
-
   // The tool is drawn only from `tool` (machine coordinates, or the path's frame without a scene): never from the
   // readout, whose work position is in the program's frame and units, not the drawing's.
   const offset = scene?.pathOffset ?? [0, 0, 0];
   const toolInPath: Vec3 | null = tool === null ? null : [tool[0] - offset[0], tool[1] - offset[1], tool[2] - offset[2]];
+  // The carve follows the tool along its line: Play's tool, or the drawn tool during a job (carveFollow.ts).
+  const liveTips = useLiveFollower(liveCarve, state.scrub, state.drawing === 'webgl' ? segments : null, toolInPath);
+  const carve = useCarve({ spawn: spawnCarve, result, layers: scene?.layers ?? null, pathOffset: scene?.pathOffset ?? NO_OFFSET, target: play.active ? play.completed : carveTarget(liveCarve, state.scrub), enabled: state.drawing === 'webgl' && result?.lite !== true, spindleTool, tips: play.active ? play.tips : liveTips });
+
   const svgMarker = toolInPath === null ? null : { x: toolInPath[0], y: toolInPath[1], lag: live?.lag ?? 'fresh' };
   const pick = onScenePick === undefined ? {} : {
     onPick: (tag: string) => { const part = scenePart(tag); if (part !== null) onScenePick(part); },

@@ -5,8 +5,10 @@
  * surface (a new session), a changed rectangle, progress.
  *
  * Targets are coalesced: at most one seek goes to the worker every
- * `seekIntervalMs` (the latest wins), so a fast job's line updates or a
- * dragged scrubber never queue up behind the carve.
+ * `seekIntervalMs` (the latest wins), so a fast job's line updates, a tip
+ * following the tool every frame, or a dragged scrubber never queue up
+ * behind the carve. The interval is short (25 ms) so the carve keeps up
+ * with the tool marker.
  *
  * It does not decide what to carve (the page gives the segments, grid,
  * tools and target) and it does not draw.
@@ -15,6 +17,7 @@ import type { SegmentList } from '../segments.ts';
 import { createHeightmap, pasteRect, type CellRect, type GridSpec } from './heightmap.ts';
 import type { CarveToolTable, FromCarveWorker, ToCarveWorker } from './protocol.ts';
 import type { BelowStock } from './belowStock.ts';
+import { sameTip, type CarveTip } from './tip.ts';
 
 /** The subset of `Worker` the client uses. */
 export interface CarveWorkerLike {
@@ -61,14 +64,15 @@ export interface CarveClient extends CarveFeed {
   setFile(list: SegmentList | null): void;
   /** Starts a session: a new grid or new tools. A null grid stops carving. */
   setup(spec: GridSpec | null, tools: CarveToolTable): void;
-  seek(target: number): void;
+  /** Carve lines 0..target-1, and line `target` up to `tip` when given (tip.ts). */
+  seek(target: number, tip?: CarveTip | null): void;
   readonly surface: CarveSurface | null;
   readonly progress: CarveProgress | null;
   dispose(): void;
 }
 
 export interface CarveClientOptions {
-  /** Least time between two seeks sent to the worker, ms (default 50). */
+  /** Least time between two seeks sent to the worker, ms (default 25). */
   readonly seekIntervalMs?: number;
   /** The clock and timer (default performance.now and setTimeout). */
   readonly now?: () => number;
@@ -77,7 +81,7 @@ export interface CarveClientOptions {
 }
 
 export function createCarveClient(spawn: () => CarveWorkerLike, options: CarveClientOptions = {}): CarveClient {
-  const interval = options.seekIntervalMs ?? 50;
+  const interval = options.seekIntervalMs ?? 25;
   const now = options.now ?? (() => performance.now());
   const setTimer = options.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
   const clearTimer = options.clearTimer ?? ((h: unknown) => { clearTimeout(h as ReturnType<typeof setTimeout>); });
@@ -86,8 +90,9 @@ export function createCarveClient(spawn: () => CarveWorkerLike, options: CarveCl
   let surface: CarveSurface | null = null;
   let progress: CarveProgress | null = null;
   let lastTarget = -1;
+  let lastTip: CarveTip | null = null;
   /** The target waiting for the next send, and when the last one went. */
-  let queued: number | null = null;
+  let queued: { readonly target: number; readonly tip: CarveTip | null } | null = null;
   let sentAt = -Infinity;
   let timer: unknown = null;
   const listeners = new Set<CarveListener>();
@@ -115,10 +120,10 @@ export function createCarveClient(spawn: () => CarveWorkerLike, options: CarveCl
   function flush(): void {
     timer = null;
     if (queued === null || surface === null) return;
-    const target = queued;
+    const { target, tip } = queued;
     queued = null;
     sentAt = now();
-    ensure().postMessage({ type: 'seek', session, target });
+    ensure().postMessage(tip === null ? { type: 'seek', session, target } : { type: 'seek', session, target, tip });
   }
 
   function cancelQueued(): void {
@@ -151,6 +156,7 @@ export function createCarveClient(spawn: () => CarveWorkerLike, options: CarveCl
     setup(spec, tools) {
       session++;
       lastTarget = -1;
+      lastTip = null;
       cancelQueued();
       sentAt = -Infinity;
       surface = spec === null ? null : { session, spec, z: createHeightmap(spec).z };
@@ -160,10 +166,11 @@ export function createCarveClient(spawn: () => CarveWorkerLike, options: CarveCl
       if (spec === null && worker === null) return;
       ensure().postMessage({ type: 'setup', session, spec, tools });
     },
-    seek(target) {
-      if (surface === null || target === lastTarget) return;
+    seek(target, tip = null) {
+      if (surface === null || (target === lastTarget && sameTip(tip, lastTip))) return;
       lastTarget = target;
-      queued = target;
+      lastTip = tip;
+      queued = { target, tip };
       const wait = sentAt + interval - now();
       if (wait <= 0) {
         if (timer !== null) clearTimer(timer);
