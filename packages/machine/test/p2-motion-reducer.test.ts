@@ -488,6 +488,8 @@ describe('T-S94: the motion command kind of the write gate and the line grammar'
     expect(checkWrite(d.state, d.state, PHASE_2_RELEASE, enc('M5\n'), 'motion', 'spindleOffNow')).toBeUndefined();
     expect(checkWrite(d.state, d.state, PHASE_1_RELEASE, enc('G90\n'), 'motion', 'jog')).toMatchObject({ kind: 'denied' });
     expect(checkWrite(d.state, d.state, PHASE_2_RELEASE, enc('G0 X1\n'), 'motion', 'jog')).toMatchObject({ kind: 'refused' });
+    // H91: a typed-move line with no typed move sending (stopped, ended, never started) is held back, never a FAULT.
+    expect(checkWrite(d.state, d.state, PHASE_2_RELEASE, enc('G0 X1\n'), 'motion', 'typedMove')).toMatchObject({ kind: 'denied', reason: 'not written: the typed move was stopped or has ended' });
     // A line only from an intent that may send its kind (amendment 2026-11-02): no G28.2 as a jog, no M3 as a stop.
     expect(checkWrite(d.state, d.state, PHASE_2_RELEASE, enc('G28.2 X0\n'), 'motion', 'jog')).toMatchObject({ kind: 'refused', reason: 'a home line was issued by jog' });
     expect(checkWrite(d.state, d.state, PHASE_2_RELEASE, enc('M3 S100\n'), 'motion', 'stopJob')).toMatchObject({ kind: 'refused' });

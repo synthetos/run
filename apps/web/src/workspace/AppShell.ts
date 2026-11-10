@@ -151,7 +151,7 @@ function AccountMenu(): ComponentChild {
   );
 }
 
-function Banners(props: AppShellProps): ComponentChild {
+function Banners(props: AppShellProps & { readonly view: ViewId }): ComponentChild {
   const view = props.model?.live.value ?? null;
   const snapshot = view?.message?.snapshot ?? null;
   const role = props.role?.value ?? null;
@@ -177,8 +177,9 @@ function Banners(props: AppShellProps): ComponentChild {
       h(OverlayBanners, { snapshot, staleElapsedMs: view?.staleSince === null || view?.staleSince === undefined ? 0 : Date.now() - view.staleSince }),
       // Never a trap (amendment 2026-11-02): UNKNOWN comes with its ways out; so does NEEDS_REVIEW (OD-13 §5).
       h(ReviewExits, { model: props.model ?? null, onReview: props.onReview ?? (() => undefined) }),
-      // After a reconnect: one question, on connect, whatever view is open (unknownModal.ts).
-      h(UnknownModal, { model: props.model ?? null }),
+      // After a reconnect: one question, in the Job view where motion happens (unknownModal.ts). Elsewhere (a firmware
+      // update's reconnect in Board → Firmware) the strip says "Position not verified" and the question waits for Job.
+      props.view === 'job' ? h(UnknownModal, { model: props.model ?? null }) : null,
       notice === null || noticeKey === seen || hidden.includes(notice.kind)
         ? null
         : h(
@@ -288,7 +289,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
         h(
           'main',
           { class: 'view-area', id: 'main', 'data-region': 'centre' },
-          h(Banners, { ...props, onReview: () => { boardTab.value = 'settings'; onView('board'); } }),
+          h(Banners, { ...props, view: current, onReview: () => { boardTab.value = 'settings'; onView('board'); } }),
           pane('job', h(JobView, { model, spawn: props.spawn ?? null, spawnCarve: props.spawnCarve ?? null, ...(props.marker === undefined ? {} : { marker: props.marker }), onView, ...(props.onPause === undefined ? {} : { onPause: props.onPause }), ...(props.onStopJob === undefined ? {} : { onStopJob: props.onStopJob }) })),
           pane('library', h(LibraryView, { model, onView })),
           pane('board', h(BoardView, { model })),
