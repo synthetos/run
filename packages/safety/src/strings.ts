@@ -391,10 +391,10 @@ export function w34(): string {
 
 /**
  * W35: the session set the board's persisted status report list at connect (amendment 2026-11-02, H64). Shown in
- * the Run view and written to the session log.
+ * the Run view and written to the session log. First sentence amended 2026-11-10 (owner, OD-36: "2 yes").
  */
 export function w35(): string {
-  return "NOTICE — Run set this board's status report list to include machine position and spindle/coolant. The list is saved on the board, so other programs that read its status reports see the change too.";
+  return "NOTICE — Run set this board's status reports to include position, spindle, coolant and tool. The list is saved on the board, so other programs that read its status reports see the change too.";
 }
 
 /** W36: the session changed another persisted reporting setting (`sv`, or an absurd `si`) at connect (H64). */

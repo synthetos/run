@@ -101,7 +101,7 @@ exports[`W and C strings > render exactly as pinned 1`] = `
   "w32": "WARNING — This controller is paused, holding or still has queued moves from a previous session. This page did not send them and cannot resume them. Use "Stop job" to end them with the spindle off, or reset the controller.",
   "w33": "DANGER — This page lost track of the machine (tab frozen). The machine is paused and the spindle may be running. The job will be stopped with the spindle off in 20 s. Check the machine now.",
   "w34": "WARNING — The machine is not homed, so soft limits may not protect it. A jog can drive an axis into its end. Use small steps and keep a hand on the E-stop.",
-  "w35": "NOTICE — Run set this board's status report list to include machine position and spindle/coolant. The list is saved on the board, so other programs that read its status reports see the change too.",
+  "w35": "NOTICE — Run set this board's status reports to include position, spindle, coolant and tool. The list is saved on the board, so other programs that read its status reports see the change too.",
   "w36": "NOTICE — Run changed a reporting setting saved on this board: sv from 0 to 1. Other programs that read its status reports see the change too.",
   "w37": "WARNING — Tool change. The job is stopped and Run turned the spindle and coolant off. Wait until the spindle has stopped turning before you reach in, and keep a hand on the E-stop while you jog.",
   "w38": "WARNING — The controller refused line 12 (status 221: outside the soft limits). The job is paused and nothing after that line is sent. Lines sent before it may still run. Use "Stop job", or skip the line and continue.",

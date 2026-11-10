@@ -330,7 +330,7 @@ describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S
     const reports = { phase: 'done', heartbeatMs: null, changes: [{ setting: 'sr' }, { setting: 'sv', from: 0, to: 1 }], detail: 'the board refused {si:250} (status 100)' };
     const html = renderToString(h(ConnectNotice, { model: model(view(snap({ reports }))), onView: () => undefined }));
     expect(html).toContain('data-safety="W35"');
-    expect(html).toContain('status report list to include machine position and spindle/coolant');
+    expect(html).toContain('status reports to include position, spindle, coolant and tool');
     expect(html).toContain('data-safety="W36"');
     expect(html).toContain('sv from 0 to 1');
     expect(html).toContain('Status reports: the board refused {si:250} (status 100).');

@@ -82,7 +82,7 @@ test('connect reads the state once, sets the status report list (W35) and the he
   expect(s.reports.heartbeatMs).toBe(1000);
   expect(s.live.srList).toContain('mpox');
   expect(s.live.srList).toContain('tool'); // OD-34: the active tool is pushed too
-  await expect(page.locator('[data-note="reports-sr"][data-safety="W35"]')).toContainText('status report list to include machine position and spindle/coolant');
+  await expect(page.locator('[data-note="reports-sr"][data-safety="W35"]')).toContainText('status reports to include position, spindle, coolant and tool');
   // Wait for the settings read of the page to finish, then nothing polls.
   await page.waitForTimeout(1500);
   const quiet = (await writes(worker)).length;

@@ -563,3 +563,11 @@ See docs/design/place-job.md.
 **Context.** The Advanced block's Cutting rows (Position panel) compare the live chip load (feed ÷ (rpm × flutes)) with the job's material. The tool's cutting data gives one recommended chip load (fz); the material library gives a range (factor × D) for the tool material. As first built, one number was judged from 35 % to 1.25 × of it, with long labels ("⚠ low: rubbing, heat").
 
 **Decision.** When the tool's data or the material gives a range, it is used as it is. With one recommended number, ✓ runs from 0.75 to 1.25 times it. Below the band is "light", and below 35 % of the one number (the Analyze rubbing floor) also "rubbing risk"; above the band is "heavy". Labels are short, the range in parentheses, on one line: "✓ 0.033 mm/tooth", "⚠ light (0.019–0.031)", "⚠ light, rubbing risk (…)", "⚠ heavy (…)". Display only: nothing is sent and nothing is gated. Run apps/web/src/workspace/insight/chipLoad.ts holds the band.
+
+## OD-36. W35 names the tool (owner, 2026-11-10)
+
+**Owner's words.** "2 yes", approving the new first sentence of W35.
+
+**Context.** W35 is said when run sets the board's status report list at connect (H64). It read "Run set this board's status report list to include machine position and spindle/coolant.", which no longer named everything once the list carries the active tool (OD-34).
+
+**Decision.** W35 is now: "NOTICE — Run set this board's status reports to include position, spindle, coolant and tool. The list is saved on the board, so other programs that read its status reports see the change too." Only the first sentence changed; the second, the disclosure H64 relies on, stays as it was. The session log line says the same words. SAFETY §5 W35 is amended; packages/safety/src/strings.ts holds the string.

@@ -66,7 +66,7 @@ describe('T-S101: the connect sequence', () => {
     // Never the RAM flag (parked by the firmware maintainer).
     expect(w.some((x) => x.includes('ram'))).toBe(false);
     const log = h.session.log().map((e) => e.text);
-    expect(log.some((t) => t.includes("Run set this board's status report list to include machine position and spindle/coolant (saved on the board)"))).toBe(true);
+    expect(log.some((t) => t.includes("Run set this board's status reports to include position, spindle, coolant and tool (saved on the board)"))).toBe(true);
   });
 
   it('a board whose list already holds what run needs is not written; sv 0 and an absurd si are set and read back', async () => {

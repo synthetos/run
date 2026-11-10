@@ -1797,7 +1797,7 @@ function onReportAnswer(t: Tx, r: Response, at: number): void {
       }
       const change: ReportChange = { setting: step.kind === 'srList' ? 'sr' : step.kind, ...(step.from === undefined ? {} : { from: step.from }), ...(step.kind === 'sv' ? { to: 1 } : step.kind === 'si' ? { to: 250 } : {}) };
       addChange(t, change);
-      t.emit({ kind: 'log', text: `reports: ${step.kind === 'srList' ? "Run set this board's status report list to include machine position and spindle/coolant" : `Run changed ${step.kind} from ${step.from as number} to ${change.to as number}`} (saved on the board)` });
+      t.emit({ kind: 'log', text: `reports: ${step.kind === 'srList' ? "Run set this board's status reports to include position, spindle, coolant and tool" : `Run changed ${step.kind} from ${step.from as number} to ${change.to as number}`} (saved on the board)` });
       nextReportStep(t, null);
       return;
     }
