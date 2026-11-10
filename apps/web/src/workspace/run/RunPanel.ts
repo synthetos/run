@@ -33,7 +33,7 @@ import { runZeroCheck, setupPlan } from '../zeroPlan.ts';
 import { Details } from './ChoiceModal.ts';
 import { ReadyList } from './ReadyList.ts';
 import { readyModel, type ReadyActionId, type ReadyInput, type TravelAsk } from './readyModel.ts';
-import { SHORT_C30_APPROVED, refusedBody, startQuestion, tickText } from './runCopy.ts';
+import { refusedBody, tickText } from './runCopy.ts';
 import { ChoiceModal } from './ChoiceModal.ts';
 import { TravelModal } from './TravelModal.ts';
 import { askUnknownAgain } from '../unknownModal.ts';
@@ -255,7 +255,7 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
       ? h(
           ConfirmCard,
           {
-            text: SHORT_C30_APPROVED ? startQuestion({ file: state.fileName, workZero: workZeroWords, spindle: spindleWords }) : c30({ file: state.fileName, lines: job.total, workZero: workZeroWords, spindle: spindleWords }),
+            text: c30({ file: state.fileName, workZero: workZeroWords, spindle: spindleWords }),
             confirm: 'Start job',
             safety: 'C30',
             onCancel: () => setModal(null),
@@ -265,11 +265,10 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
           h('p', { class: 'start-w5', 'data-safety': 'W5' }, ...signalText(w5({ distanceMm: Math.round(job.queuedBoundMm ?? 0) || 50, seconds: 5 }))),
           h(Details, {
             texts: [
-              ...(SHORT_C30_APPROVED ? [{ safety: 'C30', text: c30({ file: state.fileName, lines: job.total, workZero: workZeroWords, spindle: spindleWords }) }] : []),
               ...(ready.tick.includes('workZero') && board !== null ? [{ safety: 'C31', text: c31({ board: zeroText(board), plan: zero.planText }) }] : []),
               ...(ready.tick.includes('unhomed') ? [{ safety: 'C36', text: c36() }] : []),
               ...(startsSpindle ? [{ safety: 'C32', text: c32({ speeds: speedsText(job) }) }] : []),
-              { text: 'Screen lock and sleep are disabled; I will stay at the machine.' },
+              { safety: 'attestation', text: 'Screen lock and sleep are disabled; I will stay at the machine.' },
             ],
           }),
         )

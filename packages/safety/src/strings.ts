@@ -141,11 +141,10 @@ export function w4(p: { readonly seconds: number }): string {
 
 /** W5: before Start, and while RUNNING. `seconds` is an estimate. */
 export function w5(p: { readonly distanceMm: number; readonly seconds: number }): string {
+  // Short wording approved by the owner, 2026-11-09 (OD-32: "approve with fire risk").
   return (
-    `WARNING — If this browser tab closes, crashes, sleeps or loses USB, the machine will continue the queued moves ` +
-    `(up to ${num('distanceMm', p.distanceMm)} mm, about ${num('seconds', p.seconds)} s — an estimate) and the spindle will stay ` +
-    'in its last state indefinitely, even after motion stops. A spindle left running against the work is a fire risk. ' +
-    'Disable screen lock and sleep, keep this tab visible, and stay at the machine.'
+    `WARNING — If this tab closes or sleeps, the machine keeps moving (up to ${num('distanceMm', p.distanceMm)} mm, about ` +
+    `${num('seconds', p.seconds)} s) and the spindle stays on, a fire risk. Keep this tab open and stay at the machine.`
   );
 }
 
@@ -806,11 +805,20 @@ export function c29(p: { readonly system: string }): string {
 }
 
 /** C30: start a job (Phase 3, §4.4a), with the work zero and the spindle the job will use. */
-export function c30(p: { readonly file: string; readonly lines: number; readonly workZero: string; readonly spindle: string }): string {
-  return (
-    `Start ${text('file', p.file)} now? Run sends ${count('lines', p.lines)} lines to the controller. Work zero: ${text('workZero', p.workZero)}. ` +
-    `Spindle: ${text('spindle', p.spindle)}. Keep a hand on the E-stop.`
-  );
+export function c30(p: { readonly file: string; readonly workZero: string; readonly spindle: string }): string {
+  // Short wording, OD-32 (owner, 2026-11-09).
+  return `Start ${text('file', p.file)}? Work zero: ${text('workZero', p.workZero)}. Spindle: ${text('spindle', p.spindle)}. Keep a hand on the E-stop.`;
+}
+
+/** The attestation's words in the one start tick (SAFETY §4.4 as amended by OD-32). */
+export function startAttestTick(): string {
+  return "I'll stay here, sleep off";
+}
+
+/** The one start tick: "I confirm: <phrase> · <phrase>." (OD-32), its phrases from C31, C36, C32 and the attestation. */
+export function startTick(p: { readonly phrases: readonly string[] }): string {
+  if (!Array.isArray(p.phrases) || p.phrases.length === 0) throw new SafetyStringError('phrases must be a non-empty list');
+  return `I confirm: ${p.phrases.map((x, i) => text(`phrases[${i}]`, x)).join(' · ')}.`;
 }
 
 /** C31: the board's work zero is not the plan's (Phase 3, H73). */
@@ -821,9 +829,19 @@ export function c31(p: { readonly board: string; readonly plan: string }): strin
   );
 }
 
+/** C31's words in the one start tick (OD-32). */
+export function c31Tick(): string {
+  return "the board's work zero";
+}
+
 /** C32: the job turns the spindle on (Phase 3, H52, H74). */
 export function c32(p: { readonly speeds: string }): string {
   return `This job starts the spindle (${text('speeds', p.speeds)}). It starts when that line runs, without another question. Hands clear of the cutter?`;
+}
+
+/** C32's words in the one start tick (OD-32). */
+export function c32Tick(): string {
+  return "hands clear";
 }
 
 /** C33: skip a refused line and continue (Phase 3, H70). */
@@ -855,6 +873,11 @@ export function c36(): string {
   return 'The machine is not homed, so soft limits may not protect it. Start only if you have checked where every axis is and that the job fits. I\'ve checked the machine.';
 }
 
+/** C36's words in the one start tick (OD-32). */
+export function c36Tick(): string {
+  return "axes checked";
+}
+
 /** C37: flash unsigned custom firmware (firmware update, 2026-11-03, H85). */
 export function c37(p: { readonly name: string; readonly sha256Short: string; readonly boardId: string }): string {
   return (
@@ -884,6 +907,17 @@ export function c40(p: { readonly why: string }): string {
   return `Run cannot check this job against the machine's travel: ${text('why', p.why)}. Start only if you have checked that every move fits the machine.`;
 }
 
+/** C40 as Start asks it, in the travel modal (OD-32): its title. */
+export function c40Title(): string {
+  return "Run can't check this job against the travel.";
+}
+
+/** C40 in the travel modal: why, then the rule. */
+export function c40Body(p: { readonly why: string }): string {
+  const why = text('why', p.why).replace(/\.$/, '');
+  return `${why.charAt(0).toUpperCase()}${why.slice(1)}. Start only if every move fits.`;
+}
+
 /**
  * C41: start a job on a machine that is not homed when a move leaves an axis's travel (owner, 2026-11-09: one box
  * for C36 and C40, "yes use shorter words"). Names the first such move; `more` counts the moves past travel after it.
@@ -897,6 +931,27 @@ export function c41(p: { readonly axis: 'X' | 'Y' | 'Z' | 'A' | 'B' | 'C'; reado
     `Line ${count('line', p.line)}: ${axis} would reach ${num('reach', p.reach)} ${unit}, past its ${num('limit', p.limit)} ${unit} limit${more === '0' ? '' : `, and ${more} more`}. ` +
     "I've checked where every axis is and that every move fits."
   );
+}
+
+/** C41 in the travel modal (OD-32): its title. */
+export function c41Title(p: { readonly axis: 'X' | 'Y' | 'Z' | 'A' | 'B' | 'C' }): string {
+  return `This job goes past the ${oneOf('axis', p.axis, ['X', 'Y', 'Z', 'A', 'B', 'C'])} limit.`;
+}
+
+/** C41 in the travel modal: the first move past travel, and whether others follow (a count of moves is not shown). */
+export function c41Body(p: { readonly axis: 'X' | 'Y' | 'Z' | 'A' | 'B' | 'C'; readonly line: number; readonly reach: number; readonly limit: number; readonly unit: 'mm' | '°'; readonly more: number }): string {
+  const axis = oneOf('axis', p.axis, ['X', 'Y', 'Z', 'A', 'B', 'C']);
+  const unit = oneOf('unit', p.unit, ['mm', '°']);
+  const more = count('more', p.more);
+  return (
+    `Line ${count('line', p.line)} moves ${axis} to ${num('reach', p.reach)} ${unit}. ${axis} stops at ${num('limit', p.limit)} ${unit}. ` +
+    `${axis} isn't homed, so its position may be off.${more === '0' ? '' : ' Other lines go past too.'}`
+  );
+}
+
+/** Added to C41 in the travel modal when the board's work zero is not the plan's (OD-32). */
+export function c41ZeroFirst(): string {
+  return "Your work zero isn't where you planned it.";
 }
 
 export function c39(p: { readonly feed: string; readonly depth: string; readonly system: string; readonly zero: string; readonly thickness: string; readonly stop: string }): string {

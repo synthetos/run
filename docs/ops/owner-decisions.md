@@ -491,3 +491,12 @@ Recorded from the bench 2 Console transcript the owner pasted: the first lines r
 **Context.** C1 (the E-stop and work-area checklist) was asked at the start of every LIVE session: in full the first time, after a wording change and on each new calendar day, otherwise as a one-box short form ("My E-stop is within reach and I tested it today"). The owner found the repeated boxes a reason the Run page felt like "check boxes everywhere".
 
 **Decision.** The full C1 list is shown at the first Connect in a browser. Once it has been accepted there, no form of C1 is shown again in that browser: not the short form, not after a text change, not on a later day. The acceptance stays device-local (`device-safety`, never synced, never cleared by sign-out); a browser whose record cannot be read shows the full list again. W1 (the E-stop banner) is unchanged and stays on every page. SAFETY §4.1 (Enter LIVE), §6 C1 and HIL-1.3 are amended; run apps/web/src/live/c1.ts and liveEntry.ts implement it.
+
+## OD-32. Short safety wording for the Run step (owner, 2026-11-09)
+
+**Owner's words.** "approve with fire risk".
+
+**Context.** The Run step was redesigned (one "Ready to start?" list, one start tick, the travel question at Start). A strings table proposed short versions of the safety strings on that step.
+
+**Decision.** The table is approved, with W5 keeping the fire risk: "WARNING — If this tab closes or sleeps, the machine keeps moving (up to N mm, about T s) and the spindle stays on, a fire risk. Keep this tab open and stay at the machine." C30 is shorter (no line count). C31, C36 and C32 and the attestation are confirmed in one start tick ("I confirm: the board's work zero · axes checked · hands clear · I'll stay here, sleep off.", with what applies), their registered texts under Details in the start confirmation. C40 and C41 are answered at Start in the travel modal (Start anyway), with a plain title and short sentences, the registered texts under Details; when the board's work zero is not the plan's, the modal says so and leads with Set work zero first. SAFETY §5 (W5), §6 (C30, C31, C32, C36, C40, C41, including the mode column) and §4.4 are amended; packages/safety/src/strings.ts holds every string.
+

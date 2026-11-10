@@ -7,6 +7,7 @@ import { h, type ComponentChild } from 'preact';
 import { c40, c41 } from '@synthetos/safety';
 import type { TravelAsk } from './readyModel.ts';
 import { ChoiceModal, Details } from './ChoiceModal.ts';
+import { c41ZeroFirst } from '@synthetos/safety';
 import { travelPastText, travelUncheckedText } from './runCopy.ts';
 
 export function TravelModal({ ask, onHome, onZero, onStart, onCancel }: { readonly ask: TravelAsk; readonly onHome?: () => void; readonly onZero?: () => void; readonly onStart: () => void; readonly onCancel: () => void }): ComponentChild {
@@ -16,7 +17,7 @@ export function TravelModal({ ask, onHome, onZero, onStart, onCancel }: { readon
     const zeroFirst = ask.zeroFirst === true && onZero !== undefined;
     return h(ChoiceModal, {
       title: t.title,
-      body: zeroFirst ? `${t.body} Your work zero isn’t where you planned it.` : t.body,
+      body: zeroFirst ? `${t.body} ${c41ZeroFirst()}` : t.body,
       safety: 'C41',
       details: h(Details, { texts: [{ safety: 'C41', text: c41({ axis: ask.axis, line: ask.line, reach: ask.reach, limit: ask.limit, unit: ask.unit, more: ask.more }) }] }),
       choices: [

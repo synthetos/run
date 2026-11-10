@@ -31,7 +31,7 @@ test('Run names Place job’s planned zero and the difference from the board’s
   await expect(zero).toContainText('You planned work zero at the front-left corner of the top of the stock');
   await expect(zero).not.toContainText('No plan is recorded');
   await expect(page.locator('[data-ready-summary="zero"]')).toHaveText('Not your plan’s.');
-  await expect(page.locator('[data-job="confirm-start"]')).toContainText('the board’s work zero');
+  await expect(page.locator('[data-job="confirm-start"]')).toContainText("the board's work zero");
   // The registered C31, in full, is under Details in the start confirmation.
   await page.locator('[data-job="confirm-start-box"]').check();
   await page.locator('[data-action="start-job"]').click();

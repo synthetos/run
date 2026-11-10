@@ -1,58 +1,35 @@
 /**
- * The Run step's short wording (owner, 2026-11-09: "short sentences everywhere"). Every text here that stands in for a
- * registered safety string (C30, C31, C32, C36, C40, C41, W5, the attestation) is PROPOSED: it waits for the owner's
- * approval in the strings table sent with this change. Until then the registered texts stay one click away, under
- * Details in the start confirmation, and in the Notes tab. When the owner approves, these move into
- * packages/safety/src/strings.ts and the SAFETY §5/§6 rows; if a text is refused, the registered one is used here.
+ * The Run step's words. The safety strings (the start tick's phrases, C40 and C41 as the travel modal asks them) are
+ * the registered ones in packages/safety/src/strings.ts (OD-32, owner 2026-11-09: "approve with fire risk"); this
+ * module only picks which apply. The marks and the refused-start body are presentation.
  *
  * Pure.
  */
-
+import { c31Tick, c32Tick, c36Tick, c40Body, c40Title, c41Body, c41Title, startAttestTick, startTick } from '@synthetos/safety';
 /** The marks of the list: done, needs you, blocked, still checking. */
 export type Mark = 'done' | 'needs' | 'blocked' | 'waiting';
 
 export const MARK_TEXT: Readonly<Record<Mark, string>> = { done: '✓', needs: '!', blocked: '✕', waiting: '…' };
 export const MARK_WORDS: Readonly<Record<Mark, string>> = { done: 'Done', needs: 'Needs you', blocked: 'Blocked', waiting: 'Checking' };
 
-/** The phrases the one start tick confirms, one per confirmation that applies (proposed short C31, C36, C32, W5). */
-export const TICK_PHRASE = {
-  workZero: 'the board’s work zero',
-  unhomed: 'axes checked',
-  spindle: 'hands clear',
-  attended: 'I’ll stay here, sleep off',
-} as const;
+/** The confirmations the one start tick can carry: C31, C36, C32 and the attestation (§4.4). */
+export type TickPart = 'workZero' | 'unhomed' | 'spindle' | 'attended';
 
-export type TickPart = keyof typeof TICK_PHRASE;
+const PHRASE: Readonly<Record<TickPart, () => string>> = { workZero: c31Tick, unhomed: c36Tick, spindle: c32Tick, attended: startAttestTick };
 
-/** The one tick's words: "I confirm: <phrase> · <phrase>." */
+/** The one tick's words (OD-32): "I confirm: <phrase> · <phrase>." */
 export function tickText(parts: readonly TickPart[]): string {
-  return `I confirm: ${parts.map((p) => TICK_PHRASE[p]).join(' · ')}.`;
+  return startTick({ phrases: parts.map((p) => PHRASE[p]()) });
 }
 
-/**
- * The start confirmation's short C30 is used only once the owner approves it (strings table); until then the
- * registered C30 is shown. W5 is always the registered text (its short form goes into strings.ts on approval).
- */
-export const SHORT_C30_APPROVED = false;
-
-/** Proposed short C30, the start confirmation. */
-export function startQuestion(p: { readonly file: string; readonly workZero: string; readonly spindle: string }): string {
-  return `Start ${p.file}? Work zero: ${p.workZero}. Spindle: ${p.spindle}. Keep a hand on the E-stop.`;
+/** C41 as the travel modal asks it. */
+export function travelPastText(p: { readonly axis: 'X' | 'Y' | 'Z' | 'A' | 'B' | 'C'; readonly line: number; readonly reach: number; readonly limit: number; readonly unit: 'mm' | '°'; readonly more: number }): { readonly title: string; readonly body: string } {
+  return { title: c41Title({ axis: p.axis }), body: c41Body(p) };
 }
 
-/** Proposed short C41 (a move past the travel of an axis that is not homed), as the travel modal says it. */
-export function travelPastText(p: { readonly axis: string; readonly line: number; readonly reach: number; readonly limit: number; readonly unit: string; readonly more: number }): { readonly title: string; readonly body: string } {
-  const n = (v: number): string => (Math.round(v * 1000) / 1000).toString().replace('-', '−');
-  return {
-    title: `This job goes past the ${p.axis} limit.`,
-    // `more` counts moves (long ones are split), not file lines: say only that others go past too.
-    body: `Line ${p.line.toLocaleString('en-US')} moves ${p.axis} to ${n(p.reach)} ${p.unit}. ${p.axis} stops at ${n(p.limit)} ${p.unit}. ${p.axis} isn’t homed, so its position may be off.${p.more > 0 ? ' Other lines go past too.' : ''}`,
-  };
-}
-
-/** Proposed short C40 (the travel could not be checked), as the travel modal says it. */
+/** C40 as the travel modal asks it. */
 export function travelUncheckedText(why: string): { readonly title: string; readonly body: string } {
-  return { title: 'Run can’t check this job against the travel.', body: `${why.charAt(0).toUpperCase()}${why.slice(1).replace(/\.$/, '')}. Start only if every move fits.` };
+  return { title: c40Title(), body: c40Body({ why }) };
 }
 
 /**

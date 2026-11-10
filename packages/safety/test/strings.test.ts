@@ -448,11 +448,19 @@ c({
 c({
   doc: 'S', id: 'C30', segment: 0, exports: ['c30'],
   examples: [
-    { file: 'sign.nc', lines: 1200, workZero: 'G54 at X 10 Y 20 Z -5 (machine)', spindle: 'starts with M3 S12000' },
-    { file: 'part', lines: 8, workZero: 'G55', spindle: 'not used' },
+    { file: 'sign.nc', workZero: 'G54 at X 10 Y 20 Z -5 (machine)', spindle: 'starts with M3 S12000' },
+    { file: 'part', workZero: 'G55', spindle: 'not used' },
   ],
   render: S.c30,
-  subs: (e) => [['<file>', e.file], ['<lines>', String(e.lines)], ['<work zero>', e.workZero], ['<spindle>', e.spindle]],
+  subs: (e) => [['<file>', e.file], ['<work zero>', e.workZero], ['<spindle>', e.spindle]],
+});
+// OD-32: the one start tick, in C30's row: the attestation's words, then the tick's line.
+fixedC('S', 'C30', 'startAttestTick', S.startAttestTick, 1);
+c({
+  doc: 'S', id: 'C30', segment: 2, exports: ['startTick'],
+  examples: [{ phrases: ["the board's work zero", "I'll stay here, sleep off"] }, { phrases: ['hands clear'] }],
+  render: S.startTick,
+  subs: (e) => [['<phrases>', e.phrases.join(' · ')]],
 });
 c({
   doc: 'S', id: 'C31', segment: 0, exports: ['c31'],
@@ -460,7 +468,9 @@ c({
   render: S.c31,
   subs: (e) => [['<board>', e.board], ['<plan>', e.plan]],
 });
+fixedC('S', 'C31', 'c31Tick', S.c31Tick, 1);
 c({ doc: 'S', id: 'C32', segment: 0, exports: ['c32'], examples: [{ speeds: 'S12000' }, { speeds: 'S8000, S18000' }], render: S.c32, subs: (e) => [['<speeds>', e.speeds]] });
+fixedC('S', 'C32', 'c32Tick', S.c32Tick, 1);
 c({
   doc: 'S', id: 'C33', segment: 0, exports: ['c33'],
   examples: [{ line: 12, text: 'G1 X300' }, { line: 4, text: 'M7' }],
@@ -480,6 +490,7 @@ c({
   subs: (e) => [['<direction>', e.direction], ['<rpm>', String(e.rpm)]],
 });
 fixedC('S', 'C36', 'c36', S.c36, 0);
+fixedC('S', 'C36', 'c36Tick', S.c36Tick, 1);
 c({
   doc: 'S', id: 'C37', segment: 0, exports: ['c37'],
   examples: [{ name: 'tinyg-mine.hex', sha256Short: '3f2a…9c01', boardId: '0084-ab' }, { name: 'x.hex', sha256Short: 'aa11…bb22', boardId: 'SIM-1' }],
@@ -498,6 +509,14 @@ c({
   render: S.c40,
   subs: (e) => [['<why>', e.why]],
 });
+// OD-32: C40 as the travel modal asks it.
+fixedC('S', 'C40', 'c40Title', S.c40Title, 1);
+c({
+  doc: 'S', id: 'C40', segment: 2, exports: ['c40Body'],
+  examples: [{ why: 'line 12: X would reach machine 812 mm, beyond its travel limit of 800 mm' }, { why: 'the travel limits of Z were not read.' }],
+  render: S.c40Body,
+  subs: (e) => { const w = e.why.replace(/\.$/, ''); return [['<Why>', `${w.charAt(0).toUpperCase()}${w.slice(1)}`]]; },
+});
 c({
   doc: 'S', id: 'C41', segment: 0, exports: ['c41'],
   examples: [
@@ -507,6 +526,23 @@ c({
   render: S.c41,
   subs: (e) => [['<Axis>', e.axis], ['<n>', String(e.line)], ['<value>', String(e.reach)], ['<limit>', String(e.limit)], ['<unit>', e.unit], ['[, and <N> more]', e.more === 0 ? '' : `, and ${e.more} more`]],
 });
+// OD-32: C41 as the travel modal asks it.
+c({
+  doc: 'S', id: 'C41', segment: 1, exports: ['c41Title'],
+  examples: [{ axis: 'X' as const }, { axis: 'A' as const }],
+  render: S.c41Title,
+  subs: (e) => [['<Axis>', e.axis]],
+});
+c({
+  doc: 'S', id: 'C41', segment: 2, exports: ['c41Body'],
+  examples: [
+    { axis: 'X' as const, line: 2, reach: 200, limit: 150, unit: 'mm' as const, more: 0 },
+    { axis: 'A' as const, line: 31, reach: -12.5, limit: 0, unit: '°' as const, more: 3 },
+  ],
+  render: S.c41Body,
+  subs: (e) => [['<Axis>', e.axis], ['<n>', String(e.line)], ['<value>', String(e.reach)], ['<limit>', String(e.limit)], ['<unit>', e.unit], ['[ Other lines go past too.]', e.more === 0 ? '' : ' Other lines go past too.']],
+});
+fixedC('S', 'C41', 'c41ZeroFirst', S.c41ZeroFirst, 3);
 c({
   doc: 'S', id: 'C39', segment: 0, exports: ['c39'],
   examples: [

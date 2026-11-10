@@ -37,7 +37,7 @@ test('a file past the X travel on a board not homed: Start asks it as one questi
   await page.locator('[data-action="start-job"]').click();
   const modal = page.locator('[data-safety="C41"]');
   await expect(modal.locator('.choice-title')).toHaveText('This job goes past the X limit.');
-  await expect(modal).toContainText('Line 2 moves X to 200 mm. X stops at 150 mm. X isn’t homed, so its position may be off.');
+  await expect(modal).toContainText("Line 2 moves X to 200 mm. X stops at 150 mm. X isn't homed, so its position may be off.");
   // The registered C41 stays one click away, under Details.
   await expect(modal.locator('[data-full="C41"]')).toHaveText("X isn't homed, so Run can't check its travel and soft limits may not protect it. Line 2: X would reach 200 mm, past its 150 mm limit. I've checked where every axis is and that every move fits.");
   await shots(page);

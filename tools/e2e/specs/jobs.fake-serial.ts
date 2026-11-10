@@ -63,7 +63,7 @@ test('a file streams to completion from the stepper; Start is enabled only when 
   expect(await page.locator('[data-ready-item][data-mark="needs"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-ready-item')))).toEqual(expect.arrayContaining(['zero', 'position', 'spindle']));
   // What passed folds into one row (owner, 2026-11-09).
   await expect(page.locator('[data-job="ready-passed"] summary')).toContainText('checks passed');
-  await expect(page.locator('[data-job="confirm-start"]')).toContainText('the board’s work zero · axes checked · hands clear · I’ll stay here, sleep off');
+  await expect(page.locator('[data-job="confirm-start"]')).toContainText("the board's work zero · axes checked · hands clear · I'll stay here, sleep off");
   await expect(page.locator('[data-job="confirm-start-box"]')).toHaveCount(1);
   await expect(page.locator('[data-job-panel="run"] input[type="checkbox"]')).toHaveCount(1);
   await expect(page.locator('[data-action="start-job"]')).toBeDisabled();

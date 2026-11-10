@@ -37,7 +37,7 @@ describe('readyModel', () => {
     expect(m.travelAsk).toBeNull();
     expect(marks(READY)).toEqual({ file: 'done', zero: 'done', position: 'done', travel: 'done', modes: 'done', feeds: 'done', tool: 'done' });
     expect(m.items.find((i) => i.id === 'file')?.summary).toBe('Checked. 29,710 lines, about 6 h 00 min.');
-    expect(tickText(m.tick)).toBe('I confirm: I’ll stay here, sleep off.');
+    expect(tickText(m.tick)).toBe("I confirm: I'll stay here, sleep off.");
   });
 
   it('not homed: Position needs you with Home, and the one tick adds C36', () => {
@@ -52,7 +52,7 @@ describe('readyModel', () => {
     expect(m.travelAsk).toEqual(PAST);
     expect(m.tick).toEqual(['attended']);
     expect(m.items.find((i) => i.id === 'travel')).toMatchObject({ mark: 'needs', summary: 'Line 34 goes past Y.', actions: [{ id: 'home', label: 'Home Y' }] });
-    expect(travelPastText(PAST)).toEqual({ title: 'This job goes past the Y limit.', body: 'Line 34 moves Y to −1.6 mm. Y stops at 0 mm. Y isn’t homed, so its position may be off.' });
+    expect(travelPastText(PAST)).toEqual({ title: 'This job goes past the Y limit.', body: "Line 34 moves Y to -1.6 mm. Y stops at 0 mm. Y isn't homed, so its position may be off." });
     // `more` counts moves (split long ones), not lines: no number, only that others go past too.
     expect(travelPastText({ ...PAST, more: 59119 }).body).toMatch(/ Other lines go past too\.$/);
   });
@@ -62,7 +62,7 @@ describe('readyModel', () => {
     const m = readyModel({ ...READY, homed: false, travel: unchecked });
     expect(m.travelAsk).toEqual(unchecked);
     expect(m.tick).toEqual(['unhomed', 'attended']);
-    expect(travelUncheckedText(unchecked.why)).toEqual({ title: 'Run can’t check this job against the travel.', body: 'The travel limits of X were not read. Start only if every move fits.' });
+    expect(travelUncheckedText(unchecked.why)).toEqual({ title: "Run can't check this job against the travel.", body: 'The travel limits of X were not read. Start only if every move fits.' });
   });
 
   it('work zero not the plan’s adds C31; not read yet blocks; the spindle adds C32', () => {
@@ -72,7 +72,7 @@ describe('readyModel', () => {
     const spindle = readyModel({ ...READY, spindle: { starts: true, speeds: '12,000 rpm' } });
     expect(spindle.tick).toEqual(['spindle', 'attended']);
     expect(spindle.items.find((i) => i.id === 'spindle')?.summary).toBe('12,000 rpm, on by itself.');
-    expect(tickText(['workZero', 'unhomed', 'spindle', 'attended'])).toBe('I confirm: the board’s work zero · axes checked · hands clear · I’ll stay here, sleep off.');
+    expect(tickText(['workZero', 'unhomed', 'spindle', 'attended'])).toBe("I confirm: the board's work zero · axes checked · hands clear · I'll stay here, sleep off.");
   });
 
   it('blockers: each is ✕ with its real reason and the action that clears it; nothing to tick until it is gone', () => {
@@ -120,7 +120,7 @@ describe('the travel question when the work zero is not the plan\'s', () => {
     const html = renderToString(h(TravelModal, { ask, onZero: () => undefined, onStart: () => undefined, onCancel: () => undefined }));
     expect(html).toMatch(/class="small primary" data-action="travel-zero"[^>]*>Set work zero first</);
     expect(html).toMatch(/class="small" data-action="travel-start"[^>]*>Start anyway</);
-    expect(html).toContain('Your work zero isn’t where you planned it.');
+    expect(html).toContain("Your work zero isn't where you planned it.");
     const plain = renderToString(h(TravelModal, { ask: PAST, onStart: () => undefined, onCancel: () => undefined }));
     expect(plain).not.toContain('travel-zero');
     expect(plain).toMatch(/class="small primary" data-action="travel-start"/);
