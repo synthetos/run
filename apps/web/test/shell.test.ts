@@ -128,7 +128,8 @@ describe('Phase 1 control allowlist', () => {
    * Amendment 2026-11-02: `home` (G28.2, and G28.3 where homing is not configured) and `offset` (G54..G59, G92,
    * G92.1) are machine controls too, disabled in the prerendered page like the rest.
    */
-  const MACHINE_DISABLED = new Set(['jog', 'zero', 'home', 'offset', 'spindle', 'coolant', 'override', 'start']);
+  /** H91: `terminal`, the terminal's Send (a typed line takes its button's path; disabled until a board is connected). */
+  const MACHINE_DISABLED = new Set(['jog', 'zero', 'home', 'offset', 'spindle', 'coolant', 'override', 'start', 'terminal']);
   /**
    * The firmware update (SAFETY §4.8 as amended 2026-11-03): every control that can lead to a flash or a trust. Disabled
    * in the prerendered page (no board, no worker); enabled only with the worker's flasher switch on and a board
@@ -143,8 +144,7 @@ describe('Phase 1 control allowlist', () => {
   /** Enabled only while a machine is LIVE in this browser (never gated otherwise): Pause and Stop job. */
   const LIVE_ONLY = new Set(['stop']);
   /**
-   * Reads only (GETs through the read allowlist): Back up settings, and the Console command line's Send (it sends
-   * only allowlisted reads; motion and settings writes are shown and never sent). Disabled until a board is read.
+   * Reads only (GETs through the read allowlist): Back up settings. Disabled until a board is read.
    */
   const READ_ONLY = new Set(['read']);
   /** The Connect flow (live/ConnectPanel.ts): Connect, the C1 confirm and cancel, dismiss, Disconnect. Disconnect also sits in the machine strip, enabled while a port is open or opening (absent otherwise). */
@@ -165,7 +165,7 @@ describe('Phase 1 control allowlist', () => {
     /^action:machine-(review-settings|backups)$/,
     /^action:job-(step-(machine|stock|place|check|run|back|next)|files|files-close|projects|close|library-machines|use-machine)$/,
     /^view:(job|library|board|projects|analyze|settings|safety)$/,
-    /^tab:(machines|tools|materials|gcode|console|live|notes|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|settings|catalogue)$/,
+    /^tab:(machines|tools|materials|gcode|terminal|live|notes|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|settings|catalogue)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
     /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
     // The Firmware and Backups tabs: records on this computer (export, import, compare, delete, download) and dialog controls.

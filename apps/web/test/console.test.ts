@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readDecisionFor } from '@synthetos/schema';
-import { JOB_STREAMING, MOTION_LATER, NOT_CLASSIFIED, normaliseGcode, REALTIME_REFUSED, translate, WRITES_LATER, type TranslateContext, type Translation } from '../src/console/translate.ts';
+import { JOB_STREAMING, NOT_CLASSIFIED, normaliseGcode, REALTIME_REFUSED, translate, WRITES_LATER, type TranslateContext, type Translation } from '../src/console/translate.ts';
 import { complete, completionWord, replyRows, statusText, suggest } from '../src/console/words.ts';
 import { ConsoleReader, jobStreaming, rawAnswer, type ConsoleReadDeps } from '../src/live/consoleRead.ts';
 
@@ -17,13 +17,12 @@ const enc = new TextEncoder();
 const hex = (s: string): string => [...enc.encode(s)].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 describe('translate: what is typed becomes JSON', () => {
-  it('G-code becomes {"gc":…}, normalised, and is never sent in Phase 1', () => {
-    expect(t('g0x100')).toEqual({ kind: 'motion', wire: '{"gc":"G0X100"}', reason: MOTION_LATER });
-    expect(t('G1 X10 F500')).toEqual({ kind: 'motion', wire: '{"gc":"G1X10F500"}', reason: MOTION_LATER });
+  it('G-code becomes {"gc":…}, normalised; the terminal takes it from there (H91)', () => {
+    expect(t('g0x100')).toEqual({ kind: 'motion', wire: '{"gc":"G0X100"}' });
+    expect(t('G1 X10 F500')).toEqual({ kind: 'motion', wire: '{"gc":"G1X10F500"}' });
     expect(t('  g1 x-1.5 y.25 (comment) ')).toMatchObject({ kind: 'motion', wire: '{"gc":"G1X-1.5Y.25"}' });
     expect(t('m3 s1000 ; spindle')).toMatchObject({ kind: 'motion', wire: '{"gc":"M3S1000"}' });
     expect(t('G21')).toMatchObject({ kind: 'motion' });
-    expect(MOTION_LATER).toBe('Typed motion comes later; use the jog panel');
   });
 
   it('$key and key become a read {"key":null}', () => {

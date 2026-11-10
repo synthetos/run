@@ -394,6 +394,8 @@ export class MachineWorkerHost {
         return s.request({ intent: 'spindleOn', output: 'spindle', direction: c.direction, rpm: c.rpm });
       case 'coolantOn':
         return s.request({ intent: 'spindleOn', output: c.which });
+      case 'typedMove':
+        return s.request({ intent: 'typedMove', line: c.line, travel: c.travel, lowZ: c.lowZ });
       // Probe Z (SAFETY §4.5c): each decided again by the session.
       case 'probeTouch':
         return s.request({ intent: 'probeZ', step: 'touch', thicknessMm: c.thicknessMm, depthMm: c.depthMm, feed: c.feed });

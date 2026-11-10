@@ -1057,6 +1057,10 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
       { op: 'tempOffset', axes: ['y'] },
       { op: 'clearTempOffset' },
       { op: 'selectCoord', system: 6 },
+      // H91: a typed line with the user's answers; the session parses and decides it.
+      { op: 'typedMove', line: 'G0 X10', travel: null, lowZ: null },
+      { op: 'typedMove', line: 'G0 X160', travel: 'line 1: X would reach machine 160 mm', lowZ: 'asTyped' },
+      { op: 'typedMove', line: 'G0 X1', travel: null, lowZ: 'raise' },
     ];
     for (const command of ok) expect(parseRequest({ v: 3, kind: 'motion', command }), JSON.stringify(command)).not.toBeNull();
     const bad: unknown[] = [
@@ -1087,6 +1091,13 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
       { op: 'selectCoord', system: 1.5 },
       { op: 'selectCoord' },
       { op: 'raw', line: 'G0 X0' },
+      { op: 'typedMove', line: 'G0 X1' },
+      { op: 'typedMove', line: 7, travel: null, lowZ: null },
+      { op: 'typedMove', line: 'x'.repeat(255), travel: null, lowZ: null },
+      { op: 'typedMove', line: 'G0 X1', travel: 5, lowZ: null },
+      { op: 'typedMove', line: 'G0 X1', travel: 'x'.repeat(1001), lowZ: null },
+      { op: 'typedMove', line: 'G0 X1', travel: null, lowZ: 'up' },
+      { op: 'typedMove', line: 'G0 X1', travel: null, lowZ: null, extra: 1 },
       Object.create({ op: 'resume' }) as unknown,
     ];
     for (const command of bad) expect(parseRequest({ v: 3, kind: 'motion', command }), JSON.stringify(command)).toBeNull();

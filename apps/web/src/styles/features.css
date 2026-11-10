@@ -106,7 +106,7 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 
 /* ---------------------------------------------------------------- console */
 @media (min-height: 820px) {
-  .dock[data-dock-tab="console"] .dock-panel { height: 272px; }
+  .dock[data-dock-tab="terminal"] .dock-panel { height: 272px; }
 }
 .console-pane { display: grid !important; grid-template-columns: minmax(0, 3fr) minmax(0, 1fr); min-height: 100%; height: 100%; }
 .console-wire { display: flex; flex-direction: column; min-height: 0; height: 100%; border-left: 1px solid var(--rule); overflow: hidden; }
@@ -159,6 +159,26 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .cl-hint { flex: none; padding: 3px 12px 5px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-hint code { font-size: 10.5px; }
 .cl-keys { color: var(--field); }
+
+/* The terminal (H91): one row per entry, its time, then its words; colour by kind from theme tokens (both themes). */
+.term-log { font: 12px/1.45 var(--mono); }
+.term-entry { display: grid; grid-template-columns: 64px 1fr; gap: 0 8px; padding: 2px 12px; }
+.term-entry > time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.term-text { white-space: pre-wrap; word-break: break-word; color: var(--ink); }
+.term-sent .term-text { font-weight: 600; }
+.term-sent .term-text::before { content: '› '; color: var(--tan); }
+.term-reply .term-text { color: var(--ink); }
+.term-note .term-text { color: var(--ink); }
+.term-text code { font-size: inherit; }
+.term-status .term-text { color: var(--muted); }
+.term-log > .term-error { background: var(--tan-wash); }
+.term-error .term-text { color: var(--ink); }
+.term-error .term-sym { color: var(--danger); font-weight: 700; }
+.term-filter { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; color: var(--muted); }
+.term-running { flex: none; margin: 0; padding: 4px 12px; font-size: 12px; color: var(--ink); background: var(--blue-wash); border-top: 1px solid var(--line-soft); }
+.term-paste { flex: none; display: flex; align-items: center; gap: 8px; padding: 4px 12px; font-size: 12px; border-top: 1px solid var(--line-soft); background: var(--tan-wash); }
+.term-paste span { margin-right: auto; }
+.term-preview { flex: none; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--muted); }
 
 @media (max-width: 1100px) {
   .console-pane { grid-template-columns: 1fr; }

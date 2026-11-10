@@ -1,6 +1,6 @@
 import { showWorkspace } from './workspace-navigation.ts';
 /**
- * Report a problem, the Console command line and Projects in the built app
+ * Report a problem, the Terminal's reads and Projects in the built app
  * (fake-serial TEST build).
  *
  * - A fault notice (the simulated board resets: a banner after ready) offers
@@ -8,9 +8,9 @@ import { showWorkspace } from './workspace-navigation.ts';
  *   preview, keeps the G-code excerpt as the default and asks before the
  *   whole file, and builds a pre-filled issue link on the allowlisted repo.
  *   Reporting writes nothing to the board.
- * - Typing $xvm in the Console sends one allowlisted GET ({"xvm":null}) and
- *   shows the answer in plain words, with the raw JSON one click away.
- *   Motion typed there is shown and never sent.
+ * - Typing $xvm in the Terminal sends one allowlisted GET ({"xvm":null}) and
+ *   shows the answer in plain words, with the raw JSON behind the Raw filter.
+ *   Typed moves are their own spec (terminal.fake-serial.ts).
  * - A new project takes a G-code file and opens it in Run.
  *
  * With RUN_SCREENSHOTS_DIR set, screenshots of the three features are
@@ -181,42 +181,35 @@ test('the account menu, Safety and the Board view open the report; the forum tar
   await expect(dialog).toHaveAttribute('data-report-step', 'triage');
 });
 
-test('the Console turns $xvm into {"xvm":null}, sends it as a read and shows the answer in plain words', async ({ page }) => {
+test('the Terminal turns $xvm into {"xvm":null}, sends it as a read and shows the answer in plain words', async ({ page }) => {
   const worker = await connectedTab(page);
-  await page.locator('[data-tab="console"]').click();
-  const input = page.locator('[data-console="input"]');
+  await page.locator('[data-tab="terminal"]').click();
+  const input = page.locator('[data-terminal="input"]');
   await input.fill('$xv');
-  await expect(page.locator('#cl-suggest [role="option"]').first()).toContainText('xvm');
-  await expect(page.locator('[data-console="hint"]')).toContainText('X maximum velocity');
   await input.press('Tab');
-  await expect(input).toHaveValue('$xvm');
-  await expect(page.locator('[data-console="preview"]')).toHaveText('{"xvm":null}');
+  await expect(input).toHaveValue(/^\$xv/);
+  await input.fill('$xvm');
+  await expect(page.locator('[data-terminal="preview"]')).toHaveText('Reads xvm');
   const before = (await hostWrites(worker)).length;
   await input.press('Enter');
-  const reply = page.locator('[data-console-entry="read"]').last();
-  await expect(reply.locator('[data-console-reply="answered"]')).toBeVisible({ timeout: 10_000 });
-  await expect(reply.locator('[data-console-key="xvm"]')).toContainText('X maximum velocity');
-  await reply.locator('.cl-raw > summary').click();
-  await expect(reply.locator('[data-console-raw]')).toContainText('"xvm"');
+  const reply = page.locator('[data-terminal-entry="reply"]').last();
+  await expect(reply).toContainText('X maximum velocity', { timeout: 10_000 });
+  await page.locator('[data-terminal-filter="raw"]').check();
+  await expect(page.locator('[data-terminal-entry="reply"]').last()).toContainText('"xvm"');
+  await page.locator('[data-terminal-filter="raw"]').uncheck();
   await expect.poll(async () => (await hostWrites(worker)).slice(before)).toContain('{"xvm":null}\n');
 
-  // Motion and writes are shown, never sent; realtime characters are refused.
+  // A settings write is refused with where to change it; nothing but reads go out.
   const mark = (await hostWrites(worker)).length;
-  await input.fill('g0 x10');
-  await input.press('Enter');
-  await expect(page.locator('[data-console-reply="motion"]').last()).toContainText('Typed motion comes later; use the jog panel');
   await input.fill('$xvm=5000');
   await input.press('Enter');
-  await expect(page.locator('[data-console-reply="write"]').last()).toContainText('Typed settings writes are not sent; change settings in Board → Pending changes');
-  await input.fill('!');
-  await input.press('Enter');
-  await expect(page.locator('[data-console-reply="refused"]').last()).toContainText('Pause and Stop job');
-  const axe = await new AxeBuilder({ page }).include('[data-region="console-line"]').analyze();
+  await expect(page.locator('[data-terminal-entry="error"]').last()).toContainText('Change settings in Board → Pending changes');
+  const axe = await new AxeBuilder({ page }).include('[data-region="terminal"]').analyze();
   expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
   await input.press('ArrowUp');
-  await expect(input).toHaveValue('!');
-  await input.press('ArrowUp');
   await expect(input).toHaveValue('$xvm=5000');
+  await input.press('ArrowUp');
+  await expect(input).toHaveValue('$xvm');
   const writes = (await hostWrites(worker)).slice(mark);
   for (const w of writes) expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005', JSON.stringify(w)).toBe(true);
 });
@@ -293,23 +286,17 @@ for (const theme of ['light', 'dark'] as const) {
     const worker = await connectedTab(page);
     await openSample(page);
 
-    // Console with replies.
-    await page.locator('[data-tab="console"]').click();
-    const input = page.locator('[data-console="input"]');
-    for (const line of ['$xvm', 'g0 x10']) {
+    // Terminal with replies.
+    await page.locator('[data-tab="terminal"]').click();
+    const input = page.locator('[data-terminal="input"]');
+    for (const line of ['$xvm', '?']) {
       await input.fill(line);
       await input.press('Enter');
+      await expect(page.locator('[data-terminal-entry="reply"]').last()).toBeVisible({ timeout: 10_000 });
     }
-    await expect(page.locator('[data-console-reply="answered"]').first()).toBeVisible({ timeout: 10_000 });
-    await input.fill('?');
-    await input.press('Enter');
-    await expect(page.locator('[data-console-reply="answered"]').nth(1)).toBeVisible({ timeout: 10_000 });
-    await page.locator('[data-console-entry="read"]').first().locator('.cl-raw > summary').click();
-    await page.locator('.cl-log').evaluate((el) => el.scrollTo(0, 0));
     await input.fill('$xv');
     await shot('console');
     await input.fill('');
-    await page.locator('.cl-log').evaluate((el) => el.scrollTo(0, el.scrollHeight));
     await shot('console-replies');
 
     // Report from a notice.

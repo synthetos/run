@@ -82,9 +82,9 @@ test('the DRO machine position follows pushed reports, with no poll; settings an
   // The spindle and coolant readouts were read once at connect (then the status list run set carries them).
   for (const t of ['spe', 'spc', 'sps', 'cof', 'com']) expect(all.filter((w) => w === `{"${t}":null}\n`), t).toHaveLength(1);
 
-  // P1-08: Save transcript downloads (Run view, Console tab) the worker's {t, dir, hex} JSONL with a dated name, next to the board-id warning.
+  // P1-08: Save transcript downloads (Run view, Terminal tab) the worker's {t, dir, hex} JSONL with a dated name, next to the board-id warning.
   await page.locator('[data-region="rail"] [data-view="job"]').click();
-  await page.locator('[data-tab="console"]').click();
+  await page.locator('[data-tab="terminal"]').click();
   await expect(page.locator('[data-console="lines"]')).toContainText('{sr:null}');
   // The save panel sits under the wire transcript, behind "Save the transcript".
   await page.locator('.wire-save > summary').click();

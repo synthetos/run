@@ -1,9 +1,10 @@
 /**
- * The Console command line's translator (WORKSPACE_FEATURES "Console command
- * line"). What the user types becomes a JSON request, so the board never
+ * The command line's translator for reads (WORKSPACE_FEATURES "Console command
+ * line"), used by the terminal (terminal/translate.ts), which decides every
+ * other kind. What the user types becomes a JSON request, so the board never
  * leaves JSON mode:
  *
- *   g0x100, G1 X10 F500   {"gc":"G0X100"}   motion: shown, never sent in Phase 1
+ *   g0x100, G1 X10 F500   {"gc":"G0X100"}   motion: the terminal takes it to the typed-move path (H91)
  *   $xvm, xvm             {"xvm":null}      a read, if the dialect allowlists it
  *   $xvm=5000             {"xvm":5000}      a settings write: shown, never sent (settings change in Board → Pending changes)
  *   ?                     {"sr":null}       a status report read
@@ -13,17 +14,16 @@
  * refused with the reason. The realtime characters (`!`, `~`, `%`, ^X) are
  * refused: Pause and Stop job are buttons, never typed.
  *
- * Pure. The result says what would be on the wire and whether Phase 1 sends
- * it; only `kind: 'read'` is ever sent, through the worker's read path, which
- * checks the read allowlist again (SAFETY H37).
+ * Pure. The result says what would be on the wire; a `read` is sent through
+ * the worker's read path, which checks the read allowlist again (SAFETY H37).
  */
 
 export type Translation =
   | { readonly kind: 'empty' }
   /** Sent in Phase 1: one allowlisted GET. */
   | { readonly kind: 'read'; readonly token: string; readonly wire: string }
-  /** Shown and not sent: typed motion comes later (Phase 2 motion is the jog panel's, SAFETY §4.5b). */
-  | { readonly kind: 'motion'; readonly wire: string; readonly reason: string }
+  /** G-code: the terminal classifies it and sends a move through the session's typed-move path (H91). */
+  | { readonly kind: 'motion'; readonly wire: string }
   /** Shown and not sent: typed settings writes stay off; settings change through the Board view's reviewed tray. */
   | { readonly kind: 'write'; readonly wire: string; readonly reason: string }
   /** Not sent, with the reason and what to do instead. */
@@ -36,7 +36,6 @@ export interface TranslateContext {
   readonly jobStreaming: boolean;
 }
 
-export const MOTION_LATER = 'Typed motion comes later; use the jog panel';
 export const WRITES_LATER = 'Typed settings writes are not sent; change settings in Board → Pending changes';
 export const REALTIME_REFUSED = 'Realtime commands are never typed here. Pause and Stop job are the buttons at the top right, in every view (and Escape pauses).';
 export const JOB_STREAMING = 'A job is streaming, so the command line sends nothing until it ends. Pause and Stop job stay where they are.';
@@ -111,7 +110,7 @@ function fromJson(text: string, ctx: TranslateContext): Translation {
     if (typeof value !== 'string') return { kind: 'refused', reason: '{"gc": …} takes a G-code line as a string.' };
     const line = normaliseGcode(value);
     if (line === null) return { kind: 'refused', reason: 'That G-code line could not be read.' };
-    return ctx.jobStreaming ? { kind: 'refused', reason: JOB_STREAMING } : { kind: 'motion', wire: JSON.stringify({ gc: line }), reason: MOTION_LATER };
+    return ctx.jobStreaming ? { kind: 'refused', reason: JOB_STREAMING } : { kind: 'motion', wire: JSON.stringify({ gc: line }) };
   }
   const token = key.toLowerCase();
   if (!TOKEN.test(token)) return { kind: 'refused', reason: `${JSON.stringify(key)} is not a setting name.` };
@@ -144,7 +143,7 @@ export function translate(input: string, ctx: TranslateContext): Translation {
   const gcode = normaliseGcode(text);
   if (gcode !== null) {
     const wire = JSON.stringify({ gc: gcode });
-    return ctx.jobStreaming ? { kind: 'refused', reason: JOB_STREAMING, wire } : { kind: 'motion', wire, reason: MOTION_LATER };
+    return ctx.jobStreaming ? { kind: 'refused', reason: JOB_STREAMING, wire } : { kind: 'motion', wire };
   }
   const bare = text.toLowerCase().replace(/\s+/g, '');
   const eq = bare.indexOf('=');

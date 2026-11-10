@@ -60,7 +60,7 @@ Shown once per session, the first time you type a move:
 - **Modes are not put back.** A typed G91 or G20 stays. Stop job keeps its own closing lines (`M5`, `M9`, `G90` and the units read).
 - **Refused, not asked:** a move past the travel of an axis homed in this connection; a move that cannot be split into short enough pieces; a sanitiser block; G1, G2 or G3 with no feed in the line and none in effect (the feed in effect counts only in millimetres).
 - **Asked (Home / Move anyway / Cancel):** a move past the travel of an axis not homed here, or a limit or position not read. "Move anyway" sends the line again with the finding's text; the session matches it exactly.
-- **Page.** `apps/web/src/terminal/` classifies each line (`translate.ts`) into the path of the matching button; it sends nothing itself.
+- **Page.** `apps/web/src/terminal/` classifies each line (`translate.ts`) into the path of the matching button. The Terminal tab (`workspace/dock/tabs/terminalTab.ts`, Simple and Advanced) replaces the Console, beside the wire transcript (3:1): a move goes to the session's `typedMove` (worker op `typedMove`), spindle, coolant, zero, offset and home lines to the buttons' commands after the buttons' confirmations (`TerminalAsk.ts`), `!` `~` `%` Ctrl-X to the page's real Pause, Resume and Stop job, and the session's typed notice back as the result, the travel question or "Z is low".
 - **Not typed:** a mode, feed or axis word alone (put it in the move line); G28 and G30 (no button goes to a stored position); G10 L2 and non-zero offsets (Set zero sets 0 here); a dwell over 60 s.
 
 ## OD-31 (owner, 2026-11-09: "split, ask first")

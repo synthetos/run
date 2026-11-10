@@ -66,6 +66,11 @@ export type MotionCommand =
   | { readonly op: 'selectCoord'; readonly system: number }
   | { readonly op: 'spindleOn'; readonly direction: 'cw' | 'ccw'; readonly rpm: number }
   | { readonly op: 'coolantOn'; readonly which: 'mist' | 'flood' }
+  /**
+   * H91, OD-31: one typed G0..G4 line from the terminal, with the travel finding the user confirmed ("Move anyway")
+   * and the answer to "Z is low. Raise Z first?". The session parses, checks and decides it again.
+   */
+  | { readonly op: 'typedMove'; readonly line: string; readonly travel: string | null; readonly lowZ: 'raise' | 'asTyped' | null }
   /** Probe Z (SAFETY §4.5c, H90): start the touch test with the owner's plan; start the probe after C39 (the session uses the plan it holds); and the steps around it. */
   | { readonly op: 'probeTouch'; readonly thicknessMm: number; readonly depthMm: number; readonly feed: number }
   | { readonly op: 'probeStart'; readonly confirm: true }
@@ -415,6 +420,16 @@ export function parseMotionCommand(value: unknown): MotionCommand | null {
     case 'coolantOn':
       if (keys !== 'op,which' || (c['which'] !== 'mist' && c['which'] !== 'flood')) return null;
       return Object.freeze({ op: 'coolantOn', which: c['which'] });
+    // H91: the line and the finding are bounded strings; the session's grammar decides the rest.
+    case 'typedMove': {
+      const line = c['line'];
+      const travel = c['travel'];
+      const lowZ = c['lowZ'];
+      if (keys !== 'line,lowZ,op,travel' || typeof line !== 'string' || line.length > 254) return null;
+      if (travel !== null && (typeof travel !== 'string' || travel.length > 1000)) return null;
+      if (lowZ !== null && lowZ !== 'raise' && lowZ !== 'asTyped') return null;
+      return Object.freeze({ op: 'typedMove', line, travel, lowZ });
+    }
     // Probe Z (SAFETY §4.5c): the plan is mm and mm/min; the session checks every limit.
     case 'probeTouch':
       if (keys !== 'depthMm,feed,op,thicknessMm' || !finite(c['thicknessMm']) || !finite(c['depthMm']) || !finite(c['feed'])) return null;

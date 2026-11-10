@@ -9,6 +9,7 @@ import type { WorkspaceModel } from '../model.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 import { fileSummary } from '../lineWords.ts';
 import type { DockContext, DockTab } from './dockTab.ts';
+import type { StopHooks } from '../views/JobStatusCard.ts';
 import { dockTabRequest, dockTabs } from './registry.ts';
 
 function TabButton({ tab, ctx, selected, onSelect }: { readonly tab: DockTab; readonly ctx: DockContext; readonly selected: boolean; readonly onSelect: () => void }): ComponentChild {
@@ -23,10 +24,10 @@ function TabButton({ tab, ctx, selected, onSelect }: { readonly tab: DockTab; re
   );
 }
 
-export function Dock({ parts, model }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null }): ComponentChild {
+export function Dock({ parts, model, stops = {} }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly stops?: StopHooks }): ComponentChild {
   const all = dockTabs();
   const [tab, setTab] = useState<string>(all[0]?.id ?? 'gcode');
-  const ctx: DockContext = { parts, model, advanced: uiLevel.value.value === 'advanced' };
+  const ctx: DockContext = { parts, model, advanced: uiLevel.value.value === 'advanced', stops };
   const result = parts.state.status === 'ready' ? parts.state.result : null;
   const offered = all.filter((t) => t.available(ctx));
   // Another part of the page asked for a tab (registry.ts): show it when offered, then clear the request.

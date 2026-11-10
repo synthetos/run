@@ -1,16 +1,16 @@
 /**
- * The dock's tabs in order (G-code, Console, Live job, Notes), a way for another module to add one, and a way for any code
+ * The dock's tabs in order (G-code, Terminal, Live job, Notes), a way for another module to add one, and a way for any code
  * to ask the dock to show a tab. Navigation state only; nothing here commands the machine.
  */
 import { signal } from '@preact/signals';
 import type { DockTab } from './dockTab.ts';
 import { gcodeTab } from './tabs/gcodeTab.ts';
-import { consoleTab } from './tabs/consoleTab.ts';
+import { terminalTab } from './tabs/terminalTab.ts';
 import { liveJobTab } from './tabs/liveJobTab.ts';
 import { notesTab } from './tabs/notesTab.ts';
 
-// Notes after Live job (owner, 2026-11-09); a terminal tab is added later with registerDockTab.
-const tabs = signal<readonly DockTab[]>([gcodeTab, consoleTab, liveJobTab, notesTab]);
+// Notes after Live job (owner, 2026-11-09). The Terminal replaces the Console (H91), in Simple and Advanced.
+const tabs = signal<readonly DockTab[]>([gcodeTab, terminalTab, liveJobTab, notesTab]);
 
 /** Every registered tab, in order. Reading it in a render subscribes to later registrations. */
 export function dockTabs(): readonly DockTab[] {

@@ -5,6 +5,7 @@
 import type { ComponentChild } from 'preact';
 import type { PreviewParts } from '../../preview/PreviewPanel.ts';
 import type { WorkspaceModel } from '../model.ts';
+import type { StopHooks } from '../views/JobStatusCard.ts';
 
 /** What every tab sees when the dock renders. */
 export interface DockContext {
@@ -12,6 +13,8 @@ export interface DockContext {
   readonly model: WorkspaceModel | null;
   /** The interface level is Advanced. */
   readonly advanced: boolean;
+  /** The page's real Pause and Stop job (the strip's buttons and Escape), for the terminal's `!` and `%` (H91). */
+  readonly stops: StopHooks;
 }
 
 export interface DockTab {

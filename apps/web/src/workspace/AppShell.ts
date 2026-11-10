@@ -33,6 +33,7 @@ import { selectedMachine } from './library.ts';
 import { MachineStrip } from './MachineStrip.ts';
 import { INITIAL_LIVE_VIEW, portOpen, type WorkspaceModel } from './model.ts';
 import { stripStatus } from './status.ts';
+import { resumeAction } from './resumeAction.ts';
 import { BoardView } from './views/BoardView.ts';
 import { boardTab, viewRequest } from './boardNavigation.ts';
 import { observingElsewhere } from './tabControl.ts';
@@ -88,6 +89,7 @@ export interface AppShellProps {
 
 function Strip(props: AppShellProps): ComponentChild {
   const view = props.model?.live.value ?? INITIAL_LIVE_VIEW;
+  const resume = resumeAction(props.model);
   const status = stripStatus(view, selectedMachine.value?.name ?? null);
   const actions = props.model?.actions.value ?? null;
   const connection = actions !== null && portOpen(view) ? { onDisconnect: actions.disconnect, refused: view.disconnectRefused } : null;
@@ -100,14 +102,8 @@ function Strip(props: AppShellProps): ComponentChild {
     previousSession: props.previousSession?.value === true,
     ...(props.onPause === undefined ? {} : { onPause: props.onPause }),
     ...(props.onStopJob === undefined ? {} : { onStopJob: props.onStopJob }),
-    // Phase 2: Resume (`~`) only for a hold of this session's motion, decided by the session (SAFETY §4.5b).
-    ...(view.message?.snapshot.motion?.held === true && props.model?.actions.value?.motion !== undefined
-      ? { onResume: () => void props.model?.actions.value?.motion?.({ op: 'resume' }) }
-      : {}),
-    // Phase 3: Resume (`~`) for a paused job of this session (SAFETY §4.4a).
-    ...(view.message?.snapshot.job?.phase === 'paused' && props.model?.actions.value?.job !== undefined
-      ? { onResume: () => void props.model?.actions.value?.job?.({ op: 'resume', skip: false, spindleRestart: false }) }
-      : {}),
+    // Resume (`~`): a hold of this session's motion (SAFETY §4.5b) or a paused job (§4.4a); the terminal's `~` uses the same.
+    ...(resume === null ? {} : { onResume: resume }),
     motion: view.message?.motion === true,
   });
 }

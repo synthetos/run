@@ -37,6 +37,7 @@ import { PositionStatus } from '../positionStatus.ts';
 import { ControlBlockCard, currentBlock } from '../ControlBlockCard.ts';
 import { outputsOff } from '../controlBlock.ts';
 import { WorkZeroConfirm } from '../workZeroConfirm.ts';
+import { skipSpindleConfirm, spindleConfirmSkipped } from '../spindleConfirm.ts';
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
 import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
@@ -370,13 +371,8 @@ export function PositionPanel(props: PositionProps = {}): ComponentChild {
 
 // ---------------------------------------------------------------- inspector: motion (Phase 2)
 
-/** The page's own "don't ask again" for C24, for this page load only: never stored (SAFETY §4.5b, H52). */
-let spindleConfirmSkipped = false;
-
-/** Tests only: forget the session's "don't ask again" for C24. */
-export function resetSpindleConfirm(): void {
-  spindleConfirmSkipped = false;
-}
+// The page's own "don't ask again" for C24 lives in spindleConfirm.ts (shared with the terminal, H91).
+export { resetSpindleConfirm } from '../spindleConfirm.ts';
 
 /**
  * The hooks a motion section uses. A section renders with real hooks only while a LIVE motion session can act
@@ -746,7 +742,7 @@ function spindleBody({ model, compact = false }: SpindleProps, hk: Hooks): Compo
     void send?.(command).then(setNote);
   };
   const start = (direction: 'cw' | 'ccw'): void => {
-    if (spindleConfirmSkipped) run({ op: 'spindleOn', direction, rpm });
+    if (spindleConfirmSkipped()) run({ op: 'spindleOn', direction, rpm });
     else setAsking(direction);
   };
   const mist = r?.com === 1;
@@ -812,7 +808,7 @@ function spindleBody({ model, compact = false }: SpindleProps, hk: Hooks): Compo
               safety: 'C24',
               onCancel: () => setAsking(null),
               onConfirm: () => {
-                if (skip) spindleConfirmSkipped = true;
+                if (skip) skipSpindleConfirm();
                 const direction = asking;
                 setAsking(null);
                 run({ op: 'spindleOn', direction, rpm });
@@ -1293,7 +1289,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
           ),
           h('output', { class: 'time', for: 'preview-scrub', 'data-preview': 'scrub-line' }, state.scrub === 0 ? 'none' : `file line ${String(scrubLine)}`),
         ),
-        h(Dock, { parts, model }),
+        h(Dock, { parts, model, stops }),
       ),
     ),
     ),
