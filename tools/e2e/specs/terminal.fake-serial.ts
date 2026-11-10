@@ -147,3 +147,60 @@ for (const theme of ['light', 'dark'] as const) {
     await shot(page, '6-transcript', theme);
   });
 }
+
+/** The panel's height now, px. */
+function panelHeight(page: Page): Promise<number> {
+  return page.locator('.dock-panel').evaluate((el) => Math.round(el.getBoundingClientRect().height));
+}
+
+for (const size of [{ w: 1280, h: 720 }, { w: 390, h: 844 }] as const) {
+  for (const theme of ['light', 'dark'] as const) {
+    test(`the dock gives the terminal room and keeps the 3D view usable, ${size.w}×${size.h} (${theme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize({ width: size.w, height: size.h });
+      const worker = await machineWorker(page);
+      expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
+      await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
+      const before = await panelHeight(page);
+      await page.locator('[data-tab="terminal"]').click();
+      // The share is of the Job view on a laptop, and of the window on a phone (where the page scrolls).
+      const view = size.w > 650 ? await page.locator('.job-view').evaluate((el) => el.clientHeight) : size.h;
+      // At the default size the Terminal opens at about 40% of the Job view (never smaller than the default); on a short
+      // laptop screen it takes what the 3D view has above its 160 px.
+      const viewerHeight = async (): Promise<number> => Math.round((await page.locator('.job-view .canvas-column .viewer').first().boundingBox())?.height ?? 0);
+      await expect.poll(async () => (await panelHeight(page)) >= Math.round(view * 0.38) || (size.w > 650 && (await viewerHeight()) <= 175)).toBe(true);
+      expect(await panelHeight(page)).toBeGreaterThan(before);
+      await type(page, '?');
+      await expect(page.locator('[data-terminal-entry="reply"]').last()).toBeVisible({ timeout: 10_000 });
+      // The 3D view stays usable: at least 160 px tall beside the panel on a laptop; on a phone the page scrolls to it.
+      const viewer = await page.locator('.job-view .canvas-column .viewer').first().boundingBox();
+      expect(viewer?.height ?? 0).toBeGreaterThanOrEqual(size.w > 650 ? 159 : 300);
+      // The Run panel beside it keeps its height on a laptop (the panel takes room from the 3D view only).
+      if (size.w > 650) expect((await page.locator('.job-work-panel').boundingBox())?.height ?? 0).toBeGreaterThan(300);
+      // No sideways page scroll: a long reply wraps.
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+      const pane = await page.locator('[data-region="terminal"]').boundingBox();
+      expect((pane?.x ?? 0) + (pane?.width ?? 0)).toBeLessThanOrEqual(size.w + 1);
+      await shot(page, `room-${size.w}x${size.h}`, theme);
+      // The handle: focusable, the arrows resize it, and the height is remembered after a reload.
+      const handle = page.locator('[data-dock="resizer"]');
+      await handle.focus();
+      await handle.press('Home');
+      const lowest = await panelHeight(page);
+      expect(lowest).toBeLessThanOrEqual(100);
+      await handle.press('ArrowUp');
+      await expect.poll(() => panelHeight(page)).toBeGreaterThan(lowest);
+      const up = await panelHeight(page);
+      await handle.press('ArrowDown');
+      await expect.poll(() => panelHeight(page)).toBeLessThan(up);
+      await handle.press('End');
+      const tallest = await panelHeight(page);
+      expect(tallest).toBeLessThanOrEqual(Math.round(view * 0.65) + 2);
+      if (size.w > 650) expect((await page.locator('.job-view .canvas-column .viewer').first().boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(159);
+      await shot(page, `tallest-${size.w}x${size.h}`, theme);
+      await page.reload();
+      await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+      await expect.poll(() => panelHeight(page)).toBeGreaterThan(tallest - 40);
+    });
+  }
+}

@@ -3,7 +3,7 @@
  * per tab. Only offered tabs get a button; every registered pane stays mounted and is hidden unless shown.
  */
 import { h, type ComponentChild } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { PreviewParts } from '../../preview/PreviewPanel.ts';
 import type { WorkspaceModel } from '../model.ts';
 import { uiLevel } from '../jobWorkflow.ts';
@@ -11,6 +11,8 @@ import { fileSummary } from '../lineWords.ts';
 import type { DockContext, DockTab } from './dockTab.ts';
 import type { StopHooks } from '../views/JobStatusCard.ts';
 import { dockTabRequest, dockTabs } from './registry.ts';
+import { DOCK_MIN_PX, VIEWER_MIN_PX, clampDock, dockMax, loadDockHeight, saveDockHeight, terminalHeight } from './dockSize.ts';
+import { DockResizer } from './DockResizer.ts';
 
 function TabButton({ tab, ctx, selected, onSelect }: { readonly tab: DockTab; readonly ctx: DockContext; readonly selected: boolean; readonly onSelect: () => void }): ComponentChild {
   const badge = tab.badge?.(ctx) ?? null;
@@ -37,9 +39,55 @@ export function Dock({ parts, model, stops = {} }: { readonly parts: PreviewPart
     if (offered.some((t) => t.id === request)) setTab(request);
     dockTabRequest.value = null;
   }, [request]);
+  // The panel's height: the user's (remembered), else the Terminal's opening share of the Job view, else the stylesheet's.
+  const dock = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [userHeight, setUserHeight] = useState<number | null>(() => loadDockHeight());
+  const [viewPx, setViewPx] = useState(0);
+  const [cssPx, setCssPx] = useState(0);
+  // On a laptop the 3D view and the panel share the column: the panel may take what the view has above its minimum.
+  const [fitPx, setFitPx] = useState(Number.POSITIVE_INFINITY);
+  useLayoutEffect(() => {
+    const view = dock.current?.closest('.job-view') ?? null;
+    const measure = (): void => {
+      const wide = (globalThis.innerWidth ?? 0) > 650;
+      // On a phone the page scrolls: the share is of the window, not of the scrolling Job view.
+      setViewPx(wide ? (view?.clientHeight ?? globalThis.innerHeight ?? 0) : (globalThis.innerHeight ?? 0));
+      const p = panel.current;
+      const d = dock.current;
+      if (p === null || d === null) return;
+      const ph = p.getBoundingClientRect().height;
+      if (p.style.height === '') setCssPx(ph);
+      const column = d.closest('.canvas-column');
+      const viewer = column?.querySelector('.viewer') ?? null;
+      if (!wide || column === null || viewer === null) {
+        setFitPx(Number.POSITIVE_INFINITY);
+        return;
+      }
+      // What the column holds besides the 3D view and the dock (the timeline), from its content height, so the fit is
+      // the same whatever the split is now, even while the column overflows.
+      const dh = d.getBoundingClientRect().height;
+      const rest = column.scrollHeight - viewer.getBoundingClientRect().height - dh;
+      setFitPx(Math.max(DOCK_MIN_PX, Math.round(column.clientHeight - rest - (dh - ph) - VIEWER_MIN_PX)));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined' || view === null) return;
+    const watch = new ResizeObserver(measure);
+    watch.observe(view);
+    return () => watch.disconnect();
+  }, []);
+  const max = Math.min(dockMax(viewPx), fitPx);
+  const wanted = viewPx === 0 ? null : userHeight !== null ? userHeight : tab === 'terminal' ? Math.max(terminalHeight(viewPx), cssPx) : null;
+  const height = wanted === null ? null : Math.min(clampDock(wanted, viewPx), max);
+  const resize = (px: number): void => {
+    const next = Math.min(clampDock(px, viewPx === 0 ? globalThis.innerHeight : viewPx), max);
+    setUserHeight(next);
+    saveDockHeight(next);
+  };
   return h(
     'div',
-    { class: 'dock', 'data-dock-tab': tab },
+    { class: 'dock', 'data-dock-tab': tab, ref: dock, ...(height === null ? {} : { 'data-dock-sized': '' }) },
+    h(DockResizer, { height: height ?? cssPx, max, onResize: resize }),
     h(
       'div',
       { class: 'dock-tabs', role: 'tablist', 'aria-label': 'File and machine' },
@@ -48,7 +96,7 @@ export function Dock({ parts, model, stops = {} }: { readonly parts: PreviewPart
     ),
     h(
       'div',
-      { tabindex: 0, class: 'dock-panel' },
+      { tabindex: 0, class: 'dock-panel', ref: panel, ...(height === null ? {} : { style: { height: `${height}px`, flex: 'none' } }) },
       all.map((t) =>
         h(
           'div',
