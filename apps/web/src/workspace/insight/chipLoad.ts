@@ -5,15 +5,17 @@
  * Both use the tool's full diameter. For a ball nose (or a V-bit) the diameter in the cut is smaller at a shallow
  * depth, so the real chip load and surface speed are lower than shown; the rows say so.
  *
- * The range to compare against: the tool's own cutting data for the job's material (fz, vc), or else the material's
- * chip-load range for the tool material (factor × D, @synthetos/advisor chiploadRange). Tool data gives one target
- * fz; its range runs from the Analyze rubbing floor (35 % of it, advisor THRESHOLDS) to TOOL_DATA_HIGH × it.
+ * The band to compare against (owner, 2026-11-10, OD-35: "✓ 0.75–1.25× with one number, the maker's range when
+ * there is one"): the tool's own cutting data for the job's material gives one recommended fz, so the band is
+ * 0.75–1.25 × fz, and below the Analyze rubbing floor (35 % of fz, advisor THRESHOLDS) it is also a rubbing risk; the
+ * material's chip-load range for the tool material (factor × D, @synthetos/advisor chiploadRange) is used as it is.
+ * Below the band is light, above it heavy.
  */
 import { chiploadAt, chiploadRange, surfaceSpeed, THRESHOLDS } from '@synthetos/advisor';
 import type { Material, Tool, ToolType } from '@synthetos/library';
 
-/** Above this multiple of the tool's own fz the chip load reads high (tool load). */
-export const TOOL_DATA_HIGH = 1.25;
+/** With one recommended fz: ✓ from 0.75 to 1.25 times it (OD-35). */
+export const ONE_NUMBER_BAND = Object.freeze({ low: 0.75, high: 1.25 });
 
 export interface Range {
   readonly min: number;
@@ -40,26 +42,33 @@ export function usesFullDiameterNote(type: ToolType): string | null {
   return null;
 }
 
+/** `fz`: the ✓ band. `rubbing`: below this a light chip load is also a rubbing risk (one number only). */
 export type Reference =
-  | { readonly from: 'tool'; readonly fz: Range; readonly vc: Range | null; readonly target: { readonly fz: number; readonly vc: number } }
-  | { readonly from: 'material'; readonly fz: Range; readonly vc: Range | null };
+  | { readonly from: 'tool'; readonly fz: Range; readonly rubbing: number; readonly vc: Range | null; readonly target: { readonly fz: number; readonly vc: number } }
+  | { readonly from: 'material'; readonly fz: Range; readonly rubbing: null; readonly vc: Range | null };
 
 /** What to compare the chip load against for this tool in this material, or null when nothing is recorded. */
 export function referenceFor(tool: Tool, materialId: string, mat: Material | null): Reference | null {
   const own = tool.cuttingData.find((c) => c.materialRef.id === materialId && c.fz > 0);
   if (own !== undefined) {
     // The surface speed is shown against the tool's own vc, not judged: only the chip load gets a verdict.
-    return { from: 'tool', fz: { min: own.fz * THRESHOLDS.rubbingFloorFraction, max: own.fz * TOOL_DATA_HIGH }, vc: null, target: { fz: own.fz, vc: own.vc } };
+    const fz = { min: own.fz * ONE_NUMBER_BAND.low, max: own.fz * ONE_NUMBER_BAND.high };
+    return { from: 'tool', fz, rubbing: own.fz * THRESHOLDS.rubbingFloorFraction, vc: null, target: { fz: own.fz, vc: own.vc } };
   }
   const cut = mat?.cutting.find((c) => c.toolMaterial === tool.toolMaterial);
   if (cut === undefined || !(tool.geometry.diameter > 0)) return null;
-  return { from: 'material', fz: chiploadRange(cut.chipload.value, tool.geometry.diameter), vc: cut.vc.value };
+  return { from: 'material', fz: chiploadRange(cut.chipload.value, tool.geometry.diameter), rubbing: null, vc: cut.vc.value };
 }
 
-export type Verdict = 'ok' | 'low' | 'high';
+export type Verdict = 'ok' | 'light' | 'heavy';
 
 export function verdict(value: number, range: Range): Verdict {
-  if (value < range.min) return 'low';
-  if (value > range.max) return 'high';
+  if (value < range.min) return 'light';
+  if (value > range.max) return 'heavy';
   return 'ok';
+}
+
+/** Light and also under the rubbing floor (one recommended number only). */
+export function rubbingRisk(value: number, ref: Reference): boolean {
+  return ref.rubbing !== null && value < ref.rubbing;
 }

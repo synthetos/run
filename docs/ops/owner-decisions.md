@@ -555,3 +555,11 @@ See docs/design/place-job.md.
 **Context.** Run's status report list (H64) carried state, position, units, the spindle and coolant readouts, but not `tool`. The tool was read once at connect, so after an M6 the page still showed the old number, and the Advanced planner block had to take the tool from the file during a job.
 
 **Decision.** `tool` is added to run's status report list (`RUN_SR_FIELDS`), 22 fields, within TinyG's 30 (NV_STATUS_REPORT_LEN) and the 254-byte line (the `{sr:{…}}` line is 220 bytes). On TinyG 450.02 `tool` is reportable (an integer the status report filter handles) and reads the active model's tool, which M6 sets when it runs behind the queued moves; T alone only selects (canonical_machine.c cm_select_tool, cm_change_tool, _exec_change_tool). The list is written only where it differs and read back, as before, so a board with run's previous list gets one more `{sr:{…}}` write and read-back at its next connect (W35 says so). The planner block uses the board's `tool` when its list carries it, and the file's tool only stands in during a job when it does not. SAFETY H24 and H64 are amended.
+
+## OD-35. The chip-load band in the Advanced planner block (owner, 2026-11-10)
+
+**Owner's words.** "1 yes", answering "✓ 0.75–1.25× with one number, the maker's range when there is one". On the labels: "less is more".
+
+**Context.** The Advanced block's Cutting rows (Position panel) compare the live chip load (feed ÷ (rpm × flutes)) with the job's material. The tool's cutting data gives one recommended chip load (fz); the material library gives a range (factor × D) for the tool material. As first built, one number was judged from 35 % to 1.25 × of it, with long labels ("⚠ low: rubbing, heat").
+
+**Decision.** When the tool's data or the material gives a range, it is used as it is. With one recommended number, ✓ runs from 0.75 to 1.25 times it. Below the band is "light", and below 35 % of the one number (the Analyze rubbing floor) also "rubbing risk"; above the band is "heavy". Labels are short, the range in parentheses, on one line: "✓ 0.033 mm/tooth", "⚠ light (0.019–0.031)", "⚠ light, rubbing risk (…)", "⚠ heavy (…)". Display only: nothing is sent and nothing is gated. Run apps/web/src/workspace/insight/chipLoad.ts holds the band.

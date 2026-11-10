@@ -17,8 +17,7 @@
 .planner-bar > i { position: absolute; inset: 0 auto 0 0; background: var(--ok); }
 .planner-meter.starving .planner-bar > i { background: var(--warn); }
 .planner-warn { color: var(--warn); }
-.sec-insight .insight-sub,
-.sec-insight .insight-ok,
-.sec-insight .insight-warn { display: block; font-size: 11.5px; }
-.sec-insight .insight-sub { color: var(--muted); }
+.sec-insight .insight-sub { display: block; font-size: 11.5px; color: var(--muted); }
+.sec-insight .insight-warn { display: block; font-size: 11.5px; white-space: nowrap; }
+.sec-insight .insight-rows > li > .insight-warn { grid-column: 1 / -1; }
 .planner-meter { flex-wrap: nowrap; }

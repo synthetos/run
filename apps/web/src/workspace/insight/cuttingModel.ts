@@ -4,7 +4,7 @@
  * and the material. When something is missing the rows say what, in one line, with what fixes it.
  */
 import type { Material, Tool } from '@synthetos/library';
-import { chipLoad, referenceFor, surfaceSpeedMpm, usesFullDiameterNote, verdict, type Range, type Reference, type Verdict } from './chipLoad.ts';
+import { chipLoad, referenceFor, rubbingRisk, surfaceSpeedMpm, usesFullDiameterNote, verdict, type Range, type Reference, type Verdict } from './chipLoad.ts';
 
 export const MM_PER_IN = 25.4;
 
@@ -44,7 +44,7 @@ export interface CuttingRows {
   readonly tool: { readonly number: number; readonly name: string; readonly diameter: number; readonly flutes: number; readonly from: 'board' | 'file' } | null;
   readonly spindle: { readonly rpm: number; readonly from: 'board' | 'file' } | null;
   readonly feed: { readonly mmMin: number; readonly from: 'moving' | 'programmed' } | null;
-  readonly chipLoad: { readonly value: number; readonly verdict: Verdict | null; readonly range: Range | null } | null;
+  readonly chipLoad: { readonly value: number; readonly verdict: Verdict | null; readonly rubbing: boolean; readonly range: Range | null } | null;
   readonly surface: { readonly value: number; readonly reference: string | null } | null;
   readonly reference: Reference | null;
   readonly note: string | null;
@@ -85,7 +85,7 @@ export function cuttingRows(i: CuttingInput): CuttingRows {
     tool,
     spindle,
     feed,
-    chipLoad: fz === null ? null : { value: fz, verdict: reference === null ? null : verdict(fz, reference.fz), range: reference?.fz ?? null },
+    chipLoad: fz === null ? null : { value: fz, verdict: reference === null ? null : verdict(fz, reference.fz), rubbing: reference !== null && rubbingRisk(fz, reference), range: reference?.fz ?? null },
     surface: vc === null ? null : { value: vc, reference: vcReference },
     reference,
     note: t === null ? null : usesFullDiameterNote(t.type),

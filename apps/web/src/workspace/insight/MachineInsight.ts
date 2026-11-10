@@ -58,12 +58,11 @@ export function cuttingList(c: CuttingRows): ComponentChild {
   const fz = c.chipLoad;
   const range = fz?.range ?? null;
   const rangeText = range === null ? '' : ` (${n3(range.min)}–${n3(range.max)})`;
-  const verdict =
-    fz === null || fz.verdict === null
+  // Short (owner, 2026-11-10: "less is more"; OD-35): "✓ 0.033 mm/tooth", or the value with "⚠ light (0.019–0.031)".
+  const warn =
+    fz === null || fz.verdict === null || fz.verdict === 'ok'
       ? null
-      : fz.verdict === 'ok'
-        ? h('span', { class: 'insight-ok', 'data-verdict': 'ok' }, `✓ in range${rangeText}`)
-        : h('span', { class: 'insight-warn', 'data-verdict': fz.verdict }, fz.verdict === 'low' ? `⚠ low: rubbing, heat${rangeText}` : `⚠ high: tool load${rangeText}`);
+      : h('span', { class: 'insight-warn', 'data-verdict': fz.verdict }, `⚠ ${fz.verdict}${fz.rubbing ? ', rubbing risk' : ''}${rangeText}`);
   const spindleOff = c.spindle !== null && c.spindle.rpm === 0;
   return h(
     'ul',
@@ -73,7 +72,14 @@ export function cuttingList(c: CuttingRows): ComponentChild {
       : row('tool', 'Tool', `T${c.tool.number} · ${c.tool.name}`, h('span', { class: 'insight-sub' }, `${c.tool.diameter} mm · ${c.tool.flutes} ${c.tool.flutes === 1 ? 'flute' : 'flutes'}${c.tool.from === 'file' ? ' · from the file' : ''}`)),
     row('spindle', 'Spindle', c.spindle === null ? 'Not known' : spindleOff ? 'Off' : `${n0(c.spindle.rpm)} rpm${c.spindle.from === 'file' ? ' (from the file)' : ''}`),
     c.feed === null ? row('feed', 'Feed', 'Not known') : row('feed', 'Feed', `${n0(c.feed.mmMin)} mm/min`, h('span', { class: 'insight-sub' }, c.feed.from === 'moving' ? 'moving' : 'programmed F')),
-    c.tool === null ? null : row('chip', 'Chip load', fz === null ? (spindleOff ? 'None while the spindle is off' : 'Not known') : `${n3(fz.value)} mm/tooth`, verdict),
+    c.tool === null
+      ? null
+      : fz === null
+        ? row('chip', 'Chip load', spindleOff ? 'None while the spindle is off' : 'Not known')
+        : fz.verdict === 'ok'
+          ? row('chip', 'Chip load', h('span', { class: 'insight-ok', 'data-verdict': 'ok', title: `In the band${rangeText}` }, `✓ ${n3(fz.value)} mm/tooth`))
+          : // The warning takes the row's full width, so "⚠ light, rubbing risk (0.060–0.100)" stays on one line.
+            h('li', { key: 'chip', 'data-insight-row': 'chip' }, h('span', { class: 'insight-label' }, 'Chip load'), h('span', { class: 'insight-value' }, `${n3(fz.value)} mm/tooth`), warn),
     c.tool === null
       ? null
       : c.surface === null

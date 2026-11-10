@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { Material, Tool } from '@synthetos/library';
-import { chipLoad, referenceFor, surfaceSpeedMpm, usesFullDiameterNote, verdict, TOOL_DATA_HIGH } from '../src/workspace/insight/chipLoad.ts';
+import { chipLoad, ONE_NUMBER_BAND, referenceFor, rubbingRisk, surfaceSpeedMpm, usesFullDiameterNote, verdict } from '../src/workspace/insight/chipLoad.ts';
 import { cuttingRows, type CuttingInput } from '../src/workspace/insight/cuttingModel.ts';
 import { DEFAULT_PLANNER_BLOCKS, plannerRows } from '../src/workspace/insight/plannerModel.ts';
 import type { JobSnapshot } from '../src/workspace/jobUi.ts';
@@ -32,38 +32,48 @@ describe('chip load maths', () => {
     expect(usesFullDiameterNote('ball')).toMatch(/^Ball nose: worked out with the full diameter\./);
     expect(usesFullDiameterNote('flat')).toBeNull();
   });
-  it('the tool’s own data first (35 % floor to 1.25 × fz), else the material’s factor × D range, else nothing', () => {
+  it('OD-35: one number gives 0.75–1.25 × fz (rubbing risk under 35 %); a maker’s range is used as it is', () => {
     const own = referenceFor(t1, 'builtin.mdf', null);
+    expect(ONE_NUMBER_BAND).toEqual({ low: 0.75, high: 1.25 });
     expect(own).toMatchObject({ from: 'tool', target: { fz: 0.08, vc: 300 } });
-    expect(own?.fz.min).toBeCloseTo(0.028, 6);
-    expect(own?.fz.max).toBeCloseTo(0.08 * TOOL_DATA_HIGH, 6);
+    expect(own?.fz.min).toBeCloseTo(0.06, 6);
+    expect(own?.fz.max).toBeCloseTo(0.1, 6);
+    expect(own?.rubbing).toBeCloseTo(0.028, 6);
+    expect(rubbingRisk(0.02, own as never)).toBe(true);
+    expect(rubbingRisk(0.05, own as never)).toBe(false);
     const pine = { id: 'pine', name: 'Pine', cutting: [{ toolMaterial: 'carbide', vc: { value: { min: 200, max: 500 } }, chipload: { value: { kind: 'factor', min: 0.01, max: 0.02 } } }] } as unknown as Material;
     const fromMaterial = referenceFor(t1, 'pine', pine);
-    expect(fromMaterial).toMatchObject({ from: 'material', vc: { min: 200, max: 500 } });
+    expect(fromMaterial).toMatchObject({ from: 'material', rubbing: null, vc: { min: 200, max: 500 } });
     expect(fromMaterial?.fz.min).toBeCloseTo(0.03175, 6);
+    expect(fromMaterial?.fz.max).toBeCloseTo(0.0635, 6);
+    expect(rubbingRisk(0.001, fromMaterial as never)).toBe(false);
     expect(referenceFor(t1, 'pine', { ...pine, cutting: [] } as Material)).toBeNull();
-    expect(verdict(0.01, { min: 0.02, max: 0.05 })).toBe('low');
-    expect(verdict(0.03, { min: 0.02, max: 0.05 })).toBe('ok');
-    expect(verdict(0.06, { min: 0.02, max: 0.05 })).toBe('high');
+    expect(verdict(0.01, { min: 0.02, max: 0.05 })).toBe('light');
+    expect(verdict(0.02, { min: 0.02, max: 0.05 })).toBe('ok');
+    expect(verdict(0.05, { min: 0.02, max: 0.05 })).toBe('ok');
+    expect(verdict(0.06, { min: 0.02, max: 0.05 })).toBe('heavy');
   });
 });
 
 describe('the cutting rows', () => {
-  const base: CuttingInput = { toolNumber: 1, toolLive: false, fileTool: null, tools: SEED_TOOLS, materialId: 'builtin.mdf', material: mdf, vel: 1200, feed: 1000, sps: 12000, spindleOn: true, fileSpeed: null, inches: false };
+  const base: CuttingInput = { toolNumber: 1, toolLive: false, fileTool: null, tools: SEED_TOOLS, materialId: 'builtin.mdf', material: mdf, vel: 1920, feed: 1000, sps: 12000, spindleOn: true, fileSpeed: null, inches: false };
   it('live velocity while moving, the board’s speed, and a verdict with the range', () => {
     const r = cuttingRows(base);
     expect(r.tool).toMatchObject({ number: 1, diameter: 3.175, flutes: 2, from: 'board' });
-    expect(r.feed).toEqual({ mmMin: 1200, from: 'moving' });
+    expect(r.feed).toEqual({ mmMin: 1920, from: 'moving' });
     expect(r.spindle).toEqual({ rpm: 12000, from: 'board' });
-    expect(r.chipLoad?.value).toBeCloseTo(0.05, 6);
+    expect(r.chipLoad?.value).toBeCloseTo(0.08, 6);
     expect(r.chipLoad?.verdict).toBe('ok');
+    expect(r.chipLoad?.rubbing).toBe(false);
     expect(r.surface?.reference).toBe('tool data 300 m/min');
     expect(r.missing).toEqual([]);
   });
-  it('the programmed F when still, in inches converted; low and high verdicts', () => {
+  it('the programmed F when still, in inches converted; light, rubbing and heavy', () => {
     expect(cuttingRows({ ...base, vel: 0, feed: 10, inches: true }).feed).toEqual({ mmMin: 254, from: 'programmed' });
-    expect(cuttingRows({ ...base, vel: 300 }).chipLoad?.verdict).toBe('low');
-    expect(cuttingRows({ ...base, vel: 3000 }).chipLoad?.verdict).toBe('high');
+    expect(cuttingRows({ ...base, vel: 1200 }).chipLoad).toMatchObject({ verdict: 'light', rubbing: false }); // 0.050
+    expect(cuttingRows({ ...base, vel: 600 }).chipLoad).toMatchObject({ verdict: 'light', rubbing: true }); // 0.025 < 0.028
+    expect(cuttingRows({ ...base, vel: 2400 }).chipLoad).toMatchObject({ verdict: 'ok' }); // 0.100, the top of the band
+    expect(cuttingRows({ ...base, vel: 3000 }).chipLoad).toMatchObject({ verdict: 'heavy', rubbing: false });
   });
   it('spindle off: zero rpm, no chip load or surface speed', () => {
     const r = cuttingRows({ ...base, spindleOn: false });
@@ -117,8 +127,12 @@ describe('the rows as drawn', () => {
     const html = renderToString(cuttingList(empty) as never);
     expect(html).toContain('Not known');
     expect(html).toContain('No material set for this job.');
-    const low = cuttingRows({ toolNumber: 1, toolLive: false, fileTool: null, tools: SEED_TOOLS, materialId: 'builtin.mdf', material: mdf, vel: 300, feed: null, sps: 12000, spindleOn: true, fileSpeed: null, inches: false });
-    expect(renderToString(cuttingList(low) as never)).toMatch(/data-verdict="low"[^>]*>⚠ low: rubbing, heat \(0\.028–0\.100\)/);
+    const at = (vel: number) => renderToString(cuttingList(cuttingRows({ toolNumber: 1, toolLive: false, fileTool: null, tools: SEED_TOOLS, materialId: 'builtin.mdf', material: mdf, vel, feed: null, sps: 12000, spindleOn: true, fileSpeed: null, inches: false })) as never);
+    // Short labels (owner: "less is more"): the range in parentheses, one line.
+    expect(at(1920)).toMatch(/data-verdict="ok"[^>]*>✓ 0\.080 mm\/tooth</);
+    expect(at(1200)).toMatch(/0\.050 mm\/tooth<\/span><span class="insight-warn" data-verdict="light">⚠ light \(0\.060–0\.100\)</);
+    expect(at(600)).toMatch(/data-verdict="light">⚠ light, rubbing risk \(0\.060–0\.100\)</);
+    expect(at(3000)).toMatch(/data-verdict="heavy">⚠ heavy \(0\.060–0\.100\)</);
     const p = renderToString(plannerList(plannerRows({ qr: 30, plannerBlocks: 32, job: job({}) }), 'Live · 0.10 s') as never);
     expect(p).toContain('data-starving="true"');
     expect(p).toContain('⚠ Starving');
