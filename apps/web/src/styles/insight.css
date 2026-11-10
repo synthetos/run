@@ -1,0 +1,24 @@
+/*
+ * The Advanced planner and cutting block under the jog controls (insight/MachineInsight.ts, owner 2026-11-09).
+ * Rows are striped by zebra.css (ul.rows).
+ */
+.sec-insight { display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--rule); }
+.sec-insight h3 { margin: 6px 0 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.sec-insight .insight-rows > li { display: grid; grid-template-columns: 84px minmax(0, 1fr); column-gap: 8px; align-items: baseline; padding: 4px 6px; font-size: 12px; line-height: 1.4; }
+.sec-insight .insight-label { color: var(--muted); }
+.sec-insight .insight-value { color: var(--ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.sec-insight .insight-rows > li.insight-note,
+.sec-insight .insight-rows > li.insight-missing { display: block; color: var(--muted); }
+.sec-insight .insight-missing button.link { margin-left: 6px; min-height: 0; padding: 0; font-size: 12px; }
+.sec-insight .insight-ok { color: var(--ok); }
+.sec-insight .insight-warn { color: var(--warn); }
+.planner-meter { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.planner-bar { position: relative; display: inline-block; width: 48px; height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; vertical-align: middle; }
+.planner-bar > i { position: absolute; inset: 0 auto 0 0; background: var(--ok); }
+.planner-meter.starving .planner-bar > i { background: var(--warn); }
+.planner-warn { color: var(--warn); }
+.sec-insight .insight-sub,
+.sec-insight .insight-ok,
+.sec-insight .insight-warn { display: block; font-size: 11.5px; }
+.sec-insight .insight-sub { color: var(--muted); }
+.planner-meter { flex-wrap: nowrap; }

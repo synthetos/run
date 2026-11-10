@@ -26,10 +26,11 @@ import { settingsOf } from '../boardFacts.ts';
 import { Icon, type IconName } from '../icons.ts';
 import { readStored, writeStored } from '../storage.ts';
 import { belowStrip, CheckRow, ConfirmCard, IconButton, TabBar, TabPane } from '../ui.ts';
-import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
+import { connected, type WorkspaceModel } from '../model.ts';
 import { goToZeroSafeZ } from '../safeZ.ts';
+import { ageText } from '../reportAge.ts';
 import { TC_GO_REASON, TC_OFFSET_REASON, atToolChange, jogBlocked, zeroBlocked } from '../toolChangeControls.ts';
-import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers, type MotionUi } from '../motion.ts';
+import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers } from '../motion.ts';
 import { HomeSection, HomeQuick } from '../homing.ts';
 import { UnknownChip } from '../unknownModal.ts';
 import { ProbeZ } from '../probe/ProbeZ.ts';
@@ -73,6 +74,7 @@ import { JobSetupPanel } from './SetupView.ts';
 import { JobFiles } from '../../projects/ProjectsView.ts';
 import { Dock } from '../dock/Dock.ts';
 import { reportsNotice } from '../reportsNotice.ts';
+import { MachineInsight } from '../insight/MachineInsight.ts';
 
 export interface RunViewProps {
   readonly model: WorkspaceModel | null;
@@ -240,16 +242,6 @@ export function ConnectNotice({ model, onView, compact = false }: { readonly mod
 
 // ---------------------------------------------------------------- position
 
-function ageText(view: LiveView): { readonly text: string; readonly lag: string } {
-  const m = view.message;
-  if (m === null || m.snapshot.base === 'NOT_CONNECTED') return { text: 'Not connected', lag: 'none' };
-  const base = m.dro.machineSource.ageMs;
-  if (base === null) return { text: 'Waiting for position', lag: 'none' };
-  const age = base + Math.max(0, view.now - view.receivedAt);
-  const lag = m.snapshot.overlays.includes('STALE') || age >= m.lag.redMs ? 'red' : age >= m.lag.amberMs ? 'amber' : 'fresh';
-  return { text: `${lag === 'fresh' ? 'Live' : lag === 'amber' ? 'Lagging' : 'Stale'} · ${(age / 1000).toFixed(2)} s`, lag };
-}
-
 /**
  * The Position readout with the hobbyist's two actions on each axis row (OD-13): Zero here (G10 L20 in the active
  * system, C16) and Go to zero (Z rises first, C25), plus Zero all and Go to zero for X, Y and Z in the same column,
@@ -395,11 +387,11 @@ function isLive(model: WorkspaceModel | null | undefined): boolean {
   return model?.actions.value?.motion !== undefined;
 }
 
-function motionNote(ui: MotionUi, note: string | null): ComponentChild {
-  // Only what an action answered: a block is the Position panel's card, a passing gate each disabled control's title.
-  const text = note ?? ui.notice;
-  if (text === null) return null;
-  return h('p', { class: 'motion-note', 'data-jog': 'note', role: 'status' }, text);
+function motionNote(note: string | null): ComponentChild {
+  // Only what this panel's own action answered. The session's last motion result ("Paused", "Resumed", "Stopped")
+  // is the status strip's, not a line floating under Jog speed (owner, 2026-11-09).
+  if (note === null) return null;
+  return h('p', { class: 'motion-note', 'data-jog': 'note', role: 'status' }, note);
 }
 
 const PAD: readonly { readonly label: string; readonly text: string; readonly axes: Readonly<Partial<Record<MotionAxis, 1 | -1>>> | null }[] = [
@@ -560,7 +552,7 @@ function jogBody({ model, onGoToZero }: JogProps, hk: Hooks): ComponentChild {
         ),
       ),
     ),
-    motionNote(ui, note),
+    motionNote(note),
   );
 }
 
@@ -634,7 +626,7 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
   const offsetLine = (o: Readonly<Partial<Record<MotionAxis, number>>> | null): string =>
     o === null ? UNKNOWN : machineAxes(settings).map((a) => `${a.toUpperCase()} ${coord(o[a])}`).join(', ');
   // Simple: only the Go-to-zero confirmation the jog pad asked for (C25), in place; nothing else of the Offsets tab.
-  if (goOnly) return confirm === null ? null : h('div', { class: 'insp sec-zero go-only' }, confirmCard(), motionNote(ui, note));
+  if (goOnly) return confirm === null ? null : h('div', { class: 'insp sec-zero go-only' }, confirmCard(), motionNote(note));
   return h(
     'section',
     { class: 'insp sec-zero', 'aria-labelledby': 'zero-title' },
@@ -701,7 +693,7 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
     ),
     off.temporaryInForce ? h('p', { class: 'fine', 'data-offsets': 'temporary' }, `G92 ${offsetLine(off.temporary)} · in force, not saved`) : null,
     confirmCard(),
-    motionNote(ui, note ?? (enabled ? (view?.message?.snapshot.notices.change?.text ?? null) : null)),
+    motionNote(note ?? (enabled ? (view?.message?.snapshot.notices.change?.text ?? null) : null)),
   );
 }
 
@@ -864,7 +856,7 @@ export function OverridesSection(): ComponentChild {
 type InspTab = 'jog' | 'home' | 'zero' | 'spindle';
 
 /** The Run inspector: position always on top, the rest as tabs so nothing needs a long scroll. */
-function RunInspector({ model, stops }: { readonly model: WorkspaceModel | null; readonly stops: StopHooks }): ComponentChild {
+function RunInspector({ model, stops, fileTool = null }: { readonly model: WorkspaceModel | null; readonly stops: StopHooks; readonly fileTool?: number | null }): ComponentChild {
   const [tab, setTab] = useState<InspTab>('jog');
   const [ask, setAsk] = useState<{ readonly axes: readonly MotionAxis[]; readonly at: number } | null>(null);
   const simple = uiLevel.value.value !== 'advanced';
@@ -926,6 +918,8 @@ function RunInspector({ model, stops }: { readonly model: WorkspaceModel | null;
     ),
     h(TabPane, { prefix: 'insp', id: 'home', current: tab, class: 'tpane insp-pane' }, h(HomeSection, { model })),
     h(TabPane, { prefix: 'insp', id: 'zero', current: tab, class: 'tpane insp-pane' }, h(ZeroSection, { model, ask })),
+    // Advanced only (owner, 2026-11-09): the planner and the cutting numbers, read only, under the controls.
+    h(MachineInsight, { model, fileTool }),
   );
 }
 
@@ -1293,6 +1287,6 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
       ),
     ),
     ),
-    h(RunInspector, { model, stops }),
+    h(RunInspector, { model, stops, fileTool: parts.tool?.number ?? null }),
   );
 }

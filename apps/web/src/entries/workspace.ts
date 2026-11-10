@@ -48,6 +48,7 @@ import '../styles/position.css';
 import '../styles/run-panel.css';
 import '../styles/zebra.css';
 import '../styles/viewer-bar.css';
+import '../styles/insight.css';
 import { installTipPlacement } from '../workspace/tipPlacement.ts';
 
 const trustedTypes = installTrustedTypes();
