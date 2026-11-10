@@ -12,13 +12,11 @@
  */
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { c24, c25, c25HandSet, c27, c28, c29, w13, w35, w36, w44 } from '@synthetos/safety';
+import { useEffect, useMemo, useState } from 'preact/hooks';
+import { c24, c25, c25HandSet, c27, c28, c29, w13 } from '@synthetos/safety';
 import { DIALECTS } from '@synthetos/protocol';
 import { LITE_THRESHOLD_LINES } from '../../gcode-worker/pipeline.ts';
 import type { WorkerLike } from '../../gcode-worker/client.ts';
-import { Dro } from '../../machine-ui/Dro.ts';
-import { TranscriptSave } from '../../machine-ui/TranscriptSave.ts';
 import { PreviewPanel, markerText, type LiveMarkerView, type PreviewParts } from '../../preview/PreviewPanel.ts';
 import { fileLevel, on, progressText } from '../../preview/PreviewView.ts';
 import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
@@ -40,15 +38,11 @@ import { outputsOff } from '../controlBlock.ts';
 import { WorkZeroConfirm } from '../workZeroConfirm.ts';
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
 import { ContextHelp } from '../../shell/ContextHelp.ts';
-import { signalText } from '../../shell/signal.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
-import { ConsoleLine } from '../../console/ConsoleLine.ts';
 import { openReport } from '../../report/state.ts';
 import { closeJob, currentFile, currentPreview, executionLock, openJob, pendingOpen, reopenActiveJob, reopening, saveDraftToProject, type OpenSource } from '../fileBridge.ts';
 import { activeJob, jobSaved, type Job } from '../jobModel.ts';
 import { bedSizeText, jobStateText, machineText } from '../revisionWords.ts';
-import { fileSummary } from '../lineWords.ts';
-import { emptyQueueText, liveEventText, liveLineLabel } from '../liveWords.ts';
 import { materialColor, selectedMachine } from '../library.ts';
 import { PlayControls, PlayNotice } from '../../preview/PlayControls.ts';
 import { placeTravelText } from '../placeTravel.ts';
@@ -67,13 +61,15 @@ import { sceneColors, tokenReader } from '../../preview/colors.ts';
 import { ViewButtons } from '../../preview/SceneView.ts';
 import type { CarveWorkerLike, ViewPreset } from '@synthetos/gcode-view';
 import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
-import { duration as durationText, feedReport, feedShareLine, jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
+import { jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
 
 const PHASE_LABEL = (phase: string): string => PHASE_TEXT[phase] ?? phase;
 import { JobStatus, JobSteps, JobStopCard, type StopHooks } from './JobViews.ts';
 import { JOB_STEPS, jobStep, uiLevel } from '../jobWorkflow.ts';
 import { JobSetupPanel } from './SetupView.ts';
 import { JobFiles } from '../../projects/ProjectsView.ts';
+import { Dock } from '../dock/Dock.ts';
+import { reportsNotice } from '../reportsNotice.ts';
 
 export interface RunViewProps {
   readonly model: WorkspaceModel | null;
@@ -237,26 +233,6 @@ export function ConnectNotice({ model, onView, compact = false }: { readonly mod
         )
       : null,
   );
-}
-
-/**
- * What the session changed in the board's status reporting at connect, in plain words (W35, W36; H64), and why
- * the configuration did not finish when it did not.
- */
-function reportsNotice(view: LiveView | null): ComponentChild {
-  const r = view !== null && connected(view) ? view.message?.snapshot.reports : undefined;
-  if (r === undefined) return null;
-  const lines: ComponentChild[] = [];
-  for (const c of r.changes) {
-    if (c.setting === 'sr') lines.push(h('p', { key: 'sr', class: 'fine', 'data-safety': 'W35', 'data-reports': 'sr' }, ...signalText(w35())));
-    else if (c.from !== undefined && c.to !== undefined) lines.push(h('p', { key: c.setting, class: 'fine', 'data-safety': 'W36', 'data-reports': c.setting }, ...signalText(w36({ setting: c.setting, from: c.from, to: c.to }))));
-  }
-  if (r.detail !== null) lines.push(h('p', { key: 'detail', class: 'fine', 'data-reports': 'detail' }, `Status reports: ${r.detail}.`));
-  // H77: the line mode Run had changed for a job that did not end here, put back at connect (only with this browser's record).
-  const rxm = view?.message?.snapshot.rxm;
-  if (rxm !== undefined && rxm.changed?.kind === 'restore' && view?.message?.snapshot.job === null) lines.push(h('p', { key: 'rxm', class: 'fine', 'data-safety': 'W44' }, ...signalText(w44({ to: rxm.changed.to }))));
-  if (r.phase === 'done' && r.heartbeatMs === null) lines.push(h('p', { key: 'hb', class: 'fine', 'data-reports': 'no-heartbeat' }, 'This firmware has no heartbeat: Run checks the link only after a few seconds of silence.'));
-  return lines.length === 0 ? null : h('div', { class: 'reports-notice' }, lines);
 }
 
 // ---------------------------------------------------------------- position
@@ -1154,233 +1130,6 @@ function TraverseToggle({ parts }: { readonly parts: PreviewParts }): ComponentC
     },
     h('span', { class: 'toggle-dash', 'aria-hidden': 'true' }),
     'Traverses',
-  );
-}
-
-// ---------------------------------------------------------------- dock
-
-function hexText(hex: string): string {
-  let s = '';
-  for (let i = 0; i + 1 < hex.length; i += 2) {
-    const c = Number.parseInt(hex.slice(i, i + 2), 16);
-    s += c === 10 ? '' : c === 13 ? '' : c < 32 || c === 127 ? `\\x${hex.slice(i, i + 2)}` : String.fromCharCode(c);
-  }
-  return s;
-}
-
-interface ConsoleLine {
-  readonly t: number;
-  readonly dir: string;
-  readonly text: string;
-}
-
-/** The Console tab: the worker's wire transcript of this link, read-only, refreshed while the tab is open. */
-function ConsolePane({ model, active }: { readonly model: WorkspaceModel | null; readonly active: boolean }): ComponentChild {
-  const view = model?.live.value ?? null;
-  const epoch = view?.message?.snapshot.epoch ?? 0;
-  const [lines, setLines] = useState<readonly ConsoleLine[] | null>(null);
-  useEffect(() => {
-    if (!active || model === null || epoch === 0) return;
-    let stop = false;
-    const pull = async (): Promise<void> => {
-      const jsonl = await model.actions.value?.transcriptText();
-      if (stop || jsonl === null || jsonl === undefined) return;
-      const rows = jsonl.trim() === '' ? [] : jsonl.trim().split('\n');
-      const parsed: ConsoleLine[] = [];
-      for (const row of rows.slice(-400)) {
-        try {
-          const e = JSON.parse(row) as { t?: unknown; dir?: unknown; hex?: unknown };
-          if (typeof e.t === 'number' && typeof e.dir === 'string' && typeof e.hex === 'string') parsed.push({ t: e.t, dir: e.dir, text: hexText(e.hex) });
-        } catch {
-          // A damaged row is skipped.
-        }
-      }
-      setLines(parsed);
-    };
-    void pull();
-    const timer = setInterval(() => void pull(), 1000);
-    return () => {
-      stop = true;
-      clearInterval(timer);
-    };
-  }, [active, model, epoch]);
-  const t0 = lines?.[0]?.t ?? 0;
-  const wire = useRef<HTMLOListElement>(null);
-  const pinned = useRef(true);
-  // Keep the newest line in view, unless the user scrolled up to read.
-  useEffect(() => {
-    const el = wire.current;
-    if (el !== null && pinned.current) el.scrollTop = el.scrollHeight;
-  }, [lines]);
-  const saving = view === null || view.message === null || view.message.snapshot.epoch === 0 ? null : h(TranscriptSave, { status: view.transcript, onSave: () => model?.actions.value?.saveTranscript() });
-  return h(
-    'div',
-    { class: 'console-pane' },
-    h(ConsoleLine, { model }),
-    h(
-      'div',
-      { class: 'console-wire' },
-      h('div', { class: 'cl-head' }, h('span', { class: 'cl-title' }, 'Wire transcript'), h('span', { class: 'cl-phase' }, 'Every byte, as sent and received')),
-      epoch === 0 || lines === null
-        ? h('p', { class: 'live-empty' }, h('strong', null, 'The console shows the conversation with the board.'), 'Connect to see commands and replies.')
-        : h(
-            'ol',
-            {
-              class: 'console',
-              ref: wire,
-              'data-console': 'lines',
-              'aria-label': 'Wire transcript',
-              onScroll: (e: Event) => {
-                const el = e.currentTarget as HTMLOListElement;
-                pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
-              },
-            },
-            lines.map((l, i) => h('li', { key: String(i), class: l.dir === 'tx' ? 'tx' : 'rx' }, h('time', null, `${((l.t - t0) / 1000).toFixed(2)}`), h('span', { class: 'dir' }, l.dir === 'tx' ? '→' : '←'), h('span', null, l.text))),
-          ),
-      saving === null ? null : h('details', { class: 'wire-save' }, h('summary', null, 'Save the transcript'), saving),
-    ),
-  );
-}
-
-const STAT_TEXT: Readonly<Record<string, string>> = {
-  initializing: 'Starting up',
-  idle: 'Idle',
-  programStop: 'Program stopped',
-  end: 'Program ended',
-  running: 'Running',
-  held: 'Held',
-  probing: 'Probing',
-  homing: 'Homing',
-  jogging: 'Jogging',
-  softAlarm: 'Soft alarm',
-  alarm: 'Alarm',
-  shutdown: 'Shutdown',
-  panic: 'Panic',
-  interlock: 'Interlock',
-  unknown: 'Unknown',
-};
-
-/** The Live job tab: what the status reports say now, and the feed of the last 60 s. Honest when nothing runs. */
-function LivePane({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
-  const view = model?.live.value ?? null;
-  if (view === null || !connected(view) || view.message === null) {
-    return h('div', { class: 'live-empty', 'data-live': 'empty' }, h('strong', null, 'Connect to see live job data.'), h('p', null, 'State, feed and progress reported by the controller.'));
-  }
-  const advanced = uiLevel.value.value === 'advanced';
-  const s = view.message.snapshot;
-  const live = s.live;
-  const dialect = DIALECTS.find((d) => d.id === s.classification?.dialectId);
-  const blocks = dialect?.limits.plannerBlocks ?? null;
-  const samples = view.samples;
-  const maxFeed = Math.max(1, ...samples.map((x) => Math.max(x.feed ?? 0, x.vel ?? 0)));
-  const tEnd = view.now;
-  const pts = samples.filter((x) => x.vel !== null).map((x) => `${(300 - ((tEnd - x.t) / 60_000) * 300).toFixed(1)},${(68 - ((x.vel as number) / maxFeed) * 64).toFixed(1)}`);
-  const feedPts = samples.filter((x) => x.feed !== null).map((x) => `${(300 - ((tEnd - x.t) / 60_000) * 300).toFixed(1)},${(68 - ((x.feed as number) / maxFeed) * 64).toFixed(1)}`);
-  const qr = typeof live.qr === 'number' ? live.qr : null;
-  const ui = jobUi(view);
-  const job = ui.job !== null && ui.job.startedAt !== null ? ui.job : null;
-  const starve = starving(s, blocks);
-  const feed = feedReport(job?.feedLimit ?? null);
-  const finished = job !== null && !ui.active;
-  return h(
-    'div',
-    { class: 'live-grid', 'data-live': 'connected' },
-    h(
-      'div',
-      { class: 'live-progress' },
-      h('span', { class: 'live-big', 'data-live': 'stat' }, live.machineClass === undefined ? 'Unknown' : (STAT_TEXT[live.machineClass] ?? live.machineClass)),
-      job === null
-        ? h('span', { class: 'live-sub', 'data-live': 'line' }, typeof live.line === 'number' ? `Line ${num(live.line)} reported` : 'No line reported')
-        : h('span', { class: 'live-sub', 'data-live': 'line' }, job.executing === null ? `${num(job.acked)} of ${num(job.total)} lines answered` : `File line ${num(job.executing.line)} · ${num(job.executing.n)} of ${num(job.total)}`),
-      job === null
-        ? h('p', { class: 'fine' }, view.message.jobs === true ? 'No job is running. Start one from the job card above.' : 'Running jobs is not enabled in this build.')
-        : h(
-            'p',
-            { class: 'fine', 'data-live': 'job-time' },
-            `${PHASE_LABEL(job.phase)} · elapsed ${ui.elapsedMs === null ? 'unknown' : durationText(ui.elapsedMs / 1000)} · about ${durationText(job.remainingSeconds)} left (estimate)`,
-          ),
-    ),
-    h(
-      'div',
-      { class: 'live-feed' },
-      h('div', { class: 'live-head' }, h('span', null, 'Feed: actual and programmed'), h('strong', { 'data-live': 'feed' }, `${live.vel === undefined ? 'Unknown' : num(live.vel)} / ${live.feed === undefined ? 'Unknown' : num(live.feed)}`)),
-      h(
-        'svg',
-        { class: 'feed-chart', viewBox: '0 0 300 70', preserveAspectRatio: 'none', role: 'img', 'aria-label': 'Actual velocity over the last 60 seconds against programmed feed' },
-        feedPts.length > 1 ? h('polyline', { class: 'prog', points: feedPts.join(' ') }) : null,
-        pts.length > 1 ? h('polyline', { class: 'act', points: pts.join(' ') }) : null,
-      ),
-      h('div', { class: 'live-head' }, h('span', null, 'Queue space available'), h('strong', { 'data-live': 'qr' }, qr === null ? 'Unknown' : blocks === null ? String(qr) : `${qr} of ${blocks}`)),
-      blocks === null || qr === null ? null : h('div', { class: `qr-meter${starve ? ' starving' : ''}`, 'data-live': 'planner-gauge', 'data-starving': starve ? 'true' : 'false', 'aria-hidden': 'true' }, Array.from({ length: blocks }, (_, i) => h('i', { key: String(i), class: i < blocks - qr ? 'used' : undefined }))),
-      job === null ? null : h('p', { class: `fine${starve ? ' warn-text' : ''}`, 'data-live': 'queued' }, `Queued on the controller: about ${durationText(job.queuedSeconds)} of motion${job.queuedBoundMm === null ? '' : `, at most ${Math.round(job.queuedBoundMm)} mm`}${starve ? '. Observational: the planner ran out of motion while cutting; the cause is not reported by this firmware.' : '.'}`),
-      feed === null
-        ? null
-        : h(
-            'div',
-            { class: 'live-feedlimit', 'data-live': 'feed-limit', 'data-feed-state': finished ? 'summary' : 'live' },
-            // The executing move, as the firmware last pushed it (rate-limited, coalesced: what it said, not a measurement).
-            finished || feed.move === null
-              ? null
-              : h('p', { class: 'feed-move', 'data-feed': 'move' }, feed.move.pct === null ? 'Feed move' : h('strong', null, `${feed.move.pct}% of the programmed feed`), feed.move.causes === '' ? '' : ` · ${feed.move.causes}`),
-            finished
-              ? h(
-                  'div',
-                  { class: 'feed-summary', 'data-feed': 'summary' },
-                  h('p', null, `Cut for ${durationText(feed.cuttingS)} over ${Math.round(feed.cuttingMm)} mm${feed.short ? ' (at least: the board says its totals are short)' : ''}.`),
-                  feedShareLine(feed.job) === null ? h('p', { class: 'fine' }, 'The feed was held at the programmed value.') : h('p', { class: 'fine' }, `Below the programmed feed: ${feedShareLine(feed.job) as string}.`),
-                  feed.notes.length === 0 ? null : h('ul', { class: 'feed-notes' }, feed.notes.map((n, i) => h('li', { key: String(i) }, n))),
-                )
-              : feed.recent === null && feed.job.length === 0
-                ? null
-                : h('p', { class: 'fine', 'data-feed': 'shares' }, `Below the programmed feed${feed.recent === null ? '' : ' (last interval)'}: ${feedShareLine(feed.recent ?? feed.job) ?? 'nothing above 2%'}.`),
-            feed.unsupported ? h('p', { class: 'fine' }, 'This firmware sends its feed summaries in a format this build does not read.') : null,
-          ),
-    ),
-    h(
-      'ol',
-      { class: 'live-stream', 'aria-live': 'polite', 'data-live': 'events' },
-      ...(job === null ? [] : [...job.events].reverse().slice(0, 30).map((e, i) => h('li', { key: `e${i}`, class: `ev-${e.kind}`, 'data-event': e.kind }, h('time', null, liveLineLabel(e.line, advanced)), h('span', null, liveEventText(e.text, advanced))))),
-      h('li', null, h('time', null, 'now'), h('span', null, s.overlays.includes('READ_ONLY') ? 'Read only: Run watches the status reports and writes nothing.' : 'Watching the status reports.')),
-      typeof live.qr === 'number' && blocks !== null && live.qr === blocks ? h('li', null, h('time', null, 'now'), h('span', null, emptyQueueText(advanced))) : null,
-    ),
-    // Advanced: what Run changed in the board's reporting at connect (W35, W36, W44) and where the Position numbers
-    // come from (moved here from the Position panel, owner 2026-11-09).
-    advanced ? h('div', { class: 'live-dro' }, reportsNotice(view), h(Dro, { message: view.message, elapsedMs: view.now - view.receivedAt })) : null,
-  );
-}
-
-function Dock({ parts, model }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null }): ComponentChild {
-  const [tab, setTab] = useState<'gcode' | 'console' | 'live'>('gcode');
-  const result = parts.state.status === 'ready' ? parts.state.result : null;
-  const live = model?.live.value ?? null;
-  const tabs: readonly ['gcode' | 'console' | 'live', string][] = [
-    ['gcode', 'G-code'],
-    ...(uiLevel.value.value === 'advanced' ? ([['console', 'Console']] as ['console', string][]) : []),
-    ['live', 'Live job'],
-  ];
-  return h(
-    'div',
-    { class: 'dock', 'data-dock-tab': tab },
-    h(
-      'div',
-      { class: 'dock-tabs', role: 'tablist', 'aria-label': 'File and machine' },
-      tabs.map(([id, label]) =>
-        h(
-          'button',
-          { type: 'button', role: 'tab', id: `dock-tab-${id}`, 'aria-selected': tab === id ? 'true' : 'false', 'aria-controls': `dock-pane-${id}`, 'data-tab': id, key: id, onClick: () => setTab(id) },
-          label,
-          id === 'live' ? h('span', { class: `live-dot${live !== null && connected(live) ? ' on' : ''}`, 'aria-hidden': 'true' }) : null,
-        ),
-      ),
-      h('span', { class: 'dock-summary' }, result === null ? 'No file open' : fileSummary(result.fileLines, result.sourceLines.length)),
-    ),
-    h(
-      'div',
-      { tabindex: 0, class: 'dock-panel' },
-      h('div', { tabindex: 0, class: 'dock-pane', role: 'tabpanel', id: 'dock-pane-gcode', 'aria-labelledby': 'dock-tab-gcode', hidden: tab !== 'gcode' }, parts.slots.list ?? h('p', { class: 'live-empty' }, 'Open a file to see its lines here, each with its safety verdict.')),
-      h('div', { tabindex: 0, class: 'dock-pane', role: 'tabpanel', id: 'dock-pane-console', 'aria-labelledby': 'dock-tab-console', hidden: tab !== 'console' }, h(ConsolePane, { model, active: tab === 'console' })),
-      h('div', { tabindex: 0, class: 'dock-pane live', role: 'tabpanel', id: 'dock-pane-live', 'aria-labelledby': 'dock-tab-live', hidden: tab !== 'live' }, h(LivePane, { model })),
-    ),
   );
 }
 
