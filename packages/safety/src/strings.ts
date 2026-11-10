@@ -161,6 +161,26 @@ export function w6(): string {
   return 'WARNING — The previous session ended while connected to a live machine. The machine may have kept moving after this page stopped. Check the machine before doing anything. Machine state is UNKNOWN until you reconnect and re-home.';
 }
 
+/** After a reconnect (UNKNOWN), the one question asked on connect (OD-32, owner 2026-11-09). */
+export function w6Question(): string {
+  return 'Has the machine moved since last time?';
+}
+
+/** The question's sentence. */
+export function w6QuestionBody(): string {
+  return "The last session ended while connected, so Run can't trust the position.";
+}
+
+/** The question's confirming answer: the position is trusted again (positionVerify, one click). */
+export function w6Verify(): string {
+  return "It hasn't moved";
+}
+
+/** The machine strip's line while UNKNOWN holds. */
+export function w6Strip(): string {
+  return 'Position not verified: the last session ended while connected.';
+}
+
 /** W7: the NOT CONNECTED band. */
 export function w7(): string {
   return 'NOT CONNECTED — no machine. Preview and setup only; nothing on this page is moving a machine.';

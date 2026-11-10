@@ -111,6 +111,11 @@ c({
   subs: (e) => [['T', String(e.seconds)]],
 });
 fixed('W6', 'w6', S.w6);
+// OD-32: the question after a reconnect, its sentence, its confirming answer, and the strip's line.
+fixed('W6', 'w6Question', S.w6Question, 1);
+fixed('W6', 'w6QuestionBody', S.w6QuestionBody, 2);
+fixed('W6', 'w6Verify', S.w6Verify, 3);
+fixed('W6', 'w6Strip', S.w6Strip, 4);
 fixed('W7', 'w7', S.w7);
 c({
   doc: 'S', id: 'W8', segment: 0, exports: ['w8'],

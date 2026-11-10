@@ -5,7 +5,7 @@
  *
  * Pure: the same view gives the same words.
  */
-import { STOP_TEXT, w48, w50 } from '@synthetos/safety';
+import { STOP_TEXT, w48, w50, w6Strip } from '@synthetos/safety';
 import { boardText } from '@synthetos/safety';
 import type { LiveView } from './model.ts';
 import { readOnlyWhy } from './readOnlyWhy.ts';
@@ -214,7 +214,7 @@ export function stripStatus(view: LiveView, machineName: string | null): StripSt
   // band says the same (MachineStrip); this covers any view of a held machine without that band.
   if (cls === 'held') return { ...base, title: base.spindleOn ? STOP_TEXT.pausedSpindleOn : STOP_TEXT.paused, tone: 'hold', pill: null, text: s.notices.motion?.text ?? null };
   if (cls !== undefined && ALARM.has(cls)) return { ...base, title: 'Alarm', tone: 'alarm', pill: { text: 'Alarm', tone: 'danger' }, text: 'The controller reports an alarm. Check the machine.' };
-  if (o.includes('UNKNOWN')) return { ...base, title: 'Connected · state unknown', tone: 'warn', pill: { text: 'Unknown', tone: 'warn' }, text: 'Position not verified: the last session ended while connected.' };
+  if (o.includes('UNKNOWN')) return { ...base, title: 'Connected · state unknown', tone: 'warn', pill: { text: 'Unknown', tone: 'warn' }, text: w6Strip() };
   // The post-flash lock and the old-firmware gate, decided by the worker (it refuses jobs, jog and settings writes).
   const post = view.message?.postFlash ?? null;
   if (post !== null && post.phase !== 'clear' && post.boardId === s.identity?.id) {

@@ -146,7 +146,7 @@ describe('the Position panel', () => {
     expect(html).not.toContain('data-machine-control="zero"');
     const modal = renderToString(h(UnknownModal, { model: m }));
     expect(modal).toContain('Has the machine moved since last time?');
-    expect(modal).toMatch(/data-action="unknown-verify"[^>]*>It hasn’t moved</);
+    expect(modal).toMatch(/data-action="unknown-verify"[^>]*>It hasn't moved</);
     expect(modal).toContain('data-action="unknown-later"');
   });
 

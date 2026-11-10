@@ -1,5 +1,5 @@
 /**
- * After a reconnect (UNKNOWN), one question on connect (owner, 2026-11-09): "Has the machine moved since last time?",
+ * After a reconnect (UNKNOWN), one question on connect (owner, 2026-11-09; registered with W6, OD-32): "Has the machine moved since last time?",
  * with its ways out as buttons (SAFETY §3 as amended; W6 is given here once after connecting, OD-18): Home (C4) when
  * homing is configured, It hasn't moved (positionVerify, one click: the question is the confirmation, owner
  * 2026-11-04), and Set position… (G28.3, C26). No banner. Later closes it until the next connect; the Position panel
@@ -7,6 +7,7 @@
  * stack). A board Run could not identify is the control card's, not this.
  */
 import { h, type ComponentChild } from 'preact';
+import { w6Question, w6QuestionBody, w6Verify } from '@synthetos/safety';
 import { signal } from '@preact/signals';
 import { useState } from 'preact/hooks';
 import { settingsOf } from './boardFacts.ts';
@@ -45,13 +46,13 @@ export function UnknownModal({ model }: { readonly model: WorkspaceModel | null 
   return h(
     'div',
     { class: 'unknown-exits unknown-question', 'data-region': 'unknown-exits', role: 'group', 'aria-labelledby': 'unknown-question-title' },
-    h('h2', { id: 'unknown-question-title', class: 'choice-title' }, 'Has the machine moved since last time?'),
-    h('p', null, `The last session ended while connected, so Run can’t trust the position.${note === null ? '' : ` ${note}`}`),
+    h('h2', { id: 'unknown-question-title', class: 'choice-title' }, w6Question()),
+    h('p', null, `${w6QuestionBody()}${note === null ? '' : ` ${note}`}`),
     h(
       'div',
       { class: 'notice-actions' },
       canHome ? h('button', { type: 'button', class: 'small', 'data-action': 'unknown-home', 'data-machine-control': 'home', onClick: () => setAsking({ kind: 'home', axes: hv.configured }) }, 'Home') : null,
-      h('button', { type: 'button', class: 'small primary', 'data-action': 'unknown-verify', 'data-machine-control': 'verify', onClick: () => run({ op: 'positionVerify' }) }, 'It hasn’t moved'),
+      h('button', { type: 'button', class: 'small primary', 'data-action': 'unknown-verify', 'data-machine-control': 'verify', onClick: () => run({ op: 'positionVerify' }) }, w6Verify()),
       hv.enabled ? h('button', { type: 'button', class: 'small', 'data-action': 'unknown-position', 'data-machine-control': 'home', onClick: () => setAsking({ kind: 'position', axes: POSITION_AXES }) }, 'Set position…') : null,
       h('button', { type: 'button', class: 'small', 'data-action': 'unknown-later', onClick: () => { laterFor.value = s.epoch; } }, 'Later'),
     ),

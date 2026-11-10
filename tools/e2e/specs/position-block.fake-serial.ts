@@ -72,7 +72,7 @@ test('after a reconnect: one question on connect, "It hasn’t moved" clears UNK
   await card.locator('[data-action="unknown-later"]').click();
   await expect(card).toHaveCount(0);
   await page.locator('[data-region="position"] [data-action="unknown-ask"]').click();
-  await card.getByRole('button', { name: 'It hasn’t moved' }).click();
+  await card.getByRole('button', { name: "It hasn't moved" }).click();
   await expect.poll(async () => (await session(worker)).overlays).toEqual([]);
   await expect(card).toHaveCount(0);
   await expect(inspector(page).locator('[data-jog="panel"]')).toHaveCount(1);
