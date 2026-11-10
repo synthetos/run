@@ -7,7 +7,7 @@ Every behaviour a safety claim depends on carries a citation at a pinned commit 
 (RUN_PLAN §8.1 honesty rule). Pins: EN = TinyG edge-next `a7489b79`, TG = master `d0418390` (440.21),
 EN-HIL = edge-next `tests/hil/` (`vendor/firmware-pins.json`). EN and TG paths are under `firmware/tinyg/`.
 
-Totals: 93 behaviours (4 UNVERIFIED, 89 verified-source, 0 verified-bench).
+Totals: 94 behaviours (4 UNVERIFIED, 90 verified-source, 0 verified-bench).
 
 ## UNVERIFIED (release checklist)
 
@@ -80,6 +80,7 @@ Each must be bench-verified, or covered by a mitigation that does not depend on 
 | EN-SR | verified-source | Filtered status reports (sv=1) of the status report list (default list, line first): a change against the values last sent requests a report, which prints si=250 ms after the first request, sampled when it prints, with only the values that changed (timing per report.c, firmware maintainer 2026-11-02; LIM-EN-SR-TIMING). | EN settings/settings_default.h:79-84 | B-POLL-1 |
 | EN-STARTUP-DELAY | verified-source | The first move into an empty, idle planner waits 50 ms (or until a second block is queued); a ! during that delay holds at once. | EN planner.c:78; EN planner.c:456-472; EN planner.c:497-514 |  |
 | EN-STAT | verified-source | stat: machine states 0..4 report as themselves; a cycle reports 5 (run, also with motion stopped) or 6 (hold); 12 SHUTDOWN, 13 PANIC. | EN canonical_machine.c:184-220 |  |
+| EN-T-M6 | verified-source | T only selects the tool; M6 queues the change and sets the reported tool when it runs, behind the queued moves. `tool` reads the active model and can be in the status report list. | EN canonical_machine.c:1556-1562; EN canonical_machine.c:1564-1569; EN canonical_machine.c:1571-1574; EN canonical_machine.c:2576-2580; EN config_app.c:163 |  |
 | EN-TEXT-MODE | verified-source | A first character of $ ? H h switches to text mode (replies are text, not JSON); { switches back; a stray leading ? before a line is stripped and the line runs (E053). (E053) | EN controller.c:369-373; EN controller.c:393-397 |  |
 | EN-TID | verified-source | A top-level unsigned "tid" is echoed at the top level of the response, on errors too. (E049) | EN json_parser.c:107-157; EN json_parser.c:947-957 |  |
 

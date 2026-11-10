@@ -1648,7 +1648,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (g.feed !== undefined) gm.feed = g.feed * this.#unitFactor(undefined);
     if (g.s !== undefined) gm.spindleSpeed = g.s;
     // @behaviour EN-T-M6: T only selects (cm_select_tool sets tool_select now); M6 queues _exec_change_tool, which sets
-    // the reported `tool` when it runs, behind the queued moves (@cite EN canonical_machine.c:1540-1558, 450.02).
+    // the reported `tool` when it runs, behind the queued moves (@cite EN canonical_machine.c:1556-1574).
     if (g.tool !== undefined) this.#toolSelect = g.tool;
     if (g.toolChange === true) {
       const next = this.#toolSelect;

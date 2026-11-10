@@ -427,6 +427,19 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
       { src: 'EN', file: 'canonical_machine.h', lines: [42, 42], quote: 'cm.gm.units_mode == INCHES' },
     ],
   },
+  {
+    id: 'EN-T-M6',
+    model: EN,
+    summary: 'T only selects the tool; M6 queues the change and sets the reported tool when it runs, behind the queued moves. `tool` reads the active model and can be in the status report list.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN', file: 'canonical_machine.c', lines: [1556, 1562], quote: 'cm.gm.tool_select = tool_select;' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1564, 1569], quote: 'mp_queue_command(_exec_change_tool, value, FLAGS_ONE);' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [1571, 1574], quote: 'cm.gm.tool = (uint8_t)value[0];' },
+      { src: 'EN', file: 'canonical_machine.c', lines: [2576, 2580], quote: 'nv->value_int = cm_get_tool(ACTIVE_MODEL);' },
+      { src: 'EN', file: 'config_app.c', lines: [163, 163], quote: '"tool",_i0' },
+    ],
+  },
   // ------------------------------------------------------------------ edge-next: program flow
   {
     id: 'EN-M0',
