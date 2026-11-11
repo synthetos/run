@@ -453,6 +453,8 @@ describe('the guards of the job decisions', () => {
     expect(r.t.s.job?.feedLimit).toBeNull();
     onJobRuntimeAnswer(r.t, { token: 'rt', purpose: 'jobRuntime', line: jobFlagLine(1) }, null, 0);
     expect(r.t.s.job?.events.at(-1)?.text).toMatch(/did not take the job flag/);
+    onJobRuntimeAnswer(r.t, { token: 'rt', purpose: 'jobRuntime', line: '{"rt":{"fg":1}}' }, null, 0);
+    expect(r.t.s.job?.events.at(-1)?.text).toMatch(/did not take the supply-gap report/);
     onJobRuntimeAnswer(tx({ ...s, job: null }).t, { token: 'rt', purpose: 'jobRuntime' }, null, 0);
     const f = tx(withJob(s, { feedLimit: feedLimitWindow(2) }));
     onFeedLimit(f.t, 'fl', { k: 1, m: 9, p: 37, n: 12 }, false);

@@ -5,7 +5,7 @@ const fg = { e: 1, q: 2, g: [10, 20, 2], b: [[1, 2], [3, 4], [5, 6]], future: 'i
 it('fs v2 keeps command boundaries, fg matches only the current e/q and duplicates cannot replace it', () => {
   const s = foldFeedLimit(feedLimitWindow(2), 'fs', fs, false);
   expect(s.last?.c).toEqual(fs.c);
-  for (const wrong of [{ ...fg, q: 1 }, { ...fg, q: 3 }, { ...fg, e: 0 }, { ...fg, g: [-1, 2, 3] }]) expect(foldFeedLimit(s, 'fg', wrong, false)).toBe(s);
+  for (const wrong of [{ ...fg, q: 1 }, { ...fg, q: 3 }, { ...fg, e: 0 }, { ...fg, g: [-1, 2, 3] }, { ...fg, b: [[1, 2], [3], [5, 6]] }, { ...fg, b: [[1, 2], 'x', [5, 6]] }]) expect(foldFeedLimit(s, 'fg', wrong, false)).toBe(s);
   const pair = foldFeedLimit(s, 'fg', { ...fg, x: 1 }, false);
   expect(pair.gaps).toMatchObject({ e: 1, q: 2, short: true, g: [10, 20, 2] });
   expect(pair.short).toBe(false);
