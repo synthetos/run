@@ -108,7 +108,7 @@ const MAX_JOB_LINE_BYTES = 256;
 
 /** The line-mode lines (H77) and the job `rt` lines (the job flag, the feed-limit window): exact shapes only. */
 const LINE_MODE_SHAPE = /^\{"rxm":[01]\}$/;
-const JOB_RUNTIME_SHAPE = /^\{"rt":\{"(?:job|fi)":\d{1,2}\}\}$/;
+const JOB_RUNTIME_SHAPE = /^\{"rt":\{"(?:(?:job|fg)":[01]|fi":\d{1,2})\}\}$/;
 
 /** Decide one write. Pure; never throws. */
 export function phase1WriteVerdict(bytes: Uint8Array, context: WriteContext): WriteVerdict {
@@ -231,6 +231,7 @@ export function jobRuntimeWritableIn(state: SessionState, line: string): boolean
   const pending = [...state.queue, ...(state.writing === null ? [] : [state.writing])];
   if (!pending.some((q) => q.purpose === 'jobRuntime' && q.line === line)) return false;
   if (line.includes('"job"')) return state.rtLeaves.includes('job');
+  if (line.includes('"fg"')) return state.rtLeaves.includes('fg');
   return state.rtLeaves.includes('fi');
 }
 

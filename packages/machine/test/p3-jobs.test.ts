@@ -498,3 +498,17 @@ describe('the line mode at connect (H77)', () => {
     expect(writes(p2).slice(b2).some((w) => w.startsWith('{"rxm":'))).toBe(false);
   });
 });
+
+it('step 3 probes fg, opts in with fi, pairs summaries, and clears the opt-in at completion', async () => {
+  const h = await jobHarness({ device: { start: 'ready', rxm: 0, feedLimit: true, feedLimitStep3: true } });
+  expect(h.session.snapshot.rtLeaves).toEqual(expect.arrayContaining(['fg', 'job', 'fi']));
+  const before = await start(h, zigzag(12));
+  await runUntil(h, () => h.session.snapshot.job?.phase === 'done', 60_000);
+  await h.run(1000);
+  const w = writes(h).slice(before);
+  expect(w.filter(s => s.includes('"fg"'))).toEqual(['{"rt":{"fg":1}}', '{"rt":{"fg":0}}']);
+  expect(w.filter(s => s.includes('"job"'))).toEqual(['{"rt":{"job":1}}', '{"rt":{"job":0}}']);
+  const fl = h.session.snapshot.job?.feedLimit;
+  expect(fl?.last?.c).toHaveLength(7);
+  expect(fl?.gaps).toMatchObject({ e: fl?.last?.e, q: fl?.last?.q });
+});

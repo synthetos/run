@@ -13,12 +13,12 @@
 import '../marker.ts';
 export type BehaviourStatus = 'verified-source' | 'verified-bench' | 'UNVERIFIED';
 
-/** Pinned sources (vendor/firmware-pins.json): EN = edge-next a7489b79, TG = master d0418390 (440.21). */
-export type CitationSource = 'EN' | 'TG' | 'EN-HIL';
+/** Pinned sources (vendor/firmware-pins.json): EN = edge-next a7489b79, TG = master d0418390 (440.21), EN3 = step-3 c7f9b7e2. */
+export type CitationSource = 'EN' | 'TG' | 'EN-HIL' | 'EN3';
 
 export interface Citation {
   readonly src: CitationSource;
-  /** `firmware/tinyg/`-relative for EN and TG; repository-relative (`tests/hil/...`) for EN-HIL. */
+  /** `firmware/tinyg/`-relative for EN, EN3 and TG; repository-relative (`tests/hil/...`) for EN-HIL. */
   readonly file: string;
   /** First and last line, inclusive. */
   readonly lines: readonly [number, number];

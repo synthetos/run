@@ -20,9 +20,10 @@ const pins = (JSON.parse(readFileSync(join(REPO_ROOT, 'vendor/firmware-pins.json
 describe('citations', () => {
   it('cite the pinned commits only (EN and EN-HIL at the EN pin, TG at the TG pin)', () => {
     expect(pins['EN']?.commit).toMatch(/^a7489b79/);
+    expect(pins['EN3']?.commit).toBe('c7f9b7e2b7d7e61dec304497d15ebbd56588d238');
     expect(pins['TG']?.commit).toMatch(/^d0418390/);
     const sources = new Set(BEHAVIOURS.flatMap((b) => b.cites.map((c) => c.src)));
-    expect([...sources].sort()).toEqual(['EN', 'EN-HIL', 'TG']);
+    expect([...sources].sort()).toEqual(['EN', 'EN-HIL', 'EN3', 'TG']);
   });
 
   it.skipIf(FIRMWARE === undefined)('every cited line range contains its quote at the pinned commit (RUN_FIRMWARE_REPO)', () => {
@@ -30,7 +31,7 @@ describe('citations', () => {
     const problems: string[] = [];
     for (const b of BEHAVIOURS) {
       for (const c of b.cites) {
-        const commit = (c.src === 'TG' ? pins['TG'] : pins['EN'])?.commit as string;
+        const commit = pins[c.src === 'EN-HIL' ? 'EN' : c.src]?.commit as string;
         const path = c.src === 'EN-HIL' ? c.file : `firmware/tinyg/${c.file}`;
         const key = `${commit}:${path}`;
         let lines = cache.get(key);

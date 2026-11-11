@@ -63,6 +63,17 @@
       "paths": "src/, conf/x192a3.mk, scripts/",
       "status": "released",
       "note": "TinyG's xboot bootloader (AVR109, x192a3). The flasher (packages/flasher) and the test kit's xboot model cite it as XB. ENABLE_FLASH_ERASE_WRITE, block support and CRC are on; code, EEPROM and bootloader protection are off."
+    },
+    "EN3": {
+      "repo": "https://github.com/synthetos/TinyG",
+      "ref": "edge-next",
+      "commit": "c7f9b7e2b7d7e61dec304497d15ebbd56588d238",
+      "committed": "2026-11-10T18:06:22-05:00",
+      "fb": 450.03,
+      "fv": 0.97,
+      "paths": "firmware/tinyg/",
+      "status": "candidate",
+      "note": "Additive feed-limit step 3 source pin only: rt job/fg, fs v2 and fl supply gaps. Does not approve a build or replace the 450.02 EN pin for existing behaviours."
     }
   }
 }

@@ -1066,6 +1066,9 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
     case 'FeedLimitSummary':
       onFeedLimit(t, 'fs', event.fs, event.totalsShort);
       return;
+    case 'FeedGapSummary':
+      onFeedLimit(t, 'fg', event.fg, false);
+      return;
     case 'FeedLimitEvent':
       onFeedLimit(t, 'fl', event.fl, false);
       return;

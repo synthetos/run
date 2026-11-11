@@ -42,7 +42,7 @@ const reducedMotion = (): boolean => typeof matchMedia === 'function' && matchMe
  */
 export function liveChips(key: SceneKeyProps | null, still: boolean): ComponentChild[] {
   const out: ComponentChild[] = [];
-  if (key?.starved === true) out.push(h('span', { key: 'starved', class: 'viewer-chip', role: 'status', 'data-preview': 'starved-chip', title: 'The board ran short of lines to plan: it slows down. The job is still running.' }, 'Planner starved'));
+  if (key?.starved === true || key?.feedDiagnosis != null) out.push(h('span', { key: 'starved', class: 'viewer-chip', role: 'status', 'data-preview': 'starved-chip', title: key?.feedDiagnosis ?? 'The board ran short of lines to plan: it slows down. The job is still running.' }, key?.feedDiagnosis ?? 'Planner starved'));
   const spin = key?.spin ?? 0;
   if (still && spin !== 0) out.push(h('span', { key: 'spin', class: 'viewer-chip quiet', 'data-preview': 'spin-badge', title: spin === 1 ? 'The spindle is on, clockwise (M3)' : 'The spindle is on, counter-clockwise (M4)' }, `${spin === 1 ? '↻' : '↺'} Spindle on`));
   return out;

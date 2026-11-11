@@ -20,6 +20,7 @@
  * | exactly `ack` with value `true` | `Ack` |
  * | exactly `hb`, an object | `Heartbeat` (edge-next runtime heartbeat, `{"rt":{"hb":N}}`) |
  * | exactly `fs`, an object | `FeedLimitSummary` (edge-next feed-limit push, `{"rt":{"fi":N}}`; `"x":1` marks short totals) |
+ * | exactly `fg`, an object | `FeedGapSummary` (step-3 supply/boundary counters, paired with fs by e/q) |
  * | exactly `fl`, an object | `FeedLimitEvent` (edge-next feed-limit push: the running move's limit changed) |
  * | exactly `prb`, an object whose `e` is 0 or 1 | `ProbeReport` (edge-next G38.2 completion) |
  * | anything else | `Garbled{unrecognized-shape}` |
@@ -80,6 +81,10 @@ export function classifyLine(line: string): ClassifiedLine {
   if (sameKeys(keys, ['fs'])) {
     const fs = value['fs'];
     return isObject(fs) ? Object.freeze({ kind: 'FeedLimitSummary', line, fs, totalsShort: fs['x'] === 1 }) : garbled('bad-value', line, value);
+  }
+  if (sameKeys(keys, ['fg'])) {
+    const fg = value['fg'];
+    return isObject(fg) ? Object.freeze({ kind: 'FeedGapSummary', line, fg }) : garbled('bad-value', line, value);
   }
   if (sameKeys(keys, ['fl'])) {
     const fl = value['fl'];

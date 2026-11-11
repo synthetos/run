@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { classifyLine } from '@synthetos/protocol';
 import { feedLimitWindow, foldFeedLimit, type FeedLimitState } from '@synthetos/machine';
-import { FEED_CAUSES, feedReport, feedShareLine } from '../src/workspace/jobUi.ts';
+import { FEED_CAUSES, feedDiagnosis, feedReport, feedShareLine } from '../src/workspace/jobUi.ts';
 
 const FIXTURES = join(import.meta.dirname, '../../../packages/testkit/fixtures');
 
@@ -86,4 +86,17 @@ describe('feedReport over the bench 2 captures', () => {
     const moving = foldFeedLimit(s, 'fl', { k: 1, m: 11, p: 7, n: 0 }, false);
     expect(feedReport(moving)?.move).toEqual({ pct: 7, causes: 'an axis speed limit, a corner, too short to reach the feed' });
   });
+});
+
+it('step 3 distinguishes no-input gaps, input pending, and reported machine limits; v1 never gains a cause', () => {
+  const fs = { v: 2, e: 1, q: 2, c: [0, 0, 0, 0, 0, 0, 80], ct: 100, cd: 2 };
+  const s = foldFeedLimit(feedLimitWindow(2), 'fs', fs, false);
+  expect(feedReport(s)?.job[0]?.cause).toBe('command boundaries');
+  expect(feedDiagnosis(foldFeedLimit(s, 'fl', { k: 0, g: 2, n: 9 }, false))).toBe("Run didn't send lines fast enough");
+  expect(feedDiagnosis(foldFeedLimit(s, 'fl', { k: 0, g: 1 }, false))).toBe('Lines are waiting on the machine');
+  expect(feedDiagnosis(foldFeedLimit(s, 'fl', { k: 1, m: 32, p: 70, n: 9 }, false))).toBe('The machine limited the speed');
+  const legacy = foldFeedLimit(feedLimitWindow(2), 'fs', { ...fs, v: 1 }, false);
+  expect(feedDiagnosis(foldFeedLimit(legacy, 'fl', { k: 1, m: 1, p: 70 }, false))).toBeNull();
+  const pair = foldFeedLimit(s, 'fg', { e: 1, q: 2, g: [0, 50, 1], b: [[0, 0], [0, 0], [0, 0]] }, false);
+  expect(feedReport(pair)?.diagnosis).toBe("Run didn't send lines fast enough");
 });

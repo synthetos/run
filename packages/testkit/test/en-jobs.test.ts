@@ -121,7 +121,7 @@ describe('the feed-limit push (option feedLimit)', () => {
     expect(statuses(plain.host.take())).toEqual([100]);
   });
 
-  it('the job flag exists only with option jobFlag (LIM-EN-JOB-FLAG), and a reset clears it', () => {
+  it('the job flag exists with option jobFlag, and a reset clears it', () => {
     const sim = enSim({ jobFlag: true });
     sim.host.sendLine('{"rt":{"job":1}}');
     sim.clock.advance(20);

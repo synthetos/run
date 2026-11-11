@@ -17,6 +17,7 @@
  * DEV ONLY. Nothing in a production bundle may import this (T-S40).
  */
 import '../marker.ts';
+import { FeedGaps } from './feedGaps.ts';
 import type { DeviceIo, SimDevice } from '../device.ts';
 import {
   DEFAULT_BOOT_MS,
@@ -618,7 +619,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#hbS = 0;
     this.#fi = 0;
     this.#fiRunning = false;
-    this.jobFlag = 0;
+    this.#feedGaps = new FeedGaps();
     this.#homingCycle = false;
     this.#lastQr = PLANNER_POOL;
     this.#probe.reset();
@@ -663,6 +664,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   /** Anything that needs the loop to keep running. */
   #busy(): boolean {
     return (
+      (this.#options.feedLimitStep3 === true && this.#fi > 0 && this.jobFlag === 1) ||
       this.#ring.count > 0 ||
       this.#pool.length > 0 ||
       this.#charHeld !== null ||
@@ -1228,6 +1230,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   /** `cm_queue_flush()` (@cite EN canonical_machine.c:2127-2165). */
   #queueFlush(now = this.#now()): void {
     if (!this.#motion.runtimeIdle()) return;
+    this.#feedGaps.setJob(0, now);
     this.#motion.flush(now);
     // A flushed homing cycle ends: axes not yet homed stay unhomed (model limit LIM-EN-HOMING).
     this.#homingCycle = false;
@@ -1434,6 +1437,8 @@ export class TinyGEdgeNextModel implements SimDevice {
         return t;
       },
       onStart: (block, t) => {
+        this.#feedGaps.line = block.line;
+        if (block.kind === 'move' && this.jobFlag === 1 && this.#fi > 0) this.#feedGaps.moved = true;
         this.#runtimeOffset = this.#queuedOffset.get(block) ?? this.#runtimeOffset;
         if (block.kind === 'move' && this.#startupPending && t >= this.#startupStarted + PLANNER_STARTUP_MS) this.#startupPending = false;
         // Only ALINE blocks set MOTION_RUN (@cite EN plan_exec.c:77-81)
@@ -1953,6 +1958,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#queueCommand('program end', () => {
       this.#spindleReset();
       this.#coolantOff();
+      this.#feedGaps.setJob(0, this.#now());
       this.#programFinalize('programEnd');
     });
   }
@@ -2031,7 +2037,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (this.#options.rt === false || pairs.length !== 1) return ST('UNRECOGNIZED_NAME');
     const value = (pairs[0] as readonly [string, HostValue])[1];
     if (value === null) {
-      body['rt'] = { hb: this.#hbS, qt: '', up: this.#uptime(), ...(this.#options.feedLimit === true ? { fi: this.#fi, fs: this.#fiEpoch === 0 ? null : this.#fiQ + 1 } : {}), ...(this.#options.jobFlag === true ? { job: this.jobFlag } : {}) };
+      body['rt'] = { hb: this.#hbS, qt: '', up: this.#uptime(), ...(this.#options.feedLimit === true ? { fi: this.#fi, fs: this.#fiEpoch === 0 ? null : this.#fiQ + 1 } : {}), ...((this.#options.jobFlag === true || this.#options.feedLimitStep3 === true) ? { job: this.jobFlag } : {}), ...(this.#options.feedLimitStep3 === true ? { fg: Number(this.#feedGaps.enabled) } : {}) };
       return 0;
     }
     if (typeof value !== 'object') return ST('VALUE_TYPE_ERROR');
@@ -2049,6 +2055,7 @@ export class TinyGEdgeNextModel implements SimDevice {
         if (fi !== 0 && this.#fi === 0) {
           if (!this.#machineQuiet() || this.#pool.some((l) => l.state === 'full' && l.kind === 'data')) return ST('COMMAND_NOT_ACCEPTED');
           this.#fiEpoch++;
+          this.#feedGaps.window(this.#now());
           this.#fiQ = 0;
           this.#fiCycleMs = 0;
           this.#fiRunning = false;
@@ -2057,9 +2064,15 @@ export class TinyGEdgeNextModel implements SimDevice {
         set[k] = fi;
         continue;
       }
-      if (k === 'job' && this.#options.jobFlag === true) {
+      if (k === 'fg' && this.#options.feedLimitStep3 === true) {
         if (v !== 0 && v !== 1) return ST('INPUT_VALUE_RANGE_ERROR');
-        this.jobFlag = v;
+        this.#feedGaps.enabled = v === 1;
+        set[k] = v;
+        continue;
+      }
+      if (k === 'job' && (this.#options.jobFlag === true || this.#options.feedLimitStep3 === true)) {
+        if (v !== 0 && v !== 1) return ST('INPUT_VALUE_RANGE_ERROR');
+        this.#feedGaps.setJob(v, this.#now());
         set[k] = v;
         continue;
       }
@@ -2434,6 +2447,15 @@ export class TinyGEdgeNextModel implements SimDevice {
    */
   #feedLimitCallback(now: number): void {
     if (this.#fi <= 0) return;
+    if (this.#options.feedLimitStep3 === true) {
+      const line = this.#feedGaps.tick(now, {
+        off: this.#isAlarmed() !== 0 || this.#queueFlushRequested || this.#jobKillRequested,
+        paused: this.#hold !== HOLD.OFF || this.#programPaused,
+        drained: this.#motion.runtimeIdle() && this.#motion.queue.length === 0,
+        pending: this.#ring.count > 0 || this.#pool.some(l => l.kind === 'data'),
+      });
+      if (line !== null) this.#println(line);
+    }
     const running = this.#cycle !== 'off';
     if (running) {
       if (!this.#fiRunning) {
@@ -2458,7 +2480,8 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   #sendFs(): void {
     this.#fiQ++;
-    this.#println(`{"fs":{"v":1,"e":${this.#fiEpoch},"q":${this.#fiQ},"c":[0,0,0,0,0,0],"ct":${Math.round(this.#fiCycleMs)},"cd":0.000}}`);
+    this.#println(`{"fs":{"v":${this.#options.feedLimitStep3 === true ? 2 : 1},"e":${this.#fiEpoch},"q":${this.#fiQ},"c":[0,0,0,0,0,0${this.#options.feedLimitStep3 === true ? ",0" : ""}],"ct":${Math.round(this.#fiCycleMs)},"cd":0.000}}`);
+    if (this.#options.feedLimitStep3 === true && this.#feedGaps.enabled) this.#println(this.#feedGaps.frame(this.#fiEpoch, this.#fiQ));
   }
 
   #fi = 0;
@@ -2468,8 +2491,9 @@ export class TinyGEdgeNextModel implements SimDevice {
   #fiRunning = false;
   #fiNext = 0;
   #fiSince = 0;
-  /** The job flag (option `jobFlag`): RAM only; not in any firmware yet. */
-  jobFlag = 0;
+  /** The job flag (option `jobFlag`): RAM only; @cite EN3 runtime.c:189-248. */
+  #feedGaps = new FeedGaps();
+  get jobFlag(): 0 | 1 { return this.#feedGaps.job; }
 
   /** `_machine_quiet()` (@cite EN runtime.c:37-52): nothing moving, held, flushing or queued. */
   #machineQuiet(): boolean {

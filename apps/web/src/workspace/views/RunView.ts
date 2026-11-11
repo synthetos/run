@@ -66,7 +66,7 @@ import { sceneColors, tokenReader } from '../../preview/colors.ts';
 import { ViewButtons } from '../../preview/SceneView.ts';
 import type { CarveWorkerLike, ViewPreset } from '@synthetos/gcode-view';
 import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
-import { jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
+import { jobUi, feedDiagnosis, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
 import { spinDirection } from '../../preview/spinDirection.ts';
 
 const PHASE_LABEL = (phase: string): string => PHASE_TEXT[phase] ?? phase;
@@ -1240,7 +1240,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
           h(ViewerOverlay, {
             // Play preview's notice stays in view for the whole session (OD-25).
             notice: h(PlayNotice, { play: parts.play }),
-            sceneKey: (scene === null && parts.tool === null) || result?.lite ? null : { scene, tool: parts.tool, markerPreview: parts.markerPreview, carve: parts.carve, simple, tools: parts.tools, planner: parts.planner !== null, starved: parts.starved, spin: parts.spin, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) },
+            sceneKey: (scene === null && parts.tool === null) || result?.lite ? null : { scene, tool: parts.tool, markerPreview: parts.markerPreview, carve: parts.carve, simple, tools: parts.tools, planner: parts.planner !== null, starved: parts.starved, feedDiagnosis: jobUi(model?.live.value ?? null).job?.phase === 'running' ? feedDiagnosis(jobUi(model?.live.value ?? null).job?.feedLimit ?? null) : null, spin: parts.spin, ...(active ? {} : { onOpen: (part: ScenePart) => openSceneSettings(part, onView), onAddTool: (n: number) => { openToolNumber(n); onView('tools'); } }) },
             // With no file open, the prompt to open one leads the stack, so the key never covers its buttons. While the
             // job's file is being reopened after a reload (or a chosen file waits for the preview), it says so instead of
             // offering the samples for a moment.

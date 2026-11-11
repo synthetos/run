@@ -37,6 +37,8 @@
  * just completed, and only when all four were answered with status 0 (independent review 2026-11-03, R5), never
  * the last status report; the reported `line` drives progress and the planner view only.
  */
+import { feedLimitWindow, foldFeedLimit } from './feedLimit.ts';
+export { feedLimitWindow, foldFeedLimit, parseFeedSummary, parseFeedMove } from './feedLimit.ts';
 import {
   CEILING_SECONDS,
   DEFAULT_K,
@@ -66,7 +68,7 @@ import { queueModeReads } from './modes.ts';
 import { startModesStep, startNeeds } from './jobModes.ts';
 import { resumeTravel, travelOf, travelStartRefusal, withTravel } from './jobTravel.ts';
 import { forgetBoardModes, noteModeRead } from './boardModes.ts';
-import type { Axis, Expected, FeedLimitState, FeedMove, FeedSummary, JobReportSummary, JobState, PendingRead, PolledValues, SessionConfig, SessionIntent, SessionState } from './types.ts';
+import type { Axis, Expected, JobReportSummary, JobState, PendingRead, PolledValues, SessionConfig, SessionIntent, SessionState } from './types.ts';
 
 /** Timing and bounds of the job layer (SAFETY §4.4a). Milliseconds unless named otherwise. */
 export const JOB_LIMITS = Object.freeze({
@@ -103,7 +105,7 @@ export function rxmLine(value: 0 | 1): string {
   return `{"rxm":${value}}`;
 }
 
-/** The job flag (MACHINING_ASSISTANT feed-limit step 3): RAM only, designed, not on the board yet. */
+/** The job flag (MACHINING_ASSISTANT feed-limit step 3): RAM only, capability-probed (c7f9b7e2 runtime.c:189-248). */
 export function jobFlagLine(on: 0 | 1): string {
   return `{"rt":{"job":${on}}}`;
 }
@@ -115,8 +117,7 @@ export function feedLimitLine(seconds: number): string {
 
 /**
  * The capability probe of the job flag: true only when the board's `{"rt":null}` answer at connect names a `job`
- * leaf. Edge-next a7489b79 has no such leaf (the flag is designed, feed-limit step 3), so this is false today and
- * no job flag is ever sent. Nothing else may change when a build has it.
+ * leaf. Released 450.02 has no such leaf, so its writes remain unchanged.
  */
 export function jobFlagSupported(s: SessionState): boolean {
   return s.rtLeaves.includes('job');
@@ -757,6 +758,7 @@ function lineModeReady(t: JobLayerTx, at: number): void {
   if ((t.config.release.feedAccounting === true || feedAccountingSafe(t.s)) && feedLimitSupported(t.s)) {
     queue(t, { token: 'rt', purpose: 'jobRuntime', line: feedLimitLine(JOB_LIMITS.feedLimitS) });
     patchJob(t, { feedLimit: feedLimitWindow(JOB_LIMITS.feedLimitS) });
+    if (t.s.rtLeaves.includes('fg')) queue(t, { token: 'rt', purpose: 'jobRuntime', line: '{"rt":{"fg":1}}' });
   }
   sendJobFlag(t, 1);
   t.set({ base: 'RUNNING' });
@@ -777,52 +779,12 @@ function sendJobFlag(t: JobLayerTx, on: 0 | 1): void {
 export function onJobRuntimeAnswer(t: JobLayerTx, e: PendingRead, r: Response | null, at: number): void {
   const status = r === null ? -1 : r.footer.status;
   if (status === 0 || t.s.job === null) return;
-  const what = e.line?.includes('"fi"') === true ? 'the feed-limit period' : 'the job flag';
+  const what = e.line?.includes('"fi"') === true ? 'the feed-limit period' : e.line?.includes('"fg"') === true ? 'the supply-gap report' : 'the job flag';
   if (e.line?.includes('"fi"') === true && t.s.job.feedLimit !== null) patchJob(t, { feedLimit: null });
   jobEvent(t, at, 'info', `The controller did not take ${what} (status ${status}); the job runs without it.`);
 }
 
-/** A feed-limit summary or change line arrived (display only; observational, never a cause, H78). */
-/** A fresh window for a job that just opened one. */
-export function feedLimitWindow(fi: number): FeedLimitState {
-  return { fi, first: null, prev: null, last: null, move: null, short: false, unsupported: false };
-}
-
-const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
-
-/** An `fs` body as a summary; 'unsupported' for a format version run does not read; null for a malformed one. */
-export function parseFeedSummary(body: JsonObject): FeedSummary | 'unsupported' | null {
-  if (body['v'] !== 1) return finite(body['v']) ? 'unsupported' : null;
-  const c = body['c'];
-  if (!Array.isArray(c) || c.length < 6 || !c.every(finite) || !finite(body['e']) || !finite(body['q']) || !finite(body['ct']) || !finite(body['cd'])) return null;
-  return Object.freeze({ e: body['e'], q: body['q'], c: Object.freeze(c.slice(0, 6) as number[]), ct: body['ct'], cd: body['cd'] });
-}
-
-/** An `fl` body as the executing move's limit; null for a malformed one. Missing `m`, `p`, `n` read as 0, null, null. */
-export function parseFeedMove(body: JsonObject): FeedMove | null {
-  if (!finite(body['k'])) return null;
-  return Object.freeze({ k: body['k'], m: finite(body['m']) ? body['m'] : 0, p: finite(body['p']) ? body['p'] : null, n: finite(body['n']) ? body['n'] : null });
-}
-
-/**
- * Folds one feed-limit push into the window (pure; the UI's replay tests use it too). A summary of a new window epoch
- * starts over; one that does not advance the sequence is ignored (a repeat or a late frame); the executing move
- * replaces the last one.
- */
-export function foldFeedLimit(state: FeedLimitState, kind: 'fs' | 'fl', body: JsonObject, short: boolean): FeedLimitState {
-  if (kind === 'fl') {
-    const move = parseFeedMove(body);
-    return move === null ? state : { ...state, move };
-  }
-  const fs = parseFeedSummary(body);
-  if (fs === null) return state;
-  if (fs === 'unsupported') return state.unsupported ? state : { ...state, unsupported: true };
-  const sameWindow = state.last !== null && state.last.e === fs.e;
-  if (sameWindow && fs.q <= (state.last as FeedSummary).q) return state;
-  return { ...state, first: sameWindow && state.first !== null ? state.first : fs, prev: sameWindow ? state.last : null, last: fs, short: state.short || short };
-}
-
-export function onFeedLimit(t: JobLayerTx, kind: 'fs' | 'fl', body: JsonObject, short: boolean): void {
+export function onFeedLimit(t: JobLayerTx, kind: 'fs' | 'fl' | 'fg', body: JsonObject, short: boolean): void {
   const fl = t.s.job?.feedLimit;
   if (fl === null || fl === undefined) return;
   const next = foldFeedLimit(fl, kind, body, short);
@@ -1232,7 +1194,10 @@ function stopReached(t: JobLayerTx, at: number, stop: NonNullable<JobState['stop
   const j = job(s);
   t.cancel('job');
   if (stop.kind === 'end') {
-    if (j.feedLimit !== null) queue(t, { token: 'rt', purpose: 'jobRuntime', line: feedLimitLine(0) });
+    if (j.feedLimit !== null) {
+      queue(t, { token: 'rt', purpose: 'jobRuntime', line: feedLimitLine(0) });
+      if (t.s.rtLeaves.includes('fg')) queue(t, { token: 'rt', purpose: 'jobRuntime', line: '{"rt":{"fg":0}}' });
+    }
     // A job is sanitised before it can start, so its report exists.
     const end = (j.report as JobReportSummary).endState;
     const outputs = end.spindle === 'off' && !end.mist && !end.flood ? 'spindle and coolant commanded off' : `spindle ${end.spindle === 'off' ? 'off' : 'ON'}, coolant ${end.mist || end.flood ? 'ON' : 'off'} (commanded)`;

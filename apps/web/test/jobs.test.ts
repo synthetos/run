@@ -67,7 +67,7 @@ describe('the planner view and the live numbers', () => {
 
   it('feed-limit lines are observational, per cause, from the summary counters', () => {
     expect(feedReport(null)).toBeNull();
-    const window = { fi: 2, first: null, prev: null, last: { e: 1, q: 1, c: [1200, 0, 0, 500, 0, 0], ct: 2000, cd: 9 }, move: null, short: false, unsupported: false };
+    const window = { fi: 2, gaps: null, first: null, prev: null, last: { e: 1, q: 1, c: [1200, 0, 0, 500, 0, 0], ct: 2000, cd: 9 }, move: null, short: false, unsupported: false };
     expect(feedReport(window)?.job[0]).toEqual({ cause: 'an axis speed limit', fraction: 0.6, seconds: 1.2 });
   });
 

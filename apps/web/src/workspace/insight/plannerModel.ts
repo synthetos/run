@@ -5,7 +5,7 @@
  * - Queued motion: the session's estimate of the motion the controller holds (seconds, and at most mm).
  * - Lines: sent, answered, and the line number the board reports executing (`line`), during a job.
  */
-import type { JobSnapshot } from '../jobUi.ts';
+import { feedDiagnosis, type JobSnapshot } from '../jobUi.ts';
 
 /** The planner size used when the board's is not known (TinyG and g2core both have 32 blocks). */
 export const DEFAULT_PLANNER_BLOCKS = 32;
@@ -19,6 +19,7 @@ export interface PlannerInput {
 }
 
 export interface PlannerRows {
+  readonly diagnosis?: string | null;
   readonly buffer: { readonly used: number; readonly total: number; readonly starving: boolean } | null;
   readonly queued: { readonly seconds: number; readonly mm: number | null } | null;
   readonly lines: { readonly sent: number; readonly acked: number; readonly total: number; readonly executing: number | null } | null;
@@ -33,6 +34,7 @@ export function plannerRows({ qr, plannerBlocks, job }: PlannerInput): PlannerRo
   })();
   const active = job !== null && job.startedAt !== null && job.endedAt === null;
   return {
+    diagnosis: running ? feedDiagnosis(job.feedLimit) : null,
     buffer,
     queued: active ? { seconds: job.queuedSeconds, mm: job.queuedBoundMm } : null,
     lines: active ? { sent: job.sent, acked: job.acked, total: job.total, executing: job.executing?.n ?? null } : null,

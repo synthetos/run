@@ -303,3 +303,8 @@ describe('parseFooter and checksum440', () => {
     ).toBe(8416);
   });
 });
+
+it('step-3 fg is telemetry, with unknown body keys retained and no acknowledgement', () => {
+  expect(classifyLine('{"fg":{"e":2,"q":7,"g":[1,2,3],"b":[[0,0],[0,0],[0,0]],"extra":true}}')).toMatchObject({ kind: 'FeedGapSummary', fg: { e: 2, q: 7, extra: true } });
+  expect(classifyLine('{"fg":null}').kind).toBe('Garbled');
+});

@@ -154,3 +154,17 @@ describe('the job snapshot', () => {
     expect(stopped?.stop?.line).toBeNull();
   });
 });
+
+it('fg writes require the exact pending line, a probed fg leaf, and boolean integer values', async () => {
+  const s = withJob(await readyState(), { phase: 'running' });
+  const line = '{"rt":{"fg":1}}';
+  const state = { ...s, rtLeaves: ['fi'], queue: [{ token: 'rt', purpose: 'jobRuntime' as const, line }] };
+  expect(jobRuntimeWritableIn(state, line)).toBe(false);
+  expect(jobRuntimeWritableIn({ ...state, rtLeaves: ['fg'] }, line)).toBe(true);
+  expect(jobRuntimeWritableIn({ ...state, rtLeaves: ['fg'], queue: [] }, line)).toBe(false);
+  const context = { readable: () => false, enqAllowed: false, jobRuntimeWritable: () => true };
+  const verdict = (s: string) => phase1WriteVerdict(new TextEncoder().encode(s + '\n'), context).ok;
+  expect(verdict(line)).toBe(true);
+  expect(verdict('{"rt":{"fg":0}}')).toBe(true);
+  for (const s of ['{"rt":{"fg":2}}', '{"rt":{"fg":true}}', '{"rt":{"fg":1,"job":1}}', '{"rt":{"fg":01}}']) expect(verdict(s), s).toBe(false);
+});

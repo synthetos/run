@@ -38,6 +38,7 @@ export interface SceneKeyProps {
   readonly planner?: boolean;
   /** The planner has starved for over half a second while the job runs: a chip on the viewer's bar. */
   readonly starved?: boolean;
+  readonly feedDiagnosis?: string | null;
   /** The spindle as the board reports it: under reduced motion the bar shows a badge, as the bit does not turn. */
   readonly spin?: SpinDirection;
 }

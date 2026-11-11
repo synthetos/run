@@ -471,10 +471,10 @@ describe('the guards of the job decisions', () => {
     onFeedLimit(f.t, 'fs', fs3, true);
     onFeedLimit(f.t, 'fs', { ...fs3, q: 2 }, false); // late or repeated: ignored
     expect(f.t.s.job?.feedLimit).toMatchObject({ first: { e: 2, q: 1 }, prev: { e: 2, q: 1 }, last: { e: 2, q: 3, c: [2967, 252, 0, 1190, 0, 0] }, short: true, unsupported: false });
-    onFeedLimit(f.t, 'fs', { v: 2, e: 2, q: 4, c: [0, 0, 0, 0, 0, 0, 0], ct: 1, cd: 0 }, false); // a format run does not read: said, not folded
+    onFeedLimit(f.t, 'fs', { v: 3, e: 2, q: 4, c: [0, 0, 0, 0, 0, 0, 0], ct: 1, cd: 0 }, false); // a format run does not read: said, not folded
     expect(f.t.s.job?.feedLimit).toMatchObject({ last: { q: 3 }, unsupported: true });
     const said = f.t.s.job?.feedLimit;
-    onFeedLimit(f.t, 'fs', { v: 2, e: 2, q: 5, c: [], ct: 1, cd: 0 }, false); // said once: the state does not change again
+    onFeedLimit(f.t, 'fs', { v: 3, e: 2, q: 5, c: [], ct: 1, cd: 0 }, false); // said once: the state does not change again
     expect(f.t.s.job?.feedLimit).toBe(said);
     onFeedLimit(f.t, 'fs', { v: 1, e: 3, q: 1, c: [1, 0, 0, 0, 0, 0], ct: 10, cd: 0.1 }, false); // a new window starts over
     expect(f.t.s.job?.feedLimit).toMatchObject({ first: { e: 3, q: 1 }, prev: null, last: { e: 3, q: 1 } });

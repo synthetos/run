@@ -8,6 +8,7 @@ import { chipLoad, ONE_NUMBER_BAND, referenceFor, rubbingRisk, surfaceSpeedMpm, 
 import { cuttingRows, type CuttingInput } from '../src/workspace/insight/cuttingModel.ts';
 import { DEFAULT_PLANNER_BLOCKS, plannerRows } from '../src/workspace/insight/plannerModel.ts';
 import type { JobSnapshot } from '../src/workspace/jobUi.ts';
+import { feedLimitWindow, foldFeedLimit } from '@synthetos/machine';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 
 const t1 = SEED_TOOLS.find((t) => t.number === 1)?.tool as Tool; // 3.175 mm, 2 flutes, carbide, fz 0.08 in MDF
@@ -105,6 +106,12 @@ describe('the cutting rows', () => {
 });
 
 describe('the planner rows', () => {
+  it('uses reported supply evidence while running, with no diagnosis from the buffer or after the job', () => {
+    const feedLimit = foldFeedLimit(feedLimitWindow(2), 'fl', { k: 0, g: 2, n: 3 }, false);
+    expect(plannerRows({ qr: 32, plannerBlocks: 32, job: job({ feedLimit }) }).diagnosis).toBe("Run didn't send lines fast enough");
+    expect(plannerRows({ qr: 32, plannerBlocks: 32, job: job({ feedLimit, phase: 'paused' }) }).diagnosis).toBeNull();
+    expect(plannerRows({ qr: 32, plannerBlocks: 32, job: job({}) }).diagnosis).toBeNull();
+  });
   it('blocks in use out of the board’s size; starving under 4 in a running job', () => {
     expect(plannerRows({ qr: 26, plannerBlocks: 28, job: job({}) }).buffer).toEqual({ used: 2, total: 28, starving: true });
     expect(plannerRows({ qr: 20, plannerBlocks: null, job: job({}) }).buffer).toEqual({ used: 12, total: DEFAULT_PLANNER_BLOCKS, starving: false });

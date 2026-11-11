@@ -1062,13 +1062,13 @@ export interface Transition {
   readonly effects: readonly SessionEffect[];
 }
 
-/** One feed-limit summary (`fs`, format v1): cumulative since the window opened (MACHINING_ASSISTANT appendix). */
+/** One feed-limit summary (`fs`, format v1 or v2): cumulative since the window opened (MACHINING_ASSISTANT appendix). */
 export interface FeedSummary {
   /** Window epoch: a new one zeroes the totals. */
   readonly e: number;
   /** Sequence within the window. */
   readonly q: number;
-  /** Milliseconds of cutting time below the programmed feed per cause: axis cap, junction, exact stop, short, single segment, other. */
+  /** Milliseconds of cutting time below the programmed feed per cause: axis cap, junction, exact stop, short, single segment, other; v2 adds command boundary. */
   readonly c: readonly number[];
   /** Cumulative cutting milliseconds. */
   readonly ct: number;
@@ -1086,9 +1086,21 @@ export interface FeedMove {
   readonly p: number | null;
   /** The executing G-code line, null when nothing runs. */
   readonly n: number | null;
+  /** 1 input pending on the board, 2 no known input; absent/unknown gives no diagnosis. n names the last line in a gap. */
+  readonly g?: 1 | 2 | null;
+}
+
+/** Paired with one fs by e/q; x applies only to these counters. c7f9b7e2 runtime.c:496-515. */
+export interface FeedGaps {
+  readonly e: number;
+  readonly q: number;
+  readonly g: readonly number[];
+  readonly b: readonly (readonly number[])[];
+  readonly short: boolean;
 }
 
 export interface FeedLimitState {
+  readonly gaps: FeedGaps | null;
   readonly fi: number;
   readonly first: FeedSummary | null;
   readonly prev: FeedSummary | null;

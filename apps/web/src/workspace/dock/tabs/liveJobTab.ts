@@ -5,7 +5,7 @@ import { Dro } from '../../../machine-ui/Dro.ts';
 import { connected, type WorkspaceModel } from '../../model.ts';
 import { uiLevel } from '../../jobWorkflow.ts';
 import { num } from '../../status.ts';
-import { duration as durationText, feedReport, feedShareLine, jobUi, PHASE_TEXT, starving } from '../../jobUi.ts';
+import { duration as durationText, feedDiagnosis, feedReport, feedShareLine, jobUi, PHASE_TEXT, starving } from '../../jobUi.ts';
 import { emptyQueueText, liveEventText, liveLineLabel } from '../../liveWords.ts';
 import { reportsNotes } from '../../reportsNotice.ts';
 import { usePublishNotes } from '../../notes/usePublishNotes.ts';
@@ -53,6 +53,7 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
   const ui = jobUi(view);
   const job = ui.job !== null && ui.job.startedAt !== null ? ui.job : null;
   const starve = starving(s, blocks);
+  const diagnosis = job?.phase === 'running' ? feedDiagnosis(job.feedLimit) : null;
   const feed = feedReport(job?.feedLimit ?? null);
   const finished = job !== null && !ui.active;
   return h(
@@ -85,12 +86,13 @@ function LivePane({ model }: { readonly model: WorkspaceModel | null }): Compone
       ),
       h('div', { class: 'live-head' }, h('span', null, 'Queue space available'), h('strong', { 'data-live': 'qr' }, qr === null ? 'Unknown' : blocks === null ? String(qr) : `${qr} of ${blocks}`)),
       blocks === null || qr === null ? null : h('div', { class: `qr-meter${starve ? ' starving' : ''}`, 'data-live': 'planner-gauge', 'data-starving': starve ? 'true' : 'false', 'aria-hidden': 'true' }, Array.from({ length: blocks }, (_, i) => h('i', { key: String(i), class: i < blocks - qr ? 'used' : undefined }))),
-      job === null ? null : h('p', { class: `fine${starve ? ' warn-text' : ''}`, 'data-live': 'queued' }, `Queued on the controller: about ${durationText(job.queuedSeconds)} of motion${job.queuedBoundMm === null ? '' : `, at most ${Math.round(job.queuedBoundMm)} mm`}${starve ? '. Observational: the planner ran out of motion while cutting; the cause is not reported by this firmware.' : '.'}`),
+      job === null ? null : h('p', { class: `fine${starve ? ' warn-text' : ''}`, 'data-live': 'queued' }, `Queued on the controller: about ${durationText(job.queuedSeconds)} of motion${job.queuedBoundMm === null ? '' : `, at most ${Math.round(job.queuedBoundMm)} mm`}${diagnosis !== null ? `. ${diagnosis}.` : starve ? '. Observational: the planner ran out of motion while cutting; the cause is not reported by this firmware.' : '.'}`),
       feed === null
         ? null
         : h(
             'div',
             { class: 'live-feedlimit', 'data-live': 'feed-limit', 'data-feed-state': finished ? 'summary' : 'live' },
+            feed.diagnosis === null ? null : h('p', { class: 'fine', 'data-feed': 'diagnosis' }, feed.diagnosis),
             // The executing move, as the firmware last pushed it (rate-limited, coalesced: what it said, not a measurement).
             finished || feed.move === null
               ? null

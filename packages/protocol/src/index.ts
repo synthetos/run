@@ -33,6 +33,7 @@ export type {
   Ack,
   Heartbeat,
   FeedLimitSummary,
+  FeedGapSummary,
   FeedLimitEvent,
   ProbeReport,
   Banner,

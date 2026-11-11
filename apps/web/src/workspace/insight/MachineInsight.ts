@@ -37,7 +37,7 @@ export function plannerList(p: PlannerRows, age: string): ComponentChild {
             { class: `planner-meter${b.starving ? ' starving' : ''}`, 'data-starving': b.starving ? 'true' : 'false' },
             h('span', { class: 'planner-bar', role: 'meter', 'aria-label': 'Planner blocks in use', 'aria-valuemin': 0, 'aria-valuemax': b.total, 'aria-valuenow': b.used }, h('i', { style: { width: `${(100 * b.used) / b.total}%` } })),
             h('span', { class: 'planner-count' }, `${b.used} of ${b.total}`),
-            b.starving ? h('span', { class: 'planner-warn' }, '⚠ Starving') : null,
+            p.diagnosis != null ? h('span', { class: 'planner-warn' }, p.diagnosis) : b.starving ? h('span', { class: 'planner-warn' }, '⚠ Starving') : null,
           ),
     ),
     row('queued', 'Queued motion', p.queued === null ? 'None' : `about ${duration(p.queued.seconds)}${p.queued.mm === null ? '' : ` / ${n0(p.queued.mm)} mm`}`),

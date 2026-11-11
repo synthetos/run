@@ -59,10 +59,12 @@ export interface TinyGModelOptions {
    */
   readonly feedLimit?: boolean;
   /**
-   * Edge-next model: the job flag `{"rt":{"job":N}}` (feed-limit step 3: designed, NOT in any firmware yet). Default
+   * Edge-next model: the job flag `{"rt":{"job":N}}` (feed-limit step 3, c7f9b7e2). Default
    * false. For the tests of run's capability seam only.
    */
   readonly jobFlag?: boolean;
+  /** c7f9b7e2: fs v2 and the opt-in fg leaf. Off by default: 450.02 transcripts remain unchanged. */
+  readonly feedLimitStep3?: boolean;
   /**
    * Edge-next model, test kit flasher (SAFETY §4.8 amendment 2026-11-03): the build this board runs, as the
    * flashable board reads it from the flashed image (simFirmware.ts). `fb` and `fv` are what the board reports,

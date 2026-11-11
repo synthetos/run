@@ -7,6 +7,7 @@
  * STATUS.md (generated from this file) is current.
  *
  * Citations: EN = TinyG edge-next a7489b79, TG = master d0418390 (440.21),
+ * EN3 = step-3 runtime source c7f9b7e2 (optional model capability, not build approval).
  * EN-HIL = edge-next `tests/hil/` at a7489b79 (vendor/firmware-pins.json).
  * Each carries a `quote` that must appear in the cited lines; the local
  * citation check re-reads the pinned firmware to prove it.
@@ -64,6 +65,17 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
       { src: 'EN', file: 'runtime.c', lines: [296, 298], quote: 'Feed-limit push (step 2)' },
       { src: 'EN', file: 'runtime.c', lines: [504, 527], quote: 'STAT_COMMAND_NOT_ACCEPTED' },
       { src: 'EN', file: 'runtime.c', lines: [356, 368], quote: '_fl_send_fs' },
+    ],
+  },
+  {
+    id: 'EN-FEED-LIMIT-STEP3', model: EN, status: 'verified-source',
+    summary: 'Option feedLimitStep3 adds job/fg leaves; fs has v2 and seven c entries even without fg opt-in. fg is opt-in, paired to fs by e/q, reset clears it. fl gap 1 means pending input and 2 no known input; n is the last line. The model keeps coarse gap time/count only, not planner cause or boundary counters (LIM-EN-FEED-LIMIT-STEP3).',
+    cites: [
+      { src: 'EN3', file: 'runtime.c', lines: [189, 248], quote: 'reset clears it, a new fi window does not' },
+      { src: 'EN3', file: 'runtime.c', lines: [475, 515], quote: 'same e and q' },
+      { src: 'EN3', file: 'runtime.c', lines: [539, 569], quote: 'no complete input' },
+      { src: 'EN3', file: 'runtime.c', lines: [652, 685], quote: 'the last line run' },
+      { src: 'EN3', file: 'feedlimit.h', lines: [73, 80], quote: 'FL_C_COMMAND' },
     ],
   },
   {
@@ -1085,7 +1097,7 @@ export const MODEL_LIMITS: readonly ModelLimit[] = Object.freeze([
   { id: 'LIM-TG-OVERLONG', scope: 'tinyg-440', summary: 'Overlong lines on 440.21 throw ModelGapError.' },
   { id: 'LIM-REPORTS', scope: 'both', summary: 'Enumerated report values (momo, admo, frmo, macs, cycs, mots) use model numbering; qv=2 reports qr without qi/qo; status reports in text mode are still JSON.' },
   { id: 'LIM-MODAL-TG', scope: 'tinyg-440', summary: 'Two codes of one modal group on a 440.21 line: the last one wins; no modal-group error is modelled.' },
-  { id: 'LIM-EN-FEED-LIMIT', scope: 'tinyg-en', summary: 'The feed-limit push (option feedLimit, EN-FEED-LIMIT-PUSH) models the window, the interval and when fs lines are pushed; its counters do not model the firmware: ct is the time a cycle ran, cd is 0 and every per-cause counter in c is 0. No fl lines are pushed, x is never set, and {"rt":{"fs":null}} is not modelled.' },
-  { id: 'LIM-EN-JOB-FLAG', scope: 'tinyg-en', summary: 'Option jobFlag models {"rt":{"job":0|1}} (feed-limit step 3), which is designed and NOT in any firmware: it only stores the value and lists job in {"rt":null}, so run\'s capability seam can be tested. Default off, as on every real board.' },
+  { id: 'LIM-EN-FEED-LIMIT', scope: 'tinyg-en', summary: 'The feed-limit push (option feedLimit, EN-FEED-LIMIT-PUSH) models the window, the interval and when fs lines are pushed; its counters do not model the firmware: ct is the time a cycle ran, cd is 0 and every per-cause counter in c is 0. Without feedLimitStep3 no fl lines are pushed; x is never set, and {"rt":{"fs":null}} is not modelled.' },
+  { id: 'LIM-EN-FEED-LIMIT-STEP3', scope: 'tinyg-en', summary: 'The optional c7f9b7e2 wire format is modelled separately from 450.02. Gap time/count uses the virtual model loop and motion-start evidence; no 250 ms coalescing, TX backpressure, transient underrun latch, counter wrap or fractional tick accounting. fs cause counters, fg boundary counters and fl executing-move causes stay zero/unknown. They must not validate physical attribution or performance. The job flag also works alone for capability tests; raw mixed rt group atomicity is not modelled.' },
   { id: 'LIM-EN-REPIN', scope: 'tinyg-en', summary: 'The model was built at edge-next ead63997; the 97321391, 6ec70652 and 93a723b8 re-pins (2026-11-02) and the a7489b79 re-pin (450.02, 2026-11-06) are modelled only for the spindle and coolant readouts spe, spc, spd, sps, cof and com (EN-SPINDLE-READOUTS; the model applies S when parsed, not queued, so sps follows a new S at once) and beyond that only as moved citations. Not modelled: the rt family beyond LIM-EN-RT-HB (at 93a723b8 the feed-limit report leaves flk, flm, flp and flf, the fl lines and the fs summary request, which the model answers 100 for; the push interval fi and its fs lines are modelled only with option feedLimit, EN-FEED-LIMIT-PUSH), E195 (a partial line quiet for about 1 s is dropped when a { arrives; the model always joins it to the next line), the stricter input errors E168-E177, E191 and E193, the timing fixes E165-E167, E180-E184, E190 and E192, and the planner fixes E196 (the junction limit read from the runtime direction when the previous block is freed) and E197 (a runtime halt clears the runtime exit velocity). Not modelled from the 450.02 re-pin: fb 450.02 itself (the model reports 450.01 unless a caller passes build; the fake-serial board passes 450.02 so the committed bench manifest approves it), a feedhold while a cycle is stopped between moves entering HOLD at once (a feedhold during a dwell is modelled for a build of 450.02 or later, without the stale vel that hold reports), a queue flush or job kill also ending a dwell, status 117 for a persisted setting written during a cycle and status 118 after the banner for stored settings that would not load, the range-checked setters (axis rates, junction deviation, radius, chordal tolerance, ja, work offsets, PWM frequency), microsteps other than 1, 2, 4 and 8 refused, switch settings refused unless idle, targets above 1e18 refused, a resume whose held move cannot be replanned staying in HOLD with an exception, and the N66 hold endpoint fix.' },
 ]);

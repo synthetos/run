@@ -140,11 +140,11 @@ export interface Heartbeat {
 }
 
 /**
- * `{"fs":{"v":1,"e":..,"q":..,"c":[6 counters],"ct":ms,"cd":mm[,"x":1]}}`: an edge-next feed-limit summary
+ * `{"fs":{"v":1|2,"e":..,"q":..,"c":[6 or 7 counters],"ct":ms,"cd":mm[,"x":1]}}`: an edge-next feed-limit summary
  * (EN runtime.c:295-370). Pushed every `fi` seconds while a cycle runs, once more after the runtime drains,
  * and after `{"rt":{"fs":null}}`, once `{"rt":{"fi":N}}` has opened a window. The push is a RAM session
- * setting that outlives the host that set it (until a reset), so it can arrive in any run session, though run
- * never turns it on. Like the heartbeat it has no `r` and no footer: it answers nothing, it is never an
+ * setting that outlives the host that set it (until a reset), so it can arrive outside a job. Like the heartbeat
+ * it has no `r` and no footer: it answers nothing, it is never an
  * acknowledgement, and it is not a report of motion. `x`: 1 marks the window's totals as known to be short
  * (a pending counter wrapped): a lower bound only.
  */
@@ -156,12 +156,18 @@ export interface FeedLimitSummary {
   readonly totalsShort: boolean;
 }
 
+/** Optional step-3 supply/boundary counters paired with fs by e/q; never an acknowledgement. */
+export interface FeedGapSummary {
+  readonly kind: 'FeedGapSummary';
+  readonly line: string;
+  readonly fg: JsonObject;
+}
+
 /**
- * `{"fl":{"k":kind,"m":tags,"p":pct,"n":line}}`: an edge-next feed-limit change line (EN runtime.c:393-453),
- * pushed when the executing move's kind or constraint tags change, at most 4 a second, while the feed-limit
- * push is on. Tag bits: 1 axis cap, 2 corner, 4 exact stop, 8 short, 16 single segment, 32 reserved. Not a
- * response, not an acknowledgement, and not a report of motion (it is not the status report the session's
- * motion checks read).
+ * `{"fl":{"k":kind,"m":tags,"p":pct,"n":line}}`: the executing move's limit, rate-limited and coalesced.
+ * Tag bits: 1 axis cap, 2 corner, 4 exact stop, 8 short, 16 single segment, 32 command boundary (step 3).
+ * Step 3 adds g=1 (input pending) / g=2 (no known input) during a supply gap, with n naming the last line.
+ * Never a response, acknowledgement or status report. @cite EN3 runtime.c:652-685.
  */
 export interface FeedLimitEvent {
   readonly kind: 'FeedLimitEvent';
@@ -253,6 +259,7 @@ export type ClassifiedLine =
   | Ack
   | Heartbeat
   | FeedLimitSummary
+  | FeedGapSummary
   | FeedLimitEvent
   | ProbeReport
   | Text

@@ -200,8 +200,17 @@ export function starving(s: Snapshot | null, plannerBlocks: number | null): bool
   return typeof qr === 'number' && typeof vel === 'number' && vel > 0 && plannerBlocks - qr <= 2 && job.sent < job.total;
 }
 
-/** The six causes of the firmware's feed-limit counters, in `c[]` order, as words (MACHINING_ASSISTANT appendix). */
-export const FEED_CAUSES: readonly string[] = Object.freeze(['an axis speed limit', 'corners', 'exact stops', 'moves too short to reach the feed', 'single-segment moves', 'ramps and the end of the path']);
+/** Current firmware evidence only. A pending input gap is not blamed on the host or on an axis limit. */
+export function feedDiagnosis(fl: JobSnapshot['feedLimit']): string | null {
+  const m = fl?.move;
+  if (m?.g === 2) return "Run didn't send lines fast enough";
+  if (m?.g === 1) return 'Lines are waiting on the machine';
+  if (fl?.last?.c.length === 7 && m?.k === 1 && m.p !== null && m.p >= 0 && m.p < 100 && (m.m & 63) !== 0) return 'The machine limited the speed';
+  return null;
+}
+
+/** The causes of the firmware's feed-limit counters, in `c[]` order, as words (MACHINING_ASSISTANT appendix). */
+export const FEED_CAUSES: readonly string[] = Object.freeze(['an axis speed limit', 'corners', 'exact stops', 'moves too short to reach the feed', 'single-segment moves', 'ramps and the end of the path', 'command boundaries']);
 
 /** The `fl` cause bits, in the same words. */
 const FEED_MOVE_CAUSES: readonly (readonly [number, string])[] = Object.freeze([
@@ -210,6 +219,7 @@ const FEED_MOVE_CAUSES: readonly (readonly [number, string])[] = Object.freeze([
   [4, 'an exact stop'],
   [8, 'too short to reach the feed'],
   [16, 'a single-segment move'],
+  [32, 'a command boundary'],
 ]);
 
 export interface FeedShare {
@@ -221,6 +231,7 @@ export interface FeedShare {
 
 /** What run shows from the feed-limit frames: observational, never a decision (H78). */
 export interface FeedReport {
+  readonly diagnosis: string | null;
   readonly cuttingS: number;
   readonly cuttingMm: number;
   /** Over the whole window (the job), largest first, causes under 2% left out. */
@@ -251,16 +262,18 @@ const pct = (f: number): string => `${Math.round(f * 100)}%`;
 export function feedReport(fl: JobSnapshot['feedLimit']): FeedReport | null {
   if (fl === null || fl === undefined) return null;
   const last = fl.last;
+  const diagnosis = feedDiagnosis(fl) ?? (fl.gaps != null && (fl.gaps.g[1] ?? 0) > 0 ? "Run didn't send lines fast enough" : null);
   const move = fl.move === null || fl.move.k !== 1 ? null : { pct: fl.move.p, causes: FEED_MOVE_CAUSES.filter(([bit]) => (fl.move?.m ?? 0) & bit).map(([, w]) => w).join(', ') };
-  if (last === null) return { cuttingS: 0, cuttingMm: 0, job: [], recent: null, move, notes: [], short: fl.short, unsupported: fl.unsupported };
+  if (last === null) return { diagnosis, cuttingS: 0, cuttingMm: 0, job: [], recent: null, move, notes: [], short: fl.short, unsupported: fl.unsupported };
   const job = shares(null, last);
   const of = (i: number): number => (last.ct > 0 ? (last.c[i] ?? 0) / last.ct : 0);
   const notes: string[] = [];
   if (of(0) > 0.05) notes.push(`An axis's own speed limit held the feed below the programmed value for ${pct(of(0))} of the cutting time: the programmed feed is above what the machine can do on that axis (its fr setting).`);
   if (of(3) + of(4) > 0.3) notes.push(`Moves too short to reach the feed for ${pct(Math.min(1, of(3) + of(4)))} of the cutting time: dense CAM output with these jerk settings, the usual reason a dense file runs slow.`);
   if (of(1) > 0.3) notes.push(`The planner slowed into corners for ${pct(of(1))} of the cutting time: normal on a cornered path; on a smooth path the junction settings (jd, ja) are conservative.`);
-  if (of(5) > 0.3) notes.push(`Ramps and the end of the path for ${pct(of(5))} of the cutting time: expected at the start and end of every chain. A large share mid-job means the planner kept running out of look-ahead, which can be a supply gap, but this firmware does not report why.`);
+  if (of(5) > 0.3) notes.push(`Ramps and the end of the path for ${pct(of(5))} of the cutting time: expected at the start and end of every chain. A large share mid-job means the planner kept running out of look-ahead, which can be a supply gap, but ${last.c.length === 6 ? 'this firmware' : 'this counter alone'} does not report why.`);
   return {
+    diagnosis,
     cuttingS: last.ct / 1000,
     cuttingMm: last.cd,
     job,
