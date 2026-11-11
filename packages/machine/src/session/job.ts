@@ -60,6 +60,7 @@ import {
 } from '@synthetos/safety';
 import { mapStat, type Dialect, type JsonObject, type JsonValue, type Response } from '@synthetos/protocol';
 import { isReadAllowed } from '@synthetos/schema';
+import { restartDwellWait } from './dwell.ts';
 import { MOTION_LIMITS, activeSystem, atRestPolled, beginHold, clearMotionNotice, completedPoll, heldPolled, idleBase, motionCapable, requestPoll } from './motion.ts';
 import { sessionSettings } from './settingWrite.ts';
 import { ACTIVE_PHASES, failJob, jobActive, jobEvent, lastFileLine, patchJob, type JobTx } from './jobState.ts';
@@ -197,6 +198,7 @@ function queue(t: JobLayerTx, entry: PendingRead): void {
  * RUNNING again in the transition that asks for it, and the byte is written right after.
  */
 function writeRealtime(t: JobLayerTx, name: 'feedhold' | 'resume', intent: Intent): void {
+  restartDwellWait(t);
   const realtime = dialect(t.s).realtime;
   const byte = name === 'feedhold' ? realtime.feedhold.byte : realtime.resume.byte;
   t.set({ sent: { ...t.s.sent, realtime: t.s.sent.realtime + 1 } });
@@ -1114,7 +1116,7 @@ function changeReady(t: JobLayerTx, at: number): void {
 /** At rest at a program stop: stat 3 or 4 (EN M0 holds with `hold` 6), nothing moving, planner empty (H36). */
 function drainedAtBarrier(s: SessionState, p: PolledValues): boolean {
   const cls = mapStat(dialect(s), p.stat);
-  return (cls === 'programStop' || cls === 'end' || cls === 'idle') && p.vel === 0 && p.qr === planner(s);
+  return s.dwellWait == null && (cls === 'programStop' || cls === 'end' || cls === 'idle') && p.vel === 0 && p.qr === planner(s);
 }
 
 function dataSettled(s: SessionState): boolean {

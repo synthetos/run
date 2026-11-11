@@ -1161,6 +1161,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     }
     if (this.#hold === HOLD.OFF && (this.#options.build?.fb ?? FW_BUILD) >= 450.02 && this.#motion.executingDwell()) {
       this.#dwellHeld = true;
+      if (this.#isAlarmed() === 0) this.#cycleStart(); // a lone dwell may have already freed its planner slot
       this.#motionState = 'hold';
       this.#hold = HOLD.HOLD;
       this.#progress++;
@@ -1229,6 +1230,8 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   /** `_run_requested_queue_flush()` (@cite EN canonical_machine.c:1966-1981). */
   #runRequestedQueueFlush(now: number): void {
+    // EN >=450.02 cancels a held dwell timer when flushing, before testing runtime idle.
+    if ((this.#options.build?.fb ?? FW_BUILD) >= 450.02 && this.#motion.executingDwell() && this.#hold === HOLD.HOLD) this.#motion.halt(now);
     if (!this.#motion.runtimeIdle() || (this.#hold !== HOLD.OFF && this.#hold !== HOLD.REQUESTED && this.#hold !== HOLD.HOLD)) return;
     if (this.#queueFlushInput) {
       this.#queueFlushInput = false;
@@ -1501,7 +1504,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       },
       // @behaviour EN-INHIBITED-JOINT: an inhibited axis's joint is 0 on every segment (@cite EN kinematics.c:59)
       inhibited: (axis) => this.settings.num(`${AXES[axis] as string}am`) === AXIS_INHIBITED,
-    });
+    }, (this.#options.build?.fb ?? FW_BUILD) >= 450.02);
   }
 
   // =====================================================================
@@ -2214,6 +2217,9 @@ export class TinyGEdgeNextModel implements SimDevice {
       if (this.settings.num('jv') >= 5) body[key] = value;
       return status;
     }
+    // @behaviour EN-DWELL-IDLE: persisted SETs refuse before changing RAM while the timer runs.
+    if ((this.#options.build?.fb ?? FW_BUILD) >= 450.02 && (info.persist || info.set === 'sr_set' || info.set === 'srs_set') &&
+        (this.#cycle !== 'off' || this.#motion.queue.length > 0 || !this.#motion.runtimeIdle())) return 117;
     if (key === 'sr' && typeof value === 'object' && value !== null) return this.#setSrList(value, body);
     if (typeof value === 'object' && value !== null) throw new ModelGapError(`edge-next group SET ${key}`);
     switch (info.set) {

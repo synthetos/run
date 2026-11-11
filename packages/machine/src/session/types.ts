@@ -705,6 +705,8 @@ export type PolledValues = Readonly<Required<Pick<PollCycle, 'stat' | 'hold' | '
 
 /** The reducer's whole state. Plain, frozen data. */
 export interface SessionState {
+  /** Accepted G4 durations not yet discharged by a conservative resting interval. */
+  readonly dwellWait?: import('./dwell.ts').DwellWait | null;
   readonly base: SessionBase;
   /** Active overlays, in precedence order (allow-matrix `OVERLAYS`). */
   readonly overlays: readonly Overlay[];

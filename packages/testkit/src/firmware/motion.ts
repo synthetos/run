@@ -91,6 +91,7 @@ interface Running {
 export class Motion {
   readonly pool: number;
   readonly #hooks: MotionHooks;
+  readonly #releaseDwellSlot: boolean;
   readonly queue: Block[] = [];
   #current: Running | null = null;
   #t = 0;
@@ -115,12 +116,13 @@ export class Motion {
   #steps: Vec = zeroVec();
   #motor: Vec = zeroVec();
 
-  constructor(pool: number, hooks: MotionHooks) {
+  constructor(pool: number, hooks: MotionHooks, releaseDwellSlot = false) {
     this.pool = pool;
     this.#hooks = hooks;
+    this.#releaseDwellSlot = releaseDwellSlot;
   }
 
-  /** Free planner buffers (the running block still holds its buffer). */
+  /** Free planner buffers; EN dwell timers may outlive their freed planner slot. */
   available(): number {
     return this.pool - this.queue.length;
   }
@@ -318,6 +320,10 @@ export class Motion {
     this.#current = { block, start: t, phase: { kind: 'cruise', t0: t, d0: 0 } };
     this.#lastLine = block.line;
     this.#hooks.onStart(block, t);
+    if (block.kind === 'dwell' && this.#releaseDwellSlot) {
+      this.queue.shift();
+      this.#hooks.onFree(block, this.queue.length === 0, t);
+    }
   }
 
   /** When the current phase ends, or null if it never ends on its own (held). */
@@ -354,8 +360,10 @@ export class Motion {
     this.#position = [...end];
     this.#current = null;
     const i = this.queue.indexOf(r.block);
-    if (i >= 0) this.queue.splice(i, 1);
-    this.#hooks.onFree(r.block, this.queue.length === 0, t);
+    if (i >= 0) {
+      this.queue.splice(i, 1);
+      this.#hooks.onFree(r.block, this.queue.length === 0, t);
+    }
   }
 
   #distance(r: Running, now: number): number {

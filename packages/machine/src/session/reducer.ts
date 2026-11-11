@@ -118,6 +118,8 @@ import {
   type JobDeps,
 } from './job.ts';
 import { jobActive, patchJob } from './jobState.ts';
+import { completedPoll } from './motion.ts';
+import { acknowledgeDwell, observeDwellPoll } from './dwell.ts';
 import { maybeRereadOffsets } from './jobOffsets.ts';
 import { PROBE_CLOSED } from './probe/state.ts';
 import { onProbeIntent, probeRefusal } from './probe/intents.ts';
@@ -710,6 +712,10 @@ function onGateAnswer(t: Tx, token: string, r: Response): void {
   t.set({ settingWrite: { ...w, gate }, live: withNumber(t, t.s.live, token, value) });
   if (t.s.queue.some((q) => q.purpose === 'gate')) return;
   const dialect = dialectOf(t.s) as Dialect;
+  if (t.s.dwellWait != null) {
+    finishSettingWrite(t, 'refused', 'Not written: the dwell has not been confirmed finished.');
+    return;
+  }
   const verdict = judgeGate(dialect, gate, restingUsesHold(dialect));
   if (!verdict.ok) {
     finishSettingWrite(t, 'refused', verdict.detail);
@@ -824,6 +830,10 @@ function onBootGateAnswer(t: Tx, token: string, r: Response): void {
   if (t.s.queue.some((q) => q.purpose === 'bootGate')) return;
   const dialect = dialectOf(t.s) as Dialect;
   // The settings gate's rule without the units (the bootloader does not care whether the board works in inches).
+  if (t.s.dwellWait != null) {
+    refuseBoot(t, 'the dwell has not been confirmed finished');
+    return;
+  }
   const verdict = judgeGate(dialect, { ...gate, unit: 1 }, restingUsesHold(dialect));
   if (!verdict.ok) {
     refuseBoot(t, verdict.detail.replace('Not written: ', '').replace(', with nothing queued and in millimetres', ', with nothing queued'));
@@ -1113,6 +1123,7 @@ function onInbound(t: Tx, raw: Inbound, at: number): void {
 }
 
 function onBanner(t: Tx, banner: Banner, at: number): void {
+  t.set({ dwellWait: null }); // a board reset cancels its dwell timer
   interruptSettingWrite(t, 'the board reset');
   // The board restarted: it boots in XON and never says so (@cite EN xio/xio_usart.c:128-130).
   // An ENQ written before the reset was either answered before the banner (lines arrive in order) or
@@ -1198,7 +1209,7 @@ function isDataEntry(e: Expected): boolean {
 
 /** Answers the board owes, oldest first: the written lines, then the line being written. */
 function owedAnswers(s: SessionState): readonly Expected[] {
-  return s.writing === null ? s.expected : [...s.expected, { token: s.writing.token, purpose: s.writing.purpose, late: false }];
+  return s.writing === null ? s.expected : [...s.expected, { ...s.writing, late: false }];
 }
 
 /** Removes the answered entry and the late entries of its queue before it (the last owed may be the line being written). */
@@ -1225,6 +1236,10 @@ function answers(e: Expected, r: Response): boolean {
 }
 
 function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
+  if (r.footer.status === 0) {
+    if (e.purpose === 'job') acknowledgeDwell(t, t.s.job?.lines[e.index as number]?.text);
+    else if (e.purpose === 'motion' && e.token === 'gc') acknowledgeDwell(t, e.line);
+  }
   const value: JsonValue | undefined = r.r[e.token];
   switch (e.purpose) {
     case 'splice': {
@@ -1314,6 +1329,7 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
       }
       noteHomingRead(t, e.token, r.footer.status, value); // S1: a home of 0 forgets the axes homed here
       if (e.token === 'home' && (t.s.base === 'IDLE_HOMED' || t.s.base === 'IDLE_UNHOMED')) t.set({ base: idleBase(t.s) });
+      if (e.token === 'qr') observeDwellPoll(t, completedPoll(t.s), at);
       if (e.token === 'qr' && checkAlarm(t, at)) {
         onPollDone(t, at);
         onJobPoll(t, at);

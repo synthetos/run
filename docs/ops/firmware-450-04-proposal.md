@@ -62,19 +62,21 @@ with no early write; older builds keep the existing 300 ms settle. No unclassifi
 `stat=4` (PROGRAM_END) while the dwell timer still runs; from READY it can retain `stat=1`.
 Do not reinterpret 4 as a new dwell state. `cm_dwell()` at `canonical_machine.c:1588–1597` only calls `mp_dwell()`;
 `canonical_machine.h:65–66` still names 4 PROGRAM_END and 5 RUN. A model regression checks G4 after M30 keeps
-4 while the model's planner is busy. **Model limitation:** real firmware frees the dwell planner slot before
-the timer finishes, so it can report both `stat=4` and `qr=32` during the dwell. The model retains that slot;
-this regression tests the status mapping only and cannot validate real-board dwell completion.
-Run's state mapping and dwell handling are unchanged. Neither stat alone nor idle/end plus a full planner
-proves completion: outstanding dwell time or a firmware completion marker must also be accounted for.
-Review that completion boundary before approving 450.04; this proposal does not certify it.
+4 with a full planner while the timer is still busy. The model now frees the dwell planner slot at start
+and refuses persisted SETs with 117 without changing RAM/EEPROM until runtime work finishes. Its held-dwell
+flush cancels the timer. This models the 450.02/450.04 release behavior, not N99.
 
-Firmware-team clarification (2026-11-11, mailbox `20261111T110050-269aaa11`): N99's test-first commit is
-`c1faefec`, its unmerged fix is `2c1489fd`, and the cases are in
-`tests/hil/tests/bugs/test_n99_dwell_status.py` on `fix/N99-dwell-status`. They include lone-after-end,
-before-end, output commands and M0/M1 followed by dwell. No stored board run was supplied for those tests;
-these are source/test observations, not recorded bench passes. The merged `9928f545` change only makes the
-E059 harness test wait out its own dwell; it does not fix firmware N99.
+**N99 follow-up:** firmware team reports N99 merged at `81969e89`, still reporting `fb=450.04`; the original
+450.04 release HEX does not contain it. Do not select an N99 contract from the build number. The existing
+stat mapping remains unchanged (5 RUN, 6 HOLD, program pause 3); the new host dwell guard applies to every
+build. The old firmware can report both a resting stat and `qr=32` during a dwell, so those values alone do
+not prove completion.
+
+Firmware-team records: N99's test-first commit is `c1faefec`, with the reviewed fix tree at `3fd3c3ea`, and
+cases in `tests/hil/tests/bugs/test_n99_dwell_status.py`. The initial read-only review had no stored board
+run; later bench-3 observations supplied to Run confirmed the pre-N99 idle/full-qr/117 behavior. No new
+hardware run was performed for this Run follow-up. The original `9928f545` change only made the E059
+harness wait out its own dwell; it did not fix firmware N99.
 
 **N102 needs no change:** EN already caps unanswered bytes at 180 (`tinygEn.ts`, byte-window engine), below
 the recommended 192-byte host limit. The actual firmware RTS thresholds are off at 224 and back on below
@@ -142,7 +144,7 @@ This is the firmware team's recorded evidence; no hardware run was performed for
 The run records mark firmware `known: false` because it was flashed prebuilt; each run.json names the CI ELF.
 The HEX digest above must still be verified when selecting an artifact for any future flash or approval.
 
-## Validation of this readiness branch
+## Validation of initial readiness commit 0f06405
 
 - `pnpm typecheck`: passed across the workspace.
 - ESLint on every changed/new TypeScript file and `git diff --check`: passed.
@@ -155,3 +157,47 @@ The HEX digest above must still be verified when selecting an artifact for any f
 
 Only targeted tests were run, 89 tests total. Full suites and browser/hardware verification are left to the
 lead's merge checks. No server was started, no firmware was flashed, and nothing was deployed or pushed.
+
+
+## Dwell completion follow-up
+
+`packages/machine/src/session/dwell.ts` records successfully acknowledged G4 durations for typed motion
+and job lines, including an ACK received before the transport reports write completion. Rejected lines add
+no duration. No build-number test selects or bypasses this protection.
+
+ACK is not execution start: a dwell can be queued behind arbitrarily slow or held motion. The guard therefore
+waits the sum of still-unconfirmed dwell durations plus 100 ms after a complete, settled, resting poll. Busy,
+missing or rejected polls, newly acknowledged data, and Pause/Resume restart that interval. While the guard
+is pending, two identical idle-looking polls cannot complete a job or typed move. A job's explicit program-stop
+barrier can settle while held, because Run never sends the next line past that barrier. Actual ordinary holds
+remain resumable and are never mistaken for idle completion.
+
+This is deliberately conservative: some time already spent dwelling is counted again, and multiple dwells
+since the last confirmed rest can add completion latency. The code cannot reconstruct an exact start time from
+pre-N99 telemetry. It makes no claim to time a dwell sent by another controller before connection or while this
+session is disconnected. That unknown-work limitation needs separate firmware quiescence evidence; stat plus
+full qr cannot resolve it.
+
+Affected paths reviewed:
+
+- Job end, trailing dwells, program stops, breakpoints and tool-change/resume drains use the shared guard.
+- Typed G4 remains active through its wait; another typed move or go-to-zero cannot start meanwhile.
+- Go-to-zero safe-Z and motion/probe drain steps use the same `atRestPolled` check, even though they do not
+  generate their own G4. The settings-write and bootloader gates explicitly refuse any pending dwell budget.
+- Stop is never delayed by the budget: hold confirmation uses the actual held indication, then two polls
+  confirm the requested flush and discard the cancelled timer budget. EN alarm/shutdown/panic and reset also
+  cancel it. Reconnect starts a fresh ledger; it does not claim knowledge of unobserved prior dwell work.
+- No N99 change to numeric stat classification, no firmware pin/build approval change, and no registered
+  safety string change were made.
+
+The simulator now releases EN >=450.02 dwell slots before the timer ends and checks the persisted-SET gate
+against both queued and active runtime work (117 before mutation). `EN-DWELL-IDLE` has source citations for
+`planner.c`, `canonical_machine.c` and `config.c`. Old 450.01 simulator slot behavior is retained; host timing
+protection still applies to it. This version switch models historical release behavior, not detection of N99.
+
+
+Follow-up validation: 38 targeted tests passed (machine: `dwell-accounting.test.ts`, `dwell-gates.test.ts`,
+`firmware-45004.test.ts`; testkit: `dwell-idle.test.ts`, `firmware-45004.test.ts`, `citations.test.ts`,
+`honesty.test.ts`). Source citations were checked against the TinyG Git repository. Workspace typecheck,
+changed-file lint and whitespace checks passed; the final machine changes also passed its focused typecheck.
+Full suites remain with the merge lead. No board, serial port or local server was used.

@@ -46,6 +46,7 @@
  */
 import { STOP_TEXT, type Decision, type Intent } from '@synthetos/safety';
 import { mapStat, type Dialect, type MachineClass } from '@synthetos/protocol';
+import { restartDwellWait } from './dwell.ts';
 import { restingStat } from './resting.ts';
 import { homingAxes, isReadAllowed } from '@synthetos/schema';
 import {
@@ -188,7 +189,7 @@ export function completedPoll(s: SessionState): PolledValues | null {
 /** At rest by this cycle's polled values: idle or ended, not moving, nothing held, planner empty. Shared with the job layer. */
 export function atRestPolled(s: SessionState, p: PolledValues): boolean {
   // The same rule as READING (resting.ts, SAFETY H14 as amended 2026-11-02), plus hold 0 on every dialect.
-  return restingStat(dialect(s), p.stat, p.hold) && p.vel === 0 && p.hold === 0 && p.qr === planner(s);
+  return s.dwellWait == null && restingStat(dialect(s), p.stat, p.hold) && p.vel === 0 && p.hold === 0 && p.qr === planner(s);
 }
 
 /** The hold is complete by this cycle's polled `hold`. Shared with the job layer. */
@@ -217,6 +218,7 @@ export function queueMotionLine(t: MotionTx, line: string, intent: Intent): void
 }
 
 function writeRealtime(t: MotionTx, name: 'feedhold' | 'flush' | 'resume', intent: Intent): void {
+  restartDwellWait(t);
   const realtime = dialect(t.s).realtime;
   const byte = name === 'feedhold' ? realtime.feedhold.byte : name === 'flush' ? (realtime.flush as { readonly byte: number }).byte : realtime.resume.byte;
   t.set({ sent: { ...t.s.sent, realtime: t.s.sent.realtime + 1 } });
@@ -720,6 +722,7 @@ export function onPollDone(t: MotionTx, at: number): void {
         requestPoll(t);
         return;
       }
+      t.set({ dwellWait: null }); // two polls confirm the requested flush; its timer is cancelled
       finish(t, at);
       return;
     }
@@ -917,6 +920,7 @@ export function checkAlarm(t: MotionTx, at: number): boolean {
   const cls = machineClass(s);
   if (cls === undefined) return true;
   if (cls === 'shutdown' || cls === 'panic') forgetHomed(t); // S1: edge-next's cm_shutdown unhomes every axis
+  if (ALARMED.has(cls) && s.dialect.id === 'tinyg-en') t.set({ dwellWait: null }); // EN alarms cancel timer work
   if (ALARMED.has(cls) && ALARMABLE.has(s.base)) {
     const moving = s.motion !== null;
     // OD-19: a jog or go to zero ended here left G91 (and G21): Clear alarm puts G90 back (alarmRestore.ts).

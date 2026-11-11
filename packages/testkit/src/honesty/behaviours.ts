@@ -525,7 +525,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
   {
     id: 'EN-SETTINGS-GATE',
     model: EN,
-    summary: 'A persisted SET while a cycle runs sets the RAM value, then the EEPROM write is refused: an {"er"} 106 and the response status 106.',
+    summary: 'Legacy model (before 450.02): a persisted SET while a cycle runs sets the RAM value, then the EEPROM write is refused: an {"er"} 106 and the response status 106.',
     status: 'verified-source',
     cites: [
       { src: 'EN', file: 'persistence.c', lines: [88, 92], quote: "Can't save when moving" },
@@ -554,6 +554,17 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     ],
     bench: 'B-MD-1',
     issues: ['E138'],
+  },
+  {
+    id: 'EN-DWELL-IDLE', model: EN,
+    summary: '450.02/450.04 pre-N99: a standalone G4 keeps the stored stat and frees its planner slot before its timer ends. Persisted SETs return 117 without changing RAM or EEPROM while work is pending. This model does not infer N99 from fb.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN45004', file: 'planner.c', lines: [310, 317], quote: 'if (mp_free_run_buffer())' },
+      { src: 'EN45004', file: 'canonical_machine.c', lines: [199, 205], quote: 'cm.machine_state <= MACHINE_PROGRAM_END' },
+      { src: 'EN45004', file: 'config.c', lines: [170, 187], quote: 'STAT_SETTING_REFUSED_IN_CYCLE' },
+    ],
+    issues: ['N99', 'N60'],
   },
   {
     id: 'EN-HOLD-OUTPUTS', model: EN,
@@ -1116,5 +1127,5 @@ export const MODEL_LIMITS: readonly ModelLimit[] = Object.freeze([
   { id: 'LIM-MODAL-TG', scope: 'tinyg-440', summary: 'Two codes of one modal group on a 440.21 line: the last one wins; no modal-group error is modelled.' },
   { id: 'LIM-EN-FEED-LIMIT', scope: 'tinyg-en', summary: 'The feed-limit push (option feedLimit, EN-FEED-LIMIT-PUSH) models the window, the interval and when fs lines are pushed; its counters do not model the firmware: ct is the time a cycle ran, cd is 0 and every per-cause counter in c is 0. Without feedLimitStep3 no fl lines are pushed; x is never set, and {"rt":{"fs":null}} is not modelled.' },
   { id: 'LIM-EN-FEED-LIMIT-STEP3', scope: 'tinyg-en', summary: 'The optional c7f9b7e2 wire format is modelled separately from 450.02. Gap time/count uses the virtual model loop and motion-start evidence; no 250 ms coalescing, TX backpressure, transient underrun latch, counter wrap or fractional tick accounting. fs cause counters, fg boundary counters and fl executing-move causes stay zero/unknown. They must not validate physical attribution or performance. The job flag also works alone for capability tests; raw mixed rt group atomicity is not modelled.' },
-  { id: 'LIM-EN-REPIN', scope: 'tinyg-en', summary: 'The model was built at edge-next ead63997; the 97321391, 6ec70652 and 93a723b8 re-pins (2026-11-02) and the a7489b79 re-pin (450.02, 2026-11-06) are modelled only for the spindle and coolant readouts spe, spc, spd, sps, cof and com (EN-SPINDLE-READOUTS; the model applies S when parsed, not queued, so sps follows a new S at once) and beyond that only as moved citations. Not modelled: the rt family beyond LIM-EN-RT-HB (at 93a723b8 the feed-limit report leaves flk, flm, flp and flf, the fl lines and the fs summary request, which the model answers 100 for; the push interval fi and its fs lines are modelled only with option feedLimit, EN-FEED-LIMIT-PUSH), E195 (a partial line quiet for about 1 s is dropped when a { arrives; the model always joins it to the next line), the stricter input errors E168-E177, E191 and E193, the timing fixes E165-E167, E180-E184, E190 and E192, and the planner fixes E196 (the junction limit read from the runtime direction when the previous block is freed) and E197 (a runtime halt clears the runtime exit velocity). Not modelled from the 450.02 re-pin: fb 450.02 itself (the model reports 450.01 unless a caller passes build; the fake-serial board passes 450.02 so the committed bench manifest approves it), a feedhold while a cycle is stopped between moves entering HOLD at once (a feedhold during a dwell is modelled for a build of 450.02 or later, without the stale vel that hold reports), a queue flush or job kill also ending a dwell, status 117 for a persisted setting written during a cycle and status 118 after the banner for stored settings that would not load, the range-checked setters (axis rates, junction deviation, radius, chordal tolerance, ja, work offsets, PWM frequency), microsteps other than 1, 2, 4 and 8 refused, switch settings refused unless idle, targets above 1e18 refused, a resume whose held move cannot be replanned staying in HOLD with an exception, and the N66 hold endpoint fix.' },
+  { id: 'LIM-EN-REPIN', scope: 'tinyg-en', summary: 'The model was built at edge-next ead63997; the 97321391, 6ec70652 and 93a723b8 re-pins (2026-11-02) and the a7489b79 re-pin (450.02, 2026-11-06) are modelled only for the spindle and coolant readouts spe, spc, spd, sps, cof and com (EN-SPINDLE-READOUTS; the model applies S when parsed, not queued, so sps follows a new S at once) and beyond that only as moved citations. Not modelled: the rt family beyond LIM-EN-RT-HB (at 93a723b8 the feed-limit report leaves flk, flm, flp and flf, the fl lines and the fs summary request, which the model answers 100 for; the push interval fi and its fs lines are modelled only with option feedLimit, EN-FEED-LIMIT-PUSH), E195 (a partial line quiet for about 1 s is dropped when a { arrives; the model always joins it to the next line), the stricter input errors E168-E177, E191 and E193, the timing fixes E165-E167, E180-E184, E190 and E192, and the planner fixes E196 (the junction limit read from the runtime direction when the previous block is freed) and E197 (a runtime halt clears the runtime exit velocity). For 450.02 and later the dwell planner-slot release and persisted-SET idle gate are modelled (EN-DWELL-IDLE). Other gaps from the 450.02 re-pin: fb 450.02 itself (the model reports 450.01 unless a caller passes build; the fake-serial board passes 450.02 so the committed bench manifest approves it), a feedhold while a cycle is stopped between moves entering HOLD at once (a feedhold during a dwell is modelled for a build of 450.02 or later, without the stale vel that hold reports), a queue flush or job kill also ending a dwell, status 118 after the banner for stored settings that would not load, the range-checked setters (axis rates, junction deviation, radius, chordal tolerance, ja, work offsets, PWM frequency), microsteps other than 1, 2, 4 and 8 refused, switch settings refused unless idle, targets above 1e18 refused, a resume whose held move cannot be replanned staying in HOLD with an exception, and the N66 hold endpoint fix.' },
 ]);

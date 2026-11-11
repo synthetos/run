@@ -58,7 +58,7 @@ it('N99 remains unfixed: standalone G4 after program end still reports stat 4', 
   const sim = enSim({ build });
   sim.host.sendLine('M30'); sim.clock.advance(100);
   sim.host.sendLine('G4 P2'); sim.clock.advance(100);
-  expect(sim.device.snapshot()).toMatchObject({ stat: 4, plannerAvailable: 31 });
+  expect(sim.device.snapshot()).toMatchObject({ stat: 4, plannerAvailable: 32 });
   sim.clock.advance(2200);
   expect(sim.device.snapshot().plannerAvailable).toBe(32);
 });
