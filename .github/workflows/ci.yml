@@ -67,8 +67,9 @@ jobs:
   verify:
     name: verify
     runs-on: ubuntu-24.04
-    # The safety package's mutation testing alone ran past 50 minutes on GitHub's runners (2026-11-05).
-    timeout-minutes: 120
+    # The safety package's mutation testing alone ran past 50 minutes on GitHub's runners (2026-11-05), and the whole
+    # job passed 120 minutes on 0.5.18 (2026-11-11, cancelled mid-mutation). GitHub's ceiling for a job is 360.
+    timeout-minutes: 180
     permissions:
       contents: read
     steps:
