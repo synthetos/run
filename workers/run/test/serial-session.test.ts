@@ -45,18 +45,17 @@ describe('server-side production serial boundary', () => {
     expect(res.headers.get('permissions-policy')).toContain('serial=()');
     expect(h.env.ACCOUNTS!.validateSession).not.toHaveBeenCalled();
   });
-  it('serial assets require a fresh session and are private/no-store, including failures and encoded aliases', async () => {
+  it('serial assets load for everyone like any hashed asset (the browser-enforced Permissions-Policy is the gate); odd spellings are refused', async () => {
     const h = harness();
     const path = '/assets/serial/web-serial-chooser-12345678.js';
     for (const cookie of ['', h.cookie]) {
       const res = await h.get(path, cookie);
-      expect(res.status).toBe(cookie ? 200 : 403);
-      expect(res.headers.get('cache-control')).toBe('private, no-store');
-      expect(res.headers.get('vary')).toContain('Cookie');
+      expect(res.status).toBe(200);
+      expect(res.headers.get('cache-control')).toContain('immutable');
     }
-    h.revoke();
-    expect((await h.get(path, h.cookie)).status).toBe(403);
-    for (const path of ['/assets/%73erial/x.js', '/%61ssets/serial/x.js', '/assets%2fserial/x.js']) expect((await h.get(path)).status).toBe(404);
+    const anon = await worker.fetch(new Request(`${PRODUCTION_ORIGIN}/`), h.env);
+    expect(anon.headers.get('permissions-policy')).toContain('serial=()');
+    for (const path of ['/assets/%73erial/x.js', '/%61ssets/serial/x.js', '/assets%2fserial/x.js', '/assets//serial/x.js']) expect((await h.get(path)).status).toBe(404);
     expect((await h.get('/assets/plain-12345678.js')).headers.get('cache-control')).toContain('immutable');
   });
 });

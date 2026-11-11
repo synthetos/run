@@ -250,6 +250,6 @@ Until step 2, run's production deploys keep working with sign-in off.
 ### 7.4 Check production
 
 1. In a private window (signed out), `https://run.synthetos.com`: Connect shows "Connecting needs a Synthetos account" with "Synthetos accounts are coming soon", and a small "Beta testers can sign in" link.
-2. Signed out, DevTools → Network → the document: `Permissions-Policy` starts with `serial=()`. A request to `/assets/serial/*` is refused. Sign in and navigate again: the document has `serial=(self)`, `Cache-Control: no-store` and `Vary: Cookie`; serial assets are private/no-store. Every other header matches docs/ops/worker.md.
+2. Signed out, DevTools → Network → the document: `Permissions-Policy` starts with `serial=()`. The page still loads fully, with the sign-in link. Sign in and navigate again: the document has `serial=(self)`, `Cache-Control: no-store` and `Vary: Cookie`. Every other header matches docs/ops/worker.md.
 3. Sign in as `ril3y`: Preferences → Account says "Signed in as @ril3y". Connect goes on to C1 and the port chooser, and the board identifies, read-only.
 4. With a second GitHub account: accounts says "Sign-in opens with the public beta.", and Connect stays refused.

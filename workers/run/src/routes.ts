@@ -21,7 +21,6 @@ import { accessConfig, type CertsFetcher, fetchAccessCerts, verifyAccessJwt } fr
 import { firmwareAssetPath, firmwareHeaders, NO_CACHE, proxyFirmwareAsset, type FirmwareCache, type FirmwareProxyDeps } from './firmwareProxy.ts';
 import { authConfig, type AuthEnv } from './authConfig.ts';
 import { authRoute } from './authRoutes.ts';
-import { serialSession } from './serialSession.ts';
 import { runSessionIdentity } from './authSession.ts';
 import { API_CACHE_CONTROL, grantsSerial, HASHED_ASSET_CACHE_CONTROL } from './headers.ts';
 
@@ -194,17 +193,13 @@ export async function route(
   // applies the headers.
   // `_headers` does not apply to responses the Worker returns, so the
   // immutable cache policy of hashed assets is set here.
-  // Hash asset names need no encoding. Refuse encoded aliases rather than let the asset service normalize
-  // a spelling around the protected serial directory.
+  // Hash asset names need no encoding. Refuse encoded or doubled-slash spellings under /assets rather than let
+  // the asset service normalize them.
   if (pathname.includes('%') && decodeURIComponent(pathname).startsWith('/assets/')) return notFound();
-  if (under(pathname, '/assets/serial')) {
-    const allowed = (env.RUN_ENV === 'staging' && grantsSerial(env.RUN_ENV, url)) || await serialSession(request, env);
-    const res = allowed ? await env.ASSETS.fetch(request) : json(403, { error: 'sign_in_required' });
-    const privateAsset = new Response(res.body, res);
-    privateAsset.headers.set('cache-control', 'private, no-store');
-    privateAsset.headers.append('vary', 'Cookie');
-    return privateAsset;
-  }
+  if (pathname.startsWith('/assets/') && pathname.includes('//')) return notFound();
+  // /assets/serial/* is served like every hashed asset: the page imports it statically, so gating it would stop the
+  // whole app (the sign-in link and the stop paths included) for anyone without a session. Web Serial is granted by
+  // the document's Permissions-Policy, which the browser enforces and which needs a validated session (index.ts).
   const asset = await env.ASSETS.fetch(request);
   if (!under(pathname, '/assets') || asset.status !== 200) return asset;
   const cached = new Response(asset.body, asset);
