@@ -167,7 +167,9 @@ describe('preflight --write', () => {
   const withBuild = withAccount.replace('"vars": { "RUN_ENV": "staging" }', '"vars": { "RUN_ENV": "staging" },\n      "build": { "command": "node marker.cjs" }');
 
   it('placeholder or missing migration credential deploys with both auth bindings removed, never a placeholder sent to wrangler', () => {
-    for (const [text, ready] of [[COMMITTED.replace(/"account_id": "[^\"]*"/, `"account_id": "${REAL_ACCOUNT}"`), true], [withAccount, false]] as const) {
+    // The committed staging id is real now (owner created run-auth-staging); the placeholder case is built here.
+    const placeholder = withAccount.replace(/"database_id": "[0-9a-f-]{36}"/, '"database_id": "RUN_AUTH_STAGING_DATABASE_ID_PLACEHOLDER"');
+    for (const [text, ready] of [[placeholder, true], [withAccount, false]] as const) {
       const r = preflight(text, 'staging', dir => ['--write', join(dir, 'wrangler.deploy.json')], undefined, ready);
       expect(r.status, r.output).toBe(0);
       const written = JSON.parse(readFileSync(join(r.dir, 'wrangler.deploy.json'), 'utf8')) as Config;
