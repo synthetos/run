@@ -59,11 +59,22 @@ probe now waits at least 500 ms before retrying its splice guard. The test confi
 with no early write; older builds keep the existing 300 ms settle. No unclassified motion is retried.
 
 **N99 is not applied:** standalone G4 does not start a machining cycle. In particular a G4 after M30 retains
-`stat=4` (PROGRAM_END), even while its dwell occupies the planner; from READY it can retain `stat=1`.
+`stat=4` (PROGRAM_END) while the dwell timer still runs; from READY it can retain `stat=1`.
 Do not reinterpret 4 as a new dwell state. `cm_dwell()` at `canonical_machine.c:1588–1597` only calls `mp_dwell()`;
 `canonical_machine.h:65–66` still names 4 PROGRAM_END and 5 RUN. A model regression checks G4 after M30 keeps
-4 while the planner is busy. Run's state mapping and dwell handling are unchanged; this is not a claim that
-stat 4 alone proves quiescence. Existing quiescence/drain checks remain necessary.
+4 while the model's planner is busy. **Model limitation:** real firmware frees the dwell planner slot before
+the timer finishes, so it can report both `stat=4` and `qr=32` during the dwell. The model retains that slot;
+this regression tests the status mapping only and cannot validate real-board dwell completion.
+Run's state mapping and dwell handling are unchanged. Neither stat alone nor idle/end plus a full planner
+proves completion: outstanding dwell time or a firmware completion marker must also be accounted for.
+Review that completion boundary before approving 450.04; this proposal does not certify it.
+
+Firmware-team clarification (2026-11-11, mailbox `20261111T110050-269aaa11`): N99's test-first commit is
+`c1faefec`, its unmerged fix is `2c1489fd`, and the cases are in
+`tests/hil/tests/bugs/test_n99_dwell_status.py` on `fix/N99-dwell-status`. They include lone-after-end,
+before-end, output commands and M0/M1 followed by dwell. No stored board run was supplied for those tests;
+these are source/test observations, not recorded bench passes. The merged `9928f545` change only makes the
+E059 harness test wait out its own dwell; it does not fix firmware N99.
 
 **N102 needs no change:** EN already caps unanswered bytes at 180 (`tinygEn.ts`, byte-window engine), below
 the recommended 192-byte host limit. The actual firmware RTS thresholds are off at 224 and back on below
