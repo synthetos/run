@@ -2,16 +2,10 @@
  * Security headers for run.synthetos.com (RUN_PLAN §6.4, SAFETY H5/H45,
  * T-S25). This module is the single source of truth for them.
  *
- * Two mechanisms carry the same headers, because Cloudflare serves static
- * assets without invoking the Worker unless a path is in `run_worker_first`
- * (only `/api/*` and `/auth/*`, ROADMAP P0-04):
- *
- * - `withSecurityHeaders()` wraps every response the Worker builds or
- *   proxies (API, auth, errors, and any asset request that does reach it);
- * - `renderHeadersFile()` renders the static-assets `_headers` file
- *   (apps/web/public/_headers), which Cloudflare applies to asset responses
- *   and which `_headers` never applies to Worker responses
- *   (https://developers.cloudflare.com/workers/static-assets/headers/).
+ * The Worker runs first for every path. It wraps all responses; the generated
+ * static _headers file is a fail-closed fallback if an asset ever bypasses it.
+ * Production HTML grants serial only with configured sign-in and a validated run
+ * session. Its HTML is no-store and varies by Cookie. Staging remains behind Access.
  *
  * The committed `_headers` file is tested to be byte-identical to
  * `renderHeadersFile()`, the Playwright header test asserts the exact set on
@@ -54,15 +48,10 @@ export const CSP_DIRECTIVES: readonly string[] = [
  * bypassed it) denies serial: that path fails closed. Every host that is not
  * one of run's own deployed hosts gets it too.
  *
- * P1-00 (owner-approved): staging and the localhost bench build get
- * `serial=(self)` (SERIAL_GRANTED_PERMISSIONS_POLICY_FEATURES), and only
- * through `grantsSerial` below or the bench server. OD-29 (owner,
- * 2026-11-09: "yes we want run to be active for certain users we allow asap
- * the real site real storage real auth"): production's own host
- * `run.synthetos.com` gets it too, through the Worker (which runs first for
- * every path there as on staging). Who may connect is decided by the D1
- * sign-in gate (accounts admits the D37 allowlist only); before production's
- * sign-in go-live nobody can sign in there, so nobody can connect.
+ * P1-00: staging behind Access and the localhost bench grant serial to self.
+ * OD-29: production additionally requires configured sign-in and validation of
+ * the run session on each HTML request. Before sign-in is configured it grants
+ * nothing. Serial assets are session-gated and private/no-store too.
  */
 export const PERMISSIONS_POLICY_FEATURES: readonly string[] = [
   'serial=()',
@@ -99,7 +88,7 @@ function securityHeaders(permissionsPolicy: readonly string[]): Readonly<Record<
 }
 
 /**
- * The headers every PRODUCTION response carries (and the `_headers` file),
+ * The fail-closed headers (also the static `_headers` file),
  * with lower-case names, in the order RUN_PLAN §6.4 lists them. HSTS has no
  * `preload` yet (D29: preload after a further subdomain audit).
  */
@@ -113,25 +102,25 @@ export const SERIAL_GRANTED_SECURITY_HEADERS: Readonly<Record<string, string>> =
 
 /** The staging host (D31: behind Cloudflare Access). */
 export const STAGING_HOST = 'staging.run.synthetos.com';
-/** The production host (OD-29: grants serial; the D1 gate decides who connects). */
+/** The production host (OD-29: configured sign-in and session validation required). */
 export const PRODUCTION_HOST = 'run.synthetos.com';
 
 /**
- * True only for a request to a deployed Worker's OWN host: the Worker
+ * Host check plus the production session decision. True only for a request to a deployed Worker's OWN host: the Worker
  * deployed as staging (`RUN_ENV` exactly `staging`) on
  * `https://staging.run.synthetos.com`, or the Worker deployed as production
  * (`RUN_ENV` exactly `production`, OD-29) on `https://run.synthetos.com`.
- * Both halves must match: a production Worker on the staging host, a
+ * Production also needs sessionValidated=true from the server-side check. Both halves must match: a production Worker on the staging host, a
  * staging Worker on the production host, any other host, port or scheme
  * (there should be none: workers_dev and preview_urls are off, H45), and a
  * missing or odd RUN_ENV all get the fail-closed set.
  */
-export function grantsSerial(runEnv: unknown, url: URL): boolean {
+export function grantsSerial(runEnv: unknown, url: URL, sessionValidated = false): boolean {
   if (url.protocol !== 'https:' || url.port !== '') return false;
-  return (runEnv === 'staging' && url.hostname === STAGING_HOST) || (runEnv === 'production' && url.hostname === PRODUCTION_HOST);
+  return (runEnv === 'staging' && url.hostname === STAGING_HOST) || (runEnv === 'production' && url.hostname === PRODUCTION_HOST && sessionValidated);
 }
 
-/** The header set for a response: serial granted on the matching deployed host, denied everywhere else. */
+/** The header set after the host and session decision, fail-closed by default. */
 export function securityHeadersFor(serialGranted: boolean): Readonly<Record<string, string>> {
   return serialGranted ? SERIAL_GRANTED_SECURITY_HEADERS : SECURITY_HEADERS;
 }

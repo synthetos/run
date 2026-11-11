@@ -562,13 +562,6 @@ export function scanText(path: string, text: string, target: ScanTarget): ScanFi
 /** Scans a whole bundle for a target. An empty bundle, or one without an HTML page, fails. */
 export function scanBundle(files: readonly BundleFile[], target: ScanTarget): ScanFinding[] {
   const findings: ScanFinding[] = [];
-  if (!admitsWebSerial(target)) {
-    for (const file of files) {
-      if (file.path.startsWith(SERIAL_ASSET_DIR)) {
-        findings.push({ file: file.path, rule: 'serial-chunk', match: `the ${target} target carries no Web Serial code: production gets the Phase 0 shell only until Phase 6` });
-      }
-    }
-  }
   if (!files.some((f) => extension(f.path) === '.html')) {
     findings.push({ file: '.', rule: 'empty-bundle', match: 'no HTML page found: the scan refuses to pass an empty or partial build' });
   }

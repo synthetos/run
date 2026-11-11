@@ -24,7 +24,7 @@ export async function runSessionIdentity(request: Request, config: AuthConfig): 
   if (token === null) return null;
   try {
     const session = await config.accounts.validateSession(token);
-    if (session === null || session.client !== 'run' || typeof session.sub !== 'string' || !session.sub.startsWith('usr_')) return null;
+    if (session === null || !Number.isSafeInteger(session.absoluteExpiresAt) || session.absoluteExpiresAt <= Math.floor(Date.now() / 1000) || session.client !== 'run' || typeof session.sub !== 'string' || !session.sub.startsWith('usr_')) return null;
     const login = session.identities.find((i) => i.provider === 'github')?.login;
     const display = typeof login === 'string' && /^[A-Za-z0-9-]{1,39}$/.test(login) ? `@${login}` : 'your Synthetos account';
     return { provider: 'run-session', subject: session.sub, display };

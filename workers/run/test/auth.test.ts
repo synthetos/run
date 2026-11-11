@@ -134,7 +134,7 @@ describe('GET /auth/callback', () => {
     expect(res.status).toBe(303);
     expect(res.headers.get('location')).toBe('/library');
     const cookie = setCookie(res, SESSION_COOKIE) ?? '';
-    expect(cookie).toMatch(/; Path=\/; Secure; HttpOnly; SameSite=Strict; Max-Age=604800$/);
+    expect(cookie).toMatch(/; Path=\/; Secure; HttpOnly; SameSite=Lax; Max-Age=604800$/);
     expect(setCookie(res, PREAUTH_COOKIE)).toMatch(/Max-Age=0$/);
     expect(res.headers.get('clear-site-data')).toBeNull();
     expect(h.sql.prepare('SELECT user_sub,label FROM devices').all()).toEqual([{ user_sub: 'usr_01JTESTUSER0000000000000000', label: 'Chrome on macOS' }]);
@@ -168,7 +168,7 @@ describe('GET /auth/callback', () => {
   it('a shared computer: a browser-session cookie (no Max-Age), and accounts is told', async () => {
     const h = authEnv('staging', clock);
     const { res } = await signIn(h, '?shared=1');
-    expect(setCookie(res, SESSION_COOKIE)).toMatch(/SameSite=Strict$/);
+    expect(setCookie(res, SESSION_COOKIE)).toMatch(/SameSite=Lax$/);
   });
 
   it('T-S79: no pre-auth cookie, or a cookie from another flow, is refused before any exchange', async () => {
@@ -333,7 +333,7 @@ describe('POST /auth/logout and the session', () => {
     const { session } = await signIn(h);
     const res = await post(h, session, good);
     expect(res.status).toBe(204);
-    expect(res.headers.getSetCookie()).toEqual([`${SESSION_COOKIE}=; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=0`]);
+    expect(res.headers.getSetCookie()).toEqual([`${SESSION_COOKIE}=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0`]);
     expect(res.headers.get('clear-site-data')).toBeNull();
     expect(h.accounts.revoked).toEqual([session]);
     // Not cached: the very next identity read has no session.

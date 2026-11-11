@@ -460,8 +460,10 @@ jobs:
       # scope, since wrangler runs build.command even under --no-bundle) and writes the deployment
       # configuration from its allowlisted keys. Every wrangler call below uses only that file.
       - name: Preflight (account D39, workers.dev and preview URLs off H45)
+        id: config
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          RUN_AUTH_MIGRATIONS_READY: ${{ secrets.CLOUDFLARE_D1_API_TOKEN != '' }}
         run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc staging --write workers/run/wrangler.deploy.json
       - name: Staging must already be behind Cloudflare Access (D31)
         env:
@@ -519,6 +521,7 @@ jobs:
       # A1-07: run's RUN_AUTH database (pending sign-ins and device rows) gets the reviewed migrations
       # in workers/run/migrations before the code that uses them (expand only).
       - name: Apply the reviewed RUN_AUTH migrations before the code (A1-07)
+        if: steps.config.outputs.run_auth == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -635,8 +638,10 @@ jobs:
       # scope, since wrangler runs build.command even under --no-bundle) and writes the deployment
       # configuration from its allowlisted keys. Every wrangler call below uses only that file.
       - name: Preflight (account D39, workers.dev and preview URLs off H45)
+        id: config
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          RUN_AUTH_MIGRATIONS_READY: ${{ secrets.CLOUDFLARE_D1_API_TOKEN != '' }}
         run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc production --write workers/run/wrangler.deploy.json
       - name: Fetch the previous production deployment state (asset retention)
         env:
@@ -686,6 +691,12 @@ jobs:
           node tools/gates/src/deploy/retention-cli.ts merge --env "$DEPLOY_ENV" --commit "$GITHUB_SHA" \
             --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --site site $(cat retention-args) --out deploy-site --state-out deployed-state
           node tools/gates/src/bundle/cli.ts --target production deploy-site
+      - name: Apply the reviewed RUN_AUTH migrations before the code (A1-07)
+        if: steps.config.outputs.run_auth == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: ci/deploy-toolchain/node_modules/.bin/wrangler d1 migrations apply RUN_AUTH --remote --config workers/run/wrangler.deploy.json
       - name: Deploy the attested artifact to production
         id: deploy
         env:

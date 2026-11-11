@@ -8,7 +8,7 @@
 //   - The Worker runs first for EVERY path, on staging (P1-00) and in
 //     production (OD-29, owner 2026-11-09): it is what grants Web Serial to
 //     its own host's documents, `serial=(self)`, and only when RUN_ENV and the
-//     host match (src/headers.ts grantsSerial). Anything that ever bypassed it
+//     host match and production has a validated session (src/headers.ts grantsSerial). Anything that ever bypassed it
 //     would get apps/web/public/_headers (generated from src/headers.ts, the
 //     fail-closed set): serial=(). Who may connect is the D1 sign-in gate's
 //     decision (accounts admits the D37 allowlist only).
@@ -58,7 +58,7 @@
   // before. The owner's go-live step adds them (docs/ops/go-live-staging.md §7): exactly
   //   "services": [{ "binding": "ACCOUNTS", "service": "accounts", "entrypoint": "RunEntrypoint" }],
   //   "d1_databases": [{ "binding": "RUN_AUTH", "database_name": "run-auth", "database_id": "<id>", "migrations_dir": "migrations" }],
-  // together with the RUN_AUTH migration step in deploy-production (.github/workflows/ci.yml).
+  // The conditional RUN_AUTH migration step in deploy-production is already present.
   "env": {
     // staging.run.synthetos.com, behind Cloudflare Access (D31,
     // docs/ops/access.md). Deployed as the Worker `run-staging`.
@@ -70,7 +70,7 @@
       // Sign-in (A1-06/A1-07): the one service binding run may hold is accounts' named RunEntrypoint (the
       // entrypoint pins the client in accounts' code; D39, tools/gates/src/bindings/check.ts). RUN_AUTH is run's
       // own D1 database for pending sign-ins and device rows (workers/run/migrations). Its id is a placeholder
-      // until the owner creates the database (docs/ops/go-live-staging.md); the deploy preflight refuses it. Two
+      // until the owner creates the database; preflight strips both bindings while it is a placeholder. Two
       // Worker secrets are set by the owner, never in this file: RUN_STATE_KEY and RUN_RATE_KEY. Without all of
       // these, sign-in stays off and /auth/* is a 404.
       "services": [{ "binding": "ACCOUNTS", "service": "accounts-staging", "entrypoint": "RunEntrypoint" }],

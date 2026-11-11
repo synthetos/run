@@ -35,7 +35,7 @@ function observed(over: Partial<{ status: number; headers: Record<string, string
     url: 'https://run.synthetos.com/',
     status: over.status ?? 200,
     // OD-29: run.synthetos.com's own documents carry the serial-granted set (the Worker grants it there).
-    headers: new Headers({ ...SERIAL_GRANTED_SECURITY_HEADERS, 'content-type': 'text/html; charset=utf-8', ...over.headers }),
+    headers: new Headers({ ...SECURITY_HEADERS, 'content-type': 'text/html; charset=utf-8', ...over.headers }),
     body: over.body ?? SHELL,
   };
 }
@@ -52,10 +52,12 @@ describe('checkSecurityHeaders', () => {
   });
 
   it('OD-29: run.synthetos.com must grant serial to itself; any other host must carry the fail-closed set', () => {
-    expect(expectedHeadersFor('https://run.synthetos.com/')).toBe(SERIAL_GRANTED_SECURITY_HEADERS);
+    expect(expectedHeadersFor('https://run.synthetos.com/')).toBe(SECURITY_HEADERS);
+    expect(expectedHeadersFor('https://run.synthetos.com/', true)).toBe(SERIAL_GRANTED_SECURITY_HEADERS);
+    expect(checkSecurityHeaders(observed({ headers: { 'permissions-policy': SERIAL_GRANTED_SECURITY_HEADERS['permissions-policy'] ?? '' } }), true)).toEqual([]);
     expect(expectedHeadersFor('https://staging.run.synthetos.com/api/health')).toBe(SERIAL_GRANTED_SECURITY_HEADERS);
     for (const other of ['http://127.0.0.1:8787/', 'https://run.synthetos.com:8443/', 'https://run.example.workers.dev/', 'not a url']) expect(expectedHeadersFor(other)).toBe(SECURITY_HEADERS);
-    const denied = observed({ headers: { 'permissions-policy': SECURITY_HEADERS['permissions-policy'] as string } });
+    const denied = observed({ headers: { 'permissions-policy': SERIAL_GRANTED_SECURITY_HEADERS['permissions-policy'] as string } });
     expect(checkSecurityHeaders(denied).map((f) => f.message)).toEqual([expect.stringContaining('permissions-policy')]);
   });
 

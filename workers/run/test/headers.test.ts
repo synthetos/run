@@ -95,8 +95,9 @@ describe('grantsSerial and securityHeadersFor (P1-00, OD-29)', () => {
     expect(PRODUCTION_HOST).toBe('run.synthetos.com');
     expect(grantsSerial('staging', url('https://staging.run.synthetos.com/'))).toBe(true);
     expect(grantsSerial('staging', url('https://staging.run.synthetos.com/safety/?x=1'))).toBe(true);
-    expect(grantsSerial('production', url('https://run.synthetos.com/'))).toBe(true);
-    expect(grantsSerial('production', url('https://run.synthetos.com/library'))).toBe(true);
+    expect(grantsSerial('production', url('https://run.synthetos.com/'))).toBe(false);
+    expect(grantsSerial('production', url('https://run.synthetos.com/'), true)).toBe(true);
+    expect(grantsSerial('production', url('https://run.synthetos.com/library'), true)).toBe(true);
   });
 
   it.each([

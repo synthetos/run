@@ -340,6 +340,24 @@ function harness(over: Partial<LiveEntryDeps> = {}, store = memoryDeviceSafety()
 }
 
 describe('LiveEntry', () => {
+  it('a remembered C1 never opens the chooser before identity; refusal after a choice releases its watcher', async () => {
+    const store = memoryDeviceSafety();
+    await recordC1(store, 'full', DAY1);
+    const signedOut = harness({}, store);
+    signedOut.identity = null;
+    await signedOut.entry.begin();
+    expect(signedOut.calls).not.toContain('choosePort');
+    let released = 0;
+    const t = harness({ choosePort: () => {
+      t.identity = null;
+      return Promise.resolve({ ok: true, port: PORT, release: () => { released++; } });
+    } }, store);
+    await t.entry.begin();
+    await t.entry.confirm([]);
+    expect(t.entry.state).toMatchObject({ step: 'refused', refusal: { kind: 'signed-out' } });
+    expect(released).toBe(1);
+    expect(t.calls.some(c => c.startsWith('open:'))).toBe(false);
+  });
   it('signed out: Connect is refused before the advisory, C1 or the chooser', async () => {
     const t = harness();
     t.identity = null;
@@ -380,11 +398,11 @@ describe('LiveEntry', () => {
     expect(t.calls.slice(-2)).toEqual(['choosePort', 'leaveFullscreen']);
     await done;
     expect(t.entry.state).toEqual({ step: 'live' });
-    expect(t.calls).toEqual(['unlockAlarm', 'auth', 'advisory', 'choosePort', 'leaveFullscreen', `open:${PORT.usbVendorId}`, 'onLive']);
+    expect(t.calls).toEqual(['unlockAlarm', 'auth', 'advisory', 'choosePort', 'leaveFullscreen', 'auth', `open:${PORT.usbVendorId}`, 'onLive']);
     expect(t.store.data.get(LIVE_MARKER_KEY)).toEqual({ since: DAY1.toISOString() });
   });
 
-  it('E2E-equivalent: after the first acceptance a reconnect asks nothing, that day or the next; the chooser comes from the Connect click', async () => {
+  it('after the first acceptance reconnect checks identity, then offers Choose port with no repeated checklist', async () => {
     const store = memoryDeviceSafety();
     let now = DAY1;
     const t = harness({}, store, () => now);
@@ -394,19 +412,23 @@ describe('LiveEntry', () => {
     now = DAY2;
     const from = t.calls.length;
     const done = t.entry.begin();
-    // Synchronously inside the Connect click, so requestPort() still has its user activation.
-    expect(t.calls.slice(from, from + 2)).toEqual(['unlockAlarm', 'choosePort']);
+    // No chooser until the asynchronous identity check completes.
+    expect(t.calls.slice(from, from + 2)).toEqual(['unlockAlarm', 'auth']);
     await done;
+    expect(t.entry.state).toEqual({ step: 'c1', form: 'none', boxes: 0 });
+    await t.entry.confirm([]);
     expect(t.entry.state).toEqual({ step: 'live' });
     expect([...store.data.keys()].filter((k) => k.startsWith('ack.safety@'))).toEqual([c1Key(C1_TEXT_VERSION, DAY1)]);
   });
 
-  it('a new page in a browser that accepted C1 before asks nothing; if the record is read only after the click, one plain click (no checklist) gives the chooser its gesture', async () => {
+  it('a remembered C1 always uses one plain Choose port click after identity, with no checklist', async () => {
     const store = memoryDeviceSafety();
     await recordC1(store, 'full', DAY1);
     const ready = harness({}, store);
     await new Promise((resolve) => setTimeout(resolve, 0));
     await ready.entry.begin();
+    expect(ready.entry.state).toEqual({ step: 'c1', form: 'none', boxes: 0 });
+    await ready.entry.confirm([]);
     expect(ready.entry.state).toEqual({ step: 'live' });
     expect(ready.calls).not.toContain('c1');
     // Connect clicked before the record was read: no C1 list, one Choose port click.

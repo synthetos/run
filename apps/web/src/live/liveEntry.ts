@@ -66,16 +66,11 @@ export interface LiveEntryDeps {
 export class LiveEntry {
   #state: EntryState = { step: 'idle' };
   readonly #listeners = new Set<(s: EntryState) => void>();
-  /** Whether this browser accepted C1 before, read once at start (null until read). */
-  #c1Accepted: boolean | null = null;
 
   private readonly deps: LiveEntryDeps;
 
   constructor(deps: LiveEntryDeps) {
     this.deps = deps;
-    void c1FormFor(deps.store).then((form) => {
-      this.#c1Accepted = form === 'none';
-    });
   }
 
   get state(): EntryState {
@@ -101,16 +96,14 @@ export class LiveEntry {
     if (this.#state.step === 'checking' || this.#state.step === 'opening' || this.#state.step === 'live') return;
     // Synchronously, inside the gesture, before any await (T-S30).
     this.deps.unlockAlarm();
-    // C1 accepted before in this browser (OD-30): the chooser comes from this click, while it still has the gesture.
-    const early = this.#c1Accepted === true ? this.deps.choosePort() : null;
     this.#set({ step: 'checking' });
     const auth = await this.deps.auth.check('connect');
     if (!auth.allowed) return this.#refuse({ kind: 'signed-out', signIn: signInAvailable(this.deps.auth.providers) });
     const advisory = await this.deps.checkAdvisory();
     if (!advisory.ok) return this.#refuse({ kind: 'advisory', check: advisory });
-    if (early !== null) return this.#open(early, 'none');
     const form = await c1FormFor(this.deps.store);
-    // `none` here means the record was read only now: one plain click gives the chooser its gesture (no checklist).
+    // Identity checks are asynchronous. A plain Choose port click gives the chooser fresh activation;
+    // an already accepted C1 stays accepted, with no repeated checklist.
     this.#set({ step: 'c1', form, boxes: c1Checklist(form).boxes.length });
   }
 
@@ -130,7 +123,6 @@ export class LiveEntry {
     this.#set({ step: 'opening' });
     try {
       await recordC1(this.deps.store, form, this.deps.now());
-      if (form === 'full') this.#c1Accepted = true;
     } catch {
       // Not recorded: the next Connect shows the full list again, which is the safe side.
     }
@@ -138,6 +130,9 @@ export class LiveEntry {
     if (!chosen.ok) return this.#refuse({ kind: 'no-port', message: chosen.message });
     let opened: OpenResult;
     try {
+      // The session can change while the chooser is open. Refusal still releases its watcher.
+      const auth = await this.deps.auth.check('connect');
+      if (!auth.allowed) return this.#refuse({ kind: 'signed-out', signIn: signInAvailable(this.deps.auth.providers) });
       opened = await this.deps.open(chosen.port, chosen.confirm);
     } finally {
       // Ends the chooser's connect/disconnect guard on every exit (confirmed, refused, failed or thrown).

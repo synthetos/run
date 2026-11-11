@@ -149,11 +149,11 @@ describe('deployConfig: the configuration wrangler is given', () => {
   });
 });
 
-function preflight(configText: string, env: string, extra: (dir: string) => string[], cwd?: (dir: string) => string): { status: number | null; output: string; dir: string } {
+function preflight(configText: string, env: string, extra: (dir: string) => string[], cwd?: (dir: string) => string, authReady = true): { status: number | null; output: string; dir: string } {
   const dir = freshDir();
   const file = join(dir, 'wrangler.jsonc');
   writeFileSync(file, configText);
-  const childEnv: NodeJS.ProcessEnv = { ...process.env, CLOUDFLARE_ACCOUNT_ID: REAL_ACCOUNT };
+  const childEnv: NodeJS.ProcessEnv = { ...process.env, GITHUB_OUTPUT: join(dir, 'outputs'), RUN_AUTH_MIGRATIONS_READY: authReady ? 'true' : 'false', CLOUDFLARE_ACCOUNT_ID: REAL_ACCOUNT };
   const r = spawnSync(process.execPath, [join(REPO_ROOT, 'tools/gates/src/deploy/preflight.ts'), file, env, ...extra(dir)], {
     encoding: 'utf8',
     env: childEnv,
@@ -165,6 +165,24 @@ function preflight(configText: string, env: string, extra: (dir: string) => stri
 describe('preflight --write', () => {
   const withAccount = TEXT.replace(ACCOUNT_ID_PLACEHOLDER, REAL_ACCOUNT);
   const withBuild = withAccount.replace('"vars": { "RUN_ENV": "staging" }', '"vars": { "RUN_ENV": "staging" },\n      "build": { "command": "node marker.cjs" }');
+
+  it('placeholder or missing migration credential deploys with both auth bindings removed, never a placeholder sent to wrangler', () => {
+    for (const [text, ready] of [[COMMITTED.replace(/"account_id": "[^\"]*"/, `"account_id": "${REAL_ACCOUNT}"`), true], [withAccount, false]] as const) {
+      const r = preflight(text, 'staging', dir => ['--write', join(dir, 'wrangler.deploy.json')], undefined, ready);
+      expect(r.status, r.output).toBe(0);
+      const written = JSON.parse(readFileSync(join(r.dir, 'wrangler.deploy.json'), 'utf8')) as Config;
+      expect(written.env.staging).not.toHaveProperty('services');
+      expect(written.env.staging).not.toHaveProperty('d1_databases');
+      expect(r.output).toContain('run sign-in: off');
+      expect(readFileSync(join(r.dir, 'outputs'), 'utf8')).toBe('run_auth=false\n');
+    }
+    const r = preflight(withAccount, 'staging', dir => ['--write', join(dir, 'wrangler.deploy.json')]);
+    expect(r.status).toBe(0);
+    const written = JSON.parse(readFileSync(join(r.dir, 'wrangler.deploy.json'), 'utf8')) as Config;
+    expect(written.env.staging['d1_databases']).toHaveLength(1);
+    expect(r.output).toContain('migration required');
+    expect(readFileSync(join(r.dir, 'outputs'), 'utf8')).toBe('run_auth=true\n');
+  });
 
   it('writes the allowlisted deployment configuration when the checked file is accepted', () => {
     const r = preflight(withAccount, 'staging', (dir) => ['--write', join(dir, 'wrangler.deploy.json')]);

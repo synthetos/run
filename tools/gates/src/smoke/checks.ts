@@ -37,25 +37,24 @@ export interface Observed {
 }
 
 /**
- * The set a response at `url` must carry: serial granted on run's own deployed hosts over https (P1-00 staging,
- * OD-29 production; the Worker decides it, workers/run/src/headers.ts grantsSerial), the fail-closed set anywhere
- * else (a local base URL, any other name).
+ * The unauthenticated production smoke probe expects serial=(). A signed-in document check may opt into
+ * serial=(self). Staging retains its Access-protected grant; every other host fails closed.
  */
-export function expectedHeadersFor(url: string): Readonly<Record<string, string>> {
+export function expectedHeadersFor(url: string, signedIn = false): Readonly<Record<string, string>> {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
     return SECURITY_HEADERS;
   }
-  const own = parsed.protocol === 'https:' && parsed.port === '' && (parsed.hostname === PRODUCTION_HOST || parsed.hostname === STAGING_HOST);
+  const own = parsed.protocol === 'https:' && parsed.port === '' && ((parsed.hostname === PRODUCTION_HOST && signedIn) || parsed.hostname === STAGING_HOST);
   return own ? SERIAL_GRANTED_SECURITY_HEADERS : SECURITY_HEADERS;
 }
 
 /** Every security header present exactly once with exactly the expected value for its URL. */
-export function checkSecurityHeaders(res: Observed): SmokeFinding[] {
+export function checkSecurityHeaders(res: Observed, signedIn = false): SmokeFinding[] {
   const findings: SmokeFinding[] = [];
-  for (const [name, expected] of Object.entries(expectedHeadersFor(res.url))) {
+  for (const [name, expected] of Object.entries(expectedHeadersFor(res.url, signedIn))) {
     const actual = res.headers.get(name);
     if (actual === null) findings.push({ check: 'headers', message: `${res.url}: ${name} is missing` });
     else if (actual !== expected) findings.push({ check: 'headers', message: `${res.url}: ${name} is '${actual}', expected '${expected}'` });

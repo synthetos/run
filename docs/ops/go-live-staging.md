@@ -37,30 +37,15 @@ This page is for the owner. Every step here is a deploy, a DNS or Cloudflare cha
 
 **Check.** The first push runs the `accounts-ci` workflow: verify, build, e2e, browser and attest pass. The deploy jobs are skipped (no `ACCOUNTS_DEPLOY_ENABLED`).
 
-### 1.2 Register the staging GitHub App
+### 1.2 Add staging to the existing GitHub App (OD-37)
 
-The production app `Synthetos` (id 5562809) already exists. Staging needs its own app (accounts README).
+Use **Synthetos**, App ID `5562809`, Client ID `Iv23liIlkNxE7f3oEyX4`. Do not create another app.
 
-github.com → Settings → Developer settings → GitHub Apps → New GitHub App:
+GitHub → Settings → Developer settings → GitHub Apps → Synthetos → Callback URLs: add `https://staging.accounts.synthetos.com/auth/github/callback`. Keep the production callback `https://accounts.synthetos.com/auth/github/callback` and the production webhook unchanged. Keep the app's zero permissions.
 
-| Field | Value |
-|---|---|
-| GitHub App name | `Synthetos Staging` |
-| Homepage URL | `https://staging.run.synthetos.com` |
-| Callback URL | `https://staging.accounts.synthetos.com/auth/github/callback` |
-| Expire user authorization tokens | **checked** (GitHub's default; accounts reads `/user` once and discards the token either way) |
-| Request user authorization (OAuth) during installation | off |
-| Enable Device Flow | off |
-| Webhook | **Active: off** (staging is behind Access, so GitHub could not reach it) |
-| Permissions | none (all "No access") |
-| Where can this GitHub App be installed? | Only on this account |
+Use this same app's client ID and client secret for staging accounts. Read the secret from the password manager; never put it in a repository. No new private key is needed.
 
-Then:
-1. Note the **App ID** and the **Client ID**. These two are not secret.
-2. Generate a client secret. Put it in your password manager as "Synthetos Staging client secret". It goes into one place only, step 4.2.
-3. Do not generate a private key: accounts does not use it.
-
-**Check.** The app page shows the callback above, no webhook and no permissions.
+**Check.** Both callback URLs appear on Synthetos. The production webhook is still active at its existing URL. Staging remains behind Access; this does not add a second webhook destination.
 
 ## 2. Cloudflare (dashboard, hardware key)
 
@@ -116,8 +101,8 @@ Send the four values to the agent working on accounts, or edit them yourself:
 
 | Value | File | Field |
 |---|---|---|
-| staging App ID | accounts `workers/accounts/wrangler.json` | `env.staging.vars.GITHUB_APP_ID` (replaces `STAGING_GITHUB_APP_ID_PLACEHOLDER`) |
-| staging Client ID | same file | `env.staging.vars.GITHUB_CLIENT_ID` (replaces `STAGING_GITHUB_CLIENT_ID_PLACEHOLDER`) |
+| Synthetos App ID `5562809` | accounts `workers/accounts/wrangler.json` | `env.staging.vars.GITHUB_APP_ID` (replaces `STAGING_GITHUB_APP_ID_PLACEHOLDER`) |
+| Synthetos Client ID `Iv23liIlkNxE7f3oEyX4` | same file | `env.staging.vars.GITHUB_CLIENT_ID` (replaces `STAGING_GITHUB_CLIENT_ID_PLACEHOLDER`) |
 | `identity-staging` id | same file | `env.staging.d1_databases[0].database_id` (replaces `IDENTITY_STAGING_DATABASE_ID_PLACEHOLDER`) |
 | `run-auth-staging` id | run `workers/run/wrangler.jsonc` | `env.staging.d1_databases[0].database_id` (replaces `RUN_AUTH_STAGING_DATABASE_ID_PLACEHOLDER`) |
 
@@ -125,7 +110,7 @@ The allowlist is already in the accounts file: `GITHUB_ALLOWED_IDS` is `["231731
 
 **Check.** Each repository's deploy preflight passes for staging:
 - accounts: `node tools/deploy-preflight.mjs workers/accounts/wrangler.json staging` prints "configuration accepted";
-- run: the `deploy-staging` job's preflight step passes (it refuses the staging database placeholder, and only that environment's).
+- run: the `deploy-staging` job's preflight step passes (it deploys sign-in off while the database id is a placeholder or the D1 credential is absent).
 
 The production placeholders stay until §7.
 
@@ -155,14 +140,14 @@ Workers & Pages → `accounts-staging` → Settings → Variables and Secrets �
 
 | Secret | Value |
 |---|---|
-| `GITHUB_CLIENT_SECRET` | the staging app's client secret from step 1.2 (from your password manager) |
+| `GITHUB_CLIENT_SECRET` | the existing Synthetos app's client secret from step 1.2 (from your password manager) |
 | `OAUTH_STATE_KEY` | `openssl rand 32 \| base64 \| tr '+/' '-_' \| tr -d '=\n' \| pbcopy` |
 | `FORM_KEY` | the same command again (a new value) |
 | `RATE_KEY` | the same command again (a new value) |
 | `GITHUB_WEBHOOK_SECRET` | the same command again (staging has no active webhook, but accounts requires the value) |
 | `ID_TOKEN_PRIVATE_JWK` | `node -e 'const c=require("node:crypto");const k=c.generateKeyPairSync("ec",{namedCurve:"P-256"}).privateKey;process.stdout.write(JSON.stringify(k.export({format:"jwk"})))' \| pbcopy` |
 
-Never reuse a production value on staging, or the reverse. You do not need to keep the generated keys anywhere else: a new one can always replace a lost one (all sessions then end).
+Only the GitHub app client credentials are shared (OD-37). Generate separate session, signing, rate-limit and webhook keys for staging. You do not need to keep the generated keys anywhere else: a new one can always replace a lost one (all sessions then end).
 
 Saving a secret makes a new Worker version outside CI, so the D39 audit-log alert fires. That is expected: note it in the release audit (docs/ops/account.md §3).
 
@@ -176,7 +161,7 @@ Saving a secret makes a new Worker version outside CI, so the D39 audit-log aler
 ### 5.1 Deploy
 
 Merge the `accounts-live` branch (with the database id from step 3) to run's `main`. The `deploy-staging` job runs:
-- preflight (it refuses the staging database placeholder);
+- preflight (it strips unconfigured sign-in bindings);
 - the Access pre-check;
 - the `RUN_AUTH` migrations on `run-auth-staging`;
 - the deploy (it binds `accounts-staging`'s `RunEntrypoint`);
@@ -202,9 +187,9 @@ The same audit-log note applies as in 4.2.
 Signed in to Access, at `https://staging.run.synthetos.com`:
 
 1. **Preferences → Account** says "Not signed in" with a **Sign in** link.
-2. **Sign in.** The address bar goes to staging.accounts, then GitHub (the staging app; approve it the first time), and back to run.
+2. **Sign in.** The address bar goes to staging.accounts, then GitHub (the existing Synthetos app; approve it if needed), and back to run.
 3. **Preferences → Account** says "Signed in as @ril3y", with **Sign out**.
-4. DevTools → Application → Cookies → `https://staging.run.synthetos.com`: one `__Host-run_sid`, HttpOnly, Secure, SameSite Strict. No `__Host-run_oauth` remains.
+4. DevTools → Application → Cookies → `https://staging.run.synthetos.com`: one `__Host-run_sid`, HttpOnly, Secure, SameSite Lax. No `__Host-run_oauth` remains.
 5. DevTools → Network → `/api/identity` answers `{"identity":{"provider":"run-session",…,"display":"@ril3y"},"signIn":true}`.
 6. **Connect** passes the sign-in step (C1 appears). With a machine connected, Preferences → Account shows Sign out disabled, with "Disconnect the machine first."
 7. Disconnect, then **Sign out**. `/api/identity` now answers `identity: null`, and the cookie is gone. `__Host-acct_sid` on staging.accounts is untouched (sign-out of run only).
@@ -219,7 +204,7 @@ If a check fails, nothing on the machine path depends on sign-in: Pause, Stop jo
 
 ## 7. Production: run active for the users we allow (OD-29)
 
-The owner, 2026-11-09: "yes we want run to be active for certain users we allow asap the real site real storage real auth". Production grants Web Serial to `run.synthetos.com` itself (the Worker decides it, `grantsSerial`), and the sign-in gate decides who connects: only a run session counts there, and accounts admits only the allowlist. Until §7.4 is done nobody can sign in to production, so nobody can connect. Production stays read-only (Phase 1): motion, settings writes, jobs and the flasher are each a separate owner decision (T-S93).
+The owner, 2026-11-09: "yes we want run to be active for certain users we allow asap the real site real storage real auth". Production grants Web Serial only on HTML requests with a valid run session, after accounts validates it. Sign-in must be fully configured first. Signed-out visitors get serial=(); their document cannot use Web Serial even through DevTools. HTML is no-store and varies by Cookie. The serial asset directory is session-gated and private/no-store. Accounts owns allowlist admission. Production stays read-only (Phase 1): motion, settings writes, jobs and the flasher are each a separate owner decision (T-S93).
 
 ### 7.1 Before production opens: three checks
 
@@ -255,7 +240,7 @@ Connect needs a signed `safety-advisory.json` for production and a production en
 ### 7.3 Accounts production and run production, in order
 
 1. Create the D1 databases `identity` and `run-auth`. Put `identity`'s id in accounts' file (`IDENTITY_DATABASE_ID_PLACEHOLDER`).
-2. In run, one reviewed PR adds production's `services` and `d1_databases` to `workers/run/wrangler.jsonc` (the exact lines are in its comment, with `run-auth`'s id) and the `RUN_AUTH` migration step to `deploy-production` in `.github/workflows/ci.yml` (the same step as `deploy-staging`'s, without `--env staging`). The preflight then requires the real id.
+2. In run, one reviewed PR adds production's `services` and `d1_databases` to `workers/run/wrangler.jsonc` (the exact lines are in its comment, with `run-auth`'s id) The conditional `RUN_AUTH` migration step is already present in both deploy jobs. Preflight strips sign-in bindings when the database id is a placeholder or the separate D1 credential is missing; otherwise migrations must pass before deploy.
 3. accounts production uses the existing app `Synthetos` (5562809) and its callback `https://accounts.synthetos.com/auth/github/callback`. Its webhook can stay active: production is not behind Access.
 4. Approve accounts' `deploy-production`, then set its six secrets with **new** values (the production app's client secret, and the production webhook secret).
 5. Merge and approve run's `deploy-production`, then set its two secrets with new values.
@@ -265,6 +250,6 @@ Until step 2, run's production deploys keep working with sign-in off.
 ### 7.4 Check production
 
 1. In a private window (signed out), `https://run.synthetos.com`: Connect shows "Connecting needs a Synthetos account" with "Synthetos accounts are coming soon", and a small "Beta testers can sign in" link.
-2. DevTools → Network → the document's response: `Permissions-Policy` starts with `serial=(self)`. Every other header matches docs/ops/worker.md.
+2. Signed out, DevTools → Network → the document: `Permissions-Policy` starts with `serial=()`. A request to `/assets/serial/*` is refused. Sign in and navigate again: the document has `serial=(self)`, `Cache-Control: no-store` and `Vary: Cookie`; serial assets are private/no-store. Every other header matches docs/ops/worker.md.
 3. Sign in as `ril3y`: Preferences → Account says "Signed in as @ril3y". Connect goes on to C1 and the port chooser, and the board identifies, read-only.
 4. With a second GitHub account: accounts says "Sign-in opens with the public beta.", and Connect stays refused.

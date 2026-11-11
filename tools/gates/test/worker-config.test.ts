@@ -162,7 +162,7 @@ describe('preflight CLI', () => {
     dirs.push(dir);
     const file = join(dir, 'wrangler.jsonc');
     writeFileSync(file, configText);
-    const childEnv: NodeJS.ProcessEnv = { ...process.env };
+    const childEnv: NodeJS.ProcessEnv = { ...process.env, GITHUB_OUTPUT: join(dir, 'outputs') };
     delete childEnv['CLOUDFLARE_ACCOUNT_ID'];
     if (accountEnv !== undefined) childEnv['CLOUDFLARE_ACCOUNT_ID'] = accountEnv;
     // The deploy jobs always pass --write (deploy-config.test.ts covers what it writes).
@@ -174,11 +174,10 @@ describe('preflight CLI', () => {
   const accountOnly = TEXT.replace(ACCOUNT_ID_PLACEHOLDER, REAL_ACCOUNT);
   const withAccount = accountOnly.replace(RUN_AUTH_DATABASES.production.placeholder, PROD_DB).replace(RUN_AUTH_DATABASES.staging.placeholder, STAGING_DB);
 
-  it('A1-07 (review M1): production, with no sign-in bindings, deploys as before; staging refuses its database placeholder', () => {
+  it('A1-07 (review M1): production, with no sign-in bindings, deploys as before; staging deploys sign-in off with a placeholder', () => {
     expect(preflight(accountOnly, 'production', REAL_ACCOUNT).status).toBe(0);
     const staging = preflight(accountOnly, 'staging', REAL_ACCOUNT);
-    expect(staging.status).toBe(1);
-    expect(staging.output).toContain('run-auth-staging');
+    expect(staging.status).toBe(0);
     expect(preflight(accountOnly.replace(RUN_AUTH_DATABASES.staging.placeholder, STAGING_DB), 'staging', REAL_ACCOUNT).status).toBe(0);
   });
 
@@ -189,8 +188,7 @@ describe('preflight CLI', () => {
     );
     expect(bound).not.toBe(accountOnly);
     const refused = preflight(bound, 'production', REAL_ACCOUNT);
-    expect(refused.status).toBe(1);
-    expect(refused.output).toContain('run-auth database');
+    expect(refused.status).toBe(0);
     expect(preflight(bound.replace(RUN_AUTH_DATABASES.production.placeholder, PROD_DB), 'production', REAL_ACCOUNT).status).toBe(0);
   });
 

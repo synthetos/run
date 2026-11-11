@@ -614,3 +614,11 @@ See docs/design/place-job.md.
 **Context.** W35 is said when run sets the board's status report list at connect (H64). It read "Run set this board's status report list to include machine position and spindle/coolant.", which no longer named everything once the list carries the active tool (OD-34).
 
 **Decision.** W35 is now: "NOTICE — Run set this board's status reports to include position, spindle, coolant and tool. The list is saved on the board, so other programs that read its status reports see the change too." Only the first sentence changed; the second, the disclosure H64 relies on, stays as it was. The session log line says the same words. SAFETY §5 W35 is amended; packages/safety/src/strings.ts holds the string.
+
+## OD-37. Sign-in admission and the staging GitHub App (owner, 2026-11-10)
+
+**Owner's words.** On re-checking the allowlist at accounts `/authorize`: "a no". On using the existing app for staging: "b yes existing".
+
+**Decision.** `GITHUB_ALLOWED_IDS` is checked at GitHub sign-in, not at `/authorize` or on each relying-party session validation. Removing an id takes effect at its next GitHub sign-in. The owner accepts that existing accounts sessions (up to 14 days idle / 30 days absolute), and the 7-day run session, can retain access until expiry or explicit revocation. Removing an allowlist entry is not immediate revocation. No change to accounts `/authorize`.
+
+Staging uses the existing **Synthetos** GitHub App (`5562809`) and its client ID and secret. Add `https://staging.accounts.synthetos.com/auth/github/callback` to its callback list; retain the production callback and webhook. Do not create a Synthetos Staging app. Other staging secrets remain separate. The accounts repository's separate-app instructions must be reconciled on a branch before staging setup, not by editing accounts main.

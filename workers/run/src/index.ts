@@ -3,7 +3,7 @@
  *
  * The Worker runs first for every path, in production (OD-29) as on staging
  * (P1-00), so that it can grant Web Serial to the documents of its own host:
- * `serial=(self)` only when `grantsSerial` holds (RUN_ENV and host match:
+ * `serial=(self)` only when `grantsSerial` holds (production also needs a validated session; RUN_ENV and host match:
  * staging on staging.run.synthetos.com, production on run.synthetos.com),
  * the fail-closed set in every other case. Every response the Worker returns
  * goes through `withSecurityHeaders`, including errors and any asset request
@@ -19,24 +19,32 @@
  * in the motion or stop path (SAFETY §4.10).
  */
 import { grantsSerial, securityHeadersFor, withSecurityHeaders } from './headers.ts';
+import { serialSession } from './serialSession.ts';
 import { type Env, json, route } from './routes.ts';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     let response: Response;
+    let validated = false;
     try {
       response = await route(request, env);
+      if ((response.headers.get('content-type') ?? '').toLowerCase().includes('text/html')) validated = await serialSession(request, env);
     } catch {
       // An unexpected error still gets the security headers and no detail.
       response = json(500, { error: 'internal_error' });
     }
-    // Decided from the configuration and the request alone, after routing, so an error response gets the same set.
+    // Errors never gain a production grant; HTML needs both configured auth and a validated session.
     let serialGranted = false;
     try {
-      serialGranted = grantsSerial(env.RUN_ENV, new URL(request.url));
+      serialGranted = grantsSerial(env.RUN_ENV, new URL(request.url), validated);
     } catch {
       serialGranted = false;
     }
-    return withSecurityHeaders(response, securityHeadersFor(serialGranted));
+    const wrapped = withSecurityHeaders(response, securityHeadersFor(serialGranted));
+    if ((wrapped.headers.get('content-type') ?? '').toLowerCase().includes('text/html') || request.headers.get('sec-fetch-dest') === 'document') {
+      wrapped.headers.set('cache-control', 'no-store');
+      wrapped.headers.append('vary', 'Cookie');
+    }
+    return wrapped;
   },
 };

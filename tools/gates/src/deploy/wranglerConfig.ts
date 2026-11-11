@@ -90,11 +90,9 @@ export const EXPECTED_ASSETS = {
 /**
  * env.staging's assets settings (P1-00): the top-level ones with the Worker
  * first for every path, so that it can grant `serial=(self)` to staging
- * documents (workers/run/src/headers.ts grantsSerial). Production keeps
- * EXPECTED_ASSETS: the asset layer serves the shell with the `_headers`
- * production set, serial=().
+ * documents (workers/run/src/headers.ts grantsSerial). Production uses the same routing and gates its serial grant on a validated session.
  */
-export const EXPECTED_STAGING_ASSETS = { ...EXPECTED_ASSETS, run_worker_first: true } as const;
+export const EXPECTED_STAGING_ASSETS = EXPECTED_ASSETS;
 
 /**
  * A1-06/A1-07: the one service binding run may hold, per environment: accounts' named `RunEntrypoint` (the
@@ -109,7 +107,7 @@ export const EXPECTED_SERVICES: Readonly<Record<DeployEnvironment, readonly { bi
 /**
  * A1-06: run's own D1 database for the sign-in handoff (pending sign-ins, device rows, the sign-in rate counter;
  * workers/run/migrations). Separate per environment. The id is a placeholder until the owner creates the database
- * (docs/ops/go-live-staging.md); the deploy preflight refuses a placeholder.
+ * (docs/ops/go-live-staging.md); a placeholder is removed with its service binding before deployment.
  */
 export const RUN_AUTH_DATABASES: Readonly<Record<DeployEnvironment, { readonly name: string; readonly placeholder: string }>> = {
   production: { name: 'run-auth', placeholder: 'RUN_AUTH_DATABASE_ID_PLACEHOLDER' },
@@ -175,9 +173,9 @@ export interface ConfigFinding {
 /**
  * The sign-in bindings of one scope. An environment without either key has sign-in off (production until the
  * owner's go-live step, docs/ops/go-live-staging.md §7): that deploys as before. With either key present, both must
- * be exactly accounts' RunEntrypoint and the environment's RUN_AUTH database, and the deploy needs a real id.
+ * be exactly accounts' RunEntrypoint and the environment's RUN_AUTH database, and only a real id is retained in the deployment configuration.
  */
-function checkAuthBindings(scope: Json, env: DeployEnvironment, requireReal: boolean, add: (message: string) => void): void {
+function checkAuthBindings(scope: Json, env: DeployEnvironment, add: (message: string) => void): void {
   if (!('services' in scope) && !('d1_databases' in scope)) return;
   if (!same(scope['services'], EXPECTED_SERVICES[env])) add(`services must be exactly ${JSON.stringify(EXPECTED_SERVICES[env])} (A1-06; D39: only accounts' RunEntrypoint)`);
   const db = RUN_AUTH_DATABASES[env];
@@ -189,12 +187,11 @@ function checkAuthBindings(scope: Json, env: DeployEnvironment, requireReal: boo
     return;
   }
   const id = entry['database_id'];
-  if (id === db.placeholder) {
-    if (requireReal) add(`d1_databases[0].database_id is still the placeholder: create the ${db.name} database and put in its id (docs/ops/go-live-staging.md)`);
-  } else if (typeof id !== 'string' || !DATABASE_ID_RE.test(id)) add('d1_databases[0].database_id must be a D1 database id (a lower-case UUID)');
+  if (id === db.placeholder) return;
+  else if (typeof id !== 'string' || !DATABASE_ID_RE.test(id)) add('d1_databases[0].database_id must be a D1 database id (a lower-case UUID)');
 }
 
-function checkScope(scope: Json, where: string, env: DeployEnvironment, findings: ConfigFinding[], requireReal = false): void {
+function checkScope(scope: Json, where: string, env: DeployEnvironment, findings: ConfigFinding[]): void {
   const add = (message: string): void => {
     findings.push({ where, message });
   };
@@ -219,14 +216,16 @@ function checkScope(scope: Json, where: string, env: DeployEnvironment, findings
   if (isObject(vars) && Object.keys(vars).some((k) => k !== 'RUN_ENV')) {
     findings.push({ where: where === '.' ? 'vars' : `${where}.vars`, message: 'vars may hold RUN_ENV only' });
   }
-  checkAuthBindings(scope, env, requireReal, add);
+  checkAuthBindings(scope, env, add);
 }
 
 /** What the deploy preflight requires on top of the repository check. */
 export interface CheckOptions {
   /** The account id must be real (not the placeholder). */
   readonly requireRealAccount: boolean;
-  /** The environment being deployed: its RUN_AUTH database id must be real (A1-07). The other may stay a placeholder. */
+  /** False strips sign-in bindings; CI passes only whether its separate migration credential exists. */
+  readonly authReady?: boolean;
+  /** The environment being deployed (A1-07). Placeholder bindings are stripped. */
   readonly deploying?: DeployEnvironment;
 }
 
@@ -250,7 +249,7 @@ export function checkWorkerConfig(config: unknown, options: CheckOptions): Confi
   if (config['find_additional_modules'] !== true) add('find_additional_modules', 'must be true (the artifact Worker is several modules)');
   if (!same(config['rules'], EXPECTED_RULES)) add('rules', `must be exactly ${JSON.stringify(EXPECTED_RULES)}`);
   if ('$schema' in config && typeof config['$schema'] !== 'string') add('$schema', 'must be a string');
-  checkScope(config, '.', 'production', findings, options.deploying === 'production');
+  checkScope(config, '.', 'production', findings);
   const envs = config['env'];
   if (!isObject(envs)) {
     add('env', 'must define the staging environment');
@@ -261,7 +260,7 @@ export function checkWorkerConfig(config: unknown, options: CheckOptions): Confi
     const staging = envs['staging'];
     if (!isObject(staging)) add('env.staging', 'missing');
     else {
-      checkScope(staging, 'env.staging', 'staging', findings, options.deploying === 'staging');
+      checkScope(staging, 'env.staging', 'staging', findings);
       for (const key of ['account_id', 'name', 'main']) {
         if (key in staging) add(`env.staging.${key}`, 'must be inherited from the top level, never overridden');
       }
@@ -292,6 +291,14 @@ export function deployConfig(config: unknown, options: CheckOptions): Record<str
   }
   const env: Record<string, unknown> = {};
   for (const key of STAGING_KEYS) if (key in staging) env[key] = copy(staging[key]);
+  // A reviewed placeholder is a sign-in-off deploy, never a binding sent to Cloudflare.
+  for (const [scope, name] of [[out, 'production'], [env, 'staging']] as const) {
+    const databases = scope['d1_databases'] as { database_id: string }[] | undefined;
+    if (options.authReady === false || databases?.[0]?.database_id === RUN_AUTH_DATABASES[name].placeholder) {
+      delete scope['d1_databases'];
+      delete scope['services'];
+    }
+  }
   out['env'] = { staging: env };
   // The written file must pass the same check (it is what wrangler reads).
   const again = checkWorkerConfig(out, options);

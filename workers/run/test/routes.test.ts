@@ -25,7 +25,7 @@ function assets(): RecordingAssets {
     seen,
     fetch(request: Request): Promise<Response> {
       seen.push(new URL(request.url).pathname);
-      return Promise.resolve(new Response('<!doctype html><div id="app"></div>', { headers: { 'content-type': 'text/html' } }));
+      return Promise.resolve(new Response('<!doctype html><div id="app"></div>', { headers: { 'content-type': new URL(request.url).pathname.startsWith('/assets/') ? 'text/javascript' : 'text/html' } }));
     },
   };
 }
@@ -140,10 +140,10 @@ describe('P1-00, OD-29: serial=(self) on each deployed Worker\'s own host only, 
   );
 
   it.each(['/', '/safety/', '/no-such-page', '/assets/workspace-abc12345.js', '/api/health', '/api/nope', '/auth/login'])(
-    'OD-29: the production Worker on run.synthetos.com grants serial=(self) on %s, with every other header unchanged',
+    'OD-29: unconfigured production denies serial on %s, with every other header unchanged',
     async (path) => {
       const res = await worker.fetch(at(ORIGIN, path), env('production'));
-      for (const [name, value] of Object.entries(SERIAL_GRANTED_SECURITY_HEADERS)) expect(res.headers.get(name), name).toBe(value);
+      for (const [name, value] of Object.entries(SECURITY_HEADERS)) expect(res.headers.get(name), name).toBe(value);
     },
   );
 
@@ -170,9 +170,9 @@ describe('P1-00, OD-29: serial=(self) on each deployed Worker\'s own host only, 
   it('a hashed asset the Worker serves gets the immutable cache policy; other paths and failures do not', async () => {
     const e = env('staging');
     expect((await worker.fetch(at(STAGING, '/assets/workspace-abc12345.js'), e)).headers.get('cache-control')).toBe(HASHED_ASSET_CACHE_CONTROL);
-    expect((await worker.fetch(at(STAGING, '/'), e)).headers.get('cache-control')).toBeNull();
+    expect((await worker.fetch(at(STAGING, '/'), e)).headers.get('cache-control')).toBe('no-store');
     const missing: Env = { RUN_ENV: 'staging', ASSETS: { fetch: () => Promise.resolve(new Response('nope', { status: 404 })) } };
     expect((await worker.fetch(at(STAGING, '/assets/gone-abc12345.js'), missing)).headers.get('cache-control')).toBeNull();
-    expect((await worker.fetch(at(STAGING, '/assetsx/a.js'), e)).headers.get('cache-control')).toBeNull();
+    expect((await worker.fetch(at(STAGING, '/assetsx/a.js'), e)).headers.get('cache-control')).toBe('no-store');
   });
 });

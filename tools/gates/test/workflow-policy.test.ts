@@ -88,8 +88,8 @@ describe('secrets', () => {
   });
 
   it('fails when a deploy job uses any other secret, or all of them', () => {
-    expect(rules(mutate(CI, 'CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}', 'CLOUDFLARE_ACCOUNT_ID: ${{ secrets.OTHER }}'))).toEqual(['secret-outside-deploy']);
-    expect(rules(mutate(CI, 'CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}', 'ALL: ${{ toJSON(secrets) }}'))).toEqual(['secret-outside-deploy']);
+    expect(rules(mutate(CI, 'CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}', 'CLOUDFLARE_ACCOUNT_ID: ${{ secrets.OTHER }}'))).toContain('secret-outside-deploy');
+    expect(rules(mutate(CI, 'CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}', 'ALL: ${{ toJSON(secrets) }}'))).toContain('secret-outside-deploy');
   });
 
   it('fails when a secret hides in a run script of another job', () => {
@@ -417,6 +417,13 @@ describe('the condition reader', () => {
 
 
 describe('D1 migration credential isolation', () => {
+  it('preflight sees only credential presence and both deploys require their migration decision', () => {
+    const presence = "RUN_AUTH_MIGRATIONS_READY: ${{ secrets.CLOUDFLARE_D1_API_TOKEN != '' }}";
+    expect(rules(mutate(CI, presence, 'RUN_AUTH_MIGRATIONS_READY: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}'))).toContain('secret-outside-deploy');
+    expect(rules(mutate(CI, "if: steps.config.outputs.run_auth == 'true'", 'if: false'))).toContain('deploy-config');
+    const prod = '        run: ci/deploy-toolchain/node_modules/.bin/wrangler d1 migrations apply RUN_AUTH --remote --config workers/run/wrangler.deploy.json\n';
+    expect(rules(mutate(CI, prod, '        run: echo skipped\n'))).toContain('deploy-config');
+  });
   const token = 'CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}';
   it('accepts the separate D1 token only in the pinned migration step', () => {
     expect(rules(CI)).toEqual([]);

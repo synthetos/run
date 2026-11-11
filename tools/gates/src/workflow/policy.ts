@@ -83,7 +83,7 @@
  * these files use and fails closed on anything else. Dependency-free.
  */
 
-import { D1_SECRET, d1StepIsConfined } from './d1Credentials.ts';
+import { D1_SECRET, d1ReadinessIsConfined, d1StepIsConfined } from './d1Credentials.ts';
 
 export const DEPLOY_JOBS: readonly string[] = ['deploy-staging', 'deploy-production'];
 export const DEPLOY_ENVIRONMENTS: Readonly<Record<string, string>> = {
@@ -383,7 +383,7 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
         add(line.no, 'secret-outside-deploy', `only ${DEPLOY_JOBS.join(' and ')} may reference secrets or ${DEPLOY_SECRET}`);
       } else {
         for (const m of content.matchAll(/\bsecrets\b(\s*\.\s*([A-Za-z0-9_]+))?/g)) {
-          if (m[2] !== DEPLOY_SECRET && !(m[2] === D1_SECRET && job !== undefined && d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? ''))) {
+          if (m[2] !== DEPLOY_SECRET && !(m[2] === D1_SECRET && job !== undefined && (d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '') || d1ReadinessIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '')))) {
             add(line.no, 'secret-outside-deploy', `deploy jobs may use secrets.${DEPLOY_SECRET}; the D1 credential is confined to the reviewed migration step`);
           }
         }
@@ -686,6 +686,12 @@ function checkDeployConfig(jobs: readonly Job[], add: (line: number, rule: Polic
     const text = (l: Line): string => l.text.replace(/^-\s+/, '');
     const preflight = job.lines.find((l) => !l.inBlock && text(l) === preflightLine(env));
     if (preflight === undefined) flag(job.line, `job '${name}' must run exactly '${preflightLine(env)}'`);
+    const configStep = preflight === undefined ? [] : stepOf(job, preflight);
+    if (!d1ReadinessIsConfined(configStep, env)) flag(job.line, 'preflight must publish its configuration decision as steps.config');
+    const migration = job.lines.find(l => /run: .*wrangler d1 migrations apply RUN_AUTH/.test(l.text));
+    if (migration === undefined || !d1StepIsConfined(stepOf(job, migration), env)) flag(job.line, 'RUN_AUTH needs its conditional, confined migration step before deploy');
+    const deployment = job.lines.find(l => /wrangler deploy /.test(l.text) && !l.text.startsWith('- name:'));
+    if (migration !== undefined && deployment !== undefined && migration.no >= deployment.no) flag(migration.no, 'RUN_AUTH migration must precede deploy');
     // A wrangler invocation: the word wrangler followed by a subcommand. The undo step's
     // `rollback-cli.ts <env> .../wrangler` passes the binary path only (its plan uses DEPLOY_CONFIG).
     const invocations = job.lines.filter((l) => /(^|[\s/])wrangler\s+[a-z]/.test(l.text) && !/^(?:-\s+)?name:/.test(l.text));

@@ -3,7 +3,7 @@
  *
  * - `__Host-run_oauth`: the pre-auth nonce that binds a sign-in to this browser. Lax (it must survive the redirect
  *   back from accounts), ten minutes.
- * - `__Host-run_sid`: the run session. Strict. Its Max-Age never passes the session's absolute expiry; a
+ * - `__Host-run_sid`: the run session. Lax (top-level links must carry it). Its Max-Age never passes the session's absolute expiry; a
  *   shared-computer session has no Max-Age (it ends with the browser).
  *
  * Both are host-only (no Domain), Secure, HttpOnly, Path=/. A request carrying the same cookie twice is read as no
@@ -46,9 +46,9 @@ export function clearPreauthCookie(): string {
 
 /** The session cookie: until `absoluteExpiresAt` (Unix seconds), or a browser-session cookie on a shared computer. */
 export function sessionCookie(token: string, absoluteExpiresAt: number, now: number, sharedComputer: boolean): string {
-  return cookie(SESSION_COOKIE, token, 'Strict', sharedComputer ? null : absoluteExpiresAt - now);
+  return cookie(SESSION_COOKIE, token, 'Lax', sharedComputer ? null : absoluteExpiresAt - now);
 }
 
 export function clearSessionCookie(): string {
-  return cookie(SESSION_COOKIE, '', 'Strict', 0);
+  return cookie(SESSION_COOKIE, '', 'Lax', 0);
 }
