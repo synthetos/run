@@ -19,7 +19,7 @@ describe('the renderer with tool colours', () => {
     const { gl, calls, uploads } = fakeGl();
     const frames = frameQueue();
     const r = createRenderer(gl, { colors: COLORS, requestFrame: frames.request });
-    void r.load(listOf([[[1, 1, 0, 0]], [[1, 2, 0, 0]]]));
+    r.load(listOf([[[1, 1, 0, 0]], [[1, 2, 0, 0]]])).catch(() => undefined); // superseded or disposed loads reject with AbortError
     const texBefore = calls.get('texImage2D') ?? 0;
     const uploadsBefore = uploads.length;
     r.setToolColors({ lineSlots: Uint8Array.from([1, 2]), palette: Array.from({ length: TOOL_COLOR_SLOTS }, () => [0, 0, 1, 1] as const) });

@@ -130,6 +130,6 @@ test('the key is the picture: the tool for screen readers; the bed, links, hint 
   await expect(menu).toContainText('Carving detail 0.125 mm');
   await expect(sheet.locator('.viewer-options')).toContainText('Read as:');
   await expect(sheet.locator('[data-preview="dialect"] option:checked')).toHaveText('TinyG edge-next');
-  await expect(sheet.locator('[data-preview="mode"] option:checked')).toHaveText('Auto (simpler above 300,000 lines)');
+  await expect(sheet.locator('[data-preview="mode"] option:checked')).toHaveText('Auto');
 });
 

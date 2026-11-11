@@ -34,7 +34,7 @@ function sources(): [string, string][] {
 
 describe('PIN-1: firmware pins', () => {
   it('pins every source tag to a full commit', () => {
-    expect(Object.keys(pins).sort()).toEqual(['EN', 'G2', 'G2W', 'S449', 'TG', 'XB']);
+    expect(Object.keys(pins).sort()).toEqual(['EN', 'EN3', 'G2', 'G2W', 'S449', 'TG', 'XB']); // EN3: edge-next c7f9b7e2, cited for feed-limit step 3 only; not an approved build
     for (const [tag, pin] of Object.entries(pins)) {
       expect(pin.commit, tag).toMatch(/^[0-9a-f]{40}$/);
       expect(pin.repo, tag).toMatch(/^https:\/\/github\.com\/synthetos\//);
