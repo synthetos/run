@@ -81,7 +81,7 @@ export function SafetyView({ model = null }: { readonly model?: WorkspaceModel |
         { class: 'panel' },
         h('div', { class: 'panel-head' }, h('h2', null, 'Pause and Stop job')),
         h('p', null, 'Pause and Stop job sit in the same place in every view and are never blocked by sign-in or by a mode. Escape pauses from anywhere. They are controlled stops sent over a channel that is not safety rated, and they may be delayed or never delivered.'),
-        h('p', { 'data-safety-view': 'stop-job' }, stopJobSafetyText(view !== null && connected(view), view?.message?.motion === true)),
+        h('p', { 'data-safety-view': 'stop-job' }, stopJobSafetyText(view !== null && connected(view), view?.message?.motion === true, view?.message?.snapshot.classification?.dialectId === 'tinyg-en' && (view.message.snapshot.identity?.fb ?? 0) >= 450.04)),
       ),
       h(
         'div',

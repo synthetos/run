@@ -48,6 +48,11 @@ describe('behaviour register', () => {
     }
   });
 
+  it('450.04 research citations cannot label a 440.21 model behavior', () => {
+    const base = BEHAVIOURS.find(b => b.id === 'EN-HOLD-OUTPUTS')!;
+    expect(validateBehaviours([{ ...base, id: 'TG-X', model: 'tinyg-440' }])).toContain('TG-X: a 440.21 behaviour cites edge-next source');
+  });
+
   it('every behaviour is tagged in the model source, and every tag is registered', () => {
     const src = read('src/firmware');
     const tags = new Set([...src.matchAll(/@behaviour ((?:EN|TG)-[A-Z0-9-]+)/g)].map((m) => m[1] as string));

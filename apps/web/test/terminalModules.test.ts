@@ -253,3 +253,7 @@ describe('preview', () => {
     expect(movePreview(parsed('G4 P0.5'), MM_ABS)).toBe('Waits 0.5 s');
   });
 });
+
+it('157 names the missing arc centre in plain words', () => {
+  expect(statusWords(157)).toBe('Status 157: the arc centre is missing or at its start.');
+});

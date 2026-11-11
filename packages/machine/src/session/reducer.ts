@@ -1139,7 +1139,10 @@ function onBanner(t: Tx, banner: Banner, at: number): void {
   t.cancel('answer');
   const isReady = banner.ready !== false;
   t.set({ queue: [], expected: [], probe: { ...probe, banner, settling: isReady ? 'ready' : 'boot' } });
-  t.arm('settle', isReady ? t.config.timings.bannerSettleMs : t.config.timings.bannerWaitMs);
+  // N93: startup input may be discarded on 450.04. Retry the splice guard only after READY
+  // and at least 500 ms quiet; a silent/damaged unclassified answer still fails closed.
+  const readyDelay = typeof banner.fb === 'number' && banner.fb >= 450.04 ? Math.max(500, t.config.timings.bannerSettleMs) : t.config.timings.bannerSettleMs;
+  t.arm('settle', isReady ? readyDelay : t.config.timings.bannerWaitMs);
 }
 
 function onResponse(t: Tx, r: Response, at: number): void {

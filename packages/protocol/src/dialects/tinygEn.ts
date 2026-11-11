@@ -107,15 +107,14 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     enq: true,
     tid: true, // echoed at the top level, on errors too (@cite EN json_parser.c:93-157, :239-242, :947-956; E049)
     m400: true, // reply deferred until drained (@cite EN controller.c:200, :587)
-    programStopPauses: true, // M0/M60 → stat 3, hold 6, spindle stays on (@cite EN canonical_machine.c:2273-2285; E020)
+    programStopPauses: true, // M0/M60 → stat 3, hold 6; output pause is setting-dependent from 450.04 (E060).
     m2ClearsAlarm: true, // a standalone M2/M30 clears ALARM (@cite EN gcode_parser.c:78-80, :188-207; E135)
     arcSoftLimits: true, // @cite EN plan_arc.c:274-283, :611-622 (E041)
     alarmStopsSpindle: true, // spindle_reset() in cm_alarm (@cite EN canonical_machine.c:842, :880; E019)
-    // `spph` answers 17 today (E060 not merged); a future build that answers a value may pause the spindle.
+    // `spph` is stubbed before 450.04; from 450.04 its numeric 0/1 setting controls spindle pause.
     spindlePauseOnHold: 'probe',
-    // `coph` is reserved with `spph` and answers 17 (@cite EN config_app.c:65-69, :655); the hold
-    // code that would pause coolant is commented out (@cite EN canonical_machine.c:882-883). A
-    // future build that answers a value may pause coolant on hold, so it is read, never assumed.
+    // `coph` is stubbed at the EN pin; E060 activates its numeric 0/1 setting from 450.04.
+    // Coolant pause is independent of spph and must never be inferred from spindle pause.
     coolantPauseOnHold: 'probe',
     lineInSr: true, // default sr list starts with `line` (@cite EN settings/settings_default.h:84)
     footerRevs: [2, 3], // rev 2 at rxm=0, rev 3 at rxm=1, the default (@cite EN json_parser.c:961-965; settings/settings_default.h:74)

@@ -556,9 +556,26 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     issues: ['E138'],
   },
   {
+    id: 'EN-HOLD-OUTPUTS', model: EN,
+    summary: 'From build 450.04, spph/coph pause outputs at a completed external hold; resume waits spde plus one RTC tick. Internal cycle contacts are exempt. Model uses its existing commanded-speed simplification.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN45004', file: 'canonical_machine.c', lines: [2167, 2241], quote: 'hold_outputs.delay = (uint32_t)ceilf(spindle_cfg.dwell_seconds * 1000) + 10;' },
+      { src: 'EN45004', file: 'config_app.c', lines: [653, 655], quote: 'spindle_cfg.pause_on_hold' },
+    ],
+    issues: ['E060'], bench: '450.04 release evidence; run model still needs bench comparison',
+  },
+  {
+    id: 'EN-ARC-REFUSAL', model: EN,
+    summary: 'From build 450.04 a missing or zero G17 centre refuses with status 157 without an alarm; older builds retain their alarm behaviour.',
+    status: 'verified-source',
+    cites: [{ src: 'EN45004', file: 'plan_arc.c', lines: [212, 246], quote: 'STAT_ARC_OFFSETS_MISSING_FOR_SELECTED_PLANE' }],
+    issues: ['N104'],
+  },
+  {
     id: 'EN-SPPH-STUB',
     model: EN,
-    summary: 'GET spph answers status 17 (function stubbed): E060 spindle pause on hold is not present.',
+    summary: 'Before build 450.04, GET spph answers status 17 (function stubbed): E060 spindle pause on hold is not present.',
     status: 'verified-source',
     cites: [{ src: 'EN', file: 'config_app.c', lines: [65, 69], quote: 'STAT_FUNCTION_IS_STUBBED' }],
     bench: 'B-PROBE-1',

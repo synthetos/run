@@ -17,6 +17,7 @@
  * DEV ONLY. Nothing in a production bundle may import this (T-S40).
  */
 import '../marker.ts';
+import { HoldOutputLatch } from './holdOutputs.ts';
 import { FeedGaps } from './feedGaps.ts';
 import type { DeviceIo, SimDevice } from '../device.ts';
 import {
@@ -276,6 +277,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   /** `tool_select`: the last T word; M6 moves it to the reported `tool` when it runs. */
   #toolSelect = 0;
   #spindle: 'off' | 'cw' | 'ccw' = 'off';
+  readonly #holdOutputs = new HoldOutputLatch();
   /** Direction last driven (`spindle_out.ccw`): kept while the spindle is off. */
   #spindleCcw = false;
   #mist = false;
@@ -540,6 +542,10 @@ export class TinyGEdgeNextModel implements SimDevice {
       this.settings.load();
       this.#loadSrList();
     }
+    if (this.#e060()) for (const key of ['spph', 'spde', 'coph']) {
+      const value = this.settings.eeprom[key];
+      if (typeof value === 'number') this.settings.setRam(key, value);
+    }
     if (!printBanners) {
       this.#booted = true;
       this.#machine = 'ready';
@@ -609,6 +615,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#gm = EN_FRESH_GCODE();
     this.#toolSelect = 0;
     this.#spindle = 'off';
+    this.#holdOutputs.clear();
     this.#spindleCcw = false;
     this.#mist = false;
     this.#flood = false;
@@ -1080,6 +1087,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       this.#requestFeedhold();
       this.#requestPlannerFlush();
     }
+    this.#holdOutputs.clear();
     this.#spindleReset();
     this.#coolantOff();
     this.#exception(status, msg);
@@ -1110,6 +1118,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   #shutdown(status: number, msg: string): void {
     if (this.#machine === 'shutdown' || this.#machine === 'panic') return;
     this.#haltMotion();
+    this.#holdOutputs.clear();
     this.#spindleReset();
     this.#coolantOff();
     this.#queueFlush();
@@ -1122,6 +1131,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   #panic(status: number, msg: string): void {
     if (this.#machine === 'panic') return;
     this.#haltMotion();
+    this.#holdOutputs.clear();
     this.#spindleReset();
     this.#coolantOff();
     this.#queueFlush();
@@ -1145,6 +1155,10 @@ export class TinyGEdgeNextModel implements SimDevice {
    * dwell holds at once from 450.02, and its timer keeps running.
    */
   #requestFeedhold(): void {
+    if (this.#e060() && this.#hold === HOLD.HOLD) {
+      this.#endHoldRequested = false;
+      this.#pauseOutputs(); // a second ! cancels spin-up too
+    }
     if (this.#hold === HOLD.OFF && (this.#options.build?.fb ?? FW_BUILD) >= 450.02 && this.#motion.executingDwell()) {
       this.#dwellHeld = true;
       this.#motionState = 'hold';
@@ -1190,6 +1204,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       this.#alarm(ST('KILL_JOB'), 'job kill');
     }
     if (this.#hold === HOLD.REQUESTED || this.#hold === HOLD.SYNC) this.#startHold(now);
+    if (this.#e060() && this.#hold === HOLD.HOLD && !this.#endHoldRequested && !this.#homingCycle && !this.#probe.inCycle()) this.#pauseOutputs();
     if (this.#queueFlushRequested) this.#runRequestedQueueFlush(now);
     this.#serviceInputFlush();
     if (this.#endHoldRequested && !this.#queueFlushRequested) this.#endHold(now);
@@ -1231,6 +1246,12 @@ export class TinyGEdgeNextModel implements SimDevice {
   #queueFlush(now = this.#now()): void {
     if (!this.#motion.runtimeIdle()) return;
     this.#feedGaps.setJob(0, now);
+    // E060: a flush cancels saved outputs and any spin-up; homing housekeeping preserves live outputs.
+    if (this.#e060() && !(this.#homingCycle && !this.#outputsInhibited() && !this.#holdOutputs.captured)) {
+      this.#spindleReset();
+      this.#coolantOff();
+    }
+    this.#holdOutputs.clear();
     this.#motion.flush(now);
     // A flushed homing cycle ends: axes not yet homed stay unhomed (model limit LIM-EN-HOMING).
     this.#homingCycle = false;
@@ -1268,6 +1289,14 @@ export class TinyGEdgeNextModel implements SimDevice {
   /** `cm_end_hold()` (@cite EN canonical_machine.c:2051-2082). */
   #endHold(now: number): void {
     if (this.#hold !== HOLD.HOLD) return;
+    if (this.#e060() && !this.#homingCycle && !this.#probe.inCycle()) {
+      if (!this.#holdOutputs.captured) this.#pauseOutputs();
+      const result = this.#holdOutputs.resume({ spindle: this.#spindle, mist: this.#mist, flood: this.#flood }, now, this.#holdSetting('spde'));
+      this.#spindle = result.outputs.spindle;
+      this.#mist = result.outputs.mist;
+      this.#flood = result.outputs.flood;
+      if (!result.ready) return;
+    }
     this.#programPaused = false;
     this.#endHoldRequested = false;
     this.#motion.resume(now);
@@ -1280,6 +1309,19 @@ export class TinyGEdgeNextModel implements SimDevice {
       this.#cycleStart();
     }
     this.#progress++;
+  }
+
+  #e060(): boolean { return (this.#options.build?.fb ?? FW_BUILD) >= 450.04; }
+  #holdSetting(key: string): number {
+    const value = this.settings.get(key);
+    return typeof value === 'number' ? value : key === 'coph' ? 0 : 1;
+  }
+  /** @behaviour EN-HOLD-OUTPUTS */
+  #pauseOutputs(): void {
+    const out = this.#holdOutputs.pause({ spindle: this.#spindle, mist: this.#mist, flood: this.#flood }, this.#holdSetting('spph') === 1, this.#holdSetting('coph') === 1);
+    this.#spindle = out.spindle;
+    this.#mist = out.mist;
+    this.#flood = out.flood;
   }
 
   /** `mp_exit_hold_state()` (@cite EN plan_exec.c:401-411). */
@@ -1312,6 +1354,7 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   /** `_exec_program_finalize()` (@cite EN canonical_machine.c:2219-2235). */
   #programFinalize(state: 'programStop' | 'programEnd'): void {
+    this.#holdOutputs.clear();
     this.#machine = state;
     this.#motionState = 'stop';
     if (this.#cycle === 'machining') this.#cycle = 'off';
@@ -1864,10 +1907,13 @@ export class TinyGEdgeNextModel implements SimDevice {
     const k = (g.offsets[2] ?? 0) * f;
     if (fpZERO(i) && fpZERO(j) && fpZERO(k)) {
       const status = ST('ARC_OFFSETS_MISSING_FOR_SELECTED_PLANE'); // @cite EN plan_arc.c:267-271
-      this.#alarm(status, 'arc offsets missing or zero');
+      if (!this.#e060()) this.#alarm(status, 'arc offsets missing or zero'); // @behaviour EN-ARC-REFUSAL: N104 refuses without alarm from 450.04
       return status;
     }
-    if (fpZERO(Math.hypot(i, j))) throw new ModelGapError('edge-next G17 arc with zero I/J radius (K only)');
+    if (fpZERO(Math.hypot(i, j))) {
+      if (this.#e060()) return ST('ARC_OFFSETS_MISSING_FOR_SELECTED_PLANE');
+      throw new ModelGapError('edge-next G17 arc with zero I/J radius (K only)');
+    }
     const result = enComputeArc({ from, to: target, i, j, clockwise: gm.motionMode === 'g2', fullCircle, rotations });
     if (!result.ok) {
       const status = ST(result.status);
@@ -2135,6 +2181,7 @@ export class TinyGEdgeNextModel implements SimDevice {
         this.#sideEffect('help-text', `GET ${key}`);
         return 0;
       case '_reserved_hold_setting':
+        if (this.#e060()) { body[key] = this.#holdSetting(key); return 0; }
         return ST('FUNCTION_IS_STUBBED'); // @behaviour EN-SPPH-STUB (@cite EN config_app.c:65-69)
       case 'sr_get':
         body[key] = this.#srValues(true);
@@ -2195,8 +2242,16 @@ export class TinyGEdgeNextModel implements SimDevice {
       case 'cm_pnic':
         this.#panic(ST('PANIC'), 'sent by host');
         return 0;
-      case '_reserved_hold_setting':
-        return ST('FUNCTION_IS_STUBBED');
+      case '_reserved_hold_setting': {
+        if (!this.#e060()) return ST('FUNCTION_IS_STUBBED');
+        if (this.#cycle !== 'off' || this.#hold !== HOLD.OFF || !this.#motion.runtimeIdle() || this.#motion.queue.length > 0) return 117;
+        if (typeof value !== 'number' || !Number.isFinite(value)) return ST('VALUE_TYPE_ERROR');
+        if (key === 'spde' ? value < 0 || value > 3600 : value !== 0 && value !== 1) return ST('INPUT_VALUE_RANGE_ERROR');
+        this.settings.setRam(key, value);
+        this.settings.eeprom[key] = value;
+        body[key] = value;
+        return 0;
+      }
       case 'hw_run_boot': {
         // `hw_request_bootloader()`: the answer goes out, then the main loop resets the chip with the software
         // reset flag set, which xboot reads as "stay 60 s" (@cite EN hardware.c:155-162; XB src/xboot.c:236-246).

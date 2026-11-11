@@ -10,12 +10,16 @@
 /** What Stop job does on a read-only connection, said plainly next to the button. */
 export const STOP_JOB_PHASE1 = 'In this release Stop job sends a feedhold, like Pause, and leaves the spindle as it is. Use your E-stop to remove power.';
 
+/** E060: only for an identified edge-next build >=450.04. Settings decide output pause. */
+export const STOP_JOB_HOLD_OUTPUTS = 'Sends Pause. Spindle and coolant may pause according to the board settings. Use your E-stop to remove power.';
+
 /** What Stop job does with motion control (SAFETY §4.4, Phase 2 amendment). */
 export const STOP_JOB_PHASE2 = 'Stops motion, clears the queue, and turns the spindle and coolant off. Not an emergency stop: use your E-stop to remove power.';
 
 /** The Safety view's paragraph about Stop job, for the connection it has now (or both cases when none). */
-export function stopJobSafetyText(connected: boolean, motion: boolean): string {
+export function stopJobSafetyText(connected: boolean, motion: boolean, holdOutputs = false): string {
   if (connected && motion) return `On the machine connected now, Stop job stops motion, clears the queue, and turns the spindle and coolant off. It is not an emergency stop: use your E-stop to remove power.`;
+  if (connected && holdOutputs) return STOP_JOB_HOLD_OUTPUTS;
   if (connected) return 'On the machine connected now (a read-only connection), Stop job sends a feedhold, like Pause. On TinyG a feedhold does not stop the spindle or coolant: use your E-stop to remove power.';
-  return 'What Stop job does depends on the connection. When this page can move the machine, Stop job stops motion, clears the queue, and turns the spindle and coolant off. On a read-only connection it sends a feedhold, like Pause, which on TinyG does not stop the spindle or coolant. Neither is an emergency stop: use your E-stop to remove power.';
+  return 'What Stop job does depends on the connection. When this page can move the machine, Stop job stops motion, clears the queue, and turns the spindle and coolant off. On a read-only connection it sends a feedhold, like Pause, which may leave the spindle and coolant running or pause them according to the firmware and board settings. Neither is an emergency stop: use your E-stop to remove power.';
 }

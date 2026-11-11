@@ -27,7 +27,7 @@ import { machineLabel, STOP_UNAVAILABLE, type StopBarView } from '../shell/Safet
 import { ContextHelp } from '../shell/ContextHelp.ts';
 import { signalText } from '../shell/signal.ts';
 import type { StripStatus } from './status.ts';
-import { STOP_JOB_PHASE1, STOP_JOB_PHASE2 } from './stopJobText.ts';
+import { STOP_JOB_PHASE1, STOP_JOB_PHASE2, STOP_JOB_HOLD_OUTPUTS } from './stopJobText.ts';
 import { pressHandlers } from './pressAction.ts';
 
 export interface MachineStripProps {
@@ -40,6 +40,8 @@ export interface MachineStripProps {
   readonly onResume?: () => void;
   /** Phase 2: the worker's motion flag. Stop job then runs the flush sequence instead of a feedhold. */
   readonly motion?: boolean;
+  /** Identified edge-next >=450.04; does not imply spph/coph are enabled. */
+  readonly holdOutputs?: boolean;
   /** Present while a port is open or opening: Disconnect, and why the last one was refused. */
   readonly connection?: { readonly onDisconnect: () => void; readonly refused: string | null } | null;
   /** While no port is open: the Connect flow (owner, 2026-11-03: Connect lives beside the state, not in the pane). */
@@ -96,7 +98,7 @@ export function outcomeText(view: StopBarView | null, motion = false): { readonl
   return { kind: 'delivered', text: `${outcome.action === 'stopJob' ? STOP_TEXT.stopJob : 'Spindle off'} went out as ${w2Label()} (feedhold) to ${machines}. Use your E-stop to remove power.` };
 }
 
-function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined, onStopJob: (() => void) | undefined, motion: boolean): ComponentChild {
+function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined, onStopJob: (() => void) | undefined, motion: boolean, holdOutputs: boolean): ComponentChild {
   const available = view?.available === true;
   const prominent = available && view?.prominent === true ? 'true' : 'false';
   const pause = available && onPause !== undefined;
@@ -127,7 +129,7 @@ function stopButtons(view: StopBarView | null, onPause: (() => void) | undefined
         'data-action': 'stop-job',
         'data-machine-control': 'stop',
         'data-prominent': prominent,
-        title: stop ? (motion ? STOP_JOB_PHASE2 : STOP_JOB_PHASE1) : STOP_UNAVAILABLE,
+        title: stop ? (motion ? STOP_JOB_PHASE2 : holdOutputs ? STOP_JOB_HOLD_OUTPUTS : STOP_JOB_PHASE1) : STOP_UNAVAILABLE,
         ...(stop ? pressHandlers('stop-job', onStopJob) : { disabled: true, 'aria-describedby': 'stop-unavailable' }),
       },
       h('span', { class: 'stop-mark', 'aria-hidden': 'true' }),
@@ -147,7 +149,7 @@ function connectionArea(connection: MachineStripProps['connection'], connect: Co
   );
 }
 
-export function MachineStrip({ status, stop, previousSession, onPause, onStopJob, connection, connect, onResume, motion = false }: MachineStripProps): ComponentChild {
+export function MachineStrip({ status, stop, previousSession, onPause, onStopJob, connection, connect, onResume, motion = false, holdOutputs = false }: MachineStripProps): ComponentChild {
   const held = stop?.band === 'held';
   // "spindle still on" only when the board reports spe=1 while held; wording only, nothing decides on it.
   const title = held ? (status.spindleOn ? STOP_TEXT.pausedSpindleOn : STOP_TEXT.paused) : status.title;
@@ -177,7 +179,7 @@ export function MachineStrip({ status, stop, previousSession, onPause, onStopJob
           ),
         )
       : null,
-    stopButtons(stop, onPause, onStopJob, motion),
+    stopButtons(stop, onPause, onStopJob, motion, holdOutputs),
     outcome === null
       ? null
       : h('p', { class: `stop-outcome ${outcome.kind}`, 'data-stop-outcome': outcome.kind, role: outcome.kind === 'not-delivered' ? 'alert' : 'status' }, outcome.text),

@@ -27,7 +27,7 @@ export function validateBehaviours(behaviours: readonly Behaviour[]): string[] {
       if (!(Number.isInteger(from) && Number.isInteger(to) && from >= 1 && to >= from)) problems.push(`${b.id}: bad line range ${from}-${to} in ${c.file}`);
       if (c.quote.trim() === '') problems.push(`${b.id}: empty quote for ${c.file}`);
       if (c.src === 'EN-HIL' ? !c.file.startsWith('tests/hil/') : c.file.startsWith('/') || c.file.includes('..')) problems.push(`${b.id}: bad path ${c.file}`);
-      if (b.model === 'tinyg-440' && (c.src === 'EN' || c.src === 'EN3')) problems.push(`${b.id}: a 440.21 behaviour cites edge-next source`);
+      if (b.model === 'tinyg-440' && (c.src === 'EN' || c.src === 'EN3' || c.src === 'EN45004')) problems.push(`${b.id}: a 440.21 behaviour cites edge-next source`);
       if (b.model === 'tinyg-en' && c.src === 'TG') problems.push(`${b.id}: an edge-next behaviour cites 440.21 source`);
     }
   }
@@ -63,7 +63,8 @@ export function renderStatus(behaviours: readonly Behaviour[], limits: readonly 
     'Every behaviour a safety claim depends on carries a citation at a pinned commit and a status',
     '(RUN_PLAN §8.1 honesty rule). Pins: EN = TinyG edge-next `a7489b79`, TG = master `d0418390` (440.21),',
     'EN-HIL = edge-next `tests/hil/`; EN3 = step-3 source `c7f9b7e2` (`vendor/firmware-pins.json`).',
-    'EN, EN3 and TG paths are under `firmware/tinyg/`. EN3 is an optional model capability, not a build approval.',
+    'EN45004 = research source `ee98f02b545f3548fe53e59d143715141cfaf510`, not a vendor pin or build approval.',
+    'EN45004, EN, EN3 and TG paths are under `firmware/tinyg/`. EN3 is an optional model capability, not a build approval.',
     '',
     `Totals: ${behaviours.length} behaviours (${counts}).`,
     '',

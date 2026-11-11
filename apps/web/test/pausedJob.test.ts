@@ -83,3 +83,11 @@ describe('a stopped job holds where it stopped (S7)', () => {
     expect(String(one(tree, byAttr('role', 'progressbar')).props['class'])).not.toContain('stopped');
   });
 });
+
+it('450.04 adds spin-up help; older builds keep their card', () => {
+  for (const fb of [450.02, 450.04]) {
+    const { model } = liveModel(snap({ identity: { fb }, job: job({ phase: 'paused', startedAt: 0 }), live: { ...HELD, spe: 0 } }));
+    const tree = root(h(JobStatus, { model }));
+    expect(text(tree).includes('spindle spin-up')).toBe(fb >= 450.04);
+  }
+});

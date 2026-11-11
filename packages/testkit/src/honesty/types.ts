@@ -13,12 +13,15 @@
 import '../marker.ts';
 export type BehaviourStatus = 'verified-source' | 'verified-bench' | 'UNVERIFIED';
 
-/** Pinned sources (vendor/firmware-pins.json): EN = edge-next a7489b79, TG = master d0418390 (440.21), EN3 = step-3 c7f9b7e2. */
-export type CitationSource = 'EN' | 'TG' | 'EN-HIL' | 'EN3';
+/** Pinned sources (vendor/firmware-pins.json): EN = edge-next a7489b79, TG = master d0418390 (440.21), EN3 = step-3 c7f9b7e2. EN45004 is the separate research commit below. */
+export type CitationSource = 'EN' | 'TG' | 'EN-HIL' | 'EN3' | 'EN45004';
+
+/** Research source only; does not alter vendor pins or approve a build. */
+export const EN45004_COMMIT = 'ee98f02b545f3548fe53e59d143715141cfaf510';
 
 export interface Citation {
   readonly src: CitationSource;
-  /** `firmware/tinyg/`-relative for EN, EN3 and TG; repository-relative (`tests/hil/...`) for EN-HIL. */
+  /** `firmware/tinyg/`-relative for EN, EN3, EN45004 and TG; repository-relative (`tests/hil/...`) for EN-HIL. */
   readonly file: string;
   /** First and last line, inclusive. */
   readonly lines: readonly [number, number];

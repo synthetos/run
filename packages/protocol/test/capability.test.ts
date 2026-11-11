@@ -278,3 +278,22 @@ describe('properties', () => {
     expect(classify(probe(observations({ ...tinygIdentity('450.01'), ...EN_CAPABILITIES }, 2)), BENCH).mode).toBe('full');
   });
 });
+
+
+describe('450.04 E060 probe shape (approval remains independent)', () => {
+  it('accepts real boolean spph only on the new build and still requires signed approval', () => {
+    for (const value of [0, 1]) {
+      const p = probe(observations({ ...tinygIdentity('450.04'), ...EN_CAPABILITIES, spph: { body: `"spph":${value}`, status: 0 } }, 3));
+      expect(classify(p, BENCH)).toMatchObject({ dialect: TINYG_EN, mode: 'readOnly', reason: 'en-not-approved' });
+      const testOnly: ApprovedBuilds = { environment: 'staging', builds: [approval('tinyg-en', 450.04)] };
+      expect(classify(p, testOnly)).toMatchObject({ dialect: TINYG_EN, mode: 'full' });
+      expect(classify({ ...p, fb: 450.02 }, BENCH).dialect).toBeNull();
+      expect(classify({ ...p, spph: 'stubbed' }, testOnly).dialect).toBeNull();
+    }
+    for (const value of ['null', '2', '-1', 'true', '"1"', '{}']) {
+      const p = probe(observations({ ...tinygIdentity('450.04'), ...EN_CAPABILITIES, spph: { body: `"spph":${value}`, status: 0 } }, 3));
+      expect(p.spph).toBe('other');
+      expect(classify(p, BENCH).dialect).toBeNull();
+    }
+  });
+});

@@ -13,6 +13,7 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { STOP_TEXT, w2Label } from '@synthetos/safety';
+import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { signalText } from '../../shell/signal.ts';
 import type { WorkspaceModel } from '../model.ts';
 import { duration, jobUi, PHASE_TEXT, type JobSnapshot } from '../jobUi.ts';
@@ -73,6 +74,7 @@ export function JobStatus({ model, onPause, onStopJob }: { readonly model: Works
         h('div', null, h('dt', null, 'Remaining'), h('dd', { 'data-job': 'remaining' }, jobActive(job) ? `about ${duration(job.remainingSeconds)} (estimate)` : 'Not running')),
         h('div', null, h('dt', null, 'Feed, actual / programmed'), h('dd', { 'data-job': 'feed' }, `${typeof vel === 'number' ? Math.round(vel) : 'unknown'} / ${typeof feed === 'number' ? Math.round(feed) : 'unknown'} mm/min`)),
       ),
+      (job.phase === 'paused' || (job.phase === 'running' && (s?.live.hold ?? 0) !== 0)) && s?.classification?.dialectId === 'tinyg-en' && (s.identity?.fb ?? 0) >= 450.04 ? h(ContextHelp, { id: 'hold-outputs', label: 'About Pause and Resume' }, 'The board settings decide whether Pause stops the spindle and coolant. Resume may restart them and wait for spindle spin-up before moving.') : null,
       job.message === null ? null : h('p', { class: `job-message${job.phase === 'failed' ? ' danger' : ''}`, 'data-job': 'message', role: job.phase === 'failed' ? 'alert' : 'status' }, ...signalText(job.message)),
       jobActive(job)
         ? h(

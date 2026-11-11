@@ -31,6 +31,7 @@ export const FIRST_MOVE_NOTICE = 'Typed moves run straight on the machine. Stop 
 /** A status code in plain words: "OK", or "Status 22: floating point error." Never the firmware's constant name. */
 export function statusWords(status: number): string {
   if (status === 0) return 'OK';
+  if (status === 157) return 'Status 157: the arc centre is missing or at its start.';
   const names = DEN.status.find(([code]) => code === status)?.[1];
   const words = names?.[0]?.replace(/^STAT_/, '').toLowerCase().replace(/_/g, ' ');
   return words === undefined ? `Status ${status}.` : `Status ${status}: ${words}.`;

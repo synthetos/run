@@ -41,3 +41,9 @@ describe('Stop job, said once (S4)', () => {
     expect(renderToString(h(SafetyView, { model: null }))).toContain('What Stop job does depends on the connection.');
   });
 });
+
+ it('450.04 read-only Stop does not promise unchanged outputs', () => {
+  expect(stopJobSafetyText(true, false, true)).toContain('may pause');
+  expect(stopJobSafetyText(true, false, true)).not.toContain('keep running');
+  expect(stopJobSafetyText(true, true, true)).toContain('clears the queue');
+});

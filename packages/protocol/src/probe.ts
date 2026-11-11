@@ -50,11 +50,11 @@ export const PROBE_STATUS = Object.freeze({
 export const IDENTITY_TOKENS = Object.freeze(['fb', 'fv', 'hp', 'id', 'hv'] as const);
 /** Edge-next capability tokens (PN §2.3 step 3; @cite EN config_app.c:650-668). */
 export const CAPABILITY_TOKENS = Object.freeze(['spep', 'prbp', 'fstk', 'os'] as const);
-/** EN answers 17 (stubbed) while E060 is not merged (PN §2.3 step 4; @cite EN config_app.c:65-69, :653). */
+/** EN before 450.04 answers 17 (stubbed); E060 answers numeric 0 or 1 from 450.04 (ee98f02b config_app.c:653). */
 export const SPINDLE_PAUSE_TOKEN = 'spph';
 /**
  * The coolant pause-on-hold setting (g2 `coph`; reserved and stubbed on
- * edge-next). Read it, as its own fact, wherever `caps.coolantPauseOnHold`
+ * edge-next before 450.04; E060 activates it). Read it, as its own fact, wherever `caps.coolantPauseOnHold`
  * is `probe`; it is not part of the identity probe sequence.
  */
 export const COOLANT_PAUSE_TOKEN = 'coph';
@@ -188,7 +188,7 @@ export function buildProbeResult(obs: ProbeObservations): ProbeOutcome {
     CapabilityToken,
     TokenAnswer
   >;
-  const spph = spphAnswer(answer(SPINDLE_PAUSE_TOKEN));
+  const spph = spphAnswer(answer(SPINDLE_PAUSE_TOKEN), typeof identity.hp === 'number');
 
   const fbs = buildHash(answer(BUILD_HASH_TOKEN), conflicts);
   const bannerFbs = obs.banner?.fbs;
@@ -291,9 +291,10 @@ const CAPABILITY_VALUE_VALID: Readonly<Record<CapabilityToken, (v: JsonValue) =>
   fstk: (v: JsonValue) => typeof v === 'number' && Number.isSafeInteger(v) && !Object.is(v, -0) && v >= 0 && v <= FSTK_MAX,
 });
 
-function spphAnswer(r: Response): SpphAnswer {
+function spphAnswer(r: Response, tinyg: boolean): SpphAnswer {
   if (r.footer.status === PROBE_STATUS.STUBBED) return 'stubbed';
   if (r.footer.status === PROBE_STATUS.UNRECOGNIZED) return 'unrecognized';
-  if (r.footer.status === PROBE_STATUS.OK && singleValue(r, SPINDLE_PAUSE_TOKEN) !== undefined) return 'value';
+  const value = singleValue(r, SPINDLE_PAUSE_TOKEN);
+  if (r.footer.status === PROBE_STATUS.OK && (value === 0 || value === 1 || (!tinyg && typeof value === 'boolean'))) return 'value';
   return 'other';
 }

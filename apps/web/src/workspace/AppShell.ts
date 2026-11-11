@@ -107,6 +107,7 @@ function Strip(props: AppShellProps): ComponentChild {
     // Resume (`~`): a hold of this session's motion (SAFETY §4.5b) or a paused job (§4.4a); the terminal's `~` uses the same.
     ...(resume === null ? {} : { onResume: resume }),
     motion: view.message?.motion === true,
+    holdOutputs: view.message?.snapshot.classification?.dialectId === 'tinyg-en' && (view.message.snapshot.identity?.fb ?? 0) >= 450.04,
   });
 }
 

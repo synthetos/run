@@ -896,6 +896,7 @@ export function onJobAnswer(t: JobLayerTx, e: PendingRead, r: Response, at: numb
 
 /** Plain words for a status code (W38). */
 export function statusMeaning(d: Dialect, status: number): string {
+  if (d.id === 'tinyg-en' && status === 157) return 'the arc centre is missing or at its start';
   const entry = d.status.get(status);
   if (entry === undefined) return 'an error';
   switch (entry.statusClass) {
