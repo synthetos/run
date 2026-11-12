@@ -13,8 +13,8 @@ const rel = (fb: number, file = `tinyg-${fb.toFixed(2)}.hex`): FirmwareRelease =
 const LIST = { env: 'staging', issuedMs: 0, expiresMs: 1, boards: [{ hv: 8, minimumFb: 440.21, releases: [rel(450.02), rel(451), rel(440.21)] }] } as unknown as FirmwareReleases;
 
 type Snap = NonNullable<OfferInput['snapshot']>;
-const snap = (over: Record<string, unknown> = {}): Snap => ({ base: 'IDLE_UNHOMED', overlays: [], motion: null, job: null, identity: { id: 'B-1', hv: 8, fb: 450.02 }, ...over }) as unknown as Snap;
-const input = (over: Partial<OfferInput> = {}): OfferInput => ({ snapshot: snap(), flashing: false, releases: LIST, onRunStep: false, fileOpen: false, messageUp: false, ...over });
+const snap = (over: Record<string, unknown> = {}): Snap => ({ epoch: 1, classification: { mode: 'full', dialectId: 'tinyg-en', reason: 'en-approved' }, live: { stat: 1, vel: 0, hold: 0, qr: 32 }, base: 'IDLE_UNHOMED', overlays: [], motion: null, job: null, identity: { id: 'B-1', hv: 8, fb: 450.02 }, ...over }) as unknown as Snap;
+const input = (over: Partial<OfferInput> = {}): OfferInput => ({ snapshot: snap(), flashing: false, flasher: true, releases: LIST, onRunStep: false, fileOpen: false, messageUp: false, ...over });
 
 describe('updateOffer', () => {
   it('offers the newest signed release newer than the board, in words', () => {
@@ -97,5 +97,58 @@ describe('offer memory', () => {
     expect(offerDismissed('B-1', '451.00', junk)).toBe(false);
     expect(offerDismissed('B-2', '451.00', junk)).toBe(true);
     expect(() => offerDismissed('B-1', '451.00')).not.toThrow();
+  });
+});
+
+const unapproved = (over: Record<string, unknown> = {}): Snap => snap({
+  base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY'],
+  classification: { dialectId: 'tinyg-440', mode: 'readOnly', reason: 'tg440-not-approved' },
+  identity: { id: 'OLD-1', hv: 8, fb: 440.20 },
+  ...over,
+});
+
+describe('update needed', () => {
+  it('offers an unapproved 440 board the newest hardware release', () => {
+    const offer = updateOffer(input({ snapshot: unapproved() }));
+    expect(offer).toMatchObject({ kind: 'needed', boardId: 'OLD-1', epoch: 1, current: 440.20, release: { fb: 451 } });
+    expect(offerText(offer!)).toBe('Run can’t control this board until its firmware is updated. This board runs 440.20. 451.00 is released.');
+  });
+  it('offers a classified full board below the signed minimum', () => {
+    expect(updateOffer(input({ snapshot: snap({ identity: { id: 'B-1', hv: 8, fb: 440.20 } }) }))?.kind).toBe('needed');
+  });
+  it('offers stock 449 and unapproved EN, even if the listed release has the same build number', () => {
+    for (const [dialectId, reason] of [['tinyg-449-stock', 'stock-449'], ['tinyg-en', 'en-not-approved']]) {
+      expect(updateOffer(input({ snapshot: unapproved({ classification: { dialectId, mode: 'readOnly', reason }, identity: { id: 'B-1', hv: 8, fb: 451 } }) }))?.kind).toBe('needed');
+    }
+  });
+  it.each([
+    ['no classification', { classification: null }],
+    ['unidentified', { classification: { dialectId: null, mode: 'readOnly', reason: 'probeFailed' } }],
+    ['no fb / jv hint', { identity: { id: 'B-1', hv: 8 } }],
+    ['g2core', { classification: { dialectId: 'g2core-edge', mode: 'readOnly', reason: 'g2core-read-only' } }],
+    ['flow control', { classification: { dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl' } }],
+    ['no hardware release', { identity: { id: 'B-1', hv: 9, fb: 440.20 } }],
+    ['moving', { base: 'RUNNING' }],
+    ['alarm', { base: 'ALARM' }],
+    ['jog', { motion: { op: 'jog' } }],
+    ['active job', { job: { phase: 'running' } }],
+    ['alarm behind read-only', { live: { stat: 2, vel: 0, qr: 32, hold: 0 } }],
+    ['moving behind read-only', { live: { stat: 5, vel: 0, qr: 32, hold: 0 } }],
+    ['unknown telemetry', { live: {} }],
+    ['velocity', { live: { stat: 1, vel: 1, qr: 32, hold: 0 } }],
+    ['queued work', { live: { stat: 1, vel: 0, qr: 31, hold: 0 } }],
+    ['hold', { live: { stat: 1, vel: 0, qr: 32, hold: 4 } }],
+  ])('does not offer for %s', (_name, over) => {
+    expect(updateOffer(input({ snapshot: unapproved(over) }))).toBeNull();
+  });
+  it.each(['LOST', 'UNKNOWN', 'STALE', 'FAULT', 'ORPHANED_MOTION', 'NEEDS_REVIEW'])('does not bypass %s, even while showing', overlay => {
+    expect(updateOffer(input({ snapshot: unapproved({ overlays: ['READ_ONLY', overlay] }), showing: true }))).toBeNull();
+  });
+  it('waits behind messages, flashing and the loaded Run step; flasher-off sites never offer', () => {
+    for (const over of [{ messageUp: true }, { flashing: true }, { onRunStep: true, fileOpen: true }, { flasher: false }, { releases: null }]) {
+      expect(updateOffer(input({ snapshot: unapproved(), ...over }))).toBeNull();
+    }
+    expect(updateOffer(input({ flasher: false }))).toBeNull();
+    expect(updateOffer(input({ snapshot: unapproved(), onRunStep: true, fileOpen: false }))).not.toBeNull();
   });
 });

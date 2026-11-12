@@ -117,3 +117,37 @@ test('never over the Run step with a job loaded or running; it waits until that 
   await page.locator('[data-job-step="check"]').click();
   await expect(offer(page)).toBeVisible({ timeout: 10_000 });
 });
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`unapproved board needs an update, once per connection (${theme})`, async ({ page }) => {
+    await own(page);
+    await page.emulateMedia({ colorScheme: theme });
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const worker = await machineWorker(page);
+    await worker.evaluate(() => {
+      const scope = globalThis as unknown as { __RUN_FAKE_SERIAL__?: { ports: unknown[]; next?: unknown } };
+      scope.__RUN_FAKE_SERIAL__ ??= { ports: [] };
+      scope.__RUN_FAKE_SERIAL__.next = { build: { fb: 450.03, fv: 0.97, hv: 8, layout: 10002 } };
+    });
+    expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
+    await expect(offer(page)).toBeVisible({ timeout: 10_000 });
+    await expect(offer(page).locator('h2')).toHaveText('Firmware update needed');
+    await expect(offer(page).locator('[data-firmware-offer="text"]')).toHaveText('Run can’t control this board until its firmware is updated. This board runs 450.03. 450.02 is released.');
+    await expect(offer(page).locator('[data-action="firmware-offer-never"]')).toHaveCount(0);
+    if (SHOTS !== undefined) await page.screenshot({ path: `${SHOTS}/firmware-needed-1280-${theme}.png` });
+    await offer(page).locator('[data-action="firmware-offer-later"]').click();
+    await page.waitForTimeout(1500);
+    await expect(offer(page)).toHaveCount(0);
+    // Reopen the same board in this page. The epoch changes; Not now does not suppress the next connection.
+    expect(await request(worker, { v: 3, kind: 'close' })).toMatchObject({ ok: true });
+    await worker.evaluate(() => {
+      const scope = globalThis as unknown as { __RUN_FAKE_SERIAL__: { next?: unknown } };
+      scope.__RUN_FAKE_SERIAL__.next = { build: { fb: 450.03, fv: 0.97, hv: 8, layout: 10002 } };
+    });
+    expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
+    await expect(offer(page)).toBeVisible({ timeout: 10_000 });
+    await offer(page).locator('[data-action="firmware-offer-go"]').click();
+    await expect(page.locator('[data-board-tab="firmware"]')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-release="tinyg-450.02.hex"]')).toHaveAttribute('data-release-focus', '');
+  });
+}

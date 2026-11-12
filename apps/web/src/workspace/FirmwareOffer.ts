@@ -1,7 +1,8 @@
 /**
  * The "Firmware update available" modal (owner, 2026-11-09; firmware/updateOffer.ts decides when). Go to update
  * opens Board → Firmware on that release (nothing is downloaded or flashed from here: the hub asks C6 as always);
- * Not now hides it for this page; "Don't show again for this version" remembers it per board and version.
+ * For an approved board, Not now hides it for this page and "Don't show again" remembers board/version.
+ * Update-needed boards get Not now for this connection only, without a persistent dismissal.
  * Centred below the machine strip like every confirmation (OD-16): Pause and Stop job stay uncovered.
  */
 import { h, type ComponentChild } from 'preact';
@@ -33,6 +34,7 @@ export function FirmwareOffer({ model, role, live }: FirmwareOfferProps): Compon
   const showing = useRef(false);
   const offer = updateOffer({
     showing: showing.current,
+    flasher: message?.flasher === true,
     snapshot: message?.snapshot ?? null,
     flashing: flash !== null && flash.phase !== 'done' && flash.phase !== 'failed',
     releases: hub !== null && hub.releases.ok ? hub.releases.list : null,
@@ -45,8 +47,8 @@ export function FirmwareOffer({ model, role, live }: FirmwareOfferProps): Compon
     return null;
   }
   const version = fbText(offer.release.fb);
-  const key = `${offer.boardId}:${version}`;
-  if (later.includes(key) || offerDismissed(offer.boardId, version)) {
+  const key = offer.kind === 'needed' ? `needed:${offer.epoch}:${offer.boardId}` : `${offer.boardId}:${version}`;
+  if (later.includes(key) || (offer.kind === 'available' && offerDismissed(offer.boardId, version))) {
     showing.current = false;
     return null;
   }
@@ -58,12 +60,12 @@ export function FirmwareOffer({ model, role, live }: FirmwareOfferProps): Compon
     h(
       'div',
       { class: 'dialog motion-confirm firmware-offer', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'firmware-offer-title', 'data-region': 'firmware-offer' },
-      h('h2', { id: 'firmware-offer-title', class: 'firmware-offer-title' }, 'Firmware update available'),
+      h('h2', { id: 'firmware-offer-title', class: 'firmware-offer-title' }, offer.kind === 'needed' ? 'Firmware update needed' : 'Firmware update available'),
       h('p', { 'data-firmware-offer': 'text' }, offerText(offer)),
       h(
         'div',
         { class: 'motion-confirm-actions' },
-        h(
+        offer.kind === 'needed' ? null : h(
           'button',
           {
             type: 'button',
