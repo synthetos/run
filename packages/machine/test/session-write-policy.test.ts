@@ -161,7 +161,9 @@ describe('T-S39: only MachineSession writes to the transport', () => {
     // guardedTransport forwards to the inner transport; the session is the one caller above it. The bootloader link
     // (SAFETY §4.8 as amended 2026-11-03) is the port in bootloader role: it writes only frames the flasher's frame
     // guard admits, and opens only with the flasher's capability.
-    expect(callers).toEqual(['packages/machine/src/bootloaderLink.ts', 'packages/machine/src/guardedTransport.ts', 'packages/machine/src/session/machineSession.ts']);
+    // flashService's checked transport (proposed H92) only forwards the session's writes unchanged; it originates
+    // none. It wraps the port to re-check the bootloader quarantine when the session opens it.
+    expect(callers).toEqual(['apps/web/src/machine-worker/flashService.ts', 'packages/machine/src/bootloaderLink.ts', 'packages/machine/src/guardedTransport.ts', 'packages/machine/src/session/machineSession.ts']);
   });
 
   it('the web app reaches the machine only through the worker: no page or panel module imports the transport layer', () => {
