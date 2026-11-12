@@ -15,6 +15,7 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
+import { bootloaderHardwareVersions } from '../../firmware/bootloaderHardware.ts';
 import { releaseRequest } from '../boardNavigation.ts';
 import { boardText, c37, c38, c6Boxes, c6Question, w11, w28, w45, w46, w47, w48, w49, w50 } from '@synthetos/safety';
 import { releasesForHardware, type FirmwareRelease } from '@synthetos/protocol';
@@ -464,8 +465,8 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
         chooseHardware ? h('div', null,
           h('label', null, 'Hardware version printed on the board', h('select', { value: hardwareChoice, onChange: (event: Event) => setHardwareChoice((event.currentTarget as HTMLSelectElement).value) },
             h('option', { value: '' }, 'Choose the printed version…'),
-            ...(hub?.releases.ok === true ? hub.releases.list.boards.filter(b => b.releases.some(r => m?.simulated === true || !r.simulatorOnly)).map(b => h('option', { value: String(b.hv) }, String(b.hv))) : []))),
-          h('p', null, 'Check the version on the board. Run cannot read it in the bootloader.'),
+            ...(hub?.releases.ok === true ? bootloaderHardwareVersions(hub.releases.list).map(hv => h('option', { value: String(hv) }, String(hv))) : []))),
+          h('p', null, 'Look for “TinyG v8” on the silkscreen; check your board’s printed version. Run cannot read it in the bootloader.'),
           h('button', { type: 'button', disabled: hardwareChoice === '', onClick: () => void actions?.firmware?.bootloaderHardware(Number(hardwareChoice)).then(setMsg) }, 'Confirm hardware version'),
         ) : null,
       ) : null,

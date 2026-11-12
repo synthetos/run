@@ -124,7 +124,7 @@ async function releaseList(minimumFb: number): Promise<FirmwareReleases> {
   return { env: 'staging', issuedMs: 0, expiresMs: Number.MAX_SAFE_INTEGER, boards: [{ hv: 99, minimumFb, releases: [await rel('newLayout', true), await rel('update', false), await rel('current', false)] }] };
 }
 
-function rig(options: { readonly minimumFb?: number; readonly board?: ConstructorParameters<typeof FlashableBoard>[0]; readonly closeMs?: number } = {}) {
+function rig(options: { readonly releases?: FirmwareReleases; readonly minimumFb?: number; readonly board?: ConstructorParameters<typeof FlashableBoard>[0]; readonly closeMs?: number } = {}) {
   const clock = new VirtualClock();
   const holders: PortHolders = { open: 0, most: 0 };
   const board = new FlashableBoard({ model: { bootMs: 50, eepromWriteMs: 0 }, linkBaud: 2_000_000, eeprom: { __layout: 10002, st: 1, zsn: 1 }, ...options.board });
@@ -135,7 +135,7 @@ function rig(options: { readonly minimumFb?: number; readonly board?: Constructo
     file: null,
     origin: ORIGIN,
     verify: async () => ({ approved: { environment: 'staging', builds: [{ channel: 'bench', dialect: 'tinyg-en', fb: 450.01, fbs: null, commit: 'e'.repeat(40), note: 't' }] }, channels: [] }),
-    releases: () => releaseList(options.minimumFb ?? 450.01),
+    releases: async () => options.releases ?? await releaseList(options.minimumFb ?? 450.01),
   }, releaseFor(ORIGIN), marks);
   const host = makeHost();
   const posted: (SnapshotMessage | FlashBackupsPost)[] = [];
@@ -224,24 +224,21 @@ describe('the firmware update in the worker', () => {
   }, 60_000);
 
   it('requires a supported, explicit hardware confirmation before updating an unidentified bootloader', async () => {
-    const r = rig({ board: { start: 'bootloader' } });
+    // Metadata only: this test confirms hardware selection, never flashes a simulator image as real hardware.
+    const list = await releaseList(450.01);
+    const sample = list.boards[0]!;
+    const real = { ...sample, hv: 8, releases: sample.releases.map(release => ({ ...release, hv: 8, simulatorOnly: false })) };
+    const r = rig({ board: { start: 'bootloader' }, releases: { ...list, boards: [...list.boards, real] } });
     await r.call({ v: 3, kind: 'open', port: PORT, boardId: null });
-    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'bootloaderHardware', hv: 8 } })).toMatchObject({ ok: false });
+    expect(r.host.flash.view?.board).toBeNull();
+    for (const hv of [7, 99]) expect(await r.call({ v: 3, kind: 'flash', command: { op: 'bootloaderHardware', hv } })).toMatchObject({ ok: false });
     const put = r.marks.put;
     r.marks.put = async () => { throw new Error('storage failure'); };
-    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'bootloaderHardware', hv: 99 } })).toMatchObject({ ok: false });
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'bootloaderHardware', hv: 8 } })).toMatchObject({ ok: false });
     expect(r.host.flash.view?.board).toBeNull();
     r.marks.put = put;
-    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'bootloaderHardware', hv: 99 } })).toMatchObject({ ok: true });
-    expect(r.host.flash.view?.board).toEqual({ id: null, hv: 99, fb: null, fv: null });
-    const x = await sim('update');
-    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'begin', source: { kind: 'release', hv: 99, fb: x.fb, file: x.file }, hex: x.hex, sha256: x.sha256, settingsBackup: 'unreadable', baseline: null, recovery: true } })).toMatchObject({ ok: true });
-    await r.until(() => r.backupsPost() !== undefined);
-    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'backupsSaved', sha256: (r.backupsPost() as FlashBackupsPost).backups.sha256 } })).toMatchObject({ ok: true });
-    await r.until(() => r.host.flash.view?.phase === 'done' || r.host.flash.view?.phase === 'failed');
-    expect(r.host.flash.view?.phase).toBe('done');
-    expect(r.host.session.snapshot.identity?.fb).toBe(450.02);
-    expect(await r.marks.find(PORT)).toBeNull();
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'bootloaderHardware', hv: 8 } })).toMatchObject({ ok: true });
+    expect(r.host.flash.view?.board).toEqual({ id: null, hv: 8, fb: null, fv: null });
   }, 60_000);
 
   it('Start firmware timeout becomes a failed-flash mark; another Start can never send E', async () => {
@@ -426,6 +423,7 @@ describe('the firmware update in the worker', () => {
     await r.marks.put({ ...original, boardId });
     expect(await r.call({ v: 3, kind: 'flash', command: { op: 'reconnect' } })).toMatchObject({ ok: false });
     expect(await r.marks.find(PORT)).not.toBeNull();
+    expect((await flashLines(r)).filter(line => line.dir === 'tx').map(line => line.hex)).toEqual(['1b', '53']);
     await r.until(() => false, 5000);
     expect(await r.call({ v: 3, kind: 'flash', command: { op: 'reconnect' } })).toMatchObject({ ok: true });
     if (identity === 'different') expect(await r.marks.find(PORT)).toMatchObject({ nonce: original.nonce, boardId: 'ANOTHER-BOARD' });

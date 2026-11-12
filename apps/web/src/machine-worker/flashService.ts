@@ -38,6 +38,7 @@
  * Two tabs cannot flash at once: only the tab whose worker holds the port
  * can, and a flash in progress refuses a second (H88).
  */
+import { bootloaderHardwareVersions } from '../firmware/bootloaderHardware.ts';
 import { BootloaderLink, EventLog, sessionSettings, type MachineSession, type PortSelector, type SessionClock, type SessionSnapshot, type Transport, type TransportSource } from '@synthetos/machine';
 import {
   X192A3,
@@ -560,8 +561,8 @@ export class FlashService {
   async bootloaderHardware(hv: number): Promise<FlashReply> {
     if (!this.#d.enabled || this.#running || this.#port === null || this.#view?.bootloader === undefined || this.#begin !== null) return fail('No unidentified bootloader is waiting for an image.');
     try {
-      const releases = releasesForHardware(await this.#d.releases(), hv);
-      if (releases === null || releases === undefined || !releases.releases.some(r => this.#d.source.kind === 'fake' || !r.simulatorOnly)) return fail('There is no signed image for that hardware version.');
+      const versions = bootloaderHardwareVersions(await this.#d.releases());
+      if (!versions.includes(hv)) return fail('There is no signed image for that hardware version.');
       const mark = await this.#d.marks.find(this.#port);
       if (mark === null) return fail('Connect to the bootloader first.');
       const board = { id: null, hv, fb: null, fv: null };
