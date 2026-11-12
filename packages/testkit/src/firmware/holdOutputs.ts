@@ -1,6 +1,8 @@
 /** E060 output latch and restart delay. Source: ee98f02b canonical_machine.c:2167-2241.
  * The model uses virtual milliseconds; the firmware adds one 10 ms RTC tick.
  */
+import '../marker.ts';
+
 export interface HoldOutputs { spindle: 'off' | 'cw' | 'ccw'; mist: boolean; flood: boolean }
 export class HoldOutputLatch {
   #saved: HoldOutputs | null = null;
