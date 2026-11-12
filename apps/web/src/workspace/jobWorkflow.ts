@@ -11,7 +11,7 @@ export const JOB_STEPS = [
 ] as const;
 export type JobStep = typeof JOB_STEPS[number]['id'];
 export const jobStep = signal<JobStep>('machine');
-export type LibrarySection = 'machines' | 'tools' | 'materials';
+export type LibrarySection = 'machines' | 'tools' | 'catalog' | 'materials';
 export const librarySection = signal<LibrarySection>('machines');
 /** Library → Machines: your machine, its board's settings, or the catalogue. Kept while you move around the app. */
 export type MachinesTab = 'mine' | 'settings' | 'catalogue';

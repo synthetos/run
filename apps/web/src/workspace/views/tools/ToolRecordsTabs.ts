@@ -20,10 +20,10 @@ export function ToolCuttingTab({ tool, unit }: { tool: Tool; unit: ToolUnit }): 
   return h('div', null, tool.cuttingData.length === 0 ? h('p', null, 'No cutting data yet.') : h('table', { class: 'slot-table' },
     h('thead', null, h('tr', null, ...['Material', unit === 'in' ? 'Surface speed (SFM, ft/min)' : 'Surface speed (m/min)', unit === 'in' ? 'Chipload (in/tooth)' : 'Chipload (mm/tooth)', 'Source'].map(label => h('th', null, label)))),
     h('tbody', null, tool.cuttingData.slice(page * 4, page * 4 + 4).map((c, i) => h('tr', { key: String(i) }, h('td', null, c.materialName ?? material(c.materialRef.id)?.name ?? c.materialRef.id), h('td', null, c.vc === undefined ? '—' : formatSurfaceSpeed(c.vc, unit)), h('td', null, formatChipload(c.fz, unit)), h('td', null, h(CuttingSource, { row: c, manufacturer: tool.manufacturer }), c.note === '' ? null : h('small', { class: 'cutting-note' }, c.note)))))),
-    h(Pager, { page, count: tool.cuttingData.length, size: 4, set: setPage }), tool.cuttingData.some(c => c.placeholder === true) ? h('p', { class: 'fine' }, 'Placeholder values: not yet sourced. They show the shape of the data, not machining advice.') : null);
+    h(Pager, { page, count: tool.cuttingData.length, size: 4, set: setPage }), tool.manufacturer === 'Onsrud' && tool.cuttingData.some(c => c.source === 'manufacturer') ? h('p', { class: 'fine' }, 'Onsrud publishes chipload ranges at a cut depth of one tool diameter. It publishes no spindle speeds for these tools.') : null, tool.cuttingData.some(c => c.placeholder === true) ? h('p', { class: 'fine' }, 'Placeholder values: not yet sourced. They show the shape of the data, not machining advice.') : null);
 }
 
 export function CuttingSource({ row, manufacturer }: { row: Tool['cuttingData'][number]; manufacturer?: string | undefined }): ComponentChild {
   const link = row.sourceUrl === undefined ? null : safeExternalLink(row.sourceUrl);
-  return link === null ? h('span', null, SOURCE_LABELS[row.source]) : h('a', { ...link, href: row.sourcePage === undefined ? link.href : `${link.href}#page=${row.sourcePage}` }, row.sourcePage === undefined ? 'Source' : `${manufacturer ?? 'Source'} catalog, p. ${row.sourcePage}`);
+  return link === null ? h('span', null, SOURCE_LABELS[row.source]) : h('a', { ...link, href: row.sourcePage === undefined ? link.href : `${link.href}#page=${row.sourcePage}` }, row.sourcePage === undefined ? 'Source' : `${manufacturer === 'Onsrud' ? 'Onsrud 2025' : manufacturer ?? 'Source'} catalog, p. ${row.sourcePage}`);
 }

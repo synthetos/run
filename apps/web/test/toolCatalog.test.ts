@@ -1,10 +1,11 @@
+import { CatalogTable } from '../src/workspace/views/tools/CatalogTable.ts';
 import { afterEach, describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { ONSRUD_CATALOG } from '@synthetos/library';
 import { toolStore } from '../src/workspace/library.ts';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
-import { catalogDraft, matchesCatalog } from '../src/workspace/tools/catalog.ts';
+import { catalogDraft, matchesCatalog, catalogDescription } from '../src/workspace/tools/catalog.ts';
 import { saveToolDraft } from '../src/workspace/tools/saveTool.ts';
 import { CuttingSource, ToolCuttingTab } from '../src/workspace/views/tools/ToolRecordsTabs.ts';
 import { root, one, all } from './tree.ts';
@@ -30,13 +31,13 @@ describe('catalog drafts', () => {
     expect(matchesCatalog(bare, '', '')).toBe(true);
   });
   it('renders the picker templates', () => {
-    expect(renderToString(h(ToolCatalog, { unit: 'in', onPick: () => undefined }))).toContain('Onsrud 52-280');
+    expect(renderToString(h(ToolCatalog, null))).toContain('52-280');
   });
 });
 describe('cutting citations', () => {
   it('shows manufacturer ranges and page links without a placeholder warning', () => {
     const html = renderToString(h(ToolCuttingTab, { tool: template, unit: 'in' }));
-    expect(html).toContain('Onsrud catalog, p. 129'); expect(html).toContain('#page=129');
+    expect(html).toContain('Onsrud 2025 catalog, p. 129'); expect(html).toContain('#page=129');
     expect(renderToString(h(ToolCuttingTab, { tool: template, unit: 'mm' }))).toContain('>0.1778</td>');
     expect(html).toContain('Range .007-.009'); expect(html).toContain('—'); expect(html).not.toContain('Placeholder values');
   });
@@ -53,12 +54,33 @@ describe('cutting citations', () => {
 });
 
 it('catalog controls filter, select and show no matches', () => {
-  let query = ''; let size = ''; let selected = '';
-  const props = { query, size, unit: 'mm' as const, setQuery: (s: string) => { query = s; }, setSize: (s: string) => { size = s; }, onPick: (t: typeof template) => { selected = t.id; } };
+  let query = ''; let size = ''; let selected = ''; let maker = ''; let type = '';
+  const props = { query, size, maker, type, entries: [], setMaker: (s: string) => { maker = s; }, setType: (s: string) => { type = s; }, unit: 'mm' as const, setQuery: (s: string) => { query = s; }, setSize: (s: string) => { size = s; }, onPick: (t: typeof template) => { selected = t.id; } };
   const el = root(h(CatalogChoices, props));
   (one(el, e => e.tag === 'input').props['onInput'] as (e: unknown) => void)({ currentTarget: { value: '52' } });
-  (one(el, e => e.tag === 'select').props['onChange'] as (e: unknown) => void)({ currentTarget: { value: '6.35' } });
-  (all(el, e => e.tag === 'button')[0]!.props['onClick'] as () => void)();
-  expect(query).toBe('52'); expect(size).toBe('6.35'); expect(selected).toBe(template.id);
+  (one(el, e => e.props['aria-label'] === 'Maker').props['onChange'] as (e: unknown) => void)({ currentTarget: { value: 'Onsrud' } });
+  (all(el, e => e.tag === 'button')[2]!.props['onClick'] as () => void)();
+  (one(el, e => e.props['aria-label'] === 'Type').props['onChange'] as (e: unknown) => void)({ currentTarget: { value: 'flat' } });
+  (all(el, e => e.tag === 'button')[3]!.props['onClick'] as () => void)();
+  expect(maker).toBe('Onsrud'); expect(type).toBe('flat'); expect(query).toBe('52'); expect(size).toBe('6.35'); expect(selected).toBe(template.id);
   expect(renderToString(h(CatalogChoices, { ...props, query: 'absent' }))).toContain('No matching tools.');
+});
+
+it('matches distinct maker and type filters and formats catalog sizes', () => {
+  expect(matchesCatalog(template, '', '', 'Onsrud', 'flat')).toBe(true);
+  expect(matchesCatalog(template, '', '', 'Other', '')).toBe(false);
+  expect(matchesCatalog(template, '', '', '', 'ball')).toBe(false);
+  expect(catalogDescription(template, 'in')).toBe('1/4" up-cut spiral');
+  expect(catalogDescription({ ...template, geometry: { ...template.geometry, diameter: 3.175 } }, 'in')).toContain('1/8"');
+  expect(catalogDescription({ ...template, geometry: { ...template.geometry, diameter: 25.4 } }, 'in')).toContain('1 in');
+});
+
+it('catalog rows identify existing maker/part matches and keep unsafe sources inert', () => {
+  const entries = [{ tool: { ...template, manufacturer: 'Other' }, number: 3, store: null }, { tool: { ...template, partNumber: 'other' }, number: 2, store: null }, { tool: { ...template, id: 'mine.tool' }, number: 4, store: null }];
+  const html = renderToString(h(CatalogTable, { tools: [template], entries, unit: 'in', onPick: () => undefined }));
+  expect(html).toContain('In your tools as T4'); expect(html).not.toContain('Add to my tools'); expect(html).toContain('Onsrud page');
+  expect(html).toContain('0.875 in');
+  for (const purchase of [[], [{ vendor: 'bad', url: 'javascript:bad', kind: 'link' as const }]]) {
+    expect(renderToString(h(CatalogTable, { tools: [{ ...template, purchase }], entries: [], unit: 'mm', onPick: () => undefined }))).not.toContain('<a');
+  }
 });

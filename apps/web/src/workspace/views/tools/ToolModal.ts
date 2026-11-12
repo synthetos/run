@@ -1,5 +1,4 @@
-import { catalogDraft } from '../../tools/catalog.ts';
-import { ToolCatalog } from './ToolCatalog.ts';
+import { catalogDraft, catalogDescription } from '../../tools/catalog.ts';
 import { h, type ComponentChild } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { type ToolEntry, type Tool, newTool, toolStore } from '../../library.ts';
@@ -14,10 +13,10 @@ import { ToolBuyTab, ToolCuttingTab } from './ToolRecordsTabs.ts';
 import { ToolShapeTab } from './ToolShapeTab.ts';
 import { ToolDetailsTab } from './ToolDetailsTab.ts';
 
-type Tab = 'catalog' | 'shape' | 'details' | 'buy' | 'cutting';
-export function ToolModal({ entry, onClose }: { readonly entry: ToolEntry | null; readonly onClose: () => void }): ComponentChild {
+type Tab = 'shape' | 'details' | 'buy' | 'cutting';
+export function ToolModal({ entry, onClose, catalog }: { readonly catalog?: Tool; readonly entry: ToolEntry | null; readonly onClose: () => void }): ComponentChild {
   const [number, setNumber] = useState(() => entry?.number ?? freeToolNumber(toolStore.value.value));
-  const [tool, setTool] = useState<Tool>(() => entry === null ? newTool(number) : { ...entry.tool, name: customToolName(entry.tool.name) });
+  const [tool, setTool] = useState<Tool>(() => entry === null ? (catalog === undefined ? newTool(number) : catalogDraft(catalog, toolStore.value.value).tool) : { ...entry.tool, name: customToolName(entry.tool.name) });
   const [tab, setTab] = useState<Tab>('shape');
   const [error, setError] = useState<string | null>(null);
   const invalid = useRef(new Set<string>());
@@ -47,13 +46,13 @@ export function ToolModal({ entry, onClose }: { readonly entry: ToolEntry | null
   };
   return h('div', { class: 'dialog-wrap tool-modal-wrap', onKeyDown: key }, h('div', { class: 'dialog tool-modal', ref: root, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'tool-modal-title', 'aria-label': 'Selected tool', 'data-tool': tool.id },
     h('header', { class: 'dialog-head' }, h('h2', { id: 'tool-modal-title' }, entry === null ? 'Add a tool' : `Edit T${number} · ${toolDisplayName(tool)}`), h('div', { class: 'seg', role: 'group', 'aria-label': 'Length units' }, ...(['mm', 'in'] as const).map(u => h('button', { type: 'button', class: u === unit ? 'selected' : undefined, 'aria-pressed': u === unit ? 'true' : 'false', onClick: () => toolUnits.set(u) }, u)))),
-    h(TabBar<Tab>, { label: 'Tool', prefix: 'tool', variant: 'underline', current: tab, onSelect: setTab, tabs: [...(entry === null ? [{ id: 'catalog' as const, label: 'From catalog' }] : []), { id: 'shape', label: 'Shape' }, { id: 'details', label: 'Details' }, { id: 'buy', label: 'Where to buy' }, { id: 'cutting', label: 'Cutting data' }] }),
-    h(TabPane, { prefix: 'tool', id: 'catalog', current: tab, class: 'tool-modal-pane' }, h(ToolCatalog, { unit, onPick: template => { const draft = catalogDraft(template, toolStore.value.value); setTool(draft.tool); setNumber(draft.number); invalid.current.clear(); setError(null); setTab('shape'); } })),
+    catalog === undefined ? null : h('p', { class: 'catalog-banner' }, `From the Onsrud catalog: ${catalog.partNumber}, ${catalogDescription(catalog, unit)}. It becomes T${number}. Change anything before you add it.`),
+    h(TabBar<Tab>, { label: 'Tool', prefix: 'tool', variant: 'underline', current: tab, onSelect: setTab, tabs: [ { id: 'shape', label: 'Shape' }, { id: 'details', label: 'Details' }, { id: 'buy', label: 'Where to buy' }, { id: 'cutting', label: 'Cutting data' }] }),
     h(TabPane, { prefix: 'tool', id: 'shape', current: tab, class: 'tool-modal-pane' }, h(ToolShapeTab, { tool, number, numberIssue: issue, onNumber: setNumber, set, unit, onValidity: validity })),
     h(TabPane, { prefix: 'tool', id: 'details', current: tab, class: 'tool-modal-pane' }, h(ToolDetailsTab, { tool, set, editing: entry !== null })),
     h(TabPane, { prefix: 'tool', id: 'buy', current: tab, class: 'tool-modal-pane' }, h(ToolBuyTab, { tool, store: entry?.store ?? null, set })),
     h(TabPane, { prefix: 'tool', id: 'cutting', current: tab, class: 'tool-modal-pane' }, h(ToolCuttingTab, { key: tool.id, tool, unit })),
     error === null ? null : h('p', { class: 'field-error', role: 'alert' }, error),
-    h('footer', { class: 'dialog-actions' }, entry === null ? null : h(ToolDelete, { id: entry.tool.id, label: `T${entry.number} · ${toolDisplayName(entry.tool)}`, onDeleted: onClose }), h('button', { type: 'button', 'data-action': 'cancel-tool', onClick: onClose }, 'Cancel'), h('button', { type: 'button', class: 'primary', disabled: tab === 'catalog', 'data-action': 'save-tool', onClick: save }, entry === null ? 'Add tool' : 'Save')),
+    h('footer', { class: 'dialog-actions' }, catalog === undefined ? null : h('button', { type: 'button', onClick: onClose }, 'Back to catalog'), entry === null ? null : h(ToolDelete, { id: entry.tool.id, label: `T${entry.number} · ${toolDisplayName(entry.tool)}`, onDeleted: onClose }), h('button', { type: 'button', 'data-action': 'cancel-tool', onClick: onClose }, 'Cancel'), h('button', { type: 'button', class: 'primary', 'data-action': 'save-tool', onClick: save }, entry === null ? 'Add tool' : 'Save')),
   ));
 }

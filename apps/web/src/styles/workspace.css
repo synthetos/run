@@ -1789,8 +1789,19 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
 /* Account sync notices stay below the machine strip, even when a quota leaves many records local. */
 .library-sync-notice { max-height: min(280px, calc(100vh - var(--strip-bottom, 142px) - 60px)); overflow: auto; }
 
-.tool-catalog { display: grid; gap: 10px; }
-.catalog-results { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
-.catalog-results button { width: 100%; text-align: left; display: grid; gap: 3px; padding: 10px; }
-.catalog-results span, .cutting-note { display: block; color: var(--muted); font-size: 11px; }
 .tool-modal .slot-table td { vertical-align: top; }
+.catalog-filters { display: flex; align-items: end; gap: 16px; padding: 14px 0; flex-wrap: wrap; }
+.catalog-filters > input { flex: 1; min-width: 220px; height: 34px; }
+.catalog-filters label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+.catalog-filters .select-wrap { min-width: 140px; }
+.catalog-sizes { display: flex; gap: 5px; align-self: end; }
+.catalog-table tbody tr:nth-child(even) { background: var(--row-hover); }
+.catalog-table tbody tr { cursor: default; }
+.catalog-table td:last-child { width: 175px; }
+.catalog-owned { color: var(--ok); font-size: 12px; }
+.catalog-banner { flex-shrink: 0; border: 1px solid var(--ok); background: color-mix(in srgb, var(--ok) 9%, var(--sheet)); color: var(--ok); border-radius: 5px; padding: 10px 12px; margin: 0 0 8px; font-size: 13px; }
+
+@media (max-width: 760px) { .catalog-table th:nth-child(5), .catalog-table td:nth-child(5), .catalog-table th:nth-child(6), .catalog-table td:nth-child(6) { display: table-cell; } }
+.catalog-view { display: flex; flex-direction: column; min-height: 0; }
+.catalog-view > .list-panel { flex: 1; margin: 0 20px 20px; }
+.catalog-filters { padding: 12px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
