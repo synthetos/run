@@ -201,3 +201,19 @@ Follow-up validation: 38 targeted tests passed (machine: `dwell-accounting.test.
 `honesty.test.ts`). Source citations were checked against the TinyG Git repository. Workspace typecheck,
 changed-file lint and whitespace checks passed; the final machine changes also passed its focused typecheck.
 Full suites remain with the merge lead. No board, serial port or local server was used.
+
+Review follow-up (2026-11-12): the proposed bound using the last
+`plannerBlocks - qr + 1` acknowledged data lines is unsafe. At release `ee98f02b`,
+`canonical_machine.c:1048-1057` implements G20/G21 and G90/G91 by changing the model
+and returning OK; `gcode_parser.c:656,665` calls these directly. They need no planner
+slot. Thus G4 P20 followed by G90 can have qr full and G90 as the last acknowledged
+line while the dwell still runs. Forty modal-only ACKs also defeat a ledger capped
+at plannerBlocks+1. A regression test covers that sequence. The sum remains unchanged
+per the review's fallback instruction. Long files with many dwells can still incur
+substantial extra completion latency; the requested 200-hole fast-finish bound is
+not claimed. A safe optimization needs proven execution progress or a firmware
+completion marker, not an acknowledged-line count inferred from qr.
+
+Status 157's explanation now lives in the EN dialect status table. Job and typed-move
+refusals both read it there; classification remains an ordinary error. Registered
+safety wording is unchanged.

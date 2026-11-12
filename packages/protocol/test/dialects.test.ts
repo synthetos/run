@@ -402,3 +402,8 @@ describe('dialect footer checksum rule (TG json_parser.c:529, :543-550)', () => 
     expect(G2CORE_EDGE.caps.footerChecksum).toBe('absent');
   });
 });
+
+it('EN status 157 carries the shared refusal text without becoming an alarm', () => {
+  expect(TINYG_EN.status.get(157)).toMatchObject({ statusClass: 'error', meaning: 'the arc centre is missing or at its start' });
+  expect(TINYG_440.status.get(157)?.meaning).toBeUndefined();
+});

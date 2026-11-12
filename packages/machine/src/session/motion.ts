@@ -849,7 +849,8 @@ export function onMotionAnswer(t: MotionTx, line: string | undefined, status: nu
     return;
   }
   if (status !== 0) {
-    const text = status === 157 && t.s.dialect?.id === 'tinyg-en' ? `The controller refused ${String(line)}: the arc centre is missing or at its start (status 157).` : `The controller refused ${String(line)} (status ${status}).`;
+    const meaning = t.s.dialect?.status.get(status)?.meaning;
+    const text = `The controller refused ${String(line)}${meaning === undefined ? '' : `: ${meaning}`} (status ${status}).`;
     if (ctx !== null && (ctx.op === 'change' || (ctx.op === 'home' && ctx.phase === 'homing'))) {
       // Nothing was started: end without a hold, and say why.
       t.set({ motion: null, base: returnBase(ctx, t.s), queue: t.s.queue.filter((q) => q.purpose !== 'motion' && q.purpose !== 'poll') });

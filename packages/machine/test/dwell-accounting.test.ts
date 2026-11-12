@@ -82,3 +82,15 @@ it('Stop cancels a trailing job dwell without waiting out its budget', async () 
   expect(await runUntil(h, () => h.session.snapshot.job?.phase === 'stopped', 2500)).toBe(true);
   expect(h.session.state.dwellWait).toBeNull();
 });
+
+it('modal-only acknowledgements cannot evict a still-running dwell from the idle guard', async () => {
+  const h = await jobHarness(candidate(450.04));
+  // G90 changes the model immediately: it consumes no planner slot. More than plannerBlocks+1
+  // ACKs can therefore follow the hidden dwell without proving that it finished.
+  await start(h, ['G21 G90', 'G4 P20', ...Array.from({ length: 40 }, () => 'G90')].join('\n'));
+  await h.run(1000);
+  expect(writes(h).filter(line => line.includes('G90')).length).toBeGreaterThanOrEqual(40);
+  expect(h.device.snapshot().plannerAvailable).toBe(32);
+  expect(h.session.snapshot.job?.phase).not.toBe('done');
+  expect(h.session.state.dwellWait?.durationMs).toBe(20_000);
+});

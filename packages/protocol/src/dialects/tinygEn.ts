@@ -46,6 +46,8 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     // 118 (stored settings run on their defaults, N61) is not listed: the session handles it as a start-up notice.
     [117, 'SETTING_REFUSED_IN_CYCLE', 'notAccepted'],
     [132, 'MCODE_COMMAND_UNSUPPORTED', 'mcodeUnsupported'],
+    // N104, release ee98f02b error.h:258 and arc.c: missing centre offsets are an ordinary refusal.
+    [157, 'ARC_OFFSETS_MISSING_FOR_SELECTED_PLANE', 'error', 'the arc centre is missing or at its start'],
     [172, 'L_WORD_IS_MISSING', 'lWordMissing'],
     [173, 'L_WORD_IS_INVALID', 'lWordInvalid'],
     [203, 'LIMIT_SWITCH_HIT', 'limitHit'],

@@ -86,12 +86,12 @@ class FrozenMap<K, V> implements ReadonlyMap<K, V> {
   }
 }
 
-/** A frozen status table from `[code, name, class]` rows. Duplicate codes are a data bug and throw at load. */
-export function statusTable(rows: readonly (readonly [number, string, StatusEntry['statusClass']])[]): ReadonlyMap<number, StatusEntry> {
+/** A frozen status table from `[code, name, class, meaning?]` rows. Duplicate codes are a data bug and throw at load. */
+export function statusTable(rows: readonly (readonly [number, string, StatusEntry['statusClass'], string?])[]): ReadonlyMap<number, StatusEntry> {
   const entries: [number, StatusEntry][] = [];
-  for (const [code, name, statusClass] of rows) {
+  for (const [code, name, statusClass, meaning] of rows) {
     if (entries.some(([c]) => c === code)) throw new Error(`duplicate status code ${code} in a dialect table`);
-    entries.push([code, Object.freeze({ name, statusClass })]);
+    entries.push([code, Object.freeze({ name, statusClass, ...(meaning === undefined ? {} : { meaning }) })]);
   }
   return new FrozenMap(entries);
 }

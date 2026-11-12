@@ -112,7 +112,9 @@ export type StatusClass =
 
 export interface StatusEntry {
   readonly name: string;
-  readonly statusClass: Exclude<StatusClass, 'ok' | 'error'>;
+  readonly statusClass: Exclude<StatusClass, 'ok'>;
+  /** Optional plain-language explanation shared by host refusal messages. */
+  readonly meaning?: string;
 }
 
 /**
