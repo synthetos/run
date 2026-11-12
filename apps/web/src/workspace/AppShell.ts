@@ -15,6 +15,7 @@
  * Prerendered into index.html (no model, no worker: Pause and Stop job are
  * disabled and say why) and hydrated by the workspace entry.
  */
+import { LibrarySyncNotice } from './cloud/SyncNotice.ts';
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
@@ -300,6 +301,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
           pane('safety', h(SafetyView, { model: props.model ?? null })),
         ),
       ),
+      h(LibrarySyncNotice, null),
       h(ReportDialog, { build: props.build, model, view: current }),
     ),
     h(

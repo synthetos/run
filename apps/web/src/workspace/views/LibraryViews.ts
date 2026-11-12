@@ -1,3 +1,4 @@
+import { librarySavedText } from '../cloud/librarySync.ts';
 import { toolMaterialLabel as toolMaterialName } from '../tools/labels.ts';
 import { PurchaseLine, AddLink } from './PurchaseLinks.ts';
 /**
@@ -257,7 +258,7 @@ export function MaterialsView(): ComponentChild {
               ['mine', `Mine (${myMaterialCount.value})`],
             ] as const
           ).map(([id, label]) => h('button', { type: 'button', key: id, class: `chip${filter === id ? ' selected' : ''}`, 'aria-pressed': filter === id ? 'true' : 'false', onClick: () => setFilter(id) }, label)),
-          h('span', { class: 'sync-line' }, myMaterialStore.saved.value ? 'Saved in this browser' : 'Not saved: this browser blocks storage'),
+          h('span', { class: 'sync-line' }, librarySavedText(myMaterialStore.saved.value)),
         ),
         h(
           'div',

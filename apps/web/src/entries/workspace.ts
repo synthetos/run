@@ -36,6 +36,7 @@ import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { startTheme } from '../theme/theme.ts';
 import { AppShell } from '../workspace/AppShell.ts';
 import { createWorkspaceModel } from '../workspace/model.ts';
+import { mountLibrarySync } from '../workspace/cloud/mount.ts';
 import { loadStoredLibraries } from '../workspace/storage.ts';
 import '../styles/base.css';
 import '../styles/workspace.css';
@@ -110,6 +111,7 @@ const channel = startBuildChannel(document);
 startTheme();
 installTipPlacement(document);
 loadStoredLibraries();
+mountLibrarySync(model);
 // Bench only: the owner rebuilds often, so an open tab learns when the server has a newer build (it never reloads itself).
 if (channel.kind === 'bench') {
   watchBuildFreshness(document.querySelector('[data-version]'), build, { fetchHtml: fetchIndexHtml, setInterval: (fn, ms) => window.setInterval(fn, ms), clearInterval: (h) => window.clearInterval(h as number) });

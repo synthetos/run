@@ -24,6 +24,8 @@ export interface AccountState {
 
 export const CHECKING: AccountState = Object.freeze({ status: 'checking', display: null, signIn: false, message: null });
 
+export const accountIdentity = signal<AccountRead['signedIn']>(null);
+
 export const accountState = signal<AccountState>(CHECKING);
 
 export function stateFrom(read: AccountRead): AccountState {
@@ -32,7 +34,9 @@ export function stateFrom(read: AccountRead): AccountState {
 }
 
 export async function refreshAccount(read: () => Promise<AccountRead> = () => fetchAccount()): Promise<AccountState> {
-  const next = stateFrom(await read());
+  const result = await read();
+  accountIdentity.value = result.signedIn;
+  const next = stateFrom(result);
   accountState.value = next;
   return next;
 }
@@ -55,6 +59,7 @@ export async function signOut(isLive: () => boolean, post: () => Promise<boolean
     return false;
   }
   const ok = await post();
+  if (ok) accountIdentity.value = null;
   accountState.value = ok ? { status: 'signed-out', display: null, signIn: accountState.value.signIn, message: null } : { ...accountState.value, message: SIGN_OUT_FAILED };
   return ok;
 }

@@ -1,0 +1,15 @@
+# Account library sync (A2-02)
+
+On staging, tools and materials use the run-session account. Production keeps browser storage until the records service is enabled there. Loopback permits the mocked records tests. All requests are same-origin and page-side; machine.worker and device-safety are unchanged.
+
+`storage.ts` attaches a backend to `tools.v2`, `materials.v2`, and `materials.own.v1`. Other stores keep their existing behavior. A separate `cloud-cache:<subject>` contains server revisions, pending writes, import decisions, and the confirmed import source plan. It is read before refreshing the account. Signing out or receiving 401/503 restores the browser libraries. Old account callbacks are cancelled before switching accounts.
+
+Copy is explicit. Import decisions use the local id and SHA-256 of canonical content. The source plan is persisted before preparation, and pending writes before network calls. Reloading can therefore resume even if interrupted before all records were prepared. Unchanged seed tools and built-in materials are not uploaded. Browser copies are not removed or rewritten.
+
+The records API accepts full Tool and Material records. The adapter resolves material forks for transport, preserves `forkOf`, and reconstructs their edits against the matching built-in parent on read. If that parent version is unavailable, the full material remains editable as an own record. Tool numbers use the existing `firmwareSlot.t`; an existing length offset is preserved, otherwise it is zero. This is library data only and does not write board settings. Seed store SKUs remain bundled display metadata. User tools take precedence over sample tool numbers; remaining clashes receive a free display number deterministically.
+
+Writes use `parent_rev`. A 409 keeps the server version and saves the local edit under a new id with “(from this browser)” appended. Matching content handles a lost successful response without a duplicate. Deleting a newly created tool during its PUT queues an archive after acknowledgement. Quota (413) stops the queue, lists what stayed local, and offers Try again. Other failures retain pending writes and retry with backoff from one second up to one minute.
+
+The safety allow-matrix's `cloudSync` decision is used directly, including all paused job states. Entering a paused state aborts outstanding fetches and prevents new ones; resume restarts pending work. No background request is needed by the motion or Stop paths.
+
+Validation is in `apps/web/test/cloudLibrary.test.ts` and `tools/e2e/specs/library-sync.fake-serial.ts`. The latter mocks the same-origin API, proves no upload before Copy and no duplicate after reload, and writes import/saved-state screenshots in both themes to the uncommitted `screens/` directory.

@@ -1785,3 +1785,6 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
 .place-fit p { margin: 0; }
 .place-z { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
 .place-z .unit-input { width: 7.5em; }
+
+/* Account sync notices stay below the machine strip, even when a quota leaves many records local. */
+.library-sync-notice { max-height: min(280px, calc(100vh - var(--strip-bottom, 142px) - 60px)); overflow: auto; }

@@ -1,8 +1,7 @@
 /**
  * The one local storage module of the workspace libraries (machines, tools,
  * materials, setup). Records live in this browser's localStorage under
- * `run.ws.<name>`, as versioned JSON. Cloud sync (Track A2) replaces this
- * module's backend later; callers do not change.
+ * `run.ws.<name>`, as versioned JSON. Account sync attaches a backend to tools and materials only; callers do not change.
  *
  * Storage can be missing or throw (private windows, blocked site data, a
  * full quota): reads then fall back to the seed and writes keep the value
@@ -67,22 +66,44 @@ export interface Stored<T> {
 }
 
 const loaders: (() => void)[] = [];
+export interface StoredBinding {
+  readonly name: string;
+  local(): unknown;
+  show(value: unknown): void;
+  connect(save: (next: unknown, previous: unknown) => boolean): void;
+  disconnect(): void;
+}
+const bindings = new Map<string, StoredBinding>();
+/** Account backends attach only to explicitly selected libraries; all other stores stay local. */
+export function storedBinding(name: string): StoredBinding | undefined { return bindings.get(name); }
+
 
 export function stored<T>(name: string, seed: T, valid: (v: unknown) => v is T, storage: () => StorageLike | null = browserStorage): Stored<T> {
   const value = signal<T>(seed);
   const saved = signal(true);
+  let local: T = seed;
+  let localSaved = true;
+  let cloudSave: ((next: unknown, previous: unknown) => boolean) | null = null;
+  bindings.set(name, {
+    name, local: () => local,
+    show(next) { if (valid(next)) value.value = next; },
+    connect(save) { cloudSave = save; },
+    disconnect() { cloudSave = null; value.value = local; saved.value = localSaved; },
+  });
   loaders.push(() => {
     const s = storage();
-    saved.value = s !== null;
+    localSaved = s !== null; saved.value = localSaved;
     const found = readStored(name, valid, s);
-    if (found !== null) value.value = found;
+    if (found !== null) { local = found; value.value = found; }
   });
   return {
     value,
     saved,
     set(next: T) {
+      const previous = value.value;
       value.value = next;
-      saved.value = writeStored(name, next, storage());
+      if (cloudSave !== null) saved.value = cloudSave(next, previous);
+      else { local = next; localSaved = writeStored(name, next, storage()); saved.value = localSaved; }
     },
   };
 }

@@ -1,3 +1,4 @@
+import { librarySavedText } from '../../cloud/librarySync.ts';
 import { toolMaterialLabel, toolCoatingLabel } from '../../tools/labels.ts';
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
@@ -19,7 +20,7 @@ export function ToolsView(): ComponentChild {
   const unit = toolUnits.value.value;
   return h('div', { class: 'tools-view' },
     h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, 'Tool library')), h('div', { class: 'view-actions' }, h('button', { type: 'button', class: 'primary', 'data-action': 'add-tool', onClick: () => setAdding(true) }, 'Add a tool'))),
-    h('div', { class: 'list-panel' }, h('div', { class: 'filter-row', role: 'group', 'aria-label': 'Filter tools' }, ...[['all', 'All'], ['flat', 'End mills'], ['ball', 'Ball nose'], ['v-bit', 'V-bits'], ['drill', 'Drills'], ['o-flute', 'O-flutes']].map(([id, label]) => h('button', { type: 'button', class: `chip${filter === id ? ' selected' : ''}`, 'aria-pressed': filter === id, onClick: () => setFilter(id ?? 'all') }, label)), h('span', { class: 'sync-line' }, toolStore.saved.value ? 'Saved in this browser' : 'Not saved: this browser blocks storage')),
+    h('div', { class: 'list-panel' }, h('div', { class: 'filter-row', role: 'group', 'aria-label': 'Filter tools' }, ...[['all', 'All'], ['flat', 'End mills'], ['ball', 'Ball nose'], ['v-bit', 'V-bits'], ['drill', 'Drills'], ['o-flute', 'O-flutes']].map(([id, label]) => h('button', { type: 'button', class: `chip${filter === id ? ' selected' : ''}`, 'aria-pressed': filter === id, onClick: () => setFilter(id ?? 'all') }, label)), h('span', { class: 'sync-line' }, librarySavedText(toolStore.saved.value))),
       h('div', { class: 'tool-table-wrap' }, h('table', { class: 'tool-table' }, h('thead', null, h('tr', null, ...['Drawing', 'Tool', 'Diameter', 'Flutes', 'Material', 'Notes'].map(label => h('th', { scope: 'col' }, label)))),
         h('tbody', null, toolsByNumber(tools.filter(t => filter === 'all' || t.tool.type === filter)).map(e => h('tr', { key: e.tool.id, tabindex: 0, 'aria-selected': selected === e.tool.id, 'data-tool-row': e.number, onClick: () => setSelected(e.tool.id), onKeyDown: (event: KeyboardEvent) => { if (event.key === 'Enter') setSelected(e.tool.id); } },
           h('td', { class: 't-art' }, h(ToolDrawing, { tool: e.tool, thumb: true })),
