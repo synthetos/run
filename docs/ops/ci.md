@@ -8,7 +8,8 @@ ROADMAP P0-03, RUN_PLAN §6.2, SAFETY H12 and H46. The workflow is
 
 | Job | Runs on | Holds | What it does |
 |---|---|---|---|
-| `verify` | every PR and every push to `main` | no secret, `contents: read` | Full install (`--frozen-lockfile --ignore-scripts`), then typecheck, lint, dependency-cruiser, licence gate, CI policy (`pnpm ci-policy`), unit tests |
+| `verify` | every PR, push, weekly and manual run | no secret, `contents: read` | Full install (`--frozen-lockfile --ignore-scripts`), then typecheck, lint, dependency-cruiser, licence gate, CI policy (`pnpm ci-policy`), unit tests |
+| `mutation` | every PR/push (incremental); Sunday 06:00 UTC and manual dispatch (full) | no secret, `contents: read` | Safety mutation whole-score 90% gate; independent of `verify`, required by attestation and both deploys |
 | `build` | every PR and push | no secret, `contents: read` | Two clean checkouts (`a/`, `b/`). In each one it installs **only the production build toolchain** from a lockfile subset, then builds the web bundle and the Worker script (`tools/gates/src/build/worker-cli.ts`, P0-04). It fails unless the two `dist/` trees, and the two Worker builds, are byte-identical. Then it runs the bundle scan and uploads the artifact `run-web` (`run-web.tar`, `run-worker.tar` and their `.sha256` manifests) |
 | `e2e` | every PR and push | no secret, `contents: read` | Downloads the artifact and checks it against its manifests, then runs the Playwright suite against `wrangler dev` serving **that artifact** under the origin guard (T-S25), then the third-party canary. See "The e2e job" below |
 | `e2e-fake-serial` | every PR and push | no secret, `contents: read` | Builds the fake-serial TEST artifact from the same commit (before anything else lands in the checkout), downloads and verifies the production site, proves the two differ only in the transport seam chunk (`tools/gates/src/artifact/diff-cli.ts`), then runs the fake-serial Playwright suite against the test artifact. Uploads nothing; the test build is never attested or deployed. See docs/testing/fake-serial.md (P0-14) |
@@ -19,6 +20,43 @@ ROADMAP P0-03, RUN_PLAN §6.2, SAFETY H12 and H46. The workflow is
 Every action is pinned to a full commit SHA. The tag is kept in a comment
 next to it. No job uses `pull_request_target` or `workflow_run`, so pull
 requests from forks run only the secret-free jobs.
+
+### Incremental mutation gate
+
+`verify` has a 60-minute timeout and no longer runs Stryker. The independent
+`mutation` job has a 360-minute timeout for cold/full runs. `attest` needs
+`verify`, `mutation` and `build`; both deploy jobs explicitly need `mutation`
+as well as their existing gates. A failed or cancelled mutation job blocks deployment.
+
+Pushes (all branches) and PRs targeting main use `--incremental`, with
+`packages/safety/reports/stryker-incremental.json` as the only cached file.
+No cached file means a full run. Stryker still evaluates the whole mutation
+score against the unchanged `thresholds.break: 90`; it does not gate only changed mutants.
+Sunday's scheduled run and `workflow_dispatch` use `--incremental --force`
+to retest every mutant and produce a new incremental file. Other secret-free
+jobs also run on those events; attestation and deploys remain main-push-only.
+
+The separate `actions/cache/restore` and `actions/cache/save` actions are pinned
+to v4.2.4 commit `0400d5f644dc74513175e3cd8d07132dd4860809`. Restore is read-only.
+Save runs only after success on main pushes or main weekly/manual runs; PRs
+and other branches never save. Manual runs on another branch still retest all
+mutants but do not publish cache results. GitHub's branch scoping prevents PR
+caches from replacing main's cache. Keys include OS, lockfile, Stryker/Vitest
+configuration, SAFETY.md and fixtures, plus run ID/attempt for immutable fresh
+entries; the restore prefix selects the newest compatible entry. Cache eviction
+only makes the next run slower. Weekly full runs also cover changes incremental
+analysis cannot detect (for example indirect dependencies).
+
+The `mutation-job` policy pins the executable job shape, including setup,
+cache path/keys/save condition, event selection and exact Stryker commands.
+Additional steps, job/step conditions, shell overrides and command suffixes
+require policy review. Existing secret, permission and SHA rules still apply.
+This is repository consistency checking; branch protection remains the control
+against a PR rewriting both the workflow and its policy.
+
+References: [Stryker incremental mode](https://stryker-mutator.io/docs/stryker-js/incremental/),
+[configuration](https://stryker-mutator.io/docs/stryker-js/configuration/),
+[GitHub cache action](https://github.com/actions/cache/tree/0400d5f644dc74513175e3cd8d07132dd4860809).
 
 ### Why the deploy jobs cannot run on a pull request
 
@@ -34,7 +72,7 @@ requests from forks run only the secret-free jobs.
   **environment** secret, so no job without the environment can read it.
 - `pnpm ci-policy` fails the `verify` job if any of this changes:
   - a deploy condition loses a term or gains `||`, `!` or a function;
-  - a deploy job stops needing `verify`, `build`, `e2e`, `e2e-fake-serial` and `attest`;
+  - a deploy job stops needing `verify`, `mutation`, `build`, `e2e`, `e2e-fake-serial` and `attest`;
   - another job names an environment;
   - anything other than the deploy jobs mentions `secrets` or `CLOUDFLARE_API_TOKEN`.
 
@@ -108,6 +146,7 @@ cannot follow: anchors, aliases, merge keys and tabs. It enforces:
 | `expression-in-run` | No `${{ }}` inside a `run:` script. Values arrive through `env:`, so a PR title or branch name can never become shell code |
 | `write-permission` | Top-level permissions are read-only. Only `attest` may hold `id-token: write` and `attestations: write`. `write-all` is refused |
 | `continue-on-error` | Refused, so a failing gate always fails the run |
+| `mutation-job` | Reviewed unconditional mutation job, main-only cache save, incremental/full triggers, and attestation dependency |
 | `verify-job` | `ci.yml` runs on `pull_request`, and `verify` is unconditional and runs `pnpm -r test` |
 | `fake-serial-job` | `e2e-fake-serial` is unconditional, needs `build`, builds the test artifact before downloading anything, verifies the production site, runs the artifact diff, then the fake-serial suite; uploads nothing; never names `RUN_E2E_SITE`/`RUN_E2E_WORKER` |
 | `e2e-job` | `e2e` is unconditional, needs `build`, serves the extracted artifact (job-level `RUN_E2E_SITE`, `RUN_E2E_WORKER`, named nowhere else in the job), verifies it, then runs the suite, then the canary |

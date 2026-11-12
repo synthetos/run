@@ -40,7 +40,7 @@ describe('the real workflows', () => {
 
   it('grep: only the deploy jobs mention the Cloudflare secret, and both do', () => {
     const jobs = readJobs(readLines(CI));
-    expect(jobs.map((j) => j.name)).toEqual(['verify', 'build', 'e2e', 'e2e-fake-serial', 'attest', 'deploy-staging', 'deploy-production']);
+    expect(jobs.map((j) => j.name)).toEqual(['verify', 'mutation', 'build', 'e2e', 'e2e-fake-serial', 'attest', 'deploy-staging', 'deploy-production']);
     const mentioning = jobs.filter((j) => j.lines.some((l) => l.text.includes(DEPLOY_SECRET) || /\bsecrets\b/.test(l.text))).map((j) => j.name);
     expect(mentioning).toEqual([...DEPLOY_JOBS]);
     // Nothing outside the jobs block mentions it either (comments aside).
@@ -84,7 +84,7 @@ describe('secrets', () => {
 
   it('fails on a workflow-level env that reads a secret', () => {
     const bad = mutate(CI, 'permissions:\n  contents: read\n\nconcurrency:', 'env:\n  X: ${{ secrets.ANY }}\n\npermissions:\n  contents: read\n\nconcurrency:');
-    expect(rules(bad)).toEqual(['secret-outside-deploy']);
+    expect(rules(bad)).toEqual(['mutation-job', 'secret-outside-deploy']);
   });
 
   it('fails when a deploy job uses any other secret, or all of them', () => {
@@ -107,7 +107,7 @@ describe('secrets', () => {
   });
 
   it('treats a deploy-named job outside ci.yml as an ordinary job', () => {
-    const other = "on:\n  push:\n    branches: [main]\npermissions:\n  contents: read\njobs:\n  deploy-staging:\n    if: github.event_name == 'push' && github.ref == 'refs/heads/main'\n    needs: [verify, build, e2e, attest]\n    environment: staging\n    runs-on: ubuntu-24.04\n    steps:\n      - env:\n          T: ${{ secrets.CLOUDFLARE_API_TOKEN }}\n        run: echo hi\n";
+    const other = "on:\n  push:\n    branches: [main]\npermissions:\n  contents: read\njobs:\n  deploy-staging:\n    if: github.event_name == 'push' && github.ref == 'refs/heads/main'\n    needs: [verify, mutation, build, e2e, attest]\n    environment: staging\n    runs-on: ubuntu-24.04\n    steps:\n      - env:\n          T: ${{ secrets.CLOUDFLARE_API_TOKEN }}\n        run: echo hi\n";
     expect(rules(other, 'other.yml')).toEqual(expect.arrayContaining(['secret-outside-deploy', 'environment-outside-deploy']));
   });
 });
@@ -132,12 +132,12 @@ describe('the deploy gate', () => {
   });
 
   it('fails when a deploy job does not need e2e', () => {
-    expect(rules(mutate(CI, 'needs: [verify, build, e2e, e2e-fake-serial, attest]\n', 'needs: [verify, build, e2e-fake-serial, attest]\n'))).toEqual(['deploy-gate']);
+    expect(rules(mutate(CI, 'needs: [verify, mutation, build, e2e, e2e-fake-serial, attest]\n', 'needs: [verify, mutation, build, e2e-fake-serial, attest]\n'))).toEqual(['deploy-gate']);
   });
 
   it('fails when a deploy job does not need e2e-fake-serial (P0-14)', () => {
-    expect(rules(mutate(CI, 'needs: [verify, build, e2e, e2e-fake-serial, attest]\n', 'needs: [verify, build, e2e, attest]\n'))).toEqual(['deploy-gate']);
-    expect(rules(mutate(CI, 'needs: [verify, build, e2e, e2e-fake-serial, attest, deploy-staging]\n', 'needs: [verify, build, e2e, attest, deploy-staging]\n'))).toEqual([
+    expect(rules(mutate(CI, 'needs: [verify, mutation, build, e2e, e2e-fake-serial, attest]\n', 'needs: [verify, mutation, build, e2e, attest]\n'))).toEqual(['deploy-gate']);
+    expect(rules(mutate(CI, 'needs: [verify, mutation, build, e2e, e2e-fake-serial, attest, deploy-staging]\n', 'needs: [verify, mutation, build, e2e, attest, deploy-staging]\n'))).toEqual([
       'deploy-gate',
     ]);
   });
@@ -220,7 +220,7 @@ describe('verify', () => {
   });
 
   it('fails when CI no longer runs on pull requests', () => {
-    expect(rules(mutate(CI, 'on:\n  pull_request:\n    branches: [main]\n', 'on:\n'))).toEqual(['verify-job']);
+    expect(rules(mutate(CI, 'on:\n  pull_request:\n    branches: [main]\n', 'on:\n'))).toEqual(['verify-job', 'mutation-job']);
   });
 
   it('fails on continue-on-error anywhere', () => {
@@ -372,7 +372,7 @@ describe('supply chain and injection', () => {
   });
 
   it('fails on pull_request_target and workflow_run', () => {
-    expect(rules(mutate(CI, 'on:\n  pull_request:\n', 'on:\n  pull_request_target:\n  pull_request:\n'))).toEqual(['banned-trigger']);
+    expect(rules(mutate(CI, 'on:\n  pull_request:\n', 'on:\n  pull_request_target:\n  pull_request:\n'))).toEqual(['banned-trigger', 'mutation-job']);
     expect(rules(mutate(REVIEW, 'on:\n', 'on:\n  workflow_run:\n    workflows: [ci]\n'), 'safety-review.yml')).toEqual(['banned-trigger']);
   });
 
@@ -445,4 +445,57 @@ it('confines data provisioning to staging and the exact command, with migrations
  expect(rules(mutate(CI,'run: node tools/gates/src/deploy/data-provision-cli.ts','run: echo extra && node tools/gates/src/deploy/data-provision-cli.ts'))).toContain('secret-outside-deploy');
  expect(rules(mutate(CI,'wrangler d1 migrations apply RUN_DATA_DB','wrangler d1 execute RUN_DATA_DB'))).toContain('d1-credentials');
  expect(rules(mutate(CI,'worker/data/index.mjs --no-bundle','workers/run-data/src/index.ts'))).toContain('deploy-config');
+});
+
+describe('mutation gate', () => {
+  it('keeps the whole-score break threshold at 90', () => {
+    const config = JSON.parse(readFileSync(join(REPO_ROOT, 'packages/safety/stryker.config.json'), 'utf8')) as { thresholds: { break: number }; mutate: string[] };
+    expect(config.thresholds.break).toBe(90);
+    expect(config.mutate).toEqual(['src/**/*.ts']);
+  });
+
+  it.each([
+    ['inherited shell', 'jobs:\n', 'defaults:\n  run:\n    shell: echo {0}\njobs:\n'],
+    ['inherited environment', 'jobs:\n', 'env:\n  NODE_OPTIONS: --require=./bypass.cjs\njobs:\n'],
+    ['missing job', '  mutation:\n', '  renamed-mutation:\n'],
+    ['conditional job', '    name: mutation\n', '    name: mutation\n    if: false\n'],
+    ['conditional command', '      - name: Mutation testing (safety, whole-score 90% gate)\n', '      - name: Mutation testing (safety, whole-score 90% gate)\n        if: false\n'],
+    ['shell override', '    name: mutation\n', '    name: mutation\n    defaults:\n      run:\n        shell: echo {0}\n'],
+    ['extra step', '      - name: Restore mutation results (read-only)\n', '      - run: echo bypass\n      - name: Restore mutation results (read-only)\n'],
+    ['ignored failure', 'reports/stryker-incremental.json --force\n', 'reports/stryker-incremental.json --force || true\n'],
+    ['missing force', 'reports/stryker-incremental.json --force\n', 'reports/stryker-incremental.json\n'],
+    ['missing incremental', 'mutation --incremental --incrementalFile', 'mutation --incrementalFile'],
+    ['unsafe cache path', 'path: packages/safety/reports/stryker-incremental.json', 'path: packages/safety'],
+    ['combined cache can save on PR', 'actions/cache/restore@', 'actions/cache@'],
+    ['save on PR', "if: github.ref == 'refs/heads/main' && (github.event_name", "if: github.ref != '' && (github.event_name"],
+    ['save after failure', "if: github.ref == 'refs/heads/main' && (github.event_name", "if: always() && github.ref == 'refs/heads/main' && (github.event_name"],
+    ['no schedule', "  schedule:\n    - cron: '0 6 * * 0'\n", ''],
+    ['no manual run', '  workflow_dispatch:\n', ''],
+    ['push filter', '  push:\n', '  push:\n    paths: [packages/safety/**]\n'],
+    ['attestation bypass', 'needs: [verify, mutation, build]\n', 'needs: [verify, build]\n'],
+    ['timeout removed', '    timeout-minutes: 360\n', ''],
+  ])('rejects %s', (_label, from, to) => {
+    expect(rules(mutate(CI, from, to))).toContain('mutation-job');
+  });
+
+  it.each(['deploy-staging', 'deploy-production'])('%s explicitly waits for mutation', name => {
+    const job = readJobs(readLines(CI)).find(j => j.name === name);
+    const needs = job?.lines.find(l => l.text.startsWith('needs:'))?.text ?? '';
+    expect(needs).toContain('mutation');
+    expect(rules(mutate(CI, needs, needs.replace('mutation, ', '')))).toContain('deploy-gate');
+  });
+
+  it.each(['schedule', 'workflow_dispatch'])('never deploys or attests on %s', event => {
+    for (const job of readJobs(readLines(CI)).filter(j => [...DEPLOY_JOBS, 'attest'].includes(j.name))) {
+      const condition = job.lines.find(l => l.indent === 4 && l.text.startsWith('if:'))?.text.slice(3).trim() ?? '';
+      const terms = parseConjunction(condition);
+      expect(terms).toBeDefined();
+      expect(evaluateConjunction(terms ?? [], { 'github.event_name': event, 'github.ref': 'refs/heads/main', 'vars.RUN_DEPLOY_ENABLED': 'true' })).toBe(false);
+    }
+  });
+
+  it('cannot introduce a secret or write permission to mutation', () => {
+    expect(rules(mutate(CI, '    name: mutation\n', '    name: mutation\n    env:\n      TOKEN: ${{ secrets.ANY }}\n'))).toContain('secret-outside-deploy');
+    expect(rules(mutate(CI, '    name: mutation\n', '    name: mutation\n    permissions: write-all\n'))).toContain('write-permission');
+  });
 });

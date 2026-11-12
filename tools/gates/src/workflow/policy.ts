@@ -11,7 +11,7 @@ import { dataStep, DATA_PROVISION, DATA_MIGRATION, DATA_DEPLOY } from './dataCre
  *   `secrets.CLOUDFLARE_API_TOKEN` (or the separate D1 token in its pinned migration step). `secrets: inherit`, `secrets[...]` and
  *   `toJSON(secrets)` are refused everywhere.
  * - `deploy-gate`: each deploy job runs only on a push to `main` (its `if:`
- *   is a plain conjunction of equalities that requires both), needs `verify`, `build`, `e2e`,
+ *   is a plain conjunction of equalities that requires both), needs `verify`, `mutation`, `build`, `e2e`,
  *   `e2e-fake-serial` and `attest`, and declares its protected environment.
  * - `environment-outside-deploy`: no other job names an environment (an
  *   environment can carry secrets).
@@ -25,6 +25,8 @@ import { dataStep, DATA_PROVISION, DATA_MIGRATION, DATA_DEPLOY } from './dataCre
  * - `write-permission`: no `write-all`; `write` scopes only where listed in
  *   WRITE_PERMISSIONS; top-level permissions are read-only.
  * - `continue-on-error`: refused, so a failing gate always fails the run.
+ * - `mutation-job` (ci.yml): the reviewed secret-free job and cache scope,
+ *   incremental/full triggers and attestation dependency cannot be bypassed.
  * - `verify-job` (ci.yml): a `verify` job with no `if:` runs the tests on
  *   every pull request.
  * - `e2e-job` (ci.yml, P0-06): the `e2e` job is unconditional, needs
@@ -84,6 +86,7 @@ import { dataStep, DATA_PROVISION, DATA_MIGRATION, DATA_DEPLOY } from './dataCre
  * these files use and fails closed on anything else. Dependency-free.
  */
 
+import { MUTATION_JOB } from './mutationJob.ts';
 import { D1_SECRET, d1ReadinessIsConfined, d1StepIsConfined } from './d1Credentials.ts';
 
 export const DEPLOY_JOBS: readonly string[] = ['deploy-staging', 'deploy-production'];
@@ -91,7 +94,7 @@ export const DEPLOY_ENVIRONMENTS: Readonly<Record<string, string>> = {
   'deploy-staging': 'staging',
   'deploy-production': 'production',
 };
-export const DEPLOY_NEEDS: readonly string[] = ['verify', 'build', 'e2e', 'e2e-fake-serial', 'attest'];
+export const DEPLOY_NEEDS: readonly string[] = ['verify', 'mutation', 'build', 'e2e', 'e2e-fake-serial', 'attest'];
 
 export const DEPLOY_SECRET = 'CLOUDFLARE_API_TOKEN';
 
@@ -196,6 +199,7 @@ export type PolicyRule =
   | 'expression-in-run'
   | 'write-permission'
   | 'continue-on-error'
+  | 'mutation-job'
   | 'verify-job'
   | 'e2e-job'
   | 'fake-serial-job'
@@ -370,6 +374,9 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
     // workflow is treated like every other job.
     const isDeploy = name === 'ci.yml' && job !== undefined && DEPLOY_JOBS.includes(job.name);
     const content = line.inBlock ? line.text : line.text;
+    if (name === 'ci.yml' && job === undefined && !line.inBlock && line.indent === 0 && /^(?:env|defaults):/.test(line.text)) {
+      add(line.no, 'mutation-job', 'workflow-level env/defaults could override the reviewed mutation job');
+    }
 
     if (/\t/.test(source.split('\n')[line.no - 1] ?? '')) add(line.no, 'yaml-subset', 'tab character; indent with spaces');
     if (!line.inBlock) {
@@ -492,6 +499,7 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
     const onIndex = lines.findIndex((l) => !l.inBlock && l.indent === 0 && /^(on|"on"|'on'):/.test(l.text));
     const triggers = onIndex === -1 ? [] : lines.slice(onIndex + 1).filter((l, i, all) => all.slice(0, i + 1).every((x) => x.indent > 0 || x.text === '')).map((l) => l.text);
     if (!triggers.some((t) => /^pull_request:/.test(t))) add(onIndex + 1, 'verify-job', 'ci.yml must run on pull_request');
+    checkMutationJob(jobs, triggers, add);
     const verify = jobs.find((j) => j.name === 'verify');
     if (verify === undefined) {
       add(1, 'verify-job', 'ci.yml must have a verify job');
@@ -885,4 +893,25 @@ function checkSafetyReviewShape(job: Job, add: (line: number, rule: PolicyRule, 
   if (opener === undefined || opener.text.replace(/^-\s+/, '') !== 'run: |') flag(opener?.no ?? job.line, "the safety-review gate must be a 'run: |' block");
   const after = job.lines.slice(end + 1).find((l) => l.text !== '');
   if (after !== undefined) flag(after.no, 'the safety-review gate must be the last step of the job');
+}
+
+/** Fail closed on the mutation gate, cache scope and full-run triggers. */
+function checkMutationJob(jobs: readonly Job[], triggers: readonly string[], add: (line: number, rule: PolicyRule, message: string) => void): void {
+  const flag = (line: number, message: string): void => add(line, 'mutation-job', message);
+  const mutation = jobs.find(j => j.name === 'mutation');
+  const shape = (lines: readonly Line[]): string => JSON.stringify(lines.filter(l => l.text !== '').map(l => [l.indent, l.inBlock, l.text]));
+  if (mutation === undefined || shape(mutation.lines) !== shape(readLines(MUTATION_JOB))) {
+    flag(mutation?.line ?? 1, 'mutation must use the reviewed unconditional job, commands, timeout and main-only cache save');
+  }
+  const expectedTriggers = ['pull_request:', 'branches: [main]', 'push:', 'schedule:', "- cron: '0 6 * * 0'", 'workflow_dispatch:'];
+  if (JSON.stringify(triggers.filter(t => t !== '')) !== JSON.stringify(expectedTriggers)) {
+    flag(1, 'ci must run on pushes and PRs, weekly Sunday 06:00 UTC and manual dispatch');
+  }
+  const attest = jobs.find(j => j.name === 'attest');
+  if (attest === undefined || !listValue(attest, 'needs').includes('mutation')) flag(attest?.line ?? 1, 'attest must need mutation');
+  for (const job of jobs) {
+    if (job.name !== 'mutation' && job.lines.some(l => /@synthetos\/safety mutation|actions\/cache(?:\/|@)/.test(l.text))) {
+      flag(job.line, 'mutation commands and cache actions belong only in the mutation job');
+    }
+  }
 }
