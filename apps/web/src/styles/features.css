@@ -494,3 +494,20 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 
 /* "Use the file’s tool for T1?" (workspace/ToolMismatchNotes.ts). */
 .tool-file-title { margin: 0 0 6px; font-size: 1.05rem; }
+
+/* Tool edits are a local draft in a compact dialog, with the full table behind it. */
+.tool-modal-wrap { position: fixed; }
+.dialog.tool-modal { width: 1020px; padding: 16px 20px; overflow: visible; }
+.tool-modal .tool-modal-pane { min-height: 355px; padding-top: 10px; }
+.tool-modal .tool-editor { display: grid; grid-template-columns: 38% 1fr; gap: 24px; }
+.tool-modal .tool-figure { position: static; align-content: start; margin: 0; }
+.tool-modal .tool-figure-svg { max-height: 265px; }
+.tool-modal .field { margin-top: 0; }
+.tool-modal .field-grid, .tool-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+.tool-modal .field input, .tool-modal .field select { height: 30px; }
+.tool-modal .field textarea { width: 100%; min-height: 64px; }
+.tool-modal .dialog-actions { align-items: center; margin-top: 12px; }
+.tool-modal .dialog-actions > :first-child { margin-right: auto; }
+.tool-modal .tool-life { display: flex; align-items: center; gap: 8px; }
+.tool-modal .purchases { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+@media (max-width: 760px) { .tool-modal .tool-editor { grid-template-columns: 1fr; } .dialog.tool-modal { overflow: auto; } }

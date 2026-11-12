@@ -69,8 +69,8 @@ describe('Use the file’s tool', () => {
   it('a new tool from the file takes T1; the table’s T1 keeps its record under the next free number', () => {
     const list = [entry(1, { name: '3.175 mm 2-flute up-cut', geometry: { diameter: 3.175 } }), entry(4)];
     const plan = useFilePlan(list, file({}), 'new-id');
-    expect(plan.text).toBe('A new tool, 6 mm end mill, becomes T1. Your 3.175 mm 2-flute up-cut moves to T5.');
-    expect(plan.next.map((e) => [e.number, e.tool.id])).toEqual([[5, 't1'], [4, 't4'], [1, 'new-id']]);
+    expect(plan.text).toBe('A new tool, 6 mm end mill, becomes T1. Your 3.175 mm 2-flute up-cut moves to T2.');
+    expect(plan.next.map((e) => [e.number, e.tool.id])).toEqual([[2, 't1'], [4, 't4'], [1, 'new-id']]);
     const made = plan.next.find((e) => e.number === 1)?.tool;
     expect(made).toMatchObject({ name: '6 mm end mill', type: 'flat', geometry: { diameter: 6, shank: 6 }, tags: [FROM_FILE_TAG] });
     expect(made?.description).toBe('From the file (line 3): Boss top: T1 D6 flat end mill');
@@ -83,7 +83,7 @@ describe('Use the file’s tool', () => {
     expect(update.next).toHaveLength(1);
     expect(update.next[0]?.tool).toMatchObject({ id: 'ff', version: 3, type: 'ball', geometry: { diameter: 8 } });
     const moved = useFilePlan([entry(1, { name: 'T1 tool' })], file({}), 'n');
-    expect(moved.next.find((e) => e.tool.id === 't1')?.tool.name).toBe('T2 tool');
+    expect(moved.next.find((e) => e.tool.id === 't1')?.tool.name).toBe('T1 tool');
     const added = useFilePlan([entry(2)], file({ vAngle: 60, type: 'v-bit', diameterMm: 12.7 }), 'v');
     expect(added.text).toBe('A new tool, 12.7 mm V-bit, is added as T1.');
     expect(added.next.find((e) => e.number === 1)?.tool.geometry.vAngle).toBe(60);

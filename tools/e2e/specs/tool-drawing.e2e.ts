@@ -31,7 +31,7 @@ test('typing a stickout moves its dimension live; impossible numbers are drawn a
   await tools(page);
   const inspector = page.locator('.tools-view [aria-label="Selected tool"]');
   await page.locator('.tools-view tr[data-tool-row="2"] .row-link').click();
-  await expect(inspector.locator('h2')).toHaveText('T2 · 6 mm 3-flute ZrN');
+  await expect(inspector.locator('h2')).toHaveText('Edit T2 · 6 mm 3-flute ZrN');
   const figure = inspector.locator('[data-tool-figure]');
   await expect(figure.locator('[data-dim="stickout"] text')).toHaveText('Stickout: out of the holder 26');
   const before = await dimLength(page, 'stickout');
@@ -84,6 +84,7 @@ for (const theme of ['light', 'dark'] as const) {
         expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width + 1);
         await page.waitForTimeout(150);
         await inspector.locator('.tool-editor').screenshot({ path: `${SHOTS as string}/tool-${name}-${width}-${theme}.png` });
+        await inspector.locator('[data-action="cancel-tool"]').click();
       }
     });
   }

@@ -1,3 +1,4 @@
+import { toolDisplayName } from '../tools/displayName.ts';
 /**
  * Phase 3 jobs in the Run view (owner 2026-11-02; SAFETY §4.4a, H70-H78):
  *
@@ -25,7 +26,7 @@ export { JobStatus, type StopHooks } from './JobStatusCard.ts';
 function toolName(n: number | null): string {
   if (n === null) return 'the next tool';
   const t = toolStore.value.value.find((x) => x.number === n);
-  return t === undefined ? `T${n} (not in your library)` : `T${n}, ${t.tool.name} (${t.tool.geometry.diameter} mm)`;
+  return t === undefined ? `T${n} (not in your library)` : `T${n}, ${toolDisplayName(t.tool)} (${t.tool.geometry.diameter} mm)`;
 }
 
 /** What to do at a stop point: tool change, refused line, breakpoint, program stop. */

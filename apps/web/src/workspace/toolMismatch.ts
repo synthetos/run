@@ -1,3 +1,5 @@
+import { freeToolNumber } from './tools/freeNumber.ts';
+import { toolDisplayName } from './tools/displayName.ts';
 /**
  * The file's tools against the tool table (tool-mismatch, 2026-11-10): the CAM comment says T1 is a 6 mm end mill,
  * the table's T1 is 3.175 mm. On the machine that is the wrong tool or the wrong offsets; in the 3D view the grooves
@@ -163,11 +165,9 @@ export function useFilePlan(list: readonly PlanEntry[], f: FileTool, newId: stri
   }
   const tool = toolFromFile(f, newId);
   if (current === undefined) return { text: `A new tool, ${tool.name}, is added as T${f.number}.`, next: [...list, { number: f.number, store: null, tool }] };
-  const free = Math.max(0, ...list.map((e) => e.number)) + 1;
-  // A tool still called by its default name ("T1 tool") follows its new number, as setToolNumber does.
-  const moved = current.tool.name === `T${current.number} tool` ? { ...current.tool, name: `T${free} tool` } : current.tool;
+  const free = freeToolNumber(list);
   return {
-    text: `A new tool, ${tool.name}, becomes T${f.number}. Your ${current.tool.name} moves to T${free}.`,
-    next: [...list.map((e) => (e === current ? { ...e, number: free, tool: moved } : e)), { number: f.number, store: null, tool }],
+    text: `A new tool, ${tool.name}, becomes T${f.number}. Your ${toolDisplayName(current.tool)} moves to T${free}.`,
+    next: [...list.map((e) => (e === current ? { ...e, number: free, tool: current.tool } : e)), { number: f.number, store: null, tool }],
   };
 }

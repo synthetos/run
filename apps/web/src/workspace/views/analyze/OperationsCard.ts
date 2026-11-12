@@ -1,3 +1,4 @@
+import { toolDisplayName } from '../../tools/displayName.ts';
 /**
  * Analyze → Operations (docs/design/ANALYZE.md §3, slice 1): one card per CAM operation, named as the file names it,
  * with its tool from the tool table, its plunge and cut feeds, and the cutting check, which asks one question at a
@@ -28,7 +29,7 @@ export function regimeText(r: FeedRegime): string {
 export function toolLabel(tool: number | null, tools: readonly ToolEntry[]): string | null {
   if (tool === null) return null;
   const entry = tools.find((t) => t.number === tool);
-  return entry === undefined ? `T${tool} · not in your tool table` : `T${tool} · ${entry.tool.name}`;
+  return entry === undefined ? `T${tool} · not in your tool table` : `T${tool} · ${toolDisplayName(entry.tool)}`;
 }
 
 function Levels({ row }: { readonly row: AdvisorRow }): ComponentChild {

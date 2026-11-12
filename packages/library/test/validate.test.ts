@@ -68,7 +68,7 @@ describe('readTool', () => {
     expectIssue(readTool(tool({ coating: 'gold' })), '/coating');
     expectIssue(readTool(tool({ toolMaterial: 'diamond' })), '/toolMaterial');
     expectIssue(readTool(tool({ id: 'Has Spaces' })), '/id');
-    expectIssue(readTool(tool({ name: '' })), '/name');
+    expect(readTool(tool({ name: '' })).ok).toBe(true);
     expectIssue(readTool(tool({ name: 'a\u202eb' })), '/name');
     expectIssue(readTool(tool({ notes: 'line\u0007' })), '/notes');
     expect(readTool(tool({ notes: 'two\nlines\tok' })).ok).toBe(true);

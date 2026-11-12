@@ -34,7 +34,7 @@ function fieldOf(e: Event): string | null {
   return key !== null && NUMBER_FIELDS.has(key) ? key : null;
 }
 
-export function ToolDrawingEditor({ tool, children }: { readonly tool: Tool; readonly children?: ComponentChild }): ComponentChild {
+export function ToolDrawingEditor({ tool, children, controlled = false }: { readonly tool: Tool; readonly children?: ComponentChild; readonly controlled?: boolean }): ComponentChild {
   const [drafts, setDrafts] = useState<Drafts>({});
   const [focused, setFocused] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -81,6 +81,7 @@ export function ToolDrawingEditor({ tool, children }: { readonly tool: Tool; rea
         onMouseOver: (e: MouseEvent) => setHovered(fieldOf(e)),
         onMouseLeave: () => setHovered(null),
         onInput: (e: Event) => {
+          if (controlled) return;
           const key = fieldOf(e);
           if (key === null) return;
           const raw = (e.target as HTMLInputElement).value.trim();

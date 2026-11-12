@@ -1,3 +1,4 @@
+import { toolDisplayName } from './tools/displayName.ts';
 /**
  * Cutting advice asks one question at a time (docs/design/ANALYZE.md §3, slice 1): the next input that is really
  * needed, in the order the advice needs it. Material first, then the machine's spindle facts, then the operation's
@@ -40,7 +41,7 @@ export function machineQuestion(profile: MachineProfile | null, fields: AdvisorF
 /** The first missing input of one operation, or null. `tool` is the operation's own T number, if the file has one. */
 export function operationQuestion(tool: number | null, fields: AdvisorFields, tools: readonly ToolEntry[]): Question | null {
   if (tool === null && !tools.some((t) => String(t.number) === fields['tool'])) {
-    return { scope: 'operation', key: 'tool', label: 'Which tool is in the spindle?', hint: 'The file does not say. The preview carves with it too.', options: tools.map((t) => [String(t.number), `T${t.number} · ${t.tool.name}`]) };
+    return { scope: 'operation', key: 'tool', label: 'Which tool is in the spindle?', hint: 'The file does not say. The preview carves with it too.', options: tools.map((t) => [String(t.number), `T${t.number} · ${toolDisplayName(t.tool)}`]) };
   }
   if (tool !== null && !tools.some((t) => t.number === tool)) return { scope: 'machines', key: 'tool-library', label: `Add T${tool} to the tool library.` };
   if (!OPERATION_KINDS.some(([k]) => k === fields['kind'])) return { scope: 'operation', key: 'kind', label: 'What kind of cut is it?', options: OPERATION_KINDS };

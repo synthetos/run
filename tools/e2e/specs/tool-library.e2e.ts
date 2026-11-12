@@ -1,46 +1,63 @@
-/**
- * The tool library (first-time walk 2026-11-08, C1 and C16): Add a tool selects a new "T7 tool" and scrolls it into
- * view in its T-number place; the Name field renames it everywhere the row shows; Delete asks in the page (Cancel
- * keeps it), then removes it; renumbered tools stay in T-number order.
- */
 import { expect, test } from './fixtures.ts';
 import { ready } from './helpers.ts';
+import { mkdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
-test('add, rename, sort and delete a tool, all in the page', async ({ page }) => {
+test('tool drafts save atomically, cancel, fill gaps, convert units and delete inline', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   page.on('dialog', () => { throw new Error('a browser dialog was opened'); });
-  await page.goto('/');
-  await ready(page);
+  await page.goto('/'); await ready(page);
   await page.locator('[data-region="rail"] [data-view="library"]').click();
   await page.locator('#library-tab-tools').click();
-  const view = page.locator('.tools-view');
-  const inspector = view.locator('[aria-label="Selected tool"]');
-  await view.locator('[data-action="add-tool"]').click();
-  await expect(inspector.locator('h2')).toHaveText('T7 · T7 tool');
+  const view = page.locator('.tools-view'); const modal = view.getByRole('dialog');
+  const add = view.locator('[data-action="add-tool"]');
+  await add.click(); await expect(modal.locator('h2')).toHaveText('Add a tool');
+  await expect(view.locator('tr[data-tool-row="7"]')).toHaveCount(0);
+  await page.keyboard.press('Escape'); await expect(add).toBeFocused();
+  await add.click();
+  await modal.getByRole('button', { name: 'in', exact: true }).click();
+  const diameter = modal.locator('[data-tool-field="diameter"]');
+  await diameter.fill('1/4junk'); await modal.locator('[data-action="save-tool"]').click();
+  await expect(modal).toBeVisible(); await expect(view.locator('tr[data-tool-row="7"]')).toHaveCount(0);
+  await diameter.fill('1/4'); await modal.locator('[data-action="save-tool"]').click();
   const row = view.locator('tr[data-tool-row="7"]');
-  await expect(row).toHaveAttribute('aria-selected', 'true');
-  await expect(row).toBeInViewport();
-  // Rename it.
-  const name = inspector.locator('[data-tool-field="name"]');
-  await name.fill('60° V-bit');
-  await name.press('Enter');
-  await expect(inspector.locator('h2')).toHaveText('T7 · 60° V-bit');
-  await expect(row).toContainText('T7 · 60° V-bit');
-  // Renumber it to 3 after moving the seed T3 away: the list stays in T-number order.
+  await expect(row).toContainText('T7 · 6.35 mm end mill'); await expect(row).toContainText('0.25 in');
+  await row.focus(); await page.keyboard.press('Enter');
+  await modal.locator('#tool-tab-details').click();
+  await modal.locator('[data-tool-field="name"]').fill('Discard this');
+  await modal.locator('[data-action="cancel-tool"]').click();
+  await expect(row).toBeFocused(); await expect(row).not.toContainText('Discard this');
+  await row.locator('.row-link').click(); await modal.locator('#tool-tab-details').click();
+  await modal.locator('[data-tool-field="name"]').fill('My cutter');
+  await modal.locator('[data-action="save-tool"]').click(); await expect(row).toContainText('My cutter');
   await view.locator('tr[data-tool-row="3"] .row-link').click();
-  await inspector.locator('[data-tool-field="number"]').fill('9');
-  await inspector.locator('[data-tool-field="number"]').press('Enter');
-  await view.locator('tr[data-tool-row="7"] .row-link').click();
-  await inspector.locator('[data-tool-field="number"]').fill('3');
-  await inspector.locator('[data-tool-field="number"]').press('Enter');
-  const order = await view.locator('tr[data-tool-row]').evaluateAll((rows) => rows.map((r) => Number(r.getAttribute('data-tool-row'))));
-  expect(order).toEqual([...order].sort((a, b) => a - b));
-  // Delete asks first; Cancel keeps it.
-  await inspector.locator('[data-action="tool-delete"]').click();
-  await expect(inspector.locator('[data-tool-delete="confirm"]')).toContainText('Delete T3 · 60° V-bit?');
-  await inspector.locator('[data-action="tool-delete-cancel"]').click();
-  await expect(view.locator('tr[data-tool-row="3"]')).toHaveCount(1);
-  await inspector.locator('[data-action="tool-delete"]').click();
-  await inspector.locator('[data-action="tool-delete-confirm"]').click();
-  await expect(view.locator('tr[data-tool-row="3"]')).toHaveCount(0);
+  await modal.locator('[data-tool-field="number"]').fill('9'); await modal.locator('[data-action="save-tool"]').click();
+  await add.click(); await expect(modal.locator('[data-tool-field="number"]')).toHaveValue('3');
+  await modal.locator('[data-action="cancel-tool"]').click();
+  await row.locator('.row-link').click(); await modal.locator('[data-action="tool-delete"]').click();
+  await modal.locator('[data-action="tool-delete-cancel"]').click(); await expect(row).toHaveCount(1);
+  await modal.locator('[data-action="tool-delete"]').click(); await modal.locator('[data-action="tool-delete-confirm"]').click();
+  await expect(row).toHaveCount(0); await expect(add).toBeFocused();
+  await page.reload(); await ready(page);
+  await page.locator('[data-region="rail"] [data-view="library"]').click(); await page.locator('#library-tab-tools').click();
+  await expect(view.locator('tr[data-tool-row="1"]')).toContainText('0.125 in');
 });
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`each tool tab fits 1280x720 in ${theme}`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: theme }); await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/'); await ready(page);
+    await page.locator('[data-region="rail"] [data-view="library"]').click(); await page.locator('#library-tab-tools').click();
+    await page.locator('tr[data-tool-row="4"] .row-link').click();
+    const modal = page.locator('.tool-modal');
+    const dir = resolve('../../screens'); await mkdir(dir, { recursive: true });
+    for (const tab of ['shape', 'details', 'buy', 'cutting']) {
+      await modal.locator(`#tool-tab-${tab}`).click();
+      await expect(modal.locator(`#tool-pane-${tab}`)).toBeVisible();
+      expect(await modal.evaluate(el => el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth)).toBe(true);
+      expect(await modal.locator(`#tool-pane-${tab}`).evaluate(el => el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth)).toBe(true);
+      const box = await modal.boundingBox(); expect(box!.y).toBeGreaterThanOrEqual(0); expect(box!.y + box!.height).toBeLessThanOrEqual(720);
+      await page.screenshot({ path: `${dir}/tool-${tab}-${theme}.png` });
+    }
+  });
+}

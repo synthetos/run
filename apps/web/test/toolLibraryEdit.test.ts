@@ -17,16 +17,16 @@ afterEach(() => toolStore.set(SEED_TOOLS));
 const find = (id: string) => toolStore.value.value.find((t) => t.tool.id === id);
 
 describe('tool names (C1)', () => {
-  it('a new tool is "T<n> tool"; two new tools never share a name', () => {
+  it('a new tool is unnamed; two new tools have different numbers', () => {
     const a = addTool();
     const b = addTool();
-    expect(find(a)?.tool.name).toBe('T7 tool');
-    expect(find(b)?.tool.name).toBe('T8 tool');
+    expect(find(a)?.tool.name).toBe('');
+    expect(find(b)?.tool.name).toBe('');
   });
-  it('a default name follows a new number; a chosen name stays', () => {
+  it('renumbering leaves the name alone', () => {
     const a = addTool();
     expect(setToolNumber(a, 12)).toBeNull();
-    expect(find(a)?.tool.name).toBe('T12 tool');
+    expect(find(a)?.tool.name).toBe('');
     expect(updateTool(a, { name: '60° V-bit' })).toBeNull();
     expect(setToolNumber(a, 13)).toBeNull();
     expect(find(a)?.tool.name).toBe('60° V-bit');

@@ -1,3 +1,4 @@
+import { toolDisplayName } from '../workspace/tools/displayName.ts';
 /**
  * Which tool the 3D marker shows (docs/design/tool-sim.md, slice 1): the
  * active T number at a file line, from the preview's change-point table
@@ -99,7 +100,7 @@ export function withJobChange(changes: ToolChanges, job: { readonly line: number
 /** A T number looked up in the tool table: its shape, or the generic glyph and a note offering to add it. */
 export function toolNumbered(number: number, table: readonly ToolTableEntry[]): ActiveTool {
   const entry = table.find((e) => e.number === number);
-  if (entry !== undefined) return { number, shape: toolShapeOf(entry.tool), name: entry.tool.name, note: null, missing: null };
+  if (entry !== undefined) return { number, shape: toolShapeOf(entry.tool), name: toolDisplayName(entry.tool), note: null, missing: null };
   return { number, shape: null, name: null, note: notInTable(number), missing: number >= 1 ? number : null };
 }
 

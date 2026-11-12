@@ -51,17 +51,17 @@ test('the key follows the active tool at the scrubbed line; an unknown T number 
   await sheet.locator('[data-action="add-tool-number"]').click();
   await expect(page.locator('html')).toHaveAttribute('data-view', 'library');
   const inspector = page.locator('.tools-view [aria-label="Selected tool"]');
-  await expect(inspector.locator('h2')).toHaveText('T9 · T9 tool');
+  await expect(inspector.locator('h2')).toHaveText('Edit T9 · 3.175 mm end mill');
   // A T number another tool has is refused with its name, and nothing is swapped.
   const number = inspector.locator('[data-tool-field="number"]');
   await number.fill('3');
   await number.press('Enter');
   await expect(inspector.locator('[data-tool-field="number-error"]')).toHaveText('T3 is already 3.175 mm ball nose. Give that tool another number first.');
-  await expect(inspector.locator('h2')).toHaveText('T9 · T9 tool');
+  await expect(inspector.locator('h2')).toHaveText('Edit T3 · 3.175 mm end mill');
   await number.fill('12');
   await number.press('Enter');
   // A default name follows the number (C1).
-  await expect(inspector.locator('h2')).toHaveText('T12 · T12 tool');
+  await expect(inspector.locator('h2')).toHaveText('Edit T12 · 3.175 mm end mill');
 });
 
 test('a file that cuts before any tool change says the tool shown is a placeholder', async ({ page }) => {

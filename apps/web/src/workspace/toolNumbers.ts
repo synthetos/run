@@ -4,6 +4,7 @@
  * tool that has it and never swaps the two. Also the "Add T1 to your tool table" request from the scene's key,
  * which the tool table view answers by selecting that tool.
  */
+import { toolDisplayName } from './tools/displayName.ts';
 import { signal } from '@preact/signals';
 import { addTool, toolStore, type ToolEntry } from './library.ts';
 
@@ -11,7 +12,7 @@ import { addTool, toolStore, type ToolEntry } from './library.ts';
 export function toolNumberIssue(list: readonly ToolEntry[], id: string, value: number): string | null {
   if (!Number.isInteger(value) || value < 1) return 'A T number is a whole number from 1 up.';
   const other = list.find((t) => t.number === value && t.tool.id !== id);
-  return other === undefined ? null : `T${String(value)} is already ${other.tool.name}. Give that tool another number first.`;
+  return other === undefined ? null : `T${String(value)} is already ${toolDisplayName(other.tool)}. Give that tool another number first.`;
 }
 
 /** Sets the T number of tool `id`. Returns why it was refused, or null. */
@@ -20,8 +21,7 @@ export function setToolNumber(id: string, value: number): string | null {
   if (!list.some((t) => t.tool.id === id)) return 'No such tool.';
   const issue = toolNumberIssue(list, id, value);
   if (issue !== null) return issue;
-  // A tool still called by its default name ("T7 tool", C1) follows its new number; a name the user chose stays.
-  toolStore.set(list.map((t) => (t.tool.id !== id ? t : { ...t, number: value, tool: t.tool.name === `T${t.number} tool` ? { ...t.tool, name: `T${value} tool` } : t.tool })));
+  toolStore.set(list.map((t) => (t.tool.id !== id ? t : { ...t, number: value })));
   return null;
 }
 

@@ -14,6 +14,7 @@
  * Records persist through workspace/storage.ts (localStorage today, account
  * sync later).
  */
+import { freeToolNumber } from './tools/freeNumber.ts';
 import { computed } from '@preact/signals';
 import {
   BUILTIN_MATERIALS,
@@ -378,14 +379,12 @@ export function toolsByNumber(list: readonly ToolEntry[]): readonly ToolEntry[] 
   return [...list].sort((a, b) => a.number - b.number);
 }
 
-/** Adds a new tool numbered `number` (default: one above the highest T number), named "T<n> tool" (C1), and returns its id. */
-export function addTool(number?: number): string {
-  const list = toolStore.value.value;
-  number ??= Math.max(0, ...list.map((t) => t.number)) + 1;
-  const tool: Tool = {
+/** Builds an unsaved tool with an empty display name. */
+export function newTool(number: number): Tool {
+  return {
     id: `mine.t${number}-${Date.now().toString(36)}`,
     version: 1,
-    name: `T${number} tool`,
+    name: '',
     type: 'flat',
     geometry: { diameter: 3.175, shank: 3.175, flutes: 2, fluteLength: 12, overallLength: 38 },
     toolMaterial: 'carbide',
@@ -398,7 +397,12 @@ export function addTool(number?: number): string {
     tags: [],
     images: [],
   };
-  toolStore.set([...list, { number, store: null, tool }]);
+}
+
+/** Adds a tool at the first free number unless an explicit number was requested. */
+export function addTool(number = freeToolNumber(toolStore.value.value)): string {
+  const tool = newTool(number);
+  toolStore.set([...toolStore.value.value, { number, store: null, tool }]);
   return tool.id;
 }
 

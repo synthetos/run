@@ -4,6 +4,8 @@
  * The 3D view and the carving draw the tool from these (docs/design/tool-sim.md). Saving goes through the
  * library's validator; a refusal is shown by the inspector.
  */
+import { LengthField } from './tools/LengthField.ts';
+import type { ToolUnit } from '../tools/units.ts';
 import { h, type ComponentChild } from 'preact';
 import { TOOL_TYPES, type Tool, type ToolType } from '@synthetos/library';
 import { TOOL_KINDS } from '../library.ts';
@@ -39,7 +41,7 @@ function shapeInput(key: string, label: string, unit: string, value: number | un
 }
 
 /** The type picker and the shape numbers for `tool`. */
-export function ToolShapeFields({ tool, set }: { readonly tool: Tool; readonly set: Patch }): ComponentChild {
+export function ToolShapeFields({ tool, set, unit, onValidity }: { readonly tool: Tool; readonly set: Patch; readonly unit?: ToolUnit; readonly onValidity?: (field: string, valid: boolean) => void }): ComponentChild {
   const g = tool.geometry;
   const geo = (field: string, n: number | undefined): void => {
     const next: Record<string, unknown> = { ...g };
@@ -47,6 +49,8 @@ export function ToolShapeFields({ tool, set }: { readonly tool: Tool; readonly s
     else next[field] = n;
     set({ geometry: next });
   };
+  const input = (key: string, label: string, suffix: string, value: number | undefined, zero: boolean, change: (n: number | undefined) => void, optional = false): ComponentChild =>
+    unit === undefined || onValidity === undefined ? shapeInput(key, label, suffix, value, zero, change, optional) : h(LengthField, { key, field: key, label, unit: suffix === 'mm' ? unit : '°', value, allowZero: zero, optional, onChange: change, onValidity });
   return [
     h(
       'label',
@@ -71,9 +75,9 @@ export function ToolShapeFields({ tool, set }: { readonly tool: Tool; readonly s
     ),
     ...shapeFields(tool.type).map((field: ShapeField) => {
       const { label, unit } = SHAPE_FIELD_LABELS[field];
-      return shapeInput(field, label, unit, g[field], field === 'tipWidth', (n) => geo(field, n), field === 'tipWidth');
+      return input(field, label, unit, g[field], field === 'tipWidth', (n) => geo(field, n), field === 'tipWidth');
     }),
-    shapeInput('shank', 'Shank diameter', 'mm', g.shank, false, (n) => geo('shank', n)),
-    shapeInput('stickout', 'Stickout', 'mm', g.stickout, false, (n) => geo('stickout', n), true),
+    input('shank', 'Shank diameter', 'mm', g.shank, false, (n) => geo('shank', n)),
+    input('stickout', 'Stickout', 'mm', g.stickout, false, (n) => geo('stickout', n), true),
   ];
 }

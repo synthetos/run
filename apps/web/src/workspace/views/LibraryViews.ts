@@ -1,3 +1,4 @@
+import { PurchaseLine, AddLink } from './PurchaseLinks.ts';
 /**
  * The Tools and Materials views (MACHINING_ASSISTANT §2, §3, §8) on
  * `@synthetos/library` records: the tool library with descriptions, notes
@@ -15,11 +16,9 @@
  * shape for that, unused here.)
  */
 import { h, type ComponentChild } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { isPlaceholder, userValue, MATERIAL_FAMILIES, TOOL_MATERIALS, type CoolantNeed, type HardnessScale, type MaterialCutting, type SafetySeverity, type BehaviourKind, type Sourced } from '@synthetos/library';
 import {
-  addTool,
-  toolsByNumber,
   allMaterials,
   createMaterial,
   deleteMaterial,
@@ -27,37 +26,22 @@ import {
   FAMILIES,
   FAMILY_COLOR,
   forkMaterial,
-  hostOf,
   material,
   materialView,
-  money,
   myMaterialCount,
   myMaterialStore,
   NOT_OFFERED,
-  safeExternalLink,
-  SOURCE_LABELS,
-  TOOL_KINDS,
-  toolStore,
   updateMaterial,
-  updateTool,
   type Material,
   type MaterialFields,
   type MaterialView,
   type PurchaseLink,
   type Tool,
-  type ToolEntry,
 } from '../library.ts';
 import { Icon } from '../icons.ts';
 import { num } from '../status.ts';
 import { TabBar, TabPane } from '../ui.ts';
-import { toolFocus } from '../toolNumbers.ts';
-import { ToolNumberField } from './ToolNumberField.ts';
-import { ToolNameField } from './ToolNameField.ts';
-import { ToolDelete } from './ToolDelete.ts';
-import { ToolShapeFields } from './ToolShapeFields.ts';
 import { ToolDrawing } from '../toolDrawing/ToolDrawing.ts';
-import { ToolDrawingEditor } from '../toolDrawing/ToolDrawingEditor.ts';
-import { uiLevel } from '../jobWorkflow.ts';
 import { Dismissable } from '../notes/Dismissable.ts';
 
 export const PLACEHOLDER_NOTE = 'Placeholder values: not yet sourced. They show the shape of the data, not machining advice.';
@@ -69,69 +53,7 @@ function sourced<T>(v: Sourced<T>, show: (value: T) => string): ComponentChild {
 
 // ---------------------------------------------------------------- links
 
-/** A purchase line: a plain external link when `safeExternalLink` accepts it, plain text otherwise. */
-export function PurchaseLine({ p, onRemove }: { readonly p: PurchaseLink; readonly onRemove?: () => void }): ComponentChild {
-  const link = safeExternalLink(p.url);
-  const name = p.vendor !== '' ? p.vendor : link === null ? p.url : hostOf(link.href);
-  const meta = [p.sku, p.price === undefined ? null : money(p.price, p.currency), p.boughtAt === undefined ? null : `bought ${p.boughtAt}`].filter((x) => x !== null && x !== undefined && x !== '').join(' · ');
-  return h(
-    'li',
-    { class: 'purchase' },
-    link === null ? h('span', null, name) : h('a', { href: link.href, target: link.target, rel: link.rel, 'data-external': hostOf(link.href), title: link.href }, name, Icon('external', 12), h('span', { class: 'sr-only' }, ' (opens in a new tab)')),
-    meta === '' ? null : h('small', null, meta),
-    onRemove === undefined ? null : h('button', { type: 'button', class: 'icon-button quiet remove', 'data-action': 'remove-link', 'aria-label': `Remove the link to ${name}`, onClick: onRemove }, Icon('trash', 14)),
-  );
-}
-
-/** One web address and Add. Shop name and price sit behind "More". */
-export function AddLink({ onAdd }: { readonly onAdd: (p: PurchaseLink) => string | null }): ComponentChild {
-  const [url, setUrl] = useState('');
-  const [more, setMore] = useState(false);
-  const [vendor, setVendor] = useState('');
-  const [price, setPrice] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  return h(
-    'form',
-    {
-      class: 'add-link',
-      onSubmit: (e: Event) => {
-        e.preventDefault();
-        const link = safeExternalLink(url.trim());
-        if (link === null) {
-          setError('Enter a full web address that starts with https');
-          return;
-        }
-        const n = Number.parseFloat(price);
-        const refused = onAdd({ kind: 'link', vendor: vendor.trim().slice(0, 60) || hostOf(link.href), url: link.href, ...(Number.isFinite(n) && n >= 0 ? { price: Math.round(n * 100) / 100, currency: 'USD' } : {}) });
-        if (refused !== null) {
-          setError(refused);
-          return;
-        }
-        setUrl('');
-        setVendor('');
-        setPrice('');
-        setError(null);
-      },
-    },
-    h(
-      'div',
-      { class: 'add-link-row' },
-      h('input', { type: 'url', value: url, maxLength: 500, placeholder: 'Paste a web address', 'aria-label': 'Link', onInput: (e: Event) => setUrl((e.currentTarget as HTMLInputElement).value) }),
-      h('button', { type: 'submit', class: 'small', 'data-action': 'add-link' }, Icon('plus', 14), 'Add'),
-      h('button', { type: 'button', class: 'small quiet', 'data-action': 'more-link', 'aria-expanded': more ? 'true' : 'false', onClick: () => setMore(!more) }, 'More'),
-    ),
-    more
-      ? h(
-          'div',
-          { class: 'add-link-more' },
-          h('input', { value: vendor, maxLength: 60, placeholder: 'Shop (optional)', 'aria-label': 'Shop', onInput: (e: Event) => setVendor((e.currentTarget as HTMLInputElement).value) }),
-          h('input', { type: 'number', min: 0, step: 0.01, value: price, placeholder: 'Price, USD', 'aria-label': 'Price in US dollars', onInput: (e: Event) => setPrice((e.currentTarget as HTMLInputElement).value) }),
-        )
-      : null,
-    error === null ? null : h('p', { class: 'field-error', role: 'alert' }, error),
-  );
-}
-
+export { PurchaseLine, AddLink } from './PurchaseLinks.ts';
 // ---------------------------------------------------------------- tools
 
 /** The tool's side view at icon size: the same drawing code as the editor's (toolDrawing/ToolDrawing.ts). */
@@ -139,195 +61,11 @@ export function ToolArt({ tool }: { readonly tool: Tool; readonly large?: boolea
   return h(ToolDrawing, { tool, thumb: true });
 }
 
-function numberField(label: string, value: number, unit: string, onChange: (n: number) => void, step = 0.001, field?: string): ComponentChild {
-  return h(
-    'label',
-    { class: 'field', key: label },
-    h('span', null, label),
-    h(
-      'span',
-      { class: 'unit-input' },
-      h('input', {
-        type: 'number',
-        step,
-        min: 0,
-        value,
-        ...(field === undefined ? {} : { 'data-tool-field': field }),
-        onChange: (e: Event) => {
-          const n = Number.parseFloat((e.currentTarget as HTMLInputElement).value);
-          if (Number.isFinite(n) && n > 0) onChange(n);
-        },
-      }),
-      unit === '' ? null : h('i', null, unit),
-    ),
-  );
-}
-
 function textArea(label: string, value: string, onChange: (s: string) => void, max = 2000, rows = 3): ComponentChild {
   return h('label', { class: 'field', key: label }, h('span', null, label), h('textarea', { class: 'text-area', rows, maxLength: max, value, onChange: (e: Event) => onChange((e.currentTarget as HTMLTextAreaElement).value.slice(0, max)) }));
 }
 
-type ToolTab = 'details' | 'buy' | 'cutting';
-
-function ToolInspector({ entry, onDeleted }: { readonly entry: ToolEntry; readonly onDeleted: () => void }): ComponentChild {
-  const tool = entry.tool;
-  const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<ToolTab>('details');
-  const set = (patch: Readonly<Record<string, unknown>>): void => setError(updateTool(tool.id, patch));
-  const geo = (field: string, n: number): void => set({ geometry: { ...tool.geometry, [field]: n } });
-  const links = tool.purchase.length + (entry.store === null ? 0 : 1);
-  return h(
-    'aside',
-    { class: 'inspector tabbed', 'aria-label': 'Selected tool', 'data-tool': tool.id },
-    h('header', { class: 'insp-head' }, h('div', { class: 'tool-head' }, h('div', { class: 'tool-mini-art' }, h(ToolArt, { tool, large: true })), h('div', null, h('h2', null, `T${entry.number} · ${tool.name}`), h('p', { class: 'fine' }, `${TOOL_KINDS[tool.type] ?? tool.type} · ${tool.geometry.diameter} mm · ${tool.geometry.flutes} flutes`)))),
-    h(TabBar<ToolTab>, { label: 'Tool', prefix: 'tool', variant: 'underline', current: tab, onSelect: setTab, tabs: [{ id: 'details', label: 'Details' }, { id: 'buy', label: 'Where to buy', ...(links === 0 ? {} : { badge: String(links) }) }, { id: 'cutting', label: 'Cutting data' }] }),
-    h(
-      TabPane,
-      { prefix: 'tool', id: 'details', current: tab, class: 'tpane insp-scroll' },
-      h(
-        'section',
-        { class: 'insp' },
-        // The drawing above the fields follows them as they are typed (toolDrawing/ToolDrawingEditor.ts).
-        h(
-          ToolDrawingEditor,
-          { tool },
-          h(
-            'div',
-            { class: 'field-grid' },
-            h(ToolNameField, { id: tool.id, name: tool.name }),
-            h(ToolNumberField, { id: tool.id, number: entry.number }),
-            numberField('Diameter', tool.geometry.diameter, 'mm', (n) => geo('diameter', n), 0.001, 'diameter'),
-            h(ToolShapeFields, { tool, set }),
-            numberField('Flutes', tool.geometry.flutes, '', (n) => geo('flutes', Math.max(1, Math.round(n))), 1, 'flutes'),
-            numberField('Flute length', tool.geometry.fluteLength, 'mm', (n) => geo('fluteLength', n), 0.5, 'fluteLength'),
-            numberField('Overall length', tool.geometry.overallLength, 'mm', (n) => geo('overallLength', n), 0.5, 'overallLength'),
-          ),
-        ),
-        textArea('Description', tool.description, (description) => set({ description }), 2000, 2),
-        textArea('Notes', tool.notes, (notes) => set({ notes }), 2000, 2),
-        error === null ? null : h('p', { class: 'field-error', role: 'alert' }, `Not saved: ${error}`),
-        h(
-          'dl',
-          { class: 'facts' },
-          h('div', null, h('dt', null, 'Maker'), h('dd', null, [tool.manufacturer, tool.partNumber].filter((x) => x !== undefined && x !== '').join(' · ') || 'Not recorded')),
-          h('div', null, h('dt', null, 'Material'), h('dd', null, `${tool.toolMaterial} · ${tool.coating}`)),
-          h('div', null, h('dt', null, 'Cut so far'), h('dd', null, `${num(tool.life.minutes)} min`)),
-          uiLevel.value.value === 'advanced' ? h('div', null, h('dt', null, 'Version'), h('dd', null, String(tool.version))) : null,
-        ),
-        h(ToolDelete, { id: tool.id, label: `T${entry.number} · ${tool.name}`, onDeleted }),
-      ),
-    ),
-    h(
-      TabPane,
-      { prefix: 'tool', id: 'buy', current: tab, class: 'tpane insp-scroll' },
-      h(
-        'section',
-        { class: 'insp' },
-        h(
-          'ul',
-          { class: 'purchases' },
-          entry.store === null ? null : h('li', { class: 'purchase' }, h('span', null, `Synthetos · ${entry.store}`), h('span', { class: 'tag mock' }, 'Store · mock')),
-          tool.purchase.map((p, i) => h(PurchaseLine, { p, key: String(i), onRemove: () => setError(updateTool(tool.id, { purchase: tool.purchase.filter((_, j) => j !== i) })) })),
-        ),
-        h(AddLink, { onAdd: (p) => updateTool(tool.id, { purchase: [...tool.purchase, p] }) }),
-      ),
-    ),
-    h(
-      TabPane,
-      { prefix: 'tool', id: 'cutting', current: tab, class: 'tpane insp-scroll' },
-      h(
-        'section',
-        { class: 'insp' },
-        tool.cuttingData.length === 0
-          ? h('p', { class: 'fine' }, 'No cutting data yet.')
-          : h(
-              'table',
-              { class: 'slot-table' },
-              h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Material'), h('th', { scope: 'col' }, 'Surface speed (m/min)'), h('th', { scope: 'col' }, 'Chipload (mm/tooth)'), h('th', { scope: 'col' }, 'Source'))),
-              h('tbody', null, tool.cuttingData.map((c, i) => h('tr', { key: String(i) }, h('td', null, material(c.materialRef.id)?.name ?? c.materialRef.id), h('td', null, String(c.vc)), h('td', null, String(c.fz)), h('td', null, SOURCE_LABELS[c.source] ?? c.source)))),
-            ),
-        h(Dismissable, { id: 'library/tool-placeholder', label: 'the placeholder values note', inNotes: false }, h('p', { class: 'fine' }, PLACEHOLDER_NOTE)),
-      ),
-    ),
-  );
-}
-
-export function ToolsView(): ComponentChild {
-  const tools = toolStore.value.value;
-  const [filter, setFilter] = useState('all');
-  const [selected, setSelected] = useState<string | null>(null);
-  // A new tool is scrolled into view once, in its T-number place (C16).
-  const [reveal, setReveal] = useState<string | null>(null);
-  // "Add T1 to your tool table" from the 3D view's key selects that tool (toolNumbers.ts).
-  const focus = toolFocus.value;
-  useEffect(() => {
-    if (focus === null) return;
-    setFilter('all');
-    setSelected(focus);
-    toolFocus.value = null;
-  }, [focus]);
-  const shown = toolsByNumber(tools.filter((t) => filter === 'all' || t.tool.type === filter));
-  const current = tools.find((t) => t.tool.id === selected) ?? shown[0] ?? tools[0] ?? null;
-  return h(
-    'div',
-    { class: 'tools-view' },
-    h(
-      'div',
-      { class: 'view-head' },
-      h('div', { class: 'title-block' }, h('h1', null, 'Tool library')),
-      h('div', { class: 'view-actions' }, h('button', { type: 'button', class: 'primary', 'data-action': 'add-tool', onClick: () => { const id = addTool(); setFilter('all'); setSelected(id); setReveal(id); } }, Icon('plus', 15), 'Add a tool')),
-    ),
-    h(
-      'div',
-      { class: 'workspace-grid tools-grid' },
-      h(
-        'div',
-        { class: 'list-panel' },
-        h(
-          'div',
-          { class: 'filter-row', role: 'group', 'aria-label': 'Filter tools' },
-          (
-            [
-              ['all', 'All'],
-              ['flat', 'End mills'],
-              ['ball', 'Ball nose'],
-              ['v-bit', 'V-bits'],
-              ['drill', 'Drills'],
-              ['o-flute', 'O-flutes'],
-            ] as const
-          ).map(([id, label]) => h('button', { type: 'button', key: id, class: `chip${filter === id ? ' selected' : ''}`, 'aria-pressed': filter === id ? 'true' : 'false', onClick: () => setFilter(id) }, label)),
-          h('span', { class: 'sync-line' }, toolStore.saved.value ? 'Saved in this browser' : 'Not saved: this browser blocks storage'),
-        ),
-        h(
-          'div',
-          { tabindex: 0, class: 'tool-table-wrap' },
-          h(
-            'table',
-            { class: 'tool-table' },
-            h('thead', null, h('tr', null, h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Drawing')), h('th', { scope: 'col' }, 'Tool'), h('th', { scope: 'col' }, 'Diameter'), h('th', { scope: 'col' }, 'Flutes'), h('th', { scope: 'col' }, 'Material'), h('th', { scope: 'col' }, 'Notes'))),
-            h(
-              'tbody',
-              null,
-              shown.map((e) =>
-                h(
-                  'tr',
-                  { key: e.tool.id, 'aria-selected': current?.tool.id === e.tool.id ? 'true' : 'false', 'data-tool-row': e.number, onClick: () => setSelected(e.tool.id), ...(reveal === e.tool.id ? { ref: (el: HTMLElement | null) => { if (el !== null) { el.scrollIntoView({ block: 'nearest' }); setReveal(null); } } } : {}) },
-                  h('td', { class: 't-art' }, h(ToolArt, { tool: e.tool })),
-                  h('td', null, h('button', { type: 'button', class: 'row-link', onClick: () => setSelected(e.tool.id) }, h('strong', null, `T${e.number} · ${e.tool.name}`)), h('small', null, TOOL_KINDS[e.tool.type] ?? e.tool.type)),
-                  h('td', { class: 'num' }, `${e.tool.geometry.diameter} mm`),
-                  h('td', { class: 'num' }, String(e.tool.geometry.flutes)),
-                  h('td', null, `${e.tool.toolMaterial}${e.tool.coating === 'uncoated' ? '' : ` · ${e.tool.coating}`}`),
-                  h('td', { class: 'used' }, e.tool.notes === '' ? 'No notes' : e.tool.notes),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-      current === null ? h('aside', { class: 'inspector' }, h('section', { class: 'insp' }, h('p', null, 'No tools yet. Add one to begin.'))) : h(ToolInspector, { entry: current, key: current.tool.id, onDeleted: () => setSelected(null) }),
-    ),
-  );
-}
+export { ToolsView } from './tools/ToolsView.ts';
 
 // ---------------------------------------------------------------- materials
 

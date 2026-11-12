@@ -1,3 +1,4 @@
+import { toolDisplayName } from '../workspace/tools/displayName.ts';
 /**
  * The Projects view, Stage 1 (local): docs/design/PROJECTS.md §1-§4.
  *
@@ -426,14 +427,14 @@ function SetupSection({ project }: { readonly project: Project }): ComponentChil
             key: t.tool.id,
             class: 'tool-chip',
             'aria-pressed': chosenTools.has(t.tool.id) ? 'true' : 'false',
-            title: `${t.tool.name}, version ${t.tool.version}`,
+            title: toolDisplayName(t.tool),
             onClick: () =>
               save({
                 ...setup,
-                tools: chosenTools.has(t.tool.id) ? setup.tools.filter((x) => x.id !== t.tool.id) : [...setup.tools, { id: t.tool.id, version: t.tool.version, name: t.tool.name, number: t.number }],
+                tools: chosenTools.has(t.tool.id) ? setup.tools.filter((x) => x.id !== t.tool.id) : [...setup.tools, { id: t.tool.id, version: t.tool.version, name: toolDisplayName(t.tool), number: t.number }],
               }),
           },
-          `T${t.number} ${t.tool.name}`,
+          `T${t.number} ${toolDisplayName(t.tool)}`,
         ),
       ),
     ),

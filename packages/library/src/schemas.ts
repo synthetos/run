@@ -109,7 +109,7 @@ export const TOOL_SCHEMA: Schema = root('Tool', {
   properties: {
     id: ID,
     version: VERSION,
-    name: text(120),
+    name: optionalText(120),
     type: { enum: [...TOOL_TYPES] },
     geometry: {
       type: 'object',

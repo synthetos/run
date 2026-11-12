@@ -1,3 +1,4 @@
+import { toolDisplayName } from '../tools/displayName.ts';
 /**
  * The Advanced "Cutting" rows (owner, 2026-11-09): the active tool, the spindle speed, the feed, the chip load and the
  * surface speed, compared with the job's stock material. Pure: the view passes in the live readings, the tool table
@@ -69,7 +70,7 @@ export function cuttingRows(i: CuttingInput): CuttingRows {
   else if (n <= 0) missing.push({ text: 'No tool chosen (T0).', fix: null });
   else if (entry === undefined) missing.push({ text: `Tool T${n} isn’t in your tool table.`, fix: { kind: 'tool', number: n, label: `Add T${n}` } });
   const t = entry?.tool ?? null;
-  const tool = t === null || n === null ? null : { number: n, name: t.name, diameter: t.geometry.diameter, flutes: t.geometry.flutes, from: fromFile ? ('file' as const) : ('board' as const) };
+  const tool = t === null || n === null ? null : { number: n, name: toolDisplayName(t), diameter: t.geometry.diameter, flutes: t.geometry.flutes, from: fromFile ? ('file' as const) : ('board' as const) };
   if (t !== null && n !== null && !(t.geometry.flutes > 0)) missing.push({ text: `T${n} has no flute count.`, fix: { kind: 'tool', number: n, label: `Edit T${n}` } });
 
   if (i.materialId === null) missing.push({ text: 'No material set for this job.', fix: { kind: 'step', step: 'stock', label: 'Stock & workholding' } });
