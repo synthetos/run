@@ -12,7 +12,7 @@
  *    both, and NOTHING is written until it resolves: the page stores them
  *    (and the settings backup taken before the bootloader) first. The link
  *    is kept awake meanwhile. If it rejects, the run leaves the bootloader
- *    untouched (`E`): the old firmware starts again, nothing was written.
+ *    untouched in command mode: no exit is sent without a verified write.
  * 4. `write`: the stub page 0, then pages N..1 that differ (plan.ts).
  * 5. `verify`: every page read back and compared; a page that differs is
  *    written again (at most twice), then read back again.
@@ -193,20 +193,19 @@ export async function runFlash(client: XbootClient, plan: FlashPlan, hooks: Flas
     }
 
     progress({ phase: 'exit', done: 0, of: 1 });
-    await attempt(() => client.exit());
+    await client.exit(); // After exit, stay silent: a lost ACK must not provoke resync traffic.
     progress({ phase: 'done', done: 1, of: 1 });
     return { ok: true, identity: identity as Identity, written: pages.length + 1, unchanged: plan.unchanged.length, resyncs, crc: want };
   } catch (error) {
     if (error instanceof Cancelled || error instanceof BackupNotSaved) {
-      // Nothing was written: leave the bootloader so the old firmware starts again.
-      await client.exit().catch(() => undefined);
+      // A failed/interrupted attempt stays in the bootloader; only a verified image may exit.
       const cancelled = error instanceof Cancelled;
       hooks.onProgress({ phase: 'failed', done: 0, of: 0 });
       return {
         ok: false,
         phase,
         code: cancelled ? 'cancelled' : 'backup-not-saved',
-        message: cancelled ? 'Cancelled before anything was written. The board starts its old firmware again.' : `The backups could not be saved (${error.message}), so nothing was written. The board starts its old firmware again.`,
+        message: cancelled ? 'Cancelled before anything was written. The board may still be in its bootloader.' : `The backups could not be saved (${error.message}), so nothing was written. The board may still be in its bootloader.`,
         wrote: false,
         backups,
       };

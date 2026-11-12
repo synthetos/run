@@ -388,13 +388,13 @@ describe('the flash run against the fake xboot', () => {
     await expect(drive(r.clock, recoverEntry(silent, () => r.clock.now(), 3000, () => undefined, (ms) => new Promise((res) => r.clock.setTimeout(res, ms))))).rejects.toMatchObject({ code: 'no-entry' });
   });
 
-  it('backups not saved: nothing is written and the old firmware starts again', async () => {
+  it('backups not saved: nothing is written and no exit is sent', async () => {
     const r = rig({ start: 'bootloader' });
     const { outcome } = await flash(r, 'update', { backupsReady: () => Promise.reject(new Error('quota exceeded')) });
     expect(outcome).toMatchObject({ ok: false, code: 'backup-not-saved', wrote: false });
     expect(r.board.xboot.pageWrites).toEqual([]);
     r.clock.advance(200);
-    expect(r.board.state).toBe('app');
+    expect(r.board.state).toBe('bootloader');
     expect(r.board.build?.fb).toBe(450.01);
   });
 

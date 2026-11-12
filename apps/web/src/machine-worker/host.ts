@@ -31,6 +31,7 @@
  *
  * It holds no account or network state (DECISIONS D1).
  */
+import { browserBootloaderMarks, memoryBootloaderMarks, type BootloaderMarks } from './bootloaderMark.ts';
 import { MachineSession, droView, lagThresholds, liveControlPlatform, type PortSelector, type Transport, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
 import { PHASE_1_RELEASE, type Decision, type Release } from '@synthetos/safety';
 import { belowMinimum, type FirmwareReleases } from '@synthetos/protocol';
@@ -97,6 +98,7 @@ export class MachineWorkerHost {
   readonly #release: Release;
   #preparationId = 0;
   #prepared: PreparedPort | null = null;
+  #opening = false;
   #approved: PreparedPort | null = null;
   #subscriber: SnapshotPort | null = null;
   #lastPost = Number.NEGATIVE_INFINITY;
@@ -113,7 +115,7 @@ export class MachineWorkerHost {
    * (motionFlag.ts `releaseFor`): Phase 2 with settings writes on the bench and staging origins,
    * `PHASE_1_RELEASE` everywhere else (and by default).
    */
-  constructor(source: TransportSource, clock: SessionClock = realClock(), platform: PlatformInfo | undefined = workerPlatform(), approval: WorkerApproval | null = null, release: Release = PHASE_1_RELEASE) {
+  constructor(source: TransportSource, clock: SessionClock = realClock(), platform: PlatformInfo | undefined = workerPlatform(), approval: WorkerApproval | null = null, release: Release = PHASE_1_RELEASE, marks: BootloaderMarks = source.kind === 'serial' ? browserBootloaderMarks() : memoryBootloaderMarks()) {
     this.#source = source;
     this.#release = release;
     this.#approval = approval;
@@ -133,6 +135,7 @@ export class MachineWorkerHost {
       release,
     });
     this.#flash = new FlashService({
+      marks,
       session: this.#session,
       source,
       clock,
@@ -173,6 +176,7 @@ export class MachineWorkerHost {
     if (request === null) return refusal('invalid', 'invalid-request', 'not a machine worker request');
     switch (request.kind) {
       case 'prepare': {
+        if (this.#opening) return refusal('prepare', 'unavailable', 'A connection is opening.');
         const platform = liveControlPlatform(this.#platform);
         if (!platform.allowed) return refusal('prepare', 'platform', platform.reason);
         if (this.#session.snapshot.base !== 'NOT_CONNECTED') return refusal('prepare', 'unavailable', 'disconnect before choosing another port');
@@ -191,26 +195,44 @@ export class MachineWorkerHost {
       case 'open': {
         const platform = liveControlPlatform(this.#platform);
         if (!platform.allowed) return refusal('open', 'platform', platform.reason);
-        const prepared = this.#prepared;
-        if (this.#source.kind === 'serial' || request.preparation !== undefined) {
-          if (prepared === null || request.preparation !== prepared.id || this.#clock.now() >= prepared.expires || JSON.stringify(prepared.port) !== JSON.stringify(request.port)) return refusal('open', 'unavailable', 'no confirmed port selection');
-          this.#prepared = null;
-          this.#approved = prepared;
-        }
-        if (this.#flash.busy) return refusal('open', 'unavailable', 'A firmware update is using the port.');
-        this.#trusted = request.trusted ?? [];
-        await this.#loadApprovals();
-        const outcome = await this.#session.connect(request.port, { expectedDeviceId: request.boardId, unknown: request.previousSessionEnded });
-        if (this.#approved === prepared) this.#approved = null;
-        if (outcome.ok) return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'open', info: outcome.info });
-        if (outcome.code === 'denied') return denied('open', outcome.decision);
-        return refusal('open', outcome.code, outcome.reason);
+        if (this.#opening || this.#session.snapshot.base !== 'NOT_CONNECTED') return denied('open', { allowed: false, reason: 'Already connected.', remedy: 'Disconnect first.', citation: 'SAFETY §3, one session per port; proposed H92' });
+        this.#opening = true;
+        const attempt = this.#preparationId;
+        try {
+          const prepared = this.#prepared;
+          if (this.#source.kind === 'serial' || request.preparation !== undefined) {
+            if (prepared === null || request.preparation !== prepared.id || this.#clock.now() >= prepared.expires || JSON.stringify(prepared.port) !== JSON.stringify(request.port)) return refusal('open', 'unavailable', 'no confirmed port selection');
+            this.#prepared = null;
+            this.#approved = prepared;
+          }
+          if (this.#flash.busy) return refusal('open', 'unavailable', 'A firmware update is using the port.');
+          try {
+            const raw = this.#approved?.transport ?? await this.#source.request(request.port);
+            this.#approved = null;
+            if (raw === null) return refusal('open', 'unavailable', this.#source.kind === 'none' ? 'this build cannot connect to a controller' : 'no port was chosen');
+            const checked = await this.#flash.guardConnect(request.port, raw, request.boardId ?? undefined);
+            if (typeof checked === 'string') return refusal('open', 'unavailable', checked);
+            if (attempt !== this.#preparationId) { await checked.close(); return refusal('open', 'unavailable', 'Connection cancelled.'); }
+            this.#approved = { id: 0, port: request.port, transport: checked, expires: this.#clock.now() + PREPARATION_MS };
+          } catch { return refusal('open', 'unavailable', 'Run could not read the board safety record.'); }
+          this.#trusted = request.trusted ?? [];
+          await this.#loadApprovals();
+          if (attempt !== this.#preparationId) return refusal('open', 'unavailable', 'Connection cancelled.');
+          if (this.#approved !== null) this.#approved = { ...this.#approved, expires: this.#clock.now() + PREPARATION_MS };
+          const outcome = await this.#session.connect(request.port, { expectedDeviceId: request.boardId, unknown: request.previousSessionEnded });
+          if (this.#approved === prepared) this.#approved = null;
+          if (outcome.ok) return Object.freeze({ v: RPC_VERSION, ok: true, kind: 'open', info: outcome.info });
+          if (outcome.code === 'denied') return denied('open', outcome.decision);
+          return refusal('open', outcome.code, outcome.reason);
+        } finally { this.#opening = false; }
       }
       case 'close': {
         if (this.#flash.busy) return refusal('close', 'unavailable', 'A firmware update is using the port. Let it finish.');
         ++this.#preparationId;
         this.#prepared = null;
+        const abandoned = this.#approved;
         this.#approved = null;
+        if (this.#opening) await abandoned?.transport.close();
         const decision = await this.#session.disconnect();
         return decision.allowed ? Object.freeze({ v: RPC_VERSION, ok: true, kind: 'close' }) : denied('close', decision);
       }

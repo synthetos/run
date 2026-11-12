@@ -9,6 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PortSelector, SessionClock, Transport, TransportInfo, TransportOpenOptions, TransportSource } from '@synthetos/machine';
 import { SESSION_BAUD_RATES, SESSION_OPEN_OPTIONS } from '@synthetos/machine';
+import { memoryBootloaderMarks } from '../src/machine-worker/bootloaderMark.ts';
 import { MachineWorkerHost, SNAPSHOT_INTERVAL_MS, realClock, workerState } from '../src/machine-worker/host.ts';
 import { MAX_BOARD_ID_LENGTH, MAX_READ_TOKENS, parseRequest, type SnapshotMessage } from '../src/machine-worker/rpc.ts';
 import { openConfirmedPort, openRequest } from '../src/live/mount.ts';
@@ -631,7 +632,7 @@ describe('serial selection preparation', () => {
   it('does not acquire or open a live port without preparation', async () => {
     const board = new BoardTransport();
     const s = source('serial', () => board);
-    const host = new MachineWorkerHost(s, new TestClock());
+    const host = new MachineWorkerHost(s, new TestClock(), undefined, null, PHASE_1_RELEASE, memoryBootloaderMarks());
     expect(await host.handle(OPEN)).toMatchObject({ ok: false, code: 'unavailable' });
     expect(s.requests).toBe(0);
     expect(board.opened).toEqual([]);
@@ -642,7 +643,7 @@ describe('serial selection preparation', () => {
     const replacement = new BoardTransport();
     let current = board;
     const s = source('serial', () => current);
-    const host = new MachineWorkerHost(s, new TestClock());
+    const host = new MachineWorkerHost(s, new TestClock(), undefined, null, PHASE_1_RELEASE, memoryBootloaderMarks());
     const prep = await host.handle({ v: 3, kind: 'prepare', port: PORT });
     expect(prep).toMatchObject({ ok: true, kind: 'prepare' });
     expect(board.opened).toEqual([]);
@@ -695,7 +696,7 @@ it('a late preparation cannot replace a newer one or survive a disconnect', asyn
     const fresh = new BoardTransport();
     let resolve!: (port: Transport) => void;
     let calls = 0;
-    const host = new MachineWorkerHost({ kind: 'serial', request: () => ++calls === 1 ? new Promise<Transport>((r) => { resolve = r; }) : Promise.resolve(fresh) }, new TestClock());
+    const host = new MachineWorkerHost({ kind: 'serial', request: () => ++calls === 1 ? new Promise<Transport>((r) => { resolve = r; }) : Promise.resolve(fresh) }, new TestClock(), undefined, null, PHASE_1_RELEASE, memoryBootloaderMarks());
     const first = host.handle({ v: 3, kind: 'prepare', port: PORT });
     const second = await host.handle({ v: 3, kind: 'prepare', port: PORT });
     if (disconnect) await host.handle({ v: 3, kind: 'close' });

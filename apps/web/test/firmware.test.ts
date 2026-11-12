@@ -16,6 +16,7 @@ import { sha256Hex } from '@synthetos/flasher';
 import { settingsReadGroups } from '@synthetos/schema';
 import type { FirmwareReleases } from '@synthetos/protocol';
 import { FlashableBoard, SIM_IMAGES, SimEndpoint, VirtualClock, simHex, simImage, type SimImageName } from '@synthetos/testkit';
+import { memoryBootloaderMarks } from '../src/machine-worker/bootloaderMark.ts';
 import { MachineWorkerHost } from '../src/machine-worker/host.ts';
 import { releaseFor } from '../src/machine-worker/motionFlag.ts';
 import { extraApprovals, parseTrustedBuild } from '../src/machine-worker/approval.ts';
@@ -128,12 +129,14 @@ function rig(options: { readonly minimumFb?: number; readonly board?: Constructo
   const board = new FlashableBoard({ model: { bootMs: 50, eepromWriteMs: 0 }, linkBaud: 2_000_000, eeprom: { __layout: 10002, st: 1, zsn: 1 }, ...options.board });
   const endpoint = new SimEndpoint({ clock, device: board, link: { baudRate: 2_000_000, latencyMs: 0.2, coalesceMs: 2 } });
   const source: TransportSource = { kind: 'fake', request: async (p) => (p.grantIndex === 0 && endpoint.connected ? new SimTransport(endpoint, clock, holders, options.closeMs ?? 0) : null) };
-  const host = new MachineWorkerHost(source, clock, { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130' }, {
+  const marks = memoryBootloaderMarks();
+  const makeHost = () => new MachineWorkerHost(source, clock, { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130' }, {
     file: null,
     origin: ORIGIN,
     verify: async () => ({ approved: { environment: 'staging', builds: [{ channel: 'bench', dialect: 'tinyg-en', fb: 450.01, fbs: null, commit: 'e'.repeat(40), note: 't' }] }, channels: [] }),
     releases: () => releaseList(options.minimumFb ?? 450.01),
-  }, releaseFor(ORIGIN));
+  }, releaseFor(ORIGIN), marks);
+  const host = makeHost();
   const posted: (SnapshotMessage | FlashBackupsPost)[] = [];
   void host.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => posted.push(m) });
   /** Drives virtual time (and real tasks, for WebCrypto) until `done()` or the limit. */
@@ -173,11 +176,12 @@ function rig(options: { readonly minimumFb?: number; readonly board?: Constructo
     await until(() => tokens.every((t) => host.session.snapshot.values[t] !== undefined) && host.session.state.queue.length === 0 && host.session.state.writing === null, 60_000);
   };
   const connect = async (trusted?: unknown[]): Promise<void> => {
-    expect(await call({ v: 3, kind: 'open', port: PORT, boardId: null, previousSessionEnded: false, ...(trusted === undefined ? {} : { trusted }) })).toMatchObject({ ok: true });
+    const reply = await call({ v: 3, kind: 'open', port: PORT, boardId: null, previousSessionEnded: false, ...(trusted === undefined ? {} : { trusted }) });
+    expect(reply, JSON.stringify(reply)).toMatchObject({ ok: true });
     await until(() => host.session.snapshot.classification !== null && host.session.snapshot.base !== 'READING' && host.session.snapshot.base !== 'IDENTIFYING', 30_000);
     await until(() => false, 3000);
   };
-  return { clock, board, endpoint, host, posted, until, call, backupsPost, readAll, connect, holders };
+  return { marks, makeHost, clock, board, endpoint, host, posted, until, call, backupsPost, readAll, connect, holders };
 }
 
 type Rig = ReturnType<typeof rig>;
@@ -267,8 +271,18 @@ describe('the firmware update in the worker', () => {
     expect(r.host.flash.view).toMatchObject({ phase: 'failed', wrote: false });
     expect(r.board.xboot.pageWrites).toEqual([]);
     await r.until(() => false, 1000);
-    expect(r.board.state).toBe('app');
+    expect(r.board.state).toBe('bootloader');
     expect(r.board.build?.fb).toBe(450.01);
+    expect(await r.marks.find(PORT)).not.toBeNull();
+    const fresh = r.makeHost();
+    let reply: MachineReply | undefined;
+    void fresh.handle({ v: 3, kind: 'open', port: PORT, boardId: null, previousSessionEnded: false }).then(v => { reply = v; });
+    await r.until(() => reply !== undefined);
+    expect(reply).toMatchObject({ ok: false });
+    expect(fresh.flash.view, JSON.stringify(reply) + fresh.flash.flashTranscript()?.jsonl).toMatchObject({ recoveryOffered: true });
+    expect(fresh.session.snapshot.base).toBe('NOT_CONNECTED');
+    expect(await r.marks.find(PORT)).not.toBeNull();
+    expect(r.board.xboot.eraseCount).toBe(0);
   }, 60_000);
 
   it('refuses a release for other hardware, a hash that differs, and a firmware backup of another board', async () => {
@@ -311,6 +325,7 @@ describe('the firmware update in the worker', () => {
     r.endpoint.disconnect('USB pulled');
     await r.until(() => r.host.flash.view?.phase === 'failed');
     expect(r.host.flash.view).toMatchObject({ phase: 'failed', wrote: true, recoveryOffered: true });
+    expect(await r.marks.find(PORT)).not.toBeNull();
     await r.until(() => false, 20_000);
     expect(r.board.state).toBe('bootloader');
     expect(r.board.build).toBeNull();
@@ -328,10 +343,44 @@ describe('the firmware update in the worker', () => {
     expect(r.board.xboot.eraseCount).toBe(0);
   }, 180_000);
 
+  it.each(['enter', 'identify', 'backup', 'write', 'verify', 'final', 'crc', 'exit'])('keeps the durable mark when the port is lost in %s', async phase => {
+    const r = rig(); await r.connect();
+    let interrupted = false;
+    r.host.flashListener = () => {
+      if (!interrupted && r.host.flash.view?.phase === phase) { interrupted = true; r.endpoint.disconnect('interrupted'); }
+    };
+    const x = await sim('update');
+    await r.call({ v: 3, kind: 'flash', command: { op: 'begin', source: { kind: 'release', hv: 99, fb: x.fb, file: x.file }, hex: x.hex, sha256: x.sha256, settingsBackup: 'saved', baseline: {}, recovery: false } });
+    await r.until(() => r.backupsPost() !== undefined || r.host.flash.view?.phase === 'failed');
+    if (r.backupsPost()) await r.call({ v: 3, kind: 'flash', command: { op: 'backupsSaved', sha256: (r.backupsPost() as FlashBackupsPost).backups.sha256 } });
+    await r.until(() => r.host.flash.view?.phase === 'failed');
+    expect(interrupted).toBe(true);
+    expect(await r.marks.find(PORT)).not.toBeNull();
+    expect(r.host.session.snapshot.base).toBe('NOT_CONNECTED');
+    expect(r.board.xboot.eraseCount).toBe(0);
+  }, 60_000);
+
+  it('a successful write without a timely banner retains the mark and never opens a normal session', async () => {
+    const r = rig({ board: { model: { bootMs: 30_000, eepromWriteMs: 0 } } }); await r.connect();
+    await flash(r, 'update', {});
+    expect(r.host.flash.view).toMatchObject({ phase: 'failed' });
+    expect(r.host.flash.view?.message).toContain('Unplug USB and power');
+    expect(await r.marks.find(PORT)).not.toBeNull();
+    expect(r.host.session.snapshot.base).toBe('NOT_CONNECTED');
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'reconnect' } })).toMatchObject({ ok: false });
+    expect(await r.marks.find(PORT)).not.toBeNull();
+    await r.until(() => false, 5000);
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'reconnect' } })).toMatchObject({ ok: true });
+    expect(await r.marks.find(PORT)).toBeNull();
+    expect(r.host.session.snapshot.identity?.fb).toBe(450.02);
+    expect(r.holders.most).toBe(1);
+  }, 60_000);
+
   it('custom firmware: read-only afterwards; trusted on its board it is approved, never on another board', async () => {
     const r = rig();
     await r.connect();
     await flash(r, 'custom', { st: 1 }, 'custom');
+    expect(await r.marks.find(PORT)).toBeNull();
     expect(r.host.session.snapshot.identity?.fb).toBe(450.9);
     expect(r.host.session.snapshot.overlays).toContain('READ_ONLY');
     const installed = r.host.flash.installed('SIM-EN-0001');
@@ -383,7 +432,7 @@ describe('when the bootloader does not answer (bench 2, 2026-11-09)', () => {
     // What the owner saw, and now what came back.
     expect(view?.message).toContain('did not answer within 10 s');
     expect(view?.message).toContain('Nothing came back');
-    expect(view).toMatchObject({ wrote: false, recoveryOffered: false });
+    expect(view).toMatchObject({ wrote: false, recoveryOffered: true });
     // The board as the session read it before the update, for the page while the session is closed.
     expect(view?.board).toEqual({ id: 'SIM-EN-0001', hv: 99, fb: 450.01, fv: 0.97 });
     expect(r.backupsPost()).toBeUndefined();

@@ -1010,6 +1010,14 @@ In every row the reply to the connect line is a G-code reply `{"r":{},"f":[...]}
 | **Verification** | U: packages/safety/test/typedLine.test.ts, packages/machine/test/typed-travel.test.ts; apps/web/test/terminalTranslate.test.ts, terminalModules.test.ts. M: packages/machine/test/typed-move.test.ts (idle only, one line at a time, check reads before the line, refusals unsent, the travel question and an exact "Move anyway", a long line as its pieces with at most four in the planner, Stop job mid-move, Pause and Resume finishing every piece once, Pause during the check, the low-Z question and Raise's lines, Pause and an alarm during the raise, a silent board, the write gate). E: tools/e2e/specs/terminal.fake-serial.ts (the Terminal tab in Simple: `g0 x10` with the first-move notice and the low-Z question, the board moves; `g1 x40 f600` as pieces, a typed `!` holds it, a typed `~` finishes it; `M3 S12000` asks C24; typo help; history), features.fake-serial.ts (reads, the Raw filter, a settings write refused). H: *Run 2026-11-10 (TG Firmware, bench 3, MSO step-train capture, test/run-jog-streams 05ca2cff, run's exact wire stream replayed):* on the released 450.02 and on edge-next alike. Typed `G1 Y40 F600` as 7 pieces fed 4 deep: no braking (lowest 96% of cruise), ends at 40.000 with exact steps; Pause then Resume mid-line ends at 40.000 exact; Stop job mid-line (`!`, `%`) stops with steps matching posy. Pass. Still to do on a board: a refusal during a job, and the low-Z Raise. |
 ---
 
+### H92. Normal commands reach a board left in its bootloader (PROPOSED, owner wording review pending)
+
+After an interrupted flash, AVR109 interprets normal JSON as commands. In the TG Firmware bench incident (2026-11-12, tg-xboot issue #3), `e` erased application/EEPROM and `ll` set lock bits to 0x6C, preventing USB recovery. Severity: board damage, unrecoverable over USB.
+
+Before requesting bootloader entry, commit a browser-local, account-independent mark for the USB selector and board id, including the recovery image. Every later connection consults it, including after reload or in another tab. A marked port permits only bootloader-role ESC then S until a live firmware-ready banner is received. A signature offers the same-image recovery; silence retains the mark and advises unplugging USB and power, then reconnecting. No exit command is sent for cancellation, failed backup, failed verification, or this probe. Only the verified flash sequence exits. After successful exit, wait silently for the banner on the same open port before handing it to the normal session. A timeout or storage failure fails closed. Clearing a mark requires that banner and a matching record generation. Grant-list reordering cannot bypass the mark. Ordinary unmarked first connections are unchanged.
+
+Proposed copy: “The board may still be in its bootloader. Sending normal commands now could damage it.” Recovery: “Try the update again.” “Do not unplug it during the update.” Silence: “Unplug USB and power, plug them back in, then try Connect or recovery.”
+
 ## 3. Connection and motion state machine
 
 One hierarchical statechart, implemented as a pure reducer in `machine/statechart.ts`: `(state, event) → (state, effects[])`. **Account and cloud state are not part of it.** They live in the UI layer and cannot cause a transition.
@@ -1428,6 +1436,8 @@ Order of operations (OLD-S §4.7, per dialect):
 **Single source of truth (unchanged).** Preview, analyser and preflight interpret exactly the sanitised `SentLine[]` with dialect semantics (T-S1). The sanitiser always runs locally on the bytes that will be sent, never on server-provided analysis.
 
 ### 4.8 Flash gate (TinyG)
+
+**Proposed amendment, 2026-11-12 (H92; wording pending owner review):** persist the bootloader quarantine before entry and retain it through all failures and interruptions. Connect/Reconnect use the restricted ESC/S bootloader probe while quarantined. Only a live firmware-ready banner permits normal traffic; the successful update also waits for that banner, without closing and reopening the port. No fixed sleep is proof of firmware. No failed or cancelled update sends `E`. Storage failures and banner timeouts keep normal traffic blocked.
 
 As OLD-S §4.8:
 - identity check before anything bootloader-related;

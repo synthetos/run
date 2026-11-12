@@ -167,9 +167,10 @@ function RecoveryCard({ flash, actions }: { readonly flash: FlashView; readonly 
     h('header', null, h('h2', null, 'Recovery'), h('span', { class: 'tag danger' }, 'No firmware running')),
     counting
       ? h('p', { class: 'recovery-count', role: 'alert', 'data-safety': 'W49' }, w49({ seconds: flash.countdown ?? 0 }))
-      : h('p', null, 'The board has no complete firmware, so it waits in its bootloader. Run flashes it again while the bootloader waits after a reset. Start recovery, then unplug the USB cable and plug it back in.'),
+      : h('p', null, 'The board may still be in its bootloader. Try the update again. Do not unplug it during the update.'),
+    flash.message === null ? null : h('p', { role: 'alert' }, flash.message),
     h('p', { class: 'flash-danger', 'data-safety': 'W28' }, ...signalText(w28())),
-    counting ? null : h('button', { type: 'button', class: 'primary wide', 'data-machine-control': 'flash', 'data-action': 'flash-recover', disabled: actions?.firmware === undefined, onClick: () => void actions?.firmware?.recover() }, 'Start recovery'),
+    counting ? null : h('button', { type: 'button', class: 'primary wide', 'data-machine-control': 'flash', 'data-action': 'flash-recover', disabled: actions?.firmware === undefined, onClick: () => void actions?.firmware?.recover() }, 'Try the update again'),
   );
 }
 
@@ -454,7 +455,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
         : null,
       flash !== null && (flash.phase === 'recovery' || (flash.phase === 'failed' && flash.recoveryOffered)) ? h(RecoveryCard, { flash, actions }) : null,
       flash !== null && flash.phase === 'failed' && !flash.recoveryOffered
-        ? h('section', { class: 'insp', 'data-region': 'flash-failed' }, h('header', null, h('h2', null, 'Update stopped')), h('p', { role: 'alert' }, flash.message ?? 'The update stopped.'), h('p', { class: 'fine' }, flash.wrote ? 'Pages were written: use recovery.' : 'Nothing was written. The board starts its old firmware again.'), h('button', { type: 'button', class: 'small', 'data-action': 'flash-dismiss', onClick: () => void actions?.firmware?.dismiss() }, 'Dismiss'))
+        ? h('section', { class: 'insp', 'data-region': 'flash-failed' }, h('header', null, h('h2', null, 'Update stopped')), h('p', { role: 'alert' }, flash.message ?? 'The update stopped.'), h('p', { class: 'fine' }, flash.wrote ? 'Pages were written: use recovery.' : 'The board may still be in its bootloader.'), h('button', { type: 'button', class: 'small', 'data-action': 'flash-dismiss', onClick: () => void actions?.firmware?.dismiss() }, 'Dismiss'))
         : null,
       flash !== null && flash.phase === 'done'
         ? h(
