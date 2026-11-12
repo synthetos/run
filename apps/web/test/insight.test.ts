@@ -92,7 +92,7 @@ describe('the cutting rows', () => {
     const r = cuttingRows({ ...base, toolNumber: 9, tools: [noFlutes] });
     expect(r.chipLoad).toBeNull();
     expect(r.missing[0]).toEqual({ text: 'T9 has no flute count.', fix: { kind: 'tool', number: 9, label: 'Edit T9' } });
-    expect(cuttingRows({ ...base, materialId: 'pine', material: { id: 'pine', name: 'Pine', cutting: [] } as unknown as Material }).missing[0]?.text).toBe('No chip-load data for carbide in Pine.');
+    expect(cuttingRows({ ...base, materialId: 'pine', material: { id: 'pine', name: 'Pine', cutting: [] } as unknown as Material }).missing[0]?.text).toBe('No chip-load data for Carbide in Pine.');
   });
   it('while a job runs the file’s tool stands in only when the board does not report tool (OD-34)', () => {
     expect(cuttingRows({ ...base, toolNumber: 0, fileTool: 2 }).tool).toMatchObject({ number: 2, from: 'file' });

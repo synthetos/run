@@ -1,3 +1,4 @@
+import { toolMaterialLabel } from '../tools/labels.ts';
 import { toolDisplayName } from '../tools/displayName.ts';
 /**
  * The Advanced "Cutting" rows (owner, 2026-11-09): the active tool, the spindle speed, the feed, the chip load and the
@@ -76,7 +77,7 @@ export function cuttingRows(i: CuttingInput): CuttingRows {
   if (i.materialId === null) missing.push({ text: 'No material set for this job.', fix: { kind: 'step', step: 'stock', label: 'Stock & workholding' } });
   const reference = t === null || i.materialId === null ? null : referenceFor(t, i.materialId, i.material);
   if (t !== null && i.materialId !== null && reference === null) {
-    missing.push({ text: `No chip-load data for ${t.toolMaterial} in ${i.material?.name ?? 'this material'}.`, fix: { kind: 'view', view: 'materials', label: 'Materials' } });
+    missing.push({ text: `No chip-load data for ${toolMaterialLabel(t.toolMaterial)} in ${i.material?.name ?? 'this material'}.`, fix: { kind: 'view', view: 'materials', label: 'Materials' } });
   }
 
   const fz = t === null ? null : chipLoad(feed?.mmMin ?? null, spindle?.rpm ?? null, t.geometry.flutes);

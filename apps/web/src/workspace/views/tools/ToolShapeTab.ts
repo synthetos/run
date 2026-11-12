@@ -10,7 +10,7 @@ export function ToolShapeTab({ tool, number, numberIssue, onNumber, set, unit, o
   readonly unit: ToolUnit; readonly onValidity: (field: string, valid: boolean) => void;
 }): ComponentChild {
   const geometry = (field: string, value: number | undefined): void => set({ geometry: { ...tool.geometry, [field]: value } });
-  return h(ToolDrawingEditor, { tool, controlled: true }, h('div', { class: 'field-grid' },
+  return h(ToolDrawingEditor, { tool, unit, controlled: true }, h('div', { class: 'field-grid' },
     h('label', { class: 'field' }, h('span', null, 'Number'), h('input', { type: 'number', min: 1, step: 1, value: Number.isFinite(number) ? number : '', 'data-tool-field': 'number', onInput: (e: Event) => onNumber(Number((e.currentTarget as HTMLInputElement).value)) }), numberIssue === null ? null : h('small', { class: 'field-error', 'data-tool-field': 'number-error' }, numberIssue)),
     h(LengthField, { field: 'diameter', label: 'Diameter', value: tool.geometry.diameter, unit, onChange: n => geometry('diameter', n), onValidity }),
     h(ToolShapeFields, { tool, set, unit, onValidity }),

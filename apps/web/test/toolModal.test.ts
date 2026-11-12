@@ -1,3 +1,7 @@
+import { h } from 'preact';
+import { renderToString } from 'preact-render-to-string';
+import { ToolDetailsTab } from '../src/workspace/views/tools/ToolDetailsTab.ts';
+import { toolMaterialLabel, toolCoatingLabel } from '../src/workspace/tools/labels.ts';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readTool } from '@synthetos/library';
 import { newTool, toolStore } from '../src/workspace/library.ts';
@@ -45,4 +49,21 @@ it('converts surface speed to whole feet per minute', () => {
   expect(formatSurfaceSpeed(30.48, 'in')).toBe('100');
   expect(formatSurfaceSpeed(100, 'in')).toBe('328');
   expect(formatSurfaceSpeed(30.48, 'mm')).toBe('30.48');
+});
+
+it('uses shared display labels while keeping material and coating values unchanged', () => {
+  expect(['carbide', 'hss', 'cobalt'].map(toolMaterialLabel)).toEqual(['Carbide', 'HSS', 'Cobalt']);
+  expect(['uncoated', 'TiN', 'TiCN', 'ZrN', 'diamond'].map(toolCoatingLabel)).toEqual(['Uncoated', 'TiN', 'TiCN', 'ZrN', 'diamond']);
+  const html = renderToString(h(ToolDetailsTab, { tool: newTool(7), editing: false, set: () => undefined }));
+  expect(html).toContain('value="carbide"');
+  expect(html).toContain('Carbide</option>');
+  expect(html).toContain('value="uncoated"');
+  expect(html).toContain('Uncoated</option>');
+});
+it('shows tool-life controls only while editing an existing tool', () => {
+  const props = { tool: newTool(7), set: () => undefined };
+  const add = renderToString(h(ToolDetailsTab, { ...props, editing: false }));
+  expect(add).not.toContain('Cut so far'); expect(add).not.toContain('Reset');
+  const edit = renderToString(h(ToolDetailsTab, { ...props, editing: true }));
+  expect(edit).toContain('Cut so far: 0 min'); expect(edit).toContain('Reset');
 });

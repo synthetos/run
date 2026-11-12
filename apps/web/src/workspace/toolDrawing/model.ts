@@ -10,6 +10,7 @@
  *
  * Pure.
  */
+import { formatLength, type ToolUnit } from '../tools/units.ts';
 import { tipHeight, toolOutline } from '@synthetos/gcode-view';
 import type { Tool, ToolGeometry, ToolType } from '@synthetos/library';
 import { toolShapeOf } from '../../preview/activeTool.ts';
@@ -67,10 +68,6 @@ function positive(n: number | undefined): number {
   return n !== undefined && Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-function mm(n: number): string {
-  return String(Math.round(n * 100) / 100);
-}
-
 /** The geometry as typed, with the numbers that are not usable for drawing kept at a small size. */
 function safe(g: ToolGeometry): ToolGeometry {
   const diameter = positive(g.diameter) || 1;
@@ -78,7 +75,8 @@ function safe(g: ToolGeometry): ToolGeometry {
 }
 
 /** The side view of `tool` (its geometry as typed), with its dimensions and what cannot be right. */
-export function toolDrawingModel(tool: Pick<Tool, 'type' | 'geometry'>): ToolDrawingModel {
+export function toolDrawingModel(tool: Pick<Tool, 'type' | 'geometry'>, unit: ToolUnit = 'mm'): ToolDrawingModel {
+  const lengthText = (n: number): string => formatLength(n, unit);
   const g = safe(tool.geometry);
   const shape = { ...toolShapeOf({ type: tool.type, geometry: g }), length: g.overallLength };
   const half = toolOutline(shape);
@@ -96,11 +94,11 @@ export function toolDrawingModel(tool: Pick<Tool, 'type' | 'geometry'>): ToolDra
   if (g.fluteLength > g.overallLength) issues.push({ key: 'fluteLength', text: ISSUE_TEXT.flutesTooLong });
   if (g.shank < g.diameter && !REDUCED_SHANK_OK.has(tool.type)) issues.push({ key: 'shank', text: ISSUE_TEXT.thinShank });
   const dims: Dimension[] = [
-    { key: 'diameter', orient: 'across', value: g.diameter, from: -radius, to: radius, at: tipTop + (fluteTop - tipTop) / 2, label: `Ø${mm(g.diameter)}` },
-    { key: 'shank', orient: 'across', value: g.shank, from: -shankRadius, to: shankRadius, at: fluteTop + (top - fluteTop) / 2, label: `Ø${mm(g.shank)}` },
-    { key: 'fluteLength', orient: 'along', value: g.fluteLength, from: 0, to: g.fluteLength, at: 0, label: `Flutes ${mm(g.fluteLength)}` },
-    { key: 'overallLength', orient: 'along', value: g.overallLength, from: 0, to: g.overallLength, at: 0, label: `Overall ${mm(g.overallLength)}` },
-    ...(holder === null ? [] : [{ key: 'stickout' as const, orient: 'along' as const, value: holder, from: 0, to: holder, at: 0, label: `Stickout: out of the holder ${mm(holder)}` }]),
+    { key: 'diameter', orient: 'across', value: g.diameter, from: -radius, to: radius, at: tipTop + (fluteTop - tipTop) / 2, label: `Ø${lengthText(g.diameter)}` },
+    { key: 'shank', orient: 'across', value: g.shank, from: -shankRadius, to: shankRadius, at: fluteTop + (top - fluteTop) / 2, label: `Ø${lengthText(g.shank)}` },
+    { key: 'fluteLength', orient: 'along', value: g.fluteLength, from: 0, to: g.fluteLength, at: 0, label: `Flutes ${lengthText(g.fluteLength)}` },
+    { key: 'overallLength', orient: 'along', value: g.overallLength, from: 0, to: g.overallLength, at: 0, label: `Overall ${lengthText(g.overallLength)}` },
+    ...(holder === null ? [] : [{ key: 'stickout' as const, orient: 'along' as const, value: holder, from: 0, to: holder, at: 0, label: `Stickout: out of the holder ${lengthText(holder)}` }]),
   ];
   return { outline, radius, shankRadius, tipTop, fluteTop, top, holder, flutes: Math.max(1, Math.round(positive(g.flutes) || 1)), dims, issues };
 }

@@ -8,6 +8,7 @@
  * `thumb` draws the outline and the flutes only, at the size of a list icon, from the same model.
  * Colours come from the theme tokens (both themes).
  */
+import { formatLength, MM_PER_INCH, type ToolUnit } from '../tools/units.ts';
 import { h, type ComponentChild } from 'preact';
 import { useMemo } from 'preact/hooks';
 import type { Tool } from '@synthetos/library';
@@ -65,7 +66,7 @@ function frameFor(m: ToolDrawingModel): Frame {
   return { s, x: (x) => cx + x * s, y: (y) => base - y * s };
 }
 
-function DimLine({ d, f, m, arrow, active, warn, onPick, onHover }: { readonly d: Dimension; readonly arrow: string; readonly f: Frame; readonly m: ToolDrawingModel; readonly active: boolean; readonly warn: boolean; readonly onPick?: (key: DimKey) => void; readonly onHover?: (key: DimKey | null) => void }): ComponentChild {
+function DimLine({ d, f, m, unit, arrow, active, warn, onPick, onHover }: { readonly d: Dimension; readonly arrow: string; readonly f: Frame; readonly m: ToolDrawingModel; readonly unit: ToolUnit; readonly active: boolean; readonly warn: boolean; readonly onPick?: (key: DimKey) => void; readonly onHover?: (key: DimKey | null) => void }): ComponentChild {
   const maxX = f.x(Math.max(m.radius, m.shankRadius));
   const minX = f.x(-Math.max(m.radius, m.shankRadius));
   const parts: ComponentChild[] = [];
@@ -95,7 +96,7 @@ function DimLine({ d, f, m, arrow, active, warn, onPick, onHover }: { readonly d
       'data-dim': d.key,
       tabindex: onPick === undefined ? undefined : 0,
       role: onPick === undefined ? undefined : 'button',
-      'aria-label': `${meaning.split(':')[0] ?? d.key}: ${String(Math.round(d.value * 100) / 100)} mm. Edit it`,
+      'aria-label': `${meaning.split(':')[0] ?? d.key}: ${formatLength(d.value, unit)} ${unit}. Edit it`,
       onClick: () => onPick?.(d.key),
       onKeyDown: (e: KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -117,6 +118,7 @@ function DimLine({ d, f, m, arrow, active, warn, onPick, onHover }: { readonly d
 export interface ToolDrawingProps {
   readonly tool: Pick<Tool, 'type' | 'geometry'>;
   readonly thumb?: boolean;
+  readonly unit?: ToolUnit;
   /** The dimension to highlight (its field is focused or pointed at), or null. */
   readonly active?: DimKey | null;
   /** A dimension was chosen on the drawing: focus its field. */
@@ -125,16 +127,17 @@ export interface ToolDrawingProps {
   readonly onHover?: (key: DimKey | null) => void;
 }
 
-export function ToolDrawing({ tool, thumb = false, active = null, onPick, onHover }: ToolDrawingProps): ComponentChild {
-  const m = toolDrawingModel(tool);
+export function ToolDrawing({ tool, unit = 'mm', thumb = false, active = null, onPick, onHover }: ToolDrawingProps): ComponentChild {
+  const m = toolDrawingModel(tool, unit);
   if (thumb) return h(Thumb, { m });
-  return h(Full, { m, active, ...(onPick === undefined ? {} : { onPick }), ...(onHover === undefined ? {} : { onHover }) });
+  return h(Full, { m, unit, active, ...(onPick === undefined ? {} : { onPick }), ...(onHover === undefined ? {} : { onHover }) });
 }
 
-function Full({ m, active, onPick, onHover }: { readonly m: ToolDrawingModel; readonly active: DimKey | null; readonly onPick?: (key: DimKey) => void; readonly onHover?: (key: DimKey | null) => void }): ComponentChild {
+function Full({ m, unit, active, onPick, onHover }: { readonly m: ToolDrawingModel; readonly unit: ToolUnit; readonly active: DimKey | null; readonly onPick?: (key: DimKey) => void; readonly onHover?: (key: DimKey | null) => void }): ComponentChild {
   const id = useMemo(() => `tf${++instance}`, []);
   const f = frameFor(m);
-  const step = niceStep(f.s);
+  const unitMm = unit === 'in' ? MM_PER_INCH : 1;
+  const step = niceStep(f.s * unitMm) * unitMm;
   const warnKeys = new Set(m.issues.map((i) => i.key));
   const outline = pathOf(m.outline, f);
   const hatch = fluteHatch(m).map(([x0, y0, x1, y1], i) => h('line', { key: String(i), class: 'tf-flute', x1: f.x(x0), y1: f.y(y0), x2: f.x(x1), y2: f.y(y1) }));
@@ -145,7 +148,7 @@ function Full({ m, active, onPick, onHover }: { readonly m: ToolDrawingModel; re
   const holderY = m.holder === null ? null : f.y(m.holder);
   const holderHalf = Math.max(m.radius, m.shankRadius) * f.s + 14;
   const tool3 = (cls: string): ComponentChild => h('g', { class: cls }, h('path', { class: 'tf-body', d: outline }), h('g', { 'clip-path': `url(#${id}-o)` }, hatch), h('path', { class: 'tf-edge', d: outline }));
-  const summary = m.dims.map((d) => `${(TOOL_FIELD_MEANING[d.key] ?? d.key).split(':')[0] ?? ''} ${String(Math.round(d.value * 100) / 100)} mm`).join(', ');
+  const summary = m.dims.map((d) => `${(TOOL_FIELD_MEANING[d.key] ?? d.key).split(':')[0] ?? ''} ${formatLength(d.value, unit)} ${unit}`).join(', ');
   return h(
     'svg',
     { class: 'tool-figure-svg', viewBox: `0 0 ${W} ${H}`, role: 'group', 'aria-label': `Side view of the tool, to scale: ${summary}`, 'data-tool-drawing': '' },
@@ -172,14 +175,14 @@ function Full({ m, active, onPick, onHover }: { readonly m: ToolDrawingModel; re
           h('rect', { class: 'tf-holder-block', x: f.x(0) - holderHalf, y: holderY - 18, width: holderHalf * 2, height: 18, fill: `url(#${id}-hatch)` }),
           h('line', { class: 'tf-holder-face', x1: f.x(0) - holderHalf - 6, y1: holderY, x2: f.x(0) + holderHalf + 6, y2: holderY }),
         ),
-    m.dims.map((d) => h(DimLine, { key: d.key, d, f, m, arrow: `${id}-arrow`, active: active === d.key, warn: warnKeys.has(d.key), ...(onPick === undefined ? {} : { onPick }), ...(onHover === undefined ? {} : { onHover }) })),
+    m.dims.map((d) => h(DimLine, { key: d.key, d, f, m, unit, arrow: `${id}-arrow`, active: active === d.key, warn: warnKeys.has(d.key), ...(onPick === undefined ? {} : { onPick }), ...(onHover === undefined ? {} : { onHover }) })),
     h(
       'g',
       { class: 'tf-scale', 'aria-hidden': 'true' },
       h('line', { x1: gx0 + 12, y1: H - 12, x2: gx0 + 12 + step * f.s, y2: H - 12 }),
       h('line', { x1: gx0 + 12, y1: H - 16, x2: gx0 + 12, y2: H - 8 }),
       h('line', { x1: gx0 + 12 + step * f.s, y1: H - 16, x2: gx0 + 12 + step * f.s, y2: H - 8 }),
-      h('text', { x: gx0 + 18 + step * f.s, y: H - 9 }, `${String(step)} mm`),
+      h('text', { x: gx0 + 18 + step * f.s, y: H - 9 }, `${formatLength(step, unit)} ${unit}`),
     ),
   );
 }

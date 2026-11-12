@@ -1,3 +1,4 @@
+import { toolMaterialLabel as toolMaterialName } from '../tools/labels.ts';
 import { PurchaseLine, AddLink } from './PurchaseLinks.ts';
 /**
  * The Tools and Materials views (MACHINING_ASSISTANT §2, §3, §8) on
@@ -191,7 +192,7 @@ function MaterialInspector({ view, onSelect, onEdit }: { readonly view: Material
               h(
                 'div',
                 { key: row.toolMaterial, class: 'cut-block' },
-                h('h3', { class: 'tan-label' }, `${row.toolMaterial === 'hss' ? 'HSS' : `${row.toolMaterial.slice(0, 1).toUpperCase()}${row.toolMaterial.slice(1)}`} tools`),
+                h('h3', { class: 'tan-label' }, `${toolMaterialName(row.toolMaterial)} tools`),
                 h(
                   'dl',
                   { class: 'facts' },
@@ -398,7 +399,6 @@ const parse = (s: string): number | null => {
   return s.trim() !== '' && Number.isFinite(n) ? n : null;
 };
 
-const toolMaterialName = (t: string): string => (t === 'hss' ? 'HSS' : `${t.slice(0, 1).toUpperCase()}${t.slice(1)}`);
 
 /** The form as material fields, or the first problem in plain words. */
 export function fieldsFromForm(f: MaterialFormState, original: Material | null): MaterialFields | string {

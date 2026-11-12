@@ -1,3 +1,4 @@
+import { toolMaterialLabel, toolCoatingLabel } from '../../tools/labels.ts';
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { toolStore, toolsByNumber, TOOL_KINDS } from '../../library.ts';
@@ -23,7 +24,7 @@ export function ToolsView(): ComponentChild {
         h('tbody', null, toolsByNumber(tools.filter(t => filter === 'all' || t.tool.type === filter)).map(e => h('tr', { key: e.tool.id, tabindex: 0, 'aria-selected': selected === e.tool.id, 'data-tool-row': e.number, onClick: () => setSelected(e.tool.id), onKeyDown: (event: KeyboardEvent) => { if (event.key === 'Enter') setSelected(e.tool.id); } },
           h('td', { class: 't-art' }, h(ToolDrawing, { tool: e.tool, thumb: true })),
           h('td', null, h('button', { type: 'button', class: 'row-link', onClick: () => setSelected(e.tool.id) }, h('strong', null, `T${e.number} · ${toolDisplayName(e.tool)}`)), h('small', null, TOOL_KINDS[e.tool.type])),
-          h('td', { class: 'num' }, `${formatLength(e.tool.geometry.diameter, unit)} ${unit}`), h('td', null, String(e.tool.geometry.flutes)), h('td', null, `${e.tool.toolMaterial === 'hss' ? 'HSS' : e.tool.toolMaterial}${e.tool.coating === 'uncoated' ? '' : ` · ${e.tool.coating}`}`), h('td', { class: 'used' }, e.tool.notes || 'No notes'))))))),
+          h('td', { class: 'num' }, `${formatLength(e.tool.geometry.diameter, unit)} ${unit}`), h('td', null, String(e.tool.geometry.flutes)), h('td', null, `${toolMaterialLabel(e.tool.toolMaterial)}${e.tool.coating === 'uncoated' ? '' : ` · ${toolCoatingLabel(e.tool.coating)}`}`), h('td', { class: 'used' }, e.tool.notes || 'No notes'))))))),
     adding || current !== null ? h(ToolModal, { key: current?.tool.id ?? 'new', entry: adding ? null : current, onClose: () => { setAdding(false); setSelected(null); } }) : null,
   );
 }

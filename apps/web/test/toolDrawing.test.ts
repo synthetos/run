@@ -119,3 +119,18 @@ describe('ToolDrawing', () => {
     expect(thumb).not.toContain('data-dim');
   });
 });
+
+it('inch drawing labels, accessible dimensions and round scale follow units without changing geometry', () => {
+  const t = tool('flat', { diameter: 3.175, shank: 3.175, overallLength: 38, fluteLength: 12, stickout: 20 });
+  const metric = toolDrawingModel(t);
+  const imperial = toolDrawingModel(t, 'in');
+  expect(imperial.outline).toEqual(metric.outline);
+  expect(imperial.dims.map(({ label: _label, ...d }) => d)).toEqual(metric.dims.map(({ label: _label, ...d }) => d));
+  const svg = renderToString(h(ToolDrawing, { tool: t, unit: 'in' }));
+  expect(svg).toContain('Ø0.125');
+  expect(svg).toContain('Overall 1.4961');
+  expect(svg).toContain('Flutes 0.4724');
+  expect(svg).toContain('0.5 in</text>');
+  expect(svg).toContain('0.125 in. Edit it');
+  expect(svg).not.toContain(' mm');
+});

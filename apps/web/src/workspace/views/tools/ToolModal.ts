@@ -47,7 +47,7 @@ export function ToolModal({ entry, onClose }: { readonly entry: ToolEntry | null
     h('header', { class: 'dialog-head' }, h('h2', { id: 'tool-modal-title' }, entry === null ? 'Add a tool' : `Edit T${number} · ${toolDisplayName(tool)}`), h('div', { class: 'seg', role: 'group', 'aria-label': 'Length units' }, ...(['mm', 'in'] as const).map(u => h('button', { type: 'button', class: u === unit ? 'selected' : undefined, 'aria-pressed': u === unit ? 'true' : 'false', onClick: () => toolUnits.set(u) }, u)))),
     h(TabBar<Tab>, { label: 'Tool', prefix: 'tool', variant: 'underline', current: tab, onSelect: setTab, tabs: [{ id: 'shape', label: 'Shape' }, { id: 'details', label: 'Details' }, { id: 'buy', label: 'Where to buy' }, { id: 'cutting', label: 'Cutting data' }] }),
     h(TabPane, { prefix: 'tool', id: 'shape', current: tab, class: 'tool-modal-pane' }, h(ToolShapeTab, { tool, number, numberIssue: issue, onNumber: setNumber, set, unit, onValidity: validity })),
-    h(TabPane, { prefix: 'tool', id: 'details', current: tab, class: 'tool-modal-pane' }, h(ToolDetailsTab, { tool, set })),
+    h(TabPane, { prefix: 'tool', id: 'details', current: tab, class: 'tool-modal-pane' }, h(ToolDetailsTab, { tool, set, editing: entry !== null })),
     h(TabPane, { prefix: 'tool', id: 'buy', current: tab, class: 'tool-modal-pane' }, h(ToolBuyTab, { tool, store: entry?.store ?? null, set })),
     h(TabPane, { prefix: 'tool', id: 'cutting', current: tab, class: 'tool-modal-pane' }, h(ToolCuttingTab, { tool, unit })),
     error === null ? null : h('p', { class: 'field-error', role: 'alert' }, error),

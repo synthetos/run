@@ -6,6 +6,7 @@
  *
  * The fields are the inspector's own (they carry `data-tool-field`); this only listens to them.
  */
+import type { ToolUnit } from '../tools/units.ts';
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Tool, ToolGeometry } from '@synthetos/library';
@@ -34,7 +35,7 @@ function fieldOf(e: Event): string | null {
   return key !== null && NUMBER_FIELDS.has(key) ? key : null;
 }
 
-export function ToolDrawingEditor({ tool, children, controlled = false }: { readonly tool: Tool; readonly children?: ComponentChild; readonly controlled?: boolean }): ComponentChild {
+export function ToolDrawingEditor({ tool, children, controlled = false, unit = 'mm' }: { readonly tool: Tool; readonly unit?: ToolUnit; readonly children?: ComponentChild; readonly controlled?: boolean }): ComponentChild {
   const [drafts, setDrafts] = useState<Drafts>({});
   const [focused, setFocused] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -68,7 +69,7 @@ export function ToolDrawingEditor({ tool, children, controlled = false }: { read
     h(
       'figure',
       { class: 'tool-figure', 'data-tool-figure': '' },
-      h(ToolDrawing, { tool: shown, active, onPick: pick, onHover: setOnDrawing }),
+      h(ToolDrawing, { tool: shown, unit, active, onPick: pick, onHover: setOnDrawing }),
       h('figcaption', { class: 'tf-meaning', 'aria-live': 'polite', 'data-tool-meaning': '' }, meaning),
       model.issues.length === 0 ? null : h('ul', { class: 'tf-issues', 'data-tool-issues': '' }, model.issues.map((i, n) => h('li', { key: String(n), 'data-issue': i.key }, h('span', { 'aria-hidden': 'true' }, '⚠ '), i.text))),
     ),

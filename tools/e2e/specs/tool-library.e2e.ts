@@ -76,6 +76,7 @@ for (const theme of ['light', 'dark'] as const) {
     await modal.locator('#tool-tab-details').click();
     await expect(modal.locator('[data-tool-field="name"]')).toHaveValue('');
     await expect(modal.locator('[data-tool-field="name"]')).toHaveAttribute('placeholder', 'e.g. 1/4 in down-cut');
+    await expect(modal.locator('.tool-life')).toHaveCount(0);
     await page.screenshot({ path: `${dir}/tool-add-empty-${theme}.png` });
     const material = modal.getByLabel('Material', { exact: true });
     await expect(material.locator('option')).toHaveText(['Carbide', 'HSS', 'Cobalt']);
@@ -89,10 +90,16 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(modal.getByRole('button', { name: 'in', exact: true })).toHaveClass('selected');
     await expect(modal.getByRole('button', { name: 'mm', exact: true })).toHaveAttribute('aria-pressed', 'false');
     await expect(modal.locator('[data-tool-field="diameter"]')).toHaveValue('0.125');
+    await expect(modal.locator('[data-dim="diameter"] text')).toHaveText('Ø0.125');
+    await expect(modal.locator('[data-dim="overallLength"] text')).toHaveText('Overall 1.4961');
+    await expect(modal.locator('.tf-scale text')).toHaveText('0.5 in');
     await page.screenshot({ path: `${dir}/tool-shape-inches-${theme}.png` });
     await modal.locator('[data-tool-field="number"]').fill('1');
     await expect(modal.locator('[data-tool-field="number-error"]')).toBeVisible();
     await page.screenshot({ path: `${dir}/tool-number-clash-${theme}.png` });
+    await modal.locator('[data-action="cancel-tool"]').click();
+    await expect(page.locator('tr[data-tool-row="4"]')).toContainText('Carbide');
+    await page.locator('tr[data-tool-row="4"] .row-link').click();
     await modal.locator('#tool-tab-details').click();
     await modal.getByRole('button', { name: 'Reset', exact: true }).click();
     await expect(modal.locator('.inline-confirm')).toContainText('Reset to 0?');
