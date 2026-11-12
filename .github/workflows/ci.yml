@@ -3,7 +3,7 @@
 # Jobs and what they may hold:
 #   verify             secret-free. Installs every devDependency and runs the
 #                      typecheck, lint, boundary, licence, CI-policy and unit
-#                      test gates. Runs on every pull request and push.
+#                      test gates. Runs on pull requests and pushes to main.
 #   mutation           secret-free, contents: read. Incremental on pushes/PRs;
 #                      full weekly/manual runs. The 90% gate blocks attest
 #                      and both deploys. Only main runs save the cache.
@@ -57,6 +57,7 @@ on:
   pull_request:
     branches: [main]
   push:
+    branches: [main]
   schedule:
     - cron: '0 6 * * 0'
   workflow_dispatch:

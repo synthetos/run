@@ -471,6 +471,8 @@ describe('mutation gate', () => {
     ['save after failure', "if: github.ref == 'refs/heads/main' && (github.event_name", "if: always() && github.ref == 'refs/heads/main' && (github.event_name"],
     ['no schedule', "  schedule:\n    - cron: '0 6 * * 0'\n", ''],
     ['no manual run', '  workflow_dispatch:\n', ''],
+    ['unrestricted pushes', '  push:\n    branches: [main]\n', '  push:\n'],
+    ['other branch pushes', '  push:\n    branches: [main]\n', '  push:\n    branches: [main, feature]\n'],
     ['push filter', '  push:\n', '  push:\n    paths: [packages/safety/**]\n'],
     ['attestation bypass', 'needs: [verify, mutation, build]\n', 'needs: [verify, build]\n'],
     ['timeout removed', '    timeout-minutes: 360\n', ''],

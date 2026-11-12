@@ -903,9 +903,9 @@ function checkMutationJob(jobs: readonly Job[], triggers: readonly string[], add
   if (mutation === undefined || shape(mutation.lines) !== shape(readLines(MUTATION_JOB))) {
     flag(mutation?.line ?? 1, 'mutation must use the reviewed unconditional job, commands, timeout and main-only cache save');
   }
-  const expectedTriggers = ['pull_request:', 'branches: [main]', 'push:', 'schedule:', "- cron: '0 6 * * 0'", 'workflow_dispatch:'];
+  const expectedTriggers = ['pull_request:', 'branches: [main]', 'push:', 'branches: [main]', 'schedule:', "- cron: '0 6 * * 0'", 'workflow_dispatch:'];
   if (JSON.stringify(triggers.filter(t => t !== '')) !== JSON.stringify(expectedTriggers)) {
-    flag(1, 'ci must run on pushes and PRs, weekly Sunday 06:00 UTC and manual dispatch');
+    flag(1, 'ci must run on main pushes and PRs targeting main, weekly Sunday 06:00 UTC and manual dispatch');
   }
   const attest = jobs.find(j => j.name === 'attest');
   if (attest === undefined || !listValue(attest, 'needs').includes('mutation')) flag(attest?.line ?? 1, 'attest must need mutation');
