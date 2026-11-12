@@ -1,5 +1,6 @@
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
+import { formatChipload, formatSurfaceSpeed, type ToolUnit } from '../../tools/units.ts';
 import type { Tool } from '@synthetos/library';
 import { material, SOURCE_LABELS } from '../../library.ts';
 import { AddLink, PurchaseLine } from '../PurchaseLinks.ts';
@@ -14,10 +15,10 @@ export function ToolBuyTab({ tool, store, set }: { tool: Tool; store: string | n
     h(Pager, { page, count: tool.purchase.length, size: 4, set: setPage }),
     h(AddLink, { onAdd: p => { if (tool.purchase.length >= 20) return 'Twenty links at most.'; set({ purchase: [...tool.purchase, p] }); setPage(Math.floor(tool.purchase.length / 4)); return null; } }));
 }
-export function ToolCuttingTab({ tool }: { tool: Tool }): ComponentChild {
+export function ToolCuttingTab({ tool, unit }: { tool: Tool; unit: ToolUnit }): ComponentChild {
   const [page, setPage] = useState(0);
   return h('div', null, tool.cuttingData.length === 0 ? h('p', null, 'No cutting data yet.') : h('table', { class: 'slot-table' },
-    h('thead', null, h('tr', null, ...['Material', 'Surface speed (m/min)', 'Chipload (mm/tooth)', 'Source'].map(label => h('th', null, label)))),
-    h('tbody', null, tool.cuttingData.slice(page * 6, page * 6 + 6).map((c, i) => h('tr', { key: String(i) }, h('td', null, material(c.materialRef.id)?.name ?? c.materialRef.id), h('td', null, String(c.vc)), h('td', null, String(c.fz)), h('td', null, SOURCE_LABELS[c.source] ?? c.source))))),
+    h('thead', null, h('tr', null, ...['Material', unit === 'in' ? 'Surface speed (SFM, ft/min)' : 'Surface speed (m/min)', unit === 'in' ? 'Chipload (in/tooth)' : 'Chipload (mm/tooth)', 'Source'].map(label => h('th', null, label)))),
+    h('tbody', null, tool.cuttingData.slice(page * 6, page * 6 + 6).map((c, i) => h('tr', { key: String(i) }, h('td', null, material(c.materialRef.id)?.name ?? c.materialRef.id), h('td', null, formatSurfaceSpeed(c.vc, unit)), h('td', null, formatChipload(c.fz, unit)), h('td', null, SOURCE_LABELS[c.source] ?? c.source))))),
     h(Pager, { page, count: tool.cuttingData.length, size: 6, set: setPage }), h('p', { class: 'fine' }, 'Placeholder values: not yet sourced. They show the shape of the data, not machining advice.'));
 }

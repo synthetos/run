@@ -497,8 +497,9 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 
 /* Tool edits are a local draft in a compact dialog, with the full table behind it. */
 .tool-modal-wrap { position: fixed; }
-.dialog.tool-modal { width: 1020px; padding: 16px 20px; overflow: visible; }
-.tool-modal .tool-modal-pane { min-height: 355px; padding-top: 10px; }
+.dialog.tool-modal { width: 1020px; height: 560px; padding: 16px 20px; display: flex; flex-direction: column; overflow: hidden; }
+.tool-modal > .dialog-head, .tool-modal > .utabs, .tool-modal > .dialog-actions { flex-shrink: 0; }
+.tool-modal .tool-modal-pane { flex: 1; min-height: 0; padding-top: 10px; overflow: auto; }
 .tool-modal .tool-editor { display: grid; grid-template-columns: 38% 1fr; gap: 24px; }
 .tool-modal .tool-figure { position: static; align-content: start; margin: 0; }
 .tool-modal .tool-figure-svg { max-height: 265px; }
