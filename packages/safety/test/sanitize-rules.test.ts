@@ -481,14 +481,27 @@ describe('verdict wording from the bench 1 file (presentation only: levels and r
     expect(atEnd.lines.find((l) => l.toolChange !== undefined)?.toolChange?.restartsSpindle).toBe(false);
   });
 
-  it('a tool change on a move long enough to be split rides on the first segment only', () => {
-    // Deterministic cover for the split path's tool-change branch (the property tests reach it only by chance).
-    const r = run('G21 G90\nT2 M6 G1 X100 F600\n', EN, { motion: { ...MOTION, ceilingSeconds: 2, maxVelocity: { X: 600 }, feedrateMax: { X: 600 } } });
+  it.each([
+    { label: 'tool change', words: 'T2 M6', tool: true, spindle: false },
+    { label: 'clockwise spindle start', words: 'M3 S9000', tool: false, spindle: true },
+    { label: 'counterclockwise spindle start', words: 'M4 S9000', tool: false, spindle: true },
+    { label: 'tool change and spindle start', words: 'T2 M6 M3 S9000', tool: true, spindle: true },
+    { label: 'neither', words: '', tool: false, spindle: false },
+  ])('split move: $label belongs to the first segment only', ({ words, tool, spindle }) => {
+    // Cover first-segment conditions and later-segment short circuits without a random property seed.
+    // The preceding tool stop makes the internal startsSpindle marker observable through restartsSpindle.
+    const r = run(`G21 G90\nT1 M6\n${words} G1 X100 F600\nM5\n`, EN, { motion: { ...MOTION, ceilingSeconds: 2, maxVelocity: { X: 600 }, feedrateMax: { X: 600 } } });
     expect(r.report.blocked, JSON.stringify(r.report.entries)).toBe(false);
     const segments = r.lines.filter((l) => l.origin === 'split');
     expect(segments.length).toBeGreaterThan(1);
-    expect(segments[0]?.toolChange).toMatchObject({ tool: 2 });
-    expect(segments.slice(1).every((l) => l.toolChange === undefined)).toBe(true);
+    expect(r.lines.find(l => l.sourceLine === 2)?.toolChange?.restartsSpindle).toBe(spindle);
+    if (tool) expect(segments[0]?.toolChange).toEqual({ tool: 2, spindle: 'off', speed: null, mist: false, flood: false, restartsSpindle: spindle });
+    else expect(segments[0]?.toolChange).toBeUndefined();
+    expect(segments[0]?.body.includes('M3') || segments[0]?.body.includes('M4')).toBe(spindle);
+    for (const segment of segments.slice(1)) {
+      expect(segment.toolChange).toBeUndefined();
+      expect(segment.body).not.toMatch(/\bM[346]\b/);
+    }
   });
 
   it('a G or M word whose digits run together across spaces is explained, still as unsupported-code', () => {
