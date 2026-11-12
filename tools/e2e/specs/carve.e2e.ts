@@ -124,12 +124,13 @@ test('the key is the picture: the tool for screen readers; the bed, links, hint 
   await expect(menu).not.toContainText('Carving');
   await expect(sheet.locator('[data-preview="mode"]')).toHaveCount(0);
   await expect(sheet.locator('[data-preview="dialect"]')).toHaveCount(0);
+  await expect(sheet.locator('[data-preview="analysis-note"]')).toHaveCount(0);
   // Advanced: the bed's name and the carving detail join the menu.
   await page.locator('[data-action="ui-level-advanced"]').click();
   await expect(menu.locator('[data-scene="bed"]')).toContainText('790 × 790 mm');
   await expect(menu).toContainText('Carving detail 0.125 mm');
-  await expect(sheet.locator('.viewer-options')).toContainText('Read as:');
-  await expect(sheet.locator('[data-preview="dialect"] option:checked')).toHaveText('TinyG edge-next');
+  await expect(sheet.locator('.viewer-options')).toContainText('Checked for TinyG edge-next. Connect to check against your board.');
+  await expect(sheet.locator('[data-preview="dialect"]')).toHaveCount(0);
   await expect(sheet.locator('[data-preview="mode"] option:checked')).toHaveText('Auto');
 });
 

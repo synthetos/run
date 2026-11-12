@@ -62,6 +62,9 @@ export interface PreviewParts {
 }
 
 export interface PreviewPanelProps {
+  /** Run chooses from the connected board; absent preserves the standalone sheet selector. */
+  readonly analysisDialect?: PreviewViewState['dialect'];
+  readonly analysisLocked?: boolean;
   /** Starts `gcode.worker`; null without Trusted Types (the panel stays disabled). */
   readonly spawn: (() => WorkerLike) | null;
   /** Starts the carve worker (useCarve.ts); null or absent for no stock carving. */
@@ -170,7 +173,7 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null, playAllowed = false, playRapid, scrubTo, spin = 0 }: PreviewPanelProps): ComponentChild {
+export function PreviewPanel({ analysisDialect, analysisLocked = false, spawn, spawnCarve = null, spindleTool = null, marker, tool = null, layout, reportedLine = null, onReportLine, job = null, planner, onBreakpoints, scene = null, onScenePick, boardTool = null, playAllowed = false, playRapid, scrubTo, spin = 0 }: PreviewPanelProps): ComponentChild {
   const live = marker?.value ?? null;
   const [state, setState] = useState<PreviewViewState>(IDLE_STATE);
   const [fitRequest, setFitRequest] = useState(0);
@@ -201,6 +204,12 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
       },
     );
   }, []);
+
+  useEffect(() => {
+    if (analysisDialect === undefined || analysisLocked || !state.ready || state.dialect === analysisDialect) return;
+    if (lastFile.current !== null) load(lastFile.current, analysisDialect, state.mode);
+    else setState((s) => ({ ...s, dialect: analysisDialect }));
+  }, [analysisDialect, analysisLocked, state.ready, state.dialect, state.mode, load]);
 
   const estimate = useCallback((profile: PlannerProfile): Promise<Estimate> => client.current?.estimate(profile) ?? Promise.resolve({ ok: false, reason: 'No file is loaded.' }), []);
   const fetchFindings = useCallback((from: number, to: number): Promise<readonly Finding[]> => client.current?.findings(from, to) ?? Promise.resolve([]), []);
@@ -282,7 +291,7 @@ export function PreviewPanel({ spawn, spawnCarve = null, spindleTool = null, mar
   const readout = live === null ? undefined : h('p', { class: `pv-marker-readout lag-${live.lag}`, 'data-preview': 'marker-readout', role: 'status' }, markerText(live));
 
   const actions: PreviewViewActions = {
-      onFile: (file) => { load(file, state.dialect, state.mode); },
+      onFile: (file) => { load(file, analysisLocked ? state.dialect : analysisDialect ?? state.dialect, state.mode); },
       onDialect: (dialect) => {
         if (lastFile.current !== null) load(lastFile.current, dialect, state.mode);
         else setState((s) => ({ ...s, dialect }));

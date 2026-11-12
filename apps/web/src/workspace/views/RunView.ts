@@ -17,6 +17,7 @@ import { c24, c25, c25HandSet, c27, c28, c29, w13 } from '@synthetos/safety';
 import { DIALECTS } from '@synthetos/protocol';
 import type { WorkerLike } from '../../gcode-worker/client.ts';
 import { scrubRequest } from '../analysisState.ts';
+import { analysisDialect } from '../../preview/analysisDialect.ts';
 import { PreviewPanel, type LiveMarkerView, type PreviewParts } from '../../preview/PreviewPanel.ts';
 import { fileLevel, on, progressText } from '../../preview/PreviewView.ts';
 import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
@@ -120,6 +121,8 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
   useAutoZero(active);
   const { scene, tool } = useLivePlacement(planned, snap === null ? null : { ...snap.live, overlays: snap.overlays }, useLivePathFrame(currentFile.value?.preview ?? null, ui.job));
   return h(PreviewPanel, {
+    analysisDialect: analysisDialect(ui.connected, ui.snapshot?.classification?.dialectId).dialect,
+    analysisLocked: ui.active,
     spawn,
     spawnCarve,
     spindleTool: spindleToolChoice.value,
@@ -1230,7 +1233,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
             'div',
             { class: 'viewer-top' },
             // How the file is read and drawn: Advanced only (Simple keeps the defaults, Auto included), in plain words.
-            simple ? null : h(ViewerOptions, { parts, disabled }),
+            simple ? null : h(ViewerOptions, { parts, disabled, note: analysisDialect(jobUi(model?.live.value ?? null).connected, jobUi(model?.live.value ?? null).snapshot?.classification?.dialectId).note }),
             h(
               'div',
               { class: 'viewer-tools', role: 'group', 'aria-label': 'View' },
