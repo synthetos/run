@@ -19,7 +19,7 @@ Proposed build object for the **staging bench channel only**, after owner review
   "fb": 450.04,
   "fbs": null,
   "commit": "ee98f02b545f3548fe53e59d143715141cfaf510",
-  "note": "TinyG 450.04 candidate for staging bench use only. HEX SHA-256 a67aa65d4b9fa8bed1c9693de87d2cd9fbe3b0113d4560415eaced4088a483a1. Review docs/ops/firmware-450-04-proposal.md and approve safety wording before signing. No D5 image approval is claimed."
+  "note": "TinyG 450.04 candidate for staging bench use only. HEX SHA-256 a67aa65d4b9fa8bed1c9693de87d2cd9fbe3b0113d4560415eaced4088a483a1. Review docs/ops/firmware-450-04-proposal.md and resolve the pending firmware pause contract before signing. No D5 image approval is claimed."
 }
 ```
 
@@ -90,17 +90,21 @@ No new control byte or host resume action is needed, and no new canned-program s
 The runtime wiki describes `fs.v=2`, seven causes and the opt-in `fg` report. Existing step-3 parsing is not
 changed or enabled by this proposal; the pin and production feature flags remain as they were.
 
-## Registered wording for owner review only
+## Registered wording proposals — superseded
 
 **Superseded (owner, 2026-11-12):** "pause motion only ... pause should ONLY ever affect motion". Pause affects motion
 only; TG Firmware is asked to make `$spph=0` the 450.04 default. The setting-dependent wording below and the SAFETY
 prose amendments are not adopted: the current registered wording (outputs keep running during a pause) stays. A
 variant for boards that report `$spph=1` waits for TG's answer on whether that option survives.
 
-No replacements in this section have been applied to `packages/safety/src/strings.ts` or `SAFETY.md`.
-Keep old-build wording where its premise still holds. These are proposed 450.04 variants:
+This decision covers W2, W10, W17, W31, Resuming/Resumed and the SAFETY prose amendments below.
+It is a requested firmware default, not evidence that the released HEX has changed. Never add host-side
+spindle stop or restart commands to Pause or Resume; neither action may change spindle or coolant outputs.
 
-| Registered text / location | Issue | Proposed replacement or rule |
+No replacements in this section have been applied to `packages/safety/src/strings.ts` or `SAFETY.md`.
+The following proposals are retained only as historical context, not as changes awaiting approval:
+
+| Registered text / location | Original concern | Superseded proposal (not adopted) |
 |---|---|---|
 | W2 tooltip (`w2Tooltip`, SAFETY W2) | Says spindle and coolant keep running unconditionally. | “Decelerates and pauses motion. Spindle and coolant may pause according to board settings. Resume may restart them. Use Stop job to end the job, and your E-stop in an emergency.” |
 | W10 (`w10`, SAFETY W10) | Says TinyG feedhold never stops outputs. | “Pause may turn off the spindle and coolant according to board settings. Resume may restart them. Use Stop job to end the job with the spindle off.” |
@@ -114,7 +118,7 @@ conservative and correct. W5's host-loss warning is not relaxed: losing the brow
 feedhold. C9/C9 spindle-restart strings remain defined but are already not shown (OD-20); do not add a host
 restart command to an ordinary E060 resume. Tool-change C35 still applies to Run's separate M5/M9 sequence.
 
-SAFETY prose also needs the owner's amendment in these locations (line numbers at base 7b8cc72):
+The following SAFETY prose amendments are also superseded and must not be applied (line numbers at base 7b8cc72):
 
 - Lines 29, 58 and H16 (335–340): scope the spindle-stays-on premise to old builds or disabled output pause.
   Proposed: “From EN 450.04, board settings govern output pause; physical stop is never established by Pause.”
@@ -127,8 +131,9 @@ SAFETY prose also needs the owner's amendment in these locations (line numbers a
 - §7 residual 4 (1654): replace universal feedhold/program-stop spindle behavior with the setting-dependent
   450.04 rule, while retaining the warning that loss of control cannot switch off physical power.
 
-These wording amendments and any owner-required bench comparison remain prerequisites to approval. This
-readiness branch deliberately leaves the registered wording unchanged, as requested.
+These superseded wording amendments are not prerequisites to approval. The current registered wording
+stays unchanged. TG's answer on the firmware pause contract, including boards reporting `$spph=1`, remains
+pending; any owner-required bench comparison still requires separate review.
 
 ## Bench evidence supplied by the firmware team
 
