@@ -8,7 +8,8 @@
  * command could not run.
  */
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { buildDataWorker } from './data-worker.ts';
+import { join, resolve } from 'node:path';
 import { buildWorker, WorkerBuildError } from './worker.ts';
 
 function main(argv: readonly string[]): number {
@@ -28,6 +29,7 @@ function main(argv: readonly string[]): number {
     const built = buildWorker(files);
     mkdirSync(outDir, { recursive: true });
     for (const m of built) writeFileSync(join(outDir, m.name), m.code);
+    buildDataWorker(resolve(srcDir, '../../..'), join(outDir, 'data'));
     process.stdout.write(`worker build: ${built.length} modules written to ${outDir}\n`);
     return 0;
   } catch (error) {

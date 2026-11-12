@@ -311,3 +311,50 @@ deploy jobs first verify the attestation of all four files with
   - model-based and conformance tests (P0-11 onwards);
   - Stryker;
   - API integration tests.
+
+### A2-01 staging records
+
+`run-data-staging` has no route, workers.dev address or preview URL. Only run's named
+service binding reaches `AppEntrypoint`. The existing secret-free Worker builder also
+builds `worker/data/` from the reviewed data Worker, contracts and library/schema readers.
+It enters the existing twice-compared, manifested and attested `run-worker.tar`; staging
+uses `--no-bundle` for both Workers. No dependency installation or build runs with tokens.
+
+After run configuration preflight, the exact confined provisioning step checks both
+credentials and lists both resources before creating anything. It ensures D1
+`run-data-staging` and R2 `run-files-staging` exist, resolves the D1 UUID by name, and
+writes a positive-allowlist data deployment config. The D1-only credential applies
+migrations, then the deploy credential deploys run-data before run. A retry reuses
+resources by name. Transient service failures can leave an already-created resource;
+retrying resumes. A missing declared permission fails before either create. Records
+migrations are additive; rollback of run does not delete data or roll back the data Worker.
+
+Required permissions, on `vars.CLOUDFLARE_ACCOUNT_ID`:
+
+- `CLOUDFLARE_D1_API_TOKEN`: **D1 Write** (dashboard: D1 Edit), for provisioning and migrations.
+- `CLOUDFLARE_API_TOKEN`: **Workers Scripts Write** and **Workers R2 Storage Write**
+  (dashboard: Edit), plus its existing run routing/Access smoke permissions.
+- User tokens need **API Tokens Read** to inspect their own policies before
+  any resource creation. A permission refusal names the secret and permission in one line;
+  token values and API response bodies are never printed. An account-owned token needs the
+  equivalent **Account API Tokens Read** permission; both token kinds are supported.
+
+Policy inspection is documented by Cloudflare's [token details API](https://developers.cloudflare.com/api/resources/user/subresources/tokens/methods/get/).
+Creation permissions follow its [D1 create API](https://developers.cloudflare.com/api/typescript/resources/d1/subresources/database/methods/create/)
+and [R2 bucket API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/).
+No manual wrangler command, database id entry, or deployment is required of the owner.
+Production data configuration contains placeholders and the run production preflight
+refuses deployment in this slice, even if production sign-in is otherwise configured.
+
+Records use `/api/records/tool` or `/api/records/material` (GET list, with optional `after`
+last-id cursor, 100 records per page), and `/api/records/<kind>/<id>` (GET, PUT, DELETE).
+PUT takes `{parent_rev: null|number, content: record}`; DELETE takes `{parent_rev: number}`.
+Unknown envelope fields are refused. Only a validated run-session subject supplies user_id;
+Access identity cannot grant records access. Mutations use the existing same-origin CSRF
+headers. 401 means signed out, 409 carries the caller's current head, 413 means quota.
+
+Each validated record is capped at 64 KiB of encoded JSON. The shared constant
+`ACCOUNT_STORAGE_BYTES` is 1,000,000,000 bytes (decimal 1 GB); every retained revision's
+UTF-8 content counts, including archived records. D1 triggers enforce CAS, quota accounting,
+head updates and audit writes in one transaction. A2-05 must reserve file bytes in this same
+account ledger. No safety state or UI migration is included in this slice.

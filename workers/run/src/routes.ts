@@ -16,7 +16,8 @@
  * (only `env: 'production'` entries count there), so it answers 404, and
  * its flasher is off.
  */
-import type { IdentityBody, SessionBody } from '@synthetos/contracts';
+import { recordsRoute } from './records.ts';
+import type { IdentityBody, SessionBody, RunDataBinding } from '@synthetos/contracts';
 import { accessConfig, type CertsFetcher, fetchAccessCerts, verifyAccessJwt } from './accessIdentity.ts';
 import { firmwareAssetPath, firmwareHeaders, NO_CACHE, proxyFirmwareAsset, type FirmwareCache, type FirmwareProxyDeps } from './firmwareProxy.ts';
 import { authConfig, type AuthEnv } from './authConfig.ts';
@@ -37,6 +38,7 @@ export interface AssetsBinding {
 }
 
 export interface Env extends AuthEnv {
+  readonly RUN_DATA?: RunDataBinding;
   readonly ASSETS: AssetsBinding;
   readonly RUN_ENV?: string;
   /** Staging only: the Access team domain (`<team>.cloudflareaccess.com`). */
@@ -173,6 +175,7 @@ export async function route(
   const url = new URL(request.url);
   const { pathname } = url;
   if (under(pathname, '/api')) {
+    if (under(pathname, '/api/records')) return recordsRoute(request, env);
     if (pathname === '/api/identity') {
       if (request.method === 'GET') return identity(request, env, fetchCerts);
       return json(405, { error: 'method_not_allowed' }, { allow: 'GET' });

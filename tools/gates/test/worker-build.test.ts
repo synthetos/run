@@ -69,7 +69,7 @@ describe('the real Worker build', () => {
   it('builds every source module, deterministically', () => {
     expect(buildCli(outA).status).toBe(0);
     expect(buildCli(outB).status).toBe(0);
-    const files = readdirSync(outA).sort();
+    const files = readdirSync(outA).filter(n => n.endsWith('.mjs')).sort();
     expect(files).toEqual(readdirSync(join(REPO_ROOT, 'workers/run/src')).map((n) => n.replace(/\.ts$/, '.mjs')).sort());
     for (const f of files) expect(readFileSync(join(outA, f))).toEqual(readFileSync(join(outB, f)));
   });
@@ -111,8 +111,20 @@ describe('the real Worker build', () => {
       );
       const output = `${r.stdout}${r.stderr}`;
       expect(r.status, output).toBe(0);
-      expect(readdirSync(outdir).filter((f) => f.endsWith('.mjs')).sort()).toEqual(readdirSync(outA).sort());
+      expect(readdirSync(outdir).filter((f) => f.endsWith('.mjs')).sort()).toEqual(readdirSync(outA).filter(n => n.endsWith('.mjs')).sort());
       expect(output).toContain(envArgs.length > 0 ? 'env.RUN_ENV ("staging")' : 'env.RUN_ENV ("production")');
     }
   });
+});
+
+it('the data Worker artifact includes every schema dependency beside its entry, reproducibly', () => {
+  const a = join(base, 'data-check-a'); const b = join(base, 'data-check-b');
+  expect(buildCli(a).status).toBe(0); expect(buildCli(b).status).toBe(0);
+  const files = readdirSync(join(a,'data')).sort();
+  expect(files).toContain('index.mjs'); expect(files).toContain('packages_library_src_validate.mjs'); expect(files).toContain('packages_schema_src_jsonSchema.mjs');
+  for (const file of files) expect(readFileSync(join(a,'data',file),'utf8')).toBe(readFileSync(join(b,'data',file),'utf8'));
+  for (const file of files) {
+    const code = readFileSync(join(a,'data',file),'utf8');
+    for (const match of code.matchAll(/from ['"]\.\/([^'"]+)['"]/g)) expect(files).toContain(match[1]);
+  }
 });

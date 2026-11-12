@@ -44,6 +44,7 @@ export interface BindingFinding {
 
 type Json = Record<string, unknown>;
 const isObject = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v);
+const namesData = (v: unknown): boolean => typeof v === 'string' && (v === 'run-data' || v.startsWith('run-data-'));
 const namesAccounts = (v: unknown): boolean => typeof v === 'string' && (v === 'accounts' || v.startsWith('accounts-'));
 
 /** Where in one scope (top level or one env) a configuration binds accounts. */
@@ -93,8 +94,20 @@ export function checkWranglerFile(file: string, text: string): BindingFinding[] 
     return [{ file, message: `does not parse, so the accounts-binding check (D39) cannot clear it: ${error instanceof Error ? error.message : String(error)}` }];
   }
   if (ACCOUNTS_BINDERS.includes(file)) return [];
-  return bindingsToAccounts(config).map((where) => ({
-    file,
-    message: `binds the accounts Worker (${where}); only workers/run/wrangler.jsonc may (D39, SAFETY H46)`,
-  }));
+  const dataBindings: string[] = [];
+  const scan = (scope: Json): void => {
+    for (const [key, value] of Object.entries(scope)) {
+      if (['service','script_name'].includes(key) && namesData(value) || key === 'entrypoint' && value === 'AppEntrypoint') dataBindings.push(key);
+      if (isObject(value)) scan(value);
+      if (Array.isArray(value)) for (const item of value) if (isObject(item)) scan(item);
+    }
+  };
+  if (isObject(config)) scan(config);
+  const findings = bindingsToAccounts(config).map((where) => ({ file, message: `binds the accounts Worker (${where}); only workers/run/wrangler.jsonc may (D39, SAFETY H46)` }));
+  for (const where of dataBindings) findings.push({file, message:`binds run-data (${where}); only workers/run/wrangler.jsonc may`});
+  if (file.startsWith('workers/run-data/')) {
+    const scopes = isObject(config) ? [config, ...(isObject(config['env']) ? Object.values(config['env']).filter(isObject) : [])] : [];
+    if (scopes.length === 0 || scopes.some(scope => scope['workers_dev'] !== false || scope['preview_urls'] !== false || JSON.stringify(scope['routes']) !== '[]' || 'route' in scope)) findings.push({file,message:'run-data must have no hostname, workers.dev or preview URL'});
+  }
+  return findings;
 }

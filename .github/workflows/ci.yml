@@ -470,6 +470,12 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: node tools/gates/src/smoke/cli.ts --env staging --pre-deploy
+      - name: Provision staging data resources
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_D1_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: node tools/gates/src/deploy/data-provision-cli.ts
       - name: Fetch the previous staging deployment state (asset retention)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -526,6 +532,16 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: ci/deploy-toolchain/node_modules/.bin/wrangler d1 migrations apply RUN_AUTH --remote --config workers/run/wrangler.deploy.json --env staging
+      - name: Apply staging data migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: ci/deploy-toolchain/node_modules/.bin/wrangler d1 migrations apply RUN_DATA_DB --remote --config workers/run-data/wrangler.deploy.json
+      - name: Deploy attested staging data Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: ci/deploy-toolchain/node_modules/.bin/wrangler deploy worker/data/index.mjs --no-bundle --config workers/run-data/wrangler.deploy.json
       - name: Deploy the attested artifact to staging
         id: deploy
         env:

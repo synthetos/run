@@ -41,7 +41,7 @@ describe('the committed workflows', () => {
     for (const env of ['staging', 'production']) {
       expect(CI).toContain(`run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc ${env} --write workers/run/wrangler.deploy.json`);
     }
-    const deploys = CI.split('\n').filter((l) => /wrangler deploy /.test(l));
+    const deploys = CI.split('\n').filter((l) => /wrangler deploy worker\/index/.test(l));
     expect(deploys).toHaveLength(2);
     for (const l of deploys) {
       expect(l).toContain('--config workers/run/wrangler.deploy.json');

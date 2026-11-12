@@ -104,3 +104,13 @@ describe('pnpm ci-policy, end to end', () => {
     expect(scratch.gate('tools/gates/src/bindings/cli.ts', [scratch.root]).status).toBe(2);
   });
 });
+
+it('only run may bind the data Worker, including through a renamed entrypoint or nested environment', () => {
+  for (const services of [[{binding:'DATA',service:'run-data-staging'}],[{binding:'DATA',service:'renamed',entrypoint:'AppEntrypoint'}]]) {
+    expect(checkWranglerFile(SITE,JSON.stringify({env:{staging:{services}}})).length).toBeGreaterThan(0);
+    expect(checkWranglerFile('workers/run/wrangler.jsonc',JSON.stringify({services}))).toEqual([]);
+  }
+});
+it('the data Worker can never have a public URL', () => {
+ expect(checkWranglerFile('workers/run-data/wrangler.jsonc',JSON.stringify({workers_dev:true,preview_urls:false,routes:[]}))).toHaveLength(1);
+});

@@ -73,7 +73,7 @@
       // until the owner creates the database; preflight strips both bindings while it is a placeholder. Two
       // Worker secrets are set by the owner, never in this file: RUN_STATE_KEY and RUN_RATE_KEY. Without all of
       // these, sign-in stays off and /auth/* is a 404.
-      "services": [{ "binding": "ACCOUNTS", "service": "accounts-staging", "entrypoint": "RunEntrypoint" }],
+      "services": [{ "binding": "ACCOUNTS", "service": "accounts-staging", "entrypoint": "RunEntrypoint" }, { "binding": "RUN_DATA", "service": "run-data-staging", "entrypoint": "AppEntrypoint" }],
       "d1_databases": [
         { "binding": "RUN_AUTH", "database_name": "run-auth-staging", "database_id": "0ab71cac-0c75-428c-a520-6293612078a3", "migrations_dir": "migrations" }
       ],

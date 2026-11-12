@@ -440,3 +440,9 @@ describe('D1 migration credential isolation', () => {
     expect(rules(mutate(CI, '      - name: Typecheck\n', '      - name: Typecheck\n        env:\n          DB: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}\n'))).toContain('secret-outside-deploy');
   });
 });
+
+it('confines data provisioning to staging and the exact command, with migrations before its attested deployment', () => {
+ expect(rules(mutate(CI,'run: node tools/gates/src/deploy/data-provision-cli.ts','run: echo extra && node tools/gates/src/deploy/data-provision-cli.ts'))).toContain('secret-outside-deploy');
+ expect(rules(mutate(CI,'wrangler d1 migrations apply RUN_DATA_DB','wrangler d1 execute RUN_DATA_DB'))).toContain('d1-credentials');
+ expect(rules(mutate(CI,'worker/data/index.mjs --no-bundle','workers/run-data/src/index.ts'))).toContain('deploy-config');
+});

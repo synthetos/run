@@ -207,6 +207,13 @@ module.exports = {
 
     // --- run Worker (RUN_PLAN §5.2, §5.3, T-S57) -------------------------
     {
+      name: 'data-worker-imports-only-records',
+      comment: 'The account data Worker may use contracts and library readers only, never machine or UI code.',
+      severity: 'error',
+      from: { path: '^workers/run-data/src/' },
+      to: { path: `(^packages/|^apps/|^tools/|^workers/run/|${NPM})`, pathNot: '(^packages/(contracts|library)/|(^|/)node_modules/@synthetos/(contracts|library)/)' },
+    },
+    {
       name: 'worker-imports-only-contracts',
       comment:
         'workers/run imports contracts only (auth-core joins in A1). The server holds no machine logic, ' +
@@ -355,11 +362,12 @@ module.exports = {
     },
     {
       name: 'no-unresolvable',
-      comment: 'Every import must resolve. An unresolved import cannot be checked against the rules above.',
+      comment: 'Every import must resolve. The data entry has one explicitly checked runtime builtin below.',
       severity: 'error',
-      from: {},
+      from: { pathNot: '^workers/run-data/src/index\\.ts$' },
       to: { couldNotResolve: true },
     },
+    { name: 'data-entry-runtime-import', severity: 'error', from: { path: '^workers/run-data/src/index\\.ts$' }, to: { couldNotResolve: true, pathNot: '^cloudflare:workers$' } },
     {
       name: 'no-undeclared-npm',
       comment: 'An npm import must be declared in the package.json of the importing workspace package (or the root).',

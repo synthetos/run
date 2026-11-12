@@ -1,3 +1,4 @@
+import { dataStep, DATA_PROVISION, DATA_MIGRATION, DATA_DEPLOY } from './dataCredentials.ts';
 /**
  * Workflow policy check (ROADMAP P0-03, RUN_PLAN §6.2).
  *
@@ -383,13 +384,13 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
         add(line.no, 'secret-outside-deploy', `only ${DEPLOY_JOBS.join(' and ')} may reference secrets or ${DEPLOY_SECRET}`);
       } else {
         for (const m of content.matchAll(/\bsecrets\b(\s*\.\s*([A-Za-z0-9_]+))?/g)) {
-          if (m[2] !== DEPLOY_SECRET && !(m[2] === D1_SECRET && job !== undefined && (d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '') || d1ReadinessIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '')))) {
+          if (m[2] !== DEPLOY_SECRET && !(m[2] === D1_SECRET && job !== undefined && (dataStep(stepOf(job, line), job.name, DATA_PROVISION) || dataStep(stepOf(job, line), job.name, DATA_MIGRATION) || d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '') || d1ReadinessIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '')))) {
             add(line.no, 'secret-outside-deploy', `deploy jobs may use secrets.${DEPLOY_SECRET}; the D1 credential is confined to the reviewed migration step`);
           }
         }
       }
     }
-    if (isDeploy && job !== undefined && /\bwrangler\s+d1\b/.test(content) && !d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '')) {
+    if (isDeploy && job !== undefined && /\bwrangler\s+d1\b/.test(content) && !d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '') && !dataStep(stepOf(job, line), job.name, DATA_MIGRATION)) {
       add(line.no, 'd1-credentials', 'D1 migrations must use only the separate D1 token in the pinned migration step');
     }
     if (/\bsecrets\s*:\s*inherit\b/.test(content) || /secrets\s*\[/.test(content) || /toJSON\(\s*secrets/.test(content)) {
@@ -645,7 +646,7 @@ function checkRollback(jobs: readonly Job[], add: (line: number, rule: PolicyRul
     const flag = (line: number, message: string): void => add(line, 'deploy-rollback', message);
     const text = (l: Line): string => l.text.replace(/^-\s+/, '');
     const deployId = job.lines.find((l) => !l.inBlock && text(l) === 'id: deploy');
-    const wrangler = job.lines.find((l) => /wrangler deploy /.test(l.text));
+    const wrangler = job.lines.find((l) => /wrangler deploy /.test(l.text) && !dataStep(stepOf(job,l),name,DATA_DEPLOY));
     const smoke = job.lines.find((l) => text(l) === `run: node tools/gates/src/smoke/cli.ts --env ${env}`);
     const undo = job.lines.find((l) => text(l) === `run: node tools/gates/src/deploy/rollback-cli.ts ${env} ci/deploy-toolchain/node_modules/.bin/wrangler`);
     if (deployId === undefined || wrangler === undefined || wrangler.no < deployId.no) {
@@ -695,6 +696,11 @@ function checkDeployConfig(jobs: readonly Job[], add: (line: number, rule: Polic
     // A wrangler invocation: the word wrangler followed by a subcommand. The undo step's
     // `rollback-cli.ts <env> .../wrangler` passes the binary path only (its plan uses DEPLOY_CONFIG).
     const invocations = job.lines.filter((l) => /(^|[\s/])wrangler\s+[a-z]/.test(l.text) && !/^(?:-\s+)?name:/.test(l.text));
+    if (name === 'deploy-staging') {
+      const steps = [DATA_PROVISION, DATA_MIGRATION, DATA_DEPLOY].map(expected => job.lines.find(l => l.text === expected[expected.length-1] && dataStep(stepOf(job,l),name,expected)));
+      if (steps.some(s => s === undefined)) flag(job.line,'staging data provisioning, migrations and attested deploy require their exact confined steps');
+      else if (steps[0]!.no <= (preflight?.no ?? Infinity) || steps[1]!.no <= steps[0]!.no || steps[2]!.no <= steps[1]!.no || (deployment !== undefined && steps[2]!.no > deployment.no)) flag(job.line,'data provisioning, migrations and deploy must precede run deployment in order');
+    }
     let deploys = 0;
     for (const l of invocations) {
       if (/\bwrangler\s+deploy\b/.test(l.text)) deploys += 1;
@@ -703,7 +709,7 @@ function checkDeployConfig(jobs: readonly Job[], add: (line: number, rule: Polic
       const tokens = l.text.split(/\s+/);
       const configOptions = tokens.filter((t) => /^(?:--config|-c)(?:=|$)/.test(t));
       const at = tokens.indexOf('--config');
-      if (configOptions.length !== 1 || at === -1 || tokens[at + 1] !== DEPLOY_CONFIG) {
+      if (configOptions.length !== 1 || at === -1 || tokens[at + 1] !== (dataStep(stepOf(job,l),name,DATA_MIGRATION) || dataStep(stepOf(job,l),name,DATA_DEPLOY) ? 'workers/run-data/wrangler.deploy.json' : DEPLOY_CONFIG)) {
         flag(l.no, `job '${name}': every wrangler invocation must pass exactly --config ${DEPLOY_CONFIG}, and no other configuration option`);
       }
       if (tokens.some((t) => /^--(?:cwd|env-file)(?:=|$)/.test(t))) flag(l.no, `job '${name}': a wrangler invocation may not pass --cwd or --env-file`);

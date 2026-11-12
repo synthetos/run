@@ -48,6 +48,7 @@ function main(argv: readonly string[]): number {
     for (const entry of readdirSync(process.cwd())) {
       if (/^\.env(\.|$)/i.test(entry)) findings.push({ where: entry, message: 'a dotenv file in the deploy working directory is never allowed: wrangler loads it into its environment, with the deploy token' });
     }
+    if (env === 'production') findings.push({where:'run-data',message:'production provisioning is still a placeholder; production deploy is refused'});
     if (findings.length > 0) {
       process.stderr.write(`deploy preflight (${env}): refused, nothing was deployed\n`);
       for (const f of findings) process.stderr.write(`  ${f.where}: ${f.message}\n`);

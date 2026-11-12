@@ -101,7 +101,7 @@ export const EXPECTED_STAGING_ASSETS = EXPECTED_ASSETS;
  */
 export const EXPECTED_SERVICES: Readonly<Record<DeployEnvironment, readonly { binding: string; service: string; entrypoint: string }[]>> = {
   production: [{ binding: 'ACCOUNTS', service: 'accounts', entrypoint: 'RunEntrypoint' }],
-  staging: [{ binding: 'ACCOUNTS', service: 'accounts-staging', entrypoint: 'RunEntrypoint' }],
+  staging: [{ binding: 'ACCOUNTS', service: 'accounts-staging', entrypoint: 'RunEntrypoint' }, { binding: 'RUN_DATA', service: 'run-data-staging', entrypoint: 'AppEntrypoint' }],
 };
 
 /**

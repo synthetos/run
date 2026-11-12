@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The sign-in tests run the RUN_AUTH schema in node:sqlite and read the migrations with node:fs.
+    "lib": ["ES2022", "WebWorker"],
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

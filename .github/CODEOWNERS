@@ -104,3 +104,8 @@
 /packages/machine/src/session/settingWrite.ts     @ril3y
 /packages/schema/src/settingsWrite.ts             @ril3y
 /apps/web/src/machine-worker/approval.ts          @ril3y
+
+# Account data, RPC isolation and storage provisioning.
+/workers/run-data/                  @ril3y
+/workers/run/src/records.ts          @ril3y
+/packages/contracts/src/records.ts   @ril3y

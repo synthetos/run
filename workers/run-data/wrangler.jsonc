@@ -1,0 +1,20 @@
+{
+  "name": "run-data",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "account_id": "79866c4d48cb424b8cb3ac3b9955d46b",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "find_additional_modules": true,
+  "rules": [{"type":"ESModule","globs":["**/*.mjs"]}],
+  "d1_databases": [{"binding":"RUN_DATA_DB","database_name":"run-data","database_id":"RUN_DATA_PRODUCTION_DATABASE_ID_PLACEHOLDER","migrations_dir":"migrations"}],
+  "r2_buckets": [{"binding":"RUN_FILES","bucket_name":"RUN_FILES_PRODUCTION_PLACEHOLDER"}],
+  "env": {
+    "staging": {
+      "workers_dev": false, "preview_urls": false, "routes": [],
+      "d1_databases": [{"binding":"RUN_DATA_DB","database_name":"run-data-staging","database_id":"RUN_DATA_STAGING_DATABASE_ID_PLACEHOLDER","migrations_dir":"migrations"}],
+      "r2_buckets": [{"binding":"RUN_FILES","bucket_name":"run-files-staging"}]
+    }
+  }
+}
