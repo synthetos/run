@@ -412,18 +412,24 @@ describe('the firmware update in the worker', () => {
     expect(r.board.xboot.eraseCount).toBe(0);
   }, 60_000);
 
-  it('a successful write without a timely banner retains the mark and never opens a normal session', async () => {
+  it.each(['matching', 'different', 'unknown'] as const)('a late banner clears only its own board mark (%s id); silence never unlocks the session', async identity => {
     const r = rig({ board: { model: { bootMs: 30_000, eepromWriteMs: 0 } } }); await r.connect();
     await flash(r, 'update', {});
     expect(r.host.flash.view).toMatchObject({ phase: 'failed' });
     expect(r.host.flash.view?.message).toContain('Unplug USB and power');
     expect(await r.marks.find(PORT)).not.toBeNull();
     expect(r.host.session.snapshot.base).toBe('NOT_CONNECTED');
+    const original = await r.marks.find(PORT);
+    if (original === null) throw new Error('missing failed-flash mark');
+    const boardId = identity === 'matching' ? original.boardId : identity === 'different' ? 'ANOTHER-BOARD' : null;
+    await r.marks.clear(original);
+    await r.marks.put({ ...original, boardId });
     expect(await r.call({ v: 3, kind: 'flash', command: { op: 'reconnect' } })).toMatchObject({ ok: false });
     expect(await r.marks.find(PORT)).not.toBeNull();
     await r.until(() => false, 5000);
     expect(await r.call({ v: 3, kind: 'flash', command: { op: 'reconnect' } })).toMatchObject({ ok: true });
-    expect(await r.marks.find(PORT)).toBeNull();
+    if (identity === 'different') expect(await r.marks.find(PORT)).toMatchObject({ nonce: original.nonce, boardId: 'ANOTHER-BOARD' });
+    else expect(await r.marks.find(PORT)).toBeNull();
     expect(r.host.session.snapshot.identity?.fb).toBe(450.02);
     expect(r.holders.most).toBe(1);
   }, 60_000);

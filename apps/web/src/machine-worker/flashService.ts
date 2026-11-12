@@ -630,6 +630,7 @@ export class FlashService {
 
   async #handoff(link: BootloaderLink, mark: BootloaderMark, finishPrecheck = false): Promise<Transport> {
     // A banner from a different board never clears the recorded board's quarantine.
+    // If no board id was known, the live ready banner on this port is the only available proof and clears that mark.
     if (mark.boardId === null || link.firmwareBanner?.id === mark.boardId) await this.#d.marks.clear(mark);
     return finishPrecheck ? link.finishReadyPrecheck() : link.applicationTransport();
   }
