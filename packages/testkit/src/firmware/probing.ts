@@ -37,7 +37,7 @@ export interface ProbeHost {
   alarmed(): boolean;
   /** `_probing_init()`: cycle state PROBE, absolute distance mode (@cite EN cycle_probing.c:212-220). */
   enterCycle(): void;
-  /** `cm_straight_feed()` to a machine target: a soft limit alarms there and returns its status (@cite EN canonical_machine.c:1522-1527). */
+  /** `cm_straight_feed()` to a machine target: a soft limit alarms there and returns its status (@cite EN canonical_machine.c:1617-1622). */
   feed(target: Vec): number;
   requestFeedhold(): void;
   /**

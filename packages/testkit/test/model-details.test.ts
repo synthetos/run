@@ -172,7 +172,7 @@ describe('edge-next JSON, verbosity and reports', () => {
     expect(replies(sim.host.lines())[5]?.r).toEqual({ err: '{"fb":' });
   });
 
-  it('refuses a spindle polarity change while the spindle runs (EN spindle.c:62-81)', () => {
+  it('refuses a spindle polarity change while the spindle runs (EN spindle.c:66-85)', () => {
     const sim = enSim();
     sim.host.sendLine('M3');
     sim.host.sendLine('{"spep":0}');

@@ -67,7 +67,7 @@ export function activeLowText(dialect: Dialect): { readonly message: string; rea
   const base = 'An active-low relay module switches on when its input is low or not driven.';
   const en =
     'On EN firmware the spindle and coolant pins stay inputs (high impedance) while settings load at boot, so the module can switch on during reset and boot; spep and spdp set the OFF level only after settings load. A feedhold also leaves outputs on.';
-  const enCite = 'PROTOCOL_NOTES §13.1; EN spindle.c:56-60 (spindle_init_outputs runs after settings load); EN docs/configuration-layout-2.md "Output levels during boot"; bench B-IO-1';
+  const enCite = 'PROTOCOL_NOTES §13.1; EN spindle.c:60-64 (spindle_init_outputs runs after settings load); EN docs/configuration-layout-2.md "Output levels during boot"; bench B-IO-1';
   const tg =
     'TinyG 440.21 has no output polarity setting, so the module runs whenever the output is commanded off. The outputs may also float during reset (UNVERIFIED: bench items B-IO-1 and B-FL-2).';
   const tgCite = 'TOOLS_PLAN §6.5 (no polarity setting on 440.21; XMEGA reset state UNVERIFIED, B-IO-1, B-FL-2)';

@@ -35,7 +35,6 @@ import { editBlocked } from '../settings/SettingsUi.ts';
 import {
   AXIS_NAMES,
   MOTORS,
-  RESERVED,
   clearDraft,
   connectorLabel,
   connectorPins,
@@ -73,6 +72,7 @@ const REASON_TEXT: Readonly<Record<string, string>> = {
   'g2core-unknown-build': 'A g2core build Run does not know.',
   conflict: 'The board’s answers did not agree with each other.',
   probeFailed: 'The board did not answer the identification questions.',
+  spindlePause: 'Spindle pause on hold must be disabled before Run controls this board.',
   flowControl: 'The board’s flow control setting (ex) could not be read, or has a value Run doesn’t know.',
 };
 
@@ -84,7 +84,6 @@ function fact(label: string, value: string, raw: string, attr?: string): Compone
 
 /** A value from the read, plain words first and the raw key after; "Not read" when absent. With `edit`, its editor below. */
 function cell(key: string, settings: Settings, dialect: string | null, edit: LiveView | null = null): ComponentChild {
-  if (RESERVED.has(key)) return h('td', { key, class: 'muted' }, h(Keyed, { value: 'Reserved on this firmware', raw: key }));
   const v = plainValue(key, settings[key], dialect);
   const d = draftDiff(key, settings);
   return h(
@@ -178,7 +177,6 @@ function PinSettings({ pin, view }: { readonly pin: PinInfo; readonly view: Live
   const snapshot = view !== null && connected(view) ? view.message?.snapshot : undefined;
   const r = displayReadouts(snapshot);
   const rows = pin.keys.map((k) => {
-    if (RESERVED.has(k)) return [settingMeta(k, dialect).label, 'Reserved on this firmware', k] as const;
     if (k === 'spe') return ['Spindle, reported', spindleText(r), 'spe'] as const;
     if (k === 'cof' || k === 'com') return [k === 'cof' ? 'Flood, reported' : 'Mist, reported', coolantText(r), k] as const;
     if (k === 'spc' || k === 'spd' || k === 'sps') return null;

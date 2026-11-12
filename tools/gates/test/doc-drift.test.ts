@@ -73,13 +73,13 @@ describe('D4 is done: no stale build-number claim', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('the EN pin is 450.02 at a7489b79 and its note records D4 as done, with fbs/cap and D5 still open', () => {
+  it('the EN pin is 450.04 at ee98f02b and its note records D4 as done, with fbs/cap and D5 still open', () => {
     const pins = JSON.parse(read('vendor/firmware-pins.json')) as {
       pins: Record<string, { commit: string; fb: number; note: string }>;
     };
     const en = pins.pins['EN'];
-    expect(en?.commit).toBe('a7489b79b2d886d872e019ff1e414f716de6638b');
-    expect(en?.fb).toBe(450.02);
+    expect(en?.commit).toBe('ee98f02b545f3548fe53e59d143715141cfaf510');
+    expect(en?.fb).toBe(450.04);
     const note = en?.note ?? '';
     expect(note).toMatch(/D4 (is )?done/);
     expect(note).toContain('450.02');
@@ -91,7 +91,7 @@ describe('D4 is done: no stale build-number claim', () => {
   it('the tinyg-en dialect header records D4 as done and still forbids classifying by fb alone', () => {
     const header = read('packages/protocol/src/dialects/tinygEn.ts').split('*/')[0] ?? '';
     expect(header).toMatch(/D4 (is )?done/);
-    expect(header).toContain('450.02');
+    expect(header).toContain('450.04');
     expect(header).toMatch(/never classified\s+\*?\s*by `fb` alone/);
   });
 

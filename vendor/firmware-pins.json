@@ -1,17 +1,17 @@
 {
   "format": "synthetos-run/firmware-pins@1",
-  "note": "PIN-1 (PROTOCOL_NOTES §15): every firmware fact in code cites file:line at one of these commits. Re-pin, re-check every citation and review the diff at each firmware bump (CODEOWNERS: owner).",
+  "note": "PIN-1 (PROTOCOL_NOTES \u00a715): every firmware fact in code cites file:line at one of these commits. Re-pin, re-check every citation and review the diff at each firmware bump (CODEOWNERS: owner).",
   "pins": {
     "EN": {
       "repo": "https://github.com/synthetos/TinyG",
       "ref": "edge-next",
-      "commit": "a7489b79b2d886d872e019ff1e414f716de6638b",
-      "committed": "2026-11-05T10:09:50-05:00",
-      "fb": 450.02,
+      "commit": "ee98f02b545f3548fe53e59d143715141cfaf510",
+      "committed": "2026-11-11T00:22:39-05:00",
+      "fb": 450.04,
       "fv": 0.97,
       "paths": "firmware/tinyg/ (EN), tests/hil/ (EN-HIL)",
       "status": "candidate",
-      "note": "Re-pinned 2026-11-06 from 93a723b8 to a7489b79, the commit tagged 450.02 on edge-next (owner approved 450.02 for bench control, 2026-11-05). fb is 450.02 (tinyg.h:52). It fixes the feed-hold endpoint drift (N66), refuses a persisted setting written during a cycle with status 117 (N60), reports stored settings that would not load with status 118 after the banner (N61), applies G10 offsets sent during a dwell at once, and range-checks the axis rate, junction deviation, radius, chordal tolerance, ja, work offset and PWM frequency setters. No token is added or removed. The re-pin before (6ec70652 to 93a723b8) added the feed-limit report and push (rt flk, flm, flp, flf, fi, fs). D4 is done (owner, 2026-11-01). Still open and separate: the fbs and cap identity tokens D4 recommends (not in this build), D5 image approval (no image has passed it) and the D6 published release. The bench manifest approves this commit only, and classification never relies on fb alone (PN §2.3): make FW_BUILD overrides the number."
+      "note": "Re-pinned 2026-11-12 from a7489b79 (450.02) to ee98f02b, the 450.04 pre-release tag, with owner approval. E060 adds spph (default 1), spde and coph: Run requires spph=0 before control and never writes spde/coph. N93 defers startup input processing; status 157 refuses centre-format arcs with missing offsets without an alarm. fs v2 adds a seventh cause and rt job/fg; RTS hosts must keep unanswered input within 192 bytes. Limit handling during arcs, output commands and dwells is corrected; kill/flush ends built-in programs; 440 settings migrate; PWM settings retain decimals. N99 is absent: a standalone dwell reports the prior state with a free planner slot, so the host dwell guard remains. Later builds sharing fb 450.04 may include N99; fb cannot distinguish them. Only the unsigned staging bench manifest is extended here; signing remains with the owner. No image has passed D5 and classification never relies on fb alone (PN \u00a72.3). D4 is done; fbs/cap identity tokens and D5 image approval remain separate."
     },
     "TG": {
       "repo": "https://github.com/synthetos/TinyG",
@@ -33,7 +33,7 @@
       "fv": 0.97,
       "paths": "firmware/tinyg/",
       "status": "released",
-      "note": "Stock edge-0.97; EN-HIL d449.json was generated from this commit (PN §11). Read-only dialect."
+      "note": "Stock edge-0.97; EN-HIL d449.json was generated from this commit (PN \u00a711). Read-only dialect."
     },
     "G2": {
       "repo": "https://github.com/synthetos/g2",
@@ -73,7 +73,7 @@
       "fv": 0.97,
       "paths": "firmware/tinyg/",
       "status": "candidate",
-      "note": "Additive feed-limit step 3 source pin only: rt job/fg, fs v2 and fl supply gaps. Does not approve a build or replace the 450.02 EN pin for existing behaviours."
+      "note": "Additive feed-limit step 3 source pin only: rt job/fg, fs v2 and fl supply gaps. Historical additive source pin; does not approve a build. The EN pin now includes these changes."
     }
   }
 }

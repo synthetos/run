@@ -5,7 +5,7 @@
  * helpers only spell out products of explicit lists (`cross(['x'], ['vm'])`
  * is `['xvm']`); nothing is derived from the vendored tables.
  *
- * Citations: EN = TinyG edge-next @ a7489b79, TG = master @ d0418390,
+ * Citations: EN = TinyG edge-next @ ee98f02b, TG = master @ d0418390,
  * S449 = edge-0.97 @ c5024186; paths under firmware/tinyg/.
  */
 
@@ -138,7 +138,7 @@ export const REQUIRED_DENY: Readonly<Record<string, string>> = Object.freeze({
   alarm: 'GET raises an alarm (E138; EN config_app.c:464-505)',
   panic: 'GET raises a panic (E138; EN config_app.c:464-505)',
   shutd: 'GET raises a shutdown (E138; EN config_app.c:464-505)',
-  me: 'GET energizes every motor (EN stepper.c:1609-1632); commissioning only, never a read',
+  me: 'GET energizes every motor (EN stepper.c:1709-1732); commissioning only, never a read',
   md: 'GET de-energizes every motor: holding torque drops and Z can fall (EN config_app.c:465; TG config_app.c:469)',
   er: 'GET fakes an exception report (EN report.c:164-167)',
   boot: 'not a value: any SET enters the bootloader (AUD E138); sent only by the flasher',
@@ -158,10 +158,10 @@ export const COMMON_DENY: Readonly<Record<string, string>> = Object.freeze({
   msg: 'message plumbing, not a value',
   qi: 'GET resets the queue-report counter it returns (EN report.c:849-855), corrupting queue reports',
   qo: 'GET resets the queue-report counter it returns (EN report.c:857-863), corrupting queue reports',
-  $: 'uber-group: answers with several responses to one request (EN config_app.c:924-937), breaking one-request/one-response accounting; read the groups one at a time',
-  m: 'uber-group of the motor groups (EN config_app.c:909-912): several responses to one request; read 1..4 one at a time',
-  q: 'uber-group of the axis groups (EN config_app.c:914-917): several responses to one request; read x..c one at a time',
-  o: 'uber-group of the offset groups (EN config_app.c:919-922): several responses to one request; read g54..g30 one at a time',
+  $: 'uber-group: answers with several responses to one request (EN config_app.c:931-944), breaking one-request/one-response accounting; read the groups one at a time',
+  m: 'uber-group of the motor groups (EN config_app.c:916-919): several responses to one request; read 1..4 one at a time',
+  q: 'uber-group of the axis groups (EN config_app.c:921-924): several responses to one request; read x..c one at a time',
+  o: 'uber-group of the offset groups (EN config_app.c:926-929): several responses to one request; read g54..g30 one at a time',
 });
 
 export const JOG_PREFIX_DENY: Readonly<Record<string, string>> = Object.freeze({

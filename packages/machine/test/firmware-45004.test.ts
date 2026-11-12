@@ -1,31 +1,15 @@
 import { TinyGEdgeNextModel } from '@synthetos/testkit';
 import { expect, it } from 'vitest';
-import { jobHarness, start, runUntil, load, writes } from './jobHarness.ts';
+import { JOBS_RELEASE, jobHarness, start, runUntil, load, writes } from './jobHarness.ts';
 import { Driver, EN_READY_BANNER } from './sessionDriver.ts';
 const candidate = { fb: 450.04, fv: 0.97, hv: 8, layout: 10002 };
 const manifest = { environment: 'staging' as const, builds: [{ channel: 'bench' as const, dialect: 'tinyg-en' as const, fb: 450.04, fbs: null, commit: 'e'.repeat(40), note: 'test only' }] };
-const options = { device: { build: candidate }, session: { manifest } };
+const options = { device: { build: candidate, eeprom: { __layout: 10002, spph: 0 } }, session: { manifest } };
 
-it('450.04 classifies only with test approval; hold stops outputs and resume waits for firmware spin-up', async () => {
-  const h = await jobHarness(options);
-  expect(h.session.snapshot.classification?.mode).toBe('full');
-  await start(h, 'G21 G90\nM3 S1000\nG1 X50 F300\nM5\nM30');
-  await h.run(1000);
-  h.session.request({ intent: 'feedhold' });
-  expect(await runUntil(h, () => h.session.snapshot.job?.phase === 'paused')).toBe(true);
-  expect(h.device.snapshot().spindle).toBe('off');
-  const heldPosition = h.device.snapshot().position;
-  expect(h.session.request({ intent: 'resume' })).toEqual({ allowed: true });
-  await h.run(500);
-  expect(h.device.snapshot()).toMatchObject({ hold: 6, spindle: 'cw' });
-  expect(h.device.snapshot().position).toEqual(heldPosition);
-  expect(h.session.snapshot.job?.phase).not.toBe('failed');
-  await h.run(600);
-  expect(h.device.snapshot()).toMatchObject({ hold: 0, spindle: 'cw' });
-  expect(h.device.snapshot().position[0]).toBeGreaterThan(heldPosition[0]!);
-  h.session.request({ intent: 'stopJob' });
-  expect(await runUntil(h, () => h.session.snapshot.job?.phase === 'stopped')).toBe(true);
-  expect(h.device.snapshot().spindle).toBe('off');
+it('450.04 with the default spindle pause setting is read-only before any motion', async () => {
+  const h = await jobHarness({ device: { build: candidate }, session: { manifest } });
+  expect(h.session.snapshot.classification).toMatchObject({ mode: 'readOnly', reason: 'spindlePause' });
+  expect(h.session.request({ intent: 'typedMove', line: 'G1 X1 F100' }).allowed).toBe(false);
 });
 it('N104: missing arc centres are blocked before any job or typed movement is sent', async () => {
   const h = await jobHarness(options);
@@ -76,4 +60,19 @@ it('N104: a typed move refused with 157 explains the line without entering alarm
   await h.run(1000);
   expect(h.session.snapshot.notices.motion?.text).toContain('the arc centre is missing or at its start');
   expect(h.device.snapshot().machineState).not.toBe('alarm');
+});
+
+it('the default 450.04 board becomes controllable after gated spph=0 and readback', async () => {
+  const h = await jobHarness({ device: { build: candidate }, session: { manifest, release: { ...JOBS_RELEASE, settings: true } } });
+  expect(h.session.snapshot.classification?.reason).toBe('spindlePause');
+  const before = writes(h).length;
+  expect(h.session.writeSetting('spph', 0).allowed).toBe(true);
+  await h.run(1000);
+  expect(h.session.snapshot.settingWrite).toMatchObject({ outcome: 'verified' });
+  expect(h.session.snapshot.classification?.mode).toBe('full');
+  expect(writes(h).slice(before).filter(w => /"(?:spph|spde|coph)":\d/.test(w))).toEqual(['{"spph":0}']);
+  await start(h, 'G21 G90\nM3 S1000\nG1 X50 F300\nM5\nM30');
+  await h.run(1000); h.session.request({ intent: 'feedhold' });
+  expect(await runUntil(h, () => h.session.snapshot.job?.phase === 'paused')).toBe(true);
+  expect(h.device.snapshot().spindle).toBe('cw');
 });

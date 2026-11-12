@@ -1,9 +1,9 @@
 {
   "format": "synthetos-run/hil-tables@1",
-  "note": "Provenance of the vendored TinyG HIL tables (ROADMAP P0-09, RUN_PLAN §8.2, D32). Every table is byte-identical to what EN-HIL's generator writes. tools/gates/test/schema-tables.test.ts checks each sha256, and packages/schema/test checks each table against vendor/firmware-pins.json. On a firmware bump: regenerate, re-vendor, run `pnpm gen:schema`, and review the diff (CODEOWNERS: owner).",
+  "note": "Provenance of the vendored TinyG HIL tables (ROADMAP P0-09, RUN_PLAN \u00a78.2, D32). Every table is byte-identical to what EN-HIL's generator writes. tools/gates/test/schema-tables.test.ts checks each sha256, and packages/schema/test checks each table against vendor/firmware-pins.json. On a firmware bump: regenerate, re-vendor, run `pnpm gen:schema`, and review the diff (CODEOWNERS: owner).",
   "generator": {
     "repo": "https://github.com/synthetos/TinyG",
-    "commit": "a7489b79b2d886d872e019ff1e414f716de6638b",
+    "commit": "ee98f02b545f3548fe53e59d143715141cfaf510",
     "path": "tests/hil/tools/gen_tables.py",
     "blob": "9ff89c7ae8b1a7d213129171e392e36e904deab3",
     "method": "cfgArray rows from `avr-gcc -E -P -mmcu=atxmega192a3 -DF_CPU=32000000UL -std=gnu99 config_app.c` (so #if'd rows match the firmware build), STAT_* defines from error.h (tinyg.h on older trees), TINYG_FIRMWARE_BUILD from tinyg.h"
@@ -13,12 +13,12 @@
       "file": "den.json",
       "dialect": "tinyg-en",
       "pin": "EN",
-      "sourceCommit": "a7489b79b2d886d872e019ff1e414f716de6638b",
-      "fb": 450.02,
+      "sourceCommit": "ee98f02b545f3548fe53e59d143715141cfaf510",
+      "fb": 450.04,
       "use": "full",
       "origin": "generated",
-      "generatedWith": "python3 tests/hil/tools/gen_tables.py a7489b79b2d886d872e019ff1e414f716de6638b den, run from a `git archive` snapshot of the generator commit with the TinyG object store available read-only (avr-gcc 9.5.0, Python 3.15); regenerated twice, byte-identical. Re-pinned 2026-11-06 from 93a723b8 to tag 450.02: no token is added or removed; error.h names status 117 (SETTING_REFUSED_IN_CYCLE) and 118 (SETTINGS_RESTORED_TO_DEFAULTS); tinyg.h moves fb to 450.02; 61 rows move to range-checked setters (cm_set_axis_rate, cm_set_jd, cm_set_radius, cm_set_ct, cm_set_ja, cm_set_coord_value, pwm_set_frq, and set_01 for sl). The re-pin before (6ec70652 to 93a723b8) added six rt rows (rtflk, rtflm, rtflp, rtflf, rtfi, rtfs)",
-      "sha256": "a5d7fa58346527094a76d5a84c43198ab448640437aaf93923dbe691f0c6f5ce"
+      "generatedWith": "python3 tests/hil/tools/gen_tables.py ee98f02b545f3548fe53e59d143715141cfaf510 den; pinned generator, read-only TinyG object store, avr-gcc 9.5.0 and Python 3.15. Regenerated for the 450.04 pin.",
+      "sha256": "e66935b25cccb950520590e5f3c1ab5869ec401413fdd7f03928746a581d0e0e"
     },
     "d440": {
       "file": "d440.json",

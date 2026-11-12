@@ -246,7 +246,7 @@ export function settingWritableIn(state: SessionState, token: string, value: num
   const w = state.settingWrite;
   const dialect = state.dialect;
   if (w === null || w.phase !== 'writing' || w.key !== token || w.value !== value || dialect === null) return false;
-  return settingRefusal(dialect.id, token, value, state.values) === null;
+  return settingRefusal(dialect.id, token, value, state.values, state.identity?.fb) === null;
 }
 
 /**
@@ -276,7 +276,7 @@ export function checkWrite(
   if (matrixIntent === 'probeZ' && intent === 'motion' && !probeLineAllowed(current)) return { kind: 'denied', reason: 'not written: the probe was stopped or has ended' };
   // H91: after Pause or Stop job, or once the typed move has ended, its line does not go out (held back, never a FAULT).
   if (matrixIntent === 'typedMove' && !typedSendingIn(current)) return { kind: 'denied', reason: 'not written: the typed move was stopped or has ended' };
-  const decision = allowed(matrixSnapshot(current), matrixIntent, release);
+  const decision = allowed(matrixSnapshot(current, matrixIntent === 'settingsWrite' ? current.settingWrite ?? undefined : undefined), matrixIntent, release);
   if (!decision.allowed) return { kind: 'denied', reason: `not written: the allow-matrix denies ${matrixIntent} now (${decision.reason})` };
   const verdict = phase1WriteVerdict(bytes, {
     readable: (token) => readableNow(emitted, token),

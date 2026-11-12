@@ -79,7 +79,7 @@ import { OVERLAYS, allowed, type Decision, type Intent, type MatrixSnapshot, typ
 import { getLineFor, isReadAllowed } from '@synthetos/schema';
 import { writeLineCapFor } from '../writeShape.ts';
 import type { PortSelector } from '../transport.ts';
-import { gateTokens, judgeGate, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
+import { gateTokens, judgeGate, motionOnlyPauseWrite, readBackMatches, readBackValue, settingLine, settingRefusal } from './settingWrite.ts';
 import { restingStat, restingUsesHold } from './resting.ts';
 import { onModesAnswer } from './modes.ts';
 import { onAlarmRestoreAnswered, onAlarmRestoreMissed } from './alarmRestore.ts';
@@ -246,9 +246,10 @@ export function dialectOf(state: SessionState): Dialect | null {
 }
 
 /** What the allow-matrix needs to know about this state. */
-export function matrixSnapshot(state: SessionState): MatrixSnapshot {
+/** The optional setting admits only the approved spindle-pause correction; every other overlay remains. */
+export function matrixSnapshot(state: SessionState, setting?: { readonly key: unknown; readonly value: unknown }): MatrixSnapshot {
   const dialect = dialectOf(state);
-  return { base: state.base, overlays: state.overlays, classified: dialect !== null, enqCapable: dialect?.caps.enq === true };
+  return { base: state.base, overlays: setting !== undefined && motionOnlyPauseWrite(state, setting.key, setting.value) ? state.overlays.filter((o) => o !== 'READ_ONLY') : state.overlays, classified: dialect !== null, enqCapable: dialect?.caps.enq === true };
 }
 
 /** True when a GET of `token` may be written in this state (probe tokens before classification, the allowlist after). */
@@ -464,7 +465,7 @@ function deny(reason: string, remedy: string, citation: string): Decision {
 
 function onIntent(t: Tx, request: SessionIntent, at: number): void {
   const intent = request.intent;
-  const matrix = allowed(matrixSnapshot(t.s), intent, t.config.release);
+  const matrix = allowed(matrixSnapshot(t.s, request.intent === 'settingsWrite' ? request : undefined), intent, t.config.release);
   if (!matrix.allowed) {
     t.decide(intent, matrix);
     return;
@@ -655,7 +656,7 @@ export function settingWriteActive(s: SessionState): boolean {
 function onSettingsWrite(t: Tx, key: unknown, value: unknown, matrix: Decision): void {
   const dialect = dialectOf(t.s);
   /* c8 ignore next 4 -- defence in depth: an unclassified or read-only board carries READ_ONLY, which the matrix denies first */
-  if (dialect === null || t.s.classification?.mode !== 'full') {
+  if (dialect === null || (t.s.classification?.mode !== 'full' && !motionOnlyPauseWrite(t.s, key, value))) {
     t.decide('settingsWrite', deny('Settings are written only to an approved, identified board.', 'Connect a board running approved firmware.', 'SAFETY §4.6; P1-03'));
     return;
   }
@@ -672,7 +673,7 @@ function onSettingsWrite(t: Tx, key: unknown, value: unknown, matrix: Decision):
     t.decide('settingsWrite', deny('Name one setting.', 'Name one setting.', 'SAFETY §4.6'));
     return;
   }
-  const refusal = settingRefusal(dialect.id, key, value, t.s.values);
+  const refusal = settingRefusal(dialect.id, key, value, t.s.values, t.s.identity?.fb);
   if (refusal !== null) {
     t.decide('settingsWrite', deny(`Not written: ${refusal}`, 'Correct the value and try again.', 'SAFETY §4.6; PN §12.4 (forbidden writes); schema overlay'));
     return;
@@ -722,7 +723,7 @@ function onGateAnswer(t: Tx, token: string, r: Response): void {
     return;
   }
   // The state may have changed while the gate was read (an overlay, a status report): ask the matrix again.
-  const again = allowed(matrixSnapshot(t.s), 'settingsWrite', t.config.release);
+  const again = allowed(matrixSnapshot(t.s, t.s.settingWrite ?? undefined), 'settingsWrite', t.config.release);
   /* c8 ignore next 4 -- an overlay that denies writes (FAULT, LOST) also ends the write before the gate completes; the re-check stays */
   if (!again.allowed) {
     finishSettingWrite(t, 'refused', `Not written: ${again.reason}`);
@@ -758,6 +759,11 @@ function onReadBackAnswer(t: Tx, r: Response, at: number): void {
   t.set({ values: { ...t.s.values, [w.key]: { value, status: r.footer.status, at } } });
   const dialect = dialectOf(t.s) as Dialect;
   if (r.footer.status === 0 && readBackMatches(dialect.id, w.key, w.value, value)) {
+    if (motionOnlyPauseWrite(t.s, w.key, w.value)) {
+      t.set({ classification: { ...t.s.classification!, mode: 'full', reason: 'en-approved', detail: 'Approved TinyG edge-next; spindle pause on hold is disabled (spph=0).' } });
+      t.removeOverlay('READ_ONLY');
+      if (motionCapable(t.s, t.config) && t.s.overlays.length === 0) t.set({ base: idleBase(t.s) });
+    }
     finishSettingWrite(t, 'verified', '', { readBack: value });
     return;
   }
@@ -1301,6 +1307,7 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
       return;
     }
     case 'reading':
+      if (e.token === 'spph') t.set({ values: { ...t.s.values, spph: { value: value ?? null, status: r.footer.status, at } } });
       if (r.footer.status === 0 && typeof value === 'number' && Number.isFinite(value)) {
         t.set({ live: withNumber(t, t.s.live, e.token, value) });
       }
@@ -1441,7 +1448,7 @@ function finishProbe(t: Tx): void {
   }
   const dialect = c.dialect;
   const tokens = t.config.release.motion ? [...READING_TOKENS, ...MOTION_READING_TOKENS] : READING_TOKENS;
-  const reads = dialect === null ? [] : tokens.filter((tok) => isReadAllowed(dialect.id, tok));
+  const reads = dialect === null ? [] : [...tokens, ...(dialect.id === 'tinyg-en' && result.fb === 450.04 ? ['spph'] : [])].filter((tok) => isReadAllowed(dialect.id, tok));
   if (reads.length === 0 || t.s.overlays.includes('ORPHANED_MOTION')) {
     t.set({ base: 'CONNECTED_UNKNOWN', reports: { ...REPORTS_IDLE, phase: 'off' } });
     if (dialect === null) checkUnclassifiedResting(t);
@@ -1450,7 +1457,8 @@ function finishProbe(t: Tx): void {
   // Only READING's own answers count: values from the earlier `{sr:null}` answer are dropped, so a
   // read that fails leaves its value unknown and the board is not trusted as resting.
   const { stat: _stat, machineClass: _class, hold: _hold, vel: _vel, qr: _qr, ...kept } = t.s.live;
-  t.set({ base: 'READING', live: kept, queue: [...t.s.queue, ...reads.map((token) => ({ token, purpose: 'reading' as const }))] });
+  const { spph: _oldPause, ...freshValues } = t.s.values;
+  t.set({ base: 'READING', live: kept, values: freshValues, queue: [...t.s.queue, ...reads.map((token) => ({ token, purpose: 'reading' as const }))] });
 }
 
 /** The probe result and its classification as one session-log line (ROADMAP P1-03 "Record the probe result"). */
@@ -1502,6 +1510,10 @@ function finishReading(t: Tx): void {
     t.set({ classification: { ...c, mode: 'readOnly', reason: 'flowControl', detail: `${c.detail}; flow control (ex) ${shown}: read-only, Run knows only ex 0, 1 and 2` } });
     t.addOverlay('READ_ONLY');
     t.emit({ kind: 'log', text: `classification: read-only, flow control (ex) ${shown}` });
+  }
+  if (t.s.classification?.mode === 'full' && dialect?.id === 'tinyg-en' && t.s.identity?.fb === 450.04 && (t.s.values['spph']?.status !== 0 || t.s.values['spph']?.value !== 0)) {
+    t.set({ classification: { ...t.s.classification, mode: 'readOnly', reason: 'spindlePause', detail: t.s.values['spph']?.status === 0 && t.s.values['spph']?.value === 1 ? 'This board stops the spindle when you pause. Run needs Pause to affect motion only.' : 'Run could not read spindle pause on hold (spph). Control stays read only.' } });
+    t.addOverlay('READ_ONLY');
   }
   t.set({ base: 'CONNECTED_UNKNOWN', queue: t.s.queue.filter((q) => q.purpose !== 'reading') });
   // A motion session with nothing in the way goes to idle (or ALARM). UNKNOWN (after a reconnect) waits
@@ -1594,6 +1606,7 @@ function onGarbled(t: Tx, at: number): void {
       checkUnclassifiedResting(t);
       return;
     case 'reading':
+      if (entry.token === 'spph') t.set({ values: { ...t.s.values, spph: { value: null, status: -1, at } } });
       if (!t.s.queue.some((q) => q.purpose === 'reading')) finishReading(t);
       return;
     case 'request':
@@ -1906,12 +1919,12 @@ function enterStale(t: Tx, at: number): void {
  * True when the last known state is one in which the edge-next heartbeat is silent and no report is due, so a
  * silent window proves nothing (SAFETY §4.2 amendment "heartbeat silence during hold and dwell"): the heartbeat
  * beats only while the machine is quiet, with nothing moving, held, flushing or queued (@cite EN
- * runtime.c:37-52, :62-71), and a finished feedhold or a long G4 dwell pushes no report either. That is a hold
+ * runtime.c:38-53, :63-72), and a finished feedhold or a long G4 dwell pushes no report either. That is a hold
  * (`hold` ≠ 0, or a held `stat`), or a cycle that is not stepping: a dwell, or moves queued but not moving
  * (a running, homing, jogging or probing `stat`, or planner buffers in use), with `vel` 0. Never while steps may
  * be moving (`vel` not 0, or unknown): pushed position reports cover liveness then, and nothing is sent. A finished
  * hold is the exception: nothing steps whatever `vel` says, and from 450.02 a hold entered during a dwell keeps
- * reporting the last move's final segment velocity (EN canonical_machine.c:2597-2610).
+ * reporting the last move's final segment velocity (EN canonical_machine.c:2864-2877).
  */
 function silentWhileBusy(s: SessionState): boolean {
   const live = s.live;
@@ -2030,7 +2043,7 @@ function pump(t: Tx): void {
               : next.purpose === 'boot'
                 ? 'flash'
                 : 'read';
-  if (!allowed(matrixSnapshot(s), intent, t.config.release).allowed) {
+  if (!allowed(matrixSnapshot(s, intent === 'settingsWrite' ? s.settingWrite ?? undefined : undefined), intent, t.config.release).allowed) {
     // A motion line or a settings write the matrix no longer allows (the state changed since it was queued) is dropped, never held.
     /* c8 ignore next -- a safety net: every state change that ends motion (STALE, FAULT, LOST, ALARM) empties the motion queue first */
     if (next.purpose === 'motion') t.set({ queue: s.queue.slice(1) });
@@ -2079,7 +2092,7 @@ function lineFor(s: SessionState, read: PendingRead): string | undefined {
     const w = s.settingWrite;
     const dialect = dialectOf(s);
     if (w === null || w.phase !== 'writing' || w.key !== read.token || w.value !== read.value || dialect === null) return undefined;
-    if (settingRefusal(dialect.id, w.key, w.value, s.values) !== null) return undefined;
+    if (settingRefusal(dialect.id, w.key, w.value, s.values, s.identity?.fb) !== null) return undefined;
     return settingLine(w.key, w.value) ?? undefined;
   }
   /* c8 ignore stop */

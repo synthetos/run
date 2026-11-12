@@ -23,6 +23,8 @@ export function readOnlyWhy(s: Snapshot): string {
   const c = s.classification;
   const ex = s.live.ex;
   switch (c?.reason) {
+    case 'spindlePause':
+      return s.classification?.detail ?? 'Spindle pause on hold must be disabled.';
     case 'flowControl':
       return ex === undefined
         ? 'Run couldn’t read its flow control setting (ex).'

@@ -107,7 +107,7 @@ describe('the live start state and motion model for the sanitiser', () => {
         admo: value(0),
         plan: value(2),
         coor: value(2),
-        // In G20 the board prints g55 and g92 in inches and ofs in mm (EN json_parser.c:828; config_app.c:858-871).
+        // In G20 the board prints g55 and g92 in inches and ofs in mm (EN json_parser.c:830; config_app.c:864-878).
         g55: value({ x: 1, y: 2, z: 3, q: 9, a: 'n' }),
         g57: value({ x: 1, a: 90 }),
         g92: value({ x: 0.5, y: 0, z: 0 }),
@@ -143,7 +143,7 @@ describe('the live start state and motion model for the sanitiser', () => {
     expect(unitless.toolOffset).toBeUndefined();
   });
 
-  it('a board an inch job left in G20 prints its offsets in inches: the next check takes them back to mm (EN json_parser.c:828)', async () => {
+  it('a board an inch job left in G20 prints its offsets in inches: the next check takes them back to mm (EN json_parser.c:830)', async () => {
     const h = await jobHarness();
     // The job sets G54 in mm, then works in inches; its M30 keeps G20 (the edge-next program end leaves the units).
     await start(h, 'G21 G90\nG10 L2 P1 X50.8 Y25.4 Z-12.7\nG20\nG0 X0.5 Y0.25\nM30');

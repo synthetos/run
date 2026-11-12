@@ -14,7 +14,7 @@
  *   session's silence window (STALE). Nothing polls.
  * - The marker is the work position as the board reports it (`posx`..,
  *   in its units): the coordinates the G-code is written in, a G92 offset
- *   included (@cite EN canonical_machine.c:389-407). *Amended 2026-11-07
+ *   included (@cite EN canonical_machine.c:404-422). *Amended 2026-11-07
  *   (G92 frame fix):* it was `mpo` minus the `ofs` read before the job,
  *   which a job's own G92 leaves stale, so it disagreed with the G-code by
  *   the G92 offset. Without a reported X, Y and Z there is no marker. Where

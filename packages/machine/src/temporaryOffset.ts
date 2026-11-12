@@ -3,7 +3,7 @@
  * "G92 offset active" hint next to the live position).
  *
  * The board's whole work offset is machine minus work position: `pos` is `mpo` less the G5x, G92 and tool
- * offsets of the block running, in the board's units (@cite EN canonical_machine.c:389-407; ofs :2732,
+ * offsets of the block running, in the board's units (@cite EN canonical_machine.c:404-422; ofs :2999,
  * always mm). Its parts were read at connect, at job preparation and after each offset change run makes,
  * but a job's own G92, G10, G54..G59 or M30 changes them without a read. So the G92 now is the G92 read
  * plus whatever the whole offset moved by since `ofs` was read, less the saved offset of a coordinate

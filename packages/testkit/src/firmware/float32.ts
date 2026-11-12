@@ -34,5 +34,5 @@ export function fpZERO(a: number): boolean {
   return Math.abs(f32(a)) < EPSILON;
 }
 
-/** `DISABLE_SOFT_LIMIT` (@cite EN canonical_machine.h:45; TG canonical_machine.h:50). */
+/** `DISABLE_SOFT_LIMIT` (@cite EN canonical_machine.h:46; TG canonical_machine.h:50). */
 export const DISABLE_SOFT_LIMIT = -1000000;

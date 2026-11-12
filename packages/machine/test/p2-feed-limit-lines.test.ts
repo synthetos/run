@@ -1,5 +1,5 @@
 /**
- * The edge-next feed-limit push lines (`fs`, `fl`; EN runtime.c:295-489) at every session state (T-S108): they
+ * The edge-next feed-limit push lines (`fs`, `fl`; EN runtime.c:358-734) at every session state (T-S108): they
  * are not responses, not acknowledgements and not motion, so they never consume an owed answer, never stand in
  * for the ENQ ack, never raise ORPHANED_MOTION or an unexpected-response FAULT. run never turns the push on,
  * but it is a RAM session setting another host may have left on until the next reset.

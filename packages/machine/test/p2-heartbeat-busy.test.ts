@@ -2,7 +2,7 @@
  * Liveness with the heartbeat on while the machine is held, dwelling or busy (SAFETY §4.2 amendment
  * 2026-11-02 "heartbeat silence during hold and dwell", H69, T-S103).
  *
- * The edge-next heartbeat beats only while the machine is quiet (EN runtime.c:37-52, :62-71), and a finished
+ * The edge-next heartbeat beats only while the machine is quiet (EN runtime.c:38-53, :63-72), and a finished
  * feedhold or a long dwell pushes no report, so a silent window there is expected: the watchdog asks once per
  * window (ENQ) and goes STALE only if that is not answered within `staleAfterMs`. While steps move nothing is
  * sent: pushed position reports are the proof of life.

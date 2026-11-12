@@ -8,7 +8,7 @@
  *   a full circle; :348-350 alarms on fp_ZERO angular travel. TG d0418390
  *   plan_arc.c:276-295 compares ANGLES with fp_EQ and treats equal angles as
  *   zero angular travel; :165-167 refuses a zero-length arc with 201.
- * - rotary axis modes: EN canonical_machine.c:515-563, TG :430-465; defaults
+ * - rotary axis modes: EN canonical_machine.c:578-626, TG :445-513; defaults
  *   from settings/settings_default.h (A is AXIS_RADIUS, B and C disabled).
  * - F before G20/G21 in one block: EN gcode_parser.c:634-636 before :656,
  *   TG gcode_parser.c:455 before :473; `_to_millimeters` reads the model's
@@ -17,7 +17,7 @@
  *   to 0; plan_exec.c (EN :707-716, TG :718-727) moves each motor by the
  *   difference between step targets; a step resync (planner.c, EN :187-201,
  *   TG :160-170) rewrites the targets and moves nothing.
- * - soft limits: EN canonical_machine.c:580-598, TG :480-498: fp_EQ(min,max)
+ * - soft limits: EN canonical_machine.c:643-661, TG :528-561: fp_EQ(min,max)
  *   skips the axis, each end below DISABLE_SOFT_LIMIT (-1000000) is skipped,
  *   and every homed axis (X..C) is checked.
  *
@@ -293,7 +293,7 @@ describe('rotary axis modes and radius (cm_set_model_target)', () => {
 /**
  * Finding: inhibited axis. Each executed segment sets the step target to the
  * joint of the segment's ABSOLUTE target and moves the motor by the
- * difference from the previous step target (EN plan_exec.c:742-751, TG
+ * difference from the previous step target (EN plan_exec.c:801-810, TG
  * plan_exec.c:718-727); the joint of an inhibited axis is 0 (EN
  * kinematics.c:59, TG kinematics.c:63). So the reported position and the
  * motor part ways, and the next move of ANY axis moves the motor.

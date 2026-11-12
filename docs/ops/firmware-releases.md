@@ -152,3 +152,20 @@ same flow and checks. Cloud sync of backups comes later behind the
 - **450.01 / edge-next is not published yet.** The bench build is a local build of the edge-next tip. A release needs the maintainer to push a tag such as `450.01` on edge-next.
 - **tg-xboot** (`synthetos/tg-xboot`): tags `v<semver>`; assets `tg-xboot-v2.0.0.hex`, `tg-xboot-v2.0.0-boot.hex`, `.elf`, `SHA256SUMS`, `TOOLCHAIN.txt`.
 - **Browsers cannot fetch these assets directly.** The download redirects to `release-assets.githubusercontent.com`, whose response carries no `Access-Control-Allow-Origin` header (checked 2026-11-03), so a cross-origin fetch from run's page fails whatever run's own policy says. run's Worker fetches the asset server-side, checks its SHA-256 against the signed list (and against the release's `SHA256SUMS`), caches it, and serves it same-origin.
+
+
+## 450.04 pin and unsigned staging candidate (2026-11-12)
+
+EN now pins `ee98f02b545f3548fe53e59d143715141cfaf510`, the 450.04 pre-release.
+The unsigned bench approval and hardware-8 release lists add 450.04 and retain 450.02.
+The signed lists are unchanged; the owner signs after review. The downloaded `tinyg-450.04.hex`
+is 487,745 bytes and hashes to `a67aa65d4b9fa8bed1c9693de87d2cd9fbe3b0113d4560415eaced4088a483a1`,
+matching the release `SHA256SUMS` (independently checked 2026-11-12).
+
+An approved 450.04 board is read only until `spph` reads as 0. The control-block card offers
+“Make Pause motion only”: only `spph=0`, through the existing settings gates and verified readback.
+Unreadable values remain blocked. No host spindle/coolant stop or restart is added to Pause/Resume;
+Run never writes `spde` or `coph`. Older stubbed tokens and 450.05+ absent tokens are unaffected.
+The new card uses the same ordinary control-block prose convention as the flow-control card;
+registered safety strings are unchanged. The host dwell guard remains required: this release lacks N99,
+and later builds with the same fb cannot be distinguished by that number.

@@ -151,6 +151,8 @@ export interface LiveActions {
   readonly backup: () => void;
   /** The current link's wire transcript as JSONL, for the Console tab (it only reads). */
   readonly transcriptText: () => Promise<string | null>;
+  /** Corrects only spph through the worker settings gate and verified readback. */
+  readonly makePauseMotionOnly?: () => Promise<void>;
   /** Backs up, then writes the changes one at a time with read-backs (live/settingsApply.ts). */
   readonly applySettings: (changes: readonly PlannedChange[]) => void;
   /** Writes the backed-up values back for what the last apply changed. */

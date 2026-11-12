@@ -176,7 +176,7 @@ function checkCrossKey(schema: SettingsSchema, valid: ReadonlyMap<string, number
         const mx = modes.get(`${a}sx`) as number;
         const homing = (m: number): boolean => (m & SW_HOMING_BIT) !== 0;
         if (homing(mn) && homing(mx)) {
-          issues.push(issue(`${a}sn`, 'multipleHomingSwitches', `${a.toUpperCase()} has a homing switch on both ends; homing refuses that axis (EN cycle_homing.c:265, status 246)`));
+          issues.push(issue(`${a}sn`, 'multipleHomingSwitches', `${a.toUpperCase()} has a homing switch on both ends; homing refuses that axis (EN cycle_homing.c:268, status 246)`));
         }
       }
       const probes = ['xsn', 'xsx', 'ysn', 'ysx', 'zsn', 'zsx'].filter((k) => modes.get(k) === SW_MODE_PROBE);

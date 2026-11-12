@@ -28,11 +28,11 @@ export const TINYG_EN_READ: ReadAllowlist = defineReadAllowlist({
     /** Input states in1..in8 (EN config_app.c, `get_int`, read-only). */
     'in',
     ...cross(['in'], ['1', '2', '3', '4', '5', '6', '7', '8']),
-    /** Motor enabled flags (EN stepper.c:1580-1589). */
+    /** Motor enabled flags (EN stepper.c:1680-1689). */
     ...cross(['pwr'], MOTORS),
     ...commonGroupedTokens(),
     ...COMMON_SYS_TOKENS,
-    /** EN-only `sys` members (EN config_app.c:650-668): the polarity keys, optional stop, line mode, and the reserved settings that answer 17. */
+    /** EN-only `sys` members (EN config_app.c:650-668): the polarity keys, optional stop, line mode, and the 450.04 output-pause settings (older builds answer 17). */
     'os',
     'prbp',
     'rxm',
@@ -49,7 +49,7 @@ export const TINYG_EN_READ: ReadAllowlist = defineReadAllowlist({
     'fstk',
     ...SR_FIELD_TOKENS,
     /**
-     * Spindle and coolant readouts (EN config_app.c:692-698; spindle.c:87-128,
+     * Spindle and coolant readouts (EN config_app.c:692-698; spindle.c:106-157,
      * canonical_machine.c:1640-1645): read-only (`set_nul`), pure getters of the
      * outputs as last driven. Display only: each is sampled on its own and a
      * queued M5/M9/M30 reads "on" until it runs, so nothing may gate on them.
@@ -70,16 +70,16 @@ export const TINYG_EN_READ: ReadAllowlist = defineReadAllowlist({
     set: 'protocol plumbing (`set_not`), not a value',
     tid: 'transaction-id plumbing (PN §5.3), not a value',
     txt: 'text-mode wrapper: `{"txt":...}` runs a text-mode command; never sent',
-    rt: 'runtime session family (EN config_app.c:680-691, :743): answers only inside a pure {"rt":...} envelope (EN runtime.c:95-105); a write starts a heartbeat, installs a quiescence token or turns on the feed-limit push, and a group read pushes an fs summary (EN runtime.c:547-563). Never read as a setting; run writes only its own report-configuration lines',
-    rthb: 'rt heartbeat interval: a session control, not a value; answers only inside a pure {"rt":...} envelope (EN runtime.c:99-118)',
-    rtqt: 'rt quiescence token: a session control, not a value; answers only inside a pure {"rt":...} envelope (EN runtime.c:120-177)',
-    rtup: 'rt uptime: answers only inside a pure {"rt":...} envelope (EN runtime.c:179-185)',
-    rtflk: 'rt feed-limit kind of the move stepping now: session state, not a setting; answers only inside a pure {"rt":...} envelope (EN runtime.c:214-255)',
-    rtflm: 'rt feed-limit constraint tags of the move stepping now: session state, not a setting; answers only inside a pure {"rt":...} envelope (EN runtime.c:257-265)',
-    rtflp: 'rt feed-limit planned cruise as a percent of F: session state, not a setting; answers only inside a pure {"rt":...} envelope (EN runtime.c:267-279)',
-    rtflf: 'rt feed-limit F of the move stepping now: session state, not a setting; answers only inside a pure {"rt":...} envelope (EN runtime.c:281-293)',
-    rtfi: 'rt feed-limit push interval: a session control, not a value; a write turns on pushed fs and fl lines (EN runtime.c:491-545)',
-    rtfs: 'rt feed-limit summary request: a GET pushes an fs line after its reply (EN runtime.c:547-563); never a read',
+    rt: 'runtime session family (EN config_app.c:680-691, :749): answers only inside a pure {"rt":...} envelope (EN runtime.c:96-106); a write starts a heartbeat, installs a quiescence token or turns on the feed-limit push, and a group read pushes an fs summary (EN runtime.c:801-817). Never read as a setting; run writes only its own report-configuration lines',
+    rthb: 'rt heartbeat interval: a session control, not a value; answers only inside a pure {"rt":...} envelope (EN runtime.c:100-119)',
+    rtqt: 'rt quiescence token: a session control, not a value; answers only inside a pure {"rt":...} envelope (EN runtime.c:121-178)',
+    rtup: 'rt uptime: answers only inside a pure {"rt":...} envelope (EN runtime.c:180-186)',
+    rtflk: 'rt feed-limit kind of the move stepping now: session state, not a setting; answers only inside a pure {"rt":...} envelope (EN runtime.c:277-318)',
+    rtflm: 'rt feed-limit constraint tags of the move stepping now: session state, not a setting; answers only inside a pure {"rt":...} envelope (EN runtime.c:320-328)',
+    rtflp: 'rt feed-limit planned cruise as a percent of F: session state, not a setting; answers only inside a pure {"rt":...} envelope (EN runtime.c:330-342)',
+    rtflf: 'rt feed-limit F of the move stepping now: session state, not a setting; answers only inside a pure {"rt":...} envelope (EN runtime.c:344-356)',
+    rtfi: 'rt feed-limit push interval: a session control, not a value; a write turns on pushed fs and fl lines (EN runtime.c:736-799)',
+    rtfs: 'rt feed-limit summary request: a GET pushes an fs line after its reply (EN runtime.c:801-817); never a read',
   },
   denyPrefixes: { ...JOG_PREFIX_DENY },
 });

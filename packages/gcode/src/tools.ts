@@ -4,7 +4,7 @@
  * sanitised lines, beside the interpreter. Display only: nothing here is
  * sent or gates a line.
  *
- * Semantics (RS274NGC 3.7.3; @cite EN canonical_machine.c:1544-1574,
+ * Semantics (RS274NGC 3.7.3; @cite EN canonical_machine.c:1639-1669,
  * gcode_parser.c:499,536,642-643): `T` stores a tool select and changes
  * nothing; `M6` makes the selected tool the active one. In one block the T
  * word runs before M6, so `T1 M6` changes to T1; `T1` then `M6` on a later

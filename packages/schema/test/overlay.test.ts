@@ -33,6 +33,7 @@ describe('coverage of the overlay', () => {
       'gun',
       'gdi',
       'mt',
+      'spph',
       'spep',
       'spdp',
       'prbp',
@@ -86,16 +87,16 @@ describe('every entry is complete and cited', () => {
   it('cfgArray rows are distinct and in table order (motors, then axes X..C, then system)', () => {
     const lines = TINYG_EN_OVERLAY.map((o) => o.src.line);
     expect(new Set(lines).size).toBe(lines.length);
-    expect(get('1ma').src.line).toBe(211);
-    expect(get('xvm').src.line).toBe(277);
-    expect(get('spep').src.line).toBe(649);
-    expect(get('os').src.line).toBe(667);
+    expect(get('1ma').src.line).toBe(212);
+    expect(get('xvm').src.line).toBe(278);
+    expect(get('spep').src.line).toBe(650);
+    expect(get('os').src.line).toBe(668);
   });
 
   it('source links point at the cfgArray row at the pinned edge-next commit', () => {
     const pin = pins['EN'];
     expect(pin?.commit).toBe(EN.table.source.commit);
-    expect(sourceUrl(EN.table.source.commit, get('xtn').src)).toBe(`${pin?.repo}/blob/${pin?.commit}/firmware/tinyg/config_app.c#L279`);
+    expect(sourceUrl(EN.table.source.commit, get('xtn').src)).toBe(`${pin?.repo}/blob/${pin?.commit}/firmware/tinyg/config_app.c#L280`);
   });
 });
 

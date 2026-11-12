@@ -43,7 +43,7 @@ export interface ArcPath {
   readonly center0: number;
   readonly center1: number;
   readonly radius: number;
-  /** Start angle: axis0 = c0 + r·sin θ, axis1 = c1 + r·cos θ (@cite EN plan_arc.c:634-636). */
+  /** Start angle: axis0 = c0 + r·sin θ, axis1 = c1 + r·cos θ (@cite EN plan_arc.c:633-635). */
   readonly theta: number;
   /** Signed angular travel in radians. */
   readonly sweep: number;
@@ -104,13 +104,13 @@ export class Motion {
    * units, relative to power-up. Each executed segment sets the step target
    * to the joint of the segment's ABSOLUTE target, the joint being 0 on an
    * inhibited axis, and moves the motor by the difference from the previous
-   * step target (@cite EN plan_exec.c:742-751; TG plan_exec.c:718-727). So an
+   * step target (@cite EN plan_exec.c:801-810; TG plan_exec.c:718-727). So an
    * axis inhibited while its step target is away from 0 is driven back to
    * step 0 by the next move of any axis, and an axis un-inhibited while its
    * position is away from 0 is driven out to it, while the reported position
    * (`mpo`) shows neither. A step resync (`mp_set_steps_to_runtime_position`,
    * from `cm_set_position` and G28.3) rewrites the step target from the
-   * position without moving any motor (@cite EN planner.c:188-202; TG
+   * position without moving any motor (@cite EN planner.c:185-199; TG
    * planner.c:160-170).
    */
   #steps: Vec = zeroVec();
@@ -280,7 +280,7 @@ export class Motion {
    * Drop every queued block. The runtime must be idle (stopped); the held
    * block goes too. `cm_queue_flush()` then sets every axis's position from
    * the runtime, which resyncs the step targets (@cite EN
-   * canonical_machine.c:2144-2147; TG canonical_machine.c:1307-1309).
+   * canonical_machine.c:2393-2396; TG canonical_machine.c:1307-1309).
    */
   flush(t: number): void {
     if (!this.runtimeIdle()) throw new Error('flush while the runtime moves');

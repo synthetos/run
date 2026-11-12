@@ -3,7 +3,7 @@
  * toolpath's frame (gcode frames.ts: the tool in the path's frame is `pos + programToPath(line)`).
  *
  * The board reports `line` and `pos` from the same place: the block running while it moves, and the model
- * (the last line it parsed) once it stops (@cite EN canonical_machine.c:2590-2595 cm_get_line, :2630-2636
+ * (the last line it parsed) once it stops (@cite EN canonical_machine.c:2857-2862 cm_get_line, :2897-2903
  * _position_model, :145-154; the runtime takes a block's line and offsets together, plan_exec.c:216). So the
  * line it reports is the key, during a job and after it:
  * - running: the executing line, whose G92 the runtime applies;

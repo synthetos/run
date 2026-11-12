@@ -319,7 +319,7 @@ function groupOf(s: SessionState, token: string): AxisValues | undefined {
 
 /**
  * A group printed in the board's units (`F_CONVERT`: g54..g59, g92, g28 and g30 on X, Y and Z, never A, B or C),
- * in mm. The JSON serializer divides those by 25.4 while the model is in G20 (@cite EN json_parser.c:828,
+ * in mm. The JSON serializer divides those by 25.4 while the model is in G20 (@cite EN json_parser.c:830,
  * config_app.c:858-871 prep_float, :388-450 the `_fipc`/`_fic` rows; config.h:242, :275-276); `mpo` and `ofs` are
  * always mm (config_app.c:166, :180). The board is at rest when the job reads it, so the `unit` it reports is the
  * model's. Without the units read, such a group is unknown, never guessed.
@@ -360,7 +360,7 @@ export function liveStart(s: SessionState): StartState {
   const g28 = groupMm(s, 'g28', units);
   const g30 = groupMm(s, 'g30', units);
   // The tool length offset (G43.1) is not readable on its own: the board's work offset `ofs` is the active
-  // coordinate offset (with G92 when applied) plus it (@cite EN canonical_machine.c:348-353), so it is the rest.
+  // coordinate offset (with G92 when applied) plus it (@cite EN canonical_machine.c:363-368), so it is the rest.
   const ofs = groupOf(s, 'ofs');
   const wcs = coor !== undefined && coor >= 1 && coor <= 6 ? (WCS_OF[coor - 1] as Wcs) : undefined;
   const coord = wcs === undefined ? undefined : offsets[wcs];

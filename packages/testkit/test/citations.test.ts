@@ -19,8 +19,8 @@ const FIRMWARE = process.env['RUN_FIRMWARE_REPO'];
 const pins = (JSON.parse(readFileSync(join(REPO_ROOT, 'vendor/firmware-pins.json'), 'utf8')) as { pins: Record<string, { commit: string }> }).pins;
 
 describe('citations', () => {
-  it('keep vendor pins unchanged and identify the separate 450.04 research source', () => {
-    expect(pins['EN']?.commit).toMatch(/^a7489b79/);
+  it('identify the 450.04 EN pin and historical research sources', () => {
+    expect(pins['EN']?.commit).toMatch(/^ee98f02b/);
     expect(pins['EN3']?.commit).toBe('c7f9b7e2b7d7e61dec304497d15ebbd56588d238');
     expect(pins['TG']?.commit).toMatch(/^d0418390/);
     const sources = new Set(BEHAVIOURS.flatMap((b) => b.cites.map((c) => c.src)));

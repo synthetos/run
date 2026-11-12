@@ -1,6 +1,6 @@
 /**
  * `cm_set_model_target()` axis modes and `cm_test_soft_limits()`, which read
- * the same in both pinned firmwares (@cite EN canonical_machine.c:515-598;
+ * the same in both pinned firmwares (@cite EN canonical_machine.c:578-661;
  * TG canonical_machine.c:430-498). Each model calls these with its own
  * settings; the citations in the models' behaviour register name both files.
  */
@@ -9,7 +9,7 @@ import { ModelGapError } from './common.ts';
 import { DISABLE_SOFT_LIMIT, f32, fpEQ } from './float32.ts';
 import { AXES, type Vec } from './motion.ts';
 
-/** cmAxisMode (@cite EN canonical_machine.h:286-293; TG canonical_machine.h:510-517). */
+/** cmAxisMode (@cite EN canonical_machine.h:287-294; TG canonical_machine.h:510-517). */
 export const AXIS_DISABLED = 0;
 export const AXIS_STANDARD = 1;
 export const AXIS_INHIBITED = 2;
@@ -48,7 +48,7 @@ export interface TargetContext {
  *
  * The arithmetic is float32, as on the board (float32.ts): the word, its unit
  * conversion and its sum with the offset or the start are each a float, and
- * the target becomes the next start (@cite EN canonical_machine.c:524-546,
+ * the target becomes the next start (@cite EN canonical_machine.c:587-609,
  * :426-427 `cm_finalize_move`; TG canonical_machine.c:430-498). A run of G91
  * moves therefore accumulates float32 rounding that a double-precision sum
  * does not show (the arc-uncertainty finding after P0-10#1). The model folds

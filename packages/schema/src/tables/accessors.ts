@@ -9,14 +9,14 @@
  * a vendored table, and the allowlist tests hold the allowlists to them:
  * - an allowlisted token's getter must be `value`, `stub` or `group` (and a
  *   group only when every member is allowlisted too, because a group GET runs
- *   every member's getter: EN config.c:624-652);
+ *   every member's getter: EN config.c:907-935);
  * - an overlay key's setter must be `value`.
  *
  * A function that is not in these maps fails the tests, so a firmware bump
  * that adds one cannot pass CI until somebody has read it and classified it.
  * Changing a class needs the owner's review (CODEOWNERS).
  *
- * Citations are to EN (`edge-next` @ a7489b79) unless tagged TG (master @
+ * Citations are to EN (`edge-next` @ ee98f02b) unless tagged TG (master @
  * d0418390) or S449 (edge-0.97 @ c5024186).
  */
 
@@ -155,6 +155,9 @@ export const GETTER_CLASS: Readonly<Record<string, GetterClass>> = Object.freeze
   rt_get_flm: 'session',
   rt_get_flp: 'session',
   rt_get_flf: 'session',
+  // @cite EN runtime.c:189-248 (job attribution and gap-report opt-in; no motion).
+  rt_get_job: 'session',
+  rt_get_fg: 'session',
   rt_get_fi: 'session',
   rt_get_fs: 'session',
 });
@@ -187,7 +190,7 @@ export const SETTER_CLASS: Readonly<Record<string, SetterClass>> = Object.freeze
 
   cm_set_am: 'value',
   /**
-   * 450.02 range-checked stores (EN canonical_machine.c:2821-2892, :1018-1029; pwm.c:160-167): each refuses a
+   * 450.02 range-checked stores (EN canonical_machine.c:3088-3159, :1078-1089; pwm.c:160-167): each refuses a
    * non-finite or out-of-range value with a status and otherwise stores it with set_flu or set_flt as before, with
    * the same unit conversion. A persisted write during a cycle is refused with status 117 (config.c:182-187).
    */
@@ -218,6 +221,8 @@ export const SETTER_CLASS: Readonly<Record<string, SetterClass>> = Object.freeze
   set_u16: 'value',
   set_u32: 'value',
   set_ui8: 'value',
+  // @cite EN spindle.c:87-92 (finite spin-up delay setting; not allowlisted for Run writes).
+  spindle_set_dwell: 'value',
   spindle_set_polarity: 'value',
   sr_set_se: 'value',
   sr_set_si: 'value',
@@ -266,6 +271,8 @@ export const SETTER_CLASS: Readonly<Record<string, SetterClass>> = Object.freeze
   rt_set_hb: 'session',
   rt_set_qt: 'session',
   /** Feed-limit push interval: 0 off, 1..60 s (clamped), off to on only at quiescence (runtime.c:499-545). */
+  rt_set_job: 'session',
+  rt_set_fg: 'session',
   rt_set_fi: 'session',
   rt_set_grp: 'session',
 });

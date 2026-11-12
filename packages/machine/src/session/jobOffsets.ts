@@ -3,7 +3,7 @@
  * changes the board's work offsets without a read, so `ofs`, `g92`, `coor` and g54..g59 kept the values read
  * before it; the zero check before the next Start, the offsets panel and the DRO's total read them. Once per job,
  * when the board is quiet, as `seed` reads: the allow-matrix's `read` intent, as every read-back is. `unit` comes
- * first because g92 and g54..g59 are printed in it (@cite EN json_parser.c:828, config_app.c:858-871); with `dist`
+ * first because g92 and g54..g59 are printed in it (@cite EN json_parser.c:830, config_app.c:864-878); with `dist`
  * it is also what the job card shows as the board's modes after the job, and with `plan` and `admo` what its start
  * line forecasts from (OD-19, boardModes.ts, jobModes.ts).
  *

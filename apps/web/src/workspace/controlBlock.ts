@@ -31,7 +31,7 @@ export type BlockKind =
   | 'alarm';
 
 /** What a block's button does. The card wires each to an existing flow; none is new machine logic. */
-export type BlockActionId = 'trust' | 'update' | 'review' | 'machines' | 'clear-alarm' | 'disconnect';
+export type BlockActionId = 'trust' | 'update' | 'review' | 'machines' | 'clear-alarm' | 'disconnect' | 'motion-only-pause';
 
 export interface BlockAction {
   readonly id: BlockActionId;
@@ -67,6 +67,13 @@ function notApproved(s: Snapshot, flasher: boolean, ctx: BlockContext): ControlB
   const detail = c?.detail ?? null;
   const why = readOnlyWhy(s);
   const disconnect: BlockAction = { id: 'disconnect', label: 'Disconnect', primary: true };
+  if (c?.reason === 'spindlePause') {
+    const write = s.settingWrite;
+    const pending = write != null && write.phase !== 'done';
+    return { kind: 'not-approved', reason: c.reason, title: CANT,
+      lines: [c.detail, ...(write?.phase === 'done' && write.outcome !== 'verified' ? [write.detail ?? 'The setting was not verified.'] : [])],
+      actions: pending ? [] : [{ id: 'motion-only-pause', label: 'Make Pause motion only', primary: true }], detail };
+  }
   if (c?.reason === 'flowControl') {
     // An ex Run could not read or does not know (0, 1 and 2 are fine, OD-33). Run never writes ex (SAFETY H61): say how to fix it by hand.
     return { kind: 'not-approved', reason: 'flowControl', title: CANT, lines: [why, 'Set ex to 1 (XON/XOFF) with another program, then connect again.'], actions: [disconnect], detail };

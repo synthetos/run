@@ -6,7 +6,7 @@
  * coordinates the G-code is written in, in mm) plus the interpreter's work offset in force on that line:
  * the active WCS offset, the G92 offset while it applies, and the tool length on X, Y and Z
  * (`Interpreter.offset`). The board reports its work position `pos` in that same program frame: machine
- * position minus the G5x, G92 and tool offsets of the block running (@cite EN canonical_machine.c:389-407
+ * position minus the G5x, G92 and tool offsets of the block running (@cite EN canonical_machine.c:404-422
  * cm_get_work_position, plan_line.c:89; a G92 reaches the runtime in queue order, :1199-1213 and :1109).
  * So the tool in the path frame is `pos + programToPath(line)`.
  *

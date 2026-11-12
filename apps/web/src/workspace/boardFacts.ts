@@ -33,9 +33,9 @@ const PLAIN_LABEL: Readonly<Record<string, string>> = {
   tv: 'Text verbosity',
   ct: 'Chordal tolerance',
   ja: 'Junction acceleration',
-  coph: 'Coolant output polarity',
-  spph: 'Spindle PWM polarity',
-  spde: 'Spindle direction delay',
+  coph: 'Coolant pause on hold',
+  spph: 'Spindle pause on hold',
+  spde: 'Spindle spin-up delay',
   gpl: 'Default plane',
   gco: 'Default coordinate system',
   gpa: 'Default path control',
@@ -62,8 +62,6 @@ const PLAIN_VALUES: Readonly<Record<string, Readonly<Record<number, string>>>> =
   ex: { 0: 'off', 1: 'XON/XOFF', 2: 'RTS/CTS' },
 };
 
-/** Keys this firmware holds reserved: they answer "reserved" and cannot be set (den.json `_reserved_hold_setting`). */
-export const RESERVED = new Set(['coph', 'spph', 'spde']);
 
 export interface SettingMeta {
   readonly key: string;
@@ -217,8 +215,8 @@ function inputFunction(signal: string): { readonly text: string; readonly keys: 
 const OUTPUT_FUNCTION: Readonly<Record<string, { readonly text: string; readonly keys: readonly string[]; readonly note?: string }>> = {
   'out.spindleEnable': { text: 'Spindle enable output', keys: ['spep', 'spe'] },
   'out.spindleDirection': { text: 'Spindle direction output', keys: ['spdp', 'spc', 'spd'] },
-  'out.spindlePwm': { text: 'Spindle speed output (PWM)', keys: ['p1frq', 'p1csl', 'p1csh', 'p1cpl', 'p1cph', 'sps'], note: 'Its polarity key (spph) is reserved on this firmware.' },
-  'out.coolant': { text: 'Coolant output', keys: ['cof', 'com', 'coph'], note: 'Mist and flood share this one output. Its polarity key (coph) is reserved on this firmware.' },
+  'out.spindlePwm': { text: 'Spindle speed output (PWM)', keys: ['p1frq', 'p1csl', 'p1csh', 'p1cpl', 'p1cph', 'sps'], note: 'Spindle pause on hold (spph) is separate from PWM polarity.' },
+  'out.coolant': { text: 'Coolant output', keys: ['cof', 'com', 'coph'], note: 'Mist and flood share this one output. Coolant pause on hold (coph) is separate from output polarity.' },
 };
 
 /** Every connector pin of the TinyG v8, from the board definition, plus the four terminals of each motor output. */

@@ -5,7 +5,7 @@
  * No bench capture of the full probe exists yet (B-PROBE-1). The lines are
  * constructed from source at the pinned commits:
  * - edge-next: values from EN config_app.c:139-143, :650-668 (tokens),
- *   :65-69 (`spph` → 17), footer rev 3 from EN json_parser.c:965 (rxm=1 default);
+ *   :65-69 (`spph` → 17), footer rev 3 from EN json_parser.c:967 (rxm=1 default);
  * - 440.21: footer rev 1 with a real checksum (TG json_parser.c:529, :550);
  *   the capability tokens do not exist there, so they answer 100;
  * - stock 449: footer rev 3 (S449 json_parser.c:686); tokens answer 100;
@@ -82,7 +82,7 @@ export const NO_CAPABILITIES: ProbeAnswers = {
 
 /** Edge-next fb 450.01, rxm=1: an EN build for self-contained manifests. */
 export const EN_450 = (): ProbeObservations => observations({ ...tinygIdentity('450.01'), ...EN_CAPABILITIES }, 3);
-/** Edge-next at the EN pin a7489b79 (fb 450.02), rxm=1: the build the committed bench manifest approves. */
+/** Historical edge-next a7489b79 (fb 450.02), rxm=1: the build the committed bench manifest approves. */
 export const EN_PIN = (): ProbeObservations => observations({ ...tinygIdentity('450.02'), ...EN_CAPABILITIES }, 3);
 /** Stock 440.21. */
 export const TG_440 = (): ProbeObservations => observations({ ...tinygIdentity('440.21'), ...NO_CAPABILITIES }, 1);

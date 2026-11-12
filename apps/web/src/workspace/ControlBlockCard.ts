@@ -29,6 +29,9 @@ export function currentBlock(model: WorkspaceModel | null | undefined): ControlB
  */
 export function blockAction(id: BlockActionId, model: WorkspaceModel | null): 'ask-clear-alarm' | null {
   switch (id) {
+    case 'motion-only-pause':
+      void model?.actions.value?.makePauseMotionOnly?.();
+      return null;
     case 'trust':
     case 'update':
       boardTab.value = 'firmware';
@@ -73,7 +76,7 @@ export function ControlBlockCard({ block, model }: { readonly block: ControlBloc
   const detail = block.detail ?? null;
   usePublishNotes('control-block', detail === null ? [] : [{ id: `block-${block.kind}`, topic: 'Connection', title: 'What the board said.', body: 'Run’s own words about this board, for help.', detail, link: { kind: 'board', tab: 'overview', label: 'Board' }, tone: 'info' }]);
   // A button that needs the LIVE actions (Clear alarm, Disconnect) is left out without them, never shown dead.
-  const usable = block.actions.filter((a) => (a.id === 'clear-alarm' ? actions?.motion !== undefined : a.id === 'disconnect' ? actions !== null : true));
+  const usable = block.actions.filter((a) => (a.id === 'clear-alarm' ? actions?.motion !== undefined : a.id === 'disconnect' ? actions !== null : a.id === 'motion-only-pause' ? actions?.makePauseMotionOnly !== undefined : true));
   return h(
     'div',
     { class: 'control-block', 'data-region': 'control-block', 'data-block': block.kind, ...(block.reason === undefined ? {} : { 'data-reason': block.reason }), role: 'status' },
@@ -84,7 +87,7 @@ export function ControlBlockCard({ block, model }: { readonly block: ControlBloc
       : h(
           'div',
           { class: 'control-block-actions' },
-          usable.map((a) => h('button', { type: 'button', key: a.id, class: a.primary === true ? 'small primary' : 'small', 'data-action': `block-${a.id}`, ...(a.id === 'clear-alarm' ? { 'data-machine-control': 'clear-alarm' } : {}), onClick: () => go(a.id) }, a.label)),
+          usable.map((a) => h('button', { type: 'button', key: a.id, class: a.primary === true ? 'small primary' : 'small', 'data-action': `block-${a.id}`, ...(a.id === 'clear-alarm' ? { 'data-machine-control': 'clear-alarm' } : a.id === 'motion-only-pause' ? { 'data-machine-control': 'settings-write' } : {}), onClick: () => go(a.id) }, a.label)),
           detail === null ? null : h(NotesPill, { topic: 'Connection' }),
         ),
     asking ? h(ClearAlarmConfirm, { model, onDone: () => setAsking(false) }) : null,

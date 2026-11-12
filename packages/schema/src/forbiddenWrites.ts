@@ -76,22 +76,22 @@ const PREFIXES: Readonly<Record<string, ForbiddenRule>> = Object.freeze({
 });
 
 /**
- * The edge-next runtime session family (EN config_app.c:680-691, :743;
+ * The edge-next runtime session family (EN config_app.c:680-691, :749;
  * runtime.c): a write starts an idle heartbeat, installs a quiescence token
  * or turns on the feed-limit push. Not a setting: never a settings write
  * (the session's own report-configuration lines go through their own gate).
  */
 const RT: Readonly<Record<string, ForbiddenRule>> = Object.freeze({
-  rt: rule(ALWAYS, 'runtime session group (heartbeat, quiescence token, feed-limit push): not a setting (EN runtime.c:187-212)'),
-  rthb: rule(ALWAYS, 'starts an idle heartbeat: a session control, not a setting (EN runtime.c:107-118)'),
-  rtqt: rule(ALWAYS, 'installs a quiescence token: a session control, not a setting (EN runtime.c:153-177)'),
+  rt: rule(ALWAYS, 'runtime session group (heartbeat, quiescence token, feed-limit push): not a setting (EN runtime.c:188-275)'),
+  rthb: rule(ALWAYS, 'starts an idle heartbeat: a session control, not a setting (EN runtime.c:108-119)'),
+  rtqt: rule(ALWAYS, 'installs a quiescence token: a session control, not a setting (EN runtime.c:154-178)'),
   rtup: rule(ALWAYS, 'uptime: read-only (EN config_app.c:685)'),
   rtflk: rule(ALWAYS, 'feed-limit report of the running move: read-only session state (EN config_app.c:686)'),
   rtflm: rule(ALWAYS, 'feed-limit report of the running move: read-only session state (EN config_app.c:687)'),
   rtflp: rule(ALWAYS, 'feed-limit report of the running move: read-only session state (EN config_app.c:688)'),
   rtflf: rule(ALWAYS, 'feed-limit report of the running move: read-only session state (EN config_app.c:689)'),
-  rtfi: rule(ALWAYS, 'turns on the feed-limit push (pushed fs and fl lines): a session control, not a setting (EN runtime.c:499-545)'),
-  rtfs: rule(ALWAYS, 'feed-limit summary request: read-only, and a GET pushes a summary (EN config_app.c:691; runtime.c:547-563)'),
+  rtfi: rule(ALWAYS, 'turns on the feed-limit push (pushed fs and fl lines): a session control, not a setting (EN runtime.c:744-799)'),
+  rtfs: rule(ALWAYS, 'feed-limit summary request: read-only, and a GET pushes a summary (EN config_app.c:691; runtime.c:801-817)'),
 });
 
 /** `rxm` exists on edge-next and stock 449 only (PN §12.2). */

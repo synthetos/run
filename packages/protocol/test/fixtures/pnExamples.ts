@@ -87,7 +87,7 @@ export const PN_CONCRETE: readonly PnExample[] = [
   { where: 'PN §5.2 rev 2 (EN-HIL E031 transcript)', line: '{"r":{"stat":5},"f":[2,0,14]}', kind: 'Response' },
   { where: 'PN §5.2 rev 3 (EN-HIL test_harness_offline.py:27)', line: '{"r":{"fb":449.01},"f":[3,0,11]}', kind: 'Response' },
   // §5.3 tid.
-  { where: 'PN §5.3 top-level tid (EN json_parser.c:946-955)', line: '{"r":{"fb":449.01},"tid":33,"f":[3,0,11]}', kind: 'Response' },
+  { where: 'PN §5.3 top-level tid (EN json_parser.c:948-957)', line: '{"r":{"fb":449.01},"tid":33,"f":[3,0,11]}', kind: 'Response' },
   { where: 'PN §5.3 tid on an error (EN-HIL test_e049)', line: '{"r":{},"tid":17,"f":[3,132,11]}', kind: 'Response' },
   // §5.5 exceptions.
   {

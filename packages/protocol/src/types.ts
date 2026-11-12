@@ -141,7 +141,7 @@ export interface Heartbeat {
 
 /**
  * `{"fs":{"v":1|2,"e":..,"q":..,"c":[6 or 7 counters],"ct":ms,"cd":mm[,"x":1]}}`: an edge-next feed-limit summary
- * (EN runtime.c:295-370). Pushed every `fi` seconds while a cycle runs, once more after the runtime drains,
+ * (EN runtime.c:358-516). Pushed every `fi` seconds while a cycle runs, once more after the runtime drains,
  * and after `{"rt":{"fs":null}}`, once `{"rt":{"fi":N}}` has opened a window. The push is a RAM session
  * setting that outlives the host that set it (until a reset), so it can arrive outside a job. Like the heartbeat
  * it has no `r` and no footer: it answers nothing, it is never an

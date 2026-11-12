@@ -1,8 +1,8 @@
 {
- "commit": "a7489b79",
- "fb": 450.02,
+ "commit": "ee98f02b",
+ "fb": 450.04,
  "name": "den",
- "ref": "a7489b79b2d886d872e019ff1e414f716de6638b",
+ "ref": "ee98f02b545f3548fe53e59d143715141cfaf510",
  "status": {
   "ALARM": 18,
   "ALARMED": 27,
@@ -613,6 +613,14 @@
    "set": "set_nul",
    "type": "float"
   },
+  "_hld": {
+   "get": "_reserved_hold_setting",
+   "group": "",
+   "persist": false,
+   "precision": 0,
+   "set": "_reserved_hold_setting",
+   "type": "integer"
+  },
   "_ps": {
    "get": "get_grp",
    "group": "",
@@ -1166,11 +1174,11 @@
    "type": "integer"
   },
   "coph": {
-   "get": "_reserved_hold_setting",
+   "get": "get_ui8",
    "group": "sys",
-   "persist": false,
+   "persist": true,
    "precision": 0,
-   "set": "_reserved_hold_setting",
+   "set": "set_01",
    "type": "integer"
   },
   "cra": {
@@ -2417,7 +2425,7 @@
    "get": "get_flt",
    "group": "p1",
    "persist": true,
-   "precision": 0,
+   "precision": 3,
    "set": "set_flt",
    "type": "float"
   },
@@ -2425,7 +2433,7 @@
    "get": "get_flt",
    "group": "p1",
    "persist": true,
-   "precision": 0,
+   "precision": 3,
    "set": "set_flt",
    "type": "float"
   },
@@ -2465,7 +2473,7 @@
    "get": "get_flt",
    "group": "p1",
    "persist": true,
-   "precision": 0,
+   "precision": 3,
    "set": "set_flt",
    "type": "float"
   },
@@ -2473,7 +2481,7 @@
    "get": "get_flt",
    "group": "p1",
    "persist": true,
-   "precision": 0,
+   "precision": 3,
    "set": "set_flt",
    "type": "float"
   },
@@ -2725,6 +2733,14 @@
    "set": "rt_set_grp",
    "type": "null"
   },
+  "rtfg": {
+   "get": "rt_get_fg",
+   "group": "rt",
+   "persist": false,
+   "precision": 0,
+   "set": "rt_set_fg",
+   "type": "integer"
+  },
   "rtfi": {
    "get": "rt_get_fi",
    "group": "rt",
@@ -2779,6 +2795,14 @@
    "persist": false,
    "precision": 0,
    "set": "rt_set_hb",
+   "type": "integer"
+  },
+  "rtjob": {
+   "get": "rt_get_job",
+   "group": "rt",
+   "persist": false,
+   "precision": 0,
+   "set": "rt_set_job",
    "type": "integer"
   },
   "rtqt": {
@@ -3102,11 +3126,11 @@
    "type": "integer"
   },
   "spde": {
-   "get": "_reserved_hold_setting",
+   "get": "get_flt",
    "group": "sys",
-   "persist": false,
+   "persist": true,
    "precision": 3,
-   "set": "_reserved_hold_setting",
+   "set": "spindle_set_dwell",
    "type": "float"
   },
   "spdp": {
@@ -3134,18 +3158,18 @@
    "type": "integer"
   },
   "spph": {
-   "get": "_reserved_hold_setting",
+   "get": "get_ui8",
    "group": "sys",
-   "persist": false,
+   "persist": true,
    "precision": 0,
-   "set": "_reserved_hold_setting",
+   "set": "set_01",
    "type": "integer"
   },
   "sps": {
    "get": "spindle_get_sps",
    "group": "",
    "persist": false,
-   "precision": 0,
+   "precision": 3,
    "set": "set_nul",
    "type": "float"
   },

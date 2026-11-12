@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveActions, type LiveView } from '../src/workspace/model.ts';
+import { blockAction } from '../src/workspace/ControlBlockCard.ts';
 import { buildText, controlBlock, type BlockContext } from '../src/workspace/controlBlock.ts';
 import { PositionPanel } from '../src/workspace/views/RunView.ts';
 import { observingElsewhere } from '../src/workspace/tabControl.ts';
@@ -184,4 +185,24 @@ describe('the Position panel', () => {
     expect(html).toMatch(/class="dro-row pos-status-row"[\s\S]*class="dro-actions pos-all"/);
     expect((html.match(/data-machine-control="zero"/g) ?? []).length).toBe(8);
   });
+});
+
+it('spindle-pause block offers only the corrective write and retains failed readback detail', () => {
+  const detail = 'This board stops the spindle when you pause. Run needs Pause to affect motion only.';
+  const s = snap({ ...READ_ONLY, classification: { dialectId: 'tinyg-en', mode: 'readOnly', reason: 'spindlePause', detail, upgradeOffer: false } });
+  expect(controlBlock(view(s), CTX)).toMatchObject({ lines: [detail], actions: [{ id: 'motion-only-pause', label: 'Make Pause motion only', primary: true }] });
+  expect(stripStatus(view(s), null).text).toContain('Pause');
+  const pending = { ...s, settingWrite: { id: 1, key: 'spph', value: 0, phase: 'readback', gate: {} } } as Snapshot;
+  expect(controlBlock(view(pending), CTX)?.actions).toEqual([]);
+  const failed = { ...pending, settingWrite: { ...pending.settingWrite, phase: 'done', outcome: 'mismatch', detail: 'The board reads back 1.' } } as Snapshot;
+  expect(controlBlock(view(failed), CTX)?.lines).toEqual([detail, 'The board reads back 1.']);
+});
+
+it('the motion-only action calls the existing worker setting path through its live action', async () => {
+  const model = createWorkspaceModel();
+  let calls = 0;
+  model.actions.value = { makePauseMotionOnly: async () => { calls++; } } as unknown as LiveActions;
+  expect(blockAction('motion-only-pause', model)).toBeNull();
+  expect(calls).toBe(1);
+  expect(blockAction('motion-only-pause', null)).toBeNull();
 });

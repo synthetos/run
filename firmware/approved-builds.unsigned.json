@@ -10,6 +10,13 @@
       "builds": [
         {
           "dialect": "tinyg-en",
+          "fb": 450.04,
+          "fbs": null,
+          "commit": "ee98f02b545f3548fe53e59d143715141cfaf510",
+          "note": "TinyG edge-next 450.04 (pre-release tag 450.04 at ee98f02b) for bench use on staging only, approved by the owner 2026-11-12. Run requires spph=0 before control. It reports no fbs, so every 450.04 build matches; no image has passed D5. The release image lacks N99; the host dwell guard remains required. To be signed with the owner's staging-only bench key, not the release key."
+        },
+        {
+          "dialect": "tinyg-en",
           "fb": 450.02,
           "fbs": null,
           "commit": "a7489b79b2d886d872e019ff1e414f716de6638b",

@@ -1,8 +1,10 @@
 # TinyG 450.04 readiness proposal
 
 Prepared 2026-11-11. This is a proposal, not approval to control a machine or publish firmware.
-The firmware pin, signed and unsigned approved-builds files, registered safety strings and SAFETY.md are unchanged.
-450.04 remains read-only with the shipped manifest. Tests use an explicit test-only approval.
+Updated 2026-11-12 after owner approval: EN is pinned to ee98f02b (450.04), and the unsigned staging bench approval and hardware-8 release records include it. Signed files, registered safety strings and SAFETY.md are unchanged.
+450.04 remains unapproved with the shipped signed manifest until the owner signs the new records. Even when approved, Run requires a successful spph=0 read before control; spph=1 or an unreadable value has its own read-only block. “Make Pause motion only” writes only spph=0 through the settings idle/queue/unit gates and verifies readback. Run never writes spde or coph. Older stubbed tokens and 450.05+ absent tokens are unaffected. Tests use an explicit test-only approval.
+
+The downloaded release HEX was independently checked against the release SHA256SUMS on 2026-11-12: 487,745 bytes, SHA-256 a67aa65d4b9fa8bed1c9693de87d2cd9fbe3b0113d4560415eaced4088a483a1.
 
 ## Candidate and proposed entry
 
@@ -29,7 +31,7 @@ HEX. Do not treat the hash as a board identity check. No production approval is 
 
 ## Readiness changes and checks
 
-**E060:** the identity probe accepts numeric `spph` 0 or 1 for EN 450.04 and later, still requiring every other
+**E060:** the identity probe identifies EN while still requiring every other
 capability and the signed manifest. Older EN builds still require the stubbed answer. Output pause is never
 inferred from build number alone: the UI says settings decide it, and reported `spe` decides whether it says
 “spindle still on.” The paused job card explains that Resume can restart outputs and wait for spin-up; the
@@ -39,13 +41,13 @@ The optional 450.04 test model implements `spph` (default 1), `spde` (default 1 
 external hold output latching, restart delay, repeated Pause during spin-up, and cancellation on flush, kill,
 alarm and reset. Homing/probe internal holds are exempt. The model retains its existing commanded-speed and
 simplified motion limitations; it is not a physical timing oracle. New research citations use `EN45004` at the
-full commit above, separately from the unchanged vendor pins. Source: `canonical_machine.c:2167–2241`,
+full commit above, also now the EN vendor pin. Source: `canonical_machine.c:2167–2241`,
 `config_app.c:653–655`, and `spindle.c:87–92` at the candidate commit.
 
-The machine integration tests actually pause, resume and inspect position: it stays fixed during the default
-spin-up, then advances. With `spph=0` and a configured 10-second `spde`, it advances within 100 ms of resume.
-Run leaves the restart delay to firmware; it does not inject an M3 or a second dwell. The session can be in its
-feeding phase while the board still reports HOLD during spin-up; that is not evidence that motion restarted.
+The machine integration tests now require the default spph=1 board to remain read only. With spph=0
+and a configured 10-second spde, motion advances within 100 ms of resume and the spindle keeps running.
+The testkit tests retain coverage of the firmware's output-pause and restart-delay behavior independently.
+Run does not inject spindle commands or a second dwell.
 
 **N104:** preflight blocks an arc without a centre before streaming; typed-move validation also refuses it before
 sending. Injected controller status 157 is covered in both streaming and typed movement, with plain wording
@@ -227,3 +229,19 @@ completion marker, not an acknowledged-line count inferred from qr.
 Status 157's explanation now lives in the EN dialect status table. Job and typed-move
 refusals both read it there; classification remains an ordinary error. Registered
 safety wording is unchanged.
+
+
+### Pin audit (2026-11-12)
+
+The EN source citations, including multiline and same-file continuation references, were compared
+between a7489b79 and ee98f02b. Moved references and schema cfgArray rows now name the new source.
+Changed-source checks include the dwell planner slot release, alarm output cancellation, spindle command
+class attribution, internal probe feedhold, machine-mm probe reports, RTS thresholds and status 157.
+The legacy spph-stub behavior cites the historical EN3 pin. The structured behavior quotations pass
+against the local TinyG object store at the pinned commits. The HIL den table was regenerated with
+the pinned generator and avr-gcc 9.5.0; provenance and its generated TypeScript table were updated.
+Hardware board-definition provenance remains at its recorded source revision.
+
+Scope limitation for owner review: coph defaults to 0, but an existing coph=1 board still pauses coolant.
+This task implements the requested spph guard only and never writes coph. A separate coolant read-only
+guard is needed before claiming motion-only Pause for non-default coph=1 boards.

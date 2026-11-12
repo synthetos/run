@@ -62,3 +62,11 @@ it('N99 remains unfixed: standalone G4 after program end still reports stat 4', 
   sim.clock.advance(2200);
   expect(sim.device.snapshot().plannerAvailable).toBe(32);
 });
+
+it('450.04 retains the internal hold stub while public pause settings are real', () => {
+  const sim = enSim({ build });
+  for (const value of [null, 0]) {
+    sim.host.take(); sim.host.sendLine(JSON.stringify({ _hld: value })); sim.clock.advance(50);
+    expect(statuses(sim.host.take())).toContain(17);
+  }
+});

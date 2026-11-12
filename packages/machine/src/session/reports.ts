@@ -116,7 +116,7 @@ export const RT_PROBE_LINE = '{"rt":null}';
 /**
  * Capability seam: does the board's heartbeat also beat while the machine is held, dwelling or has moves queued
  * without stepping? Today it does not: edge-next beats only while the machine is quiet (@cite EN
- * runtime.c:37-52, :62-71), so in those states the watchdog asks once per silent window (ENQ, else a `stat`
+ * runtime.c:38-53, :63-72), so in those states the watchdog asks once per silent window (ENQ, else a `stat`
  * GET) instead of going STALE (SAFETY §4.2 amendment 2026-11-02, H69). Beats during hold and dwell are under
  * discussion with the firmware maintainer (option (a)); when a build has them and says so, this returns true for
  * it and the session stops asking. Nothing else may change for that.

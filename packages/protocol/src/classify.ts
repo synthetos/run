@@ -33,7 +33,7 @@
 import { parseJsonObject } from './json.ts';
 import type { ClassifiedLine, Footer, Garbled, GarbledReason, JsonObject, JsonValue } from './types.ts';
 
-/** Largest transaction id the board can echo: EN parses and prints it as uint32 (@cite EN json_parser.c:140-146, :953). */
+/** Largest transaction id the board can echo: EN parses and prints it as uint32 (@cite EN json_parser.c:140-146, :955). */
 export const MAX_TID = 0xffff_ffff;
 
 /** Keys a banner carries besides `msg` (@cite EN report.c:70-83; TG report.c:88-101). */
@@ -76,7 +76,7 @@ export function classifyLine(line: string): ClassifiedLine {
     const hb = value['hb'];
     return isObject(hb) ? Object.freeze({ kind: 'Heartbeat', line, hb }) : garbled('bad-value', line, value);
   }
-  // Feed-limit push lines (@cite EN runtime.c:356-370, :422-453): pushed, never answers. Only the envelope is
+  // Feed-limit push lines (@cite EN runtime.c:475-516, :652-689): pushed, never answers. Only the envelope is
   // checked, as for the heartbeat: the frame is a draft that may gain fields, and nothing run decides reads it.
   if (sameKeys(keys, ['fs'])) {
     const fs = value['fs'];
@@ -183,7 +183,7 @@ function classifyException(line: string, o: JsonObject): ClassifiedLine {
  * integer. Revision 1 has three fields on g2core (@cite OLD-PN §5, G2
  * json_parser.cpp:611-618) and four on TG, the fourth being a checksum
  * (@cite TG json_parser.c:529, :550). Revisions 2 and 3 have exactly three
- * (@cite EN json_parser.c:962, :965; controller.c:609-615).
+ * (@cite EN json_parser.c:964, :967; controller.c:610-616).
  */
 export function parseFooter(f: JsonValue | undefined): Footer | undefined {
   if (!Array.isArray(f)) return undefined;
