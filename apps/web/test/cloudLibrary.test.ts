@@ -346,3 +346,34 @@ it('retains queued account edits and explains a session-expiry fallback without 
   vi.mocked(api.put).mockRejectedValueOnce(new RecordsError(401)); local.set([{ tool: { ...tool, name: 'Pending edit' }, number: 8, store: null }]); await settle();
   expect(librarySyncView.value.mode).toBe('local'); expect(librarySyncView.value.notice).toContain('Pending account edits'); expect(readCache(storage, 'expires').pending).toHaveLength(1); expect(local.value.value[0]?.tool.name).toBe('My tool'); sync.stop();
 });
+
+it.each([true, false])('tool and material fork survive upload/download with carried fields unchanged (existing slot: %s)', async existingSlot => {
+  const originalTool = { ...tool, notes: 'Keep these notes', tags: ['roughing'], ...(existingSlot ? { firmwareSlot: { t: 8, lengthOffset: 12.75 } } : {}) };
+  const entry = { tool: originalTool, number: 8, store: 'BROWSER-ONLY-SKU' };
+  const parent = BUILTIN_MATERIALS[0]!;
+  const fork = forkRecord('material', parent, 'mine.roundtrip');
+  if (!fork.ok) throw Error('invalid fixture');
+  const originalFork = { ...fork.value, edits: { name: 'My round-trip material', notes: 'Keep this material note' } };
+  const wire = [...toRecords('tools.v2', [entry]), ...toRecords('materials.v2', [originalFork])];
+  const uploaded = new Map<string, CloudRecord>();
+  const api = recordsClient(async (url, init) => {
+    const kind = url.split('/')[3] as 'tool' | 'material';
+    if (init.method === 'PUT') {
+      const body = JSON.parse(init.body as string) as { parent_rev: number | null; content: { id: string } };
+      expect(body.parent_rev).toBeNull();
+      const record: CloudRecord = { kind, id: body.content.id, rev: 1, archivedAt: null, content: body.content, sha256: 'a'.repeat(64) };
+      uploaded.set(kind, record); return Response.json({ ok: true, record });
+    }
+    return Response.json({ records: [uploaded.get(kind)] });
+  });
+  for (const record of wire) await api.put(record.kind, record.id, null, record.content, signal());
+  const downloadedTools = await api.list('tool', signal());
+  const tools = fromRecords('tools.v2', downloadedTools as ReturnType<typeof toRecords>) as typeof SEED_TOOLS;
+  expect(tools.find(e => e.tool.id === originalTool.id)).toEqual({ number: 8, store: null, tool: { ...originalTool, firmwareSlot: { t: 8, lengthOffset: existingSlot ? 12.75 : 0 } } });
+  const downloadedMaterials = await api.list('material', signal());
+  const forks = fromRecords('materials.v2', downloadedMaterials as ReturnType<typeof toRecords>);
+  expect(forks).toEqual([originalFork]);
+  expect(toRecords('materials.v2', forks)).toEqual(wire.filter(record => record.kind === 'material'));
+  expect(originalFork.forkOf).toEqual({ id: parent.id, version: parent.version });
+  expect(entry.store).toBe('BROWSER-ONLY-SKU');
+});

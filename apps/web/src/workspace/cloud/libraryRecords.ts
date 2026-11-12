@@ -28,6 +28,7 @@ export function fromRecords(name: string, records: readonly LibraryRecord[]): un
   const materials = records.filter(r => r.kind === 'material').map(r => r.content as Material);
   if (name === 'materials.v2') return materials.map(materialFork).filter(fork => fork !== null);
   if (name === 'materials.own.v1') return materials.filter(material => materialFork(material) === null);
+  // Store SKU stays browser-only; a later slice can carry it once the record schema allows it.
   const tools = records.filter(r => r.kind === 'tool').map(r => r.content as Tool).sort((a, b) => a.id.localeCompare(b.id));
   const used = new Set<number>();
   return [...tools.map(tool => ({ tool, number: tool.firmwareSlot?.t ?? 0, store: null })), ...SEED_TOOLS.filter(e => !tools.some(t => t.id === e.tool.id))].map(entry => {
