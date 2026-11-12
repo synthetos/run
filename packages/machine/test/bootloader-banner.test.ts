@@ -131,3 +131,18 @@ it('promotes an identified probe only with a fresh flash capability', async () =
   expect(() => link.authorizeUpdate(token)).toThrow('capability');
   await link.write(enc('V')); await link.close();
 });
+
+it('a quarantined probe finishes its bare S only after a fresh ready banner, then hands off the same port', async () => {
+  const wire = new Wire(); const link = new BootloaderLink(wire, clock, X192A3);
+  await link.openProbe();
+  expect(await link.checkBootloader(1)).toBe(false);
+  await expect(link.finishReadyPrecheck()).rejects.toThrow('banner');
+  await wire.send(banner);
+  const finishing = link.finishReadyPrecheck();
+  await flush();
+  await wire.send('{"r":{},"f":[3,102,10]}\n');
+  const app = await finishing;
+  expect(wire.calls.filter(c => c.op === 'open')).toHaveLength(1);
+  expect(() => link.applicationTransport()).toThrow('handoff');
+  await app.close();
+});
