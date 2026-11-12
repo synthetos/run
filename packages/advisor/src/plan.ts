@@ -197,7 +197,7 @@ export function planOperation(ctx: AdvisorContext): OperationPlan {
   let vcRange: Range;
   let fzRange: Range;
   const trusted = trustedCuttingData(ctx);
-  if (trusted !== undefined) {
+  if (trusted !== undefined && trusted.vc !== undefined) {
     log.cite({ kind: trusted.source === 'manufacturer' ? 'manufacturer' : 'synthetos', title: `${tool.name} cutting data for ${material.name}`, ...(trusted.note === '' ? {} : { locator: trusted.note }) });
     vcRange = { min: trusted.vc, max: trusted.vc };
     fzRange = { min: trusted.fz, max: trusted.fz };

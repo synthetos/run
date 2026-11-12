@@ -1788,3 +1788,9 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
 
 /* Account sync notices stay below the machine strip, even when a quota leaves many records local. */
 .library-sync-notice { max-height: min(280px, calc(100vh - var(--strip-bottom, 142px) - 60px)); overflow: auto; }
+
+.tool-catalog { display: grid; gap: 10px; }
+.catalog-results { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.catalog-results button { width: 100%; text-align: left; display: grid; gap: 3px; padding: 10px; }
+.catalog-results span, .cutting-note { display: block; color: var(--muted); font-size: 11px; }
+.tool-modal .slot-table td { vertical-align: top; }

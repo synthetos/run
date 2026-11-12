@@ -69,6 +69,12 @@ describe('the cutting rows', () => {
     expect(r.surface?.reference).toBe('tool data 300 m/min');
     expect(r.missing).toEqual([]);
   });
+  it('keeps an unpublished tool surface speed unknown', () => {
+    const partial = { ...SEED_TOOLS[0]!, tool: { ...SEED_TOOLS[0]!.tool, cuttingData: [{ materialRef: { id: 'builtin.mdf', version: 1 }, fz: 0.08, source: 'manufacturer' as const, note: '' }] } };
+    const r = cuttingRows({ ...base, tools: [partial] });
+    expect(r.surface?.reference).toBeNull();
+    expect(r.chipLoad?.verdict).toBe('ok');
+  });
   it('the programmed F when still, in inches converted; light, rubbing and heavy', () => {
     expect(cuttingRows({ ...base, vel: 0, feed: 10, inches: true }).feed).toEqual({ mmMin: 254, from: 'programmed' });
     expect(cuttingRows({ ...base, vel: 1200 }).chipLoad).toMatchObject({ verdict: 'light', rubbing: false }); // 0.050

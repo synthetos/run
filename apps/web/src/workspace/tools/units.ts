@@ -19,7 +19,7 @@ export function parseLength(raw: string, unit: ToolUnit): number | null {
 
 /** Cutting data stays metric in storage; imperial values are display-only. */
 export function formatChipload(mmPerTooth: number, unit: ToolUnit): string {
-  return unit === 'in' ? formatLength(mmPerTooth, unit) : String(mmPerTooth);
+  return unit === 'in' ? formatLength(mmPerTooth, unit) : String(Number(mmPerTooth.toFixed(6)));
 }
 export function formatSurfaceSpeed(metresPerMinute: number, unit: ToolUnit): string {
   return unit === 'in' ? String(Math.round(metresPerMinute / 0.3048)) : String(metresPerMinute);

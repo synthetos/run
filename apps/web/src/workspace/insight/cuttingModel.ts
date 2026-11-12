@@ -82,7 +82,7 @@ export function cuttingRows(i: CuttingInput): CuttingRows {
 
   const fz = t === null ? null : chipLoad(feed?.mmMin ?? null, spindle?.rpm ?? null, t.geometry.flutes);
   const vc = t === null ? null : surfaceSpeedMpm(t.geometry.diameter, spindle?.rpm ?? null);
-  const vcReference = reference === null ? null : reference.from === 'tool' ? (reference.target.vc > 0 ? `tool data ${Math.round(reference.target.vc)} m/min` : null) : reference.vc === null ? null : `range ${Math.round(reference.vc.min)}–${Math.round(reference.vc.max)} m/min`;
+  const vcReference = reference === null ? null : reference.from === 'tool' ? (reference.target.vc !== undefined && reference.target.vc > 0 ? `tool data ${Math.round(reference.target.vc)} m/min` : null) : reference.vc === null ? null : `range ${Math.round(reference.vc.min)}–${Math.round(reference.vc.max)} m/min`;
   return {
     tool,
     spindle,

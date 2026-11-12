@@ -74,6 +74,11 @@ describe('levels', () => {
     expect(ignored.levels.balanced.vc).toBeCloseTo(200, 9);
   });
 
+  it('does not invent a surface speed from partial catalog data', () => {
+    const partial = tool({ cuttingData: [{ materialRef: { id: 'mine.al', version: 1 }, fz: 0.02, source: 'manufacturer', note: '' }] });
+    expect(planned(context({ tool: partial })).levels).toEqual(planned(context()).levels);
+  });
+
   it('drilling: no chip thinning, the Z maximum, no deflection check', () => {
     const p = planned(context({ operation: { kind: 'drill', ap: 5, ae: D } }));
     expect(p.levels.balanced.fzProgrammed).toBeCloseTo(p.levels.balanced.fz, 12);

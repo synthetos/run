@@ -95,16 +95,23 @@ export type CuttingDataSource = 'manufacturer' | 'synthetos' | 'user' | 'ai';
 export interface ToolCuttingData {
   readonly materialRef: MaterialRef;
   /** Surface speed, m/min. */
-  readonly vc: number;
+  readonly vc?: number;
   /** Chipload, mm per tooth. */
   readonly fz: number;
   /** Axial depth of cut. */
-  readonly ap: number;
+  readonly ap?: number;
   /** Radial engagement (stepover). */
-  readonly ae: number;
-  readonly coolant: Coolant;
+  readonly ae?: number;
+  readonly coolant?: Coolant;
   readonly source: CuttingDataSource;
   readonly note: string;
+  /** Manufacturer category label, without implying a match to a particular alloy or grade. */
+  readonly materialName?: string;
+  readonly sourceUrl?: string;
+  /** One-based PDF page (not the printed page number). */
+  readonly sourcePage?: number;
+  /** Unsourced demonstration data, never a manufacturer claim. */
+  readonly placeholder?: true;
 }
 
 /** Minutes cut, broken down by material, from jobs run (P3). */

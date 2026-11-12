@@ -1,0 +1,44 @@
+import { expect, test } from './fixtures.ts';
+import { ready } from './helpers.ts';
+import { mkdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
+for (const theme of ['light', 'dark'] as const) {
+  test(`catalog drafts and citations in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/'); await ready(page);
+    await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
+    await page.locator('[data-region="rail"] [data-view="library"]').click();
+    await page.locator('#library-tab-tools').click();
+    await page.locator('[data-action="add-tool"]').click();
+    const modal = page.locator('.tool-modal');
+    await modal.locator('#tool-tab-catalog').click();
+    await modal.getByLabel('Catalog size').selectOption('6.35');
+    await modal.getByLabel('Search catalog').fill('Onsrud');
+    await expect(modal.locator('.catalog-results li')).toHaveCount(16);
+    const dir = resolve('../../screens'); await mkdir(dir, { recursive: true });
+    await page.screenshot({ path: `${dir}/catalog-picker-${theme}.png` });
+    await modal.getByLabel('Search catalog').fill('no match');
+    await expect(modal.getByText('No matching tools.')).toBeVisible();
+    await modal.getByLabel('Search catalog').fill('52-280');
+    await modal.getByRole('button', { name: /Onsrud 52-280 / }).click();
+    await expect(modal.locator('[data-tool-field="number"]')).toHaveValue('7');
+    await expect(page.locator('tr[data-tool-row="7"]')).toHaveCount(0);
+    await modal.locator('#tool-tab-cutting').click();
+    await expect(modal.getByRole('link', { name: 'Onsrud catalog, p. 129' })).toHaveAttribute('href', /#page=129$/);
+    await expect(modal).not.toContainText('Placeholder values');
+    await modal.getByRole('button', { name: 'in', exact: true }).click();
+    await expect(modal).toContainText('Chipload (in/tooth)');
+    await page.screenshot({ path: `${dir}/catalog-cutting-${theme}.png` });
+    await modal.locator('[data-action="cancel-tool"]').click();
+    await expect(page.locator('tr[data-tool-row="7"]')).toHaveCount(0);
+    await page.locator('[data-action="add-tool"]').click();
+    await modal.locator('#tool-tab-catalog').click();
+    await modal.getByLabel('Search catalog').fill('52-280');
+    await modal.getByRole('button', { name: /Onsrud 52-280 / }).click();
+    await modal.locator('[data-action="save-tool"]').click();
+    await expect(page.locator('tr[data-tool-row="7"]')).toContainText('6.35 mm end mill');
+    await page.locator('tr[data-tool-row="7"] .row-link').click();
+    await modal.locator('#tool-tab-buy').click();
+    await expect(modal.getByRole('link', { name: /Onsrud/ })).toHaveAttribute('href', 'https://onsrud.com/Products/52280.asp');
+  });
+}

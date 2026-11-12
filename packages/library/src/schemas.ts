@@ -143,8 +143,12 @@ export const TOOL_SCHEMA: Schema = root('Tool', {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['materialRef', 'vc', 'fz', 'ap', 'ae', 'coolant', 'source', 'note'],
+        required: ['materialRef', 'fz', 'source', 'note'],
         properties: {
+          materialName: text(120),
+          sourceUrl: URL_TEXT,
+          sourcePage: { type: 'integer', minimum: 1, maximum: 10000 },
+          placeholder: { const: true },
           materialRef: { $ref: '#/$defs/recordRef' },
           vc: positive(5000),
           fz: positive(10),

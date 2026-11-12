@@ -115,7 +115,8 @@ function toolSemantics(t: Tool, add: Add): void {
   checkPurchase(t.purchase, '/purchase', add);
   if (t.datasheetUrl !== undefined) checkUrl(t.datasheetUrl, '/datasheetUrl', add);
   t.cuttingData.forEach((c, i) => {
-    if (c.ae > g.diameter) add(`/cuttingData/${i}/ae`, 'the radial engagement is larger than the tool diameter');
+    if (c.sourceUrl !== undefined) checkUrl(c.sourceUrl, `/cuttingData/${i}/sourceUrl`, add);
+    if (c.ae !== undefined && c.ae > g.diameter) add(`/cuttingData/${i}/ae`, 'the radial engagement is larger than the tool diameter');
   });
   const seen = new Set<string>();
   t.life.byMaterial.forEach((m, i) => {

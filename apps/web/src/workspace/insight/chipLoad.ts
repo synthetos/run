@@ -44,7 +44,7 @@ export function usesFullDiameterNote(type: ToolType): string | null {
 
 /** `fz`: the ✓ band. `rubbing`: below this a light chip load is also a rubbing risk (one number only). */
 export type Reference =
-  | { readonly from: 'tool'; readonly fz: Range; readonly rubbing: number; readonly vc: Range | null; readonly target: { readonly fz: number; readonly vc: number } }
+  | { readonly from: 'tool'; readonly fz: Range; readonly rubbing: number; readonly vc: Range | null; readonly target: { readonly fz: number; readonly vc: number | undefined } }
   | { readonly from: 'material'; readonly fz: Range; readonly rubbing: null; readonly vc: Range | null };
 
 /** What to compare the chip load against for this tool in this material, or null when nothing is recorded. */

@@ -1,0 +1,4373 @@
+[
+  {
+    "part_number": "52-280",
+    "series": "52-200",
+    "series_title_catalog": "52-200 Series Upcut Spiral Wood Rout",
+    "series_name_website": "52-200 Solid Carbide 2 Flute Spiral Upcut Wood Rout Series",
+    "description_website": "Solid Carbide router, 2 flute, upcut",
+    "tool_type": "Upcut spiral",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "7/8",
+    "length_of_cut_decimal_in": 0.875,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 2,
+    "helix_angle": "≈ 30°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      },
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      }
+    ],
+    "notes": [
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/52280.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/52280.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 40,
+        "printed_page": 39,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".007-.009",
+        "chipload_min_in": 0.007,
+        "chipload_max_in": 0.009,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".007-.009",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": null,
+          "series_listed": false
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "57-280",
+    "series": "57-200",
+    "series_title_catalog": "57-200 Series Downcut Spiral Wood Rout",
+    "series_name_website": "57-200 Solid Carbide 2 Flute Downcut Spiral Wood Rout Series",
+    "description_website": "Solid Carbide router, 2 flute, downcut",
+    "tool_type": "Downcut spiral",
+    "cut_direction": "downcut",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "7/8",
+    "length_of_cut_decimal_in": 0.875,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 2,
+    "helix_angle": "≈ 30°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      }
+    ],
+    "notes": [
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/57280.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/57280.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 51,
+        "printed_page": 50,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".007-.009",
+        "chipload_min_in": 0.007,
+        "chipload_max_in": 0.009,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".007-.009",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Laminated Chipboard",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": null,
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 134,
+        "printed_page": 133,
+        "notes": [
+          "Cut column is blank for this row in the catalog table.",
+          "Possible layout issue: this table has no 5/32 or 7/16 column, and its 57-200 / 37-60 value sequences match the Laminated Plywood table shifted by one column. Value recorded by column position as printed."
+        ],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Laminated%20Chipboard.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Laminated Plywood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 134,
+        "printed_page": 133,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Laminated%20Plywood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "60-111MW",
+    "series": "60-100MW",
+    "series_title_catalog": "60-100MW Series Max Life Compression Spiral",
+    "series_name_website": "60-100MW Solid Carbide Max Life Compression Spiral Series",
+    "description_website": "Solid Carbide router, 1 flute, compression",
+    "tool_type": "Compression spiral",
+    "cut_direction": "compression",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "7/8",
+    "length_of_cut_decimal_in": 0.875,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 1,
+    "helix_angle": null,
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      },
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "LW",
+        "name": "Laminated Wood (Laminated Chipboard, Laminated Plywood)"
+      }
+    ],
+    "upcut_loc_in": ".175",
+    "catalog_footnote": "* MORTISE COMPRESSION",
+    "notes": [
+      "Catalog page lists no helix angle for this series.",
+      "Chart row \"60-100MW\" does not split by flute count; chip load is per tooth.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/60111MW.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/60111MW.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 57,
+        "printed_page": 56,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".018-.020",
+        "chipload_min_in": 0.018,
+        "chipload_max_in": 0.02,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".018-.020",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".014-.016",
+        "chipload_min_in": 0.014,
+        "chipload_max_in": 0.016,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".014-.016",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".013-.015",
+        "chipload_min_in": 0.013,
+        "chipload_max_in": 0.015,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".013-.015",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".017-.019",
+        "chipload_min_in": 0.017,
+        "chipload_max_in": 0.019,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".017-.019",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".014-.016",
+        "chipload_min_in": 0.014,
+        "chipload_max_in": 0.016,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".014-.016",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Laminated Chipboard",
+        "chipload_per_tooth_in": ".017-.019",
+        "chipload_min_in": 0.017,
+        "chipload_max_in": 0.019,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 134,
+        "printed_page": 133,
+        "notes": [
+          "Possible layout issue: this table has no 5/32 or 7/16 column, and its 57-200 / 37-60 value sequences match the Laminated Plywood table shifted by one column. Value recorded by column position as printed."
+        ],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Laminated%20Chipboard.pdf",
+          "value": ".017-.019",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Laminated Plywood",
+        "chipload_per_tooth_in": ".015-.017",
+        "chipload_min_in": 0.015,
+        "chipload_max_in": 0.017,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 134,
+        "printed_page": 133,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Laminated%20Plywood.pdf",
+          "value": ".015-.017",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "60-113MW",
+    "series": "60-100MW",
+    "series_title_catalog": "60-100MW Series Max Life Compression Spiral",
+    "series_name_website": "60-100MW Solid Carbide Max Life Compression Spiral Series",
+    "description_website": "Solid Carbide router, 2 flute, compression",
+    "tool_type": "Compression spiral",
+    "cut_direction": "compression",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "7/8",
+    "length_of_cut_decimal_in": 0.875,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 2,
+    "helix_angle": null,
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      },
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "LW",
+        "name": "Laminated Wood (Laminated Chipboard, Laminated Plywood)"
+      }
+    ],
+    "upcut_loc_in": ".188",
+    "catalog_footnote": "* MORTISE COMPRESSION",
+    "notes": [
+      "Catalog page lists no helix angle for this series.",
+      "Chart row \"60-100MW\" does not split by flute count; chip load is per tooth.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/60113MW.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/60113MW.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 57,
+        "printed_page": 56,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".018-.020",
+        "chipload_min_in": 0.018,
+        "chipload_max_in": 0.02,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".018-.020",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".014-.016",
+        "chipload_min_in": 0.014,
+        "chipload_max_in": 0.016,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".014-.016",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".013-.015",
+        "chipload_min_in": 0.013,
+        "chipload_max_in": 0.015,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".013-.015",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".017-.019",
+        "chipload_min_in": 0.017,
+        "chipload_max_in": 0.019,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".017-.019",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".014-.016",
+        "chipload_min_in": 0.014,
+        "chipload_max_in": 0.016,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".014-.016",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Laminated Chipboard",
+        "chipload_per_tooth_in": ".017-.019",
+        "chipload_min_in": 0.017,
+        "chipload_max_in": 0.019,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 134,
+        "printed_page": 133,
+        "notes": [
+          "Possible layout issue: this table has no 5/32 or 7/16 column, and its 57-200 / 37-60 value sequences match the Laminated Plywood table shifted by one column. Value recorded by column position as printed."
+        ],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Laminated%20Chipboard.pdf",
+          "value": ".017-.019",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Laminated Plywood",
+        "chipload_per_tooth_in": ".015-.017",
+        "chipload_min_in": 0.015,
+        "chipload_max_in": 0.017,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 134,
+        "printed_page": 133,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Laminated%20Plywood.pdf",
+          "value": ".015-.017",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "63-725",
+    "series": "63-700",
+    "series_title_catalog": "63-700/63-750/63-800/63-850 Series Upcut Spiral O Flute",
+    "series_name_website": "63-700 Solid Carbide 1 Flute Upcut O Flute Series",
+    "description_website": "Solid Carbide router, 1 flute, upcut O flute",
+    "tool_type": "O-flute upcut spiral, 1 flute (hard plastic version)",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "3/4",
+    "length_of_cut_decimal_in": 0.75,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 1,
+    "helix_angle": "≈ 21°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      }
+    ],
+    "notes": [
+      "Catalog lists 63-700 as the Hard Plastic part column.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/63725.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/63725.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 74,
+        "printed_page": 73,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".010-.012",
+        "chipload_min_in": 0.01,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-700",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".010-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".006-.010",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.01,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-700",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".006-.010",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "63-775",
+    "series": "63-750",
+    "series_title_catalog": "63-700/63-750/63-800/63-850 Series Upcut Spiral O Flute",
+    "series_name_website": "63-750 Solid Carbide 1 Flute Upcut O Flute Series",
+    "description_website": "Solid Carbide router, 1 flute, upcut O flute",
+    "tool_type": "O-flute upcut spiral, 1 flute (soft plastic version)",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "3/4",
+    "length_of_cut_decimal_in": 0.75,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 1,
+    "helix_angle": "≈ 21°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      },
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      }
+    ],
+    "notes": [
+      "Catalog lists 63-750 as the Soft Plastic part column.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/63775.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/63775.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 74,
+        "printed_page": 73,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".008-.012",
+        "chipload_min_in": 0.008,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-750",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": ".008-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".008-.012",
+        "chipload_min_in": 0.008,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-750",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".008-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".006-.010",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.01,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-750",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".006-.010",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "63-622",
+    "series": "63-600",
+    "series_title_catalog": "63-600 Series Upcut Spiral O Flute",
+    "series_name_website": null,
+    "description_website": "Solid Carbide router, 1 flute, upcut O flute",
+    "tool_type": "O-flute upcut spiral, 1 flute (aluminum)",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "3/4",
+    "length_of_cut_decimal_in": 0.75,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 1,
+    "helix_angle": "≈ 22°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "A",
+        "name": "Aluminum"
+      }
+    ],
+    "notes": [
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/63622.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/63622.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 72,
+        "printed_page": 71,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Aluminum",
+        "chipload_per_tooth_in": ".003-.006",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-600",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 137,
+        "printed_page": 136,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Aluminum.pdf",
+          "value": ".003-.006",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "65-025",
+    "series": "65-000",
+    "series_title_catalog": "65-000 Series Upcut Spiral Super O",
+    "series_name_website": "65-000 Solid Carbide 1 Flute Upcut Super O Series",
+    "description_website": "Solid Carbide router, 1 flute, upcut O flute",
+    "tool_type": "O-flute upcut spiral, 1 flute (\"Super O\")",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "7/8",
+    "length_of_cut_decimal_in": 0.875,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 1,
+    "helix_angle": "≈ 21°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      },
+      {
+        "code": "A",
+        "name": "Aluminum"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      }
+    ],
+    "notes": [
+      "Catalog: polished flute.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/65025.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/65025.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 77,
+        "printed_page": 76,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".008-.012",
+        "chipload_min_in": 0.008,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": ".008-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".010-.012",
+        "chipload_min_in": 0.01,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".010-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".010-.012",
+        "chipload_min_in": 0.01,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".010-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Aluminum",
+        "chipload_per_tooth_in": ".003-.006",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 137,
+        "printed_page": 136,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Aluminum.pdf",
+          "value": ".003-.006",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "64-025",
+    "series": "64-000",
+    "series_title_catalog": "64-000 Series Downcut Series Spiral Super O",
+    "series_name_website": "64-000 Solid Carbide 1 Flute Downcut Super O Series",
+    "description_website": "Solid Carbide router, 1 flute, downcut O flute",
+    "tool_type": "O-flute downcut spiral, 1 flute (\"Super O\")",
+    "cut_direction": "downcut",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "3/4",
+    "length_of_cut_decimal_in": 0.75,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 1,
+    "helix_angle": "≈ 21°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      },
+      {
+        "code": "A",
+        "name": "Aluminum"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      }
+    ],
+    "notes": [
+      "Catalog: polished flute.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/64025.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/64025.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 76,
+        "printed_page": 75,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".008-.012",
+        "chipload_min_in": 0.008,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": ".008-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".010-.012",
+        "chipload_min_in": 0.01,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".010-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".010-.012",
+        "chipload_min_in": 0.01,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".010-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Aluminum",
+        "chipload_per_tooth_in": ".003-.006",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 137,
+        "printed_page": 136,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Aluminum.pdf",
+          "value": ".003-.006",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "62-725",
+    "series": "62-700",
+    "series_title_catalog": "62-700/62-750/62-800/62-850 Series Downcut Spiral O Flute",
+    "series_name_website": "62-700 Solid Carbide 1 Flute Downcut O Flute Series",
+    "description_website": "Solid Carbide router, 1 flute, downcut O flute",
+    "tool_type": "O-flute downcut spiral, 1 flute (hard plastic version)",
+    "cut_direction": "downcut",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "3/4",
+    "length_of_cut_decimal_in": 0.75,
+    "overall_length_in": "2-1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 1,
+    "helix_angle": "≈ 21°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      }
+    ],
+    "notes": [
+      "Catalog lists 62-700 as the Hard Plastic part column.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/62725.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/62725.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 69,
+        "printed_page": 68,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".010-.012",
+        "chipload_min_in": 0.01,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "62-700",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".010-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".006-.010",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.01,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "62-700",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".006-.010",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "52-624",
+    "series": "52-600",
+    "series_title_catalog": "52-600 Series Upcut Sprial O Flute (sic)",
+    "series_name_website": "52-600 Solid Carbide 2 Flute Upcut O Flute Series",
+    "description_website": "Solid Carbide router, 2 flute, upcut O flute",
+    "tool_type": "O-flute upcut spiral, 2 flute",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "3/4",
+    "length_of_cut_decimal_in": 0.75,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 2,
+    "helix_angle": "≈ 11°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      },
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      }
+    ],
+    "notes": [
+      "Catalog: low helix geometry.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/52624.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/52624.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 43,
+        "printed_page": 42,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".008-.010",
+        "chipload_min_in": 0.008,
+        "chipload_max_in": 0.01,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-600",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": ".008-.010",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-600",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-600",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "56-082",
+    "series": "56-000P",
+    "series_title_catalog": "56-000P Series Straight",
+    "series_name_website": "56-000P Solid Carbide 2 Flute Straight Series",
+    "description_website": "Solid Carbide router, 2 flute, straight V flute",
+    "tool_type": "Straight flute (website: \"straight V flute\")",
+    "cut_direction": "straight (0°)",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "3/4",
+    "length_of_cut_decimal_in": 0.75,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 2,
+    "helix_angle": "0° (straight)",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "CP",
+        "name": "Composite"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      },
+      {
+        "code": "FP",
+        "name": "Foam"
+      }
+    ],
+    "notes": [
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/56082.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/56082.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 47,
+        "printed_page": 46,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "56-000P",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "56-000P",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Foam",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "56-000P",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 139,
+        "printed_page": 138,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Foam.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Composite",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "56-000P",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 141,
+        "printed_page": 140,
+        "notes": [
+          "The Composite page also prints a \"RECOMMENDED STARTING\" RPM box: 1/8-3/16 dia 10,000-12,000 RPM; 1/4 dia 8,000-10,000 RPM. The page does not say which series it applies to, so rpm is left null."
+        ],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Composite.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "61-080",
+    "series": "61-000",
+    "series_title_catalog": "61-000 Series Straight",
+    "series_name_website": "61-000 Solid Carbide 1 Flute O Flute Straight Series",
+    "description_website": "Solid Carbide router, 1 flute, straight O flute",
+    "tool_type": "O-flute straight, 1 flute",
+    "cut_direction": "straight (0°)",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "3/4",
+    "length_of_cut_decimal_in": 0.75,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 1,
+    "helix_angle": "0° (straight)",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "A",
+        "name": "Aluminum"
+      }
+    ],
+    "notes": [
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/61080.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/61080.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 64,
+        "printed_page": 63,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".010-.012",
+        "chipload_min_in": 0.01,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "61-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".010-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Aluminum",
+        "chipload_per_tooth_in": ".002-.005",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.005,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "61-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 137,
+        "printed_page": 136,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Aluminum.pdf",
+          "value": ".002-.005",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "52-280B",
+    "series": "52-200B",
+    "series_title_catalog": "52-200B/BL Series Upcut Spiral Ballnose",
+    "series_name_website": "52-200B Solid Carbide 2 Flute Spiral Upcut Ballnose Series",
+    "description_website": "Solid Carbide router, 2 flute, ballnose, upcut",
+    "tool_type": "Ball nose (upcut spiral)",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "7/8",
+    "length_of_cut_decimal_in": 0.875,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 2,
+    "helix_angle": null,
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      },
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      },
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      },
+      {
+        "code": "A",
+        "name": "Aluminum"
+      }
+    ],
+    "notes": [
+      "Catalog page lists no helix angle for this series.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/52280B.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/52280B.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 41,
+        "printed_page": 40,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200B/BL",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200B/BL",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200B/BL",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Aluminum",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200B/BL",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 137,
+        "printed_page": 136,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Aluminum.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": [
+      "Soft Wood: series not listed in the Soft Wood cutting data table (catalog PDF p.129)",
+      "Hard Wood: series not listed in the Hard Wood cutting data table (catalog PDF p.130)",
+      "MDF: series not listed in the MDF cutting data table (catalog PDF p.131)",
+      "Soft Plywood: series not listed in the Soft Plywood cutting data table (catalog PDF p.132)",
+      "Hard Plywood: series not listed in the Hard Plywood cutting data table (catalog PDF p.133)"
+    ]
+  },
+  {
+    "part_number": "65-220B",
+    "series": "65-200B",
+    "series_title_catalog": "65-200B/65-300B Series High Finish Ballnose",
+    "series_name_website": null,
+    "description_website": "Solid Carbide router, 2 flute, ballnose, upcut",
+    "tool_type": "Ball nose, 2 flute (plastics)",
+    "cut_direction": "upcut (per website description; catalog text does not state direction)",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 2,
+    "helix_angle": null,
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      }
+    ],
+    "notes": [
+      "Catalog page lists no helix angle for this series.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/65220B.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/65220B.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 79,
+        "printed_page": 78,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".003-.005",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.005,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "65-200B/65-300B",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": ".003-.005",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "63-280",
+    "series": "63-200",
+    "series_title_catalog": "63-200 Series Upcut Spiral Wood Rout",
+    "series_name_website": null,
+    "description_website": "Solid Carbide router, 1 flute, upcut",
+    "tool_type": "Upcut spiral, 1 flute",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/4",
+    "cutting_diameter_decimal_in": 0.25,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "7/8",
+    "length_of_cut_decimal_in": 0.875,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 1,
+    "helix_angle": "≈ 30°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      }
+    ],
+    "notes": [
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/63280.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/63280.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 70,
+        "printed_page": 69,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "52-240",
+    "series": "52-200",
+    "series_title_catalog": "52-200 Series Upcut Spiral Wood Rout",
+    "series_name_website": "52-200 Solid Carbide 2 Flute Spiral Upcut Wood Rout Series",
+    "description_website": "Solid Carbide router, 2 flute, upcut",
+    "tool_type": "Upcut spiral",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 2,
+    "helix_angle": "≈ 30°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      },
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      }
+    ],
+    "notes": [
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/52240.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/52240.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 40,
+        "printed_page": 39,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".003-.005",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.005,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".003-.005",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": null,
+          "series_listed": false
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "52-244",
+    "series": "52-200",
+    "series_title_catalog": "52-200 Series Upcut Spiral Wood Rout",
+    "series_name_website": "52-200 Solid Carbide 2 Flute Spiral Upcut Wood Rout Series",
+    "description_website": "Solid Carbide router, 2 flute, upcut",
+    "tool_type": "Upcut spiral",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/8",
+    "shank_diameter_decimal_in": 0.125,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 2,
+    "helix_angle": "≈ 30°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      },
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      }
+    ],
+    "notes": [
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/52244.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/52244.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 40,
+        "printed_page": 39,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".003-.005",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.005,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".003-.005",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": null,
+          "series_listed": false
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "57-240",
+    "series": "57-200",
+    "series_title_catalog": "57-200 Series Downcut Spiral Wood Rout",
+    "series_name_website": "57-200 Solid Carbide 2 Flute Downcut Spiral Wood Rout Series",
+    "description_website": "Solid Carbide router, 2 flute, downcut",
+    "tool_type": "Downcut spiral",
+    "cut_direction": "downcut",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 2,
+    "helix_angle": "≈ 30°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      }
+    ],
+    "notes": [
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/57240.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/57240.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 51,
+        "printed_page": 50,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".003-.005",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.005,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".003-.005",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Laminated Chipboard",
+        "chipload_per_tooth_in": ".003-.005",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.005,
+        "depth_of_cut_basis": null,
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 134,
+        "printed_page": 133,
+        "notes": [
+          "Cut column is blank for this row in the catalog table.",
+          "Possible layout issue: this table has no 5/32 or 7/16 column, and its 57-200 / 37-60 value sequences match the Laminated Plywood table shifted by one column. Value recorded by column position as printed."
+        ],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Laminated%20Chipboard.pdf",
+          "value": ".003-.005",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Laminated Plywood",
+        "chipload_per_tooth_in": ".003-.005",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.005,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 134,
+        "printed_page": 133,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Laminated%20Plywood.pdf",
+          "value": ".003-.005",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "57-244",
+    "series": "57-200",
+    "series_title_catalog": "57-200 Series Downcut Spiral Wood Rout",
+    "series_name_website": "57-200 Solid Carbide 2 Flute Downcut Spiral Wood Rout Series",
+    "description_website": "Solid Carbide router, 2 flute, downcut",
+    "tool_type": "Downcut spiral",
+    "cut_direction": "downcut",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/8",
+    "shank_diameter_decimal_in": 0.125,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 2,
+    "helix_angle": "≈ 30°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      }
+    ],
+    "notes": [
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/57244.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/57244.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 51,
+        "printed_page": 50,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".003-.005",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.005,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".003-.005",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200/57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".005-.007",
+        "chipload_min_in": 0.005,
+        "chipload_max_in": 0.007,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".005-.007",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Laminated Chipboard",
+        "chipload_per_tooth_in": ".003-.005",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.005,
+        "depth_of_cut_basis": null,
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 134,
+        "printed_page": 133,
+        "notes": [
+          "Cut column is blank for this row in the catalog table.",
+          "Possible layout issue: this table has no 5/32 or 7/16 column, and its 57-200 / 37-60 value sequences match the Laminated Plywood table shifted by one column. Value recorded by column position as printed."
+        ],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Laminated%20Chipboard.pdf",
+          "value": ".003-.005",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Laminated Plywood",
+        "chipload_per_tooth_in": ".003-.005",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.005,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "57-200",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 134,
+        "printed_page": 133,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Laminated%20Plywood.pdf",
+          "value": ".003-.005",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "60-102MW",
+    "series": "60-100MW",
+    "series_title_catalog": "60-100MW Series Max Life Compression Spiral",
+    "series_name_website": "60-100MW Solid Carbide Max Life Compression Spiral Series",
+    "description_website": "Solid Carbide router, 1 flute, compression",
+    "tool_type": "Compression spiral",
+    "cut_direction": "compression",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "3/8",
+    "length_of_cut_decimal_in": 0.375,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 1,
+    "helix_angle": null,
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      },
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "LW",
+        "name": "Laminated Wood (Laminated Chipboard, Laminated Plywood)"
+      }
+    ],
+    "upcut_loc_in": ".205",
+    "notes": [
+      "Catalog page lists no helix angle for this series.",
+      "Chart row \"60-100MW\" does not split by flute count; chip load is per tooth.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/60102MW.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/60102MW.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 57,
+        "printed_page": 56,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".011-.013",
+        "chipload_min_in": 0.011,
+        "chipload_max_in": 0.013,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".011-.013",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".010-.012",
+        "chipload_min_in": 0.01,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".010-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".010-.012",
+        "chipload_min_in": 0.01,
+        "chipload_max_in": 0.012,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".010-.012",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".013-.015",
+        "chipload_min_in": 0.013,
+        "chipload_max_in": 0.015,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".013-.015",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".012-.014",
+        "chipload_min_in": 0.012,
+        "chipload_max_in": 0.014,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".012-.014",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Laminated Chipboard",
+        "chipload_per_tooth_in": ".013-.015",
+        "chipload_min_in": 0.013,
+        "chipload_max_in": 0.015,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 134,
+        "printed_page": 133,
+        "notes": [
+          "Possible layout issue: this table has no 5/32 or 7/16 column, and its 57-200 / 37-60 value sequences match the Laminated Plywood table shifted by one column. Value recorded by column position as printed."
+        ],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Laminated%20Chipboard.pdf",
+          "value": ".013-.015",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Laminated Plywood",
+        "chipload_per_tooth_in": ".013-.015",
+        "chipload_min_in": 0.013,
+        "chipload_max_in": 0.015,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "60-100MW",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 134,
+        "printed_page": 133,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Laminated%20Plywood.pdf",
+          "value": ".013-.015",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "63-712",
+    "series": "63-700",
+    "series_title_catalog": "63-700/63-750/63-800/63-850 Series Upcut Spiral O Flute",
+    "series_name_website": "63-700 Solid Carbide 1 Flute Upcut O Flute Series",
+    "description_website": "Solid Carbide router, 1 flute, upcut O flute",
+    "tool_type": "O-flute upcut spiral, 1 flute (hard plastic version)",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 1,
+    "helix_angle": "≈ 21°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      }
+    ],
+    "catalog_footnote": "* Tool balanced by design to run at spindle speeds up to 60,000 RPM",
+    "notes": [
+      "Catalog lists 63-700 as the Hard Plastic part column.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/63712.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/63712.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 74,
+        "printed_page": 73,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-700",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-700",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "63-762",
+    "series": "63-750",
+    "series_title_catalog": "63-700/63-750/63-800/63-850 Series Upcut Spiral O Flute",
+    "series_name_website": "63-750 Solid Carbide 1 Flute Upcut O Flute Series",
+    "description_website": "Solid Carbide router, 1 flute, upcut O flute",
+    "tool_type": "O-flute upcut spiral, 1 flute (soft plastic version)",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 1,
+    "helix_angle": "≈ 21°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      },
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      }
+    ],
+    "catalog_footnote": "* Tool balanced by design to run at spindle speeds up to 60,000 RPM",
+    "notes": [
+      "Catalog lists 63-750 as the Soft Plastic part column.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/63762.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/63762.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 74,
+        "printed_page": 73,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-750",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-750",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-750",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "63-610",
+    "series": "63-600",
+    "series_title_catalog": "63-600 Series Upcut Spiral O Flute",
+    "series_name_website": null,
+    "description_website": "Solid Carbide router, 1 flute, upcut O flute",
+    "tool_type": "O-flute upcut spiral, 1 flute (aluminum)",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 1,
+    "helix_angle": "≈ 22°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "A",
+        "name": "Aluminum"
+      }
+    ],
+    "catalog_footnote": "* Tool balanced by design to run at spindle speeds up to 60,000 RPM",
+    "notes": [
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/63610.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/63610.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 72,
+        "printed_page": 71,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Aluminum",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "63-600",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 137,
+        "printed_page": 136,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Aluminum.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "65-012",
+    "series": "65-000",
+    "series_title_catalog": "65-000 Series Upcut Spiral Super O",
+    "series_name_website": "65-000 Solid Carbide 1 Flute Upcut Super O Series",
+    "description_website": "Solid Carbide router, 1 flute, upcut O flute",
+    "tool_type": "O-flute upcut spiral, 1 flute (\"Super O\")",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 1,
+    "helix_angle": "≈ 21°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      },
+      {
+        "code": "A",
+        "name": "Aluminum"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      }
+    ],
+    "catalog_footnote": "Marked * in the 65-000 table; the 65-000 table has no footnote of its own. The only footnote on that page (under the 64-000 metric table) reads: * Tool balanced by design to run at spindle speeds up to 60,000 RPM",
+    "notes": [
+      "Catalog: polished flute.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/65012.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/65012.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 77,
+        "printed_page": 76,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Aluminum",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 137,
+        "printed_page": 136,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Aluminum.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "64-012",
+    "series": "64-000",
+    "series_title_catalog": "64-000 Series Downcut Series Spiral Super O",
+    "series_name_website": "64-000 Solid Carbide 1 Flute Downcut Super O Series",
+    "description_website": "Solid Carbide router, 1 flute, downcut O flute",
+    "tool_type": "O-flute downcut spiral, 1 flute (\"Super O\")",
+    "cut_direction": "downcut",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 1,
+    "helix_angle": "≈ 21°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      },
+      {
+        "code": "A",
+        "name": "Aluminum"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      }
+    ],
+    "catalog_footnote": "* Tool balanced by design to run at spindle speeds up to 60,000 RPM",
+    "notes": [
+      "Catalog: polished flute.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/64012.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/64012.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 76,
+        "printed_page": 75,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Wood",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 130,
+        "printed_page": 129,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Wood.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "MDF",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 131,
+        "printed_page": 130,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/MDF.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plywood",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 132,
+        "printed_page": 131,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plywood.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plywood",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 133,
+        "printed_page": 132,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plywood.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".004-.006",
+        "chipload_min_in": 0.004,
+        "chipload_max_in": 0.006,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": ".004-.006",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Aluminum",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "64-000/65-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 137,
+        "printed_page": 136,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Aluminum.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "62-712",
+    "series": "62-700",
+    "series_title_catalog": "62-700/62-750/62-800/62-850 Series Downcut Spiral O Flute",
+    "series_name_website": "62-700 Solid Carbide 1 Flute Downcut O Flute Series",
+    "description_website": "Solid Carbide router, 1 flute, downcut O flute",
+    "tool_type": "O-flute downcut spiral, 1 flute (hard plastic version)",
+    "cut_direction": "downcut",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 1,
+    "helix_angle": "≈ 21°",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      }
+    ],
+    "catalog_footnote": "* Tool balanced by design to run at spindle speeds up to 60,000 RPM",
+    "notes": [
+      "Catalog lists 62-700 as the Hard Plastic part column.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/62712.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/62712.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 69,
+        "printed_page": 68,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".006-.008",
+        "chipload_min_in": 0.006,
+        "chipload_max_in": 0.008,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "62-700",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".006-.008",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "62-700",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "61-040",
+    "series": "61-000",
+    "series_title_catalog": "61-000 Series Straight",
+    "series_name_website": "61-000 Solid Carbide 1 Flute O Flute Straight Series",
+    "description_website": "Solid Carbide router, 1 flute, straight O flute",
+    "tool_type": "O-flute straight, 1 flute",
+    "cut_direction": "straight (0°)",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 1,
+    "helix_angle": "0° (straight)",
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "A",
+        "name": "Aluminum"
+      }
+    ],
+    "notes": [
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/61040.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/61040.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 64,
+        "printed_page": 63,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Wood",
+        "chipload_per_tooth_in": ".008-.010",
+        "chipload_min_in": 0.008,
+        "chipload_max_in": 0.01,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "61-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 129,
+        "printed_page": 128,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Wood.pdf",
+          "value": ".008-.010",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Aluminum",
+        "chipload_per_tooth_in": ".001-.003",
+        "chipload_min_in": 0.001,
+        "chipload_max_in": 0.003,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "61-000",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 137,
+        "printed_page": 136,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Aluminum.pdf",
+          "value": ".001-.003",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  },
+  {
+    "part_number": "52-240B",
+    "series": "52-200B",
+    "series_title_catalog": "52-200B/BL Series Upcut Spiral Ballnose",
+    "series_name_website": "52-200B Solid Carbide 2 Flute Spiral Upcut Ballnose Series",
+    "description_website": "Solid Carbide router, 2 flute, ballnose, upcut",
+    "tool_type": "Ball nose (upcut spiral)",
+    "cut_direction": "upcut",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/4",
+    "shank_diameter_decimal_in": 0.25,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2",
+    "overall_length_decimal_in": 2.0,
+    "flutes": 2,
+    "helix_angle": null,
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SW",
+        "name": "Soft Wood"
+      },
+      {
+        "code": "HW",
+        "name": "Hard Wood"
+      },
+      {
+        "code": "CW",
+        "name": "Composite Wood (MDF, Soft Plywood, Hard Plywood)"
+      },
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      },
+      {
+        "code": "HP",
+        "name": "Hard Plastic"
+      },
+      {
+        "code": "SSP",
+        "name": "Solid Surface"
+      },
+      {
+        "code": "A",
+        "name": "Aluminum"
+      }
+    ],
+    "notes": [
+      "Catalog page lists no helix angle for this series.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/52240B.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/52240B.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 41,
+        "printed_page": 40,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200B/BL",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Hard Plastic",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200B/BL",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 136,
+        "printed_page": 135,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Hard%20Plastic.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Solid Surface",
+        "chipload_per_tooth_in": ".002-.004",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.004,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200B/BL",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 138,
+        "printed_page": 137,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Solid%20Surface.pdf",
+          "value": ".002-.004",
+          "series_listed": true
+        }
+      },
+      {
+        "material": "Aluminum",
+        "chipload_per_tooth_in": ".003-.005",
+        "chipload_min_in": 0.003,
+        "chipload_max_in": 0.005,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "52-200B/BL",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 137,
+        "printed_page": 136,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Aluminum.pdf",
+          "value": ".003-.005",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": [
+      "Soft Wood: series not listed in the Soft Wood cutting data table (catalog PDF p.129)",
+      "Hard Wood: series not listed in the Hard Wood cutting data table (catalog PDF p.130)",
+      "MDF: series not listed in the MDF cutting data table (catalog PDF p.131)",
+      "Soft Plywood: series not listed in the Soft Plywood cutting data table (catalog PDF p.132)",
+      "Hard Plywood: series not listed in the Hard Plywood cutting data table (catalog PDF p.133)"
+    ]
+  },
+  {
+    "part_number": "65-210B",
+    "series": "65-200B",
+    "series_title_catalog": "65-200B/65-300B Series High Finish Ballnose",
+    "series_name_website": null,
+    "description_website": "Solid Carbide router, 2 flute, ballnose, upcut",
+    "tool_type": "Ball nose, 2 flute (plastics)",
+    "cut_direction": "upcut (per website description; catalog text does not state direction)",
+    "cutting_diameter_in": "1/8",
+    "cutting_diameter_decimal_in": 0.125,
+    "shank_diameter_in": "1/8",
+    "shank_diameter_decimal_in": 0.125,
+    "length_of_cut_in": "1/2",
+    "length_of_cut_decimal_in": 0.5,
+    "overall_length_in": "2 1/2",
+    "overall_length_decimal_in": 2.5,
+    "flutes": 2,
+    "helix_angle": null,
+    "tool_material": "Solid Carbide (SC)",
+    "coating": null,
+    "intended_materials": [
+      {
+        "code": "SP",
+        "name": "Soft Plastic"
+      }
+    ],
+    "notes": [
+      "Catalog page lists no helix angle for this series.",
+      "No coating is stated for this series (tool material icon SC only)."
+    ],
+    "source": "https://onsrud.com/Products/65210B.asp",
+    "spec_sources": [
+      {
+        "url": "https://onsrud.com/Products/65210B.asp",
+        "fields": "cutting dia, LOC, shank dia, OAL, flutes, description"
+      },
+      {
+        "url": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 79,
+        "printed_page": 78,
+        "fields": "series title, dimensions (fractions), flutes, helix angle, material icons, footnotes"
+      }
+    ],
+    "cutting_data": [
+      {
+        "material": "Soft Plastic",
+        "chipload_per_tooth_in": ".002-.003",
+        "chipload_min_in": 0.002,
+        "chipload_max_in": 0.003,
+        "depth_of_cut_basis": "1 x D",
+        "rpm": null,
+        "feed_ipm": null,
+        "chart_row_label": "65-200B/65-300B",
+        "source": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
+        "pdf_page": 135,
+        "printed_page": 134,
+        "notes": [],
+        "older_chart_pdf": {
+          "url": "https://onsrud.com/images/Soft%20Plastic.pdf",
+          "value": ".002-.003",
+          "series_listed": true
+        }
+      }
+    ],
+    "cutting_data_gaps": []
+  }
+]

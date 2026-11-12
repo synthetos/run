@@ -43,3 +43,4 @@ export type { LibraryFork, LibraryKind, LibraryRecord } from './fork.ts';
 export { BUILTIN_MATERIALS, BUILTIN_TOOL_MATERIALS, BUILTIN_TOOL_TYPES, SEED_PLACEHOLDER_NOTE, builtinMaterial, toolTypeSpec } from './seed.ts';
 export type { ToolMaterialSpec, ToolTypeSpec } from './seed.ts';
 export { deepFreeze } from './freeze.ts';
+export { ONSRUD_CATALOG } from './catalog/onsrud.ts';
