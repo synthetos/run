@@ -152,6 +152,7 @@ export const TOOL_SCHEMA: Schema = root('Tool', {
           materialRef: { $ref: '#/$defs/recordRef' },
           vc: positive(5000),
           fz: positive(10),
+          fzMax: positive(10),
           ap: positive(500),
           ae: positive(300),
           coolant: COOLANT,

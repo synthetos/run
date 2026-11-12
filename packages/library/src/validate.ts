@@ -115,6 +115,7 @@ function toolSemantics(t: Tool, add: Add): void {
   checkPurchase(t.purchase, '/purchase', add);
   if (t.datasheetUrl !== undefined) checkUrl(t.datasheetUrl, '/datasheetUrl', add);
   t.cuttingData.forEach((c, i) => {
+    if (c.fzMax !== undefined && c.fzMax < c.fz) add(`/cuttingData/${i}/fzMax`, 'the chipload range is reversed');
     if (c.sourceUrl !== undefined) checkUrl(c.sourceUrl, `/cuttingData/${i}/sourceUrl`, add);
     if (c.ae !== undefined && c.ae > g.diameter) add(`/cuttingData/${i}/ae`, 'the radial engagement is larger than the tool diameter');
   });

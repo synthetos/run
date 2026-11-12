@@ -37,10 +37,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.17779999999999999,
+        "fzMax": 0.22859999999999997,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .007-.009 in/tooth (0.1778–0.2286 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -49,10 +50,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -61,10 +63,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -73,10 +76,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -85,10 +89,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 52-200; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -97,10 +102,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 52-200; printed page 134."
+        "note": ""
       }
     ],
     "life": {
@@ -145,10 +151,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.17779999999999999,
+        "fzMax": 0.22859999999999997,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .007-.009 in/tooth (0.1778–0.2286 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -157,10 +164,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -169,10 +177,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -181,10 +190,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -193,10 +203,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 57-200; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -205,10 +216,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Laminated Chipboard",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 134,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at null. Lower end shown. Check the catalog: this value may be misprinted. Series 57-200; printed page 133."
+        "note": "Check the catalog: this value may be misprinted"
       },
       {
         "materialRef": {
@@ -217,10 +229,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Laminated Plywood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 134,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 57-200; printed page 133."
+        "note": ""
       }
     ],
     "life": {
@@ -264,10 +277,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.45719999999999994,
+        "fzMax": 0.508,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .018-.020 in/tooth (0.4572–0.508 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -276,10 +290,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.35559999999999997,
+        "fzMax": 0.4064,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .014-.016 in/tooth (0.3556–0.4064 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -288,10 +303,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.3302,
+        "fzMax": 0.38099999999999995,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .013-.015 in/tooth (0.3302–0.381 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -300,10 +316,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.4318,
+        "fzMax": 0.4826,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .017-.019 in/tooth (0.4318–0.4826 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -312,10 +329,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.35559999999999997,
+        "fzMax": 0.4064,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .014-.016 in/tooth (0.3556–0.4064 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -324,10 +342,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Laminated Chipboard",
         "fz": 0.4318,
+        "fzMax": 0.4826,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 134,
-        "note": "Range .017-.019 in/tooth (0.4318–0.4826 mm/tooth), at 1 x D. Lower end shown. Check the catalog: this value may be misprinted. Series 60-100MW; printed page 133."
+        "note": "Check the catalog: this value may be misprinted"
       },
       {
         "materialRef": {
@@ -336,10 +355,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Laminated Plywood",
         "fz": 0.38099999999999995,
+        "fzMax": 0.4318,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 134,
-        "note": "Range .015-.017 in/tooth (0.381–0.4318 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 133."
+        "note": ""
       }
     ],
     "life": {
@@ -383,10 +403,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.45719999999999994,
+        "fzMax": 0.508,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .018-.020 in/tooth (0.4572–0.508 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -395,10 +416,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.35559999999999997,
+        "fzMax": 0.4064,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .014-.016 in/tooth (0.3556–0.4064 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -407,10 +429,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.3302,
+        "fzMax": 0.38099999999999995,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .013-.015 in/tooth (0.3302–0.381 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -419,10 +442,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.4318,
+        "fzMax": 0.4826,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .017-.019 in/tooth (0.4318–0.4826 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -431,10 +455,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.35559999999999997,
+        "fzMax": 0.4064,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .014-.016 in/tooth (0.3556–0.4064 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -443,10 +468,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Laminated Chipboard",
         "fz": 0.4318,
+        "fzMax": 0.4826,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 134,
-        "note": "Range .017-.019 in/tooth (0.4318–0.4826 mm/tooth), at 1 x D. Lower end shown. Check the catalog: this value may be misprinted. Series 60-100MW; printed page 133."
+        "note": "Check the catalog: this value may be misprinted"
       },
       {
         "materialRef": {
@@ -455,10 +481,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Laminated Plywood",
         "fz": 0.38099999999999995,
+        "fzMax": 0.4318,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 134,
-        "note": "Range .015-.017 in/tooth (0.381–0.4318 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 133."
+        "note": ""
       }
     ],
     "life": {
@@ -503,10 +530,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.254,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .010-.012 in/tooth (0.254–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 63-700; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -515,10 +543,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.1524,
+        "fzMax": 0.254,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .006-.010 in/tooth (0.1524–0.254 mm/tooth), at 1 x D. Lower end shown. Series 63-700; printed page 137."
+        "note": ""
       }
     ],
     "life": {
@@ -563,10 +592,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.2032,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .008-.012 in/tooth (0.2032–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 63-750; printed page 134."
+        "note": ""
       },
       {
         "materialRef": {
@@ -575,10 +605,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.2032,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .008-.012 in/tooth (0.2032–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 63-750; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -587,10 +618,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.1524,
+        "fzMax": 0.254,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .006-.010 in/tooth (0.1524–0.254 mm/tooth), at 1 x D. Lower end shown. Series 63-750; printed page 137."
+        "note": ""
       }
     ],
     "life": {
@@ -635,10 +667,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Aluminum",
         "fz": 0.0762,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 137,
-        "note": "Range .003-.006 in/tooth (0.0762–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 63-600; printed page 136."
+        "note": ""
       }
     ],
     "life": {
@@ -683,10 +716,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -695,10 +729,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -707,10 +742,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -719,10 +755,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -731,10 +768,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -743,10 +781,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.2032,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .008-.012 in/tooth (0.2032–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 134."
+        "note": ""
       },
       {
         "materialRef": {
@@ -755,10 +794,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.254,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .010-.012 in/tooth (0.254–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -767,10 +807,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.254,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .010-.012 in/tooth (0.254–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 137."
+        "note": ""
       },
       {
         "materialRef": {
@@ -779,10 +820,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Aluminum",
         "fz": 0.0762,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 137,
-        "note": "Range .003-.006 in/tooth (0.0762–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 136."
+        "note": ""
       }
     ],
     "life": {
@@ -827,10 +869,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -839,10 +882,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -851,10 +895,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -863,10 +908,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -875,10 +921,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -887,10 +934,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.2032,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .008-.012 in/tooth (0.2032–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 134."
+        "note": ""
       },
       {
         "materialRef": {
@@ -899,10 +947,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.254,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .010-.012 in/tooth (0.254–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -911,10 +960,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.254,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .010-.012 in/tooth (0.254–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 137."
+        "note": ""
       },
       {
         "materialRef": {
@@ -923,10 +973,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Aluminum",
         "fz": 0.0762,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 137,
-        "note": "Range .003-.006 in/tooth (0.0762–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 136."
+        "note": ""
       }
     ],
     "life": {
@@ -971,10 +1022,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.254,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .010-.012 in/tooth (0.254–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 62-700; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -983,10 +1035,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.1524,
+        "fzMax": 0.254,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .006-.010 in/tooth (0.1524–0.254 mm/tooth), at 1 x D. Lower end shown. Series 62-700; printed page 137."
+        "note": ""
       }
     ],
     "life": {
@@ -1031,10 +1084,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.2032,
+        "fzMax": 0.254,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .008-.010 in/tooth (0.2032–0.254 mm/tooth), at 1 x D. Lower end shown. Series 52-600; printed page 134."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1043,10 +1097,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 52-600; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1055,10 +1110,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 52-600; printed page 137."
+        "note": ""
       }
     ],
     "life": {
@@ -1103,10 +1159,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 56-000P; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1115,10 +1172,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 56-000P; printed page 137."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1127,10 +1185,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Foam",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 139,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 56-000P; printed page 138."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1139,10 +1198,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Composite",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 141,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 56-000P; printed page 140."
+        "note": ""
       }
     ],
     "life": {
@@ -1187,10 +1247,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.254,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .010-.012 in/tooth (0.254–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 61-000; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1199,10 +1260,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Aluminum",
         "fz": 0.0508,
+        "fzMax": 0.127,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 137,
-        "note": "Range .002-.005 in/tooth (0.0508–0.127 mm/tooth), at 1 x D. Lower end shown. Series 61-000; printed page 136."
+        "note": ""
       }
     ],
     "life": {
@@ -1246,10 +1308,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 52-200B/BL; printed page 134."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1258,10 +1321,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 52-200B/BL; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1270,10 +1334,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 52-200B/BL; printed page 137."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1282,10 +1347,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Aluminum",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 137,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 52-200B/BL; printed page 136."
+        "note": ""
       }
     ],
     "life": {
@@ -1329,10 +1395,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.0762,
+        "fzMax": 0.127,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .003-.005 in/tooth (0.0762–0.127 mm/tooth), at 1 x D. Lower end shown. Series 65-200B/65-300B; printed page 134."
+        "note": ""
       }
     ],
     "life": {
@@ -1377,10 +1444,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 63-200; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1389,10 +1457,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 63-200; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1401,10 +1470,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 63-200; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1413,10 +1483,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 63-200; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1425,10 +1496,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 63-200; printed page 132."
+        "note": ""
       }
     ],
     "life": {
@@ -1473,10 +1545,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1485,10 +1558,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.0762,
+        "fzMax": 0.127,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .003-.005 in/tooth (0.0762–0.127 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1497,10 +1571,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1509,10 +1584,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1521,10 +1597,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 52-200; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1533,10 +1610,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 52-200; printed page 134."
+        "note": ""
       }
     ],
     "life": {
@@ -1581,10 +1659,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1593,10 +1672,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.0762,
+        "fzMax": 0.127,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .003-.005 in/tooth (0.0762–0.127 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1605,10 +1685,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1617,10 +1698,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1629,10 +1711,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 52-200; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1641,10 +1724,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 52-200; printed page 134."
+        "note": ""
       }
     ],
     "life": {
@@ -1689,10 +1773,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1701,10 +1786,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.0762,
+        "fzMax": 0.127,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .003-.005 in/tooth (0.0762–0.127 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1713,10 +1799,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1725,10 +1812,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1737,10 +1825,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 57-200; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1749,10 +1838,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Laminated Chipboard",
         "fz": 0.0762,
+        "fzMax": 0.127,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 134,
-        "note": "Range .003-.005 in/tooth (0.0762–0.127 mm/tooth), at null. Lower end shown. Check the catalog: this value may be misprinted. Series 57-200; printed page 133."
+        "note": "Check the catalog: this value may be misprinted"
       },
       {
         "materialRef": {
@@ -1761,10 +1851,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Laminated Plywood",
         "fz": 0.0762,
+        "fzMax": 0.127,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 134,
-        "note": "Range .003-.005 in/tooth (0.0762–0.127 mm/tooth), at 1 x D. Lower end shown. Series 57-200; printed page 133."
+        "note": ""
       }
     ],
     "life": {
@@ -1809,10 +1900,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1821,10 +1913,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.0762,
+        "fzMax": 0.127,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .003-.005 in/tooth (0.0762–0.127 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1833,10 +1926,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1845,10 +1939,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 52-200/57-200; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1857,10 +1952,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.127,
+        "fzMax": 0.17779999999999999,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .005-.007 in/tooth (0.127–0.1778 mm/tooth), at 1 x D. Lower end shown. Series 57-200; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1869,10 +1965,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Laminated Chipboard",
         "fz": 0.0762,
+        "fzMax": 0.127,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 134,
-        "note": "Range .003-.005 in/tooth (0.0762–0.127 mm/tooth), at null. Lower end shown. Check the catalog: this value may be misprinted. Series 57-200; printed page 133."
+        "note": "Check the catalog: this value may be misprinted"
       },
       {
         "materialRef": {
@@ -1881,10 +1978,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Laminated Plywood",
         "fz": 0.0762,
+        "fzMax": 0.127,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 134,
-        "note": "Range .003-.005 in/tooth (0.0762–0.127 mm/tooth), at 1 x D. Lower end shown. Series 57-200; printed page 133."
+        "note": ""
       }
     ],
     "life": {
@@ -1928,10 +2026,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.2794,
+        "fzMax": 0.3302,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .011-.013 in/tooth (0.2794–0.3302 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1940,10 +2039,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.254,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .010-.012 in/tooth (0.254–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1952,10 +2052,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.254,
+        "fzMax": 0.3048,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .010-.012 in/tooth (0.254–0.3048 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1964,10 +2065,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.3302,
+        "fzMax": 0.38099999999999995,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .013-.015 in/tooth (0.3302–0.381 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1976,10 +2078,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.3048,
+        "fzMax": 0.35559999999999997,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .012-.014 in/tooth (0.3048–0.3556 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -1988,10 +2091,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Laminated Chipboard",
         "fz": 0.3302,
+        "fzMax": 0.38099999999999995,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 134,
-        "note": "Range .013-.015 in/tooth (0.3302–0.381 mm/tooth), at 1 x D. Lower end shown. Check the catalog: this value may be misprinted. Series 60-100MW; printed page 133."
+        "note": "Check the catalog: this value may be misprinted"
       },
       {
         "materialRef": {
@@ -2000,10 +2104,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Laminated Plywood",
         "fz": 0.3302,
+        "fzMax": 0.38099999999999995,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 134,
-        "note": "Range .013-.015 in/tooth (0.3302–0.381 mm/tooth), at 1 x D. Lower end shown. Series 60-100MW; printed page 133."
+        "note": ""
       }
     ],
     "life": {
@@ -2048,10 +2153,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 63-700; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2060,10 +2166,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 63-700; printed page 137."
+        "note": ""
       }
     ],
     "life": {
@@ -2108,10 +2215,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 63-750; printed page 134."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2120,10 +2228,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 63-750; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2132,10 +2241,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 63-750; printed page 137."
+        "note": ""
       }
     ],
     "life": {
@@ -2180,10 +2290,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Aluminum",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 137,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 63-600; printed page 136."
+        "note": ""
       }
     ],
     "life": {
@@ -2228,10 +2339,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2240,10 +2352,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2252,10 +2365,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2264,10 +2378,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2276,10 +2391,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2288,10 +2404,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 134."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2300,10 +2417,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2312,10 +2430,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 137."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2324,10 +2443,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Aluminum",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 137,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 136."
+        "note": ""
       }
     ],
     "life": {
@@ -2372,10 +2492,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2384,10 +2505,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Wood",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 130,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 129."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2396,10 +2518,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "MDF",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 131,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 130."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2408,10 +2531,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plywood",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 132,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 131."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2420,10 +2544,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plywood",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 133,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 132."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2432,10 +2557,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.1016,
+        "fzMax": 0.1524,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .004-.006 in/tooth (0.1016–0.1524 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 134."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2444,10 +2570,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2456,10 +2583,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 137."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2468,10 +2596,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Aluminum",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 137,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 64-000/65-000; printed page 136."
+        "note": ""
       }
     ],
     "life": {
@@ -2516,10 +2645,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.1524,
+        "fzMax": 0.2032,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .006-.008 in/tooth (0.1524–0.2032 mm/tooth), at 1 x D. Lower end shown. Series 62-700; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2528,10 +2658,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 62-700; printed page 137."
+        "note": ""
       }
     ],
     "life": {
@@ -2576,10 +2707,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Wood",
         "fz": 0.2032,
+        "fzMax": 0.254,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 129,
-        "note": "Range .008-.010 in/tooth (0.2032–0.254 mm/tooth), at 1 x D. Lower end shown. Series 61-000; printed page 128."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2588,10 +2720,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Aluminum",
         "fz": 0.0254,
+        "fzMax": 0.0762,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 137,
-        "note": "Range .001-.003 in/tooth (0.0254–0.0762 mm/tooth), at 1 x D. Lower end shown. Series 61-000; printed page 136."
+        "note": ""
       }
     ],
     "life": {
@@ -2635,10 +2768,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 52-200B/BL; printed page 134."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2647,10 +2781,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Hard Plastic",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 136,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 52-200B/BL; printed page 135."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2659,10 +2794,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Solid Surface",
         "fz": 0.0508,
+        "fzMax": 0.1016,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 138,
-        "note": "Range .002-.004 in/tooth (0.0508–0.1016 mm/tooth), at 1 x D. Lower end shown. Series 52-200B/BL; printed page 137."
+        "note": ""
       },
       {
         "materialRef": {
@@ -2671,10 +2807,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Aluminum",
         "fz": 0.0762,
+        "fzMax": 0.127,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 137,
-        "note": "Range .003-.005 in/tooth (0.0762–0.127 mm/tooth), at 1 x D. Lower end shown. Series 52-200B/BL; printed page 136."
+        "note": ""
       }
     ],
     "life": {
@@ -2718,10 +2855,11 @@ export const ONSRUD_CATALOG: readonly Tool[] = deepFreeze([
         },
         "materialName": "Soft Plastic",
         "fz": 0.0508,
+        "fzMax": 0.0762,
         "source": "manufacturer",
         "sourceUrl": "https://onsrud.com/images/2025_PCT_Catalog.pdf",
         "sourcePage": 135,
-        "note": "Range .002-.003 in/tooth (0.0508–0.0762 mm/tooth), at 1 x D. Lower end shown. Series 65-200B/65-300B; printed page 134."
+        "note": ""
       }
     ],
     "life": {

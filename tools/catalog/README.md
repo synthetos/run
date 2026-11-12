@@ -9,10 +9,11 @@ Lengths use the source decimal inches times exactly 25.4. Original fractions
 and approximate helix descriptions stay in notes. No coating is stated, so the
 records use uncoated. Stickout is holder-dependent and remains absent.
 
-Chipload `fz` is the published lower bound; its complete original inch range and
-converted millimetre range remain in the visible note. The displayed conversion
-in notes is rounded to four decimals, while the numeric field retains the exact
-multiplication. Source page means PDF page, not printed page; links jump there.
+Chipload `fz` and optional `fzMax` store the published lower and upper bounds in
+mm/tooth, using exactly 25.4 mm/in. The cutting table displays the range in the
+selected unit, with no long per-row note except the uncertain-value warning.
+Source page means PDF page, not printed page; links jump there. The original
+published ranges and printed-page locators remain in the research snapshot.
 The chart basis of 1 × diameter is noted, not invented as a recommended depth.
 Surface speed, axial depth, radial engagement and coolant are optional and absent
 when unpublished. An advisor cannot construct a complete tool-specific target

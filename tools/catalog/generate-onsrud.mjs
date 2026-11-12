@@ -17,9 +17,9 @@ const tools = source.map(t => ({
   purchase: [{ vendor: 'Onsrud', url: t.source, sku: t.part_number, kind: 'link' }],
   cuttingData: t.cutting_data.map(c => ({
     materialRef: { id: `onsrud.${c.material.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-$/, '')}`, version: 1 },
-    materialName: c.material, fz: c.chipload_min_in * 25.4, source: 'manufacturer',
+    materialName: c.material, fz: c.chipload_min_in * 25.4, fzMax: c.chipload_max_in * 25.4, source: 'manufacturer',
     sourceUrl: c.source, sourcePage: c.pdf_page,
-    note: `Range ${c.chipload_per_tooth_in} in/tooth (${Number((c.chipload_min_in * 25.4).toFixed(4))}–${Number((c.chipload_max_in * 25.4).toFixed(4))} mm/tooth), at ${c.depth_of_cut_basis}. Lower end shown. ${c.notes.some(n => n.includes('Possible layout issue')) ? 'Check the catalog: this value may be misprinted. ' : ''}Series ${c.chart_row_label}; printed page ${c.printed_page}.`,
+    note: c.notes.some(n => n.includes('Possible layout issue')) ? 'Check the catalog: this value may be misprinted' : '',
   })),
   life: { minutes: 0, byMaterial: [] }, tags: [], images: [],
 }));

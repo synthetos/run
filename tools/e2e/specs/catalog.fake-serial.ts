@@ -33,6 +33,12 @@ for (const theme of ['light', 'dark'] as const) {
     await row.getByRole('button', { name: 'Add to my tools' }).click();
     await modal.locator('#tool-tab-cutting').click();
     await expect(modal.getByRole('link', { name: 'Onsrud 2025 catalog, p. 129' })).toHaveAttribute('href', /#page=129$/);
+    await expect(modal).toContainText('0.007 – 0.009');
+    await expect(modal).not.toContainText('Surface speed');
+    await page.screenshot({ path: `${dir}/catalog-cutting-${theme}.png` });
+    await modal.getByRole('button', { name: 'mm', exact: true }).click();
+    await expect(modal).toContainText('0.1778 – 0.2286');
+    await modal.getByRole('button', { name: 'in', exact: true }).click();
     await expect(modal).toContainText('Onsrud publishes chipload ranges at a cut depth of one tool diameter. It publishes no spindle speeds for these tools.');
     await modal.locator('[data-action="cancel-tool"]').click();
     await row.getByRole('button', { name: 'Add to my tools' }).click();

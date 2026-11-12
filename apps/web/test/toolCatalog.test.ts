@@ -5,7 +5,7 @@ import { renderToString } from 'preact-render-to-string';
 import { ONSRUD_CATALOG } from '@synthetos/library';
 import { toolStore } from '../src/workspace/library.ts';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
-import { catalogDraft, matchesCatalog, catalogDescription } from '../src/workspace/tools/catalog.ts';
+import { catalogDraft, matchesCatalog, catalogDescription, catalogCutLength } from '../src/workspace/tools/catalog.ts';
 import { saveToolDraft } from '../src/workspace/tools/saveTool.ts';
 import { CuttingSource, ToolCuttingTab } from '../src/workspace/views/tools/ToolRecordsTabs.ts';
 import { root, one, all } from './tree.ts';
@@ -38,8 +38,8 @@ describe('cutting citations', () => {
   it('shows manufacturer ranges and page links without a placeholder warning', () => {
     const html = renderToString(h(ToolCuttingTab, { tool: template, unit: 'in' }));
     expect(html).toContain('Onsrud 2025 catalog, p. 129'); expect(html).toContain('#page=129');
-    expect(renderToString(h(ToolCuttingTab, { tool: template, unit: 'mm' }))).toContain('>0.1778</td>');
-    expect(html).toContain('Range .007-.009'); expect(html).toContain('—'); expect(html).not.toContain('Placeholder values');
+    expect(renderToString(h(ToolCuttingTab, { tool: template, unit: 'mm' }))).toContain('>0.1778 – 0.2286</td>');
+    expect(html).toContain('0.007 – 0.009'); expect(html).not.toContain('Surface speed'); expect(html).not.toContain('Lower end shown'); expect(html).not.toContain('Placeholder values');
   });
   it('warns only for placeholder rows, not empty or user data', () => {
     expect(renderToString(h(ToolCuttingTab, { tool: SEED_TOOLS[0]!.tool, unit: 'mm' }))).toContain('Placeholder values');
@@ -79,8 +79,26 @@ it('catalog rows identify existing maker/part matches and keep unsafe sources in
   const entries = [{ tool: { ...template, manufacturer: 'Other' }, number: 3, store: null }, { tool: { ...template, partNumber: 'other' }, number: 2, store: null }, { tool: { ...template, id: 'mine.tool' }, number: 4, store: null }];
   const html = renderToString(h(CatalogTable, { tools: [template], entries, unit: 'in', onPick: () => undefined }));
   expect(html).toContain('In your tools as T4'); expect(html).not.toContain('Add to my tools'); expect(html).toContain('Onsrud page');
-  expect(html).toContain('0.875 in');
+  expect(html).toContain('7/8&quot;');
   for (const purchase of [[], [{ vendor: 'bad', url: 'javascript:bad', kind: 'link' as const }]]) {
     expect(renderToString(h(CatalogTable, { tools: [{ ...template, purchase }], entries: [], unit: 'mm', onPick: () => undefined }))).not.toContain('<a');
   }
+});
+
+it('formats exact inch fractions and keeps other cut lengths decimal', () => {
+  for (const [inches, expected] of [[0.875, '7/8"'], [0.75, '3/4"'], [0.5, '1/2"'], [1.5, '1 1/2"'], [2, '2"'], [0.123, '0.123 in']] as const) expect(catalogCutLength(inches * 25.4, 'in')).toBe(expected);
+  expect(catalogCutLength(22.225, 'mm')).toBe('22.225 mm');
+});
+it('keeps full tool descriptions but shortens O-flute table labels', () => {
+  const tool = { ...template, description: 'O-flute upcut spiral, 1 flute (hard plastic version)' };
+  expect(catalogDescription(tool, 'in')).toBe('1/4" O-flute up-cut spiral, 1 flute');
+  expect(tool.description).toContain('(hard plastic version)');
+});
+it('shows surface speeds only when supplied, and retains uncertain warnings', () => {
+  const row = template.cuttingData[0]!;
+  const mixed = { ...template, cuttingData: [row, { ...row, vc: 100 }] };
+  expect(renderToString(h(ToolCuttingTab, { tool: mixed, unit: 'mm' }))).toContain('Surface speed (m/min)');
+  expect(renderToString(h(ToolCuttingTab, { tool: mixed, unit: 'in' }))).toContain('328');
+  const uncertain = { ...template, cuttingData: [{ ...row, note: 'Check the catalog: this value may be misprinted' }] };
+  expect(renderToString(h(ToolCuttingTab, { tool: uncertain, unit: 'mm' }))).toContain('Check the catalog: this value may be misprinted');
 });

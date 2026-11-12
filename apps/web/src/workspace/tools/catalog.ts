@@ -14,5 +14,18 @@ export function matchesCatalog(tool: Tool, query: string, size: string, maker = 
 export function catalogDescription(tool: Tool, unit: ToolUnit): string {
   const diameter = tool.geometry.diameter;
   const size = unit === 'mm' ? `${formatLength(diameter, unit)} mm` : diameter === 6.35 ? '1/4"' : diameter === 3.175 ? '1/8"' : `${formatLength(diameter, unit)} in`;
-  return `${size} ${tool.description.toLowerCase().replaceAll('upcut', 'up-cut').replaceAll('downcut', 'down-cut')}`;
+  return `${size} ${tool.description.replace(/\s*\([^)]*\)/g, '').toLowerCase().replaceAll('upcut', 'up-cut').replaceAll('downcut', 'down-cut').replaceAll('o-flute', 'O-flute')}`;
+}
+
+/** Exact binary inch fractions through 1/64; other lengths keep the app's decimal formatting. */
+export function catalogCutLength(mm: number, unit: ToolUnit): string {
+  if (unit === 'mm') return `${formatLength(mm, unit)} mm`;
+  const inches = mm / 25.4;
+  for (const denominator of [1, 2, 4, 8, 16, 32, 64]) {
+    const numerator = Math.round(inches * denominator);
+    if (Math.abs(inches * denominator - numerator) > 1e-10) continue;
+    const whole = Math.floor(numerator / denominator); const remainder = numerator % denominator;
+    return remainder === 0 ? `${whole}"` : `${whole === 0 ? '' : `${whole} `}${remainder}/${denominator}"`;
+  }
+  return `${formatLength(mm, unit)} in`;
 }

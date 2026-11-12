@@ -98,6 +98,8 @@ export interface ToolCuttingData {
   readonly vc?: number;
   /** Chipload, mm per tooth. */
   readonly fz: number;
+  /** Optional upper end of a published chipload range, mm per tooth. */
+  readonly fzMax?: number;
   /** Axial depth of cut. */
   readonly ap?: number;
   /** Radial engagement (stepover). */
