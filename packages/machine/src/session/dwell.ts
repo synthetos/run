@@ -10,7 +10,7 @@ import { mapStat } from '@synthetos/protocol';
 import type { PolledValues, SessionState } from './types.ts';
 
 export const DWELL_MARGIN_MS = 100;
-export interface DwellWait { readonly durationMs: number; readonly until: number | null }
+export type { DwellWait } from './types.ts';
 interface DwellTx { readonly s: SessionState; set(patch: Partial<SessionState>): void }
 
 /** Only sanitized, actually acknowledged data lines enter here (comments are already stripped). */

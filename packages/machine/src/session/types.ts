@@ -703,10 +703,13 @@ export interface PollCycle {
 /** A complete poll cycle: every value answered with status 0. */
 export type PolledValues = Readonly<Required<Pick<PollCycle, 'stat' | 'hold' | 'vel' | 'qr'>>>;
 
+/** Accepted G4 time not yet discharged (dwell.ts): the total, and when a quiet interval started counting (null: not yet). */
+export interface DwellWait { readonly durationMs: number; readonly until: number | null }
+
 /** The reducer's whole state. Plain, frozen data. */
 export interface SessionState {
   /** Accepted G4 durations not yet discharged by a conservative resting interval. */
-  readonly dwellWait?: import('./dwell.ts').DwellWait | null;
+  readonly dwellWait?: DwellWait | null;
   readonly base: SessionBase;
   /** Active overlays, in precedence order (allow-matrix `OVERLAYS`). */
   readonly overlays: readonly Overlay[];
