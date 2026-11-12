@@ -92,6 +92,11 @@ changed or enabled by this proposal; the pin and production feature flags remain
 
 ## Registered wording for owner review only
 
+**Superseded (owner, 2026-11-12):** "pause motion only ... pause should ONLY ever affect motion". Pause affects motion
+only; TG Firmware is asked to make `$spph=0` the 450.04 default. The setting-dependent wording below and the SAFETY
+prose amendments are not adopted: the current registered wording (outputs keep running during a pause) stays. A
+variant for boards that report `$spph=1` waits for TG's answer on whether that option survives.
+
 No replacements in this section have been applied to `packages/safety/src/strings.ts` or `SAFETY.md`.
 Keep old-build wording where its premise still holds. These are proposed 450.04 variants:
 
