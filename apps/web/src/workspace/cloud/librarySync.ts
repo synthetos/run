@@ -59,7 +59,7 @@ export function startLibrarySync(options: SyncOptions): { stop(): void; wake(): 
     if (librarySyncView.peek().status !== 'quota') void run();
   }
   for (const binding of bindings) binding.connect((next, previous) => {
-    const before = toRecords(binding.name, previous); const after = toRecords(binding.name, next);
+    const before = toRecords(binding.name, previous, true); const after = toRecords(binding.name, next, true);
     for (const record of after) if (!before.some(old => old.id === record.id && canonical(old.content) === canonical(record.content))) enqueue(cache, record.kind, record.id, record.content);
     for (const record of before) if (!after.some(r => r.id === record.id)) enqueue(cache, record.kind, record.id, null);
     const saved = persist();

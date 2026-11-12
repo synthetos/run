@@ -30,8 +30,8 @@ export async function recordsRoute(request: Request, env: Env & { readonly RUN_D
   // The account and actor label come exclusively from the validated session, never body or URL.
   const actor = { userId: identity.subject, label: identity.display };
   if (request.method === 'GET') {
-    if ([...url.searchParams.keys()].some(k => k !== 'after') || (id !== undefined && url.search !== '')) return json(400, { error: 'invalid' });
-    return id === undefined ? json(200, { records: await env.RUN_DATA.list(actor, kind, url.searchParams.get('after') ?? '') }) : response(await env.RUN_DATA.get(actor, kind, id));
+    if ([...url.searchParams.keys()].some(k => k !== 'after' && k !== 'include_archived') || (id !== undefined && url.search !== '') || (url.searchParams.has('include_archived') && url.searchParams.get('include_archived') !== '1')) return json(400, { error: 'invalid' });
+    return id === undefined ? json(200, { records: await env.RUN_DATA.list(actor, kind, url.searchParams.get('after') ?? '', url.searchParams.get('include_archived') === '1') }) : response(await env.RUN_DATA.get(actor, kind, id));
   }
   if (url.search !== '') return json(400, { error: 'invalid' });
   const input = await body(request);

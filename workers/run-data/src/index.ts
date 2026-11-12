@@ -5,7 +5,7 @@ import { RecordStore } from './store.ts';
 interface Env { readonly RUN_DATA_DB: Database; readonly RUN_FILES: unknown }
 /** Internal RPC only. Configuration and repository gates restrict callers to run. */
 export class AppEntrypoint extends WorkerEntrypoint<Env> implements RunDataBinding {
-  list(actor: RecordActor, kind: RecordKind, after = '') { return new RecordStore(this.env.RUN_DATA_DB).list(actor, kind, after); }
+  list(actor: RecordActor, kind: RecordKind, after = '', includeArchived = false) { return new RecordStore(this.env.RUN_DATA_DB).list(actor, kind, after, includeArchived); }
   get(actor: RecordActor, kind: RecordKind, id: string) { return new RecordStore(this.env.RUN_DATA_DB).get(actor, kind, id); }
   put(actor: RecordActor, kind: RecordKind, id: string, parentRev: number | null, content: unknown) { return new RecordStore(this.env.RUN_DATA_DB).put(actor, kind, id, parentRev, content); }
   archive(actor: RecordActor, kind: RecordKind, id: string, parentRev: number) { return new RecordStore(this.env.RUN_DATA_DB).archive(actor, kind, id, parentRev); }

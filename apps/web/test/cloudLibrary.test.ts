@@ -34,7 +34,10 @@ describe('account library cache and adapters', () => {
   });
   it('excludes unchanged seeds, preserves tool numbering and resolves user material forks', () => {
     expect(toRecords('tools.v2', SEED_TOOLS)).toEqual([]);
-    expect(toRecords('tools.v2', SEED_TOOLS.map(e => ({ ...e, number: e.number + 20 })))).toEqual([]);
+    const renumbered = SEED_TOOLS.map(e => ({ ...e, number: e.number + 20 }));
+    const uploaded = toRecords('tools.v2', renumbered);
+    expect(uploaded).toHaveLength(SEED_TOOLS.length);
+    expect((fromRecords('tools.v2', uploaded) as typeof SEED_TOOLS).map(e => e.number)).toEqual(renumbered.map(e => e.number));
     expect(toRecords('tools.v2', null)).toEqual([]); expect(toRecords('unknown', [])).toEqual([]);
     const records = toRecords('tools.v2', [{ number: 9, store: null, tool }]);
     expect(records[0]?.content).toMatchObject({ firmwareSlot: { t: 9, lengthOffset: 0 } });
@@ -57,7 +60,7 @@ describe('records HTTP client', () => {
     const fetch = vi.fn().mockResolvedValueOnce(Response.json({ records: rows })).mockResolvedValueOnce(Response.json({ records: [] })).mockImplementation(async () => Response.json({ record: rec() }));
     const api = recordsClient(fetch);
     expect(await api.list('tool', signal())).toHaveLength(100);
-    expect(fetch.mock.calls[1]?.[0]).toBe('/api/records/tool?after=t099');
+    expect(fetch.mock.calls[1]?.[0]).toBe('/api/records/tool?include_archived=1&after=t099');
     await api.put('tool', tool.id, null, tool, signal()); await api.archive('tool', tool.id, 1, signal());
     expect(fetch.mock.calls[2]?.[1]).toMatchObject({ credentials: 'same-origin', method: 'PUT', redirect: 'error', headers: { 'x-synthetos-request': '1' }, body: JSON.stringify({ parent_rev: null, content: tool }) });
     expect(fetch.mock.calls[3]?.[1]).toMatchObject({ method: 'DELETE', body: '{"parent_rev":1}' });
@@ -146,12 +149,12 @@ describe('storage backend lifetime', () => {
     const storage = memory(); const cache = emptyCache(); cache.records = [rec({ ...tool, name: 'Cached' })]; cache.consent = true; saveCache(storage, 'alice', cache);
     const api = client(); vi.mocked(api.list).mockImplementation(async kind => kind === 'tool' ? cache.records : []);
     const r = setup(api, storage); expect(r.local.value.value.some(e => e.tool.name === 'Cached')).toBe(true); await settle();
-    r.pause(); r.local.set([{ tool: { ...tool, name: 'Offline edit' }, number: 8, store: null }]); expect(api.put).not.toHaveBeenCalled(); expect(librarySavedText(true)).toBe('Saving…');
+    r.pause(); r.local.set(r.local.value.value.map(e => e.tool.id === tool.id ? { ...e, tool: { ...e.tool, name: 'Offline edit' } } : e)); expect(api.put).not.toHaveBeenCalled(); expect(librarySavedText(true)).toBe('Saving…');
     r.resume(); await settle(); expect(api.put).toHaveBeenCalledOnce();
   });
   it('retains pending edits offline and retries; quota lists what stayed local', async () => {
     const api = client(); const r = setup(api); await settle(); vi.mocked(api.put).mockRejectedValueOnce(Error('offline'));
-    r.local.set([{ tool, number: 8, store: null }]); await settle(); expect(librarySavedText(true)).toBe('Not saved yet: will retry'); expect(r.scheduled).toHaveLength(1);
+    r.local.set([...SEED_TOOLS.map(e => ({ ...e, store: null })), { tool, number: 8, store: null }]); await settle(); expect(librarySavedText(true)).toBe('Not saved yet: will retry'); expect(r.scheduled).toHaveLength(1);
     vi.mocked(api.put).mockRejectedValueOnce(new RecordsError(413)); r.scheduled[0]!(); await settle(); expect(librarySyncView.value.remaining).toEqual(['My tool']);
     librarySyncActions.dismiss(); expect(librarySyncView.value.notice).toBeNull(); librarySyncActions.retry(); await settle(); expect(librarySyncView.value.status).toBe('saved');
   });
@@ -267,7 +270,7 @@ describe('sync lifecycle interruptions', () => {
   it('does not rewrite unchanged records; archives removals and shows quota record ids', async () => {
     const api = client(); vi.mocked(api.list).mockImplementation(async kind => kind === 'tool' ? [rec()] : []); const r = start(api); await settle();
     r.local.set(r.local.value.value); await settle(); expect(api.put).not.toHaveBeenCalled();
-    vi.mocked(api.archive).mockRejectedValue(new RecordsError(413)); r.local.set([]); await settle(); expect(librarySyncView.value.remaining).toEqual([tool.id]);
+    vi.mocked(api.archive).mockRejectedValue(new RecordsError(413)); r.local.set(r.local.value.value.filter(e => e.tool.id !== tool.id)); await settle(); expect(librarySyncView.value.remaining).toEqual([tool.id]);
     const count = vi.mocked(api.archive).mock.calls.length; r.sync.wake(); await settle(); expect(api.archive).toHaveBeenCalledTimes(count);
     r.local.set([{ tool, number: 8, store: null }]); await settle(); expect(api.put).not.toHaveBeenCalled(); expect(librarySyncView.value.status).toBe('quota');
   });
@@ -343,7 +346,7 @@ it('reports an import preparation failure without losing its source plan', async
 it('retains queued account edits and explains a session-expiry fallback without replacing the browser library', async () => {
   const storage = memory(); const local = stored('tools.v2', [{ tool, number: 8, store: null }], (v): v is { tool: typeof tool; number: number; store: null }[] => Array.isArray(v), () => storage); loadStoredLibraries();
   const api = client(); const sync = startLibrarySync({ subject: 'expires', display: '@a', storage, client: api, allowed: () => true, setTimeout: () => 1, clearTimeout: () => {} }); await settle();
-  vi.mocked(api.put).mockRejectedValueOnce(new RecordsError(401)); local.set([{ tool: { ...tool, name: 'Pending edit' }, number: 8, store: null }]); await settle();
+  vi.mocked(api.put).mockRejectedValueOnce(new RecordsError(401)); local.set([...SEED_TOOLS.map(e => ({ ...e, store: null })), { tool: { ...tool, name: 'Pending edit' }, number: 8, store: null }]); await settle();
   expect(librarySyncView.value.mode).toBe('local'); expect(librarySyncView.value.notice).toContain('Pending account edits'); expect(readCache(storage, 'expires').pending).toHaveLength(1); expect(local.value.value[0]?.tool.name).toBe('My tool'); sync.stop();
 });
 
@@ -357,7 +360,7 @@ it.each([true, false])('tool and material fork survive upload/download with carr
   const wire = [...toRecords('tools.v2', [entry]), ...toRecords('materials.v2', [originalFork])];
   const uploaded = new Map<string, CloudRecord>();
   const api = recordsClient(async (url, init) => {
-    const kind = url.split('/')[3] as 'tool' | 'material';
+    const kind = new URL(url, 'https://run.example').pathname.split('/')[3] as 'tool' | 'material';
     if (init.method === 'PUT') {
       const body = JSON.parse(init.body as string) as { parent_rev: number | null; content: { id: string } };
       expect(body.parent_rev).toBeNull();
@@ -376,4 +379,77 @@ it.each([true, false])('tool and material fork survive upload/download with carr
   expect(toRecords('materials.v2', forks)).toEqual(wire.filter(record => record.kind === 'material'));
   expect(originalFork.forkOf).toEqual({ id: parent.id, version: parent.version });
   expect(entry.store).toBe('BROWSER-ONLY-SKU');
+});
+
+it('names unnamed browser tool copies from their size and type', () => {
+  expect(browserCopy({ ...tool, name: '' }, 'copy.unnamed').name).toBe('3.175 mm end mill (from this browser)');
+  expect(browserCopy(BUILTIN_MATERIALS[0]!, 'copy.material').name).toBe(`${BUILTIN_MATERIALS[0]!.name} (from this browser)`);
+});
+it('keeps a deleted seed hidden pending upload, after archive, and after a fresh account read', async () => {
+  const seed = SEED_TOOLS[0]!.tool; const cache = emptyCache(); const api = client();
+  vi.mocked(api.archive).mockImplementation(async (_kind, _id, parent) => ({ ...rec(seed, parent + 1), archivedAt: 123 }));
+  enqueue(cache, 'tool', seed.id, null);
+  const ids = () => (fromRecords('tools.v2', visibleRecords(cache)) as typeof SEED_TOOLS).map(e => e.tool.id);
+  expect(ids()).not.toContain(seed.id);
+  expect(await drainQueue(cache, api, () => true, signal(), hooks())).toBe('saved');
+  expect(api.put).toHaveBeenCalledWith('tool', seed.id, null, seed, expect.any(AbortSignal));
+  expect(api.archive).toHaveBeenCalledWith('tool', seed.id, 1, expect.any(AbortSignal));
+  expect(ids()).not.toContain(seed.id);
+  const fresh = { ...emptyCache(), records: cache.records };
+  expect((fromRecords('tools.v2', visibleRecords(fresh)) as typeof SEED_TOOLS).some(e => e.tool.id === seed.id)).toBe(false);
+  enqueue(cache, 'tool', seed.id, seed);
+  expect(ids()).toContain(seed.id);
+});
+it.each([false, true])('resumes an initial seed tombstone after a lost create response (archived=%s)', async archived => {
+  const seed = SEED_TOOLS[0]!.tool; const cache = emptyCache(); const api = client();
+  enqueue(cache, 'tool', seed.id, null);
+  vi.mocked(api.put).mockRejectedValueOnce(new RecordsError(409, { ...rec(seed), archivedAt: archived ? 1 : null }));
+  vi.mocked(api.archive).mockImplementation(async () => ({ ...rec(seed, 2), archivedAt: 1 }));
+  expect(await drainQueue(cache, api, () => true, signal(), hooks())).toBe('saved');
+  expect(api.archive).toHaveBeenCalledTimes(archived ? 0 : 1);
+  expect((fromRecords('tools.v2', visibleRecords(cache)) as typeof SEED_TOOLS).some(e => e.tool.id === seed.id)).toBe(false);
+});
+it('retains the seed deletion when persistence fails after creation', async () => {
+  const cache = emptyCache(); const api = client(); const h = hooks();
+  enqueue(cache, 'tool', SEED_TOOLS[0]!.tool.id, null);
+  h.persist.mockReturnValueOnce(true).mockReturnValueOnce(false);
+  expect(await drainQueue(cache, api, () => true, signal(), h)).toBe('retry');
+  expect(cache.pending[0]).toMatchObject({ content: null, parent: 1 });
+});
+it('does not accept an initial seed creation after cancellation', async () => {
+  const cache = emptyCache(); const api = client(); const abort = new AbortController();
+  const seed = SEED_TOOLS[0]!.tool; enqueue(cache, 'tool', seed.id, null);
+  vi.mocked(api.put).mockImplementation(async () => { abort.abort(); return rec(seed); });
+  expect(await drainQueue(cache, api, () => true, abort.signal, hooks())).toBe('saving');
+  expect(cache.pending[0]).toMatchObject({ content: null, parent: null });
+});
+it('drops unsent material deletions without treating them as seed tombstones', async () => {
+  const cache = emptyCache(); const material = BUILTIN_MATERIALS[0]!;
+  enqueue(cache, 'material', material.id, null);
+  expect(visibleRecords(cache)).toEqual([]);
+  expect(await drainQueue(cache, client(), () => true, signal(), hooks())).toBe('saved');
+});
+it('deleting an unchanged seed through the signed-in store stays deleted after a fresh session', async () => {
+  const storage = memory(); const seed = SEED_TOOLS[0]!.tool;
+  const local = stored('tools.v2', SEED_TOOLS, (v): v is typeof SEED_TOOLS => Array.isArray(v), () => storage);
+  loadStoredLibraries(); const api = client(); let archived: CloudRecord | null = null;
+  vi.mocked(api.list).mockImplementation(async kind => kind === 'tool' && archived !== null ? [archived] : []);
+  vi.mocked(api.archive).mockImplementation(async () => { archived = { ...rec(seed), archivedAt: 1 }; return archived; });
+  const options = { subject: 'seed-delete', display: '@a', storage, client: api, allowed: () => true, setTimeout: () => 1, clearTimeout: () => {} };
+  const first = startLibrarySync(options); await settle();
+  local.set(local.value.value.filter(e => e.tool.id !== seed.id)); await settle();
+  expect(api.archive).toHaveBeenCalledWith('tool', seed.id, 1, expect.any(AbortSignal));
+  expect(local.value.value.some(e => e.tool.id === seed.id)).toBe(false); first.stop();
+  const fresh = startLibrarySync({ ...options, storage: memory() }); await settle();
+  expect(local.value.value.some(e => e.tool.id === seed.id)).toBe(false); fresh.stop();
+});
+
+it('does not archive a concurrent account edit when creating a seed tombstone conflicts', async () => {
+  const cache = emptyCache(); const seed = SEED_TOOLS[0]!.tool; const api = client(); const h = hooks();
+  enqueue(cache, 'tool', seed.id, null);
+  vi.mocked(api.put).mockRejectedValueOnce(new RecordsError(409, rec({ ...seed, name: 'Account edit' })));
+  expect(await drainQueue(cache, api, () => true, signal(), h)).toBe('saved');
+  expect(api.archive).not.toHaveBeenCalled();
+  expect(visibleRecords(cache)[0]?.content.name).toBe('Account edit');
+  expect(h.notice).toHaveBeenCalledOnce();
 });

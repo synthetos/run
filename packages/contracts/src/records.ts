@@ -6,7 +6,7 @@ export interface RecordActor { readonly userId: string; readonly label: string }
 export interface CloudRecord { readonly id: string; readonly kind: RecordKind; readonly rev: number; readonly archivedAt: number | null; readonly content: unknown; readonly sha256: string }
 export type RecordResult = { readonly ok: true; readonly record: CloudRecord } | { readonly ok: false; readonly error: 'invalid' | 'not_found' | 'conflict' | 'quota'; readonly current?: CloudRecord | null };
 export interface RunDataBinding {
-  list(actor: RecordActor, kind: RecordKind, after?: string): Promise<readonly CloudRecord[]>;
+  list(actor: RecordActor, kind: RecordKind, after?: string, includeArchived?: boolean): Promise<readonly CloudRecord[]>;
   get(actor: RecordActor, kind: RecordKind, id: string): Promise<RecordResult>;
   put(actor: RecordActor, kind: RecordKind, id: string, parentRev: number | null, content: unknown): Promise<RecordResult>;
   archive(actor: RecordActor, kind: RecordKind, id: string, parentRev: number): Promise<RecordResult>;

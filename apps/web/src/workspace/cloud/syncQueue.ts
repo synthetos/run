@@ -1,3 +1,4 @@
+import { SEED_TOOLS } from '../librarySeed.ts';
 import type { CloudRecord, RecordKind } from '@synthetos/contracts';
 import { RecordsError, type RecordsClient } from '../../cloud/recordsClient.ts';
 import { canonical, contentHash, type CloudCache, type PendingWrite } from './cloudCache.ts';
@@ -6,10 +7,14 @@ export type SyncStatus = 'saved' | 'saving' | 'retry' | 'quota';
 export interface QueueHooks { persist(): boolean; change(): void; notice(message: string): void }
 export function visibleRecords(cache: CloudCache): LibraryRecord[] {
   const result = new Map<string, LibraryRecord>();
-  for (const r of cache.records) if (r.archivedAt === null && validContent(r.kind, r.content)) result.set(`${r.kind}:${r.id}`, { kind: r.kind, id: r.id, content: r.content });
+  for (const r of cache.records) if (validContent(r.kind, r.content) && (r.archivedAt === null || (r.kind === 'tool' && SEED_TOOLS.some(e => e.tool.id === r.id)))) result.set(`${r.kind}:${r.id}`, { kind: r.kind, id: r.id, content: r.content, ...(r.archivedAt === null ? {} : { archived: true as const }) });
   for (const p of cache.pending) {
     const key = `${p.kind}:${p.id}`;
-    if (p.content === null) result.delete(key);
+    if (p.content === null) {
+      const seed = p.kind === 'tool' ? SEED_TOOLS.find(e => e.tool.id === p.id) : undefined;
+      if (seed === undefined) result.delete(key);
+      else result.set(key, { kind: 'tool', id: p.id, content: seed.tool, archived: true });
+    }
     else if (validContent(p.kind, p.content)) result.set(key, { kind: p.kind, id: p.id, content: p.content });
   }
   return [...result.values()];
@@ -20,9 +25,9 @@ export function enqueue(cache: CloudCache, kind: RecordKind, id: string, content
   cache.pending = cache.pending.filter(p => !(p.kind === kind && p.id === id));
   cache.pending.push({ token: crypto.randomUUID(), kind, id, parent: createOnly ? null : old?.parent ?? record?.rev ?? null, content });
 }
-function accept(cache: CloudCache, pending: PendingWrite, record: CloudRecord): void {
+function accept(cache: CloudCache, pending: PendingWrite, record: CloudRecord, consume = true): void {
   cache.records = cache.records.filter(r => r.kind !== record.kind || r.id !== record.id).concat(record);
-  cache.pending = cache.pending.filter(p => p.token !== pending.token).map(p => p.kind === record.kind && p.id === record.id ? { ...p, parent: record.rev } : p);
+  cache.pending = cache.pending.filter(p => !consume || p.token !== pending.token).map(p => p.kind === record.kind && p.id === record.id ? { ...p, parent: record.rev } : p);
 }
 /** One request at a time. Every iteration rechecks the safety gate; cancellation never discards a pending edit. */
 export async function drainQueue(cache: CloudCache, client: RecordsClient, allowed: () => boolean, signal: AbortSignal, hooks: QueueHooks): Promise<SyncStatus> {
@@ -32,8 +37,18 @@ export async function drainQueue(cache: CloudCache, client: RecordsClient, allow
     const pending = cache.pending[0]!;
     // A new record removed before its PUT started needs no server write. If PUT was in flight,
     // accept() supplies its acknowledged revision so this tombstone archives it instead.
-    if (pending.content === null && pending.parent === null) { cache.pending.shift(); if (!hooks.persist()) return 'retry'; hooks.change(); continue; }
+    const seed = pending.kind === 'tool' ? SEED_TOOLS.find(e => e.tool.id === pending.id) : undefined;
+    if (pending.content === null && pending.parent === null && seed === undefined) { cache.pending.shift(); if (!hooks.persist()) return 'retry'; hooks.change(); continue; }
     try {
+      // A shipped seed has no account revision yet. Create it before archiving;
+      // retain the queued tombstone across acknowledgement, retries and reloads.
+      if (pending.content === null && pending.parent === null && seed !== undefined) {
+        const record = await client.put('tool', pending.id, null, seed.tool, signal);
+        if (signal.aborted) return 'saving';
+        accept(cache, pending, record, false);
+        if (!hooks.persist()) return 'retry';
+        hooks.change(); continue;
+      }
       const record = pending.content === null
         ? await client.archive(pending.kind, pending.id, pending.parent!, signal)
         : await client.put(pending.kind, pending.id, pending.parent, pending.content, signal);
@@ -46,7 +61,8 @@ export async function drainQueue(cache: CloudCache, client: RecordsClient, allow
       if (error.status === 413) return 'quota';
       if (error.status !== 409) return 'retry';
       const current = error.current;
-      if (current !== null && pending.content !== null && canonical(current.content) === canonical(pending.content) && current.archivedAt === null) accept(cache, pending, current); // prior response lost
+      if (current !== null && pending.content === null && pending.parent === null && seed !== undefined && (current.archivedAt !== null || canonical(current.content) === canonical(seed.tool))) accept(cache, pending, current, current.archivedAt !== null);
+      else if (current !== null && pending.content !== null && canonical(current.content) === canonical(pending.content) && current.archivedAt === null) accept(cache, pending, current); // prior response lost
       else {
         const latest = cache.pending.find(p => p.kind === pending.kind && p.id === pending.id) ?? pending;
         cache.pending = cache.pending.filter(p => p.kind !== pending.kind || p.id !== pending.id);

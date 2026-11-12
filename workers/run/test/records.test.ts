@@ -27,3 +27,11 @@ it('rejects forged user fields, unsafe methods, cross-origin mutations and overs
  expect((await route(request('tool/mine.t1','PUT',{parent_rev:null,content:'x'.repeat(72000)}),env)).status).toBe(400);
  expect((await route(request('tool?user_id=usr_bob'),env)).status).toBe(400); expect(actors).toEqual([]);
 });
+it('passes an explicit archived-record listing flag and rejects other values', async () => {
+ const {env}=setup(); const flags:boolean[]=[];
+ env.RUN_DATA.list=async(_actor,_kind,_after,includeArchived)=>{flags.push(includeArchived!);return[];};
+ expect((await route(request('tool?include_archived=1'),env)).status).toBe(200);
+ expect((await route(request('tool'),env)).status).toBe(200);
+ expect(flags).toEqual([true,false]);
+ expect((await route(request('tool?include_archived=yes'),env)).status).toBe(400);
+});

@@ -24,6 +24,8 @@ describe('account records in real SQLite with fake D1 bindings', () => {
     expect(await store.archive(a,'material',content.id,1)).toMatchObject({ok:false,error:'conflict'});
     expect((await store.archive(a,'material',content.id,2)).ok).toBe(true);
     expect(await store.list(a,'material')).toEqual([]);
+    expect(await store.list(a,'material','',true)).toMatchObject([{id:content.id,archivedAt:expect.any(Number)}]);
+    expect(await store.list(b,'material','',true)).toEqual([]);
     expect(await store.put(a,'material',content.id,2,content)).toMatchObject({ok:false,error:'conflict'});
     expect(sql.prepare('SELECT COUNT(*) n FROM record_revisions').get()).toMatchObject({n:2});
     expect(sql.prepare('SELECT COUNT(*) n FROM changes').get()).toMatchObject({n:3});

@@ -35,7 +35,7 @@ export function recordsClient(fetchFn: FetchLike = (i, o) => fetch(i, o)): Recor
     async list(kind, signal) {
       const all: CloudRecord[] = []; let after = '';
       for (;;) {
-        const page = (await request(kind, after === '' ? '' : `?after=${encodeURIComponent(after)}`, signal))['records'];
+        const page = (await request(kind, `?include_archived=1${after === '' ? '' : `&after=${encodeURIComponent(after)}`}`, signal))['records'];
         if (!Array.isArray(page)) throw new RecordsError(502);
         const rows = page.map(v => record(v, kind));
         for (const row of rows) { if (row.id <= after) throw new RecordsError(502); after = row.id; all.push(row); }

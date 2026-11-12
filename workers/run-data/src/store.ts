@@ -13,9 +13,9 @@ const SELECT = 'SELECT r.id,r.kind,r.head_rev,r.archived_at,v.content_json,v.con
 export class RecordStore {
   readonly #db: Database;
   constructor(db: Database) { this.#db = db; }
-  async list(actor: RecordActor, kind: RecordKind, after = ''): Promise<readonly CloudRecord[]> {
+  async list(actor: RecordActor, kind: RecordKind, after = '', includeArchived = false): Promise<readonly CloudRecord[]> {
     if (!valid(actor, kind) || (after !== '' && !ID.test(after))) return [];
-    const rows = await this.#db.prepare(`${SELECT} AND r.archived_at IS NULL AND r.id>?3 ORDER BY r.id LIMIT 100`).bind(actor.userId, kind, after).all<Row>();
+    const rows = await this.#db.prepare(`${SELECT}${includeArchived ? '' : ' AND r.archived_at IS NULL'} AND r.id>?3 ORDER BY r.id LIMIT 100`).bind(actor.userId, kind, after).all<Row>();
     return rows.results.map(record);
   }
   async get(actor: RecordActor, kind: RecordKind, id: string): Promise<RecordResult> {
