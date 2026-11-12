@@ -1,3 +1,4 @@
+import { catalogRoute } from './catalogRoute.ts';
 /**
  * Routing for the run Worker (ROADMAP P0-04). Kept apart from index.ts
  * because the Workers runtime treats every named export of the main module
@@ -175,6 +176,7 @@ export async function route(
   const url = new URL(request.url);
   const { pathname } = url;
   if (under(pathname, '/api')) {
+    if (pathname === '/api/catalog/tools') return catalogRoute(request);
     if (under(pathname, '/api/records')) return recordsRoute(request, env);
     if (pathname === '/api/identity') {
       if (request.method === 'GET') return identity(request, env, fetchCerts);

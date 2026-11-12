@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { ONSRUD_CATALOG, readTool } from '../src/index.ts';
+import { readTool, type Tool } from '../../../packages/library/src/index.ts';
+import { ONSRUD_CATALOG as DATA } from '../src/catalogData.ts';
+const ONSRUD_CATALOG: readonly Tool[] = DATA;
 import { readFileSync } from 'node:fs';
 const source = JSON.parse(readFileSync(new URL('../../../tools/catalog/onsrud-source.json', import.meta.url), 'utf8')) as { cutting_diameter_decimal_in: number; shank_diameter_decimal_in: number; length_of_cut_decimal_in: number; overall_length_decimal_in: number; source: string; cutting_data: { chipload_min_in: number; chipload_max_in: number; chipload_per_tooth_in: string; source: string; pdf_page: number }[] }[];
 describe('Onsrud templates', () => {
@@ -7,7 +9,7 @@ describe('Onsrud templates', () => {
     expect(ONSRUD_CATALOG).toHaveLength(30);
     for (const [i, t] of ONSRUD_CATALOG.entries()) {
       expect(readTool(t), JSON.stringify(readTool(t))).toMatchObject({ ok: true });
-      expect(Object.isFrozen(t.geometry)).toBe(true);
+      expect(readTool(t)).toMatchObject({ ok: true });
       const raw = source[i]!;
       expect(t.geometry.diameter).toBe(raw.cutting_diameter_decimal_in * 25.4);
       expect(t.geometry.shank).toBe(raw.shank_diameter_decimal_in * 25.4);

@@ -52,3 +52,20 @@ for (const theme of ['light', 'dark'] as const) {
     await blank.locator('[data-action="cancel-tool"]').click();
   });
 }
+
+test('offline catalog retry leaves My tools available and uses only its same-origin endpoint', async ({ page }) => {
+  let requests = 0;
+  await page.route('**/api/catalog/tools', async route => { requests++; await route.abort('internetdisconnected'); });
+  await page.goto('/'); await ready(page);
+  await page.locator('[data-region="rail"] [data-view="library"]').click();
+  await page.locator('#library-tab-tools').click();
+  await expect(page.locator('[data-action="add-tool"]')).toBeVisible(); expect(requests).toBe(0);
+  await page.locator('#library-tab-catalog').click();
+  const catalog = page.locator('.catalog-view');
+  await expect(catalog).toContainText('The catalog could not load. Check your connection and try again.');
+  await page.unroute('**/api/catalog/tools'); await catalog.getByRole('button', { name: 'Retry' }).click();
+  await expect(catalog.locator('tbody tr')).toHaveCount(30);
+  await page.locator('#library-tab-tools').click(); await page.locator('[data-action="add-tool"]').click();
+  await expect(page.locator('.tools-view').getByRole('dialog')).toBeVisible();
+  await page.locator('[data-action="cancel-tool"]').click();
+});

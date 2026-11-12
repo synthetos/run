@@ -15,6 +15,6 @@ export function LibraryView({ model, onView }: { readonly model: WorkspaceModel 
       ] })),
     h(TabPane, { prefix: 'library', id: 'machines', current }, h(MachinesView, { model, onView })),
     h(TabPane, { prefix: 'library', id: 'tools', current }, h(ToolsView, null)),
-    h(TabPane, { prefix: 'library', id: 'catalog', current }, h(ToolCatalog, null)),
+    h(TabPane, { prefix: 'library', id: 'catalog', current }, h(ToolCatalog, { active: current === 'catalog' })),
     h(TabPane, { prefix: 'library', id: 'materials', current }, h(MaterialsView, null)));
 }

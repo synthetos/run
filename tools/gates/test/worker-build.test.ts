@@ -88,6 +88,10 @@ describe('the real Worker build', () => {
     const health = await mod.default.fetch(new Request('https://run.synthetos.com/api/health'), env);
     expect(health.status).toBe(200);
     expect(await health.json()).toMatchObject({ status: 'ok', service: 'run', env: 'staging' });
+    const catalog = await mod.default.fetch(new Request('https://run.synthetos.com/api/catalog/tools'), env);
+    expect(catalog.status).toBe(200);
+    expect((await catalog.json() as { tools: unknown[] }).tools).toHaveLength(30);
+    expect(catalog.headers.get('etag')).toMatch(/^"[a-f0-9]{64}"$/);
     const missing = await mod.default.fetch(new Request('https://run.synthetos.com/auth/login'), env);
     expect(missing.status).toBe(404);
     for (const res of [health, missing]) {

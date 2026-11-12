@@ -2,7 +2,9 @@ import { CatalogTable } from '../src/workspace/views/tools/CatalogTable.ts';
 import { afterEach, describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
-import { ONSRUD_CATALOG } from '@synthetos/library';
+import type { Tool } from '@synthetos/library';
+import { ONSRUD_CATALOG as DATA } from '../../../workers/run/src/catalogData.ts';
+const ONSRUD_CATALOG: readonly Tool[] = DATA;
 import { toolStore } from '../src/workspace/library.ts';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 import { catalogDraft, matchesCatalog, catalogDescription, catalogCutLength } from '../src/workspace/tools/catalog.ts';
@@ -31,7 +33,7 @@ describe('catalog drafts', () => {
     expect(matchesCatalog(bare, '', '')).toBe(true);
   });
   it('renders the picker templates', () => {
-    expect(renderToString(h(ToolCatalog, null))).toContain('52-280');
+    expect(renderToString(h(ToolCatalog, { active: true }))).toContain('Loading catalog');
   });
 });
 describe('cutting citations', () => {
@@ -55,7 +57,7 @@ describe('cutting citations', () => {
 
 it('catalog controls filter, select and show no matches', () => {
   let query = ''; let size = ''; let selected = ''; let maker = ''; let type = '';
-  const props = { query, size, maker, type, entries: [], setMaker: (s: string) => { maker = s; }, setType: (s: string) => { type = s; }, unit: 'mm' as const, setQuery: (s: string) => { query = s; }, setSize: (s: string) => { size = s; }, onPick: (t: typeof template) => { selected = t.id; } };
+  const props = { tools: ONSRUD_CATALOG, query, size, maker, type, entries: [], setMaker: (s: string) => { maker = s; }, setType: (s: string) => { type = s; }, unit: 'mm' as const, setQuery: (s: string) => { query = s; }, setSize: (s: string) => { size = s; }, onPick: (t: typeof template) => { selected = t.id; } };
   const el = root(h(CatalogChoices, props));
   (one(el, e => e.tag === 'input').props['onInput'] as (e: unknown) => void)({ currentTarget: { value: '52' } });
   (one(el, e => e.props['aria-label'] === 'Maker').props['onChange'] as (e: unknown) => void)({ currentTarget: { value: 'Onsrud' } });

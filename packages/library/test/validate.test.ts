@@ -278,3 +278,11 @@ describe('readStoreProduct', () => {
     expectIssue(readStoreProduct(product({ price: Number.POSITIVE_INFINITY })), '/price');
   });
 });
+
+it('validates partial sourced cutting rows and optional chipload ranges', () => {
+  const base = tool();
+  const row = { materialRef: { id: 'onsrud.wood', version: 1 }, fz: 0.02, fzMax: 0.03, source: 'manufacturer', note: '', sourceUrl: 'https://onsrud.com/images/2025_PCT_Catalog.pdf', sourcePage: 129 };
+  expect(readTool({ ...base, cuttingData: [row] }).ok).toBe(true);
+  for (const patch of [{ fzMax: 0.01 }, { fzMax: 0 }, { fzMax: 11 }, { sourceUrl: 'javascript:bad' }, { sourcePage: 0 }]) expect(readTool({ ...base, cuttingData: [{ ...row, ...patch }] }).ok).toBe(false);
+  expect(readTool({ ...base, cuttingData: [{ ...row, fzMax: row.fz }] }).ok).toBe(true);
+});

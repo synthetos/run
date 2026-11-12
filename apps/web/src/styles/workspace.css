@@ -1805,3 +1805,4 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
 .catalog-view { display: flex; flex-direction: column; min-height: 0; }
 .catalog-view > .list-panel { flex: 1; margin: 0 20px 20px; }
 .catalog-filters { padding: 12px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
+.catalog-message { padding: 16px 20px; }
