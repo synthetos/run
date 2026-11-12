@@ -47,7 +47,7 @@ export function FirmwareOffer({ model, role, live }: FirmwareOfferProps): Compon
     return null;
   }
   const version = fbText(offer.release.fb);
-  const key = offer.kind === 'needed' ? `needed:${offer.epoch}:${offer.boardId}` : `${offer.boardId}:${version}`;
+  const key = offer.kind === 'needed' ? `needed#${offer.epoch}#${offer.boardId}` : `${offer.boardId}:${version}`;
   if (later.includes(key) || (offer.kind === 'available' && offerDismissed(offer.boardId, version))) {
     showing.current = false;
     return null;
