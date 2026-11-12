@@ -111,7 +111,7 @@ describe('update needed', () => {
   it('offers an unapproved 440 board the newest hardware release', () => {
     const offer = updateOffer(input({ snapshot: unapproved() }));
     expect(offer).toMatchObject({ kind: 'needed', boardId: 'OLD-1', epoch: 1, current: 440.20, release: { fb: 451 } });
-    expect(offerText(offer!)).toBe('Run can’t control this board until its firmware is updated. This board runs 440.20. 451.00 is released.');
+    expect(offerText(offer!)).toBe("Run can't control firmware 440.20. Install 451.00, the newest release Run supports.");
   });
   it('offers a classified full board below the signed minimum', () => {
     expect(updateOffer(input({ snapshot: snap({ identity: { id: 'B-1', hv: 8, fb: 440.20 } }) }))?.kind).toBe('needed');

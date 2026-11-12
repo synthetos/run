@@ -132,7 +132,7 @@ for (const theme of ['light', 'dark'] as const) {
     expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
     await expect(offer(page)).toBeVisible({ timeout: 10_000 });
     await expect(offer(page).locator('h2')).toHaveText('Firmware update needed');
-    await expect(offer(page).locator('[data-firmware-offer="text"]')).toHaveText('Run can’t control this board until its firmware is updated. This board runs 450.03. 450.02 is released.');
+    await expect(offer(page).locator('[data-firmware-offer="text"]')).toHaveText("Run can't control firmware 450.03. Install 450.02, the newest release Run supports.");
     await expect(offer(page).locator('[data-action="firmware-offer-never"]')).toHaveCount(0);
     if (SHOTS !== undefined) await page.screenshot({ path: `${SHOTS}/firmware-needed-1280-${theme}.png` });
     await offer(page).locator('[data-action="firmware-offer-later"]').click();

@@ -83,6 +83,6 @@ export function updateOffer(input: OfferInput): UpdateOffer | null {
 
 /** Plain display text; the update flow still performs its own checks. */
 export function offerText(offer: UpdateOffer): string {
-  const why = offer.kind === 'needed' ? 'Run can’t control this board until its firmware is updated. ' : '';
-  return `${why}This board runs ${fbText(offer.current)}. ${fbText(offer.release.fb)} is released.`;
+  if (offer.kind === 'needed') return `Run can't control firmware ${fbText(offer.current)}. Install ${fbText(offer.release.fb)}, the newest release Run supports.`;
+  return `This board runs ${fbText(offer.current)}. ${fbText(offer.release.fb)} is released.`;
 }
