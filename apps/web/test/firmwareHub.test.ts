@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { releasesForHardware, type FirmwareRelease } from '@synthetos/protocol';
 import { mountFirmware, type FirmwareHub } from '../src/live/firmwareHub.ts';
 import { memoryDeviceSafety } from '../src/live/deviceSafety.ts';
+import type { SnapshotMessage } from '../src/machine-worker/rpc.ts';
 import type { FirmwareDownload } from '../src/workspace/model.ts';
 
 const REPO = resolve(import.meta.dirname, '../../..');
@@ -100,6 +101,18 @@ describe('firmware hub: downloading a listed release (OD-10)', () => {
     // The edge-next pre-release sits beside it, from GitHub Releases, not recommended until the maintainer calls a 450.xx build current.
     expect(view.releases.ok && releasesForHardware(view.releases.list, 8)?.releases.find((r) => r.file === 'tinyg-450.01.hex')).toMatchObject({ fb: 450.01, hv: 8, repo: 'synthetos/TinyG', tag: '450.01', recommended: false, simulatorOnly: false, size: 434318 });
     expect(view.download).toBeNull();
+  });
+
+  it('updates a confirmed bootloader through recovery without asking firmware for a settings backup', async () => {
+    const { hub: h, flashes, release } = await hub(served());
+    const got = await h.actions.downloadRelease(release); if (!got.ok) throw new Error(got.message);
+    h.onSnapshot({ snapshot: { base: 'NOT_CONNECTED', identity: null, epoch: 1 }, flash: { id: 1, phase: 'failed', boardId: null, board: { id: null, hv: 8, fb: null, fv: null }, bootloader: { startAllowed: true } } } as unknown as SnapshotMessage, false, 0);
+    expect(await h.actions.startFirmware()).toBeNull();
+    expect(await h.actions.bootloaderHardware(8)).toBeNull();
+    expect(await h.actions.updateRelease(got.image)).toBeNull();
+    expect(flashes).toContainEqual({ op: 'startFirmware' });
+    expect(flashes).toContainEqual({ op: 'bootloaderHardware', hv: 8 });
+    expect(flashes.at(-1)).toMatchObject({ op: 'begin', settingsBackup: 'unreadable', baseline: null, recovery: true });
   });
 
   it('fetches the image from its own origin through the Worker’s path, shows progress, checks the hash and size, and hands back the exact text', async () => {

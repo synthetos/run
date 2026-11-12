@@ -73,6 +73,7 @@ const EN: Readonly<Record<string, string>> = {
 class BoardTransport implements Transport {
   readonly opened: TransportOpenOptions[] = [];
   readonly writes: string[] = [];
+  readonly precheckWrites: string[] = [];
   closed = 0;
   failOpen: Error | undefined;
   silent = false;
@@ -100,6 +101,11 @@ class BoardTransport implements Transport {
   }
   async writeLine(line: Uint8Array): Promise<void> {
     const text = new TextDecoder().decode(line);
+    if (text === '\x1b' || text === 'S' || text === '\n') {
+      this.precheckWrites.push(text);
+      if (text === '\n' && !this.silent) queueMicrotask(() => this.feed('{"r":{},"f":[3,102,10]}\n'));
+      return;
+    }
     this.writes.push(text);
     // The status report list (amendment 2026-11-02): replaced, answered with its values, read back by {"sr":null}.
     const list = /^\{sr:\{(.*)\}\}\n$/.exec(text);
@@ -176,6 +182,8 @@ class TestClock implements SessionClock {
   setTimeout(cb: () => void, ms: number): number {
     const id = this.#id++;
     this.timers.set(id, { at: this.t + ms, cb });
+    // Connection pre-check deadlines run independently; these tests manually drive session timers.
+    if (ms === 200) setTimeout(() => { if (this.timers.delete(id)) cb(); }, 0);
     return id;
   }
   clearTimeout(id: number): void {
@@ -382,7 +390,7 @@ describe('MachineWorkerHost', () => {
     const t = new BoardTransport({ kind: 'sim', usbVendorId: 0x2341, usbProductId: 0x003d });
     const host = new MachineWorkerHost(source('fake', () => t));
     const reply = await host.handle(OPEN);
-    expect(reply).toMatchObject({ ok: false, kind: 'open', code: 'open-failed' });
+    expect(reply).toMatchObject({ ok: false, kind: 'open', code: 'unavailable' });
     expect(reply).toHaveProperty('message', expect.stringContaining('(refused-port)'));
     expect(t.opened).toEqual([]);
     expect(await host.handle(STATUS)).toMatchObject({ status: { state: 'idle' } });
@@ -392,7 +400,7 @@ describe('MachineWorkerHost', () => {
     const t = new BoardTransport();
     t.failOpen = new Error('NetworkError: Failed to open serial port.');
     const host = new MachineWorkerHost(source('fake', () => t));
-    expect(await host.handle(OPEN)).toEqual({ v: 3, ok: false, kind: 'open', code: 'open-failed', message: 'the port was not opened: NetworkError: Failed to open serial port.' });
+    expect(await host.handle(OPEN)).toMatchObject({ v: 3, ok: false, kind: 'open', code: 'unavailable', message: expect.stringContaining('NetworkError: Failed to open serial port.') });
     expect(await host.handle(STATUS)).toMatchObject({ status: { state: 'idle' } });
   });
 
@@ -494,7 +502,7 @@ describe('MachineWorkerHost', () => {
     const posted: SnapshotMessage[] = [];
     expect(await host.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => posted.push(m) })).toEqual({ v: 3, ok: true, kind: 'subscribe' });
     expect(posted.map((m) => m.snapshot.base)).toEqual(['NOT_CONNECTED']);
-    void host.handle(OPEN);
+    await host.handle(OPEN);
     await settle();
     // Several state changes inside one interval: one trailing post with the latest snapshot.
     expect(posted).toHaveLength(1);

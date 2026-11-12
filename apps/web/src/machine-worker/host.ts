@@ -209,6 +209,7 @@ export class MachineWorkerHost {
           try {
             const raw = this.#approved?.transport ?? await this.#source.request(request.port);
             this.#approved = null;
+            if (attempt !== this.#preparationId) return refusal('open', 'unavailable', 'Connection cancelled.');
             if (raw === null) return refusal('open', 'unavailable', this.#source.kind === 'none' ? 'this build cannot connect to a controller' : 'no port was chosen');
             const checked = await this.#flash.guardConnect(request.port, raw, request.boardId ?? undefined);
             if (typeof checked === 'string') return refusal('open', 'unavailable', checked);
@@ -228,12 +229,14 @@ export class MachineWorkerHost {
       }
       case 'close': {
         if (this.#flash.busy) return refusal('close', 'unavailable', 'A firmware update is using the port. Let it finish.');
+        const closing = this.#session.disconnect();
         ++this.#preparationId;
+        await this.#flash.closeBootloader();
         this.#prepared = null;
         const abandoned = this.#approved;
         this.#approved = null;
         if (this.#opening) await abandoned?.transport.close();
-        const decision = await this.#session.disconnect();
+        const decision = await closing;
         return decision.allowed ? Object.freeze({ v: RPC_VERSION, ok: true, kind: 'close' }) : denied('close', decision);
       }
       case 'intent': {
@@ -346,6 +349,10 @@ export class MachineWorkerHost {
         return this.#flash.recover();
       case 'reconnect':
         return this.#flash.reconnect();
+      case 'startFirmware':
+        return this.#flash.startFirmware();
+      case 'bootloaderHardware':
+        return this.#flash.bootloaderHardware(c.hv);
       case 'compare':
         return this.#flash.compare();
       case 'switchCheckDone':

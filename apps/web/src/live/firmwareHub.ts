@@ -162,6 +162,8 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
     recover: () => updater.recover(),
     cancel: () => updater.cancel(),
     reconnect: () => deps.flash({ op: 'reconnect' }),
+    startFirmware: () => deps.flash({ op: 'startFirmware' }),
+    bootloaderHardware: hv => deps.flash({ op: 'bootloaderHardware', hv }),
     dismiss: () => updater.dismiss(),
     restore: () => updater.restore(),
     startSwitchCheck: () => updater.startSwitchCheck(),

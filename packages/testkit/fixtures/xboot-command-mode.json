@@ -1,0 +1,7 @@
+{
+  "description": "Simulated TinyG left in AVR109 command mode before Run opens the port; not a recorded board capture.",
+  "start": "bootloader",
+  "preConnectBytes": [27],
+  "settleMs": 10,
+  "expectedMode": "command"
+}

@@ -105,6 +105,7 @@ export type FlashPhaseView =
 
 export interface FlashView {
   readonly id: number;
+  readonly bootloader?: { readonly startAllowed: boolean };
   readonly phase: FlashPhaseView;
   readonly done: number;
   readonly of: number;
@@ -195,6 +196,9 @@ export class FlashService {
   #saved: { resolve: () => void; reject: (e: Error) => void; sha256: string } | null = null;
   #cancelled = false;
   #running = false;
+  #waitingLink: BootloaderLink | null = null;
+  #keepaliveTimer: number | null = null;
+  #keepalive: Promise<void> = Promise.resolve();
   #post: (PostFlashView & { readonly baseline: Readonly<Record<string, number | string>> }) | null = null;
   #seen = new Map<number, { open: boolean; closed: boolean }>();
   #installed = new Map<string, { sha256: string; fb: number | null }>();
@@ -410,6 +414,7 @@ export class FlashService {
 
   dismiss(): FlashReply {
     if (this.#running) return fail('The update is still running.');
+    void this.closeBootloader();
     this.#view = null;
     if (this.#post?.phase === 'clear') this.#post = null;
     this.#d.onChange();
@@ -471,40 +476,141 @@ export class FlashService {
     }
   }
 
-  /** Quarantined ports never reach MachineSession until this live port supplies a firmware banner. */
+  /** Every connection checks ESC/S before normal traffic. Failed-flash records still require a live banner. */
   async guardConnect(port: PortSelector, inner: Transport, boardId?: string): Promise<Transport | string> {
     if (this.#running) return 'A firmware update is using the port.';
     let link: BootloaderLink | null = null;
+    this.#running = true;
     try {
-      const mark = await this.#d.marks.find(port, boardId);
-      if (mark === null) return this.#checkedTransport(port, inner, boardId);
-      const saved = mark.recovery as { begin: FlashBegin; view: FlashView };
-      this.#port = port;
-      this.#begin = saved.begin;
-      this.#board = saved.view.board;
-      this.#view = { ...saved.view, id: ++this.#id, phase: 'failed', recoveryOffered: false, message: BOOTLOADER_ADVICE };
-      this.#d.onChange();
-      this.#running = true;
+      let mark = await this.#d.marks.find(port, boardId);
+      if (mark !== null) this.#restoreMark(mark, port);
+      await this.closeBootloader();
       this.#transcript = new EventLog(this.#d.clock.now());
-      link = new BootloaderLink(inner, this.#d.clock, X192A3, this.#transcript);
-      await link.openProbe();
-      let signature = '';
-      try {
-        await link.write(Uint8Array.of(0x1b));
-        await link.write(Uint8Array.of(0x53));
-        signature = new TextDecoder().decode(await link.read(7, 500));
-      } catch { /* A banner may arrive before S; no more bootloader writes then. */ }
-      if (signature === 'XBoot++') {
-        this.#set({ recoveryOffered: true, message: 'The board is in its bootloader. Try the update again. Do not unplug it during the update.' });
-        await link.close();
-        return this.#view.message as string;
+      link = new BootloaderLink(mark === null ? this.#checkedTransport(port, inner, boardId) : inner, this.#d.clock, X192A3, this.#transcript);
+      await link.openProbe(mark === null || mark.kind === 'detected');
+      const signature = await link.checkBootloader();
+      if (signature) {
+        if (mark === null) {
+          this.#port = port;
+          this.#board = null;
+          this.#begin = null;
+          this.#view = this.#bootloaderView(true);
+          mark = { nonce: crypto.randomUUID(), kind: 'detected', port, boardId: boardId ?? null, recovery: { begin: null, view: this.#view } };
+          await this.#d.marks.put(mark);
+        }
+        this.#set({ recoveryOffered: this.#begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: 'The board is in its bootloader.' });
+        this.#retainBootloader(link);
+        link = null;
+        return 'The board is in its bootloader.';
       }
-      if (await link.waitForFirmwareBanner(FIRMWARE_BANNER_MS)) return await this.#handoff(link, mark);
+      if (mark === null) {
+        if (await this.#d.marks.find(port, boardId)) throw new Error('The board was quarantined during the pre-check.');
+        return await link.finishOrdinaryPrecheck();
+      }
+      if (await link.waitForFirmwareBanner(FIRMWARE_BANNER_MS)) return await this.#handoff(link, mark, true);
       await link.close();
+      this.#set({ message: BOOTLOADER_ADVICE });
       return BOOTLOADER_ADVICE;
+    } catch (error) {
+      await link?.close();
+      return `Run could not verify that this board is safe to connect: ${error instanceof Error ? error.message : String(error)}. ` + BOOTLOADER_ADVICE;
+    } finally { this.#running = false; this.#d.onChange(); }
+  }
+
+  #retainBootloader(link: BootloaderLink): void {
+    this.#waitingLink = link;
+    const schedule = (): void => {
+      this.#keepaliveTimer = this.#d.clock.setTimeout(() => {
+        this.#keepaliveTimer = null;
+        this.#keepalive = (async () => {
+          try { if (!(await link.checkBootloader())) throw new Error('The bootloader stopped answering.'); }
+          catch { if (this.#waitingLink === link) { this.#waitingLink = null; this.#set({ message: BOOTLOADER_ADVICE }); } await link.close(); }
+          if (this.#waitingLink === link) schedule();
+        })();
+      }, 250);
+    };
+    schedule();
+  }
+
+  async #takeBootloader(): Promise<BootloaderLink | null> {
+    const link = this.#waitingLink;
+    this.#waitingLink = null;
+    if (this.#keepaliveTimer !== null) this.#d.clock.clearTimeout(this.#keepaliveTimer);
+    this.#keepaliveTimer = null;
+    await this.#keepalive;
+    return link !== null && !link.closed ? link : null;
+  }
+
+  async closeBootloader(): Promise<void> { await (await this.#takeBootloader())?.close(); }
+
+  #bootloaderView(startAllowed: boolean): FlashView {
+    return { id: ++this.#id, phase: 'failed', bootloader: { startAllowed }, done: 0, of: 0, note: null, source: 'custom', target: { fb: null, label: 'Unknown firmware', sha256: '' }, boardId: null, board: null, countdown: null, wrote: false, message: 'The board is in its bootloader.', recoveryOffered: false, versionCheck: null, result: null };
+  }
+
+  #restoreMark(mark: BootloaderMark, port: PortSelector): void {
+    const saved = mark.recovery as { begin: FlashBegin | null; view: FlashView };
+    this.#port = port;
+    this.#begin = saved.begin;
+    this.#board = saved.view.board;
+    this.#view = { ...saved.view, id: ++this.#id, phase: 'failed', recoveryOffered: saved.begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: BOOTLOADER_ADVICE };
+    this.#d.onChange();
+  }
+
+  /** Hardware is a user confirmation from the printed board version, never inferred from an AVR signature. */
+  async bootloaderHardware(hv: number): Promise<FlashReply> {
+    if (!this.#d.enabled || this.#running || this.#port === null || this.#view?.bootloader === undefined || this.#begin !== null) return fail('No unidentified bootloader is waiting for an image.');
+    try {
+      const releases = releasesForHardware(await this.#d.releases(), hv);
+      if (releases === null || releases === undefined || !releases.releases.some(r => this.#d.source.kind === 'fake' || !r.simulatorOnly)) return fail('There is no signed image for that hardware version.');
+      const mark = await this.#d.marks.find(this.#port);
+      if (mark === null) return fail('Connect to the bootloader first.');
+      const board = { id: null, hv, fb: null, fv: null };
+      await this.#d.marks.put({ ...mark, recovery: { begin: null, view: { ...this.#view, board } } });
+      this.#board = board;
+      this.#set({ board });
+      return { ok: true };
+    } catch { return fail('Run could not save the board safety record.'); }
+  }
+
+  /** User-click only. Failed-flash marks can never reach E. Persist quarantine before asking unknown firmware to start. */
+  async startFirmware(): Promise<FlashReply> {
+    const port = this.#port;
+    if (port === null || this.#running || this.#d.session.snapshot.base !== 'NOT_CONNECTED') return fail('No bootloader is waiting to start.');
+    this.#running = true;
+    let link: BootloaderLink | null = null;
+    try {
+      let mark = await this.#d.marks.find(port);
+      if (mark?.kind !== 'detected') return fail('This board needs recovery. Starting its firmware is not allowed.');
+      link = await this.#takeBootloader();
+      if (link === null) {
+        const inner = await this.#d.source.request(port);
+        if (inner === null) return fail('The port is not available.');
+        link = new BootloaderLink(inner, this.#d.clock, X192A3);
+        await link.openProbe(true);
+      }
+      const starts = await link.checkBootloader();
+      if (starts) {
+        mark = { ...mark, nonce: crypto.randomUUID(), kind: 'failed' };
+        await this.#d.marks.put(mark);
+        this.#set({ bootloader: { startAllowed: false } });
+        await link.startFirmware();
+      }
+      if (!(await link.waitForFirmwareBanner(5000))) {
+        mark = { ...mark, kind: 'failed' };
+        await this.#d.marks.put(mark);
+        this.#set({ bootloader: { startAllowed: false }, message: 'No firmware banner arrived. Update the firmware to recover this board. ' + BOOTLOADER_ADVICE });
+        await link.close();
+        return fail(this.#view?.message ?? BOOTLOADER_ADVICE);
+      }
+      const transport = await this.#handoff(link, mark, !starts);
+      link = null;
+      this.#running = false;
+      const reply = await this.#connect(port, transport);
+      if (reply.ok) this.#view = null;
+      return reply;
     } catch {
       await link?.close();
-      return 'Run could not verify that this board is safe to connect. ' + BOOTLOADER_ADVICE;
+      return fail(BOOTLOADER_ADVICE);
     } finally { this.#running = false; this.#d.onChange(); }
   }
 
@@ -522,10 +628,10 @@ export class FlashService {
     };
   }
 
-  async #handoff(link: BootloaderLink, mark: BootloaderMark): Promise<Transport> {
+  async #handoff(link: BootloaderLink, mark: BootloaderMark, finishPrecheck = false): Promise<Transport> {
     // A banner from a different board never clears the recorded board's quarantine.
     if (mark.boardId === null || link.firmwareBanner?.id === mark.boardId) await this.#d.marks.clear(mark);
-    return link.applicationTransport();
+    return finishPrecheck ? link.finishReadyPrecheck() : link.applicationTransport();
   }
 
   async #run(id: number, recovery: boolean): Promise<void> {
@@ -651,6 +757,11 @@ export class FlashService {
 
   /** Recovery: keep the port open and send ESC until the bootloader answers; reopen it after the user replugs. */
   async #recoveryLink(id: number, auth: FlashAuthorization, port: PortSelector): Promise<BootloaderLink | null> {
+    const waiting = await this.#takeBootloader();
+    if (waiting !== null) {
+      try { waiting.authorizeUpdate(auth.capability() ?? undefined); return waiting; }
+      catch { await waiting.close(); }
+    }
     const clock = this.#d.clock;
     const start = clock.now();
     while (clock.now() - start < RECOVERY_MS && this.#view?.id === id && !this.#cancelled) {

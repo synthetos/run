@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { mintBootloaderCapability } from '../../flasher/src/bootloaderCapability.ts';
 import { X192A3 } from '@synthetos/flasher';
 import { BootloaderLink } from '../src/bootloaderLink.ts';
 import { FakeTransport, enc, flush } from './fakeTransport.ts';
@@ -72,4 +73,61 @@ it('recognises the protocol parser’s verbosity-filtered ready banner', async (
   const wire = new Wire(); const link = new BootloaderLink(wire, clock, X192A3);
   await link.openProbe(); await wire.send('{"r":{"fv":0.97,"fb":440.21,"hp":1,"hv":8,"id":"A"},"f":[1,0,0]}\n');
   expect(link.firmwareBanner?.fb).toBe(440.21); await link.close();
+});
+
+it('ordinary pre-check recognises a signature after unrelated bytes and permits only an explicit start', async () => {
+  const wire = new Wire(); const link = new BootloaderLink(wire, clock, X192A3);
+  await link.openProbe(true);
+  const check = link.checkBootloader(100); await flush(); await wire.send('noiseXBoot++');
+  expect(await check).toBe(true);
+  await expect(link.finishOrdinaryPrecheck()).rejects.toThrow('forbidden');
+  await expect(link.write(enc('E'))).rejects.toThrow('only ESC and S');
+  await link.startFirmware();
+  expect(wire.calls.filter(c => c.op === 'write').map(c => c.bytes)).toEqual(['\x1b', 'S', 'E']);
+  await wire.send('\r' + banner);
+  expect(await link.waitForFirmwareBanner(1)).toBe(true); await link.close();
+});
+it('ordinary pre-check consumes one error, then hands over without reopening; quarantine cannot use either escape', async () => {
+  const wire = new Wire(); const link = new BootloaderLink(wire, clock, X192A3);
+  await link.openProbe(true); expect(await link.checkBootloader(1)).toBe(false);
+  await expect(link.startFirmware()).rejects.toThrow('forbidden');
+  const fallback = link.finishOrdinaryPrecheck(); await flush(); await wire.send('{"r":{},"f":[3,102,10]}\n');
+  const app = await fallback; await app.open({ baudRate: 115200, flowControl: 'none', bufferSize: 256 });
+  const next = app.readable[Symbol.asyncIterator]().next(); await wire.send('normal\n');
+  expect(new TextDecoder().decode((await next).value)).toBe('normal\n');
+  expect(wire.calls.filter(c => c.op === 'write').map(c => c.bytes)).toEqual(['\x1b', 'S', '\n']);
+  await app.close();
+  const quarantined = new BootloaderLink(new Wire(), clock, X192A3); await quarantined.openProbe();
+  await expect(quarantined.finishOrdinaryPrecheck()).rejects.toThrow('forbidden');
+  await expect(quarantined.startFirmware()).rejects.toThrow('forbidden'); await quarantined.close();
+});
+
+it('keeps a ready banner and following report once on an ordinary pre-check', async () => {
+  const wire = new Wire(); const link = new BootloaderLink(wire, clock, X192A3); await link.openProbe(true);
+  const checked = link.checkBootloader(5); await flush(); await wire.send(banner); await wire.send('report\n');
+  expect(await checked).toBe(false);
+  const fallback = link.finishOrdinaryPrecheck(); await flush(); await wire.send('{"r":{},"f":[3,102,10]}\n');
+  const app = await fallback; await app.open({ baudRate: 115200, flowControl: 'none', bufferSize: 256 });
+  const reader = app.readable[Symbol.asyncIterator]();
+  expect(new TextDecoder().decode((await reader.next()).value)).toBe(banner);
+  expect(new TextDecoder().decode((await reader.next()).value)).toBe('report\n'); await app.close();
+});
+it('a failed newline or dropped link cannot unlock the ordinary probe', async () => {
+  const wire = new Wire(); const link = new BootloaderLink(wire, clock, X192A3); await link.openProbe(true);
+  expect(await link.checkBootloader(1)).toBe(false); wire.writeError = new Error('newline failed');
+  await expect(link.finishOrdinaryPrecheck()).rejects.toThrow('newline failed');
+  await expect(link.checkBootloader(1)).rejects.toThrow(); await link.close();
+  await expect(link.checkBootloader(1)).rejects.toThrow();
+});
+
+it('promotes an identified probe only with a fresh flash capability', async () => {
+  const wire = new Wire(); const link = new BootloaderLink(wire, clock, X192A3); await link.openProbe(true);
+  await expect(link.finishOrdinaryPrecheck()).rejects.toThrow('forbidden');
+  await expect(link.finishReadyPrecheck()).rejects.toThrow('banner');
+  expect(() => link.authorizeUpdate(mintBootloaderCapability())).toThrow('identified');
+  const checked = link.checkBootloader(50); await flush(); await wire.send('XBoot++'); expect(await checked).toBe(true);
+  expect(() => link.authorizeUpdate(undefined)).toThrow('capability');
+  const token = mintBootloaderCapability(); link.authorizeUpdate(token);
+  expect(() => link.authorizeUpdate(token)).toThrow('capability');
+  await link.write(enc('V')); await link.close();
 });

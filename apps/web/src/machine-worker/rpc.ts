@@ -113,8 +113,9 @@ export type FlashCommand =
       readonly baseline: Readonly<Record<string, number | string>> | null;
       readonly recovery: boolean;
     }
+  | { readonly op: 'bootloaderHardware'; readonly hv: number }
   | { readonly op: 'backupsSaved'; readonly sha256: string }
-  | { readonly op: 'cancel' | 'recover' | 'reconnect' | 'compare' | 'switchCheckDone' | 'dismiss' }
+  | { readonly op: 'cancel' | 'recover' | 'reconnect' | 'startFirmware' | 'compare' | 'switchCheckDone' | 'dismiss' }
   | { readonly op: 'lock'; readonly boardId: string; readonly baseline: Readonly<Record<string, number | string>> };
 
 /** Largest `.hex` text, and most baseline tokens, the window may send. */
@@ -544,12 +545,15 @@ export function parseFlashCommand(value: unknown): FlashCommand | null {
       if (typeof c['recovery'] !== 'boolean') return null;
       return Object.freeze({ op: 'begin', source, hex: c['hex'], sha256: c['sha256'], settingsBackup: c['settingsBackup'], baseline, recovery: c['recovery'] });
     }
+    case 'bootloaderHardware':
+      return keys === 'hv,op' && typeof c['hv'] === 'number' && Number.isInteger(c['hv']) && c['hv'] > 0 ? Object.freeze({ op: c['op'], hv: c['hv'] }) : null;
     case 'backupsSaved':
       if (keys !== 'op,sha256' || typeof c['sha256'] !== 'string' || !/^[0-9a-f]{64}$/.test(c['sha256'])) return null;
       return Object.freeze({ op: 'backupsSaved', sha256: c['sha256'] });
     case 'cancel':
     case 'recover':
     case 'reconnect':
+    case 'startFirmware':
     case 'compare':
     case 'switchCheckDone':
     case 'dismiss':

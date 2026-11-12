@@ -77,3 +77,12 @@ describe('Board → Firmware during an update', () => {
     expect(html).toContain('data-region="firmware-update"');
   });
 });
+
+it('offers Start firmware only for an unmarked bootloader, with Update as a separate action', () => {
+  for (const startAllowed of [true, false]) {
+    const view = { message: { snapshot: { base: 'NOT_CONNECTED', identity: null, classification: null, values: {} }, flash: flashView({ phase: 'failed', board: null, bootloader: { startAllowed } }), flasher: true } } as unknown as LiveView;
+    const html = renderToString(h(FirmwareTab, { view }));
+    expect(html.includes('data-action="start-firmware"')).toBe(startAllowed);
+    expect(html).toContain('Update firmware');
+  }
+});

@@ -68,6 +68,7 @@ export function flashBlocked(view: LiveView | null): string | null {
   if (view === null || m === null) return 'Connect a board first.';
   if (m.flasher !== true) return 'Firmware updates are not available on this site.';
   if (m.flash !== null && m.flash !== undefined && m.flash.phase !== 'done' && m.flash.phase !== 'failed') return 'An update is in progress.';
+  if (m.flash?.bootloader !== undefined && m.flash.board?.hv !== null && m.flash.board?.hv !== undefined) return null;
   if (!connected(view)) return 'Connect the board first.';
   const s = m.snapshot;
   if (s.classification === null) return 'Wait until the board is identified.';
@@ -298,6 +299,8 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
   MOTION.current = actions?.motion ?? null;
   const hub = view?.firmware ?? null;
   const [target, setTarget] = useState<Target | null>(null);
+  const [chooseHardware, setChooseHardware] = useState(false);
+  const [hardwareChoice, setHardwareChoice] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const m = view?.message ?? null;
   const s = m?.snapshot ?? null;
@@ -453,8 +456,21 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
             flash.wrote ? null : h('button', { type: 'button', class: 'small', 'data-action': 'flash-cancel', onClick: () => void actions?.firmware?.cancel().then(setMsg) }, 'Cancel (nothing written yet)'),
           )
         : null,
+      flash?.bootloader !== undefined && !flash.recoveryOffered ? h('section', { class: 'insp', 'data-region': 'bootloader-found' },
+        h('h2', null, 'The board is in its bootloader.'),
+        flash.message === null ? null : h('p', { role: 'alert' }, flash.message),
+        flash.bootloader.startAllowed ? h('button', { type: 'button', class: 'primary', 'data-action': 'start-firmware', onClick: () => void actions?.firmware?.startFirmware().then(setMsg) }, 'Start firmware') : null,
+        h('button', { type: 'button', 'data-action': 'bootloader-update', disabled: m?.flasher !== true, onClick: () => setChooseHardware(true) }, 'Update firmware'),
+        chooseHardware ? h('div', null,
+          h('label', null, 'Hardware version printed on the board', h('select', { value: hardwareChoice, onChange: (event: Event) => setHardwareChoice((event.currentTarget as HTMLSelectElement).value) },
+            h('option', { value: '' }, 'Choose the printed version…'),
+            ...(hub?.releases.ok === true ? hub.releases.list.boards.filter(b => b.releases.some(r => m?.simulated === true || !r.simulatorOnly)).map(b => h('option', { value: String(b.hv) }, String(b.hv))) : []))),
+          h('p', null, 'Check the version on the board. Run cannot read it in the bootloader.'),
+          h('button', { type: 'button', disabled: hardwareChoice === '', onClick: () => void actions?.firmware?.bootloaderHardware(Number(hardwareChoice)).then(setMsg) }, 'Confirm hardware version'),
+        ) : null,
+      ) : null,
       flash !== null && (flash.phase === 'recovery' || (flash.phase === 'failed' && flash.recoveryOffered)) ? h(RecoveryCard, { flash, actions }) : null,
-      flash !== null && flash.phase === 'failed' && !flash.recoveryOffered
+      flash !== null && flash.phase === 'failed' && !flash.recoveryOffered && flash.bootloader === undefined
         ? h('section', { class: 'insp', 'data-region': 'flash-failed' }, h('header', null, h('h2', null, 'Update stopped')), h('p', { role: 'alert' }, flash.message ?? 'The update stopped.'), h('p', { class: 'fine' }, flash.wrote ? 'Pages were written: use recovery.' : 'The board may still be in its bootloader.'), h('button', { type: 'button', class: 'small', 'data-action': 'flash-dismiss', onClick: () => void actions?.firmware?.dismiss() }, 'Dismiss'))
         : null,
       flash !== null && flash.phase === 'done'

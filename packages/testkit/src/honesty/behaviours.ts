@@ -19,6 +19,14 @@ const EN = 'tinyg-en';
 const TG = 'tinyg-440';
 
 export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
+  {
+    id: 'EN-CONNECT-S-PRECHECK',
+    model: EN,
+    summary: 'A bare S word has no numeric value and returns BAD_NUMBER_FORMAT (102), without setting spindle speed or moving.',
+    status: 'verified-source',
+    cites: [{ src: 'EN', file: 'gcode_parser.c', lines: [215, 239], quote: 'return(STAT_BAD_NUMBER_FORMAT)' }],
+    bench: 'TG Firmware bench 3, 2026-11-12: ESC then S, newline after 200 ms',
+  },
   // ------------------------------------------------------------------ edge-next: receive path
   {
     id: 'EN-RX-RING',

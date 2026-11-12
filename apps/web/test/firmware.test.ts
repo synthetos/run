@@ -10,6 +10,7 @@
  *   while one runs; recovery after an interrupted flash;
  * - trusted custom builds: per board and per image, and read-only without.
  */
+import commandModeFixture from '../../../packages/testkit/fixtures/xboot-command-mode.json';
 import { describe, expect, it } from 'vitest';
 import type { PortSelector, Transport, TransportInfo, TransportOpenOptions, TransportSource } from '@synthetos/machine';
 import { sha256Hex } from '@synthetos/flasher';
@@ -202,6 +203,57 @@ async function flash(r: Rig, name: SimImageName, baseline: Record<string, number
 }
 
 describe('the firmware update in the worker', () => {
+  it('detects an unmarked board in command mode without normal traffic; Start firmware waits for its banner', async () => {
+    const r = rig({ board: { start: 'bootloader' } });
+    r.endpoint.hostWrite(Uint8Array.from(commandModeFixture.preConnectBytes));
+    r.clock.advance(commandModeFixture.settleMs);
+    expect(r.board.xboot.mode).toBe(commandModeFixture.expectedMode);
+    expect(await r.call({ v: 3, kind: 'open', port: PORT, boardId: null })).toMatchObject({ ok: false });
+    expect(r.host.flash.view?.bootloader).toEqual({ startAllowed: true });
+    expect(r.host.session.snapshot.base).toBe('NOT_CONNECTED');
+    expect((await r.marks.find(PORT))?.kind).toBe('detected');
+    const wire = r.host.flash.flashTranscript()?.jsonl ?? '';
+    expect(wire).toContain('"hex":"1b"'); expect(wire).toContain('"hex":"53"');
+    expect(wire).not.toContain('7b');
+    await r.until(() => false, 3000);
+    expect(r.board.xboot.mode).toBe('command');
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'startFirmware' } })).toMatchObject({ ok: true });
+    expect(r.host.session.snapshot.identity?.fb).toBe(450.01);
+    expect(await r.marks.find(PORT)).toBeNull();
+    expect(r.board.xboot.eraseCount).toBe(0);
+  }, 60_000);
+
+  it('requires a supported, explicit hardware confirmation before updating an unidentified bootloader', async () => {
+    const r = rig({ board: { start: 'bootloader' } });
+    await r.call({ v: 3, kind: 'open', port: PORT, boardId: null });
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'bootloaderHardware', hv: 8 } })).toMatchObject({ ok: false });
+    const put = r.marks.put;
+    r.marks.put = async () => { throw new Error('storage failure'); };
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'bootloaderHardware', hv: 99 } })).toMatchObject({ ok: false });
+    expect(r.host.flash.view?.board).toBeNull();
+    r.marks.put = put;
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'bootloaderHardware', hv: 99 } })).toMatchObject({ ok: true });
+    expect(r.host.flash.view?.board).toEqual({ id: null, hv: 99, fb: null, fv: null });
+    const x = await sim('update');
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'begin', source: { kind: 'release', hv: 99, fb: x.fb, file: x.file }, hex: x.hex, sha256: x.sha256, settingsBackup: 'unreadable', baseline: null, recovery: true } })).toMatchObject({ ok: true });
+    await r.until(() => r.backupsPost() !== undefined);
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'backupsSaved', sha256: (r.backupsPost() as FlashBackupsPost).backups.sha256 } })).toMatchObject({ ok: true });
+    await r.until(() => r.host.flash.view?.phase === 'done' || r.host.flash.view?.phase === 'failed');
+    expect(r.host.flash.view?.phase).toBe('done');
+    expect(r.host.session.snapshot.identity?.fb).toBe(450.02);
+    expect(await r.marks.find(PORT)).toBeNull();
+  }, 60_000);
+
+  it('Start firmware timeout becomes a failed-flash mark; another Start can never send E', async () => {
+    const r = rig({ board: { start: 'bootloader', model: { bootMs: 30_000, eepromWriteMs: 0 } } });
+    await r.call({ v: 3, kind: 'open', port: PORT, boardId: null });
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'startFirmware' } })).toMatchObject({ ok: false });
+    expect((await r.marks.find(PORT))?.kind).toBe('failed');
+    expect(r.host.flash.view?.bootloader).toEqual({ startAllowed: false });
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'startFirmware' } })).toMatchObject({ ok: false, message: expect.stringContaining('not allowed') });
+    expect(r.host.session.snapshot.base).toBe('NOT_CONNECTED');
+  }, 60_000);
+
   it('updates across an EEPROM layout change, then locks jobs, jog and writes until the restore and the switch check', async () => {
     const r = rig();
     await r.connect();
@@ -387,6 +439,10 @@ describe('the firmware update in the worker', () => {
     expect(installed?.sha256).toBe((await sim('custom')).sha256);
     expect(await r.call({ v: 3, kind: 'close' })).toMatchObject({ ok: true });
     const trust = { boardId: 'SIM-EN-0001', sha256: installed?.sha256, dialect: 'tinyg-en', fb: 450.9, fbs: null, name: SIM_IMAGES.custom.file };
+    // Let the old connection's reports drain; this test exercises trust, not stale-reply rejection.
+    r.board.powerCycle();
+    await r.until(() => r.board.state === 'app', 10_000);
+    await r.until(() => false, 1000);
     await r.connect([trust]);
     expect(r.host.session.snapshot.classification).toMatchObject({ mode: 'full', approvalSource: 'trusted' });
     expect(r.host.session.snapshot.overlays).not.toContain('READ_ONLY');

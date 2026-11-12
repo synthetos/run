@@ -1520,6 +1520,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (alarmed !== 0) return alarmed;
     if (norm.blockDelete) return ST('NOOP');
     const words = readWords(norm.block, EN_GCODE_SYNTAX);
+    // @behaviour EN-CONNECT-S-PRECHECK: S has no numeric value (@cite EN gcode_parser.c:215-239).
     if (!words.ok) return ST(words.status);
     return this.#parseAndExecute(words.words, norm.block);
   }

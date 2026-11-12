@@ -153,3 +153,27 @@ data that `protocol`'s hand-written dialect files should not duplicate.
 Phase 1's `MachineSession` (in `machine`, which may import both) looks the
 allowlist up by `classification.dialect.id`; an unclassified board
 (`dialect: null`) gets no allowlist and stays on the probe's fixed GETs.
+
+## §2.3 Connect pre-check (proposed, 2026-11-12; H92 and T-S86)
+
+TG Firmware reported a bench-3 verification of ESC (0x1B), then S without a
+newline, followed by an approximately 200 ms read. XBoot++ identifies AVR109
+command mode; JSON must never be sent there. Run now performs that check on
+all web-worker Connect and Reconnect paths. A failed-flash mark requires a
+fresh firmware-ready banner even when the check is silent.
+
+On an unmarked port without the signature, one newline finishes the bare S.
+EN returns BAD_NUMBER_FORMAT (102): `_get_next_gcode_word()` at a7489b79,
+`gcode_parser.c:215-239`, finds no number after S. Run consumes at most one
+error-footer reply to that line, tolerating another error status. Other
+input, including banners, partial lines and unexpected replies, remains
+visible to the existing application probe and its integrity/splice guard.
+The first application GET remains `{sr:null}`. This is a proposed amendment
+to PN's earlier statement that it is the first bytes sent after open.
+
+An unmarked bootloader offers explicit Start firmware and Update firmware
+choices. Start commits quarantine before E and waits up to five seconds for
+a ready banner. Timeout retains quarantine and offers recovery; an already
+failed-flash-marked board never permits E through this action. While the
+user decides, the held port receives only read-only ESC/S keepalives. The
+update path still requires image authorization and its normal confirmations.

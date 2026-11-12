@@ -841,3 +841,13 @@ describe('TinyGEdgeNextModel: P0 review fidelity', () => {
     expect(replies(sim.host.take())[0]?.f[1]).toBe(0);
   });
 });
+
+it('[EN-CONNECT-S-PRECHECK] ESC/S stays silent until newline, then one 102 reply and no output or motion change', () => {
+  const sim = enSim(); const before = sim.device.snapshot();
+  sim.host.send('\x1bS'); sim.clock.advance(200);
+  expect(sim.host.take()).toEqual([]);
+  sim.host.send('\n'); sim.clock.advance(50);
+  expect(replies(sim.host.take()).map(r => r.f[1])).toEqual([102]);
+  expect(sim.device.snapshot().position).toEqual(before.position);
+  expect(get(sim, 'sps')).toBe(0);
+});

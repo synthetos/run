@@ -112,11 +112,12 @@ export class FirmwareUpdater {
   async start(req: UpdateRequest): Promise<string | null> {
     if (this.#step.kind === 'preparing' || this.#step.kind === 'flashing') return 'An update is already in progress.';
     const s = this.#message?.snapshot ?? null;
-    if (s === null || s.base === 'NOT_CONNECTED') return this.#fail('Connect the board first.');
+    const bootloader = this.#message?.flash?.bootloader !== undefined && this.#message.flash.board?.hv !== null && this.#message.flash.board?.hv !== undefined;
+    if (s === null || (s.base === 'NOT_CONNECTED' && !bootloader)) return this.#fail('Connect the board first.');
     const boardId = typeof s.identity?.id === 'string' ? s.identity.id : null;
     try {
       this.#set({ kind: 'preparing', what: 'Backing up every setting' });
-      const file = await this.#d.settingsBackup();
+      const file = bootloader ? null : await this.#d.settingsBackup();
       if (file !== null) await this.#d.repo.putSettings(settingsRecord(file, 'before-update'));
       this.#baseline = file;
       this.#set({ kind: 'preparing', what: 'Checking the image' });
@@ -129,7 +130,7 @@ export class FirmwareUpdater {
       }
       this.#request = req;
       this.#set({ kind: 'flashing' });
-      const refused = await this.#d.flash({ op: 'begin', source: req.source, hex: req.hex, sha256, settingsBackup: file === null ? 'unreadable' : 'saved', baseline: file?.tokens ?? null, recovery: false });
+      const refused = await this.#d.flash({ op: 'begin', source: req.source, hex: req.hex, sha256, settingsBackup: file === null ? 'unreadable' : 'saved', baseline: file?.tokens ?? null, recovery: bootloader });
       if (refused !== null) {
         if (boardId !== null) await this.#d.store.delete(pendingKey(boardId)).catch(() => undefined);
         return this.#fail(refused);

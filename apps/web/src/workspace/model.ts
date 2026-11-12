@@ -125,6 +125,8 @@ export interface FirmwareActions {
   readonly recover: () => Promise<string | null>;
   readonly cancel: () => Promise<string | null>;
   readonly reconnect: () => Promise<string | null>;
+  readonly startFirmware: () => Promise<string | null>;
+  readonly bootloaderHardware: (hv: number) => Promise<string | null>;
   readonly dismiss: () => Promise<void>;
   readonly restore: () => Promise<string | null>;
   readonly startSwitchCheck: () => void;

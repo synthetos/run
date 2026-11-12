@@ -3,6 +3,7 @@ import type { PortSelector } from '@synthetos/machine';
 
 export interface BootloaderMark {
   readonly nonce: string;
+  readonly kind?: 'detected' | 'failed';
   readonly port: PortSelector;
   readonly boardId: string | null;
   readonly recovery: unknown;
