@@ -320,31 +320,35 @@ builds `worker/data/` from the reviewed data Worker, contracts and library/schem
 It enters the existing twice-compared, manifested and attested `run-worker.tar`; staging
 uses `--no-bundle` for both Workers. No dependency installation or build runs with tokens.
 
-After run configuration preflight, the exact confined provisioning step checks both
-credentials and lists both resources before creating anything. It ensures D1
-`run-data-staging` and R2 `run-files-staging` exist, resolves the D1 UUID by name, and
-writes a positive-allowlist data deployment config. The D1-only credential applies
-migrations, then the deploy credential deploys run-data before run. A retry reuses
-resources by name. Transient service failures can leave an already-created resource;
-retrying resumes. A missing declared permission fails before either create. Records
-migrations are additive; rollback of run does not delete data or roll back the data Worker.
+After run configuration preflight, the staging-only provisioning step lists R2 buckets
+and creates `run-files-staging` if missing, then lists D1 databases and creates
+`run-data-staging` if missing. It resolves the D1 UUID by name and writes a
+positive-allowlist data deployment config. The D1-only credential applies migrations,
+then the deploy credential deploys run-data before run. A retry reuses resources by
+name. A later failure, including a permission refusal, can leave a resource already
+created; the next run finds it instead of recreating it. Records migrations are
+additive; rollback of run does not delete data or roll back the data Worker.
 
-Required permissions, on `vars.CLOUDFLARE_ACCOUNT_ID`:
+Required permissions, on `vars.CLOUDFLARE_ACCOUNT_ID`, using dashboard labels:
 
-- `CLOUDFLARE_D1_API_TOKEN`: **D1 Write** (dashboard: D1 Edit), for provisioning and migrations.
-- `CLOUDFLARE_API_TOKEN`: **Workers Scripts Write** and **Workers R2 Storage Write**
-  (dashboard: Edit), plus its existing run routing/Access smoke permissions.
-- User tokens need **API Tokens Read** to inspect their own policies before
-  any resource creation. A permission refusal names the secret and permission in one line;
-  token values and API response bodies are never printed. An account-owned token needs the
-  equivalent **Account API Tokens Read** permission; both token kinds are supported.
+- `CLOUDFLARE_D1_API_TOKEN`: **D1: Edit**, for provisioning and migrations.
+- `CLOUDFLARE_API_TOKEN`: **Workers R2 Storage: Edit**, plus its existing
+  **Workers Scripts: Edit** and run routing/Access smoke permissions.
 
-Policy inspection is documented by Cloudflare's [token details API](https://developers.cloudflare.com/api/resources/user/subresources/tokens/methods/get/).
-Creation permissions follow its [D1 create API](https://developers.cloudflare.com/api/typescript/resources/d1/subresources/database/methods/create/)
-and [R2 bucket API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/).
+No token self-inspection or API Tokens Read / Account API Tokens Read grant is required.
+Actual list/create calls check access. A 401 or 403 on either R2 call names
+`CLOUDFLARE_API_TOKEN` and `Workers R2 Storage: Edit`; either D1 call names
+`CLOUDFLARE_D1_API_TOKEN` and `D1: Edit`. Token values and response bodies are never
+printed. R2 runs first because its grant is the most likely missing permission.
+
+Creation APIs: [D1](https://developers.cloudflare.com/api/typescript/resources/d1/subresources/database/methods/create/)
+and [R2 buckets](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/).
 No manual wrangler command, database id entry, or deployment is required of the owner.
-Production data configuration contains placeholders and the run production preflight
-refuses deployment in this slice, even if production sign-in is otherwise configured.
+Production run deployments continue without a RUN_DATA binding. Data provisioning,
+migrations and the run-data Worker deploy run only in staging; production data ids
+remain placeholders. The production service allowlist refuses RUN_DATA or run-data
+references until production data support is explicitly added. Without the binding,
+and whenever RUN_ENV is not staging, the records route returns 503.
 
 Records use `/api/records/tool` or `/api/records/material` (GET list, with optional `after`
 last-id cursor, 100 records per page), and `/api/records/<kind>/<id>` (GET, PUT, DELETE).

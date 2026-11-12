@@ -166,6 +166,28 @@ describe('preflight --write', () => {
   const withAccount = TEXT.replace(ACCOUNT_ID_PLACEHOLDER, REAL_ACCOUNT);
   const withBuild = withAccount.replace('"vars": { "RUN_ENV": "staging" }', '"vars": { "RUN_ENV": "staging" },\n      "build": { "command": "node marker.cjs" }');
 
+  it('normal production deployment passes without RUN_DATA while staging data remains configured', () => {
+    const r = preflight(withAccount, 'production', dir => ['--write', join(dir, 'wrangler.deploy.json')]);
+    expect(r.status, r.output).toBe(0);
+    const written = JSON.parse(readFileSync(join(r.dir, 'wrangler.deploy.json'), 'utf8')) as Config;
+    expect(written).not.toHaveProperty('services');
+    expect(written).not.toHaveProperty('d1_databases');
+    expect(r.output).toContain('configuration accepted');
+  });
+
+  it.each([
+    { binding: 'RUN_DATA', service: 'run-data', entrypoint: 'AppEntrypoint' },
+    { binding: 'OTHER', service: 'run-data', entrypoint: 'AppEntrypoint' },
+    { binding: 'RUN_DATA', service: 'run-data-staging', entrypoint: 'AppEntrypoint' },
+  ])('production refuses unprovisioned data binding $binding to $service', service => {
+    const c = parseJsonc(withAccount) as Config;
+    c['services'] = [service];
+    const r = preflight(JSON.stringify(c), 'production', dir => ['--write', join(dir, 'wrangler.deploy.json')]);
+    expect(r.status, r.output).toBe(1);
+    expect(r.output).toContain('services must be exactly');
+    expect(existsSync(join(r.dir, 'wrangler.deploy.json'))).toBe(false);
+  });
+
   it('placeholder or missing migration credential deploys with both auth bindings removed, never a placeholder sent to wrangler', () => {
     // The committed staging id is real now (owner created run-auth-staging); the placeholder case is built here.
     const placeholder = withAccount.replace(/"database_id": "[0-9a-f-]{36}"/, '"database_id": "RUN_AUTH_STAGING_DATABASE_ID_PLACEHOLDER"');
