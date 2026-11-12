@@ -13,8 +13,8 @@ export interface BootloaderMarks {
   put(mark: BootloaderMark): Promise<void>;
   clear(mark: BootloaderMark): Promise<void>;
 }
-const key = (p: PortSelector): string => `bootloader:${p.usbVendorId}:${p.usbProductId}`;
-const recordKey = (m: BootloaderMark): string => `${key(m.port)}:${JSON.stringify(m.boardId)}`;
+const key = (p: PortSelector): string => `bootloader#${p.usbVendorId}#${p.usbProductId}`;
+const recordKey = (m: BootloaderMark): string => `${key(m.port)}#${JSON.stringify(m.boardId)}`;
 const matches = (m: BootloaderMark, p: PortSelector, id?: string): boolean => key(m.port) === key(p) || (id !== undefined && m.boardId === id);
 
 export function memoryBootloaderMarks(): BootloaderMarks {
@@ -48,7 +48,7 @@ export function browserBootloaderMarks(factory: () => IDBFactory = () => indexed
   };
   return {
     find: (p, id) => transaction('readonly', (s, done) => {
-      const r = s.openCursor(IDBKeyRange.bound('bootloader:', 'bootloader;'));
+      const r = s.openCursor(IDBKeyRange.bound('bootloader#', 'bootloader$'));
       r.onsuccess = () => {
         const cursor = r.result;
         if (cursor === null) { done(null); return; }
