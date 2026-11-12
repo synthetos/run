@@ -10,6 +10,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import { expect, test } from './fixtures.ts';
+import { afterRunningFirmwarePrecheck } from './helpers.ts';
 import { machineWorker, request } from './machineWorker.ts';
 
 const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as const;
@@ -74,7 +75,7 @@ test('the DRO machine position follows pushed reports, with no poll; settings an
   await expect(axisModes).toBeVisible();
   await expect(axisModes.locator('[data-axis-modes="clear"], [data-axis-modes="facts"]')).toHaveCount(1);
   const all = await writes(worker);
-  for (const w of all) {
+  for (const w of afterRunningFirmwarePrecheck(all)) {
     expect(w.includes('\u0018') || w.includes('\u0004'), JSON.stringify(w)).toBe(false);
     expect(allowedWrite(w), JSON.stringify(w)).toBe(true);
   }

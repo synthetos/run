@@ -1,8 +1,8 @@
 /**
  * ROADMAP P0-14 acceptance: "a passing example test that opens the mock port
  * from `machine.worker` in the built app", and ROADMAP P1-02 in the built
- * app: the read-only `MachineSession` probes the simulated board from
- * `{sr:null}`, classifies it, reads it, and writes nothing but
+ * app: after the ESC/S/newline pre-check, the read-only `MachineSession` probes
+ * the simulated board from `{sr:null}`, classifies it, reads it, and writes nothing but
  * allowlisted GETs and `!`.
  *
  * Runs only against the fake-serial TEST build (apps/web/dist-fake-serial),
@@ -13,7 +13,7 @@
  * `GuardedTransport`, exactly as shipped.
  */
 import { expect, test } from './fixtures.ts';
-import { isReportConfig } from './helpers.ts';
+import { afterRunningFirmwarePrecheck, isReportConfig } from './helpers.ts';
 import { w7 } from '../../../packages/safety/src/strings.ts';
 import { machineWorker, request } from './machineWorker.ts';
 
@@ -23,6 +23,7 @@ interface PortView {
   readonly readableNull: boolean;
   /** Every write the host made to the simulated board, as byte arrays. */
   readonly writes: readonly number[][];
+  readonly received: string;
 }
 
 /** What the worker did to the mock ports, read inside the worker. */
@@ -41,6 +42,7 @@ function ports(worker: import('@playwright/test').Worker): Promise<PortView[]> {
       openLog: p.openLog,
       connected: p.connected,
       readableNull: p.readable === null,
+      received: p.endpoint.transcript.entries().filter(e => e.kind === 'host-read').map(e => String.fromCharCode(...e.data)).join(''),
       writes: p.endpoint.transcript
         .entries()
         .filter((e) => e.kind === 'host-write')
@@ -56,7 +58,7 @@ interface StatusView {
 const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as const;
 const text = (bytes: readonly number[]): string => String.fromCharCode(...bytes);
 
-test('machine.worker runs the read-only session on the mock board: {sr:null} first, classified, read, and only GETs and ! written', async ({ page }) => {
+test('machine.worker runs the read-only session on the mock board: ESC/S/newline then {sr:null}, classified, read, and only GETs and ! written', async ({ page }) => {
   const worker = await machineWorker(page);
   expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ status: { source: 'fake', state: 'idle', session: { base: 'NOT_CONNECTED' } } });
   expect(await ports(worker)).toEqual([]);
@@ -93,10 +95,10 @@ test('machine.worker runs the read-only session on the mock board: {sr:null} fir
   await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as StatusView).status.session.values['posx']?.value, { timeout: 5000 }).toBe(0);
 
   const writes = (await ports(worker))[0]?.writes ?? [];
-  expect(text(writes[0] ?? [])).toBe('{sr:null}\n');
-  for (const w of writes) {
-    expect(w.includes(0x18) || w.includes(0x04), text(w)).toBe(false);
-    expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(text(w)) || text(w) === '!' || isReportConfig(text(w)), text(w)).toBe(true);
+  expect(writes.slice(0, 4).map(text)).toEqual(['\u001b', 'S', '\n', '{sr:null}\n']);
+  for (const w of afterRunningFirmwarePrecheck(writes.map(text))) {
+    expect(w.includes('\u0018') || w.includes('\u0004'), w).toBe(false);
+    expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '!' || isReportConfig(w), w).toBe(true);
   }
   expect(writes.map(text)).toContain('!');
   expect(writes.map(text)).not.toContain('{"md":null}\n');
@@ -149,3 +151,30 @@ test('the page itself still shows NOT CONNECTED: the test build changes nothing 
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
   await expect(page.locator('[data-safety="W7"]')).toHaveText(w7());
 });
+
+for (const rxm of [0, 1] as const) {
+  test(`the running mock answers the ESC/S pre-check with one error in rxm ${rxm}`, async ({ page }) => {
+    const worker = await machineWorker(page);
+    await worker.evaluate(mode => {
+      const scope = globalThis as unknown as { __RUN_FAKE_SERIAL__?: { ports: unknown[]; next?: { rxm: number; start: 'ready' } } };
+      scope.__RUN_FAKE_SERIAL__ ??= { ports: [] };
+      scope.__RUN_FAKE_SERIAL__.next = { rxm: mode, start: 'ready' };
+    }, rxm);
+    expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
+    const port = (await ports(worker))[0];
+    expect(port).toBeDefined();
+    const writes = afterRunningFirmwarePrecheck((port?.writes ?? []).map(text));
+    expect(writes[0]).toBe('{sr:null}\n');
+    // EN a7489b79 gcode_parser.c:145-155 keeps ESC as malformed in character mode (E161).
+    // Line-mode posting strips leading controls, leaving bare S: BAD_NUMBER_FORMAT (102).
+    const status = rxm === 0 ? 101 : 102;
+    const errors = (port?.received ?? '').split(/\r?\n/).filter(line => line.includes(`,${status},`));
+    expect(errors, port?.received).toHaveLength(1);
+    const reply = JSON.parse(errors[0] as string) as { r: unknown; f: number[] };
+    expect(reply.r).toEqual({});
+    expect(reply.f[0]).toBe(rxm === 0 ? 2 : 3);
+    expect(reply.f[1]).toBe(status);
+    if (rxm === 1) expect(reply.f).toEqual([3, 102, 10]);
+    await request(worker, { v: 3, kind: 'close' });
+  });
+}

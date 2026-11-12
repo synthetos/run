@@ -15,7 +15,7 @@
  */
 import type { Page, Worker } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { isReportConfig } from './helpers.ts';
+import { afterRunningFirmwarePrecheck, isReportConfig } from './helpers.ts';
 import { machineWorker, request } from './machineWorker.ts';
 
 const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as const;
@@ -128,7 +128,7 @@ test('edit a setting, apply: backup downloaded first, written once and read back
   // The read-back follows the write directly.
   const at = after.writes.indexOf(`{"xfr":${next}}\n`);
   expect(after.writes[at + 1]).toBe('{"xfr":null}\n');
-  for (const w of after.writes) expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || /^\{"[a-z0-9_]+":-?[0-9.]+\}\n$/.test(w) || w === '\u0005' || w === '!' || isReportConfig(w), JSON.stringify(w)).toBe(true);
+  for (const w of afterRunningFirmwarePrecheck(after.writes)) expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || /^\{"[a-z0-9_]+":-?[0-9.]+\}\n$/.test(w) || w === '\u0005' || w === '!' || isReportConfig(w), JSON.stringify(w)).toBe(true);
 
   // Revert writes the backed-up value back, read back the same way.
   await tray.locator('[data-action="revert-settings"]').click();

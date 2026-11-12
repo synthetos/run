@@ -17,7 +17,7 @@ import { showWorkspace, workspaceDestination } from './workspace-navigation.ts';
  */
 import type { Page, Worker } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { isReportConfig } from './helpers.ts';
+import { afterRunningFirmwarePrecheck, isReportConfig } from './helpers.ts';
 import { STOP_TEXT, w2Label } from '../../../packages/safety/src/strings.ts';
 import { machineWorker, request } from './machineWorker.ts';
 
@@ -258,7 +258,7 @@ test('the board backup reads allowlisted settings with GETs only and saves JSON 
     const registry = (globalThis as unknown as { __RUN_FAKE_SERIAL__?: { ports: { endpoint: { transcript: { entries(): readonly Entry[] } } }[] } }).__RUN_FAKE_SERIAL__;
     return (registry?.ports[0]?.endpoint.transcript.entries() ?? []).filter((e) => e.kind === 'host-write').map((e) => String.fromCharCode(...e.data));
   });
-  for (const w of writes) expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005' || w === '!' || isReportConfig(w), JSON.stringify(w)).toBe(true);
+  for (const w of afterRunningFirmwarePrecheck(writes)) expect(/^\{"?[a-z0-9_]+"?:null\}\n$/.test(w) || w === '\u0005' || w === '!' || isReportConfig(w), JSON.stringify(w)).toBe(true);
   await expect(page.locator('[data-backup="saved"]')).toContainText(file.suggestedFilename());
 });
 
