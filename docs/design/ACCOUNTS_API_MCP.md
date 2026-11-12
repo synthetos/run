@@ -200,7 +200,7 @@ mcp and run-data deploy with their own CI token, which cannot deploy run or acco
 6. Quotas (D12) are checked first. What does not fit stays local and is listed.
 7. Local copies stay until the user removes them.
 
-After import, `workspace/storage.ts` and the project store switch to the cloud backend, with a `cloud-cache:<userId>` cache. Their callers do not change. `sync.worker` pauses in job states (T-S59).
+After import, `workspace/storage.ts` and the project store switch to the cloud backend, with a `run.cloud-cache.<userId>` cache. Their callers do not change. `sync.worker` pauses in job states (T-S59).
 
 ## 6. API surface and MCP tools
 

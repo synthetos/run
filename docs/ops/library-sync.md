@@ -2,7 +2,7 @@
 
 On staging, tools and materials use the run-session account. Production keeps browser storage until the records service is enabled there. Loopback permits the mocked records tests. All requests are same-origin and page-side; machine.worker and device-safety are unchanged.
 
-`storage.ts` attaches a backend to `tools.v2`, `materials.v2`, and `materials.own.v1`. Other stores keep their existing behavior. A separate `cloud-cache:<subject>` contains server revisions, pending writes, import decisions, and the confirmed import source plan. It is read before refreshing the account. Signing out or receiving 401/503 restores the browser libraries. Old account callbacks are cancelled before switching accounts.
+`storage.ts` attaches a backend to `tools.v2`, `materials.v2`, and `materials.own.v1`. Other stores keep their existing behavior. A separate `run.cloud-cache.<subject>` contains server revisions, pending writes, import decisions, and the confirmed import source plan. It is read before refreshing the account. Signing out or receiving 401/503 restores the browser libraries. Old account callbacks are cancelled before switching accounts.
 
 Copy is explicit. Import decisions use the local id and SHA-256 of canonical content. The source plan is persisted before preparation, and pending writes before network calls. Reloading can therefore resume even if interrupted before all records were prepared. Unchanged seed tools and built-in materials are not uploaded. A seed with only a changed T number is an edit and is uploaded. Browser copies are not removed or rewritten.
 

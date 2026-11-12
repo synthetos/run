@@ -4,7 +4,7 @@ import type { StorageLike } from '../storage.ts';
 export interface PendingWrite { readonly token: string; readonly kind: RecordKind; readonly id: string; readonly parent: number | null; readonly content: unknown | null }
 export interface CloudCache { v: 1; records: CloudRecord[]; pending: PendingWrite[]; imports: Record<string, string>; consent: boolean; importSource?: { kind: RecordKind; id: string; content: unknown }[] }
 export const emptyCache = (): CloudCache => ({ v: 1, records: [], pending: [], imports: {}, consent: false });
-export const cacheKey = (subject: string): string => `cloud-cache:${subject}`;
+export const cacheKey = (subject: string): string => `run.cloud-cache.${subject}`;
 const object = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const kind = (k: unknown): k is RecordKind => k === 'tool' || k === 'material';
 const id = (v: unknown): v is string => typeof v === 'string' && /^[a-z0-9][a-z0-9._-]{0,63}$/.test(v);
