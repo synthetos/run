@@ -80,6 +80,7 @@ class Rig {
   id = 0;
   backups = 0;
   failBackup = false;
+  writeFailure: 'reply' | 'throw' | null = null;
   pending: { id: number; key: string; value: number }[] = [];
   readonly timers = new Map<number, () => void>();
   #t = 0;
@@ -90,6 +91,8 @@ class Rig {
     const deps: ApplyDeps = {
       writeSetting: async (key, value) => {
         this.calls.push(`write ${key}=${value}`);
+        if (this.writeFailure === 'throw') throw new Error('worker lost');
+        if (this.writeFailure === 'reply') return { ok: false, message: 'refused' };
         this.id += 1;
         this.pending.push({ id: this.id, key, value });
         return { ok: true, id: this.id };
@@ -303,4 +306,61 @@ describe('the settings controls gate (enabled only with the phase switch on and 
     expect(stageRestore('not json', v)).toMatchObject({ ok: false });
     clearDraft();
   });
+});
+
+function pauseSnapshot(spph: number, coph: number, extra: Partial<Snapshot> = {}): Snapshot {
+  return snap({ identity: { fb: 450.04 }, overlays: ['READ_ONLY'],
+    classification: { dialectId: 'tinyg-en', mode: 'readOnly', reason: 'spindlePause', detail: '', upgradeOffer: false },
+    values: { spph: { value: spph, status: 0, at: 1 }, coph: { value: coph, status: 0, at: 1 } }, ...extra });
+}
+function pauseResult(id: number, key: string, outcome: SettingWrite['outcome'] = 'verified'): SettingWrite {
+  return { id, key, value: 0, phase: 'done', gate: {}, outcome };
+}
+it('one Pause correction waits for each setting result and both fresh reads before the next write', async () => {
+  const rig = new Rig(); rig.applier.onSnapshot(pauseSnapshot(1, 1));
+  const run = rig.applier.makePauseMotionOnly(); await tick();
+  await rig.applier.makePauseMotionOnly(); // a double click cannot start another sequence
+  expect(rig.calls).toEqual(['write spph=0']);
+  rig.applier.onSnapshot(pauseSnapshot(0, 1, { base: 'READING', settingWrite: pauseResult(1, 'spph'), values: {} }));
+  await tick(); expect(rig.calls).toHaveLength(1);
+  rig.applier.onSnapshot(pauseSnapshot(0, 1, { settingWrite: pauseResult(1, 'spph') }));
+  await tick(); expect(rig.calls).toEqual(['write spph=0', 'write coph=0']);
+  rig.applier.onSnapshot(snap({ settingWrite: pauseResult(2, 'coph') }));
+  await run; expect(rig.applier.running).toBe(false);
+});
+it.each([[0, 1, 'coph'], [1, 0, 'spph']] as const)('Pause correction writes only the enabled setting (%s, %s)', async (spph, coph, key) => {
+  const rig = new Rig(); rig.applier.onSnapshot(pauseSnapshot(spph, coph));
+  const run = rig.applier.makePauseMotionOnly(); await tick();
+  expect(rig.calls).toEqual([`write ${key}=0`]);
+  rig.applier.onSnapshot(snap({ settingWrite: pauseResult(1, key) }));
+  await run; expect(rig.calls).toHaveLength(1);
+});
+it.each(['mismatch', 'refused', 'rejected'] as const)('Pause correction stops after a %s result', async outcome => {
+  const rig = new Rig(); rig.applier.onSnapshot(pauseSnapshot(1, 1));
+  const run = rig.applier.makePauseMotionOnly(); await tick();
+  rig.applier.onSnapshot(pauseSnapshot(1, 1, { settingWrite: pauseResult(1, 'spph', outcome) }));
+  await run; expect(rig.calls).toEqual(['write spph=0']);
+});
+it('Pause correction stops on disconnect or timeout', async () => {
+  for (const change of ['link', 'timeout']) {
+    const rig = new Rig(); rig.applier.onSnapshot(pauseSnapshot(1, 1));
+    const run = rig.applier.makePauseMotionOnly(); await tick();
+    if (change === 'link') rig.applier.onSnapshot(snap({ epoch: 2 }));
+    else for (const expire of rig.timers.values()) expire();
+    await run; expect(rig.calls).toEqual(['write spph=0']);
+  }
+});
+it('Pause correction ignores ordinary sessions and asks the worker to retry unknown reads', async () => {
+  const rig = new Rig(); await rig.applier.makePauseMotionOnly(); expect(rig.calls).toEqual([]);
+  rig.applier.onSnapshot(pauseSnapshot(0, 0, { values: {} }));
+  await rig.applier.makePauseMotionOnly();
+  expect(rig.calls).toEqual(['write spph=0']); // the worker interprets this as GETs when no enabled value was read
+});
+
+it.each(['reply', 'throw'] as const)('Pause correction stops when the worker fails with %s', async failure => {
+  const rig = new Rig(); rig.writeFailure = failure;
+  rig.applier.onSnapshot(pauseSnapshot(1, 1));
+  await rig.applier.makePauseMotionOnly();
+  expect(rig.calls).toEqual(['write spph=0']);
+  expect(rig.applier.running).toBe(false);
 });

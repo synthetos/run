@@ -115,7 +115,7 @@ export const TINYG_EN: Dialect = deepFreeze<Dialect>({
     alarmStopsSpindle: true, // spindle_reset() in cm_alarm (@cite EN canonical_machine.c:905, :943; E019)
     // `spph` is stubbed before 450.04; from 450.04 its numeric 0/1 setting controls spindle pause.
     spindlePauseOnHold: 'probe',
-    // `coph` is a numeric 0/1 setting at the 450.04 pin; Run never writes it.
+    // `coph` is a numeric 0/1 setting at the 450.04 pin; Run permits only gated writes to 0.
     // Coolant pause is independent of spph and must never be inferred from spindle pause.
     coolantPauseOnHold: 'probe',
     lineInSr: true, // default sr list starts with `line` (@cite EN settings/settings_default.h:84)

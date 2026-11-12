@@ -76,3 +76,22 @@ it('the default 450.04 board becomes controllable after gated spph=0 and readbac
   expect(await runUntil(h, () => h.session.snapshot.job?.phase === 'paused')).toBe(true);
   expect(h.device.snapshot().spindle).toBe('cw');
 });
+
+it.each([[1, 1], [0, 1], [1, 0]])('one correction disables enabled outputs (spph=%s, coph=%s) without touching spde', async (spph, coph) => {
+  const h = await jobHarness({ device: { build: candidate, eeprom: { __layout: 10002, spph, coph } }, session: { manifest, release: { ...JOBS_RELEASE, settings: true } } });
+  const from = writes(h).length;
+  for (const key of ['spph', 'coph']) {
+    if (h.session.snapshot.values[key]?.value !== 1) continue;
+    expect(h.session.writeSetting(key, 0).allowed).toBe(true);
+    await h.run(1000);
+  }
+  expect(h.session.snapshot.classification?.mode).toBe('full');
+  const emitted = writes(h).slice(from);
+  expect(emitted.filter(w => /"(?:spph|coph|spde)":\d/.test(w))).toEqual([...(spph ? ['{"spph":0}'] : []), ...(coph ? ['{"coph":0}'] : [])]);
+  expect(h.session.snapshot.values['spph']).toMatchObject({ value: 0, status: 0 });
+  expect(h.session.snapshot.values['coph']).toMatchObject({ value: 0, status: 0 });
+  await start(h, 'G21 G90\nM3 S1000\nM8\nG1 X50 F300\nM5\nM9\nM30');
+  await h.run(1000); h.session.request({ intent: 'feedhold' });
+  expect(await runUntil(h, () => h.session.snapshot.job?.phase === 'paused')).toBe(true);
+  expect(h.device.snapshot()).toMatchObject({ spindle: 'cw', coolant: { flood: true } });
+});

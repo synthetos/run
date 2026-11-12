@@ -34,6 +34,7 @@ describe('coverage of the overlay', () => {
       'gdi',
       'mt',
       'spph',
+      'coph',
       'spep',
       'spdp',
       'prbp',

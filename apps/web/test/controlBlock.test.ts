@@ -188,7 +188,7 @@ describe('the Position panel', () => {
 });
 
 it('spindle-pause block offers only the corrective write and retains failed readback detail', () => {
-  const detail = 'This board stops the spindle when you pause. Run needs Pause to affect motion only.';
+  const detail = 'This board stops the spindle or coolant when you pause. Run needs Pause to affect motion only.';
   const s = snap({ ...READ_ONLY, classification: { dialectId: 'tinyg-en', mode: 'readOnly', reason: 'spindlePause', detail, upgradeOffer: false } });
   expect(controlBlock(view(s), CTX)).toMatchObject({ lines: [detail], actions: [{ id: 'motion-only-pause', label: 'Make Pause motion only', primary: true }] });
   expect(stripStatus(view(s), null).text).toContain('Pause');

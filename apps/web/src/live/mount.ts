@@ -472,9 +472,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     keepBoardSettings: () => void readout.keepBoardSettings().catch(() => undefined),
     backup: () => void runBackup(),
     transcriptText,
-    makePauseMotionOnly: async () => {
-      if (worker !== null) await callMachineWorker(worker, { v: RPC_VERSION, kind: 'settingWrite', key: 'spph', value: 0 });
-    },
+    makePauseMotionOnly: () => applier.makePauseMotionOnly(),
     applySettings: (changes: readonly PlannedChange[]) => void applier.apply(changes),
     revertSettings: () => void applier.revert(),
     clearApply: () => applier.reset(),

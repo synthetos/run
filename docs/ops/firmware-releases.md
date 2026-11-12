@@ -162,10 +162,10 @@ The signed lists are unchanged; the owner signs after review. The downloaded `ti
 is 487,745 bytes and hashes to `a67aa65d4b9fa8bed1c9693de87d2cd9fbe3b0113d4560415eaced4088a483a1`,
 matching the release `SHA256SUMS` (independently checked 2026-11-12).
 
-An approved 450.04 board is read only until `spph` reads as 0. The control-block card offers
-“Make Pause motion only”: only `spph=0`, through the existing settings gates and verified readback.
+An approved 450.04 board is read only until both `spph` and `coph` freshly read as 0. The control-block card offers
+“Make Pause motion only”: writes whichever of `spph` and `coph` is 1 to 0, one at a time through the existing settings gates and verified readback, then re-reads both.
 Unreadable values remain blocked. No host spindle/coolant stop or restart is added to Pause/Resume;
-Run never writes `spde` or `coph`. Older stubbed tokens and 450.05+ absent tokens are unaffected.
+Run never writes `spde`. A board reporting neither pause token is unaffected. Older stubbed tokens and 450.05+ absent tokens are unaffected.
 The new card uses the same ordinary control-block prose convention as the flow-control card;
 registered safety strings are unchanged. The host dwell guard remains required: this release lacks N99,
 and later builds with the same fb cannot be distinguished by that number.

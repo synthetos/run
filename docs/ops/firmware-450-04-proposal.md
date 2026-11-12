@@ -2,7 +2,7 @@
 
 Prepared 2026-11-11. This is a proposal, not approval to control a machine or publish firmware.
 Updated 2026-11-12 after owner approval: EN is pinned to ee98f02b (450.04), and the unsigned staging bench approval and hardware-8 release records include it. Signed files, registered safety strings and SAFETY.md are unchanged.
-450.04 remains unapproved with the shipped signed manifest until the owner signs the new records. Even when approved, Run requires a successful spph=0 read before control; spph=1 or an unreadable value has its own read-only block. “Make Pause motion only” writes only spph=0 through the settings idle/queue/unit gates and verifies readback. Run never writes spde or coph. Older stubbed tokens and 450.05+ absent tokens are unaffected. Tests use an explicit test-only approval.
+450.04 remains unapproved with the shipped signed manifest until the owner signs the new records. Even when approved, Run requires fresh successful spph=0 and coph=0 reads before control. Enabled or unreadable settings keep their own read-only block. “Make Pause motion only” writes whichever settings read as 1, one at a time through the settings idle/queue/unit gates and verified readback, then re-reads both before lifting the block. Unknown values are re-read, never guessed. Run never writes spde. A board reporting neither token is unaffected, as are older stubbed tokens and 450.05+ absent tokens. Tests use an explicit test-only approval.
 
 The downloaded release HEX was independently checked against the release SHA256SUMS on 2026-11-12: 487,745 bytes, SHA-256 a67aa65d4b9fa8bed1c9693de87d2cd9fbe3b0113d4560415eaced4088a483a1.
 
@@ -242,6 +242,7 @@ against the local TinyG object store at the pinned commits. The HIL den table wa
 the pinned generator and avr-gcc 9.5.0; provenance and its generated TypeScript table were updated.
 Hardware board-definition provenance remains at its recorded source revision.
 
-Scope limitation for owner review: coph defaults to 0, but an existing coph=1 board still pauses coolant.
-This task implements the requested spph guard only and never writes coph. A separate coolant read-only
-guard is needed before claiming motion-only Pause for non-default coph=1 boards.
+Coolant scope resolved by the owner's clarification relayed in message 20261112T093314-a6099a4e:
+Pause affects motion only, including coolant. Both spph=0 and coph=0 are required, and the single
+corrective action may write either setting to 0. Each write retains its own idle gate and readback;
+both settings are then re-read. No spde write or host output command on Pause/Resume is added.

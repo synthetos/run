@@ -21,7 +21,7 @@ const REASON_TEXT: Readonly<Record<ClassificationInfo['reason'], string>> = Obje
   'g2core-unknown-build': 'g2core build not recognised',
   conflict: 'its identity answers disagree',
   probeFailed: 'its identity could not be read',
-  spindlePause: 'spindle pause on hold is enabled or could not be read',
+  spindlePause: 'spindle or coolant pause on hold is enabled or could not be read',
   flowControl: 'its flow control setting (ex) could not be read or is not known',
 });
 

@@ -5,9 +5,9 @@ import { checkWrite, settingRefusal } from '../src/index.ts';
 import { Driver, EN_ANSWERS } from './sessionDriver.ts';
 
 const answer = (key: string, value: number, status = 0) => JSON.stringify({ r: { [key]: value }, f: [3, status, 10] });
-function ready(spph = 1, status = 0, fb = 450.04, approved = true) {
+function ready(spph = 1, status = 0, fb = 450.04, approved = true, coph = 0, cophStatus = 0) {
   const d = new Driver({ release: PHASE_1_SETTINGS_RELEASE, manifest: { environment: 'staging', builds: approved ? [{ channel: 'bench', dialect: 'tinyg-en', fb, fbs: null, commit: 'e'.repeat(40), note: 'test' }] : [] } });
-  const answers = { ...EN_ANSWERS, fb: answer('fb', fb), spph: answer('spph', spph, status) };
+  const answers = { ...EN_ANSWERS, fb: answer('fb', fb), spph: answer('spph', spph, status), coph: answer('coph', coph, cophStatus) };
   d.open(); d.answer(answers);
   return { d, answers };
 }
@@ -20,7 +20,7 @@ describe('motion-only pause requirement', () => {
     const { d } = ready(value, status);
     expect(d.state.classification).toMatchObject({ mode: 'readOnly', reason: 'spindlePause' });
     expect(d.state.overlays).toContain('READ_ONLY');
-    for (const [key, value] of [['spph', 1], ['coph', 0], ['spde', 0], ['xvm', 123]] as const) {
+    for (const [key, value] of [['spph', 1], ['coph', 1], ['spde', 0], ['xvm', 123]] as const) {
       expect(d.intent({ intent: 'settingsWrite', key, value }).allowed).toBe(false);
     }
     expect(d.intent({ intent: 'resume' }).allowed).toBe(false);
@@ -35,6 +35,8 @@ describe('motion-only pause requirement', () => {
     d.written(); d.line(answer('spph', 0));
     expect(d.state.classification?.mode).toBe('readOnly');
     d.written(); d.line(answer('spph', 0));
+    expect(d.state.classification?.mode).toBe('readOnly');
+    d.answer({ ...answers, spph: answer('spph', 0) });
     expect(d.state.classification).toMatchObject({ mode: 'full', reason: 'en-approved' });
     expect(d.state.overlays).not.toContain('READ_ONLY');
     expect(d.state.settingWrite).toMatchObject({ outcome: 'verified' });
@@ -87,9 +89,56 @@ it('the corrective capability requires its exact dialect, build, key and value',
     { ...d.state, identity: null },
     { ...d.state, identity: { ...d.state.identity, fb: 450.05 } },
   ]) expect(motionOnlyPauseWrite(state, 'spph', 0)).toBe(false);
-  expect(motionOnlyPauseWrite(d.state, 'coph', 0)).toBe(false);
+  expect(motionOnlyPauseWrite(d.state, 'spde', 0)).toBe(false);
   expect(motionOnlyPauseWrite(d.state, 'spph', 1)).toBe(false);
   expect(settingRefusal('tinyg-440', 'spph', 0, {}, 450.04)).not.toBeNull();
   expect(settingRefusal('tinyg-en', 'spph', 0, {})).not.toBeNull();
   expect(settingRefusal('tinyg-en', 'spph', 1, {}, 450.04)).not.toBeNull();
+});
+
+it('keeps control blocked between two ordinary writes and rereads both after each', () => {
+  const { d, answers } = ready(1, 0, 450.04, true, 1);
+  gate(d, answers);
+  d.written(); d.line(answer('spph', 0)); d.written(); d.line(answer('spph', 0));
+  expect(d.state.classification?.mode).toBe('readOnly');
+  d.answer({ ...answers, spph: answer('spph', 0) });
+  expect(d.state.classification?.mode).toBe('readOnly');
+  expect(d.intent({ intent: 'settingsWrite', key: 'coph', value: 0 }).allowed).toBe(true);
+  expect(d.state.settingWrite).toMatchObject({ key: 'coph', phase: 'gate' });
+  d.answer(answers, () => d.state.writing?.purpose === 'setting');
+  expect(d.state.writing).toMatchObject({ token: 'coph', value: 0 });
+  d.written(); d.line(answer('coph', 0)); d.written(); d.line(answer('coph', 0));
+  expect(d.state.classification?.mode).toBe('readOnly');
+  expect(d.state.values['spph']).toBeUndefined();
+  expect(d.state.values['coph']).toBeUndefined();
+  d.answer({ ...answers, spph: answer('spph', 0), coph: answer('coph', 0) });
+  expect(d.state.classification?.mode).toBe('full');
+});
+it.each([[0, 100], [2, 0]])('an unreadable coolant setting (%s, status %s) stays blocked, with no guessed write', (coph, status) => {
+  const { d, answers } = ready(0, 0, 450.04, true, coph, status);
+  expect(d.state.classification?.reason).toBe('spindlePause');
+  expect(d.intent({ intent: 'settingsWrite', key: 'coph', value: 0 }).allowed).toBe(true);
+  d.answer(answers);
+  expect(d.state.classification?.mode).toBe('readOnly');
+  expect(d.lines().filter(l => /"(?:spph|coph)":0/.test(l))).toEqual([]);
+});
+it('neither pause token present is unaffected, including a board with the same build number', () => {
+  const { d } = ready(0, 100, 450.04, true, 0, 100);
+  expect(d.state.classification?.mode).toBe('full');
+});
+it('a changed or unreadable final reread does not lift the block', () => {
+  const { d, answers } = ready(); gate(d, answers);
+  d.written(); d.line(answer('spph', 0)); d.written(); d.line(answer('spph', 0));
+  d.answer({ ...answers, spph: answer('spph', 0), coph: answer('coph', 1) });
+  expect(d.state.classification?.reason).toBe('spindlePause');
+});
+it('the second setting must pass its own idle gate', () => {
+  const { d, answers } = ready(1, 0, 450.04, true, 1); gate(d, answers);
+  d.written(); d.line(answer('spph', 0)); d.written(); d.line(answer('spph', 0));
+  d.answer({ ...answers, spph: answer('spph', 0) });
+  expect(d.intent({ intent: 'settingsWrite', key: 'coph', value: 0 }).allowed).toBe(true);
+  d.answer({ ...answers, qr: answer('qr', 31) });
+  expect(d.state.classification?.mode).toBe('readOnly');
+  expect(d.state.settingWrite).toMatchObject({ key: 'coph', outcome: 'refused' });
+  expect(d.lines()).not.toContain('{"coph":0}');
 });

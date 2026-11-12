@@ -23,9 +23,9 @@ import { restingStat } from './resting.ts';
 import { boardSettingsFrom, isReadAllowed, readBackMatches, screenWritePlan, settingsSchemaFor, type GroupAnswer, type SettingValue } from '@synthetos/schema';
 import type { ReadValue, SessionState, SettingWriteState } from './types.ts';
 
-/** Only the approved 450.04 spindle-pause block may admit this one corrective write. */
+/** Only the approved 450.04 output-pause block may admit either corrective zero write. */
 export function motionOnlyPauseWrite(state: SessionState, key: unknown, value: unknown): boolean {
-  return state.classification?.reason === 'spindlePause' && state.dialect?.id === 'tinyg-en' && state.identity?.fb === 450.04 && key === 'spph' && value === 0;
+  return state.classification?.reason === 'spindlePause' && state.dialect?.id === 'tinyg-en' && state.identity?.fb === 450.04 && (key === 'spph' || key === 'coph') && value === 0;
 }
 
 /** The gate's polled reads, in the order they are sent. `hold` only where the dialect trusts it. */
@@ -66,7 +66,7 @@ export function sessionSettings(dialectId: string, values: Readonly<Record<strin
 
 /** Why `key` = `value` may not be written on this dialect, or null. Cross-key rules use what this session read. */
 export function settingRefusal(dialectId: string, key: string, value: unknown, values: Readonly<Record<string, ReadValue>>, fb?: number): string | null {
-  if (key === 'spph' && (dialectId !== 'tinyg-en' || fb !== 450.04 || value !== 0)) return 'Only spph=0 on TinyG 450.04 is writable.';
+  if ((key === 'spph' || key === 'coph') && (dialectId !== 'tinyg-en' || fb !== 450.04 || value !== 0)) return 'Only spph=0 or coph=0 on TinyG 450.04 is writable.';
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'The value is not a number.';
   if (settingLine(key, value) === null) return 'The value cannot be written as a plain decimal number.';
   let schema;

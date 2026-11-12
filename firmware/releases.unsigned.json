@@ -20,7 +20,7 @@
               "sha256": "a67aa65d4b9fa8bed1c9693de87d2cd9fbe3b0113d4560415eaced4088a483a1",
               "size": 487745,
               "date": "2026-11-11",
-              "changelog": "TinyG 450.04 (edge-next pre-release, ee98f02b): fixes startup input loss and limit handling, reports malformed centre-format arcs with status 157, and adds output pause settings. Run requires spindle pause on hold disabled (spph=0). Feed-limit reports use fs v2. RTS hosts must keep unanswered input within 192 bytes. Settings carry over; the host dwell guard remains required.",
+              "changelog": "TinyG 450.04 (edge-next pre-release, ee98f02b): fixes startup input loss and limit handling, reports malformed centre-format arcs with status 157, and adds output pause settings. Run requires spindle and coolant pause on hold disabled (spph=0 and coph=0). Feed-limit reports use fs v2. RTS hosts must keep unanswered input within 192 bytes. Settings carry over; the host dwell guard remains required.",
               "recommended": false,
               "repo": "synthetos/TinyG",
               "tag": "450.04"

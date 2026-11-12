@@ -94,6 +94,7 @@ export class SettingsApplier {
   #state: ApplyState = { kind: 'idle' };
   #backup: BackupFile | null = null;
   #backupName: string | null = null;
+  #correctingPause = false;
 
   constructor(deps: ApplyDeps) {
     this.#deps = deps;
@@ -104,7 +105,7 @@ export class SettingsApplier {
   }
 
   get running(): boolean {
-    return this.#state.kind === 'backingUp' || this.#state.kind === 'writing';
+    return this.#correctingPause || this.#state.kind === 'backingUp' || this.#state.kind === 'writing';
   }
 
   /** The backup taken before the last apply (the revert source), or null. */
@@ -129,14 +130,14 @@ export class SettingsApplier {
   }
 
   /** Waits for the session to report write `id` done, the link to change, or the timeout. */
-  #result(id: number, epoch: number): Promise<SettingWrite | 'timeout' | 'link'> {
+  #result(id: number, epoch: number, pauseReads = false): Promise<SettingWrite | 'timeout' | 'link'> {
     return new Promise((resolve) => {
       let timer: unknown = null;
       const check = (): void => {
         const s = this.#snapshot;
         let out: SettingWrite | 'link' | null = null;
         if (s === null || s.epoch !== epoch || s.base === 'NOT_CONNECTED' || s.overlays.includes('LOST')) out = 'link';
-        else if (s.settingWrite !== null && s.settingWrite.id === id && s.settingWrite.phase === 'done') out = s.settingWrite;
+        else if (s.settingWrite !== null && s.settingWrite.id === id && s.settingWrite.phase === 'done' && (!pauseReads || s.base !== 'READING')) out = s.settingWrite;
         if (out === null) return;
         this.#waiters.delete(check);
         this.#deps.clearTimeout(timer);
@@ -149,6 +150,30 @@ export class SettingsApplier {
       this.#waiters.add(check);
       check();
     });
+  }
+
+  /** One corrective action; each ordinary setting write keeps its own id, gates and readback. */
+  async makePauseMotionOnly(): Promise<void> {
+    if (this.running || this.#snapshot?.classification?.reason !== 'spindlePause') return;
+    this.#correctingPause = true;
+    const epoch = this.#snapshot.epoch;
+    try {
+      let wrote = false;
+      for (const key of ['spph', 'coph']) {
+        const s = this.#snapshot;
+        if (s.epoch !== epoch || s.classification?.reason !== 'spindlePause') return;
+        if (s.values[key]?.status !== 0 || s.values[key]?.value !== 1) continue;
+        const reply = await this.#deps.writeSetting(key, 0).catch(() => ({ ok: false as const, message: 'The machine worker did not answer.' }));
+        if (!reply.ok) return;
+        wrote = true;
+        const result = await this.#result(reply.id, epoch, true);
+        if (typeof result === 'string' || result.outcome !== 'verified') return;
+      }
+      // No enabled value was readable: the worker retries GETs, without guessing a SET.
+      if (!wrote) await this.#deps.writeSetting('spph', 0).catch(() => undefined);
+    } finally {
+      this.#correctingPause = false;
+    }
   }
 
   /**

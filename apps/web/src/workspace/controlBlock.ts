@@ -69,7 +69,7 @@ function notApproved(s: Snapshot, flasher: boolean, ctx: BlockContext): ControlB
   const disconnect: BlockAction = { id: 'disconnect', label: 'Disconnect', primary: true };
   if (c?.reason === 'spindlePause') {
     const write = s.settingWrite;
-    const pending = write != null && write.phase !== 'done';
+    const pending = s.base === 'READING' || (write != null && write.phase !== 'done');
     return { kind: 'not-approved', reason: c.reason, title: CANT,
       lines: [c.detail, ...(write?.phase === 'done' && write.outcome !== 'verified' ? [write.detail ?? 'The setting was not verified.'] : [])],
       actions: pending ? [] : [{ id: 'motion-only-pause', label: 'Make Pause motion only', primary: true }], detail };

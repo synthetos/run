@@ -27,7 +27,7 @@ const ROW: Readonly<Record<string, number>> = Object.freeze({
   aam: 322, avm: 323, afr: 324, atn: 325, atm: 326, ajm: 327, ajh: 328, ajd: 329, ara: 330, asn: 348, asx: 349, asv: 333, alv: 334, alb: 335, azb: 336,
   bam: 338, bvm: 339, bfr: 340, btn: 341, btm: 342, bjm: 343, bjd: 344, bra: 345,
   cam: 357, cvm: 358, cfr: 359, ctn: 360, ctm: 361, cjm: 362, cjd: 363, cra: 364,
-  spph: 653, sl: 461, st: 462, mt: 463, gun: 521, gdi: 524, spep: 650, spdp: 651, prbp: 657, os: 668,
+  spph: 653, coph: 655, sl: 461, st: 462, mt: 463, gun: 521, gdi: 524, spep: 650, spdp: 651, prbp: 657, os: 668,
 });
 
 const ALWAYS: TypedConfirm = { kind: 'always' };
@@ -556,6 +556,16 @@ const SYSTEM: readonly OverlayEntry[] = [
     convert: false, scope: 'persisted', risk: 'low', typedConfirm: NEVER,
     afterWrite: null, invalidates: [],
     whatGoesWrong: 'With spindle pause enabled, feedhold stops the spindle and resume restarts it.',
+  }),
+  // @cite EN config_app.c:655 (450.04 only; the session checks the build before writing).
+  entry('coph', {
+    label: 'Coolant pause on hold',
+    description: 'Run requires Pause to affect motion only. Disable coolant pause on hold.',
+    unit: 'enum', valueType: 'integer', values: [{ value: 0, label: 'Off' }],
+    range: { min: 0, max: 1 }, rangeSource: 'host: enum permits only 0; EN config_app.c:655 accepts 0 or 1',
+    convert: false, scope: 'persisted', risk: 'low', typedConfirm: NEVER,
+    afterWrite: null, invalidates: [],
+    whatGoesWrong: 'With coolant pause enabled, feedhold stops the coolant and resume restarts it.',
   }),
   entry('spep', {
     label: 'Spindle enable polarity',

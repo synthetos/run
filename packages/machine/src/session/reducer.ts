@@ -673,6 +673,12 @@ function onSettingsWrite(t: Tx, key: unknown, value: unknown, matrix: Decision):
     t.decide('settingsWrite', deny('Name one setting.', 'Name one setting.', 'SAFETY §4.6'));
     return;
   }
+  // The correction writes only a setting read as enabled. Otherwise retry both GETs, never guess.
+  if (motionOnlyPauseWrite(t.s, key, value) && (t.s.values[key]?.status !== 0 || t.s.values[key]?.value !== 1)) {
+    rereadPauseSettings(t);
+    t.decide('settingsWrite', matrix);
+    return;
+  }
   const refusal = settingRefusal(dialect.id, key, value, t.s.values, t.s.identity?.fb);
   if (refusal !== null) {
     t.decide('settingsWrite', deny(`Not written: ${refusal}`, 'Correct the value and try again.', 'SAFETY §4.6; PN §12.4 (forbidden writes); schema overlay'));
@@ -759,16 +765,21 @@ function onReadBackAnswer(t: Tx, r: Response, at: number): void {
   t.set({ values: { ...t.s.values, [w.key]: { value, status: r.footer.status, at } } });
   const dialect = dialectOf(t.s) as Dialect;
   if (r.footer.status === 0 && readBackMatches(dialect.id, w.key, w.value, value)) {
-    if (motionOnlyPauseWrite(t.s, w.key, w.value)) {
-      t.set({ classification: { ...t.s.classification!, mode: 'full', reason: 'en-approved', detail: 'Approved TinyG edge-next; spindle pause on hold is disabled (spph=0).' } });
-      t.removeOverlay('READ_ONLY');
-      if (motionCapable(t.s, t.config) && t.s.overlays.length === 0) t.set({ base: idleBase(t.s) });
-    }
+    const correction = motionOnlyPauseWrite(t.s, w.key, w.value);
     finishSettingWrite(t, 'verified', '', { readBack: value });
+    if (correction) rereadPauseSettings(t);
     return;
   }
   const shown = r.footer.status !== 0 ? `the read-back failed (status ${r.footer.status})` : `the board reads back ${JSON.stringify(value)}, not ${w.value}`;
   finishSettingWrite(t, 'mismatch', `Written, but ${shown}.`, { readBack: value });
+}
+
+/** Re-read both settings after the correction; cached values never lift the block. */
+function rereadPauseSettings(t: Tx): void {
+  const { spph: _spindle, coph: _coolant, ...values } = t.s.values;
+  t.set({ base: 'READING', values, queue: [
+    { token: 'spph', purpose: 'reading' }, { token: 'coph', purpose: 'reading' }, ...t.s.queue,
+  ] });
 }
 
 /** A settings write in progress is cut off (FAULT, LOST, reset, link change). */
@@ -1307,7 +1318,7 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
       return;
     }
     case 'reading':
-      if (e.token === 'spph') t.set({ values: { ...t.s.values, spph: { value: value ?? null, status: r.footer.status, at } } });
+      if (e.token === 'spph' || e.token === 'coph') t.set({ values: { ...t.s.values, [e.token]: { value: value ?? null, status: r.footer.status, at } } });
       if (r.footer.status === 0 && typeof value === 'number' && Number.isFinite(value)) {
         t.set({ live: withNumber(t, t.s.live, e.token, value) });
       }
@@ -1448,7 +1459,7 @@ function finishProbe(t: Tx): void {
   }
   const dialect = c.dialect;
   const tokens = t.config.release.motion ? [...READING_TOKENS, ...MOTION_READING_TOKENS] : READING_TOKENS;
-  const reads = dialect === null ? [] : [...tokens, ...(dialect.id === 'tinyg-en' && result.fb === 450.04 ? ['spph'] : [])].filter((tok) => isReadAllowed(dialect.id, tok));
+  const reads = dialect === null ? [] : [...tokens, ...(dialect.id === 'tinyg-en' && result.fb === 450.04 ? ['spph', 'coph'] : [])].filter((tok) => isReadAllowed(dialect.id, tok));
   if (reads.length === 0 || t.s.overlays.includes('ORPHANED_MOTION')) {
     t.set({ base: 'CONNECTED_UNKNOWN', reports: { ...REPORTS_IDLE, phase: 'off' } });
     if (dialect === null) checkUnclassifiedResting(t);
@@ -1457,7 +1468,7 @@ function finishProbe(t: Tx): void {
   // Only READING's own answers count: values from the earlier `{sr:null}` answer are dropped, so a
   // read that fails leaves its value unknown and the board is not trusted as resting.
   const { stat: _stat, machineClass: _class, hold: _hold, vel: _vel, qr: _qr, ...kept } = t.s.live;
-  const { spph: _oldPause, ...freshValues } = t.s.values;
+  const { spph: _oldPause, coph: _oldCoolantPause, ...freshValues } = t.s.values;
   t.set({ base: 'READING', live: kept, values: freshValues, queue: [...t.s.queue, ...reads.map((token) => ({ token, purpose: 'reading' as const }))] });
 }
 
@@ -1511,9 +1522,21 @@ function finishReading(t: Tx): void {
     t.addOverlay('READ_ONLY');
     t.emit({ kind: 'log', text: `classification: read-only, flow control (ex) ${shown}` });
   }
-  if (t.s.classification?.mode === 'full' && dialect?.id === 'tinyg-en' && t.s.identity?.fb === 450.04 && (t.s.values['spph']?.status !== 0 || t.s.values['spph']?.value !== 0)) {
-    t.set({ classification: { ...t.s.classification, mode: 'readOnly', reason: 'spindlePause', detail: t.s.values['spph']?.status === 0 && t.s.values['spph']?.value === 1 ? 'This board stops the spindle when you pause. Run needs Pause to affect motion only.' : 'Run could not read spindle pause on hold (spph). Control stays read only.' } });
-    t.addOverlay('READ_ONLY');
+  const pauseClass = t.s.classification;
+  if (pauseClass !== null && (pauseClass.mode === 'full' || pauseClass.reason === 'spindlePause') && dialect?.id === 'tinyg-en' && t.s.identity?.fb === 450.04) {
+    const settings = [t.s.values['spph'], t.s.values['coph']];
+    const disabled = settings.every(v => v?.status === 0 && v.value === 0);
+    const absent = settings.every(v => v?.status === 100);
+    if (disabled || absent) {
+      if (pauseClass.reason === 'spindlePause') {
+        t.set({ classification: { ...pauseClass, mode: 'full', reason: 'en-approved', detail: 'Approved TinyG edge-next; Pause does not stop spindle or coolant.' } });
+        t.removeOverlay('READ_ONLY');
+      }
+    } else {
+      const enabled = settings.some(v => v?.status === 0 && v.value === 1);
+      t.set({ classification: { ...pauseClass, mode: 'readOnly', reason: 'spindlePause', detail: enabled ? 'This board stops the spindle or coolant when you pause. Run needs Pause to affect motion only.' : 'Run could not verify spindle and coolant pause settings (spph and coph). Control stays read only.' } });
+      t.addOverlay('READ_ONLY');
+    }
   }
   t.set({ base: 'CONNECTED_UNKNOWN', queue: t.s.queue.filter((q) => q.purpose !== 'reading') });
   // A motion session with nothing in the way goes to idle (or ALARM). UNKNOWN (after a reconnect) waits
@@ -1606,7 +1629,7 @@ function onGarbled(t: Tx, at: number): void {
       checkUnclassifiedResting(t);
       return;
     case 'reading':
-      if (entry.token === 'spph') t.set({ values: { ...t.s.values, spph: { value: null, status: -1, at } } });
+      if (entry.token === 'spph' || entry.token === 'coph') t.set({ values: { ...t.s.values, [entry.token]: { value: null, status: -1, at } } });
       if (!t.s.queue.some((q) => q.purpose === 'reading')) finishReading(t);
       return;
     case 'request':
