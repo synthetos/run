@@ -212,7 +212,7 @@ All three must be done and recorded in `RELEASES.md` before the production deplo
 
 **(a) The D39/H46 production deploy controls, verified** (docs/ops/account.md §2 and §3). Since OD-29 the production origin holds the serial grant for admitted users, so a deploy, DNS or account compromise is the S4 case of H46 there too.
 - [ ] Deploys only from CI: no local `wrangler login` used for run or accounts; the release audit (account.md §3) shows every change to `run`, `accounts` and their staging copies made by the CI token.
-- [ ] The CI token is scoped as recorded (Workers Scripts Edit, D1 Edit, Access Read), and lives only in the `staging` and `production` environment secrets of both repositories. The D1 residual has its chosen option (§2.1).
+- [ ] The CI token is scoped as recorded (Workers Scripts Edit, Workers R2 Storage Edit, D1 Edit, Access Read), and lives only in the `staging` and `production` environment secrets of both repositories. The D1 residual has its chosen option (§2.1).
 - [ ] The audit-log alerts are active for `run`, `run-staging`, `accounts` and `accounts-staging` (and the D1 alert if you chose option A), and fire on a test.
 - [ ] Your Cloudflare login, registrar login and GitHub login use a hardware key, with no TOTP or SMS fallback; account members are the minimum.
 - [ ] DNSSEC, CAA, the registrar lock and CT monitoring are on (the smoke test checks the first three on each deploy).

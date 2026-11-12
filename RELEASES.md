@@ -5,6 +5,18 @@ is a tag `run-v<major>.<minor>.<patch>` on the `main` commit whose attested
 artifact CI deployed to production. The tag never triggers a build or a
 deploy; it records one.
 
+## Staging go-live: sign-in with Synthetos accounts (2026-11-12)
+
+Not a tagged release: it records the staging go-live of docs/ops/go-live-staging.md §6.
+
+- run-staging deployed with sign-in on: 2026-11-11, `deploy-staging` in
+  https://github.com/synthetos/run/actions/runs/43056342063 (commit 82d485c). Current staging build: 7dcbf26,
+  https://github.com/synthetos/run/actions/runs/43293414065 (it also created the A2-01 staging data resources).
+- accounts-staging deployed: 2026-11-11, https://github.com/synthetos/accounts/actions/runs/43122481858.
+- §5.3 "Check the whole sign-in" passed on staging (owner, 2026-11-12).
+- Production deploys with sign-in off (bindings absent) until §7 is done: run 43293414065 `deploy-production`,
+  2026-11-12, smoke test passed.
+
 ## run-v0.1.0: Phase 0 foundations (pending)
 
 **Status: not tagged yet.** The tag waits for the first production deploy,

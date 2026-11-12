@@ -143,7 +143,13 @@ test('a subscribed port receives the session snapshots, at most 20 per second', 
   expect(seen.bases[0]).toBe('NOT_CONNECTED');
   expect(seen.bases).toContain('IDENTIFYING');
   expect(seen.bases.at(-1)).toBe('IDLE_UNHOMED');
-  for (let i = 2; i < seen.times.length; i++) expect((seen.times[i] as number) - (seen.times[i - 1] as number)).toBeGreaterThanOrEqual(45);
+  // The worker posts at most one snapshot per 50 ms. Arrival times in the page carry delivery jitter (a delayed message
+  // shortens the next gap), so check the rate over the run and allow single gaps to be compressed, never to bunch up.
+  const gaps = seen.times.slice(2).map((t, i) => t - (seen.times[i + 1] as number));
+  if (gaps.length > 0) {
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(20);
+    expect(((seen.times.at(-1) as number) - (seen.times[1] as number)) / gaps.length).toBeGreaterThanOrEqual(45);
+  }
 });
 
 test('the page itself still shows NOT CONNECTED: the test build changes nothing outside the worker', async ({ page }) => {

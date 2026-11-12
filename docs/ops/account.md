@@ -175,7 +175,18 @@ Record in those repositories' own lead-actions lists that this is done.
 
 Record the answers in the release PR.
 
-- [ ] run has separate deploy (Workers Scripts:Edit and Access: Apps and Policies:Read) and database (D1:Edit) credentials, scoped as recorded in §2 step 4, nothing else; no other token in the account can deploy run or accounts, or that is recorded with the reason.
+Recorded changes:
+
+- 2026-11-12 (A2-01): the deploy token (`CLOUDFLARE_API_TOKEN`) gained **Workers R2 Storage:Edit**, so CI can create
+  the `run-files-staging` bucket by name. The owner added it in the dashboard after the first `deploy-staging` run
+  stopped with "CLOUDFLARE_API_TOKEN: add Workers R2 Storage: Edit for the configured account" (run 43293414065).
+  The token's value did not change. Expected audit-log entries that day: the token edit, the R2 bucket
+  `run-files-staging` and D1 database `run-data-staging` created by the CI token, and the new `run-data-staging`
+  Worker uploaded by the CI token.
+- 2026-11-11 (accounts staging go-live, docs/ops/go-live-staging.md §2.1, §4.2, §5.2): the separate D1 credential
+  and the accounts-staging and run-staging secrets were set; the secret-change alerts for those dates are expected.
+
+- [ ] run has separate deploy (Workers Scripts:Edit, Workers R2 Storage:Edit and Access: Apps and Policies:Read) and database (D1:Edit) credentials, scoped as recorded in §2 step 4, nothing else; no other token in the account can deploy run or accounts, or that is recorded with the reason.
 - [ ] Both credentials are only in the `staging` and `production` environment secrets.
 - [ ] Members: the minimum (the owner, plus the recorded exceptions), hardware key on.
 - [ ] No local wrangler login or laptop token was used to deploy run or accounts.
