@@ -8,6 +8,6 @@
   "sideEffects": false,
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run && node --test ../backups/test/*.test.mjs"
   }
 }

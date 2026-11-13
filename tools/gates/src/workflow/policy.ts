@@ -1,3 +1,4 @@
+import { reviewedBackupWorkflow } from './backupWorkflow.ts';
 import { dataStep, DATA_PROVISION, DATA_MIGRATION, DATA_DEPLOY } from './dataCredentials.ts';
 /**
  * Workflow policy check (ROADMAP P0-03, RUN_PLAN §6.2).
@@ -357,6 +358,7 @@ const SHA_PIN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_./-]+)?@[0-9a-
 export function checkWorkflow(file: string, source: string): PolicyFinding[] {
   // Rules are chosen by the file's name, however the caller spells its path.
   const name = file.split(/[\\/]/).pop() ?? file;
+  if (name === 'database-backups.yml' || name === 'database-restore.yml') return reviewedBackupWorkflow(name, source) ? [] : [{ file, line: 1, rule: 'secret-outside-deploy', message: 'Backups must match the exact reviewed main-only, protected workflow' }];
   if (name === 'production-provision.yml') return source.trim() === AUTH_PROVISION_WORKFLOW.trim() ? [] : [{ file, line: 1, rule: 'secret-outside-deploy', message: 'Production provisioning must match the exact reviewed main-only, protected workflow' }];
   const findings: PolicyFinding[] = [];
   const add = (line: number, rule: PolicyRule, message: string): void => {
