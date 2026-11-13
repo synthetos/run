@@ -1,3 +1,4 @@
+import { blockedFileNote } from '../blockingFindings.ts';
 /**
  * The Run step (owner, 2026-11-09: "the ugliest cnc page I have ever seen: text everywhere, check boxes everywhere,
  * warnings everywhere"). One "Ready to start?" list (readyModel.ts), at most one tick for the confirmations that apply,
@@ -164,9 +165,8 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
   const notes: Note[] = [];
   if (report !== null && mine) {
     const checked = checkedText(job.total, result === null ? null : result.sourceLines.length, report.splits);
-    const first = report.blocks[0];
     notes.push(report.blocked
-      ? { id: 'file-check', topic: 'File', title: 'The check stopped this file.', body: first === undefined ? 'See the G-code list.' : `Line ${first.line.toLocaleString('en-US')}: ${first.message}.`, detail: report.blocks.map((b) => `Line ${b.line}: ${b.message}.`).join(' '), tone: 'warn', ...(first === undefined ? {} : { link: { kind: 'line', line: first.line } }) }
+      ? (blockedFileNote(report.blocks)[0] ?? { id: 'file-check', topic: 'File', title: 'This file cannot run.', body: 'Review the G-code findings.', tone: 'warn' })
       : { id: 'file-check', topic: 'File', title: 'File checked.', body: `${(result?.fileLines ?? job.total).toLocaleString('en-US')} lines, about ${duration(report.seconds)}.`, detail: `${checked}.`, tone: 'info' });
   }
   if (s !== null && state.fileName !== null) notes.push(zeroNote(zero, established, canHome));

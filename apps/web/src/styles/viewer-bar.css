@@ -18,8 +18,8 @@ span.viewer-chip { display: inline-flex; align-items: center; min-height: 26px; 
 span.viewer-chip.quiet { color: var(--ink); border-color: var(--rule); font-weight: 500; }
 /* A notice with its ×; hidden for good once dismissed (it stays in Notes). */
 .dismissable { position: relative; display: flex; gap: 6px; align-items: flex-start; pointer-events: auto; }
-.dismissable-body { flex: 1; min-width: 0; }
-.dismissable > button.dismiss { flex: none; width: 22px; height: 22px; min-height: 22px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; }
+.dismissable-body { flex: 1; min-width: 0; padding-right: 28px; }
+.dismissable > button.dismiss { position: absolute; top: 0; right: 0; flex: none; width: 22px; height: 22px; min-height: 22px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; }
 .dismissable > button.dismiss:hover { color: var(--ink); }
 /* A × on a bordered card (Board: the axis modes, the settings read): in the card's top corner, not beside it. */
 .dismissable.dismissable-card { display: block; }

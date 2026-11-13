@@ -966,7 +966,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-440 c22 last line": [
     {
       "line": 1,
-      "message": "the last line turns the spindle or coolant on together with the program end, so the file ends with flood coolant on (M8); move the M3/M4/M7/M8 off that line",
+      "message": "The last line turns the spindle or coolant on together with the program end, so the file ends with flood coolant on (M8); move the M3/M4/M7/M8 off that line. Fix: End the file with M5 and M9 before its final M2/M30; remove any output-on commands from that last line.",
       "rule": "end-state",
       "severity": "block",
     },
@@ -974,13 +974,13 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-440 codes": [
     {
       "line": 1,
-      "message": "G59.1 is not supported in a job on this firmware (a dotted code is never sent as G59)",
+      "message": "G59.1 is not supported in a job on this firmware (a dotted code is never sent as G59). Fix: Export using a postprocessor for this firmware, or replace the unsupported command.",
       "rule": "unsupported-code",
       "severity": "block",
     },
     {
       "line": 2,
-      "message": "G43 is not supported in a job on this firmware",
+      "message": "G43 is not supported in a job on this firmware. Fix: Export using a postprocessor for this firmware, or replace the unsupported command.",
       "rule": "unsupported-code",
       "severity": "block",
     },
@@ -992,19 +992,19 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
     },
     {
       "line": 4,
-      "message": "Q words are not supported by this firmware",
+      "message": "Q words are not supported by this firmware. Fix: Remove the unsupported word or put the unsupported combined move on its own line.",
       "rule": "unsupported-word",
       "severity": "block",
     },
     {
       "line": 5,
-      "message": "\`E\` is read as an exponent (E159, PN §9.3).",
+      "message": "E is read as part of a number rather than as an axis or command on this firmware. Fix: Remove E words or export with a postprocessor for this controller.",
       "rule": "e-word",
       "severity": "block",
     },
     {
       "line": 6,
-      "message": "M201.3 is not supported in a job on this firmware (a dotted code is never sent as M201)",
+      "message": "M201.3 is not supported in a job on this firmware (a dotted code is never sent as M201). Fix: Export using a postprocessor for this firmware, or replace the unsupported command.",
       "rule": "unsupported-code",
       "severity": "block",
     },
@@ -1012,31 +1012,31 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-440 dialect rules": [
     {
       "line": 1,
-      "message": "G18 arcs run in the non-standard direction (E029), so the preview would be wrong (PN §9.3).",
+      "message": "G18 arcs run in the non-standard direction, so the preview would be wrong. Fix: Export the XZ arc as short straight moves for this firmware.",
       "rule": "g18-arc",
       "severity": "block",
     },
     {
       "line": 2,
-      "message": "G28/G30 are broken under G20 or G91 (E039, PN §9.3).",
+      "message": "G28/G30 are broken under G20 or G91. Fix: Replace this return move with explicit moves in a supported units and distance mode.",
       "rule": "g28-g30-g20-g91",
       "severity": "block",
     },
     {
       "line": 3,
-      "message": "G28.4 rewrites the machine position (E055, PN §9.3).",
+      "message": "G28.4 changes the recorded machine position without homing, so later moves could go to the wrong place. Fix: Remove G28.4; establish the machine position through the supported homing controls.",
       "rule": "g28.4",
       "severity": "block",
     },
     {
       "line": 4,
-      "message": "Inverse time is broken (E130); blocked on both TinyG dialects until B-E130 closes (PN §9.3).",
+      "message": "Run cannot verify the requested speed with G93 inverse-time feed on this firmware. Fix: Export with G94 feed per minute instead of G93 inverse-time feed.",
       "rule": "g93",
       "severity": "block",
     },
     {
       "line": 5,
-      "message": "A block queuing more than the 4-buffer headroom can PANIC (E088): at most 3 queued commands plus motion (PN §9.3).",
+      "message": "This line queues too many controller actions at once and can shut the controller down. Fix: Put queued commands on separate lines, with at most three queued commands plus motion per line.",
       "rule": "e088-queued-per-line",
       "severity": "block",
     },
@@ -1066,7 +1066,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-449-stock read-only": [
     {
       "line": 0,
-      "message": "TinyG edge-0.97 (stock 449) is read-only in this version: no job is ever sent to it",
+      "message": "TinyG edge-0.97 (stock 449) is read-only in this version: no job is ever sent to it. Fix: Use firmware that Run supports for sending jobs.",
       "rule": "read-only-dialect",
       "severity": "block",
     },
@@ -1074,19 +1074,19 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en arc": [
     {
       "line": 1,
-      "message": "the firmware would refuse this arc: the arc end point is 2 mm off the circle through its start",
+      "message": "The firmware would refuse this arc: the arc end point is 2 mm off the circle through its start. Fix: Correct the syntax or arc geometry, then export the file again.",
       "rule": "malformed",
       "severity": "block",
     },
     {
       "line": 2,
-      "message": "rotary axis words on an arc are not modelled; write the rotary move on its own line",
+      "message": "Rotary axis words on an arc are not modelled; write the rotary move on its own line. Fix: Remove the unsupported word or put the unsupported combined move on its own line.",
       "rule": "unsupported-word",
       "severity": "block",
     },
     {
       "line": 3,
-      "message": "this arc cannot be modelled: the start position of X, Y is not known",
+      "message": "This arc cannot be modelled: the start position of X, Y is not known. Fix: Set the missing units or modes explicitly; read the board’s settings and position before checking again.",
       "rule": "unknown-state",
       "severity": "block",
     },
@@ -1110,61 +1110,61 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en conflicts": [
     {
       "line": 1,
-      "message": "G0 and G1 are in the same modal group (E152)",
+      "message": "G0 and G1 are in the same modal group. Fix: Separate conflicting commands and explicitly set the intended motion and distance modes.",
       "rule": "modal-conflict",
       "severity": "block",
     },
     {
       "line": 2,
-      "message": "G1 and G92 both use the axis words on this line (E152)",
+      "message": "G1 and G92 both use the axis words on this line. Fix: Separate conflicting commands and explicitly set the intended motion and distance modes.",
       "rule": "modal-conflict",
       "severity": "block",
     },
     {
       "line": 3,
-      "message": "G53 cannot share a line with G4 (E152)",
+      "message": "G53 cannot share a line with G4. Fix: Separate conflicting commands and explicitly set the intended motion and distance modes.",
       "rule": "modal-conflict",
       "severity": "block",
     },
     {
       "line": 5,
-      "message": "G53 needs G0 or G1 in effect (NIST 3.5.12)",
+      "message": "G53 needs G0 or G1 in effect. Fix: Separate conflicting commands and explicitly set the intended motion and distance modes.",
       "rule": "modal-conflict",
       "severity": "block",
     },
     {
       "line": 5,
-      "message": "a feed move needs a feed rate: set F before the first G1, G2 or G3",
+      "message": "A feed move needs a feed rate: set F before the first G1, G2 or G3. Fix: Put a positive F feed rate before the first cutting move.",
       "rule": "feed-not-set",
       "severity": "block",
     },
     {
       "line": 7,
-      "message": "axis words with G80 in effect are an error (NIST 3.5.15)",
+      "message": "Axis words with G80 in effect are an error. Fix: Separate conflicting commands and explicitly set the intended motion and distance modes.",
       "rule": "modal-conflict",
       "severity": "block",
     },
     {
       "line": 8,
-      "message": "I, J, K or R on a line that is not an arc",
+      "message": "I, J, K or R on a line that is not an arc. Fix: Separate conflicting commands and explicitly set the intended motion and distance modes.",
       "rule": "modal-conflict",
       "severity": "block",
     },
     {
       "line": 9,
-      "message": "an arc with both R and I/J/K is ambiguous",
+      "message": "An arc with both R and I/J/K is ambiguous. Fix: Separate conflicting commands and explicitly set the intended motion and distance modes.",
       "rule": "modal-conflict",
       "severity": "block",
     },
     {
       "line": 10,
-      "message": "two X words on one line",
+      "message": "Two X words on one line. Fix: Separate conflicting commands and explicitly set the intended motion and distance modes.",
       "rule": "modal-conflict",
       "severity": "block",
     },
     {
       "line": 10,
-      "message": "axis words with G80 in effect are an error (NIST 3.5.15)",
+      "message": "Axis words with G80 in effect are an error. Fix: Separate conflicting commands and explicitly set the intended motion and distance modes.",
       "rule": "modal-conflict",
       "severity": "block",
     },
@@ -1172,7 +1172,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en control": [
     {
       "line": 1,
-      "message": "the line contains control byte 0x05",
+      "message": "The line contains control byte 0x05. Fix: Remove the control byte and export the file as plain-text G-code.",
       "rule": "control-byte",
       "severity": "block",
     },
@@ -1180,7 +1180,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en end state": [
     {
       "line": 3,
-      "message": "the file ends with the spindle on (M4) and mist coolant on (M7) and flood coolant on (M8); accept C22 to add M5 and M9",
+      "message": "The file ends with the spindle on (M4) and mist coolant on (M7) and flood coolant on (M8). Fix: End the file with M5 and M9 before its final M2/M30; remove any output-on commands from that last line.",
       "rule": "end-state",
       "severity": "block",
     },
@@ -1188,7 +1188,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en feed rate max": [
     {
       "line": 1,
-      "message": "no feed rate maximum (fr) is known for axis X",
+      "message": "No feed rate maximum (fr) is known for axis X. Fix: Read the board’s axis speed limits and set valid positive limits before checking again.",
       "rule": "no-velocity-limit",
       "severity": "block",
     },
@@ -1196,7 +1196,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en feed units": [
     {
       "line": 1,
-      "message": "the units in force before this line are not known, and the firmware converts F with them; set G20 or G21 on an earlier line",
+      "message": "The units in force before this line are not known, and the firmware converts F with them; set G20 or G21 on an earlier line. Fix: Set the missing units or modes explicitly; read the board’s settings and position before checking again.",
       "rule": "unknown-state",
       "severity": "block",
     },
@@ -1204,7 +1204,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en first char": [
     {
       "line": 1,
-      "message": ""$H" is a GRBL homing command; this file was made for a GRBL machine. Remove the line, or export the file with a TinyG post-processor.",
+      "message": ""$H" is a GRBL homing command; this file was made for a GRBL machine. Remove the line, or export the file with a TinyG post-processor. Fix: Remove the controller command; change settings through Board instead.",
       "rule": "first-character",
       "severity": "block",
     },
@@ -1212,7 +1212,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en inhibited axis": [
     {
       "line": 1,
-      "message": "TinyG drives an inhibited axis's motor to step 0 on the next move of any axis, by an amount no overrun bound covers: A (inhibited; it reads 30), B (axis mode not known, so it may be inhibited; it reads 45.25). Motion stays blocked until every such axis reads 0",
+      "message": "TinyG drives an inhibited axis's motor to step 0 on the next move of any axis, by an amount no overrun bound covers: A (inhibited; it reads 30), B (axis mode not known, so it may be inhibited; it reads 45.25). Motion stays blocked until every such axis reads 0. Fix: Resolve the inhibited axis position and configuration before checking again.",
       "rule": "inhibited-axis",
       "severity": "block",
     },
@@ -1220,7 +1220,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en invalid": [
     {
       "line": 1,
-      "message": ""#" is not valid in G-code here",
+      "message": ""#" is not valid in G-code here. Fix: Correct or remove the invalid character in your source file.",
       "rule": "invalid-character",
       "severity": "block",
     },
@@ -1228,25 +1228,25 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en linear axis mode": [
     {
       "line": 1,
-      "message": "Y is disabled (yam=0): TinyG ignores Y words, so this move would not run as written",
+      "message": "Y is disabled (yam=0): TinyG ignores Y words, so this move would not run as written. Fix: Read and correct the named axis mode before checking the file again.",
       "rule": "axis-mode",
       "severity": "block",
     },
     {
       "line": 2,
-      "message": "Z reads radius mode (zam=3), which TinyG refuses on a linear axis; it ignores Z words in that mode",
+      "message": "Z reads radius mode (zam=3), which TinyG refuses on a linear axis; it ignores Z words in that mode. Fix: Read and correct the named axis mode before checking the file again.",
       "rule": "axis-mode",
       "severity": "block",
     },
     {
       "line": 3,
-      "message": "the axis mode (xam) of X is not known, so a move on X cannot be modelled",
+      "message": "The axis mode (xam) of X is not known, so a move on X cannot be modelled. Fix: Set the missing units or modes explicitly; read the board’s settings and position before checking again.",
       "rule": "unknown-state",
       "severity": "block",
     },
     {
       "line": 4,
-      "message": "G28 cannot be modelled while X, Y, Z are disabled, in radius mode or of unknown axis mode",
+      "message": "G28 cannot be modelled while X, Y, Z are disabled, in radius mode or of unknown axis mode. Fix: Read and correct the named axis mode before checking the file again.",
       "rule": "axis-mode",
       "severity": "block",
     },
@@ -1254,13 +1254,13 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en m100, probe": [
     {
       "line": 1,
-      "message": "M100 runs in-stream JSON commands and is never sent",
+      "message": "M100 runs controller commands inside the file, which Run cannot safely allow in a job. Fix: Remove M100; change board settings through Board instead.",
       "rule": "m100",
       "severity": "block",
     },
     {
       "line": 2,
-      "message": "probing (G38) is not allowed in a job in this version",
+      "message": "This file includes probing, which Run cannot safely stream as an ordinary job. Fix: Remove the probing operation from this file and use the supported probing controls.",
       "rule": "probe",
       "severity": "block",
     },
@@ -1276,7 +1276,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en malformed": [
     {
       "line": 1,
-      "message": "malformed line: X has no number",
+      "message": "Malformed line: X has no number. Fix: Correct the syntax or arc geometry, then export the file again.",
       "rule": "malformed",
       "severity": "block",
     },
@@ -1284,7 +1284,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en mid-file": [
     {
       "line": 1,
-      "message": "M2/M30 before the end of the file: a buffered program end clears an alarm on this firmware (H35)",
+      "message": "Program end (M2/M30) at line 1, but the file continues after it. A queued program end can clear an alarm on this firmware and let later lines run, so Run will not send this file. Fix: remove the extra M2/M30 (often from joining files), or split the file.",
       "rule": "mid-file-program-end",
       "severity": "block",
     },
@@ -1292,7 +1292,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en non-ascii": [
     {
       "line": 1,
-      "message": "the line contains a byte outside printable ASCII",
+      "message": "The line contains a byte outside printable ASCII. Fix: Replace the non-ASCII character with plain ASCII text.",
       "rule": "non-ascii",
       "severity": "block",
     },
@@ -1300,7 +1300,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en realtime": [
     {
       "line": 1,
-      "message": ""!" is a realtime command byte and is never sent inside job data",
+      "message": ""!" is a realtime command byte and is never sent inside job data. Fix: Remove the realtime command from the file; use Run’s controls instead.",
       "rule": "realtime-character",
       "severity": "block",
     },
@@ -1308,19 +1308,19 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en rotary mode": [
     {
       "line": 1,
-      "message": "the axis mode (aam) of A is not known, so a move on A cannot be modelled",
+      "message": "The axis mode (aam) of A is not known, so a move on A cannot be modelled. Fix: Set the missing units or modes explicitly; read the board’s settings and position before checking again.",
       "rule": "unknown-state",
       "severity": "block",
     },
     {
       "line": 2,
-      "message": "B is in radius mode but its radius (bra) is not known, so a move on B cannot be modelled",
+      "message": "B is in radius mode but its radius (bra) is not known, so a move on B cannot be modelled. Fix: Set the missing units or modes explicitly; read the board’s settings and position before checking again.",
       "rule": "unknown-state",
       "severity": "block",
     },
     {
       "line": 3,
-      "message": "G28 cannot be modelled while A, B, C are in radius mode or of unknown axis mode",
+      "message": "G28 cannot be modelled while A, B, C are in radius mode or of unknown axis mode. Fix: Read and correct the rotary axis mode and radius, then check the file again.",
       "rule": "rotary-radius",
       "severity": "block",
     },
@@ -1336,13 +1336,13 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en split impossible": [
     {
       "line": 1,
-      "message": "this move cannot be split within the ceiling: the move would need sub-segments shorter than the split tolerance allows",
+      "message": "This move cannot be split within the ceiling: the move would need sub-segments shorter than the split tolerance allows. Fix: Export shorter moves in CAM or correct the stated move parameters.",
       "rule": "split-impossible",
       "severity": "block",
     },
     {
       "line": 2,
-      "message": "G28 moves for about 54 s, above the queued-motion ceiling, and cannot be split",
+      "message": "G28 moves for about 54 s, above the queued-motion ceiling, and cannot be split. Fix: Export shorter moves in CAM or correct the stated move parameters.",
       "rule": "split-impossible",
       "severity": "block",
     },
@@ -1382,7 +1382,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en text-after": [
     {
       "line": 1,
-      "message": "Comments end the block, so text after one is silently dropped (PN §9.3; @cite EN gcode_parser.c:110-142).",
+      "message": "Commands follow a comment on this line, but this firmware ignores them. Fix: Move the commands after the comment onto a separate line.",
       "rule": "text-after-comment",
       "severity": "block",
     },
@@ -1390,7 +1390,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en too long": [
     {
       "line": 1,
-      "message": "longer than 120 bytes with its line number: TinyG would reject or truncate it",
+      "message": "Longer than 120 bytes with its line number: TinyG would reject or truncate it. Fix: Shorten the line or export shorter moves so each numbered line fits the controller.",
       "rule": "too-long",
       "severity": "block",
     },
@@ -1398,7 +1398,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en unclosed": [
     {
       "line": 1,
-      "message": "an unclosed "(" comment: TinyG would drop the rest of the line",
+      "message": "An opening parenthesis has no closing parenthesis, so the controller would ignore the rest of this line. Fix: Close the comment with a right parenthesis, or remove it.",
       "rule": "unclosed-comment",
       "severity": "block",
     },
@@ -1406,19 +1406,19 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en unknown": [
     {
       "line": 1,
-      "message": "this move cannot be checked against the queued-motion ceiling; not known: the units and the distance mode",
+      "message": "This move cannot be checked against the queued-motion ceiling; not known: the units and the distance mode. Fix: Set the missing units or modes explicitly; read the board’s settings and position before checking again.",
       "rule": "unknown-state",
       "severity": "block",
     },
     {
       "line": 2,
-      "message": "the distance mode in force is not known, so this G53 move cannot be modelled; set G90 first",
+      "message": "The distance mode in force is not known, so this G53 move cannot be modelled; set G90 first. Fix: Set the missing units or modes explicitly; read the board’s settings and position before checking again.",
       "rule": "unknown-state",
       "severity": "block",
     },
     {
       "line": 3,
-      "message": "the units in force before this line are not known, and the firmware converts F with them; set G20 or G21 on an earlier line",
+      "message": "The units in force before this line are not known, and the firmware converts F with them; set G20 or G21 on an earlier line. Fix: Set the missing units or modes explicitly; read the board’s settings and position before checking again.",
       "rule": "unknown-state",
       "severity": "block",
     },
@@ -1426,7 +1426,7 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en unknown units": [
     {
       "line": 3,
-      "message": "this move cannot be checked against the queued-motion ceiling; not known: the work position of X",
+      "message": "This move cannot be checked against the queued-motion ceiling; not known: the work position of X. Fix: Set the missing units or modes explicitly; read the board’s settings and position before checking again.",
       "rule": "unknown-state",
       "severity": "block",
     },
@@ -1434,55 +1434,55 @@ exports[`sanitiser report messages > are pinned for every rule 1`] = `
   "tinyg-en values": [
     {
       "line": 1,
-      "message": "a negative feed rate is an error (NIST 3.7, E154)",
+      "message": "The feed rate is negative, which the controller rejects. Fix: Set F to a positive feed rate in the file or CAM setup.",
       "rule": "negative-feed",
       "severity": "block",
     },
     {
       "line": 1,
-      "message": "a feed move needs a feed rate: set F before the first G1, G2 or G3",
+      "message": "A feed move needs a feed rate: set F before the first G1, G2 or G3. Fix: Put a positive F feed rate before the first cutting move.",
       "rule": "feed-not-set",
       "severity": "block",
     },
     {
       "line": 2,
-      "message": "a negative spindle speed is an error (NIST 3.7, E154)",
+      "message": "The spindle speed is negative, which the controller rejects. Fix: Set S to a non-negative spindle speed in the file or CAM setup.",
       "rule": "negative-speed",
       "severity": "block",
     },
     {
       "line": 3,
-      "message": "T must be a whole number from 0 to 31; other values select another tool (E154)",
+      "message": "T must be a whole number from 0 to 31; other values select another tool. Fix: Use a whole tool number in the supported range.",
       "rule": "bad-tool",
       "severity": "block",
     },
     {
       "line": 4,
-      "message": "G10 needs L2 or L20 on this firmware",
+      "message": "G10 needs L2 or L20 on this firmware. Fix: Use a supported L value with G10 for this firmware.",
       "rule": "l-word",
       "severity": "block",
     },
     {
       "line": 5,
-      "message": "G10 needs P1 to P6 to name the coordinate system",
+      "message": "G10 needs P1 to P6 to name the coordinate system. Fix: Correct the named parameter to a value the command accepts.",
       "rule": "bad-parameter",
       "severity": "block",
     },
     {
       "line": 6,
-      "message": "a dwell cannot be negative",
+      "message": "A dwell cannot be negative. Fix: Correct the named parameter to a value the command accepts.",
       "rule": "bad-parameter",
       "severity": "block",
     },
     {
       "line": 7,
-      "message": "arc turns (P) must be a whole number of 0 or more",
+      "message": "Arc turns (P) must be a whole number of 0 or more. Fix: Correct the named parameter to a value the command accepts.",
       "rule": "bad-parameter",
       "severity": "block",
     },
     {
       "line": 8,
-      "message": "a feed move needs a feed rate: set F before the first G1, G2 or G3",
+      "message": "A feed move needs a feed rate: set F before the first G1, G2 or G3. Fix: Put a positive F feed rate before the first cutting move.",
       "rule": "feed-not-set",
       "severity": "block",
     },

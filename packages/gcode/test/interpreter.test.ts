@@ -259,7 +259,7 @@ describe('bounds, envelope and estimates', () => {
   it('TG has no arc soft limits: an arc leaving the envelope says only this check stops it', () => {
     // Endpoints inside, the arc's top outside (Y up to 110).
     const text = 'G21 G90\nG0 X30 Y90\nG2 X70 Y90 I20 J0 F100';
-    for (const [d, re] of [[TINYG_440, /does not soft-limit arcs/], [TINYG_EN, /^an arc leaves/]] as const) {
+    for (const [d, re] of [[TINYG_440, /does not soft-limit arcs/], [TINYG_EN, /^An arc leaves/]] as const) {
       const { analysis: a } = analyse(text, d, { interpret: { envelope } });
       const f = a.findings.find((x) => x.rule === 'arc-out-of-bounds');
       expect(f?.message, d.id).toMatch(re);

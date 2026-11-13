@@ -91,3 +91,33 @@ test('a project opens over the demo, closes without deleting files, and reopens 
   await open.click();
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('bracket.cnc');
 });
+
+test('opening project G-code applies recorded Hardwood and asks before replacing an existing plan', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+  const rail = page.locator('[data-region="rail"]');
+  const projects = page.locator('[data-screen="projects"]');
+  const job = page.locator('[data-screen="job"]');
+  await job.locator('[data-job-step="place"]').click();
+  await job.locator('[data-sample="test-square"]').click();
+  await expect(job.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
+  await rail.locator('[data-view="projects"]').click();
+  await projects.locator('[data-action="project-new"]').click();
+  await projects.locator('[data-project="file-input"]').setInputFiles({ name: 'hardwood.nc', mimeType: 'text/plain', buffer: Buffer.from('G21 G90\nG0 X12 Y8\nM2\n') });
+  await projects.getByLabel('Material', { exact: true }).selectOption('builtin.hardwood');
+  await projects.locator('[data-action="project-use-stock"]').click();
+  await projects.locator('[data-action="project-open"]').click();
+  const choice = page.getByRole('alertdialog', { name: 'Choose the setup' });
+  await expect(choice).toContainText('Hardwood');
+  await expect(choice.getByRole('button', { name: "Use the project's setup" })).toBeFocused();
+  await choice.getByRole('button', { name: "Use the project's setup" }).click();
+  await expect(job.locator('[data-preview="file-name"]')).toHaveText('hardwood.nc');
+  await job.locator('[data-job-step="stock"]').click();
+  await expect(job.locator('[data-setup-section="stock"]').getByRole('combobox')).toHaveValue('builtin.hardwood');
+  await job.locator('[data-setup-section="stock"]').getByRole('combobox').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath('project-hardwood.png') });
+  await job.getByRole('tab', { name: /^Notes/ }).click();
+  await expect(job.locator('[data-notes="list"]')).toContainText('From project Project 1: Hardwood (oak, maple), Block 180 × 120 × 6.35 mm.');
+  await page.screenshot({ path: testInfo.outputPath('project-setup-note.png') });
+});

@@ -1,3 +1,6 @@
+import type { Finding } from '@synthetos/gcode';
+import { blockedLines } from '../../blockingFindings.ts';
+import { goToSourceLine } from '../../analysisState.ts';
 import { toolDisplayName } from '../../tools/displayName.ts';
 /**
  * Analyze → Operations (docs/design/ANALYZE.md §3, slice 1): one card per CAM operation, named as the file names it,
@@ -108,10 +111,11 @@ export interface OperationsProps {
   readonly rows: readonly AdvisorRow[];
   readonly stock: Material | null;
   readonly problem: string | null;
+  readonly blocks?: readonly Finding[];
   readonly advanced: boolean;
 }
 
-export function OperationsCard({ rows, stock, problem, advanced }: OperationsProps): ComponentChild {
+export function OperationsCard({ rows, stock, problem, advanced, blocks = [] }: OperationsProps): ComponentChild {
   const shared = problem === null ? sharedQuestion(stock) : null;
   return h(
     'section',
@@ -120,7 +124,7 @@ export function OperationsCard({ rows, stock, problem, advanced }: OperationsPro
       h('h2', { id: 'analyze-ops-title' }, `Operations${rows.length === 0 ? '' : ` (${rows.length})`}`),
       h('p', { class: 'fine' }, stock === null ? 'No material chosen.' : `Material: ${stock.name}.`),
       stock?.safety.map((note) => h('p', { class: 'warn-text', key: note.text }, note.text)),
-      problem === null ? null : h('p', { class: 'warn-text' }, problem),
+      blocks.length > 0 ? h('p', { class: 'warn-text' }, `Fix the blocked lines first (${blockedLines(blocks).length}). `, h('button', { type: 'button', class: 'link', onClick: () => goToSourceLine(blocks[0]!.line) }, 'Show')) : problem === null ? null : h('p', { class: 'warn-text' }, problem),
       shared === null ? null : h('p', { class: 'fine' }, 'To check cutting speeds:'),
       shared === null ? null : h(QuestionField, { question: shared, value: machineFields.value[shared.key] ?? '', onChange: setMachineField }),
     ),

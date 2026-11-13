@@ -1,3 +1,5 @@
+import { allMaterials } from '../src/workspace/library.ts';
+import { vi } from 'vitest';
 import { gridHoles, XCARVE_HOLE_GRID } from '../src/workspace/bedHoleGrid.ts';
 /**
  * The Job model (FLOW_ANALYSIS §4 steps 1-4): versioned Job records, the
@@ -276,6 +278,25 @@ describe('the one job opener', () => {
     })();
     return { store, deps: { projects: () => Promise.resolve(store), hash: (b) => Promise.resolve(`h${b.byteLength}`.padEnd(64, '0')), machine: () => machine(), clock: clock() } };
   }
+
+  it('asks before replacing a planned material and applies only the chosen setup', async () => {
+    const { deps: d, store } = deps();
+    executionLock.value = null;
+    const materials = allMaterials.value.map(m => m.material);
+    const wood = materials.find(m => m.id === 'builtin.hardwood')!;
+    const active = withSetup(newDraftJob(d.clock), { stock: { ...SEED_JOB.setup.stock, thickness: 22 } }, d.clock);
+    activeJobStore.value.value = active;
+    const p = await store.create('Wood');
+    await store.setSetup(p.id, { ...p.setup, material: { id: wood.id, name: wood.name, version: wood.version } });
+    await store.add(p.id, [new File(['G0 X1'], 'wood.nc')]);
+    const id = store.find(p.id)!.files[0]!.id;
+    const chooseSetup = vi.fn(async () => 'job' as const);
+    const kept = await openProjectFile(p.id, id, { ...d, records: () => ({ machines: [], materials }), chooseSetup });
+    expect(chooseSetup).toHaveBeenCalledWith(expect.stringContaining('Hardwood'), expect.stringContaining('MDF'));
+    expect(kept.ok && kept.job.setup.stock).toEqual(active.setup.stock);
+    const applied = await openProjectFile(p.id, id, { ...d, records: () => ({ machines: [], materials }), chooseSetup: async () => 'project' });
+    expect(applied.ok && applied.job.setup.stock.materialRef.id).toBe(wood.id);
+  });
 
   it('a project file opened from Projects or the picker is the same job; other bytes go to the draft, which keeps its setup', async () => {
     const { deps: d, store } = deps();

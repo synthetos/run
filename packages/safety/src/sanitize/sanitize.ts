@@ -1,3 +1,4 @@
+import { blockFindingText } from './blockText.ts';
 /**
  * `sanitizeJob`: the job sanitiser (ROADMAP P0-10, SAFETY §4.7, T-S1, T-S2,
  * T-S64, T-S76).
@@ -98,7 +99,7 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
   const entries: ReportEntry[] = [];
   const extents: LineExtent[] = [];
   const add = (line: number, f: Finding): void => {
-    entries.push({ line, severity: f.severity, rule: f.rule, message: f.message });
+    entries.push({ line, severity: f.severity, rule: f.rule, message: f.severity === 'block' ? blockFindingText(f.rule, f.message, line) : f.message });
   };
   const job = dialect.gcode.job;
   if (job === null) {
@@ -259,7 +260,7 @@ export function sanitizeJob(lines: string | Iterable<string>, dialect: Dialect, 
         rule: 'mid-file-program-end',
         message:
           severity === 'block'
-            ? 'M2/M30 before the end of the file: a buffered program end clears an alarm on this firmware (H35)'
+            ? '' /* Shared H35 text is supplied by add. */
             : 'M2/M30 before the end of the file: the lines after it still run',
       });
     }

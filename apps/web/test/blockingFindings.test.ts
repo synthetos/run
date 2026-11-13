@@ -1,0 +1,32 @@
+import { expect, it } from 'vitest';
+import { h } from 'preact';
+import { renderToString } from 'preact-render-to-string';
+import { analyseBytes } from '../src/gcode-worker/pipeline.ts';
+import { blockedFileNote, blockedLines, blockingFindings } from '../src/workspace/blockingFindings.ts';
+import { FixList } from '../src/workspace/views/analyze/FixList.ts';
+import { currentFile } from '../src/workspace/fileBridge.ts';
+import { goToSourceLine, scrubRequest } from '../src/workspace/analysisState.ts';
+import { viewRequest } from '../src/workspace/boardNavigation.ts';
+it('lists blocking findings before advice and links the original rejected line, not the next motion', () => {
+  const bytes = new TextEncoder().encode('G21 G90\nG0 X1\nM30\nG0 X2\nM30\n');
+  const preview = analyseBytes(bytes, { dialect: 'tinyg-en', mode: 'full' }).result;
+  const blocks = blockingFindings(preview);
+  expect(blocks.some(b => b.line === 3 && b.rule === 'mid-file-program-end')).toBe(true);
+  const html = renderToString(h(FixList, { report: preview.analysis, blocks, cam: null, estimate: null, advanced: false }));
+  expect(html).toContain('Show in G-code');
+  expect(html).not.toContain('Nothing to fix');
+  expect(html).not.toContain('H35');
+  const note = blockedFileNote(blocks)[0]!;
+  expect(note.body).toBe('This file has 1 line that stops it from running (line 3).');
+  expect(note.link).toEqual({ kind: 'line', line: 3, label: 'Show it' });
+  currentFile.value = { name: 'test.nc', bytes, preview };
+  goToSourceLine(3);
+  expect(scrubRequest.value).toMatchObject({ sourceLine: 3, preview });
+  expect(viewRequest.value).toBe('run');
+  currentFile.value = null;
+});
+it('counts unique source lines and handles empty reports', () => {
+  expect(blockedLines([{ line: 96 }, { line: 96 }, { line: 12 }])).toEqual([12, 96]);
+  expect(blockedFileNote([])).toEqual([]);
+  expect(blockingFindings(undefined)).toEqual([]);
+});

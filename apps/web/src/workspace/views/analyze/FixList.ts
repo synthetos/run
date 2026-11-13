@@ -1,3 +1,5 @@
+import type { Finding } from '@synthetos/gcode';
+import { goToSourceLine } from '../../analysisState.ts';
 /**
  * Analyze → What to fix (docs/design/ANALYZE.md §3, slice 1): at most three findings in Simple, ranked, each with
  * one or two short lines, one thing to do, the rest behind Details, and two links: "Show on toolpath" (Job, the lines
@@ -39,14 +41,20 @@ function FixCard({ fix, advanced }: { readonly fix: Fix; readonly advanced: bool
   );
 }
 
-export function FixList({ report, cam, estimate, advanced }: { readonly report: ProgramReport; readonly cam: string | null; readonly estimate: Estimate | null; readonly advanced: boolean }): ComponentChild {
+export function FixList({ report, cam, estimate, advanced, blocks = [] }: { readonly blocks?: readonly Finding[]; readonly report: ProgramReport; readonly cam: string | null; readonly estimate: Estimate | null; readonly advanced: boolean }): ComponentChild {
   const fixes = fixesFor(report, cam, estimate);
   const shown = advanced ? fixes : fixes.slice(0, SIMPLE_COUNT);
   return h(
     'section',
     { class: 'panel analyze-fixes', 'data-analyze': 'fixes', 'aria-labelledby': 'analyze-fixes-title' },
     h('h2', { id: 'analyze-fixes-title' }, 'What to fix'),
-    shown.length === 0
+    blocks.length === 0 ? null : h('div', { 'data-analyze': 'blocked' },
+      h('p', null, `${blocks.length} blocking ${blocks.length === 1 ? 'finding' : 'findings'}.`),
+      h('ul', { class: 'analyze-fix-list' }, blocks.map((b, i) => h('li', { class: 'analyze-fix', key: i },
+        h('h3', null, b.line === 0 ? 'File setup' : `Line ${b.line}`), h('p', null, b.message),
+        advanced ? h('p', { class: 'fine' }, b.rule === 'mid-file-program-end' ? 'H35 · mid-file-program-end' : b.rule) : null,
+        h('button', { type: 'button', class: 'small', onClick: () => goToSourceLine(b.line) }, 'Show in G-code'))))),
+    shown.length === 0 && blocks.length === 0
       ? h('p', { class: 'fine', 'data-analyze': 'no-fixes' }, 'Nothing to fix.')
       : h('ul', { class: 'analyze-fix-list' }, shown.map((f) => h(FixCard, { fix: f, advanced, key: f.id }))),
     fixes.length > shown.length ? h('p', { class: 'fine' }, `${whole(fixes.length - shown.length)} more in Advanced.`) : null,

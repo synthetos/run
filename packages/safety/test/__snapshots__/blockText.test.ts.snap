@@ -1,0 +1,89 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`plain blocking findings > arc-ambiguous: preserves the specific problem and supplies a repair 1`] = `"Number rounding could make this arc take an unintended path on this firmware. Fix: Export this arc as short straight moves, or adjust its endpoints in CAM."`;
+
+exports[`plain blocking findings > arc-out-of-bounds: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Correct the arc or job placement so its entire path stays inside travel."`;
+
+exports[`plain blocking findings > arc-rejected: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Correct the arc geometry in CAM, or export it as short straight moves."`;
+
+exports[`plain blocking findings > axis-mode: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Read and correct the named axis mode before checking the file again."`;
+
+exports[`plain blocking findings > bad-parameter: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Correct the named parameter to a value the command accepts."`;
+
+exports[`plain blocking findings > bad-tool: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Use a whole tool number in the supported range."`;
+
+exports[`plain blocking findings > barrier-mismatch: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Recheck the file with the current optional-stop and firmware settings."`;
+
+exports[`plain blocking findings > control-byte: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Remove the control byte and export the file as plain-text G-code."`;
+
+exports[`plain blocking findings > dialect-mismatch: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Reopen and check the file for the selected firmware."`;
+
+exports[`plain blocking findings > e-word: preserves the specific problem and supplies a repair 1`] = `"E is read as part of a number rather than as an axis or command on this firmware. Fix: Remove E words or export with a postprocessor for this controller."`;
+
+exports[`plain blocking findings > e088-queued-per-line: preserves the specific problem and supplies a repair 1`] = `"This line queues too many controller actions at once and can shut the controller down. Fix: Put queued commands on separate lines, with at most three queued commands plus motion per line."`;
+
+exports[`plain blocking findings > end-state: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: End the file with M5 and M9 before its final M2/M30; remove any output-on commands from that last line."`;
+
+exports[`plain blocking findings > feed-not-set: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Put a positive F feed rate before the first cutting move."`;
+
+exports[`plain blocking findings > first-character: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Remove the controller command; change settings through Board instead."`;
+
+exports[`plain blocking findings > g18-arc: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Export the XZ arc as short straight moves for this firmware."`;
+
+exports[`plain blocking findings > g28.4: preserves the specific problem and supplies a repair 1`] = `"G28.4 changes the recorded machine position without homing, so later moves could go to the wrong place. Fix: Remove G28.4; establish the machine position through the supported homing controls."`;
+
+exports[`plain blocking findings > g28-g30-g20-g91: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Replace this return move with explicit moves in a supported units and distance mode."`;
+
+exports[`plain blocking findings > g93: preserves the specific problem and supplies a repair 1`] = `"Run cannot verify the requested speed with G93 inverse-time feed on this firmware. Fix: Export with G94 feed per minute instead of G93 inverse-time feed."`;
+
+exports[`plain blocking findings > inhibited-axis: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Resolve the inhibited axis position and configuration before checking again."`;
+
+exports[`plain blocking findings > invalid-character: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Correct or remove the invalid character in your source file."`;
+
+exports[`plain blocking findings > l-word: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Use a supported L value with G10 for this firmware."`;
+
+exports[`plain blocking findings > m6-without-c14: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Use supported firmware and Run’s manual tool-change workflow, or split the file by tool."`;
+
+exports[`plain blocking findings > m100: preserves the specific problem and supplies a repair 1`] = `"M100 runs controller commands inside the file, which Run cannot safely allow in a job. Fix: Remove M100; change board settings through Board instead."`;
+
+exports[`plain blocking findings > m201.3: preserves the specific problem and supplies a repair 1`] = `"M201.3 changes acceleration smoothness as the file is read, before earlier queued moves finish. Fix: Remove M201.3 and configure acceleration smoothness (jerk) through Board before the job."`;
+
+exports[`plain blocking findings > malformed: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Correct the syntax or arc geometry, then export the file again."`;
+
+exports[`plain blocking findings > modal-conflict: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Separate conflicting commands and explicitly set the intended motion and distance modes."`;
+
+exports[`plain blocking findings > negative-feed: preserves the specific problem and supplies a repair 1`] = `"The feed rate is negative, which the controller rejects. Fix: Set F to a positive feed rate in the file or CAM setup."`;
+
+exports[`plain blocking findings > negative-speed: preserves the specific problem and supplies a repair 1`] = `"The spindle speed is negative, which the controller rejects. Fix: Set S to a non-negative spindle speed in the file or CAM setup."`;
+
+exports[`plain blocking findings > no-velocity-limit: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Read the board’s axis speed limits and set valid positive limits before checking again."`;
+
+exports[`plain blocking findings > non-ascii: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Replace the non-ASCII character with plain ASCII text."`;
+
+exports[`plain blocking findings > out-of-bounds: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Correct the job placement, stock zero or toolpath so the move stays inside travel."`;
+
+exports[`plain blocking findings > parse-error: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Correct the G-code syntax, then open the corrected file."`;
+
+exports[`plain blocking findings > probe: preserves the specific problem and supplies a repair 1`] = `"This file includes probing, which Run cannot safely stream as an ordinary job. Fix: Remove the probing operation from this file and use the supported probing controls."`;
+
+exports[`plain blocking findings > read-only-dialect: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Use firmware that Run supports for sending jobs."`;
+
+exports[`plain blocking findings > realtime-character: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Remove the realtime command from the file; use Run’s controls instead."`;
+
+exports[`plain blocking findings > rotary-radius: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Read and correct the rotary axis mode and radius, then check the file again."`;
+
+exports[`plain blocking findings > shares the H35 explanation without exposing its reference in Simple 1`] = `"Program end (M2/M30) at line 96, but the file continues after it. A queued program end can clear an alarm on this firmware and let later lines run, so Run will not send this file. Fix: remove the extra M2/M30 (often from joining files), or split the file."`;
+
+exports[`plain blocking findings > split-impossible: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Export shorter moves in CAM or correct the stated move parameters."`;
+
+exports[`plain blocking findings > text-after-comment: preserves the specific problem and supplies a repair 1`] = `"Commands follow a comment on this line, but this firmware ignores them. Fix: Move the commands after the comment onto a separate line."`;
+
+exports[`plain blocking findings > too-long: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Shorten the line or export shorter moves so each numbered line fits the controller."`;
+
+exports[`plain blocking findings > unclosed-comment: preserves the specific problem and supplies a repair 1`] = `"An opening parenthesis has no closing parenthesis, so the controller would ignore the rest of this line. Fix: Close the comment with a right parenthesis, or remove it."`;
+
+exports[`plain blocking findings > unknown-state: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Set the missing units or modes explicitly; read the board’s settings and position before checking again."`;
+
+exports[`plain blocking findings > unsupported-code: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Export using a postprocessor for this firmware, or replace the unsupported command."`;
+
+exports[`plain blocking findings > unsupported-word: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Remove the unsupported word or put the unsupported combined move on its own line."`;

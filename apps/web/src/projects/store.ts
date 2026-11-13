@@ -13,6 +13,7 @@
  * re-encoded to WebP, at most 2000 px, through a canvas, which also drops
  * their EXIF metadata (location included); the original is never stored.
  */
+import { readStock, type Stock } from '@synthetos/library';
 import { signal } from '@preact/signals';
 import { isJob, type Job } from '../workspace/jobModel.ts';
 import { safeExternalLink } from '../workspace/library.ts';
@@ -59,6 +60,8 @@ export interface ProjectSetup {
   readonly machine: RecordRef | null;
   /** The stock as a short description of the setup's stock when chosen ("Block 180 × 120 × 6.35 mm"). */
   readonly stock: RecordRef | null;
+  /** Older records keep only the label; never infer geometry from that label. */
+  readonly stockSnapshot?: Stock;
   readonly material: RecordRef | null;
   readonly tools: readonly (RecordRef & { readonly number?: number })[];
 }
@@ -99,6 +102,7 @@ export function isProject(v: unknown): v is Project {
   if (!v['links'].every((l) => isObject(l) && typeof l['url'] === 'string' && typeof l['title'] === 'string')) return false;
   const s = v['setup'];
   if (!(isObject(s) && isRef(s['machine']) && isRef(s['stock']) && isRef(s['material']) && isArray(s['tools']) && s['tools'].every(isRef))) return false;
+  if (s['stockSnapshot'] !== undefined && !readStock(s['stockSnapshot']).ok) return false;
   // Records from before jobs have none; a job that no longer reads is skipped by `readProject`, never trusted.
   return v['jobs'] === undefined || isArray(v['jobs']);
 }

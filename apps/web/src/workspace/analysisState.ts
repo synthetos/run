@@ -1,3 +1,4 @@
+import { openDockTab } from './dock/dockRequest.ts';
 /**
  * The Analyze view's state (docs/design/ANALYZE.md slice 1): the open file's motion report, the inputs that time it,
  * and the link from a region to the toolpath and its lines in Job. Display only: nothing here reaches the board,
@@ -46,6 +47,7 @@ export function motionView(report: ProgramReport, sources: InputSources): Motion
 export interface ScrubRequest {
   readonly preview: PreviewResult;
   readonly sent: number;
+  readonly sourceLine?: number;
   /** Sent-line indexes, inclusive, to highlight on the toolpath; null to show a line only. */
   readonly range: { readonly from: number; readonly to: number } | null;
   readonly seq: number;
@@ -68,6 +70,7 @@ export function showOnToolpath(from: number, to: number): void {
 
 /** "Go to line …": Job, with the G-code list at that line (`sent` is its sent-line index). */
 export function goToLine(sent: number): void {
+  openDockTab('gcode');
   request(sent, null);
 }
 
@@ -104,3 +107,13 @@ export function estimateFor(preview: PreviewResult | undefined, profile: Planner
   return preview === undefined || profile === null || held === null || held.preview !== preview || held.key !== JSON.stringify(profile) ? null : held.estimate;
 }
 
+
+/** A blocked source line may have no sent-line index. Reveal it directly. */
+export function goToSourceLine(line: number): void {
+  const preview = currentFile.value?.preview;
+  if (preview === undefined) return;
+  const at = preview.sourceLines.findIndex(l => l >= line);
+  scrubRequest.value = { preview, sent: at < 0 ? preview.sourceLines.length : at + 1, sourceLine: Math.max(1, line), range: null, seq: ++seq };
+  openDockTab('gcode', 240);
+  viewRequest.value = 'run';
+}

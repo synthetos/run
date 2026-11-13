@@ -417,7 +417,7 @@ describe('step 8a: end state (T-S76)', () => {
   it('an empty file with the spindle already on is blocked at line 0, or gets M5 M9 with C22', () => {
     const on = { ...START, spindle: 'cw' } as const;
     const r = run('', EN, { start: on });
-    expect(r.report.entries).toEqual([{ line: 0, severity: 'block', rule: 'end-state', message: 'the file ends with the spindle on (M3); accept C22 to add M5 and M9' }]);
+    expect(r.report.entries).toEqual([{ line: 0, severity: 'block', rule: 'end-state', message: 'The file ends with the spindle on (M3). Fix: End the file with M5 and M9 before its final M2/M30; remove any output-on commands from that last line.' }]);
     const fixed = run('(comment only)\n', EN, { start: on, c22: true });
     expect(bodies(fixed)).toEqual(['M5', 'M9']);
     expect(fixed.lines.map((l) => l.sourceLine)).toEqual([0, 0]);
@@ -465,7 +465,7 @@ describe('verdict wording from the bench 1 file (presentation only: levels and r
     const line = r.lines.find((l) => l.toolChange !== undefined);
     expect(line?.toolChange).toEqual({ tool: 1, spindle: 'off', speed: null, mist: false, flood: false, restartsSpindle: false });
     expect(r.lines.filter((l) => l.origin === 'c14')).toEqual([]);
-    expect(messages(run('G21\nT1 M6\n', TG), 'm6-without-c14')).toEqual(["Tool change (T1): TinyG doesn't stop for M6, and Run streams jobs only to edge-next, which it stops before each tool change."]);
+    expect(messages(run('G21\nT1 M6\n', TG), 'm6-without-c14')).toEqual(["Tool change (T1): TinyG doesn't stop for M6, and Run streams jobs only to edge-next, which it stops before each tool change. Fix: Use supported firmware and Run’s manual tool-change workflow, or split the file by tool."]);
   });
 
   it('a tool change records the spindle and coolant before it, and whether the file restarts the spindle before moving', () => {
@@ -510,13 +510,13 @@ describe('verdict wording from the bench 1 file (presentation only: levels and r
     const entry = r.report.entries.find((e) => e.rule === 'unsupported-code');
     expect(entry?.severity).toBe('block');
     expect(entry?.line).toBe(6);
-    expect(entry?.message).toBe("'G92 064' reads as G92064 because TinyG ignores spaces, and that isn't a valid command. This looks like a broken line from the post-processor. Check the file around line 6.");
+    expect(entry?.message).toBe("'G92 064' reads as G92064 because TinyG ignores spaces, and that isn't a valid command. This looks like a broken line from the post-processor. Fix: Export using a postprocessor for this firmware, or replace the unsupported command.");
     // Without spaces inside the number the plain message stays.
-    expect(messages(run('G92064 X0\n', EN), 'unsupported-code')).toEqual(['G92064 is not supported in a job on this firmware']);
+    expect(messages(run('G92064 X0\n', EN), 'unsupported-code')).toEqual(['G92064 is not supported in a job on this firmware. Fix: Export using a postprocessor for this firmware, or replace the unsupported command.']);
     expect(messages(run('M1 14\n', EN), 'unsupported-code')[0]).toMatch(/^'M1 14' reads as M114 because TinyG ignores spaces/);
     // Only the spaced word's finding is reworded; another unsupported code on the line keeps its message.
     const two = messages(run('G43 G1 2\n', EN), 'unsupported-code');
-    expect(two).toContain('G43 is not supported in a job on this firmware');
+    expect(two).toContain('G43 is not supported in a job on this firmware. Fix: Export using a postprocessor for this firmware, or replace the unsupported command.');
     expect(two.some((m) => m.startsWith("'G1 2' reads as G12 "))).toBe(true);
     // Leading zeros: the message names the code as TinyG counts it.
     expect(messages(run('G01 2\n', EN), 'unsupported-code')[0]).toMatch(/^'G01 2' reads as G12 /);

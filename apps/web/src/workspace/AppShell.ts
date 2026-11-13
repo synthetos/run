@@ -1,3 +1,4 @@
+import { ProjectSetupChoice } from '../projects/ProjectSetupChoice.ts';
 /**
  * The workspace shell (Stage 1; WORKSPACE_TENETS 1, WORKSPACE_SPEC): one
  * page that never reloads or scrolls.
@@ -302,6 +303,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
         ),
       ),
       h(LibrarySyncNotice, null),
+      h(ProjectSetupChoice, null),
       h(ReportDialog, { build: props.build, model, view: current }),
     ),
     h(

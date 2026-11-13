@@ -19,6 +19,7 @@
  */
 import type { Dialect, DialectJobGcode, GcodeRule } from '@synthetos/protocol';
 import {
+  blockFindingText,
   AXES,
   PLANES,
   WCS_CODES,
@@ -160,7 +161,7 @@ class Interpreter {
   }
 
   add(line: number, n: number | null, severity: Finding['severity'], rule: string, message: string): void {
-    this.findings.push({ line, n, severity, rule, message, source: 'analyser' });
+    this.findings.push({ line, n, severity, rule, message: severity === 'block' ? blockFindingText(rule, message, line) : message, source: 'analyser' });
   }
 
   addOnce(key: string, line: number, n: number | null, severity: Finding['severity'], rule: string, message: string): void {
@@ -365,7 +366,7 @@ class Interpreter {
       if (!last) {
         const severity = this.job.midFileProgramEnd;
         this.add(src, n, severity, 'mid-file-program-end', severity === 'block'
-          ? 'M2/M30 before the end of the file: a buffered program end clears an alarm on this firmware (H35)'
+          ? '' /* Shared H35 text is supplied by add. */
           : 'M2/M30 before the end of the file: the lines after it still run');
       }
       this.programEnd();
@@ -616,9 +617,9 @@ export function interpretJob(result: SanitizeResult, dialect: Dialect, options: 
       n: null,
       severity: 'block',
       rule: job === null ? 'read-only-dialect' : 'dialect-mismatch',
-      message: job === null
+      message: blockFindingText(job === null ? 'read-only-dialect' : 'dialect-mismatch', job === null
         ? `${dialect.label} is read-only in this version: no job is ever interpreted for it`
-        : `these lines were sanitised for ${result.report.dialect}, not ${dialect.id}: sanitise again for this dialect`,
+        : `these lines were sanitised for ${result.report.dialect}, not ${dialect.id}: sanitise again for this dialect`, 0),
       source: 'analyser',
     });
     return emptyAnalysis(dialect, findings, lines.length, options);

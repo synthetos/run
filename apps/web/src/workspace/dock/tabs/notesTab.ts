@@ -1,3 +1,4 @@
+import { goToSourceLine } from '../../analysisState.ts';
 /**
  * The dock's Notes tab (owner, 2026-11-09): one zebra row per note, Needs you first then Good to know, each with ⚠
  * or ℹ, a short bold title, one plain sentence, its button, More for the detail and × to hide it for good. The badge
@@ -17,6 +18,7 @@ import { openDockTab } from '../dockRequest.ts';
 function follow(link: NoteLink, ctx: DockContext): void {
   switch (link.kind) {
     case 'line': {
+      goToSourceLine(link.line);
       const result = ctx.parts.state.status === 'ready' ? ctx.parts.state.result : null;
       const at = result === null ? -1 : result.sourceLines.findIndex((l) => l >= link.line);
       if (at >= 0) ctx.parts.actions.onScrub?.(at + 1);
@@ -39,7 +41,7 @@ function follow(link: NoteLink, ctx: DockContext): void {
 }
 
 function linkLabel(link: NoteLink): string {
-  return link.kind === 'line' ? `Line ${link.line.toLocaleString('en-US')}` : link.label;
+  return link.kind === 'line' ? (link.label ?? `Line ${link.line.toLocaleString('en-US')}`) : link.label;
 }
 
 const GROUP_TITLE = { needs: 'Needs you', know: 'Good to know' } as const;

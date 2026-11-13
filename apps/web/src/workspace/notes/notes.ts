@@ -11,7 +11,7 @@ import { dismissed } from './Dismissable.ts';
 
 /** Where a note applies: a line in the G-code list, a Job step, a Board tab, or another view. */
 export type NoteLink =
-  | { readonly kind: 'line'; readonly line: number }
+  | { readonly kind: 'line'; readonly line: number; readonly label?: string }
   | { readonly kind: 'step'; readonly step: string; readonly label: string }
   | { readonly kind: 'board'; readonly tab: BoardTab; readonly label: string }
   | { readonly kind: 'view'; readonly view: string; readonly label: string }

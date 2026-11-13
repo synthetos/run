@@ -119,7 +119,7 @@ export interface PreviewPanelProps {
    * A request to show a sent line (1-based), from Analyze's region links. Applied only while the panel still shows
    * the `preview` the request was made for: a link for another file is ignored.
    */
-  readonly scrubTo?: ReadonlySignal<{ readonly preview: PreviewResult; readonly sent: number; readonly range: { readonly from: number; readonly to: number } | null; readonly seq: number } | null>;
+  readonly scrubTo?: ReadonlySignal<{ readonly preview: PreviewResult; readonly sent: number; readonly sourceLine?: number; readonly range: { readonly from: number; readonly to: number } | null; readonly seq: number } | null>;
 }
 
 /** The planner view the 3D drawing shows during a job (gcode-view `PlannerOverlay`). */
@@ -225,7 +225,7 @@ export function PreviewPanel({ analysisDialect, analysisLocked = false, spawn, s
   // The highlighted range, drawn with the planner overlay's band (amber) while no job owns that overlay.
   const range = scrubRequest !== null && scrubRequest.preview === result ? scrubRequest.range : null;
   const highlight = state.scrub - 1;
-  const highlightLine = state.scrub > 0 && result !== null ? (result.sourceLines[state.scrub - 1] ?? 0) : 0;
+  const highlightLine = scrubRequest?.preview === result && scrubRequest.sourceLine !== undefined && state.scrub === Math.min(scrubRequest.sent, result?.sourceLines.length ?? 0) ? scrubRequest.sourceLine : state.scrub > 0 && result !== null ? (result.sourceLines[state.scrub - 1] ?? 0) : 0;
   const listData = useMemo(() => (result === null ? null : { bytes: result.bytes, spans: result.spans, verdicts: result.verdicts }), [result]);
   const listKey = useMemo(() => (result === null || state.fileName === null ? null : fileKey(state.fileName, result.bytes)), [result, state.fileName]);
   const executingLine = result === null ? null : job !== null ? job.executing : executingFileLine(reportedLine, result.sourceLines);

@@ -117,6 +117,8 @@ export interface PreviewSummary {
   readonly blocked: boolean;
   readonly counts: Readonly<Record<FindingSeverity, number>>;
   readonly fileLevel: readonly Finding[];
+  /** All blocking findings, including rejected source lines; never truncated. */
+  readonly blocks?: readonly Finding[];
   readonly bounds: Box | null;
   readonly stats: JobStats;
   /** Always true offline: the start state is assumed, not read from a board. */
@@ -247,6 +249,7 @@ export function analyseBytes(bytes: Uint8Array, request: PreviewRequest, onProgr
         blocked: analysis.blocked,
         counts: findings.counts,
         fileLevel: findings.fileLevel.slice(0, MAX_SUMMARY_FINDINGS),
+        blocks: analysis.findings.filter(f => f.severity === 'block'),
         bounds: analysis.bounds,
         stats: analysis.stats,
         assumedStart: true,

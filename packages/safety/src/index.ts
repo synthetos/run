@@ -41,3 +41,5 @@ export type { AxisModeFact, AxisModeFactCode, AxisModeReading, AxisModeSession }
 export type { OverrunBound, QueuedLine } from './overrun.ts';
 export { HOST_GATE_FIELDS, diffHostGates, effectiveHostGates, workEnvelope } from './hostGates.ts';
 export type { C19Acceptance, DualMotorAxis, Envelope, HostGateChange, HostGateField, HostGates, SpindleKind } from './hostGates.ts';
+
+export { blockFindingText, programEndBlockText } from './sanitize/blockText.ts';

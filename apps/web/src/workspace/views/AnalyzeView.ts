@@ -1,3 +1,4 @@
+import { blockingFindings, blockedFileNote } from '../blockingFindings.ts';
 /**
  * Analyze (docs/design/ANALYZE.md slice 1): explain the open job before asking anything. A headline (the time from
  * the firmware model, or at least the cutting at programmed speeds; the facts as numbers), "What to fix" (each finding with what it
@@ -40,7 +41,8 @@ export function AnalyzeView({ model = null }: { readonly model?: WorkspaceModel 
   const estimate = estimateFor(file?.preview, profile);
   const settingsLabel = sources.live !== null ? 'Board settings' : sources.saved !== null ? lastReadLabel(sources.saved.at) : null;
   // The findings also go to the Notes tab, so the Run step can point at them without inline text.
-  usePublishNotes('analyze', report === null ? [] : analysisNotes(fixesFor(report, file?.preview?.cam ?? null, estimate)));
+  const blocks = blockingFindings(file?.preview);
+  usePublishNotes('analyze', [...blockedFileNote(blocks), ...(report === null ? [] : analysisNotes(fixesFor(report, file?.preview?.cam ?? null, estimate)))]);
   return h(
     'div',
     { class: 'analyze-view' },
@@ -54,8 +56,8 @@ export function AnalyzeView({ model = null }: { readonly model?: WorkspaceModel 
             'div',
             { class: 'analyze-page' },
             h(HeadlineStrip, { view, connected: live !== null && connected(live), estimate, settingsLabel, modelled: profile !== null, reading: reading !== null }),
-            h(FixList, { report: view.report, cam: file?.preview?.cam ?? null, estimate, advanced }),
-            h(OperationsCard, { rows: advisorRows.value, stock: advisorStock.value, problem: advisorOperations.value.problem, advanced }),
+            h(FixList, { blocks, report: view.report, cam: file?.preview?.cam ?? null, estimate, advanced }),
+            h(OperationsCard, { blocks, rows: advisorRows.value, stock: advisorStock.value, problem: advisorOperations.value.problem, advanced }),
             advanced ? h(DetailsCard, { view }) : null,
           ),
     ),

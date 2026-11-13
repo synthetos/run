@@ -55,7 +55,8 @@ export function JobSetupPanel({ step, locked, onView, travel = null }: { readonl
   const st = job.setup.stock;
   const fx = job.setup.fixture;
   const fits = fx === null || (st.shape === 'round' ? (st.diameter ?? st.width) : st.width) <= Math.max(...fx.outline.map((p) => p[0])) + 0.01;
-  const mat = material(st.materialRef.id);
+  const recordedMaterial = material(st.materialRef.id);
+  const mat = recordedMaterial?.version === st.materialRef.version ? recordedMaterial : null;
   const machines = machineStore.value.value;
   const machine = job.machine === null ? null : (machines.find((m) => m.id === job.machine?.id) ?? null);
   const behind = bedBehind(job, machine);
@@ -154,12 +155,13 @@ export function JobSetupPanel({ step, locked, onView, travel = null }: { readonl
                 h(
                   'select',
                   {
-                    value: st.materialRef.id,
+                    value: allMaterials.value.some(v => v.material.id === st.materialRef.id && v.material.version === st.materialRef.version && !doNotMachine(v.material)) ? st.materialRef.id : `missing/${st.materialRef.id}/${st.materialRef.version}`,
                     onChange: (e: Event) => {
                       const m = material((e.currentTarget as HTMLSelectElement).value);
                       if (m !== null) setStock({ materialRef: { id: m.id, version: m.version } });
                     },
                   },
+                  !allMaterials.value.some(v => v.material.id === st.materialRef.id && v.material.version === st.materialRef.version && !doNotMachine(v.material)) ? h('option', { value: `missing/${st.materialRef.id}/${st.materialRef.version}` }, `${st.materialRef.id} version ${st.materialRef.version} (unavailable)`) : null,
                   allMaterials.value.filter((v) => !doNotMachine(v.material)).map((v) => h('option', { value: v.material.id, key: v.material.id }, v.material.name)),
                 ),
               ),

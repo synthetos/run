@@ -19,7 +19,7 @@ import { Icon } from '../workspace/icons.ts';
 import { ContextHelp } from '../shell/ContextHelp.ts';
 import { executionLock, openProjectFile, openProjectJob } from '../workspace/fileBridge.ts';
 import { activeJob, stockFootprint, updateActiveJob, withSetup, type Job } from '../workspace/jobModel.ts';
-import { allMaterials, machineStore, safeExternalLink, toolStore, hostOf } from '../workspace/library.ts';
+import { allMaterials, machineStore, safeExternalLink, toolStore, hostOf, machineRevision } from '../workspace/library.ts';
 import { FixtureThumb } from '../workspace/views/SetupView.ts';
 import { projectStore, withProjects as act } from './browserStore.ts';
 import { Description } from './description.ts';
@@ -387,7 +387,7 @@ function SetupSection({ project }: { readonly project: Project }): ComponentChil
         onChange: (e: Event) => {
           const id = (e.currentTarget as HTMLSelectElement).value;
           const m = machines.find((x) => x.id === id);
-          save({ ...setup, machine: m === undefined ? null : { id: m.id, name: m.name } });
+          save({ ...setup, machine: m === undefined ? null : { id: m.id, name: m.name, version: machineRevision(m) } });
         },
       },
       h('option', { value: '' }, machines.length === 0 ? 'No machine profiles yet (Machines view)' : 'Not recorded'),
@@ -398,7 +398,7 @@ function SetupSection({ project }: { readonly project: Project }): ComponentChil
       'div',
       null,
       setup.stock === null ? h('span', { class: 'fine' }, 'Not recorded. ') : h('span', null, setup.stock.name, ' '),
-      h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'project-use-stock', onClick: () => save({ ...setup, stock: { id: 'setup.stock', name: stockText() } }) }, setup.stock === null ? 'Use the stock from Setup' : 'Update from Setup'),
+      h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'project-use-stock', onClick: () => save({ ...setup, stock: { id: 'setup.stock', name: stockText() }, ...(activeJob.value === null ? {} : { stockSnapshot: structuredClone(activeJob.value.setup.stock) }) }) }, setup.stock === null ? 'Use the stock from Setup' : 'Update from Setup'),
     ),
     h('span', null, 'Material'),
     h(

@@ -266,3 +266,43 @@ test('a local file: Analyze in Simple and Advanced, light and dark, 1280x720 and
   await page.screenshot({ path: `${SHOTS as string}/local-job-toolpath-1280x720.png` });
   await page.locator('[data-action="ui-level-simple"]').click();
 });
+
+test('blocked source line 96 has plain repairs and links from Analyze and Notes', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+  const lines = ['G21 G90 G17', 'G0 X0 Y0 Z5', ...Array.from({ length: 93 }, (_, i) => `G1 X${i % 10} F600`), 'M30', 'G0 X20', 'M30'];
+  await page.locator('[data-region="job"] [data-preview="file"]').setInputFiles({ name: 'joined.nc', mimeType: 'text/plain', buffer: Buffer.from(lines.join('\n')) });
+  const view = await analyze(page);
+  await expect(view.locator('[data-analyze="blocked"]')).toContainText('Program end (M2/M30) at line 96');
+  await expect(view.locator('[data-analyze="no-fixes"]')).toHaveCount(0);
+  await expect(view).toContainText('Fix the blocked lines first (1).');
+  await page.screenshot({ path: testInfo.outputPath('blocked-analyze.png') });
+  await view.getByRole('button', { name: 'Show in G-code' }).first().click();
+  const jobView = page.locator('[data-screen="job"]');
+  await expect(jobView).toBeVisible();
+  await expect(jobView.locator('[data-line="96"]')).toBeInViewport({ ratio: 1 });
+  await expect(jobView.locator('[data-gcode="finding-detail"]')).toContainText('Fix: remove the extra M2/M30');
+  await page.screenshot({ path: testInfo.outputPath('blocked-line-96.png') });
+  await jobView.getByRole('tab', { name: /^Notes/ }).click();
+  await expect(jobView.locator('[data-note="blocked-file"]')).toContainText('This file has 1 line that stops it from running (line 96).');
+  await page.screenshot({ path: testInfo.outputPath('blocked-notes.png') });
+  await jobView.locator('[data-note="blocked-file"]').getByRole('button', { name: 'Show it' }).click();
+  await expect(jobView.locator('[data-line="96"]')).toBeInViewport({ ratio: 1 });
+  for (const theme of ['light', 'dark'] as const) {
+    await page.evaluate(t => { document.documentElement.dataset['theme'] = t; }, theme);
+    const notice = jobView.locator('[data-notice^="tool-note/"]');
+    await expect(notice).toBeVisible();
+    const close = await notice.locator('button.dismiss').boundingBox();
+    const body = await notice.locator('.dismissable-body').boundingBox();
+    expect(close!.y).toBeLessThan(body!.y + 10);
+    expect(close!.x).toBeGreaterThan(body!.x + body!.width - 30);
+    await page.screenshot({ path: testInfo.outputPath(`blocked-line-note-${theme}.png`) });
+    await analyze(page);
+    await page.screenshot({ path: testInfo.outputPath(`blocked-analyze-${theme}.png`) });
+    await view.getByRole('button', { name: 'Show in G-code' }).first().click();
+    await jobView.getByRole('tab', { name: /^Notes/ }).click();
+    await page.screenshot({ path: testInfo.outputPath(`blocked-notes-${theme}.png`) });
+    await jobView.locator('[data-note="blocked-file"]').getByRole('button', { name: 'Show it' }).click();
+  }
+});

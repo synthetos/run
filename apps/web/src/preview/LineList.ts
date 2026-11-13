@@ -1,3 +1,4 @@
+import { uiLevel } from '../workspace/jobWorkflow.ts';
 /**
  * The G-code list (ROADMAP TB-03): virtualised, so a million-line file
  * renders only the rows in view (measured from the panel, not a fixed
@@ -62,6 +63,7 @@ export interface RowOptions {
   readonly breakpoints?: ReadonlySet<number>;
   /** The file line the controller reports executing, or null. */
   readonly executing?: number | null;
+  readonly onExplain?: (line: number) => void;
   readonly onToggleBreakpoint?: (line: number) => void;
   /** The line's context action: "Report a problem with this line" (REPORT_A_PROBLEM §2). */
   readonly onReportLine?: (line: number) => void;
@@ -107,7 +109,7 @@ export function listRows(data: ListData, win: ListWindow, highlightLine: number,
         h('span', { class: 'preview-row-n' }, String(line)),
         h('span', { class: 'verdict-badge' }, word === '' ? h('span', { class: 'sr-only' }, 'no findings') : [h('span', { class: 'sr-only', key: 'v' }, 'verdict '), word]),
         h('code', { class: 'preview-row-text' }, lineText(data.bytes, data.spans, i)),
-        h('span', { class: 'preview-row-finding' }, finding?.message ?? ''),
+        finding === undefined ? h('span', { class: 'preview-row-finding' }) : h('button', { type: 'button', class: 'preview-row-finding link', title: finding.message, onClick: () => options.onExplain?.(line) }, finding.message),
         report === undefined
           ? null
           : h(
@@ -150,6 +152,8 @@ function reducedMotion(): boolean {
 export function LineList({ data, highlightLine, revealLine, fetchFindings, fileKey = null, executingLine = null, sentThrough = null, onReportLine, onBreakpoints }: LineListProps): ComponentChild {
   const count = data.spans.length / 2;
   const box = useRef<HTMLDivElement>(null);
+  const [explained, setExplained] = useState<number | null>(null);
+  useEffect(() => setExplained(revealLine), [revealLine]);
   const [scrollTop, setScrollTop] = useState(0);
   const [height, setHeight] = useState(LIST_HEIGHT);
   const [worst, setWorst] = useState<ReadonlyMap<number, Finding>>(new Map());
@@ -165,7 +169,7 @@ export function LineList({ data, highlightLine, revealLine, fetchFindings, fileK
   useLayoutEffect(() => {
     const el = box.current;
     if (el === null || typeof ResizeObserver === 'undefined') return;
-    const measure = (): void => { if (el.clientHeight > 0) setHeight(el.clientHeight); };
+    const measure = (): void => { setHeight(el.clientHeight); };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
@@ -180,10 +184,10 @@ export function LineList({ data, highlightLine, revealLine, fetchFindings, fileK
   };
 
   useEffect(() => {
-    if (revealLine < 1 || box.current === null) return;
+    if (revealLine < 1 || box.current === null || height === 0) return;
     const top = scrollTopFor(revealLine - 1, { count, rowHeight: ROW_HEIGHT, viewportHeight: height });
     if (Math.abs(box.current.scrollTop - top) > height / 2) scrollTo(top, false);
-  }, [revealLine, count]);
+  }, [revealLine, count, height]);
 
   useEffect(() => {
     if (!follow.follow || box.current === null) return;
@@ -257,6 +261,9 @@ export function LineList({ data, highlightLine, revealLine, fetchFindings, fileK
         : h('span', { class: 'gcode-bp-note', 'data-gcode': 'breakpoints' }, h('span', { class: 'bp-dot', 'aria-hidden': 'true' }), `${String(breakpoints.length)} breakpoint${breakpoints.length === 1 ? '' : 's'}`),
       queued.length === 0 ? null : h('span', { class: 'gcode-bp-note warn', role: 'status', 'data-safety': 'W41' }, queued.map((line) => w41({ line })).join(' ')),
     ),
+      explained === null || !worst.has(explained) ? null : h('div', { class: 'gcode-finding-detail', 'data-gcode': 'finding-detail' },
+        h('strong', null, `Line ${explained}: `), worst.get(explained)?.message,
+        uiLevel.value.value === 'advanced' ? h('small', null, worst.get(explained)?.rule === 'mid-file-program-end' ? ' H35' : ` ${worst.get(explained)?.rule}`) : null),
     h(
       'div',
       { class: 'gcode-scroll' },
@@ -282,7 +289,7 @@ export function LineList({ data, highlightLine, revealLine, fetchFindings, fileK
         h(
           'div',
           { class: 'preview-list-space', style: { height: `${String(win.totalHeight)}px` } },
-          h('div', { class: 'preview-list-rows', style: { transform: `translateY(${String(win.offsetTop)}px)` } }, listRows(data, win, highlightLine, worst, { breakpoints: bpSet, executing: executingLine, onToggleBreakpoint: onToggle, ...(onReportLine === undefined ? {} : { onReportLine }) })),
+          h('div', { class: 'preview-list-rows', style: { transform: `translateY(${String(win.offsetTop)}px)` } }, listRows(data, win, highlightLine, worst, { breakpoints: bpSet, executing: executingLine, onToggleBreakpoint: onToggle, onExplain: setExplained, ...(onReportLine === undefined ? {} : { onReportLine }) })),
         ),
       ),
       jumpBack ? h('button', { type: 'button', class: 'gcode-jump-current', 'data-gcode': 'jump-to-current', onClick: () => { dispatch({ kind: 'jump-to-current' }); } }, `Jump to current · line ${String(executingLine)}`) : null,

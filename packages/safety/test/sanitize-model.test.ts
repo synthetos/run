@@ -534,7 +534,7 @@ describe('P0 review model details (mutation-tested)', () => {
 
   it('names one risky axis with "is"', () => {
     const r = run('G28\n', EN, { motion: { ...MOTION, rotary: { A: { mode: 1 }, B: { mode: 1 }, C: { mode: 3, radiusMm: 1 } } } });
-    expect(r.report.entries[0]?.message).toBe('G28 cannot be modelled while C is in radius mode or of unknown axis mode');
+    expect(r.report.entries[0]?.message).toBe('G28 cannot be modelled while C is in radius mode or of unknown axis mode. Fix: Read and correct the rotary axis mode and radius, then check the file again.');
   });
 
   it('radius mode divides by the radius: 10 mm at ra 2 is 286.48 degrees', () => {

@@ -1,3 +1,4 @@
+import { dockRevealHeight } from './dockRequest.ts';
 /**
  * The dock under the Job view's preview: a tab strip (from registry.ts) with the open file's summary, and one pane
  * per tab. Only offered tabs get a button; every registered pane stays mounted and is hidden unless shown.
@@ -37,6 +38,9 @@ export function Dock({ parts, model, stops = {} }: { readonly parts: PreviewPart
   useEffect(() => {
     if (request === null) return;
     if (offered.some((t) => t.id === request)) setTab(request);
+    const revealHeight = dockRevealHeight.value;
+    if (revealHeight !== null) setUserHeight(old => Math.max(old ?? 0, revealHeight));
+    dockRevealHeight.value = null;
     dockTabRequest.value = null;
   }, [request]);
   // The panel's height: the user's (remembered), else the Terminal's opening share of the Job view, else the stylesheet's.

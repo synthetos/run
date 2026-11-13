@@ -1,3 +1,6 @@
+import { projectSetupForJob, setupDescription, type SetupRecords } from '../projects/setupForJob.ts';
+import { chooseProjectSetup, type SetupChoice } from '../projects/setupChoice.ts';
+import { publishNotes } from './notes/notes.ts';
 /**
  * The one job opener (FLOW_ANALYSIS §4 step 2): every way a G-code file
  * reaches the preview goes through `openJob`, which decides the job identity
@@ -22,7 +25,7 @@ import { projectStore } from '../projects/browserStore.ts';
 import { sha256Hex } from '../projects/image.ts';
 import type { ProjectStore } from '../projects/store.ts';
 import { activeJobStore, BROWSER_CLOCK, cloneJob, DRAFT_NAME, draftJobStore, newDraftJob, reviseJob, setActiveJob, withMachine, type Job, type JobClock, type JobFile } from './jobModel.ts';
-import { selectedMachine, type MachineProfile } from './library.ts';
+import { selectedMachine, machineStore, allMaterials, type MachineProfile } from './library.ts';
 import { afterLoad } from './storage.ts';
 
 export interface OpenFile {
@@ -73,9 +76,11 @@ export interface OpenDeps {
   readonly hash: (bytes: ArrayBuffer) => Promise<string>;
   readonly machine: () => MachineProfile | null;
   readonly clock: JobClock;
+  readonly records?: () => SetupRecords;
+  readonly chooseSetup?: (project: string, job: string) => Promise<SetupChoice>;
 }
 
-const BROWSER_DEPS: OpenDeps = { projects: projectStore, hash: sha256Hex, machine: () => selectedMachine.value, clock: BROWSER_CLOCK };
+const BROWSER_DEPS: OpenDeps = { projects: projectStore, hash: sha256Hex, machine: () => selectedMachine.value, clock: BROWSER_CLOCK, records: () => ({ machines: machineStore.value.value, materials: allMaterials.value.map(m => m.material) }), chooseSetup: chooseProjectSetup };
 
 let openRequest = 0;
 
@@ -92,6 +97,7 @@ export function closeJob(deps: OpenDeps = BROWSER_DEPS): OpenResult {
   pendingOpen.value = null;
   currentFile.value = null;
   currentPreview.value = null;
+  publishNotes('project-setup', []);
   setActiveJob(job);
   // Do not erase a newer draft if opening storage finishes after another open request.
   void deps.projects().then((projects) => request === openRequest ? projects.forgetAside(DRAFT_FILE_KEY) : undefined).catch(() => undefined);
@@ -127,6 +133,7 @@ async function resolveJob(file: File, source: OpenSource, deps: OpenDeps, reques
   if (found !== null && found.file.hash !== hash) return { ok: false, reason: 'The file’s bytes are not the stored version.' };
   const ref: JobFile = { projectId: found?.project.id ?? null, fileId: found?.file.id ?? null, name: file.name, hash, size: bytes.byteLength };
   let job: Job;
+  let projectNote = '';
   if (found !== null) {
     const existing = source.kind === 'job' ? found.project.jobs.find((j) => j.id === source.jobId) : found.project.jobs.find((j) => j.file?.fileId === found.file.id && j.file.hash === hash);
     if (existing !== undefined) job = existing;
@@ -134,11 +141,26 @@ async function resolveJob(file: File, source: OpenSource, deps: OpenDeps, reques
       const base = cloneJob(activeJobStore.value.value ?? newDraftJob(deps.clock), deps.clock);
       const fresh = base.machine === null ? withMachine(base, deps.machine(), deps.clock) : base;
       job = { ...fresh, projectId: found.project.id, name: file.name.replace(/\.[^.]+$/, '').slice(0, 120) || 'Job', file: ref, revision: 1 };
-      try {
-        await projects.saveJob(job);
-      } catch (e) {
-        return { ok: false, reason: e instanceof Error ? e.message : 'The job could not be saved to the project.' };
+    }
+    if (source.kind !== 'job' && source.kind !== 'reopen') {
+      const records = deps.records?.() ?? { machines: [], materials: [] };
+      const resolved = projectSetupForJob(found.project, job, records, deps.clock);
+      const active = activeJobStore.value.value;
+      const conflict = active !== null && (active.file !== null || active.revision > 1) && projectSetupForJob(found.project, active, records, deps.clock).differs;
+      const choice = conflict ? await (deps.chooseSetup ?? chooseProjectSetup)(setupDescription(resolved.job, records), setupDescription(active, records)) : 'project';
+      const stopped = openRefusal(request);
+      if (stopped !== null) return stopped;
+      if (activeJobStore.value.value !== active) return { ok: false, reason: 'The job changed while choosing its setup. Open the project file again.' };
+      if (choice === 'cancel') return { ok: false, reason: 'Opening the project file was cancelled.' };
+      if (choice === 'project') { job = resolved.job; projectNote = resolved.note; }
+      else if (active !== null) {
+        job = reviseJob(job, { machine: active.machine, setup: active.setup, placement: active.placement }, deps.clock);
+        projectNote = `${resolved.note} Kept this job's setup.`;
       }
+    }
+    if (job !== existing) {
+      try { await projects.saveJob(job); }
+      catch (e) { return { ok: false, reason: e instanceof Error ? e.message : 'The job could not be saved to the project.' }; }
     }
   } else {
     const draft = draftJobStore.value.value ?? newDraftJob(deps.clock);
@@ -147,6 +169,7 @@ async function resolveJob(file: File, source: OpenSource, deps: OpenDeps, reques
   }
   const late = openRefusal(request);
   if (late !== null) return late;
+  publishNotes('project-setup', projectNote === '' ? [] : [{ id: job.id, topic: 'Project', title: 'Project setup', body: projectNote }]);
   setActiveJob(job);
   pendingOpen.value = { file, job };
   return { ok: true, job };

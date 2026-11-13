@@ -34,7 +34,7 @@ export const advisorRows = computed(() => {
   const input = machineInput.value;
   return file.operations.map((o) => advisorRow(o, operationFields(o.id), input.machine, advisorStock.value, toolStore.value.value, file.problem, input.problem));
 });
-export const advisorSummary = computed(() => advisorOperations.value.problem === null ? advisorCheck(advisorRows.value) : 'Feeds: resolve the file findings in Job');
+export const advisorSummary = computed(() => advisorOperations.value.problem === null ? advisorCheck(advisorRows.value) : 'Feeds: fix the blocked lines in Analyze before reviewing cutting speeds.');
 
 /**
  * The tool the user said is already in the spindle (Analyze, "Tool already in the spindle") for the open file's

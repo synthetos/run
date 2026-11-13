@@ -38,3 +38,6 @@
   .gcode-bp-note { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .preview-row-gutter .bp-dot { transition: none; } }
+
+.gcode-finding-detail { padding: 10px 12px; background: var(--sheet); border-bottom: 1px solid var(--rule); line-height: 1.5; flex: 0 1 auto; min-height: 0; max-height: calc(100% - 66px); box-sizing: border-box; overflow: auto; }
+.gcode-list button.preview-row-finding { text-align: left; white-space: nowrap; min-height: 0; padding: 0; font: inherit; }
