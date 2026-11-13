@@ -1,3 +1,4 @@
+import { queueSeedCleanup } from './seedCleanup.ts';
 import { signal } from '@preact/signals';
 import { RecordsError, type RecordsClient } from '../../cloud/recordsClient.ts';
 import { storedBinding, type StorageLike } from '../storage.ts';
@@ -20,13 +21,14 @@ export interface SyncOptions {
 /** Owns one account lifetime. Stopping invalidates callbacks before switching the visible stores back to local. */
 export function startLibrarySync(options: SyncOptions): { stop(): void; wake(): void } {
   const cache = readCache(options.storage, options.subject);
+  const cleaned = queueSeedCleanup(cache);
   const bindings = LIBRARY_NAMES.map(name => storedBinding(name)).filter(b => b !== undefined);
   let stopped = false; let busy = false; let refresh = true; let importing = false; let attempt = 0; let timer: unknown; let abort: AbortController | null = null;
   const pendingNames = () => cache.pending.map(p => (p.content as { name?: string } | null)?.name ?? p.id);
   const local = () => bindings.flatMap(b => toRecords(b.name, b.local()));
   const update = (patch: Partial<SyncView>) => { if (!stopped) librarySyncView.value = { ...librarySyncView.peek(), ...patch }; };
   const persist = () => !stopped && saveCache(options.storage, options.subject, cache);
-  const show = () => { for (const b of bindings) b.show(fromRecords(b.name, visibleRecords(cache))); };
+  const show = () => { if (queueSeedCleanup(cache)) persist(); for (const b of bindings) b.show(fromRecords(b.name, visibleRecords(cache))); };
   const detach = () => { for (const b of bindings) b.disconnect(); };
   function schedule(): void {
     options.clearTimeout(timer);
@@ -41,7 +43,7 @@ export function startLibrarySync(options: SyncOptions): { stop(): void; wake(): 
         if (stopped || abort.signal.aborted || !options.allowed()) return;
         const materials = await options.client.list('material', abort.signal);
         if (stopped || abort.signal.aborted) return;
-        cache.records = [...tools, ...materials]; refresh = false; persist(); show();
+        cache.records = [...tools, ...materials]; queueSeedCleanup(cache); refresh = false; persist(); show();
       }
       const status = await drainQueue(cache, options.client, options.allowed, abort.signal, { persist, change: show, notice: message => update({ notice: message }) });
       if (stopped || abort.signal.aborted) return;
@@ -67,6 +69,7 @@ export function startLibrarySync(options: SyncOptions): { stop(): void; wake(): 
     update({ status: quota ? 'quota' : saved ? 'saving' : 'retry', ...(quota ? { remaining: pendingNames() } : {}) });
     show(); wake(); return saved;
   });
+  if (cleaned) persist();
   librarySyncView.value = { mode: 'account', status: cache.pending.length ? 'saving' : 'saved', display: options.display, ask: !cache.consent && local().length > 0, notice: null, remaining: [] };
   show();
   librarySyncActions.copy = async () => {

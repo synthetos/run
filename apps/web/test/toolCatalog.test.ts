@@ -44,7 +44,7 @@ describe('cutting citations', () => {
     expect(html).toContain('0.007 – 0.009'); expect(html).not.toContain('Surface speed'); expect(html).not.toContain('Lower end shown'); expect(html).not.toContain('Placeholder values');
   });
   it('warns only for placeholder rows, not empty or user data', () => {
-    expect(renderToString(h(ToolCuttingTab, { tool: SEED_TOOLS[0]!.tool, unit: 'mm' }))).toContain('Placeholder values');
+    expect(renderToString(h(ToolCuttingTab, { tool: { ...template, cuttingData: [{ ...template.cuttingData[0]!, placeholder: true }] }, unit: 'mm' }))).toContain('Placeholder values');
     expect(renderToString(h(ToolCuttingTab, { tool: { ...template, cuttingData: [] }, unit: 'mm' }))).not.toContain('Placeholder values');
     const row = { materialRef: { id: 'unknown', version: 1 }, fz: 1, vc: 1, source: 'user' as const, note: '' };
     const html = renderToString(h(ToolCuttingTab, { tool: { ...template, cuttingData: [row] }, unit: 'mm' }));

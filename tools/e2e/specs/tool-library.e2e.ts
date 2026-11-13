@@ -1,3 +1,4 @@
+import { LEGACY_SEED_TOOLS } from '../../../apps/web/test/legacySeedTools.ts';
 import { expect, test } from './fixtures.ts';
 import { ready } from './helpers.ts';
 import { mkdir } from 'node:fs/promises';
@@ -101,15 +102,41 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator('tr[data-tool-row="4"]')).toContainText('Carbide');
     await page.locator('tr[data-tool-row="4"] .row-link').click();
     await modal.locator('#tool-tab-details').click();
-    await modal.getByRole('button', { name: 'Reset', exact: true }).click();
-    await expect(modal.locator('.inline-confirm')).toContainText('Reset to 0?');
+    await expect(modal.locator('.tool-life')).toHaveText('Not used in a job yet.');
+    await expect(modal.getByRole('button', { name: 'Reset', exact: true })).toHaveCount(0);
     expect(await modal.boundingBox()).toEqual(box);
-    await page.screenshot({ path: `${dir}/tool-reset-confirm-${theme}.png` });
+    await page.screenshot({ path: `${dir}/tool-unused-${theme}.png` });
     await modal.locator('[data-action="cancel-tool"]').click();
     await page.locator('tr[data-tool-row="4"] .row-link').click();
     await modal.locator('#tool-tab-cutting').click();
-    await expect(modal.getByRole('columnheader', { name: 'Surface speed (SFM, ft/min)', exact: true })).toBeVisible();
-    await expect(modal.getByRole('columnheader', { name: 'Chipload (in/tooth)', exact: true })).toBeVisible();
+    await expect(modal.locator('#tool-pane-cutting')).toHaveText('No cutting data for this tool yet.');
     await page.screenshot({ path: `${dir}/tool-cutting-inches-${theme}.png` });
   });
 }
+
+
+test('saved starter copies lose invented data while custom notes, rows and usage survive', async ({ page }) => {
+  const old = LEGACY_SEED_TOOLS[0]!;
+  const used = { ...LEGACY_SEED_TOOLS[3]!, tool: { ...LEGACY_SEED_TOOLS[3]!.tool, notes: 'My workshop note', life: { minutes: 25, byMaterial: [] }, cuttingData: [{ materialRef: { id: 'builtin.mdf', version: 1 }, fz: 0.04, source: 'user', note: 'My measurement' }] } };
+  await page.addInitScript(entries => {
+    if (localStorage.getItem('run.ws.tools.v2') === null) localStorage.setItem('run.ws.tools.v2', JSON.stringify({ v: 1, value: entries }));
+  }, [old, used]);
+  await page.goto('/'); await ready(page);
+  await page.locator('[data-region="rail"] [data-view="library"]').click(); await page.locator('#library-tab-tools').click();
+  const modal = page.locator('.tool-modal');
+  await page.locator('tr[data-tool-row="1"] .row-link').click();
+  await modal.locator('#tool-tab-details').click();
+  await expect(modal.locator('textarea').last()).toHaveValue('');
+  await expect(modal.locator('.tool-life')).toHaveText('Not used in a job yet.');
+  await modal.locator('#tool-tab-cutting').click(); await expect(modal.locator('#tool-pane-cutting')).toHaveText('No cutting data for this tool yet.');
+  await modal.locator('[data-action="cancel-tool"]').click();
+  await page.locator('tr[data-tool-row="4"] .row-link').click(); await modal.locator('#tool-tab-details').click();
+  await expect(modal.locator('textarea').last()).toHaveValue('My workshop note');
+  await expect(modal.locator('.tool-life')).toContainText('Cut so far: 25 min');
+  await modal.getByRole('button', { name: 'Reset', exact: true }).click(); await expect(modal.locator('.inline-confirm')).toContainText('Reset to 0?');
+  await modal.getByRole('button', { name: 'Keep', exact: true }).click();
+  await modal.locator('#tool-tab-cutting').click(); await expect(modal.locator('#tool-pane-cutting')).toContainText('My measurement');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('run.ws.tools.v2')!).value);
+  expect(saved[0].tool.cuttingData).toEqual([]); expect(saved[0].tool.notes).toBe(''); expect(saved[0].tool.life).toEqual({ minutes: 0, byMaterial: [] });
+  expect(saved[1]).toEqual(used);
+});

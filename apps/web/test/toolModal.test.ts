@@ -65,7 +65,9 @@ it('shows tool-life controls only while editing an existing tool', () => {
   const add = renderToString(h(ToolDetailsTab, { ...props, editing: false }));
   expect(add).not.toContain('Cut so far'); expect(add).not.toContain('Reset');
   const edit = renderToString(h(ToolDetailsTab, { ...props, editing: true }));
-  expect(edit).toContain('Cut so far: 0 min'); expect(edit).toContain('Reset');
+  expect(edit).toContain('Not used in a job yet.'); expect(edit).not.toContain('Reset');
+  const used = renderToString(h(ToolDetailsTab, { ...props, tool: { ...props.tool, life: { minutes: 12, byMaterial: [] } }, editing: true }));
+  expect(used).toContain('Cut so far: 12 min'); expect(used).toContain('Reset');
 });
 
 it('catalog preview reuses all tabs read-only, hides number/delete, and offers a draft or the owned tool', async () => {

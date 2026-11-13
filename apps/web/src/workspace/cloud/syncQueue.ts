@@ -1,3 +1,5 @@
+import { cleanSeedTool } from '../tools/cleanSeedTool.ts';
+import type { Tool } from '@synthetos/library';
 import { SEED_TOOLS } from '../librarySeed.ts';
 import type { CloudRecord, RecordKind } from '@synthetos/contracts';
 import { RecordsError, type RecordsClient } from '../../cloud/recordsClient.ts';
@@ -61,7 +63,22 @@ export async function drainQueue(cache: CloudCache, client: RecordsClient, allow
       if (error.status === 413) return 'quota';
       if (error.status !== 409) return 'retry';
       const current = error.current;
-      if (current !== null && pending.content === null && pending.parent === null && seed !== undefined && (current.archivedAt !== null || canonical(current.content) === canonical(seed.tool))) accept(cache, pending, current, current.archivedAt !== null);
+      if (pending.cleanup === true && cache.pending.find(p => p.kind === pending.kind && p.id === pending.id)?.token === pending.token) {
+        // A migration is not a user edit: never replace a newer account version or create a spurious copy.
+        cache.pending = cache.pending.filter(p => p.token !== pending.token);
+        cache.records = cache.records.filter(r => r.kind !== pending.kind || r.id !== pending.id);
+        if (current !== null) {
+          cache.records.push(current);
+          if (current.archivedAt === null && validContent('tool', current.content)) {
+            const next = cleanSeedTool(current.content as Tool);
+            if (next !== current.content) {
+              enqueue(cache, 'tool', current.id, next);
+              cache.pending[cache.pending.length - 1] = { ...cache.pending.at(-1)!, cleanup: true };
+            }
+          }
+        }
+      }
+      else if (current !== null && pending.content === null && pending.parent === null && seed !== undefined && (current.archivedAt !== null || canonical(current.content) === canonical(seed.tool))) accept(cache, pending, current, current.archivedAt !== null);
       else if (current !== null && pending.content !== null && canonical(current.content) === canonical(pending.content) && current.archivedAt === null) accept(cache, pending, current); // prior response lost
       else {
         const latest = cache.pending.find(p => p.kind === pending.kind && p.id === pending.id) ?? pending;

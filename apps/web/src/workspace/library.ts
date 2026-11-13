@@ -1,3 +1,4 @@
+import { cleanSeedTool } from './tools/cleanSeedTool.ts';
 /**
  * The library adapter: tools, materials, machine profiles and the setup,
  * on `@synthetos/library` records (MACHINING_ASSISTANT §2, §3, §8). Views
@@ -37,7 +38,7 @@ import {
   type Tool,
 } from '@synthetos/library';
 import { SEED_TOOLS, type SeedTool } from './librarySeed.ts';
-import { isArray, isObject, stored } from './storage.ts';
+import { afterLoad, isArray, isObject, stored } from './storage.ts';
 
 export { safeExternalLink };
 export type { Fixture, Material, PurchaseLink, Stock, Tool };
@@ -188,6 +189,12 @@ const isSetup = (v: unknown): v is SetupState =>
   isObject(v) && isObject(v['bed']) && readStock(v['stock']).ok && (v['fixture'] === null || looksLikeFixture(v['fixture'])) && typeof v['clamps'] === 'boolean';
 
 export const toolStore = stored<readonly ToolEntry[]>('tools.v2', SEED_TOOLS, isToolList);
+// Persist only changed copies. Retrying after blocked storage is safe; subsequent loads are no-ops.
+afterLoad(() => {
+  const before = toolStore.value.peek();
+  const next = before.map(entry => { const tool = cleanSeedTool(entry.tool); return tool === entry.tool ? entry : { ...entry, tool }; });
+  if (next.some((entry, i) => entry !== before[i])) toolStore.set(next);
+});
 export const myMaterialStore = stored<readonly LibraryFork[]>('materials.v2', [], isForks);
 const isOwnMaterials = (v: unknown): v is Material[] => isArray(v) && v.every((m) => readMaterial(m).ok);
 /** Materials I created from scratch (full records, versioned with `reviseRecord`). */

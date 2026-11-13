@@ -11,12 +11,17 @@ import type { JobSnapshot } from '../src/workspace/jobUi.ts';
 import { feedLimitWindow, foldFeedLimit } from '@synthetos/machine';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 
-const t1 = SEED_TOOLS.find((t) => t.number === 1)?.tool as Tool; // 3.175 mm, 2 flutes, carbide, fz 0.08 in MDF
+// Calculation fixture only: starter tools deliberately ship without cutting data.
+const TOOLS = SEED_TOOLS.map(entry => entry.number !== 1 ? entry : { ...entry, tool: { ...entry.tool, cuttingData: [{ materialRef: { id: 'builtin.mdf', version: 1 }, fz: 0.08, vc: 300, source: 'user' as const, note: 'Test fixture only' }] } });
+const t1 = TOOLS.find((t) => t.number === 1)?.tool as Tool;
 const ball = SEED_TOOLS.find((t) => t.tool.type === 'ball')?.tool as Tool;
 const mdf = { id: 'builtin.mdf', name: 'MDF', cutting: [] } as unknown as Material;
 const job = (o: Partial<JobSnapshot>): JobSnapshot => ({ phase: 'running', startedAt: 1, endedAt: null, sent: 120, acked: 110, total: 400, executing: { n: 104, line: 98 }, queuedSeconds: 3.2, queuedBoundMm: 41.4, ...o }) as JobSnapshot;
 
 describe('chip load maths', () => {
+  it('starter tools have no invented cutting reference', () => {
+    expect(referenceFor(SEED_TOOLS[0]!.tool, 'builtin.mdf', null)).toBeNull();
+  });
   it('feed ÷ (rpm × flutes); none with the spindle stopped or no flutes', () => {
     expect(chipLoad(1200, 12000, 2)).toBeCloseTo(0.05, 6);
     expect(chipLoad(1200, 0, 2)).toBeNull();
@@ -57,7 +62,7 @@ describe('chip load maths', () => {
 });
 
 describe('the cutting rows', () => {
-  const base: CuttingInput = { toolNumber: 1, toolLive: false, fileTool: null, tools: SEED_TOOLS, materialId: 'builtin.mdf', material: mdf, vel: 1920, feed: 1000, sps: 12000, spindleOn: true, fileSpeed: null, inches: false };
+  const base: CuttingInput = { toolNumber: 1, toolLive: false, fileTool: null, tools: TOOLS, materialId: 'builtin.mdf', material: mdf, vel: 1920, feed: 1000, sps: 12000, spindleOn: true, fileSpeed: null, inches: false };
   it('live velocity while moving, the board’s speed, and a verdict with the range', () => {
     const r = cuttingRows(base);
     expect(r.tool).toMatchObject({ number: 1, diameter: 3.175, flutes: 2, from: 'board' });
@@ -140,7 +145,7 @@ describe('the rows as drawn', () => {
     const html = renderToString(cuttingList(empty) as never);
     expect(html).toContain('Not known');
     expect(html).toContain('No material set for this job.');
-    const at = (vel: number) => renderToString(cuttingList(cuttingRows({ toolNumber: 1, toolLive: false, fileTool: null, tools: SEED_TOOLS, materialId: 'builtin.mdf', material: mdf, vel, feed: null, sps: 12000, spindleOn: true, fileSpeed: null, inches: false })) as never);
+    const at = (vel: number) => renderToString(cuttingList(cuttingRows({ toolNumber: 1, toolLive: false, fileTool: null, tools: TOOLS, materialId: 'builtin.mdf', material: mdf, vel, feed: null, sps: 12000, spindleOn: true, fileSpeed: null, inches: false })) as never);
     // Short labels (owner: "less is more"): the range in parentheses, one line.
     expect(at(1920)).toMatch(/data-verdict="ok"[^>]*>✓ 0\.080 mm\/tooth</);
     expect(at(1200)).toMatch(/0\.050 mm\/tooth<\/span><span class="insight-warn" data-verdict="light">⚠ light \(0\.060–0\.100\)</);
