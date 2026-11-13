@@ -11,11 +11,13 @@ test('installed Zeus script skips staging, verifies new archives and retains col
     const root = join(dir, 'cold'), bin = join(dir, 'bin'); await mkdir(bin); await mkdir(root);
     const source = await readFile(new URL('../zeus-db-pull.sh', import.meta.url), 'utf8');
     await writeFile(join(dir, 'pull.sh'), source.replace('DEST=/mnt/storage/coldstorage/synthetos-db', `DEST=${root}`).replace('CONF="${HOME}/.config/synthetos-db-backups/rclone.conf"', `CONF="${join(dir, 'rclone.conf')}"`));
-    await writeFile(join(dir, 'rclone.conf'), 'private-key');
     const mock = '#!/bin/sh\n[ "$3" = copy ] || exit 9\n[ "$4" = r2:synthetos-db-backups ] || exit 9\n[ "$6" = --exclude ] || exit 9\n[ "$7" = "staging/**" ] || exit 9\n[ "$8" = --ignore-existing ] || exit 9\n';
     await writeFile(join(bin, 'flock'), '#!/bin/sh\nexit 0\n'); await chmod(join(bin, 'flock'), 0o700);
     await writeFile(join(bin, 'rclone'), mock); await chmod(join(bin, 'rclone'), 0o700);
     const options = { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8' };
+    execFileSync('sh', [join(dir, 'pull.sh')], options);
+    assert.match(await readFile(join(root, 'pull.log'), 'utf8'), /not configured: no read-only R2 credential/);
+    await writeFile(join(dir, 'rclone.conf'), 'private-key');
     execFileSync('sh', [join(dir, 'pull.sh')], options);
     const { bytes, hash } = pack(Buffer.from('old archive'));
     await mkdir(join(root, 'run'));
