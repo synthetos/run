@@ -714,8 +714,9 @@ function checkDeployConfig(jobs: readonly Job[], add: (line: number, rule: Polic
       if (steps.some(s => s === undefined)) flag(job.line,'staging data provisioning, migrations and attested deploy require their exact confined steps');
       else if (steps[0]!.no <= (preflight?.no ?? Infinity) || steps[1]!.no <= steps[0]!.no || steps[2]!.no <= steps[1]!.no || (deployment !== undefined && steps[2]!.no > deployment.no)) flag(job.line,'data provisioning, migrations and deploy must precede run deployment in order');
     }
+    const backupSmoke = job.lines.find(l => l.text === `run: node tools/gates/src/smoke/cli.ts --env ${env}`);
     const backup = [backupProvision(env), BACKUP_DEPLOY].map(expected => job.lines.find(l => l.text === expected[expected.length - 1] && backupStep(stepOf(job, l), name, expected === BACKUP_DEPLOY)));
-    if (backup.some(line => line === undefined) || backup[0]!.no <= (preflight?.no ?? Infinity) || backup[1]!.no <= backup[0]!.no) flag(job.line, 'backup provisioning and attested deployment require their exact ordered steps');
+    if (backup.some(line => line === undefined) || backup[0]!.no <= (backupSmoke?.no ?? Infinity) || backup[1]!.no <= backup[0]!.no) flag(job.line, 'backup provisioning and attested deployment require their exact ordered steps');
     let deploys = 0;
     for (const l of invocations) {
       if (/\bwrangler\s+deploy\b/.test(l.text)) deploys += 1;

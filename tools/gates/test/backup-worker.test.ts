@@ -21,3 +21,17 @@ it('only the exact backup provision/deploy steps get existing credentials in pro
   expect(checkWorkflow('ci.yml', source)).toEqual([]);
   for (const [before, after] of [['node tools/backups/provision-worker.mjs staging', 'echo secret'], ['worker/backup/index.mjs --no-bundle', 'worker/backup/other.mjs --no-bundle'], ['--config workers/backup/wrangler.deploy.json', '--config workers/backup/wrangler.staging.json']]) expect(checkWorkflow('ci.yml', source.replace(before!, after!))).not.toEqual([]);
 });
+
+it('backup provisioning follows each site smoke test and Worker deploy requires ready=true', () => {
+  const source = readFileSync(join(REPO_ROOT, '.github/workflows/ci.yml'), 'utf8');
+  expect(checkWorkflow('ci.yml', source)).toEqual([]);
+  expect(checkWorkflow('ci.yml', source.replace("if: steps.backups.outputs.ready == 'true'", "if: always()"))).not.toEqual([]);
+  for (const environment of ['staging', 'production']) {
+    const start = source.indexOf('      - name: Provision private backup resources', source.indexOf(`  deploy-${environment}:`));
+    const end = source.indexOf('\n\n', start);
+    const block = source.slice(start, end === -1 ? source.length : end);
+    const removed = source.replace(block, '');
+    const beforeSmoke = removed.indexOf('      - name: Post-deploy smoke test', removed.indexOf(`  deploy-${environment}:`));
+    expect(checkWorkflow('ci.yml', removed.slice(0, beforeSmoke) + block + '\n' + removed.slice(beforeSmoke))).not.toEqual([]);
+  }
+});
