@@ -1,3 +1,4 @@
+import { DialogWrap } from './dialogs/DialogWrap.ts';
 /**
  * The workspace shell (Stage 1; WORKSPACE_TENETS 1, WORKSPACE_SPEC): one
  * page that never reloads or scrolls.
@@ -169,8 +170,12 @@ function Banners(props: AppShellProps & { readonly view: ViewId }): ComponentChi
   // Owner, 2026-11-04 (OD-16): messages that ask for action are one modal below the strip, not full-width bars.
   // W1, the strip and Pause and Stop job stay uncovered; the modal hides itself when it has nothing to say.
   const modal = h(
-    'div',
-    { class: 'dialog-wrap confirm-modal banner-modal', role: 'presentation', ref: belowStrip },
+    DialogWrap,
+    { class: 'dialog-wrap confirm-modal banner-modal', role: 'presentation', setup: belowStrip, onDismiss: () => {
+      // Dismiss the existing OK notices only. Machine-state blockers remain until resolved.
+      setSeen(noticeKey);
+      if (role !== null && !live && role.released.length > 0) props.onDismissReleased?.();
+    } },
     h(
       'div',
       { class: 'dialog banner-stack', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': 'Machine message' },

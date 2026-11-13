@@ -1,3 +1,4 @@
+import { DialogWrap } from './dialogs/DialogWrap.ts';
 /**
  * The "Firmware update available" modal (owner, 2026-11-09; firmware/updateOffer.ts decides when). Go to update
  * opens Board → Firmware on that release (nothing is downloaded or flashed from here: the hub asks C6 as always);
@@ -55,8 +56,8 @@ export function FirmwareOffer({ model, role, live }: FirmwareOfferProps): Compon
   showing.current = true;
   const close = (): void => setLater((l) => [...l, key]);
   return h(
-    'div',
-    { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip },
+    DialogWrap,
+    { class: 'dialog-wrap confirm-modal', role: 'presentation', setup: belowStrip, onDismiss: close },
     h(
       'div',
       { class: 'dialog motion-confirm firmware-offer', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'firmware-offer-title', 'data-region': 'firmware-offer' },

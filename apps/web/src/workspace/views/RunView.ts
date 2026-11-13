@@ -1,3 +1,4 @@
+import { DialogWrap } from '../dialogs/DialogWrap.ts';
 /**
  * The Job workspace: machine, stock, placement, checks and execution share
  * one preview and live session. The existing machine controls and execution
@@ -219,17 +220,18 @@ export function ConnectNotice({ model, onView, compact = false }: { readonly mod
       step === 'c1' || step === 'refused' ? (step === 'refused' ? h(ConnectPanel, { state: { step: 'idle' }, advisoryBlocked: view?.advisoryBlocked ?? null, onConnect: () => actions?.connect(), onConfirm: () => undefined, onCancel: () => undefined, onDisconnect: () => undefined }) : null) : panel,
       // A refusal is a modal below the strip (OD-16), not text squeezed into it.
       step === 'refused'
-        ? h('div', { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip }, h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'refused-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'refused-title' }, refusedTitle(view?.entry ?? null))), panel))
+        ? h(DialogWrap, { class: 'dialog-wrap confirm-modal', role: 'presentation', setup: belowStrip, onDismiss: () => actions?.cancel() }, h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'refused-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'refused-title' }, refusedTitle(view?.entry ?? null))), panel))
         : null,
       step === 'c1'
         ? h(
-            'div',
+            DialogWrap,
             {
+              onDismiss: () => actions?.cancel(),
               class: 'dialog-wrap strip-dialog',
               role: 'presentation',
               // In the strip the dialog would be cut to the strip's height: it covers the page below the strip instead,
               // never the stop controls (SAFETY §4.1 UI rules).
-              ref: (el: HTMLElement | null) => {
+              setup: (el: HTMLElement | null) => {
                 const bottom = el?.closest('.statebar')?.getBoundingClientRect().bottom;
                 if (el !== null && bottom !== undefined) el.style.setProperty('--strip-bottom', `${Math.round(bottom)}px`);
               },
@@ -253,8 +255,8 @@ export function ConnectNotice({ model, onView, compact = false }: { readonly mod
     ),
     step === 'c1'
       ? h(
-          'div',
-          { class: 'dialog-wrap', role: 'presentation' },
+          DialogWrap,
+          { class: 'dialog-wrap', role: 'presentation', onDismiss: () => actions?.cancel() },
           h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'c1-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'c1-title' }, 'Before you connect')), panel),
         )
       : null,

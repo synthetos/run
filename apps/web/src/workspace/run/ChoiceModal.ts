@@ -1,3 +1,4 @@
+import { DialogWrap } from '../dialogs/DialogWrap.ts';
 /**
  * A blocker as a modal (owner, 2026-11-09): a plain title, one or two short sentences, and the buttons that fix it.
  * Centred below the machine strip like every confirmation (OD-16), never over W1, the strip or Pause and Stop job.
@@ -14,10 +15,10 @@ export interface Choice {
   readonly onClick: () => void;
 }
 
-export function ChoiceModal({ title, body, choices, safety, details, region }: { readonly title: string; readonly body: string; readonly choices: readonly Choice[]; readonly safety?: string; readonly details?: ComponentChild; readonly region?: string }): ComponentChild {
+export function ChoiceModal({ title, body, choices, safety, details, region, onDismiss }: { readonly onDismiss: () => void; readonly title: string; readonly body: string; readonly choices: readonly Choice[]; readonly safety?: string; readonly details?: ComponentChild; readonly region?: string }): ComponentChild {
   return h(
-    'div',
-    { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip },
+    DialogWrap,
+    { class: 'dialog-wrap confirm-modal', role: 'presentation', setup: belowStrip, onDismiss },
     h(
       'div',
       { class: 'dialog motion-confirm choice-modal', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': title, ...(safety === undefined ? {} : { 'data-safety': safety }), ...(region === undefined ? {} : { 'data-region': region }) },

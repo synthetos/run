@@ -453,3 +453,8 @@ it('does not archive a concurrent account edit when creating a seed tombstone co
   expect(visibleRecords(cache)[0]?.content.name).toBe('Account edit');
   expect(h.notice).toHaveBeenCalledOnce();
 });
+
+// This tree-only test exercises notice actions; the shared DOM lifecycle is tested in dialogDismiss.test.ts.
+vi.mock('../src/workspace/dialogs/useDialogDismiss.ts', () => ({
+  useDialogDismiss: () => ({ ref: { current: null } }),
+}));

@@ -7,13 +7,13 @@ import { AddLink, PurchaseLine } from '../PurchaseLinks.ts';
 function Pager({ page, count, size, set }: { page: number; count: number; size: number; set: (n: number) => void }): ComponentChild {
   return count <= size ? null : h('div', { class: 'tool-pages' }, h('button', { type: 'button', disabled: page === 0, onClick: () => set(page - 1) }, 'Previous'), ` ${page + 1} of ${Math.ceil(count / size)} `, h('button', { type: 'button', disabled: (page + 1) * size >= count, onClick: () => set(page + 1) }, 'Next'));
 }
-export function ToolBuyTab({ tool, store, set }: { tool: Tool; store: string | null; set: (p: Partial<Tool>) => void }): ComponentChild {
+export function ToolBuyTab({ tool, store, set, readOnly = false }: { readOnly?: boolean; tool: Tool; store: string | null; set: (p: Partial<Tool>) => void }): ComponentChild {
   const [requested, setPage] = useState(0);
   const page = Math.min(requested, Math.max(0, Math.ceil(tool.purchase.length / 4) - 1));
   return h('div', null, store === null ? null : h('p', null, `Synthetos · ${store} · Store mock`),
-    h('ul', { class: 'purchases' }, tool.purchase.slice(page * 4, page * 4 + 4).map((p, i) => h(PurchaseLine, { key: String(i), p, onRemove: () => set({ purchase: tool.purchase.filter((_, j) => j !== page * 4 + i) }) }))),
+    h('ul', { class: 'purchases' }, tool.purchase.slice(page * 4, page * 4 + 4).map((p, i) => h(PurchaseLine, { key: String(i), p, ...(readOnly ? {} : { onRemove: () => set({ purchase: tool.purchase.filter((_, j) => j !== page * 4 + i) }) }) }))),
     h(Pager, { page, count: tool.purchase.length, size: 4, set: setPage }),
-    h(AddLink, { onAdd: p => { if (tool.purchase.length >= 20) return 'Twenty links at most.'; set({ purchase: [...tool.purchase, p] }); setPage(Math.floor(tool.purchase.length / 4)); return null; } }));
+    readOnly ? null : h(AddLink, { onAdd: p => { if (tool.purchase.length >= 20) return 'Twenty links at most.'; set({ purchase: [...tool.purchase, p] }); setPage(Math.floor(tool.purchase.length / 4)); return null; } }));
 }
 export function ToolCuttingTab({ tool, unit }: { tool: Tool; unit: ToolUnit }): ComponentChild {
   const [page, setPage] = useState(0);

@@ -1,3 +1,4 @@
+import { DialogWrap } from '../dialogs/DialogWrap.ts';
 /**
  * The settings-write UI (SAFETY §4.6, H57-H63, amendment 2026-11-02):
  *
@@ -155,8 +156,8 @@ export function ApplyConfirm({ changes, view, onCancel, onConfirm }: { readonly 
   const text = c5({ settings: changes.length, machineName: 'this board', boardId, changes: changes.map((c) => `${c.key} ${c.words}`).join('; '), highRisk: high.map((c) => c.label) });
   const ready = high.every((c) => ticks.includes(c.key)) && (high.length === 0 || typed.trim() === TYPED_WORDS.write);
   return h(
-    'div',
-    { class: 'dialog-wrap', 'data-dialog': 'apply-confirm' },
+    DialogWrap,
+    { class: 'dialog-wrap', 'data-dialog': 'apply-confirm', onDismiss: onCancel },
     h(
       'div',
       { class: 'dialog wide apply-confirm', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'apply-confirm-title' },

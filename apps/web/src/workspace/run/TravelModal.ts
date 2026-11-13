@@ -15,7 +15,7 @@ export function TravelModal({ ask, onHome, onZero, onStart, onCancel }: { readon
     const t = travelPastText(ask);
     // The board's work zero is not the plan's: that is the likely cause, so setting it leads; Start anyway follows.
     const zeroFirst = ask.zeroFirst === true && onZero !== undefined;
-    return h(ChoiceModal, {
+    return h(ChoiceModal, { onDismiss: onCancel,
       title: t.title,
       body: zeroFirst ? `${t.body} ${c41ZeroFirst()}` : t.body,
       safety: 'C41',
@@ -29,7 +29,7 @@ export function TravelModal({ ask, onHome, onZero, onStart, onCancel }: { readon
     });
   }
   const t = travelUncheckedText(ask.why);
-  return h(ChoiceModal, {
+  return h(ChoiceModal, { onDismiss: onCancel,
     title: t.title,
     body: t.body,
     safety: 'C40',

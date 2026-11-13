@@ -1,3 +1,4 @@
+import { DialogWrap } from './dialogs/DialogWrap.ts';
 /**
  * Small shared pieces of the workspace views: tab bars (so long panels split
  * into sections instead of scrolling), the plain-words value with its raw key,
@@ -94,8 +95,8 @@ export function ConfirmCard(props: {
   // A modal centred over the page below the machine strip (owner, 2026-11-04, OD-16): readable wherever it is asked
   // from, and never over W1, the strip or Pause and Stop job (SAFETY §4.1 UI rules).
   return h(
-    'div',
-    { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip },
+    DialogWrap,
+    { class: 'dialog-wrap confirm-modal', role: 'presentation', setup: belowStrip, onDismiss: props.onCancel },
     h(
       'div',
       { class: 'dialog motion-confirm', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': props.confirm, 'data-safety': props.safety },

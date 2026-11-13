@@ -1,9 +1,10 @@
+import { DialogWrap } from '../dialogs/DialogWrap.ts';
 import { h, type ComponentChild } from 'preact';
 import { librarySyncActions, librarySyncView } from './librarySync.ts';
 export function LibrarySyncNotice(): ComponentChild {
   const view = librarySyncView.value;
   return h('div', { 'data-library-sync': view.mode },
-    view.ask ? h('div', { class: 'dialog-wrap confirm-modal' }, h('section', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'library-import-title', 'data-dialog': 'library-import' },
+    view.ask ? h(DialogWrap, { class: 'dialog-wrap confirm-modal', onDismiss: () => librarySyncActions.notNow() }, h('section', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'library-import-title', 'data-dialog': 'library-import' },
       h('h2', { id: 'library-import-title' }, 'Copy your library?'),
       h('p', null, `You are signed in as ${view.display}. Copy this browser’s tools and materials to your account?`),
       h('p', null, 'The copies in this browser stay here.'),

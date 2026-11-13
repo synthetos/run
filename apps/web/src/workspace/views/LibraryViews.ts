@@ -1,3 +1,4 @@
+import { DialogWrap } from '../dialogs/DialogWrap.ts';
 import { librarySavedText } from '../cloud/librarySync.ts';
 import { toolMaterialLabel as toolMaterialName } from '../tools/labels.ts';
 import { PurchaseLine, AddLink } from './PurchaseLinks.ts';
@@ -485,8 +486,8 @@ function MaterialForm({ initial, onClose, onSave }: { readonly initial: Material
   const setCut = (t: string, patch: Partial<CutForm>): void => set({ cutting: { ...f.cutting, [t]: { ...cut(t), ...patch } } });
   const banned = f.safety.some((s) => s.severity === 'do-not-machine');
   return h(
-    'div',
-    { class: 'dialog-wrap', role: 'presentation', onKeyDown: (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); } },
+    DialogWrap,
+    { class: 'dialog-wrap', role: 'presentation', onDismiss: onClose },
     h(
       'form',
       {

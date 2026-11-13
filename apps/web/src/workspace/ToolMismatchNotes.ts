@@ -1,3 +1,4 @@
+import { DialogWrap } from './dialogs/DialogWrap.ts';
 /**
  * The file-versus-tool-table note (tool-mismatch, 2026-11-10): "The file says T1 is a 6 mm end mill. Your tool
  * table's T1 is 3.175 mm." in Notes, under Needs you, with [Edit T1] and [Use the file's tool]. The second asks first,
@@ -57,8 +58,8 @@ export function ToolMismatchNotes({ fileTools, onView }: { readonly fileTools: r
   if (asked === null) return null;
   const plan = useFilePlan(table, asked.file, `mine.t${asked.number}-file-${Date.now().toString(36)}`);
   return h(
-    'div',
-    { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip },
+    DialogWrap,
+    { class: 'dialog-wrap confirm-modal', role: 'presentation', setup: belowStrip, onDismiss: () => setAsking(null) },
     h(
       'div',
       { class: 'dialog motion-confirm tool-file-confirm', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'tool-file-title', 'data-region': 'tool-file-confirm' },

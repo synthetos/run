@@ -67,3 +67,18 @@ it('shows tool-life controls only while editing an existing tool', () => {
   const edit = renderToString(h(ToolDetailsTab, { ...props, editing: true }));
   expect(edit).toContain('Cut so far: 0 min'); expect(edit).toContain('Reset');
 });
+
+it('catalog preview reuses all tabs read-only, hides number/delete, and offers a draft or the owned tool', async () => {
+  const { ToolModal } = await import('../src/workspace/views/tools/ToolModal.ts');
+  const tool = { ...newTool(7), manufacturer: 'Maker', partNumber: 'Part-1' };
+  const preview = { tool, onAdd: () => undefined, onOpen: () => undefined };
+  const html = renderToString(h(ToolModal, { entry: null, onClose: () => undefined, preview }));
+  expect(html).toContain('Maker Part-1');
+  for (const tab of ['Shape', 'Details', 'Where to buy', 'Cutting data']) expect(html).toContain(tab);
+  expect(html).toContain('disabled'); expect(html).toContain('data-action="catalog-add"');
+  expect(html).not.toContain('data-tool-field="number"'); expect(html).not.toContain('tool-delete');
+  expect(html).not.toContain('data-action="add-link"'); expect(html).not.toContain('data-action="remove-link"');
+  expect(html).not.toContain('Cut so far'); expect(html).not.toContain('save-tool');
+  const owned = renderToString(h(ToolModal, { entry: null, onClose: () => undefined, preview: { ...preview, existing: { tool, number: 9, store: null } } }));
+  expect(owned).toContain('In your tools as T9'); expect(owned).toContain('Open T9'); expect(owned).not.toContain('data-action="catalog-add"');
+});

@@ -1795,8 +1795,6 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
 .catalog-filters label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
 .catalog-filters .select-wrap { min-width: 140px; }
 .catalog-sizes { display: flex; gap: 5px; align-self: end; }
-.catalog-table tbody tr:nth-child(even) { background: var(--row-hover); }
-.catalog-table tbody tr { cursor: default; }
 .catalog-table td:last-child { width: 175px; }
 .catalog-owned { color: var(--ok); font-size: 12px; }
 .catalog-banner { flex-shrink: 0; border: 1px solid var(--ok); background: color-mix(in srgb, var(--ok) 9%, var(--sheet)); color: var(--ok); border-radius: 5px; padding: 10px 12px; margin: 0 0 8px; font-size: 13px; }
@@ -1806,3 +1804,7 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
 .catalog-view > .list-panel { flex: 1; margin: 0 20px 20px; }
 .catalog-filters { padding: 12px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
 .catalog-message { padding: 16px 20px; }
+
+.tool-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.tool-fields:disabled :is(input, select, textarea) { opacity: 1; color: var(--ink); }
+.dialog-discard { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

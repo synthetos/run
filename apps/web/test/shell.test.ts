@@ -176,6 +176,9 @@ describe('Phase 1 control allowlist', () => {
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
     // Length units in the tool catalog and tool window: display only, stored values stay in mm.
     /^action:(catalog|tool)-units-(mm|in)$/,
+    // Catalog preview, opening a local tool, and draft dismissal are UI/library only; no machine access.
+    /^action:catalog-(preview|add|open-tool|back)$/,
+    /^action:dialog-(keep-editing|discard)$/,
     /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
     // The Firmware and Backups tabs: records on this computer (export, import, compare, delete, download) and dialog controls.
     /^action:(backup-compare|backup-export|backup-delete|backup-import|firmware-download|firmware-delete|trust-revoke|trust-cancel|cancel-flash|flash-cancel|flash-dismiss|flash-reconnect|switch-test-start)$/,
@@ -206,6 +209,11 @@ describe('Phase 1 control allowlist', () => {
     // Projects (local): records and files in this browser's IndexedDB. "Open in Run" only loads the preview.
     /^action:project-(new|open|rename|save-name|cancel-rename|delete|confirm-delete|cancel-delete|share|edit-description|save-description|cancel-description|open-in-run|remove-file|set-cover|remove-image|add-link|remove-link|use-stock|go-run)$/,
   ];
+  it('catalog preview and discard actions are UI only', () => {
+    for (const action of ['catalog-preview', 'catalog-add', 'catalog-open-tool', 'catalog-back', 'dialog-keep-editing', 'dialog-discard']) {
+      expect(UI.some(r => r.test(`action:${action}`)), action).toBe(true);
+    }
+  });
   // Material and tool rows are plain buttons whose text is data: any other button must be in the list above.
   const LIST_ROW = /class="(material-row[^"]*|row-link)"/;
 

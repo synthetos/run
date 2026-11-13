@@ -57,7 +57,7 @@ describe('cutting citations', () => {
 
 it('catalog controls filter, select and show no matches', () => {
   let query = ''; let size = ''; let selected = ''; let maker = ''; let type = '';
-  const props = { tools: ONSRUD_CATALOG, query, size, maker, type, entries: [], setMaker: (s: string) => { maker = s; }, setType: (s: string) => { type = s; }, unit: 'mm' as const, setQuery: (s: string) => { query = s; }, setSize: (s: string) => { size = s; }, onPick: (t: typeof template) => { selected = t.id; } };
+  const props = { tools: ONSRUD_CATALOG, query, size, maker, type, entries: [], setMaker: (s: string) => { maker = s; }, setType: (s: string) => { type = s; }, unit: 'mm' as const, setQuery: (s: string) => { query = s; }, setSize: (s: string) => { size = s; }, onPreview: () => undefined, onPick: (t: typeof template) => { selected = t.id; } };
   const el = root(h(CatalogChoices, props));
   (one(el, e => e.tag === 'input').props['onInput'] as (e: unknown) => void)({ currentTarget: { value: '52' } });
   (one(el, e => e.props['aria-label'] === 'Maker').props['onChange'] as (e: unknown) => void)({ currentTarget: { value: 'Onsrud' } });
@@ -79,11 +79,11 @@ it('matches distinct maker and type filters and formats catalog sizes', () => {
 
 it('catalog rows identify existing maker/part matches and keep unsafe sources inert', () => {
   const entries = [{ tool: { ...template, manufacturer: 'Other' }, number: 3, store: null }, { tool: { ...template, partNumber: 'other' }, number: 2, store: null }, { tool: { ...template, id: 'mine.tool' }, number: 4, store: null }];
-  const html = renderToString(h(CatalogTable, { tools: [template], entries, unit: 'in', onPick: () => undefined }));
+  const html = renderToString(h(CatalogTable, { tools: [template], entries, unit: 'in', onPreview: () => undefined, onPick: () => undefined }));
   expect(html).toContain('In your tools as T4'); expect(html).not.toContain('Add to my tools'); expect(html).toContain('Onsrud page');
   expect(html).toContain('7/8&quot;');
   for (const purchase of [[], [{ vendor: 'bad', url: 'javascript:bad', kind: 'link' as const }]]) {
-    expect(renderToString(h(CatalogTable, { tools: [{ ...template, purchase }], entries: [], unit: 'mm', onPick: () => undefined }))).not.toContain('<a');
+    expect(renderToString(h(CatalogTable, { tools: [{ ...template, purchase }], entries: [], unit: 'mm', onPreview: () => undefined, onPick: () => undefined }))).not.toContain('<a');
   }
 });
 
@@ -103,4 +103,19 @@ it('shows surface speeds only when supplied, and retains uncertain warnings', ()
   expect(renderToString(h(ToolCuttingTab, { tool: mixed, unit: 'in' }))).toContain('328');
   const uncertain = { ...template, cuttingData: [{ ...row, note: 'Check the catalog: this value may be misprinted' }] };
   expect(renderToString(h(ToolCuttingTab, { tool: uncertain, unit: 'mm' }))).toContain('Check the catalog: this value may be misprinted');
+});
+
+it('catalog rows preview by click, Enter or Space, but leave links and buttons alone', () => {
+  const seen: string[] = [];
+  const tree = root(h(CatalogTable, { tools: [template], entries: [], unit: 'mm', onPick: () => seen.push('add'), onPreview: () => seen.push('preview') }));
+  const row = one(tree, e => e.props['data-action'] === 'catalog-preview');
+  expect(row.props['tabindex']).toBe(0);
+  const el = { focus: () => undefined, closest: () => null };
+  const click = row.props['onClick'] as (e: unknown) => void;
+  click({ currentTarget: el, target: el });
+  click({ currentTarget: el, target: { closest: () => ({}) } });
+  const key = row.props['onKeyDown'] as (e: unknown) => void;
+  for (const k of ['Enter', ' ', 'Escape']) key({ target: el, currentTarget: el, key: k, preventDefault: () => undefined });
+  key({ target: {}, currentTarget: el, key: 'Enter' });
+  expect(seen).toEqual(['preview', 'preview', 'preview']);
 });

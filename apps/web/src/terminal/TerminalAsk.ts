@@ -91,7 +91,7 @@ function TravelAsk({ ask, onResult }: { readonly ask: Extract<Ask, { kind: 'trav
   const q = travelQuestion(ask.finding);
   const past = ask.finding.past;
   const homeAxis = past !== undefined && ['X', 'Y', 'Z', 'A'].includes(past.axis) ? (past.axis.toLowerCase() as MotionAxis) : null;
-  return h(ChoiceModal, {
+  return h(ChoiceModal, { onDismiss: () => onResult({ kind: 'cancel' }),
     title: past === undefined ? 'Travel not checked' : `${past.axis} isn't homed`,
     body: q.text,
     safety: past === undefined ? 'C40' : 'C41',
@@ -109,7 +109,7 @@ function LowZAsk({ ask, onResult }: { readonly ask: Extract<Ask, { kind: 'lowZ' 
   const q = lowZQuestion(ask.notice);
   /* c8 ignore next -- a lowZ ask is made only from a notice that carries the question */
   if (q === null) return null;
-  return h(ChoiceModal, {
+  return h(ChoiceModal, { onDismiss: () => onResult({ kind: 'cancel' }),
     title: 'Z is low',
     // The title already says Z is low: the body asks, or says why Raise is not offered and what Move as typed means.
     body: q.why === null ? 'Raise Z first? Then the move runs.' : `${q.why} Move as typed only if the path is clear.`,
