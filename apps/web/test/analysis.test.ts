@@ -251,7 +251,7 @@ describe('freshness', () => {
 });
 
 describe('performance', () => {
-  it('the report on a million-move tape takes well under a second, off the machine worker (it runs in the G-code worker)', () => {
+  it('the report on a million-move tape takes well under a second, off the machine worker (it runs in the G-code worker)', { timeout: 60_000 }, () => {
     const n = 1_000_000;
     const t: ProgramTape = { count: n, kinds: new Uint8Array(n), flags: new Uint8Array(n), sent: new Uint32Array(n), source: new Uint32Array(n), lengthMm: new Float64Array(n), delta: new Float64Array(n * 3), feed: new Float64Array(n).fill(3000), spindle: new Float64Array(n), tool: new Int32Array(n), seconds: new Float64Array(n), arcIndex: new Int32Array(n).fill(-1), arcs: new Float64Array(0) };
     for (let i = 0; i < n; i++) {
@@ -260,6 +260,7 @@ describe('performance', () => {
       t.lengthMm[i] = i % 100 < 50 ? 0.2 : 5;
       t.delta[i * 3] = t.lengthMm[i] as number;
     }
+    // Allow time for all four runs on CI; the measured 1500 ms budget stays unchanged.
     // Warm up, then take the best of three: host pre-emption on a busy Mac can inflate
     // wall time. The unchanged limit still rejects a slowdown present in every run.
     analyzeProgram(t);

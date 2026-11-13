@@ -521,20 +521,37 @@ describe('MachineWorkerHost', () => {
     const clock = new TestClock();
     const host = new MachineWorkerHost(source('fake', () => new BoardTransport()), clock);
     let calls = 0;
+    let posted!: () => void;
+    const secondPost = new Promise<void>(resolve => { posted = resolve; });
+    let connected!: () => void;
+    const connectedState = new Promise<void>(resolve => { connected = resolve; });
+    const unsubscribe = host.session.subscribe(snapshot => {
+      if (snapshot.base === 'CONNECTED_UNKNOWN') connected();
+    });
     await host.handle({ v: 3, kind: 'subscribe' }, {
       postMessage: () => {
         calls++;
-        if (calls > 1) throw new Error('port closed');
+        if (calls > 1) {
+          posted();
+          throw new Error('port closed');
+        }
       },
     });
     clock.advance(SNAPSHOT_INTERVAL_MS);
-    void host.handle(OPEN);
-    await settle();
+    // Opening includes asynchronous pre-checks. Await the operation and actual
+    // post rather than guessing how many event-loop turns they need on CI.
+    expect(await host.handle(OPEN)).toMatchObject({ ok: true });
     clock.advance(SNAPSHOT_INTERVAL_MS);
-    await settle();
-    clock.advance(SNAPSHOT_INTERVAL_MS);
+    await Promise.all([secondPost, connectedState]);
+    unsubscribe();
     expect(calls).toBe(2);
     expect(host.session.snapshot.base).toBe('CONNECTED_UNKNOWN');
+    // Another state change must still work without retrying the dropped port.
+    expect(await host.handle({ v: 3, kind: 'close' })).toMatchObject({ ok: true });
+    clock.advance(SNAPSHOT_INTERVAL_MS);
+    await settle();
+    expect(calls).toBe(2);
+    expect(host.session.snapshot.base).toBe('NOT_CONNECTED');
   });
 
   it('a new subscriber replaces the old one', async () => {

@@ -40,8 +40,9 @@ describe('time slicing', () => {
 
   // Warm up, then compare the best of three complete runs' worst slices. Host
   // pre-emption can inflate wall time; a consistent overrun still fails the same limit.
+  // The outer timeout covers all four runs on CI; the 50 ms slice limit is unchanged.
   // The fake-clock case above independently proves the slicing budget.
-  it('old P1-04 acceptance: 1M lines of geometry build with no main-thread slice over 50 ms (real clock)', async () => {
+  it('old P1-04 acceptance: 1M lines of geometry build with no main-thread slice over 50 ms (real clock)', { timeout: 60_000 }, async () => {
     const list = bigList(1_000_000);
     const run = async (): Promise<number> => {
       let longest = 0;
@@ -62,7 +63,7 @@ describe('time slicing', () => {
     for (let attempt = 0; attempt < 3; attempt++) times.push(await run());
     expect(Math.min(...times)).toBeLessThan(50);
   });
-  it('coarse scanning of a million sparse vertices also yields within 50 ms', async () => {
+  it('coarse scanning of a million sparse vertices also yields within 50 ms', { timeout: 60_000 }, async () => {
     const list = bigList(1_000_000);
     list.kinds.fill(0); // All BREAK: the input scan still has to yield, with no output geometry.
     const run = async (): Promise<number> => {
