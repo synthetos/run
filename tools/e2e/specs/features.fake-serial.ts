@@ -70,6 +70,7 @@ async function show(page: Page, view: string): Promise<void> {
 
 async function openSample(page: Page): Promise<void> {
   await show(page, 'run');
+  await page.locator('[data-job-step="place"]').click();
   await page.locator('[data-sample="mounting-plate"]').click();
   await page.locator('[data-job-step="check"]').click();
   await expect(page.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });

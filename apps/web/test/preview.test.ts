@@ -69,7 +69,9 @@ describe('W13 and the prerendered sheet', () => {
     const el = root(h(PreviewView, { state: IDLE_STATE }));
     for (const input of all(el, (e) => e.tag === 'input' || e.tag === 'select')) expect(input.props['disabled'], String(input.props['type'])).toBe(true);
     for (const e of all(el, () => true)) {
-      if (e.props['data-action'] !== 'context-help') expect(Object.keys(e.props).filter((k) => /^on[A-Z]/.test(k))).toEqual([]);
+      const handlers = Object.keys(e.props).filter((k) => /^on[A-Z]/.test(k));
+      if (typeof e.props['class'] === 'string' && e.props['class'].split(' ').includes('context-help')) expect(handlers).toEqual(['onMouseLeave', 'onFocusOut']);
+      else if (e.props['data-action'] !== 'context-help') expect(handlers).toEqual([]);
     }
   });
 

@@ -62,7 +62,7 @@ import { jobScene } from '../../preview/sceneModel.ts';
 import { spindleToolChoice } from '../advisorState.ts';
 import { useLivePathFrame, useLivePlacement } from '../../preview/useLivePlacement.ts';
 import { ViewerOverlay } from '../../preview/ViewerOverlay.ts';
-import { ViewerOptions } from '../../preview/ViewerOptions.ts';
+import { AnalysisWarning, ViewerOptions } from '../../preview/ViewerOptions.ts';
 import { ExpandButton, previewExpanded } from '../../preview/expandPreview.ts';
 import { openSceneSettings, type ScenePart } from '../../preview/sceneSettings.ts';
 import { sceneColors, tokenReader } from '../../preview/colors.ts';
@@ -834,17 +834,16 @@ function spindleBody({ model, compact = false }: SpindleProps, hk: Hooks): Compo
       h(
         'div',
         { class: 'inline-field' },
-        h('span', null, 'Coolant'),
+        h('span', { class: 'coolant-label' }, 'Coolant', h(ContextHelp, { id: 'spindle-help', label: 'About spindle and coolant readouts', end: true }, SPINDLE_TITLE, ' ', COOLANT_TITLE)),
         h(
           'span',
-          { class: 'toggles' },
-          h('button', { type: 'button', class: 'toggle', 'aria-pressed': mist ? 'true' : 'false', 'data-machine-control': 'coolant', ...((mist ? off : on) ? { onClick: () => coolantToggle('mist', mist) } : { disabled: true }) }, 'Mist'),
-          h('button', { type: 'button', class: 'toggle', 'aria-pressed': flood ? 'true' : 'false', 'data-machine-control': 'coolant', ...((flood ? off : on) ? { onClick: () => coolantToggle('flood', flood) } : { disabled: true }) }, 'Flood'),
+          { class: 'seg', role: 'group', 'aria-label': 'Coolant' },
+          h('button', { type: 'button', class: mist ? 'selected' : undefined, 'aria-pressed': mist ? 'true' : 'false', 'data-machine-control': 'coolant', ...((mist ? off : on) ? { onClick: () => coolantToggle('mist', mist) } : { disabled: true }) }, 'Mist'),
+          h('button', { type: 'button', class: flood ? 'selected' : undefined, 'aria-pressed': flood ? 'true' : 'false', 'data-machine-control': 'coolant', ...((flood ? off : on) ? { onClick: () => coolantToggle('flood', flood) } : { disabled: true }) }, 'Flood'),
         ),
       ),
     ),
     note === null ? null : h('p', { class: 'motion-note', role: 'status' }, note),
-    compact ? null : h('div', { class: 'spindle-help', 'data-spindle': 'note' }, h(ContextHelp, { id: 'spindle-help', label: 'About spindle and coolant readouts', end: true }, SPINDLE_TITLE, ' ', COOLANT_TITLE)),
   );
 }
 
@@ -1173,6 +1172,7 @@ function JobWorkPanel({ parts, model, stops, onView }: { readonly parts: Preview
     h('div', { class: `job-panel-scroll${step === 'run' && !ui.active ? ' run-mode' : ''}`, tabindex: 0 },
       h(JobSetupPanel, { step, locked: ui.active, onView, travel: placeTravelText({ connected: ui.connected, homed: ui.snapshot?.live.home === 1, travel: ui.job?.report?.travel }) }),
       h('section', { hidden: step !== 'check', 'data-job-panel': 'check' }, h('h2', null, 'Check file'),
+        h(AnalysisWarning, { connected: ui.connected, dialect: ui.snapshot?.classification?.dialectId }),
         result === null || facts === null ? h('p', null, 'Open G-code to check it.') : [
           h('ul', { class: 'job-checks', 'data-preview': 'summary', 'aria-label': 'The file check' }, jobChecks(result, facts)),
           h('details', null, h('summary', null, 'File details'), h(JobDetails, { result, facts })),
@@ -1235,7 +1235,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
             'div',
             { class: 'viewer-top' },
             // How the file is read and drawn: Advanced only (Simple keeps the defaults, Auto included), in plain words.
-            simple ? null : h(ViewerOptions, { parts, disabled, note: analysisDialect(jobUi(model?.live.value ?? null).connected, jobUi(model?.live.value ?? null).snapshot?.classification?.dialectId).note }),
+            simple ? null : h(ViewerOptions, { parts, disabled }),
             h(
               'div',
               { class: 'viewer-tools', role: 'group', 'aria-label': 'View' },
@@ -1254,11 +1254,14 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
             // offering the samples for a moment.
             prompt: result === null && !loading && (reopening.value || pendingOpen.value !== null)
               ? h('div', { class: `empty-prompt${scene === null ? '' : ' scene-empty-prompt'}`, 'data-preview': 'reopening' }, h('h2', null, 'Opening the file…'))
+              : result === null && !loading && state.status !== 'error' && (step === 'machine' || step === 'stock')
+              ? h('button', { type: 'button', class: 'quiet-link', 'data-action': 'job-step-place', onClick: () => { jobStep.value = 'place'; } }, 'Step 3 opens your file.')
               : result === null && !loading
               ? h(
                   'div',
                   { class: `empty-prompt${scene === null ? '' : ' scene-empty-prompt'}` },
                   h('h2', null, state.status === 'error' ? 'The file could not be checked' : 'Open a file to check and preview it'),
+                  h('button', { type: 'button', class: 'primary', disabled, 'data-action': 'job-open-file', onClick: () => document.querySelector<HTMLInputElement>('[data-preview="file"]')?.click() }, 'Open a file'),
                   state.status === 'error'
                     ? h('p', { class: 'preview-error', role: 'alert', 'data-preview': 'error' }, state.error ?? 'The preview failed.')
                     : null,

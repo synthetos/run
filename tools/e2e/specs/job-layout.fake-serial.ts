@@ -68,6 +68,7 @@ async function openSample(page: Page, width: number, height: number): Promise<Wo
   const worker = await machineWorker(page);
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
   await expect.poll(async () => (await session(worker)).base, { timeout: 10_000 }).toBe('IDLE_UNHOMED');
+  await page.locator('[data-job-step="place"]').click();
   await page.locator('[data-sample="mounting-plate"], [data-sample]').first().click();
   await expect(page.locator('[data-preview="drawing"]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.viewer-overlay-bar')).toBeVisible({ timeout: 10_000 });

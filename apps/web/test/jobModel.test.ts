@@ -1,3 +1,4 @@
+import { gridHoles, XCARVE_HOLE_GRID } from '../src/workspace/bedHoleGrid.ts';
 /**
  * The Job model (FLOW_ANALYSIS §4 steps 1-4): versioned Job records, the
  * migration of the old global setup into a named draft that keeps the
@@ -471,13 +472,16 @@ describe('Use in Job: roles and the drawing import', () => {
     expect(noMachine.ok).toBe(false);
     expect(!noMachine.ok && noMachine.reason).toContain('Choose a machine');
     activeJobStore.value.value = withMachine(activeJobStore.value.value as Job, machine());
+    saveMachineBed('m1', { ...placeholderBed(machine()), holes: gridHoles(XCARVE_HOLE_GRID), holeGrid: { description: XCARVE_HOLE_GRID, source: 'Measured by the owner', at: '2026-11-13' } });
     const bed = applyImport('bed', file, check, { units: 'in', scale: 1, height: 19, bedTopZ: -60 });
     expect(bed.ok).toBe(true);
     const m = machineStore.value.value[0];
-    expect(m?.bed).toMatchObject({ revision: 1, width: 7620, depth: 5080, thickness: 19, toMachine: { x: 0, y: 0, z: -60 }, source: { kind: 'drawing', file: 'plate.svg', hash: 'a'.repeat(64), units: 'in', scale: 1 } });
-    expect(activeJobStore.value.value?.setup.bed.revision).toBe(1);
+    expect(m?.bed?.holeGrid).toBeUndefined();
+    expect(m?.bed?.holes).toEqual(scaled(check.parsed, 'in', 1).holes);
+    expect(m?.bed).toMatchObject({ revision: 2, width: 7620, depth: 5080, thickness: 19, toMachine: { x: 0, y: 0, z: -60 }, source: { kind: 'drawing', file: 'plate.svg', hash: 'a'.repeat(64), units: 'in', scale: 1 } });
+    expect(activeJobStore.value.value?.setup.bed.revision).toBe(2);
     expect(activeJobStore.value.value?.setup.bedFrom).toBe('machine');
-    expect(activeJobStore.value.value?.machine?.revision).toBe(2);
+    expect(activeJobStore.value.value?.machine?.revision).toBe(3);
     activeJobStore.value.value = null;
     machineStore.value.value = [];
   });

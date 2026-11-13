@@ -5,7 +5,7 @@ import { stored } from './storage.ts';
 export const JOB_STEPS = [
   { id: 'machine', label: 'Machine' },
   { id: 'stock', label: 'Stock & workholding' },
-  { id: 'place', label: 'Place job' },
+  { id: 'place', label: 'Open & place job' },
   { id: 'check', label: 'Check' },
   { id: 'run', label: 'Run' },
 ] as const;

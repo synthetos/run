@@ -1649,7 +1649,7 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .sec-spindle.compact .spindle-controls { margin-top: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .sec-spindle.compact .spindle-controls .seg.full { width: auto; margin: 0; }
 .sec-spindle.compact .spindle-speed { margin: 0; }
-.sec-spindle.compact .inline-field { margin: 0 0 0 auto; }
+.sec-spindle.compact .inline-field { margin: 0; flex-basis: 100%; }
 .sec-zero.go-only { padding-top: 0; }
 /* Connected: the connect card is one line (the Connect button is gone, Disconnect and Open the board stay). */
 .connect-notice.is-connected { padding-top: 6px; padding-bottom: 6px; margin-bottom: 8px; }
@@ -1808,3 +1808,14 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
 .tool-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .tool-fields:disabled :is(input, select, textarea) { opacity: 1; color: var(--ink); }
 .dialog-discard { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.sec-spindle .inline-field { grid-template-columns: auto 1fr; }
+.coolant-label { display: inline-flex; align-items: center; gap: 6px; }
+.sec-spindle .inline-field .seg { justify-self: start; }
+.bed-grid { margin-top: 16px; }
+.bed-grid > p { margin: 10px 0; }
+.bed-grid > .field-grid { margin-top: 12px; }
+.bed-grid > .check { display: flex; gap: 6px; margin: 10px 0; }
+.preview-detail-wrap { display: inline-flex; position: relative; }
+.preview-detail-help { display: none; position: absolute; top: calc(100% + 8px); left: 0; width: min(280px, 60vw); padding: 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet); color: var(--ink); font: 400 13px/1.5 var(--sans); box-shadow: 0 4px 16px #0003; z-index: var(--z-raised); }
+.preview-detail-wrap:hover .preview-detail-help, .preview-detail-wrap:focus-within .preview-detail-help { display: block; }

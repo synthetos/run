@@ -173,6 +173,7 @@ test('the notice raised after Stop job sits above the panels and the 3D canvas: 
   await tabB.goto('/');
   await expect(tabB.locator('[data-observer="controlled"]')).toContainText(BOARD);
   // A loaded job puts the job card and the 3D preview right under the strip, where the notice appears.
+  await tabB.locator('[data-job-step="place"]').click();
   await tabB.locator('[data-sample="mounting-plate"]').click();
   await tabB.locator('[data-job-step="check"]').click();
   await expect(tabB.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
@@ -215,6 +216,7 @@ test('the notice raised after Stop job sits above the panels and the 3D canvas: 
 test('the document never scrolls at 1280 × 720, in any view', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await connectedTab(page);
+  await page.locator('[data-job-step="place"]').click();
   await page.locator('[data-sample="mounting-plate"]').click();
   await page.locator('[data-job-step="check"]').click();
   await expect(page.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });
@@ -274,6 +276,7 @@ for (const width of [1440, 1280] as const) {
       const w29 = page.locator('[data-action="dismiss-w29"]');
       if ((await w29.count()) > 0) await w29.click();
       const shot = (name: string): Promise<Buffer> => page.screenshot({ path: `${SHOTS}/${width}-${theme}-${name}.png` });
+      await page.locator('[data-job-step="place"]').click();
       await page.locator('[data-sample="mounting-plate"]').click();
       await page.locator('[data-job-step="check"]').click();
       await expect(page.locator('[data-preview="summary"]')).toBeVisible({ timeout: 30_000 });

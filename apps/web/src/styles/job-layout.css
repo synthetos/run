@@ -111,3 +111,11 @@
 /* ---------- Simple hides firmware keys and internal codes (first-time walk C10) ---------- */
 .app[data-level="simple"] .raw-key,
 .app[data-level="simple"] [data-advanced-only] { display: none !important; }
+
+/* Reserve independent space for the empty-file prompt, above the viewer settings and below its toolbar. */
+.job-view .viewer > .viewer-overlay.has-prompt { flex: 1 1 auto; align-self: stretch; margin: 0 36px 0 0; }
+.viewer-file-prompt { flex: 1; align-self: stretch; display: grid; place-items: center; min-height: 0; padding: 16px; }
+.job-view .viewer-file-prompt .empty-prompt { position: static; transform: none; width: auto; max-width: 420px; padding: 20px; display: grid; gap: 14px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; }
+.viewer-file-prompt h2 { margin: 0; }
+.viewer-file-prompt .sample-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0; }
+.viewer-file-prompt > .quiet-link { background: var(--sheet); }

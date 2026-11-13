@@ -111,11 +111,13 @@ export function JobSetupPanel({ step, locked, onView, travel = null }: { readonl
             h('div', { class: 'field-grid three' }, field('Width', bed.width, (width) => setBed({ width }), 'mm', 1, 1), field('Depth', bed.depth, (depth) => setBed({ depth }), 'mm', 1, 1), field('Thickness', bed.thickness, (thickness) => setBed({ thickness }))),
             h('div', { class: 'field-grid' }, field('Bed top, machine Z', bed.toMachine.z, (z) => setBed({ z }), 'mm', 0.1, -100000)),
             h(ContextHelp, { id: 'bed-frame-help', label: 'About bed coordinates' }, 'Bed coordinates start at the front-left corner of the bed’s top. Enter its height in machine coordinates.'),
+            bed.holes.length === 0 ? null : h(FixtureThumb, { outline: bed.outline ?? [[0, 0], [bed.width, 0], [bed.width, bed.depth], [0, bed.depth]], holes: bed.holes }),
+            bed.holeGrid === undefined ? null : h('p', { class: 'fine' }, `Hole grid measured by the owner. ${bed.holeGrid.description.offsetMeasured ? 'First-hole offset measured.' : 'First-hole offset not measured: measure this.'} Display only.`),
             bed.outline === null ? null : h('p', { class: 'fine' }, `Outline from a drawing: ${bed.outline.length} points, ${bed.holes.length} holes.`),
             job.machine !== null && machine !== null
               ? h('button', { type: 'button', class: 'small', 'data-action': 'bed-save-machine', onClick: () => {
                   if (executionLock.value !== null || activeJob.value?.id !== job.id) return;
-                  const saved = saveMachineBed(machine.id, { width: bed.width, depth: bed.depth, thickness: bed.thickness, outline: bed.outline, holes: bed.holes, toMachine: bed.toMachine, source: bed.source });
+                  const saved = saveMachineBed(machine.id, { ...bed, width: bed.width, depth: bed.depth, thickness: bed.thickness, outline: bed.outline, holes: bed.holes, toMachine: bed.toMachine, source: bed.source });
                   if (saved === null) setBedNote('The machine no longer exists.');
                   else {
                     const m = machineStore.value.value.find((x) => x.id === machine.id) ?? null;

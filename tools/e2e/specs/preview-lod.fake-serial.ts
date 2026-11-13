@@ -39,8 +39,9 @@ test.describe(`preview detail (${renderer})`, () => {
       await expect(page.locator('[data-preview="detail-progress"]')).toHaveCount(0);
     }
     const worker = page.workers().find(w => w.url().includes('gcode.worker'));
-    for (const mode of ['lite', 'full', 'auto']) {
-      await page.locator('[data-preview="mode"]').selectOption(mode);
+    for (const coarse of [true, false]) {
+      await page.locator('[data-action="preview-detail"]').click();
+      await expect(page.locator('[data-action="preview-detail"]')).toHaveAttribute('aria-pressed', String(coarse));
       await expect(canvas).toBeVisible();
       expect(page.workers().includes(worker!)).toBe(true);
     }

@@ -54,6 +54,7 @@ test('unhomed at 0, 0, 0: the job is shown as planned with a note; scene parts o
 
   // The pointer path, with a file open (no prompt over the drawing): a drag orbits and opens nothing; a click on the middle of the scene opens a part's settings.
   await page.locator('[data-job-step="run"]').click();
+  await page.locator('[data-job-step="place"]').click();
   await page.locator('[data-sample="test-square"]').click();
   await expect(page.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
   await page.locator('[data-job-step="run"]').click();

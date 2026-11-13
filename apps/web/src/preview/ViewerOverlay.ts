@@ -55,11 +55,12 @@ export function ViewerOverlay({ sceneKey, prompt = null, notice = null }: Viewer
   const chip = positionChip(sceneKey);
   return h(
     'div',
-    { class: 'viewer-overlay', 'data-preview': 'overlay' },
+    { class: `viewer-overlay${prompt === null ? '' : ' has-prompt'}`, 'data-preview': 'overlay' },
+    prompt === null ? null : h('div', { class: 'viewer-file-prompt' }, prompt),
     h(
       'div',
       { class: 'viewer-overlay-scroll' },
-      prompt,
+
       sceneKey === null
         ? null
         : h(

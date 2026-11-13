@@ -1,3 +1,4 @@
+import type { BedHoleGrid } from './bedHoleGrid.ts';
 import { cleanSeedTool } from './tools/cleanSeedTool.ts';
 /**
  * The library adapter: tools, materials, machine profiles and the setup,
@@ -135,8 +136,10 @@ export interface MachineBed {
   readonly thickness: number;
   /** The bed's outline in bed-local XY when it came from a drawing; null for the plain rectangle. */
   readonly outline: readonly (readonly [number, number])[] | null;
-  /** Holes in the bed (`[x, y, r]`, bed-local), from a drawing. */
+  /** Holes in the bed (`[x, y, r]`, bed-local), display only. */
   readonly holes: readonly (readonly [number, number, number])[];
+  /** Hole measurements are separate from the dimensions' provenance; a grid never verifies bed size. */
+  readonly holeGrid?: { readonly description: BedHoleGrid; readonly source: 'Measured by the owner'; readonly at: string };
   readonly toMachine: { readonly x: number; readonly y: number; readonly z: number };
   readonly source: BedSource;
   readonly savedAt: string;

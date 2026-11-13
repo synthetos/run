@@ -529,3 +529,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .inline-confirm p { margin: 0 0 8px; font-size: 12.5px; }
 .inline-confirm-actions { display: flex; gap: 8px; }
 button.danger-quiet { margin-top: 10px; color: var(--danger); }
+
+/* Hydrated help is in the browser top layer. Closed popovers must override the hover fallback. */
+.context-help .help-copy[popover] { position: fixed; inset: auto; margin: 0; box-sizing: border-box; max-height: calc(100dvh - 16px); overflow: auto; }
+.context-help .help-copy[popover]:not(:popover-open) { display: none; }
+.context-help .help-copy[popover]:popover-open { display: block; }
+@media (max-width: 600px) {
+  .context-help .help-copy[popover] { width: calc(100vw - 32px); max-height: 40dvh; }
+}

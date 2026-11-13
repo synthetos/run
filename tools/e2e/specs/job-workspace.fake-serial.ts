@@ -13,6 +13,7 @@ test('one Job keeps its scene and setup across steps, Library and project reopen
   await page.locator('[data-action="job-use-machine"]').click();
   await expect(page.locator('[data-screen="job"]')).toBeVisible();
   await expect(page.locator('[data-setup="machine"]')).toHaveValue(/.+/);
+  await page.locator('[data-job-step="place"]').click();
   await page.locator('[data-sample="test-square"]').click();
   await expect(page.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
   const canvas = page.locator('[data-screen="job"] [data-preview="canvas"], [data-screen="job"] [data-preview="svg"]');

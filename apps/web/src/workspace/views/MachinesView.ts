@@ -1,3 +1,4 @@
+import { BedGridForm } from './BedGridForm.ts';
 /**
  * The Machines view: start from a machine like yours, make a copy, and make
  * it yours (WORKSPACE_TENETS 6). Profiles are kept in this browser through
@@ -79,6 +80,7 @@ function BedSection({ machine }: { readonly machine: MachineProfile }): Componen
     h(ContextHelp, { id: 'machine-bed-help', label: 'About this bed' },
       bed.source.kind === 'placeholder' ? bed.source.note : bed.source.kind === 'measured' ? `${bed.source.note} ${dateText(bed.source.at)}` : `From ${bed.source.file}, ${bed.source.units}, ${dateText(bed.source.at)}.`,
       ' Bed coordinates start at the front-left corner of the bed’s top. Bed top is its machine Z position. Import a bed drawing from Projects → Use in Job. Saved jobs keep their pinned bed revision until you update them.'),
+    h(BedGridForm, { key: machine.id, machine }),
     note === null ? null : h('p', { class: 'fine', role: 'status', 'data-machine': 'bed-note' }, note),
   );
 }

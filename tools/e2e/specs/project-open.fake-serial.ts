@@ -11,6 +11,7 @@ test('create project, load demo, close it, open project G-code through Files, th
   await projects.locator('[data-project="file-input"]').setInputFiles({ name: 'plate.nc', mimeType: 'text/plain', buffer: Buffer.from('G21 G90\nG0 X12 Y8\nM2\n') });
   await expect(projects.locator('[data-project-file="plate.nc"]')).toBeVisible();
   await rail.locator('[data-view="job"]').click();
+  await job.locator('[data-job-step="place"]').click();
   await job.locator('[data-sample="test-square"]').click();
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
   await job.locator('[data-action="job-close"]').click();
@@ -23,6 +24,7 @@ test('create project, load demo, close it, open project G-code through Files, th
   await expect(drawer).toBeHidden();
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('plate.nc');
   await job.locator('[data-action="job-close"]').click();
+  await job.locator('[data-job-step="place"]').click();
   await job.locator('[data-sample="test-square"]').click();
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
   // Switching directly also works; closing first is optional.
@@ -41,6 +43,7 @@ test('a project opens over the demo, closes without deleting files, and reopens 
   const job = page.locator('[data-screen="job"]');
   const projects = page.locator('[data-screen="projects"]');
   const openProject = job.locator('.job-actions [data-action="job-projects"]');
+  await job.locator('[data-job-step="place"]').click();
   await job.locator('[data-sample="test-square"]').click();
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
   await expect(openProject).toHaveText('Open project');

@@ -106,5 +106,5 @@ export function applyImport(role: Exclude<JobRole, 'gcode' | 'reference'>, file:
   if (bed === null) return { ok: false, reason: 'The job’s machine no longer exists.' };
   const machine = machineStore.value.value.find((m) => m.id === machineId) ?? null;
   const job = updateActiveJob((j) => withMachine(j, machine));
-  return { ok: true, text: `${file.name} is bed revision ${bed.revision} of ${machine?.name ?? 'the machine'}: ${Math.round(parsed.width)} × ${Math.round(parsed.depth)} mm, ${options.height} mm thick, top at machine Z ${options.bedTopZ}. ${job === null ? '' : `${job.name} now plans on it; other jobs keep their pinned revision.`}` };
+  return { ok: true, text: `${file.name} is bed revision ${bed.revision} of ${machine?.name ?? 'the machine'}: ${Math.round(parsed.width)} × ${Math.round(parsed.depth)} mm, ${options.height} mm thick, top at machine Z ${options.bedTopZ}. Drawing holes replace any previous hole grid. ${job === null ? '' : `${job.name} now plans on it; other jobs keep their pinned revision.`}` };
 }

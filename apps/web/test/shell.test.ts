@@ -163,6 +163,9 @@ describe('Phase 1 control allowlist', () => {
     // The × on an informational notice (workspace/notes/Dismissable.ts, owner polish 2026-11-10): presentation only.
     /^action:dismiss-notice-x$/,
     /^action:context-help$/,
+    /^action:preview-detail$/,
+    /^action:bed-grid-(mm|in|measured|save)$/,
+    /^action:job-open-file$/,
     // NEEDS_REVIEW's ways out, in its banner (OD-13 §5): keep the board's settings (C23, writes nothing) or open the review.
     /^action:review-(keep|open|cancel)$/,
     // The interface level (OD-13): presentation only.

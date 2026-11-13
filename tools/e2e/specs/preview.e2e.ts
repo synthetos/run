@@ -55,7 +55,7 @@ test('Detail changes reuse the parsed file and keep drawing', async ({ page }) =
   const sheet = page.locator('[data-region="preview"]');
   // The preview options are an Advanced setting.
   await page.locator('[data-action="ui-level-advanced"]').click();
-  await sheet.locator('[data-preview="mode"]').selectOption('lite');
+  await sheet.locator('[data-action="preview-detail"]').click();
   await sheet.locator('[data-preview="file"]').setInputFiles(CLEAN);
   await sheet.locator('[data-job-step="check"]').click();
   await expect(sheet.locator('[data-preview="summary"]')).toBeVisible();
@@ -64,8 +64,9 @@ test('Detail changes reuse the parsed file and keep drawing', async ({ page }) =
   expect(worker).toBeDefined();
   let newWorkers = 0;
   page.on('worker', w => { if (w.url().includes('gcode.worker')) newWorkers++; });
-  for (const mode of ['full', 'auto', 'lite']) {
-    await sheet.locator('[data-preview="mode"]').selectOption(mode);
+  for (const coarse of [false, true, false]) {
+    await sheet.locator('[data-action="preview-detail"]').click();
+    await expect(sheet.locator('[data-action="preview-detail"]')).toHaveAttribute('aria-pressed', String(coarse));
     await expect(sheet.locator('[data-preview="drawing"]')).toBeVisible();
     expect(page.workers().includes(worker!)).toBe(true);
   }

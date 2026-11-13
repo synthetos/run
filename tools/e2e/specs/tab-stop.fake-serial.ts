@@ -119,6 +119,11 @@ test('Escape from any focus pauses through the worker; Space never does (T-S18)'
   await page.keyboard.press('Escape');
   await expect.poll(async () => bangs(await writes(worker))).toBe(before + 2);
   await expect(page.locator('[data-safety="W13"]')).toBeHidden();
+  await page.getByRole('button', { name: 'About spindle and coolant readouts' }).click();
+  await expect(page.locator('#spindle-help')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => bangs(await writes(worker))).toBe(before + 3);
+  await expect(page.locator('#spindle-help')).toBeHidden();
   // The stop button stays visible and focusable.
   await expect(page.locator('.stop-button')).toBeVisible();
 });
@@ -140,7 +145,7 @@ test('Escape reaches the wire as `!` in under 100 ms with a 1M-segment preview l
   const sheet = page.locator('[data-region="preview"]');
   // The preview options are an Advanced setting.
   await page.locator('[data-action="ui-level-advanced"]').click();
-  await sheet.locator('[data-preview="mode"]').selectOption('full');
+  await expect(sheet.locator('[data-action="preview-detail"]')).toHaveText('Fine');
   const million = Buffer.from('G21 G90 G17\n' + 'G1 X10 Y5 F800\nG1 X0 Y0\n'.repeat(500_000));
   await sheet.locator('[data-preview="file"]').setInputFiles({ name: 'million.nc', mimeType: 'text/plain', buffer: million });
   await sheet.locator('[data-job-step="check"]').click();
