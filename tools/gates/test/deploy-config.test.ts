@@ -167,7 +167,8 @@ describe('preflight --write', () => {
   const withBuild = withAccount.replace('"vars": { "RUN_ENV": "staging" }', '"vars": { "RUN_ENV": "staging" },\n      "build": { "command": "node marker.cjs" }');
 
   it('normal production deployment passes without RUN_DATA while staging data remains configured', () => {
-    const r = preflight(withAccount, 'production', dir => ['--write', join(dir, 'wrangler.deploy.json')]);
+    const noAuth = parseJsonc(withAccount) as Config; delete noAuth['services']; delete noAuth['d1_databases'];
+    const r = preflight(JSON.stringify(noAuth), 'production', dir => ['--write', join(dir, 'wrangler.deploy.json')]);
     expect(r.status, r.output).toBe(0);
     const written = JSON.parse(readFileSync(join(r.dir, 'wrangler.deploy.json'), 'utf8')) as Config;
     expect(written).not.toHaveProperty('services');
@@ -190,7 +191,9 @@ describe('preflight --write', () => {
 
   it('placeholder or missing migration credential deploys with both auth bindings removed, never a placeholder sent to wrangler', () => {
     // The committed staging id is real now (owner created run-auth-staging); the placeholder case is built here.
-    const placeholder = withAccount.replace(/"database_id": "[0-9a-f-]{36}"/, '"database_id": "RUN_AUTH_STAGING_DATABASE_ID_PLACEHOLDER"');
+    const placeholderConfig = parseJsonc(withAccount) as Config;
+    (placeholderConfig.env.staging['d1_databases'] as { database_id: string }[])[0]!.database_id = RUN_AUTH_DATABASES.staging.placeholder;
+    const placeholder = JSON.stringify(placeholderConfig);
     for (const [text, ready] of [[placeholder, true], [withAccount, false]] as const) {
       const r = preflight(text, 'staging', dir => ['--write', join(dir, 'wrangler.deploy.json')], undefined, ready);
       expect(r.status, r.output).toBe(0);
@@ -324,4 +327,16 @@ describe('the pinned wrangler (dry run, no account)', () => {
     expect(r.output).toContain('env.RUN_ENV ("staging")');
     expect(existsSync(marker(dir))).toBe(false);
   });
+});
+
+it('production placeholder is deployable with sign-in off; real id emits the migration gate', () => {
+  const reviewed = readFileSync(join(REPO_ROOT, 'workers/run/wrangler.jsonc'), 'utf8').replace(/"account_id": "[^"]*"/, `"account_id": "${REAL_ACCOUNT}"`);
+  for (const [config, enabled] of [[reviewed, false], [reviewed.replace(RUN_AUTH_DATABASES.production.placeholder, '11111111-2222-4333-8444-555555555555'), true]] as const) {
+    const r = preflight(config, 'production', dir => ['--write', join(dir, 'wrangler.deploy.json')]);
+    expect(r.status, r.output).toBe(0);
+    const written = JSON.parse(readFileSync(join(r.dir, 'wrangler.deploy.json'), 'utf8')) as Config;
+    expect('d1_databases' in written).toBe(enabled);
+    expect('services' in written).toBe(enabled);
+    expect(readFileSync(join(r.dir, 'outputs'), 'utf8')).toBe(`run_auth=${enabled}\n`);
+  }
 });

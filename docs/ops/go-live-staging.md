@@ -239,13 +239,19 @@ Connect needs a signed `safety-advisory.json` for production and a production en
 
 ### 7.3 Accounts production and run production, in order
 
-1. Create the D1 databases `identity` and `run-auth`. Put `identity`'s id in accounts' file (`IDENTITY_DATABASE_ID_PLACEHOLDER`).
-2. In run, one reviewed PR adds production's `services` and `d1_databases` to `workers/run/wrangler.jsonc` (the exact lines are in its comment, with `run-auth`'s id) The conditional `RUN_AUTH` migration step is already present in both deploy jobs. Preflight strips sign-in bindings when the database id is a placeholder or the separate D1 credential is missing; otherwise migrations must pass before deploy.
-3. accounts production uses the existing app `Synthetos` (5562809) and its callback `https://accounts.synthetos.com/auth/github/callback`. Its webhook can stay active: production is not behind Access.
-4. Approve accounts' `deploy-production`, then set its six secrets with **new** values (the production app's client secret, and the production webhook secret).
-5. Merge and approve run's `deploy-production`, then set its two secrets with new values.
+The prerequisites in §7.1 (including the TG-Firmware HIL sign-off and allowlist) and §7.2 (owner-signed production data) are unchanged. Do not run wrangler locally or create resources in the dashboard. CI does the provisioning and deployment; the owner approves the protected `production` jobs. Every manual workflow below selects **main**. None is dispatched by this implementation.
 
-Until step 2, run's production deploys keep working with sign-in off.
+1. In **accounts**, choose **production-provision → Run workflow**, then approve its `production` job. CI lists D1 using `CLOUDFLARE_D1_API_TOKEN`, reuses `identity` if present, or creates it. Only its database id is printed; no deployment or migration runs.
+2. Review and merge the PR replacing accounts' `IDENTITY_DATABASE_ID_PLACEHOLDER` with that printed id. The production allowlist stays exactly `["231731"]`.
+3. Approve accounts' **deploy-production** for the reviewed commit. The existing preflight, IDENTITY migrations and run client registration must pass before the attested code deploys. Production uses the existing GitHub App **Synthetos (5562809)** and callback `https://accounts.synthetos.com/auth/github/callback`; no new app is created.
+4. In **accounts**, choose **production-secrets**, Worker **accounts**, then approve. CI sets missing secrets from the protected production environment only and keeps existing values. No values are printed. This does not reuse staging keys or alter staging.
+5. In **run**, choose **production-provision → Run workflow**, then approve. CI looks up or creates `run-auth` with the separate D1 credential and prints its public id for review. The account must match the reviewed Worker configuration.
+6. Review and merge the PR replacing run's `RUN_AUTH_DATABASE_ID_PLACEHOLDER` with the printed id. The reviewed production bindings are exactly ACCOUNTS → accounts / RunEntrypoint and RUN_AUTH → run-auth. No production run-data binding is added.
+7. Approve run's **deploy-production** for that reviewed commit. While the database id is a placeholder, preflight strips both sign-in bindings and production still deploys with sign-in off. Once real bindings are enabled, the conditional RUN_AUTH migration step must succeed before deploy; a missing migration credential still strips sign-in bindings, never deploys an unmigrated enabled binding.
+8. In **accounts**, choose **production-secrets**, Worker **run**, then approve. CI installs its two production sign-in secrets without exposing their values. The workflow requires the production environment's preconfigured secret values; missing values fail closed rather than using staging or generating a fallback. The workflow maps `APP_CLIENT_SECRET` to `GITHUB_CLIENT_SECRET`, and `APP_WEBHOOK_SECRET` to `GITHUB_WEBHOOK_SECRET`; other secret names match the Worker names. This requires production environment secrets already supplied by trusted automation; this workflow does not generate GitHub environment secrets. If they are absent, stop here and arrange that provisioning without asking the owner to copy key contents.
+9. Perform §7.4's checks. The first signed-out visit additionally shows the non-blocking sign-in card; **Continue without an account** hides it for this browser. The existing Connect notice remains, and the document's server-issued serial policy remains the gate.
+
+The two provisioning workflows are idempotent and share each repo's production deploy concurrency group. A retry finds the same database by name. Resource ids enter configuration only through a reviewed PR. No command in this checklist requires the owner to handle secret values.
 
 ### 7.4 Check production
 

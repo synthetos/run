@@ -54,11 +54,10 @@
   },
   "routes": [{ "pattern": "run.synthetos.com", "custom_domain": true }],
   "vars": { "RUN_ENV": "production" },
-  // A1-06/A1-07: production has NO sign-in bindings yet, so sign-in is off there and production deploys as
-  // before. The owner's go-live step adds them (docs/ops/go-live-staging.md §7): exactly
-  //   "services": [{ "binding": "ACCOUNTS", "service": "accounts", "entrypoint": "RunEntrypoint" }],
-  //   "d1_databases": [{ "binding": "RUN_AUTH", "database_name": "run-auth", "database_id": "<id>", "migrations_dir": "migrations" }],
-  // The conditional RUN_AUTH migration step in deploy-production is already present.
+  // Production sign-in (owner, 2026-11-13): CI prints the id for a reviewed PR.
+  // Preflight removes both bindings while this id is a placeholder. A real id requires migrations before deploy.
+  "services": [{ "binding": "ACCOUNTS", "service": "accounts", "entrypoint": "RunEntrypoint" }],
+  "d1_databases": [{ "binding": "RUN_AUTH", "database_name": "run-auth", "database_id": "RUN_AUTH_DATABASE_ID_PLACEHOLDER", "migrations_dir": "migrations" }],
   "env": {
     // staging.run.synthetos.com, behind Cloudflare Access (D31,
     // docs/ops/access.md). Deployed as the Worker `run-staging`.

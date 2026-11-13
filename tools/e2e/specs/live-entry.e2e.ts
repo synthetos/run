@@ -7,6 +7,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from './fixtures.ts';
 import { ready } from './helpers.ts';
+import { resolve } from 'node:path';
 
 test('signed out on a release origin: Connect says accounts are coming soon and what works meanwhile, before the advisory or C1', async ({ page }) => {
   const advisory: string[] = [];
@@ -82,3 +83,33 @@ for (const colorScheme of ['light', 'dark'] as const) {
     });
   }
 }
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`first-visit sign-in card stays below machine controls and Continue persists (${theme})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 }); await page.emulateMedia({ colorScheme: theme });
+    await page.route('**/api/session', route => route.fulfill({ json: { signIn: true, account: null } }));
+    const response = await page.goto('/'); await ready(page);
+    expect(response?.headers()['permissions-policy']).toContain('serial=()');
+    const card = page.locator('[data-account="first-visit"]');
+    await expect(card).toBeVisible();
+    await expect(card.getByRole('heading')).toHaveText('Sign in to connect to your machine');
+    await expect(card.locator('[data-action="sign-in"]')).toHaveAttribute('href', '/auth/login');
+    await expect(card.locator('[data-action="create-account"]')).toHaveAttribute('href', '/auth/login');
+    const cardBox = (await card.boundingBox())!, strip = (await page.locator('[data-region="machine-strip"]').boundingBox())!;
+    expect(cardBox.y).toBeGreaterThanOrEqual(strip.y + strip.height);
+    await page.screenshot({ animations: 'disabled', path: resolve(`../../logs/production-sign-in-${theme}.png`) });
+    await card.locator('[data-action="continue-without-account"]').click(); await expect(card).toHaveCount(0);
+    await page.reload(); await ready(page); await expect(card).toHaveCount(0);
+    await page.locator('[data-action="connect"]').click();
+    await expect(page.locator('#refused-title')).toHaveText('Connecting needs a Synthetos account');
+  });
+}
+test('first-visit card handles blocked storage and Escape, but never shows for a signed-in account', async ({ page }) => {
+  await page.addInitScript(() => { Storage.prototype.getItem = () => { throw Error('blocked'); }; Storage.prototype.setItem = () => { throw Error('blocked'); }; });
+  let signedIn = false;
+  await page.route('**/api/session', route => route.fulfill({ json: { signIn: true, account: signedIn ? { subject: 'owner', display: '@owner' } : null } }));
+  await page.goto('/'); await ready(page);
+  const card = page.locator('[data-account="first-visit"]'); await expect(card).toBeVisible();
+  await page.keyboard.press('Escape'); await expect(card).toHaveCount(0);
+  signedIn = true; await page.reload(); await ready(page); await expect(card).toHaveCount(0);
+});

@@ -39,12 +39,12 @@ describe('stripJsonc', () => {
 });
 
 describe('A1-06: the sign-in bindings', () => {
-  it('staging binds exactly accounts\' RunEntrypoint and its RUN_AUTH database; production binds nothing yet (sign-in off)', () => {
+  it('staging binds exactly accounts\' RunEntrypoint and its RUN_AUTH database; production has reviewed placeholder bindings (sign-in off)', () => {
     const c = load();
     expect(c.env.staging['services']).toEqual(EXPECTED_SERVICES.staging);
     expect((c.env.staging['d1_databases'] as { database_name: string }[])[0]?.database_name).toBe('run-auth-staging');
-    expect('services' in c).toBe(false);
-    expect('d1_databases' in c).toBe(false);
+    expect(c['services']).toEqual(EXPECTED_SERVICES.production);
+    expect((c['d1_databases'] as { database_id: string }[])[0]?.database_id).toBe(RUN_AUTH_DATABASES.production.placeholder);
   });
 
   it('with either key present, both must be exact: another service or entrypoint, one key alone, a second database or a bad id is refused', () => {
@@ -58,8 +58,8 @@ describe('A1-06: the sign-in bindings', () => {
       c['services'] = EXPECTED_SERVICES.production;
       c['d1_databases'] = [prodDb];
     })).toEqual([]);
-    expect(mutate((c) => (c['services'] = EXPECTED_SERVICES.production)).join()).toContain('RUN_AUTH');
-    expect(mutate((c) => (c['d1_databases'] = [prodDb])).join()).toContain('services');
+    expect(mutate((c) => (delete c['d1_databases'])).join()).toContain('RUN_AUTH');
+    expect(mutate((c) => (delete c['services'])).join()).toContain('services');
     expect(mutate((c) => (c.env.staging['services'] = [{ binding: 'ACCOUNTS', service: 'accounts-staging', entrypoint: 'Default' }])).join()).toContain('services');
     expect(mutate((c) => (c.env.staging['services'] = EXPECTED_SERVICES.production)).join()).toContain('env.staging');
     expect(mutate((c) => (c.env.staging['services'] = [...EXPECTED_SERVICES.staging, { binding: 'FORUM', service: 'forumbot' }])).join()).toContain('services');
@@ -182,11 +182,7 @@ describe('preflight CLI', () => {
   });
 
   it('A1-07: once production carries the bindings, its deploy needs the real database id', () => {
-    const bound = accountOnly.replace(
-      '"routes": [{ "pattern": "run.synthetos.com", "custom_domain": true }],',
-      `"routes": [{ "pattern": "run.synthetos.com", "custom_domain": true }], "services": ${JSON.stringify(EXPECTED_SERVICES.production)}, "d1_databases": [{ "binding": "RUN_AUTH", "database_name": "run-auth", "database_id": "${RUN_AUTH_DATABASES.production.placeholder}", "migrations_dir": "migrations" }],`,
-    );
-    expect(bound).not.toBe(accountOnly);
+    const bound = accountOnly;
     const refused = preflight(bound, 'production', REAL_ACCOUNT);
     expect(refused.status).toBe(0);
     expect(preflight(bound.replace(RUN_AUTH_DATABASES.production.placeholder, PROD_DB), 'production', REAL_ACCOUNT).status).toBe(0);

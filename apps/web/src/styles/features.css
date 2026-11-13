@@ -530,3 +530,9 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 
 /* The library list hides optional columns on narrow screens; cutting actions must stay available. */
 @media (max-width: 760px) { .tool-modal table.cutting-table :is(th, td) { display: table-cell; } }
+
+/* In normal page flow below the machine strip, never an overlay on Pause/Stop. */
+.first-visit-card { flex-shrink: 0; margin: 10px 12px; padding: 12px 16px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--sheet); }
+.first-visit-card h2 { margin: 0 0 4px; font-size: 16px; }
+.first-visit-card p { margin: 0 0 10px; }
+.first-visit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

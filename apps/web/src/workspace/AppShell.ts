@@ -16,6 +16,7 @@ import { ProjectSetupChoice } from '../projects/ProjectSetupChoice.ts';
  * Prerendered into index.html (no model, no worker: Pause and Stop job are
  * disabled and say why) and hydrated by the workspace entry.
  */
+import { FirstVisitCard } from '../live/FirstVisitCard.ts';
 import { LibrarySyncNotice } from './cloud/SyncNotice.ts';
 import { h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
@@ -290,6 +291,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
         h(
           'main',
           { class: 'view-area', id: 'main', 'data-region': 'centre' },
+          h(FirstVisitCard, null),
           h(Banners, { ...props, view: current, onReview: () => { boardTab.value = 'settings'; onView('board'); } }),
           // After a connect: a newer signed release for this board (firmware/updateOffer.ts decides when).
           h(FirmwareOffer, { model: props.model ?? null, role: props.role?.value ?? null, live: props.liveTab?.value === true }),

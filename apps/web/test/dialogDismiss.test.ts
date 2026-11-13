@@ -86,3 +86,17 @@ it('focus restoration skips a replacement dialog and falls back when the opener 
 it('an unmounted hook installs no listener', () => {
   useDialogDismiss(vi.fn()); expect(hooks.effect?.()).toBeUndefined();
 });
+
+it('a plain card does not steal clicks, focus, or Escape from pause or an open dialog', async () => {
+  const { doc, root, close } = setup(); doc.roots = [];
+  const pause = vi.fn(); installEscapeStop(doc as unknown as Document, pause);
+  const hook = useDialogDismiss(close, false, null, true); hook.ref.current = root as unknown as HTMLDivElement;
+  const stop = hooks.effect?.();
+  root.dispatchEvent(event('pointerdown', { button: 0 })); root.dispatchEvent(event('click')); expect(close).not.toHaveBeenCalled();
+  const modal = new Root(doc);
+  doc.dispatchEvent(event('keydown', { key: 'Escape' })); expect(pause).toHaveBeenCalledOnce(); expect(close).not.toHaveBeenCalled();
+  modal.visible = false;
+  const escape = event('keydown', { key: 'Escape' }); doc.dispatchEvent(escape);
+  expect(close).toHaveBeenCalledOnce(); expect(pause).toHaveBeenCalledTimes(2); expect(escape.defaultPrevented).toBe(false);
+  stop?.(); await Promise.resolve(); expect(doc.fallback.focus).not.toHaveBeenCalled();
+});

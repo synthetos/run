@@ -1,3 +1,4 @@
+import { SignInCard } from '../src/live/FirstVisitCard.ts';
 /**
  * The workspace shell (Stage 1) and the safety bar: W1 first, the top bar,
  * the machine strip with W7 NOT CONNECTED and the disabled Pause (W2) and
@@ -122,7 +123,7 @@ describe('SafetyBar', () => {
 describe('Phase 1 control allowlist', () => {
   // Every machine control class must render: the Advanced pane has the tabs (Offsets, Overrides) that Simple hides (OD-13).
   uiLevel.set('advanced');
-  const html = renderToString(h(Fragment, null, h(AppShell, { build }), h(AccountPanel, {
+  const html = renderToString(h(Fragment, null, h(SignInCard, null), h(AppShell, { build }), h(AccountPanel, {
     state: { status: 'signed-in', display: '@owner', signIn: true, message: null }, live: false, onSignOut: () => undefined,
   })));
   uiLevel.set('simple');
@@ -156,6 +157,7 @@ describe('Phase 1 control allowlist', () => {
   const UI: readonly RegExp[] = [
     // Account actions change identity only, never the machine (T-S58 separately refuses them while connected).
     /^action:sign-(in|out)$/,
+    /^action:(create-account|continue-without-account)$/,
     /^action:advisor-(open|engine|input)$/,
     // The Run step's list (owner, 2026-11-09): views and notes only; its machine buttons carry data-machine-control.
     /^action:ready-(analyze|save-zero|note|update|trust|review|machines)$/,

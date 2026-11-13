@@ -86,6 +86,7 @@ import { dataStep, DATA_PROVISION, DATA_MIGRATION, DATA_DEPLOY } from './dataCre
  * these files use and fails closed on anything else. Dependency-free.
  */
 
+import { AUTH_PROVISION_WORKFLOW } from './authProvisionWorkflow.ts';
 import { MUTATION_JOB } from './mutationJob.ts';
 import { D1_SECRET, d1ReadinessIsConfined, d1StepIsConfined } from './d1Credentials.ts';
 
@@ -356,6 +357,7 @@ const SHA_PIN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_./-]+)?@[0-9a-
 export function checkWorkflow(file: string, source: string): PolicyFinding[] {
   // Rules are chosen by the file's name, however the caller spells its path.
   const name = file.split(/[\\/]/).pop() ?? file;
+  if (name === 'production-provision.yml') return source.trim() === AUTH_PROVISION_WORKFLOW.trim() ? [] : [{ file, line: 1, rule: 'secret-outside-deploy', message: 'Production provisioning must match the exact reviewed main-only, protected workflow' }];
   const findings: PolicyFinding[] = [];
   const add = (line: number, rule: PolicyRule, message: string): void => {
     findings.push({ file, line, rule, message });
