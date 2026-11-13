@@ -4,7 +4,7 @@
  *
  * Pure functions; the job layer (job.ts) calls them.
  */
-import type { SanitizeResult } from '@synthetos/safety';
+import { findingReason, type SanitizeResult } from '@synthetos/safety';
 import { WORD } from './fileModes.ts';
 import { checkTravel, type TravelCheck } from './travelCheck.ts';
 import type { JobReportSummary, JobState, SessionState } from './types.ts';
@@ -121,7 +121,7 @@ export function resumeTravel(s: SessionState, j: JobState, system: number | null
   const state = { ...s, values: replay.values };
   const result = recheck(state);
   const blocked = result.report.entries.find((e) => e.severity === 'block');
-  if (blocked !== undefined) return { refusal: `With the new Z zero the rest of the job cannot be checked again: line ${blocked.line}: ${blocked.message}.`, note: null };
+  if (blocked !== undefined) return { refusal: `With the new Z zero the rest of the job cannot be checked again: line ${blocked.line}: ${findingReason(blocked.message)}.`, note: null };
   const fromLine = (j.lines[tc.index] as JobState['lines'][number]).sourceLine;
   const travel = travelOf(state, result, fromLine);
   if (travel.block !== null) return { refusal: `With the new Z zero, ${travel.block.text}. Re-zero Z again, or stop the job.`, note: null };

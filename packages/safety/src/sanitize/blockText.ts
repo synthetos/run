@@ -78,3 +78,9 @@ export function blockFindingText(rule: string, detail: string, line: number): st
   if (hasRepair) return `${sentence}.`;
   return `${sentence}. Fix: ${BLOCK_FIXES[rule] ?? 'Correct this line in the source file and check it again before running.'}`;
 }
+
+/** A sentence continuation for callers supplying their own context and next action.
+ * Keep code/axis capitals (G53, Z), but omit the list-only generic repair and terminator. */
+export function findingReason(message: string): string {
+  return message.trim().replace(/\s+Fix:[\s\S]*$/, '').replace(/[.;\s]+$/, '').replace(/^[A-Z](?=[a-z])/, first => first.toLowerCase());
+}

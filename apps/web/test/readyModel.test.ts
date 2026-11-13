@@ -126,3 +126,10 @@ describe('the travel question when the work zero is not the plan\'s', () => {
     expect(plain).toMatch(/class="small primary" data-action="travel-start"/);
   });
 });
+
+it('embedded blocked-file reason has no list repair or capitalized continuation', () => {
+  const model = readyModel({ ...READY, check: { state: 'blocked', line: 2, message: 'The axis mode is unknown. Fix: Read settings.', more: 0 } });
+  const summary = model.items.find(i => i.id === 'file')?.summary;
+  expect(summary).toBe('Line 2: the axis mode is unknown');
+  expect(summary).not.toMatch(/\.\.|: [A-Z]|Fix:/);
+});

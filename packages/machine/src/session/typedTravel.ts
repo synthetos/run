@@ -1,3 +1,4 @@
+import { findingReason } from '@synthetos/safety';
 /**
  * The check of one typed move (H91, owner 2026-11-09; OD-31): the job's own checks on a one-line program.
  *
@@ -97,7 +98,7 @@ export function typedCheck(s: SessionState, line: string): TypedCheck {
   const start = typedStart(s);
   const result = sanitizeLive(s, line, false, start);
   const block = result.report.entries.find((e) => e.severity === 'block');
-  if (block !== undefined) return refused(`Not sent: ${block.message}.`);
+  if (block !== undefined) return refused(`Not sent: ${findingReason(block.message)}.`);
   // Refusals come before a question: the user is never asked to confirm a move that is then refused.
   const travel = checkTravel(s, result.extents);
   if (travel.block !== null) return refused(`Not sent: ${findingWords(travel.block)}.`);

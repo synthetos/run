@@ -55,6 +55,7 @@ describe('typedCheck', () => {
     const r = typedCheck(await board(), 'G2 X10 Y0 I1 J0 F300');
     expect(r.kind).toBe('refused');
     expect((r as { text: string }).text.startsWith('Not sent: ')).toBe(true);
+    expect((r as { text: string }).text).not.toMatch(/\.\.|: [A-Z][a-z]|Fix:/);
   });
 
   it('OD-31: a long line is split into pieces of at most ceiling / lookahead each; too many pieces: refused', async () => {

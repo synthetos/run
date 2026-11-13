@@ -1,3 +1,4 @@
+import { findingReason } from '@synthetos/safety';
 /**
  * "Ready to start?" (owner, 2026-11-09): the Run step as one list, one line per item with a mark (✓ done, ! needs
  * you, ✕ blocked, … still checking), the one tick that confirms what applies, and what Start must ask first (the
@@ -100,7 +101,7 @@ function fileItem(input: ReadyInput): ReadyItem {
     if (!input.jobsOn || input.block !== null) return { id: 'file', label: 'File', mark: 'needs', summary: 'Checked once the board can run jobs.', actions: [] };
     return { id: 'file', label: 'File', mark: 'waiting', summary: 'Checking with this board…', actions: [] };
   }
-  if (c.state === 'blocked') return { id: 'file', label: 'File', mark: 'blocked', summary: `${c.line === null ? '' : `Line ${c.line.toLocaleString('en-US')}: `}${c.message}${c.more > 0 ? ` (+${c.more} more)` : ''}`, actions: [], note: 'file-check' };
+  if (c.state === 'blocked') return { id: 'file', label: 'File', mark: 'blocked', summary: `${c.line === null ? '' : `Line ${c.line.toLocaleString('en-US')}: `}${findingReason(c.message)}${c.more > 0 ? ` (+${c.more} more)` : ''}`, actions: [], note: 'file-check' };
   if (c.state !== 'done') return { id: 'file', label: 'File', mark: 'waiting', summary: 'Checking with this board…', actions: [] };
   return { id: 'file', label: 'File', mark: 'done', summary: `Checked. ${c.lines.toLocaleString('en-US')} lines${c.seconds === null ? '' : `, ${fmtSeconds(c.seconds)}`}.`, actions: [], note: 'file-check' };
 }

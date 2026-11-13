@@ -245,6 +245,8 @@ describe('Resume after a Z re-zero at a tool change', () => {
     // A re-check that blocks a line (here: the Z group was not read, so Z cannot be modelled) refuses too.
     const blocked = rezeroed(s, 2);
     startValues(blocked, ({ z: _z, ...rest }) => rest);
+    const composed = onJobResume(blocked, { intent: 'resume' }, 99_999) as { reason: string };
+    expect(composed.reason).not.toMatch(/\.\.|: [A-Z]|Fix:/);
     expect(onJobResume(blocked, { intent: 'resume' }, 99_999)).toMatchObject({ allowed: false, reason: 'With the new Z zero the rest of the job cannot be checked again: line 2: the axis mode (zam) of Z is not known, so a move on Z cannot be modelled.' });
   });
 

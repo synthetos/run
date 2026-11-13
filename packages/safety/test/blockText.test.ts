@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCK_FIXES, blockFindingText, programEndBlockText } from '../src/sanitize/blockText.ts';
+import { BLOCK_FIXES, blockFindingText, programEndBlockText, findingReason } from '../src/sanitize/blockText.ts';
 describe('plain blocking findings', () => {
   for (const rule of Object.keys(BLOCK_FIXES)) {
     it(`${rule}: preserves the specific problem and supplies a repair`, () => {
@@ -41,4 +41,16 @@ it.each([
   ['end-state', 'the last line turns the spindle or coolant on together with the program end; move the M3/M4/M7/M8 off that line'],
 ])('%s: audited checker remedy remains the only repair', (rule, detail) => {
   expect(blockFindingText(rule, detail, 96)).toBe(detail.charAt(0).toUpperCase() + detail.slice(1) + '.');
+});
+
+it.each([
+  ['The axis mode is unknown. Fix: Read settings.', 'the axis mode is unknown'],
+  ['The axis mode is unknown..', 'the axis mode is unknown'],
+  ['G53 needs G90.', 'G53 needs G90'],
+  ['Z is unknown.', 'Z is unknown'],
+  [' lower case; ', 'lower case'],
+  ['', ''],
+])('embedded finding strips list repair and sentence punctuation: %s', (message, reason) => {
+  expect(findingReason(message)).toBe(reason);
+  expect(`Cannot resume: ${findingReason(message)}.`).not.toContain('..');
 });
