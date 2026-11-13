@@ -166,6 +166,14 @@ for (const theme of ['light', 'dark'] as const) {
     const row = page.locator('tr[data-tool-row="7"]');
     await row.locator('.row-link').click(); await modal.locator('#tool-tab-cutting').click();
     await modal.getByRole('button', { name: 'Next', exact: true }).click();
+    const addBox = (await modal.locator('[data-action="cutting-row-add"]').boundingBox())!;
+    const pagerBox = (await modal.locator('.cutting-table-footer .tool-pages').boundingBox())!;
+    expect(Math.abs(addBox.y + addBox.height / 2 - pagerBox.y - pagerBox.height / 2)).toBeLessThan(1);
+    expect(pagerBox.x).toBeGreaterThan(addBox.x + addBox.width);
+    await expect(modal.locator('.cutting-table tbody tr').last().locator('td').last()).toHaveCSS('display', 'table-cell');
+    await expect(modal.locator('.cutting-table tbody tr').last().locator('td').last()).toHaveCSS('border-bottom-style', 'solid');
+    const uiFont = await modal.locator('[data-action="cutting-row-add"]').evaluate(el => getComputedStyle(el).fontFamily);
+    await expect(modal.locator('[data-action="cutting-row-copy"]').first()).toHaveCSS('font-family', uiFont);
     await page.screenshot({ animations: 'disabled', path: resolve(`../../logs/own-cutting-${theme}.png`) });
     await modal.locator('[data-action="cutting-row-add"]').click();
     await modal.locator('[data-action="cutting-row-cancel"]').click();
