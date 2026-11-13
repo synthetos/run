@@ -54,7 +54,8 @@ import { dataStep, DATA_PROVISION, DATA_MIGRATION, DATA_DEPLOY } from './dataCre
  *   `id: deploy`, and after the smoke test a step runs
  *   `rollback-cli.ts <env>` under exactly
  *   `if: failure() && (steps.deploy.outcome == 'failure' || steps.site_smoke.outcome == 'failure')`, so a deployment
- *   whose smoke test failed never stays live.
+ *   whose smoke test failed is taken down. Production additionally requires a successful
+ *   deploy: rollback after a failed deploy could revert the previous healthy version.
  * - `deploy-config` (ci.yml, P0-04 review): each deploy job's preflight
  *   writes the allowlisted deployment configuration (DEPLOY_CONFIG), and
  *   every wrangler invocation comes after it and uses only that file; no
@@ -648,7 +649,10 @@ function checkArtifactDigests(jobs: readonly Job[], add: (line: number, rule: Po
 }
 
 /** The exact condition of the undo step. */
-export const ROLLBACK_IF = "if: failure() && (steps.deploy.outcome == 'failure' || steps.site_smoke.outcome == 'failure')";
+export const ROLLBACK_IF = {
+  staging: "if: failure() && (steps.deploy.outcome == 'failure' || steps.site_smoke.outcome == 'failure')",
+  production: "if: failure() && steps.deploy.outcome == 'success' && steps.site_smoke.outcome == 'failure'",
+} as const;
 
 /** ci.yml: a deploy whose later steps fail is undone (`deploy-rollback`). */
 function checkRollback(jobs: readonly Job[], add: (line: number, rule: PolicyRule, message: string) => void): void {
@@ -674,7 +678,8 @@ function checkRollback(jobs: readonly Job[], add: (line: number, rule: PolicyRul
     // The step's `if:` is the nearest step-level `if:` above its run line within the same step.
     const stepStart = [...job.lines].reverse().find((l) => !l.inBlock && l.no < undo.no && /^-\s+name:/.test(l.text));
     const cond = job.lines.find((l) => !l.inBlock && l.no > (stepStart?.no ?? 0) && l.no < undo.no && /^if:/.test(text(l)));
-    if (cond === undefined || text(cond) !== ROLLBACK_IF) flag(undo.no, `job '${name}': the undo step must run under exactly ${ROLLBACK_IF}`);
+    const required = env === 'production' ? ROLLBACK_IF.production : ROLLBACK_IF.staging;
+    if (cond === undefined || text(cond) !== required) flag(undo.no, `job '${name}': the undo step must run under exactly ${required}`);
   }
 }
 
