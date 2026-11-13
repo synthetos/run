@@ -53,7 +53,7 @@ import { dataStep, DATA_PROVISION, DATA_MIGRATION, DATA_DEPLOY } from './dataCre
  * - `deploy-rollback` (ci.yml, P0 review): each deploy job's deploy step has
  *   `id: deploy`, and after the smoke test a step runs
  *   `rollback-cli.ts <env>` under exactly
- *   `if: failure() && steps.deploy.outcome == 'success'`, so a deployment
+ *   `if: failure() && (steps.deploy.outcome == 'failure' || steps.site_smoke.outcome == 'failure')`, so a deployment
  *   whose smoke test failed never stays live.
  * - `deploy-config` (ci.yml, P0-04 review): each deploy job's preflight
  *   writes the allowlisted deployment configuration (DEPLOY_CONFIG), and
@@ -648,7 +648,7 @@ function checkArtifactDigests(jobs: readonly Job[], add: (line: number, rule: Po
 }
 
 /** The exact condition of the undo step. */
-export const ROLLBACK_IF = "if: failure() && steps.deploy.outcome == 'success'";
+export const ROLLBACK_IF = "if: failure() && (steps.deploy.outcome == 'failure' || steps.site_smoke.outcome == 'failure')";
 
 /** ci.yml: a deploy whose later steps fail is undone (`deploy-rollback`). */
 function checkRollback(jobs: readonly Job[], add: (line: number, rule: PolicyRule, message: string) => void): void {
@@ -669,6 +669,7 @@ function checkRollback(jobs: readonly Job[], add: (line: number, rule: PolicyRul
       flag(job.line, `job '${name}' must run rollback-cli.ts ${env} when a step after the deploy fails`);
       continue;
     }
+    if (smoke !== undefined && !stepOf(job, smoke).some(l => l.text === 'id: site_smoke')) flag(smoke.no, 'post-deploy smoke must have id: site_smoke');
     if (smoke === undefined || undo.no < smoke.no) flag(undo.no, `job '${name}': the undo step must come after the smoke test`);
     // The step's `if:` is the nearest step-level `if:` above its run line within the same step.
     const stepStart = [...job.lines].reverse().find((l) => !l.inBlock && l.no < undo.no && /^-\s+name:/.test(l.text));

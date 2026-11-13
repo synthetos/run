@@ -596,13 +596,14 @@ jobs:
         run: |
           ci/deploy-toolchain/node_modules/.bin/wrangler deploy worker/index.mjs --no-bundle --config workers/run/wrangler.deploy.json --env staging --assets deploy-site
       - name: Post-deploy smoke test (headers, preview URLs, health, DNSSEC, CAA, certificate)
+        id: site_smoke
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           RUN_WORKERS_DEV_SUBDOMAIN: ${{ vars.RUN_WORKERS_DEV_SUBDOMAIN }}
         run: node tools/gates/src/smoke/cli.ts --env staging
-      - name: Undo the deployment when a step after it failed (staging is deleted, production rolled back)
-        if: failure() && steps.deploy.outcome == 'success'
+      - name: Undo the deployment when site deployment or smoke failed (staging is deleted, production rolled back)
+        if: failure() && (steps.deploy.outcome == 'failure' || steps.site_smoke.outcome == 'failure')
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -622,11 +623,15 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: node tools/backups/provision-worker.mjs staging
       - name: Deploy attested private backup Worker
+        id: backup_deploy
         if: steps.backups.outputs.ready == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: ci/deploy-toolchain/node_modules/.bin/wrangler deploy worker/backup/index.mjs --no-bundle --config workers/backup/wrangler.deploy.json
+      - name: Report backup failure without undoing the site
+        if: failure() && (steps.backups.outcome == 'failure' || steps.backup_deploy.outcome == 'failure')
+        run: echo 'Backups failed; the site deploy is unaffected.' >> "$GITHUB_STEP_SUMMARY"
 
 
   deploy-production:
@@ -781,13 +786,14 @@ jobs:
         run: |
           ci/deploy-toolchain/node_modules/.bin/wrangler deploy worker/index.mjs --no-bundle --config workers/run/wrangler.deploy.json --assets deploy-site
       - name: Post-deploy smoke test (headers, preview URLs, health, DNSSEC, CAA, certificate)
+        id: site_smoke
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           RUN_WORKERS_DEV_SUBDOMAIN: ${{ vars.RUN_WORKERS_DEV_SUBDOMAIN }}
         run: node tools/gates/src/smoke/cli.ts --env production
-      - name: Undo the deployment when a step after it failed (staging is deleted, production rolled back)
-        if: failure() && steps.deploy.outcome == 'success'
+      - name: Undo the deployment when site deployment or smoke failed (staging is deleted, production rolled back)
+        if: failure() && (steps.deploy.outcome == 'failure' || steps.site_smoke.outcome == 'failure')
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -807,8 +813,12 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: node tools/backups/provision-worker.mjs production
       - name: Deploy attested private backup Worker
+        id: backup_deploy
         if: steps.backups.outputs.ready == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: ci/deploy-toolchain/node_modules/.bin/wrangler deploy worker/backup/index.mjs --no-bundle --config workers/backup/wrangler.deploy.json
+      - name: Report backup failure without undoing the site
+        if: failure() && (steps.backups.outcome == 'failure' || steps.backup_deploy.outcome == 'failure')
+        run: echo 'Backups failed; the site deploy is unaffected.' >> "$GITHUB_STEP_SUMMARY"

@@ -10,8 +10,8 @@
  * - production: `wrangler rollback` to the previous version (the header or
  *   content regression the smoke test found came with this deploy).
  *
- * The deploy job runs `rollback-cli.ts <env>` only when the deploy step
- * succeeded and a later step failed (`artifact-digest`'s sibling rule
+ * The deploy job runs `rollback-cli.ts <env>` only when the site deploy step
+ * failed or its post-deploy smoke failed (`artifact-digest`'s sibling rule
  * `deploy-rollback` in ci-policy). Dependency-free.
  */
 import { DEPLOY_CONFIG_PATH, type DeployEnvironment } from './wranglerConfig.ts';

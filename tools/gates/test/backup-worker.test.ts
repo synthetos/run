@@ -35,3 +35,19 @@ it('backup provisioning follows each site smoke test and Worker deploy requires 
     expect(checkWorkflow('ci.yml', removed.slice(0, beforeSmoke) + block + '\n' + removed.slice(beforeSmoke))).not.toEqual([]);
   }
 });
+
+it('site undo depends only on site failure; backup failures get their own summary', () => {
+  const source = readFileSync(join(REPO_ROOT, '.github/workflows/ci.yml'), 'utf8');
+  const condition = "failure() && (steps.deploy.outcome == 'failure' || steps.site_smoke.outcome == 'failure')";
+  for (const environment of ['staging', 'production']) {
+    const job = source.slice(source.indexOf(`  deploy-${environment}:`)).split(/\n  deploy-/)[0]!;
+    expect(job).toContain(`if: ${condition}`);
+    expect(job).toContain('id: site_smoke');
+    expect(job).toContain("if: failure() && (steps.backups.outcome == 'failure' || steps.backup_deploy.outcome == 'failure')");
+    expect(job).toContain('Backups failed; the site deploy is unaffected.');
+    const watched = [...condition.matchAll(/steps\.(\w+)\.outcome == 'failure'/g)].map(m => m[1]!);
+    for (const failed of ['deploy', 'site_smoke', 'backups', 'backup_deploy']) expect(watched.includes(failed)).toBe(failed === 'deploy' || failed === 'site_smoke');
+  }
+  expect(checkWorkflow('ci.yml', source.replace(condition, "failure() && steps.deploy.outcome == 'success'"))).not.toEqual([]);
+  expect(checkWorkflow('ci.yml', source.replace('id: site_smoke', 'id: wrong'))).not.toEqual([]);
+});

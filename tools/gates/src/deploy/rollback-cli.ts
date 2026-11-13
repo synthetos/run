@@ -5,14 +5,15 @@
  *   node tools/gates/src/deploy/rollback-cli.ts <production|staging> <wrangler-binary>
  *
  * Runs the plan's wrangler commands in order until one succeeds. Exit
- * status: 0 the deployment was undone, 1 every command failed (the job log
- * then says the deployment is STILL LIVE), 2 could not run.
+ * status: 0 the deployment was undone, 1 every command failed (a read-only API check
+ * distinguishes a deleted Worker, a live Worker, and unknown state), 2 could not run.
  */
 import { spawnSync } from 'node:child_process';
+import { workerPresence, rollbackFailure } from './rollbackStatus.ts';
 import { rollbackPlan } from './rollback.ts';
 import { isDeployEnvironment } from './wranglerConfig.ts';
 
-function main(argv: readonly string[]): number {
+async function main(argv: readonly string[]): Promise<number> {
   const [env, wrangler] = argv;
   if (argv.length !== 2 || env === undefined || wrangler === undefined || !isDeployEnvironment(env)) {
     process.stderr.write('usage: rollback-cli.ts <production|staging> <wrangler-binary>\n');
@@ -26,8 +27,9 @@ function main(argv: readonly string[]): number {
       return 0;
     }
   }
-  process.stderr.write(`::error::rollback (${env}) failed: the deployment that failed its smoke test is STILL LIVE; act now\n`);
+  const presence = await workerPresence(env, process.env['CLOUDFLARE_ACCOUNT_ID'], process.env['CLOUDFLARE_API_TOKEN']);
+  process.stderr.write(`::error::${rollbackFailure(env, presence)}\n`);
   return 1;
 }
 
-process.exitCode = main(process.argv.slice(2));
+process.exitCode = await main(process.argv.slice(2));
