@@ -220,6 +220,8 @@ importers:
 
   tools/gates: {}
 
+  workers/backup: {}
+
   workers/run:
     dependencies:
       '@synthetos/contracts':

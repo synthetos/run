@@ -109,3 +109,7 @@
 /workers/run-data/                  @ril3y
 /workers/run/src/records.ts          @ril3y
 /packages/contracts/src/records.ts   @ril3y
+
+# Private scheduled database backups and their protected recovery/provisioning paths.
+/workers/backup/                   @ril3y
+/tools/backups/                    @ril3y

@@ -1,3 +1,4 @@
+import { backupStep, backupProvision, BACKUP_DEPLOY } from './backupCredentials.ts';
 import { reviewedBackupWorkflow } from './backupWorkflow.ts';
 import { dataStep, DATA_PROVISION, DATA_MIGRATION, DATA_DEPLOY } from './dataCredentials.ts';
 /**
@@ -358,7 +359,7 @@ const SHA_PIN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_./-]+)?@[0-9a-
 export function checkWorkflow(file: string, source: string): PolicyFinding[] {
   // Rules are chosen by the file's name, however the caller spells its path.
   const name = file.split(/[\\/]/).pop() ?? file;
-  if (name === 'database-backups.yml' || name === 'database-restore.yml') return reviewedBackupWorkflow(name, source) ? [] : [{ file, line: 1, rule: 'secret-outside-deploy', message: 'Backups must match the exact reviewed main-only, protected workflow' }];
+  if (name === 'database-restore.yml') return reviewedBackupWorkflow(name, source) ? [] : [{ file, line: 1, rule: 'secret-outside-deploy', message: 'Backups must match the exact reviewed main-only, protected workflow' }];
   if (name === 'production-provision.yml') return source.trim() === AUTH_PROVISION_WORKFLOW.trim() ? [] : [{ file, line: 1, rule: 'secret-outside-deploy', message: 'Production provisioning must match the exact reviewed main-only, protected workflow' }];
   const findings: PolicyFinding[] = [];
   const add = (line: number, rule: PolicyRule, message: string): void => {
@@ -395,7 +396,7 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
         add(line.no, 'secret-outside-deploy', `only ${DEPLOY_JOBS.join(' and ')} may reference secrets or ${DEPLOY_SECRET}`);
       } else {
         for (const m of content.matchAll(/\bsecrets\b(\s*\.\s*([A-Za-z0-9_]+))?/g)) {
-          if (m[2] !== DEPLOY_SECRET && !(m[2] === D1_SECRET && job !== undefined && (dataStep(stepOf(job, line), job.name, DATA_PROVISION) || dataStep(stepOf(job, line), job.name, DATA_MIGRATION) || d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '') || d1ReadinessIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '')))) {
+          if (m[2] !== DEPLOY_SECRET && !(m[2] === D1_SECRET && job !== undefined && (backupStep(stepOf(job, line), job.name) || dataStep(stepOf(job, line), job.name, DATA_PROVISION) || dataStep(stepOf(job, line), job.name, DATA_MIGRATION) || d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '') || d1ReadinessIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '')))) {
             add(line.no, 'secret-outside-deploy', `deploy jobs may use secrets.${DEPLOY_SECRET}; the D1 credential is confined to the reviewed migration step`);
           }
         }
@@ -713,6 +714,8 @@ function checkDeployConfig(jobs: readonly Job[], add: (line: number, rule: Polic
       if (steps.some(s => s === undefined)) flag(job.line,'staging data provisioning, migrations and attested deploy require their exact confined steps');
       else if (steps[0]!.no <= (preflight?.no ?? Infinity) || steps[1]!.no <= steps[0]!.no || steps[2]!.no <= steps[1]!.no || (deployment !== undefined && steps[2]!.no > deployment.no)) flag(job.line,'data provisioning, migrations and deploy must precede run deployment in order');
     }
+    const backup = [backupProvision(env), BACKUP_DEPLOY].map(expected => job.lines.find(l => l.text === expected[expected.length - 1] && backupStep(stepOf(job, l), name, expected === BACKUP_DEPLOY)));
+    if (backup.some(line => line === undefined) || backup[0]!.no <= (preflight?.no ?? Infinity) || backup[1]!.no <= backup[0]!.no) flag(job.line, 'backup provisioning and attested deployment require their exact ordered steps');
     let deploys = 0;
     for (const l of invocations) {
       if (/\bwrangler\s+deploy\b/.test(l.text)) deploys += 1;
@@ -721,7 +724,7 @@ function checkDeployConfig(jobs: readonly Job[], add: (line: number, rule: Polic
       const tokens = l.text.split(/\s+/);
       const configOptions = tokens.filter((t) => /^(?:--config|-c)(?:=|$)/.test(t));
       const at = tokens.indexOf('--config');
-      if (configOptions.length !== 1 || at === -1 || tokens[at + 1] !== (dataStep(stepOf(job,l),name,DATA_MIGRATION) || dataStep(stepOf(job,l),name,DATA_DEPLOY) ? 'workers/run-data/wrangler.deploy.json' : DEPLOY_CONFIG)) {
+      if (configOptions.length !== 1 || at === -1 || tokens[at + 1] !== (backupStep(stepOf(job,l),name,true) ? 'workers/backup/wrangler.deploy.json' : dataStep(stepOf(job,l),name,DATA_MIGRATION) || dataStep(stepOf(job,l),name,DATA_DEPLOY) ? 'workers/run-data/wrangler.deploy.json' : DEPLOY_CONFIG)) {
         flag(l.no, `job '${name}': every wrangler invocation must pass exactly --config ${DEPLOY_CONFIG}, and no other configuration option`);
       }
       if (tokens.some((t) => /^--(?:cwd|env-file)(?:=|$)/.test(t))) flag(l.no, `job '${name}': a wrangler invocation may not pass --cwd or --env-file`);

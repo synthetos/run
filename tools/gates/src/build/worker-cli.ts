@@ -30,6 +30,10 @@ function main(argv: readonly string[]): number {
     mkdirSync(outDir, { recursive: true });
     for (const m of built) writeFileSync(join(outDir, m.name), m.code);
     buildDataWorker(resolve(srcDir, '../../..'), join(outDir, 'data'));
+    const backupDir = resolve(srcDir, '../../backup/src');
+    const backup = buildWorker(readdirSync(backupDir).sort().map(name => ({ name, source: readFileSync(join(backupDir, name), 'utf8') })));
+    mkdirSync(join(outDir, 'backup'));
+    for (const module of backup) writeFileSync(join(outDir, 'backup', module.name), module.code);
     process.stdout.write(`worker build: ${built.length} modules written to ${outDir}\n`);
     return 0;
   } catch (error) {

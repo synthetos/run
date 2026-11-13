@@ -1,3 +1,4 @@
+import { checkBackupConfig } from '../../../backups/worker-config.mjs';
 /**
  * Who may bind the `accounts` Worker (DECISIONS D39, SAFETY H46).
  *
@@ -92,6 +93,10 @@ export function checkWranglerFile(file: string, text: string): BindingFinding[] 
     config = parseJsonc(text);
   } catch (error) {
     return [{ file, message: `does not parse, so the accounts-binding check (D39) cannot clear it: ${error instanceof Error ? error.message : String(error)}` }];
+  }
+  if (file.startsWith('workers/backup/') || isObject(config) && String(config['name']).startsWith('run-backup')) {
+    const allowed = ['workers/backup/wrangler.production.json', 'workers/backup/wrangler.staging.json', 'workers/backup/wrangler.deploy.json'];
+    return allowed.includes(file) && checkBackupConfig(config, file.includes('.staging.') ? 'staging' : file.includes('.production.') ? 'production' : undefined) ? [] : [{ file, message: 'Backup Worker requires exact private bindings, cron, and no public routes' }];
   }
   if (ACCOUNTS_BINDERS.includes(file)) return [];
   const dataBindings: string[] = [];
