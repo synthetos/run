@@ -3,7 +3,7 @@
  * commands; the flow through the mount from Setup to "The plate is off"; and the rules around it (in flow, never a
  * dialog over the stop controls except C13's existing card; Cancel holds the focus; no button in the probe itself).
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { h, type ComponentChild } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import type { ProbeOutcome, ProbePlan, ProbeSnapshot } from '@synthetos/machine';
@@ -23,6 +23,13 @@ import { ProbeResult, type ProbeResultProps } from '../src/workspace/probe/Probe
 import { ProbeZ, probeZBody, type Hooks } from '../src/workspace/probe/ProbeZ.ts';
 import { initialForm, type ProbeForm } from '../src/workspace/probe/probeForm.ts';
 import { w51, w52 } from '../src/workspace/probe/probeStrings.ts';
+
+// tree.ts calls components without mounting them. Stub only the shared DOM lifecycle;
+// keep ConfirmCard, its Cancel focus ref and both real action handlers under test.
+// The hook's event/focus lifecycle is exercised separately in dialogDismiss.test.ts.
+vi.mock('../src/workspace/dialogs/useDialogDismiss.ts', () => ({
+  useDialogDismiss: () => ({ ref: { current: null } }),
+}));
 
 const noop = (): void => undefined;
 const button = (el: El, action: string): El => one(el, (e) => e.tag === 'button' && e.props['data-action'] === action, action);
@@ -271,7 +278,7 @@ function liveView(s: Snapshot): LiveView {
 }
 
 /** A recording pair of state hooks: values kept across renders by call order, as Preact does. */
-function harness(model: WorkspaceModel): { render: () => El } {
+function harness(model: WorkspaceModel): { render: () => El; node: () => ComponentChild } {
   const values: unknown[] = [];
   let i = 0;
   const hk: Hooks = {
@@ -281,12 +288,8 @@ function harness(model: WorkspaceModel): { render: () => El } {
       return [values[k] as T, (v: T) => void (values[k] = v)];
     },
   };
-  return {
-    render: () => {
-      i = 0;
-      return root(probeZBody({ model }, hk));
-    },
-  };
+  const node = (): ComponentChild => { i = 0; return probeZBody({ model }, hk); };
+  return { node, render: () => root(node()) };
 }
 
 function liveModel(probe: ProbeSnapshot | null, extra: Record<string, unknown> = {}): { model: WorkspaceModel; sent: MotionCommand[]; set: (p: ProbeSnapshot, extra?: Record<string, unknown>) => void } {
@@ -398,12 +401,19 @@ describe('ProbeZ: the mount under Position', () => {
     let el = t.render();
     const dialog = one(el, byAttr('data-safety', 'C13'));
     expect(text(dialog)).toContain('The probe ended without contact (alarm 250)');
+    // The result heading comes first; C13's Cancel is the only focused button and the last focus ref.
+    expect(focused(t.node())).toEqual(['h3', 'button:motion-cancel']);
+    expect(sent).toEqual([]);
     click(button(el, 'motion-cancel'));
+    expect(sent).toEqual([]);
     expect(all(t.render(), byAttr('data-safety', 'C13'))).toHaveLength(0);
     click(button(t.render(), 'probe-clear-alarm'));
     el = t.render();
+    expect(focused(t.node())).toEqual(['h3', 'button:motion-cancel']);
+    expect(sent).toEqual([]);
     click(button(el, 'motion-confirm'));
     expect(sent).toEqual([{ op: 'clearAlarm' }]);
+    expect(all(t.render(), byAttr('data-safety', 'C13'))).toHaveLength(0);
   });
 
   it('plate still out after the card closed: a reminder with The plate is off; a result waiting for its outcome', () => {
