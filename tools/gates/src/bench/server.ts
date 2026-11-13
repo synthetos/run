@@ -37,6 +37,7 @@ import { HASHED_ASSET_CACHE_CONTROL, SERIAL_GRANTED_SECURITY_HEADERS } from '../
 import { type ScanFinding, scanBundle } from '../bundle/scan.ts';
 import { isFirmwarePath, type BenchFirmware } from './firmware.ts';
 import { consoleRespond, isConsolePath, type BenchConsole } from './console.ts';
+import { catalogRoute } from '../../../../workers/run/src/catalogRoute.ts';
 
 /** The only interface the server binds. */
 export const BENCH_BIND_ADDRESS = '127.0.0.1';
@@ -177,7 +178,16 @@ export async function benchRespond(site: BenchSite, port: number, req: BenchRequ
     return { ...answer, headers: { ...SERIAL_GRANTED_SECURITY_HEADERS, ...answer.headers } };
   }
   if (site.firmware !== undefined && path !== undefined && isFirmwarePath(path)) return site.firmware.respond(req.method, path);
+  if (path === '/api/catalog/tools') return benchCatalog(port, req);
   return benchResponse(site, port, req);
+}
+
+/** The run Worker's public catalog route, run here unchanged so the bench shows the same Tool catalog as staging. */
+async function benchCatalog(port: number, req: BenchRequest): Promise<BenchResponse> {
+  const answer = catalogRoute({ url: `http://localhost:${port}${req.url}`, method: req.method, headers: { get: () => null } });
+  const headers: Record<string, string> = { ...SERIAL_GRANTED_SECURITY_HEADERS };
+  answer.headers.forEach((value, key) => { headers[key] = value; });
+  return { status: answer.status, headers, body: new Uint8Array(await answer.arrayBuffer()) };
 }
 
 /** The most a request body may hold (the console transcript); anything larger is cut and refused by the route. */

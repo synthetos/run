@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { request } from 'node:http';
 import type { Server } from 'node:http';
-import { BENCH_BIND_ADDRESS, BenchSiteRefused, benchResponse, benchSite, listen } from '../src/bench/server.ts';
+import { BENCH_BIND_ADDRESS, BenchSiteRefused, benchRespond, benchResponse, benchSite, listen } from '../src/bench/server.ts';
 import type { TreeFile } from '../src/shared/files.ts';
 import { BENCH_MARKER, TESTKIT_MARKER } from '../src/bundle/scan.ts';
 import { HASHED_ASSET_CACHE_CONTROL, renderHeadersFile, SECURITY_HEADERS, SERIAL_GRANTED_SECURITY_HEADERS } from '../../../workers/run/src/headers.ts';
@@ -146,5 +146,18 @@ describe('listen: a real socket on 127.0.0.1', () => {
     expect(ok.status).toBe(200);
     expect(ok.headers['permissions-policy']).toBe(SERIAL_GRANTED_SECURITY_HEADERS['permissions-policy']);
     expect((await raw(started.port, `attacker.example:${started.port}`)).status).toBe(421);
+  });
+});
+
+describe('the catalog route on the bench', () => {
+  it('serves the run Worker catalog at /api/catalog/tools with the security headers', async () => {
+    const answer = await benchRespond(site, 8793, { method: 'GET', url: '/api/catalog/tools', host: 'localhost:8793' });
+    expect(answer.status).toBe(200);
+    const body = JSON.parse(new TextDecoder().decode(answer.body)) as { version: string; tools: unknown[] };
+    expect(body.tools.length).toBe(30);
+    expect(answer.headers['content-type']).toContain('application/json');
+    expect(Object.keys(answer.headers).some((k) => k.toLowerCase() === 'content-security-policy')).toBe(true);
+    const post = await benchRespond(site, 8793, { method: 'POST', url: '/api/catalog/tools', host: 'localhost:8793' });
+    expect(post.status).toBe(405);
   });
 });
