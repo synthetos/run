@@ -1,6 +1,6 @@
 import { CATALOG_VERSION, ONSRUD_CATALOG } from './catalogData.ts';
 /** Public same-origin data. No session or data-service binding is needed. */
-export function catalogRoute(request: Request): Response {
+export function catalogRoute(request: { readonly url: string; readonly method: string; readonly headers: Pick<Headers, 'get'> }): Response {
   const origin = new URL(request.url).origin;
   const source = request.headers.get('origin'); const site = request.headers.get('sec-fetch-site');
   if ((source !== null && source !== origin) || (site !== null && site !== 'same-origin')) return new Response(null, { status: 403, headers: { 'cache-control': 'no-store' } });

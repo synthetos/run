@@ -7,7 +7,9 @@
  * part of that bundle: it is server-side code that may fetch from elsewhere
  * on the page's behalf. So the Worker gets its own, narrower rule: every
  * string or template literal in its source that holds a URL scheme must be
- * one of the entries below, by file and by text. A new upstream is a
+ * one of the upstream entries below, by file and exact text, or reviewed
+ * link data with a file-specific prefix. Link data and its serving module
+ * are separately checked to contain no network identifiers. A new upstream is a
  * reviewed change here, and a test (tools/gates/test/worker-upstreams.test.ts)
  * fails on anything else, including a copy of an allowed literal in another
  * file.
@@ -62,6 +64,15 @@ export const WORKER_UPSTREAMS: readonly WorkerUpstream[] = Object.freeze([
     why: 'GitHub release downloads of the allowlisted synthetos repositories, fetched server-side and verified against the signed release list (OD-10).',
   },
 ]);
+
+/** OD-10 and the owner's 2026-11-12 catalog decision: these are returned link
+ * data, never Worker fetch upstreams. The trailing slash pins HTTPS and the
+ * exact host; no subdomains, userinfo, alternate schemes or ports are allowed.
+ * worker-upstreams.test.ts also forbids network identifiers in both modules.
+ */
+export const WORKER_LINK_DATA = Object.freeze([
+  { file: 'catalogData.ts', prefixes: ['https://onsrud.com/'], servedBy: 'catalogRoute.ts' },
+] as const);
 
 export interface OriginLiteral {
   readonly file: string;
