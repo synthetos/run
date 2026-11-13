@@ -458,3 +458,17 @@ it('does not archive a concurrent account edit when creating a seed tombstone co
 vi.mock('../src/workspace/dialogs/useDialogDismiss.ts', () => ({
   useDialogDismiss: () => ({ ref: { current: null } }),
 }));
+
+it('own cutting rows survive upload/download and a concurrent sync conflict copy', async () => {
+  const own = { materialRef: { id: 'builtin.mdf', version: 1 }, fz: 0.123456789, fzMax: 0.2, vc: 80, ap: 2, ae: 1, source: 'user' as const, note: 'My tested numbers' };
+  const mine = { ...tool, cuttingData: [own] };
+  const wire = toRecords('tools.v2', [{ number: 9, store: null, tool: mine }]);
+  const restored = fromRecords('tools.v2', JSON.parse(JSON.stringify(wire)) as typeof wire) as typeof SEED_TOOLS;
+  expect(restored.find(e => e.tool.id === mine.id)?.tool.cuttingData).toEqual([own]);
+  const cache = emptyCache(); cache.records = [rec()]; enqueue(cache, 'tool', mine.id, mine);
+  const api = client(); vi.mocked(api.put).mockRejectedValueOnce(new RecordsError(409, rec({ ...tool, name: 'Changed elsewhere' }, 2)));
+  expect(await drainQueue(cache, api, () => true, signal(), hooks())).toBe('saved');
+  const visible = fromRecords('tools.v2', visibleRecords(cache)) as typeof SEED_TOOLS;
+  expect(visible.find(e => e.tool.name.includes('from this browser'))?.tool.cuttingData).toEqual([own]);
+  expect(visible.find(e => e.tool.name === 'Changed elsewhere')?.tool.cuttingData).toEqual([]);
+});

@@ -1,3 +1,4 @@
+import { visibleBedHoles } from '../workspace/bedHoles.ts';
 /**
  * The shared scene (FLOW_ANALYSIS §3 "Coordinate contract", §4 step 4): one
  * model of the bed, stock, fixture and clamps in machine coordinates, built
@@ -78,7 +79,7 @@ export function jobScene(job: Job, colors: SceneColors, stockColor: readonly num
   // The bed slab: its top at the bed's machine height, its underside one thickness below.
   if (bed.outline !== null && bed.outline.length >= 3) solids.push({ kind: 'prism', outline: bed.outline.map(mx), z0: bedTop - bed.thickness, z1: bedTop, color: colors.bed, tag: 'bed' });
   else solids.push({ kind: 'box', min: [t.x, t.y, bedTop - bed.thickness], max: [t.x + bed.width, t.y + bed.depth, bedTop], color: colors.bed, tag: 'bed' });
-  for (const [hx, hy, r] of bed.holes) rings.push({ center: [hx + t.x, hy + t.y, bedTop], radius: r, color: colors.bed });
+  for (const [hx, hy, r] of visibleBedHoles(bed)) rings.push({ center: [hx + t.x, hy + t.y, bedTop], radius: r, color: colors.bed });
   // The fixture: an extruded outline whose `position` is its footprint's centre (Setup semantics).
   const fx = job.setup.fixture;
   const fTop = bedTop + fixtureTop(job);

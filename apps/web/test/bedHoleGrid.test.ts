@@ -1,3 +1,4 @@
+import { outsideBedHoleNote, visibleBedHoles } from '../src/workspace/bedHoles.ts';
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
@@ -54,4 +55,14 @@ describe('display-only bed hole grid', () => {
     expect(html).toContain('value="13"');
     expect(html).toContain('approximate, for placing stock and clamps');
   });
+});
+
+it('does not draw out-of-bed hole centres or discard them from the saved pattern', () => {
+  const holes = gridHoles(XCARVE_HOLE_GRID);
+  const bed = { width: 750, depth: 750, holes };
+  expect(visibleBedHoles(bed)).toHaveLength(121);
+  expect(outsideBedHoleNote(bed)).toBe("35 holes fall outside the bed size. Check the bed's width and depth.");
+  expect(holes).toHaveLength(156);
+  expect(outsideBedHoleNote({ ...bed, width: 825, depth: 900 })).toBeNull();
+  expect(visibleBedHoles({ ...bed, holes: [[-1, 0, 3], [0, -1, 3], [0, 0, 3], [750, 750, 3]] })).toEqual([[0, 0, 3], [750, 750, 3]]);
 });

@@ -92,8 +92,9 @@ for (const theme of ['light', 'dark'] as const) {
     await page.locator('[data-action="job-use-machine"]').click();
     await page.locator('[data-job-step="machine"]').click();
     const bed = page.locator('[data-setup="bed"]');
-    await expect(bed.locator('circle')).toHaveCount(156);
-    await bed.locator('svg').scrollIntoViewIfNeeded();
+    await expect(bed.locator('.fixture-thumb')).toHaveCount(0);
+    await expect(bed.locator('[data-bed="outside-holes"]')).toContainText('35 holes');
+    await bed.locator('[data-bed="outside-holes"]').scrollIntoViewIfNeeded();
     await page.screenshot({ animations: 'disabled', path: `${screens}/polish-bed-${theme}.png` });
   });
 }

@@ -7,6 +7,7 @@
  * outline can come from a DXF or SVG file, parsed in this browser
  * (workspace/outline.ts); the file never leaves the computer.
  */
+import { outsideBedHoleNote } from '../bedHoles.ts';
 import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
@@ -111,7 +112,7 @@ export function JobSetupPanel({ step, locked, onView, travel = null }: { readonl
             h('div', { class: 'field-grid three' }, field('Width', bed.width, (width) => setBed({ width }), 'mm', 1, 1), field('Depth', bed.depth, (depth) => setBed({ depth }), 'mm', 1, 1), field('Thickness', bed.thickness, (thickness) => setBed({ thickness }))),
             h('div', { class: 'field-grid' }, field('Bed top, machine Z', bed.toMachine.z, (z) => setBed({ z }), 'mm', 0.1, -100000)),
             h(ContextHelp, { id: 'bed-frame-help', label: 'About bed coordinates' }, 'Bed coordinates start at the front-left corner of the bed’s top. Enter its height in machine coordinates.'),
-            bed.holes.length === 0 ? null : h(FixtureThumb, { outline: bed.outline ?? [[0, 0], [bed.width, 0], [bed.width, bed.depth], [0, bed.depth]], holes: bed.holes }),
+            outsideBedHoleNote(bed) === null ? null : h('p', { class: 'fine tone-warn', 'data-bed': 'outside-holes' }, outsideBedHoleNote(bed)),
             bed.holeGrid === undefined ? null : h('p', { class: 'fine' }, `Hole grid measured by the owner. ${bed.holeGrid.description.offsetMeasured ? 'First-hole offset measured.' : 'First-hole offset not measured: measure this.'} Display only.`),
             bed.outline === null ? null : h('p', { class: 'fine' }, `Outline from a drawing: ${bed.outline.length} points, ${bed.holes.length} holes.`),
             job.machine !== null && machine !== null
@@ -124,7 +125,7 @@ export function JobSetupPanel({ step, locked, onView, travel = null }: { readonl
                     edit((j) => reviseJob(withMachine(j, m), {}));
                     setBedNote(advanced ? `Saved to ${machine.name} as bed revision ${saved.revision}. Other jobs keep the revision they were planned on.` : `Saved to ${machine.name}. Other jobs keep the bed they were planned on.`);
                   }
-                } }, advanced ? `Save to ${machine.name} as bed revision ${bedOf(machine).revision + 1}` : `Save this bed to ${machine.name}`)
+                } }, advanced ? `Save as bed revision ${bedOf(machine).revision + 1}` : 'Save bed to machine')
               : null,
             bedNote === null ? null : h('p', { class: 'fine', role: 'status', 'data-bed': 'note' }, bedNote),
             h('p', { class: 'fine' }, jobSaved.value ? 'Saved in this browser.' : 'Not saved: this browser blocks storage. Changes last for this page only.'),

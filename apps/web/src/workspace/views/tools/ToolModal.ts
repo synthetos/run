@@ -23,8 +23,9 @@ export function ToolModal({ entry, onClose, catalog, preview, focusTarget }: { r
   const invalid = useRef(new Set<string>());
   const initial = useRef({ tool: JSON.stringify(tool), number });
   const [touched, setTouched] = useState(false);
+  const [cuttingPending, setCuttingPending] = useState(false);
   const readOnly = preview !== undefined;
-  const dirty = !readOnly && (touched || number !== initial.current.number || JSON.stringify(tool) !== initial.current.tool);
+  const dirty = !readOnly && (touched || cuttingPending || number !== initial.current.number || JSON.stringify(tool) !== initial.current.tool);
   const dismiss = useDialogDismiss(onClose, dirty, focusTarget);
   const root = dismiss.ref;
   const unit = toolUnits.value.value;
@@ -35,6 +36,7 @@ export function ToolModal({ entry, onClose, catalog, preview, focusTarget }: { r
     root.current?.querySelector<HTMLElement>(readOnly ? '#tool-tab-shape' : '[data-tool-field="number"]')?.focus();
   }, []);
   const save = (): void => {
+    if (cuttingPending) { setTab('cutting'); return; }
     if (invalid.current.size > 0) { setError('Check the highlighted fields.'); setTab('shape'); return; }
     const result = saveToolDraft(entry, tool, number); setError(result);
     if (result === null) onClose();
@@ -53,7 +55,7 @@ export function ToolModal({ entry, onClose, catalog, preview, focusTarget }: { r
     h(TabPane, { prefix: 'tool', id: 'shape', current: tab, class: 'tool-modal-pane' }, h(ToolShapeTab, { tool, readOnly, number, numberIssue: issue, onNumber: setNumber, set, unit, onValidity: validity })),
     h(TabPane, { prefix: 'tool', id: 'details', current: tab, class: 'tool-modal-pane' }, h(ToolDetailsTab, { tool, set, readOnly, editing: entry !== null && !readOnly })),
     h(TabPane, { prefix: 'tool', id: 'buy', current: tab, class: 'tool-modal-pane' }, h(ToolBuyTab, { tool, readOnly, store: entry?.store ?? null, set })),
-    h(TabPane, { prefix: 'tool', id: 'cutting', current: tab, class: 'tool-modal-pane' }, h(ToolCuttingTab, { key: tool.id, tool, unit })),
+    h(TabPane, { prefix: 'tool', id: 'cutting', current: tab, class: 'tool-modal-pane' }, h(ToolCuttingTab, { key: tool.id, tool, unit, ...(readOnly ? {} : { set, onEditing: setCuttingPending }) })),
     error === null ? null : h('p', { class: 'field-error', role: 'alert' }, error),
     h('footer', { class: 'dialog-actions' },
       dismiss.asking ? h('div', { class: 'dialog-discard', role: 'status' }, 'Discard your changes?',
@@ -62,7 +64,8 @@ export function ToolModal({ entry, onClose, catalog, preview, focusTarget }: { r
       catalog === undefined ? null : h('button', { type: 'button', 'data-action': 'catalog-back', onClick: onClose }, 'Back to catalog'),
       entry === null || readOnly ? null : h(ToolDelete, { id: entry.tool.id, label: `T${entry.number} · ${toolDisplayName(entry.tool)}`, onDeleted: onClose }),
       h('button', { type: 'button', 'data-action': 'cancel-tool', onClick: onClose }, 'Cancel'),
-      preview === undefined ? h('button', { type: 'button', class: 'primary', 'data-action': 'save-tool', onClick: save }, entry === null ? 'Add tool' : 'Save')
+      cuttingPending ? h('small', { class: 'fine' }, 'Finish or cancel the cutting data row before saving the tool.') : null,
+      preview === undefined ? h('button', { type: 'button', class: 'primary', 'data-action': 'save-tool', disabled: cuttingPending, onClick: save }, entry === null ? 'Add tool' : 'Save')
         : preview.existing === undefined ? h('button', { type: 'button', class: 'primary', 'data-action': 'catalog-add', onClick: preview.onAdd }, 'Add to my tools')
           : h('div', { class: 'dialog-discard' }, h('span', { class: 'catalog-owned' }, `In your tools as T${preview.existing.number}`), h('button', { type: 'button', 'data-action': 'catalog-open-tool', onClick: () => preview.onOpen(preview.existing!) }, `Open T${preview.existing.number}`))),
   ));

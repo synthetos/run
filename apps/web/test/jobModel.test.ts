@@ -486,3 +486,12 @@ describe('Use in Job: roles and the drawing import', () => {
     machineStore.value.value = [];
   });
 });
+
+it('draws only in-bed holes while keeping the full measured pattern in the job', () => {
+  const job = newDraftJob(clock());
+  const holes = gridHoles(XCARVE_HOLE_GRID);
+  const setup = withSetup(job, { bed: { ...job.setup.bed, width: 750, depth: 750, holes }, fixture: null });
+  const scene = jobScene(setup, SCENE_COLORS, null);
+  expect(scene.layers.rings).toHaveLength(121);
+  expect(setup.setup.bed.holes).toHaveLength(156);
+});
