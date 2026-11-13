@@ -28,7 +28,7 @@ export function ToolCatalog({ active }: { active: boolean }): ComponentChild {
   const unit = toolUnits.value.value;
   return h('div', { class: 'catalog-view' },
     h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, 'Tool catalog'), h('p', { class: 'fine' }, 'Shared catalog, maintained by Synthetos')),
-      h('div', { class: 'seg', role: 'group', 'aria-label': 'Catalog units' }, ...(['mm', 'in'] as const).map(u => h('button', { type: 'button', class: u === unit ? 'selected' : undefined, 'aria-pressed': u === unit, onClick: () => toolUnits.set(u) }, u)))),
+      h('div', { class: 'seg', role: 'group', 'aria-label': 'Catalog units' }, ...(['mm', 'in'] as const).map(u => h('button', { type: 'button', 'data-action': `catalog-units-${u}`, class: u === unit ? 'selected' : undefined, 'aria-pressed': u === unit, onClick: () => toolUnits.set(u) }, u)))),
     failed ? h('div', { class: 'catalog-message', role: 'status' }, h('p', null, 'The catalog could not load. Check your connection and try again.'), h('button', { type: 'button', onClick: () => setAttempt(n => n + 1) }, 'Retry')) : tools === null ? h('p', { class: 'catalog-message', role: 'status' }, 'Loading catalog…') : h(CatalogChoices, { tools, query, size, maker, type, setQuery, setSize, setMaker, setType, onPick: setSelected, unit, entries: toolStore.value.value }),
     selected === null ? null : h(ToolModal, { entry: null, catalog: selected, onClose: () => setSelected(null) }));
 }

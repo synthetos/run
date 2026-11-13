@@ -172,8 +172,10 @@ describe('Phase 1 control allowlist', () => {
     /^action:machine-(review-settings|backups)$/,
     /^action:job-(step-(machine|stock|place|check|run|back|next)|files|files-close|projects|close|library-machines|use-machine)$/,
     /^view:(job|library|board|projects|analyze|settings|safety)$/,
-    /^tab:(machines|tools|materials|gcode|terminal|live|notes|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|settings|catalogue)$/,
+    /^tab:(machines|tools|materials|gcode|terminal|live|notes|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|settings|catalogue|catalog)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
+    // Length units in the tool catalog and tool window: display only, stored values stay in mm.
+    /^action:(catalog|tool)-units-(mm|in)$/,
     /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
     // The Firmware and Backups tabs: records on this computer (export, import, compare, delete, download) and dialog controls.
     /^action:(backup-compare|backup-export|backup-delete|backup-import|firmware-download|firmware-delete|trust-revoke|trust-cancel|cancel-flash|flash-cancel|flash-dismiss|flash-reconnect|switch-test-start)$/,
