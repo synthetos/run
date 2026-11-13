@@ -164,7 +164,7 @@ describe('Phase 1 control allowlist', () => {
     /^action:dismiss-notice-x$/,
     /^action:context-help$/,
     /^action:preview-detail$/,
-    /^action:cutting-row-(add|edit|remove|copy|apply|cancel)$/,
+    /^action:cutting-row-(add|edit|remove|copy|apply|cancel|direct|rpm)$/,
     /^action:bed-grid-(mm|in|measured|save)$/,
     /^action:job-open-file$/,
     // NEEDS_REVIEW's ways out, in its banner (OD-13 §5): keep the board's settings (C23, writes nothing) or open the review.

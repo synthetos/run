@@ -1,6 +1,8 @@
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
 import { formatChipload, formatSurfaceSpeed, type ToolUnit } from '../../tools/units.ts';
+import { toRpmFeed } from '../../tools/cuttingSpeed.ts';
+import { formatLength } from '../../tools/units.ts';
 import { CuttingRowForm } from './CuttingRowForm.ts';
 import { isOwnCuttingRow, ownCuttingRow } from '../../tools/cuttingData.ts';
 import type { Tool, ToolCuttingData } from '@synthetos/library';
@@ -29,7 +31,7 @@ export function ToolCuttingTab({ tool, unit, set, onEditing }: { tool: Tool; uni
   const hasSpeed = tool.cuttingData.some(c => c.vc !== undefined);
   return h('div', null, tool.cuttingData.length === 0 ? h('p', null, 'No cutting data for this tool yet.') : h('table', { class: 'slot-table' },
     h('thead', null, h('tr', null, ...['Material', ...(hasSpeed ? [unit === 'in' ? 'Surface speed (SFM, ft/min)' : 'Surface speed (m/min)'] : []), unit === 'in' ? 'Chipload (in/tooth)' : 'Chipload (mm/tooth)', 'Source', ...(set === undefined ? [] : ['Actions'])].map(label => h('th', null, label)))),
-    h('tbody', null, tool.cuttingData.slice(page * 4, page * 4 + 4).map((c, i) => h('tr', { key: String(i) }, h('td', null, c.materialName ?? material(c.materialRef.id)?.name ?? c.materialRef.id), hasSpeed ? h('td', null, c.vc === undefined ? '—' : formatSurfaceSpeed(c.vc, unit)) : null, h('td', null, c.fzMax === undefined ? formatChipload(c.fz, unit) : `${formatChipload(c.fz, unit)} – ${formatChipload(c.fzMax, unit)}`), h('td', null, h(CuttingSource, { row: c, manufacturer: tool.manufacturer }), c.note === '' ? null : h('small', { class: 'cutting-note' }, c.note)), set === undefined ? null : h('td', { class: 'cutting-row-actions' }, isOwnCuttingRow(c) ? [
+    h('tbody', null, tool.cuttingData.slice(page * 4, page * 4 + 4).map((c, i) => h('tr', { key: String(i) }, h('td', null, c.materialName ?? material(c.materialRef.id)?.name ?? c.materialRef.id), hasSpeed ? h('td', null, c.vc === undefined ? '—' : formatSurfaceSpeed(c.vc, unit)) : null, h('td', null, c.fzMax === undefined ? formatChipload(c.fz, unit) : `${formatChipload(c.fz, unit)} – ${formatChipload(c.fzMax, unit)}`), h('td', null, h(CuttingSource, { row: c, manufacturer: tool.manufacturer }), h(DerivedSpeed, { tool, row: c, unit }), c.note === '' ? null : h('small', { class: 'cutting-note' }, c.note)), set === undefined ? null : h('td', { class: 'cutting-row-actions' }, isOwnCuttingRow(c) ? [
       h('button', { type: 'button', class: 'small', 'data-action': 'cutting-row-edit', onClick: () => edit(page * 4 + i, c) }, 'Edit'),
       h('button', { type: 'button', class: 'small', 'data-action': 'cutting-row-remove', onClick: () => { const next = tool.cuttingData.filter((_, j) => j !== page * 4 + i); set({ cuttingData: next }); setPage(Math.min(page, Math.max(0, Math.ceil(next.length / 4) - 1))); } }, 'Remove'),
     ] : h('button', { type: 'button', class: 'small', 'data-action': 'cutting-row-copy', disabled: tool.cuttingData.length >= 100, onClick: () => edit(null, ownCuttingRow(c)) }, 'Copy to my own row')))))),
@@ -40,4 +42,9 @@ export function ToolCuttingTab({ tool, unit, set, onEditing }: { tool: Tool; uni
 export function CuttingSource({ row, manufacturer }: { row: Tool['cuttingData'][number]; manufacturer?: string | undefined }): ComponentChild {
   const link = row.sourceUrl === undefined ? null : safeExternalLink(row.sourceUrl);
   return link === null ? h('span', null, row.source === 'user' ? 'Your own numbers' : SOURCE_LABELS[row.source]) : h('span', null, row.source === 'user' ? 'Your own numbers · ' : null, h('a', { ...link, href: row.sourcePage === undefined ? link.href : `${link.href}#page=${row.sourcePage}` }, row.sourcePage === undefined ? 'Source' : `${manufacturer === 'Onsrud' ? 'Onsrud 2025' : manufacturer ?? 'Source'} catalog, p. ${row.sourcePage}`));
+}
+
+function DerivedSpeed({ tool, row, unit }: { tool: Tool; row: ToolCuttingData; unit: ToolUnit }): ComponentChild {
+  const speed = toRpmFeed(tool, row.vc, row.fz);
+  return speed === null ? null : h('small', { class: 'cutting-note' }, `Derived: ${Math.round(speed.rpm)} RPM · ${formatLength(speed.feed, unit)} ${unit}/min`);
 }

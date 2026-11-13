@@ -520,3 +520,6 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .tool-modal .cutting-row-form .field-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
 @media (max-width: 760px) { .tool-modal .cutting-row-form .field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .tool-modal .cutting-note { display: block; margin-top: 4px; font-family: var(--sans); }
+
+.cutting-row-form > .cutting-row-actions { margin-bottom: 8px; }
+.cutting-row-actions [aria-pressed="true"] { background: var(--blue-wash); border-color: var(--blue); color: var(--blue); }
