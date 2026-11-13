@@ -1255,7 +1255,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
             prompt: result === null && !loading && (reopening.value || pendingOpen.value !== null)
               ? h('div', { class: `empty-prompt${scene === null ? '' : ' scene-empty-prompt'}`, 'data-preview': 'reopening' }, h('h2', null, 'Opening the file…'))
               : result === null && !loading && state.status !== 'error' && (step === 'machine' || step === 'stock')
-              ? h('button', { type: 'button', class: 'quiet-link', 'data-action': 'job-step-place', onClick: () => { jobStep.value = 'place'; } }, 'Step 3 opens your file.')
+              ? h('button', { type: 'button', class: 'small viewer-step-chip', 'data-action': 'job-step-place', onClick: () => { jobStep.value = 'place'; } }, 'Step 3 opens your file.')
               : result === null && !loading
               ? h(
                   'div',

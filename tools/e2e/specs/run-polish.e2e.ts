@@ -9,9 +9,12 @@ for (const theme of ['light', 'dark'] as const) {
     await page.goto('/');
     await ready(page);
     await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
+    await page.evaluate(() => new Promise<void>(done => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
     await expect(page.locator('[data-sample]')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Step 3 opens your file.' })).toBeVisible();
-    await page.screenshot({ path: `${screens}/polish-machine-${theme}.png` });
+    const stepChip = page.getByRole('button', { name: 'Step 3 opens your file.' });
+    await expect(stepChip).toBeVisible();
+    expect(await stepChip.evaluate(el => { const s = getComputedStyle(el); return { solid: s.backgroundColor !== 'rgba(0, 0, 0, 0)', border: parseFloat(s.borderTopWidth) > 0, padded: parseFloat(s.paddingTop) >= 6 }; })).toEqual({ solid: true, border: true, padded: true });
+    await page.screenshot({ animations: 'disabled', path: `${screens}/polish-machine-${theme}.png` });
     const help = page.getByRole('button', { name: 'About spindle and coolant readouts' });
     const sameHeight = async (): Promise<void> => {
       const spindle = await page.getByRole('group', { name: 'Spindle direction', exact: true }).getByRole('button').first().boundingBox();
@@ -35,13 +38,21 @@ for (const theme of ['light', 'dark'] as const) {
       })).toEqual({ inside: true, topmost: true });
     };
     await checkBox();
-    await page.screenshot({ path: `${screens}/polish-help-compact-${theme}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${screens}/polish-help-compact-${theme}.png` });
     await page.keyboard.press('Escape');
     await expect(popover).not.toBeVisible();
     await page.getByRole('button', { name: 'Step 3 opens your file.' }).click();
     await expect(page.locator('[data-job-step="place"]')).toHaveAttribute('aria-current', 'step');
     await expect(page.locator('[data-sample]')).toHaveCount(2);
-    await page.screenshot({ path: `${screens}/polish-file-${theme}.png` });
+    const card = page.locator('.viewer-file-prompt .empty-prompt');
+    const light = page.locator('[data-preview="light"]');
+    await expect(light).toBeVisible();
+    const cardBox = (await card.boundingBox())!;
+    for (const notice of [light, page.getByRole('button', { name: 'About the preview', exact: true })]) {
+      const box = (await notice.boundingBox())!;
+      expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(box.y - 4);
+    }
+    await page.screenshot({ animations: 'disabled', path: `${screens}/polish-file-${theme}.png` });
     await page.locator('[data-action="ui-level-advanced"]').click();
     const detail = page.locator('[data-action="preview-detail"]');
     await expect(detail).toHaveText('Fine');
@@ -59,12 +70,12 @@ for (const theme of ['light', 'dark'] as const) {
     await checkBox();
     await page.setViewportSize({ width: 390, height: 844 });
     await checkBox();
-    await page.screenshot({ path: `${screens}/polish-help-mobile-${theme}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${screens}/polish-help-mobile-${theme}.png` });
     await page.setViewportSize({ width: 1280, height: 720 });
     await checkBox();
-    await page.screenshot({ path: `${screens}/polish-help-full-${theme}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${screens}/polish-help-full-${theme}.png` });
     await page.keyboard.press('Escape');
-    await page.screenshot({ path: `${screens}/polish-detail-${theme}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${screens}/polish-detail-${theme}.png` });
     // The owner measured the pattern, not the offset or the bed dimensions.
     await page.locator('[data-region="rail"] [data-view="library"]').click();
     await page.locator('[data-tab="catalogue"]').click();
@@ -76,13 +87,13 @@ for (const theme of ['light', 'dark'] as const) {
     // Give the full form room beneath the Library's sticky heading for the review screenshot.
     await page.setViewportSize({ width: 1280, height: 1100 });
     await page.locator('[data-bed="hole-grid"] summary').scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `${screens}/polish-grid-${theme}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${screens}/polish-grid-${theme}.png` });
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.locator('[data-action="job-use-machine"]').click();
     await page.locator('[data-job-step="machine"]').click();
     const bed = page.locator('[data-setup="bed"]');
     await expect(bed.locator('circle')).toHaveCount(156);
     await bed.locator('svg').scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `${screens}/polish-bed-${theme}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${screens}/polish-bed-${theme}.png` });
   });
 }
