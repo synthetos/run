@@ -35,15 +35,16 @@ test('local D1 preserves quotes, newlines, NUL text, blob, 64-bit integers, real
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 test('restored migration ledger makes the real Wrangler migration command a no-op', { timeout: 90_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), 'backup-ledger-'));
-  const migrations = resolve('workers/run/migrations');
+  const migrations = fileURLToPath(new URL('../../workers/run/migrations', import.meta.url));
   const mf = new Miniflare(convertV4MiniflareOptions({ modules: true, script: 'export default {fetch(){return new Response(null,{status:404})}}', compatibilityDate: '2026-10-01', d1Databases: { SOURCE: 'ledger-source' } }));
   const config = join(root, 'wrangler.json');
   writeFileSync(config, JSON.stringify({ name: 'backup-ledger-test', compatibility_date: '2026-10-01', d1_databases: [{ binding: 'DB', database_name: 'restored', database_id: '11111111-2222-4333-8444-555555555555', migrations_dir: migrations }] }));
   function cli(args) {
-    const result = spawnSync(process.execPath, [resolve('workers/run/node_modules/wrangler/bin/wrangler.js'), 'd1', ...args, 'restored', '--local', '--config', config, '--persist-to', join(root, 'state')], { encoding: 'utf8', timeout: 25_000, env: { ...process.env, WRANGLER_SEND_METRICS: 'false', WRANGLER_LOG_PATH: join(root, 'wrangler.log') } });
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL('../../workers/run/node_modules/wrangler/bin/wrangler.js', import.meta.url)), 'd1', ...args, 'restored', '--local', '--config', config, '--persist-to', join(root, 'state')], { cwd: root, encoding: 'utf8', timeout: 25_000, env: { ...process.env, WRANGLER_SEND_METRICS: 'false', WRANGLER_LOG_PATH: join(root, 'wrangler.log') } });
     assert.equal(result.status, 0, `${result.error ?? ''}\n${result.stdout}\n${result.stderr}`);
     return result.stdout;
   }

@@ -2,16 +2,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { remote } from '../remote.mjs';
 test('only the pinned Wrangler runs, with isolated config, separated credentials and suppressed child output', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'backup-remote-test-'));
   const calls = [];
   try {
     const io = remote({ api: async () => ({ result: [{ success: true, results: [{ n: 1 }] }] }), account: 'a'.repeat(32), d1Token: 'd1-secret', r2Token: 'r2-secret', directory, runner: async (binary, args, options) => {
-      assert.equal(binary, resolve('ci/deploy-toolchain/node_modules/.bin/wrangler'));
+      assert.equal(binary, fileURLToPath(new URL('../../../ci/deploy-toolchain/node_modules/.bin/wrangler', import.meta.url)));
       assert.equal(options.env.CLOUDFLARE_API_TOKEN, args[0] === 'd1' ? 'd1-secret' : 'r2-secret');
       assert.equal(options.env.WRANGLER_SEND_METRICS, 'false');
+      assert.equal(options.cwd, directory);
       const config = JSON.parse(await readFile(args.at(-1), 'utf8')); assert.equal(config.build, undefined);
       calls.push(args);
       if (args.includes('--output')) await writeFile(args[args.indexOf('--output') + 1], 'CREATE TABLE x(id INT);');

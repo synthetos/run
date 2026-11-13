@@ -3,11 +3,12 @@ import { splitSql } from '../../workers/backup/src/sql.ts';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { BUCKET, databaseId } from './api.mjs';
 const exec = promisify(execFile);
 export function remote({ api, account, d1Token, r2Token, directory, runner = exec, fetcher = fetch }) {
-  const wrangler = resolve('ci/deploy-toolchain/node_modules/.bin/wrangler');
+  const wrangler = fileURLToPath(new URL('../../ci/deploy-toolchain/node_modules/.bin/wrangler', import.meta.url));
   const config = join(directory, 'wrangler.json');
   const command = async (args, token, database) => {
     await writeFile(config, JSON.stringify({ name: 'database-backup', compatibility_date: '2026-11-13', ...(database === undefined ? {} : { d1_databases: [{ binding: 'BACKUP_DB', database_name: database.name, database_id: database.id }] }) }), { mode: 0o600 });
