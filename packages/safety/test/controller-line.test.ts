@@ -29,3 +29,11 @@ describe('controller command lines', () => {
     expect(controllerLineMessage('$' + 'x'.repeat(40))).toContain('…"');
   });
 });
+
+it.each(['$H', '$HZ', '$h z', '$X', '$110=500', '?', '{"xvm":null}', 'help'])('keeps the specific controller repair for %s without generic Board advice', code => {
+  const block = run(`G21 G90\n${code}\n`, EN).report.entries.find(e => e.rule === 'first-character');
+  expect(block?.message).toBe(controllerLineMessage(code));
+  expect(block?.message).not.toContain('Fix:');
+  expect(block?.message).not.toContain('Board');
+  expect(block?.message.match(/Remove the line/g)).toHaveLength(1);
+});

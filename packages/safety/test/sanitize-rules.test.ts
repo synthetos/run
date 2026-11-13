@@ -510,7 +510,7 @@ describe('verdict wording from the bench 1 file (presentation only: levels and r
     const entry = r.report.entries.find((e) => e.rule === 'unsupported-code');
     expect(entry?.severity).toBe('block');
     expect(entry?.line).toBe(6);
-    expect(entry?.message).toBe("'G92 064' reads as G92064 because TinyG ignores spaces, and that isn't a valid command. This looks like a broken line from the post-processor. Fix: Export using a postprocessor for this firmware, or replace the unsupported command.");
+    expect(entry?.message).toBe("'G92 064' reads as G92064 because TinyG ignores spaces, and that isn't a valid command. This looks like a broken line from the post-processor. Check the file around line 6.");
     // Without spaces inside the number the plain message stays.
     expect(messages(run('G92064 X0\n', EN), 'unsupported-code')).toEqual(['G92064 is not supported in a job on this firmware. Fix: Export using a postprocessor for this firmware, or replace the unsupported command.']);
     expect(messages(run('M1 14\n', EN), 'unsupported-code')[0]).toMatch(/^'M1 14' reads as M114 because TinyG ignores spaces/);

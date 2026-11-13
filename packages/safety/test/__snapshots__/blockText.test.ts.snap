@@ -26,7 +26,7 @@ exports[`plain blocking findings > end-state: preserves the specific problem and
 
 exports[`plain blocking findings > feed-not-set: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Put a positive F feed rate before the first cutting move."`;
 
-exports[`plain blocking findings > first-character: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Remove the controller command; change settings through Board instead."`;
+exports[`plain blocking findings > first-character: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Remove the controller command, or export the file with a post-processor for this controller."`;
 
 exports[`plain blocking findings > g18-arc: preserves the specific problem and supplies a repair 1`] = `"Specific offending command. Fix: Export the XZ arc as short straight moves for this firmware."`;
 

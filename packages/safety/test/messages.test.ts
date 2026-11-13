@@ -233,6 +233,19 @@ describe('sanitiser report messages', () => {
     ['c22 last line', TINYG_440, 'M8 M30', { c22: true }],
   ];
 
+  it('no blocking message appends Fix after a specific remedy or another Fix', () => {
+    for (const [, dialect, file, opts] of cases) {
+      for (const entry of run(file, dialect, opts).report.entries) {
+        if (entry.severity !== 'block') continue;
+        const parts = entry.message.split('Fix:');
+        expect(parts.length, entry.message).toBeLessThanOrEqual(2);
+        if (parts.length === 2) {
+          expect(parts[0], entry.message).not.toMatch(/(?:^|[.;:]\s+)(?:remove|export|set|use|write|move|check)\b/i);
+        }
+      }
+    }
+  });
+
   it('are pinned for every rule', () => {
     const out = Object.fromEntries(cases.map(([name, d, file, opts]) => [`${d.id} ${name}`, run(file, d, opts).report.entries]));
     expect(out).toMatchSnapshot();

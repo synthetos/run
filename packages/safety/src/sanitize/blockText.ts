@@ -9,7 +9,7 @@ export const BLOCK_FIXES: Readonly<Record<string, string>> = {
   'control-byte': 'Remove the control byte and export the file as plain-text G-code.',
   'unclosed-comment': 'Close the comment with a right parenthesis, or remove it.',
   'text-after-comment': 'Move the commands after the comment onto a separate line.',
-  'first-character': 'Remove the controller command; change settings through Board instead.',
+  'first-character': 'Remove the controller command, or export the file with a post-processor for this controller.',
   'realtime-character': 'Remove the realtime command from the file; use Run’s controls instead.',
   'non-ascii': 'Replace the non-ASCII character with plain ASCII text.',
   'invalid-character': 'Correct or remove the invalid character in your source file.',
@@ -65,10 +65,16 @@ const EXPLANATIONS: Readonly<Record<string, string>> = {
   'probe': 'This file includes probing, which Run cannot safely stream as an ordinary job',
 };
 
+// Specific checker remedies take precedence over a generic rule-level repair. Match
+// an instruction at a sentence/clause boundary, not a verb inside an explanation.
+const HAS_REPAIR = /(?:^|[.;:]\s+)(?:Fix:|(?:remove|export|set|use|write|move|check|read|correct|replace|add|close|separate|resolve|reopen|recheck|shorten|split|reduce|increase|choose|put)\b)/i;
+
 export function blockFindingText(rule: string, detail: string, line: number): string {
   if (rule === 'mid-file-program-end') return programEndBlockText(line);
   // Engineering references remain in the source and Advanced rule details, not the repair sentence.
-  const plain = (EXPLANATIONS[rule] ?? detail).replace(/\s*\((?:H\d|E\d|NIST|PN §)[^)]*\)/g, '').replace(/ Check the file around line \d+\./g, '').replace(/; accept C22 to add M5 and M9/g, '').replace(/[.;\s]+$/, '');
+  const hasRepair = HAS_REPAIR.test(detail);
+  const plain = (hasRepair ? detail : EXPLANATIONS[rule] ?? detail).replace(/\s*\((?:H\d|E\d|NIST|PN §)[^)]*\)/g, '').replace(/; accept C22 to add M5 and M9/g, '').replace(/[.;\s]+$/, '');
   const sentence = plain.charAt(0).toUpperCase() + plain.slice(1);
+  if (hasRepair) return `${sentence}.`;
   return `${sentence}. Fix: ${BLOCK_FIXES[rule] ?? 'Correct this line in the source file and check it again before running.'}`;
 }
