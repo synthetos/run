@@ -72,7 +72,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.locator('[data-bed="hole-grid"] summary').click();
     await expect(page.locator('[data-bed="hole-grid"]')).toContainText('Not measured');
     await page.locator('[data-action="bed-grid-save"]').click();
-    await expect(page.locator('[data-bed="hole-grid"] [role="status"]')).toContainText('Saved 121 holes');
+    await expect(page.locator('[data-bed="hole-grid"] [role="status"]')).toContainText('Saved 156 holes');
     // Give the full form room beneath the Library's sticky heading for the review screenshot.
     await page.setViewportSize({ width: 1280, height: 1100 });
     await page.locator('[data-bed="hole-grid"] summary').scrollIntoViewIfNeeded();
@@ -81,7 +81,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.locator('[data-action="job-use-machine"]').click();
     await page.locator('[data-job-step="machine"]').click();
     const bed = page.locator('[data-setup="bed"]');
-    await expect(bed.locator('circle')).toHaveCount(121);
+    await expect(bed.locator('circle')).toHaveCount(156);
     await bed.locator('svg').scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${screens}/polish-bed-${theme}.png` });
   });

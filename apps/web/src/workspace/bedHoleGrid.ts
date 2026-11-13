@@ -9,7 +9,7 @@ export interface BedHoleGrid {
   readonly firstY: number;
   readonly offsetMeasured: boolean;
 }
-export const XCARVE_HOLE_GRID: BedHoleGrid = { pitchX: 75, pitchY: 75, columns: 11, rows: 11, diameter: 6.5, firstX: 0, firstY: 0, offsetMeasured: false };
+export const XCARVE_HOLE_GRID: BedHoleGrid = { pitchX: 75, pitchY: 75, columns: 12, rows: 13, diameter: 6.5, firstX: 0, firstY: 0, offsetMeasured: false };
 
 /** Length inputs may be mm or inches; all saved geometry is mm. Bound allocations and reject invalid drafts. */
 export function holeGridMm(grid: BedHoleGrid, units: 'mm' | 'in'): BedHoleGrid | null {

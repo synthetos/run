@@ -14,7 +14,7 @@ export function BedGridForm({ machine }: { readonly machine: MachineProfile }): 
       'aria-label': `${label}, hole grid${count ? '' : `, ${units}`}`, onInput: (e: Event) => setGrid({ ...grid, [key]: Number.parseFloat((e.currentTarget as HTMLInputElement).value) }) }));
   return h('details', { class: 'bed-grid', 'data-bed': 'hole-grid' }, h('summary', null, 'Threaded insert hole grid'),
     h('p', { class: 'fine' }, 'Display only: holes are not used for clearance checks, travel limits or commands sent to the machine. Saving replaces any drawing’s holes; importing a drawing replaces this grid.'),
-    machine.templateId === 'xcarve' ? h('p', { class: 'fine' }, 'X-Carve owner measurements: 750 × 750 mm grid, 75 mm centres, 11 × 11 holes, 6.5 mm diameter. This is not an Inventables drawing.') : null,
+    machine.templateId === 'xcarve' ? h('p', { class: 'fine' }, 'X-Carve grid: approximate, for placing stock and clamps. Owner-counted 12 holes per row (X) × 13 rows (Y), 75 mm centres, 6.5 mm diameter. This is not an Inventables drawing.') : null,
     h('div', { class: 'seg', role: 'group', 'aria-label': 'Hole grid units' }, (['mm', 'in'] as const).map(u => h('button', { type: 'button', class: units === u ? 'selected' : undefined, 'aria-pressed': units === u, 'data-action': `bed-grid-${u}`, onClick: () => {
       if (units === u) return;
       const scale = u === 'in' ? 1 / 25.4 : 25.4;

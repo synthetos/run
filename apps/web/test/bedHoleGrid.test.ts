@@ -8,14 +8,14 @@ import { bedOf, bedIsPlaceholder, machineStore, saveMachineBed, type MachineProf
 const machine: MachineProfile = { id: 'test-grid', name: 'My X-Carve', templateId: 'xcarve', travel: { x: 790, y: 790, z: 65 }, drive: 'belt', spindle: 'Router', createdAt: '2026-11-13' };
 
 describe('display-only bed hole grid', () => {
-  it('generates the owner’s 11 by 11 grid, including both endpoints and the measured offset', () => {
+  it('generates the owner’s 12 by 13 grid, including both endpoints and the measured offset', () => {
     const grid = { ...XCARVE_HOLE_GRID, firstX: 20, firstY: 35, offsetMeasured: true };
     const holes = gridHoles(grid);
-    expect(holes).toHaveLength(121);
+    expect(holes).toHaveLength(156);
     expect(holes[0]).toEqual([20, 35, 3.25]);
     expect(holes[1]).toEqual([95, 35, 3.25]);
-    expect(holes[11]).toEqual([20, 110, 3.25]);
-    expect(holes[120]).toEqual([770, 785, 3.25]);
+    expect(holes[12]).toEqual([20, 110, 3.25]);
+    expect(holes[155]).toEqual([845, 935, 3.25]);
     expect(XCARVE_HOLE_GRID.offsetMeasured).toBe(false);
   });
   it('converts inch lengths, not counts, to mm', () => {
@@ -50,6 +50,8 @@ describe('display-only bed hole grid', () => {
     expect(html).toContain('Not measured');
     expect(html).toContain('Display only');
     expect(html).toContain('importing a drawing replaces this grid');
-    expect(html).toContain('value="11"');
+    expect(html).toContain('value="12"');
+    expect(html).toContain('value="13"');
+    expect(html).toContain('approximate, for placing stock and clamps');
   });
 });
