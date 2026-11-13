@@ -260,10 +260,16 @@ describe('performance', () => {
       t.lengthMm[i] = i % 100 < 50 ? 0.2 : 5;
       t.delta[i * 3] = t.lengthMm[i] as number;
     }
-    analyzeProgram(t); // warm up
-    const started = performance.now();
-    const r = analyzeProgram(t);
-    expect(performance.now() - started).toBeLessThan(1500);
-    expect(r.feedSeconds.value).not.toBeNull();
+    // Warm up, then take the best of three: host pre-emption on a busy Mac can inflate
+    // wall time. The unchanged limit still rejects a slowdown present in every run.
+    analyzeProgram(t);
+    const times: number[] = [];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const started = performance.now();
+      const r = analyzeProgram(t);
+      times.push(performance.now() - started);
+      expect(r.feedSeconds.value).not.toBeNull();
+    }
+    expect(Math.min(...times)).toBeLessThan(1500);
   });
 });

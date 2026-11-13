@@ -38,40 +38,52 @@ describe('time slicing', () => {
     expect(clock.t).toBeLessThanOrEqual(5 * 3 * 3);
   });
 
-  // Wall clock: a slice that the host pre-empts (the other packages' tests run on the same cores under
-  // `pnpm check`) reads long without the slicer having overrun its budget, so this gets two retries.
-  // The fake-clock case above proves the budget itself; a slicer that never yields still fails all three.
-  it('old P1-04 acceptance: 1M lines of geometry build with no main-thread slice over 50 ms (real clock)', { retry: 2 }, async () => {
+  // Warm up, then compare the best of three complete runs' worst slices. Host
+  // pre-emption can inflate wall time; a consistent overrun still fails the same limit.
+  // The fake-clock case above independently proves the slicing budget.
+  it('old P1-04 acceptance: 1M lines of geometry build with no main-thread slice over 50 ms (real clock)', async () => {
     const list = bigList(1_000_000);
-    let longest = 0;
-    let sliceStart = performance.now();
-    const n = await runSliced(chunks(list, DEFAULT_SEGMENTS_PER_CHUNK), {
-      yieldToHost: async () => {
-        longest = Math.max(longest, performance.now() - sliceStart);
-        await new Promise((r) => setTimeout(r, 0));
-        sliceStart = performance.now();
-      },
-    });
-    longest = Math.max(longest, performance.now() - sliceStart);
-    expect(n).toBe(Math.ceil((1_000_000 - Math.ceil(1_000_000 / 97)) / DEFAULT_SEGMENTS_PER_CHUNK));
-    expect(longest).toBeLessThan(50);
+    const run = async (): Promise<number> => {
+      let longest = 0;
+      let sliceStart = performance.now();
+      const n = await runSliced(chunks(list, DEFAULT_SEGMENTS_PER_CHUNK), {
+        yieldToHost: async () => {
+          longest = Math.max(longest, performance.now() - sliceStart);
+          await new Promise((r) => setTimeout(r, 0));
+          sliceStart = performance.now();
+        },
+      });
+      longest = Math.max(longest, performance.now() - sliceStart);
+      expect(n).toBe(Math.ceil((1_000_000 - Math.ceil(1_000_000 / 97)) / DEFAULT_SEGMENTS_PER_CHUNK));
+      return longest;
+    };
+    await run();
+    const times: number[] = [];
+    for (let attempt = 0; attempt < 3; attempt++) times.push(await run());
+    expect(Math.min(...times)).toBeLessThan(50);
   });
-  it('coarse scanning of a million sparse vertices also yields within 50 ms', { retry: 2 }, async () => {
+  it('coarse scanning of a million sparse vertices also yields within 50 ms', async () => {
     const list = bigList(1_000_000);
     list.kinds.fill(0); // All BREAK: the input scan still has to yield, with no output geometry.
-    let longest = 0;
-    let start = performance.now();
-    const steps = await runSliced(chunks(list, 8192, { stride: 7 }), {
-      budgetMs: 8,
-      yieldToHost: async () => {
-        longest = Math.max(longest, performance.now() - start);
-        await new Promise(resolve => setTimeout(resolve, 0));
-        start = performance.now();
-      },
-    });
-    longest = Math.max(longest, performance.now() - start);
-    expect(steps).toBeGreaterThan(100);
-    expect(longest).toBeLessThan(50);
+    const run = async (): Promise<number> => {
+      let longest = 0;
+      let start = performance.now();
+      const steps = await runSliced(chunks(list, 8192, { stride: 7 }), {
+        budgetMs: 8,
+        yieldToHost: async () => {
+          longest = Math.max(longest, performance.now() - start);
+          await new Promise(resolve => setTimeout(resolve, 0));
+          start = performance.now();
+        },
+      });
+      longest = Math.max(longest, performance.now() - start);
+      expect(steps).toBeGreaterThan(100);
+      return longest;
+    };
+    await run();
+    const times: number[] = [];
+    for (let attempt = 0; attempt < 3; attempt++) times.push(await run());
+    expect(Math.min(...times)).toBeLessThan(50);
   });
 
 });

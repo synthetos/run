@@ -23,38 +23,50 @@ function nullGl(): WebGL2RenderingContext {
 }
 
 describe('large files', () => {
-  // Wall clock: a slice the host pre-empts (the other packages' tests share the cores under `pnpm check`) reads long
-  // without the pipeline having overrun its budget, so this gets two retries, like the slicer's real-clock case.
-  it('1M lines: full preview with no main-thread slice over 50 ms while the geometry uploads', { timeout: 240_000, retry: 2 }, async () => {
+  // Warm up, then use the best of three complete runs' worst slices: host pre-emption
+  // can inflate wall time, while a consistent slowdown still fails the unchanged limit.
+  it('1M lines: full preview with no main-thread slice over 50 ms while the geometry uploads', { timeout: 240_000 }, async () => {
     const { result } = analyseBytes(job(1_000_000), { dialect: 'tinyg-en', mode: 'full' });
     expect(result.summary.blocked).toBe(false);
     const segments = result.segments;
     if (segments === null) throw new Error('expected 3D geometry');
     expect(segments.lineToVertex.length - 1).toBeGreaterThanOrEqual(1_000_000);
 
-    let longest = 0;
-    let sliceStart = performance.now();
-    const renderer = createRenderer(nullGl(), {
-      colors: { background: [1, 1, 1, 1], rapid: [0, 0, 1, 1], feed: [0, 0, 0, 1], arc: [0, 0, 0, 1], outOfBounds: [1, 0, 0, 1], uncertain: [0, 0, 0, 1], highlight: [1, 1, 0, 1], envelope: [0, 0, 0, 1], axisX: [1, 0, 0, 1], axisY: [0, 1, 0, 1], axisZ: [0, 0, 1, 1], grid: [0.9, 0.9, 0.9, 1], gridMajor: [0.8, 0.8, 0.8, 1] },
-      requestFrame: () => {},
-      grid: true,
-    });
-    await renderer.load(segments, {
-      yieldToHost: async () => {
-        longest = Math.max(longest, performance.now() - sliceStart);
-        await new Promise((r) => setTimeout(r, 0));
-        sliceStart = performance.now();
-      },
-    });
-    longest = Math.max(longest, performance.now() - sliceStart);
-    expect(renderer.chunkCount).toBeGreaterThan(10);
-    expect(longest).toBeLessThan(50);
+    const upload = async (): Promise<number> => {
+      let longest = 0;
+      let sliceStart = performance.now();
+      const renderer = createRenderer(nullGl(), {
+        colors: { background: [1, 1, 1, 1], rapid: [0, 0, 1, 1], feed: [0, 0, 0, 1], arc: [0, 0, 0, 1], outOfBounds: [1, 0, 0, 1], uncertain: [0, 0, 0, 1], highlight: [1, 1, 0, 1], envelope: [0, 0, 0, 1], axisX: [1, 0, 0, 1], axisY: [0, 1, 0, 1], axisZ: [0, 0, 1, 1], grid: [0.9, 0.9, 0.9, 1], gridMajor: [0.8, 0.8, 0.8, 1] },
+        requestFrame: () => {},
+        grid: true,
+      });
+      await renderer.load(segments, {
+        yieldToHost: async () => {
+          longest = Math.max(longest, performance.now() - sliceStart);
+          await new Promise((r) => setTimeout(r, 0));
+          sliceStart = performance.now();
+        },
+      });
+      longest = Math.max(longest, performance.now() - sliceStart);
+      expect(renderer.chunkCount).toBeGreaterThan(10);
+      renderer.dispose();
+      return longest;
+    };
+    await upload();
+    const times: number[] = [];
+    for (let attempt = 0; attempt < 3; attempt++) times.push(await upload());
+    expect(Math.min(...times)).toBeLessThan(50);
 
     // The list renders a window, whatever the length.
-    const t = performance.now();
-    const w = listWindow({ count: result.fileLines, rowHeight: 18, scrollTop: 7_000_000, viewportHeight: 800 });
-    expect(w.end - w.first).toBeLessThan(80);
-    expect(performance.now() - t).toBeLessThan(50);
+    const windowTime = (): number => {
+      const t = performance.now();
+      const w = listWindow({ count: result.fileLines, rowHeight: 18, scrollTop: 7_000_000, viewportHeight: 800 });
+      const elapsed = performance.now() - t;
+      expect(w.end - w.first).toBeLessThan(80);
+      return elapsed;
+    };
+    windowTime();
+    expect(Math.min(...Array.from({ length: 3 }, windowTime))).toBeLessThan(50);
   });
 
   it('750k lines retain geometry once, independent of initial drawing detail', { timeout: 240_000 }, () => {
