@@ -174,17 +174,17 @@ describe('preflight CLI', () => {
   const accountOnly = TEXT.replace(ACCOUNT_ID_PLACEHOLDER, REAL_ACCOUNT);
   const withAccount = accountOnly.replace(RUN_AUTH_DATABASES.production.placeholder, PROD_DB).replace(RUN_AUTH_DATABASES.staging.placeholder, STAGING_DB);
 
-  it('A1-07 (review M1): production, with no sign-in bindings, deploys as before; staging deploys sign-in off with a placeholder', () => {
+  it('A1-07: production and staging placeholders deploy with sign-in off; a real staging id enables its bindings', () => {
     expect(preflight(accountOnly, 'production', REAL_ACCOUNT).status).toBe(0);
     const staging = preflight(accountOnly, 'staging', REAL_ACCOUNT);
     expect(staging.status).toBe(0);
     expect(preflight(accountOnly.replace(RUN_AUTH_DATABASES.staging.placeholder, STAGING_DB), 'staging', REAL_ACCOUNT).status).toBe(0);
   });
 
-  it('A1-07: once production carries the bindings, its deploy needs the real database id', () => {
+  it('A1-07: production accepts the reviewed placeholder or a provisioned real database id', () => {
     const bound = accountOnly;
-    const refused = preflight(bound, 'production', REAL_ACCOUNT);
-    expect(refused.status).toBe(0);
+    const placeholder = preflight(bound, 'production', REAL_ACCOUNT);
+    expect(placeholder.status).toBe(0);
     expect(preflight(bound.replace(RUN_AUTH_DATABASES.production.placeholder, PROD_DB), 'production', REAL_ACCOUNT).status).toBe(0);
   });
 
