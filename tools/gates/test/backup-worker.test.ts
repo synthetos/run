@@ -10,6 +10,9 @@ it('allows exact private backup bindings and refuses every extra binding or publ
     const config = JSON.parse(readFileSync(join(REPO_ROOT, file), 'utf8')) as Record<string, unknown>;
     expect(checkWranglerFile(file, JSON.stringify(config))).toEqual([]);
     for (const patch of [{ workers_dev: true }, { preview_urls: true }, { routes: [{ pattern: 'backup.test', custom_domain: true }] }, { route: 'backup.test' }, { services: [] }, { kv_namespaces: [] }, { build: { command: 'false' } }, { d1_databases: [] }, { r2_buckets: [{ binding: 'BACKUPS', bucket_name: 'other' }] }, { vars: { BACKUP_ENV: environment === 'staging' ? 'production' : 'staging' } }]) expect(checkWranglerFile(file, JSON.stringify({ ...config, ...patch }))).not.toEqual([]);
+    const wrongScratch = structuredClone(config) as { d1_databases: { binding: string; database_name: string }[] };
+    wrongScratch.d1_databases.find(d => d.binding === 'SCRATCH')!.database_name = environment === 'staging' ? 'restore-test-run' : 'restore-test-run-staging';
+    expect(checkWranglerFile(file, JSON.stringify(wrongScratch))).not.toEqual([]);
     expect(checkWranglerFile('workers/other/wrangler.json', JSON.stringify(config))).not.toEqual([]);
   }
 });
