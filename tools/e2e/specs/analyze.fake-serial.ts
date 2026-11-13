@@ -283,6 +283,17 @@ test('blocked source line 96 has plain repairs and links from Analyze and Notes'
   await expect(jobView).toBeVisible();
   await expect(jobView.locator('[data-line="96"]')).toBeInViewport({ ratio: 1 });
   await expect(jobView.locator('[data-gcode="finding-detail"]')).toContainText('Fix: remove the extra M2/M30');
+  const explanation = jobView.getByRole('region', { name: 'Finding for line 96', exact: true });
+  await jobView.locator('[data-gcode="follow"]').focus();
+  await page.keyboard.press('Tab');
+  await expect(explanation).toBeFocused();
+  expect(await explanation.evaluate(el => {
+    const css = getComputedStyle(el);
+    return { style: css.outlineStyle, width: css.outlineWidth, offset: css.outlineOffset };
+  })).toEqual({ style: 'solid', width: '2px', offset: '-2px' });
+  await page.keyboard.press('Tab');
+  await expect(jobView.locator('[data-preview="list"]')).toBeFocused();
+
   await page.screenshot({ path: testInfo.outputPath('blocked-line-96.png') });
   await jobView.getByRole('tab', { name: /^Notes/ }).click();
   await expect(jobView.locator('[data-note="blocked-file"]')).toContainText('This file has 1 line that stops it from running (line 96).');

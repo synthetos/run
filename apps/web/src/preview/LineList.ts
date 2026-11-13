@@ -261,7 +261,7 @@ export function LineList({ data, highlightLine, revealLine, fetchFindings, fileK
         : h('span', { class: 'gcode-bp-note', 'data-gcode': 'breakpoints' }, h('span', { class: 'bp-dot', 'aria-hidden': 'true' }), `${String(breakpoints.length)} breakpoint${breakpoints.length === 1 ? '' : 's'}`),
       queued.length === 0 ? null : h('span', { class: 'gcode-bp-note warn', role: 'status', 'data-safety': 'W41' }, queued.map((line) => w41({ line })).join(' ')),
     ),
-      explained === null || !worst.has(explained) ? null : h('div', { class: 'gcode-finding-detail', 'data-gcode': 'finding-detail' },
+      explained === null || !worst.has(explained) ? null : h('div', { class: 'gcode-finding-detail', 'data-gcode': 'finding-detail', tabIndex: 0, role: 'region', 'aria-label': `Finding for line ${explained}` },
         h('strong', null, `Line ${explained}: `), worst.get(explained)?.message,
         uiLevel.value.value === 'advanced' ? h('small', null, worst.get(explained)?.rule === 'mid-file-program-end' ? ' H35' : ` ${worst.get(explained)?.rule}`) : null),
     h(
