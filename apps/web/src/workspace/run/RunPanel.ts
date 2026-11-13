@@ -308,7 +308,7 @@ export function RunPanel({ parts, model, onAnalyze }: { readonly parts: PreviewP
       : null,
     modal === 'alarm' ? h(ClearAlarmConfirm, { model, onDone: () => setModal(null) }) : null,
     modal !== null && typeof modal === 'object' && 'refused' in modal
-      ? h(ChoiceModal, { onDismiss: () => setModal(null), title: 'The job didn’t start.', body: refusedBody(modal.refused), choices: [{ id: 'refused-ok', label: 'OK', primary: true, onClick: () => setModal(null) }] })
+      ? h(ChoiceModal, { title: 'The job didn’t start.', body: refusedBody(modal.refused), choices: [{ id: 'refused-ok', label: 'OK', primary: true, onClick: () => setModal(null) }] })
       : null,
     modal !== null && typeof modal === 'object' && 'home' in modal
       ? confirmFor(modal.home, hv, (c) => {

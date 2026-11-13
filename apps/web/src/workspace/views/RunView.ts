@@ -220,7 +220,7 @@ export function ConnectNotice({ model, onView, compact = false }: { readonly mod
       step === 'c1' || step === 'refused' ? (step === 'refused' ? h(ConnectPanel, { state: { step: 'idle' }, advisoryBlocked: view?.advisoryBlocked ?? null, onConnect: () => actions?.connect(), onConfirm: () => undefined, onCancel: () => undefined, onDisconnect: () => undefined }) : null) : panel,
       // A refusal is a modal below the strip (OD-16), not text squeezed into it.
       step === 'refused'
-        ? h(DialogWrap, { class: 'dialog-wrap confirm-modal', role: 'presentation', setup: belowStrip, onDismiss: () => actions?.cancel() }, h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'refused-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'refused-title' }, refusedTitle(view?.entry ?? null))), panel))
+        ? h('div', { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip }, h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'refused-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'refused-title' }, refusedTitle(view?.entry ?? null))), panel))
         : null,
       step === 'c1'
         ? h(

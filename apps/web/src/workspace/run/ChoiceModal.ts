@@ -15,11 +15,8 @@ export interface Choice {
   readonly onClick: () => void;
 }
 
-export function ChoiceModal({ title, body, choices, safety, details, region, onDismiss }: { readonly onDismiss: () => void; readonly title: string; readonly body: string; readonly choices: readonly Choice[]; readonly safety?: string; readonly details?: ComponentChild; readonly region?: string }): ComponentChild {
-  return h(
-    DialogWrap,
-    { class: 'dialog-wrap confirm-modal', role: 'presentation', setup: belowStrip, onDismiss },
-    h(
+export function ChoiceModal({ title, body, choices, safety, details, region, onDismiss }: { readonly onDismiss?: () => void; readonly title: string; readonly body: string; readonly choices: readonly Choice[]; readonly safety?: string; readonly details?: ComponentChild; readonly region?: string }): ComponentChild {
+  const dialog = h(
       'div',
       { class: 'dialog motion-confirm choice-modal', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': title, ...(safety === undefined ? {} : { 'data-safety': safety }), ...(region === undefined ? {} : { 'data-region': region }) },
       h('h2', { class: 'choice-title' }, title),
@@ -30,8 +27,12 @@ export function ChoiceModal({ title, body, choices, safety, details, region, onD
         { class: 'motion-confirm-actions' },
         choices.map((c, i) => h('button', { type: 'button', key: c.id, class: c.primary === true ? 'small primary' : 'small', 'data-action': c.id, ...(c.machine === undefined ? {} : { 'data-machine-control': c.machine }), ...(i === choices.length - 1 ? { ref: focusOnMount } : {}), onClick: c.onClick }, c.label)),
       ),
-    ),
   );
+  // Blockers without an explicit Cancel/Not now must retain their original mandatory choices.
+  const cancellable = choices.some(c => c.label === 'Cancel' || c.label === 'Not now');
+  return onDismiss === undefined || !cancellable
+    ? h('div', { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip }, dialog)
+    : h(DialogWrap, { class: 'dialog-wrap confirm-modal', role: 'presentation', setup: belowStrip, onDismiss }, dialog);
 }
 
 /** "Details": the registered texts behind a short one, one click away. */
