@@ -109,8 +109,8 @@ export function classify(p: ProbeResult, manifest: ApprovedBuilds): Classificati
     return unclassified('conflict', `matches ${d.label} except its footer contract (${evidence}): read-only`);
   };
 
-  // Edge-next: all capability probes still required. E060 gives spph a real value from 450.04.
-  const holdProbeFits = p.fb !== undefined && p.fb >= 450.04 ? p.spph === 'value' : p.spph === 'stubbed';
+  // Edge-next: capability probes remain required. E060 activates spph in 450.04; layout 3 removes it in 450.05.
+  const holdProbeFits = p.fb !== undefined && p.fb >= 450.05 ? p.spph === 'unrecognized' : p.fb !== undefined && p.fb >= 450.04 ? p.spph === 'value' : p.spph === 'stubbed';
   if (fits(TINYG_EN) && p.fv === TINYG_FV && p.hp === TINYG_HP && tokensAll('value') && holdProbeFits) {
     return footerViolation(TINYG_EN) ?? approvable(TINYG_EN, p, manifest, 'en-approved', 'en-not-approved');
   }

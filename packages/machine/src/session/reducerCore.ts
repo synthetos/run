@@ -307,7 +307,7 @@ function matrixSnapshot(state: SessionState): MatrixSnapshot {
 /** True when a GET of `token` may be written in this state (probe tokens before classification, the allowlist after). */
 function readableNow(state: SessionState, token: string): boolean {
   const dialect = dialectOf(state);
-  if (dialect !== null) return isReadAllowed(dialect.id, token);
+  if (dialect !== null) return isReadAllowed(dialect.id, token, state.identity?.fb);
   return state.classification === null && PROBE_TOKENS.has(token);
 }
 
@@ -683,7 +683,7 @@ function onRead(t: Tx, tokens: readonly string[], matrix: Decision): void {
     t.decide('read', deny('Nothing to read.', 'Name at least one setting.', 'SAFETY H37'));
     return;
   }
-  const refused = tokens.filter((tok) => typeof tok !== 'string' || !isReadAllowed(dialect.id, tok));
+  const refused = tokens.filter((tok) => typeof tok !== 'string' || !isReadAllowed(dialect.id, tok, t.s.identity?.fb));
   if (refused.length > 0) {
     const shown = refused.slice(0, 5).map((r) => JSON.stringify(typeof r === 'string' ? r.slice(0, 16) : String(r)));
     t.decide('read', deny(`Not on the ${dialect.id} read allowlist: ${shown.join(', ')}.`, 'Only allowlisted settings can be read.', 'SAFETY H37; PN §12.3; T-S38'));
@@ -725,7 +725,7 @@ function onSettingsWrite(t: Tx, key: unknown, value: unknown, matrix: Decision):
     t.decide('settingsWrite', deny('Name one setting.', 'Name one setting.', 'SAFETY §4.6'));
     return;
   }
-  const refusal = settingRefusal(dialect.id, key, value, t.s.values);
+  const refusal = settingRefusal(dialect.id, key, value, t.s.values, t.s.identity?.fb);
   if (refusal !== null) {
     t.decide('settingsWrite', deny(`Not written: ${refusal}`, 'Correct the value and try again.', 'SAFETY §4.6; PN §12.4 (forbidden writes); schema overlay'));
     return;
@@ -924,7 +924,7 @@ function onAckFault(t: Tx, matrix: Decision): void {
     t.decide('ackFault', deny('The fault is already being verified.', 'Wait for the verification to finish.', 'SAFETY §3 FAULT exits'));
     return;
   }
-  if (dialect === null || !VERIFY_TOKENS.every((tok) => isReadAllowed(dialect.id, tok))) {
+  if (dialect === null || !VERIFY_TOKENS.every((tok) => isReadAllowed(dialect.id, tok, t.s.identity?.fb))) {
     t.decide(
       'ackFault',
       deny(
@@ -1494,7 +1494,7 @@ function finishProbe(t: Tx): void {
   }
   const dialect = c.dialect;
   const tokens = t.config.release.motion ? [...READING_TOKENS, ...MOTION_READING_TOKENS] : READING_TOKENS;
-  const reads = dialect === null ? [] : tokens.filter((tok) => isReadAllowed(dialect.id, tok));
+  const reads = dialect === null ? [] : tokens.filter((tok) => isReadAllowed(dialect.id, tok, t.s.identity?.fb));
   if (reads.length === 0 || t.s.overlays.includes('ORPHANED_MOTION')) {
     t.set({ base: 'CONNECTED_UNKNOWN', reports: { ...REPORTS_IDLE, phase: 'off' } });
     if (dialect === null) checkUnclassifiedResting(t);
@@ -1765,7 +1765,7 @@ function startSeed(t: Tx): void {
     t.set({ reports: { ...REPORTS_IDLE, phase: 'off' } });
     return;
   }
-  const reads = SEED_TOKENS.filter((tok) => isReadAllowed(dialect.id, tok));
+  const reads = SEED_TOKENS.filter((tok) => isReadAllowed(dialect.id, tok, t.s.identity?.fb));
   t.set({ reports: { ...REPORTS_IDLE, phase: 'seeding' }, queue: [...t.s.queue, ...reads.map((token) => ({ token, purpose: 'seed' as const })), ...(features.probeSeedReads?.(t.s, t.config) ?? [])] });
   seedAnswered(t, null, 0);
 }
@@ -2132,7 +2132,7 @@ function lineFor(s: SessionState, read: PendingRead): string | undefined {
     const w = s.settingWrite;
     const dialect = dialectOf(s);
     if (w === null || w.phase !== 'writing' || w.key !== read.token || w.value !== read.value || dialect === null) return undefined;
-    if (settingRefusal(dialect.id, w.key, w.value, s.values) !== null) return undefined;
+    if (settingRefusal(dialect.id, w.key, w.value, s.values, s.identity?.fb) !== null) return undefined;
     return settingLine(w.key, w.value) ?? undefined;
   }
   /* c8 ignore stop */
@@ -2151,7 +2151,7 @@ function lineFor(s: SessionState, read: PendingRead): string | undefined {
   if (!readableNow(s, read.token)) return undefined;
   const dialect = dialectOf(s);
   if (dialect === null) return PROBE_STEPS.find((step) => step.key === read.token)?.line;
-  return getLineFor(dialect.id, read.token);
+  return getLineFor(dialect.id, read.token, s.identity?.fb);
 }
 
 function deepFreezeState(s: SessionState): SessionState {

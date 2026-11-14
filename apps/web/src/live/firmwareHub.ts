@@ -202,8 +202,8 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
       const dialect = message?.snapshot.classification?.dialectId ?? null;
       if (r === undefined) return 'That backup is not on this computer.';
       if (dialect === null) return 'Connect the board to compare.';
-      const result = restoreChanges(dialect, r.file.tokens, deps.boardSettings());
-      compare = { id, changes: result.changes.length, same: result.same, skipped: result.skipped.length, keys: result.changes.map((c) => c.key) };
+      const result = restoreChanges(dialect, r.file.tokens, deps.boardSettings(), message?.snapshot.identity?.fb);
+      compare = { id, changes: result.changes.length, same: result.same, skipped: result.skipped.length, keys: result.changes.map((c) => c.key), notes: [...new Set(result.skipped.filter(skip => skip.reason.startsWith('Not on 450.05:')).map(skip => skip.reason))] };
       deps.onChange();
       return null;
     },
@@ -213,7 +213,7 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
       if (r === undefined) return 'That backup is not on this computer.';
       if (dialect === null) return 'Connect the board first.';
       if (r.file.board.dialect !== dialect) return `This backup is from ${r.file.board.dialect}, not ${dialect}.`;
-      const result = restoreChanges(dialect, r.file.tokens, deps.boardSettings());
+      const result = restoreChanges(dialect, r.file.tokens, deps.boardSettings(), message?.snapshot.identity?.fb);
       for (const c of result.changes) setDraft(c.key, c.value);
       say('ok', `${result.changes.length} settings are now pending changes; review them in Pending changes, then Apply.`);
       return null;

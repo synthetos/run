@@ -564,8 +564,19 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     issues: ['E138'],
   },
   {
+    id: 'EN-45005', model: EN,
+    summary: '450.05 layout 3 keeps existing settings except removed output-pause keys. Pause leaves outputs running; active dwell reports Run. Override GETs return reset defaults only (mcp is 0); override SETs are an explicit model gap until Part B.',
+    status: 'verified-source',
+    cites: [
+      { src: 'EN45005', file: 'config.c', lines: [232, 240], quote: 'Layout 3 removes output-pause settings' },
+      { src: 'EN45005', file: 'canonical_machine.c', lines: [190, 215], quote: 'if (pending)' },
+      { src: 'EN45005', file: 'config_app.c', lines: [701, 712], quote: 'ov_get_mfo' },
+    ],
+    issues: ['N99'],
+  },
+  {
     id: 'EN-DWELL-IDLE', model: EN,
-    summary: '450.02/450.04 pre-N99: a standalone G4 keeps the stored stat and frees its planner slot before its timer ends. Persisted SETs return 117 without changing RAM or EEPROM while work is pending. This model does not infer N99 from fb.',
+    summary: '450.02/450.04 pre-N99: a standalone G4 keeps the stored stat and frees its planner slot before its timer ends. Persisted SETs return 117 without changing RAM or EEPROM while work is pending. N99 is not inferred within build 450.04; 450.05 has its own profile.',
     status: 'verified-source',
     cites: [
       { src: 'EN45004', file: 'planner.c', lines: [310, 317], quote: 'if (mp_free_run_buffer())' },
@@ -576,7 +587,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
   },
   {
     id: 'EN-HOLD-OUTPUTS', model: EN,
-    summary: 'From build 450.04, spph/coph pause outputs at a completed external hold; resume waits spde plus one RTC tick. Internal cycle contacts are exempt. Model uses its existing commanded-speed simplification.',
+    summary: 'On build 450.04 only, spph/coph pause outputs at a completed external hold; resume waits spde plus one RTC tick. Internal cycle contacts are exempt. Model uses its existing commanded-speed simplification.',
     status: 'verified-source',
     cites: [
       { src: 'EN45004', file: 'canonical_machine.c', lines: [2167, 2241], quote: 'hold_outputs.delay = (uint32_t)ceilf(spindle_cfg.dwell_seconds * 1000) + 10;' },

@@ -529,6 +529,11 @@ export class TinyGEdgeNextModel implements SimDevice {
     // EEPROM: a record-0 layout marker other than layout 2 means "not set up": write the defaults
     // (@behaviour EN-EEPROM; @cite EN config.c:292-299, :342-360).
     const layout = this.#options.build?.layout ?? 10002;
+    // @behaviour EN-45005: layout 3 keeps stored settings and removes only retired hold keys.
+    if (this.#options.build?.fb === 450.05 && [10001, 10002, 10003].includes(this.settings.eeprom['__layout'] ?? 0)) {
+      for (const key of ['spph', 'spde', 'coph']) delete this.settings.eeprom[key];
+      this.settings.eeprom['__layout'] = layout;
+    }
     const fresh = this.settings.eeprom['__layout'] !== layout;
     if (fresh) {
       this.settings.resetToDefaults();
@@ -1032,6 +1037,8 @@ export class TinyGEdgeNextModel implements SimDevice {
 
   /** `cm_get_combined_state()` (@cite EN canonical_machine.c:184-220); @behaviour EN-STAT */
   #stat(): number {
+    // @behaviour EN-45005: N99 reports active work, without hiding alarm or program stop.
+    if (this.#layout3() && !this.#programPaused && ['ready', 'programStop', 'programEnd'].includes(this.#machine) && (!this.#motion.runtimeIdle() || this.#motion.queue.length > 0)) return this.#motionState === 'hold' ? 6 : 5;
     switch (this.#machine) {
       case 'initializing':
         return 0;
@@ -1314,7 +1321,8 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#progress++;
   }
 
-  #e060(): boolean { return (this.#options.build?.fb ?? FW_BUILD) >= 450.04; }
+  #e060(): boolean { const fb = this.#options.build?.fb ?? FW_BUILD; return fb >= 450.04 && fb < 450.05; }
+  #layout3(): boolean { return (this.#options.build?.fb ?? FW_BUILD) >= 450.05; }
   #holdSetting(key: string): number {
     const value = this.settings.get(key);
     return typeof value === 'number' ? value : key === 'coph' ? 0 : 1;
@@ -1911,7 +1919,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     const k = (g.offsets[2] ?? 0) * f;
     if (fpZERO(i) && fpZERO(j) && fpZERO(k)) {
       const status = ST('ARC_OFFSETS_MISSING_FOR_SELECTED_PLANE'); // @cite EN plan_arc.c:267-271
-      if (!this.#e060()) this.#alarm(status, 'arc offsets missing or zero'); // @behaviour EN-ARC-REFUSAL: N104 refuses without alarm from 450.04
+      if ((this.#options.build?.fb ?? FW_BUILD) < 450.04) this.#alarm(status, 'arc offsets missing or zero'); // @behaviour EN-ARC-REFUSAL: N104 refuses without alarm from 450.04
       return status;
     }
     if (fpZERO(Math.hypot(i, j))) {
@@ -2140,6 +2148,11 @@ export class TinyGEdgeNextModel implements SimDevice {
   #ramLine = false;
 
   #jsonGet(key: string, body: Record<string, OutValue>): number {
+    // @behaviour EN-45005: Part A models pure override reads at reset defaults, not override motion.
+    if (this.#layout3()) {
+      if (['spph', 'spde', 'coph'].includes(key)) return ST('UNRECOGNIZED_NAME');
+      if (['mfo', 'mfoe', 'm48e', 'mfc', 'mcp', 'mfe'].includes(key)) { body[key] = key === 'mcp' ? 0 : 1; return 0; }
+    }
     const info = token(T, key);
     if (info === undefined) return ST('UNRECOGNIZED_NAME');
     // @behaviour EN-E138: GETs whose getter acts (@cite EN config_app.c:464-505; vendored den.json getters)
@@ -2203,6 +2216,8 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   #jsonSet(key: string, value: HostValue, body: Record<string, OutValue>): number {
+    if (this.#layout3() && ['spph', 'spde', 'coph'].includes(key)) return ST('UNRECOGNIZED_NAME');
+    if (this.#layout3() && ['mfo', 'mfoe', 'm48e', 'mfc', 'mcp', 'mfe'].includes(key)) throw new ModelGapError('450.05 override writes are outside the Part A model');
     const info = token(T, key);
     if (info === undefined) return ST('UNRECOGNIZED_NAME');
     // @behaviour EN-SET-ALARMED: SETs are rejected while alarmed; GETs stay available (@cite EN json_parser.c:335-339)
@@ -2424,6 +2439,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   #groupValues(group: string): OutObject {
     const out: Record<string, OutValue> = {};
     for (const name of groupMembers(T, group)) {
+      if (this.#layout3() && ['spph', 'spde', 'coph'].includes(name)) continue;
       const v = this.#value(name);
       if (v === undefined) continue;
       const k = group !== 'sys' && name.startsWith(group) ? name.slice(group.length) : name;

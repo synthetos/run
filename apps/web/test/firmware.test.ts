@@ -263,7 +263,7 @@ describe('the firmware update in the worker', () => {
     expect(r.host.session.snapshot.identity?.fb).toBe(450.01);
     await r.readAll();
     // A second flash while one runs is refused; so are Connect and Disconnect.
-    await flash(r, 'newLayout', { st: 1, zsn: 1 });
+    await flash(r, 'newLayout', { st: 1, zsn: 1, spph: 1, spde: 10, coph: 1 });
     const view = r.host.flash.view;
     expect(view).toMatchObject({ phase: 'done', wrote: true, versionCheck: { expected: 451, reported: 451, ok: true } });
     expect(r.board.xboot.eraseCount).toBe(0);
@@ -277,6 +277,7 @@ describe('the firmware update in the worker', () => {
     const post = r.host.flash.postFlash;
     expect(post?.phase).toBe('restoreRequired');
     expect(post?.differences.map((d) => d.key).sort()).toEqual(['st', 'zsn']);
+    expect(post?.restoreNotes).toEqual(['Not on 450.05: spindle and coolant pause on hold was removed']);
     expect(post?.switchesChanged).toBe(true);
     expect(await r.call({ v: 3, kind: 'settingWrite', key: 'xvm', value: 1234 })).toMatchObject({ ok: false, code: 'denied' });
     expect(await r.call({ v: 3, kind: 'settingWrite', key: 'st', value: 0 })).toMatchObject({ ok: false, code: 'denied' });

@@ -297,3 +297,12 @@ describe('450.04 E060 probe shape (approval remains independent)', () => {
     }
   });
 });
+
+it('450.05 requires removed spph, all capability evidence and an independent approval', () => {
+  const p = probe(observations({ ...tinygIdentity('450.05'), ...EN_CAPABILITIES, spph: { body: '"spph":null', status: 100 } }, 3));
+  expect(classify(p, BENCH)).toMatchObject({ dialect: TINYG_EN, mode: 'readOnly', reason: 'en-not-approved' });
+  const approved: ApprovedBuilds = { environment: 'staging', builds: [approval('tinyg-en', 450.05)] };
+  expect(classify(p, approved)).toMatchObject({ dialect: TINYG_EN, mode: 'full' });
+  expect(classify({ ...p, spph: 'value' }, approved).dialect).toBeNull();
+  expect(classify({ ...p, spph: 'stubbed' }, approved).dialect).toBeNull();
+});

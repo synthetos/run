@@ -10,6 +10,7 @@
  * read and shown but not written (fail closed until its overlay exists), and
  * `tinyg-449-stock` is always read-only.
  */
+import { REMOVED_HOLD_KEYS, OVERRIDE_SETTINGS } from './firmware45005.ts';
 import { FORBIDDEN_WRITES, isForbiddenKey } from './forbiddenWrites.ts';
 import type { ForbiddenWrites } from './forbiddenWrites.ts';
 import { frozenMap } from './frozen.ts';
@@ -85,8 +86,18 @@ export const SETTINGS_SCHEMAS: Readonly<Record<TinyGDialectId, SettingsSchema>> 
   'tinyg-449-stock': buildSettingsSchema(D449, 'readOnly', []),
 });
 
+const EN_45005_SETTINGS = frozenMap([...SETTINGS_SCHEMAS['tinyg-en'].settings].filter(([key]) => !REMOVED_HOLD_KEYS.includes(key)).concat(OVERRIDE_SETTINGS.map(def => [def.token, def] as [string, SettingDef])));
+const EN_45005: SettingsSchema = Object.freeze({
+  ...SETTINGS_SCHEMAS['tinyg-en'],
+  schemaKey: 'tinyg-en@0e807169',
+  settings: EN_45005_SETTINGS,
+  // Preserve provenance of the base table; firmware45005.ts cites the separately reviewed delta.
+  table: Object.freeze({ ...SETTINGS_SCHEMAS['tinyg-en'].table, tokens: EN_45005_SETTINGS, members: (group: string) => Object.freeze(SETTINGS_SCHEMAS['tinyg-en'].table.members(group).filter(key => !REMOVED_HOLD_KEYS.includes(key))) }),
+});
+
 /** The settings schema of a dialect; throws for a dialect without a vendored table (g2core). */
-export function settingsSchemaFor(dialectId: string): SettingsSchema {
+export function settingsSchemaFor(dialectId: string, fb?: number): SettingsSchema {
   if (!Object.hasOwn(SETTINGS_SCHEMAS, dialectId)) throw new Error(`no settings schema for dialect ${JSON.stringify(dialectId)}`);
+  if (dialectId === 'tinyg-en' && fb !== undefined && fb >= 450.05) return EN_45005;
   return SETTINGS_SCHEMAS[dialectId as TinyGDialectId];
 }

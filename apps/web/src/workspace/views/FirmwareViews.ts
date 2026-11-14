@@ -78,10 +78,12 @@ function RecoveryCard({ flash, actions }: { readonly flash: FlashView; readonly 
 function PostFlash({ view, hub }: { readonly view: LiveView; readonly hub: FirmwareHubView | null }): ComponentChild {
   const m = view.message;
   const post = m?.postFlash ?? null;
-  if (post === null || post.phase === 'clear') return null;
+  if (post === null) return null;
+  if (post.phase === 'clear') return h('div', { 'data-region': 'restore-summary' }, post.restoreNotes?.map(note => h('p', { key: note }, note)));
   return h(
     'section',
     { class: 'insp post-flash', 'data-region': 'post-flash', 'data-post-flash': post.phase },
+    post.restoreNotes?.map(note => h('p', { key: note }, note)),
     h('header', null, h('h2', null, 'After the update'), h('span', { class: 'tag warn' }, 'Jobs, jog and settings locked')),
     post.phase === 'awaitingRead' ? h('p', { role: 'status' }, 'Reading every setting to compare it with your backup…') : null,
     post.phase === 'restoreRequired'
@@ -490,6 +492,7 @@ export function BackupsHub({ model, part }: { readonly model: WorkspaceModel | n
                 'li',
                 { key: b.id, 'data-backup-trigger': b.trigger },
                 h('div', { class: 'hub-row-main' }, h('strong', null, dateText(b.takenAt)), h('span', { class: 'tag' }, TRIGGER_WORDS[b.trigger]), h('small', null, `board ${b.boardId === null ? 'unknown' : boardText(b.boardId)} · firmware ${fbText(b.fb)}${b.boardId !== null && thisBoard !== null && b.boardId !== thisBoard ? ' · another board' : ''}`)),
+                hub.compare?.id === b.id ? hub.compare.notes?.map(note => h('p', { key: note, class: 'fine' }, note)) : null,
                 hub.compare?.id === b.id ? h('p', { class: 'fine', 'data-compare': 'result' }, hub.compare.changes === 0 ? `Matches the board (${hub.compare.same} settings).` : `${hub.compare.changes} differ from the board: ${hub.compare.keys.slice(0, 12).join(', ')}${hub.compare.keys.length > 12 ? '…' : ''}.`) : null,
                 h(
                   'div',

@@ -246,7 +246,7 @@ export function settingWritableIn(state: SessionState, token: string, value: num
   const w = state.settingWrite;
   const dialect = state.dialect;
   if (w === null || w.phase !== 'writing' || w.key !== token || w.value !== value || dialect === null) return false;
-  return settingRefusal(dialect.id, token, value, state.values) === null;
+  return settingRefusal(dialect.id, token, value, state.values, state.identity?.fb) === null;
 }
 
 /**

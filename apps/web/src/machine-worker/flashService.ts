@@ -143,6 +143,7 @@ export interface PostFlashView {
   /** Inputs the switch check needs (1..8) and the states this worker read for each. */
   readonly inputs: readonly { readonly input: number; readonly label: string; readonly seenOpen: boolean; readonly seenClosed: boolean }[];
   readonly baselineKeys: number;
+  readonly restoreNotes?: readonly string[];
 }
 
 /** The backups the page must store before anything is written. Posted once per run. */
@@ -391,7 +392,7 @@ export class FlashService {
     const dialect = s.classification?.dialectId ?? null;
     if (dialect === null) return fail('The board was not identified after the update, so its settings cannot be compared.');
     const board = sessionSettings(dialect, s.values);
-    const diff = restoreChanges(dialect, p.baseline, board);
+    const diff = restoreChanges(dialect, p.baseline, board, s.identity?.fb);
     const differences = diff.changes.map((c) => ({ key: c.key, backup: c.value, board: board[c.key] ?? null }));
     const switchesChanged = p.switchesChanged || differences.some((d) => categoryOf(d.key) === 'switch' || categoryOf(d.key) === 'homing');
     let phase: PostFlashPhase;
@@ -400,7 +401,7 @@ export class FlashService {
     else phase = 'clear';
     const inputs = phase === 'switchCheck' ? this.#requiredInputs(board) : [];
     if (phase === 'switchCheck' && p.phase !== 'switchCheck') this.#seen.clear();
-    this.#post = { ...p, phase, differences, switchesChanged, inputs };
+    this.#post = { ...p, phase, differences, switchesChanged, inputs, restoreNotes: [...new Set(diff.skipped.filter(skip => skip.reason.startsWith('Not on 450.05:')).map(skip => skip.reason))] };
     this.#refreshInputs();
     this.#d.onChange();
     return { ok: true };

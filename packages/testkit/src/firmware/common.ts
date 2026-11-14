@@ -69,7 +69,7 @@ export interface TinyGModelOptions {
    * Edge-next model, test kit flasher (SAFETY §4.8 amendment 2026-11-03): the build this board runs, as the
    * flashable board reads it from the flashed image (simFirmware.ts). `fb` and `fv` are what the board reports,
    * `hv` its hardware version, and `layout` the EEPROM layout marker: a board whose EEPROM holds another layout
-   * loads the defaults on boot (@cite EN config.c:292-299, :342-360). Default: edge-next 450.01, hv 8, layout 10002.
+   * loads the defaults on boot (@cite EN config.c:292-299, :342-360). The 450.05 profile migrates known layout markers, preserving settings except removed hold keys. Default: edge-next 450.01, hv 8, layout 10002.
    */
   readonly build?: { readonly fb: number; readonly fv: number; readonly hv: number; readonly layout: number };
   /**

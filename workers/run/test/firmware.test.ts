@@ -226,6 +226,7 @@ describe('proxyFirmwareAsset: only what the list names for this environment', ()
       { env: 'staging', repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex', sha256: 'c2c1693e82f0ed88ec8dec4338a0bc799059c10b3323acb1189564f6a2265e92', size: 334978 },
       { env: 'staging', repo: 'synthetos/TinyG', tag: '450.01', asset: 'tinyg-450.01.hex', sha256: 'b83763af4ecfe283d0c009fce3e6aa8df491b7f5b2a101693bccf534bb893811', size: 434318 },
       { env: 'staging', repo: 'synthetos/TinyG', tag: '450.02', asset: 'tinyg-450.02.hex', sha256: '687f9d76497bb30e133efacf0e392dbd4552ffee809264668629669f0c93ea9b', size: 456335 },
+      { env: 'staging', repo: 'synthetos/TinyG', tag: '450.05', asset: 'tinyg-450.05.hex', sha256: '20f231be49491ad856766dd377ae7524a1faf9b1d40f7845a18fb24fc22bb2d6', size: 502955 },
     ]);
     expect(FIRMWARE_ASSETS.filter((a) => a.env === 'production')).toEqual([]);
     for (const a of FIRMWARE_ASSETS) expect(FIRMWARE_REPOSITORIES).toContain(a.repo);

@@ -60,12 +60,12 @@ export function sessionSettings(dialectId: string, values: Readonly<Record<strin
 }
 
 /** Why `key` = `value` may not be written on this dialect, or null. Cross-key rules use what this session read. */
-export function settingRefusal(dialectId: string, key: string, value: unknown, values: Readonly<Record<string, ReadValue>>): string | null {
+export function settingRefusal(dialectId: string, key: string, value: unknown, values: Readonly<Record<string, ReadValue>>, fb?: number): string | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'The value is not a number.';
   if (settingLine(key, value) === null) return 'The value cannot be written as a plain decimal number.';
   let schema;
   try {
-    schema = settingsSchemaFor(dialectId);
+    schema = settingsSchemaFor(dialectId, fb);
   } catch {
     return `This firmware (${dialectId}) has no settings schema, so nothing is written to it.`;
   }

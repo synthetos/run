@@ -12,6 +12,20 @@
           "minimumFb": 440.21,
           "releases": [
             {
+              "fb": 450.05,
+              "fv": 0.97,
+              "dialect": "tinyg-en",
+              "part": "x192a3",
+              "file": "tinyg-450.05.hex",
+              "sha256": "20f231be49491ad856766dd377ae7524a1faf9b1d40f7845a18fb24fc22bb2d6",
+              "size": 502955,
+              "date": "2026-11-13",
+              "changelog": "TinyG 450.05: Pause affects motion only. Settings carry over, except the removed spindle and coolant pause settings. Dwells report Run until finished; saved settings sent while moving are refused. Live feed override is present in the firmware; Run does not offer override controls yet.",
+              "recommended": true,
+              "repo": "synthetos/TinyG",
+              "tag": "450.05"
+            },
+            {
               "fb": 450.02,
               "fv": 0.97,
               "dialect": "tinyg-en",

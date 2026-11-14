@@ -26,6 +26,7 @@
  * reports `unit` = 1 (G21) right before each write (SAFETY §4.6 step 5 as
  * amended).
  */
+import { REMOVED_HOLD_KEYS, REMOVED_HOLD_REASON } from './firmware45005.ts';
 import { forbiddenWriteReason, isForbiddenKey } from './forbiddenWrites.ts';
 import type { SettingValue } from './settingsRead.ts';
 import { settingsSchemaFor, type SettingDef } from './settingsSchema.ts';
@@ -257,13 +258,17 @@ export interface RestoreChanges {
  * A backup's tokens as proposed values, by token name (so an older backup
  * maps onto newer firmware), skipping what is never written.
  */
-export function restoreChanges(dialectId: string, tokens: Readonly<Record<string, unknown>>, board: Readonly<Record<string, SettingValue>>): RestoreChanges {
+export function restoreChanges(dialectId: string, tokens: Readonly<Record<string, unknown>>, board: Readonly<Record<string, SettingValue>>, fb?: number): RestoreChanges {
   const schema = safeSchema(dialectId);
   const changes: ProposedValue[] = [];
   const skipped: RestoreSkip[] = [];
   let same = 0;
   for (const key of Object.keys(tokens).sort()) {
     const value = tokens[key];
+    if (dialectId === 'tinyg-en' && fb !== undefined && fb >= 450.05 && REMOVED_HOLD_KEYS.includes(key)) {
+      skipped.push({ key, reason: REMOVED_HOLD_REASON });
+      continue;
+    }
     if (IDENTITY_KEYS.includes(key)) {
       skipped.push({ key, reason: 'identity: never written' });
       continue;

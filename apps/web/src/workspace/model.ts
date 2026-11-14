@@ -85,7 +85,7 @@ export interface FirmwareHubView {
   /** The last message from a firmware action (a refusal, a result), or null. */
   readonly notice: { readonly kind: 'ok' | 'error'; readonly text: string } | null;
   /** A comparison of a stored settings backup with the board, when one was asked for. */
-  readonly compare: { readonly id: string; readonly changes: number; readonly same: number; readonly skipped: number; readonly keys: readonly string[] } | null;
+  readonly compare: { readonly id: string; readonly changes: number; readonly same: number; readonly skipped: number; readonly notes?: readonly string[]; readonly keys: readonly string[] } | null;
   /** A release image being fetched from the site's own origin (OD-10), or null. */
   readonly download: FirmwareDownload | null;
 }
