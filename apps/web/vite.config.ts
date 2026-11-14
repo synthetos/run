@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { firmwareBoundary } from './build/firmwareBoundary.ts';
 import { buildInfo } from './build/buildInfo.ts';
 import { CLOUD_CHUNK_NAME, SERIAL_CHOOSER_CHUNK_NAME, SERIAL_CHUNK_NAME, chunkPolicy } from './build/chunks.ts';
 import { FAKE_SERIAL_MODE, FAKE_SERIAL_OUT_DIR, TRANSPORT_CHUNK_NAME, assertBuildMode, fakeSerialPlugins, transportSeam } from './build/fakeSerial.ts';
@@ -37,7 +38,7 @@ export default defineConfig(({ command, mode }) => {
   return {
     base: '/',
     // Every page is prerendered from the Preact components (build/prerender.ts).
-    plugins: [prerender(build), ...(fakeSerial === undefined ? [] : [fakeSerial.main]), ...(bench === undefined ? [] : [bench])],
+    plugins: [prerender(build), firmwareBoundary(), ...(fakeSerial === undefined ? [] : [fakeSerial.main]), ...(bench === undefined ? [] : [bench])],
     // The version chip's values for the client bundle (src/env.d.ts).
     define: { __RUN_BUILD__: JSON.stringify(build) },
     // Preact automatic JSX runtime, configured directly (no extra plugin).
@@ -54,7 +55,7 @@ export default defineConfig(({ command, mode }) => {
     // bundle scan admits Web Serial nowhere else (P1-00).
     worker: {
       format: 'es',
-      plugins: () => (fakeSerial === undefined ? [] : [fakeSerial.worker()]),
+      plugins: () => [firmwareBoundary(), ...(fakeSerial === undefined ? [] : [fakeSerial.worker()])],
       rolldownOptions: {
         output: {
           codeSplitting: {

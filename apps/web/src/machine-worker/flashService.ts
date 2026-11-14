@@ -39,7 +39,7 @@
  * can, and a flash in progress refuses a second (H88).
  */
 import { bootloaderHardwareVersions } from '../firmware/bootloaderHardware.ts';
-import { BootloaderLink, EventLog, sessionSettings, type MachineSession, type PortSelector, type SessionClock, type SessionSnapshot, type Transport, type TransportSource } from '@synthetos/machine';
+import { BootloaderLink, EventLog, sessionSettings, type SessionExecutor, type PortSelector, type SessionClock, type SessionSnapshot, type Transport, type TransportSource } from '@synthetos/machine';
 import {
   X192A3,
   XbootClient,
@@ -160,7 +160,7 @@ export interface FlashBackupsMessage {
 
 export interface FlashServiceDeps {
   readonly marks: BootloaderMarks;
-  readonly session: MachineSession;
+  readonly session: SessionExecutor;
   readonly source: TransportSource;
   readonly clock: SessionClock;
   /** This worker's verified release list (null when none verifies for its origin). */

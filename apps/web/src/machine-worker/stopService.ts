@@ -18,7 +18,8 @@
  */
 import type { SessionSnapshot } from '@synthetos/machine';
 import type { Decision } from '@synthetos/safety';
-import { machineLockName, parseStopRequest, STOP_PROTOCOL_VERSION, type BroadcastChannelLike, type LockManagerLike, type StopAck, type StopAction } from './stopChannel.ts';
+import { MachineLock, type LockState } from './machineLock.ts';
+import { parseStopRequest, STOP_PROTOCOL_VERSION, type BroadcastChannelLike, type LockManagerLike, type StopAck, type StopAction } from './stopChannel.ts';
 
 /** The parts of `MachineSession` the stop service uses. */
 export interface StopSession {
@@ -29,13 +30,7 @@ export interface StopSession {
   spindleOffNow(): Decision;
 }
 
-export type LockState =
-  | { readonly kind: 'none' }
-  | { readonly kind: 'requesting'; readonly name: string }
-  | { readonly kind: 'held'; readonly name: string }
-  | { readonly kind: 'contended'; readonly name: string }
-  | { readonly kind: 'unavailable'; readonly name: string };
-
+export type { LockState } from './machineLock.ts';
 export interface StopServiceOptions {
   readonly session: StopSession;
   readonly channel: BroadcastChannelLike | null;
@@ -52,35 +47,16 @@ export interface StopServiceOptions {
 export class MachineStopService {
   readonly #session: StopSession;
   readonly #channel: BroadcastChannelLike | null;
-  readonly #locks: LockManagerLike | null;
-  readonly #instance: string;
-  readonly #flashing: () => { readonly boardId: string | null } | null;
-  #lock: LockState = { kind: 'none' };
-  /** Ends the current lock request's hold (resolves the promise the lock callback returned). */
-  #release: (() => void) | null = null;
-  /** Bumped on every lock change, so a late grant for an old name is let go at once. */
-  #generation = 0;
-
+  readonly #lock: MachineLock;
   constructor(options: StopServiceOptions) {
     this.#session = options.session;
     this.#channel = options.channel;
-    this.#locks = options.locks;
-    this.#instance = options.instance;
-    this.#flashing = options.flashing ?? (() => null);
-    this.#channel?.addEventListener('message', (event) => this.#onMessage(event.data));
-    this.#session.subscribe(() => this.#syncLock());
-    this.#syncLock();
+    this.#lock = new MachineLock(options);
+    this.#channel?.addEventListener('message', event => this.#onMessage(event.data));
   }
-
-  get lock(): LockState {
-    return this.#lock;
-  }
-
-  /** The lock name this worker answers for, or null without an open port. */
-  get machine(): string | null {
-    return this.#lock.kind === 'none' ? null : this.#lock.name;
-  }
-
+  get lock(): LockState { return this.#lock.lock; }
+  get machine(): string | null { return this.#lock.machine; }
+  sync(): void { this.#lock.sync(); }
   #onMessage(data: unknown): void {
     const request = parseStopRequest(data);
     if (request === null) return;
@@ -102,53 +78,4 @@ export class MachineStopService {
     }
   }
 
-  /** Re-decide the lock (the flash service calls it when an update starts or ends). */
-  sync(): void {
-    this.#syncLock();
-  }
-
-  #syncLock(): void {
-    const snapshot = this.#session.snapshot;
-    const flashing = this.#flashing();
-    const wanted = snapshot.port !== null ? machineLockName(snapshot.identity?.id, this.#instance) : flashing !== null ? machineLockName(flashing.boardId ?? undefined, this.#instance) : null;
-    const current = this.machine;
-    if (wanted === current) return;
-    this.#let();
-    if (wanted === null) {
-      this.#lock = { kind: 'none' };
-      return;
-    }
-    this.#take(wanted);
-  }
-
-  #let(): void {
-    this.#generation += 1;
-    const release = this.#release;
-    this.#release = null;
-    release?.();
-  }
-
-  #take(name: string): void {
-    const locks = this.#locks;
-    if (locks === null) {
-      this.#lock = { kind: 'unavailable', name };
-      return;
-    }
-    const generation = this.#generation;
-    this.#lock = { kind: 'requesting', name };
-    const granted = (lock: unknown): Promise<void> => {
-      if (generation !== this.#generation) return Promise.resolve();
-      if (lock === null) {
-        this.#lock = { kind: 'contended', name };
-        return Promise.resolve();
-      }
-      this.#lock = { kind: 'held', name };
-      return new Promise<void>((resolve) => {
-        this.#release = resolve;
-      });
-    };
-    locks.request(name, { ifAvailable: true }, granted).catch(() => {
-      if (generation === this.#generation) this.#lock = { kind: 'unavailable', name };
-    });
-  }
 }

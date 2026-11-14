@@ -5,10 +5,12 @@
  * statement, security/tt.ts) and wires the theme toggle. Entries must never
  * import @synthetos/testkit (RUN_PLAN §5.3).
  */
+import { startFirmwareWorker } from '../machine-worker/firmwareClient.ts';
 import { installTrustedTypes } from '../security/tt.ts';
 import { startTheme } from '../theme/theme.ts';
 import '../styles/base.css';
 
-installTrustedTypes();
+const trustedTypes = installTrustedTypes();
+startFirmwareWorker(trustedTypes);
 startTheme();
 document.documentElement.dataset['ready'] = 'true';

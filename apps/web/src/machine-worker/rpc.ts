@@ -269,12 +269,12 @@ function parseTrusted(value: unknown): readonly TrustedBuild[] | null {
 }
 
 /** The request in `data`, or null when it is not exactly a valid request. */
-export function parseRequest(data: unknown): MachineRequest | null {
+export function parseBaseRequest(data: unknown): MachineRequest | null {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return null;
   if (Object.getPrototypeOf(data) !== Object.prototype) return null;
   const keys = Object.keys(data).sort().join(',');
   const { v, kind, port, boardId, previousSessionEnded, intent, tokens, epoch, preparation, command, key, value, trusted } = data as Record<string, unknown>;
-  if (v !== RPC_VERSION || !isRequestKind(kind)) return null;
+  if (v !== RPC_VERSION || !isRequestKind(kind) || kind === 'motion' || kind === 'job') return null;
   switch (kind) {
     case 'prepare':
       if (keys !== 'kind,port,v' || !isPortSelector(port)) return null;
@@ -312,16 +312,6 @@ export function parseRequest(data: unknown): MachineRequest | null {
       if (keys !== 'key,kind,v,value' || typeof key !== 'string' || key.length === 0 || key.length > MAX_TOKEN_LENGTH) return null;
       if (typeof value !== 'number' || !Number.isFinite(value)) return null;
       return Object.freeze({ v: RPC_VERSION, kind, key, value });
-    case 'motion': {
-      if (keys !== 'command,kind,v') return null;
-      const parsed = parseMotionCommand(command);
-      return parsed === null ? null : Object.freeze({ v: RPC_VERSION, kind, command: parsed });
-    }
-    case 'job': {
-      if (keys !== 'command,kind,v') return null;
-      const parsed = parseJobCommand(command);
-      return parsed === null ? null : Object.freeze({ v: RPC_VERSION, kind, command: parsed });
-    }
     case 'flash': {
       if (keys !== 'command,kind,v') return null;
       const parsed = parseFlashCommand(command);
@@ -565,5 +555,28 @@ export function parseFlashCommand(value: unknown): FlashCommand | null {
     }
     default:
       return null;
+  }
+}
+
+/** The workspace adds control requests; the open updater imports only the base parser. */
+export function parseRequest(data: unknown): MachineRequest | null {
+  const basic = parseBaseRequest(data);
+  if (basic !== null) return basic;
+  if (typeof data !== 'object' || data === null || Object.getPrototypeOf(data) !== Object.prototype) return null;
+  const { v, kind, command } = data as Record<string, unknown>;
+  const keys = Object.keys(data).sort().join(',');
+  if (v !== RPC_VERSION) return null;
+  switch (kind) {
+    case 'motion': {
+      if (keys !== 'command,kind,v') return null;
+      const parsed = parseMotionCommand(command);
+      return parsed === null ? null : Object.freeze({ v: RPC_VERSION, kind, command: parsed });
+    }
+    case 'job': {
+      if (keys !== 'command,kind,v') return null;
+      const parsed = parseJobCommand(command);
+      return parsed === null ? null : Object.freeze({ v: RPC_VERSION, kind, command: parsed });
+    }
+    default: return null;
   }
 }

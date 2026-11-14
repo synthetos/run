@@ -95,24 +95,7 @@ export interface ProbeZState {
   readonly killUntil: number | null;
 }
 
-export const PROBE_CLOSED: ProbeZState = Object.freeze({
-  step: 'closed',
-  block: 'notConnected',
-  settings: SETTINGS_UNREAD,
-  refreshing: false,
-  reading: null,
-  readingAt: null,
-  plan: null,
-  touch: TOUCH_NONE,
-  touchAt: null,
-  passedAt: null,
-  anchor: null,
-  run: null,
-  outcome: null,
-  plateOut: false,
-  alarmExpected: false,
-  killUntil: null,
-});
+export { PROBE_CLOSED } from '../inactiveFeatures.ts';
 
 /** Steps in which the probe owns the machine: the touch test to the zero. */
 export function probeOpen(step: ProbeStep): boolean {
