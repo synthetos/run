@@ -24,7 +24,8 @@ it('requires mains confirmation before showing switch controls, and shows links 
   expect(html({ message: message(post) })).not.toContain('data-action="switch-test-done"');
   expect(html({ message: message(post), mainsConfirmed: true })).toContain('data-action="switch-test-done"');
   expect(html({ message: message(post), mainsConfirmed: true })).not.toContain('href="/"');
-  expect(html({ message: message({ ...post, phase: 'clear' }) })).toContain('Done. Your TinyG runs 450.02.');
+  expect(html({ message: message({ ...post, phase: 'clear' }) })).toContain('8. Done. Your TinyG runs 450.02.');
+  expect(html({ message: message(post) })).toContain('2. Your board and release');
   expect(html({ message: message({ ...post, phase: 'clear' }) })).toContain('href="/"');
 });
 it('offers the saved backup before continuing, never an account destination', () => {

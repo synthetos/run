@@ -54,7 +54,7 @@ export function UpdateFlow({ controller, supported, failure }: { readonly contro
       h('button', { class: 'primary', disabled: controller === null || state.connecting, onClick: () => void controller?.connect(), 'data-action': 'update-connect' }, state.connecting ? 'Connecting…' : 'Connect'),
     ) : null,
     connected || flash ? h('section', { class: 'update-card update-board', 'data-step': 'board' }, h('div', null,
-      h('span', { class: 'kicker' }, 'Your board'), h('h2', null, hv === null ? 'TinyG · hardware not read' : `TinyG v${hv}`),
+      h('span', { class: 'kicker' }, '2. Your board and release'), h('h2', null, hv === null ? 'TinyG · hardware not read' : `TinyG v${hv}`),
       h('p', null, `Firmware ${typeof id?.fb === 'number' ? id.fb.toFixed(2) : flash?.board?.fb?.toFixed(2) ?? 'not running'} · ${boardText(id?.id ?? flash?.boardId ?? 'identity not read')}`)),
       h('button', { disabled: busy, onClick: () => void controller?.disconnect(), 'data-action': 'update-disconnect' }, 'Disconnect')) : null,
     flash?.bootloader !== undefined && !busy ? h('section', { class: 'update-card', 'data-step': 'bootloader' },
@@ -66,7 +66,7 @@ export function UpdateFlow({ controller, supported, failure }: { readonly contro
       h('button', { disabled: hardware === '', onClick: () => act(() => controller!.hub!.actions.bootloaderHardware(Number(hardware))) }, 'Confirm hardware version'),
     ) : null,
     (connected || flash?.bootloader) && !busy && !done && !post && !image && !state.backup ? h('section', { class: 'update-card', 'data-step': 'release' },
-      h('h2', null, '2. Choose a signed release'),
+      h('h2', null, 'Choose a signed release'),
       selectionBlocked ? h('p', { role: 'status' }, selectionBlocked) : null,
       hub?.releases.ok === false ? h('p', null, `The signed release list is unavailable: ${hub.releases.reason}.`) : null,
       !list?.releases.length ? h('p', null, 'No signed release is listed for this hardware yet.') : h('ul', { class: 'update-list' }, list.releases.map(r => h('li', { key: r.file, 'data-release': r.file },
@@ -101,7 +101,7 @@ export function UpdateFlow({ controller, supported, failure }: { readonly contro
           h('button', { class: 'primary', disabled: !post.inputs.every(i => i.seenOpen && i.seenClosed), onClick: () => act(() => controller!.hub!.actions.finishSwitchCheck()), 'data-action': 'switch-test-done' }, 'All switches checked')) : null) : null,
     ) : null,
     state.changes.length ? h(ConfirmSettings, { restoreOnly: true, changes: state.changes, boardId: id?.id ?? null, blocked: post?.phase !== 'restoreRequired', onCancel: () => controller?.patch({ changes: [] }), onConfirm: () => void controller?.applyRestore() }) : null,
-    done ? h('section', { class: 'update-card', 'data-step': 'done' }, h('h2', null, `Done. Your TinyG runs ${id?.fb?.toFixed(2) ?? 'the checked firmware'}.`), h('p', null, 'Your settings are restored and the switch check is complete.'), h('a', { href: '/' }, 'Open the workspace'), h('div', { id: 'update-done-links' })) : null,
+    done ? h('section', { class: 'update-card', 'data-step': 'done' }, h('h2', null, `8. Done. Your TinyG runs ${id?.fb?.toFixed(2) ?? 'the checked firmware'}.`), h('p', null, 'Your settings are restored and the switch check is complete.'), h('a', { href: '/' }, 'Open the workspace'), h('div', { id: 'update-done-links' })) : null,
     hub && backups.length > 0 ? h('section', { class: 'update-card', 'data-step': 'saved-backups' }, h('h2', null, 'Saved on this computer'), h('ul', { class: 'update-list' }, backups.map(b => h('li', { key: b.id }, h('span', null, `${b.trigger === 'before-update' ? 'Before update' : b.trigger === 'before-apply' ? 'Before restore' : 'Settings'} · ${b.takenAt.replace('T', ' ').slice(0, 16)}`), h('button', { onClick: () => act(async () => { await controller!.hub!.actions.exportSettings(b.id); return null; }) }, 'Download'))))) : null,
   );
 }

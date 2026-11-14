@@ -62,7 +62,7 @@ export function ConfirmFlash({ view, target, onCancel, onConfirm }: { readonly v
               'aria-label': `C6 step ${i + 1}`,
               onChange: (e: Event) => setTicked(ticked.map((t, k) => (k === i ? (e.currentTarget as HTMLInputElement).checked : t))),
             }),
-            ` ${b}`,
+            ` ${/^\d+\. /.test(b) ? '' : `${i + 1}. `}${b}`,
           ),
         ),
       ),
