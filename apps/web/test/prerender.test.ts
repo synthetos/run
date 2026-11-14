@@ -1,6 +1,6 @@
 /**
- * Prerendering (ROADMAP P0-05): every page's HTML carries the safety bar with
- * W1 before any script runs, and every warning comes from strings.ts. Also
+ * Prerendering (ROADMAP P0-05): every page except /update/ carries W1 before
+ * scripts run (SAFETY §4.8, owner amendment 2026-11-14). Also
  * checks the safety page content the roadmap requires and that only the
  * reviewed outbound links appear, never in client-side code.
  */
@@ -39,12 +39,18 @@ describe('prerender', () => {
     expect(Object.keys(PAGES).sort()).toEqual(HTML_FILES.map((f) => `/${f}`).sort());
   });
 
-  it('puts the safety bar with W1 into every page', () => {
+  it('puts W1 on every page except the named /update/ owner exception', () => {
     for (const path of Object.keys(PAGES)) {
       const html = decoded(rendered(path));
       expect(html, path).not.toContain(BODY_MARKER);
-      expect(html, path).toContain('data-region="safety-bar"');
-      expect(html.replace(/<[^>]+>/g, ''), path).toContain(w1());
+      // SAFETY §4.8 owner amendment, 2026-11-14: only the motion-free updater omits W1.
+      if (path === '/update/index.html') {
+        expect(html, path).not.toContain('data-region="safety-bar"');
+        expect(html.replace(/<[^>]+>/g, ''), path).not.toContain(w1());
+      } else {
+        expect(html, path).toContain('data-region="safety-bar"');
+        expect(html.replace(/<[^>]+>/g, ''), path).toContain(w1());
+      }
     }
   });
 
