@@ -839,10 +839,13 @@ describe('P1-03: the worker classifies against the bundled, signed approved-buil
     for (const o of ['https://localhost:8793', 'http://run.synthetos.com', 'http://localhost.evil.example', 'http://10.0.0.2:8793', 'https://run-abc.workers.dev', 'null', '']) expect(approvalEnvironment(o)).toBeNull();
   });
 
-  it('valid: the committed bench channel (owner bench key, staging) approves edge-next 450.02 on the bench and staging origins', async () => {
+  it('valid: the committed bench channel (owner bench key, staging) approves 450.02 and published 450.05 on the bench and staging origins', async () => {
     const out = await approvedBuildsFor(COMMITTED_MANIFEST, { origin: BENCH_ORIGIN, now: VALID_NOW });
     expect(out.approved.environment).toBe('staging');
-    expect(out.approved.builds).toEqual([expect.objectContaining({ channel: 'bench', dialect: 'tinyg-en', fb: 450.02, fbs: null })]);
+    expect(out.approved.builds).toEqual([
+      expect.objectContaining({ channel: 'bench', dialect: 'tinyg-en', fb: 450.02, fbs: null }),
+      expect.objectContaining({ channel: 'bench', dialect: 'tinyg-en', fb: 450.05, fbs: null, commit: '0e80716961577c99fa5b8269ec2fadf160161b50' }),
+    ]);
     expect(out.channels).toEqual([{ channel: 'bench', accepted: true }, { channel: 'release', accepted: false, rejection: 'wrong-environment-for-channel' }]);
     for (const origin of [BENCH_ORIGIN, STAGING_ORIGIN]) {
       const t = new BoardTransport();

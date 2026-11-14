@@ -66,11 +66,14 @@ describe('committed approved-builds files', () => {
     }
   });
 
-  it('the bench channel approves only the pinned edge-next commit; the release channel is empty', () => {
+  it('the bench channel approves the pin and published 450.05; the release channel is empty', () => {
     const pins = read<{ pins: { EN: { commit: string; fb: number } } }>('vendor/firmware-pins.json');
     const [bench, release] = unsigned.channels as [Record<string, unknown>, Record<string, unknown>];
     expect(bench).toMatchObject({ channel: 'bench', env: 'staging' });
-    expect(bench['builds']).toEqual([expect.objectContaining({ dialect: 'tinyg-en', fb: pins.pins.EN.fb, commit: pins.pins.EN.commit, fbs: null })]);
+    expect(bench['builds']).toEqual([
+      expect.objectContaining({ dialect: 'tinyg-en', fb: pins.pins.EN.fb, commit: pins.pins.EN.commit, fbs: null }),
+      expect.objectContaining({ dialect: 'tinyg-en', fb: 450.05, commit: '0e80716961577c99fa5b8269ec2fadf160161b50', fbs: null }),
+    ]);
     expect(release).toMatchObject({ channel: 'release', env: 'production', builds: [] });
   });
 });
@@ -90,7 +93,7 @@ describe('signManifest', () => {
       keys: [{ kid: 'test-key', publicKey: key.publicKey, environments: ['staging'], placeholder: true }],
     });
     expect(out.channels[0]).toEqual({ channel: 'bench', accepted: true });
-    expect(out.approved.builds.length).toBe(1);
+    expect(out.approved.builds.map(({ channel, fb }) => ({ channel, fb }))).toEqual([{ channel: 'bench', fb: 450.02 }, { channel: 'bench', fb: 450.05 }]);
   });
 
   it('refuses an input that is not an unsigned manifest, or a channel without a name', async () => {
