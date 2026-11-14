@@ -1,3 +1,7 @@
+import { confirmFirmwareRestore } from '../src/update/restoreConfirmation.ts';
+import { memoryDeviceSafety } from '../src/live/deviceSafety.ts';
+import { previousSessionEnded } from '../src/live/liveMarker.ts';
+import { openRequest } from '../src/live/openPort.ts';
 /**
  * The firmware update in the machine worker, against the test kit's flashable
  * board (SAFETY §4.8 as amended 2026-11-03; T-S123, T-S125, T-S126):
@@ -126,7 +130,7 @@ async function releaseList(minimumFb: number): Promise<FirmwareReleases> {
   return { env: 'staging', issuedMs: 0, expiresMs: Number.MAX_SAFE_INTEGER, boards: [{ hv: 99, minimumFb, releases: [await rel('newLayout', true), await rel('update', false), await rel('current', false)] }] };
 }
 
-function rig(options: { readonly releases?: FirmwareReleases; readonly minimumFb?: number; readonly board?: ConstructorParameters<typeof FlashableBoard>[0]; readonly closeMs?: number } = {}) {
+function rig(options: { readonly firmwareOnly?: boolean; readonly releases?: FirmwareReleases; readonly minimumFb?: number; readonly board?: ConstructorParameters<typeof FlashableBoard>[0]; readonly closeMs?: number } = {}) {
   const clock = new VirtualClock();
   const holders: PortHolders = { open: 0, most: 0 };
   const board = new FlashableBoard({ model: { bootMs: 50, eepromWriteMs: 0 }, linkBaud: 2_000_000, eeprom: { __layout: 10002, st: 1, zsn: 1 }, ...options.board });
@@ -139,7 +143,7 @@ function rig(options: { readonly releases?: FirmwareReleases; readonly minimumFb
     verify: async () => ({ approved: { environment: 'staging', builds: [{ channel: 'bench', dialect: 'tinyg-en', fb: 450.01, fbs: null, commit: 'e'.repeat(40), note: 't' }] }, channels: [] }),
     releases: async () => options.releases ?? await releaseList(options.minimumFb ?? 450.01),
   }, firmwareOnly ? firmwareReleaseFor(ORIGIN) : releaseFor(ORIGIN), marks);
-  const host = makeHost();
+  const host = makeHost(options.firmwareOnly ?? false);
   const posted: (SnapshotMessage | FlashBackupsPost)[] = [];
   void host.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => posted.push(m) });
   /** Drives virtual time (and real tasks, for WebCrypto) until `done()` or the limit. */
@@ -577,3 +581,46 @@ it('the open entry quarantines a persisted custom-image retry without admitting 
   expect(await r.marks.find(PORT)).not.toBeNull();
   expect(r.board.xboot.pageWrites).toEqual([]);
 }, 60_000);
+
+it('open-page restore confirmation does not verify position for a later workspace connection to the same board', async () => {
+  const r = rig({ firmwareOnly: true });
+  const firmware = r.host;
+  const store = memoryDeviceSafety();
+  const callHost = async (host: typeof firmware, request: unknown): Promise<MachineReply> => {
+    let result: MachineReply | undefined;
+    void host.handle(request).then(reply => { result = reply; });
+    expect(await r.until(() => result !== undefined, 30_000)).toBe(true);
+    return result!;
+  };
+  await r.connect();
+  await flash(r, 'newLayout', { st: 1, zsn: 1 });
+  const id = firmware.session.snapshot.identity!.id!;
+  expect(firmware.session.snapshot.overlays).toContain('UNKNOWN');
+  await r.readAll();
+  expect(firmware.flash.compare()).toMatchObject({ ok: true });
+  expect(firmware.flash.postFlash?.phase).toBe('restoreRequired');
+  const before = firmware.session.snapshot.sent;
+  expect(await confirmFirmwareRestore(store, async () => {
+    const result = await callHost(firmware, { v: 3, kind: 'flash', command: { op: 'restorePositionVerify' } });
+    return result.ok ? null : result.message;
+  })).toBeNull();
+  expect(firmware.session.snapshot.overlays).not.toContain('UNKNOWN');
+  expect(firmware.session.snapshot.sent).toEqual(before);
+  expect(await r.until(() => firmware.session.state.expected.length === 0 && firmware.session.state.queue.length === 0 && firmware.session.state.writing === null, 30_000)).toBe(true);
+  expect(await callHost(firmware, { v: 3, kind: 'close' })).toMatchObject({ ok: true });
+  // Let already-transmitted bytes leave the simulated UART before the new page opens its port.
+  await r.until(() => false, 1000);
+
+  // New workspace worker, same physical simulated board and durable quarantine store.
+  const workspace = r.makeHost();
+  expect(await previousSessionEnded(store, false)).toBe(true);
+  expect(await callHost(workspace, openRequest(PORT, await previousSessionEnded(store, false)))).toMatchObject({ ok: true });
+  const connected = await r.until(() => workspace.session.snapshot.classification !== null && workspace.session.snapshot.base === 'CONNECTED_UNKNOWN', 30_000);
+  expect(connected, JSON.stringify({ base: workspace.session.snapshot.base, overlays: workspace.session.snapshot.overlays, classification: workspace.session.snapshot.classification, notices: workspace.session.snapshot.notices, fault: workspace.session.state.fault })).toBe(true);
+  expect(workspace.session.snapshot.identity?.id).toBe(id);
+  expect(workspace.session.snapshot.overlays).toContain('UNKNOWN');
+  expect(await callHost(workspace, { v: 3, kind: 'motion', command: { op: 'jog', axes: { x: 1 }, distanceMm: 1, feed: 100 } })).toMatchObject({ ok: false });
+  expect(await callHost(workspace, { v: 3, kind: 'motion', command: { op: 'positionVerify' } })).toMatchObject({ ok: true });
+  expect(workspace.session.snapshot.overlays).not.toContain('UNKNOWN');
+  expect(await callHost(workspace, { v: 3, kind: 'close' })).toMatchObject({ ok: true });
+});

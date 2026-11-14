@@ -37,9 +37,17 @@ it('offers the saved backup before continuing, never an account destination', ()
 it('keeps Install disabled until the initial probe permits a settings backup', () => {
   const hub = { releases: { ok: true, list: { boards: [{ hv: 8, releases: [{ file: 'release.hex', fb: 450.02, changelog: 'Release' }] }] } }, settings: [], step: { kind: 'idle' } } as unknown as NonNullable<UpdateState['hub']>;
   const { postFlash: _post, ...probing } = message({ boardId: 'board', phase: 'clear', differences: [], inputs: [], switchesChanged: false, baselineKeys: 1 });
-  const blocked = html({ hub, message: { ...probing, snapshot: { ...probing.snapshot, base: 'PROBING' } } });
+  const blocked = html({ hub, message: { ...probing, snapshot: { ...probing.snapshot, base: 'IDENTIFYING' } } });
   expect(blocked).toContain('Wait until the board is identified, read and at rest.');
   expect(blocked).toMatch(/<button[^>]*disabled[^>]*>Install/);
   const ready = html({ hub, message: { ...probing, snapshot: { ...probing.snapshot, classification: { dialectId: 'tinyg-en' } as NonNullable<SnapshotMessage['snapshot']['classification']> } } });
   expect(ready).toMatch(/<button class="primary">Install/);
+});
+
+it('describes confirmation as settings restore, not workspace position verification', () => {
+  const m = message({ boardId: 'board', phase: 'restoreRequired', differences: [], inputs: [], switchesChanged: false, baselineKeys: 1 });
+  const out = html({ message: { ...m, snapshot: { ...m.snapshot, overlays: ['UNKNOWN'] } } });
+  expect(out).toContain('Allow settings restore');
+  expect(out).toContain('workspace needs its own position check');
+  expect(out).not.toContain('position verified');
 });

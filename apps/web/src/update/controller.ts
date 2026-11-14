@@ -1,10 +1,11 @@
 /** Document-lifetime owner of the open update flow. All machine I/O stays in its dedicated worker. */
+import { confirmFirmwareRestore } from './restoreConfirmation.ts';
 import { signal } from '@preact/signals';
 import type { PlannedChange, SettingValue } from '@synthetos/schema';
 import { callMachineWorker } from '../machine-worker/call.ts';
 import { RPC_VERSION, type MachineRequest, type SnapshotMessage, type FlashBackupsPost, type FlashCommand } from '../machine-worker/rpc.ts';
 import { mountFirmware, type FirmwareHub } from '../live/firmwareHub.ts';
-import { openDeviceSafety, memoryDeviceSafety } from '../live/deviceSafety.ts';
+import { openDeviceSafety, memoryDeviceSafety, type DeviceSafetyStore } from '../live/deviceSafety.ts';
 import { SettingsBackup, backupFileName, type BackupFile } from '../live/backup.ts';
 import { SettingsApplier, type ApplyState } from '../live/settingsApply.ts';
 import { LiveReadout } from '../live/readout.ts';
@@ -31,6 +32,7 @@ export class UpdateController {
   hub: FirmwareHub | null = null;
   readonly #worker: Worker;
   readonly #backup = new SettingsBackup();
+  #store!: DeviceSafetyStore;
   #readout!: LiveReadout;
   #applier!: SettingsApplier;
   #backupAnswer: ((continueUpdate: boolean) => void) | null = null;
@@ -44,8 +46,11 @@ export class UpdateController {
     return r.ok ? { ok: true as const } : { ok: false as const, message: r.message };
   }
   async flash(command: FlashCommand): Promise<string | null> {
-    const r = await this.call({ v: RPC_VERSION, kind: 'flash', command });
-    return r.ok ? null : r.message;
+    const send = async (): Promise<string | null> => {
+      const r = await this.call({ v: RPC_VERSION, kind: 'flash', command });
+      return r.ok ? null : r.message;
+    };
+    return command.op === 'restorePositionVerify' ? confirmFirmwareRestore(this.#store, send) : send();
   }
   #changed = (): void => {
     this.patch({ hub: this.hub?.view() ?? null });
@@ -53,6 +58,7 @@ export class UpdateController {
   async init(): Promise<void> {
     // A persistent store is required here: interrupted updates must survive closing the page.
     const store = await openDeviceSafety(indexedDB);
+    this.#store = store;
     this.#readout = new LiveReadout({ read: tokens => this.read(tokens), drift: async () => undefined, resolveDrift: async () => undefined, store: memoryDeviceSafety(), now: () => new Date(), onChange: () => {
       if (this.#readout !== undefined && this.#lastPhase !== this.#readout.phase) {
         this.#lastPhase = this.#readout.phase;

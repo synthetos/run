@@ -352,7 +352,7 @@ export class MachineWorkerCore {
         return this.#flash.compare();
       case 'restorePositionVerify': {
         const post = this.#flash.postFlash;
-        if (post?.phase !== 'restoreRequired' || post.boardId !== this.#session.snapshot.identity?.id) return { ok: false, message: 'Position confirmation is offered only for this board’s required restore.' };
+        if (post?.phase !== 'restoreRequired' || post.boardId !== this.#session.snapshot.identity?.id) return { ok: false, message: 'Restore confirmation is offered only for this board’s required restore.' };
         const decision = this.#session.request({ intent: 'positionVerify' });
         return decision.allowed ? { ok: true } : { ok: false, message: decision.reason };
       }
