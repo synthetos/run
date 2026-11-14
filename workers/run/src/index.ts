@@ -30,7 +30,7 @@ export default {
     try {
       response = await route(request, env);
       htmlDocument = response.ok && (response.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() === 'text/html';
-      if (htmlDocument && new URL(request.url).pathname !== '/update/') validated = await serialSession(request, env);
+      if ((response.headers.get('content-type') ?? '').toLowerCase().includes('text/html') && new URL(request.url).pathname !== '/update/') validated = await serialSession(request, env);
     } catch {
       // An unexpected error still gets the security headers and no detail.
       response = json(500, { error: 'internal_error' });
