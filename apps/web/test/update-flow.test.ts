@@ -33,3 +33,13 @@ it('offers the saved backup before continuing, never an account destination', ()
   expect(out).toContain('raw EEPROM');
   expect(out).not.toContain('account');
 });
+
+it('keeps Install disabled until the initial probe permits a settings backup', () => {
+  const hub = { releases: { ok: true, list: { boards: [{ hv: 8, releases: [{ file: 'release.hex', fb: 450.02, changelog: 'Release' }] }] } }, settings: [], step: { kind: 'idle' } } as unknown as NonNullable<UpdateState['hub']>;
+  const { postFlash: _post, ...probing } = message({ boardId: 'board', phase: 'clear', differences: [], inputs: [], switchesChanged: false, baselineKeys: 1 });
+  const blocked = html({ hub, message: { ...probing, snapshot: { ...probing.snapshot, base: 'PROBING' } } });
+  expect(blocked).toContain('Wait until the board is identified, read and at rest.');
+  expect(blocked).toMatch(/<button[^>]*disabled[^>]*>Install/);
+  const ready = html({ hub, message: { ...probing, snapshot: { ...probing.snapshot, classification: { dialectId: 'tinyg-en' } as NonNullable<SnapshotMessage['snapshot']['classification']> } } });
+  expect(ready).toMatch(/<button class="primary">Install/);
+});

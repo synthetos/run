@@ -8,6 +8,7 @@ import { ConfirmFlash, DownloadCard, Progress } from '../firmware/FlashViews.ts'
 import { ConfirmSettings } from '../firmware/ConfirmSettings.ts';
 import { bootloaderHardwareVersions } from '../firmware/bootloaderHardware.ts';
 import type { ReleaseImage } from '../workspace/model.ts';
+import { backupBlocked } from '../live/backup.ts';
 import { initialUpdateState, type UpdateController } from './controller.ts';
 
 export function UpdateFlow({ controller, supported, failure }: { readonly controller: UpdateController | null; readonly supported: boolean; readonly failure: string | null }): ComponentChild {
@@ -26,6 +27,7 @@ export function UpdateFlow({ controller, supported, failure }: { readonly contro
   const connected = s !== undefined && s.base !== 'NOT_CONNECTED';
   const busy = flash !== null && flash !== undefined && flash.phase !== 'done' && flash.phase !== 'failed';
   const done = post?.phase === 'clear';
+  const selectionBlocked = flash?.bootloader !== undefined ? null : backupBlocked(s ?? null);
   const hv = id?.hv ?? flash?.board?.hv ?? null;
   const list = hub?.releases.ok ? releasesForHardware(hub.releases.list, typeof hv === 'number' ? hv : null) : null;
   const act = (run: () => Promise<string | null>): void => { void controller?.action(run); };
@@ -65,10 +67,11 @@ export function UpdateFlow({ controller, supported, failure }: { readonly contro
     ) : null,
     (connected || flash?.bootloader) && !busy && !done && !post && !image && !state.backup ? h('section', { class: 'update-card', 'data-step': 'release' },
       h('h2', null, '2. Choose a signed release'),
+      selectionBlocked ? h('p', { role: 'status' }, selectionBlocked) : null,
       hub?.releases.ok === false ? h('p', null, `The signed release list is unavailable: ${hub.releases.reason}.`) : null,
       !list?.releases.length ? h('p', null, 'No signed release is listed for this hardware yet.') : h('ul', { class: 'update-list' }, list.releases.map(r => h('li', { key: r.file, 'data-release': r.file },
         h('div', null, h('strong', null, `Firmware ${r.fb.toFixed(2)}`), h('p', null, r.changelog)),
-        h('button', { class: 'primary', disabled: selecting || hub?.download?.phase === 'fetching' || hub?.download?.phase === 'checking', onClick: () => pick(r) }, `Install ${r.fb.toFixed(2)}`)))),
+        h('button', { class: 'primary', disabled: selectionBlocked !== null || selecting || hub?.download?.phase === 'fetching' || hub?.download?.phase === 'checking', onClick: () => pick(r) }, `Install ${r.fb.toFixed(2)}`)))),
     ) : null,
     hub?.download ? h(DownloadCard, { download: hub.download }) : null,
     image && m ? h('section', { class: 'update-card', 'data-step': 'checklist' }, h('h2', null, '3. Check before updating'), state.checklistBackup ? h('div', null, h('p', null, 'Download the settings backup before ticking the checklist.'), h('button', { onClick: () => controller?.downloadBackup(state.checklistBackup!), 'data-action': 'checklist-backup' }, 'Download settings backup')) : null, h(ConfirmFlash, { view: { message: m }, target: { kind: 'release', image }, onCancel: () => setImage(null), onConfirm: () => { const chosen = image; setImage(null); act(() => controller!.hub!.actions.updateRelease(chosen)); } })) : null,
