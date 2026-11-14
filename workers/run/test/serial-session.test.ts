@@ -59,3 +59,29 @@ describe('server-side production serial boundary', () => {
     expect((await h.get('/assets/plain-12345678.js')).headers.get('cache-control')).toContain('immutable');
   });
 });
+
+describe('open update page (SAFETY §4.8, owner 2026-11-14)', () => {
+  it('grants only the exact update HTML page without identity, including during an outage', async () => {
+    const h = harness();
+    h.env.ACCOUNTS!.validateSession = vi.fn(async () => { throw new Error('offline'); });
+    for (const path of ['/update/', '/update/?from=blog']) {
+      const res = await h.get(path);
+      expect(res.headers.get('permissions-policy')).toContain('serial=(self)');
+      expect(res.headers.get('cache-control')).toBe('no-store');
+    }
+    expect(h.env.ACCOUNTS!.validateSession).not.toHaveBeenCalled();
+    for (const path of ['/update', '/update/x', '/', '/safety/', '/assets/test.js', '/api/health']) {
+      expect((await h.get(path)).headers.get('permissions-policy'), path).toContain('serial=()');
+    }
+  });
+  it.each(['application/json', 'text/javascript', 'text/htmlish'])('does not grant %s at the update address', async (type) => {
+    const h = harness();
+    h.env.ASSETS.fetch = vi.fn(async () => new Response('data', { headers: { 'content-type': type } }));
+    expect((await h.get('/update/')).headers.get('permissions-policy')).toContain('serial=()');
+  });
+  it.each([302, 404, 500])('does not grant an HTML status %s', async (status) => {
+    const h = harness();
+    h.env.ASSETS.fetch = vi.fn(async () => new Response('error', { status, headers: { 'content-type': 'text/html' } }));
+    expect((await h.get('/update/')).headers.get('permissions-policy')).toContain('serial=()');
+  });
+});

@@ -195,3 +195,13 @@ describe('renderHeadersFile', () => {
     for (const line of text.split('\n')) expect(line.length).toBeLessThanOrEqual(HEADERS_FILE_MAX_LINE);
   });
 });
+
+it('the anonymous update exception requires exact production host, path and HTML', () => {
+  expect(grantsSerial('production', new URL('https://run.synthetos.com/update/'), false, true)).toBe(true);
+  expect(grantsSerial('production', new URL('https://run.synthetos.com/update/'))).toBe(false);
+  for (const path of ['/update', '/update/x', '/', '/safety/', '/assets/a.js', '/api/health']) {
+    expect(grantsSerial('production', new URL(`https://run.synthetos.com${path}`), false, true)).toBe(false);
+  }
+  expect(grantsSerial('production', new URL('https://other.example/update/'), false, true)).toBe(false);
+  expect(grantsSerial('staging', new URL('https://staging.run.synthetos.com/update/'))).toBe(true);
+});

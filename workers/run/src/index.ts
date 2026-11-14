@@ -3,7 +3,7 @@
  *
  * The Worker runs first for every path, in production (OD-29) as on staging
  * (P1-00), so that it can grant Web Serial to the documents of its own host:
- * `serial=(self)` only when `grantsSerial` holds (production also needs a validated session; RUN_ENV and host match:
+ * `serial=(self)` only when `grantsSerial` holds (production needs a validated session except the exact open update HTML page; RUN_ENV and host match:
  * staging on staging.run.synthetos.com, production on run.synthetos.com),
  * the fail-closed set in every other case. Every response the Worker returns
  * goes through `withSecurityHeaders`, including errors and any asset request
@@ -26,17 +26,19 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     let response: Response;
     let validated = false;
+    let htmlDocument = false;
     try {
       response = await route(request, env);
-      if ((response.headers.get('content-type') ?? '').toLowerCase().includes('text/html')) validated = await serialSession(request, env);
+      htmlDocument = response.ok && (response.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() === 'text/html';
+      if (htmlDocument && new URL(request.url).pathname !== '/update/') validated = await serialSession(request, env);
     } catch {
       // An unexpected error still gets the security headers and no detail.
       response = json(500, { error: 'internal_error' });
     }
-    // Errors never gain a production grant; HTML needs both configured auth and a validated session.
+    // Only successful HTML can gain the open update-page exception. Other production pages need a session.
     let serialGranted = false;
     try {
-      serialGranted = grantsSerial(env.RUN_ENV, new URL(request.url), validated);
+      serialGranted = grantsSerial(env.RUN_ENV, new URL(request.url), validated, htmlDocument);
     } catch {
       serialGranted = false;
     }

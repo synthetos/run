@@ -175,6 +175,7 @@ export async function route(
 ): Promise<Response> {
   const url = new URL(request.url);
   const { pathname } = url;
+  if (pathname === '/firmware' || pathname === '/firmware/') return new Response(null, { status: 302, headers: { location: '/update/', 'cache-control': 'no-store' } });
   if (under(pathname, '/api')) {
     if (pathname === '/api/catalog/tools') return catalogRoute(request);
     if (under(pathname, '/api/records')) return recordsRoute(request, env);

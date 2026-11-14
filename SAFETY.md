@@ -1439,6 +1439,12 @@ Order of operations (OLD-S §4.7, per dialect):
 
 ### 4.8 Flash gate (TinyG)
 
+*Amended 2026-11-14 (owner): open firmware update page.* The firmware update at `/update/` is available without sign-in, as
+the single exception to D1. On that page only: Connect in firmware role, the §4.8 flash sequence, the §4.6 restore it requires,
+and recovery. The page is a separate entry whose bundle contains no motion, job, console, probe or jog code (build check), its
+machine worker refuses every other command kind, and the server grants `serial=(self)` to that exact page and no other
+unauthenticated document. Custom firmware stays in the signed-in workspace. Every step of §4.8 applies unchanged.
+
 **Proposed amendment, 2026-11-12 (H92; wording pending owner review):** persist the bootloader quarantine before entry and retain it through all failures and interruptions. Connect/Reconnect use the restricted ESC/S bootloader probe while quarantined. Only a live firmware-ready banner permits normal traffic; the successful update also waits for that banner, without closing and reopening the port. No fixed sleep is proof of firmware. No failed or cancelled update sends `E`. The explicit Start firmware action for an unmarked bootloader is the sole separate exit path; it commits quarantine before E and waits up to five seconds for a banner. Storage failures and banner timeouts keep normal traffic blocked.
 
 As OLD-S §4.8:
@@ -1472,7 +1478,7 @@ OLD-S §4.9 rows still apply, with SIM read as NOT CONNECTED. Rows added or chan
 |---|---|---|
 | Session expires or user signs out elsewhere while LIVE | 401 from the API, BroadcastChannel from the other tab | W22; a running job and every never-gated action (Pause, Stop job, Spindle off, Reset, Disconnect, recovery) unaffected; new requests from the identity-gated set G denied until sign-in (RUN_PLAN §2.2); cloud save paused |
 | Network loss while LIVE | fetch errors | Same as above. Nothing in the machine path uses the network |
-| Identity service outage | sign-in fails | D1 (sign-in required): new requests from the identity-gated set G (Connect, Start, jog, home, settings write, flash…) are refused until sign-in works again; an already-connected session keeps its running job and every never-gated action (Pause, Stop job, Spindle off, Reset, Disconnect, recovery); library unavailable (RUN_PLAN §2.2) |
+| Identity service outage | sign-in fails | D1 (sign-in required): new requests from the identity-gated set G (Connect, Start, jog, home, settings write, flash…) are refused until sign-in works again; an already-connected session keeps its running job and every never-gated action (Pause, Stop job, Spindle off, Reset, Disconnect, recovery); library unavailable (RUN_PLAN §2.2). Amended 2026-11-14 (owner): the update page keeps working without the identity service. |
 | Download hash mismatch | client re-hash | Hard stop "file damaged or altered"; not confirmable; file not loadable |
 | Cloud profile head ≠ last applied from this browser | revision compare on connect | NEEDS_REVIEW with W23 and diff; nothing written until C19 |
 | Profile edit conflict | 409 from the API | Diff and choose; never last-write-wins |

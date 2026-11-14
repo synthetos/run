@@ -294,3 +294,9 @@ describe('GET /firmware/... through the Worker', () => {
     expect(seen).toEqual(['/firmware/sim/sim-edge-next-450.02.hex', '/firmware/tinyg-440.21.hex']);
   });
 });
+
+it.each(['/firmware', '/firmware/'])('redirects only the bare firmware page %s', async (path) => {
+  const res = await route(new Request(`https://run.synthetos.com${path}`), env('production'));
+  expect(res.status).toBe(302);
+  expect(res.headers.get('location')).toBe('/update/');
+});

@@ -102,7 +102,7 @@ export const SERIAL_GRANTED_SECURITY_HEADERS: Readonly<Record<string, string>> =
 
 /** The staging host (D31: behind Cloudflare Access). */
 export const STAGING_HOST = 'staging.run.synthetos.com';
-/** The production host (OD-29: configured sign-in and session validation required). */
+/** The production host (OD-29; the open update-page exception is SAFETY §4.8). */
 export const PRODUCTION_HOST = 'run.synthetos.com';
 
 /**
@@ -110,14 +110,14 @@ export const PRODUCTION_HOST = 'run.synthetos.com';
  * deployed as staging (`RUN_ENV` exactly `staging`) on
  * `https://staging.run.synthetos.com`, or the Worker deployed as production
  * (`RUN_ENV` exactly `production`, OD-29) on `https://run.synthetos.com`.
- * Production also needs sessionValidated=true from the server-side check. Both halves must match: a production Worker on the staging host, a
+ * Production needs sessionValidated=true, except the exact /update/ HTML document (SAFETY §4.8, owner 2026-11-14). Both halves must match: a production Worker on the staging host, a
  * staging Worker on the production host, any other host, port or scheme
  * (there should be none: workers_dev and preview_urls are off, H45), and a
  * missing or odd RUN_ENV all get the fail-closed set.
  */
-export function grantsSerial(runEnv: unknown, url: URL, sessionValidated = false): boolean {
+export function grantsSerial(runEnv: unknown, url: URL, sessionValidated = false, htmlDocument = false): boolean {
   if (url.protocol !== 'https:' || url.port !== '') return false;
-  return (runEnv === 'staging' && url.hostname === STAGING_HOST) || (runEnv === 'production' && url.hostname === PRODUCTION_HOST && sessionValidated);
+  return (runEnv === 'staging' && url.hostname === STAGING_HOST) || (runEnv === 'production' && url.hostname === PRODUCTION_HOST && (sessionValidated || (htmlDocument && url.pathname === '/update/')));
 }
 
 /** The header set after the host and session decision, fail-closed by default. */

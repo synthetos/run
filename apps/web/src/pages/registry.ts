@@ -4,6 +4,7 @@ import { AppShell } from '../workspace/AppShell.ts';
 import { NotFoundPage } from './not-found/NotFoundPage.ts';
 import { PrivacyPage } from './privacy/PrivacyPage.ts';
 import { SafetyPage } from './safety/SafetyPage.ts';
+import { UpdatePage } from './update/UpdatePage.ts';
 import { WiringPage } from './wiring/WiringPage.ts';
 
 /**
@@ -15,5 +16,6 @@ export const PAGES: Readonly<Record<string, (build: BuildInfo) => ComponentChild
   '/safety/index.html': (build: BuildInfo) => h(SafetyPage, { build }),
   '/privacy/index.html': (build: BuildInfo) => h(PrivacyPage, { build }),
   '/wiring/index.html': (build: BuildInfo) => h(WiringPage, { build }),
+  '/update/index.html': (build: BuildInfo) => h(UpdatePage, { build }),
   '/404.html': (build: BuildInfo) => h(NotFoundPage, { build }),
 });
