@@ -1,12 +1,17 @@
 /** Workspace session: the shared executor with the full control reducer and byte gate. */
 import { SessionExecutor, type MachineSessionOptions } from './sessionExecutor.ts';
 import { workspaceRuntime } from './workspaceRuntime.ts';
+import { assertWorkspaceFeatures } from './workspaceFeatureContract.ts';
+import { workspaceReducerFeatures } from './workspaceReducerFeatures.ts';
 import type { Decision } from '@synthetos/safety';
 export { escape } from './sessionExecutor.ts';
 export type { ConnectOutcome, LogEntry, MachineSessionOptions, SessionClock, TranscriptExport } from './sessionExecutor.ts';
 
 export class MachineSession extends SessionExecutor {
-  constructor(options: MachineSessionOptions) { super(options, workspaceRuntime); }
+  constructor(options: MachineSessionOptions) {
+    assertWorkspaceFeatures(workspaceReducerFeatures);
+    super(options, workspaceRuntime);
+  }
   /** Pause: `!` (SAFETY §4.4). Allowed whenever the port is open. */
   feedhold(): Decision {
     return this.request({ intent: 'feedhold' });

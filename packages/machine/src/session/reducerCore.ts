@@ -132,6 +132,8 @@ export interface ReducerFeatures {
   readonly syncProbe?: typeof syncProbe;
 }
 
+export type WorkspaceReducerFeatures = Required<ReducerFeatures>;
+
 export function createSessionReducer(features: ReducerFeatures) {
 /**
  * The read-only session statechart as a pure reducer (ROADMAP P1-02; SAFETY
