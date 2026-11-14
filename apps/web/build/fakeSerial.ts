@@ -19,8 +19,8 @@
  *   the bundle scan refuse the test build, so it can never pass for a
  *   production artifact.
  *
- * The test build fails if the swap never happened, so a renamed seam can
- * never yield a "test" artifact that silently runs production code.
+ * The test build requires the swap in each port-opening worker entry, so
+ * a renamed seam in either entry cannot silently run production code.
  *
  * A change to this file changes what the e2e suite tests and needs
  * safety-path review (CODEOWNERS).
@@ -83,18 +83,20 @@ export interface FakeSerialPlugins {
 /**
  * The swap. The worker plugin redirects the seam to its replacement after
  * normal resolution (so every spelling of the import is caught); the main
- * plugin fails the build at its end if no worker build ever swapped it.
+ * plugin requires each port-opening entry to import and swap it directly.
  * Vite bundles workers while it transforms the main build, so the worker
  * builds have finished by then.
  */
 export function fakeSerialPlugins(seam: TransportSeam): FakeSerialPlugins {
-  const state = { swapped: 0 };
+  const entries = ['machine.worker.ts', 'firmware.worker.ts'].map(name => slashes(resolve(seam.production, '..', name)));
+  const swapped = new Set<string>();
   return {
     main: {
       name: 'run:fake-serial-check',
       buildEnd(error) {
-        if (error === undefined && state.swapped === 0) {
-          this.error(`fake-serial: no worker imported the transport seam ${seam.production}; the test build would run production code`);
+        if (error !== undefined) return;
+        for (const entry of entries) {
+          if (!swapped.has(entry)) this.error(`fake-serial: worker ${entry} did not import the transport seam ${seam.production}; the test build would run production code`);
         }
       },
     },
@@ -105,7 +107,7 @@ export function fakeSerialPlugins(seam: TransportSeam): FakeSerialPlugins {
         if (importer === undefined) return null;
         const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
         if (resolved === null || slashes(resolved.id) !== seam.production) return null;
-        state.swapped += 1;
+        swapped.add(slashes(importer));
         return seam.fake;
       },
     }),

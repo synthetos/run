@@ -80,16 +80,17 @@ describe('fake-serial test build (P0-14)', () => {
     TIMEOUT,
   );
 
-  it(
-    'fails the test build when no worker imports the seam',
-    () => {
+  it.each(['machine.worker.ts', 'firmware.worker.ts'])(
+    'fails the test build when %s bypasses the seam, even when the other worker imports it',
+    (entry) => {
       const repo = fresh();
       repo.write('apps/web/src/machine-worker/transport2.ts', repo.read('apps/web/src/machine-worker/transport.ts'));
-      const worker = 'apps/web/src/machine-worker/machine.worker.ts';
+      const worker = `apps/web/src/machine-worker/${entry}`;
+      expect(repo.read(worker)).toContain("from './transport.ts'");
       repo.write(worker, repo.read(worker).replace("from './transport.ts'", "from './transport2.ts'"));
       const result = repo.buildFakeSerial();
       expect(result.status).not.toBe(0);
-      expect(result.output).toMatch(/fake-serial: no worker imported the transport seam/);
+      expect(result.output).toContain(`/${entry} did not import the transport seam`);
     },
     TIMEOUT,
   );

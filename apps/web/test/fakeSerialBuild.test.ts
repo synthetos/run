@@ -62,14 +62,15 @@ describe('fakeSerialPlugins', () => {
     expect(await resolveId.call(ctx(seam.production), seam.production, undefined, {})).toBeNull();
   });
 
-  it('fails the build when no worker swapped the seam, and passes once one did', async () => {
-    const unswapped = hooks();
-    expect(() => unswapped.buildEnd.call(failing)).toThrow(/no worker imported the transport seam/);
-    // A build that already failed reports its own error, not this one.
-    expect(() => unswapped.buildEnd.call(failing, new Error('earlier'))).not.toThrow();
-
-    const swapped = hooks();
-    await swapped.resolveId.call(ctx(seam.production), './transport.ts', `${WEB}/src/machine-worker/machine.worker.ts`, {});
-    expect(() => swapped.buildEnd.call(failing)).not.toThrow();
+  it('requires both named workers, not a swap from some other module', async () => {
+    const checked = hooks();
+    expect(() => checked.buildEnd.call(failing)).toThrow(/machine.worker.ts did not import/);
+    expect(() => checked.buildEnd.call(failing, new Error('earlier'))).not.toThrow();
+    await checked.resolveId.call(ctx(seam.production), './transport.ts', `${WEB}/other.ts`, {});
+    expect(() => checked.buildEnd.call(failing)).toThrow(/machine.worker.ts did not import/);
+    await checked.resolveId.call(ctx(seam.production), './transport.ts', `${WEB}/src/machine-worker/machine.worker.ts`, {});
+    expect(() => checked.buildEnd.call(failing)).toThrow(/firmware.worker.ts did not import/);
+    await checked.resolveId.call(ctx(seam.production), './transport.ts', `${WEB}/src/machine-worker/firmware.worker.ts`, {});
+    expect(() => checked.buildEnd.call(failing)).not.toThrow();
   });
 });
