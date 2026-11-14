@@ -50,13 +50,15 @@ function served(bodies: Record<string, Uint8Array | number> = { [PATH]: new Uint
   return { calls, fetch: fetchFn };
 }
 
-async function hub(server: Served): Promise<{ hub: FirmwareHub; flashes: unknown[]; phases: string[]; release: FirmwareRelease }> {
+async function hub(server: Served, confirmBackup?: (file: import('../src/live/backup.ts').BackupFile | null) => Promise<boolean>, requirePersistent = false): Promise<{ hub: FirmwareHub; flashes: unknown[]; phases: string[]; release: FirmwareRelease }> {
   vi.stubGlobal('fetch', server.fetch);
   const flashes: unknown[] = [];
   const phases: string[] = [];
   let downloads: FirmwareDownload | null = null;
   const h = await mountFirmware({
     store: memoryDeviceSafety(),
+    requirePersistent,
+    ...(confirmBackup === undefined ? {} : { confirmBackup }),
     flash: (command) => {
       flashes.push(command);
       return Promise.resolve(null);
@@ -91,6 +93,28 @@ describe('firmware hub: downloading a listed release (OD-10)', () => {
   });
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('the open page refuses to proceed when persistent backup storage cannot open', async () => {
+    await expect(hub(served(), undefined, true)).rejects.toBeDefined();
+  });
+
+  it('the open page waits for the backup decision, and cancellation never reaches boot entry', async () => {
+    for (const proceed of [false, true]) {
+      let answer: ((value: boolean) => void) | undefined;
+      const { hub: h, flashes, release } = await hub(served(), async file => {
+        expect(file).toBeNull();
+        return new Promise(resolve => { answer = resolve; });
+      });
+      const got = await h.actions.downloadRelease(release); if (!got.ok) throw new Error(got.message);
+      h.onSnapshot({ snapshot: { base: 'NOT_CONNECTED', identity: null, epoch: 1 }, flash: { id: 1, phase: 'failed', boardId: null, board: { id: null, hv: 8, fb: null, fv: null }, bootloader: { startAllowed: true } } } as unknown as SnapshotMessage, false, 0);
+      const pending = h.actions.updateRelease(got.image);
+      await vi.waitFor(() => expect(answer).toBeDefined());
+      expect(flashes).toEqual([]);
+      answer!(proceed);
+      expect(await pending).toBeNull();
+      expect(flashes.length).toBe(proceed ? 1 : 0);
+    }
   });
 
   it('the committed staging list offers 440.21 for hardware version 8 from GitHub Releases, not recommended, not below the minimum', async () => {

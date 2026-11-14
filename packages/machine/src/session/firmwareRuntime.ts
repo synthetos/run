@@ -8,7 +8,15 @@ import { JV_LINE } from './reports.ts';
 import type { SessionRuntime, WriteCheck } from './sessionRuntime.ts';
 import type { SessionState } from './types.ts';
 
-export const firmwareReducer = createSessionReducer({});
+export const firmwareReducer = createSessionReducer({
+  // The host admits this manual acknowledgement only inside this board's required restore.
+  // It is the existing positionVerify acknowledgement, not a move; SETs still poll idle afterwards.
+  onMotionIntent: (t, request) => {
+    if (request.intent !== 'positionVerify') return { allowed: false, reason: 'This session only updates firmware.', remedy: 'Use the signed-in workspace for machine control.', citation: 'SAFETY §4.8' };
+    t.set({ overlays: t.s.overlays.filter(o => o !== 'UNKNOWN') });
+    return { allowed: true };
+  },
+});
 const refused = (): WriteCheck => ({ kind: 'refused', reason: 'The firmware page cannot send this command.' });
 
 /** Every ordinary write remains matrix-gated; only exact reads, boot, and an in-progress restore SET pass. */

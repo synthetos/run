@@ -13,7 +13,7 @@
  * (live/liveEntry.ts) is still the active user gesture when the browser's
  * chooser opens.
  */
-import { chooseSerialPort, type ChooserRefusal, type ChooserResult } from '@synthetos/machine/web-serial-chooser';
+import { chooseSerialPort, serialChooserAvailable, type ChooserRefusal, type ChooserResult } from '@synthetos/machine/web-serial-chooser';
 import type { ChooseResult } from './liveEntry.ts';
 
 /** What the Connect panel says for each chooser refusal. */
@@ -37,3 +37,5 @@ export function toChooseResult(result: ChooserResult): ChooseResult {
 export function windowChooser(choose: () => Promise<ChooserResult> = chooseSerialPort): Promise<ChooseResult> {
   return choose().then(toChooseResult);
 }
+
+export const portChooserAvailable = serialChooserAvailable;

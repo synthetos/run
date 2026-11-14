@@ -1,4 +1,4 @@
-import { DialogWrap } from '../dialogs/DialogWrap.ts';
+import { ConfirmSettings } from '../../firmware/ConfirmSettings.ts';
 /**
  * The settings-write UI (SAFETY §4.6, H57-H63, amendment 2026-11-02):
  *
@@ -22,7 +22,7 @@ import { DialogWrap } from '../dialogs/DialogWrap.ts';
  */
 import { h, type ComponentChild } from 'preact';
 import { useLayoutEffect, useState } from 'preact/hooks';
-import { TYPED_WORDS, boardText, c5, w20 } from '@synthetos/safety';
+import { boardText, w20 } from '@synthetos/safety';
 import { restoreChanges, settingsReadGroups, type PlannedChange, type RestoreChanges, type SettingValue } from '@synthetos/schema';
 import { draftStore, plainValue, setDraft, clearDraft, settingMeta } from '../boardFacts.ts';
 import type { LiveView, WorkspaceModel } from '../model.ts';
@@ -147,48 +147,8 @@ function ApplyProgress({ state, model, blocked }: { readonly state: ApplyState; 
   );
 }
 
-/** The C5 confirmation. High-risk changes need a tick each and the typed word. */
 export function ApplyConfirm({ changes, view, onCancel, onConfirm }: { readonly changes: readonly PlannedChange[]; readonly view: LiveView | null; readonly onCancel: () => void; readonly onConfirm: () => void }): ComponentChild {
-  const high = changes.filter((c) => c.risk.highRisk);
-  const [ticks, setTicks] = useState<readonly string[]>([]);
-  const [typed, setTyped] = useState('');
-  const boardId = boardText(view?.message?.snapshot.identity?.id) || 'no board id';
-  const text = c5({ settings: changes.length, machineName: 'this board', boardId, changes: changes.map((c) => `${c.key} ${c.words}`).join('; '), highRisk: high.map((c) => c.label) });
-  const ready = high.every((c) => ticks.includes(c.key)) && (high.length === 0 || typed.trim() === TYPED_WORDS.write);
-  return h(
-    DialogWrap,
-    { class: 'dialog-wrap', 'data-dialog': 'apply-confirm', onDismiss: onCancel },
-    h(
-      'div',
-      { class: 'dialog wide apply-confirm', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'apply-confirm-title' },
-      h('div', { class: 'dialog-head' }, h('h2', { id: 'apply-confirm-title' }, high.length > 0 ? 'Confirm high-risk changes' : 'Write these settings?'), h('span', { class: high.length > 0 ? 'tag danger' : 'tag' }, `${changes.length} ${changes.length === 1 ? 'change' : 'changes'}`)),
-      h('p', { 'data-c5': '' }, text),
-      high.length === 0
-        ? null
-        : h(
-            'ul',
-            { class: 'risk-list' },
-            high.map((c) =>
-              h(
-                'li',
-                { key: c.key, 'data-risk-key': c.key },
-                h('label', { class: 'c1-box' }, h('input', { type: 'checkbox', 'aria-label': `I understand: ${c.label}`, checked: ticks.includes(c.key), onChange: (e: Event) => setTicks((t) => ((e.currentTarget as HTMLInputElement).checked ? [...t, c.key] : t.filter((x) => x !== c.key))) }), h('span', null, h('strong', null, `${c.label} (${c.key}): ${c.words}. `), c.risk.consequence)),
-              ),
-            ),
-          ),
-      high.length === 0
-        ? null
-        : h('div', { class: 'field' }, h('label', { for: 'apply-typed' }, `Type ${TYPED_WORDS.write} to write ${high.length === 1 ? 'this high-risk change' : 'these high-risk changes'}`), h('input', { id: 'apply-typed', 'aria-label': `Type ${TYPED_WORDS.write}`, autocomplete: 'off', value: typed, onInput: (e: Event) => setTyped((e.currentTarget as HTMLInputElement).value) })),
-      h('p', { class: 'fine' }, 'Run backs up every setting first, then writes one setting at a time and reads each back. It stops at the first problem and offers to put the backed-up values back. Keep your hand near the E-stop.'),
-      h(
-        'div',
-        { class: 'dialog-actions' },
-        // Cancel is focused by default (SAFETY §6).
-        h('button', { type: 'button', class: 'quiet', autofocus: true, 'data-action': 'cancel-apply', onClick: onCancel }, 'Cancel'),
-        h('button', { type: 'button', class: high.length > 0 ? 'danger' : 'primary', 'data-machine-control': 'settings-write', 'data-action': 'confirm-apply', disabled: !ready || settingsWriteBlocked(view) !== null, onClick: onConfirm }, high.length > 0 ? 'Back up and write' : 'Back up and write'),
-      ),
-    ),
-  );
+  return h(ConfirmSettings, { changes, boardId: view?.message?.snapshot.identity?.id ?? null, blocked: settingsWriteBlocked(view) !== null, onCancel, onConfirm });
 }
 
 /** The pending changes tray, shown in the Board view while there are changes or a write result. */

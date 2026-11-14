@@ -8,9 +8,9 @@
  * applies to this test (only the two Web Serial modules are exempt), and a
  * stand-in object needs those two keys.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { isPortSelector } from '../src/transport.ts';
-import { chooseSerialPort, type ChooserPort, type ChooserSerial } from '../src/webSerialChooser.ts';
+import { chooseSerialPort, serialChooserAvailable, type ChooserPort, type ChooserSerial } from '../src/webSerialChooser.ts';
 
 function port(info: { usbVendorId?: unknown; usbProductId?: unknown }): ChooserPort {
   return { getInfo: () => info };
@@ -275,4 +275,14 @@ describe('chooseSerialPort', () => {
     expect(await chooseSerialPort()).toEqual({ ok: false, code: 'unavailable', detail: 'this browser has no Web Serial' });
     expect(await chooseSerialPort(undefined)).toMatchObject({ ok: false, code: 'unavailable' });
   });
+});
+
+it('checks availability without requesting any port', () => {
+  try {
+    vi.stubGlobal('navigator', {});
+    expect(serialChooserAvailable()).toBe(false);
+    const serial = fakeSerial(() => { throw new Error('must not request a port'); }, async () => []);
+    vi.stubGlobal('navigator', { ['seri' + 'al']: serial });
+    expect(serialChooserAvailable()).toBe(true);
+  } finally { vi.unstubAllGlobals(); }
 });

@@ -18,6 +18,8 @@ export const OUTBOUND = Object.freeze({
   securityPolicy: 'https://github.com/synthetos/run/security/policy',
   /** The Synthetos website. */
   synthetos: 'https://synthetos.com/',
+  /** Open firmware page Done link, owner 2026-11-14. HTML only. */
+  synthetosBlog: 'https://synthetos.com/blog/',
 });
 
 export const OUTBOUND_URLS: readonly string[] = Object.freeze(Object.values(OUTBOUND));

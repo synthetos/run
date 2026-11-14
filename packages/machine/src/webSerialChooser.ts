@@ -110,6 +110,9 @@ function windowSerial(): ChooserSerial | undefined {
   return (navigator as unknown as { readonly serial?: ChooserSerial }).serial;
 }
 
+/** Capability read only; does not request a port or access a device. */
+export function serialChooserAvailable(): boolean { return windowSerial() !== undefined; }
+
 /** Notes any `connect` or `disconnect` until `stop()`; `stop()` is idempotent. */
 function watchChanges(serial: ChooserSerial): { readonly seen: () => boolean; readonly stop: () => void } {
   let changed = false;

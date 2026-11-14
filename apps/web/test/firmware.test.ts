@@ -18,6 +18,8 @@ import { settingsReadGroups } from '@synthetos/schema';
 import type { FirmwareReleases } from '@synthetos/protocol';
 import { FlashableBoard, SIM_IMAGES, SimEndpoint, VirtualClock, simHex, simImage, type SimImageName } from '@synthetos/testkit';
 import { memoryBootloaderMarks } from '../src/machine-worker/bootloaderMark.ts';
+import { FirmwareWorkerHost } from '../src/machine-worker/firmwareHost.ts';
+import { firmwareReleaseFor } from '../src/machine-worker/firmwareRelease.ts';
 import { MachineWorkerHost } from '../src/machine-worker/host.ts';
 import { releaseFor } from '../src/machine-worker/motionFlag.ts';
 import { extraApprovals, parseTrustedBuild } from '../src/machine-worker/approval.ts';
@@ -131,12 +133,12 @@ function rig(options: { readonly releases?: FirmwareReleases; readonly minimumFb
   const endpoint = new SimEndpoint({ clock, device: board, link: { baudRate: 2_000_000, latencyMs: 0.2, coalesceMs: 2 } });
   const source: TransportSource = { kind: 'fake', request: async (p) => (p.grantIndex === 0 && endpoint.connected ? new SimTransport(endpoint, clock, holders, options.closeMs ?? 0) : null) };
   const marks = memoryBootloaderMarks();
-  const makeHost = () => new MachineWorkerHost(source, clock, { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130' }, {
+  const makeHost = (firmwareOnly = false) => new (firmwareOnly ? FirmwareWorkerHost : MachineWorkerHost)(source, clock, { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130' }, {
     file: null,
     origin: ORIGIN,
     verify: async () => ({ approved: { environment: 'staging', builds: [{ channel: 'bench', dialect: 'tinyg-en', fb: 450.01, fbs: null, commit: 'e'.repeat(40), note: 't' }] }, channels: [] }),
     releases: async () => options.releases ?? await releaseList(options.minimumFb ?? 450.01),
-  }, releaseFor(ORIGIN), marks);
+  }, firmwareOnly ? firmwareReleaseFor(ORIGIN) : releaseFor(ORIGIN), marks);
   const host = makeHost();
   const posted: (SnapshotMessage | FlashBackupsPost)[] = [];
   void host.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => posted.push(m) });
@@ -555,3 +557,23 @@ describe('approvals beyond the manifest', () => {
     expect(extraApprovals(prod, { flasher: true, releases, simulated: true, trusted })).toBe(prod);
   });
 });
+
+it('the open entry quarantines a persisted custom-image retry without admitting that image', async () => {
+  const r = rig(); await r.connect();
+  const x = await sim('custom');
+  expect(await r.call({ v: 3, kind: 'flash', command: { op: 'begin', source: { kind: 'custom', name: x.file, confirmed: true }, hex: x.hex, sha256: x.sha256, settingsBackup: 'saved', baseline: {}, recovery: false } })).toMatchObject({ ok: true });
+  await r.until(() => r.backupsPost() !== undefined);
+  await r.call({ v: 3, kind: 'flash', command: { op: 'cancel' } });
+  await r.until(() => r.host.flash.view?.phase === 'failed');
+  expect(await r.marks.find(PORT)).not.toBeNull();
+  const fresh = r.makeHost(true);
+  let reply: MachineReply | undefined;
+  void fresh.handle({ v: 3, kind: 'open', port: PORT, boardId: null, previousSessionEnded: false }).then(v => { reply = v; });
+  await r.until(() => reply !== undefined);
+  expect(reply).toMatchObject({ ok: false });
+  expect(fresh.flash.view).toMatchObject({ recoveryOffered: false, bootloader: { startAllowed: false } });
+  expect(await fresh.handle({ v: 3, kind: 'flash', command: { op: 'recover' } })).toMatchObject({ ok: false });
+  expect(fresh.session.snapshot.base).toBe('NOT_CONNECTED');
+  expect(await r.marks.find(PORT)).not.toBeNull();
+  expect(r.board.xboot.pageWrites).toEqual([]);
+}, 60_000);

@@ -115,7 +115,7 @@ export type FlashCommand =
     }
   | { readonly op: 'bootloaderHardware'; readonly hv: number }
   | { readonly op: 'backupsSaved'; readonly sha256: string }
-  | { readonly op: 'cancel' | 'recover' | 'reconnect' | 'startFirmware' | 'compare' | 'switchCheckDone' | 'dismiss' }
+  | { readonly op: 'cancel' | 'recover' | 'reconnect' | 'startFirmware' | 'compare' | 'restorePositionVerify' | 'switchCheckDone' | 'dismiss' }
   | { readonly op: 'lock'; readonly boardId: string; readonly baseline: Readonly<Record<string, number | string>> };
 
 /** Largest `.hex` text, and most baseline tokens, the window may send. */
@@ -545,6 +545,7 @@ export function parseFlashCommand(value: unknown): FlashCommand | null {
     case 'reconnect':
     case 'startFirmware':
     case 'compare':
+    case 'restorePositionVerify':
     case 'switchCheckDone':
     case 'dismiss':
       return keys === 'op' ? Object.freeze({ op: c['op'] }) : null;

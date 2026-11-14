@@ -57,6 +57,8 @@ export interface UpdaterDeps {
   readonly flash: (command: FlashCommand) => Promise<string | null>;
   /** The full settings backup, or null when this firmware cannot be read token by token. Throws on failure. */
   readonly settingsBackup: () => Promise<BackupFile | null>;
+  /** Open page: offer the saved backup before boot entry. Cancel writes nothing. */
+  readonly confirmBackup?: (file: BackupFile | null) => Promise<boolean>;
   readonly repo: BackupRepository;
   readonly store: DeviceSafetyStore;
   readonly now: () => Date;
@@ -120,6 +122,10 @@ export class FirmwareUpdater {
       const file = bootloader ? null : await this.#d.settingsBackup();
       if (file !== null) await this.#d.repo.putSettings(settingsRecord(file, 'before-update'));
       this.#baseline = file;
+      if (this.#d.confirmBackup !== undefined && !(await this.#d.confirmBackup(file))) {
+        this.#set({ kind: 'idle' });
+        return null;
+      }
       this.#set({ kind: 'preparing', what: 'Checking the image' });
       const parsed = parseIntelHex(req.hex, X192A3);
       if (!parsed.ok) return this.#fail(`The image was refused: ${parsed.error.message}`);

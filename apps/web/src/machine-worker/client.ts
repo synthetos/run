@@ -12,7 +12,6 @@
  * visibility messages and the connect flow come with Phase 1.
  */
 import type { RunTrustedTypes } from '../security/tt.ts';
-import type { MachineReply, MachineRequest } from './rpc.ts';
 import machineWorkerUrl from './machine.worker.ts?worker&url';
 
 /** The worker's name, as `self.name` inside it and in browser tooling. */
@@ -26,19 +25,4 @@ export function startMachineWorker(tt: RunTrustedTypes | null): Worker | null {
   return new Worker(url, { type: 'module', name: MACHINE_WORKER_NAME });
 }
 
-/** The parts of a Worker `callMachineWorker` uses. */
-export interface WorkerLike {
-  postMessage(message: unknown, transfer: Transferable[]): void;
-}
-
-/** Sends one request with its own reply port and resolves with the worker's first answer. */
-export function callMachineWorker(worker: WorkerLike, request: MachineRequest): Promise<MachineReply> {
-  const channel = new MessageChannel();
-  return new Promise((resolve) => {
-    channel.port1.onmessage = (event: MessageEvent) => {
-      channel.port1.close();
-      resolve(event.data as MachineReply);
-    };
-    worker.postMessage(request, [channel.port2]);
-  });
-}
+export { callMachineWorker, type WorkerLike } from './call.ts';

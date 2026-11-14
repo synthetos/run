@@ -22,10 +22,12 @@ import { downloadTranscript } from './transcriptDownload.ts';
 
 export interface FirmwareHubDeps {
   readonly store: DeviceSafetyStore;
+  readonly requirePersistent?: boolean;
   readonly flash: (command: FlashCommand) => Promise<string | null>;
   readonly read: (tokens: readonly string[]) => Promise<unknown>;
   /** The full settings backup through the read path (live/backup.ts). */
   readonly runBackup: () => Promise<BackupFile>;
+  readonly confirmBackup?: (file: BackupFile | null) => Promise<boolean>;
   readonly boardSettings: () => Readonly<Record<string, SettingValue>>;
   readonly stageRestore: (changes: readonly PlannedChange[]) => void;
   readonly reread: () => void;
@@ -46,7 +48,8 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
   let repo: BackupRepository;
   try {
     repo = await openRepository(globalThis.indexedDB);
-  } catch {
+  } catch (error) {
+    if (deps.requirePersistent === true) throw error;
     repo = memoryRepository();
   }
   const environment = approvalEnvironment(location.origin);
@@ -71,6 +74,7 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
       return deps.runBackup();
     },
     repo,
+    ...(deps.confirmBackup === undefined ? {} : { confirmBackup: deps.confirmBackup }),
     store: deps.store,
     now: () => new Date(),
     onChange: () => {

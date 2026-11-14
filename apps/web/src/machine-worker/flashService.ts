@@ -167,6 +167,8 @@ export interface FlashServiceDeps {
   readonly releases: () => Promise<FirmwareReleases | null>;
   /** The flash phase switch is on in this worker's release. */
   readonly enabled: boolean;
+  /** Fixed worker role, applied to initial requests and persisted recovery images alike. */
+  readonly authorizeBegin: (begin: FlashBegin) => string | null;
   readonly onChange: () => void;
   readonly postBackups: (message: FlashBackupsMessage) => void;
   /** Hands the next session connect this transport (the host's prepared-port seam). */
@@ -268,6 +270,8 @@ export class FlashService {
   }
 
   async begin(b: FlashBegin): Promise<FlashReply> {
+    const refused = this.#d.authorizeBegin(b);
+    if (refused !== null) return fail(refused);
     if (!this.#d.enabled) return fail('Firmware updates are not available on this site.');
     if (this.#running) return fail('A firmware update is already running.');
     if (typeof b.hex !== 'string' || b.hex.length === 0 || b.hex.length > MAX_HEX_TEXT) return fail('The image is empty or too large.');
@@ -551,9 +555,9 @@ export class FlashService {
   #restoreMark(mark: BootloaderMark, port: PortSelector): void {
     const saved = mark.recovery as { begin: FlashBegin | null; view: FlashView };
     this.#port = port;
-    this.#begin = saved.begin;
+    this.#begin = saved.begin !== null && this.#d.authorizeBegin(saved.begin) === null ? saved.begin : null;
     this.#board = saved.view.board;
-    this.#view = { ...saved.view, id: ++this.#id, phase: 'failed', recoveryOffered: saved.begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: BOOTLOADER_ADVICE };
+    this.#view = { ...saved.view, id: ++this.#id, phase: 'failed', recoveryOffered: this.#begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: BOOTLOADER_ADVICE };
     this.#d.onChange();
   }
 

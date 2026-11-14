@@ -46,6 +46,14 @@ describe('firmware session uses the common connection and restore gates', () => 
     expect(session.request({ intent: 'jog', axes: { x: 1 }, distanceMm: 1, feed: 10 }).allowed).toBe(false);
     await session.disconnect();
   });
+  it('a restore acknowledgement clears only UNKNOWN and emits no machine write', () => {
+    const d = new Driver({ release, manifest });
+    const out = firmwareReducer.reduce(d.config, { ...ready(), overlays: ['UNKNOWN', 'NEEDS_REVIEW'] }, { type: 'intent', at: 0, request: { intent: 'positionVerify' } });
+    expect(out.state.overlays).toEqual(['NEEDS_REVIEW']);
+    expect(out.state.base).toBe('CONNECTED_UNKNOWN');
+    expect(out.effects).toContainEqual(expect.objectContaining({ kind: 'decision', decision: { allowed: true } }));
+    expect(out.effects.some(e => e.kind === 'writeLine' || e.kind === 'writeRealtime')).toBe(false);
+  });
   it('projects an inert job/probe view', () => {
     const snapshot = firmwareRuntime.snapshotOf(ready());
     expect(snapshot.job).toBeNull();
