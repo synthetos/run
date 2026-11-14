@@ -9,7 +9,9 @@ it('prerenders the separate update entry without workspace navigation or control
   expect(PAGES['/update/index.html']).toBeDefined();
   expect(html).toContain('Update your TinyG');
   expect(html).toContain('No account needed.');
-  expect(html).toContain('data-region="safety-bar"');
+  expect(html).not.toContain('data-region="safety-bar"');
+  expect(html).not.toContain('E-stop');
+  expect(html).toContain('Switch off spindle mains.');
   expect(html).not.toContain('href="/"');
   expect(html).not.toContain('data-region="machine-strip"');
 });

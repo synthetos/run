@@ -82,9 +82,10 @@ test('open update completes with local backups, required restore and switch chec
   await page.locator('[data-action=restore-after-flash]').click();
   await expect(page.locator('[data-dialog=apply-confirm]')).toBeVisible();
   await shot(page, '06c-restore-confirm');
-  const bar = await page.locator('[data-region=safety-bar]').boundingBox();
+  await expect(page.locator('[data-region=safety-bar]')).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('E-stop');
   const dialog = await page.locator('.apply-confirm').boundingBox();
-  expect(dialog!.y).toBeGreaterThanOrEqual(bar!.y + bar!.height);
+  expect(dialog!.y).toBeGreaterThanOrEqual(0);
   const ticks = page.locator('[data-dialog=apply-confirm] input[type=checkbox]');
   for (let i = 0; i < await ticks.count(); i++) await ticks.nth(i).check();
   if (await page.locator('#apply-typed').count()) await page.locator('#apply-typed').fill('WRITE');

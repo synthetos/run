@@ -31,8 +31,9 @@ export type Target =
   | { readonly kind: 'custom'; readonly name: string; readonly text: string; readonly sha256: string };
 
 /** The C6 checklist (and C37 for custom firmware), then the question. Nothing starts until every box is ticked. */
-export function ConfirmFlash({ view, target, onCancel, onConfirm }: { readonly view: Pick<LiveView, 'message'>; readonly target: Target; readonly onCancel: () => void; readonly onConfirm: () => void }): ComponentChild {
-  const boxes = c6Boxes().boxes;
+export function ConfirmFlash({ view, target, openUpdate = false, onCancel, onConfirm }: { readonly view: Pick<LiveView, 'message'>; readonly target: Target; readonly openUpdate?: boolean; readonly onCancel: () => void; readonly onConfirm: () => void }): ComponentChild {
+  // Owner decision, SAFETY §4.8: the open updater has no motion controls.
+  const boxes = c6Boxes().boxes.map((text, i) => openUpdate && i === 4 ? '5. The tool is clear of the work.' : text);
   const [ticked, setTicked] = useState<boolean[]>(boxes.map(() => false));
   const id = view.message?.snapshot.identity;
   const boardId = typeof id?.id === 'string' ? boardText(id.id) : 'unknown board';

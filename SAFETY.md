@@ -1443,7 +1443,9 @@ Order of operations (OLD-S §4.7, per dialect):
 the single exception to D1. On that page only: Connect in firmware role, the §4.8 flash sequence, the §4.6 restore it requires,
 and recovery. The page is a separate entry whose bundle contains no motion, job, console, probe or jog code (build check), its
 machine worker refuses every other command kind, and the server grants `serial=(self)` to that exact page and no other
-unauthenticated document. Custom firmware stays in the signed-in workspace. Every step of §4.8 applies unchanged.
+unauthenticated document. Custom firmware stays in the signed-in workspace. Every operational step of §4.8 applies unchanged.
+
+*Owner decision, 2026-11-14:* the open update page shows no E-stop warnings because it never moves the machine. On `/update/` only, omit the site-wide E-stop banner, intro and requirement row, the E-stop half of C6 item 5 (keep “The tool is clear of the work.”), and the E-stop advice in the restore dialog. All mains-off requirements and both DANGER notes about outputs switching a spindle or VFD on during flashing remain. Workspace and other-page wording is unchanged.
 
 **Proposed amendment, 2026-11-12 (H92; wording pending owner review):** persist the bootloader quarantine before entry and retain it through all failures and interruptions. Connect/Reconnect use the restricted ESC/S bootloader probe while quarantined. Only a live firmware-ready banner permits normal traffic; the successful update also waits for that banner, without closing and reopening the port. No fixed sleep is proof of firmware. No failed or cancelled update sends `E`. The explicit Start firmware action for an unmarked bootloader is the sole separate exit path; it commits quarantine before E and waits up to five seconds for a banner. Storage failures and banner timeouts keep normal traffic blocked.
 

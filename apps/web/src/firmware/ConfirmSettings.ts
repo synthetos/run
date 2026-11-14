@@ -36,7 +36,7 @@ export function ConfirmSettings({ changes, boardId: rawBoardId, blocked, restore
       high.length === 0
         ? null
         : h('div', { class: 'field' }, h('label', { for: 'apply-typed' }, `Type ${TYPED_WORDS.write} to write ${high.length === 1 ? 'this high-risk change' : 'these high-risk changes'}`), h('input', { id: 'apply-typed', 'aria-label': `Type ${TYPED_WORDS.write}`, autocomplete: 'off', value: typed, onInput: (e: Event) => setTyped((e.currentTarget as HTMLInputElement).value) })),
-      h('p', { class: 'fine' }, restoreOnly ? 'Run backs up every setting first, then restores one setting at a time and reads each back. It stops at the first problem. Keep your hand near the E-stop.' : 'Run backs up every setting first, then writes one setting at a time and reads each back. It stops at the first problem and offers to put the backed-up values back. Keep your hand near the E-stop.'),
+      h('p', { class: 'fine' }, restoreOnly ? 'Run backs up every setting first, then restores one setting at a time and reads each back. It stops at the first problem.' : 'Run backs up every setting first, then writes one setting at a time and reads each back. It stops at the first problem and offers to put the backed-up values back. Keep your hand near the E-stop.'),
       h(
         'div',
         { class: 'dialog-actions' },

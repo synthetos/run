@@ -52,3 +52,9 @@ it('describes confirmation as settings restore, not workspace position verificat
   expect(out).toContain('workspace needs its own position check');
   expect(out).not.toContain('position verified');
 });
+
+it('keeps mains isolation but no E-stop requirement on the open connect page', () => {
+  const out = html({});
+  expect(out).not.toContain('E-stop');
+  expect(out).toContain('Spindle mains switched off');
+});
