@@ -38,6 +38,8 @@ account.
 > hardware. Read the safety contract before connecting a machine: it is
 > `SAFETY.md` in this repository, and is the `/safety/` page of the app.
 
+Contributor rule: keep modules small and focused. See [modularity limits and the ratchet](docs/testing/modularity.md) before changing source.
+
 ## Layout
 
 | Path | Role |

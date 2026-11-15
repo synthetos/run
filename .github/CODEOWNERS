@@ -113,3 +113,6 @@
 # Private scheduled database backups and their protected recovery/provisioning paths.
 /workers/backup/                   @ril3y
 /tools/backups/                    @ril3y
+
+# Exact legacy modularity allowances: only decreases after bootstrap.
+/tools/gates/modularity-baseline.json @ril3y

@@ -3,6 +3,8 @@
  * the files each rule applies to, in the root `eslint.config.js`.
  */
 import type { ESLint } from 'eslint';
+import { modularityCoreRules } from '../modularity/coreRules.ts';
+import { oversizedStructure } from './rules/oversizedStructure.ts';
 import { noCapabilityLookup } from './rules/noCapabilityLookup.ts';
 import { noDynamicImport } from './rules/noDynamicImport.ts';
 import { noHtmlSink } from './rules/noHtmlSink.ts';
@@ -14,6 +16,8 @@ import { noWriterAbort } from './rules/noWriterAbort.ts';
 const plugin: ESLint.Plugin = {
   meta: { name: 'run', version: '0.0.0' },
   rules: {
+    ...modularityCoreRules,
+    'oversized-structure': oversizedStructure,
     'no-network-api': noNetworkApi,
     'no-html-sink': noHtmlSink,
     'no-writer-abort': noWriterAbort,

@@ -1,0 +1,1653 @@
+{
+  "format": 1,
+  "files": {
+    "apps/cli/src/bench/args.ts": {
+      "complexity $/FunctionDeclaration:parseBenchArgs#1": 16
+    },
+    "apps/cli/src/bench/runner.ts": {
+      "complexity $/FunctionDeclaration:runBench#1": 30,
+      "max-lines-per-function $/FunctionDeclaration:runBench#1": 106
+    },
+    "apps/cli/test/bench-lock.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe.skipIf(PYTHON === undefined)('P1-08 bench runner and the EN-HIL board lock (real flock)')[1]#1": 117
+    },
+    "apps/cli/test/bench-runner.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('P1-08 bench runner')[1]#1": 82
+    },
+    "apps/web/src/cloud/live.ts": {
+      "complexity $/FunctionDeclaration:fetchFirmwareImage#1": 18
+    },
+    "apps/web/src/cloud/recordsClient.ts": {
+      "max-params $/FunctionDeclaration:recordsClient#1/FunctionDeclaration:request#1": 5,
+      "max-params $/FunctionDeclaration:recordsClient#1/FunctionDeclaration:write#1": 6,
+      "max-params $/FunctionDeclaration:recordsClient#1/ObjectExpression:return#1/ArrowFunctionExpression:put#1": 5
+    },
+    "apps/web/src/console/translate.ts": {
+      "complexity $/FunctionDeclaration:fromJson#1": 18,
+      "complexity $/FunctionDeclaration:translate#1": 23
+    },
+    "apps/web/src/console/words.ts": {
+      "complexity $/FunctionDeclaration:valueWords#1": 16
+    },
+    "apps/web/src/firmware/updateOffer.ts": {
+      "complexity $/FunctionDeclaration:updateOffer#1": 35
+    },
+    "apps/web/src/firmware/updater.ts": {
+      "complexity $/ClassDeclaration:FirmwareUpdater#1/FunctionExpression:onSnapshot#1": 32,
+      "complexity $/ClassDeclaration:FirmwareUpdater#1/FunctionExpression:start#1": 30,
+      "max-methods $/ClassDeclaration:FirmwareUpdater#1": 16
+    },
+    "apps/web/src/gcode-worker/camTools.ts": {
+      "complexity $/FunctionDeclaration:fileToolsFromLines#1": 21,
+      "complexity $/FunctionDeclaration:toolOfComment#1": 36
+    },
+    "apps/web/src/live/ConnectPanel.ts": {
+      "complexity $/FunctionDeclaration:ConnectPanel#1": 22
+    },
+    "apps/web/src/live/backup.ts": {
+      "complexity $/ClassDeclaration:SettingsBackup#1/FunctionExpression:run#1": 34
+    },
+    "apps/web/src/live/firmwareHub.ts": {
+      "max-lines-per-function $/FunctionDeclaration:mountFirmware#1": 202,
+      "max-methods $/FunctionDeclaration:mountFirmware#1/ObjectExpression:actions#1": 24
+    },
+    "apps/web/src/live/liveMarker.ts": {
+      "max-params $/FunctionDeclaration:installLiveLifecycle#1": 5
+    },
+    "apps/web/src/live/mount.ts": {
+      "max-lines $file": 408,
+      "max-lines-per-function $/FunctionDeclaration:mountLiveEntry#1": 362
+    },
+    "apps/web/src/live/openPort.ts": {
+      "max-params $/FunctionDeclaration:openConfirmedPort#1": 5
+    },
+    "apps/web/src/live/tabStop.ts": {
+      "max-classes-per-file $file": 2
+    },
+    "apps/web/src/machine-worker/approval.ts": {
+      "complexity $/FunctionDeclaration:parseTrustedBuild#1": 23
+    },
+    "apps/web/src/machine-worker/flashService.ts": {
+      "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:begin#1": 25,
+      "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:onSnapshot#1": 25,
+      "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:run#1": 27,
+      "max-lines $file": 720,
+      "max-methods $/ClassDeclaration:FlashService#1": 37
+    },
+    "apps/web/src/machine-worker/hostCore.ts": {
+      "complexity $/ClassDeclaration:MachineWorkerCore#1/FunctionExpression:flashCommand#1": 18,
+      "complexity $/ClassDeclaration:MachineWorkerCore#1/FunctionExpression:handle#1": 65,
+      "max-lines-per-function $/ClassDeclaration:MachineWorkerCore#1/FunctionExpression:handle#1": 120,
+      "max-params $/ClassDeclaration:MachineWorkerCore#1/FunctionExpression:constructor#1": 7
+    },
+    "apps/web/src/machine-worker/rpc.ts": {
+      "complexity $/FunctionDeclaration:parseBaseRequest#1": 58,
+      "complexity $/FunctionDeclaration:parseFlashCommand#1": 40,
+      "complexity $/FunctionDeclaration:parseFlashSource#1": 22,
+      "complexity $/FunctionDeclaration:parseJobCommand#1": 38,
+      "complexity $/FunctionDeclaration:parseMotionCommand#1": 71,
+      "max-lines $file": 431
+    },
+    "apps/web/src/machine-worker/workspaceRole.ts": {
+      "complexity $/FunctionDeclaration:motion#1": 24
+    },
+    "apps/web/src/pages/safety/SafetyPage.ts": {
+      "max-lines-per-function $/FunctionDeclaration:SafetyPage#1": 145
+    },
+    "apps/web/src/preview/LineList.ts": {
+      "complexity $/FunctionDeclaration:LineList#1": 18,
+      "complexity $/FunctionDeclaration:listRows#1": 17,
+      "max-lines-per-function $/FunctionDeclaration:LineList#1": 138,
+      "max-params $/FunctionDeclaration:listRows#1": 5
+    },
+    "apps/web/src/preview/Preview3D.ts": {
+      "complexity $/FunctionDeclaration:Preview3D#1": 39,
+      "max-lines-per-function $/FunctionDeclaration:Preview3D#1": 194,
+      "max-nested-callbacks $/FunctionDeclaration:Preview3D#1/ArrowFunctionExpression:useEffect()[0]#4/ObjectExpression:loadDetail()[2]#1/ArrowFunctionExpression:painted#1/ArrowFunctionExpression:Promise()[0]#1/ArrowFunctionExpression:requestAnimationFrame()[0]#1/ArrowFunctionExpression:requestAnimationFrame()[0]#1": 4
+    },
+    "apps/web/src/preview/PreviewPanel.ts": {
+      "complexity $/FunctionDeclaration:PreviewPanel#1": 104,
+      "max-lines-per-function $/FunctionDeclaration:PreviewPanel#1": 126
+    },
+    "apps/web/src/preview/PreviewView.ts": {
+      "complexity $/FunctionDeclaration:PreviewView#1": 23,
+      "max-lines-per-function $/FunctionDeclaration:PreviewView#1": 120
+    },
+    "apps/web/src/preview/SceneKey.ts": {
+      "complexity $/FunctionDeclaration:SceneKey#1": 24
+    },
+    "apps/web/src/preview/carveTools.ts": {
+      "complexity $/FunctionDeclaration:carvePlan#1": 18,
+      "max-params $/FunctionDeclaration:carvePlan#1": 5
+    },
+    "apps/web/src/preview/previewNotes.ts": {
+      "complexity $/FunctionDeclaration:previewNotes#1": 18
+    },
+    "apps/web/src/preview/sceneModel.ts": {
+      "complexity $/FunctionDeclaration:jobScene#1": 20
+    },
+    "apps/web/src/preview/toolSlots.ts": {
+      "complexity $/FunctionDeclaration:toolLegend#1": 25,
+      "max-params $/FunctionDeclaration:toolLegend#1": 5
+    },
+    "apps/web/src/preview/useActiveTool.ts": {
+      "max-params $/FunctionDeclaration:useActiveTool#1": 5
+    },
+    "apps/web/src/preview/usePlay.ts": {
+      "max-lines-per-function $/FunctionDeclaration:usePlay#1": 127
+    },
+    "apps/web/src/projects/ProjectsView.ts": {
+      "complexity $/FunctionDeclaration:DrawingImport#1": 18,
+      "complexity $/FunctionDeclaration:ProjectDetail#1": 16,
+      "max-lines $file": 706,
+      "max-lines-per-function $/FunctionDeclaration:FileRow#1": 82,
+      "max-lines-per-function $/FunctionDeclaration:ProjectDetail#1": 110
+    },
+    "apps/web/src/projects/store.ts": {
+      "complexity $/FunctionDeclaration:isProject#1": 22,
+      "max-methods $/ClassDeclaration:ProjectStore#1": 26
+    },
+    "apps/web/src/projects/useInJob.ts": {
+      "max-params $/FunctionDeclaration:applyImport#1": 5
+    },
+    "apps/web/src/report/ReportDialog.ts": {
+      "complexity $/FunctionDeclaration:ReportBody#1": 46,
+      "max-lines-per-function $/FunctionDeclaration:ReportBody#1": 216,
+      "max-params $/FunctionDeclaration:ReportBody#1/ArrowFunctionExpression:field#1": 5
+    },
+    "apps/web/src/report/collect.ts": {
+      "complexity $/FunctionDeclaration:boardText#1": 17
+    },
+    "apps/web/src/report/items.ts": {
+      "complexity $/FunctionDeclaration:reportItems#1": 28,
+      "max-lines-per-function $/FunctionDeclaration:reportItems#1": 89
+    },
+    "apps/web/src/report/notice.ts": {
+      "complexity $/FunctionDeclaration:eventNotice#1": 19
+    },
+    "apps/web/src/security/tt.ts": {
+      "complexity $/FunctionDeclaration:checkSvgAllowlist#1": 33,
+      "max-depth $/FunctionDeclaration:checkSvgAllowlist#1": 5
+    },
+    "apps/web/src/shell/helpPosition.ts": {
+      "max-params $/FunctionDeclaration:helpPosition#1": 6
+    },
+    "apps/web/src/terminal/TerminalView.ts": {
+      "complexity $/FunctionDeclaration:TerminalView#1": 41,
+      "complexity $/FunctionDeclaration:TerminalView#1/ArrowFunctionExpression:onKey#1": 17,
+      "complexity $/FunctionDeclaration:TerminalView#1/ArrowFunctionExpression:useMemo()[0]#2": 16,
+      "max-lines-per-function $/FunctionDeclaration:TerminalView#1": 325
+    },
+    "apps/web/src/terminal/translate.ts": {
+      "complexity $/FunctionDeclaration:classify#1": 18,
+      "complexity $/FunctionDeclaration:gNonMove#1": 23,
+      "complexity $/FunctionDeclaration:gcode#1": 18,
+      "complexity $/FunctionDeclaration:mCode#1": 20
+    },
+    "apps/web/src/update/UpdateFlow.ts": {
+      "complexity $/FunctionDeclaration:UpdateFlow#1": 113,
+      "max-lines-per-function $/FunctionDeclaration:UpdateFlow#1": 94
+    },
+    "apps/web/src/update/controller.ts": {
+      "max-methods $/ClassDeclaration:UpdateController#1": 16
+    },
+    "apps/web/src/wiring/WiringEditor.ts": {
+      "max-lines-per-function $/FunctionDeclaration:WiringEditorView#1": 158,
+      "max-params $/FunctionDeclaration:WiringEditorView#1/ArrowFunctionExpression:select#1": 5
+    },
+    "apps/web/src/wiring/editorState.ts": {
+      "complexity $/FunctionDeclaration:createReducer#1/ArrowFunctionExpression:return#1": 17
+    },
+    "apps/web/src/wiring/export.ts": {
+      "max-params $/FunctionDeclaration:downloadSvgExport#1": 6
+    },
+    "apps/web/src/workspace/AppShell.ts": {
+      "complexity $/FunctionDeclaration:AppShell#1": 20,
+      "complexity $/FunctionDeclaration:Banners#1": 31,
+      "complexity $/FunctionDeclaration:Strip#1": 23,
+      "max-lines-per-function $/FunctionDeclaration:AppShell#1": 90
+    },
+    "apps/web/src/workspace/FirmwareOffer.ts": {
+      "complexity $/FunctionDeclaration:FirmwareOffer#1": 25
+    },
+    "apps/web/src/workspace/MachineStrip.ts": {
+      "complexity $/FunctionDeclaration:MachineStrip#1": 22,
+      "max-params $/FunctionDeclaration:stopButtons#1": 5
+    },
+    "apps/web/src/workspace/advisorModel.ts": {
+      "complexity $/FunctionDeclaration:advisorMachine#1": 38,
+      "complexity $/FunctionDeclaration:advisorRow#1": 21,
+      "max-params $/FunctionDeclaration:advisorRow#1": 7
+    },
+    "apps/web/src/workspace/analysisInputs.ts": {
+      "complexity $/ArrowFunctionExpression:isReading#1": 18
+    },
+    "apps/web/src/workspace/boardFacts.ts": {
+      "complexity $/FunctionDeclaration:settingMeta#1": 18,
+      "complexity $/FunctionDeclaration:v8Pins#1": 25
+    },
+    "apps/web/src/workspace/cloud/librarySync.ts": {
+      "complexity $/FunctionDeclaration:startLibrarySync#1/FunctionDeclaration:run#1": 26
+    },
+    "apps/web/src/workspace/cloud/syncQueue.ts": {
+      "complexity $/FunctionDeclaration:drainQueue#1": 48,
+      "max-depth $/FunctionDeclaration:drainQueue#1": 6,
+      "max-params $/FunctionDeclaration:drainQueue#1": 5,
+      "max-params $/FunctionDeclaration:enqueue#1": 5
+    },
+    "apps/web/src/workspace/controlBlock.ts": {
+      "complexity $/FunctionDeclaration:controlBlock#1": 29,
+      "complexity $/FunctionDeclaration:notApproved#1": 18
+    },
+    "apps/web/src/workspace/cuttingQuestions.ts": {
+      "complexity $/FunctionDeclaration:machineQuestion#1": 23
+    },
+    "apps/web/src/workspace/dock/tabs/liveJobTab.ts": {
+      "complexity $/FunctionDeclaration:LivePane#1": 62,
+      "max-lines-per-function $/FunctionDeclaration:LivePane#1": 87
+    },
+    "apps/web/src/workspace/fileBridge.ts": {
+      "complexity $/FunctionDeclaration:resolveJob#1": 47,
+      "complexity $/FunctionDeclaration:saveDraftToProject#1": 20
+    },
+    "apps/web/src/workspace/fileZero.ts": {
+      "complexity $/FunctionDeclaration:guessFileZero#1": 23
+    },
+    "apps/web/src/workspace/homing.ts": {
+      "complexity $/FunctionDeclaration:homeBody#1": 22,
+      "max-params $/FunctionDeclaration:homeBody#1/ArrowFunctionExpression:button#1": 6,
+      "max-params $/FunctionDeclaration:homeQuickBody#1/ArrowFunctionExpression:quick#1": 7
+    },
+    "apps/web/src/workspace/insight/MachineInsight.ts": {
+      "complexity $/FunctionDeclaration:MachineInsight#1": 30,
+      "complexity $/FunctionDeclaration:cuttingList#1": 26
+    },
+    "apps/web/src/workspace/insight/cuttingModel.ts": {
+      "complexity $/FunctionDeclaration:cuttingRows#1": 54
+    },
+    "apps/web/src/workspace/jobModel.ts": {
+      "complexity $/FunctionDeclaration:isBed#1": 17,
+      "complexity $/FunctionDeclaration:isJob#1": 64
+    },
+    "apps/web/src/workspace/jobUi.ts": {
+      "complexity $/FunctionDeclaration:feedReport#1": 16,
+      "complexity $/FunctionDeclaration:jobUi#1": 16
+    },
+    "apps/web/src/workspace/machineDrawings.ts": {
+      "complexity $/ClassDeclaration:Drawing#1/FunctionExpression:slotLines#1": 19,
+      "max-lines $file": 449,
+      "max-params $/ClassDeclaration:Drawing#1/FunctionExpression:box#1": 8,
+      "max-params $/ClassDeclaration:Drawing#1/FunctionExpression:cyl#1": 6,
+      "max-params $/ClassDeclaration:Drawing#1/FunctionExpression:extrusion#1": 9,
+      "max-params $/ClassDeclaration:Drawing#1/FunctionExpression:stepper#1": 5,
+      "max-params $/ObjectExpression:BUILDERS#1/FunctionExpression:custom#1/ArrowFunctionExpression:ghost#1": 6
+    },
+    "apps/web/src/workspace/motion.ts": {
+      "complexity $/FunctionDeclaration:homingView#1": 19,
+      "complexity $/FunctionDeclaration:motionUi#1": 20,
+      "complexity $/FunctionDeclaration:why#1": 35
+    },
+    "apps/web/src/workspace/notes/notes.ts": {
+      "complexity $/FunctionDeclaration:sameNote#1": 16
+    },
+    "apps/web/src/workspace/outline.ts": {
+      "complexity $/FunctionDeclaration:parseDxfOutline#1": 40,
+      "complexity $/FunctionDeclaration:parseSvgOutline#1": 18,
+      "complexity $/FunctionDeclaration:pathPolys#1": 33,
+      "max-lines-per-function $/FunctionDeclaration:pathPolys#1": 83
+    },
+    "apps/web/src/workspace/probe/ProbeZ.ts": {
+      "complexity $/FunctionDeclaration:probeZBody#1": 36,
+      "max-lines-per-function $/FunctionDeclaration:probeZBody#1": 86
+    },
+    "apps/web/src/workspace/probe/probeCopy.ts": {
+      "complexity $/FunctionDeclaration:outcomeCopy#1": 17
+    },
+    "apps/web/src/workspace/reportsNotice.ts": {
+      "complexity $/FunctionDeclaration:reportsNotes#1": 20,
+      "complexity $/FunctionDeclaration:reportsNotice#1": 21
+    },
+    "apps/web/src/workspace/resumeAction.ts": {
+      "complexity $/FunctionDeclaration:resumeAction#1": 18
+    },
+    "apps/web/src/workspace/reviewExits.ts": {
+      "complexity $/FunctionDeclaration:ReviewExits#1": 16
+    },
+    "apps/web/src/workspace/run/RunPanel.ts": {
+      "complexity $/FunctionDeclaration:RunPanel#1": 126,
+      "complexity $/FunctionDeclaration:RunPanel#1/ArrowFunctionExpression:act#1": 21,
+      "max-lines-per-function $/FunctionDeclaration:RunPanel#1": 223
+    },
+    "apps/web/src/workspace/run/readyModel.ts": {
+      "complexity $/FunctionDeclaration:readyModel#1": 24
+    },
+    "apps/web/src/workspace/samples.ts": {
+      "max-params $/FunctionDeclaration:mountingPlate#1/ArrowFunctionExpression:edge#1": 5
+    },
+    "apps/web/src/workspace/settings/SettingsUi.ts": {
+      "complexity $/FunctionDeclaration:ApplyProgress#1": 21,
+      "complexity $/FunctionDeclaration:PendingTray#1": 32,
+      "complexity $/FunctionDeclaration:RestorePanel#1": 16,
+      "complexity $/FunctionDeclaration:SettingEditor#1": 19,
+      "complexity $/FunctionDeclaration:stageRestore#1": 21
+    },
+    "apps/web/src/workspace/settings/pending.ts": {
+      "complexity $/FunctionDeclaration:settingsWriteBlocked#1": 29
+    },
+    "apps/web/src/workspace/status.ts": {
+      "complexity $/FunctionDeclaration:boardLabel#1": 16,
+      "complexity $/FunctionDeclaration:spindleText#1": 17,
+      "complexity $/FunctionDeclaration:stripStatus#1": 63
+    },
+    "apps/web/src/workspace/toolDrawing/ToolDrawing.ts": {
+      "complexity $/FunctionDeclaration:DimLine#1": 16
+    },
+    "apps/web/src/workspace/tools/catalog.ts": {
+      "max-params $/FunctionDeclaration:matchesCatalog#1": 5
+    },
+    "apps/web/src/workspace/tools/cuttingData.ts": {
+      "complexity $/FunctionDeclaration:readCuttingDraft#1": 16
+    },
+    "apps/web/src/workspace/unknownModal.ts": {
+      "complexity $/FunctionDeclaration:UnknownModal#1": 18
+    },
+    "apps/web/src/workspace/views/AnalyzeView.ts": {
+      "complexity $/FunctionDeclaration:AnalyzeView#1": 29
+    },
+    "apps/web/src/workspace/views/BoardView.ts": {
+      "complexity $/FunctionDeclaration:BoardFacts#1": 55,
+      "max-lines $file": 657,
+      "max-lines-per-function $/FunctionDeclaration:BoardIllustration#1": 110,
+      "max-params $/FunctionDeclaration:BoardIllustration#1/ArrowFunctionExpression:target#1": 8,
+      "max-params $/FunctionDeclaration:axisTable#1": 6
+    },
+    "apps/web/src/workspace/views/FirmwareViews.ts": {
+      "complexity $/FunctionDeclaration:BackupsHub#1": 55,
+      "complexity $/FunctionDeclaration:FirmwareTab#1": 103,
+      "complexity $/FunctionDeclaration:FirmwareTab#1/ArrowFunctionExpression:hw.releases.map()[0]#1": 31,
+      "complexity $/FunctionDeclaration:flashBlocked#1": 19,
+      "max-lines $file": 541,
+      "max-lines-per-function $/FunctionDeclaration:BackupsHub#1": 174,
+      "max-lines-per-function $/FunctionDeclaration:FirmwareTab#1": 200
+    },
+    "apps/web/src/workspace/views/JobStatusCard.ts": {
+      "complexity $/FunctionDeclaration:JobStatus#1": 48
+    },
+    "apps/web/src/workspace/views/JobViews.ts": {
+      "complexity $/FunctionDeclaration:JobStopCard#1": 36,
+      "max-lines-per-function $/FunctionDeclaration:JobStopCard#1": 89
+    },
+    "apps/web/src/workspace/views/LibraryViews.ts": {
+      "complexity $/FunctionDeclaration:MaterialInspector#1": 28,
+      "complexity $/FunctionDeclaration:fieldsFromForm#1": 29,
+      "complexity $/FunctionDeclaration:materialFormOf#1": 34,
+      "max-lines $file": 579,
+      "max-lines-per-function $/FunctionDeclaration:MaterialForm#1": 161,
+      "max-lines-per-function $/FunctionDeclaration:MaterialInspector#1": 113,
+      "max-lines-per-function $/FunctionDeclaration:MaterialsView#1": 93,
+      "max-nested-callbacks $/FunctionDeclaration:MaterialForm#1/ArrowFunctionExpression:TOOL_MATERIALS.map()[0]#1/ArrowFunctionExpression:FRAMES.flatMap()[0]#1/ArrowFunctionExpression:numIn()[2]#1/ObjectExpression:setCut()[1]#1/ArrowFunctionExpression:c.ap.map()[0]#1": 4,
+      "max-nested-callbacks $/FunctionDeclaration:MaterialForm#1/ArrowFunctionExpression:TOOL_MATERIALS.map()[0]#1/ArrowFunctionExpression:FRAMES.flatMap()[0]#1/ArrowFunctionExpression:numIn()[2]#2/ObjectExpression:setCut()[1]#1/ArrowFunctionExpression:c.ae.map()[0]#1": 4,
+      "max-params $/FunctionDeclaration:textArea#1": 5
+    },
+    "apps/web/src/workspace/views/MachinesView.ts": {
+      "complexity $/FunctionDeclaration:MyMachine#1": 18,
+      "complexity $/FunctionDeclaration:TinygMapping#1": 24,
+      "complexity $/FunctionDeclaration:mappingRows#1": 18,
+      "max-lines $file": 428,
+      "max-lines-per-function $/FunctionDeclaration:MachinesView#1": 103,
+      "max-lines-per-function $/FunctionDeclaration:TinygMapping#1": 136,
+      "max-params $/FunctionDeclaration:BedSection#1/ArrowFunctionExpression:numField#1": 5
+    },
+    "apps/web/src/workspace/views/PlacePanel.ts": {
+      "complexity $/FunctionDeclaration:PlacePanel#1": 21
+    },
+    "apps/web/src/workspace/views/RunView.ts": {
+      "complexity $/FunctionDeclaration:ConnectNotice#1": 42,
+      "complexity $/FunctionDeclaration:JobCard#1": 24,
+      "complexity $/FunctionDeclaration:JobWorkPanel#1": 21,
+      "complexity $/FunctionDeclaration:RunLayout#1": 67,
+      "complexity $/FunctionDeclaration:RunView#1": 44,
+      "complexity $/FunctionDeclaration:jogBody#1": 20,
+      "complexity $/FunctionDeclaration:positionBody#1": 58,
+      "complexity $/FunctionDeclaration:spindleBody#1": 39,
+      "complexity $/FunctionDeclaration:stepStatus#1": 22,
+      "complexity $/FunctionDeclaration:zeroBody#1": 34,
+      "max-lines $file": 1154,
+      "max-lines-per-function $/FunctionDeclaration:RunLayout#1": 107,
+      "max-lines-per-function $/FunctionDeclaration:jogBody#1": 139,
+      "max-lines-per-function $/FunctionDeclaration:positionBody#1": 92,
+      "max-lines-per-function $/FunctionDeclaration:spindleBody#1": 108,
+      "max-lines-per-function $/FunctionDeclaration:zeroBody#1": 119,
+      "max-params $/FunctionDeclaration:zeroBody#1/ArrowFunctionExpression:button#1": 6
+    },
+    "apps/web/src/workspace/views/SetupView.ts": {
+      "complexity $/FunctionDeclaration:JobSetupPanel#1": 55,
+      "max-lines-per-function $/FunctionDeclaration:JobSetupPanel#1": 195
+    },
+    "apps/web/src/workspace/views/ToolShapeFields.ts": {
+      "max-params $/FunctionDeclaration:ToolShapeFields#1/ArrowFunctionExpression:input#1": 7,
+      "max-params $/FunctionDeclaration:shapeInput#1": 7
+    },
+    "apps/web/src/workspace/views/analyze/speedFix.ts": {
+      "complexity $/FunctionDeclaration:speedFix#1": 22
+    },
+    "apps/web/src/workspace/views/firmwareBoard.ts": {
+      "complexity $/FunctionDeclaration:shownBoard#1": 16
+    },
+    "apps/web/src/workspace/views/numberField.ts": {
+      "max-params $/FunctionDeclaration:field#1": 6
+    },
+    "apps/web/src/workspace/views/tools/CuttingRowForm.ts": {
+      "complexity $/FunctionDeclaration:CuttingRowForm#1": 27
+    },
+    "apps/web/src/workspace/views/tools/ToolModal.ts": {
+      "complexity $/FunctionDeclaration:ToolModal#1": 23
+    },
+    "apps/web/test/analysis.test.ts": {
+      "complexity $/ArrowFunctionExpression:describe('a dense CAM file')[1]#1/ArrowFunctionExpression:it('is one dense section across its passes, with short moves shown to the hundredth')[1]#1": 17,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('freshness')[1]#1/ArrowFunctionExpression:it('a late result from a replaced load never replaces the newer file’s')[1]#1/ArrowFunctionExpression:createGcodePreviewClient()[0]#1/ArrowFunctionExpression:createGcodeHandler()[0]#1": 4
+    },
+    "apps/web/test/console.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('translate: what is typed becomes JSON')[1]#1": 86
+    },
+    "apps/web/test/dialogDismiss.test.ts": {
+      "max-classes-per-file $file": 2
+    },
+    "apps/web/test/firmware.test.ts": {
+      "complexity $/ArrowFunctionExpression:describe('the firmware update in the worker')[1]#1/ArrowFunctionExpression:it('updates across an EEPROM layout change, then locks jobs, jog and writes until the restore and the switch check')[1]#1": 16,
+      "complexity $/FunctionDeclaration:rig#1/ArrowFunctionExpression:until#1": 18,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the firmware update in the worker')[1]#1": 239
+    },
+    "apps/web/test/firmwareHub.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('firmware hub: downloading a listed release (OD-10)')[1]#1": 102,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('firmware hub: downloading a listed release (OD-10)')[1]#1/ArrowFunctionExpression:it('the open page waits for the backup decision, and cancellation never reaches boot entry')[1]#1/ArrowFunctionExpression:hub()[1]#1/ArrowFunctionExpression:Promise()[0]#1": 4
+    },
+    "apps/web/test/frameBudget.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('FrameBudget')[1]#1": 81
+    },
+    "apps/web/test/gcodeWorker.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('line spans')[1]#1/ArrowFunctionExpression:it('split exactly as the sanitiser does, for any mix of terminators (property)')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:Array.from()[1]#1": 4
+    },
+    "apps/web/test/jobModel.test.ts": {
+      "complexity $/ArrowFunctionExpression:describe('Use in Job: roles and the drawing import')[1]#1/ArrowFunctionExpression:it('accepting a fixture or stock outline changes the active job; a bed drawing needs the job’s machine and becomes its next bed revision')[1]#1": 16,
+      "complexity $/ArrowFunctionExpression:describe('the one job opener')[1]#1/ArrowFunctionExpression:it('a project file opened from Projects or the picker is the same job; other bytes go to the draft, which keeps its setup')[1]#1": 16,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the one job opener')[1]#1": 163
+    },
+    "apps/web/test/liveEntry.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('LiveEntry')[1]#1": 133,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('advisory gate (H27, T-S31, T-S75)')[1]#1": 88
+    },
+    "apps/web/test/machineWorker.test.ts": {
+      "max-classes-per-file $file": 2,
+      "max-lines $file": 1124,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('MachineWorkerHost')[1]#1": 242,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('P1-03: the worker classifies against the bundled, signed approved-builds manifest')[1]#1": 90,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S93)')[1]#1": 173,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('Phase 3: job commands through the worker (SAFETY §4.4a, T-S117)')[1]#1": 83,
+      "max-params $/FunctionDeclaration:approvingHost#1": 6
+    },
+    "apps/web/test/motion.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S104–T-S106, control allowlist)')[1]#1": 91
+    },
+    "apps/web/test/overlayAlarm.test.ts": {
+      "max-classes-per-file $file": 2
+    },
+    "apps/web/test/p1-07-readout.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('LiveReadout: the connect-time read and the drift check')[1]#1": 94,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('Dro panel')[1]#1/ArrowFunctionExpression:it('T-S85: a hostile board id renders as text with its bidi and control characters replaced')[1]#1/ArrowFunctionExpression:all()[1]#2/ArrowFunctionExpression:Object.keys(e.props).some()[0]#1": 4
+    },
+    "apps/web/test/placeZero.test.ts": {
+      "max-params $/ArrowFunctionExpression:box#1": 6
+    },
+    "apps/web/test/probeSteps.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('ProbeZ: the mount under Position')[1]#1": 135
+    },
+    "apps/web/test/projects.test.ts": {
+      "complexity $/ArrowFunctionExpression:describe('the project store (IndexedDB through the storage module; in memory here)')[1]#1/ArrowFunctionExpression:it('re-encodes images (never storing the original), makes the first the cover, and refuses images over 10 MB')[1]#1": 17,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the project store (IndexedDB through the storage module; in memory here)')[1]#1": 115
+    },
+    "apps/web/test/settingsWrite.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the apply sequencer')[1]#1": 81
+    },
+    "apps/web/test/shell.test.ts": {
+      "complexity $/ArrowFunctionExpression:describe('Phase 1 control allowlist')[1]#1/FunctionDeclaration:controls#1": 20,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('Phase 1 control allowlist')[1]#1": 145
+    },
+    "apps/web/test/tabStop.test.ts": {
+      "max-classes-per-file $file": 3,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('StopControls')[1]#1": 146,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('machine strip stop controls and observer panel')[1]#1": 95
+    },
+    "apps/web/test/workspace.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('machine strip status')[1]#1": 91
+    },
+    "packages/advisor/src/analysis/density.ts": {
+      "max-params $/FunctionDeclaration:close#1": 6,
+      "max-params $/FunctionDeclaration:runsOf#1": 6
+    },
+    "packages/advisor/src/analysis/operations.ts": {
+      "complexity $/FunctionDeclaration:operations#1": 18
+    },
+    "packages/advisor/src/analysis/report.ts": {
+      "complexity $/FunctionDeclaration:analyzeProgram#1": 25
+    },
+    "packages/advisor/src/checks.ts": {
+      "max-params $/FunctionDeclaration:check#1": 5,
+      "max-params $/FunctionDeclaration:cuttingForceN#1": 6
+    },
+    "packages/advisor/src/engine.ts": {
+      "max-classes-per-file $file": 3
+    },
+    "packages/advisor/src/envelope.ts": {
+      "complexity $/FunctionDeclaration:decideOverride#1": 37
+    },
+    "packages/advisor/src/live.ts": {
+      "complexity $/FunctionDeclaration:estimateLiveChipload#1": 20
+    },
+    "packages/advisor/src/plan.ts": {
+      "complexity $/FunctionDeclaration:inputProblem#1": 24,
+      "complexity $/FunctionDeclaration:planOperation#1": 32,
+      "max-lines-per-function $/FunctionDeclaration:planOperation#1": 101,
+      "max-params $/FunctionDeclaration:compare#1": 6
+    },
+    "packages/advisor/src/planner/block.ts": {
+      "max-params $/FunctionDeclaration:makeBlock#1": 6
+    },
+    "packages/advisor/src/planner/simulate.ts": {
+      "complexity $/FunctionDeclaration:simulate#1": 18
+    },
+    "packages/advisor/src/planner/trapezoid.ts": {
+      "complexity $/FunctionDeclaration:calculateTrapezoid#1": 27,
+      "max-lines-per-function $/FunctionDeclaration:calculateTrapezoid#1": 106
+    },
+    "packages/advisor/test/engine.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('GuardedEngine: whatever an engine returns is refused or bounded')[1]#1": 151
+    },
+    "packages/advisor/test/placeholder.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('no placeholder is returned as advice without its flag')[1]#1/ArrowFunctionExpression:it('fully cited inputs give recommendations without the flag')[1]#1/ArrowFunctionExpression:recs.every()[0]#1/ArrowFunctionExpression:r.reasons.some()[0]#1": 4
+    },
+    "packages/advisor/test/plan.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('levels')[1]#1": 108
+    },
+    "packages/advisor/test/planner.test.ts": {
+      "complexity $/FunctionDeclaration:compare#1": 17
+    },
+    "packages/advisor/test/smoke.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('@synthetos/advisor')[1]#1/ArrowFunctionExpression:it('imports only its own modules, library and the JSON Schema validator (no network, no machine, no clock)')[1]#1/ArrowFunctionExpression:['analysis', 'planner'].flatMap()[0]#1/ArrowFunctionExpression:readdirSync(`${SRC}${d}`).map()[0]#1": 4
+    },
+    "packages/flasher/src/authorize.ts": {
+      "complexity $/FunctionDeclaration:authorizeFlash#1": 21,
+      "max-params $/ClassDeclaration:FlashAuthorization#1/FunctionExpression:constructor#1": 5
+    },
+    "packages/flasher/src/core/link.ts": {
+      "max-classes-per-file $file": 3
+    },
+    "packages/flasher/src/targets/xboot-xmega/avr109.ts": {
+      "complexity $/ClassDeclaration:FrameGuard#1/FunctionExpression:judge#1": 26,
+      "complexity $/FunctionDeclaration:encodeCommand#1": 21,
+      "max-classes-per-file $file": 2
+    },
+    "packages/flasher/src/targets/xboot-xmega/client.ts": {
+      "max-classes-per-file $file": 2,
+      "max-methods $/ClassDeclaration:XbootClient#1": 16
+    },
+    "packages/flasher/src/targets/xboot-xmega/flashRun.ts": {
+      "complexity $/FunctionDeclaration:runFlash#1": 25,
+      "max-classes-per-file $file": 2,
+      "max-depth $/FunctionDeclaration:runFlash#1/ArrowFunctionExpression:attempt#1": 5,
+      "max-lines-per-function $/FunctionDeclaration:runFlash#1": 110,
+      "max-params $/FunctionDeclaration:recoverEntry#1": 5,
+      "max-params $/FunctionDeclaration:verifyPages#1": 6
+    },
+    "packages/flasher/src/targets/xboot-xmega/ihex.ts": {
+      "complexity $/FunctionDeclaration:parseIntelHex#1": 47,
+      "max-lines-per-function $/FunctionDeclaration:parseIntelHex#1": 87
+    },
+    "packages/flasher/test/avr109.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('FrameGuard')[1]#1": 100
+    },
+    "packages/flasher/test/client.test.ts": {
+      "max-classes-per-file $file": 2,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('XbootClient')[1]#1": 120
+    },
+    "packages/flasher/test/ihex.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('parseIntelHex')[1]#1": 91
+    },
+    "packages/gcode-view/src/camera.ts": {
+      "max-params $/FunctionDeclaration:fitOrbit#1": 5,
+      "max-params $/FunctionDeclaration:zoomToward#1": 6
+    },
+    "packages/gcode-view/src/carve/carver.ts": {
+      "complexity $/FunctionDeclaration:createCarver#1/ObjectExpression:return#1/FunctionExpression:step#1": 23,
+      "max-lines-per-function $/FunctionDeclaration:createCarver#1": 142
+    },
+    "packages/gcode-view/src/carve/client.ts": {
+      "max-lines-per-function $/FunctionDeclaration:createCarveClient#1": 109
+    },
+    "packages/gcode-view/src/carve/heightmap.ts": {
+      "max-params $/FunctionDeclaration:cellSizeFor#1": 5
+    },
+    "packages/gcode-view/src/carve/mesh.ts": {
+      "max-lines-per-function $/FunctionDeclaration:createCarveLayer#1": 134
+    },
+    "packages/gcode-view/src/carve/sweep.ts": {
+      "complexity $/FunctionDeclaration:sweepSegment#1": 19,
+      "max-params $/FunctionDeclaration:sweepSegment#1": 9
+    },
+    "packages/gcode-view/src/carve/tip.ts": {
+      "max-params $/FunctionDeclaration:tipOnLine#1": 5
+    },
+    "packages/gcode-view/src/geometry.ts": {
+      "complexity $/FunctionDeclaration:chunks#1": 26
+    },
+    "packages/gcode-view/src/pick.ts": {
+      "max-params $/FunctionDeclaration:rayThrough#1": 5
+    },
+    "packages/gcode-view/src/renderer.ts": {
+      "complexity $/FunctionDeclaration:createRenderer#1/FunctionDeclaration:draw#1": 23,
+      "complexity $/FunctionDeclaration:createRenderer#1/ObjectExpression:return#1/FunctionExpression:load#1": 24,
+      "complexity $/FunctionDeclaration:createRenderer#1/ObjectExpression:return#1/FunctionExpression:load#1/ObjectExpression:steps#1/ArrowFunctionExpression:next#1": 16,
+      "max-lines $file": 704,
+      "max-lines-per-function $/FunctionDeclaration:createRenderer#1": 558,
+      "max-lines-per-function $/FunctionDeclaration:createRenderer#1/FunctionDeclaration:draw#1": 82,
+      "max-methods $/FunctionDeclaration:createRenderer#1/ObjectExpression:return#1": 33
+    },
+    "packages/gcode-view/src/scene.ts": {
+      "complexity $/FunctionDeclaration:triangulate#1": 16,
+      "max-params $/FunctionDeclaration:solidTriangles#1/ArrowFunctionExpression:quad#1": 5
+    },
+    "packages/gcode-view/src/svg.ts": {
+      "complexity $/FunctionDeclaration:svgPaths#1": 25
+    },
+    "packages/gcode-view/test/camera.test.ts": {
+      "max-params $/ArrowFunctionExpression:describe('orbit camera')[1]#1/ArrowFunctionExpression:it('fitting a box puts its centre at the middle of the view and every corner inside it (property)')[1]#1/ArrowFunctionExpression:fc.property()[5]#1": 5
+    },
+    "packages/gcode-view/test/carveSweep.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('sweepSegment')[1]#1": 100
+    },
+    "packages/gcode-view/test/carveWorker.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('createCarveClient')[1]#1": 108
+    },
+    "packages/gcode-view/test/framing.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('zoomToward (C19)')[1]#1/ArrowFunctionExpression:it('keeps the point under the cursor where it was (property)')[1]#1/ArrowFunctionExpression:fc.property()[3]#1/ArrowFunctionExpression:[0, 1, 2].map()[0]#1": 4
+    },
+    "packages/gcode-view/test/renderer.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('WebGL renderer')[1]#1": 138
+    },
+    "packages/gcode/src/events.ts": {
+      "max-params $/ClassDeclaration:EventRecorder#1/FunctionExpression:arc#1": 6,
+      "max-params $/ClassDeclaration:EventRecorder#1/FunctionExpression:line#1": 5,
+      "max-params $/ClassDeclaration:EventRecorder#1/FunctionExpression:move#1": 6
+    },
+    "packages/gcode/src/interpreter.ts": {
+      "complexity $/ClassDeclaration:Interpreter#1/FunctionExpression:constructor#1": 35,
+      "complexity $/ClassDeclaration:Interpreter#1/FunctionExpression:move#1": 16,
+      "complexity $/ClassDeclaration:Interpreter#1/FunctionExpression:ruleBlocks#1": 17,
+      "complexity $/ClassDeclaration:Interpreter#1/FunctionExpression:step#1": 78,
+      "complexity $/FunctionDeclaration:emit#1": 18,
+      "complexity $/FunctionDeclaration:emptyAnalysis#1": 18,
+      "complexity $/FunctionDeclaration:interpretJob#1": 21,
+      "max-lines $file": 762,
+      "max-lines-per-function $/ClassDeclaration:Interpreter#1/FunctionExpression:step#1": 129,
+      "max-lines-per-function $/FunctionDeclaration:emit#1": 85,
+      "max-lines-per-function $/FunctionDeclaration:interpretJob#1": 85,
+      "max-methods $/ClassDeclaration:Interpreter#1": 18,
+      "max-params $/ClassDeclaration:Interpreter#1/FunctionExpression:add#1": 5,
+      "max-params $/ClassDeclaration:Interpreter#1/FunctionExpression:addOnce#1": 6,
+      "max-params $/ClassDeclaration:Interpreter#1/FunctionExpression:arc#1": 6,
+      "max-params $/ClassDeclaration:Interpreter#1/FunctionExpression:g10#1": 5,
+      "max-params $/ClassDeclaration:Interpreter#1/FunctionExpression:move#1": 6,
+      "max-params $/ClassDeclaration:Interpreter#1/FunctionExpression:storedMove#1": 5
+    },
+    "packages/gcode/src/parser.ts": {
+      "max-depth $/FunctionDeclaration:parseStream#1": 5
+    },
+    "packages/gcode/test/arcs.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('arcs')[1]#1/ArrowFunctionExpression:it('the exact box contains every tessellated point and touches the arc')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:pts.filter()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('arcs')[1]#1/ArrowFunctionExpression:it('the exact box contains every tessellated point and touches the arc')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:slack.every()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('arcs')[1]#1/ArrowFunctionExpression:it('translating a file translates its bounds exactly')[1]#1/ArrowFunctionExpression:fc.property()[3]#1/ArrowFunctionExpression:[x, y, z].forEach()[0]#1": 4
+    },
+    "packages/gcode/test/events.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the event tape')[1]#1": 104
+    },
+    "packages/gcode/test/interpreter.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('TB-02 acceptance: dialect data drives the interpreter')[1]#1": 81,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('old P1-03 goldens')[1]#1": 95
+    },
+    "packages/gcode/test/parser.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('parseStream')[1]#1/ArrowFunctionExpression:it('gives the same lines as parsing the whole text, however it is chunked')[1]#1/ArrowFunctionExpression:fc.asyncProperty()[2]#1/ArrowFunctionExpression:(await collect(parseStream(chunks(pieces)))).map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('parseStream')[1]#1/ArrowFunctionExpression:it('gives the same lines as parsing the whole text, however it is chunked')[1]#1/ArrowFunctionExpression:fc.asyncProperty()[2]#1/ArrowFunctionExpression:[...parseLines(text)].map()[0]#1": 4
+    },
+    "packages/library/src/url.ts": {
+      "complexity $/FunctionDeclaration:checkExternalUrl#1": 25
+    },
+    "packages/library/src/validate.ts": {
+      "complexity $/FunctionDeclaration:toolSemantics#1": 19
+    },
+    "packages/library/test/fork.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('forks')[1]#1": 145,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('forks')[1]#1/ArrowFunctionExpression:it('inherits every field it has not edited, for any set of edits (fast-check)')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:edits.some()[0]#1": 4
+    },
+    "packages/library/test/url.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('checkExternalUrl refuses everything else, and says why')[1]#1": 107
+    },
+    "packages/library/test/validate.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('readTool')[1]#1": 100
+    },
+    "packages/machine/src/bootloaderLink.ts": {
+      "max-classes-per-file $file": 2,
+      "max-methods $/ClassDeclaration:BootloaderLink#1": 22
+    },
+    "packages/machine/src/dro.ts": {
+      "complexity $/FunctionDeclaration:droView#1": 17
+    },
+    "packages/machine/src/eventLog.ts": {
+      "max-classes-per-file $file": 2
+    },
+    "packages/machine/src/guardedTransport.ts": {
+      "max-classes-per-file $file": 3
+    },
+    "packages/machine/src/openPolicy.ts": {
+      "complexity $/FunctionDeclaration:decideOpen#1": 21
+    },
+    "packages/machine/src/platform.ts": {
+      "complexity $/FunctionDeclaration:liveControlPlatform#1": 22
+    },
+    "packages/machine/src/session/dwell.ts": {
+      "complexity $/FunctionDeclaration:observeDwellPoll#1": 23
+    },
+    "packages/machine/src/session/feedLimit.ts": {
+      "complexity $/FunctionDeclaration:foldFeedLimit#1": 19
+    },
+    "packages/machine/src/session/firmwareRuntime.ts": {
+      "complexity $/FunctionDeclaration:firmwareWrite#1": 30,
+      "max-params $/FunctionDeclaration:firmwareWrite#1": 5
+    },
+    "packages/machine/src/session/job.ts": {
+      "complexity $/FunctionDeclaration:liveStart#1": 34,
+      "complexity $/FunctionDeclaration:maybeRestoreLineMode#1": 28,
+      "complexity $/FunctionDeclaration:onJobPoll#1": 32,
+      "complexity $/FunctionDeclaration:onJobTimer#1": 22,
+      "complexity $/FunctionDeclaration:onLineModeAnswer#1": 19,
+      "complexity $/FunctionDeclaration:onLoadJob#1": 18,
+      "complexity $/FunctionDeclaration:onStartJob#1": 30,
+      "complexity $/FunctionDeclaration:pumpJob#1": 24,
+      "complexity $/FunctionDeclaration:resumeToolChange#1": 23,
+      "max-lines $file": 1026,
+      "max-params $/FunctionDeclaration:onJobFault#1": 5
+    },
+    "packages/machine/src/session/jobSnapshot.ts": {
+      "complexity $/FunctionDeclaration:jobView#1": 32
+    },
+    "packages/machine/src/session/jobState.ts": {
+      "max-params $/FunctionDeclaration:jobEvent#1": 5
+    },
+    "packages/machine/src/session/jobTravel.ts": {
+      "complexity $/FunctionDeclaration:fileWritesOffset#1": 17
+    },
+    "packages/machine/src/session/motion.ts": {
+      "complexity $/FunctionDeclaration:checkAlarm#1": 20,
+      "complexity $/FunctionDeclaration:onMotionAnswer#1": 29,
+      "complexity $/FunctionDeclaration:onMotionIntent#1": 81,
+      "complexity $/FunctionDeclaration:onMotionStop#1": 22,
+      "complexity $/FunctionDeclaration:onMotionTimer#1": 17,
+      "complexity $/FunctionDeclaration:onPollDone#1": 43,
+      "max-lines $file": 682,
+      "max-lines-per-function $/FunctionDeclaration:onMotionIntent#1": 138,
+      "max-lines-per-function $/FunctionDeclaration:onPollDone#1": 110,
+      "max-params $/FunctionDeclaration:startChange#1": 5
+    },
+    "packages/machine/src/session/motionLines.ts": {
+      "complexity $/FunctionDeclaration:motionLineKind#1": 28
+    },
+    "packages/machine/src/session/probe/gate.ts": {
+      "complexity $/FunctionDeclaration:probeBlock#1": 31
+    },
+    "packages/machine/src/session/probe/intents.ts": {
+      "complexity $/FunctionDeclaration:onProbeIntent#1": 21
+    },
+    "packages/machine/src/session/probe/run.ts": {
+      "complexity $/FunctionDeclaration:onProbeAlarm#1": 17,
+      "complexity $/FunctionDeclaration:onProbePoll#1": 18,
+      "complexity $/FunctionDeclaration:onProbeTimer#1": 24,
+      "max-params $/FunctionDeclaration:keepValue#1": 5
+    },
+    "packages/machine/src/session/probe/stops.ts": {
+      "complexity $/FunctionDeclaration:onProbeStop#1": 18
+    },
+    "packages/machine/src/session/reducerCore.ts": {
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:enterFault#1": 25,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:finishProbe#1": 17,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:finishReading#1": 25,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:lineFor#1": 32,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onAnswer#1": 87,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onGarbled#1": 31,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onInbound#1": 47,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onIntent#1": 80,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onReportAnswer#1": 30,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onResponse#1": 22,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onTimer#1": 41,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:pump#1": 34,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:reduce#1": 63,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:seedAnswered#1": 16,
+      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:withNumber#1": 23,
+      "max-lines $file": 1713,
+      "max-lines-per-function $/FunctionDeclaration:createSessionReducer#1": 1582,
+      "max-lines-per-function $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onAnswer#1": 139,
+      "max-lines-per-function $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onGarbled#1": 86,
+      "max-lines-per-function $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onIntent#1": 120,
+      "max-lines-per-function $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:reduce#1": 88,
+      "max-params $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:enterFault#1": 5,
+      "max-params $/FunctionDeclaration:createSessionReducer#1/ObjectExpression:JOB_DEPS#1/ArrowFunctionExpression:fault#1": 5,
+      "max-params $/FunctionDeclaration:createSessionReducer#1/ObjectExpression:MOTION_DEPS#1/ArrowFunctionExpression:fault#1": 5,
+      "max-switch-cases $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onIntent#1/switch(request.intent)#1": 29
+    },
+    "packages/machine/src/session/sessionExecutor.ts": {
+      "complexity $/ClassDeclaration:SessionExecutor#1/FunctionExpression:run#1": 21,
+      "max-lines $file": 418,
+      "max-methods $/ClassDeclaration:SessionExecutor#1": 32
+    },
+    "packages/machine/src/session/settingWrite.ts": {
+      "max-params $/FunctionDeclaration:settingRefusal#1": 5
+    },
+    "packages/machine/src/session/snapshotCore.ts": {
+      "complexity $/FunctionDeclaration:snapshotOf#1": 21
+    },
+    "packages/machine/src/session/travelCheck.ts": {
+      "complexity $/FunctionDeclaration:checkTravel#1": 21
+    },
+    "packages/machine/src/session/types.ts": {
+      "max-lines $file": 608
+    },
+    "packages/machine/src/session/workspaceReducerFeatures.ts": {
+      "max-methods $/ObjectExpression:Object.freeze()[0]#1": 58
+    },
+    "packages/machine/src/session/workspaceRuntime.ts": {
+      "max-params $/ObjectExpression:workspaceRuntime#1/ArrowFunctionExpression:checkRealtime#1": 5
+    },
+    "packages/machine/src/session/writePolicy.ts": {
+      "complexity $/FunctionDeclaration:checkWrite#1": 29,
+      "complexity $/FunctionDeclaration:phase1WriteVerdict#1": 63,
+      "max-params $/FunctionDeclaration:checkWrite#1": 7
+    },
+    "packages/machine/src/transport.ts": {
+      "complexity $/FunctionDeclaration:isPortSelector#1": 19
+    },
+    "packages/machine/src/webSerialTransport.ts": {
+      "max-classes-per-file $file": 2
+    },
+    "packages/machine/test/alarm-restore.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('Clear alarm after an alarm ended a jog')[1]#1": 100
+    },
+    "packages/machine/test/defensive-copy.test.ts": {
+      "max-classes-per-file $file": 4,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('GuardedTransport defensive copy')[1]#1": 105
+    },
+    "packages/machine/test/independent-review-2026-11-03.test.ts": {
+      "max-lines $file": 648,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('R3: Start reads the board again and checks the file again before anything is sent')[1]#1": 95,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('R5: a poll cycle confirms nothing unless every read was answered with status 0')[1]#1": 114,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('R6: the tool-change card comes only after M5 and M9 are answered')[1]#1": 100
+    },
+    "packages/machine/test/p1-07-dro.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('droView: position from the connect-time read and pushed reports')[1]#1": 108
+    },
+    "packages/machine/test/p2-heartbeat-busy.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S103: heartbeat silence during hold and dwell')[1]#1": 101
+    },
+    "packages/machine/test/p2-motion-reducer.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S94: the motion command kind of the write gate and the line grammar')[1]#1": 123,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('refusals, timeouts and damaged answers')[1]#1": 90
+    },
+    "packages/machine/test/p2-push-reducer.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S101: report configuration branches')[1]#1": 150
+    },
+    "packages/machine/test/p3-job-offsets.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('the work offsets after a job')[1]#1/ArrowFunctionExpression:it('done: a G10 L2 the job ran is in the ofs and g54 read after it, read once')[1]#1/ArrowFunctionExpression:runUntil()[1]#1/ArrowFunctionExpression:h.session.state.expected.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('the work offsets after a job')[1]#1/ArrowFunctionExpression:it('stopped: the G92 the board keeps after Stop job is read back, and the readout says so')[1]#1/ArrowFunctionExpression:runUntil()[1]#2/ArrowFunctionExpression:h.session.state.expected.some()[0]#1": 4
+    },
+    "packages/machine/test/p3-job-units.test.ts": {
+      "complexity $/ArrowFunctionExpression:describe('the guards of the job decisions')[1]#1/ArrowFunctionExpression:it('runtime answers, feed-limit lines, abandoned loads and slot room')[1]#1": 17,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('line mode (H77)')[1]#1": 101,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('more of the job layer, through its edges')[1]#1": 129,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the guards of the job decisions')[1]#1": 192
+    },
+    "packages/machine/test/p3-jobs.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S109: streaming by the line buffer free slots (H76)')[1]#1": 83
+    },
+    "packages/machine/test/p4-flash.test.ts": {
+      "max-classes-per-file $file": 3,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('BootloaderLink')[1]#1": 124,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the session enters the bootloader only through `flash`')[1]#1": 102
+    },
+    "packages/machine/test/probe-gate.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S128 (U): the gate, first reason wins')[1]#1": 89
+    },
+    "packages/machine/test/probe-outcomes.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S131: outcomes')[1]#1": 240,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S131: outcomes')[1]#1/ArrowFunctionExpression:it('Stop job pressed while the G10 zero is in flight: ^D, and no zero is claimed')[1]#1/ArrowFunctionExpression:runUntil()[1]#1/ArrowFunctionExpression:h.session.state.queue.some()[0]#1": 4
+    },
+    "packages/machine/test/probe-reducer.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('Probe Z through the reducer')[1]#1": 336
+    },
+    "packages/machine/test/probe-stops.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('Pause and Stop job at every point of the probe move')[1]#1": 89,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('after a stop, an alarm, a STALE link')[1]#1": 176,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('after a stop, an alarm, a STALE link')[1]#1/ArrowFunctionExpression:it('Stop job with the zero in flight: no restore is queued, the queue is free, the alarm clears and the plate can be confirmed off')[1]#1/ArrowFunctionExpression:runUntil()[1]#1/ArrowFunctionExpression:h.session.state.queue.some()[0]#1": 4
+    },
+    "packages/machine/test/probe-touch.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S129 (M): the touch test on the model')[1]#1": 113
+    },
+    "packages/machine/test/serialPorts.ts": {
+      "max-classes-per-file $file": 2,
+      "max-methods $/ClassDeclaration:ScriptedSerialPort#1": 16
+    },
+    "packages/machine/test/session-executor.test.ts": {
+      "max-classes-per-file $file": 2,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('MachineSession: connecting')[1]#1": 177,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('MachineSession: failures')[1]#1": 133,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('MachineSession: connecting')[1]#1/ArrowFunctionExpression:it('disconnecting while the port is being found abandons it (the transport is never opened)')[1]#1/ObjectExpression:MachineSession()[0]#1/ArrowFunctionExpression:source()[0]#1/ArrowFunctionExpression:Promise()[0]#1": 4
+    },
+    "packages/machine/test/session-reducer.test.ts": {
+      "complexity $/FunctionDeclaration:apply#1": 20,
+      "max-lines $file": 1384,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('FAULT triggers and ackFault (SAFETY §3)')[1]#1": 139,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('LOST, STALE, NEEDS_REVIEW')[1]#1": 99,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)')[1]#1": 195,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('intents through the allow-matrix (T-S3) and the Phase 1 session')[1]#1": 135,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('splice guard and boot (PN §2.3 step 0 and 1; SAFETY H49)')[1]#1": 184,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the connection path')[1]#1": 91,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S26, T-S24a: generated over states × events (and every overlay reached on the way)')[1]#1/ArrowFunctionExpression:it('no effect ever carries 0x18 or 0x04; realtime is only ! and ENQ; every line is a single-token GET readable at that moment')[1]#1/ArrowFunctionExpression:fc.property()[5]#1/ArrowFunctionExpression:OVERLAYS.filter()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S26, T-S24a: generated over states × events (and every overlay reached on the way)')[1]#1/ArrowFunctionExpression:it('no effect ever carries 0x18 or 0x04; realtime is only ! and ENQ; every line is a single-token GET readable at that moment')[1]#1/ArrowFunctionExpression:fc.property()[5]#1/ArrowFunctionExpression:d.answer()[1]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S26, T-S24a: generated over states × events (and every overlay reached on the way)')[1]#1/ArrowFunctionExpression:it('no effect ever carries 0x18 or 0x04; realtime is only ! and ENQ; every line is a single-token GET readable at that moment')[1]#1/ArrowFunctionExpression:fc.property()[5]#1/ArrowFunctionExpression:d.state.expected.filter()[0]#1": 4,
+      "max-params $/ArrowFunctionExpression:describe('T-S26, T-S24a: generated over states × events (and every overlay reached on the way)')[1]#1/ArrowFunctionExpression:it('no effect ever carries 0x18 or 0x04; realtime is only ! and ENQ; every line is a single-token GET readable at that moment')[1]#1/ArrowFunctionExpression:fc.property()[5]#1": 5
+    },
+    "packages/machine/test/sessionModel.ts": {
+      "complexity $/FunctionDeclaration:checkConnection#1": 20,
+      "complexity $/FunctionDeclaration:randomSession#1": 19
+    },
+    "packages/machine/test/settings-write.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('settings writes: one at a time, the answer awaited, the read-back compared')[1]#1": 114
+    },
+    "packages/machine/test/travel-check.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('Resume after a Z re-zero at a tool change')[1]#1": 97
+    },
+    "packages/machine/test/typed-move.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('H91 on the reducer')[1]#1": 96,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('H91: a typed move runs like a button move')[1]#1": 91
+    },
+    "packages/machine/test/web-serial-chooser.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('chooseSerialPort')[1]#1": 197,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('chooseSerialPort')[1]#1/ArrowFunctionExpression:describe('the connect/disconnect guard between choice and confirmation')[1]#1": 89,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('chooseSerialPort')[1]#1/ArrowFunctionExpression:describe('the connect/disconnect guard between choice and confirmation')[1]#1/ArrowFunctionExpression:it('an event while the choice is described refuses it as changed, with the listeners removed')[1]#1/ArrowFunctionExpression:fakeSerial()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('chooseSerialPort')[1]#1/ArrowFunctionExpression:describe('the connect/disconnect guard between choice and confirmation')[1]#1/ArrowFunctionExpression:it('an event while the choice is described refuses it as changed, with the listeners removed')[1]#1/ArrowFunctionExpression:fakeSerial()[1]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('chooseSerialPort')[1]#1/ArrowFunctionExpression:describe('the connect/disconnect guard between choice and confirmation')[1]#1/ArrowFunctionExpression:it('an event while the grants are listed during confirmation refuses')[1]#1/ArrowFunctionExpression:fakeSerial()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('chooseSerialPort')[1]#1/ArrowFunctionExpression:describe('the connect/disconnect guard between choice and confirmation')[1]#1/ArrowFunctionExpression:it('an event while the grants are listed during confirmation refuses')[1]#1/ArrowFunctionExpression:fakeSerial()[1]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('chooseSerialPort')[1]#1/ArrowFunctionExpression:describe('the connect/disconnect guard between choice and confirmation')[1]#1/ArrowFunctionExpression:it('no listener is installed before the choice, and none is left by a cancel or a refusal')[1]#1/ArrowFunctionExpression:fakeSerial()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('chooseSerialPort')[1]#1/ArrowFunctionExpression:describe('the connect/disconnect guard between choice and confirmation')[1]#1/ArrowFunctionExpression:it('no listener is installed before the choice, and none is left by a cancel or a refusal')[1]#1/ArrowFunctionExpression:fakeSerial()[1]#1": 4
+    },
+    "packages/machine/test/web-serial-transport.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('closing')[1]#1": 87,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('writing')[1]#1": 91
+    },
+    "packages/machine/test/write-shape.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('properties over arbitrary bytes')[1]#1/ArrowFunctionExpression:it('printable lines built from the allowed alphabet are always accepted')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:body.some()[0]#1": 4
+    },
+    "packages/protocol/src/approvedBuilds.ts": {
+      "complexity $/FunctionDeclaration:readBuild#1": 16,
+      "complexity $/FunctionDeclaration:verifyChannel#1": 24,
+      "max-params $/FunctionDeclaration:findApproval#1": 5
+    },
+    "packages/protocol/src/classify.ts": {
+      "complexity $/FunctionDeclaration:classifyLine#1": 27,
+      "complexity $/FunctionDeclaration:classifyResponse#1": 16
+    },
+    "packages/protocol/src/dialects/classify.ts": {
+      "complexity $/FunctionDeclaration:classify#1": 38,
+      "max-params $/FunctionDeclaration:approvable#1": 5
+    },
+    "packages/protocol/src/firmwareReleases.ts": {
+      "complexity $/FunctionDeclaration:readRelease#1": 33,
+      "complexity $/FunctionDeclaration:verifyFirmwareReleases#1": 31
+    },
+    "packages/protocol/src/probe.ts": {
+      "complexity $/FunctionDeclaration:buildProbeResult#1": 27
+    },
+    "packages/protocol/src/safetyAdvisory.ts": {
+      "complexity $/FunctionDeclaration:verifySafetyAdvisory#1": 34
+    },
+    "packages/protocol/test/approvedBuilds.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('verifyApprovedBuilds fails closed')[1]#1": 90
+    },
+    "packages/protocol/test/capability.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S55: classifier fixtures')[1]#1": 101,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('properties')[1]#1": 91,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('properties')[1]#1/ArrowFunctionExpression:it('edge-next full requires every capability token and a stubbed spph (never fb alone)')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:CAPABILITY_TOKENS.every()[0]#1": 4
+    },
+    "packages/protocol/test/classify.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('classify: StatusReport, QueueReport, Exception, Ack')[1]#1": 86
+    },
+    "packages/protocol/test/dialect-contract.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: G-code data')[1]#1/ArrowFunctionExpression:it('barriers are M0, M60 and M1 everywhere, and every rule has a unique id and a reason')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.gcode.blocked.map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: identity and tables')[1]#1/ArrowFunctionExpression:it('every status table classifies a limit hit and an alarm rejection, at different codes')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:codes#1/ArrowFunctionExpression:[...d.status].filter(([, e]) => e.statusClass === c).map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: identity and tables')[1]#1/ArrowFunctionExpression:it('every status table classifies a limit hit and an alarm rejection, at different codes')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:codes#1/ArrowFunctionExpression:[...d.status].filter()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: identity and tables')[1]#1/ArrowFunctionExpression:it('exactly one stat value means shutdown, and only builds with a panic state map one')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stat.filter()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: identity and tables')[1]#1/ArrowFunctionExpression:it('exactly one stat value means shutdown, and only builds with a panic state map one')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stat.filter()[0]#2": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('^D appears in a stop sequence only on a dialect with jobKill, and then is awaited as alarm 207')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stopJob.steps.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('^D appears in a stop sequence only on a dialect with jobKill, and then is awaited as alarm 207')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stopJob.steps.some()[0]#2": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('a drain check needs a bench-verified plannerBlocks, so every dialect flags it until B-QR-1')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stopJob.steps.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('a drain check needs a bench-verified plannerBlocks, so every dialect flags it until B-QR-1')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.unverified.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('a kill-byte sequence halts first on every stat its dialect calls shutdown or panic')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stat.flatMap()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('a kill-byte sequence halts first on every stat its dialect calls shutdown or panic')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stopJob.steps.find()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('a kill-byte sequence halts first on every stat its dialect calls shutdown or panic')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stopJob.steps.findIndex()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('a kill-byte sequence halts first on every stat its dialect calls shutdown or panic')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stopJob.steps.findIndex()[0]#2": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('a kill-byte sequence halts first on every stat its dialect calls shutdown or panic')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stopJob.steps.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('a kill-byte sequence halts first on every stat its dialect calls shutdown or panic')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:fatal.every()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('a read-only dialect stops with `!` and E-stop advice only: no lines, no clear, no flush')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stopJob.steps.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('every Stop job first waits for the in-flight write and stops feeding')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stopJob.steps.slice(0, 2).map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('no stop sequence ever writes ^X, and every byte it writes is one the dialect allows')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:[d.realtime.feedhold, d.realtime.flush, d.realtime.kill].flatMap()[0]#1": 4
+    },
+    "packages/protocol/test/firmwareReleases.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('verifyFirmwareReleases')[1]#1": 118
+    },
+    "packages/protocol/test/fixtures.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('EN-HIL fixtures')[1]#1/ArrowFunctionExpression:it('include both banner shapes and all three footer revisions')[1]#1/ArrowFunctionExpression:enHil.flatMap()[0]#1/ArrowFunctionExpression:f.rows.map()[0]#1": 4
+    },
+    "packages/protocol/test/fixtures/extractForumJson.ts": {
+      "complexity $/FunctionDeclaration:main#1": 21,
+      "complexity $/FunctionDeclaration:oracle#1": 19,
+      "max-depth $/FunctionDeclaration:main#1": 5
+    },
+    "packages/protocol/test/inbound.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('inbound decoder')[1]#1": 87,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('inbound decoder')[1]#1/ArrowFunctionExpression:it('(a) yields the same events for any re-chunking of a valid stream')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:whole.filter()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('inbound decoder')[1]#1/ArrowFunctionExpression:it('(b) never throws on arbitrary bytes, and non-JSON input yields only Garbled, Text or FlowSignal')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:expect()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('inbound decoder')[1]#1/ArrowFunctionExpression:it('(b) never throws on arbitrary bytes, and non-JSON input yields only Garbled, Text or FlowSignal')[1]#1/ArrowFunctionExpression:fc.uint8Array({ maxLength: 800 }).map()[0]#1/ArrowFunctionExpression:b.map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('inbound decoder')[1]#1/ArrowFunctionExpression:it('(c) XON/XOFF never appear inside an emitted line, and each one becomes exactly one FlowSignal')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:bytes.filter()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('inbound decoder')[1]#1/ArrowFunctionExpression:it('(c) XON/XOFF never appear inside an emitted line, and each one becomes exactly one FlowSignal')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:chunk(bytes, cuts).flatMap()[0]#1": 4
+    },
+    "packages/protocol/test/probe.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('buildProbeResult')[1]#1": 137
+    },
+    "packages/safety/src/allowMatrix.ts": {
+      "complexity $/FunctionDeclaration:allowed#1": 37,
+      "max-lines $file": 458
+    },
+    "packages/safety/src/axisModeFacts.ts": {
+      "max-params $/FunctionDeclaration:factFor#1": 5
+    },
+    "packages/safety/src/sanitize/analyze.ts": {
+      "complexity $/ClassDeclaration:JobModel#1/FunctionExpression:action#1": 34,
+      "complexity $/ClassDeclaration:JobModel#1/FunctionExpression:analyze#1": 150,
+      "complexity $/ClassDeclaration:JobModel#1/FunctionExpression:arc#1": 52,
+      "complexity $/ClassDeclaration:JobModel#1/FunctionExpression:constructor#1": 32,
+      "complexity $/ClassDeclaration:JobModel#1/FunctionExpression:linear#1": 21,
+      "complexity $/ClassDeclaration:JobModel#1/FunctionExpression:storedMove#1": 19,
+      "max-lines $file": 1096,
+      "max-lines-per-function $/ClassDeclaration:JobModel#1/FunctionExpression:action#1": 84,
+      "max-lines-per-function $/ClassDeclaration:JobModel#1/FunctionExpression:analyze#1": 191,
+      "max-lines-per-function $/ClassDeclaration:JobModel#1/FunctionExpression:arc#1": 164,
+      "max-methods $/ClassDeclaration:JobModel#1": 40,
+      "max-params $/ClassDeclaration:JobModel#1/FunctionExpression:action#1": 6,
+      "max-params $/ClassDeclaration:JobModel#1/FunctionExpression:arc#1": 9,
+      "max-params $/ClassDeclaration:JobModel#1/FunctionExpression:checkModalRules#1": 6,
+      "max-params $/ClassDeclaration:JobModel#1/FunctionExpression:linear#1": 8,
+      "max-params $/ClassDeclaration:JobModel#1/FunctionExpression:storedMove#1": 5,
+      "max-params $/FunctionDeclaration:bodies#1": 6,
+      "max-params $/FunctionDeclaration:unknownMessage#1": 5
+    },
+    "packages/safety/src/sanitize/geometry.ts": {
+      "complexity $/FunctionDeclaration:arcTravel#1": 23,
+      "complexity $/FunctionDeclaration:modelArc#1": 18,
+      "complexity $/FunctionDeclaration:splitArc#1": 34,
+      "max-lines $file": 403,
+      "max-lines-per-function $/FunctionDeclaration:splitArc#1": 98,
+      "max-params $/FunctionDeclaration:splitArc#1": 6,
+      "max-params $/FunctionDeclaration:splitLinear#1": 5
+    },
+    "packages/safety/src/sanitize/lex.ts": {
+      "complexity $/FunctionDeclaration:lexLine#1": 16
+    },
+    "packages/safety/src/sanitize/sanitize.ts": {
+      "complexity $/FunctionDeclaration:checkOptions#1": 28,
+      "complexity $/FunctionDeclaration:sanitizeJob#1": 22,
+      "complexity $/FunctionDeclaration:sanitizeJob#1/ArrowFunctionExpression:splitLines(lines).forEach()[0]#1": 37,
+      "max-lines-per-function $/FunctionDeclaration:sanitizeJob#1": 214,
+      "max-lines-per-function $/FunctionDeclaration:sanitizeJob#1/ArrowFunctionExpression:splitLines(lines).forEach()[0]#1": 118,
+      "max-params $/FunctionDeclaration:inserted#1": 5
+    },
+    "packages/safety/src/strings.ts": {
+      "max-lines $file": 622
+    },
+    "packages/safety/src/typedLine.ts": {
+      "complexity $/FunctionDeclaration:parseTypedLine#1": 41
+    },
+    "packages/safety/test/allowMatrix.test.ts": {
+      "max-depth $/FunctionDeclaration:cells#1": 5,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S62 and the normative rule (SAFETY §4.1)')[1]#1": 98,
+      "max-params $/ArrowFunctionExpression:describe('T-S3: the generated matrix')[1]#1/ArrowFunctionExpression:it('adding an overlay never allows more (fast-check)')[1]#1/ArrowFunctionExpression:fc.property()[6]#1": 6
+    },
+    "packages/safety/test/arc-fp.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule')[1]#1": 81,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('arc uncertainty: a reported start is only known to its printed precision')[1]#1": 106
+    },
+    "packages/safety/test/axisModeFacts.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('axisModeFacts')[1]#1": 94,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('cross-check with the sanitiser (row 35): a fact is shown whenever motion would be blocked for that reason')[1]#1/ArrowFunctionExpression:it.each([ ['EN', TINYG_EN], ['440.21', TINYG_440], ])('%s: inhibited-axis blocks exactly when the facts report an inhibited or unread axis away from 0')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:AXES.forEach()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('cross-check with the sanitiser (row 35): a fact is shown whenever motion would be blocked for that reason')[1]#1/ArrowFunctionExpression:it.each([ ['EN', TINYG_EN], ['440.21', TINYG_440], ])('%s: inhibited-axis blocks exactly when the facts report an inhibited or unread axis away from 0')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:blocks(r).filter()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('cross-check with the sanitiser (row 35): a fact is shown whenever motion would be blocked for that reason')[1]#1/ArrowFunctionExpression:it.each([ ['EN', TINYG_EN], ['440.21', TINYG_440], ])('%s: inhibited-axis blocks exactly when the facts report an inhibited or unread axis away from 0')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:facts.filter((f) => f.code === 'inhibited-away-from-zero' || (f.code === 'mode-not-read' && f.position !== 0)).map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('cross-check with the sanitiser (row 35): a fact is shown whenever motion would be blocked for that reason')[1]#1/ArrowFunctionExpression:it.each([ ['EN', TINYG_EN], ['440.21', TINYG_440], ])('%s: inhibited-axis blocks exactly when the facts report an inhibited or unread axis away from 0')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:facts.filter()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('cross-check with the sanitiser (row 35): a fact is shown whenever motion would be blocked for that reason')[1]#1/ArrowFunctionExpression:it.each([ ['EN', TINYG_EN], ['440.21', TINYG_440], ])('%s: inhibited-axis blocks exactly when the facts report an inhibited or unread axis away from 0')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:facts.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('cross-check with the sanitiser (row 35): a fact is shown whenever motion would be blocked for that reason')[1]#1/ArrowFunctionExpression:it.each([ ['EN', TINYG_EN], ['440.21', TINYG_440], ])('%s: inhibited-axis blocks exactly when the facts report an inhibited or unread axis away from 0')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ObjectExpression:start#1/ArrowFunctionExpression:AXES.map()[0]#1": 4
+    },
+    "packages/safety/test/messages.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('W and C strings')[1]#1": 177
+    },
+    "packages/safety/test/overrun.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('overrunBound')[1]#1/ArrowFunctionExpression:it('is never below the length of any queued move, and grows with every move (fast-check)')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:moves.map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('overrunBound')[1]#1/ArrowFunctionExpression:it('is never below the length of any queued move, and grows with every move (fast-check)')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:moves.reduce()[0]#1": 4
+    },
+    "packages/safety/test/safetyDoc.ts": {
+      "max-depth $/FunctionDeclaration:quotedSegments#1": 5
+    },
+    "packages/safety/test/sanitize-corpus.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S2: CAM corpus')[1]#1": 138
+    },
+    "packages/safety/test/sanitize-model.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('offset arithmetic with non-zero values (signs matter)')[1]#1": 83,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('offsets and coordinate systems')[1]#1": 92
+    },
+    "packages/safety/test/sanitize-property.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:r.lines.forEach()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:r.report.entries.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#3/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:again.lines.map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#3/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:again.lines.map()[0]#2": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#3/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:r.lines.map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#3/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:r.lines.map()[0]#2": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#3/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:r.lines.map()[0]#3": 4
+    },
+    "packages/safety/test/sanitize-rules.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('step 6: universal rejections')[1]#1": 83
+    },
+    "packages/safety/test/split.test.ts": {
+      "complexity $/ArrowFunctionExpression:describe('T-S64: long moves are split within the ceiling, on the original path')[1]#1/ArrowFunctionExpression:it('arcs and helices: G2/G3, G90/G91, mm/inch, sub-arcs on the original circle')[1]#1/ArrowFunctionExpression:fc.property()[1]#1": 18,
+      "complexity $/ArrowFunctionExpression:describe('T-S64: long moves are split within the ceiling, on the original path')[1]#1/ArrowFunctionExpression:it('straight moves: G0/G1, G90/G91, mm/inch')[1]#1/ArrowFunctionExpression:fc.property()[1]#1": 17,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S64: long moves are split within the ceiling, on the original path')[1]#1": 101,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('split details')[1]#1": 113,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S64: long moves are split within the ceiling, on the original path')[1]#1/ArrowFunctionExpression:it('arcs and helices: G2/G3, G90/G91, mm/inch, sub-arcs on the original circle')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:r.report.entries.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S64: long moves are split within the ceiling, on the original path')[1]#1/ArrowFunctionExpression:it('straight moves: G0/G1, G90/G91, mm/inch')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:r.lines.filter()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S64: long moves are split within the ceiling, on the original path')[1]#1/ArrowFunctionExpression:it('straight moves: G0/G1, G90/G91, mm/inch')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:r.lines.filter()[0]#2": 4
+    },
+    "packages/safety/test/strings-params.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('strings.ts parameter checks')[1]#1": 81
+    },
+    "packages/safety/test/strings.test.ts": {
+      "max-lines $file": 612,
+      "max-params $/ArrowFunctionExpression:fixedC#1": 5
+    },
+    "packages/schema/src/boardCatalog.ts": {
+      "complexity $/FunctionDeclaration:boardPanels#1": 18
+    },
+    "packages/schema/src/facts/gate.ts": {
+      "complexity $/FunctionDeclaration:collect#1": 19
+    },
+    "packages/schema/src/facts/store.ts": {
+      "complexity $/FunctionDeclaration:factProblem#1": 22,
+      "max-params $/FunctionDeclaration:statusOf#1": 6
+    },
+    "packages/schema/src/frozen.ts": {
+      "max-classes-per-file $file": 2
+    },
+    "packages/schema/src/generated/d440.ts": {
+      "max-lines $file": 662
+    },
+    "packages/schema/src/generated/d449.ts": {
+      "max-lines $file": 675
+    },
+    "packages/schema/src/generated/den.ts": {
+      "max-lines $file": 707
+    },
+    "packages/schema/src/jsonSchema.ts": {
+      "complexity $/FunctionDeclaration:check#1": 29,
+      "max-params $/FunctionDeclaration:check#1": 5,
+      "max-params $/FunctionDeclaration:checkArray#1": 5,
+      "max-params $/FunctionDeclaration:checkObject#1": 5
+    },
+    "packages/schema/src/overlays/tinygEn.ts": {
+      "max-lines $file": 577,
+      "max-lines-per-function $/FunctionDeclaration:axisCore#1": 117,
+      "max-lines-per-function $/FunctionDeclaration:axisHoming#1": 102,
+      "max-lines-per-function $/FunctionDeclaration:motor#1": 109
+    },
+    "packages/schema/src/profile/migrate.ts": {
+      "complexity $/FunctionDeclaration:migrateV1#1": 56,
+      "max-lines-per-function $/FunctionDeclaration:migrateV1#1": 87
+    },
+    "packages/schema/src/profile/semantics.ts": {
+      "complexity $/FunctionDeclaration:profileSemanticIssues#1": 28
+    },
+    "packages/schema/src/settingsWrite.ts": {
+      "complexity $/FunctionDeclaration:categoryOf#1": 31,
+      "complexity $/FunctionDeclaration:changeRisk#1": 17,
+      "complexity $/FunctionDeclaration:restoreChanges#1": 20,
+      "max-params $/FunctionDeclaration:consequenceFor#1": 5
+    },
+    "packages/schema/src/travel.ts": {
+      "complexity $/FunctionDeclaration:confirmSoftLimits#1": 19
+    },
+    "packages/schema/src/validate.ts": {
+      "complexity $/FunctionDeclaration:checkCrossKey#1": 32,
+      "complexity $/FunctionDeclaration:checkKey#1": 22
+    },
+    "packages/schema/test/allowlists.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('denied tokens')[1]#1/ArrowFunctionExpression:it('fuzz: only allowlisted tokens are ever allowed, on every dialect')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:expect()[0]#1": 4
+    },
+    "packages/schema/test/facts.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('invalidate')[1]#1": 113,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('property test (old P1-01)')[1]#1": 91,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('property test (old P1-01)')[1]#1/ArrowFunctionExpression:it('after any random sequence of setting changes, no fact whose invalidation pattern matches a changed key remains valid')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:keys.map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('property test (old P1-01)')[1]#1/ArrowFunctionExpression:it('after any random sequence of setting changes, no fact whose invalidation pattern matches a changed key remains valid')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:writes.forEach()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('property test (old P1-01)')[1]#1/ArrowFunctionExpression:it('after any random sequence of setting changes, no fact whose invalidation pattern matches a changed key remains valid')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:writes.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('property test (old P1-01)')[1]#1/ArrowFunctionExpression:it('after any random sequence of setting changes, no fact whose invalidation pattern matches a changed key remains valid')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:writes.some()[0]#1/ArrowFunctionExpression:settingInvalidates('tinyg-en', w).some()[0]#1": 5,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('property test (old P1-01)')[1]#1/ArrowFunctionExpression:it('for any trigger sequence, a fact a rule cleared in scope never comes back valid without being re-added')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:keys.map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('property test (old P1-01)')[1]#1/ArrowFunctionExpression:it('for any trigger sequence, a fact a rule cleared in scope never comes back valid without being re-added')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:triggers.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('property test (old P1-01)')[1]#1/ArrowFunctionExpression:it('for any trigger sequence, a fact a rule cleared in scope never comes back valid without being re-added')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:triggers.some()[0]#1/ArrowFunctionExpression:rule.clears.some()[0]#1": 5,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('property test (old P1-01)')[1]#1/ArrowFunctionExpression:it('independent oracle: each §5.2 setting row clears every fact under the roots the table names, whatever the key shape')[1]#1/ArrowFunctionExpression:ENKEYS.filter()[0]#1/ArrowFunctionExpression:ROWS.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('property test (old P1-01)')[1]#1/ArrowFunctionExpression:it('independent oracle: each §5.2 setting row clears every fact under the roots the table names, whatever the key shape')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:ROWS.find()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('property test (old P1-01)')[1]#1/ArrowFunctionExpression:it('independent oracle: each §5.2 setting row clears every fact under the roots the table names, whatever the key shape')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:keys.map()[0]#1": 4,
+      "max-params $/ArrowFunctionExpression:statusIn#1": 5
+    },
+    "packages/schema/test/gate.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('evaluateGate')[1]#1/ArrowFunctionExpression:it('property: a gate with no override is never met while any fact it names is not valid')[1]#1/ArrowFunctionExpression:fc.letrec()[0]#1/ObjectExpression#1/ArrowFunctionExpression:fc.array(tie('gate') as fc.Arbitrary<string>, { minLength: 1, maxLength: 3 }).map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('evaluateGate')[1]#1/ArrowFunctionExpression:it('property: a gate with no override is never met while any fact it names is not valid')[1]#1/ArrowFunctionExpression:fc.letrec()[0]#1/ObjectExpression#1/ArrowFunctionExpression:keyArb.map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('evaluateGate')[1]#1/ArrowFunctionExpression:it('property: a gate with no override is never met while any fact it names is not valid')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:[...src.matchAll(/fact\\(([^)]+)\\)/g)].map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('evaluateGate')[1]#1/ArrowFunctionExpression:it('property: a gate with no override is never met while any fact it names is not valid')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:named.every()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('evaluateGate')[1]#1/ArrowFunctionExpression:it('property: a gate with no override is never met while any fact it names is not valid')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:present.map()[0]#1": 4
+    },
+    "packages/schema/test/overlay.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('coverage of the overlay')[1]#1/ArrowFunctionExpression:it('covers the motion-relevant subset (old P0-10) on every motor and axis the table defines')[1]#1/ArrowFunctionExpression:MOTORS.flatMap()[0]#1/ArrowFunctionExpression:MOTOR_KEYS.map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('coverage of the overlay')[1]#1/ArrowFunctionExpression:it('covers the motion-relevant subset (old P0-10) on every motor and axis the table defines')[1]#1/ArrowFunctionExpression:['x', 'y', 'z', 'a', 'b', 'c'].flatMap()[0]#1/ArrowFunctionExpression:AXIS_KEYS.map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('ranges and units')[1]#1/ArrowFunctionExpression:it('convert matches the cfgArray F_CONVERT rows (_fipc): travel per rev, linear axis lengths and speeds, radius')[1]#1/ArrowFunctionExpression:['x', 'y', 'z'].flatMap()[0]#1/ArrowFunctionExpression:linear.map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('risk, confirmations and invalidations (SAFETY §4.6)')[1]#1/ArrowFunctionExpression:it('W20 after motor-map, polarity, scale and travel writes only')[1]#1/ArrowFunctionExpression:MOTORS.flatMap()[0]#1/ArrowFunctionExpression:['ma', 'po', 'sa', 'tr', 'mi'].map()[0]#1": 4
+    },
+    "packages/schema/test/profile.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('MachineProfile v2 schema')[1]#1": 89,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('import (T-S22)')[1]#1": 112,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('fuzzed import')[1]#1/ArrowFunctionExpression:it('never throws when a valid v1 or v2 profile is mutated at a random path, and never imports a fact')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:declaredNamesOf(r.profile).filter()[0]#1": 4
+    },
+    "packages/schema/test/validate.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('per-key checks')[1]#1": 97
+    },
+    "packages/schema/test/writePlan.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('forbidden keys never appear in a write plan')[1]#1/ArrowFunctionExpression:it('fast-check: whatever the draft, an accepted plan holds no forbidden key and only reviewed keys')[1]#1/ArrowFunctionExpression:fc.property()[3]#1/ArrowFunctionExpression:plan.map()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('forbidden keys never appear in a write plan')[1]#1/ArrowFunctionExpression:it('fast-check: whatever the draft, an accepted plan holds no forbidden key and only reviewed keys')[1]#1/ArrowFunctionExpression:fc.property()[3]#1/ArrowFunctionExpression:plan.some()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('forbidden keys never appear in a write plan')[1]#1/ArrowFunctionExpression:it('fast-check: whatever the draft, an accepted plan holds no forbidden key and only reviewed keys')[1]#1/ArrowFunctionExpression:fc.property()[3]#1/ArrowFunctionExpression:result.writes.map()[0]#1": 4
+    },
+    "packages/testkit/src/endpoint.ts": {
+      "max-methods $/ClassDeclaration:SimEndpoint#1": 19
+    },
+    "packages/testkit/src/faults.ts": {
+      "complexity $/ClassDeclaration:ByteFaults#1/FunctionExpression:next#1": 23,
+      "complexity $/FunctionDeclaration:checkSelector#1": 17,
+      "complexity $/FunctionDeclaration:validateFaultPlan#1/ArrowFunctionExpression:plan.faults.map()[0]#1": 45
+    },
+    "packages/testkit/src/firmware/edgeNext.ts": {
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:arc#1": 28,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:busy#1": 23,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:dispatchKernel#1": 17,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:executeBlock#1": 59,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:gets#1": 27,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:jsonGet#1": 23,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:jsonSet#1": 74,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:parseAndExecute#1": 116,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:powerUp#1": 20,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:receive#1": 25,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:runtime#1": 37,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:stat#1": 18,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:value#1": 68,
+      "max-lines $file": 2390,
+      "max-lines-per-function $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:executeBlock#1": 107,
+      "max-lines-per-function $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:jsonSet#1": 105,
+      "max-lines-per-function $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:parseAndExecute#1": 141,
+      "max-lines-per-function $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:value#1": 90,
+      "max-methods $/ClassDeclaration:TinyGEdgeNextModel#1": 130,
+      "max-params $/FunctionDeclaration:arcPath#1": 5,
+      "max-switch-cases $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:value#1/switch(info.get)#1": 32
+    },
+    "packages/testkit/src/firmware/flashableBoard.ts": {
+      "max-methods $/ClassDeclaration:FlashableBoard#1": 16
+    },
+    "packages/testkit/src/firmware/motion.ts": {
+      "max-methods $/ClassDeclaration:Motion#1": 25
+    },
+    "packages/testkit/src/firmware/tg440.ts": {
+      "complexity $/ClassDeclaration:TinyG440Model#1/FunctionExpression:execute#1": 73,
+      "complexity $/ClassDeclaration:TinyG440Model#1/FunctionExpression:feedholdSequencing#1": 17,
+      "complexity $/ClassDeclaration:TinyG440Model#1/FunctionExpression:get#1": 17,
+      "complexity $/ClassDeclaration:TinyG440Model#1/FunctionExpression:set#1": 22,
+      "complexity $/ClassDeclaration:TinyG440Model#1/FunctionExpression:value#1": 35,
+      "max-lines $file": 953,
+      "max-lines-per-function $/ClassDeclaration:TinyG440Model#1/FunctionExpression:execute#1": 112,
+      "max-methods $/ClassDeclaration:TinyG440Model#1": 56
+    },
+    "packages/testkit/src/firmware/xboot.ts": {
+      "complexity $/ClassDeclaration:XbootModel#1/FunctionExpression:consume#1": 43,
+      "complexity $/ClassDeclaration:XbootModel#1/FunctionExpression:finish#1": 24,
+      "max-lines $file": 441,
+      "max-lines-per-function $/ClassDeclaration:XbootModel#1/FunctionExpression:consume#1": 111,
+      "max-methods $/ClassDeclaration:XbootModel#1": 17,
+      "max-switch-cases $/ClassDeclaration:XbootModel#1/FunctionExpression:consume#1/switch(byte)#1": 32
+    },
+    "packages/testkit/src/honesty/behaviours.ts": {
+      "max-lines $file": 1121
+    },
+    "packages/testkit/src/honesty/status.ts": {
+      "complexity $/FunctionDeclaration:validateBehaviours#1": 30
+    },
+    "packages/testkit/src/mockSerialPort.ts": {
+      "max-methods $/ClassDeclaration:MockSerialPort#1": 16
+    },
+    "packages/testkit/src/replay.ts": {
+      "complexity $/FunctionDeclaration:recordingFromJsonl#1": 17,
+      "max-classes-per-file $file": 3
+    },
+    "packages/testkit/test/citations.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('citations')[1]#1/ArrowFunctionExpression:it('keep vendor pins unchanged and identify the separate 450.04 research source')[1]#1/ArrowFunctionExpression:BEHAVIOURS.flatMap()[0]#1/ArrowFunctionExpression:b.cites.map()[0]#1": 4
+    },
+    "packages/testkit/test/clock.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('VirtualClock')[1]#1": 82,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('VirtualClock')[1]#1/ArrowFunctionExpression:it('refuses bad input and stops a runaway timer loop')[1]#1/ArrowFunctionExpression:expect()[0]#1/ArrowFunctionExpression:clock.setTimeout()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('VirtualClock')[1]#1/ArrowFunctionExpression:it('refuses bad input and stops a runaway timer loop')[1]#1/ArrowFunctionExpression:expect()[0]#2/ArrowFunctionExpression:clock.setTimeout()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('VirtualClock')[1]#1/ArrowFunctionExpression:it('runUntil stops as soon as the predicate holds, or reports false at the limit')[1]#1/ArrowFunctionExpression:expect()[0]#1/ArrowFunctionExpression:clock.runUntil()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('VirtualClock')[1]#1/ArrowFunctionExpression:it('runs timers scheduled from a callback within the same advance when due')[1]#1/ArrowFunctionExpression:clock.setTimeout()[0]#1/ArrowFunctionExpression:clock.setTimeout()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('VirtualClock')[1]#1/ArrowFunctionExpression:it('runs timers scheduled from a callback within the same advance when due')[1]#1/ArrowFunctionExpression:clock.setTimeout()[0]#1/ArrowFunctionExpression:clock.setTimeout()[0]#2": 4
+    },
+    "packages/testkit/test/en-model.test.ts": {
+      "max-lines $file": 776,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('TinyGEdgeNextModel: P0-11 acceptance')[1]#1": 259,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('TinyGEdgeNextModel: alarms')[1]#1": 116,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('TinyGEdgeNextModel: planner and states')[1]#1": 148,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('TinyGEdgeNextModel: receive path')[1]#1": 115
+    },
+    "packages/testkit/test/en-probe.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('G38.2 cycle')[1]#1": 128
+    },
+    "packages/testkit/test/en-reports-homing.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('rt family and heartbeat')[1]#1": 81
+    },
+    "packages/testkit/test/endpoint.test.ts": {
+      "max-classes-per-file $file": 2,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('SimEndpoint')[1]#1": 99
+    },
+    "packages/testkit/test/firmware-semantics.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('edge-next arcs: center-format coincident end points (plan_arc.c:345-371)')[1]#1": 91,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('inhibited axes: the motor is driven to step 0 by any move (kinematics.c)')[1]#1": 106
+    },
+    "packages/testkit/test/mockSerialPort.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('MockSerialPort')[1]#1": 93
+    },
+    "packages/testkit/test/model-details.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('edge-next G-code word rules')[1]#1": 141,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('edge-next JSON, verbosity and reports')[1]#1": 127
+    },
+    "packages/testkit/test/replay.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('ReplayTransport')[1]#1": 85
+    },
+    "packages/testkit/test/stop-sequence.test.ts": {
+      "complexity $/FunctionDeclaration:runStop#1": 27,
+      "max-lines-per-function $/FunctionDeclaration:runStop#1": 103
+    },
+    "packages/testkit/test/tg-model.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('TinyG440Model: P0-11 acceptance')[1]#1": 94,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('TinyG440Model: receive path and realtime bytes')[1]#1": 95,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('TinyG440Model: replies and settings')[1]#1": 135
+    },
+    "packages/testkit/test/xboot.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the fake xboot: every command, as the source answers it')[1]#1": 86,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the flash run against the fake xboot')[1]#1": 155,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('the flash run against the fake xboot')[1]#1/ArrowFunctionExpression:it('an interrupted write (USB pulled mid-flash) leaves no application; after a replug, ESC in the 4.8 s window recovers it')[1]#1/ArrowFunctionExpression:recoverEntry()[4]#1/ArrowFunctionExpression:Promise()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('the flash run against the fake xboot')[1]#1/ArrowFunctionExpression:it('recovery gives up after its deadline when nothing answers')[1]#1/ArrowFunctionExpression:recoverEntry()[4]#1/ArrowFunctionExpression:Promise()[0]#1": 4
+    },
+    "packages/wiring/src/board.ts": {
+      "complexity $/FunctionDeclaration:boardPins#1": 26
+    },
+    "packages/wiring/src/diagram.ts": {
+      "complexity $/FunctionDeclaration:parseDiagram#1": 59
+    },
+    "packages/wiring/src/expectedSettings.ts": {
+      "complexity $/FunctionDeclaration:expectedSettings#1": 17
+    },
+    "packages/wiring/src/render.ts": {
+      "complexity $/FunctionDeclaration:renderString#1": 29
+    },
+    "packages/wiring/src/rules.ts": {
+      "complexity $/FunctionDeclaration:estopAnalysis#1": 16,
+      "complexity $/FunctionDeclaration:netVoltage#1": 19,
+      "complexity $/FunctionDeclaration:rules#1": 70,
+      "max-lines-per-function $/FunctionDeclaration:rules#1": 123,
+      "max-params $/FunctionDeclaration:rules#1/ArrowFunctionExpression:add#1": 5
+    },
+    "packages/wiring/test/render.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('renderDom')[1]#1/ArrowFunctionExpression:it('puts labels in text nodes, never in attributes or markup')[1]#1/ArrowFunctionExpression:root.all()[0]#2/ArrowFunctionExpression:[...e.attrs.values()].some()[0]#1": 4
+    },
+    "packages/wiring/test/rules.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('rules')[1]#1": 178
+    },
+    "tools/backups/api.mjs": {
+      "complexity $/FunctionDeclaration:databaseId#1": 22
+    },
+    "tools/backups/backup.mjs": {
+      "max-params $/FunctionDeclaration:restoreCheck#1": 5
+    },
+    "tools/backups/provision-worker.mjs": {
+      "max-params $/FunctionDeclaration:provisionWorker#1": 5
+    },
+    "tools/backups/worker-config.mjs": {
+      "complexity $/FunctionDeclaration:workerConfig#1": 16
+    },
+    "tools/e2e/specs/analyze.fake-serial.ts": {
+      "max-depth $/ArrowFunctionExpression:test('a local file: Analyze in Simple and Advanced, light and dark, 1280x720 and 390x844')[1]#1": 5
+    },
+    "tools/e2e/specs/catalog.fake-serial.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:test()[1]#1": 88
+    },
+    "tools/e2e/specs/g92-frame.fake-serial.ts": {
+      "max-params $/FunctionDeclaration:midSegment#1": 5
+    },
+    "tools/e2e/specs/install.e2e.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:test('nothing depends on display-mode, so an installed window shows the same safety bar and version chip')[1]#1/ArrowFunctionExpression:page.evaluate()[0]#1/ArrowFunctionExpression:[...document.querySelectorAll('script[src]')].map()[0]#1/ArrowFunctionExpression:fetch((s as HTMLScriptElement).src).then()[0]#1": 4
+    },
+    "tools/e2e/specs/job-layout.fake-serial.ts": {
+      "complexity $/ArrowFunctionExpression:test()[1]#1": 16
+    },
+    "tools/e2e/specs/open-mock-port.fake-serial.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:test('a subscribed port receives the session snapshots, at most 20 per second')[1]#1/ArrowFunctionExpression:worker.evaluate()[0]#1/ArrowFunctionExpression:Promise()[0]#1/ArrowFunctionExpression:setTimeout()[0]#1": 4
+    },
+    "tools/e2e/specs/place-zero.e2e.ts": {
+      "max-params $/ArrowFunctionExpression:rect#1": 5
+    },
+    "tools/e2e/specs/run-polish.e2e.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:test()[1]#1": 90,
+      "max-nested-callbacks $/ArrowFunctionExpression:test()[1]#1/ArrowFunctionExpression:page.evaluate()[0]#2/ArrowFunctionExpression:Promise()[0]#1/ArrowFunctionExpression:requestAnimationFrame()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:test()[1]#1/ArrowFunctionExpression:page.evaluate()[0]#2/ArrowFunctionExpression:Promise()[0]#1/ArrowFunctionExpression:requestAnimationFrame()[0]#1/ArrowFunctionExpression:requestAnimationFrame()[0]#1": 5
+    },
+    "tools/e2e/specs/safety-bar.e2e.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:test.describe()[1]#1/ArrowFunctionExpression:test()[1]#1/ArrowFunctionExpression:axe.violations.map()[0]#1/ArrowFunctionExpression:v.nodes.map()[0]#1": 4
+    },
+    "tools/e2e/specs/tab-stop.fake-serial.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:test('an observer tab sees the lock, its request reaches the worker while tab A is frozen (T-S29), and W29 follows tab A closing (T-S73)')[1]#1/ArrowFunctionExpression:expect.poll()[0]#1/ArrowFunctionExpression:page.evaluate()[0]#1/ArrowFunctionExpression:(await navigator.locks.query()).held?.map()[0]#1": 4
+    },
+    "tools/e2e/specs/tool-library.e2e.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:test()[1]#3": 120
+    },
+    "tools/e2e/src/canary.ts": {
+      "max-depth $/FunctionDeclaration:failureMessages#1": 6
+    },
+    "tools/e2e/src/guard.ts": {
+      "complexity $/FunctionDeclaration:guardRequestContext#1/ArrowFunctionExpression:send#1": 17,
+      "complexity $/FunctionDeclaration:pageScript#1/ArrowFunctionExpression:scan#1": 19,
+      "max-lines-per-function $/FunctionDeclaration:installOriginGuard#1": 96
+    },
+    "tools/gates/src/artifact/bench.ts": {
+      "complexity $/FunctionDeclaration:compareBenchArtifacts#1": 19
+    },
+    "tools/gates/src/artifact/diff.ts": {
+      "complexity $/FunctionDeclaration:compareArtifacts#1": 24
+    },
+    "tools/gates/src/bindings/check.ts": {
+      "complexity $/FunctionDeclaration:checkWranglerFile#1": 20
+    },
+    "tools/gates/src/boards/render.ts": {
+      "max-lines-per-function $/FunctionDeclaration:tinygBoard#1": 96
+    },
+    "tools/gates/src/boards/tinyg.ts": {
+      "complexity $/FunctionDeclaration:extractTinyG#1": 22,
+      "max-lines-per-function $/FunctionDeclaration:extractTinyG#1": 187
+    },
+    "tools/gates/src/build/data-worker.ts": {
+      "max-params $/FunctionDeclaration:buildDataWorker#1/FunctionDeclaration:build#1/ArrowFunctionExpression:erased.replace(/\\b(from|import)(\\s*)(['\"])([^'\"\\n]*)\\3/g)[1]#1": 5
+    },
+    "tools/gates/src/build/worker.ts": {
+      "max-params $/FunctionDeclaration:buildModule#1/ArrowFunctionExpression:code.replace()[1]#1": 5
+    },
+    "tools/gates/src/bundle/scan.ts": {
+      "complexity $/FunctionDeclaration:codeFindings#1": 17,
+      "complexity $/FunctionDeclaration:scanText#1": 24,
+      "complexity $/FunctionDeclaration:testkitAndSerialFindings#1": 27
+    },
+    "tools/gates/src/deploy/authProvision.ts": {
+      "complexity $/FunctionDeclaration:provisionDatabase#1": 23
+    },
+    "tools/gates/src/deploy/dataProvision.ts": {
+      "complexity $/FunctionDeclaration:provisionData#1": 17,
+      "max-params $/FunctionDeclaration:provisionData#1/FunctionDeclaration:api#1": 6
+    },
+    "tools/gates/src/deploy/preflight.ts": {
+      "complexity $/FunctionDeclaration:main#1": 22
+    },
+    "tools/gates/src/deploy/previous-cli.ts": {
+      "complexity $/FunctionDeclaration:main#1": 23
+    },
+    "tools/gates/src/deploy/retention-cli.ts": {
+      "complexity $/FunctionDeclaration:main#1": 24
+    },
+    "tools/gates/src/deploy/retention.ts": {
+      "complexity $/FunctionDeclaration:mergeRetained#1": 18,
+      "complexity $/FunctionDeclaration:parseState#1": 19
+    },
+    "tools/gates/src/deploy/wranglerConfig.ts": {
+      "complexity $/FunctionDeclaration:checkAuthBindings#1": 16,
+      "complexity $/FunctionDeclaration:checkScope#1": 19,
+      "complexity $/FunctionDeclaration:checkWorkerConfig#1": 22,
+      "complexity $/FunctionDeclaration:stripJsonc#1": 21
+    },
+    "tools/gates/src/eslint/rules/noCapabilityLookup.ts": {
+      "complexity $/ObjectExpression:noCapabilityLookup#1/FunctionExpression:create#1/ArrowFunctionExpression:isReference#1": 17,
+      "max-lines-per-function $/ObjectExpression:noCapabilityLookup#1/FunctionExpression:create#1": 100
+    },
+    "tools/gates/src/icons/draw.ts": {
+      "max-depth $/FunctionDeclaration:drawIcon#1": 6,
+      "max-params $/ArrowFunctionExpression:ring#1": 5,
+      "max-params $/ArrowFunctionExpression:segment#1": 5
+    },
+    "tools/gates/src/repro/cli.ts": {
+      "complexity $/FunctionDeclaration:main#1": 23
+    },
+    "tools/gates/src/review/reviewRecord.ts": {
+      "complexity $/FunctionDeclaration:checkBinding#1": 18
+    },
+    "tools/gates/src/schema/render.ts": {
+      "complexity $/FunctionDeclaration:parseVendoredTable#1": 35
+    },
+    "tools/gates/src/smoke/cli.ts": {
+      "complexity $/FunctionDeclaration:accessApi#1": 20
+    },
+    "tools/gates/src/source/scan.ts": {
+      "complexity $/FunctionDeclaration:isNamePosition#1": 18,
+      "complexity $/FunctionDeclaration:runtimeBindings#1/ArrowFunctionExpression:visit#1": 16,
+      "complexity $/FunctionDeclaration:scanSource#1/ArrowFunctionExpression:visit#1": 40
+    },
+    "tools/gates/src/workflow/policy.ts": {
+      "complexity $/FunctionDeclaration:checkArtifactDigests#1": 21,
+      "complexity $/FunctionDeclaration:checkDeployConfig#1": 43,
+      "complexity $/FunctionDeclaration:checkSafetyReviewShape#1": 28,
+      "complexity $/FunctionDeclaration:checkWorkflow#1": 141,
+      "max-depth $/FunctionDeclaration:checkWorkflow#1": 5,
+      "max-lines $file": 685,
+      "max-lines-per-function $/FunctionDeclaration:checkWorkflow#1": 199
+    },
+    "tools/gates/test/acceptance.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the remaining P0-02 rules')[1]#1": 154
+    },
+    "tools/gates/test/bench-acceptance.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the localhost bench build (P1-00)')[1]#1": 84
+    },
+    "tools/gates/test/bench-console.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('over HTTP')[1]#1/ArrowFunctionExpression:send#1/ArrowFunctionExpression:Promise()[0]#1/ArrowFunctionExpression:request()[1]#1/ArrowFunctionExpression:res.on('data')[1]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('over HTTP')[1]#1/ArrowFunctionExpression:send#1/ArrowFunctionExpression:Promise()[0]#1/ArrowFunctionExpression:request()[1]#1/ArrowFunctionExpression:res.on('end')[1]#1": 4
+    },
+    "tools/gates/test/bench-firmware.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('over a real socket')[1]#1/FunctionDeclaration:get#1/ArrowFunctionExpression:Promise()[0]#1/ArrowFunctionExpression:request()[1]#1/ArrowFunctionExpression:res.on('data')[1]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('over a real socket')[1]#1/FunctionDeclaration:get#1/ArrowFunctionExpression:Promise()[0]#1/ArrowFunctionExpression:request()[1]#1/ArrowFunctionExpression:res.on('end')[1]#1": 4
+    },
+    "tools/gates/test/bench-server.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('listen: a real socket on 127.0.0.1')[1]#1/FunctionDeclaration:raw#1/ArrowFunctionExpression:Promise()[0]#1/ArrowFunctionExpression:request()[1]#1/ArrowFunctionExpression:res.on('end')[1]#1": 4
+    },
+    "tools/gates/test/boards-gen.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('the TinyG extractor')[1]#1/ArrowFunctionExpression:it('refuses a short commit or a bad tag')[1]#1/ArrowFunctionExpression:expect()[0]#1/ArrowFunctionExpression:extractTinyG()[0]#1": 4,
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('the TinyG extractor')[1]#1/ArrowFunctionExpression:it('refuses a short commit or a bad tag')[1]#1/ArrowFunctionExpression:expect()[0]#2/ArrowFunctionExpression:extractTinyG()[0]#1": 4
+    },
+    "tools/gates/test/deploy-config.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('preflight --write')[1]#1": 89,
+      "max-params $/FunctionDeclaration:preflight#1": 5
+    },
+    "tools/gates/test/manifest.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('icons')[1]#1/ArrowFunctionExpression:it('the maskable icon keeps all content inside the safe zone (centred circle, 40% radius)')[1]#1/ArrowFunctionExpression:[paper, grid].some()[0]#1/ArrowFunctionExpression:c.every()[0]#1": 4
+    },
+    "tools/gates/test/retention.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('mergeRetained')[1]#1": 90,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('retention CLI')[1]#1": 82,
+      "max-params $/FunctionDeclaration:deploy#1": 5
+    },
+    "tools/gates/test/serial-chunk-acceptance.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('P1-00, P1-01: the Web Serial chunk on the real build')[1]#1": 110
+    },
+    "tools/gates/test/smoke.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('smoke CLI in local mode, against a live server')[1]#1/ArrowFunctionExpression:afterEach()[0]#1/ArrowFunctionExpression:Promise()[0]#1/ArrowFunctionExpression:server.close()[0]#1": 4
+    },
+    "tools/gates/test/workflow-policy.test.ts": {
+      "max-nested-callbacks $/ArrowFunctionExpression:describe('the real workflows')[1]#1/ArrowFunctionExpression:it('grep: only the deploy jobs mention the Cloudflare secret, and both do')[1]#1/ArrowFunctionExpression:jobs.filter()[0]#1/ArrowFunctionExpression:j.lines.some()[0]#1": 4
+    },
+    "workers/backup/src/scheduled.ts": {
+      "max-params $/FunctionDeclaration:backupScheduled#1": 7
+    },
+    "workers/backup/src/sql.ts": {
+      "complexity $/FunctionDeclaration:splitSql#1": 26
+    },
+    "workers/run-data/src/index.ts": {
+      "max-params $/ClassDeclaration:AppEntrypoint#1/FunctionExpression:put#1": 5
+    },
+    "workers/run-data/src/store.ts": {
+      "max-params $/ClassDeclaration:RecordStore#1/FunctionExpression:put#1": 5
+    },
+    "workers/run/src/accessIdentity.ts": {
+      "complexity $/FunctionDeclaration:verifyAccessJwt#1": 23
+    },
+    "workers/run/src/authCallback.ts": {
+      "max-params $/FunctionDeclaration:acceptable#1": 5
+    },
+    "workers/run/src/catalogData.ts": {
+      "max-lines $file": 2870
+    },
+    "workers/run/src/records.ts": {
+      "complexity $/FunctionDeclaration:recordsRoute#1": 34
+    },
+    "workers/run/src/routes.ts": {
+      "complexity $/FunctionDeclaration:route#1": 24,
+      "max-params $/FunctionDeclaration:route#1": 5
+    },
+    "workers/run/test/auth.test.ts": {
+      "max-lines-per-function $/ArrowFunctionExpression:describe('GET /auth/callback')[1]#1": 166
+    }
+  }
+}

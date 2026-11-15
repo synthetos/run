@@ -6,6 +6,7 @@
 // exception without a reviewed reason in the comment next to it.
 import tseslint from 'typescript-eslint';
 import run from './tools/gates/src/eslint/plugin.ts';
+import { modularityConfig } from './tools/gates/src/modularity/config.ts';
 import { WEB_SERIAL_CHOOSER_MODULE, WEB_SERIAL_PROPERTY, WEB_SERIAL_TRANSPORT_MODULE } from './tools/gates/src/shared/webSerialNames.ts';
 
 const ALL_SOURCE = ['**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'];
@@ -101,6 +102,7 @@ export default tseslint.config(
     linterOptions: { noInlineConfig: true },
   },
   ...tseslint.configs.recommended,
+  ...modularityConfig(import.meta.dirname),
   {
     files: ALL_SOURCE,
     plugins: { run },
