@@ -1,3 +1,4 @@
+import { serveFirmwareCatalog } from '../live/firmwareCatalog.ts';
 /** Separate update entry: no workspace shell, account or control worker. */
 import { render, h } from 'preact';
 import { startFirmwareWorker } from '../machine-worker/firmwareClient.ts';
@@ -25,6 +26,7 @@ if (root !== null) {
   if (supported) {
     const worker = startFirmwareWorker(trustedTypes);
     if (worker !== null) {
+      serveFirmwareCatalog(worker);
       const controller = new UpdateController(worker);
       void controller.init().then(() => render(h(UpdateFlow, { controller, supported, failure: null }), root)).catch(() => {
         worker.terminate();

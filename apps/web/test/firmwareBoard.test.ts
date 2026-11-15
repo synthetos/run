@@ -22,7 +22,7 @@ function flashView(patch: Partial<FlashView> = {}): FlashView {
     of: 385,
     note: null,
     source: 'release',
-    target: { fb: 450.02, label: '450.02 (signed release)', sha256: 'a'.repeat(64) },
+    target: { fb: 450.02, label: '450.02 (GitHub release)', sha256: 'a'.repeat(64) },
     boardId: BOARD.id,
     board: BOARD,
     countdown: null,
@@ -42,7 +42,7 @@ describe('shownBoard', () => {
 
   it('an update running with the session closed: the board as last read and the target', () => {
     const shown = shownBoard(false, null, flashView(), same);
-    expect(shown).toMatchObject({ kind: 'updating', heading: 'Updating 3Y2462-WWR: 450.02 → 450.02 (signed release)', hv: 8, fb: 450.02, id: '3Y2462-WWR' });
+    expect(shown).toMatchObject({ kind: 'updating', heading: 'Updating 3Y2462-WWR: 450.02 → 450.02 (GitHub release)', hv: 8, fb: 450.02, id: '3Y2462-WWR' });
     expect(shown.detail).toBe('Hardware version 8 · board 3Y2462-WWR · as read before the update');
     expect(shownBoard(false, null, flashView({ phase: 'reconnecting', source: 'backup', target: { fb: 450.01, label: 'x', sha256: '' } }), same).heading).toBe('Updating 3Y2462-WWR: 450.02 → 450.01 (firmware backup)');
     expect(shownBoard(false, null, flashView({ source: 'custom', target: { fb: null, label: 'x', sha256: '' }, board: { ...BOARD, id: null, fb: null } }), same).heading).toBe('Updating the board: unknown → the chosen image (unsigned custom firmware)');
@@ -62,14 +62,14 @@ describe('shownBoard', () => {
 });
 
 describe('Board → Firmware during an update', () => {
-  it('shows "Updating 3Y2462-WWR: 450.02 → 450.02 (signed release)" and the releases for hv 8, not "Connect a board"', () => {
+  it('shows "Updating 3Y2462-WWR: 450.02 → 450.02 (GitHub release)" and the releases for hv 8, not "Connect a board"', () => {
     const release = { hv: 8, fb: 450.02, fv: 0.97, dialect: 'tinyg-en', part: 'x192a3', file: 'tinyg-450.02.hex', sha256: 'b'.repeat(64), size: 200_000, date: '2026-11-07', changelog: 'c', recommended: true, simulatorOnly: false, repo: null, tag: null };
     const view = {
       message: { snapshot: { base: 'NOT_CONNECTED', identity: null, classification: null, values: {} }, flash: flashView(), flasher: true, oldFirmware: null },
       firmware: { releases: { ok: true, list: { env: 'staging', issuedMs: 0, expiresMs: Number.MAX_SAFE_INTEGER, boards: [{ hv: 8, minimumFb: 440.2, releases: [release] }] } }, download: null, trust: [], settings: [], firmware: [], installed: null, pollingSwitches: false, notice: null, step: { kind: 'idle' }, compare: null },
     } as unknown as LiveView;
     const html = renderToString(h(FirmwareTab, { view }));
-    expect(html).toContain('Updating 3Y2462-WWR: 450.02 → 450.02 (signed release)');
+    expect(html).toContain('Updating 3Y2462-WWR: 450.02 → 450.02 (GitHub release)');
     expect(html).toContain('data-board-shown="updating"');
     expect(html).not.toContain('Firmware not read');
     expect(html).not.toContain('Connect a board');

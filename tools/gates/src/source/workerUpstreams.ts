@@ -28,6 +28,7 @@ export interface WorkerUpstream {
 }
 
 export const WORKER_UPSTREAMS: readonly WorkerUpstream[] = Object.freeze([
+  { file: 'githubReleases.ts', text: 'https://api.github.com/repos/synthetos/TinyG/releases?per_page=100', why: 'Owner decision 2026-11-15: fixed TinyG release metadata and GitHub asset digests (OD-10).' },
   {
     file: 'accessIdentity.ts',
     text: 'https://${config.teamDomain}/cdn-cgi/access/certs',
@@ -61,7 +62,7 @@ export const WORKER_UPSTREAMS: readonly WorkerUpstream[] = Object.freeze([
   {
     file: 'firmwareProxy.ts',
     text: 'https://github.com',
-    why: 'GitHub release downloads of the allowlisted synthetos repositories, fetched server-side and verified against the signed release list (OD-10).',
+    why: 'GitHub release downloads of the allowlisted synthetos repositories, fetched server-side and verified against GitHub asset digests in the current release list (OD-10).',
   },
 ]);
 

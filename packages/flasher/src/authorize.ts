@@ -12,11 +12,11 @@
  *
  * Checks, all of which must pass:
  * - the `.hex` text's SHA-256 is the one the caller named, and, for a
- *   signed release, the one and the size the verified release list names;
+ *   listed release, the one and the size the verified release list names;
  * - it parses as a strict Intel HEX application image for the part
  *   (ihex.ts: application section only, never the boot section, a reset
  *   vector, no install marker);
- * - a signed release is for this board's hardware version (`hv`) and part,
+ * - a listed release is for this board's hardware version (`hv`) and part,
  *   and an image for the simulated board is refused on a real port;
  * - a firmware image backup is this board's own (its board id);
  * - custom (unsigned) firmware was confirmed explicitly by the user;
@@ -34,7 +34,7 @@ import { isSha256, sha256Hex } from './core/sha256.ts';
 export const MAX_OPENS = 32;
 
 export type FlashSource =
-  /** A release from the signed list (the list verified by the caller, in the machine worker). */
+  /** A release from the validated list (the list verified by the caller, in the machine worker). */
   | { readonly kind: 'release'; readonly release: FirmwareRelease }
   /** A firmware image backup read from this board earlier ("Put this firmware back"). */
   | { readonly kind: 'backup'; readonly boardId: string; readonly fb: number | null }
@@ -131,8 +131,8 @@ export async function authorizeFlash(check: FlashCheck): Promise<Authorized> {
   switch (source.kind) {
     case 'release': {
       const r = source.release;
-      if (r.sha256 !== actual) return refuse('hash-mismatch', `The file's SHA-256 is not the one the signed release list names for ${r.file}. It may be damaged or altered; nothing was flashed.`);
-      if (r.size !== byteLength) return refuse('size-mismatch', `The file is ${byteLength} bytes, not the ${r.size} the signed release list names.`);
+      if (r.sha256 !== actual) return refuse('hash-mismatch', `The file's SHA-256 is not the one the GitHub release list names for ${r.file}. It may be damaged or altered; nothing was flashed.`);
+      if (r.size !== byteLength) return refuse('size-mismatch', `The file is ${byteLength} bytes, not the ${r.size} the GitHub release list names.`);
       if (r.part !== part.name) return refuse('wrong-part', `This release is for the ${r.part}, not the ${part.name}.`);
       if (board.hv === null || r.hv !== board.hv) return refuse('wrong-hardware', `This release is for hardware version ${r.hv}; the board reports ${board.hv === null ? 'no hardware version' : String(board.hv)}.`);
       if (r.simulatorOnly && !check.simulatedPort) return refuse('simulator-image', 'This image is for the simulated test board only and is never flashed to a real board.');

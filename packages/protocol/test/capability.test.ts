@@ -2,8 +2,6 @@
  * T-S55: classifier fixtures (SAFETY H44; PN §2.3). A board is classified by
  * the capability probe plus the signed manifest, never by `fb` alone.
  */
-import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
@@ -160,9 +158,8 @@ describe('T-S55: classifier fixtures', () => {
   });
 });
 
-describe('end to end: probe transcript + the committed signed manifest', () => {
-  const REPO = resolve(import.meta.dirname, '../../..');
-  const committed = JSON.parse(readFileSync(join(REPO, 'firmware/approved-builds.json'), 'utf8')) as unknown;
+describe('end to end: probe transcript + compiled supported versions', () => {
+  const committed = null;
   const NOW = new Date('2026-11-06T12:00:00Z');
 
   it('staging: the pinned edge-next candidate is full', async () => {
@@ -170,9 +167,9 @@ describe('end to end: probe transcript + the committed signed manifest', () => {
     expect(classify(probe(EN_PIN()), approved)).toMatchObject({ dialect: TINYG_EN, mode: 'full' });
   });
 
-  it('production: the same board is READ_ONLY (bench approvals never reach production)', async () => {
+  it('production: supported firmware is classified independently of phase abilities', async () => {
     const { approved } = await verifyApprovedBuilds(committed, { origin: 'https://run.synthetos.com', now: NOW });
-    expect(classify(probe(EN_PIN()), approved)).toMatchObject({ dialect: TINYG_EN, mode: 'readOnly', reason: 'en-not-approved' });
+    expect(classify(probe(EN_PIN()), approved)).toMatchObject({ dialect: TINYG_EN, mode: 'full', reason: 'en-approved' });
   });
 
   it('a local dev origin: READ_ONLY', async () => {

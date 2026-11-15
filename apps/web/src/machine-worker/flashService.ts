@@ -1,11 +1,12 @@
+import { resolveFlashSource, flashSourceLabel, type FlashSourceRequest } from './flashSource.ts';
 /**
  * The firmware update in `machine.worker` (SAFETY §4.8 as amended 2026-11-03,
  * H79-H88; WORKSPACE_FEATURES "Firmware update").
  *
  * The page asks; this service decides and does. In order:
  * 1. **Authorize** (packages/flasher authorize.ts): the `.hex` text the page
- *    passes is hashed and parsed here. A signed release is looked up in the
- *    release list THIS WORKER verified (bundled, never the page's copy) and
+ *    passes is hashed and parsed here. A GitHub release is looked up in the
+ *    release metadata THIS WORKER validated (see firmware-sources.md) and
  *    must be for the board's hardware version; an image for the simulated
  *    board is refused unless the port is the test kit's (`source.kind`
  *    `fake`); a firmware backup only goes back on its own board; custom
@@ -53,9 +54,8 @@ import {
   type FlashAuthorization,
   type FlashBackups,
   type FlashOutcome,
-  type FlashSource,
 } from '@synthetos/flasher';
-import { releasesForHardware, type FirmwareReleases } from '@synthetos/protocol';
+import { type FirmwareReleases } from '@synthetos/protocol';
 import { categoryOf, restoreChanges, type SettingValue } from '@synthetos/schema';
 import type { BootloaderMark, BootloaderMarks } from './bootloaderMark.ts';
 import { entryDiagnosis } from './flashDiagnosis.ts';
@@ -70,10 +70,7 @@ export const BOOTLOADER_ADVICE = 'The board may still be in its bootloader. Send
 /** Longest `.hex` text the page may pass. */
 export const MAX_HEX_TEXT = 2 * 1024 * 1024;
 
-export type FlashSourceRequest =
-  | { readonly kind: 'release'; readonly hv: number; readonly fb: number; readonly file: string }
-  | { readonly kind: 'backup'; readonly boardId: string; readonly fb: number | null }
-  | { readonly kind: 'custom'; readonly name: string; readonly confirmed: boolean };
+export type { FlashSourceRequest } from './flashSource.ts';
 
 export interface FlashBegin {
   readonly source: FlashSourceRequest;
@@ -289,19 +286,8 @@ export class FlashService {
       port = s.portSelector;
       board = boardFacts(s);
     }
-    let source: FlashSource;
-    const req = b.source;
-    if (req.kind === 'release') {
-      const releases = await this.#d.releases();
-      const hw = releasesForHardware(releases, req.hv);
-      const release = hw?.releases.find((r) => r.file === req.file && r.fb === req.fb);
-      if (release === undefined) return fail('That release is not in the signed release list this site verified.');
-      source = { kind: 'release', release };
-    } else if (req.kind === 'backup') {
-      source = { kind: 'backup', boardId: req.boardId, fb: req.fb };
-    } else {
-      source = { kind: 'custom', confirmed: req.confirmed === true, name: req.name };
-    }
+    const source = await resolveFlashSource(b.source, () => this.#d.releases());
+    if (source === null) return fail('That release is not in the GitHub release list this site validated.');
     const auth = await authorizeFlash({
       source,
       hexText: b.hex,
@@ -321,7 +307,7 @@ export class FlashService {
     this.#running = true;
     const id = ++this.#id;
     const fb = source.kind === 'release' ? source.release.fb : source.kind === 'backup' ? source.fb : null;
-    const label = source.kind === 'release' ? `${source.release.fb.toFixed(2)} (signed release)` : source.kind === 'backup' ? `the firmware backup${source.fb === null ? '' : ` (${source.fb.toFixed(2)})`}` : `${source.name} (unsigned custom firmware)`;
+    const label = flashSourceLabel(source);
     this.#view = {
       id,
       phase: b.recovery ? 'recovery' : 'entering',

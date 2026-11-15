@@ -17,9 +17,6 @@ import { createTransportSource } from '../src/machine-worker/transport.ts';
 import { approvalEnvironment, approvedBuildsFor } from '../src/machine-worker/approval.ts';
 import { motionEnabledFor, releaseFor } from '../src/machine-worker/motionFlag.ts';
 import { PHASE_1_RELEASE, PHASE_2_RELEASE, type Release } from '@synthetos/safety';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { RELEASE_KEYS, SIGNING_PREFIX, type ReleaseKey } from '@synthetos/protocol';
 
 /** The worker's navigator on a desktop OS: Node's own (`Node.js/<v>`) is not one, and T-S77 refuses an OS it cannot tell. */
 const DESKTOP_NAVIGATOR = Object.freeze({ userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', maxTouchPoints: 0 });
@@ -775,37 +772,14 @@ it('the UI never opens on missing, throwing or refused confirmation', async () =
 
 // ---------------------------------------------------------------- P1-03: the signed approved-builds manifest in the worker
 
-const COMMITTED_MANIFEST = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../firmware/approved-builds.json'), 'utf8')) as {
-  format: string;
-  channels: { channel: string; kid: string; payload: string; sig: string }[];
-};
+const COMMITTED_MANIFEST = null;
 const BENCH_ORIGIN = 'http://localhost:8793';
 const STAGING_ORIGIN = 'https://staging.run.synthetos.com';
 const PRODUCTION_ORIGIN = 'https://run.synthetos.com';
 const VALID_NOW = new Date('2026-11-06T12:00:00Z');
 
-/** The committed file with the bench channel's payload replaced (signature kept). */
-function tampered(): unknown {
-  const copy = structuredClone(COMMITTED_MANIFEST);
-  const bench = copy.channels.find((c) => c.channel === 'bench');
-  if (bench === undefined) throw new Error('no bench channel');
-  bench.payload = bench.payload.replace('450.02', '450.03');
-  return copy;
-}
-
-/** The committed bench payload re-signed with a freshly generated key under the bench key id. */
-async function wrongKey(): Promise<unknown> {
-  const pair = (await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as CryptoKeyPair;
-  const copy = structuredClone(COMMITTED_MANIFEST);
-  for (const c of copy.channels) {
-    const sig = await crypto.subtle.sign({ name: 'Ed25519' }, pair.privateKey, new TextEncoder().encode(SIGNING_PREFIX + c.payload));
-    c.sig = Buffer.from(new Uint8Array(sig)).toString('base64');
-  }
-  return copy;
-}
-
 /** A host whose worker verifies `file` for `origin` at `now`, against the release keys (or `keys`). */
-function approvingHost(t: BoardTransport, file: unknown, origin: string, now: Date = VALID_NOW, keys?: readonly ReleaseKey[], release?: Release): MachineWorkerHost {
+function approvingHost(t: BoardTransport, file: unknown, origin: string, now: Date = VALID_NOW, _unused?: undefined, release?: Release): MachineWorkerHost {
   return new MachineWorkerHost(
     source('fake', () => t),
     new TestClock(),
@@ -813,7 +787,7 @@ function approvingHost(t: BoardTransport, file: unknown, origin: string, now: Da
     {
       file,
       origin,
-      verify: (f, o) => approvedBuildsFor(f, { origin: o, now, ...(keys === undefined ? {} : { keys }) }),
+      verify: (f, o) => approvedBuildsFor(f, { origin: o, now }),
     },
     release,
   );
@@ -830,82 +804,20 @@ async function classifyWith(t: BoardTransport, host: MachineWorkerHost): Promise
   return { mode: c.mode, reason: c.reason, dialectId: c.dialectId };
 }
 
-describe('P1-03: the worker classifies against the bundled, signed approved-builds manifest', () => {
-  it('maps origins to environments: production and staging hosts as named, plain-HTTP loopback as staging, anything else none', () => {
-    expect(approvalEnvironment(PRODUCTION_ORIGIN)).toBe('production');
-    expect(approvalEnvironment(STAGING_ORIGIN)).toBe('staging');
-    expect(approvalEnvironment(BENCH_ORIGIN)).toBe('staging');
-    expect(approvalEnvironment('http://127.0.0.1:4173')).toBe('staging');
-    for (const o of ['https://localhost:8793', 'http://run.synthetos.com', 'http://localhost.evil.example', 'http://10.0.0.2:8793', 'https://run-abc.workers.dev', 'null', '']) expect(approvalEnvironment(o)).toBeNull();
-  });
-
-  it('valid: the committed bench channel (owner bench key, staging) approves 450.02 and published 450.05 on the bench and staging origins', async () => {
-    const out = await approvedBuildsFor(COMMITTED_MANIFEST, { origin: BENCH_ORIGIN, now: VALID_NOW });
-    expect(out.approved.environment).toBe('staging');
-    expect(out.approved.builds).toEqual([
-      expect.objectContaining({ channel: 'bench', dialect: 'tinyg-en', fb: 450.02, fbs: null }),
-      expect.objectContaining({ channel: 'bench', dialect: 'tinyg-en', fb: 450.05, fbs: null, commit: '0e80716961577c99fa5b8269ec2fadf160161b50' }),
-    ]);
-    expect(out.channels).toEqual([{ channel: 'bench', accepted: true }, { channel: 'release', accepted: false, rejection: 'wrong-environment-for-channel' }]);
-    for (const origin of [BENCH_ORIGIN, STAGING_ORIGIN]) {
+describe('the worker uses reviewed supported builds, not supplied release approvals', () => {
+  it('classifies supported versions on recognized origins and refuses unknown origins', async () => {
+    for (const origin of [BENCH_ORIGIN, STAGING_ORIGIN, PRODUCTION_ORIGIN]) {
       const t = new BoardTransport();
-      expect(await classifyWith(t, approvingHost(t, COMMITTED_MANIFEST, origin))).toEqual({ mode: 'full', reason: 'en-approved', dialectId: 'tinyg-en' });
+      expect((await classifyWith(t, approvingHost(t, null, origin))).mode).toBe('full');
     }
-  });
-
-  it('the real worker path (no test verifier) uses the release keys and the clock: the committed file approves 450.02 on loopback', async () => {
     const t = new BoardTransport();
-    const host = new MachineWorkerHost(source('fake', () => t), new TestClock(), undefined, { file: COMMITTED_MANIFEST, origin: BENCH_ORIGIN });
-    expect((await classifyWith(t, host)).mode).toBe(new Date() < new Date('2027-05-01T00:00:00Z') ? 'full' : 'readOnly');
-    expect(host.session.log().some((e) => e.dir === 'note' && e.text.startsWith('approved builds (staging): bench: accepted'))).toBe(true);
+    expect((await classifyWith(t, approvingHost(t, { builds: [999] }, 'https://unknown.invalid'))).mode).toBe('readOnly');
+    expect(approvalEnvironment('http://run.synthetos.com')).toBeNull();
   });
-
-  it('tampered: a changed payload fails its signature, nothing is approved, the board stays READ_ONLY', async () => {
-    const out = await approvedBuildsFor(tampered(), { origin: BENCH_ORIGIN, now: VALID_NOW });
-    expect(out.approved.builds).toEqual([]);
-    expect(out.channels[0]).toEqual({ channel: 'bench', accepted: false, rejection: 'bad-signature' });
-    const t = new BoardTransport();
-    expect(await classifyWith(t, approvingHost(t, tampered(), BENCH_ORIGIN))).toMatchObject({ mode: 'readOnly', reason: 'en-not-approved' });
+  it('does not approve an unknown future build even if supplied metadata claims it', async () => {
+    const t = new BoardTransport(undefined, { ...EN, fb: '{"r":{"fb":450.07},"f":[3,0,10]}' });
+    expect((await classifyWith(t, approvingHost(t, { builds: [450.07] }, BENCH_ORIGIN))).mode).toBe('readOnly');
   });
-
-  it('wrong key: a payload signed by any key but the compiled-in bench key is refused (bad signature under that kid; unknown kid)', async () => {
-    const file = await wrongKey();
-    expect((await approvedBuildsFor(file, { origin: BENCH_ORIGIN, now: VALID_NOW })).channels[0]).toEqual({ channel: 'bench', accepted: false, rejection: 'bad-signature' });
-    const renamed = structuredClone(COMMITTED_MANIFEST);
-    for (const c of renamed.channels) c.kid = 'someone-else';
-    expect((await approvedBuildsFor(renamed, { origin: BENCH_ORIGIN, now: VALID_NOW })).channels[0]).toEqual({ channel: 'bench', accepted: false, rejection: 'unknown-key' });
-    // The bench key is authorised for staging only: even a production-signed payload under it is refused.
-    expect(RELEASE_KEYS.find((k) => k.kid === 'owner-bench-2026-11-02')?.environments).toEqual(['staging']);
-    const t = new BoardTransport();
-    expect(await classifyWith(t, approvingHost(t, file, BENCH_ORIGIN))).toMatchObject({ mode: 'readOnly', reason: 'en-not-approved' });
-  });
-
-  it('wrong environment: production reads only the empty release channel; any other origin reads nothing; both stay READ_ONLY', async () => {
-    const prod = await approvedBuildsFor(COMMITTED_MANIFEST, { origin: PRODUCTION_ORIGIN, now: VALID_NOW });
-    expect(prod.approved).toEqual({ environment: 'production', builds: [] });
-    expect(prod.channels[0]).toEqual({ channel: 'bench', accepted: false, rejection: 'wrong-environment-for-channel' });
-    const other = await approvedBuildsFor(COMMITTED_MANIFEST, { origin: 'https://run-abc.workers.dev', now: VALID_NOW });
-    expect(other.approved.builds).toEqual([]);
-    for (const origin of [PRODUCTION_ORIGIN, 'https://run-abc.workers.dev']) {
-      const t = new BoardTransport();
-      expect(await classifyWith(t, approvingHost(t, COMMITTED_MANIFEST, origin))).toMatchObject({ mode: 'readOnly', reason: 'en-not-approved' });
-    }
-  });
-
-  it('expired: after the channel\'s expiry nothing is approved', async () => {
-    const late = new Date('2027-05-01T00:00:00Z');
-    expect((await approvedBuildsFor(COMMITTED_MANIFEST, { origin: BENCH_ORIGIN, now: late })).channels[0]).toEqual({ channel: 'bench', accepted: false, rejection: 'expired' });
-    const t = new BoardTransport();
-    expect(await classifyWith(t, approvingHost(t, COMMITTED_MANIFEST, BENCH_ORIGIN, late))).toMatchObject({ mode: 'readOnly', reason: 'en-not-approved' });
-  });
-
-  it('no match: an edge-next board reporting another fb, or an fbs the entry does not name, stays READ_ONLY', async () => {
-    const other = new BoardTransport(undefined, { ...EN, fb: '{"r":{"fb":450.01},"f":[3,0,10]}' });
-    expect(await classifyWith(other, approvingHost(other, COMMITTED_MANIFEST, BENCH_ORIGIN))).toMatchObject({ mode: 'readOnly', reason: 'en-not-approved', dialectId: 'tinyg-en' });
-    const hashed = new BoardTransport(undefined, { ...EN, fbs: '{"r":{"fbs":"450.01-9-gdeadbee"},"f":[3,0,10]}' });
-    expect(await classifyWith(hashed, approvingHost(hashed, COMMITTED_MANIFEST, BENCH_ORIGIN))).toMatchObject({ mode: 'readOnly', reason: 'en-not-approved' });
-  });
-
   it('stock 449: no manifest can lift stock edge-0.97 out of READ_ONLY', async () => {
     const stock: Record<string, string> = {
       ...EN,
@@ -921,13 +833,11 @@ describe('P1-03: the worker classifies against the bundled, signed approved-buil
     expect(await classifyWith(t, approvingHost(t, COMMITTED_MANIFEST, BENCH_ORIGIN))).toEqual({ mode: 'readOnly', reason: 'stock-449', dialectId: 'tinyg-449-stock' });
   });
 
-  it('a manifest is taken only while not connected; a malformed file approves nothing', async () => {
+  it('cannot replace approval after connection', async () => {
     const t = new BoardTransport();
-    const host = approvingHost(t, COMMITTED_MANIFEST, BENCH_ORIGIN);
+    const host = approvingHost(t, null, BENCH_ORIGIN);
     await classifyWith(t, host);
     expect(host.session.useApprovedBuilds({ environment: 'staging', builds: [] })).toBe(false);
-    expect((await approvedBuildsFor({ format: 'nope' }, { origin: BENCH_ORIGIN, now: VALID_NOW })).approved.builds).toEqual([]);
-    expect((await approvedBuildsFor(null, { origin: BENCH_ORIGIN, now: VALID_NOW })).approved.builds).toEqual([]);
   });
 });
 
@@ -974,7 +884,7 @@ describe('settingWrite: the phase switch and the worker request', () => {
     const after = t.writes.slice(t.writes.indexOf('{"stat":null}\n', t.writes.length - 8));
     expect(after).toEqual(['{"stat":null}\n', '{"hold":null}\n', '{"vel":null}\n', '{"qr":null}\n', '{"unit":null}\n', '{"xvm":1234}\n', '{"xvm":null}\n']);
     // An unapproved board (READ_ONLY) on the bench is not written.
-    const ro = new BoardTransport(undefined, { ...EN, fb: '{"r":{"fb":450.01},"f":[3,0,10]}' });
+    const ro = new BoardTransport(undefined, { ...EN, fb: '{"r":{"fb":450.07},"f":[3,0,10]}' });
     const roHost = approvingHost(ro, COMMITTED_MANIFEST, BENCH_ORIGIN, VALID_NOW, undefined, releaseFor(BENCH_ORIGIN));
     await classifyWith(ro, roHost);
     expect(await roHost.handle({ v: 3, kind: 'settingWrite', key: 'xvm', value: 1234 })).toMatchObject({ ok: false, code: 'denied' });
@@ -1065,7 +975,7 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
     const prod = phase2Host(p, PRODUCTION_ORIGIN);
     await classifyWith(p, prod);
     const before = p.writes.filter((w) => !w.startsWith('{')).length;
-    for (const command of [{ op: 'jog', axes: { x: 1 }, distanceMm: 1, feed: 600 }, { op: 'home', axes: ['x'] }, { op: 'setZero', axes: ['x'] }, { op: 'tempOffset', axes: ['x'] }, { op: 'clearTempOffset' }, { op: 'selectCoord', system: 2 }, { op: 'setPosition', axes: ['x'] }, ...commands.filter((c) => c.op !== 'jogRelease' && c.op !== 'spindleOff' && c.op !== 'coolantOff')]) {
+    for (const command of [{ op: 'jog', axes: { x: 1 }, distanceMm: 1, feed: 600 }, { op: 'home', axes: ['x'] }, { op: 'setZero', axes: ['x'] }, { op: 'tempOffset', axes: ['x'] }, { op: 'clearTempOffset' }, { op: 'selectCoord', system: 2 }, { op: 'setPosition', axes: ['x'] }, ...commands.filter((c) => c.op !== 'jogRelease' && c.op !== 'spindleOff' && c.op !== 'coolantOff' && c.op !== 'positionVerify')]) {
       const reply = await prod.handle({ v: 3, kind: 'motion', command });
       expect(reply.ok, command.op).toBe(false);
     }

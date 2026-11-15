@@ -1,20 +1,20 @@
 /**
  * The Firmware and Backups tabs on the page (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09): wires
  * the records (firmware/store.ts), the page side of an update
- * (firmware/updater.ts) and the signed release list into the workspace model.
+ * (firmware/updater.ts) and the GitHub release list into the workspace model.
  * Everything that reaches the board goes through the machine worker
  * (`flash`, `read`, `settingWrite` requests); this module never touches a port.
  */
-import { sha256Hex } from '@synthetos/flasher';
-import { releasePath, verifyFirmwareReleases, type FirmwareRelease } from '@synthetos/protocol';
+import { checkedImage, localCopyHint } from '../firmware/imageVerification.ts';
+import { releasePath } from '@synthetos/protocol';
 import { restoreChanges, settingsReadGroups, type PlannedChange, type SettingValue } from '@synthetos/schema';
-import firmwareReleasesFile from '../../../../firmware/releases.json';
+import { loadFirmwareCatalog } from './firmwareCatalog.ts';
 import { fetchFirmwareImage } from '../cloud/live.ts';
 import { FirmwareUpdater } from '../firmware/updater.ts';
 import { installedKey, memoryRepository, openRepository, parseBackupImport, settingsRecord, trustRecords, type BackupRepository, type InstalledRecord } from '../firmware/store.ts';
 import { approvalEnvironment } from '../machine-worker/approval.ts';
 import type { FlashBackupsPost, FlashCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
-import type { FirmwareActions, FirmwareDownload, FirmwareHubView, ReleaseImage } from '../workspace/model.ts';
+import type { FirmwareActions, FirmwareDownload, FirmwareHubView } from '../workspace/model.ts';
 import { setDraft } from '../workspace/boardFacts.ts';
 import type { BackupFile } from './backup.ts';
 import type { DeviceSafetyStore } from './deviceSafety.ts';
@@ -53,8 +53,7 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
     repo = memoryRepository();
   }
   const environment = approvalEnvironment(location.origin);
-  const verdict = await verifyFirmwareReleases(firmwareReleasesFile as unknown, { environment, now: new Date() }).catch(() => null);
-  const releases: FirmwareHubView['releases'] = verdict !== null && verdict.ok ? { ok: true, list: verdict.releases } : { ok: false, reason: verdict === null ? 'it could not be read' : verdict.rejection };
+  const releases = await loadFirmwareCatalog(environment);
   let message: SnapshotMessage | null = null;
   let settings: FirmwareHubView['settings'] = [];
   let firmware: FirmwareHubView['firmware'] = [];
@@ -115,18 +114,6 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
     deps.onChange();
   };
 
-  /**
-   * The page's own check of an image against its signed entry (SAFETY H22, H79): the exact bytes must hash to the
-   * entry's SHA-256 at the entry's size. The machine worker checks again before it parses anything (authorizeFlash).
-   */
-  async function checkedImage(release: FirmwareRelease, bytes: Uint8Array, from: ReleaseImage['from']): Promise<{ readonly ok: true; readonly image: ReleaseImage } | { readonly ok: false; readonly message: string }> {
-    if (bytes.byteLength !== release.size) return { ok: false, message: `The file is ${bytes.byteLength} bytes, not the ${release.size} the signed release list names for ${release.file}. Nothing was flashed.` };
-    const sha256 = await sha256Hex(bytes);
-    if (sha256 !== release.sha256) return { ok: false, message: `The file's SHA-256 is not the one the signed release list names for ${release.file}. It may be damaged or altered; nothing was flashed.` };
-    return { ok: true, image: { release, hex: new TextDecoder().decode(bytes), from } };
-  }
-
-  const localCopyHint = (release: FirmwareRelease): string => `Use a local copy: choose ${release.file}; Run checks it against the signed SHA-256.`;
 
   const actions: FirmwareActions = {
     downloadRelease: async (release) => {
@@ -135,7 +122,7 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
       setDownload({ file: release.file, phase: 'fetching', received: 0, total: release.size, message: null });
       const fetched = await fetchFirmwareImage(path, release.size, (p) => setDownload({ file: release.file, phase: 'fetching', received: p.received, total: p.total ?? release.size, message: null }));
       if (!fetched.ok) {
-        const message = fetched.reason === 'not-served' ? `${release.file} is not served by this site${release.repo === null ? '' : ' (GitHub Releases did not answer, or the file there is not the listed one)'}. ${localCopyHint(release)}` : fetched.reason === 'too-large' ? `The download is longer than the ${release.size} bytes the signed release list names for ${release.file}; nothing was flashed. ${localCopyHint(release)}` : `The download failed. Check the connection and try again, or ${localCopyHint(release).replace(/^Use/, 'use')}`;
+        const message = fetched.reason === 'not-served' ? `${release.file} is not served by this site${release.repo === null ? '' : ' (GitHub Releases did not answer, or the file there is not the listed one)'}. ${localCopyHint(release)}` : fetched.reason === 'too-large' ? `The download is longer than the ${release.size} bytes the GitHub release list names for ${release.file}; nothing was flashed. ${localCopyHint(release)}` : `The download failed. Check the connection and try again, or ${localCopyHint(release).replace(/^Use/, 'use')}`;
         setDownload({ file: release.file, phase: 'failed', received: 0, total: release.size, message });
         return { ok: false, message };
       }

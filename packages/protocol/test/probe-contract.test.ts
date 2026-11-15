@@ -16,19 +16,13 @@
  *    `fstk` is the unused-stack watermark, an unsigned count of bytes between
  *    `__heap_start` and SP on the atxmega192a3's 16 KB SRAM, so 0..16383
  *    (@cite EN stack_report.c:47-58; Makefile:14).
- * #3 The manifest verifier fails closed on an invalid clock and on any
- *    timestamp or field it cannot read exactly.
+ * Firmware support now comes from reviewed code (owner 2026-11-15);
+ * advisory clock/data validation is covered in safetyAdvisory.test.ts.
  */
-import type { webcrypto } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  APPROVED_BUILDS_FORMAT,
   CAPABILITY_TOKENS,
-  CHANNEL_PAYLOAD_FORMAT,
   G2CORE_EDGE,
-  SIGNING_PREFIX,
   TINYG_440,
   TINYG_449_STOCK,
   TINYG_EN,
@@ -38,12 +32,11 @@ import {
   classifyLine,
   verifyApprovedBuilds,
 } from '../src/index.ts';
-import type { ApprovedBuilds, Footer, ProbeKey, ProbeObservations, ProbeResult, ReleaseKey, Response } from '../src/index.ts';
+import type { ApprovedBuilds, Footer, ProbeKey, ProbeObservations, ProbeResult, Response } from '../src/index.ts';
 import { EN_450, EN_PIN, G2_EDGE, STOCK_449, TG_440, toBanner } from './fixtures/probeFixtures.ts';
 
-const REPO = resolve(import.meta.dirname, '../../..');
 const STAGING = 'https://staging.run.synthetos.com';
-const COMMITTED = JSON.parse(readFileSync(join(REPO, 'firmware/approved-builds.json'), 'utf8')) as unknown;
+const COMMITTED = null;
 const TG_COMMIT = 'd04183905470714254c24d299f6aad75f6bcbb7a';
 
 async function committedStaging(now = new Date('2026-11-06T00:00:00Z')): Promise<ApprovedBuilds> {
@@ -198,69 +191,5 @@ describe('P0-08 #1: malformed capability values never prove the edge-next contra
   it('a TinyG 440.21 board answering a capability token with status 0 and junk is not 440.21', () => {
     const c = classify(probe(withAnswer(TG_440(), 'os', tgLine('{"os":"bad"}'))), FUTURE_TG);
     expect(c.mode).toBe('readOnly');
-  });
-});
-
-describe('P0-08 #3: the manifest verifier rejects an invalid clock and malformed timestamps or fields', async () => {
-  const subtle = globalThis.crypto.subtle;
-  const b64 = (bytes: ArrayBuffer) => Buffer.from(new Uint8Array(bytes)).toString('base64');
-  const pair = (await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as webcrypto.CryptoKeyPair;
-  const key: ReleaseKey = { kid: 'test-1', publicKey: b64(await subtle.exportKey('raw', pair.publicKey)), environments: ['staging'], placeholder: false };
-  const enBuild = { dialect: 'tinyg-en', fb: 450.02, fbs: null, commit: 'a7489b79b2d886d872e019ff1e414f716de6638b', note: 'bench' };
-  const signedFile = async (overrides: Record<string, unknown> = {}, builds: unknown[] = [enBuild]) => {
-    const payload = JSON.stringify({
-      format: CHANNEL_PAYLOAD_FORMAT,
-      channel: 'bench',
-      env: 'staging',
-      issued: '2026-11-01T00:00:00Z',
-      expires: '2027-05-01T00:00:00Z',
-      builds,
-      ...overrides,
-    });
-    const sig = await subtle.sign({ name: 'Ed25519' }, pair.privateKey, new TextEncoder().encode(SIGNING_PREFIX + payload));
-    return { format: APPROVED_BUILDS_FORMAT, channels: [{ channel: 'bench', kid: key.kid, payload, sig: b64(sig) }] };
-  };
-  const verify = (f: unknown, now: Date = new Date('2026-11-02T00:00:00Z')) => verifyApprovedBuilds(f, { origin: STAGING, now, keys: [key] });
-
-  it('Independent review reproduction: an Invalid Date approves nothing from the committed manifest', async () => {
-    expect((await committedStaging(new Date('2040-01-01T00:00:00Z'))).builds).toHaveLength(0);
-    const out = await verifyApprovedBuilds(COMMITTED, { origin: STAGING, now: new Date(Number.NaN) });
-    expect(out.approved.builds).toHaveLength(0);
-    expect(out.channels.every((c) => !c.accepted)).toBe(true);
-    expect(out.channels.map((c) => c.rejection)).toContain('invalid-clock');
-  });
-
-  it('any clock that is not a valid Date approves nothing and never throws', async () => {
-    const f = await signedFile();
-    expect((await verify(f)).approved.builds).toHaveLength(1);
-    for (const now of [new Date(Number.NaN), new Date(Number.POSITIVE_INFINITY), 1793577600000, '2026-11-02T00:00:00Z', null, undefined, {}]) {
-      // Called directly: the helper's default parameter would replace undefined.
-      const out = await verifyApprovedBuilds(f, { origin: STAGING, now: now as unknown as Date, keys: [key] });
-      expect(out.approved.builds, String(now)).toHaveLength(0);
-      expect(out.channels[0]?.rejection, String(now)).toBe('invalid-clock');
-    }
-    const hostile = { getTime: () => 1793577600000 } as unknown as Date;
-    expect((await verify(f, hostile)).approved.builds).toHaveLength(0);
-  });
-
-  it('a timestamp the calendar does not have is malformed, not silently normalised', async () => {
-    for (const t of ['2026-02-31T00:00:00Z', '2026-04-31T00:00:00Z', '2026-01-01T24:00:00Z', '2026-02-29T00:00:00Z']) {
-      for (const field of ['issued', 'expires'] as const) {
-        const overrides = field === 'issued' ? { issued: t, expires: '2030-01-01T00:00:00Z' } : { issued: '2020-01-01T00:00:00Z', expires: t };
-        const out = await verify(await signedFile(overrides), new Date('2025-06-01T00:00:00Z'));
-        expect(out.channels[0]?.rejection, `${field}=${t}`).toBe('malformed-payload');
-      }
-    }
-    // A real leap day is a valid timestamp.
-    const leap = await verify(await signedFile({ issued: '2024-02-29T00:00:00Z' }));
-    expect(leap.approved.builds).toHaveLength(1);
-  });
-
-  it('a signed payload or build entry with a field the reader does not know is malformed', async () => {
-    expect((await verify(await signedFile({ revoked: true }))).channels[0]?.rejection).toBe('malformed-payload');
-    expect((await verify(await signedFile({}, [{ ...enBuild, revoked: true }]))).channels[0]?.rejection).toBe('malformed-payload');
-    expect((await verify(await signedFile({}, [{ ...enBuild, maxFb: 450.02 }]))).channels[0]?.rejection).toBe('malformed-payload');
-    // The known fields alone still verify.
-    expect((await verify(await signedFile())).approved.builds).toHaveLength(1);
   });
 });

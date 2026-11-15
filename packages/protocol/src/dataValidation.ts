@@ -1,30 +1,4 @@
-/**
- * Helpers shared by the two signed data files the app verifies: the
- * approved-builds manifest (approvedBuilds.ts, P0-08) and the safety advisory
- * (safetyAdvisory.ts, P1-05). Both are Ed25519-signed under a compiled-in
- * release key (releaseKeys.ts) over a domain-separation prefix plus the
- * payload's exact UTF-8 bytes. Nothing here throws.
- */
-
-export async function verifyEd25519(publicKey: string, signature: string, message: string): Promise<boolean> {
-  try {
-    const subtle = globalThis.crypto.subtle;
-    const key = await subtle.importKey('raw', fromBase64(publicKey), { name: 'Ed25519' }, false, ['verify']);
-    return await subtle.verify({ name: 'Ed25519' }, key, fromBase64(signature), new TextEncoder().encode(message));
-  } catch {
-    // Bad key or signature encoding, or no Ed25519 support: not verified.
-    return false;
-  }
-}
-
-function fromBase64(text: string): Uint8Array<ArrayBuffer> {
-  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(text) || text.length % 4 !== 0) throw new Error('not base64');
-  const binary = atob(text);
-  const out = new Uint8Array(new ArrayBuffer(binary.length));
-  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
-  return out;
-}
-
+/** Strict data readers shared by deployed advisory and release metadata. */
 export function parseJson(text: string): unknown {
   try {
     return JSON.parse(text) as unknown;

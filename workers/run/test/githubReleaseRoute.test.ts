@@ -1,0 +1,31 @@
+import { expect, it, vi } from 'vitest';
+import { githubReleaseRoute } from '../src/githubReleaseRoute.ts';
+import { proxyFirmwareAsset, memoryCache } from '../src/firmwareProxy.ts';
+const origin = 'https://run.synthetos.com';
+const sha = async (bytes: Uint8Array<ArrayBuffer>) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(v => v.toString(16).padStart(2, '0')).join('');
+it('is public GET-only and refuses cross-origin requests before loading', async () => {
+  const load = vi.fn(async () => []);
+  expect((await githubReleaseRoute(new Request(`${origin}/api/firmware/releases`), load)).status).toBe(200);
+  for (const headers of [{ origin: 'https://elsewhere.invalid' }, { 'sec-fetch-site': 'cross-site' }]) expect((await githubReleaseRoute(new Request(origin, { headers }), load)).status).toBe(403);
+  expect((await githubReleaseRoute(new Request(origin, { method: 'POST' }), load)).status).toBe(405);
+  expect(load).toHaveBeenCalledTimes(1);
+  expect((await githubReleaseRoute(new Request(origin), async () => { throw Error('offline'); })).status).toBe(502);
+});
+it('proxies only current listed assets, checks bytes including cache hits, and never fetches supplied URLs', async () => {
+  const bytes = new TextEncoder().encode('firmware');
+  const digest = await sha(bytes);
+  const entry = { repo: 'synthetos/TinyG' as const, tag: '450.05', file: 'tinyg-450.05.hex', size: bytes.length, sha256: digest, date: '2026-11-14', notes: '', prerelease: true, unavailable: null };
+  const fetcher = vi.fn(async (_url: string, _init: RequestInit) => new Response(bytes));
+  const cache = memoryCache();
+  const deps = { fetch: fetcher, cache, releases: async () => [entry] };
+  const path = '/firmware/synthetos/TinyG/450.05/tinyg-450.05.hex';
+  expect((await proxyFirmwareAsset(path, 'production', deps)).ok).toBe(true);
+  expect(fetcher.mock.calls[0]?.[0]).toBe('https://github.com/synthetos/TinyG/releases/download/450.05/tinyg-450.05.hex');
+  expect((await proxyFirmwareAsset(path, 'production', { ...deps, releases: async () => [] })).ok).toBe(false);
+  expect((await proxyFirmwareAsset(path, 'production', { ...deps, releases: async () => [{ ...entry, sha256: null, unavailable: 'No digest' }] })).ok).toBe(false);
+  await cache.put(digest, new TextEncoder().encode('corrupt!'));
+  expect((await proxyFirmwareAsset(path, 'production', deps)).ok).toBe(true);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect((await proxyFirmwareAsset(path, 'production', { ...deps, cache: memoryCache(), fetch: async () => new Response('too large!') })).ok).toBe(false);
+  expect((await proxyFirmwareAsset(path, 'production', { ...deps, cache: memoryCache(), fetch: async () => new Response('wrong!!!') })).ok).toBe(false);
+});

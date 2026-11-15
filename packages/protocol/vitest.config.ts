@@ -21,7 +21,6 @@ export default defineConfig({
         'src/json.ts': FULL,
         'src/probe.ts': FULL,
         'src/approvedBuilds.ts': FULL,
-        'src/releaseKeys.ts': FULL,
         'src/dialects/**/*.ts': FULL,
       },
     },

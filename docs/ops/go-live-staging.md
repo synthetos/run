@@ -233,13 +233,15 @@ Production itself is read-only (Phase 1), so on production only connect, Pause a
 
 **Not needed for this opening:** the public-launch items stay for the public opening: the D25 legal review (E-stop wording, privacy text, product liability) and the published privacy text (RUN_PLAN §9.1). The allowlist keeps production closed to the public until then (D37).
 
-### 7.2 Signed production data the page needs
+### 7.2 Firmware sources and advisory
 
-Connect needs a signed `safety-advisory.json` for production and a production entry in the approved-builds manifest for the board's firmware (RUN_PLAN §5.2: per-environment signed data files; production rejects bench entries). These are signed with the **release key**, which only you hold (docs/ops/release-key.md); never with the bench key. Without them Connect is refused ("The safety advisory could not be verified") or the board is READ_ONLY.
+Owner decision 2026-11-15 removes release-key and signing steps. The deployed
+production advisory and compiled supported-version list are reviewed with the
+code. Firmware images use GitHub's asset digests; see [Firmware sources](firmware-sources.md).
 
 ### 7.3 Accounts production and run production, in order
 
-The prerequisites in §7.1 (including the TG-Firmware HIL sign-off and allowlist) and §7.2 (owner-signed production data) are unchanged. Do not run wrangler locally or create resources in the dashboard. CI does the provisioning and deployment; the owner approves the protected `production` jobs. Every manual workflow below selects **main**. None is dispatched by this implementation.
+The prerequisites in §7.1 (including the TG-Firmware HIL sign-off and allowlist) and §7.2 (deployed firmware policy and advisory) are unchanged. Do not run wrangler locally or create resources in the dashboard. CI does the provisioning and deployment; the owner approves the protected `production` jobs. Every manual workflow below selects **main**. None is dispatched by this implementation.
 
 **One owner credential step before the secrets job:** on the existing Synthetos GitHub App, create a new client secret and save it as **APP_CLIENT_SECRET** in the accounts repository's protected **production** environment. Do not copy the staging value. CI generates all other missing keys, including the webhook secret as staging does, and writes them straight to Worker secrets; no additional webhook-secret input is needed. Never paste any secret into a log, issue or review.
 

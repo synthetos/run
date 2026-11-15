@@ -9,11 +9,6 @@
  * pending. The `fbs`/`cap` tokens D4 recommended, D5 image approval and the
  * D6 published release stay open and stay distinct from the build number.
  *
- * One exception is allowed, and only while it is recorded: the bench entry
- * note inside the signed manifest. Changing a signed payload needs a new
- * signature from the release key (docs/ops/release-key.md), which no fix pass
- * holds, so the note is left as signed and the owner's next re-sign must
- * replace it. The record must exist exactly while the stale note does.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -26,18 +21,11 @@ const read = (path: string): string => readFileSync(join(REPO_ROOT, path), 'utf8
 /** Phrases that say the D4 build number is still undecided or pending. */
 const STALE_D4 = [/build number is not final/i, /not final \(D4\)/i, /\buntil D4\b/, /bumped edge-next build/i, /edge-next is released \(D4/i];
 
-/** The signed manifest pair: its note can change only with a new signature. */
-const SIGNED_MANIFEST = ['firmware/approved-builds.json', 'firmware/approved-builds.unsigned.json'];
-
 /**
  * `SAFETY.md` is the vendored safety case: it changes only by carrying the
  * change into the synthetos.com copy first and re-copying (docs/safety/README.md).
  */
 const VENDORED = ['SAFETY.md', 'docs/safety/OLD-S.md'];
-
-/** The marker the release-key page carries while the signed bench note predates D4. */
-const PENDING_RESIGN_MARKER = 'signed bench note predates D4';
-const PENDING_RESIGN_PAGES = ['docs/ops/release-key.md'];
 
 const SELF = 'tools/gates/test/doc-drift.test.ts';
 
@@ -55,18 +43,11 @@ function staleIn(text: string): string[] {
   return STALE_D4.filter((re) => re.test(text)).map(String);
 }
 
-function benchNotes(): string[] {
-  const unsigned = JSON.parse(read('firmware/approved-builds.unsigned.json')) as {
-    channels: { channel: string; builds: { note: string }[] }[];
-  };
-  return unsigned.channels.flatMap((c) => c.builds.map((b) => b.note));
-}
-
 describe('D4 is done: no stale build-number claim', () => {
-  it('no tracked file outside the signed manifest and the vendored safety case says D4 is pending', () => {
+  it('no tracked file outside the vendored safety case says D4 is pending', () => {
     const offenders: string[] = [];
     for (const path of trackedTextFiles()) {
-      if (path === SELF || SIGNED_MANIFEST.includes(path) || VENDORED.includes(path)) continue;
+      if (path === SELF || VENDORED.includes(path)) continue;
       const hits = staleIn(read(path));
       if (hits.length > 0) offenders.push(`${path}: ${hits.join(', ')}`);
     }
@@ -95,12 +76,7 @@ describe('D4 is done: no stale build-number claim', () => {
     expect(header).toMatch(/never classified\s+\*?\s*by `fb` alone/);
   });
 
-  it('a stale signed bench note is recorded on the release-key page, and the record goes when the note is re-signed', () => {
-    const stale = benchNotes().some((n) => staleIn(n).length > 0);
-    for (const page of PENDING_RESIGN_PAGES) {
-      expect(read(page).includes(PENDING_RESIGN_MARKER), `${page} records the pending re-sign: ${String(stale)}`).toBe(stale);
-    }
-  });
+
 });
 
 describe('status pages', () => {
@@ -108,7 +84,7 @@ describe('status pages', () => {
     const status = /> \*\*Status:[\s\S]*?(?=\n\n)/.exec(read('README.md'))?.[0] ?? '';
     expect(status).toContain('P0-15');
     expect(status).toContain('docs/ops/');
-    expect(status).toContain('release-key.md');
+    expect(status).toContain('firmware-sources.md');
   });
 
   // Needs the synthetos.com clone: RUN_SITE_REPO=<path> (as tokens.test.ts).

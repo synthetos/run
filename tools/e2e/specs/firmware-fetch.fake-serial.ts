@@ -23,6 +23,7 @@ import { simFirmwareImage } from '@synthetos/testkit';
 import { benchFirmware, benchFirmwareAssets, type BenchFirmware } from '../../gates/src/bench/firmware.ts';
 import type { FetchLike } from '../../../workers/run/src/firmwareProxy.ts';
 import { expect, test } from './fixtures.ts';
+import { FIRMWARE_CATALOG, stubFirmwareCatalog } from './firmwareCatalogFixture.ts';
 import { machineWorker, request } from './machineWorker.ts';
 
 const REPO = resolve(import.meta.dirname, '../../..');
@@ -32,6 +33,8 @@ const IMAGE_SHA = createHash('sha256').update(IMAGE).digest('hex');
 const HEX_URL = 'https://github.com/synthetos/TinyG/releases/download/440.21/tinyg-440.21.hex';
 const SUMS_URL = 'https://github.com/synthetos/TinyG/releases/download/440.21/SHA256SUMS';
 const ROUTE = '**/firmware/synthetos/TinyG/440.21/tinyg-440.21.hex';
+const CATALOG = { format: 'synthetos-run/github-releases@1', releases: [FIRMWARE_CATALOG.releases[0]!, { repo: 'synthetos/TinyG', tag: '440.21', file: 'tinyg-440.21.hex', date: '2026-10-29T00:00:00Z', notes: 'Older release fixture.', prerelease: true, sha256: IMAGE_SHA, size: IMAGE.length, unavailable: null }] };
+test.beforeEach(async ({ page }) => { await stubFirmwareCatalog(page, CATALOG); });
 
 interface Status {
   readonly status: { readonly session: { readonly base: string; readonly identity: { readonly fb?: number; readonly hv?: number } | null } };
@@ -46,9 +49,8 @@ async function benchRoute(body: Uint8Array<ArrayBuffer>): Promise<{ proxy: Bench
     if (url === SUMS_URL) return Promise.resolve(new Response(`${IMAGE_SHA}  tinyg-440.21.hex\n`));
     return Promise.resolve(new Response('no', { status: 404 }));
   };
-  const assets = await benchFirmwareAssets(JSON.parse(readFileSync(join(REPO, 'firmware/releases.json'), 'utf8')) as unknown);
-  // 450.05 is recommended; 450.02 and 450.01 remain listed. These specs fetch 440.21.
-  expect(assets.map((a) => a.asset)).toEqual(['tinyg-450.05.hex', 'tinyg-450.02.hex', 'tinyg-450.01.hex', 'tinyg-440.21.hex']);
+  const assets = await benchFirmwareAssets(CATALOG);
+  expect(assets.map(a => a.asset)).toEqual(['tinyg-450.06.hex', 'tinyg-440.21.hex']);
   const proxy = benchFirmware(assets, fetchFn);
   const state = {
     proxy,
@@ -131,7 +133,7 @@ test('440.21 is listed as an older build from GitHub Releases; Update fetches it
   await expect(confirm.locator('[data-safety="C6"]')).toContainText('c2c1…5e92');
   await expect(confirm.locator('[data-safety="C6"]')).toContainText('440.21');
   expect(bench.hits).toBe(1);
-  expect(bench.github).toEqual([HEX_URL, SUMS_URL]);
+  expect(bench.github).toEqual([HEX_URL]);
   await confirm.locator('[data-action="cancel-flash"]').click();
   await expect(confirm).toHaveCount(0);
   // The download card shows the checked image; nothing was written and the board still runs 450.01.
@@ -144,11 +146,11 @@ test('440.21 is listed as an older build from GitHub Releases; Update fetches it
   await release.locator('[data-action="update-release"]').click();
   await expect(confirm).toBeVisible({ timeout: 30_000 });
   expect(bench.hits).toBe(2);
-  expect(bench.github).toHaveLength(2);
+  expect(bench.github).toHaveLength(1);
   await confirm.locator('[data-action="cancel-flash"]').click();
 });
 
-test('a GitHub that serves other bytes is refused by the route (404): the panel offers the local copy, which is checked against the signed entry', async ({ page }) => {
+test('a GitHub that serves other bytes is refused by the route (404): the panel offers the local copy, which is checked against the GitHub entry', async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 1440, height: 900 });
   const tampered = new Uint8Array(IMAGE);
@@ -171,7 +173,7 @@ test('a GitHub that serves other bytes is refused by the route (404): the panel 
   // A tampered local copy is refused on the page; the real one is accepted and C6 is asked.
   const input = release.locator('[data-action="release-local"]');
   await input.setInputFiles({ name: 'tinyg-440.21.hex', mimeType: 'text/plain', buffer: Buffer.from(tampered) });
-  await expect(message).toContainText('SHA-256 is not the one the signed release list names', { timeout: 20_000 });
+  await expect(message).toContainText('SHA-256 is not the one the GitHub release list names', { timeout: 20_000 });
   await expect(page.locator('[data-region="flash-confirm"]')).toHaveCount(0);
   await input.setInputFiles({ name: 'tinyg-440.21.hex', mimeType: 'text/plain', buffer: IMAGE });
   const confirm = page.locator('[data-region="flash-confirm"]');

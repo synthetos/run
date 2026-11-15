@@ -1,6 +1,6 @@
 /**
  * "Firmware update available" (owner, 2026-11-09) in the built app (fake-serial TEST build): the simulated board
- * is given edge-next 450.01 (hardware 8), older than the newest the signed staging list names for it (450.05), so
+ * is given edge-next 450.01 (hardware 8), older than the newest the GitHub list names for it (450.06), so
  * after a connect the page offers it. The default simulated board uses the simulator hardware list; these tests use hardware 8. Not now hides it for the page; Go to update opens Board → Firmware on that release; "Don't
  * show again for this version" keeps it hidden after a reload; it never opens over the Run step while a job is
  * loaded or running there, and it waits until that is over. With RUN_SCREENSHOTS_DIR set, the modal is captured in
@@ -61,7 +61,7 @@ for (const theme of ['light', 'dark'] as const) {
     expect((await session(worker)).identity?.fb).toBe(450.01);
     await expect(offer(page)).toBeVisible({ timeout: 10_000 });
     await expect(offer(page).locator('h2')).toHaveText('Firmware update available');
-    await expect(offer(page).locator('[data-firmware-offer="text"]')).toHaveText('This board runs 450.01. 450.05 is released.');
+    await expect(offer(page).locator('[data-firmware-offer="text"]')).toHaveText('This board runs 450.01. 450.06 is released.');
     if (SHOTS !== undefined) await page.screenshot({ path: `${SHOTS}/firmware-offer-1440-${theme}.png` });
     await offer(page).locator('[data-action="firmware-offer-later"]').click();
     await expect(offer(page)).toHaveCount(0);
@@ -74,7 +74,7 @@ for (const theme of ['light', 'dark'] as const) {
     await offer(page).locator('[data-action="firmware-offer-go"]').click();
     await expect(page.locator('[data-region="rail"] [data-view="board"]')).toHaveAttribute('aria-current', 'page');
     await expect(page.locator('[data-board-tab="firmware"]')).toHaveAttribute('aria-selected', 'true');
-    const row = page.locator('[data-release="tinyg-450.05.hex"]');
+    const row = page.locator('[data-release="tinyg-450.06.hex"]');
     await expect(row).toHaveAttribute('data-release-focus', '');
     await expect(row).toBeInViewport();
     await expect(offer(page)).toHaveCount(0);
@@ -127,12 +127,12 @@ for (const theme of ['light', 'dark'] as const) {
     await worker.evaluate(() => {
       const scope = globalThis as unknown as { __RUN_FAKE_SERIAL__?: { ports: unknown[]; next?: unknown } };
       scope.__RUN_FAKE_SERIAL__ ??= { ports: [] };
-      scope.__RUN_FAKE_SERIAL__.next = { build: { fb: 450.03, fv: 0.97, hv: 8, layout: 10002 } };
+      scope.__RUN_FAKE_SERIAL__.next = { build: { fb: 450.07, fv: 0.97, hv: 8, layout: 10002 } };
     });
     expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
     await expect(offer(page)).toBeVisible({ timeout: 10_000 });
     await expect(offer(page).locator('h2')).toHaveText('Firmware update needed');
-    await expect(offer(page).locator('[data-firmware-offer="text"]')).toHaveText("Run can't control firmware 450.03. Install 450.05, the newest release Run supports.");
+    await expect(offer(page).locator('[data-firmware-offer="text"]')).toHaveText("Run can't control firmware 450.07. Install 450.06, the newest release Run supports.");
     await expect(offer(page).locator('[data-action="firmware-offer-never"]')).toHaveCount(0);
     if (SHOTS !== undefined) await page.screenshot({ path: `${SHOTS}/firmware-needed-1280-${theme}.png` });
     await offer(page).locator('[data-action="firmware-offer-later"]').click();
@@ -142,12 +142,12 @@ for (const theme of ['light', 'dark'] as const) {
     expect(await request(worker, { v: 3, kind: 'close' })).toMatchObject({ ok: true });
     await worker.evaluate(() => {
       const scope = globalThis as unknown as { __RUN_FAKE_SERIAL__: { next?: unknown } };
-      scope.__RUN_FAKE_SERIAL__.next = { build: { fb: 450.03, fv: 0.97, hv: 8, layout: 10002 } };
+      scope.__RUN_FAKE_SERIAL__.next = { build: { fb: 450.07, fv: 0.97, hv: 8, layout: 10002 } };
     });
     expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
     await expect(offer(page)).toBeVisible({ timeout: 10_000 });
     await offer(page).locator('[data-action="firmware-offer-go"]').click();
     await expect(page.locator('[data-board-tab="firmware"]')).toHaveAttribute('aria-selected', 'true');
-    await expect(page.locator('[data-release="tinyg-450.05.hex"]')).toHaveAttribute('data-release-focus', '');
+    await expect(page.locator('[data-release="tinyg-450.06.hex"]')).toHaveAttribute('data-release-focus', '');
   });
 }

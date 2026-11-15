@@ -1,7 +1,8 @@
 /** The open page's view: firmware and its required restore only. */
+import { UpdateReleaseChoices } from './ReleaseChoices.ts';
 import { h, type ComponentChild } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import { releasesForHardware, type FirmwareRelease } from '@synthetos/protocol';
+import { type FirmwareRelease } from '@synthetos/protocol';
 import { boardText, w45, w46, w28, w49 } from '@synthetos/safety';
 import { signalText } from '../shell/signal.ts';
 import { ConfirmFlash, DownloadCard, Progress } from '../firmware/FlashViews.ts';
@@ -29,7 +30,6 @@ export function UpdateFlow({ controller, supported, failure }: { readonly contro
   const done = post?.phase === 'clear';
   const selectionBlocked = flash?.bootloader !== undefined ? null : backupBlocked(s ?? null);
   const hv = id?.hv ?? flash?.board?.hv ?? null;
-  const list = hub?.releases.ok ? releasesForHardware(hub.releases.list, typeof hv === 'number' ? hv : null) : null;
   const act = (run: () => Promise<string | null>): void => { void controller?.action(run); };
   const pick = (release: FirmwareRelease): void => {
     if (controller?.hub === null || controller === null) return;
@@ -49,7 +49,7 @@ export function UpdateFlow({ controller, supported, failure }: { readonly contro
     !supported ? h('section', { class: 'update-card', 'data-step': 'unsupported' }, h('h2', null, 'Use Chrome or Edge on a desktop computer'), h('p', null, 'This browser cannot connect to a USB serial board. Open this page in Chrome or Edge.')) : null,
     supported && !connected && !flash ? h('section', { class: 'update-card', 'data-step': 'connect' },
       h('h2', null, '1. Connect your board'),
-      h('p', null, 'Run will identify your TinyG, save a backup here, install a signed release and restore your settings. It will not move the machine.'),
+      h('p', null, 'Run will identify your TinyG, save a backup here, install a GitHub release and restore your settings. It will not move the machine.'),
       h('ul', { class: 'update-list' }, ['Chrome or Edge on a desktop computer', 'A USB cable', 'Spindle mains switched off'].map(t => h('li', { key: t }, t))),
       h('button', { class: 'primary', disabled: controller === null || state.connecting, onClick: () => void controller?.connect(), 'data-action': 'update-connect' }, state.connecting ? 'Connecting…' : 'Connect'),
     ) : null,
@@ -65,14 +65,7 @@ export function UpdateFlow({ controller, supported, failure }: { readonly contro
       h('p', null, 'Look for “TinyG v8” on the silkscreen. Check your board’s printed version.'),
       h('button', { disabled: hardware === '', onClick: () => act(() => controller!.hub!.actions.bootloaderHardware(Number(hardware))) }, 'Confirm hardware version'),
     ) : null,
-    (connected || flash?.bootloader) && !busy && !done && !post && !image && !state.backup ? h('section', { class: 'update-card', 'data-step': 'release' },
-      h('h2', null, 'Choose a signed release'),
-      selectionBlocked ? h('p', { role: 'status' }, selectionBlocked) : null,
-      hub?.releases.ok === false ? h('p', null, `The signed release list is unavailable: ${hub.releases.reason}.`) : null,
-      !list?.releases.length ? h('p', null, 'No signed release is listed for this hardware yet.') : h('ul', { class: 'update-list' }, list.releases.map(r => h('li', { key: r.file, 'data-release': r.file },
-        h('div', null, h('strong', null, `Firmware ${r.fb.toFixed(2)}`), h('p', null, r.changelog)),
-        h('button', { class: 'primary', disabled: selectionBlocked !== null || selecting || hub?.download?.phase === 'fetching' || hub?.download?.phase === 'checking', onClick: () => pick(r) }, `Install ${r.fb.toFixed(2)}`)))),
-    ) : null,
+    (connected || flash?.bootloader) && !busy && !done && !post && !image && !state.backup ? h(UpdateReleaseChoices, { hub, hv, blocked: selectionBlocked, selecting, pick }) : null,
     hub?.download ? h(DownloadCard, { download: hub.download }) : null,
     image && m ? h('section', { class: 'update-card', 'data-step': 'checklist' }, h('h2', null, '3. Check before updating'), state.checklistBackup ? h('div', null, h('p', null, 'Download the settings backup before ticking the checklist.'), h('button', { onClick: () => controller?.downloadBackup(state.checklistBackup!), 'data-action': 'checklist-backup' }, 'Download settings backup')) : null, h(ConfirmFlash, { openUpdate: true, view: { message: m }, target: { kind: 'release', image }, onCancel: () => setImage(null), onConfirm: () => { const chosen = image; setImage(null); act(() => controller!.hub!.actions.updateRelease(chosen)); } })) : null,
     state.backup ? h('section', { class: 'update-card', 'data-step': 'backup' }, h('h2', null, '4. Your backup'),

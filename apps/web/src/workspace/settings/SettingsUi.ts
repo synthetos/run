@@ -1,3 +1,4 @@
+import { visibleSettingGroups } from './visibleGroups.ts';
 import { ConfirmSettings } from '../../firmware/ConfirmSettings.ts';
 /**
  * The settings-write UI (SAFETY §4.6, H57-H63, amendment 2026-11-02):
@@ -23,7 +24,7 @@ import { ConfirmSettings } from '../../firmware/ConfirmSettings.ts';
 import { h, type ComponentChild } from 'preact';
 import { useLayoutEffect, useState } from 'preact/hooks';
 import { boardText, w20 } from '@synthetos/safety';
-import { restoreChanges, settingsReadGroups, type PlannedChange, type RestoreChanges, type SettingValue } from '@synthetos/schema';
+import { restoreChanges, type PlannedChange, type RestoreChanges, type SettingValue } from '@synthetos/schema';
 import { draftStore, plainValue, setDraft, clearDraft, settingMeta } from '../boardFacts.ts';
 import type { LiveView, WorkspaceModel } from '../model.ts';
 import type { ApplyState, ApplyStep } from '../../live/settingsApply.ts';
@@ -236,7 +237,7 @@ export function SettingsTable({ view, id = 'all-settings-title' }: { readonly vi
   const [changedOnly, setChangedOnly] = useState(false);
   const dialect = view?.readout.dialectId ?? null;
   const settings: Settings = view?.readout.settings ?? {};
-  const groups = dialect === null ? [] : settingsReadGroups(dialect);
+  const groups = visibleSettingGroups(dialect, typeof view?.message?.snapshot.identity?.fb === 'number' ? view?.message?.snapshot.identity?.fb : undefined);
   const q = query.trim().toLowerCase();
   const drafts = draftStore.value.value;
   const rows = groups

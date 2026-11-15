@@ -30,6 +30,7 @@ function served(bodies: Record<string, Uint8Array | number> = { [PATH]: new Uint
   const calls: string[] = [];
   const fetchFn = ((input: string | URL | Request) => {
     const path = typeof input === 'string' ? input : input instanceof URL ? input.pathname : new URL(input.url).pathname;
+    if (path === '/api/firmware/releases') return Promise.resolve(new Response(JSON.stringify({ format: 'synthetos-run/github-releases@1', releases: [{ repo: 'synthetos/TinyG', tag: '440.21', file: 'tinyg-440.21.hex', date: '2026-10-29T00:00:00Z', notes: '', prerelease: true, sha256: 'c2c1693e82f0ed88ec8dec4338a0bc799059c10b3323acb1189564f6a2265e92', size: IMAGE.length, unavailable: null }] })));
     calls.push(path);
     const body = bodies[path];
     if (body === undefined) return Promise.resolve(new Response('not found', { status: 404 }));
@@ -119,11 +120,9 @@ describe('firmware hub: downloading a listed release (OD-10)', () => {
 
   it('the committed staging list offers 440.21 for hardware version 8 from GitHub Releases, not recommended, not below the minimum', async () => {
     const { hub: h, release } = await hub(served());
-    expect(release).toMatchObject({ fb: 440.21, hv: 8, file: 'tinyg-440.21.hex', repo: 'synthetos/TinyG', tag: '440.21', recommended: false, simulatorOnly: false, size: IMAGE.length });
+    expect(release).toMatchObject({ fb: 440.21, hv: 8, file: 'tinyg-440.21.hex', repo: 'synthetos/TinyG', tag: '440.21', recommended: true, simulatorOnly: false, size: IMAGE.length });
     const view = h.view();
-    expect(view.releases.ok && releasesForHardware(view.releases.list, 8)?.minimumFb).toBe(440.21);
-    // The edge-next pre-release sits beside it, from GitHub Releases, not recommended until the maintainer calls a 450.xx build current.
-    expect(view.releases.ok && releasesForHardware(view.releases.list, 8)?.releases.find((r) => r.file === 'tinyg-450.01.hex')).toMatchObject({ fb: 450.01, hv: 8, repo: 'synthetos/TinyG', tag: '450.01', recommended: false, simulatorOnly: false, size: 434318 });
+    expect(view.releases.ok && releasesForHardware(view.releases.list, 8)?.minimumFb).toBe(450.01);
     expect(view.download).toBeNull();
   });
 
@@ -164,7 +163,7 @@ describe('firmware hub: downloading a listed release (OD-10)', () => {
     tampered[100] = tampered[100] === 0x30 ? 0x31 : 0x30;
     const { hub: h, release } = await hub(served({ [PATH]: tampered }));
     const got = await h.actions.downloadRelease(release);
-    expect(got).toEqual({ ok: false, message: expect.stringMatching(/SHA-256 is not the one the signed release list names.*Use a local copy/s) });
+    expect(got).toEqual({ ok: false, message: expect.stringMatching(/SHA-256 is not the one the GitHub release list names.*Use a local copy/s) });
     expect(h.view().download).toMatchObject({ phase: 'failed', message: expect.stringContaining('SHA-256') });
   });
 

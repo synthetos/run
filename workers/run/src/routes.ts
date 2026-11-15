@@ -1,4 +1,4 @@
-import { catalogRoute } from './catalogRoute.ts';
+import { dataRoute } from './dataRoute.ts';
 /**
  * Routing for the run Worker (ROADMAP P0-04). Kept apart from index.ts
  * because the Workers runtime treats every named export of the main module
@@ -13,11 +13,9 @@ import { catalogRoute } from './catalogRoute.ts';
  *
  * `GET /firmware/<owner>/<name>/<tag>/<asset>` (OD-10) serves a listed
  * GitHub release asset through the firmware proxy (firmwareProxy.ts). The
- * Worker runs first for every path (OD-29); production lists no firmware
- * (only `env: 'production'` entries count there), so it answers 404, and
- * its flasher is off.
+ * Worker runs first for every path (OD-29); the public GitHub list and
+ * digest-checked images are available on staging and production.
  */
-import { recordsRoute } from './records.ts';
 import type { IdentityBody, SessionBody, RunDataBinding } from '@synthetos/contracts';
 import { accessConfig, type CertsFetcher, fetchAccessCerts, verifyAccessJwt } from './accessIdentity.ts';
 import { firmwareAssetPath, firmwareHeaders, NO_CACHE, proxyFirmwareAsset, type FirmwareCache, type FirmwareProxyDeps } from './firmwareProxy.ts';
@@ -177,8 +175,8 @@ export async function route(
   const { pathname } = url;
   if (pathname === '/firmware' || pathname === '/firmware/') return new Response(null, { status: 302, headers: { location: '/update/', 'cache-control': 'no-store' } });
   if (under(pathname, '/api')) {
-    if (pathname === '/api/catalog/tools') return catalogRoute(request);
-    if (under(pathname, '/api/records')) return recordsRoute(request, env);
+    const data = dataRoute(request, { pathname, env, releases: firmwareDeps?.releases });
+    if (data !== null) return data;
     if (pathname === '/api/identity') {
       if (request.method === 'GET') return identity(request, env, fetchCerts);
       return json(405, { error: 'method_not_allowed' }, { allow: 'GET' });

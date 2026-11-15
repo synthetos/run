@@ -48,7 +48,7 @@
       "complexity $/ClassDeclaration:SettingsBackup#1/FunctionExpression:run#1": 34
     },
     "apps/web/src/live/firmwareHub.ts": {
-      "max-lines-per-function $/FunctionDeclaration:mountFirmware#1": 202,
+      "max-lines-per-function $/FunctionDeclaration:mountFirmware#1": 194,
       "max-methods $/FunctionDeclaration:mountFirmware#1/ObjectExpression:actions#1": 24
     },
     "apps/web/src/live/liveMarker.ts": {
@@ -68,10 +68,10 @@
       "complexity $/FunctionDeclaration:parseTrustedBuild#1": 23
     },
     "apps/web/src/machine-worker/flashService.ts": {
-      "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:begin#1": 25,
+      "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:begin#1": 19,
       "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:onSnapshot#1": 25,
       "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:run#1": 27,
-      "max-lines $file": 720,
+      "max-lines $file": 706,
       "max-methods $/ClassDeclaration:FlashService#1": 37
     },
     "apps/web/src/machine-worker/hostCore.ts": {
@@ -185,8 +185,8 @@
       "complexity $/FunctionDeclaration:mCode#1": 20
     },
     "apps/web/src/update/UpdateFlow.ts": {
-      "complexity $/FunctionDeclaration:UpdateFlow#1": 113,
-      "max-lines-per-function $/FunctionDeclaration:UpdateFlow#1": 94
+      "complexity $/FunctionDeclaration:UpdateFlow#1": 105,
+      "max-lines-per-function $/FunctionDeclaration:UpdateFlow#1": 86
     },
     "apps/web/src/update/controller.ts": {
       "max-methods $/ClassDeclaration:UpdateController#1": 16
@@ -363,12 +363,11 @@
     },
     "apps/web/src/workspace/views/FirmwareViews.ts": {
       "complexity $/FunctionDeclaration:BackupsHub#1": 55,
-      "complexity $/FunctionDeclaration:FirmwareTab#1": 103,
-      "complexity $/FunctionDeclaration:FirmwareTab#1/ArrowFunctionExpression:hw.releases.map()[0]#1": 31,
+      "complexity $/FunctionDeclaration:FirmwareTab#1": 94,
       "complexity $/FunctionDeclaration:flashBlocked#1": 19,
-      "max-lines $file": 541,
+      "max-lines $file": 475,
       "max-lines-per-function $/FunctionDeclaration:BackupsHub#1": 174,
-      "max-lines-per-function $/FunctionDeclaration:FirmwareTab#1": 200
+      "max-lines-per-function $/FunctionDeclaration:FirmwareTab#1": 134
     },
     "apps/web/src/workspace/views/JobStatusCard.ts": {
       "complexity $/FunctionDeclaration:JobStatus#1": 48
@@ -459,7 +458,7 @@
       "max-lines-per-function $/ArrowFunctionExpression:describe('the firmware update in the worker')[1]#1": 239
     },
     "apps/web/test/firmwareHub.test.ts": {
-      "max-lines-per-function $/ArrowFunctionExpression:describe('firmware hub: downloading a listed release (OD-10)')[1]#1": 102,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('firmware hub: downloading a listed release (OD-10)')[1]#1": 101,
       "max-nested-callbacks $/ArrowFunctionExpression:describe('firmware hub: downloading a listed release (OD-10)')[1]#1/ArrowFunctionExpression:it('the open page waits for the backup decision, and cancellation never reaches boot entry')[1]#1/ArrowFunctionExpression:hub()[1]#1/ArrowFunctionExpression:Promise()[0]#1": 4
     },
     "apps/web/test/frameBudget.test.ts": {
@@ -479,9 +478,8 @@
     },
     "apps/web/test/machineWorker.test.ts": {
       "max-classes-per-file $file": 2,
-      "max-lines $file": 1124,
+      "max-lines $file": 1047,
       "max-lines-per-function $/ArrowFunctionExpression:describe('MachineWorkerHost')[1]#1": 242,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('P1-03: the worker classifies against the bundled, signed approved-builds manifest')[1]#1": 90,
       "max-lines-per-function $/ArrowFunctionExpression:describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S93)')[1]#1": 173,
       "max-lines-per-function $/ArrowFunctionExpression:describe('Phase 3: job commands through the worker (SAFETY §4.4a, T-S117)')[1]#1": 83,
       "max-params $/FunctionDeclaration:approvingHost#1": 6
@@ -994,8 +992,6 @@
       "max-nested-callbacks $/ArrowFunctionExpression:describe('properties over arbitrary bytes')[1]#1/ArrowFunctionExpression:it('printable lines built from the allowed alphabet are always accepted')[1]#1/ArrowFunctionExpression:fc.property()[1]#1/ArrowFunctionExpression:body.some()[0]#1": 4
     },
     "packages/protocol/src/approvedBuilds.ts": {
-      "complexity $/FunctionDeclaration:readBuild#1": 16,
-      "complexity $/FunctionDeclaration:verifyChannel#1": 24,
       "max-params $/FunctionDeclaration:findApproval#1": 5
     },
     "packages/protocol/src/classify.ts": {
@@ -1006,18 +1002,8 @@
       "complexity $/FunctionDeclaration:classify#1": 38,
       "max-params $/FunctionDeclaration:approvable#1": 5
     },
-    "packages/protocol/src/firmwareReleases.ts": {
-      "complexity $/FunctionDeclaration:readRelease#1": 33,
-      "complexity $/FunctionDeclaration:verifyFirmwareReleases#1": 31
-    },
     "packages/protocol/src/probe.ts": {
       "complexity $/FunctionDeclaration:buildProbeResult#1": 27
-    },
-    "packages/protocol/src/safetyAdvisory.ts": {
-      "complexity $/FunctionDeclaration:verifySafetyAdvisory#1": 34
-    },
-    "packages/protocol/test/approvedBuilds.test.ts": {
-      "max-lines-per-function $/ArrowFunctionExpression:describe('verifyApprovedBuilds fails closed')[1]#1": 90
     },
     "packages/protocol/test/capability.test.ts": {
       "max-lines-per-function $/ArrowFunctionExpression:describe('T-S55: classifier fixtures')[1]#1": 101,
@@ -1046,9 +1032,6 @@
       "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('a read-only dialect stops with `!` and E-stop advice only: no lines, no clear, no flush')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stopJob.steps.some()[0]#1": 4,
       "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('every Stop job first waits for the in-flight write and stops feeding')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:d.stopJob.steps.slice(0, 2).map()[0]#1": 4,
       "max-nested-callbacks $/ArrowFunctionExpression:describe('contract: stop sequences')[1]#1/ArrowFunctionExpression:it('no stop sequence ever writes ^X, and every byte it writes is one the dialect allows')[1]#1/ArrowFunctionExpression:each()[0]#1/ArrowFunctionExpression:[d.realtime.feedhold, d.realtime.flush, d.realtime.kill].flatMap()[0]#1": 4
-    },
-    "packages/protocol/test/firmwareReleases.test.ts": {
-      "max-lines-per-function $/ArrowFunctionExpression:describe('verifyFirmwareReleases')[1]#1": 118
     },
     "packages/protocol/test/fixtures.test.ts": {
       "max-nested-callbacks $/ArrowFunctionExpression:describe('EN-HIL fixtures')[1]#1/ArrowFunctionExpression:it('include both banner shapes and all three footer revisions')[1]#1/ArrowFunctionExpression:enHil.flatMap()[0]#1/ArrowFunctionExpression:f.rows.map()[0]#1": 4

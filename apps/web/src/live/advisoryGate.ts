@@ -1,8 +1,8 @@
 /**
  * The safety-advisory gate (ROADMAP P1-05; SAFETY H27, T-S31, T-S75).
  *
- * At every LIVE entry the signed advisory is fetched (`no-store`) and
- * verified. A verified copy is cached in `device-safety` as the raw signed
+ * At every LIVE entry the deployed advisory is fetched (`no-store`) and
+ * verified. A verified copy is cached in `device-safety` as the raw deployed
  * file and is re-verified whenever it is used, so the cache is never trusted
  * on its own. If the fetch fails, the cached copy is used while it is
  * younger than 7 days; after that LIVE is refused. A fetched file that does
@@ -15,11 +15,11 @@
  * to the machine worker: a running job, a hold and every stop are untouched.
  */
 import { findRevocation, verifySafetyAdvisory } from '@synthetos/protocol';
-import type { AdvisoryEnvironment, AdvisoryRejection, ReleaseKey, Revocation } from '@synthetos/protocol';
+import type { AdvisoryEnvironment, AdvisoryRejection, Revocation } from '@synthetos/protocol';
 import type { AdvisoryFetch } from '../cloud/live.ts';
 import type { DeviceSafetyStore } from './deviceSafety.ts';
 
-export const ADVISORY_CACHE_KEY = 'advisory.verified';
+export const ADVISORY_CACHE_KEY = 'advisory.deployed.v2';
 export const ADVISORY_MAX_CACHE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export const ADVISORY_POLL_MS = 15 * 60 * 1000;
 
@@ -37,7 +37,6 @@ export interface AdvisoryDeps {
   /** This app build's commit SHA. */
   readonly appSha: string;
   readonly now: () => Date;
-  readonly keys?: readonly ReleaseKey[];
 }
 
 interface CachedAdvisory {
@@ -50,7 +49,7 @@ function isCached(value: unknown): value is CachedAdvisory {
 }
 
 async function judge(file: unknown, deps: AdvisoryDeps, now: Date): Promise<AdvisoryCheck | 'verified'> {
-  const verdict = await verifySafetyAdvisory(file, { environment: deps.environment, now, ...(deps.keys === undefined ? {} : { keys: deps.keys }) });
+  const verdict = await verifySafetyAdvisory(file, { environment: deps.environment, now });
   if (!verdict.ok) return { ok: false, reason: 'unverifiable', rejection: verdict.rejection };
   const revocation = findRevocation(verdict.advisory, deps.appSha);
   return revocation === undefined ? 'verified' : { ok: false, reason: 'revoked', revocation };

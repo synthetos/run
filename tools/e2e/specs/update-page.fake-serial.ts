@@ -3,6 +3,7 @@ import { readFileSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import type { Page, Worker } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
+import { stubFirmwareCatalog } from './firmwareCatalogFixture.ts';
 import { request } from './machineWorker.ts';
 const REPO = resolve(import.meta.dirname, '../../..');
 const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 };
@@ -112,7 +113,7 @@ test('open update completes with local backups, required restore and switch chec
   expect(errors).toEqual([]);
 });
 
-test('interrupted update stays in recovery and retries the same signed image', async ({ page }) => {
+test('interrupted update stays in recovery and retries the same checked image', async ({ page }) => {
   test.setTimeout(240_000);
   const worker = await open(page);
   await board(worker);
@@ -162,4 +163,23 @@ test('disconnecting at the saved-backup confirmation cancels before boot entry',
     const d = (globalThis as unknown as { __RUN_FAKE_SERIAL__: { board: { device: { history: string[]; xboot: { pageWrites: unknown[] } } } } }).__RUN_FAKE_SERIAL__.board.device;
     return { writes: d.xboot.pageWrites.length, history: d.history };
   })).toMatchObject({ writes: 0 });
+});
+
+
+test('the update page lists five GitHub releases with dates and prerelease labels', async ({ page }) => {
+  const capture = process.env['RUN_GITHUB_CATALOG_CAPTURE'];
+  if (capture) await stubFirmwareCatalog(page, JSON.parse(readFileSync(capture, 'utf8')) as unknown);
+  const worker = await open(page);
+  await worker.evaluate(() => {
+    (globalThis as unknown as { __RUN_FAKE_SERIAL__: unknown }).__RUN_FAKE_SERIAL__ = { ports: [], next: { build: { fb: 450.06, fv: 0.97, hv: 8, layout: 10002 } } };
+  });
+  expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
+  await expect(page.locator('[data-step=release] [data-release]')).toHaveCount(5);
+  for (const fb of ['450.06', '450.05', '450.04', '450.03', '450.02']) {
+    const row = page.locator(`[data-release="tinyg-${fb}.hex"]`);
+    await expect(row).toContainText('Pre-release');
+    await expect(row.locator('summary')).toHaveText('Release notes');
+    await expect(row.locator('button')).toHaveText(`Install ${fb}`);
+  }
+  await shot(page, 'github-releases');
 });

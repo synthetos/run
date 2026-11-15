@@ -31,6 +31,7 @@
  * It is a dev tool: nothing deploys it, and ci-policy `bench-never-in-ci`
  * refuses any workflow line that runs it. Dependency-free (node: only).
  */
+import { githubReleaseRoute } from '../../../../workers/run/src/githubReleaseRoute.ts';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { TreeFile } from '../shared/files.ts';
 import { HASHED_ASSET_CACHE_CONTROL, SERIAL_GRANTED_SECURITY_HEADERS } from '../../../../workers/run/src/headers.ts';
@@ -179,6 +180,10 @@ export async function benchRespond(site: BenchSite, port: number, req: BenchRequ
   }
   if (site.firmware !== undefined && path !== undefined && isFirmwarePath(path)) return site.firmware.respond(req.method, path);
   if (path === '/api/catalog/tools') return benchCatalog(port, req);
+  if (path === '/api/firmware/releases') {
+    const answer = await githubReleaseRoute(new Request(`http://localhost:${port}${path}`, { method: req.method }));
+    return { status: answer.status, headers: { ...SERIAL_GRANTED_SECURITY_HEADERS, ...Object.fromEntries(answer.headers) }, body: new Uint8Array(await answer.arrayBuffer()) };
+  }
   return benchResponse(site, port, req);
 }
 

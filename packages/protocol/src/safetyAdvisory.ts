@@ -1,36 +1,10 @@
-/**
- * The signed safety advisory (ROADMAP P1-05; SAFETY H27, T-S31, T-S75;
- * RUN_PLAN §6.3).
- *
- * `safety-advisory.json` lists app versions (build commit SHAs) that must no
- * longer enter LIVE. Like `approved-builds.json` it is a per-environment
- * signed data file: one entry per environment, each a JSON payload string
- * signed with Ed25519 over `ADVISORY_SIGNING_PREFIX + payload` by a
- * compiled-in release key authorised for that environment. The payload must
- * name the same environment, and carries an issue and expiry time.
- *
- * The caller passes the environment it runs in (the web app derives it from
- * `location.origin`, and the localhost bench build reads the staging entry).
- * The production origin therefore never accepts a staging-signed entry:
- * there is no production entry in it, the key is not authorised for
- * production, and the payload names staging (T-S75).
- *
- * Verification never throws. Anything malformed, unsigned, expired, for
- * another environment or ambiguous is a rejection, and a rejection refuses
- * LIVE (fail closed, H27). This module decides only "verified, and which
- * versions are revoked"; caching, the 7-day rule and the poll are the web
- * app's (apps/web/src/live/advisoryGate.ts).
- */
-import { RELEASE_KEYS } from './releaseKeys.ts';
-import type { ReleaseKey } from './releaseKeys.ts';
-import { clockMs, hasOnlyKeys, isRecord, parseJson, parseTime, verifyEd25519 } from './signed.ts';
+/** Unsigned, deployed per-environment revocations. The HTTPS deployment is authoritative. */
+import { clockMs, hasOnlyKeys, isRecord, parseTime } from './dataValidation.ts';
 
 export type AdvisoryEnvironment = 'staging' | 'production';
 
 export const SAFETY_ADVISORY_FORMAT = 'synthetos-run/safety-advisory@1';
 export const ADVISORY_PAYLOAD_FORMAT = 'synthetos-run/safety-advisory-env@1';
-/** Prefixed to the payload before signing; differs from the manifest's, so neither signature replays as the other. */
-export const ADVISORY_SIGNING_PREFIX = 'synthetos-run safety-advisory v1\n';
 
 export interface Revocation {
   /** The revoked build's full commit SHA (40 hex digits). */
@@ -50,9 +24,6 @@ export type AdvisoryRejection =
   | 'malformed'
   | 'no-entry'
   | 'duplicate-entry'
-  | 'unknown-key'
-  | 'key-not-authorised-for-environment'
-  | 'bad-signature'
   | 'malformed-payload'
   | 'environment-mismatch'
   | 'not-yet-valid'
@@ -67,15 +38,35 @@ export interface AdvisoryVerifyOptions {
   /** The environment the page runs in, or null (any other origin: nothing verifies). */
   readonly environment: AdvisoryEnvironment | null;
   readonly now: Date;
-  readonly keys?: readonly ReleaseKey[];
 }
 
-const ENTRY_KEYS: readonly string[] = ['env', 'kid', 'payload', 'sig'];
 const PAYLOAD_KEYS: readonly string[] = ['format', 'env', 'issued', 'expires', 'revoked'];
 const REVOCATION_KEYS: readonly string[] = ['sha', 'reason'];
 
 function reject(rejection: AdvisoryRejection): AdvisoryVerdict {
   return Object.freeze({ ok: false, rejection });
+}
+
+function readRevocations(list: unknown): readonly Revocation[] | null {
+  if (!Array.isArray(list)) return null;
+  const revoked: Revocation[] = [];
+  for (const r of list) {
+    if (!isRecord(r) || !hasOnlyKeys(r, REVOCATION_KEYS)) return null;
+    const { sha, reason } = r;
+    if (typeof sha !== 'string' || !/^[0-9a-f]{40}$/.test(sha) || typeof reason !== 'string') return null;
+    revoked.push(Object.freeze({ sha, reason }));
+  }
+  return Object.freeze(revoked);
+}
+
+function readAdvisory(body: Record<string, unknown>, environment: AdvisoryEnvironment): SafetyAdvisory | null {
+  if (body['format'] !== ADVISORY_PAYLOAD_FORMAT || !hasOnlyKeys(body, PAYLOAD_KEYS)) return null;
+  const issuedMs = parseTime(body['issued']);
+  const expiresMs = parseTime(body['expires']);
+  if (issuedMs === undefined || expiresMs === undefined || !(issuedMs < expiresMs)) return null;
+  const revoked = readRevocations(body['revoked']);
+  if (revoked === null) return null;
+  return Object.freeze({ env: environment, issuedMs, expiresMs, revoked });
 }
 
 /** Verify the advisory file for one environment. Never throws. */
@@ -91,33 +82,13 @@ export async function verifySafetyAdvisory(file: unknown, options: AdvisoryVerif
   if (mine.length === 0) return reject('no-entry');
   // Two entries for one environment: which one is meant is not decidable, so neither is used.
   if (mine.length > 1) return reject('duplicate-entry');
-  const entry = mine[0] as Record<string, unknown>;
-  if (!hasOnlyKeys(entry, ENTRY_KEYS)) return reject('malformed');
-  const { kid, payload, sig } = entry;
-  if (typeof kid !== 'string' || typeof payload !== 'string' || typeof sig !== 'string') return reject('malformed');
-  const key = (options.keys ?? RELEASE_KEYS).find((k) => k.kid === kid);
-  if (key === undefined) return reject('unknown-key');
-  if (!key.environments.includes(environment)) return reject('key-not-authorised-for-environment');
-  if (!(await verifyEd25519(key.publicKey, sig, ADVISORY_SIGNING_PREFIX + payload))) return reject('bad-signature');
-
-  const body = parseJson(payload);
-  if (!isRecord(body) || body['format'] !== ADVISORY_PAYLOAD_FORMAT || !hasOnlyKeys(body, PAYLOAD_KEYS)) return reject('malformed-payload');
-  if (body['env'] !== environment) return reject('environment-mismatch');
-  const issuedMs = parseTime(body['issued']);
-  const expiresMs = parseTime(body['expires']);
-  if (issuedMs === undefined || expiresMs === undefined || !(issuedMs < expiresMs)) return reject('malformed-payload');
-  const list = body['revoked'];
-  if (!Array.isArray(list)) return reject('malformed-payload');
-  const revoked: Revocation[] = [];
-  for (const r of list) {
-    if (!isRecord(r) || !hasOnlyKeys(r, REVOCATION_KEYS)) return reject('malformed-payload');
-    const { sha, reason } = r;
-    if (typeof sha !== 'string' || !/^[0-9a-f]{40}$/.test(sha) || typeof reason !== 'string') return reject('malformed-payload');
-    revoked.push(Object.freeze({ sha, reason }));
-  }
+  const body = mine[0] as Record<string, unknown>;
+  const advisory = readAdvisory(body, environment);
+  if (advisory === null) return reject('malformed-payload');
+  const { issuedMs, expiresMs } = advisory;
   if (nowMs < issuedMs) return reject('not-yet-valid');
   if (nowMs >= expiresMs) return reject('expired');
-  return Object.freeze({ ok: true, advisory: Object.freeze({ env: environment, issuedMs, expiresMs, revoked: Object.freeze(revoked) }) });
+  return Object.freeze({ ok: true, advisory });
 }
 
 /**

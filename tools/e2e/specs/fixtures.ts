@@ -13,6 +13,7 @@
 import { test as base, expect, type BrowserContext } from '@playwright/test';
 import { guardRequestContext, installOriginGuard, type OriginGuard } from '../src/guard.ts';
 import { originOf } from '../src/origin.ts';
+import { stubFirmwareCatalog } from './firmwareCatalogFixture.ts';
 import { servedMode, type ServedMode } from '../src/served.ts';
 
 interface Fixtures {
@@ -48,6 +49,7 @@ export const test = base.extend<Fixtures>({
   // whenever it appears. A spec that asserts W29 does so on a second page of its own (tab-stop), which this
   // handler does not touch.
   page: async ({ page }, use) => {
+    await stubFirmwareCatalog(page);
     await page.addLocatorHandler(page.locator('[data-action="dismiss-w29"]'), async (ok) => {
       await ok.click();
     });

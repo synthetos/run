@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import worker from '../src/index.ts';
-import { FIRMWARE_ASSETS, type FirmwareAsset } from '../src/firmwareAssets.ts';
+import { type FirmwareAsset } from '../src/firmwareAssets.ts';
 import {
   FIRMWARE_ASSET_NAME_RE,
   FIRMWARE_REPOSITORIES,
@@ -21,7 +21,6 @@ import {
   memoryCache,
   proxyFirmwareAsset,
   releasesEnvironment,
-  sumFor,
   type FirmwareProxyDeps,
 } from '../src/firmwareProxy.ts';
 import { HASHED_ASSET_CACHE_CONTROL, SECURITY_HEADERS, SERIAL_GRANTED_SECURITY_HEADERS } from '../src/headers.ts';
@@ -76,8 +75,8 @@ const PATH = '/firmware/synthetos/TinyG/440.21/tinyg-440.21.hex';
 describe('the route shape', () => {
   it('parses exactly /firmware/<owner>/<name>/<tag>/<asset> for an allowlisted repository', () => {
     expect(firmwareAssetPath(PATH)).toEqual({ repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex' });
-    expect(firmwareAssetPath('/firmware/synthetos/tg-xboot/v2.0.0/SHA256SUMS')).toEqual({ repo: 'synthetos/tg-xboot', tag: 'v2.0.0', asset: 'SHA256SUMS' });
-    expect(firmwareAssetPath('/firmware/synthetos/tg-xboot/v2.0.0/TOOLCHAIN.txt')).not.toBeNull();
+    expect(firmwareAssetPath('/firmware/synthetos/tg-xboot/v2.0.0/SHA256SUMS')).toBeNull();
+    expect(firmwareAssetPath('/firmware/synthetos/tg-xboot/v2.0.0/TOOLCHAIN.txt')).toBeNull();
   });
 
   it.each([
@@ -101,7 +100,7 @@ describe('the route shape', () => {
   });
 
   it('the repository allowlist and asset-name rule are the reviewed ones', () => {
-    expect(FIRMWARE_REPOSITORIES).toEqual(['synthetos/TinyG', 'synthetos/tg-xboot']);
+    expect(FIRMWARE_REPOSITORIES).toEqual(['synthetos/TinyG']);
     for (const ok of ['tinyg-440.21.hex', 'tg-xboot-v2.0.0-boot.hex', 'size.txt', 'TOOLCHAIN.txt', 'SHA256SUMS']) expect(FIRMWARE_ASSET_NAME_RE.test(ok), ok).toBe(true);
     for (const bad of ['tinyg-440.21.elf', 'x.HEX', 'a b.hex', 'SHA256SUMS.txt.exe', 'sha256sums', '.hex', 'x/y.hex']) expect(FIRMWARE_ASSET_NAME_RE.test(bad), bad).toBe(false);
   });
@@ -119,27 +118,22 @@ describe('the route shape', () => {
     expect(releasesEnvironment('Staging')).toBeNull();
   });
 
-  it('reads the asset’s line of a SHA256SUMS file', () => {
-    expect(sumFor(`${'a'.repeat(64)}  x.hex\r\n${'b'.repeat(64)} *y.hex\n`, 'y.hex')).toBe('b'.repeat(64));
-    expect(sumFor(`${'a'.repeat(64)}  x.hex\n`, 'x.hex')).toBe('a'.repeat(64));
-    expect(sumFor(`${'a'.repeat(64)}  x.hex\n`, 'x.hexx')).toBeUndefined();
-    expect(sumFor('garbage\n', 'x.hex')).toBeUndefined();
-  });
+
 });
 
 describe('fetchListedAsset', () => {
-  it('serves a body whose hash, size and SHA256SUMS line match the list, and caches it under the hash', async () => {
+  it('serves a body whose hash and size match the list, and caches it under the hash', async () => {
     const r = await release();
     const fake = github({ [HEX_URL]: () => new Response(r.bytes), [SUMS_URL]: () => new Response(r.sums) });
     const first = await fetchListedAsset({ repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex' }, r.entry, fake.deps);
     expect(first.ok).toBe(true);
     if (!first.ok) return;
     expect(new TextDecoder().decode(first.bytes)).toBe(r.text);
-    expect(fake.calls).toEqual([HEX_URL, SUMS_URL]);
+    expect(fake.calls).toEqual([HEX_URL]);
     // The second request is answered from the cache: GitHub is not asked again.
     const second = await fetchListedAsset({ repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex' }, r.entry, fake.deps);
     expect(second.ok).toBe(true);
-    expect(fake.calls).toHaveLength(2);
+    expect(fake.calls).toHaveLength(1);
     expect(await fake.deps.cache.get(r.hash)).toEqual(r.bytes);
   });
 
@@ -150,16 +144,6 @@ describe('fetchListedAsset', () => {
     const fake = github({ [HEX_URL]: () => new Response(other), [SUMS_URL]: () => new Response(r.sums) });
     expect(await fetchListedAsset({ repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex' }, r.entry, fake.deps)).toEqual({ ok: false, reason: 'mismatch' });
     expect(await fake.deps.cache.get(r.hash)).toBeUndefined();
-  });
-
-  it('a SHA256SUMS that disagrees with the signed list, or lacks the asset, is a mismatch', async () => {
-    const r = await release();
-    const disagree = github({ [HEX_URL]: () => new Response(r.bytes), [SUMS_URL]: () => new Response(`${'e'.repeat(64)}  tinyg-440.21.hex\n`) });
-    expect(await fetchListedAsset({ repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex' }, r.entry, disagree.deps)).toEqual({ ok: false, reason: 'mismatch' });
-    const missing = github({ [HEX_URL]: () => new Response(r.bytes), [SUMS_URL]: () => new Response(`${r.hash}  other.hex\n`) });
-    expect(await fetchListedAsset({ repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex' }, r.entry, missing.deps)).toEqual({ ok: false, reason: 'mismatch' });
-    const gone = github({ [HEX_URL]: () => new Response(r.bytes) });
-    expect(await fetchListedAsset({ repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex' }, r.entry, gone.deps)).toEqual({ ok: false, reason: 'mismatch' });
   });
 
   it('an oversized body is refused before it is buffered whole, by content-length or by reading', async () => {
@@ -185,11 +169,10 @@ describe('fetchListedAsset', () => {
     expect(await fetchListedAsset({ repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex' }, r.entry, longer.deps)).toEqual({ ok: false, reason: 'mismatch' });
   });
 
-  it('a GitHub 5xx or a network error is an upstream failure (for the hex and for SHA256SUMS); a 404 there is a mismatch', async () => {
+  it('a GitHub 5xx or a network error is an upstream failure; a 404 there is a mismatch', async () => {
     const r = await release();
     const at = { repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex' };
     expect(await fetchListedAsset(at, r.entry, github({ [HEX_URL]: () => new Response('down', { status: 503 }) }).deps)).toEqual({ ok: false, reason: 'upstream' });
-    expect(await fetchListedAsset(at, r.entry, github({ [HEX_URL]: () => new Response(r.bytes), [SUMS_URL]: () => new Response('down', { status: 502 }) }).deps)).toEqual({ ok: false, reason: 'upstream' });
     const offline: FirmwareProxyDeps = { cache: memoryCache(), fetch: () => Promise.reject(new Error('ENOTFOUND')) };
     expect(await fetchListedAsset(at, r.entry, offline)).toEqual({ ok: false, reason: 'upstream' });
     expect(await fetchListedAsset(at, r.entry, github({}).deps)).toEqual({ ok: false, reason: 'mismatch' });
@@ -202,7 +185,7 @@ describe('fetchListedAsset', () => {
     const fake = github({ [HEX_URL]: () => new Response(r.bytes), [SUMS_URL]: () => new Response(r.sums) }, cache);
     const result = await fetchListedAsset({ repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex' }, r.entry, fake.deps);
     expect(result.ok).toBe(true);
-    expect(fake.calls).toEqual([HEX_URL, SUMS_URL]);
+    expect(fake.calls).toEqual([HEX_URL]);
   });
 });
 
@@ -221,16 +204,7 @@ describe('proxyFirmwareAsset: only what the list names for this environment', ()
     expect((await proxyFirmwareAsset(PATH, 'staging', deps)).ok).toBe(true);
   });
 
-  it('the committed list names the real TinyG releases for staging only, and production lists nothing', () => {
-    expect(FIRMWARE_ASSETS).toEqual([
-      { env: 'staging', repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex', sha256: 'c2c1693e82f0ed88ec8dec4338a0bc799059c10b3323acb1189564f6a2265e92', size: 334978 },
-      { env: 'staging', repo: 'synthetos/TinyG', tag: '450.01', asset: 'tinyg-450.01.hex', sha256: 'b83763af4ecfe283d0c009fce3e6aa8df491b7f5b2a101693bccf534bb893811', size: 434318 },
-      { env: 'staging', repo: 'synthetos/TinyG', tag: '450.02', asset: 'tinyg-450.02.hex', sha256: '687f9d76497bb30e133efacf0e392dbd4552ffee809264668629669f0c93ea9b', size: 456335 },
-      { env: 'staging', repo: 'synthetos/TinyG', tag: '450.05', asset: 'tinyg-450.05.hex', sha256: '20f231be49491ad856766dd377ae7524a1faf9b1d40f7845a18fb24fc22bb2d6', size: 502955 },
-    ]);
-    expect(FIRMWARE_ASSETS.filter((a) => a.env === 'production')).toEqual([]);
-    for (const a of FIRMWARE_ASSETS) expect(FIRMWARE_REPOSITORIES).toContain(a.repo);
-  });
+
 });
 
 describe('GET /firmware/... through the Worker', () => {
@@ -246,12 +220,12 @@ describe('GET /firmware/... through the Worker', () => {
     const head = await route(new Request(`${STAGING}${PATH}`, { method: 'HEAD' }), env('staging'), undefined, fake.deps);
     expect(head.status).toBe(200);
     expect(await head.text()).toBe('');
-    expect(fake.calls).toEqual([HEX_URL, SUMS_URL]);
+    expect(fake.calls).toEqual([HEX_URL]);
   });
 
   it('the committed list: a body that is not the real 440.21 image is a detail-free 404, and the Worker asked GitHub for it', async () => {
     const r = await release();
-    const fake = github({ [HEX_URL]: () => new Response(r.bytes), [SUMS_URL]: () => new Response(r.sums) });
+    const fake = github({ [HEX_URL]: () => new Response(r.bytes), [SUMS_URL]: () => new Response(r.sums) }, memoryCache(), [{ ...r.entry, sha256: 'a'.repeat(64) }]);
     const res = await route(new Request(`${STAGING}${PATH}`), env('staging'), undefined, fake.deps);
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'not_found' });

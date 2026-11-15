@@ -84,10 +84,7 @@ export type {
   TokenAnswer,
 } from './probe.ts';
 export {
-  APPROVED_BUILDS_FORMAT,
-  CHANNEL_PAYLOAD_FORMAT,
   NO_APPROVED_BUILDS,
-  SIGNING_PREFIX,
   environmentForOrigin,
   findApproval,
   verifyApprovedBuilds,
@@ -103,12 +100,9 @@ export type {
   VerifiedApprovedBuilds,
   VerifyOptions,
 } from './approvedBuilds.ts';
-export { RELEASE_KEYS } from './releaseKeys.ts';
-export type { ReleaseKey } from './releaseKeys.ts';
 export * from './dialects/index.ts';
 export {
   ADVISORY_PAYLOAD_FORMAT,
-  ADVISORY_SIGNING_PREFIX,
   SAFETY_ADVISORY_FORMAT,
   findRevocation,
   verifySafetyAdvisory,
@@ -116,8 +110,6 @@ export {
 export type { AdvisoryEnvironment, AdvisoryRejection, AdvisoryVerdict, AdvisoryVerifyOptions, Revocation, SafetyAdvisory } from './safetyAdvisory.ts';
 export {
   FIRMWARE_RELEASES_FORMAT,
-  FIRMWARE_RELEASES_PAYLOAD_FORMAT,
-  FIRMWARE_RELEASES_SIGNING_PREFIX,
   FIRMWARE_RELEASE_REPOSITORIES,
   FIRMWARE_RELEASE_TAG_RE,
   MAX_RELEASE_HEX_BYTES,
@@ -127,3 +119,5 @@ export {
   verifyFirmwareReleases,
 } from './firmwareReleases.ts';
 export type { FirmwareRelease, FirmwareReleases, HardwareReleases, ReleasesEnvironment, ReleasesRejection, ReleasesVerdict, ReleasesVerifyOptions } from './firmwareReleases.ts';
+
+export { SUPPORTED_TINYG_BUILDS, supportsFirmware } from './supportedFirmware.ts';

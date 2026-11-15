@@ -5,7 +5,7 @@
  * gone exactly when the user watches the update. The tab then shows the board as the session last read it, from the
  * flash view, never "not connected" (owner, bench 2, 2026-11-09):
  * - connected and identified: the live identity;
- * - an update running: "Updating 3Y2462-WWR: 450.02 → 450.02 (signed release)";
+ * - an update running: "Updating 3Y2462-WWR: 450.02 → 450.02 (GitHub release)";
  * - an update done, the board not read back yet: "Updated …", with what the board reported if it did;
  * - an update stopped: the board as last read, and that the update stopped;
  * - otherwise: not connected.
@@ -38,7 +38,7 @@ export function fbWords(fb: number | null): string {
   return fb === null ? 'unknown' : fb.toFixed(2);
 }
 
-const SOURCE: Record<FlashView['source'], string> = { release: 'signed release', backup: 'firmware backup', custom: 'unsigned custom firmware' };
+const SOURCE: Record<FlashView['source'], string> = { release: 'GitHub release', backup: 'firmware backup', custom: 'unsigned custom firmware' };
 
 function targetWords(flash: FlashView): string {
   return `${flash.target.fb === null ? 'the chosen image' : fbWords(flash.target.fb)} (${SOURCE[flash.source]})`;

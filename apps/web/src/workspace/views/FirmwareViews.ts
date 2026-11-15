@@ -19,7 +19,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { bootloaderHardwareVersions } from '../../firmware/bootloaderHardware.ts';
 import { releaseRequest } from '../boardNavigation.ts';
 import { boardText, c38, w11, w28, w45, w46, w48, w49, w50 } from '@synthetos/safety';
-import { releasesForHardware, type FirmwareRelease } from '@synthetos/protocol';
+import { type FirmwareRelease } from '@synthetos/protocol';
 import { signalText } from '../../shell/signal.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 import { RestorePanel } from '../settings/SettingsUi.ts';
@@ -30,11 +30,11 @@ import { connected, type FirmwareActions, type FirmwareHubView, type LiveView, t
 import type { FlashView } from '../../machine-worker/flashService.ts';
 import { shownBoard } from './firmwareBoard.ts';
 import { Dismissable } from '../notes/Dismissable.ts';
-import { releaseTitle } from '../../firmware/releaseTitle.ts';
+import { FirmwareReleaseList } from './FirmwareReleaseList.ts';
 import type { MotionCommand } from '../../machine-worker/rpc.ts';
 
 /** Next to an older release's button (first-time walk C8): what a downgrade does to the board's settings. */
-export const DOWNGRADE_NOTE = 'An older build starts with every setting at its default. Run backs your settings up first and puts them back afterwards; check them before you cut.';
+export { DOWNGRADE_NOTE } from './FirmwareReleaseList.ts';
 
 const fbText = (fb: number | null | undefined): string => (typeof fb === 'number' ? fb.toFixed(2) : 'unknown');
 const shortSha = (sha: string): string => `${sha.slice(0, 4)}…${sha.slice(-4)}`;
@@ -212,10 +212,8 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
   const flash = m?.flash ?? null;
   // During an update the session is closed: the board as last read, from the flash view (firmwareBoard.ts).
   const shown = shownBoard(on, id, flash, boardText);
-  const hv = shown.hv;
   const running = flash !== null && flash.phase !== 'done' && flash.phase !== 'failed';
   const advanced = uiLevel.value.value === 'advanced';
-  const hw = hub !== null && hub.releases.ok ? releasesForHardware(hub.releases.list, hv) : null;
   // Asked for by the update offer (boardNavigation.ts): kept marked while this view is open.
   const [focusRelease, setFocusRelease] = useState<string | null>(null);
   const asked = releaseRequest.value;
@@ -273,75 +271,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
         ? h('p', { class: 'fine pad', 'data-known-issue': 'n66' }, 'Known issue in this firmware: after long jobs, especially with pauses, the position may end a step or two off. Check it before a job that needs it exact. The fix is coming in a later release.')
         : null,
       old === null ? null : h('p', { class: 'flash-warn pad', role: 'alert', 'data-safety': 'W50', 'data-old-firmware': 'true' }, w50({ fb: fbText(old.fb), minimum: fbText(old.minimumFb) })),
-      h('div', { class: 'section-heading tight' }, h('h2', null, 'Releases'), h('span', { class: 'fine' }, 'Signed builds for this board’s hardware')),
-      hub === null || !hub.releases.ok
-        ? h('p', { class: 'fine pad', 'data-releases': 'none' }, hub === null || hub.releases.ok ? 'Loading the signed release list…' : `No signed release list for this site: ${hub.releases.reason}.`)
-        : hw === null || hw.releases.length === 0
-          ? h('p', { class: 'fine pad', 'data-releases': 'empty' }, shown.kind !== 'none' ? `No signed release for hardware version ${hv ?? 'unknown'} yet.` : 'Connect a board to see the releases for its hardware.')
-          : h(
-              'ul',
-              { class: 'releases' },
-              hw.releases.map((r) => {
-                const installed = shown.fb !== null && Math.round(shown.fb * 100) === Math.round(r.fb * 100);
-                // Older than what the board runs: offered, never recommended (the owner's minimum filter comes later, docs/ops/firmware-releases.md).
-                const older = shown.fb !== null && Math.round(r.fb * 100) < Math.round(shown.fb * 100);
-                const source = r.repo !== null && r.tag !== null ? `GitHub Releases: ${r.repo} ${r.tag}` : r.simulatorOnly ? 'simulated image' : 'bundled with this site';
-                return h(
-                  'li',
-                  {
-                    key: r.file,
-                    'data-release': r.file,
-                    'data-release-age': installed ? 'installed' : older ? 'older' : 'newer',
-                    'data-release-source': r.repo === null ? 'site' : 'github',
-                    // The update offer's "Go to update": this release is brought into view and marked.
-                    ...(focusRelease === r.file ? { class: 'release-focus', 'data-release-focus': '', ref: (el: HTMLElement | null) => el?.scrollIntoView({ block: 'center' }) } : {}),
-                  },
-                  h(
-                    'div',
-                    { class: 'rel-ver' },
-                    h('strong', null, fbText(r.fb)),
-                    h('small', null, r.date),
-                    r.recommended ? h('span', { class: 'tag ok' }, 'Recommended') : null,
-                    older && !r.recommended ? h('span', { class: 'tag' }, 'Older') : null,
-                    r.simulatorOnly ? h('span', { class: 'tag mock' }, 'Simulated board only') : null,
-                  ),
-                  h(
-                    'div',
-                    { class: 'rel-notes' },
-                    h('h3', { 'data-release-title': '' }, `${releaseTitle(r)}${advanced ? ` · fv ${r.fv}` : ''}`),
-                    // Simple (C10): the release notes are the maintainers' (issue codes, commits), so they fold away.
-                    advanced ? h('p', { class: 'changelog' }, r.changelog) : h('details', { class: 'changelog-more' }, h('summary', null, 'What changed (technical notes)'), h('p', { class: 'changelog' }, r.changelog)),
-                    advanced ? h('p', { class: 'installed' }, `${r.file} · sha256 ${shortSha(r.sha256)} · ${Math.round(r.size / 1024)} KB · ${source}${installed ? ' · installed' : ''}`) : installed ? h('p', { class: 'installed' }, 'Installed on this board') : null,
-                    h(
-                      'div',
-                      { class: 'row-actions' },
-                      h('button', { type: 'button', class: r.recommended ? 'primary small' : 'small', 'data-machine-control': 'flash', 'data-action': 'update-release', disabled: blocked !== null || running || fetching || actions?.firmware === undefined, title: blocked ?? undefined, onClick: () => pick(r) }, installed ? 'Flash again' : older ? `Install older version ${fbText(r.fb)} (downgrade)` : `Update to ${fbText(r.fb)}`),
-                      h(
-                        'label',
-                        { class: `small file-pick${blocked === null ? '' : ' disabled'}` },
-                        'Use a local copy…',
-                        h('input', {
-                          type: 'file',
-                          accept: '.hex',
-                          class: 'sr-only',
-                          disabled: blocked !== null || running || fetching,
-                          'data-machine-control': 'flash',
-                          'data-action': 'release-local',
-                          onChange: (e: Event) => {
-                            const input = e.currentTarget as HTMLInputElement;
-                            const file = input.files?.[0];
-                            if (file !== undefined) void file.text().then((text) => pickLocal(r, text));
-                            input.value = '';
-                          },
-                        }),
-                      ),
-                    ),
-                    // C8: the downgrade's consequence, next to its button.
-                    older ? h('p', { class: 'fine', 'data-release-note': 'downgrade' }, DOWNGRADE_NOTE) : null,
-                  ),
-                );
-              }),
-            ),
+      h(FirmwareReleaseList, { hub, shown, advanced, focusRelease, blocked, running, fetching, enabled: actions?.firmware !== undefined, pick, pickLocal }),
     ),
     h(
       'aside',

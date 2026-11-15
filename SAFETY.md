@@ -2006,3 +2006,21 @@ New tests:
 **Accounts review amendment (2026-11-10, OD-26/OD-29):** Production HTML grants Web Serial only when sign-in is configured and accounts validates the run session; absent, expired, revoked, wrong-client or unavailable sessions get `serial=()`. HTML is `no-store` with `Vary: Cookie`. `/assets/serial/*` is served like every hashed asset (the app imports it statically; gating it stopped the whole app, sign-in and stop paths included, for anyone without a session); the browser-enforced Permissions-Policy is the gate. Staging retains its Access boundary. The run session cookie is `__Host-`, Secure, HttpOnly, Path=/ and SameSite=Lax so a top-level link carries it; logout still requires its existing same-origin, Fetch Metadata and CSRF layers. Identity is checked before the port chooser, and again before open; chooser guards are released on refusal. These checks never enter the motion or stop path. Placeholder databases or an absent D1 migration credential deploy with sign-in bindings removed; configured deployments must migrate before code.
 
 **Sign-in residual accepted (OD-37, 2026-11-10):** The owner declined an allowlist re-check at accounts `/authorize` ("a no"). `GITHUB_ALLOWED_IDS` is admission at GitHub sign-in only. Removing an id takes effect at its next GitHub sign-in; existing accounts sessions (14 days idle, 30 days absolute) and run sessions (7 days) may continue until expiry or explicit revocation. A successful `validateSession` is evidence of an active admitted session, not current allowlist membership. Run still validates that session server-side before granting production HTML or serial assets. For immediate removal, revoke the sessions as well as removing the id. Staging shares the existing Synthetos app and client credentials with production ("b yes existing"); the production webhook remains in place and staging's session/signing secrets remain separate.
+
+
+### Firmware source amendment — owner decision 2026-11-15 (§4.8)
+
+Owner: “i want to bring in the say top 5 releases from the tinyg repo thats it i dont think we need all of this signing stuff”.
+This supersedes the release/bench-key signature requirements for firmware lists,
+approved builds and the advisory. The fixed synthetos/TinyG GitHub API supplies
+the latest five eligible releases, including pre-releases. The Worker proxy,
+page and flash worker check GitHub's SHA-256 asset digest and bounded size;
+missing digests and mismatches refuse flashing. Download availability never
+confers control support: supported versions are reviewed code; unknown versions
+remain read-only. The advisory is deployed per environment without a signature.
+The network-isolated flash worker obtains metadata over a dedicated reply port
+from the same-origin page and independently validates its schema and image bytes.
+Same-origin HTTPS deployment, not an independent signature, is now authoritative.
+All physical flash precautions, hardware checks, backups, interrupted-flash
+quarantine, restore gates and machine-state gates remain. Run's build-provenance
+attestation remains unchanged. See docs/ops/firmware-sources.md.

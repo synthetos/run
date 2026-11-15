@@ -1,5 +1,5 @@
 /**
- * "Firmware update available" (owner, 2026-11-09): only a newer signed release for this board's hardware, never
+ * "Firmware update available" (owner, 2026-11-09): only a newer supported release for this board's hardware, never
  * while anything moves or over the Run step with a job loaded; "Don't show again" per board and version.
  */
 import { describe, expect, it } from 'vitest';
@@ -10,24 +10,24 @@ import type { StorageLike } from '../src/workspace/storage.ts';
 
 const rel = (fb: number, file = `tinyg-${fb.toFixed(2)}.hex`): FirmwareRelease =>
   ({ hv: 8, fb, fv: 0.97, dialect: 'tinyg-en', part: 'x192a3', file, sha256: 'a'.repeat(64), size: 1, date: '2026-11-09', changelog: '', recommended: false, simulatorOnly: false, repo: null, tag: null }) as FirmwareRelease;
-const LIST = { env: 'staging', issuedMs: 0, expiresMs: 1, boards: [{ hv: 8, minimumFb: 440.21, releases: [rel(450.02), rel(451), rel(440.21)] }] } as unknown as FirmwareReleases;
+const LIST = { env: 'staging', issuedMs: 0, expiresMs: 1, boards: [{ hv: 8, minimumFb: 440.21, releases: [rel(450.02), rel(450.06), rel(440.21)] }] } as unknown as FirmwareReleases;
 
 type Snap = NonNullable<OfferInput['snapshot']>;
 const snap = (over: Record<string, unknown> = {}): Snap => ({ epoch: 1, classification: { mode: 'full', dialectId: 'tinyg-en', reason: 'en-approved' }, live: { stat: 1, vel: 0, hold: 0, qr: 32 }, base: 'IDLE_UNHOMED', overlays: [], motion: null, job: null, identity: { id: 'B-1', hv: 8, fb: 450.02 }, ...over }) as unknown as Snap;
 const input = (over: Partial<OfferInput> = {}): OfferInput => ({ snapshot: snap(), flashing: false, flasher: true, releases: LIST, onRunStep: false, fileOpen: false, messageUp: false, ...over });
 
 describe('updateOffer', () => {
-  it('offers the newest signed release newer than the board, in words', () => {
+  it('offers the newest supported release newer than the board, in words', () => {
     const offer = updateOffer(input());
-    expect(offer).toMatchObject({ boardId: 'B-1', current: 450.02, release: { fb: 451 } });
-    expect(offerText(offer as NonNullable<typeof offer>)).toBe('This board runs 450.02. 451.00 is released.');
-    expect(fbText(451)).toBe('451.00');
+    expect(offer).toMatchObject({ boardId: 'B-1', current: 450.02, release: { fb: 450.06 } });
+    expect(offerText(offer as NonNullable<typeof offer>)).toBe('This board runs 450.02. 450.06 is released.');
+    expect(fbText(450.06)).toBe('450.06');
     // A string hv is read as the number it is.
-    expect(updateOffer(input({ snapshot: snap({ identity: { id: 'B-1', hv: '8', fb: 450.02 } }) }))?.release.fb).toBe(451);
+    expect(updateOffer(input({ snapshot: snap({ identity: { id: 'B-1', hv: '8', fb: 450.02 } }) }))?.release.fb).toBe(450.06);
   });
 
   it('nothing when the board is up to date, the list is not verified, or the board is not known', () => {
-    expect(updateOffer(input({ snapshot: snap({ identity: { id: 'B-1', hv: 8, fb: 451 } }) }))).toBeNull();
+    expect(updateOffer(input({ snapshot: snap({ identity: { id: 'B-1', hv: 8, fb: 450.06 } }) }))).toBeNull();
     expect(updateOffer(input({ releases: null }))).toBeNull();
     expect(updateOffer(input({ snapshot: null }))).toBeNull();
     expect(updateOffer(input({ snapshot: snap({ identity: { id: 'B-1', hv: 9, fb: 1 } }) }))).toBeNull();
@@ -110,15 +110,15 @@ const unapproved = (over: Record<string, unknown> = {}): Snap => snap({
 describe('update needed', () => {
   it('offers an unapproved 440 board the newest hardware release', () => {
     const offer = updateOffer(input({ snapshot: unapproved() }));
-    expect(offer).toMatchObject({ kind: 'needed', boardId: 'OLD-1', epoch: 1, current: 440.20, release: { fb: 451 } });
-    expect(offerText(offer!)).toBe("Run can't control firmware 440.20. Install 451.00, the newest release Run supports.");
+    expect(offer).toMatchObject({ kind: 'needed', boardId: 'OLD-1', epoch: 1, current: 440.20, release: { fb: 450.06 } });
+    expect(offerText(offer!)).toBe("Run can't control firmware 440.20. Install 450.06, the newest release Run supports.");
   });
-  it('offers a classified full board below the signed minimum', () => {
+  it('offers a classified full board below the minimum', () => {
     expect(updateOffer(input({ snapshot: snap({ identity: { id: 'B-1', hv: 8, fb: 440.20 } }) }))?.kind).toBe('needed');
   });
   it('offers stock 449 and unapproved EN, even if the listed release has the same build number', () => {
     for (const [dialectId, reason] of [['tinyg-449-stock', 'stock-449'], ['tinyg-en', 'en-not-approved']]) {
-      expect(updateOffer(input({ snapshot: unapproved({ classification: { dialectId, mode: 'readOnly', reason }, identity: { id: 'B-1', hv: 8, fb: 451 } }) }))?.kind).toBe('needed');
+      expect(updateOffer(input({ snapshot: unapproved({ classification: { dialectId, mode: 'readOnly', reason }, identity: { id: 'B-1', hv: 8, fb: 450.06 } }) }))?.kind).toBe('needed');
     }
   });
   it.each([
@@ -151,4 +151,11 @@ describe('update needed', () => {
     expect(updateOffer(input({ flasher: false }))).toBeNull();
     expect(updateOffer(input({ snapshot: unapproved(), onRunStep: true, fileOpen: false }))).not.toBeNull();
   });
+});
+
+it('does not recommend unavailable or unsupported GitHub releases for machine control', () => {
+  const releases = { ...LIST, boards: [{ hv: 8, minimumFb: 450.01, releases: [rel(450.07), { ...rel(450.06), unavailable: 'No digest' }, rel(450.05)] }] };
+  expect(updateOffer(input({ releases }))?.release.fb).toBe(450.05);
+  expect(updateOffer(input({ releases, snapshot: unapproved() }))?.release.fb).toBe(450.05);
+  expect(fbText(451)).toBe('451.00');
 });

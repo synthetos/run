@@ -54,20 +54,11 @@ function fakeGithub(overrides: Record<string, () => Response> = {}): { calls: st
   };
 }
 
-const releasesFile = (): unknown => JSON.parse(readFileSync(join(REPO, 'firmware/releases.json'), 'utf8'));
+const releasesFile = (): unknown => ({ format: 'synthetos-run/github-releases@1', releases: [{ repo: 'synthetos/TinyG', tag: '440.21', file: 'tinyg-440.21.hex', date: '2026-11-01T00:00:00Z', notes: '', prerelease: true, sha256: IMAGE_SHA, size: IMAGE.length, unavailable: null }] });
 
-describe('benchFirmwareAssets: the signed staging list’s GitHub-released images', () => {
-  it('lists 450.05, 450.02, 450.01 and 440.21 from the committed file, verified with the compiled-in keys', async () => {
-    expect(await benchFirmwareAssets(releasesFile(), new Date('2026-11-03T12:00:00Z'))).toEqual([
-      { env: 'staging', repo: 'synthetos/TinyG', tag: '450.05', asset: 'tinyg-450.05.hex', sha256: '20f231be49491ad856766dd377ae7524a1faf9b1d40f7845a18fb24fc22bb2d6', size: 502955 },
-      { env: 'staging', repo: 'synthetos/TinyG', tag: '450.02', asset: 'tinyg-450.02.hex', sha256: '687f9d76497bb30e133efacf0e392dbd4552ffee809264668629669f0c93ea9b', size: 456335 },
-      { env: 'staging', repo: 'synthetos/TinyG', tag: '450.01', asset: 'tinyg-450.01.hex', sha256: 'b83763af4ecfe283d0c009fce3e6aa8df491b7f5b2a101693bccf534bb893811', size: 434318 },
-      { env: 'staging', repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex', sha256: IMAGE_SHA, size: IMAGE.length },
-    ]);
-  });
-
-  it('lists nothing from an unverifiable file (expired, malformed)', async () => {
-    expect(await benchFirmwareAssets(releasesFile(), new Date('2030-01-01T00:00:00Z'))).toEqual([]);
+describe('benchFirmwareAssets: validated GitHub metadata', () => {
+  it('lists the exact metadata asset for staging', async () => {
+    expect(await benchFirmwareAssets(releasesFile())).toEqual([{ env: 'staging', repo: 'synthetos/TinyG', tag: '440.21', asset: 'tinyg-440.21.hex', sha256: IMAGE_SHA, size: IMAGE.length }]);
     expect(await benchFirmwareAssets({ format: 'x' })).toEqual([]);
   });
 
@@ -92,11 +83,11 @@ describe('the bench firmware route', () => {
     expect(res.headers['content-length']).toBe(String(IMAGE.length));
     for (const [name, value] of Object.entries(SERIAL_GRANTED_SECURITY_HEADERS)) expect(res.headers[name], name).toBe(value);
     expect(Buffer.from(res.body).equals(IMAGE)).toBe(true);
-    expect(gh.calls).toEqual([HEX_URL, SUMS_URL]);
+    expect(gh.calls).toEqual([HEX_URL]);
     const again = await benchRespond(site, PORT, req(PATH, 'HEAD'));
     expect(again.status).toBe(200);
     expect(again.body).toHaveLength(0);
-    expect(gh.calls).toHaveLength(2);
+    expect(gh.calls).toHaveLength(1);
   });
 
   it('a body that is not the listed image is a 404; GitHub down is a 502; an unlisted path never reaches GitHub', async () => {

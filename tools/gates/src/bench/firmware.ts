@@ -4,14 +4,9 @@
  * (workers/run/src/firmwareProxy.ts), so the bench build's update panel can
  * fetch a listed release image on this computer.
  *
- * It runs the Worker's own proxy code: the path must name an allowlisted
- * repository, the tag and asset must be a GitHub-released entry of the
- * signed release list (verified here for staging, the bench's environment,
- * from the repository's firmware/releases.json), the body must hash to the
- * list's SHA-256 at the list's size and be named with that hash in the
- * release's SHA256SUMS, and a verified body is kept in memory under its
- * hash. Node's fetch reaches GitHub; the e2e suite injects a fake instead.
- * Every response carries the bench headers (SERIAL_GRANTED_SECURITY_HEADERS).
+ * Uses the Worker's cached GitHub metadata, digest/size checks and fixed
+ * repository proxy. Tests may inject metadata and a fake upstream.
+ * Responses carry the bench serial headers.
  */
 import { verifyFirmwareReleases } from '../../../../packages/protocol/src/firmwareReleases.ts';
 import type { FirmwareAsset } from '../../../../workers/run/src/firmwareAssets.ts';
@@ -36,18 +31,14 @@ export function isFirmwarePath(path: string): boolean {
   return firmwareAssetPath(path) !== null;
 }
 
-/**
- * The GitHub-released entries of the signed release list, verified for
- * staging with the compiled-in keys. Anything unverifiable lists nothing:
- * the bench then serves no image and the page offers the local copy.
- */
+/** Validate public GitHub metadata for the bench; invalid data lists nothing. */
 export async function benchFirmwareAssets(releasesFile: unknown, now: Date = new Date()): Promise<FirmwareAsset[]> {
   const verdict = await verifyFirmwareReleases(releasesFile, { environment: 'staging', now });
   if (!verdict.ok) return [];
   const out: FirmwareAsset[] = [];
   for (const board of verdict.releases.boards) {
     for (const r of board.releases) {
-      if (r.repo === null || r.tag === null) continue;
+      if (r.repo === null || r.tag === null || r.unavailable !== undefined) continue;
       out.push({ env: 'staging', repo: r.repo, tag: r.tag, asset: r.file, sha256: r.sha256, size: r.size });
     }
   }
@@ -61,10 +52,10 @@ function plain(status: number, text: string, extra: Record<string, string> = {})
 }
 
 /** The bench's firmware route over a list and a fetch (Node's by default). */
-export function benchFirmware(assets: readonly FirmwareAsset[], fetchFn: FetchLike = (url, init) => fetch(url, init)): BenchFirmware {
-  const deps: FirmwareProxyDeps = { fetch: fetchFn, cache: memoryCache(), assets };
+export function benchFirmware(assets: readonly FirmwareAsset[] | undefined, fetchFn: FetchLike = (url, init) => fetch(url, init)): BenchFirmware {
+  const deps: FirmwareProxyDeps = { fetch: fetchFn, cache: memoryCache(), ...(assets === undefined ? {} : { assets }) };
   return {
-    assets,
+    assets: assets ?? [],
     async respond(method, path) {
       if (method !== 'GET' && method !== 'HEAD') return plain(405, 'GET and HEAD only', { allow: 'GET, HEAD' });
       const result = await proxyFirmwareAsset(path, 'staging', deps);

@@ -7,11 +7,10 @@
  * in the machine path) and C1 once per browser (OD-30, owner 2026-11-09:
  * the full list at the first Connect, then never again in this browser).
  */
-import type { webcrypto } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { c1Full, w7 } from '@synthetos/safety';
-import { ADVISORY_PAYLOAD_FORMAT, ADVISORY_SIGNING_PREFIX, SAFETY_ADVISORY_FORMAT, type ReleaseKey } from '@synthetos/protocol';
+import { ADVISORY_PAYLOAD_FORMAT, SAFETY_ADVISORY_FORMAT } from '@synthetos/protocol';
 import { fetchFirmwareImage, fetchIdentity, fetchSafetyAdvisory, type AdvisoryFetch, type FirmwareImageProgress } from '../src/cloud/live.ts';
 import { ADVISORY_CACHE_KEY, ADVISORY_MAX_CACHE_AGE_MS, ADVISORY_POLL_MS, AdvisoryPoller, checkAdvisory, type AdvisoryDeps } from '../src/live/advisoryGate.ts';
 import {
@@ -43,21 +42,12 @@ const PORT: PortChoice = Object.freeze({ usbVendorId: 0x0403, usbProductId: 0x60
 
 // ------------------------------------------------------------- signed advisory
 
-const subtle = globalThis.crypto.subtle;
-const b64 = (bytes: ArrayBuffer) => Buffer.from(new Uint8Array(bytes)).toString('base64');
-
 async function signer() {
-  const pair = (await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as webcrypto.CryptoKeyPair;
-  const key: ReleaseKey = { kid: 't', publicKey: b64(await subtle.exportKey('raw', pair.publicKey)), environments: ['staging'], placeholder: true };
-  const advisory = async (revoked: { sha: string; reason: string }[] = [], expires = '2026-12-01T00:00:00Z') => {
-    const payload = JSON.stringify({ format: ADVISORY_PAYLOAD_FORMAT, env: 'staging', issued: '2026-10-01T00:00:00Z', expires, revoked });
-    const sig = await subtle.sign({ name: 'Ed25519' }, pair.privateKey, new TextEncoder().encode(ADVISORY_SIGNING_PREFIX + payload));
-    return { format: SAFETY_ADVISORY_FORMAT, advisories: [{ env: 'staging', kid: 't', payload, sig: b64(sig) }] };
-  };
-  return { keys: [key], advisory };
+  const advisory = async (revoked: { sha: string; reason: string }[] = [], expires = '2026-12-01T00:00:00Z') => ({ format: SAFETY_ADVISORY_FORMAT, advisories: [{ format: ADVISORY_PAYLOAD_FORMAT, env: 'staging', issued: '2026-10-01T00:00:00Z', expires, revoked }] });
+  return { advisory };
 }
 
-function advisoryDeps(over: Partial<AdvisoryDeps> & Pick<AdvisoryDeps, 'fetchAdvisory' | 'keys'>): AdvisoryDeps {
+function advisoryDeps(over: Partial<AdvisoryDeps> & Pick<AdvisoryDeps, 'fetchAdvisory'>): AdvisoryDeps {
   return { store: memoryDeviceSafety(), environment: 'staging', appSha: SHA, now: () => DAY1, ...over };
 }
 
@@ -69,17 +59,17 @@ describe('advisory gate (H27, T-S31, T-S75)', () => {
     const s = await signer();
     const file = await s.advisory();
     const store = memoryDeviceSafety();
-    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: serve(file), keys: s.keys, store }))).toEqual({ ok: true, source: 'fetched' });
+    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: serve(file), store }))).toEqual({ ok: true, source: 'fetched' });
     expect(store.data.get(ADVISORY_CACHE_KEY)).toEqual({ file, fetchedAt: DAY1.getTime() });
   });
 
   it('T-S31: a revoked build, an unverifiable file, or the wrong environment refuses, and nothing is cached', async () => {
     const s = await signer();
     const store = memoryDeviceSafety();
-    const revoked = await checkAdvisory(advisoryDeps({ fetchAdvisory: serve(await s.advisory([{ sha: SHA, reason: 'stop bug' }])), keys: s.keys, store }));
+    const revoked = await checkAdvisory(advisoryDeps({ fetchAdvisory: serve(await s.advisory([{ sha: SHA, reason: 'stop bug' }])), store }));
     expect(revoked).toMatchObject({ ok: false, reason: 'revoked', revocation: { reason: 'stop bug' } });
-    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: serve({ format: 'nope' }), keys: s.keys, store }))).toMatchObject({ ok: false, reason: 'unverifiable' });
-    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: serve(await s.advisory()), keys: s.keys, store, environment: null }))).toMatchObject({
+    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: serve({ format: 'nope' }), store }))).toMatchObject({ ok: false, reason: 'unverifiable' });
+    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: serve(await s.advisory()), store, environment: null }))).toMatchObject({
       ok: false,
       reason: 'unverifiable',
       rejection: 'no-environment',
@@ -90,31 +80,31 @@ describe('advisory gate (H27, T-S31, T-S75)', () => {
   it('a fetched file that does not verify never falls back to a good cache', async () => {
     const s = await signer();
     const store = memoryDeviceSafety({ [ADVISORY_CACHE_KEY]: { file: await s.advisory(), fetchedAt: DAY1.getTime() } });
-    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: serve({ junk: true }), keys: s.keys, store }))).toMatchObject({ ok: false, reason: 'unverifiable' });
+    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: serve({ junk: true }), store }))).toMatchObject({ ok: false, reason: 'unverifiable' });
   });
 
   it('offline: the cache is used while younger than 7 days, then LIVE is refused; no cache refuses; a clock moved back refuses', async () => {
     const s = await signer();
     const fetchedAt = DAY1.getTime();
     const store = memoryDeviceSafety({ [ADVISORY_CACHE_KEY]: { file: await s.advisory(), fetchedAt } });
-    const at = (ms: number) => advisoryDeps({ fetchAdvisory: offline, keys: s.keys, store, now: () => new Date(ms) });
+    const at = (ms: number) => advisoryDeps({ fetchAdvisory: offline, store, now: () => new Date(ms) });
     expect(await checkAdvisory(at(fetchedAt + ADVISORY_MAX_CACHE_AGE_MS - 1))).toEqual({ ok: true, source: 'cache' });
     expect(await checkAdvisory(at(fetchedAt + ADVISORY_MAX_CACHE_AGE_MS))).toEqual({ ok: false, reason: 'offline-cache-too-old' });
     expect(await checkAdvisory(at(fetchedAt - 1))).toEqual({ ok: false, reason: 'offline-cache-too-old' });
-    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: offline, keys: s.keys }))).toEqual({ ok: false, reason: 'offline-no-cache' });
+    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: offline }))).toEqual({ ok: false, reason: 'offline-no-cache' });
   });
 
   it('T-S75: an expired cached advisory fails closed even inside the 7 days; a cached revocation still refuses', async () => {
     const s = await signer();
     const now = new Date('2026-11-30T23:00:00Z');
     const expired = memoryDeviceSafety({ [ADVISORY_CACHE_KEY]: { file: await s.advisory([], '2026-11-30T12:00:00Z'), fetchedAt: now.getTime() - 1000 } });
-    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: offline, keys: s.keys, store: expired, now: () => now }))).toMatchObject({
+    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: offline, store: expired, now: () => now }))).toMatchObject({
       ok: false,
       reason: 'unverifiable',
       rejection: 'expired',
     });
     const revoked = memoryDeviceSafety({ [ADVISORY_CACHE_KEY]: { file: await s.advisory([{ sha: SHA, reason: 'r' }]), fetchedAt: DAY1.getTime() } });
-    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: offline, keys: s.keys, store: revoked }))).toMatchObject({ ok: false, reason: 'revoked' });
+    expect(await checkAdvisory(advisoryDeps({ fetchAdvisory: offline, store: revoked }))).toMatchObject({ ok: false, reason: 'revoked' });
   });
 
   it('T-S75: a revocation while LIVE (15-minute poll) denies Arm/Start and jog, never Pause, Stop or Disconnect, and sends the worker nothing', async () => {
@@ -123,7 +113,7 @@ describe('advisory gate (H27, T-S31, T-S75)', () => {
     const intervals: { fn: () => void; ms: number }[] = [];
     const changes: unknown[] = [];
     const poller = new AdvisoryPoller(
-      advisoryDeps({ fetchAdvisory: () => Promise.resolve({ ok: true, body }), keys: s.keys }),
+      advisoryDeps({ fetchAdvisory: () => Promise.resolve({ ok: true, body }) }),
       { setInterval: (fn, ms) => intervals.push({ fn, ms }), clearInterval: () => undefined },
       (b) => changes.push(b),
     );
@@ -149,7 +139,7 @@ describe('advisory gate (H27, T-S31, T-S75)', () => {
   it('while LIVE, an advisory that can no longer be verified also blocks new Arm/Start and jog, and clears when it verifies again', async () => {
     const s = await signer();
     let body: unknown = { broken: true };
-    const poller = new AdvisoryPoller(advisoryDeps({ fetchAdvisory: () => Promise.resolve({ ok: true, body }), keys: s.keys }), {
+    const poller = new AdvisoryPoller(advisoryDeps({ fetchAdvisory: () => Promise.resolve({ ok: true, body }) }), {
       setInterval: () => 1,
       clearInterval: () => undefined,
     });

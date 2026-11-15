@@ -1,3 +1,4 @@
+import { serveFirmwareCatalog } from '../live/firmwareCatalog.ts';
 /**
  * Entry point for https://run.synthetos.com/ (the workspace page).
  *
@@ -124,6 +125,7 @@ if (channel.kind === 'bench') {
   });
 }
 worker = startMachineWorker(trustedTypes);
+if (worker !== null) serveFirmwareCatalog(worker);
 
 // LIVE entry (P1-05): the D1 sign-in gate, the signed advisory, C1, W6. UI/auth layer only.
 void mountLiveEntry({ channel, appSha: build.sha, worker, model, previousSession, stopControls, marker })

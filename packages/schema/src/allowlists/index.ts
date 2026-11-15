@@ -1,4 +1,5 @@
 /** Per-dialect read allowlists (ROADMAP P0-09; PN §12.3). */
+import { SPINDLE_OVERRIDE_SETTINGS } from '../firmware45006.ts';
 import { REMOVED_HOLD_KEYS, OVERRIDE_SETTINGS } from '../firmware45005.ts';
 import { frozenSet } from '../frozen.ts';
 import type { TinyGDialectId } from '../tables/types.ts';
@@ -20,9 +21,12 @@ export const READ_ALLOWLISTS: Readonly<Record<TinyGDialectId, ReadAllowlist>> = 
 
 const EN_45005_READ: ReadAllowlist = Object.freeze({ ...TINYG_EN_READ, allow: frozenSet([...TINYG_EN_READ.allow].filter(key => !REMOVED_HOLD_KEYS.includes(key)).concat(OVERRIDE_SETTINGS.map(def => def.token))) });
 
+const EN_45006_READ: ReadAllowlist = Object.freeze({ ...EN_45005_READ, allow: frozenSet([...EN_45005_READ.allow, ...SPINDLE_OVERRIDE_SETTINGS.map(def => def.token)]) });
+
 /** The allowlist for a dialect id; throws for a dialect that has none (g2core is read-only and has no allowlist yet). */
 export function readAllowlistFor(dialectId: string, fb?: number): ReadAllowlist {
   if (!Object.hasOwn(READ_ALLOWLISTS, dialectId)) throw new Error(`no read allowlist for dialect ${JSON.stringify(dialectId)}`);
+  if (dialectId === 'tinyg-en' && fb !== undefined && fb >= 450.06) return EN_45006_READ;
   if (dialectId === 'tinyg-en' && fb !== undefined && fb >= 450.05) return EN_45005_READ;
   return READ_ALLOWLISTS[dialectId as TinyGDialectId];
 }

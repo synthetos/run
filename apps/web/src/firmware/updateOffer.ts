@@ -1,15 +1,15 @@
 /**
- * "Firmware update available" (owner, 2026-11-09): after a connect, when the signed release list (the one Board →
+ * "Firmware update available" (owner, 2026-11-09): after a connect, when the GitHub release list (the one Board →
  * Firmware shows) names a newer approved release for this board's hardware, the page offers it once.
  * Unapproved/below-minimum TinyG boards instead get an update-needed offer for the newest listed release.
  *
- * Only the verified, signed list counts: never an unsigned or custom build. It is never offered while anything
+ * Only the validated list counts: never an unsigned or custom build. It is never offered while anything
  * moves or may move (a job, a hold, homing, a jog, an alarm, an update in progress), never over another machine
  * message, and never over the Job view's Run step while a job is loaded there: it waits until that is over.
  *
  * Pure. The page decides what "Not now" and "Don't show again" remember (offerMemory.ts).
  */
-import { releasesForHardware, type FirmwareRelease, type FirmwareReleases } from '@synthetos/protocol';
+import { releasesForHardware, supportsFirmware, type FirmwareRelease, type FirmwareReleases } from '@synthetos/protocol';
 import { firmwareNeeded, neededOfferAtRest } from './updateNeeded.ts';
 import type { SnapshotMessage } from '../machine-worker/rpc.ts';
 
@@ -21,7 +21,7 @@ export interface OfferInput {
   readonly flashing: boolean;
   /** This site exposes the firmware update flow. */
   readonly flasher: boolean;
-  /** The verified signed release list, or null while it is loading or when it could not be verified. */
+  /** The verified GitHub release list, or null while it is loading or when it could not be verified. */
   readonly releases: FirmwareReleases | null;
   /** The Job view's Run step is showing. */
   readonly onRunStep: boolean;
@@ -75,7 +75,7 @@ export function updateOffer(input: OfferInput): UpdateOffer | null {
   const overlays = s.overlays.filter(o => !(needed && o === 'READ_ONLY') && !(input.showing === true && !needed && o === 'STALE'));
   if (!AT_REST.has(s.base) || s.motion !== null || overlays.length > 0 || (needed && !neededOfferAtRest(s))) return null;
   if (!needed && classification.mode !== 'full') return null;
-  const candidates = (releasesForHardware(input.releases, hv)?.releases ?? []).filter(r => needed || hundredths(r.fb) > hundredths(fb));
+  const candidates = (releasesForHardware(input.releases, hv)?.releases ?? []).filter(r => r.unavailable === undefined && (r.simulatorOnly || supportsFirmware(r.dialect, r.fb)) && (needed || hundredths(r.fb) > hundredths(fb)));
   if (candidates.length === 0) return null;
   const release = candidates.reduce((a, b) => (hundredths(b.fb) > hundredths(a.fb) ? b : a));
   return { kind: needed ? 'needed' : 'available', epoch: s.epoch, boardId: id, current: fb, release };
