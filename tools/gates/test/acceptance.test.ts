@@ -7,6 +7,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { type GateResult, ScratchRepo } from './scratch.ts';
+import { writeLintStub } from './lintStub.ts';
 
 const TIMEOUT = 120_000;
 let scratch: ScratchRepo | undefined;
@@ -259,7 +260,7 @@ describe('the remaining P0-02 rules', () => {
   it('a signal-word string outside strings.ts fails lint, and passes inside it', { timeout: TIMEOUT }, () => {
     const repo = fresh();
     const text = `WARNING ${'—'} This software is not an emergency stop.`;
-    repo.write('packages/safety/src/strings.ts', `export const W1 = (): string => '${text}';\n`);
+    writeLintStub(repo, 'packages/safety/src/strings.ts', `export const W1 = (): string => '${text}';\n`);
     { const r = repo.lint(); expect(r.status, r.output).toBe(0); }
     repo.append('apps/web/src/workspace/AppShell.ts', `export const BAR = '${text}';\n`);
     expectFailure(repo.lint(), 'run/no-signal-word-literal');
@@ -267,7 +268,7 @@ describe('the remaining P0-02 rules', () => {
 
   it('innerHTML is allowed only in apps/web/src/security/tt.ts', { timeout: TIMEOUT }, () => {
     const repo = fresh();
-    repo.write('apps/web/src/security/tt.ts', 'export function set(el: Element, html: string): void { el.innerHTML = html; }\n');
+    writeLintStub(repo, 'apps/web/src/security/tt.ts', 'export function set(el: Element, html: string): void { el.innerHTML = html; }\n');
     { const r = repo.lint(); expect(r.status, r.output).toBe(0); }
   });
 
@@ -458,7 +459,7 @@ const TRANSPORT_STANDIN =
 describe('P1-00: Web Serial is allowed in packages/machine/src/webSerialTransport.ts and nowhere else', () => {
   it('the transport may read navigator.serial: lint and the source check pass', { timeout: TIMEOUT }, () => {
     const repo = fresh();
-    repo.write('packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
+    writeLintStub(repo, 'packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
     const lint = repo.lint();
     expect(lint.status, lint.output).toBe(0);
     const deps = repo.deps();
@@ -478,14 +479,14 @@ describe('P1-00: Web Serial is allowed in packages/machine/src/webSerialTranspor
 
   it('a computed lookup in the transport itself still fails lint and the source check', { timeout: TIMEOUT }, () => {
     const repo = fresh();
-    repo.write('packages/machine/src/webSerialTransport.ts', "export const s = (navigator as unknown as Record<string, unknown>)['ser' + 'ial'];\n");
+    writeLintStub(repo, 'packages/machine/src/webSerialTransport.ts', "export const s = (navigator as unknown as Record<string, unknown>)['ser' + 'ial'];\n");
     expectFailure(repo.lint(), 'run/no-capability-lookup');
     expectFailure(repo.deps(), 'capability-lookup');
   });
 
   it('navigator aliased in the transport still fails lint and the source check', { timeout: TIMEOUT }, () => {
     const repo = fresh();
-    repo.write('packages/machine/src/webSerialTransport.ts', 'const nav = navigator;\nexport const s = nav.language;\n');
+    writeLintStub(repo, 'packages/machine/src/webSerialTransport.ts', 'const nav = navigator;\nexport const s = nav.language;\n');
     expectFailure(repo.lint(), 'run/no-capability-lookup');
     expectFailure(repo.deps(), 'capability-lookup');
   });
@@ -498,21 +499,21 @@ describe('P1-00: Web Serial is allowed in packages/machine/src/webSerialTranspor
 
   it('only the transport seam and machine tests may import the transport (dependency-cruiser)', { timeout: TIMEOUT }, () => {
     const repo = fresh();
-    repo.write('packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
+    writeLintStub(repo, 'packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
     repo.append('packages/machine/src/index.ts', "export { ports } from './webSerialTransport.ts';\n");
     expectFailure(repo.deps(), 'web-serial-transport-importers');
   });
 
   it('the main thread importing the transport fails dependency-cruiser', { timeout: TIMEOUT }, () => {
     const repo = fresh();
-    repo.write('packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
+    writeLintStub(repo, 'packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
     repo.append('apps/web/src/workspace/AppShell.ts', "export { ports } from '../../../../packages/machine/src/webSerialTransport.ts';\n");
     expectFailure(repo.deps(), 'web-serial-transport-importers');
   });
 
   it('the transport seam may import it', { timeout: TIMEOUT }, () => {
     const repo = fresh();
-    repo.write('packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
+    writeLintStub(repo, 'packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
     repo.append('apps/web/src/machine-worker/transport.ts', "export { ports } from '../../../../packages/machine/src/webSerialTransport.ts';\n");
     const deps = repo.deps();
     expect(deps.status, deps.output).toBe(0);
@@ -569,7 +570,7 @@ describe("OD-3: the window's port chooser is the second and last Web Serial modu
 
   it('the importer may not import the transport, and the chooser imports types only', { timeout: TIMEOUT }, () => {
     const repo = fresh();
-    repo.write('packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
+    writeLintStub(repo, 'packages/machine/src/webSerialTransport.ts', TRANSPORT_STANDIN);
     repo.write(IMPORTER, "export { ports } from '../../../../packages/machine/src/webSerialTransport.ts';\n");
     expectFailure(repo.deps(), 'web-serial-transport-importers');
     const other = fresh();
