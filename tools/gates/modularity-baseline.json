@@ -979,10 +979,6 @@
     "packages/safety/test/sanitize-corpus.test.ts": {
       "max-lines-per-function $/ArrowFunctionExpression:describe('T-S2: CAM corpus')[1]#1": 138
     },
-    "packages/safety/test/sanitize-model.test.ts": {
-      "max-lines-per-function $/ArrowFunctionExpression:describe('offset arithmetic with non-zero values (signs matter)')[1]#1": 83,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('offsets and coordinate systems')[1]#1": 92
-    },
     "packages/safety/test/sanitize-property.test.ts": {
       "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:r.lines.forEach()[0]#1": 4,
       "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:r.report.entries.some()[0]#1": 4,

@@ -64,26 +64,44 @@ describe('unknown state blocks moves that depend on it', () => {
   });
 });
 
+
+const offset10 = { ...START, wcsOffsets: { ...START.wcsOffsets, G55: { X: 10, Y: 0, Z: 0, A: 0, B: 0, C: 0 } } };
 describe('offsets and coordinate systems', () => {
-  const offset10 = { ...START, wcsOffsets: { ...START.wcsOffsets, G55: { X: 10, Y: 0, Z: 0, A: 0, B: 0, C: 0 } } };
+
 
   it('switching to a system with a known offset moves the work position by the offset', () => {
     // At machine X0, G55 X reads -10, so G0 X0 is a 10 mm move.
     expect(lengthOf('G55\nG0 X0\n', 'G0 X0', offset10)).toBe(10);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('selecting a system when the active one was unknown uses the machine position and the new offset', () => {
     expect(lengthOf('G55\nG0 X0\n', 'G0 X0', { ...offset10, wcs: undefined as never })).toBe(10);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('G92 under unknown units leaves the axis unknown', () => {
     expect(blocks(run('G92 X0\nG21 G0 X1\n', EN, { start: { ...START, units: undefined as never } }))).toEqual(['unknown-state']);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('switching to a system with an unknown offset makes the work position unknown', () => {
     const start = { ...START, wcsOffsets: { G54: START.wcsOffsets?.G54 ?? {} } };
     expect(blocks(run('G55\nG0 X0\n', EN, { start }))).toEqual(['unknown-state']);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('without a machine position, G92 still makes the work position known, until the frame changes', () => {
     const start: StartState = { ...offset10, machine: {} };
@@ -94,6 +112,10 @@ describe('offsets and coordinate systems', () => {
     // Cancelling the unknown G92 offset loses the position.
     expect(blocks(run('G92 X0\nG92.1\nG0 X0\n', EN, { start }))).toEqual(['unknown-state']);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('G92 sets the work position; G92.1 cancels; G92.2 suspends and G92.3 resumes', () => {
     const at5 = { ...START, machine: { X: 5, Y: 0, Z: 0, A: 0, B: 0, C: 0 } };
@@ -104,16 +126,28 @@ describe('offsets and coordinate systems', () => {
     // Unknown G92 state with non-zero offsets makes the frame unknown.
     expect(blocks(run('G0 X1\n', EN, { start: { ...START, g92: undefined as never } }))).toEqual(['unknown-state']);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('G92 with an unknown coordinate system still knows the axis it sets', () => {
     expect(lengthOf('G92 X0\nG0 X3\n', 'G0 X3', { ...START, wcs: undefined as never })).toBe(3);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('G10 L2 on the active system shifts the work position; on another system it does not', () => {
     expect(lengthOf('G10 L2 P1 X5\nG0 X0\n', 'G0 X0')).toBe(5);
     expect(lengthOf('G10 L2 P2 X5\nG0 X1\n', 'G0 X1')).toBe(1);
     expect(blocks(run('G10 L2 P1 X5\nG0 X0\n', EN, { start: { ...START, wcs: undefined as never } }))).toEqual(['unknown-state']);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('G10 L20 makes the current position read the value in that system (EN)', () => {
     const at7 = { ...START, machine: { X: 7, Y: 0, Z: 0, A: 0, B: 0, C: 0 } };
@@ -123,6 +157,10 @@ describe('offsets and coordinate systems', () => {
     const r = run('G10 L20 P2 X0\nG55\nG0 X4\n', EN, { start: { ...START, machine: {} } });
     expect(blocks(r)).toEqual(['unknown-state']);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('G10 with unknown units or an unknown old offset, and L20 with G92 applied or unknown', () => {
     expect(blocks(run('G10 L2 P1 X5\nG0 X0\n', EN, { start: { ...START, units: undefined as never } }))).toEqual(['unknown-state']);
@@ -135,18 +173,30 @@ describe('offsets and coordinate systems', () => {
     const r = run('G10 L20 P2 X0\nG55\nG0 X4\n', EN, { start: { ...START, g92: undefined as never } });
     expect(blocks(r)).toEqual(['unknown-state']);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('G43.1 shifts the work position by the tool offset; G49 cancels it (EN)', () => {
     expect(lengthOf('G43.1 Z10\nG0 Z0\n', 'G0 Z0')).toBe(10);
     expect(lengthOf('G43.1 Z10\nG49\nG0 Z0\n', 'G0 Z0')).toBe(0);
     expect(blocks(run('G43.1 Z10\nG0 Z0\n', EN, { start: { ...START, units: undefined as never } }))).toEqual(['unknown-state']);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('TG has no tool offset: G49 is accepted and changes nothing', () => {
     expect(lengthOf('G49\nG0 Z3\n', 'G0 Z3', START, TG)).toBe(3);
     // And an unknown start tool offset does not matter on TG.
     expect(lengthOf('G0 Z3\n', 'G0 Z3', { ...START, toolOffset: {} }, TG)).toBe(3);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('G53 moves in machine coordinates under G90; under G91 (where TinyG treats the values as distances) or an unknown distance mode it is blocked', () => {
     expect(lengthOf('G53 G0 X10\n', 'G53 G0 X10', { ...START, wcsOffsets: { ...START.wcsOffsets, G54: { X: 50, Y: 0, Z: 0, A: 0, B: 0, C: 0 } } })).toBe(10);
@@ -159,6 +209,10 @@ describe('offsets and coordinate systems', () => {
     expect(blocks(run('G53 G0 X10\n', EN, { start: { ...START, machine: {} } }))).toEqual(['unknown-state']);
     expect(run('G53 G0 X10\n', EN, { start: { ...START, machine: {} } }).report.entries[0]?.message).toContain('machine position');
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('G28.1 and G30.1 store the current position; G28 and G30 go there', () => {
     const at = { ...START, machine: { X: 4, Y: 3, Z: 0, A: 0, B: 0, C: 0 }, g28: {}, g30: {} };
@@ -168,12 +222,20 @@ describe('offsets and coordinate systems', () => {
     expect(blocks(run('G30 X1\n', EN, { start: { ...at, distance: undefined as never } }))).toEqual(['unknown-state']);
     expect(blocks(run('G28\n', EN, { start: { ...START, g28: { X: 1, Y: 0, Z: 0, A: 0, B: 0, C: 0 } }, motion: { ...MOTION, maxVelocity: { Y: 1 }, feedrateMax: { Y: 1 } } }))).toEqual(['no-velocity-limit']);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('program end restores the default system and cancels G92', () => {
     const start = { ...offset10, machine: { X: 5, Y: 0, Z: 0, A: 0, B: 0, C: 0 }, defaults: { units: 'G21', distance: 'G90', plane: 'G17', wcs: 'G55' } } as const;
     // After M30: G55 (X reads -5), G92 gone, G90; G0 X0 is a 5 mm move.
     expect(lengthOf('G92 X0\nM30\nG0 X0\nM30\n', 'G0 X0', start, TG)).toBe(5);
   });
+});
+
+describe('offsets and coordinate systems', () => {
+
 
   it('program end keeps the units only if they equal the default (EN restores them, TG keeps them)', () => {
     const r = run('G20\nM30\nG0 X1\nM30\n', TG);
@@ -263,54 +325,85 @@ describe('arcs', () => {
   });
 });
 
+
+const pos = (X: number): NonNullable<StartState['machine']> => ({ X, Y: 0, Z: 0, A: 0, B: 0, C: 0 });
+
+const offsets = (g54: number, g55: number): NonNullable<StartState['wcsOffsets']> => ({
+  ...START.wcsOffsets,
+  G54: { X: g54, Y: 0, Z: 0, A: 0, B: 0, C: 0 },
+  G55: { X: g55, Y: 0, Z: 0, A: 0, B: 0, C: 0 },
+});
 describe('offset arithmetic with non-zero values (signs matter)', () => {
-  const pos = (X: number): NonNullable<StartState['machine']> => ({ X, Y: 0, Z: 0, A: 0, B: 0, C: 0 });
-  const offsets = (g54: number, g55: number): NonNullable<StartState['wcsOffsets']> => ({
-    ...START.wcsOffsets,
-    G54: { X: g54, Y: 0, Z: 0, A: 0, B: 0, C: 0 },
-    G55: { X: g55, Y: 0, Z: 0, A: 0, B: 0, C: 0 },
-  });
+
 
   it('work = machine - (system offset + G92 + tool offset)', () => {
     // Machine X30, G54 X10, G92 X2 applied, tool offset X1: work X17; G0 X20 is 3 mm.
     const start: StartState = { ...START, machine: pos(30), wcsOffsets: offsets(10, 0), g92: { offsets: { X: 2, Y: 0, Z: 0, A: 0, B: 0, C: 0 }, active: true }, toolOffset: { X: 1, Y: 0, Z: 0, A: 0, B: 0, C: 0 } };
     expect(lengthOf('G0 X20\n', 'G0 X20', start)).toBe(3);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('with the machine position unknown, a system switch shifts a known work position by old minus new offset', () => {
     // G92 X0 makes work X known; G54 X10 → G55 X3 adds 7, so work X7 and G0 X0 is 7 mm.
     const start: StartState = { ...START, machine: { Y: 0, Z: 0, A: 0, B: 0, C: 0 }, wcsOffsets: offsets(10, 3) };
     expect(lengthOf('G92 X0\nG55\nG0 X0\n', 'G0 X0', start)).toBe(7);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('G92 offset = machine - system offset - tool offset - value', () => {
     // Machine X5, G54 X1: G92 X2 makes the G92 offset 2; in G55 (X3) the work position is 5 - 3 - 2 = 0.
     const start: StartState = { ...START, machine: pos(5), wcsOffsets: offsets(1, 3) };
     expect(lengthOf('G92 X2\nG55\nG0 X1\n', 'G0 X1', start)).toBe(1);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('G10 L20 offset = machine - value - G92 - tool offset', () => {
     // Machine X7, G92 X1 applied: G10 L20 P2 X2 makes G55 X4; G55 then reads 7 - 4 - 1 = 2.
     const start: StartState = { ...START, machine: pos(7), g92: { offsets: { X: 1, Y: 0, Z: 0, A: 0, B: 0, C: 0 }, active: true } };
     expect(lengthOf('G10 L20 P2 X2\nG55\nG0 X5\n', 'G0 X5', start)).toBe(3);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('G10 L2 on the active system, with the machine position unknown, shifts work by old minus new offset', () => {
     const start: StartState = { ...START, machine: { Y: 0, Z: 0, A: 0, B: 0, C: 0 }, wcsOffsets: offsets(10, 0) };
     // G92 X0: work X0. G10 L2 P1 X4: offset 10 → 4, work +6. G0 X0 is 6 mm.
     expect(lengthOf('G92 X0\nG10 L2 P1 X4\nG0 X0\n', 'G0 X0', start)).toBe(6);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('G43.1 with the machine position unknown shifts work by old minus new tool offset; inches scale it', () => {
     const start: StartState = { ...START, machine: { X: 0, Y: 0, A: 0, B: 0, C: 0 } };
     expect(lengthOf('G92 Z0\nG43.1 Z2\nG0 Z0\n', 'G0 Z0', start)).toBe(2);
     expect(lengthOf('G20\nG92 Z0\nG43.1 Z1\nG21 G0 Z0\n', 'G21 G0 Z0', start)).toBeCloseTo(25.4, 9);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('G53 moves from the current machine position', () => {
     expect(lengthOf('G53 G0 X10\n', 'G53 G0 X10', { ...START, machine: pos(4) })).toBe(6);
     expect(lengthOf('G20 G53 G0 X1\n', 'G20 G53 G0 X1', { ...START, machine: pos(4) })).toBeCloseTo(21.4, 9);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('G28 goes to the intermediate point, then to the stored position from there', () => {
     const start: StartState = { ...START, machine: pos(4), g28: { X: 10, Y: 0, Z: 0, A: 0, B: 0, C: 0 } };
@@ -319,6 +412,10 @@ describe('offset arithmetic with non-zero values (signs matter)', () => {
     // After it, the machine is at the stored position: G0 X10 from there does not move.
     expect(lengthOf('G28 X6\nG0 X10\n', 'G0 X10', start)).toBe(0);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('G28/G30 intermediate point: work coordinates on EN, machine coordinates on TG (440.21 absolute override)', () => {
     const offset = { X: 100, Y: 0, Z: 0, A: 0, B: 0, C: 0 };
@@ -339,6 +436,10 @@ describe('offset arithmetic with non-zero values (signs matter)', () => {
     // The machine position must be known for the TG intermediate leg.
     expect(blocks(run('G28 X6\n', TG, { start: { ...start, machine: { Y: 0, Z: 0, A: 0, B: 0, C: 0 } } }))).toEqual(['unknown-state']);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('a rapid exactly at the ceiling is kept; one just above it is split', () => {
     // 50 mm at vm 1200 mm/min × 0.5 = 5 s.
@@ -348,26 +449,46 @@ describe('offset arithmetic with non-zero values (signs matter)', () => {
     expect(at.lines[0]?.motion?.seconds).toBe(5);
     expect(run('G0 X50.01\n', EN, { motion }).lines.length).toBeGreaterThan(1);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('boundary values are accepted: T0, G10 P6, G4 P0, arc P0', () => {
     expect(run('T0\nG10 L2 P6 X0\nG4 P0\nG2 X10 Y0 I5 P0 F1000\n', EN).report.blocked).toBe(false);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('a centre-format arc with one plane endpoint is not a full circle', () => {
     // X10 alone (Y stays): a half circle of r 5, not a full turn.
     expect(lengthOf('G2 X10 I5 F1000\n', 'G2 X10 I5 F1000')).toBeCloseTo(5 * Math.PI, 9);
     expect(lengthOf('G2 Y0 X10 I5 F1000\n', 'G2 Y0 X10 I5 F1000')).toBeCloseTo(5 * Math.PI, 9);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('a G90.1 arc centre is absolute: I/J minus the start position', () => {
     const at = { ...START, machine: { X: 10, Y: 0, Z: 0, A: 0, B: 0, C: 0 } };
     // From X10 about the absolute centre X15: a half circle of r 5 to X20.
     expect(lengthOf('G90.1 G2 X20 Y0 I15 J0 F1000\n', 'G90.1 G2 X20 Y0 I15 J0 F1000', at)).toBeCloseTo(5 * Math.PI, 9);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('an R arc in inches is scaled', () => {
     expect(lengthOf('G20\nG91 G2 X1 Y0 R0.5 F100\n', 'G91 G2 X1 Y0 R0.5 F100')).toBeCloseTo(0.5 * 25.4 * Math.PI, 9);
   });
+});
+
+describe('offset arithmetic with non-zero values (signs matter)', () => {
+
 
   it('a helix models its linear axis too', () => {
     const slowZ = { ...MOTION, maxVelocity: { X: 20000, Y: 20000, Z: 1 }, feedrateMax: { X: 20000, Y: 20000, Z: 1 } };
