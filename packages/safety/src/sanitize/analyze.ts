@@ -30,16 +30,15 @@ import {
     splitArc,
     splitLinear,
     stepErrorMm,
-    travelBoundMm,
     type ArcInput,
     type LinearAxis,
     type Plane,
-    type Segment,
+    type Segment
 } from './geometry.ts';
 
 import { canonicalCode, type Word } from './lex.ts';
 
-import type { Axis, RotaryAxis, SanitizeOptions, StartState, Wcs } from './types.ts';
+import type { Axis, SanitizeOptions, StartState, Wcs } from './types.ts';
 
 import { extendByArc, extendTo, extentAt } from './extent.ts';
 
@@ -48,7 +47,8 @@ import { ModelState, type ModelContext } from './analyze/context.ts';
 import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
 import { emptyPos, exactUnc, posFrom, uncOf, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
 import { AFTER_MOTION, ARC_LETTERS, AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
-import { AXES, AXIS_MODE_DISABLED, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, WCS_CODES, type AxisMode } from './types.ts';
+import { mmPerUnit, motionBound, needsUnits, offsetScale, scale, unitScale } from './analyze/units.ts';
+import { AXES, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, WCS_CODES, type AxisMode } from './types.ts';
 export { type Finding, type LineAnalysis } from './analyze/contract.ts';
 
 
@@ -375,9 +375,7 @@ export class JobModel extends ModelState {
 
 
   /** mm per program unit of a linear word, or null when the units are unknown. */
-  static #unitScale(units: 'G20' | 'G21' | null): number | null {
-    return units === null ? null : units === 'G20' ? INCH_MM : 1;
-  }
+  static #unitScale(units: 'G20' | 'G21' | null): number | null { return unitScale(units); }
 
 
   /**
@@ -387,16 +385,7 @@ export class JobModel extends ModelState {
    * canonical_machine.c:517-521 `_calc_ABC`; TG the same); every other
    * rotary mode reads degrees.
    */
-  #scale(axis: Axis, units: 'G20' | 'G21' | null): number | null {
-    if (!ROTARY.has(axis)) return JobModel.#unitScale(units);
-    const cfg = this._motion.rotary[axis as RotaryAxis];
-    /* c8 ignore next -- a move word on an axis of unknown mode is blocked before any target is computed (#rotaryUnknown) */
-    if (cfg === undefined) return null;
-    if (cfg.mode !== AXIS_MODE_RADIUS) return 1;
-    const u = JobModel.#unitScale(units);
-    const r = cfg.radiusMm;
-    return u === null || r === undefined ? null : (u * 360) / (2 * Math.PI * r);
-  }
+  #scale(axis: Axis, units: 'G20' | 'G21' | null): number | null { return scale(this, axis, units); }
 
 
   /**
@@ -407,10 +396,7 @@ export class JobModel extends ModelState {
    * G20 is scaled by 25.4 (@cite TG canonical_machine.c:669, :788-789), which
    * the dialect states as `rotaryOffsetsUseUnits`.
    */
-  #offsetScale(axis: Axis, units: 'G20' | 'G21' | null): number | null {
-    if (ROTARY.has(axis) && !this._job.rotaryOffsetsUseUnits) return 1;
-    return JobModel.#unitScale(units);
-  }
+  #offsetScale(axis: Axis, units: 'G20' | 'G21' | null): number | null { return offsetScale(this, axis, units); }
 
 
   /**
@@ -431,26 +417,15 @@ export class JobModel extends ModelState {
    *   kinematics.c:59; TG kinematics.c:63), so a motor away from 0 can move
    *   by an amount the model does not know: unknown.
    */
-  #mmPerUnit(axis: Axis): number | null {
-    if (!ROTARY.has(axis)) return 1;
-    const cfg = this._motion.rotary[axis as RotaryAxis];
-    if (cfg === undefined) return null;
-    if (cfg.mode === AXIS_MODE_RADIUS) return cfg.radiusMm === undefined ? null : (Math.PI * cfg.radiusMm) / 180;
-    if (cfg.mode === AXIS_MODE_DISABLED) return 0;
-    return null;
-  }
+  #mmPerUnit(axis: Axis): number | null { return mmPerUnit(this, axis); }
 
 
   /** The true travel bound of a move by these model-unit deltas, mm, or null (see `travelBoundMm`). */
-  #boundMm(delta: Readonly<Partial<Record<Axis, number>>>): number | null {
-    return travelBoundMm(AXES.map((a) => ({ axis: a, delta: delta[a] ?? 0, mmPerUnit: this.#mmPerUnit(a) })));
-  }
+  #boundMm(delta: Readonly<Partial<Record<Axis, number>>>): number | null { return motionBound(this, delta); }
 
 
   /** Whether a word on this axis needs the program units to be modelled as a move target. */
-  #needsUnits(axis: Axis): boolean {
-    return !ROTARY.has(axis) || this._motion.rotary[axis as RotaryAxis]?.mode === AXIS_MODE_RADIUS;
-  }
+  #needsUnits(axis: Axis): boolean { return needsUnits(this, axis); }
 
 
   /**
