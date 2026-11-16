@@ -40,7 +40,6 @@ import { on, progressText } from '../../preview/PreviewView.ts';
 
 
 
-import { Icon } from '../icons.ts';
 
 import { readStored, writeStored } from '../storage.ts';
 
@@ -66,7 +65,7 @@ import { sampleFile, SAMPLES } from '../samples.ts';
 
 import { openReport } from '../../report/state.ts';
 
-import { closeJob, currentFile, executionLock, pendingOpen, reopening } from '../fileBridge.ts';
+import { currentFile, executionLock, pendingOpen, reopening } from '../fileBridge.ts';
 
 import { activeJob, effectiveZero } from '../jobModel.ts';
 
@@ -106,7 +105,6 @@ import { ViewButtons } from '../../preview/SceneView.ts';
 
 import type { CarveWorkerLike, ViewPreset } from '@synthetos/gcode-view';
 
-import { num } from '../status.ts';
 
 import { feedDiagnosis, jobUi, plannerRanges, starving } from '../jobUi.ts';
 
@@ -128,7 +126,7 @@ import { ToolMismatchNotes } from '../ToolMismatchNotes.ts';
 
 import type { FileTool } from '../../gcode-worker/camTools.ts';
 import { RunBridge } from './run/bridge.ts';
-import { JobIdentity } from './run/identity.ts';
+import { JobCard } from './run/fileCard.ts';
 import { RunInspector } from './run/inspector.ts';
 import { JobWorkPanel, PHASE_LABEL, stepStatus } from './run/steps.ts';
 
@@ -210,72 +208,6 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
     layout: (parts: PreviewParts) => runLayout(parts, model, onView, stops),
     scrubTo: scrubRequest,
   });
-}
-
-
-/** The job: a card at the top of the Run view with the file, its checks, and the Check → Set zero → Start steps. */
-function JobCard({ parts, model, onView, onFiles }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly onView: (view: string) => void; readonly onFiles: () => void }): ComponentChild {
-  const { state, actions } = parts;
-  const loading = state.status === 'loading';
-  const disabled = !state.ready || loading || jobUi(model?.live.value ?? null).active;
-  const result = state.status === 'ready' ? state.result : null;
-  const title = state.fileName === null ? 'No file open' : state.fileName.replace(/\.[^.]+$/, '');
-  const [note, setNote] = useState<string | null>(null);
-  return h(
-    'section',
-    { class: `job-card${result === null ? ' empty' : ''}`, 'data-region': 'job', 'aria-labelledby': 'run-title' },
-    h(
-      'div',
-      { class: 'job-id' },
-      h('span', { class: 'job-icon', 'aria-hidden': 'true' }, Icon('file', 22)),
-      h(
-        'div',
-        { class: 'job-name' },
-        h('h1', { id: 'run-title' }, title),
-        h(
-          'p',
-          null,
-          h('span', { class: state.fileName === null ? 'sr-only' : 'mono', 'data-preview': 'file-name' }, state.fileName ?? 'none'),
-          state.fileName === null ? (loading ? 'Checking the file…' : reopening.value || pendingOpen.value !== null ? 'Opening the file…' : 'Open a G-code file or a sample to check it.') : result === null ? (loading ? ' · checking…' : '') : ` · ${num(result.fileLines)} lines`,
-        ),
-        h(JobIdentity, { job: activeJob.value, fileOpen: result !== null, onNote: setNote }),
-        note === null ? null : h('p', { class: 'fine tone-warn', role: 'status', 'data-job': 'note' }, note),
-      ),
-    ),
-    h(
-      'div',
-      { class: 'job-actions' },
-      h('button', { type: 'button', class: 'small', 'data-action': 'job-files', onClick: onFiles }, 'Files'),
-      h('button', { type: 'button', class: 'small', 'data-action': 'job-projects', onClick: () => onView('projects') }, 'Open project'),
-      state.fileName === null ? null : h('button', { type: 'button', class: 'small', 'data-action': 'job-close', disabled: jobUi(model?.live.value ?? null).active || actions.onCancel === undefined, onClick: () => {
-        const result = closeJob();
-        if (!result.ok) { setNote(result.reason); return; }
-        actions.onCancel?.();
-        setNote(null);
-        jobStep.value = 'machine';
-      } }, 'Close job'),
-      executionLock.value === null ? null : h(ContextHelp, { id: 'job-file-lock-help', label: 'Why closing or replacing the job is unavailable' }, `${executionLock.value} Stop the current job before closing it or opening another file.`),
-      h(
-        'label',
-        { class: `file-button${disabled ? ' is-disabled' : ''}` },
-        h('input', {
-          type: 'file',
-          accept: '.nc,.gcode,.ngc,.tap,.txt,.cnc,text/plain',
-          disabled,
-          'data-preview': 'file',
-          ...on('onChange', actions.onFile, () => (e: Event) => {
-            const input = e.currentTarget as HTMLInputElement;
-            const file = input.files?.[0];
-            if (file !== undefined) openFrom(file, { kind: 'picker' }, setNote);
-            input.value = '';
-          }),
-        }),
-        Icon('upload', 15),
-        result === null ? 'Open a file' : 'Open another',
-      ),
-    ),
-
-  );
 }
 
 
