@@ -50,5 +50,6 @@ export function suiteConfig(options: SuiteOptions, env: NodeJS.ProcessEnv = proc
       timeout: 60_000,
       env: { WRANGLER_SEND_METRICS: 'false', CI: '1' },
     },
+    metadata: { environment: options.environment ?? 'production' },
   });
 }

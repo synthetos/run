@@ -18,6 +18,11 @@ describe('suiteConfig', () => {
     expect(config.forbidOnly).toBe(true);
   });
 
+  it('names the deployment wrangler dev stands in for, so fixtures answer with its headers', () => {
+    expect(suiteConfig(MAIN, {}, '/w').metadata).toEqual({ environment: 'production' });
+    expect(suiteConfig({ ...MAIN, environment: 'staging' }, {}, '/w').metadata).toEqual({ environment: 'staging' });
+  });
+
   it('adds the JSON report when asked', () => {
     expect(suiteConfig(MAIN, { RUN_E2E_REPORT: '/tmp/r.json' }, '/w').reporter).toEqual([['list'], ['json', { outputFile: '/tmp/r.json' }]]);
   });
