@@ -213,7 +213,7 @@ describe('Phase 1 control allowlist', () => {
     /^action:report-(problem|board|console|event|cancel|next|back|close|copy|download|open)$/,
     /^action:consent-(whole|excerpt)$/,
     // Projects (local): records and files in this browser's IndexedDB. "Open in Run" only loads the preview.
-    /^action:project-(new|open|rename|save-name|cancel-rename|delete|confirm-delete|cancel-delete|share|edit-description|save-description|cancel-description|open-in-run|remove-file|set-cover|remove-image|add-link|remove-link|use-stock|go-run)$/,
+    /^action:project-(new|open|rename|save-name|cancel-rename|delete|confirm-delete|cancel-delete|share|edit-description|save-description|cancel-description|open-in-run|remove-file|set-cover|remove-image|add-link|remove-link|use-stock|go-run|download|import)$/,
   ];
   it('catalog preview and discard actions are UI only', () => {
     for (const action of ['catalog-preview', 'catalog-add', 'catalog-open-tool', 'catalog-back', 'dialog-keep-editing', 'dialog-discard']) {
