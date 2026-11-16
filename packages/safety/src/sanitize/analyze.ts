@@ -39,10 +39,11 @@ import {
 
 import { canonicalCode, type Word } from './lex.ts';
 
-import type { Axis, MotionModel, RotaryAxis, SanitizeOptions, StartState, Wcs } from './types.ts';
+import type { Axis, RotaryAxis, SanitizeOptions, StartState, Wcs } from './types.ts';
 
-import { extendByArc, extendTo, extentAt, type MoveExtent } from './extent.ts';
+import { extendByArc, extendTo, extentAt } from './extent.ts';
 
+import { ModelState, type ModelContext } from './analyze/context.ts';
 import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
 import { emptyPos, exactUnc, posFrom, uncOf, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
 import { AFTER_MOTION, ARC_LETTERS, AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
@@ -106,96 +107,24 @@ function bodies(
     return parts.join(' ');
   });
 }
+/** One modal model per sanitizer invocation. */
+export class JobModel extends ModelState {
 
-/** The job modal model. One instance per sanitiser run. */
-export class JobModel {
-  readonly #job: DialectJobGcode;
-  readonly #rules: readonly GcodeRule[];
-  readonly #lWords: readonly number[];
-  readonly #options: SanitizeOptions;
-  readonly #motion: MotionModel;
-  /** False on a dialect with no tool length offset (TG ignores G49): the offset is then always zero. */
-  readonly #hasToolOffset: boolean;
-  /** False on a dialect with no arc distance mode: I/J/K are always offsets from the start. */
-  readonly #hasArcDistance: boolean;
-  /** The board's G-code defaults (`gun`, `gdi`, `gpl`, `gco`), restored at program end. */
-  readonly #defaults: NonNullable<StartState['defaults']>;
-  /**
-   * Axes that are inhibited, or of unknown mode, and do not read exactly 0 at
-   * the start (finding: inhibited axis). Their motor may be away from step 0,
-   * and the first segment of the next move of ANY axis drives it there
-   * (@cite EN kinematics.c:59, plan_exec.c:742-751; TG kinematics.c:63,
-   * plan_exec.c:718-727): every motion line is blocked.
-   */
-  readonly #jointRisk: readonly Axis[];
-  /**
-   * What the same axes may still move when they read 0: the reported
-   * position is rounded (3 decimals), so a motor left at the true position
-   * may be up to `uMachine` from step 0. mm added to every motion line's
-   * bound, or null when that includes rotary degrees with no known radius.
-   */
-  readonly #jointResidualMm: number | null;
-  /**
-   * Phase 3: run streams jobs to this dialect and stops before each M6 for a manual tool change (SAFETY §4.4a,
-   * H74), so M6 is an INFO stop point instead of a block. Only edge-next streams jobs (line mode, H76).
-   */
-  readonly #manualToolChange: boolean;
 
-  units: 'G20' | 'G21' | null;
-  distance: 'G90' | 'G91' | null;
-  arcDistance: 'G90.1' | 'G91.1' | null;
-  plane: Plane | null;
-  motionMode: 'G0' | 'G1' | 'G2' | 'G3' | 'G80' | null;
-  feed: number | null;
-  wcs: Wcs | null;
-  machine: Pos;
-  /** OD-24: the box of the line being analysed, in machine coordinates (extent.ts). */
-  #extent: MoveExtent = extentAt(emptyPos());
-  work: Pos;
-  wcsOffsets: Record<Wcs, Pos>;
-  g92: Pos;
-  g92Active: boolean | null;
-  toolOffset: Pos;
-  g28: Pos;
-  g30: Pos;
-  spindle: 'off' | 'cw' | 'ccw';
-  mist: boolean;
-  flood: boolean;
-  /** The last S word (commanded speed), or null. For the tool-change spindle restart (H74). */
-  speed: number | null = null;
-  /** The last T word (selected tool), or null. */
-  tool: number | null = null;
-  /**
-   * How well the model knows the firmware's positions, offsets and stored
-   * positions (finding: arc uncertainty, after P0-10#1). The board reports
-   * them to three decimals, and every incremental move adds float32 rounding
-   * the double-precision model does not see. `uWork` bounds the error of the
-   * work position as the firmware's arithmetic sees it (its machine position
-   * minus its offset); it is what an absolute arc's end point and a G90.1
-   * centre inherit, and it widens the arc's float32 decision band.
-   */
-  uMachine: Unc;
-  uWork: Unc;
-  uWcs: Record<Wcs, Unc>;
-  uG92: Unc;
-  uTool: Unc;
-  uG28: Unc;
-  uG30: Unc;
-
-  constructor(dialect: Dialect, job: DialectJobGcode, options: SanitizeOptions) {
-    this.#job = job;
-    this.#manualToolChange = dialect.id === 'tinyg-en';
-    this.#rules = dialect.gcode.blocked;
-    this.#lWords = dialect.gcode.lWords;
-    this.#options = options;
-    this.#motion = options.motion;
-    this.#hasToolOffset = job.codes.includes('G43.1');
-    this.#hasArcDistance = job.codes.includes('G90.1');
+  constructor(dialect: Dialect, job: DialectJobGcode, options: SanitizeOptions) { super(); const ctx: ModelContext = this;
+    ctx._job = job;
+    ctx._manualToolChange = dialect.id === 'tinyg-en';
+    ctx._rules = dialect.gcode.blocked;
+    ctx._lWords = dialect.gcode.lWords;
+    ctx._options = options;
+    ctx._motion = options.motion;
+    ctx._hasToolOffset = job.codes.includes('G43.1');
+    ctx._hasArcDistance = job.codes.includes('G90.1');
     const s: StartState = options.start ?? {};
-    this.#defaults = s.defaults ?? {};
+    ctx._defaults = s.defaults ?? {};
     this.units = s.units ?? null;
     this.distance = s.distance ?? null;
-    this.arcDistance = this.#hasArcDistance ? (s.arcDistance ?? null) : 'G91.1';
+    this.arcDistance = ctx._hasArcDistance ? (s.arcDistance ?? null) : 'G91.1';
     this.plane = s.plane ?? null;
     this.motionMode = s.motion ?? null;
     this.feed = s.feedMmPerMin !== undefined && s.feedMmPerMin > 0 && Number.isFinite(s.feedMmPerMin) ? s.feedMmPerMin : null;
@@ -205,7 +134,7 @@ export class JobModel {
     for (const w of WCS_CODES) this.wcsOffsets[w] = posFrom(s.wcsOffsets?.[w]);
     this.g92 = posFrom(s.g92?.offsets);
     this.g92Active = s.g92 === undefined ? null : s.g92.active;
-    this.toolOffset = this.#hasToolOffset ? posFrom(s.toolOffset) : zeroPos();
+    this.toolOffset = ctx._hasToolOffset ? posFrom(s.toolOffset) : zeroPos();
     this.g28 = posFrom(s.g28);
     this.g30 = posFrom(s.g30);
     this.spindle = s.spindle ?? 'off';
@@ -222,7 +151,7 @@ export class JobModel {
     this.uWcs = { G54: exactUnc(), G55: exactUnc(), G56: exactUnc(), G57: exactUnc(), G58: exactUnc(), G59: exactUnc() };
     for (const w of WCS_CODES) this.uWcs[w] = reported(this.wcsOffsets[w]);
     this.uG92 = reported(this.g92);
-    this.uTool = this.#hasToolOffset ? reported(this.toolOffset) : exactUnc();
+    this.uTool = ctx._hasToolOffset ? reported(this.toolOffset) : exactUnc();
     this.uG28 = reported(this.g28);
     this.uG30 = reported(this.g30);
     this.work = emptyPos();
@@ -251,14 +180,16 @@ export class JobModel {
       if (residual === null) continue;
       residual = ROTARY.has(a) ? null : residual + this.uMachine[a];
     }
-    this.#jointRisk = risk;
-    this.#jointResidualMm = residual;
+    ctx._jointRisk = risk;
+    ctx._jointResidualMm = residual;
   }
+
 
   /** The live axis mode, or undefined when it is not known. */
   #modeOf(axis: Axis): AxisMode | undefined {
-    return ROTARY.has(axis) ? this.#motion.rotary[axis as RotaryAxis]?.mode : this.#motion.linear[axis as 'X' | 'Y' | 'Z'];
+    return ROTARY.has(axis) ? this._motion.rotary[axis as RotaryAxis]?.mode : this._motion.linear[axis as 'X' | 'Y' | 'Z'];
   }
+
 
   /**
    * A block for a move word on a linear axis the firmware does not move as a
@@ -276,10 +207,11 @@ export class JobModel {
     return null;
   }
 
+
   /** The block for motion while an inhibited (or possibly inhibited) axis may hold its motor away from step 0. */
   #jointRiskFinding(): Finding | null {
-    if (this.#jointRisk.length === 0) return null;
-    const parts = this.#jointRisk.map((a) => {
+    if (this._jointRisk.length === 0) return null;
+    const parts = this._jointRisk.map((a) => {
       const mode = this.#modeOf(a);
       const m = this.machine[a];
       const where = m === null ? 'its position is not known' : `it reads ${formatNumber(m, 3)}`;
@@ -291,18 +223,21 @@ export class JobModel {
     );
   }
 
+
   /** A motion line's bound with the residual of inhibited axes that read 0 added (`#jointResidualMm`). */
   #withJointResidual(bound: number | null): number | null {
-    const r = this.#jointResidualMm;
+    const r = this._jointResidualMm;
     return bound === null || r === null ? null : bound + r;
   }
 
+
   /** Every bound of an accepted motion line, with the inhibited-axis residual. */
   #chargeJointResidual(motion: LineAnalysis['motion']): LineAnalysis['motion'] {
-    if (motion === null || this.#jointResidualMm === 0) return motion;
+    if (motion === null || this._jointResidualMm === 0) return motion;
     if (motion.kind === 'single') return { ...motion, boundMm: this.#withJointResidual(motion.boundMm) };
     return { ...motion, segments: motion.segments.map((seg) => ({ ...seg, boundMm: this.#withJointResidual(seg.boundMm) })) };
   }
+
 
   /**
    * Bound on the error of the work offset in force on an axis (`totalOffset`):
@@ -312,6 +247,7 @@ export class JobModel {
     if (this.wcs === null || this.g92Active === null) return Infinity;
     return this.uWcs[this.wcs][axis] + (this.g92Active ? this.uG92[axis] : 0) + (ROTARY.has(axis) ? 0 : this.uTool[axis]);
   }
+
 
   /**
    * The position bounds after the firmware moved `axis` (its model positions
@@ -341,6 +277,7 @@ export class JobModel {
     }
   }
 
+
   /**
    * Work offset in force on an axis: coordinate system + G92 (if applied) +
    * the applied tool offset, or null. This is the offset the firmware adds to
@@ -354,6 +291,7 @@ export class JobModel {
     return w === null || g === null || t === null ? null : w + g + t;
   }
 
+
   /**
    * The tool offset added to a target on this axis. EN adds it to X, Y and Z
    * only: the A/B/C loop of `cm_set_model_target` uses the coordinate offset
@@ -364,6 +302,7 @@ export class JobModel {
   #appliedTool(axis: Axis): number | null {
     return ROTARY.has(axis) ? 0 : this.toolOffset[axis];
   }
+
 
   /**
    * The work position on `axis` right after G92 or G10 L20 (on the active
@@ -377,11 +316,13 @@ export class JobModel {
     return t === null ? null : value + t;
   }
 
+
   /** Adds `mm` to the bound on both positions of an axis (rounding the model did not follow). */
   #widen(axis: Axis, mm: number): void {
     this.uMachine[axis] += mm;
     this.uWork[axis] += mm;
   }
+
 
   /**
    * Sets the work position after G92 or G10 L20 made it read `value`: the
@@ -395,11 +336,13 @@ export class JobModel {
     this.uWork[axis] = w === null ? Infinity : stepErrorMm(this.machine[axis] ?? 0, w) + (ROTARY.has(axis) ? this.uTool[axis] : 0);
   }
 
+
   /** The G92 part of the work offset on an axis, or null when it is not known whether G92 applies. */
   #g92Part(axis: Axis): number | null {
     if (this.g92Active === null) return null;
     return this.g92Active ? this.g92[axis] : 0;
   }
+
 
   /**
    * After the work offset on `axis` changed by `change` (old part minus new
@@ -422,6 +365,7 @@ export class JobModel {
     }
   }
 
+
   /** Selects a coordinate system (G54..G59, or the default at program end). */
   #selectWcs(next: Wcs | null): void {
     const prev = this.wcs;
@@ -435,11 +379,13 @@ export class JobModel {
     }
   }
 
+
   /** The bound on the G92 part of the work offset on an axis. */
   #g92PartUnc(axis: Axis): number {
     if (this.g92Active === null) return Infinity;
     return this.g92Active ? this.uG92[axis] : 0;
   }
+
 
   /** Sets whether G92 offsets apply, and to what with which bounds (null keeps them). */
   #setG92(active: boolean, offsets: Pos | null, unc: Unc | null): void {
@@ -455,10 +401,12 @@ export class JobModel {
     });
   }
 
+
   /** mm per program unit of a linear word, or null when the units are unknown. */
   static #unitScale(units: 'G20' | 'G21' | null): number | null {
     return units === null ? null : units === 'G20' ? INCH_MM : 1;
   }
+
 
   /**
    * mm (or degrees) per program unit of a move target on an axis, or null
@@ -469,7 +417,7 @@ export class JobModel {
    */
   #scale(axis: Axis, units: 'G20' | 'G21' | null): number | null {
     if (!ROTARY.has(axis)) return JobModel.#unitScale(units);
-    const cfg = this.#motion.rotary[axis as RotaryAxis];
+    const cfg = this._motion.rotary[axis as RotaryAxis];
     /* c8 ignore next -- a move word on an axis of unknown mode is blocked before any target is computed (#rotaryUnknown) */
     if (cfg === undefined) return null;
     if (cfg.mode !== AXIS_MODE_RADIUS) return 1;
@@ -477,6 +425,7 @@ export class JobModel {
     const r = cfg.radiusMm;
     return u === null || r === undefined ? null : (u * 360) / (2 * Math.PI * r);
   }
+
 
   /**
    * mm (or degrees) per program unit of an offset word (G10, G92, G43.1).
@@ -487,9 +436,10 @@ export class JobModel {
    * the dialect states as `rotaryOffsetsUseUnits`.
    */
   #offsetScale(axis: Axis, units: 'G20' | 'G21' | null): number | null {
-    if (ROTARY.has(axis) && !this.#job.rotaryOffsetsUseUnits) return 1;
+    if (ROTARY.has(axis) && !this._job.rotaryOffsetsUseUnits) return 1;
     return JobModel.#unitScale(units);
   }
+
 
   /**
    * Physical mm of travel per model unit on an axis (mm on X/Y/Z, degrees on
@@ -511,22 +461,25 @@ export class JobModel {
    */
   #mmPerUnit(axis: Axis): number | null {
     if (!ROTARY.has(axis)) return 1;
-    const cfg = this.#motion.rotary[axis as RotaryAxis];
+    const cfg = this._motion.rotary[axis as RotaryAxis];
     if (cfg === undefined) return null;
     if (cfg.mode === AXIS_MODE_RADIUS) return cfg.radiusMm === undefined ? null : (Math.PI * cfg.radiusMm) / 180;
     if (cfg.mode === AXIS_MODE_DISABLED) return 0;
     return null;
   }
 
+
   /** The true travel bound of a move by these model-unit deltas, mm, or null (see `travelBoundMm`). */
   #boundMm(delta: Readonly<Partial<Record<Axis, number>>>): number | null {
     return travelBoundMm(AXES.map((a) => ({ axis: a, delta: delta[a] ?? 0, mmPerUnit: this.#mmPerUnit(a) })));
   }
 
+
   /** Whether a word on this axis needs the program units to be modelled as a move target. */
   #needsUnits(axis: Axis): boolean {
-    return !ROTARY.has(axis) || this.#motion.rotary[axis as RotaryAxis]?.mode === AXIS_MODE_RADIUS;
+    return !ROTARY.has(axis) || this._motion.rotary[axis as RotaryAxis]?.mode === AXIS_MODE_RADIUS;
   }
+
 
   /**
    * A block for a move word on a rotary axis whose mode or radius is not
@@ -535,7 +488,7 @@ export class JobModel {
    */
   #rotaryUnknown(axis: Axis): Finding | null {
     if (!ROTARY.has(axis)) return null;
-    const cfg = this.#motion.rotary[axis as RotaryAxis];
+    const cfg = this._motion.rotary[axis as RotaryAxis];
     if (cfg === undefined) {
       return block('unknown-state', `the axis mode (${axis.toLowerCase()}am) of ${axis} is not known, so a move on ${axis} cannot be modelled`);
     }
@@ -544,6 +497,7 @@ export class JobModel {
     }
     return null;
   }
+
 
   /** Moves by known deltas: both positions follow, unknowns stay unknown. The caller settles the bounds (`#settle`). */
   #moveBy(delta: Readonly<Partial<Record<Axis, number>>>): void {
@@ -555,8 +509,9 @@ export class JobModel {
       this.machine[a] = m === null ? null : m + d;
       this.work[a] = w === null ? null : w + d;
     }
-    this.#extent = extendTo(this.#extent, this.machine);
+    this._extent = extendTo(this._extent, this.machine);
   }
+
 
   /** Forgets the positions of the axes these words name. */
   #forget(axisWords: readonly Word[]): void {
@@ -568,6 +523,7 @@ export class JobModel {
     }
   }
 
+
   /** Forgets X, Y and Z (an arc that could not be modelled may have moved any of them). */
   #forgetLinear(): void {
     for (const a of AXES) {
@@ -578,6 +534,7 @@ export class JobModel {
       this.uMachine[a] = Infinity;
     }
   }
+
 
   /**
    * The largest absolute machine coordinate, work coordinate or work offset
@@ -595,10 +552,12 @@ export class JobModel {
     return max;
   }
 
+
   /** Commanded outputs at this point (SAFETY H48). */
   outputsOn(): boolean {
     return this.spindle !== 'off' || this.mist || this.flood;
   }
+
 
   /**
    * Program end resets the modal state (@cite EN canonical_machine.c:2191-2214; TG canonical_machine.c:1362-1374):
@@ -607,27 +566,28 @@ export class JobModel {
    * differ, the value is kept only if both firmwares agree on it, otherwise it becomes unknown.
    */
   #programEnd(): void {
-    const d = this.#defaults;
+    const d = this._defaults;
     this.units = this.units !== null && this.units === d.units ? this.units : null;
     this.distance = d.distance === 'G90' ? 'G90' : null;
     this.plane = d.plane ?? null;
     this.motionMode = 'G80';
     this.#setG92(false, zeroPos(), exactUnc());
     this.#selectWcs(d.wcs ?? null);
-    if (this.#job.programEndStopsOutputs) {
+    if (this._job.programEndStopsOutputs) {
       this.spindle = 'off';
       this.mist = false;
       this.flood = false;
     }
   }
 
+
   /** Analyses one line (comments and N words already removed) and advances the model. */
   analyze(words: readonly Word[]): LineAnalysis {
     const findings: Finding[] = [];
-    this.#extent = extentAt(this.machine);
+    this._extent = extentAt(this.machine);
     const codes: { word: Word; code: string }[] = [];
     const params = new Map<string, Word>();
-    const job = this.#job;
+    const job = this._job;
 
     for (const w of words) {
       if (w.letter === 'G' || w.letter === 'M') {
@@ -642,7 +602,7 @@ export class JobModel {
         continue;
       }
       params.set(w.letter, w);
-      const rule = this.#rules.find((r): r is Extract<GcodeRule, { kind: 'word' }> => r.kind === 'word' && r.letter === w.letter);
+      const rule = this._rules.find((r): r is Extract<GcodeRule, { kind: 'word' }> => r.kind === 'word' && r.letter === w.letter);
       if (rule !== undefined) findings.push(block(rule.id, rule.reason));
       else if (!job.words.includes(w.letter)) findings.push(block('unsupported-word', `${w.letter} words are not supported by this firmware`));
     }
@@ -659,11 +619,11 @@ export class JobModel {
       findings.push(block('bad-tool', `T must be a whole number from 0 to ${job.maxTool}; other values select another tool (E154)`));
     }
     const toolChange = has('M6');
-    if (toolChange && this.#options.c14 !== true) {
+    if (toolChange && this._options.c14 !== true) {
       const tool = T !== undefined && Number.isInteger(T.value) && T.value >= 0 ? ` (T${String(T.value)})` : '';
       // Phase 3 (SAFETY §4.4a, H74): M6 does not pause on TinyG (it only stores the tool number), so run stops the
       // stream before the line, turns the spindle and coolant off, and walks the user through the change.
-      if (this.#manualToolChange) findings.push({ severity: 'info', rule: 'tool-change-stop', message: `Tool change${tool}: Run stops here for a manual tool change.` });
+      if (this._manualToolChange) findings.push({ severity: 'info', rule: 'tool-change-stop', message: `Tool change${tool}: Run stops here for a manual tool change.` });
       else findings.push(block('m6-without-c14', `Tool change${tool}: TinyG doesn't stop for M6, and Run streams jobs only to edge-next, which it stops before each tool change.`));
     }
 
@@ -678,7 +638,7 @@ export class JobModel {
     const action = codes.find((c) => GROUP[c.code] === 'action')?.code;
     const g53 = has('G53');
     const toolSet = has('G43.1');
-    const toolCancel = has('G49') && this.#hasToolOffset;
+    const toolCancel = has('G49') && this._hasToolOffset;
     const axisWords = words.filter((w) => AXIS_LETTERS.has(w.letter));
     const arcWords = ['I', 'J', 'K', 'R'].filter((l) => params.has(l));
     const isArcMove =
@@ -714,8 +674,8 @@ export class JobModel {
       findings.push(block('modal-conflict', 'an arc with both R and I/J/K is ambiguous'));
     }
     const L = params.get('L');
-    if (action === 'G10' && (L === undefined || !this.#lWords.includes(L.value))) {
-      findings.push(block('l-word', `G10 needs L${this.#lWords.join(' or L')} on this firmware`));
+    if (action === 'G10' && (L === undefined || !this._lWords.includes(L.value))) {
+      findings.push(block('l-word', `G10 needs L${this._lWords.join(' or L')} on this firmware`));
     }
     const P = params.get('P');
     if (action === 'G10' && (P === undefined || !Number.isInteger(P.value) || P.value < 1 || P.value > 6)) {
@@ -757,7 +717,7 @@ export class JobModel {
     // rotary axis would turn by a different amount than modelled; an unknown mode could be radius.
     if (action === 'G28' || action === 'G30') {
       const risky = ROTARY_AXES.filter((a) => {
-        const mode = this.#motion.rotary[a]?.mode;
+        const mode = this._motion.rotary[a]?.mode;
         return mode === undefined || mode === AXIS_MODE_RADIUS;
       });
       if (risky.length > 0) {
@@ -844,8 +804,9 @@ export class JobModel {
     if (programEnd) this.#programEnd();
 
     const ok = !findings.some((f) => f.severity === 'block');
-    return { findings, ok, motion: ok ? this.#chargeJointResidual(motion) : null, toolChange, programStop, optionalStop, programEnd, outputsOn, extent: ok && motion !== null ? this.#extent : null };
+    return { findings, ok, motion: ok ? this.#chargeJointResidual(motion) : null, toolChange, programStop, optionalStop, programEnd, outputsOn, extent: ok && motion !== null ? this._extent : null };
   }
+
 
   /** null when the code may be sent; otherwise the finding that blocks (or warns about) it. */
   #checkCode(word: Word, code: string | undefined): Finding | null {
@@ -853,13 +814,14 @@ export class JobModel {
     if (code === undefined) return block('unsupported-code', `${label} is not a valid code`);
     if (code === 'M100') return block('m100', 'M100 runs in-stream JSON commands and is never sent');
     if (/^G38(\.|$)/.test(code)) return block('probe', 'probing (G38) is not allowed in a job in this version');
-    const rule = this.#rules.find((r) => r.kind === 'code' && r.code === code);
+    const rule = this._rules.find((r) => r.kind === 'code' && r.code === code);
     if (rule !== undefined) return block(rule.id, rule.reason);
-    if (this.#job.ignoredCodes.includes(code)) return { severity: 'warn', rule: 'ignored-code', message: `${code} is accepted and ignored by this firmware` };
-    if (this.#job.codes.includes(code)) return null;
+    if (this._job.ignoredCodes.includes(code)) return { severity: 'warn', rule: 'ignored-code', message: `${code} is accepted and ignored by this firmware` };
+    if (this._job.codes.includes(code)) return null;
     const dotted = code.includes('.') ? ` (a dotted code is never sent as ${code.split('.')[0]})` : '';
     return block('unsupported-code', `${code} is not supported in a job on this firmware${dotted}`);
   }
+
 
   #checkGroups(codes: readonly string[], findings: Finding[]): void {
     const seen = new Map<string, string>();
@@ -874,6 +836,7 @@ export class JobModel {
     }
   }
 
+
   /** The dialect's modal block rules: G18 arcs, codes under a modal state (SAFETY §4.7 step 6). */
   #checkModalRules(
     codes: readonly string[],
@@ -883,7 +846,7 @@ export class JobModel {
     isArc: boolean,
     findings: Finding[],
   ): void {
-    for (const rule of this.#rules) {
+    for (const rule of this._rules) {
       if (rule.kind === 'arcInPlane' && isArc && (plane === rule.plane || plane === null)) {
         findings.push(block(rule.id, plane === null ? `${rule.reason} The active plane is not known.` : rule.reason));
       }
@@ -896,15 +859,17 @@ export class JobModel {
     }
   }
 
+
   /** TG E088: at most `max` queued commands per line besides motion. */
   #checkQueued(codes: readonly string[], params: ReadonlyMap<string, Word>, findings: Finding[]): void {
-    for (const rule of this.#rules) {
+    for (const rule of this._rules) {
       if (rule.kind !== 'queuedCommandsPerLine') continue;
       let count = codes.filter((c) => rule.counted.includes(c)).length;
       for (const letter of ['S', 'T']) if (params.has(letter) && rule.counted.includes(letter)) count++;
       if (count > rule.max) findings.push(block(rule.id, rule.reason));
     }
   }
+
 
   /** Group-0 actions: offsets, stored positions, dwell. */
   #action(
@@ -998,6 +963,7 @@ export class JobModel {
     }
   }
 
+
   /**
    * G28/G30: a rapid to the intermediate point, then a rapid on every axis to
    * the stored position (@cite EN canonical_machine.c:1390-1405). Two moves in
@@ -1016,7 +982,7 @@ export class JobModel {
     const storedUnc = action === 'G28' ? this.uG28 : this.uG30;
     const first: Partial<Record<Axis, number>> = {};
     const unknown: string[] = [];
-    const machineFrame = this.#job.storedMoveIntermediate === 'machine';
+    const machineFrame = this._job.storedMoveIntermediate === 'machine';
     for (const w of axisWords) {
       const a = w.letter as Axis;
       let d: number | null;
@@ -1050,7 +1016,7 @@ export class JobModel {
     const legs = [first, second].map((delta) => {
       const moving = AXES.filter((a) => (delta[a] ?? 0) !== 0);
       const length = Math.hypot(...moving.map((a) => delta[a] as number));
-      return { length, bound: this.#boundMm(delta), d: moveSeconds(moving, length, null, this.#motion) };
+      return { length, bound: this.#boundMm(delta), d: moveSeconds(moving, length, null, this._motion) };
     });
     this.#moveBy(first);
     this.#moveBy(second);
@@ -1066,12 +1032,13 @@ export class JobModel {
     }
     const plannerLength = legs.reduce((sum, leg) => sum + leg.length, 0);
     const boundMm = legs.reduce<number | null>((sum, leg) => (sum === null || leg.bound === null ? null : sum + leg.bound), 0);
-    if (seconds > this.#motion.ceilingSeconds) {
+    if (seconds > this._motion.ceilingSeconds) {
       findings.push(block('split-impossible', `${action} moves for about ${formatNumber(seconds, 1)} s, above the queued-motion ceiling, and cannot be split`));
       return null;
     }
     return { kind: 'single', plannerLength, boundMm, seconds };
   }
+
 
   /** The delta (mm or degrees) an axis word asks for, or null when it depends on something unknown. */
   #delta(axis: Axis, value: number, units: 'G20' | 'G21' | null, distance: 'G90' | 'G91' | null): number | null {
@@ -1081,6 +1048,7 @@ export class JobModel {
     const w = this.work[axis];
     return w === null ? null : value * sc - w;
   }
+
 
   /** G0/G1, optionally under G53. */
   #linear(
@@ -1118,7 +1086,7 @@ export class JobModel {
     const plannerLength = Math.hypot(...moving.map((a) => delta[a] as number));
     const boundMm = this.#boundMm(delta);
     const feed = mode === 'G0' ? null : (this.feed as number);
-    const d = moveSeconds(moving, plannerLength, feed, this.#motion);
+    const d = moveSeconds(moving, plannerLength, feed, this._motion);
     const start = { ...this.work };
     const startMachine = { ...this.machine };
     this.#moveBy(delta);
@@ -1127,7 +1095,7 @@ export class JobModel {
       findings.push(block('no-velocity-limit', noVelocityMessage(d)));
       return null;
     }
-    if (d.seconds <= this.#motion.ceilingSeconds) return { kind: 'single', plannerLength, boundMm, seconds: d.seconds };
+    if (d.seconds <= this._motion.ceilingSeconds) return { kind: 'single', plannerLength, boundMm, seconds: d.seconds };
 
     const absolute = g53 || distance === 'G90';
     const axes: LinearAxis[] = axisWords.map((w) => {
@@ -1144,7 +1112,7 @@ export class JobModel {
         decimals: !this.#needsUnits(a) ? DECIMALS.rotary : units === 'G20' ? DECIMALS.in : DECIMALS.mm,
       };
     });
-    const split = splitLinear(axes, absolute, feed, d.seconds, this.#motion);
+    const split = splitLinear(axes, absolute, feed, d.seconds, this._motion);
     if (split.kind !== 'ok') {
       findings.push(block('split-impossible', `this move cannot be split within the ceiling: ${split.detail}`));
       return null;
@@ -1161,6 +1129,7 @@ export class JobModel {
     const motionWords = g53 ? ['G53', mode] : [mode];
     return { kind: 'split', bodies: bodies(codes, params, split.segments, motionWords, new Set(['G53']), []), segments: split.segments, seconds: d.seconds };
   }
+
 
   /** G2/G3. */
   #arc(
@@ -1244,7 +1213,7 @@ export class JobModel {
       radius: centreFormat ? null : (params.get('R') as Word).value * s,
       noPlaneEndpoint,
       rotations: params.get('P')?.value ?? null,
-      coincidence: this.#job.arcCoincidence,
+      coincidence: this._job.arcCoincidence,
       magnitudeMm: magnitude,
       startUncertaintyMm: startUncertainty,
     };
@@ -1260,9 +1229,9 @@ export class JobModel {
     const moving: Axis[] = [p.a0, p.a1];
     if (input.dLin !== 0) moving.push(p.lin);
     const feed = this.feed as number;
-    const d = moveSeconds(moving, model.arc.lengthMm, feed, this.#motion);
+    const d = moveSeconds(moving, model.arc.lengthMm, feed, this._motion);
     const start = { ...this.work };
-    this.#extent = extendByArc(this.#extent, this.machine, plane as Plane, model.arc);
+    this._extent = extendByArc(this._extent, this.machine, plane as Plane, model.arc);
     this.#moveBy({ [p.a0]: input.d0, [p.a1]: input.d1, [p.lin]: input.dLin });
     // An omitted axis ends exactly where it was (the firmware's target starts as its position).
     for (const [a, delta] of [[p.a0, input.d0], [p.a1, input.d1], [p.lin, input.dLin]] as const) {
@@ -1273,7 +1242,7 @@ export class JobModel {
       return null;
     }
     // Arcs carry no rotary words (blocked above), so the arc length is a physical length in mm.
-    if (d.seconds <= this.#motion.ceilingSeconds) {
+    if (d.seconds <= this._motion.ceilingSeconds) {
       return { kind: 'single', plannerLength: model.arc.lengthMm, boundMm: model.arc.lengthMm, seconds: d.seconds };
     }
 
@@ -1312,7 +1281,7 @@ export class JobModel {
       },
       feed,
       d.seconds,
-      this.#motion,
+      this._motion,
     );
     if (split.kind !== 'ok') {
       findings.push(block('split-impossible', `this arc cannot be split within the ceiling: ${split.detail}`));
