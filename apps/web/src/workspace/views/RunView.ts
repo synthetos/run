@@ -1,6 +1,9 @@
 import { openFrom } from './openRunFile.ts';
+
 import { OverrideControls } from './OverrideControls.ts';
+
 import { DialogWrap } from '../dialogs/DialogWrap.ts';
+
 /**
  * The Job workspace: machine, stock, placement, checks and execution share
  * one preview and live session. The existing machine controls and execution
@@ -14,80 +17,160 @@ import { DialogWrap } from '../dialogs/DialogWrap.ts';
  * (preview/playAllowed.ts). There is no Simulate or Animate control.
  */
 import { h, type ComponentChild } from 'preact';
+
 import type { ReadonlySignal } from '@preact/signals';
+
 import { useEffect, useMemo, useState } from 'preact/hooks';
+
 import { c24, c25, c25HandSet, c27, c28, c29, w13 } from '@synthetos/safety';
+
 import { DIALECTS } from '@synthetos/protocol';
+
 import type { WorkerLike } from '../../gcode-worker/client.ts';
+
 import { scrubRequest } from '../analysisState.ts';
+
 import { analysisDialect } from '../../preview/analysisDialect.ts';
+
 import { PreviewPanel, type LiveMarkerView, type PreviewParts } from '../../preview/PreviewPanel.ts';
+
 import { fileLevel, on, progressText } from '../../preview/PreviewView.ts';
+
 import type { PreviewResult } from '../../gcode-worker/pipeline.ts';
+
 import { routineChanges, shownCounts } from '../../preview/gcodeList.ts';
+
 import { ConnectPanel, refusedTitle } from '../../live/ConnectPanel.ts';
+
 import { accountState, signInHref } from '../../live/account.ts';
+
 import { settingsOf } from '../boardFacts.ts';
+
 import { Icon, type IconName } from '../icons.ts';
+
 import { readStored, writeStored } from '../storage.ts';
+
 import { belowStrip, CheckRow, ConfirmCard, IconButton, TabBar, TabPane } from '../ui.ts';
+
 import { connected, type WorkspaceModel } from '../model.ts';
+
 import { goToZeroSafeZ } from '../safeZ.ts';
+
 import { ageText } from '../reportAge.ts';
-import { TC_GO_REASON, TC_OFFSET_REASON, atToolChange, jogBlocked, zeroBlocked } from '../toolChangeControls.ts';
-import { JOG_FEED, JogController, MM_PER_IN, STEPS_IN, STEPS_MM, axesText, goToZeroPath, jogKey, machineAxes, machineZ, motionUi, offsetsView, type JogTimers } from '../motion.ts';
-import { HomeSection, HomeQuick } from '../homing.ts';
+
+import { atToolChange, jogBlocked, TC_GO_REASON, TC_OFFSET_REASON, zeroBlocked } from '../toolChangeControls.ts';
+
+import { axesText, goToZeroPath, JOG_FEED, JogController, jogKey, machineAxes, machineZ, MM_PER_IN, motionUi, offsetsView, STEPS_IN, STEPS_MM, type JogTimers } from '../motion.ts';
+
+import { HomeQuick, HomeSection } from '../homing.ts';
+
 import { UnknownChip } from '../unknownModal.ts';
+
 import { ProbeZ } from '../probe/ProbeZ.ts';
+
 import { PositionStatus } from '../positionStatus.ts';
+
 import { ControlBlockCard, currentBlock } from '../ControlBlockCard.ts';
+
 import { outputsOff } from '../controlBlock.ts';
+
 import { WorkZeroConfirm } from '../workZeroConfirm.ts';
+
 import { skipSpindleConfirm, spindleConfirmSkipped } from '../spindleConfirm.ts';
+
 import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
+
 import { ContextHelp } from '../../shell/ContextHelp.ts';
+
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
+
 import { openReport } from '../../report/state.ts';
-import { closeJob, currentFile, currentPreview, executionLock, pendingOpen, reopenActiveJob, reopening, saveDraftToProject } from '../fileBridge.ts';
+
+import { closeJob, currentFile, executionLock, pendingOpen, reopening, saveDraftToProject } from '../fileBridge.ts';
+
 import { activeJob, effectiveZero, jobSaved, type Job } from '../jobModel.ts';
+
 import { useLiveWorkZero } from '../liveZero.ts';
+
 import { useAutoZero } from '../useAutoZero.ts';
+
 import { bedSizeText, jobStateText, machineText } from '../revisionWords.ts';
+
 import { materialColor, selectedMachine } from '../library.ts';
+
 import { PlayControls, PlayNotice } from '../../preview/PlayControls.ts';
+
 import { placeTravelText } from '../placeTravel.ts';
+
 import { playAllowedFor, playRapidOf } from '../../preview/playAllowed.ts';
+
 import { openToolNumber } from '../toolNumbers.ts';
+
 import { projectsState } from '../../projects/store.ts';
+
 import { projectStore } from '../../projects/browserStore.ts';
+
 import { jobScene } from '../../preview/sceneModel.ts';
+
 import { spindleToolChoice } from '../advisorState.ts';
+
 import { useLivePathFrame, useLivePlacement } from '../../preview/useLivePlacement.ts';
+
 import { ViewerOverlay } from '../../preview/ViewerOverlay.ts';
+
 import { AnalysisWarning, ViewerOptions } from '../../preview/ViewerOptions.ts';
+
 import { ExpandButton, previewExpanded } from '../../preview/expandPreview.ts';
+
 import { openSceneSettings, type ScenePart } from '../../preview/sceneSettings.ts';
+
 import { sceneColors, tokenReader } from '../../preview/colors.ts';
+
 import { ViewButtons } from '../../preview/SceneView.ts';
+
 import type { CarveWorkerLike, ViewPreset } from '@synthetos/gcode-view';
+
 import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
-import { jobUi, feedDiagnosis, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
+
+import { feedDiagnosis, jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
+
 import { spinDirection } from '../../preview/spinDirection.ts';
 
-const PHASE_LABEL = (phase: string): string => PHASE_TEXT[phase] ?? phase;
 import { JobStatus, JobStopCard, type StopHooks } from './JobViews.ts';
+
 import { RunPanel } from '../run/RunPanel.ts';
+
 import { JOB_STEPS, jobStep, uiLevel } from '../jobWorkflow.ts';
+
 import { JobSetupPanel } from './SetupView.ts';
+
 import { JobFiles } from '../../projects/ProjectsView.ts';
+
 import { Dock } from '../dock/Dock.ts';
+
 import { reportsNotice } from '../reportsNotice.ts';
+
 import { MachineInsight } from '../insight/MachineInsight.ts';
+
 import { ToolMismatchNotes } from '../ToolMismatchNotes.ts';
+
 import type { FileTool } from '../../gcode-worker/camTools.ts';
+import { RunBridge } from './run/bridge.ts';
+
+
+// ---------------------------------------------------------------- inspector: motion (Phase 2)
+
+// The page's own "don't ask again" for C24 lives in spindleConfirm.ts (shared with the terminal, H91).
+export { resetSpindleConfirm } from '../spindleConfirm.ts';
+
+
+
+const PHASE_LABEL = (phase: string): string => PHASE_TEXT[phase] ?? phase;
+
 
 /** No file, no described tools (one array, so the note's memo holds). */
 const NO_FILE_TOOLS: readonly FileTool[] = Object.freeze([]);
+
 
 export interface RunViewProps {
   readonly model: WorkspaceModel | null;
@@ -100,6 +183,7 @@ export interface RunViewProps {
   readonly onPause?: () => void;
   readonly onStopJob?: () => void;
 }
+
 
 export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPause, onStopJob }: RunViewProps): ComponentChild {
   const live = model?.live.value ?? null;
@@ -150,32 +234,6 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
   });
 }
 
-
-/**
- * Publishes the open file for a report's excerpt and its path for the Setup view's scene
- * (workspace/fileBridge.ts), loads the file the job opener resolved, and reopens the active job's file
- * once after a reload. Renders nothing.
- */
-function RunBridge({ parts }: { readonly parts: PreviewParts }): ComponentChild {
-  const { state, actions } = parts;
-  const result = state.status === 'ready' ? state.result : null;
-  useEffect(() => {
-    currentFile.value = result === null || state.fileName === null ? null : { name: state.fileName, bytes: result.bytes, preview: result, estimate: parts.estimate };
-    currentPreview.value = result === null || state.fileName === null ? null : { name: state.fileName, segments: result.segments, bounds: result.summary.bounds };
-  }, [result, state.fileName]);
-  const pending = pendingOpen.value;
-  const onFile = actions.onFile;
-  useEffect(() => {
-    if (pending === null || !state.ready || onFile === undefined) return;
-    pendingOpen.value = null;
-    onFile(pending.file);
-  }, [pending, state.ready, onFile]);
-  useEffect(() => {
-    if (!state.ready || onFile === undefined) return;
-    void reopenActiveJob();
-  }, [state.ready, onFile === undefined]);
-  return null;
-}
 
 // ---------------------------------------------------------------- connect
 
@@ -257,6 +315,7 @@ export function ConnectNotice({ model, onView, compact = false }: { readonly mod
       : null,
   );
 }
+
 
 // ---------------------------------------------------------------- position
 
@@ -369,20 +428,19 @@ function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
 
 
 
+
 type PositionProps = { readonly model?: WorkspaceModel | null };
+
 
 function PositionLive(props: PositionProps): ComponentChild {
   return positionBody(props, LIVE_HOOKS);
 }
 
+
 export function PositionPanel(props: PositionProps = {}): ComponentChild {
   return isLive(props.model) ? h(PositionLive, props) : positionBody(props, STATIC_HOOKS);
 }
 
-// ---------------------------------------------------------------- inspector: motion (Phase 2)
-
-// The page's own "don't ask again" for C24 lives in spindleConfirm.ts (shared with the terminal, H91).
-export { resetSpindleConfirm } from '../spindleConfirm.ts';
 
 /**
  * The hooks a motion section uses. A section renders with real hooks only while a LIVE motion session can act
@@ -394,16 +452,20 @@ interface Hooks {
   memo<T>(make: () => T, deps: readonly unknown[]): T;
   effect(run: () => void | (() => void), deps: readonly unknown[]): void;
 }
+
 const LIVE_HOOKS: Hooks = {
   state: <T,>(initial: T) => useState<T>(initial) as [T, (v: T) => void],
   memo: (make, deps) => useMemo(make, deps as unknown[]),
   effect: (run, deps) => useEffect(run, deps as unknown[]),
 };
+
 const STATIC_HOOKS: Hooks = { state: <T,>(initial: T): [T, (v: T) => void] => [initial, () => undefined], memo: (make) => make(), effect: () => undefined };
+
 
 function isLive(model: WorkspaceModel | null | undefined): boolean {
   return model?.actions.value?.motion !== undefined;
 }
+
 
 function motionNote(note: string | null): ComponentChild {
   // Only what this panel's own action answered. The session's last motion result ("Paused", "Resumed", "Stopped")
@@ -411,6 +473,7 @@ function motionNote(note: string | null): ComponentChild {
   if (note === null) return null;
   return h('p', { class: 'motion-note', 'data-jog': 'note', role: 'status' }, note);
 }
+
 
 const PAD: readonly { readonly label: string; readonly text: string; readonly axes: Readonly<Partial<Record<MotionAxis, 1 | -1>>> | null }[] = [
   { label: 'X−, Y+', text: '↖', axes: { x: -1, y: 1 } },
@@ -424,7 +487,9 @@ const PAD: readonly { readonly label: string; readonly text: string; readonly ax
   { label: 'X+, Y−', text: '↘', axes: { x: 1, y: -1 } },
 ];
 
+
 const realTimers: JogTimers = { setInterval: (fn, ms) => setInterval(fn, ms), clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) };
+
 
 /**
  * The jog panel (SAFETY §4.5b, H50, H51): the XY pad and Z, step sizes in mm or inches or Hold, the jog speed,
@@ -574,15 +639,19 @@ function jogBody({ model, onGoToZero }: JogProps, hk: Hooks): ComponentChild {
   );
 }
 
+
 type JogProps = { readonly model?: WorkspaceModel | null; readonly onGoToZero?: (axes: readonly MotionAxis[]) => void };
+
 
 function JogLive(props: JogProps): ComponentChild {
   return jogBody(props, LIVE_HOOKS);
 }
 
+
 export function JogSection(props: JogProps = {}): ComponentChild {
   return isLive(props.model) ? h(JogLive, props) : jogBody(props, STATIC_HOOKS);
 }
+
 
 /**
  * Offsets (amendment 2026-11-02; SAFETY §4.5b, H53, H68, C16, C25, C27-C29): the work coordinate system (G54..G59),
@@ -715,15 +784,19 @@ function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): Compone
   );
 }
 
+
 type ZeroProps = { readonly model?: WorkspaceModel | null; readonly ask?: { readonly axes: readonly MotionAxis[]; readonly at: number } | null; readonly goOnly?: boolean };
+
 
 function ZeroLive(props: ZeroProps): ComponentChild {
   return zeroBody(props, LIVE_HOOKS);
 }
 
+
 export function ZeroSection(props: ZeroProps = {}): ComponentChild {
   return isLive(props.model) ? h(ZeroLive, props) : zeroBody(props, STATIC_HOOKS);
 }
+
 
 /**
  * Spindle and coolant (SAFETY §4.5b, H52). The readouts are what the board reports (edge-next `spe`, `spc`,
@@ -842,15 +915,19 @@ function spindleBody({ model, compact = false }: SpindleProps, hk: Hooks): Compo
   );
 }
 
+
 type SpindleProps = { readonly model?: WorkspaceModel | null; readonly compact?: boolean };
+
 
 function SpindleLive(props: SpindleProps): ComponentChild {
   return spindleBody(props, LIVE_HOOKS);
 }
 
+
 export function SpindleSection(props: SpindleProps = {}): ComponentChild {
   return isLive(props.model) ? h(SpindleLive, props) : spindleBody(props, STATIC_HOOKS);
 }
+
 
 export function OverridesSection(): ComponentChild {
   const row = (label: string, id: string): ComponentChild =>
@@ -870,7 +947,9 @@ export function OverridesSection(): ComponentChild {
   );
 }
 
+
 type InspTab = 'jog' | 'home' | 'zero' | 'spindle';
+
 
 /** The Run inspector: position always on top, the rest as tabs so nothing needs a long scroll. */
 function RunInspector({ model, stops, fileTool = null }: { readonly model: WorkspaceModel | null; readonly stops: StopHooks; readonly fileTool?: number | null }): ComponentChild {
@@ -940,9 +1019,11 @@ function RunInspector({ model, stops, fileTool = null }: { readonly model: Works
   );
 }
 
+
 // ---------------------------------------------------------------- job card
 
 const fmtMm = (n: number): string => String(Math.round(n * 100) / 100);
+
 
 /** The job's checks as a compact list: icon, short label, value. Details sit behind the expander. */
 function jobChecks(result: PreviewResult, facts: ReturnType<typeof fileFacts>): ComponentChild[] {
@@ -968,6 +1049,7 @@ function jobChecks(result: PreviewResult, facts: ReturnType<typeof fileFacts>): 
   rows.push(h(CheckRow, { key: 't', tone: 'info', icon: 'tools', label: 'Tools', value: facts.spindle.length === 0 ? tools : `${tools} · ${facts.spindle.map((x) => num(x)).join(', ')} rpm`, attr: 'tools' }));
   return rows;
 }
+
 
 function JobDetails({ result, facts }: { readonly result: PreviewResult; readonly facts: ReturnType<typeof fileFacts> }): ComponentChild {
   const s = result.summary;
@@ -1010,6 +1092,7 @@ function JobDetails({ result, facts }: { readonly result: PreviewResult; readonl
   );
 }
 
+
 /** The job's identity under the title: its name, project, machine and bed, and Save to project for the draft. */
 function JobIdentity({ job, fileOpen, onNote }: { readonly job: Job | null; readonly fileOpen: boolean; readonly onNote: (n: string | null) => void }): ComponentChild {
   const projects = projectsState.value;
@@ -1048,6 +1131,7 @@ function JobIdentity({ job, fileOpen, onNote }: { readonly job: Job | null; read
         ),
   );
 }
+
 
 /** The job: a card at the top of the Run view with the file, its checks, and the Check → Set zero → Start steps. */
 function JobCard({ parts, model, onView, onFiles }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly onView: (view: string) => void; readonly onFiles: () => void }): ComponentChild {
@@ -1114,6 +1198,7 @@ function JobCard({ parts, model, onView, onFiles }: { readonly parts: PreviewPar
   );
 }
 
+
 /** Traverses (G0) on or off: a toolbar toggle, remembered in this browser. */
 function TraverseToggle({ parts }: { readonly parts: PreviewParts }): ComponentChild {
   const { state, actions } = parts;
@@ -1143,6 +1228,7 @@ function TraverseToggle({ parts }: { readonly parts: PreviewParts }): ComponentC
   );
 }
 
+
 function stepStatus(step: typeof JOB_STEPS[number]['id'], parts: PreviewParts, model: WorkspaceModel | null): string {
   const job = activeJob.value;
   const result = parts.state.status === 'ready' ? parts.state.result : null;
@@ -1155,6 +1241,7 @@ function stepStatus(step: typeof JOB_STEPS[number]['id'], parts: PreviewParts, m
     case 'run': return ui.active ? PHASE_LABEL(ui.job?.phase ?? 'running') : ui.connected ? 'Review & start' : 'Connect machine';
   }
 }
+
 
 function JobWorkPanel({ parts, model, stops, onView }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly stops: StopHooks; readonly onView: (view: string) => void }): ComponentChild {
   const step = jobStep.value;
@@ -1183,11 +1270,13 @@ function JobWorkPanel({ parts, model, stops, onView }: { readonly parts: Preview
       index === JOB_STEPS.length - 1 ? null : h('button', { type: 'button', class: 'small primary', 'data-action': 'job-step-next', onClick: () => { jobStep.value = JOB_STEPS[index + 1]?.id ?? 'run'; } }, `Next: ${JOB_STEPS[index + 1]?.label ?? 'Run'}`)));
 }
 
+
 // ---------------------------------------------------------------- layout
 
 function runLayout(parts: PreviewParts, model: WorkspaceModel | null, onView: (view: string) => void, stops: StopHooks = {}): ComponentChild {
   return h(RunLayout, { parts, model, onView, stops });
 }
+
 
 function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewParts; readonly model: WorkspaceModel | null; readonly onView: (view: string) => void; readonly stops: StopHooks }): ComponentChild {
   const { state, actions, slots, scene } = parts;
