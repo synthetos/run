@@ -26,7 +26,6 @@ import {
     modelArc,
     moveSeconds,
     noVelocityMessage,
-    reportedErrorMm,
     splitArc,
     splitLinear,
     stepErrorMm,
@@ -38,15 +37,16 @@ import {
 
 import { canonicalCode, type Word } from './lex.ts';
 
-import type { Axis, SanitizeOptions, StartState, Wcs } from './types.ts';
+import type { Axis, SanitizeOptions, Wcs } from './types.ts';
 
 import { extendByArc, extendTo, extentAt } from './extent.ts';
 
 import { chargeJointResidual, jointRiskFinding, linearModeFinding, modeOf, rotaryUnknown, withJointResidual } from './analyze/axisModes.ts';
-import { ModelState, type ModelContext } from './analyze/context.ts';
+import { ModelState } from './analyze/context.ts';
 import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
+import { initialize } from './analyze/initialize.ts';
 import { appliedTool, g92Part, g92PartUnc, offsetUnc, selectWcs, setG92, shift, totalOffset, workAfterSet } from './analyze/offsets.ts';
-import { emptyPos, exactUnc, posFrom, uncOf, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
+import { exactUnc, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
 import { AFTER_MOTION, ARC_LETTERS, AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
 import { mmPerUnit, motionBound, needsUnits, offsetScale, scale, unitScale } from './analyze/units.ts';
 import { AXES, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, WCS_CODES, type AxisMode } from './types.ts';
@@ -113,78 +113,7 @@ function bodies(
 export class JobModel extends ModelState {
 
 
-  constructor(dialect: Dialect, job: DialectJobGcode, options: SanitizeOptions) { super(); const ctx: ModelContext = this;
-    ctx._job = job;
-    ctx._manualToolChange = dialect.id === 'tinyg-en';
-    ctx._rules = dialect.gcode.blocked;
-    ctx._lWords = dialect.gcode.lWords;
-    ctx._options = options;
-    ctx._motion = options.motion;
-    ctx._hasToolOffset = job.codes.includes('G43.1');
-    ctx._hasArcDistance = job.codes.includes('G90.1');
-    const s: StartState = options.start ?? {};
-    ctx._defaults = s.defaults ?? {};
-    this.units = s.units ?? null;
-    this.distance = s.distance ?? null;
-    this.arcDistance = ctx._hasArcDistance ? (s.arcDistance ?? null) : 'G91.1';
-    this.plane = s.plane ?? null;
-    this.motionMode = s.motion ?? null;
-    this.feed = s.feedMmPerMin !== undefined && s.feedMmPerMin > 0 && Number.isFinite(s.feedMmPerMin) ? s.feedMmPerMin : null;
-    this.wcs = s.wcs ?? null;
-    this.machine = posFrom(s.machine);
-    this.wcsOffsets = { G54: emptyPos(), G55: emptyPos(), G56: emptyPos(), G57: emptyPos(), G58: emptyPos(), G59: emptyPos() };
-    for (const w of WCS_CODES) this.wcsOffsets[w] = posFrom(s.wcsOffsets?.[w]);
-    this.g92 = posFrom(s.g92?.offsets);
-    this.g92Active = s.g92 === undefined ? null : s.g92.active;
-    this.toolOffset = ctx._hasToolOffset ? posFrom(s.toolOffset) : zeroPos();
-    this.g28 = posFrom(s.g28);
-    this.g30 = posFrom(s.g30);
-    this.spindle = s.spindle ?? 'off';
-    this.mist = s.mist ?? false;
-    this.flood = s.flood ?? false;
-    // Reported values: `mpo` is always mm (@cite EN canonical_machine.c:363-371); offsets and stored
-    // positions are printed in the units in force where the board converts them (F_CONVERT, @cite EN
-    // config_app.c:858-871 `prep_float`), so an inch board's three decimals are 0.0127 mm apart, and
-    // unknown units are taken as inches.
-    const offsetUnit = (axis: Axis): number =>
-      (ROTARY.has(axis) && !job.rotaryOffsetsUseUnits) || s.units === 'G21' ? 1 : INCH_MM;
-    const reported = (p: Pos): Unc => uncOf(p, (a, v) => reportedErrorMm(v, offsetUnit(a)));
-    this.uMachine = uncOf(this.machine, (_a, v) => reportedErrorMm(v, 1));
-    this.uWcs = { G54: exactUnc(), G55: exactUnc(), G56: exactUnc(), G57: exactUnc(), G58: exactUnc(), G59: exactUnc() };
-    for (const w of WCS_CODES) this.uWcs[w] = reported(this.wcsOffsets[w]);
-    this.uG92 = reported(this.g92);
-    this.uTool = ctx._hasToolOffset ? reported(this.toolOffset) : exactUnc();
-    this.uG28 = reported(this.g28);
-    this.uG30 = reported(this.g30);
-    this.work = emptyPos();
-    this.uWork = exactUnc(); // every axis is set just below
-    for (const a of AXES) {
-      const m = this.machine[a];
-      const t = this.totalOffset(a);
-      this.work[a] = m !== null && t !== null ? m - t : null;
-      this.uWork[a] = this.uMachine[a] + this.#offsetUnc(a);
-    }
-    // Finding: inhibited axis. For an inhibited axis the step target is 0 once any segment has run since it
-    // was inhibited (or since a step resync); before that it is still the joint the axis had when it was
-    // inhibited, and with no segment since, the position has not moved either. So the motor is at step 0 or
-    // at the position the board reports. An axis of unknown mode may be inhibited. (An axis un-inhibited
-    // while away from 0 has the mirror problem and is not visible in any read: STATUS of this finding.)
-    const risk: Axis[] = [];
-    let residual: number | null = 0;
-    for (const a of AXES) {
-      const mode = this.#modeOf(a);
-      if (mode !== undefined && mode !== AXIS_MODE_INHIBITED) continue;
-      const m = this.machine[a];
-      if (m !== 0) {
-        risk.push(a);
-        continue;
-      }
-      if (residual === null) continue;
-      residual = ROTARY.has(a) ? null : residual + this.uMachine[a];
-    }
-    ctx._jointRisk = risk;
-    ctx._jointResidualMm = residual;
-  }
+  constructor(dialect: Dialect, job: DialectJobGcode, options: SanitizeOptions) { super(); initialize(this, dialect, job, options); }
 
 
   /** The live axis mode, or undefined when it is not known. */
