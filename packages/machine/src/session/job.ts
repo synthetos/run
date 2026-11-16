@@ -37,39 +37,44 @@
  * just completed, and only when all four were answered with status 0 (independent review 2026-11-03, R5), never
  * the last status report; the reported `line` drives progress and the planner view only.
  */
-import { feedLimitWindow, foldFeedLimit } from './feedLimit.ts';
-export { feedLimitWindow, foldFeedLimit, parseFeedSummary, parseFeedMove } from './feedLimit.ts';
-import {
-  CEILING_SECONDS,
-  DEFAULT_K,
-  c35,
-  sanitizeJob,
-  w37,
-  w38,
-  w39,
-  w40,
-  w43,
-  type AxisValues,
-  type Decision,
-  type Intent,
-  type MotionModel,
-  type SanitizeResult,
-  type SentLine,
-  type StartState,
-  type Wcs,
-} from '@synthetos/safety';
 import { mapStat, type Dialect, type JsonObject, type JsonValue, type Response } from '@synthetos/protocol';
+import {
+    CEILING_SECONDS,
+    DEFAULT_K,
+    c35,
+    sanitizeJob,
+    w37,
+    w38,
+    w39,
+    w40,
+    w43,
+    type AxisValues,
+    type Decision,
+    type Intent,
+    type MotionModel,
+    type SanitizeResult,
+    type SentLine,
+    type StartState,
+    type Wcs,
+} from '@synthetos/safety';
 import { isReadAllowed } from '@synthetos/schema';
-import { restartDwellWait } from './dwell.ts';
-import { MOTION_LIMITS, activeSystem, atRestPolled, beginHold, clearMotionNotice, completedPoll, heldPolled, idleBase, motionCapable, requestPoll } from './motion.ts';
-import { sessionSettings } from './settingWrite.ts';
-import { ACTIVE_PHASES, failJob, jobActive, jobEvent, lastFileLine, patchJob, type JobTx } from './jobState.ts';
-import { ABSOLUTE_MM_LINE, motionLineKind, restoreLine, returnXYLine, safeZLine, spindleLine } from './motionLines.ts';
-import { queueModeReads } from './modes.ts';
-import { startModesStep, startNeeds } from './jobModes.ts';
-import { resumeTravel, travelOf, travelStartRefusal, withTravel } from './jobTravel.ts';
 import { forgetBoardModes, noteModeRead } from './boardModes.ts';
+import { restartDwellWait } from './dwell.ts';
+import { feedLimitWindow, foldFeedLimit } from './feedLimit.ts';
+import { type JobDeps, type JobLayerTx } from './job/contract.ts';
+import { startModesStep, startNeeds } from './jobModes.ts';
+import { ACTIVE_PHASES, failJob, jobActive, jobEvent, lastFileLine, patchJob } from './jobState.ts';
+import { resumeTravel, travelOf, travelStartRefusal, withTravel } from './jobTravel.ts';
+import { queueModeReads } from './modes.ts';
+import { MOTION_LIMITS, activeSystem, atRestPolled, beginHold, clearMotionNotice, completedPoll, heldPolled, idleBase, motionCapable, requestPoll } from './motion.ts';
+import { ABSOLUTE_MM_LINE, motionLineKind, restoreLine, returnXYLine, safeZLine, spindleLine } from './motionLines.ts';
+import { sessionSettings } from './settingWrite.ts';
 import type { Axis, Expected, JobReportSummary, JobState, PendingRead, PolledValues, SessionConfig, SessionIntent, SessionState } from './types.ts';
+
+export { feedLimitWindow, foldFeedLimit, parseFeedMove, parseFeedSummary } from './feedLimit.ts';
+export { type JobDeps, type JobLayerTx } from './job/contract.ts';
+
+
 
 /** Timing and bounds of the job layer (SAFETY §4.4a). Milliseconds unless named otherwise. */
 export const JOB_LIMITS = Object.freeze({
@@ -95,26 +100,32 @@ export const JOB_LIMITS = Object.freeze({
   returnToleranceMm: 0.01,
 });
 
+
 /** Dialects run streams jobs to: line mode with free-slot footers (`rxm`, footer revision 3) is edge-next's. */
 export const JOB_DIALECTS: ReadonlySet<string> = new Set(['tinyg-en']);
 
+
 /** What a job's load reads, through the read allowlist: limits and modes per axis, every offset, the modal state, the defaults and `rxm`. */
 export const JOB_PREP_TOKENS: readonly string[] = Object.freeze(['x', 'y', 'z', 'a', 'b', 'c', 'g54', 'g55', 'g56', 'g57', 'g58', 'g59', 'g92', 'g28', 'g30', 'mpo', 'ofs', 'coor', 'unit', 'dist', 'plan', 'admo', 'gpl', 'gun', 'gco', 'gdi', 'rxm']);
+
 
 /** The exact line-mode lines (H77): the write gate admits only these, only for the step in progress. */
 export function rxmLine(value: 0 | 1): string {
   return `{"rxm":${value}}`;
 }
 
+
 /** The job flag (MACHINING_ASSISTANT feed-limit step 3): RAM only, capability-probed (c7f9b7e2 runtime.c:189-248). */
 export function jobFlagLine(on: 0 | 1): string {
   return `{"rt":{"job":${on}}}`;
 }
 
+
 /** The feed-limit window (`{"rt":{"fi":N}}`, N seconds, 0 stops crediting): RAM only, accepted on at quiescence. */
 export function feedLimitLine(seconds: number): string {
   return `{"rt":{"fi":${Math.round(seconds)}}}`;
 }
+
 
 /**
  * The capability probe of the job flag: true only when the board's `{"rt":null}` answer at connect names a `job`
@@ -124,8 +135,10 @@ export function jobFlagSupported(s: SessionState): boolean {
   return s.rtLeaves.includes('job');
 }
 
+
 /** The first firmware build with the N66 fix (firmware maintainer, 2026-11-05: tag 450.02, edge-next a7489b79). */
 export const FEED_ACCOUNTING_MIN_FB = 450.02;
+
 
 /** True when the board's build has the N66 fix (fb 450.02 or later, compared in hundredths). */
 export function feedAccountingSafe(s: SessionState): boolean {
@@ -133,44 +146,41 @@ export function feedAccountingSafe(s: SessionState): boolean {
   return typeof fb === 'number' && Math.round(fb * 100) >= Math.round(FEED_ACCOUNTING_MIN_FB * 100);
 }
 
+
 /** The feed-limit window is offered where `{"rt":null}` names an `fi` leaf (edge-next a7489b79 has it). */
 export function feedLimitSupported(s: SessionState): boolean {
   return s.rtLeaves.includes('fi');
 }
 
+
 const ALLOWED: Decision = Object.freeze({ allowed: true });
+
 
 function deny(reason: string, remedy: string): Decision {
   return { allowed: false, reason, remedy, citation: 'SAFETY §4.4a' };
 }
 
-/** The transition, as this module uses it (the reducer's `Tx`). */
-export interface JobLayerTx extends JobTx {
-  readonly config: SessionConfig;
-}
-
-/** What the reducer lends this module (it may not import the reducer: no cycles). */
-export interface JobDeps {
-  /** Latch a FAULT (the reducer's enterFault). */
-  fault(t: JobLayerTx, cause: 'staleWhileRunning', kind: 'liveness', detail: string, at: number): void;
-}
 
 /** True when this session may run jobs: a jobs release, a motion-capable approved board, a dialect with line mode. */
 export function jobsCapable(s: SessionState, config: SessionConfig): boolean {
   return config.release.jobs === true && motionCapable(s, config) && s.dialect !== null && JOB_DIALECTS.has(s.dialect.id);
 }
 
+
 function dialect(s: SessionState): Dialect {
   return s.dialect as Dialect;
 }
+
 
 function job(s: SessionState): JobState {
   return s.job as JobState;
 }
 
+
 function planner(s: SessionState): number {
   return dialect(s).limits.plannerBlocks;
 }
+
 
 /** FNV-1a (32 bit) of the text, as 8 hex digits: an identity for the page to compare, not a security hash. */
 export function textHash(text: string): string {
@@ -182,16 +192,19 @@ export function textHash(text: string): string {
   return h.toString(16).padStart(8, '0');
 }
 
+
 function freezeDeep<T>(value: T): T {
   if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value;
   for (const key of Object.keys(value)) freezeDeep((value as Record<string, unknown>)[key]);
   return Object.freeze(value);
 }
 
+
 /** One written line queued as a control or motion read (one at a time, like every other line). */
 function queue(t: JobLayerTx, entry: PendingRead): void {
   t.set({ queue: [...t.s.queue, entry] });
 }
+
 
 /**
  * A realtime byte of the job layer. The job's `~` is checked against `jobLine` (allowed in RUNNING): the base is
@@ -204,6 +217,7 @@ function writeRealtime(t: JobLayerTx, name: 'feedhold' | 'resume', intent: Inten
   t.set({ sent: { ...t.s.sent, realtime: t.s.sent.realtime + 1 } });
   t.emit({ kind: 'writeRealtime', epoch: t.s.epoch, name, byte, intent });
 }
+
 
 // --- Load ---------------------------------------------------------------------------------------------------
 
@@ -228,10 +242,12 @@ export function onLoadJob(t: JobLayerTx, request: Extract<SessionIntent, { inten
   return ALLOWED;
 }
 
+
 /** The prep reads (JOB_PREP_TOKENS through the read allowlist): taken at load, and again at Start (R3). */
 function prepReads(s: SessionState): PendingRead[] {
   return JOB_PREP_TOKENS.filter((tok) => isReadAllowed(dialect(s).id, tok)).map((token) => ({ token, purpose: 'jobPrep' as const }));
 }
+
 
 function emptyJob(id: number, name: string, text: string, c22: boolean): JobState {
   return {
@@ -267,6 +283,7 @@ function emptyJob(id: number, name: string, text: string, c22: boolean): JobStat
   };
 }
 
+
 /** One prep read was answered (or arrived damaged: `r` null). When the last is in, the file is sanitised. */
 export function onJobPrepAnswer(t: JobLayerTx, e: PendingRead, r: Response | null, at: number): void {
   const value = r === null ? null : (r.r[e.token] ?? null);
@@ -276,6 +293,7 @@ export function onJobPrepAnswer(t: JobLayerTx, e: PendingRead, r: Response | nul
   if (t.s.job?.phase === 'loading') finishLoad(t, at);
   else if (t.s.job?.phase === 'checking') finishCheck(t, at);
 }
+
 
 /**
  * The prep reads were dropped (a timeout, a fault, a lost link): a load fails with nothing sanitised; a Start's
@@ -293,6 +311,7 @@ export function abandonLoad(t: JobLayerTx, at: number, why: string): void {
   jobEvent(t, at, 'error', `The file could not be checked: ${why}.`);
 }
 
+
 /** A Start that ends before anything of the job was sent: back to idle, the reason said. */
 function startFailed(t: JobLayerTx, at: number, text: string): void {
   t.cancel('job');
@@ -301,9 +320,11 @@ function startFailed(t: JobLayerTx, at: number, text: string): void {
   jobEvent(t, at, 'error', text);
 }
 
+
 function numberOf(v: JsonValue | undefined): number | undefined {
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 }
+
 
 function groupOf(s: SessionState, token: string): AxisValues | undefined {
   const v = s.values[token];
@@ -316,6 +337,7 @@ function groupOf(s: SessionState, token: string): AxisValues | undefined {
   }
   return out;
 }
+
 
 /**
  * A group printed in the board's units (`F_CONVERT`: g54..g59, g92, g28 and g30 on X, Y and Z, never A, B or C),
@@ -336,12 +358,15 @@ function groupMm(s: SessionState, token: string, units: number | undefined): Axi
   return out;
 }
 
+
 function scalar(s: SessionState, token: string): number | undefined {
   const v = s.values[token];
   return v !== undefined && v.status === 0 ? numberOf(v.value ?? undefined) : undefined;
 }
 
+
 const WCS_OF: readonly Wcs[] = ['G54', 'G55', 'G56', 'G57', 'G58', 'G59'];
+
 
 /** The live start state for the sanitiser, from the prep reads. What was not read stays unknown (never guessed). */
 export function liveStart(s: SessionState): StartState {
@@ -405,6 +430,7 @@ export function liveStart(s: SessionState): StartState {
   };
 }
 
+
 /** The live motion model (SAFETY §4.3): `vm`, `fr`, `am`, `ra` per axis as read; what was not read is unknown. */
 export function liveMotion(s: SessionState): MotionModel {
   const settings = sessionSettings(dialect(s).id, s.values);
@@ -433,10 +459,12 @@ export function liveMotion(s: SessionState): MotionModel {
   return { ceilingSeconds: CEILING_SECONDS.default, k: DEFAULT_K, maxVelocity, feedrateMax, rotary, linear };
 }
 
+
 /** Sanitises the pending text with the live board's values (SAFETY §4.7). `start`: a typed move's, with the feed in effect (typedTravel.ts). Pure. */
 export function sanitizeLive(s: SessionState, text: string, c22: boolean, start: StartState = liveStart(s)): SanitizeResult {
   return sanitizeJob(text, dialect(s), { motion: liveMotion(s), start, c22 });
 }
+
 
 function summary(result: SanitizeResult): JobReportSummary {
   const counts = { block: 0, warn: 0, change: 0, info: 0 };
@@ -463,6 +491,7 @@ function summary(result: SanitizeResult): JobReportSummary {
   };
 }
 
+
 /** Sanitises the job's source with the values just read and stores the lines, the report and the time estimates. */
 function sanitizeInto(t: JobLayerTx): { readonly result: SanitizeResult; readonly report: JobReportSummary } {
   const j = job(t.s);
@@ -475,11 +504,13 @@ function sanitizeInto(t: JobLayerTx): { readonly result: SanitizeResult; readonl
   return { result, report };
 }
 
+
 function checkedText(result: SanitizeResult, report: JobReportSummary): string {
   return report.blocked
     ? `Checked with this board's values: ${report.counts.block} ${report.counts.block === 1 ? 'finding stops' : 'findings stop'} this file.`
     : `Checked with this board's values: ${result.lines.length} lines to send${report.toolChanges.length > 0 ? `, ${report.toolChanges.length} tool ${report.toolChanges.length === 1 ? 'change' : 'changes'}` : ''}.`;
 }
+
 
 function finishLoad(t: JobLayerTx, at: number): void {
   const { result, report } = sanitizeInto(t);
@@ -487,6 +518,7 @@ function finishLoad(t: JobLayerTx, at: number): void {
   patchJob(t, { phase: report.blocked ? 'blocked' : 'ready', startModes: { needs: startNeeds(t.s, result.lines), modes: [], written: false } });
   jobEvent(t, at, report.blocked ? 'error' : 'info', checkedText(result, report));
 }
+
 
 /**
  * The prep reads taken at Start are in (R3): the file is sanitised again with the board's values as they are now.
@@ -523,6 +555,7 @@ function finishCheck(t: JobLayerTx, at: number): void {
   queue(t, { token: 'rxm', purpose: 'lineMode' });
   t.arm('job', JOB_LIMITS.drainPollMs);
 }
+
 
 // --- Start --------------------------------------------------------------------------------------------------
 
@@ -583,11 +616,13 @@ export function onStartJob(t: JobLayerTx, request: Extract<SessionIntent, { inte
   return ALLOWED;
 }
 
+
 function cleanBreakpoints(lines: unknown): readonly number[] | null {
   if (!Array.isArray(lines) || lines.length > JOB_LIMITS.maxBreakpoints) return null;
   if (!lines.every((l) => typeof l === 'number' && Number.isInteger(l) && l >= 1)) return null;
   return Object.freeze([...new Set(lines as number[])].sort((a, b) => a - b));
 }
+
 
 /** The window's breakpoints, any time (they take effect only on lines not yet sent, H75). */
 export function onJobBreakpoints(t: JobLayerTx, lines: unknown, at: number): Decision {
@@ -603,11 +638,13 @@ export function onJobBreakpoints(t: JobLayerTx, lines: unknown, at: number): Dec
   return ALLOWED;
 }
 
+
 /** True when file line `line` was already sent (and not yet passed): a breakpoint on it cannot be honoured (H75, W41). */
 export function queuedLine(j: JobState, line: number): boolean {
   const sent = j.lines.slice(0, j.next);
   return sent.some((l) => l.sourceLine === line);
 }
+
 
 // --- Line mode (H77) ----------------------------------------------------------------------------------------
 
@@ -626,11 +663,13 @@ export function onLineModeMemory(t: JobLayerTx, remembered: unknown): Decision {
   return ALLOWED;
 }
 
+
 /** The value to put back when no job runs, or null when nothing should be written: only what Run itself changed. */
 export function rxmTarget(s: SessionState): 0 | 1 | null {
   if (!s.rxm.pending || s.rxm.restore === null) return null;
   return s.rxm.restore === 1 ? 1 : 0;
 }
+
 
 /**
  * Outside a job, a board in line mode (footer revision 3) whose remembered value is character mode is put back
@@ -662,6 +701,7 @@ export function maybeRestoreLineMode(t: JobLayerTx, allowedNow: boolean): void {
   t.emit({ kind: 'log', text: 'line mode: Run set this board to line mode and has not put it back yet; putting back rxm 0 (saved on the board)' });
 }
 
+
 /**
  * A pending record on a board that is already in character mode (footer revision 2) outside a job: someone put it
  * back, or the job's write never took. Nothing is written; the record is cleared.
@@ -672,6 +712,7 @@ function settleLineModeRecord(t: JobLayerTx): void {
   t.set({ rxm: { ...s.rxm, pending: false } });
   t.emit({ kind: 'log', text: 'line mode: the board is already in character mode (rxm 0); the record that Run changed it is cleared' });
 }
+
 
 /** The line-mode read, write or read-back was answered. */
 export function onLineModeAnswer(t: JobLayerTx, r: Response | null, at: number): void {
@@ -727,10 +768,12 @@ export function onLineModeAnswer(t: JobLayerTx, r: Response | null, at: number):
   lineModeReady(t, at);
 }
 
+
 /** A job is being prepared and nobody has stopped it. */
 function preparing(s: SessionState): boolean {
   return s.job !== null && s.job.phase === 'preparing' && !s.job.stopping;
 }
+
 
 function lineModeFailed(t: JobLayerTx, at: number, why: string): void {
   const step = t.s.rxm.step;
@@ -744,6 +787,7 @@ function lineModeFailed(t: JobLayerTx, at: number, why: string): void {
     jobEvent(t, at, 'error', `The job did not start: line mode could not be confirmed (${why}).`);
   }
 }
+
 
 /** Line mode is set: the footer must say so (revision 3) before a single job line goes out. */
 function lineModeReady(t: JobLayerTx, at: number): void {
@@ -770,12 +814,14 @@ function lineModeReady(t: JobLayerTx, at: number): void {
   t.arm('job', JOB_LIMITS.runPollMs);
 }
 
+
 /** The job flag, only where the capability probe found it (MACHINING_ASSISTANT feed-limit step 3). */
 function sendJobFlag(t: JobLayerTx, on: 0 | 1): void {
   if (!jobFlagSupported(t.s) || t.s.job?.jobFlag === on) return;
   queue(t, { token: 'rt', purpose: 'jobRuntime', line: jobFlagLine(on) });
   patchJob(t, { jobFlag: on });
 }
+
 
 /** A job `rt` line was answered: a refusal is recorded, never acted on (the job runs without it). */
 export function onJobRuntimeAnswer(t: JobLayerTx, e: PendingRead, r: Response | null, at: number): void {
@@ -786,12 +832,14 @@ export function onJobRuntimeAnswer(t: JobLayerTx, e: PendingRead, r: Response | 
   jobEvent(t, at, 'info', `The controller did not take ${what} (status ${status}); the job runs without it.`);
 }
 
+
 export function onFeedLimit(t: JobLayerTx, kind: 'fs' | 'fl' | 'fg', body: JsonObject, short: boolean): void {
   const fl = t.s.job?.feedLimit;
   if (fl === null || fl === undefined) return;
   const next = foldFeedLimit(fl, kind, body, short);
   if (next !== fl) patchJob(t, { feedLimit: next });
 }
+
 
 // --- Streaming (H76) ----------------------------------------------------------------------------------------
 
@@ -802,11 +850,13 @@ export function jobInFlight(s: SessionState): number {
   return n;
 }
 
+
 /** Free line slots there are room for now: the last footer's free count less every line still owed. */
 export function slotRoom(s: SessionState): number {
   const free = s.job?.free;
   return free === null || free === undefined ? 0 : free - jobInFlight(s);
 }
+
 
 function isBreakpoint(j: JobState, index: number): boolean {
   const line = j.lines[index] as SentLine;
@@ -814,6 +864,7 @@ function isBreakpoint(j: JobState, index: number): boolean {
   // Only at the first sent line of that file line (a split move is one file line).
   return index === 0 || (j.lines[index - 1] as SentLine).sourceLine !== line.sourceLine;
 }
+
 
 /**
  * Writes job lines while the slots allow (the reducer calls it at the end of every transition). Never more than
@@ -859,6 +910,7 @@ export function pumpJob(t: JobLayerTx, allowedNow: boolean): void {
   if (stop !== null) beginDrain(t, stop);
 }
 
+
 /** Feeding stopped before (or after) a stop point: wait for every answer and two polled reads at rest. */
 function beginDrain(t: JobLayerTx, stop: NonNullable<JobState['stop']>): void {
   // The job flag goes off before run's own deliberate stops and after the last line (feed-limit step 3).
@@ -867,6 +919,7 @@ function beginDrain(t: JobLayerTx, stop: NonNullable<JobState['stop']>): void {
   requestPoll(t);
   t.arm('job', JOB_LIMITS.drainPollMs);
 }
+
 
 /** A job line was answered (data answers come in order). */
 export function onJobAnswer(t: JobLayerTx, e: PendingRead, r: Response, at: number): void {
@@ -896,6 +949,7 @@ export function onJobAnswer(t: JobLayerTx, e: PendingRead, r: Response, at: numb
   pauseJob(t, at, 'refused');
 }
 
+
 /** Plain words for a status code (W38). */
 export function statusMeaning(d: Dialect, status: number): string {
   const entry = d.status.get(status);
@@ -921,6 +975,7 @@ export function statusMeaning(d: Dialect, status: number): string {
   }
 }
 
+
 // --- Pause, resume ------------------------------------------------------------------------------------------
 
 /** Pause (`!`) during a job. Returns false when the job layer does not handle it (the caller sends `!` alone). */
@@ -932,6 +987,7 @@ export function onJobPause(t: JobLayerTx, at: number): boolean {
   return true;
 }
 
+
 function pauseJob(t: JobLayerTx, at: number, why: 'pause' | 'refused'): void {
   writeRealtime(t, 'feedhold', 'feedhold');
   t.set({ notices: { ...t.s.notices, pauseRequestedAt: at } });
@@ -940,6 +996,7 @@ function pauseJob(t: JobLayerTx, at: number, why: 'pause' | 'refused'): void {
   requestPoll(t);
   t.arm('job', JOB_LIMITS.drainPollMs);
 }
+
 
 /** Resume a paused or stopped job (the matrix has allowed `resume`: HELD or PROGRAM_PAUSED, no overlay). */
 export function onJobResume(t: JobLayerTx, request: Extract<SessionIntent, { intent: 'resume' }>, at: number): Decision {
@@ -976,6 +1033,7 @@ export function onJobResume(t: JobLayerTx, request: Extract<SessionIntent, { int
   }
 }
 
+
 function continueJob(t: JobLayerTx, at: number, text: string): void {
   sendJobFlag(t, 1);
   t.set({ base: 'RUNNING', notices: { ...t.s.notices, motion: { kind: 'resumed', text: 'Resumed', at } } });
@@ -984,6 +1042,7 @@ function continueJob(t: JobLayerTx, at: number, text: string): void {
   jobEvent(t, at, 'info', text);
   t.arm('job', JOB_LIMITS.runPollMs);
 }
+
 
 /**
  * After a manual tool change (H74, C34): back to where the job stopped at a safe height if the machine was moved,
@@ -1030,6 +1089,7 @@ function resumeToolChange(t: JobLayerTx, request: Extract<SessionIntent, { inten
   return ALLOWED;
 }
 
+
 function nextResumeStep(t: JobLayerTx, at: number): void {
   const j = job(t.s);
   const [first, ...rest] = j.resumeSteps;
@@ -1042,6 +1102,7 @@ function nextResumeStep(t: JobLayerTx, at: number): void {
   requestPoll(t);
   t.arm('job', JOB_LIMITS.drainPollMs);
 }
+
 
 /**
  * A motion line of the job layer was answered: a tool change's `M5` or `M9` (`outputsOff`, R6), or a resume step.
@@ -1073,6 +1134,7 @@ export function onJobMotionAnswer(t: JobLayerTx, line: string | undefined, statu
   return true;
 }
 
+
 /** A motion line of the job layer went unanswered (the answer timer, `readAnswerMs`): fail closed (R6). */
 export function onJobMotionTimeout(t: JobLayerTx, line: string | undefined, at: number): void {
   const j = t.s.job;
@@ -1092,6 +1154,7 @@ export function onJobMotionTimeout(t: JobLayerTx, line: string | undefined, at: 
   }
 }
 
+
 /** The spindle or coolant could not be confirmed off at a tool change (R6): the job ends, the outputs may be on. */
 function outputsOffFailed(t: JobLayerTx, at: number, why: string): void {
   const j = job(t.s);
@@ -1103,6 +1166,7 @@ function outputsOffFailed(t: JobLayerTx, at: number, why: string): void {
   jobEvent(t, at, 'error', text);
 }
 
+
 /** `M5` and `M9` are answered (R6): the tool-change card (W37) and its Resume, jog and Z re-zero are offered. */
 function changeReady(t: JobLayerTx, at: number): void {
   const j = job(t.s);
@@ -1110,6 +1174,7 @@ function changeReady(t: JobLayerTx, at: number): void {
   patchJob(t, { phase: 'toolChange', message: w37() });
   jobEvent(t, at, 'toolchange', `Spindle and coolant off (M5 and M9 answered). Tool change at line ${j.lines[tc.index]?.sourceLine ?? 0}${tc.tool === null ? '' : `: T${tc.tool}`}.`, j.lines[tc.index]?.sourceLine);
 }
+
 
 // --- Polls and timer ----------------------------------------------------------------------------------------
 
@@ -1119,9 +1184,11 @@ function drainedAtBarrier(s: SessionState, p: PolledValues): boolean {
   return s.dwellWait == null && (cls === 'programStop' || cls === 'end' || cls === 'idle') && p.vel === 0 && p.qr === planner(s);
 }
 
+
 function dataSettled(s: SessionState): boolean {
   return !s.queue.some((q) => q.purpose === 'motion') && s.writing?.purpose !== 'motion' && !s.expected.some((e) => !e.late && e.purpose === 'motion');
 }
+
 
 /** One poll cycle was answered (after `qr`), with no motion of the motion layer running. */
 export function onJobPoll(t: JobLayerTx, at: number): void {
@@ -1192,6 +1259,7 @@ export function onJobPoll(t: JobLayerTx, at: number): void {
   }
 }
 
+
 function stopReached(t: JobLayerTx, at: number, stop: NonNullable<JobState['stop']>): void {
   const s = t.s;
   const j = job(s);
@@ -1240,6 +1308,7 @@ function stopReached(t: JobLayerTx, at: number, stop: NonNullable<JobState['stop
   jobEvent(t, at, 'warn', text, line);
 }
 
+
 /** The `job` timer: the next poll, the STALE limit and the liveness grace period. */
 export function onJobTimer(t: JobLayerTx, deps: JobDeps, at: number): void {
   const s = t.s;
@@ -1273,6 +1342,7 @@ export function onJobTimer(t: JobLayerTx, deps: JobDeps, at: number): void {
   t.arm('job', JOB_LIMITS.drainPollMs);
 }
 
+
 // --- Endings -------------------------------------------------------------------------------------------------
 
 /** Stop job / Spindle off during a job: the motion layer's flush sequence; this marks the job as stopping. */
@@ -1296,6 +1366,7 @@ export function onJobStop(t: JobLayerTx, at: number): boolean {
   return true;
 }
 
+
 /** The board reset during the job (H72): everything queued is gone. */
 export function onJobReset(t: JobLayerTx, at: number): void {
   if (!jobActive(t.s)) return;
@@ -1304,11 +1375,13 @@ export function onJobReset(t: JobLayerTx, at: number): void {
   t.set({ expected: t.s.expected.filter((e) => e.purpose !== 'job') });
 }
 
+
 /** The link dropped during the job (H71). */
 export function onJobLinkLost(t: JobLayerTx, at: number): void {
   if (!jobActive(t.s)) return;
   failJob(t, at, `The connection was lost at line ${lastFileLine(job(t.s), t.s.live.line)}. The machine may keep running what it had queued.`);
 }
+
 
 /**
  * A FAULT latched during the job. Integrity: end it at once with the flush sequence (SAFETY §3 effect 3; the
