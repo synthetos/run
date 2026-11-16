@@ -59,7 +59,6 @@ import {
     CLEAR_TEMP_OFFSET_LINE,
     UNITS_LINE,
     homeLine,
-    jogLine,
     motionLineKind,
     restoreLine,
     safeZLine,
@@ -68,8 +67,7 @@ import {
     setZeroLine,
     spindleLine,
     tempOffsetLine,
-    toZeroLine,
-    type MotionAxisLetter
+    toZeroLine
 } from './motionLines.ts';
 
 import { queueModeReads } from './modes.ts';
@@ -84,16 +82,18 @@ import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './
 
 import { typedAlarmed, typedCheckTimedOut, typedEnded } from './typedNotice.ts';
 
-import { afterHold, piecesLeft, raiseDone, raiseRestore, takePiece } from './typedPieces.ts';
+import { afterHold, piecesLeft, raiseDone, raiseRestore } from './typedPieces.ts';
 
 import { type MotionDeps, type MotionTx } from './motion/contract.ts';
 import { changeNotice, clearMotionNotice, message, newCtx, queueLine, readBack, requestPoll, setMotion, startChange, tick, writeRealtime } from './motion/effects.ts';
-import { ALARMABLE, ALARMED, ALLOWED, JOG_AXES, LETTER, MOTION_LIMITS, SETTLE_BASES, STOPPABLE, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
+import { feedMore, feeding, sendTypedPiece } from './motion/jog.ts';
+import { ALARMABLE, ALARMED, ALLOWED, LETTER, MOTION_LIMITS, SETTLE_BASES, STOPPABLE, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
 import { activeSystem, atRestPolled, axisNames, completedPoll, deny, dialect, heldPolled, idleBase, machineClass, machineZ, motionCapable, motionLinesSettled, planner, precondition, returnBase, validAxes, validAxisList } from './motion/model.ts';
 import type { ChangeKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, SessionConfig, SessionIntent, SessionState } from './types.ts';
 
 export { type MotionDeps, type MotionTx } from './motion/contract.ts';
 export { clearMotionNotice, newCtx, queueMotionLine, requestPoll } from './motion/effects.ts';
+export { sendTypedPiece } from './motion/jog.ts';
 export { MOTION_LIMITS, POLL_TOKENS, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
 export { activeSystem, atRestPolled, completedPoll, heldPolled, idleBase, motionCapable, returnBase } from './motion/model.ts';
 
@@ -265,50 +265,6 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       return ALLOWED;
     }
   }
-}
-
-
-/** Sends the next jog piece when fewer than the lookahead are believed queued and nothing is being written. */
-function feedMore(t: MotionTx): void {
-  const ctx = t.s.motion as MotionCtx;
-  if (ctx.queued < MOTION_LIMITS.lookahead && motionLinesSettled(t.s)) {
-    if (ctx.op === 'typed') sendTypedPiece(t);
-    else sendPiece(t);
-  }
-}
-
-
-/** OD-31: queues the next piece of a typed move, counted in the planner like a jog piece. */
-export function sendTypedPiece(t: MotionTx): void {
-  const ctx = t.s.motion as MotionCtx;
-  const { line, typed } = takePiece(ctx);
-  queueLine(t, line, 'typedMove');
-  setMotion(t, { typed, queued: ctx.queued + 1 });
-}
-
-
-/** More to feed: a jog's distance (or a hold jog), or a typed move's pieces (OD-31). */
-function feeding(ctx: MotionCtx): boolean {
-  return ctx.op === 'typed' ? piecesLeft(ctx) : moreToFeed(ctx.jog as JogFeed);
-}
-
-
-function moreToFeed(jog: JogFeed): boolean {
-  return jog.remainingMm === null || jog.remainingMm > 1e-9;
-}
-
-
-function sendPiece(t: MotionTx): void {
-  const ctx = t.s.motion as MotionCtx;
-  const jog = ctx.jog as JogFeed;
-  const d = jog.remainingMm === null ? jog.pieceMm : Math.min(jog.pieceMm, jog.remainingMm);
-  const move: Partial<Record<MotionAxisLetter, number>> = {};
-  for (const axis of JOG_AXES) {
-    const sign = jog.axes[axis];
-    if (sign !== undefined) move[LETTER[axis]] = sign * d;
-  }
-  queueLine(t, jogLine(move, jog.feed), 'jog');
-  setMotion(t, { jog: { ...jog, remainingMm: jog.remainingMm === null ? null : Math.max(0, jog.remainingMm - d) }, queued: ctx.queued + 1 });
 }
 
 
