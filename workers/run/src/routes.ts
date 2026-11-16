@@ -16,7 +16,7 @@ import { dataRoute } from './dataRoute.ts';
  * Worker runs first for every path (OD-29); the public GitHub list and
  * digest-checked images are available on staging and production.
  */
-import type { IdentityBody, SessionBody, RunDataBinding } from '@synthetos/contracts';
+import type { IdentityBody, SessionBody, RunDataBinding, RunFilesBinding } from '@synthetos/contracts';
 import { accessConfig, type CertsFetcher, fetchAccessCerts, verifyAccessJwt } from './accessIdentity.ts';
 import { firmwareAssetPath, firmwareHeaders, NO_CACHE, proxyFirmwareAsset, type FirmwareCache, type FirmwareProxyDeps } from './firmwareProxy.ts';
 import { authConfig, type AuthEnv } from './authConfig.ts';
@@ -37,7 +37,8 @@ export interface AssetsBinding {
 }
 
 export interface Env extends AuthEnv {
-  readonly RUN_DATA?: RunDataBinding;
+  /** The account data Worker (records and files); bound on staging, and in production from go-live. */
+  readonly RUN_DATA?: RunDataBinding & RunFilesBinding;
   readonly ASSETS: AssetsBinding;
   readonly RUN_ENV?: string;
   /** Staging only: the Access team domain (`<team>.cloudflareaccess.com`). */

@@ -389,8 +389,11 @@ remain placeholders. The production service allowlist refuses RUN_DATA or run-da
 references until production data support is explicitly added. Without the binding,
 and whenever RUN_ENV is not staging, the records route returns 503.
 
-Records use `/api/records/tool` or `/api/records/material` (GET list, with optional `after`
-last-id cursor, 100 records per page), and `/api/records/<kind>/<id>` (GET, PUT, DELETE).
+Records use `/api/records/<kind>` for `tool`, `material`, `machine` and `project` (GET list, with optional `after`
+last-id cursor, 100 records per page), and `/api/records/<kind>/<id>` (GET, PUT, DELETE). A project record may be up to
+512 KB; the others 64 KB. Account files (project files and images, by SHA-256) use `/api/files` (GET list) and
+`/api/files/<sha256>` (PUT with the declared `Content-Length`, up to 50 MB; GET as a download; DELETE when no live
+project names the file). Both count against the account's 1 GB budget.
 PUT takes `{parent_rev: null|number, content: record}`; DELETE takes `{parent_rev: number}`.
 Unknown envelope fields are refused. Only a validated run-session subject supplies user_id;
 Access identity cannot grant records access. Mutations use the existing same-origin CSRF

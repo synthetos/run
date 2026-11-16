@@ -1,12 +1,11 @@
 import { expect, it } from 'vitest';
-import type { RunDataBinding, RecordActor } from '@synthetos/contracts';
 import { route } from '../src/routes.ts';
-import { authEnv } from './authHarness.ts';
+import { accountEnv } from './accountHarness.ts';
 function setup() {
-  const {env}=authEnv('staging',()=>Math.floor(Date.now()/1000)); const actors:RecordActor[]=[];
-  env.ACCOUNTS!.validateSession=async()=>({id:'session',sub:'usr_alice',name:'alice',client:'run',identities:[{provider:'github',id:'1',login:'alice'}],absoluteExpiresAt:Math.floor(Date.now()/1000)+600,deviceRecordId:null,sharedComputer:false});
-  const data:RunDataBinding={ list:async(actor)=>{actors.push(actor);return[];},get:async(actor)=>{actors.push(actor);return {ok:false,error:'not_found'};},put:async(actor)=>{actors.push(actor);return {ok:false,error:'conflict',current:null};},archive:async(actor)=>{actors.push(actor);return {ok:false,error:'not_found'};} };
-  return {env:{...env,RUN_DATA:data},actors};
+  const { env, data, actors } = accountEnv('staging');
+  data.list=async(actor)=>{actors.push(actor);return[];};data.get=async(actor)=>{actors.push(actor);return {ok:false,error:'not_found'};};
+  data.put=async(actor)=>{actors.push(actor);return {ok:false,error:'conflict',current:null};};data.archive=async(actor)=>{actors.push(actor);return {ok:false,error:'not_found'};};
+  return {env,actors};
 }
 const request=(path:string,method='GET',payload?:unknown, extra:Record<string,string>={})=>new Request(`https://staging.run.synthetos.com/api/records/${path}`,{method,headers:{cookie:'__Host-run_sid='+ Buffer.alloc(32,1).toString('base64url'),origin:'https://staging.run.synthetos.com','sec-fetch-site':'same-origin','x-synthetos-request':'1','content-type':'application/json',...extra},...(payload===undefined?{}:{body:JSON.stringify(payload)})});
 it('requires the run session, including on reads; Access is not an account',async()=>{
@@ -26,6 +25,15 @@ it('rejects forged user fields, unsafe methods, cross-origin mutations and overs
  expect((await route(request('tool/mine.t1','PUT',{}, {'x-synthetos-request':''}),env)).status).toBe(403);
  expect((await route(request('tool/mine.t1','PUT',{parent_rev:null,content:'x'.repeat(72000)}),env)).status).toBe(400);
  expect((await route(request('tool?user_id=usr_bob'),env)).status).toBe(400); expect(actors).toEqual([]);
+});
+it('serves machine and project records too, and lets a project body be larger than a library record',async()=>{
+ const {env,actors}=setup();
+ expect((await route(request('machine/shapeoko-1','PUT',{parent_rev:null,content:{}}),env)).status).toBe(409);
+ expect((await route(request('project'),env)).status).toBe(200);
+ expect((await route(request('bed'),env)).status).toBe(404);
+ expect((await route(request('project/plate','PUT',{parent_rev:null,content:'x'.repeat(72000)}),env)).status).toBe(409);
+ expect((await route(request('project/plate','PUT',{parent_rev:null,content:'x'.repeat(540_000)}),env)).status).toBe(400);
+ expect(actors).toHaveLength(3);
 });
 it('passes an explicit archived-record listing flag and rejects other values', async () => {
  const {env}=setup(); const flags:boolean[]=[];

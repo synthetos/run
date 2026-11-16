@@ -1611,9 +1611,6 @@
     "workers/run/src/catalogData.ts": {
       "max-lines $file": 2870
     },
-    "workers/run/src/records.ts": {
-      "complexity $/FunctionDeclaration:recordsRoute#1": 34
-    },
     "workers/run/src/routes.ts": {
       "complexity $/FunctionDeclaration:route#1": 24,
       "max-params $/FunctionDeclaration:route#1": 5
