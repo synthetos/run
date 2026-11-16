@@ -4,7 +4,7 @@
 -- object in the bucket, so an older operation can never touch a newer upload of the same digest. Only the
 -- state may change; the audit row is written by the Worker in the same batch as each transition.
 CREATE TABLE files (
- user_id TEXT NOT NULL, sha256 TEXT NOT NULL CHECK(length(sha256)=64), bytes INTEGER NOT NULL CHECK(bytes > 0),
+ user_id TEXT NOT NULL, sha256 TEXT NOT NULL CHECK(length(sha256)=64), bytes INTEGER NOT NULL CHECK(bytes >= 0),
  state TEXT NOT NULL CHECK(state IN ('pending','ready','deleting')), token TEXT NOT NULL CHECK(length(token)=32),
  created_at INTEGER NOT NULL, actor_label TEXT NOT NULL, PRIMARY KEY(user_id,sha256)
 );

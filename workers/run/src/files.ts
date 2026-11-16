@@ -7,18 +7,19 @@ const PATH = /^\/api\/files(?:\/([0-9a-f]{64}))?$/;
 const STATUS: Readonly<Record<FileError, number>> = { invalid: 400, not_found: 404, in_use: 409, busy: 409, quota: 413, mismatch: 422, failed: 502 };
 const answer = (result: FileResult): Response => json(result.ok ? (result.existed ? 200 : 201) : STATUS[result.error], result);
 
-/** The declared size, which the store reserves before the bytes move; a body without one is refused. */
+/** The declared size (an empty file is a file), which the store reserves before the bytes move; a body without one is refused. */
 function declaredSize(request: Request): number | null {
   const header = request.headers.get('content-length');
   if (header === null || !/^[0-9]{1,12}$/.test(header)) return null;
   const size = Number(header);
-  return size >= 1 && size <= FILE_MAX_BYTES ? size : null;
+  return size <= FILE_MAX_BYTES ? size : null;
 }
 
 async function put(request: Request, actor: RecordActor, data: AccountData, sha256: string): Promise<Response> {
   const size = declaredSize(request);
-  if (size === null || request.body === null) return json(400, { error: 'invalid' });
-  return answer(await data.putFile(actor, sha256, size, request.body));
+  const body = request.body ?? (size === 0 ? new ReadableStream<Uint8Array>({ start(c) { c.close(); } }) : null);
+  if (size === null || body === null) return json(400, { error: 'invalid' });
+  return answer(await data.putFile(actor, sha256, size, body));
 }
 
 /** The bytes as a download: never rendered, never sniffed, never cached. */

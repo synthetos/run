@@ -51,7 +51,7 @@ describe('/api/files', () => {
 
   it('refuses an upload without a usable declared size before calling the data Worker', async () => {
     const { env, actors } = accountEnv('staging');
-    expect((await route(request(`/${HASH}`, 'PUT', bytes, { 'content-length': '0' }), env)).status).toBe(400);
+    expect((await route(request(`/${HASH}`, 'PUT', bytes, { 'content-length': '-1' }), env)).status).toBe(400);
     expect((await route(request(`/${HASH}`, 'PUT', bytes, { 'content-length': String(FILE_MAX_BYTES + 1) }), env)).status).toBe(400);
     expect((await route(request(`/${HASH}`, 'PUT', bytes, { 'content-length': 'many' }), env)).status).toBe(400);
     expect((await route(request(`/${HASH}`, 'PUT'), env)).status).toBe(400);
@@ -75,6 +75,13 @@ describe('/api/files', () => {
     expect((await route(request(`/${HASH}`, 'DELETE'), env)).status).toBe(409);
     data.deleteFile = async (_a, sha256) => ({ ok: true, existed: true, file: { sha256, size: 1, createdAt: 1 } });
     expect((await route(request(`/${HASH}`, 'DELETE'), env)).status).toBe(200);
+  });
+  it('passes a zero-byte upload to the data Worker with an empty stream', async () => {
+    const { env, data } = accountEnv('staging');
+    let seen: number | null = null;
+    data.putFile = async (_a, sha256, size, body) => { seen = size; await body.cancel(); return { ok: true, existed: false, file: { sha256, size, createdAt: 1 } }; };
+    expect((await route(request(`/${HASH}`, 'PUT', new Uint8Array(0)), env)).status).toBe(201);
+    expect(seen).toBe(0);
   });
   it('lets a typed binary upload through the gate (the custom header is the CSRF proof), unlike a record body', async () => {
     const { env, data, actors } = accountEnv('staging');

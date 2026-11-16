@@ -5,7 +5,7 @@ import type { Database } from './database.ts';
 const SHA256 = /^[0-9a-f]{64}$/;
 const USER = /^usr_[A-Za-z0-9_-]{1,100}$/;
 const actorOk = (actor: RecordActor): boolean => USER.test(actor.userId) && typeof actor.label === 'string' && actor.label.length <= 120;
-const sizeOk = (size: number): boolean => Number.isSafeInteger(size) && size > 0 && size <= FILE_MAX_BYTES;
+const sizeOk = (size: number): boolean => Number.isSafeInteger(size) && size >= 0 && size <= FILE_MAX_BYTES;
 
 type State = 'pending' | 'ready' | 'deleting';
 interface Row { sha256: string; bytes: number; created_at: number; state: State; token: string }

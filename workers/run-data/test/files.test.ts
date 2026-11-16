@@ -40,7 +40,7 @@ describe('account files: storing', () => {
   it('refuse bad names, sizes and actors before touching anything', async () => {
     const { sql, bucket, store } = setup();
     expect(await store.putFile(a, 'abc', 3, stream(bytes))).toEqual({ ok: false, error: 'invalid' });
-    expect(await store.putFile(a, hash, 0, stream(bytes))).toEqual({ ok: false, error: 'invalid' });
+    expect(await store.putFile(a, hash, -1, stream(bytes))).toEqual({ ok: false, error: 'invalid' });
     expect(await store.putFile(a, hash, FILE_MAX_BYTES + 1, stream(bytes))).toEqual({ ok: false, error: 'invalid' });
     expect(await store.putFile({ userId: 'alice', label: '' }, hash, 3, stream(bytes))).toEqual({ ok: false, error: 'invalid' });
     expect(await store.getFile(a, 'abc')).toEqual({ ok: false, error: 'invalid' });
@@ -55,19 +55,33 @@ describe('account files: storing', () => {
     const { sql, bucket, store } = setup();
     expect(await store.putFile(a, 'c'.repeat(64), bytes.byteLength, stream(bytes))).toEqual({ ok: false, error: 'mismatch' });
     expect(await store.putFile(a, hash, bytes.byteLength + 1, stream(bytes))).toEqual({ ok: false, error: 'mismatch' });
+    expect(await store.putFile(a, hash, 0, stream(bytes))).toEqual({ ok: false, error: 'mismatch' });
     bucket.failWith = new Error('connection reset');
     expect(await store.putFile(a, hash, bytes.byteLength, stream(bytes))).toEqual({ ok: false, error: 'failed' });
     bucket.failWith = null;
     expect(bucket.objects.size).toBe(0);
     expect(used(sql, a.userId)).toBe(0);
     expect(sql.prepare('SELECT COUNT(*) n FROM files').get()).toMatchObject({ n: 0 });
-    expect(changes(sql)).toEqual(['Stored file', 'Refused file', 'Stored file', 'Refused file', 'Stored file', 'Refused file']);
+    expect(changes(sql)).toEqual(Array(4).fill(['Stored file', 'Refused file']).flat());
     // A size mismatch whose cleanup delete also fails still releases the row: the stale size never sticks.
     bucket.failWith = new Error('down'); bucket.failDeletes = true;
     const accepted = new FakeBucket(); const store2 = new FileStore(setup().db, accepted);
     void store2;
     expect(await store.putFile(a, hash, bytes.byteLength, stream(bytes))).toEqual({ ok: false, error: 'failed' });
     expect(used(sql, a.userId)).toBe(0);
+    sql.close();
+  });
+
+  it('store the empty file like any other: it has a digest, costs nothing and streams back empty', async () => {
+    const { sql, bucket, store } = setup();
+    const empty = new Uint8Array(0); const emptyHash = sha256(empty);
+    expect(await store.putFile(a, emptyHash, 0, stream(empty))).toMatchObject({ ok: true, existed: false, file: { sha256: emptyHash, size: 0 } });
+    expect(bucket.objects.size).toBe(1);
+    expect(used(sql, a.userId)).toBe(0);
+    const got = await store.getFile(a, emptyHash);
+    expect(got.ok && (await collect(got.body)).byteLength).toBe(0);
+    expect(await store.listFiles(a)).toMatchObject([{ sha256: emptyHash, size: 0 }]);
+    expect(await store.deleteFile(a, emptyHash)).toMatchObject({ ok: true });
     sql.close();
   });
 
