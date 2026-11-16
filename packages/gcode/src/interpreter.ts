@@ -42,6 +42,7 @@ import { codeOf, parseLine } from './parser.ts';
 import { DEFAULT_VERTEX_CAP, PLANE_INDEX, ROTARY } from './interpreter/constants.ts';
 import { type Emitted, type Piece, type Pos } from './interpreter/contract.ts';
 import { axisMm, fill, offset, offsetMm, unitScale, work, zero } from './interpreter/coordinates.ts';
+import { addFinding, addFindingOnce } from './interpreter/findings.ts';
 import { InterpreterState, type InterpreterContext } from './interpreter/state.ts';
 import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis, type TimingModel } from './types.ts';
 export { DEFAULT_VERTEX_CAP } from './interpreter/constants.ts';
@@ -366,16 +367,10 @@ class Interpreter extends InterpreterState {
   }
 
 
-  add(line: number, n: number | null, severity: Finding['severity'], rule: string, message: string): void {
-    this.findings.push({ line, n, severity, rule, message: severity === 'block' ? blockFindingText(rule, message, line) : message, source: 'analyser' });
-  }
+  add(line: number, n: number | null, severity: Finding['severity'], rule: string, message: string): void { return addFinding(this, line, n, severity, rule, message); }
 
 
-  addOnce(key: string, line: number, n: number | null, severity: Finding['severity'], rule: string, message: string): void {
-    if (this.once.has(key)) return;
-    this.once.add(key);
-    this.add(line, n, severity, rule, message);
-  }
+  addOnce(key: string, line: number, n: number | null, severity: Finding['severity'], rule: string, message: string): void { return addFindingOnce(this, key, line, n, severity, rule, message); }
 
 
   /** Program units to mm. */
