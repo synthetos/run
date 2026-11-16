@@ -44,6 +44,7 @@ import { extendByArc, extentAt } from './extent.ts';
 import { chargeJointResidual, jointRiskFinding, linearModeFinding, modeOf, rotaryUnknown, withJointResidual } from './analyze/axisModes.ts';
 import { ModelState } from './analyze/context.ts';
 import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
+import { checkModalRules, checkQueued } from './analyze/dialectRules.ts';
 import { initialize } from './analyze/initialize.ts';
 import { forget, forgetLinear, modelDelta, moveBy, planeMagnitude } from './analyze/motionPosition.ts';
 import { appliedTool, g92Part, g92PartUnc, offsetUnc, selectWcs, setG92, shift, totalOffset, workAfterSet } from './analyze/offsets.ts';
@@ -585,30 +586,11 @@ export class JobModel extends ModelState {
     plane: Plane | null,
     isArc: boolean,
     findings: Finding[],
-  ): void {
-    for (const rule of this._rules) {
-      if (rule.kind === 'arcInPlane' && isArc && (plane === rule.plane || plane === null)) {
-        findings.push(block(rule.id, plane === null ? `${rule.reason} The active plane is not known.` : rule.reason));
-      }
-      if (rule.kind === 'codeUnderModal' && codes.some((c) => rule.codes.includes(c))) {
-        const modes = [units, distance];
-        if (modes.some((m) => m !== null && rule.modes.includes(m)) || modes.includes(null)) {
-          findings.push(block(rule.id, modes.includes(null) ? `${rule.reason} The units or distance mode are not known.` : rule.reason));
-        }
-      }
-    }
-  }
+  ): void { return checkModalRules(this, codes, units, distance, plane, isArc, findings); }
 
 
   /** TG E088: at most `max` queued commands per line besides motion. */
-  #checkQueued(codes: readonly string[], params: ReadonlyMap<string, Word>, findings: Finding[]): void {
-    for (const rule of this._rules) {
-      if (rule.kind !== 'queuedCommandsPerLine') continue;
-      let count = codes.filter((c) => rule.counted.includes(c)).length;
-      for (const letter of ['S', 'T']) if (params.has(letter) && rule.counted.includes(letter)) count++;
-      if (count > rule.max) findings.push(block(rule.id, rule.reason));
-    }
-  }
+  #checkQueued(codes: readonly string[], params: ReadonlyMap<string, Word>, findings: Finding[]): void { return checkQueued(this, codes, params, findings); }
 
 
   /** Group-0 actions: offsets, stored positions, dwell. */
