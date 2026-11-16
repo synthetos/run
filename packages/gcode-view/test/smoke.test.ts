@@ -31,8 +31,8 @@ describe('@synthetos/gcode-view', () => {
       const text = readFileSync(SRC + file, 'utf8');
       for (const m of text.matchAll(/\bfrom\s+'([^']+)'|\bimport\s*\(\s*'([^']+)'/g)) {
         const spec = m[1] ?? m[2] ?? '';
-        // Its own modules: siblings, the carve/ folder, or (from carve/) the modules above it.
-        expect(spec, `${file} imports ${spec}`).toMatch(/^(\.\/((carve|play)\/)?|\.\.\/)[a-zA-Z]+\.ts$/);
+        // Its own modules: siblings, the carve/, play/ or renderer/ folders, or (from carve/) the modules above it.
+        expect(spec, `${file} imports ${spec}`).toMatch(/^(\.\/|\.\.\/)((carve|play|renderer)\/)?[a-zA-Z]+\.ts$/);
       }
     }
   });
@@ -45,7 +45,7 @@ describe('@synthetos/gcode-view', () => {
       expect(name).not.toMatch(/simulat|animat/i);
       if (/play/i.test(name)) expect(playExports.has(name), name).toBe(true);
     }
-    const renderer = mod.createRenderer.toString() + readFileSync(SRC + 'renderer.ts', 'utf8');
+    const renderer = mod.createRenderer.toString() + sourceFiles().filter((f) => f === 'renderer.ts' || f.startsWith('renderer/')).map((f) => readFileSync(SRC + f, 'utf8')).join('\n');
     expect(renderer).not.toMatch(/\b(play|simulate|animate)\w*\s*\(/i);
     // The renderer moves the play marker only when told (setPlayMarker); its one clock is the live marker's easing.
     expect(renderer).not.toMatch(/setInterval/);
