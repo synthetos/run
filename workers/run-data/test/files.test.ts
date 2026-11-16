@@ -177,7 +177,7 @@ function withStatements(db: Database, prefix: string, wrap: (s: Statement) => Pa
     prepare(query) {
       const s = db.prepare(query);
       if (!query.startsWith(prefix)) return s;
-      const w: Statement = { bind(...v) { s.bind(...v); return w; }, first: () => s.first(), all: () => s.all(), run: () => s.run(), ...wrap(s) };
+      const w: Statement = { bind(...v) { s.bind(...v); return w; }, first: <T>() => s.first<T>(), all: <T>() => s.all<T>(), run: () => s.run(), ...wrap(s) };
       return w;
     },
   };
@@ -189,7 +189,7 @@ describe('account files: recovery', () => {
     const { db, sql, bucket, store } = setup();
     await store.putFile(a, hash, bytes.byteLength, stream(bytes));
     const held = gate(); let paused = false;
-    const slow = new FileStore(withStatements(db, "UPDATE files SET state='deleting'", (s) => ({ async first() { const r = await s.first(); if (!paused) { paused = true; await held.promise; } return r; } })), bucket);
+    const slow = new FileStore(withStatements(db, "UPDATE files SET state='deleting'", (s) => ({ async first<T>() { const r = await s.first<T>(); if (!paused) { paused = true; await held.promise; } return r; } })), bucket);
     const first = slow.deleteFile(a, hash);
     await tick();
     expect(states(sql)).toEqual([`${hash.slice(0, 6)}:deleting`]);
