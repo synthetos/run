@@ -48,6 +48,7 @@ import { checkModalRules, checkQueued } from './analyze/dialectRules.ts';
 import { initialize } from './analyze/initialize.ts';
 import { forget, forgetLinear, modelDelta, moveBy, planeMagnitude } from './analyze/motionPosition.ts';
 import { appliedTool, g92Part, g92PartUnc, offsetUnc, selectWcs, setG92, shift, totalOffset, workAfterSet } from './analyze/offsets.ts';
+import { outputsOn, resetProgram } from './analyze/outputs.ts';
 import { exactUnc, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
 import { AFTER_MOTION, ARC_LETTERS, AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
 import { setWork, settle, widen } from './analyze/uncertainty.ts';
@@ -317,9 +318,7 @@ export class JobModel extends ModelState {
 
 
   /** Commanded outputs at this point (SAFETY H48). */
-  outputsOn(): boolean {
-    return this.spindle !== 'off' || this.mist || this.flood;
-  }
+  outputsOn(): boolean { return outputsOn(this); }
 
 
   /**
@@ -328,20 +327,7 @@ export class JobModel extends ModelState {
    * default units and sets G90; TG keeps the units and restores the default distance mode. Where the two
    * differ, the value is kept only if both firmwares agree on it, otherwise it becomes unknown.
    */
-  #programEnd(): void {
-    const d = this._defaults;
-    this.units = this.units !== null && this.units === d.units ? this.units : null;
-    this.distance = d.distance === 'G90' ? 'G90' : null;
-    this.plane = d.plane ?? null;
-    this.motionMode = 'G80';
-    this.#setG92(false, zeroPos(), exactUnc());
-    this.#selectWcs(d.wcs ?? null);
-    if (this._job.programEndStopsOutputs) {
-      this.spindle = 'off';
-      this.mist = false;
-      this.flood = false;
-    }
-  }
+  #programEnd(): void { return resetProgram(this); }
 
 
   /** Analyses one line (comments and N words already removed) and advances the model. */
