@@ -376,25 +376,6 @@
     "apps/web/src/workspace/views/PlacePanel.ts": {
       "complexity $/FunctionDeclaration:PlacePanel#1": 21
     },
-    "apps/web/src/workspace/views/RunView.ts": {
-      "complexity $/FunctionDeclaration:ConnectNotice#1": 42,
-      "complexity $/FunctionDeclaration:JobCard#1": 24,
-      "complexity $/FunctionDeclaration:JobWorkPanel#1": 21,
-      "complexity $/FunctionDeclaration:RunLayout#1": 67,
-      "complexity $/FunctionDeclaration:RunView#1": 44,
-      "complexity $/FunctionDeclaration:jogBody#1": 20,
-      "complexity $/FunctionDeclaration:positionBody#1": 58,
-      "complexity $/FunctionDeclaration:spindleBody#1": 39,
-      "complexity $/FunctionDeclaration:stepStatus#1": 22,
-      "complexity $/FunctionDeclaration:zeroBody#1": 34,
-      "max-lines $file": 1150,
-      "max-lines-per-function $/FunctionDeclaration:RunLayout#1": 107,
-      "max-lines-per-function $/FunctionDeclaration:jogBody#1": 139,
-      "max-lines-per-function $/FunctionDeclaration:positionBody#1": 92,
-      "max-lines-per-function $/FunctionDeclaration:spindleBody#1": 108,
-      "max-lines-per-function $/FunctionDeclaration:zeroBody#1": 119,
-      "max-params $/FunctionDeclaration:zeroBody#1/ArrowFunctionExpression:button#1": 6
-    },
     "apps/web/src/workspace/views/SetupView.ts": {
       "complexity $/FunctionDeclaration:JobSetupPanel#1": 55,
       "max-lines-per-function $/FunctionDeclaration:JobSetupPanel#1": 195
