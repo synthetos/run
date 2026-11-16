@@ -2,8 +2,8 @@ import { w42 } from '@synthetos/safety';
 import { describe, expect, it } from 'vitest';
 import { jobHarness, jobLines, runUntil, start, writes, zigzag } from './jobHarness.ts';
 import { SMALL, model } from './jobLayerHarness.ts';
-describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
 
+describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
   it('Pause writes ! and the job holds; Resume writes ~ and streaming goes on to the end', async () => {
     const h = await jobHarness();
     const before = await start(h, zigzag(30));
@@ -22,8 +22,9 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     expect(w.indexOf('~')).toBeGreaterThan(w.indexOf('!'));
     expect(jobLines(h, before)).toHaveLength(h.session.snapshot.job?.total as number);
   });
+});
 
-
+describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
   it('Stop job: !, % once held, M5, M9; "Stopped at line N"; nothing more is sent; rxm put back', async () => {
     const h = await jobHarness({ rxm: 0 });
     const before = await start(h, zigzag(30));
@@ -42,8 +43,9 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     expect(w).toContain('{"rxm":0}');
     expect(w42({ line: 3 })).toBe('Stopped at line 3: queue cleared, spindle and coolant off');
   });
+});
 
-
+describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
   it('Stop job after a Pause and a Resume still reaches stopped: late job answers do not swallow M5 (H76)', async () => {
     const h = await jobHarness();
     const before = await start(h, zigzag(40));
@@ -59,8 +61,9 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     expect(tail.slice(0, 5)).toEqual(['!', '%', 'M5', 'M9', 'G90']);
     expect(h.session.snapshot.motion).toBeNull();
   });
+});
 
-
+describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
   it('Spindle off during a running job ends it like Stop job', async () => {
     const h = await jobHarness();
     await start(h, zigzag(20));
@@ -69,8 +72,9 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     await runUntil(h, () => h.session.snapshot.job?.phase === 'stopped');
     expect(h.session.snapshot.job?.phase).toBe('stopped');
   });
+});
 
-
+describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
   it('Stop job while preparing (before the first line) sends nothing of the job', async () => {
     const h = await jobHarness({ rxm: 1 });
     const before = await start(h, SMALL);

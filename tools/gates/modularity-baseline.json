@@ -839,15 +839,6 @@
       "max-nested-callbacks $/ArrowFunctionExpression:describe('the work offsets after a job')[1]#1/ArrowFunctionExpression:it('done: a G10 L2 the job ran is in the ofs and g54 read after it, read once')[1]#1/ArrowFunctionExpression:runUntil()[1]#1/ArrowFunctionExpression:h.session.state.expected.some()[0]#1": 4,
       "max-nested-callbacks $/ArrowFunctionExpression:describe('the work offsets after a job')[1]#1/ArrowFunctionExpression:it('stopped: the G92 the board keeps after Stop job is read back, and the readout says so')[1]#1/ArrowFunctionExpression:runUntil()[1]#2/ArrowFunctionExpression:h.session.state.expected.some()[0]#1": 4
     },
-    "packages/machine/test/p3-job-units.test.ts": {
-      "complexity $/ArrowFunctionExpression:describe('the guards of the job decisions')[1]#1/ArrowFunctionExpression:it('runtime answers, feed-limit lines, abandoned loads and slot room')[1]#1": 17,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('line mode (H77)')[1]#1": 101,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('more of the job layer, through its edges')[1]#1": 129,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('the guards of the job decisions')[1]#1": 192
-    },
-    "packages/machine/test/p3-jobs.test.ts": {
-      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S109: streaming by the line buffer free slots (H76)')[1]#1": 83
-    },
     "packages/machine/test/p4-flash.test.ts": {
       "max-classes-per-file $file": 3,
       "max-lines-per-function $/ArrowFunctionExpression:describe('BootloaderLink')[1]#1": 124,
