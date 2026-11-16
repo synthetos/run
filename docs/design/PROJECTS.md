@@ -40,6 +40,10 @@ at 1 MB. An existing project id becomes a new project named “(imported)”; fi
 stable and jobs follow the new project id. Different bytes cannot overwrite an existing
 file id. Imported bytes are stored once per hash; shared copies keep their bytes when
 another project is deleted. Account imports use the normal file-before-record sync.
+Imported project ids must match the account record id contract (1–64 lowercase ASCII
+letters, digits, dots, underscores or hyphens, starting with a letter or digit); other
+ids are refused before installation. Every imported job and its nested file reference
+are bound to the containing project, including imports without an id collision.
 
 ## 4. Sharing to the forum ("Show and tell")
 

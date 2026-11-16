@@ -1,13 +1,14 @@
 import { isRecordKind, RECORD_READERS } from './recordReaders.ts';
 import type { CloudRecord, RecordKind } from '@synthetos/contracts';
 import type { StorageLike } from '../storage.ts';
+import { isRecordId } from './recordId.ts';
 export interface PendingWrite { readonly cleanup?: true; readonly token: string; readonly kind: RecordKind; readonly id: string; readonly parent: number | null; readonly content: unknown | null }
 export interface CloudCache { v: 1; records: CloudRecord[]; pending: PendingWrite[]; imports: Record<string, string>; consent: boolean; fileDeletes?: string[]; importSource?: { kind: RecordKind; id: string; content: unknown }[] }
 export const emptyCache = (): CloudCache => ({ v: 1, records: [], pending: [], imports: {}, consent: false });
 export const cacheKey = (subject: string): string => `run.cloud-cache.${subject}`;
 const object = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const kind = isRecordKind;
-const id = (v: unknown): v is string => typeof v === 'string' && /^[a-z0-9][a-z0-9._-]{0,63}$/.test(v);
+const id = isRecordId;
 const rev = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v > 0;
 const content = (k: RecordKind, v: unknown, recordId: string): boolean => {
   const parsed = RECORD_READERS[k](v);

@@ -1,19 +1,15 @@
 import type { Project } from '@synthetos/library';
 import { sha256Hex } from './image.ts';
 import { contentKey, putProjectBlob, readStoredBlob, type ProjectRecordStore } from './blobStore.ts';
-import { copyProject } from './copyProject.ts';
+import { importIdentity } from './importIdentity.ts';
 import { readProjectArchive, type ImportOptions } from './zip/import.ts';
 
 export interface ImportTarget { records: ProjectRecordStore; projects: readonly Project[]; newId(): string }
 /** A collision changes only project identity; a reused file id may never replace different bytes. */
 export async function installProjectZip(zip: Blob, target: ImportTarget, options: ImportOptions = {}): Promise<Project> {
-  const archive = await readProjectArchive(zip, options); let project = archive.project;
+  const archive = await readProjectArchive(zip, options);
   const occupied = new Set([...target.projects.map(p => p.id), ...await target.records.keys('projects')]);
-  if (occupied.has(project.id)) {
-    let id = target.newId();
-    while (occupied.has(id)) id = target.newId();
-    project = copyProject(project, id, `${project.name.slice(0, 244)} (imported)`);
-  }
+  const project = importIdentity(archive.project, occupied, target.newId);
   const files = [...project.files, ...project.images];
   const current = target.projects.flatMap(p => [...p.files, ...p.images]);
   for (const file of files) {

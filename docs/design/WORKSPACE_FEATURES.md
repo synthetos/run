@@ -264,6 +264,9 @@ An existing project id imports under a new id with “(imported)” in the name;
 follow the new id. File ids stay stable and identical bytes share storage by hash.
 An id already belonging to different bytes is refused. Signed-in imports upload their
 files before the project record through the usual sync queue.
+Project ids incompatible with the account record id format are refused before any
+storage write. Every imported job is bound to its containing project, so opening it
+cannot write a job into another project named by the archive.
 
 ### Firmware gate, update and backups (Configure: Wiring · Firmware · Backups)
 
