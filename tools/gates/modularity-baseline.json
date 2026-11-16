@@ -789,33 +789,6 @@
     "packages/machine/src/session/probe/stops.ts": {
       "complexity $/FunctionDeclaration:onProbeStop#1": 18
     },
-    "packages/machine/src/session/reducerCore.ts": {
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:enterFault#1": 25,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:finishProbe#1": 17,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:finishReading#1": 25,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:lineFor#1": 32,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onAnswer#1": 87,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onGarbled#1": 31,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onInbound#1": 47,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onIntent#1": 80,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onReportAnswer#1": 30,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onResponse#1": 22,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onTimer#1": 41,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:pump#1": 34,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:reduce#1": 63,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:seedAnswered#1": 16,
-      "complexity $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:withNumber#1": 23,
-      "max-lines $file": 1713,
-      "max-lines-per-function $/FunctionDeclaration:createSessionReducer#1": 1582,
-      "max-lines-per-function $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onAnswer#1": 139,
-      "max-lines-per-function $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onGarbled#1": 86,
-      "max-lines-per-function $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onIntent#1": 120,
-      "max-lines-per-function $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:reduce#1": 88,
-      "max-params $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:enterFault#1": 5,
-      "max-params $/FunctionDeclaration:createSessionReducer#1/ObjectExpression:JOB_DEPS#1/ArrowFunctionExpression:fault#1": 5,
-      "max-params $/FunctionDeclaration:createSessionReducer#1/ObjectExpression:MOTION_DEPS#1/ArrowFunctionExpression:fault#1": 5,
-      "max-switch-cases $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onIntent#1/switch(request.intent)#1": 29
-    },
     "packages/machine/src/session/sessionExecutor.ts": {
       "max-lines $file": 406,
       "max-methods $/ClassDeclaration:SessionExecutor#1": 32
