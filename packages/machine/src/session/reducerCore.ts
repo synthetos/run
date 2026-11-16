@@ -1,3 +1,4 @@
+import { bindFaults } from './reducers/faults.ts';
 import { bindBoot } from './reducers/boot.ts';
 import { bindSettings } from './reducers/settings.ts';
 import { bindReads } from './reducers/reads.ts';
@@ -315,34 +316,6 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
     default:
       t.decide(intent, deny(PHASE_1_NOT_HANDLED.reason, PHASE_1_NOT_HANDLED.remedy, `ROADMAP P1-02 (${t.config.release.name})`));
   }
-}
-
-function onAckFault(t: Tx, matrix: Decision): void {
-  const dialect = dialectOf(t.s);
-  if (t.s.ackVerify !== null) {
-    t.decide('ackFault', deny('The fault is already being verified.', 'Wait for the verification to finish.', 'SAFETY §3 FAULT exits'));
-    return;
-  }
-  if (dialect === null || !VERIFY_TOKENS.every((tok) => isReadAllowed(dialect.id, tok, t.s.identity?.fb))) {
-    t.decide(
-      'ackFault',
-      deny(
-        'This board is not classified, so the session cannot verify that it has stopped and emptied its planner.',
-        'Check the machine is stopped, then disconnect and connect again.',
-        'SAFETY §3 FAULT exits (ackFault cannot complete while hold ≠ 0 or the planner is not empty)',
-      ),
-    );
-    return;
-  }
-  const { ackFaultRefused: _dropped, ...notices } = t.s.notices;
-  t.set({ ackVerify: { round: 0 }, notices, queue: [...VERIFY_TOKENS.map((token) => ({ token, purpose: 'verify' as const })), ...t.s.queue] });
-  t.decide('ackFault', matrix);
-}
-
-function writeFeedhold(t: Tx): void {
-  const byte = dialectOf(t.s)?.realtime.feedhold.byte ?? BYTE.FEEDHOLD;
-  t.set({ sent: { ...t.s.sent, realtime: t.s.sent.realtime + 1 } });
-  t.emit({ kind: 'writeRealtime', epoch: t.s.epoch, name: 'feedhold', byte });
 }
 
 /** Back to NOT_CONNECTED on a new epoch (late events of the old link are ignored). */
@@ -959,40 +932,6 @@ function finishReading(t: Tx): void {
   startSeed(t);
 }
 
-function onVerifyAnswer(t: Tx, token: string, value: number | undefined): void {
-  const verify = t.s.ackVerify;
-  if (verify === null) return;
-  const next = { ...verify, [token]: value };
-  if (value === undefined) {
-    refuseAck(t, `the ${token} read gave no value`);
-    return;
-  }
-  t.set({ ackVerify: next });
-  if (next.hold === undefined || next.qr === undefined) return;
-  const dialect = dialectOf(t.s) as Dialect;
-  if (next.hold !== 0 || next.qr !== dialect.limits.plannerBlocks) {
-    refuseAck(t, `hold is ${next.hold} and the planner has ${next.qr} of ${dialect.limits.plannerBlocks} buffers free: the board has not stopped`);
-    return;
-  }
-  if (next.round === 0) {
-    t.set({ ackVerify: { round: 1 } });
-    t.arm('verify', t.config.timings.verifyIntervalMs);
-    return;
-  }
-  // Verified twice: the fault is acknowledged. Identify the board again from `{sr:null}`; the position is not trusted.
-  t.set({ fault: null, ackVerify: null, base: 'IDENTIFYING', queue: [] });
-  t.removeOverlay('FAULT');
-  t.removeOverlay('READ_ONLY');
-  t.removeOverlay('ORPHANED_MOTION');
-  t.addOverlay('UNKNOWN');
-  startProbe(t, 0, undefined);
-}
-
-function refuseAck(t: Tx, why: string): void {
-  t.cancel('verify');
-  t.set({ ackVerify: null, queue: t.s.queue.filter((q) => q.purpose !== 'verify'), notices: { ...t.s.notices, ackFaultRefused: why } });
-}
-
 function onStatusReport(t: Tx, report: StatusReport, at: number): void {
   mergeLive(t, report.sr);
   // Homing (amendment 2026-11-02): a pushed report says when the cycle may have ended; polled reads confirm it.
@@ -1412,35 +1351,6 @@ function askForLife(t: Tx): 'enq' | 'get' {
   return 'get';
 }
 
-// --- FAULT ------------------------------------------------------------------
-
-function enterFault(t: Tx, cause: FaultCause, kind: FaultKind, detail: string, at: number): void {
-  interruptSettingWrite(t, 'a fault latched');
-  features.abandonLoad?.(t, at, 'a fault latched');
-  forgetBoardModes(t); // N5: what a FAULT (or a reset) left is not known until read again
-  forgetHomed(t); // S1: a reset behind the FAULT may have unhomed the board
-  if (t.s.reports.phase === 'seeding' || t.s.reports.phase === 'configuring' || t.s.reports.phase === 'pending') failReports(t, 'a fault latched');
-  if (t.s.fault === null) t.set({ fault: { cause, kind, detail, at } });
-  // A stop sequence of this session is what failed, or the board reset: no new stop is started for the job.
-  // An `er` during a job comes with a controller alarm on edge-next, which has already flushed and turned the
-  // outputs off (SAFETY §3 effect 3): no flush sequence is sent into an alarm.
-  const jobStopUsable = t.s.motion?.reason !== 'stopJob' && t.s.job?.stopping !== true && cause !== 'stopNotConfirmed' && cause !== 'bannerAfterReady' && cause !== 'writeFailed' && cause !== 'exceptionReport';
-  if (t.s.rxm.step !== null) t.set({ rxm: { ...t.s.rxm, step: null, footerExpect: null, detail: 'a fault latched' } });
-  const wasMoving = (t.s.motion !== null && t.s.motion.phase !== 'held') || t.s.base === 'RUNNING';
-  features.abandonMotion?.(t);
-  features.abandonProbe?.(t, 'fault', at);
-  t.addOverlay('FAULT');
-  t.cancel('verify');
-  // Stop feeding (SAFETY §3 FAULT entry effect 1). Lines already written may still be answered.
-  t.set({ queue: [], ackVerify: null });
-  const live = t.s.live;
-  const moving = wasMoving || (live.vel !== undefined && live.vel !== 0) || (live.machineClass !== undefined && MOTION_CLASSES.has(live.machineClass));
-  // Effect 2: the machine was moving, so hold it.
-  if (moving && allowed(matrixSnapshot(t.s), 'feedhold', t.config.release).allowed) writeFeedhold(t);
-  // Effects 3 and 4 for a job (Phase 3): end it with the flush sequence, at once or after the grace period.
-  features.onJobFault?.(t, kind, detail, at, jobStopUsable);
-}
-
 // --- Writing ----------------------------------------------------------------
 
 /** Writes the next queued read when nothing is in flight and the matrix allows a read now. */
@@ -1543,6 +1453,7 @@ const { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enq
 const { onEnq, writeEnq, onRead } = bindReads(deps);
 const { onSettingsWrite, finishSettingWrite, onGateAnswer, onSettingAnswer, onReadBackAnswer, interruptSettingWrite } = bindSettings(deps);
 const { refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry } = bindBoot(deps);
+const { onAckFault, onVerifyAnswer, refuseAck, enterFault, writeFeedhold } = bindFaults(deps);
 Object.assign(deps, { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, reduce, onJobLineDropped, linkUp, deny, onIntent, onEnq, writeEnq, onRead, settingWriteActive, onSettingsWrite, finishSettingWrite, onGateAnswer, onSettingAnswer, onReadBackAnswer, interruptSettingWrite, refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry, onAckFault, writeFeedhold, resetToNotConnected, onOpened, startProbe, onLineWritten, answerTimeout, onLinkLost, onTimer, onInbound, onBanner, onResponse, isDataEntry, owedAnswers, consumeOwed, answers, onAnswer, advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading, onVerifyAnswer, refuseAck, onStatusReport, onGarbled, isObject, mergeLive, withNumber, startSeed, isSeedOwed, mergeStateValue, onSeedAnswer, seedAnswered, maybeConfigure, reportStepText, failReports, nextReportStep, numberValue, addChange, onReportAnswer, watchdogActive, watchdogMs, syncWatchdog, enterStale, silentWhileBusy, onWatchdog, askForLife, enterFault, pump, lineFor, MOTION_DEPS, JOB_DEPS });
 return { READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, reduce, settingWriteActive, BOOT_LINE, probeRecord, LIVENESS_TOKEN };
 }
