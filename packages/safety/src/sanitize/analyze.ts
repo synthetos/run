@@ -39,12 +39,13 @@ import { canonicalCode, type Word } from './lex.ts';
 
 import type { Axis, SanitizeOptions, Wcs } from './types.ts';
 
-import { extendByArc, extendTo, extentAt } from './extent.ts';
+import { extendByArc, extentAt } from './extent.ts';
 
 import { chargeJointResidual, jointRiskFinding, linearModeFinding, modeOf, rotaryUnknown, withJointResidual } from './analyze/axisModes.ts';
 import { ModelState } from './analyze/context.ts';
 import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
 import { initialize } from './analyze/initialize.ts';
+import { forget, forgetLinear, modelDelta, moveBy, planeMagnitude } from './analyze/motionPosition.ts';
 import { appliedTool, g92Part, g92PartUnc, offsetUnc, selectWcs, setG92, shift, totalOffset, workAfterSet } from './analyze/offsets.ts';
 import { exactUnc, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
 import { AFTER_MOTION, ARC_LETTERS, AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
@@ -293,40 +294,15 @@ export class JobModel extends ModelState {
 
 
   /** Moves by known deltas: both positions follow, unknowns stay unknown. The caller settles the bounds (`#settle`). */
-  #moveBy(delta: Readonly<Partial<Record<Axis, number>>>): void {
-    for (const a of AXES) {
-      const d = delta[a];
-      if (d === undefined) continue;
-      const m = this.machine[a];
-      const w = this.work[a];
-      this.machine[a] = m === null ? null : m + d;
-      this.work[a] = w === null ? null : w + d;
-    }
-    this._extent = extendTo(this._extent, this.machine);
-  }
+  #moveBy(delta: Readonly<Partial<Record<Axis, number>>>): void { return moveBy(this, delta); }
 
 
   /** Forgets the positions of the axes these words name. */
-  #forget(axisWords: readonly Word[]): void {
-    for (const w of axisWords) {
-      this.work[w.letter as Axis] = null;
-      this.machine[w.letter as Axis] = null;
-      this.uWork[w.letter as Axis] = Infinity;
-      this.uMachine[w.letter as Axis] = Infinity;
-    }
-  }
+  #forget(axisWords: readonly Word[]): void { return forget(this, axisWords); }
 
 
   /** Forgets X, Y and Z (an arc that could not be modelled may have moved any of them). */
-  #forgetLinear(): void {
-    for (const a of AXES) {
-      if (ROTARY.has(a)) continue;
-      this.work[a] = null;
-      this.machine[a] = null;
-      this.uWork[a] = Infinity;
-      this.uMachine[a] = Infinity;
-    }
-  }
+  #forgetLinear(): void { return forgetLinear(this); }
 
 
   /**
@@ -335,15 +311,7 @@ export class JobModel extends ModelState {
    * or null when a machine coordinate is unknown. It sizes the float32
    * rounding band of an arc (geometry.ts `positionErrorMm`).
    */
-  #planeMagnitude(axes: readonly Axis[]): number | null {
-    let max = 0;
-    for (const a of axes) {
-      const m = this.machine[a];
-      if (m === null) return null;
-      max = Math.max(max, Math.abs(m) + this.uMachine[a], Math.abs(this.work[a] ?? 0), Math.abs(this.totalOffset(a) ?? 0));
-    }
-    return max;
-  }
+  #planeMagnitude(axes: readonly Axis[]): number | null { return planeMagnitude(this, axes); }
 
 
   /** Commanded outputs at this point (SAFETY H48). */
@@ -834,13 +802,7 @@ export class JobModel extends ModelState {
 
 
   /** The delta (mm or degrees) an axis word asks for, or null when it depends on something unknown. */
-  #delta(axis: Axis, value: number, units: 'G20' | 'G21' | null, distance: 'G90' | 'G91' | null): number | null {
-    const sc = this.#scale(axis, units);
-    if (sc === null || distance === null) return null;
-    if (distance === 'G91') return value * sc;
-    const w = this.work[axis];
-    return w === null ? null : value * sc - w;
-  }
+  #delta(axis: Axis, value: number, units: 'G20' | 'G21' | null, distance: 'G90' | 'G91' | null): number | null { return modelDelta(this, axis, value, units, distance); }
 
 
   /** G0/G1, optionally under G53. */
