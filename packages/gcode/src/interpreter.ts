@@ -40,21 +40,11 @@ import { FrameRecorder, emptyFrames } from './frames.ts';
 
 import { codeOf, parseLine } from './parser.ts';
 
+import { DEFAULT_VERTEX_CAP, MM_PER_INCH, PLANE_INDEX, ROTARY } from './interpreter/constants.ts';
 import { type Emitted, type Motion, type Piece, type Pos } from './interpreter/contract.ts';
 import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis, type TimingModel } from './types.ts';
+export { DEFAULT_VERTEX_CAP } from './interpreter/constants.ts';
 
-
-
-/** TOOLS_PLAN §6.2: total vertex cap before arcs are coarsened. */
-export const DEFAULT_VERTEX_CAP = 20_000_000;
-
-
-const ROTARY: ReadonlySet<Axis> = new Set<Axis>(['A', 'B', 'C']);
-
-/** The arc plane's index in the event tape (events.ts). */
-const PLANE_INDEX: Readonly<Record<Plane, number>> = { G17: 0, G18: 1, G19: 2 };
-
-const MM_PER_INCH = 25.4;
 
 
 const zero = (): Pos => ({ X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 });
