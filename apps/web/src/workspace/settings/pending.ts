@@ -5,7 +5,7 @@
  * whether the settings controls are enabled.
  *
  * The controls are enabled only when the settings-write phase switch is on
- * in this worker (bench and staging), the board is approved (not READ_ONLY),
+ * for this worker's origin, the board is approved (not READ_ONLY),
  * no overlay but NEEDS_REVIEW is active, the board is identified and read,
  * and it reports itself idle with nothing moving or held. The machine
  * session checks all of this again, with fresh polled reads, before every
@@ -14,6 +14,8 @@
 import { isForbiddenKey, planSettingsWrite, settingsSchemaFor, type SettingsPlan } from '@synthetos/schema';
 import { connected, type LiveView } from '../model.ts';
 import { draftStore } from '../boardFacts.ts';
+
+export const SETTINGS_WRITES_UNAVAILABLE = 'Changing settings is not turned on for this origin.';
 
 /** True when `key` can be edited on this dialect: a reviewed overlay entry and not a forbidden write. */
 export function writableKey(key: string, dialect: string | null): boolean {
@@ -39,7 +41,7 @@ const OVERLAY_WORDS: Readonly<Record<string, string>> = {
 export function settingsWriteBlocked(view: LiveView | null): string | null {
   const m = view?.message ?? null;
   if (view === null || m === null || !connected(view)) return 'Connect a board to change its settings.';
-  if (m.settingsWrites !== true) return 'Changing settings is not turned on for this origin.';
+  if (m.settingsWrites !== true) return SETTINGS_WRITES_UNAVAILABLE;
   const s = m.snapshot;
   for (const o of ['LOST', 'FAULT', 'ORPHANED_MOTION', 'UNKNOWN', 'STALE'] as const) if (s.overlays.includes(o)) return OVERLAY_WORDS[o] as string;
   if (s.classification === null || s.base === 'IDENTIFYING' || s.base === 'READING') return 'Wait until the board is identified and read.';

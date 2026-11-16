@@ -28,7 +28,7 @@ import { restoreChanges, type PlannedChange, type RestoreChanges, type SettingVa
 import { draftStore, plainValue, setDraft, clearDraft, settingMeta } from '../boardFacts.ts';
 import type { LiveView, WorkspaceModel } from '../model.ts';
 import type { ApplyState, ApplyStep } from '../../live/settingsApply.ts';
-import { pendingPlan, settingsWriteBlocked, writableKey } from './pending.ts';
+import { pendingPlan, SETTINGS_WRITES_UNAVAILABLE, settingsWriteBlocked, writableKey } from './pending.ts';
 
 type Settings = Readonly<Record<string, SettingValue>>;
 
@@ -36,7 +36,7 @@ type Settings = Readonly<Record<string, SettingValue>>;
 export function editBlocked(view: LiveView | null): string | null {
   const m = view?.message ?? null;
   if (m === null || m.snapshot.base === 'NOT_CONNECTED') return 'Connect a board to change its settings.';
-  if (m.settingsWrites !== true) return 'Changing settings is not turned on in this build.';
+  if (m.settingsWrites !== true) return SETTINGS_WRITES_UNAVAILABLE;
   if (Object.keys(view?.readout.settings ?? {}).length === 0) return 'Wait for the settings read to finish.';
   return null;
 }

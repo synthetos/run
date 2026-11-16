@@ -14,7 +14,7 @@ import type { BackupFile } from '../src/live/backup.ts';
 import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveView } from '../src/workspace/model.ts';
 import { clearDraft, draftStore, setDraft } from '../src/workspace/boardFacts.ts';
 import { pendingPlan, settingsWriteBlocked, writableKey } from '../src/workspace/settings/pending.ts';
-import { ApplyConfirm, PendingTray, SettingsTable, stageRestore } from '../src/workspace/settings/SettingsUi.ts';
+import { ApplyConfirm, editBlocked, PendingTray, SettingsTable, stageRestore } from '../src/workspace/settings/SettingsUi.ts';
 
 type Snapshot = NonNullable<LiveView['message']>['snapshot'];
 type SettingWrite = NonNullable<Snapshot['settingWrite']>;
@@ -223,7 +223,7 @@ describe('the apply sequencer', () => {
 describe('the settings controls gate (enabled only with the phase switch on and the machine idle)', () => {
   it('blocks with plain words for every state that is not an approved, idle, read board', () => {
     expect(settingsWriteBlocked(null)).toMatch(/Connect a board/);
-    expect(settingsWriteBlocked(view(snap(), false))).toMatch(/not turned on in this build/);
+    for (const blocked of [settingsWriteBlocked, editBlocked]) expect(blocked(view(snap(), false))).toBe('Changing settings is not turned on for this origin.');
     expect(settingsWriteBlocked(view(snap({ overlays: ['READ_ONLY'], classification: { dialectId: 'tinyg-en', mode: 'readOnly', reason: 'en-not-approved', detail: '', upgradeOffer: false } } as Partial<Snapshot>)))).toMatch(/read-only/);
     expect(settingsWriteBlocked(view(snap({ overlays: ['ORPHANED_MOTION'] } as Partial<Snapshot>)))).toMatch(/motion left/);
     expect(settingsWriteBlocked(view(snap({ overlays: ['FAULT'] } as Partial<Snapshot>)))).toMatch(/fault/);
