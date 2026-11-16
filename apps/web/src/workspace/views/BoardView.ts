@@ -40,16 +40,12 @@ import { BackupsHub, FirmwareTab } from './FirmwareViews.ts';
 
 
 import {
-    dialectOf,
-    draftStore,
-    plainValue,
-    settingMeta,
-    settingsOf
+    draftStore
 } from '../boardFacts.ts';
 
 
 
-import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
+import { type WorkspaceModel } from '../model.ts';
 
 
 import { TabBar, TabPane } from '../ui.ts';
@@ -60,11 +56,11 @@ import { uiLevel } from '../jobWorkflow.ts';
 
 import { GuidedSettings } from '../settings/GuidedSettings.ts';
 import { AxesTab } from './board/axes.ts';
+import { CommsTab } from './board/comms.ts';
 import { InputsTab } from './board/inputs.ts';
 import { MotorsTab } from './board/motors.ts';
 import { OutputsTab } from './board/outputs.ts';
 import { OverviewTab } from './board/overview.ts';
-import { Empty } from './board/shared.ts';
 
 
 // Firmware and Backups (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09): the Firmware tab (the Update panel, then
@@ -72,32 +68,6 @@ import { Empty } from './board/shared.ts';
 export { MotorDraft } from './board/motorDraft.ts';
 export { FirmwareTab } from './FirmwareViews.ts';
 
-
-
-function CommsTab({ view }: { readonly view: LiveView | null }): ComponentChild {
-  const settings = settingsOf(view);
-  const dialect = dialectOf(view);
-  const srList = view !== null && connected(view) ? view.message?.snapshot.live.srList : undefined;
-  if (settings['ej'] === undefined && srList === undefined) return h('div', { class: 'scroll-region' }, h(Empty, { view }));
-  return h(
-    'div',
-    { tabindex: 0, class: 'scroll-region cfg-scroll' },
-    h(
-      'section',
-      { class: 'cfg-section' },
-      h('h3', { class: 'tan-label' }, 'Serial link'),
-      h('dl', { class: 'facts inline-facts' }, ...['baud', 'ex', 'ec', 'ee', 'ej', 'jv', 'js', 'tv', 'qv', 'sv', 'si', 'rxm'].filter((k) => settings[k] !== undefined).map((k) => h('div', { key: k }, h('dt', null, settingMeta(k, dialect).label, h('small', { class: 'raw-key' }, k)), h('dd', null, `${plainValue(k, settings[k], dialect) ?? 'Not read'}${k === 'si' ? ' ms' : ''}`)))),
-      h(Dismissable, { id: 'board/comms-read-only', label: 'the communication settings note', inNotes: false }, h('p', { class: 'fine' }, 'Read-only communication settings. Changing them can prevent senders from connecting.')),
-    ),
-    h(
-      'section',
-      { class: 'cfg-section' },
-      h('h3', { class: 'tan-label' }, 'Status report list'),
-      srList === undefined ? h('p', { class: 'fine' }, 'Read when the board answers the first status request.') : h('ul', { class: 'key-chips', 'aria-label': 'Fields in the status report' }, srList.map((k) => h('li', { key: k }, settingMeta(k, dialect).label, h('code', { class: 'raw-key' }, k)))),
-      h(Dismissable, { id: 'board/sr-list', label: 'the status report list note', inNotes: false }, h('p', { class: 'fine' }, 'Fields reported by this board. Read only.')),
-    ),
-  );
-}
 
 
 function SettingsTab({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
