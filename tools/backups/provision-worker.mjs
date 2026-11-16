@@ -15,7 +15,7 @@ export async function provisionWorker(environment, account, d1, r2, lookup = d1 
   if (REPO === 'accounts') await provisionBucket(r2); else await assertPrivate(r2);
   const scratchName = template.d1_databases.find(d => d.binding === 'SCRATCH').database_name;
   const scratch = await databaseId(d1, scratchName, true);
-  return workerConfig(environment, ids, scratch, account);
+  return workerConfig(environment, ids, scratch, { account, files: await filesPresent(r2, environment) });
 }
 export async function runProvision(environment, env = process.env, fetcher = fetch) {
   if (env.GITHUB_ACTIONS !== 'true' || env.GITHUB_REF !== 'refs/heads/main' || env.GITHUB_EVENT_NAME !== 'push') throw new Error('Backup provisioning requires the gated main deploy');
@@ -40,3 +40,11 @@ export async function runProvision(environment, env = process.env, fetcher = fet
   process.stdout.write('Private backup resources and exact deployment bindings ready.\n');
 }
 if (process.argv[1]?.endsWith('/backups/provision-worker.mjs')) runProvision(process.argv[2]).catch(error => { process.stderr.write((/^(Missing credential:|Credential requires)/.test(error.message) ? error.message : 'Backup provisioning failed; check existing D1/R2 token permissions and reviewed resources.') + '\n'); process.exitCode = 1; });
+
+async function filesPresent(r2, environment) {
+  const name = `run-files${environment === 'staging' ? '-staging' : ''}`;
+  const found = await r2(`r2/buckets/${name}`, 'GET', undefined, true);
+  if (found !== null && found.result?.name !== name) throw new Error('Invalid source files bucket lookup');
+  if (found === null) process.stdout.write(`Files backup skipped: ${name} does not exist yet.\n`);
+  return found !== null;
+}

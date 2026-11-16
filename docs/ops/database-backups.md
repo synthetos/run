@@ -36,13 +36,62 @@ differ. No source writes are issued by the cron path. Run-data is listed alongsi
 reviewed templates. Provisioning, exact gates and the cron consume that same list;
 no new credential or separate database backup engine is needed.
 
-**File bytes are not yet backed up.** The existing backup Worker can dump D1 SQL to
-R2, but has no source-file bucket binding, object listing/pagination or streaming
-copy path. A nightly run-files → backup-bucket copy needs that new Worker capability,
-including environment isolation, bounded/resumable copying, retention and restore
-verification. It is explicitly outstanding; a successful run-data SQL backup protects
-metadata and references, not the referenced images/G-code. Do not treat database
-backup success as a file-byte recovery guarantee.
+**File bytes are copied nightly** by the same run-backup cron (07:50 UTC production,
+07:35 UTC staging), from the first night after deployment with the source bucket.
+Provisioning optionally binds `SOURCE_FILES` to `run-files` or `run-files-staging`.
+A missing bucket is logged and skipped; permission/lookup failures remain errors.
+No source bucket is created by backup provisioning. The source binding is read-only
+**by code**, not an R2 permission boundary: its interface exposes only list/head/get.
+There are no source writes or deletes, and no delete operation on the destination.
+D1 and file-copy results are logged separately; a database failure still allows the
+file-copy attempt and a file failure marks the invocation failed.
+
+### File copy, checkpoints and retention
+
+Production copies use `files/<original-key>` in `synthetos-db-backups`; staging uses
+`staging/files/<original-key>`. Original account-file keys are
+`u/<user-id>/<sha256>-<upload-token>`. The copy preserves them, including the token
+needed to reconcile restored database rows. It compares source etag and size with
+saved destination metadata, skipping unchanged objects and replacing a changed
+version at the same backup key using a conditional put. These are current object
+copies, not a version history of an overwritten key. Normal account uploads use
+immutable content-addressed keys with a new upload token.
+
+R2's binding API has no server-side CopyObject operation, so the Worker passes the
+R2 body stream directly to the destination without buffering the object. R2 checks
+the SHA-256 from a content-addressed key during the put; zero-byte files use an empty
+byte array. See the [R2 Workers API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/).
+
+Each trigger checks at most 40 source objects, with pages of at most 10 and a 200 MiB
+copy-byte budget (reserving room for one maximum-sized object). Each object is at
+most 50 MiB. A two-minute soft deadline is checked between operations; an in-flight
+object operation can finish after it. Backup inventory uses at most 20 pages of 500
+keys per trigger. The files path uses fewer than 250 R2 operations with these budgets,
+in addition to the existing D1 archive work. Monthly verification reads at most five
+50 MiB samples, streamed separately; it does not consume the copy-byte budget.
+
+The small `backup-state/run-files.json` record (under `staging/` for staging)
+checkpoints each completed source and inventory page. If a run dies mid-page, the
+next trigger replays that page and skips already committed copies. Failed pages
+are never advanced. Monthly verification checkpoints each verified sample. A
+completed scan restarts on the next trigger, so keys added behind a listing cursor
+are discovered on the next scan. A large backlog can take several nights; this is
+not an atomic bucket/database snapshot or a guarantee that every new object reaches
+the backup on its first night.
+
+File-copy logs contain `sourceObjects`, `backupObjects`, `copied`, `skipped`, `failed`,
+`bytes`, elapsed time and restore status. Counts are cumulative for their respective
+current scan; `sourceComplete` / `backupComplete` distinguish a completed count from
+a partial one. Source and backup scans can finish on different triggers. A `partial`
+status means another trigger is needed, not that a complete snapshot exists. Failed
+runs emit a sanitized summary and throw. Counts on failure may be partial or unknown.
+
+Source deletion never deletes a saved copy. The current bucket lifecycle deletes
+`staging/` objects after seven days; that includes staging files and its cursor.
+Production's 30-day rules apply only to `accounts/` and `run/` SQL archives.
+**Production `files/` currently has no automatic expiry** and grows until an explicit
+owner-reviewed retention policy is added. This slice does not change bucket lifecycle
+rules. Zeus retains cold copies indefinitely, never overwriting or deleting them.
 
 Accounts provisions `synthetos-db-backups` idempotently during deploy, with no public
 r2.dev access or custom domain. Existing public configuration fails closed. It
@@ -106,6 +155,16 @@ parser handles this restore and protected CI recovery. Cleanup runs in finally,
 including partial imports and count failures. Runner termination or an API outage
 can prevent cleanup; verify the next successful monthly cleanup or recover through
 an owner-reviewed CI operation. Scratch must not host unrelated data.
+
+On UTC day 1, the files job marks a restore check due. It keeps a reservoir sample
+of up to five random backup objects across the paginated inventory, then reads each
+sample back, counts bytes and checks the SHA-256 embedded in the key where present.
+Hashing uses [Workers DigestStream](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/),
+so samples are not buffered whole. Corrupt or missing bytes fail the invocation.
+If inventory or verification exceeds the budget, the pending check resumes on a
+later trigger; pending verification is attempted before new copying. Sampling is
+recovery evidence, not a checksum sweep of every object. It does not restore objects
+into the live files bucket.
 
 Each database emits one structured JSON log with database, object key, byte count,
 rows per table, elapsedMs, consistency and restore result. Failure logs report only
@@ -190,12 +249,12 @@ either recovery path. Production restoration is never scheduled automatically.
 
 ## Zeus cold storage
 
-The installed script is committed verbatim in run at
+The updated pull script is committed in run at
 `tools/backups/zeus-db-pull.sh`. Zeus (`192.168.1.221`) pulls nightly at **03:30
 America/New_York** into `/mnt/storage/coldstorage/synthetos-db/`, preserving bucket
 paths and skipping `staging/`. It never deletes or overwrites cold copies.
 The log is `/mnt/storage/coldstorage/synthetos-db/pull.log`; rclone errors go to
-`rclone-errors.log` beside it. No installation or schedule changes are needed.
+`rclone-errors.log` beside it. Install the updated script on Zeus through the existing owner-managed process; no schedule change is needed. This code change does not update the installed NAS copy.
 
 The owner creates an R2 API token with **Object Read only**, **Apply to specific
 buckets only**, selecting only `synthetos-db-backups`. Write its credentials as an
@@ -206,7 +265,7 @@ S3 credential, not the CI Cloudflare REST token. See
 [R2 token permissions](https://developers.cloudflare.com/r2/api/tokens/).
 
 Until that config exists, the installed script logs “not configured” and exits
-successfully. Once configured, it copies new objects, verifies each new archive
+successfully. Once configured, it copies new SQL archives and `files/` objects (skipping cursor metadata), verifies each new archive and each content-addressed file against its key digest,
 and records verified paths in `.verified`. Already verified files are retained
 without rechecking on every pull. An overlapping pull is skipped under a lock.
 Missing checksums or mismatches fail the pull; monitor its exit status and log.
@@ -218,3 +277,22 @@ the cold copy. An interrupted two-object upload may need a later pull once its
 checksum arrives; investigate mismatches rather than replacing a cold copy.
 Minute-granularity archive keys refuse same-minute retries rather than overwriting
 an earlier archive; wait for the prior job to finish and the minute to change.
+
+## Recovering account file bytes
+
+Keep application writes stopped while reconciling a run-data SQL recovery. For each
+ready file row, find `files/u/<user-id>/<sha256>-<token>` (or the staging equivalent)
+and verify its size and SHA-256 before copying it back to the same original key in
+the environment's private source bucket. Use a separately owner-reviewed recovery
+operation with existing approved credentials; this slice adds no public restore
+endpoint or automatic live-bucket writes. Check every file referenced by restored
+projects before reopening writes. A row whose bytes never reached backup cannot
+be recovered by restoring SQL alone. Retained orphan objects can be left in backup.
+
+If the R2 copy is missing, look for the identical key in Zeus cold storage. The NAS
+credential is read-only and cannot upload; restoration requires the owner-reviewed
+write path. Zeus's never-overwrite rule retains the first cold copy if an R2 key is
+later replaced. Validate that cold content against the desired row; never silently
+replace a mismatched cold copy. For a damaged cursor, investigate logs first, then
+reset only that environment's cursor via an owner-reviewed operation to restart
+scanning; replay is safe and does not delete existing copies.

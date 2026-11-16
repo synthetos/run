@@ -7,7 +7,7 @@ import { LIFECYCLE } from '../bucket.mjs';
 test('provisions only scratch, preserves source, and pins every private binding', async () => {
   const source = '11111111-2222-4333-8444-555555555555', scratch = '66666666-7777-4888-9999-aaaaaaaaaaaa';
   const calls = [];
-  const r2 = async path => ({ result: path.endsWith('/managed') ? { enabled: false } : path.endsWith('/custom') ? { domains: [] } : path.endsWith('/lifecycle') ? LIFECYCLE : {} });
+  const r2 = async path => /^r2\/buckets\/run-files(?:-staging)?$/.test(path) ? null : ({ result: path.endsWith('/managed') ? { enabled: false } : path.endsWith('/custom') ? { domains: [] } : path.endsWith('/lifecycle') ? LIFECYCLE : {} });
   const d1 = async (path, method = 'GET', body) => {
     calls.push([path, method, body]);
     if (method === 'POST') { assert.equal(body.name, `restore-test-${REPO}`); return { result: { uuid: scratch } }; }
@@ -74,6 +74,7 @@ test('existing resources publish ready=true and the unchanged exact config', () 
     const code = `import { runProvision } from ${JSON.stringify(new URL('../provision-worker.mjs', import.meta.url).href)};
       await runProvision('production', ${JSON.stringify(env)}, async (url, options) => {
         if (options.method !== 'GET') throw new Error('Unexpected mutation');
+        if (url.endsWith('/r2/buckets/run-files')) return new Response('', { status: 404 });
         const result = url.includes('/d1/database?') ? ${JSON.stringify(list)} : url.endsWith('/managed') ? { enabled: false } : url.endsWith('/custom') ? { domains: [] } : url.endsWith('/lifecycle') ? ${JSON.stringify(LIFECYCLE)} : {};
         return new Response(JSON.stringify({ success: true, result }));
       });`;
@@ -91,10 +92,28 @@ test('includes run-data in each environment when it exists, without creating sou
   for (const environment of ['production', 'staging']) {
     const suffix = environment === 'staging' ? '-staging' : '';
     const d1 = async (_path, method = 'GET') => { assert.equal(method, 'GET'); return { result: [{ name: `run-auth${suffix}`, uuid: auth }, { name: `run-data${suffix}`, uuid: data }, { name: `restore-test-run${suffix}`, uuid: scratch }] }; };
-    const r2 = async path => ({ result: path.endsWith('/managed') ? { enabled: false } : path.endsWith('/custom') ? { domains: [] } : {} });
+    const r2 = async path => /^r2\/buckets\/run-files(?:-staging)?$/.test(path) ? null : ({ result: path.endsWith('/managed') ? { enabled: false } : path.endsWith('/custom') ? { domains: [] } : {} });
     const config = await provisionWorker(environment, 'a'.repeat(32), d1, r2);
     assert.equal(checkBackupConfig(config, environment), true);
     assert.deepEqual(config.d1_databases.map(d => [d.binding, d.database_name, d.database_id]), [['SOURCE', `run-auth${suffix}`, auth], ['SOURCE_DATA', `run-data${suffix}`, data], ['SCRATCH', `restore-test-run${suffix}`, scratch]]);
     assert.throws(() => workerConfig(environment, { SOURCE: auth, SOURCE_DATA: data }, data), /differ/);
+  }
+});
+
+test('files source is optional, read from the matching environment and never provisioned here', async () => {
+  const auth = '11111111-2222-4333-8444-555555555555', scratch = '66666666-7777-4888-9999-aaaaaaaaaaaa';
+  for (const environment of ['production', 'staging']) {
+    const suffix = environment === 'staging' ? '-staging' : '';
+    const d1 = async () => ({ result: [{ name: `run-auth${suffix}`, uuid: auth }, { name: `restore-test-run${suffix}`, uuid: scratch }] });
+    const r2 = async (path, method = 'GET', _body, missing) => {
+      assert.equal(method, 'GET');
+      if (path === `r2/buckets/run-files${suffix}`) { assert.equal(missing, true); return { result: { name: `run-files${suffix}` } }; }
+      return { result: path.endsWith('/managed') ? { enabled: false } : { domains: [] } };
+    };
+    const config = await provisionWorker(environment, 'a'.repeat(32), d1, r2);
+    assert.deepEqual(config.r2_buckets, [{ binding: 'BACKUPS', bucket_name: 'synthetos-db-backups' }, { binding: 'SOURCE_FILES', bucket_name: `run-files${suffix}` }]);
+    assert.ok(checkBackupConfig(config));
+    const wrong = structuredClone(config); wrong.r2_buckets[1].bucket_name = `run-files${suffix ? '' : '-staging'}`;
+    assert.equal(checkBackupConfig(wrong), false);
   }
 });

@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { pack } from '../archive.mjs';
 test('installed Zeus script skips staging, verifies new archives and retains cold copies without logging keys', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'zeus-test-'));
@@ -24,6 +25,16 @@ test('installed Zeus script skips staging, verifies new archives and retains col
     const archive = join(root, 'run', 'old.sql.gz'); await writeFile(archive, bytes); await writeFile(`${archive}.sha256`, `${hash}  old.sql.gz\n`);
     execFileSync('sh', [join(dir, 'pull.sh')], options);
     assert.deepEqual(await readFile(archive), bytes);
+    const fileBytes = Buffer.from('account file bytes'), digest = createHash('sha256').update(fileBytes).digest('hex');
+    const fileDirectory = join(root, 'files', 'u', 'example'); await mkdir(fileDirectory, { recursive: true });
+    const file = join(fileDirectory, `${digest}-token`); await writeFile(file, fileBytes);
+    execFileSync('sh', [join(dir, 'pull.sh')], options);
+    assert.ok((await readFile(join(root, '.verified'), 'utf8')).includes(file));
+    execFileSync('sh', [join(dir, 'pull.sh')], options);
+    assert.deepEqual(await readFile(file), fileBytes);
+    const corrupt = join(fileDirectory, `${'1'.repeat(64)}-other`); await writeFile(corrupt, 'bad');
+    assert.throws(() => execFileSync('sh', [join(dir, 'pull.sh')], options));
+    await rm(corrupt);
     const badArchive = join(root, 'run', 'new.sql.gz');
     await writeFile(badArchive, bytes);
     await writeFile(`${badArchive}.sha256`, `${'0'.repeat(64)}  new.sql.gz\n`);

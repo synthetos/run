@@ -38,6 +38,10 @@
     {
       "binding": "BACKUPS",
       "bucket_name": "synthetos-db-backups"
+    },
+    {
+      "binding": "SOURCE_FILES",
+      "bucket_name": "run-files-staging"
     }
   ],
   "find_additional_modules": true,

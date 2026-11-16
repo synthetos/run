@@ -88,7 +88,7 @@ test('the deployed cron backs up both auth and data through the same restore-tes
     data.db.exec('CREATE TABLE files_test(id INTEGER); INSERT INTO files_test VALUES(2);');
     console.log = line => logs.push(JSON.parse(line));
     await worker.scheduled({ scheduledTime: Date.parse('2026-12-01T07:50:00Z') }, { SOURCE: auth, SOURCE_DATA: data, SCRATCH: scratch, BACKUPS: objects, BACKUP_ENV: 'production' });
-    assert.deepEqual(logs.map(l => [l.database, l.status, l.restore]), [['run-auth', 'ok', 'passed-and-emptied'], ['run-data', 'ok', 'passed-and-emptied']]);
+    assert.deepEqual(logs.filter(l => l.database).map(l => [l.database, l.status, l.restore]), [['run-auth', 'ok', 'passed-and-emptied'], ['run-data', 'ok', 'passed-and-emptied']]);
     assert.ok([...objects.values.keys()].some(key => key.includes('/run-data/')));
     assert.equal(data.db.prepare('SELECT id FROM files_test').get().id, 2);
   } finally { console.log = original; auth.db.close(); data.db.close(); scratch.db.close(); }

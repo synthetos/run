@@ -1,7 +1,8 @@
 import { SOURCES } from '../../workers/backup/src/sources.ts';
 import { REPO } from './config.mjs';
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
-export function workerConfig(environment, source, scratch, account) {
+export function workerConfig(environment, source, scratch, options) {
+  const { account, files } = configOptions(options);
   if (!['staging', 'production'].includes(environment)) throw new Error('Invalid backup environment');
   const sourceIds = typeof source === 'string' ? { SOURCE: source } : source;
   const sources = SOURCES.filter(s => !s.optional || sourceIds[s.binding] !== undefined);
@@ -15,7 +16,7 @@ export function workerConfig(environment, source, scratch, account) {
     observability: { enabled: true, head_sampling_rate: 1 }, triggers: { crons: [`${(REPO === 'accounts' ? 45 : 50) - (environment === 'staging' ? 15 : 0)} 7 * * *`] },
     vars: { BACKUP_ENV: environment },
     d1_databases: [...sources.map(s => ({ binding: s.binding, database_name: s.database + suffix, database_id: sourceIds[s.binding] })), { binding: 'SCRATCH', database_name: `restore-test-${REPO}${suffix}`, database_id: scratch }],
-    r2_buckets: [{ binding: 'BACKUPS', bucket_name: 'synthetos-db-backups' }],
+    r2_buckets: buckets(suffix, files),
     find_additional_modules: true, rules: [{ type: 'ESModule', globs: [REPO === 'run' ? '**/*.mjs' : '**/*.js'] }],
   };
 }
@@ -24,7 +25,14 @@ export function checkBackupConfig(config, environment) {
   try {
     if (environment !== undefined && config.vars.BACKUP_ENV !== environment) return false;
     const ids = Object.fromEntries(config.d1_databases.filter(d => d.binding !== 'SCRATCH').map(d => [d.binding, d.database_id]));
-    const expected = workerConfig(config.vars.BACKUP_ENV, ids, config.d1_databases.find(d => d.binding === 'SCRATCH').database_id, config.account_id);
+    const expected = workerConfig(config.vars.BACKUP_ENV, ids, config.d1_databases.find(d => d.binding === 'SCRATCH').database_id, { account: config.account_id, files: config.r2_buckets.some(b => b.binding === 'SOURCE_FILES') });
     return JSON.stringify(ordered(config)) === JSON.stringify(ordered(expected));
   } catch { return false; }
+}
+
+function configOptions(options = {}) {
+  return typeof options === 'string' ? { account: options, files: false } : { account: options.account, files: options.files === true };
+}
+function buckets(suffix, files) {
+  return [{ binding: 'BACKUPS', bucket_name: 'synthetos-db-backups' }, ...(files ? [{ binding: 'SOURCE_FILES', bucket_name: `run-files${suffix}` }] : [])];
 }

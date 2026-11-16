@@ -55,3 +55,14 @@ it('site undo depends only on site failure; backup failures get their own summar
   expect(checkWorkflow('ci.yml', source.replace(production, production.replace("steps.deploy.outcome == 'success' && ", '')))).not.toEqual([]);
   expect(checkWorkflow('ci.yml', source.replace('id: site_smoke', 'id: wrong'))).not.toEqual([]);
 });
+
+it('nightly files backup binds only its environment source and keeps the reviewed cron', () => {
+  for (const environment of ['staging', 'production']) {
+    const file = `workers/backup/wrangler.${environment}.json`;
+    const config = JSON.parse(readFileSync(join(REPO_ROOT, file), 'utf8')) as { r2_buckets: { binding: string; bucket_name: string }[]; triggers: { crons: string[] } };
+    expect(config.r2_buckets.find(b => b.binding === 'SOURCE_FILES')?.bucket_name).toBe(environment === 'staging' ? 'run-files-staging' : 'run-files');
+    expect(config.triggers.crons).toEqual([environment === 'staging' ? '35 7 * * *' : '50 7 * * *']);
+    config.r2_buckets.find(b => b.binding === 'SOURCE_FILES')!.bucket_name = environment === 'staging' ? 'run-files' : 'run-files-staging';
+    expect(checkWranglerFile(file, JSON.stringify(config))).not.toEqual([]);
+  }
+});
