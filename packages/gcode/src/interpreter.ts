@@ -47,7 +47,8 @@ import { initializeInterpreter } from './interpreter/initialize.ts';
 import { programEnd } from './interpreter/outputs.ts';
 import { ruleBlocks } from './interpreter/rules.ts';
 import { InterpreterState } from './interpreter/state.ts';
-import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis, type TimingModel } from './types.ts';
+import { estimateTime } from './interpreter/timing.ts';
+import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis } from './types.ts';
 export { DEFAULT_VERTEX_CAP } from './interpreter/constants.ts';
 
 
@@ -672,43 +673,5 @@ class Interpreter extends InterpreterState {
 
 
   /** Adds a move's estimated duration (trapezoid, starting and ending at rest; an estimate only). */
-  time(len: number, to: Pos, rapid: boolean): void {
-    if (len === 0 || this.seconds === null) return;
-    const timing: TimingModel | undefined = this.options.timing;
-    if (timing === undefined) {
-      this.seconds = null;
-      return;
-    }
-    const limits = rapid ? timing.maxVelocity : timing.feedrateMax;
-    let v = rapid ? Infinity : this.feed ?? NaN;
-    let j = Infinity;
-    for (const a of AXES) {
-      const d = Math.abs(to[a] - this.machine[a]);
-      if (d === 0) continue;
-      const lim = limits[a];
-      if (lim === undefined) {
-        this.seconds = null;
-        return;
-      }
-      v = Math.min(v, (lim * len) / d);
-      const jm = timing.jerk?.[a];
-      if (jm !== undefined) j = Math.min(j, (jm * len) / d);
-    }
-    if (!(v > 0)) {
-      this.seconds = null;
-      return;
-    }
-    let minutes: number;
-    if (j === Infinity) minutes = len / v;
-    else {
-      // Constant-jerk ramp from rest to v takes 2√(v/j) and covers v·√(v/j); two ramps per move.
-      const ramp = v * Math.sqrt(v / j);
-      if (2 * ramp <= len) minutes = 4 * Math.sqrt(v / j) + (len - 2 * ramp) / v;
-      else {
-        const peak = Math.cbrt(((len * Math.sqrt(j)) / 2) ** 2);
-        minutes = 4 * Math.sqrt(peak / j);
-      }
-    }
-    this.seconds += minutes * 60;
-  }
+  time(len: number, to: Pos, rapid: boolean): void { return estimateTime(this, len, to, rapid); }
 }
