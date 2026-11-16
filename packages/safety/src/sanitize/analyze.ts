@@ -50,6 +50,7 @@ import { forget, forgetLinear, modelDelta, moveBy, planeMagnitude } from './anal
 import { appliedTool, g92Part, g92PartUnc, offsetUnc, selectWcs, setG92, shift, totalOffset, workAfterSet } from './analyze/offsets.ts';
 import { outputsOn, resetProgram } from './analyze/outputs.ts';
 import { exactUnc, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
+import { storedMove } from './analyze/stored.ts';
 import { AFTER_MOTION, ARC_LETTERS, AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
 import { setWork, settle, widen } from './analyze/uncertainty.ts';
 import { mmPerUnit, motionBound, needsUnits, offsetScale, scale, unitScale } from './analyze/units.ts';
@@ -57,11 +58,6 @@ import { checkCode, checkGroups } from './analyze/words.ts';
 import { AXES, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, WCS_CODES, type AxisMode } from './types.ts';
 export { type Finding, type LineAnalysis } from './analyze/contract.ts';
 
-
-
-function unique(items: readonly string[]): string[] {
-  return [...new Set(items)];
-}
 
 
 function unknownMessage(
@@ -685,67 +681,7 @@ export class JobModel extends ModelState {
     units: 'G20' | 'G21' | null,
     distance: 'G90' | 'G91' | null,
     findings: Finding[],
-  ): LineAnalysis['motion'] {
-    const stored = action === 'G28' ? this.g28 : this.g30;
-    const storedUnc = action === 'G28' ? this.uG28 : this.uG30;
-    const first: Partial<Record<Axis, number>> = {};
-    const unknown: string[] = [];
-    const machineFrame = this._job.storedMoveIntermediate === 'machine';
-    for (const w of axisWords) {
-      const a = w.letter as Axis;
-      let d: number | null;
-      if (machineFrame && distance === 'G90') {
-        const sc = this.#scale(a, units);
-        const m = this.machine[a];
-        d = sc === null || m === null ? null : w.value * sc - m;
-      } else {
-        d = this.#delta(a, w.value, units, distance);
-      }
-      if (d === null) unknown.push(a);
-      else first[a] = d;
-    }
-    const second: Partial<Record<Axis, number>> = {};
-    for (const a of AXES) {
-      const m = this.machine[a];
-      const s = stored[a];
-      if (m === null || s === null) {
-        unknown.push(`${action} ${a}`);
-        continue;
-      }
-      second[a] = s - (m + (first[a] ?? 0));
-    }
-    if (unknown.length > 0) {
-      this.machine = { ...stored };
-      this.uMachine = { ...storedUnc };
-      for (const a of AXES) this.#shift(a, null, Infinity);
-      findings.push(block('unknown-state', `${action} cannot be modelled: the position or stored position of ${unique(unknown).join(', ')} is not known`));
-      return null;
-    }
-    const legs = [first, second].map((delta) => {
-      const moving = AXES.filter((a) => (delta[a] ?? 0) !== 0);
-      const length = Math.hypot(...moving.map((a) => delta[a] as number));
-      return { length, bound: this.#boundMm(delta), d: moveSeconds(moving, length, null, this._motion) };
-    });
-    this.#moveBy(first);
-    this.#moveBy(second);
-    // The second leg ends at the stored position on every axis, which is only known to its reported precision.
-    for (const a of AXES) this.#settle(a, 'machine', second[a] as number, storedUnc[a]);
-    let seconds = 0;
-    for (const leg of legs) {
-      if (leg.d.kind !== 'ok') {
-        findings.push(block('no-velocity-limit', noVelocityMessage(leg.d)));
-        return null;
-      }
-      seconds += leg.d.seconds;
-    }
-    const plannerLength = legs.reduce((sum, leg) => sum + leg.length, 0);
-    const boundMm = legs.reduce<number | null>((sum, leg) => (sum === null || leg.bound === null ? null : sum + leg.bound), 0);
-    if (seconds > this._motion.ceilingSeconds) {
-      findings.push(block('split-impossible', `${action} moves for about ${formatNumber(seconds, 1)} s, above the queued-motion ceiling, and cannot be split`));
-      return null;
-    }
-    return { kind: 'single', plannerLength, boundMm, seconds };
-  }
+  ): LineAnalysis['motion'] { return storedMove(this, action, axisWords, units, distance, findings); }
 
 
   /** The delta (mm or degrees) an axis word asks for, or null when it depends on something unknown. */
