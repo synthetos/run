@@ -17,30 +17,40 @@
  * what may be sent and how long moves are split.
  */
 import type { Dialect, DialectJobGcode, GcodeRule } from '@synthetos/protocol';
+
 import {
-  DECIMALS,
-  PLANES,
-  ROTARY,
-  formatNumber,
-  modelArc,
-  moveSeconds,
-  noVelocityMessage,
-  reportedErrorMm,
-  splitArc,
-  stepErrorMm,
-  splitLinear,
-  travelBoundMm,
-  type ArcInput,
-  type LinearAxis,
-  type Plane,
-  type Segment,
+    DECIMALS,
+    PLANES,
+    ROTARY,
+    formatNumber,
+    modelArc,
+    moveSeconds,
+    noVelocityMessage,
+    reportedErrorMm,
+    splitArc,
+    splitLinear,
+    stepErrorMm,
+    travelBoundMm,
+    type ArcInput,
+    type LinearAxis,
+    type Plane,
+    type Segment,
 } from './geometry.ts';
+
 import { canonicalCode, type Word } from './lex.ts';
-import type { Axis, MotionModel, ReportEntry, RotaryAxis, SanitizeOptions, SanitizeRule, StartState, Wcs } from './types.ts';
+
+import type { Axis, MotionModel, RotaryAxis, SanitizeOptions, StartState, Wcs } from './types.ts';
+
 import { extendByArc, extendTo, extentAt, type MoveExtent } from './extent.ts';
+
+import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
 import { AXES, AXIS_MODE_DISABLED, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, WCS_CODES, type AxisMode } from './types.ts';
+export { type Finding, type LineAnalysis } from './analyze/contract.ts';
+
+
 
 type Pos = Record<Axis, number | null>;
+
 
 /**
  * Per-axis bound (mm, or degrees) on how far the firmware's float32 value
@@ -48,6 +58,7 @@ type Pos = Record<Axis, number | null>;
  * that value is known; an unknown value has an infinite bound.
  */
 type Unc = Record<Axis, number>;
+
 
 function uncOf(p: Pos, bound: (axis: Axis, value: number) => number): Unc {
   const u = { X: Infinity, Y: Infinity, Z: Infinity, A: Infinity, B: Infinity, C: Infinity };
@@ -58,9 +69,11 @@ function uncOf(p: Pos, bound: (axis: Axis, value: number) => number): Unc {
   return u;
 }
 
+
 function exactUnc(): Unc {
   return { X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 };
 }
+
 
 /** Modal groups: two codes of one group on a line is a modal conflict (EN E152). */
 const GROUP: Readonly<Record<string, string>> = Object.freeze({
@@ -83,55 +96,34 @@ const GROUP: Readonly<Record<string, string>> = Object.freeze({
   M48: 'override', M49: 'override', M50: 'override', M51: 'override',
 });
 
+
 /** Group-0 codes whose axis words are not motion (NIST 3.4; @cite EN gcode_parser.c `_validate_gcode_block`). */
 const AXIS_ACTIONS: ReadonlySet<string> = new Set(['G10', 'G28', 'G30', 'G92']);
+
 
 /** Codes executed after the motion of their block (program flow). They go on the last sub-segment. */
 const AFTER_MOTION: ReadonlySet<string> = new Set(['M0', 'M1', 'M2', 'M30', 'M60']);
 
+
 const MOTION_CODES: ReadonlySet<string> = new Set(['G0', 'G1', 'G2', 'G3']);
+
 
 const AXIS_LETTERS: ReadonlySet<string> = new Set(AXES);
 
+
 const ARC_LETTERS: ReadonlySet<string> = new Set(['I', 'J', 'K', 'R']);
+
 
 const INCH_MM = 25.4;
 
+
 const ROTARY_AXES: readonly RotaryAxis[] = ['A', 'B', 'C'];
 
-/** A finding for the report, before its line number is attached. */
-export interface Finding {
-  readonly severity: ReportEntry['severity'];
-  readonly rule: SanitizeRule;
-  readonly message: string;
-}
-
-/** What one line does, as the sanitiser needs to know it. */
-export interface LineAnalysis {
-  readonly findings: readonly Finding[];
-  /** False when a finding blocks the line. */
-  readonly ok: boolean;
-  /** The line as one move, or as sub-segment bodies replacing it. */
-  readonly motion:
-    | null
-    | { readonly kind: 'single'; readonly plannerLength: number; readonly boundMm: number | null; readonly seconds: number }
-    | { readonly kind: 'split'; readonly bodies: readonly string[]; readonly segments: readonly Segment[]; readonly seconds: number };
-  readonly toolChange: boolean;
-  /** M0 or M60. */
-  readonly programStop: boolean;
-  /** The M1 word, if any. */
-  readonly optionalStop: Word | null;
-  /** M2 or M30. */
-  readonly programEnd: boolean;
-  /** M3, M4, M7 or M8 on this line. */
-  readonly outputsOn: boolean;
-  /** OD-24: where the line takes the machine (machine coordinates), or null when it does not move (extent.ts). */
-  readonly extent: MoveExtent | null;
-}
 
 function emptyPos(): Pos {
   return { X: null, Y: null, Z: null, A: null, B: null, C: null };
 }
+
 
 function posFrom(values: Readonly<Partial<Record<Axis, number>>> | undefined): Pos {
   const p = emptyPos();
@@ -143,11 +135,67 @@ function posFrom(values: Readonly<Partial<Record<Axis, number>>> | undefined): P
   return p;
 }
 
+
 function zeroPos(): Pos {
   return { X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 };
 }
 
-const block = (rule: SanitizeRule, message: string): Finding => ({ severity: 'block', rule, message });
+
+function unique(items: readonly string[]): string[] {
+  return [...new Set(items)];
+}
+
+
+function unknownMessage(
+  unitAxes: readonly string[],
+  axes: readonly string[],
+  units: string | null,
+  distance: string | null,
+  g53: boolean,
+): string {
+  const what: string[] = [];
+  if (units === null && unitAxes.length > 0) what.push('the units');
+  if (!g53 && distance === null) what.push('the distance mode');
+  if (what.length === 0) what.push(`the ${g53 ? 'machine' : 'work'} position of ${axes.join(', ')}`);
+  return `this move cannot be checked against the queued-motion ceiling; not known: ${what.join(' and ')}`;
+}
+
+
+/**
+ * Sub-segment bodies. The first carries every word of the original line that
+ * acts before motion (modal codes, spindle and coolant codes, then F, S, T
+ * and any other parameter word); every one carries the motion code (and
+ * G53, which applies to its own block only); the last carries the
+ * program-flow codes that act after motion (M0, M1, M2, M30, M60), so
+ * barriers and holdback land on it. Axis and arc words come from the
+ * segment; `dropLetters` (the arc's P turns) are already in the geometry.
+ */
+function bodies(
+  codes: readonly { word: Word; code: string }[],
+  params: ReadonlyMap<string, Word>,
+  segments: readonly Segment[],
+  motionWords: readonly string[],
+  perSegment: ReadonlySet<string>,
+  dropLetters: readonly string[],
+): string[] {
+  const before: string[] = [];
+  const after: string[] = [];
+  for (const { code } of codes) {
+    if (MOTION_CODES.has(code) || code === 'G80' || perSegment.has(code)) continue;
+    (AFTER_MOTION.has(code) ? after : before).push(code);
+  }
+  for (const [letter, w] of params) {
+    if (AXIS_LETTERS.has(letter) || ARC_LETTERS.has(letter) || dropLetters.includes(letter)) continue;
+    before.push(`${letter}${w.text}`);
+  }
+  return segments.map((seg, i) => {
+    const parts: string[] = [];
+    if (i === 0) parts.push(...before);
+    parts.push(...motionWords, ...seg.words);
+    if (i === segments.length - 1) parts.push(...after);
+    return parts.join(' ');
+  });
+}
 
 /** The job modal model. One instance per sanitiser run. */
 export class JobModel {
@@ -1384,58 +1432,4 @@ export class JobModel {
     const mode = clockwise ? 'G2' : 'G3';
     return { kind: 'split', bodies: bodies(codes, params, split.segments, [mode], new Set(), ['P']), segments: split.segments, seconds: d.seconds };
   }
-}
-
-function unique(items: readonly string[]): string[] {
-  return [...new Set(items)];
-}
-
-function unknownMessage(
-  unitAxes: readonly string[],
-  axes: readonly string[],
-  units: string | null,
-  distance: string | null,
-  g53: boolean,
-): string {
-  const what: string[] = [];
-  if (units === null && unitAxes.length > 0) what.push('the units');
-  if (!g53 && distance === null) what.push('the distance mode');
-  if (what.length === 0) what.push(`the ${g53 ? 'machine' : 'work'} position of ${axes.join(', ')}`);
-  return `this move cannot be checked against the queued-motion ceiling; not known: ${what.join(' and ')}`;
-}
-
-/**
- * Sub-segment bodies. The first carries every word of the original line that
- * acts before motion (modal codes, spindle and coolant codes, then F, S, T
- * and any other parameter word); every one carries the motion code (and
- * G53, which applies to its own block only); the last carries the
- * program-flow codes that act after motion (M0, M1, M2, M30, M60), so
- * barriers and holdback land on it. Axis and arc words come from the
- * segment; `dropLetters` (the arc's P turns) are already in the geometry.
- */
-function bodies(
-  codes: readonly { word: Word; code: string }[],
-  params: ReadonlyMap<string, Word>,
-  segments: readonly Segment[],
-  motionWords: readonly string[],
-  perSegment: ReadonlySet<string>,
-  dropLetters: readonly string[],
-): string[] {
-  const before: string[] = [];
-  const after: string[] = [];
-  for (const { code } of codes) {
-    if (MOTION_CODES.has(code) || code === 'G80' || perSegment.has(code)) continue;
-    (AFTER_MOTION.has(code) ? after : before).push(code);
-  }
-  for (const [letter, w] of params) {
-    if (AXIS_LETTERS.has(letter) || ARC_LETTERS.has(letter) || dropLetters.includes(letter)) continue;
-    before.push(`${letter}${w.text}`);
-  }
-  return segments.map((seg, i) => {
-    const parts: string[] = [];
-    if (i === 0) parts.push(...before);
-    parts.push(...motionWords, ...seg.words);
-    if (i === segments.length - 1) parts.push(...after);
-    return parts.join(' ');
-  });
 }
