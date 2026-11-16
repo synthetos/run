@@ -55,6 +55,8 @@ export function startProjectSync(options: ProjectSyncOptions) {
     if (pending.kind !== 'project' || pending.content === null) return pending;
     const project = await hashProjectImages(pending.content as Project, records);
     if (!live || signal.aborted) throw new DOMException('Sync stopped', 'AbortError');
+    // Hashing can outlive this edit; an obsolete image must never start an untracked upload.
+    if (!cache.pending.some(p => p.token === pending.token)) return pending;
     const next = { ...pending, content: project };
     cache.pending = cache.pending.map(p => p.token === pending.token ? next : p);
     if (!live || !options.persist()) throw new Error('The project queue could not be saved');

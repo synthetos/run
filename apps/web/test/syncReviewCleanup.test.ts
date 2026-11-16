@@ -54,6 +54,36 @@ it('keeps cleanup candidates when a pending upload is superseded before its reco
   expect(await drainQueue(cache, client, () => true, new AbortController().signal, { persist: () => true, change: vi.fn(), notice: vi.fn() })).toBe('saved');
   expect(client.put).toHaveBeenCalledOnce(); expect(cache.fileDeletes).toEqual(['a'.repeat(64), 'b'.repeat(64)]);
 });
+it.each(['delete', 'replace'])('skips an obsolete legacy image when the project changes during hashing: %s', async action => {
+  const context = projectContext(); const raw = context.records; const cache = emptyCache();
+  const held = deferred(); const started = deferred(); const oldBlob = new Blob(['old legacy image']);
+  const newBlob = new Blob(['replacement image']);
+  await raw.put('blobs', 'legacy-image', oldBlob); await raw.put('blobs', 'replacement-image', newBlob);
+  const image = { id: 'legacy-image', name: 'legacy.webp', size: oldBlob.size, width: 2, height: 2, addedAt: at };
+  const old = { ...project(), images: [image], cover: image.id };
+  const replacement = { ...old, images: [{ ...image, id: 'replacement-image', size: newBlob.size }], cover: 'replacement-image' };
+  let paused = false;
+  const records = { ...raw, async get(kind: Parameters<typeof raw.get>[0], id: string) {
+    if (kind === 'blobs' && id === image.id && !paused) { paused = true; started.resolve(); await held.promise; }
+    return raw.get(kind, id);
+  } };
+  const hooks = { persist: () => true, change: vi.fn(), notice: vi.fn() };
+  const sync = startProjectSync({ subject: 'alice', context: { ...context, records }, cache, allowed: () => true, ...hooks }); stops.push(sync.stop);
+  const client = api(); enqueue(cache, 'project', old.id, old);
+  const signal = new AbortController().signal;
+  const draining = drainQueue(cache, client, () => true, signal, { ...hooks, prepare: sync.prepare });
+  await started.promise; enqueue(cache, 'project', old.id, action === 'delete' ? null : replacement); held.resolve();
+  expect(await draining).toBe('saved'); await sync.cleanup(signal);
+  expect(cache.pending).toEqual([]); expect(cache.fileDeletes ?? []).toEqual([]);
+  expect(context.files.remove).not.toHaveBeenCalled(); expect(hooks.notice).not.toHaveBeenCalled();
+  if (action === 'delete') {
+    expect(context.files.put).not.toHaveBeenCalled(); expect(client.put).not.toHaveBeenCalled();
+  } else {
+    expect(context.files.put).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(/^[a-f0-9]{64}$/), newBlob, signal);
+    expect(client.put).toHaveBeenCalledOnce();
+    expect(cache.records[0]?.content).toMatchObject({ images: [{ id: 'replacement-image', hash: expect.any(String) }] });
+  }
+});
 it.each([false, true])('collects files after a lost archive response and reload (refresh archived head: %s; review repro 6)', async refreshed => {
   const old = withFiles(); const initial = emptyCache(); initial.records = [record('project', old)];
   const storage = memory(); const client = api(); const notice = vi.fn();
