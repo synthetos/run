@@ -8,11 +8,9 @@ export async function loadState(bucket: FileBackup, key: string): Promise<FileSt
   if (!object) return { version: 1, copy: freshScan(), inventory: freshScan(), samples: [], restoreDue: false };
   if (object.size > 32_768) throw new Error('Invalid file backup cursor');
   const state = JSON.parse(await object.text()) as FileState;
+  if (state.nextPhase !== undefined && state.nextPhase !== 'copy' && state.nextPhase !== 'maintenance') throw new Error('Invalid file backup phase');
   if (state.version !== 1 || !validScan(state.copy) || !validScan(state.inventory) || typeof state.restoreDue !== 'boolean' || !Array.isArray(state.samples) || state.samples.length > 5 || state.samples.some(s => typeof s.key !== 'string' || !Number.isSafeInteger(s.size) || s.size < 0)) throw new Error('Invalid file backup cursor');
   return state;
-}
-export async function saveState(bucket: FileBackup, key: string, state: FileState): Promise<void> {
-  if (await bucket.put(key, JSON.stringify(state)) === null) throw new Error('File backup cursor not saved');
 }
 export function nextScan(scan: Scan, page: { objects: unknown[]; truncated: boolean; cursor?: string }): Scan {
   if (page.truncated && (!page.cursor || page.cursor === scan.cursor)) throw new Error('Invalid file listing cursor');

@@ -38,3 +38,8 @@ export class FakeFiles {
   }
 }
 export function fileKey(text, suffix = 'token') { return `u/user/${sha(Buffer.from(text))}-${suffix}`; }
+
+export function virtualClock() {
+  let time = 0;
+  return { now: () => time, sleep: async ms => { time += ms; }, advance: ms => { time += ms; } };
+}

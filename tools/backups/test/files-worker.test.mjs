@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { filesScheduled } from '../../../workers/backup/src/files/scheduled.ts';
-import { FakeFiles, fileKey } from './files-fixture.mjs';
+import { FakeFiles, fileKey, virtualClock } from './files-fixture.mjs';
 import { digestRuntime } from './digest-fixture.mjs';
 function fixture() {
   const source = new FakeFiles(), backup = new FakeFiles(), logs = [];
   const job = { source, backup, environment: 'production', date: new Date('2026-11-02T07:50:00Z'), log: record => logs.push(record) };
-  const run = options => filesScheduled(job, options);
+  const clock = virtualClock();
+  const run = options => filesScheduled(job, { now: clock.now, sleep: clock.sleep, ...options });
   return { source, backup, logs, job, run };
 }
 test('first run streams all objects, warm run skips unchanged files including empty files', async () => {
@@ -26,7 +27,8 @@ test('interruption mid-page replays only the uncheckpointed page and retains cop
   assert.ok(f.backup.values.has('files/c'));
   f.backup.failKey = undefined; await f.run();
   assert.equal(f.logs.at(-1).copied, 1); assert.equal(f.logs.at(-1).skipped, 1);
-  assert.equal(f.logs.at(-1).sourceObjects, 4); assert.equal(f.logs.at(-1).backupObjects, 4);
+  assert.equal(f.logs.at(-1).sourceObjects, 4); assert.equal(f.logs.at(-1).backupObjects, 3); // Maintenance took its first turn before the last copy.
+  await f.run(); assert.equal(f.logs.at(-1).backupObjects, 4);
   assert.ok(!JSON.stringify(f.logs).includes('private bucket error'));
 });
 test('object budget resumes across triggers rather than restarting the first page', async () => {
@@ -77,10 +79,11 @@ test('oversized objects fail visibly without consuming their body', async () => 
 test('soft deadline mid-page replays the page without losing its uncopied tail', async () => {
   const f = fixture(); for (const key of ['a', 'b', 'c']) f.source.seed(key, key);
   let time = 0; const put = f.backup.put.bind(f.backup);
-  f.backup.put = async (...args) => { const value = await put(...args); if (args[0] === 'files/a') time = 20; return value; };
-  await f.run({ now: () => time, maxMs: 20 });
+  f.backup.put = async (...args) => { const value = await put(...args); if (args[0] === 'files/a') time = 5000; return value; };
+  const options = { now: () => time, sleep: async ms => { time += ms; }, maxMs: 5000 };
+  await f.run(options);
   assert.equal(f.logs.at(-1).sourceComplete, false); assert.equal(f.logs.at(-1).copied, 1);
-  time = 0; await f.run({ now: () => time, maxMs: 20 });
+  time = 0; await f.run(options);
   assert.equal(f.logs.at(-1).copied, 2); assert.equal(f.logs.at(-1).sourceObjects, 3);
 });
 test('inventory counts and pending monthly verification resume across pages', async () => {
@@ -92,7 +95,8 @@ test('inventory counts and pending monthly verification resume across pages', as
   assert.equal(f.logs.at(-1).backupObjects, 3); assert.equal(f.logs.at(-1).restore, 'passed');
 });
 test('a failed checkpoint safely replays already copied objects on the next trigger', async () => {
-  const f = fixture(); f.source.seed('key', 'bytes'); f.backup.failKey = 'backup-state/run-files.json';
+  const f = fixture(); f.source.seed('key', 'bytes'); const put = f.backup.put.bind(f.backup);
+  f.backup.put = async (...args) => { const result = await put(...args); if (args[0] === 'files/key') f.backup.failKey = 'backup-state/run-files.json'; return result; };
   await assert.rejects(f.run(), /File backup failed/);
   f.backup.failKey = undefined; await f.run();
   assert.equal(f.logs.at(-1).copied, 0); assert.equal(f.logs.at(-1).skipped, 1); assert.equal(f.logs.at(-1).sourceComplete, true);

@@ -66,7 +66,7 @@ Each trigger checks at most 40 source objects, with pages of at most 10 and a 20
 copy-byte budget (reserving room for one maximum-sized object). Each object is at
 most 50 MiB. A two-minute soft deadline is checked between operations; an in-flight
 object operation can finish after it. Backup inventory uses at most 20 pages of 500
-keys per trigger. The files path uses fewer than 250 R2 operations with these budgets,
+keys per trigger. The files path uses fewer than 350 R2 operations with these budgets,
 in addition to the existing D1 archive work. Monthly verification reads at most five
 50 MiB samples, streamed separately; it does not consume the copy-byte budget.
 
@@ -78,6 +78,22 @@ completed scan restarts on the next trigger, so keys added behind a listing curs
 are discovered on the next scan. A large backlog can take several nights; this is
 not an atomic bucket/database snapshot or a guarantee that every new object reaches
 the backup on its first night.
+
+Cursor writes are spaced by at least one second within a trigger, matching the
+[R2 same-key write limit](https://developers.cloudflare.com/r2/platform/limits/).
+A throttled write gets at most three attempts, with one- then two-second backoff,
+only while the soft deadline permits. If the next wait/write cannot start in time,
+the run stops with `checkpointDeferred: true` and leaves the last durable checkpoint
+for replay. Unchanged checkpoints are not rewritten; there is no redundant final save.
+Other write failures still fail the run visibly.
+
+The cursor also records which phase gets the next first turn: copying or maintenance
+(inventory and any due restore check). That turn is committed before the work starts,
+so copying that consumes an entire invocation cannot repeatedly run ahead of maintenance.
+Both phases run when time remains. Old cursors without this field start with copying.
+Counts reflect the point at which each scan ran; maintenance-first counts can precede
+new copies made later in the same trigger. As with copying, a large inventory/check
+continues from its last durable checkpoint over later triggers.
 
 File-copy logs contain `sourceObjects`, `backupObjects`, `copied`, `skipped`, `failed`,
 `bytes`, elapsed time and restore status. Counts are cumulative for their respective

@@ -22,12 +22,14 @@ export interface Sample { key: string; size: number }
 export interface Scan { cursor?: string; count: number; complete: boolean }
 export interface FileState {
   version: 1; copy: Scan; inventory: Scan; samples: Sample[]; restoreDue: boolean;
+  /** Missing in older checkpoints: those start with copying. */
+  nextPhase?: 'copy' | 'maintenance';
 }
 export interface FileStats { copied: number; skipped: number; failed: number; bytes: number; examined: number }
-export interface FileOptions { now: () => number; random: () => number; maxObjects: number; maxPages: number; maxBytes: number; maxMs: number }
+export interface FileOptions { now: () => number; sleep: (ms: number) => Promise<void>; random: () => number; maxObjects: number; maxPages: number; maxBytes: number; maxMs: number }
 export const MAX_FILE_BYTES = 50 * 1024 * 1024;
 export const SAMPLE_SIZE = 5;
-export const DEFAULT_OPTIONS: FileOptions = { now: Date.now, random: Math.random, maxObjects: 40, maxPages: 20, maxBytes: 200 * 1024 * 1024, maxMs: 120_000 };
+export const DEFAULT_OPTIONS: FileOptions = { now: Date.now, sleep: ms => new Promise(resolve => setTimeout(resolve, ms)), random: Math.random, maxObjects: 40, maxPages: 20, maxBytes: 200 * 1024 * 1024, maxMs: 120_000 };
 export function filesPrefix(environment: string): string {
   if (environment !== 'production' && environment !== 'staging') throw new Error('Invalid files backup environment');
   return environment === 'staging' ? 'staging/files/' : 'files/';
