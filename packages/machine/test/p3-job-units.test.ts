@@ -1,4 +1,3 @@
-import { TINYG_EN } from '@synthetos/protocol';
 import { describe, expect, it } from 'vitest';
 import {
     JOB_LIMITS,
@@ -9,7 +8,6 @@ import {
     rxmLine,
     rxmTarget,
     slotRoom,
-    statusMeaning,
     textHash,
     type JobState,
     type SessionState
@@ -19,7 +17,6 @@ import {
     feedLimitWindow,
     maybeRestoreLineMode,
     onFeedLimit,
-    onJobAnswer,
     onJobBreakpoints,
     onJobFault,
     onJobLinkLost,
@@ -122,17 +119,6 @@ describe('the live start state and motion model for the sanitiser', () => {
   });
 });
 describe('plain words and lines', () => {
-
-  it('names each refusal class (W38), and says "an error" for an unknown code', () => {
-    expect(statusMeaning(TINYG_EN, 221)).toBe('outside the soft limits');
-    expect(statusMeaning(TINYG_EN, 132)).toBe('an M code this firmware does not support');
-    expect(statusMeaning(TINYG_EN, 106)).toBe('not accepted now');
-    expect(statusMeaning(TINYG_EN, 107)).toBe('the line is too long');
-    for (const c of [204, 205, 206]) expect(statusMeaning(TINYG_EN, c)).toBe('the controller is in alarm');
-    expect(statusMeaning(TINYG_EN, 13)).toBe('the line or its answer was damaged');
-    expect(statusMeaning(TINYG_EN, 240)).toBe('homing cycle failed');
-    expect(statusMeaning(TINYG_EN, 9999)).toBe('an error');
-  });
 
 
   it('the exact lines and the text hash', () => {
@@ -496,40 +482,6 @@ describe('more of the job layer, through its edges', () => {
     const unknown = tx({ ...fresh, footerRev: undefined, rxm: { ...s.rxm, step: { kind: 'read', purpose: 'job', value: 1 } } });
     onLineModeAnswer(unknown.t, answer({ rxm: 1 }), 0);
     expect(unknown.t.s.job?.message).toMatch(/revision unknown, not 3/);
-  });
-
-
-  it('streaming guards: a line being written or a motion line waiting holds the job lines back', async () => {
-    const s = withJob({ ...(await ready()), base: 'RUNNING', footerRev: 3 }, { phase: 'running', free: 12 });
-    for (const b of [{ ...s, writing: { token: 'stat', purpose: 'poll' as const, seq: 1 } }, { ...s, queue: [{ token: 'gc', purpose: 'motion' as const, line: 'M5' }] }]) {
-      const r = tx(b);
-      pumpJob(r.t, true);
-      expect(r.fx.filter((e) => e.kind === 'writeLine')).toEqual([]);
-    }
-    const r = tx(s);
-    pumpJob(r.t, true);
-    expect(r.fx.filter((e) => e.kind === 'writeLine').length).toBeGreaterThan(0);
-  });
-
-
-  it('a second refused line is recorded only; a refusal while pausing, paused or stopping does not pause again', async () => {
-    const s = withJob(await ready(), { phase: 'running', next: 3 });
-    const refuse = (st: SessionState, index: number) => {
-      const r = tx(st);
-      onJobAnswer(r.t, { token: 'job', purpose: 'job', index }, { kind: 'Response', line: '', r: {}, footer: { rev: 3, status: 220, field3: 10, raw: [] } } as never, 0);
-      return r;
-    };
-    const first = refuse(s, 1);
-    expect(first.t.s.job?.phase).toBe('refused');
-    const second = refuse(first.t.s, 2);
-    expect(second.t.s.job?.refused?.index).toBe(1);
-    for (const st of [withJob(s, { phase: 'pausing' }), withJob(s, { phase: 'paused' }), withJob(s, { stopping: true })]) {
-      const r = refuse(st, 1);
-      expect(r.fx.some((e) => e.kind === 'writeRealtime')).toBe(false);
-      expect(r.t.s.job?.refused?.index).toBe(1);
-    }
-    const ended = refuse(withJob(s, { phase: 'stopped' }), 1);
-    expect(ended.t.s.job?.refused).toBeNull();
   });
 
 

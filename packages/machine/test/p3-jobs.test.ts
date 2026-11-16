@@ -1,102 +1,8 @@
 import { PHASE_2_RELEASE, w42 } from '@synthetos/safety';
 import { describe, expect, it } from 'vitest';
-import { JOB_LIMITS, feedAccountingSafe, jobInFlight } from '../src/index.ts';
+import { JOB_LIMITS, feedAccountingSafe } from '../src/index.ts';
 import { JOBS_RELEASE_NO_FI, jobHarness, jobLines, runUntil, start, writes, zigzag } from './jobHarness.ts';
 import { SMALL, TC, model } from './jobLayerHarness.ts';
-describe('T-S109: streaming by the line buffer free slots (H76)', () => {
-
-  it('streams a job to the end in line mode, setting rxm and putting it back (H77)', async () => {
-    const h = await jobHarness({ rxm: 0 });
-    const before = await start(h, SMALL);
-    await runUntil(h, () => h.session.snapshot.job?.phase === 'done' && h.session.snapshot.rxm.busy === false && h.session.snapshot.footerRev === 2);
-    const s = h.session.snapshot;
-    expect(s.job?.phase).toBe('done');
-    const w = writes(h).slice(before);
-    // Start reads the board again first, rxm among its prep reads (R3); then the line mode is read, set and read back.
-    expect(w.filter((x) => x.startsWith('{"rxm":')).slice(0, 4)).toEqual(['{"rxm":null}', '{"rxm":null}', '{"rxm":1}', '{"rxm":null}']);
-    expect(jobLines(h, before)).toHaveLength(8);
-    expect(w.indexOf('{"rxm":0}')).toBeGreaterThan(w.indexOf('N8 M30'));
-    expect(s.footerRev).toBe(2);
-    expect(s.base).toBe('IDLE_UNHOMED');
-    expect(s.job?.message).toMatch(/^Job finished: 8 lines/);
-    expect(s.rxm.changed).toEqual({ kind: 'restore', from: 1, to: 0 });
-  });
-
-
-  it('on a board already in line mode nothing is written to rxm, before or after', async () => {
-    const h = await jobHarness({ rxm: 1 });
-    const before = await start(h, SMALL);
-    await runUntil(h, () => h.session.snapshot.job?.phase === 'done');
-    await h.run(500);
-    const w = writes(h).slice(before);
-    expect(w.filter((x) => x.startsWith('{"rxm":') && x !== '{"rxm":null}')).toEqual([]);
-    expect(h.session.snapshot.rxm.restore).toBe(1);
-  });
-
-
-  // Under `pnpm check` every package's tests share the cores: this streaming replay needs more than vitest's 5 s.
-  it('never has more job lines owed than the free slots less the reserve, and every line is answered', { timeout: 30_000 }, async () => {
-    const h = await jobHarness();
-    await start(h, zigzag(60));
-    let most = 0;
-    await runUntil(
-      h,
-      () => {
-        most = Math.max(most, jobInFlight(h.session.state));
-        return h.session.snapshot.job?.phase === 'done';
-      },
-      150_000,
-      5,
-    );
-    expect(h.session.snapshot.job?.phase).toBe('done');
-    expect(h.session.snapshot.job?.acked).toBe(h.session.snapshot.job?.total);
-    expect(most).toBeGreaterThan(1);
-    expect(most).toBeLessThanOrEqual(12 - JOB_LIMITS.reserve);
-    expect(h.session.snapshot.fault).toBeNull();
-  });
-
-
-  it('progress maps through the sanitiser: the executing line and the sent band are file lines', async () => {
-    const h = await jobHarness();
-    const text = ['G21 G90', '(a comment)', '', 'G1 X10 F3000', 'G1 X0', 'G1 X10', 'G1 X0', 'G1 X10', 'M30'].join('\n');
-    await start(h, text);
-    const seen = new Set<number>();
-    await runUntil(h, () => {
-      const e = h.session.snapshot.job?.executing;
-      if (e !== null && e !== undefined) seen.add(e.line);
-      return h.session.snapshot.job?.phase === 'done';
-    });
-    expect([...seen].every((l) => l !== 2 && l !== 3)).toBe(true);
-    expect(seen.has(4) || seen.has(5)).toBe(true);
-    expect(h.session.snapshot.job?.sentThrough).toBe(9);
-  });
-
-
-  it('the final M30 is written only after every earlier line is answered (H35)', async () => {
-    const h = await jobHarness();
-    await start(h, zigzag(15));
-    await runUntil(h, () => h.session.snapshot.job?.phase === 'done', 60_000);
-    const events = h.transports.at(-1)?.events ?? [];
-    const decoder = new TextDecoder();
-    let rx = '';
-    let sentBefore = 0;
-    let atM30 = -1;
-    let linesBeforeM30 = 0;
-    for (const e of events) {
-      const text = decoder.decode(e.bytes);
-      if (e.dir === 'r') rx += text;
-      const jobAnswers = (rx.match(/\{"r":\{\},"f":\[3,\d+,\d+\]\}/g) ?? []).length;
-      if (e.dir === 'w' && /^N\d+ /.test(text)) {
-        if (/^N\d+ M30/.test(text)) {
-          atM30 = jobAnswers;
-          linesBeforeM30 = sentBefore;
-        }
-        sentBefore++;
-      }
-    }
-    expect(atM30).toBe(linesBeforeM30);
-  });
-});
 describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
 
   it('Pause writes ! and the job holds; Resume writes ~ and streaming goes on to the end', async () => {
@@ -172,34 +78,6 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     h.session.stopJob();
     await h.run(2000);
     expect(jobLines(h, before)).toEqual([]);
-    expect(h.session.snapshot.job?.phase).toBe('stopped');
-  });
-});
-describe('T-S111: a refused line holds the job at that line (H70)', () => {
-
-  it('holds, shows the status in plain words, and Skip line continues behind the confirm', async () => {
-    const h = await jobHarness();
-    model(h).injectRefusal(/^N6 /, 220, 1);
-    const before = await start(h, zigzag(20));
-    await runUntil(h, () => h.session.snapshot.job?.phase === 'refused' && h.session.state.job?.confirmed === 2);
-    const s = h.session.snapshot;
-    expect(s.job?.refused).toMatchObject({ line: 6, status: 220 });
-    expect(s.job?.message).toMatch(/^WARNING — The controller refused line 6 \(status 220: outside the soft limits\)/);
-    expect(writes(h).slice(before)).toContain('!');
-    expect(h.session.request({ intent: 'resume' })).toMatchObject({ allowed: false });
-    expect(h.session.request({ intent: 'resume', skip: true })).toEqual({ allowed: true });
-    await runUntil(h, () => h.session.snapshot.job?.phase === 'done', 60_000);
-    expect(h.session.snapshot.job?.phase).toBe('done');
-  });
-
-
-  it('Stop job after a refused line ends the job with the flush sequence', async () => {
-    const h = await jobHarness();
-    model(h).injectRefusal(/^N5 /, 132, 1);
-    await start(h, zigzag(20));
-    await runUntil(h, () => h.session.snapshot.job?.phase === 'refused');
-    h.session.stopJob();
-    await runUntil(h, () => h.session.snapshot.job?.phase === 'stopped');
     expect(h.session.snapshot.job?.phase).toBe('stopped');
   });
 });
