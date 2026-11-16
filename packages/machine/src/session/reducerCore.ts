@@ -1,3 +1,4 @@
+import { bindLive } from './reducers/live.ts';
 import { bindIdentify } from './reducers/identify.ts';
 import { bindConnect } from './reducers/connect.ts';
 import { bindFaults } from './reducers/faults.ts';
@@ -738,20 +739,6 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
   }
 }
 
-function onStatusReport(t: Tx, report: StatusReport, at: number): void {
-  mergeLive(t, report.sr);
-  // Homing (amendment 2026-11-02): a pushed report says when the cycle may have ended; polled reads confirm it.
-  features.onMotionReport?.(t, report.sr, at);
-  if (t.s.base !== 'IDENTIFYING' && t.s.base !== 'READING') return;
-  const live = t.s.live;
-  const moving = (typeof report.sr['vel'] === 'number' && report.sr['vel'] !== 0) || (live.machineClass !== undefined && MOTION_CLASSES.has(live.machineClass) && 'stat' in report.sr);
-  if (moving) {
-    // PN §2.3 step 0: unsolicited reports showing motion while connecting.
-    t.addOverlay('ORPHANED_MOTION');
-    if (t.s.classification === null) t.set({ queue: [] });
-  }
-}
-
 function onGarbled(t: Tx, at: number): void {
   if (t.s.probe !== null && t.s.probe.settling !== 'none') return;
   const owed = owedAnswers(t.s);
@@ -847,47 +834,6 @@ function onGarbled(t: Tx, at: number): void {
   }
 }
 
-function mergeLive(t: Tx, fields: JsonObject): void {
-  let live = t.s.live;
-  for (const [key, v] of Object.entries(fields)) {
-    if (typeof v === 'number' && Number.isFinite(v)) live = withNumber(t, live, key, v);
-  }
-  t.set({ live });
-}
-
-function withNumber(t: Tx, live: LiveState, key: string, v: number): LiveState {
-  switch (key) {
-    case 'stat': {
-      const dialect = dialectOf(t.s);
-      return { ...live, stat: v, ...(dialect === null ? {} : { machineClass: mapStat(dialect, v) }) };
-    }
-    case 'hold':
-    case 'vel':
-    case 'qr':
-    case 'ex':
-    case 'line':
-    case 'unit':
-    case 'feed':
-    case 'tool':
-    // Display only (spindle and coolant outputs as last driven): stored for the UI, read by no decision here.
-    case 'spe':
-    case 'spc':
-    case 'spd':
-    case 'sps':
-    case 'cof':
-    case 'com':
-    case 'home':
-    case 'coor':
-    case 'dist':
-      return { ...live, [key]: v };
-  }
-  for (const axis of AXES) {
-    if (key === `pos${axis}`) return { ...live, pos: { ...live.pos, [axis]: v } };
-    if (key === `mpo${axis}`) return { ...live, mpo: { ...live.mpo, [axis]: v } };
-  }
-  return live;
-}
-
 // --- Push-driven state: the full read at connect and the report configuration (amendment 2026-11-02) ---
 
 /**
@@ -908,19 +854,6 @@ function startSeed(t: Tx): void {
 /** A seed read is still to be written. (One line is in flight at a time: when a seed is answered, the next is still queued.) */
 function isSeedOwed(s: SessionState): boolean {
   return s.queue.some((q) => q.purpose === 'seed');
-}
-
-/** Merges one state read into the live values (scalars, and the `mpo`/`pos` groups). */
-function mergeStateValue(t: Tx, token: string, value: JsonValue | undefined): void {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    t.set({ live: withNumber(t, t.s.live, token, value) });
-    return;
-  }
-  if ((token === 'mpo' || token === 'pos') && isObject(value)) {
-    const fields: Record<string, JsonValue> = {};
-    for (const [axis, v] of Object.entries(value)) fields[`${token}${axis}`] = v;
-    mergeLive(t, fields);
-  }
 }
 
 function onSeedAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
@@ -1262,6 +1195,7 @@ const { refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry
 const { onAckFault, onVerifyAnswer, refuseAck, enterFault, writeFeedhold } = bindFaults(deps);
 const { resetToNotConnected, onOpened, startProbe, onLinkLost, onBanner } = bindConnect(deps);
 const { advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading } = bindIdentify(deps);
+const { mergeLive, withNumber, onStatusReport, mergeStateValue } = bindLive(deps);
 Object.assign(deps, { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, reduce, onJobLineDropped, linkUp, deny, onIntent, onEnq, writeEnq, onRead, settingWriteActive, onSettingsWrite, finishSettingWrite, onGateAnswer, onSettingAnswer, onReadBackAnswer, interruptSettingWrite, refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry, onAckFault, writeFeedhold, resetToNotConnected, onOpened, startProbe, onLineWritten, answerTimeout, onLinkLost, onTimer, onInbound, onBanner, onResponse, isDataEntry, owedAnswers, consumeOwed, answers, onAnswer, advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading, onVerifyAnswer, refuseAck, onStatusReport, onGarbled, isObject, mergeLive, withNumber, startSeed, isSeedOwed, mergeStateValue, onSeedAnswer, seedAnswered, maybeConfigure, reportStepText, failReports, nextReportStep, numberValue, addChange, onReportAnswer, watchdogActive, watchdogMs, syncWatchdog, enterStale, silentWhileBusy, onWatchdog, askForLife, enterFault, pump, lineFor, MOTION_DEPS, JOB_DEPS });
 return { READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, reduce, settingWriteActive, BOOT_LINE, probeRecord, LIVENESS_TOKEN };
 }
