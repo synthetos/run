@@ -10,6 +10,7 @@ import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { blocks, Description } from '../src/projects/description.ts';
 import { checkEncoded, checkFile, checkImage, classify, fitWithin, formatBytes, isGcodeFile, LIMITS, MB } from '../src/projects/limits.ts';
+import { readProject as readAccountProject } from '@synthetos/library';
 import { isProject, ProjectStore, projectUsage, type EncodedImage, type ProjectDeps } from '../src/projects/store.ts';
 import { memoryRecordStore } from '../src/workspace/storage.ts';
 
@@ -85,6 +86,19 @@ function sized(name: string, size: number, type = ''): File {
   Object.defineProperty(f, 'size', { value: size });
   return f;
 }
+
+describe('what the project store writes passes the strict account reader', () => {
+  it('reads an empty file and an untitled link with a long URL, as the browser stores them', async () => {
+    const sha256 = async (bytes: ArrayBuffer) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
+    let n = 0;
+    const store = new ProjectStore({ records: memoryRecordStore(), now: () => new Date('2026-11-15T12:00:00Z'), newId: () => `id-${++n}`, hash: sha256, encodeImage: () => Promise.reject(new Error('no')) });
+    const p = await store.create('Plate');
+    expect((await store.add(p.id, [new File([], 'notes.txt')])).added).toEqual(['notes.txt']);
+    await store.addLink(p.id, '', `https://example.com/${'a'.repeat(260)}`);
+    const read = readAccountProject(store.find(p.id));
+    expect(read.ok ? [] : read.issues).toEqual([]);
+  });
+});
 
 describe('the project store (IndexedDB through the storage module; in memory here)', () => {
   it('creates, renames, lists newest first, reloads and deletes', async () => {

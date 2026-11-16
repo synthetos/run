@@ -76,4 +76,15 @@ describe('/api/files', () => {
     data.deleteFile = async (_a, sha256) => ({ ok: true, existed: true, file: { sha256, size: 1, createdAt: 1 } });
     expect((await route(request(`/${HASH}`, 'DELETE'), env)).status).toBe(200);
   });
+  it('lets a typed binary upload through the gate (the custom header is the CSRF proof), unlike a record body', async () => {
+    const { env, data, actors } = accountEnv('staging');
+    data.putFile = async (actor, sha256, size) => { actors.push(actor); return { ok: true, existed: false, file: { sha256, size, createdAt: 1 } }; };
+    expect((await route(request(`/${HASH}`, 'PUT', bytes, { 'content-type': 'application/octet-stream' }), env)).status).toBe(201);
+    expect((await route(request(`/${HASH}`, 'PUT', bytes, { 'content-type': 'image/png' }), env)).status).toBe(201);
+    expect(actors).toHaveLength(2);
+    const record = new Request(`${ORIGIN}/api/records/tool/mine.t1`, { method: 'PUT', headers: { cookie: SESSION_COOKIE, origin: ORIGIN, 'sec-fetch-site': 'same-origin', 'x-synthetos-request': '1', 'content-type': 'application/octet-stream' }, body: '{}' });
+    expect((await route(record, env)).status).toBe(403);
+    data.deleteFile = async () => ({ ok: false, error: 'busy' });
+    expect((await route(request(`/${HASH}`, 'DELETE'), env)).status).toBe(409);
+  });
 });

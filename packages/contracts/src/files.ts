@@ -26,6 +26,8 @@ export type FileError =
   | 'mismatch'
   /** A project record still names this file. */
   | 'in_use'
+  /** Another upload or removal of this very file is in flight; try again shortly. */
+  | 'busy'
   /** The bucket did not answer; nothing was kept. */
   | 'failed';
 

@@ -44,7 +44,7 @@ export async function recordsRoute(request: Request, env: Env): Promise<Response
   const match = PATH.exec(url.pathname);
   if (match === null) return json(404, { error: 'not_found' });
   const kind = match[1] as RecordKind; const id = match[2];
-  const gate = await accountRequest(request, env, id === undefined ? ['GET'] : ['GET', 'PUT', 'DELETE'], 'records_unavailable');
+  const gate = await accountRequest(request, env, { allow: id === undefined ? ['GET'] : ['GET', 'PUT', 'DELETE'], unavailable: 'records_unavailable' });
   if (!gate.ok) return gate.response;
   if (request.method === 'GET') return read(url, gate, kind, id);
   if (url.search !== '') return json(400, { error: 'invalid' });

@@ -154,7 +154,9 @@ function bedIssues(b: unknown): Issue[] {
 
 function identityIssues(v: Record<string, unknown>): Issue[] {
   const out: Issue[] = [];
-  for (const k of ['id', 'name', 'templateId', 'spindle'] as const) if (typeof v[k] !== 'string' || v[k] === '') out.push(issue(`/${k}`, 'must be text'));
+  for (const k of ['id', 'name', 'templateId'] as const) if (typeof v[k] !== 'string' || v[k] === '') out.push(issue(`/${k}`, 'must be text'));
+  // The spindle is a free description; the Machines view saves it empty when cleared.
+  if (typeof v['spindle'] !== 'string') out.push(issue('/spindle', 'must be text'));
   if (!DRIVES.includes(v['drive'] as (typeof DRIVES)[number])) out.push(issue('/drive', 'must be belt, screw, rack or any'));
   if (!isTravel(v['travel'])) out.push(issue('/travel', 'must give positive x, y and z'));
   if (!isDateTime(v['createdAt'])) out.push(issue('/createdAt', 'must be a date'));

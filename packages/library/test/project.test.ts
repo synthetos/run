@@ -72,7 +72,8 @@ describe('readProject (the strict account reader)', () => {
   it('checks every file, image and link, and refuses repeated ids', () => {
     expect(paths(project({ files: [file({ id: '' })] }))).toEqual(['/files/0']);
     expect(paths(project({ files: [file({ name: 'x'.repeat(256) })] }))).toEqual(['/files/0']);
-    expect(paths(project({ files: [file({ size: 0 })] }))).toEqual(['/files/0']);
+    expect(paths(project({ files: [file({ size: 0 })] }))).toEqual([]);
+    expect(paths(project({ files: [file({ size: -1 })] }))).toEqual(['/files/0']);
     expect(paths(project({ files: [file({ size: 1.5 })] }))).toEqual(['/files/0']);
     expect(paths(project({ files: [file({ hash: 'abc' })] }))).toEqual(['/files/0']);
     expect(paths(project({ files: [file({ role: 'video' })] }))).toEqual(['/files/0']);
@@ -86,8 +87,21 @@ describe('readProject (the strict account reader)', () => {
     expect(paths(project({ images: [image({ height: -1 })] }))).toEqual(['/images/0']);
     expect(paths(project({ images: [image({ addedAt: 1 })] }))).toEqual(['/images/0']);
     expect(paths(project({ links: [link({ id: 1 })] }))).toEqual(['/links/0']);
-    expect(paths(project({ links: [link({ title: 'x'.repeat(256) })] }))).toEqual(['/links/0']);
+    expect(paths(project({ links: [link({ title: 'x'.repeat(2048) })] }))).toEqual([]);
+    expect(paths(project({ links: [link({ title: 'x'.repeat(2049) })] }))).toEqual(['/links/0']);
     expect(paths(project({ links: [link({ url: 'x'.repeat(2049) })] }))).toEqual(['/links/0']);
+  });
+
+  it('checks every setup reference strictly', () => {
+    const setup = project().setup;
+    expect(paths(project({ setup: { ...setup, tools: [null] } }))).toEqual(['/setup/tools/0']);
+    expect(paths(project({ setup: { ...setup, tools: [{ id: 'tool-1', name: 'End mill', version: 'oops' }] } }))).toEqual(['/setup/tools/0']);
+    expect(paths(project({ setup: { ...setup, tools: [{ id: 'tool-1', name: 'End mill', number: -1 }] } }))).toEqual(['/setup/tools/0']);
+    expect(paths(project({ setup: { ...setup, tools: [{ id: '', name: 'End mill' }] } }))).toEqual(['/setup/tools/0']);
+    expect(paths(project({ setup: { ...setup, tools: [{ id: 'tool-1', name: 'End mill', version: 2, number: 0 }] } }))).toEqual([]);
+    expect(paths(project({ setup: { ...setup, machine: { id: 'm', name: 'M', version: 0 } } }))).toEqual(['/setup/machine']);
+    expect(paths(project({ setup: { ...setup, stock: { id: 's', name: 'x'.repeat(256) } } }))).toEqual(['/setup/stock']);
+    expect(paths(project({ setup: { ...setup, material: { id: 'mat', name: 'Al', version: 3 } } }))).toEqual([]);
   });
 
   it('reads every job strictly', () => {

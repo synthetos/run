@@ -14,6 +14,7 @@ import { frozenCopy } from './freeze.ts';
 import { isJob, type Job } from './job.ts';
 import { SHA256_HEX, isArray, isDateTime, isNum, isObject } from './shape.ts';
 import type { Stock } from './types.ts';
+import { URL_MAX_LENGTH } from './url.ts';
 import { readStock, type LibraryResult } from './validate.ts';
 
 export const PROJECT_FORMAT = 1;
@@ -118,11 +119,25 @@ export function isProjectShape(v: unknown): v is ProjectShape {
 type Issue = { readonly path: string; readonly message: string };
 const issue = (path: string, message: string): Issue => ({ path, message });
 const isText = (v: unknown, max: number): boolean => typeof v === 'string' && v.length <= max;
+// A file may be empty (the browser keeps empty notes files); an image never is.
 const isFile = (f: Record<string, unknown>): boolean =>
-  isText(f['name'], 255) && isNum(f['size']) && f['size'] > 0 && Number.isInteger(f['size']) && SHA256_HEX.test(String(f['hash'])) && FILE_ROLES.includes(f['role'] as FileRole) && isText(f['note'], 2000) && isDateTime(f['addedAt']);
+  isText(f['name'], 255) && isNum(f['size']) && f['size'] >= 0 && Number.isInteger(f['size']) && SHA256_HEX.test(String(f['hash'])) && FILE_ROLES.includes(f['role'] as FileRole) && isText(f['note'], 2000) && isDateTime(f['addedAt']);
 const isImage = (i: Record<string, unknown>): boolean =>
   isText(i['name'], 255) && isNum(i['size']) && i['size'] > 0 && isNum(i['width']) && i['width'] > 0 && isNum(i['height']) && i['height'] > 0 && isDateTime(i['addedAt']);
-const isLink = (l: Record<string, unknown>): boolean => typeof l['id'] === 'string' && isText(l['title'], 255) && isText(l['url'], 2048);
+// A link left untitled carries its URL as the title, so the title shares the URL's limit.
+const isLink = (l: Record<string, unknown>): boolean => typeof l['id'] === 'string' && isText(l['title'], URL_MAX_LENGTH) && isText(l['url'], URL_MAX_LENGTH);
+const isWhole = (v: unknown, min: number): boolean => isNum(v) && Number.isInteger(v) && v >= min;
+/** A strict library reference: id and name, an optional positive version, and (for tools) an optional tool number. */
+const isStrictRef = (v: unknown, tool = false): boolean =>
+  isObject(v) && typeof v['id'] === 'string' && v['id'] !== '' && isText(v['name'], 255) && (v['version'] === undefined || isWhole(v['version'], 1))
+  && (!tool || v['number'] === undefined || isWhole(v['number'], 0));
+
+function setupIssues(s: ProjectSetup): Issue[] {
+  const out: Issue[] = [];
+  for (const k of ['machine', 'stock', 'material'] as const) if (s[k] !== null && !isStrictRef(s[k])) out.push(issue(`/setup/${k}`, 'must be a library reference'));
+  s.tools.forEach((t, i) => { if (!isStrictRef(t, true)) out.push(issue(`/setup/tools/${i}`, 'must be a tool reference')); });
+  return out;
+}
 
 function listIssues(name: string, items: readonly unknown[], ok: (item: Record<string, unknown>) => boolean): Issue[] {
   const ids = new Set<string>();
@@ -140,7 +155,7 @@ function strictIssues(v: ProjectShape): Issue[] {
   if (!isDateTime(v.createdAt) || !isDateTime(v.updatedAt)) out.push(issue('/createdAt', 'created and updated must be dates'));
   if (!v.tags.every((t) => isText(t, 60))) out.push(issue('/tags', 'must be short texts'));
   if (v.cover !== null && !v.images.some((i) => i.id === v.cover)) out.push(issue('/cover', 'must be one of the images'));
-  out.push(...listIssues('files', v.files, isFile), ...listIssues('images', v.images, isImage), ...listIssues('links', v.links, isLink));
+  out.push(...listIssues('files', v.files, isFile), ...listIssues('images', v.images, isImage), ...listIssues('links', v.links, isLink), ...setupIssues(v.setup));
   const jobs = v.jobs ?? [];
   out.push(...jobs.flatMap((j, i) => (isJob(j) ? [] : [issue(`/jobs/${i}`, 'does not read as a job')])));
   return out;
@@ -148,7 +163,11 @@ function strictIssues(v: ProjectShape): Issue[] {
 
 const FIELDS = new Set(['v', 'id', 'name', 'description', 'cover', 'images', 'files', 'links', 'setup', 'jobs', 'tags', 'createdAt', 'updatedAt']);
 
-/** A project as it may enter an account: the shape, every field, every job; unknown fields refused. */
+/**
+ * A project as it may enter an account: the shape, every field, every job and every setup reference. Unknown
+ * fields are refused at the root; inside known objects, extra fields are kept as data (the browser may add some
+ * before the reader learns them) and never read by anything here.
+ */
 export function readProject(value: unknown): LibraryResult<Project> {
   if (!isProjectShape(value)) return { ok: false, issues: [issue('', 'is not a project record')] };
   const unknown = Object.keys(value).filter((k) => !FIELDS.has(k)).map((k) => issue(`/${k}`, 'is not a project field'));

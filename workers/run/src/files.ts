@@ -4,7 +4,7 @@ import { API_CACHE_CONTROL } from './headers.ts';
 import { json, type Env } from './routes.ts';
 
 const PATH = /^\/api\/files(?:\/([0-9a-f]{64}))?$/;
-const STATUS: Readonly<Record<FileError, number>> = { invalid: 400, not_found: 404, in_use: 409, quota: 413, mismatch: 422, failed: 502 };
+const STATUS: Readonly<Record<FileError, number>> = { invalid: 400, not_found: 404, in_use: 409, busy: 409, quota: 413, mismatch: 422, failed: 502 };
 const answer = (result: FileResult): Response => json(result.ok ? (result.existed ? 200 : 201) : STATUS[result.error], result);
 
 /** The declared size, which the store reserves before the bytes move; a body without one is refused. */
@@ -42,7 +42,7 @@ export async function filesRoute(request: Request, env: Env): Promise<Response> 
   const match = PATH.exec(url.pathname);
   if (match === null) return json(404, { error: 'not_found' });
   const sha256 = match[1];
-  const gate = await accountRequest(request, env, sha256 === undefined ? ['GET'] : ['GET', 'PUT', 'DELETE'], 'files_unavailable');
+  const gate = await accountRequest(request, env, { allow: sha256 === undefined ? ['GET'] : ['GET', 'PUT', 'DELETE'], unavailable: 'files_unavailable', body: 'bytes' });
   if (!gate.ok) return gate.response;
   if (url.search !== '') return json(400, { error: 'invalid' });
   const { actor, data } = gate;

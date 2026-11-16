@@ -17,8 +17,8 @@ describe('readMachine', () => {
       expect(Object.isFrozen(r.value.travel)).toBe(true);
       expect(r.value).not.toBe(value);
     }
-    expect(readMachine({ id: 'm', name: 'M', templateId: 't', drive: 'any', travel: { x: 1, y: 1, z: 1 }, spindle: '', createdAt: AT }).ok).toBe(false);
-    expect(readMachine({ id: 'm', name: 'M', templateId: 't', drive: 'any', travel: { x: 1, y: 1, z: 1 }, spindle: 'none', createdAt: AT }).ok).toBe(true);
+    // The Machines view saves a cleared spindle description as ''.
+    expect(readMachine({ id: 'm', name: 'M', templateId: 't', drive: 'any', travel: { x: 1, y: 1, z: 1 }, spindle: '', createdAt: AT }).ok).toBe(true);
   });
 
   it('refuses anything but an object with known fields', () => {
