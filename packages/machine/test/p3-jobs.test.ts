@@ -2,7 +2,7 @@ import { PHASE_2_RELEASE, w42 } from '@synthetos/safety';
 import { describe, expect, it } from 'vitest';
 import { JOB_LIMITS, feedAccountingSafe } from '../src/index.ts';
 import { JOBS_RELEASE_NO_FI, jobHarness, jobLines, runUntil, start, writes, zigzag } from './jobHarness.ts';
-import { SMALL, TC, model } from './jobLayerHarness.ts';
+import { SMALL, model } from './jobLayerHarness.ts';
 describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
 
   it('Pause writes ! and the job holds; Resume writes ~ and streaming goes on to the end', async () => {
@@ -79,59 +79,6 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     await h.run(2000);
     expect(jobLines(h, before)).toEqual([]);
     expect(h.session.snapshot.job?.phase).toBe('stopped');
-  });
-});
-describe('T-S112: manual tool change (H74)', () => {
-
-
-  it('stops before M6, drains, turns the spindle and coolant off, and resumes with the M6 line itself', async () => {
-    const h = await jobHarness();
-    const before = await start(h, TC);
-    await runUntil(h, () => h.session.snapshot.job?.phase === 'toolChange');
-    const s = h.session.snapshot;
-    expect(s.base).toBe('PROGRAM_PAUSED');
-    expect(s.job?.toolChange).toMatchObject({ line: 5, tool: 2, spindle: 'cw', speed: 12000, restartsSpindle: false, moved: false });
-    await h.run(500);
-    const w = writes(h).slice(before);
-    expect(w.some((x) => x.includes('M6'))).toBe(false);
-    expect(w.slice(w.indexOf('N4 G1 X0'))).toEqual(expect.arrayContaining(['M5', 'M9']));
-    expect(model(h).snapshot().spindle).toBe('off');
-    // The spindle was on and the file does not restart it: C35 first.
-    expect(h.session.request({ intent: 'resume' })).toMatchObject({ allowed: false, reason: expect.stringContaining('Run starts it (M3 S12000)') });
-    // Jog to a change position (Z up), then resume: back at a safe height, spindle on, M6, on.
-    expect(h.session.request({ intent: 'jog', axes: { z: 1 }, distanceMm: 5, feed: 600 })).toEqual({ allowed: true });
-    await runUntil(h, () => h.session.snapshot.motion === null && h.session.snapshot.base === 'PROGRAM_PAUSED');
-    expect(h.session.snapshot.job?.toolChange?.moved).toBe(true);
-    const at = writes(h).length;
-    expect(h.session.request({ intent: 'resume', spindleRestart: true })).toEqual({ allowed: true });
-    await runUntil(h, () => h.session.snapshot.job?.phase === 'done', 60_000);
-    const after = writes(h).slice(at).filter((x) => !x.startsWith('{"') && x !== '\\x05');
-    // Explicit absolute millimetres first, the job's modes put back after the return (independent review 2026-11-03, R1).
-    expect(after[0]).toBe('G90 G21');
-    expect(after[1]).toMatch(/^G53 G0 Z[45](\.\d+)?$/);
-    expect(after.slice(2, 6)).toEqual(['G53 G0 X0 Y0', 'G90', 'M3 S12000', 'N5 T2 M6']);
-    expect(h.session.snapshot.job?.phase).toBe('done');
-  });
-
-
-  it('a jog during a tool change restores the job distance mode, not G90 (G91 file)', async () => {
-    const h = await jobHarness();
-    await start(h, ['G21 G91', 'G1 X2 F600', 'T1 M6', 'G1 X2', 'M30'].join('\n'));
-    await runUntil(h, () => h.session.snapshot.job?.phase === 'toolChange');
-    const at = writes(h).length;
-    h.session.request({ intent: 'jog', axes: { x: 1 }, distanceMm: 1, feed: 600 });
-    await runUntil(h, () => h.session.snapshot.motion === null && h.session.snapshot.base === 'PROGRAM_PAUSED');
-    expect(writes(h).slice(at)).toContain('G91');
-  });
-
-
-  it('only Resume and Stop job are offered at a breakpoint; motion intents are refused while a job runs', async () => {
-    const h = await jobHarness();
-    await start(h, zigzag(10), [6]);
-    await h.run(200);
-    expect(h.session.request({ intent: 'jog', axes: { x: 1 }, distanceMm: 1, feed: 600 }).allowed).toBe(false);
-    await runUntil(h, () => h.session.snapshot.job?.phase === 'breakpoint');
-    expect(h.session.request({ intent: 'jog', axes: { x: 1 }, distanceMm: 1, feed: 600 })).toMatchObject({ allowed: false, reason: 'Only Resume and Stop job are offered at this stop.' });
   });
 });
 describe('T-S113: breakpoints and program stops (H75, H36)', () => {

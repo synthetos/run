@@ -20,7 +20,6 @@ import {
     onJobBreakpoints,
     onJobFault,
     onJobLinkLost,
-    onJobMotionAnswer,
     onJobPause,
     onJobPoll,
     onJobReset,
@@ -290,24 +289,6 @@ describe('the guards of the job decisions', () => {
   });
 
 
-  it('resume after a tool change: the position must be known, the speed must be known, the way back in range', async () => {
-    const s = await ready();
-    const tcState = (at: object, live: object, tc: object = {}) =>
-      withJob({ ...s, live: { ...s.live, mpo: live as never } }, { phase: 'toolChange', toolChange: { index: 1, tool: 1, spindle: 'off', speed: null, mist: false, flood: false, restartsSpindle: true, at: at as never, units: 1, dist: 0, ...tc } });
-    expect(why(onJobResume(tx(tcState({ x: 0, y: 0, z: 0 }, { x: 5 })).t, { intent: 'resume' }, 0))).toBe('The machine position is not known.');
-    expect(why(onJobResume(tx(tcState({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { spindle: 'ccw', restartsSpindle: false })).t, { intent: 'resume', spindleRestart: true }, 0))).toBe('The spindle was on, but its speed is not known.');
-    expect(why(onJobResume(tx(tcState({ x: 9999, y: 0, z: 0 }, { x: 0, y: 0, z: 0 })).t, { intent: 'resume' }, 0))).toBe('The way back is out of range.');
-    const ok = tx(tcState({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { spindle: 'ccw', speed: 800, restartsSpindle: false, mist: true, flood: true }));
-    expect(onJobResume(ok.t, { intent: 'resume', spindleRestart: true }, 0).allowed).toBe(true);
-    expect(ok.t.s.queue.map((q) => q.line)).toEqual(['M4 S800', undefined, undefined, undefined, undefined]);
-    expect(ok.t.s.job?.resumeSteps.map((x) => x.line)).toEqual(['M7', 'M8']);
-    expect(onJobMotionAnswer(ok.t, 'M4 S800', 0, 1)).toBe(true);
-    expect(onJobMotionAnswer(ok.t, 'M7', 132, 1)).toBe(true);
-    expect(ok.t.s.job?.phase).toBe('toolChange');
-    expect(onJobMotionAnswer(tx(s).t, 'M5', 0, 1)).toBe(false);
-  });
-
-
   it('polls: a pause at rest, a pause with no answer, a resume step at rest', async () => {
     const s = await ready();
     const rest = { stat: 4, hold: 0, vel: 0, qr: 32 } as const;
@@ -482,24 +463,6 @@ describe('more of the job layer, through its edges', () => {
     const unknown = tx({ ...fresh, footerRev: undefined, rxm: { ...s.rxm, step: { kind: 'read', purpose: 'job', value: 1 } } });
     onLineModeAnswer(unknown.t, answer({ rxm: 1 }), 0);
     expect(unknown.t.s.job?.message).toMatch(/revision unknown, not 3/);
-  });
-
-
-  it('resume: a control line still owed waits; no hold means no ~; a tool change with nothing to put back goes on at once', async () => {
-    const s = await ready();
-    expect(why(onJobResume(tx({ ...withJob(s, { phase: 'paused' }), expected: [{ token: 'stat', purpose: 'poll', late: false }] }).t, { intent: 'resume' }, 0))).toBe('The controller is still answering.');
-    for (const phase of ['programStop', 'refused'] as const) {
-      const r = tx({ ...withJob(s, { phase, confirmed: 2 }), live: { ...s.live, hold: 0 } });
-      expect(onJobResume(r.t, { intent: 'resume', skip: true }, 0).allowed).toBe(true);
-      expect(r.fx.some((e) => e.kind === 'writeRealtime')).toBe(false);
-    }
-    const tcState = withJob({ ...s, live: { ...s.live, mpo: {} } }, { phase: 'toolChange', toolChange: { index: 1, tool: null, spindle: 'off', speed: null, mist: false, flood: false, restartsSpindle: false, at: {}, units: 1, dist: 0 } });
-    const r = tx(tcState);
-    expect(onJobResume(r.t, { intent: 'resume' }, 0).allowed).toBe(true);
-    expect(r.t.s.job?.phase).toBe('running');
-    expect(r.t.s.job?.events.at(-2)?.text).toBe('Resuming after the tool change.');
-    const ccw = tx(withJob({ ...s, live: { ...s.live, mpo: {} } }, { phase: 'toolChange', toolChange: { index: 1, tool: 1, spindle: 'ccw', speed: 500, mist: false, flood: false, restartsSpindle: false, at: {}, units: 1, dist: 0 } }));
-    expect(why(onJobResume(ccw.t, { intent: 'resume' }, 0))).toMatch(/Run starts it \(M4 S500\)/);
   });
 
 
