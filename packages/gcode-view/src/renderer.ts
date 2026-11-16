@@ -14,6 +14,7 @@ import { pickSolid, rayThrough } from './pick.ts';
 import { NO_OFFSET, OVERLAY, PATH_OVER_CARVE_ALPHA, STYLE_COUNT } from './renderer/constants.ts';
 import { type RendererContext } from './renderer/context.ts';
 import { type GpuChunk, type LoadOptions, type PreviewRenderer, type RendererOptions } from './renderer/contract.ts';
+import { clearPath, dashDistances, linesChunk, release, upload, uploadSolid } from './renderer/geometry.ts';
 import { offsetBox, ringSegments, sceneBounds, solidTriangles, unionBox, type Rgba } from './scene.ts';
 import { checkSegmentList, lineCount, type Box3, type SegmentList, type Vec3 } from './segments.ts';
 import { runSliced, type SliceOptions } from './slicer.ts';
@@ -135,73 +136,6 @@ function bindRenderer(ctx: RendererContext): void {
   ctx.clearPath = () => clearPath(ctx);
   ctx.fitView = () => fitView(ctx);
   ctx.fitBox = () => fitBox(ctx);
-}
-
-
-function upload(ctx: RendererContext, positions: Float32Array, styles: Uint8Array, lines: Float32Array): GpuChunk {
-  const vao = ctx.gl.createVertexArray();
-  ctx.gl.bindVertexArray(vao);
-  const make = (data: ArrayBufferView, index: number, size: number, type: number): WebGLBuffer => {
-    const b = ctx.gl.createBuffer();
-    ctx.gl.bindBuffer(ctx.gl.ARRAY_BUFFER, b);
-    ctx.gl.bufferData(ctx.gl.ARRAY_BUFFER, data, ctx.gl.STATIC_DRAW);
-    ctx.gl.enableVertexAttribArray(index);
-    ctx.gl.vertexAttribPointer(index, size, type, false, 0, 0);
-    return b;
-  };
-  const buffers = [make(positions, 0, 3, ctx.gl.FLOAT), make(styles, 1, 1, ctx.gl.UNSIGNED_BYTE), make(lines, 2, 1, ctx.gl.FLOAT), make(ctx.dashDistances(positions, styles), 3, 1, ctx.gl.FLOAT)];
-  ctx.gl.bindVertexArray(null);
-  return { vao, buffers, vertexCount: positions.length / 3 };
-}
-
-
-function uploadSolid(ctx: RendererContext, positions: Float32Array, vertexColors: Float32Array): GpuChunk {
-  const vao = ctx.gl.createVertexArray();
-  ctx.gl.bindVertexArray(vao);
-  const make = (data: ArrayBufferView, index: number, size: number): WebGLBuffer => {
-    const b = ctx.gl.createBuffer();
-    ctx.gl.bindBuffer(ctx.gl.ARRAY_BUFFER, b);
-    ctx.gl.bufferData(ctx.gl.ARRAY_BUFFER, data, ctx.gl.STATIC_DRAW);
-    ctx.gl.enableVertexAttribArray(index);
-    ctx.gl.vertexAttribPointer(index, size, ctx.gl.FLOAT, false, 0, 0);
-    return b;
-  };
-  const buffers = [make(positions, 0, 3), make(vertexColors, 1, 4)];
-  ctx.gl.bindVertexArray(null);
-  return { vao, buffers, vertexCount: positions.length / 3 };
-}
-
-
-/**
-   * Per vertex: distance along its segment (0 at the start, the length at the end), for the dashes: traverses
-   * always, and any move while it waits for its acknowledgement in a running job's planner view.
-   */
-function dashDistances(ctx: RendererContext, positions: Float32Array, styles: Uint8Array): Float32Array {
-  const out = new Float32Array(styles.length);
-  for (let v = 0; v + 1 < styles.length; v += 2) {
-    const i = v * 3;
-    out[v + 1] = Math.hypot((positions[i + 3] as number) - (positions[i] as number), (positions[i + 4] as number) - (positions[i + 1] as number), (positions[i + 5] as number) - (positions[i + 2] as number));
-  }
-  return out;
-}
-
-
-function release(ctx: RendererContext, c: GpuChunk): void {
-  ctx.gl.deleteVertexArray(c.vao);
-  for (const b of c.buffers) ctx.gl.deleteBuffer(b);
-}
-
-
-function linesChunk(ctx: RendererContext, pos: number[], sty: number[]): GpuChunk | null {
-  return pos.length === 0 ? null : ctx.upload(new Float32Array(pos), new Uint8Array(sty), new Float32Array(sty.length).fill(-1));
-}
-
-
-function clearPath(ctx: RendererContext): void {
-  for (const c of ctx.path) ctx.release(c);
-  ctx.path = [];
-  ctx.list = null;
-  ctx.bounds = null;
 }
 
 
