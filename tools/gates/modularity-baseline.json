@@ -635,10 +635,6 @@
     "packages/gcode/test/events.test.ts": {
       "max-lines-per-function $/ArrowFunctionExpression:describe('the event tape')[1]#1": 104
     },
-    "packages/gcode/test/interpreter.test.ts": {
-      "max-lines-per-function $/ArrowFunctionExpression:describe('TB-02 acceptance: dialect data drives the interpreter')[1]#1": 81,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('old P1-03 goldens')[1]#1": 95
-    },
     "packages/gcode/test/parser.test.ts": {
       "max-nested-callbacks $/ArrowFunctionExpression:describe('parseStream')[1]#1/ArrowFunctionExpression:it('gives the same lines as parsing the whole text, however it is chunked')[1]#1/ArrowFunctionExpression:fc.asyncProperty()[2]#1/ArrowFunctionExpression:(await collect(parseStream(chunks(pieces)))).map()[0]#1": 4,
       "max-nested-callbacks $/ArrowFunctionExpression:describe('parseStream')[1]#1/ArrowFunctionExpression:it('gives the same lines as parsing the whole text, however it is chunked')[1]#1/ArrowFunctionExpression:fc.asyncProperty()[2]#1/ArrowFunctionExpression:[...parseLines(text)].map()[0]#1": 4
