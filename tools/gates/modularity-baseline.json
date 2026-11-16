@@ -717,18 +717,6 @@
     "packages/machine/src/session/jobTravel.ts": {
       "complexity $/FunctionDeclaration:fileWritesOffset#1": 17
     },
-    "packages/machine/src/session/motion.ts": {
-      "complexity $/FunctionDeclaration:checkAlarm#1": 20,
-      "complexity $/FunctionDeclaration:onMotionAnswer#1": 29,
-      "complexity $/FunctionDeclaration:onMotionIntent#1": 81,
-      "complexity $/FunctionDeclaration:onMotionStop#1": 22,
-      "complexity $/FunctionDeclaration:onMotionTimer#1": 17,
-      "complexity $/FunctionDeclaration:onPollDone#1": 43,
-      "max-lines $file": 682,
-      "max-lines-per-function $/FunctionDeclaration:onMotionIntent#1": 138,
-      "max-lines-per-function $/FunctionDeclaration:onPollDone#1": 110,
-      "max-params $/FunctionDeclaration:startChange#1": 5
-    },
     "packages/machine/src/session/motionLines.ts": {
       "complexity $/FunctionDeclaration:motionLineKind#1": 28
     },
