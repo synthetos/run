@@ -787,10 +787,6 @@
     "packages/machine/test/p2-heartbeat-busy.test.ts": {
       "max-lines-per-function $/ArrowFunctionExpression:describe('T-S103: heartbeat silence during hold and dwell')[1]#1": 101
     },
-    "packages/machine/test/p2-motion-reducer.test.ts": {
-      "max-lines-per-function $/ArrowFunctionExpression:describe('T-S94: the motion command kind of the write gate and the line grammar')[1]#1": 123,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('refusals, timeouts and damaged answers')[1]#1": 90
-    },
     "packages/machine/test/p2-push-reducer.test.ts": {
       "max-lines-per-function $/ArrowFunctionExpression:describe('T-S101: report configuration branches')[1]#1": 150
     },
