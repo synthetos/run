@@ -10,7 +10,8 @@ export interface PutOptions {
 }
 
 export interface Bucket {
-  put(key: string, body: ReadableStream<Uint8Array>, options: PutOptions): Promise<{ readonly size: number } | null>;
+  /** Stores the bytes (a stream of known length, or the bytes themselves for an empty file). */
+  put(key: string, body: ReadableStream<Uint8Array> | Uint8Array, options: PutOptions): Promise<{ readonly size: number } | null>;
   get(key: string): Promise<StoredObject | null>;
   delete(key: string): Promise<void>;
 }

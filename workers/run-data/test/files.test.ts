@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FILE_MAX_BYTES } from '@synthetos/contracts';
-import { FileStore } from '../src/files.ts';
+import type { Database, Statement } from '../src/database.ts';
+import { FileStore, UPLOAD_LEASE_MS } from '../src/files.ts';
 import { RecordStore } from '../src/store.ts';
 import { FakeBucket, collect, gate, sha256, stream } from './fakeBucket.ts';
 import { database } from './harness.ts';
@@ -63,12 +64,6 @@ describe('account files: storing', () => {
     expect(used(sql, a.userId)).toBe(0);
     expect(sql.prepare('SELECT COUNT(*) n FROM files').get()).toMatchObject({ n: 0 });
     expect(changes(sql)).toEqual(Array(4).fill(['Stored file', 'Refused file']).flat());
-    // A size mismatch whose cleanup delete also fails still releases the row: the stale size never sticks.
-    bucket.failWith = new Error('down'); bucket.failDeletes = true;
-    const accepted = new FakeBucket(); const store2 = new FileStore(setup().db, accepted);
-    void store2;
-    expect(await store.putFile(a, hash, bytes.byteLength, stream(bytes))).toEqual({ ok: false, error: 'failed' });
-    expect(used(sql, a.userId)).toBe(0);
     sql.close();
   });
 
@@ -144,23 +139,23 @@ describe('account files: in flight, deleting and racing', () => {
   it('a delete the bucket refuses stays retryable, and never removes a newer upload of the same digest', async () => {
     const { sql, bucket, store } = setup();
     await store.putFile(a, hash, bytes.byteLength, stream(bytes));
-    bucket.failWith = new Error('down'); bucket.failDeletes = true;
+    bucket.deleteFailWith = new Error('down');
     expect(await store.deleteFile(a, hash)).toEqual({ ok: false, error: 'failed' });
     expect(states(sql)).toEqual([`${hash.slice(0, 6)}:deleting`]);
     expect(await store.getFile(a, hash)).toEqual({ ok: false, error: 'not_found' });
     expect(await store.putFile(a, hash, bytes.byteLength, stream(bytes))).toEqual({ ok: false, error: 'busy' });
-    bucket.failWith = null; bucket.failDeletes = false;
+    bucket.deleteFailWith = null;
     expect(await store.deleteFile(a, hash)).toMatchObject({ ok: true });
     expect(bucket.objects.size).toBe(0); expect(used(sql, a.userId)).toBe(0);
-    // A delete paused at the bucket while a new upload of the same digest completes removes only its own object.
+    // A delete paused at the bucket while a new upload of the same digest arrives: the upload finishes the removal
+    // and stores under a new token; the paused delete then touches only its own, already gone, object.
     await store.putFile(a, hash, bytes.byteLength, stream(bytes));
     const held = gate(); bucket.hold = held.promise;
     const removal = store.deleteFile(a, hash);
     await new Promise((r) => setTimeout(r, 10));
-    expect(await store.putFile(a, hash, bytes.byteLength, stream(bytes))).toEqual({ ok: false, error: 'busy' });
+    expect(await store.putFile(a, hash, bytes.byteLength, stream(bytes))).toMatchObject({ ok: true, existed: false });
     held.open();
     expect(await removal).toMatchObject({ ok: true });
-    expect(await store.putFile(a, hash, bytes.byteLength, stream(bytes))).toMatchObject({ ok: true, existed: false });
     expect(bucket.objects.size).toBe(1);
     expect(await store.getFile(a, hash)).toMatchObject({ ok: true });
     sql.close();
@@ -171,6 +166,79 @@ describe('account files: in flight, deleting and racing', () => {
     await store.putFile(a, hash, bytes.byteLength, stream(bytes));
     bucket.objects.clear();
     expect(await store.getFile(a, hash)).toEqual({ ok: false, error: 'failed' });
+    sql.close();
+  });
+});
+
+/** The same database, with the statements starting with `prefix` altered by `wrap` (a pause or a failure at the D1 boundary). */
+function withStatements(db: Database, prefix: string, wrap: (s: Statement) => Partial<Statement>): Database {
+  return {
+    ...db,
+    prepare(query) {
+      const s = db.prepare(query);
+      if (!query.startsWith(prefix)) return s;
+      const w: Statement = { bind(...v) { s.bind(...v); return w; }, first: () => s.first(), all: () => s.all(), run: () => s.run(), ...wrap(s) };
+      return w;
+    },
+  };
+}
+const tick = () => new Promise((r) => setTimeout(r, 10));
+
+describe('account files: recovery', () => {
+  it('a delete removes only the row it claimed: a replacement uploaded meanwhile is untouched', async () => {
+    const { db, sql, bucket, store } = setup();
+    await store.putFile(a, hash, bytes.byteLength, stream(bytes));
+    const held = gate(); let paused = false;
+    const slow = new FileStore(withStatements(db, "UPDATE files SET state='deleting'", (s) => ({ async first() { const r = await s.first(); if (!paused) { paused = true; await held.promise; } return r; } })), bucket);
+    const first = slow.deleteFile(a, hash);
+    await tick();
+    expect(states(sql)).toEqual([`${hash.slice(0, 6)}:deleting`]);
+    expect(await store.deleteFile(a, hash)).toMatchObject({ ok: true });
+    expect(await store.putFile(a, hash, bytes.byteLength, stream(bytes))).toMatchObject({ ok: true, existed: false });
+    held.open();
+    expect(await first).toMatchObject({ ok: true });
+    expect(bucket.objects.size).toBe(1);
+    expect(await store.getFile(a, hash)).toMatchObject({ ok: true });
+    expect(used(sql, a.userId)).toBe(bytes.byteLength);
+    sql.close();
+  });
+
+  it('an upload the database lost track of is busy for its lease, then the next upload or delete finishes it', async () => {
+    const { db, sql, bucket } = setup();
+    let failures = 2; let now = 1_700_000_000_000;
+    const flaky = withStatements(db, "UPDATE files SET state='ready'", (s) => ({ async run() { if (failures-- > 0) throw new Error('d1 hiccup'); return s.run(); } }));
+    const store = new FileStore(flaky, bucket, () => now);
+    await expect(store.putFile(a, hash, bytes.byteLength, stream(bytes))).rejects.toThrow('d1 hiccup');
+    await expect(store.putFile(a, otherHash, other.byteLength, stream(other))).rejects.toThrow('d1 hiccup');
+    expect(states(sql)).toEqual([`${hash.slice(0, 6)}:pending`, `${otherHash.slice(0, 6)}:pending`].sort());
+    expect(used(sql, a.userId)).toBe(bytes.byteLength + other.byteLength);
+    expect(await store.putFile(a, hash, bytes.byteLength, stream(bytes))).toEqual({ ok: false, error: 'busy' });
+    expect(await store.deleteFile(a, hash)).toEqual({ ok: false, error: 'busy' });
+    expect(await store.getFile(a, hash)).toEqual({ ok: false, error: 'not_found' });
+    now += UPLOAD_LEASE_MS;
+    expect(await store.putFile(a, hash, bytes.byteLength, stream(bytes))).toMatchObject({ ok: true, existed: false });
+    expect(await store.getFile(a, hash)).toMatchObject({ ok: true });
+    expect(await store.deleteFile(a, otherHash)).toMatchObject({ ok: true, file: { sha256: otherHash } });
+    expect(bucket.objects.size).toBe(1);
+    expect(used(sql, a.userId)).toBe(bytes.byteLength);
+    expect(changes(sql).filter((c) => c !== 'Stored file')).toEqual(['Abandoned upload', 'Abandoned upload']);
+    sql.close();
+  });
+
+  it('a mismatched upload whose cleanup the bucket refuses stays charged and retryable, never an orphan', async () => {
+    const { sql, bucket, store } = setup();
+    bucket.deleteFailWith = new Error('down');
+    expect(await store.putFile(a, hash, bytes.byteLength + 1, stream(bytes))).toEqual({ ok: false, error: 'mismatch' });
+    expect(states(sql)).toEqual([`${hash.slice(0, 6)}:deleting`]);
+    expect(used(sql, a.userId)).toBe(bytes.byteLength + 1);
+    expect(bucket.objects.size).toBe(1);
+    expect(await store.putFile(a, hash, bytes.byteLength, stream(bytes))).toEqual({ ok: false, error: 'busy' });
+    expect(await store.deleteFile(a, hash)).toEqual({ ok: false, error: 'failed' });
+    bucket.deleteFailWith = null;
+    expect(await store.putFile(a, hash, bytes.byteLength, stream(bytes))).toMatchObject({ ok: true, existed: false });
+    expect(bucket.objects.size).toBe(1);
+    expect(used(sql, a.userId)).toBe(bytes.byteLength);
+    expect(changes(sql)).toEqual(['Stored file', 'Removed file', 'Stored file']);
     sql.close();
   });
 });

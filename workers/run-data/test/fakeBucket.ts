@@ -7,16 +7,17 @@ import type { Bucket, StoredObject } from '../src/bucket.ts';
  */
 export class FakeBucket implements Bucket {
   readonly objects = new Map<string, Uint8Array>();
-  /** When set, every put (and delete, when `failDeletes`) fails this way (the bucket "is down"). */
+  /** When set, every put fails this way (the bucket "is down"). */
   failWith: Error | null = null;
-  failDeletes = false;
+  /** When set, every delete fails this way (puts still work). */
+  deleteFailWith: Error | null = null;
   /** When set, the next put or delete waits for it before touching the objects. */
   hold: Promise<void> | null = null;
 
   async #wait(): Promise<void> { const h = this.hold; this.hold = null; if (h !== null) await h; }
 
-  async put(key: string, body: ReadableStream<Uint8Array>, options: { readonly sha256: string }) {
-    const bytes = await collect(body);
+  async put(key: string, body: ReadableStream<Uint8Array> | Uint8Array, options: { readonly sha256: string }) {
+    const bytes = body instanceof Uint8Array ? body : await collect(body);
     await this.#wait();
     if (this.failWith !== null) throw this.failWith;
     if (createHash('sha256').update(bytes).digest('hex') !== options.sha256) throw new Error('The SHA-256 checksum you specified did not match what we received.');
@@ -31,7 +32,7 @@ export class FakeBucket implements Bucket {
 
   async delete(key: string): Promise<void> {
     await this.#wait();
-    if (this.failDeletes && this.failWith !== null) throw this.failWith;
+    if (this.deleteFailWith !== null) throw this.deleteFailWith;
     this.objects.delete(key);
   }
 }
