@@ -45,6 +45,7 @@ import { extendByArc, extendTo, extentAt } from './extent.ts';
 import { chargeJointResidual, jointRiskFinding, linearModeFinding, modeOf, rotaryUnknown, withJointResidual } from './analyze/axisModes.ts';
 import { ModelState, type ModelContext } from './analyze/context.ts';
 import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
+import { appliedTool, g92Part, g92PartUnc, offsetUnc, selectWcs, setG92, shift, totalOffset, workAfterSet } from './analyze/offsets.ts';
 import { emptyPos, exactUnc, posFrom, uncOf, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
 import { AFTER_MOTION, ARC_LETTERS, AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
 import { mmPerUnit, motionBound, needsUnits, offsetScale, scale, unitScale } from './analyze/units.ts';
@@ -215,10 +216,7 @@ export class JobModel extends ModelState {
    * Bound on the error of the work offset in force on an axis (`totalOffset`):
    * the sum of its parts' bounds. Infinite when the offset is unknown.
    */
-  #offsetUnc(axis: Axis): number {
-    if (this.wcs === null || this.g92Active === null) return Infinity;
-    return this.uWcs[this.wcs][axis] + (this.g92Active ? this.uG92[axis] : 0) + (ROTARY.has(axis) ? 0 : this.uTool[axis]);
-  }
+  #offsetUnc(axis: Axis): number { return offsetUnc(this, axis); }
 
 
   /**
@@ -255,13 +253,7 @@ export class JobModel extends ModelState {
    * the applied tool offset, or null. This is the offset the firmware adds to
    * a target, not its display convention.
    */
-  totalOffset(axis: Axis): number | null {
-    if (this.wcs === null) return null;
-    const w = this.wcsOffsets[this.wcs][axis];
-    const g = this.#g92Part(axis);
-    const t = this.#appliedTool(axis);
-    return w === null || g === null || t === null ? null : w + g + t;
-  }
+  totalOffset(axis: Axis): number | null { return totalOffset(this, axis); }
 
 
   /**
@@ -271,9 +263,7 @@ export class JobModel extends ModelState {
    * stores A/B/C values (@cite EN canonical_machine.c:1609, E155), which G92
    * and G10 L20 still subtract (@cite EN canonical_machine.c:1055-1061, :1205-1206).
    */
-  #appliedTool(axis: Axis): number | null {
-    return ROTARY.has(axis) ? 0 : this.toolOffset[axis];
-  }
+  #appliedTool(axis: Axis): number | null { return appliedTool(this, axis); }
 
 
   /**
@@ -282,11 +272,7 @@ export class JobModel extends ModelState {
    * every axis but applies it only to X, Y and Z, so a rotary axis reads
    * `value` + its stored tool offset (null when either is unknown).
    */
-  #workAfterSet(axis: Axis, value: number | null): number | null {
-    if (value === null || !ROTARY.has(axis)) return value;
-    const t = this.toolOffset[axis];
-    return t === null ? null : value + t;
-  }
+  #workAfterSet(axis: Axis, value: number | null): number | null { return workAfterSet(this, axis, value); }
 
 
   /** Adds `mm` to the bound on both positions of an axis (rounding the model did not follow). */
@@ -310,10 +296,7 @@ export class JobModel extends ModelState {
 
 
   /** The G92 part of the work offset on an axis, or null when it is not known whether G92 applies. */
-  #g92Part(axis: Axis): number | null {
-    if (this.g92Active === null) return null;
-    return this.g92Active ? this.g92[axis] : 0;
-  }
+  #g92Part(axis: Axis): number | null { return g92Part(this, axis); }
 
 
   /**
@@ -323,55 +306,19 @@ export class JobModel extends ModelState {
    * both known, the work position is recomputed from them instead.
    * `changeUnc` bounds the error of the change (the old and new parts' bounds).
    */
-  #shift(axis: Axis, change: number | null, changeUnc: number): void {
-    const m = this.machine[axis];
-    const t = this.totalOffset(axis);
-    const w = this.work[axis];
-    if (m !== null && t !== null) {
-      this.work[axis] = m - t;
-      this.uWork[axis] = this.uMachine[axis] + this.#offsetUnc(axis);
-    } else if (change === 0 && changeUnc === 0) return;
-    else {
-      this.work[axis] = w !== null && change !== null ? w + change : null;
-      this.uWork[axis] += changeUnc;
-    }
-  }
+  #shift(axis: Axis, change: number | null, changeUnc: number): void { return shift(this, axis, change, changeUnc); }
 
 
   /** Selects a coordinate system (G54..G59, or the default at program end). */
-  #selectWcs(next: Wcs | null): void {
-    const prev = this.wcs;
-    if (next === prev) return;
-    this.wcs = next;
-    for (const a of AXES) {
-      const before = prev === null ? null : this.wcsOffsets[prev][a];
-      const after = next === null ? null : this.wcsOffsets[next][a];
-      const unc = (prev === null ? Infinity : this.uWcs[prev][a]) + (next === null ? Infinity : this.uWcs[next][a]);
-      this.#shift(a, before === null || after === null ? null : before - after, unc);
-    }
-  }
+  #selectWcs(next: Wcs | null): void { return selectWcs(this, next); }
 
 
   /** The bound on the G92 part of the work offset on an axis. */
-  #g92PartUnc(axis: Axis): number {
-    if (this.g92Active === null) return Infinity;
-    return this.g92Active ? this.uG92[axis] : 0;
-  }
+  #g92PartUnc(axis: Axis): number { return g92PartUnc(this, axis); }
 
 
   /** Sets whether G92 offsets apply, and to what with which bounds (null keeps them). */
-  #setG92(active: boolean, offsets: Pos | null, unc: Unc | null): void {
-    const before = AXES.map((a) => this.#g92Part(a));
-    const beforeUnc = AXES.map((a) => this.#g92PartUnc(a));
-    this.g92Active = active;
-    if (offsets !== null) this.g92 = offsets;
-    if (unc !== null) this.uG92 = unc;
-    AXES.forEach((a, i) => {
-      const b = before[i] as number | null;
-      const after = this.#g92Part(a);
-      this.#shift(a, b === null || after === null ? null : b - after, (beforeUnc[i] as number) + this.#g92PartUnc(a));
-    });
-  }
+  #setG92(active: boolean, offsets: Pos | null, unc: Unc | null): void { return setG92(this, active, offsets, unc); }
 
 
   /** mm per program unit of a linear word, or null when the units are unknown. */
