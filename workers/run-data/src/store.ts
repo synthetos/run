@@ -1,8 +1,10 @@
-import { ACCOUNT_STORAGE_BYTES, RECORD_MAX_BYTES, type CloudRecord, type RecordActor, type RecordKind, type RecordResult } from '@synthetos/contracts';
-import { readMaterial, readTool } from '@synthetos/library';
+import { ACCOUNT_STORAGE_BYTES, RECORD_KINDS, recordMaxBytes, type CloudRecord, type RecordActor, type RecordKind, type RecordResult } from '@synthetos/contracts';
+import { readMachine, readMaterial, readProject, readTool, type LibraryResult } from '@synthetos/library';
 import type { Database } from './database.ts';
 const ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
-const kindOk = (kind: unknown): kind is RecordKind => kind === 'tool' || kind === 'material';
+const kindOk = (kind: unknown): kind is RecordKind => RECORD_KINDS.includes(kind as RecordKind);
+/** The strict reader each kind passes before it is stored; the record id must be the content's own id. */
+const READERS: Readonly<Record<RecordKind, (value: unknown) => LibraryResult<{ readonly id: string }>>> = { tool: readTool, material: readMaterial, machine: readMachine, project: readProject };
 function valid(actor: RecordActor, kind: RecordKind, id = 'x'): boolean {
   return /^usr_[A-Za-z0-9_-]{1,100}$/.test(actor.userId) && typeof actor.label === 'string' && actor.label.length <= 120 && kindOk(kind) && ID.test(id);
 }
@@ -25,10 +27,10 @@ export class RecordStore {
   }
   async put(actor: RecordActor, kind: RecordKind, id: string, parentRev: number | null, content: unknown): Promise<RecordResult> {
     if (!valid(actor, kind, id) || (parentRev !== null && (!Number.isSafeInteger(parentRev) || parentRev < 1))) return { ok: false, error: 'invalid' };
-    const parsed = kind === 'tool' ? readTool(content) : readMaterial(content);
+    const parsed = READERS[kind](content);
     if (!parsed.ok || parsed.value.id !== id) return { ok: false, error: 'invalid' };
     const json = JSON.stringify(parsed.value); const bytes = new TextEncoder().encode(json);
-    if (bytes.length > RECORD_MAX_BYTES) return { ok: false, error: 'invalid' };
+    if (bytes.length > recordMaxBytes(kind)) return { ok: false, error: 'invalid' };
     const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2,'0')).join('');
     try {
       await this.#db.batch([

@@ -1,7 +1,11 @@
 /** Shared account storage budget, including retained record revisions and future file blobs. */
 export const ACCOUNT_STORAGE_BYTES = 1_000_000_000;
 export const RECORD_MAX_BYTES = 64 * 1024;
-export type RecordKind = 'tool' | 'material';
+/** A project carries its jobs, so it may be larger than a library record. */
+export const PROJECT_RECORD_MAX_BYTES = 512 * 1024;
+export type RecordKind = 'tool' | 'material' | 'machine' | 'project';
+export const RECORD_KINDS: readonly RecordKind[] = ['tool', 'material', 'machine', 'project'];
+export const recordMaxBytes = (kind: RecordKind): number => (kind === 'project' ? PROJECT_RECORD_MAX_BYTES : RECORD_MAX_BYTES);
 export interface RecordActor { readonly userId: string; readonly label: string }
 export interface CloudRecord { readonly id: string; readonly kind: RecordKind; readonly rev: number; readonly archivedAt: number | null; readonly content: unknown; readonly sha256: string }
 export type RecordResult = { readonly ok: true; readonly record: CloudRecord } | { readonly ok: false; readonly error: 'invalid' | 'not_found' | 'conflict' | 'quota'; readonly current?: CloudRecord | null };
