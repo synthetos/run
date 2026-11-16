@@ -1,3 +1,4 @@
+import { bindReads } from './reducers/reads.ts';
 import { bindShared } from './reducers/shared.ts';
 import type { ReducerDeps } from './reducers/deps.ts';
 import { createReducerValues } from './reducers/values.ts';
@@ -312,54 +313,6 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
     default:
       t.decide(intent, deny(PHASE_1_NOT_HANDLED.reason, PHASE_1_NOT_HANDLED.remedy, `ROADMAP P1-02 (${t.config.release.name})`));
   }
-}
-
-function onEnq(t: Tx, matrix: Decision): void {
-  if (t.s.enqOutstanding) {
-    t.decide('enq', deny('A liveness probe is already outstanding.', 'Wait for its answer.', 'SAFETY §4.2 (at most one ENQ outstanding)'));
-    return;
-  }
-  const byte = enqByte(t.s);
-  if (byte === undefined) {
-    t.decide('enq', deny('ENQ is sent only to classified edge-next after a revision 2 or 3 footer.', 'Nothing to do.', 'SAFETY §4.1 Liveness probe row; T-S24b; PN §2.3'));
-    return;
-  }
-  writeEnq(t, byte);
-  t.decide('enq', matrix);
-}
-
-function writeEnq(t: Tx, byte: number): void {
-  t.set({ enqOutstanding: true, sent: { ...t.s.sent, realtime: t.s.sent.realtime + 1 } });
-  t.emit({ kind: 'writeRealtime', epoch: t.s.epoch, name: 'enq', byte });
-}
-
-function onRead(t: Tx, tokens: readonly string[], matrix: Decision): void {
-  const dialect = dialectOf(t.s);
-  if (t.s.base === 'BLOCKED') {
-    t.decide('read', deny('This board is not the machine you selected, so nothing is sent to it.', 'Choose the right machine, or disconnect.', 'T-S21; SAFETY §3 BLOCKED'));
-    return;
-  }
-  if (dialect === null || t.s.base === 'IDENTIFYING') {
-    t.decide('read', deny('Reads are sent only once the board is classified and its read allowlist is known.', 'Wait for the board to be identified.', 'SAFETY H37; PN §12.3'));
-    return;
-  }
-  if (!Array.isArray(tokens) || tokens.length === 0) {
-    t.decide('read', deny('Nothing to read.', 'Name at least one setting.', 'SAFETY H37'));
-    return;
-  }
-  const refused = tokens.filter((tok) => typeof tok !== 'string' || !isReadAllowed(dialect.id, tok, t.s.identity?.fb));
-  if (refused.length > 0) {
-    const shown = refused.slice(0, 5).map((r) => JSON.stringify(typeof r === 'string' ? r.slice(0, 16) : String(r)));
-    t.decide('read', deny(`Not on the ${dialect.id} read allowlist: ${shown.join(', ')}.`, 'Only allowlisted settings can be read.', 'SAFETY H37; PN §12.3; T-S38'));
-    return;
-  }
-  const fresh = [...new Set(tokens)].filter((tok) => !t.s.queue.some((q) => q.token === tok && q.purpose === 'request'));
-  if (t.s.queue.length + fresh.length > MAX_QUEUED_READS) {
-    t.decide('read', deny('Too many reads are waiting.', 'Wait for the current reads to finish.', 'ROADMAP P1-02'));
-    return;
-  }
-  t.set({ queue: [...t.s.queue, ...fresh.map((token) => ({ token, purpose: 'request' as const }))] });
-  t.decide('read', matrix);
 }
 
 function onSettingsWrite(t: Tx, key: unknown, value: unknown, matrix: Decision): void {
@@ -1790,6 +1743,7 @@ function lineFor(s: SessionState, read: PendingRead): string | undefined {
 }
 
 const { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, linkUp, deny, settingWriteActive, isObject } = bindShared(deps);
+const { onEnq, writeEnq, onRead } = bindReads(deps);
 Object.assign(deps, { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, reduce, onJobLineDropped, linkUp, deny, onIntent, onEnq, writeEnq, onRead, settingWriteActive, onSettingsWrite, finishSettingWrite, onGateAnswer, onSettingAnswer, onReadBackAnswer, interruptSettingWrite, refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry, onAckFault, writeFeedhold, resetToNotConnected, onOpened, startProbe, onLineWritten, answerTimeout, onLinkLost, onTimer, onInbound, onBanner, onResponse, isDataEntry, owedAnswers, consumeOwed, answers, onAnswer, advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading, onVerifyAnswer, refuseAck, onStatusReport, onGarbled, isObject, mergeLive, withNumber, startSeed, isSeedOwed, mergeStateValue, onSeedAnswer, seedAnswered, maybeConfigure, reportStepText, failReports, nextReportStep, numberValue, addChange, onReportAnswer, watchdogActive, watchdogMs, syncWatchdog, enterStale, silentWhileBusy, onWatchdog, askForLife, enterFault, pump, lineFor, MOTION_DEPS, JOB_DEPS });
 return { READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, reduce, settingWriteActive, BOOT_LINE, probeRecord, LIVENESS_TOKEN };
 }
