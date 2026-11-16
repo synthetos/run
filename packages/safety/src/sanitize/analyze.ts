@@ -44,35 +44,10 @@ import type { Axis, MotionModel, RotaryAxis, SanitizeOptions, StartState, Wcs } 
 import { extendByArc, extendTo, extentAt, type MoveExtent } from './extent.ts';
 
 import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
+import { emptyPos, exactUnc, posFrom, uncOf, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
 import { AXES, AXIS_MODE_DISABLED, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, WCS_CODES, type AxisMode } from './types.ts';
 export { type Finding, type LineAnalysis } from './analyze/contract.ts';
 
-
-
-type Pos = Record<Axis, number | null>;
-
-
-/**
- * Per-axis bound (mm, or degrees) on how far the firmware's float32 value
- * may be from the model's value of the matching `Pos`. Only meaningful where
- * that value is known; an unknown value has an infinite bound.
- */
-type Unc = Record<Axis, number>;
-
-
-function uncOf(p: Pos, bound: (axis: Axis, value: number) => number): Unc {
-  const u = { X: Infinity, Y: Infinity, Z: Infinity, A: Infinity, B: Infinity, C: Infinity };
-  for (const a of AXES) {
-    const v = p[a];
-    if (v !== null) u[a] = bound(a, v);
-  }
-  return u;
-}
-
-
-function exactUnc(): Unc {
-  return { X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 };
-}
 
 
 /** Modal groups: two codes of one group on a line is a modal conflict (EN E152). */
@@ -118,27 +93,6 @@ const INCH_MM = 25.4;
 
 
 const ROTARY_AXES: readonly RotaryAxis[] = ['A', 'B', 'C'];
-
-
-function emptyPos(): Pos {
-  return { X: null, Y: null, Z: null, A: null, B: null, C: null };
-}
-
-
-function posFrom(values: Readonly<Partial<Record<Axis, number>>> | undefined): Pos {
-  const p = emptyPos();
-  if (values === undefined) return p;
-  for (const a of AXES) {
-    const v = values[a];
-    if (v !== undefined && Number.isFinite(v)) p[a] = v;
-  }
-  return p;
-}
-
-
-function zeroPos(): Pos {
-  return { X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 };
-}
 
 
 function unique(items: readonly string[]): string[] {
