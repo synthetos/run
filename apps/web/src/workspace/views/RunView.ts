@@ -43,17 +43,16 @@ import { routineChanges, shownCounts } from '../../preview/gcodeList.ts';
 
 import { settingsOf } from '../boardFacts.ts';
 
-import { Icon, type IconName } from '../icons.ts';
+import { Icon } from '../icons.ts';
 
 import { readStored, writeStored } from '../storage.ts';
 
-import { CheckRow, ConfirmCard, IconButton, TabBar, TabPane } from '../ui.ts';
+import { CheckRow, ConfirmCard, TabBar, TabPane } from '../ui.ts';
 
 import { connected, type WorkspaceModel } from '../model.ts';
 
 import { goToZeroSafeZ } from '../safeZ.ts';
 
-import { ageText } from '../reportAge.ts';
 
 import { atToolChange, jogBlocked, TC_GO_REASON, TC_OFFSET_REASON, zeroBlocked } from '../toolChangeControls.ts';
 
@@ -61,13 +60,10 @@ import { axesText, goToZeroPath, JOG_FEED, JogController, jogKey, machineAxes, m
 
 import { HomeQuick, HomeSection } from '../homing.ts';
 
-import { UnknownChip } from '../unknownModal.ts';
 
-import { ProbeZ } from '../probe/ProbeZ.ts';
 
-import { PositionStatus } from '../positionStatus.ts';
 
-import { ControlBlockCard, currentBlock } from '../ControlBlockCard.ts';
+import { currentBlock } from '../ControlBlockCard.ts';
 
 import { outputsOff } from '../controlBlock.ts';
 
@@ -153,6 +149,7 @@ import { ToolMismatchNotes } from '../ToolMismatchNotes.ts';
 import type { FileTool } from '../../gcode-worker/camTools.ts';
 import { RunBridge } from './run/bridge.ts';
 import { isLive, LIVE_HOOKS, motionNote, STATIC_HOOKS, type Hooks } from './run/motionHooks.ts';
+import { PositionPanel } from './run/position.ts';
 
 
 // ---------------------------------------------------------------- inspector: motion (Phase 2)
@@ -160,6 +157,7 @@ import { isLive, LIVE_HOOKS, motionNote, STATIC_HOOKS, type Hooks } from './run/
 // The page's own "don't ask again" for C24 lives in spindleConfirm.ts (shared with the terminal, H91).
 export { resetSpindleConfirm } from '../spindleConfirm.ts';
 export { ConnectNotice } from './run/connect.ts';
+export { PositionPanel } from './run/position.ts';
 
 
 
@@ -230,131 +228,6 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
     layout: (parts: PreviewParts) => runLayout(parts, model, onView, stops),
     scrubTo: scrubRequest,
   });
-}
-
-
-// ---------------------------------------------------------------- position
-
-/**
- * The Position readout with the hobbyist's two actions on each axis row (OD-13): Zero here (G10 L20 in the active
- * system, C16) and Go to zero (Z rises first, C25), plus Zero all and Go to zero for X, Y and Z in the same column,
- * on the status line's row. Only the machine's axes are shown. While a block holds (controlBlock.ts: read only,
- * UNKNOWN, alarm, another tab, ...) one card at the top says why and offers the way out, and the actions are not
- * drawn at all (owner, 2026-11-09); a passing gate (a move or a job running) leaves them in place, disabled.
- */
-function positionBody({ model }: PositionProps, hk: Hooks): ComponentChild {
-  const view = model?.live.value ?? null;
-  const m = view !== null && connected(view) ? view.message : null;
-  const ui = motionUi(view);
-  const send = model?.actions.value?.motion;
-  const enabled = ui.enabled && send !== undefined;
-  const settings = settingsOf(view);
-  const axes = machineAxes(settings);
-  const dro = m?.dro.axes ?? [];
-  const row = (a: MotionAxis): { readonly work: number | null; readonly machine: number | null; readonly homed: boolean | null } => dro.find((d) => d.axis === a) ?? { work: null, machine: null, homed: null };
-  const age = view === null ? { text: 'Not connected', lag: 'none' } : ageText(view);
-  const wcs = m?.dro.wcs ?? null;
-  // `home` as read at connect (the jog gate's view of it), else what the per-axis reports say.
-  const homedRows = axes.map(row).filter((d) => d.homed !== null);
-  const homed: boolean | null = ui.homed ?? (homedRows.length === 0 ? null : homedRows.every((d) => d.homed === true));
-  const tool = m?.snapshot.live.tool;
-  const units = m?.dro.units ?? null;
-  const system = offsetsView(view).system ?? 'G54';
-  const zNow = machineZ(view);
-  const ztm = typeof settings['ztm'] === 'number' ? (settings['ztm'] as number) : null;
-  // OD-23: lift to ztm − 1 only after a homing seen in this connection (safeZ.ts).
-  const { safe, handSet } = goToZeroSafeZ({ homed: ui.homed, zHomedHere: (m?.snapshot.notices.homedAxes ?? []).includes('z'), ztm, zNow });
-  type Confirm = { readonly kind: 'set' | 'go'; readonly axes: readonly MotionAxis[] } | null;
-  const [confirm, setConfirm] = hk.state<Confirm>(null);
-  const [note, setNote] = hk.state<string | null>(null);
-  const run = (command: MotionCommand): void => {
-    setConfirm(null);
-    setNote(null);
-    void send?.(command).then(setNote);
-  };
-  // H74 (2026-11-08): at a tool change only the Z re-zero (toolChangeControls.ts).
-  const snap = m?.snapshot ?? null;
-  const act = (icon: IconName, label: string, onClick: () => void, blocked: string | null = null): ComponentChild =>
-    h(IconButton, { icon, label, why: blocked ?? ui.reason ?? null, attrs: { 'data-machine-control': 'zero' }, ...(enabled && blocked === null ? { onClick } : { disabled: true }) });
-  const card =
-    confirm === null || !enabled
-      ? null
-      : confirm.kind === 'set'
-        ? h(WorkZeroConfirm, { axes: confirm.axes, system, machine: (a: MotionAxis) => row(a).machine, advanced: uiLevel.value.value === 'advanced', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) })
-        : h(ConfirmCard, { text: `${c25({ axes: axesText(confirm.axes), path: goToZeroPath(confirm.axes, safe, zNow) })}${handSet ? ` ${c25HandSet()}` : ''}`, confirm: 'Go to zero', safety: 'C25', onCancel: () => setConfirm(null), onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });
-  const xyz: readonly MotionAxis[] = ['x', 'y', 'z'];
-  const block = currentBlock(model);
-  const actions = block === null;
-  const advanced = uiLevel.value.value === 'advanced';
-  return h(
-    'section',
-    { class: 'insp sec-position', 'data-region': 'position', 'aria-labelledby': 'position-title' },
-    h(
-      'header',
-      null,
-      h('h2', { id: 'position-title' }, 'Position'),
-      h(
-        'span',
-        { class: 'pos-head-right' },
-        m === null ? null : h('span', { class: `source lag-${age.lag}`, 'data-position': 'freshness', title: `${age.text}. The age is the time since the controller last said anything.` }, age.lag === 'none' ? age.text : age.text.slice(age.text.indexOf('·') + 2)),
-      ),
-    ),
-    // UNKNOWN's exits also under another card: "I've checked the machine" clears it without motion (T-S105).
-    block === null || block.kind === 'unknown' ? null : h(ControlBlockCard, { block, model: model ?? null }),
-    // UNKNOWN is one question on connect (unknownModal.ts); the panel keeps a small way back to it.
-    block === null ? null : h(UnknownChip, { model: model ?? null }),
-    h(
-      'div',
-      { class: `dro-grid${actions ? '' : ' no-actions'}`, role: 'table', 'aria-label': 'Position' },
-      // The actions' column heads name the icons (Zero, Go) at both levels; Simple hides the other heads.
-      h(
-        'div',
-        { class: `dro-head${advanced || actions ? '' : ' sr-only'}`, role: 'row' },
-        h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Axis')),
-        h('span', { role: 'columnheader' }, h('span', { class: advanced ? undefined : 'sr-only' }, units === null ? 'Work' : `Work, ${units}`)),
-        h('span', { role: 'columnheader' }, h('span', { class: advanced ? undefined : 'sr-only' }, 'Machine, mm')),
-        actions ? h('span', { role: 'columnheader', class: 'dro-act-heads' }, h('span', { 'aria-hidden': 'true' }, 'Zero'), h('span', { 'aria-hidden': 'true' }, 'Go'), h('span', { class: 'sr-only' }, 'Actions')) : null,
-      ),
-      axes.map((a) => {
-        const d = row(a);
-        return h(
-          'div',
-          { class: 'dro-row', role: 'row', key: a, 'data-position-axis': a },
-          h('span', { class: 'axis', role: 'rowheader' }, a.toUpperCase()),
-          h('strong', { role: 'cell', 'data-position': 'work' }, coord(d.work)),
-          h('span', { role: 'cell', 'data-position': 'machine' }, coord(d.machine)),
-          actions ? h('span', { class: 'dro-actions', role: 'cell' }, act('zeroHere', `Set ${a.toUpperCase()} work zero here`, () => setConfirm({ kind: 'set', axes: [a] }), zeroBlocked(snap, [a])), act('goZero', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }), atToolChange(snap) ? TC_GO_REASON : null)) : null,
-        );
-      }),
-      // The status line on the grid's last row, with the X, Y and Z actions in the per-axis actions' column.
-      m === null && !actions
-        ? null
-        : h(
-            'div',
-            { class: 'dro-row pos-status-row', role: 'row' },
-            h('span', { class: 'pos-status-cell', role: 'cell' }, m === null ? null : h(PositionStatus, { wcs: wcs?.code ?? null, homed, by: m.snapshot.notices.position?.by, tool: typeof tool === 'number' ? tool : null, units: advanced || units === null ? null : `Work in ${units}`, temporary: m.dro.marker?.g92 === true || offsetsView(view).temporaryInForce })),
-            actions ? h('span', { class: 'dro-actions pos-all', role: 'cell' }, act('zeroHere', `Set ${axesText(xyz)} work zero here`, () => setConfirm({ kind: 'set', axes: xyz }), zeroBlocked(snap, xyz)), act('goZero', `Go to ${axesText(xyz)} zero`, () => setConfirm({ kind: 'go', axes: xyz }), atToolChange(snap) ? TC_GO_REASON : null)) : null,
-          ),
-    ),
-    actions ? h(ProbeZ, { model: model ?? null }) : null,
-    card,
-    note === null ? null : h('p', { class: 'motion-note', role: 'status', 'data-position': 'note' }, note),
-  );
-}
-
-
-
-
-type PositionProps = { readonly model?: WorkspaceModel | null };
-
-
-function PositionLive(props: PositionProps): ComponentChild {
-  return positionBody(props, LIVE_HOOKS);
-}
-
-
-export function PositionPanel(props: PositionProps = {}): ComponentChild {
-  return isLive(props.model) ? h(PositionLive, props) : positionBody(props, STATIC_HOOKS);
 }
 
 
