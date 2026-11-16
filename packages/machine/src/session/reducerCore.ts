@@ -1,3 +1,4 @@
+import { bindIdentify } from './reducers/identify.ts';
 import { bindConnect } from './reducers/connect.ts';
 import { bindFaults } from './reducers/faults.ts';
 import { bindBoot } from './reducers/boot.ts';
@@ -737,123 +738,6 @@ function onAnswer(t: Tx, e: PendingRead, r: Response, at: number): void {
   }
 }
 
-function advanceProbe(t: Tx, probe: ProbeProgress): void {
-  t.set({ probe });
-  if (probe.next < PROBE_STEPS.length) {
-    if (t.s.overlays.includes('ORPHANED_MOTION')) return;
-    const step = PROBE_STEPS[probe.next] as (typeof PROBE_STEPS)[number];
-    t.set({ queue: [...t.s.queue, { token: step.key, purpose: 'probe' }] });
-    return;
-  }
-  finishProbe(t);
-}
-
-function finishProbe(t: Tx): void {
-  const probe = t.s.probe as ProbeProgress;
-  const outcome = buildProbeResult({ ...(probe.banner === undefined ? {} : { banner: probe.banner }), answers: new Map(probe.answers) });
-  t.set({ ready: true });
-  if (!outcome.ok) {
-    t.emit({ kind: 'log', text: `probe: could not be read (${outcome.reason} at ${outcome.key}) → unclassified, read-only` });
-    t.set({ classification: { dialectId: null, mode: 'readOnly', reason: 'probeFailed', detail: `the probe could not be read (${outcome.reason} at ${outcome.key})`, upgradeOffer: false } });
-    t.addOverlay('READ_ONLY');
-    t.set({ base: 'CONNECTED_UNKNOWN' });
-    checkUnclassifiedResting(t);
-    return;
-  }
-  const result = outcome.result;
-  const c = classify(result, t.config.manifest);
-  t.emit({ kind: 'log', text: probeRecord(result, c) });
-  const identity = Object.fromEntries(
-    Object.entries({ fb: result.fb, fv: result.fv, hp: result.hp, hv: result.hv, id: result.id, fbs: result.fbs }).filter(([, v]) => v !== undefined),
-  ) as Identity;
-  t.set({
-    identity,
-    dialect: c.dialect,
-    classification: {
-      dialectId: c.dialect?.id ?? null,
-      mode: c.mode,
-      reason: c.reason,
-      detail: c.detail,
-      upgradeOffer: c.upgradeOffer,
-      ...(c.buildIdentity === undefined ? {} : { buildIdentity: c.buildIdentity }),
-      ...(c.approvalSource === undefined ? {} : { approvalSource: c.approvalSource }),
-    },
-  });
-  if (c.mode === 'readOnly') t.addOverlay('READ_ONLY');
-  if (c.dialect !== null) t.emit({ kind: 'tightenLineCap', epoch: t.s.epoch, maxLineBytes: writeLineCapFor(c.dialect) });
-  if (t.s.expectedDeviceId !== null && result.id !== t.s.expectedDeviceId) {
-    // T-S21: the board is not the selected machine. Nothing more is written.
-    t.set({ base: 'BLOCKED', blocked: { expected: t.s.expectedDeviceId, reported: result.id ?? null }, queue: [] });
-    return;
-  }
-  const dialect = c.dialect;
-  const tokens = t.config.release.motion ? [...READING_TOKENS, ...MOTION_READING_TOKENS] : READING_TOKENS;
-  const reads = dialect === null ? [] : tokens.filter((tok) => isReadAllowed(dialect.id, tok, t.s.identity?.fb));
-  if (reads.length === 0 || t.s.overlays.includes('ORPHANED_MOTION')) {
-    t.set({ base: 'CONNECTED_UNKNOWN', reports: { ...REPORTS_IDLE, phase: 'off' } });
-    if (dialect === null) checkUnclassifiedResting(t);
-    return;
-  }
-  // Only READING's own answers count: values from the earlier `{sr:null}` answer are dropped, so a
-  // read that fails leaves its value unknown and the board is not trusted as resting.
-  const { stat: _stat, machineClass: _class, hold: _hold, vel: _vel, qr: _qr, ...kept } = t.s.live;
-  t.set({ base: 'READING', live: kept, queue: [...t.s.queue, ...reads.map((token) => ({ token, purpose: 'reading' as const }))] });
-}
-
-/** The probe result and its classification as one session-log line (ROADMAP P1-03 "Record the probe result"). */
-function probeRecord(result: ProbeResult, c: Classification): string {
-  const { footers, ...rest } = result;
-  const verdict = `${c.dialect?.id ?? 'unclassified'} ${c.mode === 'full' ? 'full' : 'read-only'} (${c.reason})`;
-  return `probe: ${JSON.stringify({ ...rest, footers: footers.map((f) => f.raw) })} → ${verdict}: ${c.detail}`;
-}
-
-/**
- * The probe ended without a dialect (a failed or damaged probe), so READING never runs. The raw
- * values from the `{sr:null}` answer are all there is: a board that is not plainly resting is
- * treated as busy (SAFETY H14 mitigation 5, T-S60), never as merely read-only.
- */
-function checkUnclassifiedResting(t: Tx): void {
-  const live = t.s.live;
-  const busy =
-    live.stat === undefined ||
-    !UNCLASSIFIED_RESTING_STAT.has(live.stat) ||
-    (live.vel !== undefined && live.vel !== 0) ||
-    (live.hold !== undefined && live.hold !== 0);
-  if (!busy) return;
-  t.addOverlay('ORPHANED_MOTION');
-  t.set({ queue: [] });
-  t.emit({ kind: 'log', text: `probe: unclassified board not resting (stat ${live.stat ?? 'unknown'}, vel ${live.vel ?? 'unknown'}, hold ${live.hold ?? 'unknown'}) → ORPHANED_MOTION` });
-}
-
-
-
-/** READING is complete: a board that is not resting is ORPHANED_MOTION (SAFETY H14, PN §2.3 step 0). */
-function finishReading(t: Tx): void {
-  const dialect = dialectOf(t.s);
-  const live = t.s.live;
-  const quiet = dialect !== null && (!restingUsesHold(dialect) || live.hold === 0) && live.vel === 0 && live.qr === dialect.limits.plannerBlocks;
-  // One rule for "at rest" (SAFETY H14 as amended 2026-11-02): idle or ended, or on edge-next a finished cycle
-  // (stat 3 with hold 0), shared with the motion layer (resting.ts).
-  const resting = quiet && live.stat !== undefined && restingStat(dialect, live.stat, live.hold);
-  const cls = dialect !== null && live.stat !== undefined ? mapStat(dialect, live.stat) : undefined;
-  // A motion session (Phase 2): a controller in alarm with nothing moving, held or queued is not motion
-  // from elsewhere; it is ALARM, left only by Clear alarm (C13, SAFETY §4.5b).
-  const alarmed = t.config.release.motion && quiet && cls !== undefined && ALARM_CLASSES.has(cls);
-  if (!resting && !alarmed) t.addOverlay('ORPHANED_MOTION');
-  const c = t.s.classification;
-  if (c !== null && c.mode === 'full' && (live.ex === undefined || !FULL_SESSION_FLOW_CONTROL.has(live.ex))) {
-    const shown = live.ex === undefined ? 'could not be read' : `is ${live.ex}`;
-    t.set({ classification: { ...c, mode: 'readOnly', reason: 'flowControl', detail: `${c.detail}; flow control (ex) ${shown}: read-only, Run knows only ex 0, 1 and 2` } });
-    t.addOverlay('READ_ONLY');
-    t.emit({ kind: 'log', text: `classification: read-only, flow control (ex) ${shown}` });
-  }
-  t.set({ base: 'CONNECTED_UNKNOWN', queue: t.s.queue.filter((q) => q.purpose !== 'reading') });
-  // A motion session with nothing in the way goes to idle (or ALARM). UNKNOWN (after a reconnect) waits
-  // for "I've checked the machine" (positionVerify); any other overlay keeps CONNECTED_UNKNOWN.
-  if (features.motionCapable?.(t.s, t.config) && t.s.overlays.length === 0) t.set({ base: alarmed ? 'ALARM' : features.idleBase?.(t.s) ?? 'CONNECTED_UNKNOWN' });
-  startSeed(t);
-}
-
 function onStatusReport(t: Tx, report: StatusReport, at: number): void {
   mergeLive(t, report.sr);
   // Homing (amendment 2026-11-02): a pushed report says when the cycle may have ended; polled reads confirm it.
@@ -1377,6 +1261,7 @@ const { onSettingsWrite, finishSettingWrite, onGateAnswer, onSettingAnswer, onRe
 const { refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry } = bindBoot(deps);
 const { onAckFault, onVerifyAnswer, refuseAck, enterFault, writeFeedhold } = bindFaults(deps);
 const { resetToNotConnected, onOpened, startProbe, onLinkLost, onBanner } = bindConnect(deps);
+const { advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading } = bindIdentify(deps);
 Object.assign(deps, { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, reduce, onJobLineDropped, linkUp, deny, onIntent, onEnq, writeEnq, onRead, settingWriteActive, onSettingsWrite, finishSettingWrite, onGateAnswer, onSettingAnswer, onReadBackAnswer, interruptSettingWrite, refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry, onAckFault, writeFeedhold, resetToNotConnected, onOpened, startProbe, onLineWritten, answerTimeout, onLinkLost, onTimer, onInbound, onBanner, onResponse, isDataEntry, owedAnswers, consumeOwed, answers, onAnswer, advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading, onVerifyAnswer, refuseAck, onStatusReport, onGarbled, isObject, mergeLive, withNumber, startSeed, isSeedOwed, mergeStateValue, onSeedAnswer, seedAnswered, maybeConfigure, reportStepText, failReports, nextReportStep, numberValue, addChange, onReportAnswer, watchdogActive, watchdogMs, syncWatchdog, enterStale, silentWhileBusy, onWatchdog, askForLife, enterFault, pump, lineFor, MOTION_DEPS, JOB_DEPS });
 return { READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, reduce, settingWriteActive, BOOT_LINE, probeRecord, LIVENESS_TOKEN };
 }
