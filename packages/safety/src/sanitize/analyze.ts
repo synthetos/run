@@ -51,6 +51,7 @@ import { exactUnc, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
 import { AFTER_MOTION, ARC_LETTERS, AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
 import { setWork, settle, widen } from './analyze/uncertainty.ts';
 import { mmPerUnit, motionBound, needsUnits, offsetScale, scale, unitScale } from './analyze/units.ts';
+import { checkCode, checkGroups } from './analyze/words.ts';
 import { AXES, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, WCS_CODES, type AxisMode } from './types.ts';
 export { type Finding, type LineAnalysis } from './analyze/contract.ts';
 
@@ -570,32 +571,10 @@ export class JobModel extends ModelState {
 
 
   /** null when the code may be sent; otherwise the finding that blocks (or warns about) it. */
-  #checkCode(word: Word, code: string | undefined): Finding | null {
-    const label = `${word.letter}${word.text}`;
-    if (code === undefined) return block('unsupported-code', `${label} is not a valid code`);
-    if (code === 'M100') return block('m100', 'M100 runs in-stream JSON commands and is never sent');
-    if (/^G38(\.|$)/.test(code)) return block('probe', 'probing (G38) is not allowed in a job in this version');
-    const rule = this._rules.find((r) => r.kind === 'code' && r.code === code);
-    if (rule !== undefined) return block(rule.id, rule.reason);
-    if (this._job.ignoredCodes.includes(code)) return { severity: 'warn', rule: 'ignored-code', message: `${code} is accepted and ignored by this firmware` };
-    if (this._job.codes.includes(code)) return null;
-    const dotted = code.includes('.') ? ` (a dotted code is never sent as ${code.split('.')[0]})` : '';
-    return block('unsupported-code', `${code} is not supported in a job on this firmware${dotted}`);
-  }
+  #checkCode(word: Word, code: string | undefined): Finding | null { return checkCode(this, word, code); }
 
 
-  #checkGroups(codes: readonly string[], findings: Finding[]): void {
-    const seen = new Map<string, string>();
-    for (const code of codes) {
-      const group = GROUP[code] ?? code;
-      const prior = seen.get(group);
-      seen.set(group, code);
-      if (prior === undefined) continue;
-      // EN allows M7 with M8 (SET_COOLANT_ON), but not M9 with either, or a repeat.
-      if (group === 'coolant' && prior !== code && prior !== 'M9' && code !== 'M9') continue;
-      findings.push(block('modal-conflict', `${prior} and ${code} are in the same modal group (E152)`));
-    }
-  }
+  #checkGroups(codes: readonly string[], findings: Finding[]): void { return checkGroups(codes, findings); }
 
 
   /** The dialect's modal block rules: G18 arcs, codes under a modal state (SAFETY §4.7 step 6). */
