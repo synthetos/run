@@ -44,6 +44,7 @@ import { type Emitted, type Piece, type Pos } from './interpreter/contract.ts';
 import { axisMm, offset, offsetMm, unitScale, work, zero } from './interpreter/coordinates.ts';
 import { addFinding, addFindingOnce } from './interpreter/findings.ts';
 import { initializeInterpreter } from './interpreter/initialize.ts';
+import { ruleBlocks } from './interpreter/rules.ts';
 import { InterpreterState } from './interpreter/state.ts';
 import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis, type TimingModel } from './types.ts';
 export { DEFAULT_VERTEX_CAP } from './interpreter/constants.ts';
@@ -344,38 +345,7 @@ class Interpreter extends InterpreterState {
 
 
   /** The dialect's block rules, applied to one line (defence in depth behind the sanitiser). */
-  ruleBlocks(codes: readonly string[], letters: ReadonlySet<string>): GcodeRule[] {
-    const out: GcodeRule[] = [];
-    for (const r of this.dialect.gcode.blocked) {
-      switch (r.kind) {
-        case 'code':
-          if (codes.includes(r.code)) out.push(r);
-          break;
-        case 'word':
-          if (letters.has(r.letter)) out.push(r);
-          break;
-        case 'codeUnderModal': {
-          const modes = [this.units, this.distance, this.plane, this.arcDistance, this.motion];
-          if (r.codes.some((c) => codes.includes(c)) && r.modes.some((m) => modes.includes(m as never))) out.push(r);
-          break;
-        }
-        case 'queuedCommandsPerLine': {
-          let count = 0;
-          for (const c of codes) if (r.counted.includes(c)) count++;
-          for (const l of letters) if (r.counted.includes(l)) count++;
-          if (count > r.max) out.push(r);
-          break;
-        }
-        case 'arcInPlane':
-          // Applied at the arc itself, with the plane in force on that line.
-          break;
-        case 'textAfterComment':
-          // Sent lines carry no comments (the sanitiser stripped or rejected them).
-          break;
-      }
-    }
-    return out;
-  }
+  ruleBlocks(codes: readonly string[], letters: ReadonlySet<string>): GcodeRule[] { return ruleBlocks(this, codes, letters); }
 
 
   step(line: SentLine, i: number, last: boolean): void {
