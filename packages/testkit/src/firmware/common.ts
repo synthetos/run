@@ -20,6 +20,8 @@ export interface TinyGModelOptions {
    * PN §2.3 step 1). `boot`: the board boots now and prints its banners.
    */
   readonly start?: 'ready' | 'boot';
+  /** Ready 450.06 board: permissions left by an earlier sender's M49/M50/M51. Not EEPROM; reset clears them. */
+  readonly overrideProgram?: { readonly feed: boolean; readonly spindle: boolean };
   /** Hardware id string the board reports. */
   readonly id?: string;
   /** Model kinematics: feedhold deceleration time. Default 100 ms. Not a firmware fact. */

@@ -111,6 +111,7 @@ function motion(session: MachineSession, c: MotionCommand): Decision {
 function job(session: MachineSession, c: JobCommand): Decision {
     const s = session;
     switch (c.op) {
+      case 'override': return s.setOverride({ channel: c.channel, percent: c.percent });
       case 'load':
         return s.loadJob({ name: c.name, text: c.text, c22: c.c22 });
       case 'unload':

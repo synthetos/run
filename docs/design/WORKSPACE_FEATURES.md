@@ -169,14 +169,11 @@ decided): `{"sr":{"spe":1,"spd":0,"sps":18000}}`, with `sps` the commanded S
 after the clamp.
 Coolant has no report and none is planned: it always shows the last command.
 
-### Overrides (P3 UI; Mock: firmware pending)
+### Overrides (TinyG 450.06+)
 
-Feed and spindle override sliders with -10 and +10 and Reset to 100 %, and a
-rapid override 25/50/100 %. Edge-next has no overrides: M48-M51 are rejected
-and there are no realtime override characters. A runtime shape such as
-`{rt:{fo:0.8}}` is only under discussion, so the wire format is not fixed. The
-section is tagged "Mock · firmware pending", is enabled only while a job runs,
-and sends nothing.
+The Run panel shows feed and spindle override controls only during this tab's running or held job on TinyG 450.06 or newer. Each has −10%, 100%, +10%, the requested value and the firmware's value in effect. Both range from 10–150% in 10% steps (owner, 2026-11-14 feed; 2026-11-15 spindle). No keyboard shortcuts or rapid override.
+
+Buttons are disabled while the program locks the override or while readings are unavailable. The board's cap flag shows “held at a speed limit”; effective permission shows “locked by the program”. Requests use the RAM-only rt.mfo/rt.sso aliases with one acknowledged control line in flight, ahead of queued data and within the stream's reserved control slots. Refusals retain the last board-confirmed value. Reset, job transitions and reconnect read the board again. Pause and Stop are unchanged; neither an override nor a flush resumes motion, and a spindle factor cannot start a stopped spindle. Preview geometry and safety checks remain at 100%.
 
 ### Live job analysis (P3; Host)
 
@@ -324,7 +321,7 @@ signed release list and its hosting: docs/ops/firmware-releases.md.
 | Jog | Works today (P2) | jogx/jogy/jogz/joga, `!` then `%` |
 | Manual tool change | Works today (P3) | Host stops before M6; optional opt-in M6 pause later |
 | Spindle state report | Mock: firmware pending | A spindle key in sr/rt |
-| Overrides | Mock: firmware pending | Runtime override, perhaps `{rt:{fo}}` |
+| Overrides | TinyG 450.06+, running/held job | RAM rt.mfo/rt.sso, 10–150%, no shortcuts |
 | Firmware tool table | Not for TinyG (tools live in the library) | g2core may get one later |
 | Feed-limit advisor via rt | Planned upstream | Optional |
 | Firmware update | PF | Signed manifest and hosting; bootloader protocol as above |
@@ -333,7 +330,7 @@ signed release list and its hosting: docs/ops/firmware-releases.md.
 
 1. Firmware tool table: decided for TinyG (none; tools live in software). Open for g2core only.
 2. Spindle state key: shape and units (commanded S after the clamp, and whether to include the PWM duty).
-3. Overrides: wire format and ranges; does rapid override belong in v1?
+3. Overrides: decided 2026-11-14/15; no rapid override.
 4. Release hosting and signing: who signs, where the manifest lives, the key.
 5. Minimum supported firmware number and how it is raised over time.
 6. ~~The W2 label~~ Done in Stage 1: SAFETY.md W2 reads "Pause" (amended

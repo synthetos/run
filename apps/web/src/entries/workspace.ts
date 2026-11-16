@@ -49,6 +49,7 @@ import '../styles/analyze.css';
 import '../styles/job-layout.css';
 import '../styles/position.css';
 import '../styles/run-panel.css';
+import '../styles/overrides.css';
 import '../styles/zebra.css';
 import '../styles/viewer-bar.css';
 import '../styles/insight.css';

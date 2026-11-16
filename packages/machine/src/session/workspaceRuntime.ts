@@ -1,12 +1,17 @@
+import { reduceOverrides } from './overrides/reducer.ts';
+import type { OverrideState } from './overrides/model.ts';
+import { overrideWrite } from './overrides/policy.ts';
 /** Workspace-only control behavior; never imported by the open firmware entry. */
-import { initialState, reduce } from './reducer.ts';
+import { initialState } from './reducer.ts';
 import { snapshotOf } from './snapshot.ts';
 import { checkWrite } from './writePolicy.ts';
 import type { SessionRuntime } from './sessionRuntime.ts';
 import type { QueuedLine } from './sessionRuntime.ts';
 export const workspaceRuntime: SessionRuntime = {
-  initialState, reduce, snapshotOf,
-  checkLine: (current, emitted, release, item) => item.motion !== undefined
+  initialState, reduce: reduceOverrides, snapshotOf,
+  checkLine: (current, emitted, release, item) => item.jobRuntime === true && (emitted as OverrideState).overrides?.pending === new TextDecoder().decode(item.bytes).trim()
+    ? overrideWrite(current, emitted, release, item)
+    : item.motion !== undefined
     ? checkWrite(current, emitted, release, item.bytes, 'motion', item.motion)
     : item.job !== undefined
       ? checkWrite(current, emitted, release, item.bytes, 'jobLine', undefined, item.job)

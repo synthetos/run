@@ -14,9 +14,10 @@ import '../marker.ts';
 export type BehaviourStatus = 'verified-source' | 'verified-bench' | 'UNVERIFIED';
 
 /** Pinned sources (vendor/firmware-pins.json): EN = edge-next a7489b79, TG = master d0418390 (440.21), EN3 = step-3 c7f9b7e2. EN45004 is the separate research commit below. */
-export type CitationSource = 'EN' | 'TG' | 'EN-HIL' | 'EN3' | 'EN45004' | 'EN45005';
+export type CitationSource = 'EN' | 'TG' | 'EN-HIL' | 'EN3' | 'EN45004' | 'EN45005' | 'EN45006';
 
 /** Research source only; does not alter vendor pins or approve a build. */
+export const EN45006_COMMIT = '0d8589e55080be6897364bbe0adea40421bd0981';
 export const EN45005_COMMIT = '0e80716961577c99fa5b8269ec2fadf160161b50';
 export const EN45004_COMMIT = 'ee98f02b545f3548fe53e59d143715141cfaf510';
 

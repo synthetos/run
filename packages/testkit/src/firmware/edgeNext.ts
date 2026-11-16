@@ -1,3 +1,7 @@
+import { LiveOverrides, priorOverrideProgram, spindleCapped } from './liveOverrides.ts';
+import { OverrideWire, heartbeatValue } from './overrideWire.ts';
+import { parseM } from './parseM.ts';
+import { motionInputStatus, type GcodeInput, type MotionMode } from './gcodeInput.ts';
 /**
  * `TinyGEdgeNextModel`: a behavioural model of TinyG edge-next (ROADMAP
  * P0-11, RUN_PLAN §8.1), the primary target.
@@ -173,7 +177,6 @@ const SR_DEFAULTS = ['line', 'posx', 'posy', 'posz', 'posa', 'feed', 'vel', 'uni
 type MachineState = 'initializing' | 'ready' | 'alarm' | 'programStop' | 'programEnd' | 'cycle' | 'shutdown' | 'panic';
 type CycleState = 'off' | 'machining' | 'probe';
 type MotionState = 'stop' | 'run' | 'hold';
-type MotionMode = 'g0' | 'g1' | 'g2' | 'g3' | 'cancel';
 
 interface PoolLine {
   readonly text: string;
@@ -216,6 +219,17 @@ export class TinyGEdgeNextModel implements SimDevice {
   #eepromBusyUntil = Number.NEGATIVE_INFINITY;
   #eepromTx: number[] = [];
   readonly #options: TinyGModelOptions;
+  readonly #overrides = new LiveOverrides();
+  readonly #overrideWire = new OverrideWire(this.#overrides, {
+    build: () => this.#options.build?.fb ?? FW_BUILD,
+    spindleOn: () => this.#spindle !== 'off',
+    capped: () => spindleCapped(this.#overrides, this.#gm.spindleSpeed, {
+      low: this.settings.num(this.#spindle === 'ccw' ? 'p1wsl' : 'p1csl'),
+      high: this.settings.num(this.#spindle === 'ccw' ? 'p1wsh' : 'p1csh'),
+    }),
+    alarm: () => this.#isAlarmed(),
+    queue: (label, fn) => this.#queueCommand(label, fn),
+  });
   #io: DeviceIo | undefined;
 
   // ---- power and boot
@@ -325,6 +339,7 @@ export class TinyGEdgeNextModel implements SimDevice {
       this.#powerUp(true);
     } else {
       this.#powerUp(false);
+      priorOverrideProgram(this.#overrides, this.#options.overrideProgram);
     }
   }
 
@@ -586,6 +601,7 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   #resetRam(): void {
+    this.#overrides.reset();
     this.#ring = new RxRing(RX_BUFFER_SIZE);
     this.#rxInLine = false;
     this.#xoffSent = false;
@@ -1209,6 +1225,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (this.#jobKillRequested) {
       this.#jobKillRequested = false;
       // @behaviour EN-RT-KILL: ^D is ALARM 207 (@cite EN canonical_machine.c:1997-2005)
+      this.#overrides.reset();
       this.#alarm(ST('KILL_JOB'), 'job kill');
     }
     if (this.#hold === HOLD.REQUESTED || this.#hold === HOLD.SYNC) this.#startHold(now);
@@ -1618,36 +1635,8 @@ export class TinyGEdgeNextModel implements SimDevice {
           break;
         }
         case 'M': {
-          if (!(v >= 0 && v <= 999)) return ST('MCODE_COMMAND_UNSUPPORTED');
-          const int = Math.trunc(v);
-          if (w.decimals > 1 || (w.decimals === 1 && int !== 201)) return ST('MCODE_COMMAND_UNSUPPORTED');
-          if (int === 0 || int === 60 || int === 1 || int === 2 || int === 30) {
-            if (!setModal('M4')) return ST('GCODE_MODAL_GROUP_VIOLATION');
-            g.programFlow = int === 1 ? 'optionalStop' : int === 2 || int === 30 ? 'end' : 'stop';
-          } else if (int === 3 || int === 4 || int === 5) {
-            if (!setModal('M7')) return ST('GCODE_MODAL_GROUP_VIOLATION');
-            g.spindle = int === 3 ? 'cw' : int === 4 ? 'ccw' : 'off';
-          } else if (int === 6) {
-            g.toolChange = true;
-          } else if (int === 7 || int === 8) {
-            const key = int === 7 ? 'mist' : 'flood';
-            if (g[key] === true || g.flood === false) return ST('GCODE_MODAL_GROUP_VIOLATION');
-            g[key] = true;
-          } else if (int === 9) {
-            if (!setModal('M8') || g.mist === true || g.flood === true) return ST('GCODE_MODAL_GROUP_VIOLATION');
-            g.flood = false;
-          } else if (int >= 48 && int <= 51) {
-            return ST('MCODE_COMMAND_UNSUPPORTED'); // @cite EN gcode_parser.c:503-506
-          } else if (int === 400) {
-            // M400 must be alone on the line, an N prefix allowed (@cite EN gcode_parser.c:510-523)
-            if (!/^(N\d+)?M400$/.test(block)) return ST('COMMAND_NOT_ACCEPTED');
-            if (g.nextAction !== undefined) return ST('GCODE_MODAL_GROUP_VIOLATION');
-            g.nextAction = 'motionSync';
-          } else if (int === 105 || int === 114 || int === 115 || int === 201) {
-            throw new ModelGapError(`edge-next M${int}`);
-          } else {
-            return ST('MCODE_COMMAND_UNSUPPORTED');
-          }
+          const status = parseM(w, { g, block, setModal, fb: this.#options.build?.fb ?? FW_BUILD });
+          if (status !== 0) return status;
           break;
         }
         case 'T':
@@ -1697,10 +1686,10 @@ export class TinyGEdgeNextModel implements SimDevice {
   #executeBlock(g: GcodeInput): number {
     const gm = this.#gm;
     const hasAxes = g.target.some((t) => t !== undefined);
-    if (g.cancel === true && g.motion === undefined) g.motion = 'cancel';
-    const motionMode = g.motion ?? gm.motionMode;
-    if (g.absoluteOverride === true && g.nextAction === undefined && motionMode !== 'g0' && motionMode !== 'g1') return ST('GCODE_G53_WITHOUT_G0_OR_G1');
-    if (hasAxes && g.nextAction === undefined && motionMode === 'cancel') return ST('GCODE_AXIS_CANNOT_BE_PRESENT');
+    const invalidMotion = motionInputStatus(g, gm.motionMode);
+    if (invalidMotion !== null) return invalidMotion;
+    const override = this.#overrideWire.queue(g);
+    if (override !== 0) return override;
     if (g.linenum !== undefined) gm.linenum = g.linenum;
     // @behaviour EN-FEED-UNITS-ORDER: cm_set_feed_rate() runs before cm_set_units_mode(), and _to_millimeters()
     // reads the model's units, so F in a block that also changes G20/G21 is in the PREVIOUS units
@@ -2014,6 +2003,7 @@ export class TinyGEdgeNextModel implements SimDevice {
     this.#gm.motionMode = 'cancel';
     this.#gm.distance = 'abs';
     this.#queueCommand('program end', () => {
+      this.#overrides.reset();
       this.#spindleReset();
       this.#coolantOff();
       this.#feedGaps.setJob(0, this.#now());
@@ -2101,6 +2091,8 @@ export class TinyGEdgeNextModel implements SimDevice {
     if (typeof value !== 'object') return ST('VALUE_TYPE_ERROR');
     const set: Record<string, OutValue> = {};
     for (const [k, v] of value.pairs) {
+      const override = this.#overrideWire.runtime(k, v, set);
+      if (override !== undefined) { if (override !== 0) return override; continue; }
       // `unsaved`: the RAM-write capability probe (option `ramWrites`); 100 on a build without it.
       if (k === 'unsaved' && v === null && this.#options.ramWrites === true) {
         set[k] = 0;
@@ -2135,10 +2127,11 @@ export class TinyGEdgeNextModel implements SimDevice {
         continue;
       }
       if (k !== 'hb') return ST('UNRECOGNIZED_NAME');
-      if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > RT_HB_MAX) return ST('INPUT_VALUE_RANGE_ERROR');
-      this.#hbS = v;
+      const seconds = heartbeatValue(v, RT_HB_MAX);
+      if (seconds === null) return ST('INPUT_VALUE_RANGE_ERROR');
+      this.#hbS = seconds;
       this.#hbQuietSince = this.#now();
-      set[k] = v;
+      set[k] = seconds;
     }
     body['rt'] = set;
     return 0;
@@ -2148,11 +2141,8 @@ export class TinyGEdgeNextModel implements SimDevice {
   #ramLine = false;
 
   #jsonGet(key: string, body: Record<string, OutValue>): number {
-    // @behaviour EN-45005: Part A models pure override reads at reset defaults, not override motion.
-    if (this.#layout3()) {
-      if (['spph', 'spde', 'coph'].includes(key)) return ST('UNRECOGNIZED_NAME');
-      if (['mfo', 'mfoe', 'm48e', 'mfc', 'mcp', 'mfe'].includes(key)) { body[key] = key === 'mcp' ? 0 : 1; return 0; }
-    }
+    const override = this.#overrideWire.get(key, body);
+    if (override !== undefined) return override;
     const info = token(T, key);
     if (info === undefined) return ST('UNRECOGNIZED_NAME');
     // @behaviour EN-E138: GETs whose getter acts (@cite EN config_app.c:464-505; vendored den.json getters)
@@ -2216,8 +2206,8 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 
   #jsonSet(key: string, value: HostValue, body: Record<string, OutValue>): number {
-    if (this.#layout3() && ['spph', 'spde', 'coph'].includes(key)) return ST('UNRECOGNIZED_NAME');
-    if (this.#layout3() && ['mfo', 'mfoe', 'm48e', 'mfc', 'mcp', 'mfe'].includes(key)) throw new ModelGapError('450.05 override writes are outside the Part A model');
+    const override = this.#overrideWire.set(key, value, body);
+    if (override !== undefined) return override;
     const info = token(T, key);
     if (info === undefined) return ST('UNRECOGNIZED_NAME');
     // @behaviour EN-SET-ALARMED: SETs are rejected while alarmed; GETs stay available (@cite EN json_parser.c:335-339)
@@ -2855,30 +2845,6 @@ export class TinyGEdgeNextModel implements SimDevice {
   }
 }
 
-interface GcodeInput {
-  motion?: MotionMode;
-  cancel?: boolean;
-  nextAction?: 'dwell' | 'motionSync' | 'setOrigin' | 'resetOrigin' | 'setCoord' | 'homing' | 'setAbsoluteOrigin' | 'probe';
-  l?: number;
-  plane?: 17 | 18 | 19;
-  units?: 'mm' | 'in';
-  coord?: number;
-  distance?: 'abs' | 'inc';
-  arcDistance?: 'abs' | 'inc';
-  absoluteOverride?: boolean;
-  programFlow?: 'stop' | 'optionalStop' | 'end';
-  spindle?: 'cw' | 'ccw' | 'off';
-  mist?: boolean;
-  flood?: boolean;
-  toolChange?: boolean;
-  tool?: number;
-  feed?: number;
-  p?: number;
-  s?: number;
-  linenum?: number;
-  target: (number | undefined)[];
-  offsets: (number | undefined)[];
-}
 
 function EN_FRESH_GCODE(): GcodeModel {
   return {

@@ -21,7 +21,7 @@ Supported versions are reviewed code in `packages/protocol/src/supportedFirmware
 currently 450.01 through 450.06. Listing a newer GitHub release does not approve
 machine control; the page warns that an unknown version will connect read-only.
 The role and release-phase gates still apply. This task adds no override controls.
-450.06 spindle override fields are readable RAM-only values, with no write overlay.
+450.06 override fields remain read-only in Board settings. The Run panel has a separate, bounded RAM-only feed/spindle control path during this tab’s running or held job (SAFETY live override amendment).
 
 The safety advisory is an unsigned, environment-specific deployed file. Its
 schema, environment, validity, revocations and offline-age checks remain enforced.

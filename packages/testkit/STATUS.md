@@ -6,11 +6,12 @@ DEV ONLY. The firmware models in this package exist for tests; they never ship (
 Every behaviour a safety claim depends on carries a citation at a pinned commit and a status
 (RUN_PLAN §8.1 honesty rule). Pins: EN = TinyG edge-next `a7489b79`, TG = master `d0418390` (440.21),
 EN-HIL = edge-next `tests/hil/`; EN3 = step-3 source `c7f9b7e2` (`vendor/firmware-pins.json`).
+EN45006 = research source `0d8589e55080be6897364bbe0adea40421bd0981` (tag 450.06), not a vendor pin or build approval.
 EN45005 = research source `0e80716961577c99fa5b8269ec2fadf160161b50`, not a vendor pin or build approval.
 EN45004 = research source `ee98f02b545f3548fe53e59d143715141cfaf510`, not a vendor pin or build approval.
 EN45004, EN, EN3 and TG paths are under `firmware/tinyg/`. EN3 is an optional model capability, not a build approval.
 
-Totals: 100 behaviours (4 UNVERIFIED, 96 verified-source, 0 verified-bench).
+Totals: 101 behaviours (4 UNVERIFIED, 97 verified-source, 0 verified-bench).
 
 ## UNVERIFIED (release checklist)
 
@@ -29,6 +30,7 @@ Each must be bench-verified, or covered by a mitigation that does not depend on 
 |---|---|---|---|---|
 | EN-EEPROM-STALL | UNVERIFIED | A persisted SET that changes EEPROM stalls the board while the bytes are written: input received meanwhile is lost and the answer goes out when the write ends. Off by default in the model (eepromWriteMs); the duration is a model value. | EN persistence.c:93-101 | B-EEPROM-1 (proposed: time a persisted write and send a GET during it; firmware maintainer note 2026-11-02) |
 | EN-45005 | verified-source | 450.05 layout 3 keeps existing settings except removed output-pause keys. Pause leaves outputs running; active dwell reports Run. Override GETs return reset defaults only (mcp is 0); override SETs are an explicit model gap until Part B. (N99) | EN45005 config.c:232-240; EN45005 canonical_machine.c:190-215; EN45005 config_app.c:701-712 |  |
+| EN-45006-OVERRIDES | verified-source | 450.06 RAM feed/spindle factors and effective permission, ordered M48–M51, and reset/kill/program-end defaults. A spindle factor never starts a stopped spindle. | EN45006 override.c:75-85; EN45006 spindle.c:234-278; EN45006 runtime.c:847-865 |  |
 | EN-ALARM | verified-source | cm_alarm: idle (incl. a dwell) holds at once and stops the dwell; moving gets a feedhold and a planner flush; spindle and coolant off immediately; host input is kept and rejected line by line with 204. (E044, E019, E145) | EN canonical_machine.c:842-893; EN gcode_parser.c:78-80 |  |
 | EN-ARC-COINCIDENT | verified-source | Center-format G17 arcs as cm_arc_feed()/_compute_arc(): end points fp_EQ to the start on both plane axes (float32) are a full circle in the commanded direction; otherwise the atan2 angle difference is wrapped (G2 positive, G3 negative); fp_ZERO angular travel is ALARM 159; an end radius off by more than 1 mm (or 0.005 mm and 5 %) is ALARM 154. No X/Y word is a full circle; P adds turns (a fractional P is used as given). Every block in G2/G3 mode reaches the arc code: no G2/G3 word and no I/J/K is a no-op; a G2/G3 word with no XYZ, offset or P only sets the mode. | EN plan_arc.c:151-163; EN plan_arc.c:194-201; EN plan_arc.c:219-232; EN plan_arc.c:329-335; EN plan_arc.c:345-351; EN plan_arc.c:368-371; EN plan_arc.h:35-37; EN gcode_parser.c:701-707; EN util.h:184-194 |  |
 | EN-ARC-REFUSAL | verified-source | From build 450.04 a missing or zero G17 centre refuses with status 157 without an alarm; older builds retain their alarm behaviour. (N104) | EN45004 plan_arc.c:212-246 |  |
@@ -139,6 +141,7 @@ Simplifications of the models. No safety claim may rest on them.
 
 | Id | Scope | Limit |
 |---|---|---|
+| LIM-EN-OVERRIDE-TIMING | tinyg-en | 450.06 override wire state is modelled; feed factors do not rescale the coarse motion timing. Acceleration/jerk publication, pulse timing and PWM transitions require firmware bench evidence. mcp remains false; spindle range capping is observational only. |
 | LIM-KINEMATICS | both | Moves run at cruise speed with no acceleration ramps; a feedhold decelerates linearly over a fixed time (holdDecelMs, default 100 ms). Positions and durations are coarse. |
 | LIM-ARCS | both | Arcs only in G17 with incremental I/J; one planner block per arc (EN queues arc segments from a callback); the end position is the commanded target, not the last computed segment. R-format, G18/G19, G90.1 and (440.21) K-word arcs, and zero-radius helices, throw ModelGapError. atan2/sin/hypot are double rounded once to float32, so a case exactly on a libm ulp boundary may differ. |
 | LIM-HOLD-DWELL | both | Before EN 450.02, and on TG, a feedhold requested while a dwell runs in a moving cycle takes effect when the dwell ends (B-FH-1). |

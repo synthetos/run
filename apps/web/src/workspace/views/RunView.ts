@@ -1,3 +1,5 @@
+import { openFrom } from './openRunFile.ts';
+import { OverrideControls } from './OverrideControls.ts';
 import { DialogWrap } from '../dialogs/DialogWrap.ts';
 /**
  * The Job workspace: machine, stock, placement, checks and execution share
@@ -46,7 +48,7 @@ import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
 import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { fileFacts, sampleFile, SAMPLES } from '../samples.ts';
 import { openReport } from '../../report/state.ts';
-import { closeJob, currentFile, currentPreview, executionLock, openJob, pendingOpen, reopenActiveJob, reopening, saveDraftToProject, type OpenSource } from '../fileBridge.ts';
+import { closeJob, currentFile, currentPreview, executionLock, pendingOpen, reopenActiveJob, reopening, saveDraftToProject } from '../fileBridge.ts';
 import { activeJob, effectiveZero, jobSaved, type Job } from '../jobModel.ts';
 import { useLiveWorkZero } from '../liveZero.ts';
 import { useAutoZero } from '../useAutoZero.ts';
@@ -148,13 +150,6 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
   });
 }
 
-/** Opens a file through the one job opener and reports a refusal in the job card. */
-function openFrom(file: File, source: OpenSource, setNote: (n: string | null) => void): void {
-  setNote(null);
-  void openJob(file, source).then((r) => {
-    if (!r.ok) setNote(r.reason);
-  });
-}
 
 /**
  * Publishes the open file for a report's excerpt and its path for the Setup view's scene
@@ -1217,7 +1212,7 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
     h(
       'div',
       { class: 'job-main' },
-    h(JobCard, { parts, model, onView, onFiles: () => setFiles(!files) }),
+    h('div', null, h(JobCard, { parts, model, onView, onFiles: () => setFiles(!files) }), h(OverrideControls, { model })),
     h('nav', { class: 'job-step-bar', 'aria-label': 'Job steps' }, JOB_STEPS.map((item, i) => h('button', { type: 'button', key: item.id, 'data-action': `job-step-${item.id}`, 'data-job-step': item.id, 'aria-current': step === item.id ? 'step' : undefined, 'aria-controls': 'job-work-panel', onClick: () => { jobStep.value = item.id; } }, h('span', { class: 'step-number' }, String(i + 1)), h('span', null, h('strong', null, item.label), h('small', null, stepStatus(item.id, parts, model)))))),
     h('div', { class: 'job-files-drawer', hidden: !files, 'aria-label': 'Job files' }, files ? h(JobFiles, { onView: (view) => { if (view === 'job') setFiles(false); onView(view); } }) : null, h('button', { type: 'button', class: 'small', 'data-action': 'job-files-close', onClick: () => setFiles(false) }, 'Close files')),
     h(

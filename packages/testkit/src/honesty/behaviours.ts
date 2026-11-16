@@ -1,3 +1,4 @@
+import { OVERRIDE_BEHAVIOURS } from './overrideBehaviours.ts';
 /**
  * The behaviour register of the firmware models (RUN_PLAN §8.1 honesty rule).
  *
@@ -563,17 +564,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
     bench: 'B-MD-1',
     issues: ['E138'],
   },
-  {
-    id: 'EN-45005', model: EN,
-    summary: '450.05 layout 3 keeps existing settings except removed output-pause keys. Pause leaves outputs running; active dwell reports Run. Override GETs return reset defaults only (mcp is 0); override SETs are an explicit model gap until Part B.',
-    status: 'verified-source',
-    cites: [
-      { src: 'EN45005', file: 'config.c', lines: [232, 240], quote: 'Layout 3 removes output-pause settings' },
-      { src: 'EN45005', file: 'canonical_machine.c', lines: [190, 215], quote: 'if (pending)' },
-      { src: 'EN45005', file: 'config_app.c', lines: [701, 712], quote: 'ov_get_mfo' },
-    ],
-    issues: ['N99'],
-  },
+  ...OVERRIDE_BEHAVIOURS,
   {
     id: 'EN-DWELL-IDLE', model: EN,
     summary: '450.02/450.04 pre-N99: a standalone G4 keeps the stored stat and frees its planner slot before its timer ends. Persisted SETs return 117 without changing RAM or EEPROM while work is pending. N99 is not inferred within build 450.04; 450.05 has its own profile.',
@@ -1119,6 +1110,7 @@ export const BEHAVIOURS: readonly Behaviour[] = Object.freeze([
 
 /** Simplifications no safety claim may rest on (STATUS.md, "Model limits"). */
 export const MODEL_LIMITS: readonly ModelLimit[] = Object.freeze([
+  { id: 'LIM-EN-OVERRIDE-TIMING', scope: 'tinyg-en', summary: '450.06 override wire state is modelled; feed factors do not rescale the coarse motion timing. Acceleration/jerk publication, pulse timing and PWM transitions require firmware bench evidence. mcp remains false; spindle range capping is observational only.' },
   { id: 'LIM-KINEMATICS', scope: 'both', summary: 'Moves run at cruise speed with no acceleration ramps; a feedhold decelerates linearly over a fixed time (holdDecelMs, default 100 ms). Positions and durations are coarse.' },
   { id: 'LIM-ARCS', scope: 'both', summary: 'Arcs only in G17 with incremental I/J; one planner block per arc (EN queues arc segments from a callback); the end position is the commanded target, not the last computed segment. R-format, G18/G19, G90.1 and (440.21) K-word arcs, and zero-radius helices, throw ModelGapError. atan2/sin/hypot are double rounded once to float32, so a case exactly on a libm ulp boundary may differ.' },
   { id: 'LIM-HOLD-DWELL', scope: 'both', summary: 'Before EN 450.02, and on TG, a feedhold requested while a dwell runs in a moving cycle takes effect when the dwell ends (B-FH-1).' },

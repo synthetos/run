@@ -84,9 +84,7 @@
       "complexity $/FunctionDeclaration:parseBaseRequest#1": 58,
       "complexity $/FunctionDeclaration:parseFlashCommand#1": 40,
       "complexity $/FunctionDeclaration:parseFlashSource#1": 22,
-      "complexity $/FunctionDeclaration:parseJobCommand#1": 38,
-      "complexity $/FunctionDeclaration:parseMotionCommand#1": 71,
-      "max-lines $file": 431
+      "complexity $/FunctionDeclaration:parseMotionCommand#1": 71
     },
     "apps/web/src/machine-worker/workspaceRole.ts": {
       "complexity $/FunctionDeclaration:motion#1": 24
@@ -411,7 +409,7 @@
       "complexity $/FunctionDeclaration:spindleBody#1": 39,
       "complexity $/FunctionDeclaration:stepStatus#1": 22,
       "complexity $/FunctionDeclaration:zeroBody#1": 34,
-      "max-lines $file": 1154,
+      "max-lines $file": 1150,
       "max-lines-per-function $/FunctionDeclaration:RunLayout#1": 107,
       "max-lines-per-function $/FunctionDeclaration:jogBody#1": 139,
       "max-lines-per-function $/FunctionDeclaration:positionBody#1": 92,
@@ -841,8 +839,7 @@
       "max-switch-cases $/FunctionDeclaration:createSessionReducer#1/FunctionDeclaration:onIntent#1/switch(request.intent)#1": 29
     },
     "packages/machine/src/session/sessionExecutor.ts": {
-      "complexity $/ClassDeclaration:SessionExecutor#1/FunctionExpression:run#1": 21,
-      "max-lines $file": 418,
+      "max-lines $file": 406,
       "max-methods $/ClassDeclaration:SessionExecutor#1": 32
     },
     "packages/machine/src/session/settingWrite.ts": {
@@ -1278,20 +1275,20 @@
       "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:arc#1": 28,
       "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:busy#1": 23,
       "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:dispatchKernel#1": 17,
-      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:executeBlock#1": 59,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:executeBlock#1": 51,
       "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:gets#1": 27,
-      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:jsonGet#1": 23,
-      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:jsonSet#1": 74,
-      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:parseAndExecute#1": 116,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:jsonGet#1": 20,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:jsonSet#1": 71,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:parseAndExecute#1": 80,
       "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:powerUp#1": 20,
       "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:receive#1": 25,
-      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:runtime#1": 37,
+      "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:runtime#1": 36,
       "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:stat#1": 18,
       "complexity $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:value#1": 68,
-      "max-lines $file": 2390,
+      "max-lines $file": 2358,
       "max-lines-per-function $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:executeBlock#1": 107,
       "max-lines-per-function $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:jsonSet#1": 105,
-      "max-lines-per-function $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:parseAndExecute#1": 141,
+      "max-lines-per-function $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:parseAndExecute#1": 114,
       "max-lines-per-function $/ClassDeclaration:TinyGEdgeNextModel#1/FunctionExpression:value#1": 90,
       "max-methods $/ClassDeclaration:TinyGEdgeNextModel#1": 130,
       "max-params $/FunctionDeclaration:arcPath#1": 5,
@@ -1322,10 +1319,10 @@
       "max-switch-cases $/ClassDeclaration:XbootModel#1/FunctionExpression:consume#1/switch(byte)#1": 32
     },
     "packages/testkit/src/honesty/behaviours.ts": {
-      "max-lines $file": 1121
+      "max-lines $file": 1113
     },
     "packages/testkit/src/honesty/status.ts": {
-      "complexity $/FunctionDeclaration:validateBehaviours#1": 30
+      "complexity $/FunctionDeclaration:validateBehaviours#1": 27
     },
     "packages/testkit/src/mockSerialPort.ts": {
       "max-methods $/ClassDeclaration:MockSerialPort#1": 16

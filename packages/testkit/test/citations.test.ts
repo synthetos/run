@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { EN45004_COMMIT, EN45005_COMMIT } from '../src/honesty/types.ts';
+import { EN45004_COMMIT, EN45005_COMMIT, EN45006_COMMIT } from '../src/honesty/types.ts';
 import { BEHAVIOURS } from '../src/honesty/behaviours.ts';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../../..');
@@ -24,7 +24,7 @@ describe('citations', () => {
     expect(pins['EN3']?.commit).toBe('c7f9b7e2b7d7e61dec304497d15ebbd56588d238');
     expect(pins['TG']?.commit).toMatch(/^d0418390/);
     const sources = new Set(BEHAVIOURS.flatMap((b) => b.cites.map((c) => c.src)));
-    expect([...sources].sort()).toEqual(['EN', 'EN-HIL', 'EN3', 'EN45004', 'EN45005', 'TG']);
+    expect([...sources].sort()).toEqual(['EN', 'EN-HIL', 'EN3', 'EN45004', 'EN45005', 'EN45006', 'TG']);
   });
 
   it.skipIf(FIRMWARE === undefined)('every cited line range contains its quote at the pinned commit (RUN_FIRMWARE_REPO)', () => {
@@ -32,7 +32,7 @@ describe('citations', () => {
     const problems: string[] = [];
     for (const b of BEHAVIOURS) {
       for (const c of b.cites) {
-        const commit = c.src === 'EN45005' ? EN45005_COMMIT : c.src === 'EN45004' ? EN45004_COMMIT : pins[c.src === 'EN-HIL' ? 'EN' : c.src]?.commit as string;
+        const commit = c.src === 'EN45006' ? EN45006_COMMIT : c.src === 'EN45005' ? EN45005_COMMIT : c.src === 'EN45004' ? EN45004_COMMIT : pins[c.src === 'EN-HIL' ? 'EN' : c.src]?.commit as string;
         const path = c.src === 'EN-HIL' ? c.file : `firmware/tinyg/${c.file}`;
         const key = `${commit}:${path}`;
         let lines = cache.get(key);

@@ -3,6 +3,8 @@ import { SessionExecutor, type MachineSessionOptions } from './sessionExecutor.t
 import { workspaceRuntime } from './workspaceRuntime.ts';
 import { assertWorkspaceFeatures } from './workspaceFeatureContract.ts';
 import { workspaceReducerFeatures } from './workspaceReducerFeatures.ts';
+import type { OverrideRequest } from './overrides/model.ts';
+import type { SessionIntent } from './types.ts';
 import type { Decision } from '@synthetos/safety';
 export { escape } from './sessionExecutor.ts';
 export type { ConnectOutcome, LogEntry, MachineSessionOptions, SessionClock, TranscriptExport } from './sessionExecutor.ts';
@@ -11,6 +13,10 @@ export class MachineSession extends SessionExecutor {
   constructor(options: MachineSessionOptions) {
     assertWorkspaceFeatures(workspaceReducerFeatures);
     super(options, workspaceRuntime);
+  }
+  setOverride(override: OverrideRequest): Decision {
+    const request: SessionIntent & { readonly override: OverrideRequest } = { intent: 'jobRuntime', override };
+    return this.request(request);
   }
   /** Pause: `!` (SAFETY §4.4). Allowed whenever the port is open. */
   feedhold(): Decision {
