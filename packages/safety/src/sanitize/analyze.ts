@@ -19,16 +19,8 @@
 import type { Dialect, DialectJobGcode, GcodeRule } from '@synthetos/protocol';
 
 import {
-    DECIMALS,
-    PLANES,
     ROTARY,
-    formatNumber,
-    modelArc,
-    moveSeconds,
-    noVelocityMessage,
-    splitArc,
     stepErrorMm,
-    type ArcInput,
     type Plane
 } from './geometry.ts';
 
@@ -36,14 +28,14 @@ import { canonicalCode, type Word } from './lex.ts';
 
 import type { Axis, SanitizeOptions, Wcs } from './types.ts';
 
-import { extendByArc, extentAt } from './extent.ts';
+import { extentAt } from './extent.ts';
 
 import { runAction } from './analyze/actions.ts';
+import { arc } from './analyze/arc.ts';
 import { chargeJointResidual, jointRiskFinding, linearModeFinding, modeOf, rotaryUnknown, withJointResidual } from './analyze/axisModes.ts';
 import { ModelState } from './analyze/context.ts';
 import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
 import { checkModalRules, checkQueued } from './analyze/dialectRules.ts';
-import { bodies } from './analyze/formatting.ts';
 import { initialize } from './analyze/initialize.ts';
 import { linear } from './analyze/linear.ts';
 import { forget, forgetLinear, modelDelta, moveBy, planeMagnitude } from './analyze/motionPosition.ts';
@@ -51,7 +43,7 @@ import { appliedTool, g92Part, g92PartUnc, offsetUnc, selectWcs, setG92, shift, 
 import { outputsOn, resetProgram } from './analyze/outputs.ts';
 import { type Pos, type Unc } from './analyze/positions.ts';
 import { storedMove } from './analyze/stored.ts';
-import { AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
+import { AXIS_ACTIONS, AXIS_LETTERS, GROUP, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
 import { setWork, settle, widen } from './analyze/uncertainty.ts';
 import { mmPerUnit, motionBound, needsUnits, offsetScale, scale, unitScale } from './analyze/units.ts';
 import { checkCode, checkGroups } from './analyze/words.ts';
@@ -579,173 +571,5 @@ export class JobModel extends ModelState {
     plane: Plane | null,
     clockwise: boolean,
     findings: Finding[],
-  ): LineAnalysis['motion'] {
-    const forget = (): null => {
-      this.#forgetLinear();
-      return null;
-    };
-    if (axisWords.some((w) => ROTARY.has(w.letter as Axis))) {
-      findings.push(block('unsupported-word', 'rotary axis words on an arc are not modelled; write the rotary move on its own line'));
-      return forget();
-    }
-    const centreFormat = !params.has('R');
-    const unknown: string[] = [];
-    if (plane === null) unknown.push('the plane');
-    if (units === null) unknown.push('the units');
-    if (distance === null) unknown.push('the distance mode');
-    if (centreFormat && arcDistance === null) unknown.push('the arc distance mode');
-    if (unknown.length > 0) {
-      findings.push(block('unknown-state', `this arc cannot be modelled; not known: ${unknown.join(', ')}`));
-      return forget();
-    }
-    const p = PLANES[plane as Plane];
-    const s = units === 'G20' ? INCH_MM : 1;
-    const deltaOf = (axis: Axis): number | null => {
-      const w = params.get(axis);
-      return w === undefined ? 0 : this.#delta(axis, w.value, units, distance);
-    };
-    const d0 = deltaOf(p.a0);
-    const d1 = deltaOf(p.a1);
-    const dLin = deltaOf(p.lin);
-    const absoluteCentre = centreFormat && arcDistance === 'G90.1';
-    const absolute = distance === 'G90';
-    const noPlaneEndpoint = !params.has(p.a0) && !params.has(p.a1);
-    const w0 = this.work[p.a0];
-    const w1 = this.work[p.a1];
-    const missing: string[] = [];
-    if (d0 === null) missing.push(p.a0);
-    if (d1 === null) missing.push(p.a1);
-    if (dLin === null) missing.push(p.lin);
-    if (absoluteCentre && (w0 === null || w1 === null)) missing.push(`${p.a0}${p.a1} (for the G90.1 centre)`);
-    // An absolute full circle ends where it starts: both plane starts must be known, never assumed (independent review P0-10 #2).
-    if (centreFormat && noPlaneEndpoint && absolute && (w0 === null || w1 === null)) missing.push(`${p.a0}${p.a1} (for an absolute full circle)`);
-    if (missing.length > 0) {
-      findings.push(block('unknown-state', `this arc cannot be modelled: the start position of ${missing.join(', ')} is not known`));
-      return forget();
-    }
-    // The firmware decides coincidence in float32 machine coordinates; their size bounds its rounding (independent review P0-10 #1).
-    const magnitude = this.#planeMagnitude([p.a0, p.a1]);
-    if (magnitude === null) {
-      findings.push(
-        block('unknown-state', `this arc cannot be modelled: the machine position of ${p.a0} and ${p.a1} is needed to bound the firmware's float32 arithmetic`),
-      );
-      return forget();
-    }
-    const o = (letter: string): number => (params.get(letter)?.value ?? 0) * s;
-    // How far the firmware's start-relative end point and centre can be from the model's: an absolute end point
-    // word and a G90.1 centre are measured from the work start, which is only known to `uWork`; an incremental
-    // word or offset is added to the firmware's own position and inherits nothing.
-    let startUncertainty = 0;
-    for (const a of [p.a0, p.a1]) {
-      if ((absolute && params.has(a)) || absoluteCentre) startUncertainty = Math.max(startUncertainty, this.uWork[a]);
-    }
-    const input: ArcInput = {
-      clockwise,
-      d0: d0 as number,
-      d1: d1 as number,
-      dLin: dLin as number,
-      centre: centreFormat
-        ? { c0: absoluteCentre ? o(p.o0) - (w0 as number) : o(p.o0), c1: absoluteCentre ? o(p.o1) - (w1 as number) : o(p.o1) }
-        : null,
-      radius: centreFormat ? null : (params.get('R') as Word).value * s,
-      noPlaneEndpoint,
-      rotations: params.get('P')?.value ?? null,
-      coincidence: this._job.arcCoincidence,
-      magnitudeMm: magnitude,
-      startUncertaintyMm: startUncertainty,
-    };
-    const model = modelArc(input);
-    if (model.kind === 'ambiguous') {
-      findings.push(block('arc-ambiguous', `the firmware's float32 arithmetic could run this arc more than one way: ${model.detail}`));
-      return forget();
-    }
-    if (model.kind !== 'ok') {
-      findings.push(block('malformed', `the firmware would refuse this arc: ${model.detail}`));
-      return forget();
-    }
-    const moving: Axis[] = [p.a0, p.a1];
-    if (input.dLin !== 0) moving.push(p.lin);
-    const feed = this.feed as number;
-    const d = moveSeconds(moving, model.arc.lengthMm, feed, this._motion);
-    const start = { ...this.work };
-    this._extent = extendByArc(this._extent, this.machine, plane as Plane, model.arc);
-    this.#moveBy({ [p.a0]: input.d0, [p.a1]: input.d1, [p.lin]: input.dLin });
-    // An omitted axis ends exactly where it was (the firmware's target starts as its position).
-    for (const [a, delta] of [[p.a0, input.d0], [p.a1, input.d1], [p.lin, input.dLin]] as const) {
-      if (params.has(a)) this.#settle(a, absolute ? 'work' : 'incremental', delta);
-    }
-    if (d.kind !== 'ok') {
-      findings.push(block('no-velocity-limit', noVelocityMessage(d)));
-      return null;
-    }
-    // Arcs carry no rotary words (blocked above), so the arc length is a physical length in mm.
-    if (d.seconds <= this._motion.ceilingSeconds) {
-      return { kind: 'single', plannerLength: model.arc.lengthMm, boundMm: model.arc.lengthMm, seconds: d.seconds };
-    }
-
-    const dec = units === 'G20' ? DECIMALS.in : DECIMALS.mm;
-    const startOf = (axis: Axis): number | null => {
-      const v = start[axis];
-      return v === null ? null : v / s;
-    };
-    // An absolute split writes both plane axes on every sub-arc, so each start must be known (independent review P0-10 #2).
-    const unwritable = absolute ? [p.a0, p.a1].filter((a) => startOf(a) === null) : [];
-    if (unwritable.length > 0) {
-      findings.push(
-        block('unknown-state', `this arc must be split, but the start position of ${unwritable.join(', ')} is not known, so its sub-arc end points cannot be written`),
-      );
-      return null;
-    }
-    const writtenOf = (axis: Axis, delta: number): string => {
-      const w = params.get(axis);
-      if (w !== undefined) return w.text;
-      return absolute ? formatNumber(startOf(axis) as number, dec) : formatNumber(delta / s, dec);
-    };
-    const split = splitArc(
-      model.arc,
-      input,
-      {
-        plane: plane as Plane,
-        absolute,
-        absoluteCentre,
-        start0: startOf(p.a0),
-        start1: startOf(p.a1),
-        startLin: startOf(p.lin),
-        scale: s,
-        decimals: dec,
-        written: { a0: writtenOf(p.a0, input.d0), a1: writtenOf(p.a1, input.d1), lin: writtenOf(p.lin, input.dLin) },
-        linearMoves: input.dLin !== 0,
-      },
-      feed,
-      d.seconds,
-      this._motion,
-    );
-    if (split.kind !== 'ok') {
-      findings.push(block('split-impossible', `this arc cannot be split within the ceiling: ${split.detail}`));
-      return null;
-    }
-    // The sub-arcs are what the firmware sums (finding: arc uncertainty, verification of c2799da):
-    // - absolute: the last sub-arc writes an omitted plane axis as its start rounded to `dec` decimals, so the
-    //   board ends at the written value, not exactly where it was;
-    // - incremental: every sub-arc writes both plane axes (and a moving linear axis) as a distance the firmware
-    //   adds to its own position, one float32 rounding each.
-    if (absolute) {
-      for (const a of [p.a0, p.a1]) {
-        if (params.has(a)) continue;
-        this.#settle(a, 'work', 0);
-        this.#widen(a, Math.abs(Number(writtenOf(a, 0)) * s - (start[a] as number)));
-      }
-    } else {
-      const n = split.segments.length;
-      for (const a of [p.a0, p.a1]) this.#widen(a, n * stepErrorMm(model.arc.pathMagnitudeMm));
-      if (input.dLin !== 0) {
-        // An unknown position or offset (Number(null) is 0 here) already has an infinite bound.
-        const lin = p.lin;
-        const reach = Math.abs(Number(this.machine[lin])) + Math.abs(input.dLin);
-        this.#widen(lin, n * stepErrorMm(reach, input.dLin, Number(this.totalOffset(lin))));
-      }
-    }
-    const mode = clockwise ? 'G2' : 'G3';
-    return { kind: 'split', bodies: bodies(codes, params, split.segments, [mode], new Set(), ['P']), segments: split.segments, seconds: d.seconds };
-  }
+  ): LineAnalysis['motion'] { return arc(this, codes, params, axisWords, units, distance, arcDistance, plane, clockwise, findings); }
 }
