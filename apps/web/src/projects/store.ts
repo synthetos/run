@@ -27,7 +27,11 @@ import {
 } from '@synthetos/library';
 import { signal } from '@preact/signals';
 import { safeExternalLink } from '../workspace/library.ts';
-import { putProjectBlob, type ProjectRecordStore } from './blobStore.ts';
+import { putProjectBlob, readStoredBlob, type ProjectRecordStore } from './blobStore.ts';
+import { ProjectDraftStore } from './draftStore.ts';
+import { installProjectZip } from './importStore.ts';
+import type { ImportOptions } from './zip/import.ts';
+import { removeUnusedBlob } from './unusedBlobs.ts';
 import { checkEncoded, checkFile, checkImage, classify, type FileRole } from './limits.ts';
 
 // The record types and the readers are the package's (`@synthetos/library` project.ts), shared with the account store.
@@ -69,13 +73,14 @@ export interface ProjectDeps {
 
 export type AddResult = { readonly added: readonly string[]; readonly refused: readonly string[] };
 
-export class ProjectStore {
+export class ProjectStore extends ProjectDraftStore {
   readonly #deps: ProjectDeps;
   #projects: Project[] = [];
   /** Every change runs after the one before, each from the stored record as it is then: no lost updates. */
   #queue: Promise<unknown> = Promise.resolve();
 
   constructor(deps: ProjectDeps) {
+    super(deps.records);
     this.#deps = deps;
   }
 
@@ -156,8 +161,8 @@ export class ProjectStore {
   remove(id: string): Promise<void> {
     return this.#serial(async () => {
       const p = this.#need(id);
-      for (const f of p.files) await this.#deps.records.delete('blobs', f.id);
-      for (const i of p.images) await this.#deps.records.delete('blobs', i.id);
+      const remaining = this.#projects.filter(project => project.id !== id);
+      for (const file of [...p.files, ...p.images]) await removeUnusedBlob(this.#deps.records, file, remaining);
       await this.#deps.records.delete('projects', id);
       this.#projects = this.#projects.filter((x) => x.id !== id);
     });
@@ -230,17 +235,21 @@ export class ProjectStore {
   removeFile(id: string, fileId: string): Promise<Project> {
     return this.#serial(async () => {
       const p = this.#need(id);
-      await this.#deps.records.delete('blobs', fileId);
-      return this.#save({ ...p, files: p.files.filter((f) => f.id !== fileId) });
+      const next = { ...p, files: p.files.filter((f) => f.id !== fileId) };
+      const file = p.files.find(file => file.id === fileId);
+      if (file) await removeUnusedBlob(this.#deps.records, file, this.#projects.map(project => project.id === id ? next : project));
+      return this.#save(next);
     });
   }
 
   removeImage(id: string, imageId: string): Promise<Project> {
     return this.#serial(async () => {
       const p = this.#need(id);
-      await this.#deps.records.delete('blobs', imageId);
       const images = p.images.filter((i) => i.id !== imageId);
-      return this.#save({ ...p, images, cover: p.cover === imageId ? (images[0]?.id ?? null) : p.cover });
+      const next = { ...p, images, cover: p.cover === imageId ? (images[0]?.id ?? null) : p.cover };
+      const image = p.images.find(image => image.id === imageId);
+      if (image) await removeUnusedBlob(this.#deps.records, image, this.#projects.map(project => project.id === id ? next : project));
+      return this.#save(next);
     });
   }
 
@@ -300,30 +309,20 @@ export class ProjectStore {
 
   /** A stored file's or image's bytes, or null. */
   async blob(blobId: string): Promise<Blob | null> {
-    const v = await this.#deps.records.get('blobs', blobId);
-    return v instanceof Blob ? v : null;
+    return readStoredBlob(this.#deps.records, blobId);
   }
 
-  /** Keeps a blob outside any project (the draft job's file), replacing the last one; false when refused. */
-  async keepAside(key: string, blob: Blob): Promise<boolean> {
-    try {
-      await this.#deps.records.put('blobs', `aside/${key}`, blob);
-      return true;
-    } catch {
-      return false;
-    }
+  /** Archives validate the actual stored record, including jobs the lenient browser view cannot read. */
+  exportRecord(id: string): Promise<unknown> { return this.#deps.records.get('projects', id); }
+
+  importZip(zip: Blob, options: ImportOptions = {}): Promise<Project> {
+    return this.#serial(async () => {
+      const project = await installProjectZip(zip, { records: this.#deps.records, projects: this.#projects, newId: this.#deps.newId }, options);
+      this.#projects = [...this.#projects, project];
+      return project;
+    });
   }
 
-  async aside(key: string): Promise<Blob | null> {
-    const records = this.#deps.records;
-    const value = records.readAside ? await records.readAside(key) : await records.get('blobs', `aside/${key}`);
-    return value instanceof Blob ? value : null;
-  }
-
-  /** Removes only a draft blob, leaving project files and saved jobs intact. */
-  async forgetAside(key: string): Promise<void> {
-    await this.#deps.records.delete('blobs', `aside/${key}`);
-  }
 }
 
 /** A project or link name: one line, trimmed, at most 120 characters. */

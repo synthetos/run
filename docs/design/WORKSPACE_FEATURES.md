@@ -242,8 +242,28 @@ until opened; opening downloads and verifies their files. Deleting a project
 archives its account record, then removes files only when no live project uses
 them. Account switching restores browser-local data and isolates account caches.
 
-Production account storage, project zip export/import, and settings backups
-are separate rollout steps.
+Production account storage and settings backups are separate rollout steps.
+
+### Projects: download and import (Host)
+
+Download project saves `<project name>.zip`: the project record in `project.json`,
+original files in `files/<id>/<original name>`, and WebP photos in `images/<id>.webp`.
+The record includes file and photo SHA-256 digests and sizes, notes, setup references
+and saved jobs. Browser copies export offline. Missing account files download first;
+a progress line names the current file, and missing or mismatched bytes refuse the
+whole download.
+
+Import project accepts an uncompressed project zip. It checks the complete record,
+CRC, SHA-256, sizes and decoded still WebP dimensions before saving the project. It refuses
+unsafe paths, missing/unlisted files, duplicate entries, compressed or encrypted zips,
+over 1000 entries, records above 1 MB, files above their role limit (50 MB G-code,
+20 MB other files), photos above 10 MB or 2000 px, and projects above 500 MB.
+The progress line also shows a plain refusal when an import fails.
+
+An existing project id imports under a new id with “(imported)” in the name; its jobs
+follow the new id. File ids stay stable and identical bytes share storage by hash.
+An id already belonging to different bytes is refused. Signed-in imports upload their
+files before the project record through the usual sync queue.
 
 ### Firmware gate, update and backups (Configure: Wiring · Firmware · Backups)
 

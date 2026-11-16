@@ -27,8 +27,19 @@ The owner's direction (2026-11-02): the Projects page has a way to:
 ## 3. Phases
 
 - **Stage 1 polish (local):** create, rename and delete projects; upload by drag-and-drop or picker; images, links and the description; "Open in Run" for any G-code file. Everything is stored in IndexedDB behind the storage module.
-- **Stage 2 (cloud, in progress):** account sync for project records and content-addressed files/images, with on-demand verified downloads, one browser-copy prompt and keep-both conflicts. Project zip download and import remain step 3c; production storage remains gated.
+- **Stage 2 (cloud, in progress):** account sync for project records and content-addressed files/images, with on-demand verified downloads, one browser-copy prompt and keep-both conflicts. Project zip download and import are implemented (step 3c); production storage remains gated.
 - **P3:** job history is filled in automatically when jobs run.
+
+**Download/import:** Download project writes an uncompressed `.zip` with `project.json`,
+`files/<id>/<original name>` and `images/<id>.webp`. Local bytes work offline; missing
+account files download and verify first. Import project validates the record, CRC,
+SHA-256, file sizes and still WebP images before publishing anything. It refuses unsafe
+paths, unlisted or missing files, compressed/encrypted archives, more than 1000 entries,
+and data beyond the 500 MB project limit or each file/image limit. The record is capped
+at 1 MB. An existing project id becomes a new project named “(imported)”; file ids stay
+stable and jobs follow the new project id. Different bytes cannot overwrite an existing
+file id. Imported bytes are stored once per hash; shared copies keep their bytes when
+another project is deleted. Account imports use the normal file-before-record sync.
 
 ## 4. Sharing to the forum ("Show and tell")
 

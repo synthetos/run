@@ -19,9 +19,10 @@ let starting: Promise<ProjectStore> | null = null;
 
 /** Publishes the store's list to the views' signal. */
 export function publishProjects(s: ProjectStore): void {
-  if (s !== (accountStore ?? store)) return;
+  if (!isActiveProjectStore(s)) return;
   projectsState.value = { loaded: true, persistent: s.persistent, list: s.list };
 }
+export const isActiveProjectStore = (s: ProjectStore): boolean => s === (accountStore ?? store);
 
 export function projectStore(): Promise<ProjectStore> {
   if (accountStore !== null) return Promise.resolve(accountStore);

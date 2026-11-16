@@ -1,4 +1,5 @@
 import { toolDisplayName } from '../tools/displayName.ts';
+import { copyProject } from '../../projects/copyProject.ts';
 import { builtinMaterial, resolveFork, type LibraryFork, type Material, type Tool, type MachineProfile } from '@synthetos/library';
 import type { RecordKind } from '@synthetos/contracts';
 import { SEED_TOOLS, type SeedTool } from '../librarySeed.ts';
@@ -45,5 +46,5 @@ export function fromRecords(name: string, records: readonly LibraryRecord[], loc
   });
 }
 export function browserCopy(content: AccountContent, id: string): AccountContent {
-  if ('jobs' in content) return { ...content, id, name: `${content.name.slice(0, 100)} (from this browser)`, jobs: content.jobs.map(job => ({ ...job, projectId: id })) };
+  if ('jobs' in content) return copyProject(content, id, `${content.name.slice(0, 100)} (from this browser)`);
   return { ...content, id, name: `${('geometry' in content ? toolDisplayName(content) : content.name).slice(0, 100)} (from this browser)` }; }

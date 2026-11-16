@@ -1,0 +1,3 @@
+/* Progress and refusals wrap beside the action without widening the Projects header. */
+.project-zip-action { max-width: 32ch; }
+.project-zip-action [data-project-zip="notice"] { margin: 6px 0 0; overflow-wrap: anywhere; }

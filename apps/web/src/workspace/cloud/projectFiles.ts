@@ -1,6 +1,7 @@
 import type { Project } from '@synthetos/library';
 import { FilesError, type FilesClient } from '../../cloud/filesClient.ts';
 import { sha256Hex } from '../../projects/image.ts';
+import { readStoredBlob } from '../../projects/blobStore.ts';
 import type { RecordStore } from '../storage.ts';
 
 export const projectHashes = (project: Project): string[] => [...new Set([...project.files, ...project.images].flatMap(f => f.hash === undefined ? [] : [f.hash]))];
@@ -11,7 +12,7 @@ function check(access: ProjectFileAccess, signal: AbortSignal): void {
   if (signal.aborted || !access.active() || !access.allowed()) throw new DOMException('Sync paused', 'AbortError');
 }
 async function checkedBlob(access: ProjectFileAccess, file: Project['files'][number] | Project['images'][number]): Promise<Blob | null> {
-  const blob = await access.records.get('blobs', file.id);
+  const blob = await readStoredBlob(access.records, file.id);
   if (!(blob instanceof Blob) || blob.size !== file.size) return null;
   return file.hash === undefined || await sha256Hex(await blob.arrayBuffer()) === file.hash ? blob : null;
 }
@@ -20,7 +21,7 @@ export async function hashProjectImages(project: Project, records: RecordStore):
   const images = [];
   for (const image of project.images) {
     if (image.hash !== undefined) { images.push(image); continue; }
-    const blob = await records.get('blobs', image.id);
+    const blob = await readStoredBlob(records, image.id);
     if (!(blob instanceof Blob)) throw new FilesError(422, `${image.name}: the browser copy is missing`);
     images.push({ ...image, hash: await sha256Hex(await blob.arrayBuffer()) });
   }

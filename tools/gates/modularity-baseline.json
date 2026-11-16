@@ -132,7 +132,7 @@
       "max-lines-per-function $/FunctionDeclaration:usePlay#1": 127
     },
     "apps/web/src/projects/store.ts": {
-      "max-methods $/ClassDeclaration:ProjectStore#1": 26
+      "max-methods $/ClassDeclaration:ProjectStore#1": 25
     },
     "apps/web/src/projects/useInJob.ts": {
       "max-params $/FunctionDeclaration:applyImport#1": 5

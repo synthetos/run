@@ -1,4 +1,5 @@
 import type { RecordStore } from '../storage.ts';
+import { blobLink, contentKey } from '../../projects/blobStore.ts';
 
 /** Stored ids are opaque components, never paths into another account's keys. */
 export const accountPrefix = (subject: string): string => `account/${encodeURIComponent(subject)}/`;
@@ -9,9 +10,14 @@ export async function readAccountBlob(records: RecordStore, keys: { subject: str
   active();
   const scoped = await records.get('blobs', accountKey(keys.subject, keys.id));
   active();
-  if (scoped !== undefined && scoped !== null) return scoped;
+  if (scoped !== undefined && scoped !== null) {
+    const value = blobLink(scoped) ? await records.get('blobs', accountKey(keys.subject, contentKey(scoped.contentHash))) : scoped;
+    active(); return value;
+  }
   const local = keys.fallback ? await records.get('blobs', keys.id) : undefined;
-  active(); return local;
+  active();
+  const value = blobLink(local) ? await records.get('blobs', contentKey(local.contentHash)) : local;
+  active(); return value;
 }
 export function ownBlobIds(keys: readonly string[], subject: string): string[] {
   const prefix = accountPrefix(subject);

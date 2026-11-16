@@ -12,6 +12,7 @@ import { formatBytes } from './limits.ts';
 import { projectsState, projectUsage } from './store.ts';
 
 import { ProjectDetail } from './ProjectDetail.ts';
+import { ImportProject } from './ProjectZipActions.ts';
 import { DrawingImport } from './projectJobs.ts';
 import { dateText, Dropzone, FileRow, Thumb, type ImportRequest } from './projectMedia.ts';
 export type { ImportRequest } from './projectMedia.ts';
@@ -41,7 +42,7 @@ export function ProjectsView({ onView }: { readonly onView: (v: string) => void 
       { class: 'view-head' },
       h('div', { class: 'title-block' }, h('h1', null, 'Projects'), h('p', null, state.loaded && !state.persistent ? 'This browser refused storage: projects last for this page only.' : 'Files, photos, notes and setup, kept together.')),
       h('p', { class: 'sync-line', 'data-project-saved': '', role: 'status' }, librarySavedText(state.persistent)),
-      h('div', { class: 'view-actions' }, h('button', { type: 'button', class: 'primary', disabled: !state.loaded, 'data-action': 'project-new', onClick: create }, Icon('plus', 16), 'New project')),
+      h('div', { class: 'view-actions' }, h(ImportProject, { onImported: setOpenId, disabled: !state.loaded }), h('button', { type: 'button', class: 'primary', disabled: !state.loaded, 'data-action': 'project-new', onClick: create }, Icon('plus', 16), 'New project')),
     ),
     h(
       'div',

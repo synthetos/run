@@ -12,6 +12,7 @@ import { projectUsage, type Project } from './store.ts';
 import { DrawingImport, JobRow } from './projectJobs.ts';
 import { dateText, Dropzone, FileRow, ImageTile, UsageMeter, useBlobUrl, type ImportRequest } from './projectMedia.ts';
 import { DescriptionSection, LinksSection, SetupSection } from './projectSections.ts';
+import { DownloadProject } from './ProjectZipActions.ts';
 function ProjectOpen({ project, onView }: { readonly project: Project; readonly onView: (view: string) => void }): ComponentChild {
   const files = project.files.filter(isGcodeFile);
   const [selected, setSelected] = useState(activeJob.value?.projectId === project.id ? activeJob.value.file?.fileId ?? '' : '');
@@ -93,6 +94,7 @@ function ProjectHero({ project, onView, onDeleted }: { readonly project: Project
                 h('button', { key: 'n', type: 'button', class: 'small', 'data-action': 'project-cancel-delete', onClick: () => setConfirming(false) }, 'Keep it'),
               ]
             : [
+                h(DownloadProject, { key: 'zip', project }),
                 h('button', { key: 's', type: 'button', class: 'small', disabled: true, 'aria-describedby': 'share-later', 'data-action': 'project-share' }, 'Share to forum'),
                 h('span', { key: 'sn', class: 'share-note', id: 'share-later' }, 'Sharing arrives with your Synthetos account'),
                 h('button', { key: 'd', type: 'button', class: 'small quiet-link', 'data-action': 'project-delete', onClick: () => setConfirming(true) }, Icon('trash', 13), 'Delete'),
