@@ -31,8 +31,7 @@ import {
     stepErrorMm,
     type ArcInput,
     type LinearAxis,
-    type Plane,
-    type Segment
+    type Plane
 } from './geometry.ts';
 
 import { canonicalCode, type Word } from './lex.ts';
@@ -46,13 +45,14 @@ import { chargeJointResidual, jointRiskFinding, linearModeFinding, modeOf, rotar
 import { ModelState } from './analyze/context.ts';
 import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
 import { checkModalRules, checkQueued } from './analyze/dialectRules.ts';
+import { bodies } from './analyze/formatting.ts';
 import { initialize } from './analyze/initialize.ts';
 import { forget, forgetLinear, modelDelta, moveBy, planeMagnitude } from './analyze/motionPosition.ts';
 import { appliedTool, g92Part, g92PartUnc, offsetUnc, selectWcs, setG92, shift, totalOffset, workAfterSet } from './analyze/offsets.ts';
 import { outputsOn, resetProgram } from './analyze/outputs.ts';
 import { type Pos, type Unc } from './analyze/positions.ts';
 import { storedMove } from './analyze/stored.ts';
-import { AFTER_MOTION, ARC_LETTERS, AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
+import { AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
 import { setWork, settle, widen } from './analyze/uncertainty.ts';
 import { mmPerUnit, motionBound, needsUnits, offsetScale, scale, unitScale } from './analyze/units.ts';
 import { checkCode, checkGroups } from './analyze/words.ts';
@@ -73,43 +73,6 @@ function unknownMessage(
   if (!g53 && distance === null) what.push('the distance mode');
   if (what.length === 0) what.push(`the ${g53 ? 'machine' : 'work'} position of ${axes.join(', ')}`);
   return `this move cannot be checked against the queued-motion ceiling; not known: ${what.join(' and ')}`;
-}
-
-
-/**
- * Sub-segment bodies. The first carries every word of the original line that
- * acts before motion (modal codes, spindle and coolant codes, then F, S, T
- * and any other parameter word); every one carries the motion code (and
- * G53, which applies to its own block only); the last carries the
- * program-flow codes that act after motion (M0, M1, M2, M30, M60), so
- * barriers and holdback land on it. Axis and arc words come from the
- * segment; `dropLetters` (the arc's P turns) are already in the geometry.
- */
-function bodies(
-  codes: readonly { word: Word; code: string }[],
-  params: ReadonlyMap<string, Word>,
-  segments: readonly Segment[],
-  motionWords: readonly string[],
-  perSegment: ReadonlySet<string>,
-  dropLetters: readonly string[],
-): string[] {
-  const before: string[] = [];
-  const after: string[] = [];
-  for (const { code } of codes) {
-    if (MOTION_CODES.has(code) || code === 'G80' || perSegment.has(code)) continue;
-    (AFTER_MOTION.has(code) ? after : before).push(code);
-  }
-  for (const [letter, w] of params) {
-    if (AXIS_LETTERS.has(letter) || ARC_LETTERS.has(letter) || dropLetters.includes(letter)) continue;
-    before.push(`${letter}${w.text}`);
-  }
-  return segments.map((seg, i) => {
-    const parts: string[] = [];
-    if (i === 0) parts.push(...before);
-    parts.push(...motionWords, ...seg.words);
-    if (i === segments.length - 1) parts.push(...after);
-    return parts.join(' ');
-  });
 }
 /** One modal model per sanitizer invocation. */
 export class JobModel extends ModelState {
