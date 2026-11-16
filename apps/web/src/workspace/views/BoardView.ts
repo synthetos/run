@@ -22,64 +22,22 @@
  * rule 6).
  */
 import { h, type ComponentChild } from 'preact';
-
 import { useState } from 'preact/hooks';
-
-
-
-
-import { SettingsStatus } from '../../machine-ui/SettingsView.ts';
-
-import { Dismissable } from '../notes/Dismissable.ts';
-
-import type { ReadoutPhase } from '../../live/readout.ts';
-
-import { PendingTray, SettingsTable } from '../settings/SettingsUi.ts';
-
-import { BackupsHub, FirmwareTab } from './FirmwareViews.ts';
-
-
 import {
-    draftStore
+  draftStore
 } from '../boardFacts.ts';
-
-
-
-import { type WorkspaceModel } from '../model.ts';
-
-
-import { TabBar, TabPane } from '../ui.ts';
-
 import { boardTab, type BoardTab as Tab } from '../boardNavigation.ts';
-
-import { uiLevel } from '../jobWorkflow.ts';
-
-import { GuidedSettings } from '../settings/GuidedSettings.ts';
+import { type WorkspaceModel } from '../model.ts';
+import { PendingTray } from '../settings/SettingsUi.ts';
+import { TabBar, TabPane } from '../ui.ts';
 import { AxesTab } from './board/axes.ts';
 import { CommsTab } from './board/comms.ts';
 import { InputsTab } from './board/inputs.ts';
 import { MotorsTab } from './board/motors.ts';
 import { OutputsTab } from './board/outputs.ts';
 import { OverviewTab } from './board/overview.ts';
-
-
-// Firmware and Backups (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09): the Firmware tab (the Update panel, then
-// the firmware image backups, custom firmware and trusted builds) and the Backups tab (settings backups).
-export { MotorDraft } from './board/motorDraft.ts';
-export { FirmwareTab } from './FirmwareViews.ts';
-
-
-
-function SettingsTab({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
-  const view = model?.live.value ?? null;
-  return h(
-    'div',
-    { tabindex: 0, class: 'scroll-region settings-tab' },
-    settingsRead(view?.readout.phase ?? { kind: 'idle' }, () => model?.actions.value?.keepBoardSettings()),
-    uiLevel.value.value === 'simple' ? h(GuidedSettings, { view, prefix: 'board' }) : h(SettingsTable, { view }),
-  );
-}
-
+import { SettingsTab } from './board/settings.ts';
+import { BackupsHub, FirmwareTab } from './FirmwareViews.ts';
 
 export function BoardView({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
@@ -123,14 +81,5 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
   );
 }
 
-
-/**
- * The settings read's outcome. "Recorded" and "match" are only information, so they get a × (remembered per notice,
- * workspace/notes/Dismissable.ts); reading, incomplete and a drift (a review is needed) always show.
- */
-function settingsRead(phase: ReadoutPhase, onKeep: () => void): ComponentChild {
-  const body = h('div', { 'data-region': 'settings' }, h(SettingsStatus, { phase, onKeep }));
-  return phase.kind === 'recorded' || phase.kind === 'match'
-    ? h(Dismissable, { id: `board/settings-${phase.kind}`, label: 'the settings read note', inNotes: false, class: 'settings-read dismissable-card' }, body)
-    : h('div', { class: 'settings-read' }, body);
-}
+export { MotorDraft } from './board/motorDraft.ts';
+export { FirmwareTab } from './FirmwareViews.ts';

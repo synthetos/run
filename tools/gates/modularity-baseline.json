@@ -332,13 +332,6 @@
     "apps/web/src/workspace/views/AnalyzeView.ts": {
       "complexity $/FunctionDeclaration:AnalyzeView#1": 29
     },
-    "apps/web/src/workspace/views/BoardView.ts": {
-      "complexity $/FunctionDeclaration:BoardFacts#1": 55,
-      "max-lines $file": 657,
-      "max-lines-per-function $/FunctionDeclaration:BoardIllustration#1": 110,
-      "max-params $/FunctionDeclaration:BoardIllustration#1/ArrowFunctionExpression:target#1": 8,
-      "max-params $/FunctionDeclaration:axisTable#1": 6
-    },
     "apps/web/src/workspace/views/FirmwareViews.ts": {
       "complexity $/FunctionDeclaration:BackupsHub#1": 55,
       "complexity $/FunctionDeclaration:FirmwareTab#1": 94,
