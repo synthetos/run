@@ -25,7 +25,6 @@ import { h, type ComponentChild } from 'preact';
 
 import { useState } from 'preact/hooks';
 
-import { boardText } from '@synthetos/safety';
 
 
 import { AxisModes } from '../../machine-ui/AxisModes.ts';
@@ -63,13 +62,11 @@ import {
     type PinInfo,
 } from '../boardFacts.ts';
 
-import { Icon } from '../icons.ts';
 
-import { openReport } from '../../report/state.ts';
 
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 
-import { coolantText, displayReadouts, num, spindleText, UNKNOWN } from '../status.ts';
+import { coolantText, displayReadouts, num, spindleText } from '../status.ts';
 
 import { Keyed, TabBar, TabPane } from '../ui.ts';
 
@@ -78,88 +75,14 @@ import { boardTab, type BoardTab as Tab } from '../boardNavigation.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 
 import { GuidedSettings } from '../settings/GuidedSettings.ts';
-import { cell, EditToggle, Empty, fact, NOT_CONNECTED_TEXT, type Settings } from './board/shared.ts';
+import { BoardFacts } from './board/identity.ts';
+import { cell, EditToggle, Empty, type Settings } from './board/shared.ts';
 
 
 // Firmware and Backups (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09): the Firmware tab (the Update panel, then
 // the firmware image backups, custom firmware and trusted builds) and the Backups tab (settings backups).
 export { FirmwareTab } from './FirmwareViews.ts';
 
-
-
-const REASON_TEXT: Readonly<Record<string, string>> = {
-  'en-approved': 'An approved TinyG edge-next build.',
-  'en-not-approved': 'A TinyG edge-next build that is not on the approved list yet.',
-  'tg440-approved': 'An approved TinyG 440 build.',
-  'tg440-not-approved': 'A TinyG 440 build that is not on the approved list.',
-  'stock-449': 'Stock TinyG 449 firmware.',
-  'g2core-read-only': 'g2core firmware, supported read-only.',
-  'g2core-unknown-build': 'A g2core build Run does not know.',
-  conflict: 'The board’s answers did not agree with each other.',
-  probeFailed: 'The board did not answer the identification questions.',
-  flowControl: 'The board’s flow control setting (ex) could not be read, or has a value Run doesn’t know.',
-};
-
-
-// ---------------------------------------------------------------- overview
-
-/** The probe facts in plain words, with the raw key as secondary text. */
-function BoardFacts({ view }: { readonly view: LiveView | null }): ComponentChild {
-  const s = view?.message?.snapshot ?? null;
-  const on = view !== null && connected(view);
-  const id = s?.identity ?? null;
-  const c = s?.classification ?? null;
-  const dialect = c?.dialectId === 'tinyg-en' ? 'TinyG edge-next' : c?.dialectId === 'tinyg-440' ? 'TinyG 440' : c?.dialectId === null || c === null ? 'Not identified' : c.dialectId;
-  const readOnly = s?.overlays.includes('READ_ONLY') === true;
-  const settings = settingsOf(view);
-  const units = view?.message?.dro.units ?? null;
-  const wcs = view?.message?.dro.wcs.code ?? null;
-  return h(
-    'section',
-    { class: 'insp', 'data-region': 'board-facts', 'aria-labelledby': 'board-facts-title' },
-    h(
-      'header',
-      null,
-      h(
-        'h2',
-        { id: 'board-facts-title', class: 'board-facts-title' },
-        on && c?.dialectId === 'tinyg-en' ? h('img', { class: 'edge-next-icon', src: '/brand/edge-next/tinyg-edge-next-2026-icon.png', alt: 'TinyG edge-next', width: 28, height: 28, 'data-board-logo': 'edge-next' }) : null,
-        'This board',
-      ),
-      h('span', { class: `tag${readOnly ? ' mock' : ''}` }, on ? (readOnly ? 'Read only' : 'Connected') : 'Not connected'),
-    ),
-    on
-      ? h(
-          'dl',
-          { class: 'facts board-facts' },
-          fact('Board id', boardText(id?.id) || 'Not reported', 'id', 'id'),
-          fact('Firmware build', typeof id?.fb === 'number' ? id.fb.toFixed(2) : UNKNOWN, 'fb', 'fb'),
-          fact('Firmware version', typeof id?.fv === 'number' ? String(id.fv) : UNKNOWN, 'fv', 'fv'),
-          fact('Hardware platform', id?.hp === undefined ? UNKNOWN : boardText(String(id.hp)), 'hp', 'hp'),
-          fact('Hardware version', id?.hv === undefined ? UNKNOWN : boardText(String(id.hv)), 'hv', 'hv'),
-          id?.fbs === undefined ? null : fact('Build identity', boardText(id.fbs), 'fbs', 'fbs'),
-          fact('Firmware dialect', dialect, 'dialect', 'dialect'),
-          fact('Units now', units === 'mm' ? 'millimetres (G21)' : units === 'in' ? 'inches (G20)' : 'Not read', 'unit', 'unit'),
-          fact('Units at power-up', plainValue('gun', settings['gun'], dialectOf(view)) ?? 'Not read', 'gun', 'gun'),
-          fact('Coordinate system', wcs ?? 'Not read', 'coor', 'coor'),
-          fact('Approval', c === null ? UNKNOWN : (REASON_TEXT[c.reason] ?? c.reason), c?.reason ?? 'classification', 'approval'),
-        )
-      : h('p', { class: 'fine' }, NOT_CONNECTED_TEXT),
-    on && readOnly
-      ? h(
-          'p',
-          { class: 'note', 'data-board-fact': 'read-only' },
-          'Phase 1 connects every board read-only: Run reads positions and settings and writes nothing.',
-          c?.detail === undefined || c.detail === '' ? null : h('small', { class: 'raw-key block' }, boardText(c.detail)),
-        )
-      : null,
-    h(
-      'div',
-      { class: 'board-report' },
-      h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'report-board', onClick: () => openReport({ origin: 'board', kind: 'firmware' }) }, Icon('flag', 14), 'Report a firmware problem'),
-    ),
-  );
-}
 
 
 /** What a pin's settings say, row by row (readouts from the status report or the read-only poll). */
