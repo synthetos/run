@@ -43,6 +43,7 @@ import type { Axis, RotaryAxis, SanitizeOptions, StartState, Wcs } from './types
 
 import { extendByArc, extendTo, extentAt } from './extent.ts';
 
+import { chargeJointResidual, jointRiskFinding, linearModeFinding, modeOf, rotaryUnknown, withJointResidual } from './analyze/axisModes.ts';
 import { ModelState, type ModelContext } from './analyze/context.ts';
 import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
 import { emptyPos, exactUnc, posFrom, uncOf, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
@@ -186,9 +187,7 @@ export class JobModel extends ModelState {
 
 
   /** The live axis mode, or undefined when it is not known. */
-  #modeOf(axis: Axis): AxisMode | undefined {
-    return ROTARY.has(axis) ? this._motion.rotary[axis as RotaryAxis]?.mode : this._motion.linear[axis as 'X' | 'Y' | 'Z'];
-  }
+  #modeOf(axis: Axis): AxisMode | undefined { return modeOf(this, axis); }
 
 
   /**
@@ -197,46 +196,19 @@ export class JobModel extends ModelState {
    * (refused by `cm_set_am` on X/Y/Z, and ignored by `cm_set_model_target`
    * if present) (@cite EN canonical_machine.c:531-545; TG canonical_machine.c:444-454).
    */
-  #linearModeFinding(axis: Axis): Finding | null {
-    if (ROTARY.has(axis)) return null;
-    const mode = this.#modeOf(axis);
-    const name = `${axis.toLowerCase()}am`;
-    if (mode === undefined) return block('unknown-state', `the axis mode (${name}) of ${axis} is not known, so a move on ${axis} cannot be modelled`);
-    if (mode === AXIS_MODE_DISABLED) return block('axis-mode', `${axis} is disabled (${name}=0): TinyG ignores ${axis} words, so this move would not run as written`);
-    if (mode === AXIS_MODE_RADIUS) return block('axis-mode', `${axis} reads radius mode (${name}=3), which TinyG refuses on a linear axis; it ignores ${axis} words in that mode`);
-    return null;
-  }
+  #linearModeFinding(axis: Axis): Finding | null { return linearModeFinding(this, axis); }
 
 
   /** The block for motion while an inhibited (or possibly inhibited) axis may hold its motor away from step 0. */
-  #jointRiskFinding(): Finding | null {
-    if (this._jointRisk.length === 0) return null;
-    const parts = this._jointRisk.map((a) => {
-      const mode = this.#modeOf(a);
-      const m = this.machine[a];
-      const where = m === null ? 'its position is not known' : `it reads ${formatNumber(m, 3)}`;
-      return mode === undefined ? `${a} (axis mode not known, so it may be inhibited; ${where})` : `${a} (inhibited; ${where})`;
-    });
-    return block(
-      'inhibited-axis',
-      `TinyG drives an inhibited axis's motor to step 0 on the next move of any axis, by an amount no overrun bound covers: ${parts.join(', ')}. Motion stays blocked until every such axis reads 0`,
-    );
-  }
+  #jointRiskFinding(): Finding | null { return jointRiskFinding(this); }
 
 
   /** A motion line's bound with the residual of inhibited axes that read 0 added (`#jointResidualMm`). */
-  #withJointResidual(bound: number | null): number | null {
-    const r = this._jointResidualMm;
-    return bound === null || r === null ? null : bound + r;
-  }
+  #withJointResidual(bound: number | null): number | null { return withJointResidual(this, bound); }
 
 
   /** Every bound of an accepted motion line, with the inhibited-axis residual. */
-  #chargeJointResidual(motion: LineAnalysis['motion']): LineAnalysis['motion'] {
-    if (motion === null || this._jointResidualMm === 0) return motion;
-    if (motion.kind === 'single') return { ...motion, boundMm: this.#withJointResidual(motion.boundMm) };
-    return { ...motion, segments: motion.segments.map((seg) => ({ ...seg, boundMm: this.#withJointResidual(seg.boundMm) })) };
-  }
+  #chargeJointResidual(motion: LineAnalysis['motion']): LineAnalysis['motion'] { return chargeJointResidual(this, motion); }
 
 
   /**
@@ -486,17 +458,7 @@ export class JobModel extends ModelState {
    * known: the word could be degrees or linear units, and a radius-mode axis
    * turns 360 / (2π × ra) degrees per mm (about 57× at ra = 1).
    */
-  #rotaryUnknown(axis: Axis): Finding | null {
-    if (!ROTARY.has(axis)) return null;
-    const cfg = this._motion.rotary[axis as RotaryAxis];
-    if (cfg === undefined) {
-      return block('unknown-state', `the axis mode (${axis.toLowerCase()}am) of ${axis} is not known, so a move on ${axis} cannot be modelled`);
-    }
-    if (cfg.mode === AXIS_MODE_RADIUS && cfg.radiusMm === undefined) {
-      return block('unknown-state', `${axis} is in radius mode but its radius (${axis.toLowerCase()}ra) is not known, so a move on ${axis} cannot be modelled`);
-    }
-    return null;
-  }
+  #rotaryUnknown(axis: Axis): Finding | null { return rotaryUnknown(this, axis); }
 
 
   /** Moves by known deltas: both positions follow, unknowns stay unknown. The caller settles the bounds (`#settle`). */
