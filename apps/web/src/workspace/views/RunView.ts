@@ -41,7 +41,6 @@ import { on, progressText } from '../../preview/PreviewView.ts';
 
 
 
-import { readStored, writeStored } from '../storage.ts';
 
 
 import { connected, type WorkspaceModel } from '../model.ts';
@@ -129,6 +128,7 @@ import { RunBridge } from './run/bridge.ts';
 import { JobCard } from './run/fileCard.ts';
 import { RunInspector } from './run/inspector.ts';
 import { JobWorkPanel, PHASE_LABEL, stepStatus } from './run/steps.ts';
+import { TraverseToggle } from './run/traverses.ts';
 
 
 // ---------------------------------------------------------------- inspector: motion (Phase 2)
@@ -208,36 +208,6 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
     layout: (parts: PreviewParts) => runLayout(parts, model, onView, stops),
     scrubTo: scrubRequest,
   });
-}
-
-
-/** Traverses (G0) on or off: a toolbar toggle, remembered in this browser. */
-function TraverseToggle({ parts }: { readonly parts: PreviewParts }): ComponentChild {
-  const { state, actions } = parts;
-  const onRapids = actions.onRapids;
-  useEffect(() => {
-    const stored = readStored('preview-traverses', (v: unknown): v is boolean => typeof v === 'boolean');
-    if (stored !== null && stored !== state.showRapids) onRapids?.(stored);
-    // Once, when the actions arrive.
-  }, [onRapids === undefined]);
-  return h(
-    'button',
-    {
-      type: 'button',
-      class: 'tool-toggle',
-      'aria-pressed': state.showRapids ? 'true' : 'false',
-      disabled: !state.ready,
-      'data-preview': 'rapids',
-      title: state.showRapids ? 'Hide traverses (G0 moves)' : 'Show traverses (G0 moves)',
-      ...on('onClick', onRapids, (f) => () => {
-        const next = !state.showRapids;
-        writeStored('preview-traverses', next);
-        f(next);
-      }),
-    },
-    h('span', { class: 'toggle-dash', 'aria-hidden': 'true' }),
-    'Traverses',
-  );
 }
 
 
