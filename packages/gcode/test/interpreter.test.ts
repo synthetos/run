@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { G2CORE_EDGE, TINYG_440, TINYG_449_STOCK, TINYG_EN } from '@synthetos/protocol';
-import { KIND, LINE_FLAG, interpretJob } from '../src/index.ts';
-import { analyse, fixture, points, rules, start, unchecked } from './helpers.ts';
 
-const BOTH = [TINYG_EN, TINYG_440] as const;
+import { G2CORE_EDGE, TINYG_440, TINYG_449_STOCK, TINYG_EN } from '@synthetos/protocol';
+
+import { KIND, LINE_FLAG, interpretJob } from '../src/index.ts';
+
+import { analyse, fixture, points, rules, start, unchecked } from './helpers.ts';
+import { BOTH } from './interpreterHarness.ts';
+
 
 describe('TB-02 acceptance: dialect data drives the interpreter', () => {
   it('EN: G10 L20 P1 X0 sets the G54 offset to the current position; TG blocks it', () => {
@@ -101,6 +104,7 @@ describe('TB-02 acceptance: dialect data drives the interpreter', () => {
   });
 });
 
+
 describe('barriers, optional stop and pauses', () => {
   it('M0 and M60 are pause points on every TinyG dialect; the spindle stays on there', () => {
     for (const d of BOTH) {
@@ -135,6 +139,7 @@ describe('barriers, optional stop and pauses', () => {
     expect(rules(analyse(fixture('cam/18-m6-tool-change.nc'), TINYG_440).analysis)).toContain('m6-without-c14');
   });
 });
+
 
 describe('old P1-03 goldens', () => {
   it('an R arc with an impossible radius: "firmware will reject"', () => {
@@ -246,6 +251,7 @@ describe('old P1-03 goldens', () => {
   });
 });
 
+
 describe('bounds, envelope and estimates', () => {
   const envelope = { X: { min: 0, max: 100 }, Y: { min: 0, max: 100 }, Z: { min: -50, max: 10 } };
 
@@ -305,6 +311,7 @@ describe('bounds, envelope and estimates', () => {
     expect((a.lineFlags[1] as number) & LINE_FLAG.UNCERTAIN).toBeTruthy();
   });
 });
+
 
 describe('large files (TB-03)', () => {
   it('a file with hundreds of thousands of rejected lines is interpreted, not a stack overflow', () => {
