@@ -61,17 +61,16 @@ import { forgetHomed } from './homedAxes.ts';
 
 import { failJob, forgetJobLines, jobActive, lastFileLine } from './jobState.ts';
 
-import { typedAlarmed, typedCheckTimedOut } from './typedNotice.ts';
+import { typedAlarmed } from './typedNotice.ts';
 
 import { raiseDone, raiseRestore } from './typedPieces.ts';
 
-import { type MotionDeps, type MotionTx } from './motion/contract.ts';
-import { message, queueLine, readBack, requestPoll, setMotion, tick, writeRealtime } from './motion/effects.ts';
+import { type MotionTx } from './motion/contract.ts';
+import { message, queueLine, readBack, requestPoll, setMotion, writeRealtime } from './motion/effects.ts';
 import { finish } from './motion/endings.ts';
 import { feedMore, feeding, sendTypedPiece } from './motion/jog.ts';
 import { ALARMABLE, ALARMED, MOTION_LIMITS } from './motion/limits.ts';
 import { atRestPolled, completedPoll, dialect, heldPolled, idleBase, machineClass, motionLinesSettled, planner, returnBase } from './motion/model.ts';
-import { beginHold } from './motion/stops.ts';
 import type { MotionCtx, SessionState } from './types.ts';
 
 export { onMotionAnswer } from './motion/answers.ts';
@@ -83,6 +82,7 @@ export { sendTypedPiece } from './motion/jog.ts';
 export { MOTION_LIMITS, POLL_TOKENS, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
 export { activeSystem, atRestPolled, completedPoll, heldPolled, idleBase, motionCapable, returnBase } from './motion/model.ts';
 export { beginHold, motionStopApplies, onMotionStop } from './motion/stops.ts';
+export { onMotionTimer } from './motion/timer.ts';
 
 
 
@@ -212,46 +212,6 @@ export function onPollDone(t: MotionTx, at: number): void {
     default:
       return;
   }
-}
-
-
-/** The `motion` timer: keep-alive, deadlines, and the next poll. */
-export function onMotionTimer(t: MotionTx, deps: MotionDeps, at: number): void {
-  // Armed only while a motion is in a polling phase: complete, abandon, held and finish cancel it.
-  const ctx = t.s.motion as MotionCtx;
-  if ((ctx.phase === 'hold' || ctx.phase === 'flush') && ctx.deadline !== null && at > ctx.deadline) {
-    const what = ctx.phase === 'hold' ? 'did not report the hold' : 'did not report an empty queue after the flush';
-    t.set({ motion: null, base: returnBase(ctx, t.s), queue: t.s.queue.filter((q) => q.purpose !== 'motion' && q.purpose !== 'poll') });
-    message(t, 'failed', 'Stop not confirmed: use your E-stop.', at);
-    deps.fault(t, 'stopNotConfirmed', 'integrity', `the controller ${what} within ${MOTION_LIMITS.stopStepMs / 1000} s`, at);
-    return;
-  }
-  if (ctx.phase === 'check') {
-    // A typed move's check reads were not all answered in time (H91): nothing was sent.
-    t.set({ motion: null, base: returnBase(ctx, t.s) });
-    typedCheckTimedOut(t, ctx, at);
-    return;
-  }
-  if (ctx.retryAt !== undefined && ctx.retryAt !== null && at >= ctx.retryAt && ctx.line !== undefined) {
-    setMotion(t, { retryAt: null, attempts: (ctx.attempts as number) + 1, confirmed: 0 });
-    queueLine(t, ctx.line, ctx.change === 'setZero' ? 'setWorkZero' : 'selectCoordSystem');
-    requestPoll(t);
-    tick(t);
-    return;
-  }
-  if (ctx.phase === 'homing') {
-    // The fallback check: a pushed report may have been missed (only one is pending at a time).
-    requestPoll(t);
-    t.arm('motion', MOTION_LIMITS.homingCheckMs);
-    return;
-  }
-  const jog = ctx.jog;
-  if (jog !== null && jog.remainingMm === null && ctx.phase === 'feed' && at - jog.renewedAt > MOTION_LIMITS.keepAliveMs) {
-    beginHold(t, 'keepalive', at);
-    return;
-  }
-  requestPoll(t);
-  tick(t);
 }
 
 
