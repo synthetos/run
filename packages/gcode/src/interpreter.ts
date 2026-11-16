@@ -24,7 +24,6 @@ import {
     PLANES,
     WCS_CODES,
     blockFindingText,
-    modelArc,
     type Axis,
     type SanitizeResult,
     type SentLine,
@@ -39,7 +38,8 @@ import { emptyFrames } from './frames.ts';
 
 import { codeOf, parseLine } from './parser.ts';
 
-import { DEFAULT_VERTEX_CAP, PLANE_INDEX, ROTARY } from './interpreter/constants.ts';
+import { interpretArc } from './interpreter/arcs.ts';
+import { DEFAULT_VERTEX_CAP, ROTARY } from './interpreter/constants.ts';
 import { type Emitted, type Piece, type Pos } from './interpreter/contract.ts';
 import { axisMm, offset, offsetMm, unitScale, work, zero } from './interpreter/coordinates.ts';
 import { addFinding, addFindingOnce } from './interpreter/findings.ts';
@@ -577,73 +577,7 @@ class Interpreter extends InterpreterState {
   }
 
 
-  arc(to: Pos, axisWords: ReadonlyMap<Axis, number>, params: ReadonlyMap<string, number>, src: number, n: number, i: number): void {
-    const plane = this.plane;
-    const ax = PLANES[plane];
-    const blocked = this.dialect.gcode.blocked.find((r) => r.kind === 'arcInPlane' && r.plane === plane);
-    if (blocked !== undefined) {
-      // Never drawn with another firmware's direction: the jump is shown, the arc is not.
-      this.add(src, n, 'block', blocked.id, blocked.reason);
-      this.flags[i] = (this.flags[i] as number) | LINE_FLAG.NOT_DRAWN;
-      this.jump(to, i);
-      return;
-    }
-    const a0 = ax.a0 as Axis;
-    const a1 = ax.a1 as Axis;
-    const lin = ax.lin as Axis;
-    const r = params.get('R');
-    const o0 = params.get(ax.o0);
-    const o1 = params.get(ax.o1);
-    let centre: { c0: number; c1: number } | null = null;
-    if (r === undefined) {
-      if (this.arcDistance === 'G90.1') {
-        centre = {
-          c0: (o0 === undefined ? this.work(a0) : o0 * this.scale) + this.offset(a0) - this.machine[a0],
-          c1: (o1 === undefined ? this.work(a1) : o1 * this.scale) + this.offset(a1) - this.machine[a1],
-        };
-      } else centre = { c0: (o0 ?? 0) * this.scale, c1: (o1 ?? 0) * this.scale };
-    }
-    const p = params.get('P');
-    const result = modelArc({
-      clockwise: this.motion === 'G2',
-      d0: to[a0] - this.machine[a0],
-      d1: to[a1] - this.machine[a1],
-      dLin: to[lin] - this.machine[lin],
-      centre,
-      radius: r === undefined ? null : r * this.scale,
-      noPlaneEndpoint: !axisWords.has(a0) && !axisWords.has(a1),
-      rotations: p ?? null,
-      coincidence: this.job.arcCoincidence,
-      magnitudeMm: Math.max(
-        Math.abs(this.machine[a0]),
-        Math.abs(this.machine[a1]),
-        Math.abs(this.work(a0)),
-        Math.abs(this.work(a1)),
-        Math.abs(this.offset(a0)),
-        Math.abs(this.offset(a1)),
-      ),
-      startUncertaintyMm: 0,
-    });
-    if (result.kind === 'invalid') {
-      this.add(src, n, 'block', 'arc-rejected', `the firmware will reject this arc: ${result.detail} (plan_arc.h tolerances)`);
-      this.flags[i] = (this.flags[i] as number) | LINE_FLAG.NOT_DRAWN;
-      return;
-    }
-    if (result.kind === 'ambiguous') {
-      this.add(src, n, 'block', 'arc-ambiguous', `the firmware's decision for this arc cannot be predicted: ${result.detail}`);
-      this.flags[i] = (this.flags[i] as number) | LINE_FLAG.NOT_DRAWN;
-      this.jump(to, i);
-      return;
-    }
-    this.flags[i] = (this.flags[i] as number) | LINE_FLAG.ARC;
-    this.events.arc(this.machine, to, result.arc.lengthMm, this.uncertain, this.feed, [PLANE_INDEX[plane], result.arc.radius, result.arc.theta, result.arc.travel, to[lin] - this.machine[lin]]);
-    this.arcs++;
-    this.feedMm += result.arc.lengthMm;
-    this.time(result.arc.lengthMm, to, false);
-    this.pieces.push({ kind: 'arc', line: i, from: { ...this.machine }, to, arc: result.arc, plane, k: this.kindBits(KIND.ARC) });
-    this.machine = to;
-    this.movedYet = true;
-  }
+  arc(to: Pos, axisWords: ReadonlyMap<Axis, number>, params: ReadonlyMap<string, number>, src: number, n: number, i: number): void { return interpretArc(this, to, axisWords, params, src, n, i); }
 
 
   kindBits(k: number): number { return kindBits(this, k); }
