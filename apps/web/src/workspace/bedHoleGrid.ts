@@ -1,14 +1,6 @@
-/** Display-only hole pattern. These coordinates never participate in clearance or travel checks. */
-export interface BedHoleGrid {
-  readonly pitchX: number;
-  readonly pitchY: number;
-  readonly columns: number;
-  readonly rows: number;
-  readonly diameter: number;
-  readonly firstX: number;
-  readonly firstY: number;
-  readonly offsetMeasured: boolean;
-}
+/** Display-only hole pattern (the type is the package's, `@synthetos/library` machine.ts). These coordinates never participate in clearance or travel checks. */
+import type { BedHoleGrid } from '@synthetos/library';
+export type { BedHoleGrid };
 export const XCARVE_HOLE_GRID: BedHoleGrid = { pitchX: 75, pitchY: 75, columns: 12, rows: 13, diameter: 6.5, firstX: 0, firstY: 0, offsetMeasured: false };
 
 /** Length inputs may be mm or inches; all saved geometry is mm. Bound allocations and reject invalid drafts. */

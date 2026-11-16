@@ -22,168 +22,39 @@
  *   project record is the authority and is written through `jobPersistence`.
  */
 import { computed, signal } from '@preact/signals';
-import { readFixture, readStock, type Fixture, type FixtureClamp, type Stock, type StockCorner } from '@synthetos/library';
+import {
+  JOB_FORMAT,
+  isBed,
+  isJob,
+  readFixture,
+  type DrawingSource,
+  type Fixture,
+  type FixtureClamp,
+  type Job,
+  type JobDatum,
+  type JobFile,
+  type JobMachine,
+  type JobPlacement,
+  type JobReference,
+  type JobSetup,
+  type Stock,
+  type StockCorner,
+  type StockOutline,
+  type ToolRef,
+} from '@synthetos/library';
 import { SAMPLE_HASH, SEED_SETUP, bedOf, legacySetupStore, machineRevision, type MachineBed, type MachineProfile, type SetupState } from './library.ts';
-import { afterLoad, isArray, isObject, stored } from './storage.ts';
+import { afterLoad, stored } from './storage.ts';
 
-export const JOB_FORMAT = 1;
-
-/** The G-code file a job runs: a project file version (by id and SHA-256), or a local file (no project, hash only). */
-export interface JobFile {
-  readonly projectId: string | null;
-  readonly fileId: string | null;
-  readonly name: string;
-  /** SHA-256 of the bytes, hex: the durable identity of the file version (never the preview's FNV key). */
-  readonly hash: string;
-  readonly size: number;
-}
-
-export interface JobMachine {
-  readonly id: string;
-  readonly revision: number;
-  readonly name: string;
-}
-
-export interface ToolRef {
-  readonly id: string;
-  readonly version: number;
-  readonly name: string;
-  readonly number: number;
-}
-
-/** A file used by the job for reference only (a photo, a model, notes): never geometry. */
-export interface JobReference {
-  readonly fileId: string;
-  readonly name: string;
-  readonly hash: string;
-}
-
-export interface DrawingSource {
-  readonly file: string;
-  readonly kind: 'dxf' | 'svg';
-  readonly hash: string;
-}
-
-/** A stock outline imported from a drawing (owner decision 5: deliberate, limited support). Bed-local, like the stock. */
-export interface StockOutline {
-  readonly outline: readonly (readonly [number, number])[];
-  readonly holes: readonly (readonly [number, number, number])[];
-  readonly source: DrawingSource;
-}
-
-export interface JobSetup {
-  /** The bed this job is planned on: a pinned copy of the machine's bed revision, or the draft's own bed. */
-  readonly bed: MachineBed;
-  readonly bedFrom: 'machine' | 'own';
-  /**
-   * The stock. Its `position` is the centre of its footprint in bed-local coordinates and its `zero` mirrors
-   * `placement.datum` (the Setup view's own semantics, kept and labelled through the migration).
-   */
-  readonly stock: Stock;
-  readonly stockOutline: StockOutline | null;
-  /** The fixture; its `position` is the centre of its footprint in bed-local coordinates. */
-  readonly fixture: Fixture | null;
-  /** Clamps as records. The four `toe` clamps the Setup view used to draw are illustrative and follow the stock. */
-  readonly clamps: readonly FixtureClamp[];
-  readonly tools: readonly ToolRef[];
-  readonly references: readonly JobReference[];
-}
-
-export interface JobDatum {
-  readonly corner: StockCorner;
-  readonly height: 'top' | 'bottom';
-}
-
-export interface JobPlacement {
-  readonly wcs: 'G54';
-  /** The CAM file's datum as the user describes it: the stock corner and face its zero sits at. */
-  readonly datum: JobDatum;
-  /** An explicit planned work zero in machine coordinates (the Place step, later); null derives it from the datum. */
-  readonly plannedZero: { readonly x: number; readonly y: number; readonly z: number } | null;
-  /**
-   * How far the zero sits from the datum corner, mm (owner, 2026-11-09). For a corner, positive moves it inward,
-   * toward the stock's middle, whichever corner it is; for the centre, X and Y are machine directions. Absent
-   * (jobs saved before) is no offset.
-   */
-  readonly offset?: { readonly x: number; readonly y: number; readonly z?: number };
-  /**
-   * Who chose the datum, for the file with this hash (owner, 2026-11-09, OD-28): `file` when run pre-selected the
-   * point the file's own bounds show (fileZero.ts), `user` when the user picked it. A pick the user made is never
-   * changed for them. Absent (jobs saved before) counts as the user's pick.
-   */
-  readonly datumFrom?: { readonly kind: 'user' | 'file'; readonly hash: string | null };
-  /**
-   * `machine`: place the job at the board's work zero while the machine is connected and its position is
-   * established (OD-28). Only the choice is kept here, never the board's numbers: they are live.
-   */
-  readonly zeroFrom?: 'machine';
-  /** The frame the setup is described in: bed-local, moved into machine coordinates by the bed's transform. */
-  readonly frame: 'bed';
-}
-
-export interface Job {
-  readonly v: typeof JOB_FORMAT;
-  readonly id: string;
-  readonly projectId: string | null;
-  readonly name: string;
-  /** Bumped on every change. */
-  readonly revision: number;
-  readonly file: JobFile | null;
-  readonly machine: JobMachine | null;
-  readonly setup: JobSetup;
-  readonly placement: JobPlacement;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+// The record types and the readers are the package's (`@synthetos/library` job.ts), shared with the account store.
+export { JOB_FORMAT, isBed, isJob };
+export type { DrawingSource, Job, JobDatum, JobFile, JobMachine, JobPlacement, JobReference, JobSetup, StockOutline, ToolRef };
 
 export const DRAFT_NAME = 'Draft setup';
 export const MIGRATED_DRAFT_NAME = 'Draft setup (from Setup)';
 
 // ---------------------------------------------------------------- reading
 
-const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
-const isPt = (v: unknown): boolean => isArray(v) && v.length === 2 && v.every(isNum);
-const isHole = (v: unknown): boolean => isArray(v) && v.length === 3 && v.every(isNum);
 const SHA256 = /^[0-9a-f]{64}$/;
-
-export function isBed(v: unknown): v is MachineBed {
-  if (!isObject(v) || !isNum(v['revision']) || !isNum(v['width']) || !isNum(v['depth']) || !isNum(v['thickness'])) return false;
-  if (!(v['outline'] === null || (isArray(v['outline']) && v['outline'].every(isPt))) || !isArray(v['holes']) || !v['holes'].every(isHole)) return false;
-  const t = v['toMachine'];
-  const s = v['source'];
-  return isObject(t) && isNum(t['x']) && isNum(t['y']) && isNum(t['z']) && isObject(s) && typeof s['kind'] === 'string' && typeof v['savedAt'] === 'string';
-}
-
-const isClamp = (v: unknown): v is FixtureClamp => isObject(v) && typeof v['kind'] === 'string' && ['x', 'y', 'w', 'd', 'h'].every((k) => isNum(v[k]));
-const isToolRef = (v: unknown): v is ToolRef => isObject(v) && typeof v['id'] === 'string' && isNum(v['version']) && typeof v['name'] === 'string' && isNum(v['number']);
-const isReference = (v: unknown): v is JobReference => isObject(v) && typeof v['fileId'] === 'string' && typeof v['name'] === 'string' && typeof v['hash'] === 'string';
-const isSource = (v: unknown): v is DrawingSource => isObject(v) && typeof v['file'] === 'string' && (v['kind'] === 'dxf' || v['kind'] === 'svg') && typeof v['hash'] === 'string';
-const isStockOutline = (v: unknown): v is StockOutline => isObject(v) && isArray(v['outline']) && v['outline'].every(isPt) && isArray(v['holes']) && v['holes'].every(isHole) && isSource(v['source']);
-const CORNERS: readonly StockCorner[] = ['front-left', 'front-right', 'back-left', 'back-right', 'center'];
-
-export function isJob(v: unknown): v is Job {
-  if (!isObject(v) || v['v'] !== JOB_FORMAT || typeof v['id'] !== 'string' || typeof v['name'] !== 'string' || !isNum(v['revision'])) return false;
-  if (!(v['projectId'] === null || typeof v['projectId'] === 'string') || typeof v['createdAt'] !== 'string' || typeof v['updatedAt'] !== 'string') return false;
-  const f = v['file'];
-  if (!(f === null || (isObject(f) && (f['projectId'] === null || typeof f['projectId'] === 'string') && (f['fileId'] === null || typeof f['fileId'] === 'string') && typeof f['name'] === 'string' && typeof f['hash'] === 'string' && isNum(f['size'])))) return false;
-  const m = v['machine'];
-  if (!(m === null || (isObject(m) && typeof m['id'] === 'string' && isNum(m['revision']) && typeof m['name'] === 'string'))) return false;
-  const s = v['setup'];
-  if (!isObject(s) || !isBed(s['bed']) || !(s['bedFrom'] === 'machine' || s['bedFrom'] === 'own') || !readStock(s['stock']).ok) return false;
-  if (!(s['stockOutline'] === null || isStockOutline(s['stockOutline'])) || !(s['fixture'] === null || readFixture(s['fixture']).ok)) return false;
-  if (!isArray(s['clamps']) || !s['clamps'].every(isClamp) || !isArray(s['tools']) || !s['tools'].every(isToolRef) || !isArray(s['references']) || !s['references'].every(isReference)) return false;
-  const p = v['placement'];
-  if (!isObject(p) || p['wcs'] !== 'G54' || p['frame'] !== 'bed') return false;
-  const d = p['datum'];
-  if (!isObject(d) || !CORNERS.includes(d['corner'] as StockCorner) || !(d['height'] === 'top' || d['height'] === 'bottom')) return false;
-  const o = p['offset'];
-  if (!(o === undefined || (isObject(o) && isNum(o['x']) && isNum(o['y']) && (o['z'] === undefined || isNum(o['z']))))) return false;
-  const from = p['datumFrom'];
-  if (!(from === undefined || (isObject(from) && (from['kind'] === 'user' || from['kind'] === 'file') && (from['hash'] === null || typeof from['hash'] === 'string')))) return false;
-  if (!(p['zeroFrom'] === undefined || p['zeroFrom'] === 'machine')) return false;
-  const z = p['plannedZero'];
-  return z === null || (isObject(z) && isNum(z['x']) && isNum(z['y']) && isNum(z['z']));
-}
 
 const isJobOrNull = (v: unknown): v is Job | null => v === null || isJob(v);
 

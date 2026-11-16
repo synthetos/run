@@ -13,76 +13,26 @@
  * re-encoded to WebP, at most 2000 px, through a canvas, which also drops
  * their EXIF metadata (location included); the original is never stored.
  */
-import { readStock, type Stock } from '@synthetos/library';
+import {
+  PROJECT_FORMAT,
+  isJob,
+  isProjectShape,
+  type Job,
+  type Project,
+  type ProjectFile,
+  type ProjectImage,
+  type ProjectLink,
+  type ProjectSetup,
+  type RecordRef,
+} from '@synthetos/library';
 import { signal } from '@preact/signals';
-import { isJob, type Job } from '../workspace/jobModel.ts';
 import { safeExternalLink } from '../workspace/library.ts';
-import { isArray, isObject, type RecordStore } from '../workspace/storage.ts';
+import type { RecordStore } from '../workspace/storage.ts';
 import { checkEncoded, checkFile, checkImage, classify, type FileRole } from './limits.ts';
 
-export const PROJECT_FORMAT = 1;
-
-export interface ProjectFile {
-  readonly id: string;
-  readonly name: string;
-  readonly size: number;
-  /** SHA-256 of the bytes, hex. */
-  readonly hash: string;
-  readonly role: FileRole;
-  readonly note: string;
-  readonly addedAt: string;
-}
-
-export interface ProjectImage {
-  readonly id: string;
-  readonly name: string;
-  /** Bytes of the re-encoded WebP. */
-  readonly size: number;
-  readonly width: number;
-  readonly height: number;
-  readonly addedAt: string;
-}
-
-export interface ProjectLink {
-  readonly id: string;
-  readonly title: string;
-  readonly url: string;
-}
-
-/** A library record by id and version, with the name it had when chosen. */
-export interface RecordRef {
-  readonly id: string;
-  readonly version?: number;
-  readonly name: string;
-}
-
-export interface ProjectSetup {
-  readonly machine: RecordRef | null;
-  /** The stock as a short description of the setup's stock when chosen ("Block 180 × 120 × 6.35 mm"). */
-  readonly stock: RecordRef | null;
-  /** Older records keep only the label; never infer geometry from that label. */
-  readonly stockSnapshot?: Stock;
-  readonly material: RecordRef | null;
-  readonly tools: readonly (RecordRef & { readonly number?: number })[];
-}
-
-export interface Project {
-  readonly v: typeof PROJECT_FORMAT;
-  readonly id: string;
-  readonly name: string;
-  readonly description: string;
-  /** The id of one of `images`, or null. */
-  readonly cover: string | null;
-  readonly images: readonly ProjectImage[];
-  readonly files: readonly ProjectFile[];
-  readonly links: readonly ProjectLink[];
-  readonly setup: ProjectSetup;
-  /** The project's jobs (workspace/jobModel.ts): each links one of `files` to a machine revision and a setup. */
-  readonly jobs: readonly Job[];
-  readonly tags: readonly string[];
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+// The record types and the readers are the package's (`@synthetos/library` project.ts), shared with the account store.
+export { PROJECT_FORMAT };
+export type { Project, ProjectFile, ProjectImage, ProjectLink, ProjectSetup, RecordRef };
 
 export const EMPTY_SETUP: ProjectSetup = Object.freeze({ machine: null, stock: null, material: null, tools: Object.freeze([]) });
 
@@ -91,27 +41,15 @@ export function projectUsage(p: Pick<Project, 'files' | 'images'>): number {
   return p.files.reduce((n, f) => n + f.size, 0) + p.images.reduce((n, i) => n + i.size, 0);
 }
 
-const isRef = (v: unknown): boolean => v === null || (isObject(v) && typeof v['id'] === 'string' && typeof v['name'] === 'string');
-
-/** A stored record that still reads as a project (anything else is skipped, never trusted). */
+/** A stored record that still reads as a project (anything else is skipped, never trusted). Its jobs are read one by one by `readProject`. */
 export function isProject(v: unknown): v is Project {
-  if (!isObject(v) || v['v'] !== PROJECT_FORMAT || typeof v['id'] !== 'string' || typeof v['name'] !== 'string' || typeof v['description'] !== 'string') return false;
-  if (!isArray(v['images']) || !isArray(v['files']) || !isArray(v['links']) || !isArray(v['tags'])) return false;
-  if (!v['files'].every((f) => isObject(f) && typeof f['id'] === 'string' && typeof f['name'] === 'string' && typeof f['size'] === 'number' && typeof f['role'] === 'string')) return false;
-  if (!v['images'].every((i) => isObject(i) && typeof i['id'] === 'string' && typeof i['size'] === 'number')) return false;
-  if (!v['links'].every((l) => isObject(l) && typeof l['url'] === 'string' && typeof l['title'] === 'string')) return false;
-  const s = v['setup'];
-  if (!(isObject(s) && isRef(s['machine']) && isRef(s['stock']) && isRef(s['material']) && isArray(s['tools']) && s['tools'].every(isRef))) return false;
-  if (s['stockSnapshot'] !== undefined && !readStock(s['stockSnapshot']).ok) return false;
-  // Records from before jobs have none; a job that no longer reads is skipped by `readProject`, never trusted.
-  return v['jobs'] === undefined || isArray(v['jobs']);
+  return isProjectShape(v);
 }
 
 /** A stored record as a project, with its jobs read one by one (an unreadable job is dropped, the rest kept). */
 export function readProject(v: unknown): Project | null {
-  if (!isProject(v)) return null;
-  const jobs = (v.jobs as readonly unknown[] | undefined) ?? [];
-  return { ...v, jobs: jobs.filter(isJob) };
+  if (!isProjectShape(v)) return null;
+  return { ...v, jobs: (v.jobs ?? []).filter(isJob) };
 }
 
 export interface EncodedImage {

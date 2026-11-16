@@ -7,6 +7,8 @@
  * - Per project: 500 MB stored locally (files plus the re-encoded images).
  */
 
+import type { FileRole } from '@synthetos/library';
+
 export const MB = 1024 * 1024;
 
 export const LIMITS = Object.freeze({
@@ -19,7 +21,8 @@ export const LIMITS = Object.freeze({
 /** Images are re-encoded to WebP no larger than this on their longer side. */
 export const IMAGE_MAX_PX = 2000;
 
-export type FileRole = 'gcode' | 'drawing' | 'model' | 'other';
+/** The roles a project file can have (the type is the package's, `@synthetos/library` project.ts). */
+export type { FileRole };
 
 export const ROLE_LABEL: Readonly<Record<FileRole, string>> = { gcode: 'G-code', drawing: 'Drawing (DXF, SVG)', model: 'Model (STL, STEP)', other: 'Other' };
 

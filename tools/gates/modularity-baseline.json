@@ -139,7 +139,6 @@
       "max-lines-per-function $/FunctionDeclaration:ProjectDetail#1": 110
     },
     "apps/web/src/projects/store.ts": {
-      "complexity $/FunctionDeclaration:isProject#1": 22,
       "max-methods $/ClassDeclaration:ProjectStore#1": 26
     },
     "apps/web/src/projects/useInJob.ts": {
@@ -259,10 +258,6 @@
     },
     "apps/web/src/workspace/insight/cuttingModel.ts": {
       "complexity $/FunctionDeclaration:cuttingRows#1": 54
-    },
-    "apps/web/src/workspace/jobModel.ts": {
-      "complexity $/FunctionDeclaration:isBed#1": 17,
-      "complexity $/FunctionDeclaration:isJob#1": 64
     },
     "apps/web/src/workspace/jobUi.ts": {
       "complexity $/FunctionDeclaration:feedReport#1": 16,

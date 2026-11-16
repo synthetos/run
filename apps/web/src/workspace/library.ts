@@ -1,5 +1,8 @@
-import type { BedHoleGrid } from './bedHoleGrid.ts';
+import type { AxisProfile, BedSource, HomeFrame, MachineBed, MachineProfile } from '@synthetos/library';
 import { cleanSeedTool } from './tools/cleanSeedTool.ts';
+
+// The machine profile and bed types are the package's (`@synthetos/library` machine.ts), shared with the account store.
+export type { AxisProfile, BedSource, HomeFrame, MachineBed, MachineProfile };
 /**
  * The library adapter: tools, materials, machine profiles and the setup,
  * on `@synthetos/library` records (MACHINING_ASSISTANT §2, §3, §8). Views
@@ -95,75 +98,6 @@ export const NOT_OFFERED = 'Magnesium is not offered: its fine chips catch fire 
 /** True when a material carries a do-not-machine note: no cutting data, and the advisor refuses it. */
 export function doNotMachine(m: Material): boolean {
   return m.safety.some((s) => s.severity === 'do-not-machine');
-}
-
-// ---------------------------------------------------------------- types kept locally
-
-/** One axis of a machine profile, in the profile's own words; each field maps to one TinyG key (Machines view). */
-export interface AxisProfile {
-  readonly stepAngle?: number;
-  readonly microsteps?: number;
-  readonly travelPerRev?: number;
-  readonly maxVelocity?: number;
-  readonly maxFeed?: number;
-  readonly jerk?: number;
-  readonly homingSearch?: number;
-  readonly homingLatch?: number;
-  readonly latchBackoff?: number;
-  readonly zeroBackoff?: number;
-  readonly minSwitch?: number;
-  readonly maxSwitch?: number;
-}
-
-/**
- * Where a bed's dimensions came from (FLOW_ANALYSIS §5.7): a placeholder until someone measures the bed
- * or imports a drawing of it. Unverified dimensions are shown as Placeholder and never count as a fit check.
- */
-export type BedSource =
-  | { readonly kind: 'placeholder'; readonly note: string }
-  | { readonly kind: 'measured'; readonly note: string; readonly at: string }
-  | { readonly kind: 'drawing'; readonly file: string; readonly hash: string; readonly units: 'mm' | 'in'; readonly scale: number; readonly at: string };
-
-/**
- * A machine's bed (spoilboard), one revision at a time. Bed-local coordinates put the front-left corner of
- * the bed's top face at (0, 0, 0), X right, Y back, Z up (the Setup view's own frame, kept). `toMachine` is
- * the bed-to-machine transform: the machine coordinates of that corner, so machine = bed-local + toMachine.
- */
-export interface MachineBed {
-  readonly revision: number;
-  readonly width: number;
-  readonly depth: number;
-  readonly thickness: number;
-  /** The bed's outline in bed-local XY when it came from a drawing; null for the plain rectangle. */
-  readonly outline: readonly (readonly [number, number])[] | null;
-  /** Holes in the bed (`[x, y, r]`, bed-local), display only. */
-  readonly holes: readonly (readonly [number, number, number])[];
-  /** Hole measurements are separate from the dimensions' provenance; a grid never verifies bed size. */
-  readonly holeGrid?: { readonly description: BedHoleGrid; readonly source: 'Measured by the owner'; readonly at: string };
-  readonly toMachine: { readonly x: number; readonly y: number; readonly z: number };
-  readonly source: BedSource;
-  readonly savedAt: string;
-}
-
-/** Where the machine's home position sits relative to its bed, as the profile describes it (not measured). */
-export type HomeFrame = 'front-left-top' | 'back-left-top' | 'front-right-top' | 'back-right-top';
-
-export interface MachineProfile {
-  readonly axes?: Readonly<Partial<Record<'x' | 'y' | 'z' | 'a', AxisProfile>>>;
-  /** Switch type for every input (TinyG `st`): 0 normally open, 1 normally closed. */
-  readonly switchType?: number;
-  readonly id: string;
-  readonly name: string;
-  readonly templateId: string;
-  readonly drive: 'belt' | 'screw' | 'rack' | 'any';
-  readonly travel: { readonly x: number; readonly y: number; readonly z: number };
-  readonly spindle: string;
-  readonly createdAt: string;
-  /** Bumped on every change to the profile; absent on records from before revisions (read as 1). */
-  readonly revision?: number;
-  /** The machine's bed; absent means the placeholder bed derived from its travel (`bedOf`). */
-  readonly bed?: MachineBed;
-  readonly homeFrame?: HomeFrame;
 }
 
 /** The setup as the Setup view kept it before jobs (storage `setup.v2`); read once, to migrate it into the draft job. */
