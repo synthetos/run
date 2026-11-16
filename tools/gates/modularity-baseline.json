@@ -624,26 +624,6 @@
       "max-params $/ClassDeclaration:EventRecorder#1/FunctionExpression:line#1": 5,
       "max-params $/ClassDeclaration:EventRecorder#1/FunctionExpression:move#1": 6
     },
-    "packages/gcode/src/interpreter.ts": {
-      "complexity $/ClassDeclaration:Interpreter#1/FunctionExpression:constructor#1": 35,
-      "complexity $/ClassDeclaration:Interpreter#1/FunctionExpression:move#1": 16,
-      "complexity $/ClassDeclaration:Interpreter#1/FunctionExpression:ruleBlocks#1": 17,
-      "complexity $/ClassDeclaration:Interpreter#1/FunctionExpression:step#1": 78,
-      "complexity $/FunctionDeclaration:emit#1": 18,
-      "complexity $/FunctionDeclaration:emptyAnalysis#1": 18,
-      "complexity $/FunctionDeclaration:interpretJob#1": 21,
-      "max-lines $file": 762,
-      "max-lines-per-function $/ClassDeclaration:Interpreter#1/FunctionExpression:step#1": 129,
-      "max-lines-per-function $/FunctionDeclaration:emit#1": 85,
-      "max-lines-per-function $/FunctionDeclaration:interpretJob#1": 85,
-      "max-methods $/ClassDeclaration:Interpreter#1": 18,
-      "max-params $/ClassDeclaration:Interpreter#1/FunctionExpression:add#1": 5,
-      "max-params $/ClassDeclaration:Interpreter#1/FunctionExpression:addOnce#1": 6,
-      "max-params $/ClassDeclaration:Interpreter#1/FunctionExpression:arc#1": 6,
-      "max-params $/ClassDeclaration:Interpreter#1/FunctionExpression:g10#1": 5,
-      "max-params $/ClassDeclaration:Interpreter#1/FunctionExpression:move#1": 6,
-      "max-params $/ClassDeclaration:Interpreter#1/FunctionExpression:storedMove#1": 5
-    },
     "packages/gcode/src/parser.ts": {
       "max-depth $/FunctionDeclaration:parseStream#1": 5
     },
