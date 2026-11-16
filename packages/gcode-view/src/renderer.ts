@@ -6,15 +6,14 @@ import { link } from './glProgram.ts';
 import { createLineTools } from './lineTools.ts';
 import { SPIN_FRAME_MS, isSoftwareRenderer } from './markerSpin.ts';
 import { PATH_FRAGMENT, SOLID_FRAGMENT, SOLID_VERTEX, pathVertex } from './pathShaders.ts';
-import { rebuildOverlay, rebuildSolids, sceneApi, visibilityApi } from './renderer/bed.ts';
-import { cameraApi, dashPeriod, fitBox, fitView } from './renderer/camera.ts';
+import { sceneApi, visibilityApi } from './renderer/bed.ts';
+import { bindRenderer } from './renderer/bindings.ts';
+import { cameraApi } from './renderer/camera.ts';
 import { NO_OFFSET, STYLE_COUNT } from './renderer/constants.ts';
 import { type RendererContext } from './renderer/context.ts';
 import { type GpuChunk, type LoadOptions, type PreviewRenderer, type RendererOptions } from './renderer/contract.ts';
-import { draw, requestRender } from './renderer/draw.ts';
-import { clearPath, dashDistances, linesChunk, release, upload, uploadSolid } from './renderer/geometry.ts';
-import { markerApi, markerChunk, rebuildMarker } from './renderer/marker.ts';
-import { colorTable, plannerColors, themeApi } from './renderer/materials.ts';
+import { markerApi } from './renderer/marker.ts';
+import { themeApi } from './renderer/materials.ts';
 import { checkSegmentList, type Box3, type SegmentList } from './segments.ts';
 import { runSliced, type SliceOptions } from './slicer.ts';
 export { PATH_OVER_CARVE_ALPHA } from './renderer/constants.ts';
@@ -114,27 +113,6 @@ function initializeView(ctx: RendererContext): void {
   ctx.frameCount = 0;
   ctx.generation = 0;
   ctx.disposed = false;
-}
-
-
-function bindRenderer(ctx: RendererContext): void {
-  ctx.upload = (positions, styles, lines) => upload(ctx, positions, styles, lines);
-  ctx.uploadSolid = (positions, vertexColors) => uploadSolid(ctx, positions, vertexColors);
-  ctx.dashDistances = (positions, styles) => dashDistances(ctx, positions, styles);
-  ctx.release = (c) => release(ctx, c);
-  ctx.linesChunk = (pos, sty) => linesChunk(ctx, pos, sty);
-  ctx.rebuildOverlay = () => rebuildOverlay(ctx);
-  ctx.markerChunk = (style) => markerChunk(ctx, style);
-  ctx.rebuildMarker = () => rebuildMarker(ctx);
-  ctx.rebuildSolids = () => rebuildSolids(ctx);
-  ctx.colorTable = () => colorTable(ctx);
-  ctx.plannerColors = () => plannerColors(ctx);
-  ctx.draw = () => draw(ctx);
-  ctx.dashPeriod = () => dashPeriod(ctx);
-  ctx.requestRender = () => requestRender(ctx);
-  ctx.clearPath = () => clearPath(ctx);
-  ctx.fitView = () => fitView(ctx);
-  ctx.fitBox = () => fitBox(ctx);
 }
 
 
