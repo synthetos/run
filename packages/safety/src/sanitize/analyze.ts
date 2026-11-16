@@ -27,10 +27,8 @@ import {
     moveSeconds,
     noVelocityMessage,
     splitArc,
-    splitLinear,
     stepErrorMm,
     type ArcInput,
-    type LinearAxis,
     type Plane
 } from './geometry.ts';
 
@@ -47,6 +45,7 @@ import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
 import { checkModalRules, checkQueued } from './analyze/dialectRules.ts';
 import { bodies } from './analyze/formatting.ts';
 import { initialize } from './analyze/initialize.ts';
+import { linear } from './analyze/linear.ts';
 import { forget, forgetLinear, modelDelta, moveBy, planeMagnitude } from './analyze/motionPosition.ts';
 import { appliedTool, g92Part, g92PartUnc, offsetUnc, selectWcs, setG92, shift, totalOffset, workAfterSet } from './analyze/offsets.ts';
 import { outputsOn, resetProgram } from './analyze/outputs.ts';
@@ -60,20 +59,6 @@ import { AXES, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, type A
 export { type Finding, type LineAnalysis } from './analyze/contract.ts';
 
 
-
-function unknownMessage(
-  unitAxes: readonly string[],
-  axes: readonly string[],
-  units: string | null,
-  distance: string | null,
-  g53: boolean,
-): string {
-  const what: string[] = [];
-  if (units === null && unitAxes.length > 0) what.push('the units');
-  if (!g53 && distance === null) what.push('the distance mode');
-  if (what.length === 0) what.push(`the ${g53 ? 'machine' : 'work'} position of ${axes.join(', ')}`);
-  return `this move cannot be checked against the queued-motion ceiling; not known: ${what.join(' and ')}`;
-}
 /** One modal model per sanitizer invocation. */
 export class JobModel extends ModelState {
 
@@ -580,75 +565,7 @@ export class JobModel extends ModelState {
     mode: 'G0' | 'G1',
     g53: boolean,
     findings: Finding[],
-  ): LineAnalysis['motion'] {
-    const delta: Partial<Record<Axis, number>> = {};
-    const unknown: string[] = [];
-    for (const w of axisWords) {
-      const a = w.letter as Axis;
-      let d: number | null;
-      if (g53) {
-        // G53 values are machine coordinates (G53 under G91 or an unknown distance mode is blocked above).
-        const sc = this.#scale(a, units);
-        const m = this.machine[a];
-        d = sc === null || m === null ? null : w.value * sc - m;
-      } else {
-        d = this.#delta(a, w.value, units, distance);
-      }
-      if (d === null) unknown.push(a);
-      else delta[a] = d;
-    }
-    if (unknown.length > 0) {
-      this.#forget(axisWords);
-      findings.push(block('unknown-state', unknownMessage(unknown.filter((a) => this.#needsUnits(a as Axis)), unknown, units, distance, g53)));
-      return null;
-    }
-    const moving = AXES.filter((a) => (delta[a] ?? 0) !== 0);
-    const plannerLength = Math.hypot(...moving.map((a) => delta[a] as number));
-    const boundMm = this.#boundMm(delta);
-    const feed = mode === 'G0' ? null : (this.feed as number);
-    const d = moveSeconds(moving, plannerLength, feed, this._motion);
-    const start = { ...this.work };
-    const startMachine = { ...this.machine };
-    this.#moveBy(delta);
-    for (const w of axisWords) this.#settle(w.letter as Axis, g53 ? 'machine' : distance === 'G91' ? 'incremental' : 'work', delta[w.letter as Axis] as number);
-    if (d.kind !== 'ok') {
-      findings.push(block('no-velocity-limit', noVelocityMessage(d)));
-      return null;
-    }
-    if (d.seconds <= this._motion.ceilingSeconds) return { kind: 'single', plannerLength, boundMm, seconds: d.seconds };
-
-    const absolute = g53 || distance === 'G90';
-    const axes: LinearAxis[] = axisWords.map((w) => {
-      const a = w.letter as Axis;
-      const sc = this.#scale(a, units) as number;
-      const from = (g53 ? startMachine[a] : start[a]) ?? 0;
-      return {
-        axis: a,
-        start: absolute ? from / sc : 0,
-        delta: absolute ? w.value - from / sc : w.value,
-        written: w.text,
-        scale: sc,
-        mmPerUnit: this.#mmPerUnit(a),
-        decimals: !this.#needsUnits(a) ? DECIMALS.rotary : units === 'G20' ? DECIMALS.in : DECIMALS.mm,
-      };
-    });
-    const split = splitLinear(axes, absolute, feed, d.seconds, this._motion);
-    if (split.kind !== 'ok') {
-      findings.push(block('split-impossible', `this move cannot be split within the ceiling: ${split.detail}`));
-      return null;
-    }
-    // An incremental split is one firmware sum per sub-segment, each adding float32 rounding to the position
-    // (finding: arc uncertainty, verification of c2799da). `#settle` above counted one; add the rest.
-    if (!absolute) {
-      for (const w of axisWords) {
-        const a = w.letter as Axis;
-        const reach = Math.max(Math.abs(startMachine[a] ?? 0), Math.abs(this.machine[a] ?? 0));
-        this.#widen(a, (split.segments.length - 1) * stepErrorMm(reach, delta[a] as number, this.totalOffset(a) ?? 0));
-      }
-    }
-    const motionWords = g53 ? ['G53', mode] : [mode];
-    return { kind: 'split', bodies: bodies(codes, params, split.segments, motionWords, new Set(['G53']), []), segments: split.segments, seconds: d.seconds };
-  }
+  ): LineAnalysis['motion'] { return linear(this, codes, params, axisWords, units, distance, mode, g53, findings); }
 
 
   /** G2/G3. */
