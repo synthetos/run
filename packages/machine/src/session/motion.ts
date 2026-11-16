@@ -46,7 +46,7 @@
  */
 import { STOP_TEXT, type Decision, type Intent } from '@synthetos/safety';
 
-import { mapStat, type Dialect, type MachineClass } from '@synthetos/protocol';
+import { mapStat } from '@synthetos/protocol';
 
 import { restartDwellWait } from './dwell.ts';
 
@@ -89,80 +89,13 @@ import { afterHold, piecesLeft, raiseDone, raiseRestore, takePiece } from './typ
 
 import { type MotionDeps, type MotionTx } from './motion/contract.ts';
 import { ALARMABLE, ALARMED, ALLOWED, JOG_AXES, LETTER, MOTION_LIMITS, POLL_TOKENS, SETTLE_BASES, STOPPABLE, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
-import type { ChangeKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, PolledValues, SessionBase, SessionConfig, SessionIntent, SessionState } from './types.ts';
+import { activeSystem, atRestPolled, axisNames, completedPoll, deny, dialect, heldPolled, idleBase, machineClass, machineZ, motionCapable, motionLinesSettled, planner, precondition, returnBase, validAxes, validAxisList } from './motion/model.ts';
+import type { ChangeKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, SessionBase, SessionConfig, SessionIntent, SessionState } from './types.ts';
 
 export { type MotionDeps, type MotionTx } from './motion/contract.ts';
 export { MOTION_LIMITS, POLL_TOKENS, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
+export { activeSystem, atRestPolled, completedPoll, heldPolled, idleBase, motionCapable, returnBase } from './motion/model.ts';
 
-
-
-function deny(reason: string, remedy: string): Decision {
-  return { allowed: false, reason, remedy, citation: 'SAFETY §4.5b' };
-}
-
-
-/**
- * True when this session may move the machine at all: a motion release, a classified board that was not
- * made READ_ONLY (an approved build), and a dialect with both `%` and `~`.
- */
-export function motionCapable(s: SessionState, config: SessionConfig): boolean {
-  const d = s.dialect;
-  return config.release.motion && d !== null && s.classification?.mode === 'full' && !s.overlays.includes('READ_ONLY') && d.realtime.flush !== undefined && d.realtime.resume !== undefined;
-}
-
-
-/** The idle base the homing state calls for. */
-export function idleBase(s: SessionState): SessionBase {
-  return s.live.home === 1 ? 'IDLE_HOMED' : 'IDLE_UNHOMED';
-}
-
-
-function dialect(s: SessionState): Dialect {
-  return s.dialect as Dialect;
-}
-
-
-function machineClass(s: SessionState): MachineClass | undefined {
-  return s.live.stat === undefined ? undefined : mapStat(dialect(s), s.live.stat);
-}
-
-
-function planner(s: SessionState): number {
-  return dialect(s).limits.plannerBlocks;
-}
-
-
-/**
- * The values of the poll cycle that just completed, or null when any of its four reads was rejected (a non-zero
- * status, or no number), damaged or missing (independent review 2026-11-03, R5). Shared with the job layer.
- */
-export function completedPoll(s: SessionState): PolledValues | null {
-  const p = s.polled;
-  if (p === null || p.failed || p.stat === undefined || p.hold === undefined || p.vel === undefined || p.qr === undefined) return null;
-  return { stat: p.stat, hold: p.hold, vel: p.vel, qr: p.qr };
-}
-
-
-/** At rest by this cycle's polled values: idle or ended, not moving, nothing held, planner empty. Shared with the job layer. */
-export function atRestPolled(s: SessionState, p: PolledValues): boolean {
-  // The same rule as READING (resting.ts, SAFETY H14 as amended 2026-11-02), plus hold 0 on every dialect.
-  return s.dwellWait == null && restingStat(dialect(s), p.stat, p.hold) && p.vel === 0 && p.hold === 0 && p.qr === planner(s);
-}
-
-
-/** The hold is complete by this cycle's polled `hold`. Shared with the job layer. */
-export function heldPolled(s: SessionState, p: PolledValues): boolean {
-  return dialect(s).hold[p.hold] === 'HOLD';
-}
-
-
-/**
- * No motion line is waiting or being written. (None can be owed an answer either: the board answers lines in
- * order, so when a later poll or line has been answered every earlier motion line has been answered too.)
- */
-function motionLinesSettled(s: SessionState): boolean {
-  return !s.queue.some((q) => q.purpose === 'motion') && s.writing?.purpose !== 'motion';
-}
 
 
 function queueLine(t: MotionTx, line: string, intent: Intent): void {
@@ -200,20 +133,6 @@ function readBack(t: MotionTx, tokens: readonly string[], then?: FollowUp): void
   const last = reads.at(-1);
   if (then !== undefined && last !== undefined) reads[reads.length - 1] = { ...last, then };
   t.set({ queue: [...t.s.queue, ...reads] });
-}
-
-
-/** `G5x` of the active system (`coor` 1..6), or null when it is not known or G53. */
-export function activeSystem(s: SessionState): number | null {
-  const coor = s.live.coor;
-  return coor !== undefined && Number.isInteger(coor) && coor >= 1 && coor <= 6 ? coor : null;
-}
-
-
-/** Plain names: "X, Y and Z". */
-function axisNames(axes: readonly JogAxis[]): string {
-  const n = axes.map((a) => LETTER[a]);
-  return n.length <= 1 ? (n[0] ?? '') : `${n.slice(0, -1).join(', ')} and ${n.at(-1) as string}`;
 }
 
 
@@ -268,35 +187,6 @@ function startChange(t: MotionTx, change: ChangeKind, line: string, intent: Inte
   requestPoll(t);
   tick(t);
   return ALLOWED;
-}
-
-
-/** Where a motion returns: CONNECTED_UNKNOWN if it started there, else the idle base for the homing state. */
-export function returnBase(ctx: MotionCtx, s: SessionState): SessionBase {
-  if (ctx.returnTo === 'PROGRAM_PAUSED' && ctx.reason !== 'stopJob' && jobActive(s)) return 'PROGRAM_PAUSED';
-  return ctx.returnTo === 'CONNECTED_UNKNOWN' && s.overlays.length > 0 ? 'CONNECTED_UNKNOWN' : idleBase(s);
-}
-
-
-// --- Intents ------------------------------------------------------------------
-
-/** Common preconditions of every motion intent beyond the matrix (SAFETY §4.5b). */
-function precondition(s: SessionState): Decision | undefined {
-  // An idle base is reached only in a motion-capable session (an approved board with a motion release). The matrix has already required an idle base (or JOGGING, for the jog row): JOGGING always has a motion,
-  // and an alarm moves the base to ALARM (checkAlarm).
-  if (s.motion !== null) return deny('Another move is still running.', 'Wait for it to finish, or use Pause or Stop job.');
-  return undefined;
-}
-
-
-function validAxes(axes: Readonly<Partial<Record<JogAxis, 1 | -1>>>): boolean {
-  const keys = typeof axes === 'object' && axes !== null ? Object.keys(axes) : [];
-  return keys.length > 0 && keys.every((k) => (JOG_AXES as readonly string[]).includes(k) && (axes[k as JogAxis] === 1 || axes[k as JogAxis] === -1));
-}
-
-
-function validAxisList(axes: readonly JogAxis[]): boolean {
-  return Array.isArray(axes) && axes.length > 0 && axes.length <= 4 && new Set(axes).size === axes.length && axes.every((a) => (JOG_AXES as readonly string[]).includes(a));
 }
 
 
@@ -466,12 +356,6 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       return ALLOWED;
     }
   }
-}
-
-
-/** Machine Z, mm: from the connect-time read of `mpo`, then from pushed reports (amendment 2026-11-02). */
-function machineZ(s: SessionState): number | undefined {
-  return s.live.mpo.z;
 }
 
 
