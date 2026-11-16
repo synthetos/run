@@ -20,7 +20,6 @@
 import type { Dialect, DialectJobGcode, GcodeRule } from '@synthetos/protocol';
 
 import {
-    AXES,
     PLANES,
     WCS_CODES,
     blockFindingText,
@@ -39,7 +38,7 @@ import { codeOf, parseLine } from './parser.ts';
 
 import { g10, storedMove } from './interpreter/actions.ts';
 import { interpretArc } from './interpreter/arcs.ts';
-import { DEFAULT_VERTEX_CAP, ROTARY } from './interpreter/constants.ts';
+import { DEFAULT_VERTEX_CAP } from './interpreter/constants.ts';
 import { type Emitted, type Piece, type Pos } from './interpreter/contract.ts';
 import { axisMm, offset, offsetMm, unitScale, work, zero } from './interpreter/coordinates.ts';
 import { addFinding, addFindingOnce } from './interpreter/findings.ts';
@@ -50,6 +49,7 @@ import { programEnd } from './interpreter/outputs.ts';
 import { ruleBlocks } from './interpreter/rules.ts';
 import { InterpreterState } from './interpreter/state.ts';
 import { estimateTime } from './interpreter/timing.ts';
+import { stepLine } from './interpreter/words.ts';
 import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis } from './types.ts';
 export { DEFAULT_VERTEX_CAP } from './interpreter/constants.ts';
 
@@ -352,151 +352,7 @@ class Interpreter extends InterpreterState {
   ruleBlocks(codes: readonly string[], letters: ReadonlySet<string>): GcodeRule[] { return ruleBlocks(this, codes, letters); }
 
 
-  step(line: SentLine, i: number, last: boolean): void {
-    const src = line.sourceLine;
-    const n = line.n;
-    const parsed = parseLine(line.body, src);
-    if (parsed.errors.length > 0 || parsed.cmds.length > 0) {
-      this.add(src, n, 'block', 'parse-error', `the line cannot be read as G-code: ${parsed.errors.map((e) => e.message).join('; ') || 'controller command'}`);
-      this.flags[i] = (this.flags[i] as number) | LINE_FLAG.NOT_DRAWN;
-      return;
-    }
-    const codes: string[] = [];
-    const params = new Map<string, number>();
-    const letters = new Set<string>();
-    const axisWords = new Map<Axis, number>();
-    for (const w of parsed.words) {
-      const c = codeOf(w);
-      if (c !== undefined) codes.push(c);
-      else {
-        letters.add(w.letter);
-        if (!params.has(w.letter)) params.set(w.letter, w.value);
-        if ((AXES as readonly string[]).includes(w.letter) && !axisWords.has(w.letter as Axis)) axisWords.set(w.letter as Axis, w.value);
-      }
-    }
-    const has = (c: string): boolean => codes.includes(c);
-
-    // Dialect data first: anything this dialect does not run as written is a block, never drawn.
-    const unsupported = codes.filter((c) => !this.job.codes.includes(c) && !this.job.ignoredCodes.includes(c));
-    for (const c of unsupported) this.add(src, n, 'block', 'unsupported-code', `${c} is not supported in a job on ${this.dialect.label}`);
-    for (const c of codes) {
-      if (this.job.ignoredCodes.includes(c)) this.addOnce(`ignored ${c}`, src, n, 'info', 'ignored-code', `${c} is accepted and ignored by ${this.dialect.label}`);
-    }
-    if (unsupported.length > 0) {
-      this.flags[i] = (this.flags[i] as number) | LINE_FLAG.NOT_DRAWN;
-      return;
-    }
-
-    if (this.uncertain) this.flags[i] = (this.flags[i] as number) | LINE_FLAG.UNCERTAIN;
-
-    // Outputs and dwell (NIST order of execution).
-    if (has('M3')) this.spindle = 'cw';
-    if (has('M4')) this.spindle = 'ccw';
-    if (has('M5')) this.spindle = 'off';
-    if (has('M7')) this.mist = true;
-    if (has('M8')) this.flood = true;
-    if (has('M9')) {
-      this.mist = false;
-      this.flood = false;
-    }
-    if (has('G4')) {
-      const p = params.get('P');
-      if (p !== undefined && this.seconds !== null) this.seconds += p;
-      if (p !== undefined) this.events.dwell(p);
-    }
-
-    // Modal state.
-    for (const p of ['G17', 'G18', 'G19'] as const) if (has(p)) this.plane = p;
-    for (const u of ['G20', 'G21'] as const) {
-      if (!has(u)) continue;
-      if (this.movedYet && this.unitsSeen && u !== this.units) {
-        this.addOnce('units-switched', src, n, 'warn', 'units-switched', `units switched to ${u} after motion: check that the rest of the file expects ${u === 'G20' ? 'inches' : 'millimetres'}`);
-      }
-      this.units = u;
-      this.unitsSeen = true;
-    }
-    if (has('G49')) this.tool = zero();
-    if (has('G43.1')) for (const [a, v] of axisWords) if (!ROTARY.has(a)) this.tool[a] = v * this.scale;
-    for (const w of WCS_CODES) if (has(w)) this.wcs = w;
-    for (const d of ['G90', 'G91'] as const) {
-      if (has(d)) {
-        this.distance = d;
-        this.distanceSeen = true;
-      }
-    }
-    if (has('G90.1')) this.arcDistance = 'G90.1';
-    if (has('G91.1')) this.arcDistance = 'G91.1';
-    // F is read in the units in force for this line.
-    const f = params.get('F');
-    if (f !== undefined) this.feed = f * this.scale;
-    this.events.words(codes, params.get('S'), params.get('T'));
-
-    // The dialect's block rules, with this line's modes (TG: G28/G30 under G20 or G91).
-    const rules = this.ruleBlocks(codes, letters);
-    for (const r of rules) this.add(src, n, 'block', r.id, r.reason);
-    if (rules.length > 0) {
-      this.flags[i] = (this.flags[i] as number) | LINE_FLAG.NOT_DRAWN;
-      return;
-    }
-
-    // Non-modal actions that consume the axis words.
-    if (has('G10')) {
-      this.g10(params, axisWords, src, n, i);
-    } else if (has('G28.1')) {
-      this.g28 = { ...this.machine };
-    } else if (has('G30.1')) {
-      this.g30 = { ...this.machine };
-    } else if (has('G92')) {
-      for (const [a, v] of axisWords) {
-        this.g92.offsets[a] = this.machine[a] - this.wcsOffsets[this.wcs][a] - (ROTARY.has(a) ? 0 : this.tool[a]) - this.offsetMm(a, v);
-      }
-      this.g92.active = true;
-      if (axisWords.size > 0) this.frameTable.g92(src);
-    } else if (has('G92.1')) {
-      this.g92 = { offsets: zero(), active: false };
-    } else if (has('G92.2')) {
-      this.g92.active = false;
-    } else if (has('G92.3')) {
-      this.g92.active = true;
-    } else if (has('G28') || has('G30')) {
-      this.storedMove(has('G28') ? 'G28' : 'G30', axisWords, src, n, i);
-    } else if (!has('G43.1')) {
-      for (const m of ['G0', 'G1', 'G2', 'G3', 'G80'] as const) if (has(m)) this.motion = m;
-      if (axisWords.size > 0 || (this.motion === 'G2' || this.motion === 'G3') && (letters.has('I') || letters.has('J') || letters.has('K') || letters.has('R'))) {
-        this.move(axisWords, params, has('G53'), src, n, i);
-      }
-    }
-
-    // Pauses: the dialect's barrier codes (M1 only with optional stop on), or the C14 M0.
-    const barrierCodes = this.dialect.gcode.barrierCodes.filter((c) => c !== 'M1' || this.options.optionalStop === true);
-    const pause = codes.some((c) => barrierCodes.includes(c));
-    if (pause !== line.barrier) {
-      this.add(src, n, 'block', 'barrier-mismatch', pause
-        ? 'this line pauses the job on this dialect, but the stream does not stop feeding after it'
-        : 'the stream stops feeding after this line, but nothing on it pauses this dialect');
-    }
-    if (pause) {
-      this.events.barrier();
-      this.flags[i] = (this.flags[i] as number) | LINE_FLAG.PAUSE;
-      this.pausePoints.push(n);
-      if (this.spindle !== 'off' || this.mist || this.flood) {
-        this.add(src, n, 'info', 'pause-outputs-on', 'the spindle and coolant stay on at this pause');
-      }
-    }
-
-    // Program end.
-    const end = this.dialect.gcode.holdbackEndCodes.some((c) => codes.includes(c));
-    if (end) {
-      if (!last) {
-        const severity = this.job.midFileProgramEnd;
-        this.add(src, n, severity, 'mid-file-program-end', severity === 'block'
-          ? '' /* Shared H35 text is supplied by add. */
-          : 'M2/M30 before the end of the file: the lines after it still run');
-      }
-      this.programEnd();
-    }
-    if (this.uncertain) this.flags[i] = (this.flags[i] as number) | LINE_FLAG.UNCERTAIN;
-  }
+  step(line: SentLine, i: number, last: boolean): void { return stepLine(this, line, i, last); }
 
 
   /** M2/M30 (@cite EN canonical_machine.c:2174-2214): G92.1, default system, plane, units, G90, G80; outputs per dialect. */
