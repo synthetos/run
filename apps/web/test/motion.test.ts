@@ -5,60 +5,30 @@
  * and not in a job; Pause and Stop job enabled whenever LIVE).
  */
 import { describe, expect, it } from 'vitest';
+
 import { h } from 'preact';
+
 import { renderToString } from 'preact-render-to-string';
+
 import { STOP_TEXT, w34 } from '@synthetos/safety';
-import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveActions, type LiveView } from '../src/workspace/model.ts';
-import { JogController, RENEW_MS, activeSystem, axesText, goToZeroPath, homingView, jogKey, machineZ, motionUi, offsetsView, workOffsets } from '../src/workspace/motion.ts';
+
+import { createWorkspaceModel, type LiveActions, type LiveView } from '../src/workspace/model.ts';
+
+import { activeSystem, axesText, goToZeroPath, homingView, JogController, jogKey, machineZ, motionUi, offsetsView, RENEW_MS, workOffsets } from '../src/workspace/motion.ts';
+
 import { HomeSection, unknownApplies } from '../src/workspace/homing.ts';
+
 import { UnknownModal } from '../src/workspace/unknownModal.ts';
-import { ConnectNotice, JogSection, PositionPanel, SpindleSection, ZeroSection, resetSpindleConfirm } from '../src/workspace/views/RunView.ts';
+
+import { ConnectNotice, JogSection, PositionPanel, resetSpindleConfirm, SpindleSection, ZeroSection } from '../src/workspace/views/RunView.ts';
+
 import { MachineStrip, outcomeText, STOP_JOB_PHASE2 } from '../src/workspace/MachineStrip.ts';
+
 import { stripStatus } from '../src/workspace/status.ts';
+
 import type { MotionCommand } from '../src/machine-worker/rpc.ts';
+import { snap, view, type Snapshot } from './runMotionHarness.ts';
 
-type Snapshot = NonNullable<LiveView['message']>['snapshot'];
-
-function snap(extra: Record<string, unknown> = {}): Snapshot {
-  return {
-    base: 'IDLE_UNHOMED',
-    overlays: [],
-    primaryOverlay: null,
-    epoch: 1,
-    port: null,
-    probe: null,
-    identity: { fb: 450.01, fv: 0.97, hp: 1, hv: 8, id: 'SIM-EN-0001' },
-    classification: { dialectId: 'tinyg-en', mode: 'full', reason: 'en-approved', detail: '', upgradeOffer: false },
-    footerRev: 3,
-    live: { machineClass: 'programStop', stat: 3, hold: 0, vel: 0, home: 0, pos: {}, mpo: {} },
-    values: {},
-    fault: null,
-    ackVerifying: false,
-    blocked: null,
-    notices: { adviseEstop: false },
-    xoff: false,
-    lastAckAt: null,
-    stale: null,
-    sent: { lines: 0, realtime: 0 },
-    motion: null,
-    ...extra,
-  } as unknown as Snapshot;
-}
-
-function view(s: Snapshot | null, flag = true, axes: { axis: string; machine: number | null; work: number | null }[] = []): LiveView {
-  if (s === null) return INITIAL_LIVE_VIEW;
-  return {
-    ...INITIAL_LIVE_VIEW,
-    message: {
-      v: 3,
-      kind: 'snapshot',
-      snapshot: s,
-      dro: { axes: axes.map((a) => ({ ...a, homed: null })), machineSource: { label: 'status report', at: null, ageMs: null, lag: 'none' }, workSource: { label: 'status report' }, units: 'mm', wcs: { code: null, offsets: null, total: null }, marker: null },
-      lag: { amberMs: 1000, redMs: 2000 },
-      motion: flag,
-    } as unknown as LiveView['message'],
-  };
-}
 
 describe('T-S92: motionUi decides when the motion controls are enabled', () => {
   it('enabled on an approved idle board with the flag on; homing state shown', () => {
@@ -120,6 +90,7 @@ describe('T-S92: motionUi decides when the motion controls are enabled', () => {
   });
 });
 
+
 describe('T-S89: the jog controller (press, hold, release)', () => {
   function rig() {
     const sent: MotionCommand[] = [];
@@ -166,6 +137,7 @@ describe('T-S89: the jog controller (press, hold, release)', () => {
     expect(jogKey(' ')).toBeNull();
   });
 });
+
 
 describe('T-S92: control allowlist with a LIVE motion session', () => {
   function model(s: Snapshot | null, flag = true, motion = true) {
@@ -236,23 +208,25 @@ describe('T-S92: control allowlist with a LIVE motion session', () => {
     expect(stripStatus(view(snap({ base: 'STOPPING_JOB' })), null).title).toBe('Stopping');
   });
 });
+describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S104–T-S106, control allowlist)',()=>{
 
-describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S104–T-S106, control allowlist)', () => {
   const HOMING = { xam: 1, xsn: 0, xsx: 1, xsv: 500, xtn: 0, xtm: 100, xlb: 2, yam: 1, ysn: 1, ysx: 0, ysv: 500, yam2: 0, zam: 1, zsn: 0, zsx: 0, zsv: 0, aam: 0, asn: 0, asx: 0, asv: 0 };
+
   function withSettings(s: Snapshot, settings: Record<string, number>, flag = true): LiveView {
     const v = view(s, flag);
     return { ...v, readout: { dialectId: 'tinyg-en', phase: { kind: 'recorded', hash: 'x' }, settings } } as LiveView;
   }
+
   function model(v: LiveView, motion = true) {
     const m = createWorkspaceModel();
     m.live.value = v;
     m.actions.value = { ...({} as LiveActions), ...(motion ? { motion: () => Promise.resolve(null) } : {}) } as LiveActions;
     return m;
   }
+
   const machineButtons = (html: string, cls: string): { disabled: boolean; text: string }[] =>
     [...html.matchAll(new RegExp(`<button\\b([^>]*data-machine-control="${cls}"[^>]*)>([^<]*)`, 'g'))].map((m) => ({ disabled: /\sdisabled(=|\s|\/|>|$)/.test(m[1] as string), text: m[2] as string }));
-
-  it('homingView: configured axes from the settings, why not otherwise, and when Home may be sent', () => {
+it('homingView: configured axes from the settings, why not otherwise, and when Home may be sent', () => {
     const hv = homingView(withSettings(snap(), HOMING), HOMING);
     expect(hv).toMatchObject({ enabled: true, reason: null, configured: ['x', 'y'], read: true, homing: false, searchMm: 102 });
     expect(hv.axes.z.reason).toBe('no switch is set for homing');
@@ -269,15 +243,13 @@ describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S
     for (const [v, text] of cases) expect(homingView(v, HOMING).reason, text).toContain(text);
     expect(homingView(withSettings(snap(), {}), {}).read).toBe(false);
   });
-
-  it('offsetsView: the active system, its saved offset, the temporary offset and the total, as read', () => {
+it('offsetsView: the active system, its saved offset, the temporary offset and the total, as read', () => {
     const v = view(snap({ live: { coor: 2, pos: {}, mpo: {} }, values: { g55: { value: { x: 10, y: 5, z: -1 }, status: 0, at: 1 }, g92: { value: { x: 0, y: 2, z: 0 }, status: 0, at: 1 }, ofs: { value: { x: 10, y: 7, z: -1 }, status: 0, at: 1 } } }));
     expect(offsetsView(v)).toEqual({ system: 'G55', saved: { x: 10, y: 5, z: -1 }, temporary: { x: 0, y: 2, z: 0 }, temporaryInForce: true, total: { x: 10, y: 7, z: -1 } });
     expect(activeSystem(view(snap({ live: { coor: 0, pos: {}, mpo: {} } })))).toBeNull();
     expect(offsetsView(view(snap({ values: { g92: { value: [1], status: 0, at: 1 } } })))).toMatchObject({ system: null, saved: null, temporary: null, temporaryInForce: false });
   });
-
-  it('the Home tab: Home per configured axis and Home all; Set machine zero here (G28.3) offered whenever the machine is at rest (OD-13 §4)', () => {
+it('the Home tab: Home per configured axis and Home all; Set machine zero here (G28.3) offered whenever the machine is at rest (OD-13 §4)', () => {
     const live = renderToString(h(HomeSection, { model: model(withSettings(snap(), HOMING)) }));
     const buttons = machineButtons(live, 'home');
     expect(buttons.filter((b) => !b.disabled).map((b) => b.text)).toEqual(['Home', 'Home', 'Home all', 'Set machine zero here…']);
@@ -291,8 +263,7 @@ describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S
       expect(machineButtons(html, 'home').every((b) => b.disabled)).toBe(true);
     }
   });
-
-  it('the Offsets tab: G54–G59, Set work zero saved in the active system, the temporary offset apart, all disabled without motion', () => {
+it('the Offsets tab: G54–G59, Set work zero saved in the active system, the temporary offset apart, all disabled without motion', () => {
     const v = view(snap({ live: { coor: 1, pos: {}, mpo: {} }, values: { g54: { value: { x: 1, y: 2, z: 3 }, status: 0, at: 1 }, g92: { value: { x: 0, y: 0, z: 0 }, status: 0, at: 1 } } }));
     const html = renderToString(h(ZeroSection, { model: model(v) }));
     expect(html).toContain('Work zero');
@@ -305,8 +276,7 @@ describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S
     expect(machineButtons(renderToString(h(ZeroSection, { model: null })), 'offset').every((b) => b.disabled)).toBe(true);
     expect(machineButtons(renderToString(h(ZeroSection, { model: model(v) })), 'zero').length).toBeGreaterThan(0);
   });
-
-  it('the UNKNOWN question on connect offers its exits; the strip says Homing and "No reports from the board"', () => {
+it('the UNKNOWN question on connect offers its exits; the strip says Homing and "No reports from the board"', () => {
     const unknown = withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'], primaryOverlay: 'UNKNOWN' }), HOMING);
     expect(unknownApplies(unknown)).toBe(true);
     const html = renderToString(h(UnknownModal, { model: model(unknown) }));
@@ -325,8 +295,7 @@ describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S
     expect(stripStatus(view(snap({ base: 'HOMING' })), null).title).toBe('Homing');
     expect(stripStatus(view(snap({ overlays: ['STALE'] })), null).title).toBe('No reports from the board');
   });
-
-  it('the Connect card says what Run changed in the board\'s status reporting (W35, W36), and why it did not finish', () => {
+it('the Connect card says what Run changed in the board\'s status reporting (W35, W36), and why it did not finish', () => {
     const reports = { phase: 'done', heartbeatMs: null, changes: [{ setting: 'sr' }, { setting: 'sv', from: 0, to: 1 }], detail: 'the board refused {si:250} (status 100)' };
     const html = renderToString(h(ConnectNotice, { model: model(view(snap({ reports }))), onView: () => undefined }));
     expect(html).toContain('data-safety="W35"');
