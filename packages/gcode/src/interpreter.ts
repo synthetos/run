@@ -27,19 +27,17 @@ import {
     type SentLine
 } from '@synthetos/safety';
 
-import { DEFAULT_CHORD_MM } from './arcs.ts';
 
-import { emptyTape } from './events.ts';
 
-import { emptyFrames } from './frames.ts';
 
 import { codeOf, parseLine } from './parser.ts';
 
 import { g10, storedMove } from './interpreter/actions.ts';
 import { interpretArc } from './interpreter/arcs.ts';
 import { type Pos } from './interpreter/contract.ts';
-import { axisMm, offset, offsetMm, unitScale, work, zero } from './interpreter/coordinates.ts';
+import { axisMm, offset, offsetMm, unitScale, work } from './interpreter/coordinates.ts';
 import { emit } from './interpreter/emit.ts';
+import { emptyAnalysis } from './interpreter/empty.ts';
 import { checkEnvelope } from './interpreter/envelope.ts';
 import { addFinding, addFindingOnce } from './interpreter/findings.ts';
 import { initializeInterpreter } from './interpreter/initialize.ts';
@@ -152,40 +150,6 @@ export function interpretJob(result: SanitizeResult, dialect: Dialect, options: 
       spindle: it.spindle,
       mist: it.mist,
       flood: it.flood,
-    },
-  };
-}
-
-
-function emptyAnalysis(dialect: Dialect, findings: Finding[], lineCount: number, options: InterpretOptions): JobAnalysis {
-  const s = options.start?.machine ?? {};
-  const machine = { X: s.X ?? 0, Y: s.Y ?? 0, Z: s.Z ?? 0, A: s.A ?? 0, B: s.B ?? 0, C: s.C ?? 0 };
-  const offsets = Object.fromEntries(WCS_CODES.map((w) => [w, zero()])) as JobAnalysis['end']['wcsOffsets'];
-  return {
-    dialect: dialect.id,
-    blocked: true,
-    vertices: new Float32Array(0),
-    kinds: new Uint8Array(0),
-    lineToVertex: new Uint32Array(lineCount + 1),
-    lineFlags: new Uint8Array(lineCount).fill(LINE_FLAG.NOT_DRAWN),
-    lineFeeds: new Float32Array(lineCount).fill(Number.NaN),
-    bounds: null,
-    findings,
-    pausePoints: [],
-    frameTable: emptyFrames(),
-    events: emptyTape(),
-    stats: { lines: lineCount, rapidMm: 0, feedMm: 0, arcs: 0, estimatedSeconds: null, chordMm: options.chordMm ?? DEFAULT_CHORD_MM },
-    end: {
-      machine,
-      units: options.start?.units ?? 'G21',
-      distance: options.start?.distance ?? 'G90',
-      plane: options.start?.plane ?? 'G17',
-      wcs: options.start?.wcs ?? 'G54',
-      wcsOffsets: offsets,
-      g92: { offsets: zero(), active: false },
-      spindle: 'off',
-      mist: false,
-      flood: false,
     },
   };
 }
