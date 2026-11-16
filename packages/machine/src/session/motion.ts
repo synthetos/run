@@ -44,231 +44,47 @@
  * from the live view: `unit` and `dist` GETs go out before the first line of either (modes.ts), because the
  * last pushed report can still show the previous jog's `G91` after its closing `G90` was answered.
  */
-import { STOP_TEXT, type Decision } from '@synthetos/safety';
+import { STOP_TEXT } from '@synthetos/safety';
 
 import { mapStat } from '@synthetos/protocol';
 
 
 import { restingStat } from './resting.ts';
 
-import { homingAxes } from '@synthetos/schema';
 
 import {
-    ABSOLUTE_MM_LINE,
-    CLEAR_LINE,
-    CLEAR_TEMP_OFFSET_LINE,
-    UNITS_LINE,
-    homeLine,
-    motionLineKind,
-    restoreLine,
-    safeZLine,
-    selectCoordLine,
-    setPositionLine,
-    setZeroLine,
-    spindleLine,
-    tempOffsetLine,
-    toZeroLine
+    restoreLine
 } from './motionLines.ts';
 
-import { queueModeReads } from './modes.ts';
 
 import { noteAlarmEnded, onAlarmEntered, onClearAnswered } from './alarmRestore.ts';
 
 import { forgetHomed, noteSetByHand } from './homedAxes.ts';
 
-import { sessionSettings } from './settingWrite.ts';
 
 import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './jobState.ts';
 
 import { typedAlarmed, typedCheckTimedOut, typedEnded } from './typedNotice.ts';
 
-import { piecesLeft, raiseDone, raiseRestore } from './typedPieces.ts';
+import { raiseDone, raiseRestore } from './typedPieces.ts';
 
 import { type MotionDeps, type MotionTx } from './motion/contract.ts';
-import { changeNotice, clearMotionNotice, message, newCtx, queueLine, readBack, requestPoll, setMotion, startChange, tick, writeRealtime } from './motion/effects.ts';
+import { changeNotice, message, queueLine, readBack, requestPoll, setMotion, tick, writeRealtime } from './motion/effects.ts';
 import { feedMore, feeding, sendTypedPiece } from './motion/jog.ts';
-import { ALARMABLE, ALARMED, ALLOWED, LETTER, MOTION_LIMITS, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
-import { activeSystem, atRestPolled, axisNames, completedPoll, deny, dialect, heldPolled, idleBase, machineClass, machineZ, motionCapable, motionLinesSettled, planner, precondition, returnBase, validAxes, validAxisList } from './motion/model.ts';
+import { ALARMABLE, ALARMED, MOTION_LIMITS } from './motion/limits.ts';
+import { activeSystem, atRestPolled, axisNames, completedPoll, dialect, heldPolled, idleBase, machineClass, motionLinesSettled, planner, returnBase } from './motion/model.ts';
 import { beginHold } from './motion/stops.ts';
-import type { ChangeKind, JogAxis, JogFeed, MotionCtx, SessionIntent, SessionState } from './types.ts';
+import type { ChangeKind, JogAxis, MotionCtx, SessionState } from './types.ts';
 
 export { type MotionDeps, type MotionTx } from './motion/contract.ts';
 export { clearMotionNotice, newCtx, queueMotionLine, requestPoll } from './motion/effects.ts';
 export { onFollowUp, onMotionReport } from './motion/homing.ts';
+export { onMotionIntent } from './motion/intents.ts';
 export { sendTypedPiece } from './motion/jog.ts';
 export { MOTION_LIMITS, POLL_TOKENS, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
 export { activeSystem, atRestPolled, completedPoll, heldPolled, idleBase, motionCapable, returnBase } from './motion/model.ts';
 export { beginHold, motionStopApplies, onMotionStop } from './motion/stops.ts';
 
-
-
-/**
- * A Phase 2 motion intent the matrix has already allowed. Returns the decision; on success the lines
- * are queued. `jog` with `renew` only refreshes a hold jog's keep-alive.
- */
-export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number): Decision {
-  const s = t.s;
-  switch (request.intent) {
-    case 'jog': {
-      if ('renew' in request) {
-        const jog = s.motion?.jog;
-        if (jog === null || jog === undefined || jog.remainingMm !== null || s.motion?.phase !== 'feed') return deny('No hold jog is running.', 'Nothing to do.');
-        setMotion(t, { jog: { ...jog, renewedAt: at } });
-        return ALLOWED;
-      }
-      const pre = precondition(s);
-      if (pre !== undefined) return pre;
-      const { axes, distanceMm, feed } = request;
-      if (!validAxes(axes)) return deny('A jog names one or more of X, Y, Z and A, each + or −.', 'Choose an axis.');
-      // Review N2 (2026-11-08): Resume returns X, Y and Z to where the job stopped, never A.
-      if (s.job?.phase === 'toolChange' && axes.a !== undefined) return deny(TOOL_CHANGE_JOG_A, 'Jog X, Y or Z, or stop the job.');
-      if (typeof feed !== 'number' || !Number.isFinite(feed) || feed < 1 || feed > MOTION_LIMITS.maxFeed) return deny(`Jog speed must be 1 to ${MOTION_LIMITS.maxFeed} mm/min.`, 'Choose another jog speed.');
-      if (distanceMm !== null && (typeof distanceMm !== 'number' || !Number.isFinite(distanceMm) || distanceMm < 0.001 || distanceMm > MOTION_LIMITS.maxStepMm)) {
-        return deny(`A jog step is 0.001 to ${MOTION_LIMITS.maxStepMm} mm.`, 'Choose another step.');
-      }
-      // OD (owner, 2026-11-09): a step is one move, so it runs smoothly instead of braking between pieces. A hold
-      // jog keeps short pieces, so a lost release or link is bounded by the lookahead (H50, H54).
-      const pieceMm = distanceMm !== null ? distanceMm : Math.max(0.001, (feed / 60) * (MOTION_LIMITS.pieceMs / 1000));
-      const jog: JogFeed = { axes: { ...axes }, remainingMm: distanceMm, feed, pieceMm, renewedAt: at };
-      t.set({ motion: { ...newCtx(s, 'jog'), jog }, base: 'JOGGING' });
-      clearMotionNotice(t);
-      // The board's own units and distance mode, answered before anything of the jog changes them (modes.ts).
-      queueModeReads(t, 'motion');
-      // Millimetres first, on a line of its own that is answered before the first piece goes out (R2): the
-      // board may be in inches (a job, another sender), and the firmware reads a piece's F before its G21.
-      queueLine(t, UNITS_LINE, 'jog');
-      sendPiece(t);
-      requestPoll(t);
-      tick(t);
-      return ALLOWED;
-    }
-    case 'goToZero': {
-      const pre = precondition(s);
-      if (pre !== undefined) return pre;
-      const { axes, safeZ } = request;
-      if (!validAxisList(axes)) return deny('Go to zero names one or more of X, Y, Z and A.', 'Choose an axis.');
-      const letters = axes.map((a) => LETTER[a]);
-      const planar = letters.filter((l) => l !== 'Z');
-      // Explicit absolute millimetres first, on a line of its own, answered before any move (R1): `G53 G0 Z`
-      // under G91 would go DOWN by the safe height, under G20 25.4 times too far. The modes are put back at the end.
-      const steps: string[] = [ABSOLUTE_MM_LINE];
-      if (planar.length > 0) {
-        const z = machineZ(s);
-        if (z === undefined || typeof safeZ !== 'number' || !Number.isFinite(safeZ)) return deny('The machine Z position is not known yet.', 'Wait for the position to be read.');
-        // Never lower Z first: the safe height is at least where Z already is (H53).
-        steps.push(safeZLine(Math.max(z, safeZ)), toZeroLine(planar));
-      }
-      if (letters.includes('Z')) steps.push(toZeroLine(['Z']));
-      if (steps.some((l) => motionLineKind(l) === undefined)) return deny('The safe height is out of range.', 'Choose another safe height.');
-      t.set({ motion: { ...newCtx(s, 'goToZero'), phase: 'drain', steps: steps.slice(1) }, base: 'JOGGING' });
-      clearMotionNotice(t);
-      queueModeReads(t, 'motion');
-      queueLine(t, steps[0] as string, 'goToZero');
-      requestPoll(t);
-      tick(t);
-      return ALLOWED;
-    }
-    case 'setWorkZero': {
-      const pre = precondition(s);
-      if (pre !== undefined) return pre;
-      if (!validAxisList(request.axes)) return deny('Set zero names one or more of X, Y, Z and A.', 'Choose an axis.');
-      // H74 (2026-11-08): at a manual tool change only Z is re-zeroed, for the new tool's length. An X, Y or A zero
-      // there would shift the rest of the job, which was checked at Start against the old offsets.
-      if (s.job?.phase === 'toolChange' && !(request.axes.length === 1 && request.axes[0] === 'z')) return deny(TOOL_CHANGE_ZERO, 'Re-zero Z only, or stop the job.');
-      const system = activeSystem(s);
-      if (system === null) return deny('The active work coordinate system is not known (or is G53).', 'Select G54 to G59 first.');
-      // G10 L20 in the ACTIVE system, saved on the controller (C16); then its offsets are read back.
-      return startChange(t, 'setZero', setZeroLine(request.axes.map((a) => LETTER[a]), system), 'setWorkZero', request.axes);
-    }
-    case 'home': {
-      const pre = precondition(s);
-      if (pre !== undefined) return pre;
-      // Defence in depth: the matrix allows home only in these bases (HOMING always has a motion, refused above), and a
-      // board that is not motion-capable carries READ_ONLY, which the matrix denies.
-      /* c8 ignore start */
-      if (!motionCapable(s, t.config)) return deny('This board is not approved for motion in this session.', 'Use an approved firmware build.');
-      if (s.base !== 'IDLE_UNHOMED' && s.base !== 'IDLE_HOMED' && s.base !== 'CONNECTED_UNKNOWN') return deny('Homing starts only while the machine is idle.', 'Wait until the machine is idle.');
-      /* c8 ignore stop */
-      if (!validAxisList(request.axes)) return deny('Home names one or more of X, Y, Z and A.', 'Choose an axis.');
-      const config = homingAxes(sessionSettings(dialect(s).id, s.values));
-      const missing = request.axes.filter((a) => !config[a].configured);
-      if (missing.length > 0) {
-        const why = missing.map((a) => `${LETTER[a]}: ${config[a].reason as string}`).join('; ');
-        return deny(`Homing is not configured for ${axisNames(missing)} (${why}).`, 'Configure the homing switch and search speed in the Board view, or set the machine position here (G28.3) on a machine without switches.');
-      }
-      t.set({ motion: { ...newCtx(s, 'home'), phase: 'homing', axes: [...request.axes], seen: false }, base: 'HOMING' });
-      clearMotionNotice(t);
-      queueLine(t, homeLine(request.axes.map((a) => LETTER[a])), 'home');
-      requestPoll(t);
-      t.arm('motion', MOTION_LIMITS.homingCheckMs);
-      return ALLOWED;
-    }
-    case 'setMachinePosition': {
-      const pre = precondition(s);
-      if (pre !== undefined) return pre;
-      /* c8 ignore next -- defence in depth, as for home */
-      if (!motionCapable(s, t.config)) return deny('This board is not approved for motion in this session.', 'Use an approved firmware build.');
-      if (!validAxisList(request.axes)) return deny('Set machine position names one or more of X, Y, Z and A.', 'Choose an axis.');
-      return startChange(t, 'setPosition', setPositionLine(request.axes.map((a) => LETTER[a])), 'setMachinePosition', request.axes);
-    }
-    case 'tempOffset': {
-      const pre = precondition(s);
-      if (pre !== undefined) return pre;
-      if ('clear' in request) return startChange(t, 'clearTempOffset', CLEAR_TEMP_OFFSET_LINE, 'tempOffset');
-      if (!validAxisList(request.axes)) return deny('A temporary offset names one or more of X, Y, Z and A.', 'Choose an axis.');
-      return startChange(t, 'tempOffset', tempOffsetLine(request.axes.map((a) => LETTER[a])), 'tempOffset', request.axes);
-    }
-    case 'selectCoordSystem': {
-      const pre = precondition(s);
-      if (pre !== undefined) return pre;
-      const system = request.system;
-      if (typeof system !== 'number' || !Number.isInteger(system) || system < 1 || system > 6) return deny('Choose G54 to G59.', 'Choose G54 to G59.');
-      return startChange(t, 'selectCoord', selectCoordLine(system), 'selectCoordSystem');
-    }
-    case 'spindleOn': {
-      // As setWorkZero: idle only, so nothing else is moving.
-      if (request.output === 'spindle') {
-        const { direction, rpm } = request;
-        if ((direction !== 'cw' && direction !== 'ccw') || typeof rpm !== 'number' || !Number.isFinite(rpm) || rpm < 1 || rpm > MOTION_LIMITS.maxRpm) {
-          return deny(`Spindle speed must be 1 to ${MOTION_LIMITS.maxRpm}.`, 'Choose another speed.');
-        }
-        queueLine(t, spindleLine(direction, rpm), 'spindleOn');
-        return ALLOWED;
-      }
-      if (request.output !== 'mist' && request.output !== 'flood') return deny('Unknown output.', 'Choose spindle, mist or flood.');
-      queueLine(t, request.output === 'mist' ? 'M7' : 'M8', 'spindleOn');
-      return ALLOWED;
-    }
-    case 'clearAlarm': {
-      // ALARM (the only state the matrix allows this in) is reached only in a motion-capable session.
-      queueLine(t, CLEAR_LINE, 'clearAlarm');
-      requestPoll(t);
-      t.set({ queue: [...t.s.queue, { token: 'home', purpose: 'poll' }] });
-      return ALLOWED;
-    }
-    case 'resume': {
-      const ctx = s.motion;
-      // A motion context exists only in a motion-capable session.
-      if (ctx === null || ctx.phase !== 'held') return deny('Resume is only for a hold of motion this session sent.', 'Use Stop job to end it.');
-      writeRealtime(t, 'resume', 'resume');
-      // The base stays HELD until the first poll after `~`: the write gate checks `~` against the resume row
-      // (HELD only) when the byte is written, after this transition.
-      // OD-31: a typed move with pieces left goes on feeding them after the hold, as a job does.
-      t.set({ motion: { ...ctx, phase: piecesLeft(ctx) ? 'feed' : 'drain', jog: null, confirmed: 0, deadline: null } });
-      message(t, 'resumed', STOP_TEXT.resumed, at);
-      requestPoll(t);
-      tick(t);
-      return ALLOWED;
-    }
-    default: {
-      // positionVerify (the reducer passes nothing else here). The user has checked the machine: UNKNOWN clears.
-      // Without motion (a read-only release or board) the base stays CONNECTED_UNKNOWN; nothing moves either way.
-      const overlays = s.overlays.filter((o) => o !== 'UNKNOWN');
-      t.set({ overlays, base: motionCapable(s, t.config) && overlays.length === 0 ? idleBase(s) : s.base });
-      return ALLOWED;
-    }
-  }
-}
 
 
 // --- Polls, answers, timer --------------------------------------------------------
