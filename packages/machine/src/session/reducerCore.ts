@@ -1,3 +1,4 @@
+import { Tx } from './reducers/transaction.ts';
 import {
   BYTE,
   PROBE_STEPS,
@@ -263,62 +264,6 @@ const TINYG_SETTINGS_DEFAULTED = 118;
 function enqByte(state: SessionState): number | undefined {
   if (state.footerRev !== 2 && state.footerRev !== 3) return undefined;
   return dialectOf(state)?.realtime.enq?.byte;
-}
-
-/** One transition being built. */
-class Tx {
-  s: SessionState;
-  readonly fx: SessionEffect[] = [];
-  readonly config: SessionConfig;
-
-  constructor(config: SessionConfig, state: SessionState) {
-    this.config = config;
-    this.s = state;
-  }
-
-  set(patch: Partial<SessionState>): void {
-    this.s = { ...this.s, ...patch };
-  }
-
-  emit(effect: SessionEffect): void {
-    this.fx.push(Object.freeze(effect));
-  }
-
-  decide(intent: Intent, decision: Decision): void {
-    this.emit({ kind: 'decision', intent, decision: Object.freeze(decision) });
-  }
-
-  arm(id: TimerId, ms: number): void {
-    const seq = this.s.timerSeq + 1;
-    this.set({ timerSeq: seq, timers: { ...this.s.timers, [id]: seq } });
-    this.emit({ kind: 'armTimer', id, seq, ms });
-  }
-
-  cancel(id: TimerId): void {
-    if (this.s.timers[id] === undefined) return;
-    const timers = { ...this.s.timers };
-    delete timers[id];
-    this.set({ timers });
-    this.emit({ kind: 'cancelTimer', id });
-  }
-
-  cancelAll(): void {
-    for (const id of Object.keys(this.s.timers) as TimerId[]) this.cancel(id);
-  }
-
-  addOverlay(o: Overlay): void {
-    if (this.s.overlays.includes(o)) return;
-    this.set({ overlays: OVERLAYS.filter((x) => x === o || this.s.overlays.includes(x)) });
-  }
-
-  removeOverlay(o: Overlay): void {
-    if (!this.s.overlays.includes(o)) return;
-    this.set({ overlays: this.s.overlays.filter((x) => x !== o) });
-  }
-
-  done(): Transition {
-    return { state: deepFreezeState(this.s), effects: Object.freeze(this.fx) };
-  }
 }
 
 /** What the motion layer borrows from this file (motion.ts may not import it: no cycles). */
@@ -2081,16 +2026,6 @@ function lineFor(s: SessionState, read: PendingRead): string | undefined {
   const dialect = dialectOf(s);
   if (dialect === null) return PROBE_STEPS.find((step) => step.key === read.token)?.line;
   return getLineFor(dialect.id, read.token, s.identity?.fb);
-}
-
-function deepFreezeState(s: SessionState): SessionState {
-  return deepFreeze(s);
-}
-
-function deepFreeze<T>(value: T): T {
-  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value;
-  for (const key of Object.keys(value)) deepFreeze((value as Record<string, unknown>)[key]);
-  return Object.freeze(value);
 }
 
 return { READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, reduce, settingWriteActive, BOOT_LINE, probeRecord, LIVENESS_TOKEN };
