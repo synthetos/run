@@ -33,17 +33,18 @@ import {
 
 import { DEFAULT_CHORD_MM, arcBox, arcSegments, tessellateArc } from './arcs.ts';
 
-import { EventRecorder, emptyTape } from './events.ts';
+import { emptyTape } from './events.ts';
 
-import { FrameRecorder, emptyFrames } from './frames.ts';
+import { emptyFrames } from './frames.ts';
 
 import { codeOf, parseLine } from './parser.ts';
 
 import { DEFAULT_VERTEX_CAP, PLANE_INDEX, ROTARY } from './interpreter/constants.ts';
 import { type Emitted, type Piece, type Pos } from './interpreter/contract.ts';
-import { axisMm, fill, offset, offsetMm, unitScale, work, zero } from './interpreter/coordinates.ts';
+import { axisMm, offset, offsetMm, unitScale, work, zero } from './interpreter/coordinates.ts';
 import { addFinding, addFindingOnce } from './interpreter/findings.ts';
-import { InterpreterState, type InterpreterContext } from './interpreter/state.ts';
+import { initializeInterpreter } from './interpreter/initialize.ts';
+import { InterpreterState } from './interpreter/state.ts';
 import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis, type TimingModel } from './types.ts';
 export { DEFAULT_VERTEX_CAP } from './interpreter/constants.ts';
 
@@ -314,57 +315,7 @@ function emptyAnalysis(dialect: Dialect, findings: Finding[], lineCount: number,
 class Interpreter extends InterpreterState {
 
 
-  constructor(dialect: Dialect, job: DialectJobGcode, lines: readonly SentLine[], options: InterpretOptions) { super(); const ctx: InterpreterContext = this;
-    ctx.dialect = dialect;
-    ctx.job = job;
-    ctx.lines = lines;
-    ctx.options = options;
-    ctx.flags = new Uint8Array(lines.length);
-    ctx.events = new EventRecorder(lines);
-    const s = options.start ?? {};
-    const m = fill(s.machine);
-    ctx.machine = m.pos;
-    ctx.units = s.units ?? 'G21';
-    ctx.distance = s.distance ?? 'G90';
-    ctx.arcDistance = s.arcDistance ?? 'G91.1';
-    ctx.plane = s.plane ?? 'G17';
-    ctx.motion = s.motion ?? 'G80';
-    ctx.feed = s.feedMmPerMin;
-    ctx.wcs = s.wcs ?? 'G54';
-    const offsets = {} as Record<Wcs, Pos>;
-    let offsetsKnown = true;
-    for (const w of WCS_CODES) {
-      const f = fill(s.wcsOffsets?.[w]);
-      offsets[w] = f.pos;
-      if (!f.complete) offsetsKnown = false;
-    }
-    ctx.wcsOffsets = offsets;
-    const g = fill(s.g92?.offsets);
-    ctx.g92 = { offsets: g.pos, active: s.g92?.active ?? false };
-    const t = fill(s.toolOffset);
-    ctx.tool = t.pos;
-    ctx.frameTable = new FrameRecorder([this.offset('X'), this.offset('Y'), this.offset('Z')]);
-    ctx.g28 = s.g28 === undefined ? null : fill(s.g28).pos;
-    ctx.g30 = s.g30 === undefined ? null : fill(s.g30).pos;
-    ctx.spindle = s.spindle ?? 'off';
-    ctx.mist = s.mist ?? false;
-    ctx.flood = s.flood ?? false;
-    ctx.defaults = {
-      units: s.defaults?.units ?? ctx.units,
-      distance: s.defaults?.distance ?? 'G90',
-      plane: s.defaults?.plane ?? 'G17',
-      wcs: s.defaults?.wcs ?? 'G54',
-    };
-    const assumed: string[] = [];
-    if (!m.complete) assumed.push('machine position');
-    if (!offsetsKnown) assumed.push('work offsets');
-    if (s.g92 === undefined || !g.complete) assumed.push('G92 offsets');
-    if (!t.complete) assumed.push('tool offset');
-    if (assumed.length > 0) {
-      ctx.uncertain = !m.complete || !offsetsKnown || !g.complete;
-      this.add(0, null, 'warn', 'start-assumed', `not read from the board, assumed zero: ${assumed.join(', ')}; positions are flagged uncertain`);
-    }
-  }
+  constructor(dialect: Dialect, job: DialectJobGcode, lines: readonly SentLine[], options: InterpretOptions) { super(); initializeInterpreter(this, dialect, job, lines, options); }
 
 
   add(line: number, n: number | null, severity: Finding['severity'], rule: string, message: string): void { return addFinding(this, line, n, severity, rule, message); }
