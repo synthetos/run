@@ -1,14 +1,13 @@
-import { VIEW_ANGLES, fitOrbit, pan, rotate, zoom, zoomToward, type Orbit } from './camera.ts';
+import { VIEW_ANGLES, fitOrbit } from './camera.ts';
 import { createCarveLayer } from './carve/mesh.ts';
-import { framedBox } from './framing.ts';
 import type { Chunk } from './geometry.ts';
 import { DEFAULT_SEGMENTS_PER_CHUNK, chunks } from './geometry.ts';
 import { link } from './glProgram.ts';
 import { createLineTools } from './lineTools.ts';
 import { SPIN_FRAME_MS, isSoftwareRenderer } from './markerSpin.ts';
 import { PATH_FRAGMENT, SOLID_FRAGMENT, SOLID_VERTEX, pathVertex } from './pathShaders.ts';
-import { pickSolid, rayThrough } from './pick.ts';
 import { rebuildOverlay, rebuildSolids, sceneApi, visibilityApi } from './renderer/bed.ts';
+import { cameraApi, dashPeriod, fitBox, fitView } from './renderer/camera.ts';
 import { NO_OFFSET, STYLE_COUNT } from './renderer/constants.ts';
 import { type RendererContext } from './renderer/context.ts';
 import { type GpuChunk, type LoadOptions, type PreviewRenderer, type RendererOptions } from './renderer/contract.ts';
@@ -16,7 +15,6 @@ import { draw, requestRender } from './renderer/draw.ts';
 import { clearPath, dashDistances, linesChunk, release, upload, uploadSolid } from './renderer/geometry.ts';
 import { markerApi, markerChunk, rebuildMarker } from './renderer/marker.ts';
 import { colorTable, plannerColors, themeApi } from './renderer/materials.ts';
-import { offsetBox, unionBox } from './scene.ts';
 import { checkSegmentList, type Box3, type SegmentList } from './segments.ts';
 import { runSliced, type SliceOptions } from './slicer.ts';
 export { PATH_OVER_CARVE_ALPHA } from './renderer/constants.ts';
@@ -137,78 +135,6 @@ function bindRenderer(ctx: RendererContext): void {
   ctx.clearPath = () => clearPath(ctx);
   ctx.fitView = () => fitView(ctx);
   ctx.fitBox = () => fitBox(ctx);
-}
-
-
-/** Dash period of traverses, in drawing units: about 1/120 of the framed extent (0, solid, with nothing framed). */
-function dashPeriod(ctx: RendererContext): number {
-  const box = ctx.fitBox();
-  if (box === null) return 0;
-  const span = Math.max(box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]);
-  return Number.isFinite(span) && span > 0 ? span / 120 : 0;
-}
-
-
-/** The job (the path with the stock, fixture and clamps; framing.ts) framed to fill about 80% of the canvas. */
-function fitView(ctx: RendererContext): Orbit {
-  return fitOrbit(framedBox(offsetBox(ctx.bounds, ctx.pathOffset), ctx.scene, ctx.fitBox()), undefined, ctx.width / ctx.height, 0.8, ctx.angles);
-}
-
-
-/** The box of everything drawn: the path moved by its offset, the envelope and the scene. */
-function fitBox(ctx: RendererContext): Box3 | null {
-  return unionBox(offsetBox(ctx.bounds, ctx.pathOffset), ctx.envelope, ctx.sceneBox);
-}
-
-
-function cameraApi(ctx: RendererContext): Pick<PreviewRenderer, "setView" | "resize" | "fit" | "orbit" | "zoomBy" | "zoomAt" | "panBy" | "pick"> {
-  return {
-    setView(preset) {
-      ctx.angles = VIEW_ANGLES[preset];
-      ctx.autoFit = true;
-      ctx.view = ctx.fitView();
-      ctx.requestRender();
-    },
-    resize(w, h, pixelRatio = 1) {
-      ctx.width = Math.max(1, w);
-      ctx.height = Math.max(1, h);
-      const canvas = ctx.gl.canvas;
-      canvas.width = Math.round(ctx.width * pixelRatio);
-      canvas.height = Math.round(ctx.height * pixelRatio);
-      if (ctx.autoFit) ctx.view = ctx.fitView();
-      ctx.requestRender();
-    },
-    fit() {
-      ctx.autoFit = true;
-      ctx.view = ctx.fitView();
-      ctx.requestRender();
-    },
-    orbit(dA, dE) {
-      ctx.autoFit = false;
-      ctx.view = rotate(ctx.view, dA, dE);
-      ctx.requestRender();
-    },
-    zoomBy(factor) {
-      ctx.autoFit = false;
-      ctx.view = zoom(ctx.view, factor);
-      ctx.requestRender();
-    },
-    zoomAt(factor, x, y) {
-      ctx.autoFit = false;
-      ctx.view = zoomToward(ctx.view, factor, (2 * x) / ctx.width - 1, 1 - (2 * y) / ctx.height, ctx.width / ctx.height);
-      ctx.requestRender();
-    },
-    panBy(dx, dy) {
-      ctx.autoFit = false;
-      ctx.view = pan(ctx.view, dx, dy);
-      ctx.requestRender();
-    },
-    pick(x, y) {
-      if (ctx.scene === null) return null;
-      const ray = rayThrough(ctx.view, ctx.width / ctx.height, (2 * x) / ctx.width - 1, 1 - (2 * y) / ctx.height);
-      return pickSolid(ray, ctx.scene.solids)?.tag ?? null;
-    }
-  };
 }
 
 
