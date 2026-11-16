@@ -37,7 +37,7 @@
  * just completed, and only when all four were answered with status 0 (independent review 2026-11-03, R5), never
  * the last status report; the reported `line` drives progress and the planner view only.
  */
-import { mapStat, type Dialect, type JsonObject, type JsonValue, type Response } from '@synthetos/protocol';
+import { mapStat, type Dialect, type JsonObject, type Response } from '@synthetos/protocol';
 import {
     CEILING_SECONDS,
     DEFAULT_K,
@@ -57,24 +57,24 @@ import {
     type StartState,
     type Wcs,
 } from '@synthetos/safety';
-import { isReadAllowed } from '@synthetos/schema';
 import { forgetBoardModes, noteModeRead } from './boardModes.ts';
-import { restartDwellWait } from './dwell.ts';
 import { feedLimitWindow, foldFeedLimit } from './feedLimit.ts';
 import { type JobDeps, type JobLayerTx } from './job/contract.ts';
-import { JOB_DIALECTS, JOB_LIMITS, JOB_PREP_TOKENS } from './job/limits.ts';
+import { JOB_LIMITS } from './job/limits.ts';
+import { ALLOWED, dataSettled, deny, dialect, job, jobsCapable, numberOf, prepReads, queue, startFailed, writeRealtime } from './job/shared.ts';
 import { startModesStep, startNeeds } from './jobModes.ts';
 import { ACTIVE_PHASES, failJob, jobActive, jobEvent, lastFileLine, patchJob } from './jobState.ts';
 import { resumeTravel, travelOf, travelStartRefusal, withTravel } from './jobTravel.ts';
 import { queueModeReads } from './modes.ts';
-import { MOTION_LIMITS, activeSystem, atRestPolled, beginHold, clearMotionNotice, completedPoll, heldPolled, idleBase, motionCapable, requestPoll } from './motion.ts';
+import { MOTION_LIMITS, activeSystem, atRestPolled, beginHold, clearMotionNotice, completedPoll, heldPolled, idleBase, requestPoll } from './motion.ts';
 import { ABSOLUTE_MM_LINE, motionLineKind, restoreLine, returnXYLine, safeZLine, spindleLine } from './motionLines.ts';
 import { sessionSettings } from './settingWrite.ts';
-import type { Axis, Expected, JobReportSummary, JobState, PendingRead, PolledValues, SessionConfig, SessionIntent, SessionState } from './types.ts';
+import type { Axis, Expected, JobReportSummary, JobState, PendingRead, PolledValues, SessionIntent, SessionState } from './types.ts';
 
 export { feedLimitWindow, foldFeedLimit, parseFeedMove, parseFeedSummary } from './feedLimit.ts';
 export { type JobDeps, type JobLayerTx } from './job/contract.ts';
 export { JOB_DIALECTS, JOB_LIMITS, JOB_PREP_TOKENS } from './job/limits.ts';
+export { jobsCapable } from './job/shared.ts';
 
 
 
@@ -122,30 +122,6 @@ export function feedLimitSupported(s: SessionState): boolean {
 }
 
 
-const ALLOWED: Decision = Object.freeze({ allowed: true });
-
-
-function deny(reason: string, remedy: string): Decision {
-  return { allowed: false, reason, remedy, citation: 'SAFETY §4.4a' };
-}
-
-
-/** True when this session may run jobs: a jobs release, a motion-capable approved board, a dialect with line mode. */
-export function jobsCapable(s: SessionState, config: SessionConfig): boolean {
-  return config.release.jobs === true && motionCapable(s, config) && s.dialect !== null && JOB_DIALECTS.has(s.dialect.id);
-}
-
-
-function dialect(s: SessionState): Dialect {
-  return s.dialect as Dialect;
-}
-
-
-function job(s: SessionState): JobState {
-  return s.job as JobState;
-}
-
-
 function planner(s: SessionState): number {
   return dialect(s).limits.plannerBlocks;
 }
@@ -166,25 +142,6 @@ function freezeDeep<T>(value: T): T {
   if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value;
   for (const key of Object.keys(value)) freezeDeep((value as Record<string, unknown>)[key]);
   return Object.freeze(value);
-}
-
-
-/** One written line queued as a control or motion read (one at a time, like every other line). */
-function queue(t: JobLayerTx, entry: PendingRead): void {
-  t.set({ queue: [...t.s.queue, entry] });
-}
-
-
-/**
- * A realtime byte of the job layer. The job's `~` is checked against `jobLine` (allowed in RUNNING): the base is
- * RUNNING again in the transition that asks for it, and the byte is written right after.
- */
-function writeRealtime(t: JobLayerTx, name: 'feedhold' | 'resume', intent: Intent): void {
-  restartDwellWait(t);
-  const realtime = dialect(t.s).realtime;
-  const byte = name === 'feedhold' ? realtime.feedhold.byte : realtime.resume.byte;
-  t.set({ sent: { ...t.s.sent, realtime: t.s.sent.realtime + 1 } });
-  t.emit({ kind: 'writeRealtime', epoch: t.s.epoch, name, byte, intent });
 }
 
 
@@ -209,12 +166,6 @@ export function onLoadJob(t: JobLayerTx, request: Extract<SessionIntent, { inten
   t.set({ job: emptyJob(id, name, text, c22 === true), queue: [...s.queue, ...prepReads(s)] });
   jobEvent(t, at, 'info', `Loaded ${name}: checking every line with this board's limits and offsets.`);
   return ALLOWED;
-}
-
-
-/** The prep reads (JOB_PREP_TOKENS through the read allowlist): taken at load, and again at Start (R3). */
-function prepReads(s: SessionState): PendingRead[] {
-  return JOB_PREP_TOKENS.filter((tok) => isReadAllowed(dialect(s).id, tok)).map((token) => ({ token, purpose: 'jobPrep' as const }));
 }
 
 
@@ -278,20 +229,6 @@ export function abandonLoad(t: JobLayerTx, at: number, why: string): void {
   }
   patchJob(t, { phase: 'blocked', message: `The file could not be checked: ${why}.` });
   jobEvent(t, at, 'error', `The file could not be checked: ${why}.`);
-}
-
-
-/** A Start that ends before anything of the job was sent: back to idle, the reason said. */
-function startFailed(t: JobLayerTx, at: number, text: string): void {
-  t.cancel('job');
-  t.set({ base: idleBase(t.s), queue: t.s.queue.filter((q) => q.purpose !== 'jobPrep') });
-  patchJob(t, { phase: 'failed', message: text, endedAt: at });
-  jobEvent(t, at, 'error', text);
-}
-
-
-function numberOf(v: JsonValue | undefined): number | undefined {
-  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 }
 
 
@@ -1151,11 +1088,6 @@ function changeReady(t: JobLayerTx, at: number): void {
 function drainedAtBarrier(s: SessionState, p: PolledValues): boolean {
   const cls = mapStat(dialect(s), p.stat);
   return s.dwellWait == null && (cls === 'programStop' || cls === 'end' || cls === 'idle') && p.vel === 0 && p.qr === planner(s);
-}
-
-
-function dataSettled(s: SessionState): boolean {
-  return !s.queue.some((q) => q.purpose === 'motion') && s.writing?.purpose !== 'motion' && !s.expected.some((e) => !e.late && e.purpose === 'motion');
 }
 
 
