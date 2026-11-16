@@ -45,38 +45,56 @@
  * last pushed report can still show the previous jog's `G91` after its closing `G90` was answered.
  */
 import { STOP_TEXT, type Decision, type Intent } from '@synthetos/safety';
+
 import { mapStat, type Dialect, type MachineClass } from '@synthetos/protocol';
+
 import { restartDwellWait } from './dwell.ts';
+
 import { restingStat } from './resting.ts';
+
 import { homingAxes, isReadAllowed } from '@synthetos/schema';
+
 import {
-  ABSOLUTE_MM_LINE,
-  CLEAR_LINE,
-  CLEAR_TEMP_OFFSET_LINE,
-  MAX_JOG_FEED,
-  MAX_RPM,
-  UNITS_LINE,
-  homeLine,
-  jogLine,
-  motionLineKind,
-  restoreLine,
-  safeZLine,
-  selectCoordLine,
-  setPositionLine,
-  setZeroLine,
-  spindleLine,
-  tempOffsetLine,
-  toZeroLine,
-  type MotionAxisLetter,
+    ABSOLUTE_MM_LINE,
+    CLEAR_LINE,
+    CLEAR_TEMP_OFFSET_LINE,
+    MAX_JOG_FEED,
+    MAX_RPM,
+    UNITS_LINE,
+    homeLine,
+    jogLine,
+    motionLineKind,
+    restoreLine,
+    safeZLine,
+    selectCoordLine,
+    setPositionLine,
+    setZeroLine,
+    spindleLine,
+    tempOffsetLine,
+    toZeroLine,
+    type MotionAxisLetter,
 } from './motionLines.ts';
+
 import { queueModeReads } from './modes.ts';
+
 import { noteAlarmEnded, onAlarmEntered, onClearAnswered } from './alarmRestore.ts';
+
 import { forgetHomed, noteHomed, noteSetByHand } from './homedAxes.ts';
+
 import { sessionSettings } from './settingWrite.ts';
+
 import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './jobState.ts';
+
 import { typedAlarmed, typedCheckTimedOut, typedEnded } from './typedNotice.ts';
+
 import { afterHold, piecesLeft, raiseDone, raiseRestore, takePiece } from './typedPieces.ts';
-import type { ChangeKind, FaultCause, FaultKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, PolledValues, SessionBase, SessionConfig, SessionEffect, SessionIntent, SessionState, TimerId } from './types.ts';
+
+import { type MotionDeps, type MotionTx } from './motion/contract.ts';
+import type { ChangeKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, PendingRead, PolledValues, SessionBase, SessionConfig, SessionIntent, SessionState } from './types.ts';
+
+export { type MotionDeps, type MotionTx } from './motion/contract.ts';
+
+
 
 /** Timing and bounds of the motion layer (SAFETY §4.5b). Milliseconds unless named otherwise. */
 export const MOTION_LIMITS = Object.freeze({
@@ -110,45 +128,42 @@ export const MOTION_LIMITS = Object.freeze({
   homingCheckMs: 1000,
 });
 
+
 /** The polled reads of the motion layer, in order; the cycle is complete when the last one is answered. */
 export const POLL_TOKENS: readonly string[] = Object.freeze(['stat', 'hold', 'vel', 'qr']);
 
+
 const LETTER: Readonly<Record<JogAxis, MotionAxisLetter>> = { x: 'X', y: 'Y', z: 'Z', a: 'A' };
+
 const JOG_AXES: readonly JogAxis[] = ['x', 'y', 'z', 'a'];
+
 
 /** Bases a homing or G28.3 read-back settles into idle (or CONNECTED_UNKNOWN). */
 const SETTLE_BASES: ReadonlySet<SessionBase> = new Set(['HOMING', 'CONNECTED_UNKNOWN', 'IDLE_UNHOMED', 'IDLE_HOMED']);
+
 const ALARMED: ReadonlySet<MachineClass> = new Set(['alarm', 'softAlarm', 'shutdown', 'panic']);
+
 /** Bases an alarm report moves to ALARM. */
 const ALARMABLE: ReadonlySet<SessionBase> = new Set(['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HOMING', 'HELD', 'STOPPING_JOB', 'PREAMBLE', 'RUNNING', 'PROGRAM_PAUSED']);
+
 /** Bases a Stop job in a motion session may start from (anything else keeps the Phase 1 `!` only). Phase 3 adds the job bases. */
 const STOPPABLE: ReadonlySet<SessionBase> = new Set(['IDLE_UNHOMED', 'IDLE_HOMED', 'JOGGING', 'HOMING', 'HELD', 'STOPPING_JOB', 'CONNECTED_UNKNOWN', 'PREAMBLE', 'RUNNING', 'PROGRAM_PAUSED']);
 
-/** The reducer's transition, as this module uses it. */
-export interface MotionTx {
-  s: SessionState;
-  readonly config: SessionConfig;
-  set(patch: Partial<SessionState>): void;
-  emit(effect: SessionEffect): void;
-  arm(id: TimerId, ms: number): void;
-  cancel(id: TimerId): void;
-}
-
-/** What the reducer lends this module (it may not import the reducer: no cycles). */
-export interface MotionDeps {
-  fault(t: MotionTx, cause: FaultCause, kind: FaultKind, detail: string, at: number): void;
-}
 
 const ALLOWED: Decision = Object.freeze({ allowed: true });
 
+
 /** Why only Z may be zeroed at a manual tool change (H74); the page shows the same words. */
 export const TOOL_CHANGE_ZERO = "At a tool change only Z can be re-zeroed, for the new tool's length.";
+
 /** Why A is not jogged at a manual tool change: Resume returns X, Y and Z only. */
 export const TOOL_CHANGE_JOG_A = 'At a tool change A is not jogged: Resume returns X, Y and Z to where the job stopped, not A.';
+
 
 function deny(reason: string, remedy: string): Decision {
   return { allowed: false, reason, remedy, citation: 'SAFETY §4.5b' };
 }
+
 
 /**
  * True when this session may move the machine at all: a motion release, a classified board that was not
@@ -159,22 +174,27 @@ export function motionCapable(s: SessionState, config: SessionConfig): boolean {
   return config.release.motion && d !== null && s.classification?.mode === 'full' && !s.overlays.includes('READ_ONLY') && d.realtime.flush !== undefined && d.realtime.resume !== undefined;
 }
 
+
 /** The idle base the homing state calls for. */
 export function idleBase(s: SessionState): SessionBase {
   return s.live.home === 1 ? 'IDLE_HOMED' : 'IDLE_UNHOMED';
 }
 
+
 function dialect(s: SessionState): Dialect {
   return s.dialect as Dialect;
 }
+
 
 function machineClass(s: SessionState): MachineClass | undefined {
   return s.live.stat === undefined ? undefined : mapStat(dialect(s), s.live.stat);
 }
 
+
 function planner(s: SessionState): number {
   return dialect(s).limits.plannerBlocks;
 }
+
 
 /**
  * The values of the poll cycle that just completed, or null when any of its four reads was rejected (a non-zero
@@ -186,16 +206,19 @@ export function completedPoll(s: SessionState): PolledValues | null {
   return { stat: p.stat, hold: p.hold, vel: p.vel, qr: p.qr };
 }
 
+
 /** At rest by this cycle's polled values: idle or ended, not moving, nothing held, planner empty. Shared with the job layer. */
 export function atRestPolled(s: SessionState, p: PolledValues): boolean {
   // The same rule as READING (resting.ts, SAFETY H14 as amended 2026-11-02), plus hold 0 on every dialect.
   return s.dwellWait == null && restingStat(dialect(s), p.stat, p.hold) && p.vel === 0 && p.hold === 0 && p.qr === planner(s);
 }
 
+
 /** The hold is complete by this cycle's polled `hold`. Shared with the job layer. */
 export function heldPolled(s: SessionState, p: PolledValues): boolean {
   return dialect(s).hold[p.hold] === 'HOLD';
 }
+
 
 /**
  * No motion line is waiting or being written. (None can be owed an answer either: the board answers lines in
@@ -205,6 +228,7 @@ function motionLinesSettled(s: SessionState): boolean {
   return !s.queue.some((q) => q.purpose === 'motion') && s.writing?.purpose !== 'motion';
 }
 
+
 function queueLine(t: MotionTx, line: string, intent: Intent): void {
   // Built here, from the grammar's own builders; the write gate checks the exact bytes again.
   const token = line === CLEAR_LINE ? 'clear' : 'gc';
@@ -212,10 +236,12 @@ function queueLine(t: MotionTx, line: string, intent: Intent): void {
   t.set({ queue: [...t.s.queue, entry] });
 }
 
+
 /** A typed move's line (H91, typedMove.ts): queued like every motion line; the write gate admits only that exact line. */
 export function queueMotionLine(t: MotionTx, line: string, intent: Intent): void {
   queueLine(t, line, intent);
 }
+
 
 function writeRealtime(t: MotionTx, name: 'feedhold' | 'flush' | 'resume', intent: Intent): void {
   restartDwellWait(t);
@@ -225,9 +251,11 @@ function writeRealtime(t: MotionTx, name: 'feedhold' | 'flush' | 'resume', inten
   t.emit({ kind: 'writeRealtime', epoch: t.s.epoch, name, byte, intent });
 }
 
+
 function message(t: MotionTx, kind: NonNullable<SessionState['notices']['motion']>['kind'], text: string, at: number): void {
   t.set({ notices: { ...t.s.notices, motion: { kind, text, at } } });
 }
+
 
 /** The single read-back after run changed a value (amendment 2026-11-02), through the read allowlist. */
 function readBack(t: MotionTx, tokens: readonly string[], then?: FollowUp): void {
@@ -238,17 +266,20 @@ function readBack(t: MotionTx, tokens: readonly string[], then?: FollowUp): void
   t.set({ queue: [...t.s.queue, ...reads] });
 }
 
+
 /** `G5x` of the active system (`coor` 1..6), or null when it is not known or G53. */
 export function activeSystem(s: SessionState): number | null {
   const coor = s.live.coor;
   return coor !== undefined && Number.isInteger(coor) && coor >= 1 && coor <= 6 ? coor : null;
 }
 
+
 /** Plain names: "X, Y and Z". */
 function axisNames(axes: readonly JogAxis[]): string {
   const n = axes.map((a) => LETTER[a]);
   return n.length <= 1 ? (n[0] ?? '') : `${n.slice(0, -1).join(', ')} and ${n.at(-1) as string}`;
 }
+
 
 /** Asks for one poll cycle unless one is already waiting or owed. */
 export function requestPoll(t: MotionTx): void {
@@ -258,13 +289,16 @@ export function requestPoll(t: MotionTx): void {
   t.set({ queue: [...s.queue, ...POLL_TOKENS.map((token) => ({ token, purpose: 'poll' as const }))] });
 }
 
+
 function tick(t: MotionTx): void {
   t.arm('motion', MOTION_LIMITS.pollMs);
 }
 
+
 function setMotion(t: MotionTx, patch: Partial<MotionCtx>): void {
   t.set({ motion: { ...(t.s.motion as MotionCtx), ...patch } });
 }
+
 
 /**
  * The last motion result ("Stopped: queue cleared…", "Jog stopped…") goes when the next action starts (first-time
@@ -276,6 +310,7 @@ export function clearMotionNotice(t: { s: SessionState; set(patch: Partial<Sessi
   t.set({ notices: rest });
 }
 
+
 export function newCtx(s: SessionState, op: MotionCtx['op']): MotionCtx {
   // A Stop job from CONNECTED_UNKNOWN (UNKNOWN overlay, or a FAULT) returns there; a jog or Z re-zero during a
   // job's tool change (Phase 3) returns to PROGRAM_PAUSED; everything else to idle.
@@ -283,6 +318,7 @@ export function newCtx(s: SessionState, op: MotionCtx['op']): MotionCtx {
   // The modes are never taken from the live view (pushed reports lag): a jog, go to zero and a stop read them (modes.ts).
   return { op, phase: 'feed', jog: null, steps: [], reason: null, confirmed: 0, deadline: null, units: undefined, dist: undefined, returnTo, refusal: null, holdPolls: 0, queued: 0 };
 }
+
 
 /**
  * A change that moves nothing (G10 L20, G92, G92.1, G28.3, G54..G59): the line, then polled idle (two reads), then
@@ -298,11 +334,13 @@ function startChange(t: MotionTx, change: ChangeKind, line: string, intent: Inte
   return ALLOWED;
 }
 
+
 /** Where a motion returns: CONNECTED_UNKNOWN if it started there, else the idle base for the homing state. */
 export function returnBase(ctx: MotionCtx, s: SessionState): SessionBase {
   if (ctx.returnTo === 'PROGRAM_PAUSED' && ctx.reason !== 'stopJob' && jobActive(s)) return 'PROGRAM_PAUSED';
   return ctx.returnTo === 'CONNECTED_UNKNOWN' && s.overlays.length > 0 ? 'CONNECTED_UNKNOWN' : idleBase(s);
 }
+
 
 // --- Intents ------------------------------------------------------------------
 
@@ -314,14 +352,17 @@ function precondition(s: SessionState): Decision | undefined {
   return undefined;
 }
 
+
 function validAxes(axes: Readonly<Partial<Record<JogAxis, 1 | -1>>>): boolean {
   const keys = typeof axes === 'object' && axes !== null ? Object.keys(axes) : [];
   return keys.length > 0 && keys.every((k) => (JOG_AXES as readonly string[]).includes(k) && (axes[k as JogAxis] === 1 || axes[k as JogAxis] === -1));
 }
 
+
 function validAxisList(axes: readonly JogAxis[]): boolean {
   return Array.isArray(axes) && axes.length > 0 && axes.length <= 4 && new Set(axes).size === axes.length && axes.every((a) => (JOG_AXES as readonly string[]).includes(a));
 }
+
 
 /**
  * A Phase 2 motion intent the matrix has already allowed. Returns the decision; on success the lines
@@ -491,10 +532,12 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
   }
 }
 
+
 /** Machine Z, mm: from the connect-time read of `mpo`, then from pushed reports (amendment 2026-11-02). */
 function machineZ(s: SessionState): number | undefined {
   return s.live.mpo.z;
 }
+
 
 /** Sends the next jog piece when fewer than the lookahead are believed queued and nothing is being written. */
 function feedMore(t: MotionTx): void {
@@ -505,6 +548,7 @@ function feedMore(t: MotionTx): void {
   }
 }
 
+
 /** OD-31: queues the next piece of a typed move, counted in the planner like a jog piece. */
 export function sendTypedPiece(t: MotionTx): void {
   const ctx = t.s.motion as MotionCtx;
@@ -513,14 +557,17 @@ export function sendTypedPiece(t: MotionTx): void {
   setMotion(t, { typed, queued: ctx.queued + 1 });
 }
 
+
 /** More to feed: a jog's distance (or a hold jog), or a typed move's pieces (OD-31). */
 function feeding(ctx: MotionCtx): boolean {
   return ctx.op === 'typed' ? piecesLeft(ctx) : moreToFeed(ctx.jog as JogFeed);
 }
 
+
 function moreToFeed(jog: JogFeed): boolean {
   return jog.remainingMm === null || jog.remainingMm > 1e-9;
 }
+
 
 function sendPiece(t: MotionTx): void {
   const ctx = t.s.motion as MotionCtx;
@@ -535,12 +582,14 @@ function sendPiece(t: MotionTx): void {
   setMotion(t, { jog: { ...jog, remainingMm: jog.remainingMm === null ? null : Math.max(0, jog.remainingMm - d) }, queued: ctx.queued + 1 });
 }
 
+
 // --- Stops ----------------------------------------------------------------------
 
 /** True when a Stop job, Pause or Spindle off in this state is handled here instead of Phase 1's `!` alone. */
 export function motionStopApplies(s: SessionState, config: SessionConfig): boolean {
   return motionCapable(s, config) && STOPPABLE.has(s.base) && !s.overlays.includes('ORPHANED_MOTION') && !s.overlays.includes('LOST');
 }
+
 
 /** Starts the hold step of a stop or release (SAFETY §4.4 Phase 2 steps 1–3). */
 export function beginHold(t: MotionTx, reason: HoldReason, at: number): void {
@@ -562,6 +611,7 @@ export function beginHold(t: MotionTx, reason: HoldReason, at: number): void {
   requestPoll(t);
   tick(t);
 }
+
 
 /**
  * Pause, Stop job, Spindle off and a hold jog's release in a motion session. Returns false when the
@@ -603,6 +653,7 @@ export function onMotionStop(t: MotionTx, request: SessionIntent, at: number): b
   if (outputs !== 'spindle') queueLine(t, 'M9', 'spindleOffNow');
   return true;
 }
+
 
 // --- Polls, answers, timer --------------------------------------------------------
 
@@ -732,6 +783,7 @@ export function onPollDone(t: MotionTx, at: number): void {
   }
 }
 
+
 /** Queues the closing lines (SAFETY §4.4 Phase 2 step 5, §4.5b). */
 function finish(t: MotionTx, at: number): void {
   const ctx = t.s.motion as MotionCtx;
@@ -753,6 +805,7 @@ function finish(t: MotionTx, at: number): void {
   if (lines.length === 0) complete(t, at);
 }
 
+
 /** The read-back of each change (amendment 2026-11-02): what it changed, read once. */
 const CHANGE_READBACK: Readonly<Record<ChangeKind, (s: SessionState) => readonly string[]>> = {
   setZero: (s) => [`g${53 + (activeSystem(s) as number)}`, 'ofs', 'pos'],
@@ -762,6 +815,7 @@ const CHANGE_READBACK: Readonly<Record<ChangeKind, (s: SessionState) => readonly
   selectCoord: () => ['coor', 'ofs', 'pos', 'g54', 'g55', 'g56', 'g57', 'g58', 'g59'],
 };
 
+
 const CHANGE_DONE: Readonly<Record<ChangeKind, (axes: string) => string>> = {
   setZero: (axes) => `Work zero set for ${axes} (saved on the controller); offsets read back.`,
   setPosition: (axes) => `Machine position set to 0 here for ${axes} (G28.3); position read back.`,
@@ -769,6 +823,7 @@ const CHANGE_DONE: Readonly<Record<ChangeKind, (axes: string) => string>> = {
   clearTempOffset: () => 'Temporary offset cleared (G92.1).',
   selectCoord: () => 'Work coordinate system changed; offsets read back.',
 };
+
 
 function complete(t: MotionTx, at: number): void {
   const ctx = t.s.motion as MotionCtx;
@@ -794,9 +849,11 @@ function complete(t: MotionTx, at: number): void {
   else if (ctx.refusal !== null) message(t, 'refused', ctx.refusal, at);
 }
 
+
 function changeNotice(t: MotionTx, kind: 'done' | 'refused' | 'failed', text: string, at: number): void {
   t.set({ notices: { ...t.s.notices, change: { kind, text, at } } });
 }
+
 
 /**
  * A follow-up after the last read-back of a homing (`homed`) or a G28.3 (`positionSet`): with all of X, Y and Z
@@ -820,6 +877,7 @@ export function onFollowUp(t: MotionTx, then: Exclude<FollowUp, 'typedCheck'>, a
   t.set({ base: t.s.overlays.length === 0 ? idleBase(t.s) : 'CONNECTED_UNKNOWN' });
 }
 
+
 /** A pushed status report during homing: a resting or alarmed state asks for confirming polls (pushed stat is never proof). */
 export function onMotionReport(t: MotionTx, sr: Readonly<Record<string, unknown>>, _at: number): void {
   const ctx = t.s.motion;
@@ -828,6 +886,7 @@ export function onMotionReport(t: MotionTx, sr: Readonly<Record<string, unknown>
   if (cls === 'homing') setMotion(t, { seen: true });
   else requestPoll(t);
 }
+
 
 /** A motion line was answered. A non-zero status ends the motion (the board refused it). */
 export function onMotionAnswer(t: MotionTx, line: string | undefined, status: number, at: number): void {
@@ -872,6 +931,7 @@ export function onMotionAnswer(t: MotionTx, line: string | undefined, status: nu
   if (now !== null && now.phase === 'finish' && motionLinesSettled(t.s)) complete(t, at);
 }
 
+
 /** The `motion` timer: keep-alive, deadlines, and the next poll. */
 export function onMotionTimer(t: MotionTx, deps: MotionDeps, at: number): void {
   // Armed only while a motion is in a polling phase: complete, abandon, held and finish cancel it.
@@ -911,6 +971,7 @@ export function onMotionTimer(t: MotionTx, deps: MotionDeps, at: number): void {
   tick(t);
 }
 
+
 /**
  * After live values changed (a report or a read): an alarm ends any motion (the controller stopped it) and
  * puts the session in ALARM; an alarm that cleared returns to idle. Returns false when motion was ended.
@@ -938,6 +999,7 @@ export function checkAlarm(t: MotionTx, at: number): boolean {
   if (s.base === 'ALARM' && restingStat(dialect(s), s.live.stat as number, s.live.hold)) t.set({ base: idleBase(s) });
   return true;
 }
+
 
 /** The link dropped or a FAULT latched: the motion is over (nothing more is fed). */
 export function abandonMotion(t: MotionTx): void {
