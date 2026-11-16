@@ -25,3 +25,9 @@ export function signatures(bytes: Uint8Array, signature: number): number[] {
   for (let at = 0; at + 4 <= bytes.length; at++) if (v.getUint32(at, true) === signature) result.push(at);
   return result;
 }
+
+/** A blob that claims to be over the per-file limit and must never be read. */
+export class TooLargeBlob extends Blob {
+  override get size(): number { return 50 * 1024 * 1024 + 1; }
+  override async arrayBuffer(): Promise<ArrayBuffer> { throw new Error('must not read'); }
+}

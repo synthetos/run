@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { writeZip } from '../src/projects/zip/writer.ts';
 import { entryBytes, readZip } from '../src/projects/zip/reader.ts';
+import { TooLargeBlob } from './zipFixtures.ts';
 it('round trips zero bytes and UTF-8 names with spaces', async () => {
   const zip = await writeZip([{ name: 'files/a/空 notes.txt', blob: new Blob() }, { name: 'files/b/切削 plate.nc', blob: new Blob(['G0 X1\n']) }]);
   const entries = await readZip(zip);
@@ -23,6 +24,5 @@ it('refuses more than 1000 entries', async () => {
   await expect(writeZip(Array.from({ length: 1001 }, (_, id) => ({ name: `files/${id}/a`, blob: new Blob() })))).rejects.toThrow(/too large/);
 });
 it('refuses a per-file overflow before reading bytes', async () => {
-  class TooLarge extends Blob { override get size() { return 50 * 1024 * 1024 + 1; } override async arrayBuffer(): Promise<ArrayBuffer> { throw new Error('must not read'); } }
-  await expect(writeZip([{ name: 'files/a/large.nc', blob: new TooLarge() }])).rejects.toThrow(/too large/);
+  await expect(writeZip([{ name: 'files/a/large.nc', blob: new TooLargeBlob() }])).rejects.toThrow(/too large/);
 });
