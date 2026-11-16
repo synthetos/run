@@ -607,9 +607,6 @@
     "packages/gcode-view/test/framing.test.ts": {
       "max-nested-callbacks $/ArrowFunctionExpression:describe('zoomToward (C19)')[1]#1/ArrowFunctionExpression:it('keeps the point under the cursor where it was (property)')[1]#1/ArrowFunctionExpression:fc.property()[3]#1/ArrowFunctionExpression:[0, 1, 2].map()[0]#1": 4
     },
-    "packages/gcode-view/test/renderer.test.ts": {
-      "max-lines-per-function $/ArrowFunctionExpression:describe('WebGL renderer')[1]#1": 138
-    },
     "packages/gcode/src/events.ts": {
       "max-params $/ClassDeclaration:EventRecorder#1/FunctionExpression:arc#1": 6,
       "max-params $/ClassDeclaration:EventRecorder#1/FunctionExpression:line#1": 5,
