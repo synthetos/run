@@ -44,6 +44,7 @@ import { type Emitted, type Piece, type Pos } from './interpreter/contract.ts';
 import { axisMm, offset, offsetMm, unitScale, work, zero } from './interpreter/coordinates.ts';
 import { addFinding, addFindingOnce } from './interpreter/findings.ts';
 import { initializeInterpreter } from './interpreter/initialize.ts';
+import { programEnd } from './interpreter/outputs.ts';
 import { ruleBlocks } from './interpreter/rules.ts';
 import { InterpreterState } from './interpreter/state.ts';
 import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis, type TimingModel } from './types.ts';
@@ -496,19 +497,7 @@ class Interpreter extends InterpreterState {
 
 
   /** M2/M30 (@cite EN canonical_machine.c:2174-2214): G92.1, default system, plane, units, G90, G80; outputs per dialect. */
-  programEnd(): void {
-    this.g92 = { offsets: zero(), active: false };
-    this.wcs = this.defaults.wcs;
-    this.plane = this.defaults.plane;
-    this.units = this.defaults.units;
-    this.distance = 'G90';
-    this.motion = 'G80';
-    if (this.job.programEndStopsOutputs) {
-      this.spindle = 'off';
-      this.mist = false;
-      this.flood = false;
-    }
-  }
+  programEnd(): void { return programEnd(this); }
 
 
   g10(params: ReadonlyMap<string, number>, axisWords: ReadonlyMap<Axis, number>, src: number, n: number, i: number): void {
