@@ -1,4 +1,5 @@
-import { FILE_MAX_BYTES, type FileError, type FileResult, type RecordActor } from '@synthetos/contracts';
+import type { FileError, FileResult, RecordActor } from '@synthetos/contracts';
+import { FILE_MAX_BYTES } from './limits.ts';
 import { accountRequest, type AccountData } from './accountGate.ts';
 import { API_CACHE_CONTROL } from './headers.ts';
 import { json, type Env } from './routes.ts';

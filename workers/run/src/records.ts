@@ -1,4 +1,5 @@
-import { RECORD_KINDS, recordMaxBytes, type RecordKind, type RecordResult } from '@synthetos/contracts';
+import type { RecordKind, RecordResult } from '@synthetos/contracts';
+import { RECORD_KINDS, recordMaxBytes } from './limits.ts';
 import { accountRequest, type Account } from './accountGate.ts';
 import { json, type Env } from './routes.ts';
 
