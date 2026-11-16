@@ -16,7 +16,7 @@ have only a cron handler and a fetch handler returning 404.
 | Repo | Production / staging Worker | Source D1 | UTC cron |
 | --- | --- | --- | --- |
 | accounts | accounts-backup / accounts-backup-staging | identity / identity-staging | 07:45 production / 07:30 staging daily |
-| run | run-backup / run-backup-staging | run-auth / run-auth-staging | 07:50 production / 07:35 staging daily |
+| run | run-backup / run-backup-staging | run-auth + run-data / run-auth-staging + run-data-staging | 07:50 production / 07:35 staging daily |
 
 Backup provisioning runs after the site's post-deploy check where one exists. If
 all source databases for the environment are absent, it prints “Backups not deployed
@@ -24,15 +24,25 @@ yet” in the log and job summary, publishes `ready=false`, and skips the backup
 deploy. No bucket or scratch resources are created in that case. With no D1 token,
 the existing API token must be able to list D1 databases to establish absence;
 a failed lookup is not treated as absence. Once any source exists, the D1 credential
-is required and missing sources or bucket/permission failures remain errors.
+is required and missing required sources or bucket/permission failures remain errors.
+Run-data is optional only while it is absent before provisioning: existing run-auth
+backups keep running. Once the database exists, provisioning binds SOURCE_DATA and
+the same nightly dump and monthly scratch restore run for both databases.
 
 The source databases are read-only **by code**, using SELECT (including schema
 metadata queries). D1 bindings themselves do not enforce read-only access. Scratch
 restores receive only the separate SCRATCH binding. Source and scratch IDs must
-differ. No source writes are issued by the cron path. Future run-data support adds
-one binding/database entry to `workers/backup/src/sources.ts` and regenerates the
+differ. No source writes are issued by the cron path. Run-data is listed alongside run-auth in `workers/backup/src/sources.ts` and both
 reviewed templates. Provisioning, exact gates and the cron consume that same list;
-no new credential or separate backup engine is needed.
+no new credential or separate database backup engine is needed.
+
+**File bytes are not yet backed up.** The existing backup Worker can dump D1 SQL to
+R2, but has no source-file bucket binding, object listing/pagination or streaming
+copy path. A nightly run-files → backup-bucket copy needs that new Worker capability,
+including environment isolation, bounded/resumable copying, retention and restore
+verification. It is explicitly outstanding; a successful run-data SQL backup protects
+metadata and references, not the referenced images/G-code. Do not treat database
+backup success as a file-byte recovery guarantee.
 
 Accounts provisions `synthetos-db-backups` idempotently during deploy, with no public
 r2.dev access or custom domain. Existing public configuration fails closed. It
@@ -117,7 +127,10 @@ these dedicated Workers only; normal application logging is unchanged. See
 Stop application writes before restoring and keep them stopped until sign-in and
 record checks pass. First record the current database ID and desired recovery
 point. Use Actions → **database-restore** → Run workflow, **main**. This is the
-checked-in, byte-pinned, manual-only workflow, not the nightly workflow. Its job
+checked-in, byte-pinned, manual-only workflow, not the nightly workflow. Select
+`run-auth` or `run-data` and type `RESTORE` followed by that exact database name.
+Restoring run-data restores metadata only; reconcile file-object availability before
+reopening writes. Its job
 uses the protected **production** environment and the same pinned toolchain.
 Type `RESTORE identity` in accounts or `RESTORE run-auth` in run. Review the selected
 inputs and approve the production job. Never dispatch with a guess about the

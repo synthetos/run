@@ -24,6 +24,11 @@
       "database_id": "SOURCE_DATABASE_ID"
     },
     {
+      "binding": "SOURCE_DATA",
+      "database_name": "run-data-staging",
+      "database_id": "SOURCE_DATABASE_ID"
+    },
+    {
       "binding": "SCRATCH",
       "database_name": "restore-test-run-staging",
       "database_id": "SCRATCH_DATABASE_ID"

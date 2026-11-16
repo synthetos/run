@@ -4,7 +4,8 @@ const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 export function workerConfig(environment, source, scratch, account) {
   if (!['staging', 'production'].includes(environment)) throw new Error('Invalid backup environment');
   const sourceIds = typeof source === 'string' ? { SOURCE: source } : source;
-  for (const id of [...SOURCES.map(s => sourceIds[s.binding]), scratch]) if (!UUID.test(id) && id !== 'SOURCE_DATABASE_ID' && id !== 'SCRATCH_DATABASE_ID') throw new Error('Invalid D1 binding id');
+  const sources = SOURCES.filter(s => !s.optional || sourceIds[s.binding] !== undefined);
+  for (const id of [...sources.map(s => sourceIds[s.binding]), scratch]) if (!UUID.test(id) && id !== 'SOURCE_DATABASE_ID' && id !== 'SCRATCH_DATABASE_ID') throw new Error('Invalid D1 binding id');
   if (account !== undefined && !/^[0-9a-f]{32}$/.test(account)) throw new Error('Invalid account');
   if (SOURCES.some(s => sourceIds[s.binding] === scratch)) throw new Error('Source and scratch must differ');
   const suffix = environment === 'staging' ? '-staging' : '';
@@ -13,7 +14,7 @@ export function workerConfig(environment, source, scratch, account) {
     ...(account === undefined ? {} : { account_id: account }), workers_dev: false, preview_urls: false, routes: [],
     observability: { enabled: true, head_sampling_rate: 1 }, triggers: { crons: [`${(REPO === 'accounts' ? 45 : 50) - (environment === 'staging' ? 15 : 0)} 7 * * *`] },
     vars: { BACKUP_ENV: environment },
-    d1_databases: [...SOURCES.map(s => ({ binding: s.binding, database_name: s.database + suffix, database_id: sourceIds[s.binding] })), { binding: 'SCRATCH', database_name: `restore-test-${REPO}${suffix}`, database_id: scratch }],
+    d1_databases: [...sources.map(s => ({ binding: s.binding, database_name: s.database + suffix, database_id: sourceIds[s.binding] })), { binding: 'SCRATCH', database_name: `restore-test-${REPO}${suffix}`, database_id: scratch }],
     r2_buckets: [{ binding: 'BACKUPS', bucket_name: 'synthetos-db-backups' }],
     find_additional_modules: true, rules: [{ type: 'ESModule', globs: [REPO === 'run' ? '**/*.mjs' : '**/*.js'] }],
   };

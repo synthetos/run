@@ -1,6 +1,6 @@
 import { backupStep, backupProvision, BACKUP_DEPLOY } from './backupCredentials.ts';
 import { reviewedBackupWorkflow } from './backupWorkflow.ts';
-import { dataStep, DATA_PROVISION, DATA_MIGRATION, DATA_DEPLOY } from './dataCredentials.ts';
+import { dataOrder, dataProvisionOrPreflight, dataStep, DATA_MIGRATION, DATA_DEPLOY } from './dataCredentials.ts';
 /**
  * Workflow policy check (ROADMAP P0-03, RUN_PLAN §6.2).
  *
@@ -397,7 +397,7 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
         add(line.no, 'secret-outside-deploy', `only ${DEPLOY_JOBS.join(' and ')} may reference secrets or ${DEPLOY_SECRET}`);
       } else {
         for (const m of content.matchAll(/\bsecrets\b(\s*\.\s*([A-Za-z0-9_]+))?/g)) {
-          if (m[2] !== DEPLOY_SECRET && !(m[2] === D1_SECRET && job !== undefined && (backupStep(stepOf(job, line), job.name) || dataStep(stepOf(job, line), job.name, DATA_PROVISION) || dataStep(stepOf(job, line), job.name, DATA_MIGRATION) || d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '') || d1ReadinessIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '')))) {
+          if (m[2] !== DEPLOY_SECRET && !(m[2] === D1_SECRET && job !== undefined && (backupStep(stepOf(job, line), job.name) || dataProvisionOrPreflight(stepOf(job, line), job.name) || dataStep(stepOf(job, line), job.name, DATA_MIGRATION) || d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '') || d1ReadinessIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '')))) {
             add(line.no, 'secret-outside-deploy', `deploy jobs may use secrets.${DEPLOY_SECRET}; the D1 credential is confined to the reviewed migration step`);
           }
         }
@@ -715,11 +715,7 @@ function checkDeployConfig(jobs: readonly Job[], add: (line: number, rule: Polic
     // A wrangler invocation: the word wrangler followed by a subcommand. The undo step's
     // `rollback-cli.ts <env> .../wrangler` passes the binary path only (its plan uses DEPLOY_CONFIG).
     const invocations = job.lines.filter((l) => /(^|[\s/])wrangler\s+[a-z]/.test(l.text) && !/^(?:-\s+)?name:/.test(l.text));
-    if (name === 'deploy-staging') {
-      const steps = [DATA_PROVISION, DATA_MIGRATION, DATA_DEPLOY].map(expected => job.lines.find(l => l.text === expected[expected.length-1] && dataStep(stepOf(job,l),name,expected)));
-      if (steps.some(s => s === undefined)) flag(job.line,'staging data provisioning, migrations and attested deploy require their exact confined steps');
-      else if (steps[0]!.no <= (preflight?.no ?? Infinity) || steps[1]!.no <= steps[0]!.no || steps[2]!.no <= steps[1]!.no || (deployment !== undefined && steps[2]!.no > deployment.no)) flag(job.line,'data provisioning, migrations and deploy must precede run deployment in order');
-    }
+    for (const message of dataOrder(job.lines, name, line => stepOf(job, line))) flag(job.line, message);
     const backupSmoke = job.lines.find(l => l.text === `run: node tools/gates/src/smoke/cli.ts --env ${env}`);
     const backup = [backupProvision(env), BACKUP_DEPLOY].map(expected => job.lines.find(l => l.text === expected[expected.length - 1] && backupStep(stepOf(job, l), name, expected === BACKUP_DEPLOY)));
     if (backup.some(line => line === undefined) || backup[0]!.no <= (backupSmoke?.no ?? Infinity) || backup[1]!.no <= backup[0]!.no) flag(job.line, 'backup provisioning and attested deployment require their exact ordered steps');

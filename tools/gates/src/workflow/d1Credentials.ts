@@ -38,5 +38,6 @@ export function d1ReadinessIsConfined(step: readonly StepLine[], environment: st
     `run: node tools/gates/src/deploy/preflight.ts workers/run/wrangler.jsonc ${environment} --write workers/run/wrangler.deploy.json`,
   ];
   const indents = [6, 8, 8, 10, 10, 8];
+  if (environment === 'production') { expected.splice(5, 0, 'RUN_DATA_READY: ${{ steps.data_config.outputs.ready }}'); indents.splice(5, 0, 10); }
   return step.length === expected.length && step.every((line, index) => !line.inBlock && line.text === expected[index] && line.indent === indents[index]);
 }

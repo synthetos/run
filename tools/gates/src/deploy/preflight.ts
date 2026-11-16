@@ -48,15 +48,13 @@ function main(argv: readonly string[]): number {
     for (const entry of readdirSync(process.cwd())) {
       if (/^\.env(\.|$)/i.test(entry)) findings.push({ where: entry, message: 'a dotenv file in the deploy working directory is never allowed: wrangler loads it into its environment, with the deploy token' });
     }
-    // Production deploys normally without RUN_DATA. checkWorkerConfig's exact service allowlist
-    // refuses production data bindings while only staging data resources are provisioned.
     if (findings.length > 0) {
       process.stderr.write(`deploy preflight (${env}): refused, nothing was deployed\n`);
       for (const f of findings) process.stderr.write(`  ${f.where}: ${f.message}\n`);
       return 1;
     }
     // 'wx': never overwrite. A deployment configuration already in the checkout was not written by this check.
-    const prepared = deployConfig(config, { requireRealAccount: true, deploying: env, authReady: process.env['RUN_AUTH_MIGRATIONS_READY'] === 'true' });
+    const prepared = deployConfig(config, { requireRealAccount: true, deploying: env, authReady: process.env['RUN_AUTH_MIGRATIONS_READY'] === 'true', dataReady: process.env['RUN_DATA_READY'] === 'true' });
     writeFileSync(out, `${JSON.stringify(prepared, null, 2)}\n`, { flag: 'wx' });
     const scope = env === 'production' ? prepared : (prepared['env'] as { staging: Record<string, unknown> }).staging;
     const enabled = Array.isArray(scope['d1_databases']) && scope['d1_databases'].length > 0;

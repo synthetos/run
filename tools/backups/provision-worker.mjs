@@ -10,7 +10,8 @@ export async function provisionWorker(environment, account, d1, r2, lookup = d1 
   for (const binding of template.d1_databases.filter(d => d.binding !== 'SCRATCH')) ids[binding.binding] = await databaseId(lookup, binding.database_name, false, true);
   if (Object.values(ids).every(id => id === null)) return null;
   if (!d1) throw new Error('Missing credential: CLOUDFLARE_D1_API_TOKEN: D1: Edit');
-  if (Object.values(ids).some(id => id === null)) throw new Error('Some backup source databases are missing');
+  if (SOURCES.some(s => !s.optional && ids[s.binding] === null)) throw new Error('Some required backup source databases are missing');
+  for (const source of SOURCES) if (source.optional && ids[source.binding] === null) delete ids[source.binding];
   if (REPO === 'accounts') await provisionBucket(r2); else await assertPrivate(r2);
   const scratchName = template.d1_databases.find(d => d.binding === 'SCRATCH').database_name;
   const scratch = await databaseId(d1, scratchName, true);

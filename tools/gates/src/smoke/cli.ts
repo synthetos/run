@@ -29,6 +29,7 @@
  *
  * Exit status: 0 pass, 1 findings, 2 could not run.
  */
+import { checkStorage } from './storage.ts';
 import { Resolver } from 'node:dns/promises';
 import { connect } from 'node:tls';
 import { parseArgs } from 'node:util';
@@ -79,6 +80,7 @@ async function httpChecks(base: string, env: string): Promise<SmokeFinding[]> {
   if (missing.status !== 404) findings.push({ check: 'not-found', message: `${missing.url}: status ${missing.status}, expected 404` });
   findings.push(...checkSecurityHeaders(missing));
   findings.push(...checkHealth(await get(`${base}/api/health`), env));
+  if (env === 'production') findings.push(...checkStorage(await get(`${base}/api/records/tool`)));
   return findings;
 }
 

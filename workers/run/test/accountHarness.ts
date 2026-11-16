@@ -19,7 +19,7 @@ export function accountEnv(environment: 'staging' | 'production') {
     listFiles: async (actor) => seen(actor, []),
     deleteFile: async (actor) => seen(actor, notFound),
   };
-  return { env: { ...env, RUN_DATA: data }, data, actors };
+  return { env: { ...env, RUN_DATA: data }, data, actors, origin: environment === 'production' ? 'https://run.synthetos.com' : 'https://staging.run.synthetos.com' };
 }
 
 export const SESSION_COOKIE = `__Host-run_sid=${Buffer.alloc(32, 1).toString('base64url')}`;

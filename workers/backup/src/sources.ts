@@ -1,2 +1,2 @@
-// Add a reviewed production database here when it exists; provisioning and the cron share this list.
-export const SOURCES = [{ binding: 'SOURCE', database: 'run-auth' }] as const;
+// Provisioning and cron share the reviewed sources. Missing optional data leaves existing auth backups running.
+export const SOURCES = [{ binding: 'SOURCE', database: 'run-auth', optional: false }, { binding: 'SOURCE_DATA', database: 'run-data', optional: true }] as const;

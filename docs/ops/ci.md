@@ -382,12 +382,27 @@ printed. R2 runs first because its grant is the most likely missing permission.
 
 Creation APIs: [D1](https://developers.cloudflare.com/api/typescript/resources/d1/subresources/database/methods/create/)
 and [R2 buckets](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/).
-No manual wrangler command, database id entry, or deployment is required of the owner.
-Production run deployments continue without a RUN_DATA binding. Data provisioning,
-migrations and the run-data Worker deploy run only in staging; production data ids
-remain placeholders. The production service allowlist refuses RUN_DATA or run-data
-references until production data support is explicitly added. Without the binding,
-and whenever RUN_ENV is not staging, the records route returns 503.
+Staging still provisions automatically in its gated deployment. Production uses the protected,
+main-only **production-provision** workflow: run-auth first, then the same data provisioning
+CLI with `production`. It prints the run-data database id and run-files bucket name, without
+writing deployment configuration. The owner reviews the identifier PR before deployment;
+no local wrangler, resource creation, DNS change, or new credential is part of this slice.
+
+Production data preflight positively checks the reviewed private configuration and strips
+RUN_DATA from Run while either data placeholder remains. With real identifiers, the existing
+D1-only credential must be available. CI applies RUN_DATA_DB migrations, deploys the attested
+`worker/data/index.mjs` without bundling, then deploys Run; production uses no `--env`.
+Exact workflow checks enforce this order, readiness conditions and credential confinement.
+A data migration/deploy failure prevents the site step and cannot roll back an unchanged site.
+Run's existing site-smoke rollback remains; it never deletes data or reverses migrations.
+Signed-out production smoke checks `/api/records/tool` for 401 (bound) or 503 (not yet bound),
+with security headers and no-store. Staging smoke is unchanged. Both hosts enforce session
+and same-origin checks when storage is bound; an absent binding answers 503.
+
+After successful site smoke the private backup Worker adds run-data to its existing D1
+backup/restore-check loop. It keeps run-auth backups running before run-data exists.
+Nightly copying of R2 file bytes requires a separate Worker capability and is **not**
+implemented by database backups; see database-backups.md and go-live-staging.md §7.3–7.4.
 
 Records use `/api/records/<kind>` for `tool`, `material`, `machine` and `project` (GET list, with optional `after`
 last-id cursor, 100 records per page), and `/api/records/<kind>/<id>` (GET, PUT, DELETE). A project record may be up to

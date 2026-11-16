@@ -84,3 +84,17 @@ test('existing resources publish ready=true and the unchanged exact config', () 
     assert.deepEqual(JSON.parse(readFileSync(join(directory, file), 'utf8')), workerConfig('production', source, scratch, env.CLOUDFLARE_ACCOUNT_ID));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+test('includes run-data in each environment when it exists, without creating source databases', async () => {
+  if (REPO !== 'run') return;
+  const auth = '11111111-2222-4333-8444-555555555555', data = '22222222-2222-4333-8444-555555555555', scratch = '66666666-7777-4888-9999-aaaaaaaaaaaa';
+  for (const environment of ['production', 'staging']) {
+    const suffix = environment === 'staging' ? '-staging' : '';
+    const d1 = async (_path, method = 'GET') => { assert.equal(method, 'GET'); return { result: [{ name: `run-auth${suffix}`, uuid: auth }, { name: `run-data${suffix}`, uuid: data }, { name: `restore-test-run${suffix}`, uuid: scratch }] }; };
+    const r2 = async path => ({ result: path.endsWith('/managed') ? { enabled: false } : path.endsWith('/custom') ? { domains: [] } : {} });
+    const config = await provisionWorker(environment, 'a'.repeat(32), d1, r2);
+    assert.equal(checkBackupConfig(config, environment), true);
+    assert.deepEqual(config.d1_databases.map(d => [d.binding, d.database_name, d.database_id]), [['SOURCE', `run-auth${suffix}`, auth], ['SOURCE_DATA', `run-data${suffix}`, data], ['SCRATCH', `restore-test-run${suffix}`, scratch]]);
+    assert.throws(() => workerConfig(environment, { SOURCE: auth, SOURCE_DATA: data }, data), /differ/);
+  }
+});

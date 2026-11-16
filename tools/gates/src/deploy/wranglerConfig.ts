@@ -100,7 +100,7 @@ export const EXPECTED_STAGING_ASSETS = EXPECTED_ASSETS;
  * tools/gates/src/bindings/check.ts: no other configuration in this repository may bind accounts.
  */
 export const EXPECTED_SERVICES: Readonly<Record<DeployEnvironment, readonly { binding: string; service: string; entrypoint: string }[]>> = {
-  production: [{ binding: 'ACCOUNTS', service: 'accounts', entrypoint: 'RunEntrypoint' }],
+  production: [{ binding: 'ACCOUNTS', service: 'accounts', entrypoint: 'RunEntrypoint' }, { binding: 'RUN_DATA', service: 'run-data', entrypoint: 'AppEntrypoint' }],
   staging: [{ binding: 'ACCOUNTS', service: 'accounts-staging', entrypoint: 'RunEntrypoint' }, { binding: 'RUN_DATA', service: 'run-data-staging', entrypoint: 'AppEntrypoint' }],
 };
 
@@ -175,9 +175,13 @@ export interface ConfigFinding {
  * owner's go-live step, docs/ops/go-live-staging.md §7): that deploys as before. With either key present, both must
  * be exactly accounts' RunEntrypoint and the environment's RUN_AUTH database, and only a real id is retained in the deployment configuration.
  */
+function validServices(services: unknown, environment: DeployEnvironment): boolean {
+  return same(services, EXPECTED_SERVICES[environment]) || (environment === 'production' && same(services, EXPECTED_SERVICES.production.filter(s => s.binding !== 'RUN_DATA')));
+}
+
 function checkAuthBindings(scope: Json, env: DeployEnvironment, add: (message: string) => void): void {
   if (!('services' in scope) && !('d1_databases' in scope)) return;
-  if (!same(scope['services'], EXPECTED_SERVICES[env])) add(`services must be exactly ${JSON.stringify(EXPECTED_SERVICES[env])} (A1-06; D39: only accounts' RunEntrypoint)`);
+  if (!validServices(scope['services'], env)) add(`services must be exactly ${JSON.stringify(EXPECTED_SERVICES[env])} (A1-06; D39: only accounts' RunEntrypoint)`);
   const db = RUN_AUTH_DATABASES[env];
   const list = scope['d1_databases'];
   const entry = Array.isArray(list) && list.length === 1 && isObject(list[0]) ? list[0] : null;
@@ -225,6 +229,8 @@ export interface CheckOptions {
   readonly requireRealAccount: boolean;
   /** False strips sign-in bindings; CI passes only whether its separate migration credential exists. */
   readonly authReady?: boolean;
+  /** Production data is enabled only when preflight prepared real reviewed resource ids. */
+  readonly dataReady?: boolean;
   /** The environment being deployed (A1-07). Placeholder bindings are stripped. */
   readonly deploying?: DeployEnvironment;
 }
@@ -299,9 +305,14 @@ export function deployConfig(config: unknown, options: CheckOptions): Record<str
       delete scope['services'];
     }
   }
+  stripDataBinding(out, options.dataReady);
   out['env'] = { staging: env };
   // The written file must pass the same check (it is what wrangler reads).
   const again = checkWorkerConfig(out, options);
   if (again.length > 0) throw new Error(`internal: the deployment configuration fails its own check: ${JSON.stringify(again)}`);
   return out;
+}
+
+function stripDataBinding(scope: Json, ready: boolean | undefined): void {
+  if (ready !== true && Array.isArray(scope['services'])) scope['services'] = scope['services'].filter((s: { binding: string }) => s.binding !== 'RUN_DATA');
 }

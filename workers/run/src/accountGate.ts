@@ -1,7 +1,7 @@
 /**
  * The checks every account data request passes, in order: a validated run session (401), an allowed method (405),
- * the same origin and, on a mutation, the custom header (403), and a data binding on this host (503: staging
- * only until go-live). The actor comes from the session alone, never from the body or the URL.
+ * the same origin and, on a mutation, the custom header (403). A missing data binding answers 503 before
+ * session checks (production stays off until reviewed resources are deployed). The actor comes from the session alone, never from the body or the URL.
  */
 import type { RecordActor, RunDataBinding, RunFilesBinding } from '@synthetos/contracts';
 import { authConfig } from './authConfig.ts';
@@ -44,6 +44,7 @@ export interface GateRules {
 
 export async function accountRequest(request: Request, env: Env, rules: GateRules): Promise<AccountRequest> {
   const { allow, unavailable, body = 'json' } = rules;
+  if (env.RUN_DATA === undefined) return refuse(json(503, { error: unavailable }));
   const config = authConfig(env, new URL(request.url));
   const identity = config === null ? null : await runSessionIdentity(request, config);
   if (identity === null || config === null) return refuse(json(401, { error: 'not_signed_in' }));
@@ -52,6 +53,5 @@ export async function accountRequest(request: Request, env: Env, rules: GateRule
   const site = request.headers.get('sec-fetch-site');
   const crossOrigin = (origin !== null && origin !== config.runOrigin) || (site !== null && site !== 'same-origin');
   if (crossOrigin || (request.method !== 'GET' && !allowedMutation(request, config.runOrigin, body))) return refuse(json(403, { error: 'cross_origin' }));
-  if (env.RUN_DATA === undefined || env.RUN_ENV !== 'staging') return refuse(json(503, { error: unavailable }));
   return { ok: true, actor: { userId: identity.subject, label: identity.display }, data: env.RUN_DATA };
 }

@@ -1476,10 +1476,6 @@
     "tools/gates/src/deploy/authProvision.ts": {
       "complexity $/FunctionDeclaration:provisionDatabase#1": 23
     },
-    "tools/gates/src/deploy/dataProvision.ts": {
-      "complexity $/FunctionDeclaration:provisionData#1": 17,
-      "max-params $/FunctionDeclaration:provisionData#1/FunctionDeclaration:api#1": 6
-    },
     "tools/gates/src/deploy/preflight.ts": {
       "complexity $/FunctionDeclaration:main#1": 22
     },
@@ -1527,11 +1523,11 @@
     },
     "tools/gates/src/workflow/policy.ts": {
       "complexity $/FunctionDeclaration:checkArtifactDigests#1": 21,
-      "complexity $/FunctionDeclaration:checkDeployConfig#1": 43,
+      "complexity $/FunctionDeclaration:checkDeployConfig#1": 35,
       "complexity $/FunctionDeclaration:checkSafetyReviewShape#1": 28,
       "complexity $/FunctionDeclaration:checkWorkflow#1": 141,
       "max-depth $/FunctionDeclaration:checkWorkflow#1": 5,
-      "max-lines $file": 685,
+      "max-lines $file": 681,
       "max-lines-per-function $/FunctionDeclaration:checkWorkflow#1": 199
     },
     "tools/gates/test/acceptance.test.ts": {

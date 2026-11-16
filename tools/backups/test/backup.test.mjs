@@ -139,3 +139,10 @@ test('manual SQL recovery verifies scratch, saves existing production first, the
     } finally { scratch.close(); production.close(); }
   }
 });
+
+test('run-data recovery requires its own confirmation and archive namespace', async () => {
+  const { DATABASES } = await import('../config.mjs');
+  const env = { GITHUB_ACTIONS: 'true', GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch', BACKUP_ENV: 'production', RESTORE_DATABASE: 'run-data', RESTORE_CONFIRM: 'RESTORE run-data', RESTORE_MODE: 'sql', RESTORE_KEY: 'run/run-data/2026-11-01/run-data-2026-11-01T0715Z.sql.gz' };
+  assert.equal(restoreRequest(env, 'run', DATABASES).mode, 'sql');
+  for (const patch of [{ RESTORE_CONFIRM: 'RESTORE run-auth' }, { RESTORE_KEY: 'run/run-auth/2026-11-01/run-auth-2026-11-01T0715Z.sql.gz' }]) assert.throws(() => restoreRequest({ ...env, ...patch }, 'run', DATABASES));
+});

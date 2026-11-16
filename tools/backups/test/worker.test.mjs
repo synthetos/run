@@ -78,3 +78,18 @@ test('Worker HTTP entry is inert; failure logs never include a D1 error or row v
   await assert.rejects(backupScheduled('accounts', 'production', [{ name: 'identity', database: failed }], { prepare: () => { throw new Error('Scratch must not be reached'); } }, bucket(), new Date('2026-11-02T07:45:00Z'), r => logs.push(r)), error => !error.message.includes('secret row'));
   assert.equal(logs.length, 1); assert.equal(logs[0].stage, 'dump'); assert.ok(!JSON.stringify(logs).includes('secret row'));
 });
+
+test('the deployed cron backs up both auth and data through the same restore-tested path', async () => {
+  const { default: worker } = await import('../../../workers/backup/src/index.ts');
+  const auth = local(), data = local(), scratch = local(), objects = bucket(), logs = [];
+  const original = console.log;
+  try {
+    auth.db.exec('CREATE TABLE auth_test(id INTEGER); INSERT INTO auth_test VALUES(1);');
+    data.db.exec('CREATE TABLE files_test(id INTEGER); INSERT INTO files_test VALUES(2);');
+    console.log = line => logs.push(JSON.parse(line));
+    await worker.scheduled({ scheduledTime: Date.parse('2026-12-01T07:50:00Z') }, { SOURCE: auth, SOURCE_DATA: data, SCRATCH: scratch, BACKUPS: objects, BACKUP_ENV: 'production' });
+    assert.deepEqual(logs.map(l => [l.database, l.status, l.restore]), [['run-auth', 'ok', 'passed-and-emptied'], ['run-data', 'ok', 'passed-and-emptied']]);
+    assert.ok([...objects.values.keys()].some(key => key.includes('/run-data/')));
+    assert.equal(data.db.prepare('SELECT id FROM files_test').get().id, 2);
+  } finally { console.log = original; auth.db.close(); data.db.close(); scratch.db.close(); }
+});

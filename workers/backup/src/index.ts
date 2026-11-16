@@ -5,7 +5,7 @@ interface Env { [binding: string]: unknown; SCRATCH: Database; BACKUPS: Bucket; 
 export default {
   fetch(): Response { return new Response(null, { status: 404 }); },
   async scheduled(event: { scheduledTime: number }, env: Env): Promise<void> {
-    const sources = SOURCES.map(source => ({ name: source.database + (env.BACKUP_ENV === 'staging' ? '-staging' : ''), database: env[source.binding] as Database }));
+    const sources = SOURCES.filter(source => !source.optional || env[source.binding] !== undefined).map(source => ({ name: source.database + (env.BACKUP_ENV === 'staging' ? '-staging' : ''), database: env[source.binding] as Database }));
     await backupScheduled('run', env.BACKUP_ENV, sources, env.SCRATCH, env.BACKUPS, new Date(event.scheduledTime), record => console.log(JSON.stringify(record)));
   },
 };

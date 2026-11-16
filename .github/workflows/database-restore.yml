@@ -14,13 +14,14 @@
         "database": {
           "type": "choice",
           "options": [
-            "run-auth"
+            "run-auth",
+            "run-data"
           ],
           "required": true
         },
         "confirm": {
           "type": "string",
-          "description": "Type RESTORE run-auth",
+          "description": "Type RESTORE followed by the selected database name",
           "required": true
         },
         "timestamp": {

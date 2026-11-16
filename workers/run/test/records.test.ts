@@ -1,13 +1,15 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { route } from '../src/routes.ts';
 import { accountEnv } from './accountHarness.ts';
+describe.each(['staging', 'production'] as const)('%s records', environment => {
+const origin = environment === 'production' ? 'https://run.synthetos.com' : 'https://staging.run.synthetos.com';
 function setup() {
-  const { env, data, actors } = accountEnv('staging');
+  const { env, data, actors } = accountEnv(environment);
   data.list=async(actor)=>{actors.push(actor);return[];};data.get=async(actor)=>{actors.push(actor);return {ok:false,error:'not_found'};};
   data.put=async(actor)=>{actors.push(actor);return {ok:false,error:'conflict',current:null};};data.archive=async(actor)=>{actors.push(actor);return {ok:false,error:'not_found'};};
   return {env,actors};
 }
-const request=(path:string,method='GET',payload?:unknown, extra:Record<string,string>={})=>new Request(`https://staging.run.synthetos.com/api/records/${path}`,{method,headers:{cookie:'__Host-run_sid='+ Buffer.alloc(32,1).toString('base64url'),origin:'https://staging.run.synthetos.com','sec-fetch-site':'same-origin','x-synthetos-request':'1','content-type':'application/json',...extra},...(payload===undefined?{}:{body:JSON.stringify(payload)})});
+const request=(path:string,method='GET',payload?:unknown, extra:Record<string,string>={})=>new Request(`${origin}/api/records/${path}`,{method,headers:{cookie:'__Host-run_sid='+ Buffer.alloc(32,1).toString('base64url'),origin,'sec-fetch-site':'same-origin','x-synthetos-request':'1','content-type':'application/json',...extra},...(payload===undefined?{}:{body:JSON.stringify(payload)})});
 it('requires the run session, including on reads; Access is not an account',async()=>{
  const {env,actors}=setup();env.ACCOUNTS!.validateSession=async()=>null;
  expect((await route(request('tool'),env)).status).toBe(401);expect(actors).toEqual([]);
@@ -42,4 +44,10 @@ it('passes an explicit archived-record listing flag and rejects other values', a
  expect((await route(request('tool'),env)).status).toBe(200);
  expect(flags).toEqual([true,false]);
  expect((await route(request('tool?include_archived=yes'),env)).status).toBe(400);
+});
+it('keeps storage unavailable without the binding, even signed out', async () => {
+ const { RUN_DATA: _data, ...env } = setup().env;
+ expect((await route(new Request(`${origin}/api/records/tool`), env)).status).toBe(503);
+ expect((await route(request('tool'), env)).status).toBe(503);
+});
 });

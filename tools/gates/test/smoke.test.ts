@@ -211,6 +211,11 @@ describe('smoke CLI in local mode, against a live server', () => {
       } else if (path === '/assets/workspace-AAAAAAAA.js') {
         headers['content-type'] = 'text/javascript';
         body = 'export {};';
+      } else if (path === '/api/records/tool') {
+        status = 401;
+        headers['content-type'] = 'application/json; charset=utf-8';
+        headers['cache-control'] = 'no-store';
+        body = JSON.stringify({ error: 'not_signed_in' });
       } else if (path === '/api/health') {
         headers['content-type'] = 'application/json; charset=utf-8';
         headers['cache-control'] = 'no-store';
