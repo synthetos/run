@@ -894,20 +894,6 @@
       "max-lines-per-function $/ArrowFunctionExpression:describe('MachineSession: failures')[1]#1": 133,
       "max-nested-callbacks $/ArrowFunctionExpression:describe('MachineSession: connecting')[1]#1/ArrowFunctionExpression:it('disconnecting while the port is being found abandons it (the transport is never opened)')[1]#1/ObjectExpression:MachineSession()[0]#1/ArrowFunctionExpression:source()[0]#1/ArrowFunctionExpression:Promise()[0]#1": 4
     },
-    "packages/machine/test/session-reducer.test.ts": {
-      "complexity $/FunctionDeclaration:apply#1": 20,
-      "max-lines $file": 1384,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('FAULT triggers and ackFault (SAFETY §3)')[1]#1": 139,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('LOST, STALE, NEEDS_REVIEW')[1]#1": 99,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('ORPHANED_MOTION (PN §2.3 step 0; SAFETY H14)')[1]#1": 195,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('intents through the allow-matrix (T-S3) and the Phase 1 session')[1]#1": 135,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('splice guard and boot (PN §2.3 step 0 and 1; SAFETY H49)')[1]#1": 184,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('the connection path')[1]#1": 91,
-      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S26, T-S24a: generated over states × events (and every overlay reached on the way)')[1]#1/ArrowFunctionExpression:it('no effect ever carries 0x18 or 0x04; realtime is only ! and ENQ; every line is a single-token GET readable at that moment')[1]#1/ArrowFunctionExpression:fc.property()[5]#1/ArrowFunctionExpression:OVERLAYS.filter()[0]#1": 4,
-      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S26, T-S24a: generated over states × events (and every overlay reached on the way)')[1]#1/ArrowFunctionExpression:it('no effect ever carries 0x18 or 0x04; realtime is only ! and ENQ; every line is a single-token GET readable at that moment')[1]#1/ArrowFunctionExpression:fc.property()[5]#1/ArrowFunctionExpression:d.answer()[1]#1": 4,
-      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S26, T-S24a: generated over states × events (and every overlay reached on the way)')[1]#1/ArrowFunctionExpression:it('no effect ever carries 0x18 or 0x04; realtime is only ! and ENQ; every line is a single-token GET readable at that moment')[1]#1/ArrowFunctionExpression:fc.property()[5]#1/ArrowFunctionExpression:d.state.expected.filter()[0]#1": 4,
-      "max-params $/ArrowFunctionExpression:describe('T-S26, T-S24a: generated over states × events (and every overlay reached on the way)')[1]#1/ArrowFunctionExpression:it('no effect ever carries 0x18 or 0x04; realtime is only ! and ENQ; every line is a single-token GET readable at that moment')[1]#1/ArrowFunctionExpression:fc.property()[5]#1": 5
-    },
     "packages/machine/test/sessionModel.ts": {
       "complexity $/FunctionDeclaration:checkConnection#1": 20,
       "complexity $/FunctionDeclaration:randomSession#1": 19
