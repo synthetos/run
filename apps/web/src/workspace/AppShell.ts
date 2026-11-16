@@ -32,6 +32,7 @@ import { signalText } from '../shell/signal.ts';
 import { THEME_TOGGLE_ATTR } from '../shell/SiteHeader.ts';
 import type { TabRole } from '../live/tabStop.ts';
 import { Icon, type IconName } from './icons.ts';
+import { AccountMenu, accountMenuProps } from './AccountMenu.ts';
 import { selectedMachine } from './library.ts';
 import { MachineStrip } from './MachineStrip.ts';
 import { INITIAL_LIVE_VIEW, portOpen, type WorkspaceModel } from './model.ts';
@@ -112,45 +113,6 @@ function Strip(props: AppShellProps): ComponentChild {
     motion: view.message?.motion === true,
     holdOutputs: view.message?.snapshot.classification?.dialectId === 'tinyg-en' && (view.message.snapshot.identity?.fb ?? 0) >= 450.04,
   });
-}
-
-function AccountMenu(): ComponentChild {
-  const [open, setOpen] = useState(false);
-  return h(
-    'div',
-    { class: 'account' },
-    h(
-      'button',
-      { type: 'button', class: 'account-button', 'aria-haspopup': 'true', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': 'account-menu', 'aria-label': 'Account: not signed in. Changes are kept in this browser', onClick: () => setOpen(!open) },
-      h('span', { class: 'avatar', 'aria-hidden': 'true' }, Icon('cloud', 16)),
-      h('span', { class: 'sync-badge', 'data-sync': 'local', 'aria-hidden': 'true' }),
-    ),
-    open
-      ? h(
-          'div',
-          { class: 'account-menu', id: 'account-menu', role: 'menu' },
-          h('div', { class: 'account-id' }, h('span', { class: 'avatar large', 'aria-hidden': 'true' }, Icon('cloud', 18)), h('div', null, h('strong', null, 'Not signed in'), h('small', null, 'Synthetos accounts arrive soon'))),
-          h('div', { class: 'sync-row', 'data-sync': 'local' }, h('div', null, h('strong', null, 'Saved in this browser'), h('small', null, 'Machines, tools and materials stay on this computer.'))),
-          h('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: true }, 'Sign in (coming soon)'),
-          h(
-            'button',
-            {
-              type: 'button',
-              class: 'menu-item',
-              role: 'menuitem',
-              'data-action': 'report-problem',
-              onClick: () => {
-                setOpen(false);
-                openReport({ origin: 'menu' });
-              },
-            },
-            Icon('flag', 15),
-            'Report a problem',
-          ),
-          h('p', { class: 'menu-foot' }, 'Pause, Stop job and the other stop controls never need you to be signed in.'),
-        )
-      : null,
-  );
 }
 
 function Banners(props: AppShellProps & { readonly view: ViewId }): ComponentChild {
@@ -277,7 +239,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
         { class: 'top-actions' },
         h(LevelSwitch, null),
         h('button', { type: 'button', class: 'icon-button quiet theme-toggle', [THEME_TOGGLE_ATTR]: '', 'aria-label': 'Toggle day/night mode', title: 'Toggle day/night mode' }, h('span', { class: 'theme-sun' }, Icon('sun', 18)), h('span', { class: 'theme-moon' }, Icon('moon', 18))),
-        h(AccountMenu, null),
+        h(AccountMenu, accountMenuProps(props.model)),
       ),
     ),
     h(Strip, props),

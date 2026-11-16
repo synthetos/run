@@ -706,6 +706,9 @@ table { border-collapse: collapse; }
 .sync-row small { display: block; color: var(--muted); font-size: 11.5px; }
 .menu-item { width: 100%; justify-content: flex-start; border: 0; background: none; min-height: 34px; padding: 0 10px; font-weight: 400; }
 .menu-item:hover:not(:disabled) { background: var(--blue-wash) !important; }
+/* The sign-in entry is a link (CSP: form-action 'none'), styled like the button items. */
+a.menu-item { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; box-sizing: border-box; }
+a.menu-item:hover { background: var(--blue-wash); }
 .menu-item:disabled { background: none; }
 .menu-foot { font-size: 11.5px; color: var(--muted); padding: 8px 10px 6px; border-top: 1px solid var(--line-soft); margin-top: 4px; }
 

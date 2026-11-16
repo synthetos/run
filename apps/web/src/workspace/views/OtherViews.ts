@@ -10,6 +10,7 @@ import { jobSaved } from '../jobModel.ts';
 import { Icon } from '../icons.ts';
 import { openReport } from '../../report/state.ts';
 import { connected, type WorkspaceModel } from '../model.ts';
+import { liveNow } from '../liveNow.ts';
 import { stopJobSafetyText } from '../stopJobText.ts';
 import { Dismissable } from '../notes/Dismissable.ts';
 import { AccountPanel } from '../../live/AccountPanel.ts';
@@ -22,11 +23,6 @@ function head(title: string, sub: string): ComponentChild {
 export { AnalyzeView } from './AnalyzeView.ts';
 
 /** True while a machine is connected or connecting (any LIVE step): sign-out is refused then (T-S58). */
-function liveNow(model: WorkspaceModel | null): boolean {
-  const view = model?.live.value ?? null;
-  if (view === null) return false;
-  return connected(view) || view.entry.step === 'live' || view.entry.step === 'opening';
-}
 
 export function PreferencesView({ build, model = null }: { readonly build: BuildInfo; readonly model?: WorkspaceModel | null }): ComponentChild {
   const saved = toolStore.saved.value && jobSaved.value;
