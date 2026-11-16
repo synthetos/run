@@ -46,7 +46,6 @@ import {
     dialectOf,
     draftStore,
     MOTORS,
-    pinByRef,
     plainValue,
     settingMeta,
     settingsOf,
@@ -66,10 +65,8 @@ import { boardTab, type BoardTab as Tab } from '../boardNavigation.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 
 import { GuidedSettings } from '../settings/GuidedSettings.ts';
-import { BoardFacts } from './board/identity.ts';
-import { BoardIllustration } from './board/illustration.ts';
 import { MOTOR_FIELDS, MotorDraft } from './board/motorDraft.ts';
-import { PinCard } from './board/pin.ts';
+import { OverviewTab } from './board/overview.ts';
 import { cell, EditToggle, Empty, type Settings } from './board/shared.ts';
 
 
@@ -78,47 +75,6 @@ import { cell, EditToggle, Empty, type Settings } from './board/shared.ts';
 export { MotorDraft } from './board/motorDraft.ts';
 export { FirmwareTab } from './FirmwareViews.ts';
 
-
-
-type OverviewSide = 'board' | 'pin';
-
-
-function OverviewTab({ view }: { readonly view: LiveView | null }): ComponentChild {
-  const [selected, setSelected] = useState<string | null>(null);
-  const [side, setSide] = useState<OverviewSide>('board');
-  const settings = settingsOf(view);
-  const pin = selected === null ? null : pinByRef(selected);
-  const select = (ref: string): void => {
-    setSelected(ref);
-    setSide('pin');
-  };
-  return h(
-    'div',
-    { class: 'configure-grid' },
-    h(
-      'div',
-      { class: 'viewer board-canvas' },
-      h('div', { class: 'viewer-top' }, h('span', { class: 'viewer-label' }, 'TinyG v8 · choose any terminal')),
-      h(BoardIllustration, { selected, onSelect: select, settings }),
-      h('div', { class: 'viewer-foot' }, h(Dismissable, { id: 'board/drawing-source', label: 'where the drawing comes from', inNotes: false }, 'Drawn from public information about the board · pin names from the board definition · check your board’s revision')),
-    ),
-    h(
-      'aside',
-      { class: 'inspector tabbed', 'aria-label': 'Board' },
-      h(TabBar<OverviewSide>, { label: 'Board details', prefix: 'bside', variant: 'underline', current: side, onSelect: setSide, tabs: [{ id: 'board', label: 'This board' }, { id: 'pin', label: pin === null ? 'Selected pin' : pin.ref }] }),
-      h(TabPane, { prefix: 'bside', id: 'board', current: side, class: 'tpane insp-scroll' }, h(BoardFacts, { view })),
-      h(
-        TabPane,
-        { prefix: 'bside', id: 'pin', current: side, class: 'tpane insp-scroll' },
-        pin === null
-          ? h('section', { class: 'insp' }, h('p', { class: 'fine' }, 'Select a pin to see its wiring and settings.'))
-          : pin.role === 'motor'
-            ? [h(PinCard, { key: 'card', pin, view, onClose: () => setSelected(null) }), h(MotorDraft, { key: 'draft', motor: Number(pin.connector.slice(1)), view })]
-            : h(PinCard, { pin, view, onClose: () => setSelected(null) }),
-      ),
-    ),
-  );
-}
 
 
 // ---------------------------------------------------------------- motors, axes, inputs, outputs, comms
