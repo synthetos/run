@@ -82,14 +82,15 @@ import { failJob, forgetJobLines, jobActive, jobStopped, lastFileLine } from './
 
 import { typedAlarmed, typedCheckTimedOut, typedEnded } from './typedNotice.ts';
 
-import { afterHold, piecesLeft, raiseDone, raiseRestore } from './typedPieces.ts';
+import { piecesLeft, raiseDone, raiseRestore } from './typedPieces.ts';
 
 import { type MotionDeps, type MotionTx } from './motion/contract.ts';
 import { changeNotice, clearMotionNotice, message, newCtx, queueLine, readBack, requestPoll, setMotion, startChange, tick, writeRealtime } from './motion/effects.ts';
 import { feedMore, feeding, sendTypedPiece } from './motion/jog.ts';
-import { ALARMABLE, ALARMED, ALLOWED, LETTER, MOTION_LIMITS, STOPPABLE, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
+import { ALARMABLE, ALARMED, ALLOWED, LETTER, MOTION_LIMITS, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
 import { activeSystem, atRestPolled, axisNames, completedPoll, deny, dialect, heldPolled, idleBase, machineClass, machineZ, motionCapable, motionLinesSettled, planner, precondition, returnBase, validAxes, validAxisList } from './motion/model.ts';
-import type { ChangeKind, HoldReason, JogAxis, JogFeed, MotionCtx, SessionConfig, SessionIntent, SessionState } from './types.ts';
+import { beginHold } from './motion/stops.ts';
+import type { ChangeKind, JogAxis, JogFeed, MotionCtx, SessionIntent, SessionState } from './types.ts';
 
 export { type MotionDeps, type MotionTx } from './motion/contract.ts';
 export { clearMotionNotice, newCtx, queueMotionLine, requestPoll } from './motion/effects.ts';
@@ -97,6 +98,7 @@ export { onFollowUp, onMotionReport } from './motion/homing.ts';
 export { sendTypedPiece } from './motion/jog.ts';
 export { MOTION_LIMITS, POLL_TOKENS, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
 export { activeSystem, atRestPolled, completedPoll, heldPolled, idleBase, motionCapable, returnBase } from './motion/model.ts';
+export { beginHold, motionStopApplies, onMotionStop } from './motion/stops.ts';
 
 
 
@@ -266,78 +268,6 @@ export function onMotionIntent(t: MotionTx, request: SessionIntent, at: number):
       return ALLOWED;
     }
   }
-}
-
-
-// --- Stops ----------------------------------------------------------------------
-
-/** True when a Stop job, Pause or Spindle off in this state is handled here instead of Phase 1's `!` alone. */
-export function motionStopApplies(s: SessionState, config: SessionConfig): boolean {
-  return motionCapable(s, config) && STOPPABLE.has(s.base) && !s.overlays.includes('ORPHANED_MOTION') && !s.overlays.includes('LOST');
-}
-
-
-/** Starts the hold step of a stop or release (SAFETY §4.4 Phase 2 steps 1–3). */
-export function beginHold(t: MotionTx, reason: HoldReason, at: number): void {
-  const s = t.s;
-  const stop = reason === 'stopJob';
-  writeRealtime(t, 'feedhold', stop ? 'stopJob' : 'feedhold');
-  // Stop feeding: unsent pieces and steps never go out.
-  const queue = t.s.queue.filter((q) => q.purpose !== 'motion');
-  // OD-31: a typed move's pieces still waiting are counted back, so Resume queues them again.
-  const ctx = s.motion === null ? newCtx(s, 'stop') : afterHold(s.motion, t.s.queue);
-  t.set({
-    queue,
-    motion: { ...ctx, phase: 'hold', reason, jog: null, steps: [], confirmed: 0, deadline: at + MOTION_LIMITS.stopStepMs, holdPolls: 0 },
-    ...(stop ? { base: 'STOPPING_JOB' as const } : {}),
-  });
-  // A stop with no motion of ours (a job's Stop job, a Stop job from idle) reads the units it puts back with its
-  // closing G90 (§4.4 step 5), answered ahead of the polls that confirm the hold, so before any `%` (modes.ts).
-  if (s.motion === null) queueModeReads(t, 'motion');
-  requestPoll(t);
-  tick(t);
-}
-
-
-/**
- * Pause, Stop job, Spindle off and a hold jog's release in a motion session. Returns false when the
- * request is not handled here (the caller falls back to the Phase 1 `!`).
- */
-export function onMotionStop(t: MotionTx, request: SessionIntent, at: number): boolean {
-  if (!motionStopApplies(t.s, t.config)) return false;
-  const ctx = t.s.motion;
-  if (request.intent === 'feedhold') {
-    if ('release' in request) {
-      if (ctx !== null && ctx.jog !== null && ctx.jog.remainingMm === null && ctx.phase === 'feed') beginHold(t, 'release', at); // a hold jog is fed until released
-      return true;
-    }
-    if (ctx !== null && ctx.phase === 'homing') {
-      // Pause during homing ends it (hold, then flush): a homing cycle is not resumed (amendment 2026-11-02).
-      beginHold(t, 'homeAbort', at);
-      return true;
-    }
-    // A typed move still being checked (H91) ends here too, so its line never goes out after a Pause.
-    if (ctx !== null && (ctx.phase === 'feed' || ctx.phase === 'drain' || ctx.phase === 'check')) {
-      beginHold(t, 'pause', at);
-      return true;
-    }
-    return false; // nothing of ours is moving: `!` alone, as in Phase 1
-  }
-  if (request.intent === 'stopJob') {
-    if (ctx !== null && ctx.reason === 'stopJob') writeRealtime(t, 'feedhold', 'stopJob');
-    else beginHold(t, 'stopJob', at);
-    return true;
-  }
-  // spindleOffNow (the reducer passes only the stop class here).
-  if (ctx !== null) {
-    // Something of ours is moving or held: M5 would queue behind it, so end it like Stop job (§4.4).
-    if (ctx.reason !== 'stopJob') beginHold(t, 'stopJob', at);
-    return true;
-  }
-  const outputs = 'outputs' in request ? request.outputs : undefined;
-  if (outputs !== 'coolant') queueLine(t, 'M5', 'spindleOffNow');
-  if (outputs !== 'spindle') queueLine(t, 'M9', 'spindleOffNow');
-  return true;
 }
 
 
