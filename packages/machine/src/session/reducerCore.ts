@@ -1,3 +1,4 @@
+import { bindIntents } from './reducers/intents.ts';
 import { bindGarbled } from './reducers/garbled.ts';
 import { bindAnswers } from './reducers/answers.ts';
 import { bindInbound } from './reducers/inbound.ts';
@@ -192,141 +193,6 @@ function onJobLineDropped(t: Tx, index: number): void {
   const job = t.s.job;
   if (job !== null && index < job.next) features.patchJob?.(t, { next: index });
 }
-
-function onIntent(t: Tx, request: SessionIntent, at: number): void {
-  const intent = request.intent;
-  const matrix = allowed(matrixSnapshot(t.s), intent, t.config.release);
-  if (!matrix.allowed) {
-    t.decide(intent, matrix);
-    return;
-  }
-  // Probe Z (SAFETY §4.5c): nothing else moves the machine while it is open; no Start job or Spindle on with the plate out.
-  const probeHeld = features.probeRefusal?.(t.s, request);
-  if (probeHeld !== undefined) {
-    t.decide(intent, probeHeld);
-    return;
-  }
-  switch (request.intent) {
-    case 'connect': {
-      const epoch = t.s.epoch + 1;
-      t.s = { ...initialState(), epoch, unknownOnNextConnect: t.s.unknownOnNextConnect || request.unknown === true, timerSeq: t.s.timerSeq, probeZ: features.probeCarried?.(t.s.probeZ) ?? PROBE_CLOSED };
-      t.set({ base: 'PORT_REQUEST', port: request.port, expectedDeviceId: request.expectedDeviceId });
-      t.emit({ kind: 'acquireTransport', epoch, port: request.port });
-      t.decide(intent, matrix);
-      return;
-    }
-    case 'disconnect': {
-      const epoch = t.s.epoch;
-      t.cancelAll();
-      t.emit({ kind: 'close', epoch });
-      resetToNotConnected(t, t.s.unknownOnNextConnect);
-      t.decide(intent, matrix);
-      return;
-    }
-    case 'feedhold':
-    case 'stopJob':
-    case 'spindleOffNow': {
-      // Phase 3 (SAFETY §4.4a): during a job, Pause holds the job (`!`, streaming stops) and Stop job runs the
-      // flush sequence for it. Spindle off at a stop point where nothing is queued sends M5/M9 alone.
-      if (request.intent === 'feedhold' && !('release' in request) && features.onJobPause?.(t, at)) {
-        t.decide(intent, matrix);
-        return;
-      }
-      const atStopPoint = t.s.job !== null && (t.s.job.phase === 'toolChange' || t.s.job.phase === 'breakpoint' || t.s.job.phase === 'programStop') && t.s.motion === null;
-      if (request.intent !== 'feedhold' && !(request.intent === 'spindleOffNow' && atStopPoint) && features.onJobStop?.(t, at)) {
-        t.decide(intent, matrix);
-        return;
-      }
-      // Probe Z (SAFETY §4.5c): Pause is `!` (it ends the probe), Stop job and Spindle off are ^D.
-      // A motion session (Phase 2, SAFETY §4.4): Pause holds this session's motion, Stop job runs the
-      // flush sequence, Spindle off sends M5/M9 when idle. A hold jog's release lands here too.
-      if (features.onProbeStop?.(t, request, at) || features.onMotionStop?.(t, request, at)) {
-        t.decide(intent, matrix);
-        return;
-      }
-      if ('release' in request) {
-        t.decide(intent, matrix); // no hold jog to release: nothing to send
-        return;
-      }
-      // Phase 1 (and every READ_ONLY session): the only stop is `!`, with "Use your E-stop" for Stop
-      // job and Spindle off (SAFETY §4.4). Never ^D, `%` or an M-code.
-      writeFeedhold(t);
-      t.set({ notices: { ...t.s.notices, pauseRequestedAt: at, adviseEstop: t.s.notices.adviseEstop || request.intent !== 'feedhold' } });
-      t.decide(intent, matrix);
-      return;
-    }
-    case 'ackFault':
-      onAckFault(t, matrix);
-      return;
-    case 'acknowledgeLost':
-      resetToNotConnected(t, true);
-      t.decide(intent, matrix);
-      return;
-    case 'enq':
-      onEnq(t, matrix);
-      return;
-    case 'read':
-      onRead(t, request.tokens, matrix);
-      return;
-    case 'jog':
-    case 'goToZero':
-    case 'setWorkZero':
-    case 'home':
-    case 'setMachinePosition':
-    case 'tempOffset':
-    case 'selectCoordSystem':
-    case 'spindleOn':
-    case 'clearAlarm':
-    case 'resume':
-    case 'positionVerify':
-    case 'typedMove':
-      // Reached only when the release allows motion (the matrix denied it above otherwise), except
-      // positionVerify, a session intent: the motion layer refuses it without a motion release.
-      // Never while a settings write is being made: its gate, write and read-back own the link until it ends.
-      if (settingWriteActive(t.s)) {
-        t.decide(intent, deny('A setting is being written.', 'Wait for the write and its read-back to finish.', 'SAFETY §4.6 (amendment 2026-11-02)'));
-        return;
-      }
-      // Phase 3: a job owns the machine. Resume goes to the job; at a tool change only a jog and the Z re-zero.
-      if (request.intent === 'resume' && features.jobActive?.(t.s) && t.s.motion === null) {
-        t.decide(intent, (features.onJobResume?.(t, request, at)) ?? deny('This session only updates firmware.', 'Use the signed-in workspace for machine control.', 'SAFETY §4.8'));
-        return;
-      }
-      if (t.s.base === 'PROGRAM_PAUSED' && t.s.job?.phase !== 'toolChange') {
-        t.decide(intent, deny('Only Resume and Stop job are offered at this stop.', 'Resume the job, or stop it.', 'SAFETY §4.4a'));
-        return;
-      }
-      /* c8 ignore next 4 -- defence in depth: the matrix allows no motion intent but Resume in RUNNING, HELD or PREAMBLE */
-      if (features.jobActive?.(t.s) && t.s.base !== 'PROGRAM_PAUSED' && request.intent !== 'resume') {
-        t.decide(intent, deny('A job is running.', 'Pause or stop the job first.', 'SAFETY §4.4a'));
-        return;
-      }
-      // H91: a typed move is a motion of the motion layer, started by its own module (typedMove.ts).
-      t.decide(intent, (request.intent === 'typedMove' ? features.startTypedMove?.(t, request, at) : features.onMotionIntent?.(t, request, at)) ?? deny('This session only updates firmware.', 'Use the signed-in workspace for machine control.', 'SAFETY §4.8'));
-      return;
-    case 'loadJob':
-      t.decide(intent, (features.onLoadJob?.(t, request, at)) ?? deny('This session only updates firmware.', 'Use the signed-in workspace for machine control.', 'SAFETY §4.8'));
-      return;
-    case 'startJob':
-      t.decide(intent, (features.onStartJob?.(t, request, at)) ?? deny('This session only updates firmware.', 'Use the signed-in workspace for machine control.', 'SAFETY §4.8'));
-      return;
-    case 'jobBreakpoints':
-      t.decide(intent, (features.onJobBreakpoints?.(t, request.lines, at)) ?? deny('This session only updates firmware.', 'Use the signed-in workspace for machine control.', 'SAFETY §4.8'));
-      return;
-    case 'settingsWrite':
-      onSettingsWrite(t, request.key, request.value, matrix);
-      return;
-    case 'flash':
-      onFlash(t, matrix);
-      return;
-    case 'probeZ':
-    case 'probeZClose':
-      t.decide(intent, (features.onProbeIntent?.(t, request, at)) ?? deny('This session only updates firmware.', 'Use the signed-in workspace for machine control.', 'SAFETY §4.8'));
-      return;
-    default:
-      t.decide(intent, deny(PHASE_1_NOT_HANDLED.reason, PHASE_1_NOT_HANDLED.remedy, `ROADMAP P1-02 (${t.config.release.name})`));
-  }
-}
 type ReadValueLike = { readonly value: JsonValue | null; readonly status: number } | undefined;
 
 const { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, linkUp, deny, settingWriteActive, isObject } = bindShared(deps);
@@ -344,6 +210,7 @@ const { onTimer } = bindTimers(deps);
 const { onInbound } = bindInbound(deps);
 const { onResponse, isDataEntry, owedAnswers, consumeOwed, answers, onAnswer } = bindAnswers(deps);
 const { onGarbled } = bindGarbled(deps);
+const { onIntent } = bindIntents(deps);
 Object.assign(deps, { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, reduce, onJobLineDropped, linkUp, deny, onIntent, onEnq, writeEnq, onRead, settingWriteActive, onSettingsWrite, finishSettingWrite, onGateAnswer, onSettingAnswer, onReadBackAnswer, interruptSettingWrite, refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry, onAckFault, writeFeedhold, resetToNotConnected, onOpened, startProbe, onLineWritten, answerTimeout, onLinkLost, onTimer, onInbound, onBanner, onResponse, isDataEntry, owedAnswers, consumeOwed, answers, onAnswer, advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading, onVerifyAnswer, refuseAck, onStatusReport, onGarbled, isObject, mergeLive, withNumber, startSeed, isSeedOwed, mergeStateValue, onSeedAnswer, seedAnswered, maybeConfigure, reportStepText, failReports, nextReportStep, numberValue, addChange, onReportAnswer, watchdogActive, watchdogMs, syncWatchdog, enterStale, silentWhileBusy, onWatchdog, askForLife, enterFault, pump, lineFor, MOTION_DEPS, JOB_DEPS });
 return { READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, reduce, settingWriteActive, BOOT_LINE, probeRecord, LIVENESS_TOKEN };
 }
