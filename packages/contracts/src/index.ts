@@ -45,3 +45,4 @@ export interface SessionBody {
 }
 
 export * from './records.ts';
+export * from './files.ts';

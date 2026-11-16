@@ -1,5 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The bindings name the runtime's streams (files.ts); every consumer (web, Workers, Node tools) has them.
+    "lib": ["ES2022", "WebWorker"]
+  },
   "include": [
     "src",
     "test"
