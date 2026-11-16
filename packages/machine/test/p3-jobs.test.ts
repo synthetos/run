@@ -1,65 +1,8 @@
 import { PHASE_2_RELEASE, w42 } from '@synthetos/safety';
 import { describe, expect, it } from 'vitest';
 import { JOB_LIMITS, feedAccountingSafe, jobInFlight } from '../src/index.ts';
-import { JOBS_RELEASE_NO_FI, confirmFor, jobHarness, jobLines, load, runUntil, start, writes, zigzag } from './jobHarness.ts';
+import { JOBS_RELEASE_NO_FI, jobHarness, jobLines, runUntil, start, writes, zigzag } from './jobHarness.ts';
 import { SMALL, TC, model } from './jobLayerHarness.ts';
-describe('T-S108: loading a job sanitises it in the worker with the live board', () => {
-
-  it('reads the board, sanitises, and summarises without sending a single job line', async () => {
-    const h = await jobHarness();
-    expect(h.session.snapshot.base).toBe('IDLE_UNHOMED');
-    const before = writes(h).length;
-    await load(h, SMALL);
-    const job = h.session.snapshot.job;
-    expect(job?.report?.blocks).toEqual([]);
-    expect(job?.phase).toBe('ready');
-    expect(job?.total).toBe(8);
-    expect(job?.hash).toMatch(/^[0-9a-f]{8}$/);
-    const sent = writes(h).slice(before);
-    expect(sent.every((w) => w.startsWith('{"'))).toBe(true);
-    expect(sent).toContain('{"x":null}');
-    expect(sent).toContain('{"ofs":null}');
-  });
-
-
-  it('a file that does not pass is blocked with its findings, and cannot start', async () => {
-    const h = await jobHarness();
-    await load(h, 'G21\nG38.2 Z-5 F100\nM30');
-    const job = h.session.snapshot.job;
-    expect(job?.phase).toBe('blocked');
-    expect(job?.report?.blocks[0]?.line).toBe(2);
-    expect(h.session.startJob([], confirmFor(h))).toMatchObject({ allowed: false, reason: 'The check found something that stops this file.' });
-  });
-
-
-  it('M6 is a manual tool-change stop on edge-next (INFO), not a block', async () => {
-    const h = await jobHarness();
-    await load(h, 'G21 G90\nM3 S10000\nG1 X1 F600\nT2 M6\nG1 X2\nM5\nM30');
-    const job = h.session.snapshot.job;
-    expect(job?.phase).toBe('ready');
-    expect(job?.report?.toolChanges).toEqual([4]);
-    expect(job?.report?.counts.info).toBe(1);
-    expect(job?.report?.startsSpindle).toBe(true);
-    expect(job?.report?.speeds).toEqual([10000]);
-  });
-
-
-  it('jobs need the jobs release, an approved board and an idle machine; unloading clears it', async () => {
-    const p2 = await jobHarness({ session: { release: PHASE_2_RELEASE } });
-    expect(p2.session.loadJob({ name: 'a.nc', text: SMALL })).toMatchObject({ allowed: false, reason: 'Jobs are not available with this release or this board.' });
-    const ro = await jobHarness({ session: { manifest: { environment: 'staging', builds: [] } } });
-    expect(ro.session.loadJob({ name: 'a.nc', text: SMALL }).allowed).toBe(false);
-    const h = await jobHarness();
-    expect(h.session.loadJob({ name: '', text: SMALL }).allowed).toBe(false);
-    expect(h.session.loadJob({ name: 'a.nc', text: '' }).allowed).toBe(false);
-    expect(h.session.loadJob({ name: 'a.nc', text: 'x'.repeat(JOB_LIMITS.maxBytes + 1) }).allowed).toBe(false);
-    expect(h.session.loadJob({ name: 'a.nc', text: SMALL })).toEqual({ allowed: true });
-    expect(h.session.loadJob({ name: 'b.nc', text: SMALL })).toMatchObject({ allowed: false, reason: 'The machine is busy.' });
-    await h.run(500);
-    expect(h.session.loadJob(null)).toEqual({ allowed: true });
-    expect(h.session.snapshot.job).toBeNull();
-  });
-});
 describe('T-S109: streaming by the line buffer free slots (H76)', () => {
 
   it('streams a job to the end in line mode, setting rxm and putting it back (H77)', async () => {

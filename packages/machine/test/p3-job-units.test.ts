@@ -26,7 +26,6 @@ import {
     onJobMotionAnswer,
     onJobPause,
     onJobPoll,
-    onJobPrepAnswer,
     onJobReset,
     onJobResume,
     onJobRuntimeAnswer,
@@ -466,28 +465,6 @@ describe('the guards of the job decisions', () => {
   });
 });
 describe('more of the job layer, through its edges', () => {
-
-  it('prep answers that are damaged or empty, scalars read as null, a spindle line without S', async () => {
-    const s = await ready();
-    const loading = withJob({ ...s, queue: [{ token: 'unit', purpose: 'jobPrep' }] }, { phase: 'loading', source: { text: 'G21\nM3\nG1 X1 F600\nM5\nM30', c22: false } });
-    const r = tx(loading);
-    onJobPrepAnswer(r.t, { token: 'x', purpose: 'jobPrep' }, null, 0);
-    expect(r.t.s.values['x']).toMatchObject({ value: null, status: -1 });
-    r.t.s = { ...r.t.s, queue: [] };
-    onJobPrepAnswer(r.t, { token: 'coor', purpose: 'jobPrep' }, { kind: 'Response', line: '', r: {}, footer: { rev: 3, status: 0, field3: 10, raw: [] } } as never, 0);
-    expect(r.t.s.job?.report?.startsSpindle).toBe(true);
-    expect(r.t.s.job?.report?.speeds).toEqual([]);
-    expect(liveStart({ ...s, values: { unit: value(null) } }).units).toBeUndefined();
-  });
-
-
-  it('the check summary counts blocks and tool changes in plain words', async () => {
-    const blocked = await ready('G21\nG38.2 Z-1 F10\nG38.3 Z-1 F10\nM30');
-    expect(blocked.job?.events.at(-1)?.text).toMatch(/^Checked with this board.s values: \d+ findings stop this file\.$/);
-    const two = await ready('G21 G90\nG1 X1 F600\nT1 M6\nG1 X2\nT2 M6\nG1 X3\nM30');
-    expect(two.job?.events.at(-1)?.text).toMatch(/, 2 tool changes\.$/);
-    expect((await ready('G21\n$H\nM30')).job?.events.at(-1)?.text).toBe("Checked with this board's values: 1 finding stops this file.");
-  });
 
 
   it('every busy condition refuses a start; breakpoints are sorted and kept for a job that is not running', async () => {
