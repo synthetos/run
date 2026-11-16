@@ -21,7 +21,7 @@ import type { ReadonlySignal } from '@preact/signals';
 
 import { useEffect, useMemo, useState } from 'preact/hooks';
 
-import { c24, w13 } from '@synthetos/safety';
+import { w13 } from '@synthetos/safety';
 
 import { DIALECTS } from '@synthetos/protocol';
 
@@ -46,14 +46,13 @@ import { Icon } from '../icons.ts';
 
 import { readStored, writeStored } from '../storage.ts';
 
-import { CheckRow, ConfirmCard, TabBar, TabPane } from '../ui.ts';
+import { CheckRow, TabBar, TabPane } from '../ui.ts';
 
 import { connected, type WorkspaceModel } from '../model.ts';
 
 
 
 
-import { motionUi } from '../motion.ts';
 
 import { HomeQuick, HomeSection } from '../homing.ts';
 
@@ -65,9 +64,8 @@ import { currentBlock } from '../ControlBlockCard.ts';
 import { outputsOff } from '../controlBlock.ts';
 
 
-import { skipSpindleConfirm, spindleConfirmSkipped } from '../spindleConfirm.ts';
 
-import type { MotionAxis, MotionCommand } from '../../machine-worker/rpc.ts';
+import type { MotionAxis } from '../../machine-worker/rpc.ts';
 
 import { ContextHelp } from '../../shell/ContextHelp.ts';
 
@@ -119,7 +117,7 @@ import { ViewButtons } from '../../preview/SceneView.ts';
 
 import type { CarveWorkerLike, ViewPreset } from '@synthetos/gcode-view';
 
-import { COOLANT_TITLE, coolantText, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
+import { num } from '../status.ts';
 
 import { feedDiagnosis, jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
 
@@ -145,9 +143,9 @@ import { ToolMismatchNotes } from '../ToolMismatchNotes.ts';
 import type { FileTool } from '../../gcode-worker/camTools.ts';
 import { RunBridge } from './run/bridge.ts';
 import { JogSection } from './run/jog.ts';
-import { isLive, LIVE_HOOKS, STATIC_HOOKS, type Hooks } from './run/motionHooks.ts';
 import { ZeroSection } from './run/offsets.ts';
 import { PositionPanel } from './run/position.ts';
+import { SpindleSection } from './run/spindle.ts';
 
 
 // ---------------------------------------------------------------- inspector: motion (Phase 2)
@@ -158,6 +156,7 @@ export { ConnectNotice } from './run/connect.ts';
 export { JogSection } from './run/jog.ts';
 export { ZeroSection } from './run/offsets.ts';
 export { PositionPanel } from './run/position.ts';
+export { SpindleSection } from './run/spindle.ts';
 
 
 
@@ -228,137 +227,6 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
     layout: (parts: PreviewParts) => runLayout(parts, model, onView, stops),
     scrubTo: scrubRequest,
   });
-}
-
-
-/**
- * Spindle and coolant (SAFETY §4.5b, H52). The readouts are what the board reports (edge-next `spe`, `spc`,
- * `spd`, `sps`, `cof`, `com`), from its status list or the GETs Run asks about once a second, labelled
- * commanded: TinyG measures nothing. Nothing that pauses or stops reads them. In a motion session the controls
- * send M3/M4 with S, M5, M7, M8 and M9; Spindle on asks C24 first unless the user turned that off for this page.
- */
-function spindleBody({ model, compact = false }: SpindleProps, hk: Hooks): ComponentChild {
-  const view = model?.live.value ?? null;
-  const snapshot = view !== null && connected(view) ? view.message?.snapshot : undefined;
-  const r = displayReadouts(snapshot);
-  const spindle = spindleText(r);
-  const spindleLine = snapshot === undefined ? 'Not connected' : spindle === UNKNOWN ? 'Unknown' : spindle;
-  const coolant = coolantText(r);
-  const ui = motionUi(view);
-  const send = model?.actions.value?.motion;
-  const [rpm, setRpm] = hk.state(10000);
-  const [asking, setAsking] = hk.state<'cw' | 'ccw' | null>(null);
-  const [skip, setSkip] = hk.state(false);
-  const [note, setNote] = hk.state<string | null>(null);
-  const on = ui.enabled && send !== undefined;
-  // Spindle and coolant off are stop-class: offered whenever a motion session is connected, never gated.
-  const off = send !== undefined && ui.flag && ui.connected;
-  const run = (command: MotionCommand): void => {
-    setNote(null);
-    void send?.(command).then(setNote);
-  };
-  const start = (direction: 'cw' | 'ccw'): void => {
-    if (spindleConfirmSkipped()) run({ op: 'spindleOn', direction, rpm });
-    else setAsking(direction);
-  };
-  const mist = r?.com === 1;
-  const flood = r?.cof === 1;
-  const coolantToggle = (which: 'mist' | 'flood', pressed: boolean): void => {
-    if (!pressed) {
-      run({ op: 'coolantOn', which });
-      return;
-    }
-    // TinyG has one off command for both outputs (M9): turn the other one back on if it was on.
-    run({ op: 'coolantOff' });
-    const other = which === 'mist' ? flood : mist;
-    if (other) run({ op: 'coolantOn', which: which === 'mist' ? 'flood' : 'mist' });
-  };
-  return h(
-    'section',
-    { class: `insp sec-spindle${compact ? ' compact' : ''}`, 'aria-labelledby': 'spindle-title' },
-    h('header', null, h('h2', { id: 'spindle-title' }, 'Spindle and coolant'), h('span', { class: 'tag' }, 'Commanded')),
-    compact ? null : h(
-      'div',
-      { class: 'spindle-state' },
-      h('span', { class: `spindle-mark${spindle.startsWith('On') ? ' on' : ''}`, 'aria-hidden': 'true' }, Icon('spindle', 26)),
-      h(
-        'div',
-        { class: 'spindle-text' },
-        h('strong', { 'data-spindle': 'spindle', title: SPINDLE_TITLE }, spindleLine),
-        h('small', { 'data-spindle': 'coolant', title: COOLANT_TITLE }, `Coolant: ${snapshot === undefined ? 'not connected' : coolant === UNKNOWN ? 'unknown' : coolant === 'Off' ? 'off' : coolant}`),
-      ),
-    ),
-    h(
-      'div',
-      { class: 'spindle-controls', title: ui.reason ?? undefined },
-      h(
-        'div',
-        { class: 'seg full', role: 'group', 'aria-label': 'Spindle direction' },
-        h('button', { type: 'button', key: 'off', 'data-machine-control': 'spindle', ...(off ? { onClick: () => run({ op: 'spindleOff' }) } : { disabled: true }) }, 'Off'),
-        h('button', { type: 'button', key: 'cw', 'data-machine-control': 'spindle', ...(on ? { onClick: () => start('cw') } : { disabled: true }) }, 'CW'),
-        h('button', { type: 'button', key: 'ccw', 'data-machine-control': 'spindle', ...(on ? { onClick: () => start('ccw') } : { disabled: true }) }, 'CCW'),
-      ),
-      h(
-        'label',
-        { class: 'spindle-speed' },
-        h('span', { class: 'sr-only' }, 'Speed'),
-        h('input', {
-          type: 'number',
-          min: 1,
-          max: 100000,
-          step: 100,
-          value: rpm,
-          ...(on ? { onInput: (e: Event) => setRpm(Math.max(1, Math.round(Number((e.currentTarget as HTMLInputElement).value) || 1))) } : { disabled: true }),
-          'aria-label': 'Spindle speed, rpm (commanded)',
-          'data-machine-control': 'spindle',
-        }),
-        h('small', null, 'rpm'),
-      ),
-      asking === null || !on
-        ? null
-        : h(
-            ConfirmCard,
-            {
-              text: c24({ direction: asking === 'cw' ? 'CW' : 'CCW', rpm }),
-              confirm: 'Start spindle',
-              safety: 'C24',
-              onCancel: () => setAsking(null),
-              onConfirm: () => {
-                if (skip) skipSpindleConfirm();
-                const direction = asking;
-                setAsking(null);
-                run({ op: 'spindleOn', direction, rpm });
-              },
-            },
-            h('label', { class: 'check' }, h('input', { type: 'checkbox', 'data-action': 'skip-spindle-confirm', checked: skip, onChange: (e: Event) => setSkip((e.currentTarget as HTMLInputElement).checked) }), ' Don’t ask again until I reload this page'),
-          ),
-      h(
-        'div',
-        { class: 'inline-field' },
-        h('span', { class: 'coolant-label' }, 'Coolant', h(ContextHelp, { id: 'spindle-help', label: 'About spindle and coolant readouts', end: true }, SPINDLE_TITLE, ' ', COOLANT_TITLE)),
-        h(
-          'span',
-          { class: 'seg', role: 'group', 'aria-label': 'Coolant' },
-          h('button', { type: 'button', class: mist ? 'selected' : undefined, 'aria-pressed': mist ? 'true' : 'false', 'data-machine-control': 'coolant', ...((mist ? off : on) ? { onClick: () => coolantToggle('mist', mist) } : { disabled: true }) }, 'Mist'),
-          h('button', { type: 'button', class: flood ? 'selected' : undefined, 'aria-pressed': flood ? 'true' : 'false', 'data-machine-control': 'coolant', ...((flood ? off : on) ? { onClick: () => coolantToggle('flood', flood) } : { disabled: true }) }, 'Flood'),
-        ),
-      ),
-    ),
-    note === null ? null : h('p', { class: 'motion-note', role: 'status' }, note),
-  );
-}
-
-
-type SpindleProps = { readonly model?: WorkspaceModel | null; readonly compact?: boolean };
-
-
-function SpindleLive(props: SpindleProps): ComponentChild {
-  return spindleBody(props, LIVE_HOOKS);
-}
-
-
-export function SpindleSection(props: SpindleProps = {}): ComponentChild {
-  return isLive(props.model) ? h(SpindleLive, props) : spindleBody(props, STATIC_HOOKS);
 }
 
 
