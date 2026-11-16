@@ -1,3 +1,4 @@
+import { bindInbound } from './reducers/inbound.ts';
 import { bindTimers } from './reducers/timers.ts';
 import { bindWriting } from './reducers/writing.ts';
 import { bindWatchdog } from './reducers/watchdog.ts';
@@ -322,104 +323,6 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
       return;
     default:
       t.decide(intent, deny(PHASE_1_NOT_HANDLED.reason, PHASE_1_NOT_HANDLED.remedy, `ROADMAP P1-02 (${t.config.release.name})`));
-  }
-}
-
-// --- Inbound --------------------------------------------------------------
-
-function onInbound(t: Tx, raw: Inbound, at: number): void {
-  if (raw.kind === 'FlowSignal') {
-    t.set({ xoff: raw.signal === 'xoff' });
-    return;
-  }
-  // Receive-timestamp liveness (SAFETY §4.2): any line is proof of life.
-  t.set({ live: { ...t.s.live, lastRxAt: at }, liveness: null, stale: null });
-  t.removeOverlay('STALE');
-  if (t.s.timers.watchdog !== undefined) t.arm('watchdog', watchdogMs(t));
-  const dialect = dialectOf(t.s);
-  const event: ClassifiedLine = dialect === null ? raw : checkFooterForDialect(dialect, raw);
-  // Before the first answer on this link, a line is output a previous program left unread: pushed reports and
-  // heartbeats (the board keeps sending them to a port nobody drains), and fragments of them torn by the USB and
-  // tty buffers (bench 2, 2026-11-03). The board answers in order, so that backlog ends at the first `r` frame:
-  // it is counted and discarded, never merged into the live view and never taken for a damaged answer (H49
-  // amendment 2026-11-03). A banner still means the board reset.
-  const probe = t.s.probe;
-  // A status 118 (TinyG 450.02, settings run on their defaults) follows the banner, so it is in that output after a
-  // reset; it is true whenever it was printed, so it is kept, not discarded (handled under Exception).
-  const defaulted = event.kind === 'Exception' && event.st === TINYG_SETTINGS_DEFAULTED;
-  if (probe !== null && probe.settling === 'none' && probe.next === 0 && !probe.spliceRetried && !t.s.ready && event.kind !== 'Banner' && event.kind !== 'Response' && !defaulted) {
-    // A torn frame of that output can run straight into the answer (bench 3, 2026-11-04: half a heartbeat, then
-    // the reply to {sr:null} on the same line). The answer is a complete frame at the line's end: take it.
-    const from = event.kind === 'Garbled' ? event.line.lastIndexOf('{"r":') : -1;
-    const answer = from > 0 ? classifyLine(event.line.slice(from)) : null;
-    t.set({ probe: { ...probe, backlog: probe.backlog + 1 } });
-    if (answer !== null && answer.kind === 'Response') onResponse(t, answer, at);
-    return;
-  }
-  switch (event.kind) {
-    case 'Banner':
-      onBanner(t, event, at);
-      return;
-    case 'Response':
-      onResponse(t, event, at);
-      return;
-    case 'StatusReport':
-      onStatusReport(t, event, at);
-      return;
-    case 'Heartbeat':
-      // Proof of life (recorded above). Its stat and hold are what the board reported: kept for display.
-      mergeLive(t, Object.fromEntries(Object.entries(event.hb).filter(([k]) => k === 'stat' || k === 'hold')));
-      return;
-    // Edge-next feed-limit push lines (fs, fl): proof of life (recorded above). They answer nothing, are never an
-    // acknowledgement and never a report of motion, so they touch no owed answer, no ENQ and no ORPHANED_MOTION
-    // check, in any state. During a job that opened a feed-limit window they feed its display (observational, H78);
-    // otherwise nothing reads them (another host may have turned the push on: RAM, kept until a reset).
-    case 'FeedLimitSummary':
-      features.onFeedLimit?.(t, 'fs', event.fs, event.totalsShort);
-      return;
-    case 'FeedGapSummary':
-      features.onFeedLimit?.(t, 'fg', event.fg, false);
-      return;
-    case 'FeedLimitEvent':
-      features.onFeedLimit?.(t, 'fl', event.fl, false);
-      return;
-    case 'QueueReport':
-      t.set({ live: { ...t.s.live, qr: event.qr } });
-      return;
-    case 'Exception':
-      // TinyG 450.02+ (N61): settings that would not load run on their defaults, reported once right after the
-      // banner, so it can arrive while the board is identified again: checked first. The board is working and the
-      // user is told which settings changed. Status 90 (a setting with no valid value) and any other `er` stay FAULT.
-      if (event.st === TINYG_SETTINGS_DEFAULTED && (t.s.dialect === null || t.s.dialect.id === 'tinyg-en')) {
-        t.set({ notices: { ...t.s.notices, settingsDefaulted: { text: event.msg.slice(0, 200), at } } });
-        t.emit({ kind: 'log', text: `the board reset stored settings to their defaults (status 118): ${event.msg.slice(0, 120)}` });
-        return;
-      }
-      // An `er` answering the first line is the spliced fragment being rejected (PN §2.3 step 0): recorded only.
-      if (t.s.probe !== null && t.s.probe.next === 0 && !t.s.ready) return;
-      // A settings write refused because a cycle is active: EN prints an `er` with 106, TG answers 9
-      // (SAFETY §4.6 step 6, HIL-4.2). It is a refusal of this write, answered by its own response, not a FAULT.
-      if (t.s.settingWrite?.phase === 'writing' && (event.st === 106 || event.st === 9)) {
-        t.set({ settingWrite: { ...t.s.settingWrite, exception: event.st } });
-        t.emit({ kind: 'log', text: `settings write #${t.s.settingWrite.id}: the board reported ${event.st} (a cycle was active): refused` });
-        return;
-      }
-      // Probe Z: the alarm a probe ends in (250, 220, 203, 207) is its outcome; the owner clears it (C13).
-      if (features.onProbeAlarm?.(t, event, at)) return;
-      enterFault(t, 'exceptionReport', 'integrity', `the board reported an exception (status ${event.st}): ${event.msg.slice(0, 80)}`, at);
-      return;
-    case 'ProbeReport':
-      features.onProbeReport?.(t, event, at);
-      return;
-    case 'Ack':
-      t.set({ enqOutstanding: false, lastAckAt: at });
-      return;
-    case 'Garbled':
-      onGarbled(t, at);
-      return;
-    case 'RxReport':
-    case 'Text':
-      return;
   }
 }
 
@@ -765,6 +668,7 @@ const { startSeed, isSeedOwed, onSeedAnswer, seedAnswered, maybeConfigure, repor
 const { watchdogActive, watchdogMs, syncWatchdog, enterStale, silentWhileBusy, onWatchdog, askForLife } = bindWatchdog(deps);
 const { onLineWritten, answerTimeout, pump, lineFor } = bindWriting(deps);
 const { onTimer } = bindTimers(deps);
+const { onInbound } = bindInbound(deps);
 Object.assign(deps, { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, reduce, onJobLineDropped, linkUp, deny, onIntent, onEnq, writeEnq, onRead, settingWriteActive, onSettingsWrite, finishSettingWrite, onGateAnswer, onSettingAnswer, onReadBackAnswer, interruptSettingWrite, refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry, onAckFault, writeFeedhold, resetToNotConnected, onOpened, startProbe, onLineWritten, answerTimeout, onLinkLost, onTimer, onInbound, onBanner, onResponse, isDataEntry, owedAnswers, consumeOwed, answers, onAnswer, advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading, onVerifyAnswer, refuseAck, onStatusReport, onGarbled, isObject, mergeLive, withNumber, startSeed, isSeedOwed, mergeStateValue, onSeedAnswer, seedAnswered, maybeConfigure, reportStepText, failReports, nextReportStep, numberValue, addChange, onReportAnswer, watchdogActive, watchdogMs, syncWatchdog, enterStale, silentWhileBusy, onWatchdog, askForLife, enterFault, pump, lineFor, MOTION_DEPS, JOB_DEPS });
 return { READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, reduce, settingWriteActive, BOOT_LINE, probeRecord, LIVENESS_TOKEN };
 }
