@@ -926,26 +926,6 @@
     "packages/safety/src/axisModeFacts.ts": {
       "max-params $/FunctionDeclaration:factFor#1": 5
     },
-    "packages/safety/src/sanitize/analyze.ts": {
-      "complexity $/ClassDeclaration:JobModel#1/FunctionExpression:action#1": 34,
-      "complexity $/ClassDeclaration:JobModel#1/FunctionExpression:analyze#1": 150,
-      "complexity $/ClassDeclaration:JobModel#1/FunctionExpression:arc#1": 52,
-      "complexity $/ClassDeclaration:JobModel#1/FunctionExpression:constructor#1": 32,
-      "complexity $/ClassDeclaration:JobModel#1/FunctionExpression:linear#1": 21,
-      "complexity $/ClassDeclaration:JobModel#1/FunctionExpression:storedMove#1": 19,
-      "max-lines $file": 1096,
-      "max-lines-per-function $/ClassDeclaration:JobModel#1/FunctionExpression:action#1": 84,
-      "max-lines-per-function $/ClassDeclaration:JobModel#1/FunctionExpression:analyze#1": 191,
-      "max-lines-per-function $/ClassDeclaration:JobModel#1/FunctionExpression:arc#1": 164,
-      "max-methods $/ClassDeclaration:JobModel#1": 40,
-      "max-params $/ClassDeclaration:JobModel#1/FunctionExpression:action#1": 6,
-      "max-params $/ClassDeclaration:JobModel#1/FunctionExpression:arc#1": 9,
-      "max-params $/ClassDeclaration:JobModel#1/FunctionExpression:checkModalRules#1": 6,
-      "max-params $/ClassDeclaration:JobModel#1/FunctionExpression:linear#1": 8,
-      "max-params $/ClassDeclaration:JobModel#1/FunctionExpression:storedMove#1": 5,
-      "max-params $/FunctionDeclaration:bodies#1": 6,
-      "max-params $/FunctionDeclaration:unknownMessage#1": 5
-    },
     "packages/safety/src/sanitize/geometry.ts": {
       "complexity $/FunctionDeclaration:arcTravel#1": 23,
       "complexity $/FunctionDeclaration:modelArc#1": 18,
