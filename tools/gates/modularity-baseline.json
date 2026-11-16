@@ -588,15 +588,6 @@
     "packages/gcode-view/src/pick.ts": {
       "max-params $/FunctionDeclaration:rayThrough#1": 5
     },
-    "packages/gcode-view/src/renderer.ts": {
-      "complexity $/FunctionDeclaration:createRenderer#1/FunctionDeclaration:draw#1": 23,
-      "complexity $/FunctionDeclaration:createRenderer#1/ObjectExpression:return#1/FunctionExpression:load#1": 24,
-      "complexity $/FunctionDeclaration:createRenderer#1/ObjectExpression:return#1/FunctionExpression:load#1/ObjectExpression:steps#1/ArrowFunctionExpression:next#1": 16,
-      "max-lines $file": 704,
-      "max-lines-per-function $/FunctionDeclaration:createRenderer#1": 558,
-      "max-lines-per-function $/FunctionDeclaration:createRenderer#1/FunctionDeclaration:draw#1": 82,
-      "max-methods $/FunctionDeclaration:createRenderer#1/ObjectExpression:return#1": 33
-    },
     "packages/gcode-view/src/scene.ts": {
       "complexity $/FunctionDeclaration:triangulate#1": 16,
       "max-params $/FunctionDeclaration:solidTriangles#1/ArrowFunctionExpression:quad#1": 5
