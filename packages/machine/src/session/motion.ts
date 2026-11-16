@@ -74,7 +74,7 @@ import { queueModeReads } from './modes.ts';
 
 import { noteAlarmEnded, onAlarmEntered, onClearAnswered } from './alarmRestore.ts';
 
-import { forgetHomed, noteHomed, noteSetByHand } from './homedAxes.ts';
+import { forgetHomed, noteSetByHand } from './homedAxes.ts';
 
 import { sessionSettings } from './settingWrite.ts';
 
@@ -87,12 +87,13 @@ import { afterHold, piecesLeft, raiseDone, raiseRestore } from './typedPieces.ts
 import { type MotionDeps, type MotionTx } from './motion/contract.ts';
 import { changeNotice, clearMotionNotice, message, newCtx, queueLine, readBack, requestPoll, setMotion, startChange, tick, writeRealtime } from './motion/effects.ts';
 import { feedMore, feeding, sendTypedPiece } from './motion/jog.ts';
-import { ALARMABLE, ALARMED, ALLOWED, LETTER, MOTION_LIMITS, SETTLE_BASES, STOPPABLE, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
+import { ALARMABLE, ALARMED, ALLOWED, LETTER, MOTION_LIMITS, STOPPABLE, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
 import { activeSystem, atRestPolled, axisNames, completedPoll, deny, dialect, heldPolled, idleBase, machineClass, machineZ, motionCapable, motionLinesSettled, planner, precondition, returnBase, validAxes, validAxisList } from './motion/model.ts';
-import type { ChangeKind, FollowUp, HoldReason, JogAxis, JogFeed, MotionCtx, SessionConfig, SessionIntent, SessionState } from './types.ts';
+import type { ChangeKind, HoldReason, JogAxis, JogFeed, MotionCtx, SessionConfig, SessionIntent, SessionState } from './types.ts';
 
 export { type MotionDeps, type MotionTx } from './motion/contract.ts';
 export { clearMotionNotice, newCtx, queueMotionLine, requestPoll } from './motion/effects.ts';
+export { onFollowUp, onMotionReport } from './motion/homing.ts';
 export { sendTypedPiece } from './motion/jog.ts';
 export { MOTION_LIMITS, POLL_TOKENS, TOOL_CHANGE_JOG_A, TOOL_CHANGE_ZERO } from './motion/limits.ts';
 export { activeSystem, atRestPolled, completedPoll, heldPolled, idleBase, motionCapable, returnBase } from './motion/model.ts';
@@ -532,39 +533,6 @@ function complete(t: MotionTx, at: number): void {
   }
   else if (ctx.reason === 'keepalive') message(t, 'failed', 'Jog stopped: the button was let go, or the page lost touch with it.', at);
   else if (ctx.refusal !== null) message(t, 'refused', ctx.refusal, at);
-}
-
-
-/**
- * A follow-up after the last read-back of a homing (`homed`) or a G28.3 (`positionSet`): with all of X, Y and Z
- * homed (`home` 1) the position is trusted, so UNKNOWN clears and the base is IDLE_HOMED.
- */
-export function onFollowUp(t: MotionTx, then: Exclude<FollowUp, 'typedCheck'>, at: number): void {
-  const s = t.s;
-  const homed = s.live.home === 1;
-  if (homed && s.overlays.includes('UNKNOWN')) t.set({ overlays: s.overlays.filter((o) => o !== 'UNKNOWN') });
-  // Words only (S2): a G28.3 also reads back `home` 1, so say which of the two set the position.
-  if (homed) t.set({ notices: { ...t.s.notices, position: { by: then === 'homed' ? 'homing' : 'hand', at } } });
-  const ctx = s.motion;
-  if (then === 'homed' && ctx !== null && ctx.op === 'home' && ctx.phase === 'readback') {
-    noteHomed(t, ctx.axes as readonly JogAxis[]); // S2: known per axis, from the read-back (homedAxes.ts)
-    const axes = axisNames(ctx.axes as readonly JogAxis[]);
-    t.set({ motion: null });
-    changeNotice(t, homed ? 'done' : 'failed', homed ? `Homed ${axes}. Machine position is set from the switches.` : `Homing of ${axes} ended, but the board does not report X, Y and Z all homed.`, at);
-  }
-  // Nothing else of ours runs and the base is idle-class (an alarm meanwhile has moved it to ALARM): follow the homing state.
-  if (t.s.motion !== null || !SETTLE_BASES.has(t.s.base)) return;
-  t.set({ base: t.s.overlays.length === 0 ? idleBase(t.s) : 'CONNECTED_UNKNOWN' });
-}
-
-
-/** A pushed status report during homing: a resting or alarmed state asks for confirming polls (pushed stat is never proof). */
-export function onMotionReport(t: MotionTx, sr: Readonly<Record<string, unknown>>, _at: number): void {
-  const ctx = t.s.motion;
-  if (ctx === null || ctx.phase !== 'homing' || !('stat' in sr) || t.s.dialect === null) return;
-  const cls = machineClass(t.s);
-  if (cls === 'homing') setMotion(t, { seen: true });
-  else requestPoll(t);
 }
 
 
