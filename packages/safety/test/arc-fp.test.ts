@@ -20,9 +20,9 @@
  */
 import { TINYG_440, TINYG_EN } from '@synthetos/protocol';
 import { describe, expect, it } from 'vitest';
+import type { StartState } from '../src/index.ts';
 import { overrunBound } from '../src/overrun.ts';
 import { lexLine } from '../src/sanitize/lex.ts';
-import type { StartState } from '../src/index.ts';
 import { blocks, bodies, run, START } from './sanitizeHelpers.ts';
 
 const EN = TINYG_EN;
@@ -55,7 +55,9 @@ function words(body: string): Map<string, number> {
  */
 const POSITIONED = 'G0 X0 Y0\n';
 
+
 describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
   it('EN: G3/G2 X0.000001 Y0 I0 J10 is a full circle (P0-10#1 reproduction), split, with a true bound', () => {
     for (const code of ['G3', 'G2']) {
       const r = run(`${POSITIONED}${code} X0.000001 Y0 I0 J10 F100\n`, EN);
@@ -69,18 +71,30 @@ describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', (
       expect(r.lines.at(-1)?.body).toMatch(new RegExp(`^${code} X0.000001 Y0 I`));
     }
   });
+});
+
+describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
 
   it('EN: away from the branch cut a 0.000001 mm end point is still a full circle', () => {
     const r = run(`${POSITIONED}G2 X0 Y-0.000001 I-10 J0 F100\n`, EN);
     expect(r.report.blocked).toBe(false);
     expect(overrunBound(r.lines).mmUpperBound).toBeGreaterThan(CIRCLE_R10 - 0.01);
   });
+});
+
+describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
 
   it('EN: P turns are added to the coincident full circle', () => {
     const r = run(`${POSITIONED}G2 X0 Y-0.000001 I-10 J0 P1 F100\n`, EN);
     expect(r.report.blocked).toBe(false);
     expect(overrunBound(r.lines).mmUpperBound).toBeGreaterThan(2 * CIRCLE_R10 - 0.01);
   });
+});
+
+describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
 
   it('EN: a coincident-in-float32 end point at X1000 cannot be decided from double precision: blocked', () => {
     // f32(1000.00003) === 1000, so the firmware runs a full circle; double sees 0.00003 mm (> EPSILON).
@@ -88,11 +102,19 @@ describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', (
     expect(r.report.blocked).toBe(true);
     expect(blocks(r)).toContain('arc-ambiguous');
   });
+});
+
+describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
 
   it('EN: just outside fp_EQ the travel is ~1.1e-6 rad, which the firmware alarms on: blocked', () => {
     const r = run('G3 X0.000011 Y0 I0 J10 F100\n', EN);
     expect(blocks(r)).toContain('arc-ambiguous');
   });
+});
+
+describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
 
   it('EN: a 0.0002 mm end point with real angular travel stays a tiny arc (contrast)', () => {
     const r = run(`${POSITIONED}G3 X0.0002 Y0 I0 J10 F100\n`, EN);
@@ -100,6 +122,10 @@ describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', (
     expect(overrunBound(r.lines).mmUpperBound).toBeLessThan(0.001);
     expect(bodies(r)).toEqual(['G0 X0 Y0', 'G3 X0.0002 Y0 I0 J10 F100']);
   });
+});
+
+describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
 
   it('TG: equal angles are zero travel: a 0.000001 mm end point is refused, not run as an arc', () => {
     for (const code of ['G2', 'G3']) {
@@ -112,6 +138,10 @@ describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', (
       expect(positioned.report.entries[0]?.message, code).toContain('no angular travel');
     }
   });
+});
+
+describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
 
   it('TG: equal angles with P1 travel exactly one turn (EN runs two: full circle plus P1)', () => {
     const tg = run(`${POSITIONED}G2 X0 Y-0.000001 I-10 J0 P1 F100\n`, TG);
@@ -120,12 +150,20 @@ describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', (
     expect(b).toBeGreaterThan(CIRCLE_R10 - 0.01);
     expect(b).toBeLessThan(CIRCLE_R10 + 0.01);
   });
+});
+
+describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
 
   it('TG: at the atan2 branch cut (I0 J10) a near-coincident end point is blocked as ambiguous', () => {
     for (const body of ['G3 X0.000001 Y0 I0 J10 F100', 'G2 X0 Y0 I0 J10 F100', 'G3 X0 Y0 I0 J10 F100']) {
       expect(blocks(run(`${body}\n`, TG)), body).toContain('arc-ambiguous');
     }
   });
+});
+
+describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
 
   it('R format: end points that coincide in the plane (in float32) are blocked on both dialects', () => {
     for (const d of [EN, TG]) {
@@ -133,6 +171,10 @@ describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', (
       expect(run('G2 X1000.00003 Y0 R10 F100\n', d, { start: at(1000, 0) }).report.blocked).toBe(true);
     }
   });
+});
+
+describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
 
   it('R format: a chord too short to place the centre in float32 is blocked; a clear chord is not', () => {
     for (const d of [EN, TG]) {
@@ -141,12 +183,20 @@ describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', (
       expect(run('G2 X1001 Y0 R10 F100\n', d, { start: at(1000, 0) }).report.blocked).toBe(false);
     }
   });
+});
+
+describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
 
   it('sub-arcs are re-checked with the same rule: a large-radius arc whose pieces fall in the angle band cannot be split', () => {
     // r = 2000, 0.05 mm of travel (2.5e-5 rad) is clear of the band; three pieces of 8.3e-6 rad are not.
     expect(run('G3 X0.05 Y0.000000625 I0 J2000 F100\n', EN).report.blocked).toBe(false);
     expect(blocks(run('G3 X0.05 Y0.000000625 I0 J2000 F0.5\n', EN))).toEqual(['split-impossible']);
   });
+});
+
+describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule', () => {
+
 
   it('the machine position is needed to bound float32 rounding of an arc', () => {
     const r = run('G91 G2 X0.000001 Y0 I0 J10 F100\n', EN, { start: without('machine') });
@@ -236,8 +286,10 @@ describe('P0-10 #2: full circles and split arcs never invent absolute coordinate
  * the arc is refused, never given the short path. The firmware-model
  * cross-check of these cases is in arc-models.test.ts.
  */
+
+const PARKED_ARCS = ['G3 X0.0004 Y0 I0 J10 F600', 'G2 X0 Y0.0004 I10 J0 F600'];
 describe('arc uncertainty: a reported start is only known to its printed precision', () => {
-  const PARKED_ARCS = ['G3 X0.0004 Y0 I0 J10 F600', 'G2 X0 Y0.0004 I10 J0 F600'];
+
 
   it('reproduction: parked at 0.0004 (reported 0), the arc whose end is the true start is refused on both dialects', () => {
     for (const d of [EN, TG]) {
@@ -248,6 +300,10 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
       }
     }
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   it('once the job commands the plane start, the same arcs are decided again (tiny arcs on EN)', () => {
     for (const body of PARKED_ARCS) {
@@ -256,6 +312,10 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
       expect(overrunBound(r.lines).mmUpperBound, body).toBeLessThan(0.001);
     }
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   it('only the named axis is positioned, and an omitted arc axis ends exactly where it was', () => {
     // G0 X0 leaves Y reported: an arc ending near the Y start is still refused.
@@ -265,17 +325,29 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
     // Writing X0 on the arc measures it from the reported X again: refused.
     expect(blocks(run('G0 Y0\nG2 X0 Y0.0004 I10 J0 F600\n', EN))).toEqual(['arc-ambiguous']);
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   it('incremental arcs are added to the firmware position and need no absolute start: G91 G3 X0.000001 is a full circle', () => {
     const r = run('G91 G3 X0.000001 Y0 I0 J10 F100\n', EN);
     expect(r.report.blocked).toBe(false);
     expect(overrunBound(r.lines).mmUpperBound).toBeGreaterThan(CIRCLE_R10 - 0.01);
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   it('a G90.1 centre is measured from the uncertain start: refused even when the end point is incremental', () => {
     expect(blocks(run('G90.1 G91 G3 X0.000001 Y0 I0 J10 F100\n', EN))).toEqual(['arc-ambiguous']);
     expect(run('G0 X0 Y0\nG90.1 G91 G3 X0.000001 Y0 I0 J10 F100\n', EN).report.blocked).toBe(false);
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   it('R format: the chord must clear the start uncertainty too', () => {
     for (const d of [EN, TG]) {
@@ -284,6 +356,10 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
       expect(run('G0 X0 Y0\nG2 X0.03 Y0 R10 F100\n', d).report.blocked, d.id).toBe(false);
     }
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   it('work offsets are reported to three decimals too: a G54 or G55 offset of 0.000 may be 0.0004', () => {
     for (const d of [EN, TG]) {
@@ -295,6 +371,10 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
       expect(run('G55\nG0 X0 Y0\nG3 X0.0004 Y0 I0 J10 F600\n', d).report.blocked, d.id).toBe(false);
     }
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   it('an inch board prints offsets in inches: three decimals are 0.0127 mm apart', () => {
     const inch: StartState = { ...START, units: 'G20' };
@@ -304,6 +384,10 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
     // Unknown units at the time of the report are taken as inches.
     expect(blocks(run('G21\nG3 X0.01016 Y0 I0 J10 F600\n', EN, { start: without('units') }))).toEqual(['arc-ambiguous']);
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   it('G92 and G10 L20 make the work position read the written value: the next arc is decided again', () => {
     for (const d of [EN, TG]) {
@@ -316,6 +400,10 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
     // After G92.1 the work position is the reported machine position again.
     expect(blocks(run('G92 X0 Y0\nG92.1\nG3 X0.0004 Y0 I0 J10 F600\n', EN))).toEqual(['arc-ambiguous']);
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   it('G28 and G30 end at a stored position that is only known to its printed precision', () => {
     for (const code of ['G28', 'G30']) {
@@ -326,6 +414,10 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
     // offset it was reached through are correlated, so it stays conservative and still refuses.
     expect(run('G0 X0 Y0\nG28.1\nG28\nG3 X0.0004 Y0 I0 J10 F600\n', EN).report.blocked).toBe(true);
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   it('float32 accumulation over G91 moves widens the band of a following G90 arc', () => {
     const chain = ['G0 X0 Y0', 'G91', ...Array.from({ length: 200 }, () => 'G0 Y0.03'), 'G90'].join('\n');
@@ -335,6 +427,10 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
     // A single incremental move is far inside the band.
     expect(run('G0 X0 Y0\nG91 G0 Y0.03\nG90 G3 X0 Y0.0302 I-1 J0 F600\n', EN).report.blocked).toBe(false);
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   // Verification of c2799da: a split line is what the firmware sums, not the line the job wrote.
   it('a split G91 move is many firmware sums: its float32 drift widens the band of a following G90 arc', () => {
@@ -356,6 +452,10 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
       expect(run(`${[...prefix, 'G0 Y630', `${code} X0 Y630.02 I10 J0 F600`].join('\n')}\n`, d).report.blocked, d.id).toBe(false);
     }
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   it('a split G91 arc is many firmware sums too: its drift widens the band of a following G90 arc', () => {
     // 1453 sub-arcs of a nearly straight incremental arc; the test-kit EN model (float32 targets) ends at
@@ -366,6 +466,10 @@ describe('arc uncertainty: a reported start is only known to its printed precisi
       expect(run(`${[...prefix, 'G0 X1530 Y0', 'G3 X1530.1 Y0 I0 J10 F600'].join('\n')}\n`, d).report.blocked, d.id).toBe(false);
     }
   });
+});
+
+describe('arc uncertainty: a reported start is only known to its printed precision', () => {
+
 
   it('an absolute split full circle writes its start rounded: the next arc is measured from the written value', () => {
     // Y0.00004 is written as Y0 on the last sub-arc, so the board ends at Y0; G3 X0 Y0 is then a full circle on EN

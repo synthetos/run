@@ -957,10 +957,6 @@
       "max-lines-per-function $/ArrowFunctionExpression:describe('T-S62 and the normative rule (SAFETY §4.1)')[1]#1": 98,
       "max-params $/ArrowFunctionExpression:describe('T-S3: the generated matrix')[1]#1/ArrowFunctionExpression:it('adding an overlay never allows more (fast-check)')[1]#1/ArrowFunctionExpression:fc.property()[6]#1": 6
     },
-    "packages/safety/test/arc-fp.test.ts": {
-      "max-lines-per-function $/ArrowFunctionExpression:describe('P0-10 #1: centre-format coincidence follows the dialect fp_EQ rule')[1]#1": 81,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('arc uncertainty: a reported start is only known to its printed precision')[1]#1": 106
-    },
     "packages/safety/test/axisModeFacts.test.ts": {
       "max-lines-per-function $/ArrowFunctionExpression:describe('axisModeFacts')[1]#1": 94,
       "max-nested-callbacks $/ArrowFunctionExpression:describe('cross-check with the sanitiser (row 35): a fact is shown whenever motion would be blocked for that reason')[1]#1/ArrowFunctionExpression:it.each([ ['EN', TINYG_EN], ['440.21', TINYG_440], ])('%s: inhibited-axis blocks exactly when the facts report an inhibited or unread axis away from 0')[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:AXES.forEach()[0]#1": 4,
