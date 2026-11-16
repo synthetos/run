@@ -173,7 +173,10 @@ function optionIssues(v: Record<string, unknown>): Issue[] {
 
 const FIELDS = new Set(['axes', 'switchType', 'id', 'name', 'templateId', 'drive', 'travel', 'spindle', 'createdAt', 'revision', 'bed', 'homeFrame']);
 
-/** A machine profile as it may enter an account: every field checked, unknown fields refused. */
+/**
+ * A machine profile as it may enter an account: every field checked. Unknown fields are refused at the root and in
+ * each axis profile; inside the bed and home frame, extra fields are kept as data and never read by anything here.
+ */
 export function readMachine(value: unknown): LibraryResult<MachineProfile> {
   if (!isObject(value)) return { ok: false, issues: [issue('', 'must be an object')] };
   const unknown = Object.keys(value).filter((k) => !FIELDS.has(k)).map((k) => issue(`/${k}`, 'is not a profile field'));
