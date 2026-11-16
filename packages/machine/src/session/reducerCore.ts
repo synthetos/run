@@ -1,3 +1,4 @@
+import { bindWatchdog } from './reducers/watchdog.ts';
 import { bindReports } from './reducers/reports.ts';
 import { bindLive } from './reducers/live.ts';
 import { bindIdentify } from './reducers/identify.ts';
@@ -836,109 +837,6 @@ function onGarbled(t: Tx, at: number): void {
 }
 type ReadValueLike = { readonly value: JsonValue | null; readonly status: number } | undefined;
 
-/** The watchdog runs on a classified, connected link (it needs the dialect's ENQ or its read allowlist). */
-function watchdogActive(s: SessionState): boolean {
-  return linkUp(s) && READY_BASES.has(s.base) && dialectOf(s) !== null;
-}
-
-/** Arms the watchdog when it should run and is not armed; stops it when it should not run. */
-/**
- * How long received silence may last before the watchdog acts: with the heartbeat on, the report silence
- * window (then STALE, nothing sent); otherwise the fallback idle time before one proof-of-life ask.
- */
-function watchdogMs(t: Tx): number {
-  return t.s.reports.heartbeatMs !== null ? t.config.timings.reportSilenceMs : t.config.timings.livenessIdleMs;
-}
-
-function syncWatchdog(t: Tx): void {
-  if (watchdogActive(t.s)) {
-    if (t.s.timers.watchdog === undefined) t.arm('watchdog', watchdogMs(t));
-    return;
-  }
-  t.cancel('watchdog');
-  t.set({ liveness: null });
-}
-
-function enterStale(t: Tx, at: number): void {
-  if (t.s.overlays.includes('STALE')) return;
-  t.addOverlay('STALE');
-  // The watchdog and the read timeouts run only after the board has answered, so a receive time exists.
-  t.set({ stale: { at, silentForMs: Math.max(0, at - (t.s.live.lastRxAt as number)) } });
-  features.abandonProbe?.(t, 'stale', at);
-}
-
-/**
- * True when the last known state is one in which the edge-next heartbeat is silent and no report is due, so a
- * silent window proves nothing (SAFETY §4.2 amendment "heartbeat silence during hold and dwell"): the heartbeat
- * beats only while the machine is quiet, with nothing moving, held, flushing or queued (@cite EN
- * runtime.c:37-52, :62-71), and a finished feedhold or a long G4 dwell pushes no report either. That is a hold
- * (`hold` ≠ 0, or a held `stat`), or a cycle that is not stepping: a dwell, or moves queued but not moving
- * (a running, homing, jogging or probing `stat`, or planner buffers in use), with `vel` 0. Never while steps may
- * be moving (`vel` not 0, or unknown): pushed position reports cover liveness then, and nothing is sent. A finished
- * hold is the exception: nothing steps whatever `vel` says, and from 450.02 a hold entered during a dwell keeps
- * reporting the last move's final segment velocity (EN canonical_machine.c:2597-2610).
- */
-function silentWhileBusy(s: SessionState): boolean {
-  const live = s.live;
-  if (live.hold !== undefined && dialectOf(s)?.hold[live.hold] === 'HOLD') return true;
-  if (live.vel !== 0) return false;
-  if ((live.hold !== undefined && live.hold !== 0) || live.machineClass === 'held') return true;
-  if (live.machineClass !== undefined && MOTION_CLASSES.has(live.machineClass)) return true;
-  const blocks = dialectOf(s)?.limits.plannerBlocks;
-  return blocks !== undefined && live.qr !== undefined && live.qr < blocks;
-}
-
-function onWatchdog(t: Tx, at: number): void {
-  // Armed only while the watchdog is active: syncWatchdog cancels it in the transition that ends that.
-  if (t.s.reports.heartbeatMs !== null) {
-    if (t.s.liveness !== null) {
-      // Asked once for this silent window and no byte came back within `staleAfterMs`: unexpected silence.
-      enterStale(t, at);
-      t.set({ liveness: null });
-      t.arm('watchdog', t.config.timings.reportSilenceMs);
-      return;
-    }
-    if (silentWhileBusy(t.s) && !heartbeatCoversHold()) {
-      // Held, dwelling or queued without stepping: the heartbeat does not beat and no report is due, so the
-      // silence is expected. Ask ONCE for this window (ENQ, else a `stat` GET); STALE only if that goes unanswered.
-      t.set({ liveness: { since: at, via: askForLife(t) } });
-      t.arm('watchdog', t.config.timings.staleAfterMs);
-      return;
-    }
-    // Neither a report, a heartbeat nor an answer for the whole window: "No reports from the board". The link
-    // is suspect (STALE: only reads and stops), and nothing is sent to ask: while the machine is quiet the
-    // heartbeat is the proof of life, and while steps move the pushed position reports are.
-    enterStale(t, at);
-    t.arm('watchdog', t.config.timings.reportSilenceMs);
-    return;
-  }
-  if (t.s.liveness !== null) {
-    // Asked for proof of life `staleAfterMs` ago and nothing came back: unexpected silence.
-    enterStale(t, at);
-  }
-  t.set({ liveness: { since: at, via: askForLife(t) } });
-  t.arm('watchdog', t.config.timings.staleAfterMs);
-}
-
-/**
- * Asks the board for proof of life. ENQ on edge-next after a rev-2/3 footer
- * when none is outstanding (an unanswered one stays outstanding: at most one,
- * SAFETY §4.2), else a `stat` GET, queued like any read (the matrix and the
- * allowlist are checked when it is written). A line already owed or waiting
- * is proof enough to wait for.
- */
-function askForLife(t: Tx): 'enq' | 'get' {
-  const byte = enqByte(t.s);
-  if (byte !== undefined && !t.s.enqOutstanding && allowed(matrixSnapshot(t.s), 'enq', t.config.release).allowed) {
-    writeEnq(t, byte);
-    return 'enq';
-  }
-  if (t.s.queue.length === 0 && t.s.writing === null && !t.s.expected.some((e) => !e.late)) {
-    t.set({ queue: [{ token: LIVENESS_TOKEN, purpose: 'liveness' }] });
-  }
-  return 'get';
-}
-
 // --- Writing ----------------------------------------------------------------
 
 /** Writes the next queued read when nothing is in flight and the matrix allows a read now. */
@@ -1046,6 +944,7 @@ const { resetToNotConnected, onOpened, startProbe, onLinkLost, onBanner } = bind
 const { advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading } = bindIdentify(deps);
 const { mergeLive, withNumber, onStatusReport, mergeStateValue } = bindLive(deps);
 const { startSeed, isSeedOwed, onSeedAnswer, seedAnswered, maybeConfigure, reportStepText, failReports, nextReportStep, numberValue, addChange, onReportAnswer } = bindReports(deps);
+const { watchdogActive, watchdogMs, syncWatchdog, enterStale, silentWhileBusy, onWatchdog, askForLife } = bindWatchdog(deps);
 Object.assign(deps, { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, reduce, onJobLineDropped, linkUp, deny, onIntent, onEnq, writeEnq, onRead, settingWriteActive, onSettingsWrite, finishSettingWrite, onGateAnswer, onSettingAnswer, onReadBackAnswer, interruptSettingWrite, refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry, onAckFault, writeFeedhold, resetToNotConnected, onOpened, startProbe, onLineWritten, answerTimeout, onLinkLost, onTimer, onInbound, onBanner, onResponse, isDataEntry, owedAnswers, consumeOwed, answers, onAnswer, advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading, onVerifyAnswer, refuseAck, onStatusReport, onGarbled, isObject, mergeLive, withNumber, startSeed, isSeedOwed, mergeStateValue, onSeedAnswer, seedAnswered, maybeConfigure, reportStepText, failReports, nextReportStep, numberValue, addChange, onReportAnswer, watchdogActive, watchdogMs, syncWatchdog, enterStale, silentWhileBusy, onWatchdog, askForLife, enterFault, pump, lineFor, MOTION_DEPS, JOB_DEPS });
 return { READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, reduce, settingWriteActive, BOOT_LINE, probeRecord, LIVENESS_TOKEN };
 }
