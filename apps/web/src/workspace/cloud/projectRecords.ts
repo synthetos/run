@@ -1,4 +1,6 @@
 import { readProject, type Project } from '@synthetos/library';
+import type { ProjectRecordStore } from '../../projects/blobStore.ts';
+import { accountKey, accountPrefix, isBrowserKey, ownBlobIds, readAccountBlob } from './projectStorageKeys.ts';
 import type { RecordStore } from '../storage.ts';
 import type { CloudCache } from './cloudCache.ts';
 import { enqueue, visibleRecords } from './syncQueue.ts';
@@ -10,16 +12,17 @@ export interface ProjectRecordsOptions {
   active(): boolean; change(): void; notice(message: string): void; persist(): boolean;
 }
 /** Account metadata lives in its cache; account bytes and refused drafts are isolated by subject in IndexedDB. */
-export function projectRecords(options: ProjectRecordsOptions): RecordStore {
+export function projectRecords(options: ProjectRecordsOptions): ProjectRecordStore {
   const { records, cache } = options;
-  const prefix = `account/${encodeURIComponent(options.subject)}/`;
+  const prefix = accountPrefix(options.subject);
+  const key = (id: string) => accountKey(options.subject, id);
   const active = () => { if (!options.active()) throw new Error('This account session has ended.'); };
   const accountIds = () => new Set([...cache.records, ...cache.pending].filter(r => r.kind === 'project').map(r => r.id));
   async function projects(): Promise<Map<string, Project>> {
     const result = new Map<string, Project>();
     const known = accountIds();
     for (const id of await records.keys('projects')) {
-      if (id.includes('/')) continue;
+      if (!isBrowserKey(id)) continue;
       const value = await records.get('projects', id);
       if (!known.has(id)) result.set(id, value as Project);
     }
@@ -30,42 +33,60 @@ export function projectRecords(options: ProjectRecordsOptions): RecordStore {
     }
     return result;
   }
+  async function localOnly(id: string): Promise<boolean> {
+    if (cache.consent || accountIds().has(id) || !isBrowserKey(id)) return false;
+    const value = await records.get('projects', id);
+    active(); return value !== undefined;
+  }
   async function putProject(id: string, value: unknown): Promise<void> {
     const read = readProject(value);
-    const localOnly = !cache.consent && !accountIds().has(id) && await records.get('projects', id) !== undefined;
-    if (localOnly) await records.put('projects', id, value);
-    else if (!read.ok) await records.put('projects', prefix + id, value);
+    const local = await localOnly(id);
+    active();
+    if (local) await records.put('projects', id, value);
     else {
-      enqueue(cache, 'project', id, read.value);
-      await records.put('projects', downloadKey(options.subject, id), fileSignature(read.value));
-      // Preserve a refused edit until a valid replacement is durably queued.
-      if (options.persist()) await records.delete('projects', prefix + id);
-      else await records.put('projects', prefix + id, value);
+      // A late write may finish after sign-out. Its draft stays in this account, never in the next UI.
+      await records.put('projects', key(id), value);
+      active();
+      if (read.ok) {
+        enqueue(cache, 'project', id, read.value);
+        options.persist();
+        await records.put('projects', downloadKey(options.subject, id), fileSignature(read.value));
+        active();
+        if (options.persist()) await records.delete('projects', key(id));
+      }
     }
+    active();
     if (!read.ok) options.notice(refusal('project', value)!);
     options.change();
   }
   return {
     get persistent() { return records.persistent; },
-    async keys(kind) { active(); return kind === 'projects' ? [...(await projects()).keys()] : records.keys(kind); },
+    async keys(kind) { active(); const ids = kind === 'projects' ? [...(await projects()).keys()] : ownBlobIds(await records.keys(kind), options.subject); active(); return ids; },
     async get(kind, id) {
       active();
-      if (kind === 'projects') return (await projects()).get(id);
-      return await records.get('blobs', prefix + id) ?? await records.get('blobs', id);
+      if (kind === 'projects') { const value = (await projects()).get(id); active(); return value; }
+      return readAccountBlob(records, { subject: options.subject, id, fallback: isBrowserKey(id) }, active);
     },
+    // Only the draft API may use the browser's reserved aside namespace, never a project blob id.
+    readAside(id) { return readAccountBlob(records, { subject: options.subject, id: `aside/${id}`, fallback: isBrowserKey(id) }, active); },
     async put(kind, id, value) {
       active();
       if (kind === 'projects') await putProject(id, value);
-      else await records.put(kind, prefix + id, value);
+      else { await records.put(kind, key(id), value); active(); }
+    },
+    async putBlob(projectId, blobId, blob) {
+      active(); const local = await localOnly(projectId); active();
+      if (local && !isBrowserKey(blobId)) throw new Error('A browser blob id cannot name a storage namespace.');
+      await records.put('blobs', local ? blobId : key(blobId), blob); active();
     },
     async delete(kind, id) {
       active();
       // Blobs can be shared by the local original and a conflict copy. Account GC runs after archive.
       if (kind === 'blobs') return;
       if (accountIds().has(id)) { enqueue(cache, 'project', id, null); options.persist(); }
-      else await records.delete('projects', id);
-      await records.delete('projects', prefix + id);
-      options.change();
+      else if (isBrowserKey(id)) await records.delete('projects', id);
+      active(); await records.delete('projects', key(id));
+      active(); options.change();
     },
   };
 }

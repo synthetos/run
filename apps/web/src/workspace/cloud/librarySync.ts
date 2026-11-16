@@ -40,8 +40,8 @@ export function startLibrarySync(options: SyncOptions): { stop(): void; wake(): 
     update({ status: value, browserOnly: !cache.consent && local().length > 0, remaining: value === 'quota' ? pendingNames() : [] });
     if (value === 'quota') notice('Your account storage is full. These records stayed local.');
   };
-  const show = () => { if (queueSeedCleanup(cache)) persist(); showBindings(bindings, cache); projects?.show(); };
-  const change = () => { status(librarySyncView.peek().status === 'quota' ? 'quota' : 'saving'); show(); wake(); };
+  const show = () => { if (stopped) return; if (queueSeedCleanup(cache)) persist(); showBindings(bindings, cache); projects?.show(); };
+  const change = () => { if (stopped) return; status(librarySyncView.peek().status === 'quota' ? 'quota' : 'saving'); show(); wake(); };
   const projects = options.projects === undefined ? undefined : startProjectSync({ subject: options.subject, context: options.projects, cache, allowed: options.allowed, persist, change, notice });
   const detach = () => { for (const b of bindings) b.disconnect(); projects?.stop(); };
   const runner = syncRunner({ ...options, cache, hooks: { persist, change: show, notice, ...(projects ? { prepare: projects.prepare } : {}) }, status,
@@ -49,7 +49,7 @@ export function startLibrarySync(options: SyncOptions): { stop(): void; wake(): 
       stopped = true; detach(); librarySyncView.value = { mode: 'local', status: 'saved', display: '', ask: false, notice: cache.pending.length ? 'Account sync is unavailable. Pending account edits remain in this browser.' : null, remaining: [] };
     },
   });
-  function wake(): void { projects?.wake(); if (!['quota', 'refused'].includes(librarySyncView.peek().status)) runner.wake(); }
+  function wake(): void { if (stopped) return; projects?.wake(); if (!['quota', 'refused'].includes(librarySyncView.peek().status)) runner.wake(); }
   const local = () => [...bindings.flatMap(b => toRecords(b.name, b.local())), ...(projects?.local() ?? [])];
   const counts = Object.fromEntries(['tool', 'material', 'machine', 'project'].map(kind => [kind, local().filter(r => r.kind === kind).length]));
   librarySyncView.value = { mode: 'account', status: cache.pending.length ? 'saving' : 'saved', display: options.display, ask: !cache.consent && local().length > 0, notice: null, remaining: [], browserOnly: !cache.consent && local().length > 0, counts };
@@ -63,6 +63,7 @@ export function startLibrarySync(options: SyncOptions): { stop(): void; wake(): 
     importing = true; runner.pause(true); update({ ask: false, status: 'saving' });
     try {
       await projects?.refreshLocal();
+      if (stopped) return;
       const ok = await prepareImport(cache, local(), persist);
       if (!stopped) { show(); update({ status: ok ? 'saving' : 'retry' }); }
     } catch { update({ status: 'retry', notice: 'The import could not finish. Your browser copies are still here.' }); }
@@ -72,5 +73,5 @@ export function startLibrarySync(options: SyncOptions): { stop(): void; wake(): 
   librarySyncActions.dismiss = () => update({ notice: null, remaining: [] });
   librarySyncActions.retry = () => { update({ status: 'saving' }); wake(); };
   if (cache.importSource !== undefined) void librarySyncActions.copy(); else wake();
-  return { wake, stop() { stopped = true; runner.stop(); detach(); librarySyncView.value = { mode: 'local', status: 'saved', display: '', ask: false, notice: null, remaining: [] }; } };
+  return { wake, stop() { if (stopped) return; stopped = true; runner.stop(); detach(); librarySyncView.value = { mode: 'local', status: 'saved', display: '', ask: false, notice: null, remaining: [] }; } };
 }

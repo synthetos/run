@@ -22,6 +22,7 @@ export function syncRunner(options: RunnerOptions) {
     for (const kind of RECORD_KINDS) {
       if (signal.aborted || !options.allowed()) return;
       const page = await options.client.list(kind, signal);
+      if (stopped || signal.aborted) return;
       for (const record of page) {
         const issue = refusal(kind, record.content);
         if (issue === null) records.push(record); else options.hooks.notice(issue);
@@ -46,15 +47,23 @@ export function syncRunner(options: RunnerOptions) {
     busy = false; abort = null;
     if (interrupted && idle()) schedule();
   }
+  async function flush(signal: AbortSignal): Promise<SyncStatus> {
+    for (;;) {
+      const status = await drainQueue(options.cache, options.client, options.allowed, signal, options.hooks);
+      if (cancelled() || status !== 'saved') return status;
+      await options.cleanup?.(signal);
+      if (cancelled() || !options.allowed()) return 'saving';
+      if (options.cache.pending.length === 0) return 'saved';
+      // wake() can arrive while cleanup is awaiting DELETE. Drain that work before reporting saved.
+    }
+  }
   async function run(): Promise<void> {
     if (!idle()) return;
     busy = true; abort = new AbortController();
     try {
       if (refresh) await read(abort.signal);
       if (cancelled() || refresh) return;
-      const status = await drainQueue(options.cache, options.client, options.allowed, abort.signal, options.hooks);
-      if (cancelled()) return;
-      if (status === 'saved') await options.cleanup?.(abort.signal);
+      const status = await flush(abort.signal);
       if (cancelled()) return;
       options.status(status);
       if (status === 'retry') schedule(); else attempt = 0;

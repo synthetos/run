@@ -27,7 +27,7 @@ import {
 } from '@synthetos/library';
 import { signal } from '@preact/signals';
 import { safeExternalLink } from '../workspace/library.ts';
-import type { RecordStore } from '../workspace/storage.ts';
+import { putProjectBlob, type ProjectRecordStore } from './blobStore.ts';
 import { checkEncoded, checkFile, checkImage, classify, type FileRole } from './limits.ts';
 
 // The record types and the readers are the package's (`@synthetos/library` project.ts), shared with the account store.
@@ -59,7 +59,7 @@ export interface EncodedImage {
 }
 
 export interface ProjectDeps {
-  readonly records: RecordStore;
+  readonly records: ProjectRecordStore;
   readonly now: () => Date;
   readonly newId: () => string;
   readonly hash: (bytes: ArrayBuffer) => Promise<string>;
@@ -191,7 +191,7 @@ export class ProjectStore {
             continue;
           }
           const imageId = this.#deps.newId();
-          await this.#deps.records.put('blobs', imageId, encoded.blob);
+          await putProjectBlob(this.#deps.records, id, imageId, encoded.blob);
           const image: ProjectImage = { id: imageId, hash: await this.#deps.hash(await encoded.blob.arrayBuffer()), name: file.name.replace(/\.[^.]+$/, '') + '.webp', size: encoded.blob.size, width: encoded.width, height: encoded.height, addedAt: this.#deps.now().toISOString() };
           await this.#save({ ...p, images: [...p.images, image], cover: p.cover ?? imageId });
           added.push(image.name);
@@ -204,7 +204,7 @@ export class ProjectStore {
         }
         const bytes = await file.arrayBuffer();
         const fileId = this.#deps.newId();
-        await this.#deps.records.put('blobs', fileId, new Blob([bytes], { type: file.type || 'application/octet-stream' }));
+        await putProjectBlob(this.#deps.records, id, fileId, new Blob([bytes], { type: file.type || 'application/octet-stream' }));
         const entry: ProjectFile = { id: fileId, name: file.name, size: file.size, hash: await this.#deps.hash(bytes), role: kind, note: '', addedAt: this.#deps.now().toISOString() };
         await this.#save({ ...p, files: [...p.files, entry] });
         added.push(file.name);
@@ -315,7 +315,9 @@ export class ProjectStore {
   }
 
   async aside(key: string): Promise<Blob | null> {
-    return this.blob(`aside/${key}`);
+    const records = this.#deps.records;
+    const value = records.readAside ? await records.readAside(key) : await records.get('blobs', `aside/${key}`);
+    return value instanceof Blob ? value : null;
   }
 
   /** Removes only a draft blob, leaving project files and saved jobs intact. */

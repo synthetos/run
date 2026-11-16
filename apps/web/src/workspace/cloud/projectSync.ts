@@ -33,6 +33,7 @@ export function startProjectSync(options: ProjectSyncOptions) {
     return [{ kind: 'project', id: p.id, content: read.value }];
   });
   function show(): void {
+    if (!live) return;
     showing = showing.then(async () => {
       if (!live) return;
       await store.load();
@@ -53,6 +54,7 @@ export function startProjectSync(options: ProjectSyncOptions) {
   async function prepare(pending: PendingWrite, signal: AbortSignal): Promise<PendingWrite> {
     if (pending.kind !== 'project' || pending.content === null) return pending;
     const project = await hashProjectImages(pending.content as Project, records);
+    if (!live || signal.aborted) throw new DOMException('Sync stopped', 'AbortError');
     const next = { ...pending, content: project };
     cache.pending = cache.pending.map(p => p.token === pending.token ? next : p);
     if (!live || !options.persist()) throw new Error('The project queue could not be saved');
@@ -62,7 +64,7 @@ export function startProjectSync(options: ProjectSyncOptions) {
   }
   async function cleanup(signal: AbortSignal): Promise<void> {
     while (cache.fileDeletes?.length) {
-      if (!live || !options.allowed() || signal.aborted) return;
+      if (!live || !options.allowed() || signal.aborted || cache.pending.length > 0) return;
       const hash = cache.fileDeletes[0]!;
       await context.files.remove(hash, signal);
       if (!live || signal.aborted) return;
@@ -91,6 +93,6 @@ export function startProjectSync(options: ProjectSyncOptions) {
     local, show, prepare, cleanup,
     async refreshLocal() { await context.local.load(); },
     wake() { if (!options.allowed()) for (const abort of downloads) abort.abort(); },
-    stop() { live = false; for (const abort of downloads) abort.abort(); projectDownload.open = () => Promise.resolve(); accountProjects.value = []; activateProjectStore(null); },
+    stop() { if (!live) return; live = false; for (const abort of downloads) abort.abort(); projectDownload.open = () => Promise.resolve(); accountProjects.value = []; activateProjectStore(null); },
   };
 }

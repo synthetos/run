@@ -17,6 +17,9 @@ function rebaseCleanup(cache: CloudCache, pending: PendingWrite, current: CloudR
 }
 function priorResponse(cache: CloudCache, pending: PendingWrite, current: CloudRecord | null): boolean {
   if (current === null) return false;
+  if (pending.kind === 'project' && pending.content === null && current.archivedAt !== null) {
+    accept(cache, pending, current); return true;
+  }
   const seed = pending.kind === 'tool' ? SEED_TOOLS.find(e => e.tool.id === pending.id) : undefined;
   if (pending.content === null && pending.parent === null && seed !== undefined && (current.archivedAt !== null || canonical(current.content) === canonical(seed.tool))) {
     accept(cache, pending, current, current.archivedAt !== null); return true;
