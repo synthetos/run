@@ -26,8 +26,7 @@ import {
     blockFindingText,
     type Axis,
     type SanitizeResult,
-    type SentLine,
-    type Wcs
+    type SentLine
 } from '@synthetos/safety';
 
 import { DEFAULT_CHORD_MM, arcBox, arcSegments, tessellateArc } from './arcs.ts';
@@ -38,6 +37,7 @@ import { emptyFrames } from './frames.ts';
 
 import { codeOf, parseLine } from './parser.ts';
 
+import { g10, storedMove } from './interpreter/actions.ts';
 import { interpretArc } from './interpreter/arcs.ts';
 import { DEFAULT_VERTEX_CAP, ROTARY } from './interpreter/constants.ts';
 import { type Emitted, type Piece, type Pos } from './interpreter/contract.ts';
@@ -503,53 +503,11 @@ class Interpreter extends InterpreterState {
   programEnd(): void { return programEnd(this); }
 
 
-  g10(params: ReadonlyMap<string, number>, axisWords: ReadonlyMap<Axis, number>, src: number, n: number, i: number): void {
-    const l = params.get('L');
-    const p = params.get('P');
-    if (l === undefined || !this.dialect.gcode.lWords.includes(l)) {
-      const allowed = this.dialect.gcode.lWords.map((v) => `L${String(v)}`).join(', ');
-      this.add(src, n, 'block', 'l-word', l === 20
-        ? `${this.dialect.label} has no G10 L20 (only ${allowed}): it would run as L2 and set the offset to the written value, not to the current position`
-        : `G10 ${l === undefined ? 'without L' : `L${String(l)}`} is not supported on ${this.dialect.label} (only ${allowed})`);
-      this.flags[i] = (this.flags[i] as number) | LINE_FLAG.NOT_DRAWN;
-      return;
-    }
-    const target = p !== undefined && Number.isInteger(p) && p >= 1 && p <= 6 ? (WCS_CODES[p - 1] as Wcs) : undefined;
-    if (target === undefined) {
-      this.add(src, n, 'block', 'bad-parameter', 'G10 needs P1 to P6');
-      return;
-    }
-    for (const [a, v] of axisWords) {
-      const mm = this.offsetMm(a, v);
-      if (l === 2) this.wcsOffsets[target][a] = mm;
-      else {
-        // L20: the offset that makes the current position read `v` in that system (@cite EN canonical_machine.c:1055-1062).
-        this.wcsOffsets[target][a] = this.machine[a] - mm - (this.g92.active ? this.g92.offsets[a] : 0) - (ROTARY.has(a) ? 0 : this.tool[a]);
-      }
-    }
-  }
+  g10(params: ReadonlyMap<string, number>, axisWords: ReadonlyMap<Axis, number>, src: number, n: number, i: number): void { return g10(this, params, axisWords, src, n, i); }
 
 
   /** G28/G30: an optional intermediate point, then the stored position on every axis (@cite EN canonical_machine.c:1390-1405). */
-  storedMove(code: 'G28' | 'G30', axisWords: ReadonlyMap<Axis, number>, src: number, n: number, i: number): void {
-    if (axisWords.size > 0) {
-      const to = { ...this.machine };
-      for (const [a, v] of axisWords) {
-        const mm = this.axisMm(a, v);
-        if (this.job.storedMoveIntermediate === 'machine') to[a] = mm;
-        else to[a] = this.distance === 'G91' ? this.machine[a] + mm : mm + this.offset(a);
-      }
-      this.linear(to, 'G0', i);
-    }
-    const stored = code === 'G28' ? this.g28 : this.g30;
-    if (stored === null) {
-      this.uncertain = true;
-      this.events.unmodelled(this.machine, this.machine);
-      this.add(src, n, 'warn', 'stored-position-unknown', `the stored ${code} position was not read from the board: the preview cannot draw this move and every later position is uncertain`);
-      return;
-    }
-    this.linear({ ...stored }, 'G0', i);
-  }
+  storedMove(code: 'G28' | 'G30', axisWords: ReadonlyMap<Axis, number>, src: number, n: number, i: number): void { return storedMove(this, code, axisWords, src, n, i); }
 
 
   move(axisWords: ReadonlyMap<Axis, number>, params: ReadonlyMap<string, number>, g53: boolean, src: number, n: number, i: number): void { return interpretMove(this, axisWords, params, g53, src, n, i); }
