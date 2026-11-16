@@ -441,9 +441,6 @@
       "max-lines-per-function $/ArrowFunctionExpression:describe('Phase 3: job commands through the worker (SAFETY §4.4a, T-S117)')[1]#1": 83,
       "max-params $/FunctionDeclaration:approvingHost#1": 6
     },
-    "apps/web/test/motion.test.ts": {
-      "max-lines-per-function $/ArrowFunctionExpression:describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S104–T-S106, control allowlist)')[1]#1": 91
-    },
     "apps/web/test/overlayAlarm.test.ts": {
       "max-classes-per-file $file": 2
     },

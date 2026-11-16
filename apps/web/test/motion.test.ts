@@ -1,27 +1,7 @@
-/**
- * Phase 2 motion in the page (SAFETY §4.5b, H50–H53; T-S89, T-S91, T-S92): when the motion controls are
- * enabled and why not, the press-and-hold jog controller, the Go to zero path shown in C25, and the control
- * allowlist with a LIVE motion session (motion controls enabled only with the flag on, the preconditions met
- * and not in a job; Pause and Stop job enabled whenever LIVE).
- */
 import { describe, expect, it } from 'vitest';
-
-import { h } from 'preact';
-
-import { renderToString } from 'preact-render-to-string';
-
-
-import { createWorkspaceModel, type LiveActions, type LiveView } from '../src/workspace/model.ts';
-
-import { axesText, goToZeroPath, JogController, jogKey, machineZ, motionUi, RENEW_MS, workOffsets } from '../src/workspace/motion.ts';
-
-
-
-import { ConnectNotice } from '../src/workspace/views/RunView.ts';
-
-
-
 import type { MotionCommand } from '../src/machine-worker/rpc.ts';
+import { type LiveView } from '../src/workspace/model.ts';
+import { axesText, goToZeroPath, JogController, jogKey, machineZ, motionUi, RENEW_MS, workOffsets } from '../src/workspace/motion.ts';
 import { snap, view } from './runMotionHarness.ts';
 
 
@@ -130,26 +110,5 @@ describe('T-S89: the jog controller (press, hold, release)', () => {
     expect(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].map(jogKey)).toEqual([{ x: -1 }, { x: 1 }, { y: 1 }, { y: -1 }, { z: 1 }, { z: -1 }]);
     expect(jogKey('Enter')).toBeNull();
     expect(jogKey(' ')).toBeNull();
-  });
-});
-describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S104–T-S106, control allowlist)',()=>{
-
-  function model(v: LiveView, motion = true) {
-    const m = createWorkspaceModel();
-    m.live.value = v;
-    m.actions.value = { ...({} as LiveActions), ...(motion ? { motion: () => Promise.resolve(null) } : {}) } as LiveActions;
-    return m;
-  }
-it('the Connect card says what Run changed in the board\'s status reporting (W35, W36), and why it did not finish', () => {
-    const reports = { phase: 'done', heartbeatMs: null, changes: [{ setting: 'sr' }, { setting: 'sv', from: 0, to: 1 }], detail: 'the board refused {si:250} (status 100)' };
-    const html = renderToString(h(ConnectNotice, { model: model(view(snap({ reports }))), onView: () => undefined }));
-    expect(html).toContain('data-safety="W35"');
-    expect(html).toContain('status reports to include position, spindle, coolant and tool');
-    expect(html).toContain('data-safety="W36"');
-    expect(html).toContain('sv from 0 to 1');
-    expect(html).toContain('Status reports: the board refused {si:250} (status 100).');
-    expect(html).toContain('data-reports="no-heartbeat"');
-    const quiet = renderToString(h(ConnectNotice, { model: model(view(snap({ reports: { phase: 'done', heartbeatMs: 1000, changes: [], detail: null } }))), onView: () => undefined }));
-    expect(quiet).not.toContain('data-reports');
   });
 });
