@@ -48,6 +48,7 @@ import { initialize } from './analyze/initialize.ts';
 import { appliedTool, g92Part, g92PartUnc, offsetUnc, selectWcs, setG92, shift, totalOffset, workAfterSet } from './analyze/offsets.ts';
 import { exactUnc, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
 import { AFTER_MOTION, ARC_LETTERS, AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
+import { setWork, settle, widen } from './analyze/uncertainty.ts';
 import { mmPerUnit, motionBound, needsUnits, offsetScale, scale, unitScale } from './analyze/units.ts';
 import { AXES, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, WCS_CODES, type AxisMode } from './types.ts';
 export { type Finding, type LineAnalysis } from './analyze/contract.ts';
@@ -160,21 +161,7 @@ export class JobModel extends ModelState {
    *   more rounding on top of what was already uncertain (float32
    *   accumulation over a run of G91 moves).
    */
-  #settle(axis: Axis, kind: 'work' | 'machine' | 'incremental', delta: number, targetUnc = 0): void {
-    const m = this.machine[axis];
-    const off = this.totalOffset(axis);
-    const e = stepErrorMm(m ?? 0, delta, off ?? 0);
-    if (kind === 'work') {
-      this.uWork[axis] = e;
-      this.uMachine[axis] = this.#offsetUnc(axis) + e;
-    } else if (kind === 'machine') {
-      this.uMachine[axis] = targetUnc + e;
-      this.uWork[axis] = this.uMachine[axis] + this.#offsetUnc(axis);
-    } else {
-      this.uMachine[axis] += e;
-      this.uWork[axis] += e;
-    }
-  }
+  #settle(axis: Axis, kind: 'work' | 'machine' | 'incremental', delta: number, targetUnc = 0): void { return settle(this, axis, kind, delta, targetUnc); }
 
 
   /**
@@ -205,10 +192,7 @@ export class JobModel extends ModelState {
 
 
   /** Adds `mm` to the bound on both positions of an axis (rounding the model did not follow). */
-  #widen(axis: Axis, mm: number): void {
-    this.uMachine[axis] += mm;
-    this.uWork[axis] += mm;
-  }
+  #widen(axis: Axis, mm: number): void { return widen(this, axis, mm); }
 
 
   /**
@@ -217,11 +201,7 @@ export class JobModel extends ModelState {
    * is `value` up to one sum's rounding (plus the stored tool offset's bound on
    * a rotary axis, see `#workAfterSet`).
    */
-  #setWork(axis: Axis, value: number | null): void {
-    const w = this.#workAfterSet(axis, value);
-    this.work[axis] = w;
-    this.uWork[axis] = w === null ? Infinity : stepErrorMm(this.machine[axis] ?? 0, w) + (ROTARY.has(axis) ? this.uTool[axis] : 0);
-  }
+  #setWork(axis: Axis, value: number | null): void { return setWork(this, axis, value); }
 
 
   /** The G92 part of the work offset on an axis, or null when it is not known whether G92 applies. */
