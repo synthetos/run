@@ -44,6 +44,7 @@ import { type Emitted, type Piece, type Pos } from './interpreter/contract.ts';
 import { axisMm, offset, offsetMm, unitScale, work, zero } from './interpreter/coordinates.ts';
 import { addFinding, addFindingOnce } from './interpreter/findings.ts';
 import { initializeInterpreter } from './interpreter/initialize.ts';
+import { jump, kindBits, linearMove } from './interpreter/linear.ts';
 import { programEnd } from './interpreter/outputs.ts';
 import { ruleBlocks } from './interpreter/rules.ts';
 import { InterpreterState } from './interpreter/state.ts';
@@ -645,31 +646,13 @@ class Interpreter extends InterpreterState {
   }
 
 
-  kindBits(k: number): number {
-    return this.uncertain ? k | KIND.UNCERTAIN : k;
-  }
+  kindBits(k: number): number { return kindBits(this, k); }
 
 
-  linear(to: Pos, motion: 'G0' | 'G1', i: number): void {
-    let sq = 0;
-    for (const a of AXES) sq += (to[a] - this.machine[a]) ** 2;
-    const len = Math.sqrt(sq);
-    if (motion === 'G0') this.rapidMm += len;
-    else this.feedMm += len;
-    this.events.line(this.machine, to, motion === 'G0', this.uncertain, this.feed);
-    this.time(len, to, motion === 'G0');
-    this.pieces.push({ kind: 'line', line: i, to, k: this.kindBits(motion === 'G0' ? KIND.RAPID : KIND.FEED) });
-    this.machine = to;
-    this.movedYet = true;
-  }
+  linear(to: Pos, motion: 'G0' | 'G1', i: number): void { return linearMove(this, to, motion, i); }
 
 
-  jump(to: Pos, i: number): void {
-    this.events.unmodelled(this.machine, to);
-    this.pieces.push({ kind: 'jump', line: i, to, k: this.kindBits(KIND.BREAK) });
-    this.machine = to;
-    this.movedYet = true;
-  }
+  jump(to: Pos, i: number): void { return jump(this, to, i); }
 
 
   /** Adds a move's estimated duration (trapezoid, starting and ending at rest; an estimate only). */
