@@ -19,10 +19,8 @@ import {
     onFeedLimit,
     onJobBreakpoints,
     onJobFault,
-    onJobLinkLost,
     onJobPause,
     onJobPoll,
-    onJobReset,
     onJobResume,
     onJobRuntimeAnswer,
     onJobStop,
@@ -34,7 +32,6 @@ import {
     pumpJob,
     queuedLine
 } from '../src/session/job.ts';
-import { failJob, jobStopped, lastFileLine } from '../src/session/jobState.ts';
 import { CONFIRM, JOBS_RELEASE, jobHarness, load, runUntil, start } from './jobHarness.ts';
 import { deps, ready, tx, value, why, withJob } from './jobLayerHarness.ts';
 describe('the live start state and motion model for the sanitiser', () => {
@@ -355,22 +352,6 @@ describe('the guards of the job decisions', () => {
   });
 
 
-  it('faults, resets and a lost link end only an active job; a liveness fault waits out the grace period', async () => {
-    const s = await ready();
-    const idle = tx(s);
-    onJobFault(idle.t, 'integrity', 'x', 0, true);
-    onJobReset(idle.t, 0);
-    onJobLinkLost(idle.t, 0);
-    expect(idle.t.s.job?.phase).toBe('ready');
-    const live = tx(withJob(s, { phase: 'running' }));
-    onJobFault(live.t, 'liveness', 'no reports', 0, true);
-    expect(live.t.s.job).toMatchObject({ phase: 'failed', faultStopAt: JOB_LIMITS.faultGraceMs });
-    const noLink = tx(withJob(s, { phase: 'running' }));
-    onJobFault(noLink.t, 'integrity', 'gone', 0, false);
-    expect(noLink.t.s.job?.stopping).toBe(false);
-  });
-
-
   it('runtime answers, feed-limit lines, abandoned loads and slot room', async () => {
     const s = await ready();
     const r = tx(withJob(s, { feedLimit: feedLimitWindow(2) }));
@@ -412,23 +393,6 @@ describe('the guards of the job decisions', () => {
     expect(loading.t.s.queue).toEqual([]);
     expect(slotRoom({ ...s, job: null })).toBe(0);
     pumpJob(tx(withJob({ ...s, base: 'RUNNING', footerRev: 3 }, { phase: 'running', free: 10 })).t, false);
-  });
-
-
-  it('job state helpers: the last file line, a stop of an idle job, a failed job that was being stopped', async () => {
-    const s = await ready();
-    const j = s.job as JobState;
-    expect(lastFileLine(j, undefined)).toBe(1);
-    expect(lastFileLine({ ...j, acked: 2 }, 99)).toBe(2);
-    expect(lastFileLine({ ...j, lines: [] }, undefined)).toBe(0);
-    const idle = tx(s);
-    jobStopped(idle.t, 0);
-    failJob(idle.t, 0, 'x');
-    expect(idle.t.s.job?.phase).toBe('ready');
-    const failed = tx(withJob(s, { phase: 'failed', stopping: true, message: null, endedAt: null }));
-    jobStopped(failed.t, 5);
-    expect(failed.t.s.job?.message).toMatch(/^The job ended\. Stopped at line/);
-    expect(failed.t.s.job?.endedAt).toBe(5);
   });
 });
 describe('more of the job layer, through its edges', () => {

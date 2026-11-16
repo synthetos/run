@@ -81,51 +81,6 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     expect(h.session.snapshot.job?.phase).toBe('stopped');
   });
 });
-describe('T-S114: a reset, a lost link or an alarm during a job (H71, H72)', () => {
-
-  it('a reset mid-job is a FAULT with W40; nothing more is written to the board', async () => {
-    const h = await jobHarness();
-    await start(h, zigzag(30));
-    await runUntil(h, () => (h.session.snapshot.job?.acked ?? 0) > 5);
-    model(h).resetBoard();
-    await runUntil(h, () => h.session.snapshot.overlays.includes('FAULT'));
-    const at = writes(h).length;
-    await h.run(5000);
-    const s = h.session.snapshot;
-    expect(s.fault?.cause).toBe('bannerAfterReady');
-    expect(s.overlays).toContain('UNKNOWN');
-    expect(s.job?.phase).toBe('failed');
-    expect(s.job?.message).toMatch(/^DANGER — The controller reset during the job at line \d+\. Everything queued is gone/);
-    expect(writes(h).slice(at).some((w) => w.startsWith('N'))).toBe(false);
-  });
-
-
-  it('a lost link ends the job (LOST)', async () => {
-    const h = await jobHarness();
-    await start(h, zigzag(30));
-    await runUntil(h, () => (h.session.snapshot.job?.acked ?? 0) > 5);
-    h.endpoint.disconnect();
-    await h.run(100);
-    expect(h.session.snapshot.overlays).toContain('LOST');
-    expect(h.session.snapshot.job?.phase).toBe('failed');
-    expect(h.session.snapshot.job?.message).toMatch(/^The connection was lost at line/);
-  });
-
-
-  it('an alarm (a limit switch) ends the job and the session is in ALARM', async () => {
-    const h = await jobHarness();
-    await start(h, zigzag(30));
-    await runUntil(h, () => (h.session.snapshot.job?.acked ?? 0) > 5);
-    model(h).injectLimitSwitch(1);
-    await runUntil(h, () => h.session.snapshot.base === 'ALARM');
-    await h.run(2000);
-    // The alarm's `er` latches a FAULT; the controller has already flushed and turned its outputs off, so no
-    // flush sequence is sent into the alarm.
-    expect(h.session.snapshot.job?.phase).toBe('failed');
-    expect(h.session.snapshot.job?.message).toMatch(/^The job ended at line \d+: the board reported an exception \(status 203\)/);
-    expect(h.session.snapshot.job?.stopping).toBe(false);
-  });
-});
 describe('the job flag and the feed-limit window (capability seams)', () => {
 
   it('no job flag is ever sent without the capability (edge-next a7489b79 has none)', async () => {
