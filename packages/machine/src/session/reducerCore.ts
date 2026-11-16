@@ -1,3 +1,4 @@
+import { bindGarbled } from './reducers/garbled.ts';
 import { bindAnswers } from './reducers/answers.ts';
 import { bindInbound } from './reducers/inbound.ts';
 import { bindTimers } from './reducers/timers.ts';
@@ -326,101 +327,6 @@ function onIntent(t: Tx, request: SessionIntent, at: number): void {
       t.decide(intent, deny(PHASE_1_NOT_HANDLED.reason, PHASE_1_NOT_HANDLED.remedy, `ROADMAP P1-02 (${t.config.release.name})`));
   }
 }
-
-function onGarbled(t: Tx, at: number): void {
-  if (t.s.probe !== null && t.s.probe.settling !== 'none') return;
-  const owed = owedAnswers(t.s);
-  const index = owed.findIndex((e) => !e.late);
-  if (index < 0) return; // nothing was asked: nothing to trust or distrust
-  // With job lines owed (line mode), a damaged answer could belong to any of them: stop trusting the link.
-  if (owed.some((e) => !e.late && e.purpose === 'job')) {
-    enterFault(t, 'unexpectedResponse', 'integrity', 'an answer arrived damaged while job lines were owed', at);
-    return;
-  }
-  // The answer in flight arrived damaged.
-  const entry = owed[index] as Expected;
-  consumeOwed(t, owed, index, isDataEntry(entry));
-  t.cancel('answer');
-  switch (entry.purpose) {
-    case 'splice': {
-      // A damaged answer cannot prove that the first line was parsed as sr.
-      // It may have completed a pre-existing motion fragment. Only a validated
-      // sr-bearing error in onAnswer may retry; uncertainty stops the probe.
-      t.emit({ kind: 'log', text: 'probe: the answer to the first line ({sr:null}) arrived damaged: it cannot show the line was read as a status request, and a leftover partial line in the board\'s buffer may have joined it and run → ORPHANED_MOTION' });
-      t.addOverlay('ORPHANED_MOTION');
-      t.set({ queue: [] });
-      return;
-    }
-    case 'probe':
-      t.set({
-        ready: true,
-        base: 'CONNECTED_UNKNOWN',
-        queue: [],
-        classification: { dialectId: null, mode: 'readOnly', reason: 'probeFailed', detail: `the answer to the ${entry.token} probe arrived damaged`, upgradeOffer: false },
-      });
-      t.addOverlay('READ_ONLY');
-      t.emit({ kind: 'log', text: `probe: the answer to ${entry.token} arrived damaged → unclassified, read-only` });
-      checkUnclassifiedResting(t);
-      return;
-    case 'reading':
-      if (!t.s.queue.some((q) => q.purpose === 'reading')) finishReading(t);
-      return;
-    case 'request':
-      t.set({ values: { ...t.s.values, [entry.token]: { value: null, status: -1, at } } });
-      return;
-    case 'verify':
-      refuseAck(t, `the ${entry.token} read arrived damaged`);
-      return;
-    case 'liveness':
-      return;
-    case 'poll':
-      return; // the next poll asks again
-    case 'motion':
-      // Nothing shows whether the line ran: stop trusting the link (SAFETY §3 garbled frame).
-      enterFault(t, 'unexpectedResponse', 'integrity', `the answer to a motion line (${String(entry.line)}) arrived damaged`, at);
-      return;
-    case 'gate':
-      finishSettingWrite(t, 'refused', `Not written: the answer to the ${entry.token} read arrived damaged.`);
-      return;
-    case 'bootGate':
-      refuseBoot(t, `the answer to the ${entry.token} read arrived damaged`);
-      return;
-    /* c8 ignore next 2 -- the link closes as soon as {"boot":1} is written */
-    case 'boot':
-      return;
-    case 'setting':
-      finishSettingWrite(t, 'unconfirmed', 'The answer to the write arrived damaged. The board may or may not hold the new value; read it back before trusting it.');
-      return;
-    case 'readback':
-      finishSettingWrite(t, 'mismatch', 'Written (status 0), but the read-back arrived damaged.');
-      return;
-    case 'seed':
-      t.set({ values: { ...t.s.values, [entry.token]: { value: null, status: -1, at } } });
-      seedAnswered(t, entry, at);
-      return;
-    case 'report':
-      failReports(t, `the answer to ${reportStepText(t.s.reports.step as ReportStep)} arrived damaged`);
-      return;
-    /* c8 ignore next 2 -- a job entry owed makes the damaged answer a FAULT above */
-    case 'job':
-      return;
-    case 'jobPrep':
-      features.onJobPrepAnswer?.(t, entry, null, at);
-      return;
-    case 'lineMode':
-      features.onLineModeAnswer?.(t, null, at);
-      return;
-    case 'jobRuntime':
-      features.onJobRuntimeAnswer?.(t, entry, null, at);
-      return;
-    case 'modes':
-      onModesAnswer(t, entry, undefined);
-      return;
-    case 'probeZ':
-      features.onProbeGarbled?.(t, MOTION_DEPS, entry, at);
-      return;
-  }
-}
 type ReadValueLike = { readonly value: JsonValue | null; readonly status: number } | undefined;
 
 const { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, linkUp, deny, settingWriteActive, isObject } = bindShared(deps);
@@ -437,6 +343,7 @@ const { onLineWritten, answerTimeout, pump, lineFor } = bindWriting(deps);
 const { onTimer } = bindTimers(deps);
 const { onInbound } = bindInbound(deps);
 const { onResponse, isDataEntry, owedAnswers, consumeOwed, answers, onAnswer } = bindAnswers(deps);
+const { onGarbled } = bindGarbled(deps);
 Object.assign(deps, { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, reduce, onJobLineDropped, linkUp, deny, onIntent, onEnq, writeEnq, onRead, settingWriteActive, onSettingsWrite, finishSettingWrite, onGateAnswer, onSettingAnswer, onReadBackAnswer, interruptSettingWrite, refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry, onAckFault, writeFeedhold, resetToNotConnected, onOpened, startProbe, onLineWritten, answerTimeout, onLinkLost, onTimer, onInbound, onBanner, onResponse, isDataEntry, owedAnswers, consumeOwed, answers, onAnswer, advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading, onVerifyAnswer, refuseAck, onStatusReport, onGarbled, isObject, mergeLive, withNumber, startSeed, isSeedOwed, mergeStateValue, onSeedAnswer, seedAnswered, maybeConfigure, reportStepText, failReports, nextReportStep, numberValue, addChange, onReportAnswer, watchdogActive, watchdogMs, syncWatchdog, enterStale, silentWhileBusy, onWatchdog, askForLife, enterFault, pump, lineFor, MOTION_DEPS, JOB_DEPS });
 return { READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, reduce, settingWriteActive, BOOT_LINE, probeRecord, LIVENESS_TOKEN };
 }
