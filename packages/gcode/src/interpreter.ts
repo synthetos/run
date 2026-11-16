@@ -39,26 +39,13 @@ import { FrameRecorder, emptyFrames } from './frames.ts';
 
 import { codeOf, parseLine } from './parser.ts';
 
-import { DEFAULT_VERTEX_CAP, MM_PER_INCH, PLANE_INDEX, ROTARY } from './interpreter/constants.ts';
+import { DEFAULT_VERTEX_CAP, PLANE_INDEX, ROTARY } from './interpreter/constants.ts';
 import { type Emitted, type Piece, type Pos } from './interpreter/contract.ts';
+import { axisMm, fill, offset, offsetMm, unitScale, work, zero } from './interpreter/coordinates.ts';
 import { InterpreterState, type InterpreterContext } from './interpreter/state.ts';
 import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis, type TimingModel } from './types.ts';
 export { DEFAULT_VERTEX_CAP } from './interpreter/constants.ts';
 
-
-
-const zero = (): Pos => ({ X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 });
-
-const fill = (v: Partial<Record<Axis, number>> | undefined): { pos: Pos; complete: boolean } => {
-  const pos = zero();
-  let complete = v !== undefined;
-  for (const a of AXES) {
-    const x = v?.[a];
-    if (x === undefined || !Number.isFinite(x)) complete = false;
-    else pos[a] = x;
-  }
-  return { pos, complete };
-};
 
 
 /**
@@ -392,32 +379,22 @@ class Interpreter extends InterpreterState {
 
 
   /** Program units to mm. */
-  get scale(): number {
-    return this.units === 'G20' ? MM_PER_INCH : 1;
-  }
+  get scale(): number { return unitScale(this); }
 
 
   /** The work offset on an axis. EN and TG apply the tool offset to X, Y and Z only (@cite EN canonical_machine.c:536-563). */
-  offset(a: Axis): number {
-    return this.wcsOffsets[this.wcs][a] + (this.g92.active ? this.g92.offsets[a] : 0) + (ROTARY.has(a) ? 0 : this.tool[a]);
-  }
+  offset(a: Axis): number { return offset(this, a); }
 
 
-  work(a: Axis): number {
-    return this.machine[a] - this.offset(a);
-  }
+  work(a: Axis): number { return work(this, a); }
 
 
   /** Axis word → mm (rotary: degrees, as written). */
-  axisMm(a: Axis, v: number): number {
-    return ROTARY.has(a) ? v : v * this.scale;
-  }
+  axisMm(a: Axis, v: number): number { return axisMm(this, a, v); }
 
 
   /** An offset word → mm. Rotary offsets follow the dialect (`rotaryOffsetsUseUnits`). */
-  offsetMm(a: Axis, v: number): number {
-    return ROTARY.has(a) && !this.job.rotaryOffsetsUseUnits ? v : v * this.scale;
-  }
+  offsetMm(a: Axis, v: number): number { return offsetMm(this, a, v); }
 
 
   /** The dialect's block rules, applied to one line (defence in depth behind the sanitiser). */
