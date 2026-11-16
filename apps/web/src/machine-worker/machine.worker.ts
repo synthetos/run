@@ -33,8 +33,8 @@ interface WorkerScope {
 // The signed approved-builds manifest, bundled (the worker has no network code). It is verified again
 // before every connect, for this worker's own origin (approval.ts, P1-03).
 const origin = (globalThis as unknown as { location: { origin: string } }).location.origin;
-// The motion capability flag comes from the worker's own origin (motionFlag.ts): Phase 2 on the bench and
-// staging origins only, Phase 1 (read-only) everywhere else, production included.
+// Machine abilities match on staging and production. The server gates production Web Serial by run.connect;
+// unknown origins remain read-only. Account state never enters this worker.
 const host = new MachineWorkerHost(createTransportSource(), realClock(), workerPlatform(), { file: null, origin, releases: releaseSource({ postMessage: (message, transfer) => postMessage(message, { transfer }) }, origin) }, releaseFor(origin));
 const stops = new MachineStopService({
   session: host.session,

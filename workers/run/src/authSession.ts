@@ -9,13 +9,14 @@
  * The identity names the account by `sub`; `display` is the GitHub login, for "Signed in as @login" only. It is
  * display-only and never used to decide anything (accounts docs/RP_CONTRACT.md "Identity and signing").
  */
-import type { AuthConfig } from './authConfig.ts';
+import type { AuthConfig, AccountsSession } from './authConfig.ts';
 import { readCookie, SESSION_COOKIE } from './authCookies.ts';
 
 export interface RunSessionIdentity {
   readonly provider: 'run-session';
   readonly subject: string;
   readonly display: string;
+  readonly canConnect: boolean;
 }
 
 /** The signed-in run session's identity, or null (no cookie, invalid, revoked, expired, or accounts unreachable). */
@@ -27,8 +28,13 @@ export async function runSessionIdentity(request: Request, config: AuthConfig): 
     if (session === null || !Number.isSafeInteger(session.absoluteExpiresAt) || session.absoluteExpiresAt <= Math.floor(Date.now() / 1000) || session.client !== 'run' || typeof session.sub !== 'string' || !session.sub.startsWith('usr_')) return null;
     const login = session.identities.find((i) => i.provider === 'github')?.login;
     const display = typeof login === 'string' && /^[A-Za-z0-9-]{1,39}$/.test(login) ? `@${login}` : 'your Synthetos account';
-    return { provider: 'run-session', subject: session.sub, display };
+    return { provider: 'run-session', subject: session.sub, display, canConnect: sessionCanConnect(session) };
   } catch {
     return null;
   }
+}
+
+/** Accounts owns the role mapping. Missing/malformed capabilities never grant a port, even for an admin role. */
+export function sessionCanConnect(session: Pick<AccountsSession, 'capabilities'>): boolean {
+  return Array.isArray(session.capabilities) && session.capabilities.every((capability: unknown) => typeof capability === 'string') && session.capabilities.includes('run.connect');
 }

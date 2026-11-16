@@ -41,7 +41,7 @@ describe('the run session provider (D1 gate)', () => {
 
 describe('the account reads', () => {
   it('signed in, signed out with sign-in offered, not offered, and a failed read', async () => {
-    expect(await fetchAccount(replying(200, { account: { subject: 'usr_1', display: '@ril3y' }, signIn: true }))).toEqual({ signedIn: { subject: 'usr_1', display: '@ril3y' }, signIn: true, failed: false });
+    expect(await fetchAccount(replying(200, { account: { subject: 'usr_1', display: '@ril3y' }, signIn: true }))).toEqual({ signedIn: { subject: 'usr_1', display: '@ril3y', canConnect: false }, signIn: true, failed: false });
     expect(await fetchAccount(replying(200, { account: null, signIn: true }))).toEqual({ signedIn: null, signIn: true, failed: false });
     expect(await fetchAccount(replying(200, { account: null, signIn: false }))).toEqual({ signedIn: null, signIn: false, failed: false });
     expect(await fetchAccount(replying(200, { account: { subject: '' }, signIn: true }))).toEqual({ signedIn: null, signIn: true, failed: false });

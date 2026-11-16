@@ -11,7 +11,7 @@ for (const theme of ['light', 'dark']) test(`account library consent, import and
     localStorage.setItem('run.theme', theme);
   }, { tool: localTool, theme });
   const records = new Map<string, CloudRecord>(); let writes = 0;
-  await page.route('**/api/session', route => route.fulfill({ json: { account: { subject: 'usr_alice', display: '@alice' }, signIn: true } }));
+  await page.route('**/api/session', route => route.fulfill({ json: { account: { subject: 'usr_alice', display: '@alice', canConnect: true }, signIn: true } }));
   await page.route('**/api/identity', route => route.fulfill({ json: { identity: { provider: 'run-session', subject: 'usr_alice' } } }));
   await page.route('**/api/records/**', async route => {
     const path = new URL(route.request().url()).pathname.split('/'); const kind = path[3] as 'tool' | 'material'; const id = path[4];

@@ -1,27 +1,23 @@
-/**
- * The flasher phase switch is pinned (owner 2026-11-03; SAFETY §4.8 as amended, T-S124): the firmware update
- * runs on the bench and staging builds only, and production stays off until the owner changes this test and the
- * switch together.
- */
+/** Production and staging use the same machine abilities after the port grant. */
 import { describe, expect, it } from 'vitest';
 import { CURRENT_RELEASE, FLASHER, PHASE_1_RELEASE, PHASE_2_RELEASE, allowed, flasherEnabled, withFlasher } from '../src/index.ts';
 
 describe('the flasher phase switch', () => {
-  it('is on for staging (and the localhost bench, which is staging) and off for production', () => {
-    expect(FLASHER).toEqual({ staging: true, production: false });
+  it('is on for staging (and the localhost bench, which is staging) and on for production after the Connect grant', () => {
+    expect(FLASHER).toEqual({ staging: true, production: true });
     expect(Object.isFrozen(FLASHER)).toBe(true);
   });
 
   it('fails closed for no environment or anything unknown', () => {
     expect(flasherEnabled('staging')).toBe(true);
-    expect(flasherEnabled('production')).toBe(false);
+    expect(flasherEnabled('production')).toBe(true);
     for (const env of [null, undefined, 'bench', 'Staging', '', 'toString'] as unknown[]) expect(flasherEnabled(env as never)).toBe(false);
   });
 
   it('adds the flash kind only where enabled and only to a release that opens ports', () => {
     expect(withFlasher(PHASE_1_RELEASE, 'staging')).toMatchObject({ flash: true, name: 'Phase 1 + flasher' });
     expect(Object.isFrozen(withFlasher(PHASE_2_RELEASE, 'staging'))).toBe(true);
-    expect(withFlasher(PHASE_2_RELEASE, 'production')).toBe(PHASE_2_RELEASE);
+    expect(withFlasher(PHASE_2_RELEASE, 'production')).toMatchObject({ flash: true });
     expect(withFlasher(PHASE_2_RELEASE, null)).toBe(PHASE_2_RELEASE);
     expect(withFlasher(CURRENT_RELEASE, 'staging')).toBe(CURRENT_RELEASE);
   });

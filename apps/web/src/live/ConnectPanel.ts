@@ -1,14 +1,15 @@
 /**
  * The Connect panel (ROADMAP P1-05): the Connect button, C1 (SAFETY §6), the
  * LIVE entry refusals, and the advisory banner while connected (H27).
- * A pure function of its props; live/liveEntry.ts holds the state. C1 text
+ * Reads the displayed account grant; live/liveEntry.ts holds entry state. C1 text
  * comes from @synthetos/safety only (T-S32).
  */
+import { accountIdentity } from './account.ts';
 import { h, type ComponentChild } from 'preact';
-import { BOX } from '@synthetos/safety';
 import type { AdvisoryCheck } from './advisoryGate.ts';
-import { ACCOUNT_TITLE, AccountNotice } from './accountNotice.ts';
-import { c1Checklist } from './c1.ts';
+import { ACCOUNT_TITLE } from './accountNotice.ts';
+import { ConnectRefusal } from './ConnectRefusal.ts';
+import { ConnectChecklist } from './ConnectChecklist.ts';
 import type { EntryRefusal, EntryState } from './liveEntry.ts';
 
 export interface ConnectPanelProps {
@@ -55,12 +56,11 @@ export function refusedTitle(entry: EntryState | null): string {
   return entry?.step === 'refused' && entry.refusal.kind === 'signed-out' && !entry.refusal.signIn ? ACCOUNT_TITLE : 'Not connected';
 }
 
-function readTicks(form: HTMLFormElement): boolean[] {
-  return [...form.querySelectorAll('input[type="checkbox"]')].map((el) => (el as HTMLInputElement).checked);
-}
-
 export function ConnectPanel(props: ConnectPanelProps): ComponentChild {
   const { state } = props;
+  if (state.step !== 'live' && accountIdentity.value?.canConnect === false) {
+    return h('p', { class: 'fine', 'data-connect': 'role-required' }, 'Connecting is open to testers for now.');
+  }
   const connect = h('button', { type: 'button', class: 'button', 'data-action': 'connect', onClick: props.onConnect }, 'Connect');
   switch (state.step) {
     case 'idle':
@@ -69,48 +69,10 @@ export function ConnectPanel(props: ConnectPanelProps): ComponentChild {
       return h('div', { class: 'live-entry', 'data-entry': 'checking', role: 'status' }, h('p', null, 'Checking sign-in and the safety advisory…'));
     case 'opening':
       return h('div', { class: 'live-entry', 'data-entry': 'opening', role: 'status' }, h('p', null, 'Choose the port, then wait while the board is identified…'));
-    case 'refused': {
-      // Where no one can sign in yet (production): say so and what works meanwhile, with a Close (B1).
-      const comingSoon = state.refusal.kind === 'signed-out' && !state.refusal.signIn;
-      return h(
-        'div',
-        { class: 'live-entry', 'data-entry': 'refused', 'data-refusal': state.refusal.kind, ...(comingSoon ? { 'data-accounts': 'coming-soon' } : {}) },
-        comingSoon
-          ? h(AccountNotice, { signInHref: props.signInHref ?? null })
-          : h('p', { role: 'alert' }, refusalText(state.refusal)),
-        !comingSoon && state.refusal.kind === 'signed-out' && (props.signInHref ?? null) !== null
-          ? h('p', null, h('a', { class: 'button', href: props.signInHref ?? '/auth/login', 'data-action': 'sign-in' }, 'Sign in'))
-          : null,
-        h('button', { type: 'button', class: 'button', 'data-action': 'dismiss', onClick: props.onCancel }, comingSoon ? 'Close' : 'OK'),
-      );
-    }
-    case 'c1': {
-      const list = c1Checklist(state.form);
-      return h(
-        'form',
-        {
-          class: 'live-entry c1',
-          'data-entry': 'c1',
-          // OD-30: after the first acceptance no checklist is shown; this form is then only the click the chooser needs.
-          ...(state.form === 'full' ? { 'data-safety': 'C1' } : {}),
-          'data-c1-form': state.form,
-          onSubmit: (event: Event) => {
-            event.preventDefault();
-            props.onConfirm(readTicks(event.currentTarget as HTMLFormElement));
-          },
-        },
-        list.intro === undefined ? null : h('p', null, list.intro),
-        ...list.boxes.map((box, i) =>
-          h('label', { class: 'c1-box', key: String(i) }, h('input', { type: 'checkbox', name: `c1-${i}`, required: true, 'aria-label': `${BOX} ${box}` }), ` ${box}`),
-        ),
-        h(
-          'div',
-          { class: 'c1-actions' },
-          h('button', { type: 'submit', class: 'button', 'data-action': 'confirm' }, state.form === 'full' ? 'Confirm and choose port' : 'Choose port'),
-          h('button', { type: 'button', class: 'button', 'data-action': 'cancel', onClick: props.onCancel }, 'Cancel'),
-        ),
-      );
-    }
+    case 'refused':
+      return h(ConnectRefusal, { refusal: state.refusal, message: refusalText(state.refusal), signInHref: props.signInHref ?? null, onCancel: props.onCancel });
+    case 'c1':
+      return h(ConnectChecklist, { form: state.form, onConfirm: props.onConfirm, onCancel: props.onCancel });
     case 'live':
       return h(
         'div',

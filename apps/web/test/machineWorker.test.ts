@@ -856,27 +856,27 @@ describe('settingWrite: the phase switch and the worker request', () => {
     ]) expect(parseRequest(bad)).toBeNull();
   });
 
-  it('the worker turns settings writes on only for staging and the loopback bench; production and unknown origins stay read-only', () => {
+  it('the worker enables settings on production, staging and loopback; unknown origins stay read-only', () => {
     const at = (origin: string | null) => new MachineWorkerHost(source('fake', () => new BoardTransport()), new TestClock(), undefined, origin === null ? null : { file: COMMITTED_MANIFEST, origin }, origin === null ? undefined : releaseFor(origin));
     expect(at(BENCH_ORIGIN).release.settings).toBe(true);
     expect(at(STAGING_ORIGIN).release.settings).toBe(true);
-    expect(at(PRODUCTION_ORIGIN).release.settings).toBeUndefined();
+    expect(at(PRODUCTION_ORIGIN).release.settings).toBe(true);
     expect(at('https://run-abc.workers.dev').release.settings).toBeUndefined();
     expect(at(null).release.settings).toBeUndefined();
   });
 
-  it('production: a settings write is denied with "Not available in this release" and nothing is written', async () => {
+  it('unknown origin: a settings write is denied with "Not available in this release" and nothing is written', async () => {
     const t = new BoardTransport();
-    const host = approvingHost(t, COMMITTED_MANIFEST, PRODUCTION_ORIGIN, VALID_NOW, undefined, releaseFor(PRODUCTION_ORIGIN));
+    const host = approvingHost(t, COMMITTED_MANIFEST, 'https://unknown.example', VALID_NOW, undefined, releaseFor('https://unknown.example'));
     await classifyWith(t, host);
     expect(await host.handle({ v: 3, kind: 'settingWrite', key: 'xvm', value: 1234 })).toMatchObject({ ok: false, code: 'denied', message: 'Not available in this release.' });
     expect(t.writes.some((w) => w.includes('1234'))).toBe(false);
   });
 
-  it('bench: an approved, idle board takes the write: gate reads, the write, the read-back; the snapshot says verified', async () => {
+  it.each([BENCH_ORIGIN, PRODUCTION_ORIGIN])('%s: an approved idle board verifies settings writes', async origin => {
     // The bench release is Phase 2 with settings writes, so READING also reads `home` (the board then rests in IDLE_UNHOMED).
     const t = new BoardTransport(undefined, { ...EN, home: '{"r":{"home":0},"f":[3,0,10]}' });
-    const host = approvingHost(t, COMMITTED_MANIFEST, BENCH_ORIGIN, VALID_NOW, undefined, releaseFor(BENCH_ORIGIN));
+    const host = approvingHost(t, COMMITTED_MANIFEST, origin, VALID_NOW, undefined, releaseFor(origin));
     await classifyWith(t, host);
     expect(await host.handle({ v: 3, kind: 'settingWrite', key: 'xvm', value: 1234 })).toEqual({ v: 3, ok: true, kind: 'settingWrite', id: 1 });
     await settle();
@@ -902,21 +902,21 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
       releaseFor(origin),
     );
 
-  it('the motion flag is on for loopback and staging only; production and every other origin keep Phase 1', () => {
-    for (const o of [BENCH_ORIGIN, 'http://127.0.0.1:4173', 'http://localhost', STAGING_ORIGIN]) {
+  it('production, staging and loopback share the full release; other origins keep Phase 1', () => {
+    for (const o of [BENCH_ORIGIN, 'http://127.0.0.1:4173', 'http://localhost', STAGING_ORIGIN, PRODUCTION_ORIGIN]) {
       expect(motionEnabledFor(o), o).toBe(true);
       // Phase 2 composed with the settings-write, jobs and flasher switches: all on in the staging environment.
       expect(releaseFor(o)).toMatchObject({ ...PHASE_2_RELEASE, name: 'Phase 2 + settings writes + jobs + flasher', settings: true, jobs: true, flash: true });
     }
-    for (const o of [PRODUCTION_ORIGIN, 'http://run.synthetos.com', 'https://localhost:8793', 'https://run-abc.workers.dev', 'http://10.0.0.2:8793', 'null', '']) {
+    for (const o of ['http://run.synthetos.com', 'https://localhost:8793', 'https://run-abc.workers.dev', 'http://10.0.0.2:8793', 'null', '']) {
       expect(motionEnabledFor(o), o).toBe(false);
       expect(releaseFor(o)).toBe(PHASE_1_RELEASE);
     }
   });
 
-  it('on the bench origin a jog reaches the board as a motion line; the snapshot carries the flag', async () => {
+  it.each([BENCH_ORIGIN, PRODUCTION_ORIGIN])('%s: a jog reaches the board; the snapshot carries the flag', async origin => {
     const t = new BoardTransport(undefined, EN_MOTION);
-    const host = phase2Host(t, BENCH_ORIGIN);
+    const host = phase2Host(t, origin);
     expect((await classifyWith(t, host)).mode).toBe('full');
     expect(host.session.snapshot.base).toBe('IDLE_UNHOMED');
     const reply = await host.handle({ v: 3, kind: 'motion', command: { op: 'jog', axes: { x: 1 }, distanceMm: 0.1, feed: 600 } });
@@ -929,7 +929,7 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
     expect(posted.at(-1)?.motion).toBe(true);
   });
 
-  it('every command maps to its session intent; the production origin refuses them all and writes nothing', async () => {
+  it('every command maps to its session intent; an unknown origin refuses them all and writes nothing', async () => {
     const commands = [
       { op: 'jogRenew' },
       { op: 'jogRelease' },
@@ -972,7 +972,7 @@ describe('Phase 2: motion commands through the worker (SAFETY §4.5b, T-S92, T-S
     expect(await host.handle({ v: 3, kind: 'motion', command: { op: 'home', axes: ['x'] } })).toMatchObject({ ok: false, code: 'denied' });
 
     const p = new BoardTransport();
-    const prod = phase2Host(p, PRODUCTION_ORIGIN);
+    const prod = phase2Host(p, 'https://unknown.example');
     await classifyWith(p, prod);
     const before = p.writes.filter((w) => !w.startsWith('{')).length;
     for (const command of [{ op: 'jog', axes: { x: 1 }, distanceMm: 1, feed: 600 }, { op: 'home', axes: ['x'] }, { op: 'setZero', axes: ['x'] }, { op: 'tempOffset', axes: ['x'] }, { op: 'clearTempOffset' }, { op: 'selectCoord', system: 2 }, { op: 'setPosition', axes: ['x'] }, ...commands.filter((c) => c.op !== 'jogRelease' && c.op !== 'spindleOff' && c.op !== 'coolantOff' && c.op !== 'positionVerify')]) {
@@ -1090,14 +1090,14 @@ describe('Phase 3: job commands through the worker (SAFETY §4.4a, T-S117)', () 
       releaseFor(origin),
     );
 
-  it('the jobs switch is on with the motion release on loopback and staging only; production never gets it', () => {
-    for (const o of [BENCH_ORIGIN, STAGING_ORIGIN]) expect(releaseFor(o).jobs, o).toBe(true);
-    for (const o of [PRODUCTION_ORIGIN, 'https://run-abc.workers.dev', '']) expect(releaseFor(o).jobs, o).toBeUndefined();
+  it('production, staging and loopback have jobs; unknown origins do not', () => {
+    for (const o of [BENCH_ORIGIN, STAGING_ORIGIN, PRODUCTION_ORIGIN]) expect(releaseFor(o).jobs, o).toBe(true);
+    for (const o of ['https://run-abc.workers.dev', '']) expect(releaseFor(o).jobs, o).toBeUndefined();
   });
 
-  it('job commands reach the session: production refuses them and writes nothing; the snapshot carries the switch', async () => {
+  it.each([BENCH_ORIGIN, PRODUCTION_ORIGIN])('%s: jobs reach the session; unknown origins refuse without writes', async origin => {
     const p = new BoardTransport();
-    const prod = host3(p, PRODUCTION_ORIGIN);
+    const prod = host3(p, 'https://unknown.example');
     await classifyWith(p, prod);
     const before = p.writes.length;
     for (const command of [
@@ -1117,7 +1117,7 @@ describe('Phase 3: job commands through the worker (SAFETY §4.4a, T-S117)', () 
     await prod.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => posted.push(m) });
     expect(posted.at(-1)).toMatchObject({ jobs: false, jobElapsedMs: null });
     const t = new BoardTransport(undefined, EN_MOTION);
-    const bench = host3(t, BENCH_ORIGIN);
+    const bench = host3(t, origin);
     await classifyWith(t, bench);
     const benchPosted: SnapshotMessage[] = [];
     await bench.handle({ v: 3, kind: 'subscribe' }, { postMessage: (m) => benchPosted.push(m) });

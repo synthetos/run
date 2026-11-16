@@ -149,7 +149,7 @@ block was): XY pad with diagonals and go-to-XY-zero, Z up/down, steps 0.1, 1,
 - *Built for Phase 2 (2026-11-02, SAFETY §4.5b):* run sends short `G21 G91 G1`
   pieces (never the `jog*` tokens), at most two queued, with steps 0.01 to 100 mm
   (or inches) and Hold; a held jog needs a keep-alive from the page. Zero has its
-  own tab; spindle on asks C24. Motion is on for the bench and staging origins only.
+  own tab; spindle on asks C24. Motion is on for bench and staging, and production with a validated `run.connect` capability (OD-38).
 - No latency is promised. In P1 the controls are visible and disabled with
   "Jogging arrives with motion control"; during a job, "not available while a
   job is in progress"; on old firmware, locked until the update.
@@ -255,7 +255,7 @@ very last. Restore by token name so an older backup maps onto newer firmware;
 unknown or renamed tokens are listed in the diff.
 
 *Shipped 2026-11-02 on the bench and staging builds (SAFETY §4.6 amendment,
-H57-H63); production stays read-only behind one switch.* Board, Machines and
+H57-H63); production has the same abilities after role-gated Connect (OD-38).* Board, Machines and
 the backup file feed one Pending changes tray. Apply backs up first (saved on
 this computer and downloaded), passes the idle gate before every write, writes
 one token at a time and reads each back. It stops at the first failure and
@@ -300,7 +300,7 @@ verify → reconnect → version check → offer to restore.
   per hv a SHA-256-hashed `.hex` and a changelog, published by the maintainer.
 
 *Built 2026-11-03 on the bench and staging builds (SAFETY §4.8 as amended,
-H79-H89; production off behind `FLASHER`).* packages/flasher (HEX validator,
+H79-H89; production enabled after role-gated Connect, OD-38).* packages/flasher (HEX validator,
 stub-first page plan, a closed AVR109 command set with no `e`, the frame
 guard, the xboot client and flash run, the authorization that mints the
 bootloader capability); the worker's flash service (the session's idle-gated
@@ -363,14 +363,22 @@ The Console tab gets a command line you can type into, with history (↑/↓) an
 
 The user chooses where a report goes. When a job fails, they can say it's a run problem (run's repo, or the forum until it exists) or a firmware problem (TinyG or g2core issues, pre-filled with the board facts). See REPORT_A_PROBLEM.md §3.
 
-## Roles (owner, 2026-11-02; with the Synthetos account)
+## Roles (owner, 2026-11-15; OD-38)
 
-run gets roles from the shared Synthetos account, the same list as the forum:
-- **member**: their own machines, tools, materials and projects.
-- **moderator**: everything a member has, plus reviewing shared material, tool and machine records before they enter the public catalogue, and reviewing shared projects.
-- **admin**: everything a moderator has, plus editing the built-in catalogue, managing early-access features, and publishing firmware releases to the signed update list (signing stays an offline owner step).
+Accounts owns the role list and returns capabilities when run validates a session:
+- **member**: sign in and save their own machines, tools, materials and projects; no Connect.
+- **tester**: member plus Connect on production.
+- **moderator**: tester plus the read-only accounts people list; forum moderation is separate.
+- **admin**: tester plus account role management and its audit trail.
 
-A role never controls Pause, Stop job or the warning line. Until accounts land, live access to run.synthetos.com is a Cloudflare Access allowlist of the owner's and partners' emails, plus run's sign-in gate (D41).
+Run checks `run.connect`, without duplicating the role mapping. Every production HTML request validates the session again;
+only a valid grant allows Web Serial. HTML and account/action reads are never cached. Role removal ends the session, so the
+next page load loses the port. Members see “Connecting is open to testers for now.” in place of Connect. Signed-out visitors
+keep the sign-in prompt. The open `/update/` page keeps its existing exception.
+
+After Connect, production has staging's jog, jobs, settings and firmware abilities. New gated actions check the validated
+capability again; no account request enters the machine worker, accepted operation, Pause, Stop job or Escape path. Machine
+blockers remain in force. Firmware comes from the latest five TinyG GitHub releases with GitHub digest checks, without signing.
 
 ## Status reports: push instead of polling (firmware facts, 2026-11-02)
 

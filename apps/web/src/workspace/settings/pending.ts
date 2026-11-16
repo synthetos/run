@@ -39,7 +39,7 @@ const OVERLAY_WORDS: Readonly<Record<string, string>> = {
 export function settingsWriteBlocked(view: LiveView | null): string | null {
   const m = view?.message ?? null;
   if (view === null || m === null || !connected(view)) return 'Connect a board to change its settings.';
-  if (m.settingsWrites !== true) return 'Changing settings is not turned on in this build. Production stays read-only for now.';
+  if (m.settingsWrites !== true) return 'Changing settings is not turned on for this origin.';
   const s = m.snapshot;
   for (const o of ['LOST', 'FAULT', 'ORPHANED_MOTION', 'UNKNOWN', 'STALE'] as const) if (s.overlays.includes(o)) return OVERLAY_WORDS[o] as string;
   if (s.classification === null || s.base === 'IDENTIFYING' || s.base === 'READING') return 'Wait until the board is identified and read.';

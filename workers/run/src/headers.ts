@@ -5,7 +5,7 @@
  * The Worker runs first for every path. It wraps all responses; the generated
  * static _headers file is a fail-closed fallback if an asset ever bypasses it.
  * Production HTML grants serial only with configured sign-in and a validated run
- * session. Its HTML is no-store and varies by Cookie. Staging remains behind Access.
+ * session with run.connect. Its HTML is no-store and varies by Cookie. Staging remains behind Access.
  *
  * The committed `_headers` file is tested to be byte-identical to
  * `renderHeadersFile()`, the Playwright header test asserts the exact set on
@@ -50,8 +50,8 @@ export const CSP_DIRECTIVES: readonly string[] = [
  *
  * P1-00: staging behind Access and the localhost bench grant serial to self.
  * OD-29: production additionally requires configured sign-in and validation of
- * the run session on each HTML request. Before sign-in is configured it grants
- * nothing. Serial assets are session-gated and private/no-store too.
+ * the run.connect capability on each HTML request (OD-38). The exact /update/ HTML
+ * document stays open. Serial assets are immutable; the document policy gates the port.
  */
 export const PERMISSIONS_POLICY_FEATURES: readonly string[] = [
   'serial=()',
@@ -110,14 +110,14 @@ export const PRODUCTION_HOST = 'run.synthetos.com';
  * deployed as staging (`RUN_ENV` exactly `staging`) on
  * `https://staging.run.synthetos.com`, or the Worker deployed as production
  * (`RUN_ENV` exactly `production`, OD-29) on `https://run.synthetos.com`.
- * Production needs sessionValidated=true, except the exact /update/ HTML document (SAFETY §4.8, owner 2026-11-14). Both halves must match: a production Worker on the staging host, a
+ * Production needs connectAllowed=true, except the exact /update/ HTML document (SAFETY §4.8, owner 2026-11-14). Both halves must match: a production Worker on the staging host, a
  * staging Worker on the production host, any other host, port or scheme
  * (there should be none: workers_dev and preview_urls are off, H45), and a
  * missing or odd RUN_ENV all get the fail-closed set.
  */
-export function grantsSerial(runEnv: unknown, url: URL, sessionValidated = false, htmlDocument = false): boolean {
+export function grantsSerial(runEnv: unknown, url: URL, connectAllowed = false, htmlDocument = false): boolean {
   if (url.protocol !== 'https:' || url.port !== '') return false;
-  return (runEnv === 'staging' && url.hostname === STAGING_HOST) || (runEnv === 'production' && url.hostname === PRODUCTION_HOST && (sessionValidated || (htmlDocument && url.pathname === '/update/')));
+  return (runEnv === 'staging' && url.hostname === STAGING_HOST) || (runEnv === 'production' && url.hostname === PRODUCTION_HOST && (connectAllowed || (htmlDocument && url.pathname === '/update/')));
 }
 
 /** The header set after the host and session decision, fail-closed by default. */

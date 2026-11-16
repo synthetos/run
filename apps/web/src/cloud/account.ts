@@ -15,7 +15,7 @@ import type { FetchLike } from './live.ts';
 
 export interface AccountRead {
   /** The run session's account, or null (signed out, or the read failed). */
-  readonly signedIn: { readonly subject: string; readonly display: string } | null;
+  readonly signedIn: { readonly subject: string; readonly display: string; readonly canConnect?: boolean } | null;
   /** This host offers sign-in (`/auth/login`). Who is admitted is accounts' decision (D37). */
   readonly signIn: boolean;
   /** The read itself failed (offline, an error): not the same as "signed out". */
@@ -32,7 +32,7 @@ export async function fetchAccount(fetchFn: FetchLike = (i, o) => fetch(i, o)): 
     const signIn = body?.signIn === true;
     const account = body?.account;
     if (account !== null && typeof account === 'object' && typeof account.subject === 'string' && account.subject.length > 0) {
-      return { signedIn: { subject: account.subject, display: typeof account.display === 'string' ? account.display.slice(0, 64) : 'your Synthetos account' }, signIn, failed: false };
+      return { signedIn: { subject: account.subject, canConnect: account.canConnect === true, display: typeof account.display === 'string' ? account.display.slice(0, 64) : 'your Synthetos account' }, signIn, failed: false };
     }
     return { signedIn: null, signIn, failed: false };
   } catch {

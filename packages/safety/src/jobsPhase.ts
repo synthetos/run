@@ -1,27 +1,16 @@
 /**
- * THE JOBS PHASE SWITCH (Phase 3, owner 2026-11-02; SAFETY §4.4a, H70-H78).
- * The one place that says where run may stream a whole G-code file to a
- * controller.
- *
- * - `staging`: on. The staging host and the localhost bench build (the
- *   machine worker treats plain-HTTP loopback as staging, P1-03).
- * - `production`: OFF. Production stays read-only: it gets neither motion nor
- *   jobs, and it refuses any artifact that carries the serial transport
- *   (P1-09), a second, independent lock.
- * - no environment (any other origin): off.
- *
- * Jobs also need everything else: the motion release (a job is motion), an
- * approved board, the allow-matrix rows of kind `jobs` and the write gate.
- * This switch only decides whether the `jobs` kind exists in the release at
- * all. A test pins these values (packages/safety/test/jobsPhase.test.ts);
- * changing them is an owner decision and needs owner review (CODEOWNERS).
+ * Jobs are enabled on staging and production (owner decision 2026-11-15).
+ * Production requires a server-validated run.connect grant to reach Web Serial, with the same grant
+ * checked by the UI before new gated actions. This machine-only switch contains no account state.
+ * All existing allow-matrix, board approval, idle and write-gate checks still apply.
+ * Unknown environments fail closed.
  */
 import type { Release } from './allowMatrix.ts';
 import type { SettingsEnvironment } from './settingsPhase.ts';
 
 export const JOBS: Readonly<Record<SettingsEnvironment, boolean>> = Object.freeze({
   staging: true,
-  production: false,
+  production: true,
 });
 
 /** True only where the switch says so. Fails closed for no environment or anything unknown. */

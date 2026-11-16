@@ -2,21 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 import worker from '../src/index.ts';
 import { authEnv, PRODUCTION_ORIGIN } from './authHarness.ts';
 import { SESSION_COOKIE } from '../src/authCookies.ts';
-import type { AccountsSession } from '../src/authConfig.ts';
 
 function harness() {
   const h = authEnv('production', () => Math.floor(Date.now() / 1000));
-  const token = 'A'.repeat(43);
-  let admitted = true;
-  const session: AccountsSession = { id: 'ses_1', sub: 'usr_1', name: 'owner', client: 'run', identities: [{ provider: 'github', id: '1', login: 'owner' }], absoluteExpiresAt: Math.floor(Date.now() / 1000) + 600, deviceRecordId: 'dev_1', sharedComputer: false };
-  h.env.ACCOUNTS!.validateSession = vi.fn(async value => admitted && value === token ? session : null);
+  const { token, session } = h.accounts.seedSession();
   h.env.ASSETS.fetch = vi.fn(async req => new Response('asset', { headers: { 'content-type': new URL(req.url).pathname.startsWith('/assets/') ? 'text/javascript' : 'text/html; charset=utf-8', 'cache-control': 'public, max-age=1000', vary: 'Accept-Encoding' } }));
   const get = (path: string, cookie = '') => worker.fetch(new Request(`${PRODUCTION_ORIGIN}${path}`, { headers: { cookie } }), h.env);
-  return { ...h, session, cookie: `${SESSION_COOKIE}=${token}`, get, revoke: () => { admitted = false; } };
+  return { ...h, session, cookie: `${SESSION_COOKIE}=${token}`, get, revoke: () => { h.accounts.setRole(token, null); } };
 }
 
 describe('server-side production serial boundary', () => {
-  it('the plain shell denies serial; a validated session grants it; neither HTML response can be cached', async () => {
+  it('the plain shell denies serial; a validated Connect capability grants it; neither HTML response can be cached', async () => {
     const h = harness();
     for (const [cookie, policy] of [['', 'serial=()'], [h.cookie, 'serial=(self)']] as const) {
       const res = await h.get('/', cookie);

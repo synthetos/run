@@ -23,9 +23,9 @@ export interface IdentityBody {
    * `subject` is the stable key (the accounts `sub` for a run session). `display` is for "Signed in as …" only
    * (the GitHub login for a run session; display-only, never used to decide anything).
    */
-  readonly identity: { readonly provider: IdentityProvider; readonly subject: string; readonly display?: string } | null;
+  readonly identity: { readonly provider: IdentityProvider; readonly subject: string; readonly display?: string; readonly canConnect?: boolean } | null;
   /** Why there is no identity, for the refusal text (absent when there is one). */
-  readonly reason?: 'not-signed-in' | 'not-available-here' | 'not-configured';
+  readonly reason?: 'not-signed-in' | 'not-available-here' | 'not-configured' | 'connect-not-allowed';
   /**
    * A1-07: true when this host offers sign-in with a Synthetos account (`/auth/login`). Who may sign in is decided
    * by accounts (D37), so true does not mean this visitor will be admitted.
@@ -40,7 +40,7 @@ export interface IdentityBody {
  * `/api/identity` at every gated request.
  */
 export interface SessionBody {
-  readonly account: { readonly subject: string; readonly display: string } | null;
+  readonly account: { readonly subject: string; readonly display: string; readonly canConnect?: boolean } | null;
   readonly signIn: boolean;
 }
 

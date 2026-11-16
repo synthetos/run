@@ -4,5 +4,5 @@ import { runSessionIdentity } from './authSession.ts';
 
 export async function serialSession(request: Request, env: AuthEnv): Promise<boolean> {
   const config = authConfig(env, new URL(request.url));
-  return config !== null && await runSessionIdentity(request, config) !== null;
+  return config !== null && (await runSessionIdentity(request, config))?.canConnect === true;
 }

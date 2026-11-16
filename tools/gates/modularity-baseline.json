@@ -41,9 +41,6 @@
       "complexity $/FunctionDeclaration:fileToolsFromLines#1": 21,
       "complexity $/FunctionDeclaration:toolOfComment#1": 36
     },
-    "apps/web/src/live/ConnectPanel.ts": {
-      "complexity $/FunctionDeclaration:ConnectPanel#1": 22
-    },
     "apps/web/src/live/backup.ts": {
       "complexity $/ClassDeclaration:SettingsBackup#1/FunctionExpression:run#1": 34
     },

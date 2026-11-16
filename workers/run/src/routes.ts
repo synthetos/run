@@ -102,7 +102,9 @@ async function identity(request: Request, env: Env, fetchCerts: CertsFetcher): P
   const none = (reason: NonNullable<IdentityBody['reason']>): Response => json(401, { identity: null, reason, signIn } satisfies IdentityBody);
   if (auth !== null) {
     const session = await runSessionIdentity(request, auth);
-    if (session !== null) return json(200, { identity: session, signIn } satisfies IdentityBody);
+    if (session !== null) return session.canConnect
+      ? json(200, { identity: session, signIn } satisfies IdentityBody)
+      : none('connect-not-allowed');
   }
   // The Access identity counts on the staging Worker on the staging host only (production grants serial too since
   // OD-29, but its only identity is the run session).
@@ -118,7 +120,7 @@ async function identity(request: Request, env: Env, fetchCerts: CertsFetcher): P
 async function session(request: Request, env: Env): Promise<Response> {
   const auth = authConfig(env, new URL(request.url));
   const found = auth === null ? null : await runSessionIdentity(request, auth);
-  const body: SessionBody = { account: found === null ? null : { subject: found.subject, display: found.display }, signIn: auth !== null };
+  const body: SessionBody = { account: found === null ? null : { subject: found.subject, display: found.display, canConnect: found.canConnect }, signIn: auth !== null };
   return json(200, body);
 }
 
@@ -203,7 +205,7 @@ export async function route(
   if (pathname.startsWith('/assets/') && pathname.includes('//')) return notFound();
   // /assets/serial/* is served like every hashed asset: the page imports it statically, so gating it would stop the
   // whole app (the sign-in link and the stop paths included) for anyone without a session. Web Serial is granted by
-  // the document's Permissions-Policy, which the browser enforces and which needs a validated session (index.ts).
+  // the document's Permissions-Policy, which the browser enforces and which needs a validated run.connect capability (index.ts).
   const asset = await env.ASSETS.fetch(request);
   if (!under(pathname, '/assets') || asset.status !== 200) return asset;
   const cached = new Response(asset.body, asset);

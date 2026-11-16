@@ -12,7 +12,7 @@
  * secret therefore fails closed. The origins are constants, never read from a variable or the request, so a
  * redirect can only ever go to the accounts host of the same environment.
  *
- * Who may sign in is decided by accounts, before any user or session exists (D37, `GITHUB_ALLOWED_IDS`), never by
+ * Who may sign in is decided by accounts, from its roles table (bootstrapped from `GITHUB_ALLOWED_IDS`), never by
  * this Worker or the page.
  */
 import { readKey } from './authCrypto.ts';
@@ -20,6 +20,8 @@ import type { AuthDatabase } from './authStore.ts';
 
 /** The session view accounts returns (accounts workers/accounts/src/oidc.ts `SessionView`), as far as run reads it. */
 export interface AccountsSession {
+  readonly role?: 'member' | 'tester' | 'moderator' | 'admin';
+  readonly capabilities?: readonly string[];
   readonly id: string;
   readonly sub: string;
   readonly name: string;

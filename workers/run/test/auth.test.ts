@@ -140,11 +140,11 @@ describe('GET /auth/callback', () => {
     expect(h.sql.prepare('SELECT user_sub,label FROM devices').all()).toEqual([{ user_sub: 'usr_01JTESTUSER0000000000000000', label: 'Chrome on macOS' }]);
     const id = await go(new Request(`${STAGING_ORIGIN}/api/identity`, { headers: { cookie: `${SESSION_COOKIE}=${session}` } }), h.env);
     expect(id.status).toBe(200);
-    expect(await id.json()).toEqual({ identity: { provider: 'run-session', subject: 'usr_01JTESTUSER0000000000000000', display: '@ril3y' }, signIn: true });
+    expect(await id.json()).toEqual({ identity: { provider: 'run-session', subject: 'usr_01JTESTUSER0000000000000000', display: '@ril3y', canConnect: true }, signIn: true });
     // The account panel's read: always 200.
     const panel = await go(new Request(`${STAGING_ORIGIN}/api/session`, { headers: { cookie: `${SESSION_COOKIE}=${session}` } }), h.env);
     expect(panel.status).toBe(200);
-    expect(await panel.json()).toEqual({ account: { subject: 'usr_01JTESTUSER0000000000000000', display: '@ril3y' }, signIn: true });
+    expect(await panel.json()).toEqual({ account: { subject: 'usr_01JTESTUSER0000000000000000', display: '@ril3y', canConnect: true }, signIn: true });
     const out = await go(new Request(`${STAGING_ORIGIN}/api/session`), h.env);
     expect(out.status).toBe(200);
     expect(await out.json()).toEqual({ account: null, signIn: true });

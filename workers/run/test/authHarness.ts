@@ -42,6 +42,9 @@ const b64url = (bytes: Buffer): string => bytes.toString('base64url');
 export interface FakeAccounts extends AccountsBinding {
   /** Issues a code for the `/authorize` URL run redirected to, as accounts would after a sign-in. */
   authorize(location: string, login?: string): string;
+  /** Seed a validated session; changing roles updates the next validation, without minting a new token. */
+  seedSession(role?: NonNullable<AccountsSession['role']>): { token: string; session: AccountsSession };
+  setRole(token: string, role: NonNullable<AccountsSession['role']> | null): void;
   readonly exchanges: number;
   readonly revoked: readonly string[];
   /** Makes the next exchange misbehave. */
@@ -58,6 +61,17 @@ export function fakeAccounts(clock: () => number, redirectUri: string): FakeAcco
   let counter = 0;
   const fake: FakeAccounts = {
     next: 'ok',
+    seedSession(role = 'tester') {
+      counter += 1;
+      const token = b64url(createHash('sha256').update(`seed-${counter}`).digest());
+      const session = sessionFor({ id: counter, login: 'ril3y', now: clock(), device: 'dev_test', shared: false, client: 'run' });
+      Object.assign(session, roleFields(role)); sessions.set(token, session);
+      return { token, session };
+    },
+    setRole(token, role) {
+      const session = sessions.get(token);
+      if (session !== undefined) Object.assign(session, role === null ? { revoked: true } : roleFields(role));
+    },
     onExchange: () => undefined,
     get exchanges() {
       return exchanges;
@@ -89,17 +103,9 @@ export function fakeAccounts(clock: () => number, redirectUri: string): FakeAcco
       const mode = fake.next;
       fake.next = 'ok';
       const now = clock();
-      const session: AccountsSession & { revoked: boolean } = {
-        id: `ses_${counter}`,
-        sub: 'usr_01JTESTUSER0000000000000000',
-        name: issued.login,
+      const session = sessionFor({ id: counter, login: issued.login, now,
         client: mode === 'wrong-client' ? 'forum-synthetos' : 'run',
-        identities: [{ provider: 'github', id: '231731', login: issued.login }],
-        absoluteExpiresAt: now + 7 * 86400,
-        deviceRecordId: mode === 'wrong-device' ? 'dev_other' : context.deviceRecordId,
-        sharedComputer: context.sharedComputer ?? false,
-        revoked: false,
-      };
+        device: mode === 'wrong-device' ? 'dev_other' : context.deviceRecordId, shared: context.sharedComputer ?? false });
       sessions.set(token, session);
       const claims = { iss: 'https://staging.accounts.synthetos.com', aud: 'run', sub: session.sub, nonce: mode === 'wrong-nonce' ? 'other' : issued.nonce };
       const idToken = `${b64url(Buffer.from('{"alg":"ES256","typ":"JWT"}'))}.${b64url(Buffer.from(JSON.stringify(claims)))}.sig`;
@@ -141,4 +147,13 @@ export function setCookie(response: Response, name: string): string | undefined 
 
 export function cookieValue(header: string | undefined): string {
   return header?.split(';')[0]?.split('=')[1] ?? '';
+}
+
+function roleFields(role: NonNullable<AccountsSession['role']>) {
+  return { role, capabilities: role === 'member' ? [] : ['run.connect'] };
+}
+function sessionFor(input: { id: number; login: string; now: number; client: string; device: string; shared: boolean }): AccountsSession & { revoked: boolean } {
+  return { id: `ses_${input.id}`, sub: 'usr_01JTESTUSER0000000000000000', name: input.login, client: input.client,
+    identities: [{ provider: 'github', id: '231731', login: input.login }], absoluteExpiresAt: input.now + 7 * 86400,
+    deviceRecordId: input.device, sharedComputer: input.shared, revoked: false, ...roleFields('tester') };
 }

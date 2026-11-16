@@ -622,3 +622,14 @@ See docs/design/place-job.md.
 **Decision.** `GITHUB_ALLOWED_IDS` is checked at GitHub sign-in, not at `/authorize` or on each relying-party session validation. Removing an id takes effect at its next GitHub sign-in. The owner accepts that existing accounts sessions (up to 14 days idle / 30 days absolute), and the 7-day run session, can retain access until expiry or explicit revocation. Removing an allowlist entry is not immediate revocation. No change to accounts `/authorize`.
 
 Staging uses the existing **Synthetos** GitHub App (`5562809`) and its client ID and secret. Add `https://staging.accounts.synthetos.com/auth/github/callback` to its callback list; retain the production callback and webhook. Do not create a Synthetos Staging app. Other staging secrets remain separate. The accounts repository's separate-app instructions must be reconciled on a branch before staging setup, not by editing accounts main.
+
+
+## OD-38. End-to-end accounts, storage and Connect by role (owner, 2026-11-15)
+
+**Owner's words.** “we want the whole thing ... we can still have users based off or roles enabled (admin, moderators etc) ... I want end to end accounts working, storage working, connect working, projects files all of this working tied to the user.” Firmware: “top 5 releases from the tinyg repo ... i dont think we need all of this signing stuff”.
+
+**Decision.** GitHub sign-in through accounts ties machines, tools, materials, projects and their images/files to the user, isolated from other users, with an offline browser copy and conflict-preserving sync. Accounts owns member/tester/moderator/admin roles. Members have account storage; testers, moderators and admins also get `run.connect`. Admins manage roles with an audit trail. Open signup stays off; the existing allowlist bootstraps the first admin only. Role removal revokes sessions (superseding OD-37's retained access for this role system).
+
+Production validates the session capability for every HTML port grant and new gated action. After Connect its jog, jobs, settings and firmware abilities match staging. Members get the tester notice with no Connect button. The open `/update/` exception remains. Pause, Stop job, Escape, accepted machine operations and blockers are unchanged and do not wait for accounts.
+
+The bench sign-off and protection checklists in go-live §7.1 are not gates for this role-gated opening. They remain for public opening with legal review and privacy text. This decision does not authorize a deployment. Firmware uses the latest five `synthetos/TinyG` GitHub releases and GitHub's SHA-256 digest for each asset; no release key or signed files. Supported firmware versions live in code and the unsigned safety advisory ships with the deploy.
