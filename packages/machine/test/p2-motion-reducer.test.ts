@@ -4,67 +4,28 @@
  * answers, the write gate's motion command kind and the line grammar).
  */
 import fc from 'fast-check';
-import { BYTE, type ApprovedBuilds } from '@synthetos/protocol';
+
+import { BYTE } from '@synthetos/protocol';
+
 import { PHASE_1_RELEASE, PHASE_2_RELEASE, STOP_TEXT } from '@synthetos/safety';
+
 import { describe, expect, it } from 'vitest';
+
 import {
-  MAX_JOG_FEED,
-  MAX_MOTION_MM,
-  MAX_RPM,
-  MOTION_LIMITS,
-  checkWrite,
-  motionLineKind,
-  phase1WriteVerdict,
-  type SessionEffect,
-  type SessionIntent,
+    MAX_JOG_FEED,
+    MAX_MOTION_MM,
+    MAX_RPM,
+    MOTION_LIMITS,
+    checkWrite,
+    motionLineKind,
+    phase1WriteVerdict,
+    type SessionIntent
 } from '../src/index.ts';
+
 import { ABSOLUTE_MM_LINE, UNITS_LINE, jogLine, mm, restoreLine, returnXYLine, setZeroLine, toZeroLine } from '../src/session/motionLines.ts';
-import { Driver, EN_ANSWERS } from './sessionDriver.ts';
 
-const EN_APPROVED: ApprovedBuilds = {
-  environment: 'staging',
-  builds: [{ channel: 'bench', dialect: 'tinyg-en', fb: 450.01, fbs: null, commit: 'e'.repeat(40), note: 'test' }],
-};
+import { OK, answers, connected, modes, motionLines, num, realtimeNames, req } from './motionHarness.ts';
 
-const OK = '{"r":{},"f":[3,0,10]}';
-const BASE_ANSWERS: Record<string, string> = { ...EN_ANSWERS, gc: OK, clear: '{"r":{"clear":null},"f":[3,0,10]}', home: '{"r":{"home":0},"f":[3,0,10]}', unit: '{"r":{"unit":1},"f":[3,0,10]}' };
-
-function answers(patch: Record<string, string> = {}): Record<string, string> {
-  return { ...BASE_ANSWERS, ...patch };
-}
-
-const num = (token: string, v: number): string => `{"r":{"${token}":${v}},"f":[3,0,10]}`;
-
-function connected(patch: Record<string, string> = {}, options: { readonly release?: typeof PHASE_2_RELEASE; readonly unknown?: boolean } = {}): Driver {
-  const d = new Driver({ release: options.release ?? PHASE_2_RELEASE, manifest: EN_APPROVED });
-  if (options.unknown === true) d.state = { ...d.state, unknownOnNextConnect: true };
-  d.open();
-  d.answer(answers(patch));
-  return d;
-}
-
-/** Answers the `unit` and `dist` reads a jog or go to zero sends before its first line (modes.ts). */
-function modes(d: Driver): void {
-  d.answer(answers(), (t) => t !== 'unit' && t !== 'dist');
-}
-
-function req(d: Driver, r: SessionIntent) {
-  return d.intent(r);
-}
-
-function motionLines(d: Driver, from = 0): string[] {
-  return d.effects
-    .slice(from)
-    .filter((e): e is Extract<SessionEffect, { kind: 'writeLine' }> => e.kind === 'writeLine' && e.motion !== undefined)
-    .map((e) => e.line);
-}
-
-function realtimeNames(d: Driver, from = 0): string[] {
-  return d.effects
-    .slice(from)
-    .filter((e): e is Extract<SessionEffect, { kind: 'writeRealtime' }> => e.kind === 'writeRealtime')
-    .map((e) => e.name);
-}
 
 describe('connect in a motion session', () => {
   it('a homed board is IDLE_HOMED; an alarmed quiet board is ALARM; Clear alarm returns to idle', () => {
@@ -107,6 +68,7 @@ describe('connect in a motion session', () => {
     expect(idle.state.notices.motion).toBeUndefined();
   });
 });
+
 
 describe('T-S92: request validation', () => {
   it('refuses bad requests with a reason and sends nothing', () => {
@@ -161,6 +123,7 @@ describe('T-S92: request validation', () => {
     expect(motionLines(c)).toEqual(['M7', 'M8']);
   });
 });
+
 
 describe('refusals, timeouts and damaged answers', () => {
   it('a refused jog piece ends the jog with the board\'s status; a refused single line says so', () => {
@@ -258,6 +221,7 @@ describe('refusals, timeouts and damaged answers', () => {
   });
 });
 
+
 describe('Pause, Stop job and Spindle off variants', () => {
   it('Pause when the move already ended says nothing changed; a second Stop job re-sends !', () => {
     const d = connected();
@@ -314,6 +278,7 @@ describe('Pause, Stop job and Spindle off variants', () => {
   });
 });
 
+
 describe('more branches', () => {
   it('a hold that the board ignored (moving, hold 0) gets ! again on the next poll', () => {
     const d = connected();
@@ -365,6 +330,7 @@ describe('more branches', () => {
     expect(d.state.live.stat).toBe(1);
   });
 });
+
 
 describe('T-S94: the motion command kind of the write gate and the line grammar', () => {
   const ctx = { readable: () => false, enqAllowed: false };
