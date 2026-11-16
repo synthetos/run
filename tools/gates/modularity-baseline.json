@@ -131,13 +131,6 @@
     "apps/web/src/preview/usePlay.ts": {
       "max-lines-per-function $/FunctionDeclaration:usePlay#1": 127
     },
-    "apps/web/src/projects/ProjectsView.ts": {
-      "complexity $/FunctionDeclaration:DrawingImport#1": 18,
-      "complexity $/FunctionDeclaration:ProjectDetail#1": 16,
-      "max-lines $file": 706,
-      "max-lines-per-function $/FunctionDeclaration:FileRow#1": 82,
-      "max-lines-per-function $/FunctionDeclaration:ProjectDetail#1": 110
-    },
     "apps/web/src/projects/store.ts": {
       "max-methods $/ClassDeclaration:ProjectStore#1": 26
     },
@@ -220,12 +213,7 @@
       "complexity $/FunctionDeclaration:settingMeta#1": 18,
       "complexity $/FunctionDeclaration:v8Pins#1": 25
     },
-    "apps/web/src/workspace/cloud/librarySync.ts": {
-      "complexity $/FunctionDeclaration:startLibrarySync#1/FunctionDeclaration:run#1": 26
-    },
     "apps/web/src/workspace/cloud/syncQueue.ts": {
-      "complexity $/FunctionDeclaration:drainQueue#1": 48,
-      "max-depth $/FunctionDeclaration:drainQueue#1": 6,
       "max-params $/FunctionDeclaration:drainQueue#1": 5,
       "max-params $/FunctionDeclaration:enqueue#1": 5
     },
@@ -382,10 +370,8 @@
       "complexity $/FunctionDeclaration:MyMachine#1": 18,
       "complexity $/FunctionDeclaration:TinygMapping#1": 24,
       "complexity $/FunctionDeclaration:mappingRows#1": 18,
-      "max-lines $file": 428,
       "max-lines-per-function $/FunctionDeclaration:MachinesView#1": 103,
-      "max-lines-per-function $/FunctionDeclaration:TinygMapping#1": 136,
-      "max-params $/FunctionDeclaration:BedSection#1/ArrowFunctionExpression:numField#1": 5
+      "max-lines-per-function $/FunctionDeclaration:TinygMapping#1": 136
     },
     "apps/web/src/workspace/views/PlacePanel.ts": {
       "complexity $/FunctionDeclaration:PlacePanel#1": 21

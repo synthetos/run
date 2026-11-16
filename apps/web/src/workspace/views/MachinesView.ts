@@ -1,4 +1,5 @@
-import { BedGridForm } from './BedGridForm.ts';
+import { librarySavedText } from '../cloud/librarySync.ts';
+import { BedSection } from './BedSection.ts';
 /**
  * The Machines view: start from a machine like yours, make a copy, and make
  * it yours (WORKSPACE_TENETS 6). Profiles are kept in this browser through
@@ -12,24 +13,23 @@ import { BedGridForm } from './BedGridForm.ts';
  * written from here; SAFETY §4.10 rule 4: a profile is never applied
  * automatically, and applying goes through C5 and the write path).
  */
-import { ContextHelp } from '../../shell/ContextHelp.ts';
+import type { SettingValue } from '@synthetos/schema';
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
-import { CATALOGUE, machineDrawing, type MachineTemplate } from '../machineDrawings.ts';
-import type { SettingValue } from '@synthetos/schema';
-import { bedIsPlaceholder, bedOf, machineStore, saveMachineBed, selectedMachine, selectedMachineStore, updateMachine, type AxisProfile, type MachineProfile } from '../library.ts';
+import { ContextHelp } from '../../shell/ContextHelp.ts';
 import { dialectOf, draftStore, motorFor, plainValue, setDraft, settingMeta, settingsOf, stepsPerUnit, tinygV8 } from '../boardFacts.ts';
-import { editBlocked, SettingsTable } from '../settings/SettingsUi.ts';
-import { GuidedSettings, guidedAxes } from '../settings/GuidedSettings.ts';
 import { boardTab, type BoardTab } from '../boardNavigation.ts';
-import { jobStep, machinesTab, uiLevel, type MachinesTab } from '../jobWorkflow.ts';
-import { BED_TOP_PURPOSE, bedTag } from '../revisionWords.ts';
 import { executionLock } from '../fileBridge.ts';
-import { updateActiveJob, withMachine } from '../jobModel.ts';
-import { writableKey } from '../settings/pending.ts';
 import { Icon } from '../icons.ts';
-import { boardLabel, num } from '../status.ts';
+import { updateActiveJob, withMachine } from '../jobModel.ts';
+import { jobStep, machinesTab, uiLevel, type MachinesTab } from '../jobWorkflow.ts';
+import { machineStore, selectedMachine, selectedMachineStore, updateMachine, type AxisProfile, type MachineProfile } from '../library.ts';
+import { CATALOGUE, machineDrawing, type MachineTemplate } from '../machineDrawings.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
+import { guidedAxes, GuidedSettings } from '../settings/GuidedSettings.ts';
+import { writableKey } from '../settings/pending.ts';
+import { editBlocked, SettingsTable } from '../settings/SettingsUi.ts';
+import { boardLabel, num } from '../status.ts';
 import { TabBar, TabPane } from '../ui.ts';
 
 export function MachineArt({ id, label }: { readonly id: string; readonly label?: string }): ComponentChild {
@@ -59,37 +59,6 @@ function copyOf(t: MachineTemplate, n: number): MachineProfile {
  * The machine's bed (FLOW_ANALYSIS §4 step 3): its revision, where its dimensions came from, and the fields.
  * A change is saved as the next bed revision; jobs keep the revision they were planned on until asked.
  */
-function BedSection({ machine }: { readonly machine: MachineProfile }): ComponentChild {
-  const bed = bedOf(machine);
-  const [note, setNote] = useState<string | null>(null);
-  const save = (patch: Partial<Pick<typeof bed, 'width' | 'depth' | 'thickness'>> & { readonly z?: number }): void => {
-    const { z, ...dims } = patch;
-    const saved = saveMachineBed(machine.id, { ...bed, ...dims, toMachine: z === undefined ? bed.toMachine : { ...bed.toMachine, z }, source: { kind: 'measured', note: 'Entered in Machines.', at: new Date().toISOString() } });
-    if (saved !== null) setNote(uiLevel.value.value === 'advanced' ? `Saved · bed revision ${saved.revision}` : 'Saved');
-  };
-  const numField = (label: string, value: number, onChange: (n: number) => void, min: number, step = 1): ComponentChild =>
-    h('label', { class: 'field', key: label }, h('span', null, label), h('span', { class: 'unit-input' }, h('input', { type: 'number', min, step, value, 'aria-label': `${label}, bed`, onChange: (e: Event) => { const n = Number.parseFloat((e.currentTarget as HTMLInputElement).value); if (Number.isFinite(n) && n >= min) onChange(n); } }), h('i', null, 'mm')));
-  const placeholder = bedIsPlaceholder(bed);
-  return h(
-    'div',
-    { class: 'machine-bed', 'data-machine': 'bed', 'data-bed': placeholder ? 'placeholder' : bed.source.kind, 'data-bed-revision': String(bed.revision) },
-    h('div', { class: 'bed-head' }, h('h3', null, 'Bed'), h('span', { class: `tag${placeholder ? '' : ' ok'}`, 'data-machine': 'bed-tag' }, bedTag(bed, CATALOGUE.find((t) => t.id === machine.templateId)?.name ?? machine.name)), uiLevel.value.value === 'advanced' ? h('span', { class: 'fine' }, bed.revision === 0 ? 'no revision saved yet' : `revision ${bed.revision}`) : null),
-    // What the bed top's height is for, said plainly (owner, 2026-11-09).
-    h('p', { class: 'fine', 'data-machine': 'bed-purpose' }, BED_TOP_PURPOSE),
-    h('div', { class: 'machine-bed-fields' }, numField('Width', bed.width, (width) => save({ width }), 1), numField('Depth', bed.depth, (depth) => save({ depth }), 1), numField('Thickness', bed.thickness, (thickness) => save({ thickness }), 0.1, 0.5), numField('Bed top, machine Z', bed.toMachine.z, (z) => save({ z }), -100000, 0.1)),
-    h(ContextHelp, { id: 'machine-bed-help', label: 'About this bed' },
-      bed.source.kind === 'placeholder' ? bed.source.note : bed.source.kind === 'measured' ? `${bed.source.note} ${dateText(bed.source.at)}` : `From ${bed.source.file}, ${bed.source.units}, ${dateText(bed.source.at)}.`,
-      ' Bed coordinates start at the front-left corner of the bed’s top. Bed top is its machine Z position. Import a bed drawing from Projects → Use in Job. Saved jobs keep their pinned bed revision until you update them.'),
-    h(BedGridForm, { key: machine.id, machine }),
-    note === null ? null : h('p', { class: 'fine', role: 'status', 'data-machine': 'bed-note' }, note),
-  );
-}
-
-function dateText(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 function MyMachine({ model, onView }: { readonly model: WorkspaceModel | null; readonly onView: (v: string) => void }): ComponentChild {
   const mine = selectedMachine.value;
   const view = model?.live.value ?? null;
@@ -377,7 +346,7 @@ export function MachinesView({ model, onView }: { readonly model: WorkspaceModel
     h(
       'div',
       { class: 'view-head' },
-      h('div', { class: 'title-block' }, h('h1', null, 'Machines')),
+      h('div', { class: 'title-block' }, h('h1', null, 'Machines'), h('p', { class: 'sync-line', 'data-machine-saved': '', role: 'status' }, librarySavedText(machineStore.saved.value))),
       h('div', { class: 'view-actions' }, h(UseInJob, { onView }), h(TabBar<MachinesTab>, { label: 'Machines', prefix: 'mach', current: tab, onSelect: setTab, tabs: [{ id: 'mine', label: 'Your machine' }, { id: 'settings', label: 'TinyG settings' }, { id: 'catalogue', label: 'Start from a machine' }] })),
     ),
     h(

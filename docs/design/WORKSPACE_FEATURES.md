@@ -223,12 +223,27 @@ orbit. The timeline scrubs or plays the simulation. During a job the same view
 follows reported progress. It is not the interpreter and not a collision
 check; W13 stays on the view.
 
-### Account and sync (Host)
+### Your account (Host)
 
 An avatar menu replaces the old panel: "Signed in with GitHub", one sync row
 (synced, syncing, paused while a job runs, offline), Account and devices, and
 Sign out (disabled while a job runs). The avatar carries a small sync badge.
-Synced: projects, files, setups, machine profiles, tools, settings backups.
+On staging and local hosts, account sync includes tools, materials, machine
+profiles, and projects with their files, photos, setup references and jobs.
+One “Copy what’s in this browser to your account?” prompt shows the count of
+each kind. Copy retains the browser originals; Not now keeps existing browser
+records local. Invalid profiles stay local and the notice names what needs fixing.
+
+A concurrent edit keeps the account version and saves this browser’s edit as
+another record named “(from this browser)”. Machines, Projects and Library show
+the saved state and share the same notice. File uploads finish before the
+project record is saved. Account projects show “In your account, not downloaded”
+until opened; opening downloads and verifies their files. Deleting a project
+archives its account record, then removes files only when no live project uses
+them. Account switching restores browser-local data and isolates account caches.
+
+Production account storage, project zip export/import, and settings backups
+are separate rollout steps.
 
 ### Firmware gate, update and backups (Configure: Wiring · Firmware · Backups)
 

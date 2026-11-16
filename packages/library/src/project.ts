@@ -34,6 +34,8 @@ export interface ProjectFile {
 }
 
 export interface ProjectImage {
+  /** SHA-256 of the stored WebP; older browser images gain it on sync. */
+  readonly hash?: string;
   readonly id: string;
   readonly name: string;
   /** Bytes of the re-encoded WebP. */
@@ -123,7 +125,7 @@ const isText = (v: unknown, max: number): boolean => typeof v === 'string' && v.
 const isFile = (f: Record<string, unknown>): boolean =>
   isText(f['name'], 255) && isNum(f['size']) && f['size'] >= 0 && Number.isInteger(f['size']) && SHA256_HEX.test(String(f['hash'])) && FILE_ROLES.includes(f['role'] as FileRole) && isText(f['note'], 2000) && isDateTime(f['addedAt']);
 const isImage = (i: Record<string, unknown>): boolean =>
-  isText(i['name'], 255) && isNum(i['size']) && i['size'] > 0 && isNum(i['width']) && i['width'] > 0 && isNum(i['height']) && i['height'] > 0 && isDateTime(i['addedAt']);
+  (i['hash'] === undefined || (typeof i['hash'] === 'string' && SHA256_HEX.test(i['hash']))) && isText(i['name'], 255) && isNum(i['size']) && i['size'] > 0 && isNum(i['width']) && i['width'] > 0 && isNum(i['height']) && i['height'] > 0 && isDateTime(i['addedAt']);
 // A link left untitled carries its URL as the title, so the title shares the URL's limit.
 const isLink = (l: Record<string, unknown>): boolean => typeof l['id'] === 'string' && isText(l['title'], URL_MAX_LENGTH) && isText(l['url'], URL_MAX_LENGTH);
 const isWhole = (v: unknown, min: number): boolean => isNum(v) && Number.isInteger(v) && v >= min;

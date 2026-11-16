@@ -172,8 +172,8 @@ describe('page-side safety gating and identity isolation', () => {
       model.live.value = { ...INITIAL_LIVE_VIEW, message: { snapshot: { base, overlays: [] } } as never };
       const stop = mountLibrarySync(model, 'staging.run.synthetos.com');
       accountIdentity.value = { subject: 'usr_a', display: '@a' }; await settle(); expect(fetch).not.toHaveBeenCalled();
-      model.live.value = INITIAL_LIVE_VIEW; await settle(); expect(fetch).toHaveBeenCalledTimes(2);
-      accountIdentity.value = { subject: 'usr_b', display: '@b' }; await settle(); expect(fetch).toHaveBeenCalledTimes(4);
+      model.live.value = INITIAL_LIVE_VIEW; await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
+      accountIdentity.value = { subject: 'usr_b', display: '@b' }; await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(8));
       accountIdentity.value = null; stop(); fetch.mockClear();
     }
     mountLibrarySync(model, 'run.synthetos.com')(); expect(fetch).not.toHaveBeenCalled();
@@ -183,7 +183,7 @@ describe('page-side safety gating and identity isolation', () => {
     const { h } = await import('preact'); const { renderToString } = await import('preact-render-to-string');
     const { LibrarySyncNotice } = await import('../src/workspace/cloud/SyncNotice.ts');
     librarySyncView.value = { mode: 'account', display: '@alice', ask: true, status: 'saved', notice: null, remaining: [] };
-    const html = renderToString(h(LibrarySyncNotice, null)); expect(html).toContain('Copy your library?'); expect(html).toContain('@alice'); expect(html).toContain('Not now');
+    const html = renderToString(h(LibrarySyncNotice, null)); expect(html).toContain('Copy what’s in this browser to your account?'); expect(html).toContain('@alice'); expect(html).toContain('Not now');
     librarySyncView.value = { ...librarySyncView.value, ask: false, status: 'quota', notice: 'Full', remaining: ['Local tool'] };
     const quota = renderToString(h(LibrarySyncNotice, null)); expect(quota).toContain('Local tool'); expect(quota).toContain('Try again'); expect(quota).toContain('Dismiss');
     librarySyncView.value = { ...librarySyncView.value, status: 'saved', remaining: [] };
@@ -196,7 +196,7 @@ describe('cache and queue failure boundaries', () => {
     const storage = memory(); const cache = emptyCache(); enqueue(cache, 'tool', tool.id, tool); cache.records = [rec()];
     saveCache(storage, 'a', cache); expect(readCache(storage, 'a').pending).toHaveLength(1);
     enqueue(cache, 'tool', tool.id, null); saveCache(storage, 'a', cache); expect(readCache(storage, 'a').pending[0]?.content).toBeNull();
-    const badPending = [null, { ...cache.pending[0], token: 1 }, { ...cache.pending[0], kind: 'machine' }, { ...cache.pending[0], id: '/' }, { ...cache.pending[0], parent: 0 }, { ...cache.pending[0], content: {} }];
+    const badPending = [null, { ...cache.pending[0], token: 1 }, { ...cache.pending[0], kind: 'unknown' }, { ...cache.pending[0], id: '/' }, { ...cache.pending[0], parent: 0 }, { ...cache.pending[0], content: {} }];
     for (const p of badPending) { storage.setItem(cacheKey('a'), JSON.stringify({ ...cache, pending: [p] })); expect(readCache(storage, 'a')).toEqual(emptyCache()); }
     for (const r of [null, { ...rec(), kind: 'machine' }, { ...rec(), archivedAt: 'bad' }, { ...rec(), rev: null }, { ...rec(), content: {} }]) { storage.setItem(cacheKey('a'), JSON.stringify({ ...cache, records: [r] })); expect(readCache(storage, 'a')).toEqual(emptyCache()); }
     storage.setItem(cacheKey('a'), JSON.stringify({ ...cache, imports: { key: '/' } })); expect(readCache(storage, 'a')).toEqual(emptyCache());
@@ -255,7 +255,7 @@ describe('sync lifecycle interruptions', () => {
     let finish!: () => void; const wait = new Promise<void>(resolve => { finish = resolve; }); const api = client();
     vi.mocked(api.list).mockImplementationOnce(async () => { await wait; return []; });
     const r = start(api); r.pause(); r.resume(); finish(); await settle();
-    expect(r.scheduled).toHaveLength(1); r.scheduled[0]!(); await settle(); expect(api.list).toHaveBeenCalledTimes(3);
+    expect(r.scheduled).toHaveLength(1); r.scheduled[0]!(); await settle(); expect(api.list).toHaveBeenCalledTimes(5);
   });
   it.each([Error('offline'), new RecordsError(500)])('retries failed refreshes', async error => {
     const api = client(); vi.mocked(api.list).mockRejectedValueOnce(error); const r = start(api); await settle();

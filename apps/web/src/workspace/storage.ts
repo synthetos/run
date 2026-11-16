@@ -69,6 +69,7 @@ const loaders: (() => void)[] = [];
 export interface StoredBinding {
   readonly name: string;
   local(): unknown;
+  keepLocal(value: unknown): boolean;
   show(value: unknown): void;
   connect(save: (next: unknown, previous: unknown) => boolean): void;
   disconnect(): void;
@@ -86,6 +87,7 @@ export function stored<T>(name: string, seed: T, valid: (v: unknown) => v is T, 
   let cloudSave: ((next: unknown, previous: unknown) => boolean) | null = null;
   bindings.set(name, {
     name, local: () => local,
+    keepLocal(next) { if (!valid(next)) return false; local = next; localSaved = writeStored(name, next, storage()); return localSaved; },
     show(next) { if (valid(next)) value.value = next; },
     connect(save) { cloudSave = save; },
     disconnect() { cloudSave = null; value.value = local; saved.value = localSaved; },

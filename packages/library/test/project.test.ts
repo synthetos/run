@@ -84,6 +84,9 @@ describe('readProject (the strict account reader)', () => {
     expect(paths(project({ images: [image({ id: 'img-2' })] }))).toEqual(['/cover']);
     expect(paths(project({ images: [image({ size: 0 })] }))).toEqual(['/images/0']);
     expect(paths(project({ images: [image({ width: 0 })] }))).toEqual(['/images/0']);
+    expect(paths(project({ images: [image({ hash: 'a'.repeat(64) })] }))).toEqual([]);
+    expect(paths(project({ images: [image({ hash: 'bad' })] }))).toEqual(['/images/0']);
+    expect(paths(project({ images: [image({ hash: 12 })] }))).toEqual(['/images/0']);
     expect(paths(project({ images: [image({ height: -1 })] }))).toEqual(['/images/0']);
     expect(paths(project({ images: [image({ addedAt: 1 })] }))).toEqual(['/images/0']);
     expect(paths(project({ links: [link({ id: 1 })] }))).toEqual(['/links/0']);

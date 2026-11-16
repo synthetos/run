@@ -92,14 +92,17 @@ export class ProjectStore {
     return this.#projects.find((p) => p.id === id) ?? null;
   }
 
-  async load(): Promise<void> {
-    const keys = await this.#deps.records.keys('projects');
-    const found: Project[] = [];
-    for (const k of keys) {
-      const p = readProject(await this.#deps.records.get('projects', k));
-      if (p !== null) found.push(p);
-    }
-    this.#projects = found;
+  load(): Promise<void> {
+    return this.#serial(async () => {
+      const keys = await this.#deps.records.keys('projects');
+      const found: Project[] = [];
+      for (const k of keys) {
+        if (k.includes('/')) continue; // Account drafts and download markers never enter the local library.
+        const p = readProject(await this.#deps.records.get('projects', k));
+        if (p !== null) found.push(p);
+      }
+      this.#projects = found;
+    });
   }
 
   #serial<T>(fn: () => Promise<T>): Promise<T> {
@@ -189,7 +192,7 @@ export class ProjectStore {
           }
           const imageId = this.#deps.newId();
           await this.#deps.records.put('blobs', imageId, encoded.blob);
-          const image: ProjectImage = { id: imageId, name: file.name.replace(/\.[^.]+$/, '') + '.webp', size: encoded.blob.size, width: encoded.width, height: encoded.height, addedAt: this.#deps.now().toISOString() };
+          const image: ProjectImage = { id: imageId, hash: await this.#deps.hash(await encoded.blob.arrayBuffer()), name: file.name.replace(/\.[^.]+$/, '') + '.webp', size: encoded.blob.size, width: encoded.width, height: encoded.height, addedAt: this.#deps.now().toISOString() };
           await this.#save({ ...p, images: [...p.images, image], cover: p.cover ?? imageId });
           added.push(image.name);
           continue;

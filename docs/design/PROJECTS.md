@@ -27,7 +27,7 @@ The owner's direction (2026-11-02): the Projects page has a way to:
 ## 3. Phases
 
 - **Stage 1 polish (local):** create, rename and delete projects; upload by drag-and-drop or picker; images, links and the description; "Open in Run" for any G-code file. Everything is stored in IndexedDB behind the storage module.
-- **Stage 2 (cloud):** sync to the account, plus a "Download project" zip and an import.
+- **Stage 2 (cloud, in progress):** account sync for project records and content-addressed files/images, with on-demand verified downloads, one browser-copy prompt and keep-both conflicts. Project zip download and import remain step 3c; production storage remains gated.
 - **P3:** job history is filled in automatically when jobs run.
 
 ## 4. Sharing to the forum ("Show and tell")
