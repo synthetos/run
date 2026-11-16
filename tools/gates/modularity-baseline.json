@@ -737,19 +737,6 @@
       "complexity $/FunctionDeclaration:firmwareWrite#1": 30,
       "max-params $/FunctionDeclaration:firmwareWrite#1": 5
     },
-    "packages/machine/src/session/job.ts": {
-      "complexity $/FunctionDeclaration:liveStart#1": 34,
-      "complexity $/FunctionDeclaration:maybeRestoreLineMode#1": 28,
-      "complexity $/FunctionDeclaration:onJobPoll#1": 32,
-      "complexity $/FunctionDeclaration:onJobTimer#1": 22,
-      "complexity $/FunctionDeclaration:onLineModeAnswer#1": 19,
-      "complexity $/FunctionDeclaration:onLoadJob#1": 18,
-      "complexity $/FunctionDeclaration:onStartJob#1": 30,
-      "complexity $/FunctionDeclaration:pumpJob#1": 24,
-      "complexity $/FunctionDeclaration:resumeToolChange#1": 23,
-      "max-lines $file": 1026,
-      "max-params $/FunctionDeclaration:onJobFault#1": 5
-    },
     "packages/machine/src/session/jobSnapshot.ts": {
       "complexity $/FunctionDeclaration:jobView#1": 32
     },
