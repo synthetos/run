@@ -25,7 +25,8 @@
  * job's) for the subdomain-setting check and the Access API check (the token
  * needs "Access: Apps and Policies Read", docs/ops/access.md);
  * RUN_WORKERS_DEV_SUBDOMAIN (the account's workers.dev subdomain, a
- * repository variable) for the probe.
+ * repository variable) for the probe. RUN_STORAGE_ENABLED must be true or false
+ * for production HTTP checks (including local mode), from Run preflight output.
  *
  * Exit status: 0 pass, 1 findings, 2 could not run.
  */
@@ -80,7 +81,7 @@ async function httpChecks(base: string, env: string): Promise<SmokeFinding[]> {
   if (missing.status !== 404) findings.push({ check: 'not-found', message: `${missing.url}: status ${missing.status}, expected 404` });
   findings.push(...checkSecurityHeaders(missing));
   findings.push(...checkHealth(await get(`${base}/api/health`), env));
-  if (env === 'production') findings.push(...checkStorage(await get(`${base}/api/records/tool`)));
+  if (env === 'production') findings.push(...checkStorage(await get(`${base}/api/records/tool`), process.env['RUN_STORAGE_ENABLED']));
   return findings;
 }
 

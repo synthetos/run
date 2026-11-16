@@ -188,6 +188,16 @@ describe('DNSSEC, CAA and the certificate issuer (H46)', () => {
   });
 });
 
+function smoke(base: string, enabled = 'true'): Promise<{ status: number | null; output: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [join(REPO_ROOT, 'tools/gates/src/smoke/cli.ts'), '--base-url', base], { env: { ...process.env, RUN_STORAGE_ENABLED: enabled } });
+    let output = '';
+    child.stdout.on('data', (d: Buffer) => (output += d.toString()));
+    child.stderr.on('data', (d: Buffer) => (output += d.toString()));
+    child.on('close', (status) => resolve({ status, output }));
+  });
+}
+
 describe('smoke CLI in local mode, against a live server', () => {
   let server: Server | undefined;
   afterEach(async () => {
@@ -199,7 +209,7 @@ describe('smoke CLI in local mode, against a live server', () => {
   });
 
   /** Serves the shell, an asset, a 404 and /api/health with the real headers; `breakOn` weakens one header on one path. */
-  async function serve(breakOn?: { path: string; header: string; value: string | null }): Promise<string> {
+  async function serve(breakOn?: { path: string; header: string; value: string | null }, storageStatus = 401): Promise<string> {
     server = createServer((req, res) => {
       const path = (req.url ?? '/').split('?')[0] ?? '/';
       const headers: Record<string, string> = { ...SECURITY_HEADERS };
@@ -212,7 +222,7 @@ describe('smoke CLI in local mode, against a live server', () => {
         headers['content-type'] = 'text/javascript';
         body = 'export {};';
       } else if (path === '/api/records/tool') {
-        status = 401;
+        status = storageStatus;
         headers['content-type'] = 'application/json; charset=utf-8';
         headers['cache-control'] = 'no-store';
         body = JSON.stringify({ error: 'not_signed_in' });
@@ -237,16 +247,6 @@ describe('smoke CLI in local mode, against a live server', () => {
     return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   }
 
-  function smoke(base: string): Promise<{ status: number | null; output: string }> {
-    return new Promise((resolve) => {
-      const child = spawn(process.execPath, [join(REPO_ROOT, 'tools/gates/src/smoke/cli.ts'), '--base-url', base]);
-      let output = '';
-      child.stdout.on('data', (d: Buffer) => (output += d.toString()));
-      child.stderr.on('data', (d: Buffer) => (output += d.toString()));
-      child.on('close', (status) => resolve({ status, output }));
-    });
-  }
-
   it('passes when every response carries the exact headers', async () => {
     const r = await smoke(await serve());
     expect(r.status, r.output).toBe(0);
@@ -263,6 +263,11 @@ describe('smoke CLI in local mode, against a live server', () => {
     const r = await smoke(await serve({ path, header, value }));
     expect(r.status, r.output).toBe(1);
     expect(r.output).toContain(header);
+  });
+
+  it.each([['true', 503, 1], ['false', 401, 1], ['false', 503, 0], ['', 503, 1]] as const)('CLI checks storage expectation %s against %s', async (enabled, status, exit) => {
+    const r = await smoke(await serve(undefined, status), enabled);
+    expect(r.status, r.output).toBe(exit);
   });
 
   it('fails when the server is unreachable', async () => {

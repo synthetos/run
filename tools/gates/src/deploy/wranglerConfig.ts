@@ -175,8 +175,15 @@ export interface ConfigFinding {
  * owner's go-live step, docs/ops/go-live-staging.md §7): that deploys as before. With either key present, both must
  * be exactly accounts' RunEntrypoint and the environment's RUN_AUTH database, and only a real id is retained in the deployment configuration.
  */
-function validServices(services: unknown, environment: DeployEnvironment): boolean {
-  return same(services, EXPECTED_SERVICES[environment]) || (environment === 'production' && same(services, EXPECTED_SERVICES.production.filter(s => s.binding !== 'RUN_DATA')));
+function validServices(services: unknown, environment: DeployEnvironment, dataReady = false): boolean {
+  return same(services, EXPECTED_SERVICES[environment]) || (!dataReady && environment === 'production' && same(services, EXPECTED_SERVICES.production.filter(s => s.binding !== 'RUN_DATA')));
+}
+
+/** A ready source may not silently lose its data binding; stripped auth-off output has no services. */
+function checkDataServices(config: Json, options: CheckOptions, findings: ConfigFinding[]): void {
+  if (options.dataReady === true && config['services'] !== undefined && !validServices(config['services'], 'production', true)) {
+    findings.push({ where: 'services', message: 'ready production data requires the RUN_DATA service binding' });
+  }
 }
 
 function checkAuthBindings(scope: Json, env: DeployEnvironment, add: (message: string) => void): void {
@@ -256,6 +263,7 @@ export function checkWorkerConfig(config: unknown, options: CheckOptions): Confi
   if (!same(config['rules'], EXPECTED_RULES)) add('rules', `must be exactly ${JSON.stringify(EXPECTED_RULES)}`);
   if ('$schema' in config && typeof config['$schema'] !== 'string') add('$schema', 'must be a string');
   checkScope(config, '.', 'production', findings);
+  checkDataServices(config, options, findings);
   const envs = config['env'];
   if (!isObject(envs)) {
     add('env', 'must define the staging environment');

@@ -29,6 +29,15 @@
 import { appendFileSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { checkWorkerConfig, deployConfig, isDeployEnvironment, parseJsonc } from './wranglerConfig.ts';
 
+/** Derive smoke expectations from the final bindings, including auth-placeholder stripping. */
+function writeReadiness(scope: Record<string, unknown>): void {
+  const auth = Array.isArray(scope['d1_databases']) && scope['d1_databases'].length > 0;
+  const data = Array.isArray(scope['services']) && scope['services'].some((service: { binding: string }) => service.binding === 'RUN_DATA');
+  process.stdout.write(`run sign-in: ${auth ? 'configured; migration required' : 'off (bindings absent, placeholder or migration credential missing)'}\n`);
+  const output = process.env['GITHUB_OUTPUT'];
+  if (output !== undefined) appendFileSync(output, `run_auth=${auth}\nrun_data=${data}\n`);
+}
+
 function main(argv: readonly string[]): number {
   const [file, env, flag, out] = argv;
   if (file === undefined || env === undefined || argv.length !== 4 || flag !== '--write' || out === undefined || out === '' || !isDeployEnvironment(env)) {
@@ -57,10 +66,7 @@ function main(argv: readonly string[]): number {
     const prepared = deployConfig(config, { requireRealAccount: true, deploying: env, authReady: process.env['RUN_AUTH_MIGRATIONS_READY'] === 'true', dataReady: process.env['RUN_DATA_READY'] === 'true' });
     writeFileSync(out, `${JSON.stringify(prepared, null, 2)}\n`, { flag: 'wx' });
     const scope = env === 'production' ? prepared : (prepared['env'] as { staging: Record<string, unknown> }).staging;
-    const enabled = Array.isArray(scope['d1_databases']) && scope['d1_databases'].length > 0;
-    process.stdout.write(`run sign-in: ${enabled ? 'configured; migration required' : 'off (bindings absent, placeholder or migration credential missing)'}\n`);
-    const output = process.env['GITHUB_OUTPUT'];
-    if (output !== undefined) appendFileSync(output, `run_auth=${enabled ? 'true' : 'false'}\n`);
+    writeReadiness(scope);
     process.stdout.write(`deploy preflight (${env}): configuration accepted; deployment configuration written to ${out}\n`);
     return 0;
   } catch (error) {

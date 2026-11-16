@@ -55,7 +55,7 @@ it('confines production data credentials and orders migrations/deploy before Run
 });
 it.each([401, 503])('production anonymous storage accepts %s only with security headers and no-store', status => {
   const res = { url: 'https://run.synthetos.com/api/records/tool', status, body: '{}', headers: new Headers({ ...SECURITY_HEADERS, 'cache-control': 'no-store' }) };
-  expect(checkStorage(res)).toEqual([]);
-  expect(checkStorage({ ...res, status: 200 })).not.toEqual([]);
-  expect(checkStorage({ ...res, headers: new Headers() })).not.toEqual([]);
+  expect(checkStorage(res, status === 401 ? 'true' : 'false')).toEqual([]);
+  expect(checkStorage({ ...res, status: 200 }, status === 401 ? 'true' : 'false')).not.toEqual([]);
+  expect(checkStorage({ ...res, headers: new Headers() }, status === 401 ? 'true' : 'false')).not.toEqual([]);
 });

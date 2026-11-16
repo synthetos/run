@@ -153,7 +153,7 @@ function preflight(configText: string, env: string, extra: (dir: string) => stri
   const dir = freshDir();
   const file = join(dir, 'wrangler.jsonc');
   writeFileSync(file, configText);
-  const childEnv: NodeJS.ProcessEnv = { ...process.env, GITHUB_OUTPUT: join(dir, 'outputs'), RUN_AUTH_MIGRATIONS_READY: authReady ? 'true' : 'false', CLOUDFLARE_ACCOUNT_ID: REAL_ACCOUNT };
+  const childEnv: NodeJS.ProcessEnv = { ...process.env, GITHUB_OUTPUT: join(dir, 'outputs'), RUN_DATA_READY: 'false', RUN_AUTH_MIGRATIONS_READY: authReady ? 'true' : 'false', CLOUDFLARE_ACCOUNT_ID: REAL_ACCOUNT };
   const r = spawnSync(process.execPath, [join(REPO_ROOT, 'tools/gates/src/deploy/preflight.ts'), file, env, ...extra(dir)], {
     encoding: 'utf8',
     env: childEnv,
@@ -201,14 +201,14 @@ describe('preflight --write', () => {
       expect(written.env.staging).not.toHaveProperty('services');
       expect(written.env.staging).not.toHaveProperty('d1_databases');
       expect(r.output).toContain('run sign-in: off');
-      expect(readFileSync(join(r.dir, 'outputs'), 'utf8')).toBe('run_auth=false\n');
+      expect(readFileSync(join(r.dir, 'outputs'), 'utf8')).toBe('run_auth=false\nrun_data=false\n');
     }
     const r = preflight(withAccount, 'staging', dir => ['--write', join(dir, 'wrangler.deploy.json')]);
     expect(r.status).toBe(0);
     const written = JSON.parse(readFileSync(join(r.dir, 'wrangler.deploy.json'), 'utf8')) as Config;
     expect(written.env.staging['d1_databases']).toHaveLength(1);
     expect(r.output).toContain('migration required');
-    expect(readFileSync(join(r.dir, 'outputs'), 'utf8')).toBe('run_auth=true\n');
+    expect(readFileSync(join(r.dir, 'outputs'), 'utf8')).toBe('run_auth=true\nrun_data=true\n');
   });
 
   it('writes the allowlisted deployment configuration when the checked file is accepted', () => {
@@ -337,6 +337,6 @@ it('production placeholder is deployable with sign-in off; real id emits the mig
     const written = JSON.parse(readFileSync(join(r.dir, 'wrangler.deploy.json'), 'utf8')) as Config;
     expect('d1_databases' in written).toBe(enabled);
     expect('services' in written).toBe(enabled);
-    expect(readFileSync(join(r.dir, 'outputs'), 'utf8')).toBe(`run_auth=${enabled}\n`);
+    expect(readFileSync(join(r.dir, 'outputs'), 'utf8')).toBe(`run_auth=${enabled}\nrun_data=false\n`);
   }
 });

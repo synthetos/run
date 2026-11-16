@@ -812,6 +812,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           RUN_WORKERS_DEV_SUBDOMAIN: ${{ vars.RUN_WORKERS_DEV_SUBDOMAIN }}
+          RUN_STORAGE_ENABLED: ${{ steps.config.outputs.run_data }}
         run: node tools/gates/src/smoke/cli.ts --env production
       - name: Undo the deployment when site deployment or smoke failed (staging is deleted, production rolled back)
         if: failure() && steps.deploy.outcome == 'success' && steps.site_smoke.outcome == 'failure'

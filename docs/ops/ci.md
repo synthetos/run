@@ -419,3 +419,5 @@ Each validated record is capped at 64 KiB of encoded JSON. The shared constant
 UTF-8 content counts, including archived records. D1 triggers enforce CAS, quota accounting,
 head updates and audit writes in one transaction. A2-05 must reserve file bytes in this same
 account ledger. No safety state or UI migration is included in this slice.
+
+Production storage smoke receives `RUN_STORAGE_ENABLED` from Run preflight’s final `run_data` output, after data-readiness and auth-placeholder stripping. It requires exactly 401 when the binding is present and exactly 503 when absent; a missing or invalid expectation fails. A ready production source with an ACCOUNTS-only service list is refused. Local production-mode smoke also requires this explicit environment variable.

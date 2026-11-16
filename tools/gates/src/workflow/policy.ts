@@ -786,7 +786,7 @@ function checkSmokeCredentials(jobs: readonly Job[], add: (line: number, rule: P
     }
     for (const smoke of smokeLines) {
       const step = stepOf(job, smoke);
-      for (const [key, value] of Object.entries(SMOKE_CREDENTIALS)) {
+      for (const [key, value] of Object.entries(name === 'deploy-production' ? { ...SMOKE_CREDENTIALS, RUN_STORAGE_ENABLED: '${{ steps.config.outputs.run_data }}' } : SMOKE_CREDENTIALS)) {
         if (!step.some((l) => !l.inBlock && l.text === `${key}: ${value}`)) {
           flag(smoke.no, `job '${name}': the smoke-test step must set ${key}: ${value} in its env (step env is not inherited)`);
         }

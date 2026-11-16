@@ -1477,7 +1477,7 @@
       "complexity $/FunctionDeclaration:provisionDatabase#1": 23
     },
     "tools/gates/src/deploy/preflight.ts": {
-      "complexity $/FunctionDeclaration:main#1": 22
+      "complexity $/FunctionDeclaration:main#1": 18
     },
     "tools/gates/src/deploy/previous-cli.ts": {
       "complexity $/FunctionDeclaration:main#1": 23
