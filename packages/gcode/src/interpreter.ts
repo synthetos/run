@@ -26,7 +26,6 @@ import {
     blockFindingText,
     modelArc,
     type Axis,
-    type Plane,
     type SanitizeResult,
     type SentLine,
     type Wcs
@@ -41,7 +40,8 @@ import { FrameRecorder, emptyFrames } from './frames.ts';
 import { codeOf, parseLine } from './parser.ts';
 
 import { DEFAULT_VERTEX_CAP, MM_PER_INCH, PLANE_INDEX, ROTARY } from './interpreter/constants.ts';
-import { type Emitted, type Motion, type Piece, type Pos } from './interpreter/contract.ts';
+import { type Emitted, type Piece, type Pos } from './interpreter/contract.ts';
+import { InterpreterState, type InterpreterContext } from './interpreter/state.ts';
 import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis, type TimingModel } from './types.ts';
 export { DEFAULT_VERTEX_CAP } from './interpreter/constants.ts';
 
@@ -322,66 +322,27 @@ function emptyAnalysis(dialect: Dialect, findings: Finding[], lineCount: number,
     },
   };
 }
+/** One modal model per sanitizer invocation. */
+class Interpreter extends InterpreterState {
 
-class Interpreter {
-  readonly findings: Finding[] = [];
-  readonly pieces: Piece[] = [];
-  readonly flags: Uint8Array;
-  readonly pausePoints: number[] = [];
-  /** The analytic event tape (events.ts), recorded as the lines are stepped. */
-  readonly events: EventRecorder;
-  /** The program-to-path offset table (frames.ts), filled as the lines are stepped. */
-  readonly frameTable: FrameRecorder;
-  machine: Pos;
-  units: 'G20' | 'G21';
-  distance: 'G90' | 'G91';
-  arcDistance: 'G90.1' | 'G91.1';
-  plane: Plane;
-  motion: Motion;
-  feed: number | undefined;
-  wcs: Wcs;
-  wcsOffsets: Record<Wcs, Pos>;
-  g92: { offsets: Pos; active: boolean };
-  tool: Pos;
-  g28: Pos | null;
-  g30: Pos | null;
-  spindle: 'off' | 'cw' | 'ccw';
-  mist: boolean;
-  flood: boolean;
-  readonly defaults: { units: 'G20' | 'G21'; distance: 'G90' | 'G91'; plane: Plane; wcs: Wcs };
-  /** Everything from here on is uncertain. */
-  uncertain = false;
-  seconds: number | null = 0;
-  rapidMm = 0;
-  feedMm = 0;
-  arcs = 0;
-  unitsSeen = false;
-  distanceSeen = false;
-  movedYet = false;
-  readonly once = new Set<string>();
 
-  readonly dialect: Dialect;
-  readonly job: DialectJobGcode;
-  readonly lines: readonly SentLine[];
-  readonly options: InterpretOptions;
-
-  constructor(dialect: Dialect, job: DialectJobGcode, lines: readonly SentLine[], options: InterpretOptions) {
-    this.dialect = dialect;
-    this.job = job;
-    this.lines = lines;
-    this.options = options;
-    this.flags = new Uint8Array(lines.length);
-    this.events = new EventRecorder(lines);
+  constructor(dialect: Dialect, job: DialectJobGcode, lines: readonly SentLine[], options: InterpretOptions) { super(); const ctx: InterpreterContext = this;
+    ctx.dialect = dialect;
+    ctx.job = job;
+    ctx.lines = lines;
+    ctx.options = options;
+    ctx.flags = new Uint8Array(lines.length);
+    ctx.events = new EventRecorder(lines);
     const s = options.start ?? {};
     const m = fill(s.machine);
-    this.machine = m.pos;
-    this.units = s.units ?? 'G21';
-    this.distance = s.distance ?? 'G90';
-    this.arcDistance = s.arcDistance ?? 'G91.1';
-    this.plane = s.plane ?? 'G17';
-    this.motion = s.motion ?? 'G80';
-    this.feed = s.feedMmPerMin;
-    this.wcs = s.wcs ?? 'G54';
+    ctx.machine = m.pos;
+    ctx.units = s.units ?? 'G21';
+    ctx.distance = s.distance ?? 'G90';
+    ctx.arcDistance = s.arcDistance ?? 'G91.1';
+    ctx.plane = s.plane ?? 'G17';
+    ctx.motion = s.motion ?? 'G80';
+    ctx.feed = s.feedMmPerMin;
+    ctx.wcs = s.wcs ?? 'G54';
     const offsets = {} as Record<Wcs, Pos>;
     let offsetsKnown = true;
     for (const w of WCS_CODES) {
@@ -389,19 +350,19 @@ class Interpreter {
       offsets[w] = f.pos;
       if (!f.complete) offsetsKnown = false;
     }
-    this.wcsOffsets = offsets;
+    ctx.wcsOffsets = offsets;
     const g = fill(s.g92?.offsets);
-    this.g92 = { offsets: g.pos, active: s.g92?.active ?? false };
+    ctx.g92 = { offsets: g.pos, active: s.g92?.active ?? false };
     const t = fill(s.toolOffset);
-    this.tool = t.pos;
-    this.frameTable = new FrameRecorder([this.offset('X'), this.offset('Y'), this.offset('Z')]);
-    this.g28 = s.g28 === undefined ? null : fill(s.g28).pos;
-    this.g30 = s.g30 === undefined ? null : fill(s.g30).pos;
-    this.spindle = s.spindle ?? 'off';
-    this.mist = s.mist ?? false;
-    this.flood = s.flood ?? false;
-    this.defaults = {
-      units: s.defaults?.units ?? this.units,
+    ctx.tool = t.pos;
+    ctx.frameTable = new FrameRecorder([this.offset('X'), this.offset('Y'), this.offset('Z')]);
+    ctx.g28 = s.g28 === undefined ? null : fill(s.g28).pos;
+    ctx.g30 = s.g30 === undefined ? null : fill(s.g30).pos;
+    ctx.spindle = s.spindle ?? 'off';
+    ctx.mist = s.mist ?? false;
+    ctx.flood = s.flood ?? false;
+    ctx.defaults = {
+      units: s.defaults?.units ?? ctx.units,
       distance: s.defaults?.distance ?? 'G90',
       plane: s.defaults?.plane ?? 'G17',
       wcs: s.defaults?.wcs ?? 'G54',
@@ -412,14 +373,16 @@ class Interpreter {
     if (s.g92 === undefined || !g.complete) assumed.push('G92 offsets');
     if (!t.complete) assumed.push('tool offset');
     if (assumed.length > 0) {
-      this.uncertain = !m.complete || !offsetsKnown || !g.complete;
+      ctx.uncertain = !m.complete || !offsetsKnown || !g.complete;
       this.add(0, null, 'warn', 'start-assumed', `not read from the board, assumed zero: ${assumed.join(', ')}; positions are flagged uncertain`);
     }
   }
 
+
   add(line: number, n: number | null, severity: Finding['severity'], rule: string, message: string): void {
     this.findings.push({ line, n, severity, rule, message: severity === 'block' ? blockFindingText(rule, message, line) : message, source: 'analyser' });
   }
+
 
   addOnce(key: string, line: number, n: number | null, severity: Finding['severity'], rule: string, message: string): void {
     if (this.once.has(key)) return;
@@ -427,29 +390,35 @@ class Interpreter {
     this.add(line, n, severity, rule, message);
   }
 
+
   /** Program units to mm. */
   get scale(): number {
     return this.units === 'G20' ? MM_PER_INCH : 1;
   }
+
 
   /** The work offset on an axis. EN and TG apply the tool offset to X, Y and Z only (@cite EN canonical_machine.c:536-563). */
   offset(a: Axis): number {
     return this.wcsOffsets[this.wcs][a] + (this.g92.active ? this.g92.offsets[a] : 0) + (ROTARY.has(a) ? 0 : this.tool[a]);
   }
 
+
   work(a: Axis): number {
     return this.machine[a] - this.offset(a);
   }
+
 
   /** Axis word → mm (rotary: degrees, as written). */
   axisMm(a: Axis, v: number): number {
     return ROTARY.has(a) ? v : v * this.scale;
   }
 
+
   /** An offset word → mm. Rotary offsets follow the dialect (`rotaryOffsetsUseUnits`). */
   offsetMm(a: Axis, v: number): number {
     return ROTARY.has(a) && !this.job.rotaryOffsetsUseUnits ? v : v * this.scale;
   }
+
 
   /** The dialect's block rules, applied to one line (defence in depth behind the sanitiser). */
   ruleBlocks(codes: readonly string[], letters: ReadonlySet<string>): GcodeRule[] {
@@ -484,6 +453,7 @@ class Interpreter {
     }
     return out;
   }
+
 
   step(line: SentLine, i: number, last: boolean): void {
     const src = line.sourceLine;
@@ -631,6 +601,7 @@ class Interpreter {
     if (this.uncertain) this.flags[i] = (this.flags[i] as number) | LINE_FLAG.UNCERTAIN;
   }
 
+
   /** M2/M30 (@cite EN canonical_machine.c:2174-2214): G92.1, default system, plane, units, G90, G80; outputs per dialect. */
   programEnd(): void {
     this.g92 = { offsets: zero(), active: false };
@@ -645,6 +616,7 @@ class Interpreter {
       this.flood = false;
     }
   }
+
 
   g10(params: ReadonlyMap<string, number>, axisWords: ReadonlyMap<Axis, number>, src: number, n: number, i: number): void {
     const l = params.get('L');
@@ -672,6 +644,7 @@ class Interpreter {
     }
   }
 
+
   /** G28/G30: an optional intermediate point, then the stored position on every axis (@cite EN canonical_machine.c:1390-1405). */
   storedMove(code: 'G28' | 'G30', axisWords: ReadonlyMap<Axis, number>, src: number, n: number, i: number): void {
     if (axisWords.size > 0) {
@@ -692,6 +665,7 @@ class Interpreter {
     }
     this.linear({ ...stored }, 'G0', i);
   }
+
 
   move(axisWords: ReadonlyMap<Axis, number>, params: ReadonlyMap<string, number>, g53: boolean, src: number, n: number, i: number): void {
     const to = { ...this.machine };
@@ -717,6 +691,7 @@ class Interpreter {
     }
     this.arc(to, axisWords, params, src, n, i);
   }
+
 
   arc(to: Pos, axisWords: ReadonlyMap<Axis, number>, params: ReadonlyMap<string, number>, src: number, n: number, i: number): void {
     const plane = this.plane;
@@ -786,9 +761,11 @@ class Interpreter {
     this.movedYet = true;
   }
 
+
   kindBits(k: number): number {
     return this.uncertain ? k | KIND.UNCERTAIN : k;
   }
+
 
   linear(to: Pos, motion: 'G0' | 'G1', i: number): void {
     let sq = 0;
@@ -803,12 +780,14 @@ class Interpreter {
     this.movedYet = true;
   }
 
+
   jump(to: Pos, i: number): void {
     this.events.unmodelled(this.machine, to);
     this.pieces.push({ kind: 'jump', line: i, to, k: this.kindBits(KIND.BREAK) });
     this.machine = to;
     this.movedYet = true;
   }
+
 
   /** Adds a move's estimated duration (trapezoid, starting and ending at rest; an estimate only). */
   time(len: number, to: Pos, rapid: boolean): void {
