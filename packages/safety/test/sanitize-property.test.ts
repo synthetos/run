@@ -12,12 +12,12 @@
  * "Preview geometry equals interpret(sanitize(x))" needs the preview
  * interpreter, which is TB-02's acceptance; it is not in this package.
  */
-import fc from 'fast-check';
 import { TINYG_440, TINYG_EN, type Dialect } from '@synthetos/protocol';
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import { sanitizeJob, type SanitizeOptions, type SanitizeResult } from '../src/index.ts';
 import { canonicalCode, lexLine } from '../src/sanitize/lex.ts';
 import { applyCommentRule, splitLines, trimLine } from '../src/sanitize/text.ts';
-import { sanitizeJob, type SanitizeOptions, type SanitizeResult } from '../src/index.ts';
 import { MOTION, START, runs } from './sanitizeHelpers.ts';
 
 const DIALECTS: readonly Dialect[] = [TINYG_EN, TINYG_440];
@@ -82,7 +82,9 @@ function wordsOf(body: string): string[] {
   return lexed.words.map((w) => `${w.letter}${w.value}`);
 }
 
-describe('T-S1: sanitiser properties', () => {
+describe('T-S1: sanitiser properties', registerProperties);
+
+function registerProperties(): void {
   for (const d of DIALECTS) {
     it(`${d.id}: every sent line is clean, numbered, within limits and keeps its words`, () => {
       fc.assert(
@@ -145,4 +147,4 @@ describe('T-S1: sanitiser properties', () => {
       );
     });
   }
-});
+}

@@ -976,15 +976,6 @@
     "packages/safety/test/safetyDoc.ts": {
       "max-depth $/FunctionDeclaration:quotedSegments#1": 5
     },
-    "packages/safety/test/sanitize-property.test.ts": {
-      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:r.lines.forEach()[0]#1": 4,
-      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#1/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:r.report.entries.some()[0]#1": 4,
-      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#3/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:again.lines.map()[0]#1": 4,
-      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#3/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:again.lines.map()[0]#2": 4,
-      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#3/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:r.lines.map()[0]#1": 4,
-      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#3/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:r.lines.map()[0]#2": 4,
-      "max-nested-callbacks $/ArrowFunctionExpression:describe('T-S1: sanitiser properties')[1]#1/ArrowFunctionExpression:it()[1]#3/ArrowFunctionExpression:fc.property()[2]#1/ArrowFunctionExpression:r.lines.map()[0]#3": 4
-    },
     "packages/safety/test/split.test.ts": {
       "complexity $/ArrowFunctionExpression:describe('T-S64: long moves are split within the ceiling, on the original path')[1]#1/ArrowFunctionExpression:it('arcs and helices: G2/G3, G90/G91, mm/inch, sub-arcs on the original circle')[1]#1/ArrowFunctionExpression:fc.property()[1]#1": 18,
       "complexity $/ArrowFunctionExpression:describe('T-S64: long moves are split within the ceiling, on the original path')[1]#1/ArrowFunctionExpression:it('straight moves: G0/G1, G90/G91, mm/inch')[1]#1/ArrowFunctionExpression:fc.property()[1]#1": 17,
