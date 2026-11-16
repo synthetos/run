@@ -120,18 +120,28 @@ describe('steps 1-5: text', () => {
   });
 });
 
+
 describe('step 6: universal rejections', () => {
+
   it('M100 and G38.x', () => {
     expect(blocks(run('M100\n', EN))).toEqual(['m100']);
     expect(blocks(run('G38.3 Z-1\n', EN))).toEqual(['probe']);
     expect(blocks(run('G38 Z-1\n', TG))).toEqual(['probe']);
   });
+});
+
+describe('step 6: universal rejections', () => {
+
 
   it('negative F and S', () => {
     expect(blocks(run('G1 X1 F-100\n', EN))).toContain('negative-feed');
     expect(blocks(run('M3 S-100\n', EN))).toEqual(['negative-speed']);
     expect(run('M3 S0\n', EN, { c22: true }).report.blocked).toBe(false);
   });
+});
+
+describe('step 6: universal rejections', () => {
+
 
   it('T must be a whole number within the dialect range (E154)', () => {
     expect(blocks(run('T32\n', EN))).toEqual(['bad-tool']);
@@ -141,6 +151,10 @@ describe('step 6: universal rejections', () => {
     expect(run('T255\n', TG).report.blocked).toBe(false);
     expect(blocks(run('T256\n', TG))).toEqual(['bad-tool']);
   });
+});
+
+describe('step 6: universal rejections', () => {
+
 
   it('unsupported codes, including dotted codes the firmware would run as their integer code', () => {
     expect(blocks(run('G59.1\n', TG))).toEqual(['unsupported-code']);
@@ -154,6 +168,10 @@ describe('step 6: universal rejections', () => {
     // Trailing zeros are not a sub-code: G1.0 is G1, G01 is G1 (E150).
     expect(run('G1.0 X1 F100\nG01 X2\n', EN).report.blocked).toBe(false);
   });
+});
+
+describe('step 6: universal rejections', () => {
+
 
   it('ignored codes are kept with a warning (TG M48-M51)', () => {
     const r = run('M48\n', TG);
@@ -161,12 +179,20 @@ describe('step 6: universal rejections', () => {
     expect(r.report.entries.map((e) => [e.severity, e.rule])).toEqual([['warn', 'ignored-code']]);
     expect(bodies(r)).toEqual(['M48']);
   });
+});
+
+describe('step 6: universal rejections', () => {
+
 
   it('unsupported word letters', () => {
     expect(blocks(run('G0 X1 Q2\n', EN))).toEqual(['unsupported-word']);
     expect(blocks(run('G0 X1 E2\n', EN))).toEqual(['unsupported-word']);
     expect(blocks(run('G0 X1 E2\n', TG))).toEqual(['e-word']);
   });
+});
+
+describe('step 6: universal rejections', () => {
+
 
   it('modal conflicts (E152)', () => {
     for (const line of ['G0 G1 X1', 'G17 G18', 'G90 G91', 'G20 G21', 'G54 G55', 'M3 M4', 'M8 M9', 'M7 M7', 'G0 X1 X2', 'G80 G80', 'G43.1 G49 Z1']) {
@@ -175,6 +201,10 @@ describe('step 6: universal rejections', () => {
     expect(run('M7 M8\nM9\n', EN).report.blocked).toBe(false);
     expect(run('G80 G1 X1 F100\n', EN).report.blocked).toBe(false);
   });
+});
+
+describe('step 6: universal rejections', () => {
+
 
   it('axis words used by both a motion code and a group-0 code; G53 rules; axis words under G80; stray arc words', () => {
     expect(blocks(run('G1 G92 X0\n', EN))).toContain('modal-conflict');
@@ -185,6 +215,10 @@ describe('step 6: universal rejections', () => {
     expect(blocks(run('G2 X1 R1 I1 F100\n', EN))).toContain('modal-conflict');
     expect(run('G92 X0\nG53 G0 X1\n', EN).report.blocked).toBe(false);
   });
+});
+
+describe('step 6: universal rejections', () => {
+
 
   it('G10 needs an allowed L and P1..P6', () => {
     expect(blocks(run('G10 L2 X0\n', EN))).toEqual(['bad-parameter']);
@@ -195,6 +229,10 @@ describe('step 6: universal rejections', () => {
     expect(run('G10 L2 P2 X0\nG10 L20 P1 X0\n', EN).report.blocked).toBe(false);
     expect(run('G10 L2 P2 X0\n', TG).report.blocked).toBe(false);
   });
+});
+
+describe('step 6: universal rejections', () => {
+
 
   it('a negative dwell and bad arc turns', () => {
     expect(blocks(run('G4 P-1\n', EN))).toEqual(['bad-parameter']);
@@ -202,6 +240,10 @@ describe('step 6: universal rejections', () => {
     expect(blocks(run('G2 X10 Y0 I5 P1.5 F100\n', EN))).toEqual(['bad-parameter']);
     expect(blocks(run('G2 X10 Y0 I5 P-1 F100\n', EN))).toEqual(['bad-parameter']);
   });
+});
+
+describe('step 6: universal rejections', () => {
+
 
   it('a feed move needs a feed rate', () => {
     const noFeed: StartState = { ...START, motion: 'G1' };
