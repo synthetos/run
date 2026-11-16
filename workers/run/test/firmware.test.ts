@@ -7,7 +7,7 @@
  * detail; a GitHub failure is a 502. Nothing here touches the network: the
  * fetch is a fake.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker from '../src/index.ts';
 import { type FirmwareAsset } from '../src/firmwareAssets.ts';
 import {
@@ -250,12 +250,19 @@ describe('GET /firmware/... through the Worker', () => {
     expect((await route(new Request(`${STAGING}${PATH}`), env('staging'), undefined, mismatch.deps)).status).toBe(404);
   });
 
+  afterEach(() => { vi.unstubAllGlobals(); });
+
   it('through the handler every answer carries the security headers (staging grants serial behind Access; production grants nothing without a validated session, OD-29)', async () => {
+    // The handler has no injected deps, so the release list would come from GitHub: a fake fetch that refuses keeps this
+    // test off the network (a GitHub failure is a 502) and independent of what GitHub lists today.
+    const refused: string[] = [];
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL) => { refused.push(String(input instanceof Request ? input.url : input)); return new Response(null, { status: 503 }); });
     const staging = await worker.fetch(new Request(`${STAGING}/firmware/synthetos/TinyG/440.20/tinyg-440.20.hex`), env('staging'));
-    expect(staging.status).toBe(404);
+    expect(staging.status).toBe(502);
+    expect(refused).toHaveLength(1);
     for (const [name, value] of Object.entries(SERIAL_GRANTED_SECURITY_HEADERS)) expect(staging.headers.get(name), name).toBe(value);
     const production = await worker.fetch(new Request(`https://run.synthetos.com${PATH}`), env('production'));
-    expect(production.status).toBe(404);
+    expect(production.status).toBe(502);
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) expect(production.headers.get(name), name).toBe(value);
     const elsewhere = await worker.fetch(new Request(`https://run.example.workers.dev${PATH}`), env('production'));
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) expect(elsewhere.headers.get(name), name).toBe(value);
