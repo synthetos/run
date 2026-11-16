@@ -1,3 +1,4 @@
+import { bindShared } from './reducers/shared.ts';
 import type { ReducerDeps } from './reducers/deps.ts';
 import { createReducerValues } from './reducers/values.ts';
 import { Tx } from './reducers/transaction.ts';
@@ -70,84 +71,6 @@ export function createSessionReducer(features: ReducerFeatures) {
 const values = createReducerValues();
 const deps = { features, ...values } as ReducerDeps;
 const { NORMALIZE_SETTLE_MS, READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, AXES, MOTION_CLASSES, ALARM_CLASSES, EMPTY_LIVE, REPORTS_IDLE, RXM_IDLE, DEFAULT_SILENCE_MS, TINYG_SETTING_REFUSED_IN_CYCLE, TINYG_SETTINGS_DEFAULTED, PHASE_1_NOT_HANDLED, BOOT_DIALECTS, BOOT_LINE, UNCLASSIFIED_RESTING_STAT, LIVENESS_TOKEN } = values;
-
-function initialState(): SessionState {
-  return Object.freeze({
-    base: 'NOT_CONNECTED',
-    overlays: Object.freeze([]),
-    epoch: 0,
-    port: null,
-    expectedDeviceId: null,
-    unknownOnNextConnect: false,
-    xoff: false,
-    footerRev: undefined,
-    probe: null,
-    ready: false,
-    identity: null,
-    classification: null,
-    dialect: null,
-    portInfo: null,
-    queue: Object.freeze([]),
-    expected: Object.freeze([]),
-    writing: null,
-    enqOutstanding: false,
-    liveness: null,
-    stale: null,
-    live: EMPTY_LIVE,
-    values: Object.freeze({}),
-    fault: null,
-    ackVerify: null,
-    blocked: null,
-    notices: Object.freeze({ adviseEstop: false }),
-    timers: Object.freeze({}),
-    timerSeq: 0,
-    sent: Object.freeze({ lines: 0, realtime: 0 }),
-    motion: null,
-    polled: null,
-    settingWrite: null,
-    bootEntry: null,
-    reports: REPORTS_IDLE,
-    link: Object.freeze({ heartbeatMs: null, silenceMs: DEFAULT_SILENCE_MS }),
-    job: null,
-    rxm: RXM_IDLE,
-    rtLeaves: Object.freeze([]),
-    probeZ: PROBE_CLOSED,
-    boardModes: BOARD_MODES_UNKNOWN,
-    alarmRestore: null,
-  });
-}
-
-/** The classified dialect, or null (unclassified, or not yet probed). */
-function dialectOf(state: SessionState): Dialect | null {
-  return state.dialect;
-}
-
-/** What the allow-matrix needs to know about this state. */
-function matrixSnapshot(state: SessionState): MatrixSnapshot {
-  const dialect = dialectOf(state);
-  return { base: state.base, overlays: state.overlays, classified: dialect !== null, enqCapable: dialect?.caps.enq === true };
-}
-
-/** True when a GET of `token` may be written in this state (probe tokens before classification, the allowlist after). */
-function readableNow(state: SessionState, token: string): boolean {
-  const dialect = dialectOf(state);
-  if (dialect !== null) return isReadAllowed(dialect.id, token, state.identity?.fb);
-  return state.classification === null && PROBE_TOKENS.has(token);
-}
-
-/**
- * True when the dialect side of ENQ holds: classified, the dialect has ENQ,
- * and a rev-2/3 footer was seen on this link (T-S24b, T-S87). The
- * allow-matrix (`enq`, with the session's release) is checked separately,
- * at the intent and again right before the write.
- */
-function enqAllowedNow(state: SessionState): boolean {
-  return enqByte(state) !== undefined;
-}
-function enqByte(state: SessionState): number | undefined {
-  if (state.footerRev !== 2 && state.footerRev !== 3) return undefined;
-  return dialectOf(state)?.realtime.enq?.byte;
-}
 
 /** What the motion layer borrows from this file (motion.ts may not import it: no cycles). */
 const MOTION_DEPS: MotionDeps = { fault: (t, cause, kind, detail, at) => enterFault(t as Tx, cause, kind, detail, at) };
@@ -254,15 +177,6 @@ function onJobLineDropped(t: Tx, index: number): void {
   t.set({ expected: t.s.expected.filter((e) => !(e.purpose === 'job' && e.index === index)) });
   const job = t.s.job;
   if (job !== null && index < job.next) features.patchJob?.(t, { next: index });
-}
-
-/** The port is open and the link has not been lost. */
-function linkUp(s: SessionState): boolean {
-  return (s.base === 'IDENTIFYING' || s.base === 'READING' || s.base === 'BLOCKED' || READY_BASES.has(s.base)) && !s.overlays.includes('LOST');
-}
-
-function deny(reason: string, remedy: string, citation: string): Decision {
-  return { allowed: false, reason, remedy, citation };
 }
 
 function onIntent(t: Tx, request: SessionIntent, at: number): void {
@@ -446,13 +360,6 @@ function onRead(t: Tx, tokens: readonly string[], matrix: Decision): void {
   }
   t.set({ queue: [...t.s.queue, ...fresh.map((token) => ({ token, purpose: 'request' as const }))] });
   t.decide('read', matrix);
-}
-
-// --- Settings writes (SAFETY §4.6, H57-H63, amendment 2026-11-02) -----------
-
-/** True while a settings write has not finished. */
-function settingWriteActive(s: SessionState): boolean {
-  return s.settingWrite !== null && s.settingWrite.phase !== 'done';
 }
 
 function onSettingsWrite(t: Tx, key: unknown, value: unknown, matrix: Decision): void {
@@ -1445,12 +1352,6 @@ function onGarbled(t: Tx, at: number): void {
   }
 }
 
-// --- Live values ------------------------------------------------------------
-
-function isObject(v: JsonValue | undefined): v is JsonObject {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
 function mergeLive(t: Tx, fields: JsonObject): void {
   let live = t.s.live;
   for (const [key, v] of Object.entries(fields)) {
@@ -1888,6 +1789,7 @@ function lineFor(s: SessionState, read: PendingRead): string | undefined {
   return getLineFor(dialect.id, read.token, s.identity?.fb);
 }
 
+const { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, linkUp, deny, settingWriteActive, isObject } = bindShared(deps);
 Object.assign(deps, { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, reduce, onJobLineDropped, linkUp, deny, onIntent, onEnq, writeEnq, onRead, settingWriteActive, onSettingsWrite, finishSettingWrite, onGateAnswer, onSettingAnswer, onReadBackAnswer, interruptSettingWrite, refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry, onAckFault, writeFeedhold, resetToNotConnected, onOpened, startProbe, onLineWritten, answerTimeout, onLinkLost, onTimer, onInbound, onBanner, onResponse, isDataEntry, owedAnswers, consumeOwed, answers, onAnswer, advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading, onVerifyAnswer, refuseAck, onStatusReport, onGarbled, isObject, mergeLive, withNumber, startSeed, isSeedOwed, mergeStateValue, onSeedAnswer, seedAnswered, maybeConfigure, reportStepText, failReports, nextReportStep, numberValue, addChange, onReportAnswer, watchdogActive, watchdogMs, syncWatchdog, enterStale, silentWhileBusy, onWatchdog, askForLife, enterFault, pump, lineFor, MOTION_DEPS, JOB_DEPS });
 return { READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, reduce, settingWriteActive, BOOT_LINE, probeRecord, LIVENESS_TOKEN };
 }
