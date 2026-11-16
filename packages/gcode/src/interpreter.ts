@@ -45,6 +45,7 @@ import { axisMm, offset, offsetMm, unitScale, work, zero } from './interpreter/c
 import { addFinding, addFindingOnce } from './interpreter/findings.ts';
 import { initializeInterpreter } from './interpreter/initialize.ts';
 import { jump, kindBits, linearMove } from './interpreter/linear.ts';
+import { interpretMove } from './interpreter/moves.ts';
 import { programEnd } from './interpreter/outputs.ts';
 import { ruleBlocks } from './interpreter/rules.ts';
 import { InterpreterState } from './interpreter/state.ts';
@@ -551,30 +552,7 @@ class Interpreter extends InterpreterState {
   }
 
 
-  move(axisWords: ReadonlyMap<Axis, number>, params: ReadonlyMap<string, number>, g53: boolean, src: number, n: number, i: number): void {
-    const to = { ...this.machine };
-    for (const [a, v] of axisWords) {
-      const mm = this.axisMm(a, v);
-      // G53: machine coordinates, absolute for this line only.
-      to[a] = g53 ? mm : this.distance === 'G91' ? this.machine[a] + mm : mm + this.offset(a);
-    }
-    if (this.motion === 'G80') return;
-    if (this.motion !== 'G0' && this.feed === undefined) {
-      this.add(src, n, 'block', 'feed-not-set', `${this.motion} before any F word: the board would use whatever feed rate it has (SAFETY §4.5)`);
-    }
-    if (this.motion !== 'G0' && this.spindle === 'off' && (to.X !== this.machine.X || to.Y !== this.machine.Y || to.Z !== this.machine.Z)) {
-      this.flags[i] = (this.flags[i] as number) | LINE_FLAG.SPINDLE_OFF_CUT;
-      this.addOnce('spindle-off', src, n, 'warn', 'spindle-off-cut', 'a cutting move with the spindle off');
-    }
-    if (this.motion === 'G0' || this.motion === 'G1') {
-      this.linear(to, this.motion, i);
-      if (this.motion === 'G0' && to.Z - this.offset('Z') < 0) {
-        this.addOnce('rapid-below-z0', src, n, 'warn', 'rapid-below-z0', 'a rapid move ends below work Z0 (heuristic: check it clears the stock)');
-      }
-      return;
-    }
-    this.arc(to, axisWords, params, src, n, i);
-  }
+  move(axisWords: ReadonlyMap<Axis, number>, params: ReadonlyMap<string, number>, g53: boolean, src: number, n: number, i: number): void { return interpretMove(this, axisWords, params, g53, src, n, i); }
 
 
   arc(to: Pos, axisWords: ReadonlyMap<Axis, number>, params: ReadonlyMap<string, number>, src: number, n: number, i: number): void { return interpretArc(this, to, axisWords, params, src, n, i); }
