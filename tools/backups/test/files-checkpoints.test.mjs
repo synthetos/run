@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkpoints } from '../../../workers/backup/src/files/checkpoint.ts';
-import { loadState } from '../../../workers/backup/src/files/state.ts';
-import { filesScheduled } from '../../../workers/backup/src/files/scheduled.ts';
+import { checkpoints } from '../../../workers/backup/src/files-checkpoint.ts';
+import { loadState } from '../../../workers/backup/src/files-state.ts';
+import { filesScheduled } from '../../../workers/backup/src/files-scheduled.ts';
 import { FakeFiles, fileKey, virtualClock } from './files-fixture.mjs';
 import { RateAwareFiles } from './rate-aware-files.mjs';
 import { digestRuntime } from './digest-fixture.mjs';

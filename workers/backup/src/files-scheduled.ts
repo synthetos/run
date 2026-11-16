@@ -1,8 +1,8 @@
-import { copyPage } from './copy.ts';
-import { checkpoints } from './checkpoint.ts';
-import { freshScan, loadState, nextScan } from './state.ts';
-import { samplePage, verifyFile } from './verify.ts';
-import { DEFAULT_OPTIONS, filesPrefix, MAX_FILE_BYTES, type FileBackup, type FileOptions, type FileSource, type FileState, type FileStats } from './types.ts';
+import { copyPage } from './files-copy.ts';
+import { checkpoints } from './files-checkpoint.ts';
+import { freshScan, loadState, nextScan } from './files-state.ts';
+import { samplePage, verifyFile } from './files-verify.ts';
+import { DEFAULT_OPTIONS, filesPrefix, MAX_FILE_BYTES, type FileBackup, type FileOptions, type FileSource, type FileState, type FileStats } from './files-types.ts';
 interface Job { source?: FileSource | undefined; backup: FileBackup; environment: string; date: Date; log: (record: Record<string, unknown>) => void }
 interface Run { job: Job; options: FileOptions; state: FileState; stats: FileStats; prefix: string; save: () => Promise<boolean>; available: () => boolean }
 async function copyFiles(run: Run): Promise<void> {

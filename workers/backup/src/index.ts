@@ -1,7 +1,7 @@
 import type { Bucket, Database } from './types.ts';
 import { backupScheduled } from './scheduled.ts';
-import { filesScheduled } from './files/scheduled.ts';
-import type { FileBackup, FileSource } from './files/types.ts';
+import { filesScheduled } from './files-scheduled.ts';
+import type { FileBackup, FileSource } from './files-types.ts';
 import { SOURCES } from './sources.ts';
 interface Env { [binding: string]: unknown; SCRATCH: Database; BACKUPS: Bucket & FileBackup; SOURCE_FILES?: FileSource; BACKUP_ENV: 'production' | 'staging' }
 export default {

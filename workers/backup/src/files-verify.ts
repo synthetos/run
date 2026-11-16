@@ -1,4 +1,4 @@
-import { keyDigest, MAX_FILE_BYTES, SAMPLE_SIZE, type FileBackup, type FileObject, type FileState } from './types.ts';
+import { keyDigest, MAX_FILE_BYTES, SAMPLE_SIZE, type FileBackup, type FileObject, type FileState } from './files-types.ts';
 interface Digest extends WritableStream<Uint8Array> { digest: Promise<ArrayBuffer> }
 function digestStream(): Digest {
   const runtime = crypto as Crypto & { DigestStream: new (algorithm: string) => Digest };

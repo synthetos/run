@@ -1,4 +1,4 @@
-import type { FileBackup, FileState, Scan } from './types.ts';
+import type { FileBackup, FileState, Scan } from './files-types.ts';
 export function freshScan(): Scan { return { count: 0, complete: false }; }
 function validScan(value: Scan): boolean {
   return value != null && Number.isSafeInteger(value.count) && value.count >= 0 && typeof value.complete === 'boolean' && (value.cursor === undefined || typeof value.cursor === 'string');

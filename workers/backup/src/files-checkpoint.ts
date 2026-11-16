@@ -1,4 +1,4 @@
-import type { FileBackup, FileState } from './types.ts';
+import type { FileBackup, FileState } from './files-types.ts';
 
 interface Clock { now: () => number; sleep: (ms: number) => Promise<void>; deadline: number }
 const WRITE_INTERVAL_MS = 1000;

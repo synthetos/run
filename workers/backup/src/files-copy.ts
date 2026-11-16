@@ -1,4 +1,4 @@
-import { keyDigest, MAX_FILE_BYTES, type FileBackup, type FileObject, type FileSource, type FileStats } from './types.ts';
+import { keyDigest, MAX_FILE_BYTES, type FileBackup, type FileObject, type FileSource, type FileStats } from './files-types.ts';
 export async function copyObject(source: FileSource, backup: FileBackup, listed: FileObject, prefix: string): Promise<boolean> {
   if (!validSize(listed.size)) throw new Error('File exceeds copy limit');
   const key = prefix + listed.key, old = await backup.head(key);
