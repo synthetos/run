@@ -13,29 +13,15 @@ import { nextMotion, positionAt, settled, type MarkerMotion } from './markerMoti
 import { SPIN_FRAME_MS, fluteHelix, isSoftwareRenderer, spinAngle, type SpinDirection } from './markerSpin.ts';
 import { PATH_FRAGMENT, SOLID_FRAGMENT, SOLID_VERTEX, pathVertex } from './pathShaders.ts';
 import { pickSolid, rayThrough } from './pick.ts';
+import { NO_OFFSET, OVERLAY, PATH_OVER_CARVE_ALPHA, STYLE_COUNT } from './renderer/constants.ts';
 import { type GpuChunk, type LoadOptions, type PlannerOverlay, type PreviewColors, type PreviewRenderer, type RendererOptions } from './renderer/contract.ts';
 import { offsetBox, ringSegments, sceneBounds, solidTriangles, unionBox, type Rgba, type SceneLayers } from './scene.ts';
 import { checkSegmentList, lineCount, type Box3, type SegmentList, type Vec3 } from './segments.ts';
 import { runSliced, type SliceOptions } from './slicer.ts';
 import { toolWireframe, type ToolShape } from './toolProfile.ts';
+export { PATH_OVER_CARVE_ALPHA } from './renderer/constants.ts';
 export { type LoadOptions, type PlannerOverlay, type PreviewColors, type PreviewRenderer, type RendererOptions } from './renderer/contract.ts';
 export type { Rgba } from './scene.ts';
-
-
-/** Overlay styles follow the segment styles in the colour table. */
-const OVERLAY = Object.freeze({ ENVELOPE: 5, AXIS_X: 6, AXIS_Y: 7, AXIS_Z: 8, GRID: 9, GRID_MAJOR: 10, MARKER: 11, RING: 12, MARKER_PREVIEW: 13, PLAY: 14 });
-
-
-const STYLE_COUNT = 15;
-
-export /**
- * How opaque the toolpath is over a carved stock, so the carve reads through it. 0.6 since the cut has its own
- * colour (owner, 2026-11-09): the lines stay plain over the cut, so it shows they line up (it was 0.35).
- */
-const PATH_OVER_CARVE_ALPHA = 0.6;
-
-
-const NO_OFFSET: Vec3 = [0, 0, 0];
 
 
 interface RendererContext {
