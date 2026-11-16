@@ -41,6 +41,7 @@ import type { Axis, SanitizeOptions, Wcs } from './types.ts';
 
 import { extendByArc, extentAt } from './extent.ts';
 
+import { runAction } from './analyze/actions.ts';
 import { chargeJointResidual, jointRiskFinding, linearModeFinding, modeOf, rotaryUnknown, withJointResidual } from './analyze/axisModes.ts';
 import { ModelState } from './analyze/context.ts';
 import { block, type Finding, type LineAnalysis } from './analyze/contract.ts';
@@ -49,13 +50,13 @@ import { initialize } from './analyze/initialize.ts';
 import { forget, forgetLinear, modelDelta, moveBy, planeMagnitude } from './analyze/motionPosition.ts';
 import { appliedTool, g92Part, g92PartUnc, offsetUnc, selectWcs, setG92, shift, totalOffset, workAfterSet } from './analyze/offsets.ts';
 import { outputsOn, resetProgram } from './analyze/outputs.ts';
-import { exactUnc, zeroPos, type Pos, type Unc } from './analyze/positions.ts';
+import { type Pos, type Unc } from './analyze/positions.ts';
 import { storedMove } from './analyze/stored.ts';
 import { AFTER_MOTION, ARC_LETTERS, AXIS_ACTIONS, AXIS_LETTERS, GROUP, INCH_MM, MOTION_CODES, ROTARY_AXES } from './analyze/tables.ts';
 import { setWork, settle, widen } from './analyze/uncertainty.ts';
 import { mmPerUnit, motionBound, needsUnits, offsetScale, scale, unitScale } from './analyze/units.ts';
 import { checkCode, checkGroups } from './analyze/words.ts';
-import { AXES, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, WCS_CODES, type AxisMode } from './types.ts';
+import { AXES, AXIS_MODE_INHIBITED, AXIS_MODE_RADIUS, AXIS_MODE_STANDARD, type AxisMode } from './types.ts';
 export { type Finding, type LineAnalysis } from './analyze/contract.ts';
 
 
@@ -583,89 +584,7 @@ export class JobModel extends ModelState {
     distance: 'G90' | 'G91' | null,
     params: ReadonlyMap<string, Word>,
     findings: Finding[],
-  ): LineAnalysis['motion'] {
-    switch (action) {
-      case 'G10': {
-        const target = WCS_CODES[(params.get('P') as Word).value - 1] as Wcs;
-        const l20 = (params.get('L') as Word).value === 20;
-        for (const w of axisWords) {
-          const a = w.letter as Axis;
-          const sc = this.#offsetScale(a, units);
-          const value = sc === null ? null : w.value * sc;
-          if (!l20) {
-            const before = this.wcsOffsets[target][a];
-            const beforeUnc = this.uWcs[target][a];
-            this.wcsOffsets[target][a] = value;
-            this.uWcs[target][a] = value === null ? Infinity : stepErrorMm(value);
-            if (this.wcs === target) this.#shift(a, before === null || value === null ? null : before - value, beforeUnc + this.uWcs[target][a]);
-          } else {
-            // L20: the offset that makes the current position read `value` in that system (@cite EN canonical_machine.c:1055-1062).
-            // It inherits the machine position's uncertainty; the work position then reads `value` itself.
-            const m = this.machine[a];
-            const g = this.#g92Part(a);
-            const t = this.toolOffset[a];
-            const known = m !== null && value !== null && g !== null && t !== null;
-            this.wcsOffsets[target][a] = known ? m - value - g - t : null;
-            this.uWcs[target][a] = known ? this.uMachine[a] + this.#g92PartUnc(a) + this.uTool[a] + stepErrorMm(m, value, g, t) : Infinity;
-            if (this.wcs === target) this.#setWork(a, value);
-          }
-          // With the active system unknown, it may be the one that changed.
-          if (this.wcs === null) {
-            this.work[a] = null;
-            this.uWork[a] = Infinity;
-          }
-        }
-        return null;
-      }
-      case 'G92': {
-        // Work position := value on the named axes; offsets applied on every axis (@cite EN canonical_machine.c:1199-1213).
-        const offsets = { ...this.g92 };
-        const unc = { ...this.uG92 };
-        for (const w of axisWords) {
-          const a = w.letter as Axis;
-          const sc = this.#offsetScale(a, units);
-          const value = sc === null ? null : w.value * sc;
-          const m = this.machine[a];
-          const wo = this.wcs === null ? null : this.wcsOffsets[this.wcs][a];
-          const t = this.toolOffset[a];
-          const known = m !== null && wo !== null && t !== null && value !== null;
-          offsets[a] = known ? m - wo - t - value : null;
-          // The offset inherits the machine position's uncertainty; the work position then reads `value` itself.
-          unc[a] = known ? this.uMachine[a] + this.uWcs[this.wcs as Wcs][a] + this.uTool[a] + stepErrorMm(m, wo, t, value) : Infinity;
-        }
-        this.#setG92(true, offsets, unc);
-        for (const w of axisWords) {
-          const a = w.letter as Axis;
-          const sc = this.#offsetScale(a, units);
-          this.#setWork(a, sc === null ? null : w.value * sc);
-        }
-        return null;
-      }
-      case 'G92.1':
-        this.#setG92(false, zeroPos(), exactUnc());
-        return null;
-      case 'G92.2':
-        this.#setG92(false, null, null);
-        return null;
-      case 'G92.3':
-        this.#setG92(true, null, null);
-        return null;
-      case 'G28.1':
-        this.g28 = { ...this.machine };
-        this.uG28 = { ...this.uMachine };
-        return null;
-      case 'G30.1':
-        this.g30 = { ...this.machine };
-        this.uG30 = { ...this.uMachine };
-        return null;
-      case 'G28':
-      case 'G30':
-        return this.#storedMove(action, axisWords, units, distance, findings);
-      default:
-        // G4: a dwell does not move.
-        return null;
-    }
-  }
+  ): LineAnalysis['motion'] { return runAction(this, action, axisWords, units, distance, params, findings); }
 
 
   /**
