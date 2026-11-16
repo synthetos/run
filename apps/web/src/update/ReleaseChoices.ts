@@ -24,12 +24,12 @@ export function ReleaseChoices({ list, failure, blocked, busy, pick }: Props) {
 /** Keep the live catalog's availability and download state out of the update flow. */
 export function UpdateReleaseChoices({ hub, hv, blocked, selecting, pick }: {
   readonly hub: FirmwareHubView | null;
-  readonly hv: number | null;
+  readonly hv: number | string | null;
   readonly blocked: string | null;
   readonly selecting: boolean;
   readonly pick: (release: FirmwareRelease) => void;
 }) {
-  const list = hub?.releases.ok ? releasesForHardware(hub.releases.list, hv) : null;
+  const list = hub?.releases.ok ? releasesForHardware(hub.releases.list, typeof hv === 'number' ? hv : null) : null;
   const failure = hub?.releases.ok === false ? hub.releases.reason : null;
   const busy = selecting || hub?.download?.phase === 'fetching' || hub?.download?.phase === 'checking';
   return h(ReleaseChoices, { list, failure, blocked, busy, pick });

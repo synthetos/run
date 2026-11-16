@@ -5,18 +5,24 @@
  *   (the magnesium line, the downgrade note) has none;
  * - table-like lists are striped with the shared token, and hover and selected stay distinct from the stripe, in
  *   light and dark;
- * - firmware release titles read "TinyG edge-next 450 · 450.02" and "TinyG 440 · 440.21".
+ * - firmware release titles read "TinyG edge-next 450 · 450.06" and "TinyG 440 · 440.21".
  *
  * With RUN_SCREENSHOTS_DIR set, every view it visits is captured in both themes at 1440 px.
  */
 import type { Locator, Page, Worker } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { machineWorker, request } from './machineWorker.ts';
+import { FIRMWARE_CATALOG, stubFirmwareCatalog } from './firmwareCatalogFixture.ts';
 import { PORT } from './jobFlow.ts';
 
 const SHOTS = process.env['RUN_SCREENSHOTS_DIR'];
 
 async function connect(page: Page): Promise<Worker> {
+  // Include a real older build in this fixture so the default 450.01 board exercises downgrade warnings.
+  await stubFirmwareCatalog(page, { ...FIRMWARE_CATALOG, releases: [
+    ...FIRMWARE_CATALOG.releases.slice(0, 4),
+    { ...FIRMWARE_CATALOG.releases[4], tag: '440.21', file: 'tinyg-440.21.hex' },
+  ] });
   await page.setViewportSize({ width: 1440, height: 1000 });
   const worker = await machineWorker(page);
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
@@ -68,7 +74,7 @@ test('a × on informational notices outside the Job view, remembered per notice;
 
   // Safety text is never dismissable: the downgrade note beside its button, the magnesium line.
   await boardTab(page, 'firmware');
-  await expect(page.locator('[data-release-note="downgrade"]').first()).toBeVisible();
+  await expect(page.locator('[data-release="tinyg-440.21.hex"] [data-release-note="downgrade"]')).toBeVisible();
   await expect(page.locator('.dismissable [data-release-note]')).toHaveCount(0);
   await rail(page, 'library');
   await page.locator('#library-tab-materials').click();
@@ -106,7 +112,10 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator('.cfg-section .cfg-table tbody tr:nth-child(even)').first()).toBeAttached();
 
     await boardTab(page, 'firmware');
-    await expect(page.locator('[data-release="tinyg-450.02.hex"] [data-release-title]')).toHaveText('TinyG edge-next 450 · 450.02');
+    for (const fb of ['450.06', '450.05', '450.04', '450.03']) {
+      await expect(page.locator(`[data-release="tinyg-${fb}.hex"] [data-release-title]`)).toHaveText(`TinyG edge-next 450 · ${fb}`);
+    }
+    await expect(page.locator('[data-release-title]')).toHaveCount(5);
     await expect(page.locator('[data-release="tinyg-440.21.hex"] [data-release-title]')).toHaveText('TinyG 440 · 440.21');
     expect(await background(page.locator('.releases > li').nth(1))).toBe(stripe);
     expect(CLEAR).toContain(await background(page.locator('.releases > li').nth(0)));

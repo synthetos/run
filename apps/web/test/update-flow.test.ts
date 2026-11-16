@@ -58,3 +58,11 @@ it('keeps mains isolation but no E-stop requirement on the open connect page', (
   expect(out).not.toContain('E-stop');
   expect(out).toContain('Spindle mains switched off');
 });
+
+it('does not guess numeric hardware from an unrecognized board identity string', () => {
+  const hub = { releases: { ok: true, list: { boards: [{ hv: 8, releases: [{ file: 'release.hex', fb: 450.06, changelog: 'Release' }] }] } }, settings: [], step: { kind: 'idle' } } as unknown as NonNullable<UpdateState['hub']>;
+  const { postFlash: _post, ...ready } = message({ boardId: 'board', phase: 'clear', differences: [], inputs: [], switchesChanged: false, baselineKeys: 1 });
+  const out = html({ hub, message: { ...ready, snapshot: { ...ready.snapshot, identity: { ...ready.snapshot.identity!, hv: '8' } } } });
+  expect(out).not.toContain('Install 450.06');
+  expect(out).toContain('No release is listed for this hardware yet.');
+});

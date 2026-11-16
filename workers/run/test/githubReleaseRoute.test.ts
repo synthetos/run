@@ -1,3 +1,5 @@
+import { dataRoute } from '../src/dataRoute.ts';
+import { SECURITY_HEADERS } from '../src/headers.ts';
 import { expect, it, vi } from 'vitest';
 import { githubReleaseRoute } from '../src/githubReleaseRoute.ts';
 import { proxyFirmwareAsset, memoryCache } from '../src/firmwareProxy.ts';
@@ -28,4 +30,17 @@ it('proxies only current listed assets, checks bytes including cache hits, and n
   expect(fetcher).toHaveBeenCalledTimes(2);
   expect((await proxyFirmwareAsset(path, 'production', { ...deps, cache: memoryCache(), fetch: async () => new Response('too large!') })).ok).toBe(false);
   expect((await proxyFirmwareAsset(path, 'production', { ...deps, cache: memoryCache(), fetch: async () => new Response('wrong!!!') })).ok).toBe(false);
+});
+
+it('adds the exact security headers to all release endpoint outcomes', async () => {
+  for (const [method, headers, fail, status] of [
+    ['GET', {}, false, 200], ['POST', {}, false, 405],
+    ['GET', { origin: 'https://elsewhere.invalid' }, false, 403], ['GET', {}, true, 502],
+  ] as const) {
+    const response = await dataRoute(new Request(`${origin}/api/firmware/releases`, { method, headers }), {
+      pathname: '/api/firmware/releases', env: { ASSETS: { fetch: async () => new Response(null) } }, releases: async () => { if (fail) throw Error('offline'); return []; },
+    });
+    expect(response?.status).toBe(status);
+    for (const [key, value] of Object.entries(SECURITY_HEADERS)) expect(response?.headers.get(key)).toBe(value);
+  }
 });

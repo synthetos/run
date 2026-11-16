@@ -1,4 +1,5 @@
 /** Deterministic public API metadata; browser tests never contact GitHub. */
+import { SECURITY_HEADERS } from '../../../workers/run/src/headers.ts';
 import type { Page } from '@playwright/test';
 export const FIRMWARE_CATALOG = {
   format: 'synthetos-run/github-releases@1',
@@ -9,5 +10,5 @@ export const FIRMWARE_CATALOG = {
   })),
 };
 export async function stubFirmwareCatalog(page: Page, catalog: unknown = FIRMWARE_CATALOG): Promise<void> {
-  await page.route('**/api/firmware/releases', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
+  await page.route('**/api/firmware/releases', route => route.fulfill({ status: 200, headers: SECURITY_HEADERS, contentType: 'application/json', body: JSON.stringify(catalog) }));
 }
